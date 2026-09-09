@@ -722,3 +722,13 @@ class TestSafetyEdgeBranches:
         assert is_operator_as_key_name(" % ") is not None
         assert is_operator_as_key_name(" = ") is not None
 
+    def test_is_foreground_required(self) -> None:
+        from myrm_agent_harness.toolkits.computer_use.safety import is_foreground_required
+
+        assert is_foreground_required("capture") is False
+        assert is_foreground_required("screenshot") is False
+        assert is_foreground_required("wait") is False
+        assert is_foreground_required("click") is True
+        assert is_foreground_required("type") is True
+        assert is_foreground_required("key") is True
+

@@ -1,32 +1,15 @@
 """Filesystem path redirection and category bucket collision guard for skill installations.
 
-[INPUT]
-- pathlib.Path targets for installation, upgrade, or uninstallation
-
-[OUTPUT]
-- is_path_redirect: detect symlink or Windows directory junction redirection
-- check_install_target_safety: guard against Category Bucket collision and host escape
-- CategoryBucketCollisionError, PathRedirectSecurityError
-
 [POS]
 myrm_agent_harness.backends.skills.scanning.path_guard
+Thin compatibility facade forwarding to path_security.py (SSOT).
 """
 
 from __future__ import annotations
 
-import logging
-import os
-from pathlib import Path
+# Compatibility facade forwarding directly to path_security.py (SSOT)
+from myrm_agent_harness.backends.skills.scanning.path_security import *  # noqa: F403
 
-logger = logging.getLogger(__name__)
-
-
-class CategoryBucketCollisionError(RuntimeError):
-    """Raised when an install/overwrite target collides with an existing category directory containing sub-skills."""
-
-
-class PathRedirectSecurityError(RuntimeError):
-    """Raised when an install/uninstall target is a symlink or directory junction redirect."""
 
 
 def is_path_redirect(path: Path | str) -> bool:
