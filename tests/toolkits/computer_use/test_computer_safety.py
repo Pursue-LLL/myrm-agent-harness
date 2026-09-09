@@ -691,4 +691,34 @@ class TestSafetyEdgeBranches:
 
         # Non-matching action or app
         assert is_iphone_mirror_blocked_action("Calculator", app_id="com.apple.calc") is None
+        # Window with unlock prompt but safe action
+        assert is_iphone_mirror_blocked_action("iPhone Mirroring", window_title="Enter Passcode", app_id="com.apple.ScreenContinuity", action_text="cancel") is None
+
+    def test_sensitive_app_detection(self) -> None:
+        from myrm_agent_harness.toolkits.computer_use.safety import is_sensitive_app
+
+        assert is_sensitive_app("") is None
+        assert is_sensitive_app("Calculator") is None
+        assert is_sensitive_app("Alipay") is not None
+        assert is_sensitive_app("Chrome", window_title="Bank Login") is not None
+        assert is_sensitive_app("Chrome", app_id="com.myrmagent.app") is not None
+        # Custom allowed overrides sensitive app
+        assert is_sensitive_app("WeChat", custom_allowed=frozenset({"wechat"})) is None
+        # Custom blocked
+        assert is_sensitive_app("SomeApp", custom_blocked=frozenset({"someapp"})) is not None
+
+    def test_normalize_modifiers(self) -> None:
+        from myrm_agent_harness.toolkits.computer_use.safety import normalize_modifiers
+
+        assert normalize_modifiers(None) is None
+        assert normalize_modifiers([]) is None
+        assert normalize_modifiers(["cmd", "shift"]) == ["cmd", "shift"]
+
+    def test_is_operator_as_key_name_split_combo(self) -> None:
+        from myrm_agent_harness.toolkits.computer_use.safety import is_operator_as_key_name
+
+        # Single token that normalizes through canonicalize_key_combo
+        assert is_operator_as_key_name(" / ") is not None
+        assert is_operator_as_key_name(" % ") is not None
+        assert is_operator_as_key_name(" = ") is not None
 
