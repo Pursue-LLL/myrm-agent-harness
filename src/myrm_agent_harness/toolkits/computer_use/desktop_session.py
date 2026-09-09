@@ -383,6 +383,7 @@ class DesktopSession(ComputerSession):
         duration: float = 2.0,
         modifiers: list[ModifierKey] | None = None,
     ) -> str | list[object]:
+        await self._ensure_not_user_takeover()
         async with self._action_lock:
             from myrm_agent_harness.toolkits.computer_use import safety
 

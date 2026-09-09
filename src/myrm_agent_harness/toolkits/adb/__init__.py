@@ -1,38 +1,34 @@
-"""Android Wireless ADB toolkit public exports.
+"""Android Wireless ADB toolkit public exports (Redirects to SSOT mobile_adb).
 
 [INPUT]
-- engine::AdbBridgeEngine
-- types::*
-- safety::AdbSafetyGuard
-- adb_agent_tools::create_mobile_adb_tools
+- myrm_agent_harness.toolkits.mobile_adb
 
 [OUTPUT]
-- AdbBridgeEngine, AdbSafetyGuard, create_mobile_adb_tools, domain types
-
-[POS]
-Entry point for mobile ADB capabilities.
+- Backward-compatible facades re-exporting from mobile_adb
 """
 
 from __future__ import annotations
 
-from myrm_agent_harness.toolkits.adb.adb_agent_tools import create_mobile_adb_tools
-from myrm_agent_harness.toolkits.adb.engine import AdbBridgeEngine
-from myrm_agent_harness.toolkits.adb.safety import AdbSafetyGuard
-from myrm_agent_harness.toolkits.adb.types import (
-    AdbCommandResult,
-    AdbDeviceSnapshot,
-    AdbElementNode,
-    AdbTouchAction,
-    DeviceConnectionState,
+from myrm_agent_harness.toolkits.mobile_adb import (
+    MobileActionResult,
+    MobileDeviceConnectionStatus,
+    MobileSafetyGuard,
+    MobileSession,
+    MobileUIElement,
+    create_mobile_adb_tools,
 )
+
+# Aliases for compatibility
+AdbSafetyGuard = MobileSafetyGuard
+AdbBridgeEngine = MobileSession
 
 __all__ = [
     "AdbBridgeEngine",
-    "AdbCommandResult",
-    "AdbDeviceSnapshot",
-    "AdbElementNode",
     "AdbSafetyGuard",
-    "AdbTouchAction",
-    "DeviceConnectionState",
+    "MobileActionResult",
+    "MobileDeviceConnectionStatus",
+    "MobileSafetyGuard",
+    "MobileSession",
+    "MobileUIElement",
     "create_mobile_adb_tools",
 ]

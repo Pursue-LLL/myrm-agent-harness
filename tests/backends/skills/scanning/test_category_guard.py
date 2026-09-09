@@ -16,12 +16,12 @@ import os
 from pathlib import Path
 import pytest
 
-from myrm_agent_harness.backends.skills.scanning.category_guard import (
+from myrm_agent_harness.backends.skills.scanning.path_security import (
     CategoryBucketCollisionError,
-    PathRedirectionError,
+    PathRedirectSecurityError as PathRedirectionError,
     is_category_bucket,
     is_path_redirect,
-    validate_safe_install_target,
+    assert_safe_install_target as validate_safe_install_target,
 )
 
 

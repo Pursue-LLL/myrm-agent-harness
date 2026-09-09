@@ -1,22 +1,23 @@
 """Mobile safety guardrails and sensitive action barrier for Android Wireless ADB.
 
 [INPUT]
-- types::MobileUIElement (POS: parsed mobile UI elements)
+- types::MobileUIElement, MobileActionResult (POS: domain models)
 
 [OUTPUT]
-- MobileSafetyGuard: Detects high-risk mobile screens, destructive shell commands, and operations (payment, factory reset, lockscreen credentials)
+- MobileSafetyGuard: Comprehensive zero-privilege gate preventing unintended payment, credential leakage,
+  factory reset, sensitive settings access, or malicious ADB shell injection.
 
 [POS]
 myrm_agent_harness.toolkits.mobile_adb.safety
-Security gate preventing unattended execution of destructive or high-risk mobile actions.
 """
 
 from __future__ import annotations
 
 import re
-from typing import Final
+from typing import Final, TYPE_CHECKING
 
-from myrm_agent_harness.toolkits.mobile_adb.types import MobileUIElement
+if TYPE_CHECKING:
+    from myrm_agent_harness.toolkits.mobile_adb.types import MobileUIElement
 
 # High-risk keywords in UI nodes (Chinese and English)
 _HIGH_RISK_UI_KEYWORDS: Final[tuple[re.Pattern[str], ...]] = (
@@ -33,22 +34,75 @@ _HIGH_RISK_UI_KEYWORDS: Final[tuple[re.Pattern[str], ...]] = (
     ),
 )
 
-# High-risk package names
+# High-risk package names and activities (sensitive OS settings, payment, device admin)
 _SENSITIVE_PACKAGES: Final[frozenset[str]] = frozenset(
     {
-        "com.eg.android.AlipayGphone",  # Alipay
-        "com.tencent.mm.plugin.wallet",  # WeChat Pay
-        "com.unionpay",  # UnionPay
-        "com.android.settings.password",  # Security settings
+        "com.eg.android.alipaygphone",
+        "com.tencent.mm.plugin.wallet",
+        "com.unionpay",
+        "com.android.settings.password",
+        "com.google.android.gms.auth",
+        "com.android.keychain",
+    }
+)
+
+# Suspicious text input patterns that might leak credentials or run raw shell escapes
+_BLOCKED_INPUT_PATTERNS: Final[tuple[re.Pattern[str], ...]] = (
+    re.compile(r";\s*rm\s+-rf", re.IGNORECASE),
+    re.compile(r"`.*`"),
+    re.compile(r"\$\(.*\)"),
+)
+
+# Hardware keys restricted from automated invocation
+_RESTRICTED_HARDWARE_KEYS: Final[frozenset[str]] = frozenset(
+    {
+        "POWER",
+        "26",
+        "KEYCODE_POWER",
+        "FACTORY_RESET",
     }
 )
 
 
 class MobileSafetyGuard:
-    """Evaluates mobile UI state and actions for critical safety risks."""
+    """Evaluates mobile UI state, actions, and raw commands for critical safety risks."""
 
     def __init__(self, allow_high_risk: bool = False) -> None:
         self.allow_high_risk = allow_high_risk
+
+    def is_package_allowed(self, package_name: str) -> tuple[bool, str]:
+        """Check if an app package is safe to launch or interact with."""
+        if self.allow_high_risk:
+            return True, ""
+
+        pkg_lower = package_name.lower().strip()
+        if not pkg_lower:
+            return True, ""
+
+        for blocked in _SENSITIVE_PACKAGES:
+            if blocked in pkg_lower:
+                return False, f"Access to sensitive package '{package_name}' is blocked by security policy."
+
+        return True, ""
+
+    def is_input_safe(self, text: str) -> tuple[bool, str]:
+        """Validate whether a text input string is safe to inject via adb input text."""
+        if self.allow_high_risk:
+            return True, ""
+
+        for pattern in _BLOCKED_INPUT_PATTERNS:
+            if pattern.search(text):
+                return False, f"Input contains potentially malicious shell sequence: {text[:20]}"
+        return True, ""
+
+    def is_key_safe(self, keycode: str) -> tuple[bool, str]:
+        """Check if a hardware key code is permitted."""
+        if self.allow_high_risk:
+            return True, ""
+
+        if keycode.upper().strip() in _RESTRICTED_HARDWARE_KEYS:
+            return False, f"Hardware key '{keycode}' is restricted for safety."
+        return True, ""
 
     def evaluate_ui_risk(
         self,
@@ -64,17 +118,17 @@ class MobileSafetyGuard:
         if self.allow_high_risk:
             return False, None
 
-        if current_package in _SENSITIVE_PACKAGES:
-            return True, f"Blocked interaction with high-security package '{current_package}'"
+        allowed, reason = self.is_package_allowed(current_package)
+        if not allowed:
+            return True, reason
 
-        # Check raw XML text if provided
-        if raw_xml:
-            for pattern in _HIGH_RISK_UI_KEYWORDS:
-                if pattern.search(raw_xml):
-                    return (
-                        True,
-                        f"Sensitive action barrier triggered: high-risk prompt matching '{pattern.pattern}' detected.",
-                    )
+        # Check raw XML text or nodes
+        for pattern in _HIGH_RISK_UI_KEYWORDS:
+            if pattern.search(raw_xml):
+                return (
+                    True,
+                    f"Sensitive action barrier triggered: high-risk prompt matching '{pattern.pattern}' detected.",
+                )
 
         for el in elements:
             if getattr(el, "password", False):

@@ -14,11 +14,14 @@ Async device communication layer interfacing with standard adb binary for wirele
 from __future__ import annotations
 
 import asyncio
+import base64
 import logging
+import shlex
 import shutil
 from typing import Any
 
 from myrm_agent_harness.toolkits.mobile_adb.parser import MobileUIParser
+from myrm_agent_harness.toolkits.mobile_adb.safety import MobileSafetyGuard
 from myrm_agent_harness.toolkits.mobile_adb.types import (
     MobileActionResult,
     MobileDeviceConnectionStatus,
@@ -32,8 +35,9 @@ logger = logging.getLogger(__name__)
 class AdbDeviceDriver:
     """Encapsulates wireless ADB command execution against target Android devices."""
 
-    def __init__(self, adb_path: str = "adb") -> None:
+    def __init__(self, adb_path: str = "adb", safety_guard: MobileSafetyGuard | None = None) -> None:
         self._adb_path = shutil.which(adb_path) or adb_path
+        self._safety_guard = safety_guard or MobileSafetyGuard()
         self._current_ref_map: dict[str, MobileUIElement] = {}
 
     async def _run_adb(self, *args: str, timeout_sec: float = 15.0) -> tuple[int, str, str]:
@@ -261,6 +265,19 @@ class AdbDeviceDriver:
 
         center_x, center_y = element.center
 
+        # Check safety guard against sensitive UI element interaction
+        is_risky, risk_reason = self._safety_guard.evaluate_ui_risk(
+            current_package="",
+            elements=[element],
+        )
+        if is_risky:
+            return MobileActionResult(
+                success=False,
+                action=action,
+                message=risk_reason or "Interaction blocked by MobileSafetyGuard",
+                error="SAFETY_BARRIER_TRIGGERED",
+            )
+
         if action == "click":
             code, out, err = await self._run_adb(
                 "-s", target, "shell", "input", "tap", str(center_x), str(center_y)
@@ -358,6 +375,17 @@ class AdbDeviceDriver:
 
         elif action == "stop_app":
             package = param.strip()
+            is_risky, risk_reason = self._safety_guard.evaluate_ui_risk(
+                current_package=package,
+                elements=[],
+            )
+            if is_risky:
+                return MobileActionResult(
+                    success=False,
+                    action="stop_app",
+                    message=risk_reason or "Action blocked by MobileSafetyGuard",
+                    error="SAFETY_BARRIER_TRIGGERED",
+                )
             code, out, err = await self._run_adb("-s", target, "shell", "am", "force-stop", package)
             return MobileActionResult(
                 success=code == 0,

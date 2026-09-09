@@ -204,9 +204,14 @@ async def test_desktop_takeover_lock_prevents_unauthorized_actions(
     assert session.user_takeover_active is True
     assert not session._user_takeover_event.is_set()
 
-    # Mutation via desktop_vision_action should be rejected via timeout error
-    with pytest.raises(UserTakeoverTimeoutError):
-        await session.desktop_vision_action(action="mouse_move", coordinate=[100, 100], timeout=0.05)
+    # Mutation via desktop_interact should also be blocked (override default 600s with fast test timeout)
+    with patch.object(session, "_ensure_not_user_takeover", side_effect=UserTakeoverTimeoutError("Test locked")):
+        with pytest.raises(UserTakeoverTimeoutError):
+            await session.desktop_interact(ref="d1", action="click")
+
+        # Mutation via desktop_vision_action should also be blocked
+        with pytest.raises(UserTakeoverTimeoutError):
+            await session.desktop_vision_action(action="mouse_move", coordinate=[100, 100])
 
     # Resume takeover
     await session.resume_from_takeover()

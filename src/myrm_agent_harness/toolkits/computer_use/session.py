@@ -85,28 +85,40 @@ class ComputerSession:
         self._user_takeover_event.set()
         logger.info("ComputerSession resumed: user takeover finished")
 
-    async def _ensure_not_user_takeover(self, timeout: float = 600.0) -> None:
+    _user_takeover_timeout: float = 600.0
+
+    @property
+    def user_takeover_timeout(self) -> float:
+        """Configured timeout in seconds before user takeover wait aborts with hard error."""
+        return self._user_takeover_timeout
+
+    @user_takeover_timeout.setter
+    def user_takeover_timeout(self, value: float) -> None:
+        self._user_takeover_timeout = max(0.0, float(value))
+
+    async def _ensure_not_user_takeover(self, timeout: float | None = None) -> None:
         """Ensure session is not paused by user takeover before performing any desktop action.
 
         If a takeover is active, waits up to ``timeout`` seconds. If timeout expires,
         the session remains strictly locked and raises UserTakeoverTimeoutError to prevent
         unauthorized ghost/stale execution behind the human user's back.
         """
+        effective_timeout = self._user_takeover_timeout if timeout is None else float(timeout)
         if not self._user_takeover_event.is_set():
-            logger.info("Action waiting: ComputerSession is paused by user takeover (timeout=%.1fs)", timeout)
+            logger.info("Action waiting: ComputerSession is paused by user takeover (timeout=%.1fs)", effective_timeout)
             try:
-                await asyncio.wait_for(self._user_takeover_event.wait(), timeout=timeout)
+                await asyncio.wait_for(self._user_takeover_event.wait(), timeout=effective_timeout)
             except asyncio.TimeoutError as exc:
                 logger.error(
                     "User takeover wait timed out (%.1fs); ComputerSession remains strictly locked to prevent ghost execution",
-                    timeout,
+                    effective_timeout,
                 )
                 from myrm_agent_harness.toolkits.browser.exceptions import UserTakeoverTimeoutError
 
                 raise UserTakeoverTimeoutError(
-                    f"User takeover wait timed out after {timeout:.1f}s. "
+                    f"User takeover wait timed out after {effective_timeout:.1f}s. "
                     "Desktop session remains locked to prevent unapproved actions while human is away.",
-                    timeout_seconds=timeout,
+                    timeout_seconds=effective_timeout,
                 ) from exc
 
     def reset_runtime_permission_cache(self) -> None:

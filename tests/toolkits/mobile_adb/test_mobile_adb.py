@@ -66,3 +66,43 @@ async def test_mobile_session_and_tools_factory() -> None:
         "mobile_interact_tool",
         "mobile_global_tool",
     }
+
+
+def test_mobile_safety_guard() -> None:
+    from myrm_agent_harness.toolkits.mobile_adb.safety import MobileSafetyGuard
+
+    guard = MobileSafetyGuard()
+
+    # Package check
+    allowed, _ = guard.is_package_allowed("com.tencent.mm")
+    assert allowed is True
+
+    blocked, reason = guard.is_package_allowed("com.android.settings.password")
+    assert blocked is False
+    assert "blocked by security policy" in reason
+
+    # Input check
+    safe_input, _ = guard.is_input_safe("Hello World 123")
+    assert safe_input is True
+
+    unsafe_input, reason = guard.is_input_safe("text; rm -rf /")
+    assert unsafe_input is False
+    assert "potentially malicious" in reason
+
+    # Key check
+    safe_key, _ = guard.is_key_safe("KEYCODE_HOME")
+    assert safe_key is True
+
+    unsafe_key, reason = guard.is_key_safe("POWER")
+    assert unsafe_key is False
+    assert "restricted for safety" in reason
+
+    # UI risk check
+    is_risky, reason = guard.evaluate_ui_risk(
+        current_package="com.android.settings",
+        elements=[],
+        raw_xml="<node text='请输入支付密码' />",
+    )
+    assert is_risky is True
+    assert "Sensitive action barrier triggered" in (reason or "")
+
