@@ -299,9 +299,8 @@ class BaseSkillMarketService:
 
         prerequisites_report: dict[str, object] | None = None
         try:
-            from myrm_agent_harness.backends.skills.dependency_checker import (
-                HostPrerequisiteProbe,
-                SkillPrerequisiteContract,
+            from myrm_agent_harness.backends.skills.prerequisites import (
+                check_skill_prerequisites,
             )
 
             req_data: dict[str, object] = {}
@@ -318,8 +317,8 @@ class BaseSkillMarketService:
                     pass
 
             if req_data:
-                contract = SkillPrerequisiteContract.from_dict(req_data)
-                prerequisites_report = HostPrerequisiteProbe.evaluate(contract).to_dict()
+                report = check_skill_prerequisites(detail.id, req_data)
+                prerequisites_report = report.to_dict()
         except Exception as exc:
             logger.debug("Failed to evaluate prerequisites during preview: %s", exc)
 
