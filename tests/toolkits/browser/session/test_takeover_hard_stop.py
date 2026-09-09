@@ -73,12 +73,15 @@ async def test_takeover_resume_unblocks_and_refreshes_snapshot(
 
 @pytest.mark.asyncio
 async def test_takeover_timeout_auto_unblocks(mock_session: BrowserSession) -> None:
-    """Verify that exceeding the takeover timeout automatically unblocks the session."""
+    """Verify that exceeding the takeover timeout raises UserTakeoverTimeoutError and keeps session locked."""
     await mock_session.pause_for_takeover()
     assert mock_session._user_takeover_event.is_set() is False
 
-    # Wait with short timeout — should auto-recover
-    await mock_session._ensure_not_user_takeover(timeout=0.05)
+    from myrm_agent_harness.toolkits.browser.exceptions import UserTakeoverTimeoutError
 
-    assert mock_session.user_takeover_active is False
-    assert mock_session._user_takeover_event.is_set() is True
+    # Wait with short timeout — must raise error and remain locked
+    with pytest.raises(UserTakeoverTimeoutError):
+        await mock_session._ensure_not_user_takeover(timeout=0.05)
+
+    assert mock_session.user_takeover_active is True
+    assert mock_session._user_takeover_event.is_set() is False

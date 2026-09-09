@@ -64,6 +64,50 @@ class ComputerSession:
         self._session_permission_granted: bool = False
         self._always_permission_granted: bool = False
         self._operation_foreground_waived: bool = False
+        self._user_takeover_event: asyncio.Event = asyncio.Event()
+        self._user_takeover_event.set()
+        self._user_takeover_active: bool = False
+
+    @property
+    def user_takeover_active(self) -> bool:
+        """Whether human user has actively taken over the desktop/computer session."""
+        return self._user_takeover_active
+
+    async def pause_for_takeover(self) -> None:
+        """Pause agent computer interactions due to user-initiated takeover."""
+        self._user_takeover_active = True
+        self._user_takeover_event.clear()
+        logger.info("ComputerSession paused: user takeover activated")
+
+    async def resume_from_takeover(self) -> None:
+        """Resume agent computer interactions after user finishes takeover."""
+        self._user_takeover_active = False
+        self._user_takeover_event.set()
+        logger.info("ComputerSession resumed: user takeover finished")
+
+    async def _ensure_not_user_takeover(self, timeout: float = 600.0) -> None:
+        """Ensure session is not paused by user takeover before performing any desktop action.
+
+        If a takeover is active, waits up to ``timeout`` seconds. If timeout expires,
+        the session remains strictly locked and raises UserTakeoverTimeoutError to prevent
+        unauthorized ghost/stale execution behind the human user's back.
+        """
+        if not self._user_takeover_event.is_set():
+            logger.info("Action waiting: ComputerSession is paused by user takeover (timeout=%.1fs)", timeout)
+            try:
+                await asyncio.wait_for(self._user_takeover_event.wait(), timeout=timeout)
+            except asyncio.TimeoutError as exc:
+                logger.error(
+                    "User takeover wait timed out (%.1fs); ComputerSession remains strictly locked to prevent ghost execution",
+                    timeout,
+                )
+                from myrm_agent_harness.toolkits.browser.exceptions import UserTakeoverTimeoutError
+
+                raise UserTakeoverTimeoutError(
+                    f"User takeover wait timed out after {timeout:.1f}s. "
+                    "Desktop session remains locked to prevent unapproved actions while human is away.",
+                    timeout_seconds=timeout,
+                ) from exc
 
     def reset_runtime_permission_cache(self) -> None:
         """Clear in-memory foreground/app approval shortcuts (E2E/dev recovery)."""
@@ -295,6 +339,7 @@ class ComputerSession:
         modifiers: list[ModifierKey] | None = None,
     ) -> ActionResult:
         """Click at API coordinates, auto-scaling to screen coordinates."""
+        await self._ensure_not_user_takeover()
         if self._scaler is None:
             await self.take_screenshot()
         assert self._scaler is not None
@@ -320,6 +365,7 @@ class ComputerSession:
 
     async def type_text(self, text: str) -> ActionResult:
         """Type text at current cursor position."""
+        await self._ensure_not_user_takeover()
         result = await self._backend.type_text(
             text,
             delay_ms=self._config.typing_delay_ms,
@@ -333,6 +379,7 @@ class ComputerSession:
 
     async def key_press(self, keys: str) -> ActionResult:
         """Press key combination."""
+        await self._ensure_not_user_takeover()
         from myrm_agent_harness.toolkits.computer_use import safety
 
         operator_blocked = safety.is_operator_as_key_name(keys)
@@ -348,6 +395,7 @@ class ComputerSession:
 
     async def mouse_move_to(self, x: int, y: int) -> ActionResult:
         """Move mouse to API coordinates."""
+        await self._ensure_not_user_takeover()
         if self._scaler is None:
             await self.take_screenshot()
         assert self._scaler is not None
@@ -364,6 +412,7 @@ class ComputerSession:
         modifiers: list[ModifierKey] | None = None,
     ) -> ActionResult:
         """Scroll at API coordinates."""
+        await self._ensure_not_user_takeover()
         if self._scaler is None:
             await self.take_screenshot()
         assert self._scaler is not None
@@ -390,6 +439,7 @@ class ComputerSession:
         modifiers: list[ModifierKey] | None = None,
     ) -> ActionResult:
         """Drag from start to end in API coordinates."""
+        await self._ensure_not_user_takeover()
         if self._scaler is None:
             await self.take_screenshot()
         assert self._scaler is not None

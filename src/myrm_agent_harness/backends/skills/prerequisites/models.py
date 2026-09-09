@@ -29,6 +29,9 @@ class DependencyStatus(StrEnum):
     VERSION_MISMATCH = "version_mismatch"
     """Installed version does not satisfy the specified semver range."""
 
+    UNSUPPORTED_OS = "unsupported_os"
+    """Operating system is not supported by skill contract."""
+
     UNKNOWN = "unknown"
     """Unable to verify dependency status."""
 
@@ -52,6 +55,9 @@ class BinaryDependency:
     package_names: dict[str, str] = field(default_factory=dict)
     """Package name mapping by manager: {'brew': 'ffmpeg', 'apt': 'ffmpeg', 'winget': 'Gyan.FFmpeg'}."""
 
+    optional: bool = False
+    """Whether this dependency is optional."""
+
 
 @dataclass(frozen=True, slots=True)
 class PythonDependency:
@@ -63,12 +69,15 @@ class PythonDependency:
     version_constraint: str | None = None
     """PEP 440 version specifier (e.g. '>=0.10.0')."""
 
+    import_name: str | None = None
+    """Importable module name if different from package name."""
+
 
 @dataclass(frozen=True, slots=True)
 class SkillPrerequisites:
     """Full prerequisite declarations extracted from SKILL.md frontmatter or metadata."""
 
-    supported_os: tuple[Literal["macos", "linux", "windows"], ...] = ("macos", "linux", "windows")
+    supported_os: tuple[str, ...] = ("macos", "linux", "windows")
     """Supported operating systems."""
 
     binaries: tuple[BinaryDependency, ...] = ()
@@ -76,6 +85,44 @@ class SkillPrerequisites:
 
     python_packages: tuple[PythonDependency, ...] = ()
     """List of required Python libraries."""
+
+    env_vars: tuple[str, ...] = ()
+    """Required environment variables."""
+
+    def __init__(
+        self,
+        supported_os: tuple[str, ...] | list[str] | None = None,
+        binaries: tuple[BinaryDependency, ...] | list[BinaryDependency] | None = None,
+        python_packages: tuple[PythonDependency, ...] | list[PythonDependency] | None = None,
+        env_vars: tuple[str, ...] | list[str] | None = None,
+        *,
+        os_compat: tuple[str, ...] | list[str] | None = None,
+        packages: tuple[PythonDependency, ...] | list[PythonDependency] | None = None,
+    ) -> None:
+        effective_os = os_compat if os_compat is not None else (supported_os if supported_os is not None else ("macos", "linux", "windows"))
+        effective_pkgs = packages if packages is not None else (python_packages if python_packages is not None else ())
+        effective_bins = binaries if binaries is not None else ()
+        effective_envs = env_vars if env_vars is not None else ()
+
+        object.__setattr__(self, "supported_os", tuple(effective_os))
+        object.__setattr__(self, "binaries", tuple(effective_bins))
+        object.__setattr__(self, "python_packages", tuple(effective_pkgs))
+        object.__setattr__(self, "env_vars", tuple(effective_envs))
+
+    @property
+    def os_compat(self) -> list[str]:
+        return list(self.supported_os)
+
+    @property
+    def packages(self) -> list[PythonDependency]:
+        return list(self.python_packages)
+
+    @classmethod
+    def from_manifest(cls, manifest: dict[str, Any]) -> SkillPrerequisites:
+        """Parse prerequisites from generic manifest dict."""
+        from .probe import parse_prerequisites_from_frontmatter
+
+        return parse_prerequisites_from_frontmatter(manifest)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize prerequisites to dictionary."""
@@ -138,6 +185,31 @@ class PrerequisiteReport:
     missing_count: int = 0
     os_compatible: bool = True
     summary: str = ""
+
+    @property
+    def status(self) -> DependencyStatus:
+        if not self.os_compatible:
+            return DependencyStatus.UNSUPPORTED_OS
+        return DependencyStatus.READY if self.is_ready else DependencyStatus.MISSING
+
+    @property
+    def missing_binaries(self) -> list[str]:
+        return [it.name for it in self.items if it.dep_type == "binary" and it.status != DependencyStatus.READY]
+
+    @property
+    def missing_packages(self) -> list[str]:
+        return [it.name for it in self.items if it.dep_type == "python" and it.status != DependencyStatus.READY]
+
+    @property
+    def remedy_commands(self) -> dict[str, str]:
+        cmds: dict[str, str] = {}
+        for it in self.items:
+            if it.remediation_cmd:
+                if it.dep_type == "binary":
+                    cmds["system_install"] = it.remediation_cmd
+                elif it.dep_type == "python":
+                    cmds["python_install"] = it.remediation_cmd
+        return cmds
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize full report to dictionary."""

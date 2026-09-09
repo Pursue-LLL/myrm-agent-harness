@@ -87,6 +87,7 @@ class AutoRemedyGenerator:
                     bin_cmds.append(f"sudo apt-get install -y {b}")
 
         if bin_cmds:
+            sep = " && " if len(bin_cmds) > 1 else ""
             remedies["system_install"] = " && ".join(bin_cmds)
 
         # 2. Python Package Remedies (prefer uv pip install / pip install)

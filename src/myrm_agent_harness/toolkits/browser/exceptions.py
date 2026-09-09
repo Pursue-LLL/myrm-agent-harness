@@ -463,3 +463,25 @@ class RefNotFoundError(BrowserToolError):
                 "Call browser_snapshot(diff=False) to get fresh refs, then retry the interaction."
             ),
         )
+
+
+class UserTakeoverTimeoutError(BrowserError):
+    """Raised when an operation times out waiting for human user takeover to complete."""
+
+    def __init__(
+        self,
+        message: str = "User takeover wait timed out; session remains locked to prevent ghost execution",
+        *,
+        timeout_seconds: float = 600.0,
+        context: dict[str, object] | None = None,
+    ) -> None:
+        super().__init__(
+            message,
+            context={"timeout_seconds": timeout_seconds, **(context or {})},
+            error_code="USER_TAKEOVER_TIMEOUT",
+            recovery_suggestions=[
+                "Wait for the user to complete their takeover in the browser or VNC window",
+                "Ask the user if they wish to resume the session or abort the task",
+            ],
+        )
+

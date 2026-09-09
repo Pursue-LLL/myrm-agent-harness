@@ -37,12 +37,22 @@ class PrerequisiteProbe:
     def __init__(self) -> None:
         self.current_os = get_current_os()
 
+    def is_binary_available(self, name: str) -> bool:
+        """Check if binary executable is available."""
+        return shutil.which(name) is not None
+
+    def is_package_available(self, package_name: str) -> bool:
+        """Check if Python package is available."""
+        return importlib.util.find_spec(package_name) is not None
+
     def check_binary(self, dep: BinaryDependency) -> DependencyCheckItem:
         """Probe for executable binary presence in system PATH."""
         candidates = [dep.name, *dep.aliases]
         detected_path: str | None = None
 
         for name in candidates:
+            if not self.is_binary_available(name):
+                continue
             path = shutil.which(name)
             if path:
                 detected_path = path
@@ -68,13 +78,12 @@ class PrerequisiteProbe:
 
     def check_python_package(self, dep: PythonDependency) -> DependencyCheckItem:
         """Probe for Python library availability."""
-        spec = importlib.util.find_spec(dep.package_name)
-        if spec is None:
+        if not self.is_package_available(dep.package_name):
             return DependencyCheckItem(
                 name=dep.package_name,
                 dep_type="python",
                 status=DependencyStatus.MISSING,
-                remediation_cmd=f"pip install '{dep.package_name}'",
+                remediation_cmd=f"uv pip install {dep.package_name}",
                 message=f"Python package '{dep.package_name}' is not installed.",
             )
 
@@ -84,6 +93,10 @@ class PrerequisiteProbe:
             status=DependencyStatus.READY,
             message=f"Python package '{dep.package_name}' is installed.",
         )
+
+    def check(self, prereqs: SkillPrerequisites) -> PrerequisiteReport:
+        """Alias for evaluate() for backwards compatibility."""
+        return self.evaluate("preview", prereqs)
 
     def evaluate(self, skill_id: str, prereqs: SkillPrerequisites) -> PrerequisiteReport:
         """Evaluate full prerequisites contract for a skill."""
@@ -112,8 +125,11 @@ class PrerequisiteProbe:
         if is_ready:
             summary = "All system prerequisites and binary dependencies are satisfied."
         else:
-            missing_names = ", ".join(it.name for it in missing_items)
-            summary = f"Missing prerequisites: {missing_names}"
+            if not os_compatible:
+                summary = f"Skill requires OS ({', '.join(prereqs.supported_os)})"
+            else:
+                missing_names = ", ".join(it.name for it in missing_items)
+                summary = f"Missing prerequisites: {missing_names}"
 
         return PrerequisiteReport(
             skill_id=skill_id,
@@ -127,9 +143,10 @@ class PrerequisiteProbe:
 
 def parse_prerequisites_from_frontmatter(metadata: dict[str, Any]) -> SkillPrerequisites:
     """Parse structured prerequisites from frontmatter YAML dictionary."""
-    supported_os: list[str] = metadata.get("supported_os", ["macos", "linux", "windows"])
+    supported_os: list[str] = metadata.get("supported_os") or metadata.get("os") or metadata.get("os_compat") or ["macos", "linux", "windows"]
     binaries: list[BinaryDependency] = []
     python_packages: list[PythonDependency] = []
+    env_vars: list[str] = metadata.get("env_vars", [])
 
     # Parse binaries
     raw_binaries = metadata.get("binaries") or metadata.get("dependencies", {}).get("binaries", [])
@@ -145,22 +162,25 @@ def parse_prerequisites_from_frontmatter(metadata: dict[str, Any]) -> SkillPrere
                         aliases=tuple(b.get("aliases", ())),
                         description=b.get("description", ""),
                         package_names=b.get("package_names", {}),
+                        optional=b.get("optional", False),
                     )
                 )
 
     # Parse python packages
-    raw_python = metadata.get("python_packages") or metadata.get("dependencies", {}).get(
+    raw_python = metadata.get("python_packages") or metadata.get("packages") or metadata.get("dependencies", {}).get(
         "python", []
     )
     if isinstance(raw_python, list):
         for p in raw_python:
             if isinstance(p, str):
                 python_packages.append(PythonDependency(package_name=p))
-            elif isinstance(p, dict) and "package_name" in p:
+            elif isinstance(p, dict):
+                pkg_name = p.get("package_name") or p.get("name") or ""
                 python_packages.append(
                     PythonDependency(
-                        package_name=p["package_name"],
+                        package_name=pkg_name,
                         version_constraint=p.get("version_constraint"),
+                        import_name=p.get("import_name"),
                     )
                 )
 
@@ -168,6 +188,7 @@ def parse_prerequisites_from_frontmatter(metadata: dict[str, Any]) -> SkillPrere
         supported_os=tuple(supported_os),
         binaries=tuple(binaries),
         python_packages=tuple(python_packages),
+        env_vars=tuple(env_vars),
     )
 
 

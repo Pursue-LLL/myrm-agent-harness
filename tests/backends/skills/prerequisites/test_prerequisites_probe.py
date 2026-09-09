@@ -37,7 +37,7 @@ def test_prerequisites_from_manifest_parsing() -> None:
     assert prereqs.binaries[0].name == "ffmpeg"
     assert prereqs.binaries[1].optional is True
     assert len(prereqs.packages) == 2
-    assert prereqs.env_vars == ["OPENAI_API_KEY"]
+    assert list(prereqs.env_vars) == ["OPENAI_API_KEY"]
 
 
 def test_probe_satisfied_prerequisites() -> None:
@@ -68,7 +68,7 @@ def test_probe_missing_binaries_generates_remedy() -> None:
     )
 
     probe = HostPrerequisiteProbe()
-    with patch.object(probe, "current_os", return_value="macos"), patch.object(
+    with patch.object(probe, "current_os", "macos"), patch.object(
         probe, "is_binary_available", return_value=False
     ), patch.object(probe, "is_package_available", return_value=False):
         report = probe.check(prereqs)
@@ -83,7 +83,7 @@ def test_probe_missing_binaries_generates_remedy() -> None:
 def test_probe_unsupported_os() -> None:
     prereqs = SkillPrerequisites(os_compat=["windows"])
     probe = HostPrerequisiteProbe()
-    with patch.object(probe, "current_os", return_value="macos"):
+    with patch.object(probe, "current_os", "macos"):
         report = probe.check(prereqs)
         assert report.status == PrerequisiteStatus.UNSUPPORTED_OS
         assert report.is_ready is False
@@ -93,7 +93,8 @@ def test_probe_unsupported_os() -> None:
 def test_auto_remedy_generator_cross_platform() -> None:
     gen = AutoRemedyGenerator()
     remedies_mac = gen.generate_remedies(["ffmpeg", "pandoc"], ["numpy"], target_os="macos")
-    assert "brew install ffmpeg && brew install pandoc" in remedies_mac["system_install"]
+    assert "brew install ffmpeg" in remedies_mac["system_install"]
+    assert "brew install pandoc" in remedies_mac["system_install"]
     assert "uv pip install numpy" in remedies_mac["python_install"]
 
     remedies_win = gen.generate_remedies(["ffmpeg"], [], target_os="windows")

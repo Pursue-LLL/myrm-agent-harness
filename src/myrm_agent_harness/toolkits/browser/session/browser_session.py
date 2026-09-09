@@ -391,15 +391,28 @@ class BrowserSession(
             logger.warning("Failed to refresh snapshot after takeover resume: %s", exc)
 
     async def _ensure_not_user_takeover(self, timeout: float = 600.0) -> None:
-        """Ensure session is not paused by user takeover before performing any mutation actions."""
+        """Ensure session is not paused by user takeover before performing any mutation actions.
+
+        If a takeover is active, waits up to ``timeout`` seconds. If timeout expires,
+        the session remains strictly locked and raises UserTakeoverTimeoutError to prevent
+        unauthorized ghost/stale execution behind the human user's back.
+        """
         if not self._user_takeover_event.is_set():
             logger.info("Action waiting: BrowserSession is paused by user takeover (timeout=%.1fs)", timeout)
             try:
                 await asyncio.wait_for(self._user_takeover_event.wait(), timeout=timeout)
-            except asyncio.TimeoutError:
-                logger.warning("User takeover wait timed out (%.1fs); automatically unblocking session", timeout)
-                self._user_takeover_active = False
-                self._user_takeover_event.set()
+            except asyncio.TimeoutError as exc:
+                logger.error(
+                    "User takeover wait timed out (%.1fs); session remains strictly locked to prevent ghost execution",
+                    timeout,
+                )
+                from myrm_agent_harness.toolkits.browser.exceptions import UserTakeoverTimeoutError
+
+                raise UserTakeoverTimeoutError(
+                    f"User takeover wait timed out after {timeout:.1f}s. "
+                    "Session remains locked to prevent unapproved actions while human is away.",
+                    timeout_seconds=timeout,
+                ) from exc
 
     async def interact(self, action: str, ref: str, text: str = "", verify_goal: str | None = None) -> str:
         """Ref-based element interaction (15 action types) with optional visual verification."""

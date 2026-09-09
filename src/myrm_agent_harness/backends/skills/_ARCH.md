@@ -13,9 +13,8 @@ Skill backend implementations — read/write/discovery protocols, local/memory/s
 | composite.py | Core | Routes skill requests across multiple backends with prefix-based fallback. | ✅ |
 | config_version.py | Core | MYRM_DATA_DIR file-backed skill config version for hot-reload polling (re-exported by server). | ✅ |
 | creation_protocols.py | Core | SkillWriteBackend protocol and save/delete/write result types. | ✅ |
-| credential_checker.py | Core | Optional DX helper for detecting missing skill credentials. | ✅ |
-| credential_validator.py | Core | Validates skill credential files without full file_ops validators. | ✅ |
-| dependency_checker.py | Core | SkillPrerequisiteContract, HostPrerequisiteProbe, and RemediationEngine for OS, binary CLI, and Python prerequisites sniffing and self-healing. | ✅ |
+| credentials/ | Core | Optional DX helpers for validating credentials and detecting missing skill secrets. | ✅ |
+| prerequisites/ | Core | Skill runtime prerequisites contract, host system dependency sniffing (OS/binaries/Python), and cross-platform one-click remediation command generators. | ✅ |
 | market_protocols.py | Core | SkillMarketBackend protocol and search/install result types. | ✅ |
 | factory.py | Core | SkillBackend factory for local, storage, memory, and composite backends. | ✅ |
 | forgetting_strategy.py | Core | Curator forgetting strategies (pinned, evolution lock, grace, source-aware). | ✅ |
