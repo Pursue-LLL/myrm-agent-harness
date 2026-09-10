@@ -122,9 +122,13 @@ def get_tool_timeout(tool_name: str, tool_args: dict[str, object] | None = None)
         base = 30.0
 
     explicit = tool_args and tool_args.get("timeout")
-    if tool_name.startswith(("bash", "browser", "mcp_")):
-        if isinstance(explicit, int) and not isinstance(explicit, bool) and explicit > 0:
-            return min(float(explicit), 600.0)
+    if (
+        tool_name.startswith(("bash", "browser", "mcp_"))
+        and isinstance(explicit, int)
+        and not isinstance(explicit, bool)
+        and explicit > 0
+    ):
+        return min(float(explicit), 600.0)
     return base
 
 

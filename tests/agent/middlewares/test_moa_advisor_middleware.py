@@ -7,9 +7,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langchain.agents.middleware import ModelRequest, ModelResponse
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from myrm_agent_harness.agent.middlewares.moa_advisor_middleware import (
+    _inject_advisor_block_cache_safe,
     create_moa_advisor_middleware,
 )
 from myrm_agent_harness.toolkits.llms.consensus.moa_overlay_types import (
@@ -575,4 +576,96 @@ async def test_risk_triggered_hard_timeout_silent_fallback() -> None:
 
     skip_mock.assert_awaited_once_with("risk_trigger_timeout")
     handler.assert_awaited_once()
+
+
+def test_inject_advisor_block_cache_safe_unit() -> None:
+    # 1. Empty messages
+    res_empty = _inject_advisor_block_cache_safe([], "advice 1")
+    assert len(res_empty) == 1
+    assert isinstance(res_empty[0], HumanMessage)
+    assert res_empty[0].content == "advice 1"
+
+    # 2. Trailing HumanMessage (single user turn)
+    orig_human = HumanMessage(content="initial query", id="msg-0")
+    res_human = _inject_advisor_block_cache_safe([orig_human], "advice 2")
+    assert len(res_human) == 1
+    assert isinstance(res_human[0], HumanMessage)
+    assert res_human[0].id == "msg-0"
+    assert res_human[0].content == "initial query\n\nadvice 2"
+
+    # 3. Tool loop with trailing ToolMessage -> MUST NOT rewrite index 0 HumanMessage
+    h0 = HumanMessage(content="initial query", id="msg-0")
+    ai1 = AIMessage(content="calling tool", id="msg-1")
+    t2 = ToolMessage(content="tool output", tool_call_id="call-1", id="msg-2")
+    res_loop = _inject_advisor_block_cache_safe([h0, ai1, t2], "advice 3")
+
+    assert len(res_loop) == 4
+    # Prefix messages are 100% untouched for KV-cache matching
+    assert res_loop[0] is h0
+    assert res_loop[0].content == "initial query"
+    assert res_loop[1] is ai1
+    assert res_loop[2] is t2
+    # Appended at tail
+    assert isinstance(res_loop[3], HumanMessage)
+    assert res_loop[3].content == "advice 3"
+
+    # 4. Multimodal HumanMessage tail
+    multi_human = HumanMessage(content=[{"type": "text", "text": "look at this"}], id="msg-multi")
+    res_multi = _inject_advisor_block_cache_safe([multi_human], "advice 4")
+    assert len(res_multi) == 1
+    assert isinstance(res_multi[0], HumanMessage)
+    assert isinstance(res_multi[0].content, list)
+    assert len(res_multi[0].content) == 2
+    assert res_multi[0].content[1] == {"type": "text", "text": "\n\nadvice 4"}
+
+
+@pytest.mark.asyncio
+async def test_middleware_preserves_prefix_cache_in_tool_loop() -> None:
+    mock_llm = MagicMock(model_name="ref-a")
+    middleware = create_moa_advisor_middleware(
+        [mock_llm],
+        config=MoAOverlayConfig(fanout="per_iteration"),
+        unattended=False,
+    )
+
+    h0 = HumanMessage(content="Do task", id="h0")
+    ai1 = AIMessage(content="", id="ai1")
+    t2 = ToolMessage(content="error result", tool_call_id="c1", id="t2")
+    request = ModelRequest(messages=[h0, ai1, t2], model=mock_llm)
+    handler = AsyncMock(return_value=ModelResponse(result=MagicMock()))
+
+    refs = [
+        ReferenceResponse(
+            model="ref-a",
+            content="Try a different flag",
+            elapsed_seconds=0.2,
+            success=True,
+        ),
+    ]
+
+    with (
+        patch(
+            "myrm_agent_harness.agent.middlewares.moa_advisor_middleware.AdvisorFanoutRunner.run",
+            new_callable=AsyncMock,
+            return_value=refs,
+        ),
+        patch(
+            "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._emit_ref_done",
+            new_callable=AsyncMock,
+        ),
+    ):
+        await middleware.awrap_model_call(request, handler)
+
+    handler.assert_awaited_once()
+    passed_request = handler.await_args.args[0]
+    # Verify index 0 was NOT touched (preserving prompt cache)
+    assert passed_request.messages[0].content == "Do task"
+    assert passed_request.messages[1] is ai1
+    assert passed_request.messages[2] is t2
+    # Verify tail has the advisor guidance
+    assert len(passed_request.messages) == 4
+    last_msg = passed_request.messages[3]
+    assert isinstance(last_msg, HumanMessage)
+    assert "Try a different flag" in str(last_msg.content)
+
 

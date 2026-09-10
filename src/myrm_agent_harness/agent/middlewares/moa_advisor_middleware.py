@@ -2,12 +2,12 @@
 
 Runs lightweight reference-model fan-out before each acting-model call (per
 fanout policy), emits SSE progress events, and injects advisor perspectives
-into the last HumanMessage tail without persisting to checkpoint history.
+at the prompt tail with KV-cache preservation without persisting to checkpoint history.
 
 [INPUT]
 - toolkits.llms.consensus.advisor_fanout::AdvisorFanoutRunner
 - toolkits.llms.consensus.advisor_prompts::build_advisor_injection_block
-- agent.middlewares.goal_focus_middleware helpers for HumanMessage append
+- langchain_core.messages::HumanMessage
 - utils.runtime.progress_sink::get_tool_progress_sink
 
 [OUTPUT]
@@ -29,12 +29,10 @@ from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any
 
 from langchain.agents.middleware import ModelRequest, ModelResponse, wrap_model_call
+from langchain_core.messages import HumanMessage
 
 from myrm_agent_harness.agent.middlewares.advisor_risk_trigger_router import (
     AdvisorRiskTriggerRouter,
-)
-from myrm_agent_harness.agent.middlewares.goal_focus_middleware import (
-    _append_to_last_human_message,
 )
 from myrm_agent_harness.toolkits.llms.consensus.advisor_fanout import (
     AdvisorFanoutRunner,
@@ -141,6 +139,42 @@ def _model_name(llm: BaseChatModel) -> str:
         if val and isinstance(val, str):
             return val
     return type(llm).__name__
+
+
+def _inject_advisor_block_cache_safe(
+    messages: list[object],
+    injection_text: str,
+) -> list[object]:
+    """Inject advisor guidance preserving prompt KV-cache prefixes.
+
+    If the current trailing message is a HumanMessage (e.g. user turn), append
+    to it in-place. If the trailing message is a ToolMessage/AIMessage (tool loop),
+    append a transient HumanMessage at the tail to preserve prefix cache matching
+    for preceding turns.
+    """
+    if not messages:
+        return [HumanMessage(content=injection_text)]
+
+    new_messages = list(messages)
+    last_msg = new_messages[-1]
+
+    if isinstance(last_msg, HumanMessage):
+        if isinstance(last_msg.content, str):
+            new_messages[-1] = HumanMessage(
+                content=f"{last_msg.content}\n\n{injection_text}",
+                id=last_msg.id,
+            )
+        elif isinstance(last_msg.content, list):
+            new_messages[-1] = HumanMessage(
+                content=[*last_msg.content, {"type": "text", "text": f"\n\n{injection_text}"}],
+                id=last_msg.id,
+            )
+        else:
+            new_messages.append(HumanMessage(content=injection_text))
+    else:
+        new_messages.append(HumanMessage(content=injection_text))
+
+    return new_messages
 
 
 def create_moa_advisor_middleware(
@@ -259,7 +293,7 @@ def create_moa_advisor_middleware(
         if not injection:
             return await handler(request)
 
-        new_messages = _append_to_last_human_message(messages, injection)
+        new_messages = _inject_advisor_block_cache_safe(messages, injection)
         return await handler(request.override(messages=new_messages))
 
     return _middleware
@@ -269,6 +303,7 @@ __all__ = [
     "MOA_OVERLAY_SKIP_BUDGET_PRESSURE",
     "MOA_OVERLAY_SKIP_INSUFFICIENT_REFS",
     "MOA_OVERLAY_SKIP_RISK_TIMEOUT",
+    "_inject_advisor_block_cache_safe",
     "create_moa_advisor_middleware",
 ]
 

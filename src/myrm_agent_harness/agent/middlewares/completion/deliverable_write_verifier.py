@@ -164,7 +164,7 @@ def _extract_filename_hint(code_body: str, preceding_text: str | None = None) ->
 
     if preceding_text:
         # Check last 3 lines preceding the code block for markdown headers or path hints
-        pre_lines = [l.strip() for l in preceding_text.strip().splitlines() if l.strip()]
+        pre_lines = [line_text.strip() for line_text in preceding_text.strip().splitlines() if line_text.strip()]
         for line in reversed(pre_lines[-3:]):
             for pattern in _FILENAME_HINT_PATTERNS:
                 match = pattern.search(line)

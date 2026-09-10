@@ -47,9 +47,7 @@ def is_ppt_reporting_task(user_text: str | None, assistant_text: str) -> bool:
     """Check if the context represents a PPT / slide deck generation or outline planning task."""
     if user_text and _PPT_INTENT_PATTERN.search(user_text):
         return True
-    if _PPT_INTENT_PATTERN.search(assistant_text) and len(_SLIDE_HEADER_PATTERN.findall(assistant_text)) >= 2:
-        return True
-    return False
+    return bool(_PPT_INTENT_PATTERN.search(assistant_text) and len(_SLIDE_HEADER_PATTERN.findall(assistant_text)) >= 2)
 
 
 def check_ppt_outline_quality(

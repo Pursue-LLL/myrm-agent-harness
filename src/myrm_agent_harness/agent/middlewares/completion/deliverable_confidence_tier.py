@@ -20,7 +20,7 @@ Server SSE/API, Cron post-run assurance, and WebUI/Tauri frontend badges.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.agent.security.guards.loop_guard import (
@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     from myrm_agent_harness.agent.goals.verification.base import AggregatedVerificationResult
 
 
-class DeliverableConfidenceTier(str, Enum):
+class DeliverableConfidenceTier(StrEnum):
     """Deliverable Confidence Tier SSOT."""
 
     VERIFIED = "VERIFIED"  # Passed automated tests/checks or independent sandbox re-run

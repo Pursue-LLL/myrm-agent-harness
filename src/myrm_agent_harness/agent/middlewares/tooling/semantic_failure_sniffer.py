@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 # Common success status codes / indicators that should not be flagged as failures
 _SUCCESS_CODES: frozenset[int | str] = frozenset(
@@ -118,7 +118,7 @@ _ERROR_MSG_KEYS: tuple[str, ...] = (
 )
 
 
-class SemanticFailureType(str, Enum):
+class SemanticFailureType(StrEnum):
     """Classification of semantic business failures."""
 
     NONE = "none"
