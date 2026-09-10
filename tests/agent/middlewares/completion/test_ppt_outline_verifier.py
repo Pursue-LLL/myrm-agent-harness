@@ -1,6 +1,5 @@
 """Unit tests for PPT reporting plan outline quality gate verifier."""
 
-import pytest
 from myrm_agent_harness.agent.middlewares.completion.ppt_outline_verifier import (
     check_ppt_outline_quality,
     is_ppt_reporting_task,

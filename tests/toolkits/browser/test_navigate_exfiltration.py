@@ -15,6 +15,10 @@ _EXFIL_PATH = "myrm_agent_harness.utils.url_utils.check_url_exfiltration"
 def _make_session() -> MagicMock:
     session = MagicMock()
     session.navigate = AsyncMock(return_value="Navigated")
+    active_page = MagicMock()
+    active_page.url = "https://example.com"
+    active_page.title = AsyncMock(return_value="Example")
+    session.get_active_page = MagicMock(return_value=active_page)
     return session
 
 
@@ -37,7 +41,7 @@ async def test_no_exfiltration_passes() -> None:
     tool = create_navigate_tool(session)
     with patch(_EXFIL_PATH, return_value=[]):
         result = await tool.ainvoke({"url": "https://example.com"})
-        assert "Navigated" in result
+        assert "Navigated" in result["content"]
 
 
 @pytest.mark.asyncio

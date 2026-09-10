@@ -1081,16 +1081,16 @@ class TestMiddlewareRareBranches:
 
 @pytest.mark.asyncio
 async def test_irreversible_social_action_blocks_allowlist_bypass() -> None:
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        set_approval_session,
+        set_approval_user_id,
+    )
     from myrm_agent_harness.agent.middlewares.approval.batch_processor import (
         evaluate_tool_batch,
     )
-    from myrm_agent_harness.agent.middlewares._session_context import (
-        set_approval_user_id,
-        set_approval_session,
-    )
     from myrm_agent_harness.agent.security.approval_flow import (
-        get_allowlist,
         AllowlistEntry,
+        get_allowlist,
     )
 
     set_approval_user_id("test_user_irr")
@@ -1140,14 +1140,14 @@ async def test_irreversible_social_action_blocks_allowlist_bypass() -> None:
 
 
 def test_session_scoped_denial_persistence() -> None:
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        set_approval_session,
+    )
     from myrm_agent_harness.agent.middlewares.approval.helpers import (
         ThresholdBreach,
         is_threshold_breached,
         record_denial,
         reset_denial_counter,
-    )
-    from myrm_agent_harness.agent.middlewares._session_context import (
-        set_approval_session,
     )
 
     sess_a = "session_test_persistent_a"

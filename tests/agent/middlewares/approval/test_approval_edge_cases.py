@@ -43,11 +43,11 @@ def _isolation() -> None:
     """Reset global state for test isolation."""
     import myrm_agent_harness.agent.security.approval_flow as approval_flow
     from myrm_agent_harness.agent.middlewares.approval import get_approval_rate_limiter
-    from myrm_agent_harness.agent.security.guards.taint_tracker import (
-        reset_taint_tracker,
-    )
     from myrm_agent_harness.agent.middlewares.approval.helpers import (
         clear_all_session_denials_for_tests,
+    )
+    from myrm_agent_harness.agent.security.guards.taint_tracker import (
+        reset_taint_tracker,
     )
 
     approval_flow._allowlist = approval_flow.Allowlist()
@@ -1604,8 +1604,8 @@ async def test_session_scoped_denial_persistence() -> None:
 @pytest.mark.asyncio
 async def test_session_scoped_allowlist_duration_negative_one_not_permanent() -> None:
     """Verify that duration='session' or ttl_seconds=-1 creates an in-memory session grant, not permanent."""
-    from myrm_agent_harness.agent.security.approval_flow import get_allowlist
     from myrm_agent_harness.agent.middlewares.approval.helpers import add_to_allowlist_if_needed
+    from myrm_agent_harness.agent.security.approval_flow import get_allowlist
 
     user_id = "test_user_session_scope"
     session_id = "test_session_active_999"

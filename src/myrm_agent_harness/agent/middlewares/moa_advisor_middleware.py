@@ -22,6 +22,7 @@ overlay is disabled.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 from contextvars import ContextVar
@@ -29,6 +30,9 @@ from typing import TYPE_CHECKING, Any
 
 from langchain.agents.middleware import ModelRequest, ModelResponse, wrap_model_call
 
+from myrm_agent_harness.agent.middlewares.advisor_risk_trigger_router import (
+    AdvisorRiskTriggerRouter,
+)
 from myrm_agent_harness.agent.middlewares.goal_focus_middleware import (
     _append_to_last_human_message,
 )
@@ -58,6 +62,8 @@ logger = logging.getLogger(__name__)
 
 MOA_OVERLAY_SKIP_BUDGET_PRESSURE = "budget_pressure"
 MOA_OVERLAY_SKIP_INSUFFICIENT_REFS = "insufficient_refs"
+MOA_OVERLAY_SKIP_RISK_TIMEOUT = "risk_trigger_timeout"
+
 
 _moa_budget_skip_notified_var: ContextVar[bool] = ContextVar("moa_budget_skip_notified", default=False)
 
@@ -95,17 +101,20 @@ async def _emit_ref_done(ref_model: str, *, success: bool, elapsed: float, conte
     )
 
 
-async def _emit_overlay_active(reference_models: list[str]) -> None:
+async def _emit_overlay_active(reference_models: list[str], trigger_reason: str | None = None) -> None:
     from myrm_agent_harness.utils.runtime.progress_sink import get_tool_progress_sink
 
     sink = get_tool_progress_sink()
     if sink is None:
         return
+    payload: dict[str, Any] = {"reference_models": reference_models}
+    if trigger_reason:
+        payload["trigger_reason"] = trigger_reason
     await sink.emit(
         {
             "type": "status",
             "step_key": "moa_overlay_active",
-            "data": {"reference_models": reference_models},
+            "data": payload,
         }
     )
 
@@ -140,11 +149,17 @@ def create_moa_advisor_middleware(
     config: MoAOverlayConfig | None = None,
     unattended: bool = False,
     privacy_redactor: PrivacyRedactor | None = None,
+    risk_router: AdvisorRiskTriggerRouter | None = None,
 ) -> Any:
     """Build MoA advisor overlay middleware bound to pre-resolved reference LLMs."""
     overlay_cfg = config or MoAOverlayConfig()
     runner = AdvisorFanoutRunner(reference_llms, overlay_cfg)
     privacy_mode: PrivacyFilterMode = overlay_cfg.privacy_filter
+    router = (
+        risk_router
+        if risk_router is not None
+        else (AdvisorRiskTriggerRouter(overlay_cfg) if overlay_cfg.fanout == "risk_triggered" else None)
+    )
 
     @wrap_model_call(name="moa_advisor_middleware")  # type: ignore[arg-type]
     async def _middleware(
@@ -156,12 +171,27 @@ def create_moa_advisor_middleware(
 
         messages = list(request.messages)
         next_iteration = runner.iteration + 1
-        fanout_this_call = should_run_fanout(
-            messages=messages,
-            fanout=overlay_cfg.fanout,
-            every_n=overlay_cfg.every_n,
-            iteration=next_iteration,
-        )
+        trigger_reason: str | None = None
+
+        if overlay_cfg.fanout == "risk_triggered":
+            decision = (
+                router.evaluate_trigger(messages, current_turn=next_iteration)
+                if router
+                else None
+            )
+            fanout_this_call = bool(decision and decision.should_trigger)
+            if fanout_this_call and decision and decision.reason:
+                trigger_reason = decision.reason.value
+        else:
+            fanout_this_call = should_run_fanout(
+                messages=messages,
+                fanout=overlay_cfg.fanout,
+                every_n=overlay_cfg.every_n,
+                iteration=next_iteration,
+            )
+
+        if overlay_cfg.fanout == "risk_triggered" and not fanout_this_call:
+            return await handler(request)
 
         if _budget_pressure_active():
             if fanout_this_call and not _moa_budget_skip_notified_var.get():
@@ -170,9 +200,10 @@ def create_moa_advisor_middleware(
             logger.debug("MoA overlay skipped: budget pressure active")
             return await handler(request)
 
+
         if fanout_this_call:
             ref_names = [_model_name(llm) for llm in reference_llms]
-            await _emit_overlay_active(ref_names)
+            await _emit_overlay_active(ref_names, trigger_reason=trigger_reason)
 
         async def _on_ref_done(ref: ReferenceResponse) -> None:
             sse_ref = apply_privacy_to_ref(ref, sse_privacy_mode(privacy_mode), privacy_redactor)
@@ -183,9 +214,34 @@ def create_moa_advisor_middleware(
                 content=sse_ref.content if sse_ref.success else None,
             )
 
-        ref_responses = await runner.run(messages, on_ref_done=_on_ref_done)
+        try:
+            timeout_limit = (
+                overlay_cfg.risk_trigger_timeout
+                if overlay_cfg.fanout == "risk_triggered"
+                else overlay_cfg.timeout_total
+            )
+            run_kwargs: dict[str, Any] = {"on_ref_done": _on_ref_done}
+            if overlay_cfg.fanout == "risk_triggered":
+                run_kwargs["force_run"] = fanout_this_call
+            ref_responses = await asyncio.wait_for(
+                runner.run(messages, **run_kwargs),
+                timeout=timeout_limit,
+            )
+        except TimeoutError:
+
+            logger.warning(
+                "MoA overlay: hard timeout reached (%.1fs) during fan-out; silent fallback to acting model",
+                timeout_limit,
+            )
+            if fanout_this_call:
+                await _emit_overlay_skipped(MOA_OVERLAY_SKIP_RISK_TIMEOUT)
+            return await handler(request)
+
         if not ref_responses:
             return await handler(request)
+
+        if router is not None and fanout_this_call:
+            router.record_trigger(next_iteration)
 
         successful = [r for r in ref_responses if r.success and r.content.strip()]
         if len(successful) < overlay_cfg.min_successful:
@@ -212,5 +268,7 @@ def create_moa_advisor_middleware(
 __all__ = [
     "MOA_OVERLAY_SKIP_BUDGET_PRESSURE",
     "MOA_OVERLAY_SKIP_INSUFFICIENT_REFS",
+    "MOA_OVERLAY_SKIP_RISK_TIMEOUT",
     "create_moa_advisor_middleware",
 ]
+

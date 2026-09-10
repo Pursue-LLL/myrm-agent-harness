@@ -207,7 +207,6 @@ class IPhoneMirrorState(str, Enum):
     """Connection and display state for macOS iPhone Mirroring (com.apple.ScreenContinuity)."""
 
     READY = "ready"
-    LOCKED = "locked"
     BLOCKED_CONNECT_PROMPT = "blocked_connect_prompt"
     NOT_RUNNING = "not_running"
     NOT_SUPPORTED = "not_supported"

@@ -96,11 +96,11 @@ from myrm_agent_harness.agent.middlewares.completion.deliverable_write_verifier 
     check_deliverable_write_claim,
     check_unwritten_deliverables,
 )
-from myrm_agent_harness.agent.middlewares.completion.query_grounding_verifier import (
-    check_query_grounding_claim,
-)
 from myrm_agent_harness.agent.middlewares.completion.ppt_outline_verifier import (
     check_ppt_outline_quality,
+)
+from myrm_agent_harness.agent.middlewares.completion.query_grounding_verifier import (
+    check_query_grounding_claim,
 )
 from myrm_agent_harness.agent.orchestration.hooks import COMPLETION_CHECK_TOOL_NAME
 from myrm_agent_harness.agent.security.guards.loop_guard import (

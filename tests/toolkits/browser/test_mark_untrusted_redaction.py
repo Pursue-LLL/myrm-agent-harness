@@ -107,12 +107,17 @@ async def test_inspect_redacted_and_wrapped() -> None:
 async def test_navigate_redacted_and_wrapped() -> None:
     session = MagicMock()
     session.navigate = AsyncMock(return_value="Navigated to https://x.com/login (status=200, title=Login)")
+    active_page = MagicMock()
+    active_page.url = "https://x.com/login"
+    active_page.title = AsyncMock(return_value="Login")
+    session.get_active_page = MagicMock(return_value=active_page)
     tool = create_navigate_tool(session)  # type: ignore[arg-type]
 
     output = await tool.ainvoke({"url": "https://x.com/login"})
 
-    assert "Navigated" in output
-    assert "UNTRUSTED_DATA" in output
+    assert "Navigated" in output["content"]
+    assert "UNTRUSTED_DATA" in output["content"]
+    assert output["metadata"]["sources"][0]["title"] == "Login"
     session.navigate.assert_awaited_once_with("https://x.com/login", verify_goal=None)
 
 

@@ -77,7 +77,12 @@ def should_run_fanout(
     fanout: str,
     every_n: int,
     iteration: int,
+    force_run: bool = False,
 ) -> bool:
+    if force_run:
+        return True
+    if fanout == "risk_triggered":
+        return False
     if fanout == "per_iteration":
         return True
     if fanout == "every_n":
@@ -117,6 +122,7 @@ class AdvisorFanoutRunner:
         messages: list[BaseMessage],
         *,
         on_ref_done: Callable[[ReferenceResponse], Awaitable[None]] | None = None,
+        force_run: bool = False,
     ) -> list[ReferenceResponse]:
         self._iteration = self.next_iteration()
         if not should_run_fanout(
@@ -124,8 +130,10 @@ class AdvisorFanoutRunner:
             fanout=self._cfg.fanout,
             every_n=self._cfg.every_n,
             iteration=self._iteration,
+            force_run=force_run,
         ):
             return []
+
 
         query = _extract_last_human_query(messages)
         if not query:

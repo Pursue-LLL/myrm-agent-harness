@@ -65,8 +65,16 @@ def _is_document_navigation(page: Page, request: Request) -> bool:
 
 
 async def _continue_route_safely(route: Route) -> None:
+    """Fall through to subsequent route handlers (including patchright's inject route).
+
+    Uses ``route.fallback()`` — NOT ``route.continue_()`` — because patchright
+    implements ``add_init_script`` via a network-level inject route (see
+    ``domain_filter._continue_route_safely``). ``continue_()`` terminates the
+    handler chain and silently disables all init scripts (dom_enhancer, stealth,
+    localStorage restore) on the current context.
+    """
     try:
-        await route.continue_()
+        await route.fallback()
     except Exception as exc:
         if "Route is already handled" in str(exc):
             return

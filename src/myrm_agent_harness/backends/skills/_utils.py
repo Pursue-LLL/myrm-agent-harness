@@ -607,10 +607,18 @@ def parse_skill_frontmatter(content: str, skill_dir_name: str) -> SkillFrontmatt
             if raw:
                 skill_metadata[key] = raw
 
-    # allowed-tools: optional, space-delimited string
+    # allowed-tools: optional, space-delimited string or YAML list (normalized to space-delimited)
     allowed_tools: str | None = None
     if "allowed-tools" in parsed:
-        allowed_tools = str(parsed["allowed-tools"]).strip() or None
+        raw_allowed_tools = parsed["allowed-tools"]
+        if isinstance(raw_allowed_tools, list):
+            normalized = " ".join(
+                str(item).strip() for item in raw_allowed_tools
+                if item is not None and str(item).strip()
+            )
+            allowed_tools = normalized or None
+        else:
+            allowed_tools = str(raw_allowed_tools).strip() or None
 
     # allowed-domains: optional, list of strings
     allowed_domains: list[str] | None = None

@@ -16,6 +16,10 @@ def mock_session() -> Any:
     session = MagicMock()
 
     session.navigate = AsyncMock(return_value="Navigated to Example Page (https://example.com, status=200)")
+    active_page = MagicMock()
+    active_page.url = "https://example.com"
+    active_page.title = AsyncMock(return_value="Example Page")
+    session.get_active_page = MagicMock(return_value=active_page)
     session.inspect = AsyncMock(return_value="Total refs: 25\nRegions: main, form\nRecommended: #main")
     session.snapshot = AsyncMock(return_value=('- button "Click" [ref=e0]', {"ref_count": 1}))
     session.interact = AsyncMock(return_value="Clicked element e0")
@@ -110,7 +114,8 @@ async def test_browser_navigate_basic(mock_session: Any) -> None:
 
     result = await navigate_tool.ainvoke({"url": "https://example.com"})
 
-    assert "Navigated" in result
+    assert "Navigated" in result["content"]
+    assert result["metadata"]["sources"][0]["url"] == "https://example.com"
     mock_session.navigate.assert_called_once_with("https://example.com", verify_goal=None)
 
 

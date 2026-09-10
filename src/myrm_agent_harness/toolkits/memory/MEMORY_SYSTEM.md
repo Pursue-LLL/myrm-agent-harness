@@ -993,3 +993,23 @@ rating_new = rating_old + alpha * (normalized - rating_old)
 - **KV Cache 友好切片**：工作记忆切片输出严格依据节点生成时间戳正序稳定排列，固化 Prompt 前缀，最大化模型推理时的 KV 缓存命中率。
 - **详细设计**：详见 [working_tree/_ARCH.md](working_tree/_ARCH.md)。
 
+---
+
+## 十五、统一四维长期记忆治理系统 (governance)
+
+基于结构化用户画像槽位、事件时间线、动态事实与实体图谱的四维一体治理引擎（`memory/governance/`）：
+
+- **核心定位**：解决长期陪伴型 Agent 中常见的用户改口冲突、时序倒错、事实陈旧与图组合爆炸问题。
+- **用户画像槽位（`ProfileSlots`）**：
+  - 划分 `persona`、`preferences`、`constraints`、`custom` 四大象限，支持强类型键值约束与原位覆写（`update_slot` / `delete_slot`）；
+  - `to_cached_prefix_text()` 序列化强制采用**严格字典键字母序**排列，确保系统前缀文本在跨会话调用时字节级一致，实现 LLM Prompt Cache 99%+ 命中率。
+- **事实对账与自适应生命周期（`FactReconciliationEngine`）**：
+  - 四态对账机制：精准识别 `ADD`（新增事实）、`UPDATE`（版本改口与冲突覆盖）、`DELETE`（显式撤销与取消）、`NOOP`（语义冗余）；
+  - 自适应 TTL 探测：事实条目携带 `valid_until`，`purge_expired_facts` 定期探测并将过期事实流转为 `EXPIRED` 归档。
+- **两度受限实体图遍历（`EntityGraphBridge`）**：
+  - 桥接 `SQLiteGraphStore`，严格限制扩散深度 `depth <= 2` 且单次检索节点上限 `max_nodes <= 15`，以精简关系三元组输出，防范高密度实体图导致的上下文爆炸。
+- **四维融合装配器（`DynamicContextAssembler`）**：
+  - 按优先级分层装配：固定画像前缀（最高优先级保 Cache）➔ 动态事实（预算 45%，按置信度与时效降序）➔ 时间线事件（预算 55%，按时序排列）➔ 实体图关联关系。
+- **详细设计**：详见 [governance/_ARCH.md](governance/_ARCH.md)。
+
+

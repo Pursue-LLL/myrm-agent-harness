@@ -9,8 +9,10 @@ Gracefully no-ops on Linux / Windows / Cloud environments.
 
 [OUTPUT]
 - probe_iphone_mirror_state() -> IPhoneMirrorProbeResult
-- get_iphone_mirror_bounds() -> tuple[int, int, int, int] | None
+- is_iphone_mirror_app(app_name: str, app_id: str = "") -> bool
 - is_iphone_mirror_bundle(bundle_id: str) -> bool
+- is_iphone_mirror_connect_window(window_title: str) -> bool
+- is_iphone_mirror_supported() -> bool
 
 [POS]
 Zero-daemon connection gate for mobile-only workflows on macOS.
@@ -36,6 +38,27 @@ IPHONE_MIRROR_APP_NAME_ZH: Final[str] = "iPhone 镜像"
 def is_iphone_mirror_bundle(bundle_id: str) -> bool:
     """Return True if bundle_id corresponds to macOS iPhone Mirroring."""
     return bundle_id.strip().lower() == IPHONE_MIRROR_BUNDLE_ID.lower()
+
+
+def is_iphone_mirror_app(app_name: str, app_id: str = "") -> bool:
+    """Return True if the target app is the macOS iPhone Mirroring host.
+
+    Matches on bundle id (authoritative) or localized app name, so gates stay
+    effective even when the snapshot backend cannot resolve an app id.
+    """
+    if "screencontinuity" in app_id.strip().lower():
+        return True
+    return "iphone" in app_name.strip().lower()
+
+
+_CONNECT_WINDOW_KEYWORDS: Final[frozenset[str]] = frozenset(
+    {"connect", "连接", "解锁", "unlock", "passcode"}
+)
+
+
+def is_iphone_mirror_connect_window(window_title: str) -> bool:
+    """Return True when the window title indicates a connect/unlock pairing prompt."""
+    return any(keyword in window_title.lower() for keyword in _CONNECT_WINDOW_KEYWORDS)
 
 
 def is_iphone_mirror_supported() -> bool:
@@ -121,12 +144,8 @@ def probe_iphone_mirror_state() -> IPhoneMirrorProbeResult:
                 except Exception:
                     bounds = None
 
-            # Detect locked / connect prompt by title and window heuristics
-            title_lower = title.lower()
-            if any(
-                k in title_lower
-                for k in ["connect", "连接", "解锁", "unlock", "passcode"]
-            ):
+            # Detect locked / connect prompt by title heuristics
+            if is_iphone_mirror_connect_window(title):
                 return IPhoneMirrorProbeResult(
                     state=IPhoneMirrorState.BLOCKED_CONNECT_PROMPT,
                     is_supported=True,

@@ -34,6 +34,19 @@ def reset_replan_attempts() -> None:
     _per_tool_errors_var.set({})
 
 
+def get_replan_error_summary() -> dict[str, int]:
+    """Return a read-only copy of current per-tool replan error counters."""
+    counters = _per_tool_errors_var.get()
+    return dict(counters) if counters else {}
+
+
+def get_max_consecutive_replan_errors() -> int:
+    """Return the maximum consecutive error count across all tools in the current context."""
+    summary = get_replan_error_summary()
+    return max(summary.values()) if summary else 0
+
+
+
 class ReplanMiddleware(AgentMiddleware[Any, Any]):
     """Catches tool execution errors and triggers a replan loop.
 
@@ -169,3 +182,12 @@ class ReplanMiddleware(AgentMiddleware[Any, Any]):
             return result
         except Exception as exc:
             return self._handle_tool_error(request, tool_name=tool_name, error=exc)
+
+
+__all__ = [
+    "ReplanMiddleware",
+    "get_max_consecutive_replan_errors",
+    "get_replan_error_summary",
+    "reset_replan_attempts",
+]
+

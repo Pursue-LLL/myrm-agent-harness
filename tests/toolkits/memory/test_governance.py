@@ -262,3 +262,117 @@ async def test_dynamic_context_assembler() -> None:
     assert "[User Profile & Constraints]" in full_text
     assert "[Dynamic Facts]" in full_text
     assert "[Event Timeline]" in full_text
+
+
+def test_reconciliation_expanded_indicators() -> None:
+    """Test newly added high-frequency update indicators like '调整为', '移到', '换成'."""
+    engine = FactReconciliationEngine()
+    existing = [
+        DynamicFactItem(
+            fact_id="fact_meeting",
+            content="周五下午两点在深圳湾万象城开预算会",
+            status=FactStatus.ACTIVE,
+        )
+    ]
+
+    # Test '调整为'
+    d1 = engine.reconcile_statement("预算会调整为下周一上午十点在福田开", existing)
+    assert d1.action == ReconciliationAction.UPDATE
+    assert d1.target_fact_id == "fact_meeting"
+
+    # Test '移到'
+    d2 = engine.reconcile_statement("预算会移到周四举行", existing)
+    assert d2.action == ReconciliationAction.UPDATE
+    assert d2.target_fact_id == "fact_meeting"
+
+    # Test '换成'
+    d3 = engine.reconcile_statement("预算会议换成线上腾讯会议", existing)
+    assert d3.action == ReconciliationAction.UPDATE
+    assert d3.target_fact_id == "fact_meeting"
+
+
+@pytest.mark.asyncio
+async def test_dynamic_context_assembler_elastic_quota_loan() -> None:
+    """Verify that when timeline is empty, surplus quota is automatically loaned to facts."""
+    assembler = DynamicContextAssembler(max_total_tokens=600)
+    profile = ProfileSlots()
+    profile.update_slot("persona", "role", "Engineer")
+
+    # Generate 10 dynamic facts
+    facts = [
+        DynamicFactItem(
+            fact_id=f"f_{i}",
+            content=f"Constraint {i}: System requires strict sub-system isolation policy item {i}",
+            status=FactStatus.ACTIVE,
+        )
+        for i in range(10)
+    ]
+
+    # Assemble with EMPTY timeline
+    context = await assembler.assemble_context(
+        profile=profile,
+        timeline=[],
+        dynamic_facts=facts,
+    )
+
+    # In static 45% quota, 10 verbose facts would be truncated early (~3-4 facts).
+    # With elastic loaning, it should borrow the unused 55% event quota and include significantly more facts.
+    included_facts_count = len(context.dynamic_facts_section.splitlines())
+    assert included_facts_count >= 8
+    assert context.timeline_section == ""
+
+
+@pytest.mark.asyncio
+async def test_dynamic_context_assembler_with_graph_and_truncation(tmp_path: Path) -> None:
+    """Verify context assembler integration with graph bridge and token truncation."""
+    db_path = str(tmp_path / "assembler_graph.db")
+    store = SQLiteGraphStore(db_path)
+
+    node_a = await store.create_node(["Entity"], {"name": "Alpha"})
+    node_b = await store.create_node(["Entity"], {"name": "Beta"})
+    await store.create_relationship(
+        start_id=node_a.id, end_id=node_b.id, rel_type="CONNECTS"
+    )
+
+    bridge = EntityGraphBridge(graph_store=store)
+    # Give plenty of budget
+    assembler_large = DynamicContextAssembler(max_total_tokens=1000, graph_bridge=bridge)
+    ctx_large = await assembler_large.assemble_context(
+        profile=ProfileSlots(),
+        timeline=[],
+        dynamic_facts=[],
+        seed_entities=["Alpha"],
+    )
+    assert "Alpha --[CONNECTS]--> Beta" in ctx_large.entity_graph_section
+
+    # Give very tight budget to trigger truncation in graph section
+    assembler_tight = DynamicContextAssembler(max_total_tokens=40, graph_bridge=bridge)
+    ctx_tight = await assembler_tight.assemble_context(
+        profile=ProfileSlots(),
+        timeline=[],
+        dynamic_facts=[],
+        seed_entities=["Alpha"],
+    )
+    assert isinstance(ctx_tight.entity_graph_section, str)
+
+
+@pytest.mark.asyncio
+async def test_entity_graph_bridge_isolated_nodes_and_error(tmp_path: Path) -> None:
+    """Test graph bridge fallback when no relationships exist and error handling."""
+    db_path = str(tmp_path / "isolated_graph.db")
+    store = SQLiteGraphStore(db_path)
+
+    await store.create_node(["Isolated"], {"name": "Solo"})
+    bridge = EntityGraphBridge(graph_store=store)
+
+    # Isolated node without any relationships
+    text = await bridge.get_bounded_subgraph_text(seed_entity_names=["Solo"])
+    assert "Solo (Isolated)" in text
+
+    # Empty entity list
+    assert await bridge.get_bounded_subgraph_text(seed_entity_names=[""]) == ""
+
+    # Direct query node fallback
+    text2 = await bridge.get_bounded_subgraph_text(seed_entity_names=["Solo", "NonExistent"])
+    assert "Solo (Isolated)" in text2
+

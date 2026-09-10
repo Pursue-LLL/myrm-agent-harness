@@ -1,7 +1,18 @@
 """Fact Reconciliation Engine.
 
-Provides four-state reconciliation (ADD, UPDATE, DELETE, NOOP) for dynamic facts
-and automated TTL-based lifecycle management without external cloud dependencies.
+[INPUT]
+governance.models::DynamicFactItem (POS: 记忆治理领域数据模型层)
+governance.models::FactStatus (POS: 记忆治理领域数据模型层)
+governance.models::ReconciliationAction (POS: 记忆治理领域数据模型层)
+governance.models::ReconciliationDecision (POS: 记忆治理领域数据模型层)
+
+[OUTPUT]
+ConflictResolver: 冲突仲裁协议接口
+default_rule_based_resolver: 规则基线冲突消解器
+FactReconciliationEngine: 事实冲突对账与生命周期管理引擎
+
+[POS]
+事实冲突对账与生命周期管理引擎。提供 ADD/UPDATE/DELETE/NOOP 四态对账消解与自适应 TTL 清扫。
 """
 
 from __future__ import annotations
@@ -67,7 +78,26 @@ def default_rule_based_resolver(
 
     # Key-value or entity property modification pattern
     # e.g. "喜欢喝拿铁" vs "改喜欢美式了", "城市改为上海"
-    update_indicators = ["改为", "改成", "改在", "变成", "而不是", "instead of", "changed to", "switched to"]
+    update_indicators = [
+        "改为",
+        "改成",
+        "改在",
+        "变成",
+        "调整为",
+        "换成",
+        "移到",
+        "推迟到",
+        "提前到",
+        "重排为",
+        "变更为",
+        "而不是",
+        "instead of",
+        "changed to",
+        "switched to",
+        "moved to",
+        "rescheduled to",
+        "shifted to",
+    ]
     for indicator in update_indicators:
         if indicator in clean_new:
             # Check if there is category/subject overlap via words or 2-char n-grams
@@ -125,7 +155,9 @@ class FactReconciliationEngine:
         self,
         custom_resolver: ConflictResolver | None = None,
     ) -> None:
-        self._resolver: ConflictResolver = custom_resolver or default_rule_based_resolver
+        self._resolver: ConflictResolver = (
+            custom_resolver or default_rule_based_resolver
+        )
 
     def reconcile_statement(
         self,

@@ -1,8 +1,18 @@
 """Dynamic Context Assembler for Unified Memory Governance.
 
-Integrates Profile Slots, Chronological Event Timelines, Dynamic Facts,
-and 2-Hop Graph Relationships into a single coherent prompt context with
-strict token budget enforcement and prompt-cache optimization.
+[INPUT]
+governance.models::ProfileSlots (POS: 记忆治理领域数据模型层)
+governance.models::EventTimelineItem (POS: 记忆治理领域数据模型层)
+governance.models::DynamicFactItem (POS: 记忆治理领域数据模型层)
+governance.models::AssembledMemoryContext (POS: 记忆治理领域数据模型层)
+governance.graph_bridge::EntityGraphBridge (POS: 受限图关系扩散桥接层)
+
+[OUTPUT]
+estimate_tokens: Token 开销启发式估算函数
+DynamicContextAssembler: 四维记忆上下文装配引擎
+
+[POS]
+四维记忆上下文装配引擎。执行确定性字典序前缀输出与严格 Token 预算截断。
 """
 
 from __future__ import annotations
@@ -71,26 +81,33 @@ class DynamicContextAssembler:
             reverse=True,
         )
 
+        # Available budget for dynamic memory pool (Facts + Timeline)
+        pool_budget = max(0, remaining_budget)
+        initial_fact_quota = int(pool_budget * 0.45)
+        initial_event_quota = pool_budget - initial_fact_quota
+
+        # Pass 1: Assemble Dynamic Facts within initial quota
         fact_lines: list[str] = []
         fact_tokens = 0
-        fact_quota = int(remaining_budget * 0.45)
+        unconsumed_facts: list[DynamicFactItem] = []
 
         for fact in sorted_facts:
             line = f"- [{fact.category}] {fact.content}"
             cost = estimate_tokens(line)
-            if fact_tokens + cost <= fact_quota:
+            if fact_tokens + cost <= initial_fact_quota:
                 fact_lines.append(line)
                 fact_tokens += cost
             else:
-                break
-        dynamic_facts_section = "\n".join(fact_lines)
-        remaining_budget -= fact_tokens
+                unconsumed_facts.append(fact)
 
-        # 3. Event Timeline
+        # Calculate surplus from facts (if facts used less than initial quota)
+        fact_surplus = max(0, initial_fact_quota - fact_tokens)
+        effective_event_quota = initial_event_quota + fact_surplus
+
+        # Pass 2: Assemble Event Timeline with loaned budget
         sorted_events = sorted(timeline, key=lambda e: e.timestamp, reverse=True)
         event_lines: list[str] = []
         event_tokens = 0
-        event_quota = int(remaining_budget * 0.55)
 
         for event in sorted_events:
             ts_str = event.timestamp.strftime("%Y-%m-%d %H:%M")
@@ -98,13 +115,27 @@ class DynamicContextAssembler:
             if event.details:
                 line += f": {event.details}"
             cost = estimate_tokens(line)
-            if event_tokens + cost <= event_quota:
+            if event_tokens + cost <= effective_event_quota:
                 event_lines.append(line)
                 event_tokens += cost
             else:
                 break
+
+        # Pass 3: Spill back any remaining timeline surplus to unconsumed facts
+        event_surplus = max(0, effective_event_quota - event_tokens)
+        if event_surplus > 0 and unconsumed_facts:
+            for fact in unconsumed_facts:
+                line = f"- [{fact.category}] {fact.content}"
+                cost = estimate_tokens(line)
+                if (fact_tokens + event_tokens + cost) <= pool_budget:
+                    fact_lines.append(line)
+                    fact_tokens += cost
+                else:
+                    break
+
+        dynamic_facts_section = "\n".join(fact_lines)
         timeline_section = "\n".join(reversed(event_lines))
-        remaining_budget -= event_tokens
+        remaining_budget = pool_budget - (fact_tokens + event_tokens)
 
         # 4. Entity Graph Relations
         entity_graph_section = ""

@@ -46,6 +46,12 @@ Agent middleware system exports. Provides the complete middleware stack (context
 
 """
 
+from myrm_agent_harness.agent.middlewares.advisor_risk_trigger_router import (
+    AdvisorRiskTriggerRouter,
+    RiskTriggerDecision,
+    RiskTriggerReason,
+    is_unrecoverable_fatal_error,
+)
 from myrm_agent_harness.agent.middlewares.approval import (
     ApprovalRateLimiter,
     get_approval_rate_limiter,
@@ -75,12 +81,21 @@ from myrm_agent_harness.agent.middlewares.guardrails import (
     GuardrailMiddleware,
     SkillBoundaryProvider,
 )
+from myrm_agent_harness.agent.middlewares.moa_advisor_middleware import (
+    create_moa_advisor_middleware,
+)
 from myrm_agent_harness.agent.middlewares.plan_confirm_middleware import (
     PlanConfirmMiddleware,
     reset_plan_confirm_state,
 )
 from myrm_agent_harness.agent.middlewares.progress_middleware import progress_middleware
 from myrm_agent_harness.agent.middlewares.rate_limit import RateLimitMiddleware
+from myrm_agent_harness.agent.middlewares.replan_middleware import (
+    ReplanMiddleware,
+    get_max_consecutive_replan_errors,
+    get_replan_error_summary,
+    reset_replan_attempts,
+)
 from myrm_agent_harness.agent.middlewares.subagent_limit_middleware import (
     subagent_limit_middleware,
 )
@@ -98,28 +113,38 @@ from myrm_agent_harness.agent.security.guards.frequency_guard import (
 )
 
 __all__ = [
+    "AdvisorRiskTriggerRouter",
     "ApprovalRateLimiter",
     "CompletionGuard",
     "FilesystemFileSearchMiddleware",
     "GuardrailMiddleware",
     "PlanConfirmMiddleware",
     "RateLimitMiddleware",
+    "ReplanMiddleware",
+    "RiskTriggerDecision",
+    "RiskTriggerReason",
     "SkillBoundaryProvider",
     "ValidationResult",
     "create_concurrency_limiter",
     "create_context_pipeline_middleware",
     "create_filesystem_search_middleware",
+    "create_moa_advisor_middleware",
     "create_safety_dispatcher",
     "debug_logger_middleware",
     "get_approval_rate_limiter",
+    "get_max_consecutive_replan_errors",
+    "get_replan_error_summary",
     "get_subagent_semaphore",
+    "is_unrecoverable_fatal_error",
     "notify_loop_guard_compaction",
     "progress_middleware",
     "reset_completion_guard",
     "reset_frequency_guard",
     "reset_loop_guard",
     "reset_plan_confirm_state",
+    "reset_replan_attempts",
     "subagent_limit_middleware",
     "tool_interceptor_middleware",
     "validate_tool_result",
 ]
+

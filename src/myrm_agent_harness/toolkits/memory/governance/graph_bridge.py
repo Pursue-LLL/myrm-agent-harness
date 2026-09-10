@@ -1,7 +1,14 @@
 """Entity Graph Bridge for Memory Governance.
 
-Bridges the GraphStore with memory assembly, enforcing a strict 2-hop radius
-and node-budget limit (depth <= 2, max_nodes <= 15) to prevent graph explosion.
+[INPUT]
+memory.graph.base::GraphNode (POS: 图存储抽象层)
+memory.graph.base::GraphStore (POS: 图存储抽象层)
+
+[OUTPUT]
+EntityGraphBridge: 受限两度实体图关系提取器
+
+[POS]
+受限图关系扩散桥接层。封装有界两度关系遍历，防范图组合爆炸。
 """
 
 from __future__ import annotations

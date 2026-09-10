@@ -26,10 +26,10 @@ from myrm_agent_harness.agent.security.audit import record_decision
 from myrm_agent_harness.agent.security.command_allowlist_pattern import (
     extract_shell_command,
 )
+from myrm_agent_harness.agent.security.engine import extract_url_domains
 from myrm_agent_harness.agent.security.path_security import (
     is_protected_instruction_file,
 )
-from myrm_agent_harness.agent.security.engine import extract_url_domains
 from myrm_agent_harness.agent.security.types import SecurityConfig
 from myrm_agent_harness.core.security.redact import redact_for_display
 
@@ -358,10 +358,11 @@ async def apply_approval_decisions(
 
     Returns: (revised_tool_calls, artificial_tool_messages, guidance_messages)
     """
-    from ._batch_review import _get_runtime_domains
     from myrm_agent_harness.agent.middlewares._session_context import (
         get_approval_session,
     )
+
+    from ._batch_review import _get_runtime_domains
 
     session_key = get_approval_session()
 

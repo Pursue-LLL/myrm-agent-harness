@@ -29,6 +29,10 @@ from myrm_agent_harness.toolkits.computer_use.dref.types import (
     SnapshotScope,
 )
 from myrm_agent_harness.toolkits.computer_use.execution.healer import try_bbox_click
+from myrm_agent_harness.toolkits.computer_use.iphone_mirror import (
+    is_iphone_mirror_app,
+    probe_iphone_mirror_state,
+)
 from myrm_agent_harness.toolkits.computer_use.perception.ax_diff import compute_ref_diff
 from myrm_agent_harness.toolkits.computer_use.perception.ax_dispatch import (
     capture_snapshot,
@@ -56,6 +60,7 @@ from myrm_agent_harness.toolkits.computer_use.types import (
     DesktopInteractAction,
     DesktopVisionAction,
     ForegroundPermissionCallback,
+    IPhoneMirrorState,
     ModifierKey,
     PermissionStatus,
     ScrollDirection,
@@ -237,6 +242,13 @@ class DesktopSession(ComputerSession):
         )
 
         header = f"Desktop snapshot ready ({enriched_meta.ref_count} refs, ~{enriched_meta.token_estimate} tokens)."
+        if is_iphone_mirror_app(meta.app_name, meta.app_id):
+            probe = probe_iphone_mirror_state()
+            if probe.state == IPhoneMirrorState.BLOCKED_CONNECT_PROMPT:
+                header = (
+                    f"{header}\n"
+                    f"[IPHONE_MIRROR_GATE] {probe.detail} {probe.remedy_hint}"
+                )
         if include_screenshot and screenshot_b64:
             from langchain_core.messages.content import (
                 ContentBlock,
@@ -266,6 +278,8 @@ class DesktopSession(ComputerSession):
             window_title = meta.window_title if meta else ""
             app_id = meta.app_id if meta else ""
 
+            from myrm_agent_harness.toolkits.computer_use import safety
+
             app_denied = await self.check_app_approval(
                 app_name=app_name,
                 window_title=window_title,
@@ -290,6 +304,21 @@ class DesktopSession(ComputerSession):
                         "Call desktop_snapshot_tool(scope='foreground') to refresh the @dref element tree.]"
                     )
                     return f"{exc}\n{remedy_hint}"
+
+                # [SECURITY] iPhone Mirroring connect/pairing gate — hard block,
+                # not approvable: user must confirm connection on the device.
+                mirror_blocked = safety.is_iphone_mirror_blocked_action(
+                    app_name=app_name,
+                    window_title=window_title,
+                    app_id=meta.app_id if meta else "",
+                    action_text=f"{element.name} {text}".strip(),
+                )
+                if mirror_blocked:
+                    logger.warning(
+                        "[SECURITY] iPhone mirror connect gate (interact): %s",
+                        mirror_blocked,
+                    )
+                    return f"Safety: {mirror_blocked}"
 
                 effective_action = action
                 effective_text = text
@@ -420,6 +449,17 @@ class DesktopSession(ComputerSession):
             if blocked:
                 logger.warning("[SECURITY] Sensitive app guard (vision): %s", blocked)
                 return f"Safety: {blocked}"
+
+            # [SECURITY] iPhone Mirroring gate — during a connect/pairing prompt
+            # no coordinate/keyboard action may reach the screen (would either
+            # mis-click the pairing dialog or steal focus from it).
+            if is_iphone_mirror_app(fg_app, fg_app_id):
+                probe = probe_iphone_mirror_state()
+                if probe.state == IPhoneMirrorState.BLOCKED_CONNECT_PROMPT:
+                    logger.warning(
+                        "[SECURITY] iPhone mirror connect gate (vision): %s", probe.detail
+                    )
+                    return f"Safety: {probe.remedy_hint}"
 
             # [SECURITY] Foreground permission gate for coordinate-based actions.
             if safety.is_foreground_required(action):

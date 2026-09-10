@@ -227,6 +227,7 @@ async def test_mixed_auto_and_manual(monkeypatch):
 async def test_time_bound_allow_always_batch_decision(mock_security_config, monkeypatch):
     """Test that allow_always with duration/ttl_seconds adds time-bound grant."""
     import time
+
     from myrm_agent_harness.agent.security.approval_flow import get_allowlist
 
     set_security_config(mock_security_config)

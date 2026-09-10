@@ -68,9 +68,10 @@
 | `plan_confirm_middleware.py` | 计划阶段人机协同确认与重大 Re-plan 拦截门禁 |
 | `filesystem_search_middleware.py` | 工作区搜索工具注入 |
 | `progress_middleware.py` | 活跃 todo 紧凑焦点注入与幂等清洗（末位 HumanMessage） |
-| `goal_focus_middleware.py` | ACTIVE goal objective 注入（末位 HumanMessage；跳过 continuation/wrap-up 轮） |
-| `moa_advisor_middleware.py` | Agent 环 MoA 顾问叠加（`moa_overlay_active` + 渐进 SSE `moa_ref_done` + 瞬态 HumanMessage 尾注入 + `privacy_filter` display/full 分流） |
-| `replan_middleware.py` | 动态重规划循环 |
+| `advisor_risk_trigger_router.py` | 自适应事件门禁路由：多维感知 Replan 连续失败与 LoopGuard 异常模式，兼具致命错误旁路与冷却免疫/会话配额门禁 |
+| `moa_advisor_middleware.py` | Agent 环 MoA 顾问叠加（支持 `risk_triggered` 模式自适应路由接入；`moa_overlay_active` 透传 `trigger_reason` + 渐进 SSE `moa_ref_done` + 6s 硬超时静默降级 + 瞬态 HumanMessage 尾注入 + `privacy_filter` display/full 分流） |
+| `replan_middleware.py` | 动态重规划循环（导出 `get_replan_error_summary` 与 `get_max_consecutive_replan_errors` 只读遥测） |
+
 | `rate_limit.py` | Provider 级主动 sleep |
 | `debug_logger_middleware.py` | 完整消息 debug 日志 |
 

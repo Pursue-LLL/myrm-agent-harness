@@ -12,6 +12,10 @@ from __future__ import annotations
 
 import re
 
+from myrm_agent_harness.toolkits.computer_use.iphone_mirror import (
+    is_iphone_mirror_app,
+    is_iphone_mirror_connect_window,
+)
 from myrm_agent_harness.toolkits.computer_use.types import ModifierKey
 
 # Sole key tokens that models mistake for "key names" (KimiCU calculator pitfall).
@@ -218,16 +222,14 @@ def is_iphone_mirror_blocked_action(
     action_text: str = "",
 ) -> str | None:
     """Block unauthorized automated clicks on iPhone Mirroring connect/pairing dialogs."""
-    lower_name = app_name.lower()
-    lower_id = app_id.lower()
-    if "screencontinuity" not in lower_id and "iphone" not in lower_name:
+    if not is_iphone_mirror_app(app_name, app_id):
         return None
 
     lower_title = window_title.lower() if window_title else ""
     lower_action = action_text.lower() if action_text else ""
 
     # Check if window is waiting for manual connect/passcode confirmation
-    if any(k in lower_title for k in ["connect", "连接", "解锁", "unlock", "passcode"]):
+    if is_iphone_mirror_connect_window(lower_title):
         if any(k in lower_action for k in ["connect", "连接", "confirm", "确认", "ok"]):
             return (
                 f"Blocked: Agent must NOT automatically click connect/pairing prompt on '{app_name}'. "

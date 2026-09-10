@@ -21,7 +21,7 @@ from __future__ import annotations
 import hashlib
 import logging
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -124,7 +124,7 @@ def stage_unwritten_deliverables(
         return []
 
     staged_results: list[StagedArtifactMeta] = []
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     ts_str = now.strftime("%Y%m%d_%H%M%S")
     iso_str = now.isoformat()
 

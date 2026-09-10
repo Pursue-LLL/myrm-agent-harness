@@ -113,9 +113,7 @@ async def test_scenario_3_relation_fact_coexistence() -> None:
 # ---------------------------------------------------------------------------
 def test_scenario_4_negative_update() -> None:
     engine = FactReconciliationEngine()
-    facts = engine.apply_decision(
-        engine.reconcile_statement("用户很喜欢吃辣", []), []
-    )
+    facts = engine.apply_decision(engine.reconcile_statement("用户很喜欢吃辣", []), [])
 
     decision = engine.reconcile_statement("用户现在不吃辣了", facts)
     assert decision.action == ReconciliationAction.UPDATE
@@ -150,13 +148,18 @@ async def test_scenario_5_temporal_trace() -> None:
         ),
     ]
     context = await assembler.assemble_context(
-        profile=ProfileSlots(), timeline=timeline, dynamic_facts=facts, seed_entities=None
+        profile=ProfileSlots(),
+        timeline=timeline,
+        dynamic_facts=facts,
+        seed_entities=None,
     )
 
     # Timeline is rendered oldest-first (chronological order for readability).
     assert "讨论装修风格" in context.timeline_section
     assert "搬家" in context.timeline_section
-    assert context.timeline_section.index("搬家") < context.timeline_section.index("讨论装修风格")
+    assert context.timeline_section.index("搬家") < context.timeline_section.index(
+        "讨论装修风格"
+    )
 
 
 # ---------------------------------------------------------------------------

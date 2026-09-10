@@ -9,6 +9,14 @@ import pytest
 from myrm_agent_harness.toolkits.browser.pool import chrome_discovery
 
 
+@pytest.fixture(autouse=True)
+def _clear_port_failure_cache() -> None:
+    """Isolate the module-level negative cache across tests (TTL 15s leak)."""
+    chrome_discovery._port_failure_cache.clear()
+    yield
+    chrome_discovery._port_failure_cache.clear()
+
+
 def test_e2e_port_skipped_without_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("MYRM_CHROME_E2E", raising=False)
 

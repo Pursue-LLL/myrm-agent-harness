@@ -7,8 +7,9 @@ results in automatic rejection with an artificial security blocked ToolMessage.
 
 from __future__ import annotations
 
-import pytest
 from pathlib import Path
+
+import pytest
 from langchain_core.messages import AIMessage, ToolCall
 
 from myrm_agent_harness.agent.middlewares.approval._batch_decisions import (

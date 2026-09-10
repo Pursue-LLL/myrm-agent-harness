@@ -17,8 +17,9 @@ an aggregator LLM. Based on arXiv:2406.04692.
 | _fanout.py | Helper | Reference fan-out: `model_name_of()`, `query_single()`, `query_references()` — per-model retry/timeout and parallel batch fan-out, split out of `engine.py` for the line-count gate | ✅ |
 | engine.py | Core | Stateless consensus orchestration: `run()` batch, `run_stream()` streaming; fan-out / retry / timeout / cancel, single-reference skip, graceful degradation. Delegates prompt building to `_prompts`, stream collection to `_streaming`, reference fan-out to `_fanout` | ✅ |
 | advisor_prompts.py | Helper | Agent-loop advisor system prompt + injection block builder | ✅ |
-| advisor_fanout.py | Core | Agent-loop reference fan-out with state cache and fanout policies | ✅ |
-| moa_overlay_types.py | Config | `MoAOverlayConfig` — separate SSOT from standalone consensus | ✅ |
+| advisor_fanout.py | Core | Agent-loop reference fan-out with state cache and fanout policies (incl. risk_triggered support via force_run) | ✅ |
+| moa_overlay_types.py | Config | `MoAOverlayConfig` — separate SSOT from standalone consensus, includes `risk_triggered` fanout and risk threshold/cooldown/quota settings | ✅ |
+
 
 ## Key Design Decisions
 

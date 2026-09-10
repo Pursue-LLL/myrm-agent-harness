@@ -1,7 +1,19 @@
 """Data Models for Unified Seven-Layer Memory Governance Engine.
 
-Provides type-safe models for Profile Slots, Event Timelines,
-Dynamic Facts, Reconciliation Decisions, and Context Assemblies.
+[INPUT]
+(none — leaf domain models, no internal module dependencies)
+
+[OUTPUT]
+FactStatus: 动态事实生命周期枚举 (ACTIVE, DEPRECATED, EXPIRED)
+ReconciliationAction: 事实对账动作枚举 (ADD, UPDATE, DELETE, NOOP)
+DynamicFactItem: 具有有效生命周期与置信度的事实模型
+EventTimelineItem: 时序事件记录模型
+ProfileSlots: 四象限画像槽位模型（支持原位覆写与确定性字典序序列化）
+ReconciliationDecision: 对账裁决结果模型
+AssembledMemoryContext: 四维组装记忆上下文容器
+
+[POS]
+记忆治理领域数据模型层。定义用户画像槽位、事件时间线、动态事实生命周期与上下文装配数据契约。
 """
 
 from __future__ import annotations

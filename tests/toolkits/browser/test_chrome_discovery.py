@@ -12,6 +12,9 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+from myrm_agent_harness.toolkits.browser.pool import chrome_discovery
 from myrm_agent_harness.toolkits.browser.pool.chrome_discovery import (
     _build_ws_endpoint,
     _read_devtools_active_port,
@@ -19,6 +22,14 @@ from myrm_agent_harness.toolkits.browser.pool.chrome_discovery import (
     get_chromium_data_dirs,
     probe_cdp_endpoint,
 )
+
+
+@pytest.fixture(autouse=True)
+def _clear_port_failure_cache() -> None:
+    """Isolate the module-level negative cache across tests (TTL 15s leak)."""
+    chrome_discovery._port_failure_cache.clear()
+    yield
+    chrome_discovery._port_failure_cache.clear()
 
 
 class TestGetChromiumDataDirs:
@@ -229,10 +240,12 @@ class TestDiscoverChromeEndpoint:
         self, mock_dirs: MagicMock, mock_read: MagicMock, mock_probe: MagicMock, monkeypatch
     ) -> None:
         monkeypatch.setenv("MYRM_CHROME_E2E", "1")
+        monkeypatch.setenv("MYRM_CHROME_E2E_PORT", "9777")
         chrome_dir = Path("/fake/chrome")
         edge_dir = Path("/fake/edge")
         mock_dirs.return_value = iter([chrome_dir, edge_dir])
         mock_read.side_effect = [None, (9333, "/devtools/browser/xyz")]
+        # E2E probe (9777) fails; DevToolsActivePort probe (9333) succeeds.
         mock_probe.side_effect = [None, "ws://127.0.0.1:9333/devtools/browser/xyz"]
 
         result = discover_chrome_cdp_endpoint()

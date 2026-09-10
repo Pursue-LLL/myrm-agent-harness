@@ -193,7 +193,7 @@ async def test_goto_with_ssrf_guard_blocks_subresource_request(
     handler = captured[0]
     route = AsyncMock()
     assert await handler(route=route, request=request) is None
-    route.continue_.assert_awaited_once()
+    route.fallback.assert_awaited_once()
     route.abort.assert_not_awaited()
 
 
@@ -241,7 +241,7 @@ async def test_goto_with_ssrf_guard_route_handler_blocks_private(
     route = AsyncMock()
     assert await handler(route=route, request=request) is None
     route.abort.assert_awaited_once()
-    route.continue_.assert_not_awaited()
+    route.fallback.assert_not_awaited()
 
     # A second request while the block is recorded is also aborted.
     route2 = AsyncMock()
@@ -375,7 +375,7 @@ async def test_goto_with_ssrf_guard_route_continue_already_handled(
     )
     handler = captured[0]
     route = AsyncMock()
-    route.continue_.side_effect = RuntimeError("Route is already handled.")
+    route.fallback.side_effect = RuntimeError("Route is already handled.")
     # Swallowed because the route was already handled by a previous interception.
     assert await handler(route=route, request=request) is None
 
@@ -418,7 +418,7 @@ async def test_goto_with_ssrf_guard_route_continue_other_error_raises(
     )
     handler = captured[0]
     route = AsyncMock()
-    route.continue_.side_effect = RuntimeError("unexpected failure")
+    route.fallback.side_effect = RuntimeError("unexpected failure")
     with pytest.raises(RuntimeError, match="unexpected failure"):
         await handler(route=route, request=request)
 
