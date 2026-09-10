@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 
 import pytest
+
 from myrm_agent_harness.agent.config.litellm_routing import normalize_env_model_selection_string
 from myrm_agent_harness.toolkits.llms.core.llm import create_litellm_model
 from myrm_agent_harness.toolkits.memory.working_tree import (
@@ -23,14 +24,17 @@ from myrm_agent_harness.toolkits.memory.working_tree import (
 )
 
 _ENV_TEST = (
-    Path(__file__).resolve().parents[3]
+    Path(__file__).resolve().parents[4]
     / "myrm-agent"
     / "myrm-agent-server"
     / ".env.test"
 )
 
 
-def _get_live_llm():
+from langchain_core.language_models.chat_models import BaseChatModel
+
+
+def _get_live_llm() -> BaseChatModel:
     if not _ENV_TEST.exists():
         pytest.skip(f"{_ENV_TEST} not found")
 
@@ -62,6 +66,9 @@ class TestWorkingTreeRealLLMIntegration:
         llm = _get_live_llm()
         detector = FastContradictionDetector(arbitrator_llm=llm)
 
+        from datetime import UTC, datetime
+
+        now = datetime.now(UTC).isoformat()
         prior_node = EvidenceNode(
             node_id="ev_live_01",
             claim="NVIDIA H100 initial pricing baseline",
@@ -72,6 +79,8 @@ class TestWorkingTreeRealLLMIntegration:
             ),
             source=EvidenceSource(url="https://example.com/h100-2023"),
             dependencies=["root_plan"],
+            created_at=now,
+            updated_at=now,
         )
 
         new_claim = "NVIDIA H100 pricing refuted"
