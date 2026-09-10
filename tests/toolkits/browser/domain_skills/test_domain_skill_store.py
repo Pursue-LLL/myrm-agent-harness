@@ -111,24 +111,24 @@ class TestDomainSkillStore:
         bili_matches = store.match("https://www.bilibili.com/video/BV1xx411c7mD")
         assert len(bili_matches) == 1
         assert bili_matches[0].id == "bilibili"
-        assert "get_feed_videos" in bili_matches[0].python_tools
+        assert "get_video_feed" in bili_matches[0].python_tools
 
         xhs_matches = store.match("https://www.xiaohongshu.com/explore/66a123")
         assert len(xhs_matches) == 1
         assert xhs_matches[0].id == "xiaohongshu"
-        assert "get_explore_notes" in xhs_matches[0].python_tools
+        assert "get_note_feed" in xhs_matches[0].python_tools
 
         douyin_matches = store.match("https://www.douyin.com/user/MS4wLj")
         assert len(douyin_matches) == 1
         assert douyin_matches[0].id == "douyin"
-        assert "get_user_videos" in douyin_matches[0].python_tools
+        assert "get_video_feed" in douyin_matches[0].python_tools
 
     def test_cn_social_tool_script_paths_resolve(self) -> None:
         store = DomainSkillStore(load_builtin=True, user_dir="/nonexistent")
         for skill_id, tool_name in (
-            ("bilibili", "get_feed_videos"),
-            ("xiaohongshu", "get_explore_notes"),
-            ("douyin", "get_user_videos"),
+            ("bilibili", "get_video_feed"),
+            ("xiaohongshu", "get_note_feed"),
+            ("douyin", "get_video_feed"),
         ):
             path = store.get_tool_script_path(skill_id, tool_name)
             assert path is not None
@@ -556,7 +556,7 @@ class TestBuiltinCnSocialPacks:
         bili = store.get("bilibili")
         assert bili is not None
         assert "bilibili.com" in bili.domains
-        assert "get_feed_videos" in bili.python_tools
+        assert "get_video_feed" in bili.python_tools
         assert store.is_builtin("bilibili") is True
         assert len(store.match("https://www.bilibili.com/video/BV1xx")) >= 1
 
@@ -564,7 +564,7 @@ class TestBuiltinCnSocialPacks:
         xhs = store.get("xiaohongshu")
         assert xhs is not None
         assert "xiaohongshu.com" in xhs.domains
-        assert "get_explore_notes" in xhs.python_tools
+        assert "get_note_feed" in xhs.python_tools
         assert store.is_builtin("xiaohongshu") is True
         assert len(store.match("https://www.xiaohongshu.com/explore")) >= 1
 
@@ -572,7 +572,7 @@ class TestBuiltinCnSocialPacks:
         dy = store.get("douyin")
         assert dy is not None
         assert "douyin.com" in dy.domains
-        assert "get_user_videos" in dy.python_tools
+        assert "get_video_feed" in dy.python_tools
         assert store.is_builtin("douyin") is True
         assert len(store.match("https://www.douyin.com/hot")) >= 1
 

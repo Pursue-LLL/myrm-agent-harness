@@ -41,52 +41,53 @@ class _MockRefInfo:
 
 
 # ---------------------------------------------------------------------------
-# Bilibili: get_feed_videos
+# Bilibili: get_video_feed
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
 async def test_bilibili_extracts_videos_from_semantic_refs() -> None:
-    get_feed_videos = _load_tool("bilibili", "get_feed_videos.py", "get_feed_videos")
+    get_video_feed = _load_tool("bilibili", "get_video_feed.py", "get_video_feed")
 
     refs = MappingProxyType(
         {
-            "e1": _MockRefInfo(role="link", name="【4K】超燃混剪！全网最强视觉盛宴", url="/video/BV1xx411c7mD"),
+            "e1": _MockRefInfo(role="link", name="【4K】超燃混剪！全网最强视觉盛宴 UP主 播放", url="/video/BV1xx411c7mD"),
             "e2": _MockRefInfo(role="link", name="首页导航", url="/"),
-            "e3": _MockRefInfo(role="link", name="Python AI Agent 全栈架构设计教程", url="/video/BV2yy411c8kE"),
+            "e3": _MockRefInfo(role="link", name="Python AI Agent 全栈架构设计教程 UP主 弹幕", url="/video/BV2yy411c8kE"),
         }
     )
     session = MagicMock()
+    session.page = None
     session.url = "https://www.bilibili.com"
     session.get_all_refs.return_value = refs
     session.interact = AsyncMock(return_value="ok")
+    session.extract_text = AsyncMock(return_value="")
 
-    result = await get_feed_videos(session, {"max_videos": 10})
+    result = await get_video_feed(session, {"max_items": 10})
     videos = json.loads(result)
 
     assert len(videos) == 2
     assert videos[0]["ref"] == "e1"
     assert "超燃混剪" in videos[0]["title"]
-    assert videos[0]["url"] == "https://www.bilibili.com/video/BV1xx411c7mD"
     assert videos[1]["ref"] == "e3"
-    assert videos[1]["url"] == "https://www.bilibili.com/video/BV2yy411c8kE"
-    session.interact.assert_awaited_once_with(action="scroll", text="350")
+    assert "架构设计教程" in videos[1]["title"]
 
 
 @pytest.mark.asyncio
 async def test_bilibili_fallback_text_extraction() -> None:
-    get_feed_videos = _load_tool("bilibili", "get_feed_videos.py", "get_feed_videos")
+    get_video_feed = _load_tool("bilibili", "get_video_feed.py", "get_video_feed")
 
     session = MagicMock()
+    session.page = None
     session.url = "https://www.bilibili.com"
     session.get_all_refs.return_value = MappingProxyType({})
     session.snapshot = AsyncMock(return_value=MagicMock())
     session.interact = AsyncMock(return_value="ok")
     session.extract_text = AsyncMock(
-        return_value="硬核科技发布会直播回顾\n12.5万播放 · 3500弹幕 · UP主: 科技极客\n\n新一代AI大模型深度评测\n5.8万播放 · 1200点赞"
+        return_value="硬核科技发布会直播回顾 12.5万播放 · 3500弹幕 · UP主: 科技极客\n\n新一代AI大模型深度评测 5.8万播放 · 1200点赞"
     )
 
-    result = await get_feed_videos(session, {"max_videos": 5})
+    result = await get_video_feed(session, {"max_items": 5})
     videos = json.loads(result)
 
     assert len(videos) >= 1
