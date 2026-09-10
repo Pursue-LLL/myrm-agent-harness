@@ -141,6 +141,8 @@ class AgentRuntimeSpec:
 
     # --- Capabilities ---
     allowed_tools: list[str] = field(default_factory=list)
+    no_builtin_tools: bool = False
+    """When True, strips all built-in framework meta tools, leaving only explicit domain tools."""
     tool_groups: list[str] = field(default_factory=list)
     skill_ids: list[str] = field(default_factory=list)
     skill_configs: dict[str, dict] | None = None
@@ -192,5 +194,6 @@ class AgentRuntimeConfig:
     locale: str | None = field(default=None)
     prompt_locale: str | None = field(default=None)
     channel_name: str | None = field(default=None)
+    no_builtin_tools: bool = field(default=False)
     engine_params: EngineParams = field(default_factory=EngineParams)
     agent_id: str = field(default="")

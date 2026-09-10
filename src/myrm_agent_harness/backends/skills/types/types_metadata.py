@@ -145,6 +145,12 @@ class SkillMetadata:
     oauth_issuer: str | None = None
     """OAuth issuer key used to scope runtime credential injection for this skill."""
 
+    required_oauth_issuers: list[str] = field(default_factory=list)
+    """Multiple OAuth issuer keys required by this skill (superset of oauth_issuer)."""
+
+    required_mcp_server_ids: list[str] = field(default_factory=list)
+    """MCP server identifiers required by this skill for preflight checks."""
+
     contract: SkillContract | None = None
     """Structured contract parsed from frontmatter for cache-safe routing and fallback docs."""
 

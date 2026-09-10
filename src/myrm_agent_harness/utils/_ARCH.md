@@ -33,6 +33,7 @@ Utility library exports. Public interface for the utils module providing commonl
 | rwlock.py | Core | General-purpose read-write lock concurrency primitive for multi-reader single-writer scenarios. | ✅ |
 | text_cleaner.py | Core | Text cleaning utilities. Removes noise and irrelevant information from content to improve quality. | ✅ |
 | text_sanitizer.py | Core | LLM streaming output sanitizer. Three-layer filtering ensures clean, garble-free text for user displ | ✅ |
+| markdown_table_repair.py | Core | Automatic sanitizer and repair engine for LLM-generated malformed, dirty, or truncated Markdown tables. | ✅ |
 | text_utils.py | Core | Text processing utilities. Provides token counting, language detection, smart truncation, and output | ✅ |
 | tool_dynamic_hints.py | Core | LangChain tool `with_dynamic_hints` decorator — shared by agent and toolkits without cross-layer imports. | ✅ |
 | token_estimation.py | Core | Message-level + bind-tools context token estimation for compress/summarize/budget and Turn1 inventory SSOT | ✅ |

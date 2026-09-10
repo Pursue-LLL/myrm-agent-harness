@@ -155,7 +155,12 @@ class SkillAgentToolsMixin:
         if wiki_tools:
             meta_tools.extend(wiki_tools)
 
-        registry.register_many(meta_tools, source=ToolSource.META)
+        no_builtin_tools = getattr(self.config, "no_builtin_tools", False) or getattr(self, "no_builtin_tools", False)  # type: ignore[attr-defined]
+        if not no_builtin_tools:
+            registry.register_many(meta_tools, source=ToolSource.META)
+        else:
+            logger.info("no_builtin_tools is enabled: built-in meta tools are excluded from action space")
+
         registry.register_many(
             normalize_tool_names(
                 [*self.user_tools, *supplemental_user_tools]  # type: ignore[attr-defined]
@@ -201,7 +206,8 @@ class SkillAgentToolsMixin:
         )
 
         self._tool_registry = registry  # type: ignore[attr-defined]
-        resolved = registry.resolve()
+        no_builtin = getattr(self.config, "no_builtin_tools", False)  # type: ignore[attr-defined]
+        resolved = registry.resolve(no_builtin_tools=no_builtin)
 
         unattended = getattr(self.config, "unattended", False)  # type: ignore[attr-defined]
         if unattended:

@@ -154,6 +154,8 @@ def build_skill_metadata(
         version=frontmatter.version,
         primary_env=frontmatter.primary_env,
         oauth_issuer=frontmatter.oauth_issuer,
+        required_oauth_issuers=frontmatter.required_oauth_issuers,
+        required_mcp_server_ids=frontmatter.required_mcp_server_ids,
         evolution_locked=frontmatter.evolution_locked,
         config_schema=frontmatter.config_schema,
         contract=frontmatter.contract,

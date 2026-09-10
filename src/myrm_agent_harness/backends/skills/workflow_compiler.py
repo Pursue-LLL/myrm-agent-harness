@@ -128,6 +128,8 @@ class WorkflowIntentPlan:
     description: str
     intent: str
     steps: list[WorkflowPlanStep] = field(default_factory=list)
+    hard_invariants: list[str] = field(default_factory=list)
+    house_conventions: list[str] = field(default_factory=list)
     variables: dict[str, str] = field(
         default_factory=dict
     )  # var_name -> description/default
@@ -141,6 +143,8 @@ class WorkflowIntentPlan:
             "description": self.description,
             "intent": self.intent,
             "steps": [s.to_dict() for s in self.steps],
+            "hard_invariants": self.hard_invariants,
+            "house_conventions": self.house_conventions,
             "variables": self.variables,
             "allowed_tools": self.allowed_tools,
         }
@@ -156,6 +160,8 @@ class WorkflowIntentPlan:
             description=str(data.get("description", "")),
             intent=str(data.get("intent", "")),
             steps=steps,
+            hard_invariants=[str(x) for x in data.get("hard_invariants", []) if str(x).strip()],
+            house_conventions=[str(x) for x in data.get("house_conventions", []) if str(x).strip()],
             variables=(
                 data.get("variables", {})
                 if isinstance(data.get("variables"), dict)
@@ -223,6 +229,24 @@ def compile_workflow_plan_to_skill_markdown(plan: WorkflowIntentPlan) -> str:
             vars_joined = ", ".join(f"`{{{{{v}}}}}`" for v in step.variables_used)
             lines.append(f"- **Variables Referenced**: {vars_joined}")
         lines.append("")
+
+    if plan.hard_invariants or plan.house_conventions:
+        lines.append("## Rule Hierarchy & Compliance")
+        lines.append("")
+        if plan.hard_invariants:
+            lines.append("### Hard Invariants (Unbreakable Rules)")
+            lines.append("> Mandatory physical/security rules that must NEVER be violated under any circumstances.")
+            lines.append("")
+            for inv in plan.hard_invariants:
+                lines.append(f"- **[Hard Invariant]**: {inv}")
+            lines.append("")
+        if plan.house_conventions:
+            lines.append("### House Conventions (Team Defaults & Style Preferences)")
+            lines.append("> Default recommendations and formatting styles. If the user explicitly asks for an exception, gracefully yield without arguing or lecturing.")
+            lines.append("")
+            for conv in plan.house_conventions:
+                lines.append(f"- **[House Convention]**: {conv}")
+            lines.append("")
 
     lines.append("## Guidelines & Fallback")
     lines.append(

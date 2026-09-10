@@ -208,7 +208,8 @@ class BaseAgent(BaseAgentModesMixin):
             _weave_dynamic_schemas,
         )
 
-        self._cached_tools = _weave_dynamic_schemas(self._tool_registry.resolve())
+        no_builtin = getattr(self.config, "no_builtin_tools", False)
+        self._cached_tools = _weave_dynamic_schemas(self._tool_registry.resolve(no_builtin_tools=no_builtin))
 
         if self._extensions:
             from myrm_agent_harness.agent.tool_management.tool_layers import (

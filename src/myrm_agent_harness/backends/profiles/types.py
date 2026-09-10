@@ -91,6 +91,9 @@ class AgentProfile:
     command_bindings: list[CommandBinding] | None = None
     """User-defined slash command → Skill bindings for this agent."""
 
+    no_builtin_tools: bool = False
+    """If True, disable all built-in meta tools and start with a completely empty action space."""
+
     metadata: dict[str, object] = field(default_factory=dict)
     """Business-layer extension fields (e.g. home_directory, permissions)."""
 

@@ -51,6 +51,12 @@ class MCPOAuthToken(BaseModel):
             return False
         return time.time() >= self.expires_at - 30  # 30s safety margin
 
+    def is_near_expiry(self, lead_time_seconds: float = 300.0) -> bool:
+        """Check if token is expiring soon within lead_time_seconds (default 5 min)."""
+        if self.expires_at is None:
+            return False
+        return time.time() >= self.expires_at - lead_time_seconds
+
 
 class MCPOAuthConfig(BaseModel):
     """Per-server OAuth configuration.
@@ -183,6 +189,17 @@ class MCPOAuthProvider:
                 return {}
 
         return {"Authorization": f"{token.token_type} {token.access_token}"}
+
+    async def check_and_proactive_reauth(self, lead_time_seconds: float = 300.0) -> bool:
+        """Proactively refresh token if near expiry before making calls. Returns True if refreshed."""
+        token = await self._token_store.get_token(self._server_name)
+        if token is None or not token.refresh_token:
+            return False
+        if token.is_near_expiry(lead_time_seconds):
+            logger.info("MCP server '%s' OAuth token is near expiry; triggering proactive reauth", self._server_name)
+            refreshed = await self._try_refresh(token.refresh_token)
+            return refreshed is not None
+        return False
 
     async def _try_refresh(self, refresh_token: str) -> MCPOAuthToken | None:
         try:

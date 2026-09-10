@@ -304,6 +304,46 @@ class MCPClientManager:
         return headers
 
     @staticmethod
+    async def preflight_ping_probe(
+        server_config: MCPServerConfigProtocol,
+        timeout_seconds: float = 3.0,
+    ) -> bool:
+        """Probe MCP server reachability before dispatching tool calls.
+
+        For HTTP/SSE servers, sends a lightweight HEAD/GET or ping to prevent
+        hung agent sessions when an MCP endpoint is dead.
+        For stdio, validates executable existence and execution permissions.
+        """
+        import asyncio
+        import shutil
+
+        server_type = server_config.type
+        if server_type in ("sse", "streamable_http"):
+            url = str(server_config.url or "")
+            if not url:
+                return False
+            try:
+                import httpx2
+                headers = MCPClientManager.get_headers(server_config)
+                async with httpx2.AsyncClient(timeout=timeout_seconds, follow_redirects=True) as client:
+                    resp = await client.get(url, headers=headers)
+                    # Many SSE/MCP servers return 200, 400 (missing query), 404, or 405 on base GET;
+                    # As long as the port is open and server responds within timeout, it is reachable.
+                    return resp.status_code < 500
+            except Exception as e:
+                logger.warning("[MCP Health] Pre-call ping failed for %s (%s): %s", server_config.name, url, e)
+                return False
+
+        if server_type == "stdio":
+            command = server_config.command
+            if not command:
+                return False
+            resolved = shutil.which(command)
+            return resolved is not None
+
+        return True
+
+    @staticmethod
     async def _inject_auth_headers_into_config(
         server_config: MCPServerConfigProtocol,
     ) -> None:

@@ -66,7 +66,9 @@ def test_api_protocols_are_extension_contracts() -> None:
         HookRegistryProtocol,
         IntegrationProvider,
         KanbanStore,
+        MerchantBackend,
         SkillBackend,
+        StorefrontBackend,
     )
 
     protocol_types = (
@@ -74,7 +76,9 @@ def test_api_protocols_are_extension_contracts() -> None:
         HookRegistryProtocol,
         IntegrationProvider,
         KanbanStore,
+        MerchantBackend,
         SkillBackend,
+        StorefrontBackend,
     )
     for protocol_type in protocol_types:
         assert inspect.isclass(protocol_type)

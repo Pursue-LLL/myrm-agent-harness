@@ -206,7 +206,7 @@ class ToolRegistry:
             ),
         )
 
-    def resolve(self) -> list[BaseTool]:
+    def resolve(self, *, no_builtin_tools: bool = False) -> list[BaseTool]:
         """Deduplicate and sort all registered tools.
 
         Dedup rule: on name collision the entry with the **highest source
@@ -214,6 +214,9 @@ class ToolRegistry:
 
         Sort rule: first by ``ToolLayer`` (CORE → HIGH_PRIORITY → EXTENDED → EXTERNAL),
         then HIGH_PRIORITY group priority, then alphabetically within each tier.
+
+        When ``no_builtin_tools=True``, only user-provided/external domain tools are kept;
+        all built-in framework meta tools (source == ToolSource.META) are excluded.
 
         Only returns Turn1-bound tools (``bind_mode == TURN1``).
         """
@@ -231,7 +234,13 @@ class ToolRegistry:
                 current_map[e.tool.name] = e.allowed_domains
         set_allowed_domains_map(current_map)
 
-        resolved_tools = [e.tool for e in entries if e.bind_mode == ToolBindMode.TURN1]
+        if no_builtin_tools:
+            resolved_tools = [
+                e.tool for e in entries
+                if e.bind_mode == ToolBindMode.TURN1 and e.source != ToolSource.META
+            ]
+        else:
+            resolved_tools = [e.tool for e in entries if e.bind_mode == ToolBindMode.TURN1]
 
         # Weave dynamic schemas (e.g. cross-tool hints)
         resolved_names = {t.name for t in resolved_tools}

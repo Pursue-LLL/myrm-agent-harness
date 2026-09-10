@@ -117,6 +117,12 @@ class SkillFrontmatter:
     harness uses this only to scope user_credentials_ctx injection during bash.
     """
 
+    required_oauth_issuers: list[str] = field(default_factory=list)
+    """Multiple OAuth issuer keys required by this skill."""
+
+    required_mcp_server_ids: list[str] = field(default_factory=list)
+    """Multiple MCP server IDs required by this skill for preflight checks."""
+
     allowed_domains: list[str] | None = None
     """Allowed domains for outbound network requests (DLP protection)."""
 
@@ -247,6 +253,12 @@ _KNOWN_FRONTMATTER_FIELDS = frozenset(
         "primary_env",
         "oauth-issuer",
         "oauth_issuer",
+        "required-oauth-issuers",
+        "required_oauth_issuers",
+        "required-mcp-server-ids",
+        "required_mcp_server_ids",
+        "required-mcp-servers",
+        "required_mcp_servers",
         "required-credential-files",
         "required_credential_files",
         "evolution-locked",
@@ -664,6 +676,23 @@ def parse_skill_frontmatter(content: str, skill_dir_name: str) -> SkillFrontmatt
         if oi:
             oauth_issuer = oi
 
+    required_oauth_issuers: list[str] = []
+    raw_issuers = parsed.get("required_oauth_issuers") or parsed.get("required-oauth-issuers")
+    if raw_issuers and isinstance(raw_issuers, list):
+        required_oauth_issuers = [str(item).strip() for item in raw_issuers if str(item).strip()]
+    elif oauth_issuer:
+        required_oauth_issuers = [oauth_issuer]
+
+    required_mcp_server_ids: list[str] = []
+    raw_mcps = (
+        parsed.get("required_mcp_server_ids")
+        or parsed.get("required-mcp-server-ids")
+        or parsed.get("required_mcp_servers")
+        or parsed.get("required-mcp-servers")
+    )
+    if raw_mcps and isinstance(raw_mcps, list):
+        required_mcp_server_ids = [str(item).strip() for item in raw_mcps if str(item).strip()]
+
     # required-credential-files: optional, list of credential file paths
     required_credential_files: list[str] = []
     raw_cred_files = parsed.get("required-credential-files") or parsed.get("required_credential_files")
@@ -741,6 +770,8 @@ def parse_skill_frontmatter(content: str, skill_dir_name: str) -> SkillFrontmatt
         category=category,
         primary_env=primary_env,
         oauth_issuer=oauth_issuer,
+        required_oauth_issuers=required_oauth_issuers,
+        required_mcp_server_ids=required_mcp_server_ids,
         required_credential_files=required_credential_files,
         evolution_locked=evolution_locked,
         config_schema=config_schema,

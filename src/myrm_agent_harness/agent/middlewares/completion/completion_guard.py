@@ -99,6 +99,9 @@ from myrm_agent_harness.agent.middlewares.completion.deliverable_write_verifier 
 from myrm_agent_harness.agent.middlewares.completion.query_grounding_verifier import (
     check_query_grounding_claim,
 )
+from myrm_agent_harness.agent.middlewares.completion.ppt_outline_verifier import (
+    check_ppt_outline_quality,
+)
 from myrm_agent_harness.agent.orchestration.hooks import COMPLETION_CHECK_TOOL_NAME
 from myrm_agent_harness.agent.security.guards.loop_guard import (
     ToolGroup,
@@ -128,6 +131,7 @@ def _completion_check_tool(
     evidence_reason: str = "",
     deliverable_write_reason: str = "",
     query_grounding_reason: str = "",
+    ppt_outline_reason: str = "",
     staged_artifacts: list[dict[str, object]] | None = None,
 ) -> str:
     """Generate a task-aware verification checklist before finishing.
@@ -172,6 +176,14 @@ def _completion_check_tool(
             f"Reason: {query_grounding_reason}\n"
             "Before finishing, execute the appropriate query or MCP tool to retrieve verified data, "
             "or revise the response to honestly state the missing status or tool failure to the user."
+        )
+
+    if ppt_outline_reason.strip():
+        return (
+            " CRITICAL COMPLETION CHECK: PPT Reporting Plan Outline Quality Gate Failed.\n"
+            f"Reason: {ppt_outline_reason}\n"
+            "Before delivering the final outline or executing slide generation, refine the presentation structure: "
+            "ensure each slide has a punchy headline (max 6-8 words), an explicit takeaway statement, and concrete visual/data anchors."
         )
 
     from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
@@ -381,11 +393,21 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
                 records=filtered_records,
             )
 
+        ppt_outline_reason: str | None = None
+        if last_ai_msg.content:
+            content_str = last_ai_msg.content if isinstance(last_ai_msg.content, str) else str(last_ai_msg.content)
+            ppt_outline_reason = check_ppt_outline_quality(
+                user_text=latest_human_for_grounding,
+                assistant_text=content_str,
+            )
+
         if evidence_reason is not None:
             has_critical_errors = True
         if deliverable_write_reason is not None:
             has_critical_errors = True
         if query_grounding_reason is not None:
+            has_critical_errors = True
+        if ppt_outline_reason is not None:
             has_critical_errors = True
 
         if not has_critical_errors:
@@ -396,7 +418,7 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
         # modified AFTER the last successful verification. Other critical errors
         # (no verification, failed verification, empty tests, execution failures)
         # must NOT be bypassed by independent re-run.
-        if evidence_reason is None and query_grounding_reason is None:
+        if evidence_reason is None and query_grounding_reason is None and ppt_outline_reason is None:
             has_code_writes = any(
                 get_tool_group(r.tool_name) == ToolGroup.WRITE and _is_code_file(str(r.args.get("path", "")))
                 for r in filtered_records
@@ -437,6 +459,8 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
                 forced_args["deliverable_write_reason"] = deliverable_write_reason
             if query_grounding_reason is not None:
                 forced_args["query_grounding_reason"] = query_grounding_reason
+            if ppt_outline_reason is not None:
+                forced_args["ppt_outline_reason"] = ppt_outline_reason
             if staged_metas_dict:
                 forced_args["staged_artifacts"] = staged_metas_dict
             patched = deepcopy(last_ai_msg)
@@ -467,6 +491,8 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
             tool_args["deliverable_write_reason"] = deliverable_write_reason
         if query_grounding_reason is not None:
             tool_args["query_grounding_reason"] = query_grounding_reason
+        if ppt_outline_reason is not None:
+            tool_args["ppt_outline_reason"] = ppt_outline_reason
         patched = deepcopy(last_ai_msg)
         patched.tool_calls = [
             {

@@ -59,6 +59,15 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "wrap_with_tool_output_tag",
     ),
     "TruncationStats": ("myrm_agent_harness.utils.context_format", "TruncationStats"),
+    # Markdown table repair
+    "repair_markdown_tables": (
+        "myrm_agent_harness.utils.markdown_table_repair",
+        "repair_markdown_tables",
+    ),
+    "TableRepairStats": (
+        "myrm_agent_harness.utils.markdown_table_repair",
+        "TableRepairStats",
+    ),
     # Network utilities
     "get_local_ip": ("myrm_agent_harness.utils.network", "get_local_ip"),
     # File utilities
@@ -119,6 +128,9 @@ __all__ = [
     "get_device_fingerprint",
     # Network utilities
     "get_local_ip",
+    # Markdown table repair
+    "repair_markdown_tables",
+    "TableRepairStats",
     # Document utilities
     "parse_front_matter",
     # Shell argument escaping

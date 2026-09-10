@@ -303,3 +303,32 @@ def test_parse_frontmatter_empty_or_no_frontmatter():
     assert body == content
 
 
+def test_parse_skill_frontmatter_required_connectors_and_mcps():
+    content = """---
+name: multi-connector-meeting
+description: Meeting summarizer requiring Tencent Meeting and Google Docs
+required_oauth_issuers:
+  - tencent_meeting
+  - google_workspace
+required_mcp_server_ids:
+  - office_mcp
+  - tencent_docs_mcp
+---
+# Meeting body
+"""
+    fm = parse_skill_frontmatter(content, "multi-connector-meeting")
+    assert fm.required_oauth_issuers == ["tencent_meeting", "google_workspace"]
+    assert fm.required_mcp_server_ids == ["office_mcp", "tencent_docs_mcp"]
+
+    meta = build_skill_metadata(
+        skill_name="multi-connector-meeting",
+        frontmatter=fm,
+        storage_path="/tmp/skills/multi-connector-meeting",
+        content=content,
+        trust=SkillTrust.INSTALLED,
+    )
+    assert meta.required_oauth_issuers == ["tencent_meeting", "google_workspace"]
+    assert meta.required_mcp_server_ids == ["office_mcp", "tencent_docs_mcp"]
+
+
+
