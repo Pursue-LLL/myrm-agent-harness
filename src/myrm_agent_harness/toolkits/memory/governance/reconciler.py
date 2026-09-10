@@ -100,15 +100,24 @@ def default_rule_based_resolver(
     ]
     for indicator in update_indicators:
         if indicator in clean_new:
-            # Check if there is category/subject overlap via words or 2-char n-grams
-            words = [w for w in re.split(r"\W+", clean_old) if len(w) > 1]
-            has_word_match = any(w in clean_new for w in words)
-            has_ngram_match = any(
-                clean_old[i : i + 2] in clean_new
+            # Check subject/object overlap:
+            # 1. CJK 2-char n-gram overlap (only for pairs of CJK characters)
+            has_cjk_ngram_match = any(
+                "\u4e00" <= clean_old[i] <= "\u9fff"
+                and "\u4e00" <= clean_old[i + 1] <= "\u9fff"
+                and clean_old[i : i + 2] in clean_new
                 for i in range(len(clean_old) - 1)
-                if not clean_old[i : i + 2].isspace()
             )
-            if has_word_match or has_ngram_match:
+            # 2. Meaningful token match (length >= 3, excluding common stop words)
+            stop_words = {"the", "and", "for", "with", "from", "that", "this", "user", "every"}
+            words = [
+                w for w in re.split(r"\W+", clean_old)
+                if len(w) >= 3 and w not in stop_words
+            ]
+            new_tokens = set(re.split(r"\W+", clean_new))
+            has_word_match = any(w in new_tokens for w in words)
+
+            if has_cjk_ngram_match or has_word_match:
                 return ReconciliationDecision(
                     action=ReconciliationAction.UPDATE,
                     target_fact_id=existing_fact.fact_id,
@@ -118,7 +127,21 @@ def default_rule_based_resolver(
                 )
 
     # Direct negation or contradiction
-    negations = ["不在", "不是", "不吃", "不喝", "不玩", "not ", "never "]
+    negations = [
+        "不在",
+        "不是",
+        "不吃",
+        "不喝",
+        "不玩",
+        "not ",
+        "never ",
+        "don't ",
+        "dont ",
+        "doesn't ",
+        "doesnt ",
+        "no longer ",
+        "stop ",
+    ]
     for neg in negations:
         if neg in clean_new:
             pos_variant = clean_new.replace(neg, "")

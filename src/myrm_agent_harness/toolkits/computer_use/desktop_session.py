@@ -385,7 +385,9 @@ class DesktopSession(ComputerSession):
                 if action == "fill_credential":
                     result_prefix = f"Filled credential '{text}' into @{element.ref_id} [CREDENTIAL_FILLED]\n\n"
                 else:
-                    result_prefix = f"Action '{action}' on @{element.ref_id} succeeded.\n\n"
+                    result_prefix = (
+                        f"Action '{action}' on @{element.ref_id} succeeded.\n\n"
+                    )
                 if isinstance(follow_up, list):
                     first = follow_up[0]
                     if hasattr(first, "text"):
@@ -457,7 +459,8 @@ class DesktopSession(ComputerSession):
                 probe = probe_iphone_mirror_state()
                 if probe.state == IPhoneMirrorState.BLOCKED_CONNECT_PROMPT:
                     logger.warning(
-                        "[SECURITY] iPhone mirror connect gate (vision): %s", probe.detail
+                        "[SECURITY] iPhone mirror connect gate (vision): %s",
+                        probe.detail,
                     )
                     return f"Safety: {probe.remedy_hint}"
 
@@ -518,7 +521,9 @@ class DesktopSession(ComputerSession):
                 result = await self.key_press(text or "")
             elif action == "scroll":
                 if coordinate is None or len(coordinate) != 2 or not scroll_direction:
-                    return "Error: coordinate and scroll_direction are required for scroll"
+                    return (
+                        "Error: coordinate and scroll_direction are required for scroll"
+                    )
                 result = await self.scroll_at(
                     coordinate[0],
                     coordinate[1],
@@ -528,7 +533,9 @@ class DesktopSession(ComputerSession):
                 )
             elif action == "drag":
                 if start_coordinate is None or coordinate is None:
-                    return "Error: start_coordinate and coordinate are required for drag"
+                    return (
+                        "Error: start_coordinate and coordinate are required for drag"
+                    )
                 result = await self.drag(
                     start_coordinate[0],
                     start_coordinate[1],
@@ -652,7 +659,9 @@ class DesktopSession(ComputerSession):
             meta=meta,
         )
 
-    async def check_permissions(self, *, probe_capture: bool = False) -> PermissionStatus:
+    async def check_permissions(
+        self, *, probe_capture: bool = False
+    ) -> PermissionStatus:
         """Delegate to the platform backend to probe OS-level permissions."""
         return await super().check_permissions(probe_capture=probe_capture)
 

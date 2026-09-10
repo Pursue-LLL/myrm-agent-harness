@@ -224,7 +224,10 @@ def test_probe_iphone_mirror_state_osascript_failure() -> None:
             "myrm_agent_harness.toolkits.computer_use.iphone_mirror.is_iphone_mirror_supported",
             return_value=True,
         ),
-        patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="osascript", timeout=3.0)),
+        patch(
+            "subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd="osascript", timeout=3.0),
+        ),
     ):
         res = probe_iphone_mirror_state()
         assert res.state == IPhoneMirrorState.NOT_RUNNING
@@ -304,7 +307,9 @@ async def test_desktop_interact_allows_mirror_normal_click() -> None:
         "myrm_agent_harness.toolkits.computer_use.desktop_session.invoke_element"
     ) as mock_invoke:
         mock_invoke.return_value = ActionResult(success=True)
-        with patch.object(session, "desktop_snapshot", new=AsyncMock(return_value="view")):
+        with patch.object(
+            session, "desktop_snapshot", new=AsyncMock(return_value="view")
+        ):
             result = await session.desktop_interact(ref="d1", action="click")
     assert "succeeded" in result
     mock_invoke.assert_called_once()
@@ -335,7 +340,9 @@ async def test_desktop_vision_blocked_when_connect_prompt_active() -> None:
         patch.object(DesktopSession, "click_at", new_callable=AsyncMock) as mock_click,
     ):
         session = DesktopSession(backend=MagicMock(), config=MagicMock())
-        result = await session.desktop_vision_action(action="left_click", coordinate=[10, 10])
+        result = await session.desktop_vision_action(
+            action="left_click", coordinate=[10, 10]
+        )
     assert result.startswith("Safety:")
     assert "User must confirm" in result
     mock_click.assert_not_called()

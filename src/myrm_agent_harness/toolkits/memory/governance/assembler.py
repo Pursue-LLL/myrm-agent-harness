@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
+from datetime import datetime, timezone
 
 from myrm_agent_harness.toolkits.memory.governance.graph_bridge import EntityGraphBridge
 from myrm_agent_harness.toolkits.memory.governance.models import (
@@ -35,6 +36,13 @@ def estimate_tokens(text: str) -> int:
     if not text:
         return 0
     return max(1, math.ceil(len(text) / 2.8))
+
+
+def _safe_timestamp(dt: datetime) -> float:
+    """Safely convert datetime to epoch timestamp regardless of tz-awareness."""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.timestamp()
 
 
 class DynamicContextAssembler:
@@ -105,7 +113,7 @@ class DynamicContextAssembler:
         effective_event_quota = initial_event_quota + fact_surplus
 
         # Pass 2: Assemble Event Timeline with loaned budget
-        sorted_events = sorted(timeline, key=lambda e: e.timestamp, reverse=True)
+        sorted_events = sorted(timeline, key=lambda e: _safe_timestamp(e.timestamp), reverse=True)
         event_lines: list[str] = []
         event_tokens = 0
 

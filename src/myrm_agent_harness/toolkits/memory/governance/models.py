@@ -60,7 +60,12 @@ class DynamicFactItem(BaseModel):
         if self.valid_until is None:
             return False
         now = current_time or datetime.now(timezone.utc)
-        return now > self.valid_until
+        target = self.valid_until
+        if target.tzinfo is None:
+            target = target.replace(tzinfo=timezone.utc)
+        if now.tzinfo is None:
+            now = now.replace(tzinfo=timezone.utc)
+        return now > target
 
 
 class EventTimelineItem(BaseModel):
@@ -84,25 +89,44 @@ class ProfileSlots(BaseModel):
 
     def update_slot(
         self,
-        category: Literal["persona", "preferences", "constraints", "custom"],
+        category: Literal["persona", "preferences", "constraints", "custom"] | str,
         key: str,
         value: str,
     ) -> None:
         """In-place update or add a profile slot key-value pair."""
-        target_dict: dict[str, str] = getattr(self, category)
-        target_dict[key] = value
+        clean_cat = str(category).strip()
+        if not hasattr(self, clean_cat):
+            clean_cat = "custom"
+        target_dict: dict[str, str] = getattr(self, clean_cat)
+        target_dict[key.strip()] = value.strip()
 
     def delete_slot(
         self,
-        category: Literal["persona", "preferences", "constraints", "custom"],
+        category: Literal["persona", "preferences", "constraints", "custom"] | str,
         key: str,
     ) -> bool:
         """In-place remove a key from target profile category."""
-        target_dict: dict[str, str] = getattr(self, category)
-        if key in target_dict:
-            del target_dict[key]
+        clean_cat = str(category).strip()
+        if not hasattr(self, clean_cat):
+            clean_cat = "custom"
+        target_dict: dict[str, str] = getattr(self, clean_cat)
+        clean_key = key.strip()
+        if clean_key in target_dict:
+            del target_dict[clean_key]
             return True
         return False
+
+    def get_slot(
+        self,
+        category: Literal["persona", "preferences", "constraints", "custom"] | str,
+        key: str,
+    ) -> str | None:
+        """Get slot value by category and key."""
+        clean_cat = str(category).strip()
+        if not hasattr(self, clean_cat):
+            return None
+        target_dict: dict[str, str] = getattr(self, clean_cat)
+        return target_dict.get(key.strip())
 
     def to_cached_prefix_text(self) -> str:
         """Serialize profile slots with strict lexicographical ordering.
