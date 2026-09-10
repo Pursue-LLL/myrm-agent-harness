@@ -229,7 +229,7 @@ def _scan_high_entropy(content: str, already_matched: set[str]) -> list[tuple[st
     stripped = _FILE_PATH_RE.sub(" ", stripped)
 
     found: list[tuple[str, str]] = []
-    tokens = re.split(r"[\s,;:\"'`()\[\]{}]+", stripped)
+    tokens = re.split(r"[\s,;:\"'`()\[\]{}|<>#]+", stripped)
 
     for token in tokens:
         if len(token) < _ENTROPY_MIN_TOKEN_LEN:

@@ -236,9 +236,13 @@ class LinkRefactorEngine:
         # Obsidian scoping rules resolve [[stem]] to sibling, not old_target.
         try:
             for p in current_file.parent.iterdir():
-                if p.is_file() and p.suffix.lower() == ".md":
-                    if p.stem.casefold() == clean_note_cf and p.resolve() != old_target_res:
-                        return False
+                if (
+                    p.is_file()
+                    and p.suffix.lower() == ".md"
+                    and p.stem.casefold() == clean_note_cf
+                    and p.resolve() != old_target_res
+                ):
+                    return False
         except OSError:
             pass
 
@@ -247,10 +251,8 @@ class LinkRefactorEngine:
             return True
 
         # 3. If in a different folder, check pre-computed global collision in vault.
-        if has_stem_conflict:
-            return False
+        return not has_stem_conflict
 
-        return True
 
     def _update_content_links(
         self,
@@ -335,14 +337,19 @@ class LinkRefactorEngine:
             if not is_dir:
                 if clean_note.casefold() == old_slug.casefold():
                     new_note_part = new_slug if not has_md_suffix else f"{new_slug}.md"
-                elif clean_note.casefold() == old_stem.casefold():
-                    if "/" not in clean_note and self._is_short_link_target(
+
+                elif (
+                    clean_note.casefold() == old_stem.casefold()
+                    and "/" not in clean_note
+                    and self._is_short_link_target(
                         current_file, clean_note, old_target, has_stem_conflict=has_stem_conflict
-                    ):
-                        if new_target.parent.resolve() == current_file.parent.resolve():
-                            new_note_part = new_target.stem if not has_md_suffix else f"{new_target.stem}.md"
-                        else:
-                            new_note_part = new_slug if not has_md_suffix else f"{new_slug}.md"
+                    )
+                ):
+                    if new_target.parent.resolve() == current_file.parent.resolve():
+                        new_note_part = new_target.stem if not has_md_suffix else f"{new_target.stem}.md"
+                    else:
+                        new_note_part = new_slug if not has_md_suffix else f"{new_slug}.md"
+
             else:
                 if clean_note.casefold() == old_slug.casefold():
                     new_note_part = new_slug if not has_md_suffix else f"{new_slug}.md"

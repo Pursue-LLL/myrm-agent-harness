@@ -25,6 +25,19 @@ from myrm_agent_harness.toolkits.memory.conversation_search import (
     MemoryConversationSearchProvider,
     create_conversation_search_tool,
 )
+from myrm_agent_harness.toolkits.memory.governance import (
+    AssembledMemoryContext,
+    ConflictResolver,
+    DynamicContextAssembler,
+    DynamicFactItem,
+    EntityGraphBridge,
+    EventTimelineItem,
+    FactReconciliationEngine,
+    FactStatus,
+    ProfileSlots,
+    ReconciliationAction,
+    ReconciliationDecision,
+)
 from myrm_agent_harness.toolkits.memory.health import HealthScore, MaintenanceReport, MemorySnapshot, NeglectedMemory
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.metrics import SearchMetrics, SearchSnapshot, get_search_metrics
@@ -136,6 +149,17 @@ from myrm_agent_harness.toolkits.memory.working_tree import (
 )
 
 __all__ = [
+    "AssembledMemoryContext",
+    "ConflictResolver",
+    "DynamicContextAssembler",
+    "DynamicFactItem",
+    "EntityGraphBridge",
+    "EventTimelineItem",
+    "FactReconciliationEngine",
+    "FactStatus",
+    "ProfileSlots",
+    "ReconciliationAction",
+    "ReconciliationDecision",
     "BoundedSummary",
     "ConflictType",
     "ConflictVerdict",

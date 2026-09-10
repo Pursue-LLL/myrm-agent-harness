@@ -497,6 +497,13 @@ class TestShannonEntropy:
         content = "東京から大阪まで新幹線で2時間30分かかります。料金は13870円です。"
         assert "high_entropy_token" not in scan_for_leaks(content)
 
+    def test_anchored_wikilink_and_pipes_not_flagged(self) -> None:
+        """Markdown wikilinks with anchors and aliases should not trigger entropy false positive."""
+        content = "Reference [[vault/custom-note#Section-42|Display Label]]"
+        assert "high_entropy_token" not in scan_for_leaks(content)
+        assert redact_leaks(content) == content
+
+
 
 # ===================================================================
 # 10. log_leaks and edge cases
