@@ -13,10 +13,9 @@ Internal composition root; consumers import via ``memory.manager``.
 
 from __future__ import annotations
 
+from myrm_agent_harness.toolkits.memory._manager.archival import MemoryManagerArchivalMixin
 from myrm_agent_harness.toolkits.memory._manager.convenience import MemoryManagerConvenienceMixin
 from myrm_agent_harness.toolkits.memory._manager.core import MemoryManagerCore
-from myrm_agent_harness.toolkits.memory._manager.archival import MemoryManagerArchivalMixin
-from myrm_agent_harness.toolkits.memory._manager.queries import MemoryManagerQueriesMixin
 from myrm_agent_harness.toolkits.memory._manager.deletion import MemoryManagerDeletionMixin
 from myrm_agent_harness.toolkits.memory._manager.governance_session import (
     MemoryManagerGovernanceSessionMixin,
@@ -26,6 +25,7 @@ from myrm_agent_harness.toolkits.memory._manager.listing_maintenance import (
     MemoryManagerListingMaintenanceMixin,
 )
 from myrm_agent_harness.toolkits.memory._manager.mutations import MemoryManagerMutationsMixin
+from myrm_agent_harness.toolkits.memory._manager.queries import MemoryManagerQueriesMixin
 from myrm_agent_harness.toolkits.memory._manager.reindex import MemoryManagerReindexMixin
 from myrm_agent_harness.toolkits.memory._manager.retrieval_write import MemoryManagerRetrievalWriteMixin
 from myrm_agent_harness.toolkits.memory._manager.shared import (

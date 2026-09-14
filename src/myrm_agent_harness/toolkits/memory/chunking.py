@@ -1,19 +1,18 @@
-"""Conversation chunking strategies for verbatim storage.
-
-Implements exchange-pair chunking (MemPalace strategy) and other modes.
+"""Conversation chunking strategies for verbatim storage and extraction.
 
 [INPUT]
 - datetime (POS: Standard library utilities)
 
 [OUTPUT]
-- ChunkingStrategy: Enum for chunking modes (EXCHANGE_PAIR/USER_ONLY/SESSION)
+- ChunkingStrategy: Enum for chunking modes (EXCHANGE_PAIR/USER_ONLY/SESSION/EPISODES)
 - ConversationChunk: Chunked conversation unit with metadata
+- ConversationEpisode: Ephemeral episodic container for long-dialog chunking
+- EpisodesChunker: Temporal and causal sliding episodic chunking engine
 - chunk_conversation(): Split messages into semantic chunks
 
 [POS]
-Chunking utilities for ConversationMemory. Provides configurable strategies
-for splitting conversations into semantic units while preserving completeness.
-Default strategy is EXCHANGE_PAIR: [(User Q1 + AI A1), (User Q2 + AI A2), ...]
+Chunking utilities for ConversationMemory and extraction pipelines.
+Provides configurable strategies for splitting conversations into semantic units.
 """
 
 from __future__ import annotations

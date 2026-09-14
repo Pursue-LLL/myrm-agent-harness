@@ -13,6 +13,7 @@ from __future__ import annotations
 import re
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
+from typing import ClassVar
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
@@ -20,7 +21,6 @@ from pydantic import BaseModel, Field
 from myrm_agent_harness.toolkits.memory.types import (
     BaseMemory,
     EvidenceReference,
-    SemanticMemory,
 )
 
 
@@ -98,7 +98,7 @@ class ConfidenceEvolutionEngine:
 class DeterministicThreeStateMerger:
     """Zero-LLM deterministic three-state conflict merger and evolution evaluator."""
 
-    _MUTUALLY_EXCLUSIVE_FACETS: dict[str, list[str]] = {
+    _MUTUALLY_EXCLUSIVE_FACETS: ClassVar[dict[str, list[str]]] = {
         "location": ["常住", "住在", "位于", "搬到", "生活在", "工作地在", "工作在"],
         "runtime": ["使用 bun", "使用 node", "使用 deno", "使用 python 3.12", "使用 python 3.13"],
         "package_manager": ["用 uv", "用 pip", "用 poetry", "用 pnpm", "用 npm", "用 yarn", "用 bun"],
@@ -106,7 +106,7 @@ class DeterministicThreeStateMerger:
         "editor_ide": ["使用 Cursor", "使用 VS Code", "使用 Neovim", "使用 Emacs"],
     }
 
-    _NEGATION_MARKERS: set[str] = {
+    _NEGATION_MARKERS: ClassVar[set[str]] = {
         "不", "禁止", "严禁", "切勿", "不要", "禁用", "放弃", "不再", "停止",
         "never", "no", "not", "disable", "prohibit", "stop", "avoid",
     }
@@ -262,9 +262,8 @@ class DeterministicThreeStateMerger:
         for facet, patterns in self._MUTUALLY_EXCLUSIVE_FACETS.items():
             matched_a = [p for p in patterns if p.lower() in lower_a]
             matched_b = [p for p in patterns if p.lower() in lower_b]
-            if matched_a and matched_b:
-                if set(matched_a) != set(matched_b):
-                    return facet
+            if matched_a and matched_b and set(matched_a) != set(matched_b):
+                return facet
         return None
 
     def _detect_negation_inversion(self, a: str, b: str) -> bool:
@@ -292,9 +291,7 @@ class DeterministicThreeStateMerger:
             return True
         tokens_exist = set(re.findall(r"\w+", existing.lower()))
         tokens_cand = set(re.findall(r"\w+", candidate.lower()))
-        if tokens_exist and tokens_exist.issubset(tokens_cand) and len(tokens_cand) > len(tokens_exist):
-            return True
-        return False
+        return bool(tokens_exist and tokens_exist.issubset(tokens_cand) and len(tokens_cand) > len(tokens_exist))
 
     def _merge_supplement_content(self, existing: str, candidate: str) -> str:
         """Merge incremental candidate content into existing fact."""

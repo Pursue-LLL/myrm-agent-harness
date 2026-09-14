@@ -367,7 +367,7 @@ class EphemeralMemoryManager(MemoryManager):
         return results
 
     async def search(
-        self, query: str, *, memory_types: list[MemoryType] | None = None, limit: int = 10, **kwargs: Any
+        self, query: str, *, memory_types: list[MemoryType] | None = None, limit: int = 10, **kwargs: object
     ) -> list[MemorySearchResult]:
         """Search both parent persistent memory and local ephemeral memory."""
         # 1. Search persistent parent
@@ -450,7 +450,7 @@ class EphemeralMemoryManager(MemoryManager):
         await self.store(memory)
         return memory
 
-    async def get_context(self, **kwargs: Any) -> dict[str, object]:
+    async def get_context(self, **kwargs: object) -> dict[str, object]:
         return await self._parent.get_context(**kwargs)
 
     async def get_learned_context(self) -> dict[str, list[dict[str, str]]]:
@@ -503,7 +503,7 @@ class EphemeralMemoryManager(MemoryManager):
             memory_type, limit=limit, offset=offset, include_archived=include_archived
         )
 
-    async def count_memories(self, memory_type: MemoryType, **kwargs: Any) -> int:
+    async def count_memories(self, memory_type: MemoryType, **kwargs: object) -> int:
         return await self._parent.count_memories(memory_type, **kwargs)
 
     def get_enabled_types(self) -> list[MemoryType]:

@@ -35,6 +35,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field, field_validator
 
+
 class EvidenceReference(BaseModel):
     """Structured evidence anchor linking extracted facts to raw interaction context."""
 

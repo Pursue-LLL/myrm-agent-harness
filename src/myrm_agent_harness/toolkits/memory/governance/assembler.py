@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from myrm_agent_harness.toolkits.memory.governance.graph_bridge import EntityGraphBridge
 from myrm_agent_harness.toolkits.memory.governance.models import (
@@ -41,7 +41,7 @@ def estimate_tokens(text: str) -> int:
 def _safe_timestamp(dt: datetime) -> float:
     """Safely convert datetime to epoch timestamp regardless of tz-awareness."""
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     return dt.timestamp()
 
 

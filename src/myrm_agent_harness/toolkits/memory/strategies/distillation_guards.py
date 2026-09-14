@@ -27,14 +27,16 @@ Zero network overhead (<1ms), zero external dependencies, 100% deterministic.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import re
 from collections.abc import Sequence
-from datetime import UTC, datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING, TypeVar
 
 from pydantic import BaseModel, Field
+
+from myrm_agent_harness.toolkits.memory.types import EvidenceReference
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.strategies.extractor import ExtractedMemory
@@ -94,11 +96,6 @@ class DistillationRejectionCode(StrEnum):
     REJECT_TRANSIENT_STATE = "reject_transient_state"
     REJECT_EVIDENCE_FROM_AGENT = "reject_evidence_from_agent"
     REJECT_FABRICATED_QUOTE = "reject_fabricated_quote"
-
-
-from myrm_agent_harness.toolkits.memory.types import (
-    EvidenceReference,
-)
 
 
 class DistillationCandidate(BaseModel):
@@ -378,9 +375,7 @@ def assert_has_evidence(
             has_valid_evidence = True
         else:
             meta = getattr(mem, "metadata", None)
-            if isinstance(meta, dict) and (meta.get("evidence_quote") or meta.get("evidence_count")):
-                has_valid_evidence = True
-            elif hasattr(mem, "key") and hasattr(mem, "value"):
+            if (isinstance(meta, dict) and (meta.get("evidence_quote") or meta.get("evidence_count"))) or (hasattr(mem, "key") and hasattr(mem, "value")):
                 has_valid_evidence = True
 
         if not has_valid_evidence:
@@ -391,7 +386,7 @@ def assert_has_evidence(
             )
 
 
-def filter_memories_with_evidence(
+def filter_memories_with_evidence[T](
     memories: Sequence[T],
     *,
     fallback_source_id: str | None = None,
@@ -423,16 +418,12 @@ def filter_memories_with_evidence(
                 has_ev = True
             elif fallback_source_id:
                 if hasattr(mem, "source_chat_id") and getattr(mem, "source_chat_id", None) is None:
-                    try:
-                        setattr(mem, "source_chat_id", fallback_source_id)
-                    except Exception:
-                        pass
+                    with contextlib.suppress(Exception):
+                        mem.source_chat_id = fallback_source_id
                 has_ev = True
             else:
                 meta = getattr(mem, "metadata", None)
-                if isinstance(meta, dict) and (meta.get("evidence_quote") or meta.get("evidence_count")):
-                    has_ev = True
-                elif hasattr(mem, "key") and hasattr(mem, "value"):
+                if (isinstance(meta, dict) and (meta.get("evidence_quote") or meta.get("evidence_count"))) or (hasattr(mem, "key") and hasattr(mem, "value")):
                     has_ev = True
 
         if has_ev:

@@ -3,6 +3,7 @@
 
 [INPUT]
 - memory.types::{ProfileEntry, SemanticMemory, EpisodicMemory, ProceduralMemory, MemoryType, MemoryLifecycle, PreferenceType} (POS: memory data models)
+- memory.chunking::EpisodesChunker (POS: Chunking utilities for ConversationMemory and extraction pipelines)
 - memory.tool_capture::{extract_tool_edicts, associate_tool} (POS: tool-scoped memory capture via regex edicts + failure counting)
 - utils.json_parsing::parse_llm_json_list (POS: robust JSON array extraction from LLM output — fences, prose, bare control chars, trailing commas)
 

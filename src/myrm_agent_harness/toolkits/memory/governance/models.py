@@ -18,14 +18,14 @@ AssembledMemoryContext: 四维组装记忆上下文容器
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
 
-class FactStatus(str, Enum):
+class FactStatus(StrEnum):
     """Lifecycle status of dynamic facts."""
 
     ACTIVE = "active"
@@ -33,7 +33,7 @@ class FactStatus(str, Enum):
     EXPIRED = "expired"
 
 
-class ReconciliationAction(str, Enum):
+class ReconciliationAction(StrEnum):
     """Four-state action for fact reconciliation."""
 
     ADD = "add"
@@ -52,19 +52,19 @@ class DynamicFactItem(BaseModel):
     valid_until: datetime | None = None
     confidence: float = 1.0
     source_turn: str | None = None
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     def is_expired(self, current_time: datetime | None = None) -> bool:
         """Check if the fact is expired based on valid_until."""
         if self.valid_until is None:
             return False
-        now = current_time or datetime.now(timezone.utc)
+        now = current_time or datetime.now(UTC)
         target = self.valid_until
         if target.tzinfo is None:
-            target = target.replace(tzinfo=timezone.utc)
+            target = target.replace(tzinfo=UTC)
         if now.tzinfo is None:
-            now = now.replace(tzinfo=timezone.utc)
+            now = now.replace(tzinfo=UTC)
         return now > target
 
 

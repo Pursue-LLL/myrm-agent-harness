@@ -19,8 +19,7 @@ from __future__ import annotations
 
 import re
 import uuid
-from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Protocol
 
 from myrm_agent_harness.toolkits.memory.governance.models import (
@@ -220,7 +219,7 @@ class FactReconciliationEngine:
     ) -> list[DynamicFactItem]:
         """Apply a reconciliation decision to the fact list and return updated list."""
         result = list(facts)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         if decision.action == ReconciliationAction.NOOP:
             return result
@@ -285,7 +284,7 @@ class FactReconciliationEngine:
 
         Returns (active_facts, expired_facts).
         """
-        now = current_time or datetime.now(timezone.utc)
+        now = current_time or datetime.now(UTC)
         active: list[DynamicFactItem] = []
         expired: list[DynamicFactItem] = []
 
