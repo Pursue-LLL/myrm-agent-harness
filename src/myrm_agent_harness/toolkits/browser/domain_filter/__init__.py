@@ -18,7 +18,7 @@ Layer 1 — Protocol Interception (``context.route('**/*')``)
     Supports resource type filtering (image/stylesheet/script/font/media).
     Fallback defense if CSP is disabled.
 
-Layer 2 — Main Thread Hardening (``context.add_init_script()``)
+Layer 2 — Main Thread Hardening (document-response script injection)
     Hardens RTCPeerConnection and WebTransport (not covered by CSP).
     Disables Service Worker registration (offline cache not needed for agents).
     Does NOT harden Web Workers to avoid anti-bot detection.
@@ -326,6 +326,8 @@ async def install_domain_filter(
         return
 
     if not allowlist.is_empty:
+        # patchright's add_init_script silently no-ops, so the security layers
+        # are delivered inside the document response (probe-verified path).
         await _install_csp_policy(context, allowlist)
         await _install_main_thread_hardening(context)
 
@@ -351,7 +353,13 @@ async def install_domain_filter(
 
 async def _install_csp_policy(context: BrowserContext, allowlist: DomainAllowlist) -> None:
     """Inject CSP meta tag to restrict network access in main thread and Workers."""
-    await context.add_init_script(build_csp_meta_script(allowlist))
+    from myrm_agent_harness.toolkits.browser.enhancers import install_document_script_injection
+
+    await install_document_script_injection(
+        context,
+        lambda: build_csp_meta_script(allowlist),
+        label="domain_csp_meta",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -469,8 +477,14 @@ async def _install_http_filter(
 
 
 async def _install_main_thread_hardening(context: BrowserContext) -> None:
-    """Inject init script that hardens special APIs not covered by CSP."""
-    await context.add_init_script(build_init_script())
+    """Harden special APIs not covered by CSP, delivered in the document response."""
+    from myrm_agent_harness.toolkits.browser.enhancers import install_document_script_injection
+
+    await install_document_script_injection(
+        context,
+        build_init_script,
+        label="domain_hardening",
+    )
 
 
 # ---------------------------------------------------------------------------
