@@ -51,7 +51,7 @@ async def _inject_handler(route: object, providers: list[Callable[[], str]]) -> 
             return
         body = await response.body()
         if not body or not providers:
-            await route.fulfill(response=response)
+            await route.fallback()
             return
         # Decode with the response's declared charset (default latin-1 keeps
         # bytes intact for undeclared/legacy pages) so the rewritten body can

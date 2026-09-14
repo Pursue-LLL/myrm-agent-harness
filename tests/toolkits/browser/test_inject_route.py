@@ -74,11 +74,12 @@ class TestInjectHandler:
         fulfill.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_empty_body_fulfill_without_rewrite(self) -> None:
-        route, _, fulfill = _make_route(body=b"")
+    async def test_empty_body_falls_through(self) -> None:
+        """Empty body: fall through to downstream handlers (chain intact)."""
+        route, fallback, fulfill = _make_route(body=b"")
         await _inject_handler(route, [lambda: "A()"])
-        fulfill.assert_awaited_once()
-        assert "body" not in fulfill.await_args.kwargs
+        fallback.assert_awaited_once()
+        fulfill.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_no_head_tag_prepends_to_body(self) -> None:
@@ -124,14 +125,6 @@ class TestInjectHandler:
         await _inject_handler(route, [])
         fallback.assert_awaited_once()
         fulfill.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_redirect_hop_document_requests_fall_through_to_ssrf(self) — None: ...
-        """Redirect hops keep reaching SSRF guard (fallback preserves chain)."""
-        route, fallback, _ = _make_route(resource_type="document")
-        await _inject_handler(route, [])
-        fallback.assert_awaited_once()
-
 
 class _StubContext:
     """Minimal context stub without MagicMock auto-attribute magic."""
