@@ -7,8 +7,8 @@
 - utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
 
 [OUTPUT]
-- Deduplicator: Three-layer dedup engine (Hash→Vector→LLM), returns DUPLICATE/UPDATE_REPLACE/UPDATE_MERGE/NEW
-- DeduplicationResult, DeduplicationConfig: Result and config data classes
+- SmartDeduplicator: Three-layer dedup engine (Hash→Vector→LLM), returns DUPLICATE/UPDATE_REPLACE/UPDATE_MERGE/NEW
+- DeduplicationDecision: Decision enum; HashCacheMetrics: hash-cache observability metrics
 
 [POS]
 Three-layer smart deduplication strategy. Layer 1: O(1) normalized hash with persistent cache
