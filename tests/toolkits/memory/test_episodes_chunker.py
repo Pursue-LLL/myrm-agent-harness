@@ -2,6 +2,8 @@
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
+
 from myrm_agent_harness.toolkits.memory.chunking import (
     ChunkingStrategy,
     EpisodesChunker,
@@ -149,3 +151,75 @@ def test_chunk_conversation_strategy_episodes() -> None:
     assert chunks[0].chunk_index == 0
     assert "How to deploy?" in chunks[0].user_turn
     assert "docker compose" in (chunks[0].ai_turn or "")
+
+
+@pytest.mark.asyncio
+async def test_extractor_multi_episode_last_write_precedence() -> None:
+    """Later episode's profile update overwrites earlier episode's update (Last-Write-Wins)."""
+    import json
+
+    from myrm_agent_harness.toolkits.memory.strategies.extractor import ExtractionConfig, MemoryExtractor
+
+    # Two distinct message pairs with idle gap to guarantee 2 episodes
+    base_time = datetime(2026, 9, 14, 10, 0, 0, tzinfo=UTC)
+    t1 = base_time.isoformat()
+    t2 = (base_time + timedelta(hours=2)).isoformat()
+
+    messages = [
+        {"role": "user", "content": "Use double quotes please", "created_at": t1},
+        {"role": "assistant", "content": "Understood, using double quotes", "created_at": t1},
+        {"role": "user", "content": "Changed mind, switch to single quotes now", "created_at": t2},
+        {"role": "assistant", "content": "Got it, switching to single quotes", "created_at": t2},
+    ]
+
+    call_count = 0
+
+    async def mock_llm_func(prompt: str, user_content: str) -> str:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            # Episode 1 extraction
+            return json.dumps([
+                {
+                    "memory_type": "profile",
+                    "content": "User prefers double quotes",
+                    "confidence": 0.9,
+                    "importance": 0.8,
+                    "profile_key": "quote_style",
+                    "profile_value": "double",
+                }
+            ])
+        else:
+            # Episode 2 extraction (corrected preference)
+            return json.dumps([
+                {
+                    "memory_type": "profile",
+                    "content": "User prefers single quotes",
+                    "confidence": 0.95,
+                    "importance": 0.85,
+                    "profile_key": "quote_style",
+                    "profile_value": "single",
+                },
+                {
+                    "memory_type": "semantic",
+                    "content": "Project uses TypeScript",
+                    "confidence": 0.9,
+                    "importance": 0.8,
+                }
+            ])
+
+    extractor = MemoryExtractor(config=ExtractionConfig(max_input_chars=50), llm_func=mock_llm_func)
+    result = await extractor.extract(messages)
+
+    # 1. Total memories should be 2 (1 profile + 1 semantic)
+    assert len(result.memories) == 2
+
+    # 2. Find the profile entry
+    profile_entries = [m for m in result.memories if m.profile_key == "quote_style"]
+    assert len(profile_entries) == 1, "Must have exactly 1 profile entry for quote_style without collision"
+    assert profile_entries[0].profile_value == "single", "Later episode (single) must overwrite earlier (double)"
+
+    # 3. General semantic memory is retained
+    semantic_entries = [m for m in result.memories if m.profile_key is None]
+    assert len(semantic_entries) == 1
+    assert "TypeScript" in semantic_entries[0].content

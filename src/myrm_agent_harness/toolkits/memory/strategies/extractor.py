@@ -555,8 +555,9 @@ class MemoryExtractor:
             len(episodes),
         )
 
-        all_memories: list[ExtractedMemory] = []
-        seen_keys: set[str] = set()
+        profile_memories: dict[str, ExtractedMemory] = {}
+        general_memories: list[ExtractedMemory] = []
+        seen_general_keys: set[str] = set()
         total_corrections = 0
         last_raw_response = ""
 
@@ -572,13 +573,16 @@ class MemoryExtractor:
                 last_raw_response = ep_res.raw_response
 
             for mem in ep_res.memories:
-                dedup_key = f"{mem.memory_type.value}:{mem.content.strip()}"
                 if mem.profile_key:
-                    dedup_key = f"profile:{mem.profile_key}:{mem.profile_value}"
-                if dedup_key not in seen_keys:
-                    seen_keys.add(dedup_key)
-                    all_memories.append(mem)
+                    # Last-Write-Wins: later episodes naturally overwrite earlier preference updates
+                    profile_memories[mem.profile_key] = mem
+                else:
+                    dedup_key = f"{mem.memory_type.value}:{mem.content.strip()}"
+                    if dedup_key not in seen_general_keys:
+                        seen_general_keys.add(dedup_key)
+                        general_memories.append(mem)
 
+        all_memories = list(profile_memories.values()) + general_memories
         elapsed = (datetime.now(UTC) - start).total_seconds() * 1000
         return ExtractionResult(
             memories=all_memories,
