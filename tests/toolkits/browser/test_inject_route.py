@@ -117,6 +117,21 @@ class TestInjectHandler:
         fallback.assert_awaited_once()
         fulfill.assert_not_called()
 
+    @pytest.mark.asyncio
+    async def test_no_providers_document_falls_through(self) -> None:
+        """No registered scripts: document requests fall through to downstream handlers (SSRF guard chain intact)."""
+        route, fallback, fulfill = _make_route(resource_type="document")
+        await _inject_handler(route, [])
+        fallback.assert_awaited_once()
+        fulfill.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_redirect_hop_document_requests_fall_through_to_ssrf(self) — None: ...
+        """Redirect hops keep reaching SSRF guard (fallback preserves chain)."""
+        route, fallback, _ = _make_route(resource_type="document")
+        await _inject_handler(route, [])
+        fallback.assert_awaited_once()
+
 
 class _StubContext:
     """Minimal context stub without MagicMock auto-attribute magic."""
