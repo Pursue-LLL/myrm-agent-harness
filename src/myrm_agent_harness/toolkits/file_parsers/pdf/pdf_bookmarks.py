@@ -1,15 +1,16 @@
 """PDF bookmark/outline extraction and page resolution.
 
 [INPUT]
-- pdfplumber.PDF: an opened pdfplumber PDF object
+- base::PDFHeading (POS: File parser base classes and data structures)
+- pdfplumber.PDF: opened pdfplumber document (outline walking)
 
 [OUTPUT]
 - extract_bookmarks: resolved bookmarks as PDFHeading values
 - bookmarks_are_degenerate: quality gate for generic exporter titles
 
 [POS]
-Bookmark source of the PDF heading pipeline. Owns outline walking and
-page-object-id resolution so PDFPlumberParser stays an orchestrator.
+Bookmark source of the PDF heading pipeline, owning outline walking and page
+resolution.
 """
 
 from __future__ import annotations

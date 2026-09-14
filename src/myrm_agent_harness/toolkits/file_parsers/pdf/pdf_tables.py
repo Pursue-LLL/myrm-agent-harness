@@ -1,8 +1,9 @@
 """PDF table extraction, rendering and stitching finalization.
 
 [INPUT]
-- pdfplumber page objects and PDFTable fragments
-- Table extraction settings (line strategy + tolerances)
+- base::PDFTable (POS: File parser base classes and data structures)
+- pdf_heuristic_table::extract_heuristic_tables_from_words (POS: Heuristic spatial parser for borderless and irregular grid tables in PDF documents)
+- pdfplumber.page.Page: opened page objects
 
 [OUTPUT]
 - extract_page_tables: line-based + heuristic borderless table fragments
@@ -11,8 +12,8 @@
 - format_table_markdown / generate_table_summary_l0: rendering helpers
 
 [POS]
-Table domain of the PDF parser: per-page extraction with column anchors for
-cross-page stitching, and final Markdown/L0 rendering after stitching.
+Table extraction, stitching finalization and Markdown/L0 rendering for PDF
+pages, including column anchors used as cross-page stitching evidence.
 """
 
 from __future__ import annotations
@@ -194,7 +195,7 @@ def generate_table_summary_l0(table: PDFTable) -> str:
     if len(header) > 5:
         cols_summary += "..."
 
-    location = f"Pages {table.page_range[0]}-{table.page_range[1]}" if table.page_range else f"Page {table.page_number}"
+    location = f"Pages {table.page_range[0]}–{table.page_range[1]}" if table.page_range else f"Page {table.page_number}"
     summary = f"Structured Table on {location}. Rows: {row_count}. Headers: [{cols_summary}]. "
 
     # Add a glimpse of the first data row if available for better semantic matching

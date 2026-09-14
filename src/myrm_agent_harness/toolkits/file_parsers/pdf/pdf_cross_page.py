@@ -1,6 +1,7 @@
 """Cross-page table stitching with precision-first guards.
 
 [INPUT]
+- base::PDFTable (POS: File parser base classes and data structures)
 - tables: PDFTable fragments in page/reading order
 - page_heights: {page_number: page height}
 
@@ -8,9 +9,9 @@
 - stitch_cross_page_tables: merged table list; merged tables carry page_range
 
 [POS]
-Post-extraction helper. Only merges boundary fragments with strong evidence
-(repeated header, or matching column signature plus a cut-row cue); everything
-else is left untouched so unrelated tables are never corrupted.
+Cross-page table stitching for boundary table fragments with precision-first
+guards. Merges in place only with strong evidence; unrelated tables are never
+corrupted.
 """
 
 from __future__ import annotations

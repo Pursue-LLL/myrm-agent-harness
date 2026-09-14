@@ -62,6 +62,27 @@ class TestFamilyRecognition:
 class TestPrecisionGuards:
     """False-positive-prone lines must be rejected."""
 
+    def test_toc_page_skipped(self):
+        toc_page = "目录\n第 1 章 总则\n1.1 范围\n1.2 目标"
+        body_page = "1.1 范围\n正文"
+        another = "1.2 目标\n正文"
+
+        hits = detect_numbering_headings([toc_page, body_page, another])
+
+        assert [(h.page_num, h.title) for h in hits] == [(2, "1.1 范围"), (3, "1.2 目标")]
+
+    def test_contents_marker_page_skipped(self):
+        toc_page = "Contents\n第一章 总则"
+
+        assert detect_numbering_headings([toc_page]) == []
+
+    def test_prose_page_not_treated_as_toc(self):
+        page = "本合同目录如下：\n1.1 范围\n正文"
+
+        hits = detect_numbering_headings([page])
+
+        assert [h.title for h in hits] == ["1.1 范围"]
+
     def test_toc_dot_leaders_rejected(self):
         text = "1.1 第一环：出发············6\n1.2 第二环：行动....7\n一、总则"
 

@@ -12,9 +12,9 @@
 - normalize_heading_title: shared title normalisation
 
 [POS]
-Text-level numbering grammar (第X章/节/条, 一、, （一）, 1.1.1, 1., ①) with
-precision-first guards. Detection failure degrades to "no headings" and never
-corrupts the extracted text.
+Clause-numbering heading detection for bookmark-less PDFs with precision-first
+guards (第X章/节/条, 一、, （一）, 1.1.1, 1., ①). Detection failure degrades to
+"no headings" and never corrupts the extracted text.
 """
 
 from __future__ import annotations
@@ -45,6 +45,10 @@ _EXTRA_MARKER_RE = re.compile(
     rf"第\s*[0-9{_CN_NUMERALS}]+\s*(?:章|节|条)|[（(]\s*[0-9{_CN_NUMERALS}]+\s*[)）]|[①-⑩]|[{_CN_NUMERALS}]{{1,3}}[、.．]"
 )
 _WHITESPACE_RE = re.compile(r"\s+")
+
+# Standalone table-of-contents markers: TOC entries echo real headings and must
+# not be injected as headings (they carry the TOC page instead of the section).
+_TOC_MARKERS = frozenset({"目录", "目次", "contents", "tableofcontents", "toc"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,6 +143,9 @@ def detect_numbering_headings(
         page_num = page_index + 1
         page_candidates: list[_Candidate] = []
         cues = cue_titles.get(page_num, frozenset()) if cue_titles else frozenset()
+
+        if _looks_like_toc_page(page_text):
+            continue
 
         for line_index, raw_line in enumerate(page_text.split("\n")):
             line = raw_line.strip()
@@ -300,6 +307,15 @@ def _accepts_numeric_depth(
         return True
     parent = token.rsplit(".", 1)[0]
     return parent in seen
+
+
+def _looks_like_toc_page(page_text: str) -> bool:
+    """True when the page carries a standalone table-of-contents marker."""
+    for raw_line in page_text.split("\n"):
+        marker = normalize_heading_title(raw_line).lower()
+        if marker in _TOC_MARKERS:
+            return True
+    return False
 
 
 def _passes_guards(

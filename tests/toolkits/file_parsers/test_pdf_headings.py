@@ -84,3 +84,15 @@ class TestInlineInsertion:
 
     def test_no_headings_returns_text_unchanged(self):
         assert insert_headings_into_page_text("正文", []) == "正文"
+
+    def test_covered_unresolved_heading_is_not_hoisted_twice(self):
+        page_text = "1.1 概述与范围\n正文"
+        headings = [
+            PDFHeading(level=2, title="1.1 概述与范围", page_num=1),
+            PDFHeading(level=1, title="概述与范围", page_num=1),
+        ]
+
+        result = insert_headings_into_page_text(page_text, headings)
+
+        assert result == "## 1.1 概述与范围\n正文"
+        assert result.count("概述与范围") == 1

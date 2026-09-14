@@ -1,17 +1,30 @@
-"""
+"""PDFPlumberParser: text/table parsing with structure resolution.
+
 [INPUT]
-file_path: str (Path to PDF)
-table_format: Literal["inline", "placeholder"]
+- base::FileParser (POS: File parser base classes and data structures)
+- base::PDFHeading (POS: File parser base classes and data structures)
+- base::PDFParseResult (POS: File parser base classes and data structures)
+- base::PDFTable (POS: File parser base classes and data structures)
+- pdf_bookmarks::extract_bookmarks (POS: Bookmark source of the PDF heading pipeline, owning outline walking and page resolution)
+- pdf_bookmarks::bookmarks_are_degenerate (POS: Bookmark source of the PDF heading pipeline, owning outline walking and page resolution)
+- pdf_cross_page::stitch_cross_page_tables (POS: Cross-page table stitching for boundary table fragments with precision-first guards)
+- pdf_headings::build_numbering_cues (POS: Heading fusion and in-place placement for PDF page text)
+- pdf_headings::fuse_headings (POS: Heading fusion and in-place placement for PDF page text)
+- pdf_headings::insert_headings_into_page_text (POS: Heading fusion and in-place placement for PDF page text)
+- pdf_numbering::detect_numbering_headings (POS: Clause-numbering heading detection for bookmark-less PDFs with precision-first guards)
+- pdf_numbering::filter_repeated_titles (POS: Clause-numbering heading detection for bookmark-less PDFs with precision-first guards)
+- pdf_tables::extract_page_tables (POS: Table extraction, stitching finalization and Markdown/L0 rendering for PDF pages)
+- pdf_tables::finalize_tables (POS: Table extraction, stitching finalization and Markdown/L0 rendering for PDF pages)
+- pdfplumber.PDF / pdfplumber.page.Page: document and page objects
 
 [OUTPUT]
-PDFPlumberParser: Core PDF text/table parser (supports parallel processing, bookmark injection, and table capsules)
+- PDFPlumberParser: PDF parser with layout text, Markdown tables, cross-page
+  stitching and bookmark/numbering/font heading resolution
 
 [POS]
-
-PDF parser based on pdfplumber. Implements text layout preservation, Markdown table
-extraction, bookmark/numbering/font heading resolution, cross-page table stitching,
-and PDF bookmark rendering. Provides Placeholder Mode for advanced RAG,
-outputting L0 table summaries to enhance vector retrieval.
+pdfplumber-based PDF parser orchestrator: page parsing (sequential/parallel),
+heading composition, cross-page stitching and text/table merging, with an
+optional physical ``max_pages`` slice.
 """
 
 from __future__ import annotations
@@ -329,7 +342,7 @@ class PDFPlumberParser(FileParser):
                         # Encapsulation mode: replace with unique ID for anti-fragmentation
                         merged.append(f"\n[TABLE_CAPSULE: {table.id}]\n{table.summary_l0}\n")
                     else:
-                        # Legacy inline mode
+                        # Inline mode: render the Markdown table in place
                         merged.append(f"\n{table.markdown}\n")
 
         return "\n\n".join(merged)

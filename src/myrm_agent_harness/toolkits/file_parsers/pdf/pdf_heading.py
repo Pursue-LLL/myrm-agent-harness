@@ -21,10 +21,10 @@ import logging
 import re
 from collections import Counter
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    import pdfplumber
+    from pdfplumber.pdf import PDF
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ class DetectedHeading:
 
 
 def detect_headings_by_font(
-    pdf: pdfplumber.PDF,
+    pdf: PDF,
     config: FontHeadingConfig | None = None,
 ) -> list[dict[str, int | str | None]]:
     """Detect headings by analyzing font size distribution.
@@ -88,7 +88,7 @@ def detect_headings_by_font(
 
 
 def _compute_heading_sizes(
-    pdf: pdfplumber.PDF,
+    pdf: PDF,
     cfg: FontHeadingConfig,
 ) -> dict[float, int]:
     """Sample font sizes and compute heading size → level mapping."""
@@ -133,7 +133,7 @@ _NOISE_PATTERN = re.compile(r"^[\d\s.·…\-–—]+$")
 
 
 def _extract_heading_text(
-    pdf: pdfplumber.PDF,
+    pdf: PDF,
     size_to_level: dict[float, int],
     cfg: FontHeadingConfig,
 ) -> list[DetectedHeading]:
@@ -144,7 +144,7 @@ def _extract_heading_text(
         page_num = page.page_number
         chars = sorted(page.chars, key=lambda c: (c["top"], c["x0"]))
 
-        current_line_chars: list[dict] = []
+        current_line_chars: list[dict[str, Any]] = []
         current_top: float | None = None
 
         for char in chars:
@@ -168,7 +168,7 @@ def _extract_heading_text(
 
 
 def _flush_line(
-    chars: list[dict],
+    chars: list[dict[str, Any]],
     page_num: int,
     size_to_level: dict[float, int],
     cfg: FontHeadingConfig,
