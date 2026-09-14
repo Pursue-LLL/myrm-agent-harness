@@ -29,6 +29,7 @@ import sqlite3
 from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.toolkits.retriever.cjk_tokenizer import build_cjk_index_segment
 from myrm_agent_harness.toolkits.retriever.embedding.window_policy import (
     EmbedInputTooLargeError,
 )
@@ -50,7 +51,6 @@ from ..core.structure import WikiStructure
 from .graph_store import WikiGraphStore
 from .sidecar_index import _SIDECAR_PREFIX, SidecarIndexMixin
 from .tokenizer import tokenize_for_fts
-from myrm_agent_harness.toolkits.retriever.cjk_tokenizer import build_cjk_index_segment
 from .vector_chunks import (
     collapse_vector_hits,
     delete_text_vectors,
@@ -246,7 +246,7 @@ class WikiIndexer(SidecarIndexMixin):
         return round(weight, 2)
 
     def extract_and_upsert_edges(self, concept_name: str, content: str) -> None:
-        """Parse markdown links and Wikilinks, then upsert to SQLite edges table."""
+        """Parse markdown links, Wikilinks, and Metric source_systems, then upsert to SQLite edges table."""
         targets = []
 
         # 1. Match Standard Markdown Links: [text](link.md)
@@ -259,6 +259,22 @@ class WikiIndexer(SidecarIndexMixin):
             target = wl.split("|")[0].strip()
             if target:
                 targets.append(target)
+
+        # 3. Match Metric source_systems in frontmatter metadata
+        if content.startswith("---"):
+            try:
+                from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
+                    load_frontmatter_metadata,
+                )
+
+                metadata, _ = load_frontmatter_metadata(content)
+                sources = metadata.get("source_systems")
+                if isinstance(sources, list):
+                    for src in sources:
+                        if isinstance(src, str) and src.strip():
+                            targets.append(f"system:{src.strip()}")
+            except Exception:
+                pass
 
         targets = list(set(targets))
 

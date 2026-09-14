@@ -10,7 +10,7 @@
 - repair_publication_on_disk, PublicationOnDiskRepairResult, FrontmatterValidationError
 
 [POS]
-Harness SSOT for wiki page type gate used by compile, import writeback, linter, pending approve,
+Harness SSOT for wiki page type and metric schema gate used by compile, import writeback, linter, pending approve,
 and server repair API.
 """
 
@@ -38,6 +38,7 @@ class WikiPageType(StrEnum):
     OVERVIEW = "overview"
     QUESTION = "question"
     SESSION = "session"
+    METRIC = "metric"
 
 
 WIKI_PAGE_TYPES: frozenset[str] = frozenset(member.value for member in WikiPageType)
@@ -151,7 +152,7 @@ def _normalize_type_value(raw_type: object) -> str | None:
 
 def validate_wiki_frontmatter(content: str) -> FrontmatterValidationResult:
     """Validate that markdown content has a non-empty, allowed `type` in YAML frontmatter."""
-    metadata, _body = parse_frontmatter(content)
+    metadata, _body = load_frontmatter_metadata(content)
     type_str = _normalize_type_value(metadata.get("type"))
     if type_str is None:
         return FrontmatterValidationResult(ok=False, errors=("Missing required frontmatter field: type",))
@@ -161,6 +162,20 @@ def validate_wiki_frontmatter(content: str) -> FrontmatterValidationResult:
             ok=False,
             errors=(f"Invalid type '{type_str}'; must be one of: {allowed}",),
         )
+    if type_str == WikiPageType.METRIC.value:
+        errors: list[str] = []
+        if "formula" in metadata and not isinstance(metadata["formula"], str):
+            errors.append("Field 'formula' in metric frontmatter must be a string")
+        if "unit" in metadata and not isinstance(metadata["unit"], str):
+            errors.append("Field 'unit' in metric frontmatter must be a string")
+        if "source_systems" in metadata:
+            val = metadata["source_systems"]
+            if not isinstance(val, list) or not all(isinstance(x, str) for x in val):
+                errors.append("Field 'source_systems' in metric frontmatter must be a list of strings")
+        if "verification_rule" in metadata and not isinstance(metadata["verification_rule"], str):
+            errors.append("Field 'verification_rule' in metric frontmatter must be a string")
+        if errors:
+            return FrontmatterValidationResult(ok=False, errors=tuple(errors), page_type=type_str)
     return FrontmatterValidationResult(ok=True, page_type=type_str)
 
 
@@ -178,6 +193,8 @@ def infer_type_for_import(
     path_str = str(relative_path).lower().replace("\\", "/")
     if is_raw_import or path_str.startswith("raw/") or "/raw/" in path_str:
         return WikiPageType.SOURCE
+    if "metrics/" in path_str or "/metric" in path_str or path_str.startswith("metric"):
+        return WikiPageType.METRIC
     if "comparisons/" in path_str or "/comparison" in path_str or "compare" in path_str:
         return WikiPageType.COMPARISON
     if "questions/" in path_str or "/question" in path_str:

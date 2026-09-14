@@ -1703,7 +1703,7 @@ class TestTruncateMessagesHeadTail:
 
 
 class TestExtractTruncation:
-    """Integration test: extract() populates truncated/dropped_message_count."""
+    """Integration test: extract() uses lossless episodes chunking for long conversations."""
 
     @pytest.mark.asyncio
     async def test_extract_with_truncation(self):
@@ -1712,8 +1712,10 @@ class TestExtractTruncation:
         extractor = MemoryExtractor(config=config, llm_func=llm)
         msgs = [{"role": "user", "content": "X" * 50} for _ in range(10)]
         result = await extractor.extract(msgs)
-        assert result.truncated is True
-        assert result.dropped_message_count > 0
+        # Lossless architecture: long dialogs are partitioned into episodes without dropping messages
+        assert result.truncated is False
+        assert result.dropped_message_count == 0
+        assert llm.call_count >= 2
 
     @pytest.mark.asyncio
     async def test_extract_without_truncation(self):
@@ -1724,6 +1726,8 @@ class TestExtractTruncation:
         result = await extractor.extract(msgs)
         assert result.truncated is False
         assert result.dropped_message_count == 0
+        assert llm.call_count == 1
+
 
 
 # ============================================================================

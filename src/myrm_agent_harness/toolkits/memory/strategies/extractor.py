@@ -529,16 +529,82 @@ class MemoryExtractor:
             return ExtractionResult()
 
         start = datetime.now(UTC)
-        effective_messages, dropped = _truncate_messages_head_tail(
-            filtered_messages, self.config.max_input_chars
+        total_chars = sum(len(m.get("content", "")) for m in filtered_messages)
+
+        # Single batch fast path for dialogs fitting within budget
+        if total_chars <= self.config.max_input_chars:
+            return await self._extract_for_message_subset(
+                filtered_messages,
+                context=context,
+                correction_detected=correction_detected,
+                start=start,
+            )
+
+        # Long conversation lossless path: partition into episodes with causal overlap
+        from myrm_agent_harness.toolkits.memory.chunking import EpisodesChunker
+
+        # Chunk budget set conservatively to fit extraction prompt comfortably
+        episode_char_budget = max(4_000, min(self.config.max_input_chars // 2, 32_000))
+        chunker = EpisodesChunker(soft_max_chars=episode_char_budget, overlap_turns=1)
+        episodes = chunker.split_into_episodes(filtered_messages)
+
+        logger.info(
+            "MemoryExtractor: long dialog (%d chars) partitioned into %d episodes without loss",
+            total_chars,
+            len(episodes),
         )
-        full_text = "".join(m.get("content", "") for m in effective_messages)
+
+        all_memories: list[ExtractedMemory] = []
+        seen_keys: set[str] = set()
+        total_corrections = 0
+        last_raw_response = ""
+
+        for ep in episodes:
+            ep_res = await self._extract_for_message_subset(
+                ep.messages,
+                context=context,
+                correction_detected=correction_detected,
+                start=start,
+            )
+            total_corrections += ep_res.correction_count
+            if ep_res.raw_response:
+                last_raw_response = ep_res.raw_response
+
+            for mem in ep_res.memories:
+                dedup_key = f"{mem.memory_type.value}:{mem.content.strip()}"
+                if mem.profile_key:
+                    dedup_key = f"profile:{mem.profile_key}:{mem.profile_value}"
+                if dedup_key not in seen_keys:
+                    seen_keys.add(dedup_key)
+                    all_memories.append(mem)
+
+        elapsed = (datetime.now(UTC) - start).total_seconds() * 1000
+        return ExtractionResult(
+            memories=all_memories,
+            raw_response=last_raw_response,
+            model_used=self.config.extraction_model,
+            extraction_time_ms=elapsed,
+            correction_signal_detected=correction_detected,
+            correction_count=total_corrections,
+            truncated=False,
+            dropped_message_count=0,
+        )
+
+    async def _extract_for_message_subset(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        context: dict[str, object] | None,
+        correction_detected: bool,
+        start: datetime,
+    ) -> ExtractionResult:
+        full_text = "".join(m.get("content", "") for m in messages)
         detected_language = detect_language(full_text)
         self._last_detected_language = detected_language
 
         formatted = "\n".join(
             f"[{m.get('role', 'user').upper()}]: {m.get('content', '')}"
-            for m in effective_messages
+            for m in messages
         )
         session_date = start.strftime("%Y-%m-%d (%A)")
         prompt = f"Session date: {session_date}\n\n## Conversation to Analyze\n\n{formatted}\n\n"
@@ -554,8 +620,6 @@ class MemoryExtractor:
             raw = await self.llm_func(system_prompt, prompt)
             all_parsed = _parse_response(raw)
 
-            # Separate digests from fragments before threshold filtering so
-            # digest is never silently dropped by user-configured thresholds.
             digests = [
                 m
                 for m in all_parsed
@@ -582,11 +646,6 @@ class MemoryExtractor:
                 )
             elapsed = (datetime.now(UTC) - start).total_seconds() * 1000
             n_corrections = sum(1 for m in memories if m.source_error)
-            if correction_detected and n_corrections == 0:
-                logger.warning(
-                    "Correction signal detected but no source_error in %d extractions",
-                    len(memories),
-                )
             return ExtractionResult(
                 memories=memories,
                 raw_response=raw,
@@ -594,8 +653,8 @@ class MemoryExtractor:
                 extraction_time_ms=elapsed,
                 correction_signal_detected=correction_detected,
                 correction_count=n_corrections,
-                truncated=dropped > 0,
-                dropped_message_count=dropped,
+                truncated=False,
+                dropped_message_count=0,
             )
         except Exception as e:
             logger.warning("Memory extraction failed: %s", e)
@@ -968,46 +1027,64 @@ async def extract_goal_learnings(
     if not messages or not goal_objective.strip():
         return []
 
-    effective_messages, _ = _truncate_messages_head_tail(messages, max_chars)
+    from myrm_agent_harness.toolkits.memory.chunking import EpisodesChunker
 
-    formatted = "\n".join(
-        f"[{m.get('role', 'user').upper()}]: {m.get('content', '')}"
-        for m in effective_messages
-    )
+    total_chars = sum(len(m.get("content", "")) for m in messages)
+    if total_chars <= max_chars:
+        batches = [messages]
+    else:
+        chunker = EpisodesChunker(soft_max_chars=max(4_000, max_chars // 2), overlap_turns=1)
+        episodes = chunker.split_into_episodes(messages)
+        batches = [ep.messages for ep in episodes]
 
-    language = detect_language(formatted)
-    lang_hint = (
-        "\n\n**IMPORTANT**: Write all learnings in Chinese (中文)."
-        if language == "zh"
-        else ""
-    )
+    all_learnings: list[ExtractedMemory] = []
+    seen_contents: set[str] = set()
 
-    prompt = (
-        f"## Goal Objective\n\n{goal_objective}\n\n"
-        f"## Execution Trace\n\n{formatted}\n\n"
-        f"## Instructions\n\nExtract actionable learnings from the above goal execution.{lang_hint}\n"
-        "Return ONLY a valid JSON array, no other text.\n"
-    )
+    for batch_msgs in batches:
+        formatted = "\n".join(
+            f"[{m.get('role', 'user').upper()}]: {m.get('content', '')}"
+            for m in batch_msgs
+        )
 
-    try:
-        raw = await llm_func(_GOAL_LEARNINGS_PROMPT, prompt)
-        parsed = _parse_response(raw)
-        for item in parsed:
-            if not item.evidence:
-                item.evidence = [
-                    EvidenceReference(
-                        source_id=f"goal:{goal_objective[:30]}",
-                        quote_snippet=goal_objective[:120],
-                    )
-                ]
-        learnings = [m for m in parsed if m.confidence >= 0.7 and m.importance >= 0.6]
-        if learnings:
-            logger.info(
-                "Extracted %d goal learnings from %d messages",
-                len(learnings),
-                len(messages),
-            )
-        return learnings[:8]
-    except Exception as e:
-        logger.warning("Goal learnings extraction failed: %s", e)
-        return []
+        language = detect_language(formatted)
+        lang_hint = (
+            "\n\n**IMPORTANT**: Write all learnings in Chinese (中文)."
+            if language == "zh"
+            else ""
+        )
+
+        prompt = (
+            f"## Goal Objective\n\n{goal_objective}\n\n"
+            f"## Execution Trace\n\n{formatted}\n\n"
+            f"## Instructions\n\nExtract actionable learnings from the above goal execution.{lang_hint}\n"
+            "Return ONLY a valid JSON array, no other text.\n"
+        )
+
+        try:
+            raw = await llm_func(_GOAL_LEARNINGS_PROMPT, prompt)
+            parsed = _parse_response(raw)
+            for item in parsed:
+                if not item.evidence:
+                    item.evidence = [
+                        EvidenceReference(
+                            source_id=f"goal:{goal_objective[:30]}",
+                            quote_snippet=goal_objective[:120],
+                        )
+                    ]
+            for m in parsed:
+                if m.confidence >= 0.7 and m.importance >= 0.6:
+                    key = m.content.strip()
+                    if key not in seen_contents:
+                        seen_contents.add(key)
+                        all_learnings.append(m)
+        except Exception as e:
+            logger.warning("Goal learnings batch extraction failed: %s", e)
+
+    if all_learnings:
+        logger.info(
+            "Extracted %d goal learnings from %d messages (%d batches)",
+            len(all_learnings),
+            len(messages),
+            len(batches),
+        )
+    return all_learnings
