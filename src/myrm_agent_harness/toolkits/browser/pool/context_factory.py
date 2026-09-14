@@ -146,9 +146,15 @@ class ContextFactory:
             All page operations (evaluate, click, goto, etc.) inherit the 30s timeout.
 
         """
-        ctx_opts = self._build_context_options(context_type, emulation, extra_kwargs, context_key)
-        domain_allowlist = extra_kwargs.get("domain_allowlist") if extra_kwargs else None
-        domain_blocklist = extra_kwargs.get("domain_blocklist") if extra_kwargs else None
+        ctx_opts = self._build_context_options(
+            context_type, emulation, extra_kwargs, context_key
+        )
+        domain_allowlist = (
+            extra_kwargs.get("domain_allowlist") if extra_kwargs else None
+        )
+        domain_blocklist = (
+            extra_kwargs.get("domain_blocklist") if extra_kwargs else None
+        )
         resource_block = extra_kwargs.get("resource_block") if extra_kwargs else None
 
         # Try to safely extract permissions, some engines (like Firefox) don't support all Chromium permissions
@@ -166,8 +172,12 @@ class ContextFactory:
             if "Unknown permission" in error_str:
                 # Extract the permission name from the error string (e.g. "Unknown permission: clipboard-read")
                 perm = error_str.split("Unknown permission:")[-1].strip()
-                logger.warning(f"Browser doesn't support {perm} permission, retrying without it")
-                if "permissions" in ctx_opts and isinstance(ctx_opts["permissions"], list):
+                logger.warning(
+                    f"Browser doesn't support {perm} permission, retrying without it"
+                )
+                if "permissions" in ctx_opts and isinstance(
+                    ctx_opts["permissions"], list
+                ):
                     if perm in ctx_opts["permissions"]:
                         ctx_opts["permissions"].remove(perm)
                     # Also try removing clipboard-write if it's there, as it often fails together with clipboard-read
@@ -181,9 +191,19 @@ class ContextFactory:
         # Inject Progressive DomEnhancer into EVERY context
         from myrm_agent_harness.toolkits.browser.enhancers import (
             get_dom_enhancer_script,
+            install_document_script_injection,
         )
 
-        await context.add_init_script(get_dom_enhancer_script())
+        enhancer_script = get_dom_enhancer_script()
+        if enhancer_script:
+            # patchright's add_init_script silently no-ops (upstream bug), so the
+            # reliable delivery path is a document-response rewrite via route.fulfill.
+            await install_document_script_injection(
+                context, lambda: get_dom_enhancer_script(), label="dom_enhancer"
+            )
+            # Keep the init-script registration as a harmless no-op fallback for
+            # engines where the network-level inject route does work.
+            await context.add_init_script(enhancer_script)
 
         if context_type == _STEALTH_TYPE:
             await self._apply_stealth(context)
@@ -251,13 +271,19 @@ class ContextFactory:
     async def _apply_stealth(context: BrowserContext) -> None:
         """Apply stealth anti-detection patches to a STEALTH context.
 
-        Injects stealth.js via add_init_script — runs before page scripts
-        on every navigation within this context. Covers 13 anti-detection
-        vectors including navigator patches, toString disguise, anti-debugger
+        Delivers stealth.js via the document-response rewrite (patchright's
+        add_init_script silently no-ops) and keeps the init-script registration
+        as a fallback for working engines. Covers 13 anti-detection vectors
+        including navigator patches, toString disguise, anti-debugger
         neutralization, and Performance API cleanup.
         """
         from .stealth import get_stealth_script
 
+        from ..enhancers import install_document_script_injection
+
+        await install_document_script_injection(
+            context, get_stealth_script, label="stealth"
+        )
         await context.add_init_script(get_stealth_script())
 
     @staticmethod

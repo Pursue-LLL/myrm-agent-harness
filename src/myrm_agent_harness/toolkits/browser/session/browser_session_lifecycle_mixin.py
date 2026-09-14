@@ -19,6 +19,8 @@ import asyncio
 import contextlib
 import logging
 from pathlib import Path
+from urllib.parse import urlparse
+from urllib.parse import urlparse
 
 from myrm_agent_harness.toolkits.browser.recording_manager import RecordingManager
 
@@ -146,16 +148,33 @@ class BrowserSessionLifecycleMixin:
                 local_storage_origins = current_storage_state.get("origins", [])
                 if local_storage_origins:
                     injected_count = 0
+
+                    # Evaluate on pages already open at a matching origin —
+                    # context-level init-script injection silently no-ops under
+                    # patchright, so storage only lands via explicit evaluation.
                     for origin_data in local_storage_origins:
                         origin = origin_data.get("origin")
                         local_storage = origin_data.get("localStorage", [])
-                        if local_storage and origin:
-                            script = _build_localstorage_script(local_storage, origin)
-                            await new_page.context.add_init_script(script)
-                            injected_count += len(local_storage)
+                        if not (local_storage and origin):
+                            continue
+
+                        script = _build_localstorage_script(local_storage, origin)
+                        for page in new_page.context.pages:
+                            parsed = urlparse(page.url)
+                            page_origin = f"{parsed.scheme}://{parsed.netloc}"
+                            if page_origin != origin:
+                                continue
+                            try:
+                                await page.evaluate(script)
+                                injected_count += len(local_storage)
+                            except Exception as exc:
+                                logger.warning(f"localStorage evaluate failed for {origin}: {exc}")
+
+                        await new_page.context.add_init_script(script)
+                        injected_count += len(local_storage)
 
                     logger.info(
-                        f"Successfully migrated {injected_count} localStorage items to new engine via init scripts."
+                        f"Successfully migrated {injected_count} localStorage items to new engine."
                     )
 
         # Restore state if possible

@@ -25,9 +25,13 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, TypedDict
 
+from urllib.parse import urlparse
+
 from myrm_agent_harness.core.security.redact import redact_sensitive_text
 
 if TYPE_CHECKING:
+    from patchright.async_api import Page
+
     from ..session import BrowserSession
     from ..session_vault import SessionVault
     from .metadata import CheckpointMetadata
@@ -192,11 +196,19 @@ async def apply_storage_state(
             await context.add_cookies(cookies)
             logger.debug("Applied %d cookies to browser context", len(cookies))
 
-    # 2. Set localStorage for each origin via init scripts
+    # 2. Set localStorage: evaluate on origin-matching open pages (works under
+    #    patchright where context-level init-script injection silently no-ops),
+    #    plus add_init_script as a best-effort path for future pages.
     if apply_localstorage:
         origins = storage_state.get("origins", [])
         if not origins:
             return
+
+        pages: list[Page] = []
+        try:
+            pages = list(context.pages)
+        except Exception:
+            pass
 
         for origin_data in origins:
             origin = origin_data.get("origin")
@@ -207,16 +219,40 @@ async def apply_storage_state(
 
             js_code = _build_localstorage_script(local_storage, origin)
 
+            for page in pages:
+                try:
+                    page_origin = urlparse(page.url)
+                    page_origin = (
+                        f"{page_origin.scheme}://{page_origin.netloc}" if page_origin.scheme and page_origin.netloc else None
+                    )
+                except Exception:
+                    page_origin = None
+                if page_origin != origin:
+                    continue
+                try:
+                    await page.evaluate(js_code)
+                    logger.debug(
+                        "Applied %d localStorage items for %s on open page",
+                        len(local_storage),
+                        origin,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to apply localStorage for %s on open page: %s",
+                        origin,
+                        exc,
+                    )
+
             try:
                 await context.add_init_script(js_code)
                 logger.debug(
-                    "Applied %d localStorage items for %s (all pages)",
+                    "Registered %d localStorage items for %s (future pages)",
                     len(local_storage),
                     origin,
                 )
             except Exception as exc:
                 logger.warning(
-                    "Failed to apply localStorage for %s: %s",
+                    "Failed to register localStorage init script for %s: %s",
                     origin,
                     exc,
                 )
