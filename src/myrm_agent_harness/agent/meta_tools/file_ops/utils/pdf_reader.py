@@ -13,7 +13,7 @@ Uses pdf_content_extractor for unified smart extraction:
 
 [OUTPUT]
 - is_pdf_path: Detect if path is a PDF file
-- read_pdf_as_content_blocks: Read PDF and return smart-extracted content (supports parse_mode="structure" for bookmark outlines).
+- read_pdf_as_content_blocks: Read PDF and return smart-extracted content (supports parse_mode="structure" for structural heading outlines).
 - register_large_doc_ingest_callback / unregister_large_doc_ingest_callback:
   Module-level callback registry for wiki auto-ingest on large PDFs.
 
@@ -40,6 +40,10 @@ from langchain_core.messages.content import ContentBlock, create_image_block, cr
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.code_execution.executors.base import CodeExecutor
+    from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor import (
+        PDFExtractConfig,
+        PDFExtractResult,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +53,9 @@ _FALLBACK_MAX_CHARS = 100_000
 
 RAG_PAGE_THRESHOLD = 20
 RAG_MAX_PAGES_LIMIT = 2000
+
+# Bounds the structure outline injected into context for very long documents.
+STRUCTURE_OUTLINE_MAX_ENTRIES = 200
 
 LargeDocIngestCallback = Callable[[str, str, str], Coroutine[object, object, None]]
 
@@ -109,9 +116,9 @@ async def _fire_and_forget_ingest(filename: str, full_text: str, doc_hash: str) 
 async def _schedule_rag_ingest(
     path: str,
     raw_bytes: bytes,
-    result: PDFExtractResult,  # noqa: F821
-    cfg_cls: type,
-    extract_fn: Callable[..., Coroutine[object, object, object]],
+    result: PDFExtractResult,
+    cfg_cls: type[PDFExtractConfig],
+    extract_fn: Callable[[str, PDFExtractConfig], Coroutine[object, object, PDFExtractResult]],
 ) -> None:
     """Extract full text (if truncated) and schedule background wiki ingest.
 
@@ -179,20 +186,19 @@ async def read_pdf_as_content_blocks(
 
             parser = PDFPlumberParser(extract_tables=False)
             res = await asyncio.to_thread(parser.parse_sync, tmp_path)
-            bookmarks = res.metadata.get("bookmarks") or []
+            headings = res.headings
             page_count = res.metadata.get("page_count", 0)
 
             outline_lines = [f"[DOCUMENT STRUCTURE OUTLINE: {PurePosixPath(path).name} (Total Pages: {page_count})]:"]
-            if bookmarks:
-                for bm in bookmarks:
-                    level = bm.get("level", 1)
-                    title = bm.get("title", "")
-                    page_num = bm.get("page_num")
-                    indent = "  " * int(level)
-                    pg_str = f"Page {page_num}" if page_num else "Page unknown"
-                    outline_lines.append(f"{indent}- {pg_str}: {title}")
+            if headings:
+                for heading in headings[:STRUCTURE_OUTLINE_MAX_ENTRIES]:
+                    indent = "  " * heading.level
+                    outline_lines.append(f"{indent}- Page {heading.page_num}: {heading.title}")
+                omitted = len(headings) - STRUCTURE_OUTLINE_MAX_ENTRIES
+                if omitted > 0:
+                    outline_lines.append(f"  … ({omitted} more headings omitted; use wiki_query for full detail)")
             else:
-                outline_lines.append("  (No bookmarks or structural headings detected in PDF)")
+                outline_lines.append("  (No structural headings detected in PDF)")
 
             return "\n".join(outline_lines)
         except Exception as e:
@@ -200,6 +206,7 @@ async def read_pdf_as_content_blocks(
             return f"[PDF file: {path}] (Failed to extract structure outline: {e})"
         finally:
             import contextlib
+
             with contextlib.suppress(OSError):
                 os.unlink(tmp_path)
 

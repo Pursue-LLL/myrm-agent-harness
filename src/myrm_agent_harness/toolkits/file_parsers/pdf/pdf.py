@@ -9,7 +9,8 @@ PDFPlumberParser: Core PDF text/table parser (supports parallel processing, book
 [POS]
 
 PDF parser based on pdfplumber. Implements text layout preservation, Markdown table
-extraction, and PDF bookmark injection. Provides Placeholder Mode for advanced RAG,
+extraction, bookmark/numbering/font heading resolution, cross-page table stitching,
+and PDF bookmark rendering. Provides Placeholder Mode for advanced RAG,
 outputting L0 table summaries to enhance vector retrieval.
 """
 
@@ -22,11 +23,36 @@ from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
-from myrm_agent_harness.toolkits.file_parsers.base import FileParser, PDFParseResult, PDFTable
+from myrm_agent_harness.toolkits.file_parsers.base import (
+    FileParser,
+    PDFHeading,
+    PDFParseResult,
+    PDFTable,
+)
+from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_bookmarks import (
+    bookmarks_are_degenerate,
+    extract_bookmarks,
+)
+from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_cross_page import (
+    stitch_cross_page_tables,
+)
+from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_headings import (
+    build_numbering_cues,
+    fuse_headings,
+    insert_headings_into_page_text,
+)
+from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_numbering import (
+    detect_numbering_headings,
+    filter_repeated_titles,
+)
+from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_tables import (
+    extract_page_tables,
+    finalize_tables,
+)
 
 if TYPE_CHECKING:
-    import pdfplumber
     import pdfplumber.page
+    from pdfplumber.pdf import PDF
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +68,8 @@ class PDFPlumberParser(FileParser):
     - Text extraction with layout preservation
     - Table extraction with Markdown formatting
     - Bookmark/outline extraction with nested hierarchy
-    - Intelligent bookmark-to-page resolution
-    - Font-based heading detection (fallback when no bookmarks)
+    - Numbering/font heading fallback when bookmarks are absent or generic
+    - Cross-page table stitching for tables split by page breaks
     """
 
     def __init__(
@@ -56,6 +82,7 @@ class PDFPlumberParser(FileParser):
         max_workers: int = 4,
         heading_detection: Literal["bookmarks", "font", "auto"] = "auto",
         max_pages: int | None = None,
+        stitch_tables: bool = True,
     ):
         self._extract_tables = extract_tables
         self._should_extract_bookmarks = extract_bookmarks
@@ -64,6 +91,7 @@ class PDFPlumberParser(FileParser):
         self._max_workers = max_workers
         self._heading_detection = heading_detection
         self._max_pages = max_pages
+        self._stitch_tables = stitch_tables
         self._table_settings = table_settings or {
             "vertical_strategy": "lines",
             "horizontal_strategy": "lines",
@@ -111,39 +139,19 @@ class PDFPlumberParser(FileParser):
         except ImportError as e:
             raise ImportError("pdfplumber is not installed. Run: uv add pdfplumber") from e
 
-        all_text: list[str] = []
         all_tables: list[PDFTable] = []
         failed_pages: list[int] = []
+        page_texts: dict[int, str] = {}
+        page_errors: dict[int, str] = {}
 
         with pdfplumber.open(file_path) as pdf:
             page_count = len(pdf.pages)
-
-            bookmarks: list[dict[str, object]] = []
-            bookmarks_by_page: dict[int, list[dict[str, object]]] = defaultdict(list)
-
-            if self._should_extract_bookmarks and self._heading_detection in ("bookmarks", "auto"):
-                bookmarks = self._extract_bookmarks(pdf)
-                for bm in bookmarks:
-                    if bm["page_num"] is not None:
-                        bookmarks_by_page[bm["page_num"]].append(bm)
-
-                resolved_count = sum(1 for bm in bookmarks if bm["page_num"] is not None)
-                unresolved_count = len(bookmarks) - resolved_count
-
-                logger.info(
-                    f"PDF bookmarks: {len(bookmarks)} total, {resolved_count} resolved, {unresolved_count} unresolved"
-                )
-
-            if not bookmarks_by_page and self._heading_detection in ("font", "auto"):
-                from .pdf_heading import detect_headings_by_font
-
-                font_headings = detect_headings_by_font(pdf)
-                for bm in font_headings:
-                    if bm["page_num"] is not None:
-                        bookmarks_by_page[bm["page_num"]].append(bm)
-
             pages_to_process = pdf.pages[: self._max_pages] if self._max_pages is not None else pdf.pages
             process_count = len(pages_to_process)
+            page_heights = _numeric_page_heights(pages_to_process)
+
+            bookmark_headings = self._resolve_bookmark_headings(pdf)
+            font_headings = self._resolve_font_headings(pdf, bookmark_headings)
 
             if self._parallel and process_count > 10:
                 page_results = self._parse_parallel(pages_to_process)
@@ -151,33 +159,31 @@ class PDFPlumberParser(FileParser):
                 page_results = self._parse_sequential(pages_to_process)
 
             for page_num, (text, tables, error) in enumerate(page_results, start=1):
-                page_content_parts: list[str] = []
-
-                page_bookmarks = bookmarks_by_page.get(page_num, [])
-                for bm in page_bookmarks:
-                    heading_prefix = "#" * bm["level"]
-                    page_content_parts.append(f"{heading_prefix} {bm['title']}\n")
-
                 if error:
                     failed_pages.append(page_num)
+                    page_errors[page_num] = error
                     logger.warning("Page %d parsing failed: %s", page_num, error)
-                    page_content_parts.append(f"[Parsing Error: {error}]")
-                else:
-                    if text.strip():
-                        page_content_parts.append(text)
+                page_texts[page_num] = text
+                for table in tables:
+                    table.page_number = page_num
+                    all_tables.append(table)
 
-                    for idx, table in enumerate(tables):
-                        table.page_number = page_num
-                        table.table_index = idx
-                        table.id = f"table_{page_num}_{idx}"
-                        # Pre-render markdown and summary for L0/L2 representation
-                        table.markdown = self._format_table_markdown(table)
-                        table.summary_l0 = self._generate_table_summary_l0(table)
-                        all_tables.append(table)
+            if self._stitch_tables and all_tables:
+                all_tables = stitch_cross_page_tables(all_tables, page_heights)
+            finalize_tables(all_tables)
 
-                if page_content_parts:
-                    combined = "\n".join(page_content_parts)
-                    all_text.append(f"[Page {page_num}]\n{combined}")
+            headings = self._resolve_headings(bookmark_headings, font_headings, page_texts, process_count)
+            headings_by_page: dict[int, list[PDFHeading]] = defaultdict(list)
+            for heading in headings:
+                headings_by_page[heading.page_num].append(heading)
+
+            text_parts: list[str] = []
+            for page_num in range(1, process_count + 1):
+                body = page_texts.get(page_num, "")
+                if page_num in page_errors:
+                    body = f"[Parsing Error: {page_errors[page_num]}]"
+                inserted = insert_headings_into_page_text(body, headings_by_page.get(page_num, []))
+                text_parts.append(f"[Page {page_num}]\n{inserted}")
 
             metadata: dict[str, str | int] = {
                 "page_count": page_count,
@@ -187,14 +193,57 @@ class PDFPlumberParser(FileParser):
                 "parser": "pdfplumber",
             }
 
-            if self._should_extract_bookmarks:
-                metadata["bookmarks_total"] = len(bookmarks)
-                metadata["bookmarks_resolved"] = sum(1 for bm in bookmarks if bm["page_num"] is not None)
-                metadata["bookmarks_unresolved"] = sum(1 for bm in bookmarks if bm["page_num"] is None)
+            final_text = self._merge_text_and_tables(text_parts, all_tables)
 
-            final_text = self._merge_text_and_tables(all_text, all_tables)
+            return PDFParseResult(text=final_text, tables=all_tables, metadata=metadata, headings=headings)
 
-            return PDFParseResult(text=final_text, tables=all_tables, metadata=metadata)
+    def _resolve_bookmark_headings(self, pdf: PDF) -> list[PDFHeading]:
+        """Bookmarks are authoritative; generic exporter titles fall back to detection."""
+        if not self._should_extract_bookmarks or self._heading_detection not in ("bookmarks", "auto"):
+            return []
+
+        bookmarks = extract_bookmarks(pdf)
+        if bookmarks and bookmarks_are_degenerate(bookmarks):
+            logger.info("PDF bookmarks carry no structure (generic exporter titles); using detection")
+            return []
+        return bookmarks
+
+    def _resolve_font_headings(self, pdf: PDF, bookmarks: list[PDFHeading]) -> list[PDFHeading]:
+        """Font-size heading detection, used only when bookmarks carry no structure."""
+        if bookmarks or self._heading_detection not in ("font", "auto"):
+            return []
+
+        from .pdf_heading import detect_headings_by_font
+
+        headings: list[PDFHeading] = []
+        for item in detect_headings_by_font(pdf):
+            level = item.get("level")
+            title = item.get("title")
+            page_num = item.get("page_num")
+            if isinstance(level, int) and isinstance(title, str) and isinstance(page_num, int):
+                headings.append(PDFHeading(level=level, title=title, page_num=page_num))
+        return headings
+
+    def _resolve_headings(
+        self,
+        bookmark_headings: list[PDFHeading],
+        font_headings: list[PDFHeading],
+        page_texts: dict[int, str],
+        process_count: int,
+    ) -> list[PDFHeading]:
+        """Compose the document structure from bookmarks or detection sources."""
+        if bookmark_headings:
+            return bookmark_headings
+        if self._heading_detection not in ("font", "auto"):
+            return []
+
+        numbering = detect_numbering_headings(
+            [page_texts.get(page_num, "") for page_num in range(1, process_count + 1)],
+            cue_titles=build_numbering_cues(font_headings),
+        )
+        if numbering:
+            numbering = filter_repeated_titles(numbering, process_count)
+        return fuse_headings(numbering, font_headings)
 
     def _parse_sequential(
         self,
@@ -206,7 +255,7 @@ class PDFPlumberParser(FileParser):
                 text = page.extract_text() or ""
                 tables: list[PDFTable] = []
                 if self._extract_tables:
-                    tables = self._extract_page_tables(page)
+                    tables = extract_page_tables(page, self._table_settings)
                 yield (text, tables, None)
             except Exception as e:
                 yield ("", [], f"{type(e).__name__}: {e}")
@@ -253,117 +302,13 @@ class PDFPlumberParser(FileParser):
             text = page.extract_text() or ""
             tables: list[PDFTable] = []
             if self._extract_tables:
-                tables = self._extract_page_tables(page)
+                tables = extract_page_tables(page, self._table_settings)
             return (text, tables, None)
         except Exception as e:
             return ("", [], f"{type(e).__name__}: {e}")
         finally:
             if hasattr(page, "close"):
                 page.close()  # Free cached page data immediately to prevent OOM on large PDFs
-
-    def _extract_page_tables(
-        self,
-        page: pdfplumber.page.Page,
-    ) -> list[PDFTable]:
-        """Extract tables from page"""
-        tables: list[PDFTable] = []
-        table_bboxes: list[tuple[float, float, float, float]] = []
-
-        try:
-            # Primary extraction: Explicit line-based table extraction
-            raw_tables = page.find_tables(self._table_settings)
-
-            for idx, raw_table in enumerate(raw_tables):
-                table_data = raw_table.extract()
-                if not table_data or not any(table_data):
-                    continue
-
-                cleaned = self._clean_table_data(table_data)
-                if cleaned:
-                    tables.append(
-                        PDFTable(
-                            page_number=0,
-                            table_index=idx,
-                            data=cleaned,
-                            bbox=raw_table.bbox,
-                        )
-                    )
-                    table_bboxes.append(raw_table.bbox)
-
-            # Secondary extraction: Heuristic form/borderless table extraction (Lazy Trigger)
-            page_text = page.extract_text() or ""
-
-            # Lazy Trigger: Only trigger if there are multiple wide spaces indicating columnar alignment,
-            # or if the page is extremely sparse (like a scanned invoice with few chars)
-            import re
-
-            trigger_heuristic = False
-            # Check for multiple instances of 3+ spaces (including Tab and NBSP) which often indicate aligned columns
-            if len(re.findall(r"[ \t\xa0]{3,}", page_text)) >= 3:
-                trigger_heuristic = True
-            elif len(page.chars) < 2000 and len(table_bboxes) == 0:
-                # Sparse page without explicit tables, might be a borderless form
-                trigger_heuristic = True
-
-            if trigger_heuristic:
-                # Memory-Dict Collision Masking: extract words once and filter in pure Python
-                all_words = page.extract_words(keep_blank_chars=False, x_tolerance=3, y_tolerance=3)
-
-                remaining_words = []
-                for w in all_words:
-                    w_x0, w_y0, w_x1, w_y1 = w["x0"], w["top"], w["x1"], w["bottom"]
-                    in_any_bbox = False
-                    for bx0, by0, bx1, by1 in table_bboxes:
-                        # Check intersection
-                        if not (w_x1 < bx0 or w_x0 > bx1 or w_y1 < by0 or w_y0 > by1):
-                            in_any_bbox = True
-                            break
-                    if not in_any_bbox:
-                        remaining_words.append(w)
-
-                if remaining_words:
-                    from .pdf_heuristic_table import (
-                        extract_heuristic_tables_from_words,
-                    )
-
-                    page_width = page.width if hasattr(page, "width") else 612.0
-                    heuristic_tables = extract_heuristic_tables_from_words(remaining_words, float(page_width))
-
-                    # Merge heuristic table results
-                    base_idx = len(tables)
-                    for h_idx, (h_data, h_bbox) in enumerate(heuristic_tables):
-                        tables.append(
-                            PDFTable(
-                                page_number=0,
-                                table_index=base_idx + h_idx,
-                                data=h_data,
-                                bbox=h_bbox,
-                            )
-                        )
-
-            # Sort all tables by their vertical position (y0) to ensure correct reading order
-            tables.sort(key=lambda t: t.bbox[1] if t.bbox else 0)
-
-            # Reassign indices after sorting
-            for idx, table in enumerate(tables):
-                table.table_index = idx
-
-        except Exception as e:
-            logger.warning("Table extraction failed: %s", e)
-
-        return tables
-
-    @staticmethod
-    def _clean_table_data(raw_table: list[list[str | None]]) -> list[list[str]]:
-        """Clean table data: convert None to empty string, remove empty rows"""
-        cleaned: list[list[str]] = []
-
-        for row in raw_table:
-            cleaned_row = [str(cell).strip() if cell else "" for cell in row]
-            if any(cell for cell in cleaned_row):
-                cleaned.append(cleaned_row)
-
-        return cleaned
 
     def _merge_text_and_tables(
         self,
@@ -389,153 +334,16 @@ class PDFPlumberParser(FileParser):
 
         return "\n\n".join(merged)
 
-    @staticmethod
-    def _format_table_markdown(table: PDFTable) -> str:
-        """Format table as Markdown"""
-        if not table.data or len(table.data) < 2:
-            return f"**Table {table.table_index + 1}** (empty)"
-
-        lines: list[str] = [
-            f"**Table {table.table_index + 1}** (Page {table.page_number})",
-            "",
-        ]
-
-        headers = [cell.replace("|", "\\|") for cell in table.data[0]]
-        lines.append("| " + " | ".join(headers) + " |")
-        lines.append("| " + " | ".join(["---"] * len(headers)) + " |")
-
-        for row in table.data[1:]:
-            cells = [cell.replace("|", "\\|") for cell in row]
-            while len(cells) < len(headers):
-                cells.append("")
-            lines.append("| " + " | ".join(cells) + " |")
-
-        return "\n".join(lines)
-
-    @staticmethod
-    def _generate_table_summary_l0(table: PDFTable) -> str:
-        """Generates a heuristic L0 summary for the table capsule.
-
-        Focuses on structural information for semantic indexing.
-        """
-        if not table.data:
-            return "Empty table"
-
-        header = table.data[0]
-        row_count = len(table.data) - 1
-        cols_summary = ", ".join([str(c) for c in header[:5]])
-        if len(header) > 5:
-            cols_summary += "..."
-
-        summary = f"Structured Table on Page {table.page_number}. Rows: {row_count}. Headers: [{cols_summary}]. "
-
-        # Add a glimpse of the first data row if available for better semantic matching
-        if row_count > 0:
-            first_row = table.data[1]
-            row_preview = ", ".join([str(c) for c in first_row[:3]])
-            summary += f"Data sample: {row_preview}."
-
-        return summary.strip()
-
-    def _extract_bookmarks(self, pdf: pdfplumber.PDF) -> list[dict[str, object]]:
-        """Extract bookmark structure from PDF outlines.
-
-        Returns list of bookmarks with nested hierarchy resolved to flat list:
-            [{"level": int (1-6), "title": str, "page_num": int (1-based) | None}]
-
-        Note: page_num is None if bookmark destination cannot be resolved.
-        """
-        try:
-            if not hasattr(pdf, "doc") or not hasattr(pdf.doc, "get_outlines"):
-                logger.debug("PDF has no outline/bookmark support")
-                return []
-
-            outlines = list(pdf.doc.get_outlines())
-            if not outlines:
-                logger.debug("PDF has no bookmarks")
-                return []
-
-            page_ref_map = self._build_page_number_map(pdf)
-
-            bookmarks: list[dict[str, object]] = []
-            for level, title, dest, _action, _se in outlines:
-                if not title or not title.strip():
-                    continue
-
-                page_num = None
-                try:
-                    if dest and len(dest) > 0:
-                        page_num = self._resolve_bookmark_page(dest[0], page_ref_map, len(pdf.pages))
-                except Exception as e:
-                    logger.debug(f"Failed to resolve bookmark '{title}': {e}")
-
-                bookmarks.append(
-                    {
-                        "level": min(max(level, 1), 6),
-                        "title": title.strip(),
-                        "page_num": page_num,
-                    }
-                )
-
-            return bookmarks
-
-        except Exception as e:
-            logger.warning(f"Failed to extract bookmarks: {e}")
-            return []
-
-    def _build_page_number_map(self, pdf: pdfplumber.PDF) -> dict[int, int]:
-        """Build lookup from PDF page object IDs to 1-based page numbers.
-
-        pdfminer outlines reference pages by object id. In pdfplumber these are
-        exposed as `page.page_obj.pageid` (or legacy `objid`).
-        """
-        page_ref_map: dict[int, int] = {}
-
-        for idx, page in enumerate(pdf.pages, 1):
-            if hasattr(page, "page_obj"):
-                for attr in ("pageid", "objid"):
-                    ref_id = getattr(page.page_obj, attr, None)
-                    if isinstance(ref_id, int):
-                        page_ref_map[ref_id] = idx
-                        break
-
-        return page_ref_map
-
-    def _resolve_bookmark_page(
-        self,
-        page_ref: object,
-        page_ref_map: dict[int, int],
-        total_pages: int,
-    ) -> int | None:
-        """Resolve bookmark destination to 1-based page number.
-
-        Handles multiple reference formats:
-        - Integer object ID (via objid/pageid lookup)
-        - Direct integer page index (0-based, converted to 1-based)
-        - Lazy-resolved object references
-        """
-        ref_id = getattr(page_ref, "objid", None)
-        if isinstance(ref_id, int):
-            return page_ref_map.get(ref_id)
-
-        if isinstance(page_ref, int):
-            candidate = page_ref + 1
-            if 1 <= candidate <= total_pages:
-                return candidate
-            return None
-
-        if hasattr(page_ref, "resolve"):
-            try:
-                resolved = page_ref.resolve()
-                for attr in ("pageid", "objid"):
-                    resolved_id = getattr(resolved, attr, None)
-                    if isinstance(resolved_id, int):
-                        return page_ref_map.get(resolved_id)
-            except Exception:
-                pass
-
-        return None
-
     @property
     def supported_extensions(self) -> list[str]:
         return [".pdf"]
+
+
+def _numeric_page_heights(pages: list[pdfplumber.page.Page]) -> dict[int, float]:
+    """1-based page heights; non-numeric test doubles are skipped."""
+    heights: dict[int, float] = {}
+    for page_num, page in enumerate(pages, start=1):
+        value = getattr(page, "height", None)
+        if isinstance(value, (int, float)) and value > 0:
+            heights[page_num] = float(value)
+    return heights

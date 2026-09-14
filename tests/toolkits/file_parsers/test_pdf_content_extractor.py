@@ -895,7 +895,7 @@ class TestPdfOcrFallback:
                 tables=[],
                 metadata={"page_count": 50, "parsed_pages": 2},
             )
-            text, page_count, parsed_pages, tables = _extract_text_sync("dummy.pdf", max_pages=2)
+            text, page_count, parsed_pages, _tables = _extract_text_sync("dummy.pdf", max_pages=2)
 
             assert page_count == 50
             assert parsed_pages == 2

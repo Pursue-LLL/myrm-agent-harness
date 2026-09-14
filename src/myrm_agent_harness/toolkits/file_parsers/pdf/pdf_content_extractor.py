@@ -52,6 +52,7 @@ class PDFExtractConfig:
     table_format: Literal["inline", "placeholder"] = "placeholder"  # Default to placeholder for anti-fragmentation
     ocr_pages: int = 30  # Max pages OCR'd for scanned PDFs (0 disables OCR fallback)
     ocr_lang: str = "ch"  # PaddleOCR language ('en', 'japan', 'korean', ...); 'ch' covers Chinese + English
+    stitch_tables: bool = True  # Merge table fragments split by page breaks
 
 
 @dataclass
@@ -68,7 +69,10 @@ class PDFExtractResult:
 
 
 def _extract_text_sync(
-    file_path: str, max_pages: int, table_format: str = "inline"
+    file_path: str,
+    max_pages: int,
+    table_format: Literal["inline", "placeholder"] = "inline",
+    stitch_tables: bool = True,
 ) -> tuple[str, int, int, list[PDFTable]]:
     """Extract text from PDF using PDFPlumberParser (includes table extraction).
 
@@ -81,6 +85,7 @@ def _extract_text_sync(
         parallel=True,
         table_format=table_format,
         max_pages=max_pages,
+        stitch_tables=stitch_tables,
     )
     result = parser.parse_sync(file_path)
     page_count: int = int(result.metadata.get("page_count", 0))
@@ -152,7 +157,7 @@ def _render_pages_sync(
 ) -> list[PDFImageContent]:
     """Render full PDF pages as PNG images (fallback for scanned documents)."""
     try:
-        import pypdfium2 as pdfium
+        import pypdfium2 as pdfium  # type: ignore[import-untyped]
     except ImportError as e:
         raise ImportError("pypdfium2 is required for PDF image rendering. Run: uv add pypdfium2") from e
 
@@ -233,7 +238,7 @@ async def extract_pdf_content(
 
     # Phase 1: Text & Tables
     text, page_count, parsed_pages, all_tables = await asyncio.to_thread(
-        _extract_text_sync, file_path, cfg.max_pages, cfg.table_format
+        _extract_text_sync, file_path, cfg.max_pages, cfg.table_format, cfg.stitch_tables
     )
 
     # Phase 2: Images

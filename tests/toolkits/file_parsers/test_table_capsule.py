@@ -7,18 +7,20 @@ from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor import (
     PDFExtractConfig,
     extract_pdf_content,
 )
+from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_tables import (
+    generate_table_summary_l0,
+)
 
 
 def test_table_summary_l0_generation():
     """Test the heuristic L0 summary generation."""
-    parser = PDFPlumberParser()
     from myrm_agent_harness.toolkits.file_parsers.base import PDFTable
 
     table = PDFTable(
         page_number=1, table_index=0, data=[["Name", "Age", "City"], ["Alice", "30", "NY"], ["Bob", "25", "LA"]]
     )
 
-    summary = parser._generate_table_summary_l0(table)
+    summary = generate_table_summary_l0(table)
     assert "Page 1" in summary
     assert "Rows: 2" in summary
     assert "Headers: [Name, Age, City]" in summary
@@ -72,7 +74,9 @@ async def test_extract_pdf_content_with_tables():
                 "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor._extract_embedded_images_sync",
                 return_value=[],
             ),
-            patch("myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor._render_pages_sync", return_value=[]),
+            patch(
+                "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor._render_pages_sync", return_value=[]
+            ),
         ):
             config = PDFExtractConfig(table_format="placeholder")
             result = await extract_pdf_content("fake.pdf", config)

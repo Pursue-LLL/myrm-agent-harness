@@ -4,25 +4,34 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from myrm_agent_harness.toolkits.file_parsers.base import PDFTable
+from myrm_agent_harness.toolkits.file_parsers.base import PDFHeading, PDFTable
 from myrm_agent_harness.toolkits.file_parsers.pdf import PDFPlumberParser
+from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_tables import (
+    clean_table_data,
+    extract_page_tables,
+    format_table_markdown,
+    generate_table_summary_l0,
+)
 
 
 def _make_mock_page(
     text: str = "Page content",
     tables: list[list[list[str]]] | None = None,
     page_obj_id: int = 100,
+    height: float = 800.0,
+    table_bboxes: list[tuple[float, float, float, float]] | None = None,
 ) -> Mock:
     """Create a mock pdfplumber page."""
     page = Mock()
     page.extract_text = Mock(return_value=text)
+    page.height = height
 
     raw_tables = []
     if tables:
-        for table_data in tables:
+        for idx, table_data in enumerate(tables):
             rt = Mock()
             rt.extract.return_value = table_data
-            rt.bbox = (0, 0, 100, 100)
+            rt.bbox = table_bboxes[idx] if table_bboxes else (0, 0, 100, 100)
             raw_tables.append(rt)
 
     page.find_tables = Mock(return_value=raw_tables)
@@ -117,7 +126,6 @@ class TestTableExtraction:
 
     def test_extract_page_tables(self):
         """Tables are extracted and cleaned."""
-        parser = PDFPlumberParser(extract_tables=True, extract_bookmarks=False)
         page = Mock()
 
         raw_table = Mock()
@@ -128,7 +136,7 @@ class TestTableExtraction:
         page.chars = []
         page.extract_words = Mock(return_value=[])
 
-        tables = parser._extract_page_tables(page)
+        tables = extract_page_tables(page)
 
         assert len(tables) == 1
         assert tables[0].data[0] == ["Header1", "Header2"]
@@ -136,7 +144,6 @@ class TestTableExtraction:
 
     def test_extract_page_tables_heuristic_lazy_trigger(self):
         """Heuristic borderless tables are extracted when lazy trigger fires."""
-        parser = PDFPlumberParser(extract_tables=True, extract_bookmarks=False)
         page = Mock()
         page.find_tables = Mock(return_value=[])
         # 3+ wide-space gaps trigger heuristic path
@@ -156,7 +163,7 @@ class TestTableExtraction:
             ]
         )
 
-        tables = parser._extract_page_tables(page)
+        tables = extract_page_tables(page)
 
         assert len(tables) == 1
         assert tables[0].data[0][0] == "Item A"
@@ -164,31 +171,29 @@ class TestTableExtraction:
 
     def test_extract_tables_empty(self):
         """Empty tables return empty list."""
-        parser = PDFPlumberParser(extract_tables=True)
         page = Mock()
         page.find_tables = Mock(return_value=[])
         page.extract_text = Mock(return_value="Page content")
         page.chars = []
         page.extract_words = Mock(return_value=[])
 
-        tables = parser._extract_page_tables(page)
+        tables = extract_page_tables(page)
         assert tables == []
 
     def test_extract_tables_exception(self):
         """Table extraction exception is handled gracefully."""
-        parser = PDFPlumberParser(extract_tables=True)
         page = Mock()
         page.find_tables = Mock(side_effect=RuntimeError("corrupt"))
         page.extract_text = Mock(return_value="Page content")
         page.chars = []
         page.extract_words = Mock(return_value=[])
 
-        tables = parser._extract_page_tables(page)
+        tables = extract_page_tables(page)
         assert tables == []
 
     def test_clean_table_data_removes_empty_rows(self):
         """Rows with all empty cells are removed."""
-        result = PDFPlumberParser._clean_table_data([["a", "b"], [None, None], ["c", ""]])
+        result = clean_table_data([["a", "b"], [None, None], ["c", ""]])
         assert len(result) == 2
         assert result[0] == ["a", "b"]
         assert result[1] == ["c", ""]
@@ -205,7 +210,7 @@ class TestTableFormatting:
             data=[["Name", "Age"], ["Alice", "30"], ["Bob", "25"]],
             bbox=None,
         )
-        result = PDFPlumberParser._format_table_markdown(table)
+        result = format_table_markdown(table)
 
         assert "| Name | Age |" in result
         assert "| --- | --- |" in result
@@ -214,13 +219,13 @@ class TestTableFormatting:
     def test_format_table_markdown_empty(self):
         """Empty table produces fallback text."""
         table = PDFTable(page_number=1, table_index=0, data=[], bbox=None)
-        result = PDFPlumberParser._format_table_markdown(table)
+        result = format_table_markdown(table)
         assert "empty" in result.lower()
 
     def test_format_table_markdown_single_row(self):
         """Table with only headers (no data) produces fallback."""
         table = PDFTable(page_number=1, table_index=0, data=[["Col1"]], bbox=None)
-        result = PDFPlumberParser._format_table_markdown(table)
+        result = format_table_markdown(table)
         assert "empty" in result.lower()
 
     def test_format_table_escapes_pipe(self):
@@ -231,7 +236,7 @@ class TestTableFormatting:
             data=[["A|B", "C"], ["D", "E|F"]],
             bbox=None,
         )
-        result = PDFPlumberParser._format_table_markdown(table)
+        result = format_table_markdown(table)
         assert "A\\|B" in result
         assert "E\\|F" in result
 
@@ -243,7 +248,7 @@ class TestTableFormatting:
             data=[["H1", "H2", "H3"], ["a"]],
             bbox=None,
         )
-        result = PDFPlumberParser._format_table_markdown(table)
+        result = format_table_markdown(table)
         assert result.count("|") > 0
 
 
@@ -253,7 +258,7 @@ class TestTableSummaryL0:
     def test_empty_table(self):
         """Empty table returns 'Empty table'."""
         table = PDFTable(page_number=1, table_index=0, data=[], bbox=None)
-        result = PDFPlumberParser._generate_table_summary_l0(table)
+        result = generate_table_summary_l0(table)
         assert result == "Empty table"
 
     def test_basic_summary(self):
@@ -264,7 +269,7 @@ class TestTableSummaryL0:
             data=[["Name", "Score", "Grade"], ["Alice", "95", "A"]],
             bbox=None,
         )
-        result = PDFPlumberParser._generate_table_summary_l0(table)
+        result = generate_table_summary_l0(table)
 
         assert "Page 2" in result
         assert "Rows: 1" in result
@@ -279,7 +284,7 @@ class TestTableSummaryL0:
             data=[["A", "B", "C", "D", "E", "F", "G"], ["1", "2", "3", "4", "5", "6", "7"]],
             bbox=None,
         )
-        result = PDFPlumberParser._generate_table_summary_l0(table)
+        result = generate_table_summary_l0(table)
         assert "..." in result
 
 
@@ -407,3 +412,114 @@ class TestMaxPagesPhysicalSlicing:
         assert "Content page 3" not in result.text
         pages[2].extract_text.assert_not_called()
 
+
+class TestHeadingContract:
+    """Typed headings are the single source of truth for document structure."""
+
+    def test_resolved_bookmarks_become_headings(self, tmp_path):
+        parser = PDFPlumberParser(extract_tables=False)
+        test_pdf = tmp_path / "test.pdf"
+        test_pdf.write_text("dummy")
+
+        page = _make_mock_page("Chapter 1\nbody text", page_obj_id=100)
+        mock_pdf = _make_mock_pdf([page], outlines=[(1, "Chapter 1", [Mock(objid=100)], None, None)])
+
+        with patch("pdfplumber.open") as mock_open:
+            mock_open.return_value.__enter__ = Mock(return_value=mock_pdf)
+            mock_open.return_value.__exit__ = Mock(return_value=False)
+            result = parser.parse_sync(str(test_pdf))
+
+        assert result.headings == [PDFHeading(level=1, title="Chapter 1", page_num=1)]
+        assert "bookmarks_total" not in result.metadata
+        # Heading is placed at its original line, not duplicated.
+        assert result.text.count("Chapter 1") == 1
+        assert "# Chapter 1" in result.text
+
+    def test_generic_bookmarks_fall_back_to_numbering(self, tmp_path):
+        parser = PDFPlumberParser(extract_tables=False)
+        test_pdf = tmp_path / "test.pdf"
+        test_pdf.write_text("dummy")
+
+        body = "1.1 概述与范围\n1.2 建设目标\n正文内容"
+        page = _make_mock_page(body, page_obj_id=100)
+        outlines = [(1, f"幻灯片 {idx}", [Mock(objid=100)], None, None) for idx in range(1, 5)]
+        mock_pdf = _make_mock_pdf([page], outlines=outlines)
+
+        with patch("pdfplumber.open") as mock_open:
+            mock_open.return_value.__enter__ = Mock(return_value=mock_pdf)
+            mock_open.return_value.__exit__ = Mock(return_value=False)
+            result = parser.parse_sync(str(test_pdf))
+
+        assert [heading.title for heading in result.headings] == ["1.1 概述与范围", "1.2 建设目标"]
+        assert "幻灯片" not in result.text
+
+    def test_numbering_headings_are_placed_inline(self, tmp_path):
+        parser = PDFPlumberParser(extract_tables=False)
+        test_pdf = tmp_path / "test.pdf"
+        test_pdf.write_text("dummy")
+
+        body = "前言说明\n1.1 概述\n正文一\n1.2 目标\n正文二"
+        page = _make_mock_page(body, page_obj_id=100)
+        mock_pdf = _make_mock_pdf([page])
+
+        with patch("pdfplumber.open") as mock_open:
+            mock_open.return_value.__enter__ = Mock(return_value=mock_pdf)
+            mock_open.return_value.__exit__ = Mock(return_value=False)
+            result = parser.parse_sync(str(test_pdf))
+
+        assert [heading.title for heading in result.headings] == ["1.1 概述", "1.2 目标"]
+        assert "前言说明\n# 1.1 概述\n正文一\n# 1.2 目标\n正文二" in result.text
+
+
+class TestCrossPageStitchingIntegration:
+    """Boundary table fragments are merged into one logical Markdown table."""
+
+    @staticmethod
+    def _pdf_with_split_table() -> Mock:
+        pages = [_make_mock_page(f"第{i}页正文", page_obj_id=100 + i) for i in range(1, 5)]
+        pages.append(
+            _make_mock_page(
+                "第五页正文",
+                tables=[[["项目", "金额"], ["甲材料", "1000"]]],
+                page_obj_id=105,
+                table_bboxes=[(0, 700, 100, 790)],
+            )
+        )
+        pages.append(
+            _make_mock_page(
+                "第六页正文",
+                tables=[[["项目", "金额"], ["乙材料", "2000"]]],
+                page_obj_id=106,
+                table_bboxes=[(0, 10, 100, 110)],
+            )
+        )
+        return _make_mock_pdf(pages)
+
+    def test_split_table_is_stitched(self, tmp_path):
+        parser = PDFPlumberParser(extract_tables=True, extract_bookmarks=False)
+        test_pdf = tmp_path / "test.pdf"
+        test_pdf.write_text("dummy")
+
+        with patch("pdfplumber.open") as mock_open:
+            mock_open.return_value.__enter__ = Mock(return_value=self._pdf_with_split_table())
+            mock_open.return_value.__exit__ = Mock(return_value=False)
+            result = parser.parse_sync(str(test_pdf))
+
+        assert len(result.tables) == 1
+        assert result.tables[0].page_range == (5, 6)
+        assert result.tables[0].data == [["项目", "金额"], ["甲材料", "1000"], ["乙材料", "2000"]]
+        assert "Pages 5–6" in result.text
+        assert result.metadata["table_count"] == 1
+
+    def test_stitching_can_be_disabled(self, tmp_path):
+        parser = PDFPlumberParser(extract_tables=True, extract_bookmarks=False, stitch_tables=False)
+        test_pdf = tmp_path / "test.pdf"
+        test_pdf.write_text("dummy")
+
+        with patch("pdfplumber.open") as mock_open:
+            mock_open.return_value.__enter__ = Mock(return_value=self._pdf_with_split_table())
+            mock_open.return_value.__exit__ = Mock(return_value=False)
+            result = parser.parse_sync(str(test_pdf))
+
+        assert len(result.tables) == 2
+        assert result.metadata["table_count"] == 2

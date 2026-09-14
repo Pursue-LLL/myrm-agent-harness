@@ -752,13 +752,7 @@ async def test_file_read_no_hint_for_plain_workspace_paths() -> None:
 async def test_process_text_paths_structure_mode(tmp_path: Path) -> None:
     """验证 parse_mode='structure' 时结构化提取 Python 代码大纲"""
     py_file = tmp_path / "service.py"
-    code = (
-        "class OrderService:\n"
-        "    def create_order(self):\n"
-        "        pass\n\n"
-        "def helper():\n"
-        "    pass\n"
-    )
+    code = "class OrderService:\n    def create_order(self):\n        pass\n\ndef helper():\n    pass\n"
     mock_executor = MagicMock()
     mock_executor.workspace_path = str(tmp_path)
 
@@ -790,7 +784,7 @@ async def test_pdf_reader_structure_mode() -> None:
     from myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader import (
         read_pdf_as_content_blocks,
     )
-    from myrm_agent_harness.toolkits.file_parsers.base import PDFParseResult
+    from myrm_agent_harness.toolkits.file_parsers.base import PDFHeading, PDFParseResult
 
     mock_executor = MagicMock()
     mock_executor.read_file_bytes = AsyncMock(return_value=b"%PDF-1.4 mock")
@@ -798,18 +792,18 @@ async def test_pdf_reader_structure_mode() -> None:
     mock_res = PDFParseResult(
         text="",
         tables=[],
-        metadata={
-            "page_count": 10,
-            "bookmarks": [
-                {"level": 1, "title": "Introduction", "page_num": 1},
-                {"level": 2, "title": "System Architecture", "page_num": 3},
-            ],
-        },
+        metadata={"page_count": 10},
+        headings=[
+            PDFHeading(level=1, title="Introduction", page_num=1),
+            PDFHeading(level=2, title="System Architecture", page_num=3),
+        ],
     )
 
     with patch("myrm_agent_harness.toolkits.file_parsers.pdf.pdf.PDFPlumberParser.parse_sync", return_value=mock_res):
-        out = await read_pdf_as_content_blocks("paper.pdf", mock_executor, supports_vision=False, parse_mode="structure")
+        out = await read_pdf_as_content_blocks(
+            "paper.pdf", mock_executor, supports_vision=False, parse_mode="structure"
+        )
         assert isinstance(out, str)
         assert "[DOCUMENT STRUCTURE OUTLINE: paper.pdf (Total Pages: 10)]:" in out
         assert "- Page 1: Introduction" in out
-        assert "- Page 3: System Architecture" in out
+        assert "  - Page 3: System Architecture" in out

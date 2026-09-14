@@ -26,7 +26,7 @@ Provides parsers for various file formats:
 [OUTPUT]
 - FileParser, PDFPlumberParser, DocxParser, ExcelParser, PptxParser, TextParser, IpynbParser: parser classes
 - LegacyFormatParser: OLE2 legacy format parser with soffice auto-conversion
-- PDFParseResult, PDFTable: PDF-specific result models
+- PDFParseResult, PDFTable, PDFHeading: PDF-specific result models
 - PDFExtractConfig, PDFExtractResult, PDFImageContent, extract_pdf_content: PDF extraction utilities
 - SmartPDFParser: PDF parser with text/table extraction + OCR fallback (default for get_parser(".pdf"))
 - parse_file(): auto-detect file type and parse
@@ -47,6 +47,7 @@ from pathlib import Path
 
 from myrm_agent_harness.toolkits.file_parsers.base import (
     FileParser,
+    PDFHeading,
     PDFParseResult,
     PDFTable,
 )
@@ -85,6 +86,7 @@ __all__ = [
     "OCRResult",
     "PDFExtractConfig",
     "PDFExtractResult",
+    "PDFHeading",
     "PDFImageContent",
     "PDFParseResult",
     "PDFPlumberParser",

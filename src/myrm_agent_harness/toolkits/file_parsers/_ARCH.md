@@ -10,7 +10,7 @@ auto-conversion).
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | File parsers toolkit entry point. Aggregates parsers, LegacyFormatParser (OLE2 magic detection + soffice conversion for .doc/.xls/.ppt), and factory functions. | ✅ |
-| base.py | Core | File parser base classes and data structures | ✅ |
+| base.py | Core | File parser base classes and data structures (PDFHeading/PDFTable/PDFParseResult) | ✅ |
 | content_format_sniff.py | Core | Content sniffing: detect file format from bytes (magic bytes) independent of extension | ✅ |
 | container_xml_parser.py | Core | Generic OPC/container XML parser for legacy office formats | ✅ |
 | csv_parser.py | Core | CSV file parser with delimiter detection and Markdown output | ✅ |
@@ -20,7 +20,7 @@ auto-conversion).
 | gfm_normalize.py | Core | Normalize parser output into consistent GitHub Flavored Markdown | ✅ |
 | image_filter.py | Core | Smart image ablation filter. Intercepts UI noise, decorative lines, tiny logos, | ✅ |
 | ocr.py | Core | OCR parser for images using PaddleOCR (2.x/3.x engine compatible, PaddleX unified API in 3.x). Supports CJK languages natively. | ✅ |
-| pdf/（子包） | Core | PDF 解析子域：pdfplumber 文本/表格解析、智能提取编排（Text/Hybrid/Image + OCR 兜底）、SmartPDFParser 适配器、字体级标题检测、无边框表格启发式提取。5 个 `pdf*` 模块聚合于此，`pdf/__init__.py` 为聚合门面统一 re-export | ✅ |
+| pdf/（子包） | Core | PDF 解析子域：pdfplumber 文本/表格解析编排、智能提取（Text/Hybrid/Image + OCR 兜底）、SmartPDFParser 适配器、书签/编号/字号多信号标题管线（含垃圾书签质量门与行内落位）、跨页表格保守缝合、无边框表格启发式提取。`pdf*` 模块聚合于此，`pdf/__init__.py` 为聚合门面统一 re-export | ✅ |
 | pptx.py | Core | PowerPoint document parser. Supports markdown (slide text, tables, speaker notes) and structure mode (JSON metadata with shape IDs, types, positions, layouts for incremental edits). | ✅ |
 | rtf_parser.py | Core | RTF parser with font/color group handling and Markdown output | ✅ |
 | text.py | Core | Text file parser | ✅ |

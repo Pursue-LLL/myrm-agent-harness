@@ -366,7 +366,9 @@ class TestPDFPlumberParserIntegration:
 
         with (
             patch("pdfplumber.open") as mock_open,
-            patch("myrm_agent_harness.toolkits.file_parsers.pdf.pdf_heading.detect_headings_by_font") as mock_font_detect,
+            patch(
+                "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_heading.detect_headings_by_font"
+            ) as mock_font_detect,
         ):
             mock_open.return_value.__enter__ = Mock(return_value=mock_pdf)
             mock_open.return_value.__exit__ = Mock(return_value=False)
@@ -442,7 +444,9 @@ class TestPDFPlumberParserIntegration:
 
         with (
             patch("pdfplumber.open") as mock_open,
-            patch("myrm_agent_harness.toolkits.file_parsers.pdf.pdf_heading.detect_headings_by_font") as mock_font_detect,
+            patch(
+                "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_heading.detect_headings_by_font"
+            ) as mock_font_detect,
         ):
             mock_open.return_value.__enter__ = Mock(return_value=mock_pdf)
             mock_open.return_value.__exit__ = Mock(return_value=False)
