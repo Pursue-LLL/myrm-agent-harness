@@ -49,22 +49,35 @@ async def _inject_handler(route: object, providers: list[Callable[[], str]]) -> 
         if not any(ct in content_type for ct in _HTML_CONTENT_TYPES):
             await route.fallback()
             return
-        body = await response.text()
+        body = await response.body()
         if not body or not providers:
             await route.fulfill(response=response)
+            return
+        # Decode with the response's declared charset (default latin-1 keeps
+        # bytes intact for undeclared/legacy pages) so the rewritten body can
+        # be re-encoded to the exact original byte stream around the insertion.
+        charset = "utf-8"
+        for part in content_type.split(";"):
+            part = part.strip().lower()
+            if part.startswith("charset="):
+                charset = part.removeprefix("charset=").strip().strip('"') or "utf-8"
+        try:
+            text = body.decode(charset)
+        except (UnicodeDecodeError, LookupError):
+            await route.fallback()
             return
         script_tags = "".join(
             "<script>{}</script>".format(provider().replace("</script>", "<\\/script>"))
             for provider in providers
         )
-        head_pos = body.find("</head>")
+        head_pos = text.find("</head>")
         if head_pos != -1:
-            injected = body[:head_pos] + script_tags + body[head_pos:]
+            injected = text[:head_pos] + script_tags + text[head_pos:]
         else:
-            injected = script_tags + body
+            injected = script_tags + text
         await route.fulfill(
             response=response,
-            body=injected.encode("utf-8"),
+            body=injected.encode(charset, errors="replace"),
             content_type=content_type,
         )
     except Exception:

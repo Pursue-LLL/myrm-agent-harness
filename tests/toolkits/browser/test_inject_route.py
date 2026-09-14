@@ -15,9 +15,11 @@ from myrm_agent_harness.toolkits.browser.enhancers.inject_route import (
 def _make_route(
     resource_type: str = "document",
     content_type: str = "text/html",
-    body: str = "<html><head><title>base</title></head><body></body></html>",
+    body: bytes | None = None,
 ) -> tuple[MagicMock, AsyncMock, AsyncMock]:
     """Build (route, fallback_mock, fulfill_mock) mimicking patchright primitives."""
+    if body is None:
+        body = b"<html><head><title>base</title></head><body></body></html>"
     route = MagicMock()
     route.request.resource_type = resource_type
     route.fallback = AsyncMock()
@@ -25,7 +27,7 @@ def _make_route(
     route.fetch = AsyncMock()
     response = MagicMock()
     response.headers = {"content-type": content_type}
-    response.text = AsyncMock(return_value=body)
+    response.body = AsyncMock(return_value=body)
     route.fetch.return_value = response
     return route, route.fallback, route.fulfill
 
@@ -51,9 +53,7 @@ class TestInjectHandler:
     @pytest.mark.asyncio
     async def test_script_source_with_closing_tag_is_escaped(self) -> None:
         route, _, fulfill = _make_route()
-        await _inject_handler(
-            route, [lambda: 'document.write("</script><b>x</b>")']
-        )
+        await _inject_handler(route, [lambda: 'document.write("</script><b>x</b>")'])
         body = fulfill.await_args.kwargs["body"]
         assert b"<\\/script>" in body
         assert b"</script><b>" not in body.replace(b"<\\/script>", b"")
@@ -75,14 +75,14 @@ class TestInjectHandler:
 
     @pytest.mark.asyncio
     async def test_empty_body_fulfill_without_rewrite(self) -> None:
-        route, _, fulfill = _make_route(body="")
+        route, _, fulfill = _make_route(body=b"")
         await _inject_handler(route, [lambda: "A()"])
         fulfill.assert_awaited_once()
         assert "body" not in fulfill.await_args.kwargs
 
     @pytest.mark.asyncio
     async def test_no_head_tag_prepends_to_body(self) -> None:
-        route, _, fulfill = _make_route(body="<html><body>x</body></html>")
+        route, _, fulfill = _make_route(body=b"<html><body>x</body></html>")
         await _inject_handler(route, [lambda: "A()"])
         body = fulfill.await_args.kwargs["body"]
         assert body.startswith(b"<script>A()</script>")
@@ -93,6 +93,29 @@ class TestInjectHandler:
         route.fetch = AsyncMock(side_effect=RuntimeError("network gone"))
         await _inject_handler(route, [lambda: "A()"])
         fallback.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_non_utf8_charset_roundtrip(self) -> None:
+        """gbk page: injected script stays intact, original bytes preserved."""
+        route, _, fulfill = _make_route(
+            content_type="text/html; charset=gbk",
+            body='<html><head><title>页</title></head><body>中文</body></html>'.encode("gbk"),
+        )
+        await _inject_handler(route, [lambda: "mark()"])
+        kwargs = fulfill.await_args.kwargs
+        assert b"<script>mark()</script>" in kwargs["body"].decode("gbk").encode()
+        assert kwargs["body"].decode("gbk").endswith("</body></html>")
+
+    @pytest.mark.asyncio
+    async def test_undeclared_charset_invalid_bytes_fall_through(self) -> None:
+        """Undeclared charset with invalid utf-8 bytes: fulfill untouched."""
+        route, fallback, fulfill = _make_route(
+            content_type="text/html",
+            body=b"<html><head></head><body>\xff\xfe</body></html>",
+        )
+        await _inject_handler(route, [lambda: "A()"])
+        fallback.assert_awaited_once()
+        fulfill.assert_not_called()
 
 
 class _StubContext:

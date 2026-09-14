@@ -20,7 +20,7 @@ Dedicated to BrowserContext creation and configuration, including:
 4. Syncing Accept-Language header with EmulationConfig.locale to prevent fingerprint mismatch
 5. Installing resource blocking (image/font/media/ad-domains) independently of domain allowlist
 6. Installing DomainAllowlist security filter (CSP + JS hardening + CDP audit) when allowlist provided
-7. STEALTH mode injection of 13 anti-detection JS scripts (dual-layer defense: patchright CDP + JS init script)
+7. STEALTH mode delivery of 13 anti-detection JS scripts (dual-layer defense: patchright CDP + document-response script injection via enhancers.inject_route)
 """
 
 from __future__ import annotations
