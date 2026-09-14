@@ -20,7 +20,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | _assistant_retrieval.py  | Internal | Two-Pass Assistant Retrieval for assistant-reference queries (MemPalace enhancement).                         | ✅    |
 | adaptive.py              | Core     | Adaptive dual-channel selection logic. Analyzes query characteristics (token count,                           | ✅    |
 | backup.py                | Core     | Provides BackupMetadata, BackupResult, RestoreResult.                                                         | ✅    |
-| chunking.py              | Core     | Chunking utilities for ConversationMemory. Provides configurable strategies                                   | ✅    |
+| chunking.py              | Core     | Chunking utilities for ConversationMemory and extraction pipelines. Provides configurable strategies (fixed, turn, message, semantic, and episodes chunking via EpisodesChunker with idle-time gap detection and causal sliding overlap). | ✅    |
 | compression.py           | Core     | Transparent payload compression and external BLOB storage for ConversationMemory raw_exchange fields.         | ✅    |
 | ephemeral.py             | Core     | Ephemeral and read-only memory managers for subagent isolation.                                               | ✅    |
 | health.py                | Core     | Memory system diagnostics — instance-level health and maintenance reports.                                    | ✅    |

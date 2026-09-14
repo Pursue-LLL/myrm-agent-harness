@@ -544,7 +544,7 @@ class MemoryExtractor:
         from myrm_agent_harness.toolkits.memory.chunking import EpisodesChunker
 
         # Chunk budget set conservatively to fit extraction prompt comfortably
-        episode_char_budget = max(4_000, min(self.config.max_input_chars // 2, 32_000))
+        episode_char_budget = max(10, min(self.config.max_input_chars // 2, 32_000))
         chunker = EpisodesChunker(soft_max_chars=episode_char_budget, overlap_turns=1)
         episodes = chunker.split_into_episodes(filtered_messages)
 

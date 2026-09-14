@@ -102,7 +102,7 @@ class EpisodesChunker:
         overlap_turns: int = 1,
     ) -> None:
         self.idle_time_gap_minutes = max(1.0, float(idle_time_gap_minutes))
-        self.soft_max_chars = max(1_000, int(soft_max_chars))
+        self.soft_max_chars = max(10, int(soft_max_chars))
         self.overlap_turns = max(0, int(overlap_turns))
 
     def _split_oversized_message(self, msg: dict[str, str]) -> list[dict[str, str]]:
