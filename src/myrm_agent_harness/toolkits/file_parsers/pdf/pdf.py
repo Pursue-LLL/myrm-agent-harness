@@ -8,9 +8,9 @@
 - pdf_bookmarks::extract_bookmarks (POS: Bookmark source of the PDF heading pipeline, owning outline walking and page resolution)
 - pdf_bookmarks::bookmarks_are_degenerate (POS: Bookmark source of the PDF heading pipeline, owning outline walking and page resolution)
 - pdf_cross_page::stitch_cross_page_tables (POS: Cross-page table stitching for boundary table fragments with precision-first guards)
-- pdf_headings::build_numbering_cues (POS: Heading fusion and in-place placement for PDF page text)
-- pdf_headings::fuse_headings (POS: Heading fusion and in-place placement for PDF page text)
-- pdf_headings::insert_headings_into_page_text (POS: Heading fusion and in-place placement for PDF page text)
+- pdf_heading_pipeline::build_numbering_cues (POS: Heading fusion and in-place placement for PDF page text)
+- pdf_heading_pipeline::fuse_headings (POS: Heading fusion and in-place placement for PDF page text)
+- pdf_heading_pipeline::insert_headings_into_page_text (POS: Heading fusion and in-place placement for PDF page text)
 - pdf_numbering::detect_numbering_headings (POS: Clause-numbering heading detection for bookmark-less PDFs with precision-first guards)
 - pdf_numbering::filter_repeated_titles (POS: Clause-numbering heading detection for bookmark-less PDFs with precision-first guards)
 - pdf_tables::extract_page_tables (POS: Table extraction, stitching finalization and Markdown/L0 rendering for PDF pages)
@@ -49,7 +49,7 @@ from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_bookmarks import (
 from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_cross_page import (
     stitch_cross_page_tables,
 )
-from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_headings import (
+from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_heading_pipeline import (
     build_numbering_cues,
     fuse_headings,
     insert_headings_into_page_text,
@@ -226,7 +226,7 @@ class PDFPlumberParser(FileParser):
         if bookmarks or self._heading_detection not in ("font", "auto"):
             return []
 
-        from .pdf_heading import detect_headings_by_font
+        from .pdf_font_heading import detect_headings_by_font
 
         headings: list[PDFHeading] = []
         for item in detect_headings_by_font(pdf):

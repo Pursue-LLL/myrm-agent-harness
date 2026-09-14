@@ -11,9 +11,9 @@
     (Text / Hybrid / Image strategy + OCR fallback)
   - pdf_smart: SmartPDFParser adapter (registered as the default ``get_parser(".pdf")``)
   - pdf_bookmarks: bookmark extraction and generic-title quality gate
-  - pdf_heading: font-based heading detection for bookmark-less PDFs
+  - pdf_font_heading: font-based heading detection for bookmark-less PDFs
   - pdf_numbering: clause-numbering detection with precision guards
-  - pdf_headings: heading fusion and in-place placement
+  - pdf_heading_pipeline: heading fusion and in-place placement
   - pdf_cross_page: cross-page table stitching
   - pdf_heuristic_table: heuristic table extractor for borderless forms
 
@@ -37,12 +37,12 @@ from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor import (
 from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_cross_page import (
     stitch_cross_page_tables,
 )
-from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_heading import (
+from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_font_heading import (
     DetectedHeading,
     FontHeadingConfig,
     detect_headings_by_font,
 )
-from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_headings import (
+from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_heading_pipeline import (
     build_numbering_cues,
     fuse_headings,
     insert_headings_into_page_text,

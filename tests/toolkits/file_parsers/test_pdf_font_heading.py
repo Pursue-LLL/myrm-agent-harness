@@ -4,7 +4,7 @@ from unittest.mock import Mock, PropertyMock
 
 import pytest
 
-from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_heading import (
+from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_font_heading import (
     DetectedHeading,
     FontHeadingConfig,
     _compute_heading_sizes,
@@ -367,7 +367,7 @@ class TestPDFPlumberParserIntegration:
         with (
             patch("pdfplumber.open") as mock_open,
             patch(
-                "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_heading.detect_headings_by_font"
+                "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_font_heading.detect_headings_by_font"
             ) as mock_font_detect,
         ):
             mock_open.return_value.__enter__ = Mock(return_value=mock_pdf)
@@ -445,7 +445,7 @@ class TestPDFPlumberParserIntegration:
         with (
             patch("pdfplumber.open") as mock_open,
             patch(
-                "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_heading.detect_headings_by_font"
+                "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_font_heading.detect_headings_by_font"
             ) as mock_font_detect,
         ):
             mock_open.return_value.__enter__ = Mock(return_value=mock_pdf)

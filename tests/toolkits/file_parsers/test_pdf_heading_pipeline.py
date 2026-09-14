@@ -1,7 +1,7 @@
 """Unit tests for heading fusion and in-place insertion."""
 
 from myrm_agent_harness.toolkits.file_parsers.base import PDFHeading
-from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_headings import (
+from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_heading_pipeline import (
     build_numbering_cues,
     fuse_headings,
     insert_headings_into_page_text,
