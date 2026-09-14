@@ -98,7 +98,6 @@ myrm_agent_harness/toolkits/computer_use/backends/macos.py	544
 myrm_agent_harness/toolkits/cron/cron_agent_tools.py	954
 myrm_agent_harness/toolkits/cron/engine/executor.py	715
 myrm_agent_harness/toolkits/cron/manager.py	674
-myrm_agent_harness/toolkits/file_parsers/pdf.py	535
 myrm_agent_harness/toolkits/kanban/dispatcher.py	602
 myrm_agent_harness/toolkits/llms/adapters/tool_call_parsers.py	675
 myrm_agent_harness/toolkits/llms/errors/classifier.py	628
