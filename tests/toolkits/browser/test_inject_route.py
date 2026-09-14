@@ -100,7 +100,9 @@ class TestInjectHandler:
         """gbk page: injected script stays intact, original bytes preserved."""
         route, _, fulfill = _make_route(
             content_type="text/html; charset=gbk",
-            body='<html><head><title>页</title></head><body>中文</body></html>'.encode("gbk"),
+            body="<html><head><title>页</title></head><body>中文</body></html>".encode(
+                "gbk"
+            ),
         )
         await _inject_handler(route, [lambda: "mark()"])
         kwargs = fulfill.await_args.kwargs
@@ -125,6 +127,7 @@ class TestInjectHandler:
         await _inject_handler(route, [])
         fallback.assert_awaited_once()
         fulfill.assert_not_called()
+
 
 class _StubContext:
     """Minimal context stub without MagicMock auto-attribute magic."""

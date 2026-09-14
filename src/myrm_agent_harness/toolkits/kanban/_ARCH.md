@@ -309,7 +309,7 @@ Protocol-first architecture with strict framework-business separation.
 - `TaskRun`: Independent record per execution attempt (run_id, worker_id, outcome, duration)
 - `TaskRunOutcome`: COMPLETED / BLOCKED / CRASHED / RECLAIMED / TIMED_OUT
 - `TaskEvent`: Persistent lifecycle event for audit and catch-up
-- `TaskEventKind`: CREATED / CLAIMED / ASSIGNED / COMPLETED / FAILED / BLOCKED / UNBLOCKED / RETRYING / RECLAIMED / PROMOTED / ARCHIVED / HEARTBEAT / USER_COMMENT / VERIFICATION_FAILED / BRANCH_SWITCHED / MERGE_CONFLICT / SPECIFIED / DECOMPOSED / TIMED_OUT / REVIEW_REQUESTED / APPROVED / REJECTED / PLAN_REVISED
+- `TaskEventKind`: CREATED / CLAIMED / ASSIGNED / COMPLETED / FAILED / BLOCKED / UNBLOCKED / RETRYING / RECLAIMED / PROMOTED / ARCHIVED / HEARTBEAT / USER_COMMENT / VERIFICATION_FAILED / BRANCH_SWITCHED / MERGE_CONFLICT / SPECIFIED / DECOMPOSED / TIMED_OUT / REVIEW_REQUESTED / APPROVED / REJECTED / PLAN_REVISED / RACE_STARTED / RACE_DECIDED
 - `TaskExecutionOutcome`: SUCCESS / BLOCKED / FAILURE
 - `TaskExecutionResult`: Structured outcome container for TaskRunner (supports explicit block_kind, blocked_reason, scheduled_until, metadata_patch)
 - `TaskTimeoutError`: Exception raised when a task exceeds its `max_runtime_seconds` limit (carries `elapsed_seconds`, `limit_seconds`)

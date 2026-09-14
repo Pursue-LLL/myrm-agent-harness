@@ -485,6 +485,8 @@ class TaskEventKind(StrEnum):
     APPROVED = "approved"
     REJECTED = "rejected"
     PLAN_REVISED = "plan_revised"
+    RACE_STARTED = "race_started"
+    RACE_DECIDED = "race_decided"
 
 
 @dataclass(frozen=True)
