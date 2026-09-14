@@ -4,7 +4,7 @@ Loads stealth.js once at module import and caches the content.
 The JS script patches browser globals to hide automation fingerprints
 (navigator.webdriver, plugins, toString disguise, anti-debugger, etc.).
 
-Injected via BrowserContext.add_init_script() for STEALTH contexts only.
+Delivered via enhancers.inject_route document-response injection for STEALTH contexts only.
 
 [INPUT]
 - (none)

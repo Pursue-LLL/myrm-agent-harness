@@ -505,7 +505,7 @@ Object.defineProperty(window, 'RTCPeerConnection', {
 | `--enable-automation` | ✅ 泄露 | ❌ 添加 `--disable-blink-features=AutomationControlled` |
 | `navigator.webdriver` | ✅ 泄露 | ❌ 注入脚本隐藏 |
 
-**第二层：JS 反检测脚本（仅 STEALTH ContextType，通过 `add_init_script()` 一次注入）**
+**第二层：JS 反检测脚本（仅 STEALTH ContextType，通过 `enhancers.inject_route` 文档响应注入）**
 
 | # | 措施 | 说明 |
 |---|------|------|
