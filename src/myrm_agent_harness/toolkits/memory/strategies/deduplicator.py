@@ -498,7 +498,13 @@ class SmartDeduplicator:
                     mem.confidence = merge_dec.updated_confidence
                 if isinstance(new_memory, SemanticMemory) and merge_dec.candidate_confidence is not None:
                     new_memory.confidence = merge_dec.candidate_confidence
-                return (DeduplicationDecision.NEW, None)
+                facet = (merge_dec.conflict_item.facet if merge_dec.conflict_item else None) or ""
+                if facet != "semantic_ambiguity":
+                    # Deterministic facet/polarity conflict (location, polarity,
+                    # single-value exclusivity) — no LLM needed: keep both as NEW.
+                    return (DeduplicationDecision.NEW, None)
+                # Generic semantic ambiguity: defer to the Layer-3 LLM judge.
+                continue
 
         if self._llm is None:
             return (DeduplicationDecision.NEW, None)

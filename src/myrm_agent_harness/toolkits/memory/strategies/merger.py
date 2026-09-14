@@ -185,6 +185,22 @@ class DeterministicThreeStateMerger:
 
         # 5. Check for incremental detail expansion (Supplement)
         if self._is_supplement(existing_clean, candidate_clean):
+            # Near-duplicate band (>=0.94 but below dedup hard-cut 0.95):
+            # apparent superset wording may hide a semantic substitution, so a
+            # blind deterministic merge is unsafe — defer to the LLM judge.
+            if 0.94 <= similarity < 0.95:
+                conf_exist, _conf_cand = self._engine.evolve_on_conflict()
+                return MergeDecision(
+                    state=MergeState.CONFLICT,
+                    updated_confidence=conf_exist,
+                    conflict_item=ConflictItem(
+                        existing_memory_id=existing.id,
+                        candidate_content=candidate_clean,
+                        existing_content=existing_clean,
+                        facet="semantic_ambiguity",
+                    ),
+                    reason="Near-duplicate superset wording requires LLM adjudication.",
+                )
             merged_content = self._merge_supplement_content(existing_clean, candidate_clean)
             merged_ev = self._merge_evidence(existing.evidence, evidence_list)
             return MergeDecision(
@@ -208,8 +224,11 @@ class DeterministicThreeStateMerger:
                 reason="High cosine similarity (>0.94) indicates identical semantic intent.",
             )
 
+        # Below the deterministic-CONFIRM band, semantic proximity with distinct
+        # phrasing and non-overlapping facets is an unadjudicated contradiction:
+        # the deterministic layer flags CONFLICT and lets the Layer-3 LLM judge
+        # (or consolidation) resolve it.
         if similarity >= 0.72:
-            # Semantic proximity with distinct phrasing and non-overlapping facets
             conf_exist, conf_cand = self._engine.evolve_on_conflict()
             conflict_item = ConflictItem(
                 existing_memory_id=existing.id,
