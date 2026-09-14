@@ -223,3 +223,63 @@ async def test_extractor_multi_episode_last_write_precedence() -> None:
     semantic_entries = [m for m in result.memories if m.profile_key is None]
     assert len(semantic_entries) == 1
     assert "TypeScript" in semantic_entries[0].content
+
+
+def test_chunking_strategies_turn_message_session_fixed() -> None:
+    """Verify exchange pair, user only, and session chunking strategies."""
+    from myrm_agent_harness.toolkits.memory.chunking import chunk_conversation
+
+    messages = [
+        {"role": "user", "content": "Query 1"},
+        {"role": "assistant", "content": "Answer 1"},
+        {"role": "user", "content": "Query 2"},
+    ]
+
+    # EXCHANGE_PAIR strategy
+    turn_chunks = chunk_conversation(messages, strategy=ChunkingStrategy.EXCHANGE_PAIR)
+    assert len(turn_chunks) == 2
+    assert turn_chunks[0].user_turn == "Query 1"
+    assert turn_chunks[0].ai_turn == "Answer 1"
+    assert turn_chunks[1].user_turn == "Query 2"
+    assert turn_chunks[1].ai_turn is None
+
+    # USER_ONLY strategy
+    msg_chunks = chunk_conversation(messages, strategy=ChunkingStrategy.USER_ONLY)
+    assert len(msg_chunks) == 2
+    assert msg_chunks[0].user_turn == "Query 1"
+    assert msg_chunks[1].user_turn == "Query 2"
+
+    # SESSION strategy
+    session_chunks = chunk_conversation(messages, strategy=ChunkingStrategy.SESSION)
+    assert len(session_chunks) == 1
+    assert "Query 1" in session_chunks[0].user_turn
+    assert "Answer 1" in (session_chunks[0].ai_turn or "")
+
+    # Empty messages
+    assert chunk_conversation([], strategy=ChunkingStrategy.SESSION) == []
+    assert chunk_conversation([], strategy=ChunkingStrategy.EXCHANGE_PAIR) == []
+
+
+def test_parse_timestamp_edge_cases() -> None:
+    """Verify timestamp parsing across int, float, naive datetime, and invalid strings."""
+    from myrm_agent_harness.toolkits.memory.chunking import _parse_message_timestamp
+
+    now_utc = datetime(2026, 9, 14, 12, 0, 0, tzinfo=UTC)
+    now_naive = datetime(2026, 9, 14, 12, 0, 0)
+
+    # datetime
+    assert _parse_message_timestamp({"created_at": now_utc}) == now_utc
+    assert _parse_message_timestamp({"created_at": now_naive}) == now_utc
+
+    # numeric (int, float)
+    ts = now_utc.timestamp()
+    assert _parse_message_timestamp({"created_at": ts}) is not None
+    assert _parse_message_timestamp({"created_at": int(ts)}) is not None
+    assert _parse_message_timestamp({"created_at": 1e20}) is None  # overflow
+
+    # string formats
+    assert _parse_message_timestamp({"created_at": "2026-09-14T12:00:00Z"}) is not None
+    assert _parse_message_timestamp({"created_at": "invalid_date_string"}) is None
+    assert _parse_message_timestamp({"created_at": None}) is None
+
+
