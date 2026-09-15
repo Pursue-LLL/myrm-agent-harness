@@ -1,0 +1,8 @@
+{
+  "type": "compaction",
+  "id": "c1",
+  "encrypted_payload": "p1",
+  "created_at": 0,
+  "compact_threshold": 200000,
+  "model": ""
+}
