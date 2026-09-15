@@ -58,7 +58,7 @@ def test_inject_allowed_params_excludes_allowed_tools_from_force_whitelist() -> 
 
 def test_bind_tools_injects_grammar_json_schema_for_local_endpoints() -> None:
     """Local weak model endpoints (e.g. llama-server on localhost) get structured tool call schema."""
-    llm = ChatLiteLLM(model="openai/qwen2.5-coder:7b", api_base="http://127.0.0.1:8080/v1")
+    llm = ChatLiteLLM(model="openai/qwen2.5-coder:7b", api_base="http://127.0.0.1:11434/v1")
     sample_tools = [{"type": "function", "function": {"name": "read_file", "parameters": {}}}]
 
     with patch.object(ChatLiteLLM, "bind", return_value=MagicMock()) as mock_bind:
@@ -71,6 +71,29 @@ def test_bind_tools_injects_grammar_json_schema_for_local_endpoints() -> None:
     assert rf["json_schema"]["name"] == "tool_calls_transport"
 
 
+def test_bind_tools_skips_grammar_json_schema_for_gateway_on_gateway_port() -> None:
+    """An OpenAI-compatible gateway on a gateway port keeps native tool calling.
+
+    Regression (browser takeover gate never fired): ports 8000/8080 are served by
+    LiteLLM proxy / one-api / vLLM alike, so they are not engine evidence. Injecting the
+    constrained transport there strips native tool calls and strict gateways 400 with
+    "An object with no properties is not allowed".
+    """
+    sample_tools = [{"type": "function", "function": {"name": "read_file", "parameters": {}}}]
+
+    for gateway_url in ("http://127.0.0.1:8000/v1", "http://127.0.0.1:8080/v1"):
+        llm = ChatLiteLLM(
+            model="gemini-3-pro",
+            api_base=gateway_url,
+            custom_llm_provider="openai-like",
+        )
+        with patch.object(ChatLiteLLM, "bind", return_value=MagicMock()) as mock_bind:
+            llm.bind_tools(sample_tools)
+        assert "response_format" not in mock_bind.call_args.kwargs, (
+            f"gateway on {gateway_url} must keep native tool calling"
+        )
+
+
 def test_bind_tools_skips_grammar_json_schema_for_cloud_endpoints() -> None:
     """Cloud endpoints (e.g. OpenAI/Anthropic) use native tool calling without forcing response_format."""
     llm = ChatLiteLLM(model="gpt-4o", api_base="https://api.openai.com/v1")
@@ -81,4 +104,3 @@ def test_bind_tools_skips_grammar_json_schema_for_cloud_endpoints() -> None:
 
     bind_kwargs = mock_bind.call_args.kwargs
     assert "response_format" not in bind_kwargs
-

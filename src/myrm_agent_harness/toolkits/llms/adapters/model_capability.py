@@ -71,10 +71,26 @@ _ENGINE_HOST_KEYWORDS = (
     "lm-studio",
     "exo",
 )
-# Default serve ports: Ollama, LM Studio, vLLM, llama-server, Exo, SGLang
-_ENGINE_PORTS = (11434, 1234, 8000, 8080, 52415, 30000)
+# Engine-exclusive default serve ports: Ollama, LM Studio, Exo, SGLang.
+# Ports that OpenAI-compatible gateways also serve on (8000, 8080 — LiteLLM proxy,
+# one-api, vLLM docs) are deliberately absent: a shared port is not identity evidence.
+# Treating one as such sent loopback gateways the constrained tool-call transport,
+# which dropped native tool calls (the browser takeover gate never fired).
+_ENGINE_PORTS = (11434, 1234, 52415, 30000)
+# Engine brand tokens that only an engine's own model id carries. Ports cannot be used
+# for this (shared with gateways) and the bare engine names are too weak for a substring
+# test on a model id, so only the unambiguous hyphenated/dotted brands qualify.
+_ENGINE_MODEL_NAME_KEYWORDS = (
+    "llama-server",
+    "llama.cpp",
+    "llamacpp",
+    "lm-studio",
+    "lmstudio",
+)
 # Cloud providers with native tool calling; never downgrade them to grammar transport
-# even when the caller points them at a loopback gateway.
+# even when the caller points them at a loopback gateway. The OpenAI-compatible custom
+# types are deliberately NOT listed: they name a gateway whose endpoint may legitimately
+# be a local engine, so they must stay open to genuine engine evidence.
 _CLOUD_PROVIDERS = (
     "openai",
     "anthropic",
@@ -104,6 +120,28 @@ def _matches_prefix(model: str, prefixes: tuple[str, ...]) -> bool:
     """Check if model matches any of the given prefixes."""
     lower = (model or "").lower()
     return any(lower.startswith(p) or f"/{p}" in lower or f"/{p.rstrip('/')}" in lower for p in prefixes)
+
+
+def _matches_engine_model_prefix(model: str) -> bool:
+    """Check whether the model name *starts* with a known engine namespace.
+
+    Engine evidence must be a leading segment, never an arbitrary substring:
+    ``_matches_prefix`` also accepts ``f"/{p}" in model`` for gateway routing names like
+    ``openai/deepseek-v4-flash``, which would wrongly treat a remote ``foo/llama/bar``
+    model as a local engine and downgrade the request to constrained tool-call transport.
+    """
+    return (model or "").lower().startswith(_ENGINE_MODEL_PREFIXES)
+
+
+def _matches_engine_model_name(model: str) -> bool:
+    """Check whether the model id carries an engine-exclusive brand token.
+
+    Only brands that no remote gateway would put in a model id qualify (e.g.
+    ``llama-server-qwen``). Bare engine names such as ``ollama`` are excluded because
+    they also appear in ordinary remote model ids.
+    """
+    lower = (model or "").lower()
+    return any(keyword in lower for keyword in _ENGINE_MODEL_NAME_KEYWORDS)
 
 
 def _matches_port(base_url: str, ports: tuple[int, ...]) -> bool:
@@ -261,22 +299,33 @@ class ModelCapabilityDetector:
         listen on loopback while forwarding to remote providers that support native tool
         calling. Detected engines: llama-server, Ollama, vLLM, LM Studio, Exo, SGLang.
 
-        Port evidence is parsed, not substring-matched, so a remote gateway is never
-        downgraded merely because its URL happens to contain a local serve port.
+        Evidence accepted, in order: an engine provider name, a leading engine model
+        namespace, an engine-exclusive brand in the model id, an engine host keyword, or
+        an engine-exclusive port (Ollama 11434, LM Studio 1234, Exo 52415, SGLang 30000)
+        corroborated by a provider or model. Ports are parsed, never substring-matched,
+        and ports that gateways also serve on (8000, 8080) are not evidence at all — a
+        lone port with no provider/model identity fails open so a gateway is never
+        downgraded merely because its URL contains a local-looking port.
         """
         provider_lower = (provider or "").lower()
         if provider_lower in _CLOUD_PROVIDERS:
             return False
         if provider_lower in _ENGINE_PROVIDERS:
             return True
-        if _matches_prefix(model, _ENGINE_MODEL_PREFIXES):
+        if _matches_engine_model_prefix(model) or _matches_engine_model_name(model):
             return True
         if not base_url:
             return False
         base_lower = base_url.lower()
         if any(keyword in base_lower for keyword in _ENGINE_HOST_KEYWORDS):
             return True
-        return _matches_port(base_url, _ENGINE_PORTS)
+        if not _matches_port(base_url, _ENGINE_PORTS):
+            return False
+        # An engine-exclusive port alone is not enough: an OpenAI-compatible gateway can
+        # bind any free port, and 11434 is the only port whose whole convention is one
+        # engine. Require a corroborating signal so a loopback gateway that merely happens
+        # to sit on an engine port never receives the constrained tool-call transport.
+        return bool(provider_lower) or bool(model)
 
     def is_local_weak_endpoint(
         self,

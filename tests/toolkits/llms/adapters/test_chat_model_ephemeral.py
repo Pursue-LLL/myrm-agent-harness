@@ -43,7 +43,7 @@ def test_bind_tools_local_grammar_transport():
     """Verify local weak endpoints receive constrained response_format schema."""
     local_model = ChatLiteLLM(
         model="qwen2.5-coder:7b",
-        api_base="http://127.0.0.1:8000/v1",
+        api_base="http://127.0.0.1:11434/v1",
         custom_llm_provider="openai-like",
     )
     test_tool = {

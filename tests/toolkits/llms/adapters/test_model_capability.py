@@ -101,7 +101,7 @@ class TestModelCapabilityDetector:
         assert detector.is_local_endpoint(provider="ollama", model="qwen2.5:7b", base_url="")
         assert detector.is_local_endpoint(provider="", model="ollama/qwen2.5-coder", base_url="")
         assert detector.is_local_endpoint(
-            provider="openai-like", model="qwen2.5-7b-instruct", base_url="http://127.0.0.1:8000/v1"
+            provider="openai-like", model="qwen2.5-7b-instruct", base_url="http://127.0.0.1:11434/v1"
         )
         assert detector.is_local_endpoint(provider="", model="llama-server-qwen", base_url="http://localhost:8080/v1")
         assert detector.is_local_endpoint(
@@ -129,6 +129,17 @@ class TestModelCapabilityDetector:
             provider="openai-like", model="deepseek-v4-pro", base_url="http://127.0.0.1:20128/v1"
         )
         assert not detector.is_local_endpoint(provider="openai", model="gpt-4o", base_url="http://127.0.0.1:8080/v1")
+        # Regression (browser takeover gate never fired): ports 8000/8080 are shared with
+        # LiteLLM proxy / one-api / vLLM docs, so an OpenAI-compatible gateway sitting on
+        # one must keep native tool calling rather than receive the constrained transport.
+        for gateway_url in ("http://127.0.0.1:8000/v1", "http://127.0.0.1:8080/v1"):
+            assert not detector.supports_json_schema_constrained_tool_calls(
+                provider="openai-like", model="gemini-3-pro", base_url=gateway_url
+            ), f"gateway on {gateway_url} must not receive constrained tool-call transport"
+        # A remote model id that merely embeds an engine brand is not engine evidence.
+        assert not detector.is_local_endpoint(
+            provider="openai-like", model="foo/llama/bar", base_url="https://relay.example.com/v1"
+        )
         assert detector.is_local_endpoint(
             provider="openai-like", model="gemma-2-9b", base_url="http://127.0.0.1:11434/v1"
         )
@@ -149,10 +160,13 @@ class TestModelCapabilityDetector:
             base_url="https://relay.example.com/v1?upstream=http://127.0.0.1:8080/",
         )
         # The genuine serve port still proves a local engine, with or without a scheme.
-        assert detector.is_local_endpoint(
-            provider="openai-like", model="qwen", base_url="127.0.0.1:11434/v1"
-        )
-        assert detector.is_local_endpoint(provider="", model="", base_url="[::1]:8000/v1")
+        assert detector.is_local_endpoint(provider="openai-like", model="qwen", base_url="127.0.0.1:11434/v1")
+        # 8000 is shared with gateways, so it is no longer engine evidence: a bare-port
+        # loopback URL with no provider/model identity must fail open and stay untreated.
+        assert not detector.is_local_endpoint(provider="", model="", base_url="[::1]:8000/v1")
+        assert not detector.is_local_endpoint(provider="", model="", base_url="http://127.0.0.1:8000/v1")
+        # With engine identity present the engine-exclusive port still resolves it.
+        assert detector.is_local_endpoint(provider="openai-like", model="qwen", base_url="[::1]:11434/v1")
 
     def test_empty_inputs(self, detector):
         """Test empty inputs."""
@@ -169,7 +183,7 @@ class TestModelCapabilityDetector:
         assert detector.is_local_weak_endpoint(provider="", model="ollama/qwen2.5-coder:7b", base_url="")
         assert detector.is_local_weak_endpoint(provider="", model="local/gemma-2-9b", base_url="")
         assert detector.is_local_weak_endpoint(
-            provider="openai-like", model="qwen", base_url="http://127.0.0.1:8000/v1"
+            provider="openai-like", model="qwen", base_url="http://127.0.0.1:11434/v1"
         )
         assert detector.is_local_weak_endpoint(
             provider="openai-like", model="qwen", base_url="http://localhost:11434/v1"
@@ -179,6 +193,10 @@ class TestModelCapabilityDetector:
         )
         assert detector.supports_grammar_constrained_tool_calls(provider="ollama", model="", base_url="")
         assert detector.supports_grammar_constrained_tool_calls(
+            provider="openai-like", model="qwen", base_url="http://127.0.0.1:11434/v1"
+        )
+        # 8000/8080 are gateway ports too, so they cannot make an identified gateway local.
+        assert not detector.supports_grammar_constrained_tool_calls(
             provider="openai-like", model="qwen", base_url="http://127.0.0.1:8000/v1"
         )
         assert not detector.is_local_weak_endpoint(
