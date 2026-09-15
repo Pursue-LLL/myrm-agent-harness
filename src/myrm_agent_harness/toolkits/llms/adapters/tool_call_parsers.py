@@ -152,12 +152,17 @@ def _parse_openai_format(
     if not raw_tool_calls or not isinstance(raw_tool_calls, list):
         return []
 
-    # Append UUID suffix to each tool_call_id for global uniqueness, preventing model ID reuse errors
+    # Disambiguate only ids repeated within this batch: providers reject duplicate
+    # tool_call ids, while gateways that validate provenance need the original id back.
+    seen_ids: set[str] = set()
     for tc in raw_tool_calls:
-        if "id" in tc and isinstance(tc["id"], str):
-            original_id = tc["id"]
-            if "_vtx" not in original_id:
-                tc["id"] = f"{original_id}_vtx{uuid4().hex[:4]}"
+        original_id = tc.get("id")
+        if not isinstance(original_id, str) or not original_id:
+            continue
+        if original_id in seen_ids:
+            tc["id"] = f"{original_id}_vtx{uuid4().hex[:4]}"
+        else:
+            seen_ids.add(original_id)
 
     return raw_tool_calls
 
@@ -578,7 +583,7 @@ def _parse_leaked_json_tool_calls_format(
         elif "name" in parsed_obj and isinstance(parsed_obj["name"], str):
             raw_calls.append(parsed_obj)
 
-        for idx, item in enumerate(raw_calls):
+        for item in raw_calls:
             if not isinstance(item, dict):
                 continue
 

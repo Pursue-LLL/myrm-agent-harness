@@ -35,9 +35,7 @@ def _event_to_dict(event: object) -> dict[str, Any]:
     if error is not None:
         payload["error"] = dict(error.model_dump()) if hasattr(error, "model_dump") else error
     if response is not None:
-        payload["response"] = (
-            dict(response.model_dump()) if hasattr(response, "model_dump") else response
-        )
+        payload["response"] = dict(response.model_dump()) if hasattr(response, "model_dump") else response
     return payload
 
 

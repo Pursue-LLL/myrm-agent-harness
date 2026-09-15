@@ -115,9 +115,8 @@ def convert_message_to_dict(message: BaseMessage, *, wire_protocol: str | None =
         # ThinkingBlockCleaner has already selectively removed stale reasoning_content by tool_calls
         if "reasoning_content" in message.additional_kwargs:
             message_dict["reasoning_content"] = message.additional_kwargs["reasoning_content"]
-        if (
-            "responses_reasoning_items" in message.additional_kwargs
-            and (wire_protocol is None or wire_protocol == "responses")
+        if "responses_reasoning_items" in message.additional_kwargs and (
+            wire_protocol is None or wire_protocol == "responses"
         ):
             message_dict["responses_reasoning_items"] = message.additional_kwargs["responses_reasoning_items"]
         # Process function_call (OpenAI deprecated format)

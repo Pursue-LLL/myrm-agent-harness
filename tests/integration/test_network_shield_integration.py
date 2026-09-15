@@ -105,7 +105,11 @@ class TestNetworkShieldIntegration:
         assert domains_map["mock_http_tool"] == ["api.github.com"]
 
     def test_message_repair_tool_call_id_uniqueness(self):
-        """Test that tool_call_id gets _vtx suffix for uniqueness."""
+        """Provider ids stay verbatim; only intra-batch duplicates get a suffix.
+
+        Gateways validate that replayed tool_call ids match the ones they issued, so
+        rewriting unique ids breaks the next turn.
+        """
         from myrm_agent_harness.toolkits.llms.adapters.tool_call_parsers import _parse_openai_format
 
         # Simulate a response with duplicate tool_call_id (as some models might do)
@@ -118,11 +122,9 @@ class TestNetworkShieldIntegration:
 
         parsed = _parse_openai_format(response_dict)
 
-        # Verify that both tool_call_ids have _vtx suffix
         assert len(parsed) == 2
-        assert "_vtx" in parsed[0]["id"]
-        assert "_vtx" in parsed[1]["id"]
-        # They should still be different (original ID + unique UUID)
+        assert parsed[0]["id"] == "call_abc123"
+        assert parsed[1]["id"].startswith("call_abc123_vtx")
         assert parsed[0]["id"] != parsed[1]["id"]
 
 

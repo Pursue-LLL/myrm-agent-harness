@@ -122,21 +122,13 @@ def sanitize_gateway_params_on_400(params: dict[str, Any], exc: Exception) -> li
     if "max_completion_tokens" in stripped and saved_max_completion_tokens is not None:
         if "max_tokens" not in params:
             params["max_tokens"] = saved_max_completion_tokens
-            if "allowed_openai_params" in params and isinstance(
-                params["allowed_openai_params"], list
-            ):
+            if "allowed_openai_params" in params and isinstance(params["allowed_openai_params"], list):
                 if "max_tokens" not in params["allowed_openai_params"]:
                     params["allowed_openai_params"].append("max_tokens")
 
     # Also remove from allowed_openai_params whitelist if present
-    if (
-        stripped
-        and "allowed_openai_params" in params
-        and isinstance(params["allowed_openai_params"], list)
-    ):
-        params["allowed_openai_params"] = [
-            p for p in params["allowed_openai_params"] if p not in stripped
-        ]
+    if stripped and "allowed_openai_params" in params and isinstance(params["allowed_openai_params"], list):
+        params["allowed_openai_params"] = [p for p in params["allowed_openai_params"] if p not in stripped]
 
     if stripped:
         logger.warning(

@@ -20,9 +20,7 @@ def build_responses_kwargs(
     responses_input = chat_messages_to_responses_input(remaining)
 
     requested_max = params.get("max_output_tokens") or params.get("max_tokens")
-    max_output = resolve_min_output_tokens(
-        int(requested_max) if isinstance(requested_max, int) else None
-    )
+    max_output = resolve_min_output_tokens(int(requested_max) if isinstance(requested_max, int) else None)
 
     extra_body = params.get("extra_body") if isinstance(params.get("extra_body"), dict) else {}
     reasoning = extra_body.get("reasoning")

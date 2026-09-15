@@ -45,7 +45,7 @@ def test_reasoning_items_preserved_on_completion() -> None:
         ]
     }
     items = extract_responses_reasoning_items(payload)
-    assert items == [{"type": "reasoning", "id": "rs_abc", "encrypted_content": "enc_blob"}]
+    assert items == [{"type": "reasoning", "id": "rs_abc", "encrypted_content": "enc_blob", "summary": []}]
     completion = responses_dict_to_chat_completion(payload)
     message = completion["choices"][0]["message"]
     assert message["responses_reasoning_items"] == items
@@ -142,7 +142,7 @@ def test_delta_then_completed_does_not_duplicate_arguments() -> None:
             continue
         from myrm_agent_harness.toolkits.llms.adapters.streaming import build_tool_call_chunks
 
-        for tc_chunk in build_tool_call_chunks(raw_tool_calls, None):
+        for tc_chunk in build_tool_call_chunks(raw_tool_calls):
             aggregate_tool_call_chunk(tc_chunk, aggregated)
 
     assert len(aggregated) == 1

@@ -484,7 +484,7 @@ class TestResponsesWireAgenerateStreaming:
 
         assert result.generations
         replay = result.generations[0].message.additional_kwargs.get("responses_reasoning_items")
-        assert replay == reasoning_items
+        assert replay == [{**item, "summary": []} for item in reasoning_items]
 
 
 class TestContextOverflowFastFail:

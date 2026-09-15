@@ -49,8 +49,7 @@ def _is_complete_json_fragment(text: str) -> bool:
         return False
     stripped = text.strip()
     if not (
-        (stripped.startswith("{") and stripped.endswith("}"))
-        or (stripped.startswith("[") and stripped.endswith("]"))
+        (stripped.startswith("{") and stripped.endswith("}")) or (stripped.startswith("[") and stripped.endswith("]"))
     ):
         return False
     try:
@@ -58,40 +57,6 @@ def _is_complete_json_fragment(text: str) -> bool:
         return True
     except Exception:
         return False
-
-
-def _coerce_reasoning_value(value: Any) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, str):
-        return value
-    if isinstance(value, list):
-        parts: list[str] = []
-        for item in value:
-            if isinstance(item, str):
-                parts.append(item)
-            elif isinstance(item, dict):
-                for key in ("thinking", "text", "content", "reasoning"):
-                    sub = item.get(key)
-                    if isinstance(sub, str):
-                        parts.append(sub)
-                        break
-        return "".join(parts)
-    return str(value)
-
-
-def extract_reasoning_payload(delta_or_msg: Any) -> str:
-    """Extract reasoning/thinking text from heterogeneous gateway delta payloads."""
-    if delta_or_msg is None:
-        return ""
-    for field in _REASONING_FIELD_CANDIDATES:
-        raw = safe_get(delta_or_msg, field)
-        if raw is None:
-            continue
-        text = _coerce_reasoning_value(raw)
-        if text:
-            return text
-    return ""
 
 
 def extract_chunk_metadata(chunk: Any) -> tuple[Any, str | None, str | None]:
@@ -111,11 +76,12 @@ def extract_chunk_metadata(chunk: Any) -> tuple[Any, str | None, str | None]:
     return usage, model, finish_reason
 
 
-def build_tool_call_chunks(
-    raw_tool_calls: Any,
-    tool_call_id_map: dict[str, str] | None = None,
-) -> list[ToolCallChunk]:
-    """Normalize provider tool_call payloads into LangChain ToolCallChunk values."""
+def build_tool_call_chunks(raw_tool_calls: Any) -> list[ToolCallChunk]:
+    """Normalize provider tool_call payloads into LangChain ToolCallChunk values.
+
+    Provider-issued ids are preserved verbatim: gateways validate that replayed
+    tool_call ids match the ones they issued, so rewriting them breaks the next turn.
+    """
     if not isinstance(raw_tool_calls, list):
         return []
 
@@ -128,19 +94,11 @@ def build_tool_call_chunks(
             continue
 
         original_id = rtc.get("id")
-        mapped_id = original_id if isinstance(original_id, str) else None
-        if mapped_id and tool_call_id_map is not None:
-            if mapped_id not in tool_call_id_map:
-                import uuid
-
-                tool_call_id_map[mapped_id] = f"{mapped_id}_vtx{uuid.uuid4().hex[:4]}"
-            mapped_id = tool_call_id_map[mapped_id]
-
         tool_call_chunks.append(
             ToolCallChunk(
                 name=function_obj.get("name"),
                 args=function_obj.get("arguments"),
-                id=mapped_id,
+                id=original_id if isinstance(original_id, str) else None,
                 index=rtc.get("index"),
             )
         )
@@ -148,9 +106,7 @@ def build_tool_call_chunks(
     return tool_call_chunks
 
 
-def aggregate_tool_call_chunk(
-    tc_chunk: Any, aggregated_tool_calls: list[dict[str, Any]]
-) -> None:
+def aggregate_tool_call_chunk(tc_chunk: Any, aggregated_tool_calls: list[dict[str, Any]]) -> None:
     """Incrementally merge a tool_call chunk into the aggregated list.
 
     Guards against malformed streaming chunks from OpenAI-compatible backends
@@ -164,9 +120,7 @@ def aggregate_tool_call_chunk(
     tc_id = safe_get(tc_chunk, "id")
 
     while len(aggregated_tool_calls) <= tc_index:
-        aggregated_tool_calls.append(
-            {"function": {"name": "", "arguments": ""}, "id": ""}
-        )
+        aggregated_tool_calls.append({"function": {"name": "", "arguments": ""}, "id": ""})
 
     if isinstance(tc_name, str) and tc_name:
         aggregated_tool_calls[tc_index]["function"]["name"] = tc_name
@@ -174,9 +128,7 @@ def aggregate_tool_call_chunk(
         if isinstance(tc_args, str):
             aggregated_tool_calls[tc_index]["function"]["arguments"] += tc_args
         elif isinstance(tc_args, dict):
-            aggregated_tool_calls[tc_index]["function"]["arguments"] += json.dumps(
-                tc_args, ensure_ascii=False
-            )
+            aggregated_tool_calls[tc_index]["function"]["arguments"] += json.dumps(tc_args, ensure_ascii=False)
         else:
             logger.warning("Unexpected tool_call args type: %s", type(tc_args).__name__)
     if isinstance(tc_id, str) and tc_id:
@@ -207,9 +159,7 @@ def parse_tool_calls_from_reasoning(
         return None, None
 
     mode_str = "Async" if is_async else "Sync"
-    logger.warning(
-        f" Parsed {len(parsed_tool_calls)} tool calls from reasoning_content ({mode_str} streaming mode)"
-    )
+    logger.warning(f" Parsed {len(parsed_tool_calls)} tool calls from reasoning_content ({mode_str} streaming mode)")
 
     tool_call_chunks: list[ToolCallChunk] = []
     for idx, tc in enumerate(parsed_tool_calls):

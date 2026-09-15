@@ -202,9 +202,10 @@ def responses_event_to_completion_chunk(event: dict[str, Any]) -> dict[str, Any]
     delta = event.get("delta")
 
     if (
-        "output_text.delta" in normalized_type
-        or normalized_type.endswith("output_text_delta")
-    ) and isinstance(delta, str) and delta:
+        ("output_text.delta" in normalized_type or normalized_type.endswith("output_text_delta"))
+        and isinstance(delta, str)
+        and delta
+    ):
         return {
             "choices": [{"index": 0, "delta": {"content": delta}, "finish_reason": None}],
         }
@@ -233,10 +234,7 @@ def responses_event_to_completion_chunk(event: dict[str, Any]) -> dict[str, Any]
                 arguments_delta=str(fn.get("arguments") or ""),
             )
 
-    if (
-        "function_call_arguments.delta" in normalized_type
-        or normalized_type.endswith("function_call_arguments_delta")
-    ):
+    if "function_call_arguments.delta" in normalized_type or normalized_type.endswith("function_call_arguments_delta"):
         call_id = event.get("call_id") or event.get("item_id")
         if isinstance(call_id, str) and isinstance(delta, str) and delta:
             return _function_call_delta_chunk(call_id=call_id, arguments_delta=delta)

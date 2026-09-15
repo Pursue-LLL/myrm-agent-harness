@@ -118,11 +118,7 @@ def parse_compaction_from_response(
         if isinstance(compaction, dict) and compaction.get("id"):
             return NativeCompactionItem(
                 item_id=str(compaction["id"]),
-                encrypted_payload=str(
-                    compaction.get("encrypted_payload")
-                    or compaction.get("payload")
-                    or ""
-                ),
+                encrypted_payload=str(compaction.get("encrypted_payload") or compaction.get("payload") or ""),
                 created_at=int(compaction.get("created_at") or 0),
                 model=str(response_dict.get("model") or ""),
             )
@@ -133,9 +129,7 @@ def parse_compaction_from_response(
         if isinstance(item, dict) and item.get("type") == "compaction":
             return NativeCompactionItem(
                 item_id=str(item.get("id") or item.get("item_id") or ""),
-                encrypted_payload=str(
-                    item.get("encrypted_payload") or item.get("payload") or ""
-                ),
+                encrypted_payload=str(item.get("encrypted_payload") or item.get("payload") or ""),
                 created_at=int(item.get("created_at") or 0),
                 model=str(response_dict.get("model") or ""),
             )

@@ -157,7 +157,6 @@ class StreamAggregator:
         "reasoning",
         "responses_reasoning_items",
         "stream_start",
-        "tool_call_id_map",
         "tool_calls",
     )
 
@@ -166,7 +165,6 @@ class StreamAggregator:
         self.tool_calls: list[dict[str, Any]] = []
         self.reasoning: list[str] = []
         self.responses_reasoning_items: list[dict[str, Any]] = []
-        self.tool_call_id_map: dict[str, str] = {}
         self.last_model: str = ""
         self.finish_reason: str = ""
         self.last_usage: Any = None
@@ -199,7 +197,7 @@ class StreamAggregator:
         if not choices:
             return
         raw_tool_calls = choices[0].get("delta", {}).get("tool_calls")
-        for tc_chunk in build_tool_call_chunks(raw_tool_calls, self.tool_call_id_map):
+        for tc_chunk in build_tool_call_chunks(raw_tool_calls):
             aggregate_tool_call_chunk(tc_chunk, self.tool_calls)
 
     def on_generation_chunk(self, cg_chunk: ChatGenerationChunk, new_class: type[BaseMessageChunk]) -> None:

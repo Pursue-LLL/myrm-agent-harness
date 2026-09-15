@@ -211,9 +211,7 @@ class ChatLiteLLMAsyncMixin:
                         response = await invoke_responses_async(self.client, message_dicts, params)
                     else:
                         call_params = (
-                            apply_anthropic_messages_params(params)
-                            if wire_protocol == "anthropic_messages"
-                            else params
+                            apply_anthropic_messages_params(params) if wire_protocol == "anthropic_messages" else params
                         )
                         response = await self.client.acreate(messages=message_dicts, **call_params)
                         response = self._convert_response_to_dict(response)
@@ -246,9 +244,10 @@ class ChatLiteLLMAsyncMixin:
                         if prompt_tokens > 0:
                             span.set_attribute("gen_ai.usage.cache_hit_ratio", round(cached_tokens / prompt_tokens, 4))
 
-                        if comp_details := usage.get("completion_tokens_details"):
-                            if reasoning_tok := comp_details.get("reasoning_tokens"):
-                                span.set_attribute("gen_ai.usage.reasoning_tokens", reasoning_tok)
+                        if (comp_details := usage.get("completion_tokens_details")) and (
+                            reasoning_tok := comp_details.get("reasoning_tokens")
+                        ):
+                            span.set_attribute("gen_ai.usage.reasoning_tokens", reasoning_tok)
 
                 log_llm_response(response)
 
@@ -392,9 +391,7 @@ class ChatLiteLLMAsyncMixin:
                         stream = stream_responses_async(self.client, message_dicts, params)
                     else:
                         call_params = (
-                            apply_anthropic_messages_params(params)
-                            if wire_protocol == "anthropic_messages"
-                            else params
+                            apply_anthropic_messages_params(params) if wire_protocol == "anthropic_messages" else params
                         )
                         stream = await self.client.acreate(messages=message_dicts, **call_params)
 
@@ -419,7 +416,6 @@ class ChatLiteLLMAsyncMixin:
                             cg_chunk, new_class = self._process_chunk(
                                 chunk_dict,
                                 agg.default_chunk_class,
-                                agg.tool_call_id_map,
                                 emit_tool_call_chunks=False,
                             )
                             if cg_chunk:
@@ -545,11 +541,7 @@ class ChatLiteLLMAsyncMixin:
                     CumulativeImageBudgetGovernor,
                 )
 
-                if (
-                    is_payload_overflow(e)
-                    and attempt < max_attempts - 1
-                    and (agg is None or agg.chunk_count == 0)
-                ):
+                if is_payload_overflow(e) and attempt < max_attempts - 1 and (agg is None or agg.chunk_count == 0):
                     evicted = CumulativeImageBudgetGovernor.emergency_evict_from_message_dicts(
                         message_dicts, target_bytes=4 * 1024 * 1024, force_shrink=True
                     )

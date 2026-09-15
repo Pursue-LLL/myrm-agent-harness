@@ -109,9 +109,7 @@ __all__ = [
 ]
 
 
-class ChatLiteLLM(
-    ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyncMixin, BaseChatModel
-):
+class ChatLiteLLM(ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyncMixin, BaseChatModel):
     """Minimal LangChain ChatModel adapter for litellm.
 
     Implements the subset of features this project uses: non-streaming/streaming
@@ -208,13 +206,9 @@ class ChatLiteLLM(
         try:
             import litellm
         except (ImportError, TypeError):
-            raise ValueError(
-                "Could not import litellm python package. Please install it with uv sync."
-            ) from None
+            raise ValueError("Could not import litellm python package. Please install it with uv sync.") from None
 
-        values["openai_api_key"] = get_from_dict_or_env(
-            values, "openai_api_key", "OPENAI_API_KEY", default=""
-        )
+        values["openai_api_key"] = get_from_dict_or_env(values, "openai_api_key", "OPENAI_API_KEY", default="")
         values["client"] = litellm
         return values
 
@@ -261,9 +255,7 @@ class ChatLiteLLM(
         # Collect and inject extra headers (e.g. Authorization or gateway affinity)
         api_key_val = self.api_key or self.openai_api_key
         raw_extra_headers = self.model_kwargs.get("extra_headers")
-        extra_headers: dict[str, str] = (
-            dict(raw_extra_headers) if isinstance(raw_extra_headers, dict) else {}
-        )
+        extra_headers: dict[str, str] = dict(raw_extra_headers) if isinstance(raw_extra_headers, dict) else {}
         if api_key_val and "authorization" not in {k.lower() for k in extra_headers}:
             extra_headers["Authorization"] = f"Bearer {api_key_val}"
 
@@ -272,6 +264,7 @@ class ChatLiteLLM(
                 chat_id_var,
                 prompt_routing_key_var,
             )
+
             session_val = prompt_routing_key_var.get() or chat_id_var.get() or "sess-default-open-affinity"
             extra_headers["x-opencode-session"] = session_val
 
@@ -345,9 +338,7 @@ class ChatLiteLLM(
         if self._is_opencode_endpoint():
             session_val = routing_key or "sess-default-open-affinity"
             raw_headers = params.get("extra_headers")
-            extra_headers: dict[str, str] = (
-                dict(raw_headers) if isinstance(raw_headers, dict) else {}
-            )
+            extra_headers: dict[str, str] = dict(raw_headers) if isinstance(raw_headers, dict) else {}
             if not any(k.lower() == "x-opencode-session" for k in extra_headers):
                 extra_headers["x-opencode-session"] = session_val
                 params["extra_headers"] = extra_headers
@@ -357,11 +348,7 @@ class ChatLiteLLM(
         api_base = (self.api_base or "").lower()
         provider = (self.custom_llm_provider or "").lower()
         model = (self.model or "").lower()
-        return (
-            "opencode.ai" in api_base
-            or provider.startswith("opencode")
-            or "opencode" in model
-        )
+        return "opencode.ai" in api_base or provider.startswith("opencode") or "opencode" in model
 
     def _is_openai_native_endpoint(self) -> bool:
         """Detect whether this instance targets a native OpenAI API endpoint."""
@@ -413,22 +400,16 @@ class ChatLiteLLM(
         if "tools" in kwargs:
             logger.debug(f"ainvoke tools count: {len(kwargs.get('tools', []))}")
         if kwargs.get("_in_fallback", False):
-            return await super().ainvoke(
-                input, config, **self.clean_model_kwargs(kwargs, self._get_model_name())
-            )
+            return await super().ainvoke(input, config, **self.clean_model_kwargs(kwargs, self._get_model_name()))
 
         result = await super().ainvoke(input, config, **kwargs)
         if not kwargs.get("_json_mode_fallback", False):
             return result
 
-        if result.content and (
-            isinstance(result.content, str) and result.content.strip()
-        ):
+        if result.content and (isinstance(result.content, str) and result.content.strip()):
             return result
 
-        reasoning_content = getattr(result, "additional_kwargs", {}).get(
-            "reasoning_content"
-        )
+        reasoning_content = getattr(result, "additional_kwargs", {}).get("reasoning_content")
         if (
             reasoning_content
             and isinstance(reasoning_content, str)
@@ -468,8 +449,8 @@ class ChatLiteLLM(
 
         if is_pydantic_schema:
             # schema is guaranteed to be Type[BaseModel] when is_pydantic_schema is True
-            output_parser: PydanticOutputParser[BaseModel] | JsonOutputParser = (
-                PydanticOutputParser(pydantic_object=cast(type[BaseModel], schema))
+            output_parser: PydanticOutputParser[BaseModel] | JsonOutputParser = PydanticOutputParser(
+                pydantic_object=cast(type[BaseModel], schema)
             )
         else:
             output_parser = JsonOutputParser()
@@ -479,9 +460,7 @@ class ChatLiteLLM(
                 parsed=itemgetter("raw") | output_parser, parsing_error=lambda _: None
             )
             parser_none = RunnablePassthrough.assign(parsed=lambda _: None)
-            parser_with_fallback = parser_assign.with_fallbacks(
-                [parser_none], exception_key="parsing_error"
-            )
+            parser_with_fallback = parser_assign.with_fallbacks([parser_none], exception_key="parsing_error")
             return RunnableMap(raw=llm) | parser_with_fallback
 
         return llm | output_parser
@@ -502,11 +481,7 @@ class ChatLiteLLM(
                 openai_tools.append(normalize_tool_schema(t, model_name=model_id))
             else:
                 try:
-                    openai_tools.append(
-                        normalize_tool_schema(
-                            convert_to_openai_tool(t), model_name=model_id
-                        )
-                    )
+                    openai_tools.append(normalize_tool_schema(convert_to_openai_tool(t), model_name=model_id))
                 except Exception as e:
                     logger.warning(
                         "Failed to convert tool %s: %s",

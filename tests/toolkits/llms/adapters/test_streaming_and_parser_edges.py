@@ -56,8 +56,7 @@ class TestBuildToolCallChunks:
         chunks = build_tool_call_chunks([123, {"function": "not-a-dict"}, None])
         assert chunks == []
 
-    def test_builds_chunk_with_id_mapping(self) -> None:
-        id_map: dict[str, str] = {}
+    def test_builds_chunk_preserving_provider_id(self) -> None:
         chunks = build_tool_call_chunks(
             [
                 {
@@ -66,11 +65,9 @@ class TestBuildToolCallChunks:
                     "index": 0,
                 }
             ],
-            tool_call_id_map=id_map,
         )
         assert len(chunks) == 1
-        assert chunks[0]["id"] == id_map["c1"]
-        assert chunks[0]["id"] != "c1"
+        assert chunks[0]["id"] == "c1"
         assert chunks[0]["name"] == "f"
 
 

@@ -49,6 +49,7 @@ logger = logging.getLogger(__name__)
 _LOCAL_FIRST_EVENT_TIMEOUT = 300.0
 _LOCAL_INTER_CHUNK_TIMEOUT = 600.0
 _LOCAL_REQUEST_TIMEOUT = 1800.0
+_OLLAMA_DEFAULT_PORT = 11434
 
 
 def _is_local_endpoint(url: str | None) -> bool:
@@ -66,6 +67,26 @@ def _is_local_endpoint(url: str | None) -> bool:
     try:
         addr = ipaddress.ip_address(host)
         return addr.is_private or addr.is_loopback
+    except ValueError:
+        return False
+
+
+def _is_ollama_endpoint(url: str | None, model: str | None) -> bool:
+    """Detect Ollama specifically.
+
+    Ollama accepts ``options.num_ctx``; other local OpenAI-compatible gateways
+    (LiteLLM proxy, OmniRoute, vLLM) reject Ollama-specific option objects.
+    """
+    if model:
+        parts = model.lower().split("/")
+        if parts[0] == "ollama" or (len(parts) > 1 and "ollama" in parts[1]):
+            return True
+    if not url:
+        return False
+    if "ollama" in url.lower():
+        return True
+    try:
+        return urlparse(url).port == _OLLAMA_DEFAULT_PORT
     except ValueError:
         return False
 
@@ -215,9 +236,9 @@ def create_litellm_model(
     if "first_event_timeout" not in llm_kwargs and reasoning_floor is not None:
         llm_kwargs["first_event_timeout"] = min(reasoning_floor / 2, 300.0)
 
-    # Local endpoints: relax stall detection to avoid killing long prefills and ensure 64k agentic context window
+    # Local endpoints: relax stall detection to avoid killing long prefills
     if _is_local_endpoint(base_url):
-        logger.info("Local endpoint detected (%s), relaxing stall timeouts and configuring num_ctx", base_url)
+        logger.info("Local endpoint detected (%s), relaxing stall timeouts", base_url)
         if "first_event_timeout" not in llm_kwargs:
             llm_kwargs["first_event_timeout"] = _LOCAL_FIRST_EVENT_TIMEOUT
         if "inter_chunk_timeout" not in llm_kwargs:
@@ -225,7 +246,8 @@ def create_litellm_model(
         if "request_timeout" not in llm_kwargs:
             llm_kwargs["request_timeout"] = _LOCAL_REQUEST_TIMEOUT
 
-        # For Ollama / local endpoints, ensure num_ctx=64000 is passed in options
+    # Ollama only: share the 64k agentic context window through options.num_ctx
+    if _is_ollama_endpoint(base_url, model):
         extra_body = llm_kwargs.setdefault("extra_body", {})
         if isinstance(extra_body, dict):
             options = extra_body.setdefault("options", {})

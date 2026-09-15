@@ -118,9 +118,7 @@ class ChatLiteLLMSyncMixin:
                     response = invoke_responses_sync(self.client, message_dicts, params)
                 else:
                     call_params = (
-                        apply_anthropic_messages_params(params)
-                        if wire_protocol == "anthropic_messages"
-                        else params
+                        apply_anthropic_messages_params(params) if wire_protocol == "anthropic_messages" else params
                     )
                     response = self.client.completion(messages=message_dicts, **call_params)
                     response = self._convert_response_to_dict(response)
@@ -212,7 +210,6 @@ class ChatLiteLLMSyncMixin:
         self,
         chunk: Any,
         default_chunk_class: type[BaseMessageChunk],
-        tool_call_id_map: dict[str, str] | None = None,
         *,
         emit_tool_call_chunks: bool = True,
     ) -> tuple[ChatGenerationChunk | None, type[BaseMessageChunk]]:
@@ -249,7 +246,7 @@ class ChatLiteLLMSyncMixin:
             tool_call_chunks: list[ToolCallChunk] = []
             raw_tool_calls = delta.get("tool_calls")
             if emit_tool_call_chunks:
-                tool_call_chunks = build_tool_call_chunks(raw_tool_calls, tool_call_id_map)
+                tool_call_chunks = build_tool_call_chunks(raw_tool_calls)
             msg_chunk = AIMessageChunk(
                 content=content,
                 tool_call_chunks=tool_call_chunks,
@@ -405,9 +402,7 @@ class ChatLiteLLMSyncMixin:
                     stream_source = stream_responses_sync(self.client, message_dicts, params)
                 else:
                     call_params = (
-                        apply_anthropic_messages_params(params)
-                        if wire_protocol == "anthropic_messages"
-                        else params
+                        apply_anthropic_messages_params(params) if wire_protocol == "anthropic_messages" else params
                     )
                     stream_source = self.client.completion(messages=message_dicts, **call_params)
 
@@ -420,7 +415,6 @@ class ChatLiteLLMSyncMixin:
                     cg_chunk, new_class = self._process_chunk(
                         chunk_dict,
                         agg.default_chunk_class,
-                        agg.tool_call_id_map,
                         emit_tool_call_chunks=False,
                     )
                     if cg_chunk:
@@ -553,7 +547,9 @@ class ChatLiteLLMSyncMixin:
                         )
                         raise e
 
-                logger.error(f" LiteLLM sync streaming failed: {type(e).__name__} - {e!s} (Model: {self.model_name or self.model})")
+                logger.error(
+                    f" LiteLLM sync streaming failed: {type(e).__name__} - {e!s} (Model: {self.model_name or self.model})"
+                )
                 raise
 
         if last_error:

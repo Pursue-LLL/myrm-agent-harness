@@ -31,56 +31,71 @@ _DEEPSEEK_HOSTS = ("api.deepseek.com",)
 _KIMI_HOSTS = ("api.kimi.com", "moonshot.ai", "moonshot.cn")
 _MIMO_HOSTS = ("api.xiaomimimo.com",)
 
-# Loopback / local / constrained inference hosts
-_LOCAL_GRAMMAR_HOSTS = (
-    "localhost",
-    "127.0.0.1",
-    "0.0.0.0",
-    "::1",
-    "llama-server",
-    "ollama",
-    "vllm",
-    "sglang",
-)
-_LOCAL_GRAMMAR_PROVIDERS = (
+# Local inference engines. Loopback/private hosts are intentionally absent: a gateway that
+# merely listens on loopback (LiteLLM proxy, one-api, OmniRoute) is not a local engine and
+# must keep native tool calling instead of grammar-constrained transport.
+_ENGINE_PROVIDERS = (
     "ollama",
     "llama_cpp",
     "llamacpp",
-    "vllm",
-    "local",
-    "sglang",
-)
-_LOCAL_WEAK_HOSTS = (
-    "127.0.0.1",
-    "localhost",
-    "0.0.0.0",
-    "::1",
+    "llama-cpp",
     "llama-server",
+    "vllm",
+    "lmstudio",
+    "lm-studio",
+    "sglang",
+    "exo",
+    "local",
+)
+_ENGINE_MODEL_PREFIXES = (
+    "ollama/",
+    "ollama_chat/",
+    "llama/",
+    "llama-cpp/",
+    "vllm/",
+    "lmstudio/",
+    "sglang/",
+    "exo/",
+    "local/",
+)
+_ENGINE_HOST_KEYWORDS = (
+    "llama-server",
+    "llama.cpp",
+    "llamacpp",
     "ollama",
     "vllm",
     "sglang",
+    "lmstudio",
+    "lm-studio",
+    "exo",
 )
-_LOCAL_WEAK_PREFIXES = (
-    "ollama/",
-    "vllm/",
-    "local/",
-    "llama/",
-    "lmstudio/",
+# Default serve ports: Ollama, LM Studio, vLLM, llama-server, Exo, SGLang
+_ENGINE_PORTS = (":11434", ":1234", ":8000", ":8080", ":52415", ":30000")
+# Cloud providers with native tool calling; never downgrade them to grammar transport
+# even when the caller points them at a loopback gateway.
+_CLOUD_PROVIDERS = (
+    "openai",
+    "anthropic",
+    "google",
+    "gemini",
+    "vertex",
+    "azure",
+    "bedrock",
+    "mistral",
+    "xai",
+    "groq",
+    "openrouter",
+    "deepseek",
+    "moonshot",
+    "kimi",
+    "cohere",
+    "together",
+    "fireworks",
+    "perplexity",
+    "zhipu",
+    "dashscope",
+    "minimax",
 )
-
-# Local / Edge endpoint hosts and providers
-_LOCAL_HOST_SUBSTRINGS = (
-    "127.0.0.1",
-    "localhost",
-    "0.0.0.0",
-    ":8000",
-    ":8080",
-    ":11434",  # Ollama default port
-    ":8088",
-    ":5000",
-)
-_LOCAL_PROVIDERS = ("ollama", "local", "vllm", "llama-server", "llamacpp", "sglang")
-_LOCAL_MODEL_PREFIXES = ("ollama/", "ollama_chat/", "local/")
 
 
 def _matches_prefix(model: str, prefixes: tuple[str, ...]) -> bool:
@@ -217,48 +232,26 @@ class ModelCapabilityDetector:
         model: str = "",
         base_url: str = "",
     ) -> bool:
-        """Return True when the provider, model prefix or base_url points to a local or loopback inference engine.
+        """Return True when provider/model/base_url identifies a local inference engine.
 
-        Detects llama-server, Ollama, vLLM, LM Studio, Exo, and other local loopback hosts.
+        Engine evidence is required — a loopback or private host alone is NOT enough,
+        because OpenAI-compatible gateways (LiteLLM proxy, one-api, OmniRoute) commonly
+        listen on loopback while forwarding to remote providers that support native tool
+        calling. Detected engines: llama-server, Ollama, vLLM, LM Studio, Exo, SGLang.
         """
         provider_lower = (provider or "").lower()
-        model_lower = (model or "").lower()
-        local_keywords = (
-            "ollama",
-            "local",
-            "llama",
-            "llama-cpp",
-            "llama_cpp",
-            "vllm",
-            "lmstudio",
-            "exo",
-            "sglang",
-        )
-        if provider_lower in local_keywords:
+        if provider_lower in _CLOUD_PROVIDERS:
+            return False
+        if provider_lower in _ENGINE_PROVIDERS:
             return True
-        if any(
-            model_lower.startswith(f"{kw}/") or model_lower.startswith(f"{kw}:")
-            for kw in local_keywords
-        ):
+        if _matches_prefix(model, _ENGINE_MODEL_PREFIXES):
             return True
         if not base_url:
             return False
         base_lower = base_url.lower()
-        local_hosts = (
-            "127.0.0.1",
-            "localhost",
-            "0.0.0.0",
-            "::1",
-            ":8000",
-            ":8080",
-            ":11434",
-            ":1234",
-            ":52415",
-            ":9333",
-            "llama-server",
-            "host.docker.internal",
-        )
-        return any(h in base_lower for h in local_hosts)
+        if any(keyword in base_lower for keyword in _ENGINE_HOST_KEYWORDS):
+            return True
+        return any(port in base_lower for port in _ENGINE_PORTS)
 
     def is_local_weak_endpoint(
         self,
@@ -278,7 +271,8 @@ class ModelCapabilityDetector:
         """Return True when model is a weak local model running on a local inference server.
 
         Local inference servers (llama-server, Ollama, vLLM) benefit from structured
-        JSON/Grammar constraints on tool calling to prevent malformed syntax.
+        JSON/Grammar constraints on tool calling to prevent malformed syntax. Proxies on
+        loopback are excluded so their native tool calling is preserved.
         """
         return self.is_local_endpoint(provider, model, base_url)
 
@@ -288,5 +282,10 @@ class ModelCapabilityDetector:
         model: str = "",
         base_url: str = "",
     ) -> bool:
-        """Return True when the model/endpoint benefits from JSON Schema grammar constraint transport."""
+        """Return True when the model/endpoint benefits from JSON Schema constraint transport.
+
+        Restricted to genuine local inference engines: injecting the transport schema into
+        a loopback gateway that fronts remote providers fails strict gateways with HTTP 400
+        ("An object with no properties is not allowed") and loses native tool calling.
+        """
         return self.is_local_endpoint(provider, model, base_url)
