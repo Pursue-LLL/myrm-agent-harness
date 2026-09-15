@@ -17,6 +17,8 @@ Provides ModelCapabilityDetector for reasoning_content handling.
 
 from __future__ import annotations
 
+from urllib.parse import urlsplit
+
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 logger = get_agent_logger(__name__)
@@ -70,7 +72,7 @@ _ENGINE_HOST_KEYWORDS = (
     "exo",
 )
 # Default serve ports: Ollama, LM Studio, vLLM, llama-server, Exo, SGLang
-_ENGINE_PORTS = (":11434", ":1234", ":8000", ":8080", ":52415", ":30000")
+_ENGINE_PORTS = (11434, 1234, 8000, 8080, 52415, 30000)
 # Cloud providers with native tool calling; never downgrade them to grammar transport
 # even when the caller points them at a loopback gateway.
 _CLOUD_PROVIDERS = (
@@ -102,6 +104,26 @@ def _matches_prefix(model: str, prefixes: tuple[str, ...]) -> bool:
     """Check if model matches any of the given prefixes."""
     lower = (model or "").lower()
     return any(lower.startswith(p) or f"/{p}" in lower or f"/{p.rstrip('/')}" in lower for p in prefixes)
+
+
+def _matches_port(base_url: str, ports: tuple[int, ...]) -> bool:
+    """Check whether the URL's *own* port matches one of the given ports.
+
+    The port must be parsed, never substring-matched: a substring test would treat
+    any URL merely containing ``:8080`` as a local engine — including ``:80800`` and
+    ports hidden in a query string — and downgrade a remote gateway to constrained
+    tool-call transport.
+    """
+    if not base_url:
+        return False
+    candidate = base_url.strip()
+    if "://" not in candidate:
+        candidate = f"//{candidate}"
+    try:
+        port = urlsplit(candidate).port
+    except ValueError:
+        return False
+    return port is not None and port in ports
 
 
 def _matches_host(base_url: str, hosts: tuple[str, ...]) -> bool:
@@ -238,6 +260,9 @@ class ModelCapabilityDetector:
         because OpenAI-compatible gateways (LiteLLM proxy, one-api, OmniRoute) commonly
         listen on loopback while forwarding to remote providers that support native tool
         calling. Detected engines: llama-server, Ollama, vLLM, LM Studio, Exo, SGLang.
+
+        Port evidence is parsed, not substring-matched, so a remote gateway is never
+        downgraded merely because its URL happens to contain a local serve port.
         """
         provider_lower = (provider or "").lower()
         if provider_lower in _CLOUD_PROVIDERS:
@@ -251,7 +276,7 @@ class ModelCapabilityDetector:
         base_lower = base_url.lower()
         if any(keyword in base_lower for keyword in _ENGINE_HOST_KEYWORDS):
             return True
-        return any(port in base_lower for port in _ENGINE_PORTS)
+        return _matches_port(base_url, _ENGINE_PORTS)
 
     def is_local_weak_endpoint(
         self,

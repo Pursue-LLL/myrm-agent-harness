@@ -133,6 +133,27 @@ class TestModelCapabilityDetector:
             provider="openai-like", model="gemma-2-9b", base_url="http://127.0.0.1:11434/v1"
         )
 
+    def test_local_port_evidence_is_parsed_not_substring_matched(self, detector):
+        """A local serve port must be the URL's own port, never a substring.
+
+        Substring matching treated ``:80800`` and ports buried in a query string as
+        local-engine evidence, silently downgrading a remote gateway to the
+        constrained tool-call transport that strict gateways reject with HTTP 400.
+        """
+        assert not detector.is_local_endpoint(
+            provider="openai-like", model="muse-spark-1.3-contributor", base_url="http://127.0.0.1:80800/v1"
+        )
+        assert not detector.is_local_endpoint(
+            provider="openai-like",
+            model="muse-spark-1.3-contributor",
+            base_url="https://relay.example.com/v1?upstream=http://127.0.0.1:8080/",
+        )
+        # The genuine serve port still proves a local engine, with or without a scheme.
+        assert detector.is_local_endpoint(
+            provider="openai-like", model="qwen", base_url="127.0.0.1:11434/v1"
+        )
+        assert detector.is_local_endpoint(provider="", model="", base_url="[::1]:8000/v1")
+
     def test_empty_inputs(self, detector):
         """Test empty inputs."""
         assert not detector.needs_reasoning_content_echo(provider="", model="", base_url="")
