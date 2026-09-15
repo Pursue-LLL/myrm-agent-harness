@@ -120,6 +120,10 @@ class WikiCompileConfig:
             "   - Use Mermaid diagrams (```mermaid) for workflows, architectures, and relationships.\n"
             "   - Use GFM tables for comparisons, feature matrices, and structured data.\n"
             "   - Use fenced code blocks with language tags for code examples.\n"
+            "9. MATHEMATICAL FORMULA PROTECTION: Copy every mathematical expression from sources "
+            "verbatim in LaTeX syntax ($inline$ or $$display$$), preserving all symbols, subscripts, "
+            "superscripts, and spacing exactly as they appear. NEVER rewrite, simplify, convert to "
+            "plain text, or drop braces/backslashes in formulas.\n"
             "Do not output any reasoning, only the final markdown file content."
         )
     )
