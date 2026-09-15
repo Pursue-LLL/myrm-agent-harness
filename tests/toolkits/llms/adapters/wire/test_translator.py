@@ -93,7 +93,13 @@ def test_assistant_reasoning_items_replay_before_message() -> None:
         {"role": "user", "content": "step 2"},
     ]
     converted = chat_messages_to_responses_input(messages)
-    assert converted[1] == reasoning_blob
+    # Replay normalizes the item for the Responses API: a reasoning item must carry
+    # `summary`, so a provider blob that omits it is completed with an empty list.
+    replayed = converted[1]
+    assert replayed["type"] == reasoning_blob["type"]
+    assert replayed["id"] == reasoning_blob["id"]
+    assert replayed["encrypted_content"] == reasoning_blob["encrypted_content"]
+    assert replayed["summary"] == []
     assert converted[2]["role"] == "assistant"
     assert converted[3]["role"] == "user"
 
