@@ -10,6 +10,12 @@ Tests:
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+from langchain_core.messages import HumanMessage
+
+from myrm_agent_harness.toolkits.llms.adapters.chat_model import ChatLiteLLM
 from myrm_agent_harness.toolkits.llms.adapters.gateway_normalizer import (
     is_gateway_param_rejection,
     is_transport_stripped,
@@ -281,3 +287,60 @@ class TestStructuredOutputSchemaDowngrade:
         remember_stripped_transport(model="m/unique-model-xyz", base_url="http://127.0.0.1:9/v1")
         assert is_transport_stripped(model="m/unique-model-xyz", base_url="http://127.0.0.1:9/v1") is True
         assert is_transport_stripped(model="m/other-model", base_url="http://127.0.0.1:9/v1") is False
+
+
+def _agenerate_success_payload(content: str = "ok") -> dict:
+    return {
+        "choices": [{"message": {"role": "assistant", "content": content}, "finish_reason": "stop"}],
+        "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+    }
+
+
+class TestAsyncAgenerateSchemaDowngrade:
+    """Async non-streaming path strips the internal transport on schema-shape 400s."""
+
+    @pytest.mark.asyncio
+    async def test_async_agenerate_retries_without_internal_transport(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        model = ChatLiteLLM(model="openai/test-schema-downgrade-async")
+        model.client = MagicMock()
+        params = {
+            "model": "openai/test-schema-downgrade-async",
+            "response_format": _internal_transport_response_format(),
+            "allowed_openai_params": ["model", "response_format"],
+        }
+        monkeypatch.setattr(
+            model, "_create_message_dicts", lambda *args, **kwargs: ([{"role": "user", "content": "hi"}], params)
+        )
+        schema_error = Exception("[invalid_request_error] An object with no properties is not allowed.")
+        mock_acreate = AsyncMock(side_effect=[schema_error, _agenerate_success_payload()])
+        model.client.acreate = mock_acreate
+
+        result = await model._agenerate([HumanMessage(content="hi")])
+
+        assert result.generations[0].message.content == "ok"
+        assert mock_acreate.call_count == 2
+        _, retry_kwargs = mock_acreate.call_args_list[1]
+        assert "response_format" not in retry_kwargs
+        assert is_transport_stripped(model="openai/test-schema-downgrade-async", base_url="") is True
+
+    @pytest.mark.asyncio
+    async def test_async_agenerate_preserves_user_response_format(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        model = ChatLiteLLM(model="openai/test-schema-downgrade-user")
+        model.client = MagicMock()
+        params = {
+            "model": "openai/test-schema-downgrade-user",
+            "response_format": {"type": "json_object"},
+            "allowed_openai_params": ["model", "response_format"],
+        }
+        monkeypatch.setattr(
+            model, "_create_message_dicts", lambda *args, **kwargs: ([{"role": "user", "content": "hi"}], params)
+        )
+        schema_error = Exception("[invalid_request_error] An object with no properties is not allowed.")
+        mock_acreate = AsyncMock(side_effect=schema_error)
+        model.client.acreate = mock_acreate
+
+        with pytest.raises(Exception, match="no properties"):
+            await model._agenerate([HumanMessage(content="hi")])
+
+        assert mock_acreate.call_count == 1
+        assert params["response_format"] == {"type": "json_object"}

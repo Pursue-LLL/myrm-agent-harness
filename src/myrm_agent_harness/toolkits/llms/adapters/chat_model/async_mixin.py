@@ -281,6 +281,10 @@ class ChatLiteLLMAsyncMixin:
                 from myrm_agent_harness.agent.context_management.pipeline.processors.media_budget_governor import (
                     CumulativeImageBudgetGovernor,
                 )
+                from myrm_agent_harness.toolkits.llms.adapters.gateway_normalizer import (
+                    is_gateway_param_rejection,
+                    sanitize_gateway_params_on_400,
+                )
                 from myrm_agent_harness.toolkits.llms.errors.classifier import (
                     is_context_overflow,
                     is_payload_overflow,
@@ -297,6 +301,16 @@ class ChatLiteLLMAsyncMixin:
                     if evicted > 0 or evicted_msgs > 0:
                         logger.warning(
                             f" Payload overflow 400/413 intercepted: evicted {max(evicted, evicted_msgs)} historical images, retrying (attempt {attempt + 1})"
+                        )
+                        continue
+
+                if is_gateway_param_rejection(e) and attempt < max_attempts - 1:
+                    stripped = sanitize_gateway_params_on_400(
+                        params, e, model=self.model_name or self.model, base_url=str(self.api_base or "")
+                    )
+                    if stripped:
+                        logger.warning(
+                            f" Gateway rejected params {stripped}, retrying without them (attempt {attempt + 1})"
                         )
                         continue
 
