@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import Any, cast
 
 from langchain_core.messages import AIMessageChunk, ToolCallChunk
 from langchain_core.outputs import ChatGenerationChunk
@@ -27,8 +27,8 @@ logger = logging.getLogger(__name__)
 
 _REASONING_FIELD_CANDIDATES: tuple[str, ...] = (
     "reasoning_content",
-    "reasoning",
     "thinking",
+    "reasoning",
     "thoughts",
     "reasoning_text",
 )
@@ -178,20 +178,11 @@ def parse_tool_calls_from_reasoning(
     return parsed_tool_calls, final_cg_chunk
 
 
-_REASONING_FIELD_CANDIDATES: tuple[str, ...] = (
-    "reasoning_content",
-    "thinking",
-    "reasoning",
-    "thoughts",
-    "reasoning_text",
-)
-
-
 def extract_reasoning_payload(obj: Any) -> str:
     """Extract reasoning / thinking text from a delta dict or chunk object.
 
-    Tries known reasoning field names in priority order and handles both
-    string values and array-of-block structures.
+    Tries the module-level reasoning field candidates in priority order and handles
+    both string values and array-of-block structures.
     """
     if obj is None:
         return ""
@@ -225,7 +216,7 @@ def normalize_usage(usage: Any) -> dict[str, Any]:
     if isinstance(usage, dict):
         return usage
     if hasattr(usage, "model_dump"):
-        return usage.model_dump()
+        return cast(dict[str, Any], usage.model_dump())
     return {
         "prompt_tokens": getattr(usage, "prompt_tokens", 0),
         "completion_tokens": getattr(usage, "completion_tokens", 0),

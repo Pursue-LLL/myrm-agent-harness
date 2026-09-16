@@ -17,7 +17,9 @@ LLM core. LiteLLM wrapper providing a unified multi-model invocation interface
 automatically merging model_kwargs into extra_body. Integrates reasoning_timeout floor,
 thinking model max_tokens headroom (auto-raise floor to prevent thinking-phase truncation),
 local endpoint stall-detection relaxation (auto-detect localhost/RFC1918 → relax first_event/
-inter_chunk/request timeouts), OpenRouter reasoning_effort → reasoning.effort rewrite,
+inter_chunk/request timeouts), Ollama-scoped 64k context window (options.num_ctx injected only for
+Ollama endpoints, since other OpenAI-compatible local gateways reject Ollama option objects),
+OpenRouter reasoning_effort → reasoning.effort rewrite,
 and native model capability passthrough (web_search_options) via tri-state native_tools config
 (None=auto-detect / set=explicit / empty set=disabled).
 Core layer used by LLMManager and business layer as the unified entry point for multi-model calls.
