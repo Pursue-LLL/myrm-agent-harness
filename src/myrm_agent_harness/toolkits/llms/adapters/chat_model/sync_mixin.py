@@ -176,7 +176,9 @@ class ChatLiteLLMSyncMixin:
                         continue
 
                 if is_gateway_param_rejection(e) and attempt < max_attempts - 1:
-                    stripped = sanitize_gateway_params_on_400(params, e)
+                    stripped = sanitize_gateway_params_on_400(
+                        params, e, model=self.model_name or self.model, base_url=str(self.api_base or "")
+                    )
                     if stripped:
                         logger.warning(
                             f" Gateway rejected params {stripped}, retrying without them (attempt {attempt + 1})"
@@ -525,7 +527,9 @@ class ChatLiteLLMSyncMixin:
                         continue
 
                 if is_gateway_param_rejection(e) and attempt < max_attempts - 1:
-                    stripped = sanitize_gateway_params_on_400(params, e)
+                    stripped = sanitize_gateway_params_on_400(
+                        params, e, model=self.model_name or self.model, base_url=str(self.api_base or "")
+                    )
                     if stripped:
                         logger.warning(
                             f" Sync streaming gateway rejected params {stripped}, retrying without them (attempt {attempt + 1})"

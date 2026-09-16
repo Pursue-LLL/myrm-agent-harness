@@ -1,10 +1,17 @@
-"""Tool call parser module
+"""Tool call parser module.
 
+Thin compatibility facade: the parsers live in adapters.parsers submodules
+(split by model format family); this module keeps the original import paths
+stable and hosts the priority-ordered parse_tool_calls() dispatcher.
 
 [INPUT]
-- json::json (POS: Python JSON library)
-- re::re (POS: Python regex library)
-- uuid::uuid4 (POS: UUID generator)
+- adapters.parsers.openai_format (POS: OpenAI-format tool call parsing)
+- adapters.parsers.glm_xml (POS: GLM XML tool call parsing)
+- adapters.parsers.qwen_xml_json (POS: Qwen XML JSON tool call parsing)
+- adapters.parsers.anthropic_xml (POS: Anthropic XML tool call parsing)
+- adapters.parsers.deepseek_inline (POS: DeepSeek inline tool call parsing)
+- adapters.parsers.deepseek_dsml (POS: DeepSeek DSML tool call parsing)
+- adapters.parsers.leaked_json (POS: leaked raw JSON tool call parsing)
 
 [OUTPUT]
 - ToolCallDict, FunctionCallDict: tool call type definitions
@@ -12,7 +19,7 @@
 - HTML_ENTITY_RE, decode_html_entities_str(), decode_html_entities_in_args(): xAI/Grok HTML entity decoding
 
 [POS]
-Tool call parser module. Unified handling of tool call formats from multiple LLMs.
+Tool call parser facade. Unified handling of tool call formats from multiple LLMs.
 Parses by priority: OpenAI standard format, GLM XML, Anthropic XML, Qwen XML JSON, DeepSeek inline, DeepSeek DSML, Leaked raw JSON.
 Provides HTML entity decoding (xAI/Grok workaround), called by adapters.converters after args parsing.
 As the parser layer, depended on by adapters.converters for cross-model tool call compatibility.
@@ -20,54 +27,69 @@ As the parser layer, depended on by adapters.converters for cross-model tool cal
 
 from __future__ import annotations
 
-import contextlib
-import json
 import logging
-import re
-from typing import Any, Literal, TypedDict, cast
-from uuid import uuid4
+from typing import Any
+
+from myrm_agent_harness.toolkits.llms.adapters.parsers.anthropic_xml import (
+    _parse_anthropic_xml_format,
+    _parse_xml_parameter_value,
+)
+from myrm_agent_harness.toolkits.llms.adapters.parsers.deepseek_dsml import (
+    _parse_deepseek_dsml_format,
+)
+from myrm_agent_harness.toolkits.llms.adapters.parsers.deepseek_inline import (
+    _parse_deepseek_inline_format,
+)
+from myrm_agent_harness.toolkits.llms.adapters.parsers.glm_xml import (
+    _parse_glm_xml_format,
+)
+from myrm_agent_harness.toolkits.llms.adapters.parsers.json_scanner import (
+    _find_json_object_end,
+    _is_inside_code_block,
+)
+from myrm_agent_harness.toolkits.llms.adapters.parsers.leaked_json import (
+    _parse_leaked_json_tool_calls_format,
+)
+from myrm_agent_harness.toolkits.llms.adapters.parsers.openai_format import (
+    _parse_openai_format,
+)
+from myrm_agent_harness.toolkits.llms.adapters.parsers.qwen_xml_json import (
+    _parse_qwen_xml_json_format,
+)
+from myrm_agent_harness.toolkits.llms.adapters.parsers.text_utils import (
+    HTML_ENTITY_RE,
+    clean_xml_tool_tags,
+    decode_html_entities_in_args,
+    decode_html_entities_str,
+)
+from myrm_agent_harness.toolkits.llms.adapters.parsers.types import (
+    FunctionCallDict,
+    LLMResponseDict,
+    ToolCallDict,
+)
 
 logger = logging.getLogger(__name__)
 
-
-# ============================================================================
-# Type Definitions
-# ============================================================================
-
-
-class FunctionCallDict(TypedDict):
-    """OpenAI-format function call"""
-
-    name: str
-    arguments: str  # JSON string
-
-
-class _ToolCallDictRequired(TypedDict):
-    """Tool call required fields"""
-
-    id: str
-    type: Literal["function"]
-    function: FunctionCallDict
-
-
-class ToolCallDict(_ToolCallDictRequired, total=False):
-    """OpenAI-format tool call
-
-    Required fields: id, type, function
-    Optional field: index (For streaming responses)
-    """
-
-    index: int
-
-
-class LLMResponseDict(TypedDict, total=False):
-    """LLM response dict"""
-
-    content: str
-    role: str
-    tool_calls: list[ToolCallDict]
-    function_call: FunctionCallDict
-    reasoning_content: str  # GLM model reasoning content
+__all__ = [
+    "FunctionCallDict",
+    "HTML_ENTITY_RE",
+    "LLMResponseDict",
+    "ToolCallDict",
+    "_find_json_object_end",
+    "_is_inside_code_block",
+    "_parse_anthropic_xml_format",
+    "_parse_deepseek_dsml_format",
+    "_parse_deepseek_inline_format",
+    "_parse_glm_xml_format",
+    "_parse_leaked_json_tool_calls_format",
+    "_parse_openai_format",
+    "_parse_qwen_xml_json_format",
+    "_parse_xml_parameter_value",
+    "clean_xml_tool_tags",
+    "decode_html_entities_in_args",
+    "decode_html_entities_str",
+    "parse_tool_calls",
+]
 
 
 def parse_tool_calls(
@@ -142,622 +164,3 @@ def parse_tool_calls(
         return tool_calls
 
     return []
-
-
-def _parse_openai_format(
-    response_dict: LLMResponseDict | dict[str, Any],
-) -> list[ToolCallDict]:
-    """Parse standard OpenAI-format tool call"""
-    raw_tool_calls = response_dict.get("tool_calls")
-    if not raw_tool_calls or not isinstance(raw_tool_calls, list):
-        return []
-
-    # Disambiguate only ids repeated within this batch: providers reject duplicate
-    # tool_call ids, while gateways that validate provenance need the original id back.
-    seen_ids: set[str] = set()
-    for tc in raw_tool_calls:
-        original_id = tc.get("id")
-        if not isinstance(original_id, str) or not original_id:
-            continue
-        if original_id in seen_ids:
-            tc["id"] = f"{original_id}_vtx{uuid4().hex[:4]}"
-        else:
-            seen_ids.add(original_id)
-
-    return raw_tool_calls
-
-
-def _parse_glm_xml_format(reasoning_content: str) -> list[ToolCallDict]:
-    """Parse GLM XML format tool calls
-
-    Format example:
-    <tool_call>tool_name
-    <arg_key>key1</arg_key>
-    <arg_value>value1</arg_value>
-    </tool_call>
-    """
-    if not reasoning_content or "<tool_call>" not in reasoning_content:
-        return []
-
-    tool_calls: list[ToolCallDict] = []
-
-    # Match tool_call block
-    tool_call_pattern = re.compile(r"<tool_call>(.*?)</tool_call>", re.DOTALL)
-    matches = tool_call_pattern.findall(reasoning_content)
-
-    for idx, match in enumerate(matches):
-        try:
-            # Extract tool name (first line)
-            lines = match.strip().split("\n")
-            tool_name = lines[0].strip() if lines else ""
-
-            if not tool_name:
-                continue
-
-            # Parse parameters
-            args: dict[str, Any] = {}
-            arg_key_pattern = re.compile(r"<arg_key>(.*?)</arg_key>", re.DOTALL)
-            arg_value_pattern = re.compile(r"<arg_value>(.*?)</arg_value>", re.DOTALL)
-
-            keys = arg_key_pattern.findall(match)
-            values = arg_value_pattern.findall(match)
-
-            for key, value in zip(keys, values, strict=False):
-                key = key.strip()
-                value = value.strip()
-
-                # Try parsing JSON values (arrays, objects, etc.)
-                try:
-                    args[key] = json.loads(value)
-                except json.JSONDecodeError:
-                    args[key] = value
-
-            # Build OpenAI-format tool_call
-            tool_call: ToolCallDict = {
-                "id": f"call_{uuid4().hex[:24]}",
-                "index": idx,
-                "function": {
-                    "name": tool_name,
-                    "arguments": json.dumps(args, ensure_ascii=False),
-                },
-                "type": "function",
-            }
-            tool_calls.append(tool_call)
-
-            logger.debug(f" GLM XML parsed: {tool_name}, args={args}")
-
-        except Exception as e:
-            logger.warning(f" GLM XML Parsing failed: {e}")
-            continue
-
-    return tool_calls
-
-
-def _parse_qwen_xml_json_format(
-    content: str,
-    available_tools: list[str] | None = None,
-) -> list[ToolCallDict]:
-    """Parse Qwen XML JSON format tool calls
-
-    Format example:
-    <tool_call> {"name": "tool_name", "arguments": {"arg1": "value1"}} </tool_call>
-    """
-    if not content or not isinstance(content, str):
-        return []
-
-    tool_calls: list[ToolCallDict] = []
-    pattern = re.compile(r"<tool_call>\s*(\{.*?)(?:</tool_call>|$)", re.DOTALL)
-    matches = pattern.findall(content)
-
-    for idx, match in enumerate(matches):
-        try:
-            # Fix common JSON escaping issues (e.g., unescaped quotes inside string values)
-            # This is a simple heuristic, a more robust parser might be needed for complex cases
-            try:
-                data = json.loads(match)
-            except json.JSONDecodeError:
-                import re as regex
-
-                # Try to fix unescaped quotes: "key": ""value"" -> "key": "\"value\""
-                fixed_match = regex.sub(r'(:\s*)""([^"]+)""', r'\1"\\"\2\\""', match)
-                data = json.loads(fixed_match)
-
-            tool_name = data.get("name")
-            args = data.get("arguments", {})
-
-            if not tool_name and "function" in data and isinstance(data["function"], dict):
-                func_data = data["function"]
-                tool_name = func_data.get("name")
-                args = func_data.get("arguments", {})
-
-            if not tool_name:
-                continue
-
-            if available_tools and tool_name not in available_tools:
-                logger.debug(f" Qwen XML JSON tool call name not in available tools: {tool_name}")
-                continue
-            if isinstance(args, str):
-                with contextlib.suppress(json.JSONDecodeError):
-                    args = json.loads(args)
-            elif not isinstance(args, dict):
-                args = {}
-
-            tool_call: ToolCallDict = {
-                "id": f"call_{uuid4().hex[:24]}",
-                "index": idx,
-                "function": {
-                    "name": tool_name,
-                    "arguments": json.dumps(args, ensure_ascii=False),
-                },
-                "type": "function",
-            }
-            tool_calls.append(tool_call)
-            logger.debug(f" Qwen XML JSON parsed: {tool_name}")
-
-        except Exception as e:
-            logger.warning(f" Qwen XML JSON Parsing failed: {e}")
-            continue
-
-    return tool_calls
-
-
-def _parse_anthropic_xml_format(
-    content: str,
-    available_tools: list[str] | None = None,
-) -> list[ToolCallDict]:
-    """Parse Anthropic XML format tool calls
-
-    Supports two formats:
-    1. Standard format: <invoke name="tool">...</invoke>
-    2. Prefixed format: <invoke name="tool">...</invoke>
-    """
-    if not content or not isinstance(content, str):
-        return []
-
-    # Match invoke tags (with or without antml: prefix)
-    invoke_pattern = r'<(antml:)?invoke\s+name=["\']([^"\']+)["\']>(.*?)(?:</(antml:)?invoke>|$)'
-
-    matches = list(re.finditer(invoke_pattern, content, re.DOTALL))
-    if not matches:
-        return []
-
-    extracted_calls: list[ToolCallDict] = []
-
-    for match in matches:
-        tool_name = match.group(2)
-        invoke_body = match.group(3)
-
-        # Safety: validate tool name against available_tools if provided
-        if available_tools and tool_name not in available_tools:
-            logger.debug(f" XML tool call name not in available tools: {tool_name}")
-            continue
-
-        # Safety: skip matches inside code blocks
-        if _is_inside_code_block(content, match.start()):
-            logger.debug(f" Skipping XML tool call inside code block: {tool_name}")
-            continue
-
-        # Parse parameter tags
-        param_pattern = (
-            r'<(antml:)?parameter\s+name=["\']([^"\']+)["\'](?:\s+string=["\']([^"\']*)["\'])?>'
-            r"([\s\S]*?)(?:</(antml:)?parameter>|$)"
-        )
-
-        params_matches = re.finditer(param_pattern, invoke_body)
-        args: dict[str, Any] = {}
-
-        for param_match in params_matches:
-            param_name = param_match.group(2)
-            string_attr = param_match.group(3)
-            param_value = param_match.group(4)
-
-            # Determine if value should be treated as string
-            is_string = string_attr is not None and string_attr.lower() == "true"
-
-            # Parse parameter values
-            args[param_name] = _parse_xml_parameter_value(param_value, is_string)
-
-        # Build OpenAI-format tool_call
-        tool_call: ToolCallDict = {
-            "id": f"call_{uuid4().hex[:24]}",
-            "type": "function",
-            "function": {
-                "name": tool_name,
-                "arguments": json.dumps(args, sort_keys=True),
-            },
-        }
-        extracted_calls.append(tool_call)
-        logger.debug(f" Anthropic XML parsed: {tool_name}")
-
-    return extracted_calls
-
-
-def _parse_xml_parameter_value(
-    value_str: str, is_string: bool
-) -> str | int | float | bool | list[Any] | dict[str, Any] | None:
-    """Parse XML parameter value"""
-    value_str = value_str.strip()
-
-    # If explicitly marked as string, return as string directly
-    if is_string:
-        return value_str
-
-    # Try parsing as JSON (arrays, objects, booleans, numbers, null, etc.)
-    try:
-        return cast(
-            "str | int | float | bool | list[Any] | dict[str, Any] | None",
-            json.loads(value_str),
-        )
-    except (json.JSONDecodeError, TypeError):
-        # Parsing failed; return as plain string
-        return value_str
-
-
-def _parse_deepseek_inline_format(
-    content: str,
-    available_tools: list[str] | None = None,
-) -> list[ToolCallDict]:
-    """Parse DeepSeek inline format tool calls
-
-    Format example:
-    tool_name {"arg1": "value1", "arg2": "value2"}
-    """
-    if not content or not isinstance(content, str):
-        return []
-
-    if not available_tools:
-        return []
-
-    pattern = r"([a-zA-Z_][a-zA-Z0-9_]*)\s*\{"
-    matches = list(re.finditer(pattern, content))
-    if not matches:
-        return []
-
-    extracted_calls: list[ToolCallDict] = []
-
-    for match in matches:
-        tool_name = match.group(1)
-        if tool_name not in available_tools:
-            continue
-
-        if _is_inside_code_block(content, match.start()):
-            logger.debug(f" Skipping tool call match inside code block: {tool_name}")
-            continue
-
-        before_match = content[: match.start()].rstrip()
-        if before_match and before_match[-1] in ('"', "'", "`"):
-            logger.debug(f" Skipping tool call match inside quotes: {tool_name}")
-            continue
-
-        json_start = match.start() + len(tool_name)
-        remaining = content[json_start:].strip()
-
-        if not remaining.startswith("{"):
-            continue
-
-        # Find the end position of a JSON object
-        end_pos = _find_json_object_end(remaining)
-        if end_pos <= 0:
-            continue
-
-        json_str = remaining[:end_pos]
-
-        try:
-            args = json.loads(json_str)
-            if not isinstance(args, dict):
-                continue
-
-            tool_call: ToolCallDict = {
-                "id": f"call_{uuid4().hex[:24]}",
-                "type": "function",
-                "function": {
-                    "name": tool_name,
-                    "arguments": json.dumps(args, sort_keys=True),
-                },
-            }
-            extracted_calls.append(tool_call)
-            logger.debug(f" DeepSeek inline parsed: {tool_name}")
-
-        except (json.JSONDecodeError, TypeError):
-            continue
-
-    return extracted_calls
-
-
-def _parse_deepseek_dsml_format(
-    response_dict: LLMResponseDict | dict[str, Any],
-    available_tools: list[str] | None = None,
-) -> list[ToolCallDict]:
-    """Parse DeepSeek DSML format tool calls"""
-    content = response_dict.get("content", "") or ""
-    reasoning_content = response_dict.get("reasoning_content", "") or ""
-    text = content + "\n" + reasoning_content
-
-    if not text or "DSML" not in text:
-        return []
-
-    tool_calls: list[ToolCallDict] = []
-
-    block_pattern = re.compile(r"<[｜|]+DSML[｜|]+tool_calls>(.*?)</[｜|]+DSML[｜|]+tool_calls>", re.DOTALL)
-    blocks = block_pattern.findall(text)
-
-    if not blocks:
-        unclosed_pattern = re.compile(r"<[｜|]+DSML[｜|]+tool_calls>(.*)", re.DOTALL)
-        blocks = unclosed_pattern.findall(text)
-
-    for idx, block in enumerate(blocks):
-        invoke_pattern = re.compile(
-            r'<[｜|]+DSML[｜|]+invoke\s+name=["\']([^"\']+)["\']>(.*?)</[｜|]+DSML[｜|]+invoke>',
-            re.DOTALL,
-        )
-        invokes = invoke_pattern.findall(block)
-
-        if not invokes:
-            invoke_pattern_unclosed = re.compile(
-                r'<[｜|]+DSML[｜|]+invoke\s+name=["\']([^"\']+)["\']>(.*?)(?:<[｜|]+DSML[｜|]+invoke|$)',
-                re.DOTALL,
-            )
-            invokes = invoke_pattern_unclosed.findall(block)
-
-        for tool_name, params_text in invokes:
-            if available_tools and tool_name not in available_tools:
-                logger.debug(f" DeepSeek DSML tool call name not in available tools: {tool_name}")
-                continue
-
-            args: dict[str, Any] = {}
-            param_pattern = re.compile(
-                r'<[｜|]+DSML[｜|]+parameter\s+name=["\']([^"\']+)["\']\s+string=["\'](true|false)["\']>(.*?)</[｜|]+DSML[｜|]+parameter>',
-                re.DOTALL,
-            )
-            params = param_pattern.findall(params_text)
-
-            for p_name, is_string, p_value in params:
-                val = p_value.strip()
-                if is_string.lower() == "false":
-                    with contextlib.suppress(json.JSONDecodeError):
-                        val = json.loads(val)
-                args[p_name] = val
-
-            tool_call: ToolCallDict = {
-                "id": f"call_{uuid4().hex[:24]}",
-                "index": idx,
-                "type": "function",
-                "function": {
-                    "name": tool_name,
-                    "arguments": json.dumps(args, ensure_ascii=False),
-                },
-            }
-            tool_calls.append(tool_call)
-            logger.debug(f" DeepSeek DSML parsed: {tool_name}")
-
-    return tool_calls
-
-
-def _parse_leaked_json_tool_calls_format(
-    content: str,
-    available_tools: list[str] | None = None,
-) -> list[ToolCallDict]:
-    """Parse tool calls leaked as raw JSON in message content.
-
-    Handles formats:
-    - {"tool_calls": [{"name": "foo", "arguments": {...}}]}
-    - {"tool_calls": [{"function": {"name": "foo", "arguments": {...}}}]}
-    - Markdown-wrapped ```json {"tool_calls": [...]} ```
-    - Single tool call dict: {"name": "foo", "arguments": {...}} if name in available_tools
-    """
-    if not content or ("tool_calls" not in content and "name" not in content):
-        return []
-
-    stripped = content.strip()
-    json_candidates: list[str] = []
-
-    # Check for markdown code fences
-    fence_pattern = re.compile(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", re.IGNORECASE)
-    fences = fence_pattern.findall(stripped)
-    if fences:
-        json_candidates.extend(fences)
-
-    # Check if the whole content or a substring is a JSON object
-    if stripped.startswith("{") and stripped.endswith("}"):
-        json_candidates.append(stripped)
-    else:
-        # Scan for balanced or top-level JSON objects containing "tool_calls" or "name"
-        obj_pattern = re.compile(r"(\{\s*\"tool_calls\"\s*:\s*\[[\s\S]*?\]\s*\})", re.IGNORECASE)
-        for match in obj_pattern.findall(stripped):
-            json_candidates.append(match)
-
-    tool_calls: list[ToolCallDict] = []
-    seen_signatures: set[str] = set()
-
-    for candidate in json_candidates:
-        parsed_obj: object = None
-        with contextlib.suppress(Exception):
-            parsed_obj = json.loads(candidate)
-
-        if not isinstance(parsed_obj, dict):
-            continue
-
-        raw_calls: list[object] = []
-        if "tool_calls" in parsed_obj and isinstance(parsed_obj["tool_calls"], list):
-            raw_calls.extend(parsed_obj["tool_calls"])
-        elif "name" in parsed_obj and isinstance(parsed_obj["name"], str):
-            raw_calls.append(parsed_obj)
-
-        for item in raw_calls:
-            if not isinstance(item, dict):
-                continue
-
-            tool_name = ""
-            args_val: object = None
-
-            if "function" in item and isinstance(item["function"], dict):
-                fn = item["function"]
-                tool_name = str(fn.get("name", "")).strip()
-                args_val = fn.get("arguments", {})
-            elif "name" in item and isinstance(item["name"], str):
-                tool_name = item["name"].strip()
-                args_val = item.get("arguments", {})
-
-            if not tool_name:
-                continue
-
-            # Verify against available_tools when available
-            if available_tools and tool_name not in available_tools:
-                continue
-
-            # Serialize arguments safely
-            if isinstance(args_val, dict):
-                args_str = json.dumps(args_val, ensure_ascii=False)
-            elif isinstance(args_val, str):
-                args_str = args_val
-            else:
-                args_str = json.dumps(args_val or {}, ensure_ascii=False)
-
-            sig = f"{tool_name}:{args_str}"
-            if sig in seen_signatures:
-                continue
-            seen_signatures.add(sig)
-
-            call_id = item.get("id")
-            if not call_id or not isinstance(call_id, str):
-                call_id = f"call_{uuid4().hex[:24]}"
-
-            tool_calls.append(
-                {
-                    "id": call_id,
-                    "index": len(tool_calls),
-                    "type": "function",
-                    "function": {
-                        "name": tool_name,
-                        "arguments": args_str,
-                    },
-                }
-            )
-
-    return tool_calls
-
-
-# ============================================================================
-# XML Tool Tag Cleaner
-# ============================================================================
-
-_DSML_PATTERN = re.compile(r"<[｜|]+DSML[｜|]+tool_calls>.*?</[｜|]+DSML[｜|]+tool_calls>", re.DOTALL)
-_DSML_UNCLOSED_PATTERN = re.compile(r"<[｜|]+DSML[｜|]+tool_calls>.*", re.DOTALL)
-_XML_TOOL_PATTERN = re.compile(
-    r"<(tool_call|invoke(?:\s+name=[\"'][^\"']*[\"'])?)>.*?</(?:\1|invoke)>",
-    re.DOTALL,
-)
-_XML_TOOL_UNCLOSED_PATTERN = re.compile(r"<(tool_call|invoke(?:\s+name=[\"'][^\"']*[\"'])?)>.*", re.DOTALL)
-_FUNCTION_CALLS_PATTERN = re.compile(
-    r"<(?:antml:)?(?:function|tool)_calls>.*?</(?:antml:)?(?:function|tool)_calls>",
-    re.DOTALL,
-)
-_LEAKED_JSON_TOOL_CALLS_PATTERN = re.compile(
-    r"```(?:json)?\s*\{\s*\"tool_calls\"\s*:\s*\[[\s\S]*?\]\s*\}\s*```|\{\s*\"tool_calls\"\s*:\s*\[[\s\S]*?\]\s*\}",
-    re.IGNORECASE,
-)
-
-
-def clean_xml_tool_tags(text: str) -> str:
-    """Strip leaked XML and raw JSON tool call tags from text content.
-
-    Handles DSML fullwidth-pipe format, standard invoke/tool_call tags,
-    function_calls/tool_calls wrapper tags, and leaked raw JSON tool_calls blocks.
-    Supports both closed and unclosed (truncated) variants.
-    """
-    if not text:
-        return text
-    text = _FUNCTION_CALLS_PATTERN.sub("", text)
-    text = _LEAKED_JSON_TOOL_CALLS_PATTERN.sub("", text)
-    text = _DSML_PATTERN.sub("", text)
-    text = _DSML_UNCLOSED_PATTERN.sub("", text)
-    text = _XML_TOOL_PATTERN.sub("", text)
-    text = _XML_TOOL_UNCLOSED_PATTERN.sub("", text)
-    return text.strip()
-
-
-# ============================================================================
-# HTML Entity Decoder (xAI/Grok workaround)
-# ============================================================================
-
-HTML_ENTITY_RE = re.compile(r"&(?:amp|lt|gt|quot|apos|#39|#x[0-9a-fA-F]+|#\d+);")
-
-
-def decode_html_entities_str(value: str) -> str:
-    """Decode HTML entities in a single string value."""
-    return (
-        value.replace("&amp;", "&")
-        .replace("&quot;", '"')
-        .replace("&#39;", "'")
-        .replace("&apos;", "'")
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-    )
-
-
-def decode_html_entities_in_args(
-    obj: str | int | float | bool | list[Any] | dict[str, Any] | None,
-) -> str | int | float | bool | list[Any] | dict[str, Any] | None:
-    """Recursively decode HTML entities in tool call arguments.
-
-    xAI/Grok models encode special characters as HTML entities in tool call
-    arguments (e.g. ``&&`` becomes ``&amp;&amp;``). This corrupts bash commands
-    and other string values. This function recursively walks the parsed args
-    and decodes all string values containing HTML entities.
-
-    Safe for non-xAI models: strings without entities pass through unchanged.
-    """
-    if isinstance(obj, str):
-        return decode_html_entities_str(obj) if HTML_ENTITY_RE.search(obj) else obj
-    if isinstance(obj, list):
-        return [decode_html_entities_in_args(item) for item in obj]
-    if isinstance(obj, dict):
-        return {k: decode_html_entities_in_args(v) for k, v in obj.items()}
-    return obj
-
-
-def _is_inside_code_block(content: str, position: int) -> bool:
-    """Check if a given position is inside a Markdown code block"""
-    before = content[:position]
-    triple_backticks = before.count("```")
-    return triple_backticks % 2 == 1
-
-
-def _find_json_object_end(text: str) -> int:
-    """Find the end position of a JSON object
-
-    Args:
-        text: Text starting with '{'
-
-    Returns:
-        JSON object end position (inclusive of '}'), or -1 if not found
-    """
-    if not text.startswith("{"):
-        return -1
-
-    depth = 0
-    in_string = False
-    escape_next = False
-
-    for i, char in enumerate(text):
-        if escape_next:
-            escape_next = False
-            continue
-
-        if char == "\\":
-            escape_next = True
-            continue
-
-        if char == '"':
-            in_string = not in_string
-            continue
-
-        if not in_string:
-            if char == "{":
-                depth += 1
-            elif char == "}":
-                depth -= 1
-                if depth == 0:
-                    return i + 1
-
-    return -1

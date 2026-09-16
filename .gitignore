@@ -80,3 +80,6 @@ embeddings.db
 .pypi-bootstrap/
 # Ignore nested clone copy when harness lives inside a monorepo checkout
 myrm-agent-harness/
+
+# Session/checkpoint artifacts (never commit)
+.context/

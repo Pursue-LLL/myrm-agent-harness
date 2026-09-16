@@ -108,7 +108,8 @@ class TestNetworkShieldIntegration:
         """Provider ids stay verbatim; only intra-batch duplicates get a suffix.
 
         Gateways validate that replayed tool_call ids match the ones they issued, so
-        rewriting unique ids breaks the next turn.
+        rewriting unique ids breaks the next turn. The suffix matches
+        tool_history_hygiene (id@n) so ids stay deterministic across layers.
         """
         from myrm_agent_harness.toolkits.llms.adapters.tool_call_parsers import _parse_openai_format
 
@@ -124,7 +125,7 @@ class TestNetworkShieldIntegration:
 
         assert len(parsed) == 2
         assert parsed[0]["id"] == "call_abc123"
-        assert parsed[1]["id"].startswith("call_abc123_vtx")
+        assert parsed[1]["id"] == "call_abc123@2"
         assert parsed[0]["id"] != parsed[1]["id"]
 
 

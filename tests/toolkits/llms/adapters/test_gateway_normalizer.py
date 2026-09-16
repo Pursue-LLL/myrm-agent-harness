@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from myrm_agent_harness.toolkits.llms.adapters.gateway_normalizer import (
     is_gateway_param_rejection,
+    is_transport_stripped,
+    remember_stripped_transport,
     sanitize_gateway_params_on_400,
 )
 from myrm_agent_harness.toolkits.llms.adapters.streaming import (
@@ -72,10 +74,7 @@ class TestExtractReasoningPayload:
             ]
         }
         # Direct extraction on delta vs safe fallback
-        assert (
-            extract_reasoning_payload(chunk["choices"][0]["delta"])
-            == "analyzing request from nested choices"
-        )
+        assert extract_reasoning_payload(chunk["choices"][0]["delta"]) == "analyzing request from nested choices"
 
     def test_object_attribute_access(self) -> None:
         class FakeDelta:
@@ -93,15 +92,11 @@ class TestGateway400Downgrade:
     """Test 400 Bad Request error detection and parameter sanitization."""
 
     def test_detect_stream_options_rejection(self) -> None:
-        exc = Exception(
-            "BadRequestError: 400 Extra inputs are not permitted: stream_options"
-        )
+        exc = Exception("BadRequestError: 400 Extra inputs are not permitted: stream_options")
         assert is_gateway_param_rejection(exc) is True
 
     def test_detect_parallel_tool_calls_rejection(self) -> None:
-        exc = Exception(
-            "BadRequestError: 400 Unsupported parameter: parallel_tool_calls"
-        )
+        exc = Exception("BadRequestError: 400 Unsupported parameter: parallel_tool_calls")
         assert is_gateway_param_rejection(exc) is True
 
     def test_detect_reasoning_effort_rejection(self) -> None:
@@ -144,9 +139,7 @@ class TestGateway400Downgrade:
         assert is_gateway_param_rejection(exc) is True
 
     def test_detect_temperature_rejection(self) -> None:
-        exc = Exception(
-            "BadRequestError: 400 Unsupported value: 'temperature' is not supported for this model"
-        )
+        exc = Exception("BadRequestError: 400 Unsupported value: 'temperature' is not supported for this model")
         assert is_gateway_param_rejection(exc) is True
 
     def test_detect_response_format_rejection(self) -> None:
@@ -213,3 +206,78 @@ class TestGateway400Downgrade:
         assert "temperature" in params
         assert params["allowed_openai_params"] == ["model", "temperature"]
 
+
+def _internal_transport_response_format() -> dict:
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "tool_calls_transport",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "properties": {"tool_calls": {"type": "array"}},
+                "required": ["tool_calls"],
+            },
+        },
+    }
+
+
+class TestStructuredOutputSchemaDowngrade:
+    """Schema-shape 400s strip only the internally injected tool-call transport."""
+
+    def test_detect_object_without_properties_rejection(self) -> None:
+        exc = Exception(
+            "BadRequestError: OpenAIException - [400]: Error from provider: "
+            "Upstream request failed: [invalid_request_error] "
+            "An object with no properties is not allowed."
+        )
+        assert is_gateway_param_rejection(exc) is True
+
+    def test_detect_grammar_backend_rejection(self) -> None:
+        exc = Exception("Error code: 400 - {'error': {'message': 'guided_grammar xgrammar failed'}}")
+        assert is_gateway_param_rejection(exc) is True
+
+    def test_sanitize_strips_internal_transport_only(self) -> None:
+        params = {
+            "model": "openai/qwen2.5-7b",
+            "response_format": _internal_transport_response_format(),
+            "allowed_openai_params": ["model", "response_format"],
+        }
+        exc = Exception("[invalid_request_error] An object with no properties is not allowed.")
+        stripped = sanitize_gateway_params_on_400(
+            params, exc, model="openai/qwen2.5-7b", base_url="http://127.0.0.1:11434/v1"
+        )
+
+        assert stripped == ["response_format"]
+        assert "response_format" not in params
+        assert params["allowed_openai_params"] == ["model"]
+        assert is_transport_stripped(model="openai/qwen2.5-7b", base_url="http://127.0.0.1:11434/v1") is True
+
+    def test_sanitize_preserves_user_response_format(self) -> None:
+        params = {
+            "model": "openai/gpt-4o",
+            "response_format": {"type": "json_object"},
+            "allowed_openai_params": ["model", "response_format"],
+        }
+        exc = Exception("[invalid_request_error] An object with no properties is not allowed.")
+        stripped = sanitize_gateway_params_on_400(params, exc)
+
+        assert stripped == []
+        assert params["response_format"] == {"type": "json_object"}
+
+    def test_sanitize_strips_transport_from_extra_body(self) -> None:
+        params = {
+            "model": "openai/qwen2.5-7b",
+            "extra_body": {"response_format": _internal_transport_response_format()},
+        }
+        exc = Exception("compile_grammar_error: backend missing")
+        stripped = sanitize_gateway_params_on_400(params, exc)
+
+        assert stripped == ["response_format"]
+        assert "response_format" not in params["extra_body"]
+
+    def test_transport_memo_roundtrip(self) -> None:
+        assert is_transport_stripped(model="m/unique-model-xyz", base_url="http://127.0.0.1:9/v1") is False
+        remember_stripped_transport(model="m/unique-model-xyz", base_url="http://127.0.0.1:9/v1")
+        assert is_transport_stripped(model="m/unique-model-xyz", base_url="http://127.0.0.1:9/v1") is True
+        assert is_transport_stripped(model="m/other-model", base_url="http://127.0.0.1:9/v1") is False

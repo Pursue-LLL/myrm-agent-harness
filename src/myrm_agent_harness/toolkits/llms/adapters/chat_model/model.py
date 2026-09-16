@@ -515,6 +515,9 @@ class ChatLiteLLM(ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyn
             bind_kwargs["parallel_tool_calls"] = parallel_tool_calls
 
         # Local weak model grammar / structured output constraint transport
+        from myrm_agent_harness.toolkits.llms.adapters.gateway_normalizer import (
+            is_transport_stripped,
+        )
         from myrm_agent_harness.toolkits.llms.adapters.model_capability import (
             ModelCapabilityDetector,
         )
@@ -530,6 +533,7 @@ class ChatLiteLLM(ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyn
                 base_url=api_base_url,
             )
             and "response_format" not in kwargs
+            and not is_transport_stripped(model=model_id, base_url=api_base_url)
         ):
             # Inject constrained tool call array schema for local llama-server/ollama/vLLM endpoints
             bind_kwargs["response_format"] = {
