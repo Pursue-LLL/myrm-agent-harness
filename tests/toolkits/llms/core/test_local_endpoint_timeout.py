@@ -142,3 +142,77 @@ class TestCreateLitellmModelLocalTimeout:
         kwargs = mock_llm.call_args[1]
         assert "first_event_timeout" not in kwargs
         assert "inter_chunk_timeout" not in kwargs
+
+
+class TestIsOllamaEndpoint:
+    """Test _is_ollama_endpoint detects real Ollama endpoints only."""
+
+    @pytest.mark.parametrize(
+        ("url", "model"),
+        [
+            ("", "ollama/llama3.1"),
+            ("http://localhost:11434/v1", "llama3.1"),
+            ("http://127.0.0.1:11434/v1", "openai/llama3.1"),
+            ("http://my-ollama-host:8080/v1", "qwen2.5"),
+        ],
+    )
+    def test_ollama_endpoints(self, url: str, model: str) -> None:
+        from myrm_agent_harness.toolkits.llms.core.llm import _is_ollama_endpoint
+
+        assert _is_ollama_endpoint(url, model) is True
+
+    @pytest.mark.parametrize(
+        ("url", "model"),
+        [
+            ("http://127.0.0.1:20128/v1", "openai-like/deepseek-v4-pro"),
+            ("http://127.0.0.1:8000/v1", "qwen2.5-7b"),
+            ("https://api.openai.com/v1", "gpt-4o"),
+            ("", "gpt-4o"),
+            ("http://127.0.0.1:99999/v1", "qwen2.5-7b"),
+        ],
+    )
+    def test_non_ollama_endpoints(self, url: str, model: str) -> None:
+        from myrm_agent_harness.toolkits.llms.core.llm import _is_ollama_endpoint
+
+        assert _is_ollama_endpoint(url, model) is False
+
+    def test_ollama_provider_prefix(self) -> None:
+        from myrm_agent_harness.toolkits.llms.core.llm import _is_ollama_endpoint
+
+        assert _is_ollama_endpoint("http://127.0.0.1:8080/v1", "ollama/llama3.1") is True
+
+
+class TestOllamaNumCtxInjection:
+    """Test options.num_ctx is injected only for real Ollama endpoints."""
+
+    @patch("myrm_agent_harness.toolkits.llms.core.llm.ChatLiteLLM")
+    @patch(
+        "myrm_agent_harness.toolkits.llms.core.llm.clean_model_kwargs",
+        side_effect=lambda kwargs, model: kwargs,
+    )
+    def test_ollama_endpoint_gets_num_ctx(self, _mock_clean, mock_llm) -> None:
+        create_litellm_model("llama-3.1-70b", base_url="http://localhost:11434", streaming=True)
+        kwargs = mock_llm.call_args[1]
+        assert kwargs["extra_body"]["options"]["num_ctx"] == 64000
+
+    @patch("myrm_agent_harness.toolkits.llms.core.llm.ChatLiteLLM")
+    @patch(
+        "myrm_agent_harness.toolkits.llms.core.llm.clean_model_kwargs",
+        side_effect=lambda kwargs, model: kwargs,
+    )
+    def test_gateway_endpoint_gets_no_ollama_options(self, _mock_clean, mock_llm) -> None:
+        create_litellm_model("qwen2.5-7b", base_url="http://127.0.0.1:20128/v1", streaming=True)
+        kwargs = mock_llm.call_args[1]
+        assert "options" not in kwargs.get("extra_body", {})
+
+    @patch("myrm_agent_harness.toolkits.llms.core.llm.ChatLiteLLM")
+    @patch(
+        "myrm_agent_harness.toolkits.llms.core.llm.clean_model_kwargs",
+        side_effect=lambda kwargs, model: kwargs,
+    )
+    def test_tls_strict_disabled_sets_ssl_verify(self, _mock_clean, mock_llm, monkeypatch) -> None:
+        monkeypatch.setenv("MYRM_TLS_STRICT", "0")
+        create_litellm_model("gpt-4o", base_url="https://api.openai.com/v1")
+        kwargs = mock_llm.call_args[1]
+        assert "ssl_verify" in kwargs
+        assert kwargs["ssl_verify"] is not True

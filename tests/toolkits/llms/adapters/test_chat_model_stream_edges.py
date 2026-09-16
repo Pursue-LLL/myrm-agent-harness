@@ -18,6 +18,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from langchain_core.messages import (
     AIMessageChunk,
+    BaseMessageChunk,
     FunctionMessageChunk,
     HumanMessage,
     HumanMessageChunk,
@@ -310,3 +311,52 @@ class TestAsyncStreamEdges:
         # dict chunks are returned as-is; empty choices do not crash aggregation
         assert agg.ingest_raw_chunk({"choices": [], "usage": {}}) is not None
         assert agg.ingest_raw_chunk(_Chunk({"choices": []})) is not None
+
+
+class _CustomChunk(BaseMessageChunk):
+    """Non-standard chunk class for the generic fallback branch."""
+
+
+class TestProcessChunkFallback:
+    """Unknown roles with non-standard chunk classes use the generic fallback."""
+
+    def _make(self) -> ChatLiteLLM:
+        return ChatLiteLLM(model="openai/test-model")
+
+    def test_fallback_custom_class(self) -> None:
+        model = self._make()
+        cg, cls = model._process_chunk(
+            {"choices": [{"delta": {"role": "tool", "content": "x"}}]},
+            _CustomChunk,
+        )
+        assert cls is _CustomChunk
+        assert cg is not None
+        assert cg.message.content == "x"
+
+
+class TestGenerateRetryLoopExit:
+    """Defensive retry-loop exit raises when no attempt ran."""
+
+    def test_generate_zero_attempts_raises_runtime_error(self) -> None:
+        model = ChatLiteLLM(model="openai/test-model")
+        model.client = MagicMock()
+        model.empty_retry_max_attempts = 0
+        with pytest.raises(RuntimeError, match="Unexpected error"):
+            model._generate([HumanMessage(content="hi")])
+
+
+class TestSyncStreamRunManager:
+    """run_manager receives a callback per yielded chunk."""
+
+    def test_run_manager_callback_invoked(self) -> None:
+        model = ChatLiteLLM(model="openai/test-model")
+        model.client = MagicMock()
+        chunks = [
+            {"choices": [{"delta": {"role": "assistant", "content": "hi"}, "finish_reason": None, "index": 0}]},
+            {"choices": [{"delta": {}, "finish_reason": "stop", "index": 0}], "usage": {"total_tokens": 5}},
+        ]
+        model.client.completion = MagicMock(side_effect=lambda *args, **kwargs: iter(chunks))
+        run_manager = MagicMock()
+        out = list(model._stream([HumanMessage(content="hi")], run_manager=run_manager))
+        assert len(out) > 0
+        assert run_manager.on_llm_new_token.call_count >= 1

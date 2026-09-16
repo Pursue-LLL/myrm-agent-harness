@@ -381,3 +381,36 @@ class TestCleanModelKwargsFacade:
     def test_module_function_delegates(self) -> None:
         result = clean_model_kwargs({"temperature": 0.2, "model": "x"}, "gpt-4")
         assert isinstance(result, dict)
+
+
+# ---------------------------------------------------------------------------
+# Model identity properties and default params
+# ---------------------------------------------------------------------------
+
+
+class TestModelIdentityParams:
+    def test_uses_responses_wire(self) -> None:
+        assert _make_model("gpt-4o").uses_responses_wire() is False
+
+    def test_base_url_property(self) -> None:
+        assert _make_model("gpt-4o", api_base="https://api.openai.com/v1").base_url == "https://api.openai.com/v1"
+        assert _make_model("gpt-4o").base_url is None
+
+    def test_llm_type(self) -> None:
+        assert _make_model("gpt-4o")._llm_type == "litellm-chat"
+
+    def test_identifying_params(self) -> None:
+        params = _make_model("gpt-4o")._identifying_params
+        assert params["model"] == "gpt-4o"
+
+    def test_default_params_merges_optional_fields(self) -> None:
+        model = _make_model(
+            "gpt-4o",
+            extra_body={"custom": "x"},
+            reasoning_effort="high",
+            web_search_options={"search_context_size": "high"},
+        )
+        params = model._default_params
+        assert params["extra_body"] == {"custom": "x"}
+        assert params["reasoning_effort"] == "high"
+        assert params["web_search_options"] == {"search_context_size": "high"}

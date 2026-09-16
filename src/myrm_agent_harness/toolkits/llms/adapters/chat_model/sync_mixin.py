@@ -263,21 +263,10 @@ class ChatLiteLLMSyncMixin:
             func_name = function_call.get("name", "") if function_call else ""
             msg_chunk = FunctionMessageChunk(content=func_args, name=func_name)
         else:
-            # Handle different message chunk types that may require additional parameters
-            if default_chunk_class == AIMessageChunk:
-                msg_chunk = AIMessageChunk(
-                    content=content,
-                    additional_kwargs=additional_kwargs if additional_kwargs else {},
-                )
-            elif default_chunk_class == HumanMessageChunk:
-                msg_chunk = HumanMessageChunk(content=content)
-            elif default_chunk_class == SystemMessageChunk:
-                msg_chunk = SystemMessageChunk(content=content)
-            elif default_chunk_class == FunctionMessageChunk:
-                msg_chunk = FunctionMessageChunk(content=content, name="")
-            else:
-                # Fallback: assume it's a standard message chunk that only needs content and type
-                msg_chunk = default_chunk_class(content=content, type=default_chunk_class.__name__)
+            # Any other combination (unknown role with a non-standard chunk class)
+            # falls through here: the standard classes are all matched above, so
+            # only the generic construction remains.
+            msg_chunk = default_chunk_class(content=content, type=default_chunk_class.__name__)
 
         return ChatGenerationChunk(message=msg_chunk), msg_chunk.__class__
 

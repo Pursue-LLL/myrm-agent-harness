@@ -362,3 +362,80 @@ class TestAsyncAgenerateSchemaDowngrade:
 
         assert mock_acreate.call_count == 1
         assert params["response_format"] == {"type": "json_object"}
+
+
+class TestSyncGenerateSchemaDowngrade:
+    """Sync generate path strips the internal transport on schema-shape 400s."""
+
+    def test_sync_generate_retries_without_internal_transport(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        model = ChatLiteLLM(model="openai/test-schema-downgrade-sync")
+        model.client = MagicMock()
+        params = {
+            "model": "openai/test-schema-downgrade-sync",
+            "response_format": _internal_transport_response_format(),
+            "allowed_openai_params": ["model", "response_format"],
+        }
+        monkeypatch.setattr(
+            model, "_create_message_dicts", lambda *args, **kwargs: ([{"role": "user", "content": "hi"}], params)
+        )
+        schema_error = Exception("[invalid_request_error] An object with no properties is not allowed.")
+        mock_completion = MagicMock(side_effect=[schema_error, _agenerate_success_payload()])
+        model.client.completion = mock_completion
+
+        result = model._generate([HumanMessage(content="hi")])
+
+        assert result.generations[0].message.content == "ok"
+        assert mock_completion.call_count == 2
+        _, retry_kwargs = mock_completion.call_args_list[1]
+        assert "response_format" not in retry_kwargs
+
+    def test_sync_generate_preserves_user_response_format(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        model = ChatLiteLLM(model="openai/test-schema-downgrade-sync-user")
+        model.client = MagicMock()
+        params = {
+            "model": "openai/test-schema-downgrade-sync-user",
+            "response_format": {"type": "json_object"},
+            "allowed_openai_params": ["model", "response_format"],
+        }
+        monkeypatch.setattr(
+            model, "_create_message_dicts", lambda *args, **kwargs: ([{"role": "user", "content": "hi"}], params)
+        )
+        schema_error = Exception("[invalid_request_error] An object with no properties is not allowed.")
+        mock_completion = MagicMock(side_effect=schema_error)
+        model.client.completion = mock_completion
+
+        with pytest.raises(Exception, match="no properties"):
+            model._generate([HumanMessage(content="hi")])
+
+        assert mock_completion.call_count == 1
+        assert params["response_format"] == {"type": "json_object"}
+
+
+class TestSyncStreamSchemaDowngrade:
+    """Sync streaming path strips the internal transport on schema-shape 400s."""
+
+    def test_sync_stream_retries_without_internal_transport(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        model = ChatLiteLLM(model="openai/test-schema-downgrade-stream")
+        model.client = MagicMock()
+        params = {
+            "model": "openai/test-schema-downgrade-stream",
+            "response_format": _internal_transport_response_format(),
+            "allowed_openai_params": ["model", "response_format"],
+        }
+        monkeypatch.setattr(
+            model, "_create_message_dicts", lambda *args, **kwargs: ([{"role": "user", "content": "hi"}], params)
+        )
+        chunks = [
+            {"choices": [{"delta": {"role": "assistant", "content": "ok"}, "finish_reason": None, "index": 0}]},
+            {"choices": [{"delta": {}, "finish_reason": "stop", "index": 0}], "usage": {"total_tokens": 30}},
+        ]
+        schema_error = Exception("[invalid_request_error] An object with no properties is not allowed.")
+        mock_completion = MagicMock(side_effect=[schema_error, iter(chunks)])
+        model.client.completion = mock_completion
+
+        out = list(model._stream([HumanMessage(content="hi")]))
+
+        assert len(out) > 0
+        assert mock_completion.call_count == 2
+        _, retry_kwargs = mock_completion.call_args_list[1]
+        assert "response_format" not in retry_kwargs
