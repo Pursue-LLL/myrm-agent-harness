@@ -172,3 +172,28 @@ class TestAnthropicXmlGuards:
 class TestQwenXmlGuards:
     def test_empty_content(self) -> None:
         assert _parse_qwen_xml_json_format("") == []
+
+
+class TestJsonFragmentGuards:
+    def test_non_string_input(self) -> None:
+        assert _is_complete_json_fragment(None) is False
+        assert _is_complete_json_fragment(123) is False
+
+    def test_array_fragment(self) -> None:
+        assert _is_complete_json_fragment("[1, 2]") is True
+
+    def test_invalid_json(self) -> None:
+        assert _is_complete_json_fragment("{bad}") is False
+
+
+class TestNormalizeUsageModelDump:
+    def test_model_dump_object(self) -> None:
+        class _DumpUsage:
+            def model_dump(self) -> dict:
+                return {"prompt_tokens": 4, "completion_tokens": 5, "total_tokens": 9}
+
+        assert normalize_usage(_DumpUsage()) == {
+            "prompt_tokens": 4,
+            "completion_tokens": 5,
+            "total_tokens": 9,
+        }

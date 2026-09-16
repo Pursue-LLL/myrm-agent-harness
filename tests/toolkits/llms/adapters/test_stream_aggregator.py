@@ -758,6 +758,9 @@ class TestResponsesReasoningReplayStreamExport:
         assert attached is not None
         assert attached.message.additional_kwargs["responses_reasoning_items"] == reasoning_items
 
+    def test_attach_empty_items_passthrough(self) -> None:
+        assert attach_responses_reasoning_items_to_final_chunk(None, []) is None
+
     def test_finalize_stream_exports_reasoning_items_on_final_tool_chunk(self) -> None:
         agg = StreamAggregator(AIMessageChunk)
         agg.responses_reasoning_items = [
