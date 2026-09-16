@@ -59,6 +59,7 @@ class TestPayloadOverflowClassifier:
             FailoverReason,
             classify_failover_reason,
         )
+
         exc = _FakeError("Request entity too large", status_code=413)
         assert classify_failover_reason(exc) == FailoverReason.IMAGE_TOO_LARGE
 
@@ -67,6 +68,7 @@ class TestPayloadOverflowClassifier:
             FailoverReason,
             classify_failover_reason,
         )
+
         exc = _FakeError("400 Bad Request: request body too large", status_code=400)
         assert classify_failover_reason(exc) == FailoverReason.IMAGE_TOO_LARGE
 
@@ -76,9 +78,7 @@ class TestEmergencyEvictFromMessageDicts:
 
     def test_no_eviction_when_under_budget(self) -> None:
         small_url = _make_dummy_data_url(100)  # 100KB
-        message_dicts = [
-            {"role": "user", "content": [{"type": "image_url", "image_url": {"url": small_url}}]}
-        ]
+        message_dicts = [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": small_url}}]}]
         evicted = CumulativeImageBudgetGovernor.emergency_evict_from_message_dicts(
             message_dicts, target_bytes=1024 * 1024
         )
@@ -122,9 +122,7 @@ class TestEmergencyEvictFromMessageDicts:
         b64 = base64.b64encode(buf.getvalue()).decode("ascii")
         real_url = f"data:image/png;base64,{b64}"
 
-        message_dicts = [
-            {"role": "user", "content": [{"type": "image_url", "image_url": {"url": real_url}}]}
-        ]
+        message_dicts = [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": real_url}}]}]
 
         # Target 250KB: uncompressed noise PNG is ~480KB, downsampled WebP is ~100-150KB
         evicted = CumulativeImageBudgetGovernor.emergency_evict_from_message_dicts(
@@ -149,9 +147,7 @@ class TestEmergencyEvictFromMessageDicts:
             HumanMessage(content=[{"type": "image_url", "image_url": {"url": img2}}]),
         ]
 
-        evicted = CumulativeImageBudgetGovernor.emergency_evict(
-            messages, target_bytes=2 * 1024 * 1024
-        )
+        evicted = CumulativeImageBudgetGovernor.emergency_evict(messages, target_bytes=2 * 1024 * 1024)
         assert evicted >= 1
         # Historical message textified
         assert messages[0].content[0]["type"] == "text"
@@ -253,7 +249,9 @@ class TestChatLiteLLMPayloadRecovery:
 
     def test_sync_stream_payload_overflow_recovers(self) -> None:
         from unittest.mock import MagicMock
+
         from langchain_core.messages import HumanMessage
+
         from myrm_agent_harness.toolkits.llms.core.llm import ChatLiteLLM
 
         model = ChatLiteLLM(model="openai/test-model")
@@ -291,4 +289,39 @@ class TestChatLiteLLMPayloadRecovery:
         assert any("sync stream recovered" in str(c.message.content) for c in collected)
         assert messages[0].content[0]["type"] == "text"
 
+    def test_sync_generate_payload_overflow_recovers(self) -> None:
+        from unittest.mock import MagicMock
 
+        from langchain_core.messages import HumanMessage
+
+        from myrm_agent_harness.toolkits.llms.core.llm import ChatLiteLLM
+
+        model = ChatLiteLLM(model="openai/test-model")
+        model.client = MagicMock()
+        calls = {"count": 0}
+
+        img1 = _make_dummy_data_url(2000)
+        img2 = _make_dummy_data_url(2000)
+
+        def _flaky_generate(messages: object, **kwargs: object) -> object:
+            calls["count"] += 1
+            if calls["count"] == 1:
+                raise _FakeError("400 Bad Request: payload size exceeds 10MB", status_code=400)
+            return {
+                "choices": [{"message": {"role": "assistant", "content": "sync generate recovered"}}],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+            }
+
+        model.client.completion = MagicMock(side_effect=_flaky_generate)
+        model.empty_retry_max_attempts = 2
+        model.empty_retry_delay = 0.01
+
+        messages = [
+            HumanMessage(content=[{"type": "image_url", "image_url": {"url": img1}}]),
+            HumanMessage(content=[{"type": "image_url", "image_url": {"url": img2}}]),
+        ]
+
+        result = model._generate(messages)
+        assert calls["count"] == 2
+        assert result.generations[0].message.content == "sync generate recovered"
+        assert messages[0].content[0]["type"] == "text"

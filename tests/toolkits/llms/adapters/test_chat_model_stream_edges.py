@@ -360,3 +360,51 @@ class TestSyncStreamRunManager:
         out = list(model._stream([HumanMessage(content="hi")], run_manager=run_manager))
         assert len(out) > 0
         assert run_manager.on_llm_new_token.call_count >= 1
+
+
+class TestSyncResponsesWire:
+    """Sync generate/stream paths through the Responses wire protocol."""
+
+    def test_sync_generate_responses_wire(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import myrm_agent_harness.toolkits.llms.adapters.chat_model.sync_mixin as sync_mod
+
+        completed = {
+            "choices": [{"message": {"role": "assistant", "content": "ok"}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+        }
+        monkeypatch.setattr(sync_mod, "invoke_responses_sync", lambda *args, **kwargs: completed)
+
+        model = ChatLiteLLM(model="openai/test-model", wire_protocol="responses")
+        model.client = MagicMock()
+        result = model._generate([HumanMessage(content="hi")])
+
+        assert result.generations[0].message.content == "ok"
+
+    def test_sync_stream_responses_wire(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import myrm_agent_harness.toolkits.llms.adapters.chat_model.sync_mixin as sync_mod
+        from myrm_agent_harness.toolkits.llms.adapters.wire.normalizer import (
+            responses_event_to_completion_chunk,
+        )
+
+        completed = responses_event_to_completion_chunk(
+            {
+                "type": "response.completed",
+                "response": {
+                    "output": [
+                        {"type": "message", "content": [{"type": "output_text", "text": "hi"}]},
+                    ],
+                },
+            }
+        )
+        assert completed is not None
+        stream_chunks = [
+            completed,
+            {"choices": [], "usage": {"prompt_tokens": 3, "completion_tokens": 2, "total_tokens": 5}},
+        ]
+        monkeypatch.setattr(sync_mod, "stream_responses_sync", lambda *args, **kwargs: iter(stream_chunks))
+
+        model = ChatLiteLLM(model="openai/test-model", wire_protocol="responses")
+        model.client = MagicMock()
+        out = list(model._stream([HumanMessage(content="hi")]))
+
+        assert len(out) > 0
