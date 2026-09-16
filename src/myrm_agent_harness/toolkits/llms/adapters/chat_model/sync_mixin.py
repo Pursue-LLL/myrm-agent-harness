@@ -61,6 +61,7 @@ class ChatLiteLLMSyncMixin:
     if TYPE_CHECKING:
         # Attributes and sibling-mixin methods defined on the ChatLiteLLM aggregate
         # root; declared here so mypy understands the composition-mixin pattern.
+        api_base: str | None
         client: Any
         model: str
         model_name: str | None
