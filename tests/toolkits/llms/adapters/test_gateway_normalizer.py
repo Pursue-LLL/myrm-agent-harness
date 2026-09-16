@@ -288,6 +288,24 @@ class TestStructuredOutputSchemaDowngrade:
         assert is_transport_stripped(model="m/unique-model-xyz", base_url="http://127.0.0.1:9/v1") is True
         assert is_transport_stripped(model="m/other-model", base_url="http://127.0.0.1:9/v1") is False
 
+    def test_transport_memo_evicts_oldest_at_cap(self) -> None:
+        from myrm_agent_harness.toolkits.llms.adapters import gateway_normalizer as gn
+
+        saved = dict(gn._TRANSPORT_STRIP_MEMO)
+        gn._TRANSPORT_STRIP_MEMO.clear()
+        try:
+            for i in range(gn._TRANSPORT_STRIP_MEMO_CAP):
+                remember_stripped_transport(model=f"m/cap-evict-{i}", base_url="http://127.0.0.1:9/v1")
+            assert len(gn._TRANSPORT_STRIP_MEMO) == gn._TRANSPORT_STRIP_MEMO_CAP
+            assert is_transport_stripped(model="m/cap-evict-0", base_url="http://127.0.0.1:9/v1") is True
+            remember_stripped_transport(model="m/cap-evict-new", base_url="http://127.0.0.1:9/v1")
+            assert len(gn._TRANSPORT_STRIP_MEMO) == gn._TRANSPORT_STRIP_MEMO_CAP
+            assert is_transport_stripped(model="m/cap-evict-0", base_url="http://127.0.0.1:9/v1") is False
+            assert is_transport_stripped(model="m/cap-evict-new", base_url="http://127.0.0.1:9/v1") is True
+        finally:
+            gn._TRANSPORT_STRIP_MEMO.clear()
+            gn._TRANSPORT_STRIP_MEMO.update(saved)
+
 
 def _agenerate_success_payload(content: str = "ok") -> dict:
     return {
