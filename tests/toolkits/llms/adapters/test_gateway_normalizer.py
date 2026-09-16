@@ -282,6 +282,37 @@ class TestStructuredOutputSchemaDowngrade:
         assert stripped == ["response_format"]
         assert "response_format" not in params["extra_body"]
 
+    def test_sanitize_no_duplicate_entries_for_both_locations(self) -> None:
+        params = {
+            "model": "openai/qwen2.5-7b",
+            "response_format": _internal_transport_response_format(),
+            "extra_body": {"response_format": _internal_transport_response_format()},
+            "allowed_openai_params": ["model", "response_format"],
+        }
+        exc = Exception("[invalid_request_error] An object with no properties is not allowed.")
+        stripped = sanitize_gateway_params_on_400(
+            params, exc, model="openai/qwen2.5-7b", base_url="http://127.0.0.1:11434/v1"
+        )
+
+        assert stripped == ["response_format"]
+        assert "response_format" not in params
+        assert "response_format" not in params["extra_body"]
+
+    def test_name_based_rejection_of_internal_transport_is_memoized(self) -> None:
+        params = {
+            "model": "openai/qwen2.5-7b",
+            "response_format": _internal_transport_response_format(),
+            "allowed_openai_params": ["model", "response_format"],
+        }
+        exc = Exception("400 unsupported parameter: response_format")
+        stripped = sanitize_gateway_params_on_400(
+            params, exc, model="openai/qwen2.5-7b-named", base_url="http://127.0.0.1:11434/v1"
+        )
+
+        assert stripped == ["response_format"]
+        assert "response_format" not in params
+        assert is_transport_stripped(model="openai/qwen2.5-7b-named", base_url="http://127.0.0.1:11434/v1") is True
+
     def test_transport_memo_roundtrip(self) -> None:
         assert is_transport_stripped(model="m/unique-model-xyz", base_url="http://127.0.0.1:9/v1") is False
         remember_stripped_transport(model="m/unique-model-xyz", base_url="http://127.0.0.1:9/v1")

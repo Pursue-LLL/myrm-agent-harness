@@ -170,7 +170,8 @@ def sanitize_gateway_params_on_400(
     For parameters with fallback compatibility (e.g. max_completion_tokens -> max_tokens),
     automatically maps the value to the compatible parameter key. Schema-shape rejections
     strip only our internally injected tool-call transport; user-supplied response_format
-    is preserved.
+    is preserved. Whenever our internal transport is stripped, the endpoint is remembered
+    so future requests skip the injection and never pay the failed call.
 
     Returns the list of parameter names that were stripped.
     """
@@ -180,19 +181,28 @@ def sanitize_gateway_params_on_400(
     # Preserve value before stripping for fallback mappings
     saved_max_completion_tokens = params.get("max_completion_tokens")
 
+    # Snapshot before stripping: a name-based rejection of our internal transport
+    # qualifies for endpoint memory too, so mis-detected endpoints pay one retry.
+    had_internal_transport = _response_format_is_internal_transport(params.get("response_format")) or (
+        isinstance(params.get("extra_body"), dict)
+        and _response_format_is_internal_transport(params["extra_body"].get("response_format"))
+    )
+
     for pattern, param_keys in _PARAM_REJECTION_PATTERNS:
         if pattern.search(err_str):
             for key in param_keys:
-                if key in params:
+                if key in params and key not in stripped:
                     params.pop(key, None)
                     stripped.append(key)
 
     for pattern in _STRUCTURED_OUTPUT_SCHEMA_PATTERNS:
         if pattern.search(err_str):
-            if _strip_internal_tool_calls_transport(params):
+            if _strip_internal_tool_calls_transport(params) and "response_format" not in stripped:
                 stripped.append("response_format")
-                remember_stripped_transport(model, base_url)
             break
+
+    if "response_format" in stripped and had_internal_transport:
+        remember_stripped_transport(model, base_url)
 
     # Automatic fallback mapping: max_completion_tokens -> max_tokens
     if "max_completion_tokens" in stripped and saved_max_completion_tokens is not None and "max_tokens" not in params:
