@@ -1,6 +1,7 @@
 """XML tag cleaning and HTML entity decoding for tool-call text.
 
 [INPUT]
+- logging (POS: Python logging)
 - re (POS: Python regex library)
 
 [OUTPUT]

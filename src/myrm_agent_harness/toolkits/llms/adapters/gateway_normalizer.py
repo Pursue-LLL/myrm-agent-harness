@@ -121,7 +121,7 @@ def is_transport_stripped(model: str = "", base_url: str = "") -> bool:
 def remember_stripped_transport(model: str = "", base_url: str = "") -> None:
     """Record that an endpoint rejected the internal tool-call transport."""
     key = _normalize_memo_key(model, base_url)
-    if key in _TRANSPORT_STRIP_MEMO:
+    if key == ("", "") or key in _TRANSPORT_STRIP_MEMO:
         return
     if len(_TRANSPORT_STRIP_MEMO) >= _TRANSPORT_STRIP_MEMO_CAP:
         _TRANSPORT_STRIP_MEMO.pop(next(iter(_TRANSPORT_STRIP_MEMO)))

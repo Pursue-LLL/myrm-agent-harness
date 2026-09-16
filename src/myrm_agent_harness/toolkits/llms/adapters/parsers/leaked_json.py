@@ -1,6 +1,10 @@
 """Leaked raw JSON tool call parsing (e.g. Gemini / Llama raw JSON in text).
 
 [INPUT]
+- contextlib (POS: Python contextlib utilities)
+- json::json (POS: Python JSON library)
+- re::re (POS: Python regex library)
+- uuid::uuid4 (POS: UUID generator)
 - adapters.parsers.types (POS: tool-call type definitions)
 
 [OUTPUT]

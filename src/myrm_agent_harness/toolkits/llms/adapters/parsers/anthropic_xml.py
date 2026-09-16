@@ -1,6 +1,10 @@
 """Anthropic XML tool call parsing.
 
 [INPUT]
+- json::json (POS: Python JSON library)
+- re::re (POS: Python regex library)
+- uuid::uuid4 (POS: UUID generator)
+- logging (POS: Python logging)
 - adapters.parsers.types (POS: tool-call type definitions)
 - adapters.parsers.json_scanner (POS: code-block and JSON boundary scanning)
 

@@ -1,6 +1,11 @@
 """DeepSeek DSML tool call parsing.
 
 [INPUT]
+- contextlib (POS: Python contextlib utilities)
+- json::json (POS: Python JSON library)
+- re::re (POS: Python regex library)
+- uuid::uuid4 (POS: UUID generator)
+- logging (POS: Python logging)
 - adapters.parsers.types (POS: tool-call type definitions)
 
 [OUTPUT]
