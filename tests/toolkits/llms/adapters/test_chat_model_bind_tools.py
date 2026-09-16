@@ -104,3 +104,29 @@ def test_bind_tools_skips_grammar_json_schema_for_cloud_endpoints() -> None:
 
     bind_kwargs = mock_bind.call_args.kwargs
     assert "response_format" not in bind_kwargs
+
+
+def test_bind_tools_skips_transport_for_memoized_endpoint() -> None:
+    """Endpoints that already rejected the transport skip injection (endpoint memory)."""
+    from myrm_agent_harness.toolkits.llms.adapters.gateway_normalizer import (
+        _TRANSPORT_STRIP_MEMO,
+        is_transport_stripped,
+        remember_stripped_transport,
+    )
+
+    model_id = "openai/memo-probe-xyz"
+    base_url = "http://127.0.0.1:11434/v1"
+    saved = dict(_TRANSPORT_STRIP_MEMO)
+    try:
+        assert is_transport_stripped(model=model_id, base_url=base_url) is False
+        llm = ChatLiteLLM(model=model_id, api_base=base_url)
+        sample_tools = [{"type": "function", "function": {"name": "read_file", "parameters": {}}}]
+
+        remember_stripped_transport(model=model_id, base_url=base_url)
+        with patch.object(ChatLiteLLM, "bind", return_value=MagicMock()) as mock_bind:
+            llm.bind_tools(sample_tools)
+
+        assert "response_format" not in mock_bind.call_args.kwargs
+    finally:
+        _TRANSPORT_STRIP_MEMO.clear()
+        _TRANSPORT_STRIP_MEMO.update(saved)

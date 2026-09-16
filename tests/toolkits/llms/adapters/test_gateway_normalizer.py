@@ -27,6 +27,20 @@ from myrm_agent_harness.toolkits.llms.adapters.streaming import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _isolated_transport_memo():
+    """Keep endpoint-memory mutations hermetic across tests in this module."""
+    from myrm_agent_harness.toolkits.llms.adapters import gateway_normalizer as gn
+
+    saved = dict(gn._TRANSPORT_STRIP_MEMO)
+    gn._TRANSPORT_STRIP_MEMO.clear()
+    try:
+        yield
+    finally:
+        gn._TRANSPORT_STRIP_MEMO.clear()
+        gn._TRANSPORT_STRIP_MEMO.update(saved)
+
+
 class TestExtractReasoningPayload:
     """Test extract_reasoning_payload with various non-standard gateway response shapes."""
 
