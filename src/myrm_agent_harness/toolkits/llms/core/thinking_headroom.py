@@ -46,6 +46,7 @@ _THINKING_MODEL_PREFIXES: tuple[str, ...] = (
     "gemini-3",
     "nemotron",
     "qwq",
+    "minimax-m",
     "grok-4",
 )
 
@@ -66,6 +67,19 @@ def _is_thinking_model(model: str) -> bool:
         return False
     slug = model.rsplit("/", 1)[-1].lower()
     return any(slug.startswith(prefix) for prefix in _THINKING_MODEL_PREFIXES)
+
+
+def thinking_output_floor(model: str, llm_kwargs: dict[str, Any] | None = None) -> int | None:
+    """Return the output-token floor applied to a thinking model, else None.
+
+    Exposed so budget-boost recovery can scale from the same headroom the model is
+    guaranteed, instead of only from a user-configured ``max_tokens`` (which is
+    absent when the deployment relies on the provider default).
+    """
+    if not _is_thinking_model(model):
+        return None
+    effort = _extract_effort(llm_kwargs or {})
+    return _EFFORT_FLOORS.get(effort, _DEFAULT_FLOOR) if effort else _DEFAULT_FLOOR
 
 
 def _extract_effort(llm_kwargs: dict[str, Any]) -> str | None:

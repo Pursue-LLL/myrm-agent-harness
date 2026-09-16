@@ -53,6 +53,10 @@ from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy impor
     MemorySearchPolicy,
     resolve_search_corpora,
 )
+from myrm_agent_harness.toolkits.memory.agent_surface.rule_write_boundary import (
+    get_user_locked_rule,
+    rule_rewrite_protection_message,
+)
 from myrm_agent_harness.toolkits.memory.agent_surface.tool_result_sources import (
     pack_tool_result_with_sources,
     unpack_corpus_tool_result,
@@ -502,12 +506,17 @@ def create_memory_tools(
                         return f"Rule deleted (ID: {memory_id})"
                     return (
                         f"Cannot delete rule (ID: {memory_id}): "
-                        "it may be pinned or not found. Pinned rules cannot be deleted by the agent."
+                        "it may be user-protected or not found. Rules the user explicitly "
+                        "locked cannot be deleted by the agent."
                     )
 
             elif action == "update":
                 if not new_content:
                     return "Update requires 'new_content'."
+                if mem_type == MemoryType.PROCEDURAL:
+                    existing = await manager.get_memory(memory_id)
+                    if get_user_locked_rule(existing) is not None:
+                        return rule_rewrite_protection_message(memory_id)
                 updated = await manager.update_memory(
                     memory_id, content=new_content, importance=new_importance
                 )

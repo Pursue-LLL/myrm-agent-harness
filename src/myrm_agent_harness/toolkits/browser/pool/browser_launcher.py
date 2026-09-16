@@ -293,6 +293,25 @@ class BrowserLauncher:
                 merged_headers.update(headers)
             return await self._connect_existing(self._remote_ws_endpoint, headers=merged_headers)
 
+        from .chrome_discovery import resolve_e2e_cdp_endpoint
+
+        e2e_endpoint = resolve_e2e_cdp_endpoint()
+        if e2e_endpoint:
+            # E2E owns exactly this Chrome and it carries the profile the run was
+            # provisioned with (auth session, extension bridge). Discovering another
+            # browser here would silently retarget the run at a foreign profile, and
+            # launching a fresh Chromium would do the same with an empty one — so both
+            # are refused and the failure stays attributable to the E2E Chrome itself.
+            if not await self._probe_cdp(e2e_endpoint):
+                msg = (
+                    f"E2E Chrome is not reachable via CDP at {e2e_endpoint}; refusing "
+                    "local-browser discovery and fresh launch while MYRM_CHROME_E2E is "
+                    "enabled. Ensure the chrome-e2e preflight started this Chrome."
+                )
+                logger.error(msg)
+                raise BrowserLaunchError(msg)
+            return await self._connect_existing(e2e_endpoint, headers=headers)
+
         if self._launch_mode == LaunchMode.CONNECT:
             discovered = await self._discover_local_chrome()
             endpoint_to_try = discovered or self._cdp_endpoint

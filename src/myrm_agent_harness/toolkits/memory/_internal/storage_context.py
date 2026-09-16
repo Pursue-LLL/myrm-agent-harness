@@ -99,7 +99,7 @@ async def load_context(
 
     if "rules" in results and not isinstance(results["rules"], Exception):
         rules_raw = results["rules"]
-        user_rules: list[dict[str, str | int]] = []
+        user_rules: list[dict[str, str | int | bool]] = []
         agent_instrs: list[dict[str, str | int]] = []
         if isinstance(rules_raw, list):
             for r in rules_raw:
@@ -125,8 +125,16 @@ async def load_context(
                                 "trigger": r.trigger,
                                 "action": r.action,
                                 "priority": r.priority,
+                                # User-endorsed rules must survive prompt-budget
+                                # truncation: the middleware emits endorsed rules
+                                # last so generic rules are trimmed first.
+                                "user_endorsed": r.is_user_locked,
                             }
                         )
+        # Endorsed rules keep their relative priority but move ahead of the
+        # generic ones, so the combined-budget trimmer drops unendorsed rules
+        # first. Order stays fully deterministic for Prefix Cache stability.
+        user_rules.sort(key=lambda rule: not bool(rule["user_endorsed"]))
         ctx["rules"] = user_rules
         if include_agent_instructions:
             ctx["agent_instructions"] = agent_instrs

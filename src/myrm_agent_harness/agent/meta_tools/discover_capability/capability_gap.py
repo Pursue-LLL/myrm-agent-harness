@@ -5,7 +5,7 @@
 
 [OUTPUT]
 - detect_capability_gap: entitlement gap intent hits for preflight
-- CAPABILITY_GAP_REGISTRY: substring trigger SSOT for 15 GUI-togglable IDs (excludes skill_market/skill_manage; baseline excluded)
+- CAPABILITY_GAP_REGISTRY: substring trigger SSOT for 14 GUI-togglable IDs (excludes skill_market/skill_manage; baseline excluded)
 - BUILTIN_TOOL_ID_TO_GROUP: derived view for server catalog parity tests
 
 [POS]

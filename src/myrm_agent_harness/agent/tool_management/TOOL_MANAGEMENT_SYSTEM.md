@@ -146,7 +146,9 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `kanban_revise_plan` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_show` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_unblock` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
-| `render_ui_tool` | EXTENDED | user_capability | render_ui | enabled_builtin_tools: render_ui |
+| `mobile_global_tool` | EXTENDED | user_capability | — | Opt-in Turn1; see product switch |
+| `mobile_interact_tool` | EXTENDED | user_capability | — | Opt-in Turn1; see product switch |
+| `mobile_snapshot_tool` | EXTENDED | user_capability | — | Opt-in Turn1; see product switch |
 | `request_answer_user_tool` | EXTENDED | user_capability | answer_tool | enabled_builtin_tools: answer_tool |
 | `send_teammate_message_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
 | `skill_manage_tool` | EXTENDED | user_capability | — | enabled_builtin_tools: skill_manage or /learn force_skill_manage (server Turn1) |
@@ -154,10 +156,11 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `skill_search_tool` | EXTENDED | user_capability | — | Turn1 when searchable skills exist |
 | `subagent_control_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
 | `todo_write` | EXTENDED | user_capability | planning | planning or existing workspace todos |
-| `update_ui_data_tool` | EXTENDED | user_capability | render_ui | enabled_builtin_tools: render_ui |
 | `wiki_apply_tool` | EXTENDED | user_capability | wiki | enabled_builtin_tools: wiki |
 | `wiki_ingest_tool` | EXTENDED | user_capability | wiki | enabled_builtin_tools: wiki |
 | `wiki_query_tool` | EXTENDED | user_capability | wiki | enabled_builtin_tools: wiki |
+| `a2a_call` | EXTERNAL | user_capability | — | Server vendor / MCP direct / OpenAPI / unregistered dynamic tools |
+| `a2a_orchestrate` | EXTERNAL | user_capability | — | Server vendor / MCP direct / OpenAPI / unregistered dynamic tools |
 | `artifact_publish` | EXTERNAL | user_capability | — | Server vendor / MCP direct / OpenAPI / unregistered dynamic tools |
 | `channel_notify_tool` | EXTERNAL | user_capability | — | Agent notify_targets configured |
 | `image_tool` | EXTERNAL | user_capability | image_generation | enabled_builtin_tools: image_generation |

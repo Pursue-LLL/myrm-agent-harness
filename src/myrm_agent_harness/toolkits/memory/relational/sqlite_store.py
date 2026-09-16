@@ -655,7 +655,7 @@ class SQLiteRelationalStore(RelationalStore):
                      AND (trigger_text LIKE ? OR action_text LIKE ?)
                 """
                 + scope_sql
-                + " ORDER BY priority DESC LIMIT ?",
+                + " ORDER BY priority DESC, created_at DESC, id DESC LIMIT ?",
                 (pattern, pattern, *scope_params, limit),
             ) as cursor:
                 rows = await cursor.fetchall()
@@ -678,14 +678,14 @@ class SQLiteRelationalStore(RelationalStore):
                 sql = (
                     f"SELECT {PROCEDURAL_COLUMNS} FROM procedural_rules WHERE is_active = 1"
                     + scope_sql
-                    + " ORDER BY priority DESC LIMIT ? OFFSET ?"
+                    + " ORDER BY priority DESC, created_at DESC, id DESC LIMIT ? OFFSET ?"
                 )
                 params: tuple[str | int, ...] = (*scope_params, limit, offset)
             else:
                 sql = (
                     f"SELECT {PROCEDURAL_COLUMNS} FROM procedural_rules WHERE 1=1"
                     + scope_sql
-                    + " ORDER BY priority DESC LIMIT ? OFFSET ?"
+                    + " ORDER BY priority DESC, created_at DESC, id DESC LIMIT ? OFFSET ?"
                 )
                 params = (*scope_params, limit, offset)
             async with conn.execute(sql, params) as cursor:

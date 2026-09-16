@@ -3,22 +3,54 @@
 > **术语**：下文 **「工具」= LLM 工具**（Action Tool）。§4.18 所列编排信号 / runtime hook **不是** LLM 工具，不计入 66 个。
 
 > 测量方法：`tiktoken o200k_base` 规划 SSOT（`utils/text_utils.PLANNING_ENCODING`；与 GPT-5 / GPT-4o 族一致）
-> 测量时间：2026-08-14（`scripts/measure_turn1_token_inventory.py`）
-> 测量对象：默认通用智能体，Turn 1 初始化时的完整 prompt 结构
+> 测量时间：2026-09-16（`scripts/measure_turn1_token_inventory.py`）
+> 测量宿主：macOS 25.5.0 / arm64 / bash（OS hint、env 行、toolchain 探测行随宿主变化，见 §一、§二 标注）
+> 测量对象：默认通用智能体，Turn 1 初始化时的完整 prompt 结构；`prompt_mode=full`、`enable_answer_tool=False`（server 默认）、locale EN（工具描述为主，prompt 主体见 §一 双列）
+> 漂移门禁：`tests/scripts/test_measure_turn1_token_inventory.py` 锁定 §二–§四 逐工具数值，`tests/architecture/test_prompt_token_budget_gate.py` 锁定预算上限
 >
 > **三 tier 计量**：① UI 上下文环 = 上一轮 API `prompt_tokens`；② compress / summarize / emergency prune 预算 = messages + bind-tools overhead（本表）+ 可选 max(API)；③ 非 OpenAI 模型 client 估算存在偏差，账单以 provider usage 为准。
 
 ---
 
-## 一、System Prompt 层（~2,607 tokens）
+## 一、System Prompt 层（`messages[0]` 拼装 + `messages[1]` 安全边界）
 
-| # | 组件 | Token (tiktoken) | 来源文件 | 说明 |
-|---|------|------------------:|----------|------|
-| 1 | CORE_SYSTEM_PROMPT | ~1,700 | `server/prompts/general_agent_prompt.py` | 身份(_IDENTITY_CORE) + 精简 RULESET + RESPONSE_RULES + SECURITY_RULES。通用防御规则（XML 防御、上下文优先）已下沉至框架层 AGENT_CORE_RULES |
-| 2 | DATETIME_SYSTEM_RULES | 91 | `harness/agent/streaming/utils.py` | 时间感知规则常量（`<datetime_rules>` 标签），冻结在 system prompt 中 |
-| 3 | SecurityBoundary 数据边界规则 | 328 | `harness/agent/security/detection/content_boundary.py` | 由 SecurityBoundaryMiddleware 注入的 `<data_boundary_rules>` |
+> **口径**：tiktoken `o200k_base` 实测（`utils/text_utils.PLANNING_ENCODING`），宿主 macOS。
+> `messages[0]` 由框架层 `agent/base_agent.py:178-183` **一次拼装**完成——业务层 CORE prompt 只是其中一段，框架层在其后追加 6 段；安全边界是 `messages[1]` 的**独立 SystemMessage**，不计入 `messages[0]`。
 
-**缓存特性**：System Prompt 完全冻结（无动态内容），跨用户共享缓存。
+| # | 组件 | Token (o200k_base) | 来源文件 | 说明 |
+|---|------|-------------------:|----------|------|
+| 1 | CORE_SYSTEM_PROMPT | **662** (EN) / **1,021** (ZH) | `server/ai_agents/prompts/general_agent_prompt.py` | `prompt_mode=full` + `enable_answer_tool=False`（server 默认，`server/ai_agents/agents.py:132`）。开启 answer_tool 时为 738 / 1,103。组成 = identity + ABSOLUTE_OBEDIENCE + RESPONSE + TASK_INTEGRITY（来自 `shared_rules.py`） |
+| 2 | DATETIME_SYSTEM_RULES | 89 | `harness/agent/streaming/utils.py:61` | 时间感知规则常量（`<datetime_rules>` 标签），冻结在 system prompt 中 |
+| 3 | AGENT_CORE_RULES + TOOL_ENFORCEMENT | **477**（303 + 174） | `harness/agent/streaming/model_discipline.py:51/82` | L1 核心规则**无条件注入**；L2 工具执行约束按 `_ENFORCEMENT_FAMILIES`（gpt/codex/gemini/gemma/grok/glm/qwen/deepseek/claude/anthropic）命中注入，未命中族减 174 |
+| 4 | 模型族纪律（L3/L3.5） | **530** GPT/Codex/Grok · 119 Claude · **+178** Opus 补充 · 163 Gemini · 106 DeepSeek/Qwen/GLM | 同上 | 按 model name 命中，**互斥**（`_FAMILY_DISCIPLINE`），只有 Opus 额外叠加 178 |
+| 5 | resolve_escalation_contract（L4） | 189（模板 184 + 模型名占位） | `model_discipline.py:280` | 仅当配置 escalation 模型且与主模型**不同名**时注入，否则 0（`resolve_escalation_contract` 早返） |
+| 6 | channel output hint | 56（web_chat / slack）· 52（voice）· 25（wechat）· 17（webhook）· 0（无渠道） | `harness/agent/streaming/channel_output_hints.py:176` | 按渠道名解析；命中 `CHANNEL_OUTPUT_HINTS` 常量表 |
+| 7 | environment 行 | 43 (macOS) · 29 (Linux) · 31 (Windows/powershell) | `harness/toolkits/code_execution/platform.py:149` | `<environment>` 标签；含 OS/shell/可选 python-toolchain 与 VNC 探测行（干净环境为 0） |
+| 8 | canary 指令 | **50~57**（均值 ≈53） | `harness/agent/security/detection/canary_guard.py:51` | `SECURITY CANARY: CANARY-<12 位 hex>`；随机 hex 触发 BPE 分裂，实测 300 次采样分布 50~57，**非字节恒定**但差异可忽略 |
+| 9 | SecurityBoundary 数据边界规则（`messages[1]`） | **299** | 定义于 `harness/core/security/detection/content_boundary.py:391`（`agent/security/detection/content_boundary.py` 为 re-export shim） | 由 SecurityBoundaryMiddleware 注入（`agent/middlewares/security/security_boundary_middleware.py:68`）；**不占用 `messages[0]`** |
+
+**`messages[0]` 合计（实测，含上表 1~8，不含运行时条件追加）**：
+
+| 模型族 | full-ZH | full-EN | lean-ZH | lean-EN |
+|--------|--------:|--------:|--------:|--------:|
+| GPT-5 / Codex / Grok | **2,269** | 1,910 | 1,614 | 1,533 |
+| Claude Sonnet / Haiku | 1,858 | 1,499 | 1,203 | 1,122 |
+| Claude Opus | 2,036 | 1,677 | 1,381 | 1,300 |
+| Gemini | 1,902 | 1,543 | 1,247 | 1,166 |
+| DeepSeek / Qwen / GLM | 1,845 | 1,486 | 1,190 | 1,109 |
+
+> 口径：`messages[0]` = CORE(mode, locale, `enable_answer_tool=False`) + DATETIME 89 + (AGENT_CORE_RULES 303 + TOOL_ENFORCEMENT 174) + 模型族纪律 + channel hint 56(web_chat) + env 行 43(macOS) + canary 均值 53。
+> 上表按 `_ENFORCEMENT_FAMILIES` 全覆盖口径：GPT/Codex/Grok · Claude/Anthropic · Gemini/Gemma · DeepSeek/Qwen/GLM 均计入 TOOL_ENFORCEMENT；仅 Opus 额外叠加 178。若模型名不含上述族关键词，则再减 174。
+> canary 为随机 hex，实测 50~57 tok（均值 53），故上表存在 **±4** 抖动；其余分量在参数组合内字节恒定。
+>
+> 默认组合（GPT-5 族 + 中文用户 + full）：`messages[0]` 2,269 + `messages[1]` 299 = **2,568 tokens**。
+>
+> **运行时条件追加**（默认不注入，按需叠加，不计入上表；均来自 `server/ai_agents/general_agent/factory.py` 的 `system_prompt +=` 分支）：
+> `DESKTOP_CONTROL_RULES` 424 EN / 517 ZH（`:535`，`mount_desktop_prompt`）· `SEARCH_DEEP_SUFFIX`（`:507`，search 深研模式）· unattended 声明 ~55（`:510`）· `get_worker_lifecycle_guidance()`（`:527`，kanban worker 模式）· `get_cli_tools_context()`（`:545`，`mount_cli_context`）· `CHANNEL_NOTIFY_SYSTEM_APPENDIX`（`:554`，通知工具挂载）· `[Mounted Workspace Directories]` 清单（`:568`，session roots）· `user_instructions`（`stream_lane_factory.py:484`）。
+
+**`enable_answer_tool` 影响**（该 flag 在 `general_agent_prompt._PROMPT_MAPS` 预构建时二分，改变 CORE 主体本身）：full 模式 EN +76 / ZH +82，lean 模式 EN +76 / ZH +82，naked / search 模式**无差异**。server 默认 `False`（`server/ai_agents/agents.py:132`），上表已按 False 计量。
+
+**缓存特性**：`messages[0]` 与 `messages[1]` 除 canary 随机 hex（±4 tok 抖动）外均为参数组合内字节恒定，跨用户共享缓存。
 
 ---
 
@@ -29,7 +61,7 @@
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
 |---|--------|------------------:|----------|------|----------|
 | 4a | web_fetch_tool | 148 | `harness/toolkits/web_fetch/web_fetch_agent_tools.py` | HTTP 抓取/深读 | Turn1 基线 |
-| 6 | **bash_code_execute_tool** | **1,450** | `harness/agent/meta_tools/bash/_tool/tool_description.py` | Shell/Python；静态 ~4k-char 描述 + OS hint（路由+skill_select+MCP 依赖决策+禁 myrm_tools；无动态 append） | 通用 Agent 基线 |
+| 6 | **bash_code_execute_tool** | **1,425** | `harness/agent/meta_tools/bash/_tool/tool_description.py` + `_tool/helpers.py:54` | Shell/Python。**宿主相关**：静态描述 1,367 + OS hint 58（macOS）/ 32（Linux）/ 31（Windows）+ 可选 toolchain 探测行（干净环境为 0） | 通用 Agent 基线 |
 | 6b | **bash_process_tool** | **107** | `harness/agent/meta_tools/bash/bash_process_tools.py` | 后台进程 list/output/kill（CORE；与 bash_code_execute 同挂） | enable_shell_tools |
 | 7 | file_edit_tool | 132 | `harness/agent/meta_tools/file_ops/file_edit_tool.py` | 批量 edits[] 原子编辑 | 通用 Agent 基线 |
 | 8 | file_read_tool | 332 | `harness/agent/meta_tools/file_ops/file_read_tool.py` | 读取文件 | 通用 Agent 基线 |
@@ -37,7 +69,7 @@
 | 10 | glob_tool | 201 | `harness/agent/meta_tools/file_search/glob_tool.py` | 通配符搜索 | 通用 Agent 基线 |
 | 11 | grep_tool | 205 | `harness/agent/meta_tools/file_search/grep_tool.py` | 正则搜索 | 通用 Agent 基线 |
 
-**CORE 描述小计（Turn1）**：**2,693 tokens**（8 工具；`scripts/measure_turn1_token_inventory.py` 实测）
+**CORE 描述小计（Turn1）**：**2,668 tokens**（8 工具，macOS 宿主实测；`scripts/measure_turn1_token_inventory.py`）。Linux/Windows 宿主因 OS hint 更短而少 ~26 tok。
 
 ---
 
@@ -54,20 +86,20 @@
 | 12 | **web_search_tool** | **1,174** | `harness/toolkits/web_search/_web_search_tool_description.py` | 网络搜索（EN/ZH LLM-facing query-rewrite SSOT；server 传 locale） | GUI 可关 |
 | 13 | **memory_search_tool** | **143** | `harness/toolkits/memory/_memory_agent_tool_descriptions.py` | 统一检索（corpus ACL 与 policy 一致；默认仅 memory corpus） | enable_memory |
 | 14 | **memory_save_tool** | **720** | `harness/toolkits/memory/_memory_agent_tool_descriptions.py` | 写入长期记忆（EN core；wiki/approval 动态段；保留原有关键 guardrail 短语） | enable_memory |
-| 15 | **memory_manage_tool** | **315** | 同上 | 更新/删除/纠正/评分；correct→knowledge only（preserves history）；update→措辞微调；instruction→category=rule | enable_memory |
-| 16 | **skill_select_tool** | **187** | `harness/agent/meta_tools/skills/select/skill_select_tool.py` | 字节稳定静态 rules（tiktoken measured）；search 提示经 dynamic_hints 条件注入；bound catalog 在首条 HumanMessage `<bound_skills>` | skill_backend present |
+| 15 | **memory_manage_tool** | **339** (EN) / **390** (ZH) | 同上 | 更新/删除/纠正/评分；correct→knowledge only（preserves history）；update→措辞微调；instruction→category=rule；**user-locked rule 不可 update/delete** | enable_memory |
+| 16 | **skill_select_tool** | **240** (EN) / **278** (ZH) | `harness/agent/meta_tools/skills/select/skill_select_tool.py` | 字节稳定静态 rules，按 locale 选 EN/ZH 常量；bound catalog 在首条 HumanMessage `<bound_skills>` | skill_backend present |
 
-**HIGH_PRIORITY Turn1 实测（默认 profile）**：**2,539 tokens**（5 工具；web_search + memory×3 + skill_select；English 描述；默认 memory_search 仅 memory corpus）
+**HIGH_PRIORITY 描述小计（Turn1，EN 描述）**：**2,616 tokens**（5 工具；web_search + memory×3 + skill_select；默认 memory_search 仅 memory corpus）
 
 ---
 
 ## 四、EXTENDED 工具层（harness 可选；EXTERNAL 在其后）
 
-### 4.1 glob/grep（已迁至 §二 CORE）
+### 4.1 glob/grep（归属 CORE 层）
 
 glob_tool / grep_tool 登记在 CORE 层，Turn1 与 file 工具一并 bind。见 §二。
 
-### 4.2 历史会话搜索（opt-in，已并入 memory_search_tool）
+### 4.2 历史会话搜索（opt-in，由 memory_search_tool 承载）
 
 历史聊天检索通过 `memory_search_tool` 的 `corpus=sessions` ACL 启用（用户开启 `memoryEnableConversationSearch` 且非无痕）。`conversation_search/` 模块为 sessions corpus 执行后端；`create_conversation_search_tool` 工厂仅 harness 单元测试使用，非 Turn1 LLM 工具。
 
@@ -84,7 +116,7 @@ glob_tool / grep_tool 登记在 CORE 层，Turn1 与 file 工具一并 bind。�
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
 |---|--------|------------------:|----------|------|----------|
 | 26 | ask_question_tool | 118 | `harness/agent/meta_tools/clarification/clarification_agent_tools.py` | 结构化澄清；`requires_confirmation` 驱动危险强调；middleware 强制单轮单次 | server mount policy (interactive web_chat) |
-| 29 | **request_answer_user_tool** | **1,024** | `harness/agent/meta_tools/answer_user_tool.py` | 搜索 Agent 终局自审门 | 默认关闭（`answer_tool` opt-in，EXTENDED 层） |
+| 27 | **request_answer_user_tool** | **1,024** | `harness/agent/meta_tools/answer_user_tool.py` | 搜索 Agent 终局自审门 | 默认关闭（`answer_tool` opt-in，EXTENDED 层） |
 
 ### 4.6 子 Agent 委托工具（有子 Agent 配置时加载；空 catalog 零 bind）
 
@@ -110,7 +142,7 @@ glob_tool / grep_tool 登记在 CORE 层，Turn1 与 file 工具一并 bind。�
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 |
 |---|--------|------------------:|----------|------|
-| 47 | cron_manage_tool | 827 | `harness/toolkits/cron/cron_agent_tools.py` | 定时任务管理；蓝图目录改 `action=blueprints` 按需拉取（Turn1 不再注入 ~809B catalog） |
+| 47 | cron_manage_tool | 827 | `harness/toolkits/cron/cron_agent_tools.py` | 定时任务管理；蓝图目录经 `action=blueprints` 按需拉取，不占 Turn1 描述 |
 
 ### 4.10 Wiki 知识库工具（有 Wiki 目录时加载）
 
@@ -154,12 +186,15 @@ glob_tool / grep_tool 登记在 CORE 层，Turn1 与 file 工具一并 bind。�
 
 ### 4.17 桌面语义控制工具（启用 Computer Use 时加载）
 
+`create_desktop_tools()` 定义 3 个工具（`harness/toolkits/computer_use/desktop_agent_tools.py:72/150/204`）：
+
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 |
 |---|--------|------------------:|----------|------|
-| 77 | desktop_snapshot_tool | ~55 | `harness/toolkits/computer_use/desktop_agent_tools.py` | AX 树 + @dref，可选截图 |
-| 78 | desktop_interact_tool | ~60 | `harness/toolkits/computer_use/desktop_agent_tools.py` | @dref 语义交互（含 set_value） |
-| 79 | desktop_interact_tool | ~50 | `harness/toolkits/computer_use/desktop_agent_tools.py` | @dref 语义交互 |
-| 80 | desktop_vision_tool | ~60 | `harness/toolkits/computer_use/desktop_agent_tools.py` | 显式截图/坐标回退 |
+| 77 | desktop_snapshot_tool | 91 | `harness/toolkits/computer_use/desktop_agent_tools.py` | AX 树 + @dref，可选截图 |
+| 78 | desktop_interact_tool | 40 | `harness/toolkits/computer_use/desktop_agent_tools.py` | @dref 语义交互（含 set_value） |
+| 79 | desktop_vision_tool | 69 | `harness/toolkits/computer_use/desktop_agent_tools.py` | 显式截图/坐标回退 |
+
+移动端镜像工具（`harness/toolkits/mobile_adb/mobile_agent_tools.py`，仅 macOS + 启用 iPhone Mirroring 场景加载）：`mobile_snapshot_tool` / `mobile_interact_tool` / `mobile_global_tool`。
 
 ### 4.18 内部分类（非 LLM 工具，默认 GeneralAgent Turn1 = 0 token）
 
@@ -259,72 +294,80 @@ Token 明细（历史 tiktoken 计量保留）：
 
 | 分类 | Token (tiktoken) | 明细 |
 |------|------------------:|------|
-| System Prompt 层 | ~2,607 | 固定，跨用户缓存 |
-| CORE 工具层 | **2,540** | 8 工具（含 bash_process；`measure_turn1_token_inventory.py` 实测） |
-| HIGH_PRIORITY 工具层 | **2,336** | web_search + memory×3 + skill_select |
+| System Prompt 层 | **2,568** | `messages[0]` 2,269（GPT-5 族 · ZH · full）+ `messages[1]` 299，固定，跨用户缓存 |
+| CORE 工具层 | **2,668** | 8 工具描述（含 bash_process；`measure_turn1_token_inventory.py` 实测，o200k_base） |
+| HIGH_PRIORITY 工具层 | **2,616** | web_search + memory×3 + skill_select |
 | EXTENDED 工具层 | **0** | 默认 profile 无附加 EXTENDED 工具 |
-| 工具 JSON schema | **845** | 13 工具 × ~65 |
+| 工具 JSON schema | **845** | 13 工具 × 65 |
 | 动态注入 | ~1,200 | user_instructions + memory_context + inline_skills |
 | 消息格式 | ~500 | role tags, boundaries 等 |
 | 用户消息 | ~32 | 短消息 + datetime 标签 |
-| **tiktoken 小计** | **~10,060** | |
-
-> bash Turn1 描述 token **1,322**（静态 `_tool_description.py` + OS hint；`scripts/measure_turn1_token_inventory.py` 实测）。
+| **tiktoken 小计** | **~10,429** | |
 
 ### 最小 Turn 1 场景（仅 CORE 8 工具，无 HIGH_PRIORITY/EXTENDED）
 
 | 分类 | Token (tiktoken) |
 |------|------------------:|
-| System Prompt 层 | ~2,607 |
-| CORE 工具层 | **2,540** |
-| 工具 JSON schema | **520** (~8 工具 × ~65) |
+| System Prompt 层 | **2,568** |
+| CORE 工具层 | **2,668** |
+| 工具 JSON schema | **520** (8 工具 × 65) |
 | 用户消息 | ~32 |
 | 消息格式 | ~300 |
-| **tiktoken 小计** | **~5,999** |
+| **tiktoken 小计** | **~6,088** |
 
 ### 满载场景（所有可选功能全开：浏览器+Cron+Wiki+子Agent+渲染UI+看板+日历+计算机+IM）
 
 | 分类 | Token (tiktoken) |
 |------|------------------:|
-| System Prompt 层 | ~2,607 |
-| CORE 工具层 | ~255 |
-| HIGH_PRIORITY 工具层 | ~4,457 |
-| EXTENDED 全部（82 工具，harness 80 + server 2） | ~7,411+ |
-| 工具 JSON schema | ~5,720 (~88 工具 × ~65) |
+| System Prompt 层 | **2,568** |
+| CORE 工具层 | **2,668** |
+| HIGH_PRIORITY 工具层 | ~2,616 |
+| EXTENDED + EXTERNAL（41 + 7 = 48 工具） | ~7,400（**粗估，未逐项实测**；EXTENDED 装配依赖各 backend，无法在离线脚本中全量构建） |
+| 工具 JSON schema | ~3,120 (48 工具 × 65) |
 | 动态注入 | ~1,200 |
 | 消息格式 | ~500 |
-| **tiktoken 小计** | **~22,411+** |
+| **tiktoken 小计** | **~20,072（粗估）** |
+
+> 工具数量以文件末尾 `TOOL_COUNT_BEGIN/END` 自动生成块为 SSOT（当前 61 LLM 工具 = CORE 8 + HIGH_PRIORITY 5 + EXTENDED 41 + EXTERNAL 7）。本场景假设全部 61 工具同轮 bind；EXTENDED/EXTERNAL 描述 token 未逐项实测，仅作量级参考。
 
 ---
 
 ## 缓存分层效果
 
 ```
-[CORE: web_fetch + bash + file_* + glob + grep (~2,540 tok, 8 tools)]
+[CORE: web_fetch + bash + file_* + glob + grep (~2,668 tok, 8 tools)]
   ↑ 通用 Agent 基线前缀（agent 模式）
 
-[HIGH_PRIORITY: web_search + memory_* + skill_select (~2,336 tok)]
+[HIGH_PRIORITY: web_search + memory_* + skill_select (~2,616 tok)]
   ↑ web_search 优先；memory 组紧随；skill_select 承接；GUI 可关
 
 [EXTENDED: 可选工具 (~0~7,411 tok)]
   ↑ 按需变化，不影响 CORE/HIGH_PRIORITY 前缀
 
-[System Prompt: ~2,607]
+[System Prompt: messages[0] 2,269 (GPT-5·ZH·full) + messages[1] 299]
   ↑ 冻结，跨用户共享缓存
 
 [Dynamic: user_instructions(~200) + memory_context(~500) + skills(~500)]
   ↑ 同用户会话内稳定
 ```
 
-**实测 Turn1 工具层合计**：描述 **5,513** + schema **845** = **6,358 tokens**（13 工具，`measure_turn1_token_inventory.py` / `measure_tool_schema_tokens.py`，o200k_base）。
-CI 门禁 `TestPromptTokenBudgetGate` 严格锁定：Turn-1 默认工具集 ≤ 6,500 tokens，Full 模式系统提示词 ≤ 2,000 tokens，Lean 模式 ≤ 1,200 tokens 且压缩比 ≤ 0.70。
+**实测 Turn1 工具层合计**：描述 **5,284** + schema **845** = **6,129 tokens**（13 工具，`measure_turn1_token_inventory.py` / `measure_tool_schema_tokens.py`，o200k_base，macOS 宿主）。
+
+**CI 门禁（横跨 harness / server 两仓）**：
+
+| 仓 | 门禁文件 | 锁定项 |
+|----|----------|--------|
+| harness | `tests/architecture/test_prompt_token_budget_gate.py` | Turn-1 默认工具集 ≤ **6,500**（当前 6,129，余量 371）；`AGENT_CORE_RULES` ≤ 350 / `SECURITY_BOUNDARY_SYSTEM_RULES` ≤ 350 / `DATETIME_SYSTEM_RULES` ≤ 120；SystemMessage 哈希跨调用恒定 |
+| harness | `tests/scripts/test_measure_turn1_token_inventory.py` | 逐工具描述 token 与 §二/§三 表格一致（漂移即失败并指出工具名） |
+| server | `tests/ai_agents/test_prompt_integrity.py:187-224`（`cl100k_base`） | CORE full ≤ **2,000** / lean ≤ **1,200** / lean÷full ratio ≤ **0.70** |
+
 
 ---
 
 ## 工具层级注册表 (tool_layers.py)
 
 <!-- TOOL_COUNT_BEGIN -->
-LLM tools: **58** (Harness 53: CORE 8 + HIGH_PRIORITY 5 + EXTENDED 40; External 5: server vendor). Orchestration signals: **4**. Runtime hooks: **1**. PTC runtime tools: **6** (`human_ask`, `llm_query`, `llm_query_batched`, `notify`, `spawn_subagent`, `steer_child`). LLM-tool SSOT: `tool_layers.py` + `_tool_layer_bootstrap.py`. PTC SSOT: `agent/dynamic_workflow/tools.py` + `PTC_RUNTIME_TOOL_NAMES`. Orchestration SSOT: `agent/orchestration/`. Auto-generated by `scripts/validate_tool_registry.py --generate-docs`.
+LLM tools: **61** (Harness 54: CORE 8 + HIGH_PRIORITY 5 + EXTENDED 41; External 7: server vendor). Orchestration signals: **4**. Runtime hooks: **1**. PTC runtime tools: **6** (`human_ask`, `llm_query`, `llm_query_batched`, `notify`, `spawn_subagent`, `steer_child`). LLM-tool SSOT: `tool_layers.py` + `_tool_layer_bootstrap.py`. PTC SSOT: `agent/dynamic_workflow/tools.py` + `PTC_RUNTIME_TOOL_NAMES`. Orchestration SSOT: `agent/orchestration/`. Auto-generated by `scripts/validate_tool_registry.py --generate-docs`.
 <!-- TOOL_COUNT_END -->
 未注册的工具（如 MCP 动态工具）自动归入 EXTENDED，并在运行时打印 WARNING 日志。
 完整列表请直接查看 `tool_layers.py`。

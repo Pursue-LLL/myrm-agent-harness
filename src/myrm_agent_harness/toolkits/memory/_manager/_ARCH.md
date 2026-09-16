@@ -13,7 +13,7 @@ Composable `MemoryManager` implementation. External code imports `MemoryManager`
 | `governance_session.py` | Mixin | Approval workflow and session lifecycle | ✅ |
 | `retrieval_write.py` | Mixin | Store (explicit bypass / inferred force-pending), search (with access tracking), context | ✅ |
 | `convenience.py` | Mixin | Profile and typed add helpers (explicit tool path bypasses pending) | ✅ |
-| `deletion.py` | Mixin | Pure deletion: ownership-gated delete by id/metadata/type (vector docs + procedural rules); cascade-cleans derived Claim Graph nodes and evicts embedding cache | ✅ |
+| `deletion.py` | Mixin | Pure deletion: ownership-gated delete by id/metadata/type (vector docs + procedural rules); `allow_pinned=False` (agent surface) additionally refuses `is_user_locked` rules; cascade-cleans derived Claim Graph nodes and evicts embedding cache | ✅ |
 | `archival.py` | Mixin | Archival lifecycle: unarchive_memory restoration and purge_expired_archived_memories TTL physical purge | ✅ |
 | `queries.py` | Mixin | Metadata queries: list_memory_ids_by_metadata, list_memory_refs_by_metadata, and chat session cascade purge/count | ✅ |
 | `listing_maintenance.py` | Mixin | List/count/delete-by-type (EPISODIC bulk clear cascade-cleans Claim Graph nodes), health, archive, backup, maintenance | ✅ |

@@ -14,7 +14,6 @@ Device state and multi-device connection manager for Agent mobile tools.
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from myrm_agent_harness.toolkits.mobile_adb.driver import AdbDeviceDriver
 from myrm_agent_harness.toolkits.mobile_adb.types import (

@@ -49,6 +49,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from myrm_agent_harness.toolkits.memory.config import RecallMode, RetrievalConfig
 
 from .memory_context_format import (
+    STABLE_RULES_TITLE,
     _format_memory_context,
     _has_memory_context,
     _memory_search_tool_bound,
@@ -274,7 +275,7 @@ class MemoryContextMiddleware(AgentMiddleware):
             learned_ctx = {"learned_rules": [], "learned_preferences": []}
 
         memory_search_enabled = _memory_search_tool_bound(request)
-        stable_formatted, untrusted_formatted = _format_memory_context(
+        stable_formatted, untrusted_formatted, accepted_by_title = _format_memory_context(
             memory_ctx,
             learned_ctx,
             memory_search_enabled=memory_search_enabled,
@@ -316,6 +317,15 @@ class MemoryContextMiddleware(AgentMiddleware):
         n_prefs = len(learned_ctx.get("learned_preferences", []))
         is_cold = stable_formatted is not None and "Discovery Mode" in stable_formatted
 
+        # Report how many stable rules actually reached the model. The brief
+        # previously counted every configured rule, so a budget-trimmed prompt
+        # still advertised the full rule count — a silent fidelity gap between
+        # what the user sees and what the model obeys.
+        configured_rules = memory_ctx.get("rules")
+        configured_rule_count = len(configured_rules) if isinstance(configured_rules, list) else 0
+        injected_rule_count = accepted_by_title.get(STABLE_RULES_TITLE, 0)
+        rules_truncated = injected_rule_count < configured_rule_count
+
         # Expose memory budget to the runner state for UX progress bars (Item 7)
         if hasattr(manager, "_config"):
             base_budget = manager._config.max_learned_context_chars
@@ -332,7 +342,15 @@ class MemoryContextMiddleware(AgentMiddleware):
                 set_memory_runtime_budget,
             )
 
-            set_memory_runtime_budget({"used": used_chars, "total": total_budget})
+            set_memory_runtime_budget(
+                {
+                    "used": used_chars,
+                    "total": total_budget,
+                    "rulesConfigured": configured_rule_count,
+                    "rulesInjected": injected_rule_count,
+                    "rulesTruncated": rules_truncated,
+                }
+            )
 
         logger.info(
             "Memory context injected for user %s: cold=%s, %d learned rules, %d learned preferences",

@@ -131,11 +131,39 @@ async def test_empty_response_exhausted(mock_context):
 
 @pytest.mark.asyncio
 async def test_empty_response_resume_mode(mock_context):
-    """In resume mode, empty response recovery is not supported."""
+    """In resume mode, empty response recovery raises budget instead of retrying."""
     mock_context.agent_input = Command(resume="some_value")
     executor = _make_executor(mock_context)
 
     msg = AIMessage(content="")
+    collected_messages = [msg]
+
+    result = await executor._handle_empty_response(collected_messages, retries=0)
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_empty_response_tag_wrapped_reasoning_is_empty(mock_context):
+    """<think>-only content is empty from the user's perspective and must recover."""
+    executor = _make_executor(mock_context)
+
+    msg = AIMessage(content="<think>deliberating but never answering</think>")
+    collected_messages = [msg]
+
+    result = await executor._handle_empty_response(collected_messages, retries=0)
+
+    assert result is True
+    messages = mock_context.agent_input["messages"]
+    assert "completely empty" in messages[-1].content
+
+
+@pytest.mark.asyncio
+async def test_empty_response_tag_wrapped_with_answer_is_not_empty(mock_context):
+    """<think> plus a real answer is a normal response and must not recover."""
+    executor = _make_executor(mock_context)
+
+    msg = AIMessage(content="<think>deliberating</think>\n\nDONE")
     collected_messages = [msg]
 
     result = await executor._handle_empty_response(collected_messages, retries=0)

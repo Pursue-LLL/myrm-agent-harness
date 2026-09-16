@@ -9,12 +9,12 @@ mechanisms, all GUI/SaaS-driven by the business layer:
 - credential import — the universal fallback: persist a credential captured elsewhere
 
 [INPUT]
-- toolkits.acp.auth._profiles::AuthProfile, LoginStrategy, known_backends, profile_for (POS: Authentication profile registry.)
+- toolkits.acp.auth._profiles::AuthProfile, LoginStrategy, known_backends, profile_for, cli_launch_args (POS: Authentication profile registry.)
 - toolkits.acp.auth.credential_store::AuthStatus, CredentialState, CredentialStore (POS: Credential persistence and detection.)
 - toolkits.acp.auth.login_session::AuthEvent, AuthEventType, CliLoginSession (POS: CLI login session management.)
 
 [OUTPUT]
-- LoginStrategy, AuthProfile, profile_for, known_backends
+- LoginStrategy, AuthProfile, profile_for, known_backends, cli_launch_args
 - AuthStatus, CredentialState, CredentialStore
 - AuthEventType, AuthEvent, CliLoginSession
 
@@ -27,6 +27,7 @@ from __future__ import annotations
 from myrm_agent_harness.toolkits.acp.auth._profiles import (
     AuthProfile,
     LoginStrategy,
+    cli_launch_args,
     known_backends,
     profile_for,
 )
@@ -50,6 +51,7 @@ __all__ = [
     "CredentialState",
     "CredentialStore",
     "LoginStrategy",
+    "cli_launch_args",
     "known_backends",
     "profile_for",
 ]

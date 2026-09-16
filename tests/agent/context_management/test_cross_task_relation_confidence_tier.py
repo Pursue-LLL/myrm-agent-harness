@@ -87,7 +87,7 @@ def test_memory_context_format_action_execution_guard() -> None:
         ]
     }
     ctx: dict[str, object] = {}
-    stable, untrusted = _format_memory_context(ctx, learned, memory_search_enabled=False)
+    stable, untrusted, _accepted = _format_memory_context(ctx, learned, memory_search_enabled=False)
 
     assert untrusted is not None
     # 1. Failed attempts section
@@ -112,12 +112,12 @@ def test_memory_context_format_action_execution_guard() -> None:
 def test_memory_context_format_empty_and_corrupted_data() -> None:
     # Edge case 1: empty learned dict
     ctx: dict[str, object] = {}
-    stable, untrusted = _format_memory_context(ctx, {}, memory_search_enabled=False)
+    stable, untrusted, _accepted = _format_memory_context(ctx, {}, memory_search_enabled=False)
     assert stable is None
     assert untrusted is None
 
     # Edge case 2: empty learned_episodes list
-    stable, untrusted = _format_memory_context(ctx, {"learned_episodes": []}, memory_search_enabled=False)
+    stable, untrusted, _accepted = _format_memory_context(ctx, {"learned_episodes": []}, memory_search_enabled=False)
     assert stable is None
     assert untrusted is None
 
@@ -128,7 +128,7 @@ def test_memory_context_format_empty_and_corrupted_data() -> None:
             {"confidence_tier": "weak"},  # missing content entirely
         ]
     }
-    stable, untrusted = _format_memory_context(ctx, corrupted_learned, memory_search_enabled=False)
+    stable, untrusted, _accepted = _format_memory_context(ctx, corrupted_learned, memory_search_enabled=False)
     assert stable is None
     assert untrusted is None or "BACKGROUND CONTEXT" not in untrusted
 
@@ -149,7 +149,7 @@ def test_failure_attempt_takes_precedence_over_weak_tier() -> None:
         ]
     }
     ctx: dict[str, object] = {}
-    stable, untrusted = _format_memory_context(ctx, learned, memory_search_enabled=False)
+    stable, untrusted, _accepted = _format_memory_context(ctx, learned, memory_search_enabled=False)
 
     assert untrusted is not None
     # Must enter Failed Attempts section
@@ -171,7 +171,7 @@ def test_large_mixed_context_budget_and_prompt_cache_isolation() -> None:
         })
     learned = {"learned_episodes": episodes}
     ctx: dict[str, object] = {}
-    stable, untrusted = _format_memory_context(ctx, learned, memory_search_enabled=False)
+    stable, untrusted, _accepted = _format_memory_context(ctx, learned, memory_search_enabled=False)
 
     assert untrusted is not None
     assert "Subtask Phase Memories" in untrusted

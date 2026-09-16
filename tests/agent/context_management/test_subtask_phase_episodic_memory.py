@@ -57,7 +57,7 @@ def test_memory_context_format_renders_failure_traps() -> None:
         ]
     }
     ctx: dict[str, object] = {}
-    stable, untrusted = _format_memory_context(ctx, learned, memory_search_enabled=False)
+    stable, untrusted, _accepted = _format_memory_context(ctx, learned, memory_search_enabled=False)
 
     assert untrusted is not None
     assert "Failed Attempts & Negative Traps (Do not repeat)" in untrusted

@@ -19,6 +19,7 @@ from myrm_agent_harness.agent.security.guards.prompt_budget import (
 
 MEMORY_CONTEXT_MARKER = "<user_memory_context"
 MEMORY_UNTRUSTED_OPEN_MARKER = "<<<UNTRUSTED_DATA"
+STABLE_RULES_TITLE = "Behavioral Rules"
 
 
 def _has_memory_context(messages: Sequence[BaseMessage]) -> bool:
@@ -42,11 +43,14 @@ def _partition_budget_sections(
     *,
     max_tokens: int,
     truncation_message: str,
-) -> tuple[str, str]:
+) -> tuple[str, str, dict[str, int]]:
     """Apply a single combined char budget; split Markdown body into stable vs untrusted halves.
 
     Mirrors ``PromptBudgetGuard.apply_budget`` priority ordering across both buckets so total
     memory injection cannot exceed historical single-guard semantics.
+
+    Returns the accepted item count per section title (keyed by title) so callers can report
+    how many items actually reached the model instead of how many merely exist.
     """
     tagged: list[tuple[str, BudgetedSection]] = [("stable", s) for s in stable_sections]
     tagged.extend(("untrusted", s) for s in escaped_untrusted_sections)
@@ -58,6 +62,7 @@ def _partition_budget_sections(
 
     stable_blocks: list[str] = []
     untrusted_blocks: list[str] = []
+    accepted_by_title: dict[str, int] = {}
 
     for kind, section in tagged:
         if not section.items:
@@ -80,6 +85,7 @@ def _partition_budget_sections(
         if not accepted_lines:
             continue
 
+        accepted_by_title[section.title] = accepted_by_title.get(section.title, 0) + len(accepted_lines)
         block = header + "".join(accepted_lines).strip()
         if kind == "stable":
             stable_blocks.append(block)
@@ -99,7 +105,7 @@ def _partition_budget_sections(
         elif stable_blocks:
             stable_body = f"{stable_body}\n{trimmed}" if stable_body else trimmed
 
-    return stable_body, untrusted_body
+    return stable_body, untrusted_body, accepted_by_title
 
 
 def _memory_search_tool_bound(request: ModelRequest) -> bool:
@@ -373,8 +379,8 @@ def _format_memory_context(
     # would point the model at tools it cannot call.
     if is_cold:
         if not memory_search_enabled:
-            return None, None
-        return _COLD_START_CONTEXT, None
+            return None, None, {}
+        return _COLD_START_CONTEXT, None, {}
 
     if memory_search_enabled:
         truncation_message = (
@@ -390,7 +396,7 @@ def _format_memory_context(
         for sec in untrusted_sections
     ]
 
-    stable_body, untrusted_body = _partition_budget_sections(
+    stable_body, untrusted_body, accepted_by_title = _partition_budget_sections(
         stable_sections,
         escaped_untrusted,
         max_tokens=2500,
@@ -423,4 +429,4 @@ def _format_memory_context(
         tail = _memory_guidance_tail(memory_search_enabled=memory_search_enabled)
         untrusted_formatted = f"{wrapped_body}\n\n{tail}" if tail else wrapped_body
 
-    return stable_formatted, untrusted_formatted
+    return stable_formatted, untrusted_formatted, accepted_by_title

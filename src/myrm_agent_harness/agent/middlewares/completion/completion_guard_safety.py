@@ -54,13 +54,11 @@ _MUTATION_TOOLS: frozenset[str] = frozenset(
     }
 )
 
-# 交互/UI 承载类：registry 标只读，但剥离会丢失用户可见功能（提问/授权/渲染/人类接管）
+# 交互/UI 承载类：registry 标只读，但剥离会丢失用户可见功能（提问/授权/人类接管）
 _INTERACTION_UI_TOOLS: frozenset[str] = frozenset(
     {
         "ask_question_tool",
         "request_directory_tool",
-        "render_ui_tool",
-        "update_ui_data_tool",
         "browser_ask_human_tool",
     }
 )

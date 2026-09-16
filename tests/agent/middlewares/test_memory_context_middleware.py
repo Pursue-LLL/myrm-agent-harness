@@ -94,7 +94,7 @@ def test_has_memory_context_skips_non_string_parts():
 def test_partition_budget_skips_sections_with_empty_item_lists():
     from myrm_agent_harness.agent.security.guards.prompt_budget import BudgetedSection
 
-    s, u = _partition_budget_sections(
+    s, u, _accepted = _partition_budget_sections(
         [BudgetedSection("EmptyStable", [], priority=1)],
         [BudgetedSection("EmptyLearned", [], priority=2)],
         max_tokens=500,
@@ -108,7 +108,7 @@ def test_partition_budget_header_exceeds_budget_yields_empty_bodies():
     """When even the first section header does not fit, nothing is allocated (no truncation tail)."""
     from myrm_agent_harness.agent.security.guards.prompt_budget import BudgetedSection
 
-    s, u = _partition_budget_sections(
+    s, u, _accepted = _partition_budget_sections(
         [BudgetedSection("Wide", ["ok"], priority=1)],
         [],
         max_tokens=0,
@@ -124,7 +124,7 @@ def test_partition_budget_line_overflow_with_empty_accepted_lines_skips_block():
     from myrm_agent_harness.agent.security.guards.prompt_budget import BudgetedSection
 
     huge = "Z" * 40
-    s, _u = _partition_budget_sections(
+    s, _u, _accepted = _partition_budget_sections(
         [BudgetedSection("T", [huge], priority=1)],
         [],
         max_tokens=2,
@@ -145,7 +145,7 @@ def test_partition_budget_post_truncation_notice_appends_after_nonempty_untruste
         ],
         priority=1,
     )
-    stable, unst = _partition_budget_sections(
+    stable, unst, _accepted = _partition_budget_sections(
         [],
         [parts],
         max_tokens=48,
@@ -165,7 +165,7 @@ def test_partition_budget_appends_truncation_note_when_trimmed():
     untrusted_esc = [
         BudgetedSection("LowPri", [_escape_xml_item(long_blob)], priority=80),
     ]
-    s, u = _partition_budget_sections(
+    s, u, _accepted = _partition_budget_sections(
         stable_secs,
         untrusted_esc,
         max_tokens=240,
@@ -183,7 +183,7 @@ def test_format_memory_context_budget_truncates_lower_priority_sections():
         "learned_rules": [],
         "learned_preferences": [{"content": "p"}, {"content": "q" + "z" * 8000}],
     }
-    stable, untrusted = _format_memory_context(ctx, learned)
+    stable, untrusted, _accepted = _format_memory_context(ctx, learned)
     assert stable is not None
     must_have = "... (Some lower-priority memory items were truncated"
     assert must_have in (stable + (untrusted or ""))
@@ -197,7 +197,7 @@ def test_format_truncation_notice_omits_tool_guidance_when_not_bound():
         "learned_rules": [],
         "learned_preferences": [{"content": "q" + "z" * 8000}],
     }
-    stable, untrusted = _format_memory_context(
+    stable, untrusted, _accepted = _format_memory_context(
         ctx,
         learned,
         memory_search_enabled=False,
@@ -212,7 +212,7 @@ def test_format_learned_escapes_xml_in_items_for_envelope():
         "learned_rules": [],
         "learned_preferences": [{"content": "use <script>"}],
     }
-    _stable, untrusted = _format_memory_context({}, learned)
+    _stable, untrusted, _accepted = _format_memory_context({}, learned)
     assert untrusted is not None
     assert "<script>" not in untrusted
     assert "&lt;script&gt;" in untrusted
@@ -225,14 +225,14 @@ def test_format_learned_escapes_xml_in_items_for_envelope():
 
 def test_format_empty_returns_cold_start():
     """Empty context produces cold start guidance (stable only)."""
-    stable, untrusted = _format_memory_context({}, _EMPTY_LEARNED)
+    stable, untrusted, _accepted = _format_memory_context({}, _EMPTY_LEARNED)
     assert stable == _COLD_START_CONTEXT
     assert untrusted is None
     assert "Discovery Mode" in stable
     assert MEMORY_CONTEXT_MARKER in stable
     assert "conversation_search" not in stable
 
-    stable2, untrusted2 = _format_memory_context(
+    stable2, untrusted2, _accepted = _format_memory_context(
         {"global_profile": {}, "rules": [], "agent_instructions": []}, _EMPTY_LEARNED
     )
     assert stable2 == _COLD_START_CONTEXT
@@ -245,7 +245,7 @@ def test_format_memory_search_disabled_when_tool_not_bound():
         "learned_preferences": [{"content": "Prefers dark mode", "id": "p1"}],
         "learned_rules": [],
     }
-    _stable, untrusted = _format_memory_context(
+    _stable, untrusted, _accepted = _format_memory_context(
         {},
         learned,
         memory_search_enabled=False,
@@ -260,7 +260,7 @@ def test_format_memory_search_guidance_when_enabled():
         "learned_preferences": [{"content": "Prefers dark mode", "id": "p1"}],
         "learned_rules": [],
     }
-    _stable, untrusted = _format_memory_context(
+    _stable, untrusted, _accepted = _format_memory_context(
         {},
         learned,
         memory_search_enabled=True,
@@ -284,7 +284,7 @@ def test_memory_search_tool_bound_accepts_objects_and_dicts():
 
 def test_format_profile():
     ctx = {"global_profile": {"name": "Alice", "role": "Developer"}}
-    stable, untrusted = _format_memory_context(ctx, _EMPTY_LEARNED)
+    stable, untrusted, _accepted = _format_memory_context(ctx, _EMPTY_LEARNED)
     assert stable is not None
     assert untrusted is None
     assert "# User Context (stable)" in stable
@@ -300,7 +300,7 @@ def test_format_instructions():
             {"instruction": "Use Python for examples"},
         ],
     }
-    stable, untrusted = _format_memory_context(ctx, _EMPTY_LEARNED)
+    stable, untrusted, _accepted = _format_memory_context(ctx, _EMPTY_LEARNED)
     assert stable is not None
     assert untrusted is None
     assert "## Your Self-Instructions" in stable
@@ -315,7 +315,7 @@ def test_format_rules():
             {"trigger": "error occurs", "action": "log and retry"},
         ],
     }
-    stable, untrusted = _format_memory_context(ctx, _EMPTY_LEARNED)
+    stable, untrusted, _accepted = _format_memory_context(ctx, _EMPTY_LEARNED)
     assert stable is not None
     assert untrusted is None
     assert "## Behavioral Rules" in stable
@@ -329,7 +329,7 @@ def test_format_complete_static():
         "agent_instructions": [{"instruction": "Be helpful"}],
         "rules": [{"trigger": "greeting", "action": "respond warmly"}],
     }
-    stable, untrusted = _format_memory_context(ctx, _EMPTY_LEARNED)
+    stable, untrusted, _accepted = _format_memory_context(ctx, _EMPTY_LEARNED)
     assert stable is not None
     assert untrusted is None
     assert "# User Context (stable)" in stable
@@ -349,7 +349,7 @@ def test_format_stable_only_includes_guidance_tail():
     disabling the LLM-side citation channel that cold-start users do get.
     """
     ctx = {"global_profile": {"name": "Alice"}}
-    stable, untrusted = _format_memory_context(ctx, _EMPTY_LEARNED)
+    stable, untrusted, _accepted = _format_memory_context(ctx, _EMPTY_LEARNED)
     assert stable is not None
     assert untrusted is None
     assert "## Citation Requirements" in stable
@@ -361,7 +361,7 @@ def test_format_stable_only_includes_guidance_tail():
 def test_format_stable_only_omits_guidance_when_tool_not_bound():
     """CONTEXT warm stable-only must not carry citation/search guidance (no bound tools)."""
     ctx = {"global_profile": {"name": "Alice"}}
-    stable, untrusted = _format_memory_context(
+    stable, untrusted, _accepted = _format_memory_context(
         ctx,
         _EMPTY_LEARNED,
         memory_search_enabled=False,
@@ -376,7 +376,7 @@ def test_format_stable_only_omits_guidance_when_tool_not_bound():
 
 def test_format_cold_start_context_mode_no_injection():
     """CONTEXT cold-start must not inject learning guidance (no memory tools bound)."""
-    stable, untrusted = _format_memory_context(
+    stable, untrusted, _accepted = _format_memory_context(
         {},
         _EMPTY_LEARNED,
         memory_search_enabled=False,
@@ -392,7 +392,7 @@ def test_format_stable_plus_untrusted_guidance_not_duplicated():
         "learned_rules": [],
         "learned_preferences": [{"content": "Prefers dark mode", "id": "p1"}],
     }
-    stable, untrusted = _format_memory_context(ctx, learned)
+    stable, untrusted, _accepted = _format_memory_context(ctx, learned)
     assert stable is not None
     assert untrusted is not None
     assert "## Citation Requirements" not in stable
@@ -412,7 +412,7 @@ def test_format_learned_rules():
         ],
         "learned_preferences": [],
     }
-    stable, untrusted = _format_memory_context({}, learned)
+    stable, untrusted, _accepted = _format_memory_context({}, learned)
     assert stable is None
     assert untrusted is not None
     assert MEMORY_UNTRUSTED_OPEN_MARKER in untrusted
@@ -439,7 +439,7 @@ def test_critical_tool_rules_promoted_to_stable():
         ],
         "learned_preferences": [],
     }
-    stable, untrusted = _format_memory_context({}, learned)
+    stable, untrusted, _accepted = _format_memory_context({}, learned)
     assert stable is not None
     assert "Tool Safety Rules" in stable
     assert "never use sudo" in stable
@@ -464,7 +464,7 @@ def test_high_priority_tool_rules_also_promoted():
         ],
         "learned_preferences": [],
     }
-    stable, _untrusted = _format_memory_context({}, learned)
+    stable, _untrusted, _accepted = _format_memory_context({}, learned)
     assert stable is not None
     assert "Tool Safety Rules" in stable
     assert "backup first" in stable
@@ -484,7 +484,7 @@ def test_normal_priority_tool_rules_stay_in_learned():
         ],
         "learned_preferences": [],
     }
-    stable, untrusted = _format_memory_context({}, learned)
+    stable, untrusted, _accepted = _format_memory_context({}, learned)
     assert stable is None
     assert untrusted is not None
     assert "Learned Rules" in untrusted
@@ -499,7 +499,7 @@ def test_format_learned_preferences():
             {"content": "uses vim keybindings"},
         ],
     }
-    stable, untrusted = _format_memory_context({}, learned)
+    stable, untrusted, _accepted = _format_memory_context({}, learned)
     assert stable is None
     assert untrusted is not None
     assert MEMORY_UNTRUSTED_OPEN_MARKER in untrusted
@@ -515,7 +515,7 @@ def test_format_mixed_static_and_learned():
         "learned_rules": [{"trigger": "deploy", "action": "run tests first", "content": "..."}],
         "learned_preferences": [{"content": "uses Python 3.13"}],
     }
-    stable, untrusted = _format_memory_context(ctx, learned)
+    stable, untrusted, _accepted = _format_memory_context(ctx, learned)
     assert stable is not None
     assert untrusted is not None
     assert "<user_memory_context>" in stable
@@ -539,7 +539,7 @@ def test_format_corrections_from_source_error():
             {"content": "prefers dark theme"},
         ],
     }
-    stable, untrusted = _format_memory_context({}, learned)
+    stable, untrusted, _accepted = _format_memory_context({}, learned)
     assert stable is not None
     assert untrusted is not None
     assert "## Corrections (must follow)" in stable
@@ -550,7 +550,7 @@ def test_format_corrections_from_source_error():
 
 def test_format_empty_learned_no_sections():
     """Empty learned lists should not produce Learned sections."""
-    stable, untrusted = _format_memory_context(
+    stable, untrusted, _accepted = _format_memory_context(
         {"global_profile": {"name": "Dave"}},
         {"learned_rules": [], "learned_preferences": []},
     )
@@ -943,7 +943,7 @@ class TestInjectMemoryContext:
             ),
             patch(
                 "myrm_agent_harness.agent.middlewares.memory_context.memory_context_middleware._format_memory_context",
-                return_value=(None, None),
+                return_value=(None, None, {}),
             ),
         ):
             await _inject_fn(req, handler)
@@ -1324,6 +1324,7 @@ class TestInjectMemoryContext:
                 return_value=(
                     "<user_memory_context>stable</user_memory_context>",
                     "untrusted-learned-block",
+                    {},
                 ),
             ),
         ):
@@ -1361,13 +1362,74 @@ class TestInjectMemoryContext:
         assert budget["total"] == 1200
         assert budget["used"] > 0
 
+    @pytest.mark.asyncio
+    async def test_budget_reports_rules_dropped_by_truncation(self, _inject_fn):
+        """Truncated rules must be reported, not silently counted as injected."""
+        handler = AsyncMock()
+        req = _make_request()
+        rules = [
+            {"trigger": f"trigger-{i}", "action": "a" * 900, "priority": 0} for i in range(12)
+        ]
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 100
+        mock_manager._config.model_context_tokens = None
+        mock_manager.user_id = "u123"
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(return_value={"rules": rules})
+        mock_manager.get_learned_context = AsyncMock(
+            return_value={"learned_rules": [], "learned_preferences": []}
+        )
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        budget = get_memory_runtime_budget()
+        assert budget is not None
+        assert budget["rulesConfigured"] == 12
+        assert 0 < budget["rulesInjected"] < 12
+        assert budget["rulesTruncated"] is True
+
+    @pytest.mark.asyncio
+    async def test_budget_reports_full_rule_injection(self, _inject_fn):
+        """When nothing is trimmed, configured == injected and the flag stays False."""
+        handler = AsyncMock()
+        req = _make_request()
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 100
+        mock_manager._config.model_context_tokens = None
+        mock_manager.user_id = "u123"
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(
+            return_value={"rules": [{"trigger": "t1", "action": "a1", "priority": 0}]}
+        )
+        mock_manager.get_learned_context = AsyncMock(
+            return_value={"learned_rules": [], "learned_preferences": []}
+        )
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        budget = get_memory_runtime_budget()
+        assert budget is not None
+        assert budget["rulesConfigured"] == 1
+        assert budget["rulesInjected"] == 1
+        assert budget["rulesTruncated"] is False
+
 
 class TestScopeBoundary:
     """Scope boundary declaration in <user_memory_context>."""
 
     def test_scope_boundary_present_when_stable_body_exists(self):
         ctx = {"global_profile": {"name": "Alice"}}
-        stable, _ = _format_memory_context(ctx, _EMPTY_LEARNED)
+        stable, _, _accepted = _format_memory_context(ctx, _EMPTY_LEARNED)
         assert stable is not None
         assert "Scope Boundary" in stable
         assert "Agent instructions ALWAYS take precedence" in stable
@@ -1375,14 +1437,14 @@ class TestScopeBoundary:
 
     def test_scope_boundary_appears_before_user_context_header(self):
         ctx = {"global_profile": {"name": "Bob"}}
-        stable, _ = _format_memory_context(ctx, _EMPTY_LEARNED)
+        stable, _, _accepted = _format_memory_context(ctx, _EMPTY_LEARNED)
         assert stable is not None
         sb_idx = stable.index("Scope Boundary")
         uc_idx = stable.index("# User Context (stable)")
         assert sb_idx < uc_idx
 
     def test_scope_boundary_absent_in_cold_start(self):
-        stable, _ = _format_memory_context({}, _EMPTY_LEARNED)
+        stable, _, _accepted = _format_memory_context({}, _EMPTY_LEARNED)
         assert stable is not None
         assert "Scope Boundary" not in stable
         assert "Discovery Mode" in stable
@@ -1392,7 +1454,7 @@ class TestScopeBoundary:
             "learned_rules": [{"trigger": "t", "action": "a", "content": "x"}],
             "learned_preferences": [],
         }
-        stable, untrusted = _format_memory_context({}, learned)
+        stable, untrusted, _accepted = _format_memory_context({}, learned)
         assert stable is None
         assert untrusted is not None
         assert "Scope Boundary" not in untrusted
@@ -1406,7 +1468,7 @@ class TestScopeBoundary:
             "learned_rules": [],
             "learned_preferences": [{"content": "user likes brief replies"}],
         }
-        stable, untrusted = _format_memory_context(ctx, learned)
+        stable, untrusted, _accepted = _format_memory_context(ctx, learned)
         assert stable is not None
         assert untrusted is not None
         assert "Scope Boundary" in stable
@@ -1414,7 +1476,7 @@ class TestScopeBoundary:
 
     def test_scope_boundary_is_blockquote_format(self):
         ctx = {"global_profile": {"name": "Dave"}}
-        stable, _ = _format_memory_context(ctx, _EMPTY_LEARNED)
+        stable, _, _accepted = _format_memory_context(ctx, _EMPTY_LEARNED)
         assert stable is not None
         assert "> **Scope Boundary**:" in stable
 
@@ -1586,14 +1648,14 @@ class TestFormatCoverageBranches:
 
     def test_working_state_branch(self):
         ctx = {"working_state": "mid-task: drafting the migration plan"}
-        stable, _untrusted = _format_memory_context(ctx, _EMPTY_LEARNED)
+        stable, _untrusted, _accepted = _format_memory_context(ctx, _EMPTY_LEARNED)
         assert stable is not None
         assert "Active Working Context" in stable
         assert "mid-task: drafting the migration plan" in stable
 
     def test_peer_profile_branch(self):
         ctx = {"peer_profile": {"tone": "friendly mentor", "name": "Alice"}}
-        stable, _untrusted = _format_memory_context(ctx, _EMPTY_LEARNED)
+        stable, _untrusted, _accepted = _format_memory_context(ctx, _EMPTY_LEARNED)
         assert stable is not None
         assert "Our Relationship & Your Persona" in stable
         assert "tone: friendly mentor" in stable
@@ -1612,7 +1674,7 @@ class TestFormatCoverageBranches:
             ],
             "learned_preferences": [],
         }
-        stable, untrusted = _format_memory_context({}, learned)
+        stable, untrusted, _accepted = _format_memory_context({}, learned)
         assert stable is None
         assert untrusted is not None
         assert "When: deploy to prod" in untrusted
@@ -1636,7 +1698,7 @@ class TestFormatCoverageBranches:
             "latency_ms": 12.5,
         }
         ctx = {"proactive_knowledge_pack": proactive_pack}
-        stable, untrusted = _format_memory_context(ctx, _EMPTY_LEARNED)
+        stable, untrusted, _accepted = _format_memory_context(ctx, _EMPTY_LEARNED)
 
         # 1. System Prompt must not contain dynamic snippets (protecting prefix cache)
         assert stable is None

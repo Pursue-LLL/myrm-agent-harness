@@ -79,8 +79,6 @@ _LOAD_CONDITION_OVERRIDES: dict[str, str] = {
     "channel_notify_tool": "Agent notify_targets configured",
     "cron_manage_tool": "user cron capability wired",
     "invoke_acp_agent_tool": "external ACP agent configured",
-    "render_ui_tool": "enabled_builtin_tools: render_ui",
-    "update_ui_data_tool": "enabled_builtin_tools: render_ui",
     "ask_question_tool": "server mount policy (interactive web_chat); requires_confirmation WebUI emphasis; ClarificationGuardMiddleware one call/turn; HitlToolPolicy L1 subagent block",
     "image_tool": "enabled_builtin_tools: image_generation",
     "video_tool": "enabled_builtin_tools: video_generation",
@@ -101,7 +99,6 @@ DEFAULT_ENABLED_PRODUCT_IDS: frozenset[str] = frozenset(
         "web_search",
         "memory",
         "structured_clarify",
-        "render_ui",
     }
 )
 
@@ -125,8 +122,6 @@ CORE_ACTION_TOOL_NAMES: frozenset[str] = frozenset(
 EXTENDED_DEFAULT_ON_TOOL_EXCEPTIONS: frozenset[str] = frozenset(
     {
         "ask_question_tool",
-        "render_ui_tool",
-        "update_ui_data_tool",
     }
 )
 

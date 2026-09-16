@@ -283,6 +283,84 @@ class TestCreateBrowserRouting:
 
 
 # ---------------------------------------------------------------------------
+# E2E Chrome binding: never retarget an E2E run at another Chrome
+# ---------------------------------------------------------------------------
+
+
+class TestE2eChromeBinding:
+    @pytest.mark.asyncio
+    async def test_e2e_bound_run_connects_to_its_own_chrome(self) -> None:
+        launcher = _make_launcher(launch_mode=LaunchMode.AUTO)
+        expected = BrowserInstance(browser=_mock_browser(), is_managed=False)
+
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.browser.pool.chrome_discovery.resolve_e2e_cdp_endpoint",
+                return_value="http://127.0.0.1:9333",
+            ),
+            patch.object(launcher, "_probe_cdp", AsyncMock(return_value=True)),
+            patch.object(launcher, "_connect_existing", AsyncMock(return_value=expected)) as mock_connect,
+            patch.object(launcher, "_discover_local_chrome", AsyncMock()) as mock_discover,
+            patch.object(launcher, "_launch_new_browser", AsyncMock()) as mock_launch,
+        ):
+            result = await launcher.create_browser()
+
+            mock_connect.assert_awaited_once_with("http://127.0.0.1:9333", headers=None)
+            mock_discover.assert_not_awaited()
+            mock_launch.assert_not_awaited()
+            assert result is expected
+
+    @pytest.mark.asyncio
+    async def test_e2e_bound_run_refuses_foreign_chrome_and_fresh_launch(self) -> None:
+        """Regression: discovery must not silently retarget the run at another Chrome.
+
+        A foreign browser carries a different profile (no E2E auth session, no extension
+        bridge), and a fresh launch carries an empty one — both make the run's tools fail
+        in ways that read as product bugs. Fail loudly instead.
+        """
+        launcher = _make_launcher(launch_mode=LaunchMode.AUTO)
+
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.browser.pool.chrome_discovery.resolve_e2e_cdp_endpoint",
+                return_value="http://127.0.0.1:9333",
+            ),
+            patch.object(launcher, "_probe_cdp", AsyncMock(return_value=False)),
+            patch.object(launcher, "_discover_local_chrome", AsyncMock()) as mock_discover,
+            patch.object(launcher, "_connect_existing", AsyncMock()) as mock_connect,
+            patch.object(launcher, "_launch_new_browser", AsyncMock()) as mock_launch,
+        ):
+            with pytest.raises(BrowserLaunchError, match="refusing"):
+                await launcher.create_browser()
+
+            mock_discover.assert_not_awaited()
+            mock_connect.assert_not_awaited()
+            mock_launch.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_not_e2e_bound_keeps_auto_discovery(self) -> None:
+        """Desktop/local flows keep the original AUTO behaviour."""
+        launcher = _make_launcher(launch_mode=LaunchMode.AUTO)
+        expected = BrowserInstance(browser=_mock_browser(), is_managed=False)
+
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.browser.pool.chrome_discovery.resolve_e2e_cdp_endpoint",
+                return_value=None,
+            ),
+            patch.object(
+                launcher, "_discover_local_chrome", AsyncMock(return_value="http://127.0.0.1:9222")
+            ),
+            patch.object(launcher, "_probe_cdp", AsyncMock(return_value=True)),
+            patch.object(launcher, "_connect_existing", AsyncMock(return_value=expected)) as mock_connect,
+        ):
+            result = await launcher.create_browser()
+
+            mock_connect.assert_awaited_once_with("http://127.0.0.1:9222", headers=None)
+            assert result is expected
+
+
+# ---------------------------------------------------------------------------
 # CrashWatchdog: external browser awareness
 # ---------------------------------------------------------------------------
 

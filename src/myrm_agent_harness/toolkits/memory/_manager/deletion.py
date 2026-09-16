@@ -101,11 +101,16 @@ class MemoryManagerDeletionMixin(MemoryManagerArchivalMixin, MemoryManagerQuerie
         Ownership is enforced via the manager's namespaces so a rule can only
         be deleted when it lives in the current scope — mirroring the
         ownership gate already applied to vector memories.
+
+        ``allow_pinned=False`` (agent-facing path) also honours
+        ``is_user_locked``: that is the persisted rule lock, shared with
+        distillation/merge/forgetting, so a user-endorsed rule cannot be
+        silently dropped by the agent.
         """
         rule = await self._rel().get_rule(rule_id, namespaces=self._namespaces)
         if rule is None:
             return False
-        if not allow_pinned and rule.pinned:
+        if not allow_pinned and rule.is_user_locked:
             return False
         deleted = await self._rel().delete_rule(rule_id)
         if deleted:

@@ -10,7 +10,7 @@
 
 [POS]
 Harness-layer SSOT for inline A2UI availability. Server mount gates and active_tool_groups
-derive from this helper — IM/cron/headless sessions must not load render_ui tokens.
+derive from this helper — IM/cron/headless sessions must not mount inline UI artifacts.
 """
 
 from __future__ import annotations

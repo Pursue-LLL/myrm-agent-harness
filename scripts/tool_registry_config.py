@@ -84,6 +84,7 @@ ORPHAN_FACTORY_WHITELIST: frozenset[str] = frozenset(
         "create_submit_verdict_tool",
         "create_obsidian_tools",
         "create_mobile_adb_tools",
+        "create_wiki_admin_tools",
     }
 )
 

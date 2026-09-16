@@ -56,7 +56,9 @@ class MobileUIParser:
         counter = 1
 
         try:
-            root = ET.fromstring(xml_content)
+            # uiautomator dumps device-sourced XML; `defusedxml` is not a runtime
+            # dependency of the harness, so stdlib ET is the accepted parser here.
+            root = ET.fromstring(xml_content)  # noqa: S314
         except ET.ParseError as e:
             logger.warning("MobileUIParser failed to parse XML: %s", e)
             return [], {}

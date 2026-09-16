@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_KNOWN_BACKENDS = ("claude", "codex", "gemini")
+_KNOWN_BACKENDS = ("claude", "codex", "gemini", "qwen")
 
 _COMMON_PATHS = (
     TOOLCHAIN_BASE_DIR / "bin",  # Check isolated toolchain first

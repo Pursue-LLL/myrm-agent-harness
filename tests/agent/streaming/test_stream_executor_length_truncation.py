@@ -47,10 +47,20 @@ def _make_executor(ctx: StreamContext) -> StreamExecutor:
     return executor
 
 
+def _llm_with_max_tokens(value: int | None) -> MagicMock:
+    """Build an LLM stub whose configured output budget is ``value``."""
+    llm = MagicMock()
+    llm.max_tokens = value
+    llm.model_kwargs = {}
+    llm.model_name = "unknown-model"
+    return llm
+
+
 @pytest.mark.asyncio
 async def test_thinking_budget_exhausted_detected(mock_context):
     """When finish_reason=length + reasoning only + no tool_calls → thinking_budget_exhausted."""
     executor = _make_executor(mock_context)
+    mock_context.llm = _llm_with_max_tokens(8192)
 
     ai_msg = AIMessage(
         content="",
@@ -204,6 +214,7 @@ async def test_text_continuation_for_normal_text_truncation(mock_context):
 async def test_max_tokens_finish_reason(mock_context):
     """max_tokens finish reason should also trigger detection (Anthropic)."""
     executor = _make_executor(mock_context)
+    mock_context.llm = _llm_with_max_tokens(8192)
 
     ai_msg = AIMessage(
         content="",
@@ -229,6 +240,7 @@ async def test_max_tokens_finish_reason(mock_context):
 async def test_anthropic_thinking_block_detection(mock_context):
     """Anthropic-style thinking blocks (content list with type=thinking) should be detected."""
     executor = _make_executor(mock_context)
+    mock_context.llm = _llm_with_max_tokens(8192)
 
     ai_msg = AIMessage(
         content=[{"type": "thinking", "thinking": "Deep reasoning..."}],
@@ -996,6 +1008,152 @@ async def test_boost_no_op_when_model_kwargs_empty(mock_context):
     llm_mock = MagicMock()
     llm_mock.max_tokens = None
     llm_mock.model_kwargs = {}
+    mock_context.llm = llm_mock
+    executor = _make_executor(mock_context)
+
+    executor._boost_output_tokens(0)
+    assert get_ephemeral_max_output_tokens() is None
+
+
+# ---------------------------------------------------------------------------
+# Inline tag-wrapped reasoning (MiniMax inlines <think> in `content`)
+#
+# Live MiniMax probe: with a small max_tokens the model returns
+# finish_reason=length and content="<think>…" with NO reasoning_content field.
+# Treating that as user-visible content is what stalled the resumed turn.
+# ---------------------------------------------------------------------------
+
+
+def test_inline_reasoning_truncated_think_only():
+    """Unclosed <think> (truncated mid-reasoning) is reasoning, not content."""
+    from myrm_agent_harness.agent.streaming.recovery.stream_recovery_truncation import (
+        StreamTruncationRecoveryMixin,
+    )
+
+    msg = AIMessage(content='<think>The user wants me to say "DONE". This is a simple')
+    assert StreamTruncationRecoveryMixin._has_inline_reasoning(msg) is True
+
+
+def test_inline_reasoning_closed_think_only():
+    """A closed <think> block with nothing after it is reasoning, not content."""
+    from myrm_agent_harness.agent.streaming.recovery.stream_recovery_truncation import (
+        StreamTruncationRecoveryMixin,
+    )
+
+    msg = AIMessage(content="<think>deliberating</think>\n\n")
+    assert StreamTruncationRecoveryMixin._has_inline_reasoning(msg) is True
+
+
+def test_inline_reasoning_with_real_answer_is_content():
+    """<think> followed by an actual answer must stay on the content path."""
+    from myrm_agent_harness.agent.streaming.recovery.stream_recovery_truncation import (
+        StreamTruncationRecoveryMixin,
+    )
+
+    msg = AIMessage(content="<think>deliberating</think>\n\nDONE")
+    assert StreamTruncationRecoveryMixin._has_inline_reasoning(msg) is False
+
+
+def test_inline_reasoning_plain_text_is_not_reasoning():
+    """Plain text without thinking tags is never classified as reasoning."""
+    from myrm_agent_harness.agent.streaming.recovery.stream_recovery_truncation import (
+        StreamTruncationRecoveryMixin,
+    )
+
+    assert StreamTruncationRecoveryMixin._has_inline_reasoning(AIMessage(content="DONE")) is False
+
+
+@pytest.mark.asyncio
+async def test_inline_reasoning_only_truncation_retries(mock_context):
+    """A tag-only truncated reply must drive a retry, not stall as 'has content'."""
+    mock_context.agent_input = {"messages": []}
+    mock_context.llm = _llm_with_max_tokens(8192)
+    executor = _make_executor(mock_context)
+
+    ai_msg = AIMessage(content="<think>The user wants me to say DONE. This is a simple")
+    collected_messages = [ai_msg]
+
+    tracker_mock = MagicMock()
+    tracker_mock.last_finish_reason = "length"
+
+    with patch(
+        "myrm_agent_harness.utils.token_economics.tracker.get_token_tracker",
+        return_value=tracker_mock,
+    ):
+        result = await executor._handle_length_truncation(collected_messages)
+
+    assert result is True
+    events = executor._compactor.events
+    assert len(events) == 1
+    assert events[0]["step_key"] == "thinking_budget_exhausted"
+    # The reasoning-only draft is dropped and replaced by a direct-answer prompt.
+    messages = mock_context.agent_input["messages"]
+    assert ai_msg not in messages
+    assert "minimal reasoning" in messages[-1].content
+
+
+@pytest.mark.asyncio
+async def test_inline_reasoning_only_in_resume_mode_does_not_spin(mock_context):
+    """Resume mode cannot replay a consumed Command, so it must not report a retry."""
+    from langgraph.types import Command
+
+    mock_context.agent_input = Command(resume="approved")
+    mock_context.llm = _llm_with_max_tokens(8192)
+    executor = _make_executor(mock_context)
+
+    ai_msg = AIMessage(content="<think>thinking without producing an answer")
+    collected_messages = [ai_msg]
+
+    tracker_mock = MagicMock()
+    tracker_mock.last_finish_reason = "length"
+
+    with patch(
+        "myrm_agent_harness.utils.token_economics.tracker.get_token_tracker",
+        return_value=tracker_mock,
+    ):
+        result = await executor._handle_length_truncation(collected_messages)
+
+    assert result is False
+    events = executor._compactor.events
+    assert len(events) == 1
+    assert events[0]["step_key"] == "thinking_budget_exhausted"
+
+
+@pytest.mark.asyncio
+async def test_thinking_boost_uses_model_headroom_floor(mock_context):
+    """With no configured max_tokens, a thinking model boosts from its headroom floor."""
+    from myrm_agent_harness.agent.streaming.recovery.stream_recovery_truncation import (
+        get_ephemeral_max_output_tokens,
+        reset_ephemeral_max_output_tokens,
+    )
+
+    reset_ephemeral_max_output_tokens()
+    llm_mock = MagicMock()
+    llm_mock.max_tokens = None
+    llm_mock.model_kwargs = {}
+    llm_mock.model_name = "minimax/MiniMax-M3"
+    mock_context.llm = llm_mock
+    executor = _make_executor(mock_context)
+
+    executor._boost_output_tokens(0)
+    # 16384 floor × 2 for the first retry.
+    assert get_ephemeral_max_output_tokens() == 32768
+    reset_ephemeral_max_output_tokens()
+
+
+@pytest.mark.asyncio
+async def test_boost_stays_noop_for_unknown_model_without_budget(mock_context):
+    """Unknown model ceiling → no boost, avoiding an overshoot that would 400."""
+    from myrm_agent_harness.agent.streaming.recovery.stream_recovery_truncation import (
+        get_ephemeral_max_output_tokens,
+        reset_ephemeral_max_output_tokens,
+    )
+
+    reset_ephemeral_max_output_tokens()
+    llm_mock = MagicMock()
+    llm_mock.max_tokens = None
+    llm_mock.model_kwargs = {}
+    llm_mock.model_name = "some-unknown-model"
     mock_context.llm = llm_mock
     executor = _make_executor(mock_context)
 

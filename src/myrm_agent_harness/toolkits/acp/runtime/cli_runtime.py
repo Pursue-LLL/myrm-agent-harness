@@ -26,7 +26,7 @@ import os
 import signal
 from collections.abc import AsyncIterator
 
-from myrm_agent_harness.toolkits.acp.auth._profiles import profile_for
+from myrm_agent_harness.toolkits.acp.auth._profiles import profile_for, resolve_cli_args
 from myrm_agent_harness.toolkits.acp.runtime._base import BaseRuntime, build_safe_env
 from myrm_agent_harness.toolkits.acp.runtime._parser import (
     extract_text_from_event,
@@ -132,7 +132,10 @@ class CliRuntime(BaseRuntime):
         safe_env = build_safe_env(self._config)
         cwd = self._config.cwd or str(WorkspacePathResolver.resolve_workspace_root())
 
-        args = [command, *self._config.args]
+        args = [
+            command,
+            *resolve_cli_args(command, self._config.args, self._config.permission_mode),
+        ]
 
         if "--output-format" in args and "stream-json" in args and "--verbose" not in args:
             args.append("--verbose")
@@ -159,7 +162,7 @@ class CliRuntime(BaseRuntime):
                     if flag not in args:
                         args.append(flag)
 
-        uses_stdin = any(arg == "-p" for arg in self._config.args)
+        uses_stdin = any(arg == "-p" for arg in args)
         if not uses_stdin:
             args.append(prompt)
 

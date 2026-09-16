@@ -708,13 +708,23 @@ class StreamRecoveryMixin(
             return False
 
         has_tool_calls = bool(last_ai_msg.tool_calls)
-        has_content = self._has_non_reasoning_content(last_ai_msg)
+        # Tag-wrapped reasoning (MiniMax inlines ``<think>`` into ``content``) is not
+        # user-visible content, so it must not exempt the turn from recovery.
+        has_tagged_reasoning = self._has_inline_reasoning(last_ai_msg)
+        has_content = (
+            False if has_tagged_reasoning else self._has_non_reasoning_content(last_ai_msg)
+        )
 
         # If it has tool calls or any user-visible content, it's not an empty response.
         # Note: We do NOT exempt reasoning-only responses (e.g. <thinking> blocks without actual output).
         # A reasoning-only response is still an empty response from the user's perspective and must be retried.
         if has_tool_calls or has_content:
             return False
+
+        if has_tagged_reasoning:
+            logger.warning(
+                " Response contained only tag-wrapped reasoning — no visible output"
+            )
 
         max_empty_retries = 2
         if retries >= max_empty_retries:
@@ -734,7 +744,14 @@ class StreamRecoveryMixin(
 
         ctx = self._ctx
         if isinstance(ctx.agent_input, Command):
-            logger.warning(" Resume mode — empty response recovery not supported")
+            # A consumed Command cannot be replayed (re-driving it advances no work),
+            # so recovery here is limited to raising the budget for any queued model
+            # call. Reasoning-heavy models are floored at creation time to keep this
+            # path from being reached in the first place.
+            self._boost_output_tokens(retries)
+            logger.warning(
+                " Resume mode — empty response not retryable; budget raised instead"
+            )
             return False
 
         messages_dict = ctx.agent_input

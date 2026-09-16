@@ -264,14 +264,19 @@ class AcpCallbackHandler:
         tool_input: dict[str, object],
         option_list: list[object],
     ) -> dict[str, object]:
-        """Ask mode: emit permission request event and await external decision."""
+        """Ask mode: emit permission request event and await external decision.
+
+        With no event bus wired, no subscriber can answer, so read-only calls are
+        still allowed (matching ``safe``) and write calls fail closed with an
+        explicit log — never a silent denial of work.
+        """
         if self._event_bus is None:
             logger.warning(
                 "permission_request_ignored_ask_no_bus session_id=%s tool=%s",
                 self._session_id,
                 tool_name,
             )
-            return _reject_or_cancel(option_list)
+            return self._handle_safe_mode(tool_name, option_list)
 
         request_event, decision_future = create_permission_request(
             session_id=session_id,

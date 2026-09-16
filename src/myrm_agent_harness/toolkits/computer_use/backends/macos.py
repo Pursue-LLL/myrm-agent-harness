@@ -527,7 +527,19 @@ def _osascript_ax_capable() -> bool:
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired):
-        return False
+        # Transient slowness under load (backend boot, CPU 90%+) can exceed the
+        # 5s budget; the TCC grant itself is persistent, so retry once with a
+        # larger budget before reporting a (false) denial.
+        try:
+            result = subprocess.run(
+                ["osascript", "-e", script],
+                capture_output=True,
+                text=True,
+                timeout=15,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return False
     if result.returncode != 0:
         return False
     return bool(result.stdout.strip())

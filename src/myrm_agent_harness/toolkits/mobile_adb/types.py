@@ -13,7 +13,7 @@ Type definitions and data structures for Android Wireless ADB control and semant
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any, Literal
 
 MobileActionType = Literal[
@@ -39,7 +39,7 @@ MobileVisionActionType = Literal[
 ]
 
 
-class MobileDeviceConnectionStatus(str, Enum):
+class MobileDeviceConnectionStatus(StrEnum):
     """Device wireless connection status."""
 
     CONNECTED = "connected"

@@ -15,13 +15,13 @@ from myrm_agent_harness.toolkits.memory.agent_surface.mcp_server import (
     reset_request_wiki_boundary_enabled,
     set_request_wiki_boundary_enabled,
 )
+from myrm_agent_harness.toolkits.memory.agent_surface.wiki_memory_boundary import (
+    WIKI_MEMORY_SAVE_MAX_CHARS,
+)
 from myrm_agent_harness.toolkits.memory.types import (
     MemorySearchResult,
     MemoryType,
     SemanticMemory,
-)
-from myrm_agent_harness.toolkits.memory.agent_surface.wiki_memory_boundary import (
-    WIKI_MEMORY_SAVE_MAX_CHARS,
 )
 
 
@@ -662,7 +662,14 @@ class TestMemoryManageTool:
     async def test_manage_delete_rule(self, mcp_server, mock_manager):
         result = await _get_tool_fn(mcp_server, "memory_manage")(action="delete", memory_id="r1", category="rule")
         assert "deleted" in result
-        mock_manager.delete_rule.assert_called_once_with("r1")
+        mock_manager.delete_rule.assert_called_once_with("r1", allow_pinned=False)
+
+    @pytest.mark.asyncio
+    async def test_manage_delete_rule_protected(self, mcp_server, mock_manager):
+        mock_manager.delete_rule.return_value = False
+        result = await _get_tool_fn(mcp_server, "memory_manage")(action="delete", memory_id="r1", category="rule")
+        assert "Cannot delete rule" in result
+        assert "user-protected" in result
 
     @pytest.mark.asyncio
     async def test_manage_update(self, mcp_server, mock_manager):

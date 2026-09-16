@@ -107,11 +107,15 @@ class ConflictResolution(StrEnum):
 
 
 class ToolRulePriority(StrEnum):
-    """Priority level for tool-scoped procedural rules.
+    """Compression resistance level for procedural rules.
 
-    CRITICAL rules are pinned into the system prompt and immune to
-    context compression. HIGH rules are included when budget permits.
-    NORMAL rules are injected only when the associated tool is active.
+    CRITICAL rules are excluded from TTL archiving (see
+    ``maintenance_rule_forgetting``), and AGENT_SELF rules are downgraded to
+    HIGH if they try to claim it (see ``write_service``). HIGH marks rules
+    distilled from repeated user corrections. HIGH and NORMAL rules share the
+    same stable-layer prompt budget, so budget trimming can still drop them —
+    what guarantees a rule survives trimming is the user-endorsed lock
+    (``is_user_locked``).
     """
 
     CRITICAL = "critical"
@@ -468,15 +472,19 @@ class ProceduralMemory(BaseMemory):
     ``status``. Prefer using ``status`` for new code.
 
     Tool-scoped rules use ``tool_name`` to associate with a specific tool
-    and ``tool_rule_priority`` to control compression resistance:
-    - CRITICAL: pinned into system prompt, immune to compression
-    - HIGH: included when budget permits
-    - NORMAL: injected only when the associated tool is active
+    and ``tool_rule_priority`` to record how durable the rule is:
+    - CRITICAL: user-mandated, excluded from TTL archiving
+    - HIGH: distilled from repeated user corrections
+    - NORMAL: ordinary rule
+
+    Prompt-budget survival is governed by ``is_user_locked``, not by this
+    level: endorsed rules are ordered ahead of generic rules so unendorsed
+    ones are trimmed first.
 
     Attributes:
         language: Primary language of the rule content ("zh" or "en")
         tool_name: Tool this rule is scoped to (None = global rule)
-        tool_rule_priority: Compression resistance level for tool-scoped rules
+        tool_rule_priority: Durability level for tool-scoped rules
     """
 
     memory_type: Literal[MemoryType.PROCEDURAL] = MemoryType.PROCEDURAL
@@ -492,7 +500,7 @@ class ProceduralMemory(BaseMemory):
     tool_name: str | None = Field(default=None, description="Tool this rule is scoped to (None = global)")
     tool_rule_priority: ToolRulePriority = Field(
         default=ToolRulePriority.NORMAL,
-        description="Compression resistance: CRITICAL rules are pinned into system prompt",
+        description="Durability level: CRITICAL rules are excluded from TTL archiving",
     )
 
     def model_post_init(self, __context: object) -> None:

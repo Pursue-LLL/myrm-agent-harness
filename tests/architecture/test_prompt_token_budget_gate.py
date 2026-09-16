@@ -1,11 +1,16 @@
-"""Architecture gate: Prompt Token Budget and Turn-1 Tool Inventory Gate.
+"""Architecture gate: harness-level prompt rule budget and Turn-1 tool inventory.
 
-Validates that:
-1. Full System Prompt does NOT exceed absolute ceiling (≤2000 tokens) to prevent prompt bloat.
-2. Lean System Prompt does NOT exceed absolute ceiling (≤1200 tokens).
-3. Lean System Prompt achieves at least 35% compression ratio relative to Full mode (anti-proportional bloat).
-4. Turn-1 default tool profile token overhead (CORE + HIGH_PRIORITY descriptions + schema wrappers) does NOT exceed ceiling (≤6500 tokens).
-5. SystemMessage content hash is immutable across multiple resolutions (prompt cache safety).
+Validates (harness scope — 3 checks):
+1. Turn-1 default tool profile token overhead (CORE + HIGH_PRIORITY descriptions
+   + schema wrappers) does NOT exceed ceiling (≤6500 tokens).
+2. Harness system rule constants stay compact: AGENT_CORE_RULES ≤350,
+   SECURITY_BOUNDARY_SYSTEM_RULES ≤350, DATETIME_SYSTEM_RULES ≤120.
+3. SystemMessage content hash is immutable across multiple resolutions
+   (prompt cache safety).
+
+Business-layer CORE prompt caps (full ≤2000 / lean ≤1200 / lean÷full ≤0.70 on
+``cl100k_base``) live in the server repo:
+``myrm-agent-server/tests/ai_agents/test_prompt_integrity.py::TestPromptTokenBudgetGate``.
 """
 
 from __future__ import annotations
@@ -46,7 +51,7 @@ class TestPromptTokenBudgetGate:
         tools = await _build_default_turn1_tools()
         tools_subtotal = estimate_bound_tools_tokens(tools)
 
-        # Baseline is ~5,513 description tokens + 13*65 (845) schema = ~6,358 tokens
+        # Baseline is ~5,284 description tokens + 13*65 (845) schema = ~6,129 tokens
         # Safe ceiling is 6,500 tokens
         max_allowed_tools_tokens = 6500
         assert (

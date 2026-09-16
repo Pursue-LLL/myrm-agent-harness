@@ -13,8 +13,8 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](../MIDDLEWARE_SYSTEM.md)
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | `__init__.py` | Package | Public export for `MemoryContextMiddleware`. | — |
-| `memory_context_middleware.py` | Core | `<user_memory_context>` + scope boundary + untrusted data wrapping; `memory_brief_snapshot` reuse; injection/budget telemetry via API hooks. | ✅ |
-| `memory_context_format.py` | Internal | Formatting helpers for memory context injection (XML escaping, budget section partitioning, search guidance, cold-start context). | ✅ |
+| `memory_context_middleware.py` | Core | `<user_memory_context>` + scope boundary + untrusted data wrapping; `memory_brief_snapshot` reuse; injection/budget telemetry via API hooks (budget carries configured/injected rule counts so trimmed rules are visible to the client). | ✅ |
+| `memory_context_format.py` | Internal | Formatting helpers for memory context injection (XML escaping, budget section partitioning with per-section accepted-item counts for injection fidelity telemetry, search guidance, cold-start context). | ✅ |
 
 ## Key Dependencies
 

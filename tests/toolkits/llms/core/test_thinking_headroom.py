@@ -8,6 +8,7 @@ from myrm_agent_harness.toolkits.llms.core.thinking_headroom import (
     _extract_effort,
     _is_thinking_model,
     ensure_thinking_headroom,
+    thinking_output_floor,
 )
 
 
@@ -36,6 +37,8 @@ class TestIsThinkingModel:
             "gemini-3-ultra",
             "nemotron-3-super",
             "qwq-32b",
+            "minimax-m3",
+            "minimax/MiniMax-M3",
             "grok-4-fast-reasoning",
         ],
     )
@@ -136,6 +139,15 @@ class TestEnsureThinkingHeadroom:
         ensure_thinking_headroom("anthropic/claude-opus-5", kwargs)
         assert kwargs["max_tokens"] == 16384
 
+    def test_output_floor_none_for_non_thinking_model(self) -> None:
+        assert thinking_output_floor("gpt-4o") is None
+
+    def test_output_floor_honors_effort(self) -> None:
+        assert thinking_output_floor("o3", {"reasoning_effort": "high"}) == 32768
+
+    def test_output_floor_defaults_without_effort(self) -> None:
+        assert thinking_output_floor("minimax/MiniMax-M3") == 16384
+
     def test_thinking_model_max_tokens_above_floor_unchanged(self) -> None:
         kwargs: dict = {"max_tokens": 65536, "reasoning_effort": "low"}
         ensure_thinking_headroom("o3", kwargs)
@@ -144,6 +156,12 @@ class TestEnsureThinkingHeadroom:
     def test_thinking_model_max_tokens_unset(self) -> None:
         kwargs: dict = {"temperature": 0.7}
         ensure_thinking_headroom("deepseek-r1", kwargs)
+        assert kwargs["max_tokens"] == 16384
+
+    def test_minimax_gets_headroom_floor(self) -> None:
+        """MiniMax inlines reasoning in content and needs room for both phases."""
+        kwargs: dict = {"temperature": 0.7}
+        ensure_thinking_headroom("minimax/MiniMax-M3", kwargs)
         assert kwargs["max_tokens"] == 16384
 
     def test_thinking_model_max_tokens_none(self) -> None:

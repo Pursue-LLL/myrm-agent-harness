@@ -327,9 +327,12 @@ class ArtifactVault:
         target_pattern = f"subagent_{task_id}"
         purged = 0
         for obj in self.list_objects():
-            if target_pattern in obj.filename or target_pattern in obj.description or task_id in obj.id:
-                if self.purge_object(obj.id):
-                    purged += 1
+            if (
+                target_pattern in obj.filename
+                or target_pattern in obj.description
+                or task_id in obj.id
+            ) and self.purge_object(obj.id):
+                purged += 1
 
         if purged > 0:
             logger.info("Purged %d vault objects for task_id: %s", purged, task_id)

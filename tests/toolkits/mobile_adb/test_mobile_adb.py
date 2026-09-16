@@ -126,4 +126,75 @@ async def test_mobile_session_pair_and_connect_flow() -> None:
         assert "192.168.1.100:5555" in session._connected_devices
 
 
+def test_compress_screencap_bytes_passthrough_for_small_payloads() -> None:
+    from myrm_agent_harness.toolkits.mobile_adb.compressor import compress_screencap_bytes
+
+    # Sub-64-byte payloads are returned untouched (not a real image).
+    assert compress_screencap_bytes(b"") == b""
+    assert compress_screencap_bytes(b"short") == b"short"
+
+
+def test_compress_screencap_bytes_downscales_real_png() -> None:
+    import io
+
+    from PIL import Image
+
+    from myrm_agent_harness.toolkits.mobile_adb.compressor import compress_screencap_bytes
+
+    source = Image.new("RGB", (2560, 1440), color=(20, 120, 200))
+    buffer = io.BytesIO()
+    source.save(buffer, format="PNG")
+
+    compressed = compress_screencap_bytes(buffer.getvalue(), max_dimension=1280)
+
+    result = Image.open(io.BytesIO(compressed))
+    assert max(result.size) == 1280
+    assert len(compressed) < len(buffer.getvalue())
+
+
+@pytest.mark.asyncio
+async def test_inject_text_utf8_uses_fast_path_for_ascii() -> None:
+    from myrm_agent_harness.toolkits.mobile_adb.text_injection import inject_text_utf8
+
+    commands: list[str] = []
+
+    async def _run(shell_cmd: str) -> tuple[int, str, str]:
+        commands.append(shell_cmd)
+        return 0, "ok", ""
+
+    ok, _ = await inject_text_utf8(_run, "Hello123")
+    assert ok is True
+    assert commands == ["input text Hello123"]
+
+
+@pytest.mark.asyncio
+async def test_inject_text_utf8_escapes_cjk_through_clipboard() -> None:
+    from myrm_agent_harness.toolkits.mobile_adb.text_injection import inject_text_utf8
+
+    commands: list[str] = []
+
+    async def _run(shell_cmd: str) -> tuple[int, str, str]:
+        commands.append(shell_cmd)
+        return 0, "", ""
+
+    ok, _ = await inject_text_utf8(_run, "你好 世界")
+    assert ok is True
+    # CJK + space must not go through the naive `input text` fast path.
+    assert len(commands) == 1
+    assert "base64 -d" in commands[0]
+    assert "clipper.set" in commands[0]
+
+
+@pytest.mark.asyncio
+async def test_inject_text_utf8_reports_failure_when_all_routes_fail() -> None:
+    from myrm_agent_harness.toolkits.mobile_adb.text_injection import inject_text_utf8
+
+    async def _run(shell_cmd: str) -> tuple[int, str, str]:
+        return 1, "", "error"
+
+    ok, detail = await inject_text_utf8(_run, "你好")
+    assert ok is False
+    assert "error" in detail
+
+
 

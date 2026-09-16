@@ -146,17 +146,17 @@ async def test_build_default_turn1_tools_resolves_default_profile() -> None:
 
 # SSOT: DEFAULT_AGENT_TOKEN_INVENTORY.md §二–§四 (measure_turn1 default profile, o200k_base)
 _DOC_TURN1_TOOL_TOKENS: dict[str, int] = {
-    "bash_code_execute_tool": 1450,
+    "bash_code_execute_tool": 1425,
     "bash_process_tool": 107,
     "file_edit_tool": 132,
     "file_read_tool": 332,
     "file_write_tool": 118,
     "glob_tool": 201,
     "grep_tool": 205,
-    "memory_manage_tool": 315,
+    "memory_manage_tool": 339,
     "memory_save_tool": 720,
     "memory_search_tool": 143,
-    "skill_select_tool": 187,
+    "skill_select_tool": 240,
     "web_fetch_tool": 148,
     "web_search_tool": 1174,
 }
@@ -167,7 +167,17 @@ async def test_measure_turn1_inventory_matches_documented_token_baseline() -> No
     """Lock measure script output to inventory doc — prevents silent doc drift."""
     report = await measure.measure_turn1_inventory()
     measured = {row["name"]: int(row["tokens"]) for row in report["per_tool"]}
-    assert measured == _DOC_TURN1_TOOL_TOKENS
+
+    drifted = {
+        name: (measured.get(name), expected)
+        for name, expected in _DOC_TURN1_TOOL_TOKENS.items()
+        if measured.get(name) != expected
+    }
+    assert not drifted, (
+        "Turn-1 tool description tokens drifted from DEFAULT_AGENT_TOKEN_INVENTORY.md "
+        f"(tool: measured vs documented) -> {drifted}"
+    )
+    assert measured.keys() == _DOC_TURN1_TOOL_TOKENS.keys()
     assert report["tool_count"] == 13
     assert report["description_tokens"] == sum(_DOC_TURN1_TOOL_TOKENS.values())
     assert (
@@ -175,6 +185,7 @@ async def test_measure_turn1_inventory_matches_documented_token_baseline() -> No
         == report["description_tokens"] + report["schema_wrapper_tokens"]
     )
     layer_totals = report["layer_totals"]
-    assert layer_totals["CORE"] == 2693
-    assert layer_totals["HIGH_PRIORITY"] == 2539
-    assert report["tools_subtotal"] == 6077
+    assert layer_totals["CORE"] == 2668
+    assert layer_totals["HIGH_PRIORITY"] == 2616
+    assert report["tools_subtotal"] == 6129
+    assert report["tools_subtotal"] <= 6500, "Turn-1 tools exceeded the 6,500 budget ceiling"

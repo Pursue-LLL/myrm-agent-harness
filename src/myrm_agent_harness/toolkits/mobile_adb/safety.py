@@ -14,7 +14,7 @@ myrm_agent_harness.toolkits.mobile_adb.safety
 from __future__ import annotations
 
 import re
-from typing import Final, TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.mobile_adb.types import MobileUIElement

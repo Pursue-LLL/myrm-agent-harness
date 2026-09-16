@@ -14,18 +14,14 @@ Async device communication layer interfacing with standard adb binary for wirele
 from __future__ import annotations
 
 import asyncio
-import base64
 import logging
-import shlex
 import shutil
 from typing import Any
 
-from myrm_agent_harness.toolkits.mobile_adb.app_aliases import (
-    COMMON_APP_ALIASES,
-    resolve_package_alias,
-)
+from myrm_agent_harness.toolkits.mobile_adb.compressor import compress_screencap_bytes
 from myrm_agent_harness.toolkits.mobile_adb.parser import MobileUIParser
 from myrm_agent_harness.toolkits.mobile_adb.safety import MobileSafetyGuard
+from myrm_agent_harness.toolkits.mobile_adb.text_injection import inject_text_utf8
 from myrm_agent_harness.toolkits.mobile_adb.types import (
     MobileActionResult,
     MobileDeviceConnectionStatus,
@@ -193,7 +189,7 @@ class AdbDeviceDriver:
     async def get_device_state(self, target: str) -> MobileDeviceState:
         """Capture current device state, top activity, and parse UI tree."""
         # 1. Get current focused window/package
-        code, out, _ = await self._run_adb(
+        _, out, _ = await self._run_adb(
             "-s", target, "shell", "dumpsys", "window", "|", "grep", "-E", "mCurrentFocus|mFocusedApp"
         )
         current_pkg = ""
@@ -210,7 +206,7 @@ class AdbDeviceDriver:
         # 2. Dump uiautomator XML
         # Delete stale dump file first
         await self._run_adb("-s", target, "shell", "rm", "-f", "/sdcard/window_dump.xml")
-        dump_code, _, dump_err = await self._run_adb(
+        dump_code, _, _ = await self._run_adb(
             "-s", target, "shell", "uiautomator", "dump", "/sdcard/window_dump.xml", timeout_sec=10.0
         )
         xml_content = ""
@@ -283,7 +279,7 @@ class AdbDeviceDriver:
             )
 
         if action == "click":
-            code, out, err = await self._run_adb(
+            code, _, _ = await self._run_adb(
                 "-s", target, "shell", "input", "tap", str(center_x), str(center_y)
             )
             return MobileActionResult(
@@ -295,7 +291,7 @@ class AdbDeviceDriver:
 
         elif action == "long_press":
             # Swipe with zero distance for 1000ms represents long press
-            code, out, err = await self._run_adb(
+            code, _, _ = await self._run_adb(
                 "-s",
                 target,
                 "shell",
@@ -317,20 +313,23 @@ class AdbDeviceDriver:
             # 1. Click to focus
             await self._run_adb("-s", target, "shell", "input", "tap", str(center_x), str(center_y))
             await asyncio.sleep(0.3)
-            # 2. Type text (escape spaces)
-            safe_text = text_value.replace(" ", "%s")
-            code, out, err = await self._run_adb("-s", target, "shell", "input", "text", safe_text)
+            # 2. Inject text (UTF-8 aware: CJK/emoji need the clipboard route)
+            ok, detail = await inject_text_utf8(
+                lambda shell_cmd: self._run_adb("-s", target, "shell", shell_cmd),
+                text_value,
+            )
             return MobileActionResult(
-                success=code == 0,
+                success=ok,
                 action="input_text",
-                message=f"Entered text '{text_value}' into {ref_id}",
+                message=f"Entered text '{text_value}' into {ref_id}" if ok else detail,
+                error=None if ok else "INPUT_TEXT_FAILED",
             )
 
         elif action == "clear_text":
             # Select and send KEYCODE_DEL multiple times
             await self._run_adb("-s", target, "shell", "input", "tap", str(center_x), str(center_y))
             # Move cursor to end and delete
-            code, out, err = await self._run_adb(
+            code, _, _ = await self._run_adb(
                 "-s", target, "shell", "input", "keyevent", "--longpress", "67", "67", "67", "67"
             )
             return MobileActionResult(
@@ -354,11 +353,11 @@ class AdbDeviceDriver:
     ) -> MobileActionResult:
         """Execute device-level global commands (back, home, launch, screencap)."""
         if action == "back":
-            code, out, err = await self._run_adb("-s", target, "shell", "input", "keyevent", "4")
+            code, out, _ = await self._run_adb("-s", target, "shell", "input", "keyevent", "4")
             return MobileActionResult(success=code == 0, action="back", message="Pressed BACK key")
 
         elif action == "home":
-            code, out, err = await self._run_adb("-s", target, "shell", "input", "keyevent", "3")
+            code, out, _ = await self._run_adb("-s", target, "shell", "input", "keyevent", "3")
             return MobileActionResult(success=code == 0, action="home", message="Pressed HOME key")
 
         elif action == "launch_app":
@@ -367,7 +366,7 @@ class AdbDeviceDriver:
                 return MobileActionResult(
                     success=False, action="launch_app", message="Package name required", error="EMPTY_PARAM"
                 )
-            code, out, err = await self._run_adb(
+            code, out, _ = await self._run_adb(
                 "-s", target, "shell", "monkey", "-p", package, "-c", "android.intent.category.LAUNCHER", "1"
             )
             return MobileActionResult(
@@ -390,7 +389,7 @@ class AdbDeviceDriver:
                     message=risk_reason or "Action blocked by MobileSafetyGuard",
                     error="SAFETY_BARRIER_TRIGGERED",
                 )
-            code, out, err = await self._run_adb("-s", target, "shell", "am", "force-stop", package)
+            code, _, _ = await self._run_adb("-s", target, "shell", "am", "force-stop", package)
             return MobileActionResult(
                 success=code == 0,
                 action="stop_app",
@@ -402,7 +401,7 @@ class AdbDeviceDriver:
         )
 
     async def capture_screenshot_bytes(self, target: str) -> bytes | None:
-        """Capture screenshot via 'exec-out screencap -p' returning PNG binary."""
+        """Capture and compress the device screenshot, returning WebP (or raw PNG) bytes."""
         cmd = [self._adb_path, "-s", target, "exec-out", "screencap", "-p"]
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -412,7 +411,7 @@ class AdbDeviceDriver:
             )
             stdout_bytes, _ = await asyncio.wait_for(proc.communicate(), timeout=10.0)
             if proc.returncode == 0 and len(stdout_bytes) > 100:
-                return stdout_bytes
+                return compress_screencap_bytes(stdout_bytes)
             return None
         except Exception as e:
             logger.warning("Failed to capture screenshot via ADB: %s", e)

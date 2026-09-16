@@ -184,17 +184,28 @@ class TestDeletePinnedProtection:
         assert deleted == 1
 
     @pytest.mark.asyncio
-    async def test_delete_rule_skips_pinned(
+    async def test_delete_rule_skips_user_locked(
         self,
         memory_config: MemoryConfig,
         mock_vector_store: AsyncMock,
         mock_embedding: AsyncMock,
         mock_relational_store: AsyncMock,
     ) -> None:
+        """User-locked rules survive agent deletion.
+
+        ``is_user_locked`` is the persisted rule lock (shared with distillation,
+        merge and forgetting), so ``allow_pinned=False`` must honour it.
+        """
         from myrm_agent_harness.toolkits.memory.types import ProceduralMemory
 
-        pinned_rule = ProceduralMemory(id="r1", content="When: X → Do: Y", trigger="X", action="Y", pinned=True)
-        mock_relational_store.get_rule.return_value = pinned_rule
+        locked_rule = ProceduralMemory(
+            id="r1",
+            content="When: X → Do: Y",
+            trigger="X",
+            action="Y",
+            is_user_locked=True,
+        )
+        mock_relational_store.get_rule.return_value = locked_rule
 
         mgr = MemoryManager(
             memory_config,
@@ -209,7 +220,7 @@ class TestDeletePinnedProtection:
         mock_relational_store.delete_rule.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_delete_rule_allows_unpinned(
+    async def test_delete_rule_allows_unlocked(
         self,
         memory_config: MemoryConfig,
         mock_vector_store: AsyncMock,
@@ -218,8 +229,14 @@ class TestDeletePinnedProtection:
     ) -> None:
         from myrm_agent_harness.toolkits.memory.types import ProceduralMemory
 
-        unpinned_rule = ProceduralMemory(id="r2", content="When: A → Do: B", trigger="A", action="B", pinned=False)
-        mock_relational_store.get_rule.return_value = unpinned_rule
+        unlocked_rule = ProceduralMemory(
+            id="r2",
+            content="When: A → Do: B",
+            trigger="A",
+            action="B",
+            is_user_locked=False,
+        )
+        mock_relational_store.get_rule.return_value = unlocked_rule
         mock_relational_store.delete_rule.return_value = True
 
         mgr = MemoryManager(
@@ -232,6 +249,7 @@ class TestDeletePinnedProtection:
         )
         ok = await mgr.delete_rule("r2", allow_pinned=False)
         assert ok is True
+        mock_relational_store.delete_rule.assert_called_once_with("r2")
 
     @pytest.mark.asyncio
     async def test_mixed_batch_only_deletes_unpinned(

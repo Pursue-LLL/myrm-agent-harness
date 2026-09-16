@@ -247,15 +247,49 @@ def _myrm_e2e_enabled() -> bool:
     return raw in {"1", "true", "yes", "on"}
 
 
+def _e2e_cdp_binding_requested() -> bool:
+    """True when this run owns its own Chrome and must not probe any other.
+
+    Two independent signals mark that ownership: the explicit switch
+    ``MYRM_CHROME_E2E`` and an explicit ``MYRM_CHROME_E2E_PORT`` (that variable only
+    defaults when nobody set it, so its presence is unambiguous operator intent).
+    Both entry points exist across the E2E toolchain, and either one alone is enough
+    to bind — treating them as one predicate removes the entire class of hijack where
+    one entry point sets the port while the switch stays unset.
+    """
+    if _myrm_e2e_enabled():
+        return True
+    return bool(os.environ.get("MYRM_CHROME_E2E_PORT", "").strip())
+
+
+def resolve_e2e_cdp_endpoint() -> str | None:
+    """Fixed E2E Chrome endpoint while the run is E2E-bound, else None.
+
+    Single SSOT for the E2E binding so the server resolver and the launcher discovery
+    cannot disagree about which Chrome a run owns. Independent of
+    ``MYRM_LOCAL_BROWSER_ATTACH_ALLOWED``: that policy governs *optional* auto-attaching
+    to a developer's own browser, whereas the E2E Chrome is dedicated and externally
+    provisioned by the chrome-e2e preflight.
+    """
+    if not _e2e_cdp_binding_requested():
+        return None
+    return f"http://127.0.0.1:{_myrm_e2e_port()}"
+
+
 def discover_chrome_cdp_endpoint() -> str | None:
     """Auto-discover a local Chromium-based browser's CDP endpoint.
 
     Strategy (ordered by reliability):
       -1. Compliance check: abort if MYRM_LOCAL_BROWSER_ATTACH_ALLOWED=false
-      0. Myrm E2E Chrome fixed port (MYRM_CHROME_E2E=1 only) via HTTP
+      0. E2E Chrome fixed port (E2E-bound run) via HTTP — exclusive and fail-closed
       1. Scan DevToolsActivePort files from known browser data dirs (with negative cache)
       2. For each found port: HTTP probe → WebSocket path + TCP (inspect-only mode)
       3. Fallback: probe well-known port 9222 via HTTP
+
+    Step 0 never falls through: an E2E-bound run owns exactly one Chrome, so scanning the
+    data dirs afterwards can only reach a developer's own browser — whose
+    DevToolsActivePort may hold a stale WebSocket UUID that still passes the TCP probe,
+    leaving the pool with no usable page at all.
 
     Returns a CDP endpoint URL (http:// or ws:// for connect_over_cdp) or None.
     """
@@ -263,13 +297,17 @@ def discover_chrome_cdp_endpoint() -> str | None:
         logger.debug("Chrome discovery skipped: MYRM_LOCAL_BROWSER_ATTACH_ALLOWED is disabled")
         return None
 
-    if _myrm_e2e_enabled():
+    if _e2e_cdp_binding_requested():
         myrm_port = _myrm_e2e_port()
-        if not _is_port_in_failure_cache(myrm_port):
-            if _probe_http_version(myrm_port):
-                logger.info("Chrome discovery: connected via Myrm E2E port %d", myrm_port)
-                return f"http://127.0.0.1:{myrm_port}"
-            _record_port_failure(myrm_port)
+        if _probe_http_version(myrm_port):
+            logger.info("Chrome discovery: connected via Myrm E2E port %d", myrm_port)
+            return f"http://127.0.0.1:{myrm_port}"
+        logger.warning(
+            "Chrome discovery: E2E Chrome not reachable on port %d — refusing to fall "
+            "back to a local browser",
+            myrm_port,
+        )
+        return None
 
     for data_dir in get_chromium_data_dirs():
         result = _read_devtools_active_port(data_dir)

@@ -76,6 +76,10 @@ from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting i
 from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting import (
     parse_time_bound as _parse_time_bound,
 )
+from myrm_agent_harness.toolkits.memory.agent_surface.rule_write_boundary import (
+    get_user_locked_rule,
+    rule_rewrite_protection_message,
+)
 from myrm_agent_harness.toolkits.memory.agent_surface.wiki_memory_boundary import (
     looks_like_wiki_document,
     record_wiki_memory_save_rejection,
@@ -724,16 +728,22 @@ class MemoryMCPServer:
                     if mem_type == MemoryType.PROCEDURAL:
                         if not mgr.has_relational:
                             return "Procedural memory is not enabled."
-                        ok = await mgr.delete_rule(memory_id)
+                        ok = await mgr.delete_rule(memory_id, allow_pinned=False)
+                        if ok:
+                            return f"Rule deleted (ID: {memory_id})"
                         return (
-                            f"Rule deleted (ID: {memory_id})"
-                            if ok
-                            else f"Rule not found (ID: {memory_id})"
+                            f"Cannot delete rule (ID: {memory_id}): "
+                            "it may be user-protected or not found. Rules the user explicitly "
+                            "locked cannot be deleted by the agent."
                         )
 
                 if action == "update":
                     if not new_content:
                         return "Update requires 'new_content'."
+                    if mem_type == MemoryType.PROCEDURAL:
+                        existing = await mgr.get_memory(memory_id)
+                        if get_user_locked_rule(existing) is not None:
+                            return rule_rewrite_protection_message(memory_id)
                     updated = await mgr.update_memory(
                         memory_id, content=new_content, importance=new_importance
                     )

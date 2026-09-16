@@ -77,12 +77,20 @@ def create_takeover_tool(session: BrowserSession):
                 if session._tab_controller.list_tabs():
                     page = session._tab_controller.get_active_page()
             except Exception:
+                logger.debug("browser_ask_human: listing tabs failed", exc_info=True)
                 page = None
         if page is None or page.is_closed():
             try:
                 await session.new_tab()
                 page = session._tab_controller.get_active_page()
             except Exception:
+                # Leaving the cause unlogged turns a recoverable page-acquisition
+                # failure into an unattributable "no active page" — which silently
+                # aborts the interrupt this tool exists to raise.
+                logger.warning(
+                    "browser_ask_human: page acquisition failed; no takeover request raised",
+                    exc_info=True,
+                )
                 page = None
         if page is None or page.is_closed():
             return "Error: No active browser page. Navigate to a page first."

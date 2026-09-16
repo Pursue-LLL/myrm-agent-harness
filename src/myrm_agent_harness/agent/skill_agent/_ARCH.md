@@ -11,7 +11,7 @@ modules; the package root is the single import surface for this domain.
 |------|------|-------------|-------|
 | `__init__.py` | Package | SkillAgent domain public API — re-exports SkillAgent, mixins, ContextVar getters/setters, factory. | — |
 | `skill_agent.py` | Core | SkillAgent — extends BaseAgent with skill system, hooks, and session lifecycle. | ✅ |
-| `context.py` | Internal | Module-level ContextVar management (memory manager, loaded skills, task intent, runtime budget), background task utilities, SkillAgentContextMixin (`_prepare_context`). | ✅ |
+| `context.py` | Internal | Module-level ContextVar management (memory manager, loaded skills, task intent, runtime budget with configured/injected rule counts, injection status), background task utilities, SkillAgentContextMixin (`_prepare_context`). | ✅ |
 | `factory.py` | Core | SkillAgent assembly facade — re-exports `create_skill_agent()`. | ✅ |
 | `preload.py` | Core | `[use skill]` explicit SOP preload mixin for SkillAgent. | ✅ |
 | `_privacy_context.py` | Internal | Session-end privacy context helper — `reestablish_privacy_context` / `teardown_privacy_context` rebuild security config + PseudonymStore + PII closure from the agent's persisted SecurityConfig after run-end cleanup cleared the ContextVars, and restore the previous values afterwards. | ✅ |

@@ -17,9 +17,10 @@ allowing UI timeline rails to render 100+ turns at minimal memory (<60KB) and ju
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Sequence
+from typing import Any
 
 
 @dataclass(slots=True, frozen=True)

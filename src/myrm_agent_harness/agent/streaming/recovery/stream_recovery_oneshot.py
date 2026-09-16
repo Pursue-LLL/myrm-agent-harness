@@ -33,7 +33,6 @@ from myrm_agent_harness.agent._internals.agent_recovery import (
 from myrm_agent_harness.agent.streaming.types import AgentEventType
 from myrm_agent_harness.toolkits.llms.errors.classifier import (
     classify_failover_reason,
-    is_payload_overflow,
 )
 from myrm_agent_harness.toolkits.llms.errors.error_types import FailoverReason
 from myrm_agent_harness.utils.logger_utils import get_agent_logger

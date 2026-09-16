@@ -13,6 +13,9 @@
 | `driver.py` | 驱动核心 | 底层异步 ADB 命令执行器，管理设备连接与 low-level 执行 | ✅ |
 | `parser.py` | 解析器 | 解析 Android dump 结构与节点属性，构建 `MobileUIElement` 层次结构 | ✅ |
 | `session.py` | 会话编排 | 移动端设备交互核心会话管理器，协调驱动执行与状态同步 | ✅ |
+| `safety.py` | 安全护栏 | 支付/凭据/恢复出厂等高风险 UI 与危险 shell 序列拦截 | ✅ |
+| `compressor.py` | 传输优化 | 截屏 PNG 降采样并重编码为 WebP/JPEG，降低无线 ADB 带宽与 LLM 上下文开销 | ✅ |
+| `text_injection.py` | 输入原语 | UTF-8 文本注入（剪贴板广播 + 转义兜底），突破 `adb shell input text` 的 ASCII 限制 | ✅ |
 | `mobile_agent_tools.py` | Agent 适配器 | LangChain `StructuredTool` 适配层，将 session 操作包装为 Agent 工具 | ✅ |
 
 ## 模块依赖

@@ -71,6 +71,7 @@ _IM_CAPABILITIES: CapabilitySet = frozenset(
         Capability("*", "*"),
         Capability("!browser_*", "*"),
         Capability("!desktop_*", "*"),
+        Capability("!mobile_*", "*"),
     }
 )
 
@@ -121,6 +122,8 @@ CHANNEL_PRESETS: dict[ChannelType, ChannelSecurityPreset] = {
         ruleset=(
             PermissionRule("desktop_capture", "*", PermissionAction.DENY),
             PermissionRule("desktop_control", "*", PermissionAction.DENY),
+            PermissionRule("mobile_capture", "*", PermissionAction.DENY),
+            PermissionRule("mobile_control", "*", PermissionAction.DENY),
         ),
     ),
 }

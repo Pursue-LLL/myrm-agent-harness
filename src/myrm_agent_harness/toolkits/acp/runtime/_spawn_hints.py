@@ -17,15 +17,19 @@ import os
 _BARE_CLI_HINTS: dict[str, str] = {
     "claude": (
         "Use Settings → Developer → External Agents with type 'cli' and Claude stream-json args, "
-        "or install the Claude Code ACP adapter if you intended type 'acp'."
+        "or install @agentclientprotocol/claude-agent-acp if you intended type 'acp'."
     ),
     "codex": (
-        "Bare 'codex' is not an ACP adapter. Install @zed-industries/codex-acp or configure "
+        "Bare 'codex' is not an ACP adapter. Install @agentclientprotocol/codex-acp or configure "
         "type 'cli' with Codex exec --json args in Settings → Developer → External Agents."
     ),
     "gemini": (
         "Configure Gemini as type 'cli' with --output-format stream-json in "
         "Settings → Developer → External Agents, or use a Gemini ACP adapter when available."
+    ),
+    "qwen": (
+        "Configure Qwen as type 'cli' with --output-format stream-json in "
+        "Settings → Developer → External Agents, or use a Qwen ACP adapter when available."
     ),
 }
 

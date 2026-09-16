@@ -84,6 +84,13 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "extract_script_file_operand": (".script_operand_verifier", "extract_script_file_operand"),
     "compute_file_content_digest": (".script_operand_verifier", "compute_file_content_digest"),
     "verify_script_operand_integrity": (".script_operand_verifier", "verify_script_operand_integrity"),
+    # team_identity.py
+    "TeamIdentityScope": (".team_identity", "TeamIdentityScope"),
+    "CredentialTrack": (".team_identity", "CredentialTrack"),
+    "TeamIdentitySpec": (".team_identity", "TeamIdentitySpec"),
+    "memory_namespace_for": (".team_identity", "memory_namespace_for"),
+    "credential_track_for": (".team_identity", "credential_track_for"),
+    "sanitize_identity_id": (".team_identity", "sanitize_identity_id"),
 }
 
 __all__ = list(_EXPORTS.keys())

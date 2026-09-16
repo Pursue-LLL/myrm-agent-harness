@@ -639,6 +639,10 @@ retention = 0.35 × time_score + 0.25 × access_score + 0.15 × importance_score
   - 遗忘策略：`should_forget=False`，reason="Protected: user-pinned"
   - Agent 工具删除：`allow_pinned=False` 时拒绝删除，返回明确拒绝消息（防 prompt injection）
   - WebUI/管理员操作：`allow_pinned=True`（默认），可正常删除
+- `is_user_locked=True` 的规则豁免（用户显式背书）：
+  - Agent 工具删除（`memory_manage` / MCP `memory_manage`）：`allow_pinned=False` 时拒绝删除并返回明确拒绝消息
+  - 蒸馏/合并/遗忘/规则 TTL 归档：跳过
+  - WebUI 删除、导入回滚、归档回滚等系统级路径：`allow_pinned=True`（默认），可正常删除
 - 创建 7 天内的记忆不遗忘
 - importance ≥ 0.9 的记忆受保护
 - 最近 7 天内访问过的记忆受保护

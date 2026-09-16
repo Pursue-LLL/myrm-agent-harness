@@ -21,7 +21,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable
 from contextvars import ContextVar
-from typing import TYPE_CHECKING, Literal, TypedDict
+from typing import TYPE_CHECKING, Literal, NotRequired, TypedDict
 
 from myrm_agent_harness.agent.skills import SkillMetadata
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
@@ -54,6 +54,9 @@ _task_intent_var: ContextVar[str] = ContextVar("task_intent", default="")
 class MemoryRuntimeBudget(TypedDict):
     used: int
     total: int
+    rulesConfigured: NotRequired[int]
+    rulesInjected: NotRequired[int]
+    rulesTruncated: NotRequired[bool]
 
 
 MemoryInjectionState = Literal["applied", "not_applied"]
@@ -168,7 +171,16 @@ def get_memory_runtime_budget() -> MemoryRuntimeBudget | None:
     payload = _memory_runtime_budget_var.get()
     if payload is None:
         return None
-    return {"used": payload["used"], "total": payload["total"]}
+    copied: MemoryRuntimeBudget = {"used": payload["used"], "total": payload["total"]}
+    # Rule fidelity keys are only present when the injection path produced them;
+    # other writers keep the original two-field payload shape.
+    if "rulesConfigured" in payload:
+        copied["rulesConfigured"] = payload["rulesConfigured"]
+    if "rulesInjected" in payload:
+        copied["rulesInjected"] = payload["rulesInjected"]
+    if "rulesTruncated" in payload:
+        copied["rulesTruncated"] = payload["rulesTruncated"]
+    return copied
 
 
 def set_memory_runtime_budget(payload: MemoryRuntimeBudget | None) -> None:
@@ -176,12 +188,17 @@ def set_memory_runtime_budget(payload: MemoryRuntimeBudget | None) -> None:
     if payload is None:
         _memory_runtime_budget_var.set(None)
         return
-    _memory_runtime_budget_var.set(
-        {
-            "used": max(0, int(payload["used"])),
-            "total": max(0, int(payload["total"])),
-        }
-    )
+    stored: MemoryRuntimeBudget = {
+        "used": max(0, int(payload["used"])),
+        "total": max(0, int(payload["total"])),
+    }
+    if "rulesConfigured" in payload:
+        configured = max(0, int(payload["rulesConfigured"]))
+        injected = payload.get("rulesInjected")
+        stored["rulesConfigured"] = configured
+        stored["rulesInjected"] = min(max(0, int(injected if injected is not None else 0)), configured)
+        stored["rulesTruncated"] = bool(payload.get("rulesTruncated", False))
+    _memory_runtime_budget_var.set(stored)
 
 
 def get_memory_runtime_injection() -> MemoryRuntimeInjection | None:
