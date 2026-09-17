@@ -18,6 +18,16 @@ Core modules:
 - checkpoint_protocol: Checkpointer protocol definition
 - fork_types: Conversation fork data structures
 """
+from myrm_agent_harness.runtime.cognitive_clock import (
+    CognitiveCadence,
+    CognitiveClockBus,
+    CognitiveClockTaskSpec,
+    CognitiveClockTickEvent,
+    CooperativePauseSignal,
+    PauseRequestedError,
+    get_cognitive_clock_bus,
+    get_global_pause_signal,
+)
 from myrm_agent_harness.runtime.context import (
     ContextCleanupConfig,
     ContextCleanupScheduler,
@@ -89,6 +99,11 @@ __all__ = [
     "BaseEvent",
     "CapacityDenial",
     "CapacityTicket",
+    "CognitiveCadence",
+    "CognitiveClockBus",
+    "CognitiveClockTaskSpec",
+    "CognitiveClockTickEvent",
+    "CooperativePauseSignal",
     "ContextCleanupConfig",
     "ContextCleanupScheduler",
     "ContextMetrics",
@@ -106,6 +121,7 @@ __all__ = [
     "PressureLevel",
     "PressureSubscriber",
     "QuotaExceededError",
+    "PauseRequestedError",
     "ResourceMonitor",
     "SaaSLoadSensor",
     "SimpleStorageQuotaManager",
@@ -122,11 +138,13 @@ __all__ = [
     "compute_health_score",
     "create_compress_offload_callback",
     "ensure_context_dir_exists",
+    "get_cognitive_clock_bus",
     "get_compacted_output_path",
     "get_context_metrics",
     "get_context_session_dir",
     "get_event_bus",
     "get_file_access_tracker",
+    "get_global_pause_signal",
     "get_maintenance_scheduler",
     "get_memory_pressure_monitor",
     "get_workspace_relative_path",

@@ -36,6 +36,9 @@ from myrm_agent_harness.agent.skill_agent.context import get_memory_manager
 from myrm_agent_harness.agent.streaming.types import AgentEventType
 from myrm_agent_harness.runtime.events.bus import get_event_bus
 from myrm_agent_harness.runtime.events.idle_events import IdleTaskProgressEvent
+from myrm_agent_harness.runtime.cognitive_clock.signals import (
+    get_global_pause_signal,
+)
 from myrm_agent_harness.runtime.maintenance.protocols import (
     CapacityDenial,
     MaintenanceTaskType,
@@ -72,6 +75,15 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
     If successful, runs memory consolidation or pending background tasks,
     and emits progress events to the Harness EventBus.
     """
+    pause_signal = get_global_pause_signal()
+    if pause_signal.is_pause_requested:
+        logger.info(
+            "Idle task execution deferred for session %s due to active cooperative pause (%s).",
+            session_id,
+            pause_signal.pause_reason,
+        )
+        return
+
     task = await registry.acquire_next(session_id)
     if not task:
         logger.debug("No pending idle tasks for session %s.", session_id)

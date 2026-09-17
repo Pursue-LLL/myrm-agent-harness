@@ -22,6 +22,7 @@ Detailed design: [CONVERSATION_FORK_SYSTEM.md](CONVERSATION_FORK_SYSTEM.md)
 | `context/` | Context lifecycle — cleanup, offload, archive, session | [context/_ARCH.md](context/_ARCH.md) |
 | `checkpointing/` | Checkpointer factory | [checkpointing/_ARCH.md](checkpointing/_ARCH.md) |
 | `events/` | Runtime event bus | [events/_ARCH.md](events/_ARCH.md) |
+| `cognitive_clock/` | Four-tier cognitive clock scheduling primitives | [cognitive_clock/_ARCH.md](cognitive_clock/_ARCH.md) |
 | `maintenance/` | Global adaptive maintenance scheduling | [maintenance/_ARCH.md](maintenance/_ARCH.md) |
 | `quota/` | Storage quota management | [quota/_ARCH.md](quota/_ARCH.md) |
 | `install_guard/` | Dual-wheel install readiness | [install_guard/_ARCH.md](install_guard/_ARCH.md) |
