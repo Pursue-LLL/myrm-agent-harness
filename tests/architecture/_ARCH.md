@@ -62,7 +62,6 @@ CI 架构门禁：层边界、分形文档、PyPI wheel 打包不变量、tool r
 | `test_component_snapshot_bounded_diff.py` | Gate | 4 大核心组件快照与有界差分门禁（Prompt Cache 前缀稳定性） | — |
 | `test_tool_env_dependency_correlation.py` | Gate | Tool 宿主环境依赖双向映射与探针健康门禁 | — |
 | `test_pytest_warning_gate.py` | Gate | Pytest 零告警容忍（Zero-Warning / filterwarnings = error）CI 门禁 | — |
-| `test_pr_hygiene.py` | Gate | PR & Issue 质量卫生门禁（Conventional Commits 标题 + PR Body 完备性 + Issue Form 校验） | — |
 | `test_toolkits_llms_media_layout.py` | Gate | LLM 媒体理解归属 `toolkits/llms/`，禁止顶层平铺 | — |
 | `test_prompt_token_budget_gate.py` | Gate | Turn-1 默认工具集与系统提示词 Token 预算上限与压缩比 CI 门禁 | — |
 
