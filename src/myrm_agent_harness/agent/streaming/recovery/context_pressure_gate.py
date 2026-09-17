@@ -142,6 +142,19 @@ def resolve_effective_config(
     return ContextPressureConfig.resolve(raw)
 
 
+def last_provider_prompt_tokens() -> int | None:
+    """Best-effort per-call prompt size from the previous turn for max() alignment."""
+    try:
+        from myrm_agent_harness.utils.token_economics.tracker import get_token_tracker
+
+        tracker = get_token_tracker()
+        last_call = getattr(getattr(tracker, "usage", None), "last_call", None)
+        prompt = getattr(last_call, "prompt_tokens", 0) or 0
+        return prompt if prompt > 0 else None
+    except Exception:
+        return None
+
+
 def estimate_request_tokens(
     messages: list[BaseMessage],
     *,
@@ -256,7 +269,7 @@ class PreflightGateMixin:
             return
         merged = ctx.merged_context if isinstance(ctx.merged_context, dict) else None
         config = resolve_effective_config(merged, getattr(ctx, "llm", None))
-        request_tokens = estimate_request_tokens(messages)
+        request_tokens = estimate_request_tokens(messages, last_provider_prompt_tokens=last_provider_prompt_tokens())
         if request_tokens < preflight_budget(config):
             self._preflight_streak.streak = 0
             return
@@ -312,7 +325,7 @@ class PreflightGateMixin:
             return False
         merged = ctx.merged_context if isinstance(ctx.merged_context, dict) else None
         config = resolve_effective_config(merged, getattr(ctx, "llm", None))
-        request_tokens = estimate_request_tokens(messages)
+        request_tokens = estimate_request_tokens(messages, last_provider_prompt_tokens=last_provider_prompt_tokens())
         if not is_presumed_overflow(exc, request_tokens, config):
             return False
         self._presumed_overflow_used = True
@@ -354,6 +367,7 @@ __all__ = [
     "estimate_request_tokens",
     "is_presumed_overflow",
     "preflight_budget",
+    "last_provider_prompt_tokens",
     "presumed_budget",
     "resolve_effective_config",
     "run_preflight_compact",

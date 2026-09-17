@@ -72,7 +72,25 @@ logger = get_agent_logger(__name__)
 
 _MAX_OVERFLOW_RETRIES = 2
 _MAX_CONSECUTIVE_OVERLOADED_BEFORE_FAILOVER = 3
+_SUMMARY_OUTPUT_CAP_TOKENS = 32_768
 _RETRY_AFTER_RE = re.compile(r"retry.*?after.*?(\d+).*?second", re.IGNORECASE)
+
+
+def _overflow_focus_topic(ctx: object) -> str:
+    """Best-effort user goal hint for overflow summaries (empty when absent)."""
+    try:
+        from myrm_agent_harness.agent.context_management.infra.schemas import (
+            CompressionIntent,
+        )
+
+        merged = getattr(ctx, "merged_context", None)
+        if not isinstance(merged, dict):
+            return ""
+        intent = CompressionIntent.from_object(merged.get("compression_intent"))
+        hint = getattr(intent, "user_goal_hint", "") if intent is not None else ""
+        return hint if isinstance(hint, str) else ""
+    except Exception:
+        return ""
 
 
 def _extract_retry_after_ms(exc: Exception) -> int | None:
@@ -183,9 +201,15 @@ class StreamRecoveryMixin(
                         messages=messages,
                         llm=llm,
                         chat_id=chat_id,
+                        focus_topic=_overflow_focus_topic(ctx),
                     )
                     new_tokens = estimate_messages_tokens(new_messages)
-                    if orig_tokens - new_tokens > 0:
+                    if new_tokens > _SUMMARY_OUTPUT_CAP_TOKENS:
+                        logger.warning(
+                            " Context overflow Tier 1 summary oversized (%d tokens) — falling through",
+                            new_tokens,
+                        )
+                    elif orig_tokens - new_tokens > 0:
                         saved = orig_tokens - new_tokens
                         messages.clear()
                         messages.extend(new_messages)
@@ -282,7 +306,12 @@ class StreamRecoveryMixin(
             target_fallback_llm, "model", "backup"
         )
 
-        logger.warning(" Failover: %s → switching to %s (step %s)", error_kind.value, fallback_model, getattr(self, "_fallback_index", 1))
+        logger.warning(
+            " Failover: %s → switching to %s (step %s)",
+            error_kind.value,
+            fallback_model,
+            getattr(self, "_fallback_index", 1),
+        )
 
         step_key = "safety_fallback_active" if error_kind == ErrorKind.SAFETY_BLOCK else "model_failover"
 
@@ -711,9 +740,7 @@ class StreamRecoveryMixin(
         # Tag-wrapped reasoning (MiniMax inlines ``<think>`` into ``content``) is not
         # user-visible content, so it must not exempt the turn from recovery.
         has_tagged_reasoning = self._has_inline_reasoning(last_ai_msg)
-        has_content = (
-            False if has_tagged_reasoning else self._has_non_reasoning_content(last_ai_msg)
-        )
+        has_content = False if has_tagged_reasoning else self._has_non_reasoning_content(last_ai_msg)
 
         # If it has tool calls or any user-visible content, it's not an empty response.
         # Note: We do NOT exempt reasoning-only responses (e.g. <thinking> blocks without actual output).
@@ -722,9 +749,7 @@ class StreamRecoveryMixin(
             return False
 
         if has_tagged_reasoning:
-            logger.warning(
-                " Response contained only tag-wrapped reasoning — no visible output"
-            )
+            logger.warning(" Response contained only tag-wrapped reasoning — no visible output")
 
         max_empty_retries = 2
         if retries >= max_empty_retries:
@@ -750,9 +775,7 @@ class StreamRecoveryMixin(
             # here would never outlive this turn. Report instead of pretending to act;
             # reasoning-heavy models are floored at creation time precisely so this
             # path is not reached.
-            logger.warning(
-                " Resume mode — empty response not retryable (consumed Command); reporting"
-            )
+            logger.warning(" Resume mode — empty response not retryable (consumed Command); reporting")
             return False
 
         messages_dict = ctx.agent_input
