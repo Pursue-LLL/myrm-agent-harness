@@ -129,15 +129,17 @@ class StreamTruncationRecoveryMixin:
 
         A resumed turn cannot be retried this way: its ``agent_input`` is a
         ``Command`` that LangGraph has already consumed, and replaying one advances no
-        work (it emits zero stream chunks). Rather than spin, such a turn raises the
-        budget for any queued model call and reports the condition — which is why
-        thinking models also get a proactive output floor at creation time
-        (``thinking_headroom``), preventing the truncation in the first place.
+        work (it emits zero stream chunks). Rather than spin, such a turn reports the
+        condition and ends. It deliberately does *not* raise the output budget: this
+        method returns ``False``, so the caller breaks out of the streaming loop and
+        the executor's ``finally`` clears the ephemeral override — a raise here could
+        never outlive the turn and would only produce a misleading "budget raised" log.
+        Prevention lives upstream: ``thinking_headroom`` floors a thinking model's
+        ``max_tokens`` at creation time.
         """
         ctx = self._ctx
 
         if isinstance(ctx.agent_input, Command):
-            self._boost_output_tokens(retries)
             logger.warning(
                 " Reasoning-only truncation in resume mode — a consumed Command "
                 "cannot be retried; reporting instead of spinning"

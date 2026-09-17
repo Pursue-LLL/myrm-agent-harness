@@ -1,4 +1,20 @@
-"""Normalize OpenAI Responses API payloads into chat-completions-shaped dicts."""
+"""Normalize OpenAI Responses API payloads into chat-completions-shaped dicts.
+
+[INPUT]
+- event: dict[str, Any] (a single Responses SSE event, raw or model_dump'd)
+- response: dict[str, Any] (a completed or failed Responses API payload)
+
+[OUTPUT]
+- responses_dict_to_chat_completion: completed payload → chat.completion dict
+- responses_event_to_completion_chunk: SSE event → chat.completion.chunk or None
+- extract_responses_stream_error / assert_responses_payload_not_failed: failure surfacing
+- extract_responses_reasoning_items: encrypted reasoning items for later replay
+
+[POS]
+Inbound leg of the LLM adapter wire layer. Converts vendor Responses shapes into the
+chat-completions contract ChatLiteLLM already consumes, so upstream code stays vendor
+agnostic. Streaming tool-call arguments are emitted as deltas; assembled by the caller.
+"""
 
 from __future__ import annotations
 

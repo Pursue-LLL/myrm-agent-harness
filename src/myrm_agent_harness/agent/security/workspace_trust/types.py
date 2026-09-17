@@ -1,4 +1,18 @@
-"""Workspace trust level types for folder-side-channel execution gate."""
+"""Workspace trust level types for folder-side-channel execution gate.
+
+[INPUT]
+- None (plain value objects constructed by callers)
+
+[OUTPUT]
+- WorkspaceTrustLevel: TRUSTED / RESTRICTED / REVOKED user decision
+- WorkspaceTrustManifest: pre-bind disclosure payload
+- WorkspaceTrustEntry: persisted registry row for one canonical root
+
+[POS]
+Leaf type module of the workspace_trust gate. Frozen dataclasses and one str-Enum, so the
+values are hashable and safe to pass across the async run boundary. No I/O and no imports
+from sibling modules, which keeps this module the dependency root of the package.
+"""
 
 from __future__ import annotations
 

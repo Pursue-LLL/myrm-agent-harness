@@ -1,4 +1,18 @@
-"""Runtime ContextVars for workspace trust during agent execution."""
+"""Runtime ContextVars for workspace trust during agent execution.
+
+[INPUT]
+- level: WorkspaceTrustLevel | None (active decision for the running workspace)
+- prefixes: tuple[str, ...] (repo-declared command prefixes)
+
+[OUTPUT]
+- set/get_workspace_trust_level and set/get_repo_command_prefixes accessors
+- clear_workspace_trust_context: resets both vars at run end
+
+[POS]
+Run-scoped state holder of the workspace_trust gate. ContextVars keep the decision
+isolated per async task, so concurrent runs on different workspaces never observe each
+other's trust level. Values are populated by runtime.py from a server-injected lookup.
+"""
 
 from __future__ import annotations
 

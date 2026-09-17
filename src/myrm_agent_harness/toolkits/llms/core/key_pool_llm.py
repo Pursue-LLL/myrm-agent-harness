@@ -10,6 +10,7 @@ Layering:  KeyPoolLLM (key rotation) → ManagedLLM (model failover)
 [INPUT]
 - core.credential_pool::CredentialPool (POS: Framework-level credential scheduling and rotation)
 - errors.classifier::ErrorKind, classify_error (POS: LLM error classifier)
+- errors.exceptions::EgressChallengeBlockedError (POS: Standardized LLM exceptions for the Harness framework)
 
 [OUTPUT]
 - KeyPoolLLM: BaseChatModel with transparent key rotation and strategy-aware observability
@@ -24,7 +25,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Any, NoReturn
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage
@@ -111,7 +112,7 @@ class KeyPoolLLM(BaseChatModel):
         self._pool.report_error(key, kind.value, cooldown_hint_s=retry_after)
 
     @staticmethod
-    def _raise_challenge_blocked(key: str, exc: Exception, action: str = "request") -> None:
+    def _raise_challenge_blocked(key: str, exc: Exception, action: str = "request") -> NoReturn:
         masked_key = key[-6:] if len(key) >= 6 else "***"
         logger.error(
             "Cloudflare/WAF challenge blocked %s for key ...%s. "

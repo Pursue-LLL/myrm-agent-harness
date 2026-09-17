@@ -1,4 +1,18 @@
-"""LangChain/OpenAI chat messages ↔ OpenAI Responses API input translator."""
+"""LangChain/OpenAI chat messages ↔ OpenAI Responses API input translator.
+
+[INPUT]
+- messages: list[dict[str, Any]] (chat-completions shaped dicts with role/content/
+  tool_calls/function_call_output and optional reasoning replay items)
+
+[OUTPUT]
+- chat_messages_to_responses_input: messages translated into Responses API `input` items
+- extract_responses_instructions: (system instructions, remaining messages) split
+- resolve_min_output_tokens: output-token floor for reasoning models
+
+[POS]
+Outbound leg of the LLM adapter wire layer. Pure and side-effect free: no I/O and no
+vendor SDK calls. Inbound response parsing lives in normalizer.py; call assembly in params.py.
+"""
 
 from __future__ import annotations
 

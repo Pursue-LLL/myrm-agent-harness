@@ -1,4 +1,19 @@
-"""Build litellm.responses() kwargs from ChatLiteLLM call params."""
+"""Build litellm.responses() kwargs from ChatLiteLLM call params.
+
+[INPUT]
+- message_dicts: list[dict[str, Any]] (chat-completions shaped messages)
+- params: dict[str, Any] (ChatLiteLLM call params: model, max_tokens, reasoning,
+  tools, api_base, stream, timeout, extra_body, extra_headers)
+
+[OUTPUT]
+- build_responses_kwargs: dict[str, Any] ready for `litellm.responses(**kwargs)`,
+  with system messages lifted into `instructions` and reasoning config normalized
+
+[POS]
+Request assembly for the Responses wire. Delegates message translation to translator.py
+and strips trailing endpoint suffixes so callers may pass either a base URL or a full
+endpoint. Harness-only authoring layer; vendor routing tables live in server `app/core/wire/`.
+"""
 
 from __future__ import annotations
 

@@ -744,13 +744,14 @@ class StreamRecoveryMixin(
 
         ctx = self._ctx
         if isinstance(ctx.agent_input, Command):
-            # A consumed Command cannot be replayed (re-driving it advances no work),
-            # so recovery here is limited to raising the budget for any queued model
-            # call. Reasoning-heavy models are floored at creation time to keep this
-            # path from being reached in the first place.
-            self._boost_output_tokens(retries)
+            # A consumed Command cannot be replayed — re-driving it advances no work.
+            # This path returns False, which ends the streaming loop and clears the
+            # ephemeral override in the executor's `finally`, so raising the budget
+            # here would never outlive this turn. Report instead of pretending to act;
+            # reasoning-heavy models are floored at creation time precisely so this
+            # path is not reached.
             logger.warning(
-                " Resume mode — empty response not retryable; budget raised instead"
+                " Resume mode — empty response not retryable (consumed Command); reporting"
             )
             return False
 

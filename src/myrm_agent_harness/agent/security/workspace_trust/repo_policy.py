@@ -1,7 +1,16 @@
 """Optional repo-declared command prefixes from ``.myrm/config.toml``.
 
-Prefixes are disclosed in the trust manifest and take effect only after the
-user marks the workspace as TRUSTED.
+[INPUT]
+- workspace_root: str | Path (workspace whose repo config is inspected)
+
+[OUTPUT]
+- load_repo_command_prefixes: declared shell command prefixes as tuple[str, ...],
+  or () when the config is absent, unreadable, or declares none
+
+[POS]
+Repo-policy reader of the workspace_trust gate. Read-only and fail-soft: a malformed or
+missing `.myrm/config.toml` yields no prefixes rather than an error, because these
+prefixes only widen what a TRUSTED workspace may run and must never block startup.
 """
 
 from __future__ import annotations

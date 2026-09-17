@@ -1,4 +1,22 @@
-"""Unified workspace trust gate — folder bind + side-channel execution control."""
+"""Unified workspace trust gate — folder bind + side-channel execution control.
+
+[INPUT]
+- None at import time; re-exports the gate, manifest, policy and runtime helpers
+
+[OUTPUT]
+- Gate API: blocks_workspace_side_channels, assert_mcp_spawn_allowed,
+  is_path_within_workspace, matches_repo_command_prefix
+- Lifecycle API: apply_workspace_trust_for_root, clear_workspace_trust_runtime
+- Lookup seam: WorkspaceTrustLookup, set/get_workspace_trust_lookup,
+  resolve_workspace_trust_level
+- Types: WorkspaceTrustLevel, WorkspaceTrustManifest, WorkspaceTrustEntry
+
+[POS]
+Public surface of the workspace_trust subpackage. Import from here rather than from the
+individual modules so the internal layout stays free to change. Located under
+`agent/security/`, deliberately not in `toolkits/`; the server owns persistence and REST,
+the control plane is untouched.
+"""
 
 from __future__ import annotations
 

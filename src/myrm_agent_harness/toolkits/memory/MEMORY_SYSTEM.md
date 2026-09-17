@@ -649,7 +649,9 @@ retention = 0.35 × time_score + 0.25 × access_score + 0.15 × importance_score
 
 作用域安全：`run_forgetting` 的向量 scroll 按 `primary_namespace ∈ 当前 manager.namespaces` 精确过滤，只清理本 scope 的低保留记忆，绝不跨 agent/channel/task 误删（仅共享 `global` 广播命名空间的其他 agent 记忆不会进入扫描）；`delete_rule`、`delete_memory` 与按类型清空 `delete_by_type` 同样校验所有权（`get_rule(namespaces=...)`/`_owns_vector_doc` 按 `primary_namespace` 主判定、缺失时按 namespaces 交集兜底/`list_rules(namespaces)` 分页删除），规则与记忆只能在归属 scope 内被删除，杜绝跨 scope 越权删除；`delete_memory` 同步级联清理 Claim Graph 派生节点并精准驱逐 `EmbeddingCache` 中的文本缓存；统一检索出口 `_filter_results` 严格阻断 `archived`/`disabled` 状态数据流出，避免幽灵召回。
 
-**ARCHIVE 字段契约**：向量层以 `archived` 布尔 payload 作为归档过滤标准——`_user_filter` 默认 `archived == False`，归档记忆必须同步设置 `archived: True` 才会被常规检索排除。`run_forgetting` ARCHIVE 分支、staleness review REMOVE、`update_memory(status=archived)` 均同步写入 `archived=True`；`unarchive_memory` 恢复时写回 `archived=False`（而非删除字段，避免 Qdrant 对缺失字段的 MatchValue 不匹配导致恢复后记忆从检索消失）。
+**ARCHIVE 字段契约**：向量层以 `archived` 布尔 payload 作为归档过滤标准——`_user_filter` 默认 `archived == False`，归档记忆必须同步设置 `archived: True` 才会被常规检索排除。`run_forgetting` ARCHIVE 分支、staleness review REMOVE、`update_memory(status=archived)` 均同步写入 `archived=True` 与 `archive_expires_at`（`ARCHIVE_RETENTION_DAYS` = 7 天）；恢复走 `update_memory(status=ACTIVE)`，写回 `archived=False` 并清除 `archived_at`/`archive_expires_at`/`archive_reason`（而非删除字段，避免 Qdrant 对缺失字段的 MatchValue 不匹配导致恢复后记忆从检索消失）。
+
+**归档回收（唯一入口 `_manager/archival.py`）**：归档是软删除，回收由 `purge_expired_archived_memories`（向量记忆）与 `purge_expired_archived_rules`（procedural 规则）承担，server 侧 guardian 通过 `purge_expired_archives` 委派调用，不再有第二份实现。判定到期以 `archive_expires_at` 为准；缺失该字段时回退 `archived_at + ARCHIVE_RETENTION_DAYS`，使契约建立前产生的历史归档同样可被回收。规则回收以 `allow_protected=False` 删除，用户保护（`is_user_protected`）的规则保持跳过、永久可恢复。
 
 ### 7.2.1 Staleness Review (`strategies/staleness_review.py`)
 

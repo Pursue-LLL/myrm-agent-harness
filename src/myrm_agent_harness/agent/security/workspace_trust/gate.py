@@ -1,4 +1,21 @@
-"""Pure gate helpers for workspace trust side-channel enforcement."""
+"""Pure gate helpers for workspace trust side-channel enforcement.
+
+[INPUT]
+- level: WorkspaceTrustLevel | None (active trust decision)
+- candidate / workspace_root: str | None (paths to compare)
+- workspace_root / cwd / plugin_root / trust_level: keyword args to assert_mcp_spawn_allowed
+
+[OUTPUT]
+- blocks_workspace_side_channels: bool (True when repo-local channels must stay off)
+- is_path_within_workspace: bool (symlink-resolved containment check)
+- assert_mcp_spawn_allowed: raises WorkspaceTrustBlockedError on a blocked spawn
+- matches_repo_command_prefix: bool (command allowed by repo-declared prefixes)
+
+[POS]
+Pure predicate layer of the workspace_trust gate; no persistence and no server calls.
+Unknown (None) trust is treated as restricted. Path containment resolves symlinks before
+comparing, so a workspace symlink cannot be used to escape the trusted boundary.
+"""
 
 from __future__ import annotations
 

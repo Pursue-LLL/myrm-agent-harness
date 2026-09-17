@@ -1,4 +1,17 @@
-"""Apply anthropic messages wire overrides for LiteLLM calls."""
+"""Apply anthropic messages wire overrides for LiteLLM calls.
+
+[INPUT]
+- params: dict[str, Any] (LiteLLM call params carrying an OpenCode Go model id)
+
+[OUTPUT]
+- apply_anthropic_messages_params: a copied params dict whose `model` is rewritten to
+  `anthropic/<bare-id>` with `custom_llm_provider="anthropic"`
+
+[POS]
+Vendor override helper for the Anthropic Messages wire. Kept separate from the Responses
+path because it only rewrites routing fields and never touches message translation. The
+input dict is not mutated; a merged copy is returned.
+"""
 
 from __future__ import annotations
 

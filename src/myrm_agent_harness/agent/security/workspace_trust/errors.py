@@ -1,4 +1,17 @@
-"""Workspace trust gate errors."""
+"""Workspace trust gate errors.
+
+[INPUT]
+- message: str (human-readable block reason)
+- reason: str keyword (stable machine-readable code, defaults to "workspace_not_trusted")
+
+[OUTPUT]
+- WorkspaceTrustBlockedError: RuntimeError subclass carrying a `.reason` attribute
+
+[POS]
+Error contract of the workspace_trust gate. Callers distinguish policy blocks from
+unexpected runtime faults by catching this type, so the class stays I/O-free and
+dependency-free to remain importable from every gate call site.
+"""
 
 from __future__ import annotations
 

@@ -1,4 +1,20 @@
-"""Build pre-bind workspace trust manifests for FolderGate disclosure."""
+"""Build pre-bind workspace trust manifests for FolderGate disclosure.
+
+[INPUT]
+- raw_path: str (workspace bind path, may contain `~`, must be absolute after expansion)
+- workspace_root: str (canonical root to inspect)
+- manifest: WorkspaceTrustManifest (payload to hash)
+
+[OUTPUT]
+- canonicalize_workspace_path: resolved absolute path, or "" for blank input
+- build_workspace_trust_manifest: disclosure payload with skill/rule counts and prefixes
+- manifest_hash: stable hash identifying the disclosed payload
+
+[POS]
+Disclosure layer of the workspace_trust gate: it tells the user what a folder would gain
+before trust is granted. Skill and rule scans are advisory and fail open to zero counts so
+a broken scanner can never block the trust prompt; the hash changes when scope changes.
+"""
 
 from __future__ import annotations
 

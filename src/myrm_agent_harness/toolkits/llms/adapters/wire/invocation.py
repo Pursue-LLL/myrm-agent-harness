@@ -1,4 +1,20 @@
-"""Responses wire invocation helpers for ChatLiteLLM mixins."""
+"""Responses wire invocation helpers for ChatLiteLLM mixins.
+
+[INPUT]
+- client: Any (ChatLiteLLM client exposing `responses()`)
+- message_dicts: list[dict[str, Any]] (chat-completions shaped messages)
+- params: dict[str, Any] (call params, forwarded to build_responses_kwargs)
+
+[OUTPUT]
+- invoke_responses_sync / invoke_responses_async: normalized chat.completion dicts
+- stream_responses_sync / stream_responses_async: chunk iterators with a terminal
+  finish_reason; failed streams raise ResponsesStreamError
+
+[POS]
+Transport adapter between ChatLiteLLM mixins and the Responses wire. Owns call assembly
+and stream plumbing, delegating payload shaping to translator/params/normalizer. Retries
+once without reasoning replay when the server rejects `invalid_encrypted_content`.
+"""
 
 from __future__ import annotations
 

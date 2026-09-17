@@ -5,12 +5,14 @@ exceptions into structured, actionable errors with failover reasons and context.
 
 Core Exceptions:
 - MyrmLLMError: Base class for all LLM errors
+- EgressChallengeBlockedError: Upstream challenge or WAF block error requiring proxy/IP intervention
 
 [INPUT]
-- (none)
+- error_types::FailoverReason (POS: Failover reason enum for LLM error categorization)
 
 [OUTPUT]
 - MyrmLLMError: Standardized LLM Error thrown by the Harness framework.
+- EgressChallengeBlockedError: Raised when an egress request is intercepted by Cloudflare/WAF challenge.
 
 [POS]
 Standardized LLM exceptions for the Harness framework.
