@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from langchain_core.messages import AIMessage, HumanMessage
 
 from myrm_agent_harness.agent.streaming.recovery.context_pressure_gate import (
@@ -11,6 +13,7 @@ from myrm_agent_harness.agent.streaming.recovery.context_pressure_gate import (
     is_presumed_overflow,
     preflight_budget,
     presumed_budget,
+    resolve_effective_config,
     run_preflight_compact,
 )
 
@@ -44,6 +47,24 @@ def test_config_resolve_custom_mapping() -> None:
     )
     assert preflight_budget(cfg) == 50_000
     assert presumed_budget(cfg) == 85_000
+
+
+def test_effective_config_prefers_explicit_mapping() -> None:
+    llm = SimpleNamespace(max_input_tokens=1_000_000)
+    cfg = resolve_effective_config({"context_pressure_config": {"max_context_tokens": 50_000}}, llm)
+    assert cfg.max_context_tokens == 50_000
+
+
+def test_effective_config_uses_model_window() -> None:
+    llm = SimpleNamespace(max_input_tokens=1_000_000)
+    cfg = resolve_effective_config(None, llm)
+    assert cfg.max_context_tokens == 1_000_000
+    assert preflight_budget(cfg) == 800_000
+
+
+def test_effective_config_falls_back_to_default() -> None:
+    cfg = resolve_effective_config(None, SimpleNamespace())
+    assert cfg.max_context_tokens == 200_000
 
 
 def test_terminal_code_is_stable() -> None:

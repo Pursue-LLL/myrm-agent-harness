@@ -255,7 +255,7 @@ class PreflightGateMixin:
             self._preflight_streak.streak = 0
             return
         merged = ctx.merged_context if isinstance(ctx.merged_context, dict) else None
-        config = ContextPressureConfig.resolve(merged)
+        config = resolve_effective_config(merged, getattr(ctx, "llm", None))
         request_tokens = estimate_request_tokens(messages)
         if request_tokens < preflight_budget(config):
             self._preflight_streak.streak = 0
@@ -311,7 +311,7 @@ class PreflightGateMixin:
         if not messages:
             return False
         merged = ctx.merged_context if isinstance(ctx.merged_context, dict) else None
-        config = ContextPressureConfig.resolve(merged)
+        config = resolve_effective_config(merged, getattr(ctx, "llm", None))
         request_tokens = estimate_request_tokens(messages)
         if not is_presumed_overflow(exc, request_tokens, config):
             return False
@@ -355,5 +355,6 @@ __all__ = [
     "is_presumed_overflow",
     "preflight_budget",
     "presumed_budget",
+    "resolve_effective_config",
     "run_preflight_compact",
 ]
