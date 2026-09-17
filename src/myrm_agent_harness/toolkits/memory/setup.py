@@ -196,6 +196,7 @@ async def create_local_memory_manager(
         relational=relational_store,
         vector=vector_store,
         graph=graph_store,
+        fts5_searcher=relational_store.search_fts5,
         embedding=embedding_service,
         cache=cache,
         approval_required=approval_required,

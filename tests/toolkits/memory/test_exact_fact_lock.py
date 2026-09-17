@@ -244,3 +244,46 @@ class TestMemoryManagerExactFactEndToEnd:
 
             await manager.close()
 
+    @pytest.mark.asyncio
+    async def test_memory_manager_fts5_auto_binding(
+        self,
+        memory_config,
+        mock_vector_store,
+        mock_embedding,
+    ) -> None:
+        from myrm_agent_harness.toolkits.memory.manager import MemoryManager
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = str(Path(tmpdir) / "test_auto_bind.db")
+            store = SQLiteRelationalStore(db_path=db_path)
+
+            # Deliberately omit fts5_searcher to test auto-binding from relational
+            manager = MemoryManager(
+                memory_config,
+                user_id="user_auto",
+                vector=mock_vector_store,
+                embedding=mock_embedding,
+                relational=store,
+            )
+            assert manager._fts5_searcher is not None
+            assert manager._search_service._fts5_searcher is not None
+
+            # Store memory containing exact UUID
+            mem = await manager.store(
+                SemanticMemory(
+                    content="Server port is 15432 and instance id is a3b8c2d1-9f4e-48a2-b91c-8e4d3c2b1a0f",
+                )
+            )
+            assert mem.is_exact_fact is True
+            assert "a3b8c2d1-9f4e-48a2-b91c-8e4d3c2b1a0f" in mem.exact_identifiers
+
+            # Direct search via auto-bound fts5_searcher
+            fts_hits = await manager._fts5_searcher("a3b8c2d1-9f4e-48a2-b91c-8e4d3c2b1a0f", limit=5)
+            assert len(fts_hits) >= 1
+            assert fts_hits[0].id == mem.id
+            assert "15432" in fts_hits[0].content
+
+            await manager.close()
+
+
+
