@@ -301,6 +301,7 @@ def _writer(namespaces: list[str], *, scope_namespaces: list[str] | None = None)
     config.security_scan_enabled = False
     return MemoryWriter(
         config=config,
+        user_id="test-user",
         scope=MemoryScope(namespaces=(scope_namespaces if scope_namespaces is not None else list(namespaces))),
         namespaces=list(namespaces),
         approval_required=False,

@@ -2,8 +2,10 @@
 
 from unittest.mock import MagicMock
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.tools import StructuredTool
 
+from myrm_agent_harness.utils.text_utils import get_token_count
 from myrm_agent_harness.utils.token_estimation import (
     SCHEMA_WRAPPER_TOKENS_PER_TOOL,
     estimate_bound_tools_tokens,
@@ -11,6 +13,7 @@ from myrm_agent_harness.utils.token_estimation import (
     estimate_context_tokens,
     estimate_message_tokens,
     estimate_messages_tokens,
+    estimate_request_tools_tokens,
 )
 
 
@@ -36,14 +39,14 @@ class TestEstimateContentTokens:
         assert tokens > 0
 
     def test_list_content_image_block(self) -> None:
-        content: list[dict[str, str]] = [
+        content: list[dict[str, object]] = [
             {"type": "image_url", "image_url": {"url": "data:image/png;base64,abc123"}},
         ]
         tokens = estimate_content_tokens(content)
         assert tokens > 0, "Image items should use fixed estimate"
 
     def test_list_content_unknown_block(self) -> None:
-        content: list[dict[str, str]] = [
+        content: list[dict[str, object]] = [
             {"type": "custom", "data": "some custom data"},
         ]
         tokens = estimate_content_tokens(content)
@@ -172,7 +175,7 @@ class TestEstimateMessagesTokens:
 
     def test_tool_heavy_conversation(self) -> None:
         """30 tool calls should show significant difference vs content-only."""
-        messages: list[SystemMessage | HumanMessage | AIMessage | ToolMessage] = [
+        messages: list[BaseMessage] = [
             SystemMessage(content="You are an assistant"),
             HumanMessage(content="Build a project"),
         ]
@@ -212,13 +215,13 @@ class TestEstimateMessagesTokens:
 
 class TestEstimateContextTokens:
     def test_includes_bound_tool_overhead(self) -> None:
-        messages = [HumanMessage(content="hello")]
+        messages: list[BaseMessage] = [HumanMessage(content="hello")]
         base = estimate_messages_tokens(messages)
         with_tools = estimate_context_tokens(messages, bound_tool_overhead_tokens=500)
         assert with_tools == base + 500
 
     def test_max_provider_prompt_tokens(self) -> None:
-        messages = [HumanMessage(content="x")]
+        messages: list[BaseMessage] = [HumanMessage(content="x")]
         estimated = estimate_context_tokens(messages, bound_tool_overhead_tokens=100)
         aligned = estimate_context_tokens(
             messages,
@@ -231,3 +234,55 @@ class TestEstimateContextTokens:
         tool = MagicMock()
         tool.description = "demo tool"
         assert estimate_bound_tools_tokens([tool]) > SCHEMA_WRAPPER_TOKENS_PER_TOOL
+
+    def test_bound_tools_empty_returns_zero(self) -> None:
+        assert estimate_bound_tools_tokens([]) == 0
+
+    def test_bound_tools_without_description(self) -> None:
+        tool = MagicMock()
+        tool.description = None
+        assert estimate_bound_tools_tokens([tool]) == SCHEMA_WRAPPER_TOKENS_PER_TOOL
+
+
+class TestEstimateRequestToolsTokens:
+    """``estimate_request_tools_tokens`` feeds the GUI breakdown and compress preflight.
+
+    Its payload shapes vary by call site (Live ``ModelRequest`` tools may be BaseTool,
+    OpenAI-style ``{"function": ...}`` dicts, or plain ``{"description": ...}`` dicts),
+    so each branch is pinned here.
+    """
+
+    def test_empty_returns_zero(self) -> None:
+        assert estimate_request_tools_tokens([]) == 0
+
+    def test_base_tool_uses_description(self) -> None:
+        tool = MagicMock()
+        tool.description = "demo tool"
+        assert estimate_request_tools_tokens([tool]) > SCHEMA_WRAPPER_TOKENS_PER_TOOL
+
+    def test_real_base_tool_instance(self) -> None:
+        tool = StructuredTool.from_function(
+            func=lambda: "ok", name="demo_tool", description="a real BaseTool"
+        )
+        expected = get_token_count("a real BaseTool") + SCHEMA_WRAPPER_TOKENS_PER_TOOL
+        assert estimate_request_tools_tokens([tool]) == expected
+
+    def test_openai_function_dict(self) -> None:
+        tools = [{"function": {"name": "f", "description": "described via function"}}]
+        assert estimate_request_tools_tokens(tools) > SCHEMA_WRAPPER_TOKENS_PER_TOOL
+
+    def test_plain_description_dict(self) -> None:
+        tools = [{"description": "described directly"}]
+        assert estimate_request_tools_tokens(tools) > SCHEMA_WRAPPER_TOKENS_PER_TOOL
+
+    def test_descriptionless_object_counts_wrapper_only(self) -> None:
+        assert estimate_request_tools_tokens([object()]) == SCHEMA_WRAPPER_TOKENS_PER_TOOL
+
+    def test_function_dict_without_description_falls_back_to_plain_key(self) -> None:
+        tools = [{"function": {"name": "f"}, "description": "outer description"}]
+        assert estimate_request_tools_tokens(tools) > SCHEMA_WRAPPER_TOKENS_PER_TOOL
+
+    def test_non_string_description_is_ignored(self) -> None:
+        assert estimate_request_tools_tokens([{"description": 123}]) == (
+            SCHEMA_WRAPPER_TOKENS_PER_TOOL
+        )

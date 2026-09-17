@@ -67,6 +67,7 @@ async def test_memory_write_service_attaches_trace_id():
 
         writer = MemoryWriter(
             config=config,
+            user_id="u1",
             scope=scope,
             namespaces=["global"],
             approval_required=False,

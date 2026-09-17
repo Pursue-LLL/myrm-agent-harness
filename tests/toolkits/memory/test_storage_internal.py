@@ -32,6 +32,7 @@ from myrm_agent_harness.toolkits.memory._internal.storage import (
 from myrm_agent_harness.toolkits.memory.protocols.graph import GraphNode
 from myrm_agent_harness.toolkits.memory.types import (
     EpisodicMemory,
+    MemorySearchResult,
     MemoryType,
     ProceduralMemory,
     SemanticMemory,
@@ -319,6 +320,49 @@ class TestSemanticSourceErrorRoundTrip:
         doc = semantic_to_doc(mem)
         restored = doc_to_semantic(doc)
         assert "source_error" not in restored.metadata
+
+
+class TestMemorySearchResultScoreBounds:
+    """Raw backend scores must be clamped, never rejected.
+
+    Qdrant cosine similarity can drift a few ULPs above 1.0 (e.g. 1.0000000045).
+    A strict ``le=1.0`` constraint made Pydantic raise, and ``search_semantic``
+    swallowed the whole stream as "Memory search error (semantic)" — silent total
+    recall loss for every query while the store still held matches.
+    """
+
+    def test_score_above_one_is_clamped(self):
+        result = MemorySearchResult(
+            memory=SemanticMemory(content="near-duplicate"),
+            score=1.0000000045554525,
+            memory_type=MemoryType.SEMANTIC,
+        )
+        assert result.score == 1.0
+
+    def test_negative_score_is_clamped(self):
+        result = MemorySearchResult(
+            memory=SemanticMemory(content="unrelated"),
+            score=-0.2,
+            memory_type=MemoryType.SEMANTIC,
+        )
+        assert result.score == 0.0
+
+    def test_in_range_score_is_preserved(self):
+        result = MemorySearchResult(
+            memory=SemanticMemory(content="match"),
+            score=0.83,
+            memory_type=MemoryType.SEMANTIC,
+        )
+        assert result.score == 0.83
+
+    def test_non_numeric_and_nan_scores_degrade_to_zero(self):
+        for raw in (None, "not-a-number", float("nan")):
+            result = MemorySearchResult(
+                memory=SemanticMemory(content="match"),
+                score=raw,
+                memory_type=MemoryType.SEMANTIC,
+            )
+            assert result.score == 0.0
 
 
 class TestErrorHandlingUtilities:
