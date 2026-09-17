@@ -1069,7 +1069,7 @@ rating_new = rating_old + alpha * (normalized - rating_old)
   - 核心位置：`myrm_agent_harness.toolkits.memory.consolidation`；
   - 具备低门槛轻量门禁守卫（`gatekeeper`）：会话交互 <= 1 轮且无子任务推进时自动绕过，避免无谓的模型消耗；
   - 异步蒸馏长程会话执行轨迹，产出结构化任务摘要（`TaskDigestMemory`，写入 `episodic_store`）；
-  - 提取规避经验升维为程序性规避规则（`ProceduralMemory`，写入 `procedural_store`），在新会话启动时通过 `initialize(..., prior_traps=...)` 实现开局先验预热。
+  - 提取规避经验升维为程序性规避规则（`ProceduralMemory`，写入 `procedural_store`）：内置提炼纯净性守卫，仅提炼当前会话验证自愈成功的规程（`trap.resolved is True`），严格跳过开局注入的历史先验规则（`trap.occurred_turn == 0`）与未解决推测，杜绝规程库克隆膨胀；在新会话启动时通过 `initialize(..., prior_traps=...)` 实现开局先验预热。
 - **产品与用户界面闭环**：
   - Server 端通过 `/api/memory/working-state` 暴露实时手边工作台快照；
   - 前端 `WorkingStateBadge.tsx` 消除 Dead Feature Path，装配 `WorkingMemoryBoard.tsx`，通过 `chatId` 严格实现多会话物理隔离，杜绝跨会话幽灵数据穿透；已自愈的规避规则渲染为绿色自愈盾牌徽标，全面提升 ToC 生产力体验。
