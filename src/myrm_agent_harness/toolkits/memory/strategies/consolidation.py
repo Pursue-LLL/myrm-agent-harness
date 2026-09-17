@@ -5,6 +5,7 @@
 - memory.config::ConsolidationConfig (POS: consolidation configuration)
 - memory.manager::MemoryManager (POS: unified memory manager facade)
 - memory.types::AnyMemory (POS: memory data models)
+- strategies.named_entity_guard::NamedEntityGuard (POS: 确定性命名实体与关键技术标识符守卫)
 
 [OUTPUT]
 - run_consolidation: Cross-session consolidation (contradiction detection, redundancy merge, insight generation)
