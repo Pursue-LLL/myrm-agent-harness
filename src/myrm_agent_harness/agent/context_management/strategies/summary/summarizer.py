@@ -517,6 +517,8 @@ async def generate_structured_summary(
     )
     max_preserve_chars = 2000
 
+    from ...working_memory.marks import is_eviction_immune
+
     for msg in messages:
         content_str = str(msg.content)
         matches = preserve_tag_pattern.findall(content_str)
@@ -534,6 +536,17 @@ async def generate_structured_summary(
                 rescued_context_blocks[block_hash] = (
                     f"<preserve_context>\n{clean_match}\n</preserve_context>"
                 )
+
+        if is_eviction_immune(msg):
+            clean_val = content_str.strip()
+            if clean_val:
+                if len(clean_val) > max_preserve_chars:
+                    clean_val = clean_val[:max_preserve_chars] + "\n...[TRUNCATED]"
+                block_hash = hashlib.md5(clean_val.encode("utf-8")).hexdigest()
+                if block_hash not in rescued_context_blocks:
+                    rescued_context_blocks[block_hash] = (
+                        f"<preserve_context>\n[IMMUNE RULE / WORKING MEMORY]\n{clean_val}\n</preserve_context>"
+                    )
 
     combined_preserved = None
     if rescued_context_blocks:

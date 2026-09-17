@@ -304,7 +304,18 @@ class SummarizeProcessor(BaseProcessor):
             )
             return context
 
-        # Pre-compaction deterministic tool-result pruning (DSH short-circuit pattern)
+        # Pre-compaction deterministic transient eviction & tool-result pruning (DSH short-circuit pattern)
+        from ...strategies.compactor.selective_eviction import evict_messages_by_marks
+
+        evicted_msgs, evict_stats = evict_messages_by_marks(context.messages)
+        if evict_stats.evicted_count > 0:
+            context.messages = evicted_msgs
+            context.tokens_saved += evict_stats.tokens_saved
+            context.operations.append(
+                f"pre_summarize_eviction: pruned {evict_stats.evicted_count} transient messages "
+                f"(marks={evict_stats.evicted_marks}, saved ~{evict_stats.tokens_saved} tokens)"
+            )
+
         if context.metadata.get("enable_pre_compact_tool_prune", True):
             from .active_tool_result_prune_processor import prune_tool_results_deterministic
 

@@ -24,6 +24,7 @@ from .post_compaction_refetch_guard_processor import PostCompactionRefetchGuardP
 from .post_compaction_reread_processor import PostCompactionRereadProcessor
 from .pre_compact_processor import PreCompactProcessor
 from .reasoning_anchor_processor import ReasoningAnchorProcessor
+from .selective_eviction_processor import SelectiveEvictionProcessor
 from .session_notes_processor import SessionNotesProcessor
 from .summarize_processor import SummarizeProcessor
 from .thinking_cleaner import ThinkingBlockCleaner
@@ -44,6 +45,7 @@ __all__ = [
     "PostCompactionRereadProcessor",
     "PreCompactProcessor",
     "ReasoningAnchorProcessor",
+    "SelectiveEvictionProcessor",
     "SessionNotesProcessor",
     "SummarizeProcessor",
     "ThinkingBlockCleaner",
@@ -52,3 +54,4 @@ __all__ = [
     "prune_tool_results_deterministic",
     "replace_tool_message_content",
 ]
+

@@ -197,6 +197,7 @@ def build_default_processors(
         PostCompactionRereadProcessor,
         PreCompactProcessor,
         ReasoningAnchorProcessor,
+        SelectiveEvictionProcessor,
         SessionNotesProcessor,
         SummarizeProcessor,
         ThinkingBlockCleaner,
@@ -257,6 +258,7 @@ def build_default_processors(
             on_prune_offload=on_compress_offload,
             archive_summary_service=archive_summary_service,
         ),
+        SelectiveEvictionProcessor(),
     ]
 
     if on_pre_compact is not None:
