@@ -11,6 +11,7 @@ LLM toollayer: JSON handles, modelparameter, log
 | litellm_utils.py | Core | LiteLLM utility functions. Provides JSON processing tools for handling LLM-generated malformed JSON. | ✅ |
 | model_utils.py | Core | Model introspection — best-effort context window limit extraction from BaseChatModel | ✅ |
 | logger.py | Core | LiteLLM API request/response logging utility. Provides detailed LLM API call logging with toggle sup | ✅ |
+| proxy.py | Core | Egress proxy utilities: credential masking, URL validation, and connectivity probing. | ✅ |
 
 ## Key Dependencies
 
