@@ -1,7 +1,17 @@
 """Data contracts and models for sparse semantic mutation engine.
 
-Provides strongly typed schemas for slot actions, kinds, semantic slots,
-sparse action masks, and final mutation payloads.
+[INPUT]
+None (Pure standard library + Pydantic types)
+
+[OUTPUT]
+- SlotAction: Action directive (RETAIN / OVERWRITE / APPEND / REMOVE)
+- SlotKind: Structural classification of semantic slot
+- SemanticSlot: Extracted structural slot with normalized key, indentation, and value
+- SparseMaskItem: Individual slot mutation diff instruction
+- SparseMutationResult: Complete mutation payload with in-place text and audit metrics
+
+[POS]
+Memory sparse mutation data contract layer. Declares core slot types and diff models.
 """
 
 from __future__ import annotations

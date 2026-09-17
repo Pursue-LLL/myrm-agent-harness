@@ -1,6 +1,14 @@
 """Deterministic single-pass parser for structured semantic slots.
 
-Parses key-values, lists, clauses, and prose lines from structured memory texts.
+[INPUT]
+- .sparse_types::SemanticSlot (POS: Memory sparse mutation data contract layer)
+- .sparse_types::SlotKind (POS: Memory sparse mutation data contract layer)
+
+[OUTPUT]
+- SemanticSlotParser: Single-pass deterministic slot syntax parser
+
+[POS]
+Memory sparse mutation syntax parsing layer. Scans markdown, key-value pairs, and clauses into slots.
 """
 
 from __future__ import annotations

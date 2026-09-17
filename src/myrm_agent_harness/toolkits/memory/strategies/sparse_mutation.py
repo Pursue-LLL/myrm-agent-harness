@@ -5,6 +5,8 @@ Provides deterministic, sub-millisecond slot extraction, sparse action masking
 evolving compound memories without catastrophic context loss or blind appending.
 
 [INPUT]
+- .sparse_types::(SemanticSlot, SlotAction, SlotKind, SparseMaskItem, SparseMutationResult) (POS: Memory sparse mutation data contract layer)
+- .sparse_parser::SemanticSlotParser (POS: Memory sparse mutation syntax parsing layer)
 - existing_text: str (Structured compound text containing key-values, lists, or clauses)
 - candidate_text: str (Patch or delta statement intended for memory evolution)
 
