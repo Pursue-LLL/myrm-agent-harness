@@ -31,6 +31,10 @@ on:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
+concurrency:
+  group: boundary-check-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   boundary-check:
     name: Harness/Business Boundary Check
@@ -85,6 +89,7 @@ jobs:
     name: Distribution Packaging (slow)
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    if: github.event_name == 'pull_request'
 
     steps:
       - name: Checkout code
