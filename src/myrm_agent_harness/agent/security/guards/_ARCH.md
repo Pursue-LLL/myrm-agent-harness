@@ -16,7 +16,7 @@ Session-level security guards integrated into tool_interceptor_middleware.
 | prompt_budget.py | Core | Prompt Budget Guard. | ✅ |
 | skill_approval_hook.py | Core | Integrated into tool_interceptor_middleware between the onion policy and execution. | ✅ |
 | ssrf_guard.py | Shim | Re-exports `core.security.guards.ssrf` for stable `agent.security.guards.*` import paths. | ✅ |
-| taint_tracker.py | Core | Layer 2 enhancement. Tracks information flow labels (prompt→command injection prevention). | ✅ |
+| taint_tracker.py | Core | Tracks session information flow labels and enforces file-to-egress correlation guards with session allowlist. | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|
