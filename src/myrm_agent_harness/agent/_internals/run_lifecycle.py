@@ -559,24 +559,15 @@ async def resolve_context_budget_breakdown(
     turn_count = 0
     has_messages = False
 
-    if checkpointer is not None and callable(getattr(checkpointer, "aget", None)):
-        try:
-            checkpoint_config = {"configurable": {"thread_id": thread_id}}
-            checkpoint = await checkpointer.aget(checkpoint_config)
-            channel_values = getattr(checkpoint, "channel_values", None)
-            if isinstance(channel_values, dict) and "messages" in channel_values:
-                raw_messages = channel_values["messages"]
-                if isinstance(raw_messages, list):
-                    messages = [msg for msg in raw_messages if isinstance(msg, BaseMessage)]
-                    if messages:
-                        messages_tokens = estimate_messages_tokens(messages)
-                        turn_count = sum(1 for m in messages if m.type == "human")
-                        has_messages = True
-        except Exception:
-            logger.debug(
-                "Failed to load checkpoint messages for context budget breakdown",
-                exc_info=True,
-            )
+    if callable(getattr(checkpointer, "aget", None)):
+        from myrm_agent_harness.runtime.checkpointing import read_checkpoint_messages
+
+        raw_messages = await read_checkpoint_messages(checkpointer, thread_id)
+        messages = [msg for msg in raw_messages if isinstance(msg, BaseMessage)]
+        if messages:
+            messages_tokens = estimate_messages_tokens(messages)
+            turn_count = sum(1 for m in messages if m.type == "human")
+            has_messages = True
 
     builtin_tokens = 0
     mcp_tokens = 0
@@ -770,8 +761,8 @@ async def post_run_events(
 
 def serialize_message(msg: object) -> dict[str, object]:
     """Serialize a LangChain message to a plain dict."""
-    if hasattr(msg, "dict"):
-        return msg.dict()
+    if hasattr(msg, "model_dump"):
+        return msg.model_dump()
     if hasattr(msg, "to_json"):
         return msg.to_json()
     return {"type": "unknown", "content": str(msg)}
@@ -805,28 +796,24 @@ async def extract_checkpoint_state(
     last_tool: str | None = None
 
     if checkpointer is not None:
-        try:
-            checkpoint_config = {"configurable": {"thread_id": thread_id}}
-            checkpoint = await checkpointer.aget(checkpoint_config)
+        from myrm_agent_harness.runtime.checkpointing import read_checkpoint_messages
 
-            if checkpoint and "messages" in checkpoint.channel_values:
-                raw_messages = checkpoint.channel_values["messages"]
-                messages = [serialize_message(msg) for msg in raw_messages]
+        raw_checkpoint_messages = await read_checkpoint_messages(checkpointer, thread_id)
+        if raw_checkpoint_messages:
+            messages = [serialize_message(msg) for msg in raw_checkpoint_messages]
 
-                for msg in reversed(messages):
-                    if msg.get("type") == "ai" and msg.get("tool_calls"):
-                        tool_calls = msg.get("tool_calls", [])
-                        if tool_calls and isinstance(tool_calls, list):
-                            last_tool = tool_calls[-1].get("name")
-                            break
+            for msg in reversed(messages):
+                if msg.get("type") == "ai" and msg.get("tool_calls"):
+                    tool_calls = msg.get("tool_calls", [])
+                    if tool_calls and isinstance(tool_calls, list):
+                        last_tool = tool_calls[-1].get("name")
+                        break
 
-                logger.debug(
-                    "Extracted %d messages from checkpointer (last_tool=%s)",
-                    len(messages),
-                    last_tool,
-                )
-        except Exception as e:
-            logger.warning("Failed to extract messages from checkpointer: %s", e)
+            logger.debug(
+                "Extracted %d messages from checkpointer (last_tool=%s)",
+                len(messages),
+                last_tool,
+            )
 
     if last_run_stats:
         stats = {
