@@ -37,18 +37,39 @@ class LocalWorkingMemoryBlock:
         return _WORKING_STATE_VAR.get()
 
     @classmethod
-    def initialize(cls, goal: str, initial_subtasks: list[str] | None = None) -> LocalWorkingState:
+    def initialize(
+        cls,
+        goal: str,
+        initial_subtasks: list[str] | None = None,
+        prior_traps: list[dict[str, str]] | None = None,
+    ) -> LocalWorkingState:
         """Initialize or replace the working state for the active execution run."""
         subtasks: list[SubtaskItem] = []
         if initial_subtasks:
             for idx, title in enumerate(initial_subtasks, start=1):
                 subtasks.append(SubtaskItem(id=f"step-{idx}", title=title, status=SubtaskStatus.PENDING))
 
+        traps: list[TrapRecord] = []
+        if prior_traps:
+            for trap_dict in prior_traps:
+                fp = str(trap_dict.get("fingerprint", ""))
+                rule = str(trap_dict.get("avoidance_rule", ""))
+                t_name = trap_dict.get("tool_name")
+                if fp and rule:
+                    traps.append(
+                        TrapRecord(
+                            fingerprint=fp,
+                            avoidance_rule=rule,
+                            tool_name=str(t_name) if t_name else None,
+                            occurred_turn=0,
+                        )
+                    )
+
         state = LocalWorkingState(
             goal=goal.strip(),
             status="active",
             subtasks=subtasks,
-            traps=[],
+            traps=traps,
             scratchpad={},
             active_turn=1,
         )
@@ -184,7 +205,8 @@ class LocalWorkingMemoryBlock:
             lines.append("**Avoidance Traps**:")
             for trap in recent_traps:
                 tool_label = f"[{trap.tool_name}] " if trap.tool_name else ""
-                lines.append(f"- ⚠️ {tool_label}{trap.avoidance_rule}")
+                icon = "🛡️ [Prior] " if trap.occurred_turn == 0 else "⚠️ "
+                lines.append(f"- {icon}{tool_label}{trap.avoidance_rule}")
 
         lines.append("</working_board>")
         return "\n".join(lines)

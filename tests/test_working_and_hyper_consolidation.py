@@ -95,6 +95,35 @@ def test_local_working_memory_block_lifecycle() -> None:
     LocalWorkingMemoryBlock.reset()
 
 
+def test_local_working_memory_prewarm_prior_traps() -> None:
+    """Validate prewarming prior historical procedural rules into working memory."""
+    LocalWorkingMemoryBlock.reset()
+
+    prior_traps = [
+        {
+            "fingerprint": "rate_limit_429",
+            "avoidance_rule": "Attach custom User-Agent and back off with jitter",
+            "tool_name": "http_fetch",
+        }
+    ]
+
+    state = LocalWorkingMemoryBlock.initialize(
+        goal="Batch crawl SEC filings",
+        initial_subtasks=["Fetch index"],
+        prior_traps=prior_traps,
+    )
+
+    assert len(state.traps) == 1
+    assert state.traps[0].fingerprint == "rate_limit_429"
+    assert state.traps[0].occurred_turn == 0
+
+    markdown = LocalWorkingMemoryBlock.format_turn_tail_markdown()
+    assert "[Prior]" in markdown
+    assert "Attach custom User-Agent and back off with jitter" in markdown
+
+    LocalWorkingMemoryBlock.reset()
+
+
 @pytest.mark.asyncio
 async def test_local_working_memory_block_contextvar_isolation() -> None:
     """Verify ContextVar isolation between concurrent coroutines."""
