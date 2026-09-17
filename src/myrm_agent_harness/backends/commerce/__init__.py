@@ -24,6 +24,14 @@ from myrm_agent_harness.backends.commerce.app_events import (
     format_app_events_for_prompt,
     process_out_of_band_payment_webhook,
 )
+from myrm_agent_harness.backends.commerce.catalog_normalization import (
+    GracefulFilterResult,
+    NormalizedMeasurement,
+    RelaxationAdvice,
+    extract_attributes_from_text,
+    filter_with_graceful_relaxation,
+    parse_measurement,
+)
 from myrm_agent_harness.backends.commerce.checkout_handoff import (
     CheckoutCardPayload,
     CheckoutHandoffMode,
@@ -33,14 +41,6 @@ from myrm_agent_harness.backends.commerce.checkout_handoff import (
     ZeroTouchHandoffEnvelope,
     inject_checkout_url_to_card,
     sanitize_checkout_for_model,
-)
-from myrm_agent_harness.backends.commerce.catalog_normalization import (
-    GracefulFilterResult,
-    NormalizedMeasurement,
-    RelaxationAdvice,
-    extract_attributes_from_text,
-    filter_with_graceful_relaxation,
-    parse_measurement,
 )
 from myrm_agent_harness.backends.commerce.digest import (
     AttentionCategory,
@@ -100,19 +100,6 @@ from myrm_agent_harness.backends.commerce.slices import (
     export_commerce_slice_eval,
     run_commerce_slice_regression,
 )
-from myrm_agent_harness.backends.commerce.verticals import (
-    CommerceStarterPack,
-    VerticalDomain,
-    create_entertainment_starter_pack,
-    create_retail_starter_pack,
-    create_telecom_starter_pack,
-    create_travel_starter_pack,
-    get_vertical_starter_pack,
-)
-
-# Backward-compatibility alias
-StorefrontBackend = StorefrontBackendProtocol
-MerchantBackend = MerchantBackendProtocol
 from myrm_agent_harness.backends.commerce.types import (
     ApplyResult,
     Cart,
@@ -125,6 +112,7 @@ from myrm_agent_harness.backends.commerce.types import (
     InventoryAlertSeverity,
     Listing,
     ListingStatus,
+    MerchantSessionContext,
     MerchantSessionState,
     Money,
     Order,
@@ -138,16 +126,31 @@ from myrm_agent_harness.backends.commerce.types import (
     Product,
     ProductFilter,
     ProductVariant,
+    ShoppingSessionContext,
     ShoppingSessionState,
     StagedChange,
     TopProductMetric,
     VariantOption,
 )
+from myrm_agent_harness.backends.commerce.verticals import (
+    CommerceStarterPack,
+    VerticalDomain,
+    create_entertainment_starter_pack,
+    create_retail_starter_pack,
+    create_telecom_starter_pack,
+    create_travel_starter_pack,
+    get_vertical_starter_pack,
+)
+
+# Backward-compatibility alias
+StorefrontBackend = StorefrontBackendProtocol
+MerchantBackend = MerchantBackendProtocol
 
 __all__ = [
     "ApplyResult",
     "Cart",
     "CartCapCheckResult",
+    "CartCapExceeded",
     "CartCapLimits",
     "CartLine",
     "CartOperationReceipt",
@@ -155,6 +158,7 @@ __all__ = [
     "CartUpdateResult",
     "ChangeNotApplicable",
     "ChangeType",
+    "CheckoutCardPayload",
     "CommerceError",
     "CommerceRole",
     "CommerceSessionSlice",
@@ -162,6 +166,7 @@ __all__ = [
     "CommerceStarterPack",
     "CompetitorPrice",
     "GateDecision",
+    "GracefulFilterResult",
     "GuardrailCheckResult",
     "GuardrailDecision",
     "GuardrailLimits",
@@ -176,8 +181,10 @@ __all__ = [
     "MerchantBackend",
     "MerchantBackendProtocol",
     "MerchantGuardrailConfig",
+    "MerchantSessionContext",
     "MerchantSessionState",
     "Money",
+    "NormalizedMeasurement",
     "NotOffered",
     "OptionsResolutionHeld",
     "Order",
@@ -192,6 +199,7 @@ __all__ = [
     "ProductFilter",
     "ProductVariant",
     "RelaxationAdvice",
+    "ShoppingSessionContext",
     "ShoppingSessionState",
     "SliceAssertion",
     "SliceEvalResult",

@@ -22,9 +22,8 @@ eliminating the need for manual CLI-based eval authoring in transactional commer
 
 from __future__ import annotations
 
-import json
-from dataclasses import asdict, is_dataclass
 from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from myrm_agent_harness.backends.commerce.types import CommerceRole

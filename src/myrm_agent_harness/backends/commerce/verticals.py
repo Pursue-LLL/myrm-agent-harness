@@ -23,6 +23,7 @@ realistic mock catalogs, and zero-config in-memory dual-role runtimes.
 from __future__ import annotations
 
 from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from myrm_agent_harness.backends.commerce.memory_backend import (

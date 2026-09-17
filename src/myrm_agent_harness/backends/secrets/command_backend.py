@@ -67,7 +67,7 @@ class CommandSecretBackend(AgentSecretBackend):
             if has_placeholder:
                 cmd = [part.replace("$MYRM_SECRET_KEY", key_name) for part in self.command_template]
             else:
-                cmd = list(self.command_template) + [key_name]
+                cmd = [*self.command_template, key_name]
             use_shell = False
         else:
             cmd = self.command_template.replace("$MYRM_SECRET_KEY", key_name)

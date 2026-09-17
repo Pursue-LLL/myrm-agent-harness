@@ -21,8 +21,10 @@ Addresses mixed catalog units and eliminates deceptive silent filter drops.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from typing import Literal
-from pydantic import BaseModel, Field
+
+from pydantic import BaseModel
 
 from myrm_agent_harness.backends.commerce.types import Product, ProductFilter
 

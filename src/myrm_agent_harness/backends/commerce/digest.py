@@ -19,11 +19,11 @@ Eliminates passive reporting bottlenecks by generating actionable morning briefi
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
-import uuid
 
 from myrm_agent_harness.backends.commerce.protocols import MerchantBackendProtocol
 from myrm_agent_harness.backends.commerce.types import (
@@ -33,7 +33,7 @@ from myrm_agent_harness.backends.commerce.types import (
 )
 
 
-class AttentionCategory(str, Enum):
+class AttentionCategory(StrEnum):
     """Category of operational attention item."""
 
     INVENTORY = "inventory"
@@ -44,7 +44,7 @@ class AttentionCategory(str, Enum):
     ORDER = "order"
 
 
-class AttentionSeverity(str, Enum):
+class AttentionSeverity(StrEnum):
     """Urgency level for attention items."""
 
     INFO = "info"

@@ -42,10 +42,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 
 
-class CommerceRole(str, Enum):
+class CommerceRole(StrEnum):
     """Commerce session role."""
 
     STOREFRONT = "storefront"
@@ -165,7 +165,7 @@ class CartUpdateResult:
     cart: Cart
 
 
-class OrderStatus(str, Enum):
+class OrderStatus(StrEnum):
     """Order fulfillment status."""
 
     PENDING = "pending"
@@ -202,7 +202,7 @@ class Order:
     tracking_number: str | None = None
 
 
-class PolicyCategory(str, Enum):
+class PolicyCategory(StrEnum):
     """Store policy category."""
 
     RETURNS = "returns"
@@ -278,8 +278,13 @@ class PerformanceSummary:
         """Alias for gmv."""
         return self.gmv
 
+    @property
+    def total_sales(self) -> float:
+        """Alias for gmv (total sales value)."""
+        return self.gmv
 
-class ListingStatus(str, Enum):
+
+class ListingStatus(StrEnum):
     """Listing catalog publication status."""
 
     ACTIVE = "active"
@@ -309,7 +314,7 @@ class Listing:
         return self.price
 
 
-class ChangeType(str, Enum):
+class ChangeType(StrEnum):
     """Type of staged change proposal."""
 
     PRICE_UPDATE = "price_update"
@@ -374,7 +379,7 @@ class PricingContext:
         return self.ceiling_price if self.ceiling_price is not None else self.max_allowed_price
 
 
-class InventoryAlertSeverity(str, Enum):
+class InventoryAlertSeverity(StrEnum):
     """Severity of inventory health alert."""
 
     INFO = "info"
@@ -395,6 +400,26 @@ class InventoryAlert:
 
 
 # --- Session State Isolation ---
+
+
+@dataclass(frozen=True, slots=True)
+class ShoppingSessionContext:
+    """Session-level context for consumer shopping journeys."""
+
+    session_id: str
+    customer_id: str = "guest"
+    currency: str = "USD"
+    locale: str = "en-US"
+
+
+@dataclass(frozen=True, slots=True)
+class MerchantSessionContext:
+    """Session-level context for merchant back-office management journeys."""
+
+    session_id: str
+    operator_id: str
+    merchant_id: str
+    roles: list[str] = field(default_factory=lambda: ["operator"])
 
 
 @dataclass(frozen=True, slots=True)
@@ -421,3 +446,4 @@ class MerchantSessionState:
     active_listing_id: str | None = None
     staged_change_ids: tuple[str, ...] = ()
     authorized_permissions: tuple[str, ...] = ("read_performance", "stage_changes")
+

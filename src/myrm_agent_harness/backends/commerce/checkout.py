@@ -21,13 +21,13 @@ compliance and seamless session resumption.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from collections.abc import Sequence
+from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any, Sequence
+from typing import Any
 
 from myrm_agent_harness.backends.commerce.app_events import (
     AppEvent,
-    AppEventType,
 )
 from myrm_agent_harness.backends.commerce.types import Cart
 

@@ -25,8 +25,12 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from myrm_agent_harness.backends.commerce.exceptions import GuardrailViolationError
-from myrm_agent_harness.backends.commerce.types import ChangeType, Listing, PricingContext
+from myrm_agent_harness.backends.commerce.types import (
+    ChangeType,
+    Listing,
+    PricingContext,
+    StagedChange,
+)
 
 GuardrailDecision = Literal["passed", "blocked", "held"]
 

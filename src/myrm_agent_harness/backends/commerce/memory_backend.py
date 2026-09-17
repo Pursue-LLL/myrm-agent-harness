@@ -203,9 +203,9 @@ class InMemoryStorefrontBackend(StorefrontBackendProtocol):
         existing_lines = list(cart.lines)
         line_match = next(
             (
-                l
-                for l in existing_lines
-                if l.product_id == product_id and l.variant_id == chosen_variant_id
+                line
+                for line in existing_lines
+                if line.product_id == product_id and line.variant_id == chosen_variant_id
             ),
             None,
         )
@@ -213,17 +213,17 @@ class InMemoryStorefrontBackend(StorefrontBackendProtocol):
         if line_match:
             updated_lines = [
                 CartLine(
-                    line_id=l.line_id,
-                    product_id=l.product_id,
-                    variant_id=l.variant_id,
-                    quantity=l.quantity + quantity,
-                    unit_price=l.unit_price,
-                    title=l.title,
-                    selected_options=l.selected_options,
+                    line_id=line.line_id,
+                    product_id=line.product_id,
+                    variant_id=line.variant_id,
+                    quantity=line.quantity + quantity,
+                    unit_price=line.unit_price,
+                    title=line.title,
+                    selected_options=line.selected_options,
                 )
-                if l.line_id == line_match.line_id
-                else l
-                for l in existing_lines
+                if line.line_id == line_match.line_id
+                else line
+                for line in existing_lines
             ]
             modified_line_id = line_match.line_id
         else:

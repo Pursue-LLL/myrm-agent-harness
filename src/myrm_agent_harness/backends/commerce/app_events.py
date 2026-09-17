@@ -19,16 +19,16 @@ without conversation stalls or desynchronized session state.
 from __future__ import annotations
 
 import asyncio
+import uuid
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Protocol, runtime_checkable
-import uuid
 
 
-class AppEventType(str, Enum):
+class AppEventType(StrEnum):
     """Types of asynchronous external application events."""
 
     PAYMENT_COMPLETED = "payment_completed"

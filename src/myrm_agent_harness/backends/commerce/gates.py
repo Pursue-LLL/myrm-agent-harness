@@ -239,7 +239,11 @@ def check_cart_cap(
     # 1. Check existing quantity for this line
     existing_line_quantity = 0
     is_new_line = True
-    total_existing_units = target_cart.total_quantity if hasattr(target_cart, "total_quantity") else sum(getattr(l, "quantity", 0) for l in getattr(target_cart, "lines", ()))
+    total_existing_units = (
+        target_cart.total_quantity
+        if hasattr(target_cart, "total_quantity")
+        else sum(getattr(line_item, "quantity", 0) for line_item in getattr(target_cart, "lines", ()))
+    )
     cart_lines = getattr(target_cart, "lines", ())
 
     for line in cart_lines:

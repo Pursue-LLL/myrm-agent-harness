@@ -18,10 +18,10 @@ host-level AppEvent injection for session resumption after out-of-band payments.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from enum import StrEnum
 import threading
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -96,7 +96,7 @@ class AppEvent:
     message: str | None = None
     payload: dict[str, object] = field(default_factory=dict)
     created_at_iso: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+        default_factory=lambda: datetime.now(UTC).isoformat()
     )
 
     def format_for_transcript(self) -> str:

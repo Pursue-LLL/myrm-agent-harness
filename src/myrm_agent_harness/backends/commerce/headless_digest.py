@@ -17,16 +17,16 @@ Powers automated store health diagnostics for scheduled background cron executio
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
-import uuid
+from enum import StrEnum
 
 from myrm_agent_harness.backends.commerce.protocols import MerchantBackendProtocol
 from myrm_agent_harness.backends.commerce.types import InventoryAlertSeverity
 
 
-class DigestSeverity(str, Enum):
+class DigestSeverity(StrEnum):
     """Urgency level for digest attention items."""
 
     INFO = "info"

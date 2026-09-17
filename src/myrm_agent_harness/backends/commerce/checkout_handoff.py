@@ -19,10 +19,10 @@ Model context never touches payment tokens, credentials, or destination URLs.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
-import re
+from enum import StrEnum
 from urllib.parse import urlparse
 
 from myrm_agent_harness.backends.commerce.exceptions import CommerceError
@@ -31,7 +31,7 @@ from myrm_agent_harness.backends.commerce.types import Cart
 PAYMENT_HANDOFF_GATE = "PAYMENT_HANDOFF_GATE"
 
 
-class CheckoutHandoffMode(str, Enum):
+class CheckoutHandoffMode(StrEnum):
     """Modes of out-of-band checkout completion."""
 
     REDIRECT = "redirect"

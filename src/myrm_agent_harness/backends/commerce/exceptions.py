@@ -28,7 +28,7 @@ class CommerceError(Exception):
         self.code = code
 
 
-class NotOffered(CommerceError):
+class NotOfferedError(CommerceError):
     """Raised when an operation or capability is not offered by the store.
 
     This represents a valid business state (e.g. shipping policy not applicable,
@@ -39,7 +39,10 @@ class NotOffered(CommerceError):
         super().__init__(message, code="NOT_OFFERED")
 
 
-class Unavailable(CommerceError):
+NotOffered = NotOfferedError
+
+
+class UnavailableError(CommerceError):
     """Raised when an item, variant, or resource is temporarily unavailable.
 
     For example, when a product or variant is out of stock. The message should
@@ -58,21 +61,30 @@ class Unavailable(CommerceError):
         self.available_variant_ids = available_variant_ids or []
 
 
-class ChangeNotApplicable(CommerceError):
+Unavailable = UnavailableError
+
+
+class ChangeNotApplicableError(CommerceError):
     """Raised when a merchant proposal does not apply to the target entity."""
 
     def __init__(self, message: str = "The proposed change cannot be applied to this item.") -> None:
         super().__init__(message, code="CHANGE_NOT_APPLICABLE")
 
 
-class InvalidStagedChange(CommerceError):
+ChangeNotApplicable = ChangeNotApplicableError
+
+
+class InvalidStagedChangeError(CommerceError):
     """Raised when a staged proposal is invalid, expired, or corrupted."""
 
     def __init__(self, message: str = "The staged change proposal is invalid.") -> None:
         super().__init__(message, code="INVALID_STAGED_CHANGE")
 
 
-class OptionsResolutionHeld(CommerceError):
+InvalidStagedChange = InvalidStagedChangeError
+
+
+class OptionsResolutionHeldError(CommerceError):
     """Raised when an operation targets a multi-option product without selecting a variant.
 
     Carries selectable suggestion chips for human/agent rapid convergence.
@@ -92,7 +104,10 @@ class OptionsResolutionHeld(CommerceError):
         self.available_variants = available_variants or []
 
 
-class CartCapExceeded(CommerceError):
+OptionsResolutionHeld = OptionsResolutionHeldError
+
+
+class CartCapExceededError(CommerceError):
     """Raised when cart item quantity or line limit is breached."""
 
     def __init__(
@@ -107,6 +122,9 @@ class CartCapExceeded(CommerceError):
         self.cap_type = cap_type
         self.limit = limit
         self.attempted = attempted
+
+
+CartCapExceeded = CartCapExceededError
 
 
 class GuardrailViolationError(CommerceError):
