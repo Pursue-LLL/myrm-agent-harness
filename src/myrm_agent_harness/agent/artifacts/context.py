@@ -26,7 +26,6 @@ from types import TracebackType
 
 from .file_id_registry import FileIdRegistry
 from .registry import ArtifactRegistry, InlineArtifactQueue, RealtimeContentQueue
-from .ui_registry import UIRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -37,14 +36,12 @@ class ArtifactContext:
 
     统一管理以下注册表：
     - ArtifactRegistry: 文件工件注册表
-    - UIRegistry: UI 工件注册表
     - RealtimeContentQueue: 实时内容推送队列
     - InlineArtifactQueue: 内联 artifact 即时推送队列
     - FileIdRegistry: 文件 ID 短链接注册表
     """
 
     artifact_registry: ArtifactRegistry = field(default_factory=ArtifactRegistry)
-    ui_registry: UIRegistry = field(default_factory=UIRegistry)
     realtime_content_queue: RealtimeContentQueue = field(default_factory=RealtimeContentQueue)
     inline_artifact_queue: InlineArtifactQueue = field(default_factory=InlineArtifactQueue)
     file_id_registry: FileIdRegistry = field(default_factory=FileIdRegistry)
@@ -82,7 +79,6 @@ class ArtifactContextManager:
         # 创建上下文对象
         self._context = ArtifactContext(
             artifact_registry=ArtifactRegistry(),
-            ui_registry=UIRegistry(),
             realtime_content_queue=RealtimeContentQueue(message_id=self.message_id),
             inline_artifact_queue=InlineArtifactQueue(),
             file_id_registry=FileIdRegistry(),

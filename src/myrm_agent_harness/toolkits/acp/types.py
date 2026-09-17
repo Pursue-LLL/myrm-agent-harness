@@ -65,7 +65,7 @@ class AcpErrorCode(StrEnum):
 
 PermissionMode = Literal["safe", "ask", "allow_all", "bypass"]
 
-BackendType = Literal["acp", "sdk", "cli"]
+BackendType = Literal["acp", "cli"]
 
 BackendStatus = Literal["ready", "starting", "error", "stopped"]
 

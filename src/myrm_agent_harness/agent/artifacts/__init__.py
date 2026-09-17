@@ -56,18 +56,6 @@ from .registry import (
 # Types
 from .types import ArtifactInfo, infer_artifact_type, infer_language
 
-# UI Artifacts
-from .ui_artifact import UIArtifact, UIDataUpdate
-
-# UI Registry
-from .ui_registry import (
-    UIRegistry,
-    get_ui_registry,
-    pop_pending_ui_events_for_message,
-    register_ui_artifact,
-    register_ui_data_update,
-)
-
 __all__ = [
     "ACTIVE_CONTENT_MIME_TYPES",
     "EXTENSION_TO_ARTIFACT_TYPE",
@@ -90,17 +78,11 @@ __all__ = [
     "InlineArtifactQueue",
     "RealtimeContentEvent",
     "RealtimeContentQueue",
-    # UI Artifacts
-    "UIArtifact",
-    "UIDataUpdate",
-    # UI Registry
-    "UIRegistry",
     "get_all_mappings",
     "get_artifact_context",
     "get_artifact_registry",
     "get_inline_artifact_queue",
     "get_realtime_content_queue",
-    "get_ui_registry",
     # Types
     "infer_artifact_type",
     "infer_artifact_type_from_extension",
@@ -110,13 +92,10 @@ __all__ = [
     "is_active_content",
     "is_file_id",
     "is_text_content",
-    "pop_pending_ui_events_for_message",
     "push_inline_artifact",
     "push_realtime_content",
     "register_file",
     "register_generated_files",
-    "register_ui_artifact",
-    "register_ui_data_update",
     "resolve_file_id",
     "resolve_file_ids_in_text",
     # Filters

@@ -277,10 +277,6 @@ class TestPostRunEvents:
 
         with (
             patch(
-                "myrm_agent_harness.agent.streaming.artifact_events.collect_ui_artifacts",
-                return_value=_async_gen([]),
-            ),
-            patch(
                 "myrm_agent_harness.agent.middlewares.tooling._mutation_verifier.format_mutation_failures",
                 return_value=None,
             ),
@@ -304,10 +300,6 @@ class TestPostRunEvents:
 
         with (
             patch(
-                "myrm_agent_harness.agent.streaming.artifact_events.collect_ui_artifacts",
-                return_value=_async_gen([]),
-            ),
-            patch(
                 "myrm_agent_harness.agent.middlewares.tooling._mutation_verifier.format_mutation_failures",
                 return_value=None,
             ),
@@ -329,10 +321,6 @@ class TestPostRunEvents:
         )
 
         with (
-            patch(
-                "myrm_agent_harness.agent.streaming.artifact_events.collect_ui_artifacts",
-                return_value=_async_gen([]),
-            ),
             patch(
                 "myrm_agent_harness.agent.middlewares.tooling._mutation_verifier.format_mutation_failures",
                 return_value=None,
@@ -357,10 +345,6 @@ class TestPostRunEvents:
 
         with (
             patch(
-                "myrm_agent_harness.agent.streaming.artifact_events.collect_ui_artifacts",
-                return_value=_async_gen([]),
-            ),
-            patch(
                 "myrm_agent_harness.agent.middlewares.tooling._mutation_verifier.format_mutation_failures",
                 return_value=None,
             ),
@@ -382,10 +366,6 @@ class TestPostRunEvents:
         stats = AgentRunStatistics()
 
         with (
-            patch(
-                "myrm_agent_harness.agent.streaming.artifact_events.collect_ui_artifacts",
-                return_value=_async_gen([]),
-            ),
             patch(
                 "myrm_agent_harness.agent.middlewares.tooling._mutation_verifier.format_mutation_failures",
                 return_value=None,
@@ -413,10 +393,6 @@ class TestPostRunEvents:
 
         with (
             patch(
-                "myrm_agent_harness.agent.streaming.artifact_events.collect_ui_artifacts",
-                return_value=_async_gen([]),
-            ),
-            patch(
                 "myrm_agent_harness.agent.middlewares.tooling._mutation_verifier.format_mutation_failures",
                 return_value=None,
             ),
@@ -443,10 +419,6 @@ class TestPostRunEvents:
         )
 
         with (
-            patch(
-                "myrm_agent_harness.agent.streaming.artifact_events.collect_ui_artifacts",
-                return_value=_async_gen([]),
-            ),
             patch(
                 "myrm_agent_harness.agent.middlewares.tooling._mutation_verifier.format_mutation_failures",
                 return_value=None,
@@ -476,10 +448,6 @@ class TestPostRunEvents:
 
         with (
             patch(
-                "myrm_agent_harness.agent.streaming.artifact_events.collect_ui_artifacts",
-                return_value=_async_gen([]),
-            ),
-            patch(
                 "myrm_agent_harness.agent.middlewares.tooling._mutation_verifier.format_mutation_failures",
                 return_value=None,
             ),
@@ -497,10 +465,6 @@ class TestPostRunEvents:
         stats = AgentRunStatistics()
 
         with (
-            patch(
-                "myrm_agent_harness.agent.streaming.artifact_events.collect_ui_artifacts",
-                return_value=_async_gen([]),
-            ),
             patch(
                 "myrm_agent_harness.agent.middlewares.tooling._mutation_verifier.format_mutation_failures",
                 return_value=None,

@@ -1,17 +1,17 @@
 """Artifact 事件处理
 
 [INPUT]
-- agent.artifacts::UIArtifact, (POS: Provides ArtifactType, ArtifactMappings, is_active_content.)
-- agent.types::AgentEventType (POS: Provides ArtifactInfo, infer_language, infer_artifact_type.)
+- agent.artifacts::ArtifactRegistry, InlineArtifactQueue, RealtimeContentQueue (POS: 文件/内联/实时内容注册表)
+- toolkits.code_execution.executors.base::get_executor (POS: 沙箱文件读取句柄)
 
 [OUTPUT]
 - emit_artifacts_ready_event(): 发出 artifacts_ready 事件（懒加载，业务层按需读取）
-- collect_ui_artifacts(): 收集并发送 UI 工件事件
+- emit_artifact_focus_event(): 发出 artifact_focus 事件（主交付物聚焦）
 - collect_inline_artifacts(): 收集工具执行中产生的内联 artifact（如图片 URL）
 - process_realtime_content_events(): 处理实时内容更新事件
 
 [POS]
-Artifact event handler. Collects and emits four event types: file artifacts, UI artifacts, inline artifacts, and real-time content.
+Artifact event handler. Collects and emits file artifacts, inline artifacts, and real-time content events.
 
 """
 
@@ -21,14 +21,10 @@ from collections.abc import AsyncGenerator
 from pathlib import Path
 
 from myrm_agent_harness.agent.artifacts import (
-    UIArtifact,
-    UIDataUpdate,
     get_artifact_registry,
     get_inline_artifact_queue,
     get_realtime_content_queue,
-    get_ui_registry,
     infer_artifact_type,
-    pop_pending_ui_events_for_message,
 )
 from myrm_agent_harness.toolkits.code_execution.executors.base import get_executor
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
@@ -123,46 +119,6 @@ async def emit_artifact_focus_event(message_id: str) -> AsyncGenerator[dict[str,
         },
         "message_id": message_id,
     }
-
-
-async def collect_ui_artifacts(message_id: str) -> AsyncGenerator[dict[str, object]]:
-    """收集并发送 UI 工件（仅 UI，文件工件通过 artifacts_ready 事件处理）"""
-    try:
-        pending_events: list[UIArtifact | UIDataUpdate] = pop_pending_ui_events_for_message(message_id)
-
-        ui_registry = get_ui_registry()
-        if ui_registry is not None and ui_registry.has_pending_events():
-            pending_events.extend(ui_registry.pop_pending_events())
-
-        if not pending_events:
-            return
-        ui_artifacts_data: list[dict[str, object]] = []
-        data_update_events: list[UIDataUpdate] = []
-
-        for event in pending_events:
-            if isinstance(event, UIArtifact):
-                ui_artifacts_data.append(event.to_dict())
-            elif isinstance(event, UIDataUpdate):
-                data_update_events.append(event)
-
-        if ui_artifacts_data:
-            yield {
-                "type": AgentEventType.UI_UPDATE.value,
-                "subtype": "ui_artifact",
-                "data": ui_artifacts_data,
-                "messageId": message_id,
-            }
-            logger.warning(" Sending %d UI artifacts", len(ui_artifacts_data))
-
-        for update in data_update_events:
-            yield {
-                "type": AgentEventType.UI_UPDATE.value,
-                "subtype": "data_update",
-                "data": update.model_dump(),
-                "messageId": message_id,
-            }
-    except Exception as e:
-        logger.warning("Failed to send UI artifacts: %s", e)
 
 
 async def collect_inline_artifacts(message_id: str) -> AsyncGenerator[dict[str, object]]:

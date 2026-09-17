@@ -20,6 +20,7 @@ Emits TOOL_IMAGE_OUTPUT for all image blocks in multimodal ToolMessage content
 
 from __future__ import annotations
 
+import enum
 import json
 from collections.abc import AsyncGenerator, Generator
 from typing import cast
@@ -195,8 +196,9 @@ async def _handle_tool_result(
         # OWNER; execution categories are the built-in tool itself →
         # HARNESS_TOOL. Fall back to HARNESS_TOOL when no category is attached.
         if error_category := msg.additional_kwargs.get("error_category"):
-            event["error_category"] = str(error_category)
-            event["fault_side"] = classify_tool_fault_side(str(error_category)).value
+            category_value = _error_category_value(error_category)
+            event["error_category"] = category_value
+            event["fault_side"] = classify_tool_fault_side(category_value).value
         else:
             event["fault_side"] = FaultSide.HARNESS_TOOL.value
 
@@ -282,6 +284,25 @@ def _extract_tool_metadata(msg: ToolMessage) -> dict[str, object]:
             pass
 
     return {}
+
+
+def _error_category_value(raw: object) -> str:
+    """Normalize a ``ToolErrorCategory`` to its wire value.
+
+    ``ToolErrorCategory`` is a plain ``str`` mixin enum, and such enums do **not**
+    override ``__str__``, so ``str(ToolErrorCategory.ESTOP)`` renders as
+    ``'ToolErrorCategory.ESTOP'`` rather than ``'estop'``. Emitting that verbatim
+    broke the SSE contract twice over: the frontend receives a Python class path
+    it cannot branch on, and ``classify_tool_fault_side`` — whose tables hold
+    value-form strings like ``"estop"`` / ``"guardrail_blocked"`` — failed every
+    membership test and abstained to ``FaultSide.UNKNOWN``, mislabeling
+    owner-caused guard blocks as unattributed. Reading ``.value`` directly keeps
+    the wire format identical to the ``*.value`` sites elsewhere
+    (``web_fetch_agent_tools.py``).
+    """
+    if isinstance(raw, enum.Enum):
+        return str(raw.value)
+    return str(raw)
 
 
 async def _emit_source_events(

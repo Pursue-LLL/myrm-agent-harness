@@ -344,12 +344,10 @@ def cleanup_run(
         )
 
         set_security_config(None)
-        from myrm_agent_harness.agent.artifacts.ui_registry import pop_run_message_id
         from myrm_agent_harness.agent.middlewares._session_context import (
             get_approval_session,
         )
 
-        pop_run_message_id(get_approval_session())
         set_workspace_root("")
 
         from myrm_agent_harness.agent.security.workspace_trust.runtime import (
@@ -693,16 +691,11 @@ async def post_run_events(
         async for focus_event in emit_artifact_focus_event(message_id):
             yield focus_event
 
-    from myrm_agent_harness.agent.streaming.artifact_events import collect_ui_artifacts
-    from myrm_agent_harness.agent.streaming.types import AgentEventType
-
-    async for event in collect_ui_artifacts(message_id):
-        yield event
-
     # File Mutation Verifier — emit failure event before MESSAGE_END
     from myrm_agent_harness.agent.middlewares.tooling._mutation_verifier import (
         format_mutation_failures,
     )
+    from myrm_agent_harness.agent.streaming.types import AgentEventType
 
     mutation_payload = format_mutation_failures()
     if mutation_payload:

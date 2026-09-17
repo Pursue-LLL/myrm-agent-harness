@@ -9,7 +9,7 @@ serialization locks, and optional health monitoring.
 - myrm_agent_harness.toolkits.acp.core.event_bus::EventBus (POS: ACP event bus layer)
 - myrm_agent_harness.toolkits.acp.core.health_monitor::HealthMonitor (POS: runtime health monitoring layer)
 - myrm_agent_harness.toolkits.acp.types::RuntimeBackend, RuntimeConfig, RuntimeEvent (POS: ACP runtime type definitions)
-- myrm_agent_harness.toolkits.acp.runtime.*::AcpRuntime, CliRuntime, SdkRuntime (POS: runtime backend implementations)
+- myrm_agent_harness.toolkits.acp.runtime.*::AcpRuntime, CliRuntime (POS: runtime backend implementations)
 
 [OUTPUT]
 - RuntimePool: unified runtime instance pool managing multiple backend types
@@ -55,11 +55,6 @@ def _create_runtime(
         from myrm_agent_harness.toolkits.acp.runtime.cli_runtime import CliRuntime
 
         return CliRuntime(name, config)
-
-    if config.backend_type == "sdk":
-        from myrm_agent_harness.toolkits.acp.runtime.sdk_runtime import SdkRuntime
-
-        return SdkRuntime(name, config)
 
     msg = f"Unknown backend_type: {config.backend_type!r}"
     raise ValueError(msg)

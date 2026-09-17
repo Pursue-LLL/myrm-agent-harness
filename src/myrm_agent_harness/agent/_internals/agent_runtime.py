@@ -399,10 +399,6 @@ async def run_agent_loop(
             if context
             else ""
         )
-        from myrm_agent_harness.agent.artifacts.ui_registry import bind_run_message_id
-
-        if session_key:
-            bind_run_message_id(session_key, message_id)
         set_approval_session(session_key)
         # UECD spill paths and /files/evicted API use raw chat_id (context["chat_id"]),
         # not approval session_key (often "chat_{id}").
