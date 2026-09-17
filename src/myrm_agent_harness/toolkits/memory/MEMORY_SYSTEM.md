@@ -1053,4 +1053,26 @@ rating_new = rating_old + alpha * (normalized - rating_old)
   - 零大模型调用开销（<0.1ms），纯算术确定性推导，实现毫秒级会话粒度个性化检索重排。
 - **详细设计**：详见 [strategies/_ARCH.md](strategies/_ARCH.md)。
 
+---
+
+## 十七、双块运行时工作台与长程会话巩固机制 (LocalWorkingMemoryBlock & HyperConsolidator)
+
+解决复杂长程任务执行中上下文注意力稀释与任务终态经验沉淀割裂的难题：
+
+- **运行时手边工作台（`LocalWorkingMemoryBlock`）**：
+  - 核心位置：`myrm_agent_harness.agent.context_management.working_memory`；
+  - 基于 Python `contextvars.ContextVar` 实现并发强隔离的工作台，零 LLM 额外调用开销；
+  - 结构化维护当前任务总目标（`goal`）、子任务流转状态（`subtasks`，含 `pending/in_progress/completed/failed`）与运行时避坑防线（`traps`，含 `fingerprint/avoidance_rule/tool_name/resolved`）；
+  - 支持自愈状态翻转 `resolve_trap(fingerprint)`，在重试成功后将状态置为已解决；
+  - **Prompt Cache 铁律**：`format_turn_tail_markdown()` 严格仅在动态消息尾部（Turn Tail）输出 `<working_board>`，System Prompt 静态前缀 100% 保持字节一致，捍卫 90% 前缀缓存命中率。
+- **终态异步提炼与固化中枢（`HyperConsolidator`）**：
+  - 核心位置：`myrm_agent_harness.toolkits.memory.consolidation`；
+  - 具备低门槛轻量门禁守卫（`gatekeeper`）：会话交互 <= 1 轮且无子任务推进时自动绕过，避免无谓的模型消耗；
+  - 异步蒸馏长程会话执行轨迹，产出结构化任务摘要（`TaskDigestMemory`，写入 `episodic_store`）；
+  - 提取规避经验升维为程序性规避规则（`ProceduralMemory`，写入 `procedural_store`），在新会话启动时通过 `initialize(..., prior_traps=...)` 实现开局先验预热。
+- **产品与用户界面闭环**：
+  - Server 端通过 `/api/memory/working-state` 暴露实时手边工作台快照；
+  - 前端 `WorkingStateBadge.tsx` 消除 Dead Feature Path，装配 `WorkingMemoryBoard.tsx`，通过 `chatId` 严格实现多会话物理隔离，杜绝跨会话幽灵数据穿透；已自愈的规避规则渲染为绿色自愈盾牌徽标，全面提升 ToC 生产力体验。
+
+
 
