@@ -135,6 +135,8 @@ myrm_agent_harness/
 │   └── strategies/                     # 可插拔策略
 │       ├── deduplicator.py             # 三层智能去重（Hash → Vector → LLM）
 │       ├── merger.py                   # 确定性三态冲突合并与置信度演化
+│       ├── sparse_types.py             # 稀疏语义突变领域模型与动作枚举
+│       ├── sparse_parser.py            # 确定性单趟槽位语法解析与墓碑/标点拆解
 │       ├── sparse_mutation.py          # 稀疏语义掩码最小覆盖与知情保留变更引擎
 │       ├── conflict_merger.py          # 候选冲突三态判定与治理队列挂起
 │       ├── llm_prompt.py               # Layer 3 LLM 去重判断 prompt 模板
