@@ -79,7 +79,7 @@ _PARENT_WATCH_ZONES: tuple[tuple[str, str, frozenset[str]], ...] = (
     (
         "agent/context_management/",
         "agent/context_management/pipeline",
-        frozenset({"archive_checkpoint", "infra", "strategies", "tracking"}),
+        frozenset({"archive_checkpoint", "infra", "strategies", "tracking", "downshift", "working_memory"}),
     ),
 )
 
@@ -99,6 +99,8 @@ _MEMORY_PUBLIC_SUBDIRS: frozenset[str] = frozenset(
         "conversation_search",
         "_internal",
         "agent_surface",
+        "governance",
+        "working_tree",
     }
 )
 

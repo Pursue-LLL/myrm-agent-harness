@@ -32,6 +32,7 @@ from pathlib import Path
 
 from myrm_agent_harness.toolkits.code_execution.config import ExecutionConfig
 from myrm_agent_harness.toolkits.code_execution.executors.models import (
+    AsyncProcessProtocol,
     ExecutionContext,
     ExecutionMetrics,
     ExecutionResult,
@@ -98,7 +99,7 @@ class CodeExecutor(ABC):
 
     async def close(self) -> None:
         """Release underlying processes, file descriptors, and sandbox resources."""
-        pass
+        return None
 
     async def __aenter__(self) -> "CodeExecutor":
         return self
@@ -129,6 +130,15 @@ class CodeExecutor(ABC):
             yield result.stdout
         if result.stderr:
             yield result.stderr
+
+    async def spawn_background_process(self, context: ExecutionContext) -> AsyncProcessProtocol:
+        """Spawn a background process returning live stdio streams.
+
+        Executors without background-process support (e.g. read-only proxies)
+        inherit this default, which raises NotImplementedError. LocalExecutor
+        overrides it with a real implementation.
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not support background processes")
 
     def _log_context_file_access(self, resolved_path: str, success: bool = True) -> None:
         """Log context file access for offload mechanism validation."""
@@ -354,7 +364,7 @@ class CodeExecutorMiddleware(CodeExecutor):
         super().__init__(config=inner.config)
 
     @property
-    def metrics(self) -> ExecutionMetrics:  # type: ignore[override]
+    def metrics(self) -> ExecutionMetrics:
         return self.inner.metrics
 
     @metrics.setter
@@ -503,13 +513,18 @@ def get_stashed_executor(session_id: str) -> CodeExecutor | None:
     return _session_executor_stash.get(session_id)
 
 
+_stashed_cleanup_tasks: set[asyncio.Task[None]] = set()
+
+
 def clear_stashed_executor(session_id: str) -> None:
     """Remove stashed executor entry on session teardown and close it in background if loop running."""
     executor = _session_executor_stash.pop(session_id, None)
     if executor is not None:
         try:
             loop = asyncio.get_running_loop()
-            loop.create_task(executor.close())
+            task = loop.create_task(executor.close())
+            _stashed_cleanup_tasks.add(task)
+            task.add_done_callback(_stashed_cleanup_tasks.discard)
         except RuntimeError:
             pass
 

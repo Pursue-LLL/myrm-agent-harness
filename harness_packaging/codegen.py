@@ -106,7 +106,8 @@ def render_platform_key_module(ssot_source: str) -> str:
     body = "\n".join(lines[body_start:]).lstrip("\n")
     if not body.startswith("from __future__"):
         body = f"from __future__ import annotations\n\n{body}"
-    return _PLATFORM_GENERATED_HEADER + textwrap.dedent(body)
+    rendered = _PLATFORM_GENERATED_HEADER + textwrap.dedent(body)
+    return rendered if rendered.endswith("\n") else f"{rendered}\n"
 
 
 def write_core_ip_manifest(root: Path | None = None) -> Path:

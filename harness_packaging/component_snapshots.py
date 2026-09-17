@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from myrm_agent_harness.agent.tool_management.tool_layers import _TOOL_LAYERS, ToolLayer
+from myrm_agent_harness.agent.tool_management.tool_layers import _TOOL_LAYERS
 
 
 @dataclass(frozen=True)

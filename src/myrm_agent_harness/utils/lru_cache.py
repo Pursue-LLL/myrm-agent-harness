@@ -18,15 +18,13 @@ from __future__ import annotations
 import time
 from collections import OrderedDict
 from collections.abc import Callable
-from typing import NamedTuple, TypeVar
-
-_V = TypeVar("_V")
+from typing import NamedTuple
 
 
 class _CacheEntry[V](NamedTuple):
     """缓存条目（值 + 时间戳）"""
 
-    value: _V
+    value: V
     timestamp: float
 
 
@@ -61,7 +59,7 @@ class LRUCache[V]:
         ttl: int = 3600,
         id: str = "",
         max_bytes: int | None = None,
-        size_fn: Callable[[_V], int] | None = None,
+        size_fn: Callable[[V], int] | None = None,
     ):
         if maxsize <= 0:
             raise ValueError(f"maxsize must be positive, got {maxsize}")
@@ -70,7 +68,7 @@ class LRUCache[V]:
         if max_bytes is not None and max_bytes <= 0:
             raise ValueError(f"max_bytes must be positive, got {max_bytes}")
 
-        self._cache: OrderedDict[str, _CacheEntry[_V]] = OrderedDict()
+        self._cache: OrderedDict[str, _CacheEntry[V]] = OrderedDict()
         self.maxsize = maxsize
         self.ttl = ttl
         self.id = id
@@ -92,7 +90,7 @@ class LRUCache[V]:
         else:
             self._cleanup_interval = max(ttl // 10, 60)
 
-    def _is_expired(self, entry: _CacheEntry[_V]) -> bool:
+    def _is_expired(self, entry: _CacheEntry[V]) -> bool:
         return time.time() - entry.timestamp > self.ttl
 
     def _cleanup_expired(self) -> None:
@@ -113,7 +111,7 @@ class LRUCache[V]:
     def __len__(self) -> int:
         return len(self._cache)
 
-    def get(self, key: str, default: _V | None = None) -> _V | None:
+    def get(self, key: str, default: V | None = None) -> V | None:
         """获取缓存项，不存在或已过期时返回 default"""
         if key not in self._cache:
             self._misses += 1
@@ -132,7 +130,7 @@ class LRUCache[V]:
         self._hits += 1
         return entry.value
 
-    def get_with_expiry(self, key: str) -> tuple[_V | None, bool]:
+    def get_with_expiry(self, key: str) -> tuple[V | None, bool]:
         """获取缓存项及其过期状态（不自动清理过期项）
 
         Returns:
@@ -153,7 +151,7 @@ class LRUCache[V]:
 
         return (entry.value, is_expired)
 
-    def set(self, key: str, value: _V) -> None:
+    def set(self, key: str, value: V) -> None:
         """设置缓存项"""
         current_time = time.time()
         entry = _CacheEntry(value=value, timestamp=current_time)
@@ -195,10 +193,10 @@ class LRUCache[V]:
             return False
         return True
 
-    def __setitem__(self, key: str, value: _V) -> None:
+    def __setitem__(self, key: str, value: V) -> None:
         self.set(key, value)
 
-    def __getitem__(self, key: str) -> _V:
+    def __getitem__(self, key: str) -> V:
         result = self.get(key)
         if result is None and key not in self._cache:
             raise KeyError(key)
@@ -224,11 +222,11 @@ class LRUCache[V]:
         self._expirations = 0
         self._current_bytes = 0
 
-    def items(self) -> dict[str, _V]:
+    def items(self) -> dict[str, V]:
         """返回所有缓存项的快照"""
         return {key: entry.value for key, entry in self._cache.items()}
 
-    def get_metrics(self) -> dict[str, int | float]:
+    def get_metrics(self) -> dict[str, object]:
         """获取缓存指标（用于监控）
 
         Returns:

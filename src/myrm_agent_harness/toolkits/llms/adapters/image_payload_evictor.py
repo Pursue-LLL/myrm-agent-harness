@@ -48,7 +48,7 @@ def _downsample_base64_image(data_url: str, max_dim: int = _DOWNSAMPLE_MAX_DIM, 
             img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
 
             # Convert to RGB if palette or RGBA with transparency
-            rgb_img = img
+            rgb_img: Image.Image = img
             if img.mode not in ("RGBA", "LA", "P", "RGB"):
                 rgb_img = img.convert("RGB")
 

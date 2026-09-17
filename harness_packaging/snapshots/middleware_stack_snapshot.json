@@ -40,7 +40,7 @@
     "type": "function"
   },
   {
-    "present": false,
+    "present": true,
     "symbol": "moa_advisor_middleware",
     "type": "function"
   },
@@ -50,7 +50,7 @@
     "type": "function"
   },
   {
-    "present": false,
+    "present": true,
     "symbol": "replan_middleware",
     "type": "function"
   },

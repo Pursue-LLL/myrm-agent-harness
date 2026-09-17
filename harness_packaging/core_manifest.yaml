@@ -11,9 +11,5 @@ directories:
   - toolkits/memory/strategies
   - toolkits/memory/cognitive
   - toolkits/memory/proactive
-  - agent/context_management/downshift
-  - agent/context_management/working_memory
-  - toolkits/memory/governance
-  - toolkits/memory/working_tree
 
 modules: []
