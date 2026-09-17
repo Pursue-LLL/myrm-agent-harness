@@ -11,7 +11,7 @@ business layer drives GUI/SaaS login, status badges, and credential persistence.
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Public surface of the ACP auth subsystem. | ✅ |
-| _profiles.py | Internal | Per-backend auth profiles: credential paths, login command, strategy, api-key env, and sandbox non-interactive flags. | ✅ |
+| _profiles.py | Internal | Per-backend CLI knowledge: credential paths, login command, strategy, api-key env, baseline launch args, and the permission-mode → argv mapping. Sole owner of CLI invocation arguments. | ✅ |
 | credential_store.py | Core | Detect / import / clear subscription credentials (atomic, owner-only writes). | ✅ |
 | login_session.py | Core | Drive `<cli> login` and stream structured AuthEvents (URL/code → SUCCESS/ERROR). | ✅ |
 
@@ -29,3 +29,9 @@ business layer drives GUI/SaaS login, status badges, and credential persistence.
 - **Import is the universal fallback**: where scripted login is unavailable
   (`scriptable_login` is False) or inconvenient, the user pastes a credential blob
   captured elsewhere and `CredentialStore.import_credential` persists it safely.
+- **Single owner of CLI arguments**: `resolve_cli_args` merges the baseline launch
+  args with the configured args and the permission-mode mapping. The mapping owns the
+  permission flags, so a config carrying an explicit stale flag (e.g. a removed
+  `--full-auto`) is replaced rather than duplicated — CLI parsers such as codex reject
+  a repeated single-value `-s`. Unknown CLIs are returned untouched, since no contract
+  exists for them and their flags may mean something unrelated.

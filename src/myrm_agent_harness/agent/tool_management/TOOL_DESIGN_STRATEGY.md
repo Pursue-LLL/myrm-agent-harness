@@ -343,7 +343,7 @@ const staleCoreSkills = useMemo(() => {
 
 ### 7.1 始终加载 (Always Load)
 
-Turn1 默认 bind 的 13 个工具分层（数量以 `tool_layers.py:72-88` 注册表为准，token 为 `measure_turn1_token_inventory.py` 实测 o200k_base）：
+Turn1 默认 bind 的 13 个工具分层（数量以 `tool_layers.py:72-88` 注册表为准，token 为 `measure_turn1_token_inventory.py` 实测 o200k_base；**宿主 macOS arm64**，其中 `bash_code_execute` 的 OS hint 随宿主变化，Linux 下 CORE 为 2,642、合计 6,123）：
 
 | 层级 | 数量 | 描述 Token | 工具 |
 |------|-----:|----------:|------|

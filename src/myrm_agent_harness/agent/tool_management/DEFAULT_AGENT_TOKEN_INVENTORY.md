@@ -61,7 +61,7 @@
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
 |---|--------|------------------:|----------|------|----------|
 | 4a | web_fetch_tool | 148 | `harness/toolkits/web_fetch/web_fetch_agent_tools.py` | HTTP 抓取/深读 | Turn1 基线 |
-| 6 | **bash_code_execute_tool** | **1,425** | `harness/agent/meta_tools/bash/_tool/tool_description.py` + `_tool/helpers.py:54` | Shell/Python。**宿主相关**：静态描述 1,367 + OS hint 58（macOS）/ 32（Linux）/ 31（Windows）+ 可选 toolchain 探测行（干净环境为 0） | 通用 Agent 基线 |
+| 6 | **bash_code_execute_tool** | **1,425** | `harness/agent/meta_tools/bash/_tool/tool_description.py` + `_tool/helpers.py:54` | Shell/Python。**宿主相关**：静态描述 1,368（宿主无关）+ OS hint（含 `os_release`/`arch`，见 `platform.py:116-122`；macOS arm64 58 / ubuntu-latest 32 / 各发行版实测 31–60）+ 可选 toolchain 探测行（干净环境为 0）。拼接处 BPE 合并使实测总数比两段之和少 1（1,368+58=1,426，实测 1,425） | 通用 Agent 基线 |
 | 6b | **bash_process_tool** | **107** | `harness/agent/meta_tools/bash/bash_process_tools.py` | 后台进程 list/output/kill（CORE；与 bash_code_execute 同挂） | enable_shell_tools |
 | 7 | file_edit_tool | 132 | `harness/agent/meta_tools/file_ops/file_edit_tool.py` | 批量 edits[] 原子编辑 | 通用 Agent 基线 |
 | 8 | file_read_tool | 332 | `harness/agent/meta_tools/file_ops/file_read_tool.py` | 读取文件 | 通用 Agent 基线 |
@@ -69,7 +69,7 @@
 | 10 | glob_tool | 201 | `harness/agent/meta_tools/file_search/glob_tool.py` | 通配符搜索 | 通用 Agent 基线 |
 | 11 | grep_tool | 205 | `harness/agent/meta_tools/file_search/grep_tool.py` | 正则搜索 | 通用 Agent 基线 |
 
-**CORE 描述小计（Turn1）**：**2,668 tokens**（8 工具，macOS 宿主实测；`scripts/measure_turn1_token_inventory.py`）。Linux/Windows 宿主因 OS hint 更短而少 ~26 tok。
+**CORE 描述小计（Turn1）**：**2,668 tokens**（8 工具，macOS arm64 实测；`scripts/measure_turn1_token_inventory.py`）。Linux 宿主因 OS hint 更短而为 2,642（ubuntu-latest 实测）。
 
 ---
 
@@ -347,14 +347,14 @@ Token 明细（历史 tiktoken 计量保留）：
   ↑ 同用户会话内稳定
 ```
 
-**实测 Turn1 工具层合计**：描述 **5,304** + schema **845** = **6,149 tokens**（13 工具，`measure_turn1_token_inventory.py` / `measure_tool_schema_tokens.py`，o200k_base，macOS 宿主）。
+**实测 Turn1 工具层合计**：描述 **5,304** + schema **845** = **6,149 tokens**（13 工具，`measure_turn1_token_inventory.py` / `measure_tool_schema_tokens.py`，o200k_base，macOS arm64 宿主）。Linux 宿主因 bash OS hint 更短而为 6,123。
 
 **CI 门禁（横跨 harness / server 两仓）**：
 
 | 仓 | 门禁文件 | 锁定项 |
 |----|----------|--------|
 | harness | `tests/architecture/test_prompt_token_budget_gate.py` | Turn-1 默认工具集 ≤ **6,500**（当前 6,149，余量 351）；`AGENT_CORE_RULES` ≤ 350 / `SECURITY_BOUNDARY_SYSTEM_RULES` ≤ 350 / `DATETIME_SYSTEM_RULES` ≤ 120；SystemMessage 哈希跨调用恒定 |
-| harness | `tests/scripts/test_measure_turn1_token_inventory.py` | 逐工具描述 token 与 §二/§三 表格一致（漂移即失败并指出工具名） |
+| harness | `tests/scripts/test_measure_turn1_token_inventory.py` | 逐工具描述 token 与 §二/§三 表格一致（漂移即失败并指出工具名）；`bash_code_execute` 的宿主相关 OS hint 单独扣减，故 macOS 与 Linux CI 结果一致 |
 | server | `tests/ai_agents/test_prompt_integrity.py:187-224`（`cl100k_base`） | CORE full ≤ **2,000** / lean ≤ **1,200** / lean÷full ratio ≤ **0.70** |
 
 

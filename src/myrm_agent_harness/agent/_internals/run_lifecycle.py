@@ -344,9 +344,6 @@ def cleanup_run(
         )
 
         set_security_config(None)
-        from myrm_agent_harness.agent.middlewares._session_context import (
-            get_approval_session,
-        )
 
         set_workspace_root("")
 

@@ -18,6 +18,11 @@ if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
 import scripts.measure_turn1_token_inventory as measure
+from myrm_agent_harness.agent.meta_tools.bash._tool.helpers import get_os_hint
+from myrm_agent_harness.agent.meta_tools.bash._tool.tool_description import (
+    resolve_bash_code_execute_tool_description,
+)
+from myrm_agent_harness.utils.text_utils import get_token_count
 from myrm_agent_harness.utils.token_estimation import SCHEMA_WRAPPER_TOKENS_PER_TOOL
 
 
@@ -145,8 +150,19 @@ async def test_build_default_turn1_tools_resolves_default_profile() -> None:
 
 
 # SSOT: DEFAULT_AGENT_TOKEN_INVENTORY.md §二–§四 (measure_turn1 default profile, o200k_base)
+#
+# Host-independent baseline. Every tool except ``bash_code_execute_tool`` produces a
+# byte-constant description, so its token count is asserted exactly. The bash tool is
+# the one exception: its description is
+# ``resolve_bash_code_execute_tool_description(locale) + get_os_hint(locale)``
+# (bash_code_execute_tool.py:123), and the OS hint embeds ``os_release`` + ``arch``
+# (platform.py:116-122). Its total therefore varies by host (58 on macOS arm64,
+# 32 on ubuntu-latest, 31/36 on other Linux flavors) — so the gate pins the
+# host-independent static half and subtracts the locally measured hint instead.
+_BASH_TOOL_NAME = "bash_code_execute_tool"
+_BASH_STATIC_DESCRIPTION_TOKENS = 1368
+
 _DOC_TURN1_TOOL_TOKENS: dict[str, int] = {
-    "bash_code_execute_tool": 1425,
     "bash_process_tool": 107,
     "file_edit_tool": 132,
     "file_read_tool": 332,
@@ -164,9 +180,14 @@ _DOC_TURN1_TOOL_TOKENS: dict[str, int] = {
 
 @pytest.mark.asyncio
 async def test_measure_turn1_inventory_matches_documented_token_baseline() -> None:
-    """Lock measure script output to inventory doc — prevents silent doc drift."""
+    """Lock measure script output to inventory doc — prevents silent doc drift.
+
+    Host-agnostic: the bash tool's description is ``static + host OS hint``, so the gate
+    pins both halves independently. It therefore holds on macOS arm64 (1,425) and
+    ubuntu-latest CI (1,399) alike, while still failing on any genuine drift.
+    """
     report = await measure.measure_turn1_inventory()
-    measured = {row["name"]: int(row["tokens"]) for row in report["per_tool"]}
+    measured = {str(row["name"]): int(row["tokens"]) for row in report["per_tool"]}
 
     drifted = {
         name: (measured.get(name), expected)
@@ -177,15 +198,25 @@ async def test_measure_turn1_inventory_matches_documented_token_baseline() -> No
         "Turn-1 tool description tokens drifted from DEFAULT_AGENT_TOKEN_INVENTORY.md "
         f"(tool: measured vs documented) -> {drifted}"
     )
-    assert measured.keys() == _DOC_TURN1_TOOL_TOKENS.keys()
-    assert report["tool_count"] == 13
-    assert report["description_tokens"] == sum(_DOC_TURN1_TOOL_TOKENS.values())
-    assert (
-        report["tools_subtotal"]
-        == report["description_tokens"] + report["schema_wrapper_tokens"]
+    assert measured.keys() == {*_DOC_TURN1_TOOL_TOKENS, _BASH_TOOL_NAME}
+
+    # Bash: pin the host-independent static half, then verify the composite really is
+    # static + hint (BPE merging at the junction may save exactly one token).
+    bash_tokens = measured[_BASH_TOOL_NAME]
+    bash_static = get_token_count(resolve_bash_code_execute_tool_description("en"))
+    host_hint = get_token_count(get_os_hint("en"))
+    assert bash_static == _BASH_STATIC_DESCRIPTION_TOKENS, (
+        f"{_BASH_TOOL_NAME} static description drifted (measured vs documented) -> "
+        f"{bash_static} vs {_BASH_STATIC_DESCRIPTION_TOKENS}"
     )
+    assert bash_tokens - bash_static in (host_hint - 1, host_hint), (
+        f"{_BASH_TOOL_NAME} description is not static + host hint "
+        f"(composite minus static vs measured hint) -> {bash_tokens - bash_static} vs {host_hint}"
+    )
+
+    assert report["tool_count"] == 13
     layer_totals = report["layer_totals"]
-    assert layer_totals["CORE"] == 2668
+    # CORE is host-dependent solely through the bash tool; HIGH_PRIORITY is not.
+    assert layer_totals["CORE"] + layer_totals["HIGH_PRIORITY"] == report["description_tokens"]
     assert layer_totals["HIGH_PRIORITY"] == 2636
-    assert report["tools_subtotal"] == 6149
     assert report["tools_subtotal"] <= 6500, "Turn-1 tools exceeded the 6,500 budget ceiling"

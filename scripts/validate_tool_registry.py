@@ -452,11 +452,48 @@ def _check_count_doc_coverage() -> list[str]:
     return errors
 
 
+def _check_capability_gap_liveness() -> list[str]:
+    """Every registered capability-gap trigger must reference a live togglable tool.
+
+    A registry row is only meaningful when the tool it names can actually be
+    toggled by the product. Without this gate a removed/renamed capability leaves
+    a trigger that is permanently un-satisfiable: the agent detects an "intent
+    gap", the product cannot enable anything, and the user sees a dead end. This
+    is the measurement-decay failure mode — the registry looks healthy because
+    nothing compares it against the live togglable ID set.
+    """
+    errors: list[str] = []
+    server_path = str(SERVER_ROOT)
+    if server_path not in sys.path:
+        sys.path.insert(0, server_path)
+    try:
+        from app.services.agent.builtin_specs.builtin_tool_ids import (
+            TOGGLABLE_BUILTIN_TOOL_IDS,
+        )
+
+        from myrm_agent_harness.agent.meta_tools.discover_capability.capability_gap import (
+            CAPABILITY_GAP_REGISTRY,
+        )
+    except ImportError as exc:
+        return [f"Could not import capability-gap registry for liveness check: {exc}"]
+
+    togglable = frozenset(TOGGLABLE_BUILTIN_TOOL_IDS)
+    for entry in CAPABILITY_GAP_REGISTRY:
+        if entry.tool_id not in togglable:
+            errors.append(
+                f"CAPABILITY_GAP_REGISTRY row '{entry.tool_id}' is not a togglable "
+                f"builtin tool (live IDs: {sorted(togglable)}); its triggers would "
+                "never be satisfiable — remove the row or restore the tool."
+            )
+    return errors
+
+
 def _format_report(
     report: ScanReport,
     *,
     incremental: bool = False,
     metadata_ghosts: set[str] | None = None,
+    auxiliary_failed: bool = False,
 ) -> str:
     layer_counts = _layer_counts(report)
     lines = [
@@ -484,9 +521,11 @@ def _format_report(
         and not orphans
         and not duplicates
         and not meta_ghosts
+        and not auxiliary_failed
     ):
         lines.append("PASS - tool registry consistent")
         return "\n".join(lines)
+
 
     if missing:
         lines.append(
@@ -767,6 +806,9 @@ def main() -> int:
     # Doc-count coverage is a filesystem+regex check — run in all modes so a new
     # doc restating tool totals is caught even by pre-commit --incremental.
     count_doc_errors = _check_count_doc_coverage()
+    # Capability-gap liveness: cross-checks harness trigger rows against the live
+    # server togglable ID set. Cheap + static, so it also runs under pre-commit.
+    capability_gap_errors = _check_capability_gap_liveness()
     parity_errors: list[str] = []
     if not args.incremental:
         parity_errors = _check_default_enabled_product_parity()
@@ -784,6 +826,7 @@ def main() -> int:
         or parity_errors
         or governance_errors
         or count_doc_errors
+        or capability_gap_errors
     )
 
     if args.json:
@@ -814,6 +857,9 @@ def main() -> int:
                 report,
                 incremental=args.incremental,
                 metadata_ghosts=metadata_ghosts,
+                auxiliary_failed=bool(
+                    governance_errors or count_doc_errors or capability_gap_errors
+                ),
             )
         )
         if bindmode_violations:
@@ -905,6 +951,16 @@ def main() -> int:
             print(
                 "  Fix: add `<!-- TOOL_COUNT_BEGIN -->...<!-- TOOL_COUNT_END -->` to the "
                 "doc and list it in _REQUIRED_COUNT_DOCS, or drop the hand-written total."
+            )
+        if capability_gap_errors:
+            print(
+                f"FAIL - {len(capability_gap_errors)} capability-gap liveness issue(s):"
+            )
+            for err in capability_gap_errors:
+                print(f"  - {err}")
+            print(
+                "  Fix: every CAPABILITY_GAP_REGISTRY row must name a live togglable "
+                "builtin tool; delete stale rows when a capability is retired."
             )
 
     return 1 if fail else 0

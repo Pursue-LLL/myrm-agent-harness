@@ -158,21 +158,18 @@ async def test_dispatch_custom_agent_status(ctx):
 
 @pytest.mark.asyncio
 async def test_dispatch_custom_ui_update(ctx):
-    """Custom event with name='ui_update' dispatches UI_UPDATE."""
+    """Custom event with name='ui_update' dispatches UI_UPDATE.
+
+    UI_UPDATE is a generic tunnel (sub-agent progress forwarding); the dispatcher
+    must forward any payload verbatim without interpreting its schema.
+    """
     executor = _make_executor(ctx)
-    artifact_payload = {
-        "surface_id": "form_realtime",
-        "title": "Realtime UI",
-        "components": [{"id": "t1", "type": "text", "props": {"text": "ok"}}],
-        "root_ids": ["t1"],
-        "data": {},
-        "actions": [],
-    }
+    payload = {"progress": 40, "label": "sub-agent working"}
     data = {
         "name": "ui_update",
         "data": {
-            "subtype": "ui_artifact",
-            "data": [artifact_payload],
+            "subtype": "subagent_progress",
+            "data": payload,
         },
     }
     chunk = ("custom", data)
@@ -185,8 +182,8 @@ async def test_dispatch_custom_ui_update(ctx):
     ]
     assert len(ui_events) == 1
     assert ui_events[0].messageId == "disp_test"
-    assert ui_events[0].extra_data.get("subtype") == "ui_artifact"
-    assert ui_events[0].data == [artifact_payload]
+    assert ui_events[0].extra_data.get("subtype") == "subagent_progress"
+    assert ui_events[0].data == payload
 
 
 @pytest.mark.asyncio

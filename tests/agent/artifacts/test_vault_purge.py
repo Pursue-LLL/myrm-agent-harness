@@ -1,9 +1,8 @@
 """Tests for ArtifactVault purge and cleanup capabilities."""
 
 import tempfile
-from pathlib import Path
 
-from myrm_agent_harness.agent.artifacts.vault import ArtifactVault, VAULT_PREFIX
+from myrm_agent_harness.agent.artifacts.vault import VAULT_PREFIX, ArtifactVault
 
 
 def test_vault_purge_object() -> None:
@@ -29,8 +28,8 @@ def test_vault_purge_by_task_id() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         vault = ArtifactVault(tmpdir)
         task_id = "test_task_12345"
-        uri1 = vault.put("subagent output 1", f"subagent_{task_id}.md", "text/markdown", "Task 1 output")
-        uri2 = vault.put("other data", "unrelated.txt", "text/plain", "Other output")
+        vault.put("subagent output 1", f"subagent_{task_id}.md", "text/markdown", "Task 1 output")
+        vault.put("other data", "unrelated.txt", "text/plain", "Other output")
 
         assert len(vault.list_objects()) == 2
 
