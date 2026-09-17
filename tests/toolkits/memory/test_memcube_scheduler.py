@@ -283,3 +283,26 @@ async def test_scheduler_import_envelopes_anti_tamper() -> None:
     assert skipped == 0
     assert relational.save_memory.await_count == 1
 
+
+def test_memcube_access_count_and_timestamp_roundtrip() -> None:
+    """Validate that access_count and last_accessed_at survive MemCube sealing and unwrap without data loss."""
+    accessed_time = datetime(2026, 9, 17, 12, 30, 0, tzinfo=UTC)
+    sem = SemanticMemory(
+        id="sem-usage-test",
+        content="Frequent user preference",
+        access_count=77,
+        last_accessed_at=accessed_time,
+    )
+
+    env = wrap_into_envelope(sem)
+    assert env.header.usage_count == 77
+    assert env.header.last_accessed_at == accessed_time
+    assert env.verify_audit_hash() is True
+
+    unwrapped = unwrap_envelope(env)
+    assert isinstance(unwrapped, SemanticMemory)
+    assert unwrapped.id == "sem-usage-test"
+    assert unwrapped.access_count == 77
+    assert unwrapped.last_accessed_at == accessed_time
+
+

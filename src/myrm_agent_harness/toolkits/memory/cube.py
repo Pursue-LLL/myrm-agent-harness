@@ -76,6 +76,7 @@ class MemCubeHeader(BaseModel):
     priority: int = Field(default=2, ge=0, le=5)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    last_accessed_at: datetime | None = Field(default=None, description="Last access timestamp")
     audit_hash: str | None = Field(default=None, description="SHA256 fingerprint for tamper proofing")
 
 
@@ -151,10 +152,11 @@ def wrap_into_envelope(
         source=getattr(memory, "source", "agent_self") or "agent_self",
         scope=memory.scope,
         is_user_protected=getattr(memory, "is_user_protected", False),
-        usage_count=getattr(memory, "usage_count", 0),
+        usage_count=int(getattr(memory, "access_count", getattr(memory, "usage_count", 0)) or 0),
         priority=getattr(memory, "priority", 2),
         created_at=memory.created_at,
         updated_at=memory.updated_at,
+        last_accessed_at=getattr(memory, "last_accessed_at", None),
     )
 
     payload_dict = memory.model_dump(mode="json")
@@ -182,4 +184,9 @@ def unwrap_envelope(envelope: MemCubeEnvelope[dict[str, object]]) -> BaseMemory:
     if model_cls is None:
         raise ValueError(f"Unsupported memory type in envelope: {mem_type_val}")
 
-    return model_cls.model_validate(envelope.payload)
+    entity = model_cls.model_validate(envelope.payload)
+    if hasattr(entity, "access_count") and envelope.header.usage_count > 0:
+        entity.access_count = envelope.header.usage_count
+    if hasattr(entity, "last_accessed_at") and envelope.header.last_accessed_at is not None:
+        entity.last_accessed_at = envelope.header.last_accessed_at
+    return entity
