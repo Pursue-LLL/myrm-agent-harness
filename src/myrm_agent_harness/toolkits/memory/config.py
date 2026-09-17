@@ -291,6 +291,10 @@ class RetrievalConfig:
     enable_intent_recognition: bool = True
     intent_recognizer: QueryIntentRecognizer | None = None
     timeout_seconds: float = 10.0
+    enable_gravity_decay: bool = False
+    gravity_power: float = 1.8
+    gravity_time_scale_hours: float = 24.0
+    dynamic_signal_weights: dict[str, float] | None = None
     """Wall-clock ceiling (seconds) for the full retrieval pipeline and its
     candidate-collect stage. Aligned with CoPaw's 10s memory fallback; remote
     embedding/vector providers that hang past this budget are cut with partial

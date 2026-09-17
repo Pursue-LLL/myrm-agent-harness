@@ -74,6 +74,17 @@ from myrm_agent_harness.toolkits.memory.strategies.incremental_transcript import
     TranscriptIncrementalChunk,
     TranscriptTurn,
 )
+from myrm_agent_harness.toolkits.memory.strategies.dynamic_preference import (
+    DynamicPreferenceFitter,
+    DynamicPreferenceVector,
+    FeedbackAction,
+    PreferenceDimension,
+)
+from myrm_agent_harness.toolkits.memory.strategies.gravity_decay import (
+    GravityDecayConfig,
+    GravityDecayScorer,
+    compute_gravity_decay,
+)
 from myrm_agent_harness.toolkits.memory.strategies.merger import (
     ConfidenceEvolutionEngine,
     ConflictItem,
@@ -140,6 +151,13 @@ __all__ = [
     "ConfidenceEvolutionEngine",
     "ConflictItem",
     "DeterministicThreeStateMerger",
+    "DynamicPreferenceFitter",
+    "DynamicPreferenceVector",
+    "FeedbackAction",
+    "GravityDecayConfig",
+    "GravityDecayScorer",
     "MergeDecision",
     "MergeState",
+    "PreferenceDimension",
+    "compute_gravity_decay",
 ]

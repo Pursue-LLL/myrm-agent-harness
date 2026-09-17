@@ -55,6 +55,56 @@ class SignalCalculator:
         return math.exp(-math.log(2) * age_days / half_life_days)
 
     @staticmethod
+    def gravity_decay_factor(
+        memory: AnyMemory,
+        gravity: float = 1.8,
+        time_scale_hours: float = 24.0,
+        interaction_weight: float = 0.15,
+        quality_weight: float = 0.25,
+    ) -> float:
+        """Calculate continuous gravity decay factor using power-law model.
+
+        Evaluates age with sub-hour precision, boosting items with higher
+        access_count (interactions) and higher rating/importance (quality).
+
+        Args:
+            memory: Memory object with created_at, access_count, and rating fields.
+            gravity: Power-law decay exponent.
+            time_scale_hours: Scaling factor for elapsed hours.
+            interaction_weight: Boost weight per interaction/access.
+            quality_weight: Boost weight for quality rating.
+
+        Returns:
+            Continuous positive factor in (0.0, +inf).
+        """
+        if not hasattr(memory, "created_at"):
+            return 1.0
+
+        created = memory.created_at
+        interactions = getattr(memory, "access_count", 0) or 0
+        rating = getattr(memory, "rating", 0.0) or 0.0
+        importance = getattr(memory, "importance_score", 0.0) or 0.0
+        quality = max(rating, importance)
+
+        from myrm_agent_harness.toolkits.memory.strategies.gravity_decay import (
+            GravityDecayConfig,
+            compute_gravity_decay,
+        )
+
+        cfg = GravityDecayConfig(
+            gravity=gravity,
+            time_scale_hours=time_scale_hours,
+            interaction_weight=interaction_weight,
+            quality_weight=quality_weight,
+        )
+        return compute_gravity_decay(
+            created,
+            interactions=interactions,
+            quality_score=quality,
+            config=cfg,
+        )
+
+    @staticmethod
     def frequency_factor(memory: AnyMemory, saturation_point: int = 50) -> float:
         """Calculate access frequency factor using logarithmic scaling.
 

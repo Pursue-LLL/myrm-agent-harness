@@ -305,9 +305,19 @@ class MemoryRetriever:
         mem = result.memory
         mem_type = result.memory_type
         weights = get_default_signal_weights(mem_type)
-        half_life = get_default_half_life(mem_type)
+        if self._config.dynamic_signal_weights:
+            weights = {k: self._config.dynamic_signal_weights.get(k, weights.get(k, 0.0)) for k in weights}
 
-        recency = self._signal_calc.recency_factor(mem, half_life)
+        if self._config.enable_gravity_decay:
+            recency = self._signal_calc.gravity_decay_factor(
+                mem,
+                gravity=self._config.gravity_power,
+                time_scale_hours=self._config.gravity_time_scale_hours,
+            )
+        else:
+            half_life = get_default_half_life(mem_type)
+            recency = self._signal_calc.recency_factor(mem, half_life)
+
         frequency = self._signal_calc.frequency_factor(mem, self._config.frequency_saturation)
         importance = self._signal_calc.importance_factor(mem)
         preference = self._signal_calc.preference_factor(mem)
