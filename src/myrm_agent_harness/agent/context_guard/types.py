@@ -18,8 +18,8 @@ past the guard. Pure computation: no filesystem access.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import unicodedata
+from dataclasses import dataclass, field
 
 
 @dataclass(slots=True)

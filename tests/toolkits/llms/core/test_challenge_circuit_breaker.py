@@ -76,6 +76,33 @@ def test_generic_proxy_html_403_classification() -> None:
     assert classify_failover_reason(exc) == FailoverReason.CHALLENGE_BLOCKED
 
 
+def test_json_403_security_policy_classification() -> None:
+    """JSON 403 response with security policy block must classify as CHALLENGE_BLOCKED."""
+    exc = Exception("403 Forbidden: Blocked by security policy")
+    exc.status_code = 403  # type: ignore[attr-defined]
+    exc.body = {"error": "access_denied", "message": "Blocked by security policy"}  # type: ignore[attr-defined]
+    assert classify_error(exc) == ErrorKind.CHALLENGE_BLOCKED
+    assert classify_failover_reason(exc) == FailoverReason.CHALLENGE_BLOCKED
+
+
+def test_json_403_ip_blocked_classification() -> None:
+    """JSON 403 response with client IP address blocked must classify as CHALLENGE_BLOCKED."""
+    exc = Exception("403 Forbidden: Client IP address is blocked")
+    exc.status_code = 403  # type: ignore[attr-defined]
+    exc.body = {"error": "forbidden", "message": "Client IP address is blocked by firewall"}  # type: ignore[attr-defined]
+    assert classify_error(exc) == ErrorKind.CHALLENGE_BLOCKED
+    assert classify_failover_reason(exc) == FailoverReason.CHALLENGE_BLOCKED
+
+
+def test_json_bot_detection_classification() -> None:
+    """JSON response with bot challenge or turnstile required must classify as CHALLENGE_BLOCKED."""
+    exc = Exception("403 Forbidden: bot challenge required")
+    exc.status_code = 403  # type: ignore[attr-defined]
+    exc.body = {"code": "turnstile_required", "message": "Bot protection triggered"}  # type: ignore[attr-defined]
+    assert classify_error(exc) == ErrorKind.CHALLENGE_BLOCKED
+    assert classify_failover_reason(exc) == FailoverReason.CHALLENGE_BLOCKED
+
+
 def test_json_403_auth_classification() -> None:
     """Legitimate API 403 with JSON body must remain AUTH_PERMANENT."""
     exc = Exception("403 Forbidden: Permission Denied")
