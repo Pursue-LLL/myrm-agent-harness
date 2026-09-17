@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -19,8 +19,8 @@ from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy impor
 from myrm_agent_harness.toolkits.memory.config import MemoryConfig, RetrievalConfig
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.observability import (
+    GATHER_CONVERSATION_FAILED,
     GATHER_EPISODIC_FAILED,
-    GATHER_EPISODIC_TIMEOUT,
     GATHER_GRAPH_FAILED,
     GATHER_GRAPH_TIMEOUT,
     GATHER_PROCEDURAL_FAILED,
@@ -29,13 +29,10 @@ from myrm_agent_harness.toolkits.memory.observability import (
     GATHER_QUERY_EMBEDDING_TIMEOUT,
     GATHER_SEMANTIC_FAILED,
     GATHER_SEMANTIC_TIMEOUT,
-    GATHER_SESSIONS_TIMEOUT,
-    GATHER_WIKI_TIMEOUT,
-    GATHER_CONVERSATION_FAILED,
 )
 from myrm_agent_harness.toolkits.memory.protocols.vector import VectorDocument, VectorSearchResult
 from myrm_agent_harness.toolkits.memory.reliability import MemoryGatherWarningCode
-from myrm_agent_harness.toolkits.memory.types import MemoryType, ProfileEntry
+from myrm_agent_harness.toolkits.memory.types import MemoryType
 
 
 @pytest.fixture
@@ -243,7 +240,7 @@ class TestSearchServiceWarningCodesCollection:
             auto_warmup=False,
         )
 
-        results = await manager.search(
+        _ = await manager.search(
             "timezone query",
             memory_types=[MemoryType.PROFILE, MemoryType.CLAIM],
             limit=10,

@@ -1,14 +1,11 @@
 """Unit tests for zero-model-cost deterministic behavioral measurement strategy."""
 
-from datetime import UTC, datetime, timedelta
 import json
-
-import pytest
+from datetime import UTC, datetime
 
 from myrm_agent_harness.toolkits.memory.strategies.behavioral_measurement import (
     BehavioralMessage,
     BehavioralStatsOptions,
-    RoutineMeasurement,
     _local_hour_and_weekday,
     _resolve_peak_window,
     compute_routine_measurement,

@@ -7,11 +7,11 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_execution import search_wiki_corpus
+from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import MemorySearchBackends
 from myrm_agent_harness.toolkits.memory.agent_surface.tool_result_sources import (
     unpack_corpus_tool_result,
 )
-from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_execution import search_wiki_corpus
-from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import MemorySearchBackends
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.core.types import QueryResult, SourceSnippet
 

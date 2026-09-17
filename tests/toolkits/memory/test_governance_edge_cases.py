@@ -4,14 +4,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
+from datetime import UTC, datetime
 
 import pytest
+
 from myrm_agent_harness.toolkits.memory.governance.assembler import (
     DynamicContextAssembler,
 )
-from myrm_agent_harness.toolkits.memory.governance.graph_bridge import EntityGraphBridge
 from myrm_agent_harness.toolkits.memory.governance.models import (
     DynamicFactItem,
     EventTimelineItem,
@@ -22,14 +21,11 @@ from myrm_agent_harness.toolkits.memory.governance.models import (
 from myrm_agent_harness.toolkits.memory.governance.reconciler import (
     FactReconciliationEngine,
 )
-from myrm_agent_harness.toolkits.memory.graph.sqlite_store import (
-    SQLiteGraphStore,
-)
 
 
 def test_timezone_naive_and_aware_robustness() -> None:
     """Verify that is_expired works reliably with both timezone-aware and naive datetimes."""
-    now_aware = datetime.now(timezone.utc)
+    now_aware = datetime.now(UTC)
     naive_future = datetime(2035, 1, 1, 0, 0, 0)
     naive_past = datetime(2020, 1, 1, 0, 0, 0)
 
@@ -53,7 +49,7 @@ def test_timezone_naive_and_aware_robustness() -> None:
 async def test_timeline_sorting_with_mixed_timezones() -> None:
     """Verify timeline assembler safely sorts mixed naive and aware datetimes."""
     assembler = DynamicContextAssembler(max_total_tokens=500)
-    now_aware = datetime.now(timezone.utc)
+    now_aware = datetime.now(UTC)
     naive_older = datetime(2026, 1, 1, 12, 0, 0)
     aware_newer = now_aware
 

@@ -748,6 +748,7 @@ class TestGraphCascadeDelete:
     ):
         """delete_memory evicts memory text content from embedding cache."""
         from unittest.mock import AsyncMock
+
         from myrm_agent_harness.toolkits.memory.protocols.vector import VectorDocument
 
         mock_vector_store.get.return_value = [
@@ -799,6 +800,7 @@ class TestGraphCascadeDelete:
     ):
         """delete_memories_by_metadata for procedural rules cascades graph and cache via self.delete_rule."""
         from unittest.mock import AsyncMock
+
         from myrm_agent_harness.toolkits.memory.types import ProceduralMemory
 
         rule = ProceduralMemory(
@@ -837,6 +839,7 @@ class TestGraphCascadeDelete:
     ):
         """delete_memories_by_ids for procedural rules cascades graph and cache."""
         from unittest.mock import AsyncMock
+
         from myrm_agent_harness.toolkits.memory.types import ProceduralMemory
 
         rule = ProceduralMemory(

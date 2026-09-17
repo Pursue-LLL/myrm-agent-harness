@@ -26,9 +26,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from myrm_agent_harness.toolkits.memory.agent_surface.mcp_server import MemoryMCPServer
 from myrm_agent_harness.toolkits.memory.config import MemoryConfig
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
-from myrm_agent_harness.toolkits.memory.agent_surface.mcp_server import MemoryMCPServer
 from myrm_agent_harness.toolkits.memory.protocols.vector import VectorDocument
 
 

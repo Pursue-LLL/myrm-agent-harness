@@ -225,8 +225,8 @@ class TestMemoryRecallTimePassing:
 
     @pytest.mark.asyncio
     async def test_recall_passes_since_and_until(self, mock_vector_store, mock_embedding, memory_config):
-        from myrm_agent_harness.toolkits.memory.manager import MemoryManager
         from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import create_memory_tools
+        from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 
         manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding)
 
@@ -253,8 +253,8 @@ class TestMemoryRecallTimePassing:
 
     @pytest.mark.asyncio
     async def test_recall_without_time_params(self, mock_vector_store, mock_embedding, memory_config):
-        from myrm_agent_harness.toolkits.memory.manager import MemoryManager
         from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import create_memory_tools
+        from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 
         manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding)
 
@@ -270,8 +270,8 @@ class TestMemoryRecallTimePassing:
 
     @pytest.mark.asyncio
     async def test_recall_iso_since(self, mock_vector_store, mock_embedding, memory_config):
-        from myrm_agent_harness.toolkits.memory.manager import MemoryManager
         from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import create_memory_tools
+        from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 
         manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding)
 
@@ -288,8 +288,8 @@ class TestMemoryRecallTimePassing:
 
     @pytest.mark.asyncio
     async def test_recall_invalid_since_ignored(self, mock_vector_store, mock_embedding, memory_config):
-        from myrm_agent_harness.toolkits.memory.manager import MemoryManager
         from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import create_memory_tools
+        from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 
         manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding)
 

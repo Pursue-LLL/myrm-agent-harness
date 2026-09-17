@@ -150,10 +150,10 @@ def test_memory_save_description_includes_approval_when_required() -> None:
 
 
 def test_create_memory_tools_uses_description_ssot(memory_config, mock_vector_store, mock_embedding) -> None:
-    from myrm_agent_harness.toolkits.memory.manager import MemoryManager
     from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import (
         create_memory_tools,
     )
+    from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 
     manager = MemoryManager(
         memory_config,
@@ -217,10 +217,10 @@ def test_memory_tool_descriptions_support_zh_cn_locale() -> None:
 
 
 def test_create_memory_tools_supports_chinese_locale(memory_config, mock_vector_store, mock_embedding) -> None:
-    from myrm_agent_harness.toolkits.memory.manager import MemoryManager
     from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import (
         create_memory_tools,
     )
+    from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 
     manager = MemoryManager(
         memory_config,

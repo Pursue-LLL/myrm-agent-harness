@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from myrm_agent_harness.toolkits.memory.config import RecallMode
 from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import (
     create_memory_tools,
 )
@@ -18,6 +17,7 @@ from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting i
 from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting import (
     memory_age_label,
 )
+from myrm_agent_harness.toolkits.memory.config import RecallMode
 from myrm_agent_harness.toolkits.memory.types import (
     ClaimMemory,
     EpisodicMemory,
@@ -554,7 +554,6 @@ class TestMemorySaveTool:
     async def test_save_knowledge_rejects_wiki_document_when_wiki_enabled(
         self, mock_vector_store, mock_embedding, memory_config
     ):
-        from myrm_agent_harness.toolkits.memory.manager import MemoryManager
         from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import (
             MemorySearchPolicy,
         )
@@ -562,6 +561,7 @@ class TestMemorySaveTool:
             get_wiki_memory_save_rejection_count,
             reset_wiki_memory_save_rejection_count,
         )
+        from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 
         reset_wiki_memory_save_rejection_count()
         manager = self._make_manager(mock_vector_store, mock_embedding, memory_config)
@@ -584,10 +584,10 @@ class TestMemorySaveTool:
     async def test_save_knowledge_allows_short_fact_when_wiki_enabled(
         self, mock_vector_store, mock_embedding, memory_config
     ):
-        from myrm_agent_harness.toolkits.memory.manager import MemoryManager
         from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import (
             MemorySearchPolicy,
         )
+        from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 
         manager = self._make_manager(mock_vector_store, mock_embedding, memory_config)
         with patch.object(
@@ -937,11 +937,11 @@ class TestSearchDescriptionConditionalization:
     ):
         from unittest.mock import AsyncMock
 
-        from myrm_agent_harness.toolkits.memory.config import MemoryConfig
-        from myrm_agent_harness.toolkits.memory.manager import MemoryManager
         from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import (
             MemorySearchPolicy,
         )
+        from myrm_agent_harness.toolkits.memory.config import MemoryConfig
+        from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 
         config = MemoryConfig(
             embedding_model="test-model",
@@ -1173,8 +1173,8 @@ class TestMemorySaveSessionBuffer:
     ):
         from unittest.mock import MagicMock
 
-        from myrm_agent_harness.toolkits.memory.manager import MemoryManager
         from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import MemorySearchPolicy
+        from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 
         manager = self._make_manager(mock_vector_store, mock_embedding, memory_config)
         policy = MemorySearchPolicy(allow_shared_write=False)

@@ -11,7 +11,7 @@ MemorySearchPolicy, and ProfileSlots.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -32,7 +32,7 @@ from myrm_agent_harness.toolkits.memory.governance import (
 )
 from myrm_agent_harness.toolkits.memory.graph.sqlite_store import SQLiteGraphStore
 
-NOW = datetime.now(timezone.utc)
+NOW = datetime.now(UTC)
 
 
 # ---------------------------------------------------------------------------
@@ -220,7 +220,7 @@ def test_scenario_7_isolation_protection() -> None:
 # ---------------------------------------------------------------------------
 def test_scenario_8_one_click_forget() -> None:
     engine = FactReconciliationEngine()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     facts = [
         DynamicFactItem(
             fact_id="f_temp",

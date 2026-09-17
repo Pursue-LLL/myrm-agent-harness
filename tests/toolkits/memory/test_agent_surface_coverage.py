@@ -12,10 +12,10 @@ from myrm_agent_harness.toolkits.memory.agent_surface import (
 from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_execution import (
     search_memory_corpus,
 )
-from myrm_agent_harness.toolkits.memory.types import MemoryType, SemanticMemory
 from myrm_agent_harness.toolkits.memory.agent_surface.wiki_memory_boundary import (
     looks_like_wiki_document,
 )
+from myrm_agent_harness.toolkits.memory.types import MemoryType, SemanticMemory
 
 
 def test_surface_sanitize_recalled_content_preserves_plain_text() -> None:

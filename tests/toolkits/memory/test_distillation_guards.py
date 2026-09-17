@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
-
 import pytest
 
 from myrm_agent_harness.toolkits.memory.strategies.distillation_guards import (

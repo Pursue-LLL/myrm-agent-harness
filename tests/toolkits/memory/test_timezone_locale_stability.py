@@ -6,7 +6,7 @@ and locale anchor preservation in memory candidates.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from myrm_agent_harness.toolkits.memory.strategies.behavioral_measurement import (
     BehavioralMessage,
@@ -18,19 +18,19 @@ from myrm_agent_harness.toolkits.memory.strategies.behavioral_measurement import
 
 def test_resolve_utc_offset_minutes_iana_standard() -> None:
     # Shanghai is UTC+8 (+480 minutes) year-round
-    dt = datetime(2026, 9, 5, 12, 0, tzinfo=timezone.utc)
+    dt = datetime(2026, 9, 5, 12, 0, tzinfo=UTC)
     offset = resolve_utc_offset_minutes("Asia/Shanghai", dt)
     assert offset == 480
 
 
 def test_resolve_utc_offset_minutes_dst_summer_vs_winter() -> None:
     # New York in Summer (EDT) is UTC-4 (-240 minutes)
-    summer_dt = datetime(2026, 7, 1, 12, 0, tzinfo=timezone.utc)
+    summer_dt = datetime(2026, 7, 1, 12, 0, tzinfo=UTC)
     summer_offset = resolve_utc_offset_minutes("America/New_York", summer_dt)
     assert summer_offset == -240
 
     # New York in Winter (EST) is UTC-5 (-300 minutes)
-    winter_dt = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
+    winter_dt = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
     winter_offset = resolve_utc_offset_minutes("America/New_York", winter_dt)
     assert winter_offset == -300
 
@@ -51,7 +51,7 @@ def test_resolve_utc_offset_minutes_fallback_on_invalid() -> None:
 
 def test_compute_routine_measurement_with_iana_resolved_messages() -> None:
     # User sends a message at 14:00 UTC, which was 10:00 AM EDT in New York (summer: UTC-4)
-    ref_dt = datetime(2026, 7, 1, 14, 0, tzinfo=timezone.utc)
+    ref_dt = datetime(2026, 7, 1, 14, 0, tzinfo=UTC)
     offset = resolve_utc_offset_minutes("America/New_York", ref_dt)
     assert offset == -240
 

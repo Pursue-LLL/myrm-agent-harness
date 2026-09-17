@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from myrm_agent_harness.toolkits.memory.types import EpisodicMemory, SemanticMemory
 from myrm_agent_harness.toolkits.memory.agent_surface.wiki_memory_boundary import (
     WIKI_MEMORY_SAVE_MAX_CHARS,
     WIKI_MEMORY_SAVE_MIN_HEADINGS,
@@ -15,6 +14,7 @@ from myrm_agent_harness.toolkits.memory.agent_surface.wiki_memory_boundary impor
     reset_wiki_memory_save_rejection_count,
     wiki_memory_save_rejection_message,
 )
+from myrm_agent_harness.toolkits.memory.types import EpisodicMemory, SemanticMemory
 
 
 def test_looks_like_wiki_document_by_length() -> None:

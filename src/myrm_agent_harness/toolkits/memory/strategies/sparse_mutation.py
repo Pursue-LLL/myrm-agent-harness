@@ -3,6 +3,25 @@
 Provides deterministic, sub-millisecond slot extraction, sparse action masking
 (RETAIN / OVERWRITE / APPEND / REMOVE), and minimal in-place reconstruction for
 evolving compound memories without catastrophic context loss or blind appending.
+
+[INPUT]
+- existing_text: str (Structured compound text containing key-values, lists, or clauses)
+- candidate_text: str (Patch or delta statement intended for memory evolution)
+
+[OUTPUT]
+- SlotAction: Action directive (RETAIN / OVERWRITE / APPEND / REMOVE)
+- SlotKind: Structural classification of semantic slot
+- SemanticSlot: Extracted structural slot with normalized key, indentation, and value
+- SparseMaskItem: Individual slot mutation diff instruction
+- SparseMutationResult: Complete mutation payload with in-place text and audit metrics
+- SemanticSlotParser: Single-pass deterministic slot syntax parser
+- SparseSemanticMaskGenerator: Slot difference comparator and action mask generator
+- MinimalOverwritePipeline: In-place text synthesizer preserving original indentation and layout
+- apply_sparse_mutation: High-level zero-LLM deterministic entrypoint
+
+[POS]
+Memory sparse mutation and informed retention strategy layer. Pure Python standard library + Pydantic.
+Zero network overhead (<0.5ms), zero LLM token cost, 100% deterministic layout preservation.
 """
 
 from __future__ import annotations

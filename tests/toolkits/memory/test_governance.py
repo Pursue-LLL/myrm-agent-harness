@@ -7,7 +7,7 @@ and Bounded 2-hop Entity Graph integration.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -63,7 +63,7 @@ def test_profile_slots_mutation_and_deletion() -> None:
 
 def test_dynamic_fact_ttl_expiration() -> None:
     """Test fact TTL detection and expiration purging."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     engine = FactReconciliationEngine()
 
     active_fact = DynamicFactItem(
@@ -209,7 +209,7 @@ async def test_dynamic_context_assembler() -> None:
     profile.update_slot("persona", "name", "Developer")
     profile.update_slot("preferences", "theme", "dark")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     timeline = [
         EventTimelineItem(
             event_id="e1",

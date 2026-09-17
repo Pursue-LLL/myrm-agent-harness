@@ -2,15 +2,10 @@
 
 from __future__ import annotations
 
-import asyncio
-from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock
-
 import pytest
 
 from myrm_agent_harness.toolkits.memory._internal.embedding_cache import EmbeddingCache
 from myrm_agent_harness.toolkits.memory._internal.search_service import MemorySearchService
-from myrm_agent_harness.toolkits.memory.protocols.vector import VectorDocument
 from myrm_agent_harness.toolkits.memory.types import (
     EpisodicMemory,
     MemorySearchResult,

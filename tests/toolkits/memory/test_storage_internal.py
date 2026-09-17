@@ -6,6 +6,7 @@ Covers critical paths:
 - Error handling utilities
 """
 
+from datetime import UTC
 from types import SimpleNamespace
 from unittest.mock import ANY, AsyncMock
 
@@ -652,10 +653,11 @@ class TestStorageCrudBranches:
 
 def test_anti_future_leakage_filter_construction():
     """Verify _user_filter enforces temporal boundary (until / since) on episodic and semantic queries."""
-    from datetime import datetime, timezone
+    from datetime import datetime
+
     from myrm_agent_harness.toolkits.memory._internal.storage_converters import _user_filter
 
-    anchor_time = datetime(2026, 9, 5, 12, 0, 0, tzinfo=timezone.utc)
+    anchor_time = datetime(2026, 9, 5, 12, 0, 0, tzinfo=UTC)
     f = _user_filter(namespaces=["ns1"], until=anchor_time)
     assert f["archived"] == {"not": True}
     assert f["primary_namespace"] == ["ns1"]
