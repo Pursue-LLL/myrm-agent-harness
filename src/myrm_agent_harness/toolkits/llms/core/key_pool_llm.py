@@ -130,6 +130,13 @@ class KeyPoolLLM(BaseChatModel):
                 return result
             except Exception as exc:
                 kind = classify_error(exc)
+                if kind == ErrorKind.CHALLENGE_BLOCKED:
+                    logger.error(
+                        "Cloudflare/WAF challenge blocked request for key ...%s. "
+                        "Circuit breaker triggered: halting key rotation to protect remaining pool keys.",
+                        key[-6:] if len(key) >= 6 else "***",
+                    )
+                    raise
                 if kind not in _KEY_ROTATABLE_KINDS:
                     raise
                 self._report_error(key, exc, kind)
@@ -160,6 +167,13 @@ class KeyPoolLLM(BaseChatModel):
                 return
             except Exception as exc:
                 kind = classify_error(exc)
+                if kind == ErrorKind.CHALLENGE_BLOCKED:
+                    logger.error(
+                        "Cloudflare/WAF challenge blocked stream for key ...%s. "
+                        "Circuit breaker triggered: halting key rotation to protect remaining pool keys.",
+                        key[-6:] if len(key) >= 6 else "***",
+                    )
+                    raise
                 if kind not in _KEY_ROTATABLE_KINDS:
                     raise
                 self._report_error(key, exc, kind)
@@ -190,6 +204,13 @@ class KeyPoolLLM(BaseChatModel):
                 return result
             except Exception as exc:
                 kind = classify_error(exc)
+                if kind == ErrorKind.CHALLENGE_BLOCKED:
+                    logger.error(
+                        "Cloudflare/WAF challenge blocked request for key ...%s. "
+                        "Circuit breaker triggered: halting key rotation to protect remaining pool keys.",
+                        key[-6:] if len(key) >= 6 else "***",
+                    )
+                    raise
                 if kind not in _KEY_ROTATABLE_KINDS:
                     raise
                 self._report_error(key, exc, kind)

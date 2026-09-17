@@ -167,6 +167,7 @@ def create_litellm_model(
     web_search_options: dict[str, Any] | None = None,
     wire_protocol: WireProtocol = DEFAULT_WIRE_PROTOCOL,
     reasoning_effort: str | None = None,
+    egress_proxy: str | None = None,
     **kwargs: Any,
 ) -> "ChatLiteLLM":
     """Unified factory for creating ChatLiteLLM instances across all providers.
@@ -182,12 +183,15 @@ def create_litellm_model(
         streaming: Enable streaming output.
         native_tools: Model native tools config (None=auto-detect, set=explicit, empty set=disable).
         web_search_options: Explicit LiteLLM web_search_options override.
+        egress_proxy: Optional outbound proxy URL for LLM API calls.
         **kwargs: Additional model-specific parameters (e.g. model_kwargs, max_tokens).
 
     Returns:
         Configured ChatLiteLLM instance.
     """
     llm_kwargs: dict[str, Any] = {"model": model, "wire_protocol": wire_protocol, **kwargs}
+    if egress_proxy is not None:
+        llm_kwargs["egress_proxy"] = egress_proxy
     if reasoning_effort is not None:
         llm_kwargs["reasoning_effort"] = reasoning_effort
         extra_body = llm_kwargs.setdefault("extra_body", {})

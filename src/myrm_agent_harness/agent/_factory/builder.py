@@ -133,6 +133,8 @@ async def create_skill_agent(
         }
         if llm_config.temperature is not None:
             kwargs["temperature"] = llm_config.temperature
+        if llm_config.egress_proxy is not None:
+            kwargs["egress_proxy"] = llm_config.egress_proxy
 
         llm = create_litellm_model(**kwargs)
         logger.info(f" 创建 LLM 实例: {llm_config.model}")

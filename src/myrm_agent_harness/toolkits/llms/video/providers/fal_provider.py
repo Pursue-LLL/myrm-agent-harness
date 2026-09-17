@@ -21,8 +21,6 @@ import base64
 import logging
 from typing import TYPE_CHECKING
 
-import httpx
-
 from myrm_agent_harness.core.security.http.secure_fetch import secure_get
 from myrm_agent_harness.infra.tls_compat import create_httpx_client
 from myrm_agent_harness.toolkits.llms._media_shared.types import (

@@ -27,8 +27,8 @@ from myrm_agent_harness.infra.tracing import get_meter, get_tracer
 from myrm_agent_harness.toolkits.llms.errors import FailoverReason, classify_failover_reason, get_probe_policy
 from myrm_agent_harness.toolkits.llms.errors.classifier import classify_error
 
-from .config import ProbeConfig
 from .circuit_breaker import get_circuit_breaker_registry
+from .config import ProbeConfig
 from .context import get_active_failover_emitter
 from .events import FailoverCallback, FailoverEvent, RecoveryCallback, RecoveryEvent
 from .health_check import lightweight_health_check

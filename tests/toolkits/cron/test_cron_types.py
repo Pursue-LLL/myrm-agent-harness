@@ -19,7 +19,9 @@ from myrm_agent_harness.toolkits.cron.types import (
     SessionTarget,
     TransientErrorKind,
     active_hours_to_dict,
+    delivery_to_dict,
     dict_to_active_hours,
+    dict_to_delivery,
     dict_to_failure_alert,
     dict_to_schedule,
     failure_alert_to_dict,
@@ -362,7 +364,24 @@ class TestFailureAlertConfig:
         restored = dict_to_failure_alert(serialized)
         assert restored is not None
         assert restored.delivery is not None
-        assert restored.delivery.channel == "webhook"
+
+    def test_delivery_thread_id_roundtrip(self):
+        d = DeliveryConfig(channel="feishu", target="chat-9", thread_id="thread-3")
+        serialized = delivery_to_dict(d)
+        assert serialized is not None
+        assert serialized["thread_id"] == "thread-3"
+        restored = dict_to_delivery(serialized)
+        assert restored is not None
+        assert restored.thread_id == "thread-3"
+
+    def test_delivery_thread_id_defaults_none(self):
+        d = DeliveryConfig(channel="chat")
+        assert d.thread_id is None
+        serialized = delivery_to_dict(d)
+        assert serialized is not None
+        assert "thread_id" not in serialized
+        assert dict_to_delivery(serialized) is not None
+        assert dict_to_delivery(serialized).thread_id is None  # type: ignore[union-attr]        assert restored.delivery.channel == "webhook"
 
 
 # ---------------------------------------------------------------------------

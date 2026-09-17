@@ -51,6 +51,7 @@ class ErrorKind(Enum):
     FORMAT_ERROR = "format_error"
     RESPONSE_FORMAT_ERROR = "response_format_error"
     MODEL_NOT_FOUND = "model_not_found"
+    CHALLENGE_BLOCKED = "challenge_blocked"
     UNKNOWN = "unknown"
 
     @property
@@ -73,6 +74,7 @@ _FAILOVERABLE_KINDS = frozenset(
         ErrorKind.SAFETY_BLOCK,
         ErrorKind.RESPONSE_FORMAT_ERROR,
         ErrorKind.MODEL_NOT_FOUND,
+        ErrorKind.CHALLENGE_BLOCKED,
     }
 )
 
@@ -88,6 +90,7 @@ _ERROR_KIND_TO_REASON: dict[ErrorKind, FailoverReason] = {
     ErrorKind.FORMAT_ERROR: FailoverReason.FORMAT_ERROR,
     ErrorKind.RESPONSE_FORMAT_ERROR: FailoverReason.RESPONSE_FORMAT_ERROR,
     ErrorKind.MODEL_NOT_FOUND: FailoverReason.MODEL_NOT_FOUND,
+    ErrorKind.CHALLENGE_BLOCKED: FailoverReason.CHALLENGE_BLOCKED,
     ErrorKind.UNKNOWN: FailoverReason.UNKNOWN,
 }
 
@@ -108,6 +111,7 @@ _REASON_TO_ERROR_KIND: dict[FailoverReason, ErrorKind] = {
     FailoverReason.MEDIA_REJECTED: ErrorKind.FORMAT_ERROR,
     FailoverReason.FORMAT_ERROR: ErrorKind.FORMAT_ERROR,
     FailoverReason.RESPONSE_FORMAT_ERROR: ErrorKind.RESPONSE_FORMAT_ERROR,
+    FailoverReason.CHALLENGE_BLOCKED: ErrorKind.CHALLENGE_BLOCKED,
     FailoverReason.PROVIDER_POLICY_BLOCKED: ErrorKind.MODEL_NOT_FOUND,
     FailoverReason.MODEL_NOT_FOUND: ErrorKind.MODEL_NOT_FOUND,
     FailoverReason.UNKNOWN: ErrorKind.UNKNOWN,
@@ -321,6 +325,22 @@ _PROVIDER_POLICY_BLOCKED_RE = re.compile(
     re.IGNORECASE,
 )
 
+_CLOUDFLARE_CHALLENGE_RE = re.compile(
+    r"challenges\.cloudflare\.com"
+    r"|cf-turnstile"
+    r"|cf-ray"
+    r"|cf_chl_opt"
+    r"|just a moment\.{3}"
+    r"|attention required!? \| cloudflare"
+    r"|error code:? (?:1020|1015|1006|1007|1008)"
+    r"|cloudflare-nginx"
+    r"|challenge-platform"
+    r"|verify you are human"
+    r"|checking your browser before accessing"
+    r"|ddos protection by cloudflare",
+    re.IGNORECASE,
+)
+
 
 # ============================================================================
 # Normalizer
@@ -391,7 +411,19 @@ def normalize_provider_error(error: Exception) -> NormalizedError:
                     except (json.JSONDecodeError, TypeError):
                         pass
 
-    combined_message = f"{_raw_msg} | {_body_msg} | {_metadata_msg}"
+    # Extract raw HTML or text snippet if response body is non-JSON (e.g. Cloudflare challenges)
+    _resp_text = ""
+    response = getattr(error, "response", None)
+    if response is not None:
+        text_attr = getattr(response, "text", None)
+        if isinstance(text_attr, str):
+            _resp_text = text_attr[:2000].lower()
+        elif hasattr(response, "content"):
+            content_attr = getattr(response, "content", None)
+            if isinstance(content_attr, (bytes, bytearray)):
+                _resp_text = content_attr[:2000].decode("utf-8", errors="ignore").lower()
+
+    combined_message = f"{_raw_msg} | {_body_msg} | {_metadata_msg} | {_resp_text}"
     return NormalizedError(status_code=status_code, message=combined_message, body=body)
 
 
@@ -463,6 +495,10 @@ def classify_failover_reason(exc: Exception) -> FailoverReason:
     # 3. Provider Policy / Guardrail Block (must precede generic 401/403 auth)
     if _PROVIDER_POLICY_BLOCKED_RE.search(msg):
         return FailoverReason.PROVIDER_POLICY_BLOCKED
+
+    # 3.5. Cloudflare / WAF Anti-bot Challenge (must precede generic 401/403 auth fallback)
+    if _CLOUDFLARE_CHALLENGE_RE.search(msg):
+        return FailoverReason.CHALLENGE_BLOCKED
 
     # 4. Authentication (permanent credential / key errors)
     if _AUTH_RE.search(msg):

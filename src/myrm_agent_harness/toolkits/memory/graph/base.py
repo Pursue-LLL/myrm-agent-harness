@@ -194,12 +194,16 @@ class GraphStore(ABC):
         """Merge and persist node properties."""
         raise NotImplementedError(f"{type(self).__name__} does not implement update_node_properties.")
 
-    async def list_nodes(self, *, limit: int = 50, offset: int = 0) -> list[GraphNode]:
-        """Paginated listing of all nodes."""
+    async def list_nodes(
+        self, *, limit: int = 50, offset: int = 0, namespace: str | None = None
+    ) -> list[GraphNode]:
+        """Paginated listing of all nodes, optionally filtered by namespace."""
         raise NotImplementedError(f"{type(self).__name__} does not implement list_nodes.")
 
-    async def list_relationships(self, *, limit: int = 50, offset: int = 0) -> list[GraphRelationship]:
-        """Paginated listing of all relationships."""
+    async def list_relationships(
+        self, *, limit: int = 50, offset: int = 0, node_ids: list[str] | None = None
+    ) -> list[GraphRelationship]:
+        """Paginated listing of relationships, optionally filtered to induced subgraph of node_ids."""
         raise NotImplementedError(f"{type(self).__name__} does not implement list_relationships.")
 
     async def get_stats(self) -> GraphStats:

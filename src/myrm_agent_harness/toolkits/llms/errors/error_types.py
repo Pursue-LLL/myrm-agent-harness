@@ -59,6 +59,7 @@ class FailoverReason(Enum):
     CONTEXT_OVERFLOW = "context_overflow"  # Context window exceeded (special case)
     LONG_CONTEXT_TIER = "long_context_tier"  # Anthropic subscription tier gate (compress, don't retry)
     SAFETY_BLOCK = "safety_block"  # Content blocked by safety/moderation filters
+    CHALLENGE_BLOCKED = "challenge_blocked"  # WAF/Cloudflare anti-bot challenge block (defense breaker)
 
     @property
     def recoverability(self) -> RecoverabilityLevel:
@@ -116,6 +117,7 @@ _REASON_TO_RECOVERABILITY: dict[FailoverReason, RecoverabilityLevel] = {
     FailoverReason.CONTEXT_OVERFLOW: RecoverabilityLevel.PERMANENT,
     FailoverReason.LONG_CONTEXT_TIER: RecoverabilityLevel.PERMANENT,
     FailoverReason.SAFETY_BLOCK: RecoverabilityLevel.PERMANENT,
+    FailoverReason.CHALLENGE_BLOCKED: RecoverabilityLevel.PERMANENT,
 }
 
 # ============================================================================
@@ -235,6 +237,12 @@ _REASON_TO_PROBE_POLICY: dict[FailoverReason, ProbePolicy] = {
         max_attempts=0,
         cooldown_ms=float("inf"),
     ),
+    FailoverReason.CHALLENGE_BLOCKED: ProbePolicy(
+        enabled=False,
+        interval_ms=0,
+        max_attempts=0,
+        cooldown_ms=float("inf"),
+    ),
 }
 
 # ============================================================================
@@ -254,6 +262,7 @@ _FAILOVERABLE_REASONS = frozenset(
         FailoverReason.MODEL_NOT_FOUND,
         FailoverReason.PROVIDER_POLICY_BLOCKED,
         FailoverReason.LONG_CONTEXT_TIER,
+        FailoverReason.CHALLENGE_BLOCKED,
     }
 )
 

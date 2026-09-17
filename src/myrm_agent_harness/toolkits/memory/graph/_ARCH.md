@@ -21,3 +21,11 @@ Multi-hop graph traversal returning sibling nodes with their hop depth.
 - depth=1: direct siblings, depth=2: indirect siblings
 - Used by `enrich_with_graph()` with `asyncio.gather` for parallel traversal
 - Sibling scoring uses unified formula: token overlap + distance decay + freshness + importance + channel affinity
+
+### list_nodes(limit, offset, namespace)
+Paginated listing of nodes with optional namespace pushdown filtering.
+- Pushes `primary_namespace = ?` down to SQLite index for zero-cost agent isolation.
+
+### list_relationships(limit, offset, rel_types, node_ids)
+Paginated listing of relationships with induced subgraph pushdown.
+- `node_ids`: When specified, filters edges strictly where `source_id IN (...) AND target_id IN (...)`. Short-circuits on empty list. Completely eliminates orphan islands anddegree miscounts in UI canvases.

@@ -502,6 +502,14 @@ class ProceduralMemory(BaseMemory):
         default=ToolRulePriority.NORMAL,
         description="Durability level: CRITICAL rules are excluded from TTL archiving",
     )
+    error_fingerprint: str | None = Field(
+        default=None,
+        description="Normalized error signature or regex for fast deterministic matching",
+    )
+    resolution_steps: list[str] = Field(
+        default_factory=list,
+        description="Ordered corrective actions or instructions taken to resolve the error",
+    )
 
     def model_post_init(self, __context: object) -> None:
         """Sync is_active ↔ status on construction for legacy data."""

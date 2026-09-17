@@ -282,27 +282,33 @@ class SQLiteGraphStore(GraphStore):
         if relation_types is None:
             relation_types = ["causes"]
         try:
-            base_cond = " OR ".join(["rel_type = ?" for _ in relation_types])
-            recursive_cond = " OR ".join(["r.rel_type = ?" for _ in relation_types])
+            if relation_types:
+                base_cond = " AND (" + " OR ".join(["rel_type = ?" for _ in relation_types]) + ")"
+                recursive_cond = " AND (" + " OR ".join(["r.rel_type = ?" for _ in relation_types]) + ")"
+                params: list[str | int] = [start_id, *relation_types, depth, *relation_types]
+            else:
+                base_cond = ""
+                recursive_cond = ""
+                params = [start_id, depth]
+
             query = f"""
                 WITH RECURSIVE causal_chain AS (
                     SELECT source_id, target_id, rel_type, 1 as depth,
-                           source_id || ',' || target_id as path
+                           ',' || source_id || ',' || target_id || ',' as path
                     FROM graph_relationships
-                    WHERE source_id = ? AND ({base_cond})
+                    WHERE source_id = ?{base_cond}
 
                     UNION ALL
 
                     SELECT r.source_id, r.target_id, r.rel_type, c.depth + 1,
-                           c.path || ',' || r.target_id
+                           c.path || r.target_id || ','
                     FROM graph_relationships r
                     INNER JOIN causal_chain c ON r.source_id = c.target_id
-                    WHERE c.depth < ? AND ({recursive_cond})
-                      AND instr(c.path, r.target_id) = 0
+                    WHERE c.depth < ?{recursive_cond}
+                      AND instr(c.path, ',' || r.target_id || ',') = 0
                 )
                 SELECT DISTINCT target_id, depth FROM causal_chain ORDER BY depth
             """
-            params = [start_id, *relation_types, depth, *relation_types]
             async with conn.execute(query, params) as cursor:
                 results = await cursor.fetchall()
             return [row[0] for row in results]
@@ -413,12 +419,22 @@ class SQLiteGraphStore(GraphStore):
 
     # ── Listing & Stats (for visualization API) ─────────────────────
 
-    async def list_nodes(self, *, limit: int = 50, offset: int = 0) -> list[GraphNode]:
+    async def list_nodes(
+        self, *, limit: int = 50, offset: int = 0, namespace: str | None = None
+    ) -> list[GraphNode]:
         conn = await self._get_connection()
-        async with conn.execute(
-            "SELECT id, labels, properties FROM graph_nodes ORDER BY id LIMIT ? OFFSET ?",
-            (limit, offset),
-        ) as cursor:
+        if namespace:
+            query = (
+                "SELECT id, labels, properties FROM graph_nodes "
+                "WHERE json_extract(properties, '$.primary_namespace') = ? "
+                "ORDER BY id LIMIT ? OFFSET ?"
+            )
+            params: tuple[str | int, ...] = (namespace, limit, offset)
+        else:
+            query = "SELECT id, labels, properties FROM graph_nodes ORDER BY id LIMIT ? OFFSET ?"
+            params = (limit, offset)
+
+        async with conn.execute(query, params) as cursor:
             rows = await cursor.fetchall()
         return [
             GraphNode(
@@ -429,12 +445,26 @@ class SQLiteGraphStore(GraphStore):
             for row in rows
         ]
 
-    async def list_relationships(self, *, limit: int = 50, offset: int = 0) -> list[GraphRelationship]:
+    async def list_relationships(
+        self, *, limit: int = 50, offset: int = 0, node_ids: list[str] | None = None
+    ) -> list[GraphRelationship]:
         conn = await self._get_connection()
-        async with conn.execute(
-            "SELECT id, source_id, target_id, rel_type, properties FROM graph_relationships ORDER BY id LIMIT ? OFFSET ?",
-            (limit, offset),
-        ) as cursor:
+        if node_ids is not None:
+            if not node_ids:
+                return []
+            placeholders = ",".join("?" for _ in node_ids)
+            sql = (
+                "SELECT id, source_id, target_id, rel_type, properties "
+                "FROM graph_relationships "
+                f"WHERE source_id IN ({placeholders}) AND target_id IN ({placeholders}) "
+                "ORDER BY id LIMIT ? OFFSET ?"
+            )
+            params = [*node_ids, *node_ids, limit, offset]
+        else:
+            sql = "SELECT id, source_id, target_id, rel_type, properties FROM graph_relationships ORDER BY id LIMIT ? OFFSET ?"
+            params = [limit, offset]
+
+        async with conn.execute(sql, params) as cursor:
             rows = await cursor.fetchall()
         return [
             GraphRelationship(

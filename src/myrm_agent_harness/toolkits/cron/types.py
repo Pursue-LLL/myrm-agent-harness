@@ -106,12 +106,16 @@ class DeliveryConfig:
     (e.g. "chat", "webhook", "feishu").  ``target`` carries an address when
     the channel requires one (webhook URL, phone number, etc.).
 
+    ``thread_id`` optionally pins delivery into one thread/topic of the
+    target (group chats, forum topics); None delivers to the default scope.
+
     ``secret`` is auto-generated for webhook channels, used as HMAC key.
     """
 
     channel: str = "chat"
     target: str | None = None
     secret: str | None = None
+    thread_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -420,6 +424,7 @@ def dict_to_delivery(d: dict[str, str | None] | None) -> DeliveryConfig | None:
         channel=str(d.get("channel", "chat")),
         target=d.get("target"),
         secret=d.get("secret"),
+        thread_id=d.get("thread_id"),
     )
 
 
@@ -430,6 +435,8 @@ def delivery_to_dict(dc: DeliveryConfig | None) -> dict[str, str | None] | None:
     d: dict[str, str | None] = {"channel": dc.channel, "target": dc.target}
     if dc.secret:
         d["secret"] = dc.secret
+    if dc.thread_id:
+        d["thread_id"] = dc.thread_id
     return d
 
 

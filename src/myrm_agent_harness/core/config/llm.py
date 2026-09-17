@@ -89,6 +89,10 @@ class LLMConfig(BaseModel):
         default=None,
         description="Reasoning effort level (e.g. low, medium, high, max, or token budget)",
     )
+    egress_proxy: str | None = Field(
+        default=None,
+        description="Dedicated egress proxy URL for LLM calls (e.g. http://127.0.0.1:7890 or socks5://127.0.0.1:1080)",
+    )
 
     model_config = {
         "frozen": True,
@@ -115,6 +119,14 @@ class LLMConfig(BaseModel):
         cleaned = v.strip()
         return cleaned or None
 
+    @field_validator("egress_proxy", mode="before")
+    @classmethod
+    def _normalize_egress_proxy(cls, v: str | None) -> str | None:
+        if not isinstance(v, str):
+            return v
+        cleaned = v.strip()
+        return cleaned or None
+
     @classmethod
     def from_env(cls) -> "LLMConfig":
         """Load config from MYRM_* environment variables.
@@ -133,6 +145,11 @@ class LLMConfig(BaseModel):
         max_ctx_str = os.getenv("MYRM_MAX_CONTEXT_TOKENS")
         temp_str = os.getenv("MYRM_TEMPERATURE")
         effort_str = os.getenv("MYRM_REASONING_EFFORT")
+        proxy_str = (
+            os.getenv("MYRM_EGRESS_PROXY")
+            or os.getenv("MYRM_LLM_PROXY")
+            or os.getenv("ALL_PROXY")
+        )
         return cls(
             model=model,
             api_key=api_key,
@@ -141,4 +158,5 @@ class LLMConfig(BaseModel):
             streaming=os.getenv("MYRM_STREAMING", "true").lower() == "true",
             max_context_tokens=int(max_ctx_str) if max_ctx_str else None,
             reasoning_effort=effort_str.strip() if effort_str else None,
+            egress_proxy=proxy_str.strip() if proxy_str else None,
         )

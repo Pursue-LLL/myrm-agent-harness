@@ -241,6 +241,9 @@ class LLMManager:
         top_level_reasoning_effort = getattr(config, "reasoning_effort", None)
         if top_level_reasoning_effort is not None:
             model_kwargs["reasoning_effort"] = top_level_reasoning_effort
+        top_level_egress_proxy = getattr(config, "egress_proxy", None)
+        if top_level_egress_proxy is not None and "egress_proxy" not in model_kwargs:
+            model_kwargs["egress_proxy"] = top_level_egress_proxy
         effective_api_keys = api_keys if api_keys is not None else getattr(config, "api_keys", None)
         effective_strategy = (
             credential_pool_strategy

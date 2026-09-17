@@ -141,6 +141,10 @@ class ChatLiteLLM(ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyn
         description="Reasoning effort level (e.g. 'low', 'medium', 'high', 'max')",
     )
     streaming: bool = False
+    egress_proxy: str | None = Field(
+        default=None,
+        description="Egress HTTP/SOCKS5 proxy URL for outbound API requests",
+    )
     max_retries: int = 1
     empty_retry_enabled: bool = Field(
         default=True,
@@ -251,6 +255,8 @@ class ChatLiteLLM(ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyn
             "api_base": self.api_base,
             "api_key": self.api_key or self.openai_api_key,
         }
+        if self.egress_proxy:
+            creds["proxy"] = self.egress_proxy
 
         # Collect and inject extra headers (e.g. Authorization or gateway affinity)
         api_key_val = self.api_key or self.openai_api_key

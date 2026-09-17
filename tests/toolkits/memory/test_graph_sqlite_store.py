@@ -9,7 +9,11 @@ from pathlib import Path
 import pytest
 
 from myrm_agent_harness.toolkits.memory.graph import SQLiteGraphStore
-from myrm_agent_harness.toolkits.memory.graph.exceptions import GraphNotSupportedError
+from myrm_agent_harness.toolkits.memory.graph.exceptions import (
+    GraphConnectionError,
+    GraphNotSupportedError,
+    GraphQueryError,
+)
 from myrm_agent_harness.toolkits.memory.protocols.graph import GraphStoreProtocol
 
 
@@ -362,3 +366,132 @@ async def test_find_nodes_filter_by_primary_namespace(store: SQLiteGraphStore) -
     assert len(all_claims) == 3
     assert all(n.properties.get("primary_namespace") == "agent:alice" for n in alice_claims)
     assert bob_claims[0].properties.get("primary_namespace") == "agent:bob"
+
+
+# ── Causal chain & pushdown filters ───────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_get_causal_chain_traversal_and_substring_safety(store: SQLiteGraphStore) -> None:
+    """Empty relation_types should traverse all, and node_2 shouldn't falsely cycle with node_20."""
+    n_root = await store.create_node(["Claim"], {"id": "node_root"})
+    n_20 = await store.create_node(["Claim"], {"id": "node_20"})
+    n_2 = await store.create_node(["Claim"], {"id": "node_2"})
+    n_leaf = await store.create_node(["Claim"], {"id": "node_leaf"})
+
+    await store.create_relationship(n_root.id, n_20.id, "causes")
+    await store.create_relationship(n_20.id, n_2.id, "causes")
+    await store.create_relationship(n_2.id, n_leaf.id, "causes")
+
+    # 1. Empty relation_types should traverse without SQL syntax error
+    chain_all = await store.get_causal_chain(n_root.id, depth=5, relation_types=[])
+    assert set(chain_all) == {n_20.id, n_2.id, n_leaf.id}
+
+    # 2. Filtered relation_types should traverse
+    chain_causes = await store.get_causal_chain(n_root.id, depth=5, relation_types=["causes"])
+    assert set(chain_causes) == {n_20.id, n_2.id, n_leaf.id}
+
+
+@pytest.mark.asyncio
+async def test_list_nodes_with_namespace_pushdown(store: SQLiteGraphStore) -> None:
+    """list_nodes with namespace should filter on primary_namespace expression index."""
+    await store.create_node(["Claim"], {"id": "a1", "primary_namespace": "agent_alpha"})
+    await store.create_node(["Claim"], {"id": "a2", "primary_namespace": "agent_alpha"})
+    await store.create_node(["Claim"], {"id": "b1", "primary_namespace": "agent_beta"})
+
+    alpha_nodes = await store.list_nodes(namespace="agent_alpha")
+    beta_nodes = await store.list_nodes(namespace="agent_beta")
+    all_nodes = await store.list_nodes()
+
+    assert {n.id for n in alpha_nodes} == {"a1", "a2"}
+    assert {n.id for n in beta_nodes} == {"b1"}
+    assert len(all_nodes) >= 3
+
+
+@pytest.mark.asyncio
+async def test_list_relationships_induced_subgraph_pushdown(store: SQLiteGraphStore) -> None:
+    """list_relationships with node_ids should fetch exact induced subgraph."""
+    n1 = await store.create_node(["Claim"], {"id": "n1"})
+    n2 = await store.create_node(["Claim"], {"id": "n2"})
+    n3 = await store.create_node(["Claim"], {"id": "n3"})
+
+    r12 = await store.create_relationship(n1.id, n2.id, "SUPPORTS")
+    r23 = await store.create_relationship(n2.id, n3.id, "CONTRADICTS")
+
+    # Subgraph of {n1, n2} should only return r12
+    subgraph_12 = await store.list_relationships(node_ids=[n1.id, n2.id])
+    assert len(subgraph_12) == 1
+    assert subgraph_12[0].id == r12.id
+
+    # Empty list should short-circuit to empty
+    assert await store.list_relationships(node_ids=[]) == []
+
+    # Unfiltered should return all
+    all_rels = await store.list_relationships()
+    rel_ids = {r.id for r in all_rels}
+    assert r12.id in rel_ids and r23.id in rel_ids
+
+
+@pytest.mark.asyncio
+async def test_get_stats_aggregates_labels_and_rel_types(store: SQLiteGraphStore) -> None:
+    """get_stats should correctly aggregate nodes, relationships, labels, and types."""
+    n1 = await store.create_node(["Claim", "Memory"], {"id": "stat_1"})
+    n2 = await store.create_node(["Claim"], {"id": "stat_2"})
+    await store.create_relationship(n1.id, n2.id, "SUPPORTS")
+
+    stats = await store.get_stats()
+    assert stats.node_count >= 2
+    assert stats.relationship_count >= 1
+    assert stats.node_label_counts.get("Claim", 0) >= 2
+    assert stats.node_label_counts.get("Memory", 0) >= 1
+    assert stats.relationship_type_counts.get("SUPPORTS", 0) >= 1
+
+
+# ── Exception branch coverage tests ───────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_connection_error_raises_graph_connection_error(tmp_path: Path) -> None:
+    store = SQLiteGraphStore(str(tmp_path / "valid.db"))
+    store._db_path = Path("/dev/null/not_a_dir/test.db")
+    with pytest.raises(GraphConnectionError):
+        await store.create_node(["Claim"], {})
+
+
+@pytest.mark.asyncio
+async def test_create_node_unserializable_raises_graph_query_error(store: SQLiteGraphStore) -> None:
+    with pytest.raises(GraphQueryError):
+        # Pass non-serializable object to trigger GraphQueryError
+        await store.create_node(["Claim"], {"invalid": object()})  # type: ignore[dict-item]
+
+
+@pytest.mark.asyncio
+async def test_create_relationship_unserializable_raises_graph_query_error(store: SQLiteGraphStore) -> None:
+    with pytest.raises(GraphQueryError):
+        await store.create_relationship("a", "b", "REL", {"invalid": object()})  # type: ignore[dict-item]
+
+
+@pytest.mark.asyncio
+async def test_update_properties_unserializable_raises_graph_query_error(store: SQLiteGraphStore) -> None:
+    n = await store.create_node(["Claim"], {"id": "up_err_1"})
+    with pytest.raises(GraphQueryError):
+        await store.update_node_properties(n.id, {"invalid": object()})  # type: ignore[dict-item]
+
+
+@pytest.mark.asyncio
+async def test_delete_all_by_owner_nonexistent_returns_zero(store: SQLiteGraphStore) -> None:
+    assert await store.delete_all_by_owner("nonexistent_owner") == 0
+
+
+@pytest.mark.asyncio
+async def test_list_nodes_and_relationships_pagination(store: SQLiteGraphStore) -> None:
+    for i in range(5):
+        await store.create_node(["Claim"], {"id": f"pg_n{i}"})
+    for i in range(4):
+        await store.create_relationship(f"pg_n{i}", f"pg_n{i+1}", "LINK")
+
+    nodes_page = await store.list_nodes(limit=2, offset=1)
+    assert len(nodes_page) == 2
+
+    rels_page = await store.list_relationships(limit=2, offset=1)
+    assert len(rels_page) == 2
