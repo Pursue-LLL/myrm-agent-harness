@@ -599,11 +599,12 @@ final = semantic^w0 × recency^w1 × frequency^w2 × importance^w3 × preference
 - 近重复带（0.94 ≤ sim < 0.95）即使文本包含关系成立也强制穿透 LLM 仲裁，杜绝语义替换盲合并；中低相似度 `semantic_ambiguity` 模糊带穿透 LLM 仲裁（事实合成 + 元数据合并）
 - 确定性 facet/polarity 冲突零 LLM 短路；`USER_OVERRIDE_PROTECTED` 直接 NEW 保护用户锁定记忆
 
-**稀疏语义掩码最小覆盖与知情保留**（`strategies/sparse_mutation.py`，对标 MEMOIR NeurIPS 2025）：
+**稀疏语义掩码最小覆盖与知情保留**（`strategies/sparse_*.py`，对标 MEMOIR NeurIPS 2025）：
 
-- **槽位解析状态机**（`SemanticSlotParser`）：单趟正则扫描 YAML/配置风格键值对、Markdown Bullet 列表与分号规约子句，自动抽取语义槽位与结构缩进。
-- **稀疏动作掩码**（`SparseSemanticMaskGenerator`）：通过精确 Key 比对、显式否定墓碑与词干前缀对齐，对每个槽位生成四维动作：`RETAIN`（知情保留）、`OVERWRITE`（最小局部覆盖）、`APPEND`（增量补充）、`REMOVE`（墓碑剔除）。
-- **原地拓扑装配**（`MinimalOverwritePipeline`）：按源行索引进行结构聚合装配，原生支持单行内多子句局部覆写与否定墓碑消除，原地覆盖变动槽位并知情保留所有未受波及槽位。严格维持文本行首缩进、列表前缀及分号拓扑稳定性，使 LLM KV Cache（Prompt Cache）命中率达 100%，杜绝粗暴拼贴导致的条目内自相矛盾。零 LLM 开销，纯原生 Python + Pydantic，单次耗时 <0.03ms（26µs）。
+- **数据模型与契约解耦**（`strategies/sparse_types.py`）：强类型定义 `SemanticSlot`、`SparseMaskItem`、`SparseMutationResult` 与动作枚举，杜绝臃肿混杂，守护单文件 <400 行架构红线。
+- **槽位解析状态机**（`strategies/sparse_parser.py`）：单趟正则扫描 YAML/配置风格键值对、Markdown Bullet 列表与分号规约子句，自动抽取语义槽位与结构缩进。
+- **两阶段全局最佳匹配掩码**（`strategies/sparse_mutation.py`）：通过精确 Key 比对、显式否定墓碑与主题标识符锚定（杜绝不同前缀技术名词碰撞假阳性），并利用全局相似度矩阵建立无截胡最优配对，对每个槽位生成四维动作：`RETAIN`（知情保留）、`OVERWRITE`（最小局部覆盖）、`APPEND`（增量补充）、`REMOVE`（墓碑剔除）。
+- **原地拓扑装配**（`MinimalOverwritePipeline`）：按源行索引进行结构聚合装配，区分键值对与自然语言列表/子句的原地文本重构，原生支持单行内多子句局部覆写与否定墓碑消除，原地覆盖变动槽位并知情保留所有未受波及槽位。严格维持文本行首缩进、列表前缀及分号拓扑稳定性，使 LLM KV Cache（Prompt Cache）命中率达 100%，杜绝粗暴拼贴导致的条目内自相矛盾。零 LLM 开销，纯原生 Python + Pydantic，单次耗时 <0.06ms（58µs）。
 
 **四种决策**：
 

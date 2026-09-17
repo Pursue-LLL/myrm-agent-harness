@@ -271,3 +271,30 @@ def test_sparse_mutation_composite_semicolon_clause_removal() -> None:
     assert "- 环境配置: 生产环境" in res.mutated_text
     assert "调试模式" not in res.mutated_text
     assert "- 数据库: PostgreSQL" in res.mutated_text
+
+
+def test_sparse_mutation_natural_language_subject_anchoring() -> None:
+    existing = "- test_unit passed without error\n- test_e2e failed on timeout"
+    candidate = "- test_e2e passed successfully"
+
+    res = apply_sparse_mutation(existing, candidate)
+    assert res.is_mutated is True
+    assert res.overwritten_count == 1
+    assert res.retained_count == 1
+    assert res.appended_count == 0
+    assert "- test_unit passed without error" in res.mutated_text
+    assert "- test_e2e passed successfully" in res.mutated_text
+    assert "failed on timeout" not in res.mutated_text
+
+
+def test_sparse_mutation_distinct_namespace_no_collision() -> None:
+    existing = "- user_id must be integer\n- user_role must be admin"
+    candidate = "- user_id must be uuid string"
+
+    res = apply_sparse_mutation(existing, candidate)
+    assert res.is_mutated is True
+    assert res.overwritten_count == 1
+    assert res.retained_count == 1
+    assert "- user_id must be uuid string" in res.mutated_text
+    assert "- user_role must be admin" in res.mutated_text
+

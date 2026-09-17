@@ -15,8 +15,8 @@ evolving compound memories without catastrophic context loss or blind appending.
 - SparseMaskItem: Individual slot mutation diff instruction
 - SparseMutationResult: Complete mutation payload with in-place text and audit metrics
 - SemanticSlotParser: Single-pass deterministic slot syntax parser
-- SparseSemanticMaskGenerator: Slot difference comparator and action mask generator
-- MinimalOverwritePipeline: In-place text synthesizer preserving original indentation and layout
+- SparseSemanticMaskGenerator: Global best similarity comparator and action mask generator
+- MinimalOverwritePipeline: In-place text synthesizer preserving original layout
 - apply_sparse_mutation: High-level zero-LLM deterministic entrypoint
 
 [POS]
@@ -27,249 +27,66 @@ Zero network overhead (<0.5ms), zero LLM token cost, 100% deterministic layout p
 from __future__ import annotations
 
 import re
-from enum import StrEnum
 from typing import ClassVar
 
-from pydantic import BaseModel, Field
-
-
-class SlotAction(StrEnum):
-    """Action to perform on an individual semantic slot."""
-
-    RETAIN = "retain"
-    OVERWRITE = "overwrite"
-    APPEND = "append"
-    REMOVE = "remove"
-
-
-class SlotKind(StrEnum):
-    """Structural type of a semantic slot."""
-
-    KEY_VALUE = "key_value"
-    LIST_ITEM = "list_item"
-    CLAUSE = "clause"
-    PROSE_LINE = "prose_line"
-
-
-class SemanticSlot(BaseModel):
-    """An atomic semantic unit extracted from compound structured text."""
-
-    key: str = Field(..., description="Normalized slot identifier")
-    value: str = Field(..., description="Payload or parameter value of the slot")
-    raw_line: str = Field(..., description="Original raw line for verbatim retention")
-    indent_level: int = Field(default=0, description="Leading whitespace indentation count")
-    bullet_prefix: str = Field(default="", description="Bullet marker like '- ', '* ', or '1. '")
-    separator: str = Field(default=": ", description="Key-value delimiter like ': ' or '：'")
-    kind: SlotKind = Field(default=SlotKind.LIST_ITEM, description="Syntactic kind of slot")
-    line_index: int = Field(default=0, description="Source line zero-based index")
-    is_negated: bool = Field(default=False, description="Whether slot denotes explicit removal/prohibition")
-    clause_delimiter: str = Field(default="", description="Delimiter between clauses on the same line")
-
-
-class SparseMaskItem(BaseModel):
-    """Diff directive for a single slot in the sparse mutation plan."""
-
-    slot_key: str
-    action: SlotAction
-    old_value: str | None = None
-    new_value: str | None = None
-    raw_diff: str = ""
-
-
-class SparseMutationResult(BaseModel):
-    """Outcome of a sparse semantic mutation operation."""
-
-    original_text: str
-    mutated_text: str
-    mask_items: list[SparseMaskItem]
-    is_mutated: bool
-    retained_count: int
-    overwritten_count: int
-    appended_count: int
-    removed_count: int
-    summary: str
-
-
-class SemanticSlotParser:
-    """Zero-LLM deterministic single-pass stateful parser for semantic slots."""
-
-    NEGATION_PATTERN: ClassVar[re.Pattern[str]] = re.compile(
-        r"(?:不再使用|不要使用|禁用|弃用|移除|删除|no\s+longer|remove|delete|deprecate)",
-        re.IGNORECASE,
-    )
-    LIST_PREFIX_PATTERN: ClassVar[re.Pattern[str]] = re.compile(
-        r"^(\s*)([-*+]|\d+\.)\s+(.*)$"
-    )
-    KV_PATTERN: ClassVar[re.Pattern[str]] = re.compile(
-        r"^([^:：\n]+)([:：])\s*(.*)$"
-    )
-
-    @classmethod
-    def normalize_key(cls, raw_key: str) -> str:
-        """Normalize a slot key for invariant structural matching."""
-        cleaned = cls.NEGATION_PATTERN.sub("", raw_key)
-        cleaned = re.sub(r"[\s\W_]+", "", cleaned.lower())
-        return cleaned or raw_key.strip().lower()
-
-    @classmethod
-    def parse(cls, text: str) -> list[SemanticSlot]:
-        """Parse structured Markdown, lists, or clauses into semantic slots."""
-        if not text or not text.strip():
-            return []
-
-        slots: list[SemanticSlot] = []
-        raw_lines = text.splitlines()
-
-        for idx, raw_line in enumerate(raw_lines):
-            stripped = raw_line.strip()
-            if not stripped:
-                continue
-
-            indent_len = len(raw_line) - len(raw_line.lstrip(" "))
-            bullet = ""
-            payload = stripped
-
-            list_match = cls.LIST_PREFIX_PATTERN.match(raw_line)
-            if list_match:
-                bullet = f"{list_match.group(2)} "
-                payload = list_match.group(3).strip()
-
-            is_negated = bool(cls.NEGATION_PATTERN.search(payload))
-            clauses = [c.strip() for c in re.split(r"[；;]", payload) if c.strip()]
-            clause_delim = "； " if "；" in payload else "; "
-
-            if len(clauses) > 1:
-                for c_idx, clause in enumerate(clauses):
-                    c_neg = bool(cls.NEGATION_PATTERN.search(clause))
-                    c_kv = cls.KV_PATTERN.match(clause)
-                    if c_kv:
-                        k_norm = cls.normalize_key(c_kv.group(1).strip())
-                        slots.append(
-                            SemanticSlot(
-                                key=k_norm,
-                                value=c_kv.group(3).strip(),
-                                raw_line=clause,
-                                indent_level=indent_len,
-                                bullet_prefix=bullet if c_idx == 0 else "",
-                                separator=f"{c_kv.group(2)} ",
-                                kind=SlotKind.KEY_VALUE,
-                                line_index=idx,
-                                is_negated=c_neg,
-                                clause_delimiter=clause_delim,
-                            )
-                        )
-                    else:
-                        norm_k = cls.normalize_key(clause)
-                        slots.append(
-                            SemanticSlot(
-                                key=norm_k,
-                                value=clause,
-                                raw_line=clause,
-                                indent_level=indent_len,
-                                bullet_prefix=bullet if c_idx == 0 else "",
-                                separator="",
-                                kind=SlotKind.CLAUSE,
-                                line_index=idx,
-                                is_negated=c_neg,
-                                clause_delimiter=clause_delim,
-                            )
-                        )
-            else:
-                kv_match = cls.KV_PATTERN.match(payload)
-                if kv_match:
-                    raw_k = kv_match.group(1).strip()
-                    sep = f"{kv_match.group(2)} "
-                    val = kv_match.group(3).strip()
-                    slots.append(
-                        SemanticSlot(
-                            key=cls.normalize_key(raw_k),
-                            value=val,
-                            raw_line=raw_line,
-                            indent_level=indent_len,
-                            bullet_prefix=bullet,
-                            separator=sep,
-                            kind=SlotKind.KEY_VALUE,
-                            line_index=idx,
-                            is_negated=is_negated,
-                        )
-                    )
-                else:
-                    slots.append(
-                        SemanticSlot(
-                            key=cls.normalize_key(payload),
-                            value=payload,
-                            raw_line=raw_line,
-                            indent_level=indent_len,
-                            bullet_prefix=bullet,
-                            separator="",
-                            kind=SlotKind.LIST_ITEM if bullet else SlotKind.PROSE_LINE,
-                            line_index=idx,
-                            is_negated=is_negated,
-                        )
-                    )
-
-        return slots
-
-    @classmethod
-    def is_structured(cls, slots: list[SemanticSlot]) -> bool:
-        """Check if slots form a compound structured set (KV, bullet lists, clauses)."""
-        if not slots:
-            return False
-        has_explicit_kv = any(s.kind == SlotKind.KEY_VALUE for s in slots)
-        has_bullet_or_clause = any(s.kind in (SlotKind.LIST_ITEM, SlotKind.CLAUSE) for s in slots)
-        return has_explicit_kv or (has_bullet_or_clause and len(slots) >= 1) or len(slots) > 1
+from .sparse_parser import SemanticSlotParser
+from .sparse_types import (
+    SemanticSlot,
+    SlotAction,
+    SlotKind,
+    SparseMaskItem,
+    SparseMutationResult,
+)
 
 
 class SparseSemanticMaskGenerator:
     """Compares slot sets and generates sparse diff action masks."""
 
-    @staticmethod
-    def _find_matching_candidate(
-        ex_slot: SemanticSlot,
-        candidate_slots: list[SemanticSlot],
-        processed_candidates: set[int],
-    ) -> tuple[SemanticSlot | None, bool]:
-        """Find matching candidate slot. Returns (candidate_slot, is_tombstone_negation)."""
-        ex_val_norm = SemanticSlotParser.normalize_key(ex_slot.value)
+    NATURAL_KINDS: ClassVar[tuple[SlotKind, ...]] = (
+        SlotKind.CLAUSE,
+        SlotKind.LIST_ITEM,
+        SlotKind.PROSE_LINE,
+    )
 
-        # Pass 1: Exact key match
-        for idx, cand in enumerate(candidate_slots):
-            if idx in processed_candidates:
-                continue
-            if cand.key == ex_slot.key:
-                processed_candidates.add(idx)
-                return cand, False
+    @classmethod
+    def _compute_natural_similarity(cls, ex_slot: SemanticSlot, cand: SemanticSlot) -> float:
+        """Compute natural language similarity score between two non-KV slots."""
+        if cand.is_negated or ex_slot.kind not in cls.NATURAL_KINDS or cand.kind not in cls.NATURAL_KINDS:
+            return 0.0
 
-        # Pass 2: Negation / tombstone match (candidate negates slot value or key)
-        for idx, cand in enumerate(candidate_slots):
-            if idx in processed_candidates:
-                continue
-            if cand.is_negated:
-                cand_subj = cand.key
-                if (
-                    cand_subj
-                    and (cand_subj in ex_val_norm or cand_subj in ex_slot.key or ex_val_norm in cand_subj)
-                ):
-                    processed_candidates.add(idx)
-                    return cand, True
+        v1, v2 = ex_slot.value.lower(), cand.value.lower()
+        k1, k2 = ex_slot.key, cand.key
 
-        # Pass 3: Common stem / prefix match for natural language clauses & items
-        if ex_slot.kind in (SlotKind.CLAUSE, SlotKind.LIST_ITEM, SlotKind.PROSE_LINE):
-            for idx, cand in enumerate(candidate_slots):
-                if idx in processed_candidates or cand.is_negated:
-                    continue
-                common_len = 0
-                for c1, c2 in zip(ex_slot.key, cand.key, strict=False):
-                    if c1 == c2:
-                        common_len += 1
-                    else:
-                        break
-                min_len = min(len(ex_slot.key), len(cand.key))
-                if common_len >= 4 or (min_len > 0 and common_len / min_len >= 0.5):
-                    processed_candidates.add(idx)
-                    return cand, False
+        tokens1 = re.findall(r"[a-zA-Z0-9_]+|[\u4e00-\u9fa5]", v1)
+        tokens2 = re.findall(r"[a-zA-Z0-9_]+|[\u4e00-\u9fa5]", v2)
+        if not tokens1 or not tokens2:
+            return 0.0
 
-        return None, False
+        # Subject identifier anchoring: if first token is a technical identifier and identical, match with high confidence
+        if tokens1[0] == tokens2[0] and (len(tokens1[0]) >= 4 or "_" in tokens1[0]):
+            return 0.9
+
+        # Distinct technical identifier prefixes must never collide
+        if ("_" in tokens1[0] or "_" in tokens2[0]) and tokens1[0] != tokens2[0]:
+            return 0.0
+
+        common_len = 0
+        for c1, c2 in zip(k1, k2, strict=False):
+            if c1 == c2:
+                common_len += 1
+            else:
+                break
+        min_len = min(len(k1), len(k2))
+        prefix_ratio = (common_len / min_len) if min_len > 0 else 0.0
+
+        set1, set2 = set(tokens1), set(tokens2)
+        jaccard = len(set1 & set2) / max(len(set1 | set2), 1)
+
+        if common_len >= 4 and prefix_ratio >= 0.4:
+            return max(jaccard, prefix_ratio)
+        if jaccard >= 0.5:
+            return jaccard
+        return 0.0
 
     @classmethod
     def generate_mask(
@@ -277,15 +94,63 @@ class SparseSemanticMaskGenerator:
         existing_slots: list[SemanticSlot],
         candidate_slots: list[SemanticSlot],
     ) -> list[SparseMaskItem]:
-        """Generate diff action directives for each existing and candidate slot."""
+        """Generate diff action directives using two-stage global best matching."""
         mask_items: list[SparseMaskItem] = []
-        processed_cand_indices: set[int] = set()
+        matched_cand: dict[int, tuple[SemanticSlot, bool]] = {}
+        used_candidates: set[int] = set()
 
-        for ex_slot in existing_slots:
-            cand, is_tombstone = cls._find_matching_candidate(
-                ex_slot, candidate_slots, processed_cand_indices
-            )
-            if cand is None:
+        # Step 1: Exact key matches
+        for ex_idx, ex_slot in enumerate(existing_slots):
+            for c_idx, cand in enumerate(candidate_slots):
+                if c_idx in used_candidates:
+                    continue
+                if cand.key == ex_slot.key:
+                    matched_cand[ex_idx] = (cand, False)
+                    used_candidates.add(c_idx)
+                    break
+
+        # Step 2: Negation / tombstone matches
+        for ex_idx, ex_slot in enumerate(existing_slots):
+            if ex_idx in matched_cand:
+                continue
+            ex_val_norm = SemanticSlotParser.normalize_key(ex_slot.value)
+            for c_idx, cand in enumerate(candidate_slots):
+                if c_idx in used_candidates or not cand.is_negated:
+                    continue
+                cand_subj = cand.key
+                if cand_subj and (
+                    cand_subj in ex_val_norm or cand_subj in ex_slot.key or ex_val_norm in cand_subj
+                ):
+                    matched_cand[ex_idx] = (cand, True)
+                    used_candidates.add(c_idx)
+                    break
+
+        # Step 3: Global best similarity match for remaining non-KV slots
+        pairs: list[tuple[float, int, int]] = []
+        for ex_idx, ex_slot in enumerate(existing_slots):
+            if ex_idx in matched_cand or ex_slot.kind not in (
+                SlotKind.CLAUSE,
+                SlotKind.LIST_ITEM,
+                SlotKind.PROSE_LINE,
+            ):
+                continue
+            for c_idx, cand in enumerate(candidate_slots):
+                if c_idx in used_candidates or cand.is_negated:
+                    continue
+                score = cls._compute_natural_similarity(ex_slot, cand)
+                if score > 0.0:
+                    pairs.append((score, ex_idx, c_idx))
+
+        pairs.sort(key=lambda x: x[0], reverse=True)
+        for _score, ex_idx, c_idx in pairs:
+            if ex_idx not in matched_cand and c_idx not in used_candidates:
+                matched_cand[ex_idx] = (candidate_slots[c_idx], False)
+                used_candidates.add(c_idx)
+
+        # Step 4: Assemble mask items for existing slots
+        for ex_idx, ex_slot in enumerate(existing_slots):
+            match = matched_cand.get(ex_idx)
+            if match is None:
                 mask_items.append(
                     SparseMaskItem(
                         slot_key=ex_slot.key,
@@ -293,48 +158,51 @@ class SparseSemanticMaskGenerator:
                         old_value=ex_slot.value,
                         new_value=ex_slot.value,
                         raw_diff=f"  {ex_slot.raw_line}",
-                    )
-                )
-            elif is_tombstone or cand.is_negated:
-                mask_items.append(
-                    SparseMaskItem(
-                        slot_key=ex_slot.key,
-                        action=SlotAction.REMOVE,
-                        old_value=ex_slot.value,
-                        new_value=None,
-                        raw_diff=f"- {ex_slot.raw_line}",
-                    )
-                )
-            elif ex_slot.value.strip().lower() != cand.value.strip().lower():
-                mask_items.append(
-                    SparseMaskItem(
-                        slot_key=ex_slot.key,
-                        action=SlotAction.OVERWRITE,
-                        old_value=ex_slot.value,
-                        new_value=cand.value,
-                        raw_diff=f"~ {ex_slot.value} -> {cand.value}",
                     )
                 )
             else:
-                mask_items.append(
-                    SparseMaskItem(
-                        slot_key=ex_slot.key,
-                        action=SlotAction.RETAIN,
-                        old_value=ex_slot.value,
-                        new_value=ex_slot.value,
-                        raw_diff=f"  {ex_slot.raw_line}",
+                cand, is_tombstone = match
+                if is_tombstone or cand.is_negated:
+                    mask_items.append(
+                        SparseMaskItem(
+                            slot_key=ex_slot.key,
+                            action=SlotAction.REMOVE,
+                            old_value=ex_slot.value,
+                            new_value=None,
+                            raw_diff=f"- {ex_slot.raw_line}",
+                        )
                     )
-                )
+                elif ex_slot.value.strip().lower() != cand.value.strip().lower():
+                    mask_items.append(
+                        SparseMaskItem(
+                            slot_key=ex_slot.key,
+                            action=SlotAction.OVERWRITE,
+                            old_value=ex_slot.value,
+                            new_value=cand.value,
+                            raw_diff=f"~ {ex_slot.value} -> {cand.value}",
+                        )
+                    )
+                else:
+                    mask_items.append(
+                        SparseMaskItem(
+                            slot_key=ex_slot.key,
+                            action=SlotAction.RETAIN,
+                            old_value=ex_slot.value,
+                            new_value=ex_slot.value,
+                            raw_diff=f"  {ex_slot.raw_line}",
+                        )
+                    )
 
-        for idx, cand_slot in enumerate(candidate_slots):
-            if idx not in processed_cand_indices and not cand_slot.is_negated:
+        # Step 5: Append unmapped positive candidates
+        for c_idx, cand in enumerate(candidate_slots):
+            if c_idx not in used_candidates and not cand.is_negated:
                 mask_items.append(
                     SparseMaskItem(
-                        slot_key=cand_slot.key,
+                        slot_key=cand.key,
                         action=SlotAction.APPEND,
                         old_value=None,
-                        new_value=cand_slot.value,
-                        raw_diff=f"+ {cand_slot.raw_line}",
+                        new_value=cand.value,
+                        raw_diff=f"+ {cand.raw_line}",
                     )
                 )
 
@@ -381,9 +249,12 @@ class MinimalOverwritePipeline:
             )
 
         output_lines: list[str] = []
-        appended_slots = [s for s in candidate_slots if mask_by_key.get(s.key) and mask_by_key[s.key].action == SlotAction.APPEND]
+        appended_slots = [
+            s
+            for s in candidate_slots
+            if mask_by_key.get(s.key) and mask_by_key[s.key].action == SlotAction.APPEND
+        ]
 
-        # Aggregate existing slots by source line_index to preserve composite line layout
         slots_by_line: dict[int, list[SemanticSlot]] = {}
         for s in existing_slots:
             slots_by_line.setdefault(s.line_index, []).append(s)
@@ -398,10 +269,13 @@ class MinimalOverwritePipeline:
                 elif mask.action == SlotAction.OVERWRITE:
                     indent = " " * ex_slot.indent_level
                     bullet = ex_slot.bullet_prefix
-                    sep = ex_slot.separator or ": "
-                    raw_k = ex_slot.raw_line.lstrip(" ").removeprefix(bullet)
-                    k_display = _extract_display_key(raw_k, sep, ex_slot.key)
-                    output_lines.append(f"{indent}{bullet}{k_display}{sep}{mask.new_value}")
+                    if ex_slot.kind == SlotKind.KEY_VALUE:
+                        sep = ex_slot.separator or ": "
+                        raw_k = ex_slot.raw_line.lstrip(" ").removeprefix(bullet)
+                        k_display = _extract_display_key(raw_k, sep, ex_slot.key)
+                        output_lines.append(f"{indent}{bullet}{k_display}{sep}{mask.new_value}")
+                    else:
+                        output_lines.append(f"{indent}{bullet}{mask.new_value}")
                 elif mask.action == SlotAction.REMOVE:
                     continue
             else:
@@ -416,9 +290,12 @@ class MinimalOverwritePipeline:
                     if mask is None or mask.action == SlotAction.RETAIN:
                         line_parts.append(s.raw_line)
                     elif mask.action == SlotAction.OVERWRITE:
-                        sep = s.separator or ": "
-                        k_display = _extract_display_key(s.raw_line, sep, s.key)
-                        line_parts.append(f"{k_display}{sep}{mask.new_value}")
+                        if s.separator:
+                            sep = s.separator or ": "
+                            k_display = _extract_display_key(s.raw_line, sep, s.key)
+                            line_parts.append(f"{k_display}{sep}{mask.new_value}")
+                        else:
+                            line_parts.append(mask.new_value or "")
                     elif mask.action == SlotAction.REMOVE:
                         continue
 
@@ -458,8 +335,9 @@ def apply_sparse_mutation(existing_text: str, candidate_text: str) -> SparseMuta
     ex_slots = SemanticSlotParser.parse(existing_text)
     cand_slots = SemanticSlotParser.parse(candidate_text)
 
-    # Bail out if neither is structured compound text (e.g. single atomic prose line)
-    if not SemanticSlotParser.is_structured(ex_slots) and not SemanticSlotParser.is_structured(cand_slots):
+    if not SemanticSlotParser.is_structured(ex_slots) and not SemanticSlotParser.is_structured(
+        cand_slots
+    ):
         return SparseMutationResult(
             original_text=existing_text,
             mutated_text=existing_text,
@@ -497,3 +375,16 @@ def apply_sparse_mutation(existing_text: str, candidate_text: str) -> SparseMuta
 
     masks = SparseSemanticMaskGenerator.generate_mask(ex_slots, cand_slots)
     return MinimalOverwritePipeline.apply(existing_text, ex_slots, cand_slots, masks)
+
+
+__all__ = [
+    "MinimalOverwritePipeline",
+    "SemanticSlot",
+    "SemanticSlotParser",
+    "SlotAction",
+    "SlotKind",
+    "SparseMaskItem",
+    "SparseMutationResult",
+    "SparseSemanticMaskGenerator",
+    "apply_sparse_mutation",
+]
