@@ -36,6 +36,7 @@ from myrm_agent_harness.toolkits.vector.config import DeploymentMode, VectorStor
 from myrm_agent_harness.toolkits.vector.qdrant.factory import create_vector_store
 
 if TYPE_CHECKING:
+    from myrm_agent_harness.toolkits.memory.file_sync.sync import FileMemorySyncEngine
     from myrm_agent_harness.toolkits.memory.strategies.consolidation import (
         ConflictCallback,
         ConsolidationCompleteCallback,
@@ -216,3 +217,25 @@ async def create_local_memory_manager(
 
     logger.info(f"Local MemoryManager initialized at {base_path} for local user")
     return manager
+
+
+def setup_local_file_memory_sync(
+    base_path: str | Path,
+    memory_manager: MemoryManager | None = None,
+) -> FileMemorySyncEngine:
+    """Create and initialize a Local-First FileMemorySyncEngine.
+
+    Ensures MEMORY.md and daily note directory structures are created and
+    binds synchronization to the provided MemoryManager instance.
+    """
+    from myrm_agent_harness.toolkits.memory.file_sync import (
+        FileMemoryStore,
+        FileMemorySyncEngine,
+        FileMemoryTopology,
+    )
+
+    resolved_path = Path(base_path).resolve()
+    topology = FileMemoryTopology(root_dir=resolved_path)
+    store = FileMemoryStore(topology=topology)
+    store.ensure_topology()
+    return FileMemorySyncEngine(store=store, memory_manager=memory_manager)
