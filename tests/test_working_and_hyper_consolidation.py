@@ -207,3 +207,37 @@ async def test_hyper_consolidator_distillation_and_procedural_rules() -> None:
 
     # In-memory working block must be cleaned up
     assert LocalWorkingMemoryBlock.get_state() is None
+
+
+def test_local_working_memory_resolve_trap() -> None:
+    """Verify that a recorded trap can be marked as resolved and rendered with ✅ [Resolved]."""
+    LocalWorkingMemoryBlock.reset()
+    LocalWorkingMemoryBlock.initialize(goal="Self-healing test")
+    LocalWorkingMemoryBlock.record_trap(
+        fingerprint="rate_limit_429",
+        avoidance_rule="Apply exponential backoff with jitter",
+        tool_name="web_fetch",
+    )
+
+    state = LocalWorkingMemoryBlock.get_state()
+    assert state is not None
+    assert len(state.traps) == 1
+    assert state.traps[0].resolved is False
+
+    # Mark as resolved
+    success = LocalWorkingMemoryBlock.resolve_trap("rate_limit_429")
+    assert success is True
+    assert state.traps[0].resolved is True
+
+    # Check Markdown rendering
+    md = LocalWorkingMemoryBlock.format_turn_tail_markdown()
+    assert "✅ [Resolved] [web_fetch] Apply exponential backoff with jitter" in md
+
+    # Check serialization roundtrip
+    serialized = LocalWorkingMemoryBlock.to_dict()
+    assert serialized["traps"][0]["resolved"] is True
+
+    restored = LocalWorkingMemoryBlock.from_dict(serialized)
+    assert restored.traps[0].resolved is True
+    LocalWorkingMemoryBlock.reset()
+

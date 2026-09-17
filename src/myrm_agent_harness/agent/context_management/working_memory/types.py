@@ -48,6 +48,7 @@ class TrapRecord:
     avoidance_rule: str
     tool_name: str | None = None
     occurred_turn: int = 0
+    resolved: bool = False
 
 
 @dataclass(slots=True)

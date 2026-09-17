@@ -137,6 +137,19 @@ class LocalWorkingMemoryBlock:
         )
 
     @classmethod
+    def resolve_trap(cls, fingerprint: str) -> bool:
+        """Mark a transient error trap as successfully avoided/resolved."""
+        state = cls.get_state()
+        if state is None:
+            return False
+
+        for trap in state.traps:
+            if trap.fingerprint == fingerprint:
+                trap.resolved = True
+                return True
+        return False
+
+    @classmethod
     def set_scratchpad(cls, key: str, value: str) -> None:
         """Store a lightweight transient key-value memo."""
         state = cls.get_state()
@@ -205,7 +218,12 @@ class LocalWorkingMemoryBlock:
             lines.append("**Avoidance Traps**:")
             for trap in recent_traps:
                 tool_label = f"[{trap.tool_name}] " if trap.tool_name else ""
-                icon = "🛡️ [Prior] " if trap.occurred_turn == 0 else "⚠️ "
+                if trap.resolved:
+                    icon = "✅ [Resolved] "
+                elif trap.occurred_turn == 0:
+                    icon = "🛡️ [Prior] "
+                else:
+                    icon = "⚠️ "
                 lines.append(f"- {icon}{tool_label}{trap.avoidance_rule}")
 
         lines.append("</working_board>")
@@ -237,6 +255,7 @@ class LocalWorkingMemoryBlock:
                     "avoidance_rule": trap.avoidance_rule,
                     "tool_name": trap.tool_name,
                     "occurred_turn": trap.occurred_turn,
+                    "resolved": trap.resolved,
                 }
                 for trap in state.traps
             ],
@@ -277,6 +296,7 @@ class LocalWorkingMemoryBlock:
                             avoidance_rule=str(trap_obj.get("avoidance_rule", "")),
                             tool_name=str(tool_val) if tool_val is not None else None,
                             occurred_turn=int(trap_obj.get("occurred_turn", 0)),
+                            resolved=bool(trap_obj.get("resolved", False)),
                         )
                     )
 
