@@ -76,6 +76,7 @@ __all__ = [
     "InterventionAction",
     "KanbanStore",
     "LLMConfig",
+    "LocalWorkingMemoryBlock",
     "MCPAnnotations",
     "ManifestAttributionResult",
     "MetricAttributionDetail",
@@ -126,6 +127,7 @@ __all__ = [
     "SpendControlConfig",
     "SpendInterventionDecision",
     "SpendInterventionTier",
+    "SubtaskStatus",
     "SynthesizedSkillDraft",
     "TaskSpecialty",
     "TranscriptIncrementalChunk",
@@ -303,6 +305,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.observability.spend_control",
         "SpendInterventionTier",
     ),
+    "SubtaskStatus": (
+        "myrm_agent_harness.agent.context_management.working_memory",
+        "SubtaskStatus",
+    ),
     "HookEvent": ("myrm_agent_harness.api.protocols", "HookEvent"),
     "reset_denial_counter": (
         "myrm_agent_harness.agent.middlewares.approval.helpers",
@@ -351,6 +357,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "IntegrationProvider": ("myrm_agent_harness.api.protocols", "IntegrationProvider"),
     "KanbanStore": ("myrm_agent_harness.api.protocols", "KanbanStore"),
     "LLMConfig": ("myrm_agent_harness.api.config", "LLMConfig"),
+    "LocalWorkingMemoryBlock": (
+        "myrm_agent_harness.agent.context_management.working_memory",
+        "LocalWorkingMemoryBlock",
+    ),
     "MCPAnnotations": (
         "myrm_agent_harness.core.security.tool_registry.registry",
         "MCPAnnotations",
