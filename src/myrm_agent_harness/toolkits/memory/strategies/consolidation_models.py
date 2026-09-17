@@ -117,6 +117,7 @@ class ConsolidationStats(BaseModel):
     enriched_count: int = 0
     insights: tuple[str, ...] = ()
     affected_ids: list[str] = Field(default_factory=list)
+    aborted: bool = False
 
 
 class ConsolidationResponse(BaseModel):

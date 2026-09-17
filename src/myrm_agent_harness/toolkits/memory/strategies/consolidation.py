@@ -175,7 +175,13 @@ async def run_consolidation(
             enriched_count,
         )
         await _update_timestamp(manager, start)
-        return ConsolidationStats(input_count=input_count, enriched_count=enriched_count)
+        empty_stats = ConsolidationStats(input_count=input_count, enriched_count=enriched_count)
+        if on_complete is not None:
+            try:
+                await on_complete(empty_stats)
+            except Exception as exc:
+                logger.warning("Consolidation complete hook failed (non-fatal): %s", exc)
+        return empty_stats
 
     stats = (
         await execute_operations(parsed.operations, manager, id_map, on_conflict=on_conflict, config=config)
@@ -192,7 +198,18 @@ async def run_consolidation(
     await record_consolidation_event(manager, stats)
     if parsed.insights:
         await _persist_insights(manager, parsed.insights)
-    await _update_timestamp(manager, start)
+
+    should_advance_timestamp = not stats.aborted and not (
+        stats.errors > 0 and (stats.merged + stats.corrected + stats.updated == 0)
+    )
+    if should_advance_timestamp:
+        await _update_timestamp(manager, start)
+    else:
+        logger.warning(
+            "Consolidation skipped timestamp advancement (aborted=%s, errors=%d)",
+            stats.aborted,
+            stats.errors,
+        )
 
     logger.info(
         "Consolidation complete: input=%d, enriched=%d, merged=%d, corrected=%d, updated=%d, errors=%d, guard_patched=%d, insights=%d (%.0fms)",
@@ -206,7 +223,7 @@ async def run_consolidation(
         len(parsed.insights),
         elapsed_ms,
     )
-    if on_complete is not None and parsed.insights:
+    if on_complete is not None:
         try:
             await on_complete(stats)
         except Exception as exc:

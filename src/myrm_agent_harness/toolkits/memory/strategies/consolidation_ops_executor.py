@@ -169,8 +169,11 @@ async def execute_operations(
 
     importance_thr = config.conflict_importance_threshold if config else 0.6
     confidence_thr = config.conflict_confidence_threshold if config else 0.85
+    max_consecutive_errors = 3
+    consecutive_errors = 0
 
     for op in ops:
+        failed_with_exception = False
         try:
             if isinstance(op, MergeOp):
                 new_mem = SemanticMemory(
@@ -311,8 +314,20 @@ async def execute_operations(
         except MemoryProtectedError:
             logger.info("Consolidation op skipped: the memory is user-protected")
         except Exception as e:
+            failed_with_exception = True
             logger.warning("Consolidation op failed: %s: %s", type(e).__name__, e)
             stats.errors += 1
+            consecutive_errors += 1
+            if consecutive_errors >= max_consecutive_errors:
+                logger.error(
+                    "Consolidation aborted: consecutive errors reached threshold (%d)",
+                    max_consecutive_errors,
+                )
+                stats.aborted = True
+                break
+        finally:
+            if not failed_with_exception:
+                consecutive_errors = 0
 
     return stats
 
@@ -323,8 +338,6 @@ async def record_consolidation_event(manager: MemoryManager, stats: Consolidatio
     Embeds affected_ids into the event content so rollback can discover which
     memories were touched by this consolidation cycle.
     """
-    if not manager.has_vector:
-        return
     ids_csv = ",".join(stats.affected_ids) if stats.affected_ids else ""
     summary = (
         f"Memory consolidation: input {stats.input_count}, enriched {stats.enriched_count}, "

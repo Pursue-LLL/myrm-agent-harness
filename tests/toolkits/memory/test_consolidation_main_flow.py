@@ -406,11 +406,11 @@ class TestUpdateTimestamp:
 
 class TestRecordConsolidationEvent:
     @pytest.mark.asyncio
-    async def test_no_vector_skips(self) -> None:
+    async def test_no_vector_still_records_event(self) -> None:
         manager = _make_manager()
         manager.has_vector = False
         await _record_consolidation_event(manager, ConsolidationStats())
-        manager.add_event.assert_not_called()
+        manager.add_event.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_summary_includes_affected_ids(self) -> None:
@@ -540,6 +540,66 @@ class TestRunConsolidation:
         stats = await run_consolidation(manager, _make_llm(response), ConsolidationConfig(), on_complete=on_complete)
         assert stats.insights == ("only insight",)
         on_complete.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_complete_hook_triggered_even_without_insights(self) -> None:
+        manager = _make_manager()
+        manager._vec_store.scroll = AsyncMock(
+            side_effect=[
+                ([_semantic_doc("s-1", "a"), _semantic_doc("s-2", "b")], None),
+                ([], None),
+            ]
+        )
+        response = ConsolidationResponse(operations=[], insights=[])
+        on_complete = AsyncMock()
+        stats = await run_consolidation(manager, _make_llm(response), ConsolidationConfig(), on_complete=on_complete)
+        assert stats.insights == ()
+        on_complete.assert_awaited_once_with(stats)
+
+    @pytest.mark.asyncio
+    async def test_circuit_breaker_aborts_batch_and_skips_timestamp(self) -> None:
+        manager = _make_manager()
+        manager._vec_store.scroll = AsyncMock(
+            side_effect=[
+                ([_semantic_doc(f"s-{i}", f"content {i}") for i in range(1, 6)], None),
+                ([], None),
+            ]
+        )
+        manager.update_memory = AsyncMock(side_effect=RuntimeError("db write failure"))
+        response = ConsolidationResponse(
+            operations=[
+                UpdateContentOp(memory_id=f"s-{i}", new_content=f"updated content {i}", importance=0.8)
+                for i in range(1, 6)
+            ],
+            insights=[],
+        )
+        stats = await run_consolidation(manager, _make_llm(response), ConsolidationConfig())
+        assert stats.aborted is True
+        assert stats.errors == 3
+        assert manager.update_memory.await_count == 3
+        manager._rel_store.set_profile.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_total_failure_skips_timestamp(self) -> None:
+        manager = _make_manager()
+        manager._vec_store.scroll = AsyncMock(
+            side_effect=[
+                ([_semantic_doc("s-1", "a"), _semantic_doc("s-2", "b")], None),
+                ([], None),
+            ]
+        )
+        manager.update_memory = AsyncMock(side_effect=RuntimeError("db write failure"))
+        response = ConsolidationResponse(
+            operations=[
+                UpdateContentOp(memory_id="s-1", new_content="updated content", importance=0.8),
+            ],
+            insights=[],
+        )
+        stats = await run_consolidation(manager, _make_llm(response), ConsolidationConfig())
+        assert stats.aborted is False
+        assert stats.errors == 1
+        assert stats.updated == 0
+        manager._rel_store.set_profile.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_consolidation_auto_patches_missing_port_via_named_entity_guard(self) -> None:
