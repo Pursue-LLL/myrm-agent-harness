@@ -88,10 +88,7 @@ def is_tool_result_consumed(messages: Sequence[BaseMessage], tool_idx: int) -> b
     after it in the conversation history. If no subsequent AIMessage exists,
     the tool result is in the ACTIVE phase and must not be pruned.
     """
-    for i in range(tool_idx + 1, len(messages)):
-        if isinstance(messages[i], AIMessage):
-            return True
-    return False
+    return any(isinstance(messages[i], AIMessage) for i in range(tool_idx + 1, len(messages)))
 
 
 def build_memory_truncated_placeholder(

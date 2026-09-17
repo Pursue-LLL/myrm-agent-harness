@@ -31,6 +31,7 @@ from langchain_core.messages import (
 )
 
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
+from myrm_agent_harness.utils.token_estimation import estimate_message_tokens
 
 from ...infra.schemas import StructuredSummary
 from ...tracking.artifact_tracker import get_artifact_tracker
@@ -93,9 +94,7 @@ def extract_protected_head(messages: list[BaseMessage]) -> list[BaseMessage]:
     return head
 
 
-from myrm_agent_harness.utils.token_estimation import (
-    estimate_message_tokens,
-)
+
 
 
 def _align_boundary_backward(messages: list[BaseMessage], idx: int) -> int:
