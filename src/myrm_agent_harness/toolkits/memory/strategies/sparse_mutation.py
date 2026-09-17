@@ -63,6 +63,7 @@ class SemanticSlot(BaseModel):
     kind: SlotKind = Field(default=SlotKind.LIST_ITEM, description="Syntactic kind of slot")
     line_index: int = Field(default=0, description="Source line zero-based index")
     is_negated: bool = Field(default=False, description="Whether slot denotes explicit removal/prohibition")
+    clause_delimiter: str = Field(default="", description="Delimiter between clauses on the same line")
 
 
 class SparseMaskItem(BaseModel):
@@ -134,61 +135,64 @@ class SemanticSlotParser:
                 payload = list_match.group(3).strip()
 
             is_negated = bool(cls.NEGATION_PATTERN.search(payload))
-            kv_match = cls.KV_PATTERN.match(payload)
+            clauses = [c.strip() for c in re.split(r"[；;]", payload) if c.strip()]
+            clause_delim = "； " if "；" in payload else "; "
 
-            if kv_match:
-                raw_k = kv_match.group(1).strip()
-                sep = f"{kv_match.group(2)} "
-                val = kv_match.group(3).strip()
-                slots.append(
-                    SemanticSlot(
-                        key=cls.normalize_key(raw_k),
-                        value=val,
-                        raw_line=raw_line,
-                        indent_level=indent_len,
-                        bullet_prefix=bullet,
-                        separator=sep,
-                        kind=SlotKind.KEY_VALUE,
-                        line_index=idx,
-                        is_negated=is_negated,
-                    )
-                )
+            if len(clauses) > 1:
+                for c_idx, clause in enumerate(clauses):
+                    c_neg = bool(cls.NEGATION_PATTERN.search(clause))
+                    c_kv = cls.KV_PATTERN.match(clause)
+                    if c_kv:
+                        k_norm = cls.normalize_key(c_kv.group(1).strip())
+                        slots.append(
+                            SemanticSlot(
+                                key=k_norm,
+                                value=c_kv.group(3).strip(),
+                                raw_line=clause,
+                                indent_level=indent_len,
+                                bullet_prefix=bullet if c_idx == 0 else "",
+                                separator=f"{c_kv.group(2)} ",
+                                kind=SlotKind.KEY_VALUE,
+                                line_index=idx,
+                                is_negated=c_neg,
+                                clause_delimiter=clause_delim,
+                            )
+                        )
+                    else:
+                        norm_k = cls.normalize_key(clause)
+                        slots.append(
+                            SemanticSlot(
+                                key=norm_k,
+                                value=clause,
+                                raw_line=clause,
+                                indent_level=indent_len,
+                                bullet_prefix=bullet if c_idx == 0 else "",
+                                separator="",
+                                kind=SlotKind.CLAUSE,
+                                line_index=idx,
+                                is_negated=c_neg,
+                                clause_delimiter=clause_delim,
+                            )
+                        )
             else:
-                clauses = [c.strip() for c in re.split(r"[；;]", payload) if c.strip()]
-                if len(clauses) > 1:
-                    for c_idx, clause in enumerate(clauses):
-                        c_neg = bool(cls.NEGATION_PATTERN.search(clause))
-                        c_kv = cls.KV_PATTERN.match(clause)
-                        if c_kv:
-                            k_norm = cls.normalize_key(c_kv.group(1).strip())
-                            slots.append(
-                                SemanticSlot(
-                                    key=k_norm,
-                                    value=c_kv.group(3).strip(),
-                                    raw_line=clause,
-                                    indent_level=indent_len,
-                                    bullet_prefix=bullet if c_idx == 0 else "",
-                                    separator=f"{c_kv.group(2)} ",
-                                    kind=SlotKind.CLAUSE,
-                                    line_index=idx,
-                                    is_negated=c_neg,
-                                )
-                            )
-                        else:
-                            norm_k = cls.normalize_key(clause)
-                            slots.append(
-                                SemanticSlot(
-                                    key=norm_k,
-                                    value=clause,
-                                    raw_line=clause,
-                                    indent_level=indent_len,
-                                    bullet_prefix=bullet if c_idx == 0 else "",
-                                    separator="",
-                                    kind=SlotKind.CLAUSE,
-                                    line_index=idx,
-                                    is_negated=c_neg,
-                                )
-                            )
+                kv_match = cls.KV_PATTERN.match(payload)
+                if kv_match:
+                    raw_k = kv_match.group(1).strip()
+                    sep = f"{kv_match.group(2)} "
+                    val = kv_match.group(3).strip()
+                    slots.append(
+                        SemanticSlot(
+                            key=cls.normalize_key(raw_k),
+                            value=val,
+                            raw_line=raw_line,
+                            indent_level=indent_len,
+                            bullet_prefix=bullet,
+                            separator=sep,
+                            kind=SlotKind.KEY_VALUE,
+                            line_index=idx,
+                            is_negated=is_negated,
+                        )
+                    )
                 else:
                     slots.append(
                         SemanticSlot(
@@ -337,6 +341,14 @@ class SparseSemanticMaskGenerator:
         return mask_items
 
 
+def _extract_display_key(raw_text: str, sep: str, default_key: str) -> str:
+    cleaned = raw_text.strip()
+    for delimiter in (sep, ":", "："):
+        if delimiter and delimiter in cleaned:
+            return cleaned.split(delimiter)[0].strip()
+    return default_key
+
+
 class MinimalOverwritePipeline:
     """Executes sparse masks into reconstructed text and audit metadata."""
 
@@ -371,28 +383,47 @@ class MinimalOverwritePipeline:
         output_lines: list[str] = []
         appended_slots = [s for s in candidate_slots if mask_by_key.get(s.key) and mask_by_key[s.key].action == SlotAction.APPEND]
 
-        for ex_slot in existing_slots:
-            mask = mask_by_key.get(ex_slot.key)
-            if mask is None or mask.action == SlotAction.RETAIN:
-                output_lines.append(ex_slot.raw_line)
-            elif mask.action == SlotAction.OVERWRITE:
-                indent = " " * ex_slot.indent_level
-                bullet = ex_slot.bullet_prefix
-                sep = ex_slot.separator or ": "
-                raw_k = ex_slot.raw_line.lstrip(" ").removeprefix(bullet)
-                if sep in raw_k:
-                    k_display = raw_k.split(sep)[0].strip()
-                elif ":" in raw_k:
-                    k_display = raw_k.split(":")[0].strip()
-                elif "：" in raw_k:
-                    k_display = raw_k.split("：")[0].strip()
-                else:
-                    k_display = ex_slot.key
+        # Aggregate existing slots by source line_index to preserve composite line layout
+        slots_by_line: dict[int, list[SemanticSlot]] = {}
+        for s in existing_slots:
+            slots_by_line.setdefault(s.line_index, []).append(s)
 
-                new_line = f"{indent}{bullet}{k_display}{sep}{mask.new_value}"
-                output_lines.append(new_line)
-            elif mask.action == SlotAction.REMOVE:
-                continue
+        for line_idx in sorted(slots_by_line.keys()):
+            line_slots = slots_by_line[line_idx]
+            if len(line_slots) == 1:
+                ex_slot = line_slots[0]
+                mask = mask_by_key.get(ex_slot.key)
+                if mask is None or mask.action == SlotAction.RETAIN:
+                    output_lines.append(ex_slot.raw_line)
+                elif mask.action == SlotAction.OVERWRITE:
+                    indent = " " * ex_slot.indent_level
+                    bullet = ex_slot.bullet_prefix
+                    sep = ex_slot.separator or ": "
+                    raw_k = ex_slot.raw_line.lstrip(" ").removeprefix(bullet)
+                    k_display = _extract_display_key(raw_k, sep, ex_slot.key)
+                    output_lines.append(f"{indent}{bullet}{k_display}{sep}{mask.new_value}")
+                elif mask.action == SlotAction.REMOVE:
+                    continue
+            else:
+                first_slot = line_slots[0]
+                indent = " " * first_slot.indent_level
+                bullet = first_slot.bullet_prefix
+                delim = first_slot.clause_delimiter or "; "
+
+                line_parts: list[str] = []
+                for s in line_slots:
+                    mask = mask_by_key.get(s.key)
+                    if mask is None or mask.action == SlotAction.RETAIN:
+                        line_parts.append(s.raw_line)
+                    elif mask.action == SlotAction.OVERWRITE:
+                        sep = s.separator or ": "
+                        k_display = _extract_display_key(s.raw_line, sep, s.key)
+                        line_parts.append(f"{k_display}{sep}{mask.new_value}")
+                    elif mask.action == SlotAction.REMOVE:
+                        continue
+
+                if line_parts:
+                    output_lines.append(f"{indent}{bullet}" + delim.join(line_parts))
 
         default_indent = existing_slots[0].indent_level if existing_slots else 0
         default_bullet = existing_slots[0].bullet_prefix if existing_slots else "- "

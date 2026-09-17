@@ -244,3 +244,30 @@ editor: neovim""",
         assert updated.metadata.get("sparse_retained_count") == 2
     finally:
         mut_mod.update_vector_memory = original_update  # type: ignore[attr-defined]
+
+
+def test_sparse_mutation_composite_semicolon_clause_overwrite() -> None:
+    existing = "- 环境配置: 生产环境; 调试模式: 关闭\n- 数据库: PostgreSQL"
+    candidate = "- 调试模式: 开启"
+
+    res = apply_sparse_mutation(existing, candidate)
+    assert res.is_mutated is True
+    assert res.overwritten_count == 1
+    assert res.retained_count == 2
+    assert res.appended_count == 0
+    assert "- 环境配置: 生产环境; 调试模式: 开启" in res.mutated_text
+    assert "- 数据库: PostgreSQL" in res.mutated_text
+    assert res.mutated_text.count("调试模式") == 1
+
+
+def test_sparse_mutation_composite_semicolon_clause_removal() -> None:
+    existing = "- 环境配置: 生产环境; 调试模式: 关闭\n- 数据库: PostgreSQL"
+    candidate = "- 禁用调试模式"
+
+    res = apply_sparse_mutation(existing, candidate)
+    assert res.is_mutated is True
+    assert res.removed_count == 1
+    assert res.retained_count == 2
+    assert "- 环境配置: 生产环境" in res.mutated_text
+    assert "调试模式" not in res.mutated_text
+    assert "- 数据库: PostgreSQL" in res.mutated_text
