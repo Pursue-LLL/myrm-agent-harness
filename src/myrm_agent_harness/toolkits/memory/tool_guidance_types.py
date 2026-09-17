@@ -3,6 +3,18 @@
 Provides structured types for tool-level procedural experience,
 including confidence rating, platform/environment isolation, and
 pinned status for user-in-the-loop governance.
+
+[INPUT]
+- dataclasses (POS: Standard library dataclass utility)
+- datetime (POS: Standard library UTC timestamp utility)
+
+[OUTPUT]
+- ToolGuidanceItem: Distilled behavioral or avoidance guideline for a specific tool
+- ToolGuidanceSummary: Aggregated tool guidance overview DTO
+
+[POS]
+Tool memory procedural contract layer. Provides lightweight, immutable dataclasses
+for tool execution experiences, environment fingerprinted isolation, and confidence scoring.
 """
 
 from __future__ import annotations

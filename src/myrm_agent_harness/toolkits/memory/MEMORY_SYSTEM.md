@@ -1119,3 +1119,28 @@ rating_new = rating_old + alpha * (normalized - rating_old)
 - **自愈式装配与单机开箱即用**：
   - `MemoryManager` 核心构造层与 `setup_local_memory` 启动工厂原生内聚自愈装配逻辑，在未显式传递 `fts5_searcher` 时自动检测并挂载 `relational_store.search_fts5` 通道，保障单机本地、Tauri 桌面端与云端沙箱三种部署形态下精确事实双轨召回通道 100% 畅通。
 
+---
+
+## 二十、工具调用经验记忆沉淀与动态使用指南生成引擎 (Tool Guidance Evolution)
+
+针对小型大模型在工具调用编排中参数幻觉多、高频踩坑以及长程任务中重复犯错的问题，构建零 LLM 开销的工具规约沉淀与动态 JIT 提示词合成机制：
+
+- **数据模型契约（`ToolGuidanceItem` & `ToolGuidanceSummary`）**：
+  - 核心位置：`myrm_agent_harness.toolkits.memory.tool_guidance_types`；
+  - 属于程序性记忆（Procedural Memory）的特化，不可变（`frozen=True, slots=True`）；
+  - 强绑定 `tool_name`、环境指纹 `env_fingerprint`、置信度 `confidence` 与人工置顶标记 `is_pinned`。
+- **纯函数黄金合成器（`synthesize_tool_guidance`）**：
+  - 核心位置：`myrm_agent_harness.toolkits.memory.tool_guidance_synthesizer`；
+  - **探针假失败自动剔除（`is_exploratory_probe`）**：针对 Agent 在环境探索时的试探性命令（如 `command -v`、`which`、`grep -q` 等），其退出码非 0 属于探测逻辑而非真实工具使用故障，系统纯正则精准识别并不将其沉淀为避坑规程；
+  - **环境指纹物理隔离（`filter_guidance_items`）**：当前运行时与规则所属环境指纹一致时才加载，防止跨操作系统/环境误导；
+  - **单工具黄金 3 条上限与 Cache-Stable 排序**：严格收敛每个激活工具至多输出 3 条黄金指南（人工置顶优先，其次按置信度排序）。最终输出集合按工具名称与规约文本字母序升序输出，保证字面量 100% 确定，完全保护 LLM 服务端 KV Cache 命中率。
+- **中间件运行时 JIT 注入**：
+  - 核心位置：`myrm_agent_harness.agent.middlewares.memory_context`；
+  - `_internal/storage_context.py` 加载规则并筛选出工具规约条目；
+  - `memory_context_middleware.py` 动态识别当前用户请求中激活的可用工具列表，即时计算黄金指南集合；
+  - `memory_context_format.py` 将指南渲染入静态记忆区块 `Tool Execution Guidance`。
+- **服务端治理 API 与前端指挥中心**：
+  - Server 端（`app/api/memory/operations/tool_guidance.py`）提供强类型 REST API，支持列表获取、人工置顶切换（Pin/Unpin）与过期规则删除；
+  - 前端指挥中心（`ToolGuidancePanel.tsx`）提供现代化卡片看板，零原生 emoji，支持移动端/PC 端双主题自适应渲染。
+
+

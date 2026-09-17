@@ -3,6 +3,18 @@
 Consolidates procedural memory entries, traps, and edicts into a
 deterministic, cache-stable golden guidance set for active tools.
 Strictly zero-LLM cost, sub-millisecond execution, and bounded output.
+
+[INPUT]
+- myrm_agent_harness.toolkits.memory.tool_guidance_types::ToolGuidanceItem (POS: Tool memory procedural contract layer)
+
+[OUTPUT]
+- is_exploratory_probe: Pure function detecting exploratory test commands
+- filter_guidance_items: Pure function filtering guidance by target tools and environment fingerprint
+- synthesize_tool_guidance: Cache-stable aggregator generating up to 3 golden guidelines per tool
+
+[POS]
+Tool memory guidance synthesizer. Delivers bounded, deterministic, cache-stable prompt
+guidelines by filtering noisy probe commands and ordering instructions alphabetically.
 """
 
 from __future__ import annotations
