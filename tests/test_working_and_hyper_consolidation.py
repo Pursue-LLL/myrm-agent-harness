@@ -190,6 +190,7 @@ async def test_hyper_consolidator_distillation_and_procedural_rules() -> None:
         avoidance_rule="Use nonces rather than unsafe-inline in script-src",
         tool_name="browser_eval",
     )
+    LocalWorkingMemoryBlock.resolve_trap("inline_script_blocked")
     LocalWorkingMemoryBlock.set_status("completed")
 
     consolidator = HyperConsolidator()
@@ -262,6 +263,7 @@ async def test_hyper_consolidator_persistence_with_memory_manager() -> None:
         avoidance_rule="Set down-after-milliseconds to at least 5000ms",
         tool_name="redis_cli",
     )
+    LocalWorkingMemoryBlock.resolve_trap("sentinel_down_after_split")
     LocalWorkingMemoryBlock.set_status("completed")
 
     stored_rules = []
@@ -340,3 +342,58 @@ async def test_sqlite_procedural_memory_error_fingerprint_roundtrip(tmp_path: ob
     assert updated.resolution_steps == ["docker builder prune", "rebuild"]
 
     await store.close()
+
+
+@pytest.mark.asyncio
+async def test_hyper_consolidator_purity_guard_filters_prior_and_unresolved_traps() -> None:
+    """Verify HyperConsolidator skips prior traps (occurred_turn=0) and unresolved traps."""
+    LocalWorkingMemoryBlock.reset()
+    LocalWorkingMemoryBlock.initialize(
+        goal="Purity guard test",
+        initial_subtasks=["Step A", "Step B"],
+        prior_traps=[
+            {
+                "fingerprint": "prior_error_403",
+                "avoidance_rule": "Send valid User-Agent",
+                "tool_name": "web_fetch",
+            }
+        ],
+    )
+    LocalWorkingMemoryBlock.update_subtask("step-1", SubtaskStatus.COMPLETED)
+    LocalWorkingMemoryBlock.update_subtask("step-2", SubtaskStatus.COMPLETED)
+    LocalWorkingMemoryBlock.advance_turn()
+    LocalWorkingMemoryBlock.advance_turn()
+
+    # Trap 1: Unresolved trial error (should be ignored)
+    LocalWorkingMemoryBlock.record_trap(
+        fingerprint="unresolved_experimental_error",
+        avoidance_rule="Unproven advice that was never verified",
+        tool_name="cmd_run",
+    )
+
+    # Trap 2: Verified and resolved trap (should be consolidated)
+    LocalWorkingMemoryBlock.record_trap(
+        fingerprint="network_timeout_1001",
+        avoidance_rule="Retry with 10s backoff",
+        tool_name="api_call",
+    )
+    resolved_ok = LocalWorkingMemoryBlock.resolve_trap("network_timeout_1001")
+    assert resolved_ok is True
+
+    LocalWorkingMemoryBlock.set_status("completed")
+
+    consolidator = HyperConsolidator()
+    digest, rules = await consolidator.consolidate_session(
+        messages=[{"role": "user", "content": "Purity test"}],
+        chat_id="chat-purity-101",
+    )
+
+    assert digest is not None
+    # Exactly ONE rule must be consolidated: the verified one
+    assert len(rules) == 1
+    assert rules[0].error_fingerprint == "network_timeout_1001"
+    assert rules[0].action == "Retry with 10s backoff"
+    assert rules[0].resolution_steps == ["Retry with 10s backoff"]
+
+    # Verify working block is clean
+    assert LocalWorkingMemoryBlock.get_state() is None

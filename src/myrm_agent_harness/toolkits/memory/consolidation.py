@@ -112,6 +112,8 @@ class HyperConsolidator:
         procedural_rules: list[ProceduralMemory] = []
         if state.status == "completed" and state.traps:
             for trap in state.traps:
+                if trap.occurred_turn == 0 or not trap.resolved:
+                    continue
                 rule_id = f"proc-{session_id}-{abs(hash(trap.fingerprint)) % 1000000}"
                 rule = ProceduralMemory(
                     id=rule_id,
