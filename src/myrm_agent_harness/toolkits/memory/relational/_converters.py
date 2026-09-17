@@ -90,8 +90,21 @@ def row_to_procedural(row: tuple[object, ...]) -> ProceduralMemory:
     is_locked = bool(row[22]) if len(row) > 22 and row[22] else False
     expected_valid_days = int(row[23]) if len(row) > 23 and row[23] is not None else None
 
-    error_fp = str(metadata["error_fingerprint"]) if metadata.get("error_fingerprint") else None
-    res_steps = [str(step) for step in metadata.get("resolution_steps", [])] if isinstance(metadata.get("resolution_steps"), list) else []
+    cleaned_metadata = dict(metadata)
+    raw_error_fp = cleaned_metadata.pop("error_fingerprint", None)
+    raw_steps = cleaned_metadata.pop("resolution_steps", None)
+
+    error_fp = str(raw_error_fp) if raw_error_fp else None
+    if isinstance(raw_steps, list):
+        res_steps = [str(step) for step in raw_steps]
+    elif isinstance(raw_steps, str):
+        try:
+            parsed = json.loads(raw_steps)
+            res_steps = [str(step) for step in parsed] if isinstance(parsed, list) else [raw_steps]
+        except Exception:
+            res_steps = [raw_steps]
+    else:
+        res_steps = []
 
     return ProceduralMemory(
         id=str(row[0]),
@@ -104,7 +117,7 @@ def row_to_procedural(row: tuple[object, ...]) -> ProceduralMemory:
         status=MemoryStatus.ACTIVE if active else MemoryStatus.DISABLED,
         trigger_keywords=keywords,
         source=RuleSource(row[8]) if row[8] else RuleSource.USER_EXTRACTED,
-        metadata=metadata,
+        metadata=cleaned_metadata,
         scope=MemoryScope(
             primary_namespace=str(row[10] or ""),
             namespaces=json.loads(row[11]) if row[11] else [],

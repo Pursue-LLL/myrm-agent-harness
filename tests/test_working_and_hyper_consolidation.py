@@ -310,6 +310,7 @@ async def test_sqlite_procedural_memory_error_fingerprint_roundtrip(tmp_path: ob
 
     rule = ProceduralMemory(
         id="proc-docker-test",
+        content="Avoid docker cache corruption: build with --no-cache",
         trigger="error: docker build failed",
         action="docker build --no-cache",
         error_fingerprint="docker_build_cache_corrupt",

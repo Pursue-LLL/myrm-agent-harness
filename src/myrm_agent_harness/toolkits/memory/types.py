@@ -507,6 +507,7 @@ class ProceduralMemory(BaseMemory):
     """
 
     memory_type: Literal[MemoryType.PROCEDURAL] = MemoryType.PROCEDURAL
+    content: str = Field(default="", description="Memory text content or rule summary")
     trigger: str
     action: str
     reasoning: str = Field(default="", description="Why this rule exists (Context/Rationale)")
@@ -532,6 +533,8 @@ class ProceduralMemory(BaseMemory):
 
     def model_post_init(self, __context: object) -> None:
         """Sync is_active ↔ status on construction for legacy data."""
+        if not self.content and (self.trigger or self.action):
+            self.content = f"{self.trigger} -> {self.action}".strip(" ->")
         if not self.is_active and self.status == MemoryStatus.ACTIVE:
             self.status = MemoryStatus.DISABLED
         elif self.is_active and self.status == MemoryStatus.DISABLED:

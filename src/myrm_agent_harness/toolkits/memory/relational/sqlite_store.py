@@ -573,7 +573,7 @@ class SQLiteRelationalStore(RelationalStore):
         if rule.error_fingerprint and "error_fingerprint" not in meta:
             meta["error_fingerprint"] = rule.error_fingerprint
         if rule.resolution_steps and "resolution_steps" not in meta:
-            meta["resolution_steps"] = list(rule.resolution_steps)
+            meta["resolution_steps"] = json.dumps(list(rule.resolution_steps))
         return json.dumps(meta) if meta else None
 
     async def create_rule(self, rule: ProceduralMemory) -> ProceduralMemory:

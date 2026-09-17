@@ -128,10 +128,6 @@ class HyperConsolidator:
                     tool_rule_priority=ToolRulePriority.NORMAL,
                     error_fingerprint=trap.fingerprint,
                     resolution_steps=[trap.avoidance_rule],
-                    metadata={
-                        "error_fingerprint": trap.fingerprint,
-                        "resolution_steps": [trap.avoidance_rule],
-                    },
                 )
                 procedural_rules.append(rule)
 
