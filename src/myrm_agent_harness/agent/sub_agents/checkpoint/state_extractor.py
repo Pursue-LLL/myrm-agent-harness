@@ -68,10 +68,10 @@ def extract_subagent_state_sync(child_agent: BaseAgent, task_id: str) -> dict[st
             "token_usage": child_agent.last_run_stats.token_usage.to_dict()
             if child_agent.last_run_stats.token_usage
             else {},
-            "duration_seconds": child_agent.last_run_stats.duration_seconds,
-            "status": child_agent.last_run_stats.status.value if child_agent.last_run_stats.status else "unknown",
+            "duration_seconds": child_agent.last_run_stats.total_duration_seconds,
+            "status": child_agent.last_run_stats.completion_status.value,
         }
-        progress = 1.0 if child_agent.last_run_stats.status else 0.5
+        progress = 1.0 if child_agent.last_run_stats.completion_status else 0.5
         logger.debug("[subagent:%s] Extracted stats (duration=%.1fs)", task_id, stats["duration_seconds"])
 
     return {

@@ -12,12 +12,13 @@ from myrm_agent_harness.agent._internals.run_lifecycle import (
     cleanup_run,
     collect_tracker_stats,
     compute_context_budget_snapshot,
+    extract_checkpoint_state,
     post_run_events,
     resolve_context_budget_breakdown,
     setup_workspace,
 )
 from myrm_agent_harness.agent.streaming.types import AgentEventType
-from myrm_agent_harness.agent.types import AgentRunStatistics
+from myrm_agent_harness.agent.types import AgentRunStatistics, CompletionStatus
 
 _MOD = "myrm_agent_harness.agent._internals.run_lifecycle"
 
@@ -617,10 +618,13 @@ class TestResolveContextBudgetBreakdown:
         from langchain_core.messages import HumanMessage
 
         messages = [HumanMessage(content="hello world")]
-        checkpoint = MagicMock()
-        checkpoint.channel_values = {"messages": messages}
+        # langgraph's Checkpoint is a TypedDict -> a plain dict at runtime. The
+        # mock must mirror that shape: an attribute-style double would re-encode
+        # the very mistake this test exists to catch.
         checkpointer = AsyncMock()
-        checkpointer.aget = AsyncMock(return_value=checkpoint)
+        checkpointer.aget = AsyncMock(
+            return_value={"channel_values": {"messages": messages}}
+        )
 
         tool = MagicMock()
         tool.description = "read files"
@@ -650,10 +654,10 @@ class TestResolveContextBudgetBreakdown:
             AIMessage(content="reply two"),
             HumanMessage(content="third"),
         ]
-        checkpoint = MagicMock()
-        checkpoint.channel_values = {"messages": messages}
         checkpointer = AsyncMock()
-        checkpointer.aget = AsyncMock(return_value=checkpoint)
+        checkpointer.aget = AsyncMock(
+            return_value={"channel_values": {"messages": messages}}
+        )
 
         result = await resolve_context_budget_breakdown(
             checkpointer=checkpointer,
@@ -686,10 +690,10 @@ class TestResolveContextBudgetBreakdown:
         from langchain_core.messages import HumanMessage
 
         messages = [HumanMessage(content="test prompt")]
-        checkpoint = MagicMock()
-        checkpoint.channel_values = {"messages": messages}
         checkpointer = AsyncMock()
-        checkpointer.aget = AsyncMock(return_value=checkpoint)
+        checkpointer.aget = AsyncMock(
+            return_value={"channel_values": {"messages": messages}}
+        )
 
         mcp_tool = MagicMock()
         mcp_tool.name = "mcp__github__create_issue"
@@ -728,6 +732,84 @@ class TestResolveContextBudgetBreakdown:
         )
         assert result["messages_estimated_tokens"] > 0
 
+
+class TestExtractCheckpointState:
+    """Checkpoint-state extraction must read langgraph's real payload shape.
+
+    ``aget()`` returns a dict-typed Checkpoint, so a mapping lookup is the only
+    working access path; the payload shapes here mirror what langgraph hands back.
+    """
+
+    @pytest.mark.asyncio
+    async def test_none_checkpointer_yields_empty_state(self) -> None:
+        state = await extract_checkpoint_state(
+            checkpointer=None,
+            last_context=None,
+            last_run_stats=None,
+            thread_id="thread-1",
+        )
+
+        assert state["messages"] == []
+        assert state["last_tool"] is None
+        assert state["progress"] == 0.0
+
+    @pytest.mark.asyncio
+    async def test_messages_are_extracted_and_last_tool_detected(self) -> None:
+        from langchain_core.messages import AIMessage, HumanMessage
+
+        messages = [
+            HumanMessage(content="read the file"),
+            AIMessage(
+                content="",
+                tool_calls=[{"name": "file_read_tool", "args": {}, "id": "call-1"}],
+            ),
+        ]
+        checkpointer = AsyncMock()
+        checkpointer.aget = AsyncMock(
+            return_value={"channel_values": {"messages": messages}}
+        )
+
+        state = await extract_checkpoint_state(
+            checkpointer=checkpointer,
+            last_context={"goal": "demo"},
+            last_run_stats=None,
+            thread_id="thread-1",
+        )
+
+        assert len(state["messages"]) == 2
+        assert state["last_tool"] == "file_read_tool"
+        assert state["context"] == {"goal": "demo"}
+
+    @pytest.mark.asyncio
+    async def test_aget_failure_degrades_to_empty_messages(self) -> None:
+        checkpointer = AsyncMock()
+        checkpointer.aget = AsyncMock(side_effect=RuntimeError("checkpoint unavailable"))
+
+        state = await extract_checkpoint_state(
+            checkpointer=checkpointer,
+            last_context=None,
+            last_run_stats=None,
+            thread_id="thread-1",
+        )
+
+        assert state["messages"] == []
+
+    @pytest.mark.asyncio
+    async def test_stats_are_projected_from_last_run_stats(self) -> None:
+        stats = AgentRunStatistics(
+            total_duration_seconds=2.5,
+            completion_status=CompletionStatus.COMPLETE,
+        )
+
+        state = await extract_checkpoint_state(
+            checkpointer=None,
+            last_context=None,
+            last_run_stats=stats,
+            thread_id="thread-1",
+        )
+
+        assert state["stats"]["status"] == "complete"
+        assert state["progress"] == 1.0
 
 
 async def _async_gen(items: list[object]):
