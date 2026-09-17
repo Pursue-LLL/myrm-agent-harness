@@ -95,6 +95,17 @@ from myrm_agent_harness.toolkits.memory.strategies.merger import (
     MergeDecision,
     MergeState,
 )
+from myrm_agent_harness.toolkits.memory.strategies.sparse_mutation import (
+    MinimalOverwritePipeline,
+    SemanticSlot,
+    SemanticSlotParser,
+    SlotAction,
+    SlotKind,
+    SparseMaskItem,
+    SparseMutationResult,
+    SparseSemanticMaskGenerator,
+    apply_sparse_mutation,
+)
 
 __all__ = [
     "BehavioralMessage",
@@ -162,6 +173,15 @@ __all__ = [
     "GravityDecayScorer",
     "MergeDecision",
     "MergeState",
+    "MinimalOverwritePipeline",
     "PreferenceDimension",
+    "SemanticSlot",
+    "SemanticSlotParser",
+    "SlotAction",
+    "SlotKind",
+    "SparseMaskItem",
+    "SparseMutationResult",
+    "SparseSemanticMaskGenerator",
+    "apply_sparse_mutation",
     "compute_gravity_decay",
 ]

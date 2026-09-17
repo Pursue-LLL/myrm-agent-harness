@@ -27,6 +27,9 @@ from myrm_agent_harness.toolkits.memory._manager.shared import (
     update_vector_memory,
 )
 from myrm_agent_harness.toolkits.memory.strategies.exact_fact import ExactFactClassifier
+from myrm_agent_harness.toolkits.memory.strategies.sparse_mutation import (
+    apply_sparse_mutation,
+)
 
 
 class MemoryManagerMutationsMixin:
@@ -134,9 +137,22 @@ class MemoryManagerMutationsMixin:
         v, e = self._vec()
         await update_vector_memory(demoted, False, v, self._config, e, self._cache)
 
+        mutation_res = apply_sparse_mutation(existing.content, corrected_content)
+        final_content = (
+            mutation_res.mutated_text
+            if (mutation_res.is_mutated and mutation_res.retained_count > 0)
+            else corrected_content
+        )
+
+        correction_meta = dict(existing.metadata or {})
+        if mutation_res.is_mutated and mutation_res.retained_count > 0:
+            correction_meta["last_sparse_mutation"] = mutation_res.summary
+            correction_meta["sparse_retained_count"] = mutation_res.retained_count
+            correction_meta["sparse_overwritten_count"] = mutation_res.overwritten_count
+
         pref_strength = min(existing.preference_strength + 0.1, 1.0) if existing.preference_strength > 0 else 0.0
         correction = SemanticMemory(
-            content=corrected_content,
+            content=final_content,
             importance=min(existing.importance + 0.2, 1.0),
             confidence=0.95,
             tags=existing.tags,
@@ -144,8 +160,50 @@ class MemoryManagerMutationsMixin:
             preference_type=existing.preference_type,
             preference_strength=pref_strength,
             correction_of=memory_id,
+            metadata=correction_meta,
         )
         return await self._store_semantic(correction)
+
+    async def sparse_mutate_memory(
+        self,
+        memory_id: str,
+        patch_content: str,
+        *,
+        allow_protected: bool = False,
+    ) -> SemanticMemory:
+        """In-place minimal-overwrite mutation of a compound semantic memory.
+
+        Applies SparseSemanticMask to update targeted slots while retaining
+        all unmentioned contextual slots, preventing catastrophic amnesia.
+        """
+        existing = await self.get_memory(memory_id)
+        if existing is None:
+            raise MemoryNotFoundError(f"Memory {memory_id} not found")
+        if not isinstance(existing, SemanticMemory):
+            raise MemoryError(f"Sparse mutation only supports SemanticMemory, got {type(existing).__name__}")
+        if not allow_protected and existing.is_user_protected:
+            raise MemoryProtectedError(
+                f"Memory {memory_id} is protected by the user; automated mutations are not allowed"
+            )
+
+        mutation_res = apply_sparse_mutation(existing.content, patch_content)
+        if not mutation_res.is_mutated:
+            return existing
+
+        updated = existing.model_copy(deep=True)
+        updated.content = mutation_res.mutated_text
+        updated.updated_at = datetime.now(UTC)
+        updated.metadata = {
+            **updated.metadata,
+            "last_sparse_mutation": mutation_res.summary,
+            "sparse_retained_count": mutation_res.retained_count,
+            "sparse_overwritten_count": mutation_res.overwritten_count,
+            "sparse_appended_count": mutation_res.appended_count,
+            "sparse_removed_count": mutation_res.removed_count,
+        }
+        v, e = self._vec()
+        await update_vector_memory(updated, True, v, self._config, e, self._cache)
+        return updated
 
     async def pin_memory(self, memory_id: str) -> AnyMemory:
         """Mark a memory as user-pinned (immune to forgetting)."""

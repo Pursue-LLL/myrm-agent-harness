@@ -30,6 +30,9 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from myrm_agent_harness.toolkits.memory.strategies.sparse_mutation import (
+    apply_sparse_mutation,
+)
 from myrm_agent_harness.toolkits.memory.types import (
     BaseMemory,
     EvidenceReference,
@@ -100,6 +103,9 @@ class MergeResult(BaseModel):
     )
     requires_governance: bool = Field(
         default=False, description="True if human intervention is required"
+    )
+    mutation_summary: str | None = Field(
+        default=None, description="Detailed audit summary of in-place sparse semantic slot mutations"
     )
 
 
@@ -298,6 +304,25 @@ def merge_memory_candidate(
             evidence=merged_ev,
             is_user_locked=existing_locked,
         )
+
+    # 5.1 Check for compound structured sparse mutation
+    if isinstance(ex_val, str) and isinstance(can_val, str):
+        mutation_res = apply_sparse_mutation(ex_val, can_val)
+        if (
+            mutation_res.is_mutated
+            and mutation_res.retained_count > 0
+            and (mutation_res.overwritten_count > 0 or mutation_res.appended_count > 0)
+        ):
+            supp_conf = max(existing_conf, can_conf)
+            return MergeResult(
+                action=MergeAction.UPDATE,
+                relation=MergeRelation.SUPPLEMENT,
+                value=mutation_res.mutated_text,
+                confidence=supp_conf,
+                evidence=merged_ev,
+                is_user_locked=existing_locked,
+                mutation_summary=mutation_res.summary,
+            )
 
     if relation == MergeRelation.SUPPLEMENT:
         # Inherit higher confidence and take augmented candidate value

@@ -33,6 +33,9 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
+from myrm_agent_harness.toolkits.memory.strategies.sparse_mutation import (
+    apply_sparse_mutation,
+)
 from myrm_agent_harness.toolkits.memory.types import (
     BaseMemory,
     EvidenceReference,
@@ -199,11 +202,18 @@ class DeterministicThreeStateMerger:
             )
 
         # 5. Check for incremental detail expansion (Supplement)
-        if self._is_supplement(existing_clean, candidate_clean):
+        mutation_res = apply_sparse_mutation(existing_clean, candidate_clean)
+        is_sparse_patch = (
+            mutation_res.is_mutated
+            and mutation_res.retained_count > 0
+            and (mutation_res.overwritten_count > 0 or mutation_res.appended_count > 0)
+        )
+
+        if is_sparse_patch or self._is_supplement(existing_clean, candidate_clean):
             # Near-duplicate band (>=0.94 but below dedup hard-cut 0.95):
             # apparent superset wording may hide a semantic substitution, so a
             # blind deterministic merge is unsafe — defer to the LLM judge.
-            if 0.94 <= similarity < 0.95:
+            if 0.94 <= similarity < 0.95 and not is_sparse_patch:
                 conf_exist, _conf_cand = self._engine.evolve_on_conflict()
                 return MergeDecision(
                     state=MergeState.CONFLICT,
@@ -216,14 +226,18 @@ class DeterministicThreeStateMerger:
                     ),
                     reason="Near-duplicate superset wording requires LLM adjudication.",
                 )
-            merged_content = self._merge_supplement_content(existing_clean, candidate_clean)
+            merged_content = (
+                mutation_res.mutated_text
+                if is_sparse_patch
+                else self._merge_supplement_content(existing_clean, candidate_clean)
+            )
             merged_ev = self._merge_evidence(existing.evidence, evidence_list)
             return MergeDecision(
                 state=MergeState.SUPPLEMENT,
                 merged_content=merged_content,
                 updated_confidence=getattr(existing, "confidence", 0.85),
                 merged_evidence=merged_ev,
-                reason="Candidate adds clarifying details or superset scope to existing fact.",
+                reason="Candidate adds clarifying details, superset scope, or sparse slot mutations to existing fact.",
             )
 
         # 6. Fallback based on vector similarity threshold
@@ -309,9 +323,12 @@ class DeterministicThreeStateMerger:
         return bool(tokens_exist and tokens_exist.issubset(tokens_cand) and len(tokens_cand) > len(tokens_exist))
 
     def _merge_supplement_content(self, existing: str, candidate: str) -> str:
-        """Merge incremental candidate content into existing fact."""
+        """Merge incremental candidate content into existing fact using sparse mutation."""
         if existing in candidate:
             return candidate
+        mutation = apply_sparse_mutation(existing, candidate)
+        if mutation.is_mutated and (mutation.retained_count > 0 or mutation.overwritten_count > 0):
+            return mutation.mutated_text
         return f"{existing}；补充：{candidate}"
 
     def _merge_evidence(
