@@ -332,7 +332,7 @@ const staleCoreSkills = useMemo(() => {
 | CORE 工具层 | ~2,668 | 始终缓存 |
 | HIGH_PRIORITY 工具层 | ~2,636 | 默认缓存 |
 | EXTENDED 工具层 | ~0 | 默认 profile 无附加 |
-| 工具 JSON schema | ~845 | 13 工具 × 65 |
+| schema wrapper 包装 | ~845 | 13 工具 × 65（仅 API 包装，**不含**参数 schema；参数 schema 约 4,400，SSOT 见 `DEFAULT_AGENT_TOKEN_INVENTORY.md` §六） |
 | 动态注入 | ~1,200 | 同用户会话内稳定 |
 | 消息格式 | ~500 | - |
 | 用户消息 | ~32 | - |

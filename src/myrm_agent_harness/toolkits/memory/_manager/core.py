@@ -146,6 +146,7 @@ class MemoryManagerCore:
         self._deduplicator = self._init_deduplicator(dedup_llm) if dedup_llm else None
         self._writer = MemoryWriter(
             config=config,
+            user_id=self._user_id,
             scope=self._scope,
             namespaces=self._namespaces,
             approval_required=approval_required,

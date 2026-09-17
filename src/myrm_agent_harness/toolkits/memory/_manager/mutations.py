@@ -166,7 +166,11 @@ class MemoryManagerMutationsMixin:
             if not docs:
                 continue
             doc = docs[0]
-            if doc.metadata.get("user_id") != self._user_id:
+            # Ownership is persisted in the payload by the write path. Rows written before
+            # that field existed carry no `user_id`; for those the namespace scope remains
+            # the boundary, so an absent key is tolerated instead of rejecting the row.
+            stored_uid = doc.metadata.get("user_id")
+            if stored_uid and stored_uid != self._user_id:
                 raise MemoryNotFoundError(f"Memory {memory_id} not found")
             if bool(doc.metadata.get("pinned", False)) == pinned:
                 return converter(doc)

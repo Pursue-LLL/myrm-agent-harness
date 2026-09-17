@@ -33,6 +33,7 @@ from myrm_agent_harness.toolkits.memory.types import (
     EvaporationState,
     MemoryLifecycle,
     MemoryScope,
+    MemoryStatus,
     MemoryTier,
     MemoryType,
     SemanticMemory,
@@ -51,6 +52,26 @@ def _safe_float(val: object, default: float = 0.0) -> float:
 
 def _safe_int(val: object, default: int = 0) -> int:
     return parse_int(val, default)
+
+
+def _status_from_metadata(meta: dict[str, object]) -> MemoryStatus:
+    """Restore the unified lifecycle status persisted in the payload.
+
+    ``status`` is the authoritative lifecycle field written by ``*_to_doc``; without
+    reading it back every archived memory would surface as ``ACTIVE`` after a
+    round trip, silently undoing user deletions in the GUI and in the MCP tools.
+    """
+    raw = meta.get("status")
+    if isinstance(raw, MemoryStatus):
+        return raw
+    if isinstance(raw, str):
+        try:
+            return MemoryStatus(raw)
+        except ValueError:
+            logger.warning("Unknown persisted memory status %r; falling back to ACTIVE", raw)
+    if bool(meta.get("archived", False)):
+        return MemoryStatus.ARCHIVED
+    return MemoryStatus.ACTIVE
 
 
 # ======================================================================
@@ -215,6 +236,7 @@ _SEMANTIC_KNOWN_KEYS = frozenset(
         "merge_history",
         "language",
         "pinned",
+        "status",
         "archived",
         "archived_at",
         "archive_reason",
@@ -267,6 +289,7 @@ def doc_to_semantic(doc: VectorDocument) -> SemanticMemory:
         access_count=_safe_int(meta.get("access_count", 0)),
         user_rating=_safe_float(meta.get("user_rating", 0.5), 0.5),
         pinned=bool(meta.get("pinned", False)),
+        status=_status_from_metadata(meta),
         expected_valid_days=evd,
         metadata=extra,
         created_at=doc.created_at,
@@ -293,6 +316,7 @@ _EPISODIC_KNOWN_KEYS = frozenset(
         "merge_history",
         "language",
         "pinned",
+        "status",
         "archived",
         "archived_at",
         "archive_reason",
@@ -338,6 +362,7 @@ def doc_to_episodic(doc: VectorDocument) -> EpisodicMemory:
         access_count=_safe_int(meta.get("access_count", 0)),
         user_rating=_safe_float(meta.get("user_rating", 0.5), 0.5),
         pinned=bool(meta.get("pinned", False)),
+        status=_status_from_metadata(meta),
         expected_valid_days=evd,
         metadata=extra,
         created_at=doc.created_at,
@@ -353,6 +378,7 @@ def doc_to_episodic(doc: VectorDocument) -> EpisodicMemory:
 _CONVERSATION_KNOWN_KEYS = frozenset(
     {
         "user_id",
+        "status",
         "archived",
         "content",
         "timestamp",
@@ -465,6 +491,7 @@ def doc_to_conversation(
         topic_id=str(meta.get("topic_id", "")) or None,
         importance=_safe_float(meta.get("importance", 0.5), 0.5),
         language=lang,  # type: ignore[arg-type]
+        status=_status_from_metadata(meta),
         metadata=extra,
         created_at=doc.created_at,
         updated_at=doc.updated_at,
@@ -480,6 +507,7 @@ def doc_to_conversation(
 
 def semantic_to_doc(m: SemanticMemory) -> VectorDocument:
     payload: dict[str, str | int | float | bool | list[str]] = {
+        "user_id": m.user_id,
         "memory_type": MemoryType.SEMANTIC.value,
         "importance": m.importance,
         "confidence": m.confidence,
@@ -518,6 +546,7 @@ def semantic_to_doc(m: SemanticMemory) -> VectorDocument:
 
 def episodic_to_doc(m: EpisodicMemory) -> VectorDocument:
     payload: dict[str, str | int | float | bool | list[str]] = {
+        "user_id": m.user_id,
         "memory_type": MemoryType.EPISODIC.value,
         "event_type": m.event_type,
         "importance": m.importance,

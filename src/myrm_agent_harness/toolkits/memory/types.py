@@ -244,6 +244,10 @@ class BaseMemory(BaseModel):
     """
 
     id: str = Field(default_factory=lambda: str(uuid4()))
+    user_id: str = Field(
+        default="",
+        description="Owner identifier persisted to the vector payload for ownership-scoped guards",
+    )
     content: str = Field(..., description="Memory text content")
     metadata: dict[str, str | int | float | bool] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
@@ -588,6 +592,37 @@ class IntegrationMemory(BaseMemory):
         return v
 
 
+
+class TaskDigestMemory(BaseMemory):
+    """Structured artifact summarizing a completed or interrupted long-horizon task session.
+
+    TaskDigestMemory stores the goal, milestones, modified/created artifact paths,
+    execution outcome, and key diagnostic metrics for post-session audit and cross-session resume.
+    """
+
+    content: str = Field(default="", description="Serialized summary or digest content")
+    memory_type: Literal[MemoryType.TASK_DIGEST] = MemoryType.TASK_DIGEST
+    task_goal: str = Field(..., description="Original high-level objective of the task session")
+    status: Literal["completed", "interrupted", "failed"] = Field(
+        default="completed", description="Final execution state of the task"
+    )
+    completed_steps: list[str] = Field(default_factory=list, description="Ordered summary of completed subtasks")
+    artifact_paths: list[str] = Field(default_factory=list, description="Output artifacts or files created/modified")
+    artifact_hashes: dict[str, str] = Field(
+        default_factory=dict, description="Artifact path -> sha256 fingerprint mappings"
+    )
+    key_findings: list[str] = Field(default_factory=list, description="Important discoveries or conclusions")
+    error_lessons: list[str] = Field(default_factory=list, description="Abstracted error avoidance rules")
+    tool_call_count: int = Field(default=0, ge=0, description="Total tool invocations during this task")
+    source_session_id: str = Field(default="", description="Session ID where this task was executed")
+
+    def model_post_init(self, __context: object) -> None:
+        """Ensure content field has informative human-readable text."""
+        if not self.content:
+            steps_preview = "; ".join(self.completed_steps[:3]) if self.completed_steps else "none"
+            self.content = f"Task Goal: {self.task_goal} | Status: {self.status} | Steps: {steps_preview}"
+
+
 # ── Search result & Recall Debug Trace ──────────────────────────────
 
 
@@ -613,14 +648,40 @@ class RecallDebugTrace(BaseModel):
 
 
 class MemorySearchResult(BaseModel):
-    """Search result with relevance score."""
+    """Search result with relevance score.
 
-    memory: SemanticMemory | EpisodicMemory | ConversationMemory | ProceduralMemory | ClaimMemory | IntegrationMemory
-    score: float = Field(ge=0.0, le=1.0)
+    ``score`` is a normalized relevance in ``[0, 1]``. The bounds are clamped
+    rather than validated so raw backend scores (e.g. Qdrant cosine similarity)
+    cannot discard an entire recall stream over float32 drift such as
+    ``1.0000000045``. Callers that need the raw backend score should read it
+    from the vector hit instead of inferring it from this field.
+    """
+
+    memory: (
+        SemanticMemory
+        | EpisodicMemory
+        | ConversationMemory
+        | ProceduralMemory
+        | ClaimMemory
+        | IntegrationMemory
+        | TaskDigestMemory
+    )
+    score: float = Field(default=0.0, description="Normalized relevance score in [0, 1]")
     memory_type: MemoryType
     recall_debug: RecallDebugTrace | None = Field(
         default=None, description="Detailed white-box attribution trace for multi-source retrieval"
     )
+
+    @field_validator("score", mode="before")
+    @classmethod
+    def _clamp_score(cls, v: object) -> float:
+        try:
+            value = float(v)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return 0.0
+        if value != value:  # NaN
+            return 0.0
+        return min(1.0, max(0.0, value))
 
     @property
     def id(self) -> str:
@@ -722,7 +783,14 @@ class PendingRecord(BaseModel):
 
 # ── Type aliases ────────────────────────────────────────────────────
 
-AnyMemory = SemanticMemory | EpisodicMemory | ConversationMemory | ProceduralMemory | IntegrationMemory
+AnyMemory = (
+    SemanticMemory
+    | EpisodicMemory
+    | ConversationMemory
+    | ProceduralMemory
+    | IntegrationMemory
+    | TaskDigestMemory
+)
 
 BaseMemory.model_rebuild()
 SemanticMemory.model_rebuild()
@@ -730,6 +798,7 @@ EpisodicMemory.model_rebuild()
 ProceduralMemory.model_rebuild()
 ClaimMemory.model_rebuild()
 IntegrationMemory.model_rebuild()
+TaskDigestMemory.model_rebuild()
 
 
 def create_pitfall_memory(

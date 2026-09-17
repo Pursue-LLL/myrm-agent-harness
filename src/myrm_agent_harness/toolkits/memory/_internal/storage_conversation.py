@@ -111,6 +111,7 @@ async def store_conversations_batch(
                         raw_exchange_value = m.raw_exchange
 
                 payload: dict[str, str | int | float | bool | list[str]] = {
+                    "user_id": m.user_id,
                     "memory_type": MemoryType.CONVERSATION.value,
                     "content": m.content,
                     "raw_exchange": raw_exchange_value,

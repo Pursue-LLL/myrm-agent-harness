@@ -94,6 +94,38 @@ async def test_get(store, mock_client):
 
 
 @pytest.mark.asyncio
+async def test_upsert_non_uuid_id_survives_round_trip(store, mock_client):
+    """A non-UUID id remapped to a qdrant point UUID must read back unchanged."""
+    doc = VectorDocument(id="mem-pinned", content="test", vector=[0.1, 0.2])
+    await store.upsert("test_col", [doc])
+
+    point = mock_client.upsert.call_args.kwargs["points"][0]
+    assert point.payload["original_id"] == "mem-pinned"
+    assert str(point.id) != "mem-pinned"
+
+    mock_client.retrieve.return_value = [
+        ScoredPoint(id=point.id, version=1, score=1.0, payload=point.payload, vector=[0.1, 0.2])
+    ]
+    results = await store.get("test_col", ["mem-pinned"])
+    assert results[0].id == "mem-pinned"
+    assert "original_id" not in results[0].metadata
+
+
+@pytest.mark.asyncio
+async def test_upsert_uuid_id_stays_authoritative(store, mock_client):
+    """A payload id must never override an already-UUID point id."""
+    point_uuid = "3f1c9d2e-6b74-4a51-9c0e-2f5a7b8d1e44"
+    doc = VectorDocument(id="other-id", content="test", vector=[0.1, 0.2])
+    await store.upsert("test_col", [doc])
+
+    mock_client.retrieve.return_value = [
+        ScoredPoint(id=point_uuid, version=1, score=1.0, payload={"content": "test"}, vector=[0.1, 0.2])
+    ]
+    results = await store.get("test_col", [point_uuid])
+    assert results[0].id == point_uuid
+
+
+@pytest.mark.asyncio
 async def test_delete(store, mock_client):
     mock_client.retrieve.return_value = [MagicMock()]
     result = await store.delete("test_col", ["1"])

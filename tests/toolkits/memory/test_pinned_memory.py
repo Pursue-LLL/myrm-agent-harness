@@ -25,7 +25,7 @@ from myrm_agent_harness.toolkits.memory.config import MemoryConfig
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.protocols.vector import VectorDocument
 from myrm_agent_harness.toolkits.memory.strategies.forgetting import ForgettingStrategy
-from myrm_agent_harness.toolkits.memory.types import EpisodicMemory, SemanticMemory
+from myrm_agent_harness.toolkits.memory.types import EpisodicMemory, MemoryStatus, SemanticMemory
 
 
 class TestPinnedDefault:
@@ -120,6 +120,56 @@ class TestDocRoundTrip:
         )
         restored = doc_to_semantic(doc)
         assert restored.pinned is False
+
+
+class TestLifecycleStatusRoundTrip:
+    """A persisted ``status`` must survive the payload round trip.
+
+    Dropping it on read made every archived memory surface as ACTIVE, which
+    silently reverted user deletions in the GUI and MCP tools.
+    """
+
+    def test_semantic_archived_roundtrip(self) -> None:
+        m = SemanticMemory(content="test", status=MemoryStatus.ARCHIVED)
+        doc = semantic_to_doc(m)
+        assert doc.metadata["status"] == MemoryStatus.ARCHIVED
+        assert doc_to_semantic(doc).status == MemoryStatus.ARCHIVED
+
+    def test_episodic_archived_roundtrip(self) -> None:
+        m = EpisodicMemory(content="event", status=MemoryStatus.ARCHIVED)
+        doc = episodic_to_doc(m)
+        assert doc_to_episodic(doc).status == MemoryStatus.ARCHIVED
+
+    def test_active_roundtrip_stays_active(self) -> None:
+        m = SemanticMemory(content="test")
+        assert doc_to_semantic(semantic_to_doc(m)).status == MemoryStatus.ACTIVE
+
+    def test_legacy_doc_without_status(self) -> None:
+        """Pre-status payloads default to ACTIVE, but honour the archived flag."""
+        legacy = VectorDocument(
+            id="d1",
+            content="old data",
+            embedding=[0.1],
+            metadata={"memory_type": "semantic", "importance": 0.5, "confidence": 1.0},
+        )
+        assert doc_to_semantic(legacy).status == MemoryStatus.ACTIVE
+
+        archived_legacy = VectorDocument(
+            id="d2",
+            content="old data",
+            embedding=[0.1],
+            metadata={"memory_type": "semantic", "archived": True},
+        )
+        assert doc_to_semantic(archived_legacy).status == MemoryStatus.ARCHIVED
+
+    def test_unknown_status_falls_back_to_active(self) -> None:
+        doc = VectorDocument(
+            id="d3",
+            content="future payload",
+            embedding=[0.1],
+            metadata={"memory_type": "semantic", "status": "some_future_state"},
+        )
+        assert doc_to_semantic(doc).status == MemoryStatus.ACTIVE
 
 
 class TestDeletePinnedProtection:

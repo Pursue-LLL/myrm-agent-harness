@@ -49,6 +49,23 @@ class TestBoostMethod:
         score = retriever._boost(0.001, result, frozenset())
         assert score > 0.0
 
+    def test_boost_is_clamped_to_unit_interval(self) -> None:
+        """A zero boost must stay inside [0, 1] despite float rounding.
+
+        The RRF base is pre-normalised to 1.0, so an unclamped
+        ``geometric * (1 + boosts)`` can return 1.0000000045 and abort the whole
+        retrieval stream via ``MemorySearchResult.score`` (``le=1.0``).
+        """
+        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0)
+        retriever = MemoryRetriever(config)
+
+        mem = SemanticMemory(content="test", created_at=datetime.now(UTC), importance=1.0)
+        result = MemorySearchResult(memory=mem, score=1.0, memory_type=MemoryType.SEMANTIC)
+
+        score = retriever._boost(1.0, result, frozenset())
+        assert score <= 1.0
+        MemorySearchResult(memory=mem, score=score, memory_type=MemoryType.SEMANTIC)
+
 
 class TestNormaliseEdgeCases:
     """Test _normalise method edge cases."""

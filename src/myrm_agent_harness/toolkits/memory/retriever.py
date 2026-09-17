@@ -284,7 +284,10 @@ class MemoryRetriever:
         keyword_boost = self._keyword_overlap_boost(result, query_tokens)
         temporal_boost = self._temporal_proximity_boost(result)
         pattern_boost = self._pattern_matching_boost(result, query_context) if query_context else 0.0
-        return geometric * (1.0 + keyword_boost + temporal_boost + pattern_boost)
+        # Clamp to the documented [0, 1] contract: the RRF base is already normalised to
+        # 1.0, so a zero boost plus float rounding (e.g. 1.0000000045) would otherwise
+        # violate ``MemorySearchResult.score`` and abort the entire retrieval stream.
+        return min(1.0, geometric * (1.0 + keyword_boost + temporal_boost + pattern_boost))
 
     def _geometric_score(self, semantic_score: float, result: MemorySearchResult) -> float:
         """Weighted geometric mean scoring with type-aware signal fusion.

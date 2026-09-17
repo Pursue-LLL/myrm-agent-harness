@@ -91,6 +91,7 @@ class MemoryWriter:
         self,
         *,
         config: MemoryConfig,
+        user_id: str,
         scope: MemoryScope,
         namespaces: list[str],
         approval_required: bool,
@@ -107,6 +108,7 @@ class MemoryWriter:
         deduplicate_episodic_batch_func: EpisodicDedupFunc,
     ) -> None:
         self._config = config
+        self._user_id = user_id
         self._scope = scope
         self._namespaces = list(namespaces)
         self._approval_required = approval_required
@@ -129,6 +131,18 @@ class MemoryWriter:
             return True
         return self._approval_required
 
+    def _bind_owner(self, memory: AnyMemory) -> AnyMemory:
+        """Stamp the manager owner onto the memory exactly once.
+
+        Ownership has to live on the record itself — not only on the manager — because
+        vector payloads are the only persisted copy for semantic/episodic memories.
+        Without it, ownership-scoped guards (pin/unpin, delete, consolidation scroll)
+        compare against an absent payload key and reject legitimate rows.
+        """
+        if not memory.user_id:
+            memory.user_id = self._user_id
+        return memory
+
     async def store(
         self,
         memory: AnyMemory,
@@ -138,7 +152,7 @@ class MemoryWriter:
     ) -> AnyMemory:
         self._validate_supported_memory(memory)
         self._attach_current_trace_id(memory)
-        bound_memory = self._bind_scope(memory)
+        bound_memory = self._bind_owner(self._bind_scope(memory))
         self._validate_write_scope(bound_memory)
         if self._config.security_scan_enabled:
             scan_and_clean_memory(bound_memory, block_threshold=self._config.injection_block_threshold)
@@ -179,7 +193,7 @@ class MemoryWriter:
         for memory in memories:
             self._validate_supported_memory(memory)
             self._attach_current_trace_id(memory)
-        bound_memories = [self._bind_scope(memory) for memory in memories]
+        bound_memories = [self._bind_owner(self._bind_scope(memory)) for memory in memories]
         for bound_memory in bound_memories:
             self._validate_write_scope(bound_memory)
         safe_memories = self._scan_batch(bound_memories)

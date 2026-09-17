@@ -154,6 +154,10 @@ async def test_build_default_turn1_tools_resolves_default_profile() -> None:
 
 # SSOT: DEFAULT_AGENT_TOKEN_INVENTORY.md §二–§四 (measure_turn1 default profile, o200k_base)
 #
+# Scope note: the inventory doc's per-tool numbers and its "schema wrapper" total are the
+# description-only + wrapper scope — the tool parameter JSON schema is tracked separately
+# (§六, ~4,400 tokens for 13 tools) and is intentionally out of this gate's baseline.
+#
 # Host-independent baseline. Every tool except ``bash_code_execute_tool`` produces a
 # byte-constant description, so its token count is asserted exactly. The bash tool is
 # the one exception: its description is
@@ -224,9 +228,16 @@ async def test_measure_turn1_inventory_matches_documented_token_baseline() -> No
     assert isinstance(layer_totals, dict)
     description_tokens = report["description_tokens"]
     assert isinstance(description_tokens, int)
+    schema_wrapper_tokens = report["schema_wrapper_tokens"]
+    assert isinstance(schema_wrapper_tokens, int)
     # CORE is host-dependent solely through the bash tool; HIGH_PRIORITY is not.
     assert layer_totals["CORE"] + layer_totals["HIGH_PRIORITY"] == description_tokens
     assert layer_totals["HIGH_PRIORITY"] == 2636
+    # Holds on any host: both sides derive from the same per-host descriptions.
+    assert description_tokens == measured[_BASH_TOOL_NAME] + sum(
+        _DOC_TURN1_TOOL_TOKENS.values()
+    )
     tools_subtotal = report["tools_subtotal"]
     assert isinstance(tools_subtotal, int)
+    assert tools_subtotal == description_tokens + schema_wrapper_tokens
     assert tools_subtotal <= 6500, "Turn-1 tools exceeded the 6,500 budget ceiling"

@@ -579,7 +579,10 @@ class QdrantVectorStore(VectorStore):
             vector_value = None
 
         return VectorDocument(
-            id=str(point.id),  # type: ignore[union-attr]
+            # Qdrant point ids must be valid UUIDs, so `upsert` remaps non-UUID ids via
+            # uuid5 and stores the caller's id under `original_id`. Reading the payload id
+            # back keeps the identity stable across upsert -> get/search/scroll round trips.
+            id=str(payload.pop("original_id", None) or point.id),  # type: ignore[union-attr]
             content=content,
             vector=vector_value,
             metadata=payload,

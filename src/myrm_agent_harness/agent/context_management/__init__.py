@@ -110,6 +110,13 @@ from .tracking.task_metrics import (
     get_task_metrics,
     record_archive_refetch_for_path,
 )
+from .working_memory import (
+    LocalWorkingMemoryBlock,
+    LocalWorkingState,
+    SubtaskItem,
+    SubtaskStatus,
+    TrapRecord,
+)
 
 __all__ = [
     # schemas
@@ -151,6 +158,8 @@ __all__ = [
     "FilterProcessor",
     "FilterResult",
     "FilteredResult",
+    "LocalWorkingMemoryBlock",
+    "LocalWorkingState",
     "ProcessorContext",
     "ReasoningAnchorProcessor",
     "RefetchEvent",
@@ -158,12 +167,15 @@ __all__ = [
     "SessionNotesProcessor",
     "StructuralFilter",
     "StructuredSummary",
+    "SubtaskItem",
+    "SubtaskStatus",
     "SummarizeProcessor",
     # task_metrics
     "TaskMetrics",
     "ThinkingBlockCleaner",
     "ToolProtectionConfig",
     "ToolPruneMode",
+    "TrapRecord",
     "acquire_context_lock",
     "build_default_processors",
     "clear_all_locks",

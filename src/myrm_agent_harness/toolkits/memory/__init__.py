@@ -21,6 +21,10 @@ from myrm_agent_harness.toolkits.memory.config import (
     RecallMode,
     RetrievalConfig,
 )
+from myrm_agent_harness.toolkits.memory.consolidation import (
+    HyperConsolidator,
+    create_consolidation_cleanup_task,
+)
 from myrm_agent_harness.toolkits.memory.conversation_search import (
     CONVERSATION_SEARCH_TOOL_NAME,
     ConversationSearchHit,
@@ -142,6 +146,7 @@ from myrm_agent_harness.toolkits.memory.types import (
     ProfileEntry,
     RuleSource,
     SemanticMemory,
+    TaskDigestMemory,
     ToolRulePriority,
     create_pitfall_memory,
 )
@@ -209,6 +214,7 @@ __all__ = [
     "GraphStoreProtocol",
     "GravityDecayConfig",
     "GravityDecayScorer",
+    "HyperConsolidator",
     "HealthScore",
     "MaintenanceReport",
     "MemoryArchiveDryRunResult",
@@ -290,9 +296,11 @@ __all__ = [
     "SearchSnapshot",
     "SemanticMemory",
     "SignalCalculator",
+    "TaskDigestMemory",
     "ToolMemoryCaptureHook",
     "ToolRulePriority",
     "VectorStoreProtocol",
+    "create_consolidation_cleanup_task",
     "create_conversation_search_tool",
     "create_local_memory_manager",
     "extract_memories_from_conversation",
