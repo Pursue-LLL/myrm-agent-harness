@@ -1,6 +1,8 @@
 name: Architecture Boundary Enforcement
 
 on:
+  push:
+    branches: [main]
   pull_request:
     paths:
       - 'src/myrm_agent_harness/**/*.py'
