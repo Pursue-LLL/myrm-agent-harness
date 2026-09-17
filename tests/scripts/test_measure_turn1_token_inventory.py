@@ -79,13 +79,16 @@ async def test_measure_turn1_inventory_aggregates_stub_tools(
     report = await measure.measure_turn1_inventory()
     assert report["tool_count"] == 2
     assert report["encoding"] == measure.ENCODING_NAME
-    names = [row["name"] for row in report["per_tool"]]
+    per_tool = report["per_tool"]
+    assert isinstance(per_tool, list)
+    names = [row["name"] for row in per_tool]
     assert names == ["a_tool", "z_tool"]
     assert report["schema_wrapper_tokens"] == 2 * SCHEMA_WRAPPER_TOKENS_PER_TOOL
-    assert (
-        report["tools_subtotal"]
-        == report["description_tokens"] + report["schema_wrapper_tokens"]
-    )
+    description_tokens = report["description_tokens"]
+    schema_wrapper_tokens = report["schema_wrapper_tokens"]
+    assert isinstance(description_tokens, int)
+    assert isinstance(schema_wrapper_tokens, int)
+    assert report["tools_subtotal"] == description_tokens + schema_wrapper_tokens
 
 
 def test_main_json_mode(
@@ -104,7 +107,7 @@ def test_main_json_mode(
         measure, "measure_turn1_inventory", AsyncMock(return_value=fake_report)
     )
     monkeypatch.setattr(
-        measure.sys, "argv", ["measure_turn1_token_inventory.py", "--json"]
+        sys, "argv", ["measure_turn1_token_inventory.py", "--json"]
     )
     rc = measure.main()
     assert rc == 0
@@ -127,7 +130,7 @@ def test_main_table_mode(
     monkeypatch.setattr(
         measure, "measure_turn1_inventory", AsyncMock(return_value=fake_report)
     )
-    monkeypatch.setattr(measure.sys, "argv", ["measure_turn1_token_inventory.py"])
+    monkeypatch.setattr(sys, "argv", ["measure_turn1_token_inventory.py"])
     rc = measure.main()
     assert rc == 0
     out = capsys.readouterr().out
@@ -187,7 +190,9 @@ async def test_measure_turn1_inventory_matches_documented_token_baseline() -> No
     ubuntu-latest CI (1,399) alike, while still failing on any genuine drift.
     """
     report = await measure.measure_turn1_inventory()
-    measured = {str(row["name"]): int(row["tokens"]) for row in report["per_tool"]}
+    per_tool = report["per_tool"]
+    assert isinstance(per_tool, list)
+    measured = {str(row["name"]): int(row["tokens"]) for row in per_tool}
 
     drifted = {
         name: (measured.get(name), expected)
@@ -216,7 +221,12 @@ async def test_measure_turn1_inventory_matches_documented_token_baseline() -> No
 
     assert report["tool_count"] == 13
     layer_totals = report["layer_totals"]
+    assert isinstance(layer_totals, dict)
+    description_tokens = report["description_tokens"]
+    assert isinstance(description_tokens, int)
     # CORE is host-dependent solely through the bash tool; HIGH_PRIORITY is not.
-    assert layer_totals["CORE"] + layer_totals["HIGH_PRIORITY"] == report["description_tokens"]
+    assert layer_totals["CORE"] + layer_totals["HIGH_PRIORITY"] == description_tokens
     assert layer_totals["HIGH_PRIORITY"] == 2636
-    assert report["tools_subtotal"] <= 6500, "Turn-1 tools exceeded the 6,500 budget ceiling"
+    tools_subtotal = report["tools_subtotal"]
+    assert isinstance(tools_subtotal, int)
+    assert tools_subtotal <= 6500, "Turn-1 tools exceeded the 6,500 budget ceiling"

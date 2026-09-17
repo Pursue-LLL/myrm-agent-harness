@@ -188,19 +188,23 @@ class AdbDeviceDriver:
 
     async def get_device_state(self, target: str) -> MobileDeviceState:
         """Capture current device state, top activity, and parse UI tree."""
-        # 1. Get current focused window/package
-        _, out, _ = await self._run_adb(
-            "-s", target, "shell", "dumpsys", "window", "|", "grep", "-E", "mCurrentFocus|mFocusedApp"
-        )
+        # 1. Get current focused window/package (parsed in Python; no shell pipe
+        # so Windows shells and strict adb arg splitting stay reliable).
+        _, out, _ = await self._run_adb("-s", target, "shell", "dumpsys", "window")
         current_pkg = ""
         current_act = ""
         if out:
-            for part in out.split():
-                if "/" in part and not part.startswith("m"):
-                    pkg_act = part.strip("{}").split("/")
-                    current_pkg = pkg_act[0]
-                    if len(pkg_act) > 1:
-                        current_act = pkg_act[1]
+            for line in out.splitlines():
+                if "mCurrentFocus" not in line and "mFocusedApp" not in line:
+                    continue
+                for part in line.split():
+                    if "/" in part and not part.startswith("m"):
+                        pkg_act = part.strip("{}").split("/")
+                        current_pkg = pkg_act[0]
+                        if len(pkg_act) > 1:
+                            current_act = pkg_act[1]
+                        break
+                if current_pkg:
                     break
 
         # 2. Dump uiautomator XML
@@ -338,6 +342,54 @@ class AdbDeviceDriver:
                 message=f"Cleared text for element {ref_id}",
             )
 
+        elif action in ("swipe", "scroll"):
+            # Directional gesture from the element center. text_value carries
+            # an optional "dx,dy" pixel offset (default: vertical scroll up).
+            dx, dy = 0, -600
+            if text_value:
+                try:
+                    parts = [p.strip() for p in text_value.split(",")]
+                    if len(parts) >= 2:
+                        dx, dy = int(parts[0]), int(parts[1])
+                except ValueError:
+                    pass
+            end_x, end_y = center_x + dx, center_y + dy
+            code, _, _ = await self._run_adb(
+                "-s",
+                target,
+                "shell",
+                "input",
+                "swipe",
+                str(center_x),
+                str(center_y),
+                str(end_x),
+                str(end_y),
+            )
+            return MobileActionResult(
+                success=code == 0,
+                action=action,
+                message=f"Swiped element {ref_id} by ({dx},{dy})",
+                data={"element": element.to_summary()},
+            )
+
+        elif action in ("key_event", "press_key"):
+            keycode = text_value.strip() or "4"
+            if not self._safety_guard.is_key_safe(keycode)[0]:
+                return MobileActionResult(
+                    success=False,
+                    action=action,
+                    message=f"Key '{keycode}' restricted for safety",
+                    error="SAFETY_BARRIER_TRIGGERED",
+                )
+            code, _, _ = await self._run_adb(
+                "-s", target, "shell", "input", "keyevent", keycode
+            )
+            return MobileActionResult(
+                success=code == 0,
+                action=action,
+                message=f"Sent keyevent {keycode} for {ref_id}",
+            )
+
         return MobileActionResult(
             success=False,
             action=action,
@@ -394,6 +446,19 @@ class AdbDeviceDriver:
                 success=code == 0,
                 action="stop_app",
                 message=f"Force stopped application '{package}'",
+            )
+
+        elif action in ("wake", "unlock"):
+            code, _, _ = await self._run_adb(
+                "-s", target, "shell", "input", "keyevent", "82"
+            )
+            if code != 0:
+                return MobileActionResult(
+                    success=False, action=action, message="Wake/unlock failed", error="WAKE_FAILED"
+                )
+            await self._run_adb("-s", target, "shell", "wm", "dismiss-keyguard")
+            return MobileActionResult(
+                success=True, action=action, message="Device woken and keyguard dismissed"
             )
 
         return MobileActionResult(

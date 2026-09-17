@@ -37,20 +37,26 @@ def create_mobile_adb_tools(session: MobileSession) -> list[object]:
             default=False,
             description="Whether to capture and return a base64 screenshot along with the @mref UI element tree.",
         )
+        settle_ms: int = Field(
+            default=0,
+            description="Optional wait before capture (0-2000 ms) so animations settle. Use 300-800 after an action.",
+        )
 
     @tool("mobile_snapshot_tool", args_schema=MobileSnapshotInput)
     async def mobile_snapshot_tool(
         target: str = "",
         include_screenshot: bool = False,
+        settle_ms: int = 0,
     ) -> dict[str, Any]:
         """Capture the current Android screen accessibility hierarchy and @mref element index.
 
         Use this tool to inspect what is currently visible on the mobile phone screen before taking actions.
-        Returns a list of UI elements with @mref IDs, text, descriptions, and clickable status.
+        Always refresh after an action; stale @mref IDs fail instead of acting on the wrong element.
+        Returns UI elements with @mref IDs, text, descriptions, and clickable status.
         """
         try:
             state, screenshot_bytes = await session.snapshot(
-                target=target, include_screenshot=include_screenshot
+                target=target, include_screenshot=include_screenshot, settle_ms=settle_ms
             )
             element_summaries = [elem.to_summary() for elem in state.elements]
             res: dict[str, Any] = {
@@ -74,11 +80,11 @@ def create_mobile_adb_tools(session: MobileSession) -> list[object]:
             description="The target element reference ID (e.g. '@mref_1') obtained from mobile_snapshot_tool.",
         )
         action: str = Field(
-            description="Action to perform: 'click', 'long_press', 'input_text', or 'clear_text'.",
+            description="Action: 'click', 'long_press', 'input_text', 'clear_text', 'swipe', 'scroll', or 'key_event'.",
         )
         text: str = Field(
             default="",
-            description="Text to type into the element when action='input_text'.",
+            description="For 'input_text': text to type. For 'swipe'/'scroll': optional 'dx,dy' offset (default '0,-600'). For 'key_event': keycode (default '4').",
         )
         target: str = Field(
             default="",
@@ -94,8 +100,8 @@ def create_mobile_adb_tools(session: MobileSession) -> list[object]:
     ) -> dict[str, Any]:
         """Perform semantic action on a UI element using its @mref ID.
 
-        Supports clicking buttons, typing into input fields, and clearing text fields.
-        Always run mobile_snapshot_tool first to obtain valid @mref IDs.
+        Supports clicking, long press, typing, clearing, directional swipe/scroll, and key events.
+        Always run mobile_snapshot_tool first; stale @mref IDs fail safely.
         """
         try:
             result = await session.interact(
@@ -116,7 +122,7 @@ def create_mobile_adb_tools(session: MobileSession) -> list[object]:
 
     class MobileGlobalInput(BaseModel):
         action: str = Field(
-            description="Global action: 'back' (press Back), 'home' (press Home), 'launch_app' (open app by package), 'stop_app' (force stop).",
+            description="Global action: 'back', 'home', 'wake', 'unlock', 'launch_app' (needs package), or 'stop_app' (needs package).",
         )
         param: str = Field(
             default="",

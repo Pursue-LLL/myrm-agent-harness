@@ -69,9 +69,13 @@ class MobileSession:
         return res
 
     async def snapshot(
-        self, target: str = "", include_screenshot: bool = False
+        self, target: str = "", include_screenshot: bool = False, settle_ms: int = 0
     ) -> tuple[MobileDeviceState, bytes | None]:
         """Capture current UI tree snapshot and optional screenshot binary."""
+        import asyncio
+
+        if settle_ms > 0:
+            await asyncio.sleep(min(settle_ms, 2000) / 1000.0)
         device_target = self.get_target(target)
         state = await self.driver.get_device_state(device_target)
         screenshot_bytes: bytes | None = None
