@@ -5,13 +5,14 @@
 - httpx: Async HTTP client with proxy support
 
 [OUTPUT]
+- normalize_proxy_url(): Normalize proxy URL string (canonical scheme rewriting and whitespace stripping)
 - mask_proxy_url(): Mask credentials in proxy URL for safe logging and UI
 - validate_proxy_url(): Validate proxy scheme and structure
 - probe_proxy_health(): Async lightweight proxy connectivity probe with TTL caching
 - clear_proxy_probe_cache(): Clear the in-memory proxy probe result cache
 
 [POS]
-Network utility module for proxy URL validation, security masking,
+Network utility module for proxy URL normalization, validation, security masking,
 and preflight connectivity verification.
 """
 
@@ -84,6 +85,30 @@ def _is_blocked_proxy_target(hostname: str) -> tuple[bool, str | None]:
     return False, None
 
 
+def normalize_proxy_url(proxy_url: str | None) -> str | None:
+    """Normalize proxy URL string.
+
+    Converts common shorthand or client-exported schemes like 'socks://'
+    into canonical 'socks5://', strips leading/trailing whitespace,
+    and returns None for empty/non-string inputs.
+
+    Example:
+        >>> normalize_proxy_url(" socks://127.0.0.1:1080 ")
+        'socks5://127.0.0.1:1080'
+    """
+    if not proxy_url or not isinstance(proxy_url, str):
+        return None
+
+    cleaned = proxy_url.strip()
+    if not cleaned:
+        return None
+
+    if cleaned.lower().startswith("socks://"):
+        return "socks5://" + cleaned[len("socks://"):]
+
+    return cleaned
+
+
 def mask_proxy_url(url: str | None) -> str | None:
     """Mask credentials in a proxy URL for safe logging and UI display.
 
@@ -136,11 +161,12 @@ def validate_proxy_url(url: str | None) -> tuple[bool, str | None]:
     if not url or not isinstance(url, str):
         return False, "Proxy URL cannot be empty"
 
-    cleaned = url.strip()
-    if not cleaned:
+    normalized = normalize_proxy_url(url)
+    if not normalized:
         return False, "Proxy URL cannot be empty"
+
     try:
-        parsed = urlparse(cleaned)
+        parsed = urlparse(normalized)
         scheme = (parsed.scheme or "").lower()
         if scheme not in ALLOWED_PROXY_SCHEMES:
             return False, f"Unsupported proxy scheme '{scheme}'. Supported: {', '.join(sorted(ALLOWED_PROXY_SCHEMES))}"
@@ -174,15 +200,19 @@ async def probe_proxy_health(
     Returns:
         (is_success, error_message)
     """
+    normalized_proxy = normalize_proxy_url(proxy_url)
+    if not normalized_proxy:
+        return False, "Proxy URL cannot be empty"
+
     if cache_ttl_s > 0:
-        cache_key = (proxy_url, target_url)
+        cache_key = (normalized_proxy, target_url)
         cached_entry = _probe_cache.get(cache_key)
         if cached_entry is not None:
             cached_at, cached_ok, cached_err = cached_entry
             if time.monotonic() - cached_at < cache_ttl_s:
                 return cached_ok, cached_err
 
-    is_valid, err = validate_proxy_url(proxy_url)
+    is_valid, err = validate_proxy_url(normalized_proxy)
     if not is_valid:
         return False, err
 
@@ -201,11 +231,11 @@ async def probe_proxy_health(
 
     import httpx
 
-    masked = mask_proxy_url(proxy_url)
+    masked = mask_proxy_url(normalized_proxy)
     outcome: tuple[bool, str | None]
     try:
         async with httpx.AsyncClient(
-            proxy=proxy_url,
+            proxy=normalized_proxy,
             timeout=timeout_s,
             verify=True,
         ) as client:
@@ -225,14 +255,14 @@ async def probe_proxy_health(
             else:
                 outcome = (False, f"Proxy probe received unexpected HTTP {status}")
     except httpx.ProxyError as exc:
-        sanitized_msg = _sanitize_proxy_error(exc, proxy_url)
+        sanitized_msg = _sanitize_proxy_error(exc, normalized_proxy)
         logger.warning("Proxy connection error for %s: %s", masked, sanitized_msg)
         outcome = (False, f"Proxy connection failed: {sanitized_msg}")
     except httpx.ConnectTimeout:
         logger.warning("Proxy connection timed out for %s", masked)
         outcome = (False, "Proxy connection timed out")
     except Exception as exc:
-        sanitized_msg = _sanitize_proxy_error(exc, proxy_url)
+        sanitized_msg = _sanitize_proxy_error(exc, normalized_proxy)
         logger.warning("Proxy probe failed for %s: %s", masked, sanitized_msg)
         outcome = (False, f"Proxy probe failed: {sanitized_msg}")
 

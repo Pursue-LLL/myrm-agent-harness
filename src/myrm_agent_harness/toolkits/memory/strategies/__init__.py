@@ -49,6 +49,12 @@ from myrm_agent_harness.toolkits.memory.strategies.distillation_guards import (
     filter_memories_with_evidence,
     is_valid_evidence_reference,
 )
+from myrm_agent_harness.toolkits.memory.strategies.dynamic_preference import (
+    DynamicPreferenceFitter,
+    DynamicPreferenceVector,
+    FeedbackAction,
+    PreferenceDimension,
+)
 from myrm_agent_harness.toolkits.memory.strategies.extractor import (
     ExtractedMemory,
     ExtractionConfig,
@@ -62,6 +68,11 @@ from myrm_agent_harness.toolkits.memory.strategies.forgetting import (
     ForgettingStrategy,
     RetentionScore,
 )
+from myrm_agent_harness.toolkits.memory.strategies.gravity_decay import (
+    GravityDecayConfig,
+    GravityDecayScorer,
+    compute_gravity_decay,
+)
 from myrm_agent_harness.toolkits.memory.strategies.implicit_feedback import (
     CorrectionAction,
     CorrectionProposal,
@@ -73,17 +84,6 @@ from myrm_agent_harness.toolkits.memory.strategies.incremental_transcript import
     IncrementalTranscriptParser,
     TranscriptIncrementalChunk,
     TranscriptTurn,
-)
-from myrm_agent_harness.toolkits.memory.strategies.dynamic_preference import (
-    DynamicPreferenceFitter,
-    DynamicPreferenceVector,
-    FeedbackAction,
-    PreferenceDimension,
-)
-from myrm_agent_harness.toolkits.memory.strategies.gravity_decay import (
-    GravityDecayConfig,
-    GravityDecayScorer,
-    compute_gravity_decay,
 )
 from myrm_agent_harness.toolkits.memory.strategies.merger import (
     ConfidenceEvolutionEngine,

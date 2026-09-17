@@ -320,10 +320,10 @@ def classify_task_specialty(
 
     if code_match_count >= 2:
         return TaskSpecialty.CODE, 0.85, f"multiple_code_keywords({code_match_count})"
-    elif code_match_count == 1:
-        # Single code keyword with programming-oriented action verbs
-        if any(v in lower_text for v in ("write", "create", "build", "refactor", "fix", "编写", "修改", "生成", "写一个")):
-            return TaskSpecialty.CODE, 0.80, "code_action_intent"
+    elif code_match_count == 1 and any(
+        v in lower_text for v in ("write", "create", "build", "refactor", "fix", "编写", "修改", "生成", "写一个")
+    ):
+        return TaskSpecialty.CODE, 0.80, "code_action_intent"
 
     # Check for Casual Greetings / Light Chat
     cs_kw = casual_indicators or DEFAULT_CASUAL_INDICATORS

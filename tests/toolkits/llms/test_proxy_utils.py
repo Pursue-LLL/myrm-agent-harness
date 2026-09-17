@@ -7,6 +7,7 @@ import pytest
 from myrm_agent_harness.toolkits.llms.utils.proxy import (
     clear_proxy_probe_cache,
     mask_proxy_url,
+    normalize_proxy_url,
     probe_proxy_health,
     validate_proxy_url,
 )
@@ -17,6 +18,26 @@ def _reset_probe_cache() -> None:
     clear_proxy_probe_cache()
     yield
     clear_proxy_probe_cache()
+
+
+def test_normalize_proxy_url() -> None:
+    assert normalize_proxy_url(None) is None
+    assert normalize_proxy_url("") is None
+    assert normalize_proxy_url("   ") is None
+
+    # Rewrites socks:// to socks5://
+    assert normalize_proxy_url("socks://127.0.0.1:1080") == "socks5://127.0.0.1:1080"
+    assert normalize_proxy_url("SOCKS://127.0.0.1:1080") == "socks5://127.0.0.1:1080"
+    assert (
+        normalize_proxy_url("  socks://user:pass@proxy.corp:1080  ")
+        == "socks5://user:pass@proxy.corp:1080"
+    )
+
+    # Leaves standard schemes untouched
+    assert normalize_proxy_url("http://127.0.0.1:7890") == "http://127.0.0.1:7890"
+    assert normalize_proxy_url("https://127.0.0.1:7890") == "https://127.0.0.1:7890"
+    assert normalize_proxy_url("socks5://127.0.0.1:1080") == "socks5://127.0.0.1:1080"
+    assert normalize_proxy_url("socks5h://127.0.0.1:1080") == "socks5h://127.0.0.1:1080"
 
 
 def test_mask_proxy_url() -> None:
@@ -60,6 +81,9 @@ def test_validate_proxy_url() -> None:
     assert validate_proxy_url("https://secure-proxy.org:8443")[0] is True
     assert validate_proxy_url("socks5://user:pass@192.168.1.10:1080")[0] is True
     assert validate_proxy_url("socks5h://localhost:9050")[0] is True
+    assert validate_proxy_url("socks://127.0.0.1:1080")[0] is True
+    assert validate_proxy_url("socks://user:pass@192.168.1.10:1080")[0] is True
+    assert validate_proxy_url("SOCKS://localhost:1080")[0] is True
 
     # Invalid schemes
     is_valid, err = validate_proxy_url("ftp://proxy.example.com:21")

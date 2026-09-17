@@ -25,7 +25,7 @@ _MINIMAX_PREFIX = "minimax/"
 _MINIMAX_API_BASE_MARKERS = ("minimaxi.com", "minimax.io")
 _AGNES_API_BASE_MARKERS = ("agnes-ai.com", "apihub.agnes")
 _OPENCODE_API_BASE_MARKERS = ("opencode.ai",)
-_LOCAL_API_BASE_MARKERS = ("localhost", "127.0.0.1", "0.0.0.0", "::1")
+_LOCAL_API_BASE_MARKERS = ("localhost", "127.0.0.1", "0.0.0.0", "::1")  # noqa: S104
 
 
 def normalize_model_capability_key(
@@ -89,7 +89,4 @@ def model_supports_allowed_tools_tool_choice(
         return False
 
     # Native OpenAI (api.openai.com) supports allowed_tools.
-    if "api.openai.com" in api:
-        return True
-
-    return False
+    return "api.openai.com" in api

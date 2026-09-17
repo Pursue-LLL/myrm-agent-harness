@@ -714,13 +714,13 @@ result = await extractor.extract(messages=messages)
 
 **优先级层级**（`ToolRulePriority`）：
 
-| 级别 | 来源 | 注入位置 | 生命周期 |
-|------|------|---------|---------|
-| CRITICAL | 用户显式禁令 | stable_sections | 免 TTL 归档；预算存活仍取决于 `is_user_locked` |
-| HIGH | 用户强偏好 | stable_sections | 与 NORMAL 同一 stable 预算，可被截断 |
-| NORMAL | 自动推断/失败 | untrusted_sections（按需检索） | 可压缩 |
+| 级别 | 来源 | 生命周期 |
+|------|------|---------|
+| CRITICAL | 用户显式禁令 | 免 TTL 归档；预算存活仍取决于 `is_user_locked` |
+| HIGH | 从重复纠偏中蒸馏 | 与 NORMAL 同等，仅参与 retention 评分 |
+| NORMAL | 自动推断/失败 | 可被遗忘策略回收 |
 
-> 预算截断只按「section 优先级 + 用户背书（`user_endorsed`）」排序，不按 `ToolRulePriority` 分级；因此稳定层的规则不会被截断，而 `is_user_locked` 规则排在规则段最前、最后被截断。
+> `ToolRulePriority` 只决定遗忘/归档的耐久度，不决定注入位置。规则统一进入 stable 层的 `Behavioral Rules` 段（`priority=3`）；stable 段的 items 按「用户背书（`is_user_locked`）优先」排序，契合 `PromptBudgetGuard` 从后截断的行为，使背书规则最后被丢。
 
 ```python
 from myrm_agent_harness.toolkits.memory import ToolMemoryCaptureHook, MemorySession

@@ -12,6 +12,7 @@
 - adapters.tool_recovery (POS: tool call recovery module)
 - adapters.safety_termination_detector (POS: Safety termination detector for truncated tool call suppression)
 - toolkits.llms.ephemeral_output_tokens (POS: ephemeral max-output-tokens ContextVar for truncation recovery)
+- toolkits.llms.utils.proxy::normalize_proxy_url (POS: Egress proxy URL normalization)
 - core.context_vars::prompt_routing_key_var (POS: Session-scoped routing key for OpenAI prompt cache affinity)
 
 [OUTPUT]
@@ -94,6 +95,7 @@ from myrm_agent_harness.toolkits.llms.utils.litellm_utils import (
 from myrm_agent_harness.toolkits.llms.utils.litellm_utils import (
     should_skip_response_format,
 )
+from myrm_agent_harness.toolkits.llms.utils.proxy import normalize_proxy_url
 
 _BM = TypeVar("_BM", bound=BaseModel)
 
@@ -256,7 +258,9 @@ class ChatLiteLLM(ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyn
             "api_key": self.api_key or self.openai_api_key,
         }
         if self.egress_proxy:
-            creds["proxy"] = self.egress_proxy
+            normalized_proxy = normalize_proxy_url(self.egress_proxy)
+            if normalized_proxy:
+                creds["proxy"] = normalized_proxy
 
         # Collect and inject extra headers (e.g. Authorization or gateway affinity)
         api_key_val = self.api_key or self.openai_api_key

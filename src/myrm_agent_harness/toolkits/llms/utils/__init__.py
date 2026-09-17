@@ -17,6 +17,7 @@ from myrm_agent_harness.toolkits.llms.utils.logger import (
 from myrm_agent_harness.toolkits.llms.utils.proxy import (
     clear_proxy_probe_cache,
     mask_proxy_url,
+    normalize_proxy_url,
     probe_proxy_health,
     validate_proxy_url,
 )
@@ -32,6 +33,7 @@ __all__ = [
     "log_llm_request",
     "log_llm_response",
     "mask_proxy_url",
+    "normalize_proxy_url",
     "parse_tool_call_arguments_with_recovery",
     "probe_proxy_health",
     "should_skip_response_format",

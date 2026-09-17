@@ -164,10 +164,9 @@ class FalVideoProvider(VideoGenerationProvider):
                     parent_request_id = val.strip()
                     break
 
-        if parent_request_id or generation_mode == "continuation":
-            if parent_request_id:
-                payload["parent_request_id"] = parent_request_id
-                payload["continuation"] = True
+        if parent_request_id:
+            payload["parent_request_id"] = parent_request_id
+            payload["continuation"] = True
 
         # 2. Check for remote video source URL
         remote_video_url: str | None = None
@@ -191,10 +190,10 @@ class FalVideoProvider(VideoGenerationProvider):
                 payload["continuation"] = True
             else:
                 # Fallback path for raw bytes input with 5MB payload protection
-                _MAX_INLINE_VIDEO_BYTES = 5 * 1024 * 1024
-                if len(first_ref) > _MAX_INLINE_VIDEO_BYTES:
+                max_inline_video_bytes = 5 * 1024 * 1024
+                if len(first_ref) > max_inline_video_bytes:
                     raise ValueError(
-                        f"Reference video exceeds {_MAX_INLINE_VIDEO_BYTES} bytes limit "
+                        f"Reference video exceeds {max_inline_video_bytes} bytes limit "
                         f"({len(first_ref)} bytes) for inline transfer. "
                         "Use parent_request_id or provide a remote video_url to prevent HTTP 413."
                     )
