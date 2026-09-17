@@ -603,7 +603,7 @@ final = semantic^w0 × recency^w1 × frequency^w2 × importance^w3 × preference
 
 - **槽位解析状态机**（`SemanticSlotParser`）：单趟正则扫描 YAML/配置风格键值对、Markdown Bullet 列表与分号规约子句，自动抽取语义槽位与结构缩进。
 - **稀疏动作掩码**（`SparseSemanticMaskGenerator`）：通过精确 Key 比对、显式否定墓碑与词干前缀对齐，对每个槽位生成四维动作：`RETAIN`（知情保留）、`OVERWRITE`（最小局部覆盖）、`APPEND`（增量补充）、`REMOVE`（墓碑剔除）。
-- **原地拓扑装配**（`MinimalOverwritePipeline`）：原地覆盖变动槽位并知情保留所有未受波及槽位。严格维持文本行首缩进与前缀字符稳定性，使 LLM KV Cache（Prompt Cache）命中率达 100%，杜绝粗暴拼贴导致的条目内自相矛盾。零 LLM 开销，纯原生 Python + Pydantic，单次耗时 <0.5ms。
+- **原地拓扑装配**（`MinimalOverwritePipeline`）：按源行索引进行结构聚合装配，原生支持单行内多子句局部覆写与否定墓碑消除，原地覆盖变动槽位并知情保留所有未受波及槽位。严格维持文本行首缩进、列表前缀及分号拓扑稳定性，使 LLM KV Cache（Prompt Cache）命中率达 100%，杜绝粗暴拼贴导致的条目内自相矛盾。零 LLM 开销，纯原生 Python + Pydantic，单次耗时 <0.03ms（26µs）。
 
 **四种决策**：
 
