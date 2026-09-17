@@ -1,8 +1,8 @@
 """Context guard data models and token-pressure estimation.
 
 [INPUT]
-- text: str (message content whose token cost is estimated)
-- config fields: char/token thresholds, preview size, spillover directory and TTL
+- dataclasses::dataclass, field (POS: Python 数据类标准库)
+- unicodedata::unicodedata (POS: Python Unicode 东亚宽度标准库)
 
 [OUTPUT]
 - ContextGuardConfig: thresholds controlling when a payload is spilled

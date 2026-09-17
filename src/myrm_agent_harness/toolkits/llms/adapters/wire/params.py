@@ -1,9 +1,10 @@
 """Build litellm.responses() kwargs from ChatLiteLLM call params.
 
 [INPUT]
-- message_dicts: list[dict[str, Any]] (chat-completions shaped messages)
-- params: dict[str, Any] (ChatLiteLLM call params: model, max_tokens, reasoning,
-  tools, api_base, stream, timeout, extra_body, extra_headers)
+- typing::Any (POS: Python 类型标注标准库)
+- toolkits.llms.adapters.wire.translator::chat_messages_to_responses_input,
+  extract_responses_instructions, resolve_min_output_tokens
+  (POS: Responses wire 出站请求翻译层)
 
 [OUTPUT]
 - build_responses_kwargs: dict[str, Any] ready for `litellm.responses(**kwargs)`,

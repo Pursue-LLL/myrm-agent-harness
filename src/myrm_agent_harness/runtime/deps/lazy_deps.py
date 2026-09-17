@@ -1,8 +1,25 @@
 """Lazy dependency installer for optional platform backends.
 
-Installs allowlisted packages into the active venv on demand (uv pip, then pip).
-Used by myrm-agent-server channel management so GUI users need not run terminal
-commands for optional extras such as Matrix (mautrix).
+[INPUT]
+- logging::logging (POS: Python 标准日志库)
+- os::os (POS: Python 路径与进程环境标准库)
+- re::re (POS: Python 正则表达式标准库)
+- shutil::shutil (POS: Python 可执行文件查找标准库)
+- subprocess::subprocess (POS: Python 子进程标准库)
+- sys::sys (POS: Python 解释器运行时标准库)
+- collections.abc::Callable (POS: Python 容器抽象类型)
+- dataclasses::dataclass (POS: Python 数据类标准库)
+- pathlib::Path (POS: Python 面向对象路径标准库)
+- typing::Any (POS: Python 类型标注标准库)
+
+[OUTPUT]
+- feature_specs / feature_missing / ensure: allowlisted extra resolution and installation
+- FeatureUnavailableError: raised when an optional backend cannot be provisioned
+
+[POS]
+Optional-backend provisioner of the harness runtime. Installs allowlisted packages into the
+active venv on demand (uv pip, then pip), used by myrm-agent-server channel management so GUI
+users need not run terminal commands for optional extras such as Matrix (mautrix).
 """
 
 from __future__ import annotations

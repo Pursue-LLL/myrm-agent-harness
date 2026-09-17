@@ -1,8 +1,9 @@
 """Workspace trust lookup protocol for server-side registry injection.
 
 [INPUT]
-- raw_path: str (un-normalized path supplied by a client)
-- canonical_path: str (normalized absolute path used as registry key)
+- typing::Protocol (POS: Python 结构化子类型协议标准库)
+- agent.security.workspace_trust.types::WorkspaceTrustLevel
+  (POS: 工作区信任级别类型)
 
 [OUTPUT]
 - WorkspaceTrustLookup: typing.Protocol declaring normalize_path and get_level

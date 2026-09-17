@@ -1,7 +1,12 @@
 """Public surface of the context guard subsystem.
 
 [INPUT]
-- None at import time; re-exports the engine, sweeper and config/payload types
+- agent.context_guard.spillover_engine::SpilloverEngine
+  (POS: 透明溢出引擎层)
+- agent.context_guard.sweeper::EphemeralTransientSweeper
+  (POS: 过期溢出文件清理层)
+- agent.context_guard.types::ContextGuardConfig, SpilloverPayload, SpilloverResult,
+  estimate_token_pressure (POS: 上下文守卫数据模型与 token 压力估算层)
 
 [OUTPUT]
 - SpilloverEngine: atomic extraction of oversized payloads into referenced files

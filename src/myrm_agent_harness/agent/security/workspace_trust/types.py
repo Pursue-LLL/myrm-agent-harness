@@ -1,7 +1,8 @@
 """Workspace trust level types for folder-side-channel execution gate.
 
 [INPUT]
-- None (plain value objects constructed by callers)
+- dataclasses::dataclass, field (POS: Python 数据类标准库)
+- enum::Enum (POS: Python 枚举标准库)
 
 [OUTPUT]
 - WorkspaceTrustLevel: TRUSTED / RESTRICTED / REVOKED user decision

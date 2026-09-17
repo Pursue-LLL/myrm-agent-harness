@@ -1,12 +1,26 @@
 """Plugin packaging integrity validation (Harness framework layer).
 
-Validates that static build artifacts and entrypoint scripts referenced by
-stdio MCP servers actually exist within the plugin package (in-memory archive
-file mapping).
+[INPUT]
+- posixpath::posixpath (POS: Python POSIX 路径标准库)
+- re::re (POS: Python 正则表达式标准库)
+- collections.abc::Collection (POS: Python 容器抽象类型)
+- dataclasses::dataclass, replace (POS: Python 数据类标准库)
+- typing::Final (POS: Python 类型标注标准库)
+- agent.plugins.models::PluginCapabilityTier, PluginDiagnostic, PluginDiagnosticLevel,
+  PluginMcpServer (POS: 插件清单与诊断数据模型层)
 
-This prevents catastrophic runtime Agent crashes caused by missing build
-artifacts (e.g., third-party developers forgetting `npm run build` or omitting
-`dist/` from the package zip).
+[OUTPUT]
+- verify_mcp_server_artifacts / verify_mcp_server_packaging_integrity /
+  verify_plugin_packaging_integrity / filter_valid_servers /
+  verify_plugin_capability_diff / infer_server_capabilities /
+  normalize_package_path: packaging verdicts and normalized entrypoint paths
+
+[POS]
+Plugin packaging integrity validator (Harness framework layer). Validates that static build
+artifacts and entrypoint scripts referenced by stdio MCP servers actually exist within the
+plugin package (in-memory archive file mapping). This prevents catastrophic runtime Agent
+crashes caused by missing build artifacts (e.g., third-party developers forgetting
+`npm run build` or omitting `dist/` from the package zip).
 """
 
 from __future__ import annotations

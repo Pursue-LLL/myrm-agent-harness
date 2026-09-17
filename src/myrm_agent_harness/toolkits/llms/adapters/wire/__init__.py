@@ -1,7 +1,12 @@
 """Wire transport utilities for ChatLiteLLM.
 
 [INPUT]
-- None at import time; re-exports the public wire helpers consumed by ChatLiteLLM mixins
+- toolkits.llms.adapters.wire.normalizer::responses_dict_to_chat_completion,
+  responses_event_to_completion_chunk (POS: Responses wire 响应归一化层)
+- toolkits.llms.adapters.wire.params::build_responses_kwargs
+  (POS: Responses wire 请求装配层)
+- toolkits.llms.adapters.wire.translator::chat_messages_to_responses_input,
+  resolve_min_output_tokens (POS: Responses wire 出站请求翻译层)
 
 [OUTPUT]
 - responses_dict_to_chat_completion / responses_event_to_completion_chunk

@@ -1,8 +1,7 @@
 """Workspace trust gate errors.
 
 [INPUT]
-- message: str (human-readable block reason)
-- reason: str keyword (stable machine-readable code, defaults to "workspace_not_trusted")
+- None (leaf error type with no internal dependencies)
 
 [OUTPUT]
 - WorkspaceTrustBlockedError: RuntimeError subclass carrying a `.reason` attribute

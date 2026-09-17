@@ -1,7 +1,27 @@
 """Unified workspace trust gate — folder bind + side-channel execution control.
 
 [INPUT]
-- None at import time; re-exports the gate, manifest, policy and runtime helpers
+- agent.security.workspace_trust.context::clear_workspace_trust_context,
+  get_repo_command_prefixes, get_workspace_trust_level, set_repo_command_prefixes,
+  set_workspace_trust_level (POS: 运行期信任上下文变量)
+- agent.security.workspace_trust.errors::WorkspaceTrustBlockedError
+  (POS: 信任门禁错误契约)
+- agent.security.workspace_trust.gate::assert_mcp_spawn_allowed,
+  blocks_workspace_side_channels, is_path_within_workspace, matches_repo_command_prefix
+  (POS: 纯谓词门禁层)
+- agent.security.workspace_trust.manifest::build_workspace_trust_manifest,
+  canonicalize_workspace_path, manifest_hash (POS: 绑定前披露载荷构建层)
+- agent.security.workspace_trust.protocol::WorkspaceTrustLookup
+  (POS: 服务端注册表注入协议)
+- agent.security.workspace_trust.provider::get_workspace_trust_lookup,
+  resolve_workspace_trust_level, set_workspace_trust_lookup
+  (POS: 查找注册表解析层)
+- agent.security.workspace_trust.repo_policy::load_repo_command_prefixes
+  (POS: 仓库声明命令前缀读取层)
+- agent.security.workspace_trust.runtime::apply_workspace_trust_for_root,
+  clear_workspace_trust_runtime (POS: 运行生命周期绑定层)
+- agent.security.workspace_trust.types::WorkspaceTrustEntry, WorkspaceTrustLevel,
+  WorkspaceTrustManifest (POS: 信任级别与披露载荷类型)
 
 [OUTPUT]
 - Gate API: blocks_workspace_side_channels, assert_mcp_spawn_allowed,

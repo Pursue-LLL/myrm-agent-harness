@@ -1,10 +1,13 @@
 """Detect oversized message payloads and spill them to referenced workspace files.
 
 [INPUT]
-- content: str | list[dict | str] | dict (raw message body, in any wire shape)
-- base_dir: Path | str (workspace root that receives the spillover directory)
-- role / custom_prefix / session_id: labeling and file-naming context
-- config: ContextGuardConfig | None (char cap, token-pressure cap, preview size)
+- contextlib::contextlib (POS: Python 上下文管理器标准库)
+- hashlib::hashlib (POS: Python 内容哈希标准库)
+- pathlib::Path (POS: Python 面向对象路径标准库)
+- uuid::uuid4 (POS: Python UUID 生成标准库)
+- agent.context_guard.types::ContextGuardConfig, SpilloverPayload, SpilloverResult,
+  estimate_token_pressure (POS: 上下文守卫数据模型与 token 压力估算层)
+- utils.logger_utils::get_agent_logger (POS: 框架统一日志获取层)
 
 [OUTPUT]
 - SpilloverEngine.process_content: SpilloverResult, carrying either the original content

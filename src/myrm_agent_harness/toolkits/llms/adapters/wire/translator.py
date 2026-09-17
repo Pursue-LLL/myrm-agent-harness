@@ -1,8 +1,9 @@
 """LangChain/OpenAI chat messages ↔ OpenAI Responses API input translator.
 
 [INPUT]
-- messages: list[dict[str, Any]] (chat-completions shaped dicts with role/content/
-  tool_calls/function_call_output and optional reasoning replay items)
+- hashlib::hashlib (POS: Python 内容哈希标准库)
+- json::json (POS: Python JSON 序列化标准库)
+- typing::Any (POS: Python 类型标注标准库)
 
 [OUTPUT]
 - chat_messages_to_responses_input: messages translated into Responses API `input` items

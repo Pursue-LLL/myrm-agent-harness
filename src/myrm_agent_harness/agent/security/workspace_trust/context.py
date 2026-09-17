@@ -1,8 +1,9 @@
 """Runtime ContextVars for workspace trust during agent execution.
 
 [INPUT]
-- level: WorkspaceTrustLevel | None (active decision for the running workspace)
-- prefixes: tuple[str, ...] (repo-declared command prefixes)
+- contextvars::ContextVar (POS: Python 异步上下文变量标准库)
+- agent.security.workspace_trust.types::WorkspaceTrustLevel
+  (POS: 工作区信任级别类型)
 
 [OUTPUT]
 - set/get_workspace_trust_level and set/get_repo_command_prefixes accessors

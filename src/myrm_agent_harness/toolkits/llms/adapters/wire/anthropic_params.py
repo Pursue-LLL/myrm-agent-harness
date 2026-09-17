@@ -1,7 +1,7 @@
 """Apply anthropic messages wire overrides for LiteLLM calls.
 
 [INPUT]
-- params: dict[str, Any] (LiteLLM call params carrying an OpenCode Go model id)
+- typing::Any (POS: Python 类型标注标准库)
 
 [OUTPUT]
 - apply_anthropic_messages_params: a copied params dict whose `model` is rewritten to

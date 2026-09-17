@@ -1,8 +1,7 @@
 """Normalize OpenAI Responses API payloads into chat-completions-shaped dicts.
 
 [INPUT]
-- event: dict[str, Any] (a single Responses SSE event, raw or model_dump'd)
-- response: dict[str, Any] (a completed or failed Responses API payload)
+- typing::Any (POS: Python 类型标注标准库)
 
 [OUTPUT]
 - responses_dict_to_chat_completion: completed payload → chat.completion dict

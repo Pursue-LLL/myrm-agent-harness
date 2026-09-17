@@ -1,7 +1,8 @@
 """Optional repo-declared command prefixes from ``.myrm/config.toml``.
 
 [INPUT]
-- workspace_root: str | Path (workspace whose repo config is inspected)
+- logging::logging (POS: Python 标准日志库)
+- pathlib::Path (POS: Python 面向对象路径标准库)
 
 [OUTPUT]
 - load_repo_command_prefixes: declared shell command prefixes as tuple[str, ...],

@@ -1,7 +1,18 @@
 """Stream checkpoint and in-place resume utilities for agent execution.
 
-Provides safe breakpoint capture, LCP (longest common prefix) deduplication,
-and continuation instruction assembly to enable zero-loss stream recovery.
+[INPUT]
+- dataclasses::dataclass (POS: Python 数据类标准库)
+
+[OUTPUT]
+- StreamBreakpoint: validated safe text breakpoint from an interrupted stream
+- capture_stream_breakpoint: pick a safe breakpoint from a partial buffer
+- clean_duplicate_prefix: LCP-deduplicate a resumed chunk against the tail anchor
+- build_stream_continuation_instruction: continuation instruction for the model
+
+[POS]
+Zero-loss stream recovery primitives. Enables safe breakpoint capture, LCP (longest common
+prefix) deduplication, and continuation instruction assembly so an interrupted stream can
+resume without duplicating or dropping text the user already saw.
 """
 
 from dataclasses import dataclass

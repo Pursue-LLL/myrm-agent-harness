@@ -1,7 +1,21 @@
 """Session blind spot knowledge extraction strategy.
 
-Analyzes missed queries, user corrections, and negative interaction signals
-across sessions to extract structured knowledge patches (Wiki, Procedural, Skill gaps).
+[INPUT]
+- logging::logging (POS: Python 标准日志库)
+- time::time (POS: Python 时间标准库)
+- collections.abc::Sequence (POS: Python 容器抽象类型)
+- dataclasses::dataclass (POS: Python 数据类标准库)
+- enum::StrEnum (POS: Python 字符串枚举标准库)
+- typing::TYPE_CHECKING (POS: Python 类型标注标准库)
+- pydantic::AliasChoices, BaseModel, Field (POS: LLM 结构化输出校验层)
+
+[OUTPUT]
+- extract_blind_spot_patches: structured knowledge patches (Wiki, Procedural, Skill gaps)
+- BlindSpotCandidate, BlindSpotKnowledgePatch, BlindSpotReport, PatchTargetType
+
+[POS]
+Session blind spot knowledge extraction strategy. Analyzes missed queries, user corrections,
+and negative interaction signals across sessions to extract structured knowledge patches.
 Pure strategy module decoupled from specific persistence layers.
 """
 

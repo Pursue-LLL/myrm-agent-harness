@@ -1,6 +1,21 @@
-# INPUT: Inbound HTTP/HTTPS client sockets from sandbox, target remote endpoints, SentinelManager
-# OUTPUT: Outbound network traffic with sentinel vouchers substituted by real secrets, ephemeral CA management
-# POS: Harness core security egress layer. Asyncio-based loopback egress proxy for transparent secret substitution.
+"""Asyncio loopback egress proxy for transparent secret substitution.
+
+[INPUT]
+- core.security.egress.sentinel::SentinelManager, StreamingSentinelScanner,
+  is_sentinel_voucher (POS: 进程级瞬时密钥令牌化层)
+- asyncio::asyncio (POS: Python 异步运行时标准库)
+- ssl::ssl (POS: Python TLS 标准库)
+
+[OUTPUT]
+- LoopbackEgressProxy: sandbox-facing HTTP/HTTPS proxy that substitutes sentinel vouchers
+  with real secrets on the outbound request
+- EphemeralCaManager: process-ephemeral CA used for TLS interception
+
+[POS]
+Harness core security egress layer. Asyncio-based loopback egress proxy that keeps real
+credentials out of the sandbox: the agent only ever holds ephemeral vouchers, and
+substitution happens in this trusted process.
+"""
 
 from __future__ import annotations
 

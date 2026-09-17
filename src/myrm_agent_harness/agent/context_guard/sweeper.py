@@ -1,8 +1,12 @@
 """Housekeeping sweeper for stale ephemeral spillover files.
 
 [INPUT]
-- config: ContextGuardConfig | None (TTL and spillover directory name)
-- base_dir: Path | str (workspace root whose spillover directory is swept)
+- contextlib::contextlib (POS: Python 上下文管理器标准库)
+- time::time (POS: Python 时间标准库)
+- pathlib::Path (POS: Python 面向对象路径标准库)
+- agent.context_guard.types::ContextGuardConfig
+  (POS: 上下文守卫数据模型与 token 压力估算层)
+- utils.logger_utils::get_agent_logger (POS: 框架统一日志获取层)
 
 [OUTPUT]
 - EphemeralTransientSweeper.sweep_directory: int count of removed files

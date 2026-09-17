@@ -1,9 +1,15 @@
 """Build pre-bind workspace trust manifests for FolderGate disclosure.
 
 [INPUT]
-- raw_path: str (workspace bind path, may contain `~`, must be absolute after expansion)
-- workspace_root: str (canonical root to inspect)
-- manifest: WorkspaceTrustManifest (payload to hash)
+- hashlib::hashlib (POS: Python 内容哈希标准库)
+- json::json (POS: Python JSON 序列化标准库)
+- logging::logging (POS: Python 标准日志库)
+- os::os (POS: Python 路径与文件系统标准库)
+- pathlib::Path (POS: Python 面向对象路径标准库)
+- agent.security.workspace_trust.repo_policy::load_repo_command_prefixes
+  (POS: 仓库声明命令前缀读取层)
+- agent.security.workspace_trust.types::WorkspaceTrustLevel, WorkspaceTrustManifest
+  (POS: 工作区信任级别与披露载荷类型)
 
 [OUTPUT]
 - canonicalize_workspace_path: resolved absolute path, or "" for blank input

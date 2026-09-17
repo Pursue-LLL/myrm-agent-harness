@@ -1,6 +1,23 @@
-# INPUT: Raw secrets (API keys/tokens), text or streaming byte chunks, optional in-memory 256-bit AES key
-# OUTPUT: Encrypted sentinel vouchers ("myrm-sent-v1.<base64url>.end"), resolved secrets, substituted streams
-# POS: Harness core security egress layer. Zero external agent dependencies. Process-level ephemeral secret tokenization.
+"""Process-level ephemeral secret tokenization for sandbox egress.
+
+[INPUT]
+- base64::base64 (POS: Python 编码标准库)
+- json::json (POS: Python JSON 序列化标准库)
+- logging::logging (POS: Python 标准日志库)
+- os::os (POS: Python 进程环境标准库)
+- re::re (POS: Python 正则表达式标准库)
+
+[OUTPUT]
+- SentinelManager: mints and resolves process-ephemeral sentinel vouchers
+  ("myrm-sent-v1.<base64url>.end") backed by an in-memory 256-bit AES key
+- StreamingSentinelScanner: substitutes vouchers inside streaming byte chunks
+- is_sentinel_voucher / get_global_sentinel_manager: voucher detection and process accessor
+
+[POS]
+Harness core security egress layer with zero external agent dependencies. Real API keys and
+tokens never enter the sandbox; the agent only sees vouchers that this process resolves at
+the network boundary, and the key lives only in memory for the process lifetime.
+"""
 
 from __future__ import annotations
 

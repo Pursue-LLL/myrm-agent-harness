@@ -1,7 +1,19 @@
 """Batch risk evaluation and dual insurance policy check for approval queues.
 
-Pure deterministic functions (Layer 4/5 security domain) for batch tool risk classification.
-Zero I/O, zero external dependencies, trivially testable.
+[INPUT]
+- re::re (POS: Python 正则表达式标准库)
+- collections.abc::Sequence (POS: Python 容器抽象类型)
+- dataclasses::dataclass, field (POS: Python 数据类标准库)
+- enum::StrEnum (POS: Python 字符串枚举标准库)
+
+[OUTPUT]
+- BatchApprovalItem, BatchItemRiskLevel, BatchRiskItemDetail, BatchRiskReport
+- classify_batch_approval_risk: BatchRiskReport for a sequence of queued items
+
+[POS]
+Pure deterministic batch risk classifier (Layer 4/5 security domain) for approval queues.
+Zero I/O and zero external dependencies, so a whole batch can be pre-classified without
+executing anything; destructive-command patterns are matched textually.
 """
 
 from __future__ import annotations

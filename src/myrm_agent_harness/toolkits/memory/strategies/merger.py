@@ -1,12 +1,27 @@
-# [INPUT] myrm_agent_harness.toolkits.memory.types::BaseMemory (POS: Memory type system foundation)
-# [INPUT] myrm_agent_harness.toolkits.memory.types::SemanticMemory (POS: Core semantic memory schema)
-# [INPUT] myrm_agent_harness.toolkits.memory.types::EvidenceReference (POS: Structured provenance evidence anchoring this fact)
-# [OUTPUT] MergeState: Enumeration of deterministic merge decisions (CONFIRM, SUPPLEMENT, CONFLICT, USER_OVERRIDE_PROTECTED, NEW)
-# [OUTPUT] ConflictItem: Structured DTO representing an unadjudicated memory contradiction
-# [OUTPUT] MergeDecision: Typed outcome of candidate vs existing memory evaluation
-# [OUTPUT] ConfidenceEvolutionEngine: Smooth confidence evolution and temporal half-life self-healing engine
-# [OUTPUT] DeterministicThreeStateMerger: Zero-LLM deterministic three-state conflict merger
-# [POS] Deterministic memory conflict resolution and confidence evolution strategy. Resolves contradictions without LLM calls.
+"""Deterministic memory conflict resolution and confidence evolution strategy.
+
+[INPUT]
+- re::re (POS: Python 正则表达式标准库)
+- datetime::UTC, datetime, timedelta (POS: Python 日期时间标准库)
+- enum::StrEnum (POS: Python 字符串枚举标准库)
+- typing::ClassVar (POS: Python 类型标注标准库)
+- uuid::uuid4 (POS: Python UUID 生成标准库)
+- pydantic::BaseModel, Field (POS: 结构化数据校验层)
+- toolkits.memory.types::BaseMemory, EvidenceReference
+  (POS: 记忆类型系统基础层)
+
+[OUTPUT]
+- MergeState: deterministic merge decisions (CONFIRM, SUPPLEMENT, CONFLICT,
+  USER_OVERRIDE_PROTECTED, NEW)
+- ConflictItem, MergeDecision: contradiction DTOs
+- ConfidenceEvolutionEngine, DeterministicThreeStateMerger
+- MergeState and the three-state merger outcomes
+
+[POS]
+Deterministic memory conflict resolution and confidence evolution strategy. Resolves
+contradictions without LLM calls, applying half-life decay to confidence so stale facts
+fade rather than being duplicated.
+"""
 
 from __future__ import annotations
 

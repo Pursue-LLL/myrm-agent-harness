@@ -1,4 +1,19 @@
-"""Cascade graph cleanup for derived nodes upon memory deletion."""
+"""Cascade graph cleanup for derived nodes upon memory deletion.
+
+[INPUT]
+- logging::logging (POS: Python 标准日志库)
+- toolkits.memory.protocols.graph::GraphStoreProtocol
+  (POS: 图存储抽象协议层)
+
+[OUTPUT]
+- cascade_clean_derived_graph_nodes: awaitable removal of graph nodes derived from a
+  deleted memory id
+
+[POS]
+Internal consistency guard of the memory toolkit. Deleting a memory must not leave derived
+graph nodes orphaned, which would let the graph surface facts whose source no longer exists.
+Receives the store through the protocol so no concrete backend is imported here.
+"""
 
 from __future__ import annotations
 

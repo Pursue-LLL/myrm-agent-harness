@@ -1,9 +1,15 @@
 """Responses wire invocation helpers for ChatLiteLLM mixins.
 
 [INPUT]
-- client: Any (ChatLiteLLM client exposing `responses()`)
-- message_dicts: list[dict[str, Any]] (chat-completions shaped messages)
-- params: dict[str, Any] (call params, forwarded to build_responses_kwargs)
+- logging::logging (POS: Python 标准日志库)
+- collections.abc::AsyncIterator, Iterator (POS: Python 迭代器抽象类型)
+- typing::Any (POS: Python 类型标注标准库)
+- toolkits.llms.adapters.wire.normalizer::ResponsesStreamError,
+  assert_responses_payload_not_failed, extract_responses_stream_error,
+  responses_dict_to_chat_completion, responses_event_to_completion_chunk
+  (POS: Responses wire 响应归一化层)
+- toolkits.llms.adapters.wire.params::build_responses_kwargs
+  (POS: Responses wire 请求装配层)
 
 [OUTPUT]
 - invoke_responses_sync / invoke_responses_async: normalized chat.completion dicts

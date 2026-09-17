@@ -1,11 +1,24 @@
 """MAP-Elites Gene Bank Archive for Skill and Harness Evolution.
 
-Maintains quality-diversity Pareto elites across a two-dimensional grid:
-- Dimension 1 (EvolutionLayer): PROMPT, TOOL_CODE, RUNTIME_CONFIG, KNOWLEDGE_RULE
-- Dimension 2 (FailurePathology): PARAM_ERROR, TIMEOUT_RETRY, ENV_MISSING,
-                                SEMANTIC_MISUSE, LOGIC_HALLUCINATION, UNHANDLED_EXCEPTION
+[INPUT]
+- logging::logging (POS: Python 标准日志库)
+- collections::defaultdict (POS: Python 容器标准库)
+- typing::Any (POS: Python 类型标注标准库)
+- agent.skills.evolution.core.types::EvolutionLayer, FailurePathology, GeneCellKey,
+  GeneEliteRecord, SkillMetrics, SkillRecord
+  (POS: 技能演化数据契约层)
 
-Prevents greedy single-objective evolution collapse (e.g. over-fitting to conservative prompt tweaks).
+[OUTPUT]
+- GeneBankArchive: quality-diversity elite archive over the
+  (EvolutionLayer x FailurePathology) grid
+
+[POS]
+Quality-diversity archive of the skill evolution subsystem. Maintains Pareto elites across a
+two-dimensional grid, where dimension 1 is the evolution layer (PROMPT, TOOL_CODE,
+RUNTIME_CONFIG, KNOWLEDGE_RULE) and dimension 2 is the failure pathology (PARAM_ERROR,
+TIMEOUT_RETRY, ENV_MISSING, SEMANTIC_MISUSE, LOGIC_HALLUCINATION, UNHANDLED_EXCEPTION).
+Prevents greedy single-objective evolution collapse such as over-fitting to conservative
+prompt tweaks.
 """
 
 from __future__ import annotations

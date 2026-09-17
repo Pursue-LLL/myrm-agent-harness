@@ -1,9 +1,10 @@
 """Pure gate helpers for workspace trust side-channel enforcement.
 
 [INPUT]
-- level: WorkspaceTrustLevel | None (active trust decision)
-- candidate / workspace_root: str | None (paths to compare)
-- workspace_root / cwd / plugin_root / trust_level: keyword args to assert_mcp_spawn_allowed
+- os::os (POS: Python 路径与文件系统标准库)
+- pathlib::Path (POS: Python 面向对象路径标准库)
+- agent.security.workspace_trust.types::WorkspaceTrustLevel
+  (POS: 工作区信任级别类型)
 
 [OUTPUT]
 - blocks_workspace_side_channels: bool (True when repo-local channels must stay off)
