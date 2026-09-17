@@ -60,6 +60,35 @@ def test_validate_proxy_url() -> None:
     is_valid, err = validate_proxy_url("not-a-url")
     assert is_valid is False
 
+    # Blocked link-local and metadata addresses
+    is_valid, err = validate_proxy_url("http://169.254.169.254:80")
+    assert is_valid is False
+    assert err is not None and "link-local" in err.lower()
+
+    is_valid, err = validate_proxy_url("http://169.254.1.1:8080")
+    assert is_valid is False
+    assert err is not None and "link-local" in err.lower()
+
+    is_valid, err = validate_proxy_url("http://[fe80::1]:8080")
+    assert is_valid is False
+    assert err is not None and "link-local" in err.lower()
+
+    is_valid, err = validate_proxy_url("http://[::ffff:169.254.169.254]:8080")
+    assert is_valid is False
+    assert err is not None and "link-local" in err.lower()
+
+    is_valid, err = validate_proxy_url("http://0.0.0.0:8080")
+    assert is_valid is False
+    assert err is not None and "unspecified" in err.lower()
+
+    is_valid, err = validate_proxy_url("http://instance-data:80")
+    assert is_valid is False
+    assert err is not None and "metadata" in err.lower()
+
+    is_valid, err = validate_proxy_url("http://metadata.google.internal:80")
+    assert is_valid is False
+    assert err is not None and "metadata" in err.lower()
+
 
 @pytest.mark.asyncio
 async def test_probe_proxy_health_success() -> None:
@@ -87,3 +116,25 @@ async def test_probe_proxy_health_network_failure() -> None:
         ok, err = await probe_proxy_health("http://127.0.0.1:9999", target_url="https://1.1.1.1")
         assert ok is False
         assert err is not None and "Connection refused by proxy" in err
+
+
+@pytest.mark.asyncio
+async def test_probe_proxy_health_blocked_addresses() -> None:
+    ok, err = await probe_proxy_health("http://169.254.169.254:80")
+    assert ok is False
+    assert err is not None and "link-local" in err.lower()
+
+    ok, err = await probe_proxy_health("http://metadata.google.internal:80")
+    assert ok is False
+    assert err is not None and "metadata" in err.lower()
+
+
+@pytest.mark.asyncio
+async def test_probe_proxy_health_blocked_target() -> None:
+    ok, err = await probe_proxy_health(
+        "http://127.0.0.1:7890",
+        target_url="http://169.254.169.254/latest/meta-data/",
+    )
+    assert ok is False
+    assert err is not None and "probe target url blocked" in err.lower()
+

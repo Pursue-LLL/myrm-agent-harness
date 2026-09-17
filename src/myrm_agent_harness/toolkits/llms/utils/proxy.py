@@ -16,12 +16,43 @@ and preflight connectivity verification.
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 from urllib.parse import urlparse, urlunparse
 
 logger = logging.getLogger(__name__)
 
 ALLOWED_PROXY_SCHEMES = frozenset({"http", "https", "socks5", "socks5h"})
+_BLOCKED_METADATA_HOSTNAMES = frozenset({
+    "instance-data",
+    "metadata.google.internal",
+    "metadata",
+})
+
+
+def _is_blocked_proxy_target(hostname: str) -> tuple[bool, str | None]:
+    """Check if a hostname or IP address targets forbidden link-local or metadata services.
+
+    Allows loopback (e.g. 127.0.0.1, localhost) and private LAN addresses for local developer proxies,
+    while blocking cloud IMDS / link-local addresses (169.254.0.0/16, fe80::/10) and known metadata hostnames.
+    """
+    clean_host = hostname.strip("[]").lower()
+    if clean_host in _BLOCKED_METADATA_HOSTNAMES:
+        return True, f"Proxy host '{clean_host}' is blocked for security reasons (metadata service)"
+
+    try:
+        ip = ipaddress.ip_address(clean_host)
+        if ip.is_link_local:
+            return True, f"Proxy host '{clean_host}' is a link-local address, which is blocked"
+        if ip.version == 6 and ip.ipv4_mapped and ip.ipv4_mapped.is_link_local:
+            return True, f"Proxy host '{clean_host}' is an IPv4-mapped link-local address, which is blocked"
+        if ip.is_unspecified:
+            return True, f"Proxy host '{clean_host}' is an unspecified address, which is blocked"
+    except ValueError:
+        pass
+
+    return False, None
+
 
 
 def mask_proxy_url(url: str | None) -> str | None:
@@ -80,6 +111,10 @@ def validate_proxy_url(url: str | None) -> tuple[bool, str | None]:
         if not parsed.hostname:
             return False, "Proxy URL is missing hostname"
 
+        is_blocked, block_err = _is_blocked_proxy_target(parsed.hostname)
+        if is_blocked:
+            return False, block_err
+
         return True, None
     except Exception as exc:
         return False, f"Invalid proxy URL: {exc}"
@@ -103,6 +138,19 @@ async def probe_proxy_health(
     is_valid, err = validate_proxy_url(proxy_url)
     if not is_valid:
         return False, err
+
+    try:
+        parsed_target = urlparse(target_url)
+        target_scheme = (parsed_target.scheme or "").lower()
+        if target_scheme not in ("http", "https"):
+            return False, f"Unsupported probe target scheme '{target_scheme}'"
+        if not parsed_target.hostname:
+            return False, "Probe target URL is missing hostname"
+        target_blocked, target_reason = _is_blocked_proxy_target(parsed_target.hostname)
+        if target_blocked:
+            return False, f"Probe target URL blocked: {target_reason}"
+    except Exception as exc:
+        return False, f"Invalid probe target URL: {exc}"
 
     import httpx
 

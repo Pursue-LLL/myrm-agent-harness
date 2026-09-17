@@ -42,6 +42,46 @@ def test_challenge_blocked_classification() -> None:
     assert FailoverReason.CHALLENGE_BLOCKED.recoverability == RecoverabilityLevel.PERMANENT
 
 
+def test_aws_waf_challenge_classification() -> None:
+    exc = Exception("403 Forbidden: Request blocked by AWS WAF (x-amzn-waf-action: block)")
+    exc.status_code = 403  # type: ignore[attr-defined]
+    assert classify_error(exc) == ErrorKind.CHALLENGE_BLOCKED
+    assert classify_failover_reason(exc) == FailoverReason.CHALLENGE_BLOCKED
+
+
+def test_akamai_challenge_classification() -> None:
+    exc = Exception("Access Denied - You don't have permission to access on this server. AkamaiGHost Reference #18.123")
+    exc.status_code = 403  # type: ignore[attr-defined]
+    assert classify_error(exc) == ErrorKind.CHALLENGE_BLOCKED
+    assert classify_failover_reason(exc) == FailoverReason.CHALLENGE_BLOCKED
+
+
+def test_html_403_challenge_classification() -> None:
+    """HTML 403 response with no JSON body must classify as CHALLENGE_BLOCKED to protect key pool."""
+    exc = Exception("403 Forbidden: <!DOCTYPE html><html><head><title>403 Forbidden</title></head><body>WAF Block</body></html>")
+    exc.status_code = 403  # type: ignore[attr-defined]
+    assert classify_error(exc) == ErrorKind.CHALLENGE_BLOCKED
+    assert classify_failover_reason(exc) == FailoverReason.CHALLENGE_BLOCKED
+
+
+def test_json_403_auth_classification() -> None:
+    """Legitimate API 403 with JSON body must remain AUTH_PERMANENT."""
+    exc = Exception("403 Forbidden: Permission Denied")
+    exc.status_code = 403  # type: ignore[attr-defined]
+    exc.body = {"error": {"type": "permission_denied", "message": "API key revoked"}}  # type: ignore[attr-defined]
+    assert classify_error(exc) == ErrorKind.AUTH
+    assert classify_failover_reason(exc) == FailoverReason.AUTH_PERMANENT
+
+
+def test_json_401_auth_classification() -> None:
+    """Legitimate API 401 with JSON body must remain AUTH_PERMANENT."""
+    exc = Exception("401 Unauthorized: Invalid API key")
+    exc.status_code = 401  # type: ignore[attr-defined]
+    exc.body = {"error": {"message": "Invalid API key provided"}}  # type: ignore[attr-defined]
+    assert classify_error(exc) == ErrorKind.AUTH
+    assert classify_failover_reason(exc) == FailoverReason.AUTH_PERMANENT
+
+
 @pytest.mark.asyncio
 async def test_challenge_circuit_breaker_agenerate_aborts_immediately() -> None:
     """When a Cloudflare challenge occurs, KeyPoolLLM must NOT rotate to other keys."""
