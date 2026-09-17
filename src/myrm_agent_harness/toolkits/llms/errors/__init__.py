@@ -15,10 +15,14 @@ from myrm_agent_harness.toolkits.llms.errors.error_types import (
     get_probe_policy,
     should_allow_probe,
 )
-from myrm_agent_harness.toolkits.llms.errors.exceptions import MyrmLLMError
+from myrm_agent_harness.toolkits.llms.errors.exceptions import (
+    EgressChallengeBlockedError,
+    MyrmLLMError,
+)
 from myrm_agent_harness.toolkits.llms.errors.resilient import resilient_llm_call
 
 __all__ = [
+    "EgressChallengeBlockedError",
     "ErrorKind",
     "FailoverReason",
     # Exceptions

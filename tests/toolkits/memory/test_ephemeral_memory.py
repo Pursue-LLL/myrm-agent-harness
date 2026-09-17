@@ -191,12 +191,6 @@ class TestReadOnlyMemoryViewWriteDenied:
             await view.update_memory("mem-1", content="new content")
 
     @pytest.mark.asyncio
-    async def test_unarchive_memory_denied(self):
-        view = self._make_view()
-        with pytest.raises(PermissionError, match="READ_ONLY_GLOBAL"):
-            await view.unarchive_memory("mem-1")
-
-    @pytest.mark.asyncio
     async def test_create_backup_denied(self):
         view = self._make_view()
         strategy = MagicMock()

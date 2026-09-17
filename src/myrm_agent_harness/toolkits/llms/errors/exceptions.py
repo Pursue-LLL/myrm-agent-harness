@@ -56,3 +56,36 @@ class MyrmLLMError(Exception):
 
     def __str__(self) -> str:
         return f"[{self.error_code.value}] {self.default_msg}"
+
+
+class EgressChallengeBlockedError(MyrmLLMError):
+    """Raised when an egress request is intercepted by Cloudflare/WAF anti-bot challenges.
+
+    Signals that the current egress network path or IP address has been flagged by upstream
+    anti-bot/WAF mitigations (e.g. Turnstile, JS challenges, HTML 403 blocks). Halts key
+    rotation across the credential pool immediately to prevent cascading invalidation of
+    healthy API keys.
+    """
+
+    def __init__(
+        self,
+        default_msg: str = "Cloudflare/WAF anti-bot challenge blocked the request",
+        context: dict[str, object] | None = None,
+        recovery_actions: list[str] | None = None,
+        original_exc: Exception | None = None,
+        diagnostic_result: dict[str, object] | None = None,
+    ) -> None:
+        default_recovery = [
+            "check_egress_proxy",
+            "rotate_proxy_ip",
+            "verify_network_waf",
+        ]
+        super().__init__(
+            error_code=FailoverReason.CHALLENGE_BLOCKED,
+            default_msg=default_msg,
+            context=context or {},
+            recovery_actions=recovery_actions or default_recovery,
+            original_exc=original_exc,
+            diagnostic_result=diagnostic_result,
+        )
+

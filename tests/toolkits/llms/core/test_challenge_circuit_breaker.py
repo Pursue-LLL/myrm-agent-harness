@@ -19,6 +19,7 @@ from myrm_agent_harness.toolkits.llms.errors.error_types import (
     FailoverReason,
     RecoverabilityLevel,
 )
+from myrm_agent_harness.toolkits.llms.errors.exceptions import EgressChallengeBlockedError
 
 
 def _make_challenge_error() -> Exception:
@@ -64,6 +65,17 @@ def test_html_403_challenge_classification() -> None:
     assert classify_failover_reason(exc) == FailoverReason.CHALLENGE_BLOCKED
 
 
+def test_generic_proxy_html_403_classification() -> None:
+    """Generic upstream proxy HTML 403 (no WAF keywords) must classify as CHALLENGE_BLOCKED."""
+    exc = Exception(
+        "403 Forbidden: <!DOCTYPE html><html><head><title>403 Forbidden</title></head>"
+        "<body><h1>403 Forbidden</h1><p>Access denied by egress proxy</p></body></html>"
+    )
+    exc.status_code = 403  # type: ignore[attr-defined]
+    assert classify_error(exc) == ErrorKind.CHALLENGE_BLOCKED
+    assert classify_failover_reason(exc) == FailoverReason.CHALLENGE_BLOCKED
+
+
 def test_json_403_auth_classification() -> None:
     """Legitimate API 403 with JSON body must remain AUTH_PERMANENT."""
     exc = Exception("403 Forbidden: Permission Denied")
@@ -101,8 +113,12 @@ async def test_challenge_circuit_breaker_agenerate_aborts_immediately() -> None:
         pool=pool,
     )
 
-    with pytest.raises(Exception, match="Just a moment"):
+    with pytest.raises(EgressChallengeBlockedError) as exc_info:
         await pool_llm._agenerate([HumanMessage(content="test")])
+
+    assert exc_info.value.error_code == FailoverReason.CHALLENGE_BLOCKED
+    assert exc_info.value.context.get("key_suffix") == keys[0][-6:]
+    assert "check_egress_proxy" in exc_info.value.recovery_actions
 
     # Circuit breaker tripped on key1 — key2 MUST NEVER be called to protect accounts
     assert llm1._agenerate.call_count == 1
@@ -133,10 +149,12 @@ async def test_challenge_circuit_breaker_astream_aborts_immediately() -> None:
         pool=pool,
     )
 
-    with pytest.raises(Exception, match="Just a moment"):
+    with pytest.raises(EgressChallengeBlockedError) as exc_info:
         async for _ in pool_llm._astream([HumanMessage(content="test")]):
             pass
 
+    assert exc_info.value.error_code == FailoverReason.CHALLENGE_BLOCKED
+    assert exc_info.value.context.get("key_suffix") == keys[0][-6:]
     llm2._astream.assert_not_called()
 
 
@@ -158,8 +176,10 @@ def test_challenge_circuit_breaker_generate_sync_aborts_immediately() -> None:
         pool=pool,
     )
 
-    with pytest.raises(Exception, match="Just a moment"):
+    with pytest.raises(EgressChallengeBlockedError) as exc_info:
         pool_llm._generate([HumanMessage(content="test")])
 
+    assert exc_info.value.error_code == FailoverReason.CHALLENGE_BLOCKED
+    assert exc_info.value.context.get("key_suffix") == keys[0][-6:]
     assert llm1._generate.call_count == 1
     llm2._generate.assert_not_called()

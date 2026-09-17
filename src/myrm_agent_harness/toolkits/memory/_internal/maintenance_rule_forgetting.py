@@ -19,10 +19,13 @@ Stateless forgetting execution for relational procedural rules.
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.toolkits.memory.types import ProceduralMemory
+from myrm_agent_harness.toolkits.memory.types import (
+    ARCHIVE_RETENTION_DAYS,
+    ProceduralMemory,
+)
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.protocols.relational import (
@@ -113,8 +116,10 @@ async def _apply_rule_action(
                 result.forgotten_count += 1
                 result.forgotten_ids.append(rule.id)
         elif fg_cfg.mode == ForgettingMode.ARCHIVE:
+            now = datetime.now(UTC)
             rule.is_active = False
-            rule.metadata["archived_at"] = datetime.now(UTC).isoformat()
+            rule.metadata["archived_at"] = now.isoformat()
+            rule.metadata["archive_expires_at"] = (now + timedelta(days=ARCHIVE_RETENTION_DAYS)).isoformat()
             rule.metadata["archive_reason"] = reason
             await relational.update_rule(rule.id, rule)
             result.archived_count += 1

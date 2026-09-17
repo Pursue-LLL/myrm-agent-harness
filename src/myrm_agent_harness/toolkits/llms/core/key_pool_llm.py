@@ -37,6 +37,7 @@ from myrm_agent_harness.toolkits.llms.errors.classifier import (
     classify_error,
     extract_retry_after,
 )
+from myrm_agent_harness.toolkits.llms.errors.exceptions import EgressChallengeBlockedError
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +110,24 @@ class KeyPoolLLM(BaseChatModel):
         retry_after = extract_retry_after(exc) if kind == ErrorKind.RATE_LIMIT else None
         self._pool.report_error(key, kind.value, cooldown_hint_s=retry_after)
 
+    @staticmethod
+    def _raise_challenge_blocked(key: str, exc: Exception, action: str = "request") -> None:
+        masked_key = key[-6:] if len(key) >= 6 else "***"
+        logger.error(
+            "Cloudflare/WAF challenge blocked %s for key ...%s. "
+            "Circuit breaker triggered: halting key rotation to protect remaining pool keys.",
+            action,
+            masked_key,
+        )
+        raise EgressChallengeBlockedError(
+            default_msg=(
+                f"Cloudflare/WAF anti-bot challenge blocked {action} for key ...{masked_key}: {exc}. "
+                "Circuit breaker triggered: halting key rotation."
+            ),
+            context={"key_suffix": masked_key, "action": action},
+            original_exc=exc,
+        ) from exc
+
     async def _agenerate(
         self,
         messages: list[BaseMessage],
@@ -131,12 +150,7 @@ class KeyPoolLLM(BaseChatModel):
             except Exception as exc:
                 kind = classify_error(exc)
                 if kind == ErrorKind.CHALLENGE_BLOCKED:
-                    logger.error(
-                        "Cloudflare/WAF challenge blocked request for key ...%s. "
-                        "Circuit breaker triggered: halting key rotation to protect remaining pool keys.",
-                        key[-6:] if len(key) >= 6 else "***",
-                    )
-                    raise
+                    self._raise_challenge_blocked(key, exc, action="request")
                 if kind not in _KEY_ROTATABLE_KINDS:
                     raise
                 self._report_error(key, exc, kind)
@@ -168,12 +182,7 @@ class KeyPoolLLM(BaseChatModel):
             except Exception as exc:
                 kind = classify_error(exc)
                 if kind == ErrorKind.CHALLENGE_BLOCKED:
-                    logger.error(
-                        "Cloudflare/WAF challenge blocked stream for key ...%s. "
-                        "Circuit breaker triggered: halting key rotation to protect remaining pool keys.",
-                        key[-6:] if len(key) >= 6 else "***",
-                    )
-                    raise
+                    self._raise_challenge_blocked(key, exc, action="stream")
                 if kind not in _KEY_ROTATABLE_KINDS:
                     raise
                 self._report_error(key, exc, kind)
@@ -205,12 +214,7 @@ class KeyPoolLLM(BaseChatModel):
             except Exception as exc:
                 kind = classify_error(exc)
                 if kind == ErrorKind.CHALLENGE_BLOCKED:
-                    logger.error(
-                        "Cloudflare/WAF challenge blocked request for key ...%s. "
-                        "Circuit breaker triggered: halting key rotation to protect remaining pool keys.",
-                        key[-6:] if len(key) >= 6 else "***",
-                    )
-                    raise
+                    self._raise_challenge_blocked(key, exc, action="request")
                 if kind not in _KEY_ROTATABLE_KINDS:
                     raise
                 self._report_error(key, exc, kind)

@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.memory._internal.maintenance_claim_compile import (
@@ -55,6 +55,7 @@ from myrm_agent_harness.toolkits.memory._internal.storage import (
 )
 from myrm_agent_harness.toolkits.memory.protocols.vector import VectorDocument
 from myrm_agent_harness.toolkits.memory.types import (
+    ARCHIVE_RETENTION_DAYS,
     ClaimConflictState,
     ClaimGraphState,
     DigestKind,
@@ -197,6 +198,7 @@ async def run_forgetting(
             elif fg_cfg.mode == ForgettingMode.ARCHIVE:
                 docs_by_id = {d.id: d for d in docs}
                 archive_docs: list[VectorDocument] = []
+                expires_iso = (datetime.fromisoformat(now_iso) + timedelta(days=ARCHIVE_RETENTION_DAYS)).isoformat()
                 for mem, score in candidates:
                     doc = docs_by_id.get(mem.id)
                     if doc is None:
@@ -204,6 +206,7 @@ async def run_forgetting(
                     doc.metadata["status"] = "archived"
                     doc.metadata["archived"] = True
                     doc.metadata["archived_at"] = now_iso
+                    doc.metadata["archive_expires_at"] = expires_iso
                     doc.metadata["archive_reason"] = f"retention={score.total_score:.3f}"
                     archive_docs.append(doc)
                 if archive_docs:

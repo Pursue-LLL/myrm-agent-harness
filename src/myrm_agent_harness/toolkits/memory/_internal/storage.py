@@ -349,10 +349,12 @@ async def update_vector_memory(
     content_changed: bool,
     vector: VectorStoreProtocol,
     config: MemoryConfig,
-    embedding: EmbeddingProtocol,
-    cache: EmbeddingCacheProtocol | None,
+    embedding: EmbeddingProtocol | None = None,
+    cache: EmbeddingCacheProtocol | None = None,
 ) -> SemanticMemory | EpisodicMemory:
     if content_changed:
+        if embedding is None:
+            raise MemoryError("Embedding backend required when content changed")
         memory.embedding = await embed_single(memory.content, embedding, cache)
     if isinstance(memory, SemanticMemory):
         await vector.upsert(config.semantic_collection, [semantic_to_doc(memory)])

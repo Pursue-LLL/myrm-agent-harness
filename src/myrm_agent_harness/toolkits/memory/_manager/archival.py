@@ -1,16 +1,14 @@
-"""MemoryManager archival and TTL retention mixin module.
+"""MemoryManager archival TTL retention mixin module.
 
 [INPUT]
-- memory._manager.shared::MemoryError (POS: base memory error)
-- memory._manager.shared::MemoryNotFoundError (POS: memory not found error)
-- memory._manager.shared::SemanticMemory (POS: semantic memory model)
-- memory._manager.shared::EpisodicMemory (POS: episodic memory model)
+- memory._manager.shared::ARCHIVE_RETENTION_DAYS (POS: archive retention window)
+- memory._manager.shared::logger (POS: module logger)
 
 [OUTPUT]
-- MemoryManagerArchivalMixin: unarchive and TTL retention purge operations
+- MemoryManagerArchivalMixin: TTL retention purge for expired archived memories and rules
 
 [POS]
-Memory lifecycle archiver — handles memory restoration and TTL expiration purge.
+Memory lifecycle archiver — reclaims archived memories and rules past their retention window.
 """
 
 from __future__ import annotations
@@ -19,59 +17,32 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from myrm_agent_harness.toolkits.memory._manager.shared import (
-    EpisodicMemory,
-    MemoryError,
-    MemoryNotFoundError,
-    SemanticMemory,
-    doc_to_episodic,
-    doc_to_semantic,
+    ARCHIVE_RETENTION_DAYS,
     logger,
 )
 
 
 class MemoryManagerArchivalMixin:
-    """Provides unarchive and expired archive purge capabilities for MemoryManager."""
+    """Provides expired archive purge capabilities for MemoryManager."""
 
     # Dynamic mixin attributes satisfied by MemoryManagerCore / DeletionMixin
     _vector: Any
     _config: Any
-    _owns_vector_doc: Any
+    _rel: Any
+    _namespaces: Any
     delete_memory: Any
+    delete_rule: Any
 
-    async def unarchive_memory(self, memory_id: str) -> SemanticMemory | EpisodicMemory:
-        """Restore an archived memory to active status."""
-        if self._vector is None:
-            raise MemoryError("Vector backend is required but not provided")
-
-        for coll, converter in (
-            (self._config.semantic_collection, doc_to_semantic),
-            (self._config.episodic_collection, doc_to_episodic),
-        ):
-            docs = await self._vector.get(coll, [memory_id])
-            if not docs:
-                continue
-            doc = docs[0]
-            if not self._owns_vector_doc(doc):
-                raise MemoryNotFoundError(f"Memory {memory_id} not found")
-            is_archived = doc.metadata.get("status") == "archived" or doc.metadata.get("archived")
-            if not is_archived:
-                raise MemoryError(f"Memory {memory_id} is not archived")
-            doc.metadata["status"] = "active"
-            doc.metadata["archived"] = False
-            doc.metadata.pop("archived_at", None)
-            doc.metadata.pop("archive_reason", None)
-            await self._vector.upsert(coll, [doc])
-            return converter(doc)
-
-        raise MemoryNotFoundError(f"Memory {memory_id} not found")
-
-    async def purge_expired_archived_memories(self, *, ttl_days: int = 7) -> int:
+    async def purge_expired_archived_memories(self, *, ttl_days: int = ARCHIVE_RETENTION_DAYS) -> int:
         """Permanently purge soft-deleted memories whose archive retention has expired.
 
         Scans semantic and episodic collections for documents marked with
         ``status="archived"`` or ``archived=True``, checks their
         ``archive_expires_at`` (or ``archived_at`` + ttl_days), and physically
         deletes expired ones with full graph cascade.
+
+        The ``archived_at`` fallback reclaims entries archived before the
+        expiration stamp was written by every archival path.
         """
         if self._vector is None:
             return 0
@@ -117,6 +88,56 @@ class MemoryManagerArchivalMixin:
 
         if purged_total > 0:
             logger.info("purge_expired_archived_memories: permanently purged %d expired memories", purged_total)
+
+        return purged_total
+
+    async def purge_expired_archived_rules(self, *, ttl_days: int = ARCHIVE_RETENTION_DAYS) -> int:
+        """Permanently delete procedural rules whose archive retention has expired.
+
+        Archived rules carry ``archive_expires_at`` in metadata. Rules archived
+        before every archival path stamped an expiration fall back to
+        ``archived_at`` + ``ttl_days`` so they are still reclaimed.
+
+        ``allow_protected=False`` keeps user-endorsed rules permanently
+        recoverable: they are skipped instead of hard-deleted.
+        """
+        try:
+            rules = await self._rel().list_rules(
+                active_only=False,
+                limit=1000,
+                namespaces=self._namespaces,
+            )
+        except Exception as exc:
+            logger.warning("purge_expired_archived_rules: failed to list rules: %s", exc)
+            return 0
+
+        now_iso = datetime.now(UTC).isoformat()
+        now_dt = datetime.now(UTC)
+        purged_total = 0
+
+        for rule in rules:
+            if rule.is_active:
+                continue
+            metadata = rule.metadata or {}
+            expires_at = metadata.get("archive_expires_at")
+            archived_at = metadata.get("archived_at")
+
+            is_expired = False
+            if isinstance(expires_at, str) and expires_at <= now_iso:
+                is_expired = True
+            elif not expires_at and isinstance(archived_at, str):
+                try:
+                    arch_dt = datetime.fromisoformat(archived_at)
+                    if now_dt - arch_dt >= timedelta(days=ttl_days):
+                        is_expired = True
+                except ValueError:
+                    pass
+
+            if is_expired and await self.delete_rule(rule.id, allow_protected=False):
+                purged_total += 1
+
+        if purged_total > 0:
+            logger.info("purge_expired_archived_rules: permanently purged %d expired rules", purged_total)
 
         return purged_total
 

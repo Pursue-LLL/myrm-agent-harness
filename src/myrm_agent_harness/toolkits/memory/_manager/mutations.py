@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 
 from myrm_agent_harness.toolkits.memory._manager.shared import (
+    ARCHIVE_RETENTION_DAYS,
     UTC,
     AnyMemory,
     ConversationMemory,
@@ -266,11 +267,15 @@ class MemoryManagerMutationsMixin:
             scan_and_clean_memory(updated, block_threshold=self._config.injection_block_threshold)
 
         if isinstance(updated, (SemanticMemory, EpisodicMemory)):
-            v, e = self._vec()
+            if self._vector is None:
+                raise MemoryError("Vector backend required")
+            e: EmbeddingProtocol | None = None
+            if content_changed:
+                _, e = self._vec()
             return await update_vector_memory(
                 self._bind_scope(updated),
                 content_changed,
-                v,
+                self._vector,
                 self._config,
                 e,
                 self._cache,

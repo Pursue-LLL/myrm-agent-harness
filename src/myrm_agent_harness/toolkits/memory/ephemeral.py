@@ -247,10 +247,6 @@ class ReadOnlyMemoryView(MemoryManager):
         self._deny()
         raise AssertionError  # unreachable
 
-    async def unarchive_memory(self, memory_id: str) -> SemanticMemory | EpisodicMemory:
-        self._deny()
-        raise AssertionError  # unreachable
-
     async def create_backup(self, strategy: MemoryBackupStrategy, description: str | None = None) -> BackupResult:
         self._deny()
         raise AssertionError  # unreachable

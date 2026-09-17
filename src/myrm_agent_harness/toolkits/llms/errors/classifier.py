@@ -508,7 +508,8 @@ def classify_failover_reason(exc: Exception) -> FailoverReason:
         return FailoverReason.PROVIDER_POLICY_BLOCKED
 
     # 3.5. Cloudflare / WAF Anti-bot Challenge (must precede generic 401/403 auth fallback)
-    if _CLOUDFLARE_CHALLENGE_RE.search(msg):
+    is_html_doc = "<html" in msg or "<!doctype html" in msg
+    if _CLOUDFLARE_CHALLENGE_RE.search(msg) or (is_html_doc and (normalized.status_code == 403 or "403" in msg)):
         return FailoverReason.CHALLENGE_BLOCKED
 
     # 4. Authentication (permanent credential / key errors)
@@ -548,8 +549,7 @@ def classify_failover_reason(exc: Exception) -> FailoverReason:
         return FailoverReason.FORMAT_ERROR
 
     if normalized.status_code == 403:
-        is_html_doc = "<html" in msg or "<!doctype html" in msg
-        if is_html_doc and not normalized.body:
+        if is_html_doc:
             return FailoverReason.CHALLENGE_BLOCKED
         return FailoverReason.AUTH_PERMANENT
 

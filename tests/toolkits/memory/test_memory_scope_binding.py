@@ -219,9 +219,10 @@ def test_apply_channel_affinity_helper_prefers_current_channel():
 
 
 @pytest.mark.asyncio
-async def test_unarchive_memory_rejects_cross_agent_doc() -> None:
-    """unarchive must not restore a memory outside the caller's namespaces."""
+async def test_restore_rejects_cross_agent_doc() -> None:
+    """Restore must not touch a memory outside the caller's namespaces."""
     from myrm_agent_harness.toolkits.memory._internal.storage import MemoryNotFoundError
+    from myrm_agent_harness.toolkits.memory.types import MemoryStatus
     from myrm_agent_harness.toolkits.vector.base import VectorDocument
 
     config = MemoryConfig(embedding_model="test", retrieval=RetrievalConfig())
@@ -238,13 +239,13 @@ async def test_unarchive_memory_rejects_cross_agent_doc() -> None:
     )
 
     with pytest.raises(MemoryNotFoundError):
-        await manager.unarchive_memory("mem-b")
+        await manager.update_memory("mem-b", status=MemoryStatus.ACTIVE)
 
 
 @pytest.mark.asyncio
-async def test_unarchive_memory_accepts_owned_doc() -> None:
+async def test_restore_accepts_owned_doc() -> None:
     """A memory inside the caller's namespaces restores normally."""
-    from myrm_agent_harness.toolkits.memory.types import SemanticMemory
+    from myrm_agent_harness.toolkits.memory.types import MemoryStatus, SemanticMemory
     from myrm_agent_harness.toolkits.vector.base import VectorDocument
 
     config = MemoryConfig(embedding_model="test", retrieval=RetrievalConfig())
@@ -261,7 +262,7 @@ async def test_unarchive_memory_accepts_owned_doc() -> None:
         config, user_id="test_user", namespaces=["global", "agent:A"], vector=vector, auto_warmup=False
     )
 
-    restored = await manager.unarchive_memory("mem-a")
+    restored = await manager.update_memory("mem-a", status=MemoryStatus.ACTIVE)
 
     assert isinstance(restored, SemanticMemory)
     assert restored.id == "mem-a"
