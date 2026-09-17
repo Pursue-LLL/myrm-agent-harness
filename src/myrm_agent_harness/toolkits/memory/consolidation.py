@@ -3,18 +3,20 @@
 [INPUT]
 - context_management.working_memory.block::LocalWorkingMemoryBlock (POS: 运行时零开销手边工作台)
 - toolkits.memory.types::TaskDigestMemory (POS: 结构化长程任务成果沉淀实体)
-- toolkits.memory.types::ProceduralMemory (POS: 程序性经验与规避准则实体)
+- toolkits.memory.types::ProceduralMemory (POS: 程序性经验与自愈避坑规程实体)
+- toolkits.memory.types::EpisodicMemory (POS: 任务成果镜像语义向量沉淀实体)
 
 [OUTPUT]
 - HyperConsolidator: 会话终态异步巩固核心，内置 Gatekeeper 过滤平凡请求，沉淀 TaskDigest 与自愈 ProceduralMemory
 - create_consolidation_cleanup_task: 异步清理与巩固后台协程工厂
 
 [POS]
-- 认知中枢终态提炼服务。将单会话手边工作台的执行经验与避坑教训资产化并持久落盘。
+- 认知中枢终态提炼服务。将单会话手边工作台的执行经验与避坑教训资产化并持久落盘至关系与向量存储。
 """
 
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -26,6 +28,7 @@ from myrm_agent_harness.agent.context_management.working_memory.types import (
     SubtaskStatus,
 )
 from myrm_agent_harness.toolkits.memory.types import (
+    EpisodicMemory,
     MemoryLifecycle,
     MemoryStatus,
     ProceduralMemory,
@@ -125,6 +128,10 @@ class HyperConsolidator:
                     tool_rule_priority=ToolRulePriority.NORMAL,
                     error_fingerprint=trap.fingerprint,
                     resolution_steps=[trap.avoidance_rule],
+                    metadata={
+                        "error_fingerprint": trap.fingerprint,
+                        "resolution_steps": [trap.avoidance_rule],
+                    },
                 )
                 procedural_rules.append(rule)
 
@@ -154,14 +161,43 @@ class HyperConsolidator:
         if self._memory_manager is None:
             return
 
-        rel_store = getattr(self._memory_manager, "_relational_store", None)
-        if rel_store is not None:
-            # Write task digest
-            if hasattr(rel_store, "save_memory"):
-                await rel_store.save_memory(digest)
-            for rule in rules:
-                if hasattr(rel_store, "save_memory"):
-                    await rel_store.save_memory(rule)
+        # 1. Persist Procedural Rules (self-healing avoidance traps)
+        if rules:
+            if hasattr(self._memory_manager, "store_batch"):
+                try:
+                    await self._memory_manager.store_batch(rules)
+                except Exception as err:
+                    logger.error("Failed to store procedural rules batch: %s", err)
+            else:
+                rel = getattr(self._memory_manager, "_relational", None)
+                if rel is not None and hasattr(rel, "create_rule"):
+                    for rule in rules:
+                        try:
+                            await rel.create_rule(rule)
+                        except Exception as err:
+                            logger.error("Failed to persist procedural rule %s: %s", rule.id, err)
+
+        # 2. Persist TaskDigest as searchable EpisodicMemory
+        if hasattr(self._memory_manager, "store"):
+            try:
+                episodic = EpisodicMemory(
+                    content=digest.content or f"Task Goal: {digest.task_goal} | Status: {digest.status}",
+                    source_chat_id=digest.source_session_id or None,
+                    importance=0.8,
+                    metadata={
+                        "task_goal": str(digest.task_goal),
+                        "status": str(digest.status),
+                        "completed_steps": json.dumps(list(digest.completed_steps)),
+                        "artifact_paths": json.dumps(list(digest.artifact_paths)),
+                        "key_findings": json.dumps(list(digest.key_findings)),
+                        "error_lessons": json.dumps(list(digest.error_lessons)),
+                        "tool_call_count": int(digest.tool_call_count),
+                        "event_type": "task_digest",
+                    },
+                )
+                await self._memory_manager.store(episodic)
+            except Exception as err:
+                logger.error("Failed to persist task digest as episodic memory: %s", err)
 
 
 def create_consolidation_cleanup_task(

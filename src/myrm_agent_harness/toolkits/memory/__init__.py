@@ -33,6 +33,15 @@ from myrm_agent_harness.toolkits.memory.conversation_search import (
     MemoryConversationSearchProvider,
     create_conversation_search_tool,
 )
+from myrm_agent_harness.toolkits.memory.cube import (
+    LifecycleTier,
+    MemCubeEnvelope,
+    MemCubeHeader,
+    StoragePolicy,
+    infer_tier_and_policy,
+    unwrap_envelope,
+    wrap_into_envelope,
+)
 from myrm_agent_harness.toolkits.memory.governance import (
     AssembledMemoryContext,
     ConflictResolver,
@@ -108,6 +117,7 @@ from myrm_agent_harness.toolkits.memory.reliability import (
     summarize_recall_benchmark,
 )
 from myrm_agent_harness.toolkits.memory.retriever import MemoryRetriever
+from myrm_agent_harness.toolkits.memory.scheduler import MultiTierMemoryScheduler
 from myrm_agent_harness.toolkits.memory.session import MemorySession
 from myrm_agent_harness.toolkits.memory.setup import create_local_memory_manager
 from myrm_agent_harness.toolkits.memory.signals import SignalCalculator
@@ -216,7 +226,15 @@ __all__ = [
     "GravityDecayScorer",
     "HyperConsolidator",
     "HealthScore",
+    "LifecycleTier",
     "MaintenanceReport",
+    "MemCubeEnvelope",
+    "MemCubeHeader",
+    "MultiTierMemoryScheduler",
+    "StoragePolicy",
+    "infer_tier_and_policy",
+    "unwrap_envelope",
+    "wrap_into_envelope",
     "MemoryArchiveDryRunResult",
     "MemoryArchiveManifest",
     "MemoryArchivePayload",

@@ -90,6 +90,9 @@ def row_to_procedural(row: tuple[object, ...]) -> ProceduralMemory:
     is_locked = bool(row[22]) if len(row) > 22 and row[22] else False
     expected_valid_days = int(row[23]) if len(row) > 23 and row[23] is not None else None
 
+    error_fp = str(metadata["error_fingerprint"]) if metadata.get("error_fingerprint") else None
+    res_steps = [str(step) for step in metadata.get("resolution_steps", [])] if isinstance(metadata.get("resolution_steps"), list) else []
+
     return ProceduralMemory(
         id=str(row[0]),
         user_id=str(row[1]),
@@ -118,6 +121,8 @@ def row_to_procedural(row: tuple[object, ...]) -> ProceduralMemory:
         updated_at=parse_dt(str(row[21])),
         is_user_locked=is_locked,
         expected_valid_days=expected_valid_days,
+        error_fingerprint=error_fp,
+        resolution_steps=res_steps,
     )
 
 

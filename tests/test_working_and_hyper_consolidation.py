@@ -9,9 +9,14 @@ from myrm_agent_harness.agent.context_management.working_memory import (
     SubtaskStatus,
 )
 from myrm_agent_harness.toolkits.memory.consolidation import HyperConsolidator
+from myrm_agent_harness.toolkits.memory.relational.sqlite_store import (
+    SQLiteRelationalStore,
+)
 from myrm_agent_harness.toolkits.memory.types import (
     AnyMemory,
     MemoryType,
+    ProceduralMemory,
+    RuleSource,
     TaskDigestMemory,
 )
 
@@ -241,3 +246,96 @@ def test_local_working_memory_resolve_trap() -> None:
     assert restored.traps[0].resolved is True
     LocalWorkingMemoryBlock.reset()
 
+
+@pytest.mark.asyncio
+async def test_hyper_consolidator_persistence_with_memory_manager() -> None:
+    """Verify HyperConsolidator correctly invokes relational.create_rule and manager.store."""
+    LocalWorkingMemoryBlock.reset()
+    LocalWorkingMemoryBlock.initialize(
+        goal="Configure production Redis Sentinel",
+        initial_subtasks=["Check quorum", "Apply failover timeout"],
+    )
+    LocalWorkingMemoryBlock.advance_turn()
+    LocalWorkingMemoryBlock.advance_turn()
+    LocalWorkingMemoryBlock.record_trap(
+        fingerprint="sentinel_down_after_split",
+        avoidance_rule="Set down-after-milliseconds to at least 5000ms",
+        tool_name="redis_cli",
+    )
+    LocalWorkingMemoryBlock.set_status("completed")
+
+    stored_rules = []
+    stored_episodics = []
+
+    class FakeRelational:
+        async def create_rule(self, rule: object) -> None:
+            stored_rules.append(rule)
+
+    class FakeMemoryManager:
+        def __init__(self) -> None:
+            self._relational = FakeRelational()
+
+        async def store(self, memory: object) -> None:
+            stored_episodics.append(memory)
+
+    manager = FakeMemoryManager()
+    consolidator = HyperConsolidator(memory_manager=manager)  # type: ignore[arg-type]
+
+    digest, rules = await consolidator.consolidate_session(
+        messages=[{"role": "user", "content": "Setup Redis Sentinel"}],
+        chat_id="chat-redis-99",
+    )
+
+    assert digest is not None
+    assert len(rules) == 1
+    assert len(stored_rules) == 1
+    assert stored_rules[0].error_fingerprint == "sentinel_down_after_split"
+    assert "Set down-after-milliseconds" in stored_rules[0].action
+
+    assert len(stored_episodics) == 1
+    assert stored_episodics[0].metadata["event_type"] == "task_digest"
+    assert stored_episodics[0].metadata["task_goal"] == "Configure production Redis Sentinel"
+
+    # In-memory working block must be cleaned up
+    assert LocalWorkingMemoryBlock.get_state() is None
+
+
+@pytest.mark.asyncio
+async def test_sqlite_procedural_memory_error_fingerprint_roundtrip(tmp_path: object) -> None:
+    """Validate ProceduralMemory roundtrip serialization/deserialization retains error_fingerprint."""
+    from pathlib import Path
+
+    db_file = str(Path(str(tmp_path)) / "test_proc.db")
+    store = SQLiteRelationalStore(db_file)
+
+    rule = ProceduralMemory(
+        id="proc-docker-test",
+        trigger="error: docker build failed",
+        action="docker build --no-cache",
+        error_fingerprint="docker_build_cache_corrupt",
+        resolution_steps=["clean cache", "rebuild"],
+        source=RuleSource.AGENT_SELF,
+    )
+
+    # 1. Create rule in SQLite
+    saved = await store.create_rule(rule)
+    assert saved.id == "proc-docker-test"
+
+    # 2. Retrieve rule from SQLite and verify error_fingerprint & resolution_steps
+    retrieved = await store.get_rule("proc-docker-test")
+    assert retrieved is not None
+    assert retrieved.error_fingerprint == "docker_build_cache_corrupt"
+    assert retrieved.resolution_steps == ["clean cache", "rebuild"]
+
+    # 3. Update rule
+    retrieved.error_fingerprint = "docker_build_cache_v2"
+    retrieved.resolution_steps = ["docker builder prune", "rebuild"]
+    await store.update_rule("proc-docker-test", retrieved)
+
+    # 4. Retrieve again to confirm update roundtrip
+    updated = await store.get_rule("proc-docker-test")
+    assert updated is not None
+    assert updated.error_fingerprint == "docker_build_cache_v2"
+    assert updated.resolution_steps == ["docker builder prune", "rebuild"]
+
+    await store.close()

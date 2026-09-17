@@ -1074,5 +1074,26 @@ rating_new = rating_old + alpha * (normalized - rating_old)
   - Server 端通过 `/api/memory/working-state` 暴露实时手边工作台快照；
   - 前端 `WorkingStateBadge.tsx` 消除 Dead Feature Path，装配 `WorkingMemoryBoard.tsx`，通过 `chatId` 严格实现多会话物理隔离，杜绝跨会话幽灵数据穿透；已自愈的规避规则渲染为绿色自愈盾牌徽标，全面提升 ToC 生产力体验。
 
+---
+
+## 十八、统一异构记忆 MemCube 封装与多层调度引擎 (MemCubeEnvelope & MultiTierMemoryScheduler)
+
+针对异构记忆介质（关系事实、向量知识、图谱实体、避坑规程、技能资产）的跨层治理与跨端漫游，提供工业级标准信封协议与统筹调度中枢：
+
+- **统一异构记忆容器（`MemCubeEnvelope[T]` & `MemCubeHeader`）**：
+  - 核心位置：`myrm_agent_harness.toolkits.memory.cube`；
+  - 采用 Python 3.12 强类型泛型协议，全仓统一元数据头标准（`MemCubeHeader`），涵盖生命周期层级（`LifecycleTier`：L1/L2/L3/ARCHIVED）、存储路由策略（`StoragePolicy`：RELATIONAL/VECTOR/GRAPH/EPHEMERAL）、优先级、权限归属与时戳；
+  - 内置规范化 Canonical JSON 序列化与 SHA256 数字指纹防篡改引擎（`compute_audit_hash` 与 `verify_audit_hash`），确保实体在导出、归档与跨端漫游过程中数据完整性可实时核验；
+  - 提供 `wrap_into_envelope` 与 `unwrap_envelope` 双向无损类型转换适配器，以及全类型自适应推导函数 `infer_tier_and_policy`。
+- **多层自适应记忆调度器（`MultiTierMemoryScheduler`）**：
+  - 核心位置：`myrm_agent_harness.toolkits.memory.scheduler`；
+  - 统一物理介质分流（`dispatch_store`）：根据 `StoragePolicy` 智能解耦分流，关系型规则（如 TaskDigest、Procedural 等）优先定向路由至关系库或安全通道，向量知识路由至向量库，图谱实体路由至图存储；
+  - 全量信封封箱导出（`export_all_envelopes`）：聚合底层各存储介质中的全部记忆条目，自动密封为带有 SHA256 防篡改签名的标准 `MemCubeEnvelope` 列表；
+  - 防篡改批量导入落盘（`import_envelopes`）：在数据恢复与导入时，前置执行 SHA256 指纹校验门禁，自动识别并拦截篡改数据，同时依据策略自适应分流到目标存储底层。
+- **服务端与客户端治理闭环**：
+  - Server 端归档预检服务（`archive.py`）在导出与 dry-run 阶段深度集成 MemCube 签名校验，生成篡改安全审计警报代码；
+  - 前端恢复面板（`MemoryArchiveRestoreDialog.tsx`）采用双主题安全盾牌指示，清晰展示数据完整性合规状态。
+
+
 
 

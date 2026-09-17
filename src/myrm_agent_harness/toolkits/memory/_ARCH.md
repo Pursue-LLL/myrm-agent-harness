@@ -22,7 +22,9 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | backup.py                | Core     | Provides BackupMetadata, BackupResult, RestoreResult.                                                         | ✅    |
 | chunking.py              | Core     | Chunking utilities for ConversationMemory and extraction pipelines. Provides configurable strategies (fixed, turn, message, semantic, and episodes chunking via EpisodesChunker with idle-time gap detection and causal sliding overlap). | ✅    |
 | compression.py           | Core     | Transparent payload compression and external BLOB storage for ConversationMemory raw_exchange fields.         | ✅    |
-| consolidation.py         | Core     | Hyper Consolidation Memory Block: post-session distillation of working memory into TaskDigestMemory and ProceduralMemory. | ✅    |
+| consolidation.py         | Core     | Hyper Consolidation Memory Block: 会话终态将工作记忆提取为 ProceduralMemory（自愈避坑规程）与镜像为 EpisodicMemory 的 TaskDigest 资产并持久落盘。 | ✅    |
+| cube.py                  | Core     | 统一异构记忆 MemCubeEnvelope 泛型容器、LifecycleTier 与 StoragePolicy 定义，提供 SHA256 验签防篡改能力。 | ✅    |
+| scheduler.py             | Core     | 多层记忆生命周期调度器 MultiTierMemoryScheduler，负责多介质路由、全量封箱导出与防篡改导入。 | ✅    |
 | ephemeral.py             | Core     | Ephemeral and read-only memory managers for subagent isolation.                                               | ✅    |
 | health.py                | Core     | Memory system diagnostics — instance-level health and maintenance reports.                                    | ✅    |
 | intent_recognizers.py    | Core     | Query intent recognition for adaptive type weighting.                                                         | ✅    |

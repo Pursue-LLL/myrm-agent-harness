@@ -4,16 +4,26 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import datetime
 from pathlib import Path
 
 from myrm_agent_harness.toolkits.memory._manager.shared import (
+    logger,
+)
+from myrm_agent_harness.toolkits.memory.cube import (
+    MemCubeEnvelope,
+)
+from myrm_agent_harness.toolkits.memory.types import (
+    BaseMemory,
+    ClaimMemory,
+    ConversationMemory,
     EpisodicMemory,
+    IntegrationMemory,
     MemoryType,
     ProceduralMemory,
     SemanticMemory,
-    logger,
+    TaskDigestMemory,
 )
 
 # ── Path sanitization for safe sharing ─────────────────────────────
@@ -494,8 +504,6 @@ class MemoryManagerImportExportMixin:
         result: dict[str, list[dict[str, object]]] = {}
 
         for mem_type in MemoryType:
-            if mem_type == MemoryType.TASK_DIGEST:
-                continue
             try:
                 memories = await self.list_memories(mem_type, limit=10000, include_archived=True)
                 if memories:
@@ -509,14 +517,35 @@ class MemoryManagerImportExportMixin:
 
         return result
 
+    async def export_memcube_envelopes(self) -> list[dict[str, object]]:
+        """Export all memories as sealed MemCube envelopes for portable tamper-proof roaming."""
+        from myrm_agent_harness.toolkits.memory.scheduler import MultiTierMemoryScheduler
+
+        scheduler = MultiTierMemoryScheduler(memory_manager=self)  # type: ignore[arg-type]
+        envelopes = await scheduler.export_all_envelopes()
+        return [env.model_dump(mode="json") for env in envelopes]
+
+    async def import_memcube_envelopes(
+        self, envelopes_data: Sequence[dict[str, object]], verify_hashes: bool = True
+    ) -> tuple[int, int]:
+        """Import sealed MemCube envelopes and route to proper tiers."""
+        from myrm_agent_harness.toolkits.memory.cube import MemCubeEnvelope
+        from myrm_agent_harness.toolkits.memory.scheduler import MultiTierMemoryScheduler
+
+        envelopes: list[MemCubeEnvelope[dict[str, object]]] = []
+        for raw in envelopes_data:
+            try:
+                envelopes.append(MemCubeEnvelope[dict[str, object]].model_validate(raw))
+            except Exception as err:
+                logger.warning("Failed to validate MemCube envelope: %s", err)
+
+        scheduler = MultiTierMemoryScheduler(memory_manager=self)  # type: ignore[arg-type]
+        return await scheduler.import_envelopes(envelopes, verify_hashes=verify_hashes)
+
     async def import_memories(
         self, data: dict[str, list[dict[str, object]]], *, skip_duplicates: bool = True
     ) -> dict[str, int]:
-        """Import memories from exported data, recomputing embeddings.
-
-        Deduplication happens via ``store_batch`` when ``skip_duplicates`` is True
-        and a deduplicator is configured. Profile entries are upserted via the
-        relational backend directly.
+        """Import memories from exported data, recomputing embeddings and routing per type.
 
         Args:
             data: Dict keyed by memory type with lists of serialized memory objects.
@@ -527,10 +556,14 @@ class MemoryManagerImportExportMixin:
         """
         counts: dict[str, int] = {}
 
-        type_parsers: dict[str, type[SemanticMemory | EpisodicMemory | ProceduralMemory]] = {
+        type_parsers: dict[str, type[BaseMemory]] = {
             MemoryType.SEMANTIC.value: SemanticMemory,
             MemoryType.EPISODIC.value: EpisodicMemory,
             MemoryType.PROCEDURAL.value: ProceduralMemory,
+            MemoryType.CONVERSATION.value: ConversationMemory,
+            MemoryType.CLAIM.value: ClaimMemory,
+            MemoryType.INTEGRATION.value: IntegrationMemory,
+            MemoryType.TASK_DIGEST.value: TaskDigestMemory,
         }
 
         saved_dedup = self._deduplicator
@@ -556,7 +589,7 @@ class MemoryManagerImportExportMixin:
                         counts[type_name] = imported
                     continue
 
-                memories: list[SemanticMemory | EpisodicMemory | ProceduralMemory] = []
+                memories: list[BaseMemory] = []
                 for entry in entries:
                     try:
                         clean = {k: v for k, v in entry.items() if k not in ("id", "embedding")}
@@ -565,14 +598,29 @@ class MemoryManagerImportExportMixin:
                     except Exception as e:
                         logger.warning("Import parse failed for %s entry: %s", type_name, e)
 
-                if memories:
-                    try:
-                        stored = await self.store_batch(memories)
-                        counts[type_name] = len(stored)
-                    except Exception as e:
-                        logger.warning("Import batch store failed for %s: %s", type_name, e)
-                        counts[type_name] = 0
-                else:
+                if not memories:
+                    counts[type_name] = 0
+                    continue
+
+                # Dedicated routing for TaskDigest to relational store directly
+                if type_name == MemoryType.TASK_DIGEST.value:
+                    imported = 0
+                    if self._relational and hasattr(self._relational, "save_memory"):
+                        for mem in memories:
+                            try:
+                                await self._relational.save_memory(mem)
+                                imported += 1
+                            except Exception as e:
+                                logger.warning("Import relational save failed for task digest: %s", e)
+                    counts[type_name] = imported
+                    continue
+
+                # Standard batch storage for other supported types
+                try:
+                    stored = await self.store_batch(memories)  # type: ignore[arg-type]
+                    counts[type_name] = len(stored)
+                except Exception as e:
+                    logger.warning("Import batch store failed for %s: %s", type_name, e)
                     counts[type_name] = 0
         finally:
             self._deduplicator = saved_dedup

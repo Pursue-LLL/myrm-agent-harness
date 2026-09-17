@@ -567,6 +567,15 @@ class SQLiteRelationalStore(RelationalStore):
 
     # ── Procedural rules ─────────────────────────────────────────────
 
+    @staticmethod
+    def _encode_rule_metadata(rule: ProceduralMemory) -> str | None:
+        meta = dict(rule.metadata) if rule.metadata else {}
+        if rule.error_fingerprint and "error_fingerprint" not in meta:
+            meta["error_fingerprint"] = rule.error_fingerprint
+        if rule.resolution_steps and "resolution_steps" not in meta:
+            meta["resolution_steps"] = list(rule.resolution_steps)
+        return json.dumps(meta) if meta else None
+
     async def create_rule(self, rule: ProceduralMemory) -> ProceduralMemory:
         await self._ensure_integrity_before_write()
         conn = await self._get_connection()
@@ -598,7 +607,7 @@ class SQLiteRelationalStore(RelationalStore):
                     int(rule.is_active),
                     json.dumps(rule.trigger_keywords),
                     rule.source.value,
-                    json.dumps(dict(rule.metadata)) if rule.metadata else None,
+                    self._encode_rule_metadata(rule),
                     primary_namespace,
                     namespaces_json,
                     agent_id,
@@ -735,7 +744,7 @@ class SQLiteRelationalStore(RelationalStore):
                     int(rule.is_active),
                     json.dumps(rule.trigger_keywords),
                     rule.source.value,
-                    json.dumps(dict(rule.metadata)) if rule.metadata else None,
+                    self._encode_rule_metadata(rule),
                     rule.scope.primary_namespace,
                     json.dumps(rule.scope.namespaces),
                     rule.scope.agent_id,
