@@ -5,12 +5,13 @@ Agent working memory meta-tool module. Provides LLM-facing autonomous 5-action s
 
 Detailed design: [MEMORY_SYSTEM.md](../../../toolkits/memory/MEMORY_SYSTEM.md)
 
-## File Index
+## 文件清单
 
-| File | Role | Description |
-|------|------|-------------|
-| `__init__.py` | Package | Exports `create_working_memory_manage_tool`. |
-| `working_memory_agent_tools.py` | Core Tool | LangChain tool `working_memory_manage_tool` with self-healing validation and SSE event dispatch. |
+| 文件 | 地位 | 职责 | I/O/P |
+|------|------|------|:-----:|
+| `__init__.py` | 辅助 | 导出 `create_working_memory_manage_tool` | ✅ |
+| `working_memory_agent_tools.py` | 核心 | 提供 `working_memory_manage_tool` 元工具与自定义事件派发 | ✅ |
+
 
 ## Architectural Constraints
 1. **Prompt Cache Safety**: Works strictly in tandem with dynamic Turn Tail `<working_board>`. Never mutates static system prompt prefixes.

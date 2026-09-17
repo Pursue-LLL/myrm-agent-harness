@@ -959,7 +959,24 @@ rating_new = rating_old + alpha * (normalized - rating_old)
 
 ---
 
-## 十三、参考资料
+## 十三、自主五动作空间与工作记忆闭环 (Agentic 5-Action Space & Working Memory)
+
+系统将记忆管理从被动检索升级为 Agent 自主调控的统一五动作空间（Save / Retrieve / Update / Summarize / Discard）：
+
+1. **五动作空间原语**：
+   - `Save`：显式持久化关键事实/偏好（`memory_save_tool`）；
+   - `Retrieve`：目标导向的多路语义寻址（`memory_search_tool`）；
+   - `Update`：更新执行因果工作台进度与注解（`working_memory_manage_tool(action="update_subtask")`）及长期记忆修订；
+   - `Summarize`：长程多步执行后主动提炼阶段性结论（`working_memory_manage_tool(action="summarize")`），避免上下文无序膨胀；
+   - `Discard`（**认知剪枝防线**）：主动淘汰失效假设与死胡同，自动生成 `TrapRecord` 写入当前会话的 `LocalWorkingMemoryBlock` 避坑防线，杜绝死循环试错；长期层面支持淘汰无效记忆条目（`memory_manage_tool(action="discard")`）。
+
+2. **Prompt Cache 恒定性与 Turn Tail 动态工作台**：
+   - 静态 System Prompt 严格保持前缀字节不可变；
+   - 手边工作台内容（`<working_board>`）在每轮推理时由 `agent_runtime.py` 动态挂载于请求尾部（Turn Tail），实时向模型展示当前阶段目标、子任务进度与避坑陷阱清单。
+
+---
+
+## 十四、参考资料
 
 - [CoALA: Cognitive Architectures for Language Agents](https://arxiv.org/abs/2309.02427)
 - [A-MEM: Agentic Memory](https://arxiv.org/abs/2502.12110)

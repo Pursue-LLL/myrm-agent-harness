@@ -250,11 +250,13 @@ def create_working_memory_manage_tool() -> BaseTool:
                         "error": "Both 'key' and 'value' are required for 'set_scratchpad'.",
                     })
 
-                LocalWorkingMemoryBlock.set_scratchpad(key=key, value=value)
+                safe_value = value[:2000] if len(value) > 2000 else value
+                LocalWorkingMemoryBlock.set_scratchpad(key=key, value=safe_value)
                 return json.dumps({
                     "status": "success",
                     "action": "set_scratchpad",
                     "key": key,
+                    "truncated": len(value) > 2000,
                 })
 
             return json.dumps({
