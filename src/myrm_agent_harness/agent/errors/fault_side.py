@@ -58,6 +58,11 @@ _ENV_LLM_KINDS: frozenset[str] = frozenset(
         "billing",
         "auth",
         "model_not_found",
+        # An upstream WAF/anti-bot challenge, not a model or prompt problem: the
+        # request never reached the model. Its recovery actions are all egress
+        # level (``check_egress_proxy`` / ``rotate_proxy_ip`` /
+        # ``verify_network_waf``), which is what puts it on the ENV side.
+        "challenge_blocked",
     }
 )
 
@@ -146,6 +151,10 @@ _OWNER_TOOL_CATEGORIES: frozenset[str] = frozenset(
         "tool_cancelled",
         "guardrail_blocked",
         "benchmark_blocked",
+        # Declared in the enum's "Tool guard / policy errors" group next to
+        # ``loop_guard`` / ``sandbox_boundary``: tripping it means the user asked
+        # for more output than policy allows, so the block is OWNER-caused.
+        "output_limit",
     }
 )
 

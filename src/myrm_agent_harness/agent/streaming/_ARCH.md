@@ -13,7 +13,7 @@
 | `channel_output_hints.py` | 核心 | 交付渠道输出格式提示词生成（Channel-Aware Output Guidance）与前置提示保障 |
 | `citation_audit.py` | 核心 | 流式回复引用标记审计（【N】序号与信息源对照验证） |
 | `escalation_scrubber.py` | 核心 | 模型自主升级标记（`<<<NEEDS_PRO>>>`）流式拦截与重试恢复触发 |
-| `event_handlers.py` | 核心 | LangGraph updates/messages 流式事件向业务事件转换与图片事件分发 |
+| `event_handlers.py` | 核心 | LangGraph updates/messages 流式事件向业务事件转换与图片事件分发。错误事件经 `_error_category_value` 归一化 `ToolErrorCategory`：**必须取 `.value`**（该枚举是裸 `str` mixin，`str()` 会渲染成 `'ToolErrorCategory.ESTOP'`），否则 SSE 契约泄漏 Python 类路径、且 `classify_tool_fault_side` 因表内是值形字符串而全部失配退化为 `unknown` |
 | `message_builder.py` | 核心 | 原始用户输入向 LangChain 消息结构转换与时间戳就地注入 |
 | `model_discipline.py` | 核心 | 模型执行纪律与模型家族行为调优提示词体系（层级化 Tool 引导与反幻觉） |
 | `reasoning_scrubber.py` | 核心 | 模型思考推理标签（`<think>`等）状态机清洗与独立事件重定向 |
