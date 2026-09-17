@@ -45,6 +45,11 @@ from myrm_agent_harness.toolkits.memory.cube import (
     unwrap_envelope,
     wrap_into_envelope,
 )
+from myrm_agent_harness.toolkits.memory.domain_types import (
+    DomainCategory,
+    MemoryDomain,
+    infer_domain_and_category,
+)
 from myrm_agent_harness.toolkits.memory.governance import (
     AssembledMemoryContext,
     ConflictResolver,
@@ -57,11 +62,6 @@ from myrm_agent_harness.toolkits.memory.governance import (
     ProfileSlots,
     ReconciliationAction,
     ReconciliationDecision,
-)
-from myrm_agent_harness.toolkits.memory.domain_types import (
-    DomainCategory,
-    MemoryDomain,
-    infer_domain_and_category,
 )
 from myrm_agent_harness.toolkits.memory.health import HealthScore, MaintenanceReport, MemorySnapshot, NeglectedMemory
 from myrm_agent_harness.toolkits.memory.hermes_bridge import (

@@ -16,6 +16,7 @@ to SQLite cold storage. Guarantees zero cold-to-hot pollution.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 from dataclasses import dataclass
@@ -34,6 +35,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 DEFAULT_DEBOUNCE_INTERVAL_SECONDS = 0.5
+DEFAULT_MAX_DEBOUNCE_INTERVAL_SECONDS = 2.0
 DEFAULT_MAX_HOT_ENTRIES = 500
 
 
@@ -63,15 +65,18 @@ class HotColdMirrorEngine:
         user_id: str = "default",
         *,
         debounce_interval: float = DEFAULT_DEBOUNCE_INTERVAL_SECONDS,
+        max_debounce_interval: float = DEFAULT_MAX_DEBOUNCE_INTERVAL_SECONDS,
         max_hot_entries: int = DEFAULT_MAX_HOT_ENTRIES,
     ) -> None:
         self._db_path = Path(db_path).expanduser().resolve()
         self._user_id = user_id
         self._debounce_interval = max(0.01, debounce_interval)
+        self._max_debounce_interval = max(self._debounce_interval, max_debounce_interval)
         self._max_hot_entries = max(1, max_hot_entries)
 
         self._hot_cache: dict[str, BaseMemory] = {}
         self._pending_sync: dict[str, BaseMemory] = {}
+        self._first_pending_time: float | None = None
         self._debounce_task: asyncio.Task[None] | None = None
         self._connection: aiosqlite.Connection | None = None
         self._lock = asyncio.Lock()
@@ -124,9 +129,17 @@ class HotColdMirrorEngine:
             oldest_id = next(iter(self._hot_cache))
             del self._hot_cache[oldest_id]
 
+        try:
+            now = asyncio.get_running_loop().time()
+        except RuntimeError:
+            now = 0.0
+
+        if self._first_pending_time is None:
+            self._first_pending_time = now
+
         self._hot_cache[memory.id] = memory
         self._pending_sync[memory.id] = memory
-        self._schedule_debounce()
+        self._schedule_debounce(now)
 
     def get_hot(self, memory_id: str) -> BaseMemory | None:
         """Retrieve memory directly from in-memory hot cache."""
@@ -147,14 +160,31 @@ class HotColdMirrorEngine:
         """Current number of items in hot cache."""
         return len(self._hot_cache)
 
-    def _schedule_debounce(self) -> None:
+    def _schedule_debounce(self, now: float) -> None:
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return
+
+        if (
+            self._first_pending_time is not None
+            and now > 0.0
+            and (now - self._first_pending_time) >= self._max_debounce_interval
+        ):
+            if self._debounce_task is None or self._debounce_task.done():
+                self._debounce_task = asyncio.create_task(self._debounce_worker(0.0))
+            return
+
         if self._debounce_task is not None and not self._debounce_task.done():
             self._debounce_task.cancel()
-        self._debounce_task = asyncio.create_task(self._debounce_worker())
+        self._debounce_task = asyncio.create_task(
+            self._debounce_worker(self._debounce_interval)
+        )
 
-    async def _debounce_worker(self) -> None:
+    async def _debounce_worker(self, delay: float) -> None:
         try:
-            await asyncio.sleep(self._debounce_interval)
+            if delay > 0:
+                await asyncio.sleep(delay)
             await self.flush()
         except asyncio.CancelledError:
             pass
@@ -165,9 +195,11 @@ class HotColdMirrorEngine:
         """Flush pending hot items into SQLite cold mirror immediately."""
         async with self._lock:
             if not self._pending_sync:
+                self._first_pending_time = None
                 return 0
             to_flush = dict(self._pending_sync)
             self._pending_sync.clear()
+            self._first_pending_time = None
 
         conn = await self._ensure_connection()
         now_str = datetime.now(UTC).isoformat()
@@ -206,27 +238,37 @@ class HotColdMirrorEngine:
                 )
             )
 
-        await conn.executemany(
-            """
-            INSERT INTO cold_memory_mirror (
-                id, user_id, domain, domain_category, memory_type,
-                summary_l0, overview_l1, content, metadata_json,
-                created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-                domain=excluded.domain,
-                domain_category=excluded.domain_category,
-                memory_type=excluded.memory_type,
-                summary_l0=excluded.summary_l0,
-                overview_l1=excluded.overview_l1,
-                content=excluded.content,
-                metadata_json=excluded.metadata_json,
-                updated_at=excluded.updated_at
-            """,
-            records,
-        )
-        await conn.commit()
-        return len(records)
+        try:
+            await conn.executemany(
+                """
+                INSERT INTO cold_memory_mirror (
+                    id, user_id, domain, domain_category, memory_type,
+                    summary_l0, overview_l1, content, metadata_json,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    domain=excluded.domain,
+                    domain_category=excluded.domain_category,
+                    memory_type=excluded.memory_type,
+                    summary_l0=excluded.summary_l0,
+                    overview_l1=excluded.overview_l1,
+                    content=excluded.content,
+                    metadata_json=excluded.metadata_json,
+                    updated_at=excluded.updated_at
+                """,
+                records,
+            )
+            await conn.commit()
+            return len(records)
+        except Exception:
+            async with self._lock:
+                for k, v in to_flush.items():
+                    if k not in self._pending_sync:
+                        self._pending_sync[k] = v
+                if self._first_pending_time is None and self._pending_sync:
+                    with contextlib.suppress(RuntimeError):
+                        self._first_pending_time = asyncio.get_running_loop().time()
+            raise
 
     async def query_cold(
         self,
@@ -237,7 +279,7 @@ class HotColdMirrorEngine:
         offset: int = 0,
     ) -> Sequence[ColdMemoryRecord]:
         """Query cold SQLite mirror directly.
-        
+<BLANK_LINE>
         STRONG ISOLATION: Cold queries never pollute or overwrite hot cache.
         """
         conn = await self._ensure_connection()
@@ -273,10 +315,8 @@ class HotColdMirrorEngine:
             meta_raw = r["metadata_json"]
             meta_dict: dict[str, object] = {}
             if meta_raw:
-                try:
+                with contextlib.suppress(Exception):
                     meta_dict = json.loads(meta_raw)
-                except Exception:
-                    pass
 
             results.append(
                 ColdMemoryRecord(

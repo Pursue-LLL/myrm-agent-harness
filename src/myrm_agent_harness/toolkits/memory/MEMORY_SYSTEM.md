@@ -1231,7 +1231,8 @@ rating_new = rating_old + alpha * (normalized - rating_old)
 - **内存热缓存与冷持久化单向去抖镜像控制器（`HotColdMirrorEngine`）**：
   - 核心位置：`myrm_agent_harness.toolkits.memory.mirror`；
   - **内存热缓存（In-Memory Hot Tier）**：基于 `OrderedDict` 实现亚毫秒级（$<0.1\text{ms}$）高频命中读取与并发安全写入，容量超限按 LRU 策略自动剔除；
-  - **冷持久化去抖异步刷盘（Debounced Cold Flush）**：写操作先入内存并登记脏标记，通过去抖调度器聚合后批量落盘至 `SQLiteRelationalStore`，降低 I/O 压力；
+  - **冷持久化去抖异步刷盘（Debounced Cold Flush）**：写操作先入内存并登记脏标记，通过去抖调度器聚合后批量落盘至 `SQLiteRelationalStore`，降低 I/O 压力；内置 2.0 秒硬超时防线（`max_debounce_interval`），防止密集写入下的去抖延迟饿死；同时内置异常回填机制，当 SQLite 写入异常时将未提交条目加锁回填至待同步字典并复位计时，确保持续重试与冷端零数据丢失；
+  - **单向物理隔离与检索剪枝**：冷端检索永不污染热缓存；Agent 运行时 `memory_search_tool` 提供 `domain` 参数（`user` / `assistant` / `task`），支持按认知域精准剪枝，对未打标存量记忆自动通过启发式推断器（`infer_domain_and_category`）兜底分类，消除跨域干扰同时防止有效规约被漏检；
   - **进程生命周期优雅退出保障（`shutdown`）**：在服务退出或 Lifespan 关闭时提供同步阻塞 `flush_pending()`，杜绝未落盘脏数据丢失。
 - **Hermes 异构格式与标准信封适配器（`HermesMemoryBridge`）**：
   - 核心位置：`myrm_agent_harness.toolkits.memory.hermes_bridge`；

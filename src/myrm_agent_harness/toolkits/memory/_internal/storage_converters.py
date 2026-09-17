@@ -33,7 +33,6 @@ from myrm_agent_harness.toolkits.memory._internal._storage_payload_helpers impor
 )
 from myrm_agent_harness.toolkits.memory.domain_types import MemoryDomain
 from myrm_agent_harness.toolkits.memory.protocols.vector import (
-    FilterDict,
     VectorDocument,
 )
 from myrm_agent_harness.toolkits.memory.types import (

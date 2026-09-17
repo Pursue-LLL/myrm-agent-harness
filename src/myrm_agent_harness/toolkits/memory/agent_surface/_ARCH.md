@@ -15,7 +15,7 @@ Parent index: [../_ARCH.md](../_ARCH.md). System design: [../MEMORY_SYSTEM.md](.
 | `memory_agent_tools.py` | Core | Agent tool factory: memory_search/save/manage. | ✅ |
 | `_memory_agent_tool_descriptions.py` | Core | LLM-visible tool description SSOT (EN/ZH). | ✅ |
 | `memory_search_policy.py` | Core | Corpus ACL, write bounds, and optional wiki/sessions backends. | ✅ |
-| `memory_search_execution.py` | Core | memory/wiki/sessions search execution. | ✅ |
+| `memory_search_execution.py` | Core | memory/wiki/sessions search execution with domain-scoped pruning and heuristic fallback. | ✅ |
 | `memory_recall_formatting.py` | Core | Recall sanitize SSOT, save ack, source_error suffix. | ✅ |
 | `memory_recall_budget.py` | Core | Recall output budget guardrails. | ✅ |
 | `memory_citations.py` | Core | cited_memory_ids SSE bridge (sources via tool metadata → SourceTracker). | ✅ |

@@ -36,9 +36,6 @@ from uuid import uuid4
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from myrm_agent_harness.toolkits.memory.domain_types import (
-    CATEGORY_TO_DOMAIN_MAP,
-    DOMAIN_CATEGORY_MAP,
-    DomainCategory,
     MemoryDomain,
     infer_domain_and_category,
 )

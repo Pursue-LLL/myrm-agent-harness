@@ -207,13 +207,18 @@ def create_memory_tools(
         profile_key: str | None = None,
         memory_id: str | None = None,
         detail_level: Literal["overview", "full"] = "overview",
+        domain: Literal["user", "assistant", "task"] | None = None,
         since: str | None = None,
         until: str | None = None,
         expand_conversation_id: str | None = None,
         expand_message_id: str | None = None,
         expand_window: int = 5,
     ) -> str | dict[str, object]:
-        """Search long-term memory."""
+        """Search long-term memory.
+
+        Optional partition filter:
+          domain: 'user' for profiles/preferences, 'assistant' for identity/persona, 'task' for experiences/traps.
+        """
         if memory_id:
             return await drill_down_single_memory(manager, memory_id, detail_level=detail_level)
 
@@ -257,6 +262,7 @@ def create_memory_tools(
                     since=since,
                     until=until,
                     detail_level=detail_level,
+                    domain=domain,
                 )
                 sections.append(f"## Memory\n{memory_text}")
             elif target == "wiki":

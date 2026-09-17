@@ -24,14 +24,12 @@ import uuid
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.memory.domain_types import (
-    DomainCategory,
     MemoryDomain,
     infer_domain_and_category,
 )
 from myrm_agent_harness.toolkits.memory.types import (
     BaseMemory,
     EpisodicMemory,
-    MemoryType,
     ProceduralMemory,
     SemanticMemory,
 )

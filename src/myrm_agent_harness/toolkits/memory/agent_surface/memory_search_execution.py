@@ -57,6 +57,7 @@ from myrm_agent_harness.toolkits.memory.conversation_search.types import (
     MAX_CONVERSATION_SEARCH_LIMIT,
     ConversationSearchRequest,
 )
+from myrm_agent_harness.toolkits.memory.domain_types import infer_domain_and_category
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.types import (
     ClaimMemory,
@@ -105,6 +106,7 @@ async def search_memory_corpus(
     since: str | None,
     until: str | None,
     detail_level: str = "overview",
+    domain: str | None = None,
 ) -> str:
     """Search long-term memory corpus (includes active session buffer)."""
     parsed_since = _parse_time_bound(since)
@@ -129,7 +131,7 @@ async def search_memory_corpus(
     truncated_by_budget = False
 
     session = manager.active_session
-    if session and session.buffer_size > 0 and query:
+    if session and session.buffer_size > 0 and query and not domain:
         for buffered in session.search_buffer(query):
             budgeted = budget_recall_line(
                 prefix="[buffered] ",
@@ -160,11 +162,26 @@ async def search_memory_corpus(
         return "No relevant memories found."
 
     for result in results:
+        memory = result.memory
+        if domain:
+            dom = getattr(memory, "domain", None)
+            dom_str = dom.value if hasattr(dom, "value") else str(dom) if dom else ""
+            if not dom_str:
+                m_type = getattr(memory, "memory_type", "")
+                m_type_str = m_type.value if hasattr(m_type, "value") else str(m_type)
+                inferred_dom, _ = infer_domain_and_category(
+                    memory_type=m_type_str,
+                    content=getattr(memory, "content", ""),
+                    event_type=getattr(memory, "event_type", ""),
+                    tags=getattr(memory, "tags", None),
+                )
+                dom_str = inferred_dom.value
+            if dom_str.lower() != domain.lower():
+                continue
         cat = next(
             (key for key, value in category_to_type.items() if value == result.memory_type),
             result.memory_type.value,
         )
-        memory = result.memory
         effective_time = max(memory.created_at, memory.updated_at)
         age = memory_age_label(effective_time)
         provenance = _channel_label(memory.scope.channel_id)
@@ -245,10 +262,11 @@ async def search_memory_corpus(
             retrieval_trace=manager.last_retrieval_trace,
         )
 
-    text = "\n".join(output)
-    if output:
-        text = finalize_recall_tool_output(text)
-        text += RECALL_DRIFT_DEFENSE_FOOTER
+    if not output:
+        return "No relevant memories found."
+
+    text = finalize_recall_tool_output("\n".join(output))
+    text += RECALL_DRIFT_DEFENSE_FOOTER
     return text
 
 

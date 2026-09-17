@@ -31,7 +31,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | hermes_bridge.py         | Core     | Hermes & OpenViking zero-friction memory migration parser and bridge for Markdown/JSON imports.              | ✅    |
 | intent_recognizers.py    | Core     | Query intent recognition for adaptive type weighting.                                                         | ✅    |
 | metrics.py               | Core     | Memory search quality metrics — lightweight, thread-safe counters.                                            | ✅    |
-| mirror.py                | Core     | In-process dual-tier Hot/Cold memory cache with debounced asynchronous cold SQLite mirroring and single-direction isolation. | ✅    |
+| mirror.py                | Core     | In-process dual-tier Hot/Cold memory cache with debounced asynchronous cold SQLite mirroring, starvation-proof hard timeout, failure rollback retry, and single-direction isolation. | ✅    |
 | observability.py         | Core     | Business-neutral memory operation, influence, retrieval trace (with typed stream warning codes), memory-space DTOs, and MemoryOperationSink protocol for app-layer dashboards and logs. | ✅    |
 | query_analyzer.py        | Core     | Bilingual (EN/CN) query pattern recognition for temporal markers, person names, quoted phrases, preference queries, and assistant reference detection. Integrated into main retrieval path via search_service. | ✅    |
 | query_sanitizer.py       | Core     | Agent Memory query preprocessing layer.                                                                       | ✅    |

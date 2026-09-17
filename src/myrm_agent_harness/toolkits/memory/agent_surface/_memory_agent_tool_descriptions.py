@@ -286,6 +286,7 @@ def _build_memory_search_en(policy: MemorySearchPolicy) -> str:
 
     tip_lines = [
         '- Be specific: "user\'s Python framework preference" not just "Python"',
+        "- Filter domain for scoped partition: user, assistant, task",
         "- Filter categories for memory corpus: knowledge, claim, event, preference, rule",
         "- Use profile_key for instant attribute lookup (memory corpus only)",
         "- Use since/until for time-scoped queries (7d, 2w, 1m, 24h, 1y, or ISO 8601)",
@@ -334,6 +335,7 @@ def _build_memory_search_zh(policy: MemorySearchPolicy) -> str:
 
     tip_lines = [
         "- 要具体：「user's Python framework preference」而非仅「Python」",
+        "- domain 过滤认知域：user（用户画像/偏好）、assistant（助手身份/规范）、task（任务规约/避坑）",
         "- memory corpus 过滤类别：knowledge、claim、event、preference、rule",
         "- profile_key 可即时查属性（仅 memory corpus）",
         "- since/until 时间范围：7d、2w、1m、24h、1y 或 ISO 8601",
