@@ -1027,4 +1027,26 @@ rating_new = rating_old + alpha * (normalized - rating_old)
   - 按优先级分层装配：固定画像前缀（最高优先级保 Cache）➔ 动态事实（预算 45%，按置信度与时效降序）➔ 时间线事件（预算 55%，按时序排列）➔ 实体图关联关系。
 - **详细设计**：详见 [governance/_ARCH.md](governance/_ARCH.md)。
 
+---
+
+## 十六、用户动态偏好函数自适应拟合与连续时间重力衰减 (dynamic_preference & gravity_decay)
+
+解决传统检索打分静态刻板、无法感知用户即时会话反馈与热度时效衰退的问题，实现多维实时脉冲偏好拟合与物理幂律衰减：
+
+- **连续时间幂律重力衰减（`GravityDecayScorer` & `compute_gravity_decay`）**：
+  - 基于 Hacker News 物理幂律衰减模型：
+    $$\text{DecayFactor} = \frac{\text{Interactions} + \text{QualityWeight}}{(\text{ElapsedHours} + \text{GravityOffset})^G}$$
+  - 具备连续时间浮点小时解析，支持时钟向后回退漂移防护（$\Delta t < 0$ 时按 $0$ 兜底），输出严格归一化并在极端输入下保底闭式解，保证纯正实数与有限区间。
+- **5 维自适应用户偏好向量（`DynamicPreferenceVector`）**：
+  - 维护五个核心维度：`recency`（时效性）、`actionability`（行动落地导向）、`code_focus`（代码实操浓度）、`depth`（技术原理深度）、`pitfall_sensitivity`（踩坑避坑敏感度）；
+  - 强类型硬截断区间守卫：所有维度均被严格限制在 $[0.05, 3.0]$ 安全区间内，默认基准为 $1.0$。
+- **确定性在线单步动量自适应拟合器（`DynamicPreferenceFitter`）**：
+  - 单步动量随机梯度自适应更新：结合学习率（$\eta = 0.08$）与动量因子（$\beta = 0.35$），单步最大梯度幅度硬截断 $\le 0.15$，防止剧烈振荡；
+  - L2 先验收缩阻尼（Shrinkage Damping）：每一步拟合时微量向基准向量 $1.0$ 软收敛，防止长期漂移或极化；
+  - 启发式意图与反馈捕获：支持从自然语言文本中提取偏好意图（`fit_from_feedback_text`），支持结构化行为反馈（`fit_step`，如 `MORE_CODE`, `MORE_RECENCY` 等）。
+- **检索打分层平滑融合（`retriever.py`）**：
+  - 在几何加权检索 `_geometric_score` 中，可选激活 `enable_gravity_decay`，并实时将 `dynamic_signal_weights` 动态偏好融入信号向量乘积运算；
+  - 零大模型调用开销（<0.1ms），纯算术确定性推导，实现毫秒级会话粒度个性化检索重排。
+- **详细设计**：详见 [strategies/_ARCH.md](strategies/_ARCH.md)。
+
 
