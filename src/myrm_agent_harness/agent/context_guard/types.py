@@ -1,3 +1,21 @@
+"""Context guard data models and token-pressure estimation.
+
+[INPUT]
+- text: str (message content whose token cost is estimated)
+- config fields: char/token thresholds, preview size, spillover directory and TTL
+
+[OUTPUT]
+- ContextGuardConfig: thresholds controlling when a payload is spilled
+- SpilloverPayload / SpilloverResult: spilled-file metadata and evaluation outcome
+- estimate_token_pressure: adaptive token estimate weighting CJK glyphs at ~1.8x
+
+[POS]
+Value-object and measurement layer of the context guard subsystem. Keeps the CJK-aware
+token estimate next to the config it feeds, since a naive chars/4 heuristic would
+under-count CJK text by roughly an order of magnitude and let oversized payloads slip
+past the guard. Pure computation: no filesystem access.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

@@ -1,7 +1,25 @@
-from __future__ import annotations
+"""Detect oversized message payloads and spill them to referenced workspace files.
 
-import contextlib
-import hashlib
+[INPUT]
+- content: str | list[dict | str] | dict (raw message body, in any wire shape)
+- base_dir: Path | str (workspace root that receives the spillover directory)
+- role / custom_prefix / session_id: labeling and file-naming context
+- config: ContextGuardConfig | None (char cap, token-pressure cap, preview size)
+
+[OUTPUT]
+- SpilloverEngine.process_content: SpilloverResult, carrying either the original content
+  untouched or a sanitized preview plus SpilloverPayload metadata (relative path, counts,
+  sha256 digest)
+
+[POS]
+Transparent-overflow engine of the context guard subsystem. Writes with a temp-file
+rename so readers never observe a partial payload, and verifies the sha256 digest after
+writing so a corrupt spillover surfaces as an error instead of silently truncating the
+user's data. Framework-level: keeps the run inside the context window without dropping
+information, so the model can read the file back when it needs the detail.
+"""
+
+from __future__ import annotations
 from pathlib import Path
 from uuid import uuid4
 

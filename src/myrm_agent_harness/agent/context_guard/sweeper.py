@@ -1,3 +1,19 @@
+"""Housekeeping sweeper for stale ephemeral spillover files.
+
+[INPUT]
+- config: ContextGuardConfig | None (TTL and spillover directory name)
+- base_dir: Path | str (workspace root whose spillover directory is swept)
+
+[OUTPUT]
+- EphemeralTransientSweeper.sweep_directory: int count of removed files
+
+[POS]
+Disk-hygiene side of the context guard subsystem. Runs outside the hot path, so it uses
+plain filesystem scans rather than the engine's atomic write path. Symlinks are unlinked
+without being followed, which prevents a planted link from making the sweep delete files
+outside the spillover directory; expired payloads are also removed for confidentiality.
+"""
+
 from __future__ import annotations
 
 import contextlib
