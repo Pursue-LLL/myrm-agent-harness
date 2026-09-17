@@ -3,6 +3,7 @@
 [INPUT]
 - memory.protocols.vector::{VectorDocument, FilterDict} (POS: vector store protocol and data models)
 - memory.types::{SemanticMemory, EpisodicMemory, ConversationMemory, ...} (POS: memory data models)
+- memory.domain_types::{MemoryDomain, DomainCategory} (POS: domain & category taxonomy)
 
 [OUTPUT]
 - Scope helpers: _scope_payload, _scope_from_metadata, _user_filter
@@ -20,221 +21,57 @@ import logging
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.toolkits.memory._internal._storage_payload_helpers import (
+    _lifecycle_from_metadata,
+    _lifecycle_payload,
+    _safe_float,
+    _safe_int,
+    _scope_from_metadata,
+    _scope_payload,
+    _status_from_metadata,
+    _user_filter,
+)
+from myrm_agent_harness.toolkits.memory.domain_types import MemoryDomain
 from myrm_agent_harness.toolkits.memory.protocols.vector import (
     FilterDict,
     VectorDocument,
 )
 from myrm_agent_harness.toolkits.memory.types import (
-    ClaimConflictState,
-    ClaimGraphState,
     ConversationMemory,
-    DigestKind,
     EpisodicMemory,
-    EvaporationState,
-    MemoryLifecycle,
-    MemoryScope,
-    MemoryStatus,
-    MemoryTier,
     MemoryType,
     SemanticMemory,
 )
-from myrm_agent_harness.utils.coercion import parse_float, parse_int
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.config import MemoryConfig
 
 logger = logging.getLogger(__name__)
 
+__all__ = [
+    "_safe_float",
+    "_safe_int",
+    "_status_from_metadata",
+    "_user_filter",
+    "_scope_payload",
+    "_scope_from_metadata",
+    "_lifecycle_payload",
+    "_lifecycle_from_metadata",
+    "doc_to_semantic",
+    "doc_to_episodic",
+    "doc_to_conversation",
+    "semantic_to_doc",
+    "episodic_to_doc",
+]
 
-def _safe_float(val: object, default: float = 0.0) -> float:
-    return parse_float(val, default)
-
-
-def _safe_int(val: object, default: int = 0) -> int:
-    return parse_int(val, default)
-
-
-def _status_from_metadata(meta: dict[str, object]) -> MemoryStatus:
-    """Restore the unified lifecycle status persisted in the payload.
-
-    ``status`` is the authoritative lifecycle field written by ``*_to_doc``; without
-    reading it back every archived memory would surface as ``ACTIVE`` after a
-    round trip, silently undoing user deletions in the GUI and in the MCP tools.
-    """
-    raw = meta.get("status")
-    if isinstance(raw, MemoryStatus):
-        return raw
-    if isinstance(raw, str):
-        try:
-            return MemoryStatus(raw)
-        except ValueError:
-            logger.warning("Unknown persisted memory status %r; falling back to ACTIVE", raw)
-    if bool(meta.get("archived", False)):
-        return MemoryStatus.ARCHIVED
-    return MemoryStatus.ACTIVE
-
-
-# ======================================================================
-# Filter / Scope / Lifecycle helpers
-# ======================================================================
-
-
-def _user_filter(
-    *,
-    namespaces: list[str] | None = None,
-    include_archived: bool = False,
-    since: datetime | None = None,
-    until: datetime | None = None,
-) -> FilterDict:
-    """Build the standard user-scoped filter for vector queries.
-
-    Centralizes archived-exclusion and time-range filtering so every
-    query path uses the same logic.
-
-    The namespace filter targets ``primary_namespace`` with an exact IN
-    semantic (Qdrant MatchAny against the single-value field), mirroring the
-    relational store's ``primary_namespace IN (...)`` and the Claim Graph's
-    per-namespace lookups. Filtering the multi-value ``namespaces`` list would
-    match any document sharing a broadcast namespace (e.g. ``global``) and
-    leak one agent's memories into another agent's reads and deletions.
-    """
-    f: FilterDict = {"archived": {"not": True}}
-    if namespaces:
-        f["primary_namespace"] = namespaces
-    if include_archived:
-        del f["archived"]
-    if since is not None or until is not None:
-        time_range: dict[str, str | int | float] = {}
-        if since is not None:
-            time_range["gte"] = since.isoformat()
-        if until is not None:
-            time_range["lte"] = until.isoformat()
-        f["created_at"] = time_range
-    return f
-
-
-def _scope_payload(scope: MemoryScope) -> dict[str, str | list[str]]:
-    return {
-        "primary_namespace": scope.primary_namespace,
-        "namespaces": list(scope.namespaces),
-        "agent_id": scope.agent_id or "",
-        "channel_id": scope.channel_id or "",
-        "conversation_id": scope.conversation_id or "",
-        "task_id": scope.task_id or "",
-    }
-
-
-def _scope_from_metadata(meta: dict[str, object]) -> MemoryScope:
-    raw_namespaces = meta.get("namespaces", [])
-    namespaces = (
-        [value for value in raw_namespaces if isinstance(value, str)] if isinstance(raw_namespaces, list) else []
-    )
-    return MemoryScope(
-        primary_namespace=str(meta.get("primary_namespace", "")),
-        namespaces=namespaces,
-        agent_id=str(meta.get("agent_id", "")) or None,
-        channel_id=str(meta.get("channel_id", "")) or None,
-        conversation_id=str(meta.get("conversation_id", "")) or None,
-        task_id=str(meta.get("task_id", "")) or None,
-    )
-
-
-def _lifecycle_payload(lifecycle: MemoryLifecycle | None) -> dict[str, str]:
-    if lifecycle is None:
-        return {}
-    return {
-        "memory_tier": lifecycle.tier.value,
-        "digest_kind": (lifecycle.digest_kind.value if lifecycle.digest_kind is not None else ""),
-        "evaporation_state": (lifecycle.evaporation_state.value if lifecycle.evaporation_state is not None else ""),
-        "evaporated_at": (lifecycle.evaporated_at.isoformat() if lifecycle.evaporated_at is not None else ""),
-        "claim_graph_state": (lifecycle.claim_graph_state.value if lifecycle.claim_graph_state is not None else ""),
-        "claim_graph_node_id": lifecycle.claim_graph_node_id or "",
-        "claim_graph_updated_at": (
-            lifecycle.claim_graph_updated_at.isoformat() if lifecycle.claim_graph_updated_at is not None else ""
-        ),
-        "claim_graph_conflict": (
-            lifecycle.claim_graph_conflict.value if lifecycle.claim_graph_conflict is not None else ""
-        ),
-    }
-
-
-def _lifecycle_from_metadata(meta: dict[str, object]) -> MemoryLifecycle | None:
-    raw_tier = str(meta.get("memory_tier", "")).strip()
-    if raw_tier not in {tier.value for tier in MemoryTier}:
-        return None
-
-    raw_digest_kind = str(meta.get("digest_kind", "")).strip()
-    digest_kind = DigestKind(raw_digest_kind) if raw_digest_kind in {kind.value for kind in DigestKind} else None
-
-    raw_evaporation_state = str(meta.get("evaporation_state", "")).strip()
-    evaporation_state = (
-        EvaporationState(raw_evaporation_state)
-        if raw_evaporation_state in {state.value for state in EvaporationState}
-        else None
-    )
-
-    raw_claim_graph_state = str(meta.get("claim_graph_state", "")).strip()
-    claim_graph_state = (
-        ClaimGraphState(raw_claim_graph_state)
-        if raw_claim_graph_state in {state.value for state in ClaimGraphState}
-        else None
-    )
-
-    raw_claim_graph_conflict = str(meta.get("claim_graph_conflict", "")).strip()
-    claim_graph_conflict = (
-        ClaimConflictState(raw_claim_graph_conflict)
-        if raw_claim_graph_conflict in {state.value for state in ClaimConflictState}
-        else None
-    )
-
-    raw_evaporated_at = str(meta.get("evaporated_at", "")).strip()
-    try:
-        evaporated_at = datetime.fromisoformat(raw_evaporated_at) if raw_evaporated_at else None
-    except ValueError:
-        evaporated_at = None
-
-    raw_claim_graph_updated_at = str(meta.get("claim_graph_updated_at", "")).strip()
-    try:
-        claim_graph_updated_at = (
-            datetime.fromisoformat(raw_claim_graph_updated_at) if raw_claim_graph_updated_at else None
-        )
-    except ValueError:
-        claim_graph_updated_at = None
-
-    return MemoryLifecycle(
-        tier=MemoryTier(raw_tier),
-        digest_kind=digest_kind,
-        evaporation_state=evaporation_state,
-        evaporated_at=evaporated_at,
-        claim_graph_state=claim_graph_state,
-        claim_graph_node_id=str(meta.get("claim_graph_node_id", "")) or None,
-        claim_graph_updated_at=claim_graph_updated_at,
-        claim_graph_conflict=claim_graph_conflict,
-    )
-
-
-# ======================================================================
-# Document -> Schema converters
-# ======================================================================
-
-
-_SEMANTIC_KNOWN_KEYS = frozenset(
+_COMMON_KNOWN_KEYS = frozenset(
     {
         "user_id",
         "memory_type",
         "importance",
-        "confidence",
         "source_chat_id",
-        "preference_type",
-        "preference_strength",
-        "correction_of",
-        "source_error",
         "access_count",
         "user_rating",
-        "tags",
-        "merge_count",
-        "merge_history",
-        "language",
         "pinned",
         "status",
         "archived",
@@ -243,6 +80,9 @@ _SEMANTIC_KNOWN_KEYS = frozenset(
         "expected_valid_days",
         "created_at",
         "updated_at",
+        "language",
+        "merge_count",
+        "merge_history",
         "primary_namespace",
         "namespaces",
         "agent_id",
@@ -257,11 +97,53 @@ _SEMANTIC_KNOWN_KEYS = frozenset(
         "claim_graph_node_id",
         "claim_graph_updated_at",
         "claim_graph_conflict",
+        "summary_l0",
+        "overview_l1",
+        "domain",
+        "domain_category",
+    }
+)
+
+_SEMANTIC_KNOWN_KEYS = _COMMON_KNOWN_KEYS | frozenset(
+    {
+        "confidence",
+        "preference_type",
+        "preference_strength",
+        "correction_of",
+        "source_error",
+        "tags",
+    }
+)
+
+_EPISODIC_KNOWN_KEYS = _COMMON_KNOWN_KEYS | frozenset(
+    {
+        "event_type",
+        "related_entities",
+        "tags",
+    }
+)
+
+_CONVERSATION_KNOWN_KEYS = _COMMON_KNOWN_KEYS | frozenset(
+    {
+        "timestamp",
+        "user_turn_only",
+        "related_entities",
+        "source_message_id",
+        "project_id",
+        "topic_id",
     }
 )
 
 
+def _parse_domain(raw_domain: object) -> MemoryDomain:
+    try:
+        return MemoryDomain(str(raw_domain))
+    except (ValueError, TypeError):
+        return MemoryDomain.USER
+
+
 def doc_to_semantic(doc: VectorDocument) -> SemanticMemory:
+    """Convert VectorDocument to SemanticMemory."""
     meta = doc.metadata
     raw_pref = str(meta.get("preference_type", ""))
     pref_type = raw_pref if raw_pref in ("explicit", "implicit") else None
@@ -274,6 +156,7 @@ def doc_to_semantic(doc: VectorDocument) -> SemanticMemory:
             extra[k] = v
     raw_evd = _safe_int(meta.get("expected_valid_days", 0))
     evd: int | None = raw_evd if raw_evd > 0 else None
+
     return SemanticMemory(
         id=doc.id,
         user_id=str(meta.get("user_id", "")),
@@ -299,49 +182,15 @@ def doc_to_semantic(doc: VectorDocument) -> SemanticMemory:
         merge_history=str(meta.get("merge_history", "")),
         scope=_scope_from_metadata(meta),
         lifecycle=_lifecycle_from_metadata(meta),
+        summary_l0=str(meta.get("summary_l0", "")),
+        overview_l1=str(meta.get("overview_l1", "")),
+        domain=_parse_domain(meta.get("domain")),
+        domain_category=str(meta.get("domain_category", "")),
     )
 
 
-_EPISODIC_KNOWN_KEYS = frozenset(
-    {
-        "user_id",
-        "memory_type",
-        "event_type",
-        "importance",
-        "source_chat_id",
-        "access_count",
-        "user_rating",
-        "related_entities",
-        "merge_count",
-        "merge_history",
-        "language",
-        "pinned",
-        "status",
-        "archived",
-        "archived_at",
-        "archive_reason",
-        "expected_valid_days",
-        "created_at",
-        "updated_at",
-        "primary_namespace",
-        "namespaces",
-        "agent_id",
-        "channel_id",
-        "conversation_id",
-        "task_id",
-        "memory_tier",
-        "digest_kind",
-        "evaporation_state",
-        "evaporated_at",
-        "claim_graph_state",
-        "claim_graph_node_id",
-        "claim_graph_updated_at",
-        "claim_graph_conflict",
-    }
-)
-
-
 def doc_to_episodic(doc: VectorDocument) -> EpisodicMemory:
+    """Convert VectorDocument to EpisodicMemory."""
     meta = doc.metadata
     raw_lang = str(meta.get("language", "en"))
     lang = raw_lang if raw_lang in ("zh", "en") else "en"
@@ -351,6 +200,7 @@ def doc_to_episodic(doc: VectorDocument) -> EpisodicMemory:
             extra[k] = v
     raw_evd = _safe_int(meta.get("expected_valid_days", 0))
     evd: int | None = raw_evd if raw_evd > 0 else None
+
     return EpisodicMemory(
         id=doc.id,
         user_id=str(meta.get("user_id", "")),
@@ -372,40 +222,11 @@ def doc_to_episodic(doc: VectorDocument) -> EpisodicMemory:
         merge_history=str(meta.get("merge_history", "")),
         scope=_scope_from_metadata(meta),
         lifecycle=_lifecycle_from_metadata(meta),
+        summary_l0=str(meta.get("summary_l0", "")),
+        overview_l1=str(meta.get("overview_l1", "")),
+        domain=_parse_domain(meta.get("domain")),
+        domain_category=str(meta.get("domain_category", "")),
     )
-
-
-_CONVERSATION_KNOWN_KEYS = frozenset(
-    {
-        "user_id",
-        "status",
-        "archived",
-        "content",
-        "timestamp",
-        "user_turn_only",
-        "related_entities",
-        "source_chat_id",
-        "source_message_id",
-        "project_id",
-        "topic_id",
-        "importance",
-        "language",
-        "primary_namespace",
-        "namespaces",
-        "agent_id",
-        "channel_id",
-        "conversation_id",
-        "task_id",
-        "memory_tier",
-        "digest_kind",
-        "evaporation_state",
-        "evaporated_at",
-        "claim_graph_state",
-        "claim_graph_node_id",
-        "claim_graph_updated_at",
-        "claim_graph_conflict",
-    }
-)
 
 
 def doc_to_conversation(
@@ -414,16 +235,7 @@ def doc_to_conversation(
     include_raw: bool = False,
     config: MemoryConfig | None = None,
 ) -> ConversationMemory:
-    """Convert VectorDocument to ConversationMemory.
-
-    Args:
-        doc: Source vector document with conversation metadata.
-        include_raw: If True, populate raw_exchange field (default False for lazy loading).
-        config: Memory configuration for blob storage path resolution.
-
-    Returns:
-        ConversationMemory instance.
-    """
+    """Convert VectorDocument to ConversationMemory."""
     meta = doc.metadata
     raw_lang = str(meta.get("language", "en"))
     lang = raw_lang if raw_lang in ("zh", "en") else "en"
@@ -436,7 +248,6 @@ def doc_to_conversation(
     related_entities = raw_entities if isinstance(raw_entities, list) else []
 
     raw_timestamp = meta.get("timestamp")
-    timestamp: datetime
     if isinstance(raw_timestamp, datetime):
         timestamp = raw_timestamp
     elif isinstance(raw_timestamp, str):
@@ -450,7 +261,6 @@ def doc_to_conversation(
     raw_exchange_value = ""
     if include_raw:
         raw_data = meta.get("raw_exchange", "")
-
         if isinstance(raw_data, str) and raw_data.startswith("blob://"):
             from myrm_agent_harness.toolkits.memory.compression import (
                 internalize_payload,
@@ -497,15 +307,15 @@ def doc_to_conversation(
         updated_at=doc.updated_at,
         scope=_scope_from_metadata(meta),
         lifecycle=_lifecycle_from_metadata(meta),
+        summary_l0=str(meta.get("summary_l0", "")),
+        overview_l1=str(meta.get("overview_l1", "")),
+        domain=_parse_domain(meta.get("domain")),
+        domain_category=str(meta.get("domain_category", "")),
     )
 
 
-# ======================================================================
-# Schema -> Document converters
-# ======================================================================
-
-
 def semantic_to_doc(m: SemanticMemory) -> VectorDocument:
+    """Convert SemanticMemory to VectorDocument."""
     payload: dict[str, str | int | float | bool | list[str]] = {
         "user_id": m.user_id,
         "memory_type": MemoryType.SEMANTIC.value,
@@ -528,6 +338,10 @@ def semantic_to_doc(m: SemanticMemory) -> VectorDocument:
         "expected_valid_days": m.expected_valid_days if m.expected_valid_days is not None else 0,
         "created_at": m.created_at.isoformat(),
         "updated_at": m.updated_at.isoformat(),
+        "summary_l0": m.summary_l0,
+        "overview_l1": m.overview_l1,
+        "domain": m.domain.value if hasattr(m.domain, "value") else str(m.domain),
+        "domain_category": m.domain_category,
         **_scope_payload(m.scope),
         **_lifecycle_payload(m.lifecycle),
     }
@@ -545,6 +359,7 @@ def semantic_to_doc(m: SemanticMemory) -> VectorDocument:
 
 
 def episodic_to_doc(m: EpisodicMemory) -> VectorDocument:
+    """Convert EpisodicMemory to VectorDocument."""
     payload: dict[str, str | int | float | bool | list[str]] = {
         "user_id": m.user_id,
         "memory_type": MemoryType.EPISODIC.value,
@@ -563,6 +378,10 @@ def episodic_to_doc(m: EpisodicMemory) -> VectorDocument:
         "expected_valid_days": m.expected_valid_days if m.expected_valid_days is not None else 0,
         "created_at": m.created_at.isoformat(),
         "updated_at": m.updated_at.isoformat(),
+        "summary_l0": m.summary_l0,
+        "overview_l1": m.overview_l1,
+        "domain": m.domain.value if hasattr(m.domain, "value") else str(m.domain),
+        "domain_category": m.domain_category,
         **_scope_payload(m.scope),
         **_lifecycle_payload(m.lifecycle),
     }

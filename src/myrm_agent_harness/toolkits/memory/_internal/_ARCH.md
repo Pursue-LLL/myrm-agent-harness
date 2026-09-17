@@ -26,6 +26,7 @@ Internal implementation details — not part of the public API.
 | storage_context.py | Core | Context loading for agent prompt (profile, rules, working state). Filters NORMAL-priority tool-failure rules out of the stable layer; user-locked (`is_user_locked`) failure rules graduate into it. Emits user-endorsed (`is_user_locked`) rules first so budget trimming drops them last. | ✅ |
 | storage_conversation.py | Core | Conversation memory storage with dual-embedding (Qdrant named vectors). | ✅ |
 | storage_converters.py | Core | Document ↔ Schema converters and shared metadata helpers (scope, lifecycle, filter). | ✅ |
+| _storage_payload_helpers.py | Core | Payload extraction helpers for document conversion and metadata filtering. | ✅ |
 | storage_search.py | Core | Search operations: vector similarity, BM25 keyword, profile/procedural text, dual-channel conversation search with RRF fusion. | ✅ |
 | write_service.py | Core | Write-side orchestration for memory persistence. Handles memory scanning, transient business fact L3 write gate, approval routing, batch dedup, and the write-scope fence (`_validate_write_scope`) that rejects namespaces outside the writer's grant. | ✅ |
 

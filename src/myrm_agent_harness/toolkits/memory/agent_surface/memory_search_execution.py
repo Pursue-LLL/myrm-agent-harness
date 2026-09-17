@@ -104,6 +104,7 @@ async def search_memory_corpus(
     limit: int | str | None,
     since: str | None,
     until: str | None,
+    detail_level: str = "overview",
 ) -> str:
     """Search long-term memory corpus (includes active session buffer)."""
     parsed_since = _parse_time_bound(since)
@@ -190,9 +191,15 @@ async def search_memory_corpus(
                 )
             else:
                 suffix += " (may be outdated — verify before citing)"
+        if detail_level == "overview" and getattr(memory, "overview_l1", ""):
+            content_to_render = f"[L1] {memory.overview_l1}"
+            if len(result.content) > len(memory.overview_l1) + 40:
+                suffix += f" [id: {memory.id} | Drill-down: memory_search_tool(memory_id='{memory.id}', detail_level='full')]"
+        else:
+            content_to_render = result.content
         budgeted = budget_recall_line(
             prefix=prefix,
-            content=result.content,
+            content=content_to_render,
             suffix=suffix,
             output_chars=output_chars,
             max_body_chars=max_body_chars,
@@ -320,3 +327,41 @@ async def search_sessions_corpus(
     if response is None:
         return "Conversation history search timed out (GATHER_SESSIONS_TIMEOUT). Try a more specific query or retry."
     return await format_conversation_search_response(response)
+
+
+async def drill_down_single_memory(
+    manager: MemoryManager,
+    memory_id: str,
+    *,
+    detail_level: str = "full",
+) -> str:
+    """Direct single-memory drill-down retrieval by ID with full L2 verbatim details or L1 overview."""
+    clean_id = memory_id.strip()
+    memory = await manager.get_memory(clean_id)
+    if memory is None:
+        return f"Memory with id '{clean_id}' not found."
+
+    effective_time = max(memory.created_at, memory.updated_at)
+    age = memory_age_label(effective_time)
+    provenance = _channel_label(memory.scope.channel_id)
+    mem_type = getattr(memory, "memory_type", "memory")
+    mem_type_val = mem_type.value if hasattr(mem_type, "value") else str(mem_type)
+    domain = getattr(memory, "domain", "user")
+    domain_val = domain.value if hasattr(domain, "value") else str(domain)
+    cat = getattr(memory, "domain_category", "")
+
+    header = f"{provenance}[{mem_type_val}] (id: {memory.id}, domain: {domain_val}/{cat}, age: {age})"
+    if detail_level == "overview":
+        overview = getattr(memory, "overview_l1", "") or (memory.content[:250] if hasattr(memory, "content") else "")
+        return f"{header}\n[L1 Overview]\n{overview}\n\n[Drill-down]: Call memory_search_tool(memory_id='{memory.id}', detail_level='full') for full verbatim context."
+
+    full_content = getattr(memory, "content", "")
+    metadata_repr = ""
+    if hasattr(memory, "metadata") and memory.metadata:
+        metadata_repr = f"\nMetadata: {memory.metadata}"
+    evidence_repr = ""
+    if hasattr(memory, "evidence") and memory.evidence:
+        evidence_repr = f"\nEvidence: {[e.source_id for e in memory.evidence]}"
+
+    return f"{header}\n[L2 Verbatim Full Content]\n{full_content}{metadata_repr}{evidence_repr}"
+

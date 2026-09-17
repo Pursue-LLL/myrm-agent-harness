@@ -44,6 +44,7 @@ from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting i
     parse_time_bound as _parse_time_bound,
 )
 from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_execution import (
+    drill_down_single_memory,
     search_memory_corpus,
     search_sessions_corpus,
     search_wiki_corpus,
@@ -199,11 +200,13 @@ def create_memory_tools(
 
     @tool("memory_search_tool", description=_search_description)
     async def memory_search(
-        query: str,
+        query: str = "",
         corpus: MemorySearchCorpus = "memory",
         categories: list[str] | str | None = None,
         limit: int | str | None = DEFAULT_RECALL_LIMIT,
         profile_key: str | None = None,
+        memory_id: str | None = None,
+        detail_level: Literal["overview", "full"] = "overview",
         since: str | None = None,
         until: str | None = None,
         expand_conversation_id: str | None = None,
@@ -211,6 +214,9 @@ def create_memory_tools(
         expand_window: int = 5,
     ) -> str | dict[str, object]:
         """Search long-term memory."""
+        if memory_id:
+            return await drill_down_single_memory(manager, memory_id, detail_level=detail_level)
+
         if profile_key:
             if corpus not in ("memory", "all"):
                 return "profile_key lookup is only supported for corpus=memory."
@@ -250,6 +256,7 @@ def create_memory_tools(
                     limit=recall_limit,
                     since=since,
                     until=until,
+                    detail_level=detail_level,
                 )
                 sections.append(f"## Memory\n{memory_text}")
             elif target == "wiki":

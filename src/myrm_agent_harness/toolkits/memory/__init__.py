@@ -58,9 +58,23 @@ from myrm_agent_harness.toolkits.memory.governance import (
     ReconciliationAction,
     ReconciliationDecision,
 )
+from myrm_agent_harness.toolkits.memory.domain_types import (
+    DomainCategory,
+    MemoryDomain,
+    infer_domain_and_category,
+)
 from myrm_agent_harness.toolkits.memory.health import HealthScore, MaintenanceReport, MemorySnapshot, NeglectedMemory
+from myrm_agent_harness.toolkits.memory.hermes_bridge import (
+    import_hermes_bundle,
+    parse_hermes_json,
+    parse_hermes_markdown,
+)
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.metrics import SearchMetrics, SearchSnapshot, get_search_metrics
+from myrm_agent_harness.toolkits.memory.mirror import (
+    ColdMemoryRecord,
+    HotColdMirrorEngine,
+)
 from myrm_agent_harness.toolkits.memory.observability import (
     MemoryInfluenceRef,
     MemoryOperationEvent,
@@ -217,11 +231,13 @@ __all__ = [
     "AnyMemory",
     "BaseMemory",
     "ConsolidationConfig",
+    "ColdMemoryRecord",
     "ConversationSearchHit",
     "ConversationSearchProtocol",
     "ConversationSearchRequest",
     "ConversationSearchResponse",
     "create_pitfall_memory",
+    "DomainCategory",
     "EmbeddingCache",
     "EmbeddingCacheProtocol",
     "EmbeddingProtocol",
@@ -242,13 +258,19 @@ __all__ = [
     "ConsolidationTrap",
     "WorkingMemorySnapshot",
     "HealthScore",
+    "HotColdMirrorEngine",
+    "import_hermes_bundle",
+    "infer_domain_and_category",
+    "infer_tier_and_policy",
     "LifecycleTier",
     "MaintenanceReport",
     "MemCubeEnvelope",
     "MemCubeHeader",
+    "MemoryDomain",
     "MultiTierMemoryScheduler",
+    "parse_hermes_json",
+    "parse_hermes_markdown",
     "StoragePolicy",
-    "infer_tier_and_policy",
     "unwrap_envelope",
     "wrap_into_envelope",
     "MemoryArchiveDryRunResult",

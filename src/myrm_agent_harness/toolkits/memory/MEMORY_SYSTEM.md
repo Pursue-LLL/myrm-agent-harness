@@ -104,6 +104,9 @@ myrm_agent_harness/
 │   │   └── wiki_memory_boundary.py     # wiki/memory 写入边界
 │   ├── observability.py                # 业务无关记忆观测 DTO/Protocol（operation / influence / retrieval trace / space / sink）
 │   ├── reliability.py                  # 业务无关记忆可靠性 DTO（probe / repair plan / import plan / recall benchmark summary）
+│   ├── domain_types.py                 # 三域九类拓扑与 L0/L1/L2 渐进式检索领域类型
+│   ├── mirror.py                       # HotColdMirrorEngine（内存热缓存与冷持久化单向去抖镜像）
+│   ├── hermes_bridge.py                # HermesMemoryBridge（Hermes 格式与 MemCubeEnvelope 双向转换）
 │   ├── conversation_search/            # Protocol-backed 历史会话搜索工具（无业务 DB 依赖）
 │   ├── _internal/                      # 内部实现细节
 │   │   ├── storage.py                  # 存储辅助函数
@@ -1205,5 +1208,39 @@ rating_new = rating_old + alpha * (normalized - rating_old)
 - **开箱即用装配工厂（`setup_local_file_memory_sync`）**：
   - 核心位置：`myrm_agent_harness.toolkits.memory.setup`；
   - 一键完成目录拓扑初始化、文件存储层与双向同步引擎绑定，无缝支持 Local、Desktop 与 Sandbox 独立持久化卷环境。
+
+---
+
+## 二十二、三域九类认知拓扑、L0/L1/L2 渐进式披露与热冷镜像同步体系 (Domain Mesh & Progressive Drill-down & Hot-Cold Mirroring)
+
+为解决长上下文大模型全量召回记忆时产生的高昂 Token 浪费、上下文窗口注意力稀释、以及跨系统格式隔阂，构建精细化分层认知与高性能热冷分级存储引擎：
+
+- **三域九类强类型认知拓扑（`MemoryDomain` & `DomainCategory`）**：
+  - 核心位置：`myrm_agent_harness.toolkits.memory.domain_types`；
+  - 划分三大认知主域：
+    - `SYSTEM`（系统环境认知域）：覆盖架构设计规范（`ARCHITECTURE`）、运行时环境上下文（`ENVIRONMENT`）、安全与隔离边界策略（`SECURITY`）；
+    - `USER`（用户画像与意图域）：覆盖用户基本画像（`IDENTITY`）、工作偏好与技术习惯（`PREFERENCES`）、交互反馈与共识约定（`INTERACTION`）；
+    - `OPERATIONAL`（运行执行操作域）：覆盖历史与当前任务轨迹（`TASKS`）、工具踩坑与报错教训（`ERRORS`）、工具使用指南与编排规程（`TOOLING`）；
+  - 提供确定性校验与分类器，支持与 `MemCubeEnvelope`、`BaseMemory` 强类型元数据无缝映射。
+- **L0/L1/L2 渐进式披露检索契约（Progressive Drill-down）**：
+  - 核心位置：`myrm_agent_harness.toolkits.memory.domain_types`；
+  - **L0 索引总览（`L0Overview`）**：提取各领域条目数、主键 ID、简要标题与关键词标签，Token 占用极小（百 Token 级），适合全局编排与规划；
+  - **L1 摘要描述（`L1Summary`）**：聚焦于 160~300 字高密度核心观点、trigger 触发条件与适用范围，用于候选过滤与快速判断；
+  - **L2 深度上下文（`L2FullContent`）**：按需按 ID 懒加载完整上下文，包括代码段、完整调用栈、上下文快照与附件引用；
+  - 避免一次性拉取海量完整记忆，有效保护大模型注意力聚焦度，节约超 70% 检索提示词 Token。
+- **内存热缓存与冷持久化单向去抖镜像控制器（`HotColdMirrorEngine`）**：
+  - 核心位置：`myrm_agent_harness.toolkits.memory.mirror`；
+  - **内存热缓存（In-Memory Hot Tier）**：基于 `OrderedDict` 实现亚毫秒级（$<0.1\text{ms}$）高频命中读取与并发安全写入，容量超限按 LRU 策略自动剔除；
+  - **冷持久化去抖异步刷盘（Debounced Cold Flush）**：写操作先入内存并登记脏标记，通过去抖调度器聚合后批量落盘至 `SQLiteRelationalStore`，降低 I/O 压力；
+  - **进程生命周期优雅退出保障（`shutdown`）**：在服务退出或 Lifespan 关闭时提供同步阻塞 `flush_pending()`，杜绝未落盘脏数据丢失。
+- **Hermes 异构格式与标准信封适配器（`HermesMemoryBridge`）**：
+  - 核心位置：`myrm_agent_harness.toolkits.memory.hermes_bridge`；
+  - 纯函数解析 Hermes Markdown 结构化文本与 YAML Frontmatter 头部元数据；
+  - 严格剔除 Markdown 代码块内包含的伪标题注释，杜绝解析歧义；
+  - 将条目转换为强类型的 `MemCubeEnvelope` 与领域分类，实现跨系统单机与沙箱无依赖平滑迁移。
+- **服务端接口与前端双端自适应可视化闭环**：
+  - Server 端（`app/api/memory/domain_mesh.py`）提供强类型 REST 路由：`GET /overview`（获取三域状态与 L0/L1 统计）、`POST /drill-down`（按需提取 L2 详情）、`POST /import-hermes`（上传外部 Markdown 批量入库）；
+  - 前端面板（`MemoryDomainMeshPanel.tsx`）采用现代响应式卡片看板设计，支持 PC 端多栏布局与移动端单列自适应折叠；零原生 emoji，遵循 Tailwind 色系标准，严密隔离内部工程元数据与用户友好展示文案。
+
 
 

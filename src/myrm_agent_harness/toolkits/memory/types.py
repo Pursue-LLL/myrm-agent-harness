@@ -30,10 +30,18 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Literal
+from typing import Literal, Self
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+from myrm_agent_harness.toolkits.memory.domain_types import (
+    CATEGORY_TO_DOMAIN_MAP,
+    DOMAIN_CATEGORY_MAP,
+    DomainCategory,
+    MemoryDomain,
+    infer_domain_and_category,
+)
 
 
 class EvidenceReference(BaseModel):
@@ -284,6 +292,44 @@ class BaseMemory(BaseModel):
         default_factory=list,
         description="Extracted high-entropy exact symbols (UUID, SHA, SemVer, config keys)",
     )
+    summary_l0: str = Field(
+        default="",
+        description="L0 minimal semantic anchor (<=120 chars) for fast gating and token-efficient indexing",
+    )
+    overview_l1: str = Field(
+        default="",
+        description="L1 structured factual overview (<=400 chars) for default recall injection",
+    )
+    domain: MemoryDomain = Field(
+        default=MemoryDomain.USER,
+        description="Persona/experience domain partition (user, assistant, task)",
+    )
+    domain_category: str = Field(
+        default="",
+        description="Fine-grained category under the domain (profile, preferences, identity, soul, etc.)",
+    )
+
+    @model_validator(mode="after")
+    def _fill_progressive_defaults(self) -> Self:
+        if not self.summary_l0 and self.content:
+            clean = self.content.strip()
+            self.summary_l0 = clean[:120].strip()
+        if not self.domain_category:
+            mem_type = str(getattr(self, "memory_type", "semantic"))
+            ev_type = str(getattr(self, "event_type", ""))
+            pref_type = getattr(self, "preference_type", None)
+            tags = getattr(self, "tags", None)
+            inferred_domain, inferred_cat = infer_domain_and_category(
+                mem_type,
+                content=self.content,
+                event_type=ev_type,
+                preference_type=pref_type,
+                tags=tags,
+            )
+            if self.domain == MemoryDomain.USER and inferred_domain != MemoryDomain.USER:
+                self.domain = inferred_domain
+            self.domain_category = inferred_cat.value
+        return self
 
     @property
     def is_user_protected(self) -> bool:
