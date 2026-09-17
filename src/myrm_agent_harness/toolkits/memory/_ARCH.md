@@ -41,13 +41,14 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | signals.py               | Core     | Context signal calculator for memory retrieval scoring. Provides normalized [0,1] factors                     | ✅    |
 | text_utils.py            | Core     | Unified multi-language tokenization for memory retrieval. Uses re.UNICODE                                     | ✅    |
 | tool_capture.py          | Core     | Tool-scoped memory capture hook. Detects user edicts and repeated tool failures, auto-creates procedural rules. | ✅    |
-| tool_guidance_types.py   | Core     | Tool memory procedural contract layer. Immutable ToolGuidanceItem and ToolGuidanceSummary DTOs with env and confidence bindings. | ✅    |
-| tool_guidance_synthesizer.py | Core | Tool memory guidance synthesizer. Pure-functional, sub-millisecond, cache-stable aggregator with probe filtering and max 3 golden guidelines. | ✅    |
+| tool_guidance.py         | Facade   | Facade re-exporting types and synthesis engine from `tool_guidance` domain subpackage.                         | ✅    |
 | mcp_server.py            | Facade   | Facade re-exporting memory mcp_server from agent_surface for harness surface.                                  | —    |
 
 | memory_search_policy.py   | Facade   | Facade re-exporting memory_search_policy from agent_surface for harness surface.                               | —    |
 
 | Submodule   | Description                                                                       |
+|-------------|-----------------------------------------------------------------------------------|
+| `tool_guidance` | Tool memory procedural contract & deterministic synthesis subpackage.          |
 | ----------- | --------------------------------------------------------------------------------- |
 | agent_surface/ | Agent-visible I/O: tools, MCP, recall sanitize SSOT, citations, corpus policy, wiki boundary. See [agent_surface/_ARCH.md](agent_surface/_ARCH.md). |
 | \_manager/  | Composable ``MemoryManager`` implementation modules.                               |

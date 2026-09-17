@@ -47,8 +47,10 @@ from langchain.agents.middleware import AgentMiddleware, ModelRequest, ModelResp
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from myrm_agent_harness.toolkits.memory.config import RecallMode, RetrievalConfig
-from myrm_agent_harness.toolkits.memory.tool_guidance_synthesizer import synthesize_tool_guidance
-from myrm_agent_harness.toolkits.memory.tool_guidance_types import ToolGuidanceItem
+from myrm_agent_harness.toolkits.memory.tool_guidance import (
+    ToolGuidanceItem,
+    synthesize_tool_guidance,
+)
 
 from .memory_context_format import (
     STABLE_RULES_TITLE,

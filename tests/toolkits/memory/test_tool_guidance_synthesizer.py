@@ -10,11 +10,11 @@ Verifies:
 
 from __future__ import annotations
 
-from myrm_agent_harness.toolkits.memory.tool_guidance_synthesizer import (
+from myrm_agent_harness.toolkits.memory.tool_guidance import (
+    ToolGuidanceItem,
     is_exploratory_probe,
     synthesize_tool_guidance,
 )
-from myrm_agent_harness.toolkits.memory.tool_guidance_types import ToolGuidanceItem
 
 
 def test_probe_command_detection() -> None:

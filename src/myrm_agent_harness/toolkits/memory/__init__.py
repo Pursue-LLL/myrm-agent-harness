@@ -143,13 +143,11 @@ from myrm_agent_harness.toolkits.memory.strategies import (
     extract_memories_from_conversation,
 )
 from myrm_agent_harness.toolkits.memory.tool_capture import ToolMemoryCaptureHook
-from myrm_agent_harness.toolkits.memory.tool_guidance_synthesizer import (
-    filter_guidance_items,
-    synthesize_tool_guidance,
-)
-from myrm_agent_harness.toolkits.memory.tool_guidance_types import (
+from myrm_agent_harness.toolkits.memory.tool_guidance import (
     ToolGuidanceItem,
     ToolGuidanceSummary,
+    filter_guidance_items,
+    synthesize_tool_guidance,
 )
 from myrm_agent_harness.toolkits.memory.types import (
     AnyMemory,

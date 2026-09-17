@@ -20,7 +20,7 @@ import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.toolkits.memory.tool_guidance_types import ToolGuidanceItem
+from myrm_agent_harness.toolkits.memory.tool_guidance import ToolGuidanceItem
 from myrm_agent_harness.toolkits.memory.types import (
     TOOL_FAILURE_ORIGIN,
     ProceduralMemory,

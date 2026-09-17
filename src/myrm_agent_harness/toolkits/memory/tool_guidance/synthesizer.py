@@ -5,7 +5,7 @@ deterministic, cache-stable golden guidance set for active tools.
 Strictly zero-LLM cost, sub-millisecond execution, and bounded output.
 
 [INPUT]
-- myrm_agent_harness.toolkits.memory.tool_guidance_types::ToolGuidanceItem (POS: Tool memory procedural contract layer)
+- myrm_agent_harness.toolkits.memory.tool_guidance.types::ToolGuidanceItem (POS: Tool memory procedural contract layer)
 
 [OUTPUT]
 - is_exploratory_probe: Pure function detecting exploratory test commands
@@ -23,7 +23,7 @@ import re
 from collections import defaultdict
 from collections.abc import Sequence
 
-from myrm_agent_harness.toolkits.memory.tool_guidance_types import ToolGuidanceItem
+from myrm_agent_harness.toolkits.memory.tool_guidance.types import ToolGuidanceItem
 
 _PROBE_COMMAND_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"^\s*(?:command\s+-v|which|type\s+-p|test\s+-[efd]|grep\s+-q)\b", re.IGNORECASE),

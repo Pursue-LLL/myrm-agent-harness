@@ -1126,11 +1126,11 @@ rating_new = rating_old + alpha * (normalized - rating_old)
 针对小型大模型在工具调用编排中参数幻觉多、高频踩坑以及长程任务中重复犯错的问题，构建零 LLM 开销的工具规约沉淀与动态 JIT 提示词合成机制：
 
 - **数据模型契约（`ToolGuidanceItem` & `ToolGuidanceSummary`）**：
-  - 核心位置：`myrm_agent_harness.toolkits.memory.tool_guidance_types`；
+  - 核心位置：`myrm_agent_harness.toolkits.memory.tool_guidance.types`（或通过门面 `tool_guidance` 统一导出）；
   - 属于程序性记忆（Procedural Memory）的特化，不可变（`frozen=True, slots=True`）；
   - 强绑定 `tool_name`、环境指纹 `env_fingerprint`、置信度 `confidence` 与人工置顶标记 `is_pinned`。
 - **纯函数黄金合成器（`synthesize_tool_guidance`）**：
-  - 核心位置：`myrm_agent_harness.toolkits.memory.tool_guidance_synthesizer`；
+  - 核心位置：`myrm_agent_harness.toolkits.memory.tool_guidance.synthesizer`（或通过门面 `tool_guidance` 统一导出）；
   - **探针假失败自动剔除（`is_exploratory_probe`）**：针对 Agent 在环境探索时的试探性命令（如 `command -v`、`which`、`grep -q` 等），其退出码非 0 属于探测逻辑而非真实工具使用故障，系统纯正则精准识别并不将其沉淀为避坑规程；
   - **环境指纹物理隔离（`filter_guidance_items`）**：当前运行时与规则所属环境指纹一致时才加载，防止跨操作系统/环境误导；
   - **单工具黄金 3 条初筛与全局 9 条总量熔断（`MAX_TOTAL_TOOL_GUIDELINES = 9`）**：严格限制单个工具至多提供 3 条候选指南，且当挂载多工具时全局总条目数硬熔断至 9 条，先按人工置顶优先 + 置信度降序收敛，防止长程多工具场景下 Prompt 膨胀与注意力稀释；
