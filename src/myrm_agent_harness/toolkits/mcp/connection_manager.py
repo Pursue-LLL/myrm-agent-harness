@@ -396,6 +396,9 @@ class MCPConnectionManager:
             # stdio env/cwd live in extra_params (the only place the business
             # layer persists them); resolve + expand placeholders here so every
             # transport build (runtime + enumeration) sees the same values.
+            # resolve_stdio_launch already maps Windows .bat/.cmd commands to
+            # cmd.exe (§7.2.1 MAY) as its final step; static/runtime scanners
+            # still read the plugin's declared command off the config object.
             from .placeholders import resolve_stdio_launch
 
             extra_params = getattr(cfg, "extra_params", None)

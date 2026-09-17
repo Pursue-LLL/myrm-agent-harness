@@ -23,6 +23,7 @@ Parent index: [../_ARCH.md](../_ARCH.md). System design: [../MEMORY_SYSTEM.md](.
 | `mcp_server.py` | Core | MCP adapter (recall/list/store/manage). | ✅ |
 | `wiki_memory_boundary.py` | Core | Wiki vs memory write boundary heuristics. | ✅ |
 | `transient_fact_boundary.py` | Core | Transient business state memory write boundary heuristics. | ✅ |
+| `rule_write_boundary.py` | Core | User-endorsed (`is_user_locked`) rule rewrite boundary for agent surfaces. | ✅ |
 
 ## Key Dependencies
 

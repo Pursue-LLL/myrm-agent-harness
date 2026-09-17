@@ -41,6 +41,49 @@ _EMPTY_LEARNED: dict[str, list[dict[str, str]]] = {
 }
 
 
+class TestMemoryRuntimeBudgetRoundTrip:
+    """The server reads rule fidelity straight off this channel, so the set→get
+    round trip must preserve every rule key the middleware publishes."""
+
+    def test_preserves_rule_fidelity_keys(self) -> None:
+        set_memory_runtime_budget(
+            {
+                "used": 512,
+                "total": 4096,
+                "rulesConfigured": 12,
+                "rulesInjected": 7,
+                "rulesTruncated": True,
+            }
+        )
+        assert get_memory_runtime_budget() == {
+            "used": 512,
+            "total": 4096,
+            "rulesConfigured": 12,
+            "rulesInjected": 7,
+            "rulesTruncated": True,
+        }
+
+    def test_two_field_payload_omits_rule_keys(self) -> None:
+        """Writers that only know the legacy payload must not invent rule keys."""
+        set_memory_runtime_budget({"used": 8, "total": 80})
+        assert get_memory_runtime_budget() == {"used": 8, "total": 80}
+
+    def test_clamps_injected_to_configured(self) -> None:
+        """A truncated section can hold no more items than were configured."""
+        set_memory_runtime_budget(
+            {
+                "used": 10,
+                "total": 100,
+                "rulesConfigured": 3,
+                "rulesInjected": 9,
+                "rulesTruncated": False,
+            }
+        )
+        budget = get_memory_runtime_budget()
+        assert budget is not None
+        assert budget["rulesInjected"] == 3
+
+
 @pytest.fixture(autouse=True)
 def _reset_runtime_memory_telemetry() -> None:
     set_memory_runtime_budget(None)

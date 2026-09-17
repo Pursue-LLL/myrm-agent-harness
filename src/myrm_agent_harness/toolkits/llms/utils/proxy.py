@@ -7,7 +7,8 @@
 [OUTPUT]
 - mask_proxy_url(): Mask credentials in proxy URL for safe logging and UI
 - validate_proxy_url(): Validate proxy scheme and structure
-- probe_proxy_health(): Async lightweight proxy connectivity probe
+- probe_proxy_health(): Async lightweight proxy connectivity probe with TTL caching
+- clear_proxy_probe_cache(): Clear the in-memory proxy probe result cache
 
 [POS]
 Network utility module for proxy URL validation, security masking,
@@ -18,7 +19,9 @@ from __future__ import annotations
 
 import ipaddress
 import logging
-from urllib.parse import urlparse, urlunparse
+import re
+import time
+from urllib.parse import quote, urlparse, urlunparse
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +31,33 @@ _BLOCKED_METADATA_HOSTNAMES = frozenset({
     "metadata.google.internal",
     "metadata",
 })
+
+_CREDENTIAL_URL_PATTERN = re.compile(
+    r"(?P<scheme>[a-zA-Z][a-zA-Z0-9+.-]*://)(?P<user>[^:\s/@]+):(?P<pass>[^@\s]+)@"
+)
+
+_PROBE_CACHE_MAX_ENTRIES = 256
+_probe_cache: dict[tuple[str, str], tuple[float, bool, str | None]] = {}
+
+
+def _sanitize_proxy_error(exc_or_msg: object, proxy_url: str) -> str:
+    """Sanitize error messages to prevent credential leakage in logs and UI."""
+    msg = str(exc_or_msg)
+    try:
+        parsed = urlparse(proxy_url)
+        if parsed.password:
+            msg = msg.replace(f":{parsed.password}@", ":***@")
+            encoded_pw = quote(parsed.password, safe="")
+            if encoded_pw != parsed.password:
+                msg = msg.replace(f":{encoded_pw}@", ":***@")
+    except Exception:
+        pass
+    return _CREDENTIAL_URL_PATTERN.sub(r"\g<scheme>\g<user>:***@", msg)
+
+
+def clear_proxy_probe_cache() -> None:
+    """Clear the in-memory probe result cache."""
+    _probe_cache.clear()
 
 
 def _is_blocked_proxy_target(hostname: str) -> tuple[bool, str | None]:
@@ -54,9 +84,10 @@ def _is_blocked_proxy_target(hostname: str) -> tuple[bool, str | None]:
     return False, None
 
 
-
 def mask_proxy_url(url: str | None) -> str | None:
     """Mask credentials in a proxy URL for safe logging and UI display.
+
+    Supports standalone proxy URLs as well as messages containing embedded URLs.
 
     Example:
         >>> mask_proxy_url("http://admin:secret123@proxy.corp.internal:8080")
@@ -69,25 +100,31 @@ def mask_proxy_url(url: str | None) -> str | None:
     if not cleaned:
         return cleaned
 
-    try:
-        parsed = urlparse(cleaned)
-        if not parsed.password:
-            return cleaned
+    # 1. Clean standalone URL (without whitespace)
+    if not any(c in cleaned for c in (" ", "\n", "\t", "\r")):
+        try:
+            parsed = urlparse(cleaned)
+            if parsed.scheme and (parsed.hostname or parsed.netloc):
+                if not parsed.password:
+                    return cleaned
 
-        username = parsed.username or ""
-        port_part = f":{parsed.port}" if parsed.port is not None else ""
-        masked_netloc = f"{username}:***@{parsed.hostname}{port_part}"
+                username = parsed.username or ""
+                port_part = f":{parsed.port}" if parsed.port is not None else ""
+                masked_netloc = f"{username}:***@{parsed.hostname}{port_part}"
 
-        return urlunparse((
-            parsed.scheme,
-            masked_netloc,
-            parsed.path,
-            parsed.params,
-            parsed.query,
-            parsed.fragment,
-        ))
-    except Exception:
-        return "<invalid-proxy-url>"
+                return urlunparse((
+                    parsed.scheme,
+                    masked_netloc,
+                    parsed.path,
+                    parsed.params,
+                    parsed.query,
+                    parsed.fragment,
+                ))
+        except Exception:
+            return "<invalid-proxy-url>"
+
+    # 2. Freeform text / embedded URLs fallback
+    return _CREDENTIAL_URL_PATTERN.sub(r"\g<scheme>\g<user>:***@", cleaned)
 
 
 def validate_proxy_url(url: str | None) -> tuple[bool, str | None]:
@@ -124,6 +161,7 @@ async def probe_proxy_health(
     proxy_url: str,
     target_url: str = "https://1.1.1.1",
     timeout_s: float = 3.0,
+    cache_ttl_s: float = 60.0,
 ) -> tuple[bool, str | None]:
     """Perform a lightweight connectivity probe through the specified proxy.
 
@@ -131,10 +169,19 @@ async def probe_proxy_health(
         proxy_url: Outbound proxy URL (HTTP/HTTPS/SOCKS5)
         target_url: Target URL for probe request (default Cloudflare DNS probe)
         timeout_s: Request timeout in seconds
+        cache_ttl_s: Duration in seconds to cache probe results (<= 0 disables caching)
 
     Returns:
         (is_success, error_message)
     """
+    if cache_ttl_s > 0:
+        cache_key = (proxy_url, target_url)
+        cached_entry = _probe_cache.get(cache_key)
+        if cached_entry is not None:
+            cached_at, cached_ok, cached_err = cached_entry
+            if time.monotonic() - cached_at < cache_ttl_s:
+                return cached_ok, cached_err
+
     is_valid, err = validate_proxy_url(proxy_url)
     if not is_valid:
         return False, err
@@ -155,6 +202,7 @@ async def probe_proxy_health(
     import httpx
 
     masked = mask_proxy_url(proxy_url)
+    outcome: tuple[bool, str | None]
     try:
         async with httpx.AsyncClient(
             proxy=proxy_url,
@@ -162,16 +210,40 @@ async def probe_proxy_health(
             verify=True,
         ) as client:
             resp = await client.head(target_url)
-            # Any HTTP response indicates successful proxy transmission
-            if resp.status_code < 500:
-                return True, None
-            return True, None
+            status = resp.status_code
+            if 200 <= status < 400:
+                outcome = (True, None)
+            elif status == 407:
+                outcome = (False, "Proxy authentication required (HTTP 407)")
+            elif status in (403, 429):
+                outcome = (False, f"Target probe blocked or rate limited (HTTP {status})")
+            elif 400 <= status < 500:
+                # Upstream target responded (e.g. 401/404/405), confirming proxy tunnel and TLS succeeded
+                outcome = (True, None)
+            elif status >= 500:
+                outcome = (False, f"Proxy or upstream server error (HTTP {status})")
+            else:
+                outcome = (False, f"Proxy probe received unexpected HTTP {status}")
     except httpx.ProxyError as exc:
-        logger.warning("Proxy connection error for %s: %s", masked, exc)
-        return False, f"Proxy connection failed: {exc}"
+        sanitized_msg = _sanitize_proxy_error(exc, proxy_url)
+        logger.warning("Proxy connection error for %s: %s", masked, sanitized_msg)
+        outcome = (False, f"Proxy connection failed: {sanitized_msg}")
     except httpx.ConnectTimeout:
         logger.warning("Proxy connection timed out for %s", masked)
-        return False, "Proxy connection timed out"
+        outcome = (False, "Proxy connection timed out")
     except Exception as exc:
-        logger.warning("Proxy probe failed for %s: %s", masked, exc)
-        return False, f"Proxy probe failed: {exc}"
+        sanitized_msg = _sanitize_proxy_error(exc, proxy_url)
+        logger.warning("Proxy probe failed for %s: %s", masked, sanitized_msg)
+        outcome = (False, f"Proxy probe failed: {sanitized_msg}")
+
+    if cache_ttl_s > 0:
+        now = time.monotonic()
+        if len(_probe_cache) >= _PROBE_CACHE_MAX_ENTRIES:
+            expired_keys = [k for k, v in _probe_cache.items() if now - v[0] >= cache_ttl_s]
+            for k in expired_keys:
+                _probe_cache.pop(k, None)
+            if len(_probe_cache) >= _PROBE_CACHE_MAX_ENTRIES:
+                _probe_cache.pop(next(iter(_probe_cache)), None)
+        _probe_cache[cache_key] = (now, outcome[0], outcome[1])
+
+    return outcome

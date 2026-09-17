@@ -5,10 +5,18 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from myrm_agent_harness.toolkits.llms.utils.proxy import (
+    clear_proxy_probe_cache,
     mask_proxy_url,
     probe_proxy_health,
     validate_proxy_url,
 )
+
+
+@pytest.fixture(autouse=True)
+def _reset_probe_cache() -> None:
+    clear_proxy_probe_cache()
+    yield
+    clear_proxy_probe_cache()
 
 
 def test_mask_proxy_url() -> None:
@@ -28,6 +36,16 @@ def test_mask_proxy_url() -> None:
     assert (
         mask_proxy_url("socks5://admin:p@ssw0rd!@gateway.corp.internal:1080/subpath")
         == "socks5://admin:***@gateway.corp.internal:1080/subpath"
+    )
+
+    # Embedded URLs in text messages
+    assert (
+        mask_proxy_url("Connection to http://user:secret@10.0.0.1:8080 failed")
+        == "Connection to http://user:***@10.0.0.1:8080 failed"
+    )
+    assert (
+        mask_proxy_url("Multiple: http://a:b@host1:80 and socks5://c:d@host2:1080")
+        == "Multiple: http://a:***@host1:80 and socks5://c:***@host2:1080"
     )
 
 
@@ -137,4 +155,110 @@ async def test_probe_proxy_health_blocked_target() -> None:
     )
     assert ok is False
     assert err is not None and "probe target url blocked" in err.lower()
+
+
+@pytest.mark.asyncio
+async def test_probe_proxy_health_auth_required() -> None:
+    mock_resp = AsyncMock()
+    mock_resp.status_code = 407
+
+    with patch("httpx.AsyncClient.head", new_callable=AsyncMock) as mock_head:
+        mock_head.return_value = mock_resp
+        ok, err = await probe_proxy_health("http://127.0.0.1:7890", target_url="https://1.1.1.1")
+        assert ok is False
+        assert err is not None and "407" in err
+
+
+@pytest.mark.asyncio
+async def test_probe_proxy_health_blocked_or_throttled() -> None:
+    for code in (403, 429):
+        mock_resp = AsyncMock()
+        mock_resp.status_code = code
+
+        with patch("httpx.AsyncClient.head", new_callable=AsyncMock) as mock_head:
+            mock_head.return_value = mock_resp
+            ok, err = await probe_proxy_health(
+                "http://127.0.0.1:7890",
+                target_url="https://1.1.1.1",
+                cache_ttl_s=0.0,
+            )
+            assert ok is False
+            assert err is not None and str(code) in err
+
+
+@pytest.mark.asyncio
+async def test_probe_proxy_health_upstream_4xx_success() -> None:
+    for code in (401, 404, 405):
+        mock_resp = AsyncMock()
+        mock_resp.status_code = code
+
+        with patch("httpx.AsyncClient.head", new_callable=AsyncMock) as mock_head:
+            mock_head.return_value = mock_resp
+            ok, err = await probe_proxy_health(
+                "http://127.0.0.1:7890",
+                target_url="https://api.openai.com/v1",
+                cache_ttl_s=0.0,
+            )
+            assert ok is True
+            assert err is None
+
+
+@pytest.mark.asyncio
+async def test_probe_proxy_health_server_error() -> None:
+    mock_resp = AsyncMock()
+    mock_resp.status_code = 502
+
+    with patch("httpx.AsyncClient.head", new_callable=AsyncMock) as mock_head:
+        mock_head.return_value = mock_resp
+        ok, err = await probe_proxy_health("http://127.0.0.1:7890", target_url="https://1.1.1.1")
+        assert ok is False
+        assert err is not None and "Proxy or upstream server error (HTTP 502)" in err
+
+
+@pytest.mark.asyncio
+async def test_probe_proxy_health_credential_sanitization() -> None:
+    import httpx
+
+    with patch("httpx.AsyncClient.head", new_callable=AsyncMock) as mock_head:
+        mock_head.side_effect = httpx.ProxyError(
+            "Failed connecting to http://myuser:supersecretpass@10.0.0.1:8080: timed out"
+        )
+        ok, err = await probe_proxy_health(
+            "http://myuser:supersecretpass@10.0.0.1:8080",
+            target_url="https://1.1.1.1",
+            cache_ttl_s=0.0,
+        )
+        assert ok is False
+        assert err is not None
+        assert "supersecretpass" not in err
+        assert "http://myuser:***@10.0.0.1:8080" in err
+
+
+@pytest.mark.asyncio
+async def test_probe_proxy_health_caching_and_ttl() -> None:
+    mock_resp = AsyncMock()
+    mock_resp.status_code = 200
+
+    with patch("httpx.AsyncClient.head", new_callable=AsyncMock) as mock_head:
+        mock_head.return_value = mock_resp
+
+        # First call hits mock
+        ok1, err1 = await probe_proxy_health("http://127.0.0.1:7890", cache_ttl_s=60.0)
+        assert ok1 is True
+        assert err1 is None
+        assert mock_head.call_count == 1
+
+        # Second call within TTL hits cache, head is NOT called again
+        ok2, err2 = await probe_proxy_health("http://127.0.0.1:7890", cache_ttl_s=60.0)
+        assert ok2 is True
+        assert err2 is None
+        assert mock_head.call_count == 1
+
+        # Clear cache and call again: head IS called again
+        clear_proxy_probe_cache()
+        ok3, err3 = await probe_proxy_health("http://127.0.0.1:7890", cache_ttl_s=60.0)
+        assert ok3 is True
+        assert err3 is None
+        assert mock_head.call_count == 2
+
 

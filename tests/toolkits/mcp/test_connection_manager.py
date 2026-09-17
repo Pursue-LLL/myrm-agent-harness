@@ -8,6 +8,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from myrm_agent_harness.toolkits.mcp import placeholders
+from myrm_agent_harness.toolkits.mcp.client import MCPClientManager
 from myrm_agent_harness.toolkits.mcp.connection_manager import (
     ConnectionMetrics,
     ConnectionStatus,
@@ -346,3 +348,95 @@ class TestMCPConnectionManager:
             inst2 = await MCPConnectionManager.get_instance()
             assert inst1 is inst2
         MCPConnectionManager._instance = None
+
+
+class TestSpawnBoundaryStdioLaunch:
+    """The pool is the last stop before spawn: it owns placeholder resolution and
+    the Windows interpreter wrap, and must hand the actor the resolved tuple."""
+
+    @pytest.fixture
+    def manager(self) -> MCPConnectionManager:
+        MCPConnectionManager._instance = None
+        return MCPConnectionManager(ttl=600, cleanup_interval=60)
+
+    async def _spawn_conn_dict(
+        self, manager: MCPConnectionManager, cfg: _FakeConfig
+    ) -> dict[str, object]:
+        """Run ``_create_connection`` with the actor stubbed, returning its conn dict."""
+        captured: dict[str, object] = {}
+
+        class _Capture:
+            def __init__(self, name: str, conn: dict[str, object], **_: object) -> None:
+                self.server_name = name
+                self.tools: list[object] = []
+                captured.update(conn)
+
+            async def start(self) -> None:
+                return None
+
+            async def close(self) -> None:
+                return None
+
+        with (
+            patch.object(MCPClientManager, "_inject_auth_headers_into_config", AsyncMock()),
+            patch(
+                "myrm_agent_harness.toolkits.mcp.session_actor.MCPSessionActor",
+                _Capture,
+            ),
+        ):
+            await manager._create_connection([cfg], manager._make_config_hash([cfg]))
+        return captured
+
+    @pytest.mark.asyncio
+    async def test_expands_plugin_placeholders_and_injects_roots(
+        self, manager: MCPConnectionManager
+    ) -> None:
+        cfg = _FakeConfig(
+            command="./bin/srv",
+            args=["--data", "${PLUGIN_DATA}/cache"],
+            extra_params={"plugin_root": "/data/plugins/demo", "data_root": "/data/plugins/demo-data"},
+        )
+        conn = await self._spawn_conn_dict(manager, cfg)
+
+        assert conn["command"] == "./bin/srv"
+        assert conn["args"] == ["--data", "/data/plugins/demo-data/cache"]
+        assert conn["cwd"] == "/data/plugins/demo"
+        assert conn["env"] == {
+            "PLUGIN_ROOT": "/data/plugins/demo",
+            "PLUGIN_DATA": "/data/plugins/demo-data",
+        }
+
+    @pytest.mark.asyncio
+    async def test_declared_command_survives_for_scanners(
+        self, manager: MCPConnectionManager
+    ) -> None:
+        """Off Windows the wrap is a no-op, so scanners keep seeing the declared command."""
+        cfg = _FakeConfig(command="npx", args=["-y", "some-mcp"])
+        conn = await self._spawn_conn_dict(manager, cfg)
+
+        assert conn["command"] == "npx"
+        assert conn["args"] == ["-y", "some-mcp"]
+
+    @pytest.mark.asyncio
+    async def test_windows_batch_script_is_wrapped_at_spawn(
+        self, manager: MCPConnectionManager, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """On Windows the .bat/.cmd wrap must happen here, or the actor cannot spawn it."""
+        monkeypatch.setattr(placeholders, "_is_windows", lambda: True)
+        cfg = _FakeConfig(command="C:/plugins/demo/bin/srv.bat", args=["--data", "x"])
+        conn = await self._spawn_conn_dict(manager, cfg)
+
+        assert conn["command"] == "cmd.exe"
+        assert conn["args"] == ["/d", "/c", "C:/plugins/demo/bin/srv.bat", "--data", "x"]
+
+    @pytest.mark.asyncio
+    async def test_windows_wrap_quotes_whitespace_paths(
+        self, manager: MCPConnectionManager, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A script under ``Program Files`` must stay a single cmd.exe token."""
+        monkeypatch.setattr(placeholders, "_is_windows", lambda: True)
+        cfg = _FakeConfig(command="C:/Program Files/demo/srv.cmd", args=["a&b"])
+        conn = await self._spawn_conn_dict(manager, cfg)
+
+        assert conn["command"] == "cmd.exe"
+        assert conn["args"] == ["/d", "/c", '"C:/Program Files/demo/srv.cmd"', '"a&b"']

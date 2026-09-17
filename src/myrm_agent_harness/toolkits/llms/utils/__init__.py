@@ -15,6 +15,7 @@ from myrm_agent_harness.toolkits.llms.utils.logger import (
     log_llm_response,
 )
 from myrm_agent_harness.toolkits.llms.utils.proxy import (
+    clear_proxy_probe_cache,
     mask_proxy_url,
     probe_proxy_health,
     validate_proxy_url,
@@ -23,6 +24,7 @@ from myrm_agent_harness.toolkits.llms.utils.proxy import (
 __all__ = [
     "ToolArgumentRecoveryResult",
     "clean_model_kwargs",
+    "clear_proxy_probe_cache",
     "extract_json_from_malformed_response",
     "fix_invalid_json_escapes",
     "is_verbose_request_logging_enabled",

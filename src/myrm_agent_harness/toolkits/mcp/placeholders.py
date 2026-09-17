@@ -14,7 +14,16 @@ This module owns that expansion for the MCP runtime:
   tuple for a stdio server, reading ``env``/``cwd``/plugin roots from
   ``extra_params``, expanding placeholders everywhere they are legal, and
   injecting ``PLUGIN_ROOT`` / ``PLUGIN_DATA`` into the subprocess environment
-  when the corresponding plugin root is configured (§9.1).
+  when the corresponding plugin root is configured (§9.1). The Windows
+  ``.bat``/``.cmd`` interpreter wrap is applied as the final step so every
+  consumer of the tuple gets a spawnable command.
+- ``apply_windows_script_interpreter`` — Windows-only ``.bat`` / ``.cmd``
+  interpreter wrapping (Agent Plugins §7.2.1 MAY): maps the resolved command
+  to ``cmd.exe /d /c`` while keeping the script path a single token and
+  ``args`` separate, quoting components that contain whitespace or
+  ``cmd.exe`` metacharacters. No-op on other platforms. Applied at the spawn
+  boundary (connection pool), after config parsing, so static and runtime
+  scanners keep seeing the plugin's declared ``command``.
 
 Security model: only ``PLUGIN_ROOT`` / ``PLUGIN_DATA`` are expanded, expansion
 is a single textual pass (no recursion, no re-expansion of substituted values),
@@ -32,6 +41,7 @@ overrides a plugin-declared entry.
 [OUTPUT]
 - ``expand_placeholders``: one-pass placeholder expansion for a single value.
 - ``resolve_stdio_launch``: (command, args, env, cwd) launch tuple for stdio.
+- ``apply_windows_script_interpreter``: Windows ``.bat``/``.cmd`` wrapping.
 
 [POS]
 Framework-level MCP runtime parameter resolution. Plain functions, no agent or
@@ -41,6 +51,7 @@ any future transport.
 
 from __future__ import annotations
 
+import os
 import re
 
 from .env_guard import sanitize_mcp_env
@@ -51,6 +62,20 @@ _PLACEHOLDER_PATTERN = re.compile(r"\$\{(PLUGIN_ROOT|PLUGIN_DATA)\}")
 # Allowed extra_params keys carrying the plugin root directories.
 _PLUGIN_ROOT_KEY = "plugin_root"
 _DATA_ROOT_KEY = "data_root"
+# Script extensions that Windows cannot execute directly (Agent Plugins §7.2.1).
+_WINDOWS_SCRIPT_SUFFIXES = (".bat", ".cmd")
+# Characters that force double-quote wrapping inside a cmd.exe command line.
+_CMD_QUOTE_TRIGGER = re.compile(r'[\s&|<>()^%!",]')
+
+
+def _is_windows() -> bool:
+    """Platform probe kept as a seam so tests never patch the global ``os.name``.
+
+    Mutating ``os.name`` leaks into ``pathlib`` and breaks unrelated machinery
+    (``WindowsPath`` cannot be instantiated on POSIX), so the Windows branch is
+    selected through this indirection instead.
+    """
+    return os.name == "nt"
 
 
 def expand_placeholders(
@@ -106,6 +131,9 @@ def resolve_stdio_launch(
       ``plugin_root`` when configured; a stdio ``command`` starting with
       ``./`` (a plugin-relative executable) implies the same cwd when the
       plugin did not declare one.
+    - On Windows a resolved ``.bat`` / ``.cmd`` command is wrapped as
+      ``cmd.exe /d /c`` (§7.2.1 MAY) so every consumer of the launch tuple
+      gets a spawnable command, not just the transport builder.
 
     ``command`` itself is never expanded — the Agent Plugins parser only
     accepts bare tokens or ``./``-relative paths, and shell interpolation of
@@ -160,4 +188,41 @@ def resolve_stdio_launch(
         if args
         else None
     )
-    return command or "", expanded_args or [], env, cwd
+    resolved_command, resolved_args = apply_windows_script_interpreter(
+        command or "", expanded_args or []
+    )
+    return resolved_command, resolved_args, env, cwd
+
+
+def _quote_cmd_component(value: str) -> str:
+    """Wrap ``value`` in double quotes when cmd.exe would otherwise split it.
+
+    Embedded double quotes are doubled (the cmd.exe escape convention).
+    """
+    if not _CMD_QUOTE_TRIGGER.search(value):
+        return value
+    return '"' + value.replace('"', '""') + '"'
+
+
+def apply_windows_script_interpreter(
+    command: str, args: list[str]
+) -> tuple[str, list[str]]:
+    """Map a Windows batch script to its platform interpreter (no-op elsewhere).
+
+    On Windows, ``.bat`` / ``.cmd`` files are not directly executable, so the
+    resolved command is wrapped as ``cmd.exe /d /c <script> <args>`` (Agent
+    Plugins §7.2.1 MAY). The script path stays a single token and ``args``
+    stay separate — no shell-string concatenation — and components containing
+    whitespace or ``cmd.exe`` metacharacters are double-quoted. Static
+    scanners and spawn gates always see the original ``command`` because this
+    runs after config parsing, on the resolved launch tuple only.
+    """
+    if not _is_windows():
+        return command, args
+    if not command.lower().endswith(_WINDOWS_SCRIPT_SUFFIXES):
+        return command, args
+    return (
+        "cmd.exe",
+        ["/d", "/c", _quote_cmd_component(command)]
+        + [_quote_cmd_component(a) for a in args],
+    )

@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import pytest
+
+from myrm_agent_harness.toolkits.mcp import placeholders
 from myrm_agent_harness.toolkits.mcp.placeholders import (
+    apply_windows_script_interpreter,
     expand_placeholders,
     resolve_stdio_launch,
 )
@@ -156,3 +160,93 @@ class TestResolveStdioLaunch:
         assert args == ["--data", "${PLUGIN_ROOT}/cache"]
         assert env is None
         assert cwd is None
+
+
+@pytest.fixture
+def windows_platform(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Force the Windows branch without mutating the real ``os.name``.
+
+    Patching ``os.name`` to ``"nt"`` makes ``pathlib`` instantiate
+    ``WindowsPath`` on POSIX (pytest's report/cache paths blow up with
+    ``UnsupportedOperation: cannot instantiate 'WindowsPath' on your system``),
+    so the module under test exposes its platform probe as a seam instead.
+    """
+    monkeypatch.setattr(placeholders, "_is_windows", lambda: True)
+
+
+class TestApplyWindowsScriptInterpreter:
+    def test_passthrough_off_windows(self) -> None:
+        assert apply_windows_script_interpreter("srv.bat", ["--x"]) == (
+            "srv.bat",
+            ["--x"],
+        )
+
+    def test_passthrough_for_non_script_on_windows(
+        self, windows_platform: None
+    ) -> None:
+        assert apply_windows_script_interpreter("python", ["-m", "srv"]) == (
+            "python",
+            ["-m", "srv"],
+        )
+
+    @pytest.mark.parametrize("script", ["srv.bat", "srv.BAT", "srv.cmd", "C:/t/srv.cmd"])
+    def test_batch_mapped_to_cmd(
+        self, windows_platform: None, script: str
+    ) -> None:
+        command, args = apply_windows_script_interpreter(script, ["--x"])
+        assert command == "cmd.exe"
+        assert args == ["/d", "/c", script, "--x"]
+
+    def test_empty_args(self, windows_platform: None) -> None:
+        assert apply_windows_script_interpreter("srv.bat", []) == (
+            "cmd.exe",
+            ["/d", "/c", "srv.bat"],
+        )
+
+    def test_components_with_spaces_or_metachars_are_quoted(
+        self, windows_platform: None
+    ) -> None:
+        command, args = apply_windows_script_interpreter(
+            "C:/Program Files/srv.bat", ["a&b", "plain"]
+        )
+        assert command == "cmd.exe"
+        assert args == ["/d", "/c", '"C:/Program Files/srv.bat"', '"a&b"', "plain"]
+
+    def test_embedded_quotes_are_doubled(self, windows_platform: None) -> None:
+        _, args = apply_windows_script_interpreter("srv.bat", ['sa"y'])
+        assert args == ["/d", "/c", "srv.bat", '"sa""y"']
+
+
+class TestResolveStdioLaunchWindowsInterpreter:
+    """The interpreter wrap must reach *every* consumer of the launch tuple.
+
+    Live spawning reads the tuple the connection manager built, so a wrap that
+    only runs inside the transport builder would leave the real spawn path
+    unchanged on Windows.
+    """
+
+    def test_batch_command_is_wrapped_inside_resolution(self, windows_platform: None) -> None:
+        command, args, _, _ = resolve_stdio_launch("srv.bat", ["--x"], None)
+        assert command == "cmd.exe"
+        assert args == ["/d", "/c", "srv.bat", "--x"]
+
+    def test_wrap_runs_after_placeholder_expansion(self, windows_platform: None) -> None:
+        # ``command`` is deliberately never expanded (parser guarantees bare
+        # tokens or ``./``-relative paths), so only args carry placeholders.
+        command, args, _, _ = resolve_stdio_launch(
+            "./bin/srv.cmd",
+            ["--data", "${PLUGIN_DATA}/cache"],
+            {"plugin_root": _ROOT, "data_root": _DATA},
+        )
+        assert command == "cmd.exe"
+        assert args == ["/d", "/c", "./bin/srv.cmd", "--data", f"{_DATA}/cache"]
+
+    def test_non_script_command_is_untouched(self, windows_platform: None) -> None:
+        command, args, _, _ = resolve_stdio_launch("python", ["-m", "srv"], None)
+        assert command == "python"
+        assert args == ["-m", "srv"]
+
+    def test_off_windows_batch_command_is_untouched(self) -> None:
+        command, args, _, _ = resolve_stdio_launch("srv.bat", ["--x"], None)
+        assert command == "srv.bat"
+        assert args == ["--x"]
