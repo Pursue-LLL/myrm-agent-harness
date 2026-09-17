@@ -17,7 +17,7 @@ Pure in-memory ledger with bounded capacity to guarantee zero CPU/memory thrashi
 from __future__ import annotations
 
 import threading
-from typing import Sequence
+from collections.abc import Sequence
 
 from .anchor_extractor import ReasoningAnchor
 
@@ -90,5 +90,4 @@ def get_session_anchor_ledger(session_id: str, *, max_anchors: int = _DEFAULT_MA
 def clear_session_anchor_ledger(session_id: str) -> None:
     """Remove and cleanup the session anchor ledger."""
     with _LEDGERS_LOCK:
-        if session_id in _SESSION_LEDGERS:
-            del _SESSION_LEDGERS[session_id]
+        _SESSION_LEDGERS.pop(session_id, None)

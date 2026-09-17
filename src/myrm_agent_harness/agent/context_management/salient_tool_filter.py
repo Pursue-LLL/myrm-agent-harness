@@ -18,9 +18,9 @@ Zero LLM cost, bounded memory budget, and strict Prompt Cache preservation.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Mapping, Sequence
+from datetime import UTC, datetime
 
 # Regex to strip all terminal ANSI escape sequences (colors, cursor control, resets)
 _ANSI_ESCAPE_RE = re.compile(r"\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
@@ -66,7 +66,7 @@ class SalientToolEvidence:
     is_error: bool
     salience_score: float
     occurred_at: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+        default_factory=lambda: datetime.now(UTC).isoformat()
     )
 
 

@@ -17,6 +17,7 @@ and atomic sidecar persistence for seamless model switching without memory loss.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 from pathlib import Path
@@ -88,10 +89,8 @@ class NativeCompactionSidecarStore:
                 session_id,
                 e,
             )
-            try:
+            with contextlib.suppress(Exception):
                 target.unlink(missing_ok=True)
-            except Exception:
-                pass
             return None
 
     def delete_checkpoint(self, session_id: str) -> None:

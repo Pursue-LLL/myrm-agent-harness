@@ -29,7 +29,8 @@ from __future__ import annotations
 
 import hashlib
 import re
-from typing import TYPE_CHECKING, Sequence
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 

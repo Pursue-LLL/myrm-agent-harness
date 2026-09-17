@@ -20,9 +20,8 @@ Positioned at the front of the default pipeline, immediately before ThinkingBloc
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 

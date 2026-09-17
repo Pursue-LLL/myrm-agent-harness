@@ -20,10 +20,10 @@ from __future__ import annotations
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 
-class DownshiftTriggerMode(str, Enum):
+class DownshiftTriggerMode(StrEnum):
     """Trigger mode for model downshift."""
 
     TOKEN_PERCENT = "token_percent"
@@ -31,7 +31,7 @@ class DownshiftTriggerMode(str, Enum):
     BOTH = "both"
 
 
-class ModelTier(str, Enum):
+class ModelTier(StrEnum):
     """Model execution tier classification."""
 
     PREMIUM = "premium"

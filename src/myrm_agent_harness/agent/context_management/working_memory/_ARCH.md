@@ -9,6 +9,7 @@ Strictly adheres to Prompt Cache Safety by injecting state exclusively into Dyna
 | File | Role | Description |
 |------|------|-------------|
 | `types.py` | Data Models | SSOT dataclasses and enums: `SubtaskStatus`, `SubtaskItem`, `TrapRecord`, and `LocalWorkingState`. |
+| `marks.py` | Marks Metadata Contract | `WorkingMemoryMark` enum, `IMMUNE_MARKS` set, and message-level mark manipulation and immunity inspection primitives. |
 | `block.py` | Working Block Controller | `LocalWorkingMemoryBlock` class backed by `ContextVar` providing goal tracking, subtask updates, trap logging, snapshotting, and prompt cache-safe turn-tail rendering. |
 | `__init__.py` | Package Exports | Canonical public exports for harness runtime and context management layers. |
 

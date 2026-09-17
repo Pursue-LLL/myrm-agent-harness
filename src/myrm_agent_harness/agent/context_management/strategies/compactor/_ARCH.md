@@ -14,6 +14,7 @@ Priority-aware message compression: four-level strategy (deduplicate → skip-co
 | `integrity_guard.py` | Guard | `ensure_tool_pair_integrity` — guarantees every retained AI tool call has a matching ToolMessage. |
 | `pre_compact_context.py` | Helper | Preserves injected recall HumanMessage across compression/summarization paths. |
 | `smart_fallback.py` | Fallback | Last-resort budget-aware degradation when essential content alone exceeds token budget. |
+| `selective_eviction.py` | Engine | Mark-driven selective eviction and content folding respecting Tool Pair Invariant and whitelist immunity. |
 | `tool_stats.py` | Utility | `extract_tool_stats` — extracts structural stats from tool outputs. |
 
 ## Key Dependencies
