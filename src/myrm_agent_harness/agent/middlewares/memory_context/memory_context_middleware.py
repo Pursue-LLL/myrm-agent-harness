@@ -317,10 +317,9 @@ class MemoryContextMiddleware(AgentMiddleware):
         n_prefs = len(learned_ctx.get("learned_preferences", []))
         is_cold = stable_formatted is not None and "Discovery Mode" in stable_formatted
 
-        # Report how many stable rules actually reached the model. The brief
-        # previously counted every configured rule, so a budget-trimmed prompt
-        # still advertised the full rule count — a silent fidelity gap between
-        # what the user sees and what the model obeys.
+        # Report how many stable rules actually reached the model, so a
+        # budget-trimmed prompt never reports the full configured rule count as
+        # if the model had obeyed all of them.
         configured_rules = memory_ctx.get("rules")
         configured_rule_count = len(configured_rules) if isinstance(configured_rules, list) else 0
         injected_rule_count = accepted_by_title.get(STABLE_RULES_TITLE, 0)
