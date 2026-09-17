@@ -246,3 +246,78 @@ def test_parser_tilde_code_block_and_unclosed_fence():
     assert entries[1].title == "Unclosed Fence"
     assert "key: value" in entries[1].content
 
+
+def test_anchor_formatter_empty_batch_and_build_anchor():
+    """Verify empty batch formatting and standalone anchor string builder."""
+    assert MemoryAnchorFormatter.format_batch([]) == ""
+    assert MemoryAnchorFormatter.build_anchor("test.md", 10) == "[source: test.md#L10]"
+    assert MemoryAnchorFormatter.build_anchor("test.md", 10, 10) == "[source: test.md#L10]"
+    assert MemoryAnchorFormatter.build_anchor("test.md", 10, 20) == "[source: test.md#L10-L20]"
+
+
+def test_file_store_read_all_and_append_existing(tmp_path: Path):
+    """Verify read_all_workspace_entries and appending to existing daily notes."""
+    topology = FileMemoryTopology(root_dir=tmp_path)
+    store = FileMemoryStore(topology=topology)
+    store.ensure_topology()
+
+    # Initially empty
+    assert store.read_all_workspace_entries() == []
+
+    # Write MEMORY.md
+    store.write_atomic(topology.main_file_path, "## Core Rule\nStay focused.")
+
+    # Append first daily note
+    store.append_daily_note("First task completed.", title="Task 1")
+    # Append second daily note to the same day
+    store.append_daily_note("Second task completed.", title="Task 2")
+
+    all_entries = store.read_all_workspace_entries()
+    # 1 from MEMORY.md, 1 daily title header, 2 tasks
+    assert len(all_entries) == 4
+    assert any(e.title == "Core Rule" for e in all_entries)
+    assert any(e.title == "Task 1" for e in all_entries)
+    assert any(e.title == "Task 2" for e in all_entries)
+
+    # Edge cases: non-existent file
+    assert store.get_file_freshness(tmp_path / "missing.md") is None
+    assert store.read_entries(tmp_path / "missing.md") == []
+
+
+@pytest.mark.asyncio
+async def test_sync_engine_store_backend_and_factory(tmp_path: Path):
+    """Verify setup_local_file_memory_sync factory and backend with store method."""
+    from myrm_agent_harness.toolkits.memory import setup_local_file_memory_sync
+
+    class FakeMemoryManager:
+        def __init__(self):
+            self.user_id = "test_developer"
+            self.stored = []
+
+        async def store(self, memory):
+            self.stored.append(memory)
+
+    mgr = FakeMemoryManager()
+    engine = setup_local_file_memory_sync(base_path=tmp_path, memory_manager=mgr)
+    assert engine is not None
+    assert engine.topology.root_dir == tmp_path.resolve()
+
+    # Write a markdown rule
+    engine.topology.main_file_path.write_text("## Strict Rule\nAlways test thoroughly.\n", encoding="utf-8")
+
+    report = await engine.check_and_sync_on_ingress()
+    assert report.added_count == 1
+    assert len(mgr.stored) == 1
+
+    stored_mem = mgr.stored[0]
+    assert stored_mem.user_id == "test_developer"
+    assert "Always test thoroughly." in stored_mem.content
+    assert stored_mem.metadata["source_file"] == "MEMORY.md"
+    assert stored_mem.metadata["line_start"] == "1"
+
+    # None manager shouldn't raise
+    engine_none = setup_local_file_memory_sync(base_path=tmp_path, memory_manager=None)
+    await engine_none.persist_episodic_note("No manager note")
+
+
+
