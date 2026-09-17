@@ -127,3 +127,43 @@ async def test_summarize_processor_pre_evicts_transient_hints():
     assert all("temporary hint" not in str(m.content) for m in processed_ctx.messages)
     assert any("pre_summarize_eviction" in op for op in processed_ctx.operations)
 
+
+@pytest.mark.asyncio
+async def test_selective_eviction_idempotency_cleanses_marks():
+    """Verify that folding a ToolMessage cleanses the eviction mark, ensuring mathematical idempotency."""
+    call_id = "call_repeat_123"
+    ai_msg = AIMessage(
+        content="running draft tool",
+        tool_calls=[{"name": "draft_tool", "args": {}, "id": call_id}],
+    )
+    tool_msg = ToolMessage(
+        content="temporary draft data " * 50,
+        tool_call_id=call_id,
+        name="draft_tool",
+    )
+    with_message_marks(tool_msg, WorkingMemoryMark.SCRATCHPAD)
+
+    messages = [ai_msg, tool_msg]
+
+    # First eviction run
+    first_retained, first_stats = evict_messages_by_marks(
+        messages,
+        target_marks={WorkingMemoryMark.SCRATCHPAD.value},
+    )
+    assert first_stats.tool_pairs_folded == 1
+    assert first_stats.evicted_count == 1
+    assert "[Folded tool output" in str(first_retained[1].content)
+
+    # Second eviction run on the output of the first run (idempotency check: f(f(x)) == f(x))
+    second_retained, second_stats = evict_messages_by_marks(
+        first_retained,
+        target_marks={WorkingMemoryMark.SCRATCHPAD.value},
+    )
+    # Must be 0 because the folded ToolMessage had its scratchpad mark stripped
+    assert second_stats.tool_pairs_folded == 0
+    assert second_stats.evicted_count == 0
+    assert second_stats.tokens_saved == 0
+    assert len(second_retained) == len(first_retained)
+    assert second_retained[1].content == first_retained[1].content
+
+

@@ -88,3 +88,19 @@ def is_eviction_immune(message: BaseMessage) -> bool:
     """Check if message is strictly immune from selective eviction or destructive compaction."""
     msg_marks = get_message_marks(message)
     return bool(msg_marks & IMMUNE_MARKS)
+
+
+def remove_message_marks(message: BaseMessage, *marks: str | WorkingMemoryMark) -> BaseMessage:
+    """Remove specified marks from message additional_kwargs (in-place & returned)."""
+    if not hasattr(message, "additional_kwargs") or not isinstance(message.additional_kwargs, dict):
+        return message
+    current_marks = get_message_marks(message)
+    for m in marks:
+        val = m.value if isinstance(m, WorkingMemoryMark) else str(m)
+        current_marks.discard(val)
+    if current_marks:
+        message.additional_kwargs[MARKS_METADATA_KEY] = sorted(current_marks)
+    else:
+        message.additional_kwargs.pop(MARKS_METADATA_KEY, None)
+    return message
+

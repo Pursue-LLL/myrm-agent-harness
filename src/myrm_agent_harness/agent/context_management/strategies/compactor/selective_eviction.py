@@ -33,6 +33,7 @@ from myrm_agent_harness.agent.context_management.working_memory.marks import (
     WorkingMemoryMark,
     get_message_marks,
     is_eviction_immune,
+    remove_message_marks,
 )
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.text_utils import get_token_count
@@ -133,6 +134,7 @@ def evict_messages_by_marks(
                     name=getattr(msg, "name", None),
                     additional_kwargs=dict(msg.additional_kwargs or {}),
                 )
+                remove_message_marks(folded_msg, *matched_marks)
                 retained.append(folded_msg)
                 saved = max(0, old_tokens - get_token_count(placeholder_content))
                 tokens_saved += saved
