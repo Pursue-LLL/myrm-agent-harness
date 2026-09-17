@@ -116,7 +116,6 @@ myrm_agent_harness/toolkits/memory/_manager/import_export.py	584
 myrm_agent_harness/toolkits/memory/ephemeral.py	522
 myrm_agent_harness/toolkits/memory/metrics.py	628
 myrm_agent_harness/toolkits/memory/relational/sqlite_store.py	823
-myrm_agent_harness/toolkits/memory/strategies/consolidation.py	600
 myrm_agent_harness/toolkits/memory/strategies/deduplicator.py	716
 myrm_agent_harness/toolkits/memory/strategies/extractor.py	882
 myrm_agent_harness/toolkits/memory/types.py	558

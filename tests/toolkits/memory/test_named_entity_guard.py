@@ -104,3 +104,61 @@ def test_named_entity_guard_passes_when_no_technical_entities() -> None:
     )
 
     assert verdict.is_valid
+
+
+def test_named_entity_guard_ignores_timestamp_colons() -> None:
+    guard = NamedEntityGuard()
+    # Timestamp with colons: should NOT extract 45 as port
+    text = "Backup completed at 2026-09-18 10:45:00 with duration 45s."
+    entities = guard.extract_entities(text)
+    port_entities = [e for e in entities if e.entity_type == CriticalEntityType.PORT]
+    assert len(port_entities) == 0
+
+
+def test_named_entity_guard_patch_with_missing_entities() -> None:
+    guard = NamedEntityGuard()
+    source_texts = [
+        "Postgres runs on port 5433 at 127.0.0.1 with DATABASE_URL=postgres://user:pass@127.0.0.1:5433/mydb.",
+        "Configuration is in /etc/postgresql/postgresql.conf.",
+    ]
+    hallucinated_candidate = "Postgres is configured for debugging."
+
+    verdict = guard.verify_consolidation(
+        source_texts=source_texts,
+        consolidated_text=hallucinated_candidate,
+        op_action="merge",
+        reasoning="Combined postgres configuration.",
+    )
+    assert not verdict.is_valid
+    assert len(verdict.missing_entities) > 0
+
+    # Self-heal using patch_with_missing_entities
+    patched = guard.patch_with_missing_entities(
+        hallucinated_candidate,
+        verdict.missing_entities,
+    )
+    assert "[保留关键实体:" in patched
+
+    re_verdict = guard.verify_consolidation(
+        source_texts=source_texts,
+        consolidated_text=patched,
+        op_action="merge",
+        reasoning="Combined postgres configuration.",
+    )
+    assert re_verdict.is_valid
+
+
+def test_named_entity_guard_ignores_general_uppercase_words() -> None:
+    guard = NamedEntityGuard()
+    # Uppercase English words or brand names without underscore, $, or = should NOT be extracted as ENV_VAR
+    text = "Please run TEST before pushing to PROD. User prefers DOCKER and PYTHON over bash scripts."
+    entities = guard.extract_entities(text)
+    env_entities = [e for e in entities if e.entity_type == CriticalEntityType.ENV_VAR]
+    assert len(env_entities) == 0
+
+    # True env vars with underscore, $, or assignment should be extracted
+    valid_text = "Set OPENAI_API_KEY=sk-test with $PORT in staging."
+    valid_entities = guard.extract_entities(valid_text)
+    valid_envs = {e.value for e in valid_entities if e.entity_type == CriticalEntityType.ENV_VAR}
+    assert "OPENAI_API_KEY" in valid_envs
+    assert "PORT" in valid_envs

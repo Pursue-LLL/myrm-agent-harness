@@ -65,14 +65,17 @@ _EXCLUDED_UPPERCASE_WORDS: frozenset[str] = frozenset(
 )
 
 # Precompiled deterministic regex patterns
-_PORT_PATTERN: re.Pattern[str] = re.compile(r"(?::|\bport\s*[:=]?\s*)(\d{2,5})\b", re.IGNORECASE)
+_PORT_PATTERN: re.Pattern[str] = re.compile(
+    r"(?:(?:\b[a-zA-Z][a-zA-Z0-9_.-]*|\b(?:\d{1,3}\.){3}\d{1,3}|\[[0-9a-fA-F:]+\]):|\bport\s*(?:(?:is|to)\s+|[:=]?\s*))(\d{2,5})\b",
+    re.IGNORECASE,
+)
 _IP_PATTERN: re.Pattern[str] = re.compile(
     r"\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b"
 )
-_URL_PATTERN: re.Pattern[str] = re.compile(
-    r"\b[a-zA-Z][a-zA-Z0-9+.-]*://[^\s\"'<>,;。！？\(\)\[\]]+"
+_URL_PATTERN: re.Pattern[str] = re.compile(r"\b[a-zA-Z][a-zA-Z0-9+.-]*://[^\s\"'<>,;。！？\(\)\[\]]+")
+_ENV_VAR_PATTERN: re.Pattern[str] = re.compile(
+    r"(?:\$([A-Z][A-Z0-9_]{1,})\b|\b([A-Z][A-Z0-9]*_[A-Z0-9_]+)\b|\b([A-Z][A-Z0-9_]{1,})=(?=\S))"
 )
-_ENV_VAR_PATTERN: re.Pattern[str] = re.compile(r"\b[A-Z][A-Z0-9_]{3,}\b")
 _FILE_PATH_PATTERN: re.Pattern[str] = re.compile(
     r"(?:/[a-zA-Z0-9_.-]+){2,}|(?:\./[a-zA-Z0-9_.-]+)+|[a-zA-Z0-9_.-]+\.(?:py|json|yaml|yml|toml|env|sql|sh|ts|tsx|js|conf|cfg)\b"
 )
@@ -117,6 +120,7 @@ class NamedEntityGuard:
         """Extract all critical technical entities from a text string with deduplication."""
         if not text:
             return ()
+        text = text[:8192]
 
         entities: list[CriticalEntity] = []
         seen_keys: set[tuple[CriticalEntityType, str]] = set()
@@ -145,11 +149,11 @@ class NamedEntityGuard:
             if port_num.isdigit() and 10 <= int(port_num) <= 65535:
                 _add(CriticalEntityType.PORT, port_num, match.group(0))
 
-        # 4. Environment Variables
+        # 4. Environment Variables ($VAR, VAR_NAME, or VAR=val)
         for match in _ENV_VAR_PATTERN.finditer(text):
-            var_name = match.group(0).rstrip(".,;:!?'\")>")
-            if var_name not in _EXCLUDED_UPPERCASE_WORDS and not var_name.isdigit():
-                _add(CriticalEntityType.ENV_VAR, var_name, var_name)
+            var_name = (match.group(1) or match.group(2) or match.group(3) or "").rstrip(".,;:!?'\")>")
+            if var_name and var_name not in _EXCLUDED_UPPERCASE_WORDS and not var_name.isdigit():
+                _add(CriticalEntityType.ENV_VAR, var_name, match.group(0))
 
         # 5. File Paths
         for match in _FILE_PATH_PATTERN.finditer(text):
@@ -174,7 +178,10 @@ class NamedEntityGuard:
         source_entities_map: dict[tuple[CriticalEntityType, str], CriticalEntity] = {}
         for src in source_texts:
             for ent in self.extract_entities(src):
-                key = (ent.entity_type, ent.value.lower() if ent.entity_type != CriticalEntityType.ENV_VAR else ent.value)
+                key = (
+                    ent.entity_type,
+                    ent.value.lower() if ent.entity_type != CriticalEntityType.ENV_VAR else ent.value,
+                )
                 source_entities_map[key] = ent
 
         if not source_entities_map:
@@ -219,3 +226,38 @@ class NamedEntityGuard:
             missing_entities=tuple(missing_entities),
             reason=reason,
         )
+
+    def patch_with_missing_entities(
+        self,
+        text: str,
+        missing_entities: Sequence[CriticalEntity],
+    ) -> str:
+        """Deterministically append missing technical entities to text to prevent critical data loss."""
+        if not missing_entities:
+            return text
+
+        items: list[str] = []
+        seen: set[tuple[CriticalEntityType, str]] = set()
+        for ent in missing_entities:
+            key = (
+                ent.entity_type,
+                ent.value.lower() if ent.entity_type != CriticalEntityType.ENV_VAR else ent.value,
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            if ent.entity_type == CriticalEntityType.PORT:
+                items.append(f"port: {ent.value}")
+            elif ent.entity_type == CriticalEntityType.ENV_VAR:
+                items.append(f"${ent.value}" if "_" not in ent.value else ent.value)
+            else:
+                items.append(ent.value)
+
+        if not items:
+            return text
+
+        annotation = f"[保留关键实体: {', '.join(items)}]"
+        stripped = text.rstrip()
+        if not stripped:
+            return annotation
+        return f"{stripped}\n{annotation}"

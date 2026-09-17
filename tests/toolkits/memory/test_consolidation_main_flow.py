@@ -88,9 +88,7 @@ def _semantic_doc(mem_id: str, content: str, *, days_ago: int = 2) -> VectorDocu
     )
 
 
-def _episodic_doc(
-    mem_id: str, content: str, *, event_type: str = "conversation"
-) -> VectorDocument:
+def _episodic_doc(mem_id: str, content: str, *, event_type: str = "conversation") -> VectorDocument:
     return VectorDocument(
         id=mem_id,
         content=content,
@@ -101,12 +99,8 @@ def _episodic_doc(
 
 class TestBuildUserPrompt:
     def test_procedural_trigger_action_and_source_error(self) -> None:
-        rule = ProceduralMemory(
-            content="always check config", trigger="on start", action="read config"
-        )
-        mem = SemanticMemory(
-            content="user prefers Rust", source_error="failed extraction attempt"
-        )
+        rule = ProceduralMemory(content="always check config", trigger="on start", action="read config")
+        mem = SemanticMemory(content="user prefers Rust", source_error="failed extraction attempt")
         id_map = _build_id_map([rule, mem])
         prompt = _build_user_prompt([rule, mem], "2026-08-15", id_map)
         assert "  trigger: on start" in prompt
@@ -120,16 +114,12 @@ class TestBuildUserPrompt:
         mem = SemanticMemory(content="plain fact here")
         prompt = _build_user_prompt([mem], "2026-08-15", _build_id_map([mem]))
         assert "  plain fact here" in prompt
-        assert prompt.endswith(
-            "Analyze these memories and output a JSON object with operations and insights."
-        )
+        assert prompt.endswith("Analyze these memories and output a JSON object with operations and insights.")
 
     def test_new_tag_applied(self) -> None:
         mem = SemanticMemory(content="fresh fact")
         id_map = _build_id_map([mem])
-        prompt = _build_user_prompt(
-            [mem], "2026-08-15", id_map, new_ids=frozenset({mem.id})
-        )
+        prompt = _build_user_prompt([mem], "2026-08-15", id_map, new_ids=frozenset({mem.id}))
         assert " [NEW]" in prompt
 
     def test_memory_without_importance_confidence(self) -> None:
@@ -146,9 +136,7 @@ class TestBuildUserPrompt:
 
     def test_correction_of_emits_corrects_marker(self) -> None:
         original = SemanticMemory(content="original fact", id="orig-12345678")
-        correction = SemanticMemory(
-            content="corrected fact", id="corr-12345678", correction_of=original.id
-        )
+        correction = SemanticMemory(content="corrected fact", id="corr-12345678", correction_of=original.id)
         id_map = _build_id_map([original, correction])
         prompt = _build_user_prompt([original, correction], "2026-08-15", id_map)
         assert "corrects:orig-123" in prompt
@@ -205,9 +193,7 @@ class TestExecuteOperationsExtraBranches:
         manager = _make_manager()
         manager.update_memory = AsyncMock(side_effect=RuntimeError("demote failed"))
         id_map = {"m1": "m1", "m2": "m2"}
-        ops = [
-            MergeOp(source_ids=["m1", "m2"], merged_content="merged", importance=0.8)
-        ]
+        ops = [MergeOp(source_ids=["m1", "m2"], merged_content="merged", importance=0.8)]
         stats = await _execute_operations(ops, manager, id_map)
         assert stats.merged == 1
         assert stats.errors == 0
@@ -223,9 +209,7 @@ class TestExecuteOperationsExtraBranches:
         stats = await _execute_operations(ops, manager)
         assert stats.updated == 0
         assert stats.errors == 0
-        manager.update_memory.assert_awaited_once_with(
-            "mem-1", content="new", importance=0.3, allow_protected=False
-        )
+        manager.update_memory.assert_awaited_once_with("mem-1", content="new", importance=0.3, allow_protected=False)
 
     @pytest.mark.asyncio
     async def test_update_content_applies(self) -> None:
@@ -283,18 +267,14 @@ class TestShouldConsolidate:
     async def test_elapsed_below_interval_returns_false(self) -> None:
         config = ConsolidationConfig(interval_hours=24)
         manager = _make_manager()
-        manager.get_profile_attribute = AsyncMock(
-            return_value=datetime.now(UTC).isoformat()
-        )
+        manager.get_profile_attribute = AsyncMock(return_value=datetime.now(UTC).isoformat())
         assert await should_consolidate(manager, config) is False
 
     @pytest.mark.asyncio
     async def test_elapsed_above_interval_returns_true(self) -> None:
         config = ConsolidationConfig(interval_hours=24)
         manager = _make_manager()
-        manager.get_profile_attribute = AsyncMock(
-            return_value=(datetime.now(UTC) - timedelta(hours=25)).isoformat()
-        )
+        manager.get_profile_attribute = AsyncMock(return_value=(datetime.now(UTC) - timedelta(hours=25)).isoformat())
         assert await should_consolidate(manager, config) is True
 
 
@@ -316,9 +296,7 @@ class TestEnrichWithSimilar:
         base = SemanticMemory(content="base")
         same = SemanticMemory(content="base", id=base.id)
         other = SemanticMemory(content="other")
-        manager.search = AsyncMock(
-            return_value=[self._search_result(same), self._search_result(other)]
-        )
+        manager.search = AsyncMock(return_value=[self._search_result(same), self._search_result(other)])
         result = await _enrich_with_similar(base, manager, max_similar=1)
         assert result == [base, other]
 
@@ -357,9 +335,7 @@ class TestFetchIncrementalMemories:
                 )
             ]
         )
-        result = await _fetch_incremental_memories(
-            manager, since=datetime.now(UTC) - timedelta(days=3), max_count=2
-        )
+        result = await _fetch_incremental_memories(manager, since=datetime.now(UTC) - timedelta(days=3), max_count=2)
         assert len(result) == 2
         assert all(hasattr(m, "created_at") for m in result)
 
@@ -373,9 +349,7 @@ class TestFetchIncrementalMemories:
                 ([_episodic_doc("consol", "event", event_type="consolidation")], None),
             ]
         )
-        result = await _fetch_incremental_memories(
-            manager, since=datetime.now(UTC) - timedelta(days=2), max_count=5
-        )
+        result = await _fetch_incremental_memories(manager, since=datetime.now(UTC) - timedelta(days=2), max_count=5)
         assert result == []
 
     @pytest.mark.asyncio
@@ -400,9 +374,7 @@ class TestFetchIncrementalMemories:
     async def test_relational_error_is_tolerated(self) -> None:
         manager = _make_manager()
         vector = manager._vec_store
-        vector.scroll = AsyncMock(
-            side_effect=[([_semantic_doc("s-1", "fact")], None), ([], None)]
-        )
+        vector.scroll = AsyncMock(side_effect=[([_semantic_doc("s-1", "fact")], None), ([], None)])
         manager._rel_store.list_rules = AsyncMock(side_effect=RuntimeError("rel down"))
         result = await _fetch_incremental_memories(manager, since=None, max_count=5)
         assert len(result) == 1
@@ -428,9 +400,7 @@ class TestUpdateTimestamp:
     @pytest.mark.asyncio
     async def test_persist_error_is_tolerated(self) -> None:
         manager = _make_manager()
-        manager._rel_store.set_profile = AsyncMock(
-            side_effect=RuntimeError("write failed")
-        )
+        manager._rel_store.set_profile = AsyncMock(side_effect=RuntimeError("write failed"))
         await _update_timestamp(manager, datetime.now(UTC))  # must not raise
 
 
@@ -445,9 +415,7 @@ class TestRecordConsolidationEvent:
     @pytest.mark.asyncio
     async def test_summary_includes_affected_ids(self) -> None:
         manager = _make_manager()
-        stats = ConsolidationStats(
-            merged=1, affected_ids=["a-1", "a-2"], input_count=3, duration_ms=12.5
-        )
+        stats = ConsolidationStats(merged=1, affected_ids=["a-1", "a-2"], input_count=3, duration_ms=12.5)
         await _record_consolidation_event(manager, stats)
         manager.add_event.assert_awaited_once()
         kwargs = manager.add_event.call_args.kwargs
@@ -459,9 +427,7 @@ class TestRecordConsolidationEvent:
     async def test_add_event_error_is_tolerated(self) -> None:
         manager = _make_manager()
         manager.add_event = AsyncMock(side_effect=RuntimeError("event store down"))
-        await _record_consolidation_event(
-            manager, ConsolidationStats()
-        )  # must not raise
+        await _record_consolidation_event(manager, ConsolidationStats())  # must not raise
 
 
 def _make_llm(response: ConsolidationResponse) -> MagicMock:
@@ -476,25 +442,17 @@ class TestRunConsolidation:
     @pytest.mark.asyncio
     async def test_soft_lock_skips(self) -> None:
         manager = _make_manager()
-        manager.get_profile_attribute = AsyncMock(
-            return_value=(datetime.now(UTC) - timedelta(minutes=5)).isoformat()
-        )
+        manager.get_profile_attribute = AsyncMock(return_value=(datetime.now(UTC) - timedelta(minutes=5)).isoformat())
         config = ConsolidationConfig(soft_lock_hours=1.0)
-        stats = await run_consolidation(
-            manager, _make_llm(ConsolidationResponse()), config
-        )
+        stats = await run_consolidation(manager, _make_llm(ConsolidationResponse()), config)
         assert stats.total_processed == 0
         manager._vec_store.scroll.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_insufficient_memories_skips(self) -> None:
         manager = _make_manager()
-        manager._vec_store.scroll = AsyncMock(
-            side_effect=[([_semantic_doc("s-1", "solo")], None), ([], None)]
-        )
-        stats = await run_consolidation(
-            manager, _make_llm(ConsolidationResponse()), ConsolidationConfig()
-        )
+        manager._vec_store.scroll = AsyncMock(side_effect=[([_semantic_doc("s-1", "solo")], None), ([], None)])
+        stats = await run_consolidation(manager, _make_llm(ConsolidationResponse()), ConsolidationConfig())
         assert stats.total_processed == 0
         manager._rel_store.set_profile.assert_awaited_once()
 
@@ -559,9 +517,7 @@ class TestRunConsolidation:
             insights=["cross-cutting insight"],
         )
         on_complete = AsyncMock()
-        stats = await run_consolidation(
-            manager, _make_llm(response), ConsolidationConfig(), on_complete=on_complete
-        )
+        stats = await run_consolidation(manager, _make_llm(response), ConsolidationConfig(), on_complete=on_complete)
         assert stats.merged == 1
         assert stats.corrected == 0  # low-scoring op filtered out by rubric
         assert stats.insights == ("cross-cutting insight",)
@@ -581,14 +537,12 @@ class TestRunConsolidation:
         )
         response = ConsolidationResponse(operations=[], insights=["only insight"])
         on_complete = AsyncMock(side_effect=RuntimeError("hook failed"))
-        stats = await run_consolidation(
-            manager, _make_llm(response), ConsolidationConfig(), on_complete=on_complete
-        )
+        stats = await run_consolidation(manager, _make_llm(response), ConsolidationConfig(), on_complete=on_complete)
         assert stats.insights == ("only insight",)
         on_complete.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_consolidation_rejects_missing_port_via_named_entity_guard(self) -> None:
+    async def test_consolidation_auto_patches_missing_port_via_named_entity_guard(self) -> None:
         manager = _make_manager()
         manager._vec_store.scroll = AsyncMock(
             side_effect=[
@@ -615,8 +569,60 @@ class TestRunConsolidation:
             ],
             insights=[],
         )
-        stats = await run_consolidation(
-            manager, _make_llm(response), ConsolidationConfig()
+        stats = await run_consolidation(manager, _make_llm(response), ConsolidationConfig())
+        # NamedEntityGuard automatically self-heals by patching the missing port 5433
+        assert stats.merged == 1
+        assert stats.guard_patched == 1
+        stored = [call.args[0] for call in manager.store.call_args_list]
+        assert any("5433" in m.content for m in stored)
+
+    @pytest.mark.asyncio
+    async def test_consolidation_rejects_insufficient_or_empty_source_ids(self) -> None:
+        manager = _make_manager()
+        manager._vec_store.scroll = AsyncMock(
+            side_effect=[
+                ([_semantic_doc("s-1", "A simple note")], None),
+                ([], None),
+            ]
         )
-        # The operation should be rejected by NamedEntityGuard because port 5433 was silently dropped
+        # LLM hallucinates an invalid/empty source merge
+        response = ConsolidationResponse(
+            operations=[
+                MergeOp(
+                    source_ids=["non-existent-1"],
+                    merged_content="Hallucinated merge content",
+                    accuracy_score=0.95,
+                    importance=0.8,
+                    reasoning="Invalid source ids",
+                )
+            ],
+            insights=[],
+        )
+        stats = await run_consolidation(manager, _make_llm(response), ConsolidationConfig())
         assert stats.merged == 0
+        assert stats.guard_patched == 0
+
+    @pytest.mark.asyncio
+    async def test_consolidation_rejects_missing_entity_in_correct_op(self) -> None:
+        manager = _make_manager()
+        manager._vec_store.scroll = AsyncMock(
+            side_effect=[
+                ([_semantic_doc("s-1", "Postgres runs on port 5433 at 127.0.0.1")], None),
+                ([], None),
+            ]
+        )
+        # CorrectOp drops the critical port (no auto-healing for CorrectOp)
+        response = ConsolidationResponse(
+            operations=[
+                CorrectOp(
+                    memory_id="s-1",
+                    corrected_content="Postgres runs at 127.0.0.1",
+                    accuracy_score=0.95,
+                    importance=0.8,
+                    reasoning="Dropped port",
+                )
+            ],
+            insights=[],
+        )
+        stats = await run_consolidation(manager, _make_llm(response), ConsolidationConfig())
+        assert stats.corrected == 0

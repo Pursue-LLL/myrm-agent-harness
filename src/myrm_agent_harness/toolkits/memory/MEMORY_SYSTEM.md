@@ -689,12 +689,13 @@ LLM 驱动的事实过期审查。与遗忘策略互补：遗忘靠数值衰减�
 
 **触发时机**：在 maintenance cycle 中，forgetting 之后、preference rebuild 之前执行。复用 consolidation LLM。
 
-### 7.2.2 跨会话认知整理与确定性命名实体守卫 (`strategies/consolidation.py`, `strategies/named_entity_guard.py`)
+### 7.2.2 跨会话认知整理与确定性命名实体守卫 (`strategies/consolidation.py`, `consolidation_models.py`, `consolidation_prompts.py`, `consolidation_ops_executor.py`, `named_entity_guard.py`)
 
-跨会话记忆整理（Memory Consolidation）在空闲时段对沉淀的事实与偏好执行聚合去重、矛盾纠错与洞察生成。
+跨会话记忆整理（Memory Consolidation）在空闲时段对沉淀的事实与偏好执行聚合去重、矛盾纠错与洞察生成。模块由领域模型层（`consolidation_models`）、提示词与短 ID 映射层（`consolidation_prompts`）、原子执行与审计层（`consolidation_ops_executor`）、实体守卫（`named_entity_guard`）以及主编排门面（`consolidation`）协同构成。
 
 **核心机制与安全边界**：
 - **确定性命名实体守卫 (`NamedEntityGuard`)**：零 I/O 确定性检测器，自动提取源码记忆中的 5 类关键技术实体（`PORT` 端口、`IP_ADDRESS` IP、`URL_DSN` 数据库/API 链接、`ENV_VAR` 环境变量名、`FILE_PATH` 文件与系统路径）。在 LLM 提议 `merge`、`correct` 或 `update_content` 操作时，强制要求新文本完整保留所有关键实体；若关键实体发生篡改或丢失，直接拒绝该候选操作，杜绝模型摘要压缩产生的幻觉。
+- **Class-First Rubric 评分与短 ID 映射**：在系统提示词与执行前置过滤中固化准确性、防碎片化、冗余度三维标准，以短 ID 压缩减少 Token 开销并捍卫 Prompt Cache 静态前缀。
 - **跨子阶段毫秒级协作避让 (`check_cooperative_yield`)**：在 `maintenance_service.py` 编排的 8 个维护子阶段（合并、BLOB GC、遗忘、摘要蒸发、因果图编译、陈旧审查、偏好重建、健康体检）入口处注入协作让出检查。当高优先级交互触发 `CooperativePauseSignal` 时，维护任务在毫秒内优雅退出并安全释放锁，保留已执行阶段的指标于 `MaintenanceReport.interrupted_by_pause`，确保前台交互零延迟。
 - **受保护条目豁免**：自动化合并与纠错传递 `allow_protected=False`，用户主动锁定的关键记忆永不被覆写或合并。
 

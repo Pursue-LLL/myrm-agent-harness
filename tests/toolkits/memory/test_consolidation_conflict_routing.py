@@ -173,6 +173,18 @@ class TestConsolidationStatsRoutedField:
         assert stats.routed_to_user == 3
 
 
+class TestConsolidationStatsGuardPatchedField:
+    """Validates guard_patched counter on ConsolidationStats."""
+
+    def test_default_zero(self) -> None:
+        stats = ConsolidationStats()
+        assert stats.guard_patched == 0
+
+    def test_custom_value(self) -> None:
+        stats = ConsolidationStats(guard_patched=5)
+        assert stats.guard_patched == 5
+
+
 def _make_manager_mock() -> AsyncMock:
     manager = AsyncMock()
     manager.user_id = "test-user"
@@ -289,9 +301,7 @@ class TestConflictResolutionBranches:
         ops = [CorrectOp(memory_id="mem-1", corrected_content="new", importance=0.8, accuracy_score=0.5)]
         stats = await _execute_operations(ops, manager, on_conflict=callback)
         assert stats.corrected == 1
-        manager.update_memory.assert_called_once_with(
-            "mem-1", importance=0.01, allow_protected=False
-        )
+        manager.update_memory.assert_called_once_with("mem-1", importance=0.01, allow_protected=False)
         manager.correct_memory.assert_not_called()
 
 
@@ -419,9 +429,7 @@ class TestNonSemanticMemoryCorrection:
         stats = await _execute_operations(ops, manager, on_conflict=None)
         assert stats.updated == 1
         assert stats.corrected == 0
-        manager.update_memory.assert_called_once_with(
-            "mem-1", content="updated rule", allow_protected=False
-        )
+        manager.update_memory.assert_called_once_with("mem-1", content="updated rule", allow_protected=False)
         manager.correct_memory.assert_not_called()
 
 
