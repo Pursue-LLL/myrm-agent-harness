@@ -223,7 +223,19 @@ def _format_memory_context(
         if items:
             stable_sections.append(BudgetedSection("Behavioral Rules", items, priority=3))
 
+    tool_guidance = ctx.get("tool_guidance")
+    if tool_guidance and isinstance(tool_guidance, dict):
+        guidance_items: list[str] = []
+        for t_name in sorted(tool_guidance.keys()):
+            guidelines = tool_guidance[t_name]
+            if isinstance(guidelines, list):
+                for g_text in guidelines:
+                    guidance_items.append(f"[{t_name}] {sanitize(str(g_text))}")
+        if guidance_items:
+            stable_sections.append(BudgetedSection("Tool Execution Guidance", guidance_items, priority=3))
+
     # ── Learned Layer (Low Privilege / Untrusted): auto-extracted, evolves across sessions ──
+
     learned_prefs = learned.get("learned_preferences", [])
     if learned_prefs:
         corrections: list[str] = []

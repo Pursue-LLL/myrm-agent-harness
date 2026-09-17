@@ -47,6 +47,8 @@ from langchain.agents.middleware import AgentMiddleware, ModelRequest, ModelResp
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from myrm_agent_harness.toolkits.memory.config import RecallMode, RetrievalConfig
+from myrm_agent_harness.toolkits.memory.tool_guidance_synthesizer import synthesize_tool_guidance
+from myrm_agent_harness.toolkits.memory.tool_guidance_types import ToolGuidanceItem
 
 from .memory_context_format import (
     STABLE_RULES_TITLE,
@@ -262,6 +264,33 @@ class MemoryContextMiddleware(AgentMiddleware):
             return await handler(request)
         memory_ctx: dict[str, object] = static_result
 
+        # JIT synthesize deterministic tool guidance scoped to active tools in the request
+        raw_guidance_raw = memory_ctx.get("raw_tool_guidance_items")
+        if isinstance(raw_guidance_raw, list) and raw_guidance_raw:
+            raw_guidance = [g for g in raw_guidance_raw if isinstance(g, ToolGuidanceItem)]
+            req_tools = getattr(request, "tools", None)
+            active_tools: set[str] | None = None
+            if req_tools:
+                found_names: set[str] = set()
+                if isinstance(req_tools, (list, tuple, set)):
+                    for t in req_tools:
+                        if hasattr(t, "name") and isinstance(t.name, str):
+                            found_names.add(t.name)
+                        elif isinstance(t, dict):
+                            if "name" in t and isinstance(t["name"], str):
+                                found_names.add(t["name"])
+                            elif "function" in t and isinstance(t["function"], dict) and "name" in t["function"]:
+                                found_names.add(str(t["function"]["name"]))
+                if found_names:
+                    active_tools = found_names
+
+            tool_guidance_map = synthesize_tool_guidance(
+                raw_guidance,
+                target_tools=active_tools,
+            )
+            if tool_guidance_map:
+                memory_ctx["tool_guidance"] = tool_guidance_map
+
         if isinstance(learned_result, BaseException):
             logger.warning("Learned memory context failed (non-fatal): %s", learned_result)
             learned_ctx: dict[str, list[dict[str, str]]] = {
@@ -273,6 +302,7 @@ class MemoryContextMiddleware(AgentMiddleware):
         else:
             # P0: keep Turn1 prefix cache-stable — learned facts are retrieved via memory_search_tool.
             learned_ctx = {"learned_rules": [], "learned_preferences": []}
+
 
         memory_search_enabled = _memory_search_tool_bound(request)
         stable_formatted, untrusted_formatted, accepted_by_title = _format_memory_context(

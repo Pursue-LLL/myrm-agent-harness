@@ -20,6 +20,7 @@ import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.toolkits.memory.tool_guidance_types import ToolGuidanceItem
 from myrm_agent_harness.toolkits.memory.types import (
     TOOL_FAILURE_ORIGIN,
     ProceduralMemory,
@@ -101,9 +102,28 @@ async def load_context(
         rules_raw = results["rules"]
         user_rules: list[dict[str, str | int | bool]] = []
         agent_instrs: list[dict[str, str | int]] = []
+        guidance_items: list[ToolGuidanceItem] = []
         if isinstance(rules_raw, list):
             for r in rules_raw:
                 if isinstance(r, ProceduralMemory):
+                    if r.tool_name:
+                        guidance_items.append(
+                            ToolGuidanceItem(
+                                id=r.id,
+                                tool_name=r.tool_name,
+                                rule_text=r.action,
+                                trigger_pattern=r.trigger,
+                                confidence=1.0 if r.is_user_locked else 0.8,
+                                is_pinned=r.is_user_locked,
+                                env_fingerprint=str(r.metadata.get("env_fingerprint"))
+                                if r.metadata.get("env_fingerprint")
+                                else None,
+                                agent_id=str(r.metadata.get("agent_id")) if r.metadata.get("agent_id") else None,
+                                source="manual" if r.is_user_locked else "self_healing",
+                                hit_count=int(r.metadata.get("hit_count", 1)),
+                            )
+                        )
+
                     if r.source == RuleSource.AGENT_SELF:
                         origin = r.metadata.get("origin", "")
                         if (
@@ -111,12 +131,6 @@ async def load_context(
                             and r.tool_rule_priority == ToolRulePriority.NORMAL
                             and not r.is_user_locked
                         ):
-                            # Auto-generated failure rules are transient advisories:
-                            # keep them out of the stable prompt layer so a momentary
-                            # tool failure cannot permanently steer tool selection.
-                            # They remain recallable via memory_search_tool.
-                            # User-edited (locked) rules are explicitly endorsed, so
-                            # they graduate into the stable layer.
                             continue
                         agent_instrs.append({"instruction": r.action, "priority": r.priority})
                     else:
@@ -125,18 +139,14 @@ async def load_context(
                                 "trigger": r.trigger,
                                 "action": r.action,
                                 "priority": r.priority,
-                                # User-endorsed rules must survive prompt-budget
-                                # truncation: the middleware emits endorsed rules
-                                # last so generic rules are trimmed first.
                                 "user_endorsed": r.is_user_locked,
                             }
                         )
-        # Endorsed rules keep their relative priority but move ahead of the
-        # generic ones, so the combined-budget trimmer drops unendorsed rules
-        # first. Order stays fully deterministic for Prefix Cache stability.
         user_rules.sort(key=lambda rule: not bool(rule["user_endorsed"]))
         ctx["rules"] = user_rules
+        ctx["raw_tool_guidance_items"] = guidance_items
         if include_agent_instructions:
             ctx["agent_instructions"] = agent_instrs
 
     return ctx
+
