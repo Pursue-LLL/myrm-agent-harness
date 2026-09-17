@@ -122,7 +122,10 @@ from myrm_agent_harness.toolkits.memory.reliability import (
 from myrm_agent_harness.toolkits.memory.retriever import MemoryRetriever
 from myrm_agent_harness.toolkits.memory.scheduler import MultiTierMemoryScheduler
 from myrm_agent_harness.toolkits.memory.session import MemorySession
-from myrm_agent_harness.toolkits.memory.setup import create_local_memory_manager
+from myrm_agent_harness.toolkits.memory.setup import (
+    create_local_memory_manager,
+    setup_local_file_memory_sync,
+)
 from myrm_agent_harness.toolkits.memory.signals import SignalCalculator
 from myrm_agent_harness.toolkits.memory.strategies import (
     DynamicPreferenceFitter,
@@ -337,6 +340,7 @@ __all__ = [
     "create_consolidation_cleanup_task",
     "create_conversation_search_tool",
     "create_local_memory_manager",
+    "setup_local_file_memory_sync",
     "extract_memories_from_conversation",
     "get_scan_metrics",
     "get_search_metrics",

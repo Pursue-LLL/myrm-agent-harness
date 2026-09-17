@@ -66,8 +66,28 @@ class LenientMarkdownParser:
                 entries.append(entry)
             section_lines.clear()
 
+        in_code_block = False
+        code_fence_char = ""
+
         for idx, line in enumerate(body_lines, start=line_offset):
-            heading_match = _HEADING_REGEX.match(line.strip())
+            stripped = line.strip()
+            # Track fenced code blocks (``` and ~~~) to protect internal comments from heading match
+            if stripped.startswith("```") or stripped.startswith("~~~"):
+                fence = stripped[:3]
+                if not in_code_block:
+                    in_code_block = True
+                    code_fence_char = fence
+                elif fence == code_fence_char:
+                    in_code_block = False
+                    code_fence_char = ""
+                section_lines.append((idx, line))
+                continue
+
+            if in_code_block:
+                section_lines.append((idx, line))
+                continue
+
+            heading_match = _HEADING_REGEX.match(stripped)
             if heading_match:
                 title = heading_match.group(2).strip()
 

@@ -189,3 +189,60 @@ async def test_sync_engine_persist_episodic_note(tmp_path: Path):
 
     # Ensure file was actually created on disk
     assert any(topology.daily_dir_path.glob("*.md"))
+
+
+def test_parser_fenced_code_block_with_comments():
+    """Verify code blocks with internal # comments are never torn into separate headings."""
+    content = (
+        "# Root Header\n"
+        "\n"
+        "## Coding Rules\n"
+        "Here is some configuration code:\n"
+        "```python\n"
+        "# This comment should not become a heading!\n"
+        "def configure():\n"
+        "    # Another internal comment\n"
+        "    return {'mode': 'strict'}\n"
+        "```\n"
+        "Additional trailing instructions.\n"
+    )
+
+    entries = LenientMarkdownParser.parse_document(content, "MEMORY.md")
+    assert len(entries) == 2
+
+    # Root entry
+    assert entries[0].title == "Root Header"
+    assert entries[0].line_start == 1
+
+    # Second entry must contain the entire code block intact
+    coding_rules = entries[1]
+    assert coding_rules.title == "Coding Rules"
+    assert coding_rules.line_start == 3
+    assert coding_rules.line_end == 11
+    assert "def configure():" in coding_rules.content
+    assert "# This comment should not become a heading!" in coding_rules.content
+    assert "# Another internal comment" in coding_rules.content
+    assert "Additional trailing instructions." in coding_rules.content
+
+
+def test_parser_tilde_code_block_and_unclosed_fence():
+    """Verify ~~~ fences and unclosed code block fences are handled gracefully."""
+    content = (
+        "## Bash Snippet\n"
+        "~~~bash\n"
+        "# Shell comment\n"
+        "echo 'hello'\n"
+        "~~~\n"
+        "## Unclosed Fence\n"
+        "```yaml\n"
+        "# Unclosed yaml comment\n"
+        "key: value\n"
+    )
+
+    entries = LenientMarkdownParser.parse_document(content, "MEMORY.md")
+    assert len(entries) == 2
+    assert entries[0].title == "Bash Snippet"
+    assert "echo 'hello'" in entries[0].content
+    assert entries[1].title == "Unclosed Fence"
+    assert "key: value" in entries[1].content
+
