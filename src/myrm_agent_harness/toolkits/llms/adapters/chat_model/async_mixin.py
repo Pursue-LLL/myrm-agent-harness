@@ -279,8 +279,9 @@ class ChatLiteLLMAsyncMixin:
                 else:
                     logger.error(f" Empty choices after {max_attempts} attempts.")
             except Exception as e:
-                from myrm_agent_harness.agent.context_management.pipeline.processors.media_budget_governor import (
-                    CumulativeImageBudgetGovernor,
+                from myrm_agent_harness.toolkits.llms.adapters.image_payload_evictor import (
+                    emergency_evict,
+                    emergency_evict_from_message_dicts,
                 )
                 from myrm_agent_harness.toolkits.llms.adapters.gateway_normalizer import (
                     is_gateway_param_rejection,
@@ -293,10 +294,10 @@ class ChatLiteLLMAsyncMixin:
                 )
 
                 if is_payload_overflow(e) and attempt < max_attempts - 1:
-                    evicted = CumulativeImageBudgetGovernor.emergency_evict_from_message_dicts(
+                    evicted = emergency_evict_from_message_dicts(
                         message_dicts, target_bytes=2 * 1024 * 1024, force_shrink=True
                     )
-                    evicted_msgs = CumulativeImageBudgetGovernor.emergency_evict(
+                    evicted_msgs = emergency_evict(
                         messages, target_bytes=2 * 1024 * 1024, force_shrink=True
                     )
                     if evicted > 0 or evicted_msgs > 0:
@@ -554,15 +555,16 @@ class ChatLiteLLMAsyncMixin:
                         )
                         continue
 
-                from myrm_agent_harness.agent.context_management.pipeline.processors.media_budget_governor import (
-                    CumulativeImageBudgetGovernor,
+                from myrm_agent_harness.toolkits.llms.adapters.image_payload_evictor import (
+                    emergency_evict,
+                    emergency_evict_from_message_dicts,
                 )
 
                 if is_payload_overflow(e) and attempt < max_attempts - 1 and (agg is None or agg.chunk_count == 0):
-                    evicted = CumulativeImageBudgetGovernor.emergency_evict_from_message_dicts(
+                    evicted = emergency_evict_from_message_dicts(
                         message_dicts, target_bytes=4 * 1024 * 1024, force_shrink=True
                     )
-                    evicted_msgs = CumulativeImageBudgetGovernor.emergency_evict(
+                    evicted_msgs = emergency_evict(
                         messages, target_bytes=4 * 1024 * 1024, force_shrink=True
                     )
                     if evicted > 0 or evicted_msgs > 0:

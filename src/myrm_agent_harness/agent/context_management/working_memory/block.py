@@ -320,3 +320,39 @@ class LocalWorkingMemoryBlock:
     def reset(cls) -> None:
         """Clear active working state for the current coroutine context."""
         _WORKING_STATE_VAR.set(None)
+
+    @classmethod
+    def to_snapshot(cls) -> object | None:
+        """Convert current working state into a neutral WorkingMemorySnapshot for consolidation."""
+        state = cls.get_state()
+        if state is None:
+            return None
+        from myrm_agent_harness.toolkits.memory.consolidation import (
+            ConsolidationSubtask,
+            ConsolidationTrap,
+            WorkingMemorySnapshot,
+        )
+
+        return WorkingMemorySnapshot(
+            goal=state.goal,
+            active_turn=state.active_turn,
+            status=state.status,
+            subtasks=[
+                ConsolidationSubtask(
+                    title=item.title,
+                    completed=(item.status == SubtaskStatus.COMPLETED),
+                )
+                for item in state.subtasks
+            ],
+            traps=[
+                ConsolidationTrap(
+                    fingerprint=trap.fingerprint,
+                    avoidance_rule=trap.avoidance_rule,
+                    tool_name=trap.tool_name,
+                    occurred_turn=trap.occurred_turn,
+                    resolved=trap.resolved,
+                )
+                for trap in state.traps
+            ],
+            scratchpad=dict(state.scratchpad),
+        )

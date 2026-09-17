@@ -38,6 +38,7 @@ from myrm_agent_harness.toolkits.memory.config import MemoryConfig
 from myrm_agent_harness.toolkits.memory.protocols.cache import EmbeddingCacheProtocol
 from myrm_agent_harness.toolkits.memory.protocols.embedding import EmbeddingProtocol
 from myrm_agent_harness.toolkits.memory.protocols.vector import VectorStoreProtocol
+from myrm_agent_harness.toolkits.memory.strategies.exact_fact import ExactFactClassifier
 from myrm_agent_harness.toolkits.memory.types import (
     AnyMemory,
     ConversationMemory,

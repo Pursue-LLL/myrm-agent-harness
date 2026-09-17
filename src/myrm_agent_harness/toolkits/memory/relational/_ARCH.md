@@ -9,6 +9,7 @@ Relational Store — abstract interface and SQLite implementation.
 |------|------|-------------|-------|
 | __init__.py | Package | Relational Store — abstract interface and SQLite implementation. | — |
 | _converters.py | Internal | Row-to-model converters for SQLiteRelationalStore. | ✅ |
+| _exact_fact_store.py | Internal | Zero-loss SQLite storage and FTS5 inverted search handler for exact facts (UUIDs, SHAs, SemVer, config keys). | ✅ |
 | base.py | Core | Relational store abstraction layer. Defines a backend-agnostic relational storage interface | ✅ |
 | exceptions.py | Core | Relational store exceptions including CorruptedMemoryIndexError fail-fast barrier. | ✅ |
 | sqlite_store.py | Core | Lightweight relational store backed by aiosqlite with quick_check fail-fast & poison reset. | ✅ |

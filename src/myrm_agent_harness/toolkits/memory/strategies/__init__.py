@@ -55,6 +55,9 @@ from myrm_agent_harness.toolkits.memory.strategies.dynamic_preference import (
     FeedbackAction,
     PreferenceDimension,
 )
+from myrm_agent_harness.toolkits.memory.strategies.exact_fact import (
+    ExactFactClassifier,
+)
 from myrm_agent_harness.toolkits.memory.strategies.extractor import (
     ExtractedMemory,
     ExtractionConfig,
@@ -110,6 +113,7 @@ __all__ = [
     "DistillationOrigin",
     "DistillationRejectionCode",
     "EvidenceReference",
+    "ExactFactClassifier",
     "ExtractedMemory",
     "ExtractionConfig",
     "ExtractionResult",

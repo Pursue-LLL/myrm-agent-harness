@@ -8,7 +8,12 @@ from myrm_agent_harness.agent.context_management.working_memory import (
     LocalWorkingMemoryBlock,
     SubtaskStatus,
 )
-from myrm_agent_harness.toolkits.memory.consolidation import HyperConsolidator
+from myrm_agent_harness.toolkits.memory.consolidation import (
+    ConsolidationSubtask,
+    ConsolidationTrap,
+    HyperConsolidator,
+    WorkingMemorySnapshot,
+)
 from myrm_agent_harness.toolkits.memory.relational.sqlite_store import (
     SQLiteRelationalStore,
 )
@@ -155,48 +160,62 @@ async def test_local_working_memory_block_contextvar_isolation() -> None:
 @pytest.mark.asyncio
 async def test_hyper_consolidator_gatekeeper_bypass() -> None:
     """Verify trivial conversations (turns <= 1, no subtasks) bypass consolidation."""
-    LocalWorkingMemoryBlock.reset()
-    LocalWorkingMemoryBlock.initialize(goal="Trivial question")
+    snapshot = WorkingMemorySnapshot(goal="Trivial question", active_turn=1)
 
     consolidator = HyperConsolidator()
     digest, rules = await consolidator.consolidate_session(
         messages=[{"role": "user", "content": "What time is it?"}],
         chat_id="chat-trivial",
+        snapshot=snapshot,
     )
 
     assert digest is None
     assert len(rules) == 0
-    # Workbench must be reset after run
-    assert LocalWorkingMemoryBlock.get_state() is None
+
+
+@pytest.mark.asyncio
+async def test_hyper_consolidator_missing_snapshot_bypass() -> None:
+    """Verify a missing snapshot bypasses consolidation without touching any global."""
+    consolidator = HyperConsolidator()
+    digest, rules = await consolidator.consolidate_session(
+        messages=[{"role": "user", "content": "What time is it?"}],
+        chat_id="chat-trivial",
+        snapshot=None,
+    )
+
+    assert digest is None
+    assert len(rules) == 0
 
 
 @pytest.mark.asyncio
 async def test_hyper_consolidator_distillation_and_procedural_rules() -> None:
     """Verify rich long-horizon session distills TaskDigest and self-healing ProceduralMemory."""
-    LocalWorkingMemoryBlock.reset()
-    LocalWorkingMemoryBlock.initialize(
+    snapshot = WorkingMemorySnapshot(
         goal="Audit security headers and configure Content-Security-Policy",
-        initial_subtasks=["Scan endpoint headers", "Generate CSP directive", "Test deployment"],
+        active_turn=2,
+        status="completed",
+        subtasks=[
+            ConsolidationSubtask(title="Scan endpoint headers", completed=True),
+            ConsolidationSubtask(title="Generate CSP directive", completed=True),
+            ConsolidationSubtask(title="Test deployment", completed=True),
+        ],
+        traps=[
+            ConsolidationTrap(
+                fingerprint="inline_script_blocked",
+                avoidance_rule="Use nonces rather than unsafe-inline in script-src",
+                tool_name="browser_eval",
+                occurred_turn=1,
+                resolved=True,
+            )
+        ],
+        scratchpad={"csp_sha": "sha256-abcdef123456"},
     )
-    LocalWorkingMemoryBlock.update_subtask("step-1", SubtaskStatus.COMPLETED)
-    LocalWorkingMemoryBlock.update_subtask("step-2", SubtaskStatus.COMPLETED)
-    LocalWorkingMemoryBlock.update_subtask("step-3", SubtaskStatus.COMPLETED)
-    LocalWorkingMemoryBlock.advance_turn()
-    LocalWorkingMemoryBlock.advance_turn()
-    LocalWorkingMemoryBlock.set_scratchpad("csp_sha", "sha256-abcdef123456")
-
-    LocalWorkingMemoryBlock.record_trap(
-        fingerprint="inline_script_blocked",
-        avoidance_rule="Use nonces rather than unsafe-inline in script-src",
-        tool_name="browser_eval",
-    )
-    LocalWorkingMemoryBlock.resolve_trap("inline_script_blocked")
-    LocalWorkingMemoryBlock.set_status("completed")
 
     consolidator = HyperConsolidator()
     digest, rules = await consolidator.consolidate_session(
         messages=[{"role": "user", "content": "Audit security headers"}],
         chat_id="chat-security-42",
+        snapshot=snapshot,
     )
 
     assert digest is not None
@@ -210,9 +229,6 @@ async def test_hyper_consolidator_distillation_and_procedural_rules() -> None:
     assert proc.error_fingerprint == "inline_script_blocked"
     assert "Use nonces rather than unsafe-inline" in proc.action
     assert proc.resolution_steps == ["Use nonces rather than unsafe-inline in script-src"]
-
-    # In-memory working block must be cleaned up
-    assert LocalWorkingMemoryBlock.get_state() is None
 
 
 def test_local_working_memory_resolve_trap() -> None:
@@ -251,20 +267,24 @@ def test_local_working_memory_resolve_trap() -> None:
 @pytest.mark.asyncio
 async def test_hyper_consolidator_persistence_with_memory_manager() -> None:
     """Verify HyperConsolidator correctly invokes relational.create_rule and manager.store."""
-    LocalWorkingMemoryBlock.reset()
-    LocalWorkingMemoryBlock.initialize(
+    snapshot = WorkingMemorySnapshot(
         goal="Configure production Redis Sentinel",
-        initial_subtasks=["Check quorum", "Apply failover timeout"],
+        active_turn=2,
+        status="completed",
+        subtasks=[
+            ConsolidationSubtask(title="Check quorum", completed=False),
+            ConsolidationSubtask(title="Apply failover timeout", completed=False),
+        ],
+        traps=[
+            ConsolidationTrap(
+                fingerprint="sentinel_down_after_split",
+                avoidance_rule="Set down-after-milliseconds to at least 5000ms",
+                tool_name="redis_cli",
+                occurred_turn=1,
+                resolved=True,
+            )
+        ],
     )
-    LocalWorkingMemoryBlock.advance_turn()
-    LocalWorkingMemoryBlock.advance_turn()
-    LocalWorkingMemoryBlock.record_trap(
-        fingerprint="sentinel_down_after_split",
-        avoidance_rule="Set down-after-milliseconds to at least 5000ms",
-        tool_name="redis_cli",
-    )
-    LocalWorkingMemoryBlock.resolve_trap("sentinel_down_after_split")
-    LocalWorkingMemoryBlock.set_status("completed")
 
     stored_rules = []
     stored_episodics = []
@@ -286,6 +306,7 @@ async def test_hyper_consolidator_persistence_with_memory_manager() -> None:
     digest, rules = await consolidator.consolidate_session(
         messages=[{"role": "user", "content": "Setup Redis Sentinel"}],
         chat_id="chat-redis-99",
+        snapshot=snapshot,
     )
 
     assert digest is not None
@@ -383,10 +404,13 @@ async def test_hyper_consolidator_purity_guard_filters_prior_and_unresolved_trap
     LocalWorkingMemoryBlock.set_status("completed")
 
     consolidator = HyperConsolidator()
+    snapshot = LocalWorkingMemoryBlock.to_snapshot()
     digest, rules = await consolidator.consolidate_session(
         messages=[{"role": "user", "content": "Purity test"}],
         chat_id="chat-purity-101",
+        snapshot=snapshot,  # type: ignore[arg-type]
     )
+    LocalWorkingMemoryBlock.reset()
 
     assert digest is not None
     # Exactly ONE rule must be consolidated: the verified one

@@ -365,6 +365,11 @@ class MemoryManagerDeletionMixin(MemoryManagerArchivalMixin, MemoryManagerQuerie
                 )
             )
             await self._cascade_clean_derived_graph_nodes(memory_id)
+            if self._relational is not None and hasattr(self._relational, "delete_exact_fact"):
+                try:
+                    await self._relational.delete_exact_fact(memory_id)
+                except Exception as ex:
+                    logger.debug("Failed to delete exact fact for %s: %s", memory_id, ex)
 
         if self._cache is not None and deleted_ids:
             evict_texts = [

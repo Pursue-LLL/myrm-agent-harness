@@ -22,7 +22,10 @@ from myrm_agent_harness.toolkits.memory.config import (
     RetrievalConfig,
 )
 from myrm_agent_harness.toolkits.memory.consolidation import (
+    ConsolidationSubtask,
+    ConsolidationTrap,
     HyperConsolidator,
+    WorkingMemorySnapshot,
     create_consolidation_cleanup_task,
 )
 from myrm_agent_harness.toolkits.memory.conversation_search import (
@@ -225,6 +228,9 @@ __all__ = [
     "GravityDecayConfig",
     "GravityDecayScorer",
     "HyperConsolidator",
+    "ConsolidationSubtask",
+    "ConsolidationTrap",
+    "WorkingMemorySnapshot",
     "HealthScore",
     "LifecycleTier",
     "MaintenanceReport",

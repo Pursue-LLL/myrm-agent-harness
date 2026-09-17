@@ -32,6 +32,12 @@ from myrm_agent_harness.toolkits.memory.relational._converters import (
     row_to_procedural,
     row_to_profile,
 )
+from myrm_agent_harness.toolkits.memory.relational._exact_fact_store import (
+    delete_exact_fact,
+    init_exact_fact_tables,
+    save_exact_fact,
+    search_exact_facts,
+)
 from myrm_agent_harness.toolkits.memory.relational.base import RelationalStore
 from myrm_agent_harness.toolkits.memory.relational.exceptions import (
     CorruptedMemoryIndexError,
@@ -42,6 +48,7 @@ from myrm_agent_harness.toolkits.memory.relational.exceptions import (
 )
 from myrm_agent_harness.toolkits.memory.types import (
     MemoryScope,
+    MemorySearchResult,
     PendingRecord,
     ProceduralMemory,
     ProfileAttributeSnapshot,
@@ -75,6 +82,7 @@ class SQLiteRelationalStore(RelationalStore):
         self._connection_lock = asyncio.Lock()
         self._initialized = False
         self._closed = False
+        self._fts5_supported = False
         logger.info("SQLiteRelationalStore initialized: %s", self._db_path)
 
     async def _get_connection(self) -> aiosqlite.Connection:
@@ -408,6 +416,7 @@ class SQLiteRelationalStore(RelationalStore):
                 "CREATE INDEX IF NOT EXISTS idx_pending_source_chat ON pending_records(source_chat_id) WHERE source_chat_id IS NOT NULL",
             ):
                 await self._connection.execute(idx_sql)
+            self._fts5_supported = await init_exact_fact_tables(self._connection)
             await self._connection.commit()
             self._initialized = True
         except Exception as e:
@@ -952,6 +961,74 @@ class SQLiteRelationalStore(RelationalStore):
             return False, f"Integrity check failed: {err_msg}"
         except Exception as e:
             return False, f"Integrity check query error: {e}"
+
+    # ── Exact Fact & FTS5 ───────────────────────────────────────────
+
+    async def record_exact_fact(
+        self,
+        *,
+        memory_id: str,
+        user_id: str,
+        content: str,
+        identifiers: list[str],
+        primary_namespace: str = "",
+        namespaces: list[str] | None = None,
+    ) -> None:
+        """Persist exact fact identifiers and synchronize FTS5 inverted index."""
+        conn = await self._get_connection()
+        await self._ensure_integrity_before_write()
+        try:
+            await save_exact_fact(
+                conn,
+                memory_id=memory_id,
+                user_id=user_id,
+                content=content,
+                identifiers=identifiers,
+                primary_namespace=primary_namespace,
+                namespaces=namespaces,
+                fts5_supported=self._fts5_supported,
+            )
+            await conn.commit()
+        except Exception as e:
+            self._handle_query_error("record_exact_fact", e)
+
+    async def search_fts5(
+        self,
+        query: str,
+        limit: int = 10,
+        *,
+        namespaces: list[str] | None = None,
+    ) -> list[MemorySearchResult]:
+        """Perform exact identifier match and FTS5 inverted search.
+
+        Conforms to FTS5SearcherFunc: Callable[[str, int], Awaitable[list[MemorySearchResult]]].
+        """
+        conn = await self._get_connection()
+        try:
+            return await search_exact_facts(
+                conn,
+                query=query,
+                limit=limit,
+                namespaces=namespaces,
+                fts5_supported=self._fts5_supported,
+            )
+        except Exception as e:
+            self._handle_query_error("search_fts5", e)
+            return []
+
+    async def delete_exact_fact(self, memory_id: str) -> None:
+        """Remove exact fact records and FTS5 virtual table document."""
+        conn = await self._get_connection()
+        await self._ensure_integrity_before_write()
+        try:
+            await delete_exact_fact(
+                conn,
+                memory_id=memory_id,
+                fts5_supported=self._fts5_supported,
+            )
+            await conn.commit()
+        except Exception as e:
+            self._handle_query_error("delete_exact_fact", e)
 
     # ── Lifecycle ────────────────────────────────────────────────────
 

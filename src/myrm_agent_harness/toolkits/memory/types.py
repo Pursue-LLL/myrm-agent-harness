@@ -276,16 +276,25 @@ class BaseMemory(BaseModel):
     evidence: list[EvidenceReference] = Field(
         default_factory=list, description="Structured provenance evidence anchoring this fact"
     )
+    is_exact_fact: bool = Field(
+        default=False,
+        description="Exact fact hard lock: zero-loss verbatim persistence and deterministic recall",
+    )
+    exact_identifiers: list[str] = Field(
+        default_factory=list,
+        description="Extracted high-entropy exact symbols (UUID, SHA, SemVer, config keys)",
+    )
 
     @property
     def is_user_protected(self) -> bool:
         """Whether the user's protection applies, whichever flag carries it.
 
         ``pinned`` is the persisted lock for vector memories; ``is_user_locked``
-        is the persisted lock for procedural rules. Automated writers check this
+        is the persisted lock for procedural rules; ``is_exact_fact`` protects
+        exact identifiers against lossy compression. Automated writers check this
         single predicate so neither flag can be silently bypassed.
         """
-        return self.pinned or self.is_user_locked
+        return self.pinned or self.is_user_locked or self.is_exact_fact
 
     @field_validator("created_at", "updated_at", "last_accessed_at", mode="before")
     @classmethod

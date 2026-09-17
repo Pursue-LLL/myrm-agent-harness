@@ -1,7 +1,9 @@
 """Hyper Consolidation Memory Block subsystem.
 
 [INPUT]
-- context_management.working_memory.block::LocalWorkingMemoryBlock (POS: 运行时零开销手边工作台)
+- WorkingMemorySnapshot: Neutral working-memory snapshot supplied by the host
+  runtime (POS: agent-agnostic input; the agent layer adapts its own working
+  memory block into this snapshot. This module never imports agent/.)
 - toolkits.memory.types::TaskDigestMemory (POS: 结构化长程任务成果沉淀实体)
 - toolkits.memory.types::ProceduralMemory (POS: 程序性经验与自愈避坑规程实体)
 - toolkits.memory.types::EpisodicMemory (POS: 任务成果镜像语义向量沉淀实体)
@@ -18,15 +20,10 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.agent.context_management.working_memory.block import (
-    LocalWorkingMemoryBlock,
-)
-from myrm_agent_harness.agent.context_management.working_memory.types import (
-    SubtaskStatus,
-)
 from myrm_agent_harness.toolkits.memory.types import (
     EpisodicMemory,
     MemoryLifecycle,
@@ -44,6 +41,42 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+@dataclass(slots=True)
+class ConsolidationSubtask:
+    """Neutral subtask entry for consolidation input."""
+
+    title: str
+    completed: bool = False
+
+
+@dataclass(slots=True)
+class ConsolidationTrap:
+    """Neutral failure-site trap for consolidation input."""
+
+    fingerprint: str
+    avoidance_rule: str
+    tool_name: str | None = None
+    occurred_turn: int = 0
+    resolved: bool = False
+
+
+@dataclass(slots=True)
+class WorkingMemorySnapshot:
+    """Agent-agnostic working-memory snapshot for consolidation input.
+
+    The host runtime adapts its own working memory block into this snapshot
+    before calling HyperConsolidator. Ownership of the source block (including
+    any reset/cleanup) stays with the host.
+    """
+
+    goal: str = ""
+    active_turn: int = 0
+    status: str = "completed"
+    subtasks: list[ConsolidationSubtask] = field(default_factory=list)
+    traps: list[ConsolidationTrap] = field(default_factory=list)
+    scratchpad: dict[str, str] = field(default_factory=dict)
+
+
 class HyperConsolidator:
     """Post-session memory consolidator distilling working memory into long-term assets."""
 
@@ -54,16 +87,24 @@ class HyperConsolidator:
         self,
         messages: Sequence[dict[str, str]],
         chat_id: str | None,
+        snapshot: WorkingMemorySnapshot | None = None,
     ) -> tuple[TaskDigestMemory | None, list[ProceduralMemory]]:
-        """Run post-session consolidation pipeline on the active working memory state.
+        """Run post-session consolidation pipeline on a working memory snapshot.
 
         Returns:
             Tuple of (TaskDigestMemory | None, list of created ProceduralMemory rules).
         """
-        state = LocalWorkingMemoryBlock.get_state()
+        state = snapshot
         if state is None or not state.goal:
             logger.debug("Hyper consolidation bypassed: no active working goal found.")
-            LocalWorkingMemoryBlock.reset()
+            return None, []
+        session_id = chat_id or "default"
+
+        # Gatekeeper Filter: Bypass trivial queries (turns <= 1 and no subtasks or traps)
+        has_subtasks = len(state.subtasks) > 0
+        has_traps = len(state.traps) > 0
+        if state.active_turn <= 1 and not has_subtasks and not has_traps:
+            logger.debug("Hyper consolidation gatekeeper: trivial turn bypassed for session %s", session_id)
             return None, []
 
         session_id = chat_id or "default"
@@ -80,7 +121,7 @@ class HyperConsolidator:
         completed_steps = [
             item.title
             for item in state.subtasks
-            if item.status == SubtaskStatus.COMPLETED
+            if item.completed
         ]
         key_findings = [
             f"{k}: {v}" for k, v in state.scratchpad.items()
@@ -140,9 +181,6 @@ class HyperConsolidator:
             except Exception as err:
                 logger.warning("Failed to persist consolidated memory assets: %s", err)
 
-        # 4. Clean up in-memory workbench
-        LocalWorkingMemoryBlock.reset()
-
         logger.info(
             "Hyper consolidation completed for session %s: TaskDigest created, %d procedural rules distilled",
             session_id,
@@ -200,14 +238,25 @@ class HyperConsolidator:
 
 def create_consolidation_cleanup_task(
     memory_manager: MemoryManager | None = None,
+    snapshot_provider: Callable[[], WorkingMemorySnapshot | None] | None = None,
+    after_run: Callable[[], None] | None = None,
 ) -> SessionCleanupTask:
-    """Factory creating a SessionCleanupTask hook for session_post_process runner."""
+    """Factory creating a SessionCleanupTask hook for session_post_process runner.
+
+    The host runtime supplies snapshots via ``snapshot_provider`` (adapting its
+    own working memory block) and owns source cleanup via ``after_run``.
+    """
     consolidator = HyperConsolidator(memory_manager=memory_manager)
 
     async def _cleanup_task(
         messages: Sequence[dict[str, str]],
         chat_id: str | None,
     ) -> None:
-        await consolidator.consolidate_session(messages, chat_id)
+        try:
+            snapshot = snapshot_provider() if snapshot_provider is not None else None
+            await consolidator.consolidate_session(messages, chat_id, snapshot)
+        finally:
+            if after_run is not None:
+                after_run()
 
     return _cleanup_task
