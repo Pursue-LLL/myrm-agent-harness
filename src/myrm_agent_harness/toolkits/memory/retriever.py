@@ -107,6 +107,11 @@ class MemoryRetriever:
                 rrf = 1.0 / (k + rank_idx + 1)
                 type_w = self._config.type_weights.get(r.memory_type, 1.0)
                 boosted = self._boost(rrf * type_w, r, query_tokens, query_context)
+                if getattr(r.memory, "is_exact_fact", False) and getattr(r.memory, "exact_identifiers", None):
+                    for ident in r.memory.exact_identifiers:
+                        if ident.lower() in query_tokens:
+                            boosted += 5.0
+                            break
                 scores[mid] = scores.get(mid, 0.0) + boosted
                 if mid not in items:
                     items[mid] = r
@@ -277,9 +282,13 @@ class MemoryRetriever:
         - Geometric scoring (recency/frequency/importance/preference/confidence)
         - Keyword overlap boost
         - Temporal proximity boost
-        - Quoted phrase boost (if QueryContext provided)
-        - Person name boost (if QueryContext provided)
         """
+        mem = result.memory
+        if getattr(mem, "is_exact_fact", False) and getattr(mem, "exact_identifiers", None):
+            for ident in mem.exact_identifiers:
+                if ident.lower() in query_tokens:
+                    return 1.0
+
         geometric = self._geometric_score(base, result)
         keyword_boost = self._keyword_overlap_boost(result, query_tokens)
         temporal_boost = self._temporal_proximity_boost(result)
@@ -363,8 +372,8 @@ class MemoryRetriever:
     def _keyword_overlap_boost(self, result: MemorySearchResult, query_tokens: frozenset[str]) -> float:
         """Calculate keyword overlap boost (MemPalace hybrid enhancement).
 
-        Formula: boost = keyword_weight × (overlap_ratio)
-        where overlap_ratio = |query_tokens ∩ content_tokens| / |query_tokens|
+        Formula: boost = keyword_weight * (overlap_ratio)
+        where overlap_ratio = |query_tokens & content_tokens| / |query_tokens|
 
         Returns:
             Boost factor in [0, keyword_weight]

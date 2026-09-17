@@ -165,6 +165,7 @@ class MemoryWriter:
             bound_memory.metadata["write_intent"] = "inferred"
 
         bound_memory = self._require_transient_fact_allowed(bound_memory)
+        bound_memory = self._apply_exact_fact_lock(bound_memory)
 
         if self._routes_to_pending(bypass_approval=bypass_approval, force_pending=force_pending):
             pending_id = await self._submit_pending(bound_memory)
@@ -180,6 +181,17 @@ class MemoryWriter:
         if isinstance(bound_memory, ProceduralMemory):
             return await self._store_procedural(bound_memory)
         raise ValueError(f"Unknown memory type: {type(bound_memory).__name__}")
+
+    def _apply_exact_fact_lock(self, memory: AnyMemory) -> AnyMemory:
+        extracted = ExactFactClassifier.extract_identifiers(memory.content)
+        if extracted or getattr(memory, "is_exact_fact", False):
+            memory.is_exact_fact = True
+            existing = set(getattr(memory, "exact_identifiers", []) or [])
+            existing.update(extracted)
+            memory.exact_identifiers = sorted(list(existing))
+            memory.metadata["is_exact_fact"] = True
+            memory.metadata["exact_identifiers"] = memory.exact_identifiers
+        return memory
 
     async def store_batch(
         self,
@@ -210,6 +222,7 @@ class MemoryWriter:
         safe_memories = self._filter_transient_business_batch(safe_memories)
         if not safe_memories:
             return []
+        safe_memories = [self._apply_exact_fact_lock(m) for m in safe_memories]
 
         if self._routes_to_pending(bypass_approval=bypass_approval, force_pending=force_pending):
             results: list[AnyMemory] = []

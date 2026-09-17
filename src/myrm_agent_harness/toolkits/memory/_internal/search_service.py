@@ -496,6 +496,11 @@ class MemorySearchService:
             tasks.append(bm25_task)
             task_stream_map[bm25_task] = "bm25"
 
+        if self._fts5_searcher is not None:
+            fts_t = asyncio.create_task(self._fts5_searcher(query, limit))
+            tasks.append(fts_t)
+            task_stream_map[fts_t] = "fts5"
+
         if not tasks:
             return [], False, [], []
 
@@ -693,10 +698,6 @@ class MemorySearchService:
         )
         tasks.append(t)
         task_stream_map[t] = "conversation"
-        if self._fts5_searcher is not None:
-            fts_t = asyncio.create_task(self._fts5_searcher(query, limit))
-            tasks.append(fts_t)
-            task_stream_map[fts_t] = "fts5"
 
     def _should_use_dual_channel(self, query: str) -> bool:
         if not self._config.retrieval.enable_adaptive_channel:

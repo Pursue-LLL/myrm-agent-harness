@@ -44,6 +44,7 @@ DEFAULT_TIER_MODELS: dict[str, str] = {
     "standard": "claude-3-5-sonnet",
     "reasoning": "deepseek-reasoner",
 }
+DEFAULT_TIER_MAPPING: dict[str, str] = DEFAULT_TIER_MODELS
 
 
 @dataclass(frozen=True, slots=True)
