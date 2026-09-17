@@ -97,14 +97,18 @@ from myrm_agent_harness.toolkits.memory.strategies.merger import (
 )
 from myrm_agent_harness.toolkits.memory.strategies.sparse_mutation import (
     MinimalOverwritePipeline,
-    SemanticSlot,
+    SparseSemanticMaskGenerator,
+    apply_sparse_mutation,
+)
+from myrm_agent_harness.toolkits.memory.strategies.sparse_parser import (
     SemanticSlotParser,
+)
+from myrm_agent_harness.toolkits.memory.strategies.sparse_types import (
+    SemanticSlot,
     SlotAction,
     SlotKind,
     SparseMaskItem,
     SparseMutationResult,
-    SparseSemanticMaskGenerator,
-    apply_sparse_mutation,
 )
 
 __all__ = [
