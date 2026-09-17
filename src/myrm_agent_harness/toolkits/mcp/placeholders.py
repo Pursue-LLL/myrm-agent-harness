@@ -21,9 +21,7 @@ This module owns that expansion for the MCP runtime:
   interpreter wrapping (Agent Plugins §7.2.1 MAY): maps the resolved command
   to ``cmd.exe /d /c`` while keeping the script path a single token and
   ``args`` separate, quoting components that contain whitespace or
-  ``cmd.exe`` metacharacters. No-op on other platforms. Applied at the spawn
-  boundary (connection pool), after config parsing, so static and runtime
-  scanners keep seeing the plugin's declared ``command``.
+  ``cmd.exe`` metacharacters. No-op on other platforms.
 
 Security model: only ``PLUGIN_ROOT`` / ``PLUGIN_DATA`` are expanded, expansion
 is a single textual pass (no recursion, no re-expansion of substituted values),
