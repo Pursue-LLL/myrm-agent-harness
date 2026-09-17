@@ -533,7 +533,12 @@ async def evaluate_tool_batch(
                 get_taint_tracker,
             )
 
-            taint_conflict = get_taint_tracker().check_sink(tool_name)
+            trusted_net = getattr(config, "network_allowlist", None)
+            taint_conflict = get_taint_tracker().check_sink(
+                tool_name,
+                tool_input=tool_input,
+                trusted_hosts=trusted_net,
+            )
             if taint_conflict:
                 # taint_conflict is a dict mapping TaintLabel to a set of sources
                 conflict_labels = list(taint_conflict.keys())

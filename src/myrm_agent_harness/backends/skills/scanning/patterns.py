@@ -791,6 +791,56 @@ REVERSE_SHELL_PATTERNS: PatternList = [
 ]
 
 # ---------------------------------------------------------------------------
+# 27. Prompt Secret Exfiltration (4 patterns)
+# ---------------------------------------------------------------------------
+
+PROMPT_SECRET_EXFILTRATION_PATTERNS: PatternList = [
+    (
+        re.compile(
+            r"(?:\bread\b|\bcat\b|\bprint\b|\bget\b|\baccess\b|\bload\b|\bextract\b)[\s\S]{0,100}"
+            r"(?:\.env|id_rsa|id_ed25519|\.ssh/|\.aws/|\.kube/|credentials\.json|token\.txt|master\.key)"
+            r"(?<!\.example)(?<!\.sample)(?<!\.template)[\s\S]{0,100}"
+            r"(?:\bsend\b|\bpost\b|\bupload\b|\bmail\b|\btransmit\b|\bforward\b|\bcurl\b|\bwget\b|\bhttp\b)",
+            re.IGNORECASE,
+        ),
+        "Prompt exfiltration: instruction reads secret credentials and transfers outbound",
+        ScanSeverity.CRITICAL,
+    ),
+    (
+        re.compile(
+            r"(?:\bsend\b|\bpost\b|\bupload\b|\bmail\b|\btransmit\b|\bforward\b|\bcurl\b|\bwget\b)[\s\S]{0,100}"
+            r"(?:\.env|id_rsa|id_ed25519|\.ssh/|\.aws/|\.kube/|credentials\.json|token\.txt|master\.key)"
+            r"(?<!\.example)(?<!\.sample)(?<!\.template)[\s\S]{0,100}"
+            r"(?:to\s+(?:https?://|remote|webhook|endpoint|external|server|mail|email))",
+            re.IGNORECASE,
+        ),
+        "Prompt exfiltration: instruction sends local secret credentials to external endpoint",
+        ScanSeverity.CRITICAL,
+    ),
+    (
+        re.compile(
+            r"(?:curl|wget|fetch|requests\.(?:get|post)|httpx?\.(?:get|post))\s+.*"
+            r"(?:-d|--data|--data-raw|--data-binary|body=)[\s\S]{0,80}"
+            r"(?:cat\s+|\$\(?cat\s+)?.*(?:\.env|id_rsa|\.aws/credentials|\.ssh/)",
+            re.IGNORECASE,
+        ),
+        "Prompt exfiltration: direct shell/script exfiltration embedding secret file in payload",
+        ScanSeverity.CRITICAL,
+    ),
+    (
+        re.compile(
+            r"(?:base64|xxd|hexdump)[\s\S]{0,60}"
+            r"(?:\.env|id_rsa|\.ssh/|\.aws/credentials)"
+            r"(?<!\.example)(?<!\.sample)(?<!\.template)[\s\S]{0,80}"
+            r"(?:curl|wget|nc|socat|webhook)",
+            re.IGNORECASE,
+        ),
+        "Prompt exfiltration: encoded credential payload piped to network tool",
+        ScanSeverity.CRITICAL,
+    ),
+]
+
+# ---------------------------------------------------------------------------
 # Aggregated pattern groups for scanner
 # ---------------------------------------------------------------------------
 
@@ -821,4 +871,5 @@ ALL_PATTERN_GROUPS: list[tuple[str, PatternList]] = [
     ("path_traversal", PATH_TRAVERSAL_PATTERNS),
     ("crypto_mining", CRYPTO_MINING_PATTERNS),
     ("reverse_shell", REVERSE_SHELL_PATTERNS),
+    ("prompt_secret_exfiltration", PROMPT_SECRET_EXFILTRATION_PATTERNS),
 ]

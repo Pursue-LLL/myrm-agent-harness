@@ -77,6 +77,7 @@ Used by safety_dispatcher middleware for concurrency control.
 
 from __future__ import annotations
 
+import re
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -607,12 +608,59 @@ def _taint_url_from_args(args: dict[str, object]) -> str | None:
     return _sanitize_url_for_taint(url if isinstance(url, str) else None)
 
 
+_SECRET_FILE_POSITIVE_RE = re.compile(
+    r"(?:^|[/\\])(?:\.env(?:\.[a-zA-Z0-9_-]+)?|\.netrc|\.aws[/\\].*|\.ssh[/\\].*|"
+    r"id_rsa(?:_[a-zA-Z0-9_-]+)?|id_ed25519|id_ecdsa|id_dsa|"
+    r"credentials\.json|token\.txt|master\.key|service[_-]account\.json)(?:$|[?#])",
+    re.IGNORECASE,
+)
+
+_SECRET_FILE_NEGATIVE_RE = re.compile(
+    r"(?:\.example|\.sample|\.template|test_|mock|fixture|spec)",
+    re.IGNORECASE,
+)
+
+_SECRET_CMD_POSITIVE_RE = re.compile(
+    r"(?:\bcat\b|\bhead\b|\btail\b|\bless\b|\bmore\b|\bcp\b|\bmv\b|\bgrep\b|\bcurl\b|\bwget\b|\bpython\b|\bnode\b)"
+    r"[\s\S]{1,60}"
+    r"(?:~/\.(?:ssh|aws|kube)|\$HOME/\.(?:ssh|aws|kube)|\.env|id_rsa|id_ed25519|credentials\.json|master\.key)",
+    re.IGNORECASE,
+)
+
+
+def _taint_secret_file_from_args(args: dict[str, object]) -> str | None:
+    """Extract secret credential path from tool arguments if matched."""
+    for key in ("path", "file_path", "filepath", "target_file", "source_file", "filename"):
+        val = args.get(key)
+        if isinstance(val, str) and val.strip():
+            path_str = val.strip()
+            if _SECRET_FILE_POSITIVE_RE.search(path_str) and not _SECRET_FILE_NEGATIVE_RE.search(path_str):
+                return f"secret_file:{path_str}"
+    return None
+
+
+def _taint_secret_command_from_args(args: dict[str, object]) -> str | None:
+    """Extract secret file access from bash / shell command arguments."""
+    for key in ("command", "cmd", "script"):
+        val = args.get(key)
+        if isinstance(val, str) and val.strip():
+            cmd_str = val.strip()
+            if _SECRET_CMD_POSITIVE_RE.search(cmd_str) and not _SECRET_FILE_NEGATIVE_RE.search(cmd_str):
+                snippet = cmd_str[:80] + ("..." if len(cmd_str) > 80 else "")
+                return f"secret_cmd:{snippet}"
+    return None
+
+
 _FAIL_CLOSED_DEFAULTS = SafetyMetadata()
 
 TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     # Read-only, concurrent-safe tools (all read-only tools are generally idempotent)
     "file_read_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
+        is_read_only=True,
+        is_concurrent_safe=True,
+        is_idempotent=True,
+        taint_label="secret",
+        taint_extractor=_taint_secret_file_from_args,
     ),
     "grep_tool": SafetyMetadata(
         is_read_only=True, is_concurrent_safe=True, is_idempotent=True
@@ -677,7 +725,11 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     # CliRuntime uses a single subprocess per backend — parallel turns are unsafe.
     "invoke_acp_agent_tool": SafetyMetadata(),
     # Destructive tools (explicit fail-closed: is_concurrent_safe=False)
-    "bash_code_execute_tool": SafetyMetadata(is_destructive=True),
+    "bash_code_execute_tool": SafetyMetadata(
+        is_destructive=True,
+        taint_label="secret",
+        taint_extractor=_taint_secret_command_from_args,
+    ),
     "bash_process_tool": SafetyMetadata(),
     "file_write_tool": SafetyMetadata(
         is_destructive=True, is_idempotent=True

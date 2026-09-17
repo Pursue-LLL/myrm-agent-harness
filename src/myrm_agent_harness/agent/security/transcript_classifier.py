@@ -246,7 +246,6 @@ class TranscriptClassifier:
 
                 # Robust JSON or bare token parsing
                 if "{" in raw_str and "}" in raw_str:
-                    import json
                     try:
                         extracted = json.loads(raw_str[raw_str.find("{"):raw_str.rfind("}") + 1])
                         if isinstance(extracted, dict) and "decision" in extracted:

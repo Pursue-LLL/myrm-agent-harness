@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import Mapping
+from collections.abc import Mapping
 
 
 def canonicalize_json(data: Mapping[str, object] | list[object] | object) -> str:

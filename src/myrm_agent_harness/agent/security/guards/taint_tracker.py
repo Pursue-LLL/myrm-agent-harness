@@ -27,6 +27,7 @@ by escalating suspicious tool calls to user approval.
 from __future__ import annotations
 
 import logging
+import re
 from contextvars import ContextVar
 from enum import StrEnum, unique
 
@@ -47,7 +48,17 @@ TAINT_SINK_POLICIES: dict[str, frozenset[TaintLabel]] = {
     "shell_exec": frozenset({TaintLabel.EXTERNAL_NETWORK}),
     "file_write_tool": frozenset({TaintLabel.EXTERNAL_NETWORK}),
     "file_edit_tool": frozenset({TaintLabel.EXTERNAL_NETWORK}),
+    "web_fetch_tool": frozenset({TaintLabel.SECRET}),
+    "browser_navigate_tool": frozenset({TaintLabel.SECRET}),
+    "browser_snapshot_tool": frozenset({TaintLabel.SECRET}),
+    "browser_extract_tool": frozenset({TaintLabel.SECRET}),
 }
+
+_BASH_EGRESS_RE = re.compile(
+    r"(?:\bcurl\b|\bwget\b|\bnc\b|\bncat\b|\bsocat\b|\bssh\b|\bscp\b|\brsync\b|\bftp\b)[\s\S]{1,60}https?://|"
+    r"(?:\bcurl\b|\bwget\b|\bnc\b|\bncat\b|\bsocat\b)\s+-[A-Za-z0-9]*[dF]",
+    re.IGNORECASE,
+)
 
 
 class TaintTracker:
@@ -58,11 +69,18 @@ class TaintTracker:
     has "forgotten" the tainted data from its context.
     """
 
-    __slots__ = "_taints"
+    __slots__ = ("_allowed_sinks", "_taints")
 
     def __init__(self) -> None:
         # Maps TaintLabel to a set of sources (e.g., URLs, file paths)
         self._taints: dict[TaintLabel, set[str]] = {}
+        # Session-approved sink identifiers or domain hostnames
+        self._allowed_sinks: set[str] = set()
+
+    def allow_session_sink(self, identifier: str) -> None:
+        """Allow a specific sink tool name or destination hostname for this session."""
+        if identifier:
+            self._allowed_sinks.add(identifier.strip().lower())
 
     def record(self, label: TaintLabel, source: str | None = None) -> None:
         """Record that tainted data of the given type is now in the LLM context.
@@ -94,26 +112,70 @@ class TaintTracker:
             return
 
         source = None
+        extractor_failed = False
         if tool_input and meta.taint_extractor:
             if callable(meta.taint_extractor):
                 try:
                     source = meta.taint_extractor(tool_input)
                 except Exception as e:
                     logger.warning("[TAINT] Extractor failed for %s: %s", tool_name, e)
+                    extractor_failed = True
             elif isinstance(meta.taint_extractor, str):
                 val = tool_input.get(meta.taint_extractor)
                 if val:
                     source = str(val)
 
+        # For conditional taint tools (e.g. file_read_tool only taints on secret files):
+        if label == TaintLabel.SECRET and meta.taint_extractor and source is None and not extractor_failed:
+            return
+
         self.record(label, source if source else None)
 
-    def check_sink(self, tool_name: str) -> dict[TaintLabel, set[str]] | None:
+    def check_sink(
+        self,
+        tool_name: str,
+        tool_input: dict[str, object] | None = None,
+        trusted_hosts: set[str] | frozenset[str] | None = None,
+    ) -> dict[TaintLabel, set[str]] | None:
         """Check if calling this tool violates any taint policy.
 
         Returns a dictionary mapping conflicting TaintLabels to their sources,
-        or None if clean.
+        or None if clean or whitelisted.
         """
-        blocked = TAINT_SINK_POLICIES.get(tool_name)
+        tool_key = tool_name.lower().strip()
+        if tool_key in self._allowed_sinks:
+            return None
+
+        if tool_input:
+            url_str = tool_input.get("url")
+            if isinstance(url_str, str):
+                try:
+                    from urllib.parse import urlparse
+
+                    host = urlparse(url_str).netloc.lower()
+                    if host:
+                        if host in self._allowed_sinks:
+                            return None
+                        if trusted_hosts and (
+                            host in trusted_hosts
+                            or any(host.endswith(f".{th.lower()}") for th in trusted_hosts)
+                        ):
+                            return None
+                except Exception:
+                    pass
+
+        blocked = set(TAINT_SINK_POLICIES.get(tool_name, frozenset()))
+
+        # Dynamic sink escalation: if session holds SECRET taint and bash attempts network transfer
+        if (
+            tool_name in ("bash_code_execute_tool", "shell_exec")
+            and TaintLabel.SECRET in self._taints
+            and tool_input
+        ):
+            cmd_str = str(tool_input.get("command") or tool_input.get("cmd") or "")
+            if _BASH_EGRESS_RE.search(cmd_str):
+                blocked.add(TaintLabel.SECRET)
+
         if not blocked:
             return None
 
