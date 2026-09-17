@@ -31,6 +31,7 @@ _PROBE_COMMAND_PATTERNS: tuple[re.Pattern[str], ...] = (
 )
 
 MAX_GUIDELINES_PER_TOOL = 3
+MAX_TOTAL_TOOL_GUIDELINES = 9
 MAX_CHARS_PER_GUIDELINE = 160
 
 
@@ -77,13 +78,16 @@ def synthesize_tool_guidance(
     current_env: str | None = None,
     current_agent_id: str | None = None,
     max_per_tool: int = MAX_GUIDELINES_PER_TOOL,
+    max_total: int = MAX_TOTAL_TOOL_GUIDELINES,
 ) -> dict[str, list[str]]:
     """Synthesize deterministic, cache-stable golden guidelines grouped by tool name.
 
     Guarantees:
-    1. At most `max_per_tool` guidelines per tool (prevents context bloat).
-    2. Pinned rules always take priority over dynamic self-healed rules.
-    3. Final guideline strings for each tool are alphabetically sorted to ensure
+    1. At most `max_per_tool` guidelines per tool (prevents per-tool bloat).
+    2. At most `max_total` guidelines across all active tools (prevents context bloat).
+    3. Pinned rules always take priority over dynamic self-healed rules.
+    4. String length strictly bounded to `MAX_CHARS_PER_GUIDELINE`.
+    5. Final guideline strings for each tool are alphabetically sorted to ensure
        100% deterministic Prompt Cache stability across calls.
     """
     filtered = filter_guidance_items(
@@ -97,42 +101,49 @@ def synthesize_tool_guidance(
     for it in filtered:
         by_tool[it.tool_name].append(it)
 
-    result: dict[str, list[str]] = {}
+    def _sort_key(candidate: ToolGuidanceItem) -> tuple[int, float, int]:
+        return (
+            1 if candidate.is_pinned else 0,
+            candidate.confidence,
+            candidate.hit_count,
+        )
 
+    # Step 1: Per-tool pre-selection up to max_per_tool
+    pre_selected: list[tuple[str, str, ToolGuidanceItem]] = []
     for tool_name in sorted(by_tool.keys()):
-        tool_items = by_tool[tool_name]
-
-        # Sort candidate items: pinned first, then confidence desc, hit_count desc
-        def _sort_key(candidate: ToolGuidanceItem) -> tuple[int, float, int]:
-            return (
-                1 if candidate.is_pinned else 0,
-                candidate.confidence,
-                candidate.hit_count,
-            )
-
-        ranked = sorted(tool_items, key=_sort_key, reverse=True)
-
-        selected_texts: list[str] = []
+        tool_items = sorted(by_tool[tool_name], key=_sort_key, reverse=True)
         seen_texts: set[str] = set()
+        count = 0
 
-        for cand in ranked:
+        for cand in tool_items:
             clean_text = cand.rule_text.strip()
             if not clean_text:
                 continue
             if len(clean_text) > MAX_CHARS_PER_GUIDELINE:
-                clean_text = clean_text[:MAX_CHARS_PER_GUIDELINE] + "..."
+                clean_text = clean_text[: MAX_CHARS_PER_GUIDELINE - 3].rstrip() + "..."
 
             normalized = clean_text.lower()
             if normalized in seen_texts:
                 continue
             seen_texts.add(normalized)
-            selected_texts.append(clean_text)
 
-            if len(selected_texts) >= max_per_tool:
+            pre_selected.append((tool_name, clean_text, cand))
+            count += 1
+            if count >= max_per_tool:
                 break
 
-        if selected_texts:
-            # Crucial: sort alphabetically to ensure prompt cache stability
-            result[tool_name] = sorted(selected_texts)
+    # Step 2: Global budget cap if total items exceed max_total
+    if len(pre_selected) > max_total:
+        pre_selected.sort(key=lambda x: _sort_key(x[2]), reverse=True)
+        pre_selected = pre_selected[:max_total]
+
+    # Step 3: Group by tool and enforce alphabetical order for prompt cache stability
+    grouped: dict[str, list[str]] = defaultdict(list)
+    for tool_name, text, _ in pre_selected:
+        grouped[tool_name].append(text)
+
+    result: dict[str, list[str]] = {}
+    for tool_name in sorted(grouped.keys()):
+        result[tool_name] = sorted(grouped[tool_name])
 
     return result

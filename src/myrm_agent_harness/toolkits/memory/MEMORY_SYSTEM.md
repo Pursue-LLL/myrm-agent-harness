@@ -1133,7 +1133,9 @@ rating_new = rating_old + alpha * (normalized - rating_old)
   - 核心位置：`myrm_agent_harness.toolkits.memory.tool_guidance_synthesizer`；
   - **探针假失败自动剔除（`is_exploratory_probe`）**：针对 Agent 在环境探索时的试探性命令（如 `command -v`、`which`、`grep -q` 等），其退出码非 0 属于探测逻辑而非真实工具使用故障，系统纯正则精准识别并不将其沉淀为避坑规程；
   - **环境指纹物理隔离（`filter_guidance_items`）**：当前运行时与规则所属环境指纹一致时才加载，防止跨操作系统/环境误导；
-  - **单工具黄金 3 条上限与 Cache-Stable 排序**：严格收敛每个激活工具至多输出 3 条黄金指南（人工置顶优先，其次按置信度排序）。最终输出集合按工具名称与规约文本字母序升序输出，保证字面量 100% 确定，完全保护 LLM 服务端 KV Cache 命中率。
+  - **单工具黄金 3 条初筛与全局 9 条总量熔断（`MAX_TOTAL_TOOL_GUIDELINES = 9`）**：严格限制单个工具至多提供 3 条候选指南，且当挂载多工具时全局总条目数硬熔断至 9 条，先按人工置顶优先 + 置信度降序收敛，防止长程多工具场景下 Prompt 膨胀与注意力稀释；
+  - **单条规约 160 字符严格防御截断（`MAX_CHARS_PER_GUIDELINE = 160`）**：规约文本超出阈值自动执行边界截断，防止未清洗的异常长日志侵占 Token 预算；
+  - **Cache-Stable 确定性字母序排列**：最终输出集合按工具名称与规约文本严格按字母序升序输出，保证字面量 100% 确定，完全保护 LLM 服务端 KV Cache 命中率。
 - **中间件运行时 JIT 注入**：
   - 核心位置：`myrm_agent_harness.agent.middlewares.memory_context`；
   - `_internal/storage_context.py` 加载规则并筛选出工具规约条目；

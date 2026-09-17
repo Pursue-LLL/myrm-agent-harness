@@ -118,3 +118,48 @@ def test_target_tools_filtering() -> None:
     res = synthesize_tool_guidance(items, target_tools={"web_fetch_tool"})
     assert "web_fetch_tool" in res
     assert "bash_code_execute_tool" not in res
+
+
+def test_strict_char_length_truncation() -> None:
+    long_rule = "A" * 300
+    items = [
+        ToolGuidanceItem(
+            id="g-long",
+            tool_name="bash_code_execute_tool",
+            rule_text=long_rule,
+            trigger_pattern="long_cmd",
+        )
+    ]
+    res = synthesize_tool_guidance(items)
+    text = res["bash_code_execute_tool"][0]
+    assert len(text) <= 160
+    assert text.endswith("...")
+
+
+def test_global_guidelines_budget_cap() -> None:
+    # 5 tools, each with 3 guidelines = 15 total guidelines
+    items = []
+    for tool_idx in range(5):
+        tool_name = f"tool_{tool_idx}"
+        for rule_idx in range(3):
+            is_pinned = (tool_idx == 4 and rule_idx == 0)  # Pin 1 rule in tool_4
+            items.append(
+                ToolGuidanceItem(
+                    id=f"{tool_name}_{rule_idx}",
+                    tool_name=tool_name,
+                    rule_text=f"Rule for {tool_name} #{rule_idx}",
+                    trigger_pattern="cmd",
+                    confidence=float(tool_idx * 10 + rule_idx),
+                    is_pinned=is_pinned,
+                )
+            )
+
+    # With max_total=9 (default)
+    res = synthesize_tool_guidance(items, max_total=9)
+    total_rules = sum(len(rules) for rules in res.values())
+    assert total_rules == 9
+
+    # Pinned rule from tool_4 must be retained
+    assert "tool_4" in res
+    assert any("Rule for tool_4 #0" in r for r in res["tool_4"])
+
