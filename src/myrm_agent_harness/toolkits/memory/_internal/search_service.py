@@ -182,6 +182,7 @@ class MemorySearchService:
         since: datetime | None = None,
         until: datetime | None = None,
         current_chat_id: str | None = None,
+        dynamic_signal_weights: dict[str, float] | None = None,
     ) -> list[MemorySearchResult]:
         trace_start = perf_counter()
         steps: list[MemoryTraceStep] = []
@@ -201,6 +202,14 @@ class MemorySearchService:
         )
         search_types = [memory_type for memory_type in memory_types if memory_type != MemoryType.CLAIM]
         runtime_config = self._resolve_runtime_config(sanitized_query)
+        if dynamic_signal_weights:
+            runtime_config = replace(
+                runtime_config,
+                retrieval=replace(
+                    runtime_config.retrieval,
+                    dynamic_signal_weights=dynamic_signal_weights,
+                ),
+            )
         tracked_types = list(dict.fromkeys([*search_types, *([MemoryType.CLAIM] if claim_requested else [])]))
         metrics = get_search_metrics()
         steps.append(

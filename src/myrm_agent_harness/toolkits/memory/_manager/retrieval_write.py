@@ -75,6 +75,7 @@ class MemoryManagerRetrievalWriteMixin:
         since: datetime | None = None,
         until: datetime | None = None,
         track_access: bool = True,
+        dynamic_signal_weights: dict[str, float] | None = None,
     ) -> list[MemorySearchResult]:
         session_chat_id = self._active_session.chat_id if self._active_session else None
         results = await self._search_service.search(
@@ -87,6 +88,7 @@ class MemoryManagerRetrievalWriteMixin:
             since=since,
             until=until,
             current_chat_id=session_chat_id,
+            dynamic_signal_weights=dynamic_signal_weights,
         )
         if track_access and results and self._vector:
             from myrm_agent_harness.toolkits.memory._internal.maintenance import (
