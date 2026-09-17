@@ -1094,6 +1094,30 @@ rating_new = rating_old + alpha * (normalized - rating_old)
   - Server 端归档预检服务（`archive.py`）在导出与 dry-run 阶段深度集成 MemCube 签名校验，生成篡改安全审计警报代码；
   - 前端恢复面板（`MemoryArchiveRestoreDialog.tsx`）采用双主题安全盾牌指示，清晰展示数据完整性合规状态。
 
+---
+
+## 十九、精确事实确定性硬锁与行为模式双轨治理体系 (ExactFactHardLockAndDualTrack)
+
+针对长程会话中高熵关键符号（UUID、Git Commit SHA、语义化版本 SemVer、网络端点与端口、系统大写配置键）在自然语言泛化提取与模糊向量检索中容易发生失真和召回失效的问题，构建无损精准事实治理体系：
+
+- **无 LLM 确定性分类与符号提取器（`ExactFactClassifier`）**：
+  - 核心位置：`myrm_agent_harness.toolkits.memory.strategies.exact_fact`；
+  - 采用高精度预编译正规表达式精准捕获 UUID4、Git SHA (7~40 位)、SemVer 规范版本号、IP/localhost 端口与大写配置键；
+  - 引入 Shannon 熵校验过滤高频自然语言词汇，杜绝普通英语单词（如 `decade`, `accord`, `coffee`）发生假阳性误锁；
+  - 零 LLM 模型调用开销，微秒级执行完成。
+- **关系倒排索引与全文虚表存储（`_exact_fact_store` & `SQLiteRelationalStore`）**：
+  - 核心位置：`myrm_agent_harness.toolkits.memory.relational._exact_fact_store` 与 `sqlite_store`；
+  - 双轨物理持久化：建立 `exact_fact_identifiers` 物理倒排索引表加速符号级精准点查，同步维护 `exact_facts_fts` FTS5 全文检索虚表；
+  - 生命周期级联联动：在记忆新增、批量写入、属性变更以及删除时，与向量底库自动协同级联更新与清理，杜绝孤儿索引。
+- **检索硬置顶加权与全生命周期免遗忘免疫**：
+  - 核心位置：`myrm_agent_harness.toolkits.memory.retriever` 与 `types`；
+  - `BaseMemory` 包含强类型标识 `is_exact_fact: bool` 与 `exact_identifiers: list[str]`，并自动计入 `is_user_protected` 豁免保护，完全免疫遗忘衰减与蒸馏淘汰；
+  - 检索重排中当查询命中所包含的高熵精确标识符或原样子串时，赋予确定性硬置顶加权（`+5.0` 增益），确保精确事实绝对置顶于模糊语义召回。
+- **全链路展示与交互认知一致性**：
+  - Server 端接口契约 `MemoryItem` 与变更请求模型支持 `is_exact_fact` 属性透传；
+  - 前端 `MemoryCard.tsx` 与 `EvidenceDrawer.tsx` 支持视觉识别蓝底硬锁徽章，呈现提取到的确切事实符号。
+
+
 
 
 
