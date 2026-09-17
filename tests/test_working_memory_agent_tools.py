@@ -143,13 +143,73 @@ def test_defensive_error_handling():
     assert res_err1["status"] == "error"
     assert "hint" in res_err1
 
+    # Missing status for update_subtask
+    res_err1_b = json.loads(tool.invoke({"action": "update_subtask", "subtask_id": "step-1"}))
+    assert res_err1_b["status"] == "error"
+    assert "Missing required 'status'" in res_err1_b["error"]
+
+    # Invalid status handled defensively by underlying func
+    res_err1_c = json.loads(tool.func(action="update_subtask", subtask_id="step-1", status="unknown_status"))
+    assert res_err1_c["status"] == "error"
+    assert "Invalid status" in res_err1_c["error"]
+
     # Missing summary for summarize
     res_err2 = json.loads(tool.invoke({"action": "summarize"}))
     assert res_err2["status"] == "error"
 
     # Missing key/value for set_scratchpad
-    res_err3 = json.loads(tool.invoke({"action": "set_scratchpad"}))
-    assert res_err3["status"] == "error"
+    res_err3_a = json.loads(tool.invoke({"action": "set_scratchpad", "key": "k"}))
+    assert res_err3_a["status"] == "error"
+    assert "required for 'set_scratchpad'" in res_err3_a["error"]
+
+    res_err3_b = json.loads(tool.invoke({"action": "set_scratchpad", "value": "v"}))
+    assert res_err3_b["status"] == "error"
+
+
+    # Discard without explicit target should gracefully self-heal with fallback
+    res_err4 = json.loads(tool.invoke({"action": "discard"}))
+    assert res_err4["status"] == "success"
+    assert "Avoid failing approach: unknown" in res_err4["avoidance_rule"]
+
+
+
+    # Unknown action handled defensively
+    res_err5 = json.loads(tool.func(action="unknown_action"))
+    assert res_err5["status"] == "error"
+    assert "Unsupported action" in res_err5["error"]
+
+
+
+
+def test_exception_defense(monkeypatch):
+    tool = create_working_memory_manage_tool()
+
+    # Inject exception in discard
+    def mock_record_trap(*args, **kwargs):
+        raise RuntimeError("Disk IO failure")
+
+    monkeypatch.setattr(LocalWorkingMemoryBlock, "record_trap", mock_record_trap)
+    res_discard = json.loads(tool.invoke({
+        "action": "discard",
+        "target": "bad_path",
+        "avoidance_rule": "Avoid bad path",
+    }))
+    assert res_discard["status"] == "error"
+    assert "Disk IO failure" in res_discard["error"]
+
+    # Inject exception in summarize
+    def mock_set_scratchpad(*args, **kwargs):
+        raise RuntimeError("Memory overflow")
+
+    monkeypatch.setattr(LocalWorkingMemoryBlock, "set_scratchpad", mock_set_scratchpad)
+    res_sum = json.loads(tool.invoke({"action": "summarize", "summary": "brief"}))
+    assert res_sum["status"] == "error"
+    assert "Memory overflow" in res_sum["error"]
+
+    # Inject exception in set_scratchpad
+    res_scratch = json.loads(tool.invoke({"action": "set_scratchpad", "key": "k", "value": "v"}))
+    assert res_scratch["status"] == "error"
+    assert "Memory overflow" in res_scratch["error"]
 
 
 def test_get_meta_tools_mounts_working_memory_tool():
@@ -165,4 +225,5 @@ def test_get_meta_tools_mounts_working_memory_tool():
     registry2 = ToolRegistry()
     tools_disabled = get_meta_tools(skills=[], registry=registry2, enable_shell_tools=False, enable_working_memory_tool=False)
     assert "working_memory_manage_tool" not in [t.name for t in tools_disabled]
+
 
