@@ -20,6 +20,9 @@ information, so the model can read the file back when it needs the detail.
 """
 
 from __future__ import annotations
+
+import contextlib
+import hashlib
 from pathlib import Path
 from uuid import uuid4
 
