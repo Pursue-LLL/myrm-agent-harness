@@ -1,4 +1,15 @@
-"""Lenient Markdown parser for extracting structured memories with line anchors."""
+"""Lenient Markdown parser for extracting structured memories with line anchors.
+
+[INPUT]
+- myrm_agent_harness.toolkits.memory.file_sync.models::FileMemoryCategory (POS: semantic categories)
+- myrm_agent_harness.toolkits.memory.file_sync.models::FileMemoryEntry (POS: structured memory chunk)
+
+[OUTPUT]
+- LenientMarkdownParser: state machine parser with line-tracking and frontmatter stripping
+
+[POS]
+Fault-tolerant Markdown parser producing line-accurate memory chunks from physical documents.
+"""
 
 from __future__ import annotations
 

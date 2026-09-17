@@ -1,4 +1,16 @@
-"""Physical file store and atomic operations for local-first memory files."""
+"""Physical file store and atomic operations for local-first memory files.
+
+[INPUT]
+- myrm_agent_harness.toolkits.memory.file_sync.models::FileMemoryTopology (POS: directory layout)
+- myrm_agent_harness.toolkits.memory.file_sync.models::FileMemoryEntry (POS: structured memory chunk)
+- myrm_agent_harness.toolkits.memory.file_sync.parser::LenientMarkdownParser (POS: tolerant parser)
+
+[OUTPUT]
+- FileMemoryStore: atomic file writer, reader, and freshness probe
+
+[POS]
+Physical I/O and atomicity guarantee layer for Markdown-backed memory storage.
+"""
 
 from __future__ import annotations
 

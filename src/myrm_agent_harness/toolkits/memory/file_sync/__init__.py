@@ -1,7 +1,17 @@
 """File-as-Memory Local-First synchronization package.
 
-Provides bidirectional sync between human-readable Markdown files (MEMORY.md, daily notes)
-and the agent memory subsystem, offering transparent file provenance and line anchors.
+[INPUT]
+- myrm_agent_harness.toolkits.memory.file_sync.models (POS: data contracts)
+- myrm_agent_harness.toolkits.memory.file_sync.parser (POS: tolerant parser)
+- myrm_agent_harness.toolkits.memory.file_sync.store (POS: atomic store)
+- myrm_agent_harness.toolkits.memory.file_sync.anchor (POS: citation anchor formatter)
+- myrm_agent_harness.toolkits.memory.file_sync.sync (POS: bidirectional sync engine)
+
+[OUTPUT]
+- Public facades: FileMemoryCategory, FileMemoryEntry, FileMemoryTopology, FileMemorySyncReport, LenientMarkdownParser, FileMemoryStore, MemoryAnchorFormatter, FileMemorySyncEngine
+
+[POS]
+Root facade of the local-first file-as-memory synchronization subpackage.
 """
 
 from __future__ import annotations

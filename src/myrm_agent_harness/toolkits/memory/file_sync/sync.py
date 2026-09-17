@@ -1,4 +1,18 @@
-"""Bidirectional incremental synchronization engine between Markdown files and MemoryManager."""
+"""Bidirectional incremental synchronization engine between Markdown files and MemoryManager.
+
+[INPUT]
+- myrm_agent_harness.toolkits.memory.file_sync.models::FileMemoryTopology (POS: directory layout)
+- myrm_agent_harness.toolkits.memory.file_sync.models::FileMemoryEntry (POS: structured memory chunk)
+- myrm_agent_harness.toolkits.memory.file_sync.models::FileMemorySyncReport (POS: sync report)
+- myrm_agent_harness.toolkits.memory.file_sync.store::FileMemoryStore (POS: atomic physical store)
+- myrm_agent_harness.toolkits.memory.manager::MemoryManager (POS: relational and vector memory manager)
+
+[OUTPUT]
+- FileMemorySyncEngine: bidirectional coordinator between Markdown files and relational/vector backends
+
+[POS]
+Orchestrates transparent file-first synchronization, ingress freshness probes, and episodic persistence.
+"""
 
 from __future__ import annotations
 

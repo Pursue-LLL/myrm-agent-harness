@@ -1,4 +1,17 @@
-"""Data models for File-as-Memory Local-First synchronization."""
+"""Data models for File-as-Memory Local-First synchronization.
+
+[INPUT]
+- None (pure domain models)
+
+[OUTPUT]
+- FileMemoryCategory: enumeration of semantic memory categories
+- FileMemoryEntry: immutable memory chunk with physical line anchors
+- FileMemoryTopology: workspace directory topology for human-readable memories
+- FileMemorySyncReport: summary report of sync operations
+
+[POS]
+Data models and directory topology contracts for file-based memory synchronization.
+"""
 
 from __future__ import annotations
 

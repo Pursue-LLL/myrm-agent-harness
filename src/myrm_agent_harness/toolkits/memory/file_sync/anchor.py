@@ -1,4 +1,14 @@
-"""Memory anchor formatter for transparent source citations and line anchors."""
+"""Memory anchor formatter for transparent source citations and line anchors.
+
+[INPUT]
+- myrm_agent_harness.toolkits.memory.file_sync.models::FileMemoryEntry (POS: structured memory chunk)
+
+[OUTPUT]
+- MemoryAnchorFormatter: contextual markdown formatter with line citations
+
+[POS]
+Formats memory entries with exact source file and line-range anchors for model prompt injection.
+"""
 
 from __future__ import annotations
 
