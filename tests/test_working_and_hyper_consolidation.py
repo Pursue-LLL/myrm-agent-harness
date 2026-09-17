@@ -1,9 +1,9 @@
 """Unit tests for LocalWorkingMemoryBlock and HyperConsolidationMemoryBlock."""
 
 import asyncio
-from typing import Any
 
 import pytest
+
 from myrm_agent_harness.agent.context_management.working_memory import (
     LocalWorkingMemoryBlock,
     SubtaskStatus,
