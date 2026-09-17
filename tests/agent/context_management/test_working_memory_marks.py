@@ -62,3 +62,43 @@ def test_eviction_immunity_predicate():
     msg5 = HumanMessage(content="keep this")
     with_message_marks(msg5, "keep")
     assert is_eviction_immune(msg5)
+
+
+def test_remove_message_marks_clean_and_partial():
+    from myrm_agent_harness.agent.context_management.working_memory.marks import (
+        MARKS_METADATA_KEY,
+        remove_message_marks,
+    )
+
+    msg = HumanMessage(content="test")
+    with_message_marks(msg, WorkingMemoryMark.HINT, WorkingMemoryMark.SCRATCHPAD)
+
+    # Partial removal
+    remove_message_marks(msg, WorkingMemoryMark.HINT)
+    assert get_message_marks(msg) == {"scratchpad"}
+    assert MARKS_METADATA_KEY in msg.additional_kwargs
+
+    # Complete removal clears MARKS_METADATA_KEY from additional_kwargs
+    remove_message_marks(msg, WorkingMemoryMark.SCRATCHPAD)
+    assert get_message_marks(msg) == set()
+    assert MARKS_METADATA_KEY not in msg.additional_kwargs
+
+
+def test_marks_edge_cases():
+    from myrm_agent_harness.agent.context_management.working_memory.marks import (
+        remove_message_marks,
+    )
+
+    msg = HumanMessage(content="edge case")
+    # 1. Non-dict additional_kwargs
+    msg.additional_kwargs = None
+    assert get_message_marks(msg) == set()
+    assert not has_message_marks(msg)
+    remove_message_marks(msg, "any")
+    with_message_marks(msg, "mark1")
+    assert get_message_marks(msg) == {"mark1"}
+
+    # 2. Raw mark as single string
+    msg.additional_kwargs["marks"] = "single_string_mark"
+    assert get_message_marks(msg) == {"single_string_mark"}
+
