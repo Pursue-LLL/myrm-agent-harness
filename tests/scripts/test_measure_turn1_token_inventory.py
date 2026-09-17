@@ -153,7 +153,7 @@ _DOC_TURN1_TOOL_TOKENS: dict[str, int] = {
     "file_write_tool": 118,
     "glob_tool": 201,
     "grep_tool": 205,
-    "memory_manage_tool": 339,
+    "memory_manage_tool": 359,
     "memory_save_tool": 720,
     "memory_search_tool": 143,
     "skill_select_tool": 240,
@@ -186,6 +186,6 @@ async def test_measure_turn1_inventory_matches_documented_token_baseline() -> No
     )
     layer_totals = report["layer_totals"]
     assert layer_totals["CORE"] == 2668
-    assert layer_totals["HIGH_PRIORITY"] == 2616
-    assert report["tools_subtotal"] == 6129
+    assert layer_totals["HIGH_PRIORITY"] == 2636
+    assert report["tools_subtotal"] == 6149
     assert report["tools_subtotal"] <= 6500, "Turn-1 tools exceeded the 6,500 budget ceiling"

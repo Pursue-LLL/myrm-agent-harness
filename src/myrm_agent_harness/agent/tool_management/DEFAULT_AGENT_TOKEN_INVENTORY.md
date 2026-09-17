@@ -86,10 +86,10 @@
 | 12 | **web_search_tool** | **1,174** | `harness/toolkits/web_search/_web_search_tool_description.py` | 网络搜索（EN/ZH LLM-facing query-rewrite SSOT；server 传 locale） | GUI 可关 |
 | 13 | **memory_search_tool** | **143** | `harness/toolkits/memory/_memory_agent_tool_descriptions.py` | 统一检索（corpus ACL 与 policy 一致；默认仅 memory corpus） | enable_memory |
 | 14 | **memory_save_tool** | **720** | `harness/toolkits/memory/_memory_agent_tool_descriptions.py` | 写入长期记忆（EN core；wiki/approval 动态段；保留原有关键 guardrail 短语） | enable_memory |
-| 15 | **memory_manage_tool** | **339** (EN) / **390** (ZH) | 同上 | 更新/删除/纠正/评分；correct→knowledge only（preserves history）；update→措辞微调；instruction→category=rule；**user-locked rule 不可 update/delete** | enable_memory |
+| 15 | **memory_manage_tool** | **359** (EN) / **422** (ZH) | 同上 | 更新/删除/纠正/评分；correct→knowledge only（preserves history）；update→措辞微调；instruction→category=rule；**user-locked rule 不可 update/delete** | enable_memory |
 | 16 | **skill_select_tool** | **240** (EN) / **278** (ZH) | `harness/agent/meta_tools/skills/select/skill_select_tool.py` | 字节稳定静态 rules，按 locale 选 EN/ZH 常量；bound catalog 在首条 HumanMessage `<bound_skills>` | skill_backend present |
 
-**HIGH_PRIORITY 描述小计（Turn1，EN 描述）**：**2,616 tokens**（5 工具；web_search + memory×3 + skill_select；默认 memory_search 仅 memory corpus）
+**HIGH_PRIORITY 描述小计（Turn1，EN 描述）**：**2,636 tokens**（5 工具；web_search + memory×3 + skill_select；默认 memory_search 仅 memory corpus）
 
 ---
 
@@ -216,10 +216,6 @@ Token 明细（历史 tiktoken 计量保留）：
 | 86 | submit_verdict | 26 | `orchestration/signals/verifier.py` |
 | 87 | _completion_check | 42 | `orchestration/hooks.py` + `completion_guard.py` |
 
-### 4.20–4.23（已合并）
-
-见 §4.18 与 `TOOL_MANAGEMENT_SYSTEM.md` LLM Tool Catalog 生成表。
-
 ### 4.24 Server 层业务工具（server 启动时动态注册，依赖第三方 SDK）
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
@@ -230,7 +226,7 @@ Token 明细（历史 tiktoken 计量保留）：
 | 91 | tts_generate | ~120 | `server/services/integrations/tools/tts.py` | 语音合成工具 | enabled_builtin_tools: tts |
 | 92 | artifact_publish | ~140 | `server/services/hosting/agent_publish_tool.py` | 工件/网页在线打包与托管发布 | server 凭证就绪 |
 
-> 注：`x-live-search` 现已完全重构为 Prebuilt Skill + 沙箱标准脚本 PTC（Programmatic Tool Calling）范式，0 Action Tool 注册（Turn1 0 Token 开销，不污染 Action Space）。
+> 注：`x-live-search` 采用 Prebuilt Skill + 沙箱标准脚本 PTC（Programmatic Tool Calling）范式，0 Action Tool 注册（Turn1 0 Token 开销，不污染 Action Space）。
 
 ### 4.25 PTC 桥接（非 LLM 工具，非 `_TOOL_LAYERS` 登记）
 
@@ -296,7 +292,7 @@ Token 明细（历史 tiktoken 计量保留）：
 |------|------------------:|------|
 | System Prompt 层 | **2,568** | `messages[0]` 2,269（GPT-5 族 · ZH · full）+ `messages[1]` 299，固定，跨用户缓存 |
 | CORE 工具层 | **2,668** | 8 工具描述（含 bash_process；`measure_turn1_token_inventory.py` 实测，o200k_base） |
-| HIGH_PRIORITY 工具层 | **2,616** | web_search + memory×3 + skill_select |
+| HIGH_PRIORITY 工具层 | **2,636** | web_search + memory×3 + skill_select |
 | EXTENDED 工具层 | **0** | 默认 profile 无附加 EXTENDED 工具 |
 | 工具 JSON schema | **845** | 13 工具 × 65 |
 | 动态注入 | ~1,200 | user_instructions + memory_context + inline_skills |
@@ -321,7 +317,7 @@ Token 明细（历史 tiktoken 计量保留）：
 |------|------------------:|
 | System Prompt 层 | **2,568** |
 | CORE 工具层 | **2,668** |
-| HIGH_PRIORITY 工具层 | ~2,616 |
+| HIGH_PRIORITY 工具层 | ~2,636 |
 | EXTENDED + EXTERNAL（41 + 7 = 48 工具） | ~7,400（**粗估，未逐项实测**；EXTENDED 装配依赖各 backend，无法在离线脚本中全量构建） |
 | 工具 JSON schema | ~3,120 (48 工具 × 65) |
 | 动态注入 | ~1,200 |
@@ -338,7 +334,7 @@ Token 明细（历史 tiktoken 计量保留）：
 [CORE: web_fetch + bash + file_* + glob + grep (~2,668 tok, 8 tools)]
   ↑ 通用 Agent 基线前缀（agent 模式）
 
-[HIGH_PRIORITY: web_search + memory_* + skill_select (~2,616 tok)]
+[HIGH_PRIORITY: web_search + memory_* + skill_select (~2,636 tok)]
   ↑ web_search 优先；memory 组紧随；skill_select 承接；GUI 可关
 
 [EXTENDED: 可选工具 (~0~7,411 tok)]
@@ -351,13 +347,13 @@ Token 明细（历史 tiktoken 计量保留）：
   ↑ 同用户会话内稳定
 ```
 
-**实测 Turn1 工具层合计**：描述 **5,284** + schema **845** = **6,129 tokens**（13 工具，`measure_turn1_token_inventory.py` / `measure_tool_schema_tokens.py`，o200k_base，macOS 宿主）。
+**实测 Turn1 工具层合计**：描述 **5,304** + schema **845** = **6,149 tokens**（13 工具，`measure_turn1_token_inventory.py` / `measure_tool_schema_tokens.py`，o200k_base，macOS 宿主）。
 
 **CI 门禁（横跨 harness / server 两仓）**：
 
 | 仓 | 门禁文件 | 锁定项 |
 |----|----------|--------|
-| harness | `tests/architecture/test_prompt_token_budget_gate.py` | Turn-1 默认工具集 ≤ **6,500**（当前 6,129，余量 371）；`AGENT_CORE_RULES` ≤ 350 / `SECURITY_BOUNDARY_SYSTEM_RULES` ≤ 350 / `DATETIME_SYSTEM_RULES` ≤ 120；SystemMessage 哈希跨调用恒定 |
+| harness | `tests/architecture/test_prompt_token_budget_gate.py` | Turn-1 默认工具集 ≤ **6,500**（当前 6,149，余量 351）；`AGENT_CORE_RULES` ≤ 350 / `SECURITY_BOUNDARY_SYSTEM_RULES` ≤ 350 / `DATETIME_SYSTEM_RULES` ≤ 120；SystemMessage 哈希跨调用恒定 |
 | harness | `tests/scripts/test_measure_turn1_token_inventory.py` | 逐工具描述 token 与 §二/§三 表格一致（漂移即失败并指出工具名） |
 | server | `tests/ai_agents/test_prompt_integrity.py:187-224`（`cl100k_base`） | CORE full ≤ **2,000** / lean ≤ **1,200** / lean÷full ratio ≤ **0.70** |
 
