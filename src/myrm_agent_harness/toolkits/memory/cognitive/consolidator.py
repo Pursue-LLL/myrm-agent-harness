@@ -26,6 +26,10 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.runtime.cognitive_clock.signals import (
+    CooperativePauseSignal,
+)
+
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 
@@ -47,6 +51,7 @@ class ConsolidationResult:
     duration_ms: float = 0.0
     skipped: bool = False
     skip_reason: str = ""
+    interrupted_by_pause: bool = False
     insights: tuple[str, ...] = ()
     errors: list[str] = field(default_factory=list)
 
@@ -63,6 +68,7 @@ class ConsolidationResult:
             "duration_ms": self.duration_ms,
             "skipped": self.skipped,
             "skip_reason": self.skip_reason,
+            "interrupted_by_pause": self.interrupted_by_pause,
             "insights": list(self.insights),
             "errors": self.errors,
             "success": not self.errors and not self.skipped,
@@ -133,11 +139,23 @@ class CognitiveConsolidator:
             except Exception as exc:
                 logger.error("CognitiveConsolidator loop error: %s", exc, exc_info=True)
 
-    async def run_consolidation(self) -> ConsolidationResult:
+    async def run_consolidation(
+        self, *, pause_signal: CooperativePauseSignal | None = None
+    ) -> ConsolidationResult:
         """Delegate to the unified maintenance cycle and map its report."""
-        report = await self.memory_manager.run_maintenance_cycle(force=True)
+        if pause_signal is not None:
+            report = await self.memory_manager.run_maintenance_cycle(
+                force=True, pause_signal=pause_signal
+            )
+        else:
+            report = await self.memory_manager.run_maintenance_cycle(force=True)
         errors: list[str] = []
-        if report.skipped and report.skip_reason:
+        if (
+            report.skipped
+            and report.skip_reason
+            and not report.interrupted_by_pause
+            and report.skip_reason != "already running"
+        ):
             errors.append(f"maintenance skipped: {report.skip_reason}")
         if report.consolidation_errors:
             errors.append(f"maintenance consolidation errors: {report.consolidation_errors}")
@@ -154,6 +172,7 @@ class CognitiveConsolidator:
             duration_ms=report.duration_ms,
             skipped=report.skipped,
             skip_reason=report.skip_reason,
+            interrupted_by_pause=report.interrupted_by_pause,
             insights=report.insights,
             errors=errors,
         )

@@ -33,6 +33,9 @@ from myrm_agent_harness.toolkits.memory.strategies.merger import (
     DeterministicThreeStateMerger,
     MergeState,
 )
+from myrm_agent_harness.toolkits.memory.strategies.named_entity_guard import (
+    NamedEntityGuard,
+)
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.config import ConsolidationConfig
@@ -511,23 +514,57 @@ async def run_consolidation(
             [SystemMessage(content=_SYSTEM_PROMPT), HumanMessage(content=user_prompt)]
         )
 
-        # Filter operations by Rubric score
+        # Filter operations by Rubric score and deterministic NamedEntityGuard
         valid_ops = []
+        entity_guard = NamedEntityGuard()
+        content_by_id: dict[str, str] = {m.id: m.content for m in memories}
+        for short_id, full_id in id_map.items():
+            if full_id in content_by_id:
+                content_by_id[short_id] = content_by_id[full_id]
+
         for op in response.operations:
             total_score = (
                 (op.accuracy_score * 0.4)
                 + (op.anti_fragmentation_score * 0.3)
                 + (op.redundancy_score * 0.3)
             )
-            if total_score >= 0.7:
-                valid_ops.append(op)
-            else:
+            if total_score < 0.7:
                 logger.info(
                     "Consolidation op %s rejected by Rubric (Score: %.2f). Reason: %s",
                     op.action,
                     total_score,
                     op.reasoning,
                 )
+                continue
+
+            source_texts: list[str] = []
+            consolidated_text = ""
+            if isinstance(op, MergeOp):
+                source_texts = [content_by_id[sid] for sid in op.source_ids if sid in content_by_id]
+                consolidated_text = op.merged_content
+            elif isinstance(op, CorrectOp):
+                source_texts = [content_by_id[op.memory_id]] if op.memory_id in content_by_id else []
+                consolidated_text = op.corrected_content
+            elif isinstance(op, UpdateContentOp):
+                source_texts = [content_by_id[op.memory_id]] if op.memory_id in content_by_id else []
+                consolidated_text = op.new_content
+
+            guard_verdict = entity_guard.verify_consolidation(
+                source_texts=source_texts,
+                consolidated_text=consolidated_text,
+                op_action=op.action,
+                reasoning=op.reasoning,
+            )
+            if not guard_verdict.is_valid:
+                logger.warning(
+                    "Consolidation op %s rejected by NamedEntityGuard (%s). Reason: %s",
+                    op.action,
+                    guard_verdict.rejection_code,
+                    guard_verdict.reason,
+                )
+                continue
+
+            valid_ops.append(op)
 
         parsed = ConsolidationResponse(operations=valid_ops, insights=response.insights)
     except Exception as e:

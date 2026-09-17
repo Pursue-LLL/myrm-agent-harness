@@ -306,6 +306,7 @@ class MaintenanceReport:
     duration_ms: float = 0.0
     skipped: bool = False
     skip_reason: str = ""
+    interrupted_by_pause: bool = False
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -341,4 +342,5 @@ class MaintenanceReport:
             "duration_ms": self.duration_ms,
             "skipped": self.skipped,
             "skip_reason": self.skip_reason,
+            "interrupted_by_pause": self.interrupted_by_pause,
         }

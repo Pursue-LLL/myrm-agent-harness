@@ -586,3 +586,37 @@ class TestRunConsolidation:
         )
         assert stats.insights == ("only insight",)
         on_complete.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_consolidation_rejects_missing_port_via_named_entity_guard(self) -> None:
+        manager = _make_manager()
+        manager._vec_store.scroll = AsyncMock(
+            side_effect=[
+                (
+                    [
+                        _semantic_doc("s-1", "Postgres runs on port 5433 at 127.0.0.1"),
+                        _semantic_doc("s-2", "Database user is postgres with local password"),
+                    ],
+                    None,
+                ),
+                ([], None),
+            ]
+        )
+        # LLM tries to merge s-1 and s-2, but drops port 5433
+        response = ConsolidationResponse(
+            operations=[
+                MergeOp(
+                    source_ids=["s-1", "s-2"],
+                    merged_content="Postgres database runs at 127.0.0.1 with user postgres",
+                    accuracy_score=0.95,
+                    importance=0.8,
+                    reasoning="Merged postgres credentials and endpoint",
+                )
+            ],
+            insights=[],
+        )
+        stats = await run_consolidation(
+            manager, _make_llm(response), ConsolidationConfig()
+        )
+        # The operation should be rejected by NamedEntityGuard because port 5433 was silently dropped
+        assert stats.merged == 0

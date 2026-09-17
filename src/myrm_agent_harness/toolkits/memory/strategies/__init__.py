@@ -95,6 +95,12 @@ from myrm_agent_harness.toolkits.memory.strategies.merger import (
     MergeDecision,
     MergeState,
 )
+from myrm_agent_harness.toolkits.memory.strategies.named_entity_guard import (
+    CriticalEntity,
+    CriticalEntityType,
+    NamedEntityGuard,
+    NamedEntityGuardVerdict,
+)
 from myrm_agent_harness.toolkits.memory.strategies.sparse_mutation import (
     MinimalOverwritePipeline,
     SparseSemanticMaskGenerator,
@@ -188,4 +194,8 @@ __all__ = [
     "SparseSemanticMaskGenerator",
     "apply_sparse_mutation",
     "compute_gravity_decay",
+    "CriticalEntity",
+    "CriticalEntityType",
+    "NamedEntityGuard",
+    "NamedEntityGuardVerdict",
 ]

@@ -1,26 +1,4 @@
-"""Default callbacks and tasks for the idle worker.
-
-[INPUT]
-- agent.streaming.types::AgentEventType (POS: Provides ArtifactInfo, infer_language, infer_artifact_type.)
-- runtime.events.idle_events::IdleTaskProgressEvent (POS: Events related to idle background tasks.)
-- runtime.events.bus::EventBus (POS: In-process publish/subscribe event bus.)
-- runtime.maintenance.protocols::CapacityDenial, (POS: Maintenance scheduling protocols and data types.)
-- toolkits.memory.cognitive.consolidator::CognitiveConsolidator (POS: @input: MemoryManager)
-- agent.event_log.evidence_extractor::SessionEvidenceExtractor (POS: Data mining engine for trace evidence. Runs periodically in idle_tasks to analyze failed tool calls and user interruptions for skill evolution.)
-- agent.event_log.types::EventPayload, StructuredEvent (POS: Single source of truth for event log data structures.)
-- agent.context_management.preheat::preheat_prefix_cache (POS: Prefix cache preheat utility for idle compression pipeline.)
-- agent.background_worker.shadow_context::restricted_shadow_context (POS: Execution-layer bulkhead isolation for background shadow workloads.)
-- agent.background_worker.registry::IdleTaskRecord (POS: Idle Task Registry for crash-resilient persistence and concurrency control.)
-- agent.skills.evolution.core.engine::SkillEvolutionEngine (POS: Skill evolution engine - Core of self-evolution system.)
-- agent.skills.evolution.db.store::SkillStore (POS: SQLite persistence for skill evolution system.)
-
-[OUTPUT]
-- register_idle_task_handler: Register a custom handler for a specific idle task type.
-- default_idle_callback: Default idle task to run when the session is inactive.
-
-[POS]
-Default callbacks and tasks for the idle worker.
-"""
+"""Default callbacks and tasks for the idle worker."""
 
 from __future__ import annotations
 
@@ -34,11 +12,11 @@ from myrm_agent_harness.agent.background_worker.shadow_context import (
 )
 from myrm_agent_harness.agent.skill_agent.context import get_memory_manager
 from myrm_agent_harness.agent.streaming.types import AgentEventType
-from myrm_agent_harness.runtime.events.bus import get_event_bus
-from myrm_agent_harness.runtime.events.idle_events import IdleTaskProgressEvent
 from myrm_agent_harness.runtime.cognitive_clock.signals import (
     get_global_pause_signal,
 )
+from myrm_agent_harness.runtime.events.bus import get_event_bus
+from myrm_agent_harness.runtime.events.idle_events import IdleTaskProgressEvent
 from myrm_agent_harness.runtime.maintenance.protocols import (
     CapacityDenial,
     MaintenanceTaskType,
@@ -127,7 +105,7 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                 session_id=session_id,
                 status="working",
                 task_name=task.task_type,
-                message=" 正在为您归纳记忆碎片...",
+                message="正在为您归纳记忆碎片...",
                 progress_pct=10,
             )
         )
@@ -141,6 +119,7 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                     event_data = await handler(task, session_id)
                     cost = event_data.get("cost", 0.0) if isinstance(event_data, dict) else 0.0
                 elif task.task_type == "cognitive_consolidation":
+                    pause_signal = get_global_pause_signal()
                     memory_manager = get_memory_manager()
                     if memory_manager:
                         consolidator = CognitiveConsolidator(memory_manager)
@@ -149,12 +128,12 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                                 session_id=session_id,
                                 status="working",
                                 task_name=task.task_type,
-                                message=" 正在合并相关记忆网络...",
+                                message="正在合并相关记忆网络...",
                                 progress_pct=50,
                             )
                         )
 
-                        result = await consolidator.run_consolidation()
+                        result = await consolidator.run_consolidation(pause_signal=pause_signal)
 
                         if result.errors and not result.skipped:
                             raise RuntimeError(f"Consolidation errors: {result.errors}")
@@ -179,7 +158,7 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                                 session_id=session_id,
                                 status="working",
                                 task_name=task.task_type,
-                                message=" 正在深度盘点您的隐性沟通偏好...",
+                                message="正在深度盘点您的隐性沟通偏好...",
                                 progress_pct=40,
                             )
                         )
@@ -191,7 +170,7 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                         has_disruptive_change = result.get("has_disruptive_change", False)
                         if extracted_count > 0:
                             urgency = "notify" if has_disruptive_change else "silent"
-                            ui_message = " 认知已更新：已牢记您最新指示的沟通偏好。" if has_disruptive_change else ""
+                            ui_message = "认知已更新：已牢记您最新指示的沟通偏好。" if has_disruptive_change else ""
 
                             event_bus.publish(
                                 IdleTaskProgressEvent(
@@ -235,7 +214,7 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                                     session_id=session_id,
                                     status="working",
                                     task_name=task.task_type,
-                                    message=" 正在为新技能擦除冗余认知包袱...",
+                                    message="正在为新技能优化认知上下文...",
                                     progress_pct=30,
                                 )
                             )
@@ -263,7 +242,7 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                                         session_id=session_id,
                                         status="notification",
                                         task_name=task.task_type,
-                                        message=f" 认知升维完成：已提炼技能，并在后台静默擦除了 {deleted_count} 条冗余历史记忆。",
+                                        message=f"认知升维完成：已提炼技能并优化了 {deleted_count} 条历史记忆。",
                                         progress_pct=100,
                                         data={
                                             "type": AgentEventType.COGNITIVE_CONSOLIDATION.value,
@@ -404,12 +383,12 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                 session_id=session_id,
                 status="completed",
                 task_name=task.task_type,
-                message=(" 记忆碎片整理完毕" if task.task_type == "cognitive_consolidation" else " 任务已完成"),
+                message=("记忆碎片整理完毕" if task.task_type == "cognitive_consolidation" else "任务已完成"),
                 progress_pct=100,
                 data=event_data,
             )
         )
-        logger.info(" Idle task %s completed successfully for session %s", task.id, session_id)
+        logger.info("Idle task %s completed successfully for session %s", task.id, session_id)
 
     except Exception as e:
         logger.error(
@@ -420,13 +399,13 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
             exc_info=True,
         )
         await registry.mark_error(task.id)
-        event_bus.publish(IdleTaskProgressEvent(session_id=session_id, status="error", message=" 后台任务执行出错"))
+        event_bus.publish(IdleTaskProgressEvent(session_id=session_id, status="error", message="后台任务执行出错"))
     finally:
         # 5. Must release capacity and reset UI to purely idle
         await scheduler.release_capacity(ticket)
         # Small delay before resetting to idle to let the "completed" message linger briefly
         await asyncio.sleep(2)
-        event_bus.publish(IdleTaskProgressEvent(session_id=session_id, status="idle", message=" 闲置中"))
+        event_bus.publish(IdleTaskProgressEvent(session_id=session_id, status="idle", message="闲置中"))
 
 
 async def _run_context_compaction(
@@ -445,7 +424,7 @@ async def _run_context_compaction(
             session_id=session_id,
             status="working",
             task_name=task.task_type,
-            message=" Optimizing conversation context...",
+            message="正在优化对话上下文...",
             progress_pct=20,
         )
     )
@@ -473,7 +452,7 @@ async def _run_context_compaction(
                             session_id=session_id,
                             status="working",
                             task_name=task.task_type,
-                            message=" Warming up cache...",
+                            message="正在预热上下文缓存...",
                             progress_pct=70,
                         )
                     )

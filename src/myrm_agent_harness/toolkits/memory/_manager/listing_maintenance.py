@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from myrm_agent_harness.runtime.cognitive_clock.signals import (
+    CooperativePauseSignal,
+)
 from myrm_agent_harness.toolkits.memory._internal.storage import (
     _user_filter,
 )
@@ -189,13 +192,20 @@ class MemoryManagerListingMaintenanceMixin:
         """
         return await strategy.delete_backup(backup_id=backup_id)
 
-    async def run_maintenance_cycle(self, *, force: bool = False) -> MaintenanceReport:
+    async def run_maintenance_cycle(
+        self,
+        *,
+        force: bool = False,
+        pause_signal: CooperativePauseSignal | None = None,
+    ) -> MaintenanceReport:
         """Execute a full maintenance cycle: consolidation → forgetting → staleness review → health check.
 
         Args:
             force: Skip consolidation time gate (should_consolidate check).
                    Use when the caller explicitly requests maintenance, e.g.
                    user says "organize my memories" or after a bulk import.
+            pause_signal: Optional cooperative pause signal. When paused,
+                   subsequent maintenance tasks yield immediately and release locks.
 
         Non-blocking: returns immediately with skipped=True if another cycle
         is already running (via _maintenance_lock).
@@ -211,6 +221,7 @@ class MemoryManagerListingMaintenanceMixin:
             run_consolidation_func=self._run_consolidation_cycle,
             preference_rebuild_func=self._run_preference_rebuild,
             staleness_review_llm=self._consolidation_llm,
+            pause_signal=pause_signal,
         )
 
     async def _run_consolidation_cycle(self, cfg: ConsolidationConfig, force: bool) -> MaintenanceConsolidationResult:

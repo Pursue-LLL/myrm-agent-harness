@@ -5,12 +5,14 @@ from __future__ import annotations
 import logging
 import re
 from datetime import datetime
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from myrm_agent_harness.toolkits.memory._internal.storage import doc_to_episodic
-from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.types import EpisodicMemory, RuleSource
 from myrm_agent_harness.toolkits.vector.base import VectorDocument
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 
 from .types import ARCHIVE_CHECKPOINT_EVENT_TYPE, ArchiveCheckpointRecord
 

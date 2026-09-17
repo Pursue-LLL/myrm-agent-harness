@@ -22,6 +22,10 @@ import logging
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 
+from myrm_agent_harness.runtime.cognitive_clock.signals import (
+    CooperativePauseSignal,
+    get_global_pause_signal,
+)
 from myrm_agent_harness.toolkits.memory._internal.maintenance import (
     compile_claim_graph,
     evaporate_task_digests,
@@ -186,9 +190,12 @@ class MaintenanceService:
         run_consolidation_func: Callable[[ConsolidationConfig, bool], Awaitable[MaintenanceConsolidationResult]],
         preference_rebuild_func: Callable[[], Awaitable[tuple[int, int, int]]] | None = None,
         staleness_review_llm: Callable[[str, str], Awaitable[str]] | None = None,
+        pause_signal: CooperativePauseSignal | None = None,
     ) -> MaintenanceReport:
         if lock.locked():
             return MaintenanceReport(skipped=True, skip_reason="already running")
+
+        effective_pause_signal = pause_signal or get_global_pause_signal()
 
         async with lock:
             start = datetime.now(UTC)
@@ -201,8 +208,51 @@ class MaintenanceService:
             consolidation_insights: tuple[str, ...] = ()
             digests_evaporated = 0
             claims_compiled = 0
+            forgotten_count = 0
+            archived_count = 0
+            blobs_swept = 0
+            staleness_reviewed, staleness_removed, staleness_extended = 0, 0, 0
+            pref_promoted, pref_demoted, pref_dropped = 0, 0, 0
+
+            def _build_interrupted_report(phase: str) -> MaintenanceReport:
+                reason = effective_pause_signal.pause_reason if effective_pause_signal else "user_activity"
+                return MaintenanceReport(
+                    consolidation_merged=consolidation_merged,
+                    consolidation_corrected=consolidation_corrected,
+                    consolidation_updated=consolidation_updated,
+                    consolidation_errors=consolidation_errors,
+                    digests_evaporated=digests_evaporated,
+                    claims_compiled=claims_compiled,
+                    forgotten_count=forgotten_count,
+                    archived_count=archived_count,
+                    staleness_reviewed=staleness_reviewed,
+                    staleness_removed=staleness_removed,
+                    staleness_extended=staleness_extended,
+                    blobs_swept=blobs_swept,
+                    neglected_memories=(),
+                    insights=consolidation_insights,
+                    before=before,
+                    after=None,
+                    health=None,
+                    duration_ms=(datetime.now(UTC) - start).total_seconds() * 1000,
+                    skipped=True,
+                    skip_reason=f"paused: {reason} before {phase}",
+                    interrupted_by_pause=True,
+                )
+
+            def _should_yield(phase: str) -> bool:
+                if effective_pause_signal is not None and effective_pause_signal.is_pause_requested:
+                    logger.info(
+                        "Maintenance cycle cooperatively yielded before %s (reason: %s)",
+                        phase,
+                        effective_pause_signal.pause_reason,
+                    )
+                    return True
+                return False
 
             if consolidation_enabled:
+                if _should_yield("consolidation"):
+                    return _build_interrupted_report("consolidation")
                 try:
                     consolidation = await run_consolidation_func(self._config.consolidation, force)
                     consolidation_merged = consolidation.merged
@@ -214,15 +264,16 @@ class MaintenanceService:
                     logger.warning("Maintenance consolidation failed: %s", exc)
                     consolidation_errors = 1
 
-            forgotten_count = 0
-            archived_count = 0
-            blobs_swept = 0
             if self._vector is not None:
+                if _should_yield("blob_gc"):
+                    return _build_interrupted_report("blob_gc")
                 try:
                     blobs_swept = await sweep_orphaned_blobs(self._vector, self._config)
                 except Exception as exc:
                     logger.warning("Maintenance blob GC failed: %s", exc)
 
+                if _should_yield("digest_evaporation"):
+                    return _build_interrupted_report("digest_evaporation")
                 try:
                     digests_evaporated = await evaporate_task_digests(
                         self._vector,
@@ -233,6 +284,8 @@ class MaintenanceService:
                     logger.warning("Maintenance digest evaporation failed: %s", exc)
 
                 if self._graph is not None:
+                    if _should_yield("claim_graph"):
+                        return _build_interrupted_report("claim_graph")
                     try:
                         claims_compiled = await compile_claim_graph(
                             self._vector,
@@ -243,6 +296,8 @@ class MaintenanceService:
                     except Exception as exc:
                         logger.warning("Maintenance claim graph compilation failed: %s", exc)
 
+                if _should_yield("forgetting"):
+                    return _build_interrupted_report("forgetting")
                 try:
                     forgetting = await run_forgetting(
                         self._vector,
@@ -256,8 +311,9 @@ class MaintenanceService:
                 except Exception as exc:
                     logger.warning("Maintenance forgetting failed: %s", exc)
 
-            staleness_reviewed, staleness_removed, staleness_extended = 0, 0, 0
             if staleness_review_llm is not None and self._vector is not None:
+                if _should_yield("staleness_review"):
+                    return _build_interrupted_report("staleness_review")
                 try:
                     all_for_staleness = await scroll_all_memories_func()
                     staleness_reviewed, staleness_removed, staleness_extended = await self._run_staleness_review(
@@ -266,8 +322,9 @@ class MaintenanceService:
                 except Exception as exc:
                     logger.warning("Maintenance staleness review failed: %s", exc)
 
-            pref_promoted, pref_demoted, pref_dropped = 0, 0, 0
             if preference_rebuild_func is not None:
+                if _should_yield("preference_rebuild"):
+                    return _build_interrupted_report("preference_rebuild")
                 try:
                     pref_promoted, pref_demoted, pref_dropped = await preference_rebuild_func()
                     if pref_promoted or pref_demoted or pref_dropped:
@@ -279,6 +336,9 @@ class MaintenanceService:
                         )
                 except Exception as exc:
                     logger.warning("Maintenance preference rebuild failed: %s", exc)
+
+            if _should_yield("health_and_neglected"):
+                return _build_interrupted_report("health_and_neglected")
 
             after = await collect_snapshot_func()
 
