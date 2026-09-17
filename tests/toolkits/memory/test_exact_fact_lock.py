@@ -86,6 +86,19 @@ class TestExactFactClassifier:
         assert is_exact is False
         assert len(idents) == 0
 
+    def test_metadata_override_and_short_text(self) -> None:
+        assert ExactFactClassifier.is_exact_fact("", metadata={"is_exact_fact": True}) is True
+        assert (
+            ExactFactClassifier.is_exact_fact(
+                "UUID 123e4567-e89b-12d3-a456-426614174000",
+                metadata={"is_exact_fact": False},
+            )
+            is False
+        )
+        assert ExactFactClassifier.classify("", metadata={"is_exact_fact": True})[0] is True
+        assert ExactFactClassifier.extract_identifiers("hi") == []
+        assert ExactFactClassifier.extract_identifiers("") == []
+
 
 class TestExactFactMemoryProtection:
     def test_base_memory_protection_flag(self) -> None:
@@ -151,6 +164,35 @@ class TestExactFactSQLiteStore:
             results_after = await store.search_fts5("123e4567-e89b-12d3-a456-426614174000", limit=5)
             assert len(results_after) == 0
 
+            await store.close()
+
+    @pytest.mark.asyncio
+    async def test_record_exact_fact_empty_identifiers_and_fts_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = str(Path(tmpdir) / "test_memory_edge.db")
+            store = SQLiteRelationalStore(db_path=db_path)
+
+            # Record with empty identifiers -> should safely return without error
+            await store.record_exact_fact(
+                memory_id="empty_fact",
+                user_id="user_test",
+                content="Just some regular text",
+                identifiers=[],
+            )
+
+            # Record with text and test FTS5 fallback query
+            await store.record_exact_fact(
+                memory_id="fts_fallback_fact",
+                user_id="user_test",
+                content="SpecialKeywordKubernetesDeploymentCluster",
+                identifiers=["9090"],
+            )
+            # Query word in content that triggers FTS5 fallback search
+            results = await store.search_fts5("SpecialKeywordKubernetesDeploymentCluster", limit=5)
+            assert any(r.id == "fts_fallback_fact" for r in results)
+
+            # Delete non-existing ID should not raise
+            await store.delete_exact_fact("non_existing_id")
             await store.close()
 
 
