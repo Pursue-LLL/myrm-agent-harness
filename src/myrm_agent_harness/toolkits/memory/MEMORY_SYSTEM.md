@@ -641,8 +641,10 @@ retention = 0.35 × time_score + 0.25 × access_score + 0.15 × importance_score
   - WebUI/管理员操作：`allow_pinned=True`（默认），可正常删除
 - `is_user_locked=True` 的规则豁免（用户显式背书）：
   - Agent 工具删除（`memory_manage` / MCP `memory_manage`）：`allow_pinned=False` 时拒绝删除并返回明确拒绝消息
+  - Agent 工具改写（`memory_manage(action=update)` / MCP 同名动作）：拒绝改写正文，提示先请用户解锁（`agent_surface/rule_write_boundary.py`）；WebUI 编辑路径不受限，用户始终可改自己的规则
   - 蒸馏/合并/遗忘/规则 TTL 归档：跳过
   - WebUI 删除、导入回滚、归档回滚等系统级路径：`allow_pinned=True`（默认），可正常删除
+  - stable 预算截断：背书规则排在规则段最前，最后被截断
 - 创建 7 天内的记忆不遗忘
 - importance ≥ 0.9 的记忆受保护
 - 最近 7 天内访问过的记忆受保护
@@ -712,11 +714,13 @@ result = await extractor.extract(messages=messages)
 
 **优先级层级**（`ToolRulePriority`）：
 
-| 级别 | 来源 | 注入位置 | 压缩抗性 |
+| 级别 | 来源 | 注入位置 | 生命周期 |
 |------|------|---------|---------|
-| CRITICAL | 用户显式禁令 | stable_sections | 免压缩 |
-| HIGH | 用户强偏好 | stable_sections | 免压缩 |
+| CRITICAL | 用户显式禁令 | stable_sections | 免 TTL 归档；预算存活仍取决于 `is_user_locked` |
+| HIGH | 用户强偏好 | stable_sections | 与 NORMAL 同一 stable 预算，可被截断 |
 | NORMAL | 自动推断/失败 | untrusted_sections（按需检索） | 可压缩 |
+
+> 预算截断只按「section 优先级 + 用户背书（`user_endorsed`）」排序，不按 `ToolRulePriority` 分级；因此稳定层的规则不会被截断，而 `is_user_locked` 规则排在规则段最前、最后被截断。
 
 ```python
 from myrm_agent_harness.toolkits.memory import ToolMemoryCaptureHook, MemorySession
