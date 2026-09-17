@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Literal
 from myrm_agent_harness.core.hooks import HookRegistryProtocol
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.types import (
+    ARCHIVE_RETENTION_DAYS,
     AnyMemory,
     EpisodicMemory,
     MemorySearchResult,
@@ -45,10 +46,11 @@ class ReadOnlyMemoryView(MemoryManager):
     """Read-only proxy over a parent MemoryManager.
 
     Delegates all read operations (search, get_context, get_memory, etc.) to
-    the parent.  Every write/mutate operation (28 methods total) unconditionally
-    raises PermissionError, providing type-system-level enforcement of the
+    the parent.  Every write/mutate operation unconditionally raises
+    PermissionError, providing type-system-level enforcement of the
     READ_ONLY_GLOBAL isolation policy — even if new write tools or code paths
-    are added in the future.
+    are added in the future. When a new write method lands on MemoryManager,
+    override it here with ``_deny()`` so the invariant stays intact.
     """
 
     def __init__(self, parent: MemoryManager) -> None:
@@ -163,9 +165,17 @@ class ReadOnlyMemoryView(MemoryManager):
         self._deny()
         return 0
 
-    async def delete_rule(self, rule_id: str) -> bool:
+    async def delete_rule(self, rule_id: str, *, allow_protected: bool = True) -> bool:
         self._deny()
         return False
+
+    async def purge_expired_archived_memories(self, *, ttl_days: int = ARCHIVE_RETENTION_DAYS) -> int:
+        self._deny()
+        return 0
+
+    async def purge_expired_archived_rules(self, *, ttl_days: int = ARCHIVE_RETENTION_DAYS) -> int:
+        self._deny()
+        return 0
 
     async def delete_all(self) -> dict[str, int]:
         self._deny()

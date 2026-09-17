@@ -322,8 +322,8 @@ class TestRuntimePoolReal:
         return pool
 
     @pytest.mark.asyncio
-    async def test_pool_routes_mcp_env_to_sdk_bridge(self) -> None:
-        """pool.run_turn(mcp_servers=...) must forward env to the SDK bridge child."""
+    async def test_pool_mcp_env_reaches_child_process(self) -> None:
+        """Per-call mcp_servers env must reach a real child process over the pool."""
         bridge = (
             "import sys,json;"
             "line=sys.stdin.readline();"
@@ -333,9 +333,9 @@ class TestRuntimePoolReal:
         )
         pool = RuntimePool(max_concurrent=1)
         pool.register(
-            "sdk-bridge",
+            "cli-bridge",
             RuntimeConfig(
-                backend_type="sdk",
+                backend_type="cli",
                 command=sys.executable,
                 args=["-c", bridge],
                 timeout_seconds=30,
@@ -346,9 +346,9 @@ class TestRuntimePoolReal:
             events = [
                 e
                 async for e in pool.run_turn(
-                    "sdk-bridge",
+                    "cli-bridge",
                     "hello",
-                    "pool-sdk-env-s1",
+                    "pool-cli-env-s1",
                     mcp_servers=[
                         McpServerConfig(
                             name="search",
@@ -370,7 +370,7 @@ class TestRuntimePoolReal:
 
     @pytest.mark.asyncio
     async def test_pool_mcp_forwarded_from_config_mcp_servers(self) -> None:
-        """RuntimeConfig.mcp_servers must flow to the bridge when no per-call servers."""
+        """RuntimeConfig.mcp_servers must flow to the child when no per-call servers."""
         bridge = (
             "import sys,json;"
             "line=sys.stdin.readline();"
@@ -380,9 +380,9 @@ class TestRuntimePoolReal:
         )
         pool = RuntimePool(max_concurrent=1)
         pool.register(
-            "sdk-cfg-mcp",
+            "cli-cfg-mcp",
             RuntimeConfig(
-                backend_type="sdk",
+                backend_type="cli",
                 command=sys.executable,
                 args=["-c", bridge],
                 timeout_seconds=30,
@@ -397,7 +397,7 @@ class TestRuntimePoolReal:
             ),
         )
         try:
-            events = [e async for e in pool.run_turn("sdk-cfg-mcp", "hello", "pool-sdk-cfg-s1")]
+            events = [e async for e in pool.run_turn("cli-cfg-mcp", "hello", "pool-cli-cfg-s1")]
             text = "".join(
                 e.data["content"]
                 for e in events

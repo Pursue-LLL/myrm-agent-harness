@@ -1022,7 +1022,7 @@ class TestCliRuntimeVerboseAndPrompt:
 
     @pytest.mark.asyncio
     async def test_prompt_appended_as_positional_when_no_p_flag(self) -> None:
-        rt = CliRuntime("test", _make_config(args=["--output-format", "stream-json"]))
+        rt = CliRuntime("test", _make_config(command="generic-agent", args=["--output-format", "stream-json"]))
 
         mock_proc = MagicMock()
         mock_proc.returncode = None
@@ -1394,11 +1394,14 @@ class TestCliRuntimeMcpIgnored:
     @pytest.mark.asyncio
     async def test_live_codex_cli_turn(self) -> None:
         """Live test invoking local codex binary via CliRuntime if present."""
+        import os
         import shutil
 
         codex_path = shutil.which("codex")
         if not codex_path:
             pytest.skip("Local codex binary not found on PATH")
+        if not os.environ.get("OPENAI_API_KEY"):
+            pytest.skip("OPENAI_API_KEY not configured for live codex CLI turn")
 
         cfg = RuntimeConfig(
             backend_type="cli",
@@ -1439,8 +1442,8 @@ class TestCliRuntimeMcpIgnored:
         assert len(rt._cli_session_ids) == 512
 
     @pytest.mark.asyncio
-    async def test_non_interactive_flags_auto_injected_in_allow_all_mode(self) -> None:
-        """CliRuntime automatically injects non-interactive flags for known CLIs when permission_mode is allow_all."""
+    async def test_permission_mode_args_resolved_per_backend(self) -> None:
+        """CliRuntime resolves permission args from the mode, for every backend."""
         mock_proc = AsyncMock()
         mock_proc.returncode = 0
         mock_proc.stdout = AsyncMock()
@@ -1449,34 +1452,40 @@ class TestCliRuntimeMcpIgnored:
         mock_proc.stderr.read.return_value = b""
         mock_proc.wait.return_value = 0
 
-        # 1. Claude CLI auto injects --dangerously-skip-permissions
-        rt_claude = CliRuntime("claude-builder", _make_config(command="claude", permission_mode="allow_all"))
-        with patch("asyncio.create_subprocess_exec", return_value=mock_proc) as mock_exec:
-            events = [e async for e in rt_claude._do_run_turn("test prompt", "s1")]
-            call_args = mock_exec.call_args[0]
-            assert "--dangerously-skip-permissions" in call_args
+        async def _spawn_args(config) -> tuple:
+            rt = CliRuntime("probe", config)
+            with patch("asyncio.create_subprocess_exec", return_value=mock_proc) as mock_exec:
+                _ = [e async for e in rt._do_run_turn("test prompt", "s1")]
+                return mock_exec.call_args[0]
 
-        # 2. Codex CLI auto injects --full-auto
-        rt_codex = CliRuntime("codex-builder", _make_config(command="codex", permission_mode="bypass"))
-        with patch("asyncio.create_subprocess_exec", return_value=mock_proc) as mock_exec:
-            events = [e async for e in rt_codex._do_run_turn("test prompt", "s2")]
-            call_args = mock_exec.call_args[0]
-            assert "--full-auto" in call_args
+        # 1. allow_all grants full autonomy, via the backend's own non-interactive flag.
+        claude_args = await _spawn_args(_make_config(command="claude", permission_mode="allow_all"))
+        assert "--dangerously-skip-permissions" in claude_args
 
-        # 3. Safe mode does NOT inject non-interactive flags
-        rt_safe = CliRuntime("claude-safe", _make_config(command="claude", permission_mode="safe"))
-        with patch("asyncio.create_subprocess_exec", return_value=mock_proc) as mock_exec:
-            events = [e async for e in rt_safe._do_run_turn("test prompt", "s3")]
-            call_args = mock_exec.call_args[0]
-            assert "--dangerously-skip-permissions" not in call_args
+        # 2. safe is read-only and never carries an autonomy flag.
+        claude_safe = await _spawn_args(_make_config(command="claude", permission_mode="safe"))
+        assert "--permission-mode" in claude_safe
+        assert claude_safe[claude_safe.index("--permission-mode") + 1] == "dontAsk"
+        assert "--dangerously-skip-permissions" not in claude_safe
 
-        # 4. Duplicate flags are not injected if already present
-        rt_dup = CliRuntime(
-            "codex-dup",
-            _make_config(command="codex", args=["--full-auto"], permission_mode="allow_all"),
+        # 3. codex uses the sandbox selector, not the removed --full-auto flag.
+        codex_safe = await _spawn_args(_make_config(command="codex", permission_mode="safe"))
+        assert codex_safe[codex_safe.index("-s") + 1] == "read-only"
+        assert "--full-auto" not in codex_safe
+
+        # 4. bypass maps to codex's documented bypass flag.
+        codex_bypass = await _spawn_args(_make_config(command="codex", permission_mode="bypass"))
+        assert "--dangerously-bypass-approvals-and-sandbox" in codex_bypass
+
+        # 5. A mode-owned flag supplied by the config is replaced, never duplicated,
+        #    because codex's clap rejects a repeated single-value -s.
+        codex_dup = await _spawn_args(
+            _make_config(command="codex", args=["exec", "--json", "-s", "read-only"], permission_mode="allow_all"),
         )
-        with patch("asyncio.create_subprocess_exec", return_value=mock_proc) as mock_exec:
-            events = [e async for e in rt_dup._do_run_turn("test prompt", "s4")]
-            call_args = mock_exec.call_args[0]
-            assert call_args.count("--full-auto") == 1
+        assert codex_dup.count("-s") == 1
+        assert codex_dup[codex_dup.index("-s") + 1] == "workspace-write"
+
+        # 6. Unknown CLIs never have flags stripped: we own no contract for them.
+        custom = await _spawn_args(_make_config(command="my-agent", args=["-s", "--silent"], permission_mode="safe"))
+        assert list(custom) == ["my-agent", "-s", "--silent", "test prompt"]
 

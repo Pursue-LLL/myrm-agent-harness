@@ -1,7 +1,8 @@
-"""Unit tests for proxy validation, masking, and health probe utilities."""
-
+import time
+import urllib.parse
 from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
 
 from myrm_agent_harness.toolkits.llms.utils.proxy import (
@@ -284,5 +285,101 @@ async def test_probe_proxy_health_caching_and_ttl() -> None:
         assert ok3 is True
         assert err3 is None
         assert mock_head.call_count == 2
+
+
+def test_sanitize_proxy_error_url_encoded_password() -> None:
+    from myrm_agent_harness.toolkits.llms.utils.proxy import _sanitize_proxy_error
+
+    raw_proxy = "http://user:p%40ss%3Aword@proxy.domain.com:8080"
+    raw_error = "ConnectError to http://user:p%40ss%3Aword@proxy.domain.com:8080 failed"
+    sanitized = _sanitize_proxy_error(raw_error, raw_proxy)
+    assert "p%40ss%3Aword" not in sanitized
+    assert "http://user:***@proxy.domain.com:8080" in sanitized
+
+
+def test_mask_proxy_url_invalid_url_fallback() -> None:
+    with patch("myrm_agent_harness.toolkits.llms.utils.proxy.urlparse", side_effect=ValueError("corrupt netloc")):
+        masked = mask_proxy_url("http://user:pass@invalid:99999999")
+        assert masked == "<invalid-proxy-url>"
+
+
+def test_validate_proxy_url_exception_handling() -> None:
+    with patch("myrm_agent_harness.toolkits.llms.utils.proxy.urlparse", side_effect=ValueError("bad url structure")):
+        is_valid, err = validate_proxy_url("http://bad-proxy:8080")
+        assert is_valid is False
+        assert err is not None and "Invalid proxy URL" in err
+
+
+@pytest.mark.asyncio
+async def test_probe_proxy_health_edge_cases() -> None:
+    # Empty URL
+    ok, err = await probe_proxy_health("")
+    assert ok is False
+    assert err == "Proxy URL cannot be empty"
+
+    # Unsupported target scheme
+    ok, err = await probe_proxy_health("http://127.0.0.1:7890", target_url="ftp://ftp.example.com")
+    assert ok is False
+    assert err is not None and "Unsupported probe target scheme" in err
+
+    # Target URL missing hostname
+    ok, err = await probe_proxy_health("http://127.0.0.1:7890", target_url="http://")
+    assert ok is False
+    assert err is not None and "missing hostname" in err
+
+    # Target URL exception
+    orig_urlparse = urllib.parse.urlparse
+
+    def _urlparse_side_effect(url: str, *args: object, **kwargs: object) -> urllib.parse.ParseResult:
+        if url == "http://fail-target":
+            raise ValueError("bad target")
+        return orig_urlparse(url, *args, **kwargs)
+
+    with patch("myrm_agent_harness.toolkits.llms.utils.proxy.urlparse", side_effect=_urlparse_side_effect):
+        ok, err = await probe_proxy_health("http://127.0.0.1:7890", target_url="http://fail-target")
+        assert ok is False
+        assert err is not None and "Invalid probe target URL" in err
+
+    # ConnectTimeout
+    with patch("httpx.AsyncClient.head", new_callable=AsyncMock) as mock_head:
+        mock_head.side_effect = httpx.ConnectTimeout("connection timed out")
+        ok, err = await probe_proxy_health("http://127.0.0.1:7890", target_url="https://1.1.1.1", cache_ttl_s=0.0)
+        assert ok is False
+        assert err == "Proxy connection timed out"
+
+    # Unexpected HTTP status (e.g., 101 Switching Protocols)
+    with patch("httpx.AsyncClient.head", new_callable=AsyncMock) as mock_head:
+        resp = AsyncMock()
+        resp.status_code = 101
+        mock_head.return_value = resp
+        ok, err = await probe_proxy_health("http://127.0.0.1:7890", target_url="https://1.1.1.1", cache_ttl_s=0.0)
+        assert ok is False
+        assert err is not None and "unexpected HTTP 101" in err
+
+
+@pytest.mark.asyncio
+async def test_probe_proxy_health_cache_eviction() -> None:
+    from myrm_agent_harness.toolkits.llms.utils.proxy import _PROBE_CACHE_MAX_ENTRIES, _probe_cache
+
+    clear_proxy_probe_cache()
+    mock_resp = AsyncMock()
+    mock_resp.status_code = 200
+
+    with patch("httpx.AsyncClient.head", new_callable=AsyncMock) as mock_head:
+        mock_head.return_value = mock_resp
+
+        # Fill cache to capacity with expired entries
+        for i in range(_PROBE_CACHE_MAX_ENTRIES):
+            _probe_cache[(f"http://127.0.0.1:{10000 + i}", "https://1.1.1.1")] = (
+                time.monotonic() - 100.0,
+                True,
+                None,
+            )
+
+        # Probing a new URL triggers eviction of expired entries
+        ok, _ = await probe_proxy_health("http://127.0.0.1:9999", target_url="https://1.1.1.1", cache_ttl_s=60.0)
+        assert ok is True
+        assert ("http://127.0.0.1:9999", "https://1.1.1.1") in _probe_cache
+
 
 

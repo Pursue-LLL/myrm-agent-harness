@@ -1,4 +1,4 @@
-"""Shared NDJSON event parsers for CLI and SDK runtimes.
+"""Shared NDJSON event parsers for CLI runtimes.
 
 Provides common parsing logic for tool_use, tool_result, usage, and error
 events. Each runtime delegates to these shared parsers for identical event

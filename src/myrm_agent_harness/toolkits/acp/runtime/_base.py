@@ -1,6 +1,6 @@
 """Base class for RuntimeBackend implementations.
 
-Encapsulates common logic shared by AcpRuntime, SdkRuntime, and CliRuntime:
+Encapsulates common logic shared by AcpRuntime and CliRuntime:
 environment variable sanitization, timeout control, and response truncation.
 
 [INPUT]

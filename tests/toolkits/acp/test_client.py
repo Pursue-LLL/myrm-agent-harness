@@ -1054,14 +1054,6 @@ class TestRuntimePoolFactory:
         assert rt.name == "test"
         assert rt.capabilities.supports_resume is False
 
-    def test_create_sdk_runtime(self) -> None:
-        from myrm_agent_harness.toolkits.acp.runtime.pool import _create_runtime
-
-        cfg = RuntimeConfig(backend_type="sdk", command="claude")
-        rt = _create_runtime("test", cfg)
-        assert rt.name == "test"
-        assert rt.capabilities.supports_mcp is True
-
     def test_unknown_backend_type_raises(self) -> None:
         from myrm_agent_harness.toolkits.acp.runtime.pool import _create_runtime
 

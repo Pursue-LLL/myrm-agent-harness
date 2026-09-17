@@ -9,6 +9,7 @@ from myrm_agent_harness.toolkits.memory._manager.shared import (
     UTC,
     AnyMemory,
     ConversationMemory,
+    EmbeddingProtocol,
     EpisodicMemory,
     MemoryError,
     MemoryNotFoundError,

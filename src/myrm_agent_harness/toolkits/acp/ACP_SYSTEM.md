@@ -23,8 +23,7 @@
 ║  Server 层 (server/)           ║  Runtime 层 (runtime/)         ║
 ║  server.py                    ║  RuntimeBackend Protocol       ║
 ║  bridge.py                    ║  ├─ AcpRuntime + AcpCallback   ║
-║  event_translator.py          ║  ├─ SdkRuntime                 ║
-║  __main__.py (根)             ║  └─ CliRuntime                 ║
+║  event_translator.py          ║  └─ CliRuntime                 ║
 ╠═══════════════════════════════╩═══════════════════════════════╣
 ║                    横切关注点 (core/)                          ║
 ║  types.py · core/EventBus · core/PermissionManager           ║
@@ -69,7 +68,6 @@ RuntimeBackend (Protocol)
 | Runtime | 协议 | 参考项目 | 适用场景 |
 |---------|------|---------|---------|
 | AcpRuntime | ACP JSON-RPC (stdin/stdout) | openclaw, zeroclaw | 需 ACP 桥接器（claude-agent-acp / acpx），原生 CLI 不支持 ACP |
-| SdkRuntime | Claude Agent SDK `query()` API | craft-agents-oss, LobsterAI | 直接 SDK 集成 |
 | CliRuntime | spawn CLI + NDJSON 解析（含 reasoning/usage） | ironclaw, nullclaw, picoclaw | Claude/Codex/Gemini CLI（推荐，开箱即用） |
 
 **BackendInfo**：
@@ -230,7 +228,7 @@ RuntimePool(*, max_concurrent: int = 4, enable_health_monitor: bool = False)
 ```
 
 **要点**：
-- `RuntimeConfig.backend_type` 选择 `AcpRuntime` / `SdkRuntime` / `CliRuntime`
+- `RuntimeConfig.backend_type` 选择 `AcpRuntime` / `CliRuntime`
 - `max_concurrent` 限制同时执行的委托任务数，避免进程与文件句柄耗尽
 - `prompt()` 委托给 `run_turn()`，并发控制统一在 `run_turn()` 层
 - `enable_health_monitor=True` 时自动创建 HealthMonitor，后端创建时自动注册
@@ -340,7 +338,6 @@ acp/
 │   ├── _spawn_hints.py     # 裸 CLI 启动失败提示（错误消息生成）
 │   ├── acp_runtime.py      # ACP 子进程 + JSON-RPC
 │   ├── acp_callback.py     # ACP 回调处理器
-│   ├── sdk_runtime.py      # SDK bridge
 │   ├── cli_runtime.py      # CLI + NDJSON（Claude stream-json / Codex item.* 新格式 + legacy 兼容）+ --resume session 复用
 │   └── pool.py             # RuntimePool
 └── toolchains/             # 隔离工具链（Node/npm）
@@ -348,7 +345,7 @@ acp/
     └── manager.py          # ToolchainManager
 ```
 
-`toolkits/acp/acp_agent_tools.py` 通过 `RuntimePool` 发起委托，汇总 `USAGE_UPDATE` 事件的 token 消耗并推送至前端。`runtime/_parser.py` 提供 `CliRuntime` 和 `SdkRuntime` 共享的 NDJSON 事件解析逻辑（tool_use / tool_result / usage / error / thinking）。`cli_runtime.py` 支持 Codex CLI 两种输出格式：新格式（`item.started/completed` + `turn.completed/failed`，含 `command_execution`、`file_change`、`reasoning` 工具事件映射）和 legacy 格式（`{"id","msg"}` envelope 解包）。
+`toolkits/acp/acp_agent_tools.py` 通过 `RuntimePool` 发起委托，汇总 `USAGE_UPDATE` 事件的 token 消耗并推送至前端。`runtime/_parser.py` 提供 `CliRuntime` 使用的 NDJSON 事件解析逻辑（tool_use / tool_result / usage / error / thinking）。`cli_runtime.py` 支持 Codex CLI 两种输出格式：新格式（`item.started/completed` + `turn.completed/failed`，含 `command_execution`、`file_change`、`reasoning` 工具事件映射）和 legacy 格式（`{"id","msg"}` envelope 解包）。
 
 ---
 
@@ -383,7 +380,6 @@ acp/
 | runtime/_base.py | 基类 | 环境清理、超时、截断 = 自我保护 |
 | runtime/acp_runtime.py | 实现 | ACP 协议后端 |
 | runtime/cli_runtime.py | 实现 | CLI spawn 后端 |
-| runtime/sdk_runtime.py | 实现（可选依赖） | SDK 集成后端 |
 | runtime/pool.py | 管理器 | 单实例内多后端管理 |
 | core/event_bus.py | 事件系统 | 类似生命周期钩子，业务层订阅 |
 | core/permission.py | Protocol + 默认实现 | DefaultPermissionManager（4 模式 + 白名单） |
@@ -433,8 +429,8 @@ acp/
 - **CLI Session 复用**：`CliRuntime` 捕获 CLI 返回的 session_id，后续调用自动注入 `--resume` 参数，实现多轮对话上下文保持（支持 claude CLI）；**resume 失效自愈**——注入 `--resume` 后进程无输出崩溃（PROCESS_CRASHED）时自动丢弃失效 session_id，重试降级开新会话，避免拿着过期 id 二次失败
 - **Per-backend 并发串行化**：`RuntimePool.run_turn` 在全局 Semaphore 之外对同一 backend 增 per-backend `asyncio.Lock`，保证单后端实例（如 CliRuntime 的可变进程句柄）同时只跑一个 turn；`cancel()` 不取该锁（调用方在 turn 循环内取消，无死锁），不同 backend 仍可并行
 - **超时/异常进程清理**：`BaseRuntime.run_turn` 在超时或意外异常分支先 `cancel()` 再产出 ERROR 事件，终止可能仍存活的外部 CLI 进程，杜绝超时后孤儿进程在后台继续消耗资源
-- **失败路径统一 ERROR**：`AcpRuntime._do_run_turn` 的 prompt 失败会 re-raise（不被 finally 吞掉），与 CliRuntime/SdkRuntime 一致地由 `run_turn` 转为 ERROR 事件并清理进程——避免失败被静默降级为 DONE 事件导致 delegate 误判成功
-- **NDJSON 解析器模块化**：`_parser.py` 提取 CLI/SDK 共享的解析逻辑，消除代码重复
+- **失败路径统一 ERROR**：`AcpRuntime._do_run_turn` 的 prompt 失败会 re-raise（不被 finally 吞掉），与 CliRuntime 一致地由 `run_turn` 转为 ERROR 事件并清理进程——避免失败被静默降级为 DONE 事件导致 delegate 误判成功
+- **NDJSON 解析器模块化**：`_parser.py` 提取 CLI 共享的解析逻辑，消除代码重复
 - **Delegate 元数据 TypedDict**：`DelegateUsage` / `DelegateMeta` 提供精确的类型提示
 - **直连模式 Session 隔离**：基于 `chat_id` 生成独立 `session_id`，不同对话的外部 Agent 上下文互不干扰
 - **直连模式 TOOL_RESULT 事件**：展示外部 Agent 工具执行结果（成功/失败状态）
@@ -471,7 +467,6 @@ acp/
 | P1 | runtime/cli_runtime.py（CLI 后端） | 中 | types.py, _base.py, core/event_bus.py |
 | P2 | core/backend_detector.py（自动检测） | 低 | 无 |
 | P2 | core/health_monitor.py（健康监控） | 低 | core/event_bus.py |
-| P2 | runtime/sdk_runtime.py（SDK 后端） | 高 | types.py, _base.py, core/permission.py |
 ---
 
 ## 9. 方案完美性评估
@@ -499,4 +494,4 @@ acp/
 17. **MCP 注入能力守卫**：`supports_mcp` 在 `RuntimePool` 层统一校验，杜绝竞品（qwen-audio）「向不支持的 ACP 后端注入 MCP 导致 session 崩溃」同类缺陷；直接调用 `CliRuntime` 与 ACP Server 侧 host MCP 均显式告警，防御路径零静默降级
 
 **已知局限**：
-- SdkRuntime 依赖外部 SDK 版本兼容性（不可避免的外部风险，不影响评分）
+- 外部 CLI 的权限语义受其自身命令行契约限制，无法表达交互式逐次询问

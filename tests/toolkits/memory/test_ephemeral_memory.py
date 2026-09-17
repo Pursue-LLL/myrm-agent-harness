@@ -99,6 +99,18 @@ class TestReadOnlyMemoryViewWriteDenied:
             await view.delete_all()
 
     @pytest.mark.asyncio
+    async def test_purge_expired_archived_memories_denied(self):
+        view = self._make_view()
+        with pytest.raises(PermissionError, match="READ_ONLY_GLOBAL"):
+            await view.purge_expired_archived_memories()
+
+    @pytest.mark.asyncio
+    async def test_purge_expired_archived_rules_denied(self):
+        view = self._make_view()
+        with pytest.raises(PermissionError, match="READ_ONLY_GLOBAL"):
+            await view.purge_expired_archived_rules()
+
+    @pytest.mark.asyncio
     async def test_delete_by_type_denied(self):
         view = self._make_view()
         with pytest.raises(PermissionError, match="READ_ONLY_GLOBAL"):
