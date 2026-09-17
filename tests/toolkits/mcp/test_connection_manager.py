@@ -93,12 +93,16 @@ class TestMCPConnection:
         assert connection.metrics.use_count == 0
         assert connection.metrics.error_count == 0
 
-    def test_tools_and_instructions_by_server(self, connection: MCPConnection, actor: _FakeActor) -> None:
+    def test_tools_and_instructions_by_server(
+        self, connection: MCPConnection, actor: _FakeActor
+    ) -> None:
         assert connection.tools_by_server == {"server_a": actor.tools}
         assert connection.instructions_by_server == {"server_a": "hello"}
 
     @pytest.mark.asyncio
-    async def test_call_routes_to_actor_and_updates_metrics(self, connection: MCPConnection, actor: _FakeActor) -> None:
+    async def test_call_routes_to_actor_and_updates_metrics(
+        self, connection: MCPConnection, actor: _FakeActor
+    ) -> None:
         result = await connection.call("server_a", "do_thing", {"x": 1})
         assert result == "result:do_thing"
         assert actor.calls == [("do_thing", {"x": 1})]
@@ -157,7 +161,9 @@ class TestMCPConnection:
         assert stats["servers"] == ["server_a"]
         assert "error_rate" in stats
 
-    def test_is_bound_to_current_loop_outside_loop(self, connection: MCPConnection) -> None:
+    def test_is_bound_to_current_loop_outside_loop(
+        self, connection: MCPConnection
+    ) -> None:
         # Constructed without a running loop (sync fixture) → not bound.
         assert connection.is_bound_to_current_loop() is False
 
@@ -187,34 +193,50 @@ class TestMCPConnectionManager:
         MCPConnectionManager._instance = None
         return MCPConnectionManager(ttl=600, cleanup_interval=60)
 
-    def test_make_config_hash_deterministic(self, manager: MCPConnectionManager) -> None:
+    def test_make_config_hash_deterministic(
+        self, manager: MCPConnectionManager
+    ) -> None:
         configs = [_FakeConfig(name="a"), _FakeConfig(name="b")]
         assert manager._make_config_hash(configs) == manager._make_config_hash(configs)
 
-    def test_make_config_hash_different_for_different_configs(self, manager: MCPConnectionManager) -> None:
-        assert manager._make_config_hash([_FakeConfig(name="a")]) != manager._make_config_hash([_FakeConfig(name="b")])
+    def test_make_config_hash_different_for_different_configs(
+        self, manager: MCPConnectionManager
+    ) -> None:
+        assert manager._make_config_hash(
+            [_FakeConfig(name="a")]
+        ) != manager._make_config_hash([_FakeConfig(name="b")])
 
-    def test_make_config_hash_order_independent(self, manager: MCPConnectionManager) -> None:
+    def test_make_config_hash_order_independent(
+        self, manager: MCPConnectionManager
+    ) -> None:
         c1 = [_FakeConfig(name="a"), _FakeConfig(name="b")]
         c2 = [_FakeConfig(name="b"), _FakeConfig(name="a")]
         assert manager._make_config_hash(c1) == manager._make_config_hash(c2)
 
-    def test_make_config_hash_distinguishes_args(self, manager: MCPConnectionManager) -> None:
+    def test_make_config_hash_distinguishes_args(
+        self, manager: MCPConnectionManager
+    ) -> None:
         a = [_FakeConfig(name="x", args=["1"])]
         b = [_FakeConfig(name="x", args=["2"])]
         assert manager._make_config_hash(a) != manager._make_config_hash(b)
 
-    def test_make_config_hash_distinguishes_tool_filter(self, manager: MCPConnectionManager) -> None:
+    def test_make_config_hash_distinguishes_tool_filter(
+        self, manager: MCPConnectionManager
+    ) -> None:
         a = [_FakeConfig(name="x", tool_include=["t1"])]
         b = [_FakeConfig(name="x", tool_include=["t2"])]
         assert manager._make_config_hash(a) != manager._make_config_hash(b)
 
-    def test_make_config_hash_distinguishes_host_serial(self, manager: MCPConnectionManager) -> None:
+    def test_make_config_hash_distinguishes_host_serial(
+        self, manager: MCPConnectionManager
+    ) -> None:
         a = [_FakeConfig(name="x", host_serial=False)]
         b = [_FakeConfig(name="x", host_serial=True)]
         assert manager._make_config_hash(a) != manager._make_config_hash(b)
 
-    def test_make_config_hash_distinguishes_keepalive_interval(self, manager: MCPConnectionManager) -> None:
+    def test_make_config_hash_distinguishes_keepalive_interval(
+        self, manager: MCPConnectionManager
+    ) -> None:
         a = [_FakeConfig(name="x", keepalive_interval=None)]
         b = [_FakeConfig(name="x", keepalive_interval=30.0)]
         assert manager._make_config_hash(a) != manager._make_config_hash(b)
@@ -285,7 +307,9 @@ class TestMCPConnectionManager:
         assert "MCPConnectionManager" in repr(manager)
 
     @pytest.mark.asyncio
-    async def test_get_connection_reuses_existing(self, manager: MCPConnectionManager) -> None:
+    async def test_get_connection_reuses_existing(
+        self, manager: MCPConnectionManager
+    ) -> None:
         mock_conn = MagicMock(spec=MCPConnection)
         mock_conn.is_bound_to_current_loop.return_value = True
         mock_conn.health_check = AsyncMock(return_value=True)
@@ -305,7 +329,9 @@ class TestMCPConnectionManager:
         mock_conn.health_check.assert_awaited()
 
     @pytest.mark.asyncio
-    async def test_get_connection_recreates_unhealthy(self, manager: MCPConnectionManager) -> None:
+    async def test_get_connection_recreates_unhealthy(
+        self, manager: MCPConnectionManager
+    ) -> None:
         stale = MagicMock(spec=MCPConnection)
         stale.is_bound_to_current_loop.return_value = True
         stale.health_check = AsyncMock(return_value=False)
@@ -315,7 +341,9 @@ class TestMCPConnectionManager:
         manager._connections[manager._make_config_hash(config)] = stale
 
         fresh = MagicMock(spec=MCPConnection)
-        with patch.object(manager, "_create_connection", AsyncMock(return_value=fresh)) as create:
+        with patch.object(
+            manager, "_create_connection", AsyncMock(return_value=fresh)
+        ) as create:
             result = await manager.get_connection(config)
 
         assert result is fresh
@@ -323,7 +351,9 @@ class TestMCPConnectionManager:
         create.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_get_connection_rebuilds_on_loop_change(self, manager: MCPConnectionManager) -> None:
+    async def test_get_connection_rebuilds_on_loop_change(
+        self, manager: MCPConnectionManager
+    ) -> None:
         stale = MagicMock(spec=MCPConnection)
         stale.is_bound_to_current_loop.return_value = False
         stale.close = AsyncMock()
@@ -378,7 +408,9 @@ class TestSpawnBoundaryStdioLaunch:
                 return None
 
         with (
-            patch.object(MCPClientManager, "_inject_auth_headers_into_config", AsyncMock()),
+            patch.object(
+                MCPClientManager, "_inject_auth_headers_into_config", AsyncMock()
+            ),
             patch(
                 "myrm_agent_harness.toolkits.mcp.session_actor.MCPSessionActor",
                 _Capture,
@@ -394,7 +426,10 @@ class TestSpawnBoundaryStdioLaunch:
         cfg = _FakeConfig(
             command="./bin/srv",
             args=["--data", "${PLUGIN_DATA}/cache"],
-            extra_params={"plugin_root": "/data/plugins/demo", "data_root": "/data/plugins/demo-data"},
+            extra_params={
+                "plugin_root": "/data/plugins/demo",
+                "data_root": "/data/plugins/demo-data",
+            },
         )
         conn = await self._spawn_conn_dict(manager, cfg)
 
@@ -427,7 +462,13 @@ class TestSpawnBoundaryStdioLaunch:
         conn = await self._spawn_conn_dict(manager, cfg)
 
         assert conn["command"] == "cmd.exe"
-        assert conn["args"] == ["/d", "/c", "C:/plugins/demo/bin/srv.bat", "--data", "x"]
+        assert conn["args"] == [
+            "/d",
+            "/c",
+            "C:/plugins/demo/bin/srv.bat",
+            "--data",
+            "x",
+        ]
 
     @pytest.mark.asyncio
     async def test_windows_wrap_quotes_whitespace_paths(

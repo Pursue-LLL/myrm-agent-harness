@@ -178,11 +178,19 @@ def resolve_stdio_launch(
 
     # A ./-relative executable runs from the plugin root even when no cwd was
     # declared (command == "./bin/foo" is a plugin-relative path per §7.2.1).
-    if cwd is None and command is not None and command.startswith("./") and plugin_root is not None:
+    if (
+        cwd is None
+        and command is not None
+        and command.startswith("./")
+        and plugin_root is not None
+    ):
         cwd = plugin_root
 
     expanded_args = (
-        [expand_placeholders(a, plugin_root=plugin_root, data_root=data_root) for a in args]
+        [
+            expand_placeholders(a, plugin_root=plugin_root, data_root=data_root)
+            for a in args
+        ]
         if args
         else None
     )

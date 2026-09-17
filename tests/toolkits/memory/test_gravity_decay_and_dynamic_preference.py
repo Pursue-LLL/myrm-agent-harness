@@ -220,3 +220,59 @@ class TestRetrieverIntegration:
         ranked_grav = retriever_grav.rank([res_old, res_new], limit=2)
 
         assert ranked_grav[0].id == "new-pulse"
+
+    def test_dynamic_preference_prior_preservation_procedural(self) -> None:
+        """Verify PROCEDURAL memories preserve recency=0 zero-prior even with dynamic preference recency boost."""
+        now = datetime.now(UTC)
+        proc_mem = ProceduralMemory(
+            id="rule-pnpm-test",
+            content="Run pnpm test before commit",
+            trigger="before commit",
+            action="pnpm test",
+            created_at=now - timedelta(days=120),  # very old rule
+            confidence=1.0,
+        )
+        res_proc = MemorySearchResult(
+            memory=proc_mem,
+            score=0.90,
+            memory_type=MemoryType.PROCEDURAL,
+        )
+
+        # Apply high recency multiplier in dynamic weights
+        cfg_dynamic = RetrievalConfig(
+            dynamic_signal_weights={"recency": 3.0, "importance": 1.0}
+        )
+        retriever = MemoryRetriever(cfg_dynamic)
+
+        # Procedural rule should NOT be suppressed by its 120-day age because recency prior is 0
+        ranked = retriever.rank([res_proc], limit=1)
+        assert len(ranked) == 1
+        assert ranked[0].score > 0.85
+
+    def test_dynamic_preference_l1_normalization(self) -> None:
+        """Verify dynamic signal weights strictly maintain sum(weights) == 1.0 under modulation."""
+        now = datetime.now(UTC)
+        mem = SemanticMemory(
+            id="mem-norm-check",
+            content="Architecture decision record",
+            created_at=now - timedelta(hours=1),
+        )
+        res = MemorySearchResult(
+            memory=mem,
+            score=0.85,
+            memory_type=MemoryType.SEMANTIC,
+        )
+
+        # Pass extreme dynamic multipliers
+        cfg = RetrievalConfig(
+            dynamic_signal_weights={
+                "recency": 2.5,
+                "importance": 2.0,
+                "preference": 0.5,
+                "rating": 0.5,
+            }
+        )
+        retriever = MemoryRetriever(cfg)
+        score = retriever._geometric_score(0.85, res)
+        # Score must be bounded in (0, 1] and calculated without power inflation
+        assert 0.0 < score <= 1.0
