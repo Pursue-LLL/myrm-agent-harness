@@ -178,6 +178,47 @@ class MemoryRetrievalTrace(BaseModel):
     steps: list[MemoryTraceStep] = Field(default_factory=list)
 
 
+class MemoryRecallRoiGrade(StrEnum):
+    """Business-neutral evaluation grade for memory recall ROI."""
+
+    OPTIMAL = "optimal"
+    HEALTHY = "healthy"
+    DILUTED = "diluted"
+    CRITICAL = "critical"
+
+
+class MemoryPhaseLatency(BaseModel):
+    """Omri et al. 2026 three-phase latency telemetry in milliseconds."""
+
+    construction_ms: float = 0.0
+    retrieval_ms: float = 0.0
+    injection_overhead_ms: float = 0.0
+    total_wall_clock_ms: float = 0.0
+
+
+class MemoryTokenAccounting(BaseModel):
+    """Business-neutral token accounting and cache preservation metrics."""
+
+    injected_memory_tokens: int = 0
+    effective_cited_tokens: int = 0
+    background_construction_tokens: int = 0
+    cache_preservation_score: float = 1.0
+    roi_percentage: float = 0.0
+    roi_grade: MemoryRecallRoiGrade = MemoryRecallRoiGrade.HEALTHY
+
+
+class MemoryEconomicsSnapshot(BaseModel):
+    """Business-neutral snapshot of memory system economics for one turn or aggregated run."""
+
+    id: str
+    correlation_id: str | None = None
+    timestamp: datetime
+    latency: MemoryPhaseLatency = Field(default_factory=MemoryPhaseLatency)
+    accounting: MemoryTokenAccounting = Field(default_factory=MemoryTokenAccounting)
+    parasitic_memory_ids: list[str] = Field(default_factory=list)
+    metadata: dict[str, JsonValue] = Field(default_factory=dict)
+
+
 class MemorySpaceBinding(BaseModel):
     """A memory namespace exposed as an observable memory space."""
 
@@ -218,14 +259,19 @@ __all__ = [
     "GATHER_WIKI_FAILED",
     "GATHER_WIKI_TIMEOUT",
     "GatherStreamWarningCode",
+    "MemoryEconomicsSnapshot",
     "MemoryInfluenceRef",
     "MemoryOperationEvent",
     "MemoryOperationKind",
     "MemoryOperationSink",
     "MemoryOperationStatus",
+    "MemoryPhaseLatency",
+    "MemoryRecallRoiGrade",
     "MemoryRetrievalTrace",
     "MemorySpaceBinding",
     "MemorySpaceKind",
+    "MemoryTokenAccounting",
     "MemoryTraceStep",
     "ScalarValue",
 ]
+
