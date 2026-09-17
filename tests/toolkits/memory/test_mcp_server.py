@@ -656,13 +656,13 @@ class TestMemoryManageTool:
     async def test_manage_delete_knowledge(self, mcp_server, mock_manager):
         result = await _get_tool_fn(mcp_server, "memory_manage")(action="delete", memory_id="m1", category="knowledge")
         assert "deleted" in result
-        mock_manager.delete_memory.assert_called_once_with("semantic", ["m1"])
+        mock_manager.delete_memory.assert_called_once_with("semantic", ["m1"], allow_protected=False)
 
     @pytest.mark.asyncio
     async def test_manage_delete_rule(self, mcp_server, mock_manager):
         result = await _get_tool_fn(mcp_server, "memory_manage")(action="delete", memory_id="r1", category="rule")
         assert "deleted" in result
-        mock_manager.delete_rule.assert_called_once_with("r1", allow_pinned=False)
+        mock_manager.delete_rule.assert_called_once_with("r1", allow_protected=False)
 
     @pytest.mark.asyncio
     async def test_manage_delete_rule_protected(self, mcp_server, mock_manager):

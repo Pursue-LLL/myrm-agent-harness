@@ -110,6 +110,12 @@ async def find_subsumed_memories(
         if memory.metadata.get("status") == "subsumed":
             continue
 
+        # Skip memories the user protected: cognitive erasure is automated
+        # distillation, which the lock explicitly forbids.
+        if memory.is_user_protected:
+            logger.info("Subsumption: skipped user-protected memory %s", memory.id)
+            continue
+
         is_subsumed, reason = await judge_subsumption(
             memory_id=memory.id, memory_content=memory.content, new_knowledge=new_knowledge, llm=llm
         )
@@ -145,7 +151,12 @@ async def apply_subsumption(manager: MemoryManager, memory_ids: list[str]) -> in
             )
 
             if isinstance(mem, (SemanticMemory, ProceduralMemory)):
-                await manager.update_memory(mem.id, metadata=mem.metadata, status=MemoryStatus.DISABLED)
+                await manager.update_memory(
+                    mem.id,
+                    metadata=mem.metadata,
+                    status=MemoryStatus.DISABLED,
+                    allow_protected=False,
+                )
             else:
                 await manager.delete_memory(mem.scope.primary_namespace, [mem.id])
             count += 1
@@ -156,7 +167,10 @@ async def apply_subsumption(manager: MemoryManager, memory_ids: list[str]) -> in
 
 
 async def undo_subsumption(manager: MemoryManager, memory_ids: list[str]) -> int:
-    """Undo a soft-delete (subsumption) by removing the status from metadata.
+    """Reverse a soft-delete (subsumption) by removing the status from metadata.
+
+    Invoked from the WebUI rollback control, so it keeps ``allow_protected``
+    default ``True``: the user restoring their own protected memory is legitimate.
 
     Returns the number of successfully restored memories.
     """

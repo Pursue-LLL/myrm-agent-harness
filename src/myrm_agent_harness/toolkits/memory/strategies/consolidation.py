@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING
 from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel, Field
 
+from myrm_agent_harness.toolkits.memory._internal.storage import MemoryProtectedError
 from myrm_agent_harness.toolkits.memory.strategies.merger import (
     DeterministicThreeStateMerger,
     MergeState,
@@ -253,7 +254,6 @@ async def _execute_operations(
         try:
             if isinstance(op, MergeOp):
                 new_mem = SemanticMemory(
-                    user_id=manager.user_id,
                     content=op.merged_content,
                     importance=op.importance,
                     confidence=0.9,
@@ -266,9 +266,14 @@ async def _execute_operations(
                     full_id = resolve(short_id)
                     try:
                         await manager.update_memory(
-                            full_id, importance=0.05, metadata={"consolidated": True}
+                            full_id,
+                            importance=0.05,
+                            metadata={"consolidated": True},
+                            allow_protected=False,
                         )
                         stats.affected_ids.append(full_id)
+                    except MemoryProtectedError:
+                        logger.info("Consolidation demote skipped protected memory %s", full_id)
                     except Exception as e:
                         logger.warning(
                             "Consolidation demote failed for %s: %s", full_id, e
@@ -278,8 +283,8 @@ async def _execute_operations(
             elif isinstance(op, CorrectOp):
                 full_id = resolve(op.memory_id)
                 existing = await manager.get_memory(full_id)
-                if getattr(existing, "is_user_locked", False):
-                    logger.info("Consolidation: skipped locked rule %s", full_id)
+                if getattr(existing, "is_user_protected", False):
+                    logger.info("Consolidation: skipped user-protected memory %s", full_id)
                     continue
 
                 should_route = (
@@ -307,7 +312,9 @@ async def _execute_operations(
                     if resolution == ConflictResolution.KEEP_OLD:
                         continue
                     if resolution == ConflictResolution.DISCARD_BOTH:
-                        await manager.update_memory(full_id, importance=0.01)
+                        await manager.update_memory(
+                            full_id, importance=0.01, allow_protected=False
+                        )
                         stats.affected_ids.append(full_id)
                         stats.corrected += 1
                         continue
@@ -323,55 +330,71 @@ async def _execute_operations(
                 if merge_dec.state == MergeState.CONFLICT:
                     logger.info("Consolidation: conflict detected for %s; retaining both with decayed confidence", full_id)
                     if isinstance(existing, SemanticMemory):
-                        await manager.update_memory(full_id, confidence=merge_dec.updated_confidence or 0.35)
-                        new_mem = await manager.add_memory(
-                            op.corrected_content,
-                            memory_type=MemoryType.SEMANTIC,
+                        await manager.update_memory(
+                            full_id,
+                            confidence=merge_dec.updated_confidence or 0.35,
+                            allow_protected=False,
+                        )
+                        counterpart = SemanticMemory(
+                            content=op.corrected_content,
+                            importance=op.importance,
                             confidence=merge_dec.candidate_confidence or 0.35,
                             scope=existing.scope,
                         )
+                        stored = await manager.store(counterpart, _bypass_approval=True)
                         stats.affected_ids.append(full_id)
-                        stats.affected_ids.append(new_mem.id)
+                        stats.affected_ids.append(stored.id)
                         stats.updated += 1
                         continue
 
                 if merge_dec.state == MergeState.CONFIRM:
                     if isinstance(existing, SemanticMemory) and merge_dec.updated_confidence is not None:
-                        await manager.update_memory(full_id, confidence=merge_dec.updated_confidence)
+                        await manager.update_memory(
+                            full_id,
+                            confidence=merge_dec.updated_confidence,
+                            allow_protected=False,
+                        )
                     stats.affected_ids.append(full_id)
                     stats.updated += 1
                     continue
 
                 if merge_dec.state == MergeState.SUPPLEMENT and merge_dec.merged_content:
-                    await manager.update_memory(full_id, content=merge_dec.merged_content)
+                    await manager.update_memory(
+                        full_id,
+                        content=merge_dec.merged_content,
+                        allow_protected=False,
+                    )
                     stats.affected_ids.append(full_id)
                     stats.updated += 1
                     continue
 
                 if isinstance(existing, SemanticMemory):
                     correction = await manager.correct_memory(
-                        full_id, op.corrected_content
+                        full_id, op.corrected_content, allow_protected=False
                     )
                     stats.corrected += 1
                     stats.affected_ids.append(full_id)
                     stats.affected_ids.append(correction.id)
                 else:
-                    await manager.update_memory(full_id, content=op.corrected_content)
+                    await manager.update_memory(
+                        full_id, content=op.corrected_content, allow_protected=False
+                    )
                     stats.updated += 1
                     stats.affected_ids.append(full_id)
 
             elif isinstance(op, UpdateContentOp):
                 full_id = resolve(op.memory_id)
-                existing = await manager.get_memory(full_id)
-                if getattr(existing, "is_user_locked", False):
-                    logger.info("Consolidation: skipped locked rule %s", full_id)
-                    continue
                 await manager.update_memory(
-                    full_id, content=op.new_content, importance=op.importance
+                    full_id,
+                    content=op.new_content,
+                    importance=op.importance,
+                    allow_protected=False,
                 )
                 stats.affected_ids.append(full_id)
                 stats.updated += 1
 
+        except MemoryProtectedError:
+            logger.info("Consolidation op skipped: the memory is user-protected")
         except Exception as e:
             logger.warning("Consolidation op failed: %s: %s", type(e).__name__, e)
             stats.errors += 1

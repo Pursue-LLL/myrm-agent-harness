@@ -3,16 +3,12 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
+
 from myrm_agent_harness.toolkits.memory.strategies.conflict_merger import (
-    AUTO_UNFREEZE_CONFIRM_COUNT,
-    AUTO_UNFREEZE_DAYS,
     CONFIDENCE_PENALTY_CONFLICT,
-    CONFIDENCE_STEP_CONFIRM,
     MAX_CONFIDENCE_CAP,
-    ConflictDetail,
     MergeAction,
     MergeRelation,
-    MergeResult,
     classify_relation,
     merge_evidence_references,
     merge_memory_candidate,
@@ -142,6 +138,31 @@ def test_merge_user_override_wins_hard_protection() -> None:
     assert result.requires_governance is True
     assert result.conflict is not None
     assert "User Override Wins" in result.conflict.reason
+
+
+def test_merge_user_override_wins_for_pinned_memory() -> None:
+    """A pinned memory must also win: the guard reads ``is_user_protected``."""
+    existing = SemanticMemory(
+        user_id="user_123",
+        content="Deploy target is AWS EKS",
+        confidence=1.0,
+        pinned=True,
+    )
+
+    candidate = SemanticMemory(
+        user_id="user_123",
+        content="Deploy target is Cloudflare Workers",
+        confidence=0.88,
+    )
+
+    result = merge_memory_candidate(
+        existing=existing,
+        candidate=candidate,
+        candidate_source="assistant_distillation",
+    )
+    assert result.action == MergeAction.SKIP
+    assert result.relation == MergeRelation.CONFLICT
+    assert result.skip_reason == "user_override_wins"
 
 
 def test_merge_conflict_penalizes_confidence_and_suspends_for_governance() -> None:

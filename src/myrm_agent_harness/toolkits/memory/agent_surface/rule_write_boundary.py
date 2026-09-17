@@ -1,45 +1,31 @@
-"""User-endorsed rule protection boundary for agent-facing memory operations.
+"""Agent-facing rejection message for user-protected memories.
 
-Rules the user explicitly locked (``is_user_locked``) belong to the user: the
-agent may read them, but must not delete or rewrite them. Deletion is already
-enforced inside ``MemoryManager.delete_rule``; rewriting needs a boundary here
-because ``MemoryManager.update_memory`` also serves the WebUI path, which the
-user is entitled to use on their own locked rules.
+``MemoryManager`` refuses automated and agent writes to a protected memory
+(``pinned`` for vector entries, ``is_user_locked`` for procedural rules) by
+raising ``MemoryProtectedError``. This module owns the single message the agent
+surfaces back to the model for that refusal, so every agent entry point explains
+the rejection the same way.
 
 [INPUT]
-- myrm_agent_harness.toolkits.memory.types::AnyMemory (POS: 记忆类型定义，含 is_user_locked)
+- (none) — dependency-free so any agent surface can format the rejection.
 
 [OUTPUT]
-- get_user_locked_rule / rule_rewrite_protection_message: Guard for agent-surface rewrites.
+- rule_write_protection_message: Rejection text for agent-facing protected writes.
 
 [POS]
-Agent 面向的用户背书规则保护边界。保证「被用户显式保护的规则，Agent 不能改写」，同时不阻断 WebUI 编辑路径。
+Agent 面向的用户保护记忆改写拒绝文案 SSOT。保护判定本身在 ``MemoryManager`` 内统一执行，本模块只负责解释拒绝原因。
 """
 
 from __future__ import annotations
 
-import logging
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from myrm_agent_harness.toolkits.memory.types import AnyMemory
-
-logger = logging.getLogger(__name__)
-
-
-def get_user_locked_rule(memory: AnyMemory | None) -> AnyMemory | None:
-    """Return the memory when it is a user-locked procedural rule, else None."""
-    from myrm_agent_harness.toolkits.memory.types import ProceduralMemory
-
-    if isinstance(memory, ProceduralMemory) and memory.is_user_locked:
-        return memory
-    return None
-
-
-def rule_rewrite_protection_message(memory_id: str) -> str:
-    """Rejection message returned to the agent for a locked rule rewrite."""
+def rule_write_protection_message(memory_id: str) -> str:
+    """Rejection message returned to the agent for a protected memory write."""
     return (
-        f"Cannot update rule (ID: {memory_id}): the user explicitly locked this rule, "
-        "so the agent must not rewrite its content. Ask the user to unlock it first "
-        "if the rule needs to change."
+        f"Cannot update memory (ID: {memory_id}): the user explicitly protected this memory, "
+        "so the agent must not rewrite its content or status. Ask the user to release the "
+        "protection first if it needs to change."
     )
+
+
+__all__ = ["rule_write_protection_message"]

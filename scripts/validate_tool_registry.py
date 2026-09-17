@@ -44,11 +44,16 @@ from scripts.tool_registry_engine import (  # noqa: E402
     scan,
 )
 
-_COUNT_DOC_TARGETS = (
-    HARNESS_SRC / "agent" / "tool_management" / "_ARCH.md",
-    HARNESS_SRC / "agent" / "tool_management" / "DEFAULT_AGENT_TOKEN_INVENTORY.md",
-    HARNESS_SRC / "agent" / "tool_management" / "TOOL_DESIGN_STRATEGY.md",
+_COUNT_DOC_DIR = HARNESS_SRC / "agent" / "tool_management"
+# Docs that STATE an LLM-tool total. This is the invariant surface the coverage
+# gate enforces; `_COUNT_DOC_TARGETS` is the writable view of it (redirected in tests).
+_REQUIRED_COUNT_DOCS = (
+    _COUNT_DOC_DIR / "_ARCH.md",
+    _COUNT_DOC_DIR / "DEFAULT_AGENT_TOKEN_INVENTORY.md",
+    _COUNT_DOC_DIR / "TOOL_DESIGN_STRATEGY.md",
+    _COUNT_DOC_DIR / "TOOL_MANAGEMENT_SYSTEM.md",
 )
+_COUNT_DOC_TARGETS = _REQUIRED_COUNT_DOCS
 _CATALOG_DOC_TARGET = (
     HARNESS_SRC / "agent" / "tool_management" / "TOOL_MANAGEMENT_SYSTEM.md"
 )
@@ -57,6 +62,14 @@ _BLOCK_BEGIN = "<!-- TOOL_COUNT_BEGIN -->"
 _BLOCK_END = "<!-- TOOL_COUNT_END -->"
 _CATALOG_BEGIN = "<!-- TOOL_CATALOG_BEGIN -->"
 _CATALOG_END = "<!-- TOOL_CATALOG_END -->"
+
+# Anchored to LLM-tool total phrasings so subset counts ("CORE 8 个", "13 个 Turn1 工具")
+# never trip the coverage gate; only docs claiming a whole-population total do.
+_TOOL_TOTAL_PATTERN = re.compile(
+    r"LLM\s*工具[^。\n]{0,14}?\d+\s*个"
+    r"|不计入[^。\n]{0,14}?\d+\s*个"
+    r"|LLM\s+tools?[^.\n]{0,20}?\b\d+\b"
+)
 
 _FORBIDDEN_BINDMODE_PATTERNS = (
     re.compile(r"\bget_deferred_tools\b"),
@@ -406,6 +419,39 @@ def _check_default_enabled_product_parity() -> list[str]:
     return errors
 
 
+def _check_count_doc_coverage() -> list[str]:
+    """Every tool_management doc that states LLM-tool totals must own a count block.
+
+    Drift is only auto-detected inside marker blocks, so a new/renamed doc in this
+    directory that restates tool totals would silently rot outside the CI gate.
+    """
+    doc_dir = _COUNT_DOC_DIR
+    if not doc_dir.is_dir():
+        return [f"tool_management doc dir missing: {doc_dir}"]
+
+    errors: list[str] = []
+    for doc in sorted(doc_dir.glob("*.md")):
+        if doc in _REQUIRED_COUNT_DOCS:
+            continue
+        try:
+            display = doc.relative_to(_repo_root)
+        except ValueError:
+            display = doc
+        text = doc.read_text(encoding="utf-8")
+        if _BLOCK_BEGIN in text:
+            errors.append(
+                f"{display} declares {_BLOCK_BEGIN} but is not "
+                "listed in _REQUIRED_COUNT_DOCS"
+            )
+            continue
+        if _TOOL_TOTAL_PATTERN.search(text):
+            errors.append(
+                f"{display} states an LLM-tool total without a "
+                f"{_BLOCK_BEGIN} block"
+            )
+    return errors
+
+
 def _format_report(
     report: ScanReport,
     *,
@@ -718,6 +764,9 @@ def main() -> int:
     # Governance coverage is a static metadata comparison — run in all modes so
     # pre-commit catches new tools that would silently bypass governance.
     governance_errors, coverage_matrix = _check_governance_coverage()
+    # Doc-count coverage is a filesystem+regex check — run in all modes so a new
+    # doc restating tool totals is caught even by pre-commit --incremental.
+    count_doc_errors = _check_count_doc_coverage()
     parity_errors: list[str] = []
     if not args.incremental:
         parity_errors = _check_default_enabled_product_parity()
@@ -734,6 +783,7 @@ def main() -> int:
         or catalog_errors
         or parity_errors
         or governance_errors
+        or count_doc_errors
     )
 
     if args.json:
@@ -755,6 +805,7 @@ def main() -> int:
             },
             "governance_errors": governance_errors,
             "governance_coverage": coverage_matrix,
+            "count_doc_errors": count_doc_errors,
         }
         print(json.dumps(payload, indent=2))
     else:
@@ -844,6 +895,16 @@ def main() -> int:
                 "RULESET_COVERAGE_WHITELIST with a valid AUTO_APPROVE_REASONS value, "
                 "or declare it in EXPLICIT_MCP_FALLBACK_TOOLS to intentionally keep "
                 "the mcp_invoke=ASK runtime baseline."
+            )
+        if count_doc_errors:
+            print(
+                f"FAIL - {len(count_doc_errors)} tool_management doc count coverage issue(s):"
+            )
+            for err in count_doc_errors:
+                print(f"  - {err}")
+            print(
+                "  Fix: add `<!-- TOOL_COUNT_BEGIN -->...<!-- TOOL_COUNT_END -->` to the "
+                "doc and list it in _REQUIRED_COUNT_DOCS, or drop the hand-written total."
             )
 
     return 1 if fail else 0

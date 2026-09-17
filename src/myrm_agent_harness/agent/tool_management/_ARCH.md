@@ -2,7 +2,7 @@
 
 ## Overview
 
-LLM 工具（Action Tool）注册、去重、排序与生命周期。对外 **「工具」= LLM 工具**（当前 58 个，见下方 TOOL_COUNT 块）。
+LLM 工具（Action Tool）注册、去重、排序与生命周期。对外 **「工具」= LLM 工具**（规模见下方 TOOL_COUNT 自动生成块，勿在此处手写计数）。
 
 Detailed design: [TOOL_MANAGEMENT_SYSTEM.md](TOOL_MANAGEMENT_SYSTEM.md)
 

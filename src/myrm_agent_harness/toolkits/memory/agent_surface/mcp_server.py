@@ -46,6 +46,7 @@ from typing import TYPE_CHECKING
 from mcp.server.mcpserver import MCPServer
 from starlette.applications import Starlette
 
+from myrm_agent_harness.toolkits.memory._internal.storage import MemoryProtectedError
 from myrm_agent_harness.toolkits.memory.agent_surface._memory_agent_tool_descriptions import (
     build_mcp_memory_store_tool_description,
     resolve_memory_manage_tool_description,
@@ -77,8 +78,7 @@ from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting i
     parse_time_bound as _parse_time_bound,
 )
 from myrm_agent_harness.toolkits.memory.agent_surface.rule_write_boundary import (
-    get_user_locked_rule,
-    rule_rewrite_protection_message,
+    rule_write_protection_message,
 )
 from myrm_agent_harness.toolkits.memory.agent_surface.wiki_memory_boundary import (
     looks_like_wiki_document,
@@ -717,7 +717,7 @@ class MemoryMCPServer:
                             if mem_type == MemoryType.SEMANTIC
                             else mgr.config.episodic_collection
                         )
-                        n = await mgr.delete_memory(coll, [memory_id])
+                        n = await mgr.delete_memory(coll, [memory_id], allow_protected=False)
                         return (
                             f"Memory deleted (ID: {memory_id})"
                             if n > 0
@@ -728,7 +728,7 @@ class MemoryMCPServer:
                     if mem_type == MemoryType.PROCEDURAL:
                         if not mgr.has_relational:
                             return "Procedural memory is not enabled."
-                        ok = await mgr.delete_rule(memory_id, allow_pinned=False)
+                        ok = await mgr.delete_rule(memory_id, allow_protected=False)
                         if ok:
                             return f"Rule deleted (ID: {memory_id})"
                         return (
@@ -740,12 +740,11 @@ class MemoryMCPServer:
                 if action == "update":
                     if not new_content:
                         return "Update requires 'new_content'."
-                    if mem_type == MemoryType.PROCEDURAL:
-                        existing = await mgr.get_memory(memory_id)
-                        if get_user_locked_rule(existing) is not None:
-                            return rule_rewrite_protection_message(memory_id)
                     updated = await mgr.update_memory(
-                        memory_id, content=new_content, importance=new_importance
+                        memory_id,
+                        content=new_content,
+                        importance=new_importance,
+                        allow_protected=False,
                     )
                     return f"Memory updated (ID: {updated.id})"
 
@@ -756,9 +755,12 @@ class MemoryMCPServer:
                         return "Correct is only supported for knowledge memories."
                     if not mgr.has_vector:
                         return "Knowledge memory is not enabled."
-                    correction = await mgr.correct_memory(memory_id, new_content)
+                    correction = await mgr.correct_memory(memory_id, new_content, allow_protected=False)
                     return f"Memory corrected (new ID: {correction.id}). Prior entry {memory_id} kept in history."
 
+            except MemoryProtectedError as e:
+                logger.info("MCP memory_manage refused a protected memory: %s", e)
+                return rule_write_protection_message(memory_id)
             except Exception as e:
                 logger.warning("MCP memory_manage failed: %s", e)
                 return "Failed to manage memory"

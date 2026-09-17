@@ -17,6 +17,7 @@
 | `compressor.py` | 传输优化 | 截屏 PNG 降采样并重编码为 WebP/JPEG，降低无线 ADB 带宽与 LLM 上下文开销 | ✅ |
 | `text_injection.py` | 输入原语 | UTF-8 文本注入（剪贴板广播 + 转义兜底），突破 `adb shell input text` 的 ASCII 限制 | ✅ |
 | `mobile_agent_tools.py` | Agent 适配器 | LangChain `StructuredTool` 适配层，将 session 操作包装为 Agent 工具 | ✅ |
+| `app_aliases.py` | 领域映射 | Android 常用应用别名与包名映射表（`COMMON_APP_ALIASES`）及别名解析器 `resolve_package_alias` | ✅ |
 
 ## 模块依赖
 

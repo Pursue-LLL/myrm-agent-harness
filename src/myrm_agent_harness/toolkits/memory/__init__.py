@@ -7,7 +7,11 @@ application layer via dependency injection.
 
 from myrm_agent_harness.toolkits.memory._internal.embedding_cache import EmbeddingCache
 from myrm_agent_harness.toolkits.memory._internal.memory_scanner import ScanMetricsSnapshot, get_scan_metrics
-from myrm_agent_harness.toolkits.memory._internal.storage import MemoryError, MemoryNotFoundError
+from myrm_agent_harness.toolkits.memory._internal.storage import (
+    MemoryError,
+    MemoryNotFoundError,
+    MemoryProtectedError,
+)
 from myrm_agent_harness.toolkits.memory.config import (
     AgentMemoryPolicy,
     ConsolidationConfig,
@@ -241,6 +245,7 @@ __all__ = [
     "MemoryMutationRef",
     "MemoryMutationResult",
     "MemoryNotFoundError",
+    "MemoryProtectedError",
     "MemoryOperationEvent",
     "MemoryOperationKind",
     "MemoryOperationSink",

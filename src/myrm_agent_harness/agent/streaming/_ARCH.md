@@ -27,4 +27,5 @@
 | `stream_dispatcher.py` | 核心 | 流式执行引擎事件分发 Mixin 与 AgentStatus 状态机透传 |
 | `stream_executor.py` | 核心 | 流式执行引擎生命周期封装（Agent.astream 调度、重试恢复与异常拦截） |
 | `types.py` | 核心 | 流式事件类型定义与 core.events.types 兼容重导出 |
+| `turn_outline.py` | 核心 | 回合大纲投影提取器（`TurnOutlineItem` / `TurnOutlineProjection` / `TurnOutlineExtractor`），为轻量会话折叠导航提供结构数据 |
 | `utils.py` | 辅助 | 时间戳规则、时区管理上下文变量及工具名称规范化等通用辅助函数 |

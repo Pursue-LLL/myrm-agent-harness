@@ -288,6 +288,66 @@ def test_main_generate_docs_exit_1_when_marker_missing(
     assert "TOOL_COUNT_BEGIN" in err or "TOOL_CATALOG_BEGIN" in err
 
 
+def test_count_doc_coverage_flags_unregistered_total(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import scripts.validate_tool_registry as cli
+
+    monkeypatch.setattr(cli, "_COUNT_DOC_DIR", tmp_path)
+    monkeypatch.setattr(cli, "_REQUIRED_COUNT_DOCS", ())
+    (tmp_path / "stray.md").write_text("LLM 工具共 99 个。\n", encoding="utf-8")
+
+    errors = cli._check_count_doc_coverage()
+
+    assert len(errors) == 1
+    assert "stray.md" in errors[0]
+    assert "TOOL_COUNT_BEGIN" in errors[0]
+
+
+def test_count_doc_coverage_allows_subset_counts(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import scripts.validate_tool_registry as cli
+
+    monkeypatch.setattr(cli, "_COUNT_DOC_DIR", tmp_path)
+    monkeypatch.setattr(cli, "_REQUIRED_COUNT_DOCS", ())
+    (tmp_path / "ok.md").write_text(
+        "| 最小场景 | 8 个 | CORE + HIGH_PRIORITY 13 个工具 |\n", encoding="utf-8"
+    )
+
+    assert cli._check_count_doc_coverage() == []
+
+
+def test_count_doc_coverage_allows_registered_doc(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import scripts.validate_tool_registry as cli
+
+    registered = tmp_path / "registered.md"
+    registered.write_text("LLM 工具共 99 个。\n", encoding="utf-8")
+    monkeypatch.setattr(cli, "_COUNT_DOC_DIR", tmp_path)
+    monkeypatch.setattr(cli, "_REQUIRED_COUNT_DOCS", (registered,))
+
+    assert cli._check_count_doc_coverage() == []
+
+
+def test_count_doc_coverage_flags_unlisted_marker_block(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import scripts.validate_tool_registry as cli
+
+    monkeypatch.setattr(cli, "_COUNT_DOC_DIR", tmp_path)
+    monkeypatch.setattr(cli, "_REQUIRED_COUNT_DOCS", ())
+    (tmp_path / "blocked.md").write_text(
+        f"intro\n{cli._BLOCK_BEGIN}\nbody\n{cli._BLOCK_END}\n", encoding="utf-8"
+    )
+
+    errors = cli._check_count_doc_coverage()
+
+    assert len(errors) == 1
+    assert "_REQUIRED_COUNT_DOCS" in errors[0]
+
+
 def test_layer_counts_aggregates_registered_layers() -> None:
     import scripts.validate_tool_registry as cli
 

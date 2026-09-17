@@ -96,6 +96,7 @@ __all__ = [
     # Errors
     "MemoryError",
     "MemoryNotFoundError",
+    "MemoryProtectedError",
     "_get_adaptive_threshold",
     "_lifecycle_from_metadata",
     "_lifecycle_payload",
@@ -144,6 +145,10 @@ class MemoryError(Exception):
 
 class MemoryNotFoundError(MemoryError):
     """Raised when a memory is not found."""
+
+
+class MemoryProtectedError(MemoryError):
+    """Raised when a user-protected memory is written without explicit consent."""
 
 
 # ======================================================================

@@ -127,7 +127,7 @@ class DeterministicThreeStateMerger:
         evidence_list = candidate_evidence or []
 
         # 1. Hard check: Human manual override lock protects against automated overwrite
-        if getattr(existing, "is_user_locked", False):
+        if existing.is_user_protected:
             return MergeDecision(
                 state=MergeState.USER_OVERRIDE_PROTECTED,
                 merged_content=existing_clean,

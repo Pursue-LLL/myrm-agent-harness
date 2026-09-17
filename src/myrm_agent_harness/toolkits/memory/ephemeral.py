@@ -179,7 +179,9 @@ class ReadOnlyMemoryView(MemoryManager):
         self._deny()
         return False
 
-    async def correct_memory(self, memory_id: str, corrected_content: str) -> SemanticMemory:
+    async def correct_memory(
+        self, memory_id: str, corrected_content: str, *, allow_protected: bool = True
+    ) -> SemanticMemory:
         self._deny()
         raise AssertionError  # unreachable
 
@@ -234,10 +236,13 @@ class ReadOnlyMemoryView(MemoryManager):
         *,
         content: str | None = None,
         importance: float | None = None,
+        confidence: float | None = None,
         tags: list[str] | None = None,
         metadata: dict[str, str | int | float | bool] | None = None,
         is_active: bool | None = None,
         status: MemoryStatus | None = None,
+        is_user_locked: bool | None = None,
+        allow_protected: bool = True,
     ) -> AnyMemory:
         self._deny()
         raise AssertionError  # unreachable

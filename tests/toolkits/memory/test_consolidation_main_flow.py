@@ -214,15 +214,18 @@ class TestExecuteOperationsExtraBranches:
 
     @pytest.mark.asyncio
     async def test_update_content_locked_rule_skipped(self) -> None:
-        locked = ProceduralMemory(
-            content="locked", trigger="t", action="a", is_user_locked=True
-        )
+        """A locked rule is refused by the manager guard and counted as a skip, not an error."""
+        from myrm_agent_harness.toolkits.memory._internal.storage import MemoryProtectedError
+
         manager = _make_manager()
-        manager.get_memory = AsyncMock(return_value=locked)
+        manager.update_memory = AsyncMock(side_effect=MemoryProtectedError("protected"))
         ops = [UpdateContentOp(memory_id="mem-1", new_content="new", importance=0.3)]
         stats = await _execute_operations(ops, manager)
         assert stats.updated == 0
-        manager.update_memory.assert_not_called()
+        assert stats.errors == 0
+        manager.update_memory.assert_awaited_once_with(
+            "mem-1", content="new", importance=0.3, allow_protected=False
+        )
 
     @pytest.mark.asyncio
     async def test_update_content_applies(self) -> None:

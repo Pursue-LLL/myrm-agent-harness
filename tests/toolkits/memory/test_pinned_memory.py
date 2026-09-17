@@ -55,7 +55,7 @@ class TestForgettingPinnedImmunity:
         )
         result = strategy.calculate_retention_score(m)
         assert not result.should_forget
-        assert result.reason == "Protected: user-pinned"
+        assert result.reason == "Protected: user-pinned or user-locked"
 
     def test_unpinned_can_be_forgotten(self) -> None:
         """Unpinned memory with low score should be forgotten."""
@@ -81,7 +81,7 @@ class TestForgettingPinnedImmunity:
             pinned=True,
         )
         result = strategy.calculate_retention_score(m)
-        assert result.reason == "Protected: user-pinned"
+        assert result.reason == "Protected: user-pinned or user-locked"
 
 
 class TestDocRoundTrip:
@@ -123,7 +123,7 @@ class TestDocRoundTrip:
 
 
 class TestDeletePinnedProtection:
-    """Verify that pinned memories cannot be deleted when allow_pinned=False."""
+    """Verify that pinned memories cannot be deleted when allow_protected=False."""
 
     @pytest.mark.asyncio
     async def test_delete_memory_skips_pinned(
@@ -140,7 +140,7 @@ class TestDeletePinnedProtection:
         mgr = MemoryManager(
             memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, auto_warmup=False
         )
-        deleted = await mgr.delete_memory(memory_config.semantic_collection, ["m1"], allow_pinned=False)
+        deleted = await mgr.delete_memory(memory_config.semantic_collection, ["m1"], allow_protected=False)
         assert deleted == 0
         mock_vector_store.delete.assert_not_called()
 
@@ -160,14 +160,14 @@ class TestDeletePinnedProtection:
         mgr = MemoryManager(
             memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, auto_warmup=False
         )
-        deleted = await mgr.delete_memory(memory_config.semantic_collection, ["m2"], allow_pinned=False)
+        deleted = await mgr.delete_memory(memory_config.semantic_collection, ["m2"], allow_protected=False)
         assert deleted == 1
 
     @pytest.mark.asyncio
     async def test_delete_memory_default_allows_pinned(
         self, memory_config: MemoryConfig, mock_vector_store: AsyncMock, mock_embedding: AsyncMock
     ) -> None:
-        """Default allow_pinned=True: admin/WebUI path can delete pinned memories."""
+        """Default allow_protected=True: admin/WebUI path can delete pinned memories."""
         pinned_doc = VectorDocument(
             id="m1",
             content="critical knowledge",
@@ -194,7 +194,7 @@ class TestDeletePinnedProtection:
         """User-locked rules survive agent deletion.
 
         ``is_user_locked`` is the persisted rule lock (shared with distillation,
-        merge and forgetting), so ``allow_pinned=False`` must honour it.
+        merge and forgetting), so ``allow_protected=False`` must honour it.
         """
         from myrm_agent_harness.toolkits.memory.types import ProceduralMemory
 
@@ -215,7 +215,7 @@ class TestDeletePinnedProtection:
             relational=mock_relational_store,
             auto_warmup=False,
         )
-        ok = await mgr.delete_rule("r1", allow_pinned=False)
+        ok = await mgr.delete_rule("r1", allow_protected=False)
         assert ok is False
         mock_relational_store.delete_rule.assert_not_called()
 
@@ -247,7 +247,7 @@ class TestDeletePinnedProtection:
             relational=mock_relational_store,
             auto_warmup=False,
         )
-        ok = await mgr.delete_rule("r2", allow_pinned=False)
+        ok = await mgr.delete_rule("r2", allow_protected=False)
         assert ok is True
         mock_relational_store.delete_rule.assert_called_once_with("r2")
 
@@ -274,7 +274,7 @@ class TestDeletePinnedProtection:
         mgr = MemoryManager(
             memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, auto_warmup=False
         )
-        deleted = await mgr.delete_memory(memory_config.semantic_collection, ["m1", "m2"], allow_pinned=False)
+        deleted = await mgr.delete_memory(memory_config.semantic_collection, ["m1", "m2"], allow_protected=False)
         assert deleted == 1
         mock_vector_store.delete.assert_called_once_with(memory_config.semantic_collection, ["m2"])
 

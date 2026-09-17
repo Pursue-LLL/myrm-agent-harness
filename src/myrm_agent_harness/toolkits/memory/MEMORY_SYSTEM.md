@@ -635,15 +635,13 @@ retention = 0.35 × time_score + 0.25 × access_score + 0.15 × importance_score
 
 保护规则（优先级从高到低）：
 
-- `pinned=True` 的记忆无条件豁免（用户标记保护）：
-  - 遗忘策略：`should_forget=False`，reason="Protected: user-pinned"
-  - Agent 工具删除：`allow_pinned=False` 时拒绝删除，返回明确拒绝消息（防 prompt injection）
-  - WebUI/管理员操作：`allow_pinned=True`（默认），可正常删除
-- `is_user_locked=True` 的规则豁免（用户显式背书）：
-  - Agent 工具删除（`memory_manage` / MCP `memory_manage`）：`allow_pinned=False` 时拒绝删除并返回明确拒绝消息
-  - Agent 工具改写（`memory_manage(action=update)` / MCP 同名动作）：拒绝改写正文，提示先请用户解锁（`agent_surface/rule_write_boundary.py`）；WebUI 编辑路径不受限，用户始终可改自己的规则
-  - 蒸馏/合并/遗忘/规则 TTL 归档：跳过
-  - WebUI 删除、导入回滚、归档回滚等系统级路径：`allow_pinned=True`（默认），可正常删除
+- 用户保护记忆（`BaseMemory.is_user_protected` = `pinned or is_user_locked`）：
+  - 遗忘策略：`should_forget=False`，reason="Protected: user-pinned or user-locked"
+  - Agent 工具删除（`memory_manage` / MCP `memory_manage`）：`allow_protected=False` 时拒绝删除，返回明确拒绝消息（防 prompt injection）
+  - Agent 工具改写（`memory_manage(action=update|correct)` / MCP 同名动作）：`allow_protected=False` 时拒绝改写正文，提示先请用户解锁（`agent_surface/rule_write_boundary.py`）；WebUI 编辑路径不受限，用户始终可改自己的数据
+  - 自动写入（蒸馏合并/纠正/去重/替代、归纳 subsumption）：统一传 `allow_protected=False`，`MemoryProtectedError` 被捕获后跳过该条并记录 INFO 日志，不中断整批
+  - 规则 TTL 归档：`is_user_locked` 规则跳过
+  - WebUI 删除、导入回滚、归档回滚等用户主导路径：`allow_protected=True`（默认），可正常操作
   - stable 预算截断：背书规则排在规则段最前，最后被截断
 - 创建 7 天内的记忆不遗忘
 - importance ≥ 0.9 的记忆受保护

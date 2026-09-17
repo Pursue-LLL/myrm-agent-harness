@@ -163,9 +163,9 @@ MEMORY_MANAGE_TOOL_DESCRIPTION_EN = """Update, delete, correct, or rate an exist
 - Task progress or chat history → memory_search_tool with corpus=sessions
 
 **ACTION GUIDE**:
-- delete: remove a memory (user-locked rules and pinned memories cannot be deleted by the agent)
-- update: tweak wording or importance only — fact remains true (e.g., fix typo "Pyhton" -> "Python"); requires new_content; a rule the user locked cannot be updated by the agent — ask the user to unlock it first
-- correct: replace an outdated or wrong fact with the new truth (e.g., "User lives in Beijing" -> "User moved to Shanghai") — knowledge category only; requires new_content; preserves history; use instead of memory_save_tool when correcting existing memories
+- delete: remove a memory (memories the user protected cannot be deleted by the agent)
+- update: tweak wording or importance only — fact remains true (e.g., fix typo "Pyhton" -> "Python"); requires new_content; a memory the user protected cannot be updated by the agent — ask the user to release the protection first
+- correct: replace an outdated or wrong fact with the new truth (e.g., "User lives in Beijing" -> "User moved to Shanghai") — knowledge category only; requires new_content; preserves history; use instead of memory_save_tool when correcting existing memories; a memory the user protected cannot be corrected by the agent — ask the user to release the protection first
 - rate: record user feedback — knowledge or event only; requires rating_score 1-5 (1=poor, 5=excellent)
 
 **CATEGORY LIMITS**:
@@ -240,9 +240,9 @@ MEMORY_MANAGE_TOOL_DESCRIPTION_ZH = """更新、删除、纠正或评分已有�
 - 任务进度或聊天历史 → memory_search_tool，corpus=sessions
 
 **操作指南**：
-- delete：删除记忆（用户锁定的规则与已钉选的记忆 Agent 不能删）
-- update：仅微调措辞或重要性 — 事实本身仍有效（如修正错别字「Pyhton」→「Python」）；需要 new_content；用户已锁定的规则 Agent 不能更新 — 请先请用户解锁
-- correct：用最新正确事实替换过时或错误事实（如「用户在旧金山」→「用户搬到了西雅图」）— 仅 knowledge 类别；需要 new_content；保留历史记录；纠正已有记忆时优先于 memory_save_tool
+- delete：删除记忆（用户保护（钉选或锁定）的记忆 Agent 不能删）
+- update：仅微调措辞或重要性 — 事实本身仍有效（如修正错别字「Pyhton」→「Python」）；需要 new_content；用户已保护（钉选或锁定）的记忆 Agent 不能更新 — 请先请用户解除保护
+- correct：用最新正确事实替换过时或错误事实（如「用户在旧金山」→「用户搬到了西雅图」）— 仅 knowledge 类别；需要 new_content；保留历史记录；纠正已有记忆时优先于 memory_save_tool；用户已保护（钉选或锁定）的记忆 Agent 不能纠正 — 请先请用户解除保护
 - rate：记录用户反馈 — 仅 knowledge 或 event；需要 rating_score 1-5（1=差，5=优）
 
 **类别限制**：

@@ -11,6 +11,7 @@ from myrm_agent_harness.toolkits.memory._manager.shared import (
     EpisodicMemory,
     MemoryError,
     MemoryNotFoundError,
+    MemoryProtectedError,
     MemoryStatus,
     ProceduralMemory,
     SemanticMemory,
@@ -103,16 +104,24 @@ class MemoryManagerMutationsMixin:
                 return r
         return None
 
-    async def correct_memory(self, memory_id: str, corrected_content: str) -> SemanticMemory:
+    async def correct_memory(
+        self, memory_id: str, corrected_content: str, *, allow_protected: bool = True
+    ) -> SemanticMemory:
         """Correct a factually wrong memory: demote the old one and create a linked correction.
 
-        Returns the newly created correction memory.
+        ``allow_protected=False`` (automated and agent-facing paths) refuses to
+        demote a memory the user protected. Returns the newly created correction
+        memory.
         """
         existing = await self.get_memory(memory_id)
         if existing is None:
             raise MemoryNotFoundError(f"Memory {memory_id} not found")
         if not isinstance(existing, SemanticMemory):
             raise MemoryError(f"Correction only supports SemanticMemory, got {type(existing).__name__}")
+        if not allow_protected and existing.is_user_protected:
+            raise MemoryProtectedError(
+                f"Memory {memory_id} is protected by the user; automated corrections are not allowed"
+            )
 
         demoted = existing.model_copy(deep=True)
         demoted.importance = max(existing.importance * 0.3, 0.05)
@@ -171,6 +180,7 @@ class MemoryManagerMutationsMixin:
         *,
         content: str | None = None,
         importance: float | None = None,
+        confidence: float | None = None,
         tags: list[str] | None = None,
         metadata: dict[str, str | int | float | bool] | None = None,
         is_active: bool | None = None,
@@ -178,14 +188,27 @@ class MemoryManagerMutationsMixin:
         reasoning: str | None = None,
         application: str | None = None,
         is_user_locked: bool | None = None,
+        allow_protected: bool = True,
     ) -> AnyMemory:
+        """Update a memory in place.
+
+        ``allow_protected=False`` (automated and agent-facing paths) refuses to
+        touch a memory the user protected, so the guard lives in one place
+        instead of being re-implemented at every call site. The WebUI keeps the
+        default ``True`` because the user is entitled to edit their own data.
+        """
         existing = await self.get_memory(memory_id)
         if existing is None:
             raise MemoryNotFoundError(f"Memory {memory_id} not found")
 
+        content_changed = content is not None
+        if not allow_protected and existing.is_user_protected:
+            raise MemoryProtectedError(
+                f"Memory {memory_id} is protected by the user; automated writes are not allowed"
+            )
+
         updated = existing.model_copy(deep=True)
 
-        content_changed = content is not None
         if content_changed:
             updated.metadata = {
                 **updated.metadata,
@@ -202,6 +225,8 @@ class MemoryManagerMutationsMixin:
                     raise MemoryError(transient_fact_save_rejection_message())
         if importance is not None and isinstance(updated, (SemanticMemory, EpisodicMemory, ConversationMemory)):
             updated.importance = importance
+        if confidence is not None and isinstance(updated, SemanticMemory):
+            updated.confidence = confidence
         if tags is not None and isinstance(updated, SemanticMemory):
             updated.tags = tags
         if status is not None:
@@ -211,7 +236,7 @@ class MemoryManagerMutationsMixin:
                 updated.metadata = {
                     **updated.metadata,
                     "archived_at": now.isoformat(),
-                    "archive_expires_at": (now + timedelta(days=7)).isoformat(),
+                    "archive_expires_at": (now + timedelta(days=ARCHIVE_RETENTION_DAYS)).isoformat(),
                     "archive_reason": "user_deleted",
                 }
                 await self._cascade_clean_derived_graph_nodes(memory_id)

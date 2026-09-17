@@ -14,6 +14,7 @@ state (env vars, cwd) across commands.
 | shell_flavor.py | Core | Platform-specific shell drivers: `BashFlavor` (with `exit()` interceptor + block-rc wrapper + errexit `EXIT` trap + ANSI-C `$'…'` env quoting), `PowerShellFlavor` (with UTF-8 console I/O encoding, `$ProgressPreference='SilentlyContinue'`, `exit()` interceptor, dual exit code normalization), `WindowsFlavor` (legacy cmd.exe fallback) |
 | stream_output_processor.py | Core | `StreamOutputProcessor` — unified tee writing, SSE throttle/valve, disk quota |
 | stream_buffer.py | Core | `ExecutionStreamBuffer` — zero-copy byte stream parsing with marker detection; `parse_failed` flag when the exit-code field is not a number (boundary corruption) |
+| log_distiller.py | Core | High-efficiency terminal execution log distiller (`DistilledLogResult`, `TerminalLogDistiller`, `distill_terminal_output`) |
 
 ## Key Dependencies
 

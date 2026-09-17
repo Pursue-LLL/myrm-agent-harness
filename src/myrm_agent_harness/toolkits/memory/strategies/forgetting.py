@@ -137,9 +137,9 @@ class ForgettingStrategy:
             if conflict_status == "conflicted" or getattr(memory, "requires_governance", False):
                 should_forget = False
                 reason = "Protected: contested memory awaiting human governance"
-            elif memory.pinned or getattr(memory, "is_user_locked", False):
+            elif memory.is_user_protected:
                 should_forget = False
-                reason = "Protected: user-pinned"
+                reason = "Protected: user-pinned or user-locked"
             elif age_days < cfg.min_retention_days:
                 should_forget = False
                 reason = f"Protected: younger than {cfg.min_retention_days} days"

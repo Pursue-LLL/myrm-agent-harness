@@ -10,6 +10,7 @@ Skill market module — search, install, update, and manage skills from external
 | __init__.py | Package | Skill market module. | — |
 | autoupdate.py | Core | Skill auto-update checker. | ✅ |
 | helpers.py | Core | Skill market helper functions (write_origin with version, parent_plugin & declared_mcp_servers provenance, ranking, dedup). | ✅ |
+| index_cache.py | Core | `SkillsIndexCache` — centralized static skills index cache with fast in-memory skill filtering. | ✅ |
 | sanitizer.py | Core | Provides is_blocked_file, sanitize_skill_files. | ✅ |
 | service.py | Core | Skill market service with deterministic multi-source merge, canonical archive-security mapping, dynamic source registration, Agent Plugins 1.0.0 multi-skill unpack & preview/install MCP transparency, version downgrade guardrail validation, cascading uninstall, and managed receipt generation. | ✅ |
 | taps.py | Core | TapSubscription, TapDirectoryScanner, and GitHubTapSource for personal/enterprise private GitHub repo catalog synchronization. | ✅ |
@@ -19,6 +20,7 @@ Skill market module — search, install, update, and manage skills from external
 |-----------|-------------|
 | installers/ | Skill installers. |
 | sources/ | Skill data sources. |
+| static_index/ | Static skills index engine and mirror cache. See [static_index/_ARCH.md](static_index/_ARCH.md). |
 
 ## Key Dependencies
 

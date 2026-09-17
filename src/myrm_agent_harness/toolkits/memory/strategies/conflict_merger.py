@@ -245,8 +245,7 @@ def merge_memory_candidate(
 
     # 2. Extract metadata & User Override Wins rule
     existing_locked = bool(
-        getattr(existing, "is_user_locked", False)
-        or getattr(existing, "user_pinned", False)
+        getattr(existing, "is_user_protected", False)
         or getattr(existing, "source", "") == "user"
     )
     candidate_is_user = candidate_source == "user" or getattr(candidate, "source", "") == "user"

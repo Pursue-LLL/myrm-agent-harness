@@ -117,7 +117,12 @@ async def test_apply_subsumption(mock_manager):
 
     assert count == 1
     assert mem1.metadata["status"] == "subsumed"
-    mock_manager.update_memory.assert_called_once_with("id1", metadata=mem1.metadata, status=MemoryStatus.DISABLED)
+    mock_manager.update_memory.assert_called_once_with(
+        "id1",
+        metadata=mem1.metadata,
+        status=MemoryStatus.DISABLED,
+        allow_protected=False,
+    )
 
 
 @pytest.mark.asyncio

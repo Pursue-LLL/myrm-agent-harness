@@ -613,7 +613,7 @@ class SmartDeduplicator:
             existing = converter(docs[0])
 
             # CRITICAL: User Override Wins - Never allow automated LLM deduplication to overwrite human edits
-            if getattr(existing, "is_user_locked", False) or getattr(existing, "user_pinned", False) or getattr(existing, "source", "") == "user":
+            if getattr(existing, "is_user_protected", False) or getattr(existing, "source", "") == "user":
                 logger.info("Deduplicator: preserved user-locked memory %s, creating NEW instead of overwrite", target_id)
                 return new_memory
 

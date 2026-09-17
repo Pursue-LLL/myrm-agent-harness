@@ -53,6 +53,7 @@ from myrm_agent_harness.toolkits.memory._internal.search_service import (
 from myrm_agent_harness.toolkits.memory._internal.storage import (
     MemoryError,
     MemoryNotFoundError,
+    MemoryProtectedError,
     count_by_type,
     delete_from_vector,
     doc_to_episodic,
@@ -110,6 +111,7 @@ from myrm_agent_harness.toolkits.memory.strategies.recurrence import (
     RecurrenceDetector,
 )
 from myrm_agent_harness.toolkits.memory.types import (
+    ARCHIVE_RETENTION_DAYS,
     AnyMemory,
     ConversationMemory,
     EpisodicMemory,
@@ -150,6 +152,7 @@ def _log_background_task_failure(task: asyncio.Task[object]) -> None:
 
 __all__ = [
     "TYPE_CHECKING",
+    "ARCHIVE_RETENTION_DAYS",
     "UTC",
     "AgentMemoryPolicy",
     "AnyMemory",
@@ -176,6 +179,7 @@ __all__ = [
     "MemoryMutationRef",
     "MemoryMutationResult",
     "MemoryNotFoundError",
+    "MemoryProtectedError",
     "MemoryRetrievalTrace",
     "MemoryRetriever",
     "MemoryScope",

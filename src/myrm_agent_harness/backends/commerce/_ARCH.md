@@ -23,6 +23,8 @@ and Merchant (back-office management: performance KPIs, listing staging/apply, p
 | `checkout_handoff.py` | Checkout Security | Zero-model-touch payment handoff (`REDIRECT`, `IN_APP_MODAL`, `QR_CODE`), URL token stripping, and host-level card payload injection. | — |
 | `app_events.py` | Asynchronous Events | Session application event queue (`AppEvent`), payment/identity completion webhook reception, and prompt context resume injection. | — |
 | `memory_backend.py` | Reference Impl | Zero-dependency, testable in-memory implementations (`InMemoryStorefrontBackend`, `InMemoryMerchantBackend`). | — |
+| `handoff.py` | Core | Out-of-band checkout handoff and asynchronous app event queue (`HandoffMode`, `CheckoutHandoff`, `AppEventType`, `AppEvent`). | — |
+| `slices.py` | Core | Commerce session slice and automated regression evaluation suite (`SliceStep`, `SliceAssertion`, `CommerceSessionSlice`, `CommerceSliceEvalCase`). | — |
 
 ## Architecture & Design Principles
 

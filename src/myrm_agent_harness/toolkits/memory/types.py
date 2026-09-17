@@ -129,6 +129,11 @@ class ToolRulePriority(StrEnum):
 TOOL_FAILURE_ORIGIN = "tool_failure"
 TOOL_FAILURE_TTL_DAYS = 1
 
+# Archived memories are recoverable for this window before maintenance purges
+# them. Every archival write path must stamp ``archive_expires_at`` from this
+# value so the purge scanner can reclaim them.
+ARCHIVE_RETENTION_DAYS = 7
+
 
 class MemoryStatus(StrEnum):
     """Unified lifecycle status for all memory types."""
@@ -267,6 +272,16 @@ class BaseMemory(BaseModel):
     evidence: list[EvidenceReference] = Field(
         default_factory=list, description="Structured provenance evidence anchoring this fact"
     )
+
+    @property
+    def is_user_protected(self) -> bool:
+        """Whether the user's protection applies, whichever flag carries it.
+
+        ``pinned`` is the persisted lock for vector memories; ``is_user_locked``
+        is the persisted lock for procedural rules. Automated writers check this
+        single predicate so neither flag can be silently bypassed.
+        """
+        return self.pinned or self.is_user_locked
 
     @field_validator("created_at", "updated_at", "last_accessed_at", mode="before")
     @classmethod

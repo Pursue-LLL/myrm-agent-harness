@@ -67,7 +67,7 @@ class MemoryManagerDeletionMixin(MemoryManagerArchivalMixin, MemoryManagerQuerie
         collection: str,
         ids: list[str] | None = None,
         *,
-        allow_pinned: bool = True,
+        allow_protected: bool = True,
     ) -> int:
         if self._vector is None:
             raise MemoryError("Vector backend is required but not provided")
@@ -78,7 +78,7 @@ class MemoryManagerDeletionMixin(MemoryManagerArchivalMixin, MemoryManagerQuerie
                 doc
                 for doc in docs
                 if self._owns_vector_doc(doc)
-                and (allow_pinned or not doc.metadata.get("pinned"))
+                and (allow_protected or not doc.metadata.get("pinned"))
             ]
             if not owned_docs:
                 return 0
@@ -95,22 +95,21 @@ class MemoryManagerDeletionMixin(MemoryManagerArchivalMixin, MemoryManagerQuerie
                     await self._cache.evict(t)
         return deleted
 
-    async def delete_rule(self, rule_id: str, *, allow_pinned: bool = True) -> bool:
+    async def delete_rule(self, rule_id: str, *, allow_protected: bool = True) -> bool:
         """Delete an owned procedural rule.
 
         Ownership is enforced via the manager's namespaces so a rule can only
         be deleted when it lives in the current scope — mirroring the
         ownership gate already applied to vector memories.
 
-        ``allow_pinned=False`` (agent-facing path) also honours
-        ``is_user_locked``: that is the persisted rule lock, shared with
-        distillation/merge/forgetting, so a user-endorsed rule cannot be
-        silently dropped by the agent.
+        ``allow_protected=False`` (automated and agent-facing paths) refuses to
+        delete a user-endorsed rule, so the lock shared with
+        distillation/merge/forgetting cannot be silently bypassed.
         """
         rule = await self._rel().get_rule(rule_id, namespaces=self._namespaces)
         if rule is None:
             return False
-        if not allow_pinned and rule.is_user_locked:
+        if not allow_protected and rule.is_user_protected:
             return False
         deleted = await self._rel().delete_rule(rule_id)
         if deleted:
@@ -131,7 +130,11 @@ class MemoryManagerDeletionMixin(MemoryManagerArchivalMixin, MemoryManagerQuerie
         *,
         memory_types: Sequence[MemoryType] | None = None,
     ) -> dict[str, int]:
-        """Delete owned memories whose flat metadata contains an exact key/value pair."""
+        """Delete owned memories whose flat metadata contains an exact key/value pair.
+
+        User-initiated cascades (chat session purge) run with the user's
+        consent, so protected entries are deleted together with the rest.
+        """
 
         selected_types = tuple(
             memory_types

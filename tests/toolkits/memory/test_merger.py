@@ -30,6 +30,21 @@ def test_user_override_lock_protects_existing_memory() -> None:
     assert "locked by explicit human override" in decision.reason
 
 
+def test_pinned_memory_also_triggers_user_override_protection() -> None:
+    """A pinned memory must reach USER_OVERRIDE_PROTECTED, not only a user-locked one."""
+    merger = DeterministicThreeStateMerger()
+    pinned_mem = SemanticMemory(
+        content="禁止在生产数据库直接运行 DROP TABLE 操作",
+        confidence=1.0,
+        pinned=True,
+    )
+
+    decision = merger.evaluate(pinned_mem, "测试时可以允许临时 drop table 重建")
+
+    assert decision.state == MergeState.USER_OVERRIDE_PROTECTED
+    assert decision.merged_content == pinned_mem.content
+
+
 def test_exact_normalized_confirm_increases_confidence() -> None:
     """Identical or normalized duplicate corroborates fact, bumping confidence by +0.05."""
     merger = DeterministicThreeStateMerger()
