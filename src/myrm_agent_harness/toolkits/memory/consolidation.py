@@ -114,7 +114,6 @@ class HyperConsolidator:
         has_traps = len(state.traps) > 0
         if state.active_turn <= 1 and not has_subtasks and not has_traps:
             logger.debug("Hyper consolidation gatekeeper: trivial turn bypassed for session %s", session_id)
-            LocalWorkingMemoryBlock.reset()
             return None, []
 
         # 1. Distill TaskDigestMemory

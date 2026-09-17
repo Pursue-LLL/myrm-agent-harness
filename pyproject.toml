@@ -163,7 +163,6 @@ packages = ["src/myrm_agent_harness"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "src/myrm_agent_harness/toolkits/browser/assets/ad_domains.txt" = "myrm_agent_harness/toolkits/browser/assets/ad_domains.txt"
-"src/myrm_agent_harness/agent/meta_tools/interaction/A2UI_COMPONENT_REFERENCE.md" = "myrm_agent_harness/agent/meta_tools/interaction/A2UI_COMPONENT_REFERENCE.md"
 "src/myrm_agent_harness/toolkits/browser/action_capture/capture_script.js" = "myrm_agent_harness/toolkits/browser/action_capture/capture_script.js"
 
 [tool.hatch.build]
@@ -274,7 +273,7 @@ asyncio_default_test_loop_scope = "module"
 asyncio_default_fixture_loop_scope = "module"
 testpaths = ["tests"]
 pythonpath = ["src"]
-addopts = "-n0 --timeout=300 -m 'not integration and not e2e and not performance'"
+addopts = "--import-mode=importlib -n0 --timeout=300 -m 'not integration and not e2e and not performance'"
 filterwarnings = [
     "error",
     "ignore:The default value of `allowed_objects` will change:langchain_core._api.deprecation.LangChainPendingDeprecationWarning",

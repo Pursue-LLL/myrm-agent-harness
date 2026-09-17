@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import math
 import re
-from typing import Mapping
+from collections.abc import Mapping
 
 # Pre-compiled high-precision regex patterns for exact identifiers
 _UUID_PATTERN = re.compile(

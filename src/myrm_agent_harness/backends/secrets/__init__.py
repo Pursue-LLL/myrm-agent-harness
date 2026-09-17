@@ -15,12 +15,15 @@
 Agent secrets backend package entry point. Re-exports storage protocols and implementations.
 """
 
-from .command_backend import CommandExecutionError, CommandSecretBackend
-from .external_resolver import (
+# NOTE: canonical implementation lives in toolkits.llms.secrets (framework
+# layer); re-exported here so existing backends importers keep working.
+from myrm_agent_harness.toolkits.llms.secrets import (
     ExternalSecretResolutionError,
     is_external_secret_reference,
     resolve_external_secret,
 )
+
+from .command_backend import CommandExecutionError, CommandSecretBackend
 from .local_backend import LocalSecretBackend, SecretEncryptionError
 from .memory_backend import InMemorySecretBackend
 from .protocols import AgentSecretBackend

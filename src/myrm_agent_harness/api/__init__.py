@@ -197,6 +197,8 @@ __all__ = [
     "is_within_boundary",
     "safe_join_path",
     "safe_purge_fts5_virtual_table",
+    "WorkingMemorySnapshot",
+    "create_consolidation_cleanup_task",
 ]
 
 _EXPORTS: dict[str, tuple[str, str]] = {
@@ -865,6 +867,14 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "ProviderBalanceStatus": (
         "myrm_agent_harness.toolkits.llms.probe",
         "ProviderBalanceStatus",
+    ),
+    "WorkingMemorySnapshot": (
+        "myrm_agent_harness.toolkits.memory",
+        "WorkingMemorySnapshot",
+    ),
+    "create_consolidation_cleanup_task": (
+        "myrm_agent_harness.toolkits.memory",
+        "create_consolidation_cleanup_task",
     ),
 }
 

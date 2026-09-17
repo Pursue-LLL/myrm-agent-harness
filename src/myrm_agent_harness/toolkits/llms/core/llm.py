@@ -35,7 +35,10 @@ from myrm_agent_harness.infra.tls_compat import build_httpx_verify, tls_strict_d
 
 # Side-effect import: registers custom providers into litellm.custom_provider_map
 from myrm_agent_harness.toolkits.llms import providers  # noqa: F401
-from myrm_agent_harness.toolkits.llms.adapters.chat_model import ChatLiteLLM, clean_model_kwargs
+from myrm_agent_harness.toolkits.llms.adapters.chat_model import (
+    ChatLiteLLM as ChatLiteLLM,
+    clean_model_kwargs as clean_model_kwargs,
+)
 from myrm_agent_harness.toolkits.llms.core.deepseek_reasoning import apply_deepseek_reasoning_effort
 from myrm_agent_harness.toolkits.llms.core.openai_reasoning import apply_openai_reasoning_effort
 from myrm_agent_harness.toolkits.llms.core.openrouter_verbosity import apply_openrouter_reasoning_effort

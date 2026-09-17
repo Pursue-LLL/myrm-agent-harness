@@ -26,6 +26,7 @@ from myrm_agent_harness.toolkits.memory._manager.shared import (
     timedelta,
     update_vector_memory,
 )
+from myrm_agent_harness.toolkits.memory.strategies.exact_fact import ExactFactClassifier
 
 
 class MemoryManagerMutationsMixin:
@@ -194,6 +195,7 @@ class MemoryManagerMutationsMixin:
         reasoning: str | None = None,
         application: str | None = None,
         is_user_locked: bool | None = None,
+        is_exact_fact: bool | None = None,
         allow_protected: bool = True,
     ) -> AnyMemory:
         """Update a memory in place.
@@ -266,6 +268,51 @@ class MemoryManagerMutationsMixin:
                 updated.application = application
             if is_user_locked is not None:
                 updated.is_user_locked = is_user_locked
+
+        if is_exact_fact is not None:
+            updated.is_exact_fact = is_exact_fact
+            updated.metadata["is_exact_fact"] = is_exact_fact
+            if is_exact_fact:
+                idents = ExactFactClassifier.extract_identifiers(updated.content)
+                updated.exact_identifiers = idents
+                updated.metadata["exact_identifiers"] = idents
+                if self._relational is not None and hasattr(self._relational, "record_exact_fact"):
+                    try:
+                        await self._relational.record_exact_fact(
+                            memory_id=updated.id,
+                            user_id=updated.user_id,
+                            content=updated.content,
+                            identifiers=idents,
+                            primary_namespace=updated.scope.primary_namespace if updated.scope else "",
+                            namespaces=updated.scope.namespaces if updated.scope else None,
+                        )
+                    except Exception as err:
+                        logger.warning("Failed to record exact fact: %s", err)
+            else:
+                updated.exact_identifiers = []
+                updated.metadata["exact_identifiers"] = []
+                if self._relational is not None and hasattr(self._relational, "delete_exact_fact"):
+                    try:
+                        await self._relational.delete_exact_fact(updated.id)
+                    except Exception as err:
+                        logger.warning("Failed to delete exact fact: %s", err)
+        elif content_changed and updated.is_exact_fact:
+            idents = ExactFactClassifier.extract_identifiers(updated.content)
+            updated.exact_identifiers = idents
+            updated.metadata["exact_identifiers"] = idents
+            if self._relational is not None and hasattr(self._relational, "record_exact_fact"):
+                try:
+                    await self._relational.record_exact_fact(
+                        memory_id=updated.id,
+                        user_id=updated.user_id,
+                        content=updated.content,
+                        identifiers=idents,
+                        primary_namespace=updated.scope.primary_namespace if updated.scope else "",
+                        namespaces=updated.scope.namespaces if updated.scope else None,
+                    )
+                except Exception as err:
+                    logger.warning("Failed to update exact fact: %s", err)
+
         updated.updated_at = datetime.now(UTC)
 
         if content_changed and self._config.security_scan_enabled:

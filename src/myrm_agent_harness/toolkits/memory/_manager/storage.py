@@ -64,19 +64,22 @@ class MemoryManagerStorageMixin:
         v, e = self._vec()
         bound = self._bind_scope(memory)
         stored = await store_semantic(bound, v, self._config, e, self._cache)
-        if self._relational is not None and hasattr(self._relational, "record_exact_fact"):
-            if stored.is_exact_fact or stored.exact_identifiers:
-                try:
-                    await self._relational.record_exact_fact(
-                        memory_id=stored.id,
-                        user_id=stored.user_id,
-                        content=stored.content,
-                        identifiers=stored.exact_identifiers,
-                        primary_namespace=stored.scope.primary_namespace if stored.scope else "",
-                        namespaces=stored.scope.namespaces if stored.scope else None,
-                    )
-                except Exception as err:
-                    logger.warning("Failed to record exact fact in relational store: %s", err)
+        if (
+            self._relational is not None
+            and hasattr(self._relational, "record_exact_fact")
+            and (stored.is_exact_fact or stored.exact_identifiers)
+        ):
+            try:
+                await self._relational.record_exact_fact(
+                    memory_id=stored.id,
+                    user_id=stored.user_id,
+                    content=stored.content,
+                    identifiers=stored.exact_identifiers,
+                    primary_namespace=stored.scope.primary_namespace if stored.scope else "",
+                    namespaces=stored.scope.namespaces if stored.scope else None,
+                )
+            except Exception as err:
+                logger.warning("Failed to record exact fact in relational store: %s", err)
         return stored
 
     async def _store_semantics_batch(self, memories: list[SemanticMemory]) -> list[SemanticMemory]:

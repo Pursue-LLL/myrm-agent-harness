@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import aiosqlite
@@ -30,10 +30,10 @@ from myrm_agent_harness.toolkits.memory.strategies.exact_fact import (
     ExactFactClassifier,
 )
 from myrm_agent_harness.toolkits.memory.types import (
-    BaseMemory,
     MemoryScope,
     MemorySearchResult,
     MemoryType,
+    SemanticMemory,
 )
 from myrm_agent_harness.utils.db.fts5 import sanitize_fts5_query
 
@@ -192,12 +192,12 @@ async def search_exact_facts(
         async with conn.execute(sql, params) as cursor:
             rows = await cursor.fetchall()
             for row in rows:
-                mem_id, u_id, cnt, p_ns, ns_str, matched_ident = row
+                mem_id, u_id, cnt, p_ns, ns_str, _matched_ident = row
                 if mem_id in seen_memory_ids:
                     continue
                 seen_memory_ids.add(mem_id)
                 ns_list = json.loads(ns_str) if ns_str else []
-                mem = BaseMemory(
+                mem = SemanticMemory(
                     id=mem_id,
                     user_id=u_id,
                     content=cnt,
@@ -233,7 +233,7 @@ async def search_exact_facts(
                             continue
                         seen_memory_ids.add(mem_id)
                         idents = idents_str.split() if idents_str else []
-                        mem = BaseMemory(
+                        mem = SemanticMemory(
                             id=mem_id,
                             user_id=u_id,
                             content=cnt,

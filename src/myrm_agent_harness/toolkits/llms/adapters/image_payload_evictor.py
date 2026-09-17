@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import base64
 import io
-import logging
 from typing import Final
 
 from PIL import Image
@@ -49,14 +48,12 @@ def _downsample_base64_image(data_url: str, max_dim: int = _DOWNSAMPLE_MAX_DIM, 
             img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
 
             # Convert to RGB if palette or RGBA with transparency
-            if img.mode in ("RGBA", "LA", "P"):
-                # WebP supports RGBA directly
-                pass
-            elif img.mode != "RGB":
-                img = img.convert("RGB")
+            rgb_img = img
+            if img.mode not in ("RGBA", "LA", "P", "RGB"):
+                rgb_img = img.convert("RGB")
 
             out_buf = io.BytesIO()
-            img.save(out_buf, format="WEBP", quality=int(quality * 100), method=4)
+            rgb_img.save(out_buf, format="WEBP", quality=int(quality * 100), method=4)
             compressed_bytes = out_buf.getvalue()
 
             # If compression didn't save space, return original

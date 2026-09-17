@@ -66,7 +66,7 @@ class MemoryRetriever:
         items: dict[str, MemorySearchResult] = {}
         for r in results:
             mid = r.id
-            scores[mid] = self._boost(r.score, r, query_tokens, query_context)
+            scores[mid] = self._boost(r.score, r, query_tokens, query_context, raw_query=query)
             items[mid] = r
         self._suppress_corrected(scores, items)
         self._hard_cutoff(scores, items)
@@ -99,6 +99,7 @@ class MemoryRetriever:
         hit_attributions: dict[str, list[HitSource]] = {}
         k = self._config.rrf_k
         query_tokens = tokenize(query)
+        query_lower = query.lower()
 
         for list_idx, results in enumerate(result_lists):
             src_name = source_names[list_idx] if source_names and list_idx < len(source_names) else f"stream_{list_idx}"
@@ -106,10 +107,11 @@ class MemoryRetriever:
                 mid = r.id
                 rrf = 1.0 / (k + rank_idx + 1)
                 type_w = self._config.type_weights.get(r.memory_type, 1.0)
-                boosted = self._boost(rrf * type_w, r, query_tokens, query_context)
+                boosted = self._boost(rrf * type_w, r, query_tokens, query_context, raw_query=query)
                 if getattr(r.memory, "is_exact_fact", False) and getattr(r.memory, "exact_identifiers", None):
                     for ident in r.memory.exact_identifiers:
-                        if ident.lower() in query_tokens:
+                        ident_lower = ident.lower()
+                        if ident_lower in query_tokens or (query_lower and ident_lower in query_lower):
                             boosted += 5.0
                             break
                 scores[mid] = scores.get(mid, 0.0) + boosted
@@ -274,7 +276,12 @@ class MemoryRetriever:
             scores[cid] *= self._config.correction_penalty
 
     def _boost(
-        self, base: float, result: MemorySearchResult, query_tokens: frozenset[str], query_context: object | None = None
+        self,
+        base: float,
+        result: MemorySearchResult,
+        query_tokens: frozenset[str],
+        query_context: object | None = None,
+        raw_query: str = "",
     ) -> float:
         """Apply context-aware scoring boost with hybrid enhancements.
 
@@ -285,8 +292,10 @@ class MemoryRetriever:
         """
         mem = result.memory
         if getattr(mem, "is_exact_fact", False) and getattr(mem, "exact_identifiers", None):
+            q_lower = raw_query.lower()
             for ident in mem.exact_identifiers:
-                if ident.lower() in query_tokens:
+                ident_lower = ident.lower()
+                if ident_lower in query_tokens or (q_lower and ident_lower in q_lower):
                     return 1.0
 
         geometric = self._geometric_score(base, result)

@@ -90,3 +90,44 @@ __all__ = [
     "set_workspace_trust_level",
     "set_workspace_trust_lookup",
 ]
+
+
+class _AgentWorkspaceTrustGate:
+    """Agent-layer WorkspaceTrustGate wired into the MCP toolkit transport.
+
+    Agent may import toolkits (never the reverse); registering here keeps
+    toolkits/mcp free of agent imports while preserving spawn gating wherever
+    this package is imported (server runtime always imports it).
+    """
+
+    def get_trust_level(self) -> object:
+        return get_workspace_trust_level()
+
+    def assert_mcp_spawn_allowed(
+        self,
+        *,
+        workspace_root: str | None,
+        cwd: str | None,
+        plugin_root: str | None,
+        trust_level: object,
+    ) -> None:
+        from myrm_agent_harness.agent.security.workspace_trust.types import (
+            WorkspaceTrustLevel,
+        )
+
+        level = trust_level if isinstance(trust_level, WorkspaceTrustLevel) else None
+        assert_mcp_spawn_allowed(
+            workspace_root=workspace_root,
+            cwd=cwd,
+            plugin_root=plugin_root,
+            trust_level=level,
+        )
+
+
+def _register_mcp_transport_gate() -> None:
+    from myrm_agent_harness.toolkits.mcp.transport import set_workspace_trust_gate
+
+    set_workspace_trust_gate(_AgentWorkspaceTrustGate())
+
+
+_register_mcp_transport_gate()

@@ -24,6 +24,7 @@ import logging
 import pathlib
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
+from typing import Protocol
 
 import anyio
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
@@ -33,6 +34,43 @@ from myrm_agent_harness.toolkits.code_execution.executors.base import CodeExecut
 from myrm_agent_harness.toolkits.code_execution.executors.models import AsyncProcessProtocol
 
 logger = logging.getLogger(__name__)
+
+
+class WorkspaceTrustGate(Protocol):
+    """Host-provided workspace trust gate for MCP spawn decisions.
+
+    Implemented by the agent layer; the transport only depends on this
+    Protocol so toolkits/ never imports agent/ (see toolkits/_ARCH.md).
+    """
+
+    def get_trust_level(self) -> object:
+        """Return the current workspace trust level (opaque to the transport)."""
+        ...
+
+    def assert_mcp_spawn_allowed(
+        self,
+        *,
+        workspace_root: str | None,
+        cwd: str | None,
+        plugin_root: str | None,
+        trust_level: object,
+    ) -> None:
+        """Raise when spawning an MCP server from the workspace scope is blocked."""
+        ...
+
+
+_trust_gate: WorkspaceTrustGate | None = None
+
+
+def set_workspace_trust_gate(gate: WorkspaceTrustGate | None) -> None:
+    """Register (or clear) the host workspace trust gate. Agent layer owns this."""
+    global _trust_gate
+    _trust_gate = gate
+
+
+def get_workspace_trust_gate() -> WorkspaceTrustGate | None:
+    """Return the registered host workspace trust gate, if any."""
+    return _trust_gate
 
 
 class ExecutorStdioTransport:
@@ -226,22 +264,14 @@ class ExecutorStdioTransport:
         if isinstance(launch_extra, dict):
             plugin_root = plugin_root or launch_extra.get("plugin_root")
 
-        import importlib
-
-        try:
-            wt_ctx = importlib.import_module("myrm_agent_harness.agent.security.workspace_trust.context")
-            wt_gate = importlib.import_module("myrm_agent_harness.agent.security.workspace_trust.gate")
-            get_trust_fn = getattr(wt_ctx, "get_workspace_trust_level", None)
-            assert_spawn_fn = getattr(wt_gate, "assert_mcp_spawn_allowed", None)
-            if callable(get_trust_fn) and callable(assert_spawn_fn):
-                assert_spawn_fn(
-                    workspace_root=self.executor.workspace_path,
-                    cwd=work_dir,
-                    plugin_root=str(plugin_root) if plugin_root else None,
-                    trust_level=get_trust_fn(),
-                )
-        except (ImportError, AttributeError):
-            pass
+        gate = get_workspace_trust_gate()
+        if gate is not None:
+            gate.assert_mcp_spawn_allowed(
+                workspace_root=self.executor.workspace_path,
+                cwd=work_dir,
+                plugin_root=str(plugin_root) if plugin_root else None,
+                trust_level=gate.get_trust_level(),
+            )
 
         # Prepare execution context
         context = ExecutionContext(

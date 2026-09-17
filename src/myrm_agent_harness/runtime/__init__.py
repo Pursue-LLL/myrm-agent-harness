@@ -18,7 +18,6 @@ Core modules:
 - checkpoint_protocol: Checkpointer protocol definition
 - fork_types: Conversation fork data structures
 """
-
 from myrm_agent_harness.runtime.context import (
     ContextCleanupConfig,
     ContextCleanupScheduler,
@@ -38,6 +37,7 @@ from myrm_agent_harness.runtime.context import (
     read_context_file_sync,
     set_context_metrics,
 )
+from myrm_agent_harness.runtime.deps import lazy_deps
 from myrm_agent_harness.runtime.events import BaseEvent, EventBus, IdleTaskProgressEvent, get_event_bus
 from myrm_agent_harness.runtime.fork.fork_types import ForkInfo
 from myrm_agent_harness.runtime.maintenance import (
@@ -98,6 +98,7 @@ __all__ = [
     "ForkInfo",
     "GlobalAdaptiveScheduler",
     "IdleTaskProgressEvent",
+    "lazy_deps",
     "MaintenanceTaskType",
     "MemoryPressureMonitor",
     "PressureConfig",

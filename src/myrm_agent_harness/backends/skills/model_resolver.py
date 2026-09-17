@@ -21,9 +21,9 @@ Generic, zero-latency model resolution engine for skill-level model offloading.
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Mapping
 
 from myrm_agent_harness.backends.skills.types import SkillMetadata
 
@@ -34,6 +34,7 @@ class SkillModelResolutionSource(StrEnum):
     """Source indicator for resolved skill execution model."""
 
     EXPLICIT_MODEL = "explicit_model"
+    EXPLICIT_SKILL_MODEL = "explicit_model"
     TIER_MAPPING = "tier_mapping"
     AGENT_DEFAULT = "agent_default"
     FALLBACK = "fallback"
@@ -66,6 +67,17 @@ class SkillModelResolutionResult:
     reason: str
     """Deterministic explanation of the resolution path."""
 
+    declared_model: str | None = None
+    """Original specialized_model declared in skill metadata."""
+
+    declared_tier: str | None = None
+    """Original model_tier declared in skill metadata."""
+
+    @property
+    def resolution_source(self) -> SkillModelResolutionSource:
+        """Alias for source for backward compatibility."""
+        return self.source
+
     def to_dict(self) -> dict[str, object]:
         """Serialize resolution result to standard dictionary."""
         return {
@@ -74,11 +86,45 @@ class SkillModelResolutionResult:
             "source": self.source.value,
             "is_fallback": self.is_fallback,
             "reason": self.reason,
+            "declared_model": self.declared_model,
+            "declared_tier": self.declared_tier,
         }
 
 
 class SkillModelResolver:
     """Resolves declarative model requirements on skills to concrete runtime models."""
+
+    @classmethod
+    def resolve_model_for_skill(
+        cls,
+        skill: SkillMetadata,
+        default_model: str = "claude-3-5-sonnet",
+        available_models: set[str] | list[str] | None = None,
+        tier_map: Mapping[str, str] | None = None,
+    ) -> SkillModelResolutionResult:
+        """Resolve model for skill using skill metadata."""
+        return cls.resolve(
+            skill_metadata=skill,
+            default_model=default_model,
+            available_models=available_models,
+            tier_map=tier_map,
+        )
+
+    @classmethod
+    def resolve_skill_model(
+        cls,
+        skill: SkillMetadata,
+        default_model: str = "claude-3-5-sonnet",
+        available_models: set[str] | list[str] | None = None,
+        tier_map: Mapping[str, str] | None = None,
+    ) -> SkillModelResolutionResult:
+        """Alias for resolve_model_for_skill."""
+        return cls.resolve_model_for_skill(
+            skill=skill,
+            default_model=default_model,
+            available_models=available_models,
+            tier_map=tier_map,
+        )
 
     @classmethod
     def resolve(
@@ -111,9 +157,11 @@ class SkillModelResolver:
                 return SkillModelResolutionResult(
                     selected_model=clean_spec,
                     model_tier=declared_tier,
-                    source=SkillModelResolutionSource.EXPLICIT_MODEL,
+                    source=SkillModelResolutionSource.EXPLICIT_SKILL_MODEL,
                     is_fallback=False,
                     reason=f"Used explicit specialized model '{clean_spec}' declared in skill metadata.",
+                    declared_model=clean_spec,
+                    declared_tier=declared_tier,
                 )
             else:
                 logger.warning(
@@ -126,19 +174,20 @@ class SkillModelResolver:
         if declared_tier:
             norm_tier = declared_tier.strip().lower()
             tier_candidate = active_tier_map.get(norm_tier)
-            if tier_candidate:
-                if avail_set is None or tier_candidate in avail_set:
-                    is_fb = spec_model is not None
-                    return SkillModelResolutionResult(
-                        selected_model=tier_candidate,
-                        model_tier=norm_tier,
-                        source=SkillModelResolutionSource.TIER_MAPPING if not is_fb else SkillModelResolutionSource.FALLBACK,
-                        is_fallback=is_fb,
-                        reason=(
-                            f"Resolved model '{tier_candidate}' via model_tier='{norm_tier}'"
-                            + (f" (fallback from unavailable '{spec_model}')" if is_fb else ".")
-                        ),
-                    )
+            if tier_candidate and (avail_set is None or tier_candidate in avail_set):
+                is_fb = spec_model is not None
+                return SkillModelResolutionResult(
+                    selected_model=tier_candidate,
+                    model_tier=norm_tier,
+                    source=SkillModelResolutionSource.TIER_MAPPING,
+                    is_fallback=is_fb,
+                    reason=(
+                        f"Resolved model '{tier_candidate}' via model_tier='{norm_tier}'"
+                        + (f" (fallback from unavailable '{spec_model}')" if is_fb else ".")
+                    ),
+                    declared_model=spec_model,
+                    declared_tier=declared_tier,
+                )
 
         # 3. Fallback to default model
         is_fb = spec_model is not None or declared_tier is not None
@@ -151,4 +200,6 @@ class SkillModelResolver:
                 f"Defaulted to agent default model '{default_model}'"
                 + (f" (fallback from requested model='{spec_model}', tier='{declared_tier}')" if is_fb else ".")
             ),
+            declared_model=spec_model,
+            declared_tier=declared_tier,
         )

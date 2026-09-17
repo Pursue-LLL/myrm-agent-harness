@@ -96,7 +96,7 @@ class LLMManager:
         Returns:
             BaseChatModel: LLM instance (ChatLiteLLM or KeyPoolLLM)
         """
-        from myrm_agent_harness.backends.secrets import is_external_secret_reference, resolve_external_secret
+        from myrm_agent_harness.toolkits.llms.secrets import is_external_secret_reference, resolve_external_secret
 
         if is_external_secret_reference(api_key):
             api_key = resolve_external_secret(api_key)
