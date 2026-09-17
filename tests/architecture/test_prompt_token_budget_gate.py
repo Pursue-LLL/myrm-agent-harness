@@ -51,8 +51,10 @@ class TestPromptTokenBudgetGate:
         tools = await _build_default_turn1_tools()
         tools_subtotal = estimate_bound_tools_tokens(tools)
 
-        # Baseline is ~5,304 description tokens + 13*65 (845) schema = ~6,149 tokens
+        # Baseline is ~5,304 description tokens + 13*65 (845) wrapper = ~6,149 tokens
         # (macOS arm64 host; ~6,123 on Linux where the bash OS hint is shorter).
+        # Scope is description + wrapper only — tool parameter schemas are tracked
+        # separately in DEFAULT_AGENT_TOKEN_INVENTORY.md §六 (~4,400 for 13 tools).
         # Safe ceiling is 6,500 tokens
         max_allowed_tools_tokens = 6500
         assert (

@@ -1,7 +1,16 @@
 """Data models and types for the Local Working Memory Block subsystem.
 
-Provides structured, type-safe representations for runtime in-memory goals,
-subtasks, execution scratchpad entries, and transient error-avoidance traps.
+[INPUT]
+- None (POS: 纯数据类型与值对象)
+
+[OUTPUT]
+- SubtaskStatus: 子任务流转状态枚举
+- SubtaskItem: 子任务结构化条目
+- TrapRecord: 运行时错误避坑防线记录
+- LocalWorkingState: 手边工作台完整状态快照
+
+[POS]
+- 工作台领域类型定义层。提供运行时任务推进与避坑防线所需的所有强类型数据模型。
 """
 
 from __future__ import annotations

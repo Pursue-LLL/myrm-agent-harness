@@ -52,11 +52,11 @@ async def _build_default_turn1_tools() -> list[BaseTool]:
     )
     from myrm_agent_harness.agent.meta_tools import get_meta_tools
     from myrm_agent_harness.backends.skills.types import SkillMetadata
-    from myrm_agent_harness.toolkits.memory.config import MemoryConfig
-    from myrm_agent_harness.toolkits.memory.manager import MemoryManager
     from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import (
         create_memory_tools,
     )
+    from myrm_agent_harness.toolkits.memory.config import MemoryConfig
+    from myrm_agent_harness.toolkits.memory.manager import MemoryManager
     from myrm_agent_harness.toolkits.web_fetch.web_fetch_agent_tools import (
         create_web_fetch_tool,
     )
@@ -178,7 +178,7 @@ def _print_table(report: dict[str, object]) -> None:
         if layer in layer_totals:
             print(f"{layer + ' subtotal':<42} {layer_totals[layer]:>8}")
     print(f"{'Description subtotal':<42} {report['description_tokens']:>8}")
-    print(f"{'Schema wrappers (~65/tool)':<42} {report['schema_wrapper_tokens']:>8}")
+    print(f"{'Schema wrappers (excl. param schema)':<42} {report['schema_wrapper_tokens']:>8}")
     print(f"{'Tools layer total':<42} {report['tools_subtotal']:>8}")
 
 

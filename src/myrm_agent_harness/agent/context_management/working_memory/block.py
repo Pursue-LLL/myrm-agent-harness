@@ -1,9 +1,14 @@
 """Local Working Memory Block implementation.
 
-Provides a fast, zero-LLM in-memory workbench maintaining active goals,
-subtasks, execution scratchpad entries, and transient error traps.
-Enforces Prompt Cache safety by formatting workbench state strictly for
-injection at Dynamic Turn Tail rather than mutating static system prompt prefixes.
+[INPUT]
+- context_management.working_memory.types::LocalWorkingState (POS: 工作台运行时强类型状态实体)
+- context_management.working_memory.types::SubtaskItem (POS: 工作台子任务条目实体)
+
+[OUTPUT]
+- LocalWorkingMemoryBlock: 运行时零开销手边工作台，管理长程目标栈、子任务状态推进、避坑防线并生成 Turn-Tail Markdown
+
+[POS]
+- 执行引擎运行时工作台核心。基于 ContextVar 实现并发强隔离的手边工作区，严格遵从 Prompt Cache 规则仅在 Turn Tail 注入。
 """
 
 from __future__ import annotations

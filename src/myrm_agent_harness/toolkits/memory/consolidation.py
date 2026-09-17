@@ -1,8 +1,16 @@
 """Hyper Consolidation Memory Block subsystem.
 
-Performs post-session cognitive distillation and assetization in the background.
-Abstracts runtime task outcomes into structured TaskDigestMemory and crystallizes
-verified self-healing error avoidance traps into durable ProceduralMemory.
+[INPUT]
+- context_management.working_memory.block::LocalWorkingMemoryBlock (POS: 运行时零开销手边工作台)
+- toolkits.memory.types::TaskDigestMemory (POS: 结构化长程任务成果沉淀实体)
+- toolkits.memory.types::ProceduralMemory (POS: 程序性经验与规避准则实体)
+
+[OUTPUT]
+- HyperConsolidator: 会话终态异步巩固核心，内置 Gatekeeper 过滤平凡请求，沉淀 TaskDigest 与自愈 ProceduralMemory
+- create_consolidation_cleanup_task: 异步清理与巩固后台协程工厂
+
+[POS]
+- 认知中枢终态提炼服务。将单会话手边工作台的执行经验与避坑教训资产化并持久落盘。
 """
 
 from __future__ import annotations

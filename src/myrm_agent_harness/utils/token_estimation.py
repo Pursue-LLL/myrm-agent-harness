@@ -112,7 +112,8 @@ def _tool_description_text(tool: object) -> str:
 def estimate_bound_tools_tokens(tools: Sequence[BaseTool]) -> int:
     """Estimate bind_tools overhead: tool descriptions + JSON schema wrapper budget.
 
-    Matches ``scripts/measure_turn1_token_inventory.py`` (description-only + ~65/tool).
+    Matches ``scripts/measure_turn1_token_inventory.py`` (description + wrapper only;
+    the tool parameter schema is excluded — see ``scripts/measure_tool_schema_tokens.py``).
     """
     if not tools:
         return 0

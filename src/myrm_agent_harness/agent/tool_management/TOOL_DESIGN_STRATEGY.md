@@ -349,7 +349,7 @@ Turn1 默认 bind 的 13 个工具分层（数量以 `tool_layers.py:72-88` 注�
 |------|-----:|----------:|------|
 | CORE | 8 | 2,668 | `web_fetch` + `bash_code_execute` + `bash_process` + `file_edit/read/write` + `glob` + `grep` |
 | HIGH_PRIORITY | 5 | 2,636 | `web_search` + `memory_search/save/manage` + `skill_select` |
-| **合计** | **13** | **5,304** | 另计 schema wrapper 845（13 × 65）→ **合计 6,149** |
+| **合计** | **13** | **5,304** | 另计 schema wrapper 845（13 × 65，仅 API 包装）→ **合计 6,149**；参数 schema 另计约 4,400（SSOT：`DEFAULT_AGENT_TOKEN_INVENTORY.md` §六） |
 
 ### 7.2 条件加载 (Conditional Load)
 
