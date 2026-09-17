@@ -169,7 +169,7 @@ class TurnOutlineExtractor:
                             if step.get("status") == "error" or step.get("error"):
                                 current_has_errors = True
 
-                if extra_data.get("uiArtifacts") or extra_data.get("stagedArtifacts"):
+                if extra_data.get("stagedArtifacts"):
                     current_has_artifacts = True
 
         # Flush final turn

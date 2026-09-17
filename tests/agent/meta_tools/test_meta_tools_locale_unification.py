@@ -124,13 +124,13 @@ def test_bash_tools_descriptions_locale_resolution() -> None:
 
 def test_skill_meta_tools_descriptions_locale_resolution() -> None:
     # Skill Select
-    assert "Select bound skills" in build_skill_select_static_description(None)
-    assert "选择已绑定的技能" in build_skill_select_static_description("zh-CN")
+    assert "Select and activate bound skills" in build_skill_select_static_description(None)
+    assert "选择并激活已绑定的技能" in build_skill_select_static_description("zh-CN")
     backend = MagicMock()
     select_en = create_select_skill_tool([], backend)
-    assert "Select bound skills" in select_en.description
+    assert "Select and activate bound skills" in select_en.description
     select_zh = create_select_skill_tool([], backend, locale="zh-CN")
-    assert "选择已绑定的技能" in select_zh.description
+    assert "选择并激活已绑定的技能" in select_zh.description
 
     # Skill Manage
     assert "Manage skills" in resolve_skill_manage_tool_description(None)
