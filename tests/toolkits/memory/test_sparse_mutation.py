@@ -298,3 +298,44 @@ def test_sparse_mutation_distinct_namespace_no_collision() -> None:
     assert "- user_id must be uuid string" in res.mutated_text
     assert "- user_role must be admin" in res.mutated_text
 
+
+def test_sparse_mutation_action_verb_not_mistaken_as_tombstone() -> None:
+    existing = "- user_cache: keep in redis\n- db_pool: max 20 connections"
+    candidate = "- user_cache: delete expired keys hourly"
+
+    res = apply_sparse_mutation(existing, candidate)
+    assert res.is_mutated is True
+    assert res.overwritten_count == 1
+    assert res.removed_count == 0
+    assert res.retained_count == 1
+    assert "- user_cache: delete expired keys hourly" in res.mutated_text
+    assert "- db_pool: max 20 connections" in res.mutated_text
+
+
+def test_sparse_mutation_mixed_punctuation_clause_splitting() -> None:
+    existing = "- 环境配置: 生产环境; 调试模式: 关闭；超时设置: 30s"
+    candidate = "- 超时设置: 60s"
+
+    res = apply_sparse_mutation(existing, candidate)
+    assert res.is_mutated is True
+    assert res.overwritten_count == 1
+    assert res.retained_count == 2
+    assert res.appended_count == 0
+    assert "超时设置: 60s" in res.mutated_text
+    assert "环境配置: 生产环境" in res.mutated_text
+    assert "调试模式: 关闭" in res.mutated_text
+    assert "30s" not in res.mutated_text
+
+
+def test_sparse_mutation_namespace_and_url_colons_supported() -> None:
+    existing = "- std::vector: 推荐用于动态数组\n- http://localhost:8080: 本地开发后端"
+    candidate = "- std::vector: 推荐用于高效连续内存数组"
+
+    res = apply_sparse_mutation(existing, candidate)
+    assert res.is_mutated is True
+    assert res.overwritten_count == 1
+    assert res.retained_count == 1
+    assert "- std::vector: 推荐用于高效连续内存数组" in res.mutated_text
+    assert "- http://localhost:8080: 本地开发后端" in res.mutated_text
+
+
