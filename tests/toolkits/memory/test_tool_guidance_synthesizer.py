@@ -163,3 +163,69 @@ def test_global_guidelines_budget_cap() -> None:
     assert "tool_4" in res
     assert any("Rule for tool_4 #0" in r for r in res["tool_4"])
 
+
+def test_tool_guidance_item_to_dict() -> None:
+    item = ToolGuidanceItem(
+        id="test-1",
+        tool_name="bash",
+        rule_text="avoid rm -rf /",
+        trigger_pattern="rm",
+        confidence=0.95,
+        is_pinned=True,
+        env_fingerprint="darwin",
+        agent_id="agent-007",
+    )
+    d = item.to_dict()
+    assert d["id"] == "test-1"
+    assert d["tool_name"] == "bash"
+    assert d["is_pinned"] is True
+    assert d["agent_id"] == "agent-007"
+    assert d["confidence"] == 0.95
+
+
+def test_guidance_deduplication_and_agent_filtering() -> None:
+    items = [
+        # Duplicate texts (case-insensitive)
+        ToolGuidanceItem(
+            id="1",
+            tool_name="bash",
+            rule_text="Use pnpm test",
+            trigger_pattern="test",
+            confidence=0.8,
+        ),
+        ToolGuidanceItem(
+            id="2",
+            tool_name="bash",
+            rule_text="use PNPM test",
+            trigger_pattern="test",
+            confidence=0.9,
+        ),
+        # Empty text
+        ToolGuidanceItem(
+            id="3",
+            tool_name="bash",
+            rule_text="   ",
+            trigger_pattern="test",
+        ),
+        # Agent id mismatch
+        ToolGuidanceItem(
+            id="4",
+            tool_name="bash",
+            rule_text="Agent specific rule",
+            trigger_pattern="test",
+            agent_id="other_agent",
+        ),
+        # Exploratory probe in trigger
+        ToolGuidanceItem(
+            id="5",
+            tool_name="bash",
+            rule_text="Probe rule",
+            trigger_pattern="which python",
+        ),
+    ]
+
+    res = synthesize_tool_guidance(items, current_agent_id="current_agent")
+    assert len(res["bash"]) == 1
+    assert "use PNPM test" in res["bash"]
+
+
