@@ -8,6 +8,7 @@ Streaming error-recovery strategies. **`stream_recovery.py`** composes the four 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Re-exports the four recovery mixins | ✅ |
+| context_pressure_gate.py | Gate | Pre-flight context pressure gate, token budget compaction, and presumed-overflow recovery handler | ✅ |
 | stream_recovery.py | Core | StreamRecoveryMixin — composes overflow, LLM failover, safety refusal fallback, escalation, transient retry, iteration-limit, empty-response, truncation, steering, subagent, and goal continuation recovery | ✅ |
 | stream_recovery_continuation.py | Core | StreamContinuationRecoveryMixin — steering injection, subagent completion, goal continuation | ✅ |
 | stream_recovery_oneshot.py | Core | OneshotRecoveryMixin — targeted one-shot recovery (THINKING_SIGNATURE / DUPLICATE_TOOL_USE_ID / IMAGE_TOO_LARGE / MEDIA_REJECTED / ALLOWED_TOOLS_TOOL_CHOICE_REJECTED / LONG_CONTEXT_TIER), with per-image and aggregate historical image eviction fallback | ✅ |

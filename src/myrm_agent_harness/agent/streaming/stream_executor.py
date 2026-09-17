@@ -6,6 +6,7 @@
 - agent.streaming.artifact_events (POS: Artifact 事件处理器)
 - agent.streaming.source_tracker::SourceTracker (POS: 源追踪器)
 - agent.streaming.reasoning_scrubber::ReasoningScrubber (POS: 流式清洗器)
+- agent.streaming.recovery.context_pressure_gate::PreflightGateMixin (POS: Deterministic send-gate owned by the streaming recovery layer)
 - agent.streaming.escalation_scrubber::EscalationScrubber (POS: 流式层升级标记检测)
 - agent.streaming.recovery.stream_recovery_truncation::reset_ephemeral_max_output_tokens (POS: ephemeral output token cleanup)
 - agent.types::AgentEventType, AgentRunStatistics (POS: 类型定义)
@@ -44,6 +45,11 @@ from myrm_agent_harness.toolkits.llms.errors.classifier import classify_error
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from .reasoning_scrubber import ReasoningScrubber
+from .recovery.context_pressure_gate import (
+    CONTEXT_OVERFLOW_TERMINAL_CODE,
+    PreflightGateMixin,
+    PreflightStreak,
+)
 from .recovery.stream_recovery import StreamRecoveryMixin, _extract_retry_after_ms
 from .source_tracker import SourceTracker
 from .stream_compactor import StreamCompactor
@@ -97,10 +103,7 @@ class StreamContext:
     drain_teammate_messages: Callable[[], str | None] | None = None
     llm_info: dict[str, str | None] | None = None
     goal_provider: GoalProvider | None = None
-    on_goal_terminal: (
-        Callable[[Goal, list[BaseMessage], GoalExecutionSummary], Awaitable[None]]
-        | None
-    ) = None
+    on_goal_terminal: Callable[[Goal, list[BaseMessage], GoalExecutionSummary], Awaitable[None]] | None = None
     on_loop_restart: Callable[[str, Goal], Awaitable[None]] | None = None
     file_content_reader: FileContentReader | None = None
     escalation_target_llm: BaseChatModel | None = None
@@ -109,7 +112,7 @@ class StreamContext:
     memory_manager: MemoryManager | None = None
 
 
-class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
+class StreamExecutor(StreamDispatcherMixin, PreflightGateMixin, StreamRecoveryMixin):
     """Agent 流式执行引擎。
 
     封装 astream 的完整生命周期:
@@ -131,9 +134,7 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
     ) -> None:
         self._ctx = ctx
         self._fallback_llms: list[BaseChatModel] = (
-            list(fallback_llms)
-            if fallback_llms is not None
-            else ([fallback_llm] if fallback_llm is not None else [])
+            list(fallback_llms) if fallback_llms is not None else ([fallback_llm] if fallback_llm is not None else [])
         )
         self._fallback_llm = self._fallback_llms[0] if self._fallback_llms else None
         self._fallback_index = 0
@@ -161,6 +162,8 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
             cancel_token=ctx.cancel_token,
         )
         self._slice_tool_call_ids: list[str] = []
+        self._preflight_streak = PreflightStreak()
+        self._presumed_overflow_used = False
 
     async def _check_and_emit_trace_slice(self, force_flush: bool = False) -> None:
         """Check if slice length reaches threshold or force_flush, and emit TRACE_SLICE_READY."""
@@ -227,16 +230,8 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                     initial_total_tokens = tracker.usage.total_tokens
                     initial_cached_tokens = tracker.usage.cached_tokens
                 else:
-                    initial_total_tokens = (
-                        ctx.stats.token_usage.total_tokens
-                        if ctx.stats.token_usage
-                        else 0
-                    )
-                    initial_cached_tokens = (
-                        ctx.stats.token_usage.cached_tokens
-                        if ctx.stats.token_usage
-                        else 0
-                    )
+                    initial_total_tokens = ctx.stats.token_usage.total_tokens if ctx.stats.token_usage else 0
+                    initial_cached_tokens = ctx.stats.token_usage.cached_tokens if ctx.stats.token_usage else 0
 
                 initial_cost_usd = tracker.total_cost_usd if tracker else 0.0
 
@@ -249,15 +244,15 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                     collected_messages: list[BaseMessage] = []
                 else:
                     messages_dict = ctx.agent_input
-                    messages = cast(
-                        list["BaseMessage"], messages_dict.get("messages", [])
-                    )
+                    messages = cast(list["BaseMessage"], messages_dict.get("messages", []))
                     final_agent_input = {**messages_dict, **ctx.merged_context}
                     collected_messages = list(messages)
 
                 if ctx.steering_token:
                     ctx.steering_token.reset_turn()
                 self._partial_text_buffer = ""
+
+                await self._run_preflight_pressure_gate()
 
                 try:
                     async for chunk in ctx.agent.astream(
@@ -291,19 +286,11 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                                 from langchain_core.messages import AIMessage
 
                                 last_ai = next(
-                                    (
-                                        m
-                                        for m in reversed(collected_messages)
-                                        if isinstance(m, AIMessage) and m.content
-                                    ),
+                                    (m for m in reversed(collected_messages) if isinstance(m, AIMessage) and m.content),
                                     None,
                                 )
-                                if not last_ai or self._partial_text_buffer not in str(
-                                    last_ai.content
-                                ):
-                                    collected_messages.append(
-                                        AIMessage(content=self._partial_text_buffer)
-                                    )
+                                if not last_ai or self._partial_text_buffer not in str(last_ai.content):
+                                    collected_messages.append(AIMessage(content=self._partial_text_buffer))
                                 self._partial_text_buffer = ""
                             self._redirect_partial_preserved = partial_preserved
                             break
@@ -311,42 +298,28 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                         # astream with a list of stream modes yields (mode, data)
                         # tuples per LangGraph docs; cast narrows the overly-wide
                         # dict[str, Any] | Any signature down to the runtime shape.
-                        await self._dispatch_chunk(
-                            cast("tuple[str, object]", chunk), ctx, collected_messages
-                        )
+                        await self._dispatch_chunk(cast("tuple[str, object]", chunk), ctx, collected_messages)
 
                 except Exception as astream_exc:
-                    iteration_limit_hit = await self._handle_iteration_limit(
-                        astream_exc, collected_messages
-                    )
+                    iteration_limit_hit = await self._handle_iteration_limit(astream_exc, collected_messages)
                     if iteration_limit_hit:
                         if ctx.goal_provider is None:
                             break
-                        logger.info(
-                            " Iteration limit in goal mode — falling through to goal continuation"
-                        )
+                        logger.info(" Iteration limit in goal mode — falling through to goal continuation")
                     else:
-                        if await self._handle_thinking_signature(
-                            astream_exc, thinking_sig_attempted
-                        ):
+                        if await self._handle_thinking_signature(astream_exc, thinking_sig_attempted):
                             thinking_sig_attempted = True
                             continue
 
-                        if await self._handle_duplicate_tool_use_id(
-                            astream_exc, duplicate_tool_use_attempted
-                        ):
+                        if await self._handle_duplicate_tool_use_id(astream_exc, duplicate_tool_use_attempted):
                             duplicate_tool_use_attempted = True
                             continue
 
-                        if await self._handle_image_shrink(
-                            astream_exc, image_shrink_attempted
-                        ):
+                        if await self._handle_image_shrink(astream_exc, image_shrink_attempted):
                             image_shrink_attempted = True
                             continue
 
-                        if await self._handle_media_rejected(
-                            astream_exc, media_rejected_attempted
-                        ):
+                        if await self._handle_media_rejected(astream_exc, media_rejected_attempted):
                             media_rejected_attempted = True
                             continue
 
@@ -365,12 +338,14 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                             overflow_retries += 1
                             continue
 
+                        if await self._handle_presumed_overflow(astream_exc):
+                            overflow_retries += 1
+                            continue
+
                         if await self._handle_failover(astream_exc):
                             continue
 
-                        if await self._handle_transient_retry(
-                            astream_exc, transient_retries
-                        ):
+                        if await self._handle_transient_retry(astream_exc, transient_retries):
                             transient_retries += 1
                             continue
 
@@ -390,18 +365,14 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                 if await self._handle_escalation(collected_messages):
                     continue
 
-                if await self._handle_length_truncation(
-                    collected_messages, length_continue_retries
-                ):
+                if await self._handle_length_truncation(collected_messages, length_continue_retries):
                     length_continue_retries += 1
                     continue
 
                 if await self._handle_safety_refusal_fallback():
                     continue
 
-                if await self._handle_empty_response(
-                    collected_messages, empty_response_retries
-                ):
+                if await self._handle_empty_response(collected_messages, empty_response_retries):
                     empty_response_retries += 1
                     continue
 
@@ -411,28 +382,16 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
 
                 tracker = get_token_tracker()
 
-                tools_called_this_turn = (
-                    ctx.stats.tool_call_count > initial_tool_call_count
-                )
+                tools_called_this_turn = ctx.stats.tool_call_count > initial_tool_call_count
 
                 if tracker and tracker.usage:
                     current_total = tracker.usage.total_tokens
                     current_cached = tracker.usage.cached_tokens
                 else:
-                    current_total = (
-                        ctx.stats.token_usage.total_tokens
-                        if ctx.stats.token_usage
-                        else 0
-                    )
-                    current_cached = (
-                        ctx.stats.token_usage.cached_tokens
-                        if ctx.stats.token_usage
-                        else 0
-                    )
+                    current_total = ctx.stats.token_usage.total_tokens if ctx.stats.token_usage else 0
+                    current_cached = ctx.stats.token_usage.cached_tokens if ctx.stats.token_usage else 0
 
-                net_tokens_this_turn = (current_total - initial_total_tokens) - (
-                    current_cached - initial_cached_tokens
-                )
+                net_tokens_this_turn = (current_total - initial_total_tokens) - (current_cached - initial_cached_tokens)
                 current_cost_usd = tracker.total_cost_usd if tracker else 0.0
                 cost_this_turn = max(0.0, current_cost_usd - initial_cost_usd)
                 time_this_turn_seconds = int(time.time() - initial_time)
@@ -456,9 +415,7 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                 ):
                     reset_loop_guard(
                         is_resume=True,
-                        graph_recursion_limit=ctx.run_config.get(
-                            "recursion_limit", 100
-                        ),
+                        graph_recursion_limit=ctx.run_config.get("recursion_limit", 100),
                     )
                     continue
 
@@ -489,9 +446,7 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
             )
             escalation_flushed = self._escalation_scrubber.flush()
             if escalation_flushed:
-                for scrubbed_type, scrubbed_text in self._reasoning_scrubber.process(
-                    escalation_flushed
-                ):
+                for scrubbed_type, scrubbed_text in self._reasoning_scrubber.process(escalation_flushed):
                     if scrubbed_text:
                         restored = self._restore_pseudonyms(scrubbed_text)
                         await self._emit_event(
@@ -577,12 +532,11 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
 
         # Deterministic fault-side attribution (pure rules, no LLM) — lets the
         # GUI tell users who owns the failure instead of guessing.
-        error_event["fault_side"] = classify_fault_side(
-            error_kind=error_kind.value
-        ).value
+        error_event["fault_side"] = classify_fault_side(error_kind=error_kind.value).value
 
         if ctx.stats.compression_exhausted:
             error_event["compression_exhausted"] = True
+            error_event["terminal_code"] = CONTEXT_OVERFLOW_TERMINAL_CODE
 
         cooldown_ms = _extract_retry_after_ms(exc)
         if cooldown_ms:
@@ -609,15 +563,9 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                 base_url=base_url,
             )
 
-            locale = (
-                ctx.merged_context.get("locale", "en") if ctx.merged_context else "en"
-            )
+            locale = ctx.merged_context.get("locale", "en") if ctx.merged_context else "en"
             cooldown_remaining_ms = error_event.get("cooldown_remaining_ms")
-            cooldown_remaining_ms = (
-                cooldown_remaining_ms
-                if isinstance(cooldown_remaining_ms, int)
-                else None
-            )
+            cooldown_remaining_ms = cooldown_remaining_ms if isinstance(cooldown_remaining_ms, int) else None
 
             diagnostic = LLMErrorDiagnostic.diagnose(
                 exc, context, locale=locale, cooldown_remaining_ms=cooldown_remaining_ms
@@ -639,9 +587,7 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                 error_type=diagnostic.error_type,
             ).value
 
-            recovery_actions = LLMErrorDiagnostic.get_recovery_actions(
-                diagnostic.error_type, locale=diagnostic.locale
-            )
+            recovery_actions = LLMErrorDiagnostic.get_recovery_actions(diagnostic.error_type, locale=diagnostic.locale)
             if recovery_actions:
                 error_event["recovery_actions"] = recovery_actions
         except Exception as diag_err:
@@ -673,7 +619,5 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                 else None
             ),
             original_exc=exc,
-            diagnostic_result=(
-                diagnostic_payload if isinstance(diagnostic_payload, dict) else None
-            ),
+            diagnostic_result=(diagnostic_payload if isinstance(diagnostic_payload, dict) else None),
         ) from exc
