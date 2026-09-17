@@ -1082,7 +1082,7 @@ rating_new = rating_old + alpha * (normalized - rating_old)
 
 - **统一异构记忆容器（`MemCubeEnvelope[T]` & `MemCubeHeader`）**：
   - 核心位置：`myrm_agent_harness.toolkits.memory.cube`；
-  - 采用 Python 3.12 强类型泛型协议，全仓统一元数据头标准（`MemCubeHeader`），涵盖生命周期层级（`LifecycleTier`：L1/L2/L3/ARCHIVED）、存储路由策略（`StoragePolicy`：RELATIONAL/VECTOR/GRAPH/EPHEMERAL）、优先级、权限归属与时戳；
+  - 采用 Python 3.12 强类型泛型协议，全仓统一元数据头标准（`MemCubeHeader`），涵盖生命周期层级（`LifecycleTier`：L1/L2/L3/ARCHIVED）、存储路由策略（`StoragePolicy`：RELATIONAL/VECTOR/GRAPH/EPHEMERAL）、访问频次（`usage_count`）、活跃时戳（`last_accessed_at`）、优先级、权限归属与时戳；
   - 内置规范化 Canonical JSON 序列化与 SHA256 数字指纹防篡改引擎（`compute_audit_hash` 与 `verify_audit_hash`），确保实体在导出、归档与跨端漫游过程中数据完整性可实时核验；
   - 提供 `wrap_into_envelope` 与 `unwrap_envelope` 双向无损类型转换适配器，以及全类型自适应推导函数 `infer_tier_and_policy`。
 - **多层自适应记忆调度器（`MultiTierMemoryScheduler`）**：
