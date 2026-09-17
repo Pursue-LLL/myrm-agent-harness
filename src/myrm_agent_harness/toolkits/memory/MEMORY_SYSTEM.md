@@ -1116,8 +1116,6 @@ rating_new = rating_old + alpha * (normalized - rating_old)
 - **全链路展示与交互认知一致性**：
   - Server 端接口契约 `MemoryItem` 与变更请求模型支持 `is_exact_fact` 属性透传；
   - 前端 `MemoryCard.tsx` 与 `EvidenceDrawer.tsx` 支持视觉识别蓝底硬锁徽章，呈现提取到的确切事实符号。
-
-
-
-
+- **自愈式装配与单机开箱即用**：
+  - `MemoryManager` 核心构造层与 `setup_local_memory` 启动工厂原生内聚自愈装配逻辑，在未显式传递 `fts5_searcher` 时自动检测并挂载 `relational_store.search_fts5` 通道，保障单机本地、Tauri 桌面端与云端沙箱三种部署形态下精确事实双轨召回通道 100% 畅通。
 
