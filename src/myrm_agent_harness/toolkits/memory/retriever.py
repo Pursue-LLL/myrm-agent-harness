@@ -306,7 +306,20 @@ class MemoryRetriever:
         mem_type = result.memory_type
         weights = get_default_signal_weights(mem_type)
         if self._config.dynamic_signal_weights:
-            weights = {k: self._config.dynamic_signal_weights.get(k, weights.get(k, 0.0)) for k in weights}
+            # Preserve type-specific zero priors (e.g. PROCEDURAL recency=0) and scale active priors
+            modulated: dict[str, float] = {}
+            for k, base_w in weights.items():
+                if base_w <= 0.0:
+                    modulated[k] = 0.0
+                else:
+                    multiplier = self._config.dynamic_signal_weights.get(k, 1.0)
+                    modulated[k] = base_w * max(0.01, multiplier)
+
+            total_w = sum(modulated.values())
+            if total_w > 0.0:
+                weights = {k: w / total_w for k, w in modulated.items()}
+            else:
+                weights = modulated
 
         if self._config.enable_gravity_decay:
             recency = self._signal_calc.gravity_decay_factor(

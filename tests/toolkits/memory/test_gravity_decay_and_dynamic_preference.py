@@ -25,6 +25,7 @@ from myrm_agent_harness.toolkits.memory.strategies.gravity_decay import (
 from myrm_agent_harness.toolkits.memory.types import (
     MemorySearchResult,
     MemoryType,
+    ProceduralMemory,
     SemanticMemory,
 )
 
