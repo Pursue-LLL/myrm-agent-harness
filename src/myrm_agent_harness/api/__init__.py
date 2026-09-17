@@ -146,6 +146,7 @@ __all__ = [
     "compute_workflow_fingerprint",
     "cosine_similarity_int8",
     "create_skill_agent",
+    "create_working_memory_manage_tool",
     "delete_subagent_checkpoint",
     "dequantize_int8",
     "evaluate_five_contract_progress",
@@ -602,6 +603,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "compute_workflow_fingerprint",
     ),
     "create_skill_agent": ("myrm_agent_harness.api.factory", "create_skill_agent"),
+    "create_working_memory_manage_tool": (
+        "myrm_agent_harness.agent.meta_tools.working_memory",
+        "create_working_memory_manage_tool",
+    ),
     "delete_subagent_checkpoint": (
         "myrm_agent_harness.api.subagents",
         "delete_subagent_checkpoint",

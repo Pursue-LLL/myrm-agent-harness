@@ -688,6 +688,18 @@ async def run_agent_loop(
                     len(active_ctx),
                 )
 
+            # --- Dynamic Working Memory Turn-Tail Injection (Prompt Cache Safe) ---
+            from myrm_agent_harness.agent.context_management.working_memory.block import (
+                LocalWorkingMemoryBlock,
+            )
+
+            wb_text = LocalWorkingMemoryBlock.format_turn_tail_markdown()
+            if wb_text:
+                messages.append(HumanMessage(content=wb_text))
+                LocalWorkingMemoryBlock.advance_turn()
+                logger.info(" Injected working memory board at turn tail (%d chars)", len(wb_text))
+
+
             merged_context = validate_context(
                 merged_context, agent_state.context_schema
             )

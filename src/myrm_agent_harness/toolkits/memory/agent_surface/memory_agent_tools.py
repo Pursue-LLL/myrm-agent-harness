@@ -171,9 +171,9 @@ def create_memory_tools(
         )
 
     class MemoryManageInput(BaseModel):
-        action: Literal["update", "delete", "correct", "rate"] = Field(
+        action: Literal["update", "delete", "correct", "rate", "discard"] = Field(
             description=(
-                "update: wording/importance only; correct: wrong knowledge fact; delete; rate — see tool description"
+                "update: wording/importance; correct: wrong knowledge; delete; rate; discard: prune outdated memory"
             ),
         )
         memory_id: str = Field(description="Memory ID from memory_search_tool results.")
@@ -451,7 +451,7 @@ def create_memory_tools(
         args_schema=MemoryManageInput,
     )
     async def memory_manage(
-        action: Literal["update", "delete", "correct", "rate"],
+        action: Literal["update", "delete", "correct", "rate", "discard"],
         memory_id: str,
         category: Literal["knowledge", "event", "preference", "rule"],
         new_content: str | None = None,
@@ -530,6 +530,32 @@ def create_memory_tools(
                     return "Knowledge memory is not enabled."
                 correction = await manager.correct_memory(memory_id, new_content, allow_protected=False)
                 return f"Memory corrected (new ID: {correction.id}). Prior entry {memory_id} kept in history."
+
+            elif action == "discard":
+                if mem_type in (MemoryType.SEMANTIC, MemoryType.EPISODIC):
+                    if not manager.has_vector:
+                        return f"{category} memory is not enabled."
+                    coll = (
+                        manager.config.semantic_collection
+                        if mem_type == MemoryType.SEMANTIC
+                        else manager.config.episodic_collection
+                    )
+                    n = await manager.delete_memory(
+                        coll, [memory_id], allow_protected=False
+                    )
+                    if n > 0:
+                        return f"Memory discarded (ID: {memory_id})"
+                    return f"Cannot discard memory (ID: {memory_id}): protected or not found."
+
+                if mem_type == MemoryType.PROCEDURAL:
+                    if not manager.has_relational:
+                        return "Procedural memory is not enabled."
+                    ok = await manager.delete_rule(memory_id, allow_protected=False)
+                    if ok:
+                        return f"Rule discarded (ID: {memory_id})"
+                    return f"Cannot discard rule (ID: {memory_id}): protected or not found."
+
+                return f"Discard action is not supported for category: {category}"
 
             return f"Unknown action: {action}"
         except MemoryProtectedError as e:
