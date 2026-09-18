@@ -107,15 +107,6 @@ class HyperConsolidator:
             logger.debug("Hyper consolidation gatekeeper: trivial turn bypassed for session %s", session_id)
             return None, []
 
-        session_id = chat_id or "default"
-
-        # Gatekeeper Filter: Bypass trivial queries (turns <= 1 and no subtasks or traps)
-        has_subtasks = len(state.subtasks) > 0
-        has_traps = len(state.traps) > 0
-        if state.active_turn <= 1 and not has_subtasks and not has_traps:
-            logger.debug("Hyper consolidation gatekeeper: trivial turn bypassed for session %s", session_id)
-            return None, []
-
         # 1. Distill TaskDigestMemory
         completed_steps = [
             item.title

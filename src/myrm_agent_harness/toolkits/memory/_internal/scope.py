@@ -8,6 +8,7 @@
 [OUTPUT]
 - derive_namespaces: Namespace derivation from scope level
 - bind_scope: MemoryScope binding to memory objects
+- default_write_namespace: Durable write target so new memories stay recallable
 - build_scope: MemoryScope construction from config
 - apply_channel_affinity: Channel affinity reweighting for search results
 - scope_for_write_target: Write target scope builder
@@ -33,6 +34,12 @@ _SCOPE_ORDER: tuple[MemoryScopeLevel, ...] = (
     MemoryScopeLevel.CONVERSATION,
     MemoryScopeLevel.TASK,
 )
+
+_AGENT_NAMESPACE_PREFIX = "agent:"
+
+# Namespaces that only reach the session that created them once reads filter on
+# ``primary_namespace``. Writes bound here are invisible to sibling sessions.
+_SESSION_LOCAL_NAMESPACE_PREFIXES: tuple[str, ...] = ("conversation:", "task:")
 
 MemoryWriteTarget = Literal["bound", "shared"]
 
@@ -134,7 +141,7 @@ def build_scope(
         task_id=task_id,
         memory_policy=memory_policy,
     )
-    scope_namespaces = list(namespaces)
+    scope_namespaces = _bound_write_namespaces(list(namespaces))
     if memory_policy is not None and memory_policy.write_policy != MemoryWritePolicy.INHERIT:
         candidates = _candidate_namespaces(
             agent_id=resolved_agent_id,
@@ -148,10 +155,7 @@ def build_scope(
             raise ValueError(f"Memory write policy '{memory_policy.write_policy.value}' requires a matching scope ID")
         scope_namespaces = [target_namespace]
 
-    primary_namespace = next(
-        (namespace for namespace in reversed(scope_namespaces) if not namespace.startswith("shared:")),
-        scope_namespaces[-1],
-    )
+    primary_namespace = resolve_primary_namespace(scope_namespaces)
     return MemoryScope(
         primary_namespace=primary_namespace,
         namespaces=scope_namespaces,
@@ -160,6 +164,42 @@ def build_scope(
         conversation_id=resolved_conversation_id,
         task_id=resolved_task_id,
     )
+
+
+def resolve_primary_namespace(namespaces: list[str]) -> str:
+    """Pick the authoritative namespace a new memory is scoped to.
+
+    Retrieval filters on ``primary_namespace ∈ manager.namespaces``, so a memory
+    whose ``primary_namespace`` is session-local (``conversation:*`` / ``task:*``)
+    can only ever be recalled by the session that created it: asking the same
+    question in a fresh chat returns nothing. User-stated facts must therefore be
+    scoped to the broadest durable namespace the reader can still reach, which is
+    what makes them survive across sessions.
+
+    Preference order: the ``agent:*`` scope, then ``global``, then the narrowest
+    non-shared candidate. ``shared:*`` namespaces are excluded because they are a
+    broadcast target rather than an ownership scope.
+    """
+    for namespace in namespaces:
+        if namespace.startswith(_AGENT_NAMESPACE_PREFIX):
+            return namespace
+    for namespace in namespaces:
+        if namespace == "global":
+            return namespace
+    return next(
+        (namespace for namespace in reversed(namespaces) if not namespace.startswith("shared:")),
+        namespaces[-1],
+    )
+
+
+def _bound_write_namespaces(namespaces: list[str]) -> list[str]:
+    """Scope chain for a newly written memory.
+
+    The chain itself is preserved (it documents the manager's visibility
+    boundary and feeds the write-scope fence); only ``primary_namespace`` — the
+    single value retrieval actually filters on — is narrowed to a durable scope.
+    """
+    return list(namespaces)
 
 
 def bind_scope(memory: AnyMemory, scope: MemoryScope) -> AnyMemory:

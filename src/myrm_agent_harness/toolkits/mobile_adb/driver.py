@@ -351,8 +351,20 @@ class AdbDeviceDriver:
                     parts = [p.strip() for p in text_value.split(",")]
                     if len(parts) >= 2:
                         dx, dy = int(parts[0]), int(parts[1])
+                    else:
+                        return MobileActionResult(
+                            success=False,
+                            action=action,
+                            message=f"Invalid swipe offset '{text_value}'. Expected 'dx,dy'.",
+                            error="INVALID_PARAM",
+                        )
                 except ValueError:
-                    pass
+                    return MobileActionResult(
+                        success=False,
+                        action=action,
+                        message=f"Invalid swipe offset '{text_value}'. Expected 'dx,dy'.",
+                        error="INVALID_PARAM",
+                    )
             end_x, end_y = center_x + dx, center_y + dy
             code, _, _ = await self._run_adb(
                 "-s",

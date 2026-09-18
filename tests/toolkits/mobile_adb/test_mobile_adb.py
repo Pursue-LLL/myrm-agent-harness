@@ -197,4 +197,52 @@ async def test_inject_text_utf8_reports_failure_when_all_routes_fail() -> None:
     assert "error" in detail
 
 
+@pytest.mark.asyncio
+async def test_swipe_invalid_offset_returns_invalid_param() -> None:
+    from unittest.mock import AsyncMock
+
+    from myrm_agent_harness.toolkits.mobile_adb.driver import AdbDeviceDriver
+    from myrm_agent_harness.toolkits.mobile_adb.parser import MobileUIParser
+
+    elements, ref_map = MobileUIParser.parse_xml_tree(SAMPLE_UIAUTOMATOR_XML)
+    driver = AdbDeviceDriver()
+    driver._current_ref_map = ref_map
+    driver._run_adb = AsyncMock(return_value=(0, "", ""))  # type: ignore[method-assign]
+
+    bad = await driver.execute_semantic_action("t", "@mref_1", "swipe", "bad-offset")
+    assert bad.success is False
+    assert bad.error == "INVALID_PARAM"
+    driver._run_adb.assert_not_awaited()
+
+    ok = await driver.execute_semantic_action("t", "@mref_1", "swipe", "0,-600")
+    assert ok.success is True
+
+    stale = await driver.execute_semantic_action("t", "@mref_999", "click")
+    assert stale.success is False
+    assert stale.error == "ELEMENT_NOT_FOUND"
+
+
+@pytest.mark.asyncio
+async def test_snapshot_settle_ms_capped_at_two_seconds() -> None:
+    import asyncio
+    from unittest.mock import AsyncMock, patch
+
+    from myrm_agent_harness.toolkits.mobile_adb.types import (
+        MobileDeviceConnectionStatus,
+        MobileDeviceState,
+    )
+
+    session = MobileSession(default_device="t")
+    state = MobileDeviceState(
+        device_id="t",
+        ip_address="t",
+        port=5555,
+        connection_status=MobileDeviceConnectionStatus.CONNECTED,
+    )
+    session.driver.get_device_state = AsyncMock(return_value=state)  # type: ignore[method-assign]
+    with patch.object(asyncio, "sleep", new=AsyncMock()) as nap:
+        await session.snapshot(target="t", settle_ms=9000)
+        nap.assert_awaited_once_with(2.0)
+
+
 

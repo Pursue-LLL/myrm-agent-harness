@@ -174,6 +174,83 @@ async def test_hyper_consolidator_gatekeeper_bypass() -> None:
 
 
 @pytest.mark.asyncio
+async def test_hyper_consolidator_status_normalization() -> None:
+    """Verify non-terminal snapshot statuses normalize to completed digests."""
+    snapshot = WorkingMemorySnapshot(
+        goal="Normalize me",
+        active_turn=3,
+        status="active",
+        subtasks=[ConsolidationSubtask(title="Done thing", completed=True)],
+    )
+    consolidator = HyperConsolidator()
+    digest, _ = await consolidator.consolidate_session(
+        messages=[{"role": "user", "content": "go"}],
+        chat_id="chat-norm",
+        snapshot=snapshot,
+    )
+    assert digest is not None
+    assert digest.status == "completed"
+
+
+@pytest.mark.asyncio
+async def test_hyper_consolidator_store_batch_path() -> None:
+    """Verify the store_batch fast path is used when the manager offers it."""
+    snapshot = WorkingMemorySnapshot(
+        goal="Batch persist",
+        active_turn=2,
+        status="completed",
+        subtasks=[ConsolidationSubtask(title="Step", completed=True)],
+        traps=[
+            ConsolidationTrap(
+                fingerprint="fp-batch",
+                avoidance_rule="Batch it",
+                tool_name="tool_x",
+                occurred_turn=1,
+                resolved=True,
+            )
+        ],
+    )
+    batched: list[object] = []
+    stored: list[object] = []
+
+    class BatchManager:
+        async def store_batch(self, rules: object) -> None:
+            batched.append(rules)
+
+        async def store(self, memory: object) -> None:
+            stored.append(memory)
+
+    consolidator = HyperConsolidator(memory_manager=BatchManager())  # type: ignore[arg-type]
+    digest, rules = await consolidator.consolidate_session(
+        messages=[{"role": "user", "content": "go"}],
+        chat_id="chat-batch",
+        snapshot=snapshot,
+    )
+    assert digest is not None
+    assert len(rules) == 1
+    assert len(batched) == 1
+    assert len(stored) == 1
+
+
+@pytest.mark.asyncio
+async def test_consolidation_cleanup_task_wires_provider_and_after_run() -> None:
+    """Verify the factory threads snapshot provider results and always runs after_run."""
+    from myrm_agent_harness.toolkits.memory.consolidation import (
+        create_consolidation_cleanup_task,
+    )
+
+    seen: list[str] = []
+    snapshot = WorkingMemorySnapshot(goal="Factory wired", active_turn=2)
+
+    task = create_consolidation_cleanup_task(
+        snapshot_provider=lambda: snapshot,
+        after_run=lambda: seen.append("cleaned"),
+    )
+    await task([{"role": "user", "content": "go"}], "chat-factory")
+    assert seen == ["cleaned"]
+
+
+@pytest.mark.asyncio
 async def test_hyper_consolidator_missing_snapshot_bypass() -> None:
     """Verify a missing snapshot bypasses consolidation without touching any global."""
     consolidator = HyperConsolidator()
