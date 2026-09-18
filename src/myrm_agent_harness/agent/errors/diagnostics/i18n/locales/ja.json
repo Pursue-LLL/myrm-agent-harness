@@ -113,6 +113,12 @@
     "または環境変数 MYRM_TLS_STRICT=0 を設定してください",
     "カスタムCA証明書バンドルを使用する場合は、SSL_CERT_FILE にパスを設定してください"
   ],
+  "tls_transient_user_message": "TLSハンドシェイクが中断されました — 一時的なネットワーク不安定の可能性があり、自動的に再試行しています",
+  "tls_transient_resolution_steps": [
+    "自動再試行が成功すれば操作は不要です",
+    "継続する場合は VPN/プロキシ接続の安定性を確認してください",
+    "企業TLS検査環境では設定 → システム → 詳細設定 で「企業ネットワーク互換モード」を有効にしてください"
+  ],
   "cooldown_hint_single": " {seconds}秒後に再試行してください。",
   "cooldown_hint_plural": " {seconds}秒後に再試行してください。"
 }

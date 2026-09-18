@@ -15,8 +15,6 @@
 Agent secrets backend package entry point. Re-exports storage protocols and implementations.
 """
 
-# NOTE: canonical implementation lives in toolkits.llms.secrets (framework
-# layer); re-exported here so existing backends importers keep working.
 from myrm_agent_harness.toolkits.llms.secrets import (
     ExternalSecretResolutionError,
     is_external_secret_reference,

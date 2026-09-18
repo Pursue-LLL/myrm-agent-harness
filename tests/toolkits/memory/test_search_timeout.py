@@ -296,6 +296,8 @@ class TestMemorySearchToolCorpusBranches:
 
         text = await tool.ainvoke({"query": "q", "corpus": "wiki"})
 
+        # A single corpus with no derived sources returns plain text (no envelope).
+        assert isinstance(text, str)
         assert "The wiki answer for the query." in text
         assert not text.startswith("## Wiki")
 
@@ -331,7 +333,7 @@ class TestMemorySearchToolCorpusBranches:
 
         text = await tool.ainvoke({"query": "q", "corpus": "sessions"})
 
-        assert "A matching conversation hit." in text
+        assert "A matching conversation hit." in text["content"]
 
     @pytest.mark.asyncio
     async def test_profile_key_rejected_for_non_memory_corpus(self, fast_timeout_config) -> None:
@@ -427,10 +429,10 @@ class TestMemorySearchToolCorpusBranches:
 
         text = await tool.ainvoke({"query": "q", "corpus": "all"})
 
-        assert "## Memory" in text
-        assert "## Wiki" in text
-        assert "## Sessions" in text
-        assert "## Web" not in text
+        assert "## Memory" in text["content"]
+        assert "## Wiki" in text["content"]
+        assert "## Sessions" in text["content"]
+        assert "## Web" not in text["content"]
 
     @pytest.mark.asyncio
     async def test_all_corpora_partial_timeout_keeps_survivors(self, fast_timeout_config) -> None:
@@ -468,9 +470,9 @@ class TestMemorySearchToolCorpusBranches:
 
         text = await tool.ainvoke({"query": "q", "corpus": "all"})
 
-        assert "Wiki search timed out" in text
-        assert "## Sessions" in text
-        assert "A conversation hit." in text
+        assert "Wiki search timed out" in text["content"]
+        assert "## Sessions" in text["content"]
+        assert "A conversation hit." in text["content"]
 
     @pytest.mark.asyncio
     async def test_wiki_corpus_no_timeout_when_disabled(self, fast_timeout_config) -> None:
@@ -492,7 +494,7 @@ class TestMemorySearchToolCorpusBranches:
 
         text = await search_wiki_corpus(backends, "q", timeout_seconds=None)
 
-        assert "Slow wiki answer." in text
+        assert "Slow wiki answer." in text["content"]
 
     @pytest.mark.asyncio
     async def test_stale_memory_with_code_path_emits_critical_notice(self) -> None:
@@ -582,7 +584,7 @@ class TestMemoryCorpusDegradedNotice:
                 until=None,
             )
 
-        assert "timed out" in text.lower()
+        assert "degraded" in text.lower()
         assert "retry" in text.lower()
 
     @pytest.mark.asyncio

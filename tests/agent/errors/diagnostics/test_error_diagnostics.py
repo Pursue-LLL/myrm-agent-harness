@@ -367,3 +367,27 @@ def test_diagnose_responses_stream_error_training_policy() -> None:
     result = LLMErrorDiagnostic.diagnose(exc, locale="en")
     assert result.error_type == "opencode_training_policy"
     assert result.is_retryable is False
+
+
+def test_diagnose_tls_transient_retryable() -> None:
+    """Bun-style mislabel / interrupted handshake must be retryable."""
+    exc = Exception("unknown certificate verification error")
+    result = LLMErrorDiagnostic.diagnose(exc, locale="en")
+    assert result.error_type == "tls_transient"
+    assert result.is_retryable is True
+
+
+def test_diagnose_tls_transient_eof() -> None:
+    """Real SSLEOFError wording must be retryable, not a bare unknown error."""
+    exc = Exception("[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol")
+    result = LLMErrorDiagnostic.diagnose(exc, locale="en")
+    assert result.error_type == "tls_transient"
+    assert result.is_retryable is True
+
+
+def test_diagnose_tls_hard_not_retryable() -> None:
+    """Rejected certificate must fail fast with enterprise remediation."""
+    exc = Exception("[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate")
+    result = LLMErrorDiagnostic.diagnose(exc, locale="en")
+    assert result.error_type == "tls_certificate"
+    assert result.is_retryable is False

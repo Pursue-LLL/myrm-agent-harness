@@ -36,6 +36,8 @@ class EntityGraphBridge:
         seed_entity_names: Sequence[str],
         max_depth: int = 2,
         max_nodes: int = 15,
+        *,
+        as_of_time: str | None = None,
     ) -> str:
         """Retrieve bounded relation chains for given seed entities.
 
@@ -78,7 +80,10 @@ class EntityGraphBridge:
                 return ""
 
             # 2. Fetch relationships for traversal
-            all_rels = await self._graph_store.list_relationships(limit=100)
+            all_rels = await self._graph_store.list_relationships(
+                limit=100,
+                as_of_time=as_of_time,
+            )
             visited_node_ids: set[str] = {s.id for s in seed_nodes}
             relation_lines: list[str] = []
 

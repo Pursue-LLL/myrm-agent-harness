@@ -313,9 +313,10 @@ def resolve_cli_args(
         # Unknown CLI: we own no permission contract for it, so args pass through
         # untouched rather than stripping flags that may mean something else entirely.
         return list(configured_args)
-    if profile.backend not in _permission_backends():
-        # A profile registered without permission tables has no defined contract here.
-        return list(configured_args)
+
+    # Every registered profile must carry permission tables; the assertion fails loudly
+    # otherwise, so a half-added backend can never reach the merge below undefined.
+    _permission_backends()
 
     merged: list[str] = []
     merged.extend(_PERMISSION_MODE_ARGS[profile.backend].get(permission_mode, ()))

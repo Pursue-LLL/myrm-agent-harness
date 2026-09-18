@@ -1,18 +1,15 @@
 """SQLite Graph Store — zero-dependency graph backend using recursive CTE.
 
-
 [INPUT]
-myrm_agent_harness.toolkits.memory.graph.base (POS: Graph store abstraction layer)
-myrm_agent_harness.toolkits.memory.graph.exceptions
+memory.graph.base::GraphStore (POS: 图存储抽象层)
+memory.graph.sqlite_temporal (POS: 双时态图存储核心引擎)
+memory.graph.sqlite_traversal (POS: 递归 CTE 图遍历执行器)
 
 [OUTPUT]
-SQLiteGraphStore: Async SQLite graph store with WAL mode, connection reuse,
-                  recursive CTE causal-chain queries, and cycle detection.
+SQLiteGraphStore: 轻量异步 SQLite 图存储门面，支持双时态版本置换与递归 CTE 遍历
 
 [POS]
-Lightweight graph store backed by aiosqlite. Uses recursive CTE for graph queries,
-WAL mode + 64MB cache + connection reuse for high-performance async I/O.
-UNIQUE(source_id, target_id, rel_type) index prevents relationship accumulation.
+轻量图存储门面。集成 aiosqlite、双时态快照查询与 CTE 因果遍历，提供零外部依赖图存储能力。
 """
 
 import asyncio
@@ -35,29 +32,34 @@ from myrm_agent_harness.toolkits.memory.graph.exceptions import (
     GraphNotSupportedError,
     GraphQueryError,
 )
+from myrm_agent_harness.toolkits.memory.graph.sqlite_temporal import (
+    execute_create_relationship,
+    execute_list_relationships,
+    execute_supersede,
+    migrate_temporal_schema,
+)
+from myrm_agent_harness.toolkits.memory.graph.sqlite_traversal import (
+    execute_causal_chain,
+    execute_delete_all_by_owner,
+    execute_delete_subgraph,
+    execute_related_nodes,
+    execute_related_nodes_with_depth,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class SQLiteGraphStore(GraphStore):
-    """SQLite graph store with recursive CTE and WAL mode.
+    """SQLite graph store with recursive CTE, temporal support, and WAL mode.
 
     Features:
     - Async I/O via aiosqlite
     - WAL mode (50-100% concurrency improvement)
     - 64MB query cache + 256MB mmap
     - Connection reuse with double-checked locking
+    - Bi-temporal valid-time tracking and relationship superseding
     - Cycle detection in causal chain queries
     - Composite index optimization
-
-    Example::
-
-        async with SQLiteGraphStore("~/.app/graph.db") as store:
-            node = await store.create_node(
-                labels=["Memory"],
-                properties={"id": "mem_123", "content": "..."}
-            )
-            chain = await store.get_causal_chain("mem_123", depth=5)
     """
 
     def __init__(self, db_path: str) -> None:
@@ -101,37 +103,7 @@ class SQLiteGraphStore(GraphStore):
         if self._initialized or self._connection is None:
             return
         try:
-            await self._connection.execute("""
-                CREATE TABLE IF NOT EXISTS graph_nodes (
-                    id TEXT PRIMARY KEY,
-                    labels TEXT NOT NULL,
-                    properties TEXT NOT NULL,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-            await self._connection.execute("""
-                CREATE TABLE IF NOT EXISTS graph_relationships (
-                    id TEXT PRIMARY KEY,
-                    source_id TEXT NOT NULL,
-                    target_id TEXT NOT NULL,
-                    rel_type TEXT NOT NULL,
-                    properties TEXT,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (source_id) REFERENCES graph_nodes(id),
-                    FOREIGN KEY (target_id) REFERENCES graph_nodes(id)
-                )
-            """)
-            for idx_sql in (
-                "CREATE INDEX IF NOT EXISTS idx_graph_nodes_labels ON graph_nodes(labels)",
-                "CREATE INDEX IF NOT EXISTS idx_graph_nodes_ns ON graph_nodes(json_extract(properties, '$.primary_namespace'))",
-                "CREATE INDEX IF NOT EXISTS idx_graph_rel_source ON graph_relationships(source_id)",
-                "CREATE INDEX IF NOT EXISTS idx_graph_rel_target ON graph_relationships(target_id)",
-                "CREATE INDEX IF NOT EXISTS idx_graph_rel_type ON graph_relationships(rel_type)",
-                "CREATE INDEX IF NOT EXISTS idx_graph_rel_source_type ON graph_relationships(source_id, rel_type)",
-                "CREATE UNIQUE INDEX IF NOT EXISTS idx_graph_rel_unique ON graph_relationships(source_id, target_id, rel_type)",
-            ):
-                await self._connection.execute(idx_sql)
-            await self._connection.commit()
+            await migrate_temporal_schema(self._connection)
             self._initialized = True
         except Exception as e:
             raise GraphConnectionError(f"Failed to initialize tables: {e}") from e
@@ -173,37 +145,56 @@ class SQLiteGraphStore(GraphStore):
             raise GraphQueryError(f"Failed to get_or_create node: {e}") from e
 
     async def create_relationship(
-        self, start_id: str, end_id: str, rel_type: str, properties: dict[str, str | int | float] | None = None
+        self,
+        start_id: str,
+        end_id: str,
+        rel_type: str,
+        properties: dict[str, str | int | float] | None = None,
+        *,
+        created_at: str | None = None,
+        valid_from: str | None = None,
+        valid_until: str | None = None,
+        superseded_by: str | None = None,
+        supersedes_id: str | None = None,
     ) -> GraphRelationship:
-        """Idempotent: returns existing relationship if (start, end, type) already exists."""
+        """Idempotent: returns existing active relationship if (start, end, type) already exists."""
         conn = await self._get_connection()
-        try:
-            async with conn.execute(
-                "SELECT id, properties FROM graph_relationships WHERE source_id = ? AND target_id = ? AND rel_type = ? LIMIT 1",
-                (start_id, end_id, rel_type),
-            ) as cursor:
-                existing = await cursor.fetchone()
+        return await execute_create_relationship(
+            conn,
+            start_id,
+            end_id,
+            rel_type,
+            properties,
+            created_at=created_at,
+            valid_from=valid_from,
+            valid_until=valid_until,
+            superseded_by=superseded_by,
+            supersedes_id=supersedes_id,
+        )
 
-            if existing is not None:
-                return GraphRelationship(
-                    id=existing[0],
-                    start_id=start_id,
-                    end_id=end_id,
-                    rel_type=rel_type,
-                    properties=json.loads(existing[1]) if existing[1] else {},
-                )
-
-            rel_id = str(uuid4())
-            await conn.execute(
-                "INSERT OR IGNORE INTO graph_relationships (id, source_id, target_id, rel_type, properties) VALUES (?, ?, ?, ?, ?)",
-                (rel_id, start_id, end_id, rel_type, json.dumps(properties or {})),
-            )
-            await conn.commit()
-            return GraphRelationship(
-                id=rel_id, start_id=start_id, end_id=end_id, rel_type=rel_type, properties=properties or {}
-            )
-        except Exception as e:
-            raise GraphQueryError(f"Failed to create relationship: {e}") from e
+    async def supersede_relationship(
+        self,
+        old_rel_id: str,
+        new_end_id: str | None = None,
+        new_rel_type: str | None = None,
+        new_properties: dict[str, str | int | float] | None = None,
+        *,
+        as_of_time: str | None = None,
+        valid_from: str | None = None,
+        valid_until: str | None = None,
+    ) -> tuple[GraphRelationship, GraphRelationship]:
+        """Atomically close the old relationship and create its replacement."""
+        conn = await self._get_connection()
+        return await execute_supersede(
+            conn,
+            old_rel_id=old_rel_id,
+            new_end_id=new_end_id,
+            new_rel_type=new_rel_type,
+            new_properties=new_properties,
+            as_of_time=as_of_time,
+            valid_from=valid_from,
+            valid_until=valid_until,
+        )
 
     async def get_node(self, node_id: str) -> GraphNode | None:
         conn = await self._get_connection()
@@ -279,136 +270,29 @@ class SQLiteGraphStore(GraphStore):
         self, start_id: str, depth: int = 5, relation_types: list[str] | None = None
     ) -> list[str]:
         conn = await self._get_connection()
-        if relation_types is None:
-            relation_types = ["causes"]
-        try:
-            if relation_types:
-                base_cond = " AND (" + " OR ".join(["rel_type = ?" for _ in relation_types]) + ")"
-                recursive_cond = " AND (" + " OR ".join(["r.rel_type = ?" for _ in relation_types]) + ")"
-                params: list[str | int] = [start_id, *relation_types, depth, *relation_types]
-            else:
-                base_cond = ""
-                recursive_cond = ""
-                params = [start_id, depth]
-
-            query = f"""
-                WITH RECURSIVE causal_chain AS (
-                    SELECT source_id, target_id, rel_type, 1 as depth,
-                           ',' || source_id || ',' || target_id || ',' as path
-                    FROM graph_relationships
-                    WHERE source_id = ?{base_cond}
-
-                    UNION ALL
-
-                    SELECT r.source_id, r.target_id, r.rel_type, c.depth + 1,
-                           c.path || r.target_id || ','
-                    FROM graph_relationships r
-                    INNER JOIN causal_chain c ON r.source_id = c.target_id
-                    WHERE c.depth < ?{recursive_cond}
-                      AND instr(c.path, ',' || r.target_id || ',') = 0
-                )
-                SELECT DISTINCT target_id, depth FROM causal_chain ORDER BY depth
-            """
-            async with conn.execute(query, params) as cursor:
-                results = await cursor.fetchall()
-            return [row[0] for row in results]
-        except Exception as e:
-            raise GraphQueryError(f"Causal chain query failed: {e}") from e
+        return await execute_causal_chain(conn, start_id, depth, relation_types)
 
     async def get_related_nodes(self, node_id: str, rel_type: str = "MENTIONS") -> list[str]:
         conn = await self._get_connection()
-        try:
-            query = """
-                SELECT DISTINCT r2.source_id
-                FROM graph_relationships r1
-                JOIN graph_relationships r2 ON r1.target_id = r2.target_id
-                WHERE r1.source_id = ? AND r1.rel_type = ?
-                  AND r2.rel_type = ? AND r2.source_id != ?
-            """
-            async with conn.execute(query, (node_id, rel_type, rel_type, node_id)) as cursor:
-                rows = await cursor.fetchall()
-            return [row[0] for row in rows]
-        except Exception as e:
-            logger.warning("get_related_nodes failed: %s", e)
-            return []
+        return await execute_related_nodes(conn, node_id, rel_type)
 
     async def get_related_nodes_with_depth(
         self, node_id: str, rel_type: str = "MENTIONS", max_depth: int = 2
     ) -> list[tuple[str, int]]:
         conn = await self._get_connection()
-        try:
-            # Path-based cycle detection (SQLite forbids subquery self-reference in recursive CTE)
-            query = """
-                WITH RECURSIVE related AS (
-                    SELECT DISTINCT r2.source_id AS node_id, 1 AS depth,
-                           ',' || r2.source_id || ',' AS path
-                    FROM graph_relationships r1
-                    JOIN graph_relationships r2 ON r1.target_id = r2.target_id
-                    WHERE r1.source_id = ? AND r1.rel_type = ?
-                      AND r2.rel_type = ? AND r2.source_id != ?
-
-                    UNION ALL
-
-                    SELECT DISTINCT r2.source_id AS node_id, rd.depth + 1 AS depth,
-                           rd.path || r2.source_id || ',' AS path
-                    FROM related rd
-                    JOIN graph_relationships r1 ON r1.source_id = rd.node_id
-                    JOIN graph_relationships r2 ON r1.target_id = r2.target_id
-                    WHERE r1.rel_type = ?
-                      AND r2.rel_type = ? AND r2.source_id != ?
-                      AND instr(rd.path, ',' || r2.source_id || ',') = 0
-                      AND rd.depth < ?
-                )
-                SELECT node_id, MIN(depth) AS depth FROM related
-                GROUP BY node_id ORDER BY depth
-            """
-            params = [node_id, rel_type, rel_type, node_id, rel_type, rel_type, node_id, max_depth]
-            async with conn.execute(query, params) as cursor:
-                rows = await cursor.fetchall()
-            return [(row[0], row[1]) for row in rows]
-        except Exception as e:
-            logger.warning("get_related_nodes_with_depth failed: %s", e)
-            return []
+        return await execute_related_nodes_with_depth(conn, node_id, rel_type, max_depth)
 
     # ── Subgraph operations ──────────────────────────────────────────
 
     async def delete_subgraph(self, node_id: str) -> int:
         """Delete a node and all its relationships."""
         conn = await self._get_connection()
-        try:
-            cursor_rels = await conn.execute(
-                "DELETE FROM graph_relationships WHERE source_id = ? OR target_id = ?", (node_id, node_id)
-            )
-            cursor_node = await conn.execute("DELETE FROM graph_nodes WHERE id = ?", (node_id,))
-            await conn.commit()
-            return cursor_rels.rowcount + cursor_node.rowcount
-        except Exception as e:
-            logger.warning("delete_subgraph failed for %s: %s", node_id, e)
-            return 0
+        return await execute_delete_subgraph(conn, node_id)
 
     async def delete_all_by_owner(self, owner_id: str, *, owner_key: str = "user_id") -> int:
         """Delete all nodes and relationships whose node properties contain the owner_id."""
         conn = await self._get_connection()
-        try:
-            async with conn.execute(
-                f"SELECT id FROM graph_nodes WHERE json_extract(properties, '$.{owner_key}') = ?", (owner_id,)
-            ) as cursor:
-                node_ids = [row[0] for row in await cursor.fetchall()]
-
-            if not node_ids:
-                return 0
-
-            placeholders = ",".join("?" for _ in node_ids)
-            cursor_rels = await conn.execute(
-                f"DELETE FROM graph_relationships WHERE source_id IN ({placeholders}) OR target_id IN ({placeholders})",
-                [*node_ids, *node_ids],
-            )
-            cursor_nodes = await conn.execute(f"DELETE FROM graph_nodes WHERE id IN ({placeholders})", node_ids)
-            await conn.commit()
-            return cursor_rels.rowcount + cursor_nodes.rowcount
-        except Exception as e:
-            logger.warning("delete_all_by_owner failed for %s: %s", owner_id, e)
-            return 0
+        return await execute_delete_all_by_owner(conn, owner_id, owner_key=owner_key)
 
     # ── Unsupported operations ───────────────────────────────────────
 
@@ -446,36 +330,23 @@ class SQLiteGraphStore(GraphStore):
         ]
 
     async def list_relationships(
-        self, *, limit: int = 50, offset: int = 0, node_ids: list[str] | None = None
+        self,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        node_ids: list[str] | None = None,
+        as_of_time: str | None = None,
+        include_superseded: bool = False,
     ) -> list[GraphRelationship]:
         conn = await self._get_connection()
-        if node_ids is not None:
-            if not node_ids:
-                return []
-            placeholders = ",".join("?" for _ in node_ids)
-            sql = (
-                "SELECT id, source_id, target_id, rel_type, properties "
-                "FROM graph_relationships "
-                f"WHERE source_id IN ({placeholders}) AND target_id IN ({placeholders}) "
-                "ORDER BY id LIMIT ? OFFSET ?"
-            )
-            params = [*node_ids, *node_ids, limit, offset]
-        else:
-            sql = "SELECT id, source_id, target_id, rel_type, properties FROM graph_relationships ORDER BY id LIMIT ? OFFSET ?"
-            params = [limit, offset]
-
-        async with conn.execute(sql, params) as cursor:
-            rows = await cursor.fetchall()
-        return [
-            GraphRelationship(
-                id=row[0],
-                start_id=row[1],
-                end_id=row[2],
-                rel_type=row[3],
-                properties=json.loads(row[4]) if row[4] else {},
-            )
-            for row in rows
-        ]
+        return await execute_list_relationships(
+            conn,
+            limit=limit,
+            offset=offset,
+            node_ids=node_ids,
+            as_of_time=as_of_time,
+            include_superseded=include_superseded,
+        )
 
     async def get_stats(self) -> GraphStats:
         conn = await self._get_connection()

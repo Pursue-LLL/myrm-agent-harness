@@ -9,11 +9,10 @@
 - ExternalSecretResolutionError: Raised on resolution failure or timeout
 
 [POS]
-Framework-neutral secret reference resolution (moved down from
-backends/secrets/: stdlib-only, no business logic). Implements Zero-Disk
-Plaintext resolution for 1Password (op read) and Bitwarden
-(bw get password / bws secret get) URIs. backends/secrets re-exports
-these names for backward compatibility.
+Framework-neutral secret reference resolution (stdlib-only, no business
+logic). Implements Zero-Disk Plaintext resolution for 1Password (op read)
+and Bitwarden (bw get password / bws secret get) URIs. Also re-exported
+from backends/secrets.
 """
 
 from __future__ import annotations

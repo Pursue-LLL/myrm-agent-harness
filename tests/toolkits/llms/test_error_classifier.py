@@ -151,6 +151,48 @@ def test_classify_timeout(msg: str) -> None:
 
 
 # ============================================================================
+# classify_error — transient TLS (interrupted handshake, no verdict)
+# ============================================================================
+
+
+@pytest.mark.parametrize(
+    "msg",
+    [
+        # Bun mislabel: reset mid-handshake, no certificate ever rejected.
+        "unknown certificate verification error",
+        "UNKNOWN_CERTIFICATE_VERIFICATION_ERROR",
+        # Real verified Python tracebacks (local socket reproduction).
+        "[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol",
+        "[Errno 32] Broken pipe",
+        "ssl.SSLError: [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] handshake failure",
+    ],
+)
+def test_classify_tls_transient_as_timeout(msg: str) -> None:
+    assert classify_error(Exception(msg)) == ErrorKind.TIMEOUT
+    assert classify_failover_reason(Exception(msg)) == FailoverReason.TIMEOUT
+
+
+# ============================================================================
+# classify_error — hard TLS failure (rejected certificate, fail-fast)
+# ============================================================================
+
+
+@pytest.mark.parametrize(
+    "msg",
+    [
+        "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate",
+        "unable to get local issuer certificate",
+        "unable to verify the first certificate",
+        "hostname mismatch, certificate is not valid for 'api.example.com'",
+        "certificate has expired",
+    ],
+)
+def test_classify_tls_hard_as_auth_permanent(msg: str) -> None:
+    assert classify_failover_reason(Exception(msg)) == FailoverReason.AUTH_PERMANENT
+    assert classify_error(Exception(msg)) == ErrorKind.AUTH
+
+
+# ============================================================================
 # classify_error — unknown
 # ============================================================================
 

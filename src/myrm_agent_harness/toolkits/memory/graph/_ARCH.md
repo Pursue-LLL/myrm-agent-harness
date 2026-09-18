@@ -12,8 +12,15 @@ Graph Store — async graph storage with SQLite CTE backend.
 | base.py | Core | Graph store abstraction layer。Defines a backend-agnostic graph storage interface, data models (GraphNode, GraphRelationship, GraphQueryResult, GraphStats), and abstract methods including list_nodes/list_relationships/get_stats for visualization | ✅ |
 | exceptions.py | Core | Graph store exceptions. | ✅ |
 | sqlite_store.py | Core | Lightweight graph store backed by aiosqlite。Uses recursive CTE for graph queries, WAL mode, list_nodes/list_relationships/get_stats for visualization | ✅ |
+| sqlite_temporal.py | Core | SQLite bi-temporal schema, partial unique indexing, point-in-time snapshot, and atomic supersession. | ✅ |
+| sqlite_traversal.py | Core | Recursive CTE traversal, causal chain, cycle detection, and cascade deletion. | ✅ |
 
 ## Key APIs
+
+### supersede_relationship(old_rel_id, new_end_id, new_rel_type, new_properties, ...)
+Atomically closes an existing relationship (setting `valid_until` and `superseded_by`) and inserts a new relationship (with `supersedes_id` back-pointer) in a single SQLite transaction.
+- Returns: `tuple[GraphRelationship, GraphRelationship]` — `(old_superseded, new_active)`
+- Guarded by partial unique index `WHERE valid_until IS NULL` to ensure single active edge per tuple without colliding with historical records.
 
 ### get_related_nodes_with_depth(node_id, rel_type, max_depth)
 Multi-hop graph traversal returning sibling nodes with their hop depth.

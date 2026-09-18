@@ -102,6 +102,7 @@ class TestClassifyDiagnosticFaultSide:
         [
             "connection",
             "tls_certificate",
+            "tls_transient",
             "rate_limit",
             "billing",
             "api_key",

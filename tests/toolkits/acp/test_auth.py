@@ -38,6 +38,32 @@ class TestProfiles:
 
         assert set(_permission_backends()) == set(known_backends())
 
+    def test_permission_table_drift_is_rejected_loudly(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A half-configured backend must raise with diagnostics instead of mis-resolving."""
+        from myrm_agent_harness.toolkits.acp.auth import _profiles
+
+        monkeypatch.delitem(_profiles._PERMISSION_FLAGS_BY_BACKEND, "qwen")
+        with pytest.raises(ValueError, match="out of sync with _PROFILES"):
+            _profiles._permission_backends()
+
+    def test_resolve_rejects_a_half_configured_backend(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """resolve_cli_args must fail loudly, never merge against missing permissions."""
+        from myrm_agent_harness.toolkits.acp.auth import _profiles
+
+        monkeypatch.setattr(
+            _profiles,
+            "_PERMISSION_MODE_ARGS",
+            {k: v for k, v in _profiles._PERMISSION_MODE_ARGS.items() if k != "qwen"},
+        )
+        with pytest.raises(ValueError, match="out of sync with _PROFILES"):
+            _profiles.resolve_cli_args("qwen", ["--output-format", "stream-json"], "safe")
+
+    def test_cli_launch_args_unknown_backend_is_empty(self) -> None:
+        from myrm_agent_harness.toolkits.acp.auth._profiles import cli_launch_args
+
+        assert cli_launch_args("no-such-cli") == []
+        assert cli_launch_args("codex") == ["exec", "--json"]
+
     @pytest.mark.parametrize("backend", ["codex", "claude", "gemini", "qwen"])
     @pytest.mark.parametrize("mode", ["safe", "ask", "allow_all", "bypass"])
     def test_every_backend_and_mode_resolves_arguments(self, backend: str, mode: str) -> None:

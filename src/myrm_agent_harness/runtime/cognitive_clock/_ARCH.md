@@ -10,7 +10,7 @@ Framework-level multi-frequency cognitive clock scheduling primitives (T0-T3 cad
 |------|------|-------------|-------|
 | `__init__.py` | Entry | Public exports for cadences, pause signals, and in-memory clock bus | ✅ |
 | `cadence.py` | Core | Four-tier `CognitiveCadence` enum and immutable clock tick/task specs | ✅ |
-| `signals.py` | Core | `CooperativePauseSignal` probe with checkpoint cursor for fast yield | ✅ |
+| `signals.py` | Core | Re-export of `infra/cooperative_signals.py` (single shared singleton). `toolkits/` imports from `infra/`, never from here. | ✅ |
 | `bus.py` | Core | In-memory `CognitiveClockBus` dispatcher respecting cooperative pauses | ✅ |
 
 ## Key Dependencies

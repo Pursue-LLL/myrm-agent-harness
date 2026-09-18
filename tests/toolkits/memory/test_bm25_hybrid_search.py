@@ -506,14 +506,33 @@ class TestBM25EdgeCases:
         assert isinstance(results, list)
 
     @pytest.mark.asyncio
-    async def test_zero_limit(self, mock_vector_store, memory_config):
-        """Test BM25 with limit=0."""
+    async def test_single_document_corpus_keeps_sparse_recall(self, mock_vector_store, memory_config):
+        """A one-memory library must still score a matching term positively.
+
+        Guards the positive-IDF contract: with rank_bm25's stock IDF the only
+        document's term gets a zero/negative weight and the sparse channel
+        silently returns nothing, which surfaces to the user as "no such memory".
+        """
         mock_vector_store.scroll.side_effect = [
             ([create_vector_doc("1", "Test")], None),
             ([], None),
         ]
 
         results = await search_bm25("test", mock_vector_store, memory_config)
+
+        assert len(results) == 1
+        assert results[0].score > 0
+        assert "Test" in results[0].memory.content
+
+    @pytest.mark.asyncio
+    async def test_no_matching_document_returns_empty(self, mock_vector_store, memory_config):
+        """A query with no shared term yields no sparse candidates."""
+        mock_vector_store.scroll.side_effect = [
+            ([create_vector_doc("1", "Test")], None),
+            ([], None),
+        ]
+
+        results = await search_bm25("unrelated", mock_vector_store, memory_config)
 
         assert results == []
 

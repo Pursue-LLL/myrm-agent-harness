@@ -26,7 +26,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.runtime.cognitive_clock.signals import (
+from myrm_agent_harness.infra.cooperative_signals import (
     CooperativePauseSignal,
 )
 

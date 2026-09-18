@@ -8,8 +8,14 @@ from myrm_agent_harness.toolkits.memory.agent_surface.tool_result_sources import
 )
 
 
-def test_pack_tool_result_with_sources_returns_plain_text_when_empty() -> None:
-    assert pack_tool_result_with_sources("hello", []) == "hello"
+def test_pack_tool_result_with_sources_returns_dict_even_when_empty() -> None:
+    """Sources are always packed into the envelope, including the empty list.
+
+    ``memory_search_tool`` returns this dict shape unconditionally; a bare string
+    would force every caller back into a type check.
+    """
+    packed = pack_tool_result_with_sources("hello", [])
+    assert packed == {"content": "hello", "metadata": {"sources": []}}
 
 
 def test_pack_tool_result_with_sources_embeds_metadata() -> None:

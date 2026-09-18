@@ -15,7 +15,9 @@ from myrm_agent_harness.infra.tls_compat import (
     build_httpx_verify,
     create_httpx_client,
     get_tls_remediation_hint,
+    is_tls_hard_error,
     is_tls_strict_error,
+    is_tls_transient_error,
     tls_strict_disabled,
 )
 
@@ -220,6 +222,55 @@ class TestIsTlsStrictError:
     )
     def test_ignores_non_tls_errors(self, msg: str) -> None:
         assert is_tls_strict_error(msg) is False
+
+
+class TestIsTlsHardVsTransient:
+    """Hard certificate rejections fail fast; interrupted handshakes retry."""
+
+    @pytest.mark.parametrize(
+        "msg",
+        [
+            # Real verified Python tracebacks (local socket reproduction).
+            "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate",
+            "unable to get local issuer certificate",
+            "unable to verify the first certificate",
+            "hostname mismatch, certificate is not valid for 'api.example.com'",
+            "certificate has expired",
+            "ERR_TLS_CERT_ALTNAME_INVALID",
+            "BasicConstraints of CA cert not marked critical",
+        ],
+    )
+    def test_hard_errors_fail_fast(self, msg: str) -> None:
+        assert is_tls_hard_error(msg) is True
+        assert is_tls_transient_error(msg) is False
+
+    @pytest.mark.parametrize(
+        "msg",
+        [
+            # Bun mislabel: reset mid-handshake, no certificate ever rejected.
+            "unknown certificate verification error",
+            "UNKNOWN_CERTIFICATE_VERIFICATION_ERROR",
+            # Real verified Python tracebacks (local socket reproduction).
+            "[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol",
+            "[Errno 32] Broken pipe",
+            "ssl.SSLError: [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] handshake failure",
+        ],
+    )
+    def test_transient_errors_retryable(self, msg: str) -> None:
+        assert is_tls_transient_error(msg) is True
+        assert is_tls_hard_error(msg) is False
+
+    @pytest.mark.parametrize(
+        "msg",
+        [
+            "Connection refused",
+            "Rate limit exceeded",
+            "Invalid API key",
+        ],
+    )
+    def test_ignores_non_tls_errors(self, msg: str) -> None:
+        assert is_tls_transient_error(msg) is False
+        assert is_tls_hard_error(msg) is False
 
 
 class TestGetTlsRemediationHint:

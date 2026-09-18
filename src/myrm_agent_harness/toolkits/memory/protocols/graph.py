@@ -41,8 +41,30 @@ class GraphStoreProtocol(Protocol):
         ...
 
     async def create_relationship(
-        self, start_id: str, end_id: str, rel_type: str, properties: dict[str, str | int | float] | None = None
+        self,
+        start_id: str,
+        end_id: str,
+        rel_type: str,
+        properties: dict[str, str | int | float] | None = None,
+        *,
+        created_at: str | None = None,
+        valid_from: str | None = None,
+        valid_until: str | None = None,
+        superseded_by: str | None = None,
+        supersedes_id: str | None = None,
     ) -> GraphRelationship: ...
+
+    async def supersede_relationship(
+        self,
+        old_rel_id: str,
+        new_end_id: str | None = None,
+        new_rel_type: str | None = None,
+        new_properties: dict[str, str | int | float] | None = None,
+        *,
+        as_of_time: str | None = None,
+        valid_from: str | None = None,
+        valid_until: str | None = None,
+    ) -> tuple[GraphRelationship, GraphRelationship]: ...
 
     async def get_causal_chain(
         self, start_id: str, depth: int = 3, relation_types: list[str] | None = None
@@ -83,7 +105,15 @@ class GraphStoreProtocol(Protocol):
         ...
 
     async def list_nodes(self, *, limit: int = 50, offset: int = 0) -> list[GraphNode]: ...
-    async def list_relationships(self, *, limit: int = 50, offset: int = 0) -> list[GraphRelationship]: ...
+    async def list_relationships(
+        self,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        node_ids: list[str] | None = None,
+        as_of_time: str | None = None,
+        include_superseded: bool = False,
+    ) -> list[GraphRelationship]: ...
     async def get_stats(self) -> GraphStats: ...
 
     async def health_check(self) -> bool: ...

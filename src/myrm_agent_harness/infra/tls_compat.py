@@ -205,6 +205,48 @@ _TLS_ERROR_PATTERNS = (
     "self-signed certificate in certificate chain",
 )
 
+# Hard TLS failure signals: the certificate/chain itself is rejected.
+# These are permanent (fail-fast) — retrying cannot change the verdict.
+# Extends _TLS_ERROR_PATTERNS with Bun/Node/OpenSSL wordings that the
+# strict-mode patterns miss (e.g. "unable to verify the first certificate",
+# hostname/altname mismatch, expired leaf).
+_TLS_HARD_SIGNALS = (
+    *_TLS_ERROR_PATTERNS,
+    "self-signed",
+    "self signed",
+    "unable to verify the first certificate",
+    "hostname mismatch",
+    "hostname doesn't match",
+    "certificate has expired",
+    "cert has expired",
+    "certificate expired",
+    "expired certificate",
+    "err_tls_cert_altname_invalid",
+    "altname",
+)
+
+# Transient TLS transport signals: the handshake was interrupted before any
+# certificate verdict (weak network, proxy reset, Bun mislabel). Bun's
+# "unknown certificate verification error" belongs here: it is emitted when
+# the connection is reset mid-handshake, with no certificate ever rejected.
+_TLS_TRANSIENT_PATTERNS = (
+    "unknown certificate verification",
+    "unknown_certificate_verification",
+    "certificate verification error",
+    "ssl routines",
+    "handshake failure",
+    "failure in handshake",
+    "unexpected eof",
+    "eof occurred in violation of protocol",
+    "broken pipe",
+    "wrong version number",
+    "bad record mac",
+    "decryption failed",
+    "tlsv1 alert",
+    "ssl3_read_bytes",
+    "ssl3_write_bytes",
+)
+
 
 def is_tls_strict_error(error_message: str) -> bool:
     """Detect if an error message indicates a TLS strict-mode rejection.
@@ -213,6 +255,28 @@ def is_tls_strict_error(error_message: str) -> bool:
     """
     lower = error_message.lower()
     return any(pattern in lower for pattern in _TLS_ERROR_PATTERNS)
+
+
+def is_tls_hard_error(error_message: str) -> bool:
+    """Detect a permanent TLS failure (bad chain, not a flaky network).
+
+    Superset of :func:`is_tls_strict_error` with Bun/Node/OpenSSL wordings.
+    Hard failures must fail fast with remediation — never retried.
+    """
+    lower = error_message.lower()
+    return any(pattern in lower for pattern in _TLS_HARD_SIGNALS)
+
+
+def is_tls_transient_error(error_message: str) -> bool:
+    """Detect an interrupted TLS handshake with no certificate verdict.
+
+    True when transport-level signals are present and no hard signal matches.
+    Callers should treat this as retryable (same class as connection reset).
+    """
+    lower = error_message.lower()
+    if any(pattern in lower for pattern in _TLS_HARD_SIGNALS):
+        return False
+    return any(pattern in lower for pattern in _TLS_TRANSIENT_PATTERNS)
 
 
 def get_tls_remediation_hint() -> str:

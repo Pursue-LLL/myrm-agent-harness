@@ -35,13 +35,18 @@ class GraphNode(BaseModel):
 
 
 class GraphRelationship(BaseModel):
-    """Graph relationship between two nodes."""
+    """Graph relationship between two nodes with bi-temporal lifecycle metadata."""
 
     id: str
     start_id: str
     end_id: str
     rel_type: str
     properties: dict[str, str | int | float] = Field(default_factory=dict)
+    created_at: str | None = None
+    valid_from: str | None = None
+    valid_until: str | None = None
+    superseded_by: str | None = None
+    supersedes_id: str | None = None
 
 
 class GraphQueryResult(BaseModel):
@@ -92,10 +97,40 @@ class GraphStore(ABC):
 
     @abstractmethod
     async def create_relationship(
-        self, start_id: str, end_id: str, rel_type: str, properties: dict[str, str | int | float] | None = None
+        self,
+        start_id: str,
+        end_id: str,
+        rel_type: str,
+        properties: dict[str, str | int | float] | None = None,
+        *,
+        created_at: str | None = None,
+        valid_from: str | None = None,
+        valid_until: str | None = None,
+        superseded_by: str | None = None,
+        supersedes_id: str | None = None,
     ) -> GraphRelationship:
-        """Idempotent: if a relationship with (start_id, end_id, rel_type) already
+        """Idempotent: if an active relationship with (start_id, end_id, rel_type) already
         exists, return the existing one without creating a duplicate."""
+        ...
+
+    @abstractmethod
+    async def supersede_relationship(
+        self,
+        old_rel_id: str,
+        new_end_id: str | None = None,
+        new_rel_type: str | None = None,
+        new_properties: dict[str, str | int | float] | None = None,
+        *,
+        as_of_time: str | None = None,
+        valid_from: str | None = None,
+        valid_until: str | None = None,
+    ) -> tuple[GraphRelationship, GraphRelationship]:
+        """Atomically supersede an existing relationship with a new replacement.
+
+        Closes validity of the old relationship (setting valid_until and superseded_by)
+        and inserts the new relationship (linking back via supersedes_id).
+        Returns a tuple of (superseded_old_relationship, new_relationship).
+        """
         ...
 
     @abstractmethod
@@ -201,9 +236,15 @@ class GraphStore(ABC):
         raise NotImplementedError(f"{type(self).__name__} does not implement list_nodes.")
 
     async def list_relationships(
-        self, *, limit: int = 50, offset: int = 0, node_ids: list[str] | None = None
+        self,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        node_ids: list[str] | None = None,
+        as_of_time: str | None = None,
+        include_superseded: bool = False,
     ) -> list[GraphRelationship]:
-        """Paginated listing of relationships, optionally filtered to induced subgraph of node_ids."""
+        """Paginated listing of relationships, optionally filtered to induced subgraph of node_ids and temporal validity."""
         raise NotImplementedError(f"{type(self).__name__} does not implement list_relationships.")
 
     async def get_stats(self) -> GraphStats:

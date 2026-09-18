@@ -43,7 +43,7 @@ class TestCJKBigramTokenize:
 
     def test_mixed_cjk_english(self):
         tokens = _cjk_bigram_tokenize("Python机器学习tutorial")
-        assert "Python" in tokens
+        assert "python" in tokens
         assert "tutorial" in tokens
         assert "机器" in tokens
         assert "学习" in tokens

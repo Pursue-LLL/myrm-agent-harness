@@ -280,20 +280,24 @@ class TestMemoryExtractorLanguageIntegration:
 
     @pytest.mark.asyncio
     async def test_only_user_messages_for_detection(self):
-        """Test language detection uses all messages (user + assistant)."""
+        """Language detection runs on the distillable subset, not agent-authored text.
+
+        Assistant turns are permanently excluded by the distillation guards, so
+        their language must not influence the detected language of what will
+        actually be distilled.
+        """
         mock_llm = AsyncMock(return_value="[]")
         config = ExtractionConfig()
         extractor = MemoryExtractor(config=config, llm_func=mock_llm)
 
-        # Both user and assistant messages should be considered
         messages = [
             {"role": "user", "content": "Hello"},  # Short English
-            {"role": "assistant", "content": "你好，很高兴见到你！"},  # Chinese
+            {"role": "assistant", "content": "你好，很高兴见到你！"},  # Chinese, excluded
         ]
 
         await extractor.extract(messages, "user_123")
-        # Combined text has significant Chinese, should detect zh
-        assert extractor._last_detected_language == "zh"
+        # Only the user turn is distillable, so the language follows the user's.
+        assert extractor._last_detected_language == "en"
 
     @pytest.mark.asyncio
     async def test_empty_messages_defaults_to_en(self):

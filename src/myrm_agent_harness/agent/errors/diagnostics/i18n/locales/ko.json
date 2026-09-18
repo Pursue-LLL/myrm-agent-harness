@@ -114,6 +114,12 @@
     "또는 환경 변수 MYRM_TLS_STRICT=0을 설정하세요",
     "사용자 정의 CA 인증서 번들을 사용하는 경우 SSL_CERT_FILE에 경로를 설정하세요"
   ],
+  "tls_transient_user_message": "TLS 핸드셰이크가 중단되었습니다 — 일시적인 네트워크 불안정일 가능성이 있어 자동으로 다시 시도하고 있습니다",
+  "tls_transient_resolution_steps": [
+    "자동 재시도가 성공하면 별도 조치가 필요 없습니다",
+    "지속되면 VPN/프록시 연결 안정성을 확인하세요",
+    "기업 TLS 검사 환경에서는 설정 → 시스템 → 고급에서 '기업 네트워크 호환 모드'를 활성화하세요"
+  ],
   "cooldown_hint_single": " {seconds}초 후에 다시 시도하세요.",
   "cooldown_hint_plural": " {seconds}초 후에 다시 시도하세요."
 }

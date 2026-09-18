@@ -21,7 +21,12 @@ from myrm_agent_harness.agent.errors.diagnostics.types import (
     DiagnosticResult,
     ErrorContext,
 )
-from myrm_agent_harness.infra.tls_compat import get_tls_remediation_hint, is_tls_strict_error
+from myrm_agent_harness.infra.tls_compat import (
+    get_tls_remediation_hint,
+    is_tls_hard_error,
+    is_tls_strict_error,
+    is_tls_transient_error,
+)
 
 
 class LLMErrorDiagnostic:
@@ -77,8 +82,10 @@ class LLMErrorDiagnostic:
         error_repr = repr(exc).lower()
         full_text = f"{error_str} {error_repr}"
 
-        # 0. TLS/SSL certificate errors (enterprise TLS inspection)
-        if is_tls_strict_error(full_text):
+        # 0. TLS/SSL errors: hard failure (fail-fast) vs transient handshake
+        # interruption (retryable). Hard signals win: a rejected certificate
+        # can never verify by retrying.
+        if is_tls_hard_error(full_text) or is_tls_strict_error(full_text):
             hint = get_tls_remediation_hint()
             raw_msg = locale_manager.translate("tls_certificate", "user_message", locale)
             raw_steps = locale_manager.translate("tls_certificate", "resolution_steps", locale)
@@ -94,6 +101,28 @@ class LLMErrorDiagnostic:
                 user_message=user_message,
                 resolution_steps=steps,
                 is_retryable=False,
+                locale=locale,
+            )
+
+        if is_tls_transient_error(full_text):
+            raw_msg = locale_manager.translate("tls_transient", "user_message", locale)
+            raw_steps = locale_manager.translate("tls_transient", "resolution_steps", locale)
+            fallback_msg = "TLS handshake interrupted — likely transient network instability, retrying automatically."
+            user_message = (
+                raw_msg
+                if isinstance(raw_msg, str) and not raw_msg.startswith("[Missing")
+                else fallback_msg
+            )
+            steps = raw_steps if isinstance(raw_steps, list) and raw_steps else [fallback_msg]
+
+            cooldown_hint = LLMErrorDiagnostic._format_cooldown_hint(cooldown_remaining_ms, locale)
+            user_message += cooldown_hint
+
+            return DiagnosticResult(
+                error_type="tls_transient",
+                user_message=user_message,
+                resolution_steps=steps,
+                is_retryable=True,
                 locale=locale,
             )
 

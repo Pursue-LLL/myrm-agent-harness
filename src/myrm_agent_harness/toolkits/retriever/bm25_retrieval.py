@@ -9,6 +9,7 @@ Keyword-matching retrieval based on the BM25 algorithm with smart CJK/English hy
 
 [OUTPUT]
 - extract_version_tokens: Generates hierarchical version-number tokens for version-aware search
+- apply_positive_idf: Replaces BM25 IDF weights with the strictly positive Lucene variant
 - BM25Retriever: Stateful BM25 index that supports build / query / incremental add / remove
 - bm25_retrieval: Standalone one-shot BM25 search function
 
@@ -19,6 +20,7 @@ returns keyword-matched results ranked by BM25 score.
 """
 
 import logging
+import math
 import re
 import time
 import warnings
@@ -320,6 +322,36 @@ def preprocess_text(text: str) -> list[str]:
     return result
 
 
+def apply_positive_idf(bm25: BM25Okapi, processed_docs: list[list[str]]) -> None:
+    """Replace BM25Okapi IDF weights with strictly positive values.
+
+    ``rank_bm25`` uses the classic Robertson-Sparck-Jones IDF
+    ``log(N - df + 0.5) - log(df + 0.5)``, which turns **negative** for terms
+    appearing in more than half of the documents and is then floored at
+    ``epsilon * average_idf``. On small corpora that floor collapses to zero,
+    so the discriminative term of a short query is silently scored as
+    irrelevant and the sparse channel returns nothing at all — the memory
+    system then reports "no such memory" even though the fact is stored.
+
+    This switches to the Lucene-cited variant
+    ``log(1 + (N - df + 0.5) / (df + 0.5))``: always > 0, monotonically
+    decreasing in document frequency, and free of the epsilon floor.
+    """
+    document_count = len(processed_docs)
+    if document_count == 0:
+        return
+
+    document_frequency: dict[str, int] = {}
+    for processed_doc in processed_docs:
+        for token in set(processed_doc):
+            document_frequency[token] = document_frequency.get(token, 0) + 1
+
+    bm25.idf = {
+        token: math.log(1.0 + (document_count - frequency + 0.5) / (frequency + 0.5))
+        for token, frequency in document_frequency.items()
+    }
+
+
 class BM25Retriever:
     """BM25 retriever: keyword retrieval over a document set.
 
@@ -327,6 +359,7 @@ class BM25Retriever:
     - Pre-built index supporting multiple queries
     - Auto-filters empty documents
     - Smart CJK/English hybrid tokenization
+    - Positive-IDF scoring so small corpora keep a usable sparse channel
     """
 
     def __init__(self, documents: list[str]) -> None:
@@ -353,6 +386,7 @@ class BM25Retriever:
             self.bm25 = None
         else:
             self.bm25 = BM25Okapi(self.valid_processed_docs)
+            apply_positive_idf(self.bm25, self.valid_processed_docs)
 
     def search(
         self,

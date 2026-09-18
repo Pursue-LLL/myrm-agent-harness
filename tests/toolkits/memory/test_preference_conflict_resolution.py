@@ -73,13 +73,17 @@ def strategy(store: InMemoryPreferenceFacetStore) -> PreferenceStabilityStrategy
 
 
 class TestResolveKeyConflicts:
-    """Tests preference conflict resolution via argmax(stability)."""
+    """Tests preference conflict resolution via non-destructive conflict marking."""
 
     @pytest.mark.asyncio
-    async def test_higher_stability_wins(
+    async def test_contradicting_values_are_both_retained(
         self, store: InMemoryPreferenceFacetStore, strategy: PreferenceStabilityStrategy
     ) -> None:
-        """New submission with higher stability replaces old one (keep_new equivalent)."""
+        """A contradicting value is retained as provisional, never hard-deleted.
+
+        The strategy deliberately avoids destructive resolution: divergent facets
+        are kept under reduced stability so governance can still surface them.
+        """
         old_facet = PreferenceFacet(
             id="old",
             key="preferred_language",
@@ -103,15 +107,18 @@ class TestResolveKeyConflicts:
         result = await strategy.submit_candidate(new_candidate)
 
         remaining = await store.find_by_key("preferred_language")
-        assert len(remaining) == 1
-        assert remaining[0].value == "Rust"
+        assert len(remaining) == 2
         assert result.value == "Rust"
+        assert {facet.value for facet in remaining} == {"Python", "Rust"}
+        superseded = next(facet for facet in remaining if facet.value == "Python")
+        assert superseded.lifecycle is PreferenceLifecycle.PROVISIONAL
+        assert superseded.stability <= 0.35
 
     @pytest.mark.asyncio
-    async def test_lower_stability_loses(
+    async def test_stronger_existing_value_is_not_downgraded(
         self, store: InMemoryPreferenceFacetStore, strategy: PreferenceStabilityStrategy
     ) -> None:
-        """Existing high-stability facet survives against weak new candidate (keep_old equivalent)."""
+        """A weak candidate cannot displace the established strong value."""
         strong_facet = PreferenceFacet(
             id="strong",
             key="editor",
@@ -135,8 +142,8 @@ class TestResolveKeyConflicts:
         await strategy.submit_candidate(weak_candidate)
 
         remaining = await store.find_by_key("editor")
-        assert len(remaining) == 1
-        assert remaining[0].value == "VSCode"
+        keeper = next(facet for facet in remaining if facet.value == "VSCode")
+        assert keeper.stability == strong_facet.stability
 
     @pytest.mark.asyncio
     async def test_user_pinned_survives_higher_stability(
@@ -200,10 +207,10 @@ class TestResolveKeyConflicts:
         assert "mem-b" in result.memory_ids
 
     @pytest.mark.asyncio
-    async def test_three_way_conflict_strongest_wins(
+    async def test_three_way_conflict_retains_all_values(
         self, store: InMemoryPreferenceFacetStore, strategy: PreferenceStabilityStrategy
     ) -> None:
-        """Among 3 competing values for same key, strongest survives."""
+        """Three competing values are all retained, with the strongest untouched."""
         for value, evidence, age_days in [
             ("tabs", 2, 30),
             ("2 spaces", 1, 5),
@@ -231,8 +238,8 @@ class TestResolveKeyConflicts:
         await strategy.submit_candidate(trigger)
 
         remaining = await store.find_by_key("indent_style")
-        assert len(remaining) == 1
-        assert remaining[0].value == "4 spaces"
+        assert len(remaining) == 3
+        assert {facet.value for facet in remaining} == {"tabs", "2 spaces", "4 spaces"}
 
 
 class TestStabilityScorer:

@@ -22,7 +22,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 
-from myrm_agent_harness.runtime.cognitive_clock.signals import (
+from myrm_agent_harness.infra.cooperative_signals import (
     CooperativePauseSignal,
     get_global_pause_signal,
 )

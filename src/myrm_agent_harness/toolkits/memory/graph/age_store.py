@@ -16,7 +16,11 @@ import asyncio
 import logging
 
 from myrm_agent_harness.toolkits.memory.graph.base import GraphNode, GraphQueryResult, GraphRelationship, GraphStore
-from myrm_agent_harness.toolkits.memory.graph.exceptions import GraphConnectionError, GraphQueryError
+from myrm_agent_harness.toolkits.memory.graph.exceptions import (
+    GraphConnectionError,
+    GraphNotSupportedError,
+    GraphQueryError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -97,9 +101,31 @@ class AGEStore(GraphStore):
         return await self.create_node(labels, properties)
 
     async def create_relationship(
-        self, start_id: str, end_id: str, rel_type: str, properties: dict[str, str | int | float] | None = None
+        self,
+        start_id: str,
+        end_id: str,
+        rel_type: str,
+        properties: dict[str, str | int | float] | None = None,
+        *,
+        created_at: str | None = None,
+        valid_from: str | None = None,
+        valid_until: str | None = None,
+        superseded_by: str | None = None,
+        supersedes_id: str | None = None,
     ) -> GraphRelationship:
         """Idempotent: uses MERGE to avoid duplicate relationships."""
+        props: dict[str, str | int | float] = dict(properties or {})
+        if created_at is not None:
+            props["created_at"] = created_at
+        if valid_from is not None:
+            props["valid_from"] = valid_from
+        if valid_until is not None:
+            props["valid_until"] = valid_until
+        if superseded_by is not None:
+            props["superseded_by"] = superseded_by
+        if supersedes_id is not None:
+            props["supersedes_id"] = supersedes_id
+
         query = f"""
         MATCH (a), (b)
         WHERE id(a) = $start_id AND id(b) = $end_id
@@ -112,7 +138,7 @@ class AGEStore(GraphStore):
             {
                 "start_id": int(start_id),
                 "end_id": int(end_id),
-                "props": properties or {},
+                "props": props,
             },
         )
         if result.records:
@@ -122,8 +148,26 @@ class AGEStore(GraphStore):
                 end_id=end_id,
                 rel_type=rel_type,
                 properties=properties or {},
+                created_at=created_at,
+                valid_from=valid_from,
+                valid_until=valid_until,
+                superseded_by=superseded_by,
+                supersedes_id=supersedes_id,
             )
         raise GraphQueryError("Failed to create relationship: no records returned")
+
+    async def supersede_relationship(
+        self,
+        old_rel_id: str,
+        new_end_id: str | None = None,
+        new_rel_type: str | None = None,
+        new_properties: dict[str, str | int | float] | None = None,
+        *,
+        as_of_time: str | None = None,
+        valid_from: str | None = None,
+        valid_until: str | None = None,
+    ) -> tuple[GraphRelationship, GraphRelationship]:
+        raise GraphNotSupportedError("Bi-temporal supersede_relationship is not supported by AGEStore yet.")
 
     async def get_causal_chain(
         self, start_id: str, depth: int = 5, relation_types: list[str] | None = None

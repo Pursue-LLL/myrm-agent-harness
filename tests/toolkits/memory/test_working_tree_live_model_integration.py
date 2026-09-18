@@ -33,6 +33,10 @@ _ENV_TEST = (
 
 from langchain_core.language_models.chat_models import BaseChatModel
 
+# Live-network + .env.test credential dependency: kept out of the default unit lane
+# (harness addopts exclude `integration`) and run explicitly with `-m integration`.
+pytestmark = [pytest.mark.integration, pytest.mark.timeout(60)]
+
 
 def _get_live_llm() -> BaseChatModel:
     if not _ENV_TEST.exists():
@@ -83,10 +87,10 @@ class TestWorkingTreeRealLLMIntegration:
             updated_at=now,
         )
 
-        new_claim = "NVIDIA H100 pricing refuted"
+        new_claim = "NVIDIA H100 list price is $22,000 per unit"
         new_summary = (
-            "Recent 2026 secondary enterprise market data refutes the $30,000 baseline; "
-            "standard enterprise purchase contracts are now discounted to $22,000."
+            "Updated 2026 pricing data states the NVIDIA H100 list price is now $22,000 per unit. "
+            "The previously recorded $30,000 per unit list price was incorrect."
         )
 
         verdict = await detector.acheck_conflict(

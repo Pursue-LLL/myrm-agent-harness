@@ -163,6 +163,34 @@ _TIMEOUT_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Permanent TLS failure: the certificate/chain itself is rejected (fail-fast,
+# never retried). Checked AFTER the transient-transport rule so that weak-
+# network handshakes interrupted before any certificate verdict stay retryable.
+_TLS_HARD_RE = re.compile(
+    r"self.?signed|unable to get local issuer"
+    r"|unable to verify the first certificate"
+    r"|hostname (?:mismatch|doesn.?t match)|err_tls_cert_altname_invalid|altname"
+    r"|certificate (?:has )?expired|expired certificate"
+    r"|basic.?constraints|not marked critical"
+    r"|certificate verify failed",
+    re.IGNORECASE,
+)
+
+# Transient TLS transport trace: SSL/TLS/handshake wording with NO hard
+# signal. Covers Bun's mislabeled "unknown certificate verification error"
+# (reset mid-handshake, no certificate ever rejected) and Python SSLEOFError /
+# BrokenPipeError wordings that _TIMEOUT_RE misses ("unexpected_eof" with
+# underscores, "eof occurred in violation of protocol", "broken pipe").
+_TLS_TRANSPORT_RE = re.compile(
+    r"\bssl\b|\btls\b|handshake"
+    r"|unknown[ _]certificate[ _]verification|certificate verification error"
+    r"|cert\.? ?verify|ssl routines"
+    r"|unexpected.?eof|eof occurred in violation of protocol|broken pipe"
+    r"|wrong version number|bad record|decryption failed"
+    r"|ssl3_|tlsv1",
+    re.IGNORECASE,
+)
+
 _OVERFLOW_EXACT_RE = re.compile(
     r"|".join(
         [
@@ -543,9 +571,19 @@ def classify_failover_reason(exc: Exception) -> FailoverReason:
     if _is_context_overflow(msg):
         return FailoverReason.CONTEXT_OVERFLOW
 
-    # 7. Transport/Timeouts
-    if _TIMEOUT_RE.search(msg):
+    # 7. Transport/Timeouts (+ transient TLS: transport errors carrying an
+    # SSL/TLS/handshake trace but no hard certificate verdict — same class
+    # as connection reset, e.g. Bun's "unknown certificate verification
+    # error" emitted on mid-handshake reset)
+    if _TIMEOUT_RE.search(msg) or (_TLS_TRANSPORT_RE.search(msg) and not _TLS_HARD_RE.search(msg)):
         return FailoverReason.TIMEOUT
+
+    # 7b. Hard TLS failure: the certificate/chain itself is rejected.
+    # Fail-fast as AUTH_PERMANENT (peer-identity credential can never verify
+    # by retrying); the diagnostic engine still surfaces the tls_certificate
+    # remediation hint for these.
+    if _TLS_HARD_RE.search(msg):
+        return FailoverReason.AUTH_PERMANENT
 
     # 8. Fallback Status Code Probes
     if normalized.status_code == 400:

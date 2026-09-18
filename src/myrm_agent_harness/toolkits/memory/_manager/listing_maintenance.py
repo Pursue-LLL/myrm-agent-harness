@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from myrm_agent_harness.runtime.cognitive_clock.signals import (
+from myrm_agent_harness.infra.cooperative_signals import (
     CooperativePauseSignal,
 )
 from myrm_agent_harness.toolkits.memory._internal.storage import (

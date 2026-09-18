@@ -119,6 +119,12 @@
     "Or set environment variable MYRM_TLS_STRICT=0",
     "If using a custom CA bundle, set SSL_CERT_FILE to its path"
   ],
+  "tls_transient_user_message": "TLS handshake interrupted — likely transient network instability, retrying automatically",
+  "tls_transient_resolution_steps": [
+    "No action needed if the automatic retry succeeds",
+    "If it persists, check VPN/proxy connection stability",
+    "If behind enterprise TLS inspection, enable 'Enterprise Network Compatibility' in Settings → System → Advanced"
+  ],
   "cooldown_hint_single": " Retry after {seconds} second.",
   "cooldown_hint_plural": " Retry after {seconds} seconds."
 }

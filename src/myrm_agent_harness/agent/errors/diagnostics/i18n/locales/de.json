@@ -113,6 +113,12 @@
     "Oder setzen Sie die Umgebungsvariable MYRM_TLS_STRICT=0",
     "Bei Verwendung eines benutzerdefinierten CA-Zertifikatbündels setzen Sie SSL_CERT_FILE auf den Pfad"
   ],
+  "tls_transient_user_message": "TLS-Handshake unterbrochen — vermutlich vorübergehende Netzwerkinstabilität, automatischer Wiederholungsversuch läuft",
+  "tls_transient_resolution_steps": [
+    "Keine Maßnahme erforderlich, wenn der automatische Wiederholungsversuch gelingt",
+    "Bei Fortbestehen VPN-/Proxy-Verbindungsstabilität prüfen",
+    "Hinter Enterprise-TLS-Inspektion den 'Enterprise-Netzwerk-Kompatibilitätsmodus' unter Einstellungen → System → Erweitert aktivieren"
+  ],
   "cooldown_hint_single": " Versuchen Sie es nach {seconds} Sekunde erneut.",
   "cooldown_hint_plural": " Versuchen Sie es nach {seconds} Sekunden erneut."
 }

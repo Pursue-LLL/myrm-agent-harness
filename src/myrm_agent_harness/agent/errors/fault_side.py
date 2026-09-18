@@ -187,6 +187,7 @@ _ENV_DIAGNOSTIC_TYPES: frozenset[str] = frozenset(
     {
         "connection",
         "tls_certificate",
+        "tls_transient",
         "rate_limit",
         "billing",
         "api_key",
