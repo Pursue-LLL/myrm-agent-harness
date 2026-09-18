@@ -1,4 +1,20 @@
-"""Default callbacks and tasks for the idle worker."""
+"""Default callbacks and tasks for the idle worker.
+
+[INPUT]
+- agent.background_worker.registry::IdleTaskRegistry (POS: Idle Task Registry for crash-resilient persistence and concurrency control.)
+- agent.background_worker.shadow_context::restricted_shadow_context (POS: Shadow Agent bulkhead isolation for background / review workloads.)
+- agent.skill_agent.context::get_memory_manager (POS: Module-level ContextVar management and background task utilities.)
+- runtime.maintenance.scheduler::get_maintenance_scheduler (POS: Global adaptive maintenance scheduler.)
+- toolkits.memory.cognitive.consolidator::CognitiveConsolidator (POS: 认知巩固器，合并与沉淀记忆片段)
+- runtime.events.bus::get_event_bus (POS: Event Bus Implementation)
+
+[OUTPUT]
+- register_idle_task_handler: 注册自定义 idle task 处理器（按 task_type 键控的 DI 入口）
+- default_idle_callback: 会话空闲时执行的默认回调，分派并驱动全部内置 idle 任务类型
+
+[POS]
+空闲维护内置任务层。承载认知巩固、会话证据提炼与上下文压缩等无用户交互期的后台任务，被 idle_worker 调度执行。
+"""
 
 from __future__ import annotations
 
