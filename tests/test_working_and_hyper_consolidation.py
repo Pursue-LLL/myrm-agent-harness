@@ -265,6 +265,63 @@ async def test_hyper_consolidator_missing_snapshot_bypass() -> None:
 
 
 @pytest.mark.asyncio
+async def test_hyper_consolidator_persists_to_real_sqlite(tmp_path: object) -> None:
+    """End-to-end (no mocks): snapshot → digest + rules → real SQLite file → read back."""
+    from pathlib import Path
+
+    store = SQLiteRelationalStore(str(Path(str(tmp_path)) / "hyper_e2e.db"))
+
+    class RealDbManager:
+        def __init__(self) -> None:
+            self._relational = store
+            self.episodics: list[object] = []
+
+        async def store(self, memory: object) -> None:
+            self.episodics.append(memory)
+
+    snapshot = WorkingMemorySnapshot(
+        goal="Ship nightly backup",
+        active_turn=3,
+        status="completed",
+        subtasks=[ConsolidationSubtask(title="Snapshot volume", completed=True)],
+        traps=[
+            ConsolidationTrap(
+                fingerprint="wal_growth",
+                avoidance_rule="Checkpoint WAL before backup",
+                tool_name="sqlite_cli",
+                occurred_turn=2,
+                resolved=True,
+            )
+        ],
+    )
+    manager = RealDbManager()
+    consolidator = HyperConsolidator(memory_manager=manager)  # type: ignore[arg-type]
+    digest, rules = await consolidator.consolidate_session(
+        messages=[{"role": "user", "content": "backup"}],
+        chat_id="chat-e2e",
+        snapshot=snapshot,
+    )
+    assert digest is not None
+    assert len(rules) == 1
+
+    persisted = await store.get_rule(rules[0].id)
+    assert persisted is not None
+    assert persisted.error_fingerprint == "wal_growth"
+    assert len(manager.episodics) == 1
+    await store.close()
+    """Verify a missing snapshot bypasses consolidation without touching any global."""
+    consolidator = HyperConsolidator()
+    digest, rules = await consolidator.consolidate_session(
+        messages=[{"role": "user", "content": "What time is it?"}],
+        chat_id="chat-trivial",
+        snapshot=None,
+    )
+
+    assert digest is None
+    assert len(rules) == 0
+
+
+@pytest.mark.asyncio
 async def test_hyper_consolidator_distillation_and_procedural_rules() -> None:
     """Verify rich long-horizon session distills TaskDigest and self-healing ProceduralMemory."""
     snapshot = WorkingMemorySnapshot(
