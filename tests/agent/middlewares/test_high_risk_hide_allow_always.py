@@ -56,7 +56,7 @@ class TestAutoModeSuspendedHighRisk:
     async def test_consecutive_breach_sets_high_risk(self):
         """3 consecutive denials → next ASK tool gets high_risk in pending."""
         for _ in range(3):
-            record_denial("shell_exec")
+            record_denial("shell_exec", "s")
 
         config = SecurityConfig(
             ruleset=(PermissionRule("file_write", "*", PermissionAction.ASK),),
@@ -90,7 +90,11 @@ class TestAutoModeSuspendedHighRisk:
     async def test_total_breach_sets_high_risk(self):
         """20 total denials → next ASK tool gets high_risk in pending."""
         for i in range(20):
-            record_denial(f"tool_{i}")
+            # Must record on the same session the batch is evaluated under
+            # (``session_key="s"`` below): ``_get_state`` buckets per session key,
+            # so an unkeyed record lands in the ambient bucket and the evaluation
+            # would never observe the breach.
+            record_denial(f"tool_{i}", "s")
 
         config = SecurityConfig(
             ruleset=(PermissionRule("file_write", "*", PermissionAction.ASK),),

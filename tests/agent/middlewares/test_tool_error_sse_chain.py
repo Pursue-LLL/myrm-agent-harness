@@ -56,6 +56,44 @@ async def test_myrm_tools_blocked_reaches_sse_as_guardrail_blocked() -> None:
 
 
 @pytest.mark.asyncio
+async def test_enum_category_object_reaches_sse_as_value_and_attributes_owner() -> None:
+    """Production guardrails attach the enum *member*, not its ``.value``.
+
+    ``ToolErrorCategory`` is a bare ``str``-mixin enum and does not override
+    ``__str__``, so the SSE layer must read ``.value`` itself. Passing the member
+    through verbatim used to leak ``'ToolErrorCategory.ESTOP'`` to the frontend and,
+    because ``classify_tool_fault_side``'s tables hold value-form strings, silently
+    degrade every attribution to ``UNKNOWN``. This pins the object path that the
+    ``.value``-only variants above structurally cannot cover.
+    """
+    err = ToolError(
+        "Emergency stop activated",
+        diagnostic_info={"error_category": ToolErrorCategory.ESTOP},
+        error_code="ESTOP",
+    )
+    handler = AsyncMock(side_effect=err)
+
+    with (
+        patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor.get_event_logger", return_value=None),
+        patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor.get_terminal_errors", return_value=set()),
+    ):
+        tool_msg = await execute_with_retry(
+            _make_request(),
+            handler,
+            "bash_code_execute_tool",
+            "tc_estop",
+            allowed_domains=None,
+        )
+
+    events: list[dict] = []
+    async for event in _handle_tool_result(tool_msg, "msg_estop", None):
+        events.append(event)
+
+    assert events[0]["error_category"] == "estop"
+    assert events[0]["fault_side"] == "owner"
+
+
+@pytest.mark.asyncio
 async def test_tool_error_with_traceback_and_secrets_is_redacted_in_sse() -> None:
     """Negative regression: error content & error_hint carrying secrets and paths must be redacted in SSE."""
     raw_error_message = (

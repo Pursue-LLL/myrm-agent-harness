@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import pytest
 
+from myrm_agent_harness.agent.middlewares._session_context import set_approval_session
 from myrm_agent_harness.agent.middlewares.approval.helpers import (
     ThresholdBreach,
+    clear_all_session_denials_for_tests,
     is_threshold_breached,
     record_approval,
     record_denial,
@@ -15,7 +17,17 @@ from myrm_agent_harness.agent.middlewares.approval.helpers import (
 
 @pytest.fixture(autouse=True)
 def _clean_state() -> None:
-    reset_denial_counter()
+    # ``reset_denial_counter()`` intentionally spares persistent session buckets
+    # (see its docstring), so it is *not* sufficient isolation here: these tests
+    # assert on the ambient bucket reached by an unkeyed ``record_denial()``, and
+    # ``_get_state`` prefers the *active* session key over that bucket. When a
+    # prior test file leaves a key set, the unkeyed records land in that registry
+    # bucket and start from a non-zero count — regardless of which bucket the
+    # reset touched. Clearing the active key routes the tests back to the ambient
+    # ContextVar, and the full wipe drops any bucket an earlier file populated, so
+    # the assertions hold in any execution order.
+    set_approval_session("")
+    clear_all_session_denials_for_tests()
 
 
 class TestRecordDenial:
@@ -137,4 +149,3 @@ class TestSessionScopedDenialPersistence:
         finally:
             set_approval_session("")
             reset_denial_counter("session_123")
-
