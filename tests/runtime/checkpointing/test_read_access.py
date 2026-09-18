@@ -10,14 +10,16 @@ run so a mock cannot re-encode the same wrong assumption.
 
 from __future__ import annotations
 
-from typing import Annotated, TypedDict
+from typing import Annotated, Any, TypedDict
 from unittest.mock import AsyncMock
 
 import pytest
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
+from langgraph.graph.state import CompiledStateGraph
 
 from myrm_agent_harness.runtime.checkpointing import read_checkpoint_messages
 
@@ -32,12 +34,16 @@ def _echo_node(state: _State) -> _State:
     return {"messages": [AIMessage(content=f"echo:{state['messages'][-1].content}")]}
 
 
-def _build_graph(saver: MemorySaver):
+def _build_graph(saver: MemorySaver) -> CompiledStateGraph[Any, Any, Any, Any]:
     graph = StateGraph(_State)
     graph.add_node("respond", _echo_node)
     graph.add_edge(START, "respond")
     graph.add_edge("respond", END)
     return graph.compile(checkpointer=saver)
+
+
+def _thread_config(thread_id: str = _THREAD_ID) -> RunnableConfig:
+    return {"configurable": {"thread_id": thread_id}}
 
 
 class TestReadCheckpointMessagesGuards:
@@ -103,7 +109,7 @@ class TestReadCheckpointMessagesContract:
     async def test_end_to_end_real_langgraph_run(self) -> None:
         saver = MemorySaver()
         app = _build_graph(saver)
-        config = {"configurable": {"thread_id": _THREAD_ID}}
+        config = _thread_config()
 
         await app.ainvoke({"messages": [HumanMessage(content="turn one")]}, config)
         await app.ainvoke({"messages": [HumanMessage(content="turn two")]}, config)
@@ -113,14 +119,14 @@ class TestReadCheckpointMessagesContract:
         # langgraph persists both turns: 2 human + 2 assistant messages.
         assert len(messages) == 4
         assert all(isinstance(msg, BaseMessage) for msg in messages)
-        assert sum(1 for msg in messages if msg.type == "human") == 2
+        assert sum(1 for msg in messages if isinstance(msg, BaseMessage) and msg.type == "human") == 2
 
     @pytest.mark.asyncio
     async def test_unknown_thread_returns_empty(self) -> None:
         saver = MemorySaver()
         await _build_graph(saver).ainvoke(
             {"messages": [HumanMessage(content="x")]},
-            {"configurable": {"thread_id": _THREAD_ID}},
+            _thread_config(),
         )
 
         assert await read_checkpoint_messages(saver, "never-written-thread") == []

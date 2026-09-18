@@ -12,7 +12,7 @@ Subagent checkpoint management — lifecycle management (create/save/resume/dele
 | metrics.py | Core | Checkpoint metrics data structures. | ✅ |
 | orphan_recovery.py | Core | Orphan subagent checkpoint scanner (singleton). Scans checkpoint directory on startup, publishes lifecycle events to notify the UI. Does NOT resume or delete checkpoints. | ✅ |
 | saver.py | Core | Subagent checkpoint persistence (JSON file backend). Default path: `MYRM_DATA_DIR/checkpoints` or `.myrm/checkpoints`. Validates `task_id` as safe filename. Crash-consistent via `infra.atomic_write` (temp file + fsync + atomic rename); raises `CheckpointCorruptedError` for unparseable files. | ✅ |
-| state_extractor.py | Core | State extraction and restoration. Extracts from _last_context/checkpointer, restores messages via _deserialize_message. | ✅ |
+| state_extractor.py | Core | State extraction and restoration. Extracts from _last_context plus checkpoint messages (via `runtime.checkpointing.read_checkpoint_messages`), restores messages via _deserialize_message. | ✅ |
 
 ## Key Dependencies
 

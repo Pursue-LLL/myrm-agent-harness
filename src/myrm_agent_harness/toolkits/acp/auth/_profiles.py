@@ -56,8 +56,7 @@ class AuthProfile:
     logout_args: tuple[str, ...] | None
     needs_code_input: bool  # whether login expects the user to paste a code back via stdin
     api_key_env: tuple[str, ...]  # provider key env names used in api_key mode
-    non_interactive_flags: tuple[str, ...] = ()  # CLI flags granting full autonomy, applied only in allow_all/bypass
-    cli_launch_args: tuple[str, ...] = ()  # baseline non-interactive invocation args (no prompt, no permission flags)
+    cli_launch_args: tuple[str, ...] = ()  # baseline non-interactive invocation args (never permission flags)
 
     def resolve_home(self, env: Mapping[str, str]) -> Path:
         """Resolve the CLI home directory, honouring an override env var if set."""
@@ -93,8 +92,7 @@ _PROFILES: dict[str, AuthProfile] = {
         logout_args=("logout",),
         needs_code_input=False,
         api_key_env=("OPENAI_API_KEY",),
-        non_interactive_flags=("--dangerously-bypass-approvals-and-sandbox",),
-        cli_launch_args=("exec", "--json", "-s", "read-only"),
+        cli_launch_args=("exec", "--json"),
     ),
     "claude": AuthProfile(
         backend="claude",
@@ -106,7 +104,6 @@ _PROFILES: dict[str, AuthProfile] = {
         logout_args=None,
         needs_code_input=True,
         api_key_env=("ANTHROPIC_API_KEY",),
-        non_interactive_flags=("--dangerously-skip-permissions",),
         cli_launch_args=("-p", "--output-format", "stream-json", "--verbose"),
     ),
     "gemini": AuthProfile(
@@ -119,8 +116,7 @@ _PROFILES: dict[str, AuthProfile] = {
         logout_args=None,
         needs_code_input=False,
         api_key_env=("GEMINI_API_KEY", "GOOGLE_API_KEY"),
-        non_interactive_flags=("--approval-mode=yolo",),
-        cli_launch_args=("--output-format", "stream-json", "--approval-mode=plan"),
+        cli_launch_args=("--output-format", "stream-json"),
     ),
     "qwen": AuthProfile(
         backend="qwen",
@@ -132,8 +128,7 @@ _PROFILES: dict[str, AuthProfile] = {
         logout_args=None,
         needs_code_input=False,
         api_key_env=("DASHSCOPE_API_KEY", "QWEN_API_KEY"),
-        non_interactive_flags=("--approval-mode=yolo",),
-        cli_launch_args=("--output-format", "stream-json", "--approval-mode=plan"),
+        cli_launch_args=("--output-format", "stream-json"),
     ),
 }
 
@@ -181,52 +176,124 @@ def cli_launch_args(backend_or_command: str) -> list[str]:
 # Permission-mode args per backend. Index 0 is the flag name, the remainder is its
 # value; both are emitted as separate argv entries so `--flag=value` and `--flag value`
 # conventions are avoided on CLIs whose parsers only accept spaced values.
+#
+# Every value below is taken from the CLI's own documentation:
+# - claude: `--permission-mode` accepts default / acceptEdits / plan / auto / dontAsk /
+#   bypassPermissions. `acceptEdits` is the non-interactive step that approves edit-class
+#   operations, so it is the closest CLI-side match for "approve each step".
+# - codex: the `exec` entry point already hardcodes approval-policy `never` (headless
+#   never prompts) and does not accept `--ask-for-approval`, so `-s/--sandbox` is the
+#   only lever. `--dangerously-bypass-approvals-and-sandbox` is the sandbox escape hatch
+#   (it implies full access) and therefore replaces the selector instead of joining it.
+# - gemini: `--approval-mode` validates the value with yargs against default / auto_edit /
+#   yolo / plan, where plan is read-only.
+# - qwen: forked from gemini but validates plan / default / auto-edit / yolo, so the edit
+#   mode is spelled with a hyphen here rather than gemini's underscore.
 _PERMISSION_MODE_ARGS: dict[str, dict[str, tuple[str, ...]]] = {
     "claude": {
-        "safe": ("--permission-mode", "dontAsk"),
+        "safe": ("--permission-mode", "default"),
         "ask": ("--permission-mode", "acceptEdits"),
-        "allow_all": ("--permission-mode", "acceptEdits"),
+        "allow_all": ("--permission-mode", "bypassPermissions"),
+        "bypass": ("--permission-mode", "bypassPermissions"),
     },
     "codex": {
-        "safe": ("-s", "read-only"),
-        "ask": ("-s", "workspace-write"),
-        "allow_all": ("-s", "workspace-write"),
+        "safe": ("--sandbox", "read-only"),
+        "ask": ("--sandbox", "workspace-write"),
+        "allow_all": ("--sandbox", "workspace-write"),
+        "bypass": ("--dangerously-bypass-approvals-and-sandbox",),
     },
     "gemini": {
         "safe": ("--approval-mode", "plan"),
         "ask": ("--approval-mode", "auto_edit"),
         "allow_all": ("--approval-mode", "yolo"),
+        "bypass": ("--approval-mode", "yolo"),
     },
     "qwen": {
-        # qwen-code is a gemini-cli fork but exposes different mode names; its exact
-        # contract is not verifiable in-repo, so every mode pins read-only rather than
-        # guessing a permissive value.
         "safe": ("--approval-mode", "plan"),
-        "ask": ("--approval-mode", "plan"),
-        "allow_all": ("--approval-mode", "plan"),
+        "ask": ("--approval-mode", "auto-edit"),
+        "allow_all": ("--approval-mode", "yolo"),
+        "bypass": ("--approval-mode", "yolo"),
     },
 }
 
-# Flags a permission mapping owns; stripped from configured args first so the mapping
-# stays the single owner and avoids clap-level duplicate/conflict errors (codex's
-# -s / --approve-for-me / --dangerously-bypass-* are mutually exclusive).
-_PERMISSION_FLAGS: frozenset[str] = frozenset(
-    {
-        "-y",
-        "--yolo",
-        "-s",
-        "--sandbox",
-        "--full-auto",
-        "--approve-for-me",
-        "--dangerously-skip-permissions",
-        "--dangerously-bypass-approvals-and-sandbox",
-        "--permission-mode",
-        "--approval-mode",
-    }
-)
+# Permission flags a mapping owns, keyed by backend. Stripping is deliberately
+# per-backend: `-s` is codex's sandbox *mode* (`-s read-only`) but gemini's boolean
+# sandbox *toggle*, so a global strip would silently disable sandboxing the user asked
+# for. Each entry holds the exact flag names, the names whose value is a separate argv
+# element, and the per-backend `--flag=value` prefixes — gemini's `--sandbox=true` is the
+# user's own toggle and must survive, while codex's `--sandbox=read-only` is the mode this
+# mapping owns.
+_PERMISSION_FLAGS_BY_BACKEND: dict[str, tuple[frozenset[str], frozenset[str], tuple[str, ...]]] = {
+    "claude": (
+        frozenset({"--permission-mode", "--dangerously-skip-permissions", "--full-auto"}),
+        frozenset({"--permission-mode"}),
+        ("--permission-mode=",),
+    ),
+    "codex": (
+        # Only flags this mapping replaces belong here. Hook trust is a separate concern
+        # the mapping has no substitute for, so `--dangerously-bypass-hook-trust` is left
+        # alone rather than silently dropped.
+        frozenset(
+            {
+                "-s",
+                "--sandbox",
+                "--full-auto",
+                "--approve-for-me",
+                "--yolo",
+                "--dangerously-bypass-approvals-and-sandbox",
+            }
+        ),
+        frozenset({"-s", "--sandbox"}),
+        ("--sandbox=",),
+    ),
+    "gemini": (
+        frozenset({"-y", "--yolo", "--approval-mode"}),
+        frozenset({"--approval-mode"}),
+        ("--approval-mode=",),
+    ),
+    "qwen": (
+        frozenset({"-y", "--yolo", "--approval-mode"}),
+        frozenset({"--approval-mode"}),
+        ("--approval-mode=",),
+    ),
+}
 
-# Flags whose value is a separate argv entry and must be dropped together with them.
-_PERMISSION_VALUE_FLAGS: frozenset[str] = frozenset({"-s", "--sandbox", "--permission-mode", "--approval-mode"})
+
+def _permission_backends() -> frozenset[str]:
+    """Backends that have both a permission mapping and a strip table.
+
+    The two tables must cover exactly the same backends: a mode mapping without a
+    strip table would resolve to a duplicated flag (a parser error or a silent
+    last-wins override), and a strip table without a mapping would leave the user in
+    an unspecified mode. Evaluated on each resolve so a half-added backend fails loudly
+    at first invocation instead of silently mis-resolving arguments.
+    """
+    backends = frozenset(_PERMISSION_MODE_ARGS) & frozenset(_PERMISSION_FLAGS_BY_BACKEND)
+    if backends != frozenset(profile.backend for profile in _PROFILES.values()):
+        msg = (
+            "Permission tables are out of sync with _PROFILES: "
+            f"profiles={sorted(p.backend for p in _PROFILES.values())}, "
+            f"mode_args={sorted(_PERMISSION_MODE_ARGS)}, "
+            f"strip_flags={sorted(_PERMISSION_FLAGS_BY_BACKEND)}"
+        )
+        raise ValueError(msg)
+    return backends
+
+
+def _strip_permission_flags(backend: str, args: list[str]) -> list[str]:
+    """Drop the permission flags this backend's mapping owns, plus their values."""
+    flag_lookup, value_flags, prefix_flags = _PERMISSION_FLAGS_BY_BACKEND[backend]
+    kept: list[str] = []
+    skip_value = False
+    for arg in args:
+        if skip_value:
+            skip_value = False
+            continue
+        if arg in flag_lookup or arg.startswith(prefix_flags):
+            skip_value = arg in value_flags
+            continue
+        kept.append(arg)
+    return kept
 
 
 def resolve_cli_args(
@@ -246,30 +313,15 @@ def resolve_cli_args(
         # Unknown CLI: we own no permission contract for it, so args pass through
         # untouched rather than stripping flags that may mean something else entirely.
         return list(configured_args)
+    if profile.backend not in _permission_backends():
+        # A profile registered without permission tables has no defined contract here.
+        return list(configured_args)
 
     merged: list[str] = []
-    mode_args = _PERMISSION_MODE_ARGS.get(profile.backend, {}).get(permission_mode, ())
-    if permission_mode == "bypass":
-        mode_args = profile.non_interactive_flags
-    merged.extend(mode_args)
+    merged.extend(_PERMISSION_MODE_ARGS[profile.backend].get(permission_mode, ()))
     merged.extend(profile.cli_launch_args)
-    merged.extend(_strip_permission_flags(configured_args))
+    merged.extend(_strip_permission_flags(profile.backend, configured_args))
     return _dedupe_preserving_order(merged)
-
-
-def _strip_permission_flags(args: list[str]) -> list[str]:
-    """Drop permission flags (and their spaced values) from configured args."""
-    kept: list[str] = []
-    skip_value = False
-    for arg in args:
-        if skip_value:
-            skip_value = False
-            continue
-        if arg in _PERMISSION_FLAGS:
-            skip_value = arg in _PERMISSION_VALUE_FLAGS
-            continue
-        kept.append(arg)
-    return kept
 
 
 def _dedupe_preserving_order(args: list[str]) -> list[str]:

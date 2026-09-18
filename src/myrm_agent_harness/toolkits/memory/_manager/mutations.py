@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 
 from myrm_agent_harness.toolkits.memory._manager.shared import (
-    ARCHIVE_RETENTION_DAYS,
     UTC,
     AnyMemory,
     ConversationMemory,
@@ -17,13 +16,13 @@ from myrm_agent_harness.toolkits.memory._manager.shared import (
     MemoryStatus,
     ProceduralMemory,
     SemanticMemory,
+    archive_retention_stamps,
     datetime,
     doc_to_episodic,
     doc_to_semantic,
     get_from_vector,
     logger,
     scan_and_clean_memory,
-    timedelta,
     update_vector_memory,
 )
 from myrm_agent_harness.toolkits.memory.strategies.exact_fact import ExactFactClassifier
@@ -301,8 +300,7 @@ class MemoryManagerMutationsMixin:
                 now = datetime.now(UTC)
                 updated.metadata = {
                     **updated.metadata,
-                    "archived_at": now.isoformat(),
-                    "archive_expires_at": (now + timedelta(days=ARCHIVE_RETENTION_DAYS)).isoformat(),
+                    **archive_retention_stamps(now),
                     "archive_reason": "user_deleted",
                 }
                 await self._cascade_clean_derived_graph_nodes(memory_id)

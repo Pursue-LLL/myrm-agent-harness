@@ -1,37 +1,53 @@
-"""Architecture gate: a repository file must not inject a path outside the repository.
+"""Architecture gate: every module-level import must resolve inside this repository.
 
-This repository ships as a standalone unit. When a module climbs out of the checkout
-at import time and injects that directory onto ``sys.path``, the import that follows
-only resolves on a machine where the checkout happens to sit inside the private dev
-shell. A standalone clone raises ModuleNotFoundError, so the file cannot run in CI
-while a shell-local run reports green.
+This repository ships as a standalone unit. A module that imports something only a
+sibling checkout of the private dev shell provides resolves on the author's machine
+and raises ``ModuleNotFoundError`` everywhere else, so a shell-local run reports green
+while CI and a fresh clone fail to even collect the file.
 
-Imports that need a sibling checkout are legitimate during local integration work, so
-they belong inside the test that uses them, behind an existence guard. What this gate
-forbids is the import-time form: a module-level assignment that resolves above the
-repository root, paired with a module-level ``sys.path`` mutation that consumes it.
+Two real shapes of that mistake have shipped here:
+
+- climb out of the checkout, put that directory on ``sys.path``, then import from it;
+- import a module from the dev shell directly, with no path manipulation at all.
+
+Both are caught by one rule: at module level, the full dotted path of an import must
+either exist inside the repository tree, come from the standard library, or belong to
+a dependency this project declares. Anything else can only resolve from outside.
+
+Only module-level imports are inspected: an import inside a function body defers its
+resolution until the call, so it cannot break collecting the module.
 """
 
 from __future__ import annotations
 
 import ast
+import re
+import sys
+from functools import lru_cache
 from pathlib import Path
 
 import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+_OWN_PACKAGE = "myrm_agent_harness"
 
-_PATH_INJECTION_METHODS = frozenset({"insert", "append"})
-
-# Methods that return the same location they were called on, so they preserve a climb.
-_LOCATION_PRESERVING_METHODS = frozenset({"resolve", "absolute"})
-
-# Call wrappers that preserve the path a value points at, so the climb depth of the
-# wrapped expression is the climb depth of the wrapper.
-_LOCATION_PRESERVING_CALLS = frozenset({"str", "fspath"})
+# Import names whose distribution is named differently in ``uv.lock``. Measured from
+# the current dependency set; add an entry only when a real import needs it.
+_IMPORT_ALIASES = frozenset(
+    {
+        "acp",  # agent-client-protocol
+        "bs4",  # beautifulsoup4
+        "dotenv",  # python-dotenv
+        "opentelemetry",  # opentelemetry-api / -sdk / -semantic-conventions
+        "pil",  # pillow
+        "sklearn",  # scikit-learn
+        "yaml",  # PyYAML
+    }
+)
 
 
 def _tracked_python_files() -> list[Path]:
+    """Every tracked Python file. Git is the authority on what belongs to the repo."""
     import subprocess
 
     result = subprocess.run(
@@ -45,142 +61,67 @@ def _tracked_python_files() -> list[Path]:
     return [(_REPO_ROOT / p) for p in paths]
 
 
-def _climb_from_file(node: ast.expr) -> int | None:
-    """Return how many levels ``node`` climbs above the enclosing file directory.
-
-    ``Path(__file__)`` is the file itself, so one climb (``.parent``) lands in the
-    file's own directory. ``parents[N]`` is the same as N + 1 ``.parent`` steps.
-    Returns ``None`` when the expression does not derive from ``__file__``.
-    """
-    if isinstance(node, ast.Call):
-        func = node.func
-        if isinstance(func, ast.Attribute) and func.attr in _LOCATION_PRESERVING_METHODS:
-            return _climb_from_file(func.value)
-        if not (isinstance(func, ast.Name) and func.id == "Path"):
-            return None
-        if len(node.args) != 1:
-            return None
-        arg = node.args[0]
-        if not (isinstance(arg, ast.Name) and arg.id == "__file__"):
-            return None
-        return 0
-    if isinstance(node, ast.Attribute):
-        if node.attr == "parent":
-            inner = _climb_from_file(node.value)
-            return None if inner is None else inner + 1
-        return None
-    if isinstance(node, ast.Subscript):
-        if not (isinstance(node.value, ast.Attribute) and node.value.attr == "parents"):
-            return None
-        inner = _climb_from_file(node.value.value)
-        if inner is None:
-            return None
-        index = node.slice
-        if not (isinstance(index, ast.Constant) and isinstance(index.value, int)):
-            return None
-        return inner + index.value + 1
-    return None
+@lru_cache(maxsize=1)
+def _declared_dependency_roots() -> frozenset[str]:
+    """Import roots implied by the packages ``uv.lock`` pins."""
+    lock = _REPO_ROOT / "uv.lock"
+    if not lock.is_file():
+        return frozenset()
+    names = re.findall(r'^name = "([^"]+)"', lock.read_text(encoding="utf-8"), re.M)
+    return frozenset(name.lower().replace("-", "_") for name in names) | _IMPORT_ALIASES
 
 
-def _climb_depth_of(node: ast.expr) -> int | None:
-    """Return the climb depth of ``node``, unwrapping calls that keep the same location."""
-    if (
-        isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id in _LOCATION_PRESERVING_CALLS
-        and node.args
-    ):
-        return _climb_depth_of(node.args[0])
-    return _climb_from_file(node)
+@lru_cache(maxsize=1)
+def _module_stems() -> frozenset[str]:
+    """Stems of tracked Python files, so flat in-repo modules resolve by name."""
+    return frozenset(path.stem for path in _tracked_python_files())
 
 
-def _module_level_path_aliases(tree: ast.Module) -> dict[str, int]:
-    """Map module-level names to the climb depth of the path they hold."""
-    aliases: dict[str, int] = {}
-    for node in tree.body:
-        if isinstance(node, ast.Assign) and len(node.targets) == 1:
-            target = node.targets[0]
-            if isinstance(target, ast.Name):
-                climb = _climb_depth_of(node.value)
-                if climb is not None:
-                    aliases[target.id] = climb
-        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
-            if node.value is not None:
-                climb = _climb_depth_of(node.value)
-                if climb is not None:
-                    aliases[node.target.id] = climb
-    return aliases
+def _resolves_in_repo(dotted: str) -> bool:
+    """Report whether ``dotted`` names a module or namespace package in this checkout."""
+    base = _REPO_ROOT.joinpath(*dotted.split("."))
+    return base.with_suffix(".py").is_file() or base.is_dir()
 
 
-def _injected_alias_name(node: ast.expr, aliases: dict[str, int]) -> str | None:
-    """Return the tracked alias ``node`` refers to, unwrapping call wrappers."""
-    if isinstance(node, ast.Name):
-        return node.id if node.id in aliases else None
-    if isinstance(node, ast.Call):
-        func = node.func
-        if not (isinstance(func, ast.Name) and func.id in _LOCATION_PRESERVING_CALLS):
-            return None
-        if not node.args:
-            return None
-        return _injected_alias_name(node.args[0], aliases)
-    return None
-
-
-def _module_level_injected_alias(tree: ast.Module, aliases: dict[str, int]) -> tuple[int, str] | None:
-    """Return the injected module-level alias, if the module mutates sys.path with one."""
-    for node in tree.body:
-        if not isinstance(node, ast.Expr) or not isinstance(node.value, ast.Call):
-            continue
-        call = node.value
-        func = call.func
-        if not isinstance(func, ast.Attribute) or func.attr not in _PATH_INJECTION_METHODS:
-            continue
-        target = func.value
-        if not (
-            isinstance(target, ast.Attribute)
-            and target.attr == "path"
-            and isinstance(target.value, ast.Name)
-            and target.value.id == "sys"
-        ):
-            continue
-        for arg in call.args:
-            name = _injected_alias_name(arg, aliases)
-            if name is not None:
-                return node.lineno, name
-    return None
+def _import_roots_of(source: str) -> list[tuple[int, str]]:
+    """Return ``(line, dotted path)`` for each module-level absolute import."""
+    found: list[tuple[int, str]] = []
+    for node in ast.parse(source).body:
+        if isinstance(node, ast.Import):
+            found.extend((node.lineno, alias.name) for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and not node.level and node.module:
+            found.append((node.lineno, node.module))
+    return found
 
 
 def _violation(path: Path, source: str) -> str | None:
     """Return the violation report for ``source``, or ``None`` when it is compliant."""
-    tree = ast.parse(source, filename=str(path))
-    aliases = _module_level_path_aliases(tree)
-    if not aliases:
-        return None
+    declared = _declared_dependency_roots()
+    stems = _module_stems()
 
-    injected = _module_level_injected_alias(tree, aliases)
-    if injected is None:
-        return None
-
-    line_no, name = injected
-    # A file's own directory sits `depth` levels below the repository root, so a
-    # climb of depth + 1 reaches the root and anything beyond it leaves the tree.
-    depth = len(path.relative_to(_REPO_ROOT).parent.parts)
-    if aliases[name] <= depth + 1:
-        return None
-
-    rel = path.relative_to(_REPO_ROOT)
-    return (
-        f"{rel}:{line_no}: puts {name!r} on sys.path at import time, which resolves above the "
-        "repository root. The follow-up import only works when this checkout sits inside the "
-        "private dev shell, so a standalone clone fails to import this file while a shell-local "
-        "run reports green. Move the import inside the test that needs it and guard it on the "
-        "sibling checkout existing."
-    )
+    for line_no, dotted in _import_roots_of(source):
+        root = dotted.split(".", 1)[0]
+        if root in sys.stdlib_module_names or root == _OWN_PACKAGE:
+            continue
+        if _resolves_in_repo(dotted) or root in stems:
+            continue
+        if root.lower() in declared:
+            continue
+        rel = path.relative_to(_REPO_ROOT)
+        return (
+            f"{rel}:{line_no}: imports {dotted!r} at module level, which is neither in this "
+            "repository nor a declared dependency. It only resolves when this checkout sits "
+            "inside the private dev shell, so a standalone clone cannot import this file while "
+            "a shell-local run reports green. Move the import inside the function that needs it "
+            "and guard it on the sibling checkout existing."
+        )
+    return None
 
 
-# Samples that pin the detector itself. Without them the gate can be refactored into a
-# no-op that still reports thousands of green tests.
-_VIOLATING_SAMPLE = """
+# Samples that pin the detector. Without them the rule can be refactored into a no-op
+# that still reports thousands of green tests. The first two are the exact shapes that
+# shipped here and turned CI red; the third is the compliant shape they were replaced by.
+_CLIMBING_SAMPLE = """
 import sys
 from pathlib import Path
 
@@ -190,28 +131,36 @@ sys.path.insert(0, str(_SHELL_ROOT))
 from shell_scripts.ci.check_pr_hygiene import validate_pr_title
 """
 
+_DIRECT_SAMPLE = """
+from scripts.ci.check_workspace_dependency_vulns import check_workspace
+"""
+
 _COMPLIANT_SAMPLE = """
 import sys
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+_REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO_ROOT))
 
 from myrm_agent_harness import __version__
+from scripts.boundary_check import main
+from tests.architecture import distribution_wheel_helpers
 """
 
 _PROBE_PATH = _REPO_ROOT / "tests" / "architecture" / "test_probe_sample.py"
 
 
-def test_gate_detects_a_violation_and_allows_a_compliant_file() -> None:
-    """A gate that cannot fail is not a gate: pin both outcomes of the detector."""
-    assert _violation(_PROBE_PATH, _VIOLATING_SAMPLE) is not None
+@pytest.mark.architecture
+def test_gate_detects_both_real_shapes_and_allows_a_compliant_file() -> None:
+    """A gate that cannot fail is not a gate: pin every outcome of the detector."""
+    assert _violation(_PROBE_PATH, _CLIMBING_SAMPLE) is not None
+    assert _violation(_PROBE_PATH, _DIRECT_SAMPLE) is not None
     assert _violation(_PROBE_PATH, _COMPLIANT_SAMPLE) is None
 
 
 @pytest.mark.architecture
 @pytest.mark.parametrize("path", _tracked_python_files(), ids=lambda p: p.name)
-def test_no_module_level_path_injection_above_repository_root(path: Path) -> None:
+def test_no_import_outside_repository(path: Path) -> None:
     violation = _violation(path, path.read_text(encoding="utf-8"))
     if violation is not None:
         pytest.fail(violation)

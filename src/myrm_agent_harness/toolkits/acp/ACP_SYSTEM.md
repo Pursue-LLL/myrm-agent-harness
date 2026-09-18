@@ -390,7 +390,7 @@ acp/
 
 | 能力 | 框架提供的扩展点 | 业务层实现示例 |
 |------|----------------|-------------|
-| 权限交互 UI | EventBus + permission_request 事件 | 订阅事件 → 展示 UI → `future.set_result()` |
+| 权限交互 UI | EventBus + permission_request 事件 | 订阅事件 → 展示 UI → `future.set_result()`（尚未接入：未注入 EventBus 时 ask 模式降级为只读） |
 | 监控集成 | EventBus + 健康指标 | 推送到 Prometheus / DataDog |
 | 自定义后端 | RuntimeBackend Protocol | HTTP API Agent / 自研 Agent |
 | 自定义权限 | PermissionManager Protocol | 基于角色的权限管理 |

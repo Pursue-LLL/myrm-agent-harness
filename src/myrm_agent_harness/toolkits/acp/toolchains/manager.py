@@ -36,6 +36,7 @@ BACKEND_NPM_MAP = {
     "claude": "@anthropic-ai/claude-code",
     "codex": "@openai/codex",
     "gemini": "@google/gemini-cli",
+    "qwen": "@qwen-code/qwen-code",
 }
 
 

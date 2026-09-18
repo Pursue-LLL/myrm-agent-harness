@@ -13,7 +13,6 @@ Mark: @pytest.mark.integration — skipped unless --run-integration flag is pass
 
 from __future__ import annotations
 
-import asyncio
 import os
 import shutil
 import sys
@@ -167,7 +166,7 @@ class TestClaudeCliReal:
 class TestCodexCliReal:
     """Live tests against Codex CLI.
 
-    Codex uses ``exec --json --full-auto`` for non-interactive NDJSON output.
+    Codex uses ``exec --json`` with the resolved permission-mode args for non-interactive NDJSON output.
     The prompt is passed via stdin (``-p`` flag triggers stdin mode).
     """
 
@@ -175,7 +174,8 @@ class TestCodexCliReal:
         defaults: dict[str, object] = {
             "backend_type": "cli",
             "command": "codex",
-            "args": ["exec", "--json", "--full-auto", "-p"],
+            "args": ["exec", "--json", "-p"],
+            "permission_mode": "allow_all",
             "timeout_seconds": TIMEOUT,
             "max_turns": 1,
         }
@@ -301,7 +301,8 @@ class TestRuntimePoolReal:
                 RuntimeConfig(
                     backend_type="cli",
                     command="codex",
-                    args=["exec", "--json", "--full-auto", "-p"],
+                    args=["exec", "--json", "-p"],
+                    permission_mode="allow_all",
                     timeout_seconds=TIMEOUT,
                     max_turns=1,
                     description="Codex CLI",
@@ -553,7 +554,8 @@ class TestDelegateToolReal:
             RuntimeConfig(
                 backend_type="cli",
                 command="codex",
-                args=["exec", "--json", "--full-auto", "-p"],
+                args=["exec", "--json", "-p"],
+                    permission_mode="allow_all",
                 timeout_seconds=TIMEOUT,
                 max_turns=1,
                 description="Codex CLI",

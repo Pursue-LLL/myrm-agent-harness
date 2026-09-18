@@ -16,8 +16,7 @@ Adapter layer bridging ACP protocol MCP server definitions to internal MCPConfig
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
-from typing import Mapping
+from collections.abc import Mapping, Sequence
 
 from myrm_agent_harness.toolkits.mcp.config import MCPConfig
 

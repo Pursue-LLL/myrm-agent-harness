@@ -28,7 +28,7 @@ for lossless information preservation and adaptive retrieval optimization.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Literal, Self
 from uuid import uuid4
@@ -138,6 +138,20 @@ TOOL_FAILURE_TTL_DAYS = 1
 # them. Every archival write path must stamp ``archive_expires_at`` from this
 # value so the purge scanner can reclaim them.
 ARCHIVE_RETENTION_DAYS = 7
+
+
+def archive_retention_stamps(now: datetime) -> dict[str, str]:
+    """Build the metadata pair every archival write path must stamp.
+
+    ``archived_at`` drives the trash listing order, and ``archive_expires_at``
+    is the retention deadline the purge scanner reads to reclaim the entry.
+    Deriving both from one instant keeps them consistent and guarantees the
+    entry is reclaimable, so no archival path can leak an immortal record.
+    """
+    return {
+        "archived_at": now.isoformat(),
+        "archive_expires_at": (now + timedelta(days=ARCHIVE_RETENTION_DAYS)).isoformat(),
+    }
 
 
 class MemoryStatus(StrEnum):

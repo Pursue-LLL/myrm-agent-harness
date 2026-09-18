@@ -128,30 +128,38 @@ async def _create_sqlite_checkpointer(
         raise ImportError(msg) from exc
 
     db_path = os.path.expanduser(db_path_str)
+    conn: aiosqlite.Connection | None = None
     try:
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-        conn: aiosqlite.Connection = await aiosqlite.connect(db_path)
+        conn = await aiosqlite.connect(db_path)
         from myrm_agent_harness.utils.db.sqlite import DEFAULT, harden_connection_async
 
         await harden_connection_async(conn, DEFAULT, db_path=Path(str(db_path)))
-        try:
-            saver = await _build_incremental_saver(conn)
+        saver = await _build_incremental_saver(conn)
 
-            async def cleanup() -> None:
-                await conn.close()
-                logger.info("[Shutdown] SQLite connection closed")
-
-            logger.info(
-                "Checkpointer: IncrementalSessionCheckpointer[AsyncSqliteSaver] "
-                "(file=%s, serde=dill, persistent, thread_registry=enabled, deploy_mode=%s)",
-                db_path,
-                deploy_mode,
-            )
-            return saver, cleanup
-        except Exception:
+        async def cleanup() -> None:
             await conn.close()
-            raise
+            logger.info("[Shutdown] SQLite connection closed")
+
+        logger.info(
+            "Checkpointer: IncrementalSessionCheckpointer[AsyncSqliteSaver] "
+            "(file=%s, serde=dill, persistent, thread_registry=enabled, deploy_mode=%s)",
+            db_path,
+            deploy_mode,
+        )
+        return saver, cleanup
     except Exception as exc:
+        # `aiosqlite` pins a non-daemon worker thread per connection, so a
+        # connection abandoned on a failure path keeps the interpreter alive
+        # forever (pytest exits with no output). Close it on every failure route.
+        if conn is not None:
+            try:
+                await conn.close()
+            except Exception:
+                logger.debug(
+                    "Failed to close SQLite connection during init failure",
+                    exc_info=True,
+                )
         msg = f"Failed to initialize SQLite checkpointer at {db_path!r} (deploy_mode={deploy_mode})"
         raise RuntimeError(msg) from exc
 

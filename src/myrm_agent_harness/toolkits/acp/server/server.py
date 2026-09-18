@@ -21,7 +21,6 @@ into agent execution calls and delegating to AgentBridge for session management.
 from __future__ import annotations
 
 import logging
-from collections.abc import Sized
 from typing import TYPE_CHECKING
 
 from acp import PROTOCOL_VERSION, Client, run_agent

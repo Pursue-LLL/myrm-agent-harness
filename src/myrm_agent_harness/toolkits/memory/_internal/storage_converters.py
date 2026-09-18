@@ -63,6 +63,11 @@ __all__ = [
     "episodic_to_doc",
 ]
 
+# Payload keys that have a dedicated model attribute, so they must not also be
+# copied into ``metadata``. Only list a key here when ``doc_to_*`` actually
+# assigns it onto the model — keys listed here but never assigned are silently
+# dropped on every read/write round-trip. ``archived_at`` and ``archive_reason``
+# intentionally stay out so they persist through ``metadata`` unchanged.
 _COMMON_KNOWN_KEYS = frozenset(
     {
         "user_id",
@@ -74,8 +79,6 @@ _COMMON_KNOWN_KEYS = frozenset(
         "pinned",
         "status",
         "archived",
-        "archived_at",
-        "archive_reason",
         "expected_valid_days",
         "created_at",
         "updated_at",

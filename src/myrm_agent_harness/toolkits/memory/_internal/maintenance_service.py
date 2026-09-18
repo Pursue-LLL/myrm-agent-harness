@@ -45,7 +45,7 @@ from myrm_agent_harness.toolkits.memory.protocols.relational import (
     RelationalStoreProtocol,
 )
 from myrm_agent_harness.toolkits.memory.protocols.vector import VectorStoreProtocol
-from myrm_agent_harness.toolkits.memory.types import AnyMemory, MemoryType
+from myrm_agent_harness.toolkits.memory.types import AnyMemory, MemoryType, archive_retention_stamps
 
 logger = logging.getLogger(__name__)
 
@@ -457,12 +457,14 @@ class MaintenanceService:
         if self._vector is not None:
             for mid in result.removed_ids:
                 try:
+                    stamps = archive_retention_stamps(datetime.now(UTC))
                     await _update_metadata(
                         mid,
                         {
                             "status": MemoryStatus.ARCHIVED.value,
                             "archived": True,
                             "archive_reason": "staleness_review",
+                            **stamps,
                         },
                     )
                 except Exception as exc:

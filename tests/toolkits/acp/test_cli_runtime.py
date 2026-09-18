@@ -1406,7 +1406,8 @@ class TestCliRuntimeMcpIgnored:
         cfg = RuntimeConfig(
             backend_type="cli",
             command=codex_path,
-            args=["exec", "--json", "--full-auto"],
+            args=["exec", "--json"],
+            permission_mode="allow_all",
             timeout_seconds=60,
         )
         rt = CliRuntime("codex-live", cfg)
@@ -1458,34 +1459,61 @@ class TestCliRuntimeMcpIgnored:
                 _ = [e async for e in rt._do_run_turn("test prompt", "s1")]
                 return mock_exec.call_args[0]
 
-        # 1. allow_all grants full autonomy, via the backend's own non-interactive flag.
+        # 1. allow_all grants full autonomy through the same single flag the mapping owns.
         claude_args = await _spawn_args(_make_config(command="claude", permission_mode="allow_all"))
-        assert "--dangerously-skip-permissions" in claude_args
+        assert claude_args[claude_args.index("--permission-mode") + 1] == "bypassPermissions"
 
-        # 2. safe is read-only and never carries an autonomy flag.
+        # 2. safe starts in the read-only default mode and never carries an autonomy flag.
         claude_safe = await _spawn_args(_make_config(command="claude", permission_mode="safe"))
         assert "--permission-mode" in claude_safe
-        assert claude_safe[claude_safe.index("--permission-mode") + 1] == "dontAsk"
+        assert claude_safe[claude_safe.index("--permission-mode") + 1] == "default"
         assert "--dangerously-skip-permissions" not in claude_safe
 
-        # 3. codex uses the sandbox selector, not the removed --full-auto flag.
+        # 3. codex `exec` never prompts and exposes only the sandbox selector, so the
+        #    mode is expressed through `-s/--sandbox` instead of the deprecated --full-auto.
         codex_safe = await _spawn_args(_make_config(command="codex", permission_mode="safe"))
-        assert codex_safe[codex_safe.index("-s") + 1] == "read-only"
+        assert codex_safe[codex_safe.index("--sandbox") + 1] == "read-only"
         assert "--full-auto" not in codex_safe
+        assert "--ask-for-approval" not in codex_safe
 
-        # 4. bypass maps to codex's documented bypass flag.
+        # 4. bypass maps to codex's documented bypass flag, which implies full access and
+        #    therefore replaces the sandbox selector instead of joining it.
         codex_bypass = await _spawn_args(_make_config(command="codex", permission_mode="bypass"))
         assert "--dangerously-bypass-approvals-and-sandbox" in codex_bypass
+        assert "--sandbox" not in codex_bypass
 
-        # 5. A mode-owned flag supplied by the config is replaced, never duplicated,
-        #    because codex's clap rejects a repeated single-value -s.
+        # 5. A mode-owned flag supplied by the config is replaced, never duplicated;
+        #    codex's clap takes the last value, so a duplicate would silently win.
         codex_dup = await _spawn_args(
             _make_config(command="codex", args=["exec", "--json", "-s", "read-only"], permission_mode="allow_all"),
         )
-        assert codex_dup.count("-s") == 1
-        assert codex_dup[codex_dup.index("-s") + 1] == "workspace-write"
+        assert codex_dup.count("--sandbox") == 1
+        assert codex_dup[codex_dup.index("--sandbox") + 1] == "workspace-write"
 
-        # 6. Unknown CLIs never have flags stripped: we own no contract for them.
+        # 6. `--flag=value` forms in stored config are stripped too, otherwise the CLI's
+        #    last-wins parser would silently override the selected mode.
+        gemini_eq = await _spawn_args(
+            _make_config(
+                command="gemini",
+                args=["--output-format", "stream-json", "--approval-mode=plan", "--yolo"],
+                permission_mode="allow_all",
+            ),
+        )
+        assert gemini_eq.count("--approval-mode") == 1
+        assert gemini_eq[gemini_eq.index("--approval-mode") + 1] == "yolo"
+
+        # 7. gemini and qwen validate different spellings for the edit mode; both must
+        #    stay exactly as their own parser accepts them.
+        for command, expected in (("gemini", "auto_edit"), ("qwen", "auto-edit")):
+            edit_args = await _spawn_args(_make_config(command=command, permission_mode="ask"))
+            assert edit_args[edit_args.index("--approval-mode") + 1] == expected
+
+        # 8. Stripping is per-backend: gemini's `-s` is its own boolean sandbox toggle and
+        #    must survive, while codex's `-s` is the mode selector we own and must not.
+        gemini_sandbox = await _spawn_args(_make_config(command="gemini", args=["-s"], permission_mode="safe"))
+        assert "-s" in gemini_sandbox
+
+        # 9. Unknown CLIs never have flags stripped: we own no contract for them.
         custom = await _spawn_args(_make_config(command="my-agent", args=["-s", "--silent"], permission_mode="safe"))
         assert list(custom) == ["my-agent", "-s", "--silent", "test prompt"]
 

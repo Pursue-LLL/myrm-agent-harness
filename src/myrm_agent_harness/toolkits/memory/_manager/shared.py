@@ -126,6 +126,7 @@ from myrm_agent_harness.toolkits.memory.types import (
     ProfileAttributeSnapshot,
     RuleSource,
     SemanticMemory,
+    archive_retention_stamps,
 )
 from myrm_agent_harness.toolkits.vector.base import VectorDocument
 
@@ -153,6 +154,7 @@ def _log_background_task_failure(task: asyncio.Task[object]) -> None:
 __all__ = [
     "TYPE_CHECKING",
     "ARCHIVE_RETENTION_DAYS",
+    "archive_retention_stamps",
     "UTC",
     "AgentMemoryPolicy",
     "AnyMemory",

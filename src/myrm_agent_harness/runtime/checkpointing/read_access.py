@@ -41,7 +41,7 @@ async def read_checkpoint_messages(
 
     config = {"configurable": {"thread_id": thread_id}}
     try:
-        checkpoint = await checkpointer.aget(config)
+        checkpoint = await checkpointer.aget(config)  # type: ignore[attr-defined]
     except Exception:
         logger.warning(
             "Failed to read checkpoint for thread %s", thread_id, exc_info=True

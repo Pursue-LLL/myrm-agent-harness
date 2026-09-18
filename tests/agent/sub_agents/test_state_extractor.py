@@ -30,9 +30,16 @@ class _FakeTokenUsage:
 
 @dataclass
 class _FakeRunStats:
+    """Mirrors the real ``AgentRunStatistics`` field names.
+
+    Uses ``total_duration_seconds`` / ``completion_status`` because the
+    extraction path reads those; a fake with invented names would pass while
+    production raised ``AttributeError``.
+    """
+
     token_usage: _FakeTokenUsage | None = None
-    duration_seconds: float = 5.0
-    status: _FakeStatus | None = _FakeStatus.COMPLETED
+    total_duration_seconds: float = 5.0
+    completion_status: _FakeStatus | None = _FakeStatus.COMPLETED
 
 
 class _FakeAgent:
@@ -63,14 +70,22 @@ class TestExtractStateSync:
         }
 
     def test_extracts_stats_from_last_run_stats(self) -> None:
-        agent = _FakeAgent(last_run_stats=_FakeRunStats(token_usage=_FakeTokenUsage(200), duration_seconds=10.0))
+        agent = _FakeAgent(
+            last_run_stats=_FakeRunStats(
+                token_usage=_FakeTokenUsage(200), total_duration_seconds=10.0
+            )
+        )
         state = extract_subagent_state_sync(agent, "task-1")  # type: ignore[arg-type]
         assert state["stats"]["duration_seconds"] == 10.0
         assert state["stats"]["token_usage"]["total_tokens"] == 200
         assert state["progress"] == 1.0
 
     def test_progress_half_when_no_status(self) -> None:
-        agent = _FakeAgent(last_run_stats=_FakeRunStats(token_usage=None, duration_seconds=1.0, status=None))
+        agent = _FakeAgent(
+            last_run_stats=_FakeRunStats(
+                token_usage=None, total_duration_seconds=1.0, completion_status=None
+            )
+        )
         state = extract_subagent_state_sync(agent, "task-1")  # type: ignore[arg-type]
         assert state["progress"] == 0.5
 

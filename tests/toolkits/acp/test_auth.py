@@ -32,6 +32,46 @@ class TestProfiles:
     def test_known_backends(self) -> None:
         assert set(known_backends()) == {"codex", "claude", "gemini", "qwen"}
 
+    def test_permission_tables_cover_every_profile(self) -> None:
+        """A profile added without permission tables must fail, not mis-resolve args."""
+        from myrm_agent_harness.toolkits.acp.auth._profiles import _permission_backends
+
+        assert set(_permission_backends()) == set(known_backends())
+
+    @pytest.mark.parametrize("backend", ["codex", "claude", "gemini", "qwen"])
+    @pytest.mark.parametrize("mode", ["safe", "ask", "allow_all", "bypass"])
+    def test_every_backend_and_mode_resolves_arguments(self, backend: str, mode: str) -> None:
+        from myrm_agent_harness.toolkits.acp.auth._profiles import resolve_cli_args
+
+        resolved = resolve_cli_args(backend, [], mode)
+        assert resolved, f"{backend}/{mode} resolved to no arguments"
+
+    def test_mode_owned_flags_replace_stale_config_flags(self) -> None:
+        """Stored configs carrying an old permission flag must not override the mode."""
+        from myrm_agent_harness.toolkits.acp.auth._profiles import resolve_cli_args
+
+        # codex's `--yolo` is an alias of the bypass flag and conflicts with --sandbox.
+        assert "--yolo" not in resolve_cli_args("codex", ["--yolo"], "safe")
+        # A stored bypass flag must be replaced by the selected mode's own sandbox choice.
+        stale_bypass = resolve_cli_args("codex", ["--dangerously-bypass-approvals-and-sandbox"], "safe")
+        assert "--dangerously-bypass-approvals-and-sandbox" not in stale_bypass
+        assert stale_bypass[stale_bypass.index("--sandbox") + 1] == "read-only"
+        # The `--flag=value` spelling escapes a plain name lookup and must be stripped.
+        gemini = resolve_cli_args("gemini", ["--approval-mode=plan"], "allow_all")
+        assert gemini.count("--approval-mode") == 1
+        assert gemini[gemini.index("--approval-mode") + 1] == "yolo"
+        codex_eq = resolve_cli_args("codex", ["--sandbox=read-only"], "allow_all")
+        assert codex_eq.count("--sandbox") == 1
+        assert "--sandbox=read-only" not in codex_eq
+        # Stripping is scoped per backend: gemini's own sandbox toggle survives in both
+        # spellings, because that flag is the user's, not one this mapping owns.
+        assert "-s" in resolve_cli_args("gemini", ["-s"], "safe")
+        assert "--sandbox=true" in resolve_cli_args("gemini", ["--sandbox=true"], "safe")
+        # A hook-trust switch has no substitute in the mapping, so it must not be dropped.
+        assert "--dangerously-bypass-hook-trust" in resolve_cli_args(
+            "codex", ["--dangerously-bypass-hook-trust"], "safe"
+        )
+
     @pytest.mark.parametrize(
         ("token", "expected"),
         [

@@ -50,9 +50,11 @@ class _FakeTokenUsage:
 
 @dataclass
 class _FakeRunStats:
+    """Mirrors the real ``AgentRunStatistics`` field names read by state extraction."""
+
     token_usage: _FakeTokenUsage | None = field(default_factory=_FakeTokenUsage)
-    duration_seconds: float = 5.0
-    status: _FakeStatus | None = _FakeStatus.COMPLETED
+    total_duration_seconds: float = 5.0
+    completion_status: _FakeStatus | None = _FakeStatus.COMPLETED
 
 
 class _FakeChildAgent:

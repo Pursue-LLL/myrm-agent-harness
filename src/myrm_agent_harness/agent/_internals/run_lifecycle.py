@@ -819,7 +819,11 @@ async def extract_checkpoint_state(
         stats = {
             "token_usage": (last_run_stats.token_usage.to_dict() if last_run_stats.token_usage else {}),
             "duration_seconds": last_run_stats.total_duration_seconds,
-            "status": last_run_stats.completion_status.value,
+            "status": (
+                last_run_stats.completion_status.value
+                if last_run_stats.completion_status
+                else "unknown"
+            ),
         }
         progress = 1.0 if last_run_stats.completion_status else 0.5
 

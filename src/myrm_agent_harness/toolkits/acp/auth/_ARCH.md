@@ -30,8 +30,18 @@ business layer drives GUI/SaaS login, status badges, and credential persistence.
   (`scriptable_login` is False) or inconvenient, the user pastes a credential blob
   captured elsewhere and `CredentialStore.import_credential` persists it safely.
 - **Single owner of CLI arguments**: `resolve_cli_args` merges the baseline launch
-  args with the configured args and the permission-mode mapping. The mapping owns the
-  permission flags, so a config carrying an explicit stale flag (e.g. a removed
-  `--full-auto`) is replaced rather than duplicated — CLI parsers such as codex reject
-  a repeated single-value `-s`. Unknown CLIs are returned untouched, since no contract
-  exists for them and their flags may mean something unrelated.
+  args with the configured args and the permission-mode mapping. The mapping is the
+  sole writer of permission flags, so an explicit flag in a stored config (a sandbox
+  mode, a `--approval-mode=plan` from initial setup, or a `--yolo` alias) is stripped
+  rather than duplicated — both the spaced and the `--flag=value` spellings.
+  This matters because these parsers are last-wins (clap `ArgAction::Set` for codex,
+  non-array yargs for gemini/qwen), so a duplicate would silently override the mode
+  the user selected instead of failing loudly. Stripping is scoped per backend: `-s` is
+  codex's sandbox *mode* but gemini's boolean sandbox *toggle*, so a shared strip list
+  would silently disable sandboxing a gemini user explicitly asked for. Unknown CLIs are
+  returned untouched, since no contract exists for them and their flags may mean
+  something unrelated.
+- **Baseline args never carry permission flags**: `cli_launch_args` holds only the
+  non-interactive output/transport arguments. Keeping permission flags out of it is
+  what makes the mode mapping genuinely single-owner; otherwise a baseline flag fights
+  the mapping and the last-wins parser resolves that fight invisibly.
