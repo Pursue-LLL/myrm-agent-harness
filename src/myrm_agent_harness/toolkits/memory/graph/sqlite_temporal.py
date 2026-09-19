@@ -16,9 +16,9 @@ SQLite 双时态图存储核心引擎。负责时间旅行快照过滤、偏置�
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import json
 import logging
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import aiosqlite
@@ -185,7 +185,7 @@ async def execute_create_relationship(
             return row_to_relationship(existing)
 
         rel_id = str(uuid4())
-        now_iso = datetime.now(timezone.utc).isoformat()
+        now_iso = datetime.now(UTC).isoformat()
         c_at = created_at or now_iso
         v_from = valid_from or now_iso
         props_json = json.dumps(properties or {})
@@ -254,7 +254,7 @@ async def execute_supersede(
             logger.warning("Relationship %s is already superseded/closed (valid_until=%s)", old_rel_id, old_rel.valid_until)
 
         new_rel_id = str(uuid4())
-        now_iso = datetime.now(timezone.utc).isoformat()
+        now_iso = datetime.now(UTC).isoformat()
         switch_time = as_of_time or now_iso
 
         if old_rel.valid_from and switch_time < old_rel.valid_from:
