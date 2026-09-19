@@ -29,7 +29,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | ephemeral.py             | Core     | Ephemeral and read-only memory managers for subagent isolation.                                               | ✅    |
 | health.py                | Core     | Memory system diagnostics — instance-level health and maintenance reports.                                    | ✅    |
 | hermes_bridge.py         | Core     | Hermes & OpenViking zero-friction memory migration parser and bridge for Markdown/JSON imports.              | ✅    |
-| intent_recognizers.py    | Core     | Query intent recognition for adaptive type weighting.                                                         | ✅    |
+| intent_recognizers.py    | Core     | Query intent recognition and deterministic sub-graph router (5 query intents, ReDoS safety, zero-token cost). | ✅    |
 | metrics.py               | Core     | Memory search quality metrics — lightweight, thread-safe counters.                                            | ✅    |
 | mirror.py                | Core     | In-process dual-tier Hot/Cold memory cache with debounced asynchronous cold SQLite mirroring, starvation-proof hard timeout, failure rollback retry, and single-direction isolation. | ✅    |
 | observability.py         | Core     | Business-neutral memory operation, influence, retrieval trace (with typed stream warning codes), memory-space DTOs, and MemoryOperationSink protocol for app-layer dashboards and logs. | ✅    |
