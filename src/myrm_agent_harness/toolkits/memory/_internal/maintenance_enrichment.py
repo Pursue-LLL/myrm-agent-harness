@@ -28,7 +28,13 @@ from myrm_agent_harness.toolkits.memory._internal.storage import doc_to_episodic
 from myrm_agent_harness.toolkits.memory.config import MemoryConfig
 from myrm_agent_harness.toolkits.memory.protocols.graph import GraphStoreProtocol
 from myrm_agent_harness.toolkits.memory.protocols.vector import VectorStoreProtocol
-from myrm_agent_harness.toolkits.memory.types import EpisodicMemory, MemorySearchResult, MemoryType
+from myrm_agent_harness.toolkits.memory.types import (
+    EpisodicMemory,
+    MemorySearchResult,
+    MemoryType,
+    ProceduralMemory,
+    SemanticMemory,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -145,29 +151,46 @@ async def enrich_with_graph(
         results.append(claim_result)
         existing_ids.add(claim_result.id)
 
-    episodic_hits = [r for r in results if isinstance(r.memory, EpisodicMemory)]
-    if not episodic_hits:
+    # Expandable candidates across procedural, episodic, and semantic subgraphs
+    expandable_hits: list[tuple[str, list[str]]] = []
+    for r in results:
+        mem = r.memory
+        if isinstance(mem, ProceduralMemory):
+            expandable_hits.append((mem.id, ["REQUIRES", "RESOLVES", "TRIGGERS", "MENTIONS"]))
+        elif isinstance(mem, EpisodicMemory):
+            expandable_hits.append((mem.id, ["CAUSED_BY", "LEADS_TO", "OCCURRED_IN", "MENTIONS"]))
+        elif isinstance(mem, SemanticMemory):
+            expandable_hits.append((mem.id, ["IS_A", "DEFINES", "RELATES_TO", "MENTIONS"]))
+
+    if not expandable_hits:
         return results[:limit]
 
     if vector is None:
         results.sort(key=lambda item: item.score, reverse=True)
         return results[:limit]
 
-    # Multi-hop traversal with depth tracking (parallel)
+    # Multi-hop traversal with depth tracking across sub-graph relation types
     related_with_depth: dict[str, int] = {}
     sibling_limit = config.graph_sibling_limit
     max_depth = config.graph_max_depth
 
-    async def _fetch_siblings(memory_id: str) -> list[tuple[str, int]]:
-        try:
-            return await graph.get_related_nodes_with_depth(memory_id, "MENTIONS", max_depth=max_depth)
-        except Exception:
+    async def _fetch_subgraph_siblings(memory_id: str, rel_types: list[str]) -> list[tuple[str, int]]:
+        siblings_found: list[tuple[str, int]] = []
+        for rel in rel_types:
             try:
-                return [(mid, 1) for mid in await graph.get_related_nodes(memory_id, "MENTIONS")]
+                nodes = await graph.get_related_nodes_with_depth(memory_id, rel, max_depth=max_depth)
+                siblings_found.extend(nodes)
             except Exception:
-                return []
+                try:
+                    simple_nodes = await graph.get_related_nodes(memory_id, rel)
+                    siblings_found.extend([(mid, 1) for mid in simple_nodes])
+                except Exception:
+                    pass
+        return siblings_found
 
-    sibling_lists = await asyncio.gather(*[_fetch_siblings(r.memory.id) for r in episodic_hits])
+    sibling_lists = await asyncio.gather(
+        *[_fetch_subgraph_siblings(mid, rels) for mid, rels in expandable_hits]
+    )
     for siblings in sibling_lists:
         for mid, depth in siblings:
             if mid not in existing_ids and mid not in related_with_depth:

@@ -28,6 +28,7 @@ from typing import Any, Literal
 from uuid import uuid4
 
 from myrm_agent_harness.toolkits.memory._assistant_retrieval import search_conversation_two_pass
+from myrm_agent_harness.toolkits.memory._internal.channel_pruning import ChannelPruner
 from myrm_agent_harness.toolkits.memory._internal.maintenance import enrich_with_graph
 from myrm_agent_harness.toolkits.memory._internal.scope import apply_channel_affinity
 from myrm_agent_harness.toolkits.memory._internal.storage import (
@@ -41,7 +42,6 @@ from myrm_agent_harness.toolkits.memory._internal.storage import (
 )
 from myrm_agent_harness.toolkits.memory.adaptive import should_use_dual_channel
 from myrm_agent_harness.toolkits.memory.config import MemoryConfig
-from myrm_agent_harness.toolkits.memory.intent_recognizers import KeywordBasedRecognizer
 from myrm_agent_harness.toolkits.memory.metrics import get_search_metrics
 from myrm_agent_harness.toolkits.memory.observability import (
     GATHER_BM25_FAILED,
@@ -197,11 +197,19 @@ class MemorySearchService:
                 metadata={"changed": sanitized_query != query},
             )
         )
-        claim_requested = self._graph is not None and (
-            memory_types_unspecified or MemoryType.CLAIM in memory_types or MemoryType.SEMANTIC in memory_types
+        pruning_res = ChannelPruner.resolve_channels(
+            self._config,
+            sanitized_query,
+            memory_types,
+            memory_types_unspecified=memory_types_unspecified,
         )
-        search_types = [memory_type for memory_type in memory_types if memory_type != MemoryType.CLAIM]
-        runtime_config = self._resolve_runtime_config(sanitized_query)
+        search_types = pruning_res.search_types
+        runtime_config = pruning_res.runtime_config
+        claim_requested = self._graph is not None and (
+            memory_types_unspecified
+            or MemoryType.CLAIM in memory_types
+            or MemoryType.SEMANTIC in search_types
+        )
         if dynamic_signal_weights:
             runtime_config = replace(
                 runtime_config,
@@ -215,11 +223,23 @@ class MemorySearchService:
         steps.append(
             MemoryTraceStep(
                 phase="route",
-                title="type_route",
-                summary="Memory types and claim graph eligibility resolved.",
+                title="channel_routing_and_pruning",
+                summary=(
+                    f"Resolved {len(search_types)} search types; pruned {len(pruning_res.pruned_types)} channels."
+                    if pruning_res.pruned_types
+                    else "Memory types and claim graph eligibility resolved."
+                ),
                 input_count=len(memory_types),
                 output_count=len(tracked_types),
-                metadata={"claim_requested": claim_requested, "use_rrf": use_rrf},
+                metadata={
+                    "claim_requested": claim_requested,
+                    "use_rrf": use_rrf,
+                    "intent": pruning_res.decision.intent.value if pruning_res.decision else None,
+                    "confidence": pruning_res.decision.confidence if pruning_res.decision else None,
+                    "routing_mode": pruning_res.decision.routing_mode if pruning_res.decision else "broadcast",
+                    "pruned_channels": [t.value for t in pruning_res.pruned_types],
+                    "target_subgraphs": pruning_res.decision.target_subgraphs if pruning_res.decision else [],
+                },
             )
         )
 
@@ -423,16 +443,12 @@ class MemorySearchService:
         return final
 
     def _resolve_runtime_config(self, query: str) -> MemoryConfig:
-        if not self._config.retrieval.enable_intent_recognition:
-            return self._config
-
-        recognizer = self._config.retrieval.intent_recognizer or KeywordBasedRecognizer()
-        result = recognizer.recognize(query)
-        if result.confidence <= 0.5:
-            return self._config
-
-        adjusted_retrieval = replace(self._config.retrieval, type_weights=result.type_weights)
-        return replace(self._config, retrieval=adjusted_retrieval)
+        return ChannelPruner.resolve_channels(
+            self._config,
+            query,
+            [],
+            memory_types_unspecified=True,
+        ).runtime_config
 
     async def _embed_query_if_needed(self, query: str, memory_types: list[MemoryType]) -> list[float] | None:
         needs_vector = any(
