@@ -211,8 +211,8 @@ async def test_enrich_respects_sibling_limit():
 
     await enrich_with_graph([res1], "query", 10, graph, vector, config)
 
-    vector.get.assert_called_once()
-    requested_ids = vector.get.call_args[0][1]
+    assert vector.get.call_count == 2
+    requested_ids = vector.get.call_args_list[0][0][1]
     assert len(requested_ids) <= 2, f"Should request at most 2 siblings, got {len(requested_ids)}"
 
 
@@ -256,8 +256,8 @@ async def test_enrich_overfetch_with_namespaces():
         namespaces=["work"],
     )
 
-    vector.get.assert_called_once()
-    requested_ids = vector.get.call_args[0][1]
+    assert vector.get.call_count == 2
+    requested_ids = vector.get.call_args_list[0][0][1]
     assert len(requested_ids) <= 6, f"Over-fetch should be sibling_limit*3=6, got {len(requested_ids)}"
     assert len(requested_ids) > 2, f"Over-fetch should exceed sibling_limit=2, got {len(requested_ids)}"
 

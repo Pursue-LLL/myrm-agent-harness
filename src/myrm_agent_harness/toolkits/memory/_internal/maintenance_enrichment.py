@@ -24,10 +24,10 @@ from myrm_agent_harness.toolkits.memory._internal.maintenance_claim_support impo
 from myrm_agent_harness.toolkits.memory._internal.maintenance_claim_support import (
     search_claim_graph as _search_claim_graph,
 )
-from myrm_agent_harness.toolkits.memory._internal.storage import doc_to_episodic
+from myrm_agent_harness.toolkits.memory._internal.storage import doc_to_episodic, doc_to_semantic
 from myrm_agent_harness.toolkits.memory.config import MemoryConfig
 from myrm_agent_harness.toolkits.memory.protocols.graph import GraphStoreProtocol
-from myrm_agent_harness.toolkits.memory.protocols.vector import VectorStoreProtocol
+from myrm_agent_harness.toolkits.memory.protocols.vector import VectorDocument, VectorStoreProtocol
 from myrm_agent_harness.toolkits.memory.types import (
     EpisodicMemory,
     MemorySearchResult,
@@ -204,10 +204,28 @@ async def enrich_with_graph(
     candidate_ids = sorted_ids[: sibling_limit * 3] if namespaces else sorted_ids[:sibling_limit]
 
     try:
-        docs = await vector.get(config.episodic_collection, candidate_ids)
         query_tokens = set(_QUERY_TOKEN_PATTERN.findall(query.lower()))
         now = datetime.now(UTC)
-        for doc in docs:
+
+        # Concurrently fetch candidates from both episodic and semantic collections
+        episodic_task = vector.get(config.episodic_collection, candidate_ids)
+        semantic_task = vector.get(config.semantic_collection, candidate_ids)
+        episodic_res, semantic_res = await asyncio.gather(
+            episodic_task, semantic_task, return_exceptions=True
+        )
+
+        typed_docs: list[tuple[VectorDocument, MemoryType]] = []
+        if isinstance(episodic_res, list):
+            for doc in episodic_res:
+                typed_docs.append((doc, MemoryType.EPISODIC))
+        if isinstance(semantic_res, list):
+            for doc in semantic_res:
+                typed_docs.append((doc, MemoryType.SEMANTIC))
+
+        for doc, m_type in typed_docs:
+            if doc.id in existing_ids:
+                continue
+
             if doc.metadata.get("status") in (
                 "archived",
                 "disabled",
@@ -224,19 +242,23 @@ async def enrich_with_graph(
             if content_hash in existing_hashes:
                 continue
             existing_hashes.add(content_hash)
+            existing_ids.add(doc.id)
 
-            mem = doc_to_episodic(doc)
+            mem: EpisodicMemory | SemanticMemory = (
+                doc_to_semantic(doc) if m_type == MemoryType.SEMANTIC else doc_to_episodic(doc)
+            )
             depth = related_with_depth.get(doc.id, 1)
 
             # Unified scoring (same formula as Claim Graph)
             doc_channel_id = str(doc.metadata.get("channel_id", "")) or None
             latest_at = mem.updated_at or mem.created_at
+            importance = getattr(mem, "importance", 0.5)
             score = _score_sibling_node(
                 query_tokens=query_tokens,
                 content=doc.content,
                 depth=depth,
                 distance_decay=config.graph_distance_decay,
-                importance=mem.importance,
+                importance=importance,
                 created_at=latest_at,
                 current_channel_id=current_channel_id,
                 channel_id=doc_channel_id,
@@ -247,7 +269,7 @@ async def enrich_with_graph(
                 MemorySearchResult(
                     memory=mem,
                     score=score,
-                    memory_type=MemoryType.EPISODIC,
+                    memory_type=m_type,
                 )
             )
     except Exception as e:

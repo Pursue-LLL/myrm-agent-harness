@@ -14,6 +14,7 @@ from myrm_agent_harness.toolkits.memory._internal.maintenance import enrich_with
 from myrm_agent_harness.toolkits.memory.config import MemoryConfig
 from myrm_agent_harness.toolkits.memory.protocols.vector import VectorDocument
 from myrm_agent_harness.toolkits.memory.types import (
+    EpisodicMemory,
     MemorySearchResult,
     MemoryType,
     ProceduralMemory,
@@ -89,3 +90,69 @@ async def test_semantic_subgraph_expansion_via_defines() -> None:
     assert len(results) == 2
     assert results[0].id == "sem_concept_1"
     assert results[1].id == "sem_formula_2"
+
+
+@pytest.mark.asyncio
+async def test_cross_collection_concurrent_hydration_fidelity() -> None:
+    """Verifies that sibling nodes from both episodic and semantic collections are
+
+    concurrently hydrated and mapped to their respective authentic memory types.
+    """
+    config = MemoryConfig(embedding_model="test")
+    vector = AsyncMock()
+    graph = AsyncMock()
+
+    # Initial hit: semantic memory
+    root_mem = SemanticMemory(id="root_concept", content="分布式事务架构", metadata={})
+    root_hit = MemorySearchResult(memory=root_mem, score=0.9, memory_type=MemoryType.SEMANTIC)
+
+    # Graph returns two sibling IDs across different domains
+    async def mock_get_related_with_depth(node_id: str, rel_type: str = "MENTIONS", max_depth: int = 2):
+        if node_id == "root_concept" and rel_type == "DEFINES":
+            return [("sem_contract_1", 1)]
+        if node_id == "root_concept" and rel_type == "RELATES_TO":
+            return [("epi_event_2", 1)]
+        return []
+
+    graph.get_related_nodes_with_depth.side_effect = mock_get_related_with_depth
+
+    # Separate docs in separate collections
+    sem_doc = VectorDocument(
+        id="sem_contract_1",
+        content="TCC 事务协议接口契约定义",
+        metadata={"status": "active"},
+        embedding=[0.3],
+    )
+    epi_doc = VectorDocument(
+        id="epi_event_2",
+        content="2026-09-18 线上事务超时故障排查事件记录",
+        metadata={"status": "active"},
+        embedding=[0.4],
+    )
+
+    # vector.get accurately isolates collections
+    async def mock_vector_get(collection: str, candidate_ids: list[str]) -> list[VectorDocument]:
+        if collection == config.semantic_collection:
+            return [sem_doc] if "sem_contract_1" in candidate_ids else []
+        if collection == config.episodic_collection:
+            return [epi_doc] if "epi_event_2" in candidate_ids else []
+        return []
+
+    vector.get.side_effect = mock_vector_get
+
+    results = await enrich_with_graph([root_hit], "事务 超时", 10, graph, vector, config)
+
+    # Should contain root + semantic contract + episodic event
+    assert len(results) == 3
+    res_ids = {r.id for r in results}
+    assert res_ids == {"root_concept", "sem_contract_1", "epi_event_2"}
+
+    # Validate type fidelity
+    sem_res = next(r for r in results if r.id == "sem_contract_1")
+    epi_res = next(r for r in results if r.id == "epi_event_2")
+
+    assert sem_res.memory_type == MemoryType.SEMANTIC
+    assert isinstance(sem_res.memory, SemanticMemory)
+
+    assert epi_res.memory_type == MemoryType.EPISODIC
+    assert isinstance(epi_res.memory, EpisodicMemory)
