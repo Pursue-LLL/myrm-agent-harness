@@ -15,6 +15,7 @@ and generates static search guidance and cold-start discovery prompts.
 - memory_guidance_tail: Retrieve citation and search guidance tail
 - build_cold_start_context: Construct cold-start discovery prompt
 - COLD_START_CONTEXT: Cached default cold-start context
+- anchor_canonical_security_tokens: Extract canonical security pattern or quoted identifier from rules
 
 [POS]
 Internal helper module for memory_context_format.
@@ -22,6 +23,7 @@ Internal helper module for memory_context_format.
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.agent.security.guards.prompt_budget import (
@@ -175,3 +177,45 @@ Use memory_store_tool to save important facts as you learn them.
 
 
 COLD_START_CONTEXT = build_cold_start_context(memory_search_enabled=True)
+
+# Canonical security tokens for destructive operations and sensitive files
+CANONICAL_SECURITY_TOKENS: tuple[str, ...] = (
+    "sudo",
+    "rm -rf",
+    "rm -r",
+    "rm -f",
+    "mkfs",
+    "dd if=",
+    "dd of=",
+    "chmod 777",
+    "chmod -R 777",
+    ".env",
+    "id_rsa",
+    "config.yaml",
+)
+
+
+def anchor_canonical_security_tokens(action_str: str, trigger_str: str = "") -> str:
+    """Extract a canonical security pattern or quoted identifier from natural language rules.
+
+    If action_str or trigger_str contains an explicit canonical destructive token
+    (e.g., 'sudo', 'rm -rf', '.env'), returns the matched token as a concise pattern.
+    If enclosed in quotes (e.g. "don't use 'trash-cli'"), extracts the quoted identifier.
+    Otherwise, returns action_str as fallback.
+    """
+    text = f"{action_str} {trigger_str}".strip()
+    text_lower = text.lower()
+
+    # 1. Match against canonical tokens (ordered by specificity)
+    for token in CANONICAL_SECURITY_TOKENS:
+        if token.lower() in text_lower:
+            if token in ("sudo", "mkfs"):
+                return f"{token} "
+            return token
+
+    # 2. Extract quoted identifiers (e.g. `cmd` or 'cmd' or "cmd")
+    quoted = re.findall(r"['\"`]([^'\"`\s]{2,40})['\"`]", text)
+    if quoted:
+        return quoted[0]
+
+    return action_str

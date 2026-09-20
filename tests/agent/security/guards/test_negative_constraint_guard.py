@@ -164,3 +164,58 @@ class TestNegativeConstraintIntegrationWithPreCallGuards:
         assert "COMPLIANCE_ERROR" in str(result.content)
         assert "no-drop-table" in str(result.content)
         assert result.additional_kwargs.get("error_category") == ToolErrorCategory.GUARDRAIL_BLOCKED
+
+    def test_canonical_security_token_anchoring(self) -> None:
+        """Verify natural language long-form rules anchor to concise canonical tokens."""
+        from myrm_agent_harness.agent.middlewares.memory_context.memory_context_budget import (
+            anchor_canonical_security_tokens,
+        )
+
+        assert anchor_canonical_security_tokens("Never use sudo for any command") == "sudo "
+        assert anchor_canonical_security_tokens("Do not run rm -rf on the server") == "rm -rf"
+        assert anchor_canonical_security_tokens("Forbidden to delete .env file") == ".env"
+        assert anchor_canonical_security_tokens("Do not execute 'trash-cli'") == "trash-cli"
+        assert anchor_canonical_security_tokens("Never touch `secret_token` in config") == "secret_token"
+        assert anchor_canonical_security_tokens("Normal custom instruction") == "Normal custom instruction"
+
+    @pytest.mark.asyncio
+    async def test_end_to_end_natural_language_rule_blocked(self) -> None:
+        """Verify uncurated natural language rule is anchored and 100% blocked at runtime."""
+        from unittest.mock import MagicMock
+
+        from myrm_agent_harness.agent.middlewares.memory_context.memory_context_format import (
+            _format_memory_context,
+        )
+        from myrm_agent_harness.agent.middlewares.tooling._tool_guards import run_pre_call_guards
+
+        # Natural language procedural rule without explicit veto_pattern
+        ctx = {
+            "rules": [
+                {
+                    "id": "rule-nl-sudo",
+                    "trigger": "executing system commands",
+                    "action": "Never use sudo for any command",
+                    "reasoning": "Root elevation strictly forbidden",
+                    "application": "Run as non-privileged user",
+                }
+            ]
+        }
+        # Format and register into session context
+        stable, _, _ = _format_memory_context(ctx, {})
+        assert stable is not None
+        assert "## Mandatory Negative Constraints (VETO Rules)" in stable
+
+        mock_request = MagicMock()
+        mock_request.tool_call = {"args": {"cmd": "sudo apt-get install python3"}}
+
+        # Attempt to run a command with sudo
+        result = await run_pre_call_guards(
+            request=mock_request,
+            tool_name="bash_tool",
+            tool_call_id="call-sudo-1",
+            tool_args={"cmd": "sudo apt-get install python3"},
+        )
+
+        assert hasattr(result, "content")
+        assert "COMPLIANCE_ERROR" in str(result.content)
+        assert result.additional_kwargs.get("error_category") == ToolErrorCategory.GUARDRAIL_BLOCKED

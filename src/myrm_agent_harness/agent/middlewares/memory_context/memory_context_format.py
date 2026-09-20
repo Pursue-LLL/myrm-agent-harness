@@ -25,6 +25,9 @@ from .memory_context_budget import (
     COLD_START_CONTEXT as _COLD_START_CONTEXT,
 )
 from .memory_context_budget import (
+    anchor_canonical_security_tokens as _anchor_canonical_security_tokens,
+)
+from .memory_context_budget import (
     build_cold_start_context as _build_cold_start_context,
 )
 from .memory_context_budget import (
@@ -131,8 +134,12 @@ def _format_memory_context(
 
             if is_veto:
                 rule_id = str(r.get("id", "") or f"veto_{len(veto_constraints)}")
-                name = str(r.get("name", "") or trigger_str or rule_id)
-                pattern = str(r.get("veto_pattern", "") or r.get("error_fingerprint", "") or action_str)
+                name = str(r.get("name", "") or action_str or trigger_str or rule_id)
+                pattern = str(
+                    r.get("veto_pattern", "")
+                    or r.get("error_fingerprint", "")
+                    or _anchor_canonical_security_tokens(action_str, trigger_str)
+                )
                 tool_scope = str(r.get("tool_name", "") or r.get("veto_scope", "") or "*")
                 reason = str(r.get("reasoning", "") or r.get("reason", "") or content_str)
                 remediation = str(
@@ -163,9 +170,9 @@ def _format_memory_context(
     if veto_constraints:
         sorted_vetos = sorted(veto_constraints, key=lambda c: (-c.priority, c.rule_id))
         veto_items = [
-            f"[NEVER] {c.pattern} (Scope: {c.tool_scope}) — Reason: {c.reason}"
+            f"[NEVER] {c.name or c.pattern} (Scope: {c.tool_scope}) — Reason: {c.reason}"
             if c.reason
-            else f"[NEVER] {c.pattern} (Scope: {c.tool_scope})"
+            else f"[NEVER] {c.name or c.pattern} (Scope: {c.tool_scope})"
             for c in sorted_vetos
         ]
         stable_sections.append(BudgetedSection(MANDATORY_VETO_TITLE, veto_items, priority=0))
