@@ -1812,7 +1812,7 @@ class TestFormatCoverageBranches:
                 "file_edit": ["Always read before write"],
             }
         }
-        stable, untrusted, _accepted = _format_memory_context(ctx, _EMPTY_LEARNED)
+        stable, _untrusted, _accepted = _format_memory_context(ctx, _EMPTY_LEARNED)
         assert stable is not None
         assert "Tool Execution Guidance" in stable
         assert "[bash_tool] Do not use interactive shells" in stable
@@ -1854,7 +1854,7 @@ class TestFormatCoverageBranches:
                 },
             ]
         }
-        stable, untrusted, _accepted = _format_memory_context({}, learned)
+        _stable, untrusted, _accepted = _format_memory_context({}, learned)
         assert untrusted is not None
         assert "Failed Attempts & Negative Traps (Do not repeat)" in untrusted
         assert "[FETCH] Tried curl without timeout | Cause: Connection hung indefinitely — AVOID: Always specify --max-time" in untrusted
