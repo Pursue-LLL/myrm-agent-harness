@@ -12,6 +12,7 @@ Session-level security guards integrated into tool_interceptor_middleware.
 | estop.py | Core | Global guard. Checked as the very first step in tool_interceptor_middleware. State persisted at `{MYRM_DATA_DIR or ~/.myrm}/.estop_state.json`. | ✅ |
 | frequency_guard.py | Core | Layer 5 (Anti-Abuse) guard. Detects tool call frequency anomalies (global and per-tool) for DoS prevention and cost overrun protection. | ✅ |
 | tool_turn_budget_guard.py | Core | Layer 5 (Anti-Abuse) guard. Per-user-turn budget for high-cost tools (default: web_search_tool 20 search queries per active_message_id; other tools 1 unit per call). | ✅ |
+| negative_constraint_guard.py | Core | Layer 5 compliance guard. Evaluates active negative constraints (VETO rules) before tool execution to block regressions and guide in-step self-healing. | ✅ |
 | privacy_tracker.py | Shim | Re-exports `core.security.guards.privacy_tracker` for stable import paths. | ✅ |
 | prompt_budget.py | Core | Prompt Budget Guard. | ✅ |
 | skill_approval_hook.py | Core | Integrated into tool_interceptor_middleware between the onion policy and execution. | ✅ |

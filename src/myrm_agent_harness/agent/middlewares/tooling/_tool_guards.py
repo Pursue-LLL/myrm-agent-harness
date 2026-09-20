@@ -35,7 +35,12 @@ from langgraph.prebuilt.tool_node import ToolCallRequest
 
 from myrm_agent_harness.agent.errors.tool_error_category import ToolErrorCategory
 from myrm_agent_harness.agent.middlewares._session_context import (
+    get_active_negative_constraints,
     get_terminal_errors,
+)
+from myrm_agent_harness.agent.security.guards.negative_constraint_guard import (
+    VetoAction,
+    get_compliance_gate,
 )
 from myrm_agent_harness.agent.middlewares.tooling._tool_helpers import (
     apply_validation_result,
@@ -96,6 +101,30 @@ async def _emit_loop_guard_event(step_key: str, tool_name: str, reason: str, sta
                 "tool_name": tool_name,
                 "status": status,
                 "items": [{"text": reason}],
+            },
+        )
+    except Exception:
+        pass
+
+
+async def _emit_compliance_guard_event(
+    rule_name: str,
+    tool_name: str,
+    reason: str,
+    action_type: str = "blocked",
+) -> None:
+    """Emit a compliance event to frontend when a negative constraint blocks execution."""
+    try:
+        from myrm_agent_harness.utils.event_utils import dispatch_custom_event
+
+        await dispatch_custom_event(
+            "compliance_gate",
+            {
+                "event_type": "negative_constraint_violation",
+                "rule_name": rule_name,
+                "tool_name": tool_name,
+                "action": action_type,
+                "reason": reason,
             },
         )
     except Exception:
@@ -197,6 +226,48 @@ async def run_pre_call_guards(
         if estop_state.level == EStopLevel.KILL_ALL:
             msg = f"EMERGENCY: {msg}"
         return make_error_msg(tool_name, tool_call_id, msg, error_category=ToolErrorCategory.ESTOP)
+
+    active_constraints = get_active_negative_constraints()
+    if active_constraints:
+        gate = get_compliance_gate()
+        compliance_verdict = gate.check(tool_name, tool_args, active_constraints)
+        if compliance_verdict.action != VetoAction.ALLOW:
+            rule = compliance_verdict.violated_rule
+            rule_name = rule.name if rule else "unnamed_veto"
+            if compliance_verdict.action == VetoAction.CIRCUIT_BREAK:
+                record_decision(
+                    tool_name,
+                    "NEGATIVE_CONSTRAINT_CIRCUIT_BREAK",
+                    compliance_verdict.reason,
+                    tool_call_id=tool_call_id,
+                )
+                await _emit_compliance_guard_event(
+                    rule_name, tool_name, compliance_verdict.reason, action_type="circuit_break"
+                )
+                return make_error_msg(
+                    tool_name,
+                    tool_call_id,
+                    f"TERMINAL COMPLIANCE ERROR: {compliance_verdict.reason}\n\n"
+                    f"Execution halted to protect system invariants and prevent infinite retry loops.",
+                    error_category=ToolErrorCategory.CIRCUIT_BREAKER,
+                )
+
+            record_decision(
+                tool_name,
+                "NEGATIVE_CONSTRAINT_VETO",
+                compliance_verdict.reason,
+                tool_call_id=tool_call_id,
+            )
+            await _emit_compliance_guard_event(
+                rule_name, tool_name, compliance_verdict.reason, action_type="blocked"
+            )
+            return make_error_msg(
+                tool_name,
+                tool_call_id,
+                f"COMPLIANCE_ERROR: {compliance_verdict.reason}\n\n"
+                f"Remediation Guide: {compliance_verdict.remediation_advice or 'Adjust tool arguments to respect this constraint.'}",
+                error_category=ToolErrorCategory.GUARDRAIL_BLOCKED,
+            )
 
     loop_guard = get_loop_guard_fn()
     tracker = get_token_tracker()

@@ -22,6 +22,7 @@ ContextVars so they are not owned by any single middleware.
 - set_canary_token / get_canary_token: Session-scoped canary token for output-side injection detection.
 - set_is_shadow_agent / reset_is_shadow_agent / get_is_shadow_agent: Background shadow-agent bulkhead flag.
 - set_turn_allowed_tool_names / get_turn_allowed_tool_names: Per-turn merged tool allowlist for execution-layer enforcement.
+- set_active_negative_constraints / get_active_negative_constraints: Context-local active negative constraints (VETO rules) for pre-call enforcement.
 
 [POS]
 Middleware session context — shared ContextVars for the middleware chain.
@@ -49,6 +50,9 @@ if TYPE_CHECKING:
     from myrm_agent_harness.agent.security.detection.pseudonym_store import (
         PseudonymStore,
     )
+    from myrm_agent_harness.agent.security.guards.negative_constraint_guard import (
+        NegativeConstraint,
+    )
     from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
 
 _security_config_var: ContextVar[SecurityConfig | None] = ContextVar("security_config", default=None)
@@ -71,6 +75,20 @@ _subagent_task_id_var: ContextVar[str | None] = ContextVar("subagent_task_id", d
 _is_shadow_agent_var: ContextVar[bool] = ContextVar("is_shadow_agent", default=False)
 _canary_token_var: ContextVar[str] = ContextVar("canary_token", default="")
 _goal_provider_var: ContextVar[GoalProvider | None] = ContextVar("goal_provider", default=None)
+_active_negative_constraints_var: ContextVar[list[NegativeConstraint] | None] = ContextVar(
+    "active_negative_constraints",
+    default=None,
+)
+
+
+def set_active_negative_constraints(constraints: list[NegativeConstraint] | None) -> None:
+    """Set the active negative constraints for the current async execution context."""
+    _active_negative_constraints_var.set(constraints)
+
+
+def get_active_negative_constraints() -> list[NegativeConstraint] | None:
+    """Get the active negative constraints for the current async execution context."""
+    return _active_negative_constraints_var.get()
 
 
 def set_goal_provider(provider: GoalProvider | None) -> None:

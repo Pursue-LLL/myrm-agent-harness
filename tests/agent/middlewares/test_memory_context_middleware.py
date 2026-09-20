@@ -603,6 +603,58 @@ def test_format_empty_learned_no_sections():
     assert "## Learned Preferences" not in stable
 
 
+def test_format_veto_negative_constraints():
+    """VETO negative constraints should be formatted into Priority 0 section and registered to context."""
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        get_active_negative_constraints,
+        set_active_negative_constraints,
+    )
+
+    set_active_negative_constraints(None)
+    ctx = {
+        "rules": [
+            {
+                "id": "rule-normal",
+                "trigger": "code commit",
+                "action": "run linter",
+            },
+            {
+                "id": "rule-veto-1",
+                "is_veto": True,
+                "tool_name": "bash_tool",
+                "action": "rm -rf /",
+                "reasoning": "Prevent system destruction",
+                "application": "Use safe remove",
+                "priority": 10,
+            },
+            {
+                "id": "rule-veto-2",
+                "trigger": "type annotation",
+                "action": "never use Any type",
+                "reasoning": "Strict type safety",
+            },
+        ]
+    }
+    stable, _untrusted, _accepted = _format_memory_context(ctx, {})
+    assert stable is not None
+    assert "## Mandatory Negative Constraints (VETO Rules)" in stable
+    assert "[NEVER] rm -rf / (Scope: bash_tool)" in stable
+    assert "Prevent system destruction" in stable
+    assert "[NEVER] never use Any type" in stable
+
+    # Normal rule stays in Behavioral Rules
+    assert "## Behavioral Rules" in stable
+    assert "When: code commit → Do: run linter" in stable
+
+    # ContextVar registration verification
+    active = get_active_negative_constraints()
+    assert active is not None
+    assert len(active) == 2
+    rule_ids = [r.rule_id for r in active]
+    assert "rule-veto-1" in rule_ids
+    assert "rule-veto-2" in rule_ids
+
+
 # ---------------------------------------------------------------------------
 # ContextVar integration
 # ---------------------------------------------------------------------------
