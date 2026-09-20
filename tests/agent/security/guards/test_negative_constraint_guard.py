@@ -6,14 +6,12 @@ import pytest
 
 from myrm_agent_harness.agent.errors.tool_error_category import ToolErrorCategory
 from myrm_agent_harness.agent.middlewares._session_context import (
-    get_active_negative_constraints,
     set_active_negative_constraints,
 )
 from myrm_agent_harness.agent.security.guards.negative_constraint_guard import (
     NegativeConstraint,
     NegativeConstraintComplianceGate,
     VetoAction,
-    get_compliance_gate,
     reset_compliance_gate,
 )
 
@@ -139,6 +137,7 @@ class TestNegativeConstraintIntegrationWithPreCallGuards:
     @pytest.mark.asyncio
     async def test_run_pre_call_guards_blocks_on_veto(self) -> None:
         from unittest.mock import MagicMock
+
         from myrm_agent_harness.agent.middlewares.tooling._tool_guards import run_pre_call_guards
 
         constraint = NegativeConstraint(

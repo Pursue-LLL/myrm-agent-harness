@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from langchain.agents.middleware import ModelRequest
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
 from myrm_agent_harness.agent.middlewares._session_context import (
@@ -19,14 +18,51 @@ from myrm_agent_harness.agent.security.guards.negative_constraint_guard import (
     NegativeConstraint,
 )
 from myrm_agent_harness.agent.security.guards.prompt_budget import (
-    CHARS_PER_TOKEN,
     BudgetedSection,
+)
+
+from .memory_context_budget import (
+    COLD_START_CONTEXT as _COLD_START_CONTEXT,
+)
+from .memory_context_budget import (
+    build_cold_start_context as _build_cold_start_context,
+)
+from .memory_context_budget import (
+    escape_xml_item as _escape_xml_item,
+)
+from .memory_context_budget import (
+    memory_guidance_tail as _memory_guidance_tail,
+)
+from .memory_context_budget import (
+    memory_search_guidance as _memory_search_guidance,
+)
+from .memory_context_budget import (
+    memory_search_tool_bound as _memory_search_tool_bound,
+)
+from .memory_context_budget import (
+    partition_budget_sections as _partition_budget_sections,
 )
 
 MEMORY_CONTEXT_MARKER = "<user_memory_context"
 MEMORY_UNTRUSTED_OPEN_MARKER = "<<<UNTRUSTED_DATA"
 STABLE_RULES_TITLE = "Behavioral Rules"
 MANDATORY_VETO_TITLE = "Mandatory Negative Constraints (VETO Rules)"
+
+__all__ = [
+    "MANDATORY_VETO_TITLE",
+    "MEMORY_CONTEXT_MARKER",
+    "MEMORY_UNTRUSTED_OPEN_MARKER",
+    "STABLE_RULES_TITLE",
+    "_COLD_START_CONTEXT",
+    "_build_cold_start_context",
+    "_escape_xml_item",
+    "_format_memory_context",
+    "_has_memory_context",
+    "_memory_guidance_tail",
+    "_memory_search_guidance",
+    "_memory_search_tool_bound",
+    "_partition_budget_sections",
+]
 
 
 def _has_memory_context(messages: Sequence[BaseMessage]) -> bool:
@@ -39,16 +75,6 @@ def _has_memory_context(messages: Sequence[BaseMessage]) -> bool:
                 return True
     return False
 
-
-from .memory_context_budget import (
-    COLD_START_CONTEXT as _COLD_START_CONTEXT,
-    build_cold_start_context as _build_cold_start_context,
-    escape_xml_item as _escape_xml_item,
-    memory_guidance_tail as _memory_guidance_tail,
-    memory_search_guidance as _memory_search_guidance,
-    memory_search_tool_bound as _memory_search_tool_bound,
-    partition_budget_sections as _partition_budget_sections,
-)
 
 
 def _format_memory_context(

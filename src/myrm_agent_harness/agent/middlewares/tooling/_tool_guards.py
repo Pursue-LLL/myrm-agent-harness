@@ -38,10 +38,6 @@ from myrm_agent_harness.agent.middlewares._session_context import (
     get_active_negative_constraints,
     get_terminal_errors,
 )
-from myrm_agent_harness.agent.security.guards.negative_constraint_guard import (
-    VetoAction,
-    get_compliance_gate,
-)
 from myrm_agent_harness.agent.middlewares.tooling._tool_helpers import (
     apply_validation_result,
     build_hook_failure_result,
@@ -69,6 +65,10 @@ from myrm_agent_harness.agent.security.guards.frequency_guard import (
     get_frequency_guard,
 )
 from myrm_agent_harness.agent.security.guards.loop_guard import LoopAction, LoopGuard
+from myrm_agent_harness.agent.security.guards.negative_constraint_guard import (
+    VetoAction,
+    get_compliance_gate,
+)
 from myrm_agent_harness.agent.security.guards.tool_turn_budget_guard import (
     TurnBudgetAction,
     get_tool_turn_budget_guard,

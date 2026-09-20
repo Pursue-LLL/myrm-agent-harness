@@ -22,11 +22,11 @@ phase alongside LoopGuard and FrequencyGuard.
 
 from __future__ import annotations
 
-from contextvars import ContextVar
-from dataclasses import dataclass, field
-from enum import StrEnum, auto, unique
 import json
 import re
+from contextvars import ContextVar
+from dataclasses import dataclass
+from enum import StrEnum, auto, unique
 from typing import Final
 
 _MAX_IN_STEP_RETRIES: Final[int] = 2
@@ -69,7 +69,7 @@ class NegativeConstraintVerdict:
 
 class NegativeConstraintComplianceGate:
     """Evaluates tool call arguments against active negative constraints.
-    
+
     Tracks per-rule in-step retries to prevent unbounded recovery loops.
     """
 
