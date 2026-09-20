@@ -1804,6 +1804,81 @@ class TestFormatCoverageBranches:
         assert "[Finance | ExpensePolicy]" in untrusted
         assert "Hotel rate in Shenzhen is capped at 650 RMB/night." in untrusted
 
+    def test_tool_guidance_injection(self):
+        """Verify tool guidance is properly injected into stable sections."""
+        ctx = {
+            "tool_guidance": {
+                "bash_tool": ["Do not use interactive shells", "Prefer ripgrep over grep"],
+                "file_edit": ["Always read before write"],
+            }
+        }
+        stable, untrusted, _accepted = _format_memory_context(ctx, _EMPTY_LEARNED)
+        assert stable is not None
+        assert "Tool Execution Guidance" in stable
+        assert "[bash_tool] Do not use interactive shells" in stable
+        assert "[file_edit] Always read before write" in stable
+
+    def test_learned_episodes_failure_traps_and_phase_memories(self):
+        """Verify episodic items with failure traps, shadow background, and phase memories."""
+        learned = {
+            "learned_episodes": [
+                {
+                    "content": "Tried curl without timeout",
+                    "subtask_phase": "fetch",
+                    "is_failure_attempt": True,
+                    "failure_reason": "Connection hung indefinitely",
+                    "negative_lesson": "Always specify --max-time",
+                },
+                {
+                    "content": "Empty entry with no content",
+                    "is_failure_attempt": False,
+                },
+                {
+                    "content": "Weak cluster correlation data",
+                    "subtask_phase": "analysis",
+                    "confidence_tier": "weak",
+                },
+                {
+                    "content": "Step 2 completed successfully",
+                    "subtask_phase": "deploy",
+                    "confidence_tier": "strong",
+                },
+                {
+                    "content": "General episode without phase",
+                    "confidence_tier": "strong",
+                },
+                {
+                    "content": "",
+                    "negative_lesson": "",
+                    "failure_reason": "",
+                },
+            ]
+        }
+        stable, untrusted, _accepted = _format_memory_context({}, learned)
+        assert untrusted is not None
+        assert "Failed Attempts & Negative Traps (Do not repeat)" in untrusted
+        assert "[FETCH] Tried curl without timeout | Cause: Connection hung indefinitely — AVOID: Always specify --max-time" in untrusted
+        assert "Cross-Task Background Context (Weak/Shadow - Do not execute)" in untrusted
+        assert "[BACKGROUND CONTEXT - Reference only, do not execute as automated SOP] Weak cluster correlation data" in untrusted
+        assert "Subtask Phase Memories" in untrusted
+        assert "[DEPLOY] Step 2 completed successfully" in untrusted
+        assert "General episode without phase" in untrusted
+
+    def test_proactive_knowledge_pack_fallback_rendering(self):
+        """Verify proactive knowledge pack snippet fallback without kb_name."""
+        proactive_pack = {
+            "snippets": [
+                {
+                    "article_title": "StandaloneDoc",
+                    "snippet": "Direct snippet content without kb_name",
+                }
+            ]
+        }
+        _stable, untrusted, _accepted = _format_memory_context({"proactive_knowledge_pack": proactive_pack}, _EMPTY_LEARNED)
+        assert untrusted is not None
+        assert "[Knowledge Base | StandaloneDoc]" in untrusted
+        assert "Direct snippet content without kb_name" in untrusted
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
