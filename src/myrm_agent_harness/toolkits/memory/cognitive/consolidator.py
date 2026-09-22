@@ -1,7 +1,7 @@
 """Compatibility adapter that delegates cognitive consolidation to the unified core.
 
 [INPUT]
-- infra.cooperative_signals::CooperativePauseSignal (POS: Infrastructure layer. Provides transaction-boundary cooperative yielding so background consolidation immediately yields SQLite write locks when foreground users type.)
+- infra.cooperative_signals (POS: Infrastructure layer. Provides transaction-boundary cooperative yielding so background consolidation immediately yields SQLite write locks when foreground users type. Stdlib-only and framework-agnostic; imported by toolkits/memory/ and runtime/cognitive_clock/.)
 - toolkits.memory.manager::MemoryManager (POS: Stable public import path for the memory toolkit façade.)
 
 [OUTPUT]

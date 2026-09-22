@@ -2,10 +2,10 @@
 
 [INPUT]
 - agent.background_worker.registry::IdleTaskRegistry (POS: Idle Task Registry for crash-resilient persistence and concurrency control.)
-- agent.background_worker.shadow_context::restricted_shadow_context (POS: Shadow Agent bulkhead isolation for background / review workloads.)
+- agent.background_worker.shadow_context (POS: Execution-layer bulkhead isolation for background shadow workloads.)
 - agent.skill_agent.context::get_memory_manager (POS: Module-level ContextVar management and background task utilities.)
 - runtime.maintenance.scheduler::get_maintenance_scheduler (POS: Global adaptive maintenance scheduler.)
-- toolkits.memory.cognitive.consolidator::CognitiveConsolidator (POS: Memory toolkit's cognitive consolidation adapter. Forwards consolidation, forgetting, and health checks to the single maintenance core.)
+- toolkits.memory.cognitive.consolidator::CognitiveConsolidator (POS: Memory toolkit's cognitive consolidation adapter. Forwards consolidation, forgetting, and health checks to the single maintenance core so the system keeps exactly one maintenance path.)
 - runtime.events.bus::get_event_bus (POS: Event Bus Implementation)
 
 [OUTPUT]

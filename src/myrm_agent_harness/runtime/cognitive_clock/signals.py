@@ -1,9 +1,7 @@
 """Re-export shim exposing the canonical cooperative pause signals at their runtime path.
 
 [INPUT]
-- infra.cooperative_signals::CooperativePauseSignal (POS: Infrastructure layer. Provides transaction-boundary cooperative yielding so background consolidation immediately yields SQLite write locks when foreground users type.)
-- infra.cooperative_signals::PauseRequestedError (POS: Infrastructure layer. Cooperative-pause exception raised when a cognitive task is halted at a transaction boundary.)
-- infra.cooperative_signals::get_global_pause_signal (POS: Infrastructure layer. Process-wide pause signal accessor.)
+- infra.cooperative_signals (POS: Infrastructure layer. Provides transaction-boundary cooperative yielding so background consolidation immediately yields SQLite write locks when foreground users type. Stdlib-only and framework-agnostic; imported by toolkits/memory/ and runtime/cognitive_clock/.)
 
 [OUTPUT]
 - CooperativePauseSignal: Re-exported pause probe token
