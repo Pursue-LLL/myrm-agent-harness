@@ -147,6 +147,7 @@ BUILTIN_TOOL_NAMES: frozenset[str] = frozenset(
         "wiki_ingest_tool",
         "wiki_query_tool",
         "wiki_apply_tool",
+        "working_memory_manage_tool",
     }
 )
 
@@ -203,6 +204,7 @@ AUTO_APPROVED_BUILTIN_TOOLS: dict[str, str] = {
     "wiki_apply_tool": "user_visible",  # apply compiled wiki entry into store
     "wiki_ingest_tool": "user_visible",  # ingest external content into wiki
     "wiki_query_tool": "read_only",  # wiki retrieval, pure read
+    "working_memory_manage_tool": "display",  # in-session workbench progress, no external side effects
 }
 
 # Built-in tools that intentionally keep the `mcp_invoke` fallback (runtime ASK)
@@ -705,6 +707,9 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
         is_read_only=True, is_concurrent_safe=True, is_idempotent=True
     ),
     "todo_write": SafetyMetadata(
+        is_read_only=False, is_concurrent_safe=False, is_idempotent=False
+    ),
+    "working_memory_manage_tool": SafetyMetadata(
         is_read_only=False, is_concurrent_safe=False, is_idempotent=False
     ),
     "skill_search_tool": SafetyMetadata(

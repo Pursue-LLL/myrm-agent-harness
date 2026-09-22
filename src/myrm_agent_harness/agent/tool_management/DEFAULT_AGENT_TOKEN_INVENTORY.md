@@ -295,19 +295,19 @@ Token 明细（历史 tiktoken 计量保留）：
 
 ## 总计估算
 
-### 典型 Turn 1 场景（默认智能体，记忆+搜索+技能；无 answer/todo）
+### 典型 Turn 1 场景（默认智能体，记忆+搜索+技能+工作台；无 answer/todo）
 
 | 分类 | Token (tiktoken) | 明细 |
 |------|------------------:|------|
 | System Prompt 层 | **2,568** | `messages[0]` 2,269（GPT-5 族 · ZH · full）+ `messages[1]` 299，固定，跨用户缓存 |
 | CORE 工具层 | **2,668** | 8 工具描述（含 bash_process；`measure_turn1_token_inventory.py` 实测，o200k_base） |
-| HIGH_PRIORITY 工具层 | **2,636** | web_search + memory×3 + skill_select |
-| EXTENDED 工具层 | **0** | 默认 profile 无附加 EXTENDED 工具 |
-| schema wrapper 包装 | **845** | 13 工具 × 65（仅 API 包装，不含参数 schema） |
+| HIGH_PRIORITY 工具层 | **2,649** | web_search + memory×3 + skill_select |
+| EXTENDED 工具层 | **51** | working_memory_manage_tool（`enable_working_memory_tool` 默认开启） |
+| schema wrapper 包装 | **910** | 14 工具 × 65（仅 API 包装，不含参数 schema） |
 | 动态注入 | ~1,200 | user_instructions + memory_context + inline_skills |
 | 消息格式 | ~500 | role tags, boundaries 等 |
 | 用户消息 | ~32 | 短消息 + datetime 标签 |
-| **tiktoken 小计** | **~10,429** | |
+| **tiktoken 小计** | **~10,578** | |
 
 ### 最小 Turn 1 场景（仅 CORE 8 工具，无 HIGH_PRIORITY/EXTENDED）
 
@@ -326,14 +326,14 @@ Token 明细（历史 tiktoken 计量保留）：
 |------|------------------:|
 | System Prompt 层 | **2,568** |
 | CORE 工具层 | **2,668** |
-| HIGH_PRIORITY 工具层 | ~2,636 |
-| EXTENDED + EXTERNAL（41 + 7 = 48 工具） | ~7,400（**粗估，未逐项实测**；EXTENDED 装配依赖各 backend，无法在离线脚本中全量构建） |
-| schema wrapper 包装 | ~3,120 (48 工具 × 65) |
+| HIGH_PRIORITY 工具层 | ~2,649 |
+| EXTENDED + EXTERNAL（42 + 7 = 49 工具） | ~7,400（**粗估，未逐项实测**；EXTENDED 装配依赖各 backend，无法在离线脚本中全量构建） |
+| schema wrapper 包装 | ~3,185 (49 工具 × 65) |
 | 动态注入 | ~1,200 |
 | 消息格式 | ~500 |
 | **tiktoken 小计** | **~20,072（粗估）** |
 
-> 工具数量以文件末尾 `TOOL_COUNT_BEGIN/END` 自动生成块为 SSOT（当前 61 LLM 工具 = CORE 8 + HIGH_PRIORITY 5 + EXTENDED 41 + EXTERNAL 7）。本场景假设全部 61 工具同轮 bind；EXTENDED/EXTERNAL 描述 token 未逐项实测，仅作量级参考。
+> 工具数量以文件末尾 `TOOL_COUNT_BEGIN/END` 自动生成块为 SSOT（当前 62 LLM 工具 = CORE 8 + HIGH_PRIORITY 5 + EXTENDED 42 + EXTERNAL 7）。本场景假设全部 62 工具同轮 bind；EXTENDED/EXTERNAL 描述 token 未逐项实测，仅作量级参考。
 
 ---
 
@@ -343,10 +343,10 @@ Token 明细（历史 tiktoken 计量保留）：
 [CORE: web_fetch + bash + file_* + glob + grep (~2,668 tok, 8 tools)]
   ↑ 通用 Agent 基线前缀（agent 模式）
 
-[HIGH_PRIORITY: web_search + memory_* + skill_select (~2,636 tok)]
+[HIGH_PRIORITY: web_search + memory_* + skill_select (~2,649 tok)]
   ↑ web_search 优先；memory 组紧随；skill_select 承接；GUI 可关
 
-[EXTENDED: 可选工具 (~0~7,411 tok)]
+[EXTENDED: working_memory_manage_tool (51) + 可选工具 (~0~7,411 tok)]
   ↑ 按需变化，不影响 CORE/HIGH_PRIORITY 前缀
 
 [System Prompt: messages[0] 2,269 (GPT-5·ZH·full) + messages[1] 299]

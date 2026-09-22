@@ -35,6 +35,7 @@ def test_skill_types_all_matches_public_surface() -> None:
         "SkillRequires",
         "SkillStateProtocol",
         "SkillTrust",
+        "SkillTrustRecommendation",
         "SkillUsageStats",
         "skill_visible_for_tools",
     }

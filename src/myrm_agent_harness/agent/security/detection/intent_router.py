@@ -13,7 +13,6 @@ core/security/detection/intent_router.py; this module exists so agent-layer inta
 import the guard from the security namespace without depending on core paths directly.
 """
 
-from myrm_agent_harness.core.security.detection.intent_router import *  # noqa: F403
 from myrm_agent_harness.core.security.detection.intent_router import (
     DangerousIntent as DangerousIntent,
 )
