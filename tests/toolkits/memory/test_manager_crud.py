@@ -308,7 +308,11 @@ class TestUpdateOperations:
         await manager.store(memory)
 
         stored_doc = mock_vector_store.upsert.call_args.args[1][0]
-        assert stored_doc.metadata["primary_namespace"] == "conversation:conv-1"
+        # Retrieval filters on `primary_namespace ∈ manager.namespaces`. A
+        # session-local primary (conversation:/task:) would make the record
+        # invisible to every sibling session, so default writes are scoped to the
+        # durable agent namespace while the visibility chain stays unchanged.
+        assert stored_doc.metadata["primary_namespace"] == "agent:assistant"
         assert stored_doc.metadata["namespaces"] == [
             "global",
             "agent:assistant",

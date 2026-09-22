@@ -37,10 +37,6 @@ _SCOPE_ORDER: tuple[MemoryScopeLevel, ...] = (
 
 _AGENT_NAMESPACE_PREFIX = "agent:"
 
-# Namespaces that only reach the session that created them once reads filter on
-# ``primary_namespace``. Writes bound here are invisible to sibling sessions.
-_SESSION_LOCAL_NAMESPACE_PREFIXES: tuple[str, ...] = ("conversation:", "task:")
-
 MemoryWriteTarget = Literal["bound", "shared"]
 
 _NAMESPACE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
@@ -141,7 +137,7 @@ def build_scope(
         task_id=task_id,
         memory_policy=memory_policy,
     )
-    scope_namespaces = _bound_write_namespaces(list(namespaces))
+    scope_namespaces = list(namespaces)
     if memory_policy is not None and memory_policy.write_policy != MemoryWritePolicy.INHERIT:
         candidates = _candidate_namespaces(
             agent_id=resolved_agent_id,
@@ -190,16 +186,6 @@ def resolve_primary_namespace(namespaces: list[str]) -> str:
         (namespace for namespace in reversed(namespaces) if not namespace.startswith("shared:")),
         namespaces[-1],
     )
-
-
-def _bound_write_namespaces(namespaces: list[str]) -> list[str]:
-    """Scope chain for a newly written memory.
-
-    The chain itself is preserved (it documents the manager's visibility
-    boundary and feeds the write-scope fence); only ``primary_namespace`` — the
-    single value retrieval actually filters on — is narrowed to a durable scope.
-    """
-    return list(namespaces)
 
 
 def bind_scope(memory: AnyMemory, scope: MemoryScope) -> AnyMemory:

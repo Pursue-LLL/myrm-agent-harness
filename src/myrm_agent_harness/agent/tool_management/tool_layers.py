@@ -143,6 +143,8 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "wiki_ingest_tool": ToolLayer.EXTENDED,
     "wiki_query_tool": ToolLayer.EXTENDED,
     "wiki_apply_tool": ToolLayer.EXTENDED,
+    # --- 工作记忆手边工作台 (enable_working_memory_tool 按需挂载) ---
+    "working_memory_manage_tool": ToolLayer.EXTENDED,
 }
 
 

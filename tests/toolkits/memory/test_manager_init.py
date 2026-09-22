@@ -88,8 +88,49 @@ class TestMemoryManagerInitialization:
             "conversation:conv-1",
             "task:task-1",
         ]
-        assert manager.scope.primary_namespace == "task:task-1"
+        # Reads filter on `primary_namespace ∈ manager.namespaces`; keeping the
+        # primary durable (agent:) is what makes a written fact recallable from
+        # any later session instead of only the one that stored it.
+        assert manager.scope.primary_namespace == "agent:planner"
         assert manager.scope.channel_id == "telegram"
+
+    def test_default_write_scope_stays_recallable_across_sessions(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
+        """A default write must not be pinned to the session that created it.
+
+        Reads filter on ``primary_namespace ∈ manager.namespaces``. If a write
+        landed on the session-local scope (``task:`` / ``conversation:``), a
+        manager created for a later session would filter it out and the user
+        would be told their stored fact does not exist.
+        """
+        writer = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            embedding=mock_embedding,
+            agent_id="planner",
+            channel_id="telegram",
+            conversation_id="conv-1",
+            task_id="task-1",
+        )
+        primary = writer.scope.primary_namespace
+
+        assert primary == "agent:planner"
+
+        later_session = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            embedding=mock_embedding,
+            agent_id="planner",
+            channel_id="telegram",
+            conversation_id="conv-2",
+            task_id="task-2",
+        )
+        assert primary in later_session.namespaces
+        assert "conversation:conv-1" not in later_session.namespaces
+        assert "task:task-1" not in later_session.namespaces
 
     def test_memory_policy_formalizes_read_write_boundaries(self, mock_vector_store, mock_embedding, memory_config):
         manager = MemoryManager(

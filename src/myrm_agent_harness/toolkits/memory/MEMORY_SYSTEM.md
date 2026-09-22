@@ -170,6 +170,8 @@ myrm_agent_harness/
 >
 > **作用域约定**：所有 `BaseMemory` 均携带 `MemoryScope`。向量层会持久化 `primary_namespace/namespaces/channel_id/...` 元数据，检索时按 `primary_namespace ∈ 当前 manager.namespaces` **精确过滤**（Qdrant 对单值字段的 MatchAny 即 IN 语义，与关系层 `primary_namespace IN (...)` 和图谱层逐 namespace 检索同语义），杜绝仅共享 `global` 广播命名空间的其他 agent 记忆串入本 scope，同时保留跨渠道可召回能力。`AgentMemoryPolicy` 允许把“读哪些 namespace”和“写入哪个 scope”正式配置化，例如只读 `global` 共享知识，同时把新记忆仅写入 `task` namespace。
 >
+> **默认写入 scope 必须可跨会话召回**：`primary_namespace` 是检索唯一过滤依据，因此**默认写入只能落在会话结束仍可命中的持久命名空间**。`build_scope` 统一通过 `resolve_primary_namespace` 选取 `agent:*`（其次 `global`，最后回退最窄的非 `shared:*` 候选）；`namespaces` 链保持 `global → agent → channel → conversation → task` 原样，仅用于描述可见性边界与写入栅栏校验。若把默认 `primary_namespace` 设为 `task:*`/`conversation:*`，该记忆就只有创建它的那个会话能召回——用户换个新会话再问同一件事会得到“没有这条记忆”，这是必须避免的静默失效。需要会话级隔离时走显式 `MemoryWritePolicy.CONVERSATION/TASK`（`AgentMemoryPolicy` 已支持）。
+>
 > **写入 scope 栅栏**：`write_service` 在 `store`/`store_batch` 绑定 scope 后校验目标 namespaces 必须是当前 writer 允许集合（写 scope `scope.namespaces` + 读范围内共享目标 `global`/`shared:*`）的子集，越界立即 `MemoryError` fail loud，杜绝跨 agent/channel/task 的越权写入。
 >
 > **去重、遗忘、蒸发与编译作用域安全**：三层去重 Layer 2 候选检索、`dedup_semantics` 兜底、`run_forgetting` 向量遗忘、`evaporate_task_digests` 消化蒸发与 `compile_claim_graph` 图谱编译均按 `primary_namespace ∈ 内存自身 namespaces` **精确过滤**（`_user_filter` 中央函数），保证同 scope 内去重/合并/删除/消化/编译，绝不跨 scope 抑制、清理或消费他人记忆；Hash 缓存键绑定 namespaces 防串台；Qdrant 为 `primary_namespace`/`namespaces` payload 建 KEYWORD 索引保证过滤性能。

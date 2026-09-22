@@ -559,15 +559,14 @@ async def resolve_context_budget_breakdown(
     turn_count = 0
     has_messages = False
 
-    if callable(getattr(checkpointer, "aget", None)):
-        from myrm_agent_harness.runtime.checkpointing import read_checkpoint_messages
+    from myrm_agent_harness.runtime.checkpointing import read_checkpoint_messages
 
-        raw_messages = await read_checkpoint_messages(checkpointer, thread_id)
-        messages = [msg for msg in raw_messages if isinstance(msg, BaseMessage)]
-        if messages:
-            messages_tokens = estimate_messages_tokens(messages)
-            turn_count = sum(1 for m in messages if m.type == "human")
-            has_messages = True
+    raw_messages = await read_checkpoint_messages(checkpointer, thread_id)
+    messages = [msg for msg in raw_messages if isinstance(msg, BaseMessage)]
+    if messages:
+        messages_tokens = estimate_messages_tokens(messages)
+        turn_count = sum(1 for m in messages if m.type == "human")
+        has_messages = True
 
     builtin_tokens = 0
     mcp_tokens = 0
@@ -795,25 +794,24 @@ async def extract_checkpoint_state(
     progress = 0.0
     last_tool: str | None = None
 
-    if checkpointer is not None:
-        from myrm_agent_harness.runtime.checkpointing import read_checkpoint_messages
+    from myrm_agent_harness.runtime.checkpointing import read_checkpoint_messages
 
-        raw_checkpoint_messages = await read_checkpoint_messages(checkpointer, thread_id)
-        if raw_checkpoint_messages:
-            messages = [serialize_message(msg) for msg in raw_checkpoint_messages]
+    raw_checkpoint_messages = await read_checkpoint_messages(checkpointer, thread_id)
+    if raw_checkpoint_messages:
+        messages = [serialize_message(msg) for msg in raw_checkpoint_messages]
 
-            for msg in reversed(messages):
-                if msg.get("type") == "ai" and msg.get("tool_calls"):
-                    tool_calls = msg.get("tool_calls", [])
-                    if tool_calls and isinstance(tool_calls, list):
-                        last_tool = tool_calls[-1].get("name")
-                        break
+        for msg in reversed(messages):
+            if msg.get("type") == "ai" and msg.get("tool_calls"):
+                tool_calls = msg.get("tool_calls", [])
+                if tool_calls and isinstance(tool_calls, list):
+                    last_tool = tool_calls[-1].get("name")
+                    break
 
-            logger.debug(
-                "Extracted %d messages from checkpointer (last_tool=%s)",
-                len(messages),
-                last_tool,
-            )
+        logger.debug(
+            "Extracted %d messages from checkpointer (last_tool=%s)",
+            len(messages),
+            last_tool,
+        )
 
     if last_run_stats:
         stats = {
