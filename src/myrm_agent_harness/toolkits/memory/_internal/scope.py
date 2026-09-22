@@ -8,7 +8,7 @@
 [OUTPUT]
 - derive_namespaces: Namespace derivation from scope level
 - bind_scope: MemoryScope binding to memory objects
-- default_write_namespace: Durable write target so new memories stay recallable
+- resolve_primary_namespace: Durable write target so new memories stay recallable
 - build_scope: MemoryScope construction from config
 - apply_channel_affinity: Channel affinity reweighting for search results
 - scope_for_write_target: Write target scope builder
