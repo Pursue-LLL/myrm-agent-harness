@@ -157,7 +157,7 @@ async def test_build_default_turn1_tools_resolves_default_profile() -> None:
 #
 # Scope note: the inventory doc's per-tool numbers and its "schema wrapper" total are the
 # description-only + wrapper scope — the tool parameter JSON schema is tracked separately
-# (§六, ~4,400 tokens for 13 tools) and is intentionally out of this gate's baseline.
+# (§六, ~5,142 tokens for 14 tools) and is intentionally out of this gate's baseline.
 #
 # Host-independent baseline. Every tool except ``bash_code_execute_tool`` produces a
 # byte-constant description, so its token count is asserted exactly. The bash tool is
