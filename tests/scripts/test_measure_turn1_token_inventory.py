@@ -140,13 +140,14 @@ def test_main_table_mode(
 
 @pytest.mark.asyncio
 async def test_build_default_turn1_tools_resolves_default_profile() -> None:
-    """Smoke: default product profile resolves 13 Turn-1 tools (P3 baseline)."""
+    """Smoke: default product profile resolves 14 Turn-1 tools (P3 baseline)."""
     tools = await measure._build_default_turn1_tools()
     names = {tool.name for tool in tools}
-    assert len(tools) == 13
+    assert len(tools) == 14
     assert "web_search_tool" in names
     assert "bash_code_execute_tool" in names
     assert "skill_select_tool" in names
+    assert "working_memory_manage_tool" in names
     assert "skill_manage_tool" not in names
     assert "dispatch_research" not in names
     assert "spawn_subagent" not in names
@@ -178,10 +179,11 @@ _DOC_TURN1_TOOL_TOKENS: dict[str, int] = {
     "grep_tool": 205,
     "memory_manage_tool": 359,
     "memory_save_tool": 720,
-    "memory_search_tool": 143,
+    "memory_search_tool": 156,
     "skill_select_tool": 240,
     "web_fetch_tool": 148,
     "web_search_tool": 1174,
+    "working_memory_manage_tool": 51,
 }
 
 
@@ -223,16 +225,20 @@ async def test_measure_turn1_inventory_matches_documented_token_baseline() -> No
         f"(composite minus static vs measured hint) -> {bash_tokens - bash_static} vs {host_hint}"
     )
 
-    assert report["tool_count"] == 13
+    assert report["tool_count"] == 14
     layer_totals = report["layer_totals"]
     assert isinstance(layer_totals, dict)
     description_tokens = report["description_tokens"]
     assert isinstance(description_tokens, int)
     schema_wrapper_tokens = report["schema_wrapper_tokens"]
     assert isinstance(schema_wrapper_tokens, int)
-    # CORE is host-dependent solely through the bash tool; HIGH_PRIORITY is not.
-    assert layer_totals["CORE"] + layer_totals["HIGH_PRIORITY"] == description_tokens
-    assert layer_totals["HIGH_PRIORITY"] == 2636
+    # CORE is host-dependent solely through the bash tool; HIGH_PRIORITY and EXTENDED
+    # contribute the Turn-1 mounted working-memory tool, so all three layers sum to the total.
+    assert (
+        layer_totals["CORE"] + layer_totals["HIGH_PRIORITY"] + layer_totals["EXTENDED"]
+        == description_tokens
+    )
+    assert layer_totals["HIGH_PRIORITY"] == 2649
     # Holds on any host: both sides derive from the same per-host descriptions.
     assert description_tokens == measured[_BASH_TOOL_NAME] + sum(
         _DOC_TURN1_TOOL_TOKENS.values()
