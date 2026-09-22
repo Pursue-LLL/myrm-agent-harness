@@ -61,6 +61,7 @@ CI 架构门禁：层边界、分形文档、PyPI wheel 打包不变量、tool r
 | `test_tool_layer_boundary.py` | Gate | harness 与 external tool 层 SSOT 边界 | — |
 | `test_tool_prompt_placement.py` | Gate | harness tool invoke 规则须留在 tool schema | — |
 | `test_component_snapshot_bounded_diff.py` | Gate | 4 大核心组件快照与有界差分门禁（Prompt Cache 前缀稳定性） | — |
+| `test_no_web_corpus_regression.py` | Gate | 已移除的 `web_corpus` / `corpus=web` 不得回归（静态守卫） | — |
 | `test_tool_env_dependency_correlation.py` | Gate | Tool 宿主环境依赖双向映射与探针健康门禁 | — |
 | `test_pytest_warning_gate.py` | Gate | Pytest 零告警容忍（Zero-Warning / filterwarnings = error）CI 门禁 | — |
 | `test_toolkits_llms_media_layout.py` | Gate | LLM 媒体理解归属 `toolkits/llms/`，禁止顶层平铺 | — |
