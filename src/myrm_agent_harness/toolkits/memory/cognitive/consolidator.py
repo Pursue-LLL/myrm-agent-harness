@@ -1,21 +1,16 @@
-"""@input: MemoryManager
-@output: 认知整合Result（compatible壳）
-@pos: 记忆系统 / 认知整合层
-
-compatible层： not 再维护第二套independent认知整合implements。
-
-自现 in 起，AllBackground整合、遗忘、健康Check都统一委托给
-`MemoryManager.run_maintenance_cycle()`， guarantee 系统只 has 一条维护主链。
+"""Compatibility adapter that delegates cognitive consolidation to the unified core.
 
 [INPUT]
-- toolkits.memory.manager::MemoryManager (POS: Unified memory manager and core facade of the Memory Toolkit. Orchestrates all memory operations via pure dependency injection — no concrete backends, only protocols.)
+- infra.cooperative_signals::CooperativePauseSignal (POS: Infrastructure layer. Provides transaction-boundary cooperative yielding so background consolidation immediately yields SQLite write locks when foreground users type.)
+- toolkits.memory.manager::MemoryManager (POS: Stable public import path for the memory toolkit façade.)
 
 [OUTPUT]
-- ConsolidationResult: Compatibility result mapped from the unified maintenance ...
-- CognitiveConsolidator: Compatibility adapter that delegates to the single mainte...
+- ConsolidationResult: Maintenance report mapped into the legacy consolidation shape, with a ``to_dict`` projection
+- CognitiveConsolidator: Adapter that drives ``MemoryManager.run_maintenance_cycle()`` and owns no consolidation logic of its own
 
 [POS]
-@input: MemoryManager
+Memory toolkit's cognitive consolidation adapter. Forwards consolidation, forgetting, and
+health checks to the single maintenance core so the system keeps exactly one maintenance path.
 """
 
 from __future__ import annotations
@@ -139,14 +134,10 @@ class CognitiveConsolidator:
             except Exception as exc:
                 logger.error("CognitiveConsolidator loop error: %s", exc, exc_info=True)
 
-    async def run_consolidation(
-        self, *, pause_signal: CooperativePauseSignal | None = None
-    ) -> ConsolidationResult:
+    async def run_consolidation(self, *, pause_signal: CooperativePauseSignal | None = None) -> ConsolidationResult:
         """Delegate to the unified maintenance cycle and map its report."""
         if pause_signal is not None:
-            report = await self.memory_manager.run_maintenance_cycle(
-                force=True, pause_signal=pause_signal
-            )
+            report = await self.memory_manager.run_maintenance_cycle(force=True, pause_signal=pause_signal)
         else:
             report = await self.memory_manager.run_maintenance_cycle(force=True)
         errors: list[str] = []

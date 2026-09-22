@@ -1,29 +1,18 @@
-"""@input: None
-@output: 预定义陷阱和验证模板（零 LLM 成本）
-@pos: 技能系统 / 预定义模板库
-
-预定义模板库（Pre-defined Templates）。
-
-核心价值：
-- 零 LLM 成本的踩坑警示
-- 零 LLM 成本的验证方式参考
-- 复用历史经验，降低技能失败率
-
-设计原则：
-- 只保留预定义模板，删除未被实际消费的结构化类型定义
-- 模板可直接引用，无需实例化 dataclass
+"""Pre-defined trap and verification templates for the skill evolution pipeline.
 
 [INPUT]
-- (none)
+- (none — pure data models and template tables)
 
 [OUTPUT]
-- SkillTrap: COMMON_TRAPS templates are consumed by _match_common_trap...
-- VerificationStep: class — Verification Step
-- get_trap_description: Args:
-- get_verification_description: Args:
+- SkillTrap: Pre-defined trap template entry
+- VerificationStep: Pre-defined verification step template entry
+- COMMON_TRAPS: Trap template table consumed when a skill fails
+- get_trap_description: Human-readable description for a trap key
+- get_verification_description: Human-readable description for a verification key
 
 [POS]
-@input: None
+Zero-LLM-cost template library. Supplies the pitfall warnings and verification recipes that
+the skill evolution pipeline reuses, so common failures are handled without a model call.
 """
 
 from dataclasses import dataclass

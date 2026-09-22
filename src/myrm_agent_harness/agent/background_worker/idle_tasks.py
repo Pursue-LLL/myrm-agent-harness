@@ -5,7 +5,7 @@
 - agent.background_worker.shadow_context::restricted_shadow_context (POS: Shadow Agent bulkhead isolation for background / review workloads.)
 - agent.skill_agent.context::get_memory_manager (POS: Module-level ContextVar management and background task utilities.)
 - runtime.maintenance.scheduler::get_maintenance_scheduler (POS: Global adaptive maintenance scheduler.)
-- toolkits.memory.cognitive.consolidator::CognitiveConsolidator (POS: 认知巩固器，合并与沉淀记忆片段)
+- toolkits.memory.cognitive.consolidator::CognitiveConsolidator (POS: Memory toolkit's cognitive consolidation adapter. Forwards consolidation, forgetting, and health checks to the single maintenance core.)
 - runtime.events.bus::get_event_bus (POS: Event Bus Implementation)
 
 [OUTPUT]

@@ -1,9 +1,15 @@
-"""
-@input: 无外部依赖，纯 asyncio 基础设施
-@output: 对外提供通用 PubSubBus（per-subscriber Queue + topic backlog + 幂等去重 + 背压驱逐）
-@pos: 框架级进程内发布/订阅引擎
+"""Generic in-process publish/subscribe engine.
 
-🔄 更新规则：修改此文件后，请更新头注释 + 所属文件夹 _ARCH.md
+[INPUT]
+- (none — pure asyncio primitives, no external dependencies)
+
+[OUTPUT]
+- PubSubEventProtocol: Contract an event must satisfy to travel over the bus
+- PubSubBus: Per-subscriber queue fan-out with topic backlog, idempotent deduplication, and backpressure eviction
+
+[POS]
+Framework-level in-process publish/subscribe engine. Gives every subsystem one shared event
+transport without pulling a broker into the harness runtime.
 """
 
 from __future__ import annotations
