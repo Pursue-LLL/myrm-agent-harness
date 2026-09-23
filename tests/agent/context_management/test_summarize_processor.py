@@ -977,3 +977,28 @@ class TestPreCompactionDeterministicPruneShortCircuit:
         # Step 2 and Step 3 must remain intact due to min 2 hard boundary guard
         assert result.messages[4].content == large_2
         assert result.messages[6].content == large_3
+
+    @pytest.mark.asyncio
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor._guarded_summarize"
+    )
+    async def test_preflight_fence_bypasses_llm_on_oversized_payload(
+        self, mock_guarded
+    ) -> None:
+        """When total payload exceeds physical safe watermark, bypass LLM to prevent ContextLengthExceeded."""
+        cfg = ContextConfig(max_context_tokens=10000)
+        processor = SummarizeProcessor(config=cfg)
+
+        msgs = [HumanMessage(content="overflow " * 3000)]
+        context = ProcessorContext(
+            messages=msgs,
+            user_query="test",
+            llm=AsyncMock(),
+            metadata={"llm_max_context_tokens": 3000},
+        )
+
+        result = await processor.process(context)
+
+        mock_guarded.assert_not_called()
+        assert result.metadata.get("summarize_fallback_used") is True
+

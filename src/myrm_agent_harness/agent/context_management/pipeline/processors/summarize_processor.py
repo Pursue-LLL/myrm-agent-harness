@@ -391,6 +391,38 @@ class SummarizeProcessor(BaseProcessor):
 
         runnable_config = context.metadata.get("runnable_config")
 
+        from ...infra.compactor_guard import CompactorPreflightFence
+
+        fence = CompactorPreflightFence(safe_watermark_ratio=0.85)
+        # Physical model capacity limit: defaults to 128k tokens (or higher if configured),
+        # distinguishing between logical conversation threshold and physical LLM window.
+        max_ctx = int(
+            context.metadata.get("llm_max_context_tokens")
+            or getattr(self.config, "llm_max_context_tokens", None)
+            or max(self.config.max_context_tokens or 128_000, 128_000)
+        )
+        skills_tokens = int(context.metadata.get("loaded_skills_tokens") or 0)
+        safety_verdict = fence.evaluate_safety(
+            messages_tokens=original_tokens,
+            loaded_skills_tokens=skills_tokens,
+            prompt_overhead=1000,
+            max_context_tokens=max_ctx,
+        )
+
+        if not safety_verdict.is_safe:
+            logger.warning(
+                "[Summarize] Preflight safety fence tripped: payload tokens %d exceeds safe watermark "
+                "(ratio %.2f of %d, action=%s) — bypassing LLM to avoid ContextLengthExceeded",
+                safety_verdict.total_estimated_tokens,
+                safety_verdict.utilization_ratio,
+                safety_verdict.max_context_tokens,
+                safety_verdict.action_recommended,
+            )
+            await self._emit_compaction_status(
+                context, "fallback", reason="preflight_fence_overflow"
+            )
+            return self._apply_deterministic_fallback(context, original_tokens, last_msg_db_id)
+
         try:
             context.messages, summary = await _guarded_summarize(
                 messages=context.messages,
