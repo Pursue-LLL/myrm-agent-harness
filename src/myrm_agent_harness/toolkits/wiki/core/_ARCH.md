@@ -19,3 +19,6 @@ knowledge direction, compile/query configs, and recursive file system operations
 | canonical_registry.py | Contract | `canonical_id` / alias index, page lease hash, write-time dedup helpers | ✅ |
 | fact_trust_contract.py | Contract | FactStatus + FactTrustLevel + FactTrustPolicy; resolve_fact_status with frontmatter override and directory path inference | ✅ |
 | refactor.py | Core | LinkRefactorEngine — RefactorReport, short-wikilink disambiguation, canonical_id pinning, supersedes/aliases injection, and markdown/wikilink updates across wiki move/rename events | ✅ |
+| `source_card_contract.py` | Contract | SourceCardContract, SourceProvenanceClass, SourceRiskLevel, validation, and frontmatter parser/serializer for Layer 2 (sources/) | ✅ |
+| `negative_exclusion_policy.py` | Guard | Negative exclusion boundary policy enforcing deterministic filtering of 5 categories of ephemeral / single-session artifacts | ✅ |
+| `radar_rationale_contract.py` | Contract | Three-way source radar ingestion contracts and formal ZeroYieldRationaleReport preventing low-grade batch pollution | ✅ |

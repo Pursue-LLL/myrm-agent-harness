@@ -108,3 +108,18 @@ def test_single_variable_rerun_rejects_unknown_key():
             baseline_digest="d0",
             runner=lambda cfg: "d0",
         )
+
+
+def test_assemble_counts_logged_audit_entries():
+    collector = _collector_with_secret()
+    bundle = assemble_debug_bundle(
+        collector=collector,
+        session_id="s1",
+        agent_id="a1",
+        memory_trace={"hits": 1},
+        failure_summary={"mode": "m"},
+        config_snapshot={"model": "x"},
+    )
+    audit = next(section for section in bundle.sections if section.name == "audit")
+    assert audit.payload["entry_count"] == 1
+    assert audit.payload["summary"]["total_entries"] == 1
