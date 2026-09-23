@@ -170,7 +170,9 @@ class TestRecurrenceDetector:
         mock_vector.ensure_collection.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_triggered_entries_deleted(self, detector: RecurrenceDetector, mock_vector: AsyncMock) -> None:
+    async def test_triggered_entries_soft_deprecated_by_default(
+        self, detector: RecurrenceDetector, mock_vector: AsyncMock
+    ) -> None:
         similar_results = [
             SearchResult(
                 document=VectorDocument(id=f"triggered_{i}", content=f"recurrent topic {i}"),
@@ -181,9 +183,36 @@ class TestRecurrenceDetector:
         mock_vector.search.return_value = similar_results
 
         await detector.check_recurrence("recurrent topic again")
+        upsert_calls = mock_vector.upsert.call_args_list
+        assert len(upsert_calls) >= 2
+        deprecated_docs = upsert_calls[-1].args[1]
+        assert len(deprecated_docs) == 3
+        assert all(doc.metadata.get("is_deprecated") is True for doc in deprecated_docs)
+        assert all(doc.metadata.get("superseded_by") is not None for doc in deprecated_docs)
+
+    @pytest.mark.asyncio
+    async def test_triggered_entries_hard_deleted_when_soft_deprecation_disabled(
+        self, mock_embedding: AsyncMock, mock_vector: AsyncMock
+    ) -> None:
+        det = RecurrenceDetector(
+            embedding=mock_embedding,
+            vector=mock_vector,
+            collection_prefix="test",
+            soft_deprecation=False,
+        )
+        similar_results = [
+            SearchResult(
+                document=VectorDocument(id=f"triggered_{i}", content=f"recurrent topic {i}"),
+                score=0.82,
+            )
+            for i in range(3)
+        ]
+        mock_vector.search.return_value = similar_results
+
+        await det.check_recurrence("recurrent topic again")
         delete_calls = mock_vector.delete.call_args_list
         triggered_ids = ["triggered_0", "triggered_1", "triggered_2"]
-        assert any(call.args == (detector._collection, triggered_ids) for call in delete_calls)
+        assert any(call.args == (det._collection, triggered_ids) for call in delete_calls)
 
     @pytest.mark.asyncio
     async def test_exactly_k_minus_one_does_not_trigger(

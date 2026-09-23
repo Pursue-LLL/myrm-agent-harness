@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -153,7 +153,7 @@ async def test_list_relationships_as_of_time_travel(store: SQLiteGraphStore) -> 
     await store.create_node(labels=["User"], properties={"id": "user1"})
     await store.create_node(labels=["Project"], properties={"id": "proj1"})
 
-    t_before = datetime.now(timezone.utc).isoformat()
+    t_before = datetime.now(UTC).isoformat()
     await asyncio.sleep(0.02)
 
     r1 = await store.create_relationship(
@@ -161,13 +161,13 @@ async def test_list_relationships_as_of_time_travel(store: SQLiteGraphStore) -> 
     )
     await asyncio.sleep(0.02)
 
-    t_between = datetime.now(timezone.utc).isoformat()
+    t_between = datetime.now(UTC).isoformat()
     await asyncio.sleep(0.02)
 
     _, r2 = await store.supersede_relationship(r1.id, new_properties={"tier": "gold"})
     await asyncio.sleep(0.02)
 
-    t_after = datetime.now(timezone.utc).isoformat()
+    t_after = datetime.now(UTC).isoformat()
 
     # Query before r1 was created
     past_rels = await store.list_relationships(as_of_time=t_before)
@@ -251,12 +251,12 @@ async def test_entity_graph_bridge_with_as_of_time(store: SQLiteGraphStore) -> N
 
     r1 = await store.create_relationship(start_id="dev1", end_id="repo1", rel_type="MAINTAINS")
     await asyncio.sleep(0.02)
-    t_v1 = datetime.now(timezone.utc).isoformat()
+    t_v1 = datetime.now(UTC).isoformat()
     await asyncio.sleep(0.02)
 
     await store.supersede_relationship(old_rel_id=r1.id, new_rel_type="LEADS")
     await asyncio.sleep(0.02)
-    t_v2 = datetime.now(timezone.utc).isoformat()
+    t_v2 = datetime.now(UTC).isoformat()
 
     bridge = EntityGraphBridge(graph_store=store)
 

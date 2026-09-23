@@ -85,6 +85,58 @@ _IMPORTANCE_KEYWORDS_CN = frozenset(
     }
 )
 
+_TRIVIAL_SUMMARY_PATTERNS = frozenset(
+    {
+        "hello",
+        "hi",
+        "hey",
+        "hi there",
+        "hello there",
+        "greetings",
+        "good morning",
+        "good afternoon",
+        "good evening",
+        "morning",
+        "ok",
+        "okay",
+        "fine",
+        "cool",
+        "sure",
+        "thanks",
+        "thank you",
+        "thanks a lot",
+        "thank you very much",
+        "thx",
+        "bye",
+        "goodbye",
+        "test",
+        "testing",
+        "ping",
+        "pong",
+        "chat",
+        "你好",
+        "您好",
+        "你好呀",
+        "在吗",
+        "在不在",
+        "打个招呼",
+        "问好",
+        "测试",
+        "哈喽",
+        "嗨",
+        "好的",
+        "好的收到",
+        "收到",
+        "明白",
+        "行",
+        "可以",
+        "谢谢",
+        "多谢",
+        "再见",
+        "拜拜",
+    }
+)
+
 _CONSOLIDATION_SYSTEM_PROMPT = """\
 You are a memory consolidation specialist. Given multiple conversation snippets \
 where the user repeatedly discussed the same topic, synthesize a single concise \
@@ -129,6 +181,7 @@ class RecurrenceDetector:
         recurrence_k: int = 4,
         buffer_capacity: int = 200,
         importance_preemption: bool = True,
+        soft_deprecation: bool = True,
     ) -> None:
         self._embedding = embedding
         self._vector = vector
@@ -137,6 +190,7 @@ class RecurrenceDetector:
         self._recurrence_k = recurrence_k
         self._buffer_capacity = buffer_capacity
         self._importance_preemption = importance_preemption
+        self._soft_deprecation = soft_deprecation
         self._initialized = False
 
     async def _ensure_collection(self) -> None:
@@ -175,6 +229,13 @@ class RecurrenceDetector:
                 topic_summary="importance_preemption",
             )
 
+        if _is_trivial_summary(session_summary):
+            return RecurrenceResult(
+                triggered=False,
+                recurrence_count=0,
+                topic_summary="trivial_filtered",
+            )
+
         await self._ensure_collection()
 
         query_vec = await self._embedding.embed(session_summary)
@@ -182,11 +243,16 @@ class RecurrenceDetector:
         similar = await self._vector.search(
             self._collection,
             query_vec,
-            limit=self._recurrence_k + 5,
+            limit=self._recurrence_k + 10,
             score_threshold=self._similarity_threshold,
         )
 
-        recurrence_count = len(similar) + 1  # +1 for current session
+        similar_active = [
+            r for r in similar
+            if not r.document.metadata.get("is_deprecated")
+        ]
+
+        recurrence_count = len(similar_active) + 1  # +1 for current session
 
         doc_id = str(uuid.uuid4())
         now_iso = datetime.now(UTC).isoformat()
@@ -197,7 +263,7 @@ class RecurrenceDetector:
                     id=doc_id,
                     content=session_summary,
                     vector=query_vec,
-                    metadata={"created_at": now_iso},
+                    metadata={"created_at": now_iso, "is_deprecated": False},
                 )
             ],
         )
@@ -210,14 +276,31 @@ class RecurrenceDetector:
                 recurrence_count=recurrence_count,
             )
 
-        snippets = [r.document.content for r in similar if r.document.content]
+        snippets = [r.document.content for r in similar_active if r.document.content]
         snippets.append(session_summary)
 
         consolidated = await self._consolidate(snippets, llm_func)
 
-        triggered_ids = [r.document.id for r in similar]
+        triggered_ids = [r.document.id for r in similar_active]
         if triggered_ids:
-            await self._vector.delete(self._collection, triggered_ids)
+            if self._soft_deprecation:
+                deprecated_docs = [
+                    VectorDocument(
+                        id=r.document.id,
+                        content=r.document.content,
+                        vector=r.document.vector,
+                        metadata={
+                            **r.document.metadata,
+                            "is_deprecated": True,
+                            "superseded_by": doc_id,
+                            "deprecated_at": now_iso,
+                        },
+                    )
+                    for r in similar_active
+                ]
+                await self._vector.upsert(self._collection, deprecated_docs)
+            else:
+                await self._vector.delete(self._collection, triggered_ids)
 
         return RecurrenceResult(
             triggered=True,
@@ -253,9 +336,20 @@ class RecurrenceDetector:
             return
 
         excess = count - self._buffer_capacity
-        docs, _ = await self._vector.scroll(self._collection, limit=excess)
-        if docs:
-            await self._vector.delete(self._collection, [d.id for d in docs])
+        docs, _ = await self._vector.scroll(self._collection, limit=self._buffer_capacity + excess)
+        if not docs:
+            return
+
+        deprecated = [d.id for d in docs if d.metadata.get("is_deprecated")]
+        if len(deprecated) >= excess:
+            to_delete = deprecated[:excess]
+        else:
+            remaining_excess = excess - len(deprecated)
+            non_deprecated = [d.id for d in docs if not d.metadata.get("is_deprecated")]
+            to_delete = deprecated + non_deprecated[:remaining_excess]
+
+        if to_delete:
+            await self._vector.delete(self._collection, to_delete)
 
 
 def _is_important(text: str) -> bool:
@@ -265,3 +359,16 @@ def _is_important(text: str) -> bool:
         if kw in lower:
             return True
     return any(kw in text for kw in _IMPORTANCE_KEYWORDS_CN)
+
+
+def _is_trivial_summary(text: str) -> bool:
+    """Check if text is trivial conversational chitchat with no long-term memory value.
+
+    Filters out greetings, acknowledgments, and empty chitchat unless high importance signals
+    are present.
+    """
+    cleaned = "".join(ch for ch in text.lower() if ch.isalnum() or ch.isspace()).strip()
+    if not cleaned or cleaned in _TRIVIAL_SUMMARY_PATTERNS:
+        return True
+    return len(cleaned) <= 4 and not _is_important(text)
+

@@ -8,6 +8,7 @@
 
 [OUTPUT]
 - serialize_message: Serialize a LangChain message to a plain dict.
+- sanitize_persistable_context: Copy a runtime context into a JSON/pickle-safe shape (drops the non-serializable workspace bind token).
 - project_run_statistics: Project run statistics into the checkpoint payload shape and derive progress; the single projection shared by every checkpoint writer.
 - extract_checkpoint_state: Extract complete execution state for checkpoint save.
 
@@ -41,6 +42,21 @@ def serialize_message(msg: object) -> dict[str, object]:
     if hasattr(msg, "to_json"):
         return cast("dict[str, object]", msg.to_json())
     return {"type": "unknown", "content": str(msg)}
+
+
+def sanitize_persistable_context(
+    context: dict[str, object] | None,
+) -> dict[str, object]:
+    """Copy a runtime context into a persistable shape.
+
+    ``merged_context`` can still carry the workspace bind undo token: it is popped at run
+    cleanup, so an interrupted run leaves it in place. The token is not serializable by
+    JSON, pickle, or dill, which makes every checkpoint write fail; all checkpoint writers
+    therefore strip it here rather than each re-deriving the rule.
+    """
+    sanitized = dict(context or {})
+    sanitized.pop(WORKSPACE_BIND_CTX_KEY, None)
+    return sanitized
 
 
 def project_run_statistics(stats: AgentRunStatistics) -> tuple[dict[str, object], float]:
@@ -81,9 +97,7 @@ async def extract_checkpoint_state(
         Dict with keys: messages, context, stats, progress, last_tool.
     """
     messages: list[dict[str, object]] = []
-    raw_context = dict(last_context or {})
-    raw_context.pop(WORKSPACE_BIND_CTX_KEY, None)
-    context: dict[str, object] = raw_context
+    context = sanitize_persistable_context(last_context)
     stats: dict[str, object] = {}
     progress = 0.0
     last_tool: str | None = None

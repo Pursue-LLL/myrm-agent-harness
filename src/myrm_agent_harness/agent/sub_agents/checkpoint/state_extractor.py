@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING
 
 from myrm_agent_harness.agent.sub_agents.checkpoint.state_snapshot import (
     project_run_statistics,
+    sanitize_persistable_context,
 )
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
@@ -63,7 +64,7 @@ def extract_subagent_state_sync(child_agent: BaseAgent, task_id: str) -> dict[st
     last_tool: str | None = None
 
     if hasattr(child_agent, "_last_context"):
-        context = child_agent._last_context or {}
+        context = sanitize_persistable_context(child_agent._last_context)
         logger.debug("[subagent:%s] Extracted context (keys=%s)", task_id, list(context.keys()))
 
     if child_agent.last_run_stats:

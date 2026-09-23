@@ -54,3 +54,51 @@ async def test_sqlite_mode_raises_when_sqlite_package_missing(
 
     with pytest.raises(ImportError, match="langgraph-checkpoint-sqlite"):
         await create_checkpointer(mode="sqlite", sqlite_db_path=":memory:")
+
+
+class TestPickleSerde:
+    """Round-trip coverage for the checkpoint serializer used by every SQLite saver."""
+
+    def test_round_trip_preserves_payload(self) -> None:
+        from myrm_agent_harness.runtime.checkpointing.factory import PickleSerde
+
+        serde = PickleSerde()
+        payload = {"messages": ["a", "b"], "nested": {"n": 1}}
+
+        kind, blob = serde.dumps_typed(payload)
+
+        assert kind == "dill"
+        assert serde.loads_typed((kind, blob)) == payload
+
+    def test_dill_failure_falls_back_to_pickle(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import dill
+
+        from myrm_agent_harness.runtime.checkpointing.factory import PickleSerde
+
+        def boom(obj: object) -> bytes:
+            raise TypeError("dill cannot handle this")
+
+        monkeypatch.setattr(dill, "dumps", boom)
+        serde = PickleSerde()
+
+        kind, blob = serde.dumps_typed({"k": "v"})
+
+        assert kind == "pickle"
+        assert serde.loads_typed((kind, blob)) == {"k": "v"}
+
+    def test_large_payload_is_still_serialized(self) -> None:
+        from myrm_agent_harness.runtime.checkpointing.factory import PickleSerde
+
+        serde = PickleSerde()
+        big = {"blob": "x" * 200_000}
+
+        kind, blob = serde.dumps_typed(big)
+
+        assert len(blob) > 100_000
+        assert serde.loads_typed((kind, blob)) == big
+
+    def test_unknown_serialization_kind_is_rejected(self) -> None:
+        from myrm_agent_harness.runtime.checkpointing.factory import PickleSerde
+
+        with pytest.raises(ValueError, match="Unsupported serialization type"):
+            PickleSerde().loads_typed(("msgpack", b""))
