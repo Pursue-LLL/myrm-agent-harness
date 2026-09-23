@@ -24,7 +24,6 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | cards.py                 | Core     | A-MEM card-box (Zettelkasten) network. Evidence-conclusion decoupling with EvidenceReference binding, bidirectional graph indexing (incoming_links), immutable evolution chain with lineage tracing, and knowledge subgraph traversal. | ✅    |
 | compression.py           | Core     | Transparent payload compression and external BLOB storage for ConversationMemory raw_exchange fields.         | ✅    |
 | consolidation.py         | Core     | Hyper Consolidation Memory Block: 会话终态将工作记忆提取为 ProceduralMemory（自愈避坑规程，内置纯净性守卫过滤先验与未解决假说）与镜像为 EpisodicMemory 的 TaskDigest 资产并持久落盘。 | ✅    |
-| whiteboard.py            | Core     | Dynamic task working-memory whiteboard (TaskWhiteboard). Smooth sliding flush_stale (protects active goals), structured XML prompt block rendering (prefix-cache friendly), and lossless snapshot conversion for HyperConsolidator. | ✅    |
 | cube.py                  | Core     | 统一异构记忆 MemCubeEnvelope 泛型容器、LifecycleTier 与 StoragePolicy 定义，提供 SHA256 验签防篡改与活跃度保真能力。 | ✅    |
 | domain_types.py          | Core     | Three-domain memory partitions (User, Assistant, Task) and 9 fine-grained categories with semantic classification heuristics. | ✅    |
 | scheduler.py             | Core     | 多层记忆生命周期调度器 MultiTierMemoryScheduler，负责多介质路由、全量封箱导出与防篡改导入。 | ✅    |

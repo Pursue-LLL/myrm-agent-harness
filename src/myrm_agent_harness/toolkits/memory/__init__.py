@@ -191,12 +191,6 @@ from myrm_agent_harness.toolkits.memory.types import (
     ToolRulePriority,
     create_pitfall_memory,
 )
-from myrm_agent_harness.toolkits.memory.whiteboard import (
-    StepStatus,
-    TaskStep,
-    TaskWhiteboard,
-    WhiteboardFlushResult,
-)
 from myrm_agent_harness.toolkits.memory.working_tree import (
     BoundedSummary,
     ConflictType,
@@ -214,10 +208,6 @@ from myrm_agent_harness.toolkits.memory.working_tree import (
 __all__ = [
     "AMemCard",
     "AMemZettelkastenNetwork",
-    "StepStatus",
-    "TaskStep",
-    "TaskWhiteboard",
-    "WhiteboardFlushResult",
     "AssembledMemoryContext",
     "ConflictResolver",
     "DynamicContextAssembler",

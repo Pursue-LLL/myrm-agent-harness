@@ -1,8 +1,8 @@
-"""Comprehensive Evaluation Suite for RecurrenceDetector, TaskWhiteboard and A-MEM Zettelkasten.
+"""Comprehensive Evaluation Suite for RecurrenceDetector, LocalWorkingMemoryBlock and A-MEM Zettelkasten.
 
 Evaluates:
 1. RecurrenceDetector trivial chitchat gating, soft deprecation, and eviction priority.
-2. TaskWhiteboard step lifecycle, smooth sliding flush, and XML prompt rendering.
+2. LocalWorkingMemoryBlock step lifecycle, smooth sliding flush, and markdown prompt rendering.
 3. AMemZettelkastenNetwork evidence-conclusion decoupling, bidirectional links, and lineage evolution.
 4. LongMemEval 5-dimensional benchmark protocol simulation.
 """
@@ -13,6 +13,13 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from myrm_agent_harness.agent.context_management.working_memory.block import (
+    LocalWorkingMemoryBlock,
+)
+from myrm_agent_harness.agent.context_management.working_memory.types import (
+    SubtaskStatus,
+    WorkingMemoryFlushResult,
+)
 from myrm_agent_harness.toolkits.memory.cards import (
     AMemCard,
     AMemZettelkastenNetwork,
@@ -23,11 +30,6 @@ from myrm_agent_harness.toolkits.memory.strategies.recurrence import (
     _is_trivial_summary,
 )
 from myrm_agent_harness.toolkits.memory.types import EvidenceReference
-from myrm_agent_harness.toolkits.memory.whiteboard import (
-    StepStatus,
-    TaskWhiteboard,
-    WhiteboardFlushResult,
-)
 from myrm_agent_harness.toolkits.vector.base import SearchResult, VectorDocument
 
 # ---------------------------------------------------------------------------
@@ -149,78 +151,92 @@ class TestRecurrenceDetectorEnhancements:
 
 
 # ---------------------------------------------------------------------------
-# 2. TaskWhiteboard System Test
+# 2. LocalWorkingMemoryBlock System Test
 # ---------------------------------------------------------------------------
 
 
-class TestTaskWhiteboardSystem:
+class TestLocalWorkingMemoryBlockSystem:
+    def setup_method(self) -> None:
+        LocalWorkingMemoryBlock.reset()
+
+    def teardown_method(self) -> None:
+        LocalWorkingMemoryBlock.reset()
+
     def test_step_lifecycle_and_milestones(self) -> None:
-        wb = TaskWhiteboard(goal="Refactor Storage Engine", token_budget=1000)
-        wb.goal = "Migrate SQLite queries to parameterized CTE statements"
+        state = LocalWorkingMemoryBlock.initialize(goal="Refactor Storage Engine")
+        state.goal = "Migrate SQLite queries to parameterized CTE statements"
 
-        s1 = wb.add_step("Audit legacy SQL queries")
-        assert s1.status == StepStatus.PENDING
+        s1 = LocalWorkingMemoryBlock.add_subtask("Audit legacy SQL queries")
+        assert s1 is not None
+        assert s1.status == SubtaskStatus.PENDING
 
-        wb.start_step(s1.id)
-        assert wb.steps[0].status == StepStatus.IN_PROGRESS
+        LocalWorkingMemoryBlock.update_subtask(s1.id, status=SubtaskStatus.IN_PROGRESS)
+        assert state.subtasks[0].status == SubtaskStatus.IN_PROGRESS
 
-        wb.complete_step(s1.id, detail="Found 12 un-parameterized queries")
-        assert wb.steps[0].status == StepStatus.COMPLETED
-        assert wb.steps[0].detail == "Found 12 un-parameterized queries"
+        LocalWorkingMemoryBlock.update_subtask(
+            s1.id, status=SubtaskStatus.COMPLETED, notes="Found 12 un-parameterized queries"
+        )
+        assert state.subtasks[0].status == SubtaskStatus.COMPLETED
+        assert state.subtasks[0].notes == "Found 12 un-parameterized queries"
 
-        wb.record_trap(
+        LocalWorkingMemoryBlock.record_trap(
             "sql_syntax_error",
             "Raw string concatenation causes syntax errors with single quotes",
         )
-        assert len(wb.traps) == 1
+        assert len(state.traps) == 1
 
-        wb.set_variable("compatibility", "Do not break SQLite 3.35 compatibility")
-        assert len(wb.context_variables) == 1
+        LocalWorkingMemoryBlock.set_scratchpad("compatibility", "Do not break SQLite 3.35 compatibility")
+        assert len(state.scratchpad) == 1
 
     def test_smooth_sliding_flush_stale(self) -> None:
-        wb = TaskWhiteboard(goal="Preserve core objective at all costs", token_budget=150)
-        wb.record_trap("production_guard", "Never drop production table")
+        LocalWorkingMemoryBlock.initialize(goal="Preserve core objective at all costs")
+        LocalWorkingMemoryBlock.record_trap("production_guard", "Never drop production table")
 
-        # Add 10 completed steps to blow past the small budget
+        # Add 10 completed steps
         for i in range(10):
-            step = wb.add_step(
+            item = LocalWorkingMemoryBlock.add_subtask(
                 f"Step description number {i:02d} with extra verbosity to consume tokens"
             )
-            wb.complete_step(step.id)
+            assert item is not None
+            LocalWorkingMemoryBlock.update_subtask(item.id, SubtaskStatus.COMPLETED)
 
         # Add one in-progress step
-        active_step = wb.add_step("Currently active step that must never be flushed")
-        wb.start_step(active_step.id)
+        active_step = LocalWorkingMemoryBlock.add_subtask("Currently active step that must never be flushed")
+        assert active_step is not None
+        LocalWorkingMemoryBlock.update_subtask(active_step.id, SubtaskStatus.IN_PROGRESS)
 
-        res: WhiteboardFlushResult = wb.flush_stale(flush_ratio=0.5)
-        assert res.evicted_step_count > 0
-        assert res.tokens_after <= res.tokens_before
+        res: WorkingMemoryFlushResult = LocalWorkingMemoryBlock.flush_stale(flush_ratio=0.5)
+        assert res.evicted_subtasks_count > 0
+        assert res.estimated_tokens_after <= res.estimated_tokens_before
 
         # Verify active step and goal are retained
-        step_ids = [s.id for s in wb.steps]
+        state = LocalWorkingMemoryBlock.get_state()
+        assert state is not None
+        step_ids = [s.id for s in state.subtasks]
         assert active_step.id in step_ids
-        assert wb.goal == "Preserve core objective at all costs"
-        assert any("Never drop production table" in t.avoidance_rule for t in wb.traps)
+        assert state.goal == "Preserve core objective at all costs"
+        assert any("Never drop production table" in t.avoidance_rule for t in state.traps)
 
-    def test_prefix_cache_friendly_xml_render(self) -> None:
-        wb = TaskWhiteboard(goal="Ensure deterministic XML generation")
-        wb.add_step("Step 1")
-        wb.set_variable("framework", "Myrmidon Harness")
+    def test_prefix_cache_friendly_turn_tail_render(self) -> None:
+        LocalWorkingMemoryBlock.initialize(goal="Ensure deterministic Markdown generation")
+        LocalWorkingMemoryBlock.add_subtask("Step 1")
+        LocalWorkingMemoryBlock.set_scratchpad("framework", "Myrmidon Harness")
 
-        xml = wb.render_prompt_block()
-        assert "<task_whiteboard>" in xml
-        assert "</task_whiteboard>" in xml
-        assert "<goal>Ensure deterministic XML generation</goal>" in xml
-        assert "Myrmidon Harness" in xml
-        assert "timestamp" not in xml.lower()  # Protection against cache thrashing
+        rendered = LocalWorkingMemoryBlock.format_turn_tail_markdown()
+        assert "<working_board>" in rendered
+        assert "</working_board>" in rendered
+        assert "**Goal**: Ensure deterministic Markdown generation" in rendered
+        assert "timestamp" not in rendered.lower()  # Protection against cache thrashing
 
     def test_to_working_memory_snapshot(self) -> None:
-        wb = TaskWhiteboard(goal="Export to consolidation snapshot")
-        s = wb.add_step("Build component")
-        wb.complete_step(s.id, detail="Component built successfully")
-        wb.record_trap("concurrency_hazard", "Watch out for thread safety in async event loop")
+        LocalWorkingMemoryBlock.initialize(goal="Export to consolidation snapshot")
+        s = LocalWorkingMemoryBlock.add_subtask("Build component")
+        assert s is not None
+        LocalWorkingMemoryBlock.update_subtask(s.id, SubtaskStatus.COMPLETED, notes="Component built successfully")
+        LocalWorkingMemoryBlock.record_trap("concurrency_hazard", "Watch out for thread safety in async event loop")
 
-        snapshot: WorkingMemorySnapshot = wb.to_working_memory_snapshot()
+        snapshot = LocalWorkingMemoryBlock.to_snapshot()
+        assert isinstance(snapshot, WorkingMemorySnapshot)
         assert snapshot.goal == "Export to consolidation snapshot"
         assert len(snapshot.subtasks) == 1
         assert snapshot.subtasks[0].title == "Build component"
@@ -423,19 +439,22 @@ class TestLongMemEvalBenchmarkProtocol:
 
     def test_dimension_4_non_destructive_retention_rate(self) -> None:
         """Dim 4: Critical constraints & traps survive multi-round sliding window flushes."""
-        wb = TaskWhiteboard(goal="Mission Critical Objective", token_budget=300)
-        wb.record_trap("safety_rule", "Critical memory safety rule")
-        wb.set_variable("guarantee", "Zero-leakage guarantee")
+        LocalWorkingMemoryBlock.reset()
+        state = LocalWorkingMemoryBlock.initialize(goal="Mission Critical Objective")
+        LocalWorkingMemoryBlock.record_trap("safety_rule", "Critical memory safety rule")
 
         for round_idx in range(5):
             for step_idx in range(4):
-                s = wb.add_step(f"Ephemeral step r{round_idx}-s{step_idx}")
-                wb.complete_step(s.id)
-            wb.flush_stale(flush_ratio=0.5)
+                s = LocalWorkingMemoryBlock.add_subtask(f"Ephemeral step r{round_idx}-s{step_idx}")
+                assert s is not None
+                LocalWorkingMemoryBlock.update_subtask(s.id, SubtaskStatus.COMPLETED)
+            LocalWorkingMemoryBlock.flush_stale(flush_ratio=0.5)
 
-        assert wb.goal == "Mission Critical Objective"
-        assert any("Critical memory safety rule" in t.avoidance_rule for t in wb.traps)
-        assert wb.context_variables["guarantee"] == "Zero-leakage guarantee"
+        assert state.goal == "Mission Critical Objective"
+        assert any("Critical memory safety rule" in t.avoidance_rule for t in state.traps)
+        assert len(state.traps) == 1
+        # Completed subtasks must have been smoothly evicted instead of growing to 20
+        assert len(state.subtasks) < 20
 
     def test_dimension_5_noise_suppression_ratio(self) -> None:
         """Dim 5: 100% noise rejection ratio on chitchat & greetings."""

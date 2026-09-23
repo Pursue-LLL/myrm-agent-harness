@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import contextvars
+import math
 from typing import Literal
 
 from myrm_agent_harness.agent.context_management.working_memory.types import (
@@ -21,6 +22,7 @@ from myrm_agent_harness.agent.context_management.working_memory.types import (
     SubtaskItem,
     SubtaskStatus,
     TrapRecord,
+    WorkingMemoryFlushResult,
 )
 
 _WORKING_STATE_VAR: contextvars.ContextVar[LocalWorkingState | None] = contextvars.ContextVar(
@@ -181,11 +183,97 @@ class LocalWorkingMemoryBlock:
             state.status = status
 
     @classmethod
-    def format_turn_tail_markdown(cls, max_traps: int = 3) -> str:
+    def estimate_tokens(cls, state: LocalWorkingState | None = None) -> int:
+        """Estimate token footprint of the working memory state.
+
+        Uses standard character-to-token ratio (approx 3.2 chars/token across multilingual contexts)
+        to avoid heavy tokenizer runtime dependencies while guaranteeing deterministic boundaries.
+        """
+        target_state = state if state is not None else cls.get_state()
+        if target_state is None or not target_state.goal:
+            return 0
+        raw = (
+            target_state.goal
+            + "".join(f"{s.id}{s.title}{s.notes}" for s in target_state.subtasks)
+            + "".join(f"{t.fingerprint}{t.avoidance_rule}{t.tool_name or ''}" for t in target_state.traps)
+            + "".join(f"{k}{v}" for k, v in target_state.scratchpad.items())
+        )
+        return max(1, math.ceil(len(raw) / 3.2))
+
+    @classmethod
+    def flush_stale(
+        cls,
+        flush_ratio: float = 0.5,
+        token_budget: int | None = None,
+    ) -> WorkingMemoryFlushResult:
+        """Purge completed subtasks and stale scratchpad entries to prevent context bloat.
+
+        Prioritizes evicting oldest completed/skipped tasks, preserving the primary goal,
+        in-progress steps, pending obligations, and failure traps. Never drops active steps.
+        If token_budget is specified and current consumption is within budget, eviction is skipped.
+        """
+        state = cls.get_state()
+        if state is None:
+            return WorkingMemoryFlushResult()
+
+        before = cls.estimate_tokens(state)
+        if token_budget is not None and before <= token_budget:
+            return WorkingMemoryFlushResult(
+                evicted_subtasks_count=0,
+                evicted_scratchpad_count=0,
+                remaining_subtasks_count=len(state.subtasks),
+                remaining_scratchpad_count=len(state.scratchpad),
+                estimated_tokens_before=before,
+                estimated_tokens_after=before,
+            )
+
+        completed_indices = [
+            i
+            for i, s in enumerate(state.subtasks)
+            if s.status in (SubtaskStatus.COMPLETED, SubtaskStatus.SKIPPED)
+        ]
+        ratio = max(0.0, min(1.0, flush_ratio))
+        num_subtasks_to_evict = max(1, math.ceil(len(completed_indices) * ratio)) if completed_indices else 0
+        evict_indices = set(completed_indices[:num_subtasks_to_evict])
+
+        new_subtasks = [s for i, s in enumerate(state.subtasks) if i not in evict_indices]
+        evicted_subtasks = len(state.subtasks) - len(new_subtasks)
+        state.subtasks = new_subtasks
+
+        evicted_scratch_count = 0
+        current_tokens = cls.estimate_tokens(state)
+        should_evict_scratch = (
+            token_budget is not None and current_tokens > token_budget
+        ) or (token_budget is None and bool(state.scratchpad) and ratio > 0.0)
+
+        if should_evict_scratch and state.scratchpad:
+            keys = list(state.scratchpad.keys())
+            num_vars_to_evict = max(1, math.ceil(len(keys) * ratio))
+            for k in keys[:num_vars_to_evict]:
+                state.scratchpad.pop(k, None)
+                evicted_scratch_count += 1
+
+        after = cls.estimate_tokens(state)
+        return WorkingMemoryFlushResult(
+            evicted_subtasks_count=evicted_subtasks,
+            evicted_scratchpad_count=evicted_scratch_count,
+            remaining_subtasks_count=len(state.subtasks),
+            remaining_scratchpad_count=len(state.scratchpad),
+            estimated_tokens_before=before,
+            estimated_tokens_after=after,
+        )
+
+    @classmethod
+    def format_turn_tail_markdown(
+        cls,
+        max_traps: int = 3,
+        token_budget: int = 500,
+    ) -> str:
         """Format a compact, cache-friendly markdown workbench for dynamic turn tail injection.
 
         Ensures prompt-cache stability: injected ONLY in the dynamic suffix of the current
-        turn, keeping system prompt prefixes byte-identical.
+        turn, keeping system prompt prefixes byte-identical. Protects against context bloat
+        via sliding collapse of older completed subtasks when estimated tokens exceed token_budget.
         """
         state = cls.get_state()
         if state is None or not state.goal:
@@ -198,7 +286,23 @@ class LocalWorkingMemoryBlock:
 
         if state.subtasks:
             lines.append("**Subtasks**:")
-            for item in state.subtasks:
+
+            completed_indices = [
+                i
+                for i, s in enumerate(state.subtasks)
+                if s.status in (SubtaskStatus.COMPLETED, SubtaskStatus.SKIPPED)
+            ]
+            current_est = cls.estimate_tokens(state)
+
+            if current_est > token_budget and len(completed_indices) > 1:
+                collapse_count = len(completed_indices) - 1
+                hidden_indices = set(completed_indices[:collapse_count])
+                lines.append(f"- ✓ [{collapse_count} prior completed subtasks collapsed]")
+                visible_subtasks = [s for i, s in enumerate(state.subtasks) if i not in hidden_indices]
+            else:
+                visible_subtasks = state.subtasks
+
+            for item in visible_subtasks:
                 if item.status == SubtaskStatus.COMPLETED:
                     prefix = "[x]"
                 elif item.status == SubtaskStatus.IN_PROGRESS:

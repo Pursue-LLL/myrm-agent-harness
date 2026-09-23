@@ -1114,7 +1114,8 @@ rating_new = rating_old + alpha * (normalized - rating_old)
   - 基于 Python `contextvars.ContextVar` 实现并发强隔离的工作台，零 LLM 额外调用开销；
   - 结构化维护当前任务总目标（`goal`）、子任务流转状态（`subtasks`，含 `pending/in_progress/completed/failed`）与运行时避坑防线（`traps`，含 `fingerprint/avoidance_rule/tool_name/resolved`）；
   - 支持自愈状态翻转 `resolve_trap(fingerprint)`，在重试成功后将状态置为已解决；
-  - **Prompt Cache 铁律**：`format_turn_tail_markdown()` 严格仅在动态消息尾部（Turn Tail）输出 `<working_board>`，System Prompt 静态前缀 100% 保持字节一致，捍卫 90% 前缀缓存命中率。
+  - **平滑滑动淘汰机制 (`flush_stale`)**：内置零依赖高确定性 Token 估算，基于 `flush_stale(flush_ratio, token_budget)` 优先 FIFO 淘汰历史完成/跳过子任务与暂存记事，严密保护核心目标、活跃任务、失败排查与避坑防线；
+  - **Prompt Cache 铁律与因果链滑动折叠**：`format_turn_tail_markdown()` 严格仅在动态消息尾部（Turn Tail）输出 `<working_board>`，System Prompt 静态前缀 100% 保持字节一致，捍卫 90% 前缀缓存命中率；超预算时自动触发早期已完成项滑动折叠，防止长程任务上下文无界膨胀。
 - **终态异步提炼与固化中枢（`HyperConsolidator`）**：
   - 核心位置：`myrm_agent_harness.toolkits.memory.consolidation`；
   - 具备低门槛轻量门禁守卫（`gatekeeper`）：会话交互 <= 1 轮且无子任务推进时自动绕过，避免无谓的模型消耗；

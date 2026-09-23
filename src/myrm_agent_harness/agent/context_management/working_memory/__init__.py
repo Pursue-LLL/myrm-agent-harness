@@ -30,6 +30,7 @@ from myrm_agent_harness.agent.context_management.working_memory.types import (
     SubtaskItem,
     SubtaskStatus,
     TrapRecord,
+    WorkingMemoryFlushResult,
 )
 
 __all__ = [
@@ -39,6 +40,7 @@ __all__ = [
     "SubtaskItem",
     "SubtaskStatus",
     "TrapRecord",
+    "WorkingMemoryFlushResult",
     "WorkingMemoryMark",
     "get_message_marks",
     "has_message_marks",

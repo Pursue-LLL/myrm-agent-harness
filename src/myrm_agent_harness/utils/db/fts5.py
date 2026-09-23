@@ -20,11 +20,21 @@ file-level guards in ``sqlite/integrity.py`` to cover FTS5 virtual table indexes
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import re
 import sqlite3
+from typing import Protocol, runtime_checkable
 
 logger = logging.getLogger(__name__)
+
+
+@runtime_checkable
+class ConnectionLike(Protocol):
+    """Protocol for SQLite connection or proxy wrapping a SQLite connection."""
+
+    def execute(self, sql: str, *args: object, **kwargs: object) -> object:
+        ...
 
 
 def sanitize_fts5_query(query: str) -> str:
@@ -214,7 +224,7 @@ def fts5_auto_heal(conn: sqlite3.Connection, table: str) -> bool:
 
 
 def safe_purge_fts5_virtual_table(
-    conn: Any,
+    conn: sqlite3.Connection | ConnectionLike,
     table: str,
 ) -> None:
     """Safely purge an FTS5 virtual table without leaving shadow-table orphan rows.
@@ -246,8 +256,6 @@ def safe_purge_fts5_virtual_table(
         except sqlite3.OperationalError as exc:
             logger.warning("FTS5 direct delete failed for %s: %s", table, exc)
 
-    try:
+    with contextlib.suppress(sqlite3.OperationalError):
         raw_conn.execute(f"INSERT INTO {table}({table}) VALUES('optimize')")
-    except sqlite3.OperationalError:
-        pass
     logger.info("FTS5 table safely purged and optimized: %s", table)

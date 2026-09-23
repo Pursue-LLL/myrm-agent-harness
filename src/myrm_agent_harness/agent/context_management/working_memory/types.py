@@ -8,6 +8,7 @@
 - SubtaskItem: 子任务结构化条目
 - TrapRecord: 运行时错误避坑防线记录
 - LocalWorkingState: 手边工作台完整状态快照
+- WorkingMemoryFlushResult: 工作记忆滑动淘汰统计结果
 
 [POS]
 - 工作台领域类型定义层。提供运行时任务推进与避坑防线所需的所有强类型数据模型。
@@ -65,3 +66,16 @@ class LocalWorkingState:
     traps: list[TrapRecord] = field(default_factory=list)
     scratchpad: dict[str, str] = field(default_factory=dict)
     active_turn: int = 0
+
+
+@dataclass(slots=True)
+class WorkingMemoryFlushResult:
+    """Outcome metrics from purging stale entries in working memory."""
+
+    evicted_subtasks_count: int = 0
+    evicted_scratchpad_count: int = 0
+    remaining_subtasks_count: int = 0
+    remaining_scratchpad_count: int = 0
+    estimated_tokens_before: int = 0
+    estimated_tokens_after: int = 0
+

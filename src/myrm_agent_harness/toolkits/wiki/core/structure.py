@@ -57,8 +57,14 @@ class WikiStructure:
         self.public_dirs = [Path(p) for p in public_dirs] if public_dirs else []
         self.public_dir_labels = public_dir_labels or {}
         self.raw_dir = self.base_dir / "raw"
+        self.sources_dir = self.base_dir / "sources"
         self.wiki_dir = self.base_dir / "wiki"
         self.concepts_dir = self.wiki_dir / "concepts"
+        self.claims_dir = self.concepts_dir / "claims"
+        self.methods_dir = self.concepts_dir / "methods"
+        self.templates_dir = self.concepts_dir / "templates"
+        self.deliverables_dir = self.base_dir / "deliverables"
+        self.inbox_dir = self.base_dir / "inbox"
         self.archive_dir = self.wiki_dir / "archive" / "concepts"
 
     def ensure_structure(self) -> None:
@@ -66,8 +72,14 @@ class WikiStructure:
         for directory in [
             self.base_dir,
             self.raw_dir,
+            self.sources_dir,
             self.wiki_dir,
             self.concepts_dir,
+            self.claims_dir,
+            self.methods_dir,
+            self.templates_dir,
+            self.deliverables_dir,
+            self.inbox_dir,
             self.archive_dir,
             self.wiki_dir / "assets",
         ]:
@@ -76,6 +88,42 @@ class WikiStructure:
     def get_raw_file_path(self, filename: str) -> Path:
         """Get path for a raw document, with boundary validation against traversal."""
         return safe_join_path(self.raw_dir, filename)
+
+    def get_source_file_path(self, source_id: str) -> Path:
+        """Get path for a structured source identity card (sources/<source_id>.md)."""
+        safe_name = self._sanitize_path(source_id)
+        path = self.sources_dir / f"{safe_name}.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def get_deliverable_file_path(self, filename: str) -> Path:
+        """Get path for a task deliverable (deliverables/<filename>)."""
+        return safe_join_path(self.deliverables_dir, filename)
+
+    def get_inbox_file_path(self, filename: str) -> Path:
+        """Get path for an external radar ingested item in inbox/."""
+        return safe_join_path(self.inbox_dir, filename)
+
+    def get_claim_file_path(self, claim_path: str) -> Path:
+        """Get path for a subjective author claim page."""
+        safe_path = self._sanitize_path(claim_path)
+        path = self.claims_dir / f"{safe_path}.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def get_method_file_path(self, method_path: str) -> Path:
+        """Get path for an operational methodology page."""
+        safe_path = self._sanitize_path(method_path)
+        path = self.methods_dir / f"{safe_path}.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def get_template_file_path(self, template_path: str) -> Path:
+        """Get path for a reusable work template page."""
+        safe_path = self._sanitize_path(template_path)
+        path = self.templates_dir / f"{safe_path}.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
 
     def get_concept_file_path(self, concept_path: str) -> Path:
         """Get path for a concept article in the local writable directory. Supports nested paths."""

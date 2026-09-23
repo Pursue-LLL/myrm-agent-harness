@@ -51,6 +51,7 @@
 | `strategies/` | Filter / Compress / Summarize / Reasoning 四档策略；包含推理链决策锚点提取与账本管理；Summarize 支持 Split Turn 活跃轮次前缀提炼，使用 structured output 防 JSON 脆弱性 |
 | infra/ | Token 估算、预算管理、schemas、cache policy、retention_helpers（compression_intent 提取与 retain 判定） |
 | `archive_checkpoint/` | Lite-LLM archive summary 检查点 Protocol + 持久化 |
+| `working_memory/` | 运行时手边工作台（LocalWorkingMemoryBlock），管理目标栈、子任务流转与避坑防线，支持滑动窗口淘汰与因果链折叠，仅在 Turn Tail 注入确保 Prompt Cache 安全 |
 | `tracking/` | Artifact 追踪、task metrics、archive 读预算 |
 | `preheat.py` | 显式 cache provider 前缀预热（Agent 启动 + 压缩后） |
 | `pre_compact_service.py` | 压缩前 MemoryPreCompact 回调 |
