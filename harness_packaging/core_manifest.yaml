@@ -11,5 +11,7 @@ directories:
   - toolkits/memory/strategies
   - toolkits/memory/cognitive
   - toolkits/memory/proactive
+  - toolkits/memory/file_sync
+  - toolkits/memory/tool_guidance
 
 modules: []

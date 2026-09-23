@@ -87,6 +87,8 @@ _MEMORY_MANIFEST_PREFIXES: tuple[str, ...] = (
     "toolkits/memory/strategies",
     "toolkits/memory/cognitive",
     "toolkits/memory/proactive",
+    "toolkits/memory/file_sync",
+    "toolkits/memory/tool_guidance",
 )
 
 _MEMORY_PUBLIC_SUBDIRS: frozenset[str] = frozenset(
