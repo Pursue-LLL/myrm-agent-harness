@@ -126,3 +126,60 @@ async def test_batch_processor_denies_destructive_tools_under_yolo_untrusted_ing
     assert len(approved) == 1
     assert approved[0][1]["name"] == "grep_tool"
 
+
+def test_cross_modal_and_subagent_tools_blocked_under_untrusted_ingress():
+    """Verify that desktop control, mobile ADB, subagent delegation, and cron tools are blocked."""
+    high_risk_tools = [
+        "desktop_interact_tool",
+        "desktop_vision_tool",
+        "mobile_interact_tool",
+        "mobile_global_tool",
+        "delegate_task_tool",
+        "subagent_control_tool",
+        "invoke_acp_agent_tool",
+        "cron_manage_tool",
+    ]
+    for tool in high_risk_tools:
+        assert not is_tool_allowed_under_untrusted_ingress(tool), f"Tool {tool} should be blocked"
+
+
+def test_filter_untrusted_ingress_tools_strips_cross_modal_and_delegation():
+    """Verify filter_untrusted_ingress_tools removes desktop and subagent delegation tools."""
+    set_untrusted_ingress(True)
+    tools = [
+        "desktop_interact_tool",
+        "file_read_tool",
+        "delegate_task_tool",
+        "web_search_tool",
+    ]
+    filtered = filter_untrusted_ingress_tools(tools)
+    assert filtered == ["file_read_tool", "web_search_tool"]
+
+
+@pytest.mark.asyncio
+async def test_batch_processor_denies_desktop_and_subagent_under_untrusted_ingress():
+    """Verify evaluate_tool_batch rejects desktop_interact_tool and delegate_task_tool under ingress fence."""
+    from myrm_agent_harness.agent.middlewares.approval.batch_processor import evaluate_tool_batch
+    from myrm_agent_harness.agent.security.types import SecurityConfig
+
+    config = SecurityConfig(yolo_mode_enabled=True)
+    set_untrusted_ingress(True)
+
+    tool_calls = [
+        {"name": "desktop_interact_tool", "args": {"action": "click", "x": 100, "y": 200}},
+        {"name": "delegate_task_tool", "args": {"subagent": "worker", "task": "run"}},
+        {"name": "file_read_tool", "args": {"path": "/workspace/doc.md"}},
+    ]
+    approved, denied, _pending = await evaluate_tool_batch(
+        tool_calls, config, False, "/tmp", "sess_cross_modal_test", {}
+    )
+
+    assert len(denied) == 2
+    denied_names = {call[1]["name"] for call in denied}
+    assert denied_names == {"desktop_interact_tool", "delegate_task_tool"}
+    assert "Untrusted ingress fence" in denied[0][2]
+    assert "Untrusted ingress fence" in denied[1][2]
+    assert len(approved) == 1
+    assert approved[0][1]["name"] == "file_read_tool"
+
+

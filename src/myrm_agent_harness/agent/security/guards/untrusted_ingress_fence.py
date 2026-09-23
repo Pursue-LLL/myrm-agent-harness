@@ -27,6 +27,8 @@ import logging
 from collections.abc import Iterable
 from contextvars import ContextVar
 
+from myrm_agent_harness.core.security.tool_registry.registry import resolve_permission_type
+
 logger = logging.getLogger(__name__)
 
 # Tools strictly disallowed when handling untrusted external inputs.
@@ -37,6 +39,20 @@ DISALLOWED_UNTRUSTED_TOOLS: frozenset[str] = frozenset(
         "shell_exec",
         "file_write_tool",
         "file_edit_tool",
+    }
+)
+
+# High-risk abstract permission types strictly disallowed under untrusted ingress.
+# Automatically blocks desktop control, mobile ADB, subagent escalation, and cron backdoors.
+DISALLOWED_UNTRUSTED_PERMISSIONS: frozenset[str] = frozenset(
+    {
+        "code_interpreter",
+        "file_write",
+        "desktop_control",
+        "mobile_control",
+        "spawn_subagent",
+        "invoke_external_agent",
+        "cron_manage",
     }
 )
 
@@ -63,10 +79,16 @@ def reset_untrusted_ingress() -> None:
 def is_tool_allowed_under_untrusted_ingress(tool_name: str) -> bool:
     """Check whether a specific tool is permitted under an untrusted ingress session.
 
-    Returns False if the tool is in DISALLOWED_UNTRUSTED_TOOLS.
+    Blocks if the tool name is in DISALLOWED_UNTRUSTED_TOOLS or if its resolved
+    abstract permission type is in DISALLOWED_UNTRUSTED_PERMISSIONS.
     """
     clean_name = tool_name.strip().lower()
-    return clean_name not in DISALLOWED_UNTRUSTED_TOOLS
+    if clean_name in DISALLOWED_UNTRUSTED_TOOLS:
+        return False
+
+    perm_type = resolve_permission_type(clean_name)
+    return perm_type not in DISALLOWED_UNTRUSTED_PERMISSIONS
+
 
 
 def filter_untrusted_ingress_tools(tool_names: Iterable[str]) -> list[str]:

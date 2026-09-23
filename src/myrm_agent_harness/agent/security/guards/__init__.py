@@ -24,12 +24,39 @@ from .negative_constraint_guard import (
     get_compliance_gate,
     reset_compliance_gate,
 )
+from .taint_tracker import (
+    TaintLabel,
+    TaintTracker,
+    get_taint_tracker,
+    reset_taint_tracker,
+)
+from .untrusted_ingress_fence import (
+    DISALLOWED_UNTRUSTED_PERMISSIONS,
+    DISALLOWED_UNTRUSTED_TOOLS,
+    filter_untrusted_ingress_tools,
+    is_tool_allowed_under_untrusted_ingress,
+    is_untrusted_ingress_active,
+    reset_untrusted_ingress,
+    set_untrusted_ingress,
+)
 
 __all__ = [
+    "DISALLOWED_UNTRUSTED_PERMISSIONS",
+    "DISALLOWED_UNTRUSTED_TOOLS",
     "NegativeConstraint",
     "NegativeConstraintComplianceGate",
     "NegativeConstraintVerdict",
+    "TaintLabel",
+    "TaintTracker",
     "VetoAction",
+    "filter_untrusted_ingress_tools",
     "get_compliance_gate",
+    "get_taint_tracker",
+    "is_tool_allowed_under_untrusted_ingress",
+    "is_untrusted_ingress_active",
     "reset_compliance_gate",
+    "reset_taint_tracker",
+    "reset_untrusted_ingress",
+    "set_untrusted_ingress",
 ]
+
