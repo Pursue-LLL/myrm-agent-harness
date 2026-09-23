@@ -19,6 +19,37 @@ from myrm_agent_harness.toolkits.memory.types import (
 )
 
 
+def _upserted_documents(vector_store: AsyncMock) -> list[object]:
+    """Flatten every document passed to ``upsert`` in call order."""
+    documents: list[object] = []
+    for call in vector_store.upsert.call_args_list:
+        for arg in call.args:
+            if isinstance(arg, list):
+                documents.extend(arg)
+    return documents
+
+
+def _consolidated_memory_id(vector_store: AsyncMock) -> str:
+    """Return the id of the consolidated (non-deprecated) entry, if any."""
+    for document in _upserted_documents(vector_store):
+        metadata = getattr(document, "metadata", None) or {}
+        if metadata.get("is_deprecated") is not True:
+            document_id = getattr(document, "id", "")
+            if document_id:
+                return str(document_id)
+    return ""
+
+
+def _superseded_entry_ids(vector_store: AsyncMock, consolidated_id: str) -> set[str]:
+    """Return ids of entries deprecated in favour of ``consolidated_id``."""
+    superseded: set[str] = set()
+    for document in _upserted_documents(vector_store):
+        metadata = getattr(document, "metadata", None) or {}
+        if metadata.get("is_deprecated") is True and metadata.get("superseded_by") == consolidated_id:
+            superseded.add(str(getattr(document, "id", "")))
+    return superseded
+
+
 class TestSessionManagement:
     """Test session-related methods."""
 
