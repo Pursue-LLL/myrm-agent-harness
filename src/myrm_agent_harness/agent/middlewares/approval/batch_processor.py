@@ -42,6 +42,10 @@ from myrm_agent_harness.agent.security.engine import (
 from myrm_agent_harness.agent.security.guards.skill_approval_hook import (
     HookAction,
 )
+from myrm_agent_harness.agent.security.guards.untrusted_ingress_fence import (
+    is_tool_allowed_under_untrusted_ingress,
+    is_untrusted_ingress_active,
+)
 from myrm_agent_harness.agent.security.path_security import (
     is_protected_instruction_file,
 )
@@ -217,6 +221,24 @@ async def evaluate_tool_batch(
                 )
                 auto_denied.append((idx, tool_call, operator_deny))
                 continue
+            if is_untrusted_ingress_active() and not is_tool_allowed_under_untrusted_ingress(tool_name):
+                logger.warning(
+                    "[INGRESS_FENCE] Tool %s DENIED under untrusted ingress (YOLO overridden)",
+                    tool_name,
+                )
+                record_decision(
+                    tool_name,
+                    "INGRESS_FENCE_YOLO_BLOCKED",
+                    f"Tool '{tool_name}' stripped under untrusted ingress",
+                )
+                auto_denied.append(
+                    (
+                        idx,
+                        tool_call,
+                        f"Untrusted ingress fence: tool '{tool_name}' stripped for external tasks",
+                    )
+                )
+                continue
             permission_type = resolve_permission_type(tool_name, tool_input)
             action, reason = evaluate_tool_call(
                 permission_type,
@@ -324,6 +346,26 @@ async def evaluate_tool_batch(
                 "Lone printable operator rejected as vision key name",
             )
             auto_denied.append((idx, tool_call, operator_deny))
+            continue
+
+        if is_untrusted_ingress_active() and not is_tool_allowed_under_untrusted_ingress(tool_name):
+            logger.warning(
+                "[INGRESS_FENCE] Auto-deny %s under untrusted ingress (session: %s)",
+                tool_name,
+                session_key,
+            )
+            record_decision(
+                tool_name,
+                "INGRESS_FENCE_DENY",
+                f"Tool '{tool_name}' stripped under untrusted ingress",
+            )
+            auto_denied.append(
+                (
+                    idx,
+                    tool_call,
+                    f"Untrusted ingress fence: tool '{tool_name}' stripped for external tasks",
+                )
+            )
             continue
 
         permission_type = resolve_permission_type(tool_name, tool_input)

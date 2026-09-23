@@ -49,6 +49,7 @@ class TaskStatus(StrEnum):
     """A2A Task execution lifecycle states."""
 
     PENDING = "pending"
+    PENDING_APPROVAL = "pending_approval"
     WORKING = "working"
     COMPLETED = "completed"
     FAILED = "failed"
@@ -237,6 +238,7 @@ class A2ATask(BaseModel, frozen=True):
     updated_at: float = Field(alias="updatedAt")
     error: str | None = None
     agent_id: str | None = Field(default=None, alias="agentId")
+    peer_id: str | None = Field(default=None, alias="peerId")
     push_url: str | None = Field(default=None, alias="pushUrl")
     push_secret: str | None = Field(default=None, alias="pushSecret")
 
