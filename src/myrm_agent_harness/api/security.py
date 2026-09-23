@@ -18,6 +18,15 @@ from myrm_agent_harness.agent.security.batch_risk import (
     BatchRiskReport,
     classify_batch_approval_risk,
 )
+from myrm_agent_harness.agent.security.guards import (
+    TaintLabel,
+    get_taint_tracker,
+    set_untrusted_ingress,
+)
+from myrm_agent_harness.agent.security.detection.content_boundary import (
+    detect_suspicious,
+    wrap_untrusted,
+)
 from myrm_agent_harness.agent.security.managed_approval_policy import (
     ManagedApprovalPolicy,
     configure_process_managed_approval_policy,
@@ -37,12 +46,17 @@ __all__ = [
     "BatchRiskItemDetail",
     "BatchRiskReport",
     "ManagedApprovalPolicy",
+    "TaintLabel",
     "classify_batch_approval_risk",
     "clear_dynamic_blocked_hostnames",
     "configure_process_managed_approval_policy",
+    "detect_suspicious",
     "get_process_managed_approval_policy",
     "get_process_managed_approval_revision",
+    "get_taint_tracker",
     "load_managed_approval_policy_from_env",
     "register_blocked_hostnames",
+    "set_untrusted_ingress",
     "unregister_blocked_hostnames",
+    "wrap_untrusted",
 ]
