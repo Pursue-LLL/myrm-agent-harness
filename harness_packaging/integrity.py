@@ -58,10 +58,9 @@ DISTRIBUTION_PUBLIC_MARKER = "@distribution-public"
 _MARKER_SCAN_BYTES = 4096
 
 # Sibling zones: new subdirectories/files outside known public trees need manifest or marker.
-_PARENT_WATCH_ZONES: tuple[tuple[str, str, frozenset[str]], ...] = (
+_PARENT_WATCH_ZONES: tuple[tuple[str, frozenset[str]], ...] = (
     (
         "agent/skills/",
-        "agent/skills/evolution",
         frozenset(
             {
                 "curator",
@@ -78,82 +77,59 @@ _PARENT_WATCH_ZONES: tuple[tuple[str, str, frozenset[str]], ...] = (
     ),
     (
         "agent/context_management/",
-        "agent/context_management/pipeline",
         frozenset({"archive_checkpoint", "infra", "strategies", "tracking", "downshift", "working_memory"}),
     ),
+    (
+        "toolkits/memory/",
+        frozenset(
+            {
+                "graph",
+                "integration",
+                "protocols",
+                "relational",
+                "_manager",
+                "conversation_search",
+                "_internal",
+                "agent_surface",
+                "governance",
+                "working_tree",
+            }
+        ),
+    ),
 )
-
-_MEMORY_MANIFEST_PREFIXES: tuple[str, ...] = (
-    "toolkits/memory/strategies",
-    "toolkits/memory/cognitive",
-    "toolkits/memory/proactive",
-    "toolkits/memory/file_sync",
-    "toolkits/memory/tool_guidance",
-)
-
-_MEMORY_PUBLIC_SUBDIRS: frozenset[str] = frozenset(
-    {
-        "graph",
-        "integration",
-        "protocols",
-        "relational",
-        "_manager",
-        "conversation_search",
-        "_internal",
-        "agent_surface",
-        "governance",
-        "working_tree",
-    }
-)
-
 
 def _file_has_public_marker(module_file: Path) -> bool:
     head = module_file.read_bytes()[:_MARKER_SCAN_BYTES].decode("utf-8", errors="ignore")
     return DISTRIBUTION_PUBLIC_MARKER in head
 
 
-def _is_under_manifest_dir(rel_posix: str, manifest_dir: str) -> bool:
-    return rel_posix == manifest_dir or rel_posix.startswith(f"{manifest_dir}/")
-
-
 def manifest_watch_violations() -> tuple[str, ...]:
-    """Return ``myrm_agent_harness/``-relative paths missing manifest coverage or public marker."""
-    manifest = load_core_manifest()
-    manifest_files = {path.resolve() for path in manifest.module_paths}
+    """Return ``myrm_agent_harness/``-relative paths missing manifest coverage or public marker.
+
+    Coverage is judged by ``manifest_source_paths()``, the very list the release wheel
+    strips and ``build_core.py`` compiles. Reading that list here keeps a single source
+    of truth: a module covered by the manifest can never be silently shipped in clear,
+    and no second registry has to be kept in step. A package ``__init__.py`` is skipped
+    because the manifest intentionally leaves those as readable re-export stubs.
+    """
+    manifest_relpaths = frozenset(manifest_source_paths())
     src_root = repo_root() / "src" / "myrm_agent_harness"
     violations: list[str] = []
 
-    for parent_prefix, manifest_dir_prefix, public_subdirs in _PARENT_WATCH_ZONES:
+    for parent_prefix, public_subdirs in _PARENT_WATCH_ZONES:
         zone_root = src_root / parent_prefix
         if not zone_root.is_dir():
             continue
         for module_file in sorted(zone_root.rglob("*.py")):
             rel = module_file.relative_to(src_root).as_posix()
-            if _is_under_manifest_dir(rel, manifest_dir_prefix):
+            if module_file.name == "__init__.py":
                 continue
             rel_to_parent = module_file.relative_to(zone_root)
             if len(rel_to_parent.parts) == 1:
                 continue
             if rel_to_parent.parts[0] in public_subdirs:
                 continue
-            if module_file.resolve() in manifest_files:
-                continue
-            if _file_has_public_marker(module_file):
-                continue
-            violations.append(rel)
-
-    memory_root = src_root / "toolkits/memory"
-    if memory_root.is_dir():
-        for module_file in sorted(memory_root.rglob("*.py")):
-            rel = module_file.relative_to(src_root).as_posix()
-            if any(_is_under_manifest_dir(rel, prefix) for prefix in _MEMORY_MANIFEST_PREFIXES):
-                continue
-            rel_to_memory = module_file.relative_to(memory_root)
-            if len(rel_to_memory.parts) == 1:
-                continue
-            if rel_to_memory.parts[0] in _MEMORY_PUBLIC_SUBDIRS:
-                continue
-            if module_file.resolve() in manifest_files:
+            if f"myrm_agent_harness/{rel}" in manifest_relpaths:
                 continue
             if _file_has_public_marker(module_file):
                 continue
