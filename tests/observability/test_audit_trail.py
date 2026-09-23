@@ -17,7 +17,9 @@ from myrm_agent_harness.observability.audit_trail import (
 
 def test_zero_leakage_redaction_and_fingerprints():
     """Verify that credentials, API keys, passwords and tokens are scrubbed with length fingerprints."""
-    raw_text = "Invoking external API with Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9 and sk-ant-api03-1234567890abcdef1234"
+    raw_text = (
+        "Invoking external API with Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9 and sk-ant-api03-1234567890abcdef1234"
+    )
     scrubbed = redact_string(raw_text)
 
     assert "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9" not in scrubbed
@@ -43,6 +45,35 @@ def test_zero_leakage_redaction_and_fingerprints():
     fp = compute_redaction_fingerprint("sealed-content-body")
     assert fp.startswith("sha256:")
     assert len(fp) == 71  # sha256: + 64 hex chars
+    assert redact_string("") == ""
+    assert sanitize_sensitive_data({"ids": {"a", "b"}})["ids"] == {"a", "b"}
+    assert sanitize_sensitive_data(42) == 42
+
+
+def test_redaction_covers_provider_prefixes_and_pem_blocks():
+    """Slack user/app tokens, Google/AWS keys, and PEM blocks must not leak in free text."""
+    raw_text = (
+        "xoxp-123456789012-123456789012-abcdefghijklmnopqrstuv "
+        "AIzaSyDdI4bF6w6v6v6v6v6v6v6v6v6v6v6v6v6 "
+        "AKIAIOSFODNN7EXAMPLE "
+        "-----BEGIN RSA PRIVATE KEY-----\nMIIBOgIBAAJBAK3e\n-----END RSA PRIVATE KEY-----"
+    )
+    scrubbed = redact_string(raw_text)
+    assert "xoxp-123456789012" not in scrubbed
+    assert "AIzaSyDdI4bF6w6v6v6v6v6v6v6v6v6v6v6v6v6" not in scrubbed
+    assert "AKIAIOSFODNN7EXAMPLE" not in scrubbed
+    assert "MIIBOgIBAAJBAK3e" not in scrubbed
+    assert scrubbed.count("[REDACTED:len=") == 4
+
+
+def test_redaction_handles_overlapping_and_nested_containers():
+    """Overlapping bearer+key text and tuple payloads must not leak or crash."""
+    both = redact_string("Bearer sk-mocktestsecret1234567890 and xoxb-mockslacktoken12345678")
+    assert "sk-mocktestsecret" not in both
+    assert "xoxb-mockslacktoken" not in both
+    assert sanitize_sensitive_data(("plain", 7)) == ["plain", 7]
+    assert sanitize_sensitive_data({"tokens": {"sk-mocktestsecret1234567890"}}) == {"tokens": "[REDACTED_SECRET]"}
+    assert sanitize_sensitive_data({"ids": {"a", "b"}}) == {"ids": {"a", "b"}}
 
 
 def test_dual_track_collector_lifecycle_and_pairing():

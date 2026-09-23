@@ -41,13 +41,14 @@ class TaintLabel(StrEnum):
     EXTERNAL_NETWORK = "external_network"
     SECRET = "secret"
     PII_SENSITIVE = "pii_sensitive"
+    UNTRUSTED_INGRESS = "untrusted_ingress"
 
 
 TAINT_SINK_POLICIES: dict[str, frozenset[TaintLabel]] = {
-    "bash_code_execute_tool": frozenset({TaintLabel.EXTERNAL_NETWORK}),
-    "shell_exec": frozenset({TaintLabel.EXTERNAL_NETWORK}),
-    "file_write_tool": frozenset({TaintLabel.EXTERNAL_NETWORK}),
-    "file_edit_tool": frozenset({TaintLabel.EXTERNAL_NETWORK}),
+    "bash_code_execute_tool": frozenset({TaintLabel.EXTERNAL_NETWORK, TaintLabel.UNTRUSTED_INGRESS}),
+    "shell_exec": frozenset({TaintLabel.EXTERNAL_NETWORK, TaintLabel.UNTRUSTED_INGRESS}),
+    "file_write_tool": frozenset({TaintLabel.EXTERNAL_NETWORK, TaintLabel.UNTRUSTED_INGRESS}),
+    "file_edit_tool": frozenset({TaintLabel.EXTERNAL_NETWORK, TaintLabel.UNTRUSTED_INGRESS}),
     "web_fetch_tool": frozenset({TaintLabel.SECRET}),
     "browser_navigate_tool": frozenset({TaintLabel.SECRET}),
     "browser_snapshot_tool": frozenset({TaintLabel.SECRET}),
@@ -96,6 +97,14 @@ class TaintTracker:
         if source and source not in self._taints[label]:
             self._taints[label].add(source)
             logger.info("[TAINT] Added source '%s' to label %s", source, label)
+
+    def record_ingress_taint(
+        self,
+        label: TaintLabel = TaintLabel.UNTRUSTED_INGRESS,
+        source: str | None = None,
+    ) -> None:
+        """Record taint from an external inbound message (e.g. untrusted A2A or channel webhook)."""
+        self.record(label, source)
 
     def record_tool_output(self, tool_name: str, tool_input: dict[str, object] | None = None) -> None:
         """Record taint from a tool's output, extracting source via safety metadata."""

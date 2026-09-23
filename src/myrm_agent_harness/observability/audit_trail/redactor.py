@@ -23,9 +23,23 @@ _SECRET_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     # Authorization header Bearer token
     (re.compile(r"(?i)(bearer\s+)([a-zA-Z0-9_\-\.]{8,})"), r"\1"),
     # Generic API Keys / Tokens: api_key, token, password, secret, private_key with = / : / whitespace
-    (re.compile(r"(?i)(api[_-]?key|token|password|secret|passwd|access[_-]?key|auth[_-]?key)\s*[:=\s]\s*['\"]?([a-zA-Z0-9_\-\.]{6,})['\"]?"), r"\1"),
-    # OpenAI / Anthropic / GitHub token prefixes
-    (re.compile(r"\b(sk-[a-zA-Z0-9_\-]{16,}|ghp_[a-zA-Z0-9]{20,}|gho_[a-zA-Z0-9]{20,}|xoxb-[a-zA-Z0-9_\-]{16,})\b"), ""),
+    (
+        re.compile(
+            r"(?i)(api[_-]?key|token|password|secret|passwd|access[_-]?key|auth[_-]?key)\s*[:=\s]\s*['\"]?([a-zA-Z0-9_\-\.]{6,})['\"]?"
+        ),
+        r"\1",
+    ),
+    # OpenAI / Anthropic / GitHub / Slack token prefixes
+    (
+        re.compile(
+            r"\b(sk-[a-zA-Z0-9_\-]{16,}|ghp_[a-zA-Z0-9]{20,}|gho_[a-zA-Z0-9]{20,}|xox[baprs]-[a-zA-Z0-9_\-]{16,})\b"
+        ),
+        "",
+    ),
+    # Google API keys and AWS access key IDs
+    (re.compile(r"\b(AIza[a-zA-Z0-9_\-]{35}|AKIA[0-9A-Z]{16})\b"), ""),
+    # PEM private key blocks (multiline, DOTALL inline)
+    (re.compile(r"(?s)-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----"), ""),
 ]
 
 
@@ -35,7 +49,7 @@ def redact_string(val: str) -> str:
         return val
 
     res = val
-    for pattern, prefix_group in _SECRET_PATTERNS:
+    for pattern, _prefix_group in _SECRET_PATTERNS:
         matches = list(pattern.finditer(res))
         for match in reversed(matches):
             full_span = match.span()

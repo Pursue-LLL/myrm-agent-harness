@@ -156,6 +156,7 @@ class AgentEventType(StrEnum):
     CAPABILITY_GAP = "capability_gap"
     SKILL_GAP = "skill_gap"
     PHASE_TRANSITION = "phase_transition"
+    WORKING_MEMORY = "working_memory"
 
 
 class ExecutionPhase(StrEnum):

@@ -20,9 +20,9 @@ import json
 import logging
 from typing import Literal
 
-from pydantic import BaseModel, Field
 from langchain_core.callbacks.manager import dispatch_custom_event
 from langchain_core.tools import BaseTool, tool
+from pydantic import BaseModel, Field
 
 from myrm_agent_harness.agent.context_management.working_memory.block import (
     LocalWorkingMemoryBlock,
@@ -252,6 +252,18 @@ def create_working_memory_manage_tool() -> BaseTool:
 
                 safe_value = value[:2000] if len(value) > 2000 else value
                 LocalWorkingMemoryBlock.set_scratchpad(key=key, value=safe_value)
+
+                try:
+                    dispatch_custom_event(
+                        "working_memory_update",
+                        {
+                            "action": "set_scratchpad",
+                            "key": key,
+                        },
+                    )
+                except Exception as exc:
+                    logger.debug("Failed to dispatch working_memory_update event: %s", exc)
+
                 return json.dumps({
                     "status": "success",
                     "action": "set_scratchpad",

@@ -27,6 +27,7 @@ Design:
 
 [INPUT]
 - agent.context_management.infra.schemas::DEFAULT_CONTEXT_CONFIG (POS: Planner Schema Definitions)
+- agent.context_management.infra.compactor_guard::CompactorPreflightFence (POS: Compactor preflight guard fence preventing ContextLengthExceeded)
 
 [OUTPUT]
 - SummarizeProcessor: class — Summarize Processor

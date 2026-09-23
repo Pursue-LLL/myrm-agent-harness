@@ -429,6 +429,24 @@ class StreamDispatcherMixin:
                     ctx,
                 )
 
+        elif event_name == "working_memory_update":
+            from myrm_agent_harness.agent.context_management.working_memory.block import (
+                LocalWorkingMemoryBlock,
+            )
+
+            event_data = data.get("data", {})
+            action = event_data.get("action") if isinstance(event_data, dict) else None
+            live_dict = LocalWorkingMemoryBlock.to_dict()
+            await self._emit_event(
+                {
+                    "type": AgentEventType.WORKING_MEMORY.value,
+                    "data": live_dict,
+                    "action": action,
+                    "messageId": ctx.message_id,
+                },
+                ctx,
+            )
+
     def _restore_pseudonyms(self, text: str) -> str:
         """Restore pseudonymized placeholders in streamed text chunks.
 

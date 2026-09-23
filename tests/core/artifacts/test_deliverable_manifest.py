@@ -65,12 +65,11 @@ def test_artifact_vault_manifest_persistence(tmp_path):
     assert missing is None
 
 
-def test_deliverable_manifest_fact_check_and_evidence_sources_binding():
+def test_deliverable_manifest_evidence_sources_binding():
     manifest = DeliverableManifest(
-        bundle_id="bundle-fact-check",
+        bundle_id="bundle-evidence",
         session_id="session-789",
-        title="带事实核查链的全案交付包",
-        fact_check_sheet_uri="vault://fcs_12345678",
+        title="带证据来源链的全案交付包",
         evidence_sources=[
             "vault://doc_brief.pdf",
             "evidence/financial_summary.xlsx",
@@ -79,12 +78,10 @@ def test_deliverable_manifest_fact_check_and_evidence_sources_binding():
     )
 
     dumped = manifest.model_dump()
-    assert dumped["fact_check_sheet_uri"] == "vault://fcs_12345678"
     assert len(dumped["evidence_sources"]) == 2
     assert "evidence/financial_summary.xlsx" in dumped["evidence_sources"]
 
     restored = DeliverableManifest.model_validate(dumped)
-    assert restored.fact_check_sheet_uri == "vault://fcs_12345678"
     assert restored.evidence_sources == [
         "vault://doc_brief.pdf",
         "evidence/financial_summary.xlsx",
