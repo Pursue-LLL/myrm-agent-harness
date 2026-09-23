@@ -43,16 +43,20 @@ DISALLOWED_UNTRUSTED_TOOLS: frozenset[str] = frozenset(
 )
 
 # High-risk abstract permission types strictly disallowed under untrusted ingress.
-# Automatically blocks desktop control, mobile ADB, subagent escalation, and cron backdoors.
+# Automatically blocks code execution, file mutation, desktop/mobile capture and control,
+# subagent escalation, cron backdoors, and dynamic skill manipulation.
 DISALLOWED_UNTRUSTED_PERMISSIONS: frozenset[str] = frozenset(
     {
         "code_interpreter",
         "file_write",
         "desktop_control",
+        "desktop_capture",
         "mobile_control",
+        "mobile_capture",
         "spawn_subagent",
         "invoke_external_agent",
         "cron_manage",
+        "skill_manage",
     }
 )
 

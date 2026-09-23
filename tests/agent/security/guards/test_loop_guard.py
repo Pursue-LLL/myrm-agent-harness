@@ -1000,8 +1000,6 @@ class TestUnattendedCircuitBreaker:
 
     def test_attended_mode_does_not_raise_circuit_breaker(self) -> None:
         """Standard interactive mode does not trigger RunawayCircuitBreakException."""
-        from myrm_agent_harness.agent.errors.agent_errors import RunawayCircuitBreakException
-
         guard = LoopGuard(unattended_mode=False)
         for i in range(2):
             guard.pre_check(f"tool_{i}", {"arg": i})
