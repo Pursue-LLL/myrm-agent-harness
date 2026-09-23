@@ -47,7 +47,12 @@ _IMPORT_ALIASES = frozenset(
 
 
 def _tracked_python_files() -> list[Path]:
-    """Every tracked Python file. Git is the authority on what belongs to the repo."""
+    """Every tracked Python file that is present on disk.
+
+    Git is the authority on what belongs to the repository, but a file can still be
+    tracked while missing — a staged deletion, or a path that only exists in the index.
+    Reading such a path would abort collection, so the on-disk check filters them out.
+    """
     import subprocess
 
     result = subprocess.run(
@@ -58,7 +63,7 @@ def _tracked_python_files() -> list[Path]:
         text=True,
     )
     paths = [line.strip() for line in result.stdout.splitlines() if line.strip()]
-    return [(_REPO_ROOT / p) for p in paths]
+    return [path for path in (_REPO_ROOT / p for p in paths) if path.is_file()]
 
 
 @lru_cache(maxsize=1)
