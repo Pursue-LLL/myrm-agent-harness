@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+
 from myrm_agent_harness.agent.security.guards.taint_tracker import (
     TaintLabel,
     get_taint_tracker,
@@ -114,7 +115,7 @@ async def test_batch_processor_denies_destructive_tools_under_yolo_untrusted_ing
         {"name": "bash_code_execute_tool", "args": {"command": "echo pwned"}},
         {"name": "grep_tool", "args": {"query": "safe"}},
     ]
-    approved, denied, pending = await evaluate_tool_batch(
+    approved, denied, _pending = await evaluate_tool_batch(
         tool_calls, config, False, "/tmp", "sess_yolo_untrusted", {}
     )
 
