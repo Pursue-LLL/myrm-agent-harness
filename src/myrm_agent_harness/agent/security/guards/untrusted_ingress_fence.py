@@ -2,8 +2,9 @@
 
 When an Agent session processes untrusted external messages (e.g., A2A tasks from
 external peers, webhook triggers, public bot mentions), this fence strips high-privilege
-destructive tools (Bash code execution, arbitrary workspace file writing) from the
-active tool exposure surface, restricting the Agent to read-only exploration and scoped artifacts.
+destructive tools (arbitrary execution, file mutation, desktop/mobile control and screen capture,
+subagent escalation, cron backdoors, and skill manipulation) from the
+active tool exposure surface, restricting the Agent to read-only exploration and safe operations.
 
 [INPUT]
 - Tool names or tool instances from ToolRegistry / Agent runtime
