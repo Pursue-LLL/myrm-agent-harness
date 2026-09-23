@@ -7,6 +7,7 @@ from myrm_agent_harness.toolkits.memory._internal.scope import (
     bind_scope,
     build_scope,
     derive_namespaces,
+    resolve_primary_namespace,
     scope_for_write_target,
 )
 from myrm_agent_harness.toolkits.memory.config import (
@@ -122,6 +123,27 @@ def test_bind_scope():
     bound2 = manager._bind_scope(mem_empty)
     assert bound2.scope.primary_namespace == "agent:scifi"
     assert bound2.scope.namespaces == ["global", "agent:scifi"]
+
+
+def test_resolve_primary_namespace_prefers_durable_scopes() -> None:
+    """Priority is agent scope, then global, then the narrowest non-shared scope.
+
+    The primary namespace is the only value retrieval filters on, so it must be
+    the broadest scope a later session can still reach.
+    """
+    assert resolve_primary_namespace(
+        ["global", "agent:scifi", "channel:telegram", "conversation:conv-1", "task:task-1"]
+    ) == "agent:scifi"
+
+    # No agent scope: fall back to the global broadcast scope.
+    assert resolve_primary_namespace(["global", "channel:telegram", "conversation:conv-1"]) == "global"
+
+    # Neither agent nor global: narrowest non-shared scope keeps the entry reachable.
+    assert resolve_primary_namespace(["channel:telegram", "conversation:conv-1"]) == "conversation:conv-1"
+
+    # Shared contexts are broadcast targets, never an ownership scope.
+    assert resolve_primary_namespace(["shared:customer-a", "agent:scifi"]) == "agent:scifi"
+    assert resolve_primary_namespace(["shared:customer-a", "conversation:conv-1"]) == "conversation:conv-1"
 
 
 def test_scope_helpers_preserve_current_behavior():

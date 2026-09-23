@@ -9,8 +9,11 @@ fact was stored. These tests pin the positive-IDF behaviour that fixes it.
 
 from __future__ import annotations
 
+from rank_bm25 import BM25Okapi
+
 from myrm_agent_harness.toolkits.retriever.bm25_retrieval import (
     BM25Retriever,
+    apply_positive_idf,
     preprocess_text,
 )
 
@@ -46,6 +49,13 @@ class TestPositiveIdfWeights:
     def test_zero_document_corpus_is_a_noop(self) -> None:
         retriever = BM25Retriever(["", "   "])
         assert retriever.bm25 is None
+
+    def test_apply_positive_idf_tolerates_empty_corpus(self) -> None:
+        """An empty corpus must leave the model untouched rather than raising."""
+        model = BM25Okapi([["placeholder"]])
+        before = dict(model.idf)
+        apply_positive_idf(model, [])
+        assert model.idf == before
 
 
 class TestSingleDocumentRecall:
