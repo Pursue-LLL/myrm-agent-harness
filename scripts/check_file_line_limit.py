@@ -67,10 +67,7 @@ def _baseline_drift(package_root: Path, baseline: dict[str, int]) -> list[str]:
     for rel, cap in sorted(baseline.items()):
         path = src_parent / rel
         if not path.is_file():
-            drift.append(
-                f"{rel}: baseline entry points at a file that no longer exists; "
-                f"remove it with --ratchet"
-            )
+            drift.append(f"{rel}: baseline entry points at a file that no longer exists; remove it with --ratchet")
             continue
         line_count = _count_lines(path)
         if cap > line_count:
