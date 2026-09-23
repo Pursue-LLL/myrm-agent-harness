@@ -61,6 +61,20 @@ def test_assemble_truncates_oversized_payloads():
     assert bundle.completeness == BundleCompleteness.COMPLETE
 
 
+def test_assemble_truncates_oversized_lists():
+    bundle = assemble_debug_bundle(
+        collector=DualTrackAuditCollector(),
+        session_id="s1",
+        agent_id="a1",
+        memory_trace={"hits": list(range(250))},
+        failure_summary={"mode": "m"},
+        config_snapshot={"model": "x"},
+    )
+    trace = next(section for section in bundle.sections if section.name == "memory_trace")
+    assert trace.truncated is True
+    assert trace.payload["hits"][-1] == "…[truncated]"
+
+
 def test_single_variable_rerun_unchanged_and_altered():
     base = {"model": "m1", "skill": "s1"}
     same = single_variable_rerun(
