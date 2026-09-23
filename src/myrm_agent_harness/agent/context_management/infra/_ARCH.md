@@ -13,6 +13,7 @@ Context management infrastructure: shared types, budget management, session lock
 | cache_policy.py | Core | Framework-level prompt cache policy profile resolution for context pruning with provider TTL calibration metadata. | ✅ |
 | cache_metrics_collector.py | Core | Request-scoped pairing via ContextVar (same asyncio task as token tracker). | ✅ |
 | context_budget.py | Core | Context budget via estimate_context_tokens; resolve_budget_kwargs_from_metadata + estimate_processor_context_tokens for pipeline SSOT; DEFAULT_ESTIMATED_REMAINING_TURNS shared by runtime + preflight dynamic threshold. | ✅ |
+| compactor_guard.py | Core | Compactor preflight safety evaluation fence protecting against ContextLengthExceeded crashes caused by compounding message history and skill overhead. | ✅ |
 | message_priority.py | Core | Message priority classification for intelligent compression. | ✅ |
 | native_compaction_bridge.py | Core | Dual-track native compaction coordinator, safety margin threshold clamping, atomic sidecar persistence, and MemoryPreCompact boundary hook dispatcher. | ✅ |
 | resume_validator.py | Core | Resume-from-interrupt validator. Verifies that the current Agent config matches the config saved in  | — |
