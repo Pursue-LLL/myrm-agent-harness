@@ -4,6 +4,7 @@
 (none — framework-local utility)
 
 [OUTPUT]
+- WORKSPACE_BIND_CTX_KEY: legacy merged_context key carrying the bind undo token (never serialized)
 - bind_workspace_storage_root / release_workspace_storage_bind_token / workspace_storage_fs_root_strict
 
 [POS]
@@ -16,6 +17,10 @@ from contextvars import ContextVar, Token
 from pathlib import Path
 
 _workspace_storage_fs_root: ContextVar[Path | None] = ContextVar("_workspace_storage_fs_root", default=None)
+
+# Legacy merged_context key that once carried the bind undo token. It must never reach a
+# checkpoint (the token is not serializable), so every reader strips it from persisted context.
+WORKSPACE_BIND_CTX_KEY = "__workspace_storage_bind_token"
 
 
 def bind_workspace_storage_root(root: Path) -> Token:

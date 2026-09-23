@@ -18,7 +18,6 @@ post-processing event emission.
 - _init_pseudonym_store: Initialize the context-local PseudonymStore and regex PII closure when the active PrivacyPolicy requires one (``needs_pseudonym_store``); consumed by skill-agent session-end privacy re-establishment.
 - compute_context_budget_snapshot: Compute a lightweight context budget snapshot from token ...
 - post_run_events: Yield post-processing events: artifacts, FILE_MUTATION_FAILED, WORKSPACE_MERGE_FAILED, and MESSAGE_END (upgrade completion_status to warning on workspace merge failure when LLM status is complete). Accepts an explicit TokenTracker so `message_end.token_economics` is present even when async-generator resume crosses task boundaries where the ContextVar is invisible.
-- serialize_message: Serialize a LangChain message to a plain dict.
 
 [POS]
 Agent run lifecycle helpers — workspace setup, cleanup, and post-processing.
@@ -52,6 +51,7 @@ from myrm_agent_harness.agent.workspace_coordination.merge.merge_warning import 
 )
 from myrm_agent_harness.toolkits.code_execution import create_workspace_service
 from myrm_agent_harness.toolkits.code_execution.workspace.storage_root_bind import (
+    WORKSPACE_BIND_CTX_KEY,
     bind_workspace_storage_root,
     release_workspace_storage_bind_token,
 )
@@ -64,8 +64,6 @@ from myrm_agent_harness.utils.token_economics.tracker import (
 )
 
 if TYPE_CHECKING:
-    from langgraph.checkpoint.base import BaseCheckpointSaver
-
     from myrm_agent_harness.toolkits.code_execution.executors.base import CodeExecutor
     from myrm_agent_harness.utils.runtime.steering import SteeringToken
     from myrm_agent_harness.utils.token_economics.tracker import TokenTracker
@@ -74,8 +72,6 @@ logger = get_agent_logger(__name__)
 
 install_llm_response_hook()
 install_llm_observability_hook()
-
-_WS_BIND_CTX_KEY = "__workspace_storage_bind_token"  # legacy; never serialize — see _workspace_bind_handle_stash
 
 _workspace_bind_handle_stash: ContextVar[object | None] = ContextVar("workspace_bind_handle_stash", default=None)
 
@@ -324,7 +320,7 @@ def cleanup_run(
         stashed = _take_workspace_bind_handle()
         legacy: object | None = None
         if merged_context is not None:
-            legacy = merged_context.pop(_WS_BIND_CTX_KEY, None)
+            legacy = merged_context.pop(WORKSPACE_BIND_CTX_KEY, None)
         for t in (stashed, legacy):
             release_workspace_storage_bind_token(t)
 
@@ -751,84 +747,3 @@ async def post_run_events(
                     "remaining": round(remaining, 6),
                 }
     yield message_end_event
-
-
-# ============================================================================
-# Checkpoint State Extraction
-# ============================================================================
-
-
-def serialize_message(msg: object) -> dict[str, object]:
-    """Serialize a LangChain message to a plain dict."""
-    if hasattr(msg, "model_dump"):
-        return msg.model_dump()
-    if hasattr(msg, "to_json"):
-        return msg.to_json()
-    return {"type": "unknown", "content": str(msg)}
-
-
-async def extract_checkpoint_state(
-    checkpointer: BaseCheckpointSaver[str] | None,
-    last_context: dict[str, object] | None,
-    last_run_stats: AgentRunStatistics | None,
-    thread_id: str,
-) -> dict[str, object]:
-    """Extract complete execution state for checkpoint save.
-
-    Used by ``BaseAgent.get_checkpoint_state()`` and subagent checkpoint extraction.
-
-    Args:
-        checkpointer: LangGraph BaseCheckpointSaver (or None).
-        last_context: Agent's last runtime context dict.
-        last_run_stats: Most recent run statistics.
-        thread_id: LangGraph thread ID for checkpointer lookup.
-
-    Returns:
-        Dict with keys: messages, context, stats, progress, last_tool.
-    """
-    messages: list[dict[str, object]] = []
-    raw_context = dict(last_context or {})
-    raw_context.pop(_WS_BIND_CTX_KEY, None)
-    context: dict[str, object] = raw_context
-    stats: dict[str, object] = {}
-    progress = 0.0
-    last_tool: str | None = None
-
-    from myrm_agent_harness.runtime.checkpointing import read_checkpoint_messages
-
-    raw_checkpoint_messages = await read_checkpoint_messages(checkpointer, thread_id)
-    if raw_checkpoint_messages:
-        messages = [serialize_message(msg) for msg in raw_checkpoint_messages]
-
-        for msg in reversed(messages):
-            if msg.get("type") == "ai" and msg.get("tool_calls"):
-                tool_calls = msg.get("tool_calls", [])
-                if tool_calls and isinstance(tool_calls, list):
-                    last_tool = tool_calls[-1].get("name")
-                    break
-
-        logger.debug(
-            "Extracted %d messages from checkpointer (last_tool=%s)",
-            len(messages),
-            last_tool,
-        )
-
-    if last_run_stats:
-        stats = {
-            "token_usage": (last_run_stats.token_usage.to_dict() if last_run_stats.token_usage else {}),
-            "duration_seconds": last_run_stats.total_duration_seconds,
-            "status": (
-                last_run_stats.completion_status.value
-                if last_run_stats.completion_status
-                else "unknown"
-            ),
-        }
-        progress = 1.0 if last_run_stats.completion_status else 0.5
-
-    return {
-        "messages": messages,
-        "context": context,
-        "stats": stats,
-        "progress": progress,
-        "last_tool": last_tool,
-    }

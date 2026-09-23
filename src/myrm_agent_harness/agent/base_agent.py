@@ -591,9 +591,9 @@ class BaseAgent(BaseAgentModesMixin):
     async def get_checkpoint_state(self, thread_id: str) -> dict[str, object]:
         """Extract complete execution state for checkpoint save.
 
-        Delegates to ``_internals.run_lifecycle.extract_checkpoint_state``.
+        Delegates to ``sub_agents.checkpoint.state_snapshot.extract_checkpoint_state``.
         """
-        from ._internals.run_lifecycle import extract_checkpoint_state
+        from .sub_agents.checkpoint.state_snapshot import extract_checkpoint_state
 
         return await extract_checkpoint_state(
             checkpointer=self.checkpointer,

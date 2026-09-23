@@ -12,12 +12,14 @@ from myrm_agent_harness.agent._internals.run_lifecycle import (
     cleanup_run,
     collect_tracker_stats,
     compute_context_budget_snapshot,
-    extract_checkpoint_state,
     post_run_events,
     resolve_context_budget_breakdown,
     setup_workspace,
 )
 from myrm_agent_harness.agent.streaming.types import AgentEventType
+from myrm_agent_harness.agent.sub_agents.checkpoint.state_snapshot import (
+    extract_checkpoint_state,
+)
 from myrm_agent_harness.agent.types import AgentRunStatistics, CompletionStatus
 
 _MOD = "myrm_agent_harness.agent._internals.run_lifecycle"
