@@ -8,6 +8,7 @@
 
 [OUTPUT]
 - serialize_message: Serialize a LangChain message to a plain dict.
+- project_run_statistics: Project run statistics into the checkpoint payload shape and derive progress; the single projection shared by every checkpoint writer.
 - extract_checkpoint_state: Extract complete execution state for checkpoint save.
 
 [POS]
@@ -40,6 +41,24 @@ def serialize_message(msg: object) -> dict[str, object]:
     if hasattr(msg, "to_json"):
         return cast("dict[str, object]", msg.to_json())
     return {"type": "unknown", "content": str(msg)}
+
+
+def project_run_statistics(stats: AgentRunStatistics) -> tuple[dict[str, object], float]:
+    """Project run statistics into the checkpoint payload shape and derive progress.
+
+    Returns ``(stats_dict, progress)``. Callers that persist or report run statistics share
+    this projection so the payload keys stay identical across every checkpoint writer.
+    """
+    last_call_usage = stats.token_usage.to_dict() if stats.token_usage else {}
+    projected: dict[str, object] = {
+        "token_usage": last_call_usage,
+        "duration_seconds": stats.total_duration_seconds,
+        "status": (
+            stats.completion_status.value if stats.completion_status else "unknown"
+        ),
+    }
+    progress = 1.0 if stats.completion_status else 0.5
+    return projected, progress
 
 
 async def extract_checkpoint_state(
@@ -89,16 +108,7 @@ async def extract_checkpoint_state(
         )
 
     if last_run_stats:
-        stats = {
-            "token_usage": (last_run_stats.token_usage.to_dict() if last_run_stats.token_usage else {}),
-            "duration_seconds": last_run_stats.total_duration_seconds,
-            "status": (
-                last_run_stats.completion_status.value
-                if last_run_stats.completion_status
-                else "unknown"
-            ),
-        }
-        progress = 1.0 if last_run_stats.completion_status else 0.5
+        stats, progress = project_run_statistics(last_run_stats)
 
     return {
         "messages": messages,

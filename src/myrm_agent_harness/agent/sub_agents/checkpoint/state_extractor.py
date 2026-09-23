@@ -22,6 +22,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.agent.sub_agents.checkpoint.state_snapshot import (
+    project_run_statistics,
+)
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 if TYPE_CHECKING:
@@ -64,18 +67,7 @@ def extract_subagent_state_sync(child_agent: BaseAgent, task_id: str) -> dict[st
         logger.debug("[subagent:%s] Extracted context (keys=%s)", task_id, list(context.keys()))
 
     if child_agent.last_run_stats:
-        stats = {
-            "token_usage": child_agent.last_run_stats.token_usage.to_dict()
-            if child_agent.last_run_stats.token_usage
-            else {},
-            "duration_seconds": child_agent.last_run_stats.total_duration_seconds,
-            "status": (
-                child_agent.last_run_stats.completion_status.value
-                if child_agent.last_run_stats.completion_status
-                else "unknown"
-            ),
-        }
-        progress = 1.0 if child_agent.last_run_stats.completion_status else 0.5
+        stats, progress = project_run_statistics(child_agent.last_run_stats)
         logger.debug("[subagent:%s] Extracted stats (duration=%.1fs)", task_id, stats["duration_seconds"])
 
     return {
