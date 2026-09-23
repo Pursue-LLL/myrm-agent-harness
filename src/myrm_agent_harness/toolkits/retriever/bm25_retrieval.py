@@ -10,7 +10,7 @@ Keyword-matching retrieval based on the BM25 algorithm with smart CJK/English hy
 [OUTPUT]
 - extract_version_tokens: Generates hierarchical version-number tokens for version-aware search
 - apply_positive_idf: Replaces BM25 IDF weights with the strictly positive Lucene variant
-- BM25Retriever: Stateful BM25 index that supports build / query / incremental add / remove
+- BM25Retriever: Build-once BM25 index exposing ``search`` (index is immutable after construction)
 - bm25_retrieval: Standalone one-shot BM25 search function
 
 [POS]

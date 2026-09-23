@@ -873,7 +873,7 @@ async def run_equivalence_refactor_wave(
         prompt = task_info.get("prompt", "")
         cfg = SubagentConfig(
             description=desc,
-            prompt=prompt,
+            system_prompt=prompt,
             model=model,
             workspace_policy=WorkspacePolicy.ISOLATED_COPY,
             timeout_seconds=timeout_per_task,

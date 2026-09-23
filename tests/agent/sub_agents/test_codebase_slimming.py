@@ -12,7 +12,6 @@ Unit and behavioral invariance tests for automated codebase slimming.
 
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 
 import pytest
@@ -102,7 +101,7 @@ async def test_codebase_slimming_pipeline_execution_and_rollback(tmp_path: Path)
         target.write_text("def useful_func():\n    return 'live'\n", encoding="utf-8")
         return 2
 
-    ledger, tasks = await pipeline.run_pipeline(successful_worker)
+    ledger, _tasks = await pipeline.run_pipeline(successful_worker)
     assert ledger.successful_tasks == 1
     assert ledger.rolled_back_tasks == 0
     assert ledger.lines_cut == 2
@@ -122,7 +121,7 @@ async def test_codebase_slimming_pipeline_execution_and_rollback(tmp_path: Path)
         target.write_text("def useful_func():\n    return 'broken'\n", encoding="utf-8")
         return 1
 
-    report = broken_pipeline.scan()
+    _report = broken_pipeline.scan()
     # Artificially assign task to trigger breaking worker
     task = SlimmingModuleTask(
         task_id="task_fail",
@@ -135,5 +134,5 @@ async def test_codebase_slimming_pipeline_execution_and_rollback(tmp_path: Path)
     assert passed is False
     assert updated_task.status == SlimmingTaskStatus.ROLLED_BACK
     # Assert original content intact on live workspace
-    assert "useful_func() == 'live'" in "python -c 'import pkg.worker; assert pkg.worker.useful_func() == \"live\"'"
+    assert 'useful_func() == "live"' in broken_pipeline.test_command
     assert "return 'live'" in module_file.read_text(encoding="utf-8")

@@ -176,20 +176,13 @@ class SubagentExecutorAttemptMixin:
                     parent_agent, "session_id", None
                 )
                 if parent_session_id:
-                    parent_state = await parent_agent.checkpointer.aget(
-                        {"configurable": {"thread_id": parent_session_id}}
+                    from myrm_agent_harness.runtime.checkpointing import (
+                        read_checkpoint_messages,
                     )
-                    # checkpointer.aget() returns a raw checkpoint dict in
-                    # langgraph 1.2.x — messages live under channel_values.
-                    if isinstance(parent_state, dict):
-                        channel_values = parent_state.get("channel_values")
-                        raw_msgs = (
-                            channel_values.get("messages", [])
-                            if isinstance(channel_values, dict)
-                            else []
-                        )
-                    else:
-                        raw_msgs = []
+
+                    raw_msgs = await read_checkpoint_messages(
+                        parent_agent.checkpointer, parent_session_id
+                    )
                     if raw_msgs:
                         raw_count = len(raw_msgs)
                         chat_history = _filter_fork_messages(
