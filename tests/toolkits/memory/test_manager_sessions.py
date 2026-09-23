@@ -463,8 +463,15 @@ class TestCheckSessionRecurrence:
 
         await manager.check_session_recurrence("user asked about python again")
 
+        # Recurrence now supersedes the contributing entries instead of deleting
+        # them: the consolidated memory is stored, and each overlapping session is
+        # re-upserted as deprecated with a provenance pointer to its replacement.
         assert mock_vector_store.upsert.call_count >= 2
-        assert mock_vector_store.delete.called
+        assert not mock_vector_store.delete.called
+        consolidated_id = _consolidated_memory_id(mock_vector_store)
+        assert consolidated_id
+        superseded = _superseded_entry_ids(mock_vector_store, consolidated_id)
+        assert superseded == {f"doc-{i}" for i in range(4)}
 
     @pytest.mark.asyncio
     async def test_recurrence_importance_preemption_stores_immediately(
