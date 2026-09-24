@@ -204,14 +204,8 @@ __all__ = [
 ]
 
 _EXPORTS: dict[str, tuple[str, str]] = {
-    "AdvisoryAck": (
-        "myrm_agent_harness.backends.skills.scanning.rescan_engine",
-        "AdvisoryAck",
-    ),
-    "AdvisoryAckRegistry": (
-        "myrm_agent_harness.backends.skills.scanning.rescan_engine",
-        "AdvisoryAckRegistry",
-    ),
+    "AdvisoryAck":("myrm_agent_harness.backends.skills.scanning.rescan_engine", "AdvisoryAck"),
+    "AdvisoryAckRegistry":("myrm_agent_harness.backends.skills.scanning.rescan_engine", "AdvisoryAckRegistry"),
     "AgentConfig": ("myrm_agent_harness.api.config", "AgentConfig"),
     "AgentEventType": ("myrm_agent_harness.api.types", "AgentEventType"),
     "AgentProfileBackend": ("myrm_agent_harness.api.protocols", "AgentProfileBackend"),
