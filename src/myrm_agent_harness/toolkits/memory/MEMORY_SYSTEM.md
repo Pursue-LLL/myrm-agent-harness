@@ -999,7 +999,7 @@ rating_new = rating_old + alpha * (normalized - rating_old)
 1. **五动作空间原语**：
    - `Save`：显式持久化关键事实/偏好（`memory_save_tool`）；
    - `Retrieve`：目标导向的多路语义寻址（`memory_search_tool`）；
-   - `Update`：更新执行因果工作台进度与注解（`working_memory_manage_tool(action="update_subtask")`）及长期记忆修订；
+   - `Update`：规划与更新执行因果工作台子任务（`working_memory_manage_tool(action="add_subtask" / "update_subtask")`）及长期记忆修订；
    - `Summarize`：长程多步执行后主动提炼阶段性结论（`working_memory_manage_tool(action="summarize")`），避免上下文无序膨胀；
    - `Discard`（**认知剪枝防线**）：主动淘汰失效假设与死胡同，自动生成 `TrapRecord` 写入当前会话的 `LocalWorkingMemoryBlock` 避坑防线，杜绝死循环试错；长期层面支持淘汰无效记忆条目（`memory_manage_tool(action="discard")`）。
 

@@ -1,7 +1,7 @@
 # working_memory/
 
 ## Overview
-Agent working memory meta-tool module. Provides LLM-facing autonomous 5-action space controls to update subtask steps, discard dead-ends with automatic trap avoidance registration, summarize multi-step stages, and maintain lightweight transient memos on `LocalWorkingMemoryBlock`.
+Agent working memory meta-tool module. Provides LLM-facing autonomous 5-action space controls to add and track subtask steps, discard dead-ends with automatic trap avoidance registration, summarize multi-step stages, and maintain lightweight transient memos on `LocalWorkingMemoryBlock`.
 
 Detailed design: [MEMORY_SYSTEM.md](../../../toolkits/memory/MEMORY_SYSTEM.md)
 
