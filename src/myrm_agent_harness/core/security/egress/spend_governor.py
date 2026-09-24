@@ -1,6 +1,7 @@
 """Spend Governor and Atomic Lease Controller for Agent Commerce.
 
 [INPUT]
+- .spend_contracts::SpendGovernorConfig, SpendLease, SpendLeaseResult, SpendCommitResult, is_spend_voucher (POS: 预算保险箱数据模型与契约)
 - base64::base64 (POS: Python 标准 base64 编解码库)
 - fnmatch::fnmatch (POS: 域名通配符模式匹配库)
 - hashlib, hmac (POS: Python 加密散列与签名标准库)
@@ -8,11 +9,8 @@
 - os, time (POS: 系统调用与时间标准库)
 
 [OUTPUT]
-- SpendGovernorConfig: 配置约束模型（单笔/日累计上限、商户白名单、冻结状态）
-- SpendLease: 原子预占租约数据模型
-- SpendLeaseResult, SpendCommitResult: 状态机判定结果契约
 - SpendGovernor: 纯状态机预算保险箱控制器
-- is_spend_voucher: 快速检测是否为微支付凭证字符串
+- SpendGovernorConfig, SpendLease, SpendLeaseResult, SpendCommitResult, is_spend_voucher: 重新导出契约
 
 [POS]
 Harness core security egress layer. Enforces pure deterministic micro-spending limits,
@@ -30,74 +28,31 @@ import logging
 import os
 import time
 from collections.abc import Mapping
-from dataclasses import dataclass
+
+from .spend_contracts import (
+    DEFAULT_SPEND_HMAC_SALT,
+    SPEND_VOUCHER_PREFIX,
+    SPEND_VOUCHER_SUFFIX,
+    SpendCommitResult,
+    SpendGovernorConfig,
+    SpendLease,
+    SpendLeaseResult,
+    is_spend_voucher,
+)
 
 logger = logging.getLogger(__name__)
 
-SPEND_VOUCHER_PREFIX: str = "myrm-spend-v1."
-SPEND_VOUCHER_SUFFIX: str = ".end"
-DEFAULT_SPEND_HMAC_SALT: str = "myrm-agent-commerce-spend-salt-v1"
-
-
-@dataclass(frozen=True, slots=True)
-class SpendGovernorConfig:
-    """Configuration constraints for autonomous agentic commerce spending."""
-
-    daily_cap_cents: int = 1000  # $10.00
-    per_action_cap_cents: int = 200  # $2.00
-    allowed_merchants: tuple[str, ...] = (
-        "*.openai.com",
-        "api.anthropic.com",
-        "namesilo.com",
-        "namecheap.com",
-        "2captcha.com",
-        "capsolver.com",
-        "stripe.com",
-    )
-    currency: str = "USD"
-    is_frozen: bool = False
-    lease_ttl_seconds: int = 120
-
-
-@dataclass(slots=True)
-class SpendLease:
-    """Atomic in-flight spend reservation."""
-
-    lease_id: str
-    merchant_domain: str
-    amount_cents: int
-    currency: str
-    created_at: float
-    expires_at: float
-    status: str  # "reserved" | "committed" | "released" | "expired"
-    idempotency_key: str = ""
-
-
-@dataclass(frozen=True, slots=True)
-class SpendLeaseResult:
-    """Result of an atomic spend reservation attempt."""
-
-    success: bool
-    code: str  # "APPROVED" | "FROZEN" | "LIMIT_EXCEEDED" | "UNTRUSTED_MERCHANT" | "INVALID_AMOUNT"
-    message: str
-    lease: SpendLease | None = None
-    voucher: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class SpendCommitResult:
-    """Result of committing a previously reserved spend lease."""
-
-    success: bool
-    code: str  # "COMMITTED" | "LEASE_NOT_FOUND" | "LEASE_EXPIRED" | "ALREADY_COMMITTED"
-    message: str
-    entry_hash: str | None = None
-    action_digest: str | None = None
-
-
-def is_spend_voucher(val: str) -> bool:
-    """Check if a string matches the spend voucher format."""
-    return bool(val and val.startswith(SPEND_VOUCHER_PREFIX) and val.endswith(SPEND_VOUCHER_SUFFIX))
+__all__ = [
+    "DEFAULT_SPEND_HMAC_SALT",
+    "SPEND_VOUCHER_PREFIX",
+    "SPEND_VOUCHER_SUFFIX",
+    "SpendCommitResult",
+    "SpendGovernor",
+    "SpendGovernorConfig",
+    "SpendLease",
+    "SpendLeaseResult",
+    "is_spend_voucher",
+]
 
 
 class SpendGovernor:
@@ -196,15 +151,11 @@ class SpendGovernor:
         idempotency_key: str = "",
         now: float | None = None,
     ) -> SpendLeaseResult:
-        """Atomically reserve funds for a micro-spending action.
-
-        Returns SpendLeaseResult with a signed voucher if approved.
-        """
+        """Atomically evaluate constraints and reserve budget for an upcoming purchase."""
         current_time = time.time() if now is None else now
         self._roll_day_if_needed(current_time)
         self.cleanup_expired_leases(current_time)
 
-        # 1. Emergency freeze check
         if self._config.is_frozen:
             return SpendLeaseResult(
                 success=False,
@@ -212,15 +163,13 @@ class SpendGovernor:
                 message="Autonomous spending is currently frozen by emergency breaker.",
             )
 
-        # 2. Amount validity check (strictly positive integer)
         if amount_cents <= 0:
             return SpendLeaseResult(
                 success=False,
                 code="INVALID_AMOUNT",
-                message=f"Spend amount must be a positive integer in cents, got {amount_cents}.",
+                message=f"Amount must be strictly positive integer Cents, received {amount_cents}.",
             )
 
-        # 3. Whitelist check
         if not self.is_merchant_allowed(merchant_domain):
             return SpendLeaseResult(
                 success=False,
@@ -228,18 +177,16 @@ class SpendGovernor:
                 message=f"Merchant '{merchant_domain}' is not in allowed merchants whitelist.",
             )
 
-        # 4. Per-action cap check
         if amount_cents > self._config.per_action_cap_cents:
             return SpendLeaseResult(
                 success=False,
                 code="LIMIT_EXCEEDED",
                 message=(
-                    f"Amount {amount_cents} cents exceeds per-action cap "
-                    f"{self._config.per_action_cap_cents} cents."
+                    f"Requested amount ({amount_cents} cents) exceeds per-action cap "
+                    f"({self._config.per_action_cap_cents} cents)."
                 ),
             )
 
-        # 5. Daily cumulative + in-flight reservation check
         active_reserved = self.get_active_reserved_cents(current_time)
         projected_spend = self._daily_spent_cents + active_reserved + amount_cents
         if projected_spend > self._config.daily_cap_cents:
@@ -247,33 +194,50 @@ class SpendGovernor:
                 success=False,
                 code="LIMIT_EXCEEDED",
                 message=(
-                    f"Projected daily spend {projected_spend} cents (spent: {self._daily_spent_cents}, "
-                    f"reserved: {active_reserved}, requested: {amount_cents}) exceeds daily cap "
-                    f"{self._config.daily_cap_cents} cents."
+                    f"Projected daily spend ({projected_spend} cents) exceeds daily cap "
+                    f"({self._config.daily_cap_cents} cents)."
                 ),
             )
 
-        # 6. Issue atomic lease
+        # Idempotency check: if lease already exists with this idempotency key
+        if idempotency_key:
+            for existing in self._leases.values():
+                if (
+                    existing.idempotency_key == idempotency_key
+                    and existing.merchant_domain.lower() == merchant_domain.lower()
+                    and existing.amount_cents == amount_cents
+                    and existing.status == "reserved"
+                    and current_time <= existing.expires_at
+                ):
+                    voucher = self._mint_voucher(existing)
+                    return SpendLeaseResult(
+                        success=True,
+                        code="APPROVED",
+                        message="Idempotent lease reservation reused.",
+                        lease=existing,
+                        voucher=voucher,
+                    )
+
+        # Mint new lease
         lease_id = f"lease_{os.urandom(8).hex()}"
+        expires_at = current_time + self._config.lease_ttl_seconds
         lease = SpendLease(
             lease_id=lease_id,
-            merchant_domain=merchant_domain.lower().strip(),
+            merchant_domain=merchant_domain,
             amount_cents=amount_cents,
             currency=self._config.currency,
             created_at=current_time,
-            expires_at=current_time + self._config.lease_ttl_seconds,
+            expires_at=expires_at,
             status="reserved",
             idempotency_key=idempotency_key,
         )
         self._leases[lease_id] = lease
-
-        # 7. Generate tamper-evident voucher
         voucher = self._mint_voucher(lease)
 
         return SpendLeaseResult(
             success=True,
             code="APPROVED",
-            message="Spend reservation approved within autonomous bounds.",
+            message="Spend reservation approved.",
             lease=lease,
             voucher=voucher,
         )
@@ -319,31 +283,29 @@ class SpendGovernor:
 
         # Commit state and record into daily spend
         lease.status = "committed"
-        if idempotency_key:
-            lease.idempotency_key = idempotency_key
         self._daily_spent_cents += lease.amount_cents
 
-        # Generate cryptographic action digest and chained receipt hash
-        action_payload = f"{lease.merchant_domain}:{lease.amount_cents}:{lease.currency}:{lease.idempotency_key}".encode()
-        action_digest = hmac.new(self._key, action_payload, hashlib.sha256).hexdigest()
-
+        # Build cryptographic hash chain entry
         entry_payload = (
-            f"{self._prev_entry_hash}:{current_time:.3f}:{lease.merchant_domain}:"
-            f"{lease.amount_cents}:{lease.currency}:{action_digest}"
-        ).encode()
-        entry_hash = hmac.new(self._key, entry_payload, hashlib.sha256).hexdigest()
+            f"{self._prev_entry_hash}:{lease.lease_id}:{lease.merchant_domain}:"
+            f"{lease.amount_cents}:{lease.currency}:{current_time}:{idempotency_key}"
+        )
+        entry_hash = hashlib.sha256(entry_payload.encode("utf-8")).hexdigest()
         self._prev_entry_hash = entry_hash
 
+        action_digest = (
+            f"{lease.currency} {lease.amount_cents / 100:.2f} paid to {lease.merchant_domain}"
+        )
         return SpendCommitResult(
             success=True,
             code="COMMITTED",
-            message=f"Committed {lease.amount_cents} cents to merchant {lease.merchant_domain}.",
+            message="Spend lease committed successfully.",
             entry_hash=entry_hash,
             action_digest=action_digest,
         )
 
     def release(self, lease_id: str) -> bool:
-        """Release a reserved lease (e.g. downstream network failure or aborted purchase)."""
+        """Release an unspent reservation back to the available pool."""
         lease = self._leases.get(lease_id)
         if not lease:
             return False

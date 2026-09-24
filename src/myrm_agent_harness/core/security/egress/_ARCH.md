@@ -10,7 +10,8 @@ Ephemeral sentinel voucher encoding/decoding and loopback egress proxy substitut
 | `__init__.py` | Package | Public aggregation facade exposing `SentinelManager`, `StreamingSentinelScanner`, `EphemeralCaManager`, `LoopbackEgressProxy`, and `SpendGovernor`. | — |
 | `sentinel.py` | Core | Ephemeral AES-256-GCM voucher tokenization (`myrm-sent-v1.<base64url>.end`), fast in-memory reverse lookup, text/bytes replacement, and sliding-window stream scanner. | ✅ |
 | `proxy_server.py` | Core | Asyncio-based loopback egress proxy (`LoopbackEgressProxy`) with ephemeral CA management (`EphemeralCaManager`) for outbound HTTP/CONNECT request header, query, and streaming body substitution. | ✅ |
-| `spend_governor.py` | Core | Pure deterministic micro-spending state machine (`SpendGovernor`, `SpendLease`, `SpendGovernorConfig`) enforcing merchant allowlists, per-action/daily caps in USD Cents, atomic leases, and voucher generation. | ✅ |
+| `spend_contracts.py` | Core | Immutable data models and token primitives (`SpendGovernorConfig`, `SpendLease`, `SpendLeaseResult`, `SpendCommitResult`, `is_spend_voucher`) for zero-float commerce accounting. | ✅ |
+| `spend_governor.py` | Core | Pure deterministic micro-spending state machine (`SpendGovernor`) enforcing merchant allowlists, per-action/daily caps in USD Cents, atomic leases, and voucher generation. | ✅ |
 
 ## Key Invariants
 

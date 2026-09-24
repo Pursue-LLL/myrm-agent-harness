@@ -4,7 +4,7 @@ Writes events as one JSON line per record, supporting all three
 deployment modes (local / sandbox) with identical semantics.
 
 [INPUT]
-- event_log.protocol::EventLogBackend (POS: Protocol contract. Framework provides FileEventLogBackend; business layer may extend with SQLite / PostgreSQL implementations.)
+- event_log.protocols::EventLogBackend, FlushableEventLogBackend (POS: Protocol contract. Framework provides FileEventLogBackend; business layer may extend with SQLite / PostgreSQL implementations.)
 
 [OUTPUT]
 - FileEventLogBackend: JSONL file storage implementation

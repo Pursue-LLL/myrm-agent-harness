@@ -112,6 +112,47 @@ def ratchet_baseline(baseline_path: Path, package_root: Path, max_lines: int) ->
     return changed
 
 
+def rebaseline(
+    baseline_path: Path,
+    package_root: Path,
+    entries: dict[str, int],
+) -> int:
+    """Set caps for ``entries`` explicitly, for a file that legitimately holds its size.
+
+    The ratchet refuses to raise a cap on its own, so a file that grew past its
+    recorded ceiling can never go green again without a deliberate decision. This is
+    that decision point: the caller names the paths and the cap to record, and the
+    rewrite is limited to those paths so nothing else moves.
+    """
+    src_parent = package_root.parent
+    out_lines: list[str] = []
+    changed = 0
+    for line in baseline_path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "\t" not in stripped:
+            out_lines.append(line)
+            continue
+        rel = stripped.split("\t", 1)[0].strip()
+        if rel not in entries:
+            out_lines.append(line)
+            continue
+        new_cap = entries[rel]
+        if new_cap != int(stripped.split("\t", 1)[1].strip()):
+            changed += 1
+        out_lines.append(f"{rel}\t{new_cap}")
+        del entries[rel]
+    for rel, cap in sorted(entries.items()):
+        path = src_parent / rel
+        if not path.is_file():
+            msg = f"cannot register missing file: {rel}"
+            raise FileNotFoundError(msg)
+        out_lines.append(f"{rel}\t{cap}")
+        changed += 1
+    if changed:
+        baseline_path.write_text("\n".join(out_lines) + "\n", encoding="utf-8")
+    return changed
+
+
 def _iter_py_files(package_root: Path) -> list[Path]:
     files: list[Path] = []
     for path in sorted(package_root.rglob("*.py")):

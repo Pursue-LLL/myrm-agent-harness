@@ -8,12 +8,17 @@ pip-installed harness (cloud sandbox / PyPI consumers).
 from __future__ import annotations
 
 import subprocess
+import sys
 import zipfile
 from pathlib import Path
 
 import pytest
 
 HARNESS_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(HARNESS_ROOT))
+
+from harness_packaging.release import resolve_uv_executable
+
 _WHEEL_ASSET_SUFFIX = "myrm_agent_harness/toolkits/browser/assets/ad_domains.txt"
 _MIN_DOMAIN_LINES = 3500
 
@@ -24,7 +29,7 @@ def test_release_wheel_includes_browser_ad_domains_asset(tmp_path: Path) -> None
     dist_dir.mkdir()
 
     result = subprocess.run(
-        ["uv", "build", "--wheel", "-o", str(dist_dir)],
+        [resolve_uv_executable(), "build", "--wheel", "-o", str(dist_dir)],
         cwd=HARNESS_ROOT,
         check=False,
         capture_output=True,

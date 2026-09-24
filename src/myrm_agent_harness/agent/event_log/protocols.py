@@ -7,6 +7,7 @@ Checkpointer as a dependency-injected capability.
 
 [OUTPUT]
 - EventLogBackend: runtime_checkable Protocol
+- FlushableEventLogBackend: runtime_checkable Protocol
 
 [POS]
 Protocol contract. Framework provides FileEventLogBackend;
