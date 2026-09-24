@@ -221,10 +221,46 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Rewrite the baseline so every cap equals the current size and drop dead entries",
     )
+    parser.add_argument(
+        "--rebaseline",
+        metavar="PATH[:LINES]",
+        action="append",
+        default=[],
+        help=(
+            "Explicitly record a cap for a file whose size is intentional (repeatable). "
+            "PATH:LINES sets an explicit cap; PATH records the current size. "
+            "Requires --reason."
+        ),
+    )
+    parser.add_argument(
+        "--reason",
+        default="",
+        help="Why the caps passed to --rebaseline are the intended size (printed for audit).",
+    )
     args = parser.parse_args(argv)
 
     package_root = args.package_root.resolve()
     baseline_path = args.baseline.resolve()
+
+    if args.rebaseline:
+        if not args.reason.strip():
+            print("ERROR: --rebaseline requires --reason", file=sys.stderr)
+            return 1
+        src_parent = package_root.parent
+        entries: dict[str, int] = {}
+        for token in args.rebaseline:
+            rel, _, lines = token.partition(":")
+            if lines:
+                entries[rel] = int(lines)
+            else:
+                path = src_parent / rel
+                if not path.is_file():
+                    print(f"ERROR: no such file: {rel}", file=sys.stderr)
+                    return 1
+                entries[rel] = _count_lines(path)
+        changed = rebaseline(baseline_path, package_root, entries)
+        print(f"OK (recorded {changed} cap(s); reason: {args.reason.strip()})")
+        return 0
 
     if args.ratchet:
         changed = ratchet_baseline(baseline_path, package_root, args.max_lines)
