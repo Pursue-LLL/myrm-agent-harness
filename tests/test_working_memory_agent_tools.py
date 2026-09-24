@@ -1,6 +1,7 @@
 """Unit tests for working_memory_manage_tool and its integration with LocalWorkingMemoryBlock."""
 
 import json
+from collections.abc import Generator
 
 import pytest
 
@@ -16,19 +17,19 @@ from myrm_agent_harness.agent.meta_tools.working_memory import (
 
 
 @pytest.fixture(autouse=True)
-def reset_working_memory():
+def reset_working_memory() -> Generator[None]:
     LocalWorkingMemoryBlock.reset()
     yield
     LocalWorkingMemoryBlock.reset()
 
 
-def test_tool_creation():
+def test_tool_creation() -> None:
     tool = create_working_memory_manage_tool()
     assert tool.name == "working_memory_manage_tool"
     assert "discard failed dead-end approaches" in tool.description
 
 
-def test_update_subtask():
+def test_update_subtask() -> None:
     LocalWorkingMemoryBlock.initialize(
         goal="Develop authentication feature",
         initial_subtasks=["Setup models", "Build token generator", "Write tests"],
@@ -51,7 +52,7 @@ def test_update_subtask():
     assert state.subtasks[0].notes == "models migrated and verified"
 
 
-def test_add_subtask():
+def test_add_subtask() -> None:
     LocalWorkingMemoryBlock.initialize(goal="Quick run")
     tool = create_working_memory_manage_tool()
 
@@ -75,7 +76,7 @@ def test_add_subtask():
     assert matching[0].status == SubtaskStatus.PENDING
 
 
-def test_update_subtask_not_found_returns_error():
+def test_update_subtask_not_found_returns_error() -> None:
     LocalWorkingMemoryBlock.initialize(goal="Quick run")
     tool = create_working_memory_manage_tool()
 
@@ -96,7 +97,7 @@ def test_update_subtask_not_found_returns_error():
     assert len(state.subtasks) == 0
 
 
-def test_discard_action_registers_trap_and_updates_subtask():
+def test_discard_action_registers_trap_and_updates_subtask() -> None:
     LocalWorkingMemoryBlock.initialize(
         goal="Solve memory leak",
         initial_subtasks=["Check GC heap", "Profile event listeners"],
@@ -130,7 +131,7 @@ def test_discard_action_registers_trap_and_updates_subtask():
     assert "Do not rely on gc.collect()" in turn_tail_md
 
 
-def test_summarize_action():
+def test_summarize_action() -> None:
     LocalWorkingMemoryBlock.initialize(goal="Large data sync")
     tool = create_working_memory_manage_tool()
 
@@ -146,7 +147,7 @@ def test_summarize_action():
     assert LocalWorkingMemoryBlock.get_scratchpad("latest_summary") == summary_text
 
 
-def test_set_scratchpad_action():
+def test_set_scratchpad_action() -> None:
     LocalWorkingMemoryBlock.initialize(goal="Scratchpad test")
     tool = create_working_memory_manage_tool()
 
@@ -160,7 +161,7 @@ def test_set_scratchpad_action():
     assert LocalWorkingMemoryBlock.get_scratchpad("temp_port") == "8088"
 
 
-def test_defensive_error_handling():
+def test_defensive_error_handling() -> None:
     tool = create_working_memory_manage_tool()
 
     # Missing subtask_id for update_subtask
@@ -174,7 +175,9 @@ def test_defensive_error_handling():
     assert "Missing required 'status'" in res_err1_b["error"]
 
     # Invalid status handled defensively by underlying func
-    res_err1_c = json.loads(tool.func(action="update_subtask", subtask_id="step-1", status="unknown_status"))
+    tool_func = getattr(tool, "func", None)
+    assert callable(tool_func)
+    res_err1_c = json.loads(tool_func(action="update_subtask", subtask_id="step-1", status="unknown_status"))
     assert res_err1_c["status"] == "error"
     assert "Invalid status" in res_err1_c["error"]
 
@@ -190,27 +193,22 @@ def test_defensive_error_handling():
     res_err3_b = json.loads(tool.invoke({"action": "set_scratchpad", "value": "v"}))
     assert res_err3_b["status"] == "error"
 
-
     # Discard without explicit target should gracefully self-heal with fallback
     res_err4 = json.loads(tool.invoke({"action": "discard"}))
     assert res_err4["status"] == "success"
     assert "Avoid failing approach: unknown" in res_err4["avoidance_rule"]
 
-
-
     # Unknown action handled defensively
-    res_err5 = json.loads(tool.func(action="unknown_action"))
+    res_err5 = json.loads(tool_func(action="unknown_action"))
     assert res_err5["status"] == "error"
     assert "Unsupported action" in res_err5["error"]
 
 
-
-
-def test_exception_defense(monkeypatch):
+def test_exception_defense(monkeypatch: pytest.MonkeyPatch) -> None:
     tool = create_working_memory_manage_tool()
 
     # Inject exception in discard
-    def mock_record_trap(*args, **kwargs):
+    def mock_record_trap(*args: object, **kwargs: object) -> None:
         raise RuntimeError("Disk IO failure")
 
     monkeypatch.setattr(LocalWorkingMemoryBlock, "record_trap", mock_record_trap)
@@ -223,7 +221,7 @@ def test_exception_defense(monkeypatch):
     assert "Disk IO failure" in res_discard["error"]
 
     # Inject exception in summarize
-    def mock_set_scratchpad(*args, **kwargs):
+    def mock_set_scratchpad(*args: object, **kwargs: object) -> None:
         raise RuntimeError("Memory overflow")
 
     monkeypatch.setattr(LocalWorkingMemoryBlock, "set_scratchpad", mock_set_scratchpad)
@@ -237,7 +235,7 @@ def test_exception_defense(monkeypatch):
     assert "Memory overflow" in res_scratch["error"]
 
 
-def test_get_meta_tools_mounts_working_memory_tool():
+def test_get_meta_tools_mounts_working_memory_tool() -> None:
     from myrm_agent_harness.agent.meta_tools import get_meta_tools
     from myrm_agent_harness.agent.tool_management import ToolRegistry
 
