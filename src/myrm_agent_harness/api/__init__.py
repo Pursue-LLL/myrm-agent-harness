@@ -48,7 +48,6 @@ __all__ = [
     "ConflictSeverity",
     "ConnectorErrorCategory",
     "ConnectorHealthStatus",
-    "DesktopCaptureDriver",
     "DesktopRecordedEvent",
     "DistillationCandidate",
     "DistillationOrigin",
@@ -267,10 +266,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "ConnectorHealthStatus": (
         "myrm_agent_harness.toolkits.cron.engine.connector_health",
         "ConnectorHealthStatus",
-    ),
-    "DesktopCaptureDriver": (
-        "myrm_agent_harness.toolkits.computer_use.recording",
-        "DesktopCaptureDriver",
     ),
     "DesktopRecordedEvent": (
         "myrm_agent_harness.toolkits.computer_use.recording",
