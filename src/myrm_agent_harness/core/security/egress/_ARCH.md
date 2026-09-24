@@ -12,6 +12,7 @@ Ephemeral sentinel voucher encoding/decoding and loopback egress proxy substitut
 | `proxy_server.py` | Core | Asyncio-based loopback egress proxy (`LoopbackEgressProxy`) with ephemeral CA management (`EphemeralCaManager`) for outbound HTTP/CONNECT request header, query, and streaming body substitution. | ✅ |
 | `spend_contracts.py` | Core | Immutable data models and token primitives (`SpendGovernorConfig`, `SpendLease`, `SpendLeaseResult`, `SpendCommitResult`, `is_spend_voucher`) for zero-float commerce accounting. | ✅ |
 | `spend_governor.py` | Core | Pure deterministic micro-spending state machine (`SpendGovernor`) enforcing merchant allowlists, per-action/daily caps in USD Cents, atomic leases, and voucher generation. | ✅ |
+| `tainted_gateway.py` | Core | Transport-level network egress gateway (`TaintedEgressGateway`) enforcing taint-based leak prevention, domain allowlists, and ContextVar tracking. | ✅ |
 
 ## Key Invariants
 

@@ -11,6 +11,11 @@ from .dialog_manager import DialogManager, DialogPolicy
 from .download_manager import DownloadConfig, DownloadManager, DownloadResult
 from .extractor import Extractor
 from .interactor import Interactor
+from .restricted_ax_session import (
+    RestrictedAccessibilityBrowserSession,
+    RestrictedAxSecurityViolationError,
+    create_restricted_ax_browser_tools,
+)
 from .session_lifecycle_hook import SessionLifecycleHookProtocol
 from .session_memory_bridge import SessionMemoryBridge
 from .snapshot_manager import SnapshotManager
@@ -28,9 +33,12 @@ __all__ = [
     "DownloadResult",
     "Extractor",
     "Interactor",
+    "RestrictedAccessibilityBrowserSession",
+    "RestrictedAxSecurityViolationError",
     "SessionLifecycleHookProtocol",
     "SessionMemoryBridge",
     "SnapshotManager",
     "StructuredExtractor",
     "TabController",
+    "create_restricted_ax_browser_tools",
 ]

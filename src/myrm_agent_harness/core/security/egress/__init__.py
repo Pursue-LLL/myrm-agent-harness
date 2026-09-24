@@ -37,6 +37,13 @@ from .spend_governor import (
     SpendLeaseResult,
     is_spend_voucher,
 )
+from .tainted_gateway import (
+    TaintedEgressBlockedException,
+    TaintedEgressDecision,
+    TaintedEgressGateway,
+    is_current_egress_tainted,
+    set_current_egress_tainted,
+)
 
 __all__ = [
     "EphemeralCaManager",
@@ -52,7 +59,12 @@ __all__ = [
     "SpendLease",
     "SpendLeaseResult",
     "StreamingSentinelScanner",
+    "TaintedEgressBlockedException",
+    "TaintedEgressDecision",
+    "TaintedEgressGateway",
     "get_global_sentinel_manager",
+    "is_current_egress_tainted",
     "is_sentinel_voucher",
     "is_spend_voucher",
+    "set_current_egress_tainted",
 ]

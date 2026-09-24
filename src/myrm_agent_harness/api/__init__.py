@@ -17,6 +17,11 @@ from __future__ import annotations
 from importlib import import_module
 
 __all__ = [
+    "create_restricted_ax_browser_tools",
+    "RestrictedAccessibilityBrowserSession",
+    "TaintedEgressBlockedException",
+    "TaintedEgressDecision",
+    "TaintedEgressGateway",
     "ProviderBalanceProbeProtocol",
     "ProviderBalanceResult",
     "ProviderBalanceStatus",
@@ -879,6 +884,26 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "create_consolidation_cleanup_task": (
         "myrm_agent_harness.toolkits.memory",
         "create_consolidation_cleanup_task",
+    ),
+    "TaintedEgressGateway": (
+        "myrm_agent_harness.core.security.egress",
+        "TaintedEgressGateway",
+    ),
+    "TaintedEgressDecision": (
+        "myrm_agent_harness.core.security.egress",
+        "TaintedEgressDecision",
+    ),
+    "TaintedEgressBlockedException": (
+        "myrm_agent_harness.core.security.egress",
+        "TaintedEgressBlockedException",
+    ),
+    "RestrictedAccessibilityBrowserSession": (
+        "myrm_agent_harness.toolkits.browser.session",
+        "RestrictedAccessibilityBrowserSession",
+    ),
+    "create_restricted_ax_browser_tools": (
+        "myrm_agent_harness.toolkits.browser.session",
+        "create_restricted_ax_browser_tools",
     ),
 }
 
