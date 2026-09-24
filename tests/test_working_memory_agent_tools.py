@@ -273,33 +273,44 @@ def test_working_memory_tool_dispatches_snapshot_in_event(monkeypatch: pytest.Mo
 
     tool = create_working_memory_manage_tool()
 
-    # 1. update_subtask
-    tool.invoke({"action": "update_subtask", "subtask_id": "st-1", "status": "in_progress", "notes": "Working on it"})
+    # 1. add_subtask
+    tool.invoke({"action": "add_subtask", "title": "First step", "subtask_id": "st-1", "notes": "Initial setup"})
     assert len(dispatched_events) == 1
     evt_name, payload = dispatched_events[-1]
     assert evt_name == "working_memory_update"
+    assert payload["action"] == "add_subtask"
+    assert payload["subtask_id"] == "st-1"
     assert "snapshot" in payload
     assert isinstance(payload["snapshot"], dict)
 
-    # 2. discard
-    tool.invoke({"action": "discard", "target": "approach_a", "avoidance_rule": "Do not use A"})
+    # 2. update_subtask
+    tool.invoke({"action": "update_subtask", "subtask_id": "st-1", "status": "in_progress", "notes": "Working on it"})
     assert len(dispatched_events) == 2
     evt_name, payload = dispatched_events[-1]
     assert evt_name == "working_memory_update"
+    assert payload["action"] == "update_subtask"
     assert "snapshot" in payload
     assert isinstance(payload["snapshot"], dict)
 
-    # 3. summarize
-    tool.invoke({"action": "summarize", "summary": "Current progress report"})
+    # 3. discard
+    tool.invoke({"action": "discard", "target": "approach_a", "avoidance_rule": "Do not use A"})
     assert len(dispatched_events) == 3
     evt_name, payload = dispatched_events[-1]
     assert evt_name == "working_memory_update"
     assert "snapshot" in payload
     assert isinstance(payload["snapshot"], dict)
 
-    # 4. set_scratchpad
-    tool.invoke({"action": "set_scratchpad", "key": "lead_id", "value": "12345"})
+    # 4. summarize
+    tool.invoke({"action": "summarize", "summary": "Current progress report"})
     assert len(dispatched_events) == 4
+    evt_name, payload = dispatched_events[-1]
+    assert evt_name == "working_memory_update"
+    assert "snapshot" in payload
+    assert isinstance(payload["snapshot"], dict)
+
+    # 5. set_scratchpad
+    tool.invoke({"action": "set_scratchpad", "key": "lead_id", "value": "12345"})
+    assert len(dispatched_events) == 5
     evt_name, payload = dispatched_events[-1]
     assert evt_name == "working_memory_update"
     assert "snapshot" in payload
