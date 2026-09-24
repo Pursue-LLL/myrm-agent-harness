@@ -43,14 +43,25 @@ _VALID_STATUSES = {
 
 
 class WorkingMemoryManageInput(BaseModel):
-    action: Literal["update_subtask", "discard", "summarize", "set_scratchpad"] = Field(
+    action: Literal[
+        "add_subtask",
+        "update_subtask",
+        "discard",
+        "summarize",
+        "set_scratchpad",
+    ] = Field(
         description=(
             "Action to perform on working memory:\n"
-            "- 'update_subtask': Update step status and progress notes\n"
+            "- 'add_subtask': Append a new planned subtask to the board\n"
+            "- 'update_subtask': Update an existing step's status and progress notes\n"
             "- 'discard': Prune a failed hypothesis and auto-register an avoidance trap\n"
             "- 'summarize': Save a dense stage summary to prevent context decay\n"
             "- 'set_scratchpad': Record a transient key-value memo"
         )
+    )
+    title: str | None = Field(
+        default=None,
+        description="Title for the new subtask when action is 'add_subtask' (e.g. 'Run database migrations').",
     )
     subtask_id: str | None = Field(
         default=None,
@@ -104,7 +115,14 @@ def create_working_memory_manage_tool() -> BaseTool:
         args_schema=WorkingMemoryManageInput,
     )
     def working_memory_manage(
-        action: Literal["update_subtask", "discard", "summarize", "set_scratchpad"],
+        action: Literal[
+            "add_subtask",
+            "update_subtask",
+            "discard",
+            "summarize",
+            "set_scratchpad",
+        ],
+        title: str | None = None,
         subtask_id: str | None = None,
         status: Literal["pending", "in_progress", "completed", "failed", "skipped"] | None = None,
         notes: str | None = None,
@@ -121,6 +139,50 @@ def create_working_memory_manage_tool() -> BaseTool:
             state = LocalWorkingMemoryBlock.initialize(goal="Current execution task")
 
         try:
+            if action == "add_subtask":
+                task_title = (title or notes or "").strip()
+                if not task_title:
+                    return json.dumps({
+                        "status": "error",
+                        "error": "Missing required 'title' for 'add_subtask'.",
+                        "hint": "Provide a clear task title (e.g. title='Verify deployment logs').",
+                    })
+
+                task_notes = notes.strip() if notes and notes.strip() != task_title else ""
+                item = LocalWorkingMemoryBlock.add_subtask(
+                    title=task_title,
+                    subtask_id=subtask_id,
+                    notes=task_notes,
+                )
+                if item is None:
+                    return json.dumps({
+                        "status": "error",
+                        "error": "Working memory is not initialized.",
+                    })
+
+                new_id = item.id
+
+                try:
+                    dispatch_custom_event(
+                        "working_memory_update",
+                        {
+                            "action": "add_subtask",
+                            "subtask_id": new_id,
+                            "title": task_title,
+                            "notes": task_notes or None,
+                            "snapshot": LocalWorkingMemoryBlock.to_dict(),
+                        },
+                    )
+                except Exception as exc:
+                    logger.debug("Failed to dispatch working_memory_update event: %s", exc)
+
+                return json.dumps({
+                    "status": "success",
+                    "action": "add_subtask",
+                    "subtask_id": new_id,
+                    "title": task_title,
+                })
+
             if action == "update_subtask":
                 if not subtask_id:
                     return json.dumps({
@@ -149,16 +211,11 @@ def create_working_memory_manage_tool() -> BaseTool:
                     notes=notes or "",
                 )
                 if not ok:
-                    # Subtask doesn't exist, auto-create it for tolerance
-                    LocalWorkingMemoryBlock.add_subtask(
-                        title=notes or f"Task {subtask_id}",
-                        subtask_id=subtask_id,
-                    )
-                    LocalWorkingMemoryBlock.update_subtask(
-                        subtask_id=subtask_id,
-                        status=parsed_status,
-                        notes=notes or "",
-                    )
+                    return json.dumps({
+                        "status": "error",
+                        "error": f"Subtask '{subtask_id}' not found.",
+                        "hint": "Use action='add_subtask' with 'title' to create a new step, or check existing subtask IDs.",
+                    })
 
                 try:
                     dispatch_custom_event(
@@ -278,7 +335,7 @@ def create_working_memory_manage_tool() -> BaseTool:
             return json.dumps({
                 "status": "error",
                 "error": f"Unsupported action: '{action}'.",
-                "valid_actions": ["update_subtask", "discard", "summarize", "set_scratchpad"],
+                "valid_actions": ["add_subtask", "update_subtask", "discard", "summarize", "set_scratchpad"],
             })
 
         except Exception as exc:

@@ -51,25 +51,49 @@ def test_update_subtask():
     assert state.subtasks[0].notes == "models migrated and verified"
 
 
-def test_update_subtask_auto_create_tolerance():
+def test_add_subtask():
     LocalWorkingMemoryBlock.initialize(goal="Quick run")
     tool = create_working_memory_manage_tool()
 
-    # Updating a non-existent step should auto-create it gracefully
+    res_raw = tool.invoke({
+        "action": "add_subtask",
+        "title": "Run database migrations",
+        "notes": "Using alembic upgrade head",
+    })
+    res = json.loads(res_raw)
+    assert res["status"] == "success"
+    assert res["action"] == "add_subtask"
+    assert res["title"] == "Run database migrations"
+    new_id = res["subtask_id"]
+
+    state = LocalWorkingMemoryBlock.get_state()
+    assert state is not None
+    matching = [st for st in state.subtasks if st.id == new_id]
+    assert len(matching) == 1
+    assert matching[0].title == "Run database migrations"
+    assert matching[0].notes == "Using alembic upgrade head"
+    assert matching[0].status == SubtaskStatus.PENDING
+
+
+def test_update_subtask_not_found_returns_error():
+    LocalWorkingMemoryBlock.initialize(goal="Quick run")
+    tool = create_working_memory_manage_tool()
+
     res_raw = tool.invoke({
         "action": "update_subtask",
         "subtask_id": "step-99",
         "status": "in_progress",
-        "notes": "Spontaneous task",
+        "notes": "Non-existent step",
     })
     res = json.loads(res_raw)
-    assert res["status"] == "success"
+    assert res["status"] == "error"
+    assert "Subtask 'step-99' not found." in res["error"]
+    assert "add_subtask" in res["hint"]
 
+    # Verify no phantom subtasks created
     state = LocalWorkingMemoryBlock.get_state()
     assert state is not None
-    matching = [st for st in state.subtasks if st.id == "step-99"]
-    assert len(matching) == 1
-    assert matching[0].status == SubtaskStatus.IN_PROGRESS
+    assert len(state.subtasks) == 0
 
 
 def test_discard_action_registers_trap_and_updates_subtask():
@@ -233,6 +257,9 @@ def test_working_memory_tool_dispatches_snapshot_in_event(monkeypatch: pytest.Mo
     from myrm_agent_harness.agent.meta_tools.working_memory.working_memory_agent_tools import (
         create_working_memory_manage_tool,
     )
+
+    LocalWorkingMemoryBlock.initialize(goal="Snapshot test")
+    LocalWorkingMemoryBlock.add_subtask(title="Subtask 1", subtask_id="st-1")
 
     dispatched_events: list[tuple[str, dict[str, object]]] = []
 

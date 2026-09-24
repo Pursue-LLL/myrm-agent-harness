@@ -79,14 +79,24 @@ class LocalWorkingMemoryBlock:
         return state
 
     @classmethod
-    def add_subtask(cls, title: str, subtask_id: str | None = None) -> SubtaskItem | None:
+    def add_subtask(
+        cls,
+        title: str,
+        subtask_id: str | None = None,
+        notes: str = "",
+    ) -> SubtaskItem | None:
         """Add a new subtask to the active working state."""
         state = cls.get_state()
         if state is None:
             return None
 
         resolved_id = subtask_id or f"step-{len(state.subtasks) + 1}"
-        item = SubtaskItem(id=resolved_id, title=title.strip(), status=SubtaskStatus.PENDING)
+        item = SubtaskItem(
+            id=resolved_id,
+            title=title.strip(),
+            notes=notes.strip(),
+            status=SubtaskStatus.PENDING,
+        )
         state.subtasks.append(item)
         return item
 
@@ -94,7 +104,7 @@ class LocalWorkingMemoryBlock:
     def update_subtask(
         cls,
         subtask_id: str,
-        status: SubtaskStatus,
+        status: SubtaskStatus | None = None,
         notes: str = "",
     ) -> bool:
         """Update the status and optional notes of an existing subtask."""
@@ -104,7 +114,8 @@ class LocalWorkingMemoryBlock:
 
         for item in state.subtasks:
             if item.id == subtask_id:
-                item.status = status
+                if status is not None:
+                    item.status = status
                 if notes:
                     item.notes = notes.strip()
                 return True
