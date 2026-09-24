@@ -406,12 +406,14 @@ class LocalWorkingMemoryBlock:
             for trap_obj in raw_traps:
                 if isinstance(trap_obj, dict):
                     tool_val = trap_obj.get("tool_name")
+                    raw_turn = trap_obj.get("occurred_turn", 0)
+                    occurred_turn = int(raw_turn) if isinstance(raw_turn, (int, str, float)) else 0
                     traps.append(
                         TrapRecord(
                             fingerprint=str(trap_obj.get("fingerprint", "")),
                             avoidance_rule=str(trap_obj.get("avoidance_rule", "")),
                             tool_name=str(tool_val) if tool_val is not None else None,
-                            occurred_turn=int(trap_obj.get("occurred_turn", 0)),
+                            occurred_turn=occurred_turn,
                             resolved=bool(trap_obj.get("resolved", False)),
                         )
                     )
@@ -421,13 +423,16 @@ class LocalWorkingMemoryBlock:
         if isinstance(raw_scratch, dict):
             scratchpad = {str(k): str(v) for k, v in raw_scratch.items()}
 
+        raw_active_turn = data.get("active_turn", 1)
+        active_turn = int(raw_active_turn) if isinstance(raw_active_turn, (int, str, float)) else 1
+
         state = LocalWorkingState(
             goal=goal,
             status=status,  # type: ignore[arg-type]
             subtasks=subtasks,
             traps=traps,
             scratchpad=scratchpad,
-            active_turn=int(data.get("active_turn", 1)),
+            active_turn=active_turn,
             consolidated=bool(data.get("consolidated", False)),
         )
         _WORKING_STATE_VAR.set(state)
