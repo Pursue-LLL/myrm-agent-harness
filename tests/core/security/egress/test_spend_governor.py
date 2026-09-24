@@ -259,3 +259,96 @@ def test_terminal_lease_pruning_and_eviction() -> None:
     # At t0 + 4000 (> 60 + 3600), lease should be evicted from memory
     governor.cleanup_expired_leases(now=t0 + 4000)
     assert lid not in governor._leases
+
+
+def test_spend_governor_edge_cases_and_error_handling() -> None:
+    """Test edge cases: empty merchant, update_config, idempotency reuse, invalid states."""
+    governor = SpendGovernor(
+        SpendGovernorConfig(daily_cap_cents=500, per_action_cap_cents=200, allowed_merchants=("namesilo.com",)),
+    )
+
+    # 1. Empty merchant domain rejection
+    assert governor.is_merchant_allowed("") is False
+
+    # 2. Dynamic config update
+    new_cfg = SpendGovernorConfig(daily_cap_cents=800, per_action_cap_cents=300, allowed_merchants=("*.stripe.com",))
+    governor.update_config(new_cfg)
+    assert governor.config.daily_cap_cents == 800
+    assert governor.is_merchant_allowed("api.stripe.com") is True
+
+    # 3. Idempotency key reuse on reservation
+    r1 = governor.reserve("api.stripe.com", 150, idempotency_key="idemp_1")
+    assert r1.success is True
+    assert r1.lease is not None
+    # Reserve again with same idempotency key before expiration
+    r2 = governor.reserve("api.stripe.com", 150, idempotency_key="idemp_1")
+    assert r2.success is True
+    assert r2.code == "APPROVED"
+    assert r2.message == "Idempotent lease reservation reused."
+    assert r2.lease.lease_id == r1.lease.lease_id
+
+    # 4. Commit non-existent lease
+    c_none = governor.commit("non_existent_lease_id")
+    assert c_none.success is False
+    assert c_none.code == "LEASE_NOT_FOUND"
+
+    # 5. Commit already committed lease
+    c1 = governor.commit(r1.lease.lease_id)
+    assert c1.success is True
+    c1_repeat = governor.commit(r1.lease.lease_id)
+    assert c1_repeat.success is True
+    assert c1_repeat.code == "ALREADY_COMMITTED"
+
+    # 6. Release non-existent lease & release already committed lease
+    assert governor.release("non_existent_lease_id") is False
+    assert governor.release(r1.lease.lease_id) is False
+
+    # 7. Release a reserved lease, then attempt to commit
+    r3 = governor.reserve("api.stripe.com", 100)
+    assert r3.success is True
+    assert governor.release(r3.lease.lease_id) is True
+    c_released = governor.commit(r3.lease.lease_id)
+    assert c_released.success is False
+    assert c_released.code == "INVALID_STATE"
+
+    # 8. Malformed voucher decoding robustness
+    assert governor.verify_spend_voucher(f"{SPEND_VOUCHER_PREFIX}short{SPEND_VOUCHER_SUFFIX}") is None
+    assert governor.verify_spend_voucher(f"{SPEND_VOUCHER_PREFIX}invalid!!!base64==={SPEND_VOUCHER_SUFFIX}") is None
+    assert r1.voucher is not None
+    tampered_sig = r1.voucher[:-10] + ("A" if r1.voucher[-10] != "A" else "B") + r1.voucher[-9:]
+    assert governor.verify_spend_voucher(tampered_sig) is None
+
+
+
+def test_spend_governor_concurrent_reserves_thread_safety() -> None:
+    """Test thread-safety of concurrent reservations against daily cap limit."""
+    import concurrent.futures
+
+    governor = SpendGovernor(
+        SpendGovernorConfig(daily_cap_cents=1000, per_action_cap_cents=100, allowed_merchants=("namesilo.com",)),
+    )
+
+    success_count = 0
+    fail_count = 0
+
+    def try_reserve() -> bool:
+        res = governor.reserve("namesilo.com", 100)
+        return res.success
+
+    # Launch 20 concurrent threads trying to reserve 100 cents each (total 2000 > 1000 cap)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        futures = [executor.submit(try_reserve) for _ in range(20)]
+        for f in concurrent.futures.as_completed(futures):
+            if f.result():
+                success_count += 1
+            else:
+                fail_count += 1
+
+    # Exactly 10 must succeed, and 10 must fail
+    assert success_count == 10
+    assert fail_count == 10
+    assert governor.get_active_reserved_cents() == 1000
+    metrics = governor.get_metrics()
+    assert metrics["remainingCents"] == 0
+
+
