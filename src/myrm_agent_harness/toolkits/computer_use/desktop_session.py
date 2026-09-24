@@ -94,11 +94,6 @@ class DesktopSession(ComputerSession):
     def ref_registry(self) -> DRefRegistry:
         return self._refs
 
-    @property
-    def backend(self) -> object:
-        """Platform backend, exposed so capture/snapshot consumers can reuse this session."""
-        return self._backend
-
     def set_view_update_callback(self, callback: ViewUpdateCallback | None) -> None:
         self._view_update_callback = callback
 

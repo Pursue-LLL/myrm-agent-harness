@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import Protocol
 
 from myrm_agent_harness.toolkits.computer_use.dref.types import (
     ElementRef,
@@ -47,10 +46,6 @@ _MAX_EVENTS_PER_POLL = 3
 _TEXT_ENTRY_OVERLAY_ROLES = frozenset({"textbox", "searchbox"})
 
 
-class _CaptureBackend(Protocol):
-    """Structural contract for the platform backend consumed by ``capture_snapshot``."""
-
-
 @dataclass(frozen=True)
 class CaptureFrame:
     """One poll result: what changed since the previous frame."""
@@ -60,12 +55,18 @@ class CaptureFrame:
     refs: dict[str, ElementRef]
 
 
+def _resolve_backend(capture_source: object) -> object:
+    """Accept a DesktopSession (preferred) or a bare platform backend."""
+    backend = getattr(capture_source, "backend", None)
+    return backend if backend is not None else capture_source
+
+
 class DesktopCaptureDriver:
     """Emit interaction events by diffing consecutive foreground AX snapshots.
 
     Usage::
 
-        driver = DesktopCaptureDriver(backend)
+        driver = DesktopCaptureDriver(desktop_session)
         frame = await driver.poll()   # first poll only primes the baseline
         ...
         frame = await driver.poll()   # subsequent polls yield events
@@ -75,8 +76,8 @@ class DesktopCaptureDriver:
     interactions the user never performed.
     """
 
-    def __init__(self, backend: _CaptureBackend, *, app_scope: str = "all") -> None:
-        self._backend = backend
+    def __init__(self, capture_source: object, *, app_scope: str = "all") -> None:
+        self._backend = _resolve_backend(capture_source)
         self._app_scope = app_scope
         self._prev_refs: dict[str, ElementRef] = {}
         self._prev_meta: SnapshotMeta | None = None

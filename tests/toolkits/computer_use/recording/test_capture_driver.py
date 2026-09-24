@@ -213,6 +213,31 @@ def test_events_are_sequential_and_bounded(monkeypatch) -> None:
     assert len(set(sequences)) == len(sequences)
 
 
+def test_accepts_session_object_via_backend_attribute(monkeypatch) -> None:
+    """A DesktopSession can be passed directly; the driver draws capture from its backend."""
+    frames = [
+        (_meta("Finder"), {"r1": _element("r1", "AXButton", "Open")}),
+        (
+            _meta("Finder"),
+            {"r1": _element("r1", "AXButton", "Open"), "r2": _element("r2", "AXButton", "Taxes")},
+        ),
+    ]
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.computer_use.recording.capture_driver.capture_snapshot",
+        _ScriptedCapture(frames),
+    )
+
+    class _FakeDesktopSession:
+        backend = _FakeBackend()
+
+    driver = DesktopCaptureDriver(_FakeDesktopSession())
+    asyncio.run(driver.poll())
+    frame = asyncio.run(driver.poll())
+
+    assert len(frame.events) == 1
+    assert frame.events[0].dref_id == "r2"
+
+
 def test_reset_clears_baseline_and_counter(monkeypatch) -> None:
     """Reset re-arms the driver for a new recording session."""
     frames = [
