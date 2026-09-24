@@ -162,6 +162,11 @@ class WikiIndexer(FtsSearchMixin, SidecarIndexMixin):
         """Delegate to WikiGraphStore for graph structural analysis."""
         return self._graph_store.graph_insights()
 
+    @property
+    def graph_store(self) -> WikiGraphStore:
+        """Access underlying WikiGraphStore."""
+        return self._graph_store
+
     def get_concept_links(self, concept_name: str, depth: int = 1) -> dict[str, object]:
         """Delegate bidirectional links lookup to WikiGraphStore."""
         return self._graph_store.get_concept_links(concept_name, depth=depth)

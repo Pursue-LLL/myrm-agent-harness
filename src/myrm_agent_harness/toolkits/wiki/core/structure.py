@@ -66,6 +66,7 @@ class WikiStructure:
         self.deliverables_dir = self.base_dir / "deliverables"
         self.inbox_dir = self.base_dir / "inbox"
         self.archive_dir = self.wiki_dir / "archive" / "concepts"
+        self._alias_to_path_cache: dict[str, Path] | None = None
 
     def ensure_structure(self) -> None:
         """Create all required directories if they don't exist."""
@@ -188,6 +189,47 @@ class WikiStructure:
                 continue
         return None
 
+    def resolve_alias_file_path(self, alias_name: str) -> Path | None:
+        """Resolve a concept file path by frontmatter alias.
+
+        Reads cached alias-to-path index, or builds it on demand by scanning concept articles.
+        """
+        if not alias_name:
+            return None
+        clean_key = alias_name.removesuffix(".md").strip().lower()
+        if self._alias_to_path_cache is None:
+            self._rebuild_alias_cache()
+        if self._alias_to_path_cache:
+            return self._alias_to_path_cache.get(clean_key)
+        return None
+
+    def invalidate_alias_cache(self) -> None:
+        """Clear memory cache of frontmatter alias index."""
+        self._alias_to_path_cache = None
+
+    def _rebuild_alias_cache(self) -> None:
+        """Scan active concepts to build alias -> Path mapping."""
+        mapping: dict[str, Path] = {}
+        for concept_path in self.list_concepts():
+            try:
+                with open(concept_path, "r", encoding="utf-8", errors="ignore") as f:
+                    chunk = f.read(2048)
+                from myrm_agent_harness.utils.markdown_frontmatter import parse_frontmatter
+
+                fm, _ = parse_frontmatter(chunk)
+                aliases = fm.get("aliases")
+                if isinstance(aliases, list):
+                    for a in aliases:
+                        if isinstance(a, str) and a.strip():
+                            mapping[a.strip().lower()] = concept_path
+                elif isinstance(aliases, str) and aliases.strip():
+                    for a in aliases.split(","):
+                        if a.strip():
+                            mapping[a.strip().lower()] = concept_path
+            except (OSError, UnicodeDecodeError):
+                continue
+        self._alias_to_path_cache = mapping
+
     def get_index_file_path(self) -> Path:
         """Get path for the OKF root index catalog (wiki/index.md)."""
         return self.wiki_dir / "index.md"
@@ -268,6 +310,7 @@ class WikiStructure:
 
         # 2. Atomic file move
         source_path.replace(target_path)
+        self.invalidate_alias_cache()
         return target_path
 
     async def revive_concept_safe(
@@ -285,6 +328,7 @@ class WikiStructure:
 
         # 1. Atomic file move
         archive_path.replace(target_path)
+        self.invalidate_alias_cache()
 
         # 2. Reindex if indexer provided
         if indexer is not None:

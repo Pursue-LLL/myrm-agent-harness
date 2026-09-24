@@ -222,10 +222,16 @@ class WikiGraphStore:
         claim = self._structure.get_claim_file_path(clean_name)
         if claim.is_file():
             return claim
+        # 5. Frontmatter alias lookup
+        alias_path = self._structure.resolve_alias_file_path(clean_name)
+        if alias_path and alias_path.is_file():
+            return alias_path
         return None
 
-    def _extract_mention_snippet(self, file_path: Path, target_name: str, max_chars: int = 140) -> str | None:
-        """Extract a readable snippet showing the sentence or context where target_name is referenced."""
+    def _extract_mention_record(
+        self, file_path: Path, target_name: str, max_chars: int = 140
+    ) -> tuple[str, int, str | None] | None:
+        """Extract snippet, 1-based line number, and heading section where target_name is referenced."""
         if not file_path.is_file():
             return None
         try:
@@ -234,19 +240,38 @@ class WikiGraphStore:
             return None
 
         clean_target = target_name.removesuffix(".md").strip()
+        if not clean_target:
+            return None
+
         escaped_target = re.escape(clean_target)
-        patterns = [
+        has_cjk = any("\u4e00" <= ch <= "\u9fff" for ch in clean_target)
+
+        patterns: list[re.Pattern[str]] = [
             re.compile(rf".*\[\[{escaped_target}(?:[#|][^\]]*)?\]\].*", re.IGNORECASE),
             re.compile(rf".*\[[^\]]+\]\([^)]*{escaped_target}[^)]*\).*", re.IGNORECASE),
-            re.compile(rf".*\b{escaped_target}\b.*", re.IGNORECASE),
         ]
-        for pattern in patterns:
-            for line in content.splitlines():
-                line_str = line.strip()
-                if not line_str or line_str.startswith("#"):
-                    continue
+        if has_cjk:
+            # Single-character Chinese entities are restricted to link patterns to avoid false-positive flooding
+            if len(clean_target) >= 2:
+                patterns.append(
+                    re.compile(rf".*(?<![a-zA-Z0-9]){escaped_target}(?![a-zA-Z0-9]).*", re.IGNORECASE)
+                )
+        else:
+            patterns.append(re.compile(rf".*\b{escaped_target}\b.*", re.IGNORECASE))
+
+        current_heading: str | None = None
+        for line_idx, line in enumerate(content.splitlines(), start=1):
+            line_str = line.strip()
+            if not line_str:
+                continue
+            if line_str.startswith("#"):
+                current_heading = line_str.lstrip("#").strip()
+                continue
+
+            for pattern in patterns:
                 if pattern.search(line_str):
                     clean_line = re.sub(r"^[-*+>]\s+", "", line_str).strip()
+                    snippet = clean_line
                     if len(clean_line) > max_chars:
                         match = pattern.search(clean_line)
                         if match:
@@ -254,10 +279,16 @@ class WikiGraphStore:
                             end = min(len(clean_line), match.end() + 70)
                             prefix = "..." if start > 0 else ""
                             suffix = "..." if end < len(clean_line) else ""
-                            return f"{prefix}{clean_line[start:end].strip()}{suffix}"
-                        return f"{clean_line[:max_chars]}..."
-                    return clean_line
+                            snippet = f"{prefix}{clean_line[start:end].strip()}{suffix}"
+                        else:
+                            snippet = f"{clean_line[:max_chars]}..."
+                    return snippet, line_idx, current_heading
         return None
+
+    def _extract_mention_snippet(self, file_path: Path, target_name: str, max_chars: int = 140) -> str | None:
+        """Extract a readable snippet showing the sentence or context where target_name is referenced."""
+        rec = self._extract_mention_record(file_path, target_name, max_chars)
+        return rec[0] if rec else None
 
     def get_concept_links(self, concept_name: str, depth: int = 1) -> dict[str, object]:
         """Fetch bidirectional links (outlinks and backlinks) with context snippets and 1-degree ego graph."""
@@ -292,13 +323,18 @@ class WikiGraphStore:
             for row in cursor.fetchall():
                 src = str(row["source"])
                 src_path = self._find_asset_path(src)
-                snippet = self._extract_mention_snippet(src_path, clean_name) if src_path else None
+                record = self._extract_mention_record(src_path, clean_name) if src_path else None
+                snippet = record[0] if record else None
+                line_no = record[1] if record else None
+                heading = record[2] if record else None
                 backlinks.append(
                     {
                         "name": src,
                         "weight": float(row["weight"] or 1.0),
                         "exists": src_path is not None,
                         "context_snippet": snippet,
+                        "line_number": line_no,
+                        "heading": heading,
                     }
                 )
 
