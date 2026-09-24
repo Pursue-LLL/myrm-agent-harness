@@ -89,7 +89,11 @@ def test_emits_click_event_for_newly_added_element(monkeypatch) -> None:
     assert len(frame.events) == 1
     event = frame.events[0]
     assert event.action == RecordedActionType.CLICK.value
-    assert event.dref_id == "r2"
+    # `ref_id` is a per-snapshot positional index, so recording it would make the synthesized
+    # step claim a semantic @dref target that points elsewhere on replay. The step must carry
+    # the element identity it can re-resolve instead.
+    assert event.dref_id is None
+    assert event.element_role == "button"
     assert event.element_title == "Documents"
     assert event.app_name == "Finder"
     assert event.window_title == "Documents"
@@ -282,7 +286,7 @@ def test_accepts_session_object_via_backend_attribute(monkeypatch) -> None:
     frame = asyncio.run(driver.poll())
 
     assert len(frame.events) == 1
-    assert frame.events[0].dref_id == "r2"
+    assert frame.events[0].element_title == "Taxes"
 
 
 def test_skips_sensitive_app_capture(monkeypatch) -> None:

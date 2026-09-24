@@ -201,7 +201,12 @@ class DesktopCaptureDriver:
             app_name=meta.app_name,
             bundle_id=meta.app_id or None,
             window_title=meta.window_title,
-            dref_id=element.ref_id if element else None,
+            # `ref_id` is a per-snapshot positional index (`d<N>` by tree order), so it is
+            # meaningless to a later session. Emitting it would make the synthesizer mark the
+            # step as a semantic @dref interaction whose target silently points elsewhere at
+            # replay. Leaving it unset keeps steps on the re-resolve-by-element path, and the
+            # role/title below carry the semantic identity that path needs.
+            dref_id=None,
             element_role=element.role if element else None,
             element_title=element.name if element else None,
             # Password fields never surface their value into the event stream.
