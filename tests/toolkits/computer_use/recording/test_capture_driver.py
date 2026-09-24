@@ -190,13 +190,17 @@ def test_ignores_value_change_on_non_input_role(monkeypatch) -> None:
 def test_events_are_sequential_and_bounded(monkeypatch) -> None:
     """Sequence numbers stay monotonic and a single poll emits a bounded number of events.
 
-    A wholesale tree replacement trips the diff's change-ratio guard (`use_full_view`), so the
-    driver must also report events when the renderer would fall back to the full tree.
+    Uses a mostly-stable tree with a few new elements: a wholesale replacement fails identity
+    matching, and a diff with no reliable attribution must not fabricate interactions.
     """
-    many_added = {f"r{i}": _element(f"r{i}", "button", f"Action {i}", x=i * 10) for i in range(10)}
+    stable = {f"s{i}": _element(f"s{i}", "AXButton", f"Stable {i}", x=i * 10) for i in range(10)}
+    after = dict(stable)
+    for i in range(6):
+        after[f"n{i}"] = _element(f"n{i}", "AXButton", f"New {i}", x=500 + i * 10)
+
     frames = [
-        (_meta("App"), {"r0": _element("r0", "button", "Initial", x=0)}),
-        (_meta("App"), many_added),
+        (_meta("App"), stable),
+        (_meta("App"), after),
     ]
     monkeypatch.setattr(
         "myrm_agent_harness.toolkits.computer_use.recording.capture_driver.capture_snapshot",
@@ -211,6 +215,27 @@ def test_events_are_sequential_and_bounded(monkeypatch) -> None:
     sequences = [event.seq for event in frame.events]
     assert sequences == sorted(sequences)
     assert len(set(sequences)) == len(sequences)
+
+
+def test_wholesale_tree_replacement_emits_no_phantom_interactions(monkeypatch) -> None:
+    """An unattributable diff (failed identity matching) must not invent clicks."""
+    frames = [
+        (_meta("App"), {"r0": _element("r0", "AXButton", "Initial")}),
+        (
+            _meta("App"),
+            {f"r{i}": _element(f"r{i}", "AXButton", f"Action {i}", x=i * 100) for i in range(10)},
+        ),
+    ]
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.computer_use.recording.capture_driver.capture_snapshot",
+        _ScriptedCapture(frames),
+    )
+
+    driver = DesktopCaptureDriver(_FakeBackend())
+    asyncio.run(driver.poll())
+    frame = asyncio.run(driver.poll())
+
+    assert frame.events == ()
 
 
 def test_accepts_session_object_via_backend_attribute(monkeypatch) -> None:
@@ -237,6 +262,31 @@ def test_accepts_session_object_via_backend_attribute(monkeypatch) -> None:
 
     assert len(frame.events) == 1
     assert frame.events[0].dref_id == "r2"
+
+
+def test_skips_sensitive_app_capture(monkeypatch) -> None:
+    """Terminals and the Myrm/Cursor host UI must never be captured into a skill."""
+    frames = [
+        (_meta("Finder"), {"r1": _element("r1", "AXButton", "Open")}),
+        (_meta("Terminal"), {"r9": _element("r9", "AXTextField", "prompt", value="rm -rf /")}),
+        (_meta("Finder"), {"r1": _element("r1", "AXButton", "Open")}),
+    ]
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.computer_use.recording.capture_driver.capture_snapshot",
+        _ScriptedCapture(frames),
+    )
+
+    driver = DesktopCaptureDriver(_FakeBackend())
+    asyncio.run(driver.poll())
+    sensitive_frame = asyncio.run(driver.poll())
+    assert sensitive_frame.events == ()
+
+    # Returning to a safe app emits only the focus change: the blocked window's elements are
+    # never replayed as clicks or text entry.
+    recovered = asyncio.run(driver.poll())
+    assert all(
+        event.action == RecordedActionType.WINDOW_FOCUS.value for event in recovered.events
+    )
 
 
 def test_reset_clears_baseline_and_counter(monkeypatch) -> None:

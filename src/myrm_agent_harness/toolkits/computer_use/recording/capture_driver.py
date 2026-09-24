@@ -21,6 +21,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 
+from myrm_agent_harness.toolkits.computer_use import safety
 from myrm_agent_harness.toolkits.computer_use.dref.types import (
     ElementRef,
     SnapshotMeta,
@@ -118,6 +119,15 @@ class DesktopCaptureDriver:
         # Permission-denied or empty captures would diff as "everything removed" and invent
         # interactions; skip them and keep the previous baseline intact.
         if meta.needs_permission or not refs:
+            return CaptureFrame(events=(), meta=meta, refs=refs)
+
+        # Same sensitive-app guard the semantic desktop path enforces: terminals, password
+        # managers and the Myrm/Cursor host UI must never be captured into a skill. Re-baseline
+        # instead of diffing, so returning to a safe app does not replay the blocked window's
+        # elements as fresh interactions.
+        if safety.is_sensitive_app(meta.app_name, meta.window_title, meta.app_id):
+            self._prev_refs = refs
+            self._prev_meta = meta
             return CaptureFrame(events=(), meta=meta, refs=refs)
 
         if not self._prev_refs or self._prev_meta is None:

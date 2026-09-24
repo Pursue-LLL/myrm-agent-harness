@@ -120,15 +120,13 @@ def compute_ref_diff(
     identity_confidence = matched_count / total
 
     if identity_confidence < _IDENTITY_CONFIDENCE_THRESHOLD:
-        # Low identity confidence means a mostly-new tree (e.g. a different window). The added
-        # entries are still genuine observations, so they are reported alongside the full-view
-        # signal instead of being dropped.
-        diff = RefDiff(
+        # Identity matching failed, so no reliable per-element attribution exists. Reporting the
+        # whole current tree as "added" would fabricate changes, so the diff stays empty and
+        # consumers that need attribution must treat full_view_reason as "unknown".
+        return RefDiff(
             use_full_view=True,
             full_view_reason=f"low_identity_confidence({identity_confidence:.2f})",
         )
-        diff.added.extend(curr_refs.values())
-        return diff
 
     mapped_curr_ids = set(mapping.values())
 
