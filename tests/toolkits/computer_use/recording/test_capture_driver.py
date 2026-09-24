@@ -169,6 +169,27 @@ def test_skips_permission_denied_capture(monkeypatch) -> None:
     assert recovered.events == ()
 
 
+def test_emits_click_when_checkbox_value_toggles(monkeypatch) -> None:
+    """A checkbox/radio toggle changes `value`, not the tree shape; dropping it loses a step."""
+    frames = [
+        (_meta("App"), {"r1": _element("r1", "AXCheckBox", "Agree to terms", value="0")}),
+        (_meta("App"), {"r1": _element("r1", "AXCheckBox", "Agree to terms", value="1")}),
+    ]
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.computer_use.recording.capture_driver.capture_snapshot",
+        _ScriptedCapture(frames),
+    )
+
+    driver = DesktopCaptureDriver(_FakeBackend())
+    asyncio.run(driver.poll())
+    frame = asyncio.run(driver.poll())
+
+    assert len(frame.events) == 1
+    event = frame.events[0]
+    assert event.action == RecordedActionType.CLICK.value
+    assert event.element_title == "Agree to terms"
+
+
 def test_ignores_value_change_on_non_input_role(monkeypatch) -> None:
     """Progress labels and counters change value without any user interaction."""
     frames = [

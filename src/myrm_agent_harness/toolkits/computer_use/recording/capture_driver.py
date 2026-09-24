@@ -41,10 +41,13 @@ from myrm_agent_harness.toolkits.computer_use.recording.types import (
 # most this many events, ordered by change kind (navigation first, then text input).
 _MAX_EVENTS_PER_POLL = 3
 
-# Only text-entry elements produce a meaningful `type` event. Role names arrive as raw platform
-# identifiers (AXTextField / EditControl / ...), so they are normalized through the shared
-# overlay-role SSOT rather than compared as literals.
+# Elements whose `value` changed are the observable trace of an interaction, and the emitted
+# action depends on the role: text entry produces a `type` event carrying the new value, while
+# a value change on any other interactive role (checkbox, radio, switch, slider, option, tab,
+# combobox) is the result of a click and must not be dropped. Generic fallback roles are
+# excluded so layout churn is not mistaken for an action.
 _TEXT_ENTRY_OVERLAY_ROLES = frozenset({"textbox", "searchbox"})
+_GENERIC_OVERLAY_ROLES = frozenset({"clickable", "focusable"})
 
 
 @dataclass(frozen=True)
@@ -169,11 +172,17 @@ class DesktopCaptureDriver:
             fields = getattr(change, "changed_fields", ())
             if element is None or "value" not in fields:
                 continue
-            if normalize_desktop_role(element.role) not in _TEXT_ENTRY_OVERLAY_ROLES:
-                continue
-            emitted.append(
-                self._build_event(meta=meta, action=RecordedActionType.TYPE.value, element=element)
-            )
+            overlay_role = normalize_desktop_role(element.role)
+            if overlay_role in _TEXT_ENTRY_OVERLAY_ROLES:
+                emitted.append(
+                    self._build_event(meta=meta, action=RecordedActionType.TYPE.value, element=element)
+                )
+            elif overlay_role not in _GENERIC_OVERLAY_ROLES:
+                # A value change on a checkbox/radio/switch/slider is the *result* of a click;
+                # dropping it would lose the interaction from the recorded skill.
+                emitted.append(
+                    self._build_event(meta=meta, action=RecordedActionType.CLICK.value, element=element)
+                )
 
         return emitted
 
