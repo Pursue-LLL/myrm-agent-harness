@@ -117,7 +117,7 @@ class WikiGraphStore:
             f"SELECT concept_name FROM ({fts_union}) WHERE concept_name = ?",
             (center_node,),
         )
-        if cursor.fetchone():
+        if cursor.fetchone() or self._find_asset_path(center_node) is not None:
             nodes.append(
                 {
                     "id": center_node,
@@ -173,9 +173,9 @@ class WikiGraphStore:
                     f"SELECT concept_name FROM ({fts_union}) WHERE concept_name IN ({np_placeholders})",
                     np_params,
                 )
-                for row in cursor.fetchall():
-                    nid = row["concept_name"]
-                    if nid not in visited_nodes:
+                found_in_fts = {row["concept_name"] for row in cursor.fetchall()}
+                for nid in next_level:
+                    if nid not in visited_nodes and (nid in found_in_fts or self._find_asset_path(nid) is not None):
                         nodes.append(
                             {
                                 "id": nid,
@@ -226,6 +226,26 @@ class WikiGraphStore:
             return alias_path
         return None
 
+    def _get_target_aliases(self, clean_name: str) -> list[str]:
+        """Resolve concept frontmatter aliases to ensure backlinks match mentions under aliases."""
+        path = self._structure.resolve_concept_file_path(clean_name)
+        if not path or not path.is_file():
+            return []
+        try:
+            from myrm_agent_harness.utils.markdown_frontmatter import parse_frontmatter
+
+            with open(path, encoding="utf-8", errors="ignore") as f:
+                chunk = f.read(2048)
+            fm, _ = parse_frontmatter(chunk)
+            aliases = fm.get("aliases")
+            if isinstance(aliases, list):
+                return [str(a).strip() for a in aliases if str(a).strip()]
+            if isinstance(aliases, str) and aliases.strip():
+                return [a.strip() for a in aliases.split(",") if a.strip()]
+        except Exception:
+            pass
+        return []
+
     def _extract_mention_record(
         self, file_path: Path, target_name: str, max_chars: int = 140
     ) -> tuple[str, int, str | None] | None:
@@ -241,19 +261,22 @@ class WikiGraphStore:
         if not clean_target:
             return None
 
-        escaped_target = re.escape(clean_target)
-        has_cjk = any("\u4e00" <= ch <= "\u9fff" for ch in clean_target)
+        target_names = [clean_target]
+        for a in self._get_target_aliases(clean_target):
+            if a and a not in target_names:
+                target_names.append(a)
 
-        patterns: list[re.Pattern[str]] = [
-            re.compile(rf"\[\[{escaped_target}(?:[#|][^\]]*)?\]\]", re.IGNORECASE),
-            re.compile(rf"\[[^\]]+\]\([^)]*{escaped_target}[^)]*\)", re.IGNORECASE),
-        ]
-        if has_cjk:
-            # Single-character Chinese entities are restricted to link patterns to avoid false-positive flooding
-            if len(clean_target) >= 2:
-                patterns.append(re.compile(rf"(?<![a-zA-Z0-9]){escaped_target}(?![a-zA-Z0-9])", re.IGNORECASE))
-        else:
-            patterns.append(re.compile(rf"\b{escaped_target}\b", re.IGNORECASE))
+        patterns: list[re.Pattern[str]] = []
+        for name in target_names:
+            escaped_target = re.escape(name)
+            has_cjk = any("\u4e00" <= ch <= "\u9fff" for ch in name)
+            patterns.append(re.compile(rf"\[\[{escaped_target}(?:[#|][^\]]*)?\]\]", re.IGNORECASE))
+            patterns.append(re.compile(rf"\[[^\]]+\]\([^)]*{escaped_target}[^)]*\)", re.IGNORECASE))
+            if has_cjk:
+                if len(name) >= 2:
+                    patterns.append(re.compile(rf"(?<![a-zA-Z0-9]){escaped_target}(?![a-zA-Z0-9])", re.IGNORECASE))
+            else:
+                patterns.append(re.compile(rf"\b{escaped_target}\b", re.IGNORECASE))
 
         current_heading: str | None = None
         for line_idx, line in enumerate(content.splitlines(), start=1):
