@@ -369,8 +369,15 @@ class TestProviderChain:
         from myrm_agent_harness.toolkits.web_search.coalescing.search_coalescing import (
             reset_search_coalescing_state_for_tests,
         )
+        from myrm_agent_harness.toolkits.web_search.providers.chain import (
+            default_quota_tracker,
+        )
 
         reset_search_coalescing_state_for_tests()
+        # The quota tracker is a process-wide singleton: a sibling test that marks a
+        # provider depleted would make these hops get skipped, leaving chain_hop_count
+        # at zero for reasons unrelated to the code under test.
+        default_quota_tracker.reset_all()
 
     def _chain_config(self, *hops: SearchServiceConfig) -> SearchServiceConfig:
         head = hops[0]
