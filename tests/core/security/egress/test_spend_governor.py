@@ -214,3 +214,48 @@ def test_forged_spend_voucher_rejected() -> None:
     governor = SpendGovernor()
     assert governor.verify_spend_voucher("invalid-voucher") is None
     assert governor.verify_spend_voucher(f"{SPEND_VOUCHER_PREFIX}forged{SPEND_VOUCHER_SUFFIX}") is None
+
+
+def test_utc_calendar_day_rolling_and_restore_state() -> None:
+    """Test UTC calendar day boundary rolling and persistent state restoration."""
+    t0 = 86300.0  # Day 0 (86300 // 86400 == 0)
+    governor = SpendGovernor(
+        SpendGovernorConfig(daily_cap_cents=1000, per_action_cap_cents=500),
+    )
+    # Manually set day 0 index for deterministic testing
+    governor._current_day_index = 0
+
+    # Restore state on day 0
+    governor.restore_daily_spent(spent_cents=450, now=t0)
+    assert governor.get_metrics(now=t0)["dailySpentCents"] == 450
+    assert governor.get_metrics(now=t0)["remainingCents"] == 550
+
+    # Cross UTC day boundary (86500 // 86400 == 1)
+    t1 = 86500.0
+    metrics_next_day = governor.get_metrics(now=t1)
+    assert metrics_next_day["dailySpentCents"] == 0
+    assert metrics_next_day["remainingCents"] == 1000
+
+
+def test_terminal_lease_pruning_and_eviction() -> None:
+    """Test that terminal leases older than retention window are evicted from memory."""
+    t0 = 1000.0
+    governor = SpendGovernor(
+        SpendGovernorConfig(lease_ttl_seconds=60),
+    )
+    r1 = governor.reserve("namesilo.com", 100, now=t0)
+    assert r1.success is True
+    assert r1.lease is not None
+    lid = r1.lease.lease_id
+
+    # Commit lease at t0 + 10
+    commit_res = governor.commit(lid, now=t0 + 10)
+    assert commit_res.success is True
+
+    # At t0 + 200, lease is terminal (committed), but within 3600s retention
+    governor.cleanup_expired_leases(now=t0 + 200)
+    assert lid in governor._leases
+
+    # At t0 + 4000 (> 60 + 3600), lease should be evicted from memory
+    governor.cleanup_expired_leases(now=t0 + 4000)
+    assert lid not in governor._leases

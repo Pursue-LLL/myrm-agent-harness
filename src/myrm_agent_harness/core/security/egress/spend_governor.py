@@ -75,7 +75,7 @@ class SpendGovernor:
         self._key: bytes = key if key is not None else os.urandom(32)
         self._leases: dict[str, SpendLease] = {}
         self._daily_spent_cents: int = 0
-        self._last_day_timestamp: float = time.time()
+        self._current_day_index: int = int(time.time() // 86400)
         self._prev_entry_hash: str = "0" * 64
 
     @property
@@ -120,19 +120,30 @@ class SpendGovernor:
         return False
 
     def _roll_day_if_needed(self, now: float) -> None:
-        # Reset counter if 86400 seconds (24h) have elapsed since day baseline
-        if now - self._last_day_timestamp >= 86400.0:
+        """Reset counter if a new UTC calendar day is reached."""
+        day_index = int(now // 86400)
+        if day_index > self._current_day_index:
             self._daily_spent_cents = 0
-            self._last_day_timestamp = now
+            self._current_day_index = day_index
+
+    def restore_daily_spent(self, spent_cents: int, now: float | None = None) -> None:
+        """Reconcile and restore today's accumulated spend baseline from persistent storage."""
+        current_time = time.time() if now is None else now
+        self._roll_day_if_needed(current_time)
+        self._daily_spent_cents = max(0, spent_cents)
 
     def cleanup_expired_leases(self, now: float | None = None) -> int:
-        """Scan and mark expired reserved leases to free up allocation."""
+        """Scan expired leases and prune terminal ones older than retention window."""
         current_time = time.time() if now is None else now
         expired_count = 0
-        for lease in list(self._leases.values()):
+        terminal_retention = 3600.0
+        for lid, lease in list(self._leases.items()):
             if lease.status == "reserved" and current_time > lease.expires_at:
                 lease.status = "expired"
                 expired_count += 1
+            elif lease.status in ("expired", "committed", "released"):
+                if current_time > lease.expires_at + terminal_retention:
+                    self._leases.pop(lid, None)
         return expired_count
 
     def get_active_reserved_cents(self, now: float | None = None) -> int:
@@ -353,6 +364,7 @@ class SpendGovernor:
     def get_metrics(self, now: float | None = None) -> dict[str, object]:
         """Produce real-time metrics for observability and UI state."""
         current_time = time.time() if now is None else now
+        self._roll_day_if_needed(current_time)
         self.cleanup_expired_leases(current_time)
         active_reserved = self.get_active_reserved_cents(current_time)
         remaining = max(0, self._config.daily_cap_cents - self._daily_spent_cents - active_reserved)
