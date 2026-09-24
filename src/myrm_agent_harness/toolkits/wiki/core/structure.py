@@ -3,6 +3,7 @@
 [INPUT]
 - pathlib::Path (POS: standard library file path operations)
 - core.security.path_security::safe_join_path (POS: secure path resolution against traversal)
+- utils.markdown_frontmatter::parse_frontmatter (POS: robust frontmatter YAML parser)
 
 [OUTPUT]
 - WikiStructure: LLM-Wiki file system structure manager
