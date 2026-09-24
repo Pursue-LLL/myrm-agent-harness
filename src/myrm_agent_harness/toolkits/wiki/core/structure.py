@@ -188,6 +188,9 @@ class WikiStructure:
                     return direct_path
             except (OSError, PermissionError):
                 continue
+        alias_path = self.resolve_alias_file_path(clean_path)
+        if alias_path is not None and alias_path.is_file():
+            return alias_path
         return None
 
     def resolve_alias_file_path(self, alias_name: str) -> Path | None:

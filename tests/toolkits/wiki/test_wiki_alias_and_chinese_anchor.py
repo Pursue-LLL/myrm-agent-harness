@@ -42,6 +42,11 @@ aliases:
         assert resolved_path_2 is not None
         assert resolved_path_2.name == "hua-chuang-semiconductor.md"
 
+        # 2.1 Test that resolve_concept_file_path also resolves via alias fallback
+        resolved_concept = structure.resolve_concept_file_path("华创")
+        assert resolved_concept is not None
+        assert resolved_concept.name == "hua-chuang-semiconductor.md"
+
         # 3. Create a deliverable document referencing the concept via Chinese plain text mention
         deliverable_path = structure.get_deliverable_file_path("meeting-minutes.md")
         deliverable_content = """# 项目例会纪要
