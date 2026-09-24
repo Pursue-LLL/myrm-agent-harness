@@ -358,7 +358,8 @@ class TestPrecisionModeExecution:
             patch.object(
                 tools._searcher, "multi_query_parallel_search", new_callable=AsyncMock, return_value=mock_results
             ),
-            patch("myrm_agent_harness.toolkits.web_search.precision_search.get_token_count") as mock_count,
+            patch("myrm_agent_harness.toolkits.web_search.engine.get_token_count") as mock_count,
+            patch("myrm_agent_harness.toolkits.web_search.precision_search.get_token_count", mock_count),
             patch("myrm_agent_harness.toolkits.web_search.precision_search.TextChunker") as mock_chunker,
         ):
             # 第一次调用（avg计算）返回1600（触发精准模式）
@@ -417,7 +418,8 @@ class TestPrecisionModeExecution:
             patch.object(
                 tools._searcher, "multi_query_parallel_search", new_callable=AsyncMock, return_value=mock_results
             ),
-            patch("myrm_agent_harness.toolkits.web_search.precision_search.get_token_count") as mock_count,
+            patch("myrm_agent_harness.toolkits.web_search.engine.get_token_count") as mock_count,
+            patch("myrm_agent_harness.toolkits.web_search.precision_search.get_token_count", mock_count),
             patch("myrm_agent_harness.toolkits.web_search.precision_search.TextChunker") as mock_chunker,
         ):
             mock_count.side_effect = [1800, 1800]  # 平均1800 tokens，触发精准模式
@@ -464,7 +466,7 @@ class TestPrecisionModeExecution:
             patch.object(
                 tools._searcher, "multi_query_parallel_search", new_callable=AsyncMock, return_value=mock_results
             ),
-            patch("myrm_agent_harness.toolkits.web_search.precision_search.get_token_count") as mock_count,
+            patch("myrm_agent_harness.toolkits.web_search.engine.get_token_count") as mock_count,
         ):
             # 模拟短文档token数量
             mock_count.return_value = 20

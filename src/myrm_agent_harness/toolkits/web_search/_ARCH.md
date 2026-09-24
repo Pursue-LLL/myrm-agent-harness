@@ -19,7 +19,8 @@ and the intent-aware search parameter optimizer.
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Toolkit entry point; lazy re-exports WebSearchTools, LiteLLMSearch, SearchServiceConfig | ✅ |
-| engine.py | Core | WebSearchTools wrapper: parallel search + dedup + BM25/precision modes | ✅ |
+| engine.py | Core | WebSearchTools wrapper: parallel search + dedup + basic mode; delegates precision mode to `precision_search.py` | ✅ |
+| precision_search.py | Core | Precision-mode pipeline: concurrent chunking, BM25 coarse filtering, reranker fine ranking, per-document chunk capping | ✅ |
 | web_search_agent_tools.py | Core | LangChain `web_search_tool` factory | ✅ |
 | _web_search_tool_description.py | Core | LLM-visible tool description SSOT (EN/ZH) | ✅ |
 
@@ -30,7 +31,7 @@ Root `.py` files are limited to orchestration facade and LangChain adapter; shar
 ## Key Dependencies
 
 - `utils`
-- `[retrieval]` extra — `engine.py` uses `TextChunker` from `toolkits/retriever/splitter/` for precision search chunking
+- `[retrieval]` extra — `precision_search.py` uses `TextChunker` from `toolkits/retriever/splitter/` for precision search chunking
 
 ## Intent-Aware Search Flow
 
