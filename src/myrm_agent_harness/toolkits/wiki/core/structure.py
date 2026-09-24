@@ -37,6 +37,7 @@ class WikiStructure:
     DIRECTORY_ABSTRACT_FILENAME = ".abstract.md"
     DIRECTORY_OVERVIEW_FILENAME = ".overview.md"
     INDEX_CATALOG_RELATIVE_PATH = "wiki/index.md"
+    _vault_alias_shared_cache: ClassVar[dict[str, tuple[float, dict[str, Path]]]] = {}
 
     def __init__(
         self,
@@ -210,9 +211,28 @@ class WikiStructure:
     def invalidate_alias_cache(self) -> None:
         """Clear memory cache of frontmatter alias index."""
         self._alias_to_path_cache = None
+        try:
+            cache_key = str(self.concepts_dir.resolve())
+            self._vault_alias_shared_cache.pop(cache_key, None)
+        except Exception:
+            pass
 
     def _rebuild_alias_cache(self) -> None:
-        """Scan active concepts to build alias -> Path mapping."""
+        """Scan active concepts to build alias -> Path mapping, with mtime-guarded process cache."""
+        dir_mtime = 0.0
+        cache_key = ""
+        try:
+            if self.concepts_dir.is_dir():
+                cache_key = str(self.concepts_dir.resolve())
+                dir_mtime = self.concepts_dir.stat().st_mtime
+                if cache_key in self._vault_alias_shared_cache:
+                    cached_mtime, cached_mapping = self._vault_alias_shared_cache[cache_key]
+                    if cached_mtime == dir_mtime:
+                        self._alias_to_path_cache = cached_mapping.copy()
+                        return
+        except Exception:
+            pass
+
         mapping: dict[str, Path] = {}
         for concept_path in self.list_concepts():
             try:
@@ -233,6 +253,8 @@ class WikiStructure:
             except (OSError, UnicodeDecodeError):
                 continue
         self._alias_to_path_cache = mapping
+        if cache_key:
+            self._vault_alias_shared_cache[cache_key] = (dir_mtime, mapping)
 
     def get_index_file_path(self) -> Path:
         """Get path for the OKF root index catalog (wiki/index.md)."""

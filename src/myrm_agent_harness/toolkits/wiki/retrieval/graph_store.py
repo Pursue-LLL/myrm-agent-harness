@@ -33,6 +33,26 @@ ConnFactory = Callable[[], AbstractContextManager[sqlite3.Connection]]
 logger = logging.getLogger(__name__)
 
 
+def _clean_heading_text(raw_heading: str) -> str:
+    """Strip markdown formatting (links, bold, code, tags) to produce a pure heading title."""
+    text = raw_heading.strip()
+    text = re.sub(r"^#{1,6}\s*", "", text)
+    # Strip wikilinks: [[target|display]] -> display, [[target]] -> target
+    text = re.sub(r"\[\[(?:[^|\]]*\|)?([^\]]+)\]\]", r"\1", text)
+    # Strip markdown links and images: [text](url) -> text, ![alt](url) -> alt
+    text = re.sub(r"!?\[([^\]]*)\]\([^)]+\)", r"\1", text)
+    # Strip inline code: `code` -> code
+    text = re.sub(r"`([^`]+)`", r"\1", text)
+    # Strip bold and italics: **text**, __text__, *text*, _text_
+    text = re.sub(r"\*\*([^*]+)\*\*", r"\1", text)
+    text = re.sub(r"__([^_]+)__", r"\1", text)
+    text = re.sub(r"\*([^*]+)\*", r"\1", text)
+    text = re.sub(r"_([^_]+)_", r"\1", text)
+    # Strip strikethrough: ~~text~~ -> text
+    text = re.sub(r"~~([^~]+)~~", r"\1", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
 class WikiGraphStore:
     """Knowledge graph storage and BFS traversal over federated wiki databases."""
 
@@ -246,6 +266,7 @@ class WikiGraphStore:
             pass
         return []
 
+
     def _extract_mention_record(
         self, file_path: Path, target_name: str, max_chars: int = 140
     ) -> tuple[str, int, str | None] | None:
@@ -284,7 +305,7 @@ class WikiGraphStore:
             if not line_str:
                 continue
             if line_str.startswith("#"):
-                current_heading = line_str.lstrip("#").strip()
+                current_heading = _clean_heading_text(line_str)
                 continue
 
             for pattern in patterns:
