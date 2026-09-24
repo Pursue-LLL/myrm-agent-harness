@@ -13,11 +13,14 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any
+from enum import StrEnum
+
+JsonScalar = str | int | float | bool | None
+JsonDict = dict[str, JsonScalar | list[str] | list[int] | dict[str, JsonScalar]]
+JsonValue = JsonScalar | list[JsonScalar] | dict[str, JsonScalar]
 
 
-class RecordedActionType(str, Enum):
+class RecordedActionType(StrEnum):
     """Types of recorded desktop actions."""
 
     CLICK = "click"
@@ -50,7 +53,7 @@ class DesktopRecordedEvent:
     modifiers: list[str] = field(default_factory=list)
     screenshot_b64: str | None = None
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> JsonDict:
         """Convert to JSON-serializable dictionary."""
         return {
             "seq": self.seq,
@@ -69,22 +72,22 @@ class DesktopRecordedEvent:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> DesktopRecordedEvent:
+    def from_dict(cls, data: dict[str, object]) -> DesktopRecordedEvent:
         """Create from dictionary."""
         return cls(
-            seq=int(data.get("seq", 0)),
-            timestamp=float(data.get("timestamp", time.time())),
+            seq=int(data.get("seq", 0)),  # type: ignore[arg-type]
+            timestamp=float(data.get("timestamp", time.time())),  # type: ignore[arg-type]
             action=str(data.get("action", RecordedActionType.CLICK.value)),
             app_name=str(data.get("app_name", "")),
-            bundle_id=data.get("bundle_id"),
+            bundle_id=str(data["bundle_id"]) if data.get("bundle_id") is not None else None,
             window_title=str(data.get("window_title", "")),
-            dref_id=data.get("dref_id"),
-            element_role=data.get("element_role"),
-            element_title=data.get("element_title"),
-            value=data.get("value"),
+            dref_id=str(data["dref_id"]) if data.get("dref_id") is not None else None,
+            element_role=str(data["element_role"]) if data.get("element_role") is not None else None,
+            element_title=str(data["element_title"]) if data.get("element_title") is not None else None,
+            value=str(data["value"]) if data.get("value") is not None else None,
             is_password=bool(data.get("is_password", False)),
-            modifiers=list(data.get("modifiers", [])),
-            screenshot_b64=data.get("screenshot_b64"),
+            modifiers=[str(m) for m in (data.get("modifiers") or []) if isinstance(m, str)],  # type: ignore[union-attr]
+            screenshot_b64=str(data["screenshot_b64"]) if data.get("screenshot_b64") is not None else None,
         )
 
 
@@ -98,7 +101,7 @@ class ToolLiftingCandidate:
     code_snippet: str | None = None
     confidence: float = 0.95
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> JsonDict:
         return {
             "original_seqs": self.original_seqs,
             "lifted_tool": self.lifted_tool,
@@ -117,10 +120,10 @@ class SynthesizedSkillStep:
     action_type: str
     target_app: str
     tool_name: str
-    parameters: dict[str, Any] = field(default_factory=dict)
+    parameters: dict[str, JsonScalar] = field(default_factory=dict)
     variables: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> dict[str, int | str | dict[str, JsonScalar] | list[str]]:
         return {
             "seq": self.seq,
             "description": self.description,
@@ -145,7 +148,7 @@ class SynthesizedSkillDraft:
     tool_lifting_applied: bool = False
     created_at: float = field(default_factory=time.time)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> dict[str, object]:
         return {
             "skill_name": self.skill_name,
             "description": self.description,

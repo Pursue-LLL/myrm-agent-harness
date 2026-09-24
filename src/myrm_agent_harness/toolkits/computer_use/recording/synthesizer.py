@@ -84,11 +84,9 @@ def detect_tool_lifting_candidates(
 ) -> list[ToolLiftingCandidate]:
     """Identify sequences of GUI operations that can be elevated to robust code/CLI executions."""
     candidates: list[ToolLiftingCandidate] = []
-    seq_window: list[DesktopRecordedEvent] = []
 
     for ev in events:
         app_lower = (ev.app_name or "").lower()
-        title_lower = (ev.window_title or "").lower()
 
         # Terminal / Shell tool lifting
         if any(
@@ -124,20 +122,19 @@ def detect_tool_lifting_candidates(
                 )
 
         # Excel / Spreadsheet manipulation tool lifting
-        elif any(sheet in app_lower for sheet in ["excel", "wps", "calc", "numbers"]):
-            if (
-                ev.action == RecordedActionType.CLICK.value
-                and "export" in (ev.element_title or "").lower()
-            ):
-                candidates.append(
-                    ToolLiftingCandidate(
-                        original_seqs=[ev.seq],
-                        lifted_tool="execute_code",
-                        rationale=f"Elevated Excel export in {ev.app_name} to Python pandas automation",
-                        code_snippet="# Automated via Python pandas\nimport pandas as pd\n",
-                        confidence=0.88,
-                    )
+        elif any(sheet in app_lower for sheet in ["excel", "wps", "calc", "numbers"]) and (
+            ev.action == RecordedActionType.CLICK.value
+            and "export" in (ev.element_title or "").lower()
+        ):
+            candidates.append(
+                ToolLiftingCandidate(
+                    original_seqs=[ev.seq],
+                    lifted_tool="execute_code",
+                    rationale=f"Elevated Excel export in {ev.app_name} to Python pandas automation",
+                    code_snippet="# Automated via Python pandas\nimport pandas as pd\n",
+                    confidence=0.88,
                 )
+            )
 
     return candidates
 

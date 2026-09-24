@@ -25,7 +25,6 @@ from myrm_agent_harness.backends.commerce.protocols import (
 )
 from myrm_agent_harness.backends.commerce.types import (
     ChangeType,
-    CommerceRole,
     InventoryAlertSeverity,
     ListingStatus,
     MerchantSessionState,
@@ -296,8 +295,8 @@ def test_variant_options_resolution_held_when_options_unresolved() -> None:
 def test_cart_cap_governance() -> None:
     from myrm_agent_harness.backends.commerce import (
         Cart,
-        CartLine,
         CartCapLimits,
+        CartLine,
         check_cart_cap,
     )
 

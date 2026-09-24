@@ -47,7 +47,9 @@ def test_capture_snapshot_routes_scope_and_app_name(platform: str, module: str) 
     ) as mock_capture:
         out_meta, out_refs = capture_snapshot(backend, "target", "Mail")
 
-    mock_capture.assert_called_once_with("target", "Mail")
+    mock_capture.assert_called_once_with(
+        "target", app_name="Mail", query=None, role=None
+    )
     assert out_meta is meta
     assert out_refs is snapshot.refs
 
@@ -75,7 +77,9 @@ def test_capture_snapshot_routes_foreground_without_app(
     ) as mock_capture:
         out_meta, out_refs = capture_snapshot(backend, "foreground", None)
 
-    mock_capture.assert_called_once_with("foreground", None)
+    mock_capture.assert_called_once_with(
+        "foreground", app_name=None, query=None, role=None
+    )
     assert out_meta is meta
     assert out_refs is snapshot.refs
 

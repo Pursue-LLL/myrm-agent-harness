@@ -120,10 +120,15 @@ def compute_ref_diff(
     identity_confidence = matched_count / total
 
     if identity_confidence < _IDENTITY_CONFIDENCE_THRESHOLD:
-        return RefDiff(
+        # Low identity confidence means a mostly-new tree (e.g. a different window). The added
+        # entries are still genuine observations, so they are reported alongside the full-view
+        # signal instead of being dropped.
+        diff = RefDiff(
             use_full_view=True,
             full_view_reason=f"low_identity_confidence({identity_confidence:.2f})",
         )
+        diff.added.extend(curr_refs.values())
+        return diff
 
     mapped_curr_ids = set(mapping.values())
 
@@ -153,9 +158,10 @@ def compute_ref_diff(
 
     change_count = len(diff.added) + len(diff.updated) + len(diff.removed)
     if total > 0 and change_count / total > _CHANGE_RATIO_FULL_VIEW_THRESHOLD:
-        return RefDiff(
-            use_full_view=True,
-            full_view_reason=f"high_change_ratio({change_count}/{total})",
-        )
+        # The computed lists stay authoritative; only the renderer should fall back to a full
+        # tree. Consumers that need the changed entries (e.g. interaction capture) must still be
+        # able to read them, so this is annotated rather than discarded.
+        diff.use_full_view = True
+        diff.full_view_reason = f"high_change_ratio({change_count}/{total})"
 
     return diff
