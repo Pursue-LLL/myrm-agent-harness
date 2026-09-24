@@ -28,7 +28,6 @@ external interface, provides unified web search capability for Agent and busines
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import time
 from typing import TYPE_CHECKING
@@ -37,9 +36,16 @@ from urllib.parse import urlparse
 from langchain_core.documents import Document
 
 from myrm_agent_harness.toolkits.retriever.autocut import AutocutConfig
-from myrm_agent_harness.toolkits.retriever.splitter.splitter import TextChunker
 from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
-from myrm_agent_harness.toolkits.web_search.core.metrics import web_search_metrics
+from myrm_agent_harness.toolkits.web_search.precision_search import (
+    _cap_chunks_per_doc as _cap_chunks_per_doc,
+)
+from myrm_agent_harness.toolkits.web_search.precision_search import (
+    _chunk_document_async as _chunk_document_async,
+)
+from myrm_agent_harness.toolkits.web_search.precision_search import (
+    _precision_mode_search as _precision_mode_search,
+)
 from myrm_agent_harness.toolkits.web_search.processing._explicit_params import (
     apply_tavily_site_constraint,
     normalize_explicit_params,
@@ -57,7 +63,7 @@ from myrm_agent_harness.utils.context_format import format_documents_with_metada
 from myrm_agent_harness.utils.text_utils import get_token_count
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.toolkits.retriever.engine import RetrieverConfig, RetrieverManager
+    from myrm_agent_harness.toolkits.retriever.engine import RetrieverConfig
     from myrm_agent_harness.toolkits.retriever.reranker import RerankerConfig, RerankerService
 
 __all__ = ["SearchServiceConfig", "SearchServiceType", "WebSearchEngine", "WebSearchTools"]
@@ -328,17 +334,6 @@ class WebSearchTools:
             )
 
         return sources_metadata, formatted_context
-from myrm_agent_harness.toolkits.web_search.precision_search import (
-    _cap_chunks_per_doc as _cap_chunks_per_doc,
-)
-from myrm_agent_harness.toolkits.web_search.precision_search import (
-    _chunk_document_async as _chunk_document_async,
-)
-from myrm_agent_harness.toolkits.web_search.precision_search import (
-    _precision_mode_search as _precision_mode_search,
-)
-
-
 
 
 def _drop_blocked_hostname_docs(
@@ -372,4 +367,3 @@ def _drop_blocked_hostname_docs(
 
 # Convenience alias for backwards compatibility and test clarity
 WebSearchEngine = WebSearchTools
-

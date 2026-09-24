@@ -27,14 +27,32 @@ from .sentinel import (
     get_global_sentinel_manager,
     is_sentinel_voucher,
 )
+from .spend_governor import (
+    SPEND_VOUCHER_PREFIX,
+    SPEND_VOUCHER_SUFFIX,
+    SpendCommitResult,
+    SpendGovernor,
+    SpendGovernorConfig,
+    SpendLease,
+    SpendLeaseResult,
+    is_spend_voucher,
+)
 
 __all__ = [
     "EphemeralCaManager",
     "LoopbackEgressProxy",
     "SENTINEL_PREFIX",
     "SENTINEL_SUFFIX",
+    "SPEND_VOUCHER_PREFIX",
+    "SPEND_VOUCHER_SUFFIX",
     "SentinelManager",
+    "SpendCommitResult",
+    "SpendGovernor",
+    "SpendGovernorConfig",
+    "SpendLease",
+    "SpendLeaseResult",
     "StreamingSentinelScanner",
     "get_global_sentinel_manager",
     "is_sentinel_voucher",
+    "is_spend_voucher",
 ]

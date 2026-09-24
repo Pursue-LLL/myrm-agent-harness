@@ -2,16 +2,17 @@ from __future__ import annotations
 
 import asyncio
 import os
+
 import pytest
 
+from myrm_agent_harness.core.security.egress.proxy_server import (
+    EphemeralCaManager,
+    LoopbackEgressProxy,
+)
 from myrm_agent_harness.core.security.egress.sentinel import (
     SentinelManager,
     StreamingSentinelScanner,
     is_sentinel_voucher,
-)
-from myrm_agent_harness.core.security.egress.proxy_server import (
-    EphemeralCaManager,
-    LoopbackEgressProxy,
 )
 from myrm_agent_harness.toolkits.code_execution.security.env_isolation import (
     is_non_inheritable_env_var,
@@ -53,9 +54,9 @@ def test_sentinel_manager_substitute_text_and_bytes() -> None:
     replaced_text = mgr.substitute_text(text)
     assert replaced_text == f"Authorization: Bearer {sec1}; X-Api-Key: {sec2}"
 
-    data = f"payload={v1}&alt={v2}".encode("utf-8")
+    data = f"payload={v1}&alt={v2}".encode()
     replaced_bytes = mgr.substitute_bytes(data)
-    assert replaced_bytes == f"payload={sec1}&alt={sec2}".encode("utf-8")
+    assert replaced_bytes == f"payload={sec1}&alt={sec2}".encode()
 
 
 def test_streaming_sentinel_scanner_cross_chunk() -> None:
@@ -63,7 +64,7 @@ def test_streaming_sentinel_scanner_cross_chunk() -> None:
     raw = "super_secret_github_token"
     voucher = mgr.create_sentinel(raw)
 
-    payload = f"header_prefix_{voucher}_tail_suffix".encode("utf-8")
+    payload = f"header_prefix_{voucher}_tail_suffix".encode()
     split_idx = payload.find(b"myrm-sent-v1.") + 8
 
     chunk1 = payload[:split_idx]
@@ -75,7 +76,7 @@ def test_streaming_sentinel_scanner_cross_chunk() -> None:
     emitted_final = scanner.flush()
 
     total = emitted1 + emitted2 + emitted_final
-    assert total == f"header_prefix_{raw}_tail_suffix".encode("utf-8")
+    assert total == f"header_prefix_{raw}_tail_suffix".encode()
 
 
 def test_env_isolation_permits_sentinel_vouchers() -> None:
@@ -132,7 +133,7 @@ async def test_loopback_egress_proxy_http_substitution() -> None:
         writer: asyncio.StreamWriter,
     ) -> None:
         nonlocal received_headers, received_body
-        first_line = await reader.readline()
+        _first_line = await reader.readline()
         while True:
             line = await reader.readline()
             if not line or line in (b"\r\n", b"\n"):
@@ -156,14 +157,14 @@ async def test_loopback_egress_proxy_http_substitution() -> None:
 
     # 2. Start loopback proxy
     proxy = LoopbackEgressProxy(sentinel_manager=mgr, port=0, enable_tls_interception=False)
-    proxy_url = await proxy.start()
+    _proxy_url = await proxy.start()
     proxy_port = proxy._assigned_port
 
     try:
         # 3. Client connects through proxy to mock upstream
         c_reader, c_writer = await asyncio.open_connection("127.0.0.1", proxy_port)
 
-        req_body = f'{{"auth": "{sentinel_key}"}}'.encode("utf-8")
+        req_body = f'{{"auth": "{sentinel_key}"}}'.encode()
         raw_req = (
             f"POST http://127.0.0.1:{upstream_port}/api HTTP/1.1\r\n"
             f"Host: 127.0.0.1:{upstream_port}\r\n"

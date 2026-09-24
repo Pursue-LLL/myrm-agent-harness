@@ -4,12 +4,6 @@
 
 from __future__ import annotations
 
-import asyncio
-from pathlib import Path
-from unittest.mock import MagicMock
-
-import pytest
-
 from myrm_agent_harness.core.security.egress.sentinel import (
     SENTINEL_PREFIX,
     SENTINEL_SUFFIX,
@@ -59,9 +53,9 @@ def test_sentinel_text_and_bytes_substitution() -> None:
     substituted_text = mgr.substitute_text(text)
     assert substituted_text == f"curl -H 'Authorization: Bearer {k1}' https://api.com?key={k2}"
 
-    data_bytes = f"payload={s1}&signature={s2}".encode("utf-8")
+    data_bytes = f"payload={s1}&signature={s2}".encode()
     substituted_bytes = mgr.substitute_bytes(data_bytes)
-    assert substituted_bytes == f"payload={k1}&signature={k2}".encode("utf-8")
+    assert substituted_bytes == f"payload={k1}&signature={k2}".encode()
 
 
 def test_streaming_sentinel_scanner_chunk_boundary() -> None:
@@ -70,7 +64,7 @@ def test_streaming_sentinel_scanner_chunk_boundary() -> None:
     real_key = "ghp_abcdef1234567890secret"
     sentinel = mgr.create_sentinel(real_key)
 
-    full_payload = f"POST /v1/chat HTTP/1.1\r\nAuthorization: Bearer {sentinel}\r\n\r\nBody".encode("utf-8")
+    full_payload = f"POST /v1/chat HTTP/1.1\r\nAuthorization: Bearer {sentinel}\r\n\r\nBody".encode()
 
     # Split the payload right in the middle of the sentinel token
     split_idx = full_payload.find(b"myrm-sent-v1.") + 15

@@ -7,12 +7,14 @@ Ephemeral sentinel voucher encoding/decoding and loopback egress proxy substitut
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| `__init__.py` | Package | Public aggregation facade exposing `SentinelManager`, `StreamingSentinelScanner`, `EphemeralCaManager`, and `LoopbackEgressProxy`. | — |
+| `__init__.py` | Package | Public aggregation facade exposing `SentinelManager`, `StreamingSentinelScanner`, `EphemeralCaManager`, `LoopbackEgressProxy`, and `SpendGovernor`. | — |
 | `sentinel.py` | Core | Ephemeral AES-256-GCM voucher tokenization (`myrm-sent-v1.<base64url>.end`), fast in-memory reverse lookup, text/bytes replacement, and sliding-window stream scanner. | ✅ |
 | `proxy_server.py` | Core | Asyncio-based loopback egress proxy (`LoopbackEgressProxy`) with ephemeral CA management (`EphemeralCaManager`) for outbound HTTP/CONNECT request header, query, and streaming body substitution. | ✅ |
+| `spend_governor.py` | Core | Pure deterministic micro-spending state machine (`SpendGovernor`, `SpendLease`, `SpendGovernorConfig`) enforcing merchant allowlists, per-action/daily caps in USD Cents, atomic leases, and voucher generation. | ✅ |
 
 ## Key Invariants
 
 1. **Zero Raw Secret in Child Env**: Child process environments only receive unforgeable sentinel vouchers.
 2. **Ephemeral Lifecycle**: In-memory keys are strictly process-bound and never written to disk.
-3. **No Prompt Cache Impact**: Secret substitution occurs strictly in the network proxy layer below the LLM prompt layer.
+3. **No Prompt Cache Impact**: Secret substitution and spend governance evaluate strictly in the interceptor and network proxy layer outside LLM prompts.
+4. **Zero-Float Accounting**: All commerce spending operations enforce integer USD Cents calculations to eliminate floating point rounding errors.

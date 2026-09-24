@@ -73,7 +73,7 @@ class TestChunkSizeComparison:
             start_time = time.perf_counter()
 
             # 模拟分块过程
-            with patch("myrm_agent_harness.toolkits.web_search.engine.TextChunker") as mock_splitter:
+            with patch("myrm_agent_harness.toolkits.web_search.precision_search.TextChunker") as mock_splitter:
                 mock_instance = mock_splitter.return_value
                 # 模拟不同chunk_size产生的chunks数量
                 num_chunks = int(10000 / chunk_size * len(mock_long_documents))
@@ -194,7 +194,7 @@ class TestPrecisionModePerformance:
         - 总计：~400-800ms
         """
 
-        with patch("myrm_agent_harness.toolkits.web_search.engine.TextChunker") as mock_splitter:
+        with patch("myrm_agent_harness.toolkits.web_search.precision_search.TextChunker") as mock_splitter:
             # Mock分块结果
             mock_chunks = [
                 Document(

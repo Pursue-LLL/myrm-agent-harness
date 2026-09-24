@@ -151,7 +151,7 @@ class TestGracefulDegradation:
             patch.object(
                 tools._searcher, "multi_query_parallel_search", new_callable=AsyncMock, return_value=mock_results
             ),
-            patch("myrm_agent_harness.toolkits.web_search.engine.TextChunker") as mock_chunker,
+            patch("myrm_agent_harness.toolkits.web_search.precision_search.TextChunker") as mock_chunker,
         ):
             mock_instance = mock_chunker.return_value
             mock_chunks = [
@@ -181,10 +181,10 @@ class TestGracefulDegradation:
                     side_effect=Exception("Reranker service unavailable"),
                 ),
                 patch(
-                    "myrm_agent_harness.toolkits.web_search.engine.web_search_metrics",
+                    "myrm_agent_harness.toolkits.web_search.precision_search.web_search_metrics",
                     test_metrics,
                 ),
-                patch("myrm_agent_harness.toolkits.web_search.engine.logger") as mock_logger,
+                patch("myrm_agent_harness.toolkits.web_search.precision_search.logger") as mock_logger,
             ):
                 sources, context = await tools.fast_search_with_questions(questions=["q1", "q2"], top_k=5)
 
@@ -221,7 +221,7 @@ class TestGracefulDegradation:
             patch.object(
                 tools._searcher, "multi_query_parallel_search", new_callable=AsyncMock, return_value=mock_results
             ),
-            patch("myrm_agent_harness.toolkits.web_search.engine.TextChunker") as mock_chunker,
+            patch("myrm_agent_harness.toolkits.web_search.precision_search.TextChunker") as mock_chunker,
         ):
             mock_instance = mock_chunker.return_value
             mock_chunks = [
@@ -245,8 +245,8 @@ class TestGracefulDegradation:
                     new_callable=AsyncMock,
                     side_effect=Exception("Reranker timeout"),
                 ),
-                patch("myrm_agent_harness.toolkits.web_search.engine.logger"),
-                patch("myrm_agent_harness.toolkits.web_search.engine.web_search_metrics"),
+                patch("myrm_agent_harness.toolkits.web_search.precision_search.logger"),
+                patch("myrm_agent_harness.toolkits.web_search.precision_search.web_search_metrics"),
             ):
                 # 降级后的文档应该带有 _degraded_mode 标记
                 # 这个标记在 _precision_mode_search 内部设置
@@ -358,8 +358,8 @@ class TestPrecisionModeExecution:
             patch.object(
                 tools._searcher, "multi_query_parallel_search", new_callable=AsyncMock, return_value=mock_results
             ),
-            patch("myrm_agent_harness.toolkits.web_search.engine.get_token_count") as mock_count,
-            patch("myrm_agent_harness.toolkits.web_search.engine.TextChunker") as mock_chunker,
+            patch("myrm_agent_harness.toolkits.web_search.precision_search.get_token_count") as mock_count,
+            patch("myrm_agent_harness.toolkits.web_search.precision_search.TextChunker") as mock_chunker,
         ):
             # 第一次调用（avg计算）返回1600（触发精准模式）
             # 后续调用（分块判断）返回1200（触发分块）
@@ -417,8 +417,8 @@ class TestPrecisionModeExecution:
             patch.object(
                 tools._searcher, "multi_query_parallel_search", new_callable=AsyncMock, return_value=mock_results
             ),
-            patch("myrm_agent_harness.toolkits.web_search.engine.get_token_count") as mock_count,
-            patch("myrm_agent_harness.toolkits.web_search.engine.TextChunker") as mock_chunker,
+            patch("myrm_agent_harness.toolkits.web_search.precision_search.get_token_count") as mock_count,
+            patch("myrm_agent_harness.toolkits.web_search.precision_search.TextChunker") as mock_chunker,
         ):
             mock_count.side_effect = [1800, 1800]  # 平均1800 tokens，触发精准模式
 
@@ -464,7 +464,7 @@ class TestPrecisionModeExecution:
             patch.object(
                 tools._searcher, "multi_query_parallel_search", new_callable=AsyncMock, return_value=mock_results
             ),
-            patch("myrm_agent_harness.toolkits.web_search.engine.get_token_count") as mock_count,
+            patch("myrm_agent_harness.toolkits.web_search.precision_search.get_token_count") as mock_count,
         ):
             # 模拟短文档token数量
             mock_count.return_value = 20
@@ -549,7 +549,7 @@ class TestTypeNarrowing:
             patch.object(
                 tools._searcher, "multi_query_parallel_search", new_callable=AsyncMock, return_value=mock_results
             ),
-            patch("myrm_agent_harness.toolkits.web_search.engine.TextChunker") as mock_chunker,
+            patch("myrm_agent_harness.toolkits.web_search.precision_search.TextChunker") as mock_chunker,
         ):
             mock_instance = mock_chunker.return_value
             mock_chunks = [Document(page_content="chunk", metadata={"url": "https://test1.com", "chunk_index": 0})]

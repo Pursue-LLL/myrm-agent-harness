@@ -15,6 +15,7 @@ business layer may extend with SQLite / PostgreSQL implementations.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 from .types import EventFilter, StructuredEvent
@@ -38,4 +39,13 @@ class EventLogBackend(Protocol):
 
     async def close(self) -> None:
         """Flush pending writes and release resources."""
+        ...
+
+
+@runtime_checkable
+class FlushableEventLogBackend(Protocol):
+    """Event log backend that supports explicit in-flight flush barriers."""
+
+    async def flush(self) -> None:
+        """Flush pending writes and enforce durability barrier."""
         ...

@@ -19,31 +19,25 @@ Precision-mode retrieval pipeline for the web search toolkit.
 """
 
 from __future__ import annotations
+
 import asyncio
 import logging
 import time
 from typing import TYPE_CHECKING
-from urllib.parse import urlparse
+
 from langchain_core.documents import Document
-from myrm_agent_harness.toolkits.retriever.autocut import AutocutConfig
+
 from myrm_agent_harness.toolkits.retriever.splitter.splitter import TextChunker
-from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
 from myrm_agent_harness.toolkits.web_search.core.metrics import web_search_metrics
-from myrm_agent_harness.toolkits.web_search.processing._explicit_params import (
-    apply_tavily_site_constraint,
-    normalize_explicit_params,
-)
-from myrm_agent_harness.toolkits.web_search.processing.search_results_processor import (
-    apply_domain_diversity_sort,
-    combine_search_results_unified,
-)
-from myrm_agent_harness.toolkits.web_search.providers.web_searcher import (
-    SearchServiceConfig,
-    SearchServiceType,
-    WebSearcher,
-)
-from myrm_agent_harness.utils.context_format import format_documents_with_metadata
 from myrm_agent_harness.utils.text_utils import get_token_count
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.toolkits.retriever.reranker import RerankerService
+    from myrm_agent_harness.toolkits.retriever_tools import RetrieverManager
+    from myrm_agent_harness.toolkits.web_search.engine import WebSearchTools
+
+logger = logging.getLogger(__name__)
+
 
 def _cap_chunks_per_doc(
     chunks: list[Document],

@@ -140,6 +140,7 @@ class FileEventLogBackend:
 
             with self._file_path.open("a", encoding="utf-8") as f:
                 f.writelines(lines)
+                f.flush()
 
             self._max_seq = deduped[-1].sequence
 
@@ -199,8 +200,18 @@ class FileEventLogBackend:
 
         return sorted(session_ids)
 
+    async def flush(self) -> None:
+        """Acquire write lock to guarantee all in-flight appends have hit the filesystem."""
+        async with self._lock:
+            pass
+
+    def get_session_log_path(self, session_id: str) -> Path | None:
+        """Return the filesystem path to the session's jsonl file if it exists, else None."""
+        target = self._log_dir / f"{session_id}.jsonl"
+        return target if target.exists() else None
+
     async def close(self) -> None:
-        pass
+        await self.flush()
 
     async def cleanup_old_logs(self) -> int:
         """Remove log files older than retention_days.
