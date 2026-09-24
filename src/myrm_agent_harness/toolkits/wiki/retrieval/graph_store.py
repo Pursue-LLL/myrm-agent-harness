@@ -16,6 +16,8 @@ graph queries across public wiki databases, and structural insight computation.
 from __future__ import annotations
 
 import logging
+from pathlib import Path
+import re
 import sqlite3
 from collections.abc import Callable
 from contextlib import AbstractContextManager
@@ -200,3 +202,112 @@ class WikiGraphStore:
         """Analyze graph structure for unexpected connections, knowledge gaps, and communities."""
         with self._get_conn() as conn:
             return compute_graph_insights(conn)
+
+    def _find_asset_path(self, name: str) -> Path | None:
+        """Locate markdown asset path across concepts, deliverables, methods, and claims."""
+        clean_name = name.removesuffix(".md").strip()
+        # 1. Concept path
+        path = self._structure.resolve_concept_file_path(clean_name)
+        if path and path.is_file():
+            return path
+        # 2. Deliverables
+        deliv = self._structure.get_deliverable_file_path(f"{clean_name}.md")
+        if deliv.is_file():
+            return deliv
+        # 3. Methods
+        method = self._structure.get_method_file_path(clean_name)
+        if method.is_file():
+            return method
+        # 4. Claims
+        claim = self._structure.get_claim_file_path(clean_name)
+        if claim.is_file():
+            return claim
+        return None
+
+    def _extract_mention_snippet(self, file_path: Path, target_name: str, max_chars: int = 140) -> str | None:
+        """Extract a readable snippet showing the sentence or context where target_name is referenced."""
+        if not file_path.is_file():
+            return None
+        try:
+            content = file_path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            return None
+
+        clean_target = target_name.removesuffix(".md").strip()
+        escaped_target = re.escape(clean_target)
+        patterns = [
+            re.compile(rf".*\[\[{escaped_target}(?:[#|][^\]]*)?\]\].*", re.IGNORECASE),
+            re.compile(rf".*\[[^\]]+\]\([^)]*{escaped_target}[^)]*\).*", re.IGNORECASE),
+            re.compile(rf".*\b{escaped_target}\b.*", re.IGNORECASE),
+        ]
+        for pattern in patterns:
+            for line in content.splitlines():
+                line_str = line.strip()
+                if not line_str or line_str.startswith("#"):
+                    continue
+                if pattern.search(line_str):
+                    clean_line = re.sub(r"^[-*+>]\s+", "", line_str).strip()
+                    if len(clean_line) > max_chars:
+                        match = pattern.search(clean_line)
+                        if match:
+                            start = max(0, match.start() - 30)
+                            end = min(len(clean_line), match.end() + 70)
+                            prefix = "..." if start > 0 else ""
+                            suffix = "..." if end < len(clean_line) else ""
+                            return f"{prefix}{clean_line[start:end].strip()}{suffix}"
+                        return f"{clean_line[:max_chars]}..."
+                    return clean_line
+        return None
+
+    def get_concept_links(self, concept_name: str, depth: int = 1) -> dict[str, object]:
+        """Fetch bidirectional links (outlinks and backlinks) with context snippets and 1-degree ego graph."""
+        clean_name = concept_name.removesuffix(".md").strip()
+
+        outlinks: list[dict[str, object]] = []
+        backlinks: list[dict[str, object]] = []
+
+        with self._get_conn() as conn:
+            # Query outgoing edges (what this concept references)
+            cursor = conn.execute(
+                "SELECT target, weight FROM wiki_edges WHERE source = ? ORDER BY weight DESC LIMIT 100",
+                (clean_name,),
+            )
+            for row in cursor.fetchall():
+                tgt = str(row["target"])
+                tgt_path = self._find_asset_path(tgt)
+                outlinks.append(
+                    {
+                        "name": tgt,
+                        "weight": float(row["weight"] or 1.0),
+                        "exists": tgt_path is not None,
+                        "context_snippet": None,
+                    }
+                )
+
+            # Query incoming edges (what references this concept)
+            cursor = conn.execute(
+                "SELECT source, weight FROM wiki_edges WHERE target = ? ORDER BY weight DESC LIMIT 100",
+                (clean_name,),
+            )
+            for row in cursor.fetchall():
+                src = str(row["source"])
+                src_path = self._find_asset_path(src)
+                snippet = self._extract_mention_snippet(src_path, clean_name) if src_path else None
+                backlinks.append(
+                    {
+                        "name": src,
+                        "weight": float(row["weight"] or 1.0),
+                        "exists": src_path is not None,
+                        "context_snippet": snippet,
+                    }
+                )
+
+        # 1-degree ego graph for micro topology rendering
+        ego_graph = self.get_knowledge_graph(center_node=clean_name, depth=depth, limit=40)
+
+        return {
+            "concept_name": clean_name,
+            "outlinks": outlinks,
+            "backlinks": backlinks,
+            "ego_graph": ego_graph,
+        }

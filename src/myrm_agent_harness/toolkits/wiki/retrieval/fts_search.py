@@ -172,6 +172,11 @@ class FtsSearchMixin:
                     "INSERT OR REPLACE INTO wiki_index_meta (concept_name, publish_status) VALUES (?, ?)",
                     (concept_name, publish_status),
                 )
+            if hasattr(self, "extract_and_upsert_edges"):
+                try:
+                    self.extract_and_upsert_edges(concept_name, full_markdown)
+                except Exception as e:
+                    logger.warning("Failed to extract edges for %s: %s", concept_name, e)
 
         await asyncio.to_thread(sync_upsert)
 

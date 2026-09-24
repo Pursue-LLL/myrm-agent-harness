@@ -436,7 +436,8 @@ class StreamDispatcherMixin:
 
             event_data = data.get("data", {})
             action = event_data.get("action") if isinstance(event_data, dict) else None
-            live_dict = LocalWorkingMemoryBlock.to_dict()
+            snapshot = event_data.get("snapshot") if isinstance(event_data, dict) else None
+            live_dict = snapshot if isinstance(snapshot, dict) else LocalWorkingMemoryBlock.to_dict()
             await self._emit_event(
                 {
                     "type": AgentEventType.WORKING_MEMORY.value,

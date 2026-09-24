@@ -168,6 +168,7 @@ def create_working_memory_manage_tool() -> BaseTool:
                             "subtask_id": subtask_id,
                             "status": parsed_status.value,
                             "notes": notes,
+                            "snapshot": LocalWorkingMemoryBlock.to_dict(),
                         },
                     )
                 except Exception as exc:
@@ -204,6 +205,7 @@ def create_working_memory_manage_tool() -> BaseTool:
                             "fingerprint": fingerprint,
                             "avoidance_rule": rule,
                             "subtask_id": subtask_id,
+                            "snapshot": LocalWorkingMemoryBlock.to_dict(),
                         },
                     )
                 except Exception as exc:
@@ -232,6 +234,7 @@ def create_working_memory_manage_tool() -> BaseTool:
                         {
                             "action": "summarize",
                             "summary": summary,
+                            "snapshot": LocalWorkingMemoryBlock.to_dict(),
                         },
                     )
                 except Exception as exc:
@@ -259,6 +262,7 @@ def create_working_memory_manage_tool() -> BaseTool:
                         {
                             "action": "set_scratchpad",
                             "key": key,
+                            "snapshot": LocalWorkingMemoryBlock.to_dict(),
                         },
                     )
                 except Exception as exc:

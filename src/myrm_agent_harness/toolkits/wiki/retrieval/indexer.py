@@ -162,6 +162,10 @@ class WikiIndexer(FtsSearchMixin, SidecarIndexMixin):
         """Delegate to WikiGraphStore for graph structural analysis."""
         return self._graph_store.graph_insights()
 
+    def get_concept_links(self, concept_name: str, depth: int = 1) -> dict[str, object]:
+        """Delegate bidirectional links lookup to WikiGraphStore."""
+        return self._graph_store.get_concept_links(concept_name, depth=depth)
+
     def get_outgoing_edges(self, source: str) -> list[tuple[str, float]]:
         """Return weighted outgoing graph edges for a concept, highest weight first."""
         with self._get_conn() as conn:
@@ -170,6 +174,15 @@ class WikiIndexer(FtsSearchMixin, SidecarIndexMixin):
                 (source,),
             )
             return [(str(row["target"]), float(row["weight"])) for row in cursor.fetchall()]
+
+    def get_incoming_edges(self, target: str) -> list[tuple[str, float]]:
+        """Return weighted incoming graph edges (backlinks) for a concept, highest weight first."""
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                "SELECT source, weight FROM wiki_edges WHERE target = ? ORDER BY weight DESC",
+                (target,),
+            )
+            return [(str(row["source"]), float(row["weight"])) for row in cursor.fetchall()]
 
     def upsert_edges(self, source: str, targets: list[str], source_files: list[str] | None = None) -> None:
         """Upsert directional edges with multi-dimensional weight calculation."""
@@ -224,10 +237,10 @@ class WikiIndexer(FtsSearchMixin, SidecarIndexMixin):
         links = re.findall(r"\[([^\]]+)\]\(([^)]+)\.md\)", content)
         targets.extend([t.strip() for _, t in links if t.strip()])
 
-        # 2. Match Obsidian Wikilinks: [[link]] or [[link|alias]]
+        # 2. Match Obsidian Wikilinks: [[link]], [[link|alias]], [[link#heading|alias]]
         wikilinks = re.findall(r"\[\[([^\]]+)\]\]", content)
         for wl in wikilinks:
-            target = wl.split("|")[0].strip()
+            target = wl.split("|")[0].split("#")[0].strip()
             if target:
                 targets.append(target)
 
