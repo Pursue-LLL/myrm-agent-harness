@@ -34,6 +34,10 @@ from myrm_agent_harness.agent.security.managed_approval_policy import (
     get_process_managed_approval_revision,
     load_managed_approval_policy_from_env,
 )
+from myrm_agent_harness.core.security.egress.spend_governor import (
+    SpendGovernor,
+    SpendGovernorConfig,
+)
 from myrm_agent_harness.utils.url_utils import (
     clear_dynamic_blocked_hostnames,
     register_blocked_hostnames,
@@ -46,6 +50,8 @@ __all__ = [
     "BatchRiskItemDetail",
     "BatchRiskReport",
     "ManagedApprovalPolicy",
+    "SpendGovernor",
+    "SpendGovernorConfig",
     "TaintLabel",
     "classify_batch_approval_risk",
     "clear_dynamic_blocked_hostnames",
