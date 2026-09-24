@@ -245,15 +245,15 @@ class WikiGraphStore:
         has_cjk = any("\u4e00" <= ch <= "\u9fff" for ch in clean_target)
 
         patterns: list[re.Pattern[str]] = [
-            re.compile(rf".*\[\[{escaped_target}(?:[#|][^\]]*)?\]\].*", re.IGNORECASE),
-            re.compile(rf".*\[[^\]]+\]\([^)]*{escaped_target}[^)]*\).*", re.IGNORECASE),
+            re.compile(rf"\[\[{escaped_target}(?:[#|][^\]]*)?\]\]", re.IGNORECASE),
+            re.compile(rf"\[[^\]]+\]\([^)]*{escaped_target}[^)]*\)", re.IGNORECASE),
         ]
         if has_cjk:
             # Single-character Chinese entities are restricted to link patterns to avoid false-positive flooding
             if len(clean_target) >= 2:
-                patterns.append(re.compile(rf".*(?<![a-zA-Z0-9]){escaped_target}(?![a-zA-Z0-9]).*", re.IGNORECASE))
+                patterns.append(re.compile(rf"(?<![a-zA-Z0-9]){escaped_target}(?![a-zA-Z0-9])", re.IGNORECASE))
         else:
-            patterns.append(re.compile(rf".*\b{escaped_target}\b.*", re.IGNORECASE))
+            patterns.append(re.compile(rf"\b{escaped_target}\b", re.IGNORECASE))
 
         current_heading: str | None = None
         for line_idx, line in enumerate(content.splitlines(), start=1):
