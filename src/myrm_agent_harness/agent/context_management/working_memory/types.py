@@ -66,6 +66,7 @@ class LocalWorkingState:
     traps: list[TrapRecord] = field(default_factory=list)
     scratchpad: dict[str, str] = field(default_factory=dict)
     active_turn: int = 0
+    consolidated: bool = False
 
 
 @dataclass(slots=True)

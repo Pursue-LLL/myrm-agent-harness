@@ -364,6 +364,7 @@ class LocalWorkingMemoryBlock:
                 for trap in state.traps
             ],
             "scratchpad": dict(state.scratchpad),
+            "consolidated": state.consolidated,
         }
 
     @classmethod
@@ -416,6 +417,7 @@ class LocalWorkingMemoryBlock:
             traps=traps,
             scratchpad=scratchpad,
             active_turn=int(data.get("active_turn", 1)),
+            consolidated=bool(data.get("consolidated", False)),
         )
         _WORKING_STATE_VAR.set(state)
         return state
