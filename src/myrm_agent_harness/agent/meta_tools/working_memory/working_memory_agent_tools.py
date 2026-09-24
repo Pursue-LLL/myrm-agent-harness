@@ -108,7 +108,7 @@ def create_working_memory_manage_tool() -> BaseTool:
         "working_memory_manage_tool",
         description=(
             "Manage the active working memory board during multi-step execution. "
-            "Use this tool to track subtask status, discard failed dead-end approaches "
+            "Use this tool to add or track subtasks, discard failed dead-end approaches "
             "(which automatically builds a preventative trap to stop repetitive mistakes), "
             "condense intermediate findings into summaries, or record transient scratchpad notes."
         ),
