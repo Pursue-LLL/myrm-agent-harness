@@ -228,7 +228,8 @@ def test_accepts_session_object_via_backend_attribute(monkeypatch) -> None:
     )
 
     class _FakeDesktopSession:
-        backend = _FakeBackend()
+        # Mirrors DesktopSession, which holds its platform backend on `_backend`.
+        _backend = _FakeBackend()
 
     driver = DesktopCaptureDriver(_FakeDesktopSession())
     asyncio.run(driver.poll())

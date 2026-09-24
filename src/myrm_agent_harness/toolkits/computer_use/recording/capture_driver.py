@@ -56,9 +56,21 @@ class CaptureFrame:
 
 
 def _resolve_backend(capture_source: object) -> object:
-    """Accept a DesktopSession (preferred) or a bare platform backend."""
-    backend = getattr(capture_source, "backend", None)
-    return backend if backend is not None else capture_source
+    """Accept a DesktopSession (preferred) or a bare platform backend.
+
+    A session stores its backend behind ``_backend`` (the same attribute the session's own
+    snapshot path reads), so the lookup walks that chain rather than assuming a single hop.
+    """
+    platform_backends = {"MacOSBackend", "WindowsBackend", "LinuxBackend"}
+    candidate = capture_source
+    for _ in range(3):
+        if candidate.__class__.__name__ in platform_backends:
+            return candidate
+        nested = getattr(candidate, "_backend", None)
+        if nested is None or nested is candidate:
+            return candidate
+        candidate = nested
+    return candidate
 
 
 class DesktopCaptureDriver:
