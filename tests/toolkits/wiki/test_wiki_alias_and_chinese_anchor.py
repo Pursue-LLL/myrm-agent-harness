@@ -1,7 +1,8 @@
 """Tests for Wiki Frontmatter alias resolution, Chinese Unicode mention extraction, and line anchors."""
 
-from pathlib import Path
 import tempfile
+from pathlib import Path
+
 import pytest
 
 from myrm_agent_harness.toolkits.wiki.core.config import WikiConfig

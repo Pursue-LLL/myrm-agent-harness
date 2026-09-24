@@ -16,11 +16,11 @@ graph queries across public wiki databases, and structural insight computation.
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 import re
 import sqlite3
 from collections.abc import Callable
 from contextlib import AbstractContextManager
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .graph_analysis import compute_graph_insights, enrich_graph_with_communities
@@ -51,9 +51,7 @@ class WikiGraphStore:
         with self._get_conn() as conn:
             fts_tables = ["wiki_fts"]
             edges_tables = ["wiki_edges"]
-            attached_dbs = {
-                str(row["name"]) for row in conn.execute("PRAGMA database_list").fetchall()
-            }
+            attached_dbs = {str(row["name"]) for row in conn.execute("PRAGMA database_list").fetchall()}
             for idx in range(min(len(self._structure.public_dirs), 6)):
                 alias = f"pub_{idx}"
                 if alias in attached_dbs:
@@ -253,9 +251,7 @@ class WikiGraphStore:
         if has_cjk:
             # Single-character Chinese entities are restricted to link patterns to avoid false-positive flooding
             if len(clean_target) >= 2:
-                patterns.append(
-                    re.compile(rf".*(?<![a-zA-Z0-9]){escaped_target}(?![a-zA-Z0-9]).*", re.IGNORECASE)
-                )
+                patterns.append(re.compile(rf".*(?<![a-zA-Z0-9]){escaped_target}(?![a-zA-Z0-9]).*", re.IGNORECASE))
         else:
             patterns.append(re.compile(rf".*\b{escaped_target}\b.*", re.IGNORECASE))
 

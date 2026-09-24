@@ -213,7 +213,7 @@ class WikiStructure:
         mapping: dict[str, Path] = {}
         for concept_path in self.list_concepts():
             try:
-                with open(concept_path, "r", encoding="utf-8", errors="ignore") as f:
+                with open(concept_path, encoding="utf-8", errors="ignore") as f:
                     chunk = f.read(2048)
                 from myrm_agent_harness.utils.markdown_frontmatter import parse_frontmatter
 
@@ -258,20 +258,12 @@ class WikiStructure:
 
     def list_concepts(self) -> list[Path]:
         """List all concept articles, including from public federated mounts (max 6)."""
-        concepts = [
-            p
-            for p in sorted(self.concepts_dir.rglob("*.md"))
-            if not self._is_directory_sidecar(p)
-        ]
+        concepts = [p for p in sorted(self.concepts_dir.rglob("*.md")) if not self._is_directory_sidecar(p)]
         for p_dir in self.public_dirs[:6]:
             try:
                 p_concepts = p_dir / "wiki" / "concepts"
                 if p_concepts.is_dir():
-                    concepts.extend(
-                        p
-                        for p in sorted(p_concepts.rglob("*.md"))
-                        if not self._is_directory_sidecar(p)
-                    )
+                    concepts.extend(p for p in sorted(p_concepts.rglob("*.md")) if not self._is_directory_sidecar(p))
             except (OSError, PermissionError):
                 continue
         return concepts
@@ -280,11 +272,7 @@ class WikiStructure:
         """List all archived concept articles from local isolated archive directory."""
         if not self.archive_dir.exists():
             return []
-        return [
-            p
-            for p in sorted(self.archive_dir.rglob("*.md"))
-            if not self._is_directory_sidecar(p)
-        ]
+        return [p for p in sorted(self.archive_dir.rglob("*.md")) if not self._is_directory_sidecar(p)]
 
     async def archive_concept_safe(
         self,
@@ -307,7 +295,9 @@ class WikiStructure:
             except Exception as exc:
                 import logging
 
-                logging.getLogger(__name__).warning("Failed to unindex concept %s before archive: %s", concept_name, exc)
+                logging.getLogger(__name__).warning(
+                    "Failed to unindex concept %s before archive: %s", concept_name, exc
+                )
 
         # 2. Atomic file move
         source_path.replace(target_path)
@@ -428,9 +418,7 @@ class WikiStructure:
         if extensions is None:
             extensions = [".md", ".txt", ".org"]
 
-        ext_set = {
-            e.lower() if e.startswith(".") else f".{e.lower()}" for e in extensions
-        }
+        ext_set = {e.lower() if e.startswith(".") else f".{e.lower()}" for e in extensions}
 
         files: list[Path] = []
         ignore_patterns = self.load_wikiignore_patterns()
