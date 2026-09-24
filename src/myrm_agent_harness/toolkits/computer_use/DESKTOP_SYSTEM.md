@@ -66,6 +66,7 @@ desktop_vision_tool (only when AX empty or interact failed)
 | `create_desktop_tools` | `desktop_agent_tools.py` | LangChain tool factory |
 | `DRefRegistry` | `computer_use/dref/registry.py` | Session-scoped @dref map with previous snapshot for diff |
 | `perception/` | `ax_dispatch.py`, `ax_diff.py`, platform AX | Capture AX tree, incremental diff, invoke elements |
+| `recording/` | `synthesizer.py`, `capture_driver.py` | Skill synthesis from events, and `DesktopCaptureDriver`: polls the AX tree, diffs frames into click / type / window-focus events (skipping sensitive apps) |
 | `execution/healer.py` | BBox click fallback | When AX invoke fails |
 | `_action_lock` | `desktop_session.py` | Session-level async mutex | Serializes mutating interact/vision actions |
 | `[REMEDY_HINT]` | `desktop_session.py` | Self-healing diagnosis | Structured recovery guidance for stale refs and execution failures |
