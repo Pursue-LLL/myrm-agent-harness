@@ -26,14 +26,7 @@ from pathlib import Path
 
 from myrm_agent_harness.toolkits.computer_use.backends import macos_input
 from myrm_agent_harness.toolkits.computer_use.dref.errors import ACCESSIBILITY_SETTINGS_DEEPLINK
-from myrm_agent_harness.toolkits.computer_use.types import (
-    ActionResult,
-    ModifierKey,
-    PermissionStatus,
-    ScreenContext,
-    ScreenInfo,
-    WindowTextResult,
-)
+from myrm_agent_harness.toolkits.computer_use.types import ActionResult, ModifierKey, PermissionStatus, ScreenContext, ScreenInfo, WindowTextResult
 
 logger = logging.getLogger(__name__)
 
@@ -493,7 +486,6 @@ def _set_clipboard(text: str) -> None:
 
 
 _MACOS_DEEPLINKS: dict[str, str] = {
-    # Shares the constant the permission error quotes, so guidance and status cannot drift.
     "accessibility": ACCESSIBILITY_SETTINGS_DEEPLINK,
     "screen_recording": "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
 }
