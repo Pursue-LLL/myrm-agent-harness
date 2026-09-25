@@ -92,10 +92,10 @@ myrm_agent_harness/toolkits/code_execution/security/safe_command_configs/git.py	
 myrm_agent_harness/toolkits/code_execution/security/shell_command_analyzer.py	550
 myrm_agent_harness/toolkits/code_execution/security/validator.py	538
 myrm_agent_harness/toolkits/code_execution/session/persistent_session.py	543
-myrm_agent_harness/toolkits/computer_use/backends/macos.py	626
+myrm_agent_harness/toolkits/computer_use/backends/macos.py	619
 myrm_agent_harness/toolkits/computer_use/backends/windows.py	529
 myrm_agent_harness/toolkits/computer_use/desktop_session.py	782
-myrm_agent_harness/toolkits/computer_use/perception/macos_ax.py	687
+myrm_agent_harness/toolkits/computer_use/perception/macos_ax.py	682
 myrm_agent_harness/toolkits/computer_use/perception/windows_ax.py	530
 myrm_agent_harness/toolkits/computer_use/session.py	538
 myrm_agent_harness/toolkits/cron/cron_agent_tools.py	870

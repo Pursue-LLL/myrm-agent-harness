@@ -12,12 +12,6 @@ Typed error hierarchy for @dref desktop element reference operations.
 
 from __future__ import annotations
 
-# Accessibility permission guidance lives with the error that needs it, so raisers (which already
-# import this module) do not have to reach into the platform backend for a Settings URL.
-ACCESSIBILITY_SETTINGS_DEEPLINK = (
-    "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
-)
-
 
 class ElementRefError(Exception):
     """Base error for element reference operations."""

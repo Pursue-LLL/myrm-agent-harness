@@ -23,15 +23,10 @@ import logging
 import subprocess
 from dataclasses import dataclass
 
-from myrm_agent_harness.toolkits.computer_use.dref.errors import (
-    ACCESSIBILITY_SETTINGS_DEEPLINK,
-    AXPermissionRequiredError,
-    AXTreeEmptyError,
-)
+from myrm_agent_harness.toolkits.computer_use.backends.macos import _MACOS_DEEPLINKS
+from myrm_agent_harness.toolkits.computer_use.dref.errors import AXPermissionRequiredError, AXTreeEmptyError
 from myrm_agent_harness.toolkits.computer_use.dref.types import INTERACTIVE_AX_ROLES, BBox, ElementRef, SnapshotMeta, SnapshotScope
-from myrm_agent_harness.toolkits.computer_use.perception.overlay_roles import (
-    normalize_desktop_role,
-)
+from myrm_agent_harness.toolkits.computer_use.perception.overlay_roles import normalize_desktop_role
 from myrm_agent_harness.toolkits.computer_use.types import ActionResult
 
 logger = logging.getLogger(__name__)
@@ -309,7 +304,7 @@ def _parse_ax_output(
     if result.returncode != 0:
         stderr = result.stderr.strip()
         if "不允许辅助访问" in stderr or "not allowed assistive" in stderr.lower():
-            raise AXPermissionRequiredError("macOS", ACCESSIBILITY_SETTINGS_DEEPLINK)
+            raise AXPermissionRequiredError("macOS", _MACOS_DEEPLINKS["accessibility"])
         raise AXTreeEmptyError(stderr or "AppleScript AX snapshot failed")
 
     lines = [line for line in result.stdout.splitlines() if line.strip()]
@@ -321,7 +316,7 @@ def _parse_ax_output(
     # error inside osascript, so it would otherwise be misreported as an empty
     # tree instead of a missing permission).
     if any(line.startswith("AX_PERMISSION_ERROR|||") for line in lines):
-        raise AXPermissionRequiredError("macOS", ACCESSIBILITY_SETTINGS_DEEPLINK)
+        raise AXPermissionRequiredError("macOS", _MACOS_DEEPLINKS["accessibility"])
 
     meta_line = lines[0].split("|||")
     # Format: appName|||META|||winTitle|||bundleId|||appPid
