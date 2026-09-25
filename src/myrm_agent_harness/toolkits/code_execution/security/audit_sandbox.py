@@ -82,14 +82,13 @@ def install(
                     return
                 raise SecurityError("Network access is blocked by sandbox policy.")
 
-            if event == "socket.connect":
+            if event == "socket.connect" and isinstance(address, tuple) and allowed_hosts is not None:
                 # AF_UNIX sockets use a string address (for IPC). We allow them for MCP IPC.
-                if isinstance(address, tuple) and allowed_hosts is not None:
-                    host = address[0]
-                    if host not in allowed_hosts:
-                        raise SecurityError(
-                            f"Network access to '{host}' is blocked. Allowed hosts: {', '.join(allowed_hosts)}"
-                        )
+                host = address[0]
+                if host not in allowed_hosts:
+                    raise SecurityError(
+                        f"Network access to '{host}' is blocked. Allowed hosts: {', '.join(allowed_hosts)}"
+                    )
 
         # 4. File System Isolation
         destructive_events = {
@@ -200,7 +199,6 @@ def get_audit_hook_source_code() -> str:
     """
     import inspect
 
-    hook_lines, _ = inspect.getsourcelines(install)
     # Strip the def install line and outer indentation so it can be called or defined directly
     install_source = inspect.getsource(install)
     error_source = inspect.getsource(SecurityError)

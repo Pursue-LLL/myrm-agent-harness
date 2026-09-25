@@ -22,7 +22,8 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Final, Pattern
+from re import Pattern
+from typing import Final
 
 from myrm_agent_harness.utils.text_utils import strip_ansi
 
