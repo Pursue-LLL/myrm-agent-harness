@@ -21,11 +21,14 @@ namespace targeting, and channel affinity reweighting. Internal only — not par
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Literal
 
 from myrm_agent_harness.toolkits.memory.config import AgentMemoryPolicy, MemoryScopeLevel, MemoryWritePolicy
 from myrm_agent_harness.toolkits.memory.types import AnyMemory, MemoryScope, MemorySearchResult
+
+logger = logging.getLogger(__name__)
 
 _SCOPE_ORDER: tuple[MemoryScopeLevel, ...] = (
     MemoryScopeLevel.GLOBAL,
@@ -118,7 +121,18 @@ def derive_namespaces(
     )
     read_scopes = memory_policy.read_scopes if memory_policy is not None else None
     levels = read_scopes or _SCOPE_ORDER
-    return [candidates[level] for level in _SCOPE_ORDER if level in levels and level in candidates]
+    resolved = [candidates[level] for level in _SCOPE_ORDER if level in levels and level in candidates]
+    if resolved:
+        return resolved
+    # A policy can name read scopes that carry no id on this turn (e.g. reads
+    # restricted to task scope while no task is active). An empty chain would make
+    # every downstream writer/reader unusable, so fall back to the durable global
+    # scope instead of raising.
+    logger.warning(
+        "Memory read_scopes %s resolved to no namespace for this turn; falling back to 'global'.",
+        [level.value for level in read_scopes] if read_scopes else None,
+    )
+    return [candidates[MemoryScopeLevel.GLOBAL]]
 
 
 def build_scope(

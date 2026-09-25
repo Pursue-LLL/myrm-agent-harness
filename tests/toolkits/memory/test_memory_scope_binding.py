@@ -146,6 +146,42 @@ def test_resolve_primary_namespace_prefers_durable_scopes() -> None:
     assert resolve_primary_namespace(["shared:customer-a", "conversation:conv-1"]) == "conversation:conv-1"
 
 
+def test_derive_namespaces_never_returns_an_empty_chain() -> None:
+    """A policy whose read scopes carry no id this turn must not empty the chain.
+
+    Reads restricted to task scope while no task is active (or to conversation
+    scope with no conversation) would otherwise resolve to ``[]``, and every
+    downstream writer/reader would fail on an empty namespace list.
+    """
+    from myrm_agent_harness.toolkits.memory.config import AgentMemoryPolicy, MemoryScopeLevel
+
+    empty_cases = [
+        AgentMemoryPolicy(read_scopes=(MemoryScopeLevel.TASK,)),
+        AgentMemoryPolicy(read_scopes=(MemoryScopeLevel.CONVERSATION,)),
+        AgentMemoryPolicy(read_scopes=(MemoryScopeLevel.TASK, MemoryScopeLevel.CONVERSATION)),
+    ]
+    for policy in empty_cases:
+        resolved = derive_namespaces(
+            namespaces=None,
+            agent_id="scifi",
+            channel_id=None,
+            conversation_id=None,
+            task_id=None,
+            memory_policy=policy,
+        )
+        assert resolved == ["global"], f"policy {policy.read_scopes} produced {resolved}"
+
+    # build_scope must stay constructible on that fallback chain.
+    scope = build_scope(
+        namespaces=["global"],
+        agent_id="scifi",
+        channel_id=None,
+        conversation_id=None,
+        task_id=None,
+    )
+    assert scope.primary_namespace == "global"
+
+
 def test_scope_helpers_preserve_current_behavior():
     namespaces = derive_namespaces(
         namespaces=None, agent_id="scifi", channel_id="telegram", conversation_id="conv-1", task_id="task-1"
