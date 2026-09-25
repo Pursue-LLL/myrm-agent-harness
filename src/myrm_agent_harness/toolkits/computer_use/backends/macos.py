@@ -492,7 +492,9 @@ def _set_clipboard(text: str) -> None:
 
 
 _MACOS_DEEPLINKS: dict[str, str] = {
-    "accessibility": "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+    # Reuses the constant the permission error quotes, so the guidance the agent sees and the
+    # URL the status reports can never drift apart.
+    "accessibility": ACCESSIBILITY_SETTINGS_DEEPLINK,
     "screen_recording": "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
 }
 

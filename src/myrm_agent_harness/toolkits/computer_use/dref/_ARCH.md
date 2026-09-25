@@ -11,7 +11,7 @@ Owned by `computer_use/` — not a standalone toolkit.
 |------|------|-------------|-------|
 | types.py | Core | ElementRef, BBox, SnapshotMeta, SnapshotScope | ✅ |
 | registry.py | Core | DRefRegistry session-scoped ref map | ✅ |
-| errors.py | Core | DRefStaleError, AXPermissionRequiredError, AXTreeEmptyError | ✅ |
+| errors.py | Core | DRefStaleError, AXPermissionRequiredError (retryable message + `ACCESSIBILITY_SETTINGS_DEEPLINK`), AXTreeEmptyError | ✅ |
 | __init__.py | Package | Public exports | ✅ |
 
 ## Consumers
