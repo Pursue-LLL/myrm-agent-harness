@@ -6,7 +6,7 @@
 - memory.types::{AnyMemory, MemoryScope, MemorySearchResult} (POS: memory data models)
 
 [OUTPUT]
-- derive_namespaces: Namespace derivation from scope level
+- derive_namespaces: Namespace derivation from scope level (falls back to ``global`` when a policy resolves to no namespace)
 - bind_scope: MemoryScope binding to memory objects
 - resolve_primary_namespace: Durable write target so new memories stay recallable
 - build_scope: MemoryScope construction from config
