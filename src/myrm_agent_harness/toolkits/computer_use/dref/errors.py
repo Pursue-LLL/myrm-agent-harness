@@ -12,6 +12,12 @@ Typed error hierarchy for @dref desktop element reference operations.
 
 from __future__ import annotations
 
+# Accessibility permission guidance lives with the error that needs it, so raisers (which already
+# import this module) do not have to reach into the platform backend for a Settings URL.
+ACCESSIBILITY_SETTINGS_DEEPLINK = (
+    "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+)
+
 
 class ElementRefError(Exception):
     """Base error for element reference operations."""
@@ -30,12 +36,24 @@ class DRefStaleError(ElementRefError):
 
 
 class AXPermissionRequiredError(ElementRefError):
-    """Raised when OS accessibility permissions are missing."""
+    """Raised when OS accessibility permissions are missing.
 
-    def __init__(self, platform: str) -> None:
+    An ungranted permission is recoverable: the user can grant it while the turn is still open.
+    The message therefore states that the call is retryable and explicitly tells the agent not to
+    end the turn, so a first-run permission prompt does not discard the user's original request.
+    """
+
+    def __init__(self, platform: str, settings_deeplink: str = "") -> None:
+        grant_hint = (
+            f"Grant access via {settings_deeplink} (or System Settings), "
+            if settings_deeplink
+            else "Grant access in System Settings, "
+        )
         super().__init__(
             f"Accessibility permission required on {platform}. "
-            "Grant access in System Settings, then retry desktop_snapshot_tool. "
+            f"{grant_hint}then call this tool again. "
+            "This is a retryable condition, not a failure: do NOT end the turn or ask the user to "
+            "start over. Wait for them to grant access, then retry the same call. "
             "Use desktop_vision_tool as explicit visual fallback if needed."
         )
 
