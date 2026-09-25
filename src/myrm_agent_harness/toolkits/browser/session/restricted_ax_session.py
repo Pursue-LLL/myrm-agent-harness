@@ -26,7 +26,7 @@ via indirect prompt injection to execute scripts or exfiltrate session data.
 from __future__ import annotations
 
 import logging
-from typing import Any, Sequence
+from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.browser.session.browser_session import BrowserSession
 from myrm_agent_harness.toolkits.browser.tools.extract import create_extract_tool
@@ -36,6 +36,11 @@ from myrm_agent_harness.toolkits.browser.tools.manage import create_manage_tool
 from myrm_agent_harness.toolkits.browser.tools.navigate import create_navigate_tool
 from myrm_agent_harness.toolkits.browser.tools.snapshot import create_snapshot_tool
 from myrm_agent_harness.toolkits.browser.tools.takeover import create_takeover_tool
+
+if TYPE_CHECKING:
+    from langchain_core.tools import BaseTool
+
+    from myrm_agent_harness.toolkits.browser.pool import ContextType, GlobalBrowserPool
 
 logger = logging.getLogger(__name__)
 
@@ -56,10 +61,10 @@ class RestrictedAccessibilityBrowserSession(BrowserSession):
 
     def __init__(
         self,
-        browser_pool: Any = None,
-        context_type: Any = None,
-        *args: Any,
-        **kwargs: Any,
+        browser_pool: GlobalBrowserPool | None = None,
+        context_type: ContextType | None = None,
+        *args: object,
+        **kwargs: object,
     ) -> None:
         """Initialize restricted AX browser session with optional mockable pool."""
         if browser_pool is None:
@@ -86,7 +91,7 @@ class RestrictedAccessibilityBrowserSession(BrowserSession):
         raise RestrictedAxSecurityViolationError(msg)
 
 
-def create_restricted_ax_browser_tools(session: BrowserSession) -> list[Any]:
+def create_restricted_ax_browser_tools(session: BrowserSession) -> list[BaseTool]:
     """Create the 7 safe accessibility tools bound to *session*, omitting execute_script.
 
     Args:

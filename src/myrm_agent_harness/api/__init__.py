@@ -19,6 +19,7 @@ from importlib import import_module
 __all__ = [
     "create_restricted_ax_browser_tools",
     "RestrictedAccessibilityBrowserSession",
+    "TaintedEgressBlockedError",
     "TaintedEgressBlockedException",
     "TaintedEgressDecision",
     "TaintedEgressGateway",
@@ -485,6 +486,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "create_consolidation_cleanup_task":("myrm_agent_harness.toolkits.memory", "create_consolidation_cleanup_task"),
     "TaintedEgressGateway":("myrm_agent_harness.core.security.egress", "TaintedEgressGateway"),
     "TaintedEgressDecision":("myrm_agent_harness.core.security.egress", "TaintedEgressDecision"),
+    "TaintedEgressBlockedError":("myrm_agent_harness.core.security.egress", "TaintedEgressBlockedError"),
     "TaintedEgressBlockedException":("myrm_agent_harness.core.security.egress", "TaintedEgressBlockedException"),
     "RestrictedAccessibilityBrowserSession": (
         "myrm_agent_harness.toolkits.browser.session",

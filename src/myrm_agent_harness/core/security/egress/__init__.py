@@ -9,6 +9,8 @@
 
 [OUTPUT]
 - LoopbackEgressProxy, EphemeralCaManager and the sentinel voucher helpers
+- TaintedEgressGateway, TaintedEgressDecision, TaintedEgressBlockedError/Exception
+- SpendGovernor, SpendLease, SpendCommitResult
 
 [POS]
 Public surface of the core egress security package. Provides process-ephemeral sentinel
@@ -38,6 +40,7 @@ from .spend_governor import (
     is_spend_voucher,
 )
 from .tainted_gateway import (
+    TaintedEgressBlockedError,
     TaintedEgressBlockedException,
     TaintedEgressDecision,
     TaintedEgressGateway,
@@ -59,6 +62,7 @@ __all__ = [
     "SpendLease",
     "SpendLeaseResult",
     "StreamingSentinelScanner",
+    "TaintedEgressBlockedError",
     "TaintedEgressBlockedException",
     "TaintedEgressDecision",
     "TaintedEgressGateway",

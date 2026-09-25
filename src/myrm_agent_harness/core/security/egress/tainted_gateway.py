@@ -1,16 +1,17 @@
 """Transport-level egress gating and tainted data leak prevention gateway.
 
 [INPUT]
+- collections.abc::Iterable (POS: 集合迭代器抽象基类)
 - contextvars::ContextVar (POS: 线程与异步上下文安全变量)
 - ipaddress::ip_address (POS: IP 地址解析标准库)
 - logging::logging (POS: Python 日志标准库)
 - re::re (POS: 正则表达式标准库)
-- typing::Iterable, Sequence (POS: 类型标注标准库)
 - urllib.parse::urlsplit (POS: URL 拆分标准库)
 
 [OUTPUT]
 - TaintedEgressDecision: Outcome enum (ALLOW_CLEAN, ALLOW_WHITELISTED, BLOCKED_TAINTED)
-- TaintedEgressBlockedException: Exception raised when unapproved tainted egress is attempted
+- TaintedEgressBlockedError: Exception raised when unapproved tainted egress is attempted
+- TaintedEgressBlockedException: Backward-compatible alias for TaintedEgressBlockedError
 - TaintedEgressGateway: Evaluates socket/HTTP egress against taint status and domain allowlists
 - set_current_egress_tainted / is_current_egress_tainted: ContextVar helpers for transport hooks
 
@@ -25,16 +26,16 @@ from __future__ import annotations
 import ipaddress
 import logging
 import re
+from collections.abc import Iterable
 from contextvars import ContextVar
 from enum import StrEnum, unique
-from typing import Iterable, Sequence
 from urllib.parse import urlsplit
 
 logger = logging.getLogger(__name__)
 
 _TAINTED_CONTEXT: ContextVar[bool] = ContextVar("myrm_tainted_egress_context", default=False)
 
-_LOCAL_DOMAINS: frozenset[str] = frozenset({"localhost", "127.0.0.1", "::1", "0.0.0.0"})
+_LOCAL_DOMAINS: frozenset[str] = frozenset({"localhost", "127.0.0.1", "::1", "0.0.0.0"})  # noqa: S104
 
 
 def set_current_egress_tainted(tainted: bool) -> None:
@@ -56,7 +57,7 @@ class TaintedEgressDecision(StrEnum):
     BLOCKED_TAINTED = "blocked_tainted"
 
 
-class TaintedEgressBlockedException(Exception):
+class TaintedEgressBlockedError(Exception):
     """Raised when an unapproved external egress attempt occurs in a tainted session."""
 
     def __init__(self, host: str, port: int, reason: str) -> None:
@@ -65,6 +66,7 @@ class TaintedEgressBlockedException(Exception):
         self.reason = reason
         super().__init__(f"Tainted egress blocked for {host}:{port} - {reason}")
 
+
     def format_for_user(self) -> str:
         """Format an actionable diagnostic message for user-facing audit logs."""
         return (
@@ -72,6 +74,10 @@ class TaintedEgressBlockedException(Exception):
             f"The session previously accessed sensitive files or secrets. "
             f"Reason: {self.reason}"
         )
+
+
+# Backward-compatible alias
+TaintedEgressBlockedException = TaintedEgressBlockedError
 
 
 class TaintedEgressGateway:
