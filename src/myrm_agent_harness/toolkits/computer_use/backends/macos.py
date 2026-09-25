@@ -25,6 +25,7 @@ import tempfile
 from pathlib import Path
 
 from myrm_agent_harness.toolkits.computer_use.backends import macos_input
+from myrm_agent_harness.toolkits.computer_use.dref.errors import ACCESSIBILITY_SETTINGS_DEEPLINK
 from myrm_agent_harness.toolkits.computer_use.types import (
     ActionResult,
     ModifierKey,
@@ -492,8 +493,7 @@ def _set_clipboard(text: str) -> None:
 
 
 _MACOS_DEEPLINKS: dict[str, str] = {
-    # Reuses the constant the permission error quotes, so the guidance the agent sees and the
-    # URL the status reports can never drift apart.
+    # Shares the constant the permission error quotes, so guidance and status cannot drift.
     "accessibility": ACCESSIBILITY_SETTINGS_DEEPLINK,
     "screen_recording": "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
 }
