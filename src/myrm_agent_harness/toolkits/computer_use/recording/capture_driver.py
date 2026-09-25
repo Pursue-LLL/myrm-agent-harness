@@ -36,10 +36,10 @@ from myrm_agent_harness.toolkits.computer_use.recording.types import (
     RecordedActionType,
 )
 
-# AX trees are noisy: container relayout churns many refs per user action. Emitting every
-# changed ref would flood the event stream with non-actions, so a single poll collapses to at
-# most this many events, ordered by change kind (navigation first, then text input).
-_MAX_EVENTS_PER_POLL = 3
+# AX trees are noisy: container relayout churns many refs per user action, so events are derived
+# only from changes that map to a real interaction (an element appearing, an interactive value
+# changing) rather than from every changed ref. Identified interactions are never dropped to fit
+# a cap: a dropped event cannot be recovered, because the next poll diffs against the new baseline.
 
 # Elements whose `value` changed are the observable trace of an interaction, and the emitted
 # action depends on the role: text entry produces a `type` event carrying the new value, while
@@ -146,7 +146,12 @@ class DesktopCaptureDriver:
         return CaptureFrame(events=events, meta=meta, refs=refs)
 
     def _events_from_diff(self, diff: object, meta: SnapshotMeta) -> list[DesktopRecordedEvent]:
-        """Translate a ref diff into a bounded, ordered list of interaction events."""
+        """Translate a ref diff into an ordered list of interaction events.
+
+        Every attributable change becomes exactly one event. A change that is skipped here is
+        gone for good, because the next poll diffs against this frame's baseline, so nothing is
+        dropped once it has been identified as an interaction.
+        """
         app_changed = self._prev_meta is not None and self._prev_meta.app_name != meta.app_name
         emitted: list[DesktopRecordedEvent] = []
 
@@ -158,16 +163,12 @@ class DesktopCaptureDriver:
 
         # Navigation/state changes: interactable roles that appeared.
         for element in added:
-            if len(emitted) >= _MAX_EVENTS_PER_POLL:
-                break
             emitted.append(
                 self._build_event(meta=meta, action=RecordedActionType.CLICK.value, element=element)
             )
 
         # Text entry: value changed on an input-bearing role.
         for change in updated:
-            if len(emitted) >= _MAX_EVENTS_PER_POLL:
-                break
             element = getattr(change, "element", None)
             fields = getattr(change, "changed_fields", ())
             if element is None or "value" not in fields:

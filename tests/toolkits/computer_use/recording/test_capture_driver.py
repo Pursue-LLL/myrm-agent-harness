@@ -212,19 +212,20 @@ def test_ignores_value_change_on_non_input_role(monkeypatch) -> None:
     assert frame.events == ()
 
 
-def test_events_are_sequential_and_bounded(monkeypatch) -> None:
-    """Sequence numbers stay monotonic and a single poll emits a bounded number of events.
+def test_events_are_sequential_and_not_truncated(monkeypatch) -> None:
+    """Sequence numbers stay monotonic and no identified interaction is dropped.
 
-    Uses a mostly-stable tree with a few new elements: a wholesale replacement fails identity
-    matching, and a diff with no reliable attribution must not fabricate interactions.
+    A change rolled into the baseline can never be recovered, so a burst must be reported in
+    full rather than trimmed to a cap.
     """
-    stable = {f"s{i}": _element(f"s{i}", "AXButton", f"Stable {i}", x=i * 10) for i in range(10)}
+    stable = {f"s{i}": _element(f"s{i}", "AXButton", f"Stable {i}", x=i * 10) for i in range(20)}
     after = dict(stable)
     for i in range(6):
         after[f"n{i}"] = _element(f"n{i}", "AXButton", f"New {i}", x=500 + i * 10)
 
     frames = [
         (_meta("App"), stable),
+        (_meta("App"), after),
         (_meta("App"), after),
     ]
     monkeypatch.setattr(
@@ -236,10 +237,14 @@ def test_events_are_sequential_and_bounded(monkeypatch) -> None:
     asyncio.run(driver.poll())
     frame = asyncio.run(driver.poll())
 
-    assert 0 < len(frame.events) <= 3
+    # All six additions are reported, and the first poll primes the baseline without emitting.
+    assert len(frame.events) == 6
     sequences = [event.seq for event in frame.events]
     assert sequences == sorted(sequences)
     assert len(set(sequences)) == len(sequences)
+
+    # Nothing is replayed on the next poll, i.e. the burst was fully drained.
+    assert asyncio.run(driver.poll()).events == ()
 
 
 def test_wholesale_tree_replacement_emits_no_phantom_interactions(monkeypatch) -> None:
