@@ -14,7 +14,7 @@ and sidecar-first hierarchical retrieval (L0/L1 route + L2 article grounding).
 | fts_search.py | Core | FtsSearchMixin: FTS5 truth upsert/search/get_truth with `search_terms` CJK index column, real-time edge extraction on upsert, raw-text interim indexing, publish_status gate, vector upsert/delete/search and RRF fusion | ✅ |
 | sidecar_index.py | Core | SidecarIndexMixin: L0/L1 directory sidecar FTS5+Qdrant indexing, search, and lifecycle (inherited by WikiIndexer) | ✅ |
 | tokenizer.py | Core | FTS5 query tokenizer with CJK bigram support; `extract_query_terms()` shared with index routing | ✅ |
-| graph_store.py | Core | Knowledge graph BFS traversal, federated graph queries, alias asset lookup, bidirectional concept link aggregation with Unicode CJK safe snippet/line-number/heading extraction, insight delegation | ✅ |
+| graph_store.py | Core | Knowledge graph BFS traversal, federated graph queries, alias asset lookup, bidirectional concept link aggregation with Unicode CJK safe snippet/line-number and clean markdown-stripped heading extraction, insight delegation | ✅ |
 | graph_analysis.py | Core | LPA community detection, knowledge gap discovery, graph insights | ✅ |
 | best_first.py | Core | Best-first priority-queue convergence + raw_claim frontmatter rerank + claim-health multipliers (supported/contested/stale) | ✅ |
 | query.py | Core | Query engine: hot + recent log prefix, index-first seeds → sidecar scope → FTS rerank → best-first graph converge; derived `confidence_score`; `retrieval_trace` metadata; SourceSnippet incl. claims + raw evidence excerpt + `claim_text` + `claim_confidence` + snapshot_status + evidence SHA + asset hits | ✅ |
