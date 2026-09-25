@@ -37,6 +37,9 @@ from myrm_agent_harness.toolkits.code_execution.platform import (
     PlatformInfo,
     detect_platform,
 )
+from myrm_agent_harness.toolkits.code_execution.security.script_armor import (
+    prepare_armored_command,
+)
 from myrm_agent_harness.toolkits.code_execution.session.shell_flavor import (
     get_flavor,
 )
@@ -329,12 +332,25 @@ class PersistentSession(ABC):
         if syntax_error:
             return SessionExecutionResult(False, "", syntax_error, 2, error=syntax_error)
 
+        with prepare_armored_command(
+            command,
+            work_dir=self.config.work_dir,
+            is_windows=self._platform.is_windows,
+        ) as cmd_to_run:
+            return await self._execute_core_stream(cmd_to_run, command, timeout)
+
+    async def _execute_core_stream(
+        self,
+        cmd_to_run: str,
+        original_command: str,
+        timeout: int,
+    ) -> SessionExecutionResult:
         if not self.process or not self.process.stdin or not self.process.stdout:
             return SessionExecutionResult(False, "", "", 1, error="Process unavailable")
 
         end_marker = _generate_marker("END")
         exit_marker = _generate_marker("EXIT")
-        full_cmd = self._flavor.build_wrapped_command(command, exit_marker, end_marker, self._platform.exit_code_var)
+        full_cmd = self._flavor.build_wrapped_command(cmd_to_run, exit_marker, end_marker, self._platform.exit_code_var)
 
         try:
             self.process.stdin.write(full_cmd.encode("utf-8", errors="surrogateescape"))
@@ -438,7 +454,7 @@ class PersistentSession(ABC):
                 classify_exit_code,
             )
 
-            success = classify_exit_code(command, exit_code, stdout)
+            success = classify_exit_code(original_command, exit_code, stdout)
 
         return SessionExecutionResult(success, stdout, "", exit_code)
 
@@ -452,66 +468,71 @@ class PersistentSession(ABC):
             yield f"\n[ERROR] {syntax_error}\n"
             return
 
-        async with self._lock:
-            end_marker = _generate_marker("END")
-            exit_marker = _generate_marker("EXIT")
-            full_cmd = self._flavor.build_wrapped_command(
-                command, exit_marker, end_marker, self._platform.exit_code_var
-            )
+        with prepare_armored_command(
+            command,
+            work_dir=self.config.work_dir,
+            is_windows=self._platform.is_windows,
+        ) as cmd_to_run:
+            async with self._lock:
+                end_marker = _generate_marker("END")
+                exit_marker = _generate_marker("EXIT")
+                full_cmd = self._flavor.build_wrapped_command(
+                    cmd_to_run, exit_marker, end_marker, self._platform.exit_code_var
+                )
 
-            self.process.stdin.write(full_cmd.encode())
-            await self.process.stdin.drain()
+                self.process.stdin.write(full_cmd.encode())
+                await self.process.stdin.drain()
 
-            import aiofiles
+                import aiofiles
 
-            from myrm_agent_harness.toolkits.code_execution.executors.models import (
-                scrub_sensitive_info,
-            )
-            from myrm_agent_harness.toolkits.code_execution.session.stream_buffer import (
-                ExecutionStreamBuffer,
-            )
-            from myrm_agent_harness.toolkits.code_execution.session.stream_output_processor import (
-                StreamOutputProcessor,
-            )
+                from myrm_agent_harness.toolkits.code_execution.executors.models import (
+                    scrub_sensitive_info,
+                )
+                from myrm_agent_harness.toolkits.code_execution.session.stream_buffer import (
+                    ExecutionStreamBuffer,
+                )
+                from myrm_agent_harness.toolkits.code_execution.session.stream_output_processor import (
+                    StreamOutputProcessor,
+                )
 
-            stream_buf = ExecutionStreamBuffer()
-            sop = StreamOutputProcessor()
-            tee_file_path = sop.setup_tee(self.config.work_dir)
+                stream_buf = ExecutionStreamBuffer()
+                sop = StreamOutputProcessor()
+                tee_file_path = sop.setup_tee(self.config.work_dir)
 
-            try:
-                async with aiofiles.open(tee_file_path, "w", encoding="utf-8") as tee_file:
-                    async with asyncio.timeout(timeout):
-                        while not stream_buf.done:
-                            chunk = await self.process.stdout.read(4096)
-                            if not chunk:
-                                yield f"\n[ERROR] {self._SESSION_DIED_SENTINEL}\n"
+                try:
+                    async with aiofiles.open(tee_file_path, "w", encoding="utf-8") as tee_file:
+                        async with asyncio.timeout(timeout):
+                            while not stream_buf.done:
+                                chunk = await self.process.stdout.read(4096)
+                                if not chunk:
+                                    yield f"\n[ERROR] {self._SESSION_DIED_SENTINEL}\n"
+                                    return
+                                safe_text = stream_buf.process_bytes(chunk, exit_marker, end_marker)
+                                if safe_text:
+                                    await sop.write_tee(tee_file, safe_text)
+                                    # Mirror the execute path: scrub before the SSE
+                                    # valve so real-time UI output never leaks host
+                                    # paths or credential tokens (tee keeps the raw
+                                    # log for debugging).
+                                    sse_emit = sop.accumulate_sse(scrub_sensitive_info(safe_text))
+                                    if sse_emit:
+                                        yield sse_emit
+
+                            remaining = sop.flush()
+                            if remaining:
+                                yield remaining
+
+                            if stream_buf.parse_failed:
+                                await self._kill_process_group()
+                                await self._transit_state(SessionState.TERMINATED)
+                                yield "\n[ERROR] Session output boundary corrupted\n"
                                 return
-                            safe_text = stream_buf.process_bytes(chunk, exit_marker, end_marker)
-                            if safe_text:
-                                await sop.write_tee(tee_file, safe_text)
-                                # Mirror the execute path: scrub before the SSE
-                                # valve so real-time UI output never leaks host
-                                # paths or credential tokens (tee keeps the raw
-                                # log for debugging).
-                                sse_emit = sop.accumulate_sse(scrub_sensitive_info(safe_text))
-                                if sse_emit:
-                                    yield sse_emit
-
-                        remaining = sop.flush()
-                        if remaining:
-                            yield remaining
-
-                        if stream_buf.parse_failed:
-                            await self._kill_process_group()
-                            await self._transit_state(SessionState.TERMINATED)
-                            yield "\n[ERROR] Session output boundary corrupted\n"
-                            return
-            except TimeoutError:
-                # Mirror execute(): kill the wedged shell so the next stream
-                # transparently rebuilds instead of re-hanging forever.
-                await self._kill_process_group()
-                await self._transit_state(SessionState.TERMINATED)
-                yield f"\n[ERROR] Timeout After {timeout}s\n"
+                except TimeoutError:
+                    # Mirror execute(): kill the wedged shell so the next stream
+                    # transparently rebuilds instead of re-hanging forever.
+                    await self._kill_process_group()
+                    await self._transit_state(SessionState.TERMINATED)
+                    yield f"\n[ERROR] Timeout After {timeout}s\n"
 
     async def _kill_process_group(self, grace_period: float = 2.0) -> None:
         if not self.process or self.process.pid is None:

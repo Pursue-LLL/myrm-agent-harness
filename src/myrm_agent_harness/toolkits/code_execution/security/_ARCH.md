@@ -18,6 +18,7 @@ Execution security — shell command analysis, blacklists, validators, and C-lev
 | shell_command_analyzer.py | Core | Shell Command Analyzer — multi-layer security (L1: binary/Unicode, L1.5: ANSI-C/locale quoting evasion BLOCK, L2: injection/dangerous commands, L2.5: SQL statement guard, L3: suspicious patterns & protected instruction file mutation detection via `is_protected_instruction_mutation_command`, L4: recursive shell wrapper analysis for bash -c/sh -c/trap). Character-level state machine for quote-aware preprocessing. | ✅ |
 | shell_command_strip.py | Core | Quote-stripping helper for shell command preprocessing | ✅ |
 | sql_statement_guard.py | Core | SQL Statement Guard — detect destructive SQL in DB client commands (psql/mysql/sqlite3/sqlcmd/mongosh). Extracts SQL from -c/-e/--eval flags and pipe patterns, triggers ESCALATE for write operations. | ✅ |
+| script_armor.py | Core | Script materialization & subprocess invocation armor — protect persistent session against beacon swallowing, exit-statement session deaths, and quote bombs by materializing complex scripts to temporary files executed via subshell. | ✅ |
 | validator.py | Core | Unified security validator for code execution. | ✅ |
 
 | Submodule | Description |

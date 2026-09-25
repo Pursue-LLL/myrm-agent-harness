@@ -1,0 +1,200 @@
+"""Tests for FileBackedSubprocessInvocationAndShellQuoteEscapingArmorSuite.
+
+Validates:
+1. Dual-mode heuristic probe (Direct Fast-Path vs File-Backed Armor)
+2. Safe script materialization with 0700 permissions & atomic creation
+3. Reliable auto-cleanup and unlink in finally blocks
+4. PersistentSession integration: exit statement survival & heredoc execution without beacon swallowing
+"""
+
+from __future__ import annotations
+
+import os
+import stat
+from pathlib import Path
+
+import pytest
+
+from myrm_agent_harness.toolkits.code_execution.security.script_armor import (
+    ScriptArmorConfig,
+    build_file_backed_command,
+    cleanup_materialized_script,
+    materialize_script_to_file,
+    prepare_armored_command,
+    should_materialize_script,
+)
+from myrm_agent_harness.toolkits.code_execution.session import (
+    LocalPersistentSession,
+    SessionConfig,
+)
+
+
+def _make_config(timeout: int = 10) -> SessionConfig:
+    return SessionConfig(session_id="test_armor", work_dir="/tmp", timeout=timeout, sandbox_mode="disable")
+
+
+class TestScriptArmorHeuristicProbe:
+    """Test heuristic dual-mode decision engine."""
+
+    def test_direct_fast_path_for_state_modifiers(self) -> None:
+        assert not should_materialize_script("cd /tmp")
+        assert not should_materialize_script("pushd /var")
+        assert not should_materialize_script("popd")
+        assert not should_materialize_script("export VAR=123")
+        assert not should_materialize_script("unset VAR")
+        assert not should_materialize_script("source .venv/bin/activate")
+        assert not should_materialize_script(". /etc/profile")
+
+    def test_direct_fast_path_for_simple_short_commands(self) -> None:
+        assert not should_materialize_script("ls -la")
+        assert not should_materialize_script("git status")
+        assert not should_materialize_script("echo 'hello world'")
+        assert not should_materialize_script("mkdir -p /tmp/test_dir")
+
+    def test_file_backed_for_multiline_scripts(self) -> None:
+        multiline = "echo 1\necho 2\necho 3\necho 4"
+        assert should_materialize_script(multiline)
+
+    def test_file_backed_for_heredocs(self) -> None:
+        heredoc = "cat << 'EOF' > file.txt\nline1\nEOF"
+        assert should_materialize_script(heredoc)
+
+        heredoc_unquoted = "cat << EOF > file.txt\nline1\nEOF"
+        assert should_materialize_script(heredoc_unquoted)
+
+    def test_file_backed_for_exit_statements(self) -> None:
+        assert should_materialize_script("exit 1")
+        assert should_materialize_script("if [ ! -f foo ]; then exit 42; fi")
+        assert should_materialize_script("echo hi; exit 0")
+        # Single-line export must stay direct to preserve env vars (handled safely by shell exit interceptor)
+        assert not should_materialize_script("export FOO=1; exit 0")
+
+    def test_file_backed_for_oversized_scripts(self) -> None:
+        cfg = ScriptArmorConfig(direct_max_bytes=50)
+        large_cmd = "echo " + "a" * 100
+        assert should_materialize_script(large_cmd, cfg)
+
+
+class TestScriptMaterialization:
+    """Test safe script creation, permissions, and cleanup."""
+
+    def test_materialize_file_permissions_and_content(self, tmp_path: Path) -> None:
+        cmd = "echo 'armor test'\nexit 0"
+        script_path = materialize_script_to_file(cmd, temp_dir=tmp_path)
+        try:
+            assert script_path.exists()
+            # Verify 0700 permission (owner read/write/execute)
+            file_stat = os.stat(script_path)
+            mode = stat.S_IMODE(file_stat.st_mode)
+            assert mode == 0o700
+
+            content = script_path.read_text(encoding="utf-8")
+            assert "echo 'armor test'" in content
+            assert content.endswith("\n")
+        finally:
+            cleanup_materialized_script(script_path)
+            assert not script_path.exists()
+
+    def test_cleanup_nonexistent_path_is_safe(self) -> None:
+        non_existent = Path("/tmp/does_not_exist_xyz123456.sh")
+        cleanup_materialized_script(non_existent)
+        cleanup_materialized_script(None)
+
+    def test_build_file_backed_command(self, tmp_path: Path) -> None:
+        script = tmp_path / "test.sh"
+        cmd = build_file_backed_command(script)
+        assert cmd.startswith('bash "')
+        assert str(script.resolve()) in cmd
+
+
+class TestPrepareArmoredCommandContextManager:
+    """Test context manager lifecycle and cleanup guarantee."""
+
+    def test_direct_command_passes_through(self) -> None:
+        raw_cmd = "git status"
+        with prepare_armored_command(raw_cmd) as cmd_to_run:
+            assert cmd_to_run == raw_cmd
+
+    def test_armored_command_creates_and_cleans_up(self, tmp_path: Path) -> None:
+        raw_cmd = "cat << 'EOF' > a.txt\nline\nEOF\n"
+        created_file: Path | None = None
+        with prepare_armored_command(raw_cmd, work_dir=tmp_path) as cmd_to_run:
+            assert cmd_to_run.startswith('bash "')
+            file_part = cmd_to_run.split('"', 2)[1]
+            created_file = Path(file_part)
+            assert created_file.exists()
+
+        # After exiting with block, file must be destroyed
+        assert created_file is not None
+        assert not created_file.exists()
+
+    def test_armored_command_cleans_up_on_exception(self, tmp_path: Path) -> None:
+        raw_cmd = "exit 1"
+        created_file: Path | None = None
+        with pytest.raises(RuntimeError), prepare_armored_command(raw_cmd, work_dir=tmp_path) as cmd_to_run:
+            file_part = cmd_to_run.split('"', 2)[1]
+            created_file = Path(file_part)
+            assert created_file.exists()
+            raise RuntimeError("simulated pipeline error")
+
+        assert created_file is not None
+        assert not created_file.exists()
+
+
+class TestPersistentSessionIntegration:
+    """End-to-end integration with LocalPersistentSession."""
+
+    @pytest.mark.asyncio
+    async def test_exit_statement_does_not_kill_persistent_shell(self) -> None:
+        """A script with 'exit 42' must return exit code 42 without killing the persistent shell."""
+        session = LocalPersistentSession(_make_config())
+        await session.start()
+        try:
+            # First command: sets an environment variable
+            await session.execute("export SESSION_ALIVE_VAR=active_123")
+
+            # Second command: contains exit statement, runs in file-backed subshell
+            res1 = await session.execute("if [ -d /tmp ]; then exit 42; fi")
+            assert not res1.success
+            assert res1.exit_code == 42
+
+            # Third command: persistent session must still be alive and maintain the environment variable
+            res2 = await session.execute("echo $SESSION_ALIVE_VAR")
+            assert res2.success
+            assert "active_123" in res2.stdout
+        finally:
+            await session.close()
+
+    @pytest.mark.asyncio
+    async def test_heredoc_script_executes_without_beacon_swallowing(self, tmp_path: Path) -> None:
+        """Heredoc script must execute cleanly without consuming trailing markers."""
+        target_file = tmp_path / "heredoc_output.txt"
+        heredoc_cmd = f"""cat << 'EOF' > "{target_file}"
+def hello():
+    return "world"
+EOF
+"""
+        session = LocalPersistentSession(_make_config())
+        await session.start()
+        try:
+            result = await session.execute(heredoc_cmd)
+            assert result.success
+            assert target_file.exists()
+            content = target_file.read_text(encoding="utf-8")
+            assert 'def hello():' in content
+            assert '__myrm_rc__' not in content
+        finally:
+            await session.close()
+
+    @pytest.mark.asyncio
+    async def test_trailing_comment_without_newline(self) -> None:
+        """A command ending with a single-line comment must not swallow exit markers."""
+        cmd = "echo 'comment_test' # trailing comment without newline"
+        session = LocalPersistentSession(_make_config())
+        await session.start()
+        try:
+            result = await session.execute(cmd)
+            assert result.success
+            assert "comment_test" in result.stdout
+        finally:
+            await session.close()
