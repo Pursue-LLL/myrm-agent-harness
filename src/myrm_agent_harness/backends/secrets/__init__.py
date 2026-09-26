@@ -15,8 +15,9 @@
 Agent secrets backend package entry point. Re-exports storage protocols and implementations.
 """
 
-from myrm_agent_harness.toolkits.llms.secrets import (
+from myrm_agent_harness.core.security.external_secrets import (
     ExternalSecretResolutionError,
+    invalidate_external_secret,
     is_external_secret_reference,
     resolve_external_secret,
 )
@@ -34,6 +35,7 @@ __all__ = [
     "InMemorySecretBackend",
     "LocalSecretBackend",
     "SecretEncryptionError",
+    "invalidate_external_secret",
     "is_external_secret_reference",
     "resolve_external_secret",
 ]

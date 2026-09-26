@@ -366,14 +366,13 @@ class TestIdleIntegration:
 
     @pytest.mark.asyncio
     async def test_handle_skips_when_syncing(self) -> None:
-        from myrm_agent_harness.agent.skills.sync import idle_integration
-        from myrm_agent_harness.agent.skills.sync.manager import SkillSyncManager
+        pass
 
     @pytest.mark.asyncio
     async def test_pull_skill_blocks_path_escape(self, tmp_path: Path) -> None:
         """Verify LocalSync pull blocks prefix-similarity and directory traversal attacks."""
-        from myrm_agent_harness.agent.skills.sync.local_sync import LocalFSSyncBackend
         from myrm_agent_harness.agent.skills.packaging.unpacker import UnpackResult
+        from myrm_agent_harness.agent.skills.sync.local_sync import LocalFSSyncBackend
 
         local_skills = tmp_path / "skills"
         local_skills.mkdir()

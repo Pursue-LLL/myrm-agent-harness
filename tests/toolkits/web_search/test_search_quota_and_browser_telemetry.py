@@ -234,6 +234,6 @@ class TestBrowserRunTelemetry:
 
         assert telemetry.request_count == 1
         # Should record chunked header estimate plus post_data payload length
-        expected_bytes = 1024 + len("request-body-payload".encode("utf-8"))
+        expected_bytes = 1024 + len(b"request-body-payload")
         assert telemetry.total_bytes_transferred == expected_bytes
         assert telemetry.last_activity_time > 0.0

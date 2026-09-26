@@ -126,6 +126,7 @@ class TestEmergencyCompact:
     @pytest.mark.asyncio
     async def test_emergency_compact_integrates_active_prune_phase1(self):
         from langchain_core.messages import ToolMessage
+
         from myrm_agent_harness.agent._internals.agent_recovery import emergency_compact
 
         large_output = "data " * 5000  # ~5000 tokens

@@ -19,9 +19,6 @@ import asyncio
 import json
 import logging
 import time
-from typing import Mapping
-
-import httpx
 
 from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError
 from myrm_agent_harness.core.security.http.secure_fetch import secure_request
@@ -237,6 +234,6 @@ class A2AClient:
                 return task
             await asyncio.sleep(poll_interval_sec)
 
-        raise asyncio.TimeoutError(
+        raise TimeoutError(
             f"A2A task {task_id} did not complete within {max_wait_sec} seconds."
         )

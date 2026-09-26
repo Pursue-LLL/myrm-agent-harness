@@ -22,6 +22,7 @@ Covers:
 from __future__ import annotations
 
 import asyncio
+
 import pytest
 
 from myrm_agent_harness.backends.commerce.gates import (
@@ -29,7 +30,6 @@ from myrm_agent_harness.backends.commerce.gates import (
     CartOperationReceipt,
     CartSessionLock,
     check_cart_cap,
-    extract_product_options_catalog,
     resolve_variant_options,
 )
 from myrm_agent_harness.backends.commerce.types import (

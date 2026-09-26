@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-import pytest
 from myrm_agent_harness.observability.digest.health_evaluator import (
     SkillHealthEvaluator,
 )

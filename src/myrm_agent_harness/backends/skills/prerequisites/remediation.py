@@ -12,7 +12,6 @@ Generates system-aware one-click installation commands across macOS (brew), Linu
 
 from __future__ import annotations
 
-import os
 import platform
 import shutil
 from typing import Literal

@@ -19,16 +19,14 @@ from __future__ import annotations
 import asyncio
 import logging
 from enum import StrEnum
-from typing import Mapping
 
 from pydantic import BaseModel, Field
 
 from myrm_agent_harness.toolkits.a2a.client import (
     A2AClient,
-    A2AClientError,
     A2ASSRFBlockedError,
 )
-from myrm_agent_harness.toolkits.a2a.types import A2ATask, TaskStatus
+from myrm_agent_harness.toolkits.a2a.types import TaskStatus
 
 logger = logging.getLogger(__name__)
 

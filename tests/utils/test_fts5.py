@@ -100,6 +100,7 @@ def test_sanitize_fts5_strips_near_operator():
 
 def test_safe_purge_fts5_virtual_table_external_content():
     import sqlite3
+
     from myrm_agent_harness.utils.db.fts5 import safe_purge_fts5_virtual_table
 
     conn = sqlite3.connect(":memory:")

@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING, TypedDict
-
 from urllib.parse import urlparse
 
 from myrm_agent_harness.core.security.redact import redact_sensitive_text

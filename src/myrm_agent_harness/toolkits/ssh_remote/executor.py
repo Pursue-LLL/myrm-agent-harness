@@ -17,13 +17,12 @@ import asyncio
 import logging
 import re
 import time
-from typing import Optional, Pattern
+from re import Pattern
 
 from myrm_agent_harness.toolkits.code_execution.utils.log_distiller import (
     TerminalLogDistiller,
 )
 from myrm_agent_harness.toolkits.ssh_remote.models import (
-    SFTPTransferResult,
     SSHAuthType,
     SSHCommandResult,
     SSHHostSpec,
@@ -46,8 +45,8 @@ class SSHRemoteExecutor:
 
     def __init__(
         self,
-        distiller: Optional[TerminalLogDistiller] = None,
-        custom_dangerous_patterns: Optional[list[Pattern[str]]] = None,
+        distiller: TerminalLogDistiller | None = None,
+        custom_dangerous_patterns: list[Pattern[str]] | None = None,
     ) -> None:
         self._distiller = distiller or TerminalLogDistiller()
         self._dangerous_patterns = custom_dangerous_patterns or DANGEROUS_COMMAND_PATTERNS
@@ -64,7 +63,7 @@ class SSHRemoteExecutor:
         self,
         host: SSHHostSpec,
         command: str,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
     ) -> SSHCommandResult:
         """Execute a command on the target host asynchronously using asyncssh/ssh client."""
         start_time = time.monotonic()
@@ -121,7 +120,7 @@ class SSHRemoteExecutor:
                     distilled_output=distilled,
                     elapsed_seconds=elapsed,
                 )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             elapsed = time.monotonic() - start_time
             return SSHCommandResult(
                 host_id=host.host_id,
@@ -191,7 +190,7 @@ class SSHRemoteExecutor:
                 distilled_output=distilled,
                 elapsed_seconds=elapsed,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             elapsed = time.monotonic() - start_time
             return SSHCommandResult(
                 host_id=host.host_id,

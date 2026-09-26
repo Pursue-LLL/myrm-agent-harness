@@ -7,6 +7,7 @@ import time
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
 from myrm_agent_harness.toolkits.browser.spaces import (
     BrowserTaskSpace,
     HarnessTaskSpaceManager,

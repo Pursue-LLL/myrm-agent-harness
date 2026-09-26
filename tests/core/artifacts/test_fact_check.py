@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+
 from myrm_agent_harness.core.artifacts.fact_check import (
     ConflictSeverity,
     FactCheckItem,

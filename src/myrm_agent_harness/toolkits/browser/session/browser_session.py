@@ -387,7 +387,7 @@ class BrowserSession(
         logger.info("BrowserSession resumed: user takeover finished, refreshing snapshot")
         try:
             await self.snapshot(force=True)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("Failed to refresh snapshot after takeover resume: %s", exc)
 
     async def _ensure_not_user_takeover(self, timeout: float = 600.0) -> None:
@@ -401,7 +401,7 @@ class BrowserSession(
             logger.info("Action waiting: BrowserSession is paused by user takeover (timeout=%.1fs)", timeout)
             try:
                 await asyncio.wait_for(self._user_takeover_event.wait(), timeout=timeout)
-            except asyncio.TimeoutError as exc:
+            except TimeoutError as exc:
                 logger.error(
                     "User takeover wait timed out (%.1fs); session remains strictly locked to prevent ghost execution",
                     timeout,

@@ -23,9 +23,9 @@ Per-executor isolation via module-level factory.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 import hashlib
 import os
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:

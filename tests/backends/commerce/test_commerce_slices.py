@@ -10,8 +10,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from myrm_agent_harness.backends.commerce.slices import (
     CommerceSessionSlice,
     CommerceSliceEvalCase,

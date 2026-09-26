@@ -17,13 +17,12 @@ from myrm_agent_harness.toolkits.browser.pool.chrome_prompt_guard import (
 @pytest.mark.asyncio
 async def test_watch_prompt_short_circuits_immediately_on_exit():
     """Verify that exiting the context manager cancels the background polling task."""
-    with patch("sys.platform", "darwin"):
-        with patch(
-            "myrm_agent_harness.toolkits.browser.pool.chrome_prompt_guard._try_approve_dialog_applescript",
-            return_value="none",
-        ):
-            async with watch_chrome_remote_debugging_prompt(timeout=2.0, interval=0.05):
-                await asyncio.sleep(0.01)
+    with patch("sys.platform", "darwin"), patch(
+        "myrm_agent_harness.toolkits.browser.pool.chrome_prompt_guard._try_approve_dialog_applescript",
+        return_value="none",
+    ):
+        async with watch_chrome_remote_debugging_prompt(timeout=2.0, interval=0.05):
+            await asyncio.sleep(0.01)
 
     # Context exited without hanging or lingering errors
 
@@ -31,13 +30,12 @@ async def test_watch_prompt_short_circuits_immediately_on_exit():
 @pytest.mark.asyncio
 async def test_watch_prompt_bypasses_on_non_darwin():
     """Verify non-macOS platforms immediately pass through without polling."""
-    with patch("sys.platform", "linux"):
-        with patch(
-            "myrm_agent_harness.toolkits.browser.pool.chrome_prompt_guard._poll_and_approve"
-        ) as mock_poll:
-            async with watch_chrome_remote_debugging_prompt(timeout=2.0):
-                pass
-            mock_poll.assert_not_called()
+    with patch("sys.platform", "linux"), patch(
+        "myrm_agent_harness.toolkits.browser.pool.chrome_prompt_guard._poll_and_approve"
+    ) as mock_poll:
+        async with watch_chrome_remote_debugging_prompt(timeout=2.0):
+            pass
+        mock_poll.assert_not_called()
 
 
 @pytest.mark.asyncio

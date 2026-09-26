@@ -16,8 +16,7 @@ Harness resilience budget subsystem ensuring safe, cost-controlled execution.
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass
 
 from myrm_agent_harness.agent.resilience.types import ExecutionBudgetConfig
 from myrm_agent_harness.utils.logger_utils import get_agent_logger

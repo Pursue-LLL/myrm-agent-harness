@@ -20,10 +20,10 @@ Skill backend snapshot cache. Serves as an intermediate layer to accelerate full
 
 """
 
-from collections.abc import Generator
-from contextlib import contextmanager
 import logging
 import sqlite3
+from collections.abc import Generator
+from contextlib import contextmanager
 from pathlib import Path
 
 from myrm_agent_harness.backends.skills._runtime import build_skill_metadata
@@ -57,7 +57,7 @@ class SQLiteSkillSnapshot:
         return conn
 
     @contextmanager
-    def _connection(self) -> Generator[sqlite3.Connection, None, None]:
+    def _connection(self) -> Generator[sqlite3.Connection]:
         """Context manager providing hardened connection with guaranteed close."""
         conn = self._connect()
         try:

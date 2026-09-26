@@ -13,8 +13,6 @@ Validates:
 
 from __future__ import annotations
 
-import pytest
-
 from myrm_agent_harness.agent.middlewares.memory_context.memory_context_format import (
     _format_memory_context,
 )

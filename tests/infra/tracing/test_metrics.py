@@ -222,6 +222,7 @@ def test_sanitize_metric_labels_blocks_high_cardinality():
 def test_metrics_collector_with_cardinality_firewall():
     """Verify MetricsCollector transparently cleans high-cardinality labels."""
     from unittest.mock import MagicMock
+
     from myrm_agent_harness.infra.tracing.metrics.collector import MetricsCollector
 
     mock_meter = MagicMock()
@@ -269,6 +270,7 @@ def test_dynamic_label_manager_lru_and_threshold():
 def test_metrics_collector_gauge_and_histogram():
     """Verify MetricsCollector gauge and histogram methods sanitize labels properly."""
     from unittest.mock import MagicMock
+
     from myrm_agent_harness.infra.tracing.metrics.collector import MetricsCollector
 
     mock_meter = MagicMock()

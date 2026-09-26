@@ -88,10 +88,23 @@ def credential_env_overrides(
 
     sentinel_mgr = get_global_sentinel_manager() if use_sentinel else None
 
+    from myrm_agent_harness.core.security.external_secrets import (
+        is_external_secret_reference,
+        resolve_external_secret,
+    )
+
     def _wrap_val(raw_secret: str, key_name: str) -> str:
-        if sentinel_mgr is not None and raw_secret:
-            return sentinel_mgr.create_sentinel(raw_secret, metadata={"key": key_name})
-        return raw_secret
+        actual_secret = raw_secret
+        if is_external_secret_reference(raw_secret):
+            try:
+                actual_secret = resolve_external_secret(raw_secret)
+            except Exception as exc:
+                logger.warning("Failed to resolve external secret reference '%s': %s", raw_secret, exc)
+                return raw_secret
+
+        if sentinel_mgr is not None and actual_secret:
+            return sentinel_mgr.create_sentinel(actual_secret, metadata={"key": key_name})
+        return actual_secret
 
     for cred in credentials:
         if (

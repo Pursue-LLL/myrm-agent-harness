@@ -57,6 +57,7 @@ def test_evaluate_repo_sync_policy_non_git(tmp_path: Path) -> None:
 
 def test_evaluate_repo_sync_policy_initial_baseline(tmp_path: Path) -> None:
     import subprocess
+
     from myrm_agent_harness.toolkits.code_execution.git_digest import evaluate_repo_sync_policy
 
     repo_dir = tmp_path / "baseline_repo"
@@ -76,6 +77,7 @@ def test_evaluate_repo_sync_policy_initial_baseline(tmp_path: Path) -> None:
 
 def test_evaluate_repo_sync_policy_up_to_date(tmp_path: Path) -> None:
     import subprocess
+
     from myrm_agent_harness.toolkits.code_execution.git_digest import evaluate_repo_sync_policy
 
     repo_dir = tmp_path / "clean_repo"

@@ -1,6 +1,5 @@
 """Tests for ErrorSelfCorrectionGovernor and hypothesis generation."""
 
-import pytest
 
 from myrm_agent_harness.agent.resilience.error_recovery import (
     ErrorSelfCorrectionGovernor,

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 from collections import deque
-from collections.abc import Callable
 from typing import cast
 from unittest.mock import MagicMock
 
@@ -63,7 +62,7 @@ async def test_progress_throttle_and_terminal_penetration() -> None:
 
     # 50 high-frequency lines emitted in a burst, followed by a 100% completion marker
     lines = [
-        f'MYRM_PROGRESS {{"percent": {i}, "message": "Step {i}"}}\n'.encode("utf-8")
+        f'MYRM_PROGRESS {{"percent": {i}, "message": "Step {i}"}}\n'.encode()
         for i in range(1, 50)
     ]
     lines.append(b'MYRM_PROGRESS {"percent": 100, "message": "Completed"}\n')
@@ -127,7 +126,7 @@ async def test_trailing_progress_flush_on_non_100_percent_exit() -> None:
 
     # 10 lines emitted in zero delay, ending with 98% (not 100%, no checkpoint)
     lines = [
-        f'MYRM_PROGRESS {{"percent": {i}, "message": "Step {i}"}}\n'.encode("utf-8")
+        f'MYRM_PROGRESS {{"percent": {i}, "message": "Step {i}"}}\n'.encode()
         for i in range(1, 10)
     ]
     lines.append(b'MYRM_PROGRESS {"percent": 98, "message": "Aborted near finish"}\n')

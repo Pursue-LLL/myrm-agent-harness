@@ -19,12 +19,9 @@ import pytest
 
 from myrm_agent_harness.backends.commerce.digest import (
     AttentionCategory,
-    AttentionItem,
     AttentionSeverity,
     CommercialDigestCard,
     CommercialDigestRunner,
-    DigestAction,
-    KpiComparison,
 )
 from myrm_agent_harness.backends.commerce.memory_backend import InMemoryMerchantBackend
 from myrm_agent_harness.backends.commerce.types import (

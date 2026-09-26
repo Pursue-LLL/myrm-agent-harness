@@ -192,13 +192,14 @@ def test_build_browser_view_update_data_custom_space() -> None:
 
 @pytest.mark.asyncio
 async def test_capture_browser_view_update_data_resolves_space_from_session() -> None:
+    from types import MappingProxyType
+
     from myrm_agent_harness.toolkits.browser.session.snapshot_result import (
         SnapshotResult,
     )
     from myrm_agent_harness.toolkits.browser.session.view_update_payload import (
         capture_browser_view_update_data,
     )
-    from types import MappingProxyType
 
     class _MockSessionWithSpace:
         task_space_id = "space-auto"

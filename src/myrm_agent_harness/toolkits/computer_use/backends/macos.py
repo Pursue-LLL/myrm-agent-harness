@@ -25,7 +25,14 @@ import tempfile
 from pathlib import Path
 
 from myrm_agent_harness.toolkits.computer_use.backends import macos_input
-from myrm_agent_harness.toolkits.computer_use.types import ActionResult, ModifierKey, PermissionStatus, ScreenContext, ScreenInfo, WindowTextResult
+from myrm_agent_harness.toolkits.computer_use.types import (
+    ActionResult,
+    ModifierKey,
+    PermissionStatus,
+    ScreenContext,
+    ScreenInfo,
+    WindowTextResult,
+)
 
 logger = logging.getLogger(__name__)
 

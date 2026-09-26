@@ -1,7 +1,6 @@
 """Unit tests for Five-Layer Wiki structure, SourceCardContract, NegativeExclusionPolicy, and RadarRationaleContract."""
 
 import tempfile
-from pathlib import Path
 
 from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
     WikiPageType,

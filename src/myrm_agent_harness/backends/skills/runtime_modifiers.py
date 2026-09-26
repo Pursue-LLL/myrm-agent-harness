@@ -17,9 +17,8 @@ myrm-agent-harness/src/myrm_agent_harness/backends/skills/runtime_modifiers.py
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
-import re
 
 
 class AudienceDepth(StrEnum):

@@ -256,6 +256,7 @@ class TestVideoEngineUrlExtraction:
 async def test_generator_moderation_blocked_error_aborts_without_retry() -> None:
     """Verify that ModerationBlockedError skips retries and aborts failover immediately."""
     from unittest.mock import MagicMock
+
     from myrm_agent_harness.toolkits.llms.video.generator import VideoGenerator
     from myrm_agent_harness.toolkits.llms.video.models import (
         ModerationBlockedError,

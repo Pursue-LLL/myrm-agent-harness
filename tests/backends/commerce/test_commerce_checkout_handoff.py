@@ -16,23 +16,19 @@ Ensures compliance with PCI-DSS isolation and seamless session wake-up.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import pytest
 
 from myrm_agent_harness.backends.commerce.app_events import (
     AppEvent,
     AppEventType,
     InMemoryAppEventQueue,
-    format_app_events_for_prompt,
     process_out_of_band_payment_webhook,
 )
 from myrm_agent_harness.backends.commerce.checkout_handoff import (
     PAYMENT_HANDOFF_GATE,
     CheckoutHandoffMode,
-    CheckoutHandoffPayload,
     CheckoutTarget,
     ZeroTouchHandoffEnricher,
-    ZeroTouchHandoffEnvelope,
 )
 from myrm_agent_harness.backends.commerce.exceptions import CommerceError
 from myrm_agent_harness.backends.commerce.types import Cart, CartLine

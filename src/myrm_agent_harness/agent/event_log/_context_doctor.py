@@ -27,12 +27,12 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 
 from myrm_agent_harness.utils.token_estimation import estimate_content_tokens
 
 if TYPE_CHECKING:
-    from .trace_types import ExecutionTrace, ToolCallRecord
+    from .trace_types import ExecutionTrace
 
 
 @dataclass(frozen=True, slots=True)

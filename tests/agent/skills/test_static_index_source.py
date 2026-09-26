@@ -23,7 +23,6 @@ from myrm_agent_harness.agent.skills.market.service import BaseSkillMarketServic
 from myrm_agent_harness.agent.skills.market.sources.static_index import (
     StaticIndexSkillSource,
 )
-from myrm_agent_harness.backends.skills.market_protocols import SkillSearchResult
 
 
 @pytest.fixture

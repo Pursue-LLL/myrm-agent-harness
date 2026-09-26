@@ -30,6 +30,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ._common import _EVENT_META_KEYS, _str_or_none
+from ._context_doctor import analyze_context_breakdown
 from ._llm import _handle_llm_request, _handle_token_usage, _PendingLLMRequest
 from ._pairing import (
     _find_tool_record,
@@ -37,7 +38,6 @@ from ._pairing import (
     _pop_pending,
     _replace_tool_record,
 )
-from ._context_doctor import analyze_context_breakdown
 from ._tasks_steps import _process_tasks_step
 from .trace_types import ExecutionTrace, ToolCallRecord, TraceAnomaly, TraceMetadata, TraceOutcome
 from .types import EventFilter, StructuredEvent

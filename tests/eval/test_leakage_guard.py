@@ -1,9 +1,7 @@
 """Unit tests for Eval Search/Test Set Leakage Guard & Anti-Contamination Isolation."""
 
-import pytest
 
 from myrm_agent_harness.eval.leakage_guard import (
-    LeakageAuditResult,
     ParetoGeneralizationVerdict,
     audit_proposer_prompt_for_leakage,
     evaluate_pareto_generalization,

@@ -279,13 +279,13 @@ class ChatLiteLLMAsyncMixin:
                 else:
                     logger.error(f" Empty choices after {max_attempts} attempts.")
             except Exception as e:
-                from myrm_agent_harness.toolkits.llms.adapters.image_payload_evictor import (
-                    emergency_evict,
-                    emergency_evict_from_message_dicts,
-                )
                 from myrm_agent_harness.toolkits.llms.adapters.gateway_normalizer import (
                     is_gateway_param_rejection,
                     sanitize_gateway_params_on_400,
+                )
+                from myrm_agent_harness.toolkits.llms.adapters.image_payload_evictor import (
+                    emergency_evict,
+                    emergency_evict_from_message_dicts,
                 )
                 from myrm_agent_harness.toolkits.llms.errors.classifier import (
                     is_context_overflow,

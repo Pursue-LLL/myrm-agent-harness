@@ -1,12 +1,9 @@
 """Tests for MarathonCheckpointer durable crash recovery."""
 
 import tempfile
-from pathlib import Path
-import pytest
 
 from myrm_agent_harness.agent.resilience.checkpointer import (
     MarathonCheckpointer,
-    MarathonCheckpointRecord,
 )
 
 

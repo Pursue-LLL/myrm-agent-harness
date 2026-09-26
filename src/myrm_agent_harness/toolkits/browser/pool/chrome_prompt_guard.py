@@ -18,12 +18,12 @@ Chrome to the foreground, or providing fast structured fallback if accessibility
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
 import contextlib
 import logging
 import platform
 import subprocess
 import sys
+from collections.abc import AsyncIterator
 from typing import Final
 
 logger = logging.getLogger(__name__)

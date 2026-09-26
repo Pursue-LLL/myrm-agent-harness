@@ -17,23 +17,19 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from myrm_agent_harness.agent.context_management.pipeline.base import ProcessorContext
 from myrm_agent_harness.agent.context_management.pipeline.processors.active_tool_result_prune_processor import (
-    ActiveToolResultPruneProcessor,
     build_memory_truncated_placeholder,
     is_tool_result_consumed,
     prune_tool_results_deterministic,
-    sanitize_multimodal_content,
 )
 from myrm_agent_harness.agent.context_management.pipeline.processors.reasoning_anchor_processor import (
     ReasoningAnchorProcessor,
 )
 from myrm_agent_harness.agent.context_management.strategies.reasoning.anchor_extractor import (
-    ReasoningAnchor,
     extract_raw_reasoning,
     extract_reasoning_anchors,
 )
 from myrm_agent_harness.agent.context_management.strategies.reasoning.anchor_ledger import (
     clear_session_anchor_ledger,
-    get_session_anchor_ledger,
 )
 
 

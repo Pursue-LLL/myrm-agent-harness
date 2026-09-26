@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-
 from myrm_agent_harness.eval.matrix import (
-    GeneralizationGateMetrics,
     GeneralizationGateVerdict,
     MatrixResult,
     evaluate_generalization_gate,

@@ -20,7 +20,7 @@ Execution layer utility for myrm_agent_harness.toolkits.code_execution.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from myrm_agent_harness.utils.text_utils import strip_ansi
 

@@ -18,12 +18,13 @@ Domain skill executable layer helper. Pure Python + openpyxl (with CSV fallback)
 from __future__ import annotations
 
 import csv
-from datetime import datetime
 import json
 import logging
 import os
+from collections.abc import Sequence
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 logger = logging.getLogger(__name__)
 

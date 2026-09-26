@@ -1,6 +1,7 @@
 """Tests for Markdown table sanitizer and repair engine."""
 
 import unittest
+
 from myrm_agent_harness.utils.markdown_table_repair import repair_markdown_tables
 
 

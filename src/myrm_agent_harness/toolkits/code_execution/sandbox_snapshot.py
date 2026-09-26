@@ -27,9 +27,9 @@ import logging
 import os
 import shutil
 import subprocess
-from dataclasses import dataclass, field
+from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
 
 logger = logging.getLogger(__name__)
 

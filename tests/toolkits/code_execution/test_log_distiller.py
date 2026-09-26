@@ -6,10 +6,7 @@ error anchor context extraction, and high compression ratio efficiency.
 
 from __future__ import annotations
 
-import pytest
-
 from myrm_agent_harness.toolkits.code_execution.utils.log_distiller import (
-    DistilledLogResult,
     TerminalLogDistiller,
 )
 

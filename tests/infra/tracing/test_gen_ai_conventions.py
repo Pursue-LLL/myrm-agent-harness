@@ -2,8 +2,6 @@
 
 from unittest.mock import MagicMock
 
-import pytest
-
 from myrm_agent_harness.infra.tracing.gen_ai_conventions import (
     GEN_AI_CACHE_HIT_RATIO,
     GEN_AI_CONVERSATION_ID,

@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from patchright.async_api import BrowserContext
+
     from myrm_agent_harness.toolkits.browser.session.browser_session import BrowserSession
 
 
@@ -57,7 +58,7 @@ class BrowserTaskSpace:
         if self.session is not None:
             try:
                 await self.session.close()
-            except Exception:  # noqa: S110 - best-effort teardown
+            except Exception:
                 pass
             finally:
                 self.session = None
@@ -65,7 +66,7 @@ class BrowserTaskSpace:
         if self.context is not None:
             try:
                 await self.context.close()
-            except Exception:  # noqa: S110 - best-effort teardown
+            except Exception:
                 pass
             finally:
                 self.context = None

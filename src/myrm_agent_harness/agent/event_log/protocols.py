@@ -16,7 +16,6 @@ business layer may extend with SQLite / PostgreSQL implementations.
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 from .types import EventFilter, StructuredEvent

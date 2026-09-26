@@ -8,7 +8,6 @@ Verifies that when no_builtin_tools is enabled:
 
 from __future__ import annotations
 
-import pytest
 from langchain_core.tools import tool
 
 from myrm_agent_harness.agent.tool_management.registry import ToolRegistry

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from myrm_agent_harness.agent.session_overlay.manager import (
     MAX_ACTIVE_OVERLAYS,
     SessionOverlayManager,

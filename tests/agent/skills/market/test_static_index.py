@@ -17,11 +17,9 @@ from __future__ import annotations
 import gzip
 import json
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
 
 import pytest
 import respx
-import httpx
 
 from myrm_agent_harness.agent.skills.market.service import BaseSkillMarketService
 from myrm_agent_harness.agent.skills.market.sources.static_index import (

@@ -7,6 +7,7 @@ and preserves lock state when a timeout occurs, preventing silent unblocking and
 from __future__ import annotations
 
 from unittest.mock import MagicMock
+
 import pytest
 
 from myrm_agent_harness.toolkits.browser.exceptions import UserTakeoverTimeoutError

@@ -35,10 +35,7 @@ class TestArtifactType:
 
     def test_architecture_reexports_and_ir_contract(self) -> None:
         from myrm_agent_harness.core.artifacts import (
-            ArchitectureEdge,
-            ArchitectureGroup,
             ArchitectureIR,
-            ArchitectureNode,
             ArchitectureNodeType,
             DiagramType,
             ValidationReceipt,

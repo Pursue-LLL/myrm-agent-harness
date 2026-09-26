@@ -66,7 +66,6 @@ from .spawn_subagent import (
 from .working_memory import create_working_memory_manage_tool
 
 
-
 def get_meta_tools(
     skills: list[SkillMetadata],
     skill_backend: SkillBackend | None = None,

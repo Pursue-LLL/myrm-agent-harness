@@ -11,7 +11,6 @@
 myrm-agent-harness/tests/backends/skills/test_specialized_model_contract.py
 """
 
-import pytest
 
 from myrm_agent_harness.backends.skills._runtime import build_skill_metadata
 from myrm_agent_harness.backends.skills._utils import parse_skill_frontmatter

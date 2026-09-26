@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import pytest
 from myrm_agent_harness.agent.event_log._context_doctor import (
     ContextBreakdown,
-    ContextHotspot,
     analyze_context_breakdown,
 )
 from myrm_agent_harness.agent.event_log.trace_types import (

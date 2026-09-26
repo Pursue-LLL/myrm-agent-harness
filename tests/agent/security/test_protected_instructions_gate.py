@@ -12,11 +12,9 @@ from myrm_agent_harness.agent.middlewares.approval._batch_decisions import (
 )
 from myrm_agent_harness.agent.security.checks import check_path_policy
 from myrm_agent_harness.agent.security.path_security import (
-    PROTECTED_INSTRUCTION_PATTERNS,
     is_protected_instruction_file,
 )
 from myrm_agent_harness.agent.security.types import (
-    AccessRoot,
     PathPolicy,
     PermissionAction,
 )

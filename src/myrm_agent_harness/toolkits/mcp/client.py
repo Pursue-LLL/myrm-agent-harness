@@ -314,7 +314,6 @@ class MCPClientManager:
         hung agent sessions when an MCP endpoint is dead.
         For stdio, validates executable existence and execution permissions.
         """
-        import asyncio
         import shutil
 
         server_type = server_config.type

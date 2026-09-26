@@ -16,6 +16,7 @@ Simplified metrics collection with automatic trace_id labeling.
 from __future__ import annotations
 
 from typing import Any
+
 from opentelemetry.metrics import Meter
 
 from .cardinality import sanitize_metric_labels

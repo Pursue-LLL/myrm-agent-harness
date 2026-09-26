@@ -21,7 +21,6 @@ from __future__ import annotations
 import pytest
 
 from myrm_agent_harness.core.security.egress.proxy_server import (
-    EphemeralCaManager,
     LoopbackEgressProxy,
 )
 from myrm_agent_harness.core.security.egress.sentinel import (
@@ -69,9 +68,9 @@ def test_sentinel_replacement_in_headers_and_body() -> None:
     assert replaced_header == f"Authorization: Bearer {key_a}\nOther: {key_b}"
 
     # Bytes substitution
-    raw_bytes = f'{{"token": "{sentinel_a}", "slack": "{sentinel_b}"}}'.encode("utf-8")
+    raw_bytes = f'{{"token": "{sentinel_a}", "slack": "{sentinel_b}"}}'.encode()
     replaced_bytes = mgr.substitute_bytes(raw_bytes)
-    assert replaced_bytes == f'{{"token": "{key_a}", "slack": "{key_b}"}}'.encode("utf-8")
+    assert replaced_bytes == f'{{"token": "{key_a}", "slack": "{key_b}"}}'.encode()
 
 
 def test_streaming_scanner_cross_chunk_boundary() -> None:

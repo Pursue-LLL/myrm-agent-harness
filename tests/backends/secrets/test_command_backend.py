@@ -1,6 +1,5 @@
 """Unit tests for CommandSecretBackend."""
 
-import subprocess
 import pytest
 
 from myrm_agent_harness.backends.secrets import CommandExecutionError, CommandSecretBackend

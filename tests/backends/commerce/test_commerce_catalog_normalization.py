@@ -16,14 +16,9 @@ Unit tests verifying Commerce Clarity catalog rigor requirements.
 
 from __future__ import annotations
 
-import pytest
-
 from myrm_agent_harness.backends.commerce import (
-    GracefulFilterResult,
-    NormalizedMeasurement,
     Product,
     ProductFilter,
-    RelaxationAdvice,
     extract_attributes_from_text,
     filter_with_graceful_relaxation,
     parse_measurement,

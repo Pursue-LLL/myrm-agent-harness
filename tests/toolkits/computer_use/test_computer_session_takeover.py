@@ -10,6 +10,7 @@ Verifies that:
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 
 from myrm_agent_harness.toolkits.browser.exceptions import UserTakeoverTimeoutError

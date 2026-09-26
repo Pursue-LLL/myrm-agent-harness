@@ -6,9 +6,19 @@ import pytest
 
 from myrm_agent_harness.backends.secrets.external_resolver import (
     ExternalSecretResolutionError,
+    invalidate_external_secret,
     is_external_secret_reference,
     resolve_external_secret,
 )
+from myrm_agent_harness.core.security.external_secrets import get_external_secrets_manager
+
+
+@pytest.fixture(autouse=True)
+def clean_cache() -> None:
+    """Ensure in-memory cache is pristine for every test."""
+    get_external_secrets_manager().clear_cache()
+    yield
+    get_external_secrets_manager().clear_cache()
 
 
 class TestExternalSecretResolver:
@@ -25,7 +35,7 @@ class TestExternalSecretResolver:
         assert is_external_secret_reference(None) is False
 
     @patch("subprocess.run")
-    def test_resolve_op_secret_success(self, mock_run: MagicMock) -> None:
+    def test_resolve_op_secret_success_with_caching(self, mock_run: MagicMock) -> None:
         mock_proc = MagicMock()
         mock_proc.returncode = 0
         mock_proc.stdout = "sk-op-resolved-key-value\n"
@@ -34,8 +44,15 @@ class TestExternalSecretResolver:
         result = resolve_external_secret("op://Vault/OpenAI/credential")
         assert result == "sk-op-resolved-key-value"
 
+        # Second call hits memory cache: subprocess.run is NOT called again
         result_quoted = resolve_external_secret('"op://Vault/OpenAI/credential"')
         assert result_quoted == "sk-op-resolved-key-value"
+        assert mock_run.call_count == 1
+
+        # Invalidate cache and call again: should trigger a second subprocess.run
+        invalidate_external_secret("op://Vault/OpenAI/credential")
+        result_refetched = resolve_external_secret("op://Vault/OpenAI/credential")
+        assert result_refetched == "sk-op-resolved-key-value"
         assert mock_run.call_count == 2
 
     @patch("subprocess.run")
@@ -47,13 +64,14 @@ class TestExternalSecretResolver:
 
         result = resolve_external_secret("bw://anthropic-api-key")
         assert result == "sk-bw-resolved-key-value"
-        mock_run.assert_called_once_with(
-            ["bw", "get", "password", "anthropic-api-key"],
-            capture_output=True,
-            text=True,
-            timeout=6.0,
-            check=False,
-        )
+
+        # Verify command and non-interactive environment isolation
+        assert mock_run.call_count == 1
+        args, kwargs = mock_run.call_args
+        assert args[0] == ["bw", "get", "password", "anthropic-api-key"]
+        assert kwargs["timeout"] == 4.0
+        assert kwargs["env"]["BW_NO_PROMPT"] == "true"
+        assert kwargs["env"]["OP_BIOMETRIC_UNLOCK_ENABLED"] == "false"
 
     @patch("subprocess.run")
     def test_resolve_bws_secret_success(self, mock_run: MagicMock) -> None:

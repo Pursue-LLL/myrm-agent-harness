@@ -4,14 +4,11 @@ import hashlib
 import time
 from pathlib import Path
 
-import pytest
-
 from myrm_agent_harness.agent.context_guard import (
     ContextGuardConfig,
     EphemeralTransientSweeper,
     SpilloverEngine,
     SpilloverPayload,
-    SpilloverResult,
 )
 
 

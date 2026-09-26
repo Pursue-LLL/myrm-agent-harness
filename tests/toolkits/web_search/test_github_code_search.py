@@ -15,7 +15,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
-
 from langchain_core.documents import Document
 
 from myrm_agent_harness.toolkits.web_search.core.common import SearchResult

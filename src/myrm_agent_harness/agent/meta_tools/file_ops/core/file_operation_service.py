@@ -40,9 +40,9 @@ File operation service. Provides a unified file operation interface integrating 
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Sequence
 import logging
 import os
+from collections.abc import Sequence
 
 from myrm_agent_harness.agent.config import DEFAULT_FILE_IO_CONFIG, FileIOConfig
 from myrm_agent_harness.agent.context_management.infra.session_lock import (

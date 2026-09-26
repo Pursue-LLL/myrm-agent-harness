@@ -20,7 +20,6 @@ import contextlib
 import logging
 from pathlib import Path
 from urllib.parse import urlparse
-from urllib.parse import urlparse
 
 from myrm_agent_harness.toolkits.browser.recording_manager import RecordingManager
 

@@ -96,7 +96,6 @@ if TYPE_CHECKING:
         run_doctor,
     )
     from .observability import BrowserObservability, RecordingConfig
-    from .spaces import BrowserTaskSpace, HarnessTaskSpaceManager
     from .session_vault import (
         CorruptedSessionError,
         DecryptionError,
@@ -108,6 +107,7 @@ if TYPE_CHECKING:
         SessionVaultError,
         VaultMetrics,
     )
+    from .spaces import BrowserTaskSpace, HarnessTaskSpaceManager
 
 __all__ = [
     "ActionCaptureEngine",

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+
 import pytest
 
 from myrm_agent_harness.backends.commerce.gates import (

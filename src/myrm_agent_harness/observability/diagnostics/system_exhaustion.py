@@ -15,7 +15,6 @@ descriptor (FD / Handle) leaks. Registered into diagnostic manager and doctor AP
 from __future__ import annotations
 
 import asyncio
-import os
 import platform
 import resource
 import sys

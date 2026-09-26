@@ -25,6 +25,12 @@ if TYPE_CHECKING:
         build_cjk_query_tokens,
         tokenize_cjk_bigram,
     )
+    from myrm_agent_harness.toolkits.retriever.embedding import EmbeddingService, get_embedding_service
+    from myrm_agent_harness.toolkits.retriever.engine import (
+        BM25CacheStats,
+        RetrieverConfig,
+        RetrieverManager,
+    )
     from myrm_agent_harness.toolkits.retriever.fusion_strategies import (
         FusedHit,
         RankedList,
@@ -32,12 +38,6 @@ if TYPE_CHECKING:
         SourceDebugStats,
         SourceRank,
         fuse_rrf_deterministic,
-    )
-    from myrm_agent_harness.toolkits.retriever.embedding import EmbeddingService, get_embedding_service
-    from myrm_agent_harness.toolkits.retriever.engine import (
-        BM25CacheStats,
-        RetrieverConfig,
-        RetrieverManager,
     )
     from myrm_agent_harness.toolkits.retriever.hybrid_retriever import hybrid_retriever
     from myrm_agent_harness.toolkits.retriever.hybrid_search import HybridSearchCoordinator

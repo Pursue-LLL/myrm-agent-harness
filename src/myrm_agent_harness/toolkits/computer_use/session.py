@@ -107,7 +107,7 @@ class ComputerSession:
             logger.info("Action waiting: ComputerSession is paused by user takeover (timeout=%.1fs)", effective_timeout)
             try:
                 await asyncio.wait_for(self._user_takeover_event.wait(), timeout=effective_timeout)
-            except asyncio.TimeoutError as exc:
+            except TimeoutError as exc:
                 logger.error(
                     "User takeover wait timed out (%.1fs); ComputerSession remains strictly locked to prevent ghost execution",
                     effective_timeout,

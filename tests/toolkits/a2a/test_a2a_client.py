@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from myrm_agent_harness.toolkits.a2a.client import (
     A2AClient,
-    A2AClientError,
     A2ARpcError,
     A2ASSRFBlockedError,
 )

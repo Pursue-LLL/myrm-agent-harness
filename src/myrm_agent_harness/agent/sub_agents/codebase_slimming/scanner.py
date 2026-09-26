@@ -86,7 +86,7 @@ class DeadCodeTopologyScanner:
         for sym_name, occurrences in defined_symbols.items():
             if sym_name in ("main", "setUp", "tearDown", "test_"):
                 continue
-            
+
             # Count total mentions in source text
             count = combined_text.count(sym_name)
             def_count = len(occurrences)

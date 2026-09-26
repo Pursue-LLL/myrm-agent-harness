@@ -5,9 +5,10 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Callable
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -174,7 +175,7 @@ async def test_douyin_extracts_videos_from_semantic_refs() -> None:
     assert len(videos) == 2
     assert videos[0]["ref"] == "v1"
     assert "露营vlog" in videos[0]["title"]
-    assert "https://www.douyin.com/video/7391234567890123456" == videos[0]["url"]
+    assert videos[0]["url"] == "https://www.douyin.com/video/7391234567890123456"
     session.interact.assert_awaited_once_with(action="scroll", text="350")
 
 

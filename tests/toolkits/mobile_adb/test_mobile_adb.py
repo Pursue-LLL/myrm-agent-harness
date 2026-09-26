@@ -13,7 +13,6 @@ from myrm_agent_harness.toolkits.mobile_adb.types import (
     MobileActionResult,
     MobileDeviceConnectionStatus,
     MobileDeviceState,
-    MobileUIElement,
 )
 
 SAMPLE_UIAUTOMATOR_XML = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
@@ -227,10 +226,6 @@ async def test_snapshot_settle_ms_capped_at_two_seconds() -> None:
     import asyncio
     from unittest.mock import AsyncMock, patch
 
-    from myrm_agent_harness.toolkits.mobile_adb.types import (
-        MobileDeviceConnectionStatus,
-        MobileDeviceState,
-    )
 
     session = MobileSession(default_device="t")
     state = MobileDeviceState(

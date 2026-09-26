@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from myrm_agent_harness.toolkits.llms.core.llm import create_litellm_model
 
 

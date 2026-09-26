@@ -9,7 +9,7 @@ from enum import IntEnum, StrEnum
 from pathlib import Path
 
 from myrm_agent_harness.backends.skills.scanning.ast_analyzer import AstScanFinding
-from myrm_agent_harness.backends.skills.types import SecurityScanSummary
+from myrm_agent_harness.backends.skills.types.types_security import SecurityScanSummary
 
 """Skill content security scanner.
 

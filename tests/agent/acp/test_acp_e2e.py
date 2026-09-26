@@ -11,8 +11,8 @@ from __future__ import annotations
 
 import asyncio
 import os
-from pathlib import Path
 import tempfile
+from pathlib import Path
 
 import pytest
 from acp import Client, connect_to_agent, run_agent
@@ -65,7 +65,6 @@ async def test_acp_uds_live_llm_e2e() -> None:
     if not api_key or not model:
         pytest.skip("LLM credentials not found in environment for live E2E")
 
-    from myrm_agent_harness.core.config.llm import LLMConfig
 
     llm_config = LLMConfig(
         model=model,

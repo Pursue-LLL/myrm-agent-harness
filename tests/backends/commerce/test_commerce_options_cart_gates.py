@@ -16,6 +16,7 @@ Tests verifying Anthropic Claude Commerce Agents `gates.py` parity in Myrm Harne
 from __future__ import annotations
 
 import asyncio
+
 import pytest
 
 from myrm_agent_harness.backends.commerce import (

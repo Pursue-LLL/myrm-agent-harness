@@ -33,6 +33,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from patchright.async_api import BrowserContext, Page, Request
+
     from .checkpoint.metrics import CheckpointMetrics
 
 logger = logging.getLogger(__name__)

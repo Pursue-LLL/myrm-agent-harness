@@ -24,6 +24,7 @@ from .task_space import BrowserTaskSpace
 
 if TYPE_CHECKING:
     from patchright.async_api import BrowserContext
+
     from myrm_agent_harness.toolkits.browser.session.browser_session import BrowserSession
 
 logger = logging.getLogger(__name__)

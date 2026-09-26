@@ -1,6 +1,5 @@
 """Unit tests for stream resume checkpoint and LCP deduplication."""
 
-import pytest
 from myrm_agent_harness.agent.streaming import (
     StreamBreakpoint,
     build_stream_continuation_instruction,

@@ -54,7 +54,7 @@ def test_rejects_non_rgb_tuple_pixel(monkeypatch: pytest.MonkeyPatch) -> None:
         def __init__(self, wrapped: Image.Image) -> None:
             self._wrapped = wrapped
 
-        def convert(self, mode: str) -> "_BadPixelImage":
+        def convert(self, mode: str) -> _BadPixelImage:
             self._wrapped = self._wrapped.convert(mode)
             return self
 

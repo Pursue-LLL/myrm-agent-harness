@@ -19,8 +19,8 @@ core fidelity to maximize superficial efficiency gains (steps/tokens/tool_calls)
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import enum
+from dataclasses import dataclass, field
 
 
 class ProxyAlignmentVerdict(enum.StrEnum):

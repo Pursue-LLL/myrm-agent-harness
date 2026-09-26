@@ -18,10 +18,9 @@ Harness code execution toolkit in myrm_agent_harness/toolkits/code_execution/.
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
 import logging
 import time
-from typing import Optional, Tuple
+from dataclasses import dataclass
 
 from myrm_agent_harness.toolkits.code_execution.utils.log_distiller import (
     TerminalLogDistiller,
@@ -36,8 +35,8 @@ class RemoteSSHConfig:
 
     host: str
     port: int = 22
-    user: Optional[str] = None
-    identity_file: Optional[str] = None
+    user: str | None = None
+    identity_file: str | None = None
     connect_timeout: int = 10
     timeout_seconds: int = 60
 
@@ -86,10 +85,10 @@ async def execute_remote_ssh_command(
     command: str,
     timeout_seconds: int = 60,
     port: int = 22,
-    user: Optional[str] = None,
-    identity_file: Optional[str] = None,
+    user: str | None = None,
+    identity_file: str | None = None,
     distill_logs: bool = True,
-) -> Tuple[int, str, str, int]:
+) -> tuple[int, str, str, int]:
     """Execute command on remote SSH host with batch mode and log distillation.
 
     Returns:
@@ -138,7 +137,7 @@ async def execute_remote_ssh_command(
 
         return proc.returncode or 0, stdout_str, stderr_str, duration_ms
 
-    except asyncio.TimeoutError:
+    except TimeoutError:
         duration_ms = int((time.perf_counter() - start_time) * 1000)
         return 124, "", f"Command timed out after {timeout_seconds}s", duration_ms
     except Exception as exc:

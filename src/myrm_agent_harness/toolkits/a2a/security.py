@@ -32,7 +32,7 @@ def compute_hmac_signature(
 
     The message format is: `{timestamp}.{body}`.
     """
-    ts_bytes = f"{timestamp}.".encode("utf-8")
+    ts_bytes = f"{timestamp}.".encode()
     body_bytes = body if isinstance(body, bytes) else body.encode("utf-8")
     message = ts_bytes + body_bytes
     key = secret.encode("utf-8")

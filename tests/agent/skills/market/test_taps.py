@@ -13,6 +13,7 @@ myrm-agent-harness/tests/agent/skills/market/test_taps.py
 """
 
 from unittest.mock import AsyncMock, patch
+
 import pytest
 
 from myrm_agent_harness.agent.skills.market.sources.github import GitHubSkillSource

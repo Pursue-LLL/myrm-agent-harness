@@ -19,13 +19,10 @@ myrm-agent-harness/src/myrm_agent_harness/agent/skills/market/taps.py
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
 import logging
 import time
+from dataclasses import asdict, dataclass, field
 from typing import Any
-
-import httpx
-import yaml
 
 from myrm_agent_harness.backends.skills.market_protocols import SkillSearchResult
 from myrm_agent_harness.infra.tls_compat import create_httpx_client

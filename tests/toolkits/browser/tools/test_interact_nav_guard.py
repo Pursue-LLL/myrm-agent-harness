@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
 from myrm_agent_harness.toolkits.browser.tools.interact import InteractStep, create_interact_tool
 
 

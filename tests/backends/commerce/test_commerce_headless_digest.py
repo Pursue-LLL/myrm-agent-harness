@@ -21,8 +21,6 @@ from myrm_agent_harness.backends.commerce import (
     InMemoryMerchantBackend,
     InventoryAlert,
     InventoryAlertSeverity,
-    Listing,
-    ListingStatus,
     PerformanceSummary,
     TopProductMetric,
 )

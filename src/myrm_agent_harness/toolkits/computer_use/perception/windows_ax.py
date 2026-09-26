@@ -310,9 +310,9 @@ def _apply_uia_toggle_action(target: object, normalized: str, auto: object) -> N
     off_val = 0
     state_enum = getattr(auto, "ToggleState", None)
     if state_enum is not None:
-        if hasattr(state_enum, "On") and isinstance(getattr(state_enum, "On"), int):
+        if hasattr(state_enum, "On") and isinstance(state_enum.On, int):
             on_val = int(state_enum.On)
-        if hasattr(state_enum, "Off") and isinstance(getattr(state_enum, "Off"), int):
+        if hasattr(state_enum, "Off") and isinstance(state_enum.Off, int):
             off_val = int(state_enum.Off)
 
     def _current_state() -> object | None:
@@ -329,9 +329,7 @@ def _apply_uia_toggle_action(target: object, normalized: str, auto: object) -> N
 
     pattern.Toggle()
     current = _current_state()
-    if want_on and current != on_val:
-        pattern.Toggle()
-    elif not want_on and current != off_val:
+    if (want_on and current != on_val) or (not want_on and current != off_val):
         pattern.Toggle()
 
 

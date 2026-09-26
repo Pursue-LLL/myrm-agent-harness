@@ -254,8 +254,8 @@ def setup_tracing(
         logger.warning("Tracing already initialized")
         return
 
-    from .sampling import create_intelligent_sampler
     from ..git.git_resolver import resolve_git_metadata
+    from .sampling import create_intelligent_sampler
 
     # Resolve VCS Git metadata via pure filesystem inspection (zero subprocess)
     git_meta = resolve_git_metadata()
@@ -697,26 +697,6 @@ def shutdown_tracing(timeout_ms: float = 1500.0) -> bool:
 # OpenTelemetry GenAI Semantic Conventions (Re-exported from SSOT)
 # =====================================================================
 from .gen_ai_conventions import (
-    GEN_AI_AGENT_TURN,
-    GEN_AI_CACHE_HIT_RATIO,
-    GEN_AI_CONVERSATION_ID,
-    GEN_AI_LATENCY_TTFT_MS,
-    GEN_AI_OPERATION_NAME,
-    GEN_AI_REQUEST_MODEL,
-    GEN_AI_RESPONSE_MODEL,
-    GEN_AI_SERVER_TTFT_MS,
-    GEN_AI_SYSTEM,
-    GEN_AI_TOOL_CALL_ID,
-    GEN_AI_TOOL_NAME,
-    GEN_AI_TOOL_STATUS,
-    GEN_AI_TURN_ID,
-    GEN_AI_USAGE_CACHE_READ_TOKENS,
-    GEN_AI_USAGE_INPUT_TOKENS,
-    GEN_AI_USAGE_OUTPUT_TOKENS,
-    GEN_AI_USAGE_TOTAL_TOKENS,
-    SPAN_AGENT_TURN,
-    SPAN_LLM_REQUEST,
-    SPAN_TOOL_CALL,
     VCS_REF_HEAD_NAME,
     VCS_REPOSITORY_CHANGE_ID,
     VCS_REPOSITORY_REF_TYPE,

@@ -21,7 +21,6 @@ import asyncio
 import logging
 import os
 import signal
-import sys
 import traceback
 from pathlib import Path
 
@@ -103,7 +102,14 @@ async def run_python_subprocess(
             is_non_inheritable_env_var,
         )
 
+        # Verified PTC orchestration sessions carry their stub dir on PYTHONPATH
+        # (allowed by sanitize_env); the scrub below must not remove it, or
+        # `import myrm_tools` fails inside orchestration scripts. Same marker
+        # heuristic as env_isolation._is_ptc_orchestration_env.
+        ptc_session = "_MYRM_PTC_SOCKET" in process_env or "_MYRM_PTC_PORT" in process_env
         for k in list(process_env.keys()):
+            if k == "PYTHONPATH" and ptc_session:
+                continue
             if is_non_inheritable_env_var(k, process_env.get(k)):
                 process_env.pop(k, None)
 

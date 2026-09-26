@@ -183,7 +183,6 @@ def _parse_stdio(name: str, entry: dict[str, Any]) -> PluginMcpServer | None:
     env_key_names = [str(k) for k in env] if isinstance(env, dict) else []
     raw_env = {str(k): str(v) for k, v in env.items()} if isinstance(env, dict) else {}
 
-    from dataclasses import replace
     from .integrity import infer_server_capabilities
 
     server_obj = PluginMcpServer(
@@ -246,7 +245,6 @@ def _parse_remote(
     if unknown:
         return None
 
-    from dataclasses import replace
     from .integrity import infer_server_capabilities
 
     server_obj = PluginMcpServer(

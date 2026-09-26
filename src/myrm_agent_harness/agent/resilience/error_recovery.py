@@ -15,7 +15,6 @@ Harness resilience engine to self-heal runtime errors and avoid catastrophic fai
 from __future__ import annotations
 
 import re
-from typing import Any
 from uuid import uuid4
 
 from myrm_agent_harness.agent.resilience.types import (

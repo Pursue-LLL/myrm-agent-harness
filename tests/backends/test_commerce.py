@@ -18,7 +18,6 @@ import pytest
 from myrm_agent_harness.api.protocols import MerchantBackend, StorefrontBackend
 from myrm_agent_harness.backends.commerce.exceptions import (
     ChangeNotApplicable,
-    CommerceError,
     InvalidStagedChange,
     NotOffered,
     Unavailable,
@@ -28,20 +27,15 @@ from myrm_agent_harness.backends.commerce.memory_backend import (
     InMemoryStorefrontBackend,
 )
 from myrm_agent_harness.backends.commerce.types import (
-    Cart,
-    CartLine,
     ChangeType,
     Listing,
     ListingStatus,
-    Order,
-    OrderStatus,
     PerformanceSummary,
     Policy,
     PolicyCategory,
     Product,
     ProductFilter,
     ProductVariant,
-    StagedChange,
     VariantOption,
 )
 

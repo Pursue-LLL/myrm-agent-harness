@@ -23,7 +23,6 @@ from myrm_agent_harness.toolkits.computer_use.dref.types import (
     SnapshotMeta,
 )
 from myrm_agent_harness.toolkits.computer_use.iphone_mirror import (
-    IPHONE_MIRROR_BUNDLE_ID,
     is_iphone_mirror_app,
     is_iphone_mirror_bundle,
     is_iphone_mirror_connect_window,

@@ -10,13 +10,12 @@ Verifies:
 from __future__ import annotations
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from myrm_agent_harness.agent.context_management.pipeline.base import ProcessorContext
 from myrm_agent_harness.agent.context_management.pipeline.processors.active_tool_result_prune_processor import (
     build_memory_truncated_placeholder,
     is_tool_result_consumed,
-    prune_tool_results_deterministic,
     sanitize_multimodal_content,
 )
 from myrm_agent_harness.agent.context_management.pipeline.processors.reasoning_anchor_processor import (
@@ -166,7 +165,6 @@ class TestSessionAnchorLedger:
     def test_global_session_eviction(self) -> None:
         from myrm_agent_harness.agent.context_management.strategies.reasoning.anchor_ledger import (
             _SESSION_LEDGERS,
-            get_session_anchor_ledger,
         )
         # Create many sessions to trigger bounded eviction
         for i in range(550):

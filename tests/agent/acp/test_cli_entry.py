@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from myrm_agent_harness.agent.acp.__main__ import _create_factory
 from myrm_agent_harness.agent.acp.default_factory import DefaultAgentFactory
 from myrm_agent_harness.agent.acp.skill_factory import SkillAgentFactory

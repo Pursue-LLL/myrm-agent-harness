@@ -2,12 +2,8 @@
 
 from __future__ import annotations
 
-import pytest
-
 from myrm_agent_harness.api import (
-    FusedHit,
     RankedList,
-    RecallDebug,
     fuse_rrf_deterministic,
 )
 

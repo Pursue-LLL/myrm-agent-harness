@@ -14,7 +14,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
 
 
 class SSHAuthType(str, Enum):
@@ -35,10 +34,10 @@ class SSHHostSpec:
     port: int = 22
     username: str = "root"
     auth_type: SSHAuthType = SSHAuthType.PASSWORD
-    password: Optional[str] = None
-    private_key: Optional[str] = None
-    passphrase: Optional[str] = None
-    proxy_jump: Optional[str] = None
+    password: str | None = None
+    private_key: str | None = None
+    passphrase: str | None = None
+    proxy_jump: str | None = None
     timeout_seconds: float = 30.0
     tags: list[str] = field(default_factory=list)
     description: str = ""

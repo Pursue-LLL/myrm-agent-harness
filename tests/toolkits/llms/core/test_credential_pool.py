@@ -342,9 +342,10 @@ class TestLLMManagerPoolObservability:
     """Tests for LLMManager.get_pool_stats() and reset_pool_cooldowns()."""
 
     def test_manager_pool_stats_and_reset(self) -> None:
-        from myrm_agent_harness.toolkits.llms.core.manager import LLMManager
-        from myrm_agent_harness.toolkits.llms.core.key_pool_llm import KeyPoolLLM
         from unittest.mock import MagicMock
+
+        from myrm_agent_harness.toolkits.llms.core.key_pool_llm import KeyPoolLLM
+        from myrm_agent_harness.toolkits.llms.core.manager import LLMManager
 
         LLMManager.clear_cache()
         pool = CredentialPool(["sk-mgr-1111", "sk-mgr-2222"], cooldown_s=60)

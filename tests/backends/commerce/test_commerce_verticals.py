@@ -17,7 +17,6 @@ from myrm_agent_harness.backends.commerce.memory_backend import (
 from myrm_agent_harness.backends.commerce.types import (
     PolicyCategory,
     ProductFilter,
-    ShoppingSessionState,
 )
 from myrm_agent_harness.backends.commerce.verticals import (
     CommerceStarterPack,

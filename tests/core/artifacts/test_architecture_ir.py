@@ -3,13 +3,6 @@
 from __future__ import annotations
 
 from myrm_agent_harness.core.artifacts.architecture_ir import (
-    ArchitectureEdge,
-    ArchitectureGroup,
-    ArchitectureIR,
-    ArchitectureNode,
-    ArchitectureNodeType,
-    DiagramType,
-    ValidationReceipt,
     validate_and_sanitize_architecture_ir,
 )
 

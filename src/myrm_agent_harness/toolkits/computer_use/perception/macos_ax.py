@@ -25,7 +25,13 @@ from dataclasses import dataclass
 
 from myrm_agent_harness.toolkits.computer_use.backends.macos import _MACOS_DEEPLINKS
 from myrm_agent_harness.toolkits.computer_use.dref.errors import AXPermissionRequiredError, AXTreeEmptyError
-from myrm_agent_harness.toolkits.computer_use.dref.types import INTERACTIVE_AX_ROLES, BBox, ElementRef, SnapshotMeta, SnapshotScope
+from myrm_agent_harness.toolkits.computer_use.dref.types import (
+    INTERACTIVE_AX_ROLES,
+    BBox,
+    ElementRef,
+    SnapshotMeta,
+    SnapshotScope,
+)
 from myrm_agent_harness.toolkits.computer_use.perception.overlay_roles import normalize_desktop_role
 from myrm_agent_harness.toolkits.computer_use.types import ActionResult
 

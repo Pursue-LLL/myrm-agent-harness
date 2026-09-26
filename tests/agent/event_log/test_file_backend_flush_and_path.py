@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 
 import pytest
+
 from myrm_agent_harness.agent.event_log.backends.file_backend import FileEventLogBackend
 from myrm_agent_harness.agent.event_log.protocols import (
     EventLogBackend,

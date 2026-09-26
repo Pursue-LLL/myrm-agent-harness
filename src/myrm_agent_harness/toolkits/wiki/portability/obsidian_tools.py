@@ -27,7 +27,6 @@ from langchain_core.tools import tool
 
 from myrm_agent_harness.toolkits.wiki.portability.obsidian_canvas import (
     extract_canvas_text_nodes,
-    extract_wikilinks_from_markdown,
     resolve_one_hop_wikilinks,
 )
 

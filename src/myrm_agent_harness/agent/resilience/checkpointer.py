@@ -22,7 +22,6 @@ import json
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Sequence
 from uuid import uuid4
 
 from myrm_agent_harness.utils.logger_utils import get_agent_logger

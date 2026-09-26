@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import time
 from pathlib import Path
-
-import pytest
 
 from myrm_agent_harness.agent.resilience.budget_controller import (
     DynamicExecutionBudgetController,
@@ -20,7 +17,6 @@ from myrm_agent_harness.agent.resilience.types import (
     ExecutionBudgetConfig,
     RecoveryActionType,
 )
-
 
 # ============================================================================
 # ErrorSelfCorrectionGovernor Tests

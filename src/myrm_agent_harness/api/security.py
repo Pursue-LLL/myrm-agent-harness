@@ -18,14 +18,14 @@ from myrm_agent_harness.agent.security.batch_risk import (
     BatchRiskReport,
     classify_batch_approval_risk,
 )
+from myrm_agent_harness.agent.security.detection.content_boundary import (
+    detect_suspicious,
+    wrap_untrusted,
+)
 from myrm_agent_harness.agent.security.guards import (
     TaintLabel,
     get_taint_tracker,
     set_untrusted_ingress,
-)
-from myrm_agent_harness.agent.security.detection.content_boundary import (
-    detect_suspicious,
-    wrap_untrusted,
 )
 from myrm_agent_harness.agent.security.managed_approval_policy import (
     ManagedApprovalPolicy,

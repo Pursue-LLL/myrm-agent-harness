@@ -16,9 +16,10 @@ Synchronizes inbound links and wiki edges for referring concept articles.
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import validate_wiki_frontmatter
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure

@@ -1,9 +1,8 @@
 """Unit tests for Salient Tool Output Filter & Verbatim Evidence Extractor."""
 
-import pytest
 from langchain_core.messages import ToolMessage
+
 from myrm_agent_harness.api import (
-    SalientToolEvidence,
     SalientToolFilterConfig,
     extract_salient_tool_evidences,
     strip_ansi_sequences,

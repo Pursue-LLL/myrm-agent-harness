@@ -492,6 +492,7 @@ async def test_ptc_batched_stub_passes_list_to_tool() -> None:
 @pytest.mark.asyncio
 async def test_llm_query_batched_emits_progress_events() -> None:
     import asyncio
+
     from langchain_core.messages import AIMessage
 
     parent = MagicMock()

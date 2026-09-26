@@ -9,11 +9,8 @@ Tests cover:
 
 from __future__ import annotations
 
-import pytest
-
 from myrm_agent_harness.backends.skills._utils import parse_skill_frontmatter
 from myrm_agent_harness.backends.skills.model_resolver import (
-    DEFAULT_TIER_MAPPING,
     SkillModelResolutionSource,
     SkillModelResolver,
 )

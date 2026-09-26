@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 from unittest.mock import MagicMock
-import pytest
+
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import (
     SimpleSpanProcessor,
@@ -21,7 +21,6 @@ from opentelemetry.sdk.trace.export import (
 from myrm_agent_harness.infra.tracing.sanitizer import (
     SanitizingSpanProcessor,
     TraceSpanSanitizer,
-    sanitize_trace_attributes,
     sanitize_trace_payload,
 )
 

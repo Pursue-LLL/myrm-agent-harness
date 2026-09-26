@@ -10,6 +10,7 @@ Verifies:
 
 import math
 import random
+
 import pytest
 
 from myrm_agent_harness.toolkits.vector.quantization import (
@@ -134,6 +135,7 @@ def test_edge_cases_and_error_handling() -> None:
 @pytest.mark.asyncio
 async def test_qdrant_store_quantization_config() -> None:
     from unittest.mock import AsyncMock, MagicMock
+
     from myrm_agent_harness.toolkits.vector.config import VectorStoreConfig
     from myrm_agent_harness.toolkits.vector.qdrant.store import QdrantVectorStore
 
@@ -275,6 +277,7 @@ async def test_concurrency_and_immutability() -> None:
 async def test_real_qdrant_in_memory_quantization_lifecycle() -> None:
     """End-to-end integration test with real AsyncQdrantClient(':memory:')."""
     from qdrant_client import AsyncQdrantClient
+
     from myrm_agent_harness.toolkits.vector.config import DeploymentMode, VectorStoreConfig
     from myrm_agent_harness.toolkits.vector.qdrant.store import QdrantVectorStore
 

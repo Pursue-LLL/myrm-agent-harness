@@ -61,8 +61,9 @@ async def test_cache_key_isolated_by_task() -> None:
 
 
 def _tall_png(width: int = 200, height: int = 1200) -> bytes:
-    from PIL import Image
     import io
+
+    from PIL import Image
 
     img = Image.new("RGB", (width, height), color=(255, 255, 255))
     buf = io.BytesIO()
@@ -85,8 +86,9 @@ def test_slice_long_image_if_needed() -> None:
     )
     assert len(slices_tall) > 1
     # Check that each slice is valid image bytes
-    from PIL import Image
     import io
+
+    from PIL import Image
 
     for tile in slices_tall:
         tile_img = Image.open(io.BytesIO(tile))

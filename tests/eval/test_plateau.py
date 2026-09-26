@@ -1,7 +1,6 @@
 """Unit tests for Meta-Harness 4-Mechanism plateau diagnosis engine."""
 
 from myrm_agent_harness.eval.plateau import (
-    PlateauDiagnosis,
     PlateauMechanism,
     diagnose_plateau,
 )

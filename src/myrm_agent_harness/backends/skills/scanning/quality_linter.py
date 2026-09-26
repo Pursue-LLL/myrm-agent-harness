@@ -18,10 +18,10 @@ myrm-agent-harness/src/myrm_agent_harness/backends/skills/scanning/quality_linte
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from enum import StrEnum
 import logging
 import re
+from dataclasses import dataclass, field
+from enum import StrEnum
 
 from myrm_agent_harness.backends.skills._utils import parse_frontmatter
 

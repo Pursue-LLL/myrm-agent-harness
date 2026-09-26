@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import re
 import time
 from pathlib import Path
@@ -139,13 +138,13 @@ class SkillsIndexCache:
             score = 0
             name_lower = r.name.lower()
             desc_lower = r.description.lower()
-            
+
             # Exact match bonus
             if q == name_lower:
                 score += 100
             elif q in name_lower:
                 score += 50
-            
+
             # Token match scoring
             matched_all = True
             for pat in patterns:
@@ -153,9 +152,7 @@ class SkillsIndexCache:
                     score += 20
                 elif pat.search(r.description):
                     score += 10
-                elif any(pat.search(k) for k in r.keywords or []):
-                    score += 15
-                elif any(pat.search(t) for t in r.tags or []):
+                elif any(pat.search(k) for k in r.keywords or []) or any(pat.search(t) for t in r.tags or []):
                     score += 15
                 else:
                     matched_all = False

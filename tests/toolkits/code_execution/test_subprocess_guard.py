@@ -122,3 +122,55 @@ class TestPythonSubprocessIsolation:
             assert res.success is True
             # Assert hostile dir was stripped
             assert hostile_dir not in res.stdout
+
+    @pytest.mark.asyncio
+    async def test_ptc_session_keeps_stub_pythonpath(self, tmp_path):
+        from myrm_agent_harness.toolkits.code_execution.executors.local._python_subprocess import (
+            run_python_subprocess,
+        )
+
+        test_script = tmp_path / "check_path.py"
+        test_script.write_text("import os\nprint('PATH:' + os.environ.get('PYTHONPATH', ''))")
+
+        import os
+        from unittest.mock import patch
+
+        stub_dir = str(tmp_path / "stubs")
+        user_env = {"PYTHONPATH": stub_dir, "_MYRM_PTC_SOCKET": "/tmp/fake.sock"}
+        with patch.dict(os.environ, {}, clear=False):
+            res = await run_python_subprocess(
+                script_path=test_script,
+                timeout=10,
+                python_executable=sys.executable,
+                cwd=tmp_path,
+                env=user_env,
+            )
+            assert res.success is True
+            # PTC stub dir must survive the post-override scrub
+            # (stdout redacts absolute prefixes, so match the tail component)
+            assert "stubs" in res.stdout
+
+    @pytest.mark.asyncio
+    async def test_non_ptc_user_pythonpath_still_scrubbed(self, tmp_path):
+        from myrm_agent_harness.toolkits.code_execution.executors.local._python_subprocess import (
+            run_python_subprocess,
+        )
+
+        test_script = tmp_path / "check_path.py"
+        test_script.write_text("import os\nprint('PATH:' + os.environ.get('PYTHONPATH', ''))")
+
+        import os
+        from unittest.mock import patch
+
+        evil_dir = "/evil/plain_pythonpath"
+        with patch.dict(os.environ, {}, clear=False):
+            res = await run_python_subprocess(
+                script_path=test_script,
+                timeout=10,
+                python_executable=sys.executable,
+                cwd=tmp_path,
+                env={"PYTHONPATH": evil_dir},
+            )
+            assert res.success is True
+            # No PTC markers: user PYTHONPATH must still be scrubbed
+            assert evil_dir not in res.stdout

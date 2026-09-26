@@ -21,10 +21,8 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Final
-from urllib.parse import urlparse
+from typing import Final
 
-import httpx
 import yaml
 
 from myrm_agent_harness.agent.skills.market.sources.github import parse_github_url

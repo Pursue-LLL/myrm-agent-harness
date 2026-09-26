@@ -277,9 +277,8 @@ class ContextFactory:
         including navigator patches, toString disguise, anti-debugger
         neutralization, and Performance API cleanup.
         """
-        from .stealth import get_stealth_script
-
         from ..enhancers import install_document_script_injection
+        from .stealth import get_stealth_script
 
         await install_document_script_injection(
             context, get_stealth_script, label="stealth"

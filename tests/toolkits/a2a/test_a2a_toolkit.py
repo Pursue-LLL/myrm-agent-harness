@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import time
 
-import pytest
 from myrm_agent_harness.toolkits.a2a import (
     A2A_PROTOCOL_VERSION,
     WELL_KNOWN_AGENT_CARD_PATH,

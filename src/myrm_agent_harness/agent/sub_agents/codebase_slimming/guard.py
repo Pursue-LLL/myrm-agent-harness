@@ -67,7 +67,7 @@ class EquivalenceInvarianceGuard:
                     output_summary=combined_summary,
                     failure_reason=f"Tests failed with exit code {proc.returncode}",
                 )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return EquivalenceVerdict(
                 passed=False,
                 test_command=test_command,

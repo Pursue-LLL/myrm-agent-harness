@@ -16,7 +16,6 @@ Infra layer git resolution utility. Thread-safe with stat mtime debounce cache.
 
 from __future__ import annotations
 
-import os
 import threading
 from dataclasses import dataclass
 from pathlib import Path

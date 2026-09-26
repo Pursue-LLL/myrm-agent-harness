@@ -149,7 +149,7 @@ class WorkspaceRulesMiddleware(AgentMiddleware):  # type: ignore[type-arg]
         )
 
         rules = scan_workspace_rules(workspace_root)
-        
+
         # Build combined workspace context: rules files (if any) + sandbox bootstrap snapshot
         content_parts: list[str] = []
         if rules:

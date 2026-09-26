@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import logging
 import os
-import re
 
 import httpx
 
@@ -200,7 +199,7 @@ async def search_github_code(
     except (httpx.TimeoutException, httpx.RequestError) as exc:
         logger.info("GitHub code search request failed gracefully: %s", type(exc).__name__)
         return None
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.warning("Unexpected error during GitHub code search: %s", exc)
         return None
     finally:

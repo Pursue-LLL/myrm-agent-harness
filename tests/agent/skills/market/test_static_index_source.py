@@ -10,10 +10,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from myrm_agent_harness.agent.skills.market.sources.static_index import (
-    DEFAULT_INDEX_URL,
     StaticIndexSkillSource,
 )
-from myrm_agent_harness.backends.skills.market_protocols import SkillSearchResult
 
 
 @pytest.fixture
@@ -94,7 +92,7 @@ async def test_static_index_disk_cache_load_and_etag_sync(
     etag_file.write_text("W/\"test-etag-1234\"", encoding="utf-8")
 
     source = StaticIndexSkillSource(cache_dir=tmp_path, ttl_seconds=3600)
-    
+
     # Mock remote fetch returning 304 Not Modified
     with patch("myrm_agent_harness.infra.tls_compat.create_httpx_client") as mock_client_factory:
         mock_client = AsyncMock()

@@ -29,8 +29,8 @@ from .probe import (
     check_skill_prerequisites,
     parse_prerequisites_from_frontmatter,
 )
-from .probe import PrerequisiteProbe as HostPrerequisitesProbe
 from .probe import PrerequisiteProbe as HostPrerequisiteProbe
+from .probe import PrerequisiteProbe as HostPrerequisitesProbe
 from .probe import check_skill_prerequisites as probe_skill_prerequisites
 from .remediation import (
     AutoRemedyGenerator,

@@ -83,7 +83,9 @@ async def test_trace_async_with_kwargs():
 def test_record_gen_ai_semantic_conventions():
     """Test GenAI Semantic Conventions helper functions with recording mock span."""
     from unittest.mock import MagicMock
+
     from opentelemetry.trace import Span
+
     from myrm_agent_harness.infra.tracing import (
         GEN_AI_CACHE_HIT_RATIO,
         GEN_AI_OPERATION_NAME,
@@ -92,7 +94,6 @@ def test_record_gen_ai_semantic_conventions():
         GEN_AI_TOOL_NAME,
         GEN_AI_USAGE_CACHE_READ_TOKENS,
         GEN_AI_USAGE_INPUT_TOKENS,
-        SPAN_AGENT_TURN,
         record_gen_ai_agent_turn,
         record_gen_ai_llm_request,
         record_gen_ai_tool_call,
@@ -186,6 +187,7 @@ def test_active_posture_from_args_without_env_vars(monkeypatch):
     """Test that setup_tracing via args correctly updates active posture without OS env vars."""
     import sys
     from unittest.mock import MagicMock
+
     from myrm_agent_harness.infra.tracing import (
         get_telemetry_posture,
         setup_tracing,

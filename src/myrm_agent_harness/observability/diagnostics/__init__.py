@@ -17,7 +17,7 @@ import myrm_agent_harness.observability.diagnostics.benchmark_probes
 import myrm_agent_harness.observability.diagnostics.gateway_health  # side-effect: registers gateway runtime probe
 import myrm_agent_harness.observability.diagnostics.probes  # side-effect: registers probes/benchmarks
 import myrm_agent_harness.observability.diagnostics.supply_chain  # side-effect: registers supply chain probe
-import myrm_agent_harness.observability.diagnostics.system_exhaustion  # noqa: F401  # side-effect: registers system exhaustion probe
+import myrm_agent_harness.observability.diagnostics.system_exhaustion  # side-effect: registers system exhaustion probe
 import myrm_agent_harness.observability.diagnostics.system_resources  # noqa: F401  # side-effect: registers system resource probe
 
 from .manager import register_diagnostic, register_protocol, run_all_diagnostics

@@ -10,8 +10,7 @@
 myrm-agent-harness/tests/backends/skills/prerequisites/test_prerequisites_probe.py
 """
 
-from unittest.mock import MagicMock, patch
-import pytest
+from unittest.mock import patch
 
 from myrm_agent_harness.backends.skills.prerequisites import (
     AutoRemedyGenerator,
@@ -20,7 +19,6 @@ from myrm_agent_harness.backends.skills.prerequisites import (
     PackageRequirement,
     PrerequisiteStatus,
     SkillPrerequisites,
-    probe_skill_prerequisites,
 )
 
 
