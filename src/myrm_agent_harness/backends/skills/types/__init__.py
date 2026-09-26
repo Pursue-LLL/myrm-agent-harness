@@ -32,6 +32,7 @@ from myrm_agent_harness.backends.skills.types.types_enums import (
     SkillLifecycleStatus,
     SkillPermission,
     SkillTrust,
+    SkillTrustRecommendation,
 )
 from myrm_agent_harness.backends.skills.types.types_instance import (
     SkillInstance,
@@ -43,7 +44,6 @@ from myrm_agent_harness.backends.skills.types.types_requires import MCPSkillData
 from myrm_agent_harness.backends.skills.types.types_security import SecurityFindingDetail, SecurityScanSummary
 from myrm_agent_harness.backends.skills.types.types_usage import SkillUsageStats
 from myrm_agent_harness.backends.skills.types.types_visibility import skill_visible_for_tools
-from myrm_agent_harness.backends.skills.scanning.scanner import SkillTrustRecommendation
 
 __all__ = [
     "MCPSkillData",

@@ -7,12 +7,29 @@
 - SkillTrust: trust level enum (INSTALLED/TRUSTED)
 - SkillLifecycleStatus: curator lifecycle enum (ACTIVE/STALE/ARCHIVED)
 - SkillPermission: declared permission types for skills
+- SkillTrustRecommendation: recommended trust level derived from scan findings
 
 [POS]
 Core skill enumeration types used across backends and agent layers.
 """
 
 from enum import IntEnum, StrEnum
+
+
+class SkillTrustRecommendation(StrEnum):
+    """Recommended trust level based on scan findings.
+
+    Maps to the existing SkillTrust enum in attenuator:
+    - TRUSTED: no findings, full tool access
+    - INSTALLED: medium/low findings, trust attenuation active
+    - UNTRUSTED: high/critical findings, requires user confirmation
+    - REJECT: critical findings, installation should be blocked
+    """
+
+    TRUSTED = "trusted"
+    INSTALLED = "installed"
+    UNTRUSTED = "untrusted"
+    REJECT = "reject"
 
 
 class SkillTrust(IntEnum):

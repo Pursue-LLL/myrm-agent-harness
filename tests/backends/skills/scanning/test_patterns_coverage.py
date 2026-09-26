@@ -7,6 +7,7 @@ from myrm_agent_harness.backends.skills.scanning.scanner import (
 
 EXPECTED_CATEGORIES = {
     "prompt_injection",
+    "prompt_secret_exfiltration",
     "command_injection",
     "credential_exposure",
     "data_exfiltration",

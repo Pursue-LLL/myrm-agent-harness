@@ -5,10 +5,11 @@ import re
 import time
 import unicodedata
 from dataclasses import dataclass, field
-from enum import IntEnum, StrEnum
+from enum import IntEnum
 from pathlib import Path
 
 from myrm_agent_harness.backends.skills.scanning.ast_analyzer import AstScanFinding
+from myrm_agent_harness.backends.skills.types.types_enums import SkillTrustRecommendation
 from myrm_agent_harness.backends.skills.types.types_security import SecurityScanSummary
 
 """Skill content security scanner.
@@ -60,22 +61,6 @@ class ScanSeverity(IntEnum):
     MEDIUM = 2
     HIGH = 3
     CRITICAL = 4
-
-
-class SkillTrustRecommendation(StrEnum):
-    """Recommended trust level based on scan findings.
-
-    Maps to the existing SkillTrust enum in attenuator:
-    - TRUSTED: no findings, full tool access
-    - INSTALLED: medium/low findings, trust attenuation active
-    - UNTRUSTED: high/critical findings, requires user confirmation
-    - REJECT: critical findings, installation should be blocked
-    """
-
-    TRUSTED = "trusted"
-    INSTALLED = "installed"
-    UNTRUSTED = "untrusted"
-    REJECT = "reject"
 
 
 @dataclass(frozen=True, slots=True)
