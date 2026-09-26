@@ -702,8 +702,14 @@ class ContextSnapshotCallback(Protocol):
 # These are imported from the module path by downstream processors.  Kept at the
 # bottom to avoid a circular import with schemas_pre_compact.
 from .schemas_pre_compact import (  # noqa: F401, E402
+    CANCEL_COMPACTION_METADATA_KEY,
+    PRE_COMPACT_DECISION_METADATA_KEY,
     PRE_COMPACT_INJECTION_METADATA_KEY,
     PRE_COMPACT_MESSAGE_METADATA_KEY,
+    PRE_COMPACT_REPLACEMENT_SUMMARY_METADATA_KEY,
     ContextPreCompactCallback,
+    PreCompactAction,
+    PreCompactDecision,
     PreCompactInjection,
+    normalize_pre_compact_decision,
 )

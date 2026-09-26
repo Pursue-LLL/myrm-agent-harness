@@ -57,6 +57,8 @@ from ...infra.context_budget import (
     resolve_budget_kwargs_from_metadata,
 )
 from ...infra.schemas import (
+    CANCEL_COMPACTION_METADATA_KEY,
+    PRE_COMPACT_REPLACEMENT_SUMMARY_METADATA_KEY,
     ContextCompressOffloadCallback,
     ContextConfig,
     StructuredSummary,
@@ -258,6 +260,12 @@ class SummarizeProcessor(BaseProcessor):
 
     async def should_process(self, context: ProcessorContext) -> bool:
         global _skip_next_api_token_check
+        if context.metadata.get(CANCEL_COMPACTION_METADATA_KEY) is True:
+            return False
+
+        if context.metadata.get(PRE_COMPACT_REPLACEMENT_SUMMARY_METADATA_KEY) is not None:
+            return True
+
         if context.structured_summary is not None:
             return False
 
@@ -296,6 +304,15 @@ class SummarizeProcessor(BaseProcessor):
         return True
 
     async def process(self, context: ProcessorContext) -> ProcessorContext:
+        if context.metadata.get(CANCEL_COMPACTION_METADATA_KEY) is True:
+            return context
+
+        replacement = context.metadata.get(PRE_COMPACT_REPLACEMENT_SUMMARY_METADATA_KEY)
+        if isinstance(replacement, StructuredSummary):
+            original_tokens = estimate_messages_tokens(context.messages)
+            last_msg_db_id = context.metadata.get("last_message_db_id")
+            return self._apply_structured_summary(context, replacement, original_tokens, last_msg_db_id)
+
         # Prompt Cache preservation: Skip summarize during Resume or HITL session
         if self._should_skip_for_cache_preservation(context):
             logger.info(
@@ -527,6 +544,59 @@ class SummarizeProcessor(BaseProcessor):
             saved,
         )
 
+        return context
+
+    def _apply_structured_summary(
+        self,
+        context: ProcessorContext,
+        summary: StructuredSummary,
+        original_tokens: int,
+        last_msg_db_id: object,
+    ) -> ProcessorContext:
+        """Apply an external/replacement structured summary directly without LLM call."""
+        from ...strategies.compactor.pre_compact_context import prepend_pre_compact_message
+        from ...strategies.summary.summary_builder import extract_protected_head
+
+        protected_head = extract_protected_head(context.messages)
+        tail_budget = int(
+            (self.config.max_context_tokens or 128000)
+            * getattr(self.config, "tail_budget_ratio", 0.20)
+        )
+        recent_messages = extract_recent_messages(context.messages, tail_budget)
+        protected_ids = {id(m) for m in protected_head}
+        recent_messages = [m for m in recent_messages if id(m) not in protected_ids]
+        summary_message = create_summary_message(summary, context.chat_id)
+
+        context.messages = prepend_pre_compact_message(
+            protected_head,
+            [summary_message],
+            recent_messages,
+            context=context,
+        )
+
+        new_tokens = estimate_messages_tokens(context.messages)
+        saved = max(0, original_tokens - new_tokens)
+        context.tokens_saved += saved
+        context.structured_summary = summary
+        context.metadata["pre_compact_replacement_applied"] = True
+        context.metadata.pop("compaction_debt_pending", None)
+        if isinstance(last_msg_db_id, str) and last_msg_db_id:
+            context.last_summarized_message_id = last_msg_db_id
+
+        from ...infra.cache_break_detector import get_cache_break_detector
+
+        detector = get_cache_break_detector()
+        if detector is not None:
+            detector.notify_compaction()
+
+        global _skip_next_api_token_check
+        _skip_next_api_token_check = True
+
+        logger.info(
+            "[Summarize] replacement structured summary applied directly | goal: %.50s... | saved: %d tokens",
+            summary.user_goal,
+            saved,
+        )
         return context
 
     def _apply_deterministic_fallback(

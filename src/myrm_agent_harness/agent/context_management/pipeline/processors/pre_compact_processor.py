@@ -20,9 +20,14 @@ from __future__ import annotations
 
 from myrm_agent_harness.agent.context_management.infra.retention_helpers import extract_user_goal_hint
 from myrm_agent_harness.agent.context_management.infra.schemas import (
+    CANCEL_COMPACTION_METADATA_KEY,
+    PRE_COMPACT_DECISION_METADATA_KEY,
     PRE_COMPACT_INJECTION_METADATA_KEY,
     PRE_COMPACT_MESSAGE_METADATA_KEY,
+    PRE_COMPACT_REPLACEMENT_SUMMARY_METADATA_KEY,
     ContextPreCompactCallback,
+    PreCompactAction,
+    normalize_pre_compact_decision,
 )
 from myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor import (
     CompressProcessor,
@@ -86,7 +91,7 @@ class PreCompactProcessor(BaseProcessor):
         user_goal_hint = extract_user_goal_hint(context.metadata)
 
         try:
-            injection = await self._on_pre_compact(
+            raw_result = await self._on_pre_compact(
                 messages=context.messages,
                 chat_id=context.chat_id,
                 user_id=context.user_id,
@@ -98,18 +103,61 @@ class PreCompactProcessor(BaseProcessor):
             logger.warning("[PreCompact] callback failed (non-blocking): %s", exc)
             return context
 
-        if injection is None:
-            return context
+        decision = normalize_pre_compact_decision(raw_result)
+        context.metadata[PRE_COMPACT_DECISION_METADATA_KEY] = decision
 
-        context.metadata[PRE_COMPACT_MESSAGE_METADATA_KEY] = injection.message
-        context.metadata[PRE_COMPACT_INJECTION_METADATA_KEY] = injection
-        logger.info(
-            "[PreCompact] prepared recall inject | tier=%s recalled=%d tokens~=%d query=%.80s",
-            injection.compaction_tier,
-            len(injection.recalled_ids),
-            injection.token_estimate,
-            injection.query,
-        )
+        # 1. Action = CANCEL
+        if decision.action == PreCompactAction.CANCEL:
+            # 90% hard-limit safety fence against context overflow / runaway OOM
+            if pressure_ratio >= 0.90:
+                logger.warning(
+                    "[PreCompact] Compaction cancel VETOED by 90%% safety watermark fence "
+                    "(pressure=%.2f >= 0.90); forcing passthrough compaction to prevent context overflow",
+                    pressure_ratio,
+                )
+            else:
+                context.metadata[CANCEL_COMPACTION_METADATA_KEY] = True
+                context.metadata["compaction_debt_pending"] = True
+                from myrm_agent_harness.agent.context_management.tracking.task_metrics import get_task_metrics
+
+                if context.chat_id:
+                    metrics = get_task_metrics(context.chat_id)
+                    if metrics:
+                        metrics.compaction_debt_pending = True
+
+                logger.info(
+                    "[PreCompact] Compaction cancelled by extension hook: %s (debt marked pending)",
+                    decision.reason or "unspecified",
+                )
+                return context
+
+        # 2. Action = REPLACE
+        elif decision.action == PreCompactAction.REPLACE:
+            if decision.replacement_summary is not None:
+                context.metadata[PRE_COMPACT_REPLACEMENT_SUMMARY_METADATA_KEY] = decision.replacement_summary
+                context.structured_summary = decision.replacement_summary
+                logger.info(
+                    "[PreCompact] Compaction replaced with external/cheap structured summary: %s",
+                    decision.reason or "unspecified",
+                )
+            else:
+                logger.warning(
+                    "[PreCompact] PreCompactAction.REPLACE specified but replacement_summary is None; falling back to passthrough"
+                )
+
+        # 3. Handle optional injection (e.g. semantic memory recall)
+        if decision.injection is not None:
+            injection = decision.injection
+            context.metadata[PRE_COMPACT_MESSAGE_METADATA_KEY] = injection.message
+            context.metadata[PRE_COMPACT_INJECTION_METADATA_KEY] = injection
+            logger.info(
+                "[PreCompact] prepared recall inject | tier=%s recalled=%d tokens~=%d query=%.80s",
+                injection.compaction_tier,
+                len(injection.recalled_ids),
+                injection.token_estimate,
+                injection.query,
+            )
+
         return context
 
     async def _resolve_compaction_tier(self, context: ProcessorContext) -> str | None:

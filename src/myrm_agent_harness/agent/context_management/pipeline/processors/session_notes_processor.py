@@ -25,6 +25,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.token_estimation import estimate_messages_tokens
 
+from ...infra.schemas import CANCEL_COMPACTION_METADATA_KEY, PRE_COMPACT_REPLACEMENT_SUMMARY_METADATA_KEY
 from ...strategies.summary.summary_builder import UNVERIFIED_CONTEXT_MARKER
 from ...strategies.summary.summary_parser import is_summary_message
 from ..base import BaseProcessor, ProcessorContext
@@ -60,12 +61,18 @@ class SessionNotesProcessor(BaseProcessor):
         return "session_notes"
 
     async def should_process(self, context: ProcessorContext) -> bool:
+        if context.metadata.get(CANCEL_COMPACTION_METADATA_KEY) is True:
+            return False
+        if context.metadata.get(PRE_COMPACT_REPLACEMENT_SUMMARY_METADATA_KEY) is not None:
+            return False
         total_tokens = estimate_messages_tokens(context.messages)
         if total_tokens < self._summarize_trigger_threshold:
             return False
         return self._manager.notes.is_ready()
 
     async def process(self, context: ProcessorContext) -> ProcessorContext:
+        if context.metadata.get(CANCEL_COMPACTION_METADATA_KEY) is True:
+            return context
         # Prompt Cache preservation: Skip SessionNotes during Resume or HITL session
         if self._should_skip_for_cache_preservation(context):
             logger.info(

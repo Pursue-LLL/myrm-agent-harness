@@ -52,6 +52,8 @@ from ...infra.retention_helpers import (
     extract_user_goal_hint,
 )
 from ...infra.schemas import (
+    CANCEL_COMPACTION_METADATA_KEY,
+    PRE_COMPACT_REPLACEMENT_SUMMARY_METADATA_KEY,
     ContextCompressEvictionCallback,
     ContextCompressOffloadCallback,
     ContextConfig,
@@ -139,6 +141,11 @@ class CompressProcessor(BaseProcessor):
 
         Eco mode: when metadata['eco_mode'] is True, dynamic threshold is reduced by 20%.
         """
+        if context.metadata.get(CANCEL_COMPACTION_METADATA_KEY) is True:
+            return False
+        if context.metadata.get(PRE_COMPACT_REPLACEMENT_SUMMARY_METADATA_KEY) is not None:
+            return False
+
         total_tokens = self._estimate_context_tokens(context)
         cfg = self.config
         eco_mode = self._is_eco_mode(context)
@@ -208,6 +215,9 @@ class CompressProcessor(BaseProcessor):
 
     async def process(self, context: ProcessorContext) -> ProcessorContext:
         """Execute compression."""
+        if context.metadata.get(CANCEL_COMPACTION_METADATA_KEY) is True:
+            return context
+
         # Prompt Cache preservation: Skip compress during Resume or HITL session
         if self._should_skip_for_cache_preservation(context):
             logger.info(
