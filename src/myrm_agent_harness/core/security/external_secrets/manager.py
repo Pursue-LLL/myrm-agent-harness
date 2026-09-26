@@ -57,6 +57,15 @@ class _CacheEntry:
     expires_at: float
 
 
+class _FlightCall:
+    __slots__ = ("err", "event", "val")
+
+    def __init__(self) -> None:
+        self.event = threading.Event()
+        self.val: str | None = None
+        self.err: Exception | None = None
+
+
 class ExternalSecretsManager(ExternalSecretResolver):
     """Manager for external secret references with memory caching and deduplication."""
 
@@ -64,8 +73,7 @@ class ExternalSecretsManager(ExternalSecretResolver):
         self._default_ttl: float = default_ttl_seconds
         self._cache: dict[str, _CacheEntry] = {}
         self._lock: threading.RLock = threading.RLock()
-        self._inflight: dict[str, threading.Event] = {}
-        self._inflight_results: dict[str, tuple[str | None, Exception | None]] = {}
+        self._inflight: dict[str, _FlightCall] = {}
 
     def is_supported(self, reference: str) -> bool:
         """Check whether the given string is a supported external vault URI."""
@@ -92,25 +100,22 @@ class ExternalSecretsManager(ExternalSecretResolver):
                 del self._cache[ref]
 
             # Single-flight deduplication
-            if ref in self._inflight:
-                event = self._inflight[ref]
+            call = self._inflight.get(ref)
+            if call is not None:
                 is_leader = False
             else:
-                event = threading.Event()
-                self._inflight[ref] = event
+                call = _FlightCall()
+                self._inflight[ref] = call
                 is_leader = True
 
         if not is_leader:
-            event.wait(timeout=_DEFAULT_TIMEOUT_SECONDS + 1.0)
-            with self._lock:
-                if ref in self._cache:
-                    return self._cache[ref].value
-                val, err = self._inflight_results.get(ref, (None, None))
-                if err is not None:
-                    raise err
-                if val is not None:
-                    return val
-                return self._execute_cli_resolution(ref)
+            call.event.wait(timeout=_DEFAULT_TIMEOUT_SECONDS + 1.0)
+            if call.err is not None:
+                raise call.err
+            if call.val is not None:
+                return call.val
+            # Fallback in case of unexpected timeout
+            return self._execute_cli_resolution(ref)
 
         try:
             resolved_value = self._execute_cli_resolution(ref)
@@ -123,17 +128,15 @@ class ExternalSecretsManager(ExternalSecretResolver):
                     value=resolved_value,
                     expires_at=time.monotonic() + self._default_ttl,
                 )
-                self._inflight_results[ref] = (resolved_value, None)
+            call.val = resolved_value
             return resolved_value
         except Exception as exc:
-            with self._lock:
-                self._inflight_results[ref] = (None, exc)
+            call.err = exc
             raise
         finally:
             with self._lock:
-                event.set()
                 self._inflight.pop(ref, None)
-                self._inflight_results.pop(ref, None)
+            call.event.set()
 
     def invalidate(self, reference: str) -> None:
         """Evict cached entry for reference to trigger refetch on next call (e.g. on 401)."""
@@ -221,6 +224,10 @@ class ExternalSecretsManager(ExternalSecretResolver):
         except FileNotFoundError as exc:
             raise ExternalSecretResolutionError(
                 f"External secret CLI tool '{cmd[0]}' is not installed or not found in system PATH."
+            ) from exc
+        except Exception as exc:
+            raise ExternalSecretResolutionError(
+                f"Failed to execute external secret CLI '{cmd[0]}': {exc}"
             ) from exc
 
 

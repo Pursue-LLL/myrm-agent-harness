@@ -348,6 +348,8 @@ include = [
   "*/myrm_agent_harness/agent/meta_tools/*",
   "*/myrm_agent_harness/agent/skills/*",
   "*/myrm_agent_harness/agent/security/*",
+  "*/myrm_agent_harness/core/security/*",
+  "*/myrm_agent_harness/backends/secrets/*",
   "*/myrm_agent_harness/agent/config/litellm_routing.py",
   "*/myrm_agent_harness/agent/config/parsers.py",
   "*/myrm_agent_harness/agent/tool_management/*",
