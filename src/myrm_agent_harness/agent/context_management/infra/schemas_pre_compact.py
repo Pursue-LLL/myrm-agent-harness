@@ -1,3 +1,20 @@
+"""Pre-compaction callback and decision types for context management.
+
+[INPUT]
+- langchain_core.messages::BaseMessage (POS: LangChain 消息抽象)
+- infra.schemas::StructuredSummary (POS: 结构化摘要数据类)
+
+[OUTPUT]
+- PreCompactAction: 三态决策枚举 (CANCEL / REPLACE / PASSTHROUGH)
+- PreCompactDecision: 预压缩决策复合结构体
+- PreCompactInjection: 预压缩语义记忆召回数据类
+- ContextPreCompactCallback: 预压缩拦截回调协议
+- normalize_pre_compact_decision: 预压缩决策规范化函数
+
+[POS]
+Context management pre-compaction interception schemas. Defines the three-state control contract (Cancel / Replace / Passthrough) and semantic injection types for pipeline processors.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Coroutine

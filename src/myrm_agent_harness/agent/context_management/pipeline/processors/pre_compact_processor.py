@@ -1,19 +1,20 @@
-"""Pre-compaction memory recall processor.
+"""Pre-compaction memory recall and three-state decision control processor.
 
 Runs before Compress / SessionNotes / Summarize when any compaction tier is about to execute.
-Invokes ContextPreCompactCallback to inject a protected HumanMessage recall block.
+Invokes ContextPreCompactCallback to inject protected recall block or short-circuit/replace compaction.
 
 [INPUT]
-- pipeline.processors.compress_processor::CompressProcessor
-- pipeline.processors.session_notes_processor::SessionNotesProcessor
-- pipeline.processors.summarize_processor::SummarizeProcessor
+- pipeline.processors.compress_processor::CompressProcessor (POS: 消息压缩处理器)
+- pipeline.processors.session_notes_processor::SessionNotesProcessor (POS: 会话备忘录处理器)
+- pipeline.processors.summarize_processor::SummarizeProcessor (POS: 会话摘要处理器)
+- infra.schemas_pre_compact::PreCompactDecision (POS: 预压缩三态决策契约)
 - infra.retention_helpers::extract_user_goal_hint (POS: cross-processor retention contract)
 
 [OUTPUT]
-- PreCompactProcessor: pre-compaction recall processor
+- PreCompactProcessor: 预压缩内存召回与三态生命周期控制处理器
 
 [POS]
-Pipeline processor that preserves durable memory constraints before context compaction.
+Pipeline processor that intercepts context compaction with three-state control (Cancel / Replace / Passthrough) and preserves durable memory.
 """
 
 from __future__ import annotations

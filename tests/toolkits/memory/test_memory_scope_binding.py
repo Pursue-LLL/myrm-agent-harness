@@ -169,17 +169,19 @@ def test_derive_namespaces_never_returns_an_empty_chain() -> None:
             task_id=None,
             memory_policy=policy,
         )
-        assert resolved == ["global"], f"policy {policy.read_scopes} produced {resolved}"
+        # Fallback must stay inside the caller's own agent, never widen to the
+        # global broadcast namespace.
+        assert resolved == ["agent:scifi"], f"policy {policy.read_scopes} produced {resolved}"
 
     # build_scope must stay constructible on that fallback chain.
     scope = build_scope(
-        namespaces=["global"],
+        namespaces=["agent:scifi"],
         agent_id="scifi",
         channel_id=None,
         conversation_id=None,
         task_id=None,
     )
-    assert scope.primary_namespace == "global"
+    assert scope.primary_namespace == "agent:scifi"
 
 
 def test_scope_helpers_preserve_current_behavior():

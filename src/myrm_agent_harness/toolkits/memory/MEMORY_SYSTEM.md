@@ -174,6 +174,8 @@ myrm_agent_harness/
 >
 > **写入 scope 栅栏**：`write_service` 在 `store`/`store_batch` 绑定 scope 后校验目标 namespaces 必须是当前 writer 允许集合（写 scope `scope.namespaces` + 读范围内共享目标 `global`/`shared:*`）的子集，越界立即 `MemoryError` fail loud，杜绝跨 agent/channel/task 的越权写入。
 >
+> **读 scope 不可为空**：`derive_namespaces` 在 policy 的 `read_scopes` 全部命中不到本轮 id（例如只读 `task` 而当轮无 task）时，会回退到调用方自己的 `agent:*` scope 并记录 WARNING。作用域链为空会让 manager 构建即失败，因此该回退是保底而不是放宽：`agent:*` 是 `_candidate_namespaces` 恒定提供的候选，且比 `global` 广播域更窄，确保回退不意外扩大读取范围。
+>
 > **去重、遗忘、蒸发与编译作用域安全**：三层去重 Layer 2 候选检索、`dedup_semantics` 兜底、`run_forgetting` 向量遗忘、`evaporate_task_digests` 消化蒸发与 `compile_claim_graph` 图谱编译均按 `primary_namespace ∈ 内存自身 namespaces` **精确过滤**（`_user_filter` 中央函数），保证同 scope 内去重/合并/删除/消化/编译，绝不跨 scope 抑制、清理或消费他人记忆；Hash 缓存键绑定 namespaces 防串台；Qdrant 为 `primary_namespace`/`namespaces` payload 建 KEYWORD 索引保证过滤性能。
 >
 > **Façade 编排边界**：`MemoryManager` 负责统一 façade，不再内联 `namespace` 派生、scope 绑定、写入目标裁剪和渠道亲和力重加权，这些纯逻辑统一收敛到 `_internal/scope.py`；扫描、审批路由、分桶、批量去重以及 convenience memory 构造统一收敛到 `_internal/write_service.py`；sanitize、typed recall 路由、RRF 前后编排、graph enrich 与 raw 裁剪统一收敛到 `_internal/search_service.py`；审批流、profile 写入和安全扫描统一收敛到 `_internal/governance_service.py`；health、snapshot 和 maintenance cycle 统一收敛到 `_internal/maintenance_service.py`。

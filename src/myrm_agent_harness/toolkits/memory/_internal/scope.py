@@ -6,7 +6,7 @@
 - memory.types::{AnyMemory, MemoryScope, MemorySearchResult} (POS: memory data models)
 
 [OUTPUT]
-- derive_namespaces: Namespace derivation from scope level (falls back to ``global`` when a policy resolves to no namespace)
+- derive_namespaces: Namespace derivation from scope level (falls back to the agent scope when a policy resolves to no namespace)
 - bind_scope: MemoryScope binding to memory objects
 - resolve_primary_namespace: Durable write target so new memories stay recallable
 - build_scope: MemoryScope construction from config
@@ -126,13 +126,16 @@ def derive_namespaces(
         return resolved
     # A policy can name read scopes that carry no id on this turn (e.g. reads
     # restricted to task scope while no task is active). An empty chain would make
-    # every downstream writer/reader unusable, so fall back to the durable global
-    # scope instead of raising.
+    # every downstream writer/reader unusable, so fall back to the narrowest scope
+    # that always exists. The agent scope is preferred over the global broadcast
+    # namespace so the fallback never widens reads beyond the caller's own agent.
+    fallback = candidates[MemoryScopeLevel.AGENT]
     logger.warning(
-        "Memory read_scopes %s resolved to no namespace for this turn; falling back to 'global'.",
+        "Memory read_scopes %s resolved to no namespace for this turn; falling back to %r.",
         [level.value for level in read_scopes] if read_scopes else None,
+        fallback,
     )
-    return [candidates[MemoryScopeLevel.GLOBAL]]
+    return [fallback]
 
 
 def build_scope(
@@ -190,6 +193,8 @@ def resolve_primary_namespace(namespaces: list[str]) -> str:
     non-shared candidate. ``shared:*`` namespaces are excluded because they are a
     broadcast target rather than an ownership scope.
     """
+    if not namespaces:
+        raise ValueError("Cannot resolve a primary namespace from an empty namespace chain")
     for namespace in namespaces:
         if namespace.startswith(_AGENT_NAMESPACE_PREFIX):
             return namespace

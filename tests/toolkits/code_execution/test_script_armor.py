@@ -76,6 +76,14 @@ class TestScriptArmorHeuristicProbe:
         large_cmd = "echo " + "a" * 100
         assert should_materialize_script(large_cmd, cfg)
 
+    def test_disabled_config_returns_false(self) -> None:
+        cfg = ScriptArmorConfig(enabled=False)
+        assert not should_materialize_script("echo 1\necho 2\necho 3\necho 4", cfg)
+
+    def test_empty_or_whitespace_command_returns_false(self) -> None:
+        assert not should_materialize_script("")
+        assert not should_materialize_script("   \n\t  ")
+
 
 class TestScriptMaterialization:
     """Test safe script creation, permissions, and cleanup."""
@@ -107,6 +115,14 @@ class TestScriptMaterialization:
         cmd = build_file_backed_command(script)
         assert cmd.startswith('bash "')
         assert str(script.resolve()) in cmd
+
+    def test_materialize_script_failure_cleans_up_and_closes_fd(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        def _failing_open(*args, **kwargs):
+            raise OSError("simulated disk write error")
+
+        monkeypatch.setattr("builtins.open", _failing_open)
+        with pytest.raises(OSError, match="simulated disk write error"):
+            materialize_script_to_file("echo test", temp_dir=tmp_path)
 
 
 class TestPrepareArmoredCommandContextManager:
@@ -258,4 +274,14 @@ class TestSweepStaleMaterializedScripts:
         # Slicing returns normal str
         sliced = tagged[:4]
         assert sliced == "bash"
+
+    def test_sweep_handles_os_error_gracefully(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        stale_file = tmp_path / ".myrm_exec_stale_err.sh"
+        stale_file.write_text("echo err\n", encoding="utf-8")
+
+        def _failing_stat(self, *args, **kwargs):
+            raise OSError("Permission denied")
+
+        monkeypatch.setattr(Path, "stat", _failing_stat)
+        assert sweep_stale_materialized_scripts(tmp_path, max_age_seconds=10.0) == 0
 
