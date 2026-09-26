@@ -5,6 +5,7 @@ session.shell_flavor::ShellFlavor (POS: Platform-specific shell command formatti
 session.stream_output_processor::StreamOutputProcessor (POS: Unified tee/SSE output handling)
 session.stream_buffer::ExecutionStreamBuffer (POS: Zero-copy byte stream parsing)
 executors.models::scrub_sensitive_info (POS: PII scrubbing for output streams)
+security.script_armor::prepare_armored_command (POS: Execution security armor wrapping complex script materialization, execution, and cleanup)
 
 [OUTPUT]
 PersistentSession: Abstract base for stateful persistent shell sessions.
@@ -15,7 +16,7 @@ SessionState: Lifecycle states enum.
 [POS]
 Abstract persistent shell session base. Manages subprocess lifecycle, state machine,
 execute/stream with auto-tee, auto-recovery, SSE flood protection, PII-scrubbed real-time
-output, random per-command output markers, and bash syntax pre-check.
+output, random per-command output markers, bash syntax pre-check, and script materialization armor.
 """
 
 from __future__ import annotations

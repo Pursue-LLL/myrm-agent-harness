@@ -1,9 +1,21 @@
 """Script armor suite — file-backed subprocess invocation & quote/syntax escaping armor.
 
-Protects persistent sessions against beacon swallowing, exit-statement session deaths,
-and quote/nested-backtick escape bombs by materializing complex/multiline scripts to
-temporary files executed via subshells, while preserving the direct execution fast-path
-for directory changes (cd), environment exports, and small safe commands.
+[INPUT]
+- None (POS: Zero-dependency leaf utility module in security toolkit)
+
+[OUTPUT]
+- ScriptArmorConfig: Dataclass configuring direct execution thresholds
+- should_materialize_script: Dual-mode heuristic decision probe
+- materialize_script_to_file: Atomic 0700 script file creation
+- build_file_backed_command: Subshell invocation command formatter
+- cleanup_materialized_script: Safe file unlink cleanup
+- prepare_armored_command: Context manager wrapping materialization, execution, and cleanup
+
+[POS]
+Execution security armor. Protects persistent sessions against beacon swallowing,
+exit-statement process deaths, and quote bombs by materializing complex scripts to
+secured temporary files executed via subshells, while preserving the direct execution
+fast-path for session state modifiers (cd, export, source).
 """
 
 from __future__ import annotations
