@@ -5,7 +5,7 @@ session.shell_flavor::ShellFlavor (POS: Platform-specific shell command formatti
 session.stream_output_processor::StreamOutputProcessor (POS: Unified tee/SSE output handling)
 session.stream_buffer::ExecutionStreamBuffer (POS: Zero-copy byte stream parsing)
 executors.models::scrub_sensitive_info (POS: PII scrubbing for output streams)
-security.script_armor::prepare_armored_command (POS: Execution security armor wrapping complex script materialization, execution, and cleanup)
+security.script_armor::prepare_armored_command, sweep_stale_materialized_scripts (POS: Execution security armor wrapping script materialization, cleanup, and orphan sweeps)
 
 [OUTPUT]
 PersistentSession: Abstract base for stateful persistent shell sessions.
@@ -40,6 +40,7 @@ from myrm_agent_harness.toolkits.code_execution.platform import (
 )
 from myrm_agent_harness.toolkits.code_execution.security.script_armor import (
     prepare_armored_command,
+    sweep_stale_materialized_scripts,
 )
 from myrm_agent_harness.toolkits.code_execution.session.shell_flavor import (
     get_flavor,
@@ -72,6 +73,7 @@ class SessionExecutionResult:
     exit_code: int
     error: str | None = None
     duration: float = 0.0
+    is_armored: bool = False
 
 
 @dataclass
@@ -217,6 +219,9 @@ class PersistentSession(ABC):
         await self._transit_state(SessionState.STARTING)
         try:
             logger.info(f" Starting persistent session: {self.config.session_id}")
+            if not self._platform.is_windows:
+                sweep_stale_materialized_scripts(self.config.work_dir)
+                sweep_stale_materialized_scripts("/tmp")
             self.process = await self._create_process()
             await self._initialize_shell()
             self._consecutive_failures = 0
@@ -338,16 +343,23 @@ class PersistentSession(ABC):
             work_dir=self.config.work_dir,
             is_windows=self._platform.is_windows,
         ) as cmd_to_run:
-            return await self._execute_core_stream(cmd_to_run, command, timeout)
+            is_armored = getattr(cmd_to_run, "is_armored", False)
+            return await self._execute_core_stream(
+                cmd_to_run,
+                command,
+                timeout,
+                is_armored=is_armored,
+            )
 
     async def _execute_core_stream(
         self,
         cmd_to_run: str,
         original_command: str,
         timeout: int,
+        is_armored: bool = False,
     ) -> SessionExecutionResult:
         if not self.process or not self.process.stdin or not self.process.stdout:
-            return SessionExecutionResult(False, "", "", 1, error="Process unavailable")
+            return SessionExecutionResult(False, "", "", 1, error="Process unavailable", is_armored=is_armored)
 
         end_marker = _generate_marker("END")
         exit_marker = _generate_marker("EXIT")
@@ -359,7 +371,7 @@ class PersistentSession(ABC):
         except Exception as e:
             logger.error("IPC write failure: %s", e)
             self._consecutive_failures += 1
-            return SessionExecutionResult(False, "", "", 1, error="IPC write failure")
+            return SessionExecutionResult(False, "", "", 1, error="IPC write failure", is_armored=is_armored)
 
         import aiofiles
 
@@ -425,6 +437,7 @@ class PersistentSession(ABC):
                 f"Timeout after {timeout}s",
                 124,
                 error="Timeout",
+                is_armored=is_armored,
             )
 
         if stream_buf.parse_failed:
@@ -440,6 +453,7 @@ class PersistentSession(ABC):
                 "Session output boundary corrupted",
                 1,
                 error="Session corrupted",
+                is_armored=is_armored,
             )
 
         stdout = stream_buf.get_final_output().rstrip("\n")
@@ -457,7 +471,7 @@ class PersistentSession(ABC):
 
             success = classify_exit_code(original_command, exit_code, stdout)
 
-        return SessionExecutionResult(success, stdout, "", exit_code)
+        return SessionExecutionResult(success, stdout, "", exit_code, is_armored=is_armored)
 
     async def execute_stream(self, command: str, timeout: int | None = None) -> AsyncIterator[str]:
         """Yield performance-optimized output stream."""

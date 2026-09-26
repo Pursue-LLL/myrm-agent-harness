@@ -5,10 +5,12 @@
 
 [OUTPUT]
 - ScriptArmorConfig: Dataclass configuring direct execution thresholds
+- ArmoredCommandString: String subclass carrying is_armored execution tag
 - should_materialize_script: Dual-mode heuristic decision probe
 - materialize_script_to_file: Atomic 0700 script file creation
 - build_file_backed_command: Subshell invocation command formatter
 - cleanup_materialized_script: Safe file unlink cleanup
+- sweep_stale_materialized_scripts: Safe cleanup of stale orphan materialized scripts
 - prepare_armored_command: Context manager wrapping materialization, execution, and cleanup
 
 [POS]
@@ -65,6 +67,22 @@ class ScriptArmorConfig:
     max_direct_lines: int = 2
     temp_dir: str = "/tmp"
     script_prefix: str = ".myrm_exec_"
+
+
+class ArmoredCommandString(str):
+    """String subclass tagging armored subshell execution status.
+
+    Behaves identically to a normal ``str`` for all operations, but carries an
+    ``is_armored: bool`` attribute indicating whether the command was materialized
+    to a file-backed subshell.
+    """
+
+    is_armored: bool
+
+    def __new__(cls, value: str, is_armored: bool = False) -> ArmoredCommandString:
+        obj = super().__new__(cls, value)
+        obj.is_armored = is_armored
+        return obj
 
 
 def should_materialize_script(command: str, config: ScriptArmorConfig | None = None) -> bool:
@@ -161,6 +179,38 @@ def cleanup_materialized_script(script_path: str | Path | None) -> None:
         Path(script_path).unlink(missing_ok=True)
 
 
+def sweep_stale_materialized_scripts(
+    temp_dir: str | Path = "/tmp",
+    max_age_seconds: float = 3600.0,
+    prefix: str = ".myrm_exec_",
+) -> int:
+    """Scan *temp_dir* and safely unlink stale materialized script files.
+
+    Used during session initialization or periodic maintenance to clean up
+    orphan scripts left behind by ungraceful terminations (e.g. OOM-kill).
+    Returns the number of files cleaned.
+    """
+    cleaned: int = 0
+    dir_path: Path = Path(temp_dir)
+    if not dir_path.is_dir():
+        return 0
+
+    import time
+
+    now: float = time.time()
+    try:
+        for p in dir_path.glob(f"{prefix}*.sh"):
+            try:
+                if (now - p.stat().st_mtime) > max_age_seconds:
+                    p.unlink(missing_ok=True)
+                    cleaned += 1
+            except OSError:
+                pass
+    except OSError:
+        pass
+    return cleaned
+
+
 @contextlib.contextmanager
 def prepare_armored_command(
     command: str,
@@ -172,18 +222,19 @@ def prepare_armored_command(
 
     Executes complex scripts via child subshell, while preserving direct parent shell
     execution for directory changes, environment variable exports, and simple short commands.
+    Yields an ArmoredCommandString carrying is_armored=True when materialized, False otherwise.
     """
     if is_windows or not should_materialize_script(command, config):
-        yield command
+        yield ArmoredCommandString(command, is_armored=False)
         return
 
     materialized_path: Path | None = None
     try:
         target_dir: Path = Path(work_dir) if Path(work_dir).is_dir() else Path("/tmp")
         materialized_path = materialize_script_to_file(command, temp_dir=target_dir)
-        yield build_file_backed_command(materialized_path)
+        yield ArmoredCommandString(build_file_backed_command(materialized_path), is_armored=True)
     except Exception as e:
         logger.warning("Script materialization failed, fallback to direct: %s", e)
-        yield command
+        yield ArmoredCommandString(command, is_armored=False)
     finally:
         cleanup_materialized_script(materialized_path)

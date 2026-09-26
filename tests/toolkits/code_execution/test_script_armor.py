@@ -16,12 +16,14 @@ from pathlib import Path
 import pytest
 
 from myrm_agent_harness.toolkits.code_execution.security.script_armor import (
+    ArmoredCommandString,
     ScriptArmorConfig,
     build_file_backed_command,
     cleanup_materialized_script,
     materialize_script_to_file,
     prepare_armored_command,
     should_materialize_script,
+    sweep_stale_materialized_scripts,
 )
 from myrm_agent_harness.toolkits.code_execution.session import (
     LocalPersistentSession,
@@ -196,5 +198,64 @@ EOF
             result = await session.execute(cmd)
             assert result.success
             assert "comment_test" in result.stdout
+            assert not result.is_armored
         finally:
             await session.close()
+
+    @pytest.mark.asyncio
+    async def test_armored_metadata_propagates_to_execution_result(self) -> None:
+        """Verify is_armored is False for direct commands and True for materialized scripts."""
+        session = LocalPersistentSession(_make_config())
+        await session.start()
+        try:
+            # Direct command -> is_armored is False
+            res_direct = await session.execute("ls -la")
+            assert not res_direct.is_armored
+
+            # Multiline / armored script -> is_armored is True
+            multiline_cmd = "echo 1\necho 2\necho 3\n"
+            res_armored = await session.execute(multiline_cmd)
+            assert res_armored.is_armored
+        finally:
+            await session.close()
+
+
+class TestSweepStaleMaterializedScripts:
+    """Test orphan script cleanup mechanism."""
+
+    def test_sweep_cleans_stale_files_and_keeps_fresh_ones(self, tmp_path: Path) -> None:
+        import time
+
+        now = time.time()
+        stale_file = tmp_path / ".myrm_exec_stale123.sh"
+        stale_file.write_text("echo stale\n", encoding="utf-8")
+        # Set mtime to 2 hours ago
+        os.utime(stale_file, (now - 7200, now - 7200))
+
+        fresh_file = tmp_path / ".myrm_exec_fresh456.sh"
+        fresh_file.write_text("echo fresh\n", encoding="utf-8")
+        # Set mtime to now
+        os.utime(fresh_file, (now, now))
+
+        other_file = tmp_path / "regular_file.sh"
+        other_file.write_text("echo regular\n", encoding="utf-8")
+        os.utime(other_file, (now - 7200, now - 7200))
+
+        cleaned = sweep_stale_materialized_scripts(tmp_path, max_age_seconds=3600.0)
+        assert cleaned == 1
+        assert not stale_file.exists()
+        assert fresh_file.exists()
+        assert other_file.exists()
+
+    def test_sweep_nonexistent_directory(self) -> None:
+        assert sweep_stale_materialized_scripts("/nonexistent/dir/xyz_404") == 0
+
+    def test_armored_command_string_is_instance_of_str(self) -> None:
+        tagged = ArmoredCommandString('bash "/tmp/.myrm_exec_123.sh"', is_armored=True)
+        assert isinstance(tagged, str)
+        assert tagged.is_armored
+        assert tagged.startswith('bash "')
+        # Slicing returns normal str
+        sliced = tagged[:4]
+        assert sliced == "bash"
+
