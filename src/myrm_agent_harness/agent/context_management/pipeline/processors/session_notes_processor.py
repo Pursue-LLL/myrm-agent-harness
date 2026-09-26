@@ -73,6 +73,8 @@ class SessionNotesProcessor(BaseProcessor):
     async def process(self, context: ProcessorContext) -> ProcessorContext:
         if context.metadata.get(CANCEL_COMPACTION_METADATA_KEY) is True:
             return context
+        if context.metadata.get(PRE_COMPACT_REPLACEMENT_SUMMARY_METADATA_KEY) is not None:
+            return context
         # Prompt Cache preservation: Skip SessionNotes during Resume or HITL session
         if self._should_skip_for_cache_preservation(context):
             logger.info(

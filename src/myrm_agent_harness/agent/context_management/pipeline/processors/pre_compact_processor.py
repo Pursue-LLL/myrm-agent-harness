@@ -87,7 +87,12 @@ class PreCompactProcessor(BaseProcessor):
         tier_obj = context.metadata.get("pre_compact_tier")
         tier = tier_obj if isinstance(tier_obj, str) else "compress"
         total_tokens = estimate_messages_tokens(context.messages)
-        max_tokens = self._compress_processor.config.max_context_tokens or 128000
+        max_tokens = int(
+            context.metadata.get("llm_max_context_tokens")
+            or getattr(self._compress_processor.config, "llm_max_context_tokens", None)
+            or self._compress_processor.config.max_context_tokens
+            or 128000
+        )
         pressure_ratio = min(total_tokens / max_tokens, 1.0) if max_tokens > 0 else 0.0
         user_goal_hint = extract_user_goal_hint(context.metadata)
 
@@ -116,9 +121,15 @@ class PreCompactProcessor(BaseProcessor):
                     "(pressure=%.2f >= 0.90); forcing passthrough compaction to prevent context overflow",
                     pressure_ratio,
                 )
+                context.operations.append(
+                    f"pre_compact: cancel VETOED by 90% safety fence (pressure={pressure_ratio:.2f} >= 0.90)"
+                )
             else:
                 context.metadata[CANCEL_COMPACTION_METADATA_KEY] = True
                 context.metadata["compaction_debt_pending"] = True
+                context.operations.append(
+                    f"pre_compact: compaction cancelled by extension hook (reason={decision.reason or 'unspecified'})"
+                )
                 from myrm_agent_harness.agent.context_management.tracking.task_metrics import get_task_metrics
 
                 if context.chat_id:
@@ -137,6 +148,9 @@ class PreCompactProcessor(BaseProcessor):
             if decision.replacement_summary is not None:
                 context.metadata[PRE_COMPACT_REPLACEMENT_SUMMARY_METADATA_KEY] = decision.replacement_summary
                 context.structured_summary = decision.replacement_summary
+                context.operations.append(
+                    f"pre_compact: compaction replaced with external structured summary (reason={decision.reason or 'unspecified'})"
+                )
                 logger.info(
                     "[PreCompact] Compaction replaced with external/cheap structured summary: %s",
                     decision.reason or "unspecified",

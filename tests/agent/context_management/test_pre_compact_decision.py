@@ -235,3 +235,74 @@ async def test_pre_compact_passthrough_with_injection() -> None:
     assert processed.metadata.get(PRE_COMPACT_MESSAGE_METADATA_KEY) is injection.message
     assert processed.metadata.get(PRE_COMPACT_INJECTION_METADATA_KEY) is injection
     assert processed.metadata.get(CANCEL_COMPACTION_METADATA_KEY) is None
+
+
+@pytest.mark.asyncio
+async def test_pre_compact_respects_runtime_llm_max_context_tokens_and_records_operations() -> None:
+    # Base config is 128,000, but runtime model window is 2,000 (e.g. small local model)
+    compress_proc = CompressProcessor(max_context_tokens=128_000)
+    summarize_proc = SummarizeProcessor(config=ContextConfig(max_context_tokens=128_000))
+
+    recorded_pressure: list[float] = []
+
+    async def cancel_callback(
+        messages: list,
+        chat_id: str | None,
+        user_id: str | None,
+        compaction_tier: str,
+        token_pressure_ratio: float,
+        user_goal_hint: str,
+    ) -> PreCompactDecision:
+        recorded_pressure.append(token_pressure_ratio)
+        return PreCompactDecision(action=PreCompactAction.CANCEL, reason="postpone_compaction")
+
+    pre_compact_proc = PreCompactProcessor(
+        compress_processor=compress_proc,
+        summarize_processor=summarize_proc,
+        on_pre_compact=cancel_callback,
+    )
+
+    # 1850 tokens with physical ceiling of 2000 => 92.5% pressure
+    # Under hardcoded 128,000 this would be 1.4% (and would erroneously pass Cancel).
+    # With llm_max_context_tokens dynamically resolved, it must trigger 90% Safety Veto!
+    context = ProcessorContext(
+        messages=[HumanMessage(content="word " * 1850)],
+        user_query="test",
+        chat_id="chat-small-model",
+        metadata={
+            "pre_compact_tier": "compress",
+            "llm_max_context_tokens": 2000,
+        },
+    )
+
+    processed = await pre_compact_proc.process(context)
+    assert len(recorded_pressure) == 1
+    assert recorded_pressure[0] >= 0.90
+    assert processed.metadata.get(CANCEL_COMPACTION_METADATA_KEY) is not True
+    assert any("cancel VETOED by 90% safety fence" in op for op in processed.operations)
+
+
+@pytest.mark.asyncio
+async def test_compress_processor_process_entry_bypasses_on_replacement_summary() -> None:
+    compress_proc = CompressProcessor(max_context_tokens=1000)
+    fake_summary = StructuredSummary(
+        user_goal="Task",
+        completed_actions=["Done"],
+        key_findings=[],
+        files_modified=[],
+    )
+
+    context = ProcessorContext(
+        messages=[HumanMessage(content="word " * 500)],
+        user_query="test",
+        chat_id="chat-5",
+        metadata={
+            PRE_COMPACT_REPLACEMENT_SUMMARY_METADATA_KEY: fake_summary,
+        },
+    )
+
+    # Calling process directly must bypass without pruning messages
+    original_len = len(context.messages)
+    processed = await compress_proc.process(context)
+    assert len(processed.messages) == original_len
+
