@@ -146,6 +146,12 @@ def test_resolve_primary_namespace_prefers_durable_scopes() -> None:
     assert resolve_primary_namespace(["shared:customer-a", "conversation:conv-1"]) == "conversation:conv-1"
 
 
+def test_resolve_primary_namespace_rejects_an_empty_chain() -> None:
+    """An empty chain is a programming error and must fail loudly, not IndexError."""
+    with pytest.raises(ValueError, match="empty namespace chain"):
+        resolve_primary_namespace([])
+
+
 def test_derive_namespaces_never_returns_an_empty_chain() -> None:
     """A policy whose read scopes carry no id this turn must not empty the chain.
 
