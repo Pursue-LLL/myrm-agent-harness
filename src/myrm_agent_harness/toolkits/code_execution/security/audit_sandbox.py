@@ -113,6 +113,18 @@ def install(
                 except Exception:
                     resolved_path = str(p)
 
+                # mkdir on an already-existing directory is a no-op (or a plain
+                # FileExistsError without exist_ok): nothing is created, so there
+                # is nothing to protect. Skipping avoids false positives from
+                # defensive `makedirs(..., exist_ok=True)` calls on allowed dirs
+                # (e.g. TMPDIR), whose audit event fires before the exists check.
+                if event == "os.mkdir":
+                    try:
+                        if os.path.isdir(resolved_path):
+                            continue
+                    except Exception:
+                        pass
+
                 # If readonly_workspace is enabled, writes are blocked in workspace as well
                 if readonly_workspace and (
                     resolved_path.startswith(workspace_real) or resolved_path.startswith(workspace_tmp)
@@ -204,4 +216,3 @@ def get_audit_hook_source_code() -> str:
     error_source = inspect.getsource(SecurityError)
 
     return f"{error_source}\n\n{install_source}\n"
-

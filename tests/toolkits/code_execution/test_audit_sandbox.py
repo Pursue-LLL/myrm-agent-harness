@@ -98,6 +98,61 @@ def test_file_isolation_writes_allowed_in_tmpdir(audit_hook):
     hook("os.mkdir", (tmp_path, 0o777, None))
 
 
+def test_mkdir_existing_dir_is_noop_and_allowed(audit_hook):
+    """Defensive makedirs(exist_ok=True) on existing dirs must not raise."""
+    hook, workspace = audit_hook
+    # Existing dir inside workspace: no-op, allowed.
+    hook("os.mkdir", (workspace, 0o777, None))
+    # Existing dir outside workspace (system tmpdir root): no-op, allowed.
+    hook("os.mkdir", (tempfile.gettempdir(), 0o777, None))
+
+
+def test_mkdir_missing_dir_outside_workspace_still_blocked(audit_hook):
+    """Creating new dirs outside workspace/tmp must still raise."""
+    hook, _ = audit_hook
+    missing_outside = "/xyz-no-such-dir-123"
+
+    with pytest.raises(
+        SecurityError, match=r"Destructive file operation \(os\.mkdir\) outside allowed workspace blocked"
+    ):
+        hook("os.mkdir", (missing_outside, 0o777, None))
+
+
+def test_mkdir_existing_tmpdir_allowed_under_mismatched_tmpdir(monkeypatch, tmp_path):
+    """Regression: hook whose tmpdir differs (stale/mismatched TMPDIR) must not
+    block mkdir on an existing system tmpdir — the E2E `os.mkdir TMPDIR` case."""
+    import tempfile
+
+    from myrm_agent_harness.toolkits.code_execution.security.audit_sandbox import (
+        install,
+    )
+
+    real_system_tmp = tempfile.gettempdir()
+    assert os.path.isdir(real_system_tmp)
+
+    fake_tmp = tmp_path / "fake_tmp"
+    fake_tmp.mkdir()
+    ws = tmp_path / "ws"
+    ws.mkdir()
+
+    monkeypatch.setenv("TMPDIR", str(fake_tmp))
+    tempfile.tempdir = None
+    try:
+        hook_capture = []
+        with patch("sys.addaudithook", side_effect=hook_capture.append):
+            install(workspace_path=str(ws), allow_network=False)
+        assert len(hook_capture) == 1
+        hook = hook_capture[0]
+        # Existing system tmpdir: no-op mkdir, must not raise even though it
+        # differs from this hook instance's tmpdir.
+        hook("os.mkdir", (real_system_tmp, 0o777, None))
+        # Genuinely new dir outside every allowed root: still blocked.
+        with pytest.raises(SecurityError, match="outside allowed workspace blocked"):
+            hook("os.mkdir", ("/xyz-no-such-dir-123", 0o777, None))
+    finally:
+        tempfile.tempdir = None
+
+
 def test_file_isolation_sensitive_reads_blocked(audit_hook):
     hook, _ = audit_hook
     sensitive_path = "/root/.ssh/id_rsa"
@@ -187,5 +242,3 @@ def test_real_cpython_socket_args_signature(tmp_path):
     hook_no_net("socket.connect", (dummy_socket, "/tmp/mcp.sock"))
     hook_no_net("socket.sendto", (dummy_socket, b"data", "/dev/log"))
     hook_no_net("socket.bind", (dummy_socket, "/tmp/service.sock"))
-
-
