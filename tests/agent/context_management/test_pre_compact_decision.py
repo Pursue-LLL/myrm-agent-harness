@@ -306,3 +306,101 @@ async def test_compress_processor_process_entry_bypasses_on_replacement_summary(
     processed = await compress_proc.process(context)
     assert len(processed.messages) == original_len
 
+
+@pytest.mark.asyncio
+async def test_pre_compact_replace_action_with_none_summary_falls_back_safely() -> None:
+    compress_proc = CompressProcessor(max_context_tokens=100_000)
+    summarize_proc = SummarizeProcessor(config=ContextConfig(max_context_tokens=100_000))
+
+    async def invalid_replace_callback(**kwargs) -> PreCompactDecision:
+        # Erroneous REPLACE decision where replacement_summary is None
+        return PreCompactDecision(
+            action=PreCompactAction.REPLACE,
+            replacement_summary=None,
+            reason="missing_summary_payload",
+        )
+
+    pre_compact_proc = PreCompactProcessor(
+        compress_processor=compress_proc,
+        summarize_processor=summarize_proc,
+        on_pre_compact=invalid_replace_callback,
+    )
+
+    context = ProcessorContext(
+        messages=[HumanMessage(content="test")],
+        user_query="test",
+        chat_id="chat-replace-none",
+        metadata={"pre_compact_tier": "summarize"},
+    )
+
+    processed = await pre_compact_proc.process(context)
+    # Must fallback: replacement summary key must not be populated
+    assert PRE_COMPACT_REPLACEMENT_SUMMARY_METADATA_KEY not in processed.metadata
+    assert processed.structured_summary is None
+
+
+@pytest.mark.asyncio
+async def test_pre_compact_cancel_safety_fence_exact_boundary_conditions() -> None:
+    # Test boundary behavior: exactly at < 0.90 (pass) vs >= 0.90 (veto)
+    compress_proc = CompressProcessor(max_context_tokens=1000)
+    summarize_proc = SummarizeProcessor(config=ContextConfig(max_context_tokens=1000))
+
+    async def cancel_cb(**kwargs) -> PreCompactDecision:
+        return PreCompactDecision(action=PreCompactAction.CANCEL, reason="boundary_test")
+
+    pre_compact_proc = PreCompactProcessor(
+        compress_processor=compress_proc,
+        summarize_processor=summarize_proc,
+        on_pre_compact=cancel_cb,
+    )
+
+    # 1. 800 tokens on 1000 limit = 80.0% (< 90% fence): CANCEL MUST PASS
+    ctx_pass = ProcessorContext(
+        messages=[HumanMessage(content="word " * 800)],
+        user_query="pass",
+        chat_id="chat-boundary-pass",
+        metadata={"pre_compact_tier": "compress", "llm_max_context_tokens": 1000},
+    )
+    res_pass = await pre_compact_proc.process(ctx_pass)
+    assert res_pass.metadata.get(CANCEL_COMPACTION_METADATA_KEY) is True
+    assert any("compaction cancelled by extension hook" in op for op in res_pass.operations)
+
+    # 2. 905 tokens on 1000 limit = 90.5% (>= 90% fence): CANCEL MUST BE VETOED
+    ctx_veto = ProcessorContext(
+        messages=[HumanMessage(content="word " * 905)],
+        user_query="veto",
+        chat_id="chat-boundary-veto",
+        metadata={"pre_compact_tier": "compress", "llm_max_context_tokens": 1000},
+    )
+    res_veto = await pre_compact_proc.process(ctx_veto)
+    assert res_veto.metadata.get(CANCEL_COMPACTION_METADATA_KEY) is not True
+    assert any("cancel VETOED by 90% safety fence" in op for op in res_veto.operations)
+
+
+@pytest.mark.asyncio
+async def test_pre_compact_callback_exception_fails_safe_without_breaking_pipeline() -> None:
+    compress_proc = CompressProcessor(max_context_tokens=1000)
+    summarize_proc = SummarizeProcessor(config=ContextConfig(max_context_tokens=1000))
+
+    async def exploding_callback(**kwargs) -> PreCompactDecision:
+        raise RuntimeError("Simulated extension catastrophic error")
+
+    pre_compact_proc = PreCompactProcessor(
+        compress_processor=compress_proc,
+        summarize_processor=summarize_proc,
+        on_pre_compact=exploding_callback,
+    )
+
+    context = ProcessorContext(
+        messages=[HumanMessage(content="hello")],
+        user_query="hello",
+        chat_id="chat-exploding",
+        metadata={"pre_compact_tier": "compress"},
+    )
+
+    # Must not raise; should log warning and return intact context
+    processed = await pre_compact_proc.process(context)
+    assert processed is context
+    assert CANCEL_COMPACTION_METADATA_KEY not in processed.metadata
+
+
