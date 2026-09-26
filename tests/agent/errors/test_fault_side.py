@@ -84,6 +84,11 @@ class TestClassifyToolFaultSide:
             "tool_cancelled",
             "guardrail_blocked",
             "benchmark_blocked",
+            # Tripping the output ceiling means the user requested more than policy
+            # allows, so the block is OWNER-caused. Pinned separately from the enum
+            # coverage guard above, which only checks "mapped != UNKNOWN" and would not
+            # catch this member being silently reclassified onto the wrong side.
+            "output_limit",
         ],
     )
     def test_owner_categories(self, error_category: str) -> None:
