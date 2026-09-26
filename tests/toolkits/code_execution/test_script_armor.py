@@ -279,9 +279,20 @@ class TestSweepStaleMaterializedScripts:
         stale_file = tmp_path / ".myrm_exec_stale_err.sh"
         stale_file.write_text("echo err\n", encoding="utf-8")
 
-        def _failing_stat(self, *args, **kwargs):
-            raise OSError("Permission denied")
+        real_stat = Path.stat
 
-        monkeypatch.setattr(Path, "stat", _failing_stat)
+        def _selective_stat(self, *args, **kwargs):
+            if str(self).endswith(".sh"):
+                raise OSError("Permission denied on file")
+            return real_stat(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "stat", _selective_stat)
+        assert sweep_stale_materialized_scripts(tmp_path, max_age_seconds=10.0) == 0
+
+    def test_sweep_handles_dir_stat_error_gracefully(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        def _dir_stat_fail(self, *args, **kwargs):
+            raise OSError("Permission denied on directory")
+
+        monkeypatch.setattr(Path, "stat", _dir_stat_fail)
         assert sweep_stale_materialized_scripts(tmp_path, max_age_seconds=10.0) == 0
 

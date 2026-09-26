@@ -192,7 +192,10 @@ def sweep_stale_materialized_scripts(
     """
     cleaned: int = 0
     dir_path: Path = Path(temp_dir)
-    if not dir_path.is_dir():
+    try:
+        if not dir_path.is_dir():
+            return 0
+    except OSError:
         return 0
 
     import time
