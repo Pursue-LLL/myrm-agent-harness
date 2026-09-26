@@ -319,6 +319,103 @@ def test_skips_sensitive_app_capture(monkeypatch) -> None:
     )
 
 
+def test_accepts_a_platform_backend_directly(monkeypatch) -> None:
+    """A bare platform backend is used as-is, without a session to unwrap."""
+
+    class MacOSBackend:
+        pass
+
+    frames = [
+        (_meta("Finder"), {"r1": _element("r1", "AXButton", "Open")}),
+        (_meta("Finder"), {"r1": _element("r1", "AXButton", "Open"), "r2": _element("r2", "AXButton", "Save")}),
+    ]
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.computer_use.recording.capture_driver.capture_snapshot",
+        _ScriptedCapture(frames),
+    )
+
+    driver = DesktopCaptureDriver(MacOSBackend())
+    asyncio.run(driver.poll())
+    frame = asyncio.run(driver.poll())
+
+    assert len(frame.events) == 1
+    assert frame.events[0].element_title == "Save"
+
+
+def test_wrapper_without_backend_attribute_is_used_as_is(monkeypatch) -> None:
+    """A source with no `_backend` is treated as the backend itself."""
+    frames = [
+        (_meta("Finder"), {"r1": _element("r1", "AXButton", "Open")}),
+        (_meta("Finder"), {"r1": _element("r1", "AXButton", "Open"), "r2": _element("r2", "AXButton", "Save")}),
+    ]
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.computer_use.recording.capture_driver.capture_snapshot",
+        _ScriptedCapture(frames),
+    )
+
+    class _BareSource:
+        pass
+
+    driver = DesktopCaptureDriver(_BareSource())
+    asyncio.run(driver.poll())
+    frame = asyncio.run(driver.poll())
+
+    assert len(frame.events) == 1
+
+
+def test_ignores_updated_entry_without_element(monkeypatch) -> None:
+    """A malformed diff entry must be skipped rather than crash the capture loop."""
+    from myrm_agent_harness.toolkits.computer_use.perception.ax_diff import RefDiff, UpdatedRef
+
+    frames = [
+        (_meta("App"), {"r1": _element("r1", "AXButton", "Base")}),
+        (_meta("App"), {"r1": _element("r1", "AXButton", "Base"), "r2": _element("r2", "AXButton", "New")}),
+    ]
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.computer_use.recording.capture_driver.capture_snapshot",
+        _ScriptedCapture(frames),
+    )
+
+    driver = DesktopCaptureDriver(_FakeBackend())
+    asyncio.run(driver.poll())
+
+    # A diff whose updated entry carries no element must not produce an event or raise.
+    malformed = RefDiff(updated=[UpdatedRef(ref_id="r1", element=None, changed_fields=("value",))])  # type: ignore[arg-type]
+    events = driver._events_from_diff(malformed, _meta("App"))
+    assert events == []
+
+
+def test_deeply_nested_wrapper_resolves_within_the_hop_limit(monkeypatch) -> None:
+    """Nesting deeper than the lookup limit must still resolve without raising."""
+    frames = [
+        (_meta("Finder"), {"r1": _element("r1", "AXButton", "Open")}),
+        (_meta("Finder"), {"r1": _element("r1", "AXButton", "Open"), "r2": _element("r2", "AXButton", "Save")}),
+    ]
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.computer_use.recording.capture_driver.capture_snapshot",
+        _ScriptedCapture(frames),
+    )
+
+    class _Level4:
+        _backend = None
+
+    class _Level3:
+        _backend = _Level4()
+
+    class _Level2:
+        _backend = _Level3()
+
+    class _Level1:
+        _backend = _Level2()
+
+    driver = DesktopCaptureDriver(_Level1())
+    asyncio.run(driver.poll())
+    frame = asyncio.run(driver.poll())
+
+    # The wrapper chain is used as-is once the hop budget is exhausted; capture still runs.
+    assert len(frame.events) == 1
+
+
 def test_reset_clears_baseline_and_counter(monkeypatch) -> None:
     """Reset re-arms the driver for a new recording session."""
     frames = [
