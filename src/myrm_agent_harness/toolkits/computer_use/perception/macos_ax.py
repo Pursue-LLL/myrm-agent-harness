@@ -209,7 +209,7 @@ tell application "System Events"
                     end if
                     if elemName is missing value then set elemName to ""
                     if elemValue is missing value then set elemValue to ""
-                    
+
                     set matchQuery to true
                     if targetQuery is not "" then
                         set lowerName to (elemName as text)
@@ -218,7 +218,7 @@ tell application "System Events"
                             set matchQuery to false
                         end if
                     end if
-                    
+
                     set matchRole to true
                     if targetRole is not "" then
                         set lowerRole to (elemRole as text)
@@ -226,7 +226,7 @@ tell application "System Events"
                             set matchRole to false
                         end if
                     end if
-                    
+
                     if matchQuery and matchRole then
                         if elemName is not "" or elemValue is not "" or elemRole is in {{{always_emit_roles}}} then
                             set safeName to my escapeText(elemName)

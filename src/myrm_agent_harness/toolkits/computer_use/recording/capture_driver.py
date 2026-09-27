@@ -20,8 +20,10 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
+from typing import cast
 
 from myrm_agent_harness.toolkits.computer_use import safety
+from myrm_agent_harness.toolkits.computer_use.backends.protocols import ComputerBackend
 from myrm_agent_harness.toolkits.computer_use.dref.types import (
     SECURE_OVERLAY_ROLE,
     ElementRef,
@@ -95,7 +97,9 @@ class DesktopCaptureDriver:
     """
 
     def __init__(self, capture_source: object, *, app_scope: str = "all") -> None:
-        self._backend = _resolve_backend(capture_source)
+        # ``_resolve_backend`` walks a session's ``_backend`` chain, so the resolved object is
+        # only known to satisfy the backend contract at runtime; the cast documents that.
+        self._backend = cast(ComputerBackend, _resolve_backend(capture_source))
         self._app_scope = app_scope
         self._prev_refs: dict[str, ElementRef] = {}
         self._prev_meta: SnapshotMeta | None = None
@@ -180,11 +184,10 @@ class DesktopCaptureDriver:
             # text itself. The role is the sole signal, because macOS reports a password field
             # as an ordinary text field at the AppleScript layer.
             secure = is_secure_role(element.role) or overlay_role == SECURE_OVERLAY_ROLE
-            if secure:
-                emitted.append(
-                    self._build_event(meta=meta, action=RecordedActionType.TYPE.value, element=element)
-                )
-            elif overlay_role in _TEXT_ENTRY_OVERLAY_ROLES:
+            if secure or overlay_role in _TEXT_ENTRY_OVERLAY_ROLES:
+                # A secure field is reported as a type interaction with no value: only that text
+                # was entered, never the text itself. The role is the sole signal, because macOS
+                # reports a password field as an ordinary text field at the AppleScript layer.
                 emitted.append(
                     self._build_event(meta=meta, action=RecordedActionType.TYPE.value, element=element)
                 )

@@ -35,6 +35,37 @@ class RecordedActionType(StrEnum):
     LIFTED_TOOL = "lifted_tool"
 
 
+def _as_str_list(raw: object) -> list[str]:
+    """Coerce an untrusted deserialized value into a list of strings.
+
+    ``from_dict`` accepts arbitrary decoded JSON, so the element type is only known at runtime.
+    """
+    if not isinstance(raw, (list, tuple)):
+        return []
+    return [item for item in raw if isinstance(item, str)]
+
+
+def _as_int(raw: object, default: int = 0) -> int:
+    """Coerce an untrusted deserialized value into an int."""
+    if isinstance(raw, (int, float, str, bytes, bytearray)):
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            return default
+    return default
+
+
+def _as_float(raw: object, default: float | None = None) -> float:
+    """Coerce an untrusted deserialized value into a float."""
+    fallback = time.time() if default is None else default
+    if isinstance(raw, (int, float, str, bytes, bytearray)):
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            return fallback
+    return fallback
+
+
 @dataclass
 class DesktopRecordedEvent:
     """Individual recorded desktop interaction event."""
@@ -75,8 +106,8 @@ class DesktopRecordedEvent:
     def from_dict(cls, data: dict[str, object]) -> DesktopRecordedEvent:
         """Create from dictionary."""
         return cls(
-            seq=int(data.get("seq", 0)),  # type: ignore[arg-type]
-            timestamp=float(data.get("timestamp", time.time())),  # type: ignore[arg-type]
+            seq=_as_int(data.get("seq")),
+            timestamp=_as_float(data.get("timestamp")),
             action=str(data.get("action", RecordedActionType.CLICK.value)),
             app_name=str(data.get("app_name", "")),
             bundle_id=str(data["bundle_id"]) if data.get("bundle_id") is not None else None,
@@ -86,7 +117,7 @@ class DesktopRecordedEvent:
             element_title=str(data["element_title"]) if data.get("element_title") is not None else None,
             value=str(data["value"]) if data.get("value") is not None else None,
             is_password=bool(data.get("is_password", False)),
-            modifiers=[str(m) for m in (data.get("modifiers") or []) if isinstance(m, str)],  # type: ignore[union-attr]
+            modifiers=[str(m) for m in _as_str_list(data.get("modifiers")) if isinstance(m, str)],
             screenshot_b64=str(data["screenshot_b64"]) if data.get("screenshot_b64") is not None else None,
         )
 
