@@ -59,13 +59,15 @@ class InMemoryBackend:
         self,
         session_id: str,
         custom_type: str | None = None,
+        max_sequence: int | None = None,
     ) -> dict[str, object]:
         for event in reversed(self._events.get(session_id, [])):
+            if max_sequence is not None and event.sequence > max_sequence:
+                continue
             if event.event_type == "custom":
                 payload = event.data
-                if isinstance(payload, dict):
-                    if custom_type is None or payload.get("custom_type") == custom_type:
-                        return payload
+                if isinstance(payload, dict) and (custom_type is None or payload.get("custom_type") == custom_type):
+                    return payload
         return {}
 
     async def close(self) -> None:

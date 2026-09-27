@@ -13,6 +13,7 @@ import time
 from pathlib import Path
 
 import pytest
+
 from myrm_agent_harness.agent.event_log.backends.file_backend import FileEventLogBackend
 from myrm_agent_harness.agent.event_log.trace_builder import build_trace
 from myrm_agent_harness.agent.event_log.types import (
@@ -160,3 +161,55 @@ async def test_trace_builder_aggregates_custom_states(tmp_path: Path) -> None:
     trace_dict = trace.to_dict()
     assert "custom_states" in trace_dict
     assert trace_dict["custom_states"]["git_scanner"] == {"branch": "main", "clean": True}
+
+
+@pytest.mark.asyncio
+async def test_get_latest_custom_state_time_travel_sequence_guard(tmp_path: Path) -> None:
+    """Time-travel sequence guard must ignore future events when max_sequence is specified."""
+    session_id = "test-session-time-travel"
+    backend = FileEventLogBackend(log_dir=tmp_path, session_id=session_id)
+
+    # Simulate sequence:
+    # seq 1: plugin_cfg initialized with v1
+    # seq 2: plugin_cfg updated to v2
+    # seq 3: plugin_cfg updated to v3 (simulating a turn that gets rolled back)
+    events = [
+        StructuredEvent(
+            sequence=1,
+            timestamp=1000.0,
+            event_type="custom",
+            session_id=session_id,
+            data=EventPayload(custom_type="config_plugin", state={"v": 1, "active": True}),
+        ),
+        StructuredEvent(
+            sequence=2,
+            timestamp=1001.0,
+            event_type="custom",
+            session_id=session_id,
+            data=EventPayload(custom_type="config_plugin", state={"v": 2, "active": True}),
+        ),
+        StructuredEvent(
+            sequence=3,
+            timestamp=1002.0,
+            event_type="custom",
+            session_id=session_id,
+            data=EventPayload(custom_type="config_plugin", state={"v": 3, "active": False}),
+        ),
+    ]
+    await backend.append(events)
+
+    # 1. Unconstrained lookup returns latest physical state (v3)
+    latest_state = await backend.get_latest_custom_state(session_id, "config_plugin")
+    assert latest_state == {"v": 3, "active": False}
+
+    # 2. Time-travel query at max_sequence=2 must ignore sequence 3 and return v2
+    rollback_state = await backend.get_latest_custom_state(session_id, "config_plugin", max_sequence=2)
+    assert rollback_state == {"v": 2, "active": True}
+
+    # 3. Time-travel query at max_sequence=1 must ignore sequences 2 and 3 and return v1
+    v1_state = await backend.get_latest_custom_state(session_id, "config_plugin", max_sequence=1)
+    assert v1_state == {"v": 1, "active": True}
+
+    # 4. Time-travel query before any custom event (max_sequence=0) returns empty
+    pre_state = await backend.get_latest_custom_state(session_id, "config_plugin", max_sequence=0)
+    assert pre_state == {}

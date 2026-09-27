@@ -34,12 +34,16 @@ class EventLogBackend(Protocol):
         ...
 
     async def get_latest_custom_state(
-        self, session_id: str, custom_type: str | None = None
+        self,
+        session_id: str,
+        custom_type: str | None = None,
+        max_sequence: int | None = None,
     ) -> dict[str, object]:
         """Retrieve the latest consolidated custom state for a session.
 
         If custom_type is specified, returns that extension's state dictionary.
         If custom_type is None, returns a dict mapping all custom_types to their latest state.
+        If max_sequence is specified, only events with sequence <= max_sequence are considered.
         """
         ...
 

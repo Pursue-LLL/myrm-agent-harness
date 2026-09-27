@@ -20,8 +20,9 @@ import asyncio
 import json
 import logging
 import time
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator, TextIO
+from typing import TextIO
 
 from myrm_agent_harness.observability.invariants.bootstrap import ensure_runtime_invariants_installed
 from myrm_agent_harness.observability.invariants.config import get_invariant_mode
@@ -210,11 +211,15 @@ class FileEventLogBackend:
         return events
 
     async def get_latest_custom_state(
-        self, session_id: str, custom_type: str | None = None
+        self,
+        session_id: str,
+        custom_type: str | None = None,
+        max_sequence: int | None = None,
     ) -> dict[str, object]:
         """Retrieve the latest consolidated custom state for a session.
 
         Performs reverse line scanning for fast O(1) tail-short-circuit lookup.
+        If max_sequence is specified, only events with sequence <= max_sequence are considered.
         """
         target_file = self._log_dir / f"{session_id}.jsonl"
         if not target_file.exists():
@@ -228,6 +233,11 @@ class FileEventLogBackend:
                         raw = json.loads(line)
                     except json.JSONDecodeError:
                         continue
+
+                    if max_sequence is not None:
+                        seq = raw.get("seq")
+                        if isinstance(seq, int) and seq > max_sequence:
+                            continue
 
                     if raw.get("type") != "custom":
                         continue
