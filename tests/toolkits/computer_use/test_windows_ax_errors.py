@@ -309,3 +309,48 @@ class TestInspectForegroundErrors:
         result = windows_ax.inspect_foreground()
         assert result["needs_permission"] is True
         assert "permission" in result["recommendation"].lower()
+
+
+class TestSecureFieldRedaction:
+    """A UIA password edit must never have its value read into the snapshot."""
+
+    @staticmethod
+    def _edit(control_type: str, name: str, is_password: bool) -> MagicMock:
+        control = _make_interactive_control()
+        control.ControlTypeName = control_type
+        control.Name = name
+        control.IsPassword = is_password
+        return control
+
+    def test_password_edit_value_is_never_read(self) -> None:
+        """``IsPassword`` must short-circuit the ValuePattern read, not mask it afterwards."""
+        secure = self._edit("EditControl", "", True)
+        secure.GetValuePattern.side_effect = AssertionError("a password field must not be read")
+
+        root = MagicMock()
+        root.GetChildren.return_value = [secure]
+        refs: dict = {}
+        windows_ax._collect_controls(root, refs, [0])
+
+        assert "d0" in refs
+        ref = refs["d0"]
+        assert ref.value == ""
+        assert ref.role == "PasswordBox"
+        from myrm_agent_harness.toolkits.computer_use.dref.types import is_secure_role
+
+        assert is_secure_role(ref.role) is True
+
+    def test_plain_edit_keeps_its_value(self) -> None:
+        """Redaction must stay scoped to password edits."""
+        plain = self._edit("EditControl", "User", False)
+        pattern = MagicMock()
+        pattern.Value = "alice"
+        plain.GetValuePattern.return_value = pattern
+
+        root = MagicMock()
+        root.GetChildren.return_value = [plain]
+        refs: dict = {}
+        windows_ax._collect_controls(root, refs, [0])
+
+        assert refs["d0"].value == "alice"
+        assert refs["d0"].role == "EditControl"

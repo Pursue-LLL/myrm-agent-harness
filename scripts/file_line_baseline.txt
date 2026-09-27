@@ -58,12 +58,11 @@ myrm_agent_harness/agent/sub_agents/manager.py	641
 myrm_agent_harness/agent/sub_agents/orchestrator.py	947
 myrm_agent_harness/agent/sub_agents/prompts.py	546
 myrm_agent_harness/agent/sub_agents/types.py	552
-myrm_agent_harness/api/__init__.py	522
 myrm_agent_harness/backends/commerce/memory_backend.py	592
 myrm_agent_harness/backends/skills/_utils.py	836
 myrm_agent_harness/backends/skills/forgetting_strategy.py	573
 myrm_agent_harness/backends/skills/scanning/patterns.py	875
-myrm_agent_harness/backends/skills/scanning/scanner.py	543
+myrm_agent_harness/backends/skills/scanning/scanner.py	528
 myrm_agent_harness/core/security/egress/proxy_server.py	591
 myrm_agent_harness/core/security/tool_registry/registry.py	821
 myrm_agent_harness/core/security/types.py	626
@@ -72,7 +71,7 @@ myrm_agent_harness/eval/protocols.py	711
 myrm_agent_harness/infra/delivery/queue.py	604
 myrm_agent_harness/infra/delivery/storage.py	536
 myrm_agent_harness/infra/sqlite_salvage.py	663
-myrm_agent_harness/infra/tracing/tracer.py	724
+myrm_agent_harness/infra/tracing/tracer.py	704
 myrm_agent_harness/observability/diagnostics/probes.py	622
 myrm_agent_harness/runtime/context/instance_metrics.py	717
 myrm_agent_harness/runtime/paths/execution_paths.py	573
@@ -95,8 +94,8 @@ myrm_agent_harness/toolkits/code_execution/session/persistent_session.py	543
 myrm_agent_harness/toolkits/computer_use/backends/macos.py	619
 myrm_agent_harness/toolkits/computer_use/backends/windows.py	529
 myrm_agent_harness/toolkits/computer_use/desktop_session.py	782
-myrm_agent_harness/toolkits/computer_use/perception/macos_ax.py	682
-myrm_agent_harness/toolkits/computer_use/perception/windows_ax.py	530
+myrm_agent_harness/toolkits/computer_use/perception/macos_ax.py	657
+myrm_agent_harness/toolkits/computer_use/perception/windows_ax.py	519
 myrm_agent_harness/toolkits/computer_use/session.py	538
 myrm_agent_harness/toolkits/cron/cron_agent_tools.py	870
 myrm_agent_harness/toolkits/cron/engine/executor.py	783

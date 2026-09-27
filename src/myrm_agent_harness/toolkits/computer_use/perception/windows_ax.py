@@ -80,12 +80,22 @@ def _collect_controls(
         control_type = getattr(child, "ControlTypeName", "")
         if control_type in _INTERACTIVE_TYPES:
             name = getattr(child, "Name", "") or ""
+            # UIA marks a password edit with IsPassword. Resolve it before the ValuePattern read
+            # so the secret never leaves the accessibility tree — masking afterwards would be a
+            # weaker guarantee, and ``name or value`` below would still leak it via the name.
+            secure = False
+            if control_type == "EditControl":
+                try:
+                    secure = bool(getattr(child, "IsPassword", False))
+                except Exception:
+                    secure = False
             value = ""
-            try:
-                pattern = child.GetValuePattern()
-                value = pattern.Value if pattern else ""
-            except Exception:
-                pass
+            if not secure:
+                try:
+                    pattern = child.GetValuePattern()
+                    value = pattern.Value if pattern else ""
+                except Exception:
+                    pass
 
             match_query = True
             if query_lower:
@@ -104,7 +114,7 @@ def _collect_controls(
                     ref_id = f"d{counter[0]}"
                     refs[ref_id] = ElementRef(
                         ref_id=ref_id,
-                        role=control_type,
+                        role="PasswordBox" if secure else control_type,
                         name=name or value,
                         bbox=BBox(rect.left, rect.top, rect.width(), rect.height()),
                         backend_key=str(counter[0]),
@@ -449,33 +459,14 @@ def invoke_ax_element(
 
 _COM_AUTOMATABLE_APPS: frozenset[str] = frozenset(
     {
-        "Microsoft Excel",
-        "Microsoft Word",
-        "Microsoft PowerPoint",
-        "Microsoft Outlook",
-        "Microsoft Access",
-        "Microsoft Visio",
-        "File Explorer",
-        "Windows Terminal",
-        "Command Prompt",
-        "PowerShell",
-        "Notepad",
-        "WordPad",
-        "Calculator",
-        "Adobe Photoshop",
-        "Adobe Illustrator",
-        "Adobe Acrobat",
-        "Adobe InDesign",
-        "AutoCAD",
-        "WPS",
-        "WPS Office",
-        "Firefox",
-        "Arc",
-        "Obsidian",
-        "Discord",
-        "Visual Studio Code",
-        "Cursor",
-        "Total Commander",
+        "Microsoft Excel", "Microsoft Word", "Microsoft PowerPoint",
+        "Microsoft Outlook", "Microsoft Access", "Microsoft Visio",
+        "File Explorer", "Windows Terminal", "Command Prompt", "PowerShell",
+        "Notepad", "WordPad", "Calculator",
+        "Adobe Photoshop", "Adobe Illustrator", "Adobe Acrobat", "Adobe InDesign",
+        "AutoCAD", "WPS", "WPS Office",
+        "Firefox", "Arc", "Obsidian", "Discord",
+        "Visual Studio Code", "Cursor", "Total Commander",
     }
 )
 
