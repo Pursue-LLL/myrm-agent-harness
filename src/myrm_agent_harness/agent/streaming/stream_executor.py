@@ -66,6 +66,7 @@ if TYPE_CHECKING:
     from myrm_agent_harness.agent.event_log.logger import EventLogger
     from myrm_agent_harness.agent.goals.protocols import GoalProvider
     from myrm_agent_harness.agent.goals.types import Goal, GoalExecutionSummary
+    from myrm_agent_harness.agent.streaming.rules.coordinator import TtsrCoordinator
     from myrm_agent_harness.toolkits.memory.manager import MemoryManager
     from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
     from myrm_agent_harness.utils.runtime.steering import SteeringToken
@@ -110,6 +111,7 @@ class StreamContext:
     llm: BaseChatModel | None = None
     token_tracker: TokenTracker | None = None
     memory_manager: MemoryManager | None = None
+    ttsr_coordinator: TtsrCoordinator | None = None
 
 
 class StreamExecutor(StreamDispatcherMixin, PreflightGateMixin, StreamRecoveryMixin):
@@ -295,10 +297,24 @@ class StreamExecutor(StreamDispatcherMixin, PreflightGateMixin, StreamRecoveryMi
                             self._redirect_partial_preserved = partial_preserved
                             break
 
+                        if ctx.ttsr_coordinator and ctx.ttsr_coordinator.interrupt_requested:
+                            logger.warning(
+                                " TTSR rule violation detected: aborting astream mid-token and discarding offending output"
+                            )
+                            self._partial_text_buffer = ""
+                            break
+
                         # astream with a list of stream modes yields (mode, data)
                         # tuples per LangGraph docs; cast narrows the overly-wide
                         # dict[str, Any] | Any signature down to the runtime shape.
                         await self._dispatch_chunk(cast("tuple[str, object]", chunk), ctx, collected_messages)
+
+                        if ctx.ttsr_coordinator and ctx.ttsr_coordinator.interrupt_requested:
+                            logger.warning(
+                                " TTSR rule violation triggered during dispatch: aborting astream immediately"
+                            )
+                            self._partial_text_buffer = ""
+                            break
 
                 except Exception as astream_exc:
                     iteration_limit_hit = await self._handle_iteration_limit(astream_exc, collected_messages)
@@ -357,6 +373,9 @@ class StreamExecutor(StreamDispatcherMixin, PreflightGateMixin, StreamRecoveryMi
                     continue
 
                 if await self._handle_teammate_messages(collected_messages):
+                    continue
+
+                if await self._handle_ttsr(collected_messages):
                     continue
 
                 if await self._handle_steering(collected_messages):

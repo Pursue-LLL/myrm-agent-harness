@@ -172,9 +172,23 @@ class StreamDispatcherMixin:
 
     async def _dispatch_messages(self, data: object, ctx: StreamContext) -> None:
         """Process 'messages' stream mode chunks."""
+        if ctx.ttsr_coordinator and isinstance(data, tuple) and len(data) >= 1:
+            message_chunk = data[0]
+            tool_call_chunks = getattr(message_chunk, "tool_call_chunks", None)
+            if tool_call_chunks and isinstance(tool_call_chunks, list):
+                for tc in tool_call_chunks:
+                    tc_args = tc.get("args") if isinstance(tc, dict) else getattr(tc, "args", None)
+                    if isinstance(tc_args, str) and tc_args:
+                        match = ctx.ttsr_coordinator.inspect_chunk("tool_args", tc_args, ctx.stats.node_execution_count)
+                        if match and ctx.ttsr_coordinator.interrupt_requested:
+                            return
+
         for event, is_tool_start in process_messages_chunk(
             cast("tuple[object, object]", data), ctx.stats, ctx.message_id
         ):
+            if ctx.ttsr_coordinator and ctx.ttsr_coordinator.interrupt_requested:
+                return
+
             if not is_tool_start and not self.streaming_final_answer:
                 self.streaming_final_answer = True
                 self._partial_text_buffer = ""
@@ -183,6 +197,10 @@ class StreamDispatcherMixin:
             if isinstance(event, dict) and event.get("type") == AgentEventType.MESSAGE.value:
                 content = event.get("data", "")
                 if isinstance(content, str):
+                    if ctx.ttsr_coordinator:
+                        match = ctx.ttsr_coordinator.inspect_chunk("assistant", content, ctx.stats.node_execution_count)
+                        if match and ctx.ttsr_coordinator.interrupt_requested:
+                            return
                     self._partial_text_buffer += content
                     forwarded = self._escalation_scrubber.process(content)
                     if forwarded is None:
@@ -196,13 +214,22 @@ class StreamDispatcherMixin:
                                     "type": AgentEventType.ERROR.value,
                                     "data": self._repetition_scrubber.aborted_reason,
                                     "messageId": ctx.message_id,
-                                },
+                                    },
                                 ctx,
                             )
                             continue
                         forwarded = rep_checked
                     for scrubbed_type, scrubbed_text in self._reasoning_scrubber.process(forwarded):
                         if scrubbed_text:
+                            if ctx.ttsr_coordinator and (
+                                scrubbed_type == AgentEventType.REASONING
+                                or str(scrubbed_type) == AgentEventType.REASONING.value
+                            ):
+                                match = ctx.ttsr_coordinator.inspect_chunk(
+                                    "thinking", scrubbed_text, ctx.stats.node_execution_count
+                                )
+                                if match and ctx.ttsr_coordinator.interrupt_requested:
+                                    return
                             restored_text = self._restore_pseudonyms(scrubbed_text)
                             event_copy = dict(event)
                             event_copy["type"] = (
@@ -212,6 +239,15 @@ class StreamDispatcherMixin:
                             await self._emit_event(event_copy, ctx)
                 else:
                     await self._emit_event(event, ctx)
+            elif isinstance(event, dict) and event.get("type") == AgentEventType.REASONING.value:
+                reasoning_content = event.get("data", "")
+                if isinstance(reasoning_content, str) and ctx.ttsr_coordinator:
+                    match = ctx.ttsr_coordinator.inspect_chunk(
+                        "thinking", reasoning_content, ctx.stats.node_execution_count
+                    )
+                    if match and ctx.ttsr_coordinator.interrupt_requested:
+                        return
+                await self._emit_event(event, ctx)
             else:
                 await self._emit_event(event, ctx)
 

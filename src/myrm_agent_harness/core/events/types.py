@@ -159,6 +159,7 @@ class AgentEventType(StrEnum):
     WORKING_MEMORY = "working_memory"
     CUSTOM = "custom"
     CUSTOM_MESSAGE = "custom_message"
+    TTSR_TRIGGERED = "ttsr_triggered"
 
 
 class ExecutionPhase(StrEnum):

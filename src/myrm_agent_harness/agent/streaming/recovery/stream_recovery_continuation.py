@@ -120,6 +120,80 @@ class StreamContinuationRecoveryMixin:
         )
         return True
 
+    async def _handle_ttsr(self, collected_messages: list[BaseMessage]) -> bool:
+        """Handle Time-Traveling Stream Rules (TTSR) interruption and retry in-place."""
+        ctx = self._ctx
+        if ctx.stats.was_cancelled or ctx.ttsr_coordinator is None:
+            return False
+
+        if not ctx.ttsr_coordinator.interrupt_requested:
+            return False
+
+        match = ctx.ttsr_coordinator.last_match
+        if match is None:
+            ctx.ttsr_coordinator.reset_interruption()
+            return False
+
+        can_retry = ctx.ttsr_coordinator.record_retry()
+        if not can_retry:
+            logger.error(
+                " TTSR retry budget exhausted for rule=%s (retries=%d > max=%d)",
+                match.rule.rule_id,
+                ctx.ttsr_coordinator.retries_this_turn,
+                ctx.ttsr_coordinator.max_retries,
+            )
+            ctx.ttsr_coordinator.reset_interruption()
+            await self._compactor.put(
+                {
+                    "type": AgentEventType.ERROR.value,
+                    "data": f"Execution halted: violated rule '{match.rule.name}' exceeding retry limit.",
+                    "messageId": ctx.message_id,
+                }
+            )
+            return False
+
+        if isinstance(ctx.agent_input, Command):
+            logger.warning(" Resume mode cannot inject TTSR reminder — skipping")
+            ctx.ttsr_coordinator.reset_interruption()
+            return False
+
+        messages_dict = ctx.agent_input
+        messages = cast(list["BaseMessage"], messages_dict.get("messages", []))
+
+        logger.warning(
+            " TTSR: injecting system-interrupt reminder for rule=%s (attempt %d/%d)",
+            match.rule.rule_id,
+            ctx.ttsr_coordinator.retries_this_turn,
+            ctx.ttsr_coordinator.max_retries,
+        )
+
+        messages.clear()
+        messages.extend(collected_messages)
+
+        reminder_msg = ctx.ttsr_coordinator.create_interruption_message(match)
+        messages.append(reminder_msg)
+        messages_dict["messages"] = cast("list[AnyMessage]", messages)
+
+        self.streaming_final_answer = False
+        self._partial_text_buffer = ""
+        ctx.ttsr_coordinator.reset_interruption()
+
+        await self._compactor.put(
+            {
+                "type": AgentEventType.TTSR_TRIGGERED.value,
+                "data": {
+                    "rule_id": match.rule.rule_id,
+                    "rule_name": match.rule.name,
+                    "reminder": match.rule.reminder,
+                    "target": match.target,
+                    "retry_count": ctx.ttsr_coordinator.retries_this_turn,
+                    "max_retries": ctx.ttsr_coordinator.max_retries,
+                },
+                "messageId": ctx.message_id,
+            }
+        )
+        return True
+
     async def _handle_teammate_messages(self, collected_messages: list[BaseMessage]) -> bool:
         """Drain P2P teammate inbox into the next subagent turn and emit SSE."""
         ctx = self._ctx
