@@ -26,6 +26,7 @@ from myrm_agent_harness.agent.sub_agents.checkpointer import (
     SubagentSqliteCheckpointer,
     _drop_finished_subagent_thread,
     close_subagent_checkpointer,
+    drop_subagent_checkpoint_if_terminal,
     get_subagent_checkpointer,
     reset_subagent_checkpointer,
     resolve_subagent_checkpoint_db_path,
@@ -218,8 +219,66 @@ async def test_terminal_hygiene_and_pending_approval_retention(tmp_path: Path):
         await _drop_finished_subagent_thread(task_id, "pending_approval")
         assert await checkpointer.aget_tuple(cfg) is not None
 
-        # 2. Terminal COMPLETED: must drop thread
-        await _drop_finished_subagent_thread(task_id, SubAgentStatus.COMPLETED)
+        # 2. Terminal COMPLETED: must drop thread (test public SSOT gate)
+        await drop_subagent_checkpoint_if_terminal(task_id, SubAgentStatus.COMPLETED)
         assert await checkpointer.aget_tuple(cfg) is None
 
         await close_subagent_checkpointer()
+
+
+@pytest.mark.asyncio
+async def test_unwritable_path_graceful_fallback_to_memory():
+    """Unwritable directory or path falls back to :memory: gracefully without raising error."""
+    # Use an invalid/unwritable system path
+    unwritable_path = "/proc/impossible_nonexistent_dir/subagent_checkpoint.sqlite"
+    checkpointer = SubagentSqliteCheckpointer(unwritable_path)
+
+    task_id = "task_fallback"
+    cfg: RunnableConfig = {"configurable": {"thread_id": task_id}}
+    cp: Checkpoint = {
+        "v": 1,
+        "ts": "2026-09-27T12:00:00Z",
+        "id": "cp_fallback",
+        "channel_values": {"status": "ok_in_memory"},
+        "channel_versions": {"status": 1},
+        "versions_seen": {},
+        "pending_sends": [],
+    }
+    meta: CheckpointMetadata = {"source": "loop", "step": 1, "writes": {}, "parents": {}}
+
+    # Write and read must succeed via :memory: fallback
+    await checkpointer.aput(cfg, cp, meta, {"status": 1})
+    resumed = await checkpointer.aget_tuple(cfg)
+    assert resumed is not None
+    assert resumed.checkpoint["channel_values"]["status"] == "ok_in_memory"
+
+    await checkpointer.aclose()
+
+
+@pytest.mark.asyncio
+async def test_reset_subagent_checkpointer_active_connection_cleanup(tmp_path: Path):
+    """reset_subagent_checkpointer safely schedules aclose for open connection."""
+    db_file = str(tmp_path / "reset_test.sqlite")
+    with patch.dict(os.environ, {"SUBAGENT_CHECKPOINT_DB_PATH": db_file}):
+        reset_subagent_checkpointer()
+        checkpointer = get_subagent_checkpointer()
+
+        cfg: RunnableConfig = {"configurable": {"thread_id": "thread_reset"}}
+        cp: Checkpoint = {
+            "v": 1,
+            "ts": "2026-09-27T12:00:00Z",
+            "id": "cp_reset",
+            "channel_values": {},
+            "channel_versions": {},
+            "versions_seen": {},
+            "pending_sends": [],
+        }
+        meta: CheckpointMetadata = {"source": "loop", "step": 1, "writes": {}, "parents": {}}
+        # Trigger initialization of connection
+        await checkpointer.aput(cfg, cp, meta, {})
+
+        # Reset should schedule aclose without raising errors
+        reset_subagent_checkpointer()
+        # Clean state verified
+        assert get_subagent_checkpointer() is not checkpointer
+

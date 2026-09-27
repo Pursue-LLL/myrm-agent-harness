@@ -51,7 +51,7 @@ from myrm_agent_harness.utils.runtime.steering import SteeringToken
 from .budget import DelegationBudgetExceededError, DelegationBudgetState
 from .checkpoint.checkpoint_manager import SubagentCheckpointManager
 from .checkpoint.saver import SubagentCheckpointStorage
-from .checkpointer import delete_subagent_checkpoint
+from .checkpointer import drop_subagent_checkpoint_if_terminal
 from .executor import SubagentExecutor
 from .notifications import NotificationManager
 
@@ -521,18 +521,19 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
             _prune_completed_results(now)
 
         # Terminal (non-approval) statuses free the shared subagent checkpoint
-        # thread. PENDING_APPROVAL keeps it so the resume pass can restore.
-        if not is_pending_approval:
-            try:
-                asyncio.get_running_loop()
-            except RuntimeError:
-                logger.debug(
-                    "[subagent:%s] No event loop for checkpoint cleanup", task_id
-                )
-            else:
-                cleanup_task = asyncio.create_task(delete_subagent_checkpoint(task_id))
-                self._background_tasks.add(cleanup_task)
-                cleanup_task.add_done_callback(self._background_tasks.discard)
+        # thread via SSOT gate. PENDING_APPROVAL keeps it so the resume pass can restore.
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            logger.debug(
+                "[subagent:%s] No event loop for checkpoint cleanup", task_id
+            )
+        else:
+            cleanup_task = asyncio.create_task(
+                drop_subagent_checkpoint_if_terminal(task_id, result.status)
+            )
+            self._background_tasks.add(cleanup_task)
+            cleanup_task.add_done_callback(self._background_tasks.discard)
 
         # Cleanup file conflict tracking data for completed subagent
         try:

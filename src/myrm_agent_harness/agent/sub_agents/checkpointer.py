@@ -13,6 +13,7 @@
 - close_subagent_checkpointer: release underlying SQLite connection on shutdown
 - reset_subagent_checkpointer: clear singleton instance (for clean test isolation)
 - delete_subagent_checkpoint: drop a finished subagent thread (memory & disk hygiene)
+- drop_subagent_checkpoint_if_terminal: SSOT gate dropping thread on non-approval completion
 
 [POS]
 HITL approval for subagents requires a configured checkpointer (approval/middleware.py
@@ -42,6 +43,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import sqlite3
 from collections.abc import AsyncIterator, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -66,6 +68,7 @@ logger = logging.getLogger(__name__)
 
 _checkpointer_lock = asyncio.Lock()
 _subagent_checkpointer: BaseCheckpointSaver[str] | None = None
+_cleanup_tasks: set[asyncio.Task[None]] = set()
 
 
 def resolve_subagent_checkpoint_db_path() -> str:
@@ -115,10 +118,23 @@ class SubagentSqliteCheckpointer(BaseCheckpointSaver[str]):
             from myrm_agent_harness.utils.db.sqlite import DEFAULT, harden_connection_async
 
             db_target = self._db_path
+            conn: aiosqlite.Connection | None = None
             if db_target != ":memory:":
-                Path(db_target).parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    Path(db_target).parent.mkdir(parents=True, exist_ok=True)
+                    conn = await aiosqlite.connect(db_target)
+                except (OSError, aiosqlite.Error, sqlite3.OperationalError) as err:
+                    logger.warning(
+                        "[SubagentCheckpointer] Failed to open SQLite checkpointer at %s (%s). Falling back to :memory:.",
+                        db_target,
+                        err,
+                    )
+                    db_target = ":memory:"
+                    conn = None
 
-            conn = await aiosqlite.connect(db_target)
+            if conn is None:
+                conn = await aiosqlite.connect(":memory:")
+
             await harden_connection_async(
                 conn, DEFAULT, db_path=Path(db_target) if db_target != ":memory:" else None
             )
@@ -227,9 +243,20 @@ async def close_subagent_checkpointer() -> None:
 
 
 def reset_subagent_checkpointer() -> None:
-    """Synchronously reset singleton state for test isolation."""
+    """Synchronously reset singleton state for test isolation and gracefully close active connection."""
     global _subagent_checkpointer
+    old_saver = _subagent_checkpointer
     _subagent_checkpointer = None
+    if isinstance(old_saver, SubagentSqliteCheckpointer):
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            pass
+        else:
+            if loop.is_running():
+                task = loop.create_task(old_saver.aclose())
+                _cleanup_tasks.add(task)
+                task.add_done_callback(_cleanup_tasks.discard)
 
 
 async def delete_subagent_checkpoint(thread_id: str) -> None:
@@ -250,10 +277,19 @@ async def delete_subagent_checkpoint(thread_id: str) -> None:
         pass
 
 
-async def _drop_finished_subagent_thread(task_id: str, status: SubAgentStatus | str) -> None:
-    """Internal helper: delete thread for terminal non-approval statuses."""
+async def drop_subagent_checkpoint_if_terminal(task_id: str, status: SubAgentStatus | str) -> None:
+    """Delete subagent checkpoint thread if the subagent reached a non-approval terminal status.
+
+    Keeps the thread when status is PENDING_APPROVAL so the resume pass can restore the interrupted graph.
+    All other terminal statuses (COMPLETED, FAILED, CANCELLED, TIMED_OUT, etc.) drop the thread to prevent
+    unbounded SQLite database bloat.
+    """
     from myrm_agent_harness.agent.sub_agents.types import SubAgentStatus
 
     if status is SubAgentStatus.PENDING_APPROVAL or status == "pending_approval":
         return
     await delete_subagent_checkpoint(task_id)
+
+
+# Backward-compatible alias for existing tests/internals
+_drop_finished_subagent_thread = drop_subagent_checkpoint_if_terminal
