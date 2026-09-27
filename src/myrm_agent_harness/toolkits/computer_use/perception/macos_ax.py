@@ -190,14 +190,23 @@ tell application "System Events"
             try
                 set elemRole to role of elem
                 if elemRole is in {{{role_filter}}} then
+                    -- macOS reports a password field with role AXTextField; only its subrole
+                    -- identifies it. Resolve the secure role *before* reading anything, so the
+                    -- secret is never read out of the accessibility tree at all.
+                    set reportRole to elemRole
+                    try
+                        if (subrole of elem) is "AXSecureTextField" then set reportRole to "AXSecureTextField"
+                    end try
                     set elemName to ""
                     set elemValue to ""
                     try
                         set elemName to name of elem
                     end try
-                    try
-                        set elemValue to value of elem
-                    end try
+                    if reportRole is not "AXSecureTextField" then
+                        try
+                            set elemValue to value of elem
+                        end try
+                    end if
                     if elemName is missing value then set elemName to ""
                     if elemValue is missing value then set elemValue to ""
                     
@@ -224,7 +233,7 @@ tell application "System Events"
                             set safeValue to my escapeText(elemValue)
                             set elemPos to position of elem
                             set elemSize to size of elem
-                            set end of outputLines to ((i as text) & "|||" & elemRole & "|||" & safeName & "|||" & safeValue & "|||" & (item 1 of elemPos as text) & "|||" & (item 2 of elemPos as text) & "|||" & (item 1 of elemSize as text) & "|||" & (item 2 of elemSize as text))
+                            set end of outputLines to ((i as text) & "|||" & reportRole & "|||" & safeName & "|||" & safeValue & "|||" & (item 1 of elemPos as text) & "|||" & (item 2 of elemPos as text) & "|||" & (item 1 of elemSize as text) & "|||" & (item 2 of elemSize as text))
                             set collectedCount to collectedCount + 1
                             if collectedCount >= {_MAX_ELEMENTS} then exit repeat
                         end if

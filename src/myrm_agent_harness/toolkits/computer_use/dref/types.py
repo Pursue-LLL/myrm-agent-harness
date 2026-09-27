@@ -52,6 +52,7 @@ INTERACTIVE_AX_ROLES: frozenset[str] = frozenset(
         "AXMenuItem",
         "AXPopUpButton",
         "AXRadioButton",
+        "AXSecureTextField",
         "AXSlider",
         "AXTabGroup",
         "AXTextField",
