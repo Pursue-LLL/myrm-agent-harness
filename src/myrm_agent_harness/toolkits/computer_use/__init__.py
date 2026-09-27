@@ -18,6 +18,13 @@ from myrm_agent_harness.toolkits.computer_use.mcp_server import (
     reset_request_desktop_session,
     set_request_desktop_session,
 )
+from myrm_agent_harness.toolkits.computer_use.envelope import (
+    EnvelopeCheckResult,
+    IntentEnvelopeSpec,
+    KeystrokeSanitizer,
+    WindowHierarchyContext,
+    check_envelope_action,
+)
 from myrm_agent_harness.toolkits.computer_use.session import (
     ComputerSession,
     create_computer_session,
@@ -27,6 +34,11 @@ __all__ = [
     "ComputerSession",
     "DesktopMCPServer",
     "DesktopSession",
+    "EnvelopeCheckResult",
+    "IntentEnvelopeSpec",
+    "KeystrokeSanitizer",
+    "WindowHierarchyContext",
+    "check_envelope_action",
     "create_computer_session",
     "create_desktop_session",
     "create_desktop_tools",
