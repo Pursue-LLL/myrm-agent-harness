@@ -56,6 +56,22 @@ BaseAgent.run()
 
 ---
 
+## 扩展 Entry 隔离机制（Custom vs CustomMessage）
+
+系统严格区分两类插件扩展事件，实现存储与模型上下文的物理隔离：
+
+1. **`custom`（私有簿记事件）**：
+   - 载荷类型：`CustomStatePayload`
+   - 行为：写入事件日志文件（FileEventLogBackend）并由 `trace_builder` 归纳为 `ExecutionTrace.custom_states`，供前端/桌面端「插件状态检查器」审计；
+   - 约束：不进入 LLM 上下文模型消息流，0 Token 泄漏，杜绝模型幻觉。
+
+2. **`custom_message`（模型可见通知）**：
+   - 载荷类型：`CustomMessagePayload`
+   - 行为：进入对话上下文，在服务端被包装为携带插件元数据的 `HumanMessage`，并在前端渲染为专有的 `CustomMessageCard`；
+   - 保留策略：支持 `retention: "ephemeral"`（Compaction 摘要时自动剔除临时告警）与 `retention: "persistent"`（长期保留）。
+
+---
+
 ## 扩展指南
 
 1. 实现 `EventLogBackend` Protocol → 注册到 Agent 构造参数
