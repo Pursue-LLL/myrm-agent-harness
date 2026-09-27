@@ -179,8 +179,10 @@ class SubagentSqliteCheckpointer(BaseCheckpointSaver[str]):
         await saver.aput_writes(self._normalize_config(config), writes, task_id, task_path=task_path)
 
     async def adelete_thread(self, thread_id: str) -> None:
-        saver = await self._ensure_saver()
-        await saver.adelete_thread(thread_id)
+        if self._saver is None:
+            # If saver was never initialized, no checkpoints were ever stored; safe no-op
+            return
+        await self._saver.adelete_thread(thread_id)
 
     async def aclose(self) -> None:
         """Release underlying aiosqlite connection safely."""
