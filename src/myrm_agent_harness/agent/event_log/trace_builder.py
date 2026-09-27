@@ -447,3 +447,17 @@ def _process_event(
         if isinstance(ctype, str) and ctype:
             raw_state = data.get("state")
             trace.custom_states[ctype] = raw_state if isinstance(raw_state, dict) else {"value": raw_state}
+
+    elif et == "custom_message":
+        raw_details = data.get("details")
+        trace.custom_messages.append(
+            {
+                "sequence": event.sequence,
+                "timestamp": event.timestamp,
+                "custom_type": str(data.get("custom_type") or "unknown"),
+                "content": str(data.get("content") or ""),
+                "display": bool(data.get("display", True)),
+                "retention": str(data.get("retention") or "persistent"),
+                "details": raw_details if isinstance(raw_details, dict) else None,
+            }
+        )
