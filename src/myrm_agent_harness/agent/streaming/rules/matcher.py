@@ -16,21 +16,46 @@ from myrm_agent_harness.agent.streaming.rules.types import (
 
 
 class PartialJsonUnescaper:
-    """Stateful stream unescaper handling fragmented JSON escapes across token boundaries."""
+    """Stateful stream unescaper handling fragmented JSON escapes and Unicode code points."""
 
     def __init__(self) -> None:
         self._pending_escape: bool = False
+        self._in_unicode: bool = False
+        self._unicode_buffer: list[str] = []
 
     def unescape_chunk(self, chunk: str) -> str:
-        """Streamingly unescape characters such as \\", \\\\, and \\n."""
+        """Streamingly unescape characters such as \\", \\\\, \\n, and \\uXXXX."""
         if not chunk:
             return ""
 
         result: list[str] = []
         for char in chunk:
-            if self._pending_escape:
+            if self._in_unicode:
+                if char in "0123456789abcdefABCDEF":
+                    self._unicode_buffer.append(char)
+                    if len(self._unicode_buffer) == 4:
+                        hex_str = "".join(self._unicode_buffer)
+                        try:
+                            result.append(chr(int(hex_str, 16)))
+                        except ValueError:
+                            result.append(f"\\u{hex_str}")
+                        self._in_unicode = False
+                        self._unicode_buffer.clear()
+                else:
+                    hex_str = "".join(self._unicode_buffer)
+                    result.append(f"\\u{hex_str}")
+                    self._in_unicode = False
+                    self._unicode_buffer.clear()
+                    if char == "\\":
+                        self._pending_escape = True
+                    else:
+                        result.append(char)
+            elif self._pending_escape:
                 self._pending_escape = False
-                if char == '"':
+                if char == "u":
+                    self._in_unicode = True
+                    self._unicode_buffer.clear()
+                elif char == '"':
                     result.append('"')
                 elif char == "\\":
                     result.append("\\")
@@ -53,6 +78,8 @@ class PartialJsonUnescaper:
     def reset(self) -> None:
         """Reset stateful escape tracking."""
         self._pending_escape = False
+        self._in_unicode = False
+        self._unicode_buffer.clear()
 
 
 class TtsrMatcher:

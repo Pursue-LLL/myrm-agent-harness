@@ -180,3 +180,48 @@ def test_agent_event_type_contract() -> None:
     """Verify TTSR_TRIGGERED event exists in standard AgentEventType enumeration."""
     assert hasattr(AgentEventType, "TTSR_TRIGGERED")
     assert AgentEventType.TTSR_TRIGGERED.value == "ttsr_triggered"
+
+
+def test_partial_json_unescaper_unicode() -> None:
+    """Verify PartialJsonUnescaper decodes \\uXXXX characters streamingly and across chunk boundaries."""
+    unescaper = PartialJsonUnescaper()
+
+    # Standard contiguous unicode escape
+    assert unescaper.unescape_chunk(r"cmd: \u0072\u006d -rf") == "cmd: rm -rf"
+    unescaper.reset()
+
+    # Chunk split exactly across \u and hex digits: "\u00" + "72" -> "r"
+    part1 = unescaper.unescape_chunk(r'{"command": "\u00')
+    part2 = unescaper.unescape_chunk(r'72\u006df"}')
+    assert (part1 + part2) == '{"command": "rmf"}'
+    unescaper.reset()
+
+    # Non-hex character fallback gracefully preserves text
+    assert unescaper.unescape_chunk(r"\u12xz") == r"\u12xz"
+    unescaper.reset()
+
+
+def test_ttsr_matcher_unicode_evasion_blocked() -> None:
+    """Verify malicious unicode escaped tool_args cannot evade regex detection."""
+    rule = StreamRule(
+        rule_id="rule_block_rm_rf",
+        name="block_rm_rf",
+        pattern=re.compile(r"rm\s+-rf"),
+        target="tool_args",
+        action="abort_and_retry",
+        reminder="Destructive rm detected.",
+    )
+    matcher = TtsrMatcher()
+
+    # Model generates tool_args chunk containing \u0072\u006d -rf
+    result = matcher.feed_and_match(
+        rules=[rule],
+        target="tool_args",
+        chunk=r'{"cmd": "\u0072\u006d -rf /"}',
+        turn=1,
+    )
+    assert result is not None
+    assert result.rule.name == "block_rm_rf"
+    assert "rm -rf" in result.matched_text
+
+
