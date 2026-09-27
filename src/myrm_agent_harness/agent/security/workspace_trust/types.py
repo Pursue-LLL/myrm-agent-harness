@@ -18,10 +18,10 @@ from sibling modules, which keeps this module the dependency root of the package
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 
-class WorkspaceTrustLevel(str, Enum):
+class WorkspaceTrustLevel(StrEnum):
     """User decision for a canonical workspace root."""
 
     TRUSTED = "TRUSTED"
@@ -37,6 +37,8 @@ class WorkspaceTrustManifest:
     canonical_path: str
     skill_count: int = 0
     rule_count: int = 0
+    mcp_count: int = 0
+    plugin_count: int = 0
     repo_command_prefixes: tuple[str, ...] = ()
     has_myrm_config: bool = False
     current_level: WorkspaceTrustLevel | None = None

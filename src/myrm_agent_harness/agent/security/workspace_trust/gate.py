@@ -28,9 +28,7 @@ from .types import WorkspaceTrustLevel
 
 def blocks_workspace_side_channels(level: WorkspaceTrustLevel | None) -> bool:
     """Return True when repo-local side channels must stay disabled."""
-    if level is None or level in {WorkspaceTrustLevel.RESTRICTED, WorkspaceTrustLevel.REVOKED}:
-        return True
-    return False
+    return level is None or level in {WorkspaceTrustLevel.RESTRICTED, WorkspaceTrustLevel.REVOKED}
 
 
 def is_path_within_workspace(candidate: str | None, workspace_root: str | None) -> bool:

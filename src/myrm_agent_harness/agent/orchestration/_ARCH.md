@@ -10,6 +10,7 @@ PTC runtime tools (`spawn_subagent`, `notify`) live in [../dynamic_workflow/_ARC
 |--------|------|-------|------|
 | Orchestration signals | `signals/` | 4 | JSON schemas; orchestrator intercepts tool_calls |
 | Runtime hooks | `hooks.py` | 1 | `_completion_check`; CompletionGuard RUNTIME_ONLY |
+| Inbound steering | `steering.py` | 1 | Bounded quoted-reply queue; boundary injection envelope; never Turn1-bound |
 
 Action Tools SSOT: [../tool_management/_ARCH.md](../tool_management/_ARCH.md)
 
@@ -19,6 +20,7 @@ Action Tools SSOT: [../tool_management/_ARCH.md](../tool_management/_ARCH.md)
 |------|------|-------------|-------|
 | __init__.py | Core | Public re-exports: `ORCHESTRATION_SIGNAL_NAMES`, `RUNTIME_HOOK_NAMES`, `is_runtime_hook` | ✅ |
 | hooks.py | Core | `RUNTIME_HOOK_NAMES` SSOT; `is_runtime_hook` for CompletionGuard | ✅ |
+| steering.py | Core | `SteeringQueue` inbound queue; `build_steering_context_block` envelope; `drain_into_token` live-Mechanism adapter; snapshot persistence | ✅ |
 
 ## Submodule Index
 

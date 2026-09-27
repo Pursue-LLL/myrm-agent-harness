@@ -68,6 +68,50 @@ def _count_workspace_rules(workspace_root: str) -> int:
         return 0
 
 
+def _count_workspace_mcps(workspace_root: str) -> int:
+    try:
+        count = 0
+        root = Path(workspace_root)
+        candidate_paths = [
+            root / "mcp.json",
+            root / ".myrm" / "mcp.json",
+            root / ".cursor" / "mcp.json",
+            root / ".vscode" / "mcp.json",
+        ]
+        for cfg in candidate_paths:
+            if cfg.is_file():
+                try:
+                    data = json.loads(cfg.read_text(encoding="utf-8"))
+                    servers = data.get("mcpServers", {})
+                    if isinstance(servers, dict) and servers:
+                        count += len(servers)
+                    else:
+                        count += 1
+                except Exception:
+                    count += 1
+        return count
+    except Exception as exc:
+        logger.debug("workspace trust manifest: mcp scan failed: %s", exc)
+        return 0
+
+
+def _count_workspace_plugins(workspace_root: str) -> int:
+    try:
+        count = 0
+        root = Path(workspace_root)
+        myrm_plugins = root / ".myrm" / "plugins"
+        if myrm_plugins.is_dir():
+            for item in myrm_plugins.iterdir():
+                if (item.is_dir() and (item / "plugin.json").is_file()) or (item.is_file() and item.suffix == ".zip"):
+                    count += 1
+        if (root / "plugin.json").is_file():
+            count += 1
+        return count
+    except Exception as exc:
+        logger.debug("workspace trust manifest: plugin scan failed: %s", exc)
+        return 0
+
+
 def build_workspace_trust_manifest(
     raw_path: str,
     *,
@@ -83,6 +127,8 @@ def build_workspace_trust_manifest(
         canonical_path=canonical,
         skill_count=_count_workspace_skills(canonical),
         rule_count=_count_workspace_rules(canonical),
+        mcp_count=_count_workspace_mcps(canonical),
+        plugin_count=_count_workspace_plugins(canonical),
         repo_command_prefixes=repo_prefixes,
         has_myrm_config=config_path.is_file(),
         current_level=current_level,
@@ -95,6 +141,8 @@ def manifest_hash(manifest: WorkspaceTrustManifest) -> str:
         "canonical_path": manifest.canonical_path,
         "skill_count": manifest.skill_count,
         "rule_count": manifest.rule_count,
+        "mcp_count": manifest.mcp_count,
+        "plugin_count": manifest.plugin_count,
         "repo_command_prefixes": list(manifest.repo_command_prefixes),
         "has_myrm_config": manifest.has_myrm_config,
     }

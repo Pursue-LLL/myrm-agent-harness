@@ -109,9 +109,8 @@ def verify_session_enclosure(events: Sequence[object]) -> list[InvariantViolatio
                         details={"index": idx, "event_type": event_type},
                     )
                 )
-        elif event_type in _ENCLOSED_REQUIRED_TYPES:
-            if not active_steps:
-                violations.append(
+        elif event_type in _ENCLOSED_REQUIRED_TYPES and not active_steps:
+            violations.append(
                     InvariantViolation(
                         package_name=_PACKAGE,
                         invariant_name="session_enclosure",
