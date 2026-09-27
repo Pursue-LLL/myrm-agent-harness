@@ -263,7 +263,11 @@ async def run_with_verification(
             ]
 
             async def _run_single_skeptic(
-                p_title: str, p_rule: str
+                p_title: str,
+                p_rule: str,
+                target_result: SubAgentResult,
+                target_round: int,
+                snapshot: dict[str, str] | None,
             ) -> VerificationVerdict | None:
                 skeptic_template = (
                     f"### Skeptic Focus: {p_title}\n{p_rule}\n\n{verifier_task_template}"
@@ -273,23 +277,26 @@ async def run_with_verification(
                 return await _execute_verifier_round(
                     manager,
                     worker_output=_format_worker_output_for_verifier(
-                        worker_result.result
+                        target_result.result
                     ),
                     worker_type=worker_type,
                     verifier_type=verifier_type,
                     verifier_config=verifier_config,
                     context=context,
                     tool_registry_getter=tool_registry_getter,
-                    round_num=round_num,
+                    round_num=target_round,
                     max_rounds=max_rounds,
                     verifier_task_template=skeptic_template,
-                    pre_snapshot=pre_snapshot,
+                    pre_snapshot=snapshot,
                     cancel_token=cancel_token,
                     auditor_blind=True,
                 )
 
             skeptic_results = await asyncio.gather(
-                *[_run_single_skeptic(t, r) for (t, r) in skeptic_perspectives],
+                *[
+                    _run_single_skeptic(t, r, worker_result, round_num, pre_snapshot)
+                    for (t, r) in skeptic_perspectives
+                ],
                 return_exceptions=True,
             )
             valid_verdicts: list[VerificationVerdict] = []

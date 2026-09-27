@@ -115,7 +115,7 @@ def merge_subagent_branch_artifacts(session_id: str) -> set[str]:
 
     # Also collect from completed subagent handover_state.relevant_files
     candidates = _session_id_candidates(session_id) if session_id else set()
-    for task_id, (candidate_session, _completed_at, row) in COMPLETED_SUBAGENT_RESULTS.items():
+    for _task_id, (candidate_session, _completed_at, row) in COMPLETED_SUBAGENT_RESULTS.items():
         if candidate_session not in candidates:
             continue
         handover = row.get("handover_state")
@@ -163,7 +163,7 @@ def merge_subagent_handovers_into_summary(
     seen_pending: set[str] = set(new_pending)
     seen_files: set[str] = set(new_files)
 
-    for task_id, (candidate_session, _completed_at, row) in COMPLETED_SUBAGENT_RESULTS.items():
+    for _task_id, (candidate_session, _completed_at, row) in COMPLETED_SUBAGENT_RESULTS.items():
         if candidate_session not in candidates:
             continue
 

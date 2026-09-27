@@ -18,10 +18,10 @@ Data structures and protocols for automated codebase slimming.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 
-class SlimmingRiskLevel(str, Enum):
+class SlimmingRiskLevel(StrEnum):
     """Safety and risk assessment level for a slimming candidate."""
 
     SAFE = "safe"          # Unused internal private function, unreachable branch, dead test file
@@ -29,7 +29,7 @@ class SlimmingRiskLevel(str, Enum):
     AGGRESSIVE = "aggressive"  # Redundant wrapper/abstraction requiring interface merging
 
 
-class SlimmingTaskStatus(str, Enum):
+class SlimmingTaskStatus(StrEnum):
     """Execution status for a subagent slimming wave."""
 
     PENDING = "pending"

@@ -68,9 +68,9 @@ def test_detect_tool_lifting_candidates() -> None:
 
     candidates = detect_tool_lifting_candidates(events)
     assert len(candidates) == 2
-    assert candidates[0].lifted_tool == "shell_command"
+    assert candidates[0].lifted_tool == "bash_code_execute_tool"
     assert candidates[0].code_snippet == "git status && git pull"
-    assert candidates[1].lifted_tool == "write_file"
+    assert candidates[1].lifted_tool == "file_write_tool"
 
 
 def test_extract_parameter_slots() -> None:
@@ -129,3 +129,63 @@ def test_synthesize_desktop_skill_draft_full_flow() -> None:
     assert "---" in draft.markdown_content
     assert "name: monthly_report_automation" in draft.markdown_content
     assert "## Workflow Execution Steps" in draft.markdown_content
+
+
+def test_lifted_tools_are_registered_tool_names() -> None:
+    """Tool lifting must elevate to real tool names, not plausible-looking placeholders.
+
+    A lifted step is executed by name; ``shell_command`` / ``write_file`` / ``execute_code`` do
+    not exist in the tool registry, so a compiled skill would reference un-callable tools.
+    """
+    from myrm_agent_harness.agent.tool_management.tool_layers import _TOOL_LAYERS
+
+    events = [
+        DesktopRecordedEvent(
+            seq=1,
+            action=RecordedActionType.TYPE.value,
+            app_name="Terminal",
+            value="ls -la /tmp",
+        ),
+        DesktopRecordedEvent(
+            seq=2,
+            action=RecordedActionType.TYPE.value,
+            app_name="TextEdit",
+            value="some longer document body",
+        ),
+        DesktopRecordedEvent(
+            seq=3,
+            action=RecordedActionType.CLICK.value,
+            app_name="Microsoft Excel",
+            element_title="Export",
+        ),
+    ]
+
+    candidates = detect_tool_lifting_candidates(events)
+    assert candidates, "these events must produce lifting candidates"
+
+    registered = set(_TOOL_LAYERS)
+    unknown = sorted({c.lifted_tool for c in candidates if c.lifted_tool not in registered})
+    assert unknown == [], f"tool lifting emitted unregistered tool names: {unknown}"
+
+
+def test_password_value_is_masked_in_draft_markdown() -> None:
+    """A recorded secure-field entry must never appear in the generated SKILL.md."""
+    events = [
+        DesktopRecordedEvent(
+            seq=1,
+            action=RecordedActionType.TYPE.value,
+            app_name="SignIn",
+            element_title="Password",
+            value="hunter2",
+            is_password=True,
+        )
+    ]
+
+    draft = synthesize_desktop_skill_draft(
+        events=events,
+        skill_name="secure_login_flow",
+        description="Sign in and continue",
+    )
+
+    assert "hunter2" not in draft.markdown_content
+    assert "***" in draft.markdown_content

@@ -17,6 +17,31 @@ from typing import Literal, NamedTuple
 
 SnapshotScope = Literal["foreground", "target"]
 
+# Platform roles that denote a secure input. Their value must NEVER be read into an event
+# stream: macOS surfaces a password field as an ordinary text field through AppleScript, so
+# the role is the only reliable signal that the content is a secret. Windows exposes the same
+# distinction as ``IsPassword`` on the UIA element; both surface through this role contract.
+SECURE_OVERLAY_ROLE = "secure_text_field"
+
+_SECURE_ROLE_ALIASES: frozenset[str] = frozenset(
+    {
+        "AXSecureTextField",
+        "SecureTextField",
+        "PasswordBox",
+        "password",
+        "passwordbox",
+        "secure_text_field",
+    }
+)
+
+
+def is_secure_role(role: str | None) -> bool:
+    """Whether an element role denotes a password/secure field that must not be recorded."""
+    if not role:
+        return False
+    return role in _SECURE_ROLE_ALIASES or role.lower() in _SECURE_ROLE_ALIASES
+
+
 INTERACTIVE_AX_ROLES: frozenset[str] = frozenset(
     {
         "AXButton",

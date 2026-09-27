@@ -23,8 +23,10 @@ from dataclasses import dataclass
 
 from myrm_agent_harness.toolkits.computer_use import safety
 from myrm_agent_harness.toolkits.computer_use.dref.types import (
+    SECURE_OVERLAY_ROLE,
     ElementRef,
     SnapshotMeta,
+    is_secure_role,
 )
 from myrm_agent_harness.toolkits.computer_use.perception.ax_diff import compute_ref_diff
 from myrm_agent_harness.toolkits.computer_use.perception.ax_dispatch import capture_snapshot
@@ -46,7 +48,7 @@ from myrm_agent_harness.toolkits.computer_use.recording.types import (
 # a value change on any other interactive role (checkbox, radio, switch, slider, option, tab,
 # combobox) is the result of a click and must not be dropped. Generic fallback roles are
 # excluded so layout churn is not mistaken for an action.
-_TEXT_ENTRY_OVERLAY_ROLES = frozenset({"textbox", "searchbox"})
+_TEXT_ENTRY_OVERLAY_ROLES = frozenset({"textbox", "searchbox", SECURE_OVERLAY_ROLE})
 _GENERIC_OVERLAY_ROLES = frozenset({"clickable", "focusable"})
 
 
@@ -174,7 +176,15 @@ class DesktopCaptureDriver:
             if element is None or "value" not in fields:
                 continue
             overlay_role = normalize_desktop_role(element.role)
-            if overlay_role in _TEXT_ENTRY_OVERLAY_ROLES:
+            # A secure field's value is a secret: emit only that text was entered, never the
+            # text itself. The role is the sole signal, because macOS reports a password field
+            # as an ordinary text field at the AppleScript layer.
+            secure = is_secure_role(element.role) or overlay_role == SECURE_OVERLAY_ROLE
+            if secure:
+                emitted.append(
+                    self._build_event(meta=meta, action=RecordedActionType.TYPE.value, element=element)
+                )
+            elif overlay_role in _TEXT_ENTRY_OVERLAY_ROLES:
                 emitted.append(
                     self._build_event(meta=meta, action=RecordedActionType.TYPE.value, element=element)
                 )
@@ -195,6 +205,11 @@ class DesktopCaptureDriver:
         element: ElementRef | None = None,
     ) -> DesktopRecordedEvent:
         self._seq += 1
+        # Discover the secure flag before touching the value, so the secret is never read into
+        # the process at all (not merely masked afterwards).
+        secure = element is not None and (
+            is_secure_role(element.role) or normalize_desktop_role(element.role) == SECURE_OVERLAY_ROLE
+        )
         return DesktopRecordedEvent(
             seq=self._seq,
             timestamp=time.time(),
@@ -213,7 +228,8 @@ class DesktopCaptureDriver:
             # Password fields never surface their value into the event stream.
             value=(
                 element.value
-                if element and action == RecordedActionType.TYPE.value
+                if element and action == RecordedActionType.TYPE.value and not secure
                 else None
             ),
+            is_password=secure and action == RecordedActionType.TYPE.value,
         )

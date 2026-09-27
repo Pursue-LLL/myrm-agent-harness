@@ -264,19 +264,18 @@ def _parse_handover_state(raw_result: str, task_id: str) -> AgentHandoverState |
     for key in ("summary", "task_completed", "findings", "context_artifacts"):
         try:
             data = parse_llm_json_object(raw_result, require_key=key)
-            if isinstance(data, dict):
-                if any(
-                    k in data
-                    for k in (
-                        "summary",
-                        "task_completed",
-                        "findings",
-                        "pending_todos",
-                        "relevant_files",
-                        "artifact_refs",
-                    )
-                ):
-                    return AgentHandoverState.from_dict(data)
+            if isinstance(data, dict) and any(
+                k in data
+                for k in (
+                    "summary",
+                    "task_completed",
+                    "findings",
+                    "pending_todos",
+                    "relevant_files",
+                    "artifact_refs",
+                )
+            ):
+                return AgentHandoverState.from_dict(data)
         except Exception:
             continue
 

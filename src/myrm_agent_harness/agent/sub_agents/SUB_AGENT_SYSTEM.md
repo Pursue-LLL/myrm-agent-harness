@@ -244,17 +244,17 @@ result = SubAgentResult(checkpoint_data={...})
 - ✅ **JSON backend完全满足需求**（无需S3/Redis分布式存储）
 - ✅ SaaS多租户场景：每个用户独立Volume（天然隔离）
 
-### 7. Checkpointer 隔离
+### 7. Checkpointer 隔离与持久化
 
 子 agent 不继承父 agent 的 checkpointer（避免消息历史写入父线程造成状态污染），
-但为支持 HITL 审批，所有子 agent 共享一个**进程级独立**的 `InMemorySaver`：
+为支持跨重启的 HITL 审批与长任务自愈，所有子 agent 共享一个**持久化 Volume 级独立**的 SQLite Checkpointer（测试环境自适应内存）：
 
-- `agent/sub_agents/checkpointer.py` 提供 `get_subagent_checkpointer()`（懒加载单例）
-  与 `delete_subagent_checkpoint(task_id)`（终态线程内存卫生）。
+- `agent/sub_agents/checkpointer.py` 提供 `get_subagent_checkpointer()`（懒加载单例）、`close_subagent_checkpointer()` 与 `delete_subagent_checkpoint(task_id)`（终态线程卫生清理）。
+- 默认落盘至 `{MYRM_DATA_DIR}/subagent_checkpoints.sqlite`，并通过 WAL 模式与 busy_timeout 进行并发安全加固；在 `CHECKPOINTER_MODE=memory` 或单测环境下优雅回退。
 - 每个子 agent 的 `thread_id == task_id`（context 中 `approval_session_key`），
-  线程彼此隔离；审批中的子 agent 通过 `Command(resume=...)` 从同一线程恢复。
+  线程彼此隔离；审批中的子 agent 通过 `Command(resume=...)` 从同一线程恢复，即使沙箱休眠或进程重启也能断点续跑。
 - `delete_subagent_checkpoint` 仅在子 agent 到达**终态（非 PENDING_APPROVAL）**时
-  删除线程；PENDING_APPROVAL 线程保留供 resume 通过。
+  删除线程；PENDING_APPROVAL 线程持久保留供审批后 resume 通过。
 - 共享 saver 与父 agent 的 checkpointer 相互独立，父线程不被子线程污染。
 
 ### 8. 状态追踪与自动清理

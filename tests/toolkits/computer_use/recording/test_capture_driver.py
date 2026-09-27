@@ -434,3 +434,52 @@ def test_reset_clears_baseline_and_counter(monkeypatch) -> None:
 
     primed = asyncio.run(driver.poll())
     assert primed.events == ()
+
+
+def test_secure_field_value_is_never_recorded(monkeypatch) -> None:
+    """A password field must yield a type event carrying no value.
+
+    macOS reports a password field as an ordinary text field at the AppleScript layer, so the
+    role is the only signal available. Recording the value would persist a secret into the skill
+    draft, and the synthesizer's masking depends on ``is_password`` being set here.
+    """
+    frames = [
+        (_meta("SignIn"), {"p1": _element("p1", "AXSecureTextField", "Password", value="")}),
+        (_meta("SignIn"), {"p1": _element("p1", "AXSecureTextField", "Password", value="hunter2")}),
+    ]
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.computer_use.recording.capture_driver.capture_snapshot",
+        _ScriptedCapture(frames),
+    )
+
+    driver = DesktopCaptureDriver(_FakeBackend())
+    asyncio.run(driver.poll())
+    frame = asyncio.run(driver.poll())
+
+    typed = [e for e in frame.events if e.action == RecordedActionType.TYPE.value]
+    assert len(typed) == 1
+    assert typed[0].value is None, "a password value must never reach the event stream"
+    assert typed[0].is_password is True
+    # The serialized form is what a client could fetch, so it must mask too.
+    assert typed[0].to_dict()["value"] == "***"
+
+
+def test_plain_text_field_value_is_still_recorded(monkeypatch) -> None:
+    """Redaction must stay scoped to secure roles, not silently drop ordinary typing."""
+    frames = [
+        (_meta("Notes"), {"t1": _element("t1", "AXTextField", "Search", value="")}),
+        (_meta("Notes"), {"t1": _element("t1", "AXTextField", "Search", value="quarterly")}),
+    ]
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.computer_use.recording.capture_driver.capture_snapshot",
+        _ScriptedCapture(frames),
+    )
+
+    driver = DesktopCaptureDriver(_FakeBackend())
+    asyncio.run(driver.poll())
+    frame = asyncio.run(driver.poll())
+
+    typed = [e for e in frame.events if e.action == RecordedActionType.TYPE.value]
+    assert len(typed) == 1
+    assert typed[0].value == "quarterly"
+    assert typed[0].is_password is False

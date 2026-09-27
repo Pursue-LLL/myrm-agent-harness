@@ -1,6 +1,8 @@
 """Unit tests for Desktop Workflow Skill Compiler."""
 
+from myrm_agent_harness.agent.tool_management.tool_layers import _TOOL_LAYERS
 from myrm_agent_harness.backends.skills.workflow_compiler import (
+    DEFAULT_ALLOWED_TOOLS,
     DesktopEvent,
     WorkflowIntentPlan,
     WorkflowPlanStep,
@@ -8,6 +10,18 @@ from myrm_agent_harness.backends.skills.workflow_compiler import (
     compile_workflow_plan_to_skill_markdown,
     slugify_skill_name,
 )
+
+
+def test_default_allowed_tools_all_registered() -> None:
+    """Every default allowed-tool must be a real registered tool name.
+
+    Skill attenuation removes any tool absent from the declared ``allowed_tools`` union, so a
+    stale name here (e.g. ``read_file`` instead of ``file_read_tool``) silently strips that
+    capability from the agent on every turn the compiled skill stays active.
+    """
+    registered = set(_TOOL_LAYERS)
+    unknown = [name for name in DEFAULT_ALLOWED_TOOLS if name not in registered]
+    assert unknown == [], f"DEFAULT_ALLOWED_TOOLS contains unregistered tool names: {unknown}"
 
 
 def test_slugify_skill_name() -> None:

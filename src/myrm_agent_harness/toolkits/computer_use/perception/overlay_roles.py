@@ -16,7 +16,11 @@ Platform-neutral role SSOT for desktop Inspector and SOM overlays.
 
 from __future__ import annotations
 
-from myrm_agent_harness.toolkits.computer_use.dref.types import INTERACTIVE_AX_ROLES, ElementRef
+from myrm_agent_harness.toolkits.computer_use.dref.types import (
+    INTERACTIVE_AX_ROLES,
+    SECURE_OVERLAY_ROLE,
+    ElementRef,
+)
 
 _AX_ROLE_TO_OVERLAY_ROLE: dict[str, str] = {
     "AXButton": "button",
@@ -25,6 +29,9 @@ _AX_ROLE_TO_OVERLAY_ROLE: dict[str, str] = {
     "AXTextField": "textbox",
     "AXTextArea": "textbox",
     "EditControl": "textbox",
+    "AXSecureTextField": SECURE_OVERLAY_ROLE,
+    "SecureTextField": SECURE_OVERLAY_ROLE,
+    "PasswordBox": SECURE_OVERLAY_ROLE,
     "AXCheckBox": "checkbox",
     "CheckBox": "checkbox",
     "CheckBoxControl": "checkbox",

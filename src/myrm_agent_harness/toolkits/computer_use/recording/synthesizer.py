@@ -98,7 +98,7 @@ def detect_tool_lifting_candidates(
                 candidates.append(
                     ToolLiftingCandidate(
                         original_seqs=[ev.seq],
-                        lifted_tool="shell_command",
+                        lifted_tool="bash_code_execute_tool",
                         rationale=f"Elevated terminal typing to native shell execution: '{cmd}'",
                         code_snippet=cmd,
                         confidence=0.98,
@@ -114,7 +114,7 @@ def detect_tool_lifting_candidates(
                 candidates.append(
                     ToolLiftingCandidate(
                         original_seqs=[ev.seq],
-                        lifted_tool="write_file",
+                        lifted_tool="file_write_tool",
                         rationale=f"Elevated text editing in {ev.app_name} to direct file write",
                         code_snippet=ev.value,
                         confidence=0.92,
@@ -129,8 +129,8 @@ def detect_tool_lifting_candidates(
             candidates.append(
                 ToolLiftingCandidate(
                     original_seqs=[ev.seq],
-                    lifted_tool="execute_code",
-                    rationale=f"Elevated Excel export in {ev.app_name} to Python pandas automation",
+                        lifted_tool="bash_code_execute_tool",
+                        rationale=f"Elevated Excel export in {ev.app_name} to Python pandas automation",
                     code_snippet="# Automated via Python pandas\nimport pandas as pd\n",
                     confidence=0.88,
                 )
@@ -220,7 +220,9 @@ def synthesize_desktop_skill_draft(
             step_seq += 1
             continue
 
-        # Standard semantic desktop step
+        # Standard semantic desktop step. A password event must not carry its value into the
+        # draft: the SKILL.md parameters block would otherwise persist the secret, even though
+        # the human-readable description masks it.
         step_desc = _format_step_description(ev)
         steps.append(
             SynthesizedSkillStep(
@@ -234,8 +236,9 @@ def synthesize_desktop_skill_draft(
                 parameters={
                     "dref": ev.dref_id or "",
                     "action": ev.action,
-                    "value": ev.value or "",
+                    "value": "" if ev.is_password else (ev.value or ""),
                     "element_title": ev.element_title or "",
+                    "is_password": ev.is_password,
                 },
                 variables=[
                     s["name"] for s in slots if s["default_value"] in (ev.value or "")

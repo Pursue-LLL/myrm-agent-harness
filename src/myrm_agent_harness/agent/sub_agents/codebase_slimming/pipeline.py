@@ -83,7 +83,7 @@ class CodebaseSlimmingPipeline:
         worker_fn: Callable[[Path, SlimmingModuleTask], Coroutine[Any, Any, int]],
     ) -> tuple[SlimmingModuleTask, bool]:
         """Execute a single module refactoring in an isolated workspace copy.
-        
+
         If worker_fn or regression tests fail, changes are cleanly discarded (rollback).
         """
         async with self.semaphore:
