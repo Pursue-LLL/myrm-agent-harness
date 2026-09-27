@@ -55,6 +55,20 @@ class MockEventLogBackend(EventLogBackend):
             for event in events:
                 yield event
 
+    async def get_latest_custom_state(
+        self,
+        session_id: str,
+        custom_type: str | None = None,
+    ) -> dict[str, object]:
+        """Get latest custom state from mock storage."""
+        for event in reversed(self.session_events.get(session_id, [])):
+            if event.event_type == "custom":
+                payload = event.data
+                if isinstance(payload, dict):
+                    if custom_type is None or payload.get("custom_type") == custom_type:
+                        return payload
+        return {}
+
     async def close(self) -> None:
         """Close mock backend."""
         pass

@@ -55,6 +55,19 @@ class InMemoryBackend:
     async def get_all_session_ids(self) -> list[str]:
         return sorted(self._events.keys())
 
+    async def get_latest_custom_state(
+        self,
+        session_id: str,
+        custom_type: str | None = None,
+    ) -> dict[str, object]:
+        for event in reversed(self._events.get(session_id, [])):
+            if event.event_type == "custom":
+                payload = event.data
+                if isinstance(payload, dict):
+                    if custom_type is None or payload.get("custom_type") == custom_type:
+                        return payload
+        return {}
+
     async def close(self) -> None:
         pass
 
