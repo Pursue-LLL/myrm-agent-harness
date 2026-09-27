@@ -213,3 +213,53 @@ async def test_get_latest_custom_state_time_travel_sequence_guard(tmp_path: Path
     # 4. Time-travel query before any custom event (max_sequence=0) returns empty
     pre_state = await backend.get_latest_custom_state(session_id, "config_plugin", max_sequence=0)
     assert pre_state == {}
+
+
+@pytest.mark.asyncio
+async def test_trace_builder_aggregates_custom_message(tmp_path: Path) -> None:
+    """Verify trace_builder extracts custom_messages into ExecutionTrace."""
+    session_id = "test-trace-custom-msg"
+    backend = FileEventLogBackend(log_dir=tmp_path, session_id=session_id)
+
+    events = [
+        StructuredEvent(
+            sequence=1,
+            timestamp=100.0,
+            event_type="custom_message",
+            session_id=session_id,
+            data=EventPayload(
+                custom_type="security_guard",
+                content="Sensitive file detected",
+                display=True,
+                retention="persistent",
+                details={"file": ".env"},
+            ),
+        ),
+        StructuredEvent(
+            sequence=2,
+            timestamp=101.0,
+            event_type="custom",
+            session_id=session_id,
+            data=EventPayload(
+                custom_type="security_guard",
+                state={"scanned": 1},
+            ),
+        ),
+    ]
+    await backend.append(events)
+
+    trace = await build_trace(backend, session_id)
+    assert len(trace.custom_messages) == 1
+    msg = trace.custom_messages[0]
+    assert msg["sequence"] == 1
+    assert msg["custom_type"] == "security_guard"
+    assert msg["content"] == "Sensitive file detected"
+    assert msg["display"] is True
+    assert msg["retention"] == "persistent"
+    assert msg["details"] == {"file": ".env"}
+    assert trace.custom_states["security_guard"] == {"scanned": 1}
+
+    # Verify serialization
+    trace_dict = trace.to_dict()
+    assert "custom_messages" in trace_dict
+    assert len(trace_dict["custom_messages"]) == 1
