@@ -39,6 +39,8 @@ from .trace_types import ExecutionTrace, ToolCallRecord, TraceMetadata, TraceOut
 from .types import (
     ActivityPatterns,
     BashExecutionStats,
+    CustomMessagePayload,
+    CustomStatePayload,
     DailyActivity,
     EventFilter,
     GlobalActivityPatterns,
@@ -56,6 +58,8 @@ from .types import (
 __all__ = [
     "ActivityPatterns",
     "BashExecutionStats",
+    "CustomMessagePayload",
+    "CustomStatePayload",
     "DailyActivity",
     "EventFilter",
     "EventLogAnalytics",

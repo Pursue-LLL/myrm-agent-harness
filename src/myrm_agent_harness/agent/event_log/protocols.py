@@ -33,6 +33,16 @@ class EventLogBackend(Protocol):
         """Retrieve events for a session, optionally filtered."""
         ...
 
+    async def get_latest_custom_state(
+        self, session_id: str, custom_type: str | None = None
+    ) -> dict[str, object]:
+        """Retrieve the latest consolidated custom state for a session.
+
+        If custom_type is specified, returns that extension's state dictionary.
+        If custom_type is None, returns a dict mapping all custom_types to their latest state.
+        """
+        ...
+
     async def get_all_session_ids(self) -> list[str]:
         """Retrieve all session IDs in the backend."""
         ...

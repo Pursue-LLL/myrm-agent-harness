@@ -21,6 +21,7 @@ import json
 import logging
 import time
 from pathlib import Path
+from typing import Iterator, TextIO
 
 from myrm_agent_harness.observability.invariants.bootstrap import ensure_runtime_invariants_installed
 from myrm_agent_harness.observability.invariants.config import get_invariant_mode
@@ -42,6 +43,27 @@ _DEFAULT_MAX_JSONL_LINE_BYTES = 100 * 1024
 
 def _utf8_byte_length(s: str) -> int:
     return len(s.encode("utf-8"))
+
+
+def _iter_reverse_lines(file_obj: TextIO, buffer_size: int = 8192) -> Iterator[str]:
+    """Yield non-empty lines from file_obj in reverse order from end to start."""
+    file_obj.seek(0, 2)
+    file_size = file_obj.tell()
+    remainder = ""
+    offset = file_size
+    while offset > 0:
+        read_size = min(buffer_size, offset)
+        offset -= read_size
+        file_obj.seek(offset)
+        chunk = file_obj.read(read_size) + remainder
+        lines = chunk.split("\n")
+        remainder = lines[0]
+        for line in reversed(lines[1:]):
+            stripped = line.strip()
+            if stripped:
+                yield stripped
+    if remainder.strip():
+        yield remainder.strip()
 
 
 def _jsonl_line_for_event(e: StructuredEvent, max_line_bytes: int) -> tuple[str, bool, int]:
@@ -186,6 +208,48 @@ class FileEventLogBackend:
             assert_log_integrity(events, strict=strict)
 
         return events
+
+    async def get_latest_custom_state(
+        self, session_id: str, custom_type: str | None = None
+    ) -> dict[str, object]:
+        """Retrieve the latest consolidated custom state for a session.
+
+        Performs reverse line scanning for fast O(1) tail-short-circuit lookup.
+        """
+        target_file = self._log_dir / f"{session_id}.jsonl"
+        if not target_file.exists():
+            return {}
+
+        result: dict[str, object] = {}
+        async with self._lock:
+            with target_file.open("r", encoding="utf-8") as f:
+                for line in _iter_reverse_lines(f):
+                    try:
+                        raw = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+
+                    if raw.get("type") != "custom":
+                        continue
+
+                    data = raw.get("data", {})
+                    ctype = data.get("custom_type")
+                    if not isinstance(ctype, str) or not ctype:
+                        continue
+
+                    raw_state = data.get("state")
+                    state_dict: dict[str, object] = (
+                        raw_state if isinstance(raw_state, dict) else {"value": raw_state}
+                    )
+
+                    if custom_type is not None:
+                        if ctype == custom_type:
+                            return state_dict
+                    else:
+                        if ctype not in result:
+                            result[ctype] = state_dict
+
+        return result if custom_type is None else {}
 
     async def get_all_session_ids(self) -> list[str]:
         """Retrieve all session IDs by scanning .jsonl files in log_dir."""

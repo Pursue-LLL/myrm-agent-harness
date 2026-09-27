@@ -19,7 +19,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from myrm_agent_harness.agent.streaming.types import AgentEventType
 
@@ -48,6 +48,28 @@ class EventPayload(BaseModel):
     def items(self) -> Any:
         """Backward compatibility for dict.items()"""
         return self.model_dump().items()
+
+
+class CustomStatePayload(EventPayload):
+    """Strongly typed payload for AgentEventType.CUSTOM.
+    Stores extension-specific bookkeeping and private state.
+    Does NOT participate in LLM context (0 token leak).
+    """
+
+    custom_type: str
+    state: dict[str, object] = Field(default_factory=dict)
+
+
+class CustomMessagePayload(EventPayload):
+    """Strongly typed payload for AgentEventType.CUSTOM_MESSAGE.
+    Injects messages into LLM context and optionally renders a CustomMessageCard in UI.
+    """
+
+    custom_type: str
+    content: str
+    display: bool = True
+    retention: str = "persistent"  # "ephemeral" | "persistent"
+    details: dict[str, object] | None = None
 
 
 class StructuredEvent(BaseModel):

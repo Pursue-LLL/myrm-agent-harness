@@ -441,3 +441,9 @@ def _process_event(
                 "approved": data.get("approved"),
             }
         )
+
+    elif et == "custom":
+        ctype = data.get("custom_type")
+        if isinstance(ctype, str) and ctype:
+            raw_state = data.get("state")
+            trace.custom_states[ctype] = raw_state if isinstance(raw_state, dict) else {"value": raw_state}

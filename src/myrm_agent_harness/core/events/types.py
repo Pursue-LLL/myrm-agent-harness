@@ -157,6 +157,8 @@ class AgentEventType(StrEnum):
     SKILL_GAP = "skill_gap"
     PHASE_TRANSITION = "phase_transition"
     WORKING_MEMORY = "working_memory"
+    CUSTOM = "custom"
+    CUSTOM_MESSAGE = "custom_message"
 
 
 class ExecutionPhase(StrEnum):
