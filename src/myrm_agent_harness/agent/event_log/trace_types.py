@@ -125,6 +125,7 @@ class ExecutionTrace:
     first_irrecoverable_index: int | None = None
     first_irrecoverable_timestamp: float | None = None
     custom_states: dict[str, object] = field(default_factory=dict)
+    custom_messages: list[dict[str, object]] = field(default_factory=list)
 
     total_events: int = 0
     total_tokens: int = 0
@@ -200,6 +201,7 @@ class ExecutionTrace:
             "total_events": self.total_events,
             "total_tokens": self.total_tokens,
             "custom_states": self.custom_states,
+            "custom_messages": self.custom_messages,
             "prompt_tokens": sum(lc.prompt_tokens for lc in self.llm_calls),
             "completion_tokens": sum(lc.completion_tokens for lc in self.llm_calls),
             "cache_read_tokens": sum(lc.cache_read_tokens for lc in self.llm_calls),
