@@ -16,8 +16,9 @@ Single source of truth for event log data structures.
 from __future__ import annotations
 
 import time
+from collections.abc import ItemsView
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -31,13 +32,13 @@ class EventPayload(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    def get(self, key: str, default: Any = None) -> Any:
+    def get(self, key: str, default: object = None) -> object:
         """Backward compatibility for dict.get()"""
         if hasattr(self, key):
             return getattr(self, key)
         return self.model_extra.get(key, default) if self.model_extra else default
 
-    def __getitem__(self, item: str) -> Any:
+    def __getitem__(self, item: str) -> object:
         """Backward compatibility for dict subscripting"""
         if hasattr(self, item):
             return getattr(self, item)
@@ -45,7 +46,7 @@ class EventPayload(BaseModel):
             return self.model_extra[item]
         raise KeyError(item)
 
-    def items(self) -> Any:
+    def items(self) -> ItemsView[str, object]:
         """Backward compatibility for dict.items()"""
         return self.model_dump().items()
 
@@ -68,7 +69,7 @@ class CustomMessagePayload(EventPayload):
     custom_type: str
     content: str
     display: bool = True
-    retention: str = "persistent"  # "ephemeral" | "persistent"
+    retention: Literal["ephemeral", "persistent"] = "persistent"
     details: dict[str, object] | None = None
 
 
