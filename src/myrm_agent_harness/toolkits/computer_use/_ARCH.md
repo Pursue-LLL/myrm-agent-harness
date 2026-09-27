@@ -20,6 +20,7 @@ with native desktop applications via accessibility trees (@dref) with coordinate
 | session.py | Core | ComputerSession orchestrator (coordinate I/O, app + foreground gates, operation-scoped foreground waiver) | ✅ |
 | desktop_session.py | Core | DesktopSession: AX snapshot, @dref registry, action lock serialization, self-healing remedy hints, shared approval revalidation, iPhone Mirroring connect-prompt gate (interact hard-deny / vision probe gate / snapshot gate banner), DESKTOP_VIEW_UPDATE, export_inspector_snapshot | ✅ |
 | desktop_agent_tools.py | Core | 3 LangChain tools: snapshot / interact / vision | ✅ |
+| envelope.py | Core | Intent envelope contracts (`IntentEnvelopeSpec`), keystroke sanitizer (`KeystrokeSanitizer`), modal window trust hierarchy, and boundary checker (`check_envelope_action`) | ✅ |
 | mcp_server.py | Surface | MCP server adapter exposing desktop tools (DesktopMCPServer, register_desktop_mcp_tools) to external agents | ✅ |
 
 | Submodule | Description |
@@ -68,6 +69,7 @@ Agent → desktop_agent_tools (3 tools)
 12. **Session lifecycle**: `ComputerSession.close()` on agent session end
 13. **Action Serialization & Self-Healing**: `DesktopSession` enforces session-level concurrency control via `asyncio.Lock()`, serializing mutating desktop actions (`desktop_interact`, `desktop_vision_action`) while keeping AX snapshots non-blocking. Stale references (`DRefStaleError`) and invocation/fallback failures return structured `[REMEDY_HINT: ...]` to guide LLM self-healing without hallucinated retries.
 14. **Human Takeover Parity Gate & Hard Refusal**: `ComputerSession` and `DesktopSession` implement `pause_for_takeover()`, `resume_from_takeover()`, and `_ensure_not_user_takeover()` with `asyncio.Event`. When a human user takes over control, all mutating desktop actions (`desktop_interact`, `desktop_vision_action`, `click_at`, `type_text`, `key_press`, etc.) are physically intercepted. If the wait times out, `UserTakeoverTimeoutError` is raised and the session remains strictly locked (never auto-unblocking), preventing bot ghost runs and cursor contention.
+15. **Intent Envelope & Non-Interruptive Runner**: Pre-flight consent envelope establishes a bound on target applications, maximum lease steps, and sensitive key sanitization. Actions strictly inside the envelope bypass repetitive approval popups, dynamically escalating to approval only on boundary overflow or quota exhaustion.
 
 ## Key Dependencies
 
