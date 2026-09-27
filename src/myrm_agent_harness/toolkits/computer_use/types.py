@@ -244,6 +244,7 @@ class ForegroundPermissionScope(Enum):
     once = "once"
     session = "session"
     always = "always"
+    envelope = "envelope"
 
 
 @dataclass(frozen=True)
