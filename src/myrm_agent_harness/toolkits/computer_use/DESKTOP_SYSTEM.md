@@ -92,7 +92,7 @@ desktop_vision_tool (only when AX empty or interact failed)
 | Channel | Payload |
 |---------|---------|
 | SSE `DESKTOP_VIEW_UPDATE` | screenshot_base64 (SOM-labeled when multimodal agent snapshot or inspector refresh), refs (BBox overlay + `nth` when SOM active), needs_permission |
-| SSE `DESKTOP_CONTROL_APPROVAL_REQUEST` | Per-app / foreground approval card in Desktop Inspector |
+| SSE `DESKTOP_CONTROL_APPROVAL_REQUEST` | Per-app / foreground approval card in Desktop Inspector: `request_id`, `operation` + `trust_key` bound `fingerprint`, `changed_since_last_grant` drift flag, `withdrawn` clear signal, `reason` (user deny reason surfaced) |
 | REST `GET /webui/desktop/snapshot` | Same shape; called on `desktop_*` TOOL_END + manual refresh |
 | REST `POST /webui/desktop/approval/resolve` | Resolve pending desktop control approval |
 | Desktop Inspector | `DesktopLiveView` auto-opens on approval SSE; `DesktopControlApprovalBanner` for Allow/Deny |
