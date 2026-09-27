@@ -61,6 +61,7 @@ class IntentEnvelopeSpec:
     allowed_app_ids: tuple[str, ...] = ()
     max_actions: int = 30
     used_actions: int = 0
+    idle_timeout_seconds: float = 180.0
     allow_system_dialogs: bool = True
     forbidden_commands: tuple[str, ...] = ()
 
@@ -84,6 +85,7 @@ class EnvelopeCheckResult:
         "budget_exhausted",
         "keystroke_violation",
         "system_dialog_parent_untrusted",
+        "idle_timeout",
     ]
     detail: str = ""
 
@@ -152,10 +154,14 @@ def check_envelope_action(
     if norm_target_id and norm_target_id in allowed_ids:
         return EnvelopeCheckResult(allowed=True, reason="ok")
 
-    if norm_target_name and any(
-        target in norm_target_name or norm_target_name in target for target in allowed_names
-    ):
-        return EnvelopeCheckResult(allowed=True, reason="ok")
+    if norm_target_name:
+        if norm_target_name in allowed_names:
+            return EnvelopeCheckResult(allowed=True, reason="ok")
+        for target in allowed_names:
+            if len(target) >= 3:
+                pattern = rf"\b{re.escape(target)}\b"
+                if re.search(pattern, norm_target_name):
+                    return EnvelopeCheckResult(allowed=True, reason="ok")
 
     return EnvelopeCheckResult(
         allowed=False,

@@ -138,3 +138,28 @@ def test_envelope_blocks_keystroke_violation_even_in_trusted_app() -> None:
     )
     assert result.allowed is False
     assert result.reason == "keystroke_violation"
+
+
+def test_envelope_blocks_short_process_name_spoofing() -> None:
+    envelope = IntentEnvelopeSpec(
+        task_id="task_spoof_1",
+        allowed_app_names=("visual studio code",),
+        allowed_app_ids=(),
+    )
+    # Process 'su' is a substring of 'visual studio code' but should never be allowed
+    window_su = WindowHierarchyContext(
+        app_name="su",
+        app_id="su",
+    )
+    result_su = check_envelope_action(envelope=envelope, window=window_su)
+    assert result_su.allowed is False
+    assert result_su.reason == "out_of_boundary"
+
+    # Authorized app with case-insensitive matching
+    window_vscode = WindowHierarchyContext(
+        app_name="Visual Studio Code",
+        app_id="",
+    )
+    result_vscode = check_envelope_action(envelope=envelope, window=window_vscode)
+    assert result_vscode.allowed is True
+    assert result_vscode.reason == "ok"
