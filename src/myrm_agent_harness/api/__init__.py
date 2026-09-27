@@ -301,9 +301,8 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "create_restricted_ax_browser_tools": ("myrm_agent_harness.toolkits.browser.session", "create_restricted_ax_browser_tools"),
 }
 
-# ``__all__`` is derived from ``_EXPORTS`` rather than repeated: the two used to be kept in
-# lockstep by hand (with a runtime check guarding drift), which duplicated ~190 names. Deriving
-# them makes drift impossible instead of detected.
+# ``__all__`` is derived from ``_EXPORTS`` so the two cannot drift: every name is declared once,
+# in ``_EXPORTS``, which is also what ``__getattr__`` resolves against.
 __all__: list[str] = list(_EXPORTS)
 
 
