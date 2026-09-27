@@ -67,7 +67,7 @@ BaseAgent.run()
 
 2. **`custom_message`（模型可见通知）**：
    - 载荷类型：`CustomMessagePayload`
-   - 行为：进入对话上下文，在服务端被包装为携带插件元数据的 `HumanMessage`，并在前端渲染为专有的 `CustomMessageCard`；
+   - 行为：进入对话上下文，在服务端被包装为携带插件元数据的 `HumanMessage`，并在前端渲染为专有的 `CustomMessageCard`；同时由 `trace_builder` 归集为 `ExecutionTrace.custom_messages`，供回放审计与端到端上下文重构；
    - 保留策略：支持 `retention: "ephemeral"`（Compaction 摘要时自动剔除临时告警）与 `retention: "persistent"`（长期保留）。
 
 ---

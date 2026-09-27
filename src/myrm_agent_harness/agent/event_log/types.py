@@ -8,6 +8,8 @@
 - EventFilter: query parameter object
 - SessionSummary: deterministic session statistics
 - PERSISTENT_EVENT_TYPES: set of event types that get written to the log
+- CustomStatePayload: strongly typed payload for AgentEventType.CUSTOM
+- CustomMessagePayload: strongly typed payload for AgentEventType.CUSTOM_MESSAGE
 
 [POS]
 Single source of truth for event log data structures.
