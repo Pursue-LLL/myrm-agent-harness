@@ -403,7 +403,7 @@ def capture_ax_snapshot(
 
     if target_app is not None:
         # Electron apps hide nodes without AXEnhancedUserInterface; fail-soft.
-        from myrm_agent_harness.toolkits.computer_use.backends.macos import (
+        from myrm_agent_harness.toolkits.computer_use.backends.macos_background import (
             _set_enhanced_ui,
             resolve_app_pid,
         )
