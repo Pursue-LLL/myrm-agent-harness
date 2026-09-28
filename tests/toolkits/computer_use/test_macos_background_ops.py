@@ -137,6 +137,143 @@ class TestResolveTargetWindow:
         quartz_stub.CGWindowListCopyWindowInfo.side_effect = RuntimeError("denied")
         assert _resolve_target_window("Finder") is None
 
+    def test_resolve_app_pid_passthrough(self, quartz_stub: MagicMock) -> None:
+        from myrm_agent_harness.toolkits.computer_use.backends.macos_background import (
+            resolve_app_pid,
+        )
+
+        quartz_stub.CGWindowListCopyWindowInfo.return_value = self._windows()
+        assert resolve_app_pid("excel") == 200
+        assert resolve_app_pid("NoSuchApp") is None
+
+
+class TestCaptureWindowPng:
+    def test_success_reads_bytes(self) -> None:
+        import asyncio
+
+        from myrm_agent_harness.toolkits.computer_use.backends.macos_background import (
+            _capture_window_png,
+        )
+
+        proc = MagicMock()
+        proc.communicate = AsyncMock(return_value=(b"", b""))
+        proc.returncode = 0
+
+        async def _run() -> bytes:
+            with patch(
+                "asyncio.create_subprocess_exec", return_value=proc
+            ):
+                with patch(
+                    "pathlib.Path.read_bytes", return_value=b"PNG"
+                ):
+                    with patch("pathlib.Path.unlink"):
+                        return await _capture_window_png(11)
+
+        assert asyncio.get_event_loop().run_until_complete(_run()) == b"PNG"
+
+    def test_failure_raises(self) -> None:
+        import asyncio
+
+        from myrm_agent_harness.toolkits.computer_use.backends.macos_background import (
+            _capture_window_png,
+        )
+
+        proc = MagicMock()
+        proc.communicate = AsyncMock(return_value=(b"", b"nope"))
+        proc.returncode = 1
+
+        async def _run() -> None:
+            with patch("asyncio.create_subprocess_exec", return_value=proc):
+                with patch("pathlib.Path.unlink"):
+                    await _capture_window_png(11)
+
+        with pytest.raises(RuntimeError, match="window capture failed"):
+            asyncio.get_event_loop().run_until_complete(_run())
+
+
+class TestFrontmostPidBranches:
+    def test_app_none_and_bad_pid(self) -> None:
+        from myrm_agent_harness.toolkits.computer_use.backends import macos_background
+
+        workspace = MagicMock()
+        workspace.frontmostApplication.return_value = None
+        ns = MagicMock()
+        ns.sharedWorkspace.return_value = workspace
+        with patch.dict("sys.modules", {"AppKit": MagicMock(NSWorkspace=ns)}):
+            assert macos_background._frontmost_pid_nsworkspace() is None
+        app = MagicMock()
+        app.processIdentifier.return_value = 0
+        workspace.frontmostApplication.return_value = app
+        with patch.dict("sys.modules", {"AppKit": MagicMock(NSWorkspace=ns)}):
+            assert macos_background._frontmost_pid_nsworkspace() is None
+
+    def test_osascript_branches(self) -> None:
+        from myrm_agent_harness.toolkits.computer_use.backends import macos_background
+
+        with (
+            patch.dict("sys.modules", {"AppKit": None}),
+            patch("subprocess.run", side_effect=OSError("no")),
+        ):
+            assert macos_background._frontmost_pid() is None
+        with (
+            patch.dict("sys.modules", {"AppKit": None}),
+            patch("subprocess.run") as run,
+        ):
+            run.return_value = MagicMock(returncode=1, stdout="")
+            assert macos_background._frontmost_pid() is None
+            run.return_value = MagicMock(returncode=0, stdout="abc")
+            assert macos_background._frontmost_pid() is None
+
+    def test_request_success_path(self) -> None:
+        fake_cg = MagicMock()
+        fake_cg.CGRequestPostEventAccess.return_value = True
+        with (
+            patch("ctypes.util.find_library", return_value="lib"),
+            patch("ctypes.cdll.LoadLibrary", return_value=fake_cg),
+        ):
+            assert _request_post_event_access() is True
+
+    def test_malformed_window_entry_returns_none(self, quartz_stub: MagicMock) -> None:
+        quartz_stub.CGWindowListCopyWindowInfo.return_value = [
+            {
+                "kCGWindowOwnerName": "Finder",
+                "kCGWindowOwnerPID": "nan",
+                "kCGWindowNumber": 1,
+                "kCGWindowBounds": {},
+            }
+        ]
+        assert _resolve_target_window("Finder") is None
+
+
+class TestPostEventBranches:
+    def test_load_library_errors(self) -> None:
+        class _BrokenLib:
+            def __getattr__(self, name: str) -> object:
+                raise AttributeError(f"no {name}")
+
+        with (
+            patch("ctypes.util.find_library", return_value="lib"),
+            patch("ctypes.cdll.LoadLibrary", return_value=_BrokenLib()),
+        ):
+            assert _check_post_event_access() is None
+        with (
+            patch("ctypes.util.find_library", return_value="lib"),
+            patch("ctypes.cdll.LoadLibrary", side_effect=OSError("no")),
+        ):
+            assert _check_post_event_access() is None
+            assert _request_post_event_access() is False
+
+    def test_enhanced_ui_spawn_error_disables(self) -> None:
+        from myrm_agent_harness.toolkits.computer_use.backends import macos_background
+
+        macos_background._enhanced_ui_usable = None
+        with (
+            patch("ctypes.util.find_library", return_value="lib"),
+            patch("subprocess.run", side_effect=OSError("no")),
+        ):
+            assert _set_enhanced_ui(9999) is False
+        macos_background._enhanced_ui_usable = None
+
 
 class TestTargetedScreenshot:
     def test_missing_window_raises_no_silent_fullscreen(
