@@ -196,6 +196,9 @@ def resolve_primary_namespace(namespaces: list[str]) -> str:
     if not namespaces:
         raise ValueError("Cannot resolve a primary namespace from an empty namespace chain")
     for namespace in namespaces:
+        if namespace.startswith("project:"):
+            return namespace
+    for namespace in namespaces:
         if namespace.startswith(_AGENT_NAMESPACE_PREFIX):
             return namespace
     for namespace in namespaces:
