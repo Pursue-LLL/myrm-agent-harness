@@ -43,6 +43,7 @@ _READ_ONLY_COMMANDS: Final[frozenset[str]] = frozenset({
     "uname", "hostname", "id", "whoami", "who", "w", "last", "lastlog",
     "env", "printenv", "echo", "printf", "date", "cal",
     "lsblk", "blkid", "lscpu", "lsmem", "lspci", "lsusb", "dmidecode",
+    "nvidia-smi", "rocm-smi",
     # Network state inspection
     "netstat", "ss", "lsof", "ping", "traceroute", "tracepath",
     "dig", "nslookup", "host",
