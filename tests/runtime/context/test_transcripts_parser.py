@@ -157,3 +157,127 @@ def test_codex_transcript_parser() -> None:
     assert result.turns[1].role == CanonicalTurnRole.ASSISTANT
     assert len(result.turns[1].tool_calls) == 1
     assert result.turns[1].tool_calls[0].arguments["path"] == "/workspace/pay.py"
+
+
+def test_path_remapper_edge_cases() -> None:
+    from myrm_agent_harness.runtime.context.transcripts.path_remapper import remap_path_string
+
+    # 1. No host_root configured (passthrough)
+    noop_remapper = SandboxPathRemapper(host_root=None, sandbox_root="/workspace")
+    assert noop_remapper.remap_text("sample /Users/dev/file.txt") == "sample /Users/dev/file.txt"
+    assert noop_remapper.remap_text("") == ""
+    assert noop_remapper.remap_arguments({"path": "/Users/dev/file.txt"}) == {"path": "/Users/dev/file.txt"}
+
+    # 2. Nested dict, non-string list items, and pure functional utility
+    active_remapper = SandboxPathRemapper(host_root="/host/dir", sandbox_root="/container/dir")
+    complex_args: dict[str, object] = {
+        "nested": {"deep_path": "/host/dir/config.json"},
+        "mixed_list": ["/host/dir/1.py", 100, None, True],
+        "number": 42,
+    }
+    remapped = active_remapper.remap_arguments(complex_args)
+    nested_res = remapped["nested"]
+    assert isinstance(nested_res, dict)
+    assert nested_res["deep_path"] == "/container/dir/config.json"
+    assert remapped["mixed_list"] == ["/container/dir/1.py", 100, None, True]
+    assert remapped["number"] == 42
+
+    functional_res = remap_path_string("/host/dir/app.py", host_prefix="/host/dir", sandbox_target="/sandbox")
+    assert functional_res == "/sandbox/app.py"
+
+
+def test_tool_compactor_edge_cases() -> None:
+    from myrm_agent_harness.runtime.context.transcripts.tool_compactor import compact_tool_output
+    from myrm_agent_harness.runtime.context.transcripts.types import CanonicalToolCall
+
+    # None output passthrough
+    call_none = CanonicalToolCall(call_id="c0", tool_name="bash", arguments={}, output=None)
+    assert compact_tool_output(call_none).output is None
+
+    # Single-line massive text exceeding threshold but with few lines
+    huge_single_line = "A" * 3000
+    call_huge_line = CanonicalToolCall(call_id="c1", tool_name="cat", arguments={}, output=huge_single_line)
+    res_huge = ToolOutputCompactor(threshold_bytes=1000).compact(call_huge_line)
+    assert res_huge.compacted
+    assert "truncated" in (res_huge.output or "")
+
+
+def test_claude_parser_edge_cases(tmp_path: object) -> None:
+    from pathlib import Path
+
+    parser = ClaudeTranscriptParser(sandbox_root="/workspace", host_root_hint="/custom/host")
+
+    # Corrupted / empty lines / non-dict events / thought field extraction
+    lines = [
+        "",  # Empty line
+        "{invalid-json}",  # Malformed JSON
+        json.dumps(["not", "a", "dict"]),  # List instead of dict
+        json.dumps({"type": "assistant", "thought": "Plan ahead carefully", "text": "Starting work"}),
+        # Tool call with raw string input and orphaned tool result
+        json.dumps({"type": "assistant", "tool_uses": [{"id": "tu-99", "name": "custom", "input": "raw-arg"}]}),
+        json.dumps({"type": "tool_result", "tool_use_id": "orphan-id", "content": "orphan output"}),
+    ]
+    stream = io.StringIO("\n".join(lines))
+    res = parser.parse_stream(stream, default_session_id="fallback-claude")
+    assert res.title == "Claude Code Imported Session"
+    assert len(res.turns) == 2
+    assert res.turns[0].thinking_trace == "Plan ahead carefully"
+    assert res.turns[1].tool_calls[0].arguments == {"raw": "raw-arg"}
+
+    # File based parse_file
+    p = Path(str(tmp_path)) / "claude_sample.jsonl"
+    p.write_text(json.dumps({"type": "user", "message": "File based prompt"}))
+    file_res = parser.parse_file(p)
+    assert file_res.session_id == "claude_sample"
+    assert file_res.title == "File based prompt"
+
+
+def test_codex_parser_edge_cases(tmp_path: object) -> None:
+    from pathlib import Path
+
+    parser = CodexTranscriptParser(sandbox_root="/workspace")
+
+    # 1. Invalid JSON string
+    res_invalid_json = parser.parse_stream(io.StringIO("{bad json"))
+    assert res_invalid_json.title == "Invalid Codex Session"
+    assert len(res_invalid_json.turns) == 0
+
+    # 2. JSON array instead of dict
+    res_array = parser.parse_stream(io.StringIO(json.dumps([1, 2, 3])))
+    assert res_array.title == "Invalid Codex Session"
+
+    # 3. Non-dict message items, unparseable arguments, and default title fallback
+    data = {
+        "id": "codex-corrupt",
+        "messages": [
+            "not a dict msg",
+            {
+                "role": "assistant",
+                "tool_calls": [
+                    "not a dict tc",
+                    {
+                        "id": "tc-bad",
+                        "function": {"name": "test_fn", "arguments": "{malformed json args"},
+                    },
+                    {
+                        "id": "tc-non-str",
+                        "function": {"name": "other_fn", "arguments": 12345},
+                    },
+                ],
+            },
+        ],
+    }
+    res_edge = parser.parse_stream(io.StringIO(json.dumps(data)))
+    assert res_edge.title == "Codex CLI Imported Session"
+    assert len(res_edge.turns) == 1
+    assert len(res_edge.turns[0].tool_calls) == 2
+    assert res_edge.turns[0].tool_calls[0].arguments == {"raw": "{malformed json args"}
+    assert res_edge.turns[0].tool_calls[1].arguments == {}
+
+    # 4. File-based parse_file
+    p = Path(str(tmp_path)) / "codex_sample.json"
+    p.write_text(json.dumps({"id": "codex-disk", "messages": [{"role": "user", "content": "Disk task"}]}))
+    file_res = parser.parse_file(p)
+    assert file_res.session_id == "codex-disk"
+    assert file_res.title == "Disk task"
+
