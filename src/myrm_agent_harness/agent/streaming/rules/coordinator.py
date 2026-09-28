@@ -21,6 +21,9 @@ from myrm_agent_harness.agent.streaming.rules.types import (
     StreamRule,
     TtsrMatchResult,
 )
+from myrm_agent_harness.toolkits.code_execution.executors.models import (
+    scrub_sensitive_info,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -103,9 +106,12 @@ class TtsrCoordinator:
 
     def create_interruption_message(self, match: TtsrMatchResult) -> HumanMessage:
         """Construct a system-interrupt reminder message marked with TRAP_SHIELD."""
+        safe_matched = scrub_sensitive_info(match.matched_text).strip()
+        matched_line = f"Offending fragment detected: {safe_matched}\n" if safe_matched else ""
         content = (
             f"<system-interrupt>\n"
             f"[Rule Intervention: {match.rule.name}]\n"
+            f"{matched_line}"
             f"{match.rule.reminder}\n"
             f"</system-interrupt>"
         )

@@ -160,6 +160,7 @@ def test_survives_compaction_immunity() -> None:
     assert is_eviction_immune(msg)
     assert msg.additional_kwargs.get("retention") == "persistent"
     assert "<system-interrupt>" in str(msg.content)
+    assert "Offending fragment detected: SECRET" in str(msg.content)
 
     # Simulate selective eviction pipeline targeting transient marks
     transient_msg = HumanMessage(
