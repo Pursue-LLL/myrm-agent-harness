@@ -13,10 +13,10 @@ Data contract models for ssh_remote toolkit.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 
-class SSHAuthType(str, Enum):
+class SSHAuthType(StrEnum):
     """Authentication type for SSH connection."""
 
     PASSWORD = "password"
@@ -41,6 +41,8 @@ class SSHHostSpec:
     timeout_seconds: float = 30.0
     tags: list[str] = field(default_factory=list)
     description: str = ""
+    is_read_only: bool = True
+    require_confirm_on_write: bool = True
 
 
 @dataclass
@@ -57,6 +59,8 @@ class SSHCommandResult:
     is_timeout: bool = False
     blocked_by_guard: bool = False
     block_reason: str = ""
+    is_read_only_violation: bool = False
+    blocked_command_snippet: str = ""
 
 
 @dataclass

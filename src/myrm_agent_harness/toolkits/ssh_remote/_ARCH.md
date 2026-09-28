@@ -14,4 +14,5 @@
 | --- | --- | --- | --- |
 | `__init__.py` | 包入口 | 导出模型与执行器类 | ✅ |
 | `models.py` | 核心模型 | 定义主机规格 `SSHHostSpec`、执行结果 `SSHCommandResult` 与传输结果 `SFTPTransferResult` | ✅ |
+| `command_validator.py` | 安全门禁 | 词法 AST 与只读白名单校验器，提供 Fail-Closed 重定向与写管道拦截 | ✅ |
 | `executor.py` | 核心执行器 | 异步 SSH/SFTP 执行、安全正则拦截与日志蒸馏 | ✅ |

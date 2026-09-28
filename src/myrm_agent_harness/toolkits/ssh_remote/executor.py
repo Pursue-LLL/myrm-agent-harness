@@ -22,6 +22,9 @@ from re import Pattern
 from myrm_agent_harness.toolkits.code_execution.utils.log_distiller import (
     TerminalLogDistiller,
 )
+from myrm_agent_harness.toolkits.ssh_remote.command_validator import (
+    ReadOnlySSHValidator,
+)
 from myrm_agent_harness.toolkits.ssh_remote.models import (
     SSHAuthType,
     SSHCommandResult,
@@ -47,16 +50,28 @@ class SSHRemoteExecutor:
         self,
         distiller: TerminalLogDistiller | None = None,
         custom_dangerous_patterns: list[Pattern[str]] | None = None,
+        readonly_validator: ReadOnlySSHValidator | None = None,
     ) -> None:
         self._distiller = distiller or TerminalLogDistiller()
         self._dangerous_patterns = custom_dangerous_patterns or DANGEROUS_COMMAND_PATTERNS
+        self._readonly_validator = readonly_validator or ReadOnlySSHValidator(
+            custom_destructive_patterns=self._dangerous_patterns
+        )
 
-    def check_command_safety(self, command: str) -> tuple[bool, str]:
-        """Check if command matches high-risk destructive patterns."""
+    def check_command_safety(
+        self, command: str, host: SSHHostSpec | None = None
+    ) -> tuple[bool, str]:
+        """Check if command matches high-risk destructive patterns or violates read-only rules."""
         normalized = command.strip()
         for pattern in self._dangerous_patterns:
             if pattern.search(normalized):
                 return False, f"Command matched dangerous destructive pattern: {pattern.pattern}"
+
+        if host and host.is_read_only:
+            val_res = self._readonly_validator.validate(normalized)
+            if not val_res.is_safe:
+                return False, val_res.reason
+
         return True, ""
 
     async def execute_command(
@@ -67,7 +82,9 @@ class SSHRemoteExecutor:
     ) -> SSHCommandResult:
         """Execute a command on the target host asynchronously using asyncssh/ssh client."""
         start_time = time.monotonic()
-        is_safe, reason = self.check_command_safety(command)
+
+        # 1. Check high-risk destructive patterns first (universal security fence)
+        is_safe, reason = self.check_command_safety(command, host=None)
         if not is_safe:
             return SSHCommandResult(
                 host_id=host.host_id,
@@ -79,7 +96,27 @@ class SSHRemoteExecutor:
                 elapsed_seconds=0.0,
                 blocked_by_guard=True,
                 block_reason=reason,
+                is_read_only_violation=False,
+                blocked_command_snippet="",
             )
+
+        # 2. Check read-only policy if host is configured as read-only
+        if host.is_read_only:
+            val_res = self._readonly_validator.validate(command)
+            if not val_res.is_safe:
+                return SSHCommandResult(
+                    host_id=host.host_id,
+                    command=command,
+                    exit_code=126,
+                    stdout="",
+                    stderr=val_res.reason,
+                    distilled_output=f"[READ-ONLY BLOCKED] {val_res.reason}",
+                    elapsed_seconds=0.0,
+                    blocked_by_guard=True,
+                    block_reason=val_res.reason,
+                    is_read_only_violation=True,
+                    blocked_command_snippet=val_res.violation_snippet,
+                )
 
         exec_timeout = timeout or host.timeout_seconds
 
