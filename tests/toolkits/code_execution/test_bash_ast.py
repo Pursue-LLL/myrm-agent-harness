@@ -125,6 +125,30 @@ class TestBashASTParser:
         assert actions2[0].capability_level == CapabilityLevel.SAFE_READONLY
         assert actions2[1].capability_level == CapabilityLevel.WORKSPACE_MUTATION
 
+    def test_ast_edge_cases(self) -> None:
+        assert BashASTParser.parse("") == []
+        assert BashASTParser.parse("   ") == []
+
+        # Empty statements between delimiters
+        actions = BashASTParser.parse("ls ; ; cat file")
+        assert len(actions) == 2
+
+        # Unclosed quote fallback
+        unclosed = BashASTParser.parse("echo 'unclosed string")
+        assert len(unclosed) == 1
+        assert unclosed[0].base_cmd == "echo"
+
+        # Glued redirections (2>file and &>file)
+        redirs = BashASTParser.parse("python run.py 2>err.log &>all.log")
+        assert len(redirs) == 1
+        assert len(redirs[0].redirections) == 2
+
+        # Environment assignment only (no command)
+        env_only = BashASTParser.parse("FOO=bar BAZ=qux")
+        assert len(env_only) == 1
+        assert env_only[0].base_cmd == ""
+        assert env_only[0].capability_level == CapabilityLevel.SAFE_READONLY
+
 
 class TestCommandRewriterSearchRouting:
     """Unit tests for CommandRewriter transparent grep -> rg routing."""
