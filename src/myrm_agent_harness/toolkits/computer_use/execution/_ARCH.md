@@ -8,7 +8,7 @@ Coordinate-based fallback execution when semantic AX invoke fails on a @dref ele
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Coordinate-based fallback execution package | — |
-| healer.py | Core | BBox center click/type fallback via ComputerBackend | ✅ |
+| healer.py | Core | BBox center click/type fallback via ComputerBackend; macOS routes to snapshot pid with foreground guard | ✅ |
 
 ## Dependencies
 

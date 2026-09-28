@@ -13,7 +13,7 @@ Shared type definitions consumed by all computer_use submodules.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import Enum, StrEnum
 from typing import Literal, Protocol
 
 DesktopInteractAction = Literal[
@@ -180,12 +180,15 @@ class PermissionStatus:
     ``accessibility`` / ``screen_recording`` are OS grant signals.
     ``screen_recording_capturable`` is optional functional capture readiness
     (None = not probed; True/False = probe result). Empty or pure-black frames
-    count as not capturable. ``settings_deeplinks`` maps names to Settings URLs.
+    count as not capturable. ``post_event_access`` is the event-posting TCC
+    grant (None = unprobed/unsupported platform). ``settings_deeplinks``
+    maps names to Settings URLs.
     """
 
     accessibility: bool = True
     screen_recording: bool = True
     screen_recording_capturable: bool | None = None
+    post_event_access: bool | None = None
     platform: str = ""
     settings_deeplinks: dict[str, str] = field(default_factory=dict)
 
@@ -203,7 +206,7 @@ class PermissionStatus:
         return self.all_granted and self.screen_recording_capturable is True
 
 
-class IPhoneMirrorState(str, Enum):
+class IPhoneMirrorState(StrEnum):
     """Connection and display state for macOS iPhone Mirroring (com.apple.ScreenContinuity)."""
 
     READY = "ready"

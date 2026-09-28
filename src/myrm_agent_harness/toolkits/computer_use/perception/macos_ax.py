@@ -401,6 +401,17 @@ def capture_ax_snapshot(
 ) -> MacAxSnapshot:
     target_app = _resolve_target_app(scope, app_name)
 
+    if target_app is not None:
+        # Electron apps hide nodes without AXEnhancedUserInterface; fail-soft.
+        from myrm_agent_harness.toolkits.computer_use.backends.macos import (
+            _set_enhanced_ui,
+            resolve_app_pid,
+        )
+
+        pid = resolve_app_pid(target_app)
+        if pid:
+            _set_enhanced_ui(pid)
+
     if target_app is not None or query or role:
         script = _build_ax_snapshot_script(
             target_app=target_app, query=query, role=role

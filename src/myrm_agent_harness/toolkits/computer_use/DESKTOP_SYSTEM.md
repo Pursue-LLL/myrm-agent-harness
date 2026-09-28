@@ -128,7 +128,10 @@ Injected via server `DESKTOP_CONTROL_RULES` (`myrm-agent-server/app/ai_agents/pr
 - Prefer @dref; use `set_value` for atomic field replacement; use vision only when AX is empty or interact failed
 - Never pass printable operators (`*`, `/`, `+`, `-`, `%`, `=`) as `desktop_vision_tool` `key=` names — use `type` or click calculator/@dref; interact `press` activates the @dref control (not a keyboard key name). Runtime rejects lone operator tokens on vision `key` **before** FG/screenshot revalidation (display-independent) with REMEDY_HINT; approval middleware also auto-denies the same args **before HITL** so users never approve an always-rejected call.
 - Targeted scope: to act on a specific app without changing the foreground, snapshot with `scope="target"` + `app_name`, then interact via its `@dref` refs
-- macOS permission: ask user to grant Accessibility before retry
+- Background batching: finish deterministic reversible steps in as few tool calls as possible — never stop mid-sequence to ask whether to continue; only stop for ambiguous identity, fresh coordinates, irreversible actions, or unexpected UI state
+- Cheapest check first: visible state → one screenshot; semantic state → one AX query; use both only when they prove different things
+- Poll inside the call: wait for async UI states by re-querying within the running tool call instead of asking the model round after round
+- macOS permission: ask user to grant Accessibility (and event-posting access when prompted) before retry
 - Per-app first approval via Web UI (`DesktopControlApprovalBanner`)
 - Native API routing: snapshot recommendation may suggest `bash_code_execute_tool` for scriptable apps
 
@@ -144,6 +147,7 @@ Injected via server `DESKTOP_CONTROL_RULES` (`myrm-agent-server/app/ai_agents/pr
 | Stream E2E tests | ⏳ `test_desktop_control_approval_chrome_e2e.py` + `tests/e2e/desktop_approval/` — `@pytest.mark.chrome_e2e_desktop`；allow_once / allow_session / allow_always→Settings revoke；**3/3 绿前勿改 ✅** |
 | Onboarding hint when computer_use enabled | implemented (toggle + tooltip + empty state) |
 | Native API routing hints | implemented (macOS/Windows/Linux) |
+| Background input (macOS) | ✅ implemented (PID-targeted delivery + foreground guard + window capture; minimized windows and Chromium move/scroll stay limited) |
 
 ---
 

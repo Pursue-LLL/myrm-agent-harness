@@ -27,9 +27,24 @@ from myrm_agent_harness.toolkits.computer_use.types import (
 class ComputerBackend(Protocol):
     """Platform-agnostic contract for screen capture and input simulation."""
 
-    async def screenshot(self) -> bytes:
-        """Capture the primary screen as PNG bytes."""
+    async def screenshot(
+        self, app_name: str | None = None, window_index: int = 0
+    ) -> bytes:
+        """Capture PNG bytes: target app window when ``app_name`` is set.
+
+        Backends without window targeting must raise loudly on targeted
+        requests instead of returning fullscreen pixels.
+        """
         ...
+
+    async def resolve_window_target(
+        self, app_name: str, window_index: int = 0
+    ) -> tuple[int, int, int, int] | None:
+        """Resolve an on-screen window to (x, y, w, h) screen bounds.
+
+        Default None (unsupported); macOS overrides via CGWindowList.
+        """
+        return None
 
     async def click(
         self,

@@ -39,8 +39,15 @@ class WindowsBackend:
     def __init__(self) -> None:
         self._screen_info: ScreenInfo | None = None
 
-    async def screenshot(self) -> bytes:
+    async def screenshot(
+        self, app_name: str | None = None, window_index: int = 0
+    ) -> bytes:
         """Capture primary monitor as PNG bytes using mss."""
+        if app_name:
+            raise RuntimeError(
+                "window-targeted capture is not supported on Windows; "
+                "use scope='foreground'"
+            )
         import mss
         import mss.tools
 

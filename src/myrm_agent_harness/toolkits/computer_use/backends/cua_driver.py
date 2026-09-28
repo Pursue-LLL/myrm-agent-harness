@@ -236,8 +236,12 @@ class CuaDriverBackend:
 
     # ── Delegated to fallback (non-input, no focus concern) ──────
 
-    async def screenshot(self) -> bytes:
-        return await self._fallback.screenshot()
+    async def screenshot(
+        self, app_name: str | None = None, window_index: int = 0
+    ) -> bytes:
+        return await self._fallback.screenshot(
+            app_name=app_name, window_index=window_index
+        )
 
     def screen_info(self) -> ScreenInfo:
         return self._fallback.screen_info()

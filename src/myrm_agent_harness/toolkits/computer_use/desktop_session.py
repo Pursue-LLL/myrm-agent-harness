@@ -225,7 +225,8 @@ class DesktopSession(ComputerSession):
         screenshot_b64 = ""
         screenshot_size = (0, 0)
         if include_screenshot:
-            shot = await self.take_screenshot()
+            target_app = app_name if scope == "target" else None
+            shot = await self.take_screenshot(app_name=target_app)
             screenshot_b64 = self._annotate_screenshot_som(
                 shot.screenshot_base64,
                 refs,

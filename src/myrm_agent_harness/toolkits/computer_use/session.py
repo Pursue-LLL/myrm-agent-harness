@@ -276,27 +276,59 @@ class ComputerSession:
         """Clear one-shot foreground waiver after the current desktop tool call finishes."""
         self._operation_foreground_waived = False
 
-    async def take_screenshot(self) -> ActionResult:
-        """Capture screen, preprocess, and return as base64 JPEG with screen metadata."""
+    async def take_screenshot(
+        self, app_name: str | None = None, window_index: int = 0
+    ) -> ActionResult:
+        """Capture screen, preprocess, and return as base64 JPEG with screen metadata.
+
+        With ``app_name``, captures that app's window without activating it;
+        coordinates map through the window bounds so clicks land correctly.
+        """
         info = self.screen_info
-        raw_bytes = await self._backend.screenshot()
+        origin_x, origin_y = 0, 0
+        geom_w, geom_h = info.width, info.height
+        scope_note = "screen"
+        if app_name:
+            bounds = await self._backend.resolve_window_target(
+                app_name, window_index
+            )
+            if bounds is None:
+                return ActionResult(
+                    success=False,
+                    error=(
+                        f"no on-screen window for app '{app_name}' "
+                        f"(index {window_index})"
+                    ),
+                )
+            origin_x, origin_y, geom_w, geom_h = bounds
+            scope_note = f"window of {app_name}"
+        try:
+            raw_bytes = await self._backend.screenshot(
+                app_name=app_name, window_index=window_index
+            )
+        except Exception as exc:
+            if app_name is None:
+                raise
+            return ActionResult(success=False, error=str(exc))
         self._last_screenshot_bytes = raw_bytes
 
         b64, (sent_w, sent_h) = self._processor.process(raw_bytes, info)
 
         self._scaler = CoordinateScaler(
-            screen_width=info.width,
-            screen_height=info.height,
+            screen_width=geom_w,
+            screen_height=geom_h,
             sent_width=sent_w,
             sent_height=sent_h,
             dpi_scale=info.dpi_scale,
+            origin_x=origin_x,
+            origin_y=origin_y,
         )
 
         return ActionResult(
             success=True,
             screenshot_base64=b64,
             screenshot_size=(sent_w, sent_h),
-            output=f"Screenshot captured: {sent_w}x{sent_h} (screen: {info.width}x{info.height}, DPI: {info.dpi_scale}x)",
+            output=f"Screenshot captured: {sent_w}x{sent_h} ({scope_note}: {geom_w}x{geom_h}, DPI: {info.dpi_scale}x)",
         )
 
     async def zoom_region(

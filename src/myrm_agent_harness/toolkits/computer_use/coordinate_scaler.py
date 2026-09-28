@@ -39,16 +39,20 @@ class CoordinateScaler:
     sent_width: int
     sent_height: int
     dpi_scale: float = 1.0
+    origin_x: int = 0
+    origin_y: int = 0
 
     def api_to_screen(self, x: int, y: int) -> tuple[int, int]:
         """Convert model-returned coordinates to screen coordinates.
 
         The model sees the downscaled image (sent_width × sent_height).
         Screen uses logical coordinates (screen_width × screen_height).
+        For window captures, origin_* is the window's top-left in screen
+        space; fullscreen captures keep origin (0, 0).
         """
         scale_x = self.screen_width / self.sent_width
         scale_y = self.screen_height / self.sent_height
-        return int(x * scale_x), int(y * scale_y)
+        return int(self.origin_x + x * scale_x), int(self.origin_y + y * scale_y)
 
     def screen_to_api(self, x: int, y: int) -> tuple[int, int]:
         """Convert screen coordinates to model image coordinates.
@@ -57,7 +61,7 @@ class CoordinateScaler:
         """
         scale_x = self.sent_width / self.screen_width
         scale_y = self.sent_height / self.screen_height
-        return int(x * scale_x), int(y * scale_y)
+        return int((x - self.origin_x) * scale_x), int((y - self.origin_y) * scale_y)
 
     def validate_api_coords(self, x: int, y: int) -> bool:
         """Check if API coordinates are within the sent image bounds."""

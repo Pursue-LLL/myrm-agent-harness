@@ -5,6 +5,7 @@
 
 [OUTPUT]
 - ElementRefError, DRefStaleError, AXPermissionRequiredError, AXTreeEmptyError
+- FocusChangedError
 
 [POS]
 Typed error hierarchy for @dref desktop element reference operations.
@@ -49,6 +50,25 @@ class AXPermissionRequiredError(ElementRefError):
             "This is a retryable condition, not a failure: do NOT end the turn or ask the user to "
             "start over. Wait for them to grant access, then retry the same call. "
             "Use desktop_vision_tool as explicit visual fallback if needed."
+        )
+
+
+class FocusChangedError(ElementRefError):
+    """Raised when a background operation disturbed the foreground app.
+
+    Retryable: re-snapshot the target app and retry; do NOT end the turn.
+    """
+
+    def __init__(self, expected: str = "", actual: str = "") -> None:
+        detail = (
+            f" (expected foreground '{expected}', now '{actual}')"
+            if expected or actual
+            else ""
+        )
+        super().__init__(
+            f"Foreground app changed during background operation{detail}. "
+            "The action may have leaked to the wrong app: do NOT assume success. "
+            "Re-snapshot the target app and retry the same call."
         )
 
 

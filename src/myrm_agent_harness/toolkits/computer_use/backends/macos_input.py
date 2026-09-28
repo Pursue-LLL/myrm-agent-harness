@@ -11,9 +11,11 @@
 [OUTPUT]
 - 键鼠模拟原语：key_down/key_up/press/hotkey/write/click/move_to/scroll/hscroll/drag
 - 状态读取原语：size/position
+- 后台路由：set_input_target/clear_input_target（目标进程定向投递）
 
 [POS]
 macOS 输入原语。仅被 backends/macos.py 引用，随 computer-use extra 安装。
+投递默认走全局 HID；设置 target pid 后经 CGEventPostToPid 直投目标进程。
 """
 
 from __future__ import annotations
@@ -179,32 +181,57 @@ class _Point(NamedTuple):
     y: int
 
 
+# 后台定向投递目标（unix pid）。None = 全局 HID 投递（默认行为，不变）。
+# 由上层（target scope 交互路径）在操作前后成对设置/清除；本模块不做线程同步，
+# 调用方持有 session 级 _action_lock pager 串行保证。
+_input_target_pid: int | None = None
+
+
+def set_input_target(pid: int | None) -> None:
+    """设置后台定向投递目标；None 恢复全局 HID 投递。"""
+    global _input_target_pid
+    _input_target_pid = pid if pid and pid > 0 else None
+
+
+def clear_input_target() -> None:
+    """清除定向目标，恢复全局 HID 投递。"""
+    global _input_target_pid
+    _input_target_pid = None
+
+
+def _post_event(event: object) -> None:
+    """单投递点：有目标则 CGEventPostToPid 直投，否则全局 HID。"""
+    if _input_target_pid is not None:
+        from Quartz import CGEventPostToPid
+
+        CGEventPostToPid(_input_target_pid, event)
+        return
+    from Quartz import CGEventPost, kCGHIDEventTap
+
+    CGEventPost(kCGHIDEventTap, event)
+
+
 def _is_shift_character(char: str) -> bool:
     """判断字符是否需要 Shift 修饰（大写字母或 shift 标点）。"""
     return char.isupper() or char in _SHIFT_CHARACTERS
 
 
 def _post_key_event(keycode: int, is_down: bool) -> None:
-    from Quartz import CGEventCreateKeyboardEvent, CGEventPost, kCGHIDEventTap
+    from Quartz import CGEventCreateKeyboardEvent
 
     event = CGEventCreateKeyboardEvent(None, keycode, is_down)
-    CGEventPost(kCGHIDEventTap, event)
+    _post_event(event)
 
 
 def _post_mouse_event(event_type: int, x: int, y: int, button: int) -> None:
-    from Quartz import CGEventCreateMouseEvent, CGEventPost, kCGHIDEventTap
+    from Quartz import CGEventCreateMouseEvent
 
     event = CGEventCreateMouseEvent(None, event_type, (x, y), button)
-    CGEventPost(kCGHIDEventTap, event)
+    _post_event(event)
 
 
 def _post_scroll(amount: int, vertical: bool) -> None:
-    from Quartz import (
-        CGEventCreateScrollWheelEvent,
-        CGEventPost,
-        kCGHIDEventTap,
-        kCGScrollEventUnitLine,
-    )
+    from Quartz import CGEventCreateScrollWheelEvent, kCGScrollEventUnitLine
 
     wheel_count = 1 if vertical else 2
     # 与 pyautogui 一致：每 10 格一段投递，避免大数值被应用忽略。
@@ -217,7 +244,7 @@ def _post_scroll(amount: int, vertical: bool) -> None:
             step if vertical else 0,
             0 if vertical else step,
         )
-        CGEventPost(kCGHIDEventTap, event)
+        _post_event(event)
     remainder = amount % 10 if amount >= 0 else -1 * ((-amount) % 10)
     event = CGEventCreateScrollWheelEvent(
         None,
@@ -226,7 +253,7 @@ def _post_scroll(amount: int, vertical: bool) -> None:
         remainder if vertical else 0,
         0 if vertical else remainder,
     )
-    CGEventPost(kCGHIDEventTap, event)
+    _post_event(event)
 
 
 def key_down(key: str) -> None:
@@ -263,21 +290,15 @@ def hotkey(*keys: str) -> None:
 
 def write(text: str, interval: float = 0.0) -> None:
     """逐字符输入文本（CGEventKeyboardSetUnicodeString，任意 Unicode 均可靠）。"""
-    from Quartz import (
-        CGEventCreate,
-        CGEventCreateKeyboardEvent,
-        CGEventKeyboardSetUnicodeString,
-        CGEventPost,
-        kCGHIDEventTap,
-    )
+    from Quartz import CGEventCreate, CGEventCreateKeyboardEvent, CGEventKeyboardSetUnicodeString
 
     source = CGEventCreate(None)
     for char in text:
         down = CGEventCreateKeyboardEvent(source, 0, True)
         CGEventKeyboardSetUnicodeString(down, 1, char)
-        CGEventPost(kCGHIDEventTap, down)
+        _post_event(down)
         up = CGEventCreateKeyboardEvent(source, 0, False)
-        CGEventPost(kCGHIDEventTap, up)
+        _post_event(up)
         if interval:
             time.sleep(interval)
 

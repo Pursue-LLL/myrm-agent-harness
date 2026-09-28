@@ -1,15 +1,19 @@
 """BBox fallback click when AX invoke fails.
 
-This is the coordinate-based fallback path — it WILL steal foreground focus
-(the native input layer moves the real cursor: macOS Quartz CGEvent,
-Windows pyautogui, Linux xdotool). The foreground permission gate
-must be checked before entering this function.
+This is the coordinate-based fallback path. On macOS, when the snapshot meta
+carries the target app pid, input is routed directly to that process and the
+foreground guard aborts on focus leaks — the real cursor never moves. Other
+platforms (and pid-less snapshots) keep the legacy foreground behavior. The
+foreground permission gate must be checked before entering this function.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.toolkits.computer_use.backends.protocols import (
+    ComputerBackend,
+)
 from myrm_agent_harness.toolkits.computer_use.dref.types import ElementRef
 from myrm_agent_harness.toolkits.computer_use.types import ActionResult, ModifierKey
 
@@ -37,11 +41,58 @@ async def try_bbox_click(
     if permission_denied is not None:
         return permission_denied
 
-    backend = session._backend  # type: ignore[attr-defined]
+    backend = session._backend
     normalized = action.lower()
     x = element.bbox.center_x
     y = element.bbox.center_y
 
+    if normalized not in {
+        "fill",
+        "type",
+        "set_value",
+        "click",
+        "press",
+        "hover",
+        "focus",
+        "dblclick",
+        "double_click",
+    }:
+        return ActionResult(
+            success=False, error=f"BBox fallback unsupported for action: {action}"
+        )
+
+    target_pid = meta.pid if meta and meta.pid else None
+    if type(backend).__name__ == "MacOSBackend" and target_pid:
+        from myrm_agent_harness.toolkits.computer_use.backends import macos_input
+        from myrm_agent_harness.toolkits.computer_use.backends.macos import (
+            guard_foreground,
+        )
+        from myrm_agent_harness.toolkits.computer_use.dref.errors import (
+            FocusChangedError,
+        )
+
+        macos_input.set_input_target(target_pid)
+        try:
+            with guard_foreground():
+                return await _run_bbox_action(
+                    backend, normalized, x, y, text, modifiers
+                )
+        except FocusChangedError as exc:
+            return ActionResult(success=False, error=str(exc))
+        finally:
+            macos_input.clear_input_target()
+    return await _run_bbox_action(backend, normalized, x, y, text, modifiers)
+
+
+async def _run_bbox_action(
+    backend: ComputerBackend,
+    normalized: str,
+    x: int,
+    y: int,
+    text: str,
+    modifiers: list[ModifierKey] | None,
+) -> ActionResult:
+    """Execute one bbox coordinate action against the backend."""
     if normalized in {"fill", "type", "set_value"}:
         click_result = await backend.click(x, y, modifiers=modifiers)
         if not click_result.success:
@@ -50,10 +101,5 @@ async def try_bbox_click(
             return ActionResult(success=True, output="Focused element via bbox click")
         return await backend.type_text(text)
 
-    if normalized in {"click", "press", "hover", "focus", "dblclick", "double_click"}:
-        clicks = 2 if normalized in {"dblclick", "double_click"} else 1
-        return await backend.click(x, y, clicks=clicks, modifiers=modifiers)
-
-    return ActionResult(
-        success=False, error=f"BBox fallback unsupported for action: {action}"
-    )
+    clicks = 2 if normalized in {"dblclick", "double_click"} else 1
+    return await backend.click(x, y, clicks=clicks, modifiers=modifiers)
