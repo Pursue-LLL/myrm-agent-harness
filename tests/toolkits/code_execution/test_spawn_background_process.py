@@ -206,19 +206,19 @@ async def test_spawn_user_env_injected(workspace: Path) -> None:
     """User-provided env vars (context.env) must be injected into the process."""
     executor = _make_executor(workspace)
 
-    script = "import os; print(os.environ.get('MY_API_KEY', 'MISSING'))"
+    script = "import os; print(os.environ.get('MY_CUSTOM_CONFIG', 'MISSING'))"
     context = ExecutionContext(
         code=sys.executable,
         args=["-c", script],
         workspace_root=str(workspace),
-        env={"MY_API_KEY": "sk-test-12345"},
+        env={"MY_CUSTOM_CONFIG": "custom-val-12345"},
     )
 
     process = await executor.spawn_background_process(context)
     try:
         line = await process.stdout.readline()  # type: ignore[union-attr]
         result = line.decode("utf-8").strip()
-        assert result == "sk-test-12345"
+        assert result == "custom-val-12345"
     finally:
         with contextlib.suppress(ProcessLookupError):
             process.terminate()

@@ -77,6 +77,7 @@ PTC（程序化工具调用）
 │  │  │  ┌─ analyzer        │  │  Workspace + Service   │   │   │
 │  │  │  ├─ blacklist       │  │  (会话文件空间管理)     │   │   │
 │  │  │  ├─ validator       │  └───────────────────────┘   │   │
+│  │  │  ├─ ast_parser      │                               │   │
 │  │  │  └─ sanitizer       │                               │   │
 │  │  └─────────────────────┘                               │   │
 │  │       │                                                │   │

@@ -69,111 +69,38 @@ class AtomicCommandAction:
 
 SAFE_READONLY_COMMANDS: frozenset[str] = frozenset(
     {
-        "ls",
-        "dir",
-        "cat",
-        "head",
-        "tail",
-        "less",
-        "more",
-        "file",
-        "wc",
-        "du",
-        "df",
-        "stat",
-        "tree",
-        "realpath",
-        "basename",
-        "dirname",
-        "readlink",
-        "pwd",
-        "grep",
-        "rg",
-        "ag",
-        "fd",
-        "fzf",
-        "sort",
-        "uniq",
-        "diff",
-        "comm",
-        "cut",
-        "tr",
-        "echo",
-        "printf",
-        "uname",
-        "arch",
-        "id",
-        "whoami",
-        "groups",
-        "uptime",
-        "which",
-        "where",
-        "type",
-        "command",
-        "date",
-        "cd",
-        "env",
-        "md5sum",
-        "sha256sum",
-        "hexdump",
-        "strings",
+        "ls", "dir", "cat", "head", "tail", "less", "more", "file", "wc", "du", "df",
+        "stat", "tree", "realpath", "basename", "dirname", "readlink", "pwd", "grep",
+        "rg", "ag", "fd", "fzf", "sort", "uniq", "diff", "comm", "cut", "tr", "echo",
+        "printf", "uname", "arch", "id", "whoami", "groups", "uptime", "which", "where",
+        "type", "command", "date", "cd", "env", "md5sum", "sha256sum", "hexdump", "strings",
     }
 )
 
 SAFE_TEST_COMMANDS: frozenset[str] = frozenset(
     {
-        "pytest",
-        "jest",
-        "vitest",
-        "mocha",
-        "cargo",
-        "go",
-        "bun",
-        "npm",
-        "yarn",
-        "pnpm",
-        "mypy",
-        "pyright",
-        "tsc",
-        "ruff",
-        "eslint",
-        "biome",
-        "flake8",
-        "shellcheck",
-        "black",
-        "isort",
+        "pytest", "jest", "vitest", "mocha", "cargo", "go", "bun", "npm", "yarn",
+        "pnpm", "mypy", "pyright", "tsc", "ruff", "eslint", "biome", "flake8",
+        "shellcheck", "black", "isort",
     }
 )
 
 _GIT_SAFE_READONLY_SUBCOMMANDS: frozenset[str] = frozenset(
     {
-        "status",
-        "log",
-        "diff",
-        "show",
-        "branch",
-        "tag",
-        "describe",
-        "rev-parse",
-        "rev-list",
-        "ls-files",
-        "ls-tree",
-        "ls-remote",
-        "remote",
-        "config",
-        "version",
-        "help",
+        "status", "log", "diff", "show", "branch", "tag", "describe", "rev-parse",
+        "rev-list", "ls-files", "ls-tree", "ls-remote", "remote", "config", "version", "help",
     }
 )
 
 _GIT_DESTRUCTIVE_SUBCOMMANDS: frozenset[str] = frozenset(
     {
-        "push",
-        "reset",
-        "clean",
-        "rebase",
-        "filter-branch",
-        "gc",
+        "push", "reset", "clean", "rebase", "filter-branch", "gc",
+    }
+)
+
+_GIT_GLOBAL_OPTS_WITH_ARG: frozenset[str] = frozenset(
+    {
+        "-C", "-c", "--git-dir", "--work-tree", "--namespace", "--super-prefix", "--exec-path",
     }
 )
 
@@ -404,6 +331,22 @@ class BashASTParser:
             raw_tokens=tuple(tokens),
         )
 
+    @staticmethod
+    def _extract_git_subcommand(args: tuple[str, ...]) -> str | None:
+        """Extract the actual git subcommand, skipping global flags and flag arguments."""
+        i = 0
+        n = len(args)
+        while i < n:
+            arg = args[i]
+            if arg in _GIT_GLOBAL_OPTS_WITH_ARG:
+                i += 2
+                continue
+            if arg.startswith("-"):
+                i += 1
+                continue
+            return arg
+        return None
+
     @classmethod
     def _classify_capability(
         cls,
@@ -442,7 +385,7 @@ class BashASTParser:
 
         # 4. Git fine-grained subcommand boundary
         if base_cmd == "git":
-            subcmd = next((arg for arg in args if not arg.startswith("-")), None)
+            subcmd = cls._extract_git_subcommand(args)
             if not subcmd or subcmd in _GIT_SAFE_READONLY_SUBCOMMANDS:
                 if any(r.operator in (">", ">>", "&>") for r in redirections):
                     return CapabilityLevel.WORKSPACE_MUTATION, None

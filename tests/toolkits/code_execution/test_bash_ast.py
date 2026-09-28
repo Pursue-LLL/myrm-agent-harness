@@ -112,6 +112,19 @@ class TestBashASTParser:
         assert actions[1].capability_level == CapabilityLevel.CAPABILITY_ESCALATION
         assert actions[1].escalation_reason == "git_remote_sync"
 
+    def test_git_global_flags_handling(self) -> None:
+        actions = BashASTParser.parse("git -C /workspace status && git -C /workspace push origin main")
+        assert len(actions) == 2
+        assert actions[0].capability_level == CapabilityLevel.SAFE_READONLY
+        assert actions[0].escalation_reason is None
+        assert actions[1].capability_level == CapabilityLevel.CAPABILITY_ESCALATION
+        assert actions[1].escalation_reason == "git_remote_sync"
+
+        actions2 = BashASTParser.parse("git --no-pager diff && git -c user.email=bot@org.com commit -m 'ci'")
+        assert len(actions2) == 2
+        assert actions2[0].capability_level == CapabilityLevel.SAFE_READONLY
+        assert actions2[1].capability_level == CapabilityLevel.WORKSPACE_MUTATION
+
 
 class TestCommandRewriterSearchRouting:
     """Unit tests for CommandRewriter transparent grep -> rg routing."""
