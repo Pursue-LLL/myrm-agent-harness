@@ -147,6 +147,7 @@ Injected via server `DESKTOP_CONTROL_RULES` (`myrm-agent-server/app/ai_agents/pr
 | Stream E2E tests | ⏳ `test_desktop_control_approval_chrome_e2e.py` + `tests/e2e/desktop_approval/` — `@pytest.mark.chrome_e2e_desktop`；allow_once / allow_session / allow_always→Settings revoke；**3/3 绿前勿改 ✅** |
 | Onboarding hint when computer_use enabled | implemented (toggle + tooltip + empty state) |
 | Native API routing hints | implemented (macOS/Windows/Linux) |
+| Desktop browser E2E host grants | the `chrome_e2e_desktop` nodes probe the *backend host* process (`/webui/desktop/permissions`); a backend running in a background bootstrap context reports denied even when your shell has grants — run it from a GUI-session backend or grant TCC to the host |
 | Background input (macOS) | ✅ implemented (PID-targeted delivery + foreground guard + window capture; minimized windows and Chromium move/scroll stay limited) |
 
 ---
