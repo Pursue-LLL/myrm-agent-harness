@@ -226,3 +226,79 @@ def test_ttsr_matcher_unicode_evasion_blocked() -> None:
     assert "rm -rf" in result.matched_text
 
 
+def test_ttsr_comprehensive_edge_cases_and_coverage() -> None:
+    """Verify edge cases across unescaper, matcher, and coordinator for >=90% test coverage."""
+    unescaper = PartialJsonUnescaper()
+
+    # Empty chunk
+    assert unescaper.unescape_chunk("") == ""
+
+    # Common escape sequences: \", \\, \/, \n, \r, \t, and unrecognised escape \a
+    escaped_text = r'quote: \" backslash: \\ slash: \/ nl: \n cr: \r tab: \t unrec: \a'
+    unescaped = unescaper.unescape_chunk(escaped_text)
+    assert unescaped == 'quote: " backslash: \\ slash: / nl: \n cr: \r tab: \t unrec: \\a'
+
+    # Unicode invalid sequence followed by escape
+    fallback_text = unescaper.unescape_chunk(r"\u12\n")
+    assert r"\u12" in fallback_text
+    assert "\n" in fallback_text
+
+    # Matcher boundary and empty branches
+    matcher = TtsrMatcher()
+    rule_assistant = StreamRule(
+        rule_id="assistant_only",
+        name="Assistant Only",
+        pattern=re.compile(r"FORBIDDEN"),
+        target="assistant",
+    )
+    # Empty chunk or empty rules
+    assert matcher.feed_and_match([], "assistant", "FORBIDDEN", 1) is None
+    assert matcher.feed_and_match([rule_assistant], "assistant", "", 1) is None
+
+    # Target mismatch: target is thinking, rule is assistant
+    assert matcher.feed_and_match([rule_assistant], "thinking", "FORBIDDEN", 1) is None
+
+    # Target match
+    matched = matcher.feed_and_match([rule_assistant], "assistant", "FORBIDDEN text", 1)
+    assert matched is not None
+    assert matched.matched_text == "FORBIDDEN"
+
+    # Reset matcher
+    matcher.reset()
+    assert matcher._buffers["assistant"] == ""
+
+    # Coordinator edge properties and methods
+    coordinator = TtsrCoordinator(rules=[rule_assistant])
+    assert len(coordinator.rules) == 1
+    assert coordinator.retries_this_turn == 0
+
+    # Overwrite rule via register_rule
+    updated_rule = StreamRule(
+        rule_id="assistant_only",
+        name="Assistant Only Updated",
+        pattern=re.compile(r"UPDATED_FORBIDDEN"),
+        target="assistant",
+    )
+    coordinator.register_rule(updated_rule)
+    assert len(coordinator.rules) == 1
+    assert coordinator.rules[0].name == "Assistant Only Updated"
+
+    # Interrupt requested triggers immediate early return
+    coordinator._interrupt_requested = True
+    assert coordinator.inspect_chunk("assistant", "UPDATED_FORBIDDEN", 1) is None
+    coordinator.reset_interruption()
+    assert coordinator.interrupt_requested is False
+
+    # Match and reset turn
+    matched = coordinator.inspect_chunk("assistant", "UPDATED_FORBIDDEN", 1)
+    assert matched is not None
+    assert coordinator.last_match is not None
+    coordinator.record_retry()
+    assert coordinator.retries_this_turn == 1
+    coordinator.reset_turn()
+    assert coordinator.retries_this_turn == 0
+    assert coordinator.interrupt_requested is False
+
+
+
+
