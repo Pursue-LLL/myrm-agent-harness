@@ -22,7 +22,6 @@ from myrm_agent_harness.agent.context_management.working_memory.types import (
     SubtaskItem,
     SubtaskStatus,
     TrapRecord,
-    WorkingMemoryFlushResult,
 )
 
 _WORKING_STATE_VAR: contextvars.ContextVar[LocalWorkingState | None] = contextvars.ContextVar(
@@ -210,69 +209,6 @@ class LocalWorkingMemoryBlock:
             + "".join(f"{k}{v}" for k, v in target_state.scratchpad.items())
         )
         return max(1, math.ceil(len(raw) / 3.2))
-
-    @classmethod
-    def flush_stale(
-        cls,
-        flush_ratio: float = 0.5,
-        token_budget: int | None = None,
-    ) -> WorkingMemoryFlushResult:
-        """Purge completed subtasks and stale scratchpad entries to prevent context bloat.
-
-        Prioritizes evicting oldest completed/skipped tasks, preserving the primary goal,
-        in-progress steps, pending obligations, and failure traps. Never drops active steps.
-        If token_budget is specified and current consumption is within budget, eviction is skipped.
-        """
-        state = cls.get_state()
-        if state is None:
-            return WorkingMemoryFlushResult()
-
-        before = cls.estimate_tokens(state)
-        if token_budget is not None and before <= token_budget:
-            return WorkingMemoryFlushResult(
-                evicted_subtasks_count=0,
-                evicted_scratchpad_count=0,
-                remaining_subtasks_count=len(state.subtasks),
-                remaining_scratchpad_count=len(state.scratchpad),
-                estimated_tokens_before=before,
-                estimated_tokens_after=before,
-            )
-
-        completed_indices = [
-            i
-            for i, s in enumerate(state.subtasks)
-            if s.status in (SubtaskStatus.COMPLETED, SubtaskStatus.SKIPPED)
-        ]
-        ratio = max(0.0, min(1.0, flush_ratio))
-        num_subtasks_to_evict = max(1, math.ceil(len(completed_indices) * ratio)) if completed_indices else 0
-        evict_indices = set(completed_indices[:num_subtasks_to_evict])
-
-        new_subtasks = [s for i, s in enumerate(state.subtasks) if i not in evict_indices]
-        evicted_subtasks = len(state.subtasks) - len(new_subtasks)
-        state.subtasks = new_subtasks
-
-        evicted_scratch_count = 0
-        current_tokens = cls.estimate_tokens(state)
-        should_evict_scratch = (
-            token_budget is not None and current_tokens > token_budget
-        ) or (token_budget is None and bool(state.scratchpad) and ratio > 0.0)
-
-        if should_evict_scratch and state.scratchpad:
-            keys = list(state.scratchpad.keys())
-            num_vars_to_evict = max(1, math.ceil(len(keys) * ratio))
-            for k in keys[:num_vars_to_evict]:
-                state.scratchpad.pop(k, None)
-                evicted_scratch_count += 1
-
-        after = cls.estimate_tokens(state)
-        return WorkingMemoryFlushResult(
-            evicted_subtasks_count=evicted_subtasks,
-            evicted_scratchpad_count=evicted_scratch_count,
-            remaining_subtasks_count=len(state.subtasks),
-            remaining_scratchpad_count=len(state.scratchpad),
-            estimated_tokens_before=before,
-            estimated_tokens_after=after,
-        )
 
     @classmethod
     def format_turn_tail_markdown(

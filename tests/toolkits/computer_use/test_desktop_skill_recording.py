@@ -128,6 +128,9 @@ def test_synthesize_desktop_skill_draft_full_flow() -> None:
     assert len(draft.steps) >= 2
     assert "---" in draft.markdown_content
     assert "name: monthly_report_automation" in draft.markdown_content
+    assert "version: 1.0.0" in draft.markdown_content
+    assert "allowed-tools:" in draft.markdown_content
+    assert "browser_navigate_tool" in draft.markdown_content
     assert "## Workflow Execution Steps" in draft.markdown_content
 
 
@@ -189,3 +192,76 @@ def test_password_value_is_masked_in_draft_markdown() -> None:
 
     assert "hunter2" not in draft.markdown_content
     assert "***" in draft.markdown_content
+
+
+def test_cluster_and_debounce_cumulative_snapshots_and_passwords() -> None:
+    """Cumulative snapshots from AX polling must debounce to latest text without character repetition."""
+    events = [
+        DesktopRecordedEvent(
+            seq=1,
+            action=RecordedActionType.TYPE.value,
+            app_name="Chrome",
+            element_title="Username",
+            value="a",
+        ),
+        DesktopRecordedEvent(
+            seq=2,
+            action=RecordedActionType.TYPE.value,
+            app_name="Chrome",
+            element_title="Username",
+            value="adm",
+        ),
+        DesktopRecordedEvent(
+            seq=3,
+            action=RecordedActionType.TYPE.value,
+            app_name="Chrome",
+            element_title="Username",
+            value="admin",
+        ),
+        DesktopRecordedEvent(
+            seq=4,
+            action=RecordedActionType.TYPE.value,
+            app_name="Chrome",
+            element_title="Role",
+            value="manager",
+        ),
+        DesktopRecordedEvent(
+            seq=5,
+            action=RecordedActionType.TYPE.value,
+            app_name="Chrome",
+            element_title="Role",
+            value="manage",
+        ),
+        DesktopRecordedEvent(
+            seq=6,
+            action=RecordedActionType.TYPE.value,
+            app_name="Chrome",
+            element_title="Password",
+            value=None,
+            is_password=True,
+        ),
+        DesktopRecordedEvent(
+            seq=7,
+            action=RecordedActionType.TYPE.value,
+            app_name="Chrome",
+            element_title="Password",
+            value=None,
+            is_password=True,
+        ),
+    ]
+
+    clustered = cluster_and_debounce_events(events)
+    assert len(clustered) == 3
+    # Username: cumulative typing retained as 'admin' without duplication
+    assert clustered[0].element_title == "Username"
+    assert clustered[0].value == "admin"
+    assert clustered[0].seq == 1
+    # Role: backspace edit retained as 'manage'
+    assert clustered[1].element_title == "Role"
+    assert clustered[1].value == "manage"
+    assert clustered[1].seq == 2
+    # Password: debounced to single event with masked/None value
+    assert clustered[2].element_title == "Password"
+    assert clustered[2].is_password is True
+    assert clustered[2].value is None
+    assert clustered[2].seq == 3

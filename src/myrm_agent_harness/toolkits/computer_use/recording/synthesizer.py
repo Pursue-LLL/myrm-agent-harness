@@ -22,6 +22,7 @@ from .types import (
     SynthesizedSkillStep,
     ToolLiftingCandidate,
 )
+from myrm_agent_harness.backends.skills.workflow_compiler import DEFAULT_ALLOWED_TOOLS
 
 _FILE_PATH_PATTERN = re.compile(
     r"([a-zA-Z]:\\[^\s\"\'<>|*?]+\.[a-zA-Z0-9]+|/(?:[^\s\"\'<>|*?]+/)+[^\s\"\'<>|*?]+\.[a-zA-Z0-9]+)"
@@ -33,7 +34,12 @@ _EMAIL_PATTERN = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\
 def cluster_and_debounce_events(
     events: list[DesktopRecordedEvent],
 ) -> list[DesktopRecordedEvent]:
-    """Cluster consecutive keystrokes and debounce redundant focus/mouse events."""
+    """Cluster consecutive keystrokes and debounce redundant focus/mouse events.
+
+    Produces a fresh list of debounced event copies rather than mutating caller state.
+    Consecutive typing snapshots on the same element retain the final cumulative text
+    rather than corrupting strings with incremental concatenation.
+    """
     if not events:
         return []
 
@@ -41,23 +47,48 @@ def cluster_and_debounce_events(
 
     for ev in events:
         if not clustered:
-            clustered.append(ev)
+            clustered.append(
+                DesktopRecordedEvent(
+                    seq=1,
+                    timestamp=ev.timestamp,
+                    action=ev.action,
+                    app_name=ev.app_name,
+                    bundle_id=ev.bundle_id,
+                    window_title=ev.window_title,
+                    dref_id=ev.dref_id,
+                    element_role=ev.element_role,
+                    element_title=ev.element_title,
+                    value=ev.value,
+                    is_password=ev.is_password,
+                    modifiers=list(ev.modifiers),
+                    screenshot_b64=ev.screenshot_b64,
+                )
+            )
             continue
 
         prev = clustered[-1]
 
-        # Merge consecutive typing on the same element / window
+        # Merge consecutive typing on the same element / window (both plaintext and password fields)
         if (
             ev.action == RecordedActionType.TYPE.value
             and prev.action == RecordedActionType.TYPE.value
             and ev.app_name == prev.app_name
             and ev.dref_id == prev.dref_id
-            and not ev.is_password
-            and not prev.is_password
+            and ev.element_title == prev.element_title
         ):
+            if ev.is_password or prev.is_password:
+                prev.is_password = True
+                prev.value = None
+                prev.timestamp = ev.timestamp
+                continue
             prev_val = prev.value or ""
             curr_val = ev.value or ""
-            prev.value = prev_val + curr_val
+            if curr_val.startswith(prev_val) or prev_val.startswith(curr_val):
+                # Cumulative snapshot update on the same field
+                prev.value = curr_val
+            else:
+                # Incremental keypress chunk
+                prev.value = prev_val + curr_val
             prev.timestamp = ev.timestamp
             continue
 
@@ -70,11 +101,27 @@ def cluster_and_debounce_events(
         ):
             continue
 
-        clustered.append(ev)
+        clustered.append(
+            DesktopRecordedEvent(
+                seq=len(clustered) + 1,
+                timestamp=ev.timestamp,
+                action=ev.action,
+                app_name=ev.app_name,
+                bundle_id=ev.bundle_id,
+                window_title=ev.window_title,
+                dref_id=ev.dref_id,
+                element_role=ev.element_role,
+                element_title=ev.element_title,
+                value=ev.value,
+                is_password=ev.is_password,
+                modifiers=list(ev.modifiers),
+                screenshot_b64=ev.screenshot_b64,
+            )
+        )
 
     # Re-index sequences
-    for idx, ev in enumerate(clustered, start=1):
-        ev.seq = idx
+    for idx, debounced_ev in enumerate(clustered, start=1):
+        debounced_ev.seq = idx
 
     return clustered
 
@@ -298,10 +345,16 @@ def render_skill_markdown(draft: SynthesizedSkillDraft) -> str:
         "---",
         f"name: {draft.skill_name}",
         f'description: "{draft.description}"',
-        "triggers:",
+        "version: 1.0.0",
+        "allowed-tools:",
     ]
-    for trg in draft.triggers:
-        lines.append(f'  - "{trg}"')
+    for tool in DEFAULT_ALLOWED_TOOLS:
+        lines.append(f"  - {tool}")
+
+    if draft.triggers:
+        lines.append("triggers:")
+        for trg in draft.triggers:
+            lines.append(f'  - "{trg}"')
 
     if draft.parameters:
         lines.append("parameters:")

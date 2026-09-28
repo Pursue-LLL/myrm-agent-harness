@@ -1,8 +1,8 @@
-"""Unit tests for LocalWorkingMemoryBlock token estimation, sliding flush, and turn tail collapse.
+"""Unit tests for LocalWorkingMemoryBlock token estimation and turn tail rendering.
 
 [POS]
-- tests/agent/context_management/test_working_memory_sliding_and_flush.py:
-  验证 LocalWorkingMemoryBlock 的 Token 评估、滑动平滑淘汰、任务防护以及 Prompt 缓存友好折叠机制。
+- tests/agent/context_management/test_working_memory_token_estimation_and_turn_tail.py:
+  验证 LocalWorkingMemoryBlock 的 Token 评估、Turn Tail 渲染与 Prompt 缓存友好折叠机制。
 """
 
 from __future__ import annotations
@@ -14,7 +14,6 @@ from myrm_agent_harness.agent.context_management.working_memory.block import (
 )
 from myrm_agent_harness.agent.context_management.working_memory.types import (
     SubtaskStatus,
-    WorkingMemoryFlushResult,
 )
 
 
@@ -40,81 +39,6 @@ def test_estimate_tokens_empty_and_populated() -> None:
     LocalWorkingMemoryBlock.set_scratchpad("temp_var", "some_important_observation")
     est_after = LocalWorkingMemoryBlock.estimate_tokens()
     assert est_after > est
-
-
-def test_flush_stale_under_budget_preserves_everything() -> None:
-    LocalWorkingMemoryBlock.initialize(
-        goal="Maintain budget discipline",
-        initial_subtasks=["Step 1", "Step 2"],
-    )
-    LocalWorkingMemoryBlock.update_subtask("step-1", SubtaskStatus.COMPLETED)
-    LocalWorkingMemoryBlock.set_scratchpad("k1", "v1")
-
-    # High budget: no eviction should occur
-    result: WorkingMemoryFlushResult = LocalWorkingMemoryBlock.flush_stale(
-        flush_ratio=0.5, token_budget=5000
-    )
-    assert result.evicted_subtasks_count == 0
-    assert result.evicted_scratchpad_count == 0
-    assert result.remaining_subtasks_count == 2
-    assert result.remaining_scratchpad_count == 1
-    assert result.estimated_tokens_before == result.estimated_tokens_after
-
-
-def test_flush_stale_eviction_protects_critical_tasks_and_traps() -> None:
-    LocalWorkingMemoryBlock.initialize(goal="Core critical mission")
-
-    # Add 4 completed subtasks
-    for i in range(1, 5):
-        s = LocalWorkingMemoryBlock.add_subtask(f"Done Task {i}", subtask_id=f"done-{i}")
-        assert s is not None
-        LocalWorkingMemoryBlock.update_subtask(s.id, SubtaskStatus.COMPLETED)
-
-    # Add active, pending, and failed tasks
-    s_active = LocalWorkingMemoryBlock.add_subtask("Active Task", subtask_id="active-1")
-    assert s_active is not None
-    LocalWorkingMemoryBlock.update_subtask(s_active.id, SubtaskStatus.IN_PROGRESS)
-
-    s_pending = LocalWorkingMemoryBlock.add_subtask("Pending Task", subtask_id="pending-1")
-    assert s_pending is not None
-    LocalWorkingMemoryBlock.update_subtask(s_pending.id, SubtaskStatus.PENDING)
-
-    s_failed = LocalWorkingMemoryBlock.add_subtask("Failed Task", subtask_id="failed-1")
-    assert s_failed is not None
-    LocalWorkingMemoryBlock.update_subtask(s_failed.id, SubtaskStatus.FAILED)
-
-    # Add traps (resolved and unresolved)
-    LocalWorkingMemoryBlock.record_trap("trap_1", "Rule for trap 1")
-    LocalWorkingMemoryBlock.record_trap("trap_2", "Rule for trap 2")
-    LocalWorkingMemoryBlock.resolve_trap("trap_1")
-
-    # Add scratchpad
-    for idx in range(4):
-        LocalWorkingMemoryBlock.set_scratchpad(f"var_{idx}", f"val_{idx}")
-
-    # Evict 50% of completed tasks
-    res = LocalWorkingMemoryBlock.flush_stale(flush_ratio=0.5)
-
-    assert res.evicted_subtasks_count == 2
-    state = LocalWorkingMemoryBlock.get_state()
-    assert state is not None
-
-    remaining_ids = {s.id for s in state.subtasks}
-    # Oldest 2 completed tasks evicted
-    assert "done-1" not in remaining_ids
-    assert "done-2" not in remaining_ids
-    # Newer 2 completed tasks retained
-    assert "done-3" in remaining_ids
-    assert "done-4" in remaining_ids
-
-    # Critical tasks NEVER evicted
-    assert "active-1" in remaining_ids
-    assert "pending-1" in remaining_ids
-    assert "failed-1" in remaining_ids
-
-    # Goal and traps NEVER evicted
-    assert state.goal == "Core critical mission"
-    assert len(state.traps) == 2
 
 
 def test_format_turn_tail_sliding_collapse() -> None:

@@ -16,7 +16,6 @@ from myrm_agent_harness.agent.context_management.pipeline.base import ProcessorC
 from myrm_agent_harness.agent.context_management.pipeline.processors.active_tool_result_prune_processor import (
     build_memory_truncated_placeholder,
     is_tool_result_consumed,
-    sanitize_multimodal_content,
 )
 from myrm_agent_harness.agent.context_management.pipeline.processors.reasoning_anchor_processor import (
     ReasoningAnchorProcessor,
@@ -251,17 +250,6 @@ class TestConsumptionAwareCompaction:
         assert is_tool_result_consumed(messages, 0) is True
         # t2 is not followed by any AIMessage -> active (not consumed)
         assert is_tool_result_consumed(messages, 2) is False
-
-    def test_sanitize_multimodal_content(self) -> None:
-        raw_blocks = [
-            {"type": "text", "text": "Screenshot captured:"},
-            {"type": "image_url", "image_url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg..."},
-        ]
-        sanitized, has_media = sanitize_multimodal_content(raw_blocks)
-        assert has_media is True
-        assert isinstance(sanitized, str)
-        assert "[IMAGE_OMITTED_MEDIA_POINTER:" in sanitized
-        assert "Screenshot captured:" in sanitized
 
     def test_build_memory_truncated_placeholder_with_semantic_finding(self) -> None:
         content = "Line 1\nTraceback (most recent call last):\n  File 'a.py'\nZeroDivisionError: division by zero\n" + ("x" * 2000)

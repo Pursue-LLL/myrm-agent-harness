@@ -15,6 +15,7 @@ from __future__ import annotations
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
+from myrm_agent_harness.agent.context_management.infra.schemas import ContextOffloadResult
 from myrm_agent_harness.agent.context_management.pipeline.base import ProcessorContext
 from myrm_agent_harness.agent.context_management.pipeline.processors.active_tool_result_prune_processor import (
     build_memory_truncated_placeholder,
@@ -123,26 +124,114 @@ class TestObservationCompactorEdgeCases:
         # Panic
         p1 = build_memory_truncated_placeholder(
             tool_name="bash",
-            content="panic: runtime error: invalid memory address or nil pointer dereference\n[stack]",
+            content="panic: runtime error: invalid memory address or nil pointer dereference\n[stack]\n" + ("x" * 1300),
             est_tokens=500,
         )
+        assert "[Tool output pruned:" in p1
         assert "panic" in p1.lower() or "runtime error" in p1.lower()
 
         # AssertionError
         p2 = build_memory_truncated_placeholder(
             tool_name="pytest",
-            content="E   AssertionError: expected status 200 but got 500\n" + ("x" * 1000),
+            content="E   AssertionError: expected status 200 but got 500\n" + ("x" * 1300),
             est_tokens=400,
         )
+        assert "[Tool output pruned:" in p2
         assert "AssertionError" in p2
 
         # Exit code
         p3 = build_memory_truncated_placeholder(
             tool_name="bash",
-            content="Failed with code 1\n" + ("x" * 1000),
+            content="Failed with code 1\n" + ("x" * 1300),
             est_tokens=300,
         )
+        assert "[Tool output pruned:" in p3
         assert "Failed" in p3 or "pruned" in p3
+
+    def test_small_content_preserved_verbatim_not_dropped(self) -> None:
+        """Content within the head+tail budget must never be reduced to a marker-only stub."""
+        content = "第三条：租金应于每月五日前支付，逾期按日万分之五计收违约金。" * 20
+        placeholder = build_memory_truncated_placeholder(
+            tool_name="file_read_tool",
+            content=content,
+            est_tokens=800,
+        )
+        assert placeholder == content
+
+    @pytest.mark.asyncio
+    async def test_memory_fallback_preserves_small_cjk_content(self) -> None:
+        """Regression: emergency memory-fallback prune must not silently drop small CJK tool output."""
+        clause = "第五条：乙方应在收到通知后三日内书面回复，逾期视为同意。" * 30
+        t = ToolMessage(content=clause, tool_call_id="c1", name="file_read_tool")
+        messages = [
+            HumanMessage(content="review contract"),
+            AIMessage(content="", tool_calls=[{"id": "c1", "name": "file_read_tool", "args": {}}]),
+            t,
+            AIMessage(content="clause reviewed"),
+        ]
+
+        new_msgs, pruned, saved = await prune_tool_results_deterministic(
+            messages,
+            threshold_tokens=256,
+            keep_recent_calls=0,
+            enable_memory_fallback=True,
+            force=True,
+        )
+        # Small content cannot be reduced, so it must remain intact with no negative savings.
+        assert saved >= 0
+        assert pruned == 0
+        assert new_msgs[2].content == clause
+
+    @pytest.mark.asyncio
+    async def test_active_prune_never_tool_is_never_pruned(self) -> None:
+        """Active-prune-never tools (e.g. todo_write) must survive even in force fallback."""
+        content = "todo list: " + ("task item detail " * 200)
+        t = ToolMessage(content=content, tool_call_id="c1", name="todo_write")
+        messages = [
+            HumanMessage(content="plan"),
+            AIMessage(content="", tool_calls=[{"id": "c1", "name": "todo_write", "args": {}}]),
+            t,
+            AIMessage(content="planned"),
+        ]
+
+        new_msgs, pruned, saved = await prune_tool_results_deterministic(
+            messages,
+            threshold_tokens=256,
+            keep_recent_calls=0,
+            enable_memory_fallback=True,
+            force=True,
+        )
+        assert pruned == 0
+        assert saved == 0
+        assert new_msgs[2].content == content
+
+    @pytest.mark.asyncio
+    async def test_failed_offload_small_content_guard_skips_replacement(self) -> None:
+        """A failed offload must not be treated as success, and the memory fallback
+        must not replace small content with a non-reducing stub."""
+        clause = "第六条：争议解决适用中华人民共和国法律。" * 30
+        t = ToolMessage(content=clause, tool_call_id="c1", name="file_read_tool")
+        messages = [
+            HumanMessage(content="review contract"),
+            AIMessage(content="", tool_calls=[{"id": "c1", "name": "file_read_tool", "args": {}}]),
+            t,
+            AIMessage(content="clause reviewed"),
+        ]
+
+        async def failing_offload(*, content: str, tool_name: str, scope_id: str | None) -> ContextOffloadResult:
+            return ContextOffloadResult.failure("temporary_failure", "disk unavailable")
+
+        new_msgs, pruned, saved = await prune_tool_results_deterministic(
+            messages,
+            threshold_tokens=256,
+            keep_recent_calls=0,
+            enable_memory_fallback=True,
+            on_prune_offload=failing_offload,
+            force=True,
+        )
+        assert pruned == 0
+        assert saved == 0
+        assert new_msgs[2].content == clause
 
 
 class TestReasoningAnchorPipelineIdempotency:

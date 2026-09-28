@@ -30,7 +30,7 @@ from __future__ import annotations
 import hashlib
 import re
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 
@@ -59,28 +59,6 @@ def _content_text(content: str | object) -> str | None:
     return content if isinstance(content, str) else None
 
 
-def sanitize_multimodal_content(content: str | object) -> tuple[str | None, bool]:
-    """Extract string content and isolate large base64 media payloads if present."""
-    if isinstance(content, str):
-        return content, False
-    if isinstance(content, list):
-        has_media = False
-        text_parts: list[str] = []
-        for block in content:
-            if isinstance(block, dict):
-                b_type = str(block.get("type", ""))
-                if b_type in ("image", "image_url") or "base64" in block:
-                    has_media = True
-                    text_parts.append("[IMAGE_OMITTED_MEDIA_POINTER: base64 payload isolated]")
-                elif "text" in block and isinstance(block["text"], str):
-                    text_parts.append(block["text"])
-            elif isinstance(block, str):
-                text_parts.append(block)
-        if text_parts:
-            return "\n".join(text_parts), has_media
-    return None, False
-
-
 def is_tool_result_consumed(messages: Sequence[BaseMessage], tool_idx: int) -> bool:
     """Determine if a ToolMessage has been consumed by a subsequent AIMessage.
 
@@ -100,8 +78,18 @@ def build_memory_truncated_placeholder(
     tail_chars: int = 400,
     reason: str | None = None,
 ) -> str:
-    """Build a deterministic in-memory truncated placeholder preserving head & tail (DSH style) with semantic findings."""
+    """Build a deterministic in-memory truncated placeholder preserving head & tail (DSH style) with semantic findings.
+
+    Content that already fits within the ``head_chars + tail_chars`` budget is
+    returned verbatim: truncating it would not reduce tokens and would risk
+    silent data loss in the no-offload recovery path.
+    """
     original_chars = len(content)
+
+    # Already within the head/tail budget: preserve verbatim, no truncation.
+    if original_chars <= head_chars + tail_chars:
+        return content
+
     reason_info = f" [{reason}]" if reason else ""
 
     findings_info = ""
@@ -118,8 +106,6 @@ def build_memory_truncated_placeholder(
         f"Content pruned: {tool_name} output (~{est_tokens} tokens) truncated for recovery.{findings_info} "
         f"Preserved head & tail for context.]"
     )
-    if original_chars <= head_chars + tail_chars:
-        return marker
     head = content[:head_chars]
     tail = content[-tail_chars:] if tail_chars > 0 else ""
     return f"{head}\n\n{marker}\n\n{tail}"
@@ -197,6 +183,9 @@ async def prune_tool_results_deterministic(
         elif on_prune_offload is not None:
             expected_savings = max(1, est_tokens - 100)
         elif effective_fallback:
+            if len(content_str) <= head_chars + tail_chars:
+                # Placeholder would preserve content verbatim: no reclaimable tokens.
+                continue
             approx_ph_chars = min(len(content_str), head_chars + tail_chars + 120)
             expected_savings = max(1, est_tokens - (approx_ph_chars // 3))
         else:
@@ -224,11 +213,13 @@ async def prune_tool_results_deterministic(
 
     for i, msg, tool_name, content_str, est_tokens, cache_key, cached_placeholder in candidates:
         if cached_placeholder is not None:
-            replacement = replace_tool_message_content(msg, cached_placeholder)
-            if replacement is not None:
-                new_messages[i] = replacement
-                pruned += 1
-                tokens_saved += est_tokens - estimate_content_tokens(cached_placeholder)
+            cached_tokens = estimate_content_tokens(cached_placeholder)
+            if cached_tokens < est_tokens:
+                replacement = replace_tool_message_content(msg, cached_placeholder)
+                if replacement is not None:
+                    new_messages[i] = replacement
+                    pruned += 1
+                    tokens_saved += est_tokens - cached_tokens
             continue
 
         placeholder_text: str | None = None
@@ -241,7 +232,7 @@ async def prune_tool_results_deterministic(
                     scope_id=chat_id,
                 )
                 result: ContextOffloadResult = normalize_context_offload_result(raw_result)
-                if result.success and result.path:
+                if result.succeeded:
                     archive_ref = build_tool_result_archive_reference(
                         tool_name=tool_name,
                         archive_path=result.path,
@@ -264,12 +255,16 @@ async def prune_tool_results_deterministic(
             )
 
         if placeholder_text is not None:
-            cache[cache_key] = placeholder_text
-            replacement = replace_tool_message_content(msg, placeholder_text)
-            if replacement is not None:
-                new_messages[i] = replacement
-                pruned += 1
-                tokens_saved += est_tokens - estimate_content_tokens(placeholder_text)
+            placeholder_tokens = estimate_content_tokens(placeholder_text)
+            # Only replace when it genuinely reduces tokens; a non-reducing
+            # placeholder would silently inflate context and skew savings.
+            if placeholder_tokens < est_tokens:
+                cache[cache_key] = placeholder_text
+                replacement = replace_tool_message_content(msg, placeholder_text)
+                if replacement is not None:
+                    new_messages[i] = replacement
+                    pruned += 1
+                    tokens_saved += est_tokens - placeholder_tokens
 
     return new_messages, pruned, tokens_saved
 
@@ -342,7 +337,7 @@ class ActiveToolResultPruneProcessor(BaseProcessor):
 
         effective_min_reclaim = context.metadata.get("min_reclaim_tokens", self._min_reclaim_tokens)
         try:
-            min_reclaim = max(int(effective_min_reclaim), 0)
+            min_reclaim = max(int(cast("int | float | str", effective_min_reclaim)), 0)
         except (ValueError, TypeError):
             min_reclaim = self._min_reclaim_tokens
 
@@ -390,8 +385,3 @@ class ActiveToolResultPruneProcessor(BaseProcessor):
                     )
 
         return context
-
-    @staticmethod
-    def _replace_content(msg: ToolMessage, new_content: str) -> ToolMessage | None:
-        """Build a replacement ToolMessage with the placeholder content."""
-        return replace_tool_message_content(msg, new_content)

@@ -182,6 +182,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "WorkflowIntentPlan":("myrm_agent_harness.backends.skills.workflow_compiler", "WorkflowIntentPlan"),
     "WorkflowSkillCompiler":("myrm_agent_harness.backends.skills.workflow_compiler", "WorkflowSkillCompiler"),
     "build_parent_delegatable_toolkit":("myrm_agent_harness.api.subagents", "build_parent_delegatable_toolkit"),
+    "cluster_and_debounce_events": ("myrm_agent_harness.toolkits.computer_use.recording", "cluster_and_debounce_events"),
     "cleanup_orphan_processes":("myrm_agent_harness.toolkits.browser.doctor.orphans", "cleanup_orphan_processes"),
     "find_orphan_automation_processes": (
         "myrm_agent_harness.toolkits.browser.doctor.orphans",

@@ -2,7 +2,7 @@
 
 Evaluates:
 1. RecurrenceDetector trivial chitchat gating, soft deprecation, and eviction priority.
-2. LocalWorkingMemoryBlock step lifecycle, smooth sliding flush, and markdown prompt rendering.
+2. LocalWorkingMemoryBlock step lifecycle and markdown prompt rendering.
 3. AMemZettelkastenNetwork evidence-conclusion decoupling, bidirectional links, and lineage evolution.
 4. LongMemEval 5-dimensional benchmark protocol simulation.
 """
@@ -18,7 +18,6 @@ from myrm_agent_harness.agent.context_management.working_memory.block import (
 )
 from myrm_agent_harness.agent.context_management.working_memory.types import (
     SubtaskStatus,
-    WorkingMemoryFlushResult,
 )
 from myrm_agent_harness.toolkits.memory.cards import (
     AMemCard,
@@ -187,35 +186,6 @@ class TestLocalWorkingMemoryBlockSystem:
 
         LocalWorkingMemoryBlock.set_scratchpad("compatibility", "Do not break SQLite 3.35 compatibility")
         assert len(state.scratchpad) == 1
-
-    def test_smooth_sliding_flush_stale(self) -> None:
-        LocalWorkingMemoryBlock.initialize(goal="Preserve core objective at all costs")
-        LocalWorkingMemoryBlock.record_trap("production_guard", "Never drop production table")
-
-        # Add 10 completed steps
-        for i in range(10):
-            item = LocalWorkingMemoryBlock.add_subtask(
-                f"Step description number {i:02d} with extra verbosity to consume tokens"
-            )
-            assert item is not None
-            LocalWorkingMemoryBlock.update_subtask(item.id, SubtaskStatus.COMPLETED)
-
-        # Add one in-progress step
-        active_step = LocalWorkingMemoryBlock.add_subtask("Currently active step that must never be flushed")
-        assert active_step is not None
-        LocalWorkingMemoryBlock.update_subtask(active_step.id, SubtaskStatus.IN_PROGRESS)
-
-        res: WorkingMemoryFlushResult = LocalWorkingMemoryBlock.flush_stale(flush_ratio=0.5)
-        assert res.evicted_subtasks_count > 0
-        assert res.estimated_tokens_after <= res.estimated_tokens_before
-
-        # Verify active step and goal are retained
-        state = LocalWorkingMemoryBlock.get_state()
-        assert state is not None
-        step_ids = [s.id for s in state.subtasks]
-        assert active_step.id in step_ids
-        assert state.goal == "Preserve core objective at all costs"
-        assert any("Never drop production table" in t.avoidance_rule for t in state.traps)
 
     def test_prefix_cache_friendly_turn_tail_render(self) -> None:
         LocalWorkingMemoryBlock.initialize(goal="Ensure deterministic Markdown generation")
@@ -438,7 +408,7 @@ class TestLongMemEvalBenchmarkProtocol:
         assert root.evidences[0].quote_snippet == "Fatal: deadlock in db lock"
 
     def test_dimension_4_non_destructive_retention_rate(self) -> None:
-        """Dim 4: Critical constraints & traps survive multi-round sliding window flushes."""
+        """Dim 4: Critical goal & traps survive multi-round working-board collapse."""
         LocalWorkingMemoryBlock.reset()
         state = LocalWorkingMemoryBlock.initialize(goal="Mission Critical Objective")
         LocalWorkingMemoryBlock.record_trap("safety_rule", "Critical memory safety rule")
@@ -448,13 +418,18 @@ class TestLongMemEvalBenchmarkProtocol:
                 s = LocalWorkingMemoryBlock.add_subtask(f"Ephemeral step r{round_idx}-s{step_idx}")
                 assert s is not None
                 LocalWorkingMemoryBlock.update_subtask(s.id, SubtaskStatus.COMPLETED)
-            LocalWorkingMemoryBlock.flush_stale(flush_ratio=0.5)
+            active = LocalWorkingMemoryBlock.add_subtask(f"Active step r{round_idx}")
+            assert active is not None
+            LocalWorkingMemoryBlock.update_subtask(active.id, SubtaskStatus.IN_PROGRESS)
 
-        assert state.goal == "Mission Critical Objective"
-        assert any("Critical memory safety rule" in t.avoidance_rule for t in state.traps)
+            rendered = LocalWorkingMemoryBlock.format_turn_tail_markdown(token_budget=10)
+            # Render-time collapse must never destructively mutate state.
+            assert state.goal == "Mission Critical Objective"
+            assert any("Critical memory safety rule" in t.avoidance_rule for t in state.traps)
+            assert f"Active step r{round_idx}" in rendered
+            assert "prior completed subtasks collapsed]" in rendered
+
         assert len(state.traps) == 1
-        # Completed subtasks must have been smoothly evicted instead of growing to 20
-        assert len(state.subtasks) < 20
 
     def test_dimension_5_noise_suppression_ratio(self) -> None:
         """Dim 5: 100% noise rejection ratio on chitchat & greetings."""
