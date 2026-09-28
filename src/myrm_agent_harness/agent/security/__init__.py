@@ -91,6 +91,13 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "memory_namespace_for": (".team_identity", "memory_namespace_for"),
     "credential_track_for": (".team_identity", "credential_track_for"),
     "sanitize_identity_id": (".team_identity", "sanitize_identity_id"),
+    # single_use_tickets
+    "SingleUseTicket": (".single_use_tickets", "SingleUseTicket"),
+    "SingleUseTicketManager": (".single_use_tickets", "SingleUseTicketManager"),
+    "TicketStatus": (".single_use_tickets", "TicketStatus"),
+    "TokenType": (".single_use_tickets", "TokenType"),
+    "compute_content_digest": (".single_use_tickets", "compute_content_digest"),
+    "get_single_use_ticket_manager": (".single_use_tickets", "get_single_use_ticket_manager"),
 }
 
 __all__ = list(_EXPORTS.keys())

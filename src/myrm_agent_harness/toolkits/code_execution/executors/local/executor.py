@@ -390,11 +390,16 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
             if session_result.stdout:
                 logger.info(f" [LocalExecutor] Bash stdout: {session_result.stdout}")
 
+        from myrm_agent_harness.core.security.redact import redact_sensitive_text
+
+        clean_stdout = redact_sensitive_text(session_result.stdout) if session_result.stdout else session_result.stdout
+        clean_stderr = redact_sensitive_text(session_result.stderr) if session_result.stderr else session_result.stderr
+
         final_result = ExecutionResult(
             success=session_result.success,
             result=session_result.exit_code,
-            stdout=session_result.stdout,
-            stderr=session_result.stderr,
+            stdout=clean_stdout,
+            stderr=clean_stderr,
             error=session_result.error,
             execution_time=execution_time,
             container_id=context.session_id,
@@ -641,6 +646,29 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
                 )
         except LookupError:
             pass
+
+        # Ephemeral credential injection with zeroization guarantees
+        try:
+            from myrm_agent_harness.agent.middlewares._session_context import (
+                get_approval_session,
+            )
+            from myrm_agent_harness.core.security.ephemeral_credentials import (
+                get_ephemeral_credential_store,
+                validate_credential_key,
+            )
+
+            current_session = get_approval_session()
+            if current_session:
+                store = get_ephemeral_credential_store()
+                summaries = store.list_summaries(current_session)
+                for s in summaries:
+                    if not s.is_consumed and not s.is_expired:
+                        val = store.consume_credential(current_session, s.handle_id)
+                        sanitized_key = validate_credential_key(s.key)
+                        env[f"MYRM_CREDENTIAL_{sanitized_key}"] = val
+                        env[sanitized_key] = val
+        except Exception as e:
+            logger.debug("[LOCAL_EXECUTOR] Ephemeral credential injection skipped: %s", e)
 
         try:
             from myrm_agent_harness.core.context_vars import user_timezone_var
