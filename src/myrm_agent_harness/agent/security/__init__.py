@@ -58,6 +58,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "SecurityDecision": (".audit", "SecurityDecision"),
     # redact.py
     "redact_sensitive_text": (".redact", "redact_sensitive_text"),
+    # circuit_breaker.py
+    "CircuitBreakerTripInfo": (".circuit_breaker", "CircuitBreakerTripInfo"),
+    "SessionCircuitBreaker": (".circuit_breaker", "SessionCircuitBreaker"),
+    "get_global_session_circuit_breaker": (".circuit_breaker", "get_global_session_circuit_breaker"),
     "RedactingFormatter": (".redact", "RedactingFormatter"),
     # detection/pseudonym_store.py
     "PseudonymStore": (".detection.pseudonym_store", "PseudonymStore"),

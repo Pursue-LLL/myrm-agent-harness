@@ -87,18 +87,29 @@ class TaintedEgressGateway:
         self,
         static_trusted_domains: Iterable[str] | None = None,
         allow_loopback: bool = True,
+        default_tainted: bool = False,
     ) -> None:
         """Initialize the gateway with static trust policies.
 
         Args:
             static_trusted_domains: Optional list of domains exempt from taint blocking.
             allow_loopback: Whether loopback (localhost/127.0.0.1) connections are always permitted.
+            default_tainted: Initial taint status for this gateway instance.
         """
         self._static_trusted: set[str] = {
             d.lower().strip() for d in (static_trusted_domains or []) if d and d.strip()
         }
         self._session_trusted: set[str] = set()
         self._allow_loopback = allow_loopback
+        self._session_tainted = default_tainted
+
+    def set_session_tainted(self, tainted: bool = True) -> None:
+        """Set instance-level session taint status."""
+        self._session_tainted = tainted
+
+    def is_session_tainted(self) -> bool:
+        """Check instance-level session taint status."""
+        return self._session_tainted
 
     def add_session_trusted_domain(self, domain: str) -> None:
         """Exempt a domain from taint blocking for the remainder of the session.
@@ -163,7 +174,11 @@ class TaintedEgressGateway:
         Returns:
             Tuple of (TaintedEgressDecision, reason_str).
         """
-        tainted = is_tainted if is_tainted is not None else is_current_egress_tainted()
+        tainted = (
+            is_tainted
+            if is_tainted is not None
+            else (self._session_tainted or is_current_egress_tainted())
+        )
 
         clean_host = host.lower().strip("[]").strip()
         if not clean_host:

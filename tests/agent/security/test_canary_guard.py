@@ -222,3 +222,27 @@ class TestEdgeCases:
 
         set_canary_token("")
         assert not get_canary_token()
+
+
+class TestInjectCanaryEnvironmentVariables:
+    def test_inject_canary_into_clean_dict(self) -> None:
+        from myrm_agent_harness.agent.security.detection.canary_guard import (
+            inject_canary_environment_variables,
+        )
+
+        canary = "CANARY-AABBCCDDEEFF"
+        env = inject_canary_environment_variables(canary)
+        assert env["MYRM_CANARY_TOKEN"] == canary
+
+    def test_inject_canary_preserves_existing_keys(self) -> None:
+        from myrm_agent_harness.agent.security.detection.canary_guard import (
+            inject_canary_environment_variables,
+        )
+
+        canary = "CANARY-AABBCCDDEEFF"
+        orig = {"PATH": "/usr/bin", "FOO": "BAR"}
+        env = inject_canary_environment_variables(canary, orig, var_name="CUSTOM_CANARY")
+        assert env["PATH"] == "/usr/bin"
+        assert env["FOO"] == "BAR"
+        assert env["CUSTOM_CANARY"] == canary
+

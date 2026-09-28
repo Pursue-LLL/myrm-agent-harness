@@ -20,6 +20,13 @@ sandbox environments.
 
 from __future__ import annotations
 
+from .honeytoken import (
+    HONEYTOKEN_MAGIC_PREFIX,
+    HoneytokenExfiltrationBlockedError,
+    HoneytokenTrap,
+    StreamingHoneytokenScanner,
+    get_global_honeytoken_trap,
+)
 from .proxy_server import EphemeralCaManager, LoopbackEgressProxy
 from .sentinel import (
     SENTINEL_PREFIX,
@@ -50,6 +57,9 @@ from .tainted_gateway import (
 
 __all__ = [
     "EphemeralCaManager",
+    "HONEYTOKEN_MAGIC_PREFIX",
+    "HoneytokenExfiltrationBlockedError",
+    "HoneytokenTrap",
     "LoopbackEgressProxy",
     "SENTINEL_PREFIX",
     "SENTINEL_SUFFIX",
@@ -61,11 +71,13 @@ __all__ = [
     "SpendGovernorConfig",
     "SpendLease",
     "SpendLeaseResult",
+    "StreamingHoneytokenScanner",
     "StreamingSentinelScanner",
     "TaintedEgressBlockedError",
     "TaintedEgressBlockedException",
     "TaintedEgressDecision",
     "TaintedEgressGateway",
+    "get_global_honeytoken_trap",
     "get_global_sentinel_manager",
     "is_current_egress_tainted",
     "is_sentinel_voucher",
