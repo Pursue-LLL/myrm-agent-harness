@@ -65,6 +65,28 @@ class PermissionAction(StrEnum):
     DENY = "deny"
 
 
+class CapabilitySurface(StrEnum):
+    """Six first-class capability surfaces for coarse-to-fine permission matrix control."""
+
+    KNOWLEDGE_READ = "knowledge_read"
+    KNOWLEDGE_WRITE = "knowledge_write"
+    WEB_EGRESS = "web_egress"
+    CANDIDATE_CREATE = "candidate_create"
+    REMOTE_TOOLS = "remote_tools"
+    LOCAL_FILESYSTEM = "local_filesystem"
+
+
+# Mapping from capability surface to underlying permission types it governs.
+CAPABILITY_SURFACE_PERMISSIONS: dict[CapabilitySurface, tuple[str, ...]] = {
+    CapabilitySurface.KNOWLEDGE_READ: ("knowledge_read", "wiki_query_tool"),
+    CapabilitySurface.KNOWLEDGE_WRITE: ("knowledge_write", "wiki_apply_tool", "wiki_ingest_tool"),
+    CapabilitySurface.WEB_EGRESS: ("net_fetch", "web_fetch", "web_search_tool", "browser_navigate"),
+    CapabilitySurface.CANDIDATE_CREATE: ("candidate_create", "todo_write"),
+    CapabilitySurface.REMOTE_TOOLS: ("mcp_invoke",),
+    CapabilitySurface.LOCAL_FILESYSTEM: ("file_read", "file_write", "shell_exec", "code_interpreter"),
+}
+
+
 @dataclass(frozen=True, slots=True)
 class PermissionRule:
     """A single rule mapping (permission_type, pattern) to an action.
@@ -84,6 +106,8 @@ PermissionRuleset = tuple[PermissionRule, ...]
 
 DEFAULT_RULESET: PermissionRuleset = (
     PermissionRule("*", "*", PermissionAction.ALLOW),
+    PermissionRule("knowledge_read", "*", PermissionAction.ALLOW),
+    PermissionRule("knowledge_write", "*", PermissionAction.ASK),
     PermissionRule("shell_exec", "*", PermissionAction.ASK),
     PermissionRule("code_interpreter", "*", PermissionAction.ASK),
     # Sensitive files: credentials, keys, databases

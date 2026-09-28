@@ -106,6 +106,9 @@ TOOL_PERMISSION_MAP: dict[str, str] = {
     "mobile_snapshot_tool": "mobile_capture",
     "mobile_interact_tool": "mobile_control",
     "mobile_global_tool": "mobile_control",
+    "wiki_query_tool": "knowledge_read",
+    "wiki_apply_tool": "knowledge_write",
+    "wiki_ingest_tool": "knowledge_write",
 }
 
 BUILTIN_TOOL_NAMES: frozenset[str] = frozenset(
@@ -201,9 +204,6 @@ AUTO_APPROVED_BUILTIN_TOOLS: dict[str, str] = {
     "skill_select_tool": "read_only",
     "todo_write": "display",  # progress plan UI
     "web_search_tool": "read_only",
-    "wiki_apply_tool": "user_visible",  # apply compiled wiki entry into store
-    "wiki_ingest_tool": "user_visible",  # ingest external content into wiki
-    "wiki_query_tool": "read_only",  # wiki retrieval, pure read
     "working_memory_manage_tool": "display",  # in-session workbench progress, no external side effects
 }
 

@@ -52,6 +52,25 @@ def normalize_delegate_permissions(
     return normalized
 
 
+def expand_capability_surface_permissions(
+    raw: dict[str, str | dict[str, str]],
+) -> dict[str, str | dict[str, str]]:
+    """Expand high-level capability surfaces into underlying fine-grained permission rules."""
+    from myrm_agent_harness.core.security.types import (
+        CAPABILITY_SURFACE_PERMISSIONS,
+    )
+
+    expanded = dict(raw)
+    for surface_enum, governed_perms in CAPABILITY_SURFACE_PERMISSIONS.items():
+        surface_key = surface_enum.value
+        if surface_key in raw:
+            action = raw[surface_key]
+            for target_perm in governed_perms:
+                if target_perm not in expanded:
+                    expanded[target_perm] = action
+    return expanded
+
+
 def from_config(raw: dict[str, str | dict[str, str]]) -> PermissionRuleset:
     """Deserialise a config dict into a PermissionRuleset.
 
@@ -164,12 +183,22 @@ def parse_security_config(raw: dict[str, object] | None) -> SecurityConfig | Non
 
     ruleset: PermissionRuleset = DEFAULT_RULESET
     permissions_raw = raw.get("permissions")
+    matrix_raw = raw.get("capabilityMatrix", raw.get("capability_matrix"))
+
+    typed_permissions: dict[str, str | dict[str, str]] = {}
+    if isinstance(matrix_raw, dict):
+        for key, value in matrix_raw.items():
+            if isinstance(key, str) and (isinstance(value, str) or isinstance(value, dict)):
+                typed_permissions[key] = value
     if isinstance(permissions_raw, dict):
-        typed_permissions: dict[str, str | dict[str, str]] = {}
         for key, value in permissions_raw.items():
             if isinstance(key, str) and (isinstance(value, str) or isinstance(value, dict)):
                 typed_permissions[key] = value
-        user_ruleset = from_config(normalize_delegate_permissions(typed_permissions))
+
+    if typed_permissions:
+        normalized = normalize_delegate_permissions(typed_permissions)
+        expanded = expand_capability_surface_permissions(normalized)
+        user_ruleset = from_config(expanded)
         ruleset = merge(DEFAULT_RULESET, user_ruleset)
 
     path_policy = PathPolicy()
