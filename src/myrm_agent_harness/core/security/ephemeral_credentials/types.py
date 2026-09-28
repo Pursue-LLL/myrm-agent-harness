@@ -71,6 +71,7 @@ class EphemeralCredential:
     ttl_seconds: float = 60.0
     single_use: bool = True
     is_consumed: bool = False
+    expected_action_digest: str | None = None
 
     @property
     def expires_at(self) -> float:
@@ -120,3 +121,4 @@ class EphemeralCredentialSummary:
     single_use: bool
     is_consumed: bool
     is_expired: bool
+    expected_action_digest: str | None = None

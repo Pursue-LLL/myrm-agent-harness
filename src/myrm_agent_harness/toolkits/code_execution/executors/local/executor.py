@@ -353,7 +353,11 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
         command = await self._prepare_bash_command(command)
 
         # Build environment
-        env = self._build_bash_env(context.env, context.allowed_credential_issuers)
+        env = self._build_bash_env(
+            context.env,
+            context.allowed_credential_issuers,
+            command=command,
+        )
 
         session_key = context.session_id or "default"
         session = await self._get_or_create_bash_session(
@@ -436,7 +440,11 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
 
         self._setup_workspace(str(effective_cwd) if effective_cwd else None)
         command = await self._prepare_bash_command(command)
-        env = self._build_bash_env(context.env, context.allowed_credential_issuers)
+        env = self._build_bash_env(
+            context.env,
+            context.allowed_credential_issuers,
+            command=command,
+        )
 
         session_key = context.session_id or "default"
         session = await self._get_or_create_bash_session(
@@ -605,6 +613,7 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
         self,
         user_env: dict[str, str] | None,
         allowed_credential_issuers: list[str] | None = None,
+        command: str | None = None,
     ) -> dict[str, str]:
         """Build sanitized environment with venv and user overrides."""
         from myrm_agent_harness.toolkits.code_execution.security.validator import (
@@ -647,8 +656,10 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
         except LookupError:
             pass
 
-        # Ephemeral credential injection with zeroization guarantees
+        # Ephemeral credential injection with zeroization guarantees & action digest validation
         try:
+            import hashlib
+
             from myrm_agent_harness.agent.middlewares._session_context import (
                 get_approval_session,
             )
@@ -661,12 +672,28 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
             if current_session:
                 store = get_ephemeral_credential_store()
                 summaries = store.list_summaries(current_session)
+                current_action_digest = (
+                    hashlib.sha256(command.strip().encode("utf-8")).hexdigest()
+                    if command and command.strip()
+                    else None
+                )
                 for s in summaries:
                     if not s.is_consumed and not s.is_expired:
-                        val = store.consume_credential(current_session, s.handle_id)
-                        sanitized_key = validate_credential_key(s.key)
-                        env[f"MYRM_CREDENTIAL_{sanitized_key}"] = val
-                        env[sanitized_key] = val
+                        try:
+                            val = store.consume_credential(
+                                current_session,
+                                s.handle_id,
+                                action_digest=current_action_digest,
+                            )
+                            sanitized_key = validate_credential_key(s.key)
+                            env[f"MYRM_CREDENTIAL_{sanitized_key}"] = val
+                            env[sanitized_key] = val
+                        except ValueError as val_err:
+                            logger.warning(
+                                "[LOCAL_EXECUTOR] Ephemeral credential handle '%s' skipped: %s",
+                                s.handle_id,
+                                val_err,
+                            )
         except Exception as e:
             logger.debug("[LOCAL_EXECUTOR] Ephemeral credential injection skipped: %s", e)
 

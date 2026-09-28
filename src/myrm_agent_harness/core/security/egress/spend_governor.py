@@ -26,6 +26,7 @@ import hmac
 import json
 import logging
 import os
+import threading
 import time
 from collections.abc import Mapping
 
@@ -77,6 +78,7 @@ class SpendGovernor:
         self._daily_spent_cents: int = 0
         self._current_day_index: int = int(time.time() // 86400)
         self._prev_entry_hash: str = "0" * 64
+        self._lock = threading.Lock()
 
     @property
     def config(self) -> SpendGovernorConfig:
@@ -163,95 +165,96 @@ class SpendGovernor:
         now: float | None = None,
     ) -> SpendLeaseResult:
         """Atomically evaluate constraints and reserve budget for an upcoming purchase."""
-        current_time = time.time() if now is None else now
-        self._roll_day_if_needed(current_time)
-        self.cleanup_expired_leases(current_time)
+        with self._lock:
+            current_time = time.time() if now is None else now
+            self._roll_day_if_needed(current_time)
+            self.cleanup_expired_leases(current_time)
 
-        if self._config.is_frozen:
-            return SpendLeaseResult(
-                success=False,
-                code="FROZEN",
-                message="Autonomous spending is currently frozen by emergency breaker.",
+            if self._config.is_frozen:
+                return SpendLeaseResult(
+                    success=False,
+                    code="FROZEN",
+                    message="Autonomous spending is currently frozen by emergency breaker.",
+                )
+
+            if amount_cents <= 0:
+                return SpendLeaseResult(
+                    success=False,
+                    code="INVALID_AMOUNT",
+                    message=f"Amount must be strictly positive integer Cents, received {amount_cents}.",
+                )
+
+            if not self.is_merchant_allowed(merchant_domain):
+                return SpendLeaseResult(
+                    success=False,
+                    code="UNTRUSTED_MERCHANT",
+                    message=f"Merchant '{merchant_domain}' is not in allowed merchants whitelist.",
+                )
+
+            if amount_cents > self._config.per_action_cap_cents:
+                return SpendLeaseResult(
+                    success=False,
+                    code="LIMIT_EXCEEDED",
+                    message=(
+                        f"Requested amount ({amount_cents} cents) exceeds per-action cap "
+                        f"({self._config.per_action_cap_cents} cents)."
+                    ),
+                )
+
+            active_reserved = self.get_active_reserved_cents(current_time)
+            projected_spend = self._daily_spent_cents + active_reserved + amount_cents
+            if projected_spend > self._config.daily_cap_cents:
+                return SpendLeaseResult(
+                    success=False,
+                    code="LIMIT_EXCEEDED",
+                    message=(
+                        f"Projected daily spend ({projected_spend} cents) exceeds daily cap "
+                        f"({self._config.daily_cap_cents} cents)."
+                    ),
+                )
+
+            # Idempotency check: if lease already exists with this idempotency key
+            if idempotency_key:
+                for existing in self._leases.values():
+                    if (
+                        existing.idempotency_key == idempotency_key
+                        and existing.merchant_domain.lower() == merchant_domain.lower()
+                        and existing.amount_cents == amount_cents
+                        and existing.status == "reserved"
+                        and current_time <= existing.expires_at
+                    ):
+                        voucher = self._mint_voucher(existing)
+                        return SpendLeaseResult(
+                            success=True,
+                            code="APPROVED",
+                            message="Idempotent lease reservation reused.",
+                            lease=existing,
+                            voucher=voucher,
+                        )
+
+            # Mint new lease
+            lease_id = f"lease_{os.urandom(8).hex()}"
+            expires_at = current_time + self._config.lease_ttl_seconds
+            lease = SpendLease(
+                lease_id=lease_id,
+                merchant_domain=merchant_domain,
+                amount_cents=amount_cents,
+                currency=self._config.currency,
+                created_at=current_time,
+                expires_at=expires_at,
+                status="reserved",
+                idempotency_key=idempotency_key,
             )
+            self._leases[lease_id] = lease
+            voucher = self._mint_voucher(lease)
 
-        if amount_cents <= 0:
             return SpendLeaseResult(
-                success=False,
-                code="INVALID_AMOUNT",
-                message=f"Amount must be strictly positive integer Cents, received {amount_cents}.",
+                success=True,
+                code="APPROVED",
+                message="Spend reservation approved.",
+                lease=lease,
+                voucher=voucher,
             )
-
-        if not self.is_merchant_allowed(merchant_domain):
-            return SpendLeaseResult(
-                success=False,
-                code="UNTRUSTED_MERCHANT",
-                message=f"Merchant '{merchant_domain}' is not in allowed merchants whitelist.",
-            )
-
-        if amount_cents > self._config.per_action_cap_cents:
-            return SpendLeaseResult(
-                success=False,
-                code="LIMIT_EXCEEDED",
-                message=(
-                    f"Requested amount ({amount_cents} cents) exceeds per-action cap "
-                    f"({self._config.per_action_cap_cents} cents)."
-                ),
-            )
-
-        active_reserved = self.get_active_reserved_cents(current_time)
-        projected_spend = self._daily_spent_cents + active_reserved + amount_cents
-        if projected_spend > self._config.daily_cap_cents:
-            return SpendLeaseResult(
-                success=False,
-                code="LIMIT_EXCEEDED",
-                message=(
-                    f"Projected daily spend ({projected_spend} cents) exceeds daily cap "
-                    f"({self._config.daily_cap_cents} cents)."
-                ),
-            )
-
-        # Idempotency check: if lease already exists with this idempotency key
-        if idempotency_key:
-            for existing in self._leases.values():
-                if (
-                    existing.idempotency_key == idempotency_key
-                    and existing.merchant_domain.lower() == merchant_domain.lower()
-                    and existing.amount_cents == amount_cents
-                    and existing.status == "reserved"
-                    and current_time <= existing.expires_at
-                ):
-                    voucher = self._mint_voucher(existing)
-                    return SpendLeaseResult(
-                        success=True,
-                        code="APPROVED",
-                        message="Idempotent lease reservation reused.",
-                        lease=existing,
-                        voucher=voucher,
-                    )
-
-        # Mint new lease
-        lease_id = f"lease_{os.urandom(8).hex()}"
-        expires_at = current_time + self._config.lease_ttl_seconds
-        lease = SpendLease(
-            lease_id=lease_id,
-            merchant_domain=merchant_domain,
-            amount_cents=amount_cents,
-            currency=self._config.currency,
-            created_at=current_time,
-            expires_at=expires_at,
-            status="reserved",
-            idempotency_key=idempotency_key,
-        )
-        self._leases[lease_id] = lease
-        voucher = self._mint_voucher(lease)
-
-        return SpendLeaseResult(
-            success=True,
-            code="APPROVED",
-            message="Spend reservation approved.",
-            lease=lease,
-            voucher=voucher,
-        )
 
     def commit(
         self,

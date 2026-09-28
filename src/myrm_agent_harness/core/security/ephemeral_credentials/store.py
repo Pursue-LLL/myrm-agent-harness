@@ -46,6 +46,7 @@ class EphemeralCredentialStore:
         *,
         ttl_seconds: float = _DEFAULT_TTL_SECONDS,
         single_use: bool = True,
+        expected_action_digest: str | None = None,
     ) -> EphemeralCredential:
         """Store a new ephemeral credential and return its handle.
 
@@ -55,6 +56,7 @@ class EphemeralCredentialStore:
             secret: Plaintext secret content to protect.
             ttl_seconds: Lifetime before auto-expiration.
             single_use: Whether the credential should be physically zeroized after single read.
+            expected_action_digest: Optional SHA-256 fingerprint of the expected action command.
 
         Returns:
             EphemeralCredential: The created ephemeral credential entry.
@@ -70,6 +72,7 @@ class EphemeralCredentialStore:
             _material=material,
             ttl_seconds=ttl_seconds,
             single_use=single_use,
+            expected_action_digest=expected_action_digest,
         )
 
         with self._lock:
@@ -78,23 +81,30 @@ class EphemeralCredentialStore:
             self._sessions[session_id][handle_id] = entry
 
         logger.debug(
-            "[EPHEMERAL_CREDENTIAL] Stored key '%s' under handle '%s' for session '%s' (TTL=%ss, single_use=%s)",
+            "[EPHEMERAL_CREDENTIAL] Stored key '%s' under handle '%s' for session '%s' (TTL=%ss, single_use=%s, digest=%s)",
             valid_key,
             handle_id,
             session_id,
             ttl_seconds,
             single_use,
+            expected_action_digest,
         )
         return entry
 
-    def consume_credential(self, session_id: str, handle_id: str) -> str:
+    def consume_credential(
+        self,
+        session_id: str,
+        handle_id: str,
+        action_digest: str | None = None,
+    ) -> str:
         """Resolve and atomically consume an ephemeral credential.
 
         If single_use is True, the credential is immediately physically wiped from memory.
+        If expected_action_digest was set on creation, action_digest must match.
 
         Raises:
             KeyError: If session or handle is not found.
-            ValueError: If credential has expired or has already been consumed.
+            ValueError: If credential has expired, already consumed, or action digest mismatches.
         """
         with self._lock:
             session_map = self._sessions.get(session_id)
@@ -102,6 +112,20 @@ class EphemeralCredentialStore:
                 raise KeyError(f"Ephemeral credential handle '{handle_id}' not found in session '{session_id}'.")
 
             cred = session_map[handle_id]
+
+            if cred.expected_action_digest is not None and (
+                not action_digest or cred.expected_action_digest != action_digest
+            ):
+                logger.warning(
+                    "[EPHEMERAL_CREDENTIAL] Security violation: action_digest mismatch for handle '%s'. Expected '%s', got '%s'",
+                    handle_id,
+                    cred.expected_action_digest,
+                    action_digest,
+                )
+                raise ValueError(
+                    f"Action digest mismatch: ephemeral credential '{handle_id}' cannot be consumed for this action."
+                )
+
             secret = cred.read_secret()
 
             if cred.single_use:
@@ -132,6 +156,7 @@ class EphemeralCredentialStore:
                 single_use=cred.single_use,
                 is_consumed=cred.is_consumed,
                 is_expired=cred.is_expired,
+                expected_action_digest=cred.expected_action_digest,
             )
 
     def list_summaries(self, session_id: str) -> list[EphemeralCredentialSummary]:
@@ -152,9 +177,38 @@ class EphemeralCredentialStore:
                         single_use=cred.single_use,
                         is_consumed=cred.is_consumed,
                         is_expired=cred.is_expired,
+                        expected_action_digest=cred.expected_action_digest,
                     )
                 )
             return summaries
+
+    def wipe_handles(self, session_id: str, handle_ids: list[str]) -> int:
+        """Immediately zeroize and remove specific credential handles for a session.
+
+        Typically invoked when an approval is denied or rejected by the user.
+        """
+        if not handle_ids:
+            return 0
+        wiped_count = 0
+        with self._lock:
+            session_map = self._sessions.get(session_id)
+            if not session_map:
+                return 0
+            for hid in handle_ids:
+                cred = session_map.pop(hid, None)
+                if cred:
+                    cred.wipe()
+                    wiped_count += 1
+            if not session_map:
+                self._sessions.pop(session_id, None)
+
+        if wiped_count > 0:
+            logger.info(
+                "[EPHEMERAL_CREDENTIAL] Immediately wiped %d handles upon rejection for session '%s'",
+                wiped_count,
+                session_id,
+            )
+        return wiped_count
 
     def revoke_credential(self, session_id: str, handle_id: str) -> bool:
         """Explicitly revoke and physically wipe an ephemeral credential."""

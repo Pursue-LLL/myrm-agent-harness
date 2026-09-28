@@ -96,3 +96,45 @@ def test_ttl_expiration_and_cleanup() -> None:
     cleaned = store.cleanup_expired()
     assert cleaned == 1
     assert store.list_summaries(sess) == []
+
+
+def test_action_digest_mismatch_blocks_consumption() -> None:
+    store = EphemeralCredentialStore()
+    sess = "sess_action_digest"
+    digest = "a" * 64
+    cred = store.store_credential(
+        sess,
+        "API_SECRET",
+        "super_secret_val",
+        expected_action_digest=digest,
+    )
+
+    # Missing digest or wrong digest must raise ValueError
+    with pytest.raises(ValueError, match="Action digest mismatch"):
+        store.consume_credential(sess, cred.handle_id, action_digest=None)
+
+    with pytest.raises(ValueError, match="Action digest mismatch"):
+        store.consume_credential(sess, cred.handle_id, action_digest="wrong_digest")
+
+    # Correct digest succeeds and zeroes
+    val = store.consume_credential(sess, cred.handle_id, action_digest=digest)
+    assert val == "super_secret_val"
+    assert cred.is_consumed
+
+
+def test_wipe_handles_immediately_zeroes() -> None:
+    store = EphemeralCredentialStore()
+    sess = "sess_wipe"
+    cred1 = store.store_credential(sess, "KEY1", "val1")
+    cred2 = store.store_credential(sess, "KEY2", "val2")
+
+    wiped = store.wipe_handles(sess, [cred1.handle_id])
+    assert wiped == 1
+    assert cred1.is_consumed
+    assert cred1._material == bytearray()
+
+    # Remaining handle is still valid
+    assert len(store.list_summaries(sess)) == 1
+    store.wipe_handles(sess, [cred2.handle_id])
+    assert store.list_summaries(sess) == []
+
