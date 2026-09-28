@@ -17,7 +17,6 @@ and execution.healer (routed input + guard).
 from __future__ import annotations
 
 import asyncio
-import logging
 import subprocess
 import sys
 import tempfile
@@ -25,8 +24,6 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import NamedTuple
-
-logger = logging.getLogger(__name__)
 
 
 class _WindowTarget(NamedTuple):
@@ -114,8 +111,25 @@ def resolve_app_pid(app_name: str, window_index: int = 0) -> int | None:
     return target.pid if target else None
 
 
+def _frontmost_pid_nsworkspace() -> int | None:
+    """Fast path: read frontmost pid in-process (no subprocess spawn)."""
+    try:
+        from AppKit import NSWorkspace  # type: ignore[import-untyped]
+
+        app = NSWorkspace.sharedWorkspace().frontmostApplication()
+        if app is None:
+            return None
+        pid = int(app.processIdentifier())
+        return pid if pid > 0 else None
+    except Exception:
+        return None
+
+
 def _frontmost_pid() -> int | None:
     """Unix pid of the frontmost process, without changing focus."""
+    pid = _frontmost_pid_nsworkspace()
+    if pid is not None:
+        return pid
     try:
         result = subprocess.run(
             [
@@ -185,6 +199,24 @@ def _request_post_event_access() -> bool:
         return bool(cg.CGRequestPostEventAccess())
     except (OSError, AttributeError):
         return False
+
+
+_post_event_prompted = False
+
+
+def ensure_post_event_access() -> bool:
+    """Probe the event-posting grant; prompt once via system dialog on denial.
+
+    Returns True when background delivery is allowed. A denial is NOT cached:
+    a later grant takes effect on the next call without a restart.
+    """
+    global _post_event_prompted
+    if _check_post_event_access():
+        return True
+    if _post_event_prompted:
+        return False
+    _post_event_prompted = True
+    return _request_post_event_access()
 
 
 _ENHANCED_UI_SNIPPET = (

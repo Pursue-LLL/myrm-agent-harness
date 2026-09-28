@@ -279,84 +279,162 @@ class TestHealerBackgroundRouting:
         session.check_foreground_permission = AsyncMock(return_value=None)
         return session
 
-    def test_mac_backend_routes_and_clears(self) -> None:
-        import asyncio
-
+    def _backend(self) -> MagicMock:
         from myrm_agent_harness.toolkits.computer_use.backends.macos import (
             MacOSBackend,
-        )
-        from myrm_agent_harness.toolkits.computer_use.execution.healer import (
-            try_bbox_click,
         )
 
         backend = MacOSBackend()
         backend.click = AsyncMock(
             return_value=MagicMock(success=True, error=None)
         )
+        return backend
+
+    def _run_click(self, session: MagicMock, action: str = "click") -> MagicMock:
+        import asyncio
+
+        from myrm_agent_harness.toolkits.computer_use.execution.healer import (
+            try_bbox_click,
+        )
+
+        return asyncio.get_event_loop().run_until_complete(
+            try_bbox_click(session, self._element(), action, "", None)
+        )
+
+    def test_mac_backend_routes_and_clears(self) -> None:
         session = self._session(pid=200)
-        session._backend = backend
+        session._backend = self._backend()
         with (
+            patch(
+                "myrm_agent_harness.toolkits.computer_use.backends.macos_background"
+                ".ensure_post_event_access",
+                return_value=True,
+            ),
             patch(
                 "myrm_agent_harness.toolkits.computer_use.backends.macos_background._frontmost_pid",
                 side_effect=[200, 200],
             ),
         ):
-            result = asyncio.get_event_loop().run_until_complete(
-                try_bbox_click(session, self._element(), "click", "", None)
-            )
+            result = self._run_click(session)
         assert result.success is True
         assert macos_input_mod._input_target_pid is None
 
     def test_focus_leak_reports_failure(self) -> None:
-        import asyncio
-
-        from myrm_agent_harness.toolkits.computer_use.backends.macos import (
-            MacOSBackend,
-        )
-        from myrm_agent_harness.toolkits.computer_use.execution.healer import (
-            try_bbox_click,
-        )
-
-        backend = MacOSBackend()
-        backend.click = AsyncMock(
-            return_value=MagicMock(success=True, error=None)
-        )
         session = self._session(pid=200)
-        session._backend = backend
+        session._backend = self._backend()
         with (
+            patch(
+                "myrm_agent_harness.toolkits.computer_use.backends.macos_background"
+                ".ensure_post_event_access",
+                return_value=True,
+            ),
             patch(
                 "myrm_agent_harness.toolkits.computer_use.backends.macos_background._frontmost_pid",
                 side_effect=[100, 999],
             ),
         ):
-            result = asyncio.get_event_loop().run_until_complete(
-                try_bbox_click(session, self._element(), "click", "", None)
-            )
+            result = self._run_click(session)
         assert result.success is False
         assert "Foreground app changed" in (result.error or "")
         assert macos_input_mod._input_target_pid is None
 
-    def test_pid_less_snapshot_keeps_legacy_path(self) -> None:
-        import asyncio
-
-        from myrm_agent_harness.toolkits.computer_use.backends.macos import (
-            MacOSBackend,
-        )
-        from myrm_agent_harness.toolkits.computer_use.execution.healer import (
-            try_bbox_click,
-        )
-
-        backend = MacOSBackend()
-        backend.click = AsyncMock(
-            return_value=MagicMock(success=True, error=None)
-        )
-        session = self._session(pid=0)
+    def test_denied_post_events_returns_honest_error(self) -> None:
+        session = self._session(pid=200)
+        backend = self._backend()
         session._backend = backend
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.computer_use.backends.macos_background"
+                ".ensure_post_event_access",
+                return_value=False,
+            ),
+            patch.object(
+                macos_input_mod,
+                "set_input_target",
+                wraps=macos_input_mod.set_input_target,
+            ) as spy,
+        ):
+            result = self._run_click(session)
+        assert result.success is False
+        assert "scope='foreground'" in (result.error or "")
+        spy.assert_not_called()
+        backend.click.assert_not_called()
+
+    def test_pid_less_snapshot_keeps_legacy_path(self) -> None:
+        session = self._session(pid=0)
+        session._backend = self._backend()
         with patch.object(
             macos_input_mod, "set_input_target", wraps=macos_input_mod.set_input_target
         ) as spy:
-            result = asyncio.get_event_loop().run_until_complete(
-                try_bbox_click(session, self._element(), "click", "", None)
-            )
+            result = self._run_click(session)
         assert result.success is True
         spy.assert_not_called()
+
+
+class TestEnsurePostEventAccess:
+    def test_granted_skips_prompt(self) -> None:
+        from myrm_agent_harness.toolkits.computer_use.backends import macos_background
+
+        macos_background._post_event_prompted = False
+        with (
+            patch.object(macos_background, "_check_post_event_access", return_value=True),
+            patch.object(macos_background, "_request_post_event_access") as req,
+        ):
+            assert macos_background.ensure_post_event_access() is True
+            req.assert_not_called()
+
+    def test_denial_prompts_once(self) -> None:
+        from myrm_agent_harness.toolkits.computer_use.backends import macos_background
+
+        macos_background._post_event_prompted = False
+        with (
+            patch.object(macos_background, "_check_post_event_access", return_value=False),
+            patch.object(macos_background, "_request_post_event_access", return_value=False) as req,
+        ):
+            assert macos_background.ensure_post_event_access() is False
+            assert macos_background.ensure_post_event_access() is False
+            req.assert_called_once()
+        macos_background._post_event_prompted = False
+
+    def test_later_grant_takes_effect(self) -> None:
+        from myrm_agent_harness.toolkits.computer_use.backends import macos_background
+
+        macos_background._post_event_prompted = False
+        with patch.object(
+            macos_background, "_check_post_event_access", side_effect=[False, True]
+        ):
+            with patch.object(
+                macos_background, "_request_post_event_access", return_value=False
+            ):
+                assert macos_background.ensure_post_event_access() is False
+            assert macos_background.ensure_post_event_access() is True
+        macos_background._post_event_prompted = False
+
+
+class TestFastFrontmostPid:
+    def test_nsworkspace_path(self) -> None:
+        from myrm_agent_harness.toolkits.computer_use.backends import macos_background
+
+        app = MagicMock()
+        app.processIdentifier.return_value = 777
+        workspace = MagicMock()
+        workspace.frontmostApplication.return_value = app
+        ns_workspace = MagicMock()
+        ns_workspace.sharedWorkspace.return_value = workspace
+        with (
+            patch.dict("sys.modules", {"AppKit": MagicMock(NSWorkspace=ns_workspace)}),
+            patch("subprocess.run") as run,
+        ):
+            assert macos_background._frontmost_pid() == 777
+            run.assert_not_called()
+
+    def test_nsworkspace_failure_falls_back_to_osascript(self) -> None:
+        from myrm_agent_harness.toolkits.computer_use.backends import macos_background
+
+        with (
+            patch.dict("sys.modules", {"AppKit": None}),
+            patch("subprocess.run") as run,
+        ):
+            run.return_value = MagicMock(returncode=0, stdout="  888\n")
+            assert macos_background._frontmost_pid() == 888
+            run.assert_called_once()

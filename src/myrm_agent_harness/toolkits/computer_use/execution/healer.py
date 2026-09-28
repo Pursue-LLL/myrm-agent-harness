@@ -65,12 +65,22 @@ async def try_bbox_click(
     if type(backend).__name__ == "MacOSBackend" and target_pid:
         from myrm_agent_harness.toolkits.computer_use.backends import macos_input
         from myrm_agent_harness.toolkits.computer_use.backends.macos_background import (
+            ensure_post_event_access,
             guard_foreground,
         )
         from myrm_agent_harness.toolkits.computer_use.dref.errors import (
             FocusChangedError,
         )
 
+        if not ensure_post_event_access():
+            return ActionResult(
+                success=False,
+                error=(
+                    "macOS denied event posting for background input. "
+                    "Grant access when prompted, then retry the same call; "
+                    "or snapshot with scope='foreground' to act in the frontmost app."
+                ),
+            )
         macos_input.set_input_target(target_pid)
         try:
             with guard_foreground():
