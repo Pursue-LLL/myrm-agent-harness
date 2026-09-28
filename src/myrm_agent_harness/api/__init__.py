@@ -299,6 +299,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "TaintedEgressBlockedException": ("myrm_agent_harness.core.security.egress", "TaintedEgressBlockedException"),
     "RestrictedAccessibilityBrowserSession": ("myrm_agent_harness.toolkits.browser.session", "RestrictedAccessibilityBrowserSession"),
     "create_restricted_ax_browser_tools": ("myrm_agent_harness.toolkits.browser.session", "create_restricted_ax_browser_tools"),
+    "ReadOnlySSHValidator": ("myrm_agent_harness.toolkits.ssh_remote", "ReadOnlySSHValidator"),
 }
 
 # ``__all__`` is derived from ``_EXPORTS`` so the two cannot drift: every name is declared once,

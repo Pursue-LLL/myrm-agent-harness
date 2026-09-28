@@ -38,6 +38,7 @@ from myrm_agent_harness.core.security.egress.spend_governor import (
     SpendGovernor,
     SpendGovernorConfig,
 )
+from myrm_agent_harness.toolkits.ssh_remote import ReadOnlySSHValidator
 from myrm_agent_harness.utils.url_utils import (
     clear_dynamic_blocked_hostnames,
     register_blocked_hostnames,
@@ -50,6 +51,7 @@ __all__ = [
     "BatchRiskItemDetail",
     "BatchRiskReport",
     "ManagedApprovalPolicy",
+    "ReadOnlySSHValidator",
     "SpendGovernor",
     "SpendGovernorConfig",
     "TaintLabel",
