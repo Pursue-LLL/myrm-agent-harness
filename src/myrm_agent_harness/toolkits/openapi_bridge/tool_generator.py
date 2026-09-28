@@ -123,7 +123,7 @@ def _create_tool_for_endpoint(
     path_keys = endpoint.path_param_keys | path_params
     query_keys = endpoint.query_param_keys
 
-    async def _execute_endpoint(**kwargs: Any) -> str:
+    async def _execute_endpoint(**kwargs: object) -> str:
         # Coerce LLM-emitted types against the endpoint's parameter schema
         # (string "25" -> int, big-int precision preserved) before dispatch.
         coerced_kwargs = coerce_arguments_by_schema(endpoint_param_schema, kwargs)

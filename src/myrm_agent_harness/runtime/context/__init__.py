@@ -26,11 +26,6 @@ from myrm_agent_harness.runtime.context.offload import (
     cleanup_session_context_files,
     create_compress_offload_callback,
 )
-from myrm_agent_harness.runtime.context.transparent_reader import (
-    TransparentFileReader,
-    read_context_file_async,
-    read_context_file_sync,
-)
 from myrm_agent_harness.runtime.context.transcripts import (
     CanonicalToolCall,
     CanonicalTranscriptTurn,
@@ -40,6 +35,11 @@ from myrm_agent_harness.runtime.context.transcripts import (
     SandboxPathRemapper,
     ToolOutputCompactor,
     TranscriptParseResult,
+)
+from myrm_agent_harness.runtime.context.transparent_reader import (
+    TransparentFileReader,
+    read_context_file_async,
+    read_context_file_sync,
 )
 
 __all__ = [
