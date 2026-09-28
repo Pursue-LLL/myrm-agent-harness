@@ -30,16 +30,10 @@ Positioned in ContextPipeline after MediaResolverProcessor (or integrated alongs
 resolution) to govern cumulative base64 image bytes before LLM invocation.
 """
 
-from __future__ import annotations
-
-import asyncio
-import base64
-import io
 from dataclasses import dataclass
-from typing import Any, Final
+from typing import Final
 
 from langchain_core.messages import BaseMessage
-from PIL import Image
 
 from myrm_agent_harness.utils.image_utils import (
     estimate_base64_byte_size,
@@ -48,6 +42,12 @@ from myrm_agent_harness.utils.image_utils import (
     is_image_content_item,
 )
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
+from myrm_agent_harness.utils.media.base64_downsampler import (
+    DEFAULT_DOWNSAMPLE_MAX_DIM,
+    DEFAULT_DOWNSAMPLE_QUALITY,
+    downsample_base64_image,
+    probe_base64_image_meta,
+)
 
 from ..base import BaseProcessor, ProcessorContext
 
@@ -60,13 +60,20 @@ DEFAULT_MAX_CUMULATIVE_IMAGE_BYTES: Final[int] = 10 * 1024 * 1024
 # Focus window: Protect latest N turns from being downsampled or evicted
 DEFAULT_FOCUS_WINDOW_TURNS: Final[int] = 2
 
+# Quantum offload margin: When payload exceeds budget, shrink by an extra quantum margin
+# to prevent consecutive per-turn single-image thrashing and preserve Prefix Prompt Cache.
+DEFAULT_QUANTUM_OFFLOAD_BYTES: Final[int] = 2 * 1024 * 1024
+
 # Tier 2 downsampling target dimensions & quality
-TIER2_DOWNSAMPLE_MAX_DIM: Final[int] = 512
-TIER2_DOWNSAMPLE_QUALITY: Final[float] = 0.65
+TIER2_DOWNSAMPLE_MAX_DIM: Final[int] = DEFAULT_DOWNSAMPLE_MAX_DIM
+TIER2_DOWNSAMPLE_QUALITY: Final[float] = DEFAULT_DOWNSAMPLE_QUALITY
 
 # Tier 4 Focus window safety net downsampling (preserves high-res vision reasoning)
 TIER4_FOCUS_DOWNSAMPLE_MAX_DIM: Final[int] = 1024
 TIER4_FOCUS_DOWNSAMPLE_QUALITY: Final[float] = 0.80
+
+# Backward-compatibility alias for internal module and tests
+_downsample_base64_image = downsample_base64_image
 
 
 @dataclass(slots=True)
@@ -80,44 +87,8 @@ class ImageItemRef:
     is_focus: bool
 
 
-def _downsample_base64_image(
-    data_url: str,
-    max_dim: int = TIER2_DOWNSAMPLE_MAX_DIM,
-    quality: float = TIER2_DOWNSAMPLE_QUALITY,
-) -> str | None:
-    """Downsample a base64 data URL to compact WebP format."""
-    if not is_base64_data_url(data_url):
-        return None
 
-    try:
-        _header, b64_str = data_url.split(";base64,", 1)
-        raw_bytes = base64.b64decode(b64_str)
-
-        with Image.open(io.BytesIO(raw_bytes)) as img:
-            # Preserve aspect ratio while resizing
-            img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
-
-            # Convert to RGB if palette or RGBA with transparency
-            if img.mode in ("RGBA", "LA", "P"):
-                # WebP supports RGBA directly
-                pass
-            elif img.mode != "RGB":
-                img = img.convert("RGB")
-
-            out_buf = io.BytesIO()
-            img.save(out_buf, format="WEBP", quality=int(quality * 100), method=4)
-            compressed_bytes = out_buf.getvalue()
-
-            # If compression didn't save space, return original
-            if len(compressed_bytes) >= len(raw_bytes):
-                return data_url
-
-            new_b64 = base64.b64encode(compressed_bytes).decode("ascii")
-            return f"data:image/webp;base64,{new_b64}"
-    except Exception as exc:
-        logger.debug("[MediaBudgetGovernor] Failed to downsample image: %s", exc)
-        return None
-
+import asyncio
 
 class CumulativeImageBudgetGovernor:
     """Core governor tracking and progressively enforcing multi-turn image payload limits."""
@@ -126,9 +97,11 @@ class CumulativeImageBudgetGovernor:
         self,
         max_cumulative_bytes: int = DEFAULT_MAX_CUMULATIVE_IMAGE_BYTES,
         focus_window_turns: int = DEFAULT_FOCUS_WINDOW_TURNS,
+        quantum_offload_bytes: int = DEFAULT_QUANTUM_OFFLOAD_BYTES,
     ) -> None:
         self.max_cumulative_bytes = max_cumulative_bytes
         self.focus_window_turns = focus_window_turns
+        self.quantum_offload_bytes = quantum_offload_bytes
 
     def scan_image_items(self, messages: list[BaseMessage]) -> list[ImageItemRef]:
         """Scan all messages and collect base64 image items with byte sizes."""
@@ -171,6 +144,9 @@ class CumulativeImageBudgetGovernor:
     ) -> tuple[int, int]:
         """Progressively downsample and evict images until total payload <= budget.
 
+        Uses Quantum Offloading to establish a buffer below max_cumulative_bytes,
+        preventing single-image churn in successive turns and preserving Prefix Prompt Cache.
+
         Returns (images_downsampled, images_textified).
         """
         items = self.scan_image_items(messages)
@@ -188,13 +164,16 @@ class CumulativeImageBudgetGovernor:
             len(items),
         )
 
+        # Quantum target: Once over budget, shrink by an extra quantum margin to lock historical prefixes
+        effective_target = max(1024, self.max_cumulative_bytes - self.quantum_offload_bytes)
+
         downsampled_count = 0
         textified_count = 0
 
-        # Tier 2: Downsample non-focus images from oldest to newest
+        # Tier 2: Downsample non-focus images from oldest to newest toward quantum buffer
         non_focus_items = [it for it in items if not it.is_focus]
         for item in non_focus_items:
-            if total_bytes <= self.max_cumulative_bytes:
+            if total_bytes <= effective_target:
                 break
 
             # Skip images that are already tiny (e.g. <= 4KB)
@@ -215,25 +194,24 @@ class CumulativeImageBudgetGovernor:
                             item.byte_size = new_size
                             downsampled_count += 1
 
-        # Tier 3: If still over budget, convert oldest non-focus images to text placeholders
+        # Tier 3: If still over budget, convert oldest non-focus images to structured text placeholders
         if total_bytes > self.max_cumulative_bytes:
             for item in non_focus_items:
-                if total_bytes <= self.max_cumulative_bytes:
+                if total_bytes <= effective_target:
                     break
 
                 content = messages[item.msg_idx].content
                 if isinstance(content, list) and item.item_idx < len(content):
-                    # Strip base64 and replace with structured text summary
+                    meta = probe_base64_image_meta(item.data_url)
+                    meta_desc = f"; original: {meta[0]}x{meta[1]} {meta[2]}" if meta else ""
                     content[item.item_idx] = {
                         "type": "text",
-                        "text": f"[Historical Image omitted: payload reduced {item.byte_size // 1024}KB]",
+                        "text": f"[Historical Image omitted: payload reduced {item.byte_size // 1024}KB{meta_desc}; use file/vision tools to re-inspect if needed]",
                     }
                     total_bytes -= item.byte_size
                     textified_count += 1
 
         # Tier 4: Focus window safety net — if total payload still exceeds budget
-        # (e.g. single-turn multi-image upload or massive screenshots in focus window),
-        # downsample focus images to 1024px WebP (preserving high-res details for vision reasoning)
         if total_bytes > self.max_cumulative_bytes:
             focus_items = [it for it in items if it.is_focus]
             focus_items.sort(key=lambda it: it.byte_size, reverse=True)
@@ -275,7 +253,7 @@ class CumulativeImageBudgetGovernor:
     @classmethod
     def emergency_evict_from_message_dicts(
         cls,
-        message_dicts: list[dict[str, Any]],
+        message_dicts: list[dict[str, object]],
         target_bytes: int = 5 * 1024 * 1024,
         force_shrink: bool = False,
     ) -> int:
@@ -294,7 +272,7 @@ class CumulativeImageBudgetGovernor:
     @classmethod
     def emergency_evict(
         cls,
-        messages: list[Any],
+        messages: list[object],
         target_bytes: int = 5 * 1024 * 1024,
         force_shrink: bool = False,
     ) -> int:
@@ -308,6 +286,7 @@ class CumulativeImageBudgetGovernor:
         )
 
         return _evict(messages, target_bytes=target_bytes, force_shrink=force_shrink)
+
 
 
 class MediaBudgetGovernorProcessor(BaseProcessor):

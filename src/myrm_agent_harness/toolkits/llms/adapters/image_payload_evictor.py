@@ -15,56 +15,24 @@ The agent-side CumulativeImageBudgetGovernor delegates to these functions.
 
 from __future__ import annotations
 
-import base64
-import io
 from typing import Final
-
-from PIL import Image
 
 from myrm_agent_harness.utils.image_utils import (
     estimate_base64_byte_size,
     is_base64_data_url,
 )
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
+from myrm_agent_harness.utils.media.base64_downsampler import (
+    DEFAULT_DOWNSAMPLE_MAX_DIM as _DOWNSAMPLE_MAX_DIM,
+    DEFAULT_DOWNSAMPLE_QUALITY as _DOWNSAMPLE_QUALITY,
+    downsample_base64_image as _downsample_base64_image,
+)
 
 logger = get_agent_logger(__name__)
 
-_DOWNSAMPLE_MAX_DIM: Final[int] = 512
-_DOWNSAMPLE_QUALITY: Final[float] = 0.65
 _TINY_ICON_BYTES: Final[int] = 2 * 1024
 
 
-def _downsample_base64_image(data_url: str, max_dim: int = _DOWNSAMPLE_MAX_DIM, quality: float = _DOWNSAMPLE_QUALITY) -> str | None:
-    """Downsample a base64 data URL to compact WebP format."""
-    if not is_base64_data_url(data_url):
-        return None
-
-    try:
-        _header, b64_str = data_url.split(";base64,", 1)
-        raw_bytes = base64.b64decode(b64_str)
-
-        with Image.open(io.BytesIO(raw_bytes)) as img:
-            # Preserve aspect ratio while resizing
-            img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
-
-            # Convert to RGB if palette or RGBA with transparency
-            rgb_img: Image.Image = img
-            if img.mode not in ("RGBA", "LA", "P", "RGB"):
-                rgb_img = img.convert("RGB")
-
-            out_buf = io.BytesIO()
-            rgb_img.save(out_buf, format="WEBP", quality=int(quality * 100), method=4)
-            compressed_bytes = out_buf.getvalue()
-
-            # If compression didn't save space, return original
-            if len(compressed_bytes) >= len(raw_bytes):
-                return data_url
-
-            new_b64 = base64.b64encode(compressed_bytes).decode("ascii")
-            return f"data:image/webp;base64,{new_b64}"
-    except Exception as exc:
-        logger.debug("[ImagePayloadEvictor] Failed to downsample image: %s", exc)
-        return None
 
 
 def _extract_image_url(part: dict[str, object]) -> str:

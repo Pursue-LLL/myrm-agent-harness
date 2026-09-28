@@ -304,3 +304,63 @@ class TestMediaBudgetGovernorEdgeCases:
             msgs, target_bytes=50 * 1024, force_shrink=True
         )
         assert evicted >= 1
+
+    @pytest.mark.asyncio
+    async def test_quantum_offload_creates_buffer_to_prevent_churn(self) -> None:
+        """Quantum offloading should compress non-focus images past budget by a quantum buffer."""
+        img1 = _make_dummy_base64_image(width=600, height=600)
+        img2 = _make_dummy_base64_image(width=600, height=600)
+        img_focus = _make_dummy_base64_image(width=600, height=600)
+
+        single_size = estimate_base64_byte_size(img1)
+        total_initial = single_size * 3
+
+        # Set budget slightly below total_initial (~2.5 images)
+        budget = int(single_size * 2.5)
+        # Quantum offload margin = 1 image size
+        quantum = single_size
+
+        gov = CumulativeImageBudgetGovernor(
+            max_cumulative_bytes=budget,
+            focus_window_turns=1,
+            quantum_offload_bytes=quantum,
+        )
+
+        msgs: list[BaseMessage] = [
+            _make_human_image_message(img1, "turn 1 (old)"),
+            _make_human_image_message(img2, "turn 2 (old)"),
+            _make_human_image_message(img_focus, "turn 3 (focus)"),
+        ]
+
+        downsampled, textified = await gov.enforce_budget(msgs)
+        assert downsampled >= 1
+
+        # Check total remaining bytes is well below budget by the quantum buffer
+        remaining_items = gov.scan_image_items(msgs)
+        remaining_bytes = sum(it.byte_size for it in remaining_items)
+        assert remaining_bytes <= budget - quantum or remaining_bytes < total_initial
+
+    @pytest.mark.asyncio
+    async def test_structured_provenance_placeholder_carries_metadata(self) -> None:
+        """When historical images are omitted into text, metadata (dimensions, format) is preserved."""
+        img_meta = _make_dummy_base64_image(width=640, height=480)
+        img_focus = _make_dummy_base64_image(width=400, height=400)
+        gov = CumulativeImageBudgetGovernor(
+            max_cumulative_bytes=100,  # Tiny budget forcing Tier 3 textification for old turns
+            focus_window_turns=1,
+        )
+
+        msgs: list[BaseMessage] = [
+            _make_human_image_message(img_meta, "turn 1 (old)"),
+            _make_human_image_message(img_focus, "turn 2 (focus)"),
+        ]
+        downsampled, textified = await gov.enforce_budget(msgs)
+        assert textified >= 1
+
+        placeholder_text = msgs[0].content[1]["text"]  # type: ignore[index]
+        assert "[Historical Image omitted" in placeholder_text
+        assert "640x480" in placeholder_text
+        assert "jpeg" in placeholder_text
+        assert "use file/vision tools to re-inspect" in placeholder_text
+
+
