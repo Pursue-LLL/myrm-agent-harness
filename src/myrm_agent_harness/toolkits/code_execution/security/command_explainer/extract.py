@@ -122,11 +122,28 @@ def build_shell_approval_fields(
         intent = intent_raw.strip()
         if intent:
             result["execution_intent"] = intent
+
+    from myrm_agent_harness.toolkits.code_execution.security.ast_parser import BashASTParser
+
+    ast_actions = BashASTParser.parse(shell_text)
+    escalations = BashASTParser.summarize_escalations(ast_actions)
+    if escalations:
+        result["escalations"] = escalations
+    result["atomic_actions"] = [
+        {
+            "command": a.command_text,
+            "base_cmd": a.base_cmd,
+            "capability_level": str(a.capability_level),
+            "escalation_reason": a.escalation_reason,
+        }
+        for a in ast_actions
+    ]
+
     return result
 
 
 def _extract_spans_quote_aware(command: str) -> list[CommandSpan]:
-    """Split on |, &&, || outside quotes and return segment spans."""
+    """Split on |, ;, &&, || outside quotes and return segment spans."""
     segments: list[tuple[int, int]] = []
     cursor = 0
     i = 0
@@ -167,7 +184,7 @@ def _extract_spans_quote_aware(command: str) -> list[CommandSpan]:
                 i += 1
             cursor = i
             continue
-        if ch == "|":
+        if ch in ("|", ";"):
             flush_segment(i)
             i += 1
             while i < length and command[i].isspace():

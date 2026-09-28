@@ -447,7 +447,7 @@ def _split_shell_operators(command: str) -> list[str]:
                 segments.append("".join(current))
                 current = []
                 i += 2
-            elif ch == "|":
+            elif ch in ("|", ";"):
                 segments.append("".join(current))
                 current = []
                 i += 1

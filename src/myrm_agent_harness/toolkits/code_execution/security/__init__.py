@@ -13,6 +13,13 @@
 from myrm_agent_harness.toolkits.code_execution.security.archive_sanitizer import (
     sanitize_archive_command,
 )
+from myrm_agent_harness.toolkits.code_execution.security.ast_parser import (
+    AtomicCommandAction,
+    BashASTParser,
+    CapabilityLevel,
+    Redirection,
+    classify_command_boundary,
+)
 from myrm_agent_harness.toolkits.code_execution.security.blacklist import (
     CORE_DANGEROUS_MODULES,
     CORE_SAFE_ENV_VARS,
@@ -75,6 +82,11 @@ __all__ = [
     "DANGEROUS_ENV_VARS",
     "DANGEROUS_ENV_WILDCARDS",
     "NON_INHERITABLE_ENV_VARS",
+    # AST parser and capability boundaries
+    "AtomicCommandAction",
+    "BashASTParser",
+    "CapabilityLevel",
+    "Redirection",
     # Blacklist definitions
     "DANGEROUS_MODULES",
     "DANGEROUS_MODULES_REASONS",
@@ -96,6 +108,7 @@ __all__ = [
     # Validation
     "ValidationResult",
     "analyze_command",
+    "classify_command_boundary",
     "classify_command_risk",
     # Dynamic blacklist
     "get_dangerous_modules",

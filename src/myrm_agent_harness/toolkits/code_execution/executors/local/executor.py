@@ -602,11 +602,12 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
         return None
 
     async def _prepare_bash_command(self, command: str) -> str:
-        """Rewrite workspace paths and pip commands for the local environment."""
+        """Rewrite workspace paths, search commands, and pip commands for the local environment."""
         command = self._command_rewriter.rewrite_workspace_paths(
             command,
             self._current_workspace,
         )
+        command = self._command_rewriter.rewrite_search_commands(command)
         return await self._venv_manager.rewrite_pip_command(command)
 
     def _build_bash_env(
