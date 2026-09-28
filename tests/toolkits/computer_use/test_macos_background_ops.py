@@ -21,7 +21,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from myrm_agent_harness.toolkits.computer_use.backends import macos_input as macos_input_mod
-from myrm_agent_harness.toolkits.computer_use.backends.macos import (
+from myrm_agent_harness.toolkits.computer_use.backends.macos_background import (
     _check_post_event_access,
     _request_post_event_access,
     _resolve_target_window,
@@ -75,7 +75,7 @@ class TestForegroundGuard:
     def test_stable_focus_passes(self) -> None:
         with (
             patch(
-                "myrm_agent_harness.toolkits.computer_use.backends.macos._frontmost_pid",
+                "myrm_agent_harness.toolkits.computer_use.backends.macos_background._frontmost_pid",
                 side_effect=[100, 100],
             ),guard_foreground()
         ):
@@ -84,7 +84,7 @@ class TestForegroundGuard:
     def test_changed_focus_raises(self) -> None:
         with (
             patch(
-                "myrm_agent_harness.toolkits.computer_use.backends.macos._frontmost_pid",
+                "myrm_agent_harness.toolkits.computer_use.backends.macos_background._frontmost_pid",
                 side_effect=[100, 200],
             ),
             pytest.raises(FocusChangedError, match="Foreground app changed"),guard_foreground()
@@ -94,7 +94,7 @@ class TestForegroundGuard:
     def test_unknown_pid_never_raises(self) -> None:
         with (
             patch(
-                "myrm_agent_harness.toolkits.computer_use.backends.macos._frontmost_pid",
+                "myrm_agent_harness.toolkits.computer_use.backends.macos_background._frontmost_pid",
                 return_value=None,
             ),guard_foreground()
         ):
@@ -210,22 +210,24 @@ class TestEnhancedUI:
         with patch("ctypes.util.find_library", return_value=None):
             assert _set_enhanced_ui(1234) is False
 
-    def test_denied_write_is_contained_and_cached(self) -> None:
-        from myrm_agent_harness.toolkits.computer_use.backends import macos
+    def test_denied_write_is_contained_and_reprobed(self) -> None:
+        from myrm_agent_harness.toolkits.computer_use.backends import macos_background
 
-        macos._enhanced_ui_usable = None
-        crashed = MagicMock(
-            returncode=-5, stdout=b"", stderr=b""
-        )
+        macos_background._enhanced_ui_usable = None
+        crashed = MagicMock(returncode=-5, stdout=b"", stderr=b"")
+        granted = MagicMock(returncode=0, stdout=b"", stderr=b"")
         with (
             patch("ctypes.util.find_library", return_value="lib"),
-            patch("subprocess.run", return_value=crashed) as run,
+            patch("subprocess.run", side_effect=[crashed, granted]) as run,
         ):
+            # Denial is contained (parent survives) and NOT cached, so a
+            # later grant takes effect without a restart.
             assert _set_enhanced_ui(9999) is False
-            # Cached denial: no second subprocess.
-            assert _set_enhanced_ui(9999) is False
-            run.assert_called_once()
-        macos._enhanced_ui_usable = None
+            assert _set_enhanced_ui(9999) is True
+            # Success is cached: no third subprocess.
+            assert _set_enhanced_ui(9999) is True
+            assert run.call_count == 2
+        macos_background._enhanced_ui_usable = None
 
     def test_rejects_bad_pid(self) -> None:
         assert _set_enhanced_ui(0) is False
@@ -295,7 +297,7 @@ class TestHealerBackgroundRouting:
         session._backend = backend
         with (
             patch(
-                "myrm_agent_harness.toolkits.computer_use.backends.macos._frontmost_pid",
+                "myrm_agent_harness.toolkits.computer_use.backends.macos_background._frontmost_pid",
                 side_effect=[200, 200],
             ),
         ):
@@ -323,7 +325,7 @@ class TestHealerBackgroundRouting:
         session._backend = backend
         with (
             patch(
-                "myrm_agent_harness.toolkits.computer_use.backends.macos._frontmost_pid",
+                "myrm_agent_harness.toolkits.computer_use.backends.macos_background._frontmost_pid",
                 side_effect=[100, 999],
             ),
         ):
