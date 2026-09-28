@@ -23,6 +23,7 @@ Context lifecycle management — cleanup, config, metrics, tracking, reading, of
 | tracker_manager.py | Core | Generic singleton manager for tracker instances. | ✅ |
 | transparent_reader.py | Core | Transparent decompression for context files. | ✅ |
 | context_branches.py | Core | Volume-backed snapshot branch manifest (`branches.json`); list/append/get by branch_id for GUI bookmark fork. | ✅ |
+| transcripts/（子包） | Core | 跨助手会话转录本纯净解析与连续性重锚子域：Claude Code / Codex CLI 会话流解析、沙箱工作区路径重锚（`/workspace`）与两阶段紧凑规约。5 个模块聚合于此，`transcripts/__init__.py` 为门面统一 re-export | ✅ |
 
 ## Key Dependencies
 
