@@ -163,3 +163,63 @@ def test_envelope_blocks_short_process_name_spoofing() -> None:
     result_vscode = check_envelope_action(envelope=envelope, window=window_vscode)
     assert result_vscode.allowed is True
     assert result_vscode.reason == "ok"
+
+
+def test_keystroke_sanitizer_dangerous_hotkeys() -> None:
+    dangerous_combos = [
+        ["command", "shift", "delete"],
+        ["cmd", "shift", "backspace"],
+        "command+option+escape",
+        "cmd+alt+esc",
+        ["ctrl", "alt", "delete"],
+        ["control", "alt", "del"],
+        "alt+f4",
+        ["ctrl", "alt", "backspace"],
+    ]
+    for combo in dangerous_combos:
+        is_safe, violation = KeystrokeSanitizer.inspect_hotkey(combo)
+        assert is_safe is False
+        assert "Dangerous system hotkey detected" in violation
+
+    safe_combos = [
+        ["command", "c"],
+        ["ctrl", "v"],
+        "alt+tab",
+        ["shift", "down"],
+        "enter",
+    ]
+    for combo in safe_combos:
+        is_safe, violation = KeystrokeSanitizer.inspect_hotkey(combo)
+        assert is_safe is True
+        assert violation == ""
+
+
+def test_envelope_blocks_dangerous_hotkey_action() -> None:
+    envelope = IntentEnvelopeSpec(
+        task_id="task_safe_keys",
+        allowed_app_names=("Finder",),
+        allowed_app_ids=("com.apple.finder",),
+    )
+    window = WindowHierarchyContext(
+        app_name="Finder",
+        app_id="com.apple.finder",
+    )
+    # Block destructive hotkey via keys_to_press
+    result = check_envelope_action(
+        envelope=envelope,
+        window=window,
+        keys_to_press=["command", "shift", "delete"],
+    )
+    assert result.allowed is False
+    assert result.reason == "keystroke_violation"
+    assert "Dangerous system hotkey detected" in result.detail
+
+    # Block destructive hotkey encoded in text_to_type
+    result_text = check_envelope_action(
+        envelope=envelope,
+        window=window,
+        text_to_type="cmd+alt+esc",
+    )
+    assert result_text.allowed is False
+    assert result_text.reason == "keystroke_violation"
+

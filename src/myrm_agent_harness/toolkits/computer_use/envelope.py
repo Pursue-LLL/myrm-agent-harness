@@ -14,6 +14,7 @@ for scoped, non-interruptive desktop action execution.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal
 
@@ -31,6 +32,28 @@ _DEFAULT_HIGH_RISK_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"(?:curl|wget)\s+[^|\n]+\|\s*(?:bash|sh|zsh)", re.IGNORECASE),
     re.compile(r"\bchmod\s+-R\s+777\s+[/~]", re.IGNORECASE),
     re.compile(r"\b(?:shutdown|reboot|init\s+0)\b", re.IGNORECASE),
+)
+
+_DANGEROUS_HOTKEY_COMBOS: tuple[frozenset[str], ...] = (
+    # Mac empty trash without confirmation
+    frozenset({"command", "shift", "delete"}),
+    frozenset({"command", "shift", "backspace"}),
+    frozenset({"cmd", "shift", "delete"}),
+    frozenset({"cmd", "shift", "backspace"}),
+    # Force quit applications
+    frozenset({"command", "option", "escape"}),
+    frozenset({"command", "alt", "escape"}),
+    frozenset({"cmd", "option", "escape"}),
+    frozenset({"cmd", "alt", "escape"}),
+    frozenset({"command", "option", "esc"}),
+    frozenset({"cmd", "alt", "esc"}),
+    # Windows / Linux interrupts & hard task termination
+    frozenset({"ctrl", "alt", "delete"}),
+    frozenset({"ctrl", "alt", "del"}),
+    frozenset({"control", "alt", "delete"}),
+    frozenset({"control", "alt", "del"}),
+    frozenset({"alt", "f4"}),
+    frozenset({"ctrl", "alt", "backspace"}),
 )
 
 
@@ -109,12 +132,38 @@ class KeystrokeSanitizer:
 
         return True, ""
 
+    @classmethod
+    def inspect_hotkey(cls, keys: Sequence[str] | str) -> tuple[bool, str]:
+        """Inspect key combo for known destructive system actions (e.g. empty trash, force kill).
+
+        Returns:
+            (is_safe, violation_reason)
+        """
+        if not keys:
+            return True, ""
+
+        if isinstance(keys, str):
+            tokens = {part.strip().lower() for part in re.split(r"[\s\+\-_,]+", keys) if part.strip()}
+        else:
+            tokens = {str(k).strip().lower() for k in keys if str(k).strip()}
+
+        if not tokens:
+            return True, ""
+
+        for dangerous_combo in _DANGEROUS_HOTKEY_COMBOS:
+            if dangerous_combo.issubset(tokens):
+                combo_str = "+".join(sorted(dangerous_combo))
+                return False, f"Dangerous system hotkey detected: {combo_str}"
+
+        return True, ""
+
 
 def check_envelope_action(
     *,
     envelope: IntentEnvelopeSpec,
     window: WindowHierarchyContext,
     text_to_type: str = "",
+    keys_to_press: Sequence[str] | str | None = None,
 ) -> EnvelopeCheckResult:
     """Evaluate whether an action is permitted within the given envelope."""
     if envelope.is_budget_exhausted():
@@ -131,6 +180,22 @@ def check_envelope_action(
                 allowed=False,
                 reason="keystroke_violation",
                 detail=violation,
+            )
+        is_safe_key, key_violation = KeystrokeSanitizer.inspect_hotkey(text_to_type)
+        if not is_safe_key:
+            return EnvelopeCheckResult(
+                allowed=False,
+                reason="keystroke_violation",
+                detail=key_violation,
+            )
+
+    if keys_to_press:
+        is_safe_key, key_violation = KeystrokeSanitizer.inspect_hotkey(keys_to_press)
+        if not is_safe_key:
+            return EnvelopeCheckResult(
+                allowed=False,
+                reason="keystroke_violation",
+                detail=key_violation,
             )
 
     norm_target_id = window.app_id.strip().lower()
