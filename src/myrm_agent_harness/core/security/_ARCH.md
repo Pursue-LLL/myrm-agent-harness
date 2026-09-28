@@ -33,6 +33,7 @@ Foundational security primitives used across all layers. Zero dependency on agen
 | egress/ | Ephemeral sentinel voucher encoding/decoding and loopback egress proxy substitution for agent sandbox environments ([egress/_ARCH.md](egress/_ARCH.md)). |
 | http/ | SSRF-protected outbound HTTP fetch — DNS pinning and redirect validation (`secure_fetch.py`). |
 | external_secrets/ | Zero-disk plaintext external secrets vault gateway (1Password/Bitwarden) with LRU caching and 401 rotation ([external_secrets/_ARCH.md](external_secrets/_ARCH.md)). |
+| ephemeral_credentials/ | Session-isolated ephemeral credential store and single-use zero-disk injection primitives with memory wipe ([ephemeral_credentials/_ARCH.md](ephemeral_credentials/_ARCH.md)). |
 
 ## Key Dependencies
 
