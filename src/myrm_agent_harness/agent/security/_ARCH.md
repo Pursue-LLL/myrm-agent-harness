@@ -22,7 +22,7 @@ Detailed design: [SECURITY_SYSTEM.md](SECURITY_SYSTEM.md)
 | channel_presets.py | Core | Decouples channel-specific security policy from the generic Permission Engine; merges user/agent flags. | ✅ |
 | checks.py | Core | Built-in security checks — Layer 2 & 2.5. Path policy (unified canonical boundary guard via `is_within_boundary`), URL scheme validation, protected instruction file write gate (`is_protected_instruction_file` -> `PermissionAction.ASK`), shell threat analysis. Pure functions returning (action, reason) tuples. | ✅ |
 | config.py | Config | Deserialise SecurityConfig; `apply_remote_exposed_overlay`, `remote_exposed_permissions`. | ✅ |
-| engine.py | Core | Layers 1–5 of the security architecture (incl. 2a.5 Command Denylist). Pure deterministic evaluation — | ✅ |
+| engine.py | Core | Layers 1–5 of the security architecture (Deny Precedence, Specificity Precedence matching specific tool_name before capability surface fallback, Command Denylist, PathPolicy, HITL, Spend Governance). Pure deterministic evaluation. | ✅ |
 | execution_policy.py | Core | Execution policy and suspension abstraction. Defines low-level policy enums and interception contrac | ✅ |
 | transcript_classifier.py | Core | Layer 5.5 — Reasoning-Blind Transcript Classifier for auto-mode. Evaluates tool calls using user intent, tool call sequence, taint labels, and trust context (trusted domains). No assistant reasoning. Forces deterministic output (temperature=0, max_tokens=200) regardless of upstream LLM config. | ✅ |
 | trust_context.py | Core | RequestTrustContext protocol for remote admission path → tool restriction flags (consumed by agent-server overlay). | ✅ |
