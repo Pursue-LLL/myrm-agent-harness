@@ -91,36 +91,64 @@ class TestBashASTParser:
         assert len(actions) == 1
         assert actions[0].capability_level == CapabilityLevel.SAFE_TEST
 
+    def test_git_readonly_subcommands_safe(self) -> None:
+        actions = BashASTParser.parse("git status && git diff && git log -n 5")
+        assert len(actions) == 3
+        for a in actions:
+            assert a.capability_level == CapabilityLevel.SAFE_READONLY
+            assert a.escalation_reason is None
+
+    def test_git_mutation_subcommands(self) -> None:
+        actions = BashASTParser.parse("git add . && git commit -m 'feat: new feature'")
+        assert len(actions) == 2
+        for a in actions:
+            assert a.capability_level == CapabilityLevel.WORKSPACE_MUTATION
+
+    def test_git_destructive_and_remote_escalations(self) -> None:
+        actions = BashASTParser.parse("git reset --hard HEAD~1 && git push origin main")
+        assert len(actions) == 2
+        assert actions[0].capability_level == CapabilityLevel.CAPABILITY_ESCALATION
+        assert actions[0].escalation_reason == "git_destructive_action"
+        assert actions[1].capability_level == CapabilityLevel.CAPABILITY_ESCALATION
+        assert actions[1].escalation_reason == "git_remote_sync"
+
 
 class TestCommandRewriterSearchRouting:
     """Unit tests for CommandRewriter transparent grep -> rg routing."""
 
     def test_rewrite_grep_simple(self) -> None:
         rewriter = CommandRewriter()
-        with patch("shutil.which", return_value="/usr/local/bin/rg"):
+        with patch.object(CommandRewriter, "is_ripgrep_available", return_value=True):
             res = rewriter.rewrite_search_commands("grep -rn 'hello' .")
             assert res == "rg --no-ignore -n 'hello' ."
 
     def test_rewrite_grep_cluster_flags(self) -> None:
         rewriter = CommandRewriter()
-        with patch("shutil.which", return_value="/usr/local/bin/rg"):
+        with patch.object(CommandRewriter, "is_ripgrep_available", return_value=True):
             res = rewriter.rewrite_search_commands("grep -rin 'hello' .")
             assert res == "rg --no-ignore -in 'hello' ."
 
     def test_rewrite_grep_protects_quotes(self) -> None:
         rewriter = CommandRewriter()
-        with patch("shutil.which", return_value="/usr/local/bin/rg"):
+        with patch.object(CommandRewriter, "is_ripgrep_available", return_value=True):
             res = rewriter.rewrite_search_commands("echo 'grep should stay' && grep -r 'target' src/")
             assert res == "echo 'grep should stay' && rg --no-ignore  'target' src/"
 
     def test_rewrite_ignores_git_log_grep(self) -> None:
         rewriter = CommandRewriter()
-        with patch("shutil.which", return_value="/usr/local/bin/rg"):
+        with patch.object(CommandRewriter, "is_ripgrep_available", return_value=True):
             cmd = "git log --grep='fix bug'"
             assert rewriter.rewrite_search_commands(cmd) == cmd
 
     def test_rewrite_fallback_when_no_rg(self) -> None:
         rewriter = CommandRewriter()
-        with patch("shutil.which", return_value=None):
+        with patch.object(CommandRewriter, "is_ripgrep_available", return_value=False):
             cmd = "grep -rn 'hello' ."
             assert rewriter.rewrite_search_commands(cmd) == cmd
+
+    def test_rewrite_explicit_has_rg_override(self) -> None:
+        rewriter = CommandRewriter()
+        cmd = "grep -rn 'hello' ."
+        assert rewriter.rewrite_search_commands(cmd, has_rg=False) == cmd
+        assert rewriter.rewrite_search_commands(cmd, has_rg=True) == "rg --no-ignore -n 'hello' ."
+

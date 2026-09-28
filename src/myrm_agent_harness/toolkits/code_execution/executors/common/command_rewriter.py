@@ -12,6 +12,7 @@ Transforms commands for code execution (path rewriting, uv run wrapping).
 Command rewriting service.
 """
 
+import functools
 import logging
 import re
 import shutil
@@ -26,6 +27,12 @@ class CommandRewriter:
     Rewrites python commands to use ``uv run`` and resolves /workspace paths
     to actual working directories. Extensible for additional rewrite rules.
     """
+
+    @staticmethod
+    @functools.lru_cache(maxsize=1)
+    def is_ripgrep_available() -> bool:
+        """Check if ripgrep (rg) binary is available on system PATH."""
+        return shutil.which("rg") is not None
 
     def rewrite_python_command(self, command: str) -> str:
         """Rewrite python commands to use ``uv run``.
@@ -95,7 +102,7 @@ class CommandRewriter:
 
         return new_command
 
-    def rewrite_search_commands(self, command: str) -> str:
+    def rewrite_search_commands(self, command: str, *, has_rg: bool | None = None) -> str:
         """Transparently route grep to ripgrep (rg) if available.
 
         Converts grep invocations to ripgrep (rg --no-ignore) while preserving
@@ -105,12 +112,13 @@ class CommandRewriter:
 
         Args:
             command: Original shell command.
+            has_rg: Optional override for ripgrep availability (useful for testing).
 
         Returns:
             Transparently rewritten command using rg, or original if rg is unavailable.
         """
-        rg_path = shutil.which("rg")
-        if not rg_path:
+        is_available = self.is_ripgrep_available() if has_rg is None else has_rg
+        if not is_available:
             return command
 
         grep_cmd_re = re.compile(r"(?<![-\w])grep(?=\s|$)")

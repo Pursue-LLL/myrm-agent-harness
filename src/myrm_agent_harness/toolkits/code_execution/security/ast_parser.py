@@ -112,7 +112,6 @@ SAFE_READONLY_COMMANDS: frozenset[str] = frozenset(
         "command",
         "date",
         "cd",
-        "git",
         "env",
         "md5sum",
         "sha256sum",
@@ -143,6 +142,38 @@ SAFE_TEST_COMMANDS: frozenset[str] = frozenset(
         "shellcheck",
         "black",
         "isort",
+    }
+)
+
+_GIT_SAFE_READONLY_SUBCOMMANDS: frozenset[str] = frozenset(
+    {
+        "status",
+        "log",
+        "diff",
+        "show",
+        "branch",
+        "tag",
+        "describe",
+        "rev-parse",
+        "rev-list",
+        "ls-files",
+        "ls-tree",
+        "ls-remote",
+        "remote",
+        "config",
+        "version",
+        "help",
+    }
+)
+
+_GIT_DESTRUCTIVE_SUBCOMMANDS: frozenset[str] = frozenset(
+    {
+        "push",
+        "reset",
+        "clean",
+        "rebase",
+        "filter-branch",
+        "gc",
     }
 )
 
@@ -409,7 +440,19 @@ class BashASTParser:
             if base_name in _PROTECTED_STARTUP_FILES:
                 return CapabilityLevel.CAPABILITY_ESCALATION, "system_file_write"
 
-        # 4. Safe Read-Only commands
+        # 4. Git fine-grained subcommand boundary
+        if base_cmd == "git":
+            subcmd = next((arg for arg in args if not arg.startswith("-")), None)
+            if not subcmd or subcmd in _GIT_SAFE_READONLY_SUBCOMMANDS:
+                if any(r.operator in (">", ">>", "&>") for r in redirections):
+                    return CapabilityLevel.WORKSPACE_MUTATION, None
+                return CapabilityLevel.SAFE_READONLY, None
+            if subcmd in _GIT_DESTRUCTIVE_SUBCOMMANDS or subcmd == "push":
+                reason = "git_destructive_action" if subcmd != "push" else "git_remote_sync"
+                return CapabilityLevel.CAPABILITY_ESCALATION, reason
+            return CapabilityLevel.WORKSPACE_MUTATION, None
+
+        # 5. Safe Read-Only commands
         if base_cmd in SAFE_READONLY_COMMANDS:
             # If it has write redirections, it mutates files
             if any(r.operator in (">", ">>", "&>") for r in redirections):
