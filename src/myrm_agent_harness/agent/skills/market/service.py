@@ -41,6 +41,7 @@ from myrm_agent_harness.backends.skills.market_protocols import (
 from myrm_agent_harness.backends.skills.scanning import (
     ScanFinding,
     SkillTrustRecommendation,
+    compute_scan_summary,
 )
 from myrm_agent_harness.backends.skills.scanning.archive_security import (
     classify_archive_security_issue,
@@ -638,18 +639,21 @@ class BaseSkillMarketService:
 
             _emit("scanning", "Running security scan...")
             scan_result = scan_all_text_files(name, files)
+            scan_summary_obj = compute_scan_summary(scan_result)
 
-            if scan_result.trust_recommendation == SkillTrustRecommendation.REJECT:
+            if scan_summary_obj.score < 50:
                 logger.warning(
-                    "Skill '%s' rejected by security scan: %s",
+                    "Skill '%s' blocked by security gate (score %d/100 < 50): %s",
                     name,
+                    scan_summary_obj.score,
                     scan_result.summary,
                 )
-                _emit("rejected", scan_result.summary)
+                _emit("rejected", f"Security Gate Blocked: score {scan_summary_obj.score}/100 < 50 threshold. {scan_result.summary}")
                 return SkillInstallResult(
                     success=False,
                     skill_name=name,
-                    error=f"Security scan blocked installation: {scan_result.summary}",
+                    error=f"Security scan blocked installation (Score {scan_summary_obj.score}/100 below 50 threshold): {scan_result.summary}",
+                    error_code="SECURITY_SCORE_BELOW_THRESHOLD",
                     scan_summary=scan_result.summary,
                 )
 
@@ -749,14 +753,16 @@ class BaseSkillMarketService:
                                     version=incoming_version,
                                     parent_plugin=name,
                                 )
+                                p_scan = scan_all_text_files(p_skill.name, p_skill.files)
+                                p_summary = compute_scan_summary(p_scan)
                                 p_receipt = build_skill_receipt(
                                     skill_id=local_skill_id_from_path(s_target_dir),
                                     skill_name=p_skill.name,
                                     source=source,
                                     installed_path=str(s_target_dir),
                                     files=p_skill.files,
-                                    scan_score=100 if scan_result.is_clean else 80,
-                                    security_verified=scan_result.is_clean,
+                                    scan_score=p_summary.score,
+                                    security_verified=p_scan.is_clean,
                                 )
                                 write_receipt_file(s_target_dir, p_receipt)
                                 installed_skills.append(p_skill.name)
@@ -790,7 +796,7 @@ class BaseSkillMarketService:
                     files=files,
                     installed_skills=installed_skills or [name],
                     declared_mcp_servers=declared_mcp_servers,
-                    scan_score=100 if scan_result.is_clean else 80,
+                    scan_score=scan_summary_obj.score,
                     security_verified=scan_result.is_clean,
                 )
                 write_receipt_file(target_dir, receipt)

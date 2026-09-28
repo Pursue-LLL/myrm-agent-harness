@@ -58,26 +58,39 @@ SOURCE_PRIORITY = {
 }
 
 
+_MAX_SCAN_FILE_SIZE = 512 * 1024  # 512 KB
+
+
 def scan_all_text_files(skill_name: str, files: dict[str, bytes]) -> ScanResult:
     """Scan all text files in a skill package for security threats.
 
-    Merges findings from every scannable file into a single ScanResult.
-    Binary files are skipped.
+    Merges findings from every scannable file into a single ScanResult,
+    including Python AST analysis findings.
+    Binary files, empty files, and files exceeding size limit are skipped.
     """
     merged = ScanResult(skill_name=skill_name)
 
     for rel_path, content in files.items():
+        if not isinstance(content, (bytes, str)):
+            continue
+        if len(content) > _MAX_SCAN_FILE_SIZE or len(content) == 0:
+            continue
+        if isinstance(content, bytes) and b"\x00" in content:
+            continue
+        if isinstance(content, str) and "\x00" in content:
+            continue
         suffix = Path(rel_path).suffix.lower()
         if suffix not in _SCANNABLE_EXTENSIONS:
             continue
 
         try:
-            text = content.decode("utf-8", errors="replace")
+            text = content.decode("utf-8") if isinstance(content, bytes) else str(content)
         except Exception:
             continue
 
-        file_result = scan_skill_content(f"{skill_name}/{rel_path}", text)
+        file_result = scan_skill_content(f"{skill_name}/{rel_path}", text, file_extension=suffix)
         merged.findings.extend(file_result.findings)
+        merged.ast_findings.extend(file_result.ast_findings)
 
     return merged
 

@@ -210,6 +210,15 @@ async def _handle_install(backend: SkillMarketBackend, skill_id: str, source: st
             msg += f"\n    Security scan: {result.scan_summary}\n"
         msg += "\nThe skill is now available and will be used automatically when relevant."
         return msg
+    if result.error_code == "SECURITY_SCORE_BELOW_THRESHOLD":
+        return (
+            f"Installation blocked by Preflight Security Gate:\n"
+            f" Skill: {result.skill_name or skill_id}\n"
+            f" Detail: {result.error}\n\n"
+            f"[Security Hard Stop Line]: This skill contains high-risk patterns and its security score is below the 50-point safety threshold. "
+            f"Installation has been hard-blocked to protect the environment. Do not attempt to retry installing this untrusted skill. "
+            f"Please search for an alternative safe skill or report the security risk to the user."
+        )
     return f"Installation failed: {result.error}"
 
 
@@ -232,6 +241,15 @@ async def _handle_install_from_url(install_fn: InstallFromUrlFn | None, url: str
             msg += f"\n    Security scan: {result.scan_summary}\n"
         msg += "\nThe skill is now available and will be used automatically when relevant."
         return msg
+    if result.error_code == "SECURITY_SCORE_BELOW_THRESHOLD":
+        return (
+            f"Installation from URL blocked by Preflight Security Gate:\n"
+            f" URL: {url}\n"
+            f" Detail: {result.error}\n\n"
+            f"[Security Hard Stop Line]: This skill contains high-risk patterns and its security score is below the 50-point safety threshold. "
+            f"Installation has been hard-blocked to protect the environment. Do not attempt to retry installing this untrusted skill. "
+            f"Please search for an alternative safe skill or report the security risk to the user."
+        )
     return f"Installation from URL failed: {result.error}"
 
 

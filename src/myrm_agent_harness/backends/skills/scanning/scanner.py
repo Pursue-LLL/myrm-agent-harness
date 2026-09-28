@@ -414,31 +414,53 @@ _AST_SEVERITY_MAP: dict[str, ScanSeverity] = {
 }
 
 
+_CATEGORY_DEDUCTION_CAP = 20
+
+
 def compute_scan_summary(result: ScanResult) -> SecurityScanSummary:
     """Generate a SecurityScanSummary from a ScanResult.
 
     Score is derived consistently with trust_recommendation:
     trust_recommendation determines the band, deductions refine within it.
-    Includes both regex findings and AST findings.
+    Includes both regex findings and AST findings, with a per-category deduction cap
+    to prevent score collapse from repeated benign patterns.
     """
     from myrm_agent_harness.backends.skills.types import SecurityFindingDetail, SecurityScanSummary
 
     trust = result.trust_recommendation
 
     finding_counts: dict[str, int] = {}
+    category_deductions: dict[str, int] = {}
     raw_deduction = 0
     details: list[SecurityFindingDetail] = []
 
     for f in result.findings:
-        sev_name = f.severity.name.lower()
+        if isinstance(f, str):
+            threat_type = "unknown"
+            sev = ScanSeverity.INFO
+            sev_name = "info"
+            description = f
+            line_number = None
+        else:
+            threat_type = getattr(f, "threat_type", "unknown")
+            sev = getattr(f, "severity", ScanSeverity.INFO)
+            sev_name = sev.name.lower() if hasattr(sev, "name") else str(sev).lower()
+            description = getattr(f, "description", "")
+            line_number = getattr(f, "line_number", None)
+
         finding_counts[sev_name] = finding_counts.get(sev_name, 0) + 1
-        raw_deduction += _SEVERITY_DEDUCTIONS.get(f.severity, 0)
+        ded = _SEVERITY_DEDUCTIONS.get(sev, 0)
+        curr = category_deductions.get(threat_type, 0)
+        if curr < _CATEGORY_DEDUCTION_CAP:
+            added = min(ded, _CATEGORY_DEDUCTION_CAP - curr)
+            category_deductions[threat_type] = curr + added
+            raw_deduction += added
         details.append(
             SecurityFindingDetail(
-                threat_type=f.threat_type,
+                threat_type=threat_type,
                 severity=sev_name,
-                description=f.description,
-                line_number=f.line_number,
+                description=description,
+                line_number=line_number,
             )
         )
 
@@ -446,7 +468,12 @@ def compute_scan_summary(result: ScanResult) -> SecurityScanSummary:
         sev = _AST_SEVERITY_MAP.get(af.severity, ScanSeverity.INFO)
         sev_name = sev.name.lower()
         finding_counts[sev_name] = finding_counts.get(sev_name, 0) + 1
-        raw_deduction += _SEVERITY_DEDUCTIONS.get(sev, 0)
+        ded = _SEVERITY_DEDUCTIONS.get(sev, 0)
+        curr = category_deductions.get(af.threat_type, 0)
+        if curr < _CATEGORY_DEDUCTION_CAP:
+            added = min(ded, _CATEGORY_DEDUCTION_CAP - curr)
+            category_deductions[af.threat_type] = curr + added
+            raw_deduction += added
         details.append(
             SecurityFindingDetail(
                 threat_type=af.threat_type,
