@@ -278,11 +278,24 @@ def evaluate_tool_call(
         return block_action, block_reason
 
     target = _resolve_target(permission, tool_input, tool_name=tool_name)
-    result = evaluate(permission, target, config.ruleset)
+    tool_specific_rule: PermissionRule | None = None
+    if tool_name and tool_name != permission:
+        for rule in config.ruleset:
+            if (
+                rule.permission != "*"
+                and _wildcard_match(tool_name, rule.permission)
+                and _wildcard_match(target, rule.pattern)
+            ):
+                tool_specific_rule = rule
+
+    if tool_specific_rule is not None:
+        result = tool_specific_rule
+    else:
+        result = evaluate(permission, target, config.ruleset)
 
     # Hardline rule: An explicit DENY from user/policy ruleset must never be weakened to ASK
     if result.action == PermissionAction.DENY:
-        return PermissionAction.DENY, f"Permission '{permission}' denied by policy"
+        return PermissionAction.DENY, f"Permission '{tool_name or permission}' denied by policy"
 
     if config.domain_hitl_enabled:
         domain_action, domain_reason = _check_domain_policy(permission, tool_input, config.network_allowlist)
