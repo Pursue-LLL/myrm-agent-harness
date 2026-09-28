@@ -146,6 +146,7 @@ class AgentEventType(StrEnum):
     BROWSER_VIEW_UPDATE = "browser_view_update"
     DESKTOP_VIEW_UPDATE = "desktop_view_update"
     DESKTOP_CONTROL_APPROVAL_REQUEST = "desktop_control_approval_request"
+    DESKTOP_ENVELOPE_PROGRESS = "desktop_envelope_progress"
     PTC_NOTIFY = "ptc_notify"
     LOCATOR_SELF_HEALED = "locator_self_healed"
     BROWSER_TAKEOVER_REQUESTED = "browser_takeover_requested"
