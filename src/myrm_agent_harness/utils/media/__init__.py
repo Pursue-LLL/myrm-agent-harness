@@ -1,10 +1,12 @@
 """Media utilities for image/video compression.
 
 [INPUT]
-- .image_compressor::ImageCompressor, image_compressor, SEND_COMPRESS_*
+- .image_compressor::ImageCompressor, image_compressor, SEND_COMPRESS_* (POS: Pure image compression utility)
+- .base64_downsampler::downsample_base64_image, probe_base64_image_meta, DEFAULT_DOWNSAMPLE_* (POS: Base64 image downsampling and metadata probe)
 
 [OUTPUT]
 - ImageCompressor, image_compressor, SEND_COMPRESS_*
+- downsample_base64_image, probe_base64_image_meta, DEFAULT_DOWNSAMPLE_*
 
 [POS]
 Media compression utilities package entry point.
