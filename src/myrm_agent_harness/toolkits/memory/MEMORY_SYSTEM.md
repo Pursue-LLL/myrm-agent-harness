@@ -605,7 +605,7 @@ final = semantic^w0 × recency^w1 × frequency^w2 × importance^w3 × preference
 | SUPPLEMENT | 子串/token 超集增量扩展       | UPDATE_MERGE（零模型合成）       |
 | CONFLICT   | 单值 facet 取值互斥或极性反转 | NEW（两条都保留，交治理队列）    |
 
-- facet 冲突按「触发词后紧跟的取值」判定，而非触发词本身：同一触发词下取值不同才互斥；取值互为包含时视为同一选择的更精确表述（"北京" vs "北京市海淀区"），不触发降权
+- facet 冲突覆盖 9 个单值领域（location / runtime / package_manager / operating_system / editor_ide / cache_store / database / orm / frontend_framework），条目一律写成**裸候选值**而非「动词+值」，因此「用/使用/换成/改成 + X」等任意措辞下的技术选型反转都能被捕获；候选值互为包含时视为同一选择的更精确表述（"北京" vs "北京市海淀区"），不触发降权
 - 近重复带（0.94 ≤ sim < 0.95）即使文本包含关系成立也强制穿透 LLM 仲裁，杜绝语义替换盲合并；中低相似度 `semantic_ambiguity` 模糊带穿透 LLM 仲裁（事实合成 + 元数据合并）
 - 确定性 facet/polarity 冲突零 LLM 短路；`USER_OVERRIDE_PROTECTED` 直接 NEW 保护用户锁定记忆
 

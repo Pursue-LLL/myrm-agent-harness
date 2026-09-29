@@ -116,12 +116,21 @@ class ConfidenceEvolutionEngine:
 class DeterministicThreeStateMerger:
     """Zero-LLM deterministic three-state conflict merger and evolution evaluator."""
 
+    # Each facet lists the alternatives that cannot both hold. An entry is either a
+    # bare value ("Linux"), matched anywhere so the wording around it does not
+    # matter, or a trigger phrase ("工作在地") whose value is read from the text
+    # that follows it. Keeping entries value-shaped is what lets one decision
+    # reversal be caught regardless of how the user phrased it.
     _MUTUALLY_EXCLUSIVE_FACETS: ClassVar[dict[str, list[str]]] = {
         "location": ["常住", "住在", "位于", "搬到", "生活在", "工作地在", "工作在"],
-        "runtime": ["使用 bun", "使用 node", "使用 deno", "使用 python 3.12", "使用 python 3.13"],
-        "package_manager": ["用 uv", "用 pip", "用 poetry", "用 pnpm", "用 npm", "用 yarn", "用 bun"],
-        "operating_system": ["macOS", "Linux", "Windows", "Ubuntu", "Arch"],
-        "editor_ide": ["使用 Cursor", "使用 VS Code", "使用 Neovim", "使用 Emacs"],
+        "runtime": ["bun", "node", "deno", "python 3.12", "python 3.13"],
+        "package_manager": ["uv", "pip", "poetry", "pnpm", "npm", "yarn"],
+        "operating_system": ["macos", "linux", "windows", "ubuntu", "arch"],
+        "editor_ide": ["cursor", "vs code", "neovim", "emacs", "vim", "zed"],
+        "cache_store": ["redis", "memcached", "valkey", "keydb"],
+        "database": ["postgresql", "mysql", "mariadb", "sqlite", "mongodb"],
+        "orm": ["sqlalchemy", "prisma", "diesel", "typeorm", "gorm", "peewee"],
+        "frontend_framework": ["react", "vue", "svelte", "solid", "angular"],
     }
 
     _NEGATION_MARKERS: ClassVar[set[str]] = {
@@ -365,11 +374,14 @@ class DeterministicThreeStateMerger:
             if not matched_a or not matched_b:
                 continue
             if set(matched_a) != set(matched_b):
+                # Two different alternatives of one facet. An alternative that
+                # contains the other ("北京" vs "北京市海淀区") is the same place
+                # stated more precisely, so keep scanning for a real difference.
+                if not self._values_disagree(frozenset(matched_a), frozenset(matched_b)):
+                    continue
                 return facet
-            # Same trigger on both sides: only the value can differ. A value that
-            # contains the other is a more specific phrasing of the same choice
-            # ("北京" vs "北京市海淀区"), not a contradiction — treating it as one
-            # would decay two memories that actually agree.
+            # Same entry on both sides. A value entry has nothing left to compare;
+            # a trigger entry can still disagree on the value that follows it.
             for trigger in matched_a:
                 if self._values_disagree(
                     self._extract_facet_values(lower_a, trigger),

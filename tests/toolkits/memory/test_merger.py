@@ -148,6 +148,44 @@ def test_facet_conflict_scans_every_occurrence() -> None:
     assert merger._extract_facet_values(text, trigger) == frozenset({"杭州", "上海"})
 
 
+def test_facet_conflict_ignores_wording_around_the_choice() -> None:
+    """A decision reversal is caught however the user phrased it."""
+    merger = DeterministicThreeStateMerger()
+    existing_mem = SemanticMemory(content="我装了 Cursor", confidence=0.9)
+
+    decision = merger.evaluate(existing_mem, "我装了 Emacs")
+
+    assert decision.state == MergeState.CONFLICT
+    assert decision.conflict_item is not None
+    assert decision.conflict_item.facet == "editor_ide"
+
+
+def test_facet_conflict_covers_stack_decisions() -> None:
+    """Reversing a stack decision — the case that makes an agent repeat itself."""
+    merger = DeterministicThreeStateMerger()
+    cases = [
+        ("项目缓存使用 Redis", "项目缓存改用 Memcached", "cache_store"),
+        ("数据库用 PostgreSQL", "数据库换成 MySQL", "database"),
+        ("后端用 SQLAlchemy", "后端改用 Prisma", "orm"),
+        ("前端用 React", "前端改成 Vue", "frontend_framework"),
+    ]
+    for existing, candidate, facet in cases:
+        decision = merger.evaluate(SemanticMemory(content=existing, confidence=0.9), candidate)
+        assert decision.state == MergeState.CONFLICT, existing
+        assert decision.conflict_item is not None
+        assert decision.conflict_item.facet == facet, existing
+
+
+def test_facet_conflict_ignores_text_without_a_shared_facet() -> None:
+    """Two unrelated technologies in one sentence are not a contradiction."""
+    merger = DeterministicThreeStateMerger()
+    existing_mem = SemanticMemory(content="项目缓存使用 Redis", confidence=0.9)
+
+    decision = merger.evaluate(existing_mem, "数据库使用 PostgreSQL")
+
+    assert decision.state != MergeState.CONFLICT
+
+
 def test_facet_value_extraction_is_bounded() -> None:
     """Trigger-dense text cannot make value extraction scan without limit."""
     merger = DeterministicThreeStateMerger()
