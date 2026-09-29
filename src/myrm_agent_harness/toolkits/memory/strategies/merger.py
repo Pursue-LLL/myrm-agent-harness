@@ -41,6 +41,15 @@ from myrm_agent_harness.toolkits.memory.types import (
     EvidenceReference,
 )
 
+# Content tokens for subject comparison. CJK is split per ideograph because
+# `\w+` would otherwise swallow a whole clause as one token and two sentences
+# about the same thing would share nothing; Latin and digits stay whole words.
+_CONTENT_TOKEN_RE = re.compile(r"[a-z0-9]+|[㐀-䶿一-鿿豈-﫿]")
+
+# A facet entry carrying a Latin letter or digit names the choice itself
+# ("macos", "arch linux"); a pure CJK entry names the slot ("工作地在").
+_BARE_VALUE_RE = re.compile(r"[a-z0-9]")
+
 
 class MergeState(StrEnum):
     """Deterministic merge states for memory consolidation and deduplication."""
@@ -125,7 +134,7 @@ class DeterministicThreeStateMerger:
         "location": ["常住", "住在", "位于", "搬到", "生活在", "工作地在", "工作在"],
         "runtime": ["bun", "node", "deno", "python 3.12", "python 3.13"],
         "package_manager": ["uv", "pip", "poetry", "pnpm", "npm", "yarn"],
-        "operating_system": ["macos", "linux", "windows", "ubuntu", "arch"],
+        "operating_system": ["macos", "linux", "windows", "ubuntu", "arch linux"],
         "editor_ide": ["cursor", "vs code", "neovim", "emacs", "vim", "zed"],
         "cache_store": ["redis", "memcached", "valkey", "keydb"],
         "database": ["postgresql", "mysql", "mariadb", "sqlite", "mongodb"],
@@ -364,31 +373,52 @@ class DeterministicThreeStateMerger:
                     return False
         return True
 
+    def _shares_subject(self, a: str, b: str) -> bool:
+        """Whether two texts overlap outside every facet value.
+
+        A facet difference only contradicts when both texts are about the same
+        thing. Without this, an unrelated sentence that happens to name another
+        tool would decay both memories for merely mentioning it.
+        """
+        facet_values = {p.lower() for patterns in self._MUTUALLY_EXCLUSIVE_FACETS.values() for p in patterns}
+        tokens_a = set(_CONTENT_TOKEN_RE.findall(a.lower())) - facet_values
+        tokens_b = set(_CONTENT_TOKEN_RE.findall(b.lower())) - facet_values
+        return bool(tokens_a & tokens_b)
+
     def _detect_facet_conflict(self, a: str, b: str) -> str | None:
         """Detect if both texts assert different values for the same facet."""
+        if not self._shares_subject(a, b):
+            return None
         lower_a = a.lower()
         lower_b = b.lower()
         for facet, patterns in self._MUTUALLY_EXCLUSIVE_FACETS.items():
-            matched_a = [p for p in patterns if p.lower() in lower_a]
-            matched_b = [p for p in patterns if p.lower() in lower_b]
-            if not matched_a or not matched_b:
+            values_a = self._facet_values(lower_a, patterns)
+            values_b = self._facet_values(lower_b, patterns)
+            if not values_a or not values_b:
                 continue
-            if set(matched_a) != set(matched_b):
-                # Two different alternatives of one facet. An alternative that
-                # contains the other ("北京" vs "北京市海淀区") is the same place
-                # stated more precisely, so keep scanning for a real difference.
-                if not self._values_disagree(frozenset(matched_a), frozenset(matched_b)):
-                    continue
+            if self._values_disagree(values_a, values_b):
                 return facet
-            # Same entry on both sides. A value entry has nothing left to compare;
-            # a trigger entry can still disagree on the value that follows it.
-            for trigger in matched_a:
-                if self._values_disagree(
-                    self._extract_facet_values(lower_a, trigger),
-                    self._extract_facet_values(lower_b, trigger),
-                ):
-                    return facet
         return None
+
+    def _facet_values(self, lower_text: str, patterns: list[str]) -> frozenset[str]:
+        """Every value this text asserts for one facet, however each was phrased.
+
+        An entry spelled as a bare value ("macos") stands for itself. An entry
+        spelled as a trigger ("工作在地") stands for whatever follows it, so two
+        texts using different triggers still land on the same facet.
+        """
+        values: set[str] = set()
+        for pattern in patterns:
+            needle = pattern.lower()
+            if needle not in lower_text:
+                continue
+            if _BARE_VALUE_RE.search(needle):
+                values.add(needle)
+            else:
+                values |= self._extract_facet_values(lower_text, needle)
+            if len(values) >= self._FACET_VALUE_MAX_VALUES:
+                break
+        return frozenset(values)
 
     def _detect_negation_inversion(self, a: str, b: str) -> bool:
         """Detect if one text has explicit negation while the other affirms the same concept."""

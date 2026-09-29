@@ -186,6 +186,28 @@ def test_facet_conflict_ignores_text_without_a_shared_facet() -> None:
     assert decision.state != MergeState.CONFLICT
 
 
+def test_facet_conflict_requires_a_shared_subject() -> None:
+    """Naming a competing tool in unrelated sentences is not a contradiction.
+
+    A stray mention of another framework decays both memories, and decayed
+    confidence does not recover on its own, so an unrelated pair stays silent.
+    """
+    merger = DeterministicThreeStateMerger()
+    existing_mem = SemanticMemory(content="我不太懂 react", confidence=0.9)
+
+    decision = merger.evaluate(existing_mem, "他说 solid 很有意思")
+
+    assert decision.state != MergeState.CONFLICT
+
+
+def test_facet_value_entry_does_not_absorb_following_words() -> None:
+    """A bare value stands for itself; the words after it are not part of it."""
+    merger = DeterministicThreeStateMerger()
+    values = merger._facet_values("项目必须使用 node 运行", merger._MUTUALLY_EXCLUSIVE_FACETS["runtime"])
+
+    assert values == frozenset({"node"})
+
+
 def test_facet_value_extraction_is_bounded() -> None:
     """Trigger-dense text cannot make value extraction scan without limit."""
     merger = DeterministicThreeStateMerger()
