@@ -221,18 +221,32 @@ def test_facet_value_extraction_is_bounded() -> None:
 
 
 def test_facet_conflict_stays_silent_when_new_claim_is_narrower() -> None:
-    """Restating one of several values is less specific, not contradictory.
+    """Naming an extra option without a switch marker is detail, not a reversal."""
+    merger = DeterministicThreeStateMerger()
+    stored = "项目缓存使用 Redis，同时用 Memcached 做二级缓存"
+    decision = merger.evaluate(SemanticMemory(content=stored, confidence=0.9), "项目缓存使用 Memcached")
+    assert decision.state != MergeState.CONFLICT
 
-    Decaying both sides here would penalise a correct memory for being terse, so
-    the detector stays silent and leaves the ordering to temporal reconciliation.
+
+def test_switch_to_new_value_conflicts_with_the_replaced_one() -> None:
+    """Real extraction writes "不用 Redis，改用 Memcached" as a single memory.
+
+    Both names appear in one sentence, so the switch marker has to scope the
+    assertion to Memcached; otherwise the shared "redis" hides the reversal.
     """
     merger = DeterministicThreeStateMerger()
-    trigger = "工作" + "在" + "地"
-    existing_mem = SemanticMemory(content=trigger + "杭州，" + trigger + "上海", confidence=0.85)
+    switch = "项目缓存不再使用 Redis，改用 Memcached，原因是运维团队更熟"
 
-    decision = merger.evaluate(existing_mem, trigger + "上海")
+    decision = merger.evaluate(SemanticMemory(content="项目缓存使用 Redis", confidence=0.9), switch)
+    assert decision.state == MergeState.CONFLICT
+    assert decision.conflict_item is not None
+    assert decision.conflict_item.facet == "cache_store"
 
-    assert decision.state != MergeState.CONFLICT
+    # Agreeing with the choice the switch lands on is a duplicate, not a conflict.
+    assert (
+        merger.evaluate(SemanticMemory(content="项目缓存使用 Memcached", confidence=0.9), switch).state
+        != MergeState.CONFLICT
+    )
 
 
 def test_negation_polarity_inversion_conflict() -> None:

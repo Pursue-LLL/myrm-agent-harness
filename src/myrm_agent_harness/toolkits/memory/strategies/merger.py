@@ -142,6 +142,22 @@ class DeterministicThreeStateMerger:
         "frontend_framework": ["react", "vue", "svelte", "solid", "angular"],
     }
 
+    _REPLACEMENT_MARKERS: ClassVar[tuple[str, ...]] = (
+        "改用",
+        "换成",
+        "换为",
+        "改为",
+        "改回",
+        "切到",
+        "切回",
+        "instead of",
+        "switch to",
+        "switched to",
+        "switching to",
+        "moved to",
+        "replaced",
+    )
+
     _NEGATION_MARKERS: ClassVar[set[str]] = {
         "不",
         "禁止",
@@ -361,9 +377,10 @@ class DeterministicThreeStateMerger:
     def _values_disagree(values_a: frozenset[str], values_b: frozenset[str]) -> bool:
         """Whether two assertion sets contradict rather than merely differ in detail.
 
-        Any pair where one value contains the other is the same choice stated more
-        precisely ("北京" vs "北京市海淀区"), so a shared containment pair means
-        there is nothing to contradict.
+        One value containing the other is the same choice stated more precisely
+        ("北京" vs "北京市海淀区"), so a shared containment pair means there is
+        nothing to contradict. A switch has already been resolved into a single
+        target value by the time it reaches here.
         """
         if not values_a or not values_b:
             return False
@@ -418,7 +435,28 @@ class DeterministicThreeStateMerger:
                 values |= self._extract_facet_values(lower_text, needle)
             if len(values) >= self._FACET_VALUE_MAX_VALUES:
                 break
-        return frozenset(values)
+        scoped = self._replacement_target(lower_text, values)
+        return frozenset(scoped) if scoped is not None else frozenset(values)
+
+    def _replacement_target(self, lower_text: str, values: set[str]) -> set[str] | None:
+        """Narrow a facet's values to the ones the text settles on after a switch.
+
+        "改用 Memcached" names Redis only to abandon it, so both names appearing in
+        one sentence is a replacement rather than two live options. Text with no
+        switch marker names everything it uses, and an extra name there is just
+        more detail ("VS Code" plus "Vim keybindings").
+        """
+        positions = [lower_text.rfind(marker) for marker in self._REPLACEMENT_MARKERS]
+        switch = max(positions)
+        if switch < 0:
+            return None
+        kept = {
+            value
+            for value in values
+            if (found := lower_text.find(value, switch)) >= 0
+            and not any(0 <= lower_text.find(other, switch) < found for other in values if other != value)
+        }
+        return kept or values
 
     def _detect_negation_inversion(self, a: str, b: str) -> bool:
         """Detect if one text has explicit negation while the other affirms the same concept."""
