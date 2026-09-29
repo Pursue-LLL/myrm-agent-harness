@@ -424,9 +424,11 @@ class DeterministicThreeStateMerger:
             values = self._facet_values(lower_text, patterns)
             if not values:
                 continue
-            scoped = self._replacement_target(lower_text, set(values))
-            if scoped and scoped != values:
-                targets[facet] = frozenset(scoped)
+            # `_facet_values` already narrowed to the surviving value, so comparing
+            # the two can never tell a replacement from a plain statement. The
+            # marker firing is the only signal that this text withdrew a choice.
+            if self._replacement_target(lower_text, set(values)) is not None:
+                targets[facet] = frozenset(values)
         return targets
 
     def _detect_facet_conflict(self, a: str, b: str) -> str | None:

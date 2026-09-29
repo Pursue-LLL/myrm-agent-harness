@@ -2,6 +2,8 @@
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
+
 from myrm_agent_harness.toolkits.memory.strategies.distillation_guards import (
     EvidenceReference,
 )
@@ -341,3 +343,32 @@ def test_vector_similarity_thresholds() -> None:
     # Low similarity (<0.72) -> NEW
     res_low = merger.evaluate(existing_mem, "用户喜欢阅读科幻小说", similarity=0.45)
     assert res_low.state == MergeState.NEW
+
+
+@pytest.mark.parametrize(
+    "reversal",
+    [
+        "自2026-09-29起，项目缓存层不再使用 Redis，统一改用 Memcached；原因是运维团队对 Memcached 更熟悉。",
+        "项目缓存层已确定不再使用 Redis，必须改用 Memcached。",
+        "项目选择 Memcached 而非 Redis 的原因是运维团队更熟悉。",
+    ],
+    ids=["switch-after-rejection", "switch-only", "exclusion"],
+)
+def test_real_model_wording_yields_a_replacement_target(reversal: str) -> None:
+    """Extraction states a reversal in its own words, and the target must be found.
+
+    `_facet_values` already narrows to the surviving value, so re-comparing the two
+    could never tell a replacement from a plain statement; the marker firing is the
+    only signal. Pinning the real wordings keeps that signal from regressing.
+    """
+    merger = DeterministicThreeStateMerger()
+    decision = merger.evaluate(
+        SemanticMemory(content="用户已确定其项目技术方案采用 Redis。", confidence=0.9),
+        reversal,
+        similarity=0.8,
+    )
+
+    assert decision.state == MergeState.CONFLICT
+    assert decision.conflict_item is not None
+    assert decision.conflict_item.facet == "cache_store"
+    assert decision.candidate_supersedes is True, merger.replacement_targets_by_facet(reversal)
