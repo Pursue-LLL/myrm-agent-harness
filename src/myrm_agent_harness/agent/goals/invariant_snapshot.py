@@ -5,8 +5,19 @@ activation time, and verifies integrity before the Goal is marked complete.
 This is the safety-net layer that catches modifications made through channels
 that bypass the file_write_tool validator chain (e.g. ``bash_code_execute_tool``).
 
+Pattern resolution goes through the shared matcher in
+``core.security.path_pattern``, the same one the pre-write
+``InvariantValidator`` uses, so the two layers can never disagree about which
+files are protected.
+
+A pattern that matches nothing leaves no baseline to verify, which is a
+configuration error rather than an all-clear: ``capture_protected_snapshot``
+reports it at Goal start and ``verify_protected_integrity`` reports it again
+instead of logging an intact result for an empty baseline.
+
 [INPUT]
 - .types::Goal (POS: Goal data model with protected_paths)
+- core.security.path_pattern::iter_matching_files (POS: shared pattern matcher + bounded walk)
 
 [OUTPUT]
 - capture_protected_snapshot: Hash all files matching protected_paths at Goal start.
@@ -20,11 +31,15 @@ Complements InvariantValidator (pre-write block) by catching bash_code_execute_t
 
 from __future__ import annotations
 
-import glob
 import hashlib
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+from myrm_agent_harness.core.security.path_pattern import (
+    first_matching_pattern,
+    iter_matching_files,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +51,15 @@ class ProtectedFileViolation:
     path: str
     pattern: str
     kind: str  # "modified" | "deleted" | "created"
+
+
+@dataclass
+class _ProtectedSnapshot:
+    """Baseline for one Goal: file hashes plus the rules that produced them."""
+
+    hashes: dict[str, str] = field(default_factory=dict)
+    patterns: list[str] = field(default_factory=list)
+    workspace_root: str = ""
 
 
 def _file_hash(path: str) -> str:
@@ -50,28 +74,25 @@ def _file_hash(path: str) -> str:
         return ""
 
 
-def _resolve_patterns(patterns: list[str], workspace_root: str) -> dict[str, str]:
-    """Expand glob patterns relative to workspace_root and hash all matching files.
+def _resolve_patterns(patterns: list[str], workspace_root: str) -> tuple[dict[str, str], list[str]]:
+    """Hash every file under workspace_root that any pattern protects.
 
-    Returns a dict of {absolute_path: sha256_hex}.
+    Returns (hashes_by_absolute_path, patterns_that_matched_nothing).
     """
     snapshot: dict[str, str] = {}
-    for pattern in patterns:
-        full_pattern = (
-            os.path.join(workspace_root, pattern)
-            if not os.path.isabs(pattern)
-            else pattern
-        )
-        for path in glob.glob(full_pattern, recursive=True):
-            if os.path.isfile(path):
-                abs_path = os.path.abspath(path)
-                if abs_path not in snapshot:
-                    snapshot[abs_path] = _file_hash(abs_path)
-    return snapshot
+    matched: set[str] = set()
+
+    for entry in iter_matching_files(workspace_root, patterns):
+        matched.add(entry.pattern)
+        abs_path = os.path.abspath(entry.path)
+        if abs_path not in snapshot:
+            snapshot[abs_path] = _file_hash(abs_path)
+
+    return snapshot, [pattern for pattern in patterns if pattern not in matched]
 
 
 # Module-level storage keyed by goal_id (not ContextVar, same reason as CompletionGuard).
-_snapshots: dict[str, tuple[dict[str, str], list[str], str]] = {}
+_snapshots: dict[str, _ProtectedSnapshot] = {}
 
 
 def capture_protected_snapshot(
@@ -85,16 +106,29 @@ def capture_protected_snapshot(
     if not patterns:
         return 0
 
-    snapshot = _resolve_patterns(patterns, workspace_root)
-    _snapshots[goal_id] = (snapshot, patterns, workspace_root)
+    hashes, unmatched = _resolve_patterns(patterns, workspace_root)
+    _snapshots[goal_id] = _ProtectedSnapshot(
+        hashes=hashes,
+        patterns=list(patterns),
+        workspace_root=workspace_root,
+    )
 
     logger.info(
         "[InvariantSnapshot] Captured %d protected files for goal %s (%d patterns)",
-        len(snapshot),
+        len(hashes),
         goal_id,
         len(patterns),
     )
-    return len(snapshot)
+    if unmatched:
+        # A pattern that protects nothing would otherwise let a tampered file
+        # pass verification and report an intact result.
+        logger.warning(
+            "[InvariantSnapshot] %d pattern(s) matched no file for goal %s and protect nothing: %s",
+            len(unmatched),
+            goal_id,
+            ", ".join(unmatched),
+        )
+    return len(hashes)
 
 
 def verify_protected_integrity(goal_id: str) -> list[ProtectedFileViolation]:
@@ -108,8 +142,9 @@ def verify_protected_integrity(goal_id: str) -> list[ProtectedFileViolation]:
     if entry is None:
         return []
 
-    original_snapshot, patterns, workspace_root = entry
-    current_snapshot = _resolve_patterns(patterns, workspace_root)
+    original_snapshot = entry.hashes
+    patterns = entry.patterns
+    current_snapshot, _ = _resolve_patterns(patterns, entry.workspace_root)
 
     violations: list[ProtectedFileViolation] = []
 
@@ -149,9 +184,17 @@ def verify_protected_integrity(goal_id: str) -> list[ProtectedFileViolation]:
             goal_id,
             ", ".join(f"{v.path} ({v.kind})" for v in violations),
         )
-    else:
+    elif original_snapshot:
         logger.info(
             "[InvariantSnapshot] All protected files intact for goal %s", goal_id
+        )
+    else:
+        # No baseline means nothing was ever covered, which is a configuration
+        # error rather than proof of integrity.
+        logger.warning(
+            "[InvariantSnapshot] Goal %s has no protected files to verify; "
+            "its protection rules matched nothing",
+            goal_id,
         )
 
     return violations
@@ -166,9 +209,12 @@ def register_protected_artifact(
     during continuation self-healing turns will be caught and blocked.
     Returns True if successfully registered, False if file cannot be read.
     """
+    entry = _snapshots.get(goal_id)
     if not os.path.isabs(file_path):
-        root = workspace_root or (
-            _snapshots[goal_id][2] if goal_id in _snapshots else os.getcwd()
+        root = (
+            workspace_root
+            or (entry.workspace_root if entry else "")
+            or os.getcwd()
         )
         abs_path = os.path.abspath(os.path.join(root, file_path))
     else:
@@ -183,16 +229,16 @@ def register_protected_artifact(
         )
         return False
 
-    entry = _snapshots.get(goal_id)
     if entry is None:
-        patterns = [file_path]
-        root = workspace_root or os.path.dirname(abs_path)
-        _snapshots[goal_id] = ({abs_path: file_hash}, patterns, root)
+        _snapshots[goal_id] = _ProtectedSnapshot(
+            hashes={abs_path: file_hash},
+            patterns=[file_path],
+            workspace_root=workspace_root or os.path.dirname(abs_path),
+        )
     else:
-        original_snapshot, patterns, root = entry
-        original_snapshot[abs_path] = file_hash
-        if file_path not in patterns and abs_path not in patterns:
-            patterns.append(file_path)
+        entry.hashes[abs_path] = file_hash
+        if file_path not in entry.patterns and abs_path not in entry.patterns:
+            entry.patterns.append(file_path)
 
     logger.info(
         "[InvariantSnapshot] Dynamically protected artifact for goal %s: %s (sha256=%s)",
@@ -210,9 +256,4 @@ def clear_snapshot(goal_id: str) -> None:
 
 def _find_matching_pattern(path: str, patterns: list[str]) -> str:
     """Find which pattern a path matches (best-effort for error reporting)."""
-    from fnmatch import fnmatch
-
-    for pattern in patterns:
-        if fnmatch(path, pattern) or fnmatch(os.path.basename(path), pattern):
-            return pattern
-    return patterns[0] if patterns else ""
+    return first_matching_pattern(path, patterns) or (patterns[0] if patterns else "")

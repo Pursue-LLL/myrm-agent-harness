@@ -32,6 +32,14 @@ from typing import TYPE_CHECKING
 from langchain_core.messages import AIMessage, HumanMessage
 
 from .audit import build_continuation_prompt, build_judge_criteria, build_wrapup_prompt
+from .continuation_checkpoint import (
+    check_todo_checkpoint as _check_todo_checkpoint,
+)
+from .continuation_drift import _DRIFT_CHECK_INTERVAL
+from .continuation_drift import check_goal_drift as _check_goal_drift
+from .continuation_git_drift import (
+    check_git_drift_and_rebase as _check_git_drift_and_rebase,
+)
 from .finalizer import finalize_goal_complete, resolve_deferred_tool_completion
 from .goal_prompt_prefixes import GOAL_WRAPUP_PREFIX
 from .invariant_snapshot import ProtectedFileViolation, verify_protected_integrity
@@ -58,20 +66,6 @@ _WRAPUP_SENTINEL = GOAL_WRAPUP_PREFIX
 _DEFAULT_MAX_VERIFICATION_RETRIES = 3
 
 _WAIT_TIMEOUT_PAUSE_REASON = "Wait timeout exceeded — goal paused"
-
-from .continuation_checkpoint import (
-    check_todo_checkpoint as _check_todo_checkpoint,
-)
-from .continuation_drift import (  # noqa: E402
-    _DRIFT_CHECK_INTERVAL,
-)
-from .continuation_drift import (  # noqa: E402
-    check_goal_drift as _check_goal_drift,
-)
-from .continuation_git_drift import (  # noqa: E402
-    check_git_drift_and_rebase as _check_git_drift_and_rebase,
-)
-
 
 def _is_wait_expired(goal: Goal) -> bool:
     started_raw = goal.metadata.get("wait_started_at")

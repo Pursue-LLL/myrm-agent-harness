@@ -3,6 +3,7 @@
 [INPUT]
 utils.url_utils::check_url_exfiltration, sanitize_url_for_error (POS: URL security validation)
 utils.errors::ToolError (POS: Agent tool error with format_for_llm protocol)
+core.security.path_security::is_sensitive_file (POS: single source of truth for sensitive-file rules, shared with the file tools)
 
 [OUTPUT]
 check_command_url_exfiltration: Block commands with URL data exfiltration.
@@ -15,7 +16,8 @@ check_install_packages: Verify install package names exist on public registries.
 
 [POS]
 Security preflight for bash commands. Validates URLs against data exfiltration,
-blocks access to sensitive paths (.ssh, .aws, id_rsa, etc.), blocks destructive workspace commands
+blocks access to sensitive paths (resolved through the shared sensitive-file rules, so the shell and
+the file tools refuse the same files), blocks destructive workspace commands
 (git reset --hard, rm -rf *, git clean, etc.), blocks myrm_tools in bash (command AST,
 referenced script files under workspace), detects interactive commands that would hang in a non-TTY environment, and verifies
 package names in install commands against public registries (anti-slopsquatting).
@@ -29,7 +31,10 @@ import logging
 import re
 import urllib.error
 import urllib.request
+from collections.abc import Iterator
 from pathlib import Path
+
+from myrm_agent_harness.core.security.path_security import is_sensitive_file
 
 logger = logging.getLogger(__name__)
 
@@ -346,6 +351,18 @@ _SENSITIVE_PATH_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Shell metacharacters that end one command word. A path operand is delimited by
+# one of these, so splitting on them yields the same words the shell would.
+_SHELL_WORD_SEPARATORS = re.compile(r"[\s\"'|<>;()`&]")
+
+# A word carrying a URI scheme names a remote resource, not a file on this
+# machine, so its path component is out of scope for the local file rules.
+_URI_SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.\-]*://")
+
+# ``sh -c "sh -c '...'"`` nests arbitrarily deep in principle; the cap keeps the
+# unwrap loop bounded on a self-referential payload.
+_MAX_NESTED_SHELL_DEPTH = 4
+
 _COMMIT_MESSAGE_PATTERN = re.compile(
     r'(?:^|[\s;&|])git\s+commit\s+(?:-[a-zA-Z]*m[a-zA-Z]*|--message(?:=|\s+))\s*(?:\'([^\']*)\'|"([^"]*)")',
     re.IGNORECASE,
@@ -363,8 +380,87 @@ def _strip_benign_text_literals_for_sensitive_check(command: str) -> str:
     return cleaned
 
 
+def _iter_command_words(command: str) -> Iterator[str]:
+    """Yield each shell word of *command* that could name a filesystem path.
+
+    Splits on shell metacharacters so that redirections (``>``, ``>>``) and
+    pipes separate words the same way the shell does. Quoted spans keep their
+    contents together, so a path written as ``"vault/secrets.json"`` survives
+    as one word instead of being cut at the quote.
+    """
+    word: list[str] = []
+    quote: str | None = None
+    for char in command:
+        if quote is not None:
+            if char == quote:
+                quote = None
+            else:
+                word.append(char)
+            continue
+        if char in "\"'":
+            quote = char
+            continue
+        if _SHELL_WORD_SEPARATORS.search(char):
+            if word:
+                yield "".join(word)
+                word.clear()
+            continue
+        word.append(char)
+    if word:
+        yield "".join(word)
+
+
+def _is_protected_path_word(word: str) -> bool:
+    """Return True when *word* names a credential or key file on this machine.
+
+    Path operands reach the file tools as plain strings, so the same matcher
+    that guards ``file_write_tool`` also guards the shell. A word only counts
+    when it looks like a path — a dot, a separator, or a leading ``~`` — which
+    keeps ordinary arguments such as ``id_rsa_keygen`` out of the comparison.
+    URI operands are skipped: ``https://host/config.json`` ends in a protected
+    name but fetches a remote document rather than reading a local file.
+    """
+    if not word or word.startswith("-") or _URI_SCHEME.match(word):
+        return False
+    if not any(marker in word for marker in (".", "/", "~")):
+        return False
+    return is_sensitive_file(word.rstrip("/"))
+
+
+def _find_sensitive_path(command: str) -> str | None:
+    """Return the first sensitive path *command* touches, else None.
+
+    Inline ``sh -c`` / ``bash -c`` scripts are unwrapped and rescanned so a
+    protected path cannot be hidden one quoting level down. The bare-credential
+    alternation is kept as a second opinion: it recognises filenames such as
+    ``id_rsa`` that carry no dot or separator, which the path-shaped test above
+    cannot see.
+    """
+    scripts = [command]
+    for _ in range(_MAX_NESTED_SHELL_DEPTH):
+        nested = [payload for payload in map(_extract_shell_c_payload, scripts) if payload]
+        if not nested:
+            break
+        scripts.extend(nested)
+
+    for script in scripts:
+        for word in _iter_command_words(script):
+            if _is_protected_path_word(word):
+                return word
+
+    match = _SENSITIVE_PATH_RE.search(command)
+    return match.group(0).strip(" \"'=/") if match else None
+
+
 def check_sensitive_paths(command: str) -> None:
     """Block commands that access sensitive directories (.ssh, .aws, etc.) or credentials (id_rsa, shadow, etc.).
+
+    Path operands are resolved against the shared sensitive-file rules, so the
+    shell and the file tools refuse the same set of files. Inline ``sh -c`` /
+    ``bash -c`` scripts are unwrapped and rescanned, and commit messages and
+    ``echo``/``printf`` literals are stripped first, so neither a protected path
+    hidden one quoting level down nor prose that merely names a credential
+    decides the outcome.
 
     Raises:
         ToolError: If sensitive path access is detected.
@@ -373,12 +469,14 @@ def check_sensitive_paths(command: str) -> None:
 
     eval_cmd = _strip_benign_text_literals_for_sensitive_check(command)
 
-    if match := _SENSITIVE_PATH_RE.search(eval_cmd):
-        sensitive_path = match.group(0).strip(" \"'=/")
+    if sensitive_path := _find_sensitive_path(eval_cmd):
         logger.warning(f" Sensitive path access detected: {command[:100]}")
         raise ToolError(
-            f"Command blocked (security): Access to sensitive path '{sensitive_path}' is strictly prohibited.",
-            user_hint=f"The command attempts to access a protected path ({sensitive_path}). This is blocked by the security sandbox.",
+            f"Command blocked (security): '{sensitive_path}' is on the protected file list.",
+            user_hint=(
+                f"Do not route around this restriction. Continue without {sensitive_path}, "
+                f"or tell the user which file you could not use."
+            ),
         )
 
 
@@ -761,12 +859,14 @@ async def _probe_registry(package: str, url: str, cache_key: str) -> tuple[str, 
 
     try:
         loop = asyncio.get_running_loop()
-        request = urllib.request.Request(
+        # S310 cannot fire: both callers pass an f-string whose scheme is the
+        # literal "https://" prefix, so no caller-controlled scheme reaches urlopen.
+        request = urllib.request.Request(  # noqa: S310
             url, headers={"User-Agent": "myrm-slopcheck"}, method="HEAD"
         )
         response = await loop.run_in_executor(
             None,
-            lambda: urllib.request.urlopen(
+            lambda: urllib.request.urlopen(  # noqa: S310
                 request, timeout=_PROBE_TIMEOUT_S
             ),
         )
@@ -908,33 +1008,32 @@ def check_unquoted_background_ampersand(command: str) -> str | None:
             i += 1
             continue
 
-        if not in_single_quote and not in_double_quote:
-            if char == "&":
-                # Check if this is '&&'
-                if i + 1 < length and cleaned[i + 1] == "&":
-                    i += 2
-                    continue
+        if not in_single_quote and not in_double_quote and char == "&":
+            # Check if this is '&&'
+            if i + 1 < length and cleaned[i + 1] == "&":
+                i += 2
+                continue
 
-                # Check if this is part of redirection: '>&', '2>&1', '&>', '&>>'
-                # Preceding '>'
-                if i > 0 and cleaned[i - 1] == ">":
-                    i += 1
-                    continue
-                # Following '>'
-                if i + 1 < length and cleaned[i + 1] == ">":
-                    i += 1
-                    continue
+            # Check if this is part of redirection: '>&', '2>&1', '&>', '&>>'
+            # Preceding '>'
+            if i > 0 and cleaned[i - 1] == ">":
+                i += 1
+                continue
+            # Following '>'
+            if i + 1 < length and cleaned[i + 1] == ">":
+                i += 1
+                continue
 
-                # Preceding digit before '>' (e.g. 2>&1) - covered by cleaned[i-1] == '>' above
+            # Preceding digit before '>' (e.g. 2>&1) - covered by cleaned[i-1] == '>' above
 
-                # Found an unquoted intermediate background operator '&'
-                return (
-                    "Detached background operator '&' detected inside compound command. "
-                    "In foreground execution, intermediate '&' creates orphaned background processes "
-                    "that escape process group tracking. "
-                    "For long-running background services, use bash_code_execute_tool with run_in_background=True. "
-                    "For sequential commands, use '&&' or separate tool invocations."
-                )
+            # Found an unquoted intermediate background operator '&'
+            return (
+                "Detached background operator '&' detected inside compound command. "
+                "In foreground execution, intermediate '&' creates orphaned background processes "
+                "that escape process group tracking. "
+                "For long-running background services, use bash_code_execute_tool with run_in_background=True. "
+                "For sequential commands, use '&&' or separate tool invocations."
+            )
 
         i += 1
 

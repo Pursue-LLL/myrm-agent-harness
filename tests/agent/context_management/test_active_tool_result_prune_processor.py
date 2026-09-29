@@ -505,28 +505,6 @@ class TestMinReclaimAndPromptCacheGates:
         assert "[Tool output pruned: original size" in str(result.messages[2].content)
         assert "active_prune" in str(result.messages[2].content)
 
-    @pytest.mark.asyncio
-    async def test_proactive_prune_tokens_should_process_gate(self):
-        """When proactive_prune_tokens > 0, should_process returns False until total tokens exceeds threshold."""
-        proc = ActiveToolResultPruneProcessor(
-            threshold_tokens=500,
-            proactive_prune_tokens=50000,
-        )
-        small_messages = [
-            HumanMessage(content="hi"),
-            _make_ai_msg(),
-            _make_tool_msg("result"),
-            _make_ai_msg(),
-        ]
-        ctx = _build_context(small_messages)
-        # Total tokens are far below 50,000
-        assert await proc.should_process(ctx) is False
-
-        # force_prune bypasses the threshold check
-        ctx_forced = _build_context(small_messages, metadata={"force_prune": True})
-        assert await proc.should_process(ctx_forced) is True
-
-
 
 class TestProcessorName:
     def test_name(self):

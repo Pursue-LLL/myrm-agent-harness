@@ -10,7 +10,8 @@ Foundational security primitives used across all layers. Zero dependency on agen
 | __init__.py | Package | Module docstring. Submodules imported directly. | — |
 | audit.py | Core | Audit log writer — records security events to structured log. `SecurityDecision` carries optional `tool_call_id` that anchors a decision to the specific tool invocation that fired it (downstream lineage views attach the decision to the exact call). Tracks `PROTECTED_INSTRUCTION_ATTEMPT` and `PROTECTED_INSTRUCTION_ALLOWLIST_BLOCKED` events. | ✅ |
 | execution_policy.py | Core | Execution policy enums and interception contracts. | ✅ |
-| path_security.py | Core | Path security — dangerous path sets, blocked system and Windows device names, boundary checks, safe path joining (`safe_join_path`), runtime path coercion (`coerce_filesystem_path`), text/code content vs path safe disambiguation (`is_content_not_path`, `MAX_PATH_LENGTH`), protected instruction files SSOT (`PROTECTED_INSTRUCTION_PATTERNS`, `is_protected_instruction_file`) against persona prompt injection persistence. | ✅ |
+| path_pattern.py | Core | Path-glob matcher SSOT for every path protection rule — `compile_path_pattern` (segment-scoped `*`/`?`, recursive `**`, character classes, cached, consecutive `**/` collapsed), `path_matches_pattern` (relative patterns apply at any depth, absolute patterns anchored, dotfiles reachable; **case ignored by default** so a protected file cannot be reached by respelling it on APFS/NTFS), `first_matching_pattern` (names the rule that fired), `PathPatternMatch` (protected file + covering rule), `iter_matching_files` (bounded sweep: prunes dependency/build dirs, caps inspected files, logs when the cap trips), `normalise_path_pattern`. Its prune list is independent of the search-candidate pruner in `agent/meta_tools/file_search/fallback_discovery.py`. | ✅ |
+| path_security.py | Core | Path security — dangerous path sets, blocked system and Windows device names, boundary checks, safe path joining (`safe_join_path`), runtime path coercion (`coerce_filesystem_path`), text/code content vs path safe disambiguation (`is_content_not_path`, `MAX_PATH_LENGTH`), protected instruction files SSOT (`PROTECTED_INSTRUCTION_PATTERNS`, `is_protected_instruction_file`) against persona prompt injection persistence. Pattern matching delegates to `path_pattern.py`. | ✅ |
 | redact/ | Core | Output redaction domain — regex SSOT (`patterns.py`) + bounded-replace engine & public APIs (`engine.py`) + facade (`__init__.py`): token prefixes, ENV/JSON/Auth/header/URL userinfo/query/bare-token/JWT, YAML/colon + form-urlencoded configs, word-boundary key validation, dotted-short-name keys (app.api.key=), CLI `=` flags, control-split bypass guard + double-match collapse guard; `redact_for_llm` (nested diagnostic value → str) + `redact_for_display` (args → dict). See `redact/_ARCH.md`. | ✅ |
 | safe_exec.py | Core | Safe command execution — direct exec by default, shell fallback when needed. Env derived from caller env or ``os.environ`` is always passed through ``sanitize_env()`` (dangerous vars stripped) before credential overrides are injected post-sanitize. Process-group isolation + full-tree SIGKILL on timeout. | ✅ |
 | tool_registry/ | Core | Tool metadata registry domain — permission mapping, canonical params, safety metadata, canonical tool group mapping (TOOL_GROUP_MAP/TOOL_TO_GROUP for skill conditional activation) + module-load safety coverage gate. See `tool_registry/_ARCH.md`. | ✅ |
@@ -44,6 +45,20 @@ Foundational security primitives used across all layers. Zero dependency on agen
 - `toolkits/browser/session/interactor.py`, `toolkits/browser/tools/interact.py` — fill_credential
 - `toolkits/computer_use/` — desktop fill_credential backends
 - `myrm-agent-server/app/services/security/vault_credential_service.py` — sync decrypted credentials into global vault
+- `agent/meta_tools/file_ops/validators/invariant_validator.py` — pre-write Goal protection
+- `agent/goals/invariant_snapshot.py` — post-hoc tamper detection
+
+Both protection layers resolve patterns through `path_pattern.py`, so the
+pre-write guard and the post-hoc integrity check return the same verdict for
+the same file. A rule that matches nothing is logged by
+`invariant_snapshot.py` instead of being counted as coverage.
+
+Every guard in this package — `is_sensitive_file`, `is_protected_instruction_file`
+and `is_evidence_readonly_file` — inherits the matcher's case-insensitive
+default. That default is the security invariant, not a convenience: APFS and
+NTFS resolve `Key.Pem` and `key.pem` to one file, so a case-sensitive rule would
+let a protected credential be reached by changing only its spelling. A caller
+that genuinely needs case-distinguishing rules passes `case_sensitive=True`.
 
 ## Consumer Note
 

@@ -33,6 +33,18 @@ def workspace(tmp_path):
     return str(tmp_path)
 
 
+@pytest.fixture
+def dotfile_workspace(tmp_path):
+    """Workspace whose protected files are dotfiles — the class the old
+    ``glob.glob`` sweep could never capture, so its rules protected nothing."""
+    (tmp_path / "app" / "config").mkdir(parents=True)
+    (tmp_path / "app" / "config" / ".env").write_text("SECRET=1")
+    (tmp_path / ".env").write_text("SECRET=0")
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data" / "x.csv").write_text("a,b")
+    return str(tmp_path)
+
+
 class TestCaptureProtectedSnapshot:
     def test_captures_matching_files(self, workspace: str):
         count = capture_protected_snapshot("g1", ["tests/**"], workspace)
@@ -48,11 +60,30 @@ class TestCaptureProtectedSnapshot:
         count = capture_protected_snapshot("g3", ["nonexistent/**"], workspace)
         assert count == 0
 
+    def test_captures_dotfiles_at_every_depth(self, dotfile_workspace: str):
+        """A ``*`` wildcard must reach leading-dot files to protect them."""
+        count = capture_protected_snapshot("g_dot", ["*.env"], dotfile_workspace)
+        assert count == 2
+
+    def test_captures_dotfile_with_explicit_dot_pattern(self, dotfile_workspace: str):
+        count = capture_protected_snapshot("g_dot2", ["**/.env*"], dotfile_workspace)
+        assert count == 2
+
+    def test_captures_relative_prefixed_pattern(self, dotfile_workspace: str):
+        count = capture_protected_snapshot("g_csv", ["data/*.csv"], dotfile_workspace)
+        assert count == 1
+
+    def test_inert_rule_is_logged(self, dotfile_workspace: str, caplog):
+        """A rule that protects nothing must be reported, not silently trusted."""
+        with caplog.at_level("WARNING"):
+            capture_protected_snapshot("g_dead", ["*.pem"], dotfile_workspace)
+        assert "protect nothing" in caplog.text
+        assert "*.pem" in caplog.text
+
     def test_overwrites_previous_snapshot(self, workspace: str):
         capture_protected_snapshot("g1", ["tests/**"], workspace)
         capture_protected_snapshot("g1", ["src/**"], workspace)
-        _, patterns, _ = _snapshots["g1"]
-        assert patterns == ["src/**"]
+        assert _snapshots["g1"].patterns == ["src/**"]
 
 
 class TestVerifyProtectedIntegrity:
@@ -114,6 +145,35 @@ class TestVerifyProtectedIntegrity:
         violations = verify_protected_integrity("g1")
         assert len(violations) == 1
         assert violations[0].kind == "modified"
+
+    def test_detects_tamper_of_nested_dotfile(self, dotfile_workspace: str):
+        """The regression this layer existed for: a dotfile edited out-of-band
+        must be caught even though the pre-write guard never saw the write."""
+        capture_protected_snapshot("g_dot", ["*.env"], dotfile_workspace)
+        target = os.path.join(dotfile_workspace, "app", "config", ".env")
+        with open(target, "w") as f:
+            f.write("SECRET=leaked")
+        violations = verify_protected_integrity("g_dot")
+        assert len(violations) == 1
+        assert violations[0].kind == "modified"
+        assert violations[0].pattern == "*.env"
+
+    def test_detects_deleted_nested_dotfile(self, dotfile_workspace: str):
+        capture_protected_snapshot("g_dot", ["*.env"], dotfile_workspace)
+        os.remove(os.path.join(dotfile_workspace, "app", "config", ".env"))
+        violations = verify_protected_integrity("g_dot")
+        assert [v.kind for v in violations] == ["deleted"]
+
+    def test_unmatched_pattern_does_not_fake_intact(
+        self, dotfile_workspace: str, caplog
+    ):
+        """With no baseline the layer must warn, never log "all intact"."""
+        capture_protected_snapshot("g_dead", ["*.pem"], dotfile_workspace)
+        with caplog.at_level("WARNING"):
+            violations = verify_protected_integrity("g_dead")
+        assert violations == []
+        assert "no protected files to verify" in caplog.text
+        assert "all protected files intact" not in caplog.text.lower()
 
 
 class TestRegisterProtectedArtifact:

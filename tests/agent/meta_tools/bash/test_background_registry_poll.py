@@ -40,7 +40,7 @@ def test_build_poll_output_forward_slice_advances_cursor_accurately() -> None:
     # 5 items (cursors 10..14), request max_lines=2 with since_cursor=9
     stdout = deque([(10, "line-10"), (11, "line-11"), (12, "line-12"), (13, "line-13"), (14, "line-14")])
     stderr: deque[tuple[int, str]] = deque()
-    payload, streak = build_poll_output(
+    payload, _streak = build_poll_output(
         stdout_buffer=stdout,
         stderr_buffer=stderr,
         cursor=14,

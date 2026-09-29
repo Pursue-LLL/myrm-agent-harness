@@ -16,11 +16,11 @@ Validators module.
 | markdown_vault_write_guard.py | Core | Preserves YAML frontmatter on vault `.md` writes; pairs with vault_scope + FormatObserver skip | ✅ |
 | office_bash_audit.py | Core | Post-bash Office fidelity audit (OPC metrics, xlsx formulas, layout QA, recalc, baseline-missing honest warn, corrupt-file read warn) | ✅ |
 | office_write_guard.py | Core | Secondary guard: warn on direct text writes to Office binary paths | ✅ |
-| invariant_validator.py | Core | Goal-scoped invariant file protection: blocks writes matching active Goal protected_paths before they happen. | ✅ |
+| invariant_validator.py | Core | Goal-scoped invariant file protection: blocks writes matching active Goal protected_paths before they happen. Pattern matching via `core.security.path_pattern`. | ✅ |
 | evidence_readonly_validator.py | Core | Session Evidence read-only protection: blocks writes to evidence/user_inputs to preserve raw audit trail. | ✅ |
 | path_validator.py | Core | Path security validator with symlink detection and actionable error hints for LLM self-correction. | ✅ |
 | permission_validator.py | Core | Provides PermissionValidator. | ✅ |
-| sensitive_file_validator.py | Core | Sensitive file validator | ✅ |
+| sensitive_file_validator.py | Core | Sensitive file validator — resolves `SENSITIVE_FILE_PATTERNS` through `core.security.path_pattern` so its verdict is identical to `path_security.is_sensitive_file()`. | ✅ |
 | size_validator.py | Core | Provides SizeValidator. | ✅ |
 | validator_chain.py | Core | Provides ValidatorChain. | ✅ |
 
@@ -28,6 +28,8 @@ Validators module.
 
 - `tests/agent/meta_tools/file_ops/validators/test_delta_syntax_validator.py`
 - `tests/agent/meta_tools/file_ops/validators/test_markdown_vault_write_guard.py`
+- `tests/agent/meta_tools/file_ops/validators/test_invariant_validator.py`
+- `tests/agent/meta_tools/file_ops/validators/test_sensitive_file_validator.py`
 - `tests/agent/meta_tools/file_ops/validators/test_office_bash_audit.py`
 - `tests/agent/meta_tools/file_ops/validators/test_office_write_guard.py`
 - `tests/agent/meta_tools/file_ops/validators/test_office_golden_opc.py`

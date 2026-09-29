@@ -261,7 +261,6 @@ class SnapshotStore:
                 }
                 for s in snapshots
             ]
-            payload = json.dumps(data, ensure_ascii=False)
 
             async with self._get_lock():
                 from myrm_agent_harness.agent.file_snapshot.sealed_io import atomic_sealed_write

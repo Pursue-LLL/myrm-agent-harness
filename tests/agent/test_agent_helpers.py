@@ -93,3 +93,48 @@ def test_schedule_post_run_idle_tasks_no_truncation(mock_schedule, mock_get_regi
     assert len(serialized_msgs) == 2
     assert serialized_msgs[0]["content"] == "Hello"
     assert serialized_msgs[1]["content"] == "Hi"
+
+
+@patch("myrm_agent_harness.agent._internals._agent_helpers._fire_and_forget")
+@patch("myrm_agent_harness.agent.background_worker.registry.get_idle_task_registry")
+def test_schedule_post_run_idle_tasks_serializes_message_objects(mock_get_registry, mock_fire):
+    """BaseMessage inputs must serialize to the same role/content shape as dicts."""
+    from langchain_core.messages import AIMessage, HumanMessage
+
+    mock_get_registry.return_value = MagicMock()
+    messages = [HumanMessage(content="ping"), AIMessage(content="pong")]
+
+    schedule_post_run_idle_tasks(
+        {
+            "session_id": "sess_2",
+            "workspace_root": "/tmp/test",
+            "chat_id": "chat_2",
+            "messages": messages,
+        }
+    )
+
+    derivation_calls = [
+        call
+        for call in mock_get_registry.return_value.enqueue.call_args_list
+        if call[0][2] == "cognitive_derivation"
+    ]
+    assert len(derivation_calls) == 1
+    serialized = derivation_calls[0][0][3]["messages"]
+    assert [m["content"] for m in serialized] == ["ping", "pong"]
+
+
+def test_init_usage_ledger_attaches_ledger(tmp_path):
+    from myrm_agent_harness.agent._internals._agent_helpers import init_usage_ledger
+    from myrm_agent_harness.utils.token_economics.tracker import get_usage_ledger
+
+    init_usage_ledger({"workspace_path": str(tmp_path)})
+
+    assert get_usage_ledger() is not None
+
+
+def test_init_usage_ledger_noop_without_workspace_path():
+    from myrm_agent_harness.agent._internals._agent_helpers import init_usage_ledger
+
+    init_usage_ledger(None)
+    init_usage_ledger({})
+    init_usage_ledger({"workspace_path": ""})

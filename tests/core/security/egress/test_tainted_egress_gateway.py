@@ -52,7 +52,8 @@ def test_tainted_session_permits_loopback_by_default():
     gateway = TaintedEgressGateway(allow_loopback=True)
     set_current_egress_tainted(True)
 
-    for host in ["localhost", "127.0.0.1", "::1", "0.0.0.0"]:
+    # 0.0.0.0 is the unspecified address a loopback client may report.
+    for host in ["localhost", "127.0.0.1", "::1", "0.0.0.0"]:  # noqa: S104
         decision, _ = gateway.evaluate_egress(host, port=8080)
         assert decision == TaintedEgressDecision.ALLOW_WHITELISTED
         gateway.check_or_raise(host, port=8080)

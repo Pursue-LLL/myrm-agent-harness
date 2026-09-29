@@ -71,6 +71,120 @@ class TestCheckSensitivePaths:
         check_sensitive_paths(command)
 
 
+class TestSensitivePathParityWithFileTools:
+    """The shell must refuse the same files ``file_write_tool`` refuses.
+
+    Both entry points resolve path operands against
+    ``SENSITIVE_FILE_PATTERNS``; a divergence would let a command reach a file
+    the file tools already protect.
+    """
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "echo fix > app/config.json",
+            "cp .env backup.env",
+            "openssl req -new -keyout deploy/server.key",
+            "sqlite3 data/users.db < dump.sql",
+            "mv vault/secrets.json vault/v2.json",
+            "cp certs/bundle.p12 /tmp/",
+            'cat > "vault/secrets.json" <<EOF',
+            "printf 'x' > .env",
+            "tee deploy/server.pem",
+        ],
+    )
+    def test_blocks_paths_the_file_tools_also_block(self, command: str) -> None:
+        with pytest.raises(ToolError, match="security"):
+            check_sensitive_paths(command)
+
+    @pytest.mark.parametrize(
+        "word",
+        [
+            "app/config.json",
+            ".env",
+            "deploy/server.key",
+            "vault/secrets.json",
+            "data/users.db",
+            "certs/bundle.p12",
+        ],
+    )
+    def test_agrees_with_the_file_tool_predicate(self, word: str) -> None:
+        from myrm_agent_harness.core.security.path_security import is_sensitive_file
+
+        with pytest.raises(ToolError, match="security"):
+            check_sensitive_paths(f"cat {word}")
+        assert is_sensitive_file(word) is True
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "cat package.json",
+            "cat tsconfig.json",
+            "cat appsettings.json",
+            "cat .eslintrc.json",
+            "cat src/config.ts",
+            "cat .gitignore",
+        ],
+    )
+    def test_allows_ordinary_config_files(self, command: str) -> None:
+        check_sensitive_paths(command)
+
+    def test_plain_arguments_are_not_treated_as_paths(self) -> None:
+        check_sensitive_paths("cat server.keyboard-layout notes.config-notes")
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "curl https://example.com/config.json",
+            "curl https://api.example.com/.env",
+            "wget https://cdn.example.com/data/users.db",
+            "curl https://example.com/id_rsa.pub",
+            "git clone https://github.com/org/repo.git",
+        ],
+    )
+    def test_remote_urls_are_not_local_paths(self, command: str) -> None:
+        check_sensitive_paths(command)
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "curl file:///home/user/.ssh/id_rsa",
+            "cat file:///etc/passwd",
+        ],
+    )
+    def test_file_urls_still_reach_local_credentials(self, command: str) -> None:
+        with pytest.raises(ToolError, match="security"):
+            check_sensitive_paths(command)
+
+    def test_trailing_slash_on_a_directory_is_still_blocked(self) -> None:
+        with pytest.raises(ToolError, match="security"):
+            check_sensitive_paths("ls vault/secrets.json/")
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "sh -c 'cp .env /tmp/'",
+            "bash -c 'cat ~/.ssh/id_rsa'",
+            "sh -c \"bash -c 'cp vault/secrets.json /tmp/'\"",
+            "sh -c 'sh -c \"echo x > .env\"'",
+        ],
+    )
+    def test_inline_shell_scripts_are_unwrapped(self, command: str) -> None:
+        with pytest.raises(ToolError, match="security"):
+            check_sensitive_paths(command)
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "sh -c 'echo hello'",
+            "bash -c 'ls -la'",
+            "sh -c 'cat README.md'",
+        ],
+    )
+    def test_inline_shell_scripts_allow_ordinary_work(self, command: str) -> None:
+        check_sensitive_paths(command)
+
+
 class TestCheckCommandUrlExfiltration:
     """Test URL data exfiltration detection."""
 

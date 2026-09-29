@@ -51,5 +51,8 @@ async def test_evidence_readonly_validator_allows_regular_write() -> None:
 async def test_evidence_readonly_validator_blocks_evidence_write() -> None:
     validator = EvidenceReadOnlyValidator()
     ctx = _make_context(OperationType.CREATE)
-    with pytest.raises(PermissionError, match="BLOCKED: 'evidence/step_1_receipt.json' resides in a read-only"):
+    with pytest.raises(
+        PermissionError,
+        match=r"BLOCKED: 'evidence/step_1_receipt\.json' resides in a read-only",
+    ):
         await validator.validate(ctx, "evidence/step_1_receipt.json")

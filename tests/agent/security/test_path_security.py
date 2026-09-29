@@ -17,6 +17,7 @@ from myrm_agent_harness.agent.security.path_security import (
     is_blocked_device_path,
     is_content_not_path,
     is_dangerous_path,
+    is_evidence_readonly_file,
     is_protected_instruction_file,
     is_sensitive_file,
     safe_join_path,
@@ -62,7 +63,7 @@ class TestDangerousPaths:
         assert kube_real in DANGEROUS_PATHS
 
     def test_windows_paths_on_windows(self) -> None:
-        with patch("myrm_agent_harness.agent.security.path_security.platform.system", return_value="Windows"):
+        with patch("myrm_agent_harness.core.security.path_security.platform.system", return_value="Windows"):
             from myrm_agent_harness.agent.security.path_security import _build_dangerous_paths
 
             result = _build_dangerous_paths()
@@ -147,6 +148,29 @@ class TestIsSensitiveFile:
 
     def test_git_config(self) -> None:
         assert is_sensitive_file("/project/.git/config") is True
+
+    def test_case_variants_are_still_sensitive(self) -> None:
+        for path in ("KEY.PEM", ".ENV", ".Env", "CREDENTIALS.JSON", "ID_RSA", "APP.DB", "PASSWD", "SHADOW"):
+            assert is_sensitive_file(path) is True, path
+
+    def test_case_variants_in_nested_directories(self) -> None:
+        assert is_sensitive_file("/home/user/.AWS/Credentials") is True
+        assert is_sensitive_file("/project/.GIT/Config") is True
+
+
+class TestIsEvidenceReadonlyFile:
+    """Verify the evidence guard cannot be side-stepped by respelling a directory."""
+
+    def test_lowercase_directories(self) -> None:
+        assert is_evidence_readonly_file("evidence/chart.png") is True
+        assert is_evidence_readonly_file("user_inputs/notes.pdf") is True
+
+    def test_case_variants_are_still_readonly(self) -> None:
+        for path in ("EVIDENCE/chart.png", "Evidence/chart.png", "USER_INPUTS/notes.pdf"):
+            assert is_evidence_readonly_file(path) is True, path
+
+    def test_unrelated_paths_are_writable(self) -> None:
+        assert is_evidence_readonly_file("outputs/chart.png") is False
 
 
 class TestSensitiveFilePatterns:

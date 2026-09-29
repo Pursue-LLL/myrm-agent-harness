@@ -2,7 +2,7 @@
 
 Four layers of protection:
 1. Single tool result size limit (persist or truncate oversized results)
-2. Session total context budget tracking (cumulative token estimation)
+2. Per-run context budget tracking (cumulative token estimation)
 3. Predictive overflow detection (warn before overflow, not after)
 4. Graceful degradation (UECD disk-persist → truncate fallback chain)
 
@@ -13,6 +13,7 @@ Four layers of protection:
 [OUTPUT]
 - BudgetVerdict: persisted / truncated / warning / ok (with details)
 - ContextBudgetGuard: session-scoped instance tracking budget usage
+- reset_context_budget_guard: Clear cumulative budget before a new agent run
 
 [POS]
 Session-level guard. Integrated into tool_interceptor_middleware at
@@ -21,6 +22,7 @@ the post-call stage, after tool execution but before result validation.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -293,3 +295,20 @@ def set_context_budget_guard(guard: ContextBudgetGuard) -> None:
     Call before any tool execution to configure custom budget limits.
     """
     _budget_guard_var.set(guard)
+
+
+def reset_context_budget_guard(*, is_resume: bool = False) -> None:
+    """Reset cumulative budget tracking. Call at the start of each agent run.
+
+    Without this, ``_used_tokens`` grows monotonically across runs whenever the
+    caller reuses one context, permanently pinning the predictive truncation
+    layer at the hard limit and flattening every later tool result.
+
+    When *is_resume* is True the accumulated usage is preserved: an approval
+    resume continues the same logical run, and the tool results gathered before
+    the interrupt are still part of the context window.
+    """
+    if is_resume:
+        return
+    with contextlib.suppress(LookupError):
+        _budget_guard_var.get().reset()

@@ -331,6 +331,7 @@ async def test_judge_completion_with_subgoals():
     )
     assert reason is None
     assert parse_failed is False
+    assert wait is False
     criteria_called = provider.evaluate_semantic.call_args[0][0]
     assert "CRITICAL - Newly Added Subgoals" in criteria_called
     assert "Subgoal 1" in criteria_called

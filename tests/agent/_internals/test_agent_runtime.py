@@ -307,6 +307,51 @@ class TestResetAllGuards:
         reset_all_guards()
         reset_all_guards()
 
+    def test_resets_context_budget_cumulative_usage(self):
+        """Per-run budget must start clean, else predictive truncation stays pinned."""
+        from myrm_agent_harness.agent._internals.agent_runtime import reset_all_guards
+        from myrm_agent_harness.agent.security.guards.context_budget import (
+            get_context_budget_guard,
+            reset_context_budget_guard,
+        )
+
+        guard = get_context_budget_guard()
+        try:
+            for i in range(45):
+                guard.check_and_truncate("x" * 20_000, f"tool_{i}")
+
+            exhausted = guard.check_and_truncate("y" * 20_000, "probe_before_reset")
+            assert len(exhausted.content) < 20_000, "fixture failed to exhaust the budget"
+
+            reset_all_guards()
+
+            fresh = guard.check_and_truncate("z" * 20_000, "probe_after_reset")
+            assert len(fresh.content) == 20_000
+        finally:
+            reset_context_budget_guard()
+
+    def test_preserves_context_budget_on_approval_resume(self):
+        """An approval resume continues the same run, so its usage must carry over."""
+        from myrm_agent_harness.agent._internals.agent_runtime import reset_all_guards
+        from myrm_agent_harness.agent.security.guards.context_budget import (
+            get_context_budget_guard,
+            reset_context_budget_guard,
+        )
+
+        guard = get_context_budget_guard()
+        try:
+            for i in range(45):
+                guard.check_and_truncate("x" * 20_000, f"pre_approval_{i}")
+            exhausted = guard.check_and_truncate("y" * 20_000, "probe_before_resume")
+            assert len(exhausted.content) < 20_000, "fixture failed to exhaust the budget"
+
+            reset_all_guards(is_resume=True)
+
+            carried = guard.check_and_truncate("z" * 20_000, "probe_after_resume")
+            assert len(carried.content) < 20_000
+        finally:
+            reset_context_budget_guard()
+
 
 class TestSchedulePostRunIdleTasks:
     """Tests for schedule_post_run_idle_tasks — enqueues background work."""
@@ -788,21 +833,28 @@ class TestRunAgentLoopOuterErrorFaultSide:
     — this branch previously dropped fault_side/recovery_actions)."""
 
     def test_outer_error_event_attributes_fault_side(self) -> None:
+        import re
         from pathlib import Path
 
         source = (
             Path(__file__).resolve().parents[3] / "src/myrm_agent_harness/agent/_internals/agent_runtime.py"
         ).read_text(encoding="utf-8")
+
+        def squash(text: str) -> str:
+            """Drop whitespace so formatter re-wrapping cannot invalidate the guard."""
+            return re.sub(r"\s+", "", text)
+
+        squashed = squash(source)
         # fault_side must be computed via the pure-rules classifier, not guessed.
-        assert 'classify_fault_side(error_kind=error_kind.value)' in source
+        assert squash("classify_fault_side(error_kind=error_kind.value)") in squashed
         # When error_kind is UNKNOWN, the diagnostic error_type refines the
         # attribution (unified classifier falls back error_kind → error_type).
-        assert "error_type=diagnostic_type" in source
+        assert squash("error_type=diagnostic_type") in squashed
         # recovery_actions must be generated when a diagnostic payload exists.
-        assert "LLMErrorDiagnostic.get_recovery_actions" in source
+        assert squash("LLMErrorDiagnostic.get_recovery_actions") in squashed
         # The outer-loop error_event must be persisted to the event journal
         # (transport-only fields stripped) so trace reconstruction sees fatal
         # errors raised outside the executor.
-        assert 'event_logger.log(AgentEventType.ERROR.value, persisted)' in source
-        assert 'persisted.pop("type", None)' in source
-        assert 'persisted.pop("messageId", None)' in source
+        assert squash("event_logger.log(AgentEventType.ERROR.value, persisted)") in squashed
+        assert squash('persisted.pop("type", None)') in squashed
+        assert squash('persisted.pop("messageId", None)') in squashed

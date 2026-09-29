@@ -82,6 +82,9 @@ def reset_all_guards(
         reset_loop_guard,
     )
     from myrm_agent_harness.agent.security.audit import reset_audit_log
+    from myrm_agent_harness.agent.security.guards.context_budget import (
+        reset_context_budget_guard,
+    )
     from myrm_agent_harness.agent.security.guards.frequency_guard import (
         reset_frequency_guard,
     )
@@ -102,6 +105,7 @@ def reset_all_guards(
     )
     reset_frequency_guard()
     reset_tool_turn_budget_guard()
+    reset_context_budget_guard(is_resume=is_resume)
     reset_replan_attempts()
     reset_plan_confirm_state()
     reset_terminal_errors()

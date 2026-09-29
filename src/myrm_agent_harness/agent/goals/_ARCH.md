@@ -46,6 +46,6 @@ Goal-based autonomous loop engine. Enables agents to pursue long-running objecti
 | wait_background_bash.py | 核心 | 窄域 build/test/CI 白名单 + LoopGuard 窗口解析 background spawn；metadata `wait_on_background_job_id` 绑定 BSDL job_id；Server finish 时 exit_wait + `trigger_goal_stream_with_failure_policy` 闭环 | ✅ |
 | audit.py | 核心 | 三段式 judge criteria + 行为引导 continuation prompt（含 Fidelity 防目标缩水、Evidence-based 防历史幻觉、Progress visibility 激活 todo_write 进度推送、8 步 audit protocol、历史 learnings 注入、收敛引导指令）+ budget wrap-up prompt | ✅ |
 | goal_interceptor.py | 核心 | Goal 拦截器：执行前发布 protected_paths / invariant snapshot；进度由主 Agent `todo_write` 负责 | ✅ |
-| invariant_snapshot.py | 核心 | Post-hoc tamper detection: SHA-256 snapshot of Goal protected_paths at activation; verify integrity before completion (bash_code_execute_tool bypass safety net). 生命周期: goal_interceptor capture → continuation verify → manager clear | ✅ |
+| invariant_snapshot.py | 核心 | Post-hoc tamper detection: SHA-256 snapshot of Goal protected_paths at activation; verify integrity before completion (bash_code_execute_tool bypass safety net). Pattern 解析走 `core.security.path_pattern`（与事前 InvariantValidator 同一引擎）；未命中任何文件的规则与空基线均告警。生命周期: goal_interceptor capture → continuation verify → manager clear | ✅ |
 | verification/ | 核心 | 验收测试模块，提供准则解析(Gatekeeper)与运行时验证(Shell/Semantic)机制 | ✅ |
 | GOAL_SYSTEM.md | 文档 | Goal 系统的详细设计文档 | - |

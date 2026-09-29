@@ -19,13 +19,13 @@ Harness Core Layer — 业务中立的多源事实核验与冲突仲裁数据契
 from __future__ import annotations
 
 import time
-from enum import Enum
+from enum import StrEnum
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
 
-class ConflictSeverity(str, Enum):
+class ConflictSeverity(StrEnum):
     """事实冲突严重级别"""
 
     CRITICAL = "critical"  # 核心商业要素冲突 (如价格、交期、法务责任)
@@ -33,7 +33,7 @@ class ConflictSeverity(str, Enum):
     INFO = "info"          # 措辞描述或轻微统计口径差异
 
 
-class ResolutionStatus(str, Enum):
+class ResolutionStatus(StrEnum):
     """冲突仲裁状态"""
 
     RESOLVED = "resolved"        # 已确定采纳最新权威口径

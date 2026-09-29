@@ -21,6 +21,10 @@ import os
 import subprocess
 from pathlib import Path
 
+# Directories skipped while assembling search candidates. A skip here costs
+# search recall only, so this list may be broader than a security sweep's.
+# ``core.security.path_pattern.PRUNED_DIR_NAMES`` is deliberately separate:
+# skipping a directory there would leave protected files uncovered.
 _DEFAULT_PRUNED_DIR_NAMES = frozenset(
     {
         ".git",

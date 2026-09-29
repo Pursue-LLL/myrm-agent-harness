@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from myrm_agent_harness.agent.security.config import (
     expand_capability_surface_permissions,
     parse_security_config,
@@ -18,7 +16,6 @@ from myrm_agent_harness.core.security.types import (
     DEFAULT_RULESET,
     CapabilitySurface,
     PermissionAction,
-    SecurityConfig,
 )
 
 
@@ -91,7 +88,7 @@ def test_parse_security_config_capability_matrix() -> None:
     assert sec_config is not None
 
     # Test evaluate_tool_call for knowledge_write (e.g. wiki_apply_tool)
-    action, reason = evaluate_tool_call(
+    action, _reason = evaluate_tool_call(
         permission="knowledge_write",
         tool_input={"title": "Notes", "content": "hello"},
         config=sec_config,
@@ -100,7 +97,7 @@ def test_parse_security_config_capability_matrix() -> None:
     assert action == PermissionAction.DENY
 
     # Test evaluate_tool_call for knowledge_read (e.g. wiki_query_tool)
-    action, reason = evaluate_tool_call(
+    action, _reason = evaluate_tool_call(
         permission="knowledge_read",
         tool_input={"query": "test query"},
         config=sec_config,
@@ -109,7 +106,7 @@ def test_parse_security_config_capability_matrix() -> None:
     assert action == PermissionAction.ALLOW
 
     # Test evaluate_tool_call for web_egress (e.g. net_fetch)
-    action, reason = evaluate_tool_call(
+    action, _reason = evaluate_tool_call(
         permission="net_fetch",
         tool_input={"url": "https://example.com/api"},
         config=sec_config,

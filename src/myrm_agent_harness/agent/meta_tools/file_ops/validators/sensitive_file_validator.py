@@ -5,6 +5,7 @@ Detects and warns about operations on sensitive files (credentials, keys, etc.).
 [INPUT]
 - agent.config::DEFAULT_FILE_IO_CONFIG, (POS: Configuration and type definitions for the Deep Research system. Pure data structures with no business logic dependencies.)
 - agent.security.path_security::SENSITIVE_FILE_PATTERNS (POS: Path security — single source of truth for dangerous paths and sensitive files.)
+- core.security.path_pattern::first_matching_pattern (POS: shared path-pattern matcher)
 
 [OUTPUT]
 - SensitiveFileValidator: Sensitive file validator
@@ -16,12 +17,11 @@ Sensitive file validator
 from __future__ import annotations
 
 import logging
-from fnmatch import fnmatch
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.agent.config import DEFAULT_FILE_IO_CONFIG, FileIOConfig
 from myrm_agent_harness.agent.security.path_security import SENSITIVE_FILE_PATTERNS
+from myrm_agent_harness.core.security.path_pattern import first_matching_pattern
 
 from ..core.operation_context import OperationType
 from .base import Validator
@@ -58,64 +58,9 @@ class SensitiveFileValidator(Validator):
         if path.startswith("/mcp/"):
             return
 
-        # Get file name and path for pattern matching
-        path_obj = Path(path)
-        file_name = path_obj.name
-        abs_path = str(path_obj.absolute())
-
-        # Check against sensitive file patterns
-        for pattern in SENSITIVE_FILE_PATTERNS:
-            if self._matches_pattern(abs_path, file_name, pattern):
-                self._handle_sensitive_file(context, path, pattern)
-                break
-
-    def _matches_pattern(self, abs_path: str, file_name: str, pattern: str) -> bool:
-        """Check if file matches sensitive pattern
-
-        Args:
-            abs_path: Absolute file path
-            file_name: File name
-            pattern: Glob pattern to match
-
-        Returns:
-            True if file matches pattern
-        """
-        # Match against full path with glob pattern
-        if fnmatch(abs_path, pattern):
-            return True
-
-        # Match against file name only (remove directory wildcards)
-        file_pattern = pattern.replace("**/", "")
-        if fnmatch(file_name, file_pattern):
-            return True
-
-        # Special handling for exact file name patterns (without wildcards)
-        # This handles cases like ".env" without matching "environment.txt"
-        pattern_cleaned = pattern.replace("**/", "").replace("**", "")
-
-        # Only do substring match if pattern doesn't contain wildcards
-        # and is a complete filename or extension
-        if "*" not in pattern_cleaned:
-            # Check if it's an exact filename match
-            if file_name == pattern_cleaned:
-                return True
-
-            # Check if it's in the path as a complete path component
-            # Use path separators to ensure we match complete components
-            path_components = abs_path.replace("\\", "/").split("/")
-            if pattern_cleaned in path_components:
-                return True
-
-            # Check for dotfile patterns (e.g., ".env" matches ".env.local")
-            # Ensure dotfile match is either exact or followed by a dot
-            if (
-                pattern_cleaned.startswith(".")
-                and file_name.startswith(pattern_cleaned)
-                and (len(file_name) == len(pattern_cleaned) or file_name[len(pattern_cleaned)] == ".")
-            ):
-                return True
-
-        return False
+        matched_pattern = first_matching_pattern(path, SENSITIVE_FILE_PATTERNS)
+        if matched_pattern is not None:
+            self._handle_sensitive_file(context, path, matched_pattern)
 
     def _handle_sensitive_file(self, context: OperationContext, path: str, matched_pattern: str) -> None:
         """Handle sensitive file access
@@ -142,7 +87,7 @@ class SensitiveFileValidator(Validator):
             raise PermissionError(
                 f"Access to sensitive file is blocked: {path}\n"
                 f"Matched pattern: {matched_pattern}\n"
-                f"This file may contain credentials or secrets."
+                f"Use another source for this information, or tell the user it is unavailable."
             )
 
         # Block on write operations (creating/modifying sensitive files)
@@ -154,5 +99,6 @@ class SensitiveFileValidator(Validator):
             raise PermissionError(
                 f"Access to sensitive file is blocked: {path}\n"
                 f"Matched pattern: {matched_pattern}\n"
-                f"Writing to sensitive files is strictly prohibited by security policies."
+                f"Do not route around this restriction. Continue without this file, "
+                f"or tell the user which file you could not write."
             )

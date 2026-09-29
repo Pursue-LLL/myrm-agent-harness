@@ -20,14 +20,14 @@ from __future__ import annotations
 
 import os
 import time
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, model_validator
 
 
-class DeliverableCategory(str, Enum):
+class DeliverableCategory(StrEnum):
     """交付物标准分类枚举"""
 
     STRATEGY = "strategy"  # 策略规划与方案全案
@@ -47,7 +47,7 @@ class DeliverableCategory(str, Enum):
     OTHER = "other"  # 其他通用成果物
 
 
-class DeliverableStatus(str, Enum):
+class DeliverableStatus(StrEnum):
     """Verification and distribution readiness status."""
 
     DRAFT = "draft"

@@ -95,9 +95,11 @@ async def consume_background_entry(
         # bypass the interval check so final state and milestones arrive with zero latency.
         is_terminal_progress = progress.get("progress") == 100
         has_checkpoint_category = bool(progress.get("category"))
-        if not (force or is_terminal_progress or has_checkpoint_category):
-            if (now - entry.last_progress_emit_at) < _PROGRESS_EMIT_INTERVAL_S:
-                return
+        if (
+            not (force or is_terminal_progress or has_checkpoint_category)
+            and (now - entry.last_progress_emit_at) < _PROGRESS_EMIT_INTERVAL_S
+        ):
+            return
 
         entry.last_progress_emit_at = now
         try:

@@ -15,6 +15,7 @@ module, ensuring a single set of definitions and consistent checks.
 - MAX_PATH_LENGTH: int — maximum allowed path length (4096 bytes)
 - is_content_not_path(value) -> bool — disambiguates multiline/oversized text from filesystem path
 - coerce_filesystem_path(value) -> Path | None — runtime path coercion; rejects unittest.mock objects and text content
+- (pattern matching delegated to path_pattern::first_matching_pattern)
 - is_dangerous_path(path) -> bool — unified check function
 - is_blocked_device_path(path) -> bool — pre-IO device path blocklist check
 - is_sensitive_file(path) -> bool — sensitive file check function
@@ -32,8 +33,31 @@ from __future__ import annotations
 import os
 import platform
 import stat
-from fnmatch import fnmatch
 from pathlib import Path
+
+from myrm_agent_harness.core.security.path_pattern import first_matching_pattern
+
+# Declared so the `agent.security.path_security` re-export shim forwards exactly
+# this API. Without it, `import *` would also republish this module's imports
+# (`os`, `Path`) and the raw matcher, inviting callers to reach for the matcher
+# instead of the predicates that carry the security policy.
+__all__ = (
+    "BLOCKED_DEVICE_NAMES",
+    "DANGEROUS_PATHS",
+    "EVIDENCE_READONLY_PATTERNS",
+    "MAX_PATH_LENGTH",
+    "PROTECTED_INSTRUCTION_PATTERNS",
+    "SENSITIVE_FILE_PATTERNS",
+    "coerce_filesystem_path",
+    "is_blocked_device_path",
+    "is_content_not_path",
+    "is_dangerous_path",
+    "is_evidence_readonly_file",
+    "is_protected_instruction_file",
+    "is_sensitive_file",
+    "is_within_boundary",
+    "safe_join_path",
+)
 
 # ---------------------------------------------------------------------------
 # Dangerous path roots (normalised at import time)
@@ -306,9 +330,7 @@ def is_content_not_path(value: object) -> bool:
         return True
     if "\n" in value or "\r" in value:
         return True
-    if "```" in value:
-        return True
-    return False
+    return "```" in value
 
 
 def _is_unittest_mock(value: object) -> bool:
@@ -417,23 +439,17 @@ def is_blocked_device_path(path: str) -> bool:
 
 
 def is_sensitive_file(path: str) -> bool:
-    """Check if *path* matches any sensitive file pattern."""
+    """Check if *path* matches any sensitive file pattern.
+
+    Matching ignores case: on the case-insensitive filesystems that host the
+    desktop and local-server builds (APFS, NTFS) ``Key.Pem`` and ``key.pem`` are
+    one and the same file, so a case-sensitive rule would let a credential be
+    renamed into a spelling the guard no longer recognises. Failing closed is
+    the only safe direction for a guard whose failure mode is secret exposure.
+    """
     if not path or not path.strip() or is_content_not_path(path):
         return False
-    try:
-        path_obj = Path(path)
-        abs_path = str(path_obj.absolute())
-        file_name = path_obj.name
-    except Exception:
-        return False
-
-    for pattern in SENSITIVE_FILE_PATTERNS:
-        if fnmatch(abs_path, pattern):
-            return True
-        file_pattern = pattern.replace("**/", "")
-        if fnmatch(file_name, file_pattern):
-            return True
-    return False
+    return first_matching_pattern(path, SENSITIVE_FILE_PATTERNS) is not None
 
 
 def is_protected_instruction_file(path: str) -> bool:
@@ -443,33 +459,21 @@ def is_protected_instruction_file(path: str) -> bool:
     of AI agents (e.g. AGENTS.md, SOUL.md, .cursorrules). Modifications to these files
     are high-risk persistence vectors for indirect prompt injection and MUST
     require human approval.
+
+    The symlink target is checked as well as the given path, so a harmless-looking
+    link cannot be used to rewrite an instruction file indirectly.
     """
     if not path or not str(path).strip() or is_content_not_path(path):
         return False
+    if first_matching_pattern(path, PROTECTED_INSTRUCTION_PATTERNS) is not None:
+        return True
     try:
-        path_obj = Path(path)
-        file_name_folded = path_obj.name.casefold()
-
-        try:
-            resolved_path = str(path_obj.resolve()).replace("\\", "/")
-        except Exception:
-            resolved_path = str(path_obj.absolute()).replace("\\", "/")
-
-        resolved_folded = resolved_path.casefold()
-
-        for pattern in PROTECTED_INSTRUCTION_PATTERNS:
-            pattern_folded = pattern.casefold()
-            if fnmatch(resolved_folded, pattern_folded):
-                return True
-            file_pattern = pattern_folded.replace("**/", "")
-            if fnmatch(file_name_folded, file_pattern):
-                return True
-            norm_relative = str(path_obj).replace("\\", "/").casefold()
-            if fnmatch(norm_relative, pattern_folded):
-                return True
-    except Exception:
+        resolved = str(Path(path).resolve())
+    except OSError:
         return False
-    return False
+    if resolved == path:
+        return False
+    return first_matching_pattern(resolved, PROTECTED_INSTRUCTION_PATTERNS) is not None
 
 
 def is_evidence_readonly_file(path: str) -> bool:
@@ -478,21 +482,13 @@ def is_evidence_readonly_file(path: str) -> bool:
     Evidence directories (e.g. `evidence/`, `user_inputs/`) store read-only raw factual
     sources pulled by tools or provided by users. The Agent must NOT overwrite or modify
     these raw materials during multi-step execution.
+
+    Matching ignores case for the same reason as :func:`is_sensitive_file`: on
+    case-insensitive filesystems ``Evidence/`` and ``evidence/`` denote one directory,
+    so a case-sensitive rule could be side-stepped by changing only the spelling.
     """
     if not path or not str(path).strip() or is_content_not_path(path):
         return False
-    try:
-        path_obj = Path(path)
-        abs_norm = str(path_obj.absolute()).replace("\\", "/")
-        norm_relative = str(path_obj).replace("\\", "/")
-
-        for pattern in EVIDENCE_READONLY_PATTERNS:
-            if fnmatch(abs_norm, pattern) or fnmatch(norm_relative, pattern):
-                return True
-            pattern_tail = pattern.replace("**/", "")
-            if fnmatch(norm_relative, pattern_tail) or fnmatch(path_obj.name, pattern_tail):
-                return True
-    except Exception:
-        return False
-    return False
+    normalised = str(path).replace("\\", "/")
+    return first_matching_pattern(normalised, EVIDENCE_READONLY_PATTERNS) is not None
 

@@ -290,7 +290,6 @@ class ActiveToolResultPruneProcessor(BaseProcessor):
         threshold_tokens: int = 2048,
         keep_recent_calls: int = 5,
         min_reclaim_tokens: int = 0,
-        proactive_prune_tokens: int = 0,
         enable_memory_fallback: bool = False,
         head_chars: int = 800,
         tail_chars: int = 400,
@@ -299,7 +298,6 @@ class ActiveToolResultPruneProcessor(BaseProcessor):
         self._threshold_tokens = max(threshold_tokens, 256)
         self._keep_recent_calls = max(keep_recent_calls, 0)
         self._min_reclaim_tokens = max(min_reclaim_tokens, 0)
-        self._proactive_prune_tokens = max(proactive_prune_tokens, 0)
         self._enable_memory_fallback = enable_memory_fallback
         self._head_chars = head_chars
         self._tail_chars = tail_chars
@@ -316,17 +314,7 @@ class ActiveToolResultPruneProcessor(BaseProcessor):
             return False
         if not context.metadata.get("enable_active_tool_prune", True):
             return False
-        if len(context.messages) < 4:
-            return False
-
-        if self._proactive_prune_tokens > 0 and not context.metadata.get("force_prune", False):
-            from myrm_agent_harness.utils.token_estimation import estimate_messages_tokens
-
-            total_tokens = estimate_messages_tokens(context.messages)
-            if total_tokens < self._proactive_prune_tokens:
-                return False
-
-        return True
+        return len(context.messages) >= 4
 
     async def process(self, context: ProcessorContext) -> ProcessorContext:
         messages = context.messages

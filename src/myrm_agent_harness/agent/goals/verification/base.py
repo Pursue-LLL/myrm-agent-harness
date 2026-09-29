@@ -18,14 +18,14 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import TYPE_CHECKING
+from enum import StrEnum
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from myrm_agent_harness.agent.goals.protocols import GoalProvider
 
 
-class ReviewSeverity(str, Enum):
+class ReviewSeverity(StrEnum):
     """Severity tier for verification review comments."""
 
     CRITICAL = "critical"  # Blocking failure: test crash, syntax error, missing required outcome

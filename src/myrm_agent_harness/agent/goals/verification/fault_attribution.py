@@ -17,10 +17,10 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 
-class FaultCategory(str, Enum):
+class FaultCategory(StrEnum):
     """Categorization of an execution or verification failure."""
 
     INFRA_ENVIRONMENT_FAILURE = "INFRA_ENVIRONMENT_FAILURE"

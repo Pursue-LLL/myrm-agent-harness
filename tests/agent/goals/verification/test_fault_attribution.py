@@ -29,7 +29,7 @@ def test_classify_fault_network_and_services():
         ("OSError: [Errno 48] Address already in use", "EADDRINUSE"),
         ("No space left on device", "ENOSPC"),
     ]
-    for text, expected in cases:
+    for text, _expected in cases:
         res = classify_fault(exit_code=1, stdout="", stderr=text)
         assert res.is_infra_fault is True, f"Failed for {text}"
         assert res.kind == FaultKind.INFRA_ENVIRONMENT_FAILURE

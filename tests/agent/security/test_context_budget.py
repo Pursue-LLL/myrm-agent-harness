@@ -9,8 +9,10 @@ import pytest
 
 from myrm_agent_harness.agent.security.guards.context_budget import (
     BudgetAction,
+    BudgetVerdict,
     ContextBudgetGuard,
     get_context_budget_guard,
+    set_context_budget_guard,
 )
 from myrm_agent_harness.core.context_vars import chat_id_var, workspace_root_var
 
@@ -239,3 +241,32 @@ class TestGetContextBudgetGuard:
         assert isinstance(guard, ContextBudgetGuard)
         v = guard.check_and_truncate("x" * 50, "probe")
         assert v.action == BudgetAction.OK
+
+    def test_set_guard_installs_custom_limits(self) -> None:
+        ctx = contextvars.copy_context()
+        custom = ContextBudgetGuard(max_result_chars=100_000, total_budget_tokens=200)
+
+        def _run_in_clean_context() -> BudgetVerdict:
+            set_context_budget_guard(custom)
+            assert get_context_budget_guard() is custom
+            for i in range(3):
+                custom.check_and_truncate("x" * 800, f"t{i}")
+            return custom.check_and_truncate("y" * 800, "probe")
+
+        verdict = ctx.run(_run_in_clean_context)
+        # The installed guard's own budget must drive the predictive layer, so a
+        # result that would blow past 200 tokens is cut down instead of passing.
+        assert verdict.action == BudgetAction.TRUNCATED
+        assert len(verdict.content) < 800
+        assert custom.budget_used_pct > 1.0
+
+
+class TestDegenerateBudget:
+    def test_non_positive_total_budget_reports_exhausted(self) -> None:
+        g = ContextBudgetGuard(total_budget_tokens=0)
+        assert g.budget_used_pct == 1.0
+
+    def test_reset_restarts_a_degenerate_budget(self) -> None:
+        g = ContextBudgetGuard(total_budget_tokens=0)
+        g.reset()
+        assert g.budget_used_pct == 1.0

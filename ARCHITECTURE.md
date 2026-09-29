@@ -116,7 +116,7 @@ Myrm Agent Harness 是一个**GUI-first 通用 AI 工作助手运行时框架**�
 
 | 概念 | 目录 | 职责 |
 |------|------|------|
-| **Security** | `core/security/` | 框架无关安全原语（path policy、redact、tool registry、detection/guards、credential vault） |
+| **Security** | `core/security/` | 框架无关安全原语（path policy、path pattern matching、redact、tool registry、detection/guards、credential vault） |
 | | `agent/security/` | Agent 安全引擎（HITL、rate limiter、transcript classifier）；多数模块 re-export `core/security/` |
 | | `infra/security/` | 基础设施层安全辅助（与 delivery/locks 协同） |
 | **Pub/Sub** | `infra/pubsub/` | Server 业务 SSE pub-sub（`PubSubBus`） |

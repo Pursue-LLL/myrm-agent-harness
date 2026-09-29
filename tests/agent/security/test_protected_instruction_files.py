@@ -204,7 +204,7 @@ class TestBatchProcessorAllowlistAndExemptionGuards:
             }
         ]
 
-        approved, denied, pending = await evaluate_tool_batch(
+        _approved, _denied, pending = await evaluate_tool_batch(
             tool_calls=tool_calls,
             config=config,
             is_cron=False,
@@ -214,7 +214,7 @@ class TestBatchProcessorAllowlistAndExemptionGuards:
         )
 
         assert len(pending) == 1
-        idx, call, perm_type, reason, extra_ctx = pending[0]
+        _idx, _call, _perm_type, _reason, extra_ctx = pending[0]
         assert extra_ctx is not None
         assert extra_ctx.get("protected_instruction") is True
         assert extra_ctx.get("hide_allow_always") is True
