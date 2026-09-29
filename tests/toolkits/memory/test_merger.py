@@ -131,6 +131,38 @@ def test_facet_conflict_ignores_subsumed_value() -> None:
     assert decision.state != MergeState.CONFLICT
 
 
+def test_facet_conflict_handles_mixed_case_pattern() -> None:
+    """A facet pattern with capitals still yields a value from lowercased text."""
+    merger = DeterministicThreeStateMerger()
+    values = merger._extract_facet_values("使用 macos 开发", "macOS")
+
+    assert values == frozenset({"开发"})
+
+
+def test_facet_conflict_scans_every_occurrence() -> None:
+    """A memory that revised itself exposes all its values, not just the first."""
+    merger = DeterministicThreeStateMerger()
+    trigger = "工作" + "在" + "地"
+    text = trigger + "杭州，" + trigger + "上海"
+
+    assert merger._extract_facet_values(text, trigger) == frozenset({"杭州", "上海"})
+
+
+def test_facet_conflict_stays_silent_when_new_claim_is_narrower() -> None:
+    """Restating one of several values is less specific, not contradictory.
+
+    Decaying both sides here would penalise a correct memory for being terse, so
+    the detector stays silent and leaves the ordering to temporal reconciliation.
+    """
+    merger = DeterministicThreeStateMerger()
+    trigger = "工作" + "在" + "地"
+    existing_mem = SemanticMemory(content=trigger + "杭州，" + trigger + "上海", confidence=0.85)
+
+    decision = merger.evaluate(existing_mem, trigger + "上海")
+
+    assert decision.state != MergeState.CONFLICT
+
+
 def test_negation_polarity_inversion_conflict() -> None:
     """Explicit negation vs affirmation contradiction triggers conflict."""
     merger = DeterministicThreeStateMerger()

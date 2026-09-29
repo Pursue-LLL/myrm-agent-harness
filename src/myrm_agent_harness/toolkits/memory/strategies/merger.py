@@ -306,23 +306,44 @@ class DeterministicThreeStateMerger:
         norm_b = re.sub(r"[\s\W_]+", "", b.lower(), flags=re.UNICODE)
         return norm_a == norm_b
 
-    def _extract_facet_value(self, lower_text: str, trigger: str) -> str:
-        """Return the token that follows ``trigger`` in ``lower_text``.
+    def _extract_facet_values(self, lower_text: str, trigger: str) -> frozenset[str]:
+        """Return every distinct value asserted for ``trigger`` in ``lower_text``.
 
-        Empty when the trigger ends the text or is immediately followed by a
-        terminator, because a trigger with no value asserts nothing to conflict
-        with. Capped so a run-on clause cannot masquerade as a facet value.
+        All occurrences are collected because one memory can revise itself
+        ("工作地在杭州，之前工作地在上海"). A trigger followed by nothing, or by a
+        terminator, yields no value: it asserts nothing to conflict with. The
+        length cap keeps a run-on clause from masquerading as a value.
         """
-        start = lower_text.find(trigger)
-        if start < 0:
-            return ""
-        tail = lower_text[start + len(trigger) :].lstrip(" \t")
-        value: list[str] = []
-        for char in tail:
-            if char in self._FACET_VALUE_TERMINATORS or len(value) >= self._FACET_VALUE_MAX_LEN:
-                break
-            value.append(char)
-        return "".join(value)
+        needle = trigger.lower()
+        values: set[str] = set()
+        cursor = 0
+        while (index := lower_text.find(needle, cursor)) >= 0:
+            cursor = index + len(needle)
+            tail = lower_text[cursor:].lstrip(" \t")
+            value: list[str] = []
+            for char in tail:
+                if char in self._FACET_VALUE_TERMINATORS or len(value) >= self._FACET_VALUE_MAX_LEN:
+                    break
+                value.append(char)
+            if value:
+                values.add("".join(value))
+        return frozenset(values)
+
+    @staticmethod
+    def _values_disagree(values_a: frozenset[str], values_b: frozenset[str]) -> bool:
+        """Whether two assertion sets contradict rather than merely differ in detail.
+
+        Any pair where one value contains the other is the same choice stated more
+        precisely ("北京" vs "北京市海淀区"), so a shared containment pair means
+        there is nothing to contradict.
+        """
+        if not values_a or not values_b:
+            return False
+        for value_a in values_a:
+            for value_b in values_b:
+                if value_a == value_b or value_a in value_b or value_b in value_a:
+                    return False
+        return True
 
     def _detect_facet_conflict(self, a: str, b: str) -> str | None:
         """Detect if both texts assert different values for the same facet."""
@@ -340,9 +361,10 @@ class DeterministicThreeStateMerger:
             # ("北京" vs "北京市海淀区"), not a contradiction — treating it as one
             # would decay two memories that actually agree.
             for trigger in matched_a:
-                value_a = self._extract_facet_value(lower_a, trigger)
-                value_b = self._extract_facet_value(lower_b, trigger)
-                if value_a and value_b and value_a != value_b and value_a not in value_b and value_b not in value_a:
+                if self._values_disagree(
+                    self._extract_facet_values(lower_a, trigger),
+                    self._extract_facet_values(lower_b, trigger),
+                ):
                     return facet
         return None
 
