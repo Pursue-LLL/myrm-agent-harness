@@ -108,6 +108,18 @@ _VECTOR_SEARCH_LIMIT = 5
 _LLM_CANDIDATES_LIMIT = 3
 _HISTORY_SUMMARY_LENGTH = 30
 
+# Key the forgetting pass reads to hold a contested memory until a human settles it
+# (``strategies/forgetting.py`` checks this before applying any retention cut).
+_CONTESTED_KEY = "conflict_status"
+_CONTESTED_VALUE = "conflicted"
+
+
+def _mark_contested(memory: DeduplicatableMemory) -> None:
+    """Flag a memory as contested so retention leaves the decision to a human."""
+    metadata = getattr(memory, "metadata", None)
+    if isinstance(metadata, dict):
+        metadata[_CONTESTED_KEY] = _CONTESTED_VALUE
+
 
 class DeduplicationDecision(StrEnum):
     """LLM deduplication decision types."""
@@ -502,6 +514,11 @@ class SmartDeduplicator:
                 if facet != "semantic_ambiguity":
                     # Deterministic facet/polarity conflict (location, polarity,
                     # single-value exclusivity) — no LLM needed: keep both as NEW.
+                    # Marking both sides contested is what makes the forgetting pass
+                    # hold them until a human settles the dispute; without it the
+                    # decayed record of a rejected option can expire on its own.
+                    _mark_contested(mem)
+                    _mark_contested(new_memory)
                     return (DeduplicationDecision.NEW, None)
                 # Generic semantic ambiguity: defer to the Layer-3 LLM judge.
                 continue
@@ -614,7 +631,9 @@ class SmartDeduplicator:
 
             # CRITICAL: User Override Wins - Never allow automated LLM deduplication to overwrite human edits
             if getattr(existing, "is_user_protected", False) or getattr(existing, "source", "") == "user":
-                logger.info("Deduplicator: preserved user-locked memory %s, creating NEW instead of overwrite", target_id)
+                logger.info(
+                    "Deduplicator: preserved user-locked memory %s, creating NEW instead of overwrite", target_id
+                )
                 return new_memory
 
             existing_ns = set(existing.scope.namespaces)
@@ -635,6 +654,7 @@ class SmartDeduplicator:
                 from myrm_agent_harness.toolkits.memory.strategies.conflict_merger import (
                     merge_evidence_references,
                 )
+
                 existing.evidence = merge_evidence_references(
                     getattr(existing, "evidence", None),
                     getattr(new_memory, "evidence", None),
