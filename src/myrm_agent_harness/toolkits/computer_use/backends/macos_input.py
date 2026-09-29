@@ -20,6 +20,7 @@ macOS 输入原语。仅被 backends/macos.py 引用，随 computer-use extra �
 
 from __future__ import annotations
 
+import contextvars
 import time
 from typing import NamedTuple
 
@@ -182,29 +183,31 @@ class _Point(NamedTuple):
 
 
 # 后台定向投递目标（unix pid）。None = 全局 HID 投递（默认行为，不变）。
-# 由上层（target scope 交互路径）在操作前后成对设置/清除；本模块不做线程同步，
-# 调用方持有 session 级 _action_lock pager 串行保证。
-_input_target_pid: int | None = None
+# 由上层（target scope 交互路径）在操作前后成对设置/清除。任务级隔离：
+# ContextVar 保证同进程并发任务互不污染；asyncio.to_thread 会传播调用方
+# 上下文，因此后台线程投递同样读到正确的目标。
+_input_target_pid: contextvars.ContextVar[int | None] = contextvars.ContextVar(
+    "macos_input_target_pid", default=None
+)
 
 
 def set_input_target(pid: int | None) -> None:
     """设置后台定向投递目标；None 恢复全局 HID 投递。"""
-    global _input_target_pid
-    _input_target_pid = pid if pid and pid > 0 else None
+    _input_target_pid.set(pid if pid and pid > 0 else None)
 
 
 def clear_input_target() -> None:
     """清除定向目标，恢复全局 HID 投递。"""
-    global _input_target_pid
-    _input_target_pid = None
+    _input_target_pid.set(None)
 
 
 def _post_event(event: object) -> None:
     """单投递点：有目标则 CGEventPostToPid 直投，否则全局 HID。"""
-    if _input_target_pid is not None:
+    target_pid = _input_target_pid.get()
+    if target_pid is not None:
         from Quartz import CGEventPostToPid
 
-        CGEventPostToPid(_input_target_pid, event)
+        CGEventPostToPid(target_pid, event)
         return
     from Quartz import CGEventPost, kCGHIDEventTap
 

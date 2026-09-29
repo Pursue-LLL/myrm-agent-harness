@@ -162,12 +162,10 @@ class TestCaptureWindowPng:
         async def _run() -> bytes:
             with patch(
                 "asyncio.create_subprocess_exec", return_value=proc
-            ):
-                with patch(
-                    "pathlib.Path.read_bytes", return_value=b"PNG"
-                ):
-                    with patch("pathlib.Path.unlink"):
-                        return await _capture_window_png(11)
+            ), patch(
+                "pathlib.Path.read_bytes", return_value=b"PNG"
+            ), patch("pathlib.Path.unlink"):
+                return await _capture_window_png(11)
 
         assert asyncio.get_event_loop().run_until_complete(_run()) == b"PNG"
 
@@ -183,9 +181,8 @@ class TestCaptureWindowPng:
         proc.returncode = 1
 
         async def _run() -> None:
-            with patch("asyncio.create_subprocess_exec", return_value=proc):
-                with patch("pathlib.Path.unlink"):
-                    await _capture_window_png(11)
+            with patch("asyncio.create_subprocess_exec", return_value=proc), patch("pathlib.Path.unlink"):
+                await _capture_window_png(11)
 
         with pytest.raises(RuntimeError, match="window capture failed"):
             asyncio.get_event_loop().run_until_complete(_run())
@@ -454,7 +451,7 @@ class TestHealerBackgroundRouting:
         ):
             result = self._run_click(session)
         assert result.success is True
-        assert macos_input_mod._input_target_pid is None
+        assert macos_input_mod._input_target_pid.get() is None
 
     def test_focus_leak_reports_failure(self) -> None:
         session = self._session(pid=200)
@@ -473,7 +470,7 @@ class TestHealerBackgroundRouting:
             result = self._run_click(session)
         assert result.success is False
         assert "Foreground app changed" in (result.error or "")
-        assert macos_input_mod._input_target_pid is None
+        assert macos_input_mod._input_target_pid.get() is None
 
     def test_denied_post_events_returns_honest_error(self) -> None:
         session = self._session(pid=200)
