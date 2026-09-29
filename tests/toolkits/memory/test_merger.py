@@ -98,6 +98,39 @@ def test_facet_conflict_runtime_detected() -> None:
     assert decision.conflict_item.facet == "runtime"
 
 
+def test_facet_conflict_same_trigger_different_value() -> None:
+    """A bare trigger on both sides still conflicts when only the value changes."""
+    merger = DeterministicThreeStateMerger()
+    existing_mem = SemanticMemory(content="用户工作地在杭州", confidence=0.85)
+
+    decision = merger.evaluate(existing_mem, "用户工作地在上海")
+
+    assert decision.state == MergeState.CONFLICT
+    assert decision.conflict_item is not None
+    assert decision.conflict_item.facet == "location"
+    assert decision.updated_confidence == 0.35
+
+
+def test_facet_conflict_ignores_identical_value() -> None:
+    """Restating the same value must not be treated as a contradiction."""
+    merger = DeterministicThreeStateMerger()
+    existing_mem = SemanticMemory(content="用户工作地在杭州", confidence=0.85)
+
+    decision = merger.evaluate(existing_mem, "用户工作地在杭州")
+
+    assert decision.state != MergeState.CONFLICT
+
+
+def test_facet_conflict_ignores_subsumed_value() -> None:
+    """A more specific phrasing of the same value is not a contradiction."""
+    merger = DeterministicThreeStateMerger()
+    existing_mem = SemanticMemory(content="用户位于北京", confidence=0.85)
+
+    decision = merger.evaluate(existing_mem, "用户位于北京市海淀区")
+
+    assert decision.state != MergeState.CONFLICT
+
+
 def test_negation_polarity_inversion_conflict() -> None:
     """Explicit negation vs affirmation contradiction triggers conflict."""
     merger = DeterministicThreeStateMerger()

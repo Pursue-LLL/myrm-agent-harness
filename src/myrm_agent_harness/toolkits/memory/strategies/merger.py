@@ -125,9 +125,31 @@ class DeterministicThreeStateMerger:
     }
 
     _NEGATION_MARKERS: ClassVar[set[str]] = {
-        "不", "禁止", "严禁", "切勿", "不要", "禁用", "放弃", "不再", "停止",
-        "never", "no", "not", "disable", "prohibit", "stop", "avoid",
+        "不",
+        "禁止",
+        "严禁",
+        "切勿",
+        "不要",
+        "禁用",
+        "放弃",
+        "不再",
+        "停止",
+        "never",
+        "no",
+        "not",
+        "disable",
+        "prohibit",
+        "stop",
+        "avoid",
     }
+
+    # Facet patterns come in two shapes: some bake the value in ("用 uv"), others are
+    # bare triggers ("住在"). Comparing patterns alone only detects the first shape, so
+    # the value that follows a trigger is extracted separately to cover the second.
+    _FACET_VALUE_MAX_LEN: ClassVar[int] = 12
+    _FACET_VALUE_TERMINATORS: ClassVar[frozenset[str]] = frozenset(
+        " \t\r\n，。、；：！？,.;:!?\"'“”‘’()（）【】[]{}<>《》/\\|~`@#$%^&*+=_-"
+    )
 
     def __init__(self, confidence_engine: type[ConfidenceEvolutionEngine] | None = None) -> None:
         self._engine = confidence_engine or ConfidenceEvolutionEngine
@@ -284,15 +306,44 @@ class DeterministicThreeStateMerger:
         norm_b = re.sub(r"[\s\W_]+", "", b.lower(), flags=re.UNICODE)
         return norm_a == norm_b
 
+    def _extract_facet_value(self, lower_text: str, trigger: str) -> str:
+        """Return the token that follows ``trigger`` in ``lower_text``.
+
+        Empty when the trigger ends the text or is immediately followed by a
+        terminator, because a trigger with no value asserts nothing to conflict
+        with. Capped so a run-on clause cannot masquerade as a facet value.
+        """
+        start = lower_text.find(trigger)
+        if start < 0:
+            return ""
+        tail = lower_text[start + len(trigger) :].lstrip(" \t")
+        value: list[str] = []
+        for char in tail:
+            if char in self._FACET_VALUE_TERMINATORS or len(value) >= self._FACET_VALUE_MAX_LEN:
+                break
+            value.append(char)
+        return "".join(value)
+
     def _detect_facet_conflict(self, a: str, b: str) -> str | None:
-        """Detect if both texts reference mutually exclusive values in a known facet."""
+        """Detect if both texts assert different values for the same facet."""
         lower_a = a.lower()
         lower_b = b.lower()
         for facet, patterns in self._MUTUALLY_EXCLUSIVE_FACETS.items():
             matched_a = [p for p in patterns if p.lower() in lower_a]
             matched_b = [p for p in patterns if p.lower() in lower_b]
-            if matched_a and matched_b and set(matched_a) != set(matched_b):
+            if not matched_a or not matched_b:
+                continue
+            if set(matched_a) != set(matched_b):
                 return facet
+            # Same trigger on both sides: only the value can differ. A value that
+            # contains the other is a more specific phrasing of the same choice
+            # ("北京" vs "北京市海淀区"), not a contradiction — treating it as one
+            # would decay two memories that actually agree.
+            for trigger in matched_a:
+                value_a = self._extract_facet_value(lower_a, trigger)
+                value_b = self._extract_facet_value(lower_b, trigger)
+                if value_a and value_b and value_a != value_b and value_a not in value_b and value_b not in value_a:
+                    return facet
         return None
 
     def _detect_negation_inversion(self, a: str, b: str) -> bool:
