@@ -51,6 +51,7 @@ import asyncio
 import json
 import logging
 from collections import OrderedDict
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -460,7 +461,7 @@ class SmartDeduplicator:
     async def _llm_judge(
         self,
         new_memory: DeduplicatableMemory,
-        candidates: list[object],
+        candidates: Sequence[object],
         vector: VectorStoreProtocol,
         config: MemoryConfig,
     ) -> tuple[DeduplicationDecision, str | None]:
@@ -519,6 +520,20 @@ class SmartDeduplicator:
                     # decayed record of a rejected option can expire on its own.
                     _mark_contested(mem)
                     _mark_contested(new_memory)
+                    # `mem` is rebuilt from the search hit on every call, so marking
+                    # it alone is discarded. The stored document has to be written
+                    # back or the retention pass never sees the older record as
+                    # contested, which is the one record that decays toward expiry.
+                    result.document.metadata = {
+                        **result.document.metadata,
+                        _CONTESTED_KEY: _CONTESTED_VALUE,
+                    }
+                    collection = (
+                        config.semantic_collection
+                        if isinstance(new_memory, SemanticMemory)
+                        else config.episodic_collection
+                    )
+                    await vector.upsert(collection, [result.document])
                     return (DeduplicationDecision.NEW, None)
                 # Generic semantic ambiguity: defer to the Layer-3 LLM judge.
                 continue

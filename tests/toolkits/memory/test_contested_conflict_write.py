@@ -127,3 +127,44 @@ async def test_agreeing_statement_is_not_marked_contested() -> None:
     )
 
     assert "conflict_status" not in restated.metadata
+
+
+@pytest.mark.asyncio
+async def test_stored_side_of_a_conflict_is_persisted_as_contested() -> None:
+    """The rejected record is the one that decays, so its flag must reach the store.
+
+    The stored memory is rebuilt from the search hit on every call, so flagging
+    the in-memory copy proves nothing: only a write-back protects the older record
+    from the retention pass.
+    """
+    now = datetime.now(UTC)
+    stored = VectorDocument(
+        id="mem_redis",
+        content="项目缓存使用 Redis，因为性能好",
+        vector=[0.5] * 768,
+        created_at=now,
+        updated_at=now,
+        metadata={"created_at": now.isoformat(), "updated_at": now.isoformat(), "language": "zh"},
+    )
+    vector = AsyncMock()
+    vector.search = AsyncMock(
+        return_value=[VectorSearchResult(document=stored, score=0.83)],
+    )
+    vector.upsert = AsyncMock(return_value=[stored.id])
+
+    incoming = SemanticMemory(content="项目缓存不再使用 Redis，改用 Memcached，因为运维更熟", confidence=0.9)
+    kept = await SmartDeduplicator(AsyncMock()).deduplicate_batch(
+        [incoming],
+        vector=vector,
+        embedding=_embedding(),
+        memory_config=MemoryConfig(embedding_model="test-model"),
+        cache=None,
+    )
+
+    assert kept[0].metadata.get("conflict_status") == "conflicted"
+    vector.upsert.assert_awaited_once()
+    collection, written = vector.upsert.await_args.args
+    assert written[0].id == stored.id
+    assert written[0].content == stored.content, "the rejected record keeps its content"
+    assert written[0].metadata["conflict_status"] == "conflicted"
+    assert isinstance(collection, str) and collection
