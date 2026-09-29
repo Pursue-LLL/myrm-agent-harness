@@ -14,7 +14,7 @@ import pytest
 from myrm_agent_harness.toolkits.memory.config import MemoryConfig
 from myrm_agent_harness.toolkits.memory.protocols.vector import VectorDocument, VectorSearchResult
 from myrm_agent_harness.toolkits.memory.strategies.deduplicator import SmartDeduplicator
-from myrm_agent_harness.toolkits.memory.types import SemanticMemory
+from myrm_agent_harness.toolkits.memory.types import MemoryType, SemanticMemory
 
 REJECTED = "项目缓存使用 Redis"
 CHOSEN = "项目缓存改用 Memcached"
@@ -213,3 +213,35 @@ async def test_a_reversal_written_as_a_reason_is_not_a_duplicate(stored_text: st
     written = vector.upsert.await_args.args[1][0]
     assert written.metadata.get("conflict_status") == "conflicted"
     assert written.content == stored.content, "the withdrawn record keeps its content for review"
+
+
+@pytest.mark.asyncio
+async def test_recall_still_serves_records_that_were_never_withdrawn() -> None:
+    """Only a stated replacement retires a record; everything else stays recallable.
+
+    The retire flag is what recall keys on, so a false positive here would silently
+    hide a preference the user never gave up.
+    """
+    from myrm_agent_harness.toolkits.memory._internal.search_service import (
+        MemorySearchService,
+    )
+    from myrm_agent_harness.toolkits.memory.types import MemorySearchResult
+
+    def _hit(memory_id: str, metadata: dict[str, object]) -> MemorySearchResult:
+        return MemorySearchResult(
+            memory=SemanticMemory(id=memory_id, content=memory_id, metadata=metadata),
+            score=0.9,
+            memory_type=MemoryType.SEMANTIC,
+        )
+
+    kept = MemorySearchService._filter_results(
+        [
+            _hit("plain", {}),
+            _hit("other_project", {"project": "billing"}),
+            _hit("kept_contested", {"conflict_status": "conflicted"}),
+        ]
+    )
+    assert [r.memory.id for r in kept] == ["plain", "other_project", "kept_contested"]
+
+    dropped = MemorySearchService._filter_results([_hit("withdrawn", {"superseded": True})])
+    assert dropped == []
