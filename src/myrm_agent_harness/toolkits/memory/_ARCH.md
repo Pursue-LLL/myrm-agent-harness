@@ -46,16 +46,14 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | text_utils.py            | Core     | Unified multi-language tokenization for memory retrieval. Uses re.UNICODE                                     | ✅    |
 | tool_capture.py          | Core     | Tool-scoped memory capture hook. Detects user edicts and repeated tool failures, auto-creates procedural rules. | ✅    |
 | tool_guidance.py         | Facade   | Facade re-exporting types and synthesis engine from `tool_guidance` domain subpackage.                         | ✅    |
-
 | memory_search_policy.py   | Facade   | Facade re-exporting memory_search_policy from agent_surface for harness surface.                               | —    |
 
 | Submodule   | Description                                                                       |
 |-------------|-----------------------------------------------------------------------------------|
 | `tool_guidance` | Tool memory procedural contract & deterministic synthesis subpackage.          |
-| ----------- | --------------------------------------------------------------------------------- |
 | agent_surface/ | Agent-visible I/O: tools, MCP, recall sanitize SSOT, citations, corpus policy, wiki boundary. See [agent_surface/_ARCH.md](agent_surface/_ARCH.md). |
-| \_manager/  | Composable ``MemoryManager`` implementation modules.                               |
-| \_internal/ | Internal implementation details — not part of the public API.                     |
+| _manager/  | Composable ``MemoryManager`` implementation modules.                               |
+| _internal/ | Internal implementation details — not part of the public API.                     |
 | cognitive/  | Cognitive memory consolidation layer.                                             |
 | conversation_search/ | Protocol-backed conversation recall tool, source refs, scope/lineage DTOs, **expand_message_id window**, format `message_id`, MemoryManager provider. |
 | graph/      | Graph Store — async graph storage with SQLite CTE backend.                        |
