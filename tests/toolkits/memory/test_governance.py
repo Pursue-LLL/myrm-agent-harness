@@ -328,11 +328,19 @@ async def test_dynamic_context_assembler_with_graph_and_truncation(tmp_path: Pat
     db_path = str(tmp_path / "assembler_graph.db")
     store = SQLiteGraphStore(db_path)
 
+    # `aiosqlite` pins a non-daemon worker thread per connection, so a store left
+    # open here outlives the test loop and raises "Event loop is closed" from a
+    # stray thread that pytest charges to an unrelated test.
+    try:
+        await _assert_assembler_graph_section(store, tmp_path)
+    finally:
+        await store.close()
+
+
+async def _assert_assembler_graph_section(store: SQLiteGraphStore, tmp_path: Path) -> None:
     node_a = await store.create_node(["Entity"], {"name": "Alpha"})
     node_b = await store.create_node(["Entity"], {"name": "Beta"})
-    await store.create_relationship(
-        start_id=node_a.id, end_id=node_b.id, rel_type="CONNECTS"
-    )
+    await store.create_relationship(start_id=node_a.id, end_id=node_b.id, rel_type="CONNECTS")
 
     bridge = EntityGraphBridge(graph_store=store)
     # Give plenty of budget
@@ -361,7 +369,13 @@ async def test_entity_graph_bridge_isolated_nodes_and_error(tmp_path: Path) -> N
     """Test graph bridge fallback when no relationships exist and error handling."""
     db_path = str(tmp_path / "isolated_graph.db")
     store = SQLiteGraphStore(db_path)
+    try:
+        await _assert_entity_graph_bridge(store)
+    finally:
+        await store.close()
 
+
+async def _assert_entity_graph_bridge(store: SQLiteGraphStore) -> None:
     await store.create_node(["Isolated"], {"name": "Solo"})
     bridge = EntityGraphBridge(graph_store=store)
 
@@ -375,4 +389,3 @@ async def test_entity_graph_bridge_isolated_nodes_and_error(tmp_path: Path) -> N
     # Direct query node fallback
     text2 = await bridge.get_bounded_subgraph_text(seed_entity_names=["Solo", "NonExistent"])
     assert "Solo (Isolated)" in text2
-

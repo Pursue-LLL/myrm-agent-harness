@@ -454,8 +454,11 @@ async def test_get_stats_aggregates_labels_and_rel_types(store: SQLiteGraphStore
 async def test_connection_error_raises_graph_connection_error(tmp_path: Path) -> None:
     store = SQLiteGraphStore(str(tmp_path / "valid.db"))
     store._db_path = Path("/dev/null/not_a_dir/test.db")
-    with pytest.raises(GraphConnectionError):
-        await store.create_node(["Claim"], {})
+    try:
+        with pytest.raises(GraphConnectionError):
+            await store.create_node(["Claim"], {})
+    finally:
+        await store.close()
 
 
 @pytest.mark.asyncio
@@ -488,7 +491,7 @@ async def test_list_nodes_and_relationships_pagination(store: SQLiteGraphStore) 
     for i in range(5):
         await store.create_node(["Claim"], {"id": f"pg_n{i}"})
     for i in range(4):
-        await store.create_relationship(f"pg_n{i}", f"pg_n{i+1}", "LINK")
+        await store.create_relationship(f"pg_n{i}", f"pg_n{i + 1}", "LINK")
 
     nodes_page = await store.list_nodes(limit=2, offset=1)
     assert len(nodes_page) == 2
