@@ -1169,6 +1169,12 @@ rating_new = rating_old + alpha * (normalized - rating_old)
 - **全链路展示与交互认知一致性**：
   - Server 端接口契约 `MemoryItem` 与变更请求模型支持 `is_exact_fact` 属性透传；
   - 前端 `MemoryCard.tsx` 与 `EvidenceDrawer.tsx` 支持视觉识别蓝底硬锁徽章，呈现提取到的确切事实符号。
+- **决策反转治理（撤回的决策不再被重复回答）**：
+  - 核心位置：`strategies/merger.py`（`DeterministicThreeStateMerger`）与 `strategies/deduplicator.py`；
+  - **硬事实约束优先于语义相似度**：同一主体上对某 facet 给出互斥取值时，判定冲突并保留双方，绝不按「看起来像」把新陈述当成对旧记忆的更新覆盖——否则一句「改用 Memcached 的原因是运维更熟」会静默抹掉用户刚撤回的 Redis 决策；
+  - **替换标记按方向解析**：切换型标记（`改用`/`switched to`）取其**后**的取值，排除型标记（`而非`/`rather than`）取其**前**的取值，两者都把一句话归约到唯一存活选项；「是否发生替换」由标记是否触发判定，而非比较两个本就相等的取值集；
+  - **争议冻结**：`conflict_status=conflicted` 写回已存记录，使遗忘通道在人工裁决前保留双方；
+  - **撤回退役**：确认由替换产生时标记 `superseded`，排序召回路径不再返回该记录；存储、衰减与治理列表不受影响，记录仍可审计、仍会衰减。
 - **自愈式装配与单机开箱即用**：
   - `MemoryManager` 核心构造层与 `setup_local_memory` 启动工厂原生内聚自愈装配逻辑，在未显式传递 `fts5_searcher` 时自动检测并挂载 `relational_store.search_fts5` 通道，保障单机本地、Tauri 桌面端与云端沙箱三种部署形态下精确事实双轨召回通道 100% 畅通。
 
