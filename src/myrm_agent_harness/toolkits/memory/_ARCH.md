@@ -46,7 +46,6 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | text_utils.py            | Core     | Unified multi-language tokenization for memory retrieval. Uses re.UNICODE                                     | ✅    |
 | tool_capture.py          | Core     | Tool-scoped memory capture hook. Detects user edicts and repeated tool failures, auto-creates procedural rules. | ✅    |
 | tool_guidance.py         | Facade   | Facade re-exporting types and synthesis engine from `tool_guidance` domain subpackage.                         | ✅    |
-| mcp_server.py            | Facade   | Facade re-exporting memory mcp_server from agent_surface for harness surface.                                  | —    |
 
 | memory_search_policy.py   | Facade   | Facade re-exporting memory_search_policy from agent_surface for harness surface.                               | —    |
 
