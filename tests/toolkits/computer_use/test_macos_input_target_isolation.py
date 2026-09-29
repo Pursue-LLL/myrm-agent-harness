@@ -57,3 +57,24 @@ async def test_interleaved_targets_stay_isolated(
     # B 一次直投 222；A 在 B 完整执行后仍直投 111（全局实现下 A 会走 HID）。
     assert pid_calls == [222, 111], f"target pid leaked across tasks: {pid_calls}"
     quartz_stub.CGEventPost.assert_not_called()
+
+
+async def test_target_propagates_to_worker_thread(
+    quartz_stub: MagicMock,
+) -> None:
+    """asyncio.to_thread 传播调用方上下文，后台线程投递同样直投目标。
+
+    MacOSBackend.click/type_text 经 to_thread 投递，此用例覆盖该真实路径。
+    """
+    import asyncio
+
+    macos_input_mod.clear_input_target()
+    quartz_stub.reset_mock()
+    macos_input_mod.set_input_target(333)
+    try:
+        await asyncio.to_thread(macos_input_mod._post_event, object())
+    finally:
+        macos_input_mod.clear_input_target()
+    quartz_stub.CGEventPostToPid.assert_called_once()
+    assert quartz_stub.CGEventPostToPid.call_args[0][0] == 333
+    quartz_stub.CGEventPost.assert_not_called()
