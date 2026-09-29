@@ -358,6 +358,11 @@ class HotColdMirrorEngine:
         self._closed = True
         if self._debounce_task is not None and not self._debounce_task.done():
             self._debounce_task.cancel()
+            # The debounce task can be parked inside aiosqlite's worker thread, and
+            # closing the connection out from under it leaves that thread with a dead
+            # loop. Draining the cancellation first is what makes close deterministic.
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._debounce_task
         await self.flush()
         if self._connection is not None:
             await self._connection.close()

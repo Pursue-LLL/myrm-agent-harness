@@ -8,7 +8,9 @@ Uses real API credentials loaded from .env.test:
 
 from __future__ import annotations
 
+import inspect
 import os
+from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pytest
@@ -23,12 +25,7 @@ from myrm_agent_harness.toolkits.memory.working_tree import (
     FastContradictionDetector,
 )
 
-_ENV_TEST = (
-    Path(__file__).resolve().parents[4]
-    / "myrm-agent"
-    / "myrm-agent-server"
-    / ".env.test"
-)
+_ENV_TEST = Path(__file__).resolve().parents[4] / "myrm-agent" / "myrm-agent-server" / ".env.test"
 
 
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -61,14 +58,34 @@ def _get_live_llm() -> BaseChatModel:
     return create_litellm_model(norm_model, base_url=base_url, api_key=api_key, streaming=False)
 
 
+@pytest.fixture
+async def live_llm() -> AsyncIterator[BaseChatModel]:
+    """Hand out a real model and shut its transport down with the test.
+
+    The litellm handler keeps a connection worker thread bound to the running
+    loop. Without an explicit close it outlives that loop and raises
+    "Event loop is closed" from a stray thread, which pytest then attributes to
+    whichever unrelated test happens to be running at the time.
+    """
+    llm = _get_live_llm()
+    try:
+        yield llm
+    finally:
+        handler = getattr(llm, "client", None)
+        close = getattr(handler, "close", None)
+        if callable(close):
+            result = close()
+            if inspect.isawaitable(result):
+                await result
+
+
 class TestWorkingTreeRealLLMIntegration:
     """Live verification of FastContradictionDetector with real model configured in .env.test."""
 
     @pytest.mark.asyncio
-    async def test_real_llm_arbitration_on_contradiction(self) -> None:
+    async def test_real_llm_arbitration_on_contradiction(self, live_llm: BaseChatModel) -> None:
         """Run real LLM arbitration and verify model understands factual refutation."""
-        llm = _get_live_llm()
-        detector = FastContradictionDetector(arbitrator_llm=llm)
+        detector = FastContradictionDetector(arbitrator_llm=live_llm)
 
         from datetime import UTC, datetime
 
