@@ -123,6 +123,9 @@ def _log_background_task_failure(task: asyncio.Task[object]) -> None:
         logger.warning("Memory background task failed: %s", exc)
 
 
+_SUPERSEDED_KEY = "superseded"
+
+
 class MemorySearchService:
     """Owns query sanitization, source fan-out, fusion, and graph enrichment."""
 
@@ -581,6 +584,10 @@ class MemorySearchService:
             if isinstance(meta, dict):
                 meta_status = str(meta.get("status", "")).strip().lower()
                 if meta.get("archived") is True or meta_status in ("archived", "disabled"):
+                    continue
+                # A choice the user explicitly withdrew. Every search stream passes
+                # through here, so one place stops the agent repeating it.
+                if meta.get(_SUPERSEDED_KEY) is True:
                     continue
             if isinstance(mem, ProceduralMemory) and not mem.is_active:
                 continue

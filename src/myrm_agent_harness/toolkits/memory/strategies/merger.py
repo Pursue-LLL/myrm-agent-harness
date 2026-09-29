@@ -85,6 +85,7 @@ class MergeDecision(BaseModel):
     candidate_confidence: float | None = None
     merged_evidence: list[EvidenceReference] = Field(default_factory=list)
     conflict_item: ConflictItem | None = None
+    candidate_supersedes: bool = False
     reason: str = ""
 
 
@@ -247,6 +248,7 @@ class DeterministicThreeStateMerger:
                 updated_confidence=conf_exist,
                 candidate_confidence=conf_cand,
                 conflict_item=conflict_item,
+                candidate_supersedes=facet_conflict in self.replacement_targets_by_facet(candidate_clean),
                 reason=f"Mutually exclusive value detected for facet '{facet_conflict}'.",
             )
 
@@ -409,6 +411,23 @@ class DeterministicThreeStateMerger:
         tokens_a = set(_CONTENT_TOKEN_RE.findall(a.lower())) - facet_values
         tokens_b = set(_CONTENT_TOKEN_RE.findall(b.lower())) - facet_values
         return bool(tokens_a & tokens_b)
+
+    def replacement_targets_by_facet(self, text: str) -> dict[str, frozenset[str]]:
+        """Which choice each facet of ``text`` settles on after replacing another.
+
+        Extraction spreads one decision across several memories, so the record that
+        names the replacement is not always the one the merge reaches first.
+        """
+        lower_text = text.lower()
+        targets: dict[str, frozenset[str]] = {}
+        for facet, patterns in self._MUTUALLY_EXCLUSIVE_FACETS.items():
+            values = self._facet_values(lower_text, patterns)
+            if not values:
+                continue
+            scoped = self._replacement_target(lower_text, set(values))
+            if scoped and scoped != values:
+                targets[facet] = frozenset(scoped)
+        return targets
 
     def _detect_facet_conflict(self, a: str, b: str) -> str | None:
         """Detect if both texts assert different values for the same facet."""

@@ -111,6 +111,7 @@ _HISTORY_SUMMARY_LENGTH = 30
 
 # Key the forgetting pass reads to hold a contested memory until a human settles it
 # (``strategies/forgetting.py`` checks this before applying any retention cut).
+_SUPERSEDED_KEY = "superseded"
 _CONTESTED_KEY = "conflict_status"
 _CONTESTED_VALUE = "conflicted"
 
@@ -550,6 +551,12 @@ class SmartDeduplicator:
                         **result.document.metadata,
                         _CONTESTED_KEY: _CONTESTED_VALUE,
                     }
+                    if merge_dec.candidate_supersedes:
+                        # The candidate named a replacement, so this record is the one
+                        # the user withdrew. Recall skips it so the agent stops
+                        # repeating it; storage, maintenance and the governance
+                        # listing are untouched, so it stays auditable and decays.
+                        result.document.metadata[_SUPERSEDED_KEY] = True
                     collection = (
                         config.semantic_collection
                         if isinstance(new_memory, SemanticMemory)
