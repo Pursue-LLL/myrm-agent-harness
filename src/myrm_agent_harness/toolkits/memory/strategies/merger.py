@@ -147,6 +147,8 @@ class DeterministicThreeStateMerger:
     # bare triggers ("住在"). Comparing patterns alone only detects the first shape, so
     # the value that follows a trigger is extracted separately to cover the second.
     _FACET_VALUE_MAX_LEN: ClassVar[int] = 12
+    _FACET_VALUE_MAX_VALUES: ClassVar[int] = 4
+    _FACET_VALUE_MAX_OCCURRENCES: ClassVar[int] = 32
     _FACET_VALUE_TERMINATORS: ClassVar[frozenset[str]] = frozenset(
         " \t\r\n，。、；：！？,.;:!?\"'“”‘’()（）【】[]{}<>《》/\\|~`@#$%^&*+=_-"
     )
@@ -307,19 +309,27 @@ class DeterministicThreeStateMerger:
         return norm_a == norm_b
 
     def _extract_facet_values(self, lower_text: str, trigger: str) -> frozenset[str]:
-        """Return every distinct value asserted for ``trigger`` in ``lower_text``.
+        """Return the distinct values asserted for ``trigger`` in ``lower_text``.
 
         All occurrences are collected because one memory can revise itself
-        ("工作地在杭州，之前工作地在上海"). A trigger followed by nothing, or by a
-        terminator, yields no value: it asserts nothing to conflict with. The
-        length cap keeps a run-on clause from masquerading as a value.
+        ("工作在地杭州，之前工作在地上海"). Both the number of distinct values and the
+        number of occurrences examined are capped so a text densely packed with
+        triggers cannot turn this into a quadratic walk.
         """
         needle = trigger.lower()
         values: set[str] = set()
         cursor = 0
-        while (index := lower_text.find(needle, cursor)) >= 0:
+        window = self._FACET_VALUE_MAX_LEN
+        for _ in range(self._FACET_VALUE_MAX_OCCURRENCES):
+            if len(values) >= self._FACET_VALUE_MAX_VALUES:
+                break
+            index = lower_text.find(needle, cursor)
+            if index < 0:
+                break
             cursor = index + len(needle)
-            tail = lower_text[cursor:].lstrip(" \t")
+            # A bounded window keeps the scan linear in the text length; only
+            # `window` characters can contribute to a value anyway.
+            tail = lower_text[cursor : cursor + window].lstrip(" \t")
             value: list[str] = []
             for char in tail:
                 if char in self._FACET_VALUE_TERMINATORS or len(value) >= self._FACET_VALUE_MAX_LEN:

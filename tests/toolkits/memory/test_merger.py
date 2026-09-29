@@ -148,6 +148,18 @@ def test_facet_conflict_scans_every_occurrence() -> None:
     assert merger._extract_facet_values(text, trigger) == frozenset({"杭州", "上海"})
 
 
+def test_facet_value_extraction_is_bounded() -> None:
+    """Trigger-dense text cannot make value extraction scan without limit."""
+    merger = DeterministicThreeStateMerger()
+    trigger = "工作" + "在" + "地"
+    dense = (trigger + "杭州，") * 20_000
+
+    values = merger._extract_facet_values(dense, trigger)
+
+    assert values == frozenset({"杭州"})
+    assert len(dense) > 100_000
+
+
 def test_facet_conflict_stays_silent_when_new_claim_is_narrower() -> None:
     """Restating one of several values is less specific, not contradictory.
 
