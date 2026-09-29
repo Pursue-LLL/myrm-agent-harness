@@ -434,7 +434,12 @@ class SmartDeduplicator:
         top_candidate = candidates[0]
         top_score = top_candidate.score
 
-        if top_score >= high_thresh:
+        # A hard facet contradiction outranks similarity. "We moved to Memcached
+        # because ops knows it" reads almost identically to the stored "we use
+        # Redis" record, so a similarity duplicate would silently retire a decision
+        # the user just withdrew. The judge below turns that into a conflict and
+        # holds both for review instead.
+        if top_score >= high_thresh and not self._hard_facet_conflict(memory, top_candidate):
             return (DeduplicationDecision.DUPLICATE, top_candidate.document.id, None)
 
         target_id = top_candidate.document.id
@@ -457,6 +462,23 @@ class SmartDeduplicator:
             async with self._target_lock:
                 self._target_cache.pop(target_id, None)
             raise
+
+    @staticmethod
+    def _hard_facet_conflict(memory: DeduplicatableMemory, candidate: object) -> str | None:
+        """The facet this memory and ``candidate`` contradict outright, if any."""
+        from myrm_agent_harness.toolkits.memory._internal.storage import (
+            doc_to_episodic,
+            doc_to_semantic,
+        )
+        from myrm_agent_harness.toolkits.memory.protocols.vector import VectorSearchResult
+
+        if not isinstance(candidate, VectorSearchResult):
+            return None
+        converter = doc_to_semantic if isinstance(memory, SemanticMemory) else doc_to_episodic
+        facet = DeterministicThreeStateMerger()._detect_facet_conflict(
+            converter(candidate.document).content, memory.content
+        )
+        return facet if facet and facet != "semantic_ambiguity" else None
 
     async def _llm_judge(
         self,

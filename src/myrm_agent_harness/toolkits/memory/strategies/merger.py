@@ -158,6 +158,14 @@ class DeterministicThreeStateMerger:
         "replaced",
     )
 
+    _EXCLUSION_MARKERS: ClassVar[tuple[str, ...]] = (
+        "而非",
+        "而不是",
+        "不是",
+        "rather than",
+        "instead of",
+    )
+
     _NEGATION_MARKERS: ClassVar[set[str]] = {
         "不",
         "禁止",
@@ -439,24 +447,38 @@ class DeterministicThreeStateMerger:
         return frozenset(scoped) if scoped is not None else frozenset(values)
 
     def _replacement_target(self, lower_text: str, values: set[str]) -> set[str] | None:
-        """Narrow a facet's values to the ones the text settles on after a switch.
+        """Narrow a facet's values to the one this text settles on.
 
-        "改用 Memcached" names Redis only to abandon it, so both names appearing in
-        one sentence is a replacement rather than two live options. Text with no
-        switch marker names everything it uses, and an extra name there is just
-        more detail ("VS Code" plus "Vim keybindings").
+        A switch names the replacement after the marker ("改用 Memcached" walks away
+        from Redis), while an exclusion names it before ("Memcached 而非 Redis").
+        Both readings retire the other name, so both are resolved to a single
+        surviving value. Text with neither names everything it uses, and an extra
+        name there is just more detail ("VS Code" plus "Vim keybindings").
         """
-        positions = [lower_text.rfind(marker) for marker in self._REPLACEMENT_MARKERS]
-        switch = max(positions)
-        if switch < 0:
-            return None
-        kept = {
-            value
-            for value in values
-            if (found := lower_text.find(value, switch)) >= 0
-            and not any(0 <= lower_text.find(other, switch) < found for other in values if other != value)
-        }
-        return kept or values
+        for markers, after in (
+            (self._REPLACEMENT_MARKERS, True),
+            (self._EXCLUSION_MARKERS, False),
+        ):
+            position = max(lower_text.rfind(marker) for marker in markers)
+            if position < 0:
+                continue
+            scope = lower_text[position:] if after else lower_text[:position]
+            if not scope:
+                continue
+            ordered = sorted(
+                (v for v in values if v in scope),
+                key=lambda v: scope.find(v),
+            )
+            if len(ordered) == 1:
+                return {ordered[0]}
+            if ordered and after:
+                kept = {
+                    value
+                    for value in ordered
+                    if not any(ordered.index(other) < ordered.index(value) for other in ordered)
+                }
+                return kept
+        return None
 
     def _detect_negation_inversion(self, a: str, b: str) -> bool:
         """Detect if one text has explicit negation while the other affirms the same concept."""

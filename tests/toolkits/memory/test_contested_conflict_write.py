@@ -168,3 +168,48 @@ async def test_stored_side_of_a_conflict_is_persisted_as_contested() -> None:
     assert written[0].content == stored.content, "the rejected record keeps its content"
     assert written[0].metadata["conflict_status"] == "conflicted"
     assert isinstance(collection, str) and collection
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("stored_text", "reversal"),
+    [
+        (
+            "用户于 2026-09-29 明确确认项目技术方案采用 Redis。",
+            "项目选择 Memcached 而非 Redis 的原因是运维团队对 Memcached 更熟悉。",
+        ),
+    ],
+    ids=["exclusion-zh"],
+)
+async def test_a_reversal_written_as_a_reason_is_not_a_duplicate(stored_text: str, reversal: str) -> None:
+    """Real extraction states a reversal as a reason, which reads almost identically
+    to the stored decision. Similarity must not retire a choice the user withdrew."""
+    now = datetime.now(UTC)
+    stored = VectorDocument(
+        id="mem_redis",
+        content=stored_text,
+        vector=[0.9] * 768,
+        created_at=now,
+        updated_at=now,
+        metadata={"created_at": now.isoformat(), "updated_at": now.isoformat()},
+    )
+    vector = AsyncMock()
+    # Above the high threshold, so this takes the duplicate short-circuit unless the
+    # facet check runs first.
+    vector.search = AsyncMock(return_value=[VectorSearchResult(document=stored, score=0.97)])
+    vector.upsert = AsyncMock(return_value=[stored.id])
+
+    kept = await SmartDeduplicator(AsyncMock()).deduplicate_batch(
+        [SemanticMemory(content=reversal, confidence=0.9)],
+        vector=vector,
+        embedding=_embedding(),
+        memory_config=MemoryConfig(embedding_model="test-model"),
+        cache=None,
+    )
+
+    assert [m.content for m in kept] == [reversal], "a contradicted decision must not be discarded"
+    assert kept[0].metadata.get("conflict_status") == "conflicted"
+    vector.upsert.assert_awaited()
+    written = vector.upsert.await_args.args[1][0]
+    assert written.metadata.get("conflict_status") == "conflicted"
+    assert written.content == stored.content, "the withdrawn record keeps its content for review"
