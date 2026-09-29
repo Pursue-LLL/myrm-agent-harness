@@ -372,3 +372,35 @@ def test_real_model_wording_yields_a_replacement_target(reversal: str) -> None:
     assert decision.conflict_item is not None
     assert decision.conflict_item.facet == "cache_store"
     assert decision.candidate_supersedes is True, merger.replacement_targets_by_facet(reversal)
+
+
+@pytest.mark.parametrize(
+    ("stored_text", "reversal"),
+    [
+        (
+            "用户已确定其项目技术方案采用 Redis。",
+            "项目缓存层已确定不再使用 Redis，统一改用 Memcached；原因是运维团队对 Memcached 更熟悉。",
+        ),
+        (
+            "项目缓存层已确定不再使用 Redis，统一改用 Memcached。",
+            "缓存层又改回 Redis，因为 Memcached 运维成本太高。",
+        ),
+    ],
+    ids=["first-reversal", "second-reversal"],
+)
+def test_a_reversal_is_recognised_in_either_direction(stored_text: str, reversal: str) -> None:
+    """A user who changes their mind twice must be understood both times.
+
+    Only the latest statement is live, so the record it replaces has to be retired
+    whichever value the two statements happen to name.
+    """
+    decision = DeterministicThreeStateMerger().evaluate(
+        SemanticMemory(content=stored_text, confidence=0.9),
+        reversal,
+        similarity=0.8,
+    )
+
+    assert decision.state == MergeState.CONFLICT
+    assert decision.conflict_item is not None
+    assert decision.conflict_item.facet == "cache_store"
+    assert decision.candidate_supersedes is True
