@@ -230,8 +230,8 @@ def get_model_timeout_floor(
     if matched_catalog_floor is not None:
         return matched_catalog_floor
 
-    # If not in catalog, but caller explicitly enabled reasoning:
-    if is_reasoning_explicitly_enabled(llm_kwargs):
+    # L2 Driver/Config: Explicit supports_reasoning=True grants floor for custom/unlisted models
+    if llm_kwargs and llm_kwargs.get("supports_reasoning") is True:
         effort = extract_reasoning_effort(llm_kwargs)
         if effort in _HEAVY_EFFORT_VALUES:
             return _HEAVY_REASONING_TIMEOUT_FLOOR

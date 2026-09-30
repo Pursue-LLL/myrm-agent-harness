@@ -17,14 +17,8 @@ from __future__ import annotations
 from typing import Mapping
 
 from myrm_agent_harness.toolkits.llms.core.reasoning_profile import (
-    _CATALOG_TIMEOUT_FLOORS,
-    _SORTED_TIMEOUT_PREFIXES,
     get_model_timeout_floor,
 )
-
-# Export legacy symbols for backwards compatibility with tests and consumers
-_REASONING_TIMEOUT_FLOORS: dict[str, float] = _CATALOG_TIMEOUT_FLOORS
-_SORTED_PREFIXES: tuple[tuple[str, float], ...] = _SORTED_TIMEOUT_PREFIXES
 
 
 def get_reasoning_timeout_floor(

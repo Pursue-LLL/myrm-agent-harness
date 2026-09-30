@@ -239,41 +239,23 @@ def create_litellm_model(
             llm_kwargs["ssl_verify"] = verify
 
     # Apply reasoning model timeout floor (e.g. o3 needs 600s for thinking phase)
-    # Converge with local endpoint relaxation using max() semantics to prevent inversion.
     reasoning_floor = get_reasoning_timeout_floor(model, llm_kwargs)
-    is_local = _is_local_endpoint(base_url)
-    user_request_timeout = "request_timeout" in llm_kwargs
-    user_first_event_timeout = "first_event_timeout" in llm_kwargs
-    user_inter_chunk_timeout = "inter_chunk_timeout" in llm_kwargs
 
-    if not user_request_timeout:
-        target_request_timeout: float | None = reasoning_floor
-        if is_local:
-            target_request_timeout = (
-                max(target_request_timeout, _LOCAL_REQUEST_TIMEOUT)
-                if target_request_timeout is not None
-                else _LOCAL_REQUEST_TIMEOUT
-            )
-        if target_request_timeout is not None:
-            llm_kwargs["request_timeout"] = target_request_timeout
+    if "request_timeout" not in llm_kwargs and reasoning_floor is not None:
+        llm_kwargs["request_timeout"] = reasoning_floor
 
-    if not user_first_event_timeout:
-        target_first_event: float | None = (
-            min(reasoning_floor / 2, 300.0) if reasoning_floor is not None else None
-        )
-        if is_local:
-            target_first_event = (
-                max(target_first_event, _LOCAL_FIRST_EVENT_TIMEOUT)
-                if target_first_event is not None
-                else _LOCAL_FIRST_EVENT_TIMEOUT
-            )
-        if target_first_event is not None:
-            llm_kwargs["first_event_timeout"] = target_first_event
+    if "first_event_timeout" not in llm_kwargs and reasoning_floor is not None:
+        llm_kwargs["first_event_timeout"] = min(reasoning_floor / 2, 300.0)
 
-    if is_local:
+    # Local endpoints: relax stall detection to avoid killing long prefills
+    if _is_local_endpoint(base_url):
         logger.info("Local endpoint detected (%s), relaxing stall timeouts", base_url)
-        if not user_inter_chunk_timeout:
+        if "first_event_timeout" not in llm_kwargs:
+            llm_kwargs["first_event_timeout"] = _LOCAL_FIRST_EVENT_TIMEOUT
+        if "inter_chunk_timeout" not in llm_kwargs:
             llm_kwargs["inter_chunk_timeout"] = _LOCAL_INTER_CHUNK_TIMEOUT
+        if "request_timeout" not in llm_kwargs:
+            llm_kwargs["request_timeout"] = _LOCAL_REQUEST_TIMEOUT
 
     # Ollama only: share the 64k agentic context window through options.num_ctx
     if _is_ollama_endpoint(base_url, model):

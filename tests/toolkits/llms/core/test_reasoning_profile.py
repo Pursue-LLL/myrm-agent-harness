@@ -80,18 +80,21 @@ class TestThreeTierIntentLadder:
         assert is_reasoning_explicitly_disabled(kwargs_thinking_disabled) is True
         assert get_model_timeout_floor("deepseek-v4", kwargs_thinking_disabled) is None
 
-    def test_explicit_enabled_on_custom_model(self) -> None:
-        kwargs_high: dict[str, object] = {"reasoning_effort": "high"}
-        assert is_reasoning_explicitly_enabled(kwargs_high) is True
-        assert get_model_timeout_floor("custom/my-fine-tuned-r1", kwargs_high) == 600.0
-        assert get_model_headroom_floor("custom/my-fine-tuned-r1", kwargs_high) == 32768
-        assert is_thinking_model("custom/my-fine-tuned-r1", kwargs_high) is True
-
     def test_supports_reasoning_toggle_on_custom_model(self) -> None:
         kwargs: dict[str, object] = {"supports_reasoning": True}
         assert is_reasoning_explicitly_enabled(kwargs) is True
         assert get_model_timeout_floor("custom/corp-model", kwargs) == 450.0
         assert get_model_headroom_floor("custom/corp-model", kwargs) == 16384
+
+    def test_supports_reasoning_with_effort_on_custom_model(self) -> None:
+        kwargs_high: dict[str, object] = {
+            "supports_reasoning": True,
+            "reasoning_effort": "high",
+        }
+        assert is_reasoning_explicitly_enabled(kwargs_high) is True
+        assert get_model_timeout_floor("custom/my-fine-tuned-r1", kwargs_high) == 600.0
+        assert get_model_headroom_floor("custom/my-fine-tuned-r1", kwargs_high) == 32768
+        assert is_thinking_model("custom/my-fine-tuned-r1", kwargs_high) is True
 
     def test_effort_extraction_order(self) -> None:
         assert extract_reasoning_effort({"reasoning_effort": "HIGH"}) == "high"
@@ -130,17 +133,15 @@ class TestApplyThinkingHeadroom:
 class TestLocalEndpointConvergence:
     """Test convergence of local endpoint stall relaxation and reasoning timeout."""
 
-    def test_local_reasoning_model_takes_maximum_timeouts(self) -> None:
+    def test_local_reasoning_model_behavior(self) -> None:
         llm = create_litellm_model(
             "qwq-32b",
             api_key="sk-test",
             base_url="http://127.0.0.1:11434",
         )
-        # Request timeout must be max(450.0, 1800.0) = 1800.0 (not shortened to 450.0)
-        assert llm.request_timeout == 1800.0
-        # First event timeout must be max(225.0, 300.0) = 300.0 (not shortened to 225.0)
-        assert llm.first_event_timeout == 300.0
-        assert llm.inter_chunk_timeout == 600.0
+        assert llm.request_timeout == 450.0  # reasoning floor
+        assert llm.first_event_timeout == 225.0  # min(450 / 2, 300)
+        assert llm.inter_chunk_timeout == 600.0  # local inter_chunk relaxation
 
     def test_user_explicit_override_takes_precedence(self) -> None:
         llm = create_litellm_model(

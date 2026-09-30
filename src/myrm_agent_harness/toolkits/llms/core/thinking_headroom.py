@@ -19,36 +19,11 @@ from __future__ import annotations
 from typing import Mapping
 
 from myrm_agent_harness.toolkits.llms.core.reasoning_profile import (
-    _DEFAULT_HEADROOM_FLOOR,
-    _EFFORT_HEADROOM_FLOORS,
     apply_thinking_headroom,
     extract_reasoning_effort,
     get_model_headroom_floor,
     is_thinking_model,
 )
-
-# Export legacy symbols for backwards compatibility with tests and consumers
-_THINKING_MODEL_PREFIXES: tuple[str, ...] = (
-    "claude-opus",
-    "claude-sonnet-4",
-    "claude-fable",
-    "claude-mythos",
-    "claude-4",
-    "o1",
-    "o3",
-    "o4",
-    "deepseek-r1",
-    "deepseek-reasoner",
-    "deepseek-v4",
-    "gemini-2.5",
-    "gemini-3",
-    "nemotron",
-    "qwq",
-    "minimax-m",
-    "grok-4",
-)
-_EFFORT_FLOORS: dict[str, int] = _EFFORT_HEADROOM_FLOORS
-_DEFAULT_FLOOR: int = _DEFAULT_HEADROOM_FLOOR
 
 
 def _is_thinking_model(model: str) -> bool:
