@@ -32,6 +32,7 @@ from myrm_agent_harness.utils.text_utils import get_token_count
 from myrm_agent_harness.utils.token_estimation import estimate_messages_tokens
 
 from ...infra.schemas import StructuredSummary
+from .exact_anchor import ExactAnchorTable
 from .execution_state_validator import audit_execution_consistency
 
 logger = get_agent_logger(__name__)
@@ -127,12 +128,13 @@ def audit_summary(
     *,
     entities: set[str] | None = None,
     chat_id: str | None = None,
+    exact_anchors: ExactAnchorTable | None = None,
 ) -> AuditResult:
     """Run all quality gates on a structured summary.
 
     Gates:
     1. Structure completeness — required fields non-empty
-    2. Key-entity retention — file paths, code identifiers, UUIDs, hashes, API endpoints preserved
+    2. Key-entity retention — file paths, code identifiers, UUIDs, hashes, API endpoints preserved (or secured via ExactAnchorTable)
     3. Information density — summary token ratio within bounds
     4. Execution state physical consistency — files_modified matches ArtifactTracker reality
 
@@ -146,7 +148,7 @@ def audit_summary(
     if entities is None:
         entities = extract_key_entities(original_messages)
 
-    retained, missing = _check_entity_retention(summary, entities)
+    retained, missing = _check_entity_retention(summary, entities, exact_anchors=exact_anchors)
 
     if entities and (retained / len(entities)) < _ENTITY_RETENTION_THRESHOLD:
         rate = retained / len(entities)
@@ -225,12 +227,18 @@ def _check_structure(summary: StructuredSummary) -> list[str]:
     return issues
 
 
-def _check_entity_retention(summary: StructuredSummary, entities: set[str]) -> tuple[int, list[str]]:
+def _check_entity_retention(
+    summary: StructuredSummary,
+    entities: set[str],
+    exact_anchors: ExactAnchorTable | None = None,
+) -> tuple[int, list[str]]:
     """Return (retained_count, missing_entities_list)."""
     if not entities:
         return 0, []
 
-    # to_json() 已包含所有字段，再补充 list 字段的原始文本确保搜索完整
+    anchor_content = exact_anchors.format_markdown() if exact_anchors else ""
+
+    # to_json() 已包含所有字段，再补充 list 字段的原始文本与不可变锚点表确保搜索完整
     search_text = " ".join(
         [
             summary.to_json(),
@@ -241,6 +249,7 @@ def _check_entity_retention(summary: StructuredSummary, entities: set[str]) -> t
             " ".join(summary.pending_user_asks),
             summary.active_task,
             summary.active_state,
+            anchor_content,
         ]
     )
 

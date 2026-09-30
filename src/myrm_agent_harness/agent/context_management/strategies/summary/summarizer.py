@@ -40,6 +40,7 @@ from myrm_agent_harness.utils.token_estimation import (
 )
 
 from ...infra.schemas import ContextConfig, StructuredSummary
+from .exact_anchor import ExactAnchorTable
 from .progress_timeout import (
     ProgressClock,
     SummaryProgressTracker,
@@ -400,9 +401,11 @@ async def generate_structured_summary(
     recent_messages = list(tail_result.messages)
     original_tokens = estimate_messages_tokens(messages)
 
+    from .exact_anchor import extract_exact_anchors
     from .summary_auditor import extract_key_entities
 
     entities = extract_key_entities(messages)
+    exact_anchors = extract_exact_anchors(messages)
 
     turn_prefix_messages = tail_result.turn_prefix_messages if tail_result.is_split_turn else None
 
@@ -420,6 +423,7 @@ async def generate_structured_summary(
                 turn_prefix_messages=turn_prefix_messages,
                 progress_tracker=progress_tracker,
                 chat_id=chat_id,
+                exact_anchors=exact_anchors,
             )
         else:
             summary = existing_summary
@@ -435,6 +439,7 @@ async def generate_structured_summary(
             turn_prefix_messages=turn_prefix_messages,
             progress_tracker=progress_tracker,
             chat_id=chat_id,
+            exact_anchors=exact_anchors,
         )
 
     # Physical execution state reconciliation (Auto-Reconcile with ArtifactTracker)
@@ -525,6 +530,12 @@ async def generate_structured_summary(
                     rescued_context_blocks[block_hash] = (
                         f"<preserve_context>\n[IMMUNE RULE / WORKING MEMORY]\n{clean_val}\n</preserve_context>"
                     )
+
+    # Inject verified exact anchor index into preserved context
+    anchor_md = exact_anchors.format_markdown()
+    if anchor_md:
+        anchor_hash = hashlib.md5(anchor_md.encode("utf-8")).hexdigest()
+        rescued_context_blocks[anchor_hash] = f"<preserve_context>\n{anchor_md}\n</preserve_context>"
 
     combined_preserved = None
     if rescued_context_blocks:
@@ -667,6 +678,7 @@ async def _summarize_full_with_audit(
     turn_prefix_messages: list[BaseMessage] | None = None,
     progress_tracker: SummaryProgressTracker | None = None,
     chat_id: str | None = None,
+    exact_anchors: ExactAnchorTable | None = None,
 ) -> StructuredSummary:
     """Generate a full summary with quality audit and retry."""
     from .summary_auditor import audit_summary, build_retry_guidance
@@ -696,7 +708,9 @@ async def _summarize_full_with_audit(
     for attempt in range(_MAX_AUDIT_RETRIES + 1):
         prompt = cache_safe_base_prompt
         if attempt > 0 and best is not None:
-            guidance = build_retry_guidance(audit_summary(best, messages, entities=entities))
+            guidance = build_retry_guidance(
+                audit_summary(best, messages, entities=entities, exact_anchors=exact_anchors)
+            )
             prompt = f"{cache_safe_base_prompt}\n\n Quality feedback:\n{guidance}"
 
         try:
@@ -715,7 +729,7 @@ async def _summarize_full_with_audit(
                 raise ValueError(f"Failed to generate structured summary: {e}") from e
             continue
 
-        result = audit_summary(summary, messages, entities=entities, chat_id=chat_id)
+        result = audit_summary(summary, messages, entities=entities, chat_id=chat_id, exact_anchors=exact_anchors)
         if result.entity_retained > best_retained:
             best = summary
             best_retained = result.entity_retained
@@ -754,6 +768,7 @@ async def _summarize_incremental_with_audit(
     turn_prefix_messages: list[BaseMessage] | None = None,
     progress_tracker: SummaryProgressTracker | None = None,
     chat_id: str | None = None,
+    exact_anchors: ExactAnchorTable | None = None,
 ) -> StructuredSummary:
     """Generate an incremental summary with quality audit and retry."""
     from .summary_auditor import audit_summary, build_retry_guidance
@@ -786,7 +801,9 @@ async def _summarize_incremental_with_audit(
     for attempt in range(_MAX_AUDIT_RETRIES + 1):
         prompt = cache_safe_base_prompt
         if attempt > 0 and best is not None:
-            guidance = build_retry_guidance(audit_summary(best, all_messages, entities=entities, chat_id=chat_id))
+            guidance = build_retry_guidance(
+                audit_summary(best, all_messages, entities=entities, chat_id=chat_id, exact_anchors=exact_anchors)
+            )
             prompt = f"{cache_safe_base_prompt}\n\n Quality feedback:\n{guidance}"
 
         try:
@@ -805,7 +822,7 @@ async def _summarize_incremental_with_audit(
                 raise ValueError(f"Failed to generate structured summary: {e}") from e
             continue
 
-        result = audit_summary(summary, all_messages, entities=entities, chat_id=chat_id)
+        result = audit_summary(summary, all_messages, entities=entities, chat_id=chat_id, exact_anchors=exact_anchors)
         if result.entity_retained > best_retained:
             best = summary
             best_retained = result.entity_retained
