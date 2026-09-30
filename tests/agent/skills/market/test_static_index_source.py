@@ -89,7 +89,7 @@ async def test_static_index_disk_cache_load_and_etag_sync(
     payload = json.dumps({"skills": sample_entries}).encode("utf-8")
     with gzip.open(cache_file, "wb") as f:
         f.write(payload)
-    etag_file.write_text("W/\"test-etag-1234\"", encoding="utf-8")
+    etag_file.write_text('W/"test-etag-1234"', encoding="utf-8")
 
     source = StaticIndexSkillSource(cache_dir=tmp_path, ttl_seconds=3600)
 

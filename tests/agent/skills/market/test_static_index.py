@@ -63,9 +63,7 @@ def sample_skills_json() -> list[dict[str, object]]:
 class TestStaticIndexSkillSource:
     """Test StaticIndexSkillSource caching, sync, and offline instant search."""
 
-    async def test_search_from_preloaded_entries(
-        self, sample_skills_json: list[dict[str, object]]
-    ) -> None:
+    async def test_search_from_preloaded_entries(self, sample_skills_json: list[dict[str, object]]) -> None:
         source = StaticIndexSkillSource(preloaded_entries=sample_skills_json)
         assert source.total_indexed_skills == 2
 
@@ -156,9 +154,7 @@ class TestMarketServiceStaticIndexIntegration:
         assert "clawhub" in source_names
         assert "github" in source_names
 
-    async def test_search_ranks_static_index_efficiently(
-        self, sample_skills_json: list[dict[str, object]]
-    ) -> None:
+    async def test_search_ranks_static_index_efficiently(self, sample_skills_json: list[dict[str, object]]) -> None:
         service = BaseSkillMarketService()
         static_src = StaticIndexSkillSource(preloaded_entries=sample_skills_json)
 
