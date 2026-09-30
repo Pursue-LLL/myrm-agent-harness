@@ -168,3 +168,80 @@ class TestGitHubRefUrlParsing:
 
         with pytest.raises(ValueError):
             parse_github_url("https://github.com/acme/tools/tree/main/../../etc")
+
+
+class TestFrontmatterDescription:
+    def test_extracts_description_from_frontmatter(self) -> None:
+        from myrm_agent_harness.agent.skills.market.sources.github import (
+            _extract_description_from_skill_md,
+        )
+
+        content = "---\nname: Alpha\ndescription: does alpha things\n---\n# body"
+        assert _extract_description_from_skill_md(content) == "does alpha things"
+
+    @pytest.mark.parametrize(
+        "content",
+        ["no frontmatter at all", "---\nnot: [valid\n---\nbody", ""],
+    )
+    def test_returns_none_without_usable_frontmatter(self, content: str) -> None:
+        from myrm_agent_harness.agent.skills.market.sources.github import (
+            _extract_description_from_skill_md,
+        )
+
+        assert _extract_description_from_skill_md(content) is None
+
+
+class TestSkillMarkdownFetch:
+    @pytest.mark.asyncio
+    async def test_fetches_skill_md(self) -> None:
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from myrm_agent_harness.agent.skills.market.sources.github import GitHubSkillSource
+
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.text = "# alpha"
+        client = AsyncMock()
+        client.get.return_value = resp
+        client.__aenter__.return_value = client
+
+        with patch("myrm_agent_harness.agent.skills.market.sources.github.create_httpx_client") as cls:
+            cls.return_value = client
+            content = await GitHubSkillSource()._fetch_skill_md(
+                client, "acme", "tools", "skills/pdf", {"Accept": "raw"}
+            )
+
+        assert content == "# alpha"
+        assert "skills/pdf/SKILL.md" in client.get.await_args.args[0]
+
+    @pytest.mark.asyncio
+    async def test_returns_none_on_non_200(self) -> None:
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from myrm_agent_harness.agent.skills.market.sources.github import GitHubSkillSource
+
+        resp = MagicMock()
+        resp.status_code = 404
+        client = AsyncMock()
+        client.get.return_value = resp
+        client.__aenter__.return_value = client
+
+        with patch("myrm_agent_harness.agent.skills.market.sources.github.create_httpx_client") as cls:
+            cls.return_value = client
+            content = await GitHubSkillSource()._fetch_skill_md(client, "acme", "tools", None, {"Accept": "raw"})
+
+        assert content is None
+        assert client.get.await_args.args[0].endswith("/SKILL.md")
+
+
+class TestTokenHeader:
+    def test_no_token_omits_authorization(self) -> None:
+        from myrm_agent_harness.agent.skills.market.sources.github import GitHubSkillSource
+
+        assert "Authorization" not in GitHubSkillSource()._build_headers()
+
+    def test_token_adds_authorization(self) -> None:
+        from myrm_agent_harness.agent.skills.market.sources.github import GitHubSkillSource
+
+        headers = GitHubSkillSource(token="t0k3n")._build_headers()
+        assert headers["Authorization"] == "token t0k3n"
