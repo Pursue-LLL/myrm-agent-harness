@@ -89,6 +89,32 @@ async def test_take_snapshot_returns_commit_hash(store: ShadowGitSnapshotStore, 
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "name",
+    [".env", ".env.production", "secrets.json", "app.db", "id_rsa", "key.pem", "cfg/id_ed25519"],
+)
+async def test_take_snapshot_excludes_credential_files(
+    store: ShadowGitSnapshotStore, workspace: Path, name: str
+):
+    """``git add --all`` stages the tree, so a credential must leave the index."""
+    target = workspace / name
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("DB_URL=postgres://real:pw@host/db\n")
+
+    sid = await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "test")
+
+    listed = await store._run_cmd("git", "ls-tree", "-r", "--name-only", sid, env=store._bare_env())
+    assert name not in listed.split()
+
+
+@pytest.mark.asyncio
+async def test_take_snapshot_keeps_ordinary_files(store: ShadowGitSnapshotStore, workspace: Path):
+    sid = await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "test")
+    listed = await store._run_cmd("git", "ls-tree", "-r", "--name-only", sid, env=store._bare_env())
+    assert {"hello.py", "sub/data.txt"} <= set(listed.split())
+
+
+@pytest.mark.asyncio
 async def test_take_snapshot_rejects_missing_dir(store: ShadowGitSnapshotStore, tmp_path: Path):
     with pytest.raises(ValueError, match="does not exist"):
         await store.take_snapshot(str(tmp_path / "nonexistent"), SnapshotTrigger.MANUAL)

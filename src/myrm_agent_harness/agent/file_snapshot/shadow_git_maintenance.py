@@ -2,15 +2,18 @@
 
 [INPUT]
 shadow_git_store::_REFS_PREFIX, _PROJECTS_DIR (POS: Shadow Git constants.)
+core.security.path::is_sensitive_file (POS: path security domain)
 
 [OUTPUT]
 ShadowGitMaintenance: Mixin providing auto-prune, orphan detection, repair,
-    oversized workspace detection, and project-commit lookup.
+    oversized workspace detection, and project-commit lookup. Its index cleanup
+    drops credential paths alongside oversized files, so a staged worktree
+    cannot commit a secret into the shadow repository.
 
 [POS]
 Maintenance mixin for shadow Git snapshot stores. Handles auto-pruning of
-orphan projects, global size cap enforcement, corruption repair, and
-workspace size validation.
+    orphan projects, global size cap enforcement, corruption repair, and
+    workspace size validation.
 """
 
 from __future__ import annotations
@@ -22,7 +25,9 @@ import shutil
 import time
 from pathlib import Path
 
+from myrm_agent_harness.core.security.path import is_sensitive_file
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
+
 
 logger = get_agent_logger(__name__)
 
@@ -57,11 +62,20 @@ class ShadowGitMaintenance:
     _projects_dir: str
     _indexes_dir: str
 
-    def _project_ref(self, proj_hash: str) -> str: ...
-    def _project_index(self, proj_hash: str) -> Path: ...
-    def _project_meta_path(self, proj_hash: str) -> Path: ...
-    async def _run_cmd(self, *args: str, env: dict[str, str] | None = None, stdin_data: bytes | None = None) -> str: ...
-    async def _git_in_store(self, *args: str) -> str: ...
+    def _project_ref(self, proj_hash: str) -> str:
+        raise NotImplementedError
+
+    def _project_index(self, proj_hash: str) -> Path:
+        raise NotImplementedError
+
+    def _project_meta_path(self, proj_hash: str) -> Path:
+        raise NotImplementedError
+
+    async def _run_cmd(self, *args: str, env: dict[str, str] | None = None, stdin_data: bytes | None = None) -> str:
+        raise NotImplementedError
+
+    async def _git_in_store(self, *args: str) -> str:
+        raise NotImplementedError
 
     def _bare_env(self) -> dict[str, str]:
         """Build a clean env for store-level git commands."""
@@ -87,8 +101,14 @@ class ShadowGitMaintenance:
             return True
         return False
 
-    async def drop_oversized_from_index(self, env: dict[str, str], wp: Path) -> None:
-        """Remove files larger than max size from the git index."""
+    async def drop_unstorable_from_index(self, env: dict[str, str], wp: Path) -> None:
+        """Remove oversized and credential files from the git index.
+
+        ``git add --all`` stages the whole worktree, so a credential present on
+        disk would be committed into the shadow repository and kept there across
+        every snapshot. Credentials are dropped by the same rule list the shell
+        pre-flight, the file tools and the local snapshot store use.
+        """
         try:
             ls_output = await self._run_cmd("git", "ls-files", "--cached", env=env)
         except RuntimeError:
@@ -98,6 +118,9 @@ class ShadowGitMaintenance:
         for line in ls_output.splitlines():
             stripped = line.strip()
             if not stripped:
+                continue
+            if is_sensitive_file(stripped):
+                to_remove.append(stripped)
                 continue
             file_path = wp / stripped
             try:

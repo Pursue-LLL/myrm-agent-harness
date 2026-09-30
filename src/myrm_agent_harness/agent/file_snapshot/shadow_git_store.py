@@ -228,7 +228,7 @@ class ShadowGitSnapshotStore(ShadowGitMaintenance):
         ref = self._project_ref(proj_hash)
 
         await self._run_cmd("git", "add", "--all", env=env)
-        await self.drop_oversized_from_index(env, wp)
+        await self.drop_unstorable_from_index(env, wp)
 
         parent: str | None = None
         with contextlib.suppress(RuntimeError):

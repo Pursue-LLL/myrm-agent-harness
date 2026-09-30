@@ -1,6 +1,6 @@
 """Tests for ShadowGitMaintenance mixin — pruning, repair, workspace validation.
 
-Covers: is_oversized_workspace, drop_oversized_from_index, find_project_for_commit,
+Covers: is_oversized_workspace, drop_unstorable_from_index, find_project_for_commit,
         maybe_prune, orphan detection, global size cap, repair_if_corrupted.
 """
 
@@ -165,12 +165,12 @@ async def test_repair_noop_when_healthy(store: ShadowGitSnapshotStore, workspace
 
 
 # ------------------------------------------------------------------
-# drop_oversized_from_index
+# drop_unstorable_from_index
 # ------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_drop_oversized_from_index(store: ShadowGitSnapshotStore, workspace: Path):
+async def test_drop_unstorable_from_index(store: ShadowGitSnapshotStore, workspace: Path):
     """Files > 10MB should be dropped from the git index."""
     large = workspace / "oversized.bin"
     large.write_bytes(b"\x00" * (11 * 1024 * 1024))
@@ -246,7 +246,7 @@ async def test_drop_oversized_ls_failure(store: ShadowGitSnapshotStore, tmp_path
         raise RuntimeError("git ls-files failed")
 
     monkeypatch.setattr(store, "_run_cmd", fail_ls)
-    await store.drop_oversized_from_index({}, tmp_path)  # should not raise
+    await store.drop_unstorable_from_index({}, tmp_path)  # should not raise
 
 
 @pytest.mark.asyncio
@@ -261,7 +261,7 @@ async def test_drop_oversized_skips_blank_and_stat_failure(store: ShadowGitSnaps
 
     monkeypatch.setattr(store, "_run_cmd", fake_run_cmd)
     monkeypatch.setattr(Path, "stat", fail_stat)
-    await store.drop_oversized_from_index({}, workspace)  # blank line + stat error tolerated
+    await store.drop_unstorable_from_index({}, workspace)  # blank line + stat error tolerated
 
 
 @pytest.mark.asyncio
@@ -278,7 +278,7 @@ async def test_drop_oversized_removes_large_cached_file(store: ShadowGitSnapshot
         return ""
 
     monkeypatch.setattr(store, "_run_cmd", fake_run_cmd)
-    await store.drop_oversized_from_index({}, workspace)
+    await store.drop_unstorable_from_index({}, workspace)
     assert removed == ["big.bin"]
 
 
