@@ -13,7 +13,7 @@ Detailed design: [SUB_AGENT_SYSTEM.md](SUB_AGENT_SYSTEM.md)
 | branch_scoped_compaction.py | Core | Branch-scoped subagent artifact and structured summary compaction merger. Collects child trackers, extracts modified files, and enriches parent summaries. | ✅ |
 | budget.py | Core | Delegation budget guard. Tracks descendant spawn count for one root run. | ✅ |
 | builder.py | Core | Subagent construction helpers — tool filtering via DelegationCapabilityManifest + delegation_policy, model resolution, token merge. | ✅ |
-| checkpointer.py | Core | Shared crash-resilient SQLite checkpointer singleton (`SubagentSqliteCheckpointer`, `get_subagent_checkpointer`, `close_subagent_checkpointer`, `delete_subagent_checkpoint`) for subagent HITL approval thread isolation and cross-restart resumption. | ✅ |
+| checkpointer.py | Core | Shared crash-resilient SQLite checkpointer singleton (`SubagentSqliteCheckpointer`, `get_subagent_checkpointer`, `close_subagent_checkpointer`, `delete_subagent_checkpoint`, `drop_subagent_checkpoint_if_terminal`) with unwritable path `:memory:` fallback for subagent HITL approval thread isolation, SSOT hygiene cleanup, and cross-restart resumption. | ✅ |
 | delegation_policy.py | Core | Server-extensible L1 leaf blocklist (`register_leaf_blocked_tools`). | ✅ |
 | handover.py | Core | Structured subagent handover state (`AgentHandoverState`) and evidence (`HandoffFinding`) types with case-insensitive confidence normalization. | ✅ |
 | hitl_tool_policy.py | Core | Import-safe HITL tool policy SSOT (`HitlToolPolicy`, `HITL_TOOL_POLICY`) used by `types.py` for leaf blocking. | ✅ |

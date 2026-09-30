@@ -50,7 +50,7 @@
 |:--|:--|
 | `agent/sub_agents/types.py` | SubagentConfig（含 agent_factory/role/budget）, AgentFactory Protocol, SubAgentStatus, SubAgentResult, SubagentCatalog Protocol, DelegationCapabilityManifest 能力清单 |
 | `agent/sub_agents/handover.py` | 结构化交接单领域模型（HandoffFinding, AgentHandoverState，防止跨 Agent 上下文爆炸与事实证据化） |
-| `agent/sub_agents/checkpointer.py` | 子 agent 共享内存 checkpointer（`get_subagent_checkpointer` 单例 + `delete_subagent_checkpoint` 终态线程清理），HITL 审批中断恢复的关键 |
+| `agent/sub_agents/checkpointer.py` | 子 agent 共享持久化 checkpointer（`get_subagent_checkpointer` 单例 + `drop_subagent_checkpoint_if_terminal` 终态线程清理 SSOT + 只读沙箱 `:memory:` 容灾降级），HITL 审批中断恢复的关键 |
 | `agent/sub_agents/hitl_tool_policy.py` | HITL 工具策略 SSOT（`HitlToolPolicy`, `HITL_TOOL_POLICY`），供 subagent 能力清单读取，避免 `meta_tools` 包级循环导入 |
 | `agent/sub_agents/budget.py` | 委派运行树预算计数（max_descendants_per_run），防止递归/批量委派暴走 |
 | `agent/sub_agents/builder.py` | 子 agent 构建（async build_child_agent 支持 AgentFactory 委托、工具过滤、模型解析、结果截断、Token 合并） |
@@ -249,11 +249,11 @@ result = SubAgentResult(checkpoint_data={...})
 子 agent 不继承父 agent 的 checkpointer（避免消息历史写入父线程造成状态污染），
 为支持跨重启的 HITL 审批与长任务自愈，所有子 agent 共享一个**持久化 Volume 级独立**的 SQLite Checkpointer（测试环境自适应内存）：
 
-- `agent/sub_agents/checkpointer.py` 提供 `get_subagent_checkpointer()`（懒加载单例）、`close_subagent_checkpointer()` 与 `delete_subagent_checkpoint(task_id)`（终态线程卫生清理）。
-- 默认落盘至 `{MYRM_DATA_DIR}/subagent_checkpoints.sqlite`，并通过 WAL 模式与 busy_timeout 进行并发安全加固；在 `CHECKPOINTER_MODE=memory` 或单测环境下优雅回退。
+- `agent/sub_agents/checkpointer.py` 提供 `get_subagent_checkpointer()`（懒加载单例）、`close_subagent_checkpointer()`、`reset_subagent_checkpointer()` 与 `drop_subagent_checkpoint_if_terminal(task_id, status)`（终态线程卫生清理 SSOT 门禁）。
+- 默认落盘至 `{MYRM_DATA_DIR}/subagent_checkpoints.sqlite`，并通过 WAL 模式与 busy_timeout 进行并发安全加固；在 `CHECKPOINTER_MODE=memory`、单测环境或只读沙箱卷发生权限异常时自动平滑回退至 `:memory:` 确保任务不崩溃。
 - 每个子 agent 的 `thread_id == task_id`（context 中 `approval_session_key`），
   线程彼此隔离；审批中的子 agent 通过 `Command(resume=...)` 从同一线程恢复，即使沙箱休眠或进程重启也能断点续跑。
-- `delete_subagent_checkpoint` 仅在子 agent 到达**终态（非 PENDING_APPROVAL）**时
+- `drop_subagent_checkpoint_if_terminal` 仅在子 agent 到达**终态（非 PENDING_APPROVAL）**时
   删除线程；PENDING_APPROVAL 线程持久保留供审批后 resume 通过。
 - 共享 saver 与父 agent 的 checkpointer 相互独立，父线程不被子线程污染。
 
