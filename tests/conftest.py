@@ -31,6 +31,18 @@ os.environ["MYRM_DATA_DIR"] = _temp_workspace
 os.environ["OTEL_METRICS_EXPORTER"] = "none"
 os.environ["OTEL_TRACES_EXPORTER"] = "none"
 
+_env_test_candidates = (
+    Path(__file__).resolve().parent.parent.parent / "myrm-agent" / "myrm-agent-server" / ".env.test",
+    Path(__file__).resolve().parent.parent / ".env.test",
+)
+for _candidate in _env_test_candidates:
+    if _candidate.exists():
+        with suppress(ImportError):
+            from dotenv import load_dotenv
+
+            load_dotenv(_candidate, override=False)
+        break
+
 
 def _cleanup_temp_workspace() -> None:
     with suppress(Exception):

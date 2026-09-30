@@ -83,6 +83,12 @@ from myrm_agent_harness.toolkits.memory.strategies.implicit_feedback import (
     detect_implicit_feedback,
     plan_memory_corrections,
 )
+from myrm_agent_harness.toolkits.memory.strategies.clean_reducer import (
+    CleanReductionResult,
+    CleanTranscriptReducer,
+    CleanTurn,
+    clean_reduce_transcript,
+)
 from myrm_agent_harness.toolkits.memory.strategies.incremental_transcript import (
     IncrementalTranscriptParser,
     TranscriptIncrementalChunk,
@@ -136,6 +142,10 @@ __all__ = [
     "EvidenceReference",
     "ExactFactClassifier",
     "ExtractedMemory",
+    "CleanReductionResult",
+    "CleanTranscriptReducer",
+    "CleanTurn",
+    "clean_reduce_transcript",
     "ExtractionConfig",
     "ExtractionResult",
     "ForgettingConfig",
