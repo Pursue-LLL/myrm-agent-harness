@@ -8,7 +8,7 @@ Framework-agnostic foundation layer. Provides security, config, events, hooks, a
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Core layer entry — module docstring only, no re-exports at this level. | — |
-| context_vars.py | Core | Cross-layer ContextVar registry shared by agent/ and toolkits/ without coupling. | ✅ |
+| context_vars.py | Core | Cross-layer ContextVar registry shared by agent/ and toolkits/ without coupling. Holds `protected_paths_var` (Goal-scoped protected path patterns) so the sandbox executor enforces the same Goal protection as the file tools and the shell pre-flight; `agent/middlewares/_session_context` is the accessor for agent code. | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|

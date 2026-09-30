@@ -41,6 +41,7 @@ from myrm_agent_harness.agent.security.terminal_error_registry import (
     TerminalErrorRegistry,
 )
 from myrm_agent_harness.agent.security.types import PrivacyPolicy, SecurityConfig
+from myrm_agent_harness.core.context_vars import protected_paths_var
 
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
@@ -390,14 +391,12 @@ def get_canary_token() -> str:
     return _canary_token_var.get()
 
 
-_protected_paths_var: ContextVar[tuple[str, ...]] = ContextVar("protected_paths", default=())
-
 _turn_allowed_tool_names_var: ContextVar[frozenset[str] | None] = ContextVar("turn_allowed_tool_names", default=None)
 
 
 def set_protected_paths(patterns: tuple[str, ...]) -> None:
     """Set the Goal-scoped protected file path patterns for the current context."""
-    _protected_paths_var.set(patterns)
+    protected_paths_var.set(patterns)
 
 
 def get_protected_paths() -> tuple[str, ...]:
@@ -405,7 +404,7 @@ def get_protected_paths() -> tuple[str, ...]:
 
     Returns an empty tuple when no Goal is active or no protection configured.
     """
-    return _protected_paths_var.get()
+    return protected_paths_var.get()
 
 
 def set_turn_allowed_tool_names(allowed: frozenset[str] | None) -> None:

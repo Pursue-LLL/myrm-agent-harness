@@ -2,13 +2,20 @@
 
 [INPUT]
 infra.atomic_write::async_atomic_write (POS: Atomic file writing utility)
+core.security.path::is_sensitive_file, is_protected_instruction_file, is_evidence_readonly_file, is_within_boundary (POS: path security domain)
+core.security.path.pattern::first_matching_pattern (POS: Path pattern matching — single source of truth for glob-style path protection)
+core.context_vars::protected_paths_var (POS: Foundation ContextVar registry)
 
 [OUTPUT]
-LocalFileOpsMixin: Mixin providing pathlib-based file I/O with read-only guard.
+LocalFileOpsMixin: Mixin providing pathlib-based file I/O with a write guard that
+refuses credential paths, persona instruction files, read-only evidence and the
+active Goal's protected paths, alongside the executor's configured read-only roots.
 
 [POS]
 Native file operations for local executor. Provides zero-subprocess-overhead
-file read/write/delete/grep using pathlib and ripgrep, with read-only path enforcement.
+file read/write/delete/grep using pathlib and ripgrep, with read-only path enforcement
+and the shared path-protection rules so sandbox writes agree with the file tools and
+the shell pre-flight.
 """
 
 from __future__ import annotations
@@ -95,8 +102,47 @@ class LocalFileOpsMixin:
         )
 
     def _guard_write(self, resolved_path: str) -> None:
+        """Refuse a write that any protection rule forbids.
+
+        Credential paths are refused outright. Evidence directories and the active
+        Goal's protected paths are refused for writes, matching the ``VIEW`` bypass the
+        file-operation validators grant so a report can still be read back. Persona
+        instruction files are refused here rather than escalated to a human: this
+        executor has no approval channel, and the file tools and the permission
+        middleware both ask before allowing the same write, so declining is the
+        fail-closed direction for a surface that cannot ask.
+        """
         if self._is_readonly(resolved_path):
             raise PermissionError(f"Write denied: path is read-only — {resolved_path}")
+
+        from myrm_agent_harness.core.context_vars import protected_paths_var
+        from myrm_agent_harness.core.security.path import (
+            is_evidence_readonly_file,
+            is_protected_instruction_file,
+            is_sensitive_file,
+        )
+        from myrm_agent_harness.core.security.path.pattern import first_matching_pattern
+
+        matched = first_matching_pattern(resolved_path, protected_paths_var.get())
+        if matched is not None:
+            raise PermissionError(
+                f"Write denied: '{resolved_path}' is protected by the active Goal "
+                f"(pattern: '{matched}')."
+            )
+        if is_evidence_readonly_file(resolved_path):
+            raise PermissionError(
+                f"Write denied: '{resolved_path}' is read-only session evidence. "
+                f"Write derived output to 'artifacts/' instead."
+            )
+        if is_sensitive_file(resolved_path):
+            raise PermissionError(
+                f"Write denied: '{resolved_path}' matches a credential path rule."
+            )
+        if is_protected_instruction_file(resolved_path):
+            raise PermissionError(
+                f"Write denied: '{resolved_path}' is a persona instruction file. "
+                f"Use file_write_tool so the write can be routed through approval."
+            )
 
     async def read_file(self, path: str) -> str:
         safe = await self.resolve_path(path)  # type: ignore[attr-defined]
