@@ -39,7 +39,8 @@ def test_exact_anchor_table_properties_and_immutability() -> None:
         filled_table.commit_shas = ()  # type: ignore[misc]
 
     md = filled_table.format_markdown()
-    assert "[Verified Exact Anchors - Machine-Extracted Truth]" in md
+    assert "### ⚓ Exact Anchor Index (Machine-Extracted Truth)" in md
+    assert "<!-- EXACT_ANCHOR_JSON:" in md
     assert "`a1b2c3d4e5f67890123456789012345678901234`" in md
     assert "`src/core/engine.py`" in md
     assert "`CompactEngine`" in md

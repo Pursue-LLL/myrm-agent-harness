@@ -18,6 +18,7 @@ Prompt Cache preservation.
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -135,7 +136,7 @@ class ExactAnchorTable:
             return ""
 
         lines: list[str] = [
-            "[Verified Exact Anchors - Machine-Extracted Truth]",
+            "### ⚓ Exact Anchor Index (Machine-Extracted Truth)",
             "<!-- Immutable historical anchors; do not hallucinate alternatives -->",
         ]
 
@@ -162,6 +163,10 @@ class ExactAnchorTable:
                 if len(clean_err) > 140:
                     clean_err = clean_err[:140] + "..."
                 lines.append(f"  * `{clean_err}`")
+
+        # Append compact JSON comment metadata for deterministic parsing across boundaries
+        json_meta = json.dumps(self.to_dict(), separators=(",", ":"))
+        lines.append(f"<!-- EXACT_ANCHOR_JSON: {json_meta} -->")
 
         return "\n".join(lines)
 

@@ -30,6 +30,10 @@ _LOOP_COMPLETE_RE = re.compile(
     r"(?im)^\s*" + re.escape(LOOP_COMPLETE_MARKER) + r"\s*[.!]?\s*$"
 )
 
+_LOOP_COMMAND_PREFIX_RE = re.compile(
+    r"^(?:/)?(?:loop|repeat|cron)\s+", re.IGNORECASE
+)
+
 _WAKEUP_PROMPT_TEMPLATE = (
     "[/loop wakeup #{tick}{cadence}]\n"
     "Recurring task: {prompt}\n\n"
@@ -77,6 +81,13 @@ def parse_loop_args(text: str) -> LoopConfig:
     raw = (text or "").strip()
     if not raw:
         return LoopConfig(prompt="", error="empty command")
+
+    raw = _LOOP_COMMAND_PREFIX_RE.sub("", raw).strip()
+    if not raw:
+        return LoopConfig(
+            prompt="",
+            error="missing task prompt (usage: /loop [interval] <task> [--times N] [--until condition])",
+        )
 
     times = 0
     until = ""

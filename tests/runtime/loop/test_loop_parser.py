@@ -59,6 +59,14 @@ def test_parse_loop_args_valid_cases() -> None:
     assert cfg4.interval_seconds == 600
     assert cfg4.prompt == "run linting pass"
 
+    # Command with /loop prefix
+    cfg5 = parse_loop_args("/loop 1m check cluster telemetry --times 5")
+    assert cfg5.is_valid
+    assert cfg5.mode == LoopMode.INTERVAL
+    assert cfg5.interval_seconds == 60
+    assert cfg5.prompt == "check cluster telemetry"
+    assert cfg5.times == 5
+
 
 def test_parse_loop_args_invalid_cases() -> None:
     cfg1 = parse_loop_args("")
