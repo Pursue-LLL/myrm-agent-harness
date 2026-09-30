@@ -73,6 +73,20 @@ class TestIsEvidenceReadonlyFile:
     def test_unrelated_paths_are_writable(self) -> None:
         assert is_evidence_readonly_file("outputs/chart.png") is False
 
+    def test_bare_directory_forms_are_readonly(self) -> None:
+        """A whole protected directory is protected, not only its contents.
+
+        ``rm -rf evidence`` names the directory itself, so a rule set that only
+        spells out descendants would leave the empty-directory form unguarded.
+        """
+        for path in ("evidence", "user_inputs", ".evidence", "a/b/evidence"):
+            assert is_evidence_readonly_file(path) is True, path
+
+    def test_similarly_named_paths_stay_writable(self) -> None:
+        for path in ("my-evidence", "evidence_report.md", "src/evidence_handler.py"):
+            assert is_evidence_readonly_file(path) is False, path
+
+
 class TestSensitiveFilePatterns:
     """Verify SENSITIVE_FILE_PATTERNS tuple integrity."""
 

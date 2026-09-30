@@ -31,7 +31,9 @@ def _no_goal_protection():
 @pytest.mark.parametrize(
     ("path", "reason"),
     [
+        ("evidence", "evidence directory itself"),
         ("evidence/report.pdf", "evidence directory"),
+        ("user_inputs", "user input directory itself"),
         ("user_inputs/notes.csv", "user input directory"),
         (".env", "credential file"),
         ("secrets/key.pem", "credential key"),

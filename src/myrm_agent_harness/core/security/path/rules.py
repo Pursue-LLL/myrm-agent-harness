@@ -101,14 +101,19 @@ PROTECTED_INSTRUCTION_PATTERNS: tuple[str, ...] = (
 # ---------------------------------------------------------------------------
 
 EVIDENCE_READONLY_PATTERNS: tuple[str, ...] = (
+    "**/evidence",
     "**/evidence/**",
     "**/evidence/*",
+    "evidence",
     "evidence/**",
     "evidence/*",
+    "**/user_inputs",
     "**/user_inputs/**",
     "**/user_inputs/*",
+    "user_inputs",
     "user_inputs/**",
     "user_inputs/*",
+    "**/.evidence",
     "**/.evidence/**",
     "**/.evidence/*",
 )

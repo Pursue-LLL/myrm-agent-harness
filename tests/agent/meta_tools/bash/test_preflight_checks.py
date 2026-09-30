@@ -318,6 +318,34 @@ class TestEvidenceDirectoriesAreWriteOnly:
     @pytest.mark.parametrize(
         "command",
         [
+            "rm -rf evidence",
+            "rm -rf user_inputs",
+            "rm -rf .evidence",
+            "rm -rf sessions/s1/evidence",
+            "mv evidence /tmp/stash",
+            "cp -r evidence /tmp/copy",
+        ],
+    )
+    def test_bare_protected_directory_operand_is_blocked(self, command: str) -> None:
+        """A protected directory named without a separator is still an operand."""
+        with pytest.raises(ToolError, match="security"):
+            check_sensitive_paths(command)
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "rm -rf outputs",
+            "rm -rf tmp",
+            "rm -rf build",
+            "rm -rf my-evidence",
+        ],
+    )
+    def test_unprotected_directory_operands_stay_allowed(self, command: str) -> None:
+        check_sensitive_paths(command)
+
+    @pytest.mark.parametrize(
+        "command",
+        [
             "rsync -a dist/ outputs/",
             "scp -r build/ outputs/",
             "rsync -a ~/project/ ~/backup/",

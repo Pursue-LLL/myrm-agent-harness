@@ -224,14 +224,19 @@ def _operand_candidates(word: str) -> Iterator[str]:
     to an assignment (``of=evidence/x``) or attached to a flag
     (``--output=evidence/x``), so the value after the first ``=`` is always
     checked alongside the whole word.
+
+    A word needs no ``.``, ``/`` or ``~`` to be an operand: a protected directory
+    named without any of them (``rm -rf evidence``) is a complete operand in its
+    own right, and the rules reject such words on segment boundaries, so the
+    wider candidate set costs a comparison rather than a false positive.
     """
     if not word or _URI_SCHEME.match(word):
         return
-    if not word.startswith("-") and any(m in word for m in (".", "/", "~")):
+    if not word.startswith("-"):
         yield word
     if "=" in word:
         _, _, value = word.partition("=")
-        if value and not _URI_SCHEME.match(value) and any(m in value for m in (".", "/", "~")):
+        if value and not _URI_SCHEME.match(value):
             yield value
 
 
