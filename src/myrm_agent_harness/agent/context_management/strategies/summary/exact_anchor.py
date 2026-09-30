@@ -86,6 +86,19 @@ _NOISE_WORDS: frozenset[str] = frozenset(
     }
 )
 
+_IGNORED_PATH_PREFIXES: tuple[str, ...] = (
+    "node_modules/",
+    ".venv/",
+    "venv/",
+    ".git/",
+    "dist/",
+    "build/",
+    "__pycache__/",
+    ".next/",
+    ".cache/",
+)
+
+
 
 @dataclass(frozen=True, slots=True)
 class ExactAnchorFilterConfig:
@@ -157,7 +170,7 @@ class ExactAnchorTable:
             lines.append(f"- **API Endpoints**: {endpoints}")
 
         if self.error_spans:
-            lines.append("- **Resolved Errors**:")
+            lines.append("- **Error Signatures**:")
             for err in self.error_spans:
                 clean_err = err.strip().replace("\n", " ")
                 if len(clean_err) > 140:
@@ -207,7 +220,7 @@ def extract_exact_anchors(
 
     total_scanned_chars = 0
 
-    for msg in messages:
+    for msg in reversed(messages):
         if total_scanned_chars >= cfg.max_scan_total_chars:
             break
 
@@ -215,7 +228,7 @@ def extract_exact_anchors(
         if not content:
             continue
 
-        for raw_line in content.splitlines():
+        for raw_line in reversed(content.splitlines()):
             total_scanned_chars += len(raw_line)
             if total_scanned_chars >= cfg.max_scan_total_chars:
                 break
@@ -235,11 +248,19 @@ def extract_exact_anchors(
                         if len(shas) >= cfg.max_commit_shas:
                             break
 
-            # 2. File Paths
+            # 2. File Paths (filtered against dependency & build artifacts)
             if len(paths) < cfg.max_file_paths:
                 for match in _FILE_PATH_RE.finditer(line):
                     path = match.group(1).strip(" \"'`()")
-                    if path and path not in seen_paths and len(path) >= 4:
+                    if (
+                        path
+                        and path not in seen_paths
+                        and len(path) >= 4
+                        and not any(
+                            path.startswith(prefix) or f"/{prefix}" in path
+                            for prefix in _IGNORED_PATH_PREFIXES
+                        )
+                    ):
                         seen_paths.add(path)
                         paths.append(path)
                         if len(paths) >= cfg.max_file_paths:
@@ -279,6 +300,13 @@ def extract_exact_anchors(
                         endpoints.append(ep)
                         if len(endpoints) >= cfg.max_api_endpoints:
                             break
+
+    # Restore natural chronological order
+    shas.reverse()
+    paths.reverse()
+    errors.reverse()
+    symbols.reverse()
+    endpoints.reverse()
 
     return ExactAnchorTable(
         commit_shas=tuple(shas),

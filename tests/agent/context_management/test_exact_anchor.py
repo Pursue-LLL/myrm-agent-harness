@@ -40,6 +40,7 @@ def test_exact_anchor_table_properties_and_immutability() -> None:
 
     md = filled_table.format_markdown()
     assert "### ⚓ Exact Anchor Index (Machine-Extracted Truth)" in md
+    assert "- **Error Signatures**:" in md
     assert "<!-- EXACT_ANCHOR_JSON:" in md
     assert "`a1b2c3d4e5f67890123456789012345678901234`" in md
     assert "`src/core/engine.py`" in md
@@ -129,3 +130,40 @@ def test_quota_limits_and_safety_boundaries() -> None:
     assert len(table.file_paths) <= 2
     # Long line truncated before 'src/long/path/skipped.py'
     assert "src/long/path/skipped.py" not in table.file_paths
+
+
+def test_recency_first_extraction_favors_recent_messages() -> None:
+    """Ensure recent turns are prioritized over early turns when capacity is capped."""
+    cfg = ExactAnchorFilterConfig(max_file_paths=2)
+
+    messages = [
+        HumanMessage(content="Early turn: modified old_file_1.py and old_file_2.py"),
+        AIMessage(content="Later turn: touched recent_critical_file.py"),
+    ]
+
+    table = extract_exact_anchors(messages, config=cfg)
+
+    # recent_critical_file.py MUST be captured because of reverse-order scanning
+    assert "recent_critical_file.py" in table.file_paths
+    assert len(table.file_paths) == 2
+
+
+def test_dependency_and_build_path_blacklist() -> None:
+    """Ensure node_modules, .venv, .git, and build artifacts are stripped."""
+    messages = [
+        ToolMessage(
+            content=(
+                "Failure at node_modules/vitest/dist/index.js line 4\n"
+                "Also checked .venv/lib/python3.11/site-packages/pkg.py\n"
+                "Real user file: src/services/user_service.py"
+            ),
+            tool_call_id="call_noise",
+        )
+    ]
+
+    table = extract_exact_anchors(messages)
+
+    assert "src/services/user_service.py" in table.file_paths
+    assert not any("node_modules" in p for p in table.file_paths)
+    assert not any(".venv" in p for p in table.file_paths)
+
