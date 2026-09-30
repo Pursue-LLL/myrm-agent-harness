@@ -75,9 +75,7 @@ class ObserverManager:
         """
         try:
             active = await asyncio.wait_for(
-                self._frame.evaluate(
-                    "() => window.__ariaObserver && window.__ariaObserver.ensureActive()"
-                ),
+                self._frame.evaluate("() => window.__ariaObserver && window.__ariaObserver.ensureActive()"),
                 timeout=2.0,
             )
             if active:

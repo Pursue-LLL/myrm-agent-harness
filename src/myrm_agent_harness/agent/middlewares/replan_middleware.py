@@ -46,7 +46,6 @@ def get_max_consecutive_replan_errors() -> int:
     return max(summary.values()) if summary else 0
 
 
-
 class ReplanMiddleware(AgentMiddleware[Any, Any]):
     """Catches tool execution errors and triggers a replan loop.
 
@@ -190,4 +189,3 @@ __all__ = [
     "get_replan_error_summary",
     "reset_replan_attempts",
 ]
-

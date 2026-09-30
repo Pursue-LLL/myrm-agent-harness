@@ -183,4 +183,3 @@ class AutoRemedyGenerator:
             remedies["python_install"] = f"uv pip install {pkgs_str}"
 
         return remedies
-

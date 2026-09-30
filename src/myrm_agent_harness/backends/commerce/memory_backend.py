@@ -66,11 +66,9 @@ class InMemoryStorefrontBackend(StorefrontBackendProtocol):
         orders: list[Order] | None = None,
         policies: list[Policy] | None = None,
     ) -> None:
-        self._products: dict[str, Product] = {
-            p.product_id: p for p in (products or self._default_products())
-        }
+        self._products: dict[str, Product] = {p.product_id: p for p in (products or self._default_products())}
         self._orders: dict[str, list[Order]] = {}
-        for order in (orders or self._default_orders()):
+        for order in orders or self._default_orders():
             self._orders.setdefault(order.customer_id, []).append(order)
         self._policies: list[Policy] = list(policies or self._default_policies())
         self._carts: dict[str, Cart] = {}
@@ -202,11 +200,7 @@ class InMemoryStorefrontBackend(StorefrontBackendProtocol):
         cart = await self.get_cart(session_id)
         existing_lines = list(cart.lines)
         line_match = next(
-            (
-                line
-                for line in existing_lines
-                if line.product_id == product_id and line.variant_id == chosen_variant_id
-            ),
+            (line for line in existing_lines if line.product_id == product_id and line.variant_id == chosen_variant_id),
             None,
         )
 
@@ -273,9 +267,7 @@ class InMemoryStorefrontBackend(StorefrontBackendProtocol):
             cart=updated_cart,
         )
 
-    async def update_cart_item(
-        self, session_id: str, line_id: str, quantity: int
-    ) -> CartUpdateResult:
+    async def update_cart_item(self, session_id: str, line_id: str, quantity: int) -> CartUpdateResult:
         if quantity <= 0:
             return await self.remove_from_cart(session_id, line_id)
 
@@ -391,9 +383,7 @@ class InMemoryMerchantBackend(MerchantBackendProtocol):
         pricing_contexts: dict[str, PricingContext] | None = None,
         inventory_alerts: list[InventoryAlert] | None = None,
     ) -> None:
-        self._listings: dict[str, Listing] = {
-            item.listing_id: item for item in (listings or self._default_listings())
-        }
+        self._listings: dict[str, Listing] = {item.listing_id: item for item in (listings or self._default_listings())}
         self._summary = summary or self._default_summary()
         self._pricing_contexts = pricing_contexts or self._default_pricing()
         self._inventory_alerts = list(inventory_alerts or self._default_alerts())
@@ -449,9 +439,7 @@ class InMemoryMerchantBackend(MerchantBackendProtocol):
 
         vals = dict(staged.proposed_values)
         updated_price = float(vals["price"]) if "price" in vals else listing.price
-        updated_stock = (
-            int(vals["inventory_count"]) if "inventory_count" in vals else listing.inventory_count
-        )
+        updated_stock = int(vals["inventory_count"]) if "inventory_count" in vals else listing.inventory_count
         updated_title = vals.get("title", listing.title)
 
         updated_listing = Listing(
@@ -508,9 +496,7 @@ class InMemoryMerchantBackend(MerchantBackendProtocol):
             competitors=(),
         )
 
-    async def get_inventory_alerts(
-        self, min_severity: str = "warning"
-    ) -> list[InventoryAlert]:
+    async def get_inventory_alerts(self, min_severity: str = "warning") -> list[InventoryAlert]:
         severities = [InventoryAlertSeverity.INFO, InventoryAlertSeverity.WARNING, InventoryAlertSeverity.CRITICAL]
         min_idx = 1
         if min_severity == "info":

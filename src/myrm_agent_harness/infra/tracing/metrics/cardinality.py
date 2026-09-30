@@ -27,21 +27,23 @@ logger = logging.getLogger(__name__)
 # High-cardinality label keys that must NEVER become metric dimensions.
 # These keys have unbounded cardinality (e.g. UUIDs, filesystem paths, hashes).
 # They belong in distributed Trace Spans and log contexts, NOT metric time series.
-HIGH_CARDINALITY_LABEL_BLOCKLIST: frozenset[str] = frozenset({
-    "session_id",
-    "turn_id",
-    "conversation_id",
-    "user_id",
-    "trace_id",
-    "span_id",
-    "request_id",
-    "workspace",
-    "workspace_dir",
-    "tool_call_id",
-    "filepath",
-    "file_path",
-    "command",
-})
+HIGH_CARDINALITY_LABEL_BLOCKLIST: frozenset[str] = frozenset(
+    {
+        "session_id",
+        "turn_id",
+        "conversation_id",
+        "user_id",
+        "trace_id",
+        "span_id",
+        "request_id",
+        "workspace",
+        "workspace_dir",
+        "tool_call_id",
+        "filepath",
+        "file_path",
+        "command",
+    }
+)
 
 
 def sanitize_metric_labels(

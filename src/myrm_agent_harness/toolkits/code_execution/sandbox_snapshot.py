@@ -117,9 +117,7 @@ def _probe_git_state(workspace: Path) -> tuple[str | None, bool | None]:
     if rc_branch != 0 or not branch_out:
         branch_out = "HEAD"
 
-    rc_status, status_out = _run_quick_command(
-        ["git", "-C", str(workspace), "status", "--porcelain"], timeout=1.0
-    )
+    rc_status, status_out = _run_quick_command(["git", "-C", str(workspace), "status", "--porcelain"], timeout=1.0)
     is_dirty = bool(status_out) if rc_status == 0 else None
 
     return branch_out, is_dirty
@@ -144,7 +142,9 @@ def _probe_runtimes() -> list[str]:
 def _probe_runtime_version(bin_name: str) -> str:
     """Fetch short version string for a given runtime binary."""
     if bin_name in ("python3", "python"):
-        rc, out = _run_quick_command([bin_name, "-c", "import sys; print(f'{sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}')"])
+        rc, out = _run_quick_command(
+            [bin_name, "-c", "import sys; print(f'{sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}')"]
+        )
         if rc == 0 and out:
             return out
     elif bin_name == "node":

@@ -189,9 +189,7 @@ class LinkRefactorEngine:
             old_resolved = old_path.resolve()
             new_resolved = new_path.resolve()
             has_stem_conflict = any(
-                p.stem.casefold() == old_stem_cf
-                and p.resolve() != old_resolved
-                and p.resolve() != new_resolved
+                p.stem.casefold() == old_stem_cf and p.resolve() != old_resolved and p.resolve() != new_resolved
                 for p in self.concepts_dir.rglob("*.md")
             )
 
@@ -252,7 +250,6 @@ class LinkRefactorEngine:
 
         # 3. If in a different folder, check pre-computed global collision in vault.
         return not has_stem_conflict
-
 
     def _update_content_links(
         self,
@@ -375,5 +372,3 @@ class LinkRefactorEngine:
             return fences[idx]
 
         return re.sub(r"\x00CODE_(\d+)\x00", _restore_fence, masked)
-
-

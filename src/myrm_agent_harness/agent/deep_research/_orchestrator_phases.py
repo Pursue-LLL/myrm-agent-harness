@@ -134,7 +134,9 @@ class DeepResearchPhasesMixin:
         finalize_schema = [
             t
             for t in build_orchestrator_tools(include_think=False)
-            if isinstance(t, dict) and isinstance(t.get("function"), dict) and t["function"].get("name") == FINALIZE_TOOL_NAME
+            if isinstance(t, dict)
+            and isinstance(t.get("function"), dict)
+            and t["function"].get("name") == FINALIZE_TOOL_NAME
         ]
 
         ask_question_schema = build_signal_schema(
@@ -469,4 +471,3 @@ class DeepResearchPhasesMixin:
             max_chars=self._config.max_report_context_chars,  # type: ignore[attr-defined]
             evidence_tree_data=evidence_tree_data,
         )
-

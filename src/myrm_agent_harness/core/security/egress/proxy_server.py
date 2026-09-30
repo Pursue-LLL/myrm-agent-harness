@@ -57,10 +57,12 @@ class EphemeralCaManager:
         from cryptography.x509.oid import NameOID
 
         self._ca_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-        self._name = x509.Name([
-            x509.NameAttribute(NameOID.COMMON_NAME, "Myrm Ephemeral Sandbox CA"),
-            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Myrm Harness Security"),
-        ])
+        self._name = x509.Name(
+            [
+                x509.NameAttribute(NameOID.COMMON_NAME, "Myrm Ephemeral Sandbox CA"),
+                x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Myrm Harness Security"),
+            ]
+        )
         now = datetime.datetime.now(datetime.UTC)
         self._ca_cert = (
             x509.CertificateBuilder()
@@ -135,7 +137,10 @@ class EphemeralCaManager:
 
         # Build in-memory SSLContext
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-        with tempfile.NamedTemporaryFile("wb", delete=False) as cert_f, tempfile.NamedTemporaryFile("wb", delete=False) as key_f:
+        with (
+            tempfile.NamedTemporaryFile("wb", delete=False) as cert_f,
+            tempfile.NamedTemporaryFile("wb", delete=False) as key_f,
+        ):
             cert_f.write(leaf_cert_pem)
             key_f.write(leaf_key_pem)
             cert_path, key_path = cert_f.name, key_f.name
@@ -318,7 +323,9 @@ class LoopbackEgressProxy:
                     target_port,
                     reason,
                 )
-                writer.write(b"HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\n\r\nBlocked by Tainted Egress Policy\r\n")
+                writer.write(
+                    b"HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\n\r\nBlocked by Tainted Egress Policy\r\n"
+                )
                 await writer.drain()
                 writer.close()
                 await writer.wait_closed()
@@ -333,7 +340,9 @@ class LoopbackEgressProxy:
             try:
                 remote_reader, remote_writer = await asyncio.open_connection(target_host, target_port)
             except Exception as e:
-                logger.warning("[EGRESS_PROXY] Failed to connect to loopback target %s:%d: %s", target_host, target_port, e)
+                logger.warning(
+                    "[EGRESS_PROXY] Failed to connect to loopback target %s:%d: %s", target_host, target_port, e
+                )
                 writer.close()
                 await writer.wait_closed()
                 return
@@ -553,7 +562,9 @@ class LoopbackEgressProxy:
                     port,
                     reason,
                 )
-                writer.write(b"HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\n\r\nBlocked by Tainted Egress Policy\r\n")
+                writer.write(
+                    b"HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\n\r\nBlocked by Tainted Egress Policy\r\n"
+                )
                 await writer.drain()
                 writer.close()
                 await writer.wait_closed()

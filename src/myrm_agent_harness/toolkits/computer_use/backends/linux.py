@@ -78,14 +78,9 @@ class LinuxBackend:
         stdout, stderr = await proc.communicate()
         return stdout.decode(), stderr.decode(), proc.returncode or 0
 
-    async def screenshot(
-        self, app_name: str | None = None, window_index: int = 0
-    ) -> bytes:
+    async def screenshot(self, app_name: str | None = None, window_index: int = 0) -> bytes:
         if app_name:
-            raise RuntimeError(
-                "window-targeted capture is not supported on Linux; "
-                "use scope='foreground'"
-            )
+            raise RuntimeError("window-targeted capture is not supported on Linux; use scope='foreground'")
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
             tmp_path = Path(tmp.name)
 
@@ -450,8 +445,6 @@ def _probe_linux_capturable() -> bool:
         return False
     finally:
         tmp_path.unlink(missing_ok=True)
-
-
 
 
 def _detect_linux_resolution(display_prefix: str) -> tuple[int, int]:

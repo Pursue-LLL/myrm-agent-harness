@@ -108,11 +108,7 @@ class LLMErrorDiagnostic:
             raw_msg = locale_manager.translate("tls_transient", "user_message", locale)
             raw_steps = locale_manager.translate("tls_transient", "resolution_steps", locale)
             fallback_msg = "TLS handshake interrupted — likely transient network instability, retrying automatically."
-            user_message = (
-                raw_msg
-                if isinstance(raw_msg, str) and not raw_msg.startswith("[Missing")
-                else fallback_msg
-            )
+            user_message = raw_msg if isinstance(raw_msg, str) and not raw_msg.startswith("[Missing") else fallback_msg
             steps = raw_steps if isinstance(raw_steps, list) and raw_steps else [fallback_msg]
 
             cooldown_hint = LLMErrorDiagnostic._format_cooldown_hint(cooldown_remaining_ms, locale)

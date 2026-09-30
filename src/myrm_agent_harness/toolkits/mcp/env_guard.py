@@ -32,17 +32,11 @@ from myrm_agent_harness.toolkits.code_execution.security.blacklist import (
 logger = logging.getLogger(__name__)
 
 # Pre-normalized uppercase sets and tuples for fast O(1) case-insensitive lookup
-_NORMALIZED_DANGEROUS_KEYS: Final[frozenset[str]] = frozenset(
-    k.upper() for k in DANGEROUS_ENV_VARS
-)
+_NORMALIZED_DANGEROUS_KEYS: Final[frozenset[str]] = frozenset(k.upper() for k in DANGEROUS_ENV_VARS)
 
-_NORMALIZED_DANGEROUS_PREFIXES: Final[tuple[str, ...]] = tuple(
-    p.upper() for p in DANGEROUS_ENV_PREFIXES
-)
+_NORMALIZED_DANGEROUS_PREFIXES: Final[tuple[str, ...]] = tuple(p.upper() for p in DANGEROUS_ENV_PREFIXES)
 
-_NORMALIZED_DANGEROUS_WILDCARDS: Final[tuple[str, ...]] = tuple(
-    w.upper() for w in DANGEROUS_ENV_WILDCARDS
-)
+_NORMALIZED_DANGEROUS_WILDCARDS: Final[tuple[str, ...]] = tuple(w.upper() for w in DANGEROUS_ENV_WILDCARDS)
 
 # Explicitly allowed spec-reserved variables that should never be blocked as false positives
 _RESERVED_SPEC_VARS: Final[frozenset[str]] = frozenset({"PLUGIN_ROOT", "PLUGIN_DATA"})

@@ -105,7 +105,6 @@ class EmbeddingCache:
             self._l1.clear()
             self._access.clear()
 
-
     # ── High-level API (used by MemoryManager) ──────────────────────
 
     async def get_embedding(self, text: str) -> list[float]:

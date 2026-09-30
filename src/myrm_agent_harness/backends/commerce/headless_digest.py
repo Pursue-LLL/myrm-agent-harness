@@ -131,8 +131,7 @@ class HeadlessDigestRunner:
 
         if critical_count > 0:
             exec_summary = (
-                f"今日核心经营大盘平稳，但监测到 {critical_count} 项严重库存断货风险，"
-                "请尽快审批建议补货工单。"
+                f"今日核心经营大盘平稳，但监测到 {critical_count} 项严重库存断货风险，请尽快审批建议补货工单。"
             )
         else:
             exec_summary = "今日核心经营大盘整体运行平稳，各项指标处于健康波动区间，无紧急阻断性风险。"

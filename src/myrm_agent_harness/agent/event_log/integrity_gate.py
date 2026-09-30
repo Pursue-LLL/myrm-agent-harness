@@ -111,16 +111,16 @@ def verify_session_enclosure(events: Sequence[object]) -> list[InvariantViolatio
                 )
         elif event_type in _ENCLOSED_REQUIRED_TYPES and not active_steps:
             violations.append(
-                    InvariantViolation(
-                        package_name=_PACKAGE,
-                        invariant_name="session_enclosure",
-                        message=(
-                            f"Payload event '{event_type}' at index {idx} occurs outside an active step/turn enclosure."
-                        ),
-                        severity=InvariantSeverity.ERROR,
-                        details={"index": idx, "event_type": event_type},
-                    )
+                InvariantViolation(
+                    package_name=_PACKAGE,
+                    invariant_name="session_enclosure",
+                    message=(
+                        f"Payload event '{event_type}' at index {idx} occurs outside an active step/turn enclosure."
+                    ),
+                    severity=InvariantSeverity.ERROR,
+                    details={"index": idx, "event_type": event_type},
                 )
+            )
 
     for unclosed in active_steps:
         violations.append(

@@ -189,9 +189,7 @@ class PrivacyFailClosedLadder:
                     is_allowed=False,
                     level=PrivacyLadderLevel.WORKSPACE,
                     violation_type=PrivacyLadderViolationType.WORKSPACE_BOUNDARY_ESCAPED,
-                    reason=(
-                        f"Target path '{target_path}' escapes authorized workspace root '{scope.workspace_root}'"
-                    ),
+                    reason=(f"Target path '{target_path}' escapes authorized workspace root '{scope.workspace_root}'"),
                 )
 
         # ---------------------------------------------------------------------

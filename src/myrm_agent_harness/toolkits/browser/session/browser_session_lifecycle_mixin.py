@@ -172,9 +172,7 @@ class BrowserSessionLifecycleMixin:
                         await new_page.context.add_init_script(script)
                         injected_count += len(local_storage)
 
-                    logger.info(
-                        f"Successfully migrated {injected_count} localStorage items to new engine."
-                    )
+                    logger.info(f"Successfully migrated {injected_count} localStorage items to new engine.")
 
         # Restore state if possible
         if restore_url and current_url and current_url != "about:blank":

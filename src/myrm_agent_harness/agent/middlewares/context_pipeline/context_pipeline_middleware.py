@@ -339,6 +339,7 @@ def create_context_pipeline_middleware(
                             logger.warning("[Downshift] on_downshift callback failed: %s", cb_exc)
 
                     from myrm_agent_harness.utils.event_utils import dispatch_custom_event
+
                     try:
                         await dispatch_custom_event(
                             "agent_status",

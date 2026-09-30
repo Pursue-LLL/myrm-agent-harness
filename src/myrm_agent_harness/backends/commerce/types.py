@@ -446,4 +446,3 @@ class MerchantSessionState:
     active_listing_id: str | None = None
     staged_change_ids: tuple[str, ...] = ()
     authorized_permissions: tuple[str, ...] = ("read_performance", "stage_changes")
-

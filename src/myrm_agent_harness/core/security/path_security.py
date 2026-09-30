@@ -279,9 +279,7 @@ def safe_join_path(base_dir: str | Path, user_input: str | Path) -> Path:
     if "\0" in input_str:
         raise ValueError("Null byte injection detected in path")
     if is_content_not_path(input_str):
-        raise ValueError(
-            "Invalid path: content or multiline string cannot be parsed as a filesystem path"
-        )
+        raise ValueError("Invalid path: content or multiline string cannot be parsed as a filesystem path")
 
     user_path = Path(user_input)
     if user_path.is_absolute():
@@ -303,9 +301,7 @@ def safe_join_path(base_dir: str | Path, user_input: str | Path) -> Path:
         raise ValueError(f"Path resolution failed: {e}") from e
 
     if not resolved_final.is_relative_to(resolved_base):
-        raise ValueError(
-            f"Path traversal detected: {user_input} resolves outside base directory"
-        )
+        raise ValueError(f"Path traversal detected: {user_input} resolves outside base directory")
 
     return final_virtual_path
 
@@ -416,12 +412,7 @@ def is_blocked_device_path(path: str) -> bool:
     try:
         st = os.lstat(os.path.expanduser(cleaned))
         mode = st.st_mode
-        if (
-            stat.S_ISCHR(mode)
-            or stat.S_ISBLK(mode)
-            or stat.S_ISFIFO(mode)
-            or stat.S_ISSOCK(mode)
-        ):
+        if stat.S_ISCHR(mode) or stat.S_ISBLK(mode) or stat.S_ISFIFO(mode) or stat.S_ISSOCK(mode):
             return True
     except (OSError, ValueError):
         pass
@@ -491,4 +482,3 @@ def is_evidence_readonly_file(path: str) -> bool:
         return False
     normalised = str(path).replace("\\", "/")
     return first_matching_pattern(normalised, EVIDENCE_READONLY_PATTERNS) is not None
-

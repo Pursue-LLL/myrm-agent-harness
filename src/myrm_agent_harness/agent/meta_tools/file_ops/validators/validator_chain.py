@@ -65,9 +65,7 @@ class ValidatorChain:
         # 7. 文件大小验证
         # 8. 权限验证（文件存在性、操作合法性）
         self.chain = PathValidator(allowed_base_paths, config)
-        self.chain.set_next(InvariantValidator()).set_next(
-            EvidenceReadOnlyValidator()
-        ).set_next(
+        self.chain.set_next(InvariantValidator()).set_next(EvidenceReadOnlyValidator()).set_next(
             SensitiveFileValidator(config, block_sensitive_reads)
         ).set_next(ConfigProtectionValidator()).set_next(BinaryValidator()).set_next(SizeValidator(strategy)).set_next(
             PermissionValidator(strategy)

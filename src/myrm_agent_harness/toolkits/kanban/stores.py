@@ -63,11 +63,7 @@ class InMemoryKanbanStore(KanbanStore):
         for r_id in run_ids:
             del self._runs[r_id]
         self._events = [e for e in self._events if e.task_id != task_id]
-        self._edges = [
-            e
-            for e in self._edges
-            if e.parent_task_id != task_id and e.child_task_id != task_id
-        ]
+        self._edges = [e for e in self._edges if e.parent_task_id != task_id and e.child_task_id != task_id]
 
     # -- Board CRUD --
 
@@ -121,8 +117,7 @@ class InMemoryKanbanStore(KanbanStore):
             results = [
                 t
                 for t in results
-                if isinstance(t.metadata, dict)
-                and t.metadata.get(KANBAN_SOURCE_CHAT_METADATA_KEY) == source_chat_id
+                if isinstance(t.metadata, dict) and t.metadata.get(KANBAN_SOURCE_CHAT_METADATA_KEY) == source_chat_id
             ]
         results.sort(key=lambda t: t.created_at)
         results = results[offset:]
@@ -188,9 +183,7 @@ class InMemoryKanbanStore(KanbanStore):
 
     async def add_edge(self, parent_task_id: str, child_task_id: str) -> TaskEdge:
         if self._would_create_cycle(parent_task_id, child_task_id):
-            raise ValueError(
-                f"Adding edge {parent_task_id} -> {child_task_id} would create a cycle"
-            )
+            raise ValueError(f"Adding edge {parent_task_id} -> {child_task_id} would create a cycle")
         for e in self._edges:
             if e.parent_task_id == parent_task_id and e.child_task_id == child_task_id:
                 return e
@@ -201,11 +194,7 @@ class InMemoryKanbanStore(KanbanStore):
     async def remove_edge(self, parent_task_id: str, child_task_id: str) -> bool:
         before = len(self._edges)
         self._edges = [
-            e
-            for e in self._edges
-            if not (
-                e.parent_task_id == parent_task_id and e.child_task_id == child_task_id
-            )
+            e for e in self._edges if not (e.parent_task_id == parent_task_id and e.child_task_id == child_task_id)
         ]
         return len(self._edges) < before
 
@@ -216,9 +205,7 @@ class InMemoryKanbanStore(KanbanStore):
         return [e.child_task_id for e in self._edges if e.parent_task_id == task_id]
 
     async def are_dependencies_met(self, task_id: str) -> bool:
-        parent_ids = [
-            e.parent_task_id for e in self._edges if e.child_task_id == task_id
-        ]
+        parent_ids = [e.parent_task_id for e in self._edges if e.child_task_id == task_id]
         if not parent_ids:
             return True
         for pid in parent_ids:
@@ -246,31 +233,20 @@ class InMemoryKanbanStore(KanbanStore):
         # 2. Build shadow edges and test for cycles
         shadow_edges = list(self._edges)
         for p_id, c_id in spec.remove_edges:
-            shadow_edges = [
-                e
-                for e in shadow_edges
-                if not (e.parent_task_id == p_id and e.child_task_id == c_id)
-            ]
+            shadow_edges = [e for e in shadow_edges if not (e.parent_task_id == p_id and e.child_task_id == c_id)]
 
         # If a task is removed, remove all incident edges
-        removed_task_ids_set = {
-            item.task_id
-            for item in spec.task_changes
-            if item.action == "remove" and item.task_id
-        }
+        removed_task_ids_set = {item.task_id for item in spec.task_changes if item.action == "remove" and item.task_id}
         if removed_task_ids_set:
             shadow_edges = [
                 e
                 for e in shadow_edges
-                if e.parent_task_id not in removed_task_ids_set
-                and e.child_task_id not in removed_task_ids_set
+                if e.parent_task_id not in removed_task_ids_set and e.child_task_id not in removed_task_ids_set
             ]
 
         # Add proposed edges
         for p_id, c_id in spec.add_edges:
-            if (p_id, c_id) not in [
-                (e.parent_task_id, e.child_task_id) for e in shadow_edges
-            ]:
+            if (p_id, c_id) not in [(e.parent_task_id, e.child_task_id) for e in shadow_edges]:
                 shadow_edges.append(TaskEdge(parent_task_id=p_id, child_task_id=c_id))
 
         # Check cycle on shadow edges
@@ -415,19 +391,13 @@ class InMemoryKanbanStore(KanbanStore):
         return copy.deepcopy(task)
 
     async def list_ready_tasks(self, board_id: str) -> list[KanbanTask]:
-        ready = [
-            t
-            for t in self._tasks.values()
-            if t.board_id == board_id and t.status == TaskStatus.READY
-        ]
+        ready = [t for t in self._tasks.values() if t.board_id == board_id and t.status == TaskStatus.READY]
         ready.sort(key=lambda t: (_PRIORITY_ORDER.get(t.priority, 2), t.created_at))
         return [copy.deepcopy(t) for t in ready]
 
     async def list_running_tasks(self, board_id: str) -> list[KanbanTask]:
         return [
-            copy.deepcopy(t)
-            for t in self._tasks.values()
-            if t.board_id == board_id and t.status == TaskStatus.RUNNING
+            copy.deepcopy(t) for t in self._tasks.values() if t.board_id == board_id and t.status == TaskStatus.RUNNING
         ]
 
     # -- Heartbeat operations --
@@ -439,9 +409,7 @@ class InMemoryKanbanStore(KanbanStore):
             if note is not None:
                 task.progress_note = note
 
-    async def list_zombie_tasks(
-        self, board_id: str, timeout_seconds: int
-    ) -> list[KanbanTask]:
+    async def list_zombie_tasks(self, board_id: str, timeout_seconds: int) -> list[KanbanTask]:
         now = datetime.now(UTC)
         zombies: list[KanbanTask] = []
         for t in self._tasks.values():
@@ -533,8 +501,4 @@ class InMemoryKanbanStore(KanbanStore):
         *,
         since_id: int | None = None,
     ) -> list[TaskEvent]:
-        return [
-            e
-            for e in self._events
-            if e.task_id == task_id and (since_id is None or e.event_id > since_id)
-        ]
+        return [e for e in self._events if e.task_id == task_id and (since_id is None or e.event_id > since_id)]

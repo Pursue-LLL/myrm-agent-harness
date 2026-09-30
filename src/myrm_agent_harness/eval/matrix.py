@@ -125,9 +125,7 @@ class MatrixResult:
                 regressions.append(i)
         return regressions
 
-    def _extract_profile_metrics(
-        self, pid: str
-    ) -> tuple[list[bool], list[int], list[float], list[float]]:
+    def _extract_profile_metrics(self, pid: str) -> tuple[list[bool], list[int], list[float], list[float]]:
         outcomes: list[bool] = []
         tokens: list[int] = []
         costs: list[float] = []
@@ -327,10 +325,7 @@ def evaluate_generalization_gate(
         )
     elif passed_profiles == 0 or (mean_pr < 0.2 and regression_rate > 0.5):
         verdict = GeneralizationGateVerdict.GENERALIZATION_COLLAPSE
-        recommendation = (
-            "Severe capability collapse across evaluated models. "
-            "Reject candidate change."
-        )
+        recommendation = "Severe capability collapse across evaluated models. Reject candidate change."
     else:
         verdict = GeneralizationGateVerdict.PARTIAL_OVERFIT
         recommendation = (

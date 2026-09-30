@@ -82,9 +82,7 @@ def evaluate_content_assertions(
         return 1.0
 
     total = len(eval_cases)
-    failed = sum(
-        1 for case_dict in eval_cases if not _run_single_case(case_dict, content)
-    )
+    failed = sum(1 for case_dict in eval_cases if not _run_single_case(case_dict, content))
     return (total - failed) / total
 
 
@@ -153,16 +151,12 @@ def _check_imports(code: str, module_name: str) -> bool:
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
-                if alias.name == module_name or alias.name.startswith(
-                    f"{module_name}."
-                ):
+                if alias.name == module_name or alias.name.startswith(f"{module_name}."):
                     return True
         elif (
             isinstance(node, ast.ImportFrom)
             and node.module
-            and (
-                node.module == module_name or node.module.startswith(f"{module_name}.")
-            )
+            and (node.module == module_name or node.module.startswith(f"{module_name}."))
         ):
             return True
     return False

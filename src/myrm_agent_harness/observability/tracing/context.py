@@ -80,4 +80,3 @@ def resolve_current_trace_id() -> str | None:
         return ctx_trace
 
     return None
-

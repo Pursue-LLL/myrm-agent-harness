@@ -118,11 +118,7 @@ def _collect_controls(
                         name=name or value,
                         bbox=BBox(rect.left, rect.top, rect.width(), rect.height()),
                         backend_key=str(counter[0]),
-                        actions=(
-                            ("click", "fill")
-                            if control_type == "EditControl"
-                            else ("click",)
-                        ),
+                        actions=(("click", "fill") if control_type == "EditControl" else ("click",)),
                         value=value,
                     )
                     counter[0] += 1
@@ -216,11 +212,7 @@ def _ensure_window_active_for_target(control: object) -> None:
         is_minimized = False
         try:
             pattern = control.GetWindowPattern()  # type: ignore[attr-defined]
-            if (
-                pattern
-                and getattr(pattern, "WindowVisualState", None)
-                == auto.WindowVisualState.Minimized
-            ):
+            if pattern and getattr(pattern, "WindowVisualState", None) == auto.WindowVisualState.Minimized:
                 is_minimized = True
                 pattern.SetWindowVisualState(auto.WindowVisualState.Normal)
         except Exception:
@@ -229,12 +221,7 @@ def _ensure_window_active_for_target(control: object) -> None:
         if not is_minimized:
             try:
                 rect = getattr(control, "BoundingRectangle", None)
-                if rect and (
-                    rect.width() <= 0
-                    or rect.height() <= 0
-                    or rect.left < -10000
-                    or rect.top < -10000
-                ):
+                if rect and (rect.width() <= 0 or rect.height() <= 0 or rect.left < -10000 or rect.top < -10000):
                     is_minimized = True
                     try:
                         pattern = control.GetWindowPattern()  # type: ignore[attr-defined]
@@ -388,17 +375,13 @@ def invoke_ax_element(
     try:
         import uiautomation as auto
     except ImportError:
-        return ActionResult(
-            success=False, error="uiautomation not installed on Windows"
-        )
+        return ActionResult(success=False, error="uiautomation not installed on Windows")
 
     index = int(backend_key)
     if app_name:
         control = _locate_window(app_name)
         if control is None:
-            return ActionResult(
-                success=False, error=f"target window not found for app '{app_name}'"
-            )
+            return ActionResult(success=False, error=f"target window not found for app '{app_name}'")
         _ensure_window_active_for_target(control)
     else:
         control = auto.GetForegroundControl()
@@ -459,14 +442,33 @@ def invoke_ax_element(
 
 _COM_AUTOMATABLE_APPS: frozenset[str] = frozenset(
     {
-        "Microsoft Excel", "Microsoft Word", "Microsoft PowerPoint",
-        "Microsoft Outlook", "Microsoft Access", "Microsoft Visio",
-        "File Explorer", "Windows Terminal", "Command Prompt", "PowerShell",
-        "Notepad", "WordPad", "Calculator",
-        "Adobe Photoshop", "Adobe Illustrator", "Adobe Acrobat", "Adobe InDesign",
-        "AutoCAD", "WPS", "WPS Office",
-        "Firefox", "Arc", "Obsidian", "Discord",
-        "Visual Studio Code", "Cursor", "Total Commander",
+        "Microsoft Excel",
+        "Microsoft Word",
+        "Microsoft PowerPoint",
+        "Microsoft Outlook",
+        "Microsoft Access",
+        "Microsoft Visio",
+        "File Explorer",
+        "Windows Terminal",
+        "Command Prompt",
+        "PowerShell",
+        "Notepad",
+        "WordPad",
+        "Calculator",
+        "Adobe Photoshop",
+        "Adobe Illustrator",
+        "Adobe Acrobat",
+        "Adobe InDesign",
+        "AutoCAD",
+        "WPS",
+        "WPS Office",
+        "Firefox",
+        "Arc",
+        "Obsidian",
+        "Discord",
+        "Visual Studio Code",
+        "Cursor",
+        "Total Commander",
     }
 )
 

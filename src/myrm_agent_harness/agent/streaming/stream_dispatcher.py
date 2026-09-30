@@ -214,7 +214,7 @@ class StreamDispatcherMixin:
                                     "type": AgentEventType.ERROR.value,
                                     "data": self._repetition_scrubber.aborted_reason,
                                     "messageId": ctx.message_id,
-                                    },
+                                },
                                 ctx,
                             )
                             continue

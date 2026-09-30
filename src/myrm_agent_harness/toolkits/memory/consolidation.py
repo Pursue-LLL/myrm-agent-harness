@@ -108,18 +108,9 @@ class HyperConsolidator:
             return None, []
 
         # 1. Distill TaskDigestMemory
-        completed_steps = [
-            item.title
-            for item in state.subtasks
-            if item.completed
-        ]
-        key_findings = [
-            f"{k}: {v}" for k, v in state.scratchpad.items()
-        ]
-        error_lessons = [
-            f"{trap.tool_name or 'general'}: {trap.avoidance_rule}"
-            for trap in state.traps
-        ]
+        completed_steps = [item.title for item in state.subtasks if item.completed]
+        key_findings = [f"{k}: {v}" for k, v in state.scratchpad.items()]
+        error_lessons = [f"{trap.tool_name or 'general'}: {trap.avoidance_rule}" for trap in state.traps]
 
         digest_status = state.status
         if digest_status not in ("completed", "interrupted", "failed"):

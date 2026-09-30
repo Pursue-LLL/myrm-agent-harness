@@ -35,7 +35,9 @@ class FrictionExtractor:
             return FrictionCategory.TOOL_TIMEOUT
         if any(term in lower_msg for term in ("permission", "access denied", "forbidden", "blocked", "unauthorized")):
             return FrictionCategory.PERMISSION_DENIED
-        if any(term in lower_msg for term in ("spill", "overflow", "too long", "truncated", "max token", "buffer full")):
+        if any(
+            term in lower_msg for term in ("spill", "overflow", "too long", "truncated", "max token", "buffer full")
+        ):
             return FrictionCategory.SPILL_OVERFLOW
         if any(term in lower_msg for term in ("stuck", "loop", "cycle", "recursion", "max iterations")):
             return FrictionCategory.LOOP_STUCK

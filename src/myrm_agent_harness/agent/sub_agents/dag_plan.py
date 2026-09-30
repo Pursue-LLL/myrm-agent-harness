@@ -117,9 +117,7 @@ class Plan(BaseModel):
                     error=f"Cannot modify dependencies of step '{s_id}' with immutable status '{target.status}'",
                 )
 
-        candidate_steps: dict[str, PlanStep] = {
-            s.step_id: s.model_copy(deep=True) for s in self.steps
-        }
+        candidate_steps: dict[str, PlanStep] = {s.step_id: s.model_copy(deep=True) for s in self.steps}
 
         for s_id in patch.remove_steps:
             candidate_steps.pop(s_id, None)
@@ -179,19 +177,12 @@ class Plan(BaseModel):
         is_topology_preserving = (
             len(patch.remove_steps) == 0
             and len(patch.modify_dependencies) == 0
-            and all(
-                all(dep in existing_by_id for dep in s.dependencies)
-                for s in patch.add_steps
-            )
+            and all(all(dep in existing_by_id for dep in s.dependencies) for s in patch.add_steps)
         )
 
         self.steps = list(candidate_steps.values())
         self.revision += 1
-        affected = (
-            [s.step_id for s in patch.add_steps]
-            + patch.remove_steps
-            + list(patch.modify_dependencies.keys())
-        )
+        affected = [s.step_id for s in patch.add_steps] + patch.remove_steps + list(patch.modify_dependencies.keys())
 
         return GraphPatchResult(
             success=True,

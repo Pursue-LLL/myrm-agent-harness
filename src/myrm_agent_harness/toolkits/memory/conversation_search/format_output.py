@@ -40,9 +40,7 @@ def _format_coverage_notice(coverage: ConversationIndexCoverage | None) -> str |
         return None
     if coverage.indexing_degraded:
         return "[Notice: Conversation index is currently rebuilding or degraded; coverage may be partial]"
-    if coverage.total_conversations > 0 and (
-        coverage.coverage_ratio < 0.95 or coverage.unindexed_recent_count > 0
-    ):
+    if coverage.total_conversations > 0 and (coverage.coverage_ratio < 0.95 or coverage.unindexed_recent_count > 0):
         return (
             f"[Notice: Conversation search covered {coverage.indexed_conversations}/"
             f"{coverage.total_conversations} sessions ({coverage.coverage_ratio:.1%}); "
@@ -59,18 +57,10 @@ async def format_conversation_search_response(
 
     if not response.hits:
         if response.mode == "recent":
-            msg = (
-                f"{notice}\nNo previous conversations found."
-                if notice
-                else "No previous conversations found."
-            )
+            msg = f"{notice}\nNo previous conversations found." if notice else "No previous conversations found."
             return pack_tool_result_with_sources(msg, [])
         if response.rejected_reason:
-            msg = (
-                f"{notice}\n{response.rejected_reason}"
-                if notice
-                else response.rejected_reason
-            )
+            msg = f"{notice}\n{response.rejected_reason}" if notice else response.rejected_reason
             return pack_tool_result_with_sources(msg, [])
         msg = (
             f"{notice}\nNo matching conversations found in indexed history."
@@ -108,17 +98,13 @@ async def format_conversation_search_response(
         sources.append(source_ref(hit, is_expanded=is_expanded_view))
 
     if truncated:
-        lines.append(
-            "[conversation_search_budget] Results were truncated. Refine the query for more detail."
-        )
+        lines.append("[conversation_search_budget] Results were truncated. Refine the query for more detail.")
 
     body = finalize_recall_tool_output("\n\n".join(lines))
     return pack_tool_result_with_sources(body, sources)
 
 
-def format_conversation_hit(
-    index: int, hit: ConversationSearchHit, *, is_expanded: bool = False
-) -> str:
+def format_conversation_hit(index: int, hit: ConversationSearchHit, *, is_expanded: bool = False) -> str:
     title = hit.title or "Untitled conversation"
     when = format_time(hit.updated_at or hit.created_at)
     header = f"{index}. {title} (conversation_id: {hit.conversation_id}, score: {hit.score:.2f}, source: {hit.source}"
@@ -142,9 +128,7 @@ def format_conversation_hit(
     return "\n".join(parts)
 
 
-def source_ref(
-    hit: ConversationSearchHit, *, is_expanded: bool = False
-) -> dict[str, object]:
+def source_ref(hit: ConversationSearchHit, *, is_expanded: bool = False) -> dict[str, object]:
     snippet_limit = MAX_EXPANDED_SNIPPET_CHARS if is_expanded else MAX_SNIPPET_CHARS
     if hit.source_ref is not None:
         ref = hit.source_ref.model_dump(mode="json", exclude_none=True)

@@ -209,9 +209,7 @@ def compute_routine_measurement(
         has_self = any(m.is_self for m in sorted_chat)
 
         for idx, msg in enumerate(sorted_chat):
-            effective_offset = (
-                msg.offset_minutes if msg.offset_minutes is not None else options.offset_minutes
-            )
+            effective_offset = msg.offset_minutes if msg.offset_minutes is not None else options.offset_minutes
 
             if not msg.is_self:
                 if has_self:
@@ -242,12 +240,8 @@ def compute_routine_measurement(
 
     latencies.sort()
     peak_window = _resolve_peak_window(hour_histogram, min_count=options.min_self_messages)
-    workday_peak = _resolve_peak_window(
-        workday_hour_histogram, min_count=max(5, options.min_self_messages // 2)
-    )
-    weekend_peak = _resolve_peak_window(
-        weekend_hour_histogram, min_count=max(5, options.min_self_messages // 4)
-    )
+    workday_peak = _resolve_peak_window(workday_hour_histogram, min_count=max(5, options.min_self_messages // 2))
+    weekend_peak = _resolve_peak_window(weekend_hour_histogram, min_count=max(5, options.min_self_messages // 4))
 
     top_collabs = collaborator_counts.most_common(options.top_collaborators_limit)
 
@@ -403,6 +397,7 @@ def resolve_utc_offset_minutes(tz_name: str | None, ref_dt: datetime | None = No
     # Handle IANA timezone with DST sensitivity via zoneinfo
     try:
         from zoneinfo import ZoneInfo
+
         zi = ZoneInfo(s)
         now_dt = ref_dt if ref_dt is not None else datetime.now(UTC)
         if now_dt.tzinfo is None:
@@ -418,4 +413,3 @@ def resolve_utc_offset_minutes(tz_name: str | None, ref_dt: datetime | None = No
         )
 
     return 0
-

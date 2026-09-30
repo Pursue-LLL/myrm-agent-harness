@@ -65,7 +65,10 @@ _DELIVERABLE_EXTENSIONS: frozenset[str] = frozenset(
 )
 
 _PREFIX_PATTERNS: tuple[re.Pattern[str], ...] = (
-    re.compile(r"(?:已生成|已保存|保存至|保存到|存放于|输出到|输出至|生成成功|路径|Saved to|Written to|Exported to|Output to)[^：:]*[:：]\s*(\S+)", re.IGNORECASE),
+    re.compile(
+        r"(?:已生成|已保存|保存至|保存到|存放于|输出到|输出至|生成成功|路径|Saved to|Written to|Exported to|Output to)[^：:]*[:：]\s*(\S+)",
+        re.IGNORECASE,
+    ),
 )
 
 _STRIP_CHARS = "`'\"“”‘’，。；、,;:()[]{}<>"

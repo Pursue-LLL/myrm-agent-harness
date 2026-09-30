@@ -100,9 +100,7 @@ class DualTrackAuditCollector:
                     return None
 
             completed_state = (
-                PriorAuditState.COMPLETED
-                if outcome == ComplianceOutcome.PERMITTED
-                else PriorAuditState.FAILED
+                PriorAuditState.COMPLETED if outcome == ComplianceOutcome.PERMITTED else PriorAuditState.FAILED
             )
 
             updated = AuditTrailEntry(
@@ -210,9 +208,9 @@ class DualTrackAuditCollector:
         """Compute multi-dimensional summary statistics and rule trigger telemetry."""
         with self._lock:
             candidates = [
-                e for e in self._entries
-                if (not session_id or e.session_id == session_id)
-                and (not agent_id or e.agent_id == agent_id)
+                e
+                for e in self._entries
+                if (not session_id or e.session_id == session_id) and (not agent_id or e.agent_id == agent_id)
             ]
 
         total = len(candidates)

@@ -161,9 +161,7 @@ class EpisodesChunker:
 
         return turns
 
-    def split_into_episodes(
-        self, messages: list[dict[str, str]]
-    ) -> list[ConversationEpisode]:
+    def split_into_episodes(self, messages: list[dict[str, str]]) -> list[ConversationEpisode]:
         """Split conversation messages into structured episodes with causal sliding overlap."""
         if not messages:
             return []
@@ -185,9 +183,7 @@ class EpisodesChunker:
                 if gap_sec >= self.idle_time_gap_minutes * 60:
                     is_idle_gap = True
 
-            should_cut = current_bucket and (
-                is_idle_gap or (current_chars + turn_chars > self.soft_max_chars)
-            )
+            should_cut = current_bucket and (is_idle_gap or (current_chars + turn_chars > self.soft_max_chars))
 
             if should_cut:
                 episodes_raw.append(current_bucket)
@@ -396,4 +392,3 @@ def _chunk_by_episodes(messages: list[dict[str, str]]) -> list[ConversationChunk
             )
         )
     return chunks
-

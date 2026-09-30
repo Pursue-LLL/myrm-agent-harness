@@ -104,11 +104,7 @@ def analyze_turn_failure_mode(turn: EvalTurnResult) -> TrajectoryFailureAnalysis
     contamination = turn.contamination_audit or {}
 
     # 1. Decontamination & Cheat violations
-    if (
-        turn.canary_verified is False
-        or contamination.get("cheat_detected")
-        or blocked_count > 0
-    ):
+    if turn.canary_verified is False or contamination.get("cheat_detected") or blocked_count > 0:
         return TrajectoryFailureAnalysis(
             failure_mode=FailureMode.DECONTAM_VIOLATION,
             root_cause="Agent violated benchmark decontamination policy or attempted canary token probing",
@@ -138,25 +134,18 @@ def analyze_turn_failure_mode(turn: EvalTurnResult) -> TrajectoryFailureAnalysis
     # Detect if response answer contains mocked test results while test suite failed
     answer_text = (resp.answer if resp else "").lower()
     if (
-        "assert true" in answer_text
-        or "return true" in answer_text
-        or "passed 100%" in answer_text
+        "assert true" in answer_text or "return true" in answer_text or "passed 100%" in answer_text
     ) and turn.assertion_passed is False:
         return TrajectoryFailureAnalysis(
             failure_mode=FailureMode.HARDCODED_TESTS,
             root_cause="Agent output claimed success without satisfying underlying code assertions",
-            evidence_snippet=turn.assertion_details
-            or "Falsely asserted pass in answer",
+            evidence_snippet=turn.assertion_details or "Falsely asserted pass in answer",
             suggested_remediation="Use hidden test suite isolation and verify actual exit codes",
             is_hardcoded_cheat=True,
         )
 
     # 5. Destructive / Regressive changes
-    if (
-        "reverted" in details_str
-        or "deleted" in details_str
-        or "regress" in details_str
-    ):
+    if "reverted" in details_str or "deleted" in details_str or "regress" in details_str:
         return TrajectoryFailureAnalysis(
             failure_mode=FailureMode.DESTRUCTIVE_OR_REGRESSIVE,
             root_cause="Agent broke preexisting working functionality or corrupted codebase",
@@ -166,11 +155,7 @@ def analyze_turn_failure_mode(turn: EvalTurnResult) -> TrajectoryFailureAnalysis
         )
 
     # 6. Tool Argument Malformed
-    if (
-        "invalid_tool_call_arguments" in details_str
-        or "validation error" in details_str
-        or "malformed" in details_str
-    ):
+    if "invalid_tool_call_arguments" in details_str or "validation error" in details_str or "malformed" in details_str:
         return TrajectoryFailureAnalysis(
             failure_mode=FailureMode.TOOL_ARGUMENT_MALFORMED,
             root_cause="Agent called tool with schema-violating or unparseable arguments",
@@ -179,11 +164,7 @@ def analyze_turn_failure_mode(turn: EvalTurnResult) -> TrajectoryFailureAnalysis
         )
 
     # 7. Tool Selection Error
-    if (
-        "missing tools" in details_str
-        or "none of expected tools" in details_str
-        or "tool_not_found" in error_str
-    ):
+    if "missing tools" in details_str or "none of expected tools" in details_str or "tool_not_found" in error_str:
         return TrajectoryFailureAnalysis(
             failure_mode=FailureMode.TOOL_SELECTION_ERROR,
             root_cause="Agent failed to invoke required tools or hallucinated nonexistent tools",

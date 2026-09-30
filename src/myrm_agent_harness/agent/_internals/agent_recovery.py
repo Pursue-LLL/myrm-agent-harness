@@ -171,9 +171,7 @@ def truncate_oldest_rounds(messages: list[BaseMessage]) -> int:
 # ============================================================================
 
 
-def rebuild_agent_with_llm(
-    agent: BaseAgent, new_llm: BaseChatModel
-) -> CompiledStateGraph[Any, Any, Any, Any]:
+def rebuild_agent_with_llm(agent: BaseAgent, new_llm: BaseChatModel) -> CompiledStateGraph[Any, Any, Any, Any]:
     """Rebuild agent graph with a different LLM for failover.
 
     Reuses the cached tools / middlewares / system prompt so the only
@@ -203,13 +201,9 @@ def rebuild_agent_with_llm(
         agent._cache_keepalive.stop()
         agent._cache_keepalive = None
 
-    new_model_name = (
-        getattr(new_llm, "model_name", "") or getattr(new_llm, "model", "") or ""
-    )
+    new_model_name = getattr(new_llm, "model_name", "") or getattr(new_llm, "model", "") or ""
     if agent._cached_system_prompt and needs_explicit_preheat(new_model_name):
-        agent._cache_keepalive = CacheKeepAliveManager(
-            new_llm, agent._cached_system_prompt, new_model_name
-        )
+        agent._cache_keepalive = CacheKeepAliveManager(new_llm, agent._cached_system_prompt, new_model_name)
         agent._cache_keepalive.start()
 
     return agent._agent
@@ -358,12 +352,8 @@ def diagnose_llm_error(
             "resolution_steps": diagnostic.resolution_steps,
             "locale": diagnostic.locale,
         }
-        resolution_steps = "\n".join(
-            f" - {step}" for step in diagnostic.resolution_steps
-        )
-        error_msg = (
-            f"{diagnostic.user_message}\n\nResolution steps:\n{resolution_steps}"
-        )
+        resolution_steps = "\n".join(f" - {step}" for step in diagnostic.resolution_steps)
+        error_msg = f"{diagnostic.user_message}\n\nResolution steps:\n{resolution_steps}"
         logger.error(f" {diagnostic.user_message}")
         logger.error(f"Resolution steps:\n{resolution_steps}")
     except Exception:

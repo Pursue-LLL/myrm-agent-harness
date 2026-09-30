@@ -37,13 +37,15 @@ __all__ = [
 ]
 
 
-_TARGET_PROCESS_NAMES: Final[frozenset[str]] = frozenset({
-    "Google Chrome",
-    "Chromium",
-    "Microsoft Edge",
-    "Brave Browser",
-    "Google Chrome Canary",
-})
+_TARGET_PROCESS_NAMES: Final[frozenset[str]] = frozenset(
+    {
+        "Google Chrome",
+        "Chromium",
+        "Microsoft Edge",
+        "Brave Browser",
+        "Google Chrome Canary",
+    }
+)
 
 # Multilingual keywords for dialog title detection
 _DIALOG_TITLE_KEYWORDS: Final[tuple[str, ...]] = (
@@ -57,17 +59,19 @@ _DIALOG_TITLE_KEYWORDS: Final[tuple[str, ...]] = (
 )
 
 # Multilingual approve button names
-_APPROVE_BUTTON_NAMES: Final[frozenset[str]] = frozenset({
-    "Allow",
-    "允许",
-    "允許",
-    "Zulassen",
-    "許可",
-    "허용",
-    "Autoriser",
-    "OK",
-    "确定",
-})
+_APPROVE_BUTTON_NAMES: Final[frozenset[str]] = frozenset(
+    {
+        "Allow",
+        "允许",
+        "允許",
+        "Zulassen",
+        "許可",
+        "허용",
+        "Autoriser",
+        "OK",
+        "确定",
+    }
+)
 
 _MACOS_APPROVE_SCRIPT: Final[str] = """\
 try
@@ -227,4 +231,3 @@ class ChromePromptGuard:
     watch = staticmethod(watch_chrome_remote_debugging_prompt)
     approve = staticmethod(approve_chrome_remote_debugging_prompt)
     is_trusted = staticmethod(is_accessibility_trusted)
-

@@ -128,9 +128,7 @@ class WorkflowRunGuard:
         self._merge_results.append(result)
 
 
-def _normalize_spawn_result(
-    result: object, *, task_id: str, agent_type: str
-) -> dict[str, object]:
+def _normalize_spawn_result(result: object, *, task_id: str, agent_type: str) -> dict[str, object]:
     if isinstance(result, dict):
         return result
 
@@ -158,16 +156,12 @@ class SpawnSubagentInput(BaseModel):
         default="generalPurpose",
         description="Type of agent to spawn (e.g., 'generalPurpose', 'shell').",
     )
-    task_description: str = Field(
-        ..., description="The prompt/task for the sub-agent to execute."
-    )
+    task_description: str = Field(..., description="The prompt/task for the sub-agent to execute.")
     readonly: bool = Field(
         default=False,
         description="If true, sub-agent cannot write files or run bash commands. Use for analysis-only tasks.",
     )
-    verification_mode: Literal[
-        "none", "adversarial", "auditor_blind", "multi_skeptic"
-    ] = Field(
+    verification_mode: Literal["none", "adversarial", "auditor_blind", "multi_skeptic"] = Field(
         default="none",
         description='Verification: "none" (default), "adversarial" (standard retry loop), "auditor_blind" (omits worker narrative to eliminate confirmation bias), or "multi_skeptic" (parallel multi-verifier voting).',
     )
@@ -193,9 +187,7 @@ class SpawnSubagentTool(BaseTool):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     name: str = "spawn_subagent"
-    description: str = (
-        "Spawn a sub-agent to execute a task. This tool blocks until the sub-agent completes."
-    )
+    description: str = "Spawn a sub-agent to execute a task. This tool blocks until the sub-agent completes."
     args_schema: type[BaseModel] = SpawnSubagentInput
 
     parent_agent: object
@@ -231,9 +223,7 @@ class SpawnSubagentTool(BaseTool):
         agent_type: str,
         task_description: str,
         readonly: bool = False,
-        verification_mode: Literal[
-            "none", "adversarial", "auditor_blind", "multi_skeptic"
-        ] = "none",
+        verification_mode: Literal["none", "adversarial", "auditor_blind", "multi_skeptic"] = "none",
         verifier_agent_type: str | None = None,
         max_verification_rounds: int = 2,
         complexity_tier: str | None = None,
@@ -246,9 +236,7 @@ class SpawnSubagentTool(BaseTool):
         agent_type: str = "generalPurpose",
         task_description: str = "",
         readonly: bool = False,
-        verification_mode: Literal[
-            "none", "adversarial", "auditor_blind", "multi_skeptic"
-        ] = "none",
+        verification_mode: Literal["none", "adversarial", "auditor_blind", "multi_skeptic"] = "none",
         verifier_agent_type: str | None = None,
         max_verification_rounds: int = 2,
         complexity_tier: str | None = None,
@@ -288,16 +276,9 @@ class SpawnSubagentTool(BaseTool):
                 )
                 cached = None
             if cached:
-                logger.info(
-                    "DW cache hit: workflow=%s task=%s", self.workflow_id, task_id
-                )
-                await self._emit_spawn_stage(
-                    f"Using cached result for sub-agent `{task_id}`."
-                )
-                if (
-                    self.run_guard is not None
-                    and cached.get("workspace_merge_status") != "merged"
-                ):
+                logger.info("DW cache hit: workflow=%s task=%s", self.workflow_id, task_id)
+                await self._emit_spawn_stage(f"Using cached result for sub-agent `{task_id}`.")
+                if self.run_guard is not None and cached.get("workspace_merge_status") != "merged":
                     self.run_guard.record_merge_candidate(cached)
                 return cached
 
@@ -365,9 +346,7 @@ class SpawnSubagentTool(BaseTool):
 
         try:
             try:
-                with memory_isolation_scope(
-                    parent_agent=self.parent_agent, config=config
-                ):
+                with memory_isolation_scope(parent_agent=self.parent_agent, config=config):
                     if use_verification:
                         if not hasattr(self.parent_agent, "_subagent_manager"):
                             logger.warning(
@@ -377,9 +356,7 @@ class SpawnSubagentTool(BaseTool):
                                 f"Sub-agent `{task_id}`: verification unavailable, using direct spawn.",
                                 level="warn",
                             )
-                            result = await cast(
-                                "BaseAgent", self.parent_agent
-                            )._spawn_child(
+                            result = await cast("BaseAgent", self.parent_agent)._spawn_child(
                                 task_id=task_id,
                                 agent_type=agent_type,
                                 task_description=task_description,
@@ -390,19 +367,13 @@ class SpawnSubagentTool(BaseTool):
                                     self.tool_registry_getter,
                                 ),
                                 wait=True,
-                                cancel_token=cast(
-                                    "CancellationToken | None", self.cancel_token
-                                ),
+                                cancel_token=cast("CancellationToken | None", self.cancel_token),
                                 complexity_tier=complexity_tier,
                             )
                         else:
-                            manager = getattr(
-                                self.parent_agent, "_subagent_manager", None
-                            )
+                            manager = getattr(self.parent_agent, "_subagent_manager", None)
                             if manager is None:
-                                raise ValueError(
-                                    "Parent agent missing _subagent_manager"
-                                )
+                                raise ValueError("Parent agent missing _subagent_manager")
                             from myrm_agent_harness.agent.sub_agents.orchestrator import (
                                 run_with_verification,
                             )
@@ -410,9 +381,7 @@ class SpawnSubagentTool(BaseTool):
                             v_type = verifier_agent_type or agent_type
                             verifier_config = config
                             if self.catalog:
-                                resolved_verifier = await cast(
-                                    "SubagentCatalog", self.catalog
-                                ).resolve(v_type)
+                                resolved_verifier = await cast("SubagentCatalog", self.catalog).resolve(v_type)
                                 if resolved_verifier is not None:
                                     verifier_config = resolved_verifier
                             verifier_config = replace(
@@ -420,16 +389,12 @@ class SpawnSubagentTool(BaseTool):
                                 workspace_policy=WorkspacePolicy.READ_ONLY_SANDBOX,
                             )
 
-                            v_mode_param: Literal[
-                                "adversarial", "auditor_blind", "multi_skeptic"
-                            ] = (
+                            v_mode_param: Literal["adversarial", "auditor_blind", "multi_skeptic"] = (
                                 "auditor_blind"
-                                if verification_mode
-                                == DwVerificationMode.AUDITOR_BLIND.value
+                                if verification_mode == DwVerificationMode.AUDITOR_BLIND.value
                                 else (
                                     "multi_skeptic"
-                                    if verification_mode
-                                    == DwVerificationMode.MULTI_SKEPTIC.value
+                                    if verification_mode == DwVerificationMode.MULTI_SKEPTIC.value
                                     else "adversarial"
                                 )
                             )
@@ -447,17 +412,13 @@ class SpawnSubagentTool(BaseTool):
                                     self.tool_registry_getter,
                                 ),
                                 max_rounds=max_verification_rounds,
-                                cancel_token=cast(
-                                    "CancellationToken | None", self.cancel_token
-                                ),
+                                cancel_token=cast("CancellationToken | None", self.cancel_token),
                                 task_id=task_id,
                                 verification_mode=v_mode_param,
                                 complexity_tier=complexity_tier,
                             )
                     else:
-                        result = await cast(
-                            "BaseAgent", self.parent_agent
-                        )._spawn_child(
+                        result = await cast("BaseAgent", self.parent_agent)._spawn_child(
                             task_id=task_id,
                             agent_type=agent_type,
                             task_description=task_description,
@@ -468,9 +429,7 @@ class SpawnSubagentTool(BaseTool):
                                 self.tool_registry_getter,
                             ),
                             wait=True,
-                            cancel_token=cast(
-                                "CancellationToken | None", self.cancel_token
-                            ),
+                            cancel_token=cast("CancellationToken | None", self.cancel_token),
                             complexity_tier=complexity_tier,
                         )
             except Exception as e:
@@ -490,9 +449,7 @@ class SpawnSubagentTool(BaseTool):
             if self.run_guard is not None:
                 self.run_guard.release_spawn_slot(readonly=readonly)
 
-        final_result = _normalize_spawn_result(
-            result, task_id=task_id, agent_type=agent_type
-        )
+        final_result = _normalize_spawn_result(result, task_id=task_id, agent_type=agent_type)
 
         if self.run_guard is not None:
             self.run_guard.record_merge_candidate(final_result)
@@ -709,9 +666,7 @@ class HumanAskTool(BaseTool):
 
         try:
             if self.ask_gate_callable is not None:
-                answer = await self.ask_gate_callable(
-                    question, opts, timeout_sec, default_action
-                )
+                answer = await self.ask_gate_callable(question, opts, timeout_sec, default_action)
             else:
                 # Direct fallback when gate callable is not injected (e.g. unattended tests)
                 logger.info(
@@ -832,6 +787,4 @@ class SteerChildTool(BaseTool):
         message: str,
         config_overlay: dict[str, object] | None = None,
     ) -> dict[str, object]:
-        return self._run(
-            task_id=task_id, message=message, config_overlay=config_overlay
-        )
+        return self._run(task_id=task_id, message=message, config_overlay=config_overlay)

@@ -80,9 +80,7 @@ class DeviceSecurityPolicy:
     high_risk_verbs: frozenset[str] = _DEFAULT_HIGH_RISK_VERBS
     enforce_dual_insurance: bool = True
     destructive_batch_size_threshold: int = 3
-    restricted_paths: frozenset[str] = frozenset(
-        {".env", ".key", ".pem", ".git", "id_rsa"}
-    )
+    restricted_paths: frozenset[str] = frozenset({".env", ".key", ".pem", ".git", "id_rsa"})
 
     @classmethod
     def default(cls) -> DeviceSecurityPolicy:
@@ -187,12 +185,8 @@ def evaluate_batch_risk(
 
         # Check shell command compound risk inside single tool
         if name in ("shell_exec", "code_interpreter", "bash_code_execute_tool"):
-            cmd = str(
-                args.get("command", "") or args.get("code", "") or args.get("data", "")
-            )
-            has_hr, _seg_count, hr_segs = _detect_compound_command_risk(
-                cmd, effective_policy.high_risk_verbs
-            )
+            cmd = str(args.get("command", "") or args.get("code", "") or args.get("data", ""))
+            has_hr, _seg_count, hr_segs = _detect_compound_command_risk(cmd, effective_policy.high_risk_verbs)
             if has_hr:
                 high_risk_verbs_hit.extend(hr_segs)
             mutating_count += 1
@@ -205,22 +199,12 @@ def evaluate_batch_risk(
                 perm = permission_resolver(name, args)
             except Exception:
                 perm = "unknown"
-        elif (
-            name.startswith("file_delete")
-            or name.startswith("file_write")
-            or name.startswith("file_edit")
-        ):
+        elif name.startswith("file_delete") or name.startswith("file_write") or name.startswith("file_edit"):
             perm = "file_write" if "write" in name or "edit" in name else "file_delete"
         elif name.startswith("file_read") or name.startswith("read_file"):
             perm = "file_read"
 
-        if (
-            perm in _MUTATING_PERMISSIONS
-            or "delete" in name
-            or "write" in name
-            or "edit" in name
-            or "kill" in name
-        ):
+        if perm in _MUTATING_PERMISSIONS or "delete" in name or "write" in name or "edit" in name or "kill" in name:
             mutating_count += 1
         else:
             read_only_count += 1
@@ -229,31 +213,21 @@ def evaluate_batch_risk(
     is_batch = batch_size > 1 or (mutating_count >= 1 and len(high_risk_verbs_hit) > 1)
 
     if batch_size > effective_policy.max_batch_size:
-        reasons.append(
-            f"Batch size {batch_size} exceeds maximum permitted limit {effective_policy.max_batch_size}"
-        )
+        reasons.append(f"Batch size {batch_size} exceeds maximum permitted limit {effective_policy.max_batch_size}")
 
     if restricted_path_hit:
-        reasons.append(
-            f"Batch targets sensitive protected paths: {', '.join(restricted_path_hit[:3])}"
-        )
+        reasons.append(f"Batch targets sensitive protected paths: {', '.join(restricted_path_hit[:3])}")
 
     if high_risk_verbs_hit:
-        reasons.append(
-            f"Batch contains high-risk destructive operations: {', '.join(high_risk_verbs_hit[:3])}"
-        )
+        reasons.append(f"Batch contains high-risk destructive operations: {', '.join(high_risk_verbs_hit[:3])}")
 
     if mutating_count >= effective_policy.destructive_batch_size_threshold:
         reasons.append(
             f"Batch contains {mutating_count} mutating operations (threshold: {effective_policy.destructive_batch_size_threshold})"
         )
 
-    is_high_risk = len(reasons) > 0 or (
-        mutating_count > 0 and len(high_risk_verbs_hit) > 0
-    )
-    requires_dual_insurance = bool(
-        effective_policy.enforce_dual_insurance and is_high_risk and mutating_count > 0
-    )
+    is_high_risk = len(reasons) > 0 or (mutating_count > 0 and len(high_risk_verbs_hit) > 0)
+    requires_dual_insurance = bool(effective_policy.enforce_dual_insurance and is_high_risk and mutating_count > 0)
     allow_always_blocked = bool(requires_dual_insurance or is_high_risk)
 
     return BatchRiskAssessment(

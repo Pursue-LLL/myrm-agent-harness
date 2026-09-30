@@ -226,9 +226,7 @@ class ExternalSecretsManager(ExternalSecretResolver):
                 f"External secret CLI tool '{cmd[0]}' is not installed or not found in system PATH."
             ) from exc
         except Exception as exc:
-            raise ExternalSecretResolutionError(
-                f"Failed to execute external secret CLI '{cmd[0]}': {exc}"
-            ) from exc
+            raise ExternalSecretResolutionError(f"Failed to execute external secret CLI '{cmd[0]}': {exc}") from exc
 
 
 def _clean_reference(raw: str) -> str:

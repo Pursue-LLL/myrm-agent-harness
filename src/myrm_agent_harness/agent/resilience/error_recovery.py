@@ -29,13 +29,19 @@ logger = get_agent_logger(__name__)
 # Common error patterns mapped to root cause heuristics
 _ERROR_PATTERNS: list[tuple[re.Pattern[str], RecoveryActionType, str, str]] = [
     (
-        re.compile(r"(?:ModuleNotFoundError|ImportError).*?(?:No module named|cannot import name)\s*['\"]?([a-zA-Z0-9_\-]+)['\"]?|ModuleNotFoundError", re.IGNORECASE),
+        re.compile(
+            r"(?:ModuleNotFoundError|ImportError).*?(?:No module named|cannot import name)\s*['\"]?([a-zA-Z0-9_\-]+)['\"]?|ModuleNotFoundError",
+            re.IGNORECASE,
+        ),
         RecoveryActionType.ENV_REPAIR,
         "Missing python dependency",
         "Install the required package in the workspace environment before proceeding.",
     ),
     (
-        re.compile(r"(?:FileNotFoundError|NoSuchFile).*?(?:No such file or directory:?)\s*['\"]?([^\n'\"]+)['\"]?|FileNotFoundError", re.IGNORECASE),
+        re.compile(
+            r"(?:FileNotFoundError|NoSuchFile).*?(?:No such file or directory:?)\s*['\"]?([^\n'\"]+)['\"]?|FileNotFoundError",
+            re.IGNORECASE,
+        ),
         RecoveryActionType.SANITIZE_INPUT,
         "Target path does not exist or relative path ambiguity",
         "Verify current working directory, list directory contents, or check path spelling.",
@@ -127,7 +133,9 @@ class ErrorSelfCorrectionGovernor:
                     error_summary=f"Unclassified execution failure in {operation}",
                     root_cause_guess="Tool parameter mismatch, schema violation, or unexpected runtime state",
                     action_type=RecoveryActionType.RETRY,
-                    suggested_fix={"hint": "Inspect arguments, check prerequisite environment, and try alternative options."},
+                    suggested_fix={
+                        "hint": "Inspect arguments, check prerequisite environment, and try alternative options."
+                    },
                     confidence_score=0.5,
                     reasoning="Default self-correction hypothesis for generic error recovery.",
                 )

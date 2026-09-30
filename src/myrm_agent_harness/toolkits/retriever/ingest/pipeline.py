@@ -250,15 +250,11 @@ class DualLaneIngestPipeline:
                         metadata={"dir_path": dir_path, "type": "directory_summary"},
                         is_summary=True,
                     )
-                    await self._queue.put(
-                        TaskEnvelope(task_id=f"job_dir:{dir_path}", payload=summary_chunk)
-                    )
+                    await self._queue.put(TaskEnvelope(task_id=f"job_dir:{dir_path}", payload=summary_chunk))
                     self._emit_event("dir_summarized", uri=dir_path)
 
                 # Check if parent directory is now ready for bottom-up summarization
-                parent_ready = self._tree_builder.on_directory_summarized(
-                    dir_path, summary_text or ""
-                )
+                parent_ready = self._tree_builder.on_directory_summarized(dir_path, summary_text or "")
                 if parent_ready:
                     queue.put_nowait(parent_ready)
 

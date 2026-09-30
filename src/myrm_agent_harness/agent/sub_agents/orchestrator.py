@@ -144,9 +144,7 @@ async def execute_dag_plan(
     limiter = ConcurrencyLimiter(max_concurrent)
 
     # State Reducer to safely collect results
-    def reducer_fn(
-        state: dict[str, SubAgentResult], patch: tuple[str, SubAgentResult]
-    ) -> dict[str, SubAgentResult]:
+    def reducer_fn(state: dict[str, SubAgentResult], patch: tuple[str, SubAgentResult]) -> dict[str, SubAgentResult]:
         step_id, result = patch
         new_state = state.copy()
         new_state[step_id] = result
@@ -300,11 +298,7 @@ async def execute_dag_plan(
                             result=raw_inner_res if isinstance(raw_inner_res, dict) else str(raw_inner_res or ""),
                             error=str(result.get("error", "")),
                             completed_at=time.time(),
-                            status=(
-                                SubAgentStatus.COMPLETED
-                                if result.get("success")
-                                else SubAgentStatus.FAILED
-                            ),
+                            status=(SubAgentStatus.COMPLETED if result.get("success") else SubAgentStatus.FAILED),
                         )
 
                     if result.success:
@@ -314,9 +308,7 @@ async def execute_dag_plan(
                             f"[DAG] Step {step_id} failed on attempt {attempt + 1}/{max_node_retries}: {result.error}"
                         )
                     if attempt < max_node_retries - 1:
-                        await asyncio.sleep(
-                            0.01
-                        )  # Exponential backoff (short for tests)
+                        await asyncio.sleep(0.01)  # Exponential backoff (short for tests)
 
                 except TimeoutError:
                     logger.warning(
@@ -375,9 +367,7 @@ async def execute_dag_plan(
                         if hasattr(step, "status"):
                             step.status = "pending"
                     else:
-                        logger.info(
-                            "[DAG] Step %s yielded with unsupported payload", step_id
-                        )
+                        logger.info("[DAG] Step %s yielded with unsupported payload", step_id)
                         if result.checkpoint_data:
                             yielded_checkpoints[step_id] = result.checkpoint_data
                         if hasattr(step, "status"):
@@ -396,16 +386,19 @@ async def execute_dag_plan(
                         from myrm_agent_harness.agent.workspace_coordination.merge.batch_merge import (
                             merge_batch_workspace_sync_backs,
                         )
-                        await merge_batch_workspace_sync_backs([{
-                            "success": True,
-                            "task_id": step_id,
-                            "result": result.result,
-                        }])
+
+                        await merge_batch_workspace_sync_backs(
+                            [
+                                {
+                                    "success": True,
+                                    "task_id": step_id,
+                                    "result": result.result,
+                                }
+                            ]
+                        )
                 else:
                     if hasattr(plan, "add_error"):
-                        plan.add_error(
-                            "DAGExecutionError", result.error, step_id=step_id
-                        )
+                        plan.add_error("DAGExecutionError", result.error, step_id=step_id)
                     step_optional = getattr(step, "allow_failure", False)
                     if step_optional:
                         if hasattr(step, "status"):
@@ -476,11 +469,7 @@ async def execute_dag_plan(
                 if hasattr(plan, "get_ready_steps"):
                     ready_steps = plan.get_ready_steps()
 
-                steps_to_start = [
-                    s
-                    for s in ready_steps
-                    if getattr(s, "step_id", "") not in running_tasks
-                ]
+                steps_to_start = [s for s in ready_steps if getattr(s, "step_id", "") not in running_tasks]
 
                 if not steps_to_start and not running_tasks:
                     break
@@ -507,18 +496,12 @@ async def execute_dag_plan(
                             tg._bg_tasks.add(_bg_task)
                             _bg_task.add_done_callback(tg._bg_tasks.discard)
                     except Exception as e:
-                        logger.error(
-                            "[DAG] Failed to create task for step %s: %s", step_id, e
-                        )
+                        logger.error("[DAG] Failed to create task for step %s: %s", step_id, e)
                         running_tasks.discard(step_id)
                         if hasattr(plan, "add_error"):
                             plan.add_error("DAGExecutionError", str(e), step_id=step_id)
                         if hasattr(step, "status"):
-                            step.status = (
-                                "skipped"
-                                if getattr(step, "allow_failure", False)
-                                else "failed"
-                            )
+                            step.status = "skipped" if getattr(step, "allow_failure", False) else "failed"
 
                 if running_tasks:
                     step_completed_event.clear()
@@ -628,9 +611,7 @@ async def run_alternatives(
             if completed is not None:
                 results_map[tid] = completed
 
-    ordered: list[SubAgentResult] = [
-        results_map[tid] for tid in task_ids if tid in results_map
-    ]
+    ordered: list[SubAgentResult] = [results_map[tid] for tid in task_ids if tid in results_map]
 
     success_count = sum(1 for r in ordered if r.success)
     logger.info(
@@ -646,9 +627,7 @@ async def run_alternatives(
 
     discarded = discard_deferred_isolated_workspaces(ordered)
     if discarded:
-        logger.info(
-            "[alternatives] Discarded %d deferred isolated workspace(s)", discarded
-        )
+        logger.info("[alternatives] Discarded %d deferred isolated workspace(s)", discarded)
 
     return ordered
 
@@ -809,9 +788,7 @@ async def wait_children(
                     else:
                         failures.append({"task_id": tid, "error": str(raw)})
                 except Exception as exc:
-                    failures.append(
-                        {"task_id": tid, "error": f"{type(exc).__name__}: {exc}"}
-                    )
+                    failures.append({"task_id": tid, "error": f"{type(exc).__name__}: {exc}"})
             else:
                 failures.append(
                     {
@@ -895,34 +872,40 @@ async def run_equivalence_refactor_wave(
         info = task_metadata.get(tid, {})
         # Check subagent status
         if success_item.get("status") == SubAgentStatus.COMPLETED.value:
-            accepted.append({
-                "task_id": tid,
-                "description": info.get("description", ""),
-                "target_module": info.get("target_module", ""),
-                "status": "verified_and_merged",
-                "summary": success_item.get("output", ""),
-            })
+            accepted.append(
+                {
+                    "task_id": tid,
+                    "description": info.get("description", ""),
+                    "target_module": info.get("target_module", ""),
+                    "status": "verified_and_merged",
+                    "summary": success_item.get("output", ""),
+                }
+            )
         else:
-            rejected.append({
-                "task_id": tid,
-                "description": info.get("description", ""),
-                "target_module": info.get("target_module", ""),
-                "status": "failed_or_rejected",
-                "error": success_item.get("error", "Subagent did not complete cleanly"),
-            })
+            rejected.append(
+                {
+                    "task_id": tid,
+                    "description": info.get("description", ""),
+                    "target_module": info.get("target_module", ""),
+                    "status": "failed_or_rejected",
+                    "error": success_item.get("error", "Subagent did not complete cleanly"),
+                }
+            )
 
     for fail_item in batch_res.get("failures", []):
         if not isinstance(fail_item, dict):
             continue
         tid = str(fail_item.get("task_id", ""))
         info = task_metadata.get(tid, {})
-        rejected.append({
-            "task_id": tid,
-            "description": info.get("description", ""),
-            "target_module": info.get("target_module", ""),
-            "status": "execution_failed",
-            "error": fail_item.get("error", "Task execution failed"),
-        })
+        rejected.append(
+            {
+                "task_id": tid,
+                "description": info.get("description", ""),
+                "target_module": info.get("target_module", ""),
+                "status": "execution_failed",
+                "error": fail_item.get("error", "Task execution failed"),
+            }
+        )
 
     return {
         "success": len(rejected) == 0,

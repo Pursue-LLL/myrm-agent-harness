@@ -266,7 +266,6 @@ class WikiGraphStore:
             pass
         return []
 
-
     def _extract_mention_record(
         self, file_path: Path, target_name: str, max_chars: int = 140
     ) -> tuple[str, int, str | None] | None:

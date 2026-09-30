@@ -85,9 +85,7 @@ class ChannelPruner:
                 pruned_types=[],
             )
 
-        recognizer: QueryIntentRecognizer = (
-            config.retrieval.intent_recognizer or cls.DEFAULT_ROUTER
-        )
+        recognizer: QueryIntentRecognizer = config.retrieval.intent_recognizer or cls.DEFAULT_ROUTER
         decision = recognizer.recognize(query)
 
         # 1. Apply adaptive type weights if confidence is sufficient
@@ -108,10 +106,7 @@ class ChannelPruner:
             )
 
         # 3. High-confidence deterministic pruning for auto-defaulted calls
-        if (
-            decision.confidence >= DeterministicIntentRouter.HIGH_CONFIDENCE_THRESHOLD
-            and decision.target_types
-        ):
+        if decision.confidence >= DeterministicIntentRouter.HIGH_CONFIDENCE_THRESHOLD and decision.target_types:
             candidate_types = [t for t in decision.target_types if t in initial_search_types]
             if candidate_types:
                 pruned = [t for t in initial_search_types if t not in candidate_types]

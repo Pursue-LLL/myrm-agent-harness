@@ -224,9 +224,7 @@ class SecurityGuardrailMiddleware(AgentMiddleware):  # type: ignore[type-arg]
                             record_decision as _record_intent_decision,
                         )
 
-                        intent_name = (
-                            intent_result.intent.value if intent_result.intent else "unknown"
-                        )
+                        intent_name = intent_result.intent.value if intent_result.intent else "unknown"
                         _record_intent_decision(
                             "user_input",
                             "DANGEROUS_INTENT_DETECTED",
@@ -236,9 +234,7 @@ class SecurityGuardrailMiddleware(AgentMiddleware):  # type: ignore[type-arg]
                             sec_cfg = get_security_config()
                         except LookupError:
                             sec_cfg = None
-                        intent_mode = (
-                            sec_cfg.dangerous_intent_policy if sec_cfg else "hitl"
-                        )
+                        intent_mode = sec_cfg.dangerous_intent_policy if sec_cfg else "hitl"
                         if intent_mode == "fail_closed":
                             if new_messages is None:
                                 new_messages = list(messages)

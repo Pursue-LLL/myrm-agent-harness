@@ -70,11 +70,7 @@ def _ensure_gitignore_entry(repo_root: str) -> None:
     gitignore = Path(repo_root) / ".gitignore"
     entry = f"{_WORKTREES_DIRNAME}/"
     try:
-        existing = (
-            gitignore.read_text(encoding="utf-8-sig", errors="replace")
-            if gitignore.exists()
-            else ""
-        )
+        existing = gitignore.read_text(encoding="utf-8-sig", errors="replace") if gitignore.exists() else ""
         if entry not in existing.splitlines():
             with open(gitignore, "a", encoding="utf-8") as f:
                 if existing and not existing.endswith("\n"):

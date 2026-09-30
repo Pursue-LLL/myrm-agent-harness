@@ -104,13 +104,9 @@ class SkillBudgetGovernor:
         projected_tokens = current_tokens + estimated_new_tokens
         projected_count = current_count + (0 if is_repair else 1)
 
-        is_hard_exceeded = (
-            projected_tokens > self.config.max_tokens
-            or projected_count > self.config.max_skill_count
-        )
+        is_hard_exceeded = projected_tokens > self.config.max_tokens or projected_count > self.config.max_skill_count
         is_soft_exceeded = (
-            projected_tokens >= self.config.soft_limit_tokens
-            or projected_count >= self.config.soft_limit_count
+            projected_tokens >= self.config.soft_limit_tokens or projected_count >= self.config.soft_limit_count
         )
 
         if is_hard_exceeded:
@@ -176,10 +172,7 @@ class SkillBudgetGovernor:
 
         for skill in skills:
             reference_time = (
-                skill.metrics.last_success_at
-                or skill.metrics.last_failure_at
-                or skill.updated_at
-                or skill.created_at
+                skill.metrics.last_success_at or skill.metrics.last_failure_at or skill.updated_at or skill.created_at
             )
             if reference_time.tzinfo is None:
                 reference_time = reference_time.replace(tzinfo=UTC)

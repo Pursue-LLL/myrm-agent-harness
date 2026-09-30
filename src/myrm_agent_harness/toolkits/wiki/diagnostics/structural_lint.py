@@ -101,9 +101,7 @@ def build_wikilink_title_index(structure: WikiStructure) -> dict[str, str]:
         try:
             content = concept_path.read_text(encoding="utf-8")
         except OSError as exc:
-            logger.warning(
-                "Failed to index wikilink titles for %s: %s", concept_path, exc
-            )
+            logger.warning("Failed to index wikilink titles for %s: %s", concept_path, exc)
             continue
 
         metadata, _body = parse_frontmatter(content)
@@ -156,11 +154,7 @@ class StructuralLintSnapshot:
     scanned_concepts: int
 
     def has_issues(self) -> bool:
-        return (
-            self.broken_links > 0
-            or self.invalid_frontmatter_types > 0
-            or self.provenance_gaps > 0
-        )
+        return self.broken_links > 0 or self.invalid_frontmatter_types > 0 or self.provenance_gaps > 0
 
 
 def collect_broken_link_issues(structure: WikiStructure) -> list[LintIssue]:
@@ -271,9 +265,7 @@ def collect_provenance_gap_issues(structure: WikiStructure) -> list[LintIssue]:
 
         metadata, _body = load_frontmatter_metadata(content)
         provenance_raw = metadata.get("provenance")
-        provenance = (
-            str(provenance_raw).strip().lower() if provenance_raw is not None else ""
-        )
+        provenance = str(provenance_raw).strip().lower() if provenance_raw is not None else ""
         if provenance in _AUTHOR_PROVENANCE:
             continue
 
@@ -282,9 +274,7 @@ def collect_provenance_gap_issues(structure: WikiStructure) -> list[LintIssue]:
             issues.append(
                 LintIssue(
                     issue_type="provenance_gap",
-                    severity=(
-                        "medium" if provenance in _RAW_BACKED_PROVENANCE else "high"
-                    ),
+                    severity=("medium" if provenance in _RAW_BACKED_PROVENANCE else "high"),
                     location=str(concept_path),
                     description=(
                         "Missing sources list for a raw-backed concept page"
@@ -302,9 +292,7 @@ def collect_provenance_gap_issues(structure: WikiStructure) -> list[LintIssue]:
             )
             continue
 
-        missing_sources = [
-            source for source in sources if not _raw_source_exists(structure, source)
-        ]
+        missing_sources = [source for source in sources if not _raw_source_exists(structure, source)]
         if missing_sources:
             missing_label = ", ".join(missing_sources[:3])
             if len(missing_sources) > 3:
@@ -332,9 +320,7 @@ def collect_invalid_frontmatter_type_issues(
         try:
             content = concept_path.read_text(encoding="utf-8")
         except OSError as exc:
-            logger.warning(
-                "Failed to check frontmatter type for %s: %s", concept_path, exc
-            )
+            logger.warning("Failed to check frontmatter type for %s: %s", concept_path, exc)
             continue
 
         validation = validate_wiki_frontmatter(content)

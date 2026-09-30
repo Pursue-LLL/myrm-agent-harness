@@ -130,7 +130,10 @@ _LAZY_IMPORTS = {
     "tokenize_cjk_bigram": ("myrm_agent_harness.toolkits.retriever.cjk_tokenizer", "tokenize_cjk_bigram"),
     "build_cjk_index_segment": ("myrm_agent_harness.toolkits.retriever.cjk_tokenizer", "build_cjk_index_segment"),
     "build_cjk_query_tokens": ("myrm_agent_harness.toolkits.retriever.cjk_tokenizer", "build_cjk_query_tokens"),
-    "build_cjk_query_token_tiers": ("myrm_agent_harness.toolkits.retriever.cjk_tokenizer", "build_cjk_query_token_tiers"),
+    "build_cjk_query_token_tiers": (
+        "myrm_agent_harness.toolkits.retriever.cjk_tokenizer",
+        "build_cjk_query_token_tiers",
+    ),
     "DualLaneIngestPipeline": ("myrm_agent_harness.toolkits.retriever.ingest", "DualLaneIngestPipeline"),
     "BatchEmbedConsumer": ("myrm_agent_harness.toolkits.retriever.ingest", "BatchEmbedConsumer"),
     "DirTreeBuilder": ("myrm_agent_harness.toolkits.retriever.ingest", "DirTreeBuilder"),

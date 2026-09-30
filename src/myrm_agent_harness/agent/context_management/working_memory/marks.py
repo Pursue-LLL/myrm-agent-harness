@@ -103,4 +103,3 @@ def remove_message_marks(message: BaseMessage, *marks: str | WorkingMemoryMark) 
     else:
         message.additional_kwargs.pop(MARKS_METADATA_KEY, None)
     return message
-

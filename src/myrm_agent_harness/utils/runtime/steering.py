@@ -23,9 +23,7 @@ from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 logger = get_agent_logger(__name__)
 
-STEERING_SKIP_MESSAGE = (
-    "Skipped: user sent a new message, remaining tool calls cancelled."
-)
+STEERING_SKIP_MESSAGE = "Skipped: user sent a new message, remaining tool calls cancelled."
 
 
 class SteeringStorageProtocol(Protocol):
@@ -171,9 +169,7 @@ class SteeringToken:
             try:
                 listener.on_steering_consumed(msgs)
             except Exception as e:
-                logger.warning(
-                    f"Failed to notify steering storage listener on consumption: {e}"
-                )
+                logger.warning(f"Failed to notify steering storage listener on consumption: {e}")
         return msgs
 
     def reset_turn(self) -> None:
@@ -191,9 +187,7 @@ class SteeringToken:
 
 # ==================== ContextVar 隔离 ====================
 
-_steering_token_var: ContextVar[SteeringToken | None] = ContextVar(
-    "steering_token", default=None
-)
+_steering_token_var: ContextVar[SteeringToken | None] = ContextVar("steering_token", default=None)
 
 
 def get_steering_token() -> SteeringToken | None:

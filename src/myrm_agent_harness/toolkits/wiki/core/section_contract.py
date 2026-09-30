@@ -94,9 +94,7 @@ def get_section_inner(body: str, heading: str) -> str | None:
     return match.group(1).strip("\n")
 
 
-def replace_section_inner(
-    body: str, heading: str, new_inner: str, *, create_if_missing: bool = True
-) -> str:
+def replace_section_inner(body: str, heading: str, new_inner: str, *, create_if_missing: bool = True) -> str:
     """Replace a managed section body while preserving other sections."""
     normalized_body = body.lstrip("\n")
     new_block = f"{heading}\n{new_inner.strip()}\n"
@@ -140,9 +138,7 @@ def append_section_entry(body: str, heading: str, entry: str) -> tuple[str, bool
     if not trimmed:
         raise ValueError("Timeline entry must not be empty")
     if len(trimmed) > _MAX_TIMELINE_ENTRY_CHARS:
-        raise ValueError(
-            f"Timeline entry exceeds {_MAX_TIMELINE_ENTRY_CHARS} characters"
-        )
+        raise ValueError(f"Timeline entry exceeds {_MAX_TIMELINE_ENTRY_CHARS} characters")
 
     existing_inner = get_section_inner(body, heading) or ""
     normalized_entry = _normalize_entry(trimmed)
@@ -156,25 +152,19 @@ def append_section_entry(body: str, heading: str, entry: str) -> tuple[str, bool
         combined += "\n"
     combined += f"- {trimmed}"
     if len(combined) > _MAX_TIMELINE_SECTION_CHARS:
-        raise ValueError(
-            f"Timeline section exceeds {_MAX_TIMELINE_SECTION_CHARS} characters"
-        )
+        raise ValueError(f"Timeline section exceeds {_MAX_TIMELINE_SECTION_CHARS} characters")
 
     return replace_section_inner(body, heading, combined), True
 
 
-def build_note_body_skeleton(
-    *, compiled_truth: str, timeline_entry: str | None = None
-) -> str:
+def build_note_body_skeleton(*, compiled_truth: str, timeline_entry: str | None = None) -> str:
     """Build a new concept body with managed sections."""
     truth = compiled_truth.strip() or "_No summary yet._"
     timeline = timeline_entry.strip() if timeline_entry else ""
     timeline_block = timeline or "_No timeline entries yet._"
     if timeline and not timeline.startswith("- "):
         timeline_block = f"- {timeline}"
-    return (
-        f"{COMPILED_TRUTH_HEADING}\n{truth}\n\n{TIMELINE_HEADING}\n{timeline_block}\n"
-    )
+    return f"{COMPILED_TRUTH_HEADING}\n{truth}\n\n{TIMELINE_HEADING}\n{timeline_block}\n"
 
 
 def extract_compiled_truth_summary(content: str) -> str:

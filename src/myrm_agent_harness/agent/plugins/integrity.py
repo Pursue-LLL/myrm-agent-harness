@@ -185,9 +185,7 @@ def verify_mcp_server_packaging_integrity(
     has_ts_sources: bool = False,
 ) -> PackagingIntegrityVerdict:
     """Wrapper returning a PackagingIntegrityVerdict dataclass."""
-    is_valid, missing_path, reason = verify_mcp_server_artifacts(
-        server, files, has_ts_sources=has_ts_sources
-    )
+    is_valid, missing_path, reason = verify_mcp_server_artifacts(server, files, has_ts_sources=has_ts_sources)
     return PackagingIntegrityVerdict(
         is_valid=is_valid,
         missing_path=missing_path,
@@ -217,9 +215,7 @@ def verify_plugin_packaging_integrity(
     diagnostics: list[PluginDiagnostic] = []
 
     for server in servers:
-        is_valid, missing_path, reason = verify_mcp_server_artifacts(
-            server, file_keys, has_ts_sources=has_ts_sources
-        )
+        is_valid, missing_path, reason = verify_mcp_server_artifacts(server, file_keys, has_ts_sources=has_ts_sources)
         if is_valid:
             verified_servers.append(
                 replace(
@@ -334,19 +330,11 @@ def verify_plugin_capability_diff(
         if undeclared:
             sorted_undeclared = sorted(undeclared, key=lambda c: c.value)
             is_high_risk = any(
-                c in (PluginCapabilityTier.DESTRUCTIVE, PluginCapabilityTier.SHELL_EXEC)
-                for c in undeclared
+                c in (PluginCapabilityTier.DESTRUCTIVE, PluginCapabilityTier.SHELL_EXEC) for c in undeclared
             )
-            level = (
-                PluginDiagnosticLevel.ERROR
-                if is_high_risk
-                else PluginDiagnosticLevel.WARNING
-            )
+            level = PluginDiagnosticLevel.ERROR if is_high_risk else PluginDiagnosticLevel.WARNING
             cap_names = ", ".join(c.value for c in sorted_undeclared)
-            declared_names = (
-                ", ".join(c.value for c in sorted(declared_set, key=lambda c: c.value))
-                or "none"
-            )
+            declared_names = ", ".join(c.value for c in sorted(declared_set, key=lambda c: c.value)) or "none"
             diagnostics.append(
                 PluginDiagnostic(
                     component=f"mcp:{server.name}",
@@ -360,5 +348,3 @@ def verify_plugin_capability_diff(
             )
 
     return diagnostics
-
-

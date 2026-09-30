@@ -109,10 +109,7 @@ def default_rule_based_resolver(
             )
             # 2. Meaningful token match (length >= 3, excluding common stop words)
             stop_words = {"the", "and", "for", "with", "from", "that", "this", "user", "every"}
-            words = [
-                w for w in re.split(r"\W+", clean_old)
-                if len(w) >= 3 and w not in stop_words
-            ]
+            words = [w for w in re.split(r"\W+", clean_old) if len(w) >= 3 and w not in stop_words]
             new_tokens = set(re.split(r"\W+", clean_new))
             has_word_match = any(w in new_tokens for w in words)
 
@@ -177,9 +174,7 @@ class FactReconciliationEngine:
         self,
         custom_resolver: ConflictResolver | None = None,
     ) -> None:
-        self._resolver: ConflictResolver = (
-            custom_resolver or default_rule_based_resolver
-        )
+        self._resolver: ConflictResolver = custom_resolver or default_rule_based_resolver
 
     def reconcile_statement(
         self,

@@ -78,9 +78,7 @@ class StateSnapshotManager:
                 total_size += dest_db.stat().st_size
                 checksum = _compute_file_sha256(dest_db)
             except Exception as exc:
-                logger.error(
-                    "Failed to backup SQLite DB to snapshot %s: %s", snapshot_id, exc
-                )
+                logger.error("Failed to backup SQLite DB to snapshot %s: %s", snapshot_id, exc)
                 shutil.copy2(db_file, dest_db)
                 file_count += 1
                 total_size += dest_db.stat().st_size
@@ -136,9 +134,7 @@ class StateSnapshotManager:
                         )
                     )
                 except Exception as exc:
-                    logger.warning(
-                        "Failed to parse snapshot metadata in %s: %s", entry, exc
-                    )
+                    logger.warning("Failed to parse snapshot metadata in %s: %s", entry, exc)
                     continue
 
         results.sort(key=lambda s: s.created_at, reverse=True)

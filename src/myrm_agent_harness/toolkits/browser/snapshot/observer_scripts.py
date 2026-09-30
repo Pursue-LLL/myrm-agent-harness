@@ -399,4 +399,3 @@ HOVER_SURFACE_SCRIPT = """
   return surfaces;
 })();
 """
-

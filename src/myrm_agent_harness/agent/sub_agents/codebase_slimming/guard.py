@@ -45,9 +45,7 @@ class EquivalenceInvarianceGuard:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            stdout_data, stderr_data = await asyncio.wait_for(
-                proc.communicate(), timeout=timeout_seconds
-            )
+            stdout_data, stderr_data = await asyncio.wait_for(proc.communicate(), timeout=timeout_seconds)
             out_str = stdout_data.decode("utf-8", errors="ignore")
             err_str = stderr_data.decode("utf-8", errors="ignore")
             combined_summary = (out_str + "\n" + err_str).strip()[:1000]

@@ -205,7 +205,6 @@ class AdvisorRiskTriggerRouter:
                     risk_score=0.85,
                 )
 
-
         # 6. Check messages for consecutive ToolMessage errors
         if messages:
             streak = 0

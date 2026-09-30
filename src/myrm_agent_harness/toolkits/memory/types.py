@@ -661,7 +661,6 @@ class IntegrationMemory(BaseMemory):
         return v
 
 
-
 class TaskDigestMemory(BaseMemory):
     """Structured artifact summarizing a completed or interrupted long-horizon task session.
 
@@ -706,9 +705,7 @@ class HitSource(BaseModel):
 class RecallDebugTrace(BaseModel):
     """White-box audit trail for multi-source RRF ranking decisions."""
 
-    hit_sources: list[HitSource] = Field(
-        default_factory=list, description="All sources that retrieved this candidate"
-    )
+    hit_sources: list[HitSource] = Field(default_factory=list, description="All sources that retrieved this candidate")
     hit_count: int = Field(default=0, ge=0, description="Total number of distinct streams that hit this candidate")
     fused_score: float = Field(default=0.0, description="Composite score before normalization")
     tie_break_rank: int = Field(
@@ -853,12 +850,7 @@ class PendingRecord(BaseModel):
 # ── Type aliases ────────────────────────────────────────────────────
 
 AnyMemory = (
-    SemanticMemory
-    | EpisodicMemory
-    | ConversationMemory
-    | ProceduralMemory
-    | IntegrationMemory
-    | TaskDigestMemory
+    SemanticMemory | EpisodicMemory | ConversationMemory | ProceduralMemory | IntegrationMemory | TaskDigestMemory
 )
 
 BaseMemory.model_rebuild()
@@ -936,4 +928,3 @@ def create_pitfall_memory(
         source_chat_id=source_chat_id,
         source_message_id=source_message_id,
     )
-

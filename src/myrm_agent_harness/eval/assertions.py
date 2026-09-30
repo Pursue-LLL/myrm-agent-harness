@@ -76,21 +76,13 @@ def evaluate_tool_assertions(
     if assertion.require_all:
         missing = expected - called
         if missing:
-            return False, (
-                f"Missing tools: {sorted(missing)}. Called: {sorted(called)}"
-            )
-        return True, (
-            f"All expected tools called: {sorted(expected)}. Called: {sorted(called)}"
-        )
+            return False, (f"Missing tools: {sorted(missing)}. Called: {sorted(called)}")
+        return True, (f"All expected tools called: {sorted(expected)}. Called: {sorted(called)}")
 
     matched = expected & called
     if not matched:
-        return False, (
-            f"None of expected tools called. Expected one of: {sorted(expected)}. Called: {sorted(called)}"
-        )
-    return True, (
-        f"Expected tool(s) called: {sorted(matched)}. Called: {sorted(called)}"
-    )
+        return False, (f"None of expected tools called. Expected one of: {sorted(expected)}. Called: {sorted(called)}")
+    return True, (f"Expected tool(s) called: {sorted(matched)}. Called: {sorted(called)}")
 
 
 async def evaluate_sandbox_assertions(
@@ -371,17 +363,9 @@ def _validate_json_schema(data: object, schema: dict[str, object]) -> str | None
                 if field_name not in data:
                     return f"Missing required field: '{field_name}'"
 
-    if (
-        "properties" in schema
-        and isinstance(schema["properties"], dict)
-        and isinstance(data, dict)
-    ):
+    if "properties" in schema and isinstance(schema["properties"], dict) and isinstance(data, dict):
         for prop_name, prop_schema in schema["properties"].items():
-            if (
-                prop_name in data
-                and isinstance(prop_schema, dict)
-                and "type" in prop_schema
-            ):
+            if prop_name in data and isinstance(prop_schema, dict) and "type" in prop_schema:
                 expected_type = prop_schema["type"]
                 actual_value = data[prop_name]
                 if not _check_json_type(actual_value, str(expected_type)):
@@ -467,20 +451,14 @@ async def evaluate_semantic_assertions(
     for assertion in assertions:
         if assertion.type == "llm_judge":
             use_scoring = assertion.threshold < 1.0
-            if not use_scoring and _exact_match_prepass(
-                assertion.expected, actual_output
-            ):
+            if not use_scoring and _exact_match_prepass(assertion.expected, actual_output):
                 # Exact-match pre-pass: when the normalized output equals the
                 # normalized criteria (factual/numeric answers), the LLM judge
                 # is skipped entirely — saves a judge call per case and keeps
                 # deterministic answers deterministic (BigBang-style guard).
                 continue
 
-            model = (
-                judge_override.model
-                if judge_override
-                else assertion.judge_model or default_judge_model
-            )
+            model = judge_override.model if judge_override else assertion.judge_model or default_judge_model
 
             if assertion.judge_prompt:
                 template = assertion.judge_prompt
@@ -501,14 +479,10 @@ async def evaluate_semantic_assertions(
             # non-OpenAI setups (DeepSeek/Qwen/self-hosted) able to run
             # LLM-judge assertions with their own provider keys.
             judge_api_key = (
-                judge_override.api_key
-                if judge_override and judge_override.api_key
-                else assertion.judge_api_key
+                judge_override.api_key if judge_override and judge_override.api_key else assertion.judge_api_key
             )
             judge_api_base = (
-                judge_override.api_base
-                if judge_override and judge_override.api_base
-                else assertion.judge_api_base
+                judge_override.api_base if judge_override and judge_override.api_base else assertion.judge_api_base
             )
             if judge_api_key:
                 call_kwargs["api_key"] = judge_api_key
@@ -567,9 +541,7 @@ def calculate_trajectory_determinism(
     from .protocols import DeterminismReplayResult
 
     orig_tool_names = [s.get("tool_name", "") for s in orig_steps if s.get("tool_name")]
-    replay_tool_names = [
-        s.get("tool_name", "") for s in replay_steps if s.get("tool_name")
-    ]
+    replay_tool_names = [s.get("tool_name", "") for s in replay_steps if s.get("tool_name")]
 
     if not orig_tool_names and not replay_tool_names:
         return DeterminismReplayResult(
@@ -596,9 +568,7 @@ def calculate_trajectory_determinism(
     else:
         # Simple positional match ratio
         min_len = min(len(orig_tool_names), len(replay_tool_names))
-        matches = sum(
-            1 for i in range(min_len) if orig_tool_names[i] == replay_tool_names[i]
-        )
+        matches = sum(1 for i in range(min_len) if orig_tool_names[i] == replay_tool_names[i])
         seq_sim = matches / max_len
 
     # 3. Arguments similarity on matched step positions
@@ -617,15 +587,13 @@ def calculate_trajectory_determinism(
             if orig_s.get("arguments") == replay_s.get("arguments"):
                 args_matches += 1
             else:
-                drifted.append(f"Step {i+1} ({t_orig}): args drifted")
+                drifted.append(f"Step {i + 1} ({t_orig}): args drifted")
         else:
             if t_orig or t_replay:
-                drifted.append(f"Step {i+1}: tool diverged ({t_orig} vs {t_replay})")
+                drifted.append(f"Step {i + 1}: tool diverged ({t_orig} vs {t_replay})")
 
     if len(orig_tool_names) != len(replay_tool_names):
-        drifted.append(
-            f"Length mismatch: {len(orig_tool_names)} vs {len(replay_tool_names)} tool calls"
-        )
+        drifted.append(f"Length mismatch: {len(orig_tool_names)} vs {len(replay_tool_names)} tool calls")
 
     args_sim = (args_matches / total_compared_args) if total_compared_args > 0 else 1.0
 

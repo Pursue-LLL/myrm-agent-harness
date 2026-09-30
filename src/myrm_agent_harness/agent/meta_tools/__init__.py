@@ -130,9 +130,7 @@ def get_meta_tools(
         )
 
     # --- Conditional skill filtering based on agent's tool capabilities ---
-    if skills and (
-        available_tool_names is not None or available_tool_groups is not None
-    ):
+    if skills and (available_tool_names is not None or available_tool_groups is not None):
         _atn = available_tool_names or frozenset()
         _atg = available_tool_groups or frozenset()
         pre_count = len(skills)
@@ -207,17 +205,11 @@ def get_meta_tools(
         file_edit_tool = create_file_edit_tool(skills=skills, locale=locale)
         glob_tool = create_glob_tool(locale=locale)
         grep_tool = create_grep_tool(locale=locale)
-        tools.extend(
-            [file_read_tool, file_write_tool, file_edit_tool, glob_tool, grep_tool]
-        )
+        tools.extend([file_read_tool, file_write_tool, file_edit_tool, glob_tool, grep_tool])
     elif resolved_file_access == FileAccessMode.SPILL_AND_UPLOADS:
-        file_read_tool = create_file_read_tool(
-            skills=skills, path_policy="evicted_uploaded", locale=locale
-        )
+        file_read_tool = create_file_read_tool(skills=skills, path_policy="evicted_uploaded", locale=locale)
         tools.append(file_read_tool)
-        logger.info(
-            " UECD read-only file_read_tool mounted (evicted + uploaded paths only)"
-        )
+        logger.info(" UECD read-only file_read_tool mounted (evicted + uploaded paths only)")
     else:
         logger.info("File tools disabled by caller configuration")
 

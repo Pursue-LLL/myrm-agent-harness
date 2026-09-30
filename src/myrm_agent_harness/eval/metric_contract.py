@@ -123,9 +123,7 @@ class MetricDriftAnalysis:
         }
 
 
-def _calculate_relative_improvement(
-    baseline: float, candidate: float, higher_is_better: bool
-) -> float:
+def _calculate_relative_improvement(baseline: float, candidate: float, higher_is_better: bool) -> float:
     """Calculate normalized relative improvement. Positive means better."""
     if higher_is_better:
         if baseline == 0.0:
@@ -210,9 +208,7 @@ def evaluate_metric_proxy_alignment(
             if p_spec.is_forbidden_as_sole_criterion and p_imp > 0.25 and normalized_intent_delta < 0:
                 flagged.append(p_spec.name)
 
-    avg_proxy_improvement = (
-        (total_proxy_improvement / total_proxy_count) if total_proxy_count > 0 else 0.0
-    )
+    avg_proxy_improvement = (total_proxy_improvement / total_proxy_count) if total_proxy_count > 0 else 0.0
 
     # 4. Formulate Verdict
     # Goodhart's Law: Proxies improved significantly (>10%), but core intent suffered noticeable drop (> tolerance)

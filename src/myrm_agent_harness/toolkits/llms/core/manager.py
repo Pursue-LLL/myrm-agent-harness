@@ -292,12 +292,16 @@ class LLMManager:
                     pool_stats = pool.stats()
                     sub_instances = getattr(instance, "_instances", {})
                     first_sub = next(iter(sub_instances.values()), None) if isinstance(sub_instances, dict) else None
-                    model_name = getattr(first_sub, "model", None) or getattr(first_sub, "model_name", None) or "unknown"
-                    results.append({
-                        "cache_key": cache_key,
-                        "model": str(model_name),
-                        "stats": pool_stats,
-                    })
+                    model_name = (
+                        getattr(first_sub, "model", None) or getattr(first_sub, "model_name", None) or "unknown"
+                    )
+                    results.append(
+                        {
+                            "cache_key": cache_key,
+                            "model": str(model_name),
+                            "stats": pool_stats,
+                        }
+                    )
         return results
 
     @classmethod

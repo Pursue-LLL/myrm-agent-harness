@@ -94,9 +94,6 @@ def extract_protected_head(messages: list[BaseMessage]) -> list[BaseMessage]:
     return head
 
 
-
-
-
 def _align_boundary_backward(messages: list[BaseMessage], idx: int) -> int:
     """Pull a compress-end boundary backward to avoid splitting a tool_call / result group."""
     if idx <= 0 or idx >= len(messages):
@@ -114,16 +111,12 @@ def _align_boundary_backward(messages: list[BaseMessage], idx: int) -> int:
     return idx
 
 
-def extract_recent_messages(
-    messages: list[BaseMessage], tail_budget_tokens: int
-) -> list[BaseMessage]:
+def extract_recent_messages(messages: list[BaseMessage], tail_budget_tokens: int) -> list[BaseMessage]:
     """Extract recent messages by token budget, ensuring intact tool-call pairs.
 
     Backward compatibility wrapper around extract_recent_messages_with_split_context.
     """
-    return extract_recent_messages_with_split_context(
-        messages, tail_budget_tokens
-    ).messages
+    return extract_recent_messages_with_split_context(messages, tail_budget_tokens).messages
 
 
 def extract_recent_messages_with_split_context(
@@ -168,9 +161,7 @@ def extract_recent_messages_with_split_context(
     # Find the most recent genuine HumanMessage before or at cut_idx
     last_human_idx = -1
     for i in range(n - 1, -1, -1):
-        if isinstance(messages[i], HumanMessage) and not is_summary_message(
-            messages[i]
-        ):
+        if isinstance(messages[i], HumanMessage) and not is_summary_message(messages[i]):
             last_human_idx = i
             break
 
@@ -180,15 +171,9 @@ def extract_recent_messages_with_split_context(
 
     if last_human_idx != -1 and cut_idx > last_human_idx:
         is_split_turn = True
-        split_human_msg = (
-            messages[last_human_idx]
-            if isinstance(messages[last_human_idx], HumanMessage)
-            else None
-        )
+        split_human_msg = messages[last_human_idx] if isinstance(messages[last_human_idx], HumanMessage) else None
         # Prefix encompasses from the HumanMessage up to (exclusive) cut_idx
-        turn_prefix_messages = [
-            m for m in messages[last_human_idx:cut_idx] if not is_summary_message(m)
-        ]
+        turn_prefix_messages = [m for m in messages[last_human_idx:cut_idx] if not is_summary_message(m)]
 
     result = [m for m in messages[cut_idx:] if not is_summary_message(m)]
     kept_tokens = sum(estimate_message_tokens(m) for m in result)
@@ -305,9 +290,7 @@ def create_summary_message(
             parts.append(f" - {item}")
 
     if summary.blocked_items:
-        blocked = [
-            b for b in summary.blocked_items if b.strip() and b.strip() != "None"
-        ]
+        blocked = [b for b in summary.blocked_items if b.strip() and b.strip() != "None"]
         if blocked:
             parts.append("")
             parts.append("Blocked:")
@@ -315,9 +298,7 @@ def create_summary_message(
                 parts.append(f" - {item}")
 
     if summary.pending_user_asks:
-        pending = [
-            a for a in summary.pending_user_asks if a.strip() and a.strip() != "None"
-        ]
+        pending = [a for a in summary.pending_user_asks if a.strip() and a.strip() != "None"]
         if pending:
             parts.append("")
             parts.append("Pending User Asks:")

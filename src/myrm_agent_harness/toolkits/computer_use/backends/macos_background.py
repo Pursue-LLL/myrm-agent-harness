@@ -34,9 +34,7 @@ class _WindowTarget(NamedTuple):
     bounds: tuple[int, int, int, int]
 
 
-def _resolve_target_window(
-    app_name: str, window_index: int = 0
-) -> _WindowTarget | None:
+def _resolve_target_window(app_name: str, window_index: int = 0) -> _WindowTarget | None:
     """Resolve an on-screen window of ``app_name`` without activating it.
 
     Returns None when the app has no on-screen window (e.g. minimized):
@@ -50,17 +48,11 @@ def _resolve_target_window(
     )
 
     try:
-        windows = CGWindowListCopyWindowInfo(
-            kCGWindowListOptionOnScreenOnly, kCGNullWindowID
-        )
+        windows = CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly, kCGNullWindowID)
     except Exception:
         return None
     needle = app_name.lower()
-    matches = [
-        w
-        for w in windows
-        if needle in str(w.get("kCGWindowOwnerName", "")).lower()
-    ]
+    matches = [w for w in windows if needle in str(w.get("kCGWindowOwnerName", "")).lower()]
     if window_index >= len(matches):
         return None
     chosen = matches[window_index]
@@ -97,9 +89,7 @@ async def _capture_window_png(window_id: int) -> bytes:
         )
         _, stderr = await proc.communicate()
         if proc.returncode != 0:
-            raise RuntimeError(
-                f"window capture failed: {stderr.decode().strip()}"
-            )
+            raise RuntimeError(f"window capture failed: {stderr.decode().strip()}")
         return tmp_path.read_bytes()
     finally:
         tmp_path.unlink(missing_ok=True)
@@ -252,9 +242,7 @@ def _set_enhanced_ui(pid: int, enabled: bool = True) -> bool:
         return False
     if _enhanced_ui_usable is True:
         return True
-    if not ctypes.util.find_library(
-        "ApplicationServices"
-    ) or not ctypes.util.find_library("CoreFoundation"):
+    if not ctypes.util.find_library("ApplicationServices") or not ctypes.util.find_library("CoreFoundation"):
         return False
     try:
         result = subprocess.run(

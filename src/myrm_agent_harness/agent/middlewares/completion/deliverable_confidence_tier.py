@@ -97,13 +97,15 @@ def resolve_deliverable_tier(
     # 1. Evaluate verification facts
     verifications: list[str] = []
     for record in records:
-        if (
-            record.verification_type is not None
-            and record.success_level not in (SuccessLevel.FAILURE, SuccessLevel.EMPTY_OK)
+        if record.verification_type is not None and record.success_level not in (
+            SuccessLevel.FAILURE,
+            SuccessLevel.EMPTY_OK,
         ):
             verifications.append(record.verification_type.value)
 
-    has_gatekeeper_pass = gatekeeper_result is not None and gatekeeper_result.passed and bool(gatekeeper_result.per_criterion)
+    has_gatekeeper_pass = (
+        gatekeeper_result is not None and gatekeeper_result.passed and bool(gatekeeper_result.per_criterion)
+    )
     is_cron_verified = cron_verified is True
     is_verified = (len(verifications) > 0) or has_gatekeeper_pass or is_cron_verified
 
@@ -111,10 +113,7 @@ def resolve_deliverable_tier(
     files_written: list[str] = []
     for record in records:
         grp = get_tool_group(record.tool_name)
-        if (
-            grp == ToolGroup.WRITE
-            and record.success_level != SuccessLevel.FAILURE
-        ):
+        if grp == ToolGroup.WRITE and record.success_level != SuccessLevel.FAILURE:
             path = str(record.args.get("path", "")).strip()
             if path and path not in files_written:
                 files_written.append(path)

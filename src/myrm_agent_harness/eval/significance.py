@@ -141,9 +141,7 @@ class PairedSignificanceAssessment:
             "verdict": self.verdict.value,
             "regression_case_indices": self.regression_case_indices,
             "improved_case_indices": self.improved_case_indices,
-            "continuous_delta": (
-                self.continuous_delta.to_dict() if self.continuous_delta else None
-            ),
+            "continuous_delta": (self.continuous_delta.to_dict() if self.continuous_delta else None),
         }
 
 
@@ -326,7 +324,7 @@ def calculate_paired_significance(
         upper_idx = min(int(bootstrap_runs * 0.975), bootstrap_runs - 1)
         ci_lower = max(-1.0, min(1.0, sampled_deltas[lower_idx]))
         ci_upper = max(-1.0, min(1.0, sampled_deltas[upper_idx]))
-        crosses_zero = (ci_lower <= 0.0 <= ci_upper)
+        crosses_zero = ci_lower <= 0.0 <= ci_upper
 
         bootstrap_ci = BootstrapCIResult(
             ci_lower=ci_lower,
@@ -350,8 +348,7 @@ def calculate_paired_significance(
     continuous_delta: ContinuousMetricsDelta | None = None
     if base_tokens and candidate_tokens and len(base_tokens) == n and len(candidate_tokens) == n:
         tok_diffs = [
-            max(-10.0, min(10.0, (candidate_tokens[i] - base_tokens[i]) / max(1, base_tokens[i])))
-            for i in range(n)
+            max(-10.0, min(10.0, (candidate_tokens[i] - base_tokens[i]) / max(1, base_tokens[i]))) for i in range(n)
         ]
         t_mean, t_low, t_high = _compute_continuous_bootstrap_ci(tok_diffs, runs=bootstrap_runs, seed=seed)
 
@@ -369,10 +366,7 @@ def calculate_paired_significance(
         c_mean, c_low, c_high = _compute_continuous_bootstrap_ci(c_diffs, runs=bootstrap_runs, seed=seed)
 
         m_diffs = (
-            [
-                max(-10.0, min(10.0, (candidate_ms[i] - base_ms[i]) / max(1.0, base_ms[i])))
-                for i in range(n)
-            ]
+            [max(-10.0, min(10.0, (candidate_ms[i] - base_ms[i]) / max(1.0, base_ms[i]))) for i in range(n)]
             if base_ms and candidate_ms and len(base_ms) == n and len(candidate_ms) == n
             else [0.0] * n
         )

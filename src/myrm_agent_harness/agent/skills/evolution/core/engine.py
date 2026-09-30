@@ -597,9 +597,7 @@ class SkillEvolutionEngine(SkillEvolutionEngineBatchMixin):
 
         scan_result = scan_skill_content(result.name, result.content)
         if scan_result.trust_recommendation == SkillTrustRecommendation.REJECT:
-            logger.warning(
-                f"Slice-extracted skill '{result.name}' rejected by security scan: {scan_result.summary}"
-            )
+            logger.warning(f"Slice-extracted skill '{result.name}' rejected by security scan: {scan_result.summary}")
             return None
 
         security_summary_dict = compute_scan_summary(scan_result).to_dict()
@@ -722,9 +720,7 @@ class SkillEvolutionEngine(SkillEvolutionEngineBatchMixin):
 
         scan_result = scan_skill_content(result.name, result.content)
         if scan_result.trust_recommendation == SkillTrustRecommendation.REJECT:
-            logger.warning(
-                f"Captured skill '{result.name}' rejected by security scan: {scan_result.summary}"
-            )
+            logger.warning(f"Captured skill '{result.name}' rejected by security scan: {scan_result.summary}")
             return None
 
         security_summary_dict = compute_scan_summary(scan_result).to_dict()

@@ -40,9 +40,7 @@ _MAX_DIR_DEPTH = 3
 
 _REQ_COMMENT_RE = re.compile(r"#.*$")
 _REQ_ENV_MARKER_RE = re.compile(r";.*$")
-_REQ_NAME_SPEC_RE = re.compile(
-    r"^([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)\s*(?:\[[^\]]*\])?\s*([<>=!~].*)?$"
-)
+_REQ_NAME_SPEC_RE = re.compile(r"^([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)\s*(?:\[[^\]]*\])?\s*([<>=!~].*)?$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -192,7 +190,13 @@ def extract_dependencies_from_pyproject_toml(
                 for pkg_name, ver_spec in poetry_deps.items():
                     if pkg_name.lower() == "python":
                         continue
-                    spec_str = ver_spec if isinstance(ver_spec, str) else str(ver_spec.get("version", "")) if isinstance(ver_spec, dict) else ""
+                    spec_str = (
+                        ver_spec
+                        if isinstance(ver_spec, str)
+                        else str(ver_spec.get("version", ""))
+                        if isinstance(ver_spec, dict)
+                        else ""
+                    )
                     dependencies.append(
                         DeclaredDependency(
                             name=pkg_name.strip().lower(),
@@ -206,7 +210,13 @@ def extract_dependencies_from_pyproject_toml(
             dev_deps = poetry.get("dev-dependencies")
             if isinstance(dev_deps, dict):
                 for pkg_name, ver_spec in dev_deps.items():
-                    spec_str = ver_spec if isinstance(ver_spec, str) else str(ver_spec.get("version", "")) if isinstance(ver_spec, dict) else ""
+                    spec_str = (
+                        ver_spec
+                        if isinstance(ver_spec, str)
+                        else str(ver_spec.get("version", ""))
+                        if isinstance(ver_spec, dict)
+                        else ""
+                    )
                     dependencies.append(
                         DeclaredDependency(
                             name=pkg_name.strip().lower(),
@@ -277,7 +287,11 @@ def extract_dependencies_from_bun_lock(
         for _ws_key, ws_val in workspaces.items():
             if not isinstance(ws_val, dict):
                 continue
-            for section, is_dev in (("dependencies", False), ("devDependencies", True), ("optionalDependencies", False)):
+            for section, is_dev in (
+                ("dependencies", False),
+                ("devDependencies", True),
+                ("optionalDependencies", False),
+            ):
                 deps_dict = ws_val.get(section)
                 if isinstance(deps_dict, dict):
                     for pkg_name, ver_spec in deps_dict.items():

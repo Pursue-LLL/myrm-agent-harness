@@ -137,15 +137,9 @@ async def capture_browser_view_update_data(
             pass
 
     resolved_space_id = (
-        task_space_id
-        if task_space_id is not None
-        else str(getattr(session, "task_space_id", "default") or "default")
+        task_space_id if task_space_id is not None else str(getattr(session, "task_space_id", "default") or "default")
     )
-    resolved_space_name = (
-        task_space_name
-        if task_space_name is not None
-        else getattr(session, "task_space_name", None)
-    )
+    resolved_space_name = task_space_name if task_space_name is not None else getattr(session, "task_space_name", None)
 
     return build_browser_view_update_data(
         screenshot_base64=screenshot_b64,

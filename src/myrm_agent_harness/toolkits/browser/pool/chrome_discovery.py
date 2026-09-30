@@ -303,8 +303,7 @@ def discover_chrome_cdp_endpoint() -> str | None:
             logger.info("Chrome discovery: connected via Myrm E2E port %d", myrm_port)
             return f"http://127.0.0.1:{myrm_port}"
         logger.warning(
-            "Chrome discovery: E2E Chrome not reachable on port %d — refusing to fall "
-            "back to a local browser",
+            "Chrome discovery: E2E Chrome not reachable on port %d — refusing to fall back to a local browser",
             myrm_port,
         )
         return None

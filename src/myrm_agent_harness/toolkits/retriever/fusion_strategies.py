@@ -96,10 +96,7 @@ def fuse_rrf_deterministic[T](
 
     active_lists = [r_list for r_list in lists if r_list.items]
     if not active_lists:
-        per_source = [
-            SourceDebugStats(source=r_list.source, count=0, latency_ms=r_list.latency_ms)
-            for r_list in lists
-        ]
+        per_source = [SourceDebugStats(source=r_list.source, count=0, latency_ms=r_list.latency_ms) for r_list in lists]
         return [], RecallDebug(per_source=per_source, fused_count=0)
 
     # Accumulate scores and hits

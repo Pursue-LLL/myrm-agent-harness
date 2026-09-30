@@ -376,4 +376,3 @@ __all__ = [
     "get_search_metrics",
     "summarize_recall_benchmark",
 ]
-

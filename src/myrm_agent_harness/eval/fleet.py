@@ -226,9 +226,7 @@ class FleetEvalRunner:
         if difficulty_filter and difficulty_filter.lower() != "all":
             filt = difficulty_filter.lower()
             target_cases = [
-                c
-                for c in cases
-                if str(c.metadata.get("difficulty", c.metadata.get("tier", ""))).lower() == filt
+                c for c in cases if str(c.metadata.get("difficulty", c.metadata.get("tier", ""))).lower() == filt
             ]
             if not target_cases:
                 target_cases = cases

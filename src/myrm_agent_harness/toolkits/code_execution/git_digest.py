@@ -53,14 +53,10 @@ class RepoHistoryEvidenceDigest:
     is_dirty: bool
     recent_commits: tuple[RepoCommitItem, ...] = field(default_factory=tuple)
     total_commits_examined: int = 0
-    extracted_at: str = field(
-        default_factory=lambda: datetime.now(UTC).isoformat()
-    )
+    extracted_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
 
-def _run_git_cmd(
-    args: list[str], cwd: Path, timeout: float = 2.0
-) -> tuple[int, str]:
+def _run_git_cmd(args: list[str], cwd: Path, timeout: float = 2.0) -> tuple[int, str]:
     """Execute git subcommands safely with tight timeout."""
     try:
         proc = subprocess.run(
@@ -160,11 +156,7 @@ def extract_repo_history_digest(
                     path,
                     timeout=1.0,
                 )
-                changed_files = (
-                    tuple(files_out.splitlines()[:10])
-                    if rc_files == 0 and files_out
-                    else ()
-                )
+                changed_files = tuple(files_out.splitlines()[:10]) if rc_files == 0 and files_out else ()
 
                 commits.append(
                     RepoCommitItem(
@@ -201,9 +193,7 @@ class RepoSyncDecision:
     baseline_commit: str | None = None
     is_dirty: bool = False
     files_changed: tuple[str, ...] = field(default_factory=tuple)
-    evaluated_at: str = field(
-        default_factory=lambda: datetime.now(UTC).isoformat()
-    )
+    evaluated_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     @property
     def sync_recommended(self) -> bool:
@@ -281,11 +271,7 @@ def evaluate_repo_sync_policy(
     is_dirty = bool(rc_status == 0 and status_str.strip())
     dirty_files: tuple[str, ...] = ()
     if is_dirty:
-        dirty_files = tuple(
-            line[3:].strip()
-            for line in status_str.splitlines()
-            if len(line) > 3
-        )
+        dirty_files = tuple(line[3:].strip() for line in status_str.splitlines() if len(line) > 3)
 
     # 3. Check if baseline is provided
     if not baseline_commit or not baseline_commit.strip():
@@ -334,11 +320,7 @@ def evaluate_repo_sync_policy(
 
     # 5. Check cooldown interval
     if last_sync_timestamp is not None and cooldown_seconds > 0:
-        now_ts = (
-            current_time
-            if current_time is not None
-            else datetime.now(UTC).timestamp()
-        )
+        now_ts = current_time if current_time is not None else datetime.now(UTC).timestamp()
         if (now_ts - last_sync_timestamp) < cooldown_seconds:
             return RepoSyncDecision(
                 should_sync=False,
@@ -371,9 +353,7 @@ def evaluate_repo_sync_policy(
         ["rev-list", "--count", f"{cleaned_baseline}..{current_head}"],
         path,
     )
-    commits_behind = (
-        int(count_str) if rc_count == 0 and count_str.isdigit() else 0
-    )
+    commits_behind = int(count_str) if rc_count == 0 and count_str.isdigit() else 0
 
     # 8. Detect merge / PR commit
     rc_merges, merge_str = _run_git_cmd(
@@ -387,9 +367,7 @@ def evaluate_repo_sync_policy(
         ["diff", "--name-only", f"{cleaned_baseline}..{current_head}"],
         path,
     )
-    range_files = tuple(
-        line.strip() for line in diff_str.splitlines() if line.strip()
-    ) if rc_diff == 0 else ()
+    range_files = tuple(line.strip() for line in diff_str.splitlines() if line.strip()) if rc_diff == 0 else ()
 
     if pull_request_detected:
         return RepoSyncDecision(

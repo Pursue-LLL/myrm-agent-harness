@@ -79,9 +79,7 @@ class DynamicContextAssembler:
         remaining_budget = budget - estimate_tokens(profile_text)
 
         # 2. Dynamic Facts
-        active_facts = [
-            f for f in dynamic_facts if f.status == FactStatus.ACTIVE and not f.is_expired()
-        ]
+        active_facts = [f for f in dynamic_facts if f.status == FactStatus.ACTIVE and not f.is_expired()]
         # Sort by confidence descending, then by updated_at descending
         sorted_facts = sorted(
             active_facts,
@@ -170,15 +168,7 @@ class DynamicContextAssembler:
                             break
                     entity_graph_section = "\n".join(allowed_lines)
 
-        full_text = (
-            profile_text
-            + "\n"
-            + timeline_section
-            + "\n"
-            + dynamic_facts_section
-            + "\n"
-            + entity_graph_section
-        )
+        full_text = profile_text + "\n" + timeline_section + "\n" + dynamic_facts_section + "\n" + entity_graph_section
 
         return AssembledMemoryContext(
             cached_profile_prefix=profile_text,

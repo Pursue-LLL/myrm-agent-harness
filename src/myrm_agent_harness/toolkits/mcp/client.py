@@ -323,6 +323,7 @@ class MCPClientManager:
                 return False
             try:
                 import httpx2
+
                 headers = MCPClientManager.get_headers(server_config)
                 async with httpx2.AsyncClient(timeout=timeout_seconds, follow_redirects=True) as client:
                     resp = await client.get(url, headers=headers)

@@ -96,9 +96,7 @@ class MemoryManagerRetrievalWriteMixin:
             )
 
             task = asyncio.create_task(
-                bump_access_counts(
-                    results, self._vector, self._config, self._relational
-                ),
+                bump_access_counts(results, self._vector, self._config, self._relational),
                 name="bump_access_counts",
             )
             _pending_tasks.add(task)
@@ -140,11 +138,7 @@ class MemoryManagerRetrievalWriteMixin:
         preferences instead of raw vector scroll for higher precision.
         """
         rules_task = (
-            asyncio.create_task(
-                self._relational.list_rules(
-                    active_only=True, limit=50, namespaces=self._namespaces
-                )
-            )
+            asyncio.create_task(self._relational.list_rules(active_only=True, limit=50, namespaces=self._namespaces))
             if self._relational
             else None
         )
@@ -202,9 +196,7 @@ class MemoryManagerRetrievalWriteMixin:
                 logger.warning("Learned context preferences query error: %s", e)
 
         rules.sort(key=lambda r: r.priority, reverse=True)
-        preferences.sort(
-            key=lambda m: m.importance * m.preference_strength, reverse=True
-        )
+        preferences.sort(key=lambda m: m.importance * m.preference_strength, reverse=True)
 
         base_budget = self._config.max_learned_context_chars
         if self._config.model_context_tokens:

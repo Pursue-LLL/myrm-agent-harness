@@ -143,9 +143,7 @@ class KeyPoolLLM(BaseChatModel):
             if llm is None:
                 continue
             try:
-                result = await llm._agenerate(
-                    messages, stop=stop, run_manager=run_manager, **kwargs
-                )
+                result = await llm._agenerate(messages, stop=stop, run_manager=run_manager, **kwargs)
                 self._pool.report_success(key)
                 return result
             except Exception as exc:
@@ -174,9 +172,7 @@ class KeyPoolLLM(BaseChatModel):
             if llm is None:
                 continue
             try:
-                async for chunk in llm._astream(
-                    messages, stop=stop, run_manager=run_manager, **kwargs
-                ):
+                async for chunk in llm._astream(messages, stop=stop, run_manager=run_manager, **kwargs):
                     yield chunk
                 self._pool.report_success(key)
                 return
@@ -207,9 +203,7 @@ class KeyPoolLLM(BaseChatModel):
             if llm is None:
                 continue
             try:
-                result = llm._generate(
-                    messages, stop=stop, run_manager=run_manager, **kwargs
-                )
+                result = llm._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
                 self._pool.report_success(key)
                 return result
             except Exception as exc:
@@ -261,10 +255,7 @@ class KeyPoolLLM(BaseChatModel):
     @property
     def base_url(self) -> str | None:
         """API base URL alias of the pooled LLM instances."""
-        return (
-            getattr(self._instances[self._primary_key], "base_url", None)
-            or self.api_base
-        )
+        return getattr(self._instances[self._primary_key], "base_url", None) or self.api_base
 
     @property
     def _llm_type(self) -> str:

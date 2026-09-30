@@ -104,11 +104,7 @@ def _try_pyatspi_snapshot(
                         name=name,
                         bbox=BBox(extents.x, extents.y, extents.width, extents.height),
                         backend_key=str(counter),
-                        actions=(
-                            ("click", "fill")
-                            if role_name in {"text", "entry"}
-                            else ("click",)
-                        ),
+                        actions=(("click", "fill") if role_name in {"text", "entry"} else ("click",)),
                     )
                     counter += 1
 
@@ -127,10 +123,7 @@ def _try_pyatspi_snapshot(
                 child_name = child.name or ""
             except Exception:
                 continue
-            if (
-                child_role != "application"
-                or child_name.strip().lower() != target_lower
-            ):
+            if child_role != "application" or child_name.strip().lower() != target_lower:
                 continue
         walk(child)
 
@@ -184,9 +177,7 @@ def capture_ax_snapshot(
     if not title:
         raise AXTreeEmptyError("no active window title")
 
-    raise AXTreeEmptyError(
-        "AT-SPI tree unavailable in this environment. Install pyatspi or use desktop_vision_tool."
-    )
+    raise AXTreeEmptyError("AT-SPI tree unavailable in this environment. Install pyatspi or use desktop_vision_tool.")
 
 
 def invoke_ax_element(
@@ -201,9 +192,7 @@ def invoke_ax_element(
     except (ValueError, TypeError):
         return ActionResult(success=False, error=f"Invalid backend_key: {backend_key}")
     if index < 0 or index >= _MAX_ELEMENTS:
-        return ActionResult(
-            success=False, error=f"Index {index} out of range [0, {_MAX_ELEMENTS})"
-        )
+        return ActionResult(success=False, error=f"Index {index} out of range [0, {_MAX_ELEMENTS})")
 
     try:
         import pyatspi  # type: ignore[import-untyped]

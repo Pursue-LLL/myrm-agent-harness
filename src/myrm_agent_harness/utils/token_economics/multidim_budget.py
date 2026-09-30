@@ -180,7 +180,9 @@ class MultidimensionalBudgetGuard:
         """Check budget status without modifying state."""
         with self._lock:
             self._maybe_reset_day()
-            target_session_cost = self._session_costs.get(session_id, 0.0) if session_id is not None else self._session_cost
+            target_session_cost = (
+                self._session_costs.get(session_id, 0.0) if session_id is not None else self._session_cost
+            )
             return self._evaluate_status(
                 target_session_cost + cost,
                 self._daily_cost + cost,
@@ -286,7 +288,9 @@ class MultidimensionalBudgetGuard:
             remainders: list[float] = []
 
             if self._per_session is not None:
-                current_session_cost = self._session_costs.get(session_id, 0.0) if session_id is not None else self._session_cost
+                current_session_cost = (
+                    self._session_costs.get(session_id, 0.0) if session_id is not None else self._session_cost
+                )
                 remainders.append(max(0.0, self._per_session.limit_usd - current_session_cost))
             if self._daily is not None:
                 remainders.append(max(0.0, self._daily.limit_usd - self._daily_cost))

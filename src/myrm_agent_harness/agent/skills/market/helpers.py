@@ -107,9 +107,7 @@ def deduplicate(results: list[SkillSearchResult]) -> list[SkillSearchResult]:
     return deduped
 
 
-def rank_results(
-    results: list[SkillSearchResult], query: str
-) -> list[SkillSearchResult]:
+def rank_results(results: list[SkillSearchResult], query: str) -> list[SkillSearchResult]:
     """Rank by source priority + stars + keyword/tag match."""
     keywords = query.lower().split()
 

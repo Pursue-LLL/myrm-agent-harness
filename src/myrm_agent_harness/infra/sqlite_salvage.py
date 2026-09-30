@@ -250,18 +250,14 @@ class SQLiteRowidSalvageEngine:
                         try:
                             dest_conn.execute(ddl)
                         except sqlite3.Error as exc:
-                            logger.warning(
-                                "Failed to recreate schema for %s: %s", tbl, exc
-                            )
+                            logger.warning("Failed to recreate schema for %s: %s", tbl, exc)
 
                 for vtbl, vddl in virtual_tables.items():
                     if vddl:
                         try:
                             dest_conn.execute(vddl)
                         except sqlite3.Error as exc:
-                            logger.warning(
-                                "Failed to recreate virtual table %s: %s", vtbl, exc
-                            )
+                            logger.warning("Failed to recreate virtual table %s: %s", vtbl, exc)
 
                 # Salvage records table by table (heap write before indexes)
                 for table_name, ddl in tables.items():
@@ -278,9 +274,7 @@ class SQLiteRowidSalvageEngine:
                 # Rebuild FTS virtual tables natively
                 for vtbl in fts_tables:
                     try:
-                        dest_conn.execute(
-                            f'INSERT INTO "{vtbl}"("{vtbl}") VALUES(\'rebuild\');'
-                        )
+                        dest_conn.execute(f'INSERT INTO "{vtbl}"("{vtbl}") VALUES(\'rebuild\');')
                     except sqlite3.Error as fts_exc:
                         logger.warning("FTS rebuild failed for %s: %s", vtbl, fts_exc)
 
@@ -351,9 +345,7 @@ class SQLiteRowidSalvageEngine:
         indexes: dict[str, str] = {}
         views: dict[str, str] = {}
         try:
-            cursor = conn.execute(
-                "SELECT type, name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%';"
-            )
+            cursor = conn.execute("SELECT type, name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%';")
             for row in cursor.fetchall():
                 obj_type: str = str(row[0]).lower()
                 name: str = str(row[1])
@@ -409,9 +401,7 @@ class SQLiteRowidSalvageEngine:
 
             if not has_rowid:
                 # Fallback for WITHOUT ROWID tables
-                return self._salvage_without_rowid(
-                    source, dest, table, insert_sql, cols, stats
-                )
+                return self._salvage_without_rowid(source, dest, table, insert_sql, cols, stats)
 
             # Determine rowid boundaries
             min_id, max_id = self._probe_rowid_bounds(source, table)
@@ -425,10 +415,7 @@ class SQLiteRowidSalvageEngine:
             while cur_id <= max_id:
                 chunk_end = min(cur_id + self._chunk_size - 1, max_id)
                 try:
-                    query = (
-                        f'SELECT {col_identifiers} FROM "{table}" '
-                        f"WHERE rowid BETWEEN ? AND ? ORDER BY rowid ASC;"
-                    )
+                    query = f'SELECT {col_identifiers} FROM "{table}" WHERE rowid BETWEEN ? AND ? ORDER BY rowid ASC;'
                     rows = source.execute(query, (cur_id, chunk_end)).fetchall()
                     if rows:
                         dest.executemany(insert_sql, rows)
@@ -447,10 +434,7 @@ class SQLiteRowidSalvageEngine:
                     )
                 cur_id = chunk_end + 1
 
-            if (
-                stats.recovered_rows < stats.source_rows_estimate
-                and not stats.skipped_ranges
-            ):
+            if stats.recovered_rows < stats.source_rows_estimate and not stats.skipped_ranges:
                 stats.skipped_ranges.append(
                     CorruptedRange(
                         low_rowid=min_id,
@@ -460,8 +444,7 @@ class SQLiteRowidSalvageEngine:
                 )
 
             if stats.skipped_ranges or (
-                stats.source_rows_estimate > 0
-                and stats.recovered_rows < stats.source_rows_estimate
+                stats.source_rows_estimate > 0 and stats.recovered_rows < stats.source_rows_estimate
             ):
                 stats.status = "partial"
         except Exception as exc:
@@ -494,41 +477,29 @@ class SQLiteRowidSalvageEngine:
                     dest.execute(insert_sql, row)
                     stats.recovered_rows += 1
             except sqlite3.DatabaseError as exc:
-                stats.skipped_ranges.append(
-                    CorruptedRange(low_rowid=low, high_rowid=high, error=str(exc))
-                )
+                stats.skipped_ranges.append(CorruptedRange(low_rowid=low, high_rowid=high, error=str(exc)))
             return
 
         mid = (low + high) // 2
         # Probe left sub-interval
         try:
-            query = (
-                f'SELECT {col_identifiers} FROM "{table}" '
-                f"WHERE rowid BETWEEN ? AND ? ORDER BY rowid ASC;"
-            )
+            query = f'SELECT {col_identifiers} FROM "{table}" WHERE rowid BETWEEN ? AND ? ORDER BY rowid ASC;'
             left_rows = source.execute(query, (low, mid)).fetchall()
             if left_rows:
                 dest.executemany(insert_sql, left_rows)
                 stats.recovered_rows += len(left_rows)
         except sqlite3.DatabaseError:
-            self._bisect_range(
-                source, dest, table, insert_sql, col_identifiers, low, mid, stats
-            )
+            self._bisect_range(source, dest, table, insert_sql, col_identifiers, low, mid, stats)
 
         # Probe right sub-interval
         try:
-            query = (
-                f'SELECT {col_identifiers} FROM "{table}" '
-                f"WHERE rowid BETWEEN ? AND ? ORDER BY rowid ASC;"
-            )
+            query = f'SELECT {col_identifiers} FROM "{table}" WHERE rowid BETWEEN ? AND ? ORDER BY rowid ASC;'
             right_rows = source.execute(query, (mid + 1, high)).fetchall()
             if right_rows:
                 dest.executemany(insert_sql, right_rows)
                 stats.recovered_rows += len(right_rows)
         except sqlite3.DatabaseError:
-            self._bisect_range(
-                source, dest, table, insert_sql, col_identifiers, mid + 1, high, stats
-            )
+            self._bisect_range(source, dest, table, insert_sql, col_identifiers, mid + 1, high, stats)
 
     def _salvage_without_rowid(
         self,
@@ -551,33 +522,25 @@ class SQLiteRowidSalvageEngine:
                     dest.execute(insert_sql, row)
                     stats.recovered_rows += 1
                 except sqlite3.DatabaseError as exc:
-                    stats.skipped_ranges.append(
-                        CorruptedRange(0, 0, f"Row error: {exc}")
-                    )
+                    stats.skipped_ranges.append(CorruptedRange(0, 0, f"Row error: {exc}"))
                     break
         except sqlite3.DatabaseError as exc:
             stats.status = "failed"
             stats.error = str(exc)
         return stats
 
-    def _probe_rowid_bounds(
-        self, conn: sqlite3.Connection, table: str
-    ) -> tuple[int | None, int | None]:
+    def _probe_rowid_bounds(self, conn: sqlite3.Connection, table: str) -> tuple[int | None, int | None]:
         """Probes minimum and maximum accessible rowids."""
         min_id: int | None = None
         max_id: int | None = None
         try:
-            row_min = conn.execute(
-                f'SELECT rowid FROM "{table}" ORDER BY rowid ASC LIMIT 1;'
-            ).fetchone()
+            row_min = conn.execute(f'SELECT rowid FROM "{table}" ORDER BY rowid ASC LIMIT 1;').fetchone()
             if row_min is not None:
                 min_id = int(row_min[0])
         except sqlite3.DatabaseError:
             pass
         try:
-            row_max = conn.execute(
-                f'SELECT rowid FROM "{table}" ORDER BY rowid DESC LIMIT 1;'
-            ).fetchone()
+            row_max = conn.execute(f'SELECT rowid FROM "{table}" ORDER BY rowid DESC LIMIT 1;').fetchone()
             if row_max is not None:
                 max_id = int(row_max[0])
         except sqlite3.DatabaseError:
@@ -595,12 +558,7 @@ class SQLiteRowidSalvageEngine:
         reconstructed = 0
         try:
             # Check for chat session relationships: chats(id) <- messages(chat_id)
-            tables = {
-                row[0]
-                for row in conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table';"
-                ).fetchall()
-            }
+            tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table';").fetchall()}
             if "chats" in tables and "messages" in tables:
                 orphan_query = (
                     'SELECT DISTINCT m.chat_id, MIN(m.created_at) FROM "messages" m '

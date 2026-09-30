@@ -95,9 +95,7 @@ def _resolve_patterns(patterns: list[str], workspace_root: str) -> tuple[dict[st
 _snapshots: dict[str, _ProtectedSnapshot] = {}
 
 
-def capture_protected_snapshot(
-    goal_id: str, patterns: list[str], workspace_root: str
-) -> int:
+def capture_protected_snapshot(goal_id: str, patterns: list[str], workspace_root: str) -> int:
     """Capture baseline hashes for all files matching the Goal's protected_paths.
 
     Call this when a Goal is activated.
@@ -185,24 +183,19 @@ def verify_protected_integrity(goal_id: str) -> list[ProtectedFileViolation]:
             ", ".join(f"{v.path} ({v.kind})" for v in violations),
         )
     elif original_snapshot:
-        logger.info(
-            "[InvariantSnapshot] All protected files intact for goal %s", goal_id
-        )
+        logger.info("[InvariantSnapshot] All protected files intact for goal %s", goal_id)
     else:
         # No baseline means nothing was ever covered, which is a configuration
         # error rather than proof of integrity.
         logger.warning(
-            "[InvariantSnapshot] Goal %s has no protected files to verify; "
-            "its protection rules matched nothing",
+            "[InvariantSnapshot] Goal %s has no protected files to verify; its protection rules matched nothing",
             goal_id,
         )
 
     return violations
 
 
-def register_protected_artifact(
-    goal_id: str, file_path: str, workspace_root: str | None = None
-) -> bool:
+def register_protected_artifact(goal_id: str, file_path: str, workspace_root: str | None = None) -> bool:
     """Dynamically register a newly created artifact (e.g. test file) into protected snapshot.
 
     Computes SHA-256 and locks the file so subsequent tampering or weakening
@@ -211,11 +204,7 @@ def register_protected_artifact(
     """
     entry = _snapshots.get(goal_id)
     if not os.path.isabs(file_path):
-        root = (
-            workspace_root
-            or (entry.workspace_root if entry else "")
-            or os.getcwd()
-        )
+        root = workspace_root or (entry.workspace_root if entry else "") or os.getcwd()
         abs_path = os.path.abspath(os.path.join(root, file_path))
     else:
         abs_path = os.path.abspath(file_path)

@@ -111,7 +111,7 @@ def _strip_gutter_line(line: str) -> tuple[int | None, str]:
     match = _GUTTER_LINE_RE.match(line)
     if match:
         line_num = int(match.group(1))
-        raw_text = line[match.end():]
+        raw_text = line[match.end() :]
         return line_num, raw_text
     return None, line
 
@@ -279,9 +279,7 @@ def extract_truncated_outline(
     total_symbols = len(symbols)
     displayed_symbols = symbols[:max_symbols]
 
-    outline_lines: list[str] = [
-        f"[OUTLINE OF REMAINING SYMBOLS (from line {next_offset})]:"
-    ]
+    outline_lines: list[str] = [f"[OUTLINE OF REMAINING SYMBOLS (from line {next_offset})]:"]
     for sym in displayed_symbols:
         outline_lines.append(f"  {sym.format_entry()}")
 
@@ -328,9 +326,7 @@ def extract_file_outline(
     total_symbols = len(symbols)
     displayed_symbols = symbols[:max_symbols]
 
-    outline_lines: list[str] = [
-        f"[DOCUMENT STRUCTURE OUTLINE: {os.path.basename(path_str)}]:"
-    ]
+    outline_lines: list[str] = [f"[DOCUMENT STRUCTURE OUTLINE: {os.path.basename(path_str)}]:"]
     for sym in displayed_symbols:
         outline_lines.append(f"  {sym.format_entry()}")
 

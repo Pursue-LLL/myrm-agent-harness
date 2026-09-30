@@ -137,9 +137,7 @@ class AgentPluginPacker:
 
             actual_name = skill_info.name or skill_name
             actual_version = skill_info.version or version
-            actual_desc = (
-                description or skill_info.description or f"Skill plugin {actual_name}"
-            )
+            actual_desc = description or skill_info.description or f"Skill plugin {actual_name}"
 
             plugin_name = canonical_plugin_name(actual_name)
 
@@ -174,9 +172,7 @@ class AgentPluginPacker:
                     }
                     zf.writestr(
                         f"{plugin_name}/mcp.json",
-                        json.dumps(mcp_config, indent=2, ensure_ascii=False).encode(
-                            "utf-8"
-                        ),
+                        json.dumps(mcp_config, indent=2, ensure_ascii=False).encode("utf-8"),
                     )
 
                 # 3. 写入 skills/<plugin_name>/ 下的文件
@@ -196,14 +192,10 @@ class AgentPluginPacker:
                 filename,
                 len(zip_content),
             )
-            return PluginPackageResult(
-                success=True, zip_content=zip_content, filename=filename
-            )
+            return PluginPackageResult(success=True, zip_content=zip_content, filename=filename)
 
         except Exception as e:
-            logger.error(
-                "Agent Plugin 打包失败: %s, 错误: %s", skill_name, e, exc_info=True
-            )
+            logger.error("Agent Plugin 打包失败: %s, 错误: %s", skill_name, e, exc_info=True)
             return PluginPackageResult(
                 success=False,
                 zip_content=None,
@@ -248,9 +240,7 @@ class AgentPluginPacker:
                     }
                     zf.writestr(
                         f"{plugin_name}/mcp.json",
-                        json.dumps(mcp_config, indent=2, ensure_ascii=False).encode(
-                            "utf-8"
-                        ),
+                        json.dumps(mcp_config, indent=2, ensure_ascii=False).encode("utf-8"),
                     )
 
                 for s_name, file_contents in skills:
@@ -260,19 +250,13 @@ class AgentPluginPacker:
                             continue
                         if isinstance(content, str):
                             content = content.encode("utf-8")
-                        zf.writestr(
-                            f"{plugin_name}/skills/{canonical_s_name}/{fp}", content
-                        )
+                        zf.writestr(f"{plugin_name}/skills/{canonical_s_name}/{fp}", content)
 
             zip_content = zip_buffer.getvalue()
             filename = f"{plugin_name}_v{version}.zip"
-            return PluginPackageResult(
-                success=True, zip_content=zip_content, filename=filename
-            )
+            return PluginPackageResult(success=True, zip_content=zip_content, filename=filename)
         except Exception as e:
-            logger.error(
-                "Agent Plugin 多技能打包失败: %s, 错误: %s", name, e, exc_info=True
-            )
+            logger.error("Agent Plugin 多技能打包失败: %s, 错误: %s", name, e, exc_info=True)
             return PluginPackageResult(
                 success=False,
                 zip_content=None,

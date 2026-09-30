@@ -71,10 +71,7 @@ class MobileUIParser:
             bounds_str = node.attrib.get("bounds", "")
             clickable = node.attrib.get("clickable", "false") == "true"
             scrollable = node.attrib.get("scrollable", "false") == "true"
-            editable = (
-                node.attrib.get("focusable", "false") == "true"
-                and "EditText" in class_name
-            )
+            editable = node.attrib.get("focusable", "false") == "true" and "EditText" in class_name
             enabled = node.attrib.get("enabled", "true") == "true"
             focused = node.attrib.get("focused", "false") == "true"
             package_name = node.attrib.get("package", "").strip()

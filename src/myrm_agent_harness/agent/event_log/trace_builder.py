@@ -164,10 +164,7 @@ def _detect_trace_anomalies(trace: ExecutionTrace) -> list[TraceAnomaly]:
             curr = trace.tool_calls[i]
             is_same_tool = curr.tool_name == prev.tool_name
             is_both_failed = not curr.success and not prev.success
-            is_same_input = (
-                bool(curr.input_data)
-                and curr.input_data == prev.input_data
-            )
+            is_same_input = bool(curr.input_data) and curr.input_data == prev.input_data
             if is_same_tool and (is_both_failed or is_same_input):
                 consecutive_count += 1
                 if consecutive_count >= 3:
@@ -209,7 +206,8 @@ def _detect_trace_anomalies(trace: ExecutionTrace) -> list[TraceAnomaly]:
 
     # 3. Provider retry / backoff detection
     retried_calls = [
-        lc for lc in trace.llm_calls
+        lc
+        for lc in trace.llm_calls
         if (getattr(lc, "attempt", 1) or 1) >= 2 or (getattr(lc, "retry_count", 0) or 0) >= 1
     ]
     if retried_calls:

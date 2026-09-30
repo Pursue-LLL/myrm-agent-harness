@@ -205,9 +205,7 @@ class ArtifactVault:
     def get(self, uri: str) -> bytes:
         """从 vault:// 指针读取内容"""
         if not uri.startswith(VAULT_PREFIX):
-            raise ValueError(
-                f"Invalid Vault URI: {uri}. Must start with {VAULT_PREFIX}"
-            )
+            raise ValueError(f"Invalid Vault URI: {uri}. Must start with {VAULT_PREFIX}")
 
         obj_id = uri[len(VAULT_PREFIX) :]
         obj_path = self.get_object_path(obj_id)
@@ -252,9 +250,7 @@ class ArtifactVault:
 
         bundle_id = str(manifest_data.get("bundle_id", "default"))
         manifest_path = safe_join_path(bundles_dir, f"{bundle_id}.json")
-        manifest_path.write_text(
-            json.dumps(manifest_data, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        manifest_path.write_text(json.dumps(manifest_data, ensure_ascii=False, indent=2), encoding="utf-8")
         return manifest_path
 
     def get_manifest(self, bundle_id: str) -> dict[str, object] | None:
@@ -328,9 +324,7 @@ class ArtifactVault:
         purged = 0
         for obj in self.list_objects():
             if (
-                target_pattern in obj.filename
-                or target_pattern in obj.description
-                or task_id in obj.id
+                target_pattern in obj.filename or target_pattern in obj.description or task_id in obj.id
             ) and self.purge_object(obj.id):
                 purged += 1
 
@@ -345,4 +339,3 @@ class ArtifactVault:
             if self.purge_object(obj.id):
                 count += 1
         return count
-

@@ -113,4 +113,3 @@ PRE_COMPACT_INJECTION_METADATA_KEY = "pre_compact_injection"
 PRE_COMPACT_DECISION_METADATA_KEY = "pre_compact_decision"
 CANCEL_COMPACTION_METADATA_KEY = "cancel_compaction"
 PRE_COMPACT_REPLACEMENT_SUMMARY_METADATA_KEY = "pre_compact_replacement_summary"
-

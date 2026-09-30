@@ -151,12 +151,7 @@ def record_decision(
         )
     )
 
-    if (
-        "BLOCK" in decision
-        or "DENY" in decision
-        or "REDACT" in decision
-        or "LEAK" in decision
-    ):
+    if "BLOCK" in decision or "DENY" in decision or "REDACT" in decision or "LEAK" in decision:
         try:
             from myrm_agent_harness.observability.metrics.security_metrics import (
                 policy_denial_total,

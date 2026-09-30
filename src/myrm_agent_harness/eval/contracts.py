@@ -86,7 +86,9 @@ class FiveContractStateSnapshot:
         }
 
 
-def build_initial_five_contract_state(task_intent_summary: str = "Aligning user objective") -> FiveContractStateSnapshot:
+def build_initial_five_contract_state(
+    task_intent_summary: str = "Aligning user objective",
+) -> FiveContractStateSnapshot:
     """Construct an initial clean 5-contract state machine snapshot."""
     contracts: dict[str, PhaseContractRecord] = {
         DeliveryContractPhase.TASK_INTENT.value: PhaseContractRecord(
@@ -165,7 +167,9 @@ def evaluate_five_contract_progress(
         c2 = PhaseContractRecord(
             phase=DeliveryContractPhase.SCENE_ENVIRONMENT,
             status=ContractStatus.VIOLATED if execution_error else ContractStatus.IN_PROGRESS,
-            summary=f"Workspace initialization error: {execution_error}" if execution_error else "Mounting sandbox & tools",
+            summary=f"Workspace initialization error: {execution_error}"
+            if execution_error
+            else "Mounting sandbox & tools",
             progress_pct=30,
         )
         current_phase = DeliveryContractPhase.SCENE_ENVIRONMENT

@@ -144,7 +144,9 @@ def reset_loop_guard(
     if guard is None:
         guard = _get_session_loop_guard()
     if guard is None:
-        _bind_loop_guard(_create_loop_guard(graph_recursion_limit=graph_recursion_limit, unattended_mode=unattended_mode))
+        _bind_loop_guard(
+            _create_loop_guard(graph_recursion_limit=graph_recursion_limit, unattended_mode=unattended_mode)
+        )
         return
     guard.reset(
         preserve_error_signatures=is_resume,
@@ -308,6 +310,7 @@ async def _tool_interceptor_middleware_inner(
 
     try:
         from myrm_agent_harness.agent.session_overlay import get_session_overlay_manager
+
         _ovl_mgr = get_session_overlay_manager()
         if _ovl_mgr is not None:
             tool_args, _applied_ovl = _ovl_mgr.apply_tool_args_adaptation(tool_name, tool_args)
@@ -383,6 +386,7 @@ async def _tool_interceptor_middleware_inner(
         )
         try:
             from myrm_agent_harness.agent.session_overlay import get_session_overlay_manager
+
             _ovl_mgr = get_session_overlay_manager()
             if _ovl_mgr is not None:
                 _ovl_mgr.record_tool_outcome(tool_name, is_error=(result.status == "error"))

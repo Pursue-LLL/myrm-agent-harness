@@ -29,8 +29,7 @@ from myrm_agent_harness.toolkits.memory.graph.exceptions import GraphQueryError
 logger = logging.getLogger(__name__)
 
 RELATIONSHIP_COLUMNS = (
-    "id, source_id, target_id, rel_type, properties, created_at, "
-    "valid_from, valid_until, superseded_by, supersedes_id"
+    "id, source_id, target_id, rel_type, properties, created_at, valid_from, valid_until, superseded_by, supersedes_id"
 )
 
 
@@ -97,8 +96,7 @@ async def migrate_temporal_schema(conn: aiosqlite.Connection) -> None:
         "CREATE INDEX IF NOT EXISTS idx_graph_rel_active "
         "ON graph_relationships(source_id, rel_type) WHERE valid_until IS NULL",
         # Time-travel queries filtering on valid window
-        "CREATE INDEX IF NOT EXISTS idx_graph_rel_valid_window "
-        "ON graph_relationships(valid_from, valid_until)",
+        "CREATE INDEX IF NOT EXISTS idx_graph_rel_valid_window ON graph_relationships(valid_from, valid_until)",
         # Fast lineage traversal
         "CREATE INDEX IF NOT EXISTS idx_graph_rel_superseded "
         "ON graph_relationships(superseded_by) WHERE superseded_by IS NOT NULL",
@@ -251,7 +249,9 @@ async def execute_supersede(
 
         old_rel = row_to_relationship(old_row)
         if old_rel.valid_until is not None:
-            logger.warning("Relationship %s is already superseded/closed (valid_until=%s)", old_rel_id, old_rel.valid_until)
+            logger.warning(
+                "Relationship %s is already superseded/closed (valid_until=%s)", old_rel_id, old_rel.valid_until
+            )
 
         new_rel_id = str(uuid4())
         now_iso = datetime.now(UTC).isoformat()
@@ -364,4 +364,3 @@ async def execute_list_relationships(
         return [row_to_relationship(row) for row in rows]
     except Exception as e:
         raise GraphQueryError(f"Failed to list relationships: {e}") from e
-

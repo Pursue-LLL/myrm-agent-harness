@@ -133,5 +133,3 @@ class VideoUrlIngressRequest:
     conflict_policy: RawConflictPolicy | None = None
     supersede_reason: str = ""
     caller: RawGateCaller = "agent"
-
-

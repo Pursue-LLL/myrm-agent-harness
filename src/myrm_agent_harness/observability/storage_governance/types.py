@@ -48,9 +48,7 @@ class StateSnapshotMetadata:
     snapshot_id: str
     label: str
     size_bytes: int
-    created_at: str = field(
-        default_factory=lambda: datetime.now(UTC).isoformat()
-    )
+    created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     checksum: str = ""
     agent_count: int = 0
     file_count: int = 0
@@ -82,6 +80,4 @@ class StorageGovernanceReport:
     snapshots: list[StateSnapshotMetadata] = field(default_factory=list)
     recommended_actions: list[str] = field(default_factory=list)
     is_growth_healthy: bool = True
-    generated_at: str = field(
-        default_factory=lambda: datetime.now(UTC).isoformat()
-    )
+    generated_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())

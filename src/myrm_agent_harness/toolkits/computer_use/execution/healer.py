@@ -57,9 +57,7 @@ async def try_bbox_click(
         "dblclick",
         "double_click",
     }:
-        return ActionResult(
-            success=False, error=f"BBox fallback unsupported for action: {action}"
-        )
+        return ActionResult(success=False, error=f"BBox fallback unsupported for action: {action}")
 
     target_pid = meta.pid if meta and meta.pid else None
     if type(backend).__name__ == "MacOSBackend" and target_pid:
@@ -84,9 +82,7 @@ async def try_bbox_click(
         macos_input.set_input_target(target_pid)
         try:
             with guard_foreground():
-                return await _run_bbox_action(
-                    backend, normalized, x, y, text, modifiers
-                )
+                return await _run_bbox_action(backend, normalized, x, y, text, modifiers)
         except FocusChangedError as exc:
             return ActionResult(success=False, error=str(exc))
         finally:

@@ -87,7 +87,7 @@ class StreamRepetitionScrubber:
 
     def _update_code_block_state(self) -> None:
         """Track triple-backtick toggles globally across all accumulated text."""
-        self._in_code_block = (self._accumulated_text.count("```") % 2 == 1)
+        self._in_code_block = self._accumulated_text.count("```") % 2 == 1
 
     def _check_repetition(self, n: int) -> bool:
         """Check if accumulated text is dominated by verbatim repetition."""

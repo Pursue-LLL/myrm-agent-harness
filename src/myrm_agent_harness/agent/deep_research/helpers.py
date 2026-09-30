@@ -260,9 +260,7 @@ def create_evidence_node_from_task_result(
     now = datetime.now(UTC).isoformat()
 
     extracted_entities = [
-        w
-        for w in re.findall(r"\b[A-Za-z0-9_-]{4,}\b", task_text)
-        if w.lower() not in _TASK_COMMON_STOPWORDS
+        w for w in re.findall(r"\b[A-Za-z0-9_-]{4,}\b", task_text) if w.lower() not in _TASK_COMMON_STOPWORDS
     ][:5]
     summary = BoundedSummary(
         summary=first_line,
@@ -364,8 +362,7 @@ def format_research_context(
         effective_tree_slice = parts[0]
         if max_tree_chars > 200 and len(effective_tree_slice) > max_tree_chars:
             effective_tree_slice = (
-                effective_tree_slice[: max_tree_chars - 60]
-                + "\n... [Tree slice truncated for report body quota]"
+                effective_tree_slice[: max_tree_chars - 60] + "\n... [Tree slice truncated for report body quota]"
             )
         kept.append(effective_tree_slice)
         budget -= len(effective_tree_slice) + len(separator)
@@ -401,5 +398,3 @@ def format_research_context(
         len(full),
     )
     return separator.join(final_parts)
-
-

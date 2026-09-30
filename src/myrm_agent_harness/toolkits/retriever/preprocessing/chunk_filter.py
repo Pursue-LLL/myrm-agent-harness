@@ -138,7 +138,7 @@ class ChunkFilter:
                     f"URL {url} BM25 zero recall (lexical mismatch), "
                     f"returning top {min(len(chunks), self.max_retained_chunks)} chunks by original order"
                 )
-            return chunks[:self.max_retained_chunks]
+            return chunks[: self.max_retained_chunks]
 
         # Output RRF fusion results
         self._log_filtering_results(url, chunks, sorted_indices, query_rankings, queries)

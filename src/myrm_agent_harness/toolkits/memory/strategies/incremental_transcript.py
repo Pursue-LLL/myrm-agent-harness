@@ -166,11 +166,7 @@ class IncrementalTranscriptParser:
             u_text = IncrementalTranscriptParser._extract_text(user_entry)
             a_text = IncrementalTranscriptParser._extract_text(asst_entry)
             tools = IncrementalTranscriptParser._extract_tool_names(asst_entry)
-            ts = str(
-                user_entry.get("timestamp")
-                or asst_entry.get("timestamp")
-                or datetime.now(UTC).isoformat()
-            )
+            ts = str(user_entry.get("timestamp") or asst_entry.get("timestamp") or datetime.now(UTC).isoformat())
 
             if u_text or a_text:
                 turns.append(
@@ -193,10 +189,7 @@ class IncrementalTranscriptParser:
                             user_content=u_text[:MAX_CONTENT_LENGTH],
                             assistant_content="",
                             tool_names=[],
-                            timestamp=str(
-                                extra_user.get("timestamp")
-                                or datetime.now(UTC).isoformat()
-                            ),
+                            timestamp=str(extra_user.get("timestamp") or datetime.now(UTC).isoformat()),
                             session_id=session_id,
                         )
                     )
@@ -212,10 +205,7 @@ class IncrementalTranscriptParser:
                             user_content="",
                             assistant_content=a_text[:MAX_CONTENT_LENGTH],
                             tool_names=tools,
-                            timestamp=str(
-                                extra_asst.get("timestamp")
-                                or datetime.now(UTC).isoformat()
-                            ),
+                            timestamp=str(extra_asst.get("timestamp") or datetime.now(UTC).isoformat()),
                             session_id=session_id,
                         )
                     )

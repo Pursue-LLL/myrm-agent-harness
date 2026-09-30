@@ -90,4 +90,3 @@ class EgressChallengeBlockedError(MyrmLLMError):
             original_exc=original_exc,
             diagnostic_result=diagnostic_result,
         )
-

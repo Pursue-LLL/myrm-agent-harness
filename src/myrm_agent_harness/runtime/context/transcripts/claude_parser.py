@@ -110,7 +110,12 @@ class ClaudeTranscriptParser:
                     turns.append(turn)
 
             # 2. Assistant message / tool calls
-            elif role_raw in ("assistant", "model") or event_type in ("assistant", "assistant_message", "response", "model"):
+            elif role_raw in ("assistant", "model") or event_type in (
+                "assistant",
+                "assistant_message",
+                "response",
+                "model",
+            ):
                 raw_text = str(event.get("content") or event.get("text") or "")
                 thinking_trace: str | None = None
 

@@ -93,9 +93,7 @@ class BaseAgent(BaseAgentModesMixin):
     ) -> None:
         self.llm = llm
         self.fallback_llms: list[BaseChatModel] = (
-            list(fallback_llms)
-            if fallback_llms is not None
-            else ([fallback_llm] if fallback_llm is not None else [])
+            list(fallback_llms) if fallback_llms is not None else ([fallback_llm] if fallback_llm is not None else [])
         )
         self.fallback_llm = self.fallback_llms[0] if self.fallback_llms else fallback_llm
         self.safety_fallback_llm = safety_fallback_llm

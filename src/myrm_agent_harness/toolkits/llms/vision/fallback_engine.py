@@ -130,12 +130,7 @@ def create_vision_fallback_engine(
 
 def _is_payload_size_error(exc: Exception) -> bool:
     err_str = str(exc).lower()
-    return (
-        "413" in err_str
-        or "payload too large" in err_str
-        or "415" in err_str
-        or "too large" in err_str
-    )
+    return "413" in err_str or "payload too large" in err_str or "415" in err_str or "too large" in err_str
 
 
 def _should_failover_to_next_provider(reason: FailoverReason) -> bool:
@@ -185,10 +180,7 @@ class VisionFallbackEngine:
         hint = (task or "").strip()[-cls._FOCUS_HINT_MAX_CHARS :]
         parts = [cls._ROLE_PROMPT]
         if hint:
-            parts.append(
-                "The user's current request, so you know which details matter most:\n"
-                + hint
-            )
+            parts.append("The user's current request, so you know which details matter most:\n" + hint)
         if image_count > 1:
             parts.append(
                 "You are viewing multiple images in one request. Label them Image 1, Image 2, etc. "
@@ -282,24 +274,16 @@ class VisionFallbackEngine:
                     )
                     return idx, tile_desc
 
-                tile_tasks = [
-                    _parse_tile(idx, tile_bytes)
-                    for idx, tile_bytes in enumerate(slices, start=1)
-                ]
+                tile_tasks = [_parse_tile(idx, tile_bytes) for idx, tile_bytes in enumerate(slices, start=1)]
                 parsed_tiles = await asyncio.gather(*tile_tasks)
                 parsed_tiles.sort(key=lambda item: item[0])
 
-                tile_descriptions = [
-                    f"### [Section {idx}/{len(slices)}]\n{desc}"
-                    for idx, desc in parsed_tiles
-                ]
+                tile_descriptions = [f"### [Section {idx}/{len(slices)}]\n{desc}" for idx, desc in parsed_tiles]
                 return "\n\n".join(tile_descriptions)
         except Exception as slice_err:
             logger.warning("Long image slice check failed, falling back to direct describe: %s", slice_err)
 
-        return await self._describe_single_tile_chain(
-            b64_data, mime_type, retry_count=retry_count, prompt=prompt
-        )
+        return await self._describe_single_tile_chain(b64_data, mime_type, retry_count=retry_count, prompt=prompt)
 
     async def _describe_single_tile_chain(
         self,
@@ -377,12 +361,8 @@ class VisionFallbackEngine:
                     buffer = io.BytesIO(raw_bytes)
                     compressed_bytes = image_compressor.compress(buffer, quality=0.5)
                     if compressed_bytes:
-                        compressed_b64 = base64.b64encode(compressed_bytes).decode(
-                            "ascii"
-                        )
-                        logger.info(
-                            "Reactive Resize successful. Retrying vision fallback..."
-                        )
+                        compressed_b64 = base64.b64encode(compressed_bytes).decode("ascii")
+                        logger.info("Reactive Resize successful. Retrying vision fallback...")
                         return await self._describe_image_b64_with_model(
                             model_index,
                             compressed_b64,
@@ -395,10 +375,7 @@ class VisionFallbackEngine:
                     logger.error("Reactive Resize failed: %s", comp_err)
 
             reason = classify_failover_reason(exc)
-            if (
-                _should_failover_to_next_provider(reason)
-                and model_index < len(self.fallback_configs) - 1
-            ):
+            if _should_failover_to_next_provider(reason) and model_index < len(self.fallback_configs) - 1:
                 raise VisionProviderCapacityError(str(exc)) from exc
             raise
 
@@ -420,9 +397,7 @@ class VisionFallbackEngine:
         last_error: str | None = None
         self._last_success_provider_index = None
 
-        content_blocks: list[dict[str, object]] = [
-            {"type": "text", "text": effective_prompt}
-        ]
+        content_blocks: list[dict[str, object]] = [{"type": "text", "text": effective_prompt}]
         for b64, mime in images:
             content_blocks.append(
                 {
@@ -441,10 +416,7 @@ class VisionFallbackEngine:
                 return extract_answer_text(response)
             except Exception as exc:
                 reason = classify_failover_reason(exc)
-                if (
-                    _should_failover_to_next_provider(reason)
-                    and index < len(self.fallback_configs) - 1
-                ):
+                if _should_failover_to_next_provider(reason) and index < len(self.fallback_configs) - 1:
                     last_error = str(exc)
                     logger.warning(
                         "Together vision provider %s failed, trying next: %s",
@@ -472,9 +444,7 @@ class VisionFallbackEngine:
         try:
             raw_bytes = await executor.read_file_bytes(path)
         except Exception as e:
-            raise VisionDescriptionError(
-                f"Failed to read local image {path}: {e}"
-            ) from e
+            raise VisionDescriptionError(f"Failed to read local image {path}: {e}") from e
 
         b64_data = base64.standard_b64encode(raw_bytes).decode("ascii")
         return await self.describe_image_b64(b64_data, mime_type)

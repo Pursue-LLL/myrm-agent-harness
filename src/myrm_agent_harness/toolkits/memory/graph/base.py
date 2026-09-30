@@ -229,9 +229,7 @@ class GraphStore(ABC):
         """Merge and persist node properties."""
         raise NotImplementedError(f"{type(self).__name__} does not implement update_node_properties.")
 
-    async def list_nodes(
-        self, *, limit: int = 50, offset: int = 0, namespace: str | None = None
-    ) -> list[GraphNode]:
+    async def list_nodes(self, *, limit: int = 50, offset: int = 0, namespace: str | None = None) -> list[GraphNode]:
         """Paginated listing of all nodes, optionally filtered by namespace."""
         raise NotImplementedError(f"{type(self).__name__} does not implement list_nodes.")
 

@@ -108,11 +108,7 @@ def parse_otlp_headers(raw_headers: str | None = None) -> dict[str, str]:
 
     Supports URL-encoded characters as per OTel spec (e.g. key1=val1,key2=val2).
     """
-    raw = (
-        raw_headers
-        if raw_headers is not None
-        else os.getenv("OTEL_EXPORTER_OTLP_HEADERS", "")
-    )
+    raw = raw_headers if raw_headers is not None else os.getenv("OTEL_EXPORTER_OTLP_HEADERS", "")
     if not raw or not raw.strip():
         return {}
 
@@ -143,10 +139,7 @@ def get_telemetry_posture() -> dict[str, object]:
         else os.getenv("OTEL_EXPORTER_OTLP_PROTOCOL", "http/protobuf").strip().lower()
     )
     local_trace_only = is_local_trace_only()
-    has_headers = (
-        _active_posture["headers_configured"]
-        or bool(parse_otlp_headers())
-    )
+    has_headers = _active_posture["headers_configured"] or bool(parse_otlp_headers())
     exporter_type = _active_posture.get("exporter_type", "none")
     degraded_reason = _active_posture.get("degraded_reason")
     git_branch = _active_posture.get("git_branch")
@@ -268,10 +261,12 @@ def setup_tracing(
     if git_meta.commit:
         resource_attributes[VCS_REPOSITORY_CHANGE_ID] = git_meta.commit
 
-    _active_posture.update({
-        "git_branch": git_meta.branch,
-        "git_commit": git_meta.commit[:7] if git_meta.commit else None,
-    })
+    _active_posture.update(
+        {
+            "git_branch": git_meta.branch,
+            "git_commit": git_meta.commit[:7] if git_meta.commit else None,
+        }
+    )
 
     # Create resource
     resource = Resource(attributes=resource_attributes)
@@ -293,11 +288,7 @@ def setup_tracing(
         protocol = (
             otlp_protocol
             or os.getenv("OTEL_EXPORTER_OTLP_PROTOCOL")
-            or (
-                "grpc"
-                if ":4317" in otlp_endpoint or otlp_endpoint.startswith("grpc://")
-                else "http/protobuf"
-            )
+            or ("grpc" if ":4317" in otlp_endpoint or otlp_endpoint.startswith("grpc://") else "http/protobuf")
         ).lower()
 
         # Resolve headers
@@ -324,13 +315,15 @@ def setup_tracing(
                 http_exporter = HttpOTLPSpanExporter(**exporter_kwargs)
                 _tracer_provider.add_span_processor(BatchSpanProcessor(http_exporter))
                 exporter_created = True
-                _active_posture.update({
-                    "endpoint": otlp_endpoint,
-                    "protocol": "http/protobuf",
-                    "headers_configured": bool(headers_dict),
-                    "exporter_type": "otlp_http",
-                    "degraded_reason": None,
-                })
+                _active_posture.update(
+                    {
+                        "endpoint": otlp_endpoint,
+                        "protocol": "http/protobuf",
+                        "headers_configured": bool(headers_dict),
+                        "exporter_type": "otlp_http",
+                        "degraded_reason": None,
+                    }
+                )
                 logger.info(
                     "OTLP HTTP trace exporter configured: %s (headers=%d)",
                     otlp_endpoint,
@@ -363,46 +356,48 @@ def setup_tracing(
                 exporter = OTLPSpanExporter(**grpc_kwargs)
                 _tracer_provider.add_span_processor(BatchSpanProcessor(exporter))
                 exporter_created = True
-                _active_posture.update({
-                    "endpoint": otlp_endpoint,
-                    "protocol": "grpc",
-                    "headers_configured": bool(headers_dict),
-                    "exporter_type": "otlp_grpc",
-                    "degraded_reason": None,
-                })
+                _active_posture.update(
+                    {
+                        "endpoint": otlp_endpoint,
+                        "protocol": "grpc",
+                        "headers_configured": bool(headers_dict),
+                        "exporter_type": "otlp_grpc",
+                        "degraded_reason": None,
+                    }
+                )
                 logger.info("OTLP gRPC trace exporter configured: %s", otlp_endpoint)
             except (ImportError, TypeError, Exception) as exc:
                 logger.warning(
                     "opentelemetry-exporter-otlp not usable (%s), falling back to console",
                     exc,
                 )
-                _tracer_provider.add_span_processor(
-                    BatchSpanProcessor(ConsoleSpanExporter())
+                _tracer_provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
+                _active_posture.update(
+                    {
+                        "endpoint": otlp_endpoint,
+                        "protocol": protocol,
+                        "headers_configured": bool(headers_dict),
+                        "exporter_type": "console",
+                        "degraded_reason": f"OTLP export fallback to console: {exc}",
+                    }
                 )
-                _active_posture.update({
-                    "endpoint": otlp_endpoint,
-                    "protocol": protocol,
-                    "headers_configured": bool(headers_dict),
-                    "exporter_type": "console",
-                    "degraded_reason": f"OTLP export fallback to console: {exc}",
-                })
     elif console_export:
         _tracer_provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
-        _active_posture.update({
-            "endpoint": None,
-            "protocol": "console",
-            "headers_configured": False,
-            "exporter_type": "console",
-            "degraded_reason": None,
-        })
+        _active_posture.update(
+            {
+                "endpoint": None,
+                "protocol": "console",
+                "headers_configured": False,
+                "exporter_type": "console",
+                "degraded_reason": None,
+            }
+        )
 
     # Set as global tracer provider
     trace.set_tracer_provider(_tracer_provider)
 
     _initialized = True
-    logger.info(
-        "Tracing initialized: service=%s, sample_rate=%.1f", service_name, sample_rate
-    )
+    logger.info("Tracing initialized: service=%s, sample_rate=%.1f", service_name, sample_rate)
 
 
 def is_tracing_initialized() -> bool:
@@ -652,15 +647,17 @@ def shutdown_tracing(timeout_ms: float = 1500.0) -> bool:
     provider = _tracer_provider
     _tracer_provider = None
     _initialized = False
-    _active_posture.update({
-        "endpoint": None,
-        "protocol": "http/protobuf",
-        "headers_configured": False,
-        "exporter_type": "none",
-        "degraded_reason": None,
-        "git_branch": None,
-        "git_commit": None,
-    })
+    _active_posture.update(
+        {
+            "endpoint": None,
+            "protocol": "http/protobuf",
+            "headers_configured": False,
+            "exporter_type": "none",
+            "degraded_reason": None,
+            "git_branch": None,
+            "git_commit": None,
+        }
+    )
 
     if not hasattr(provider, "shutdown"):
         return True
@@ -701,4 +698,3 @@ from .gen_ai_conventions import (
     VCS_REPOSITORY_CHANGE_ID,
     VCS_REPOSITORY_REF_TYPE,
 )
-

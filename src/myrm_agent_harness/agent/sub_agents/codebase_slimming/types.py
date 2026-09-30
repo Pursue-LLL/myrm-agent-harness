@@ -24,7 +24,7 @@ from enum import StrEnum
 class SlimmingRiskLevel(StrEnum):
     """Safety and risk assessment level for a slimming candidate."""
 
-    SAFE = "safe"          # Unused internal private function, unreachable branch, dead test file
+    SAFE = "safe"  # Unused internal private function, unreachable branch, dead test file
     MODERATE = "moderate"  # Unused public function/class with zero local references
     AGGRESSIVE = "aggressive"  # Redundant wrapper/abstraction requiring interface merging
 

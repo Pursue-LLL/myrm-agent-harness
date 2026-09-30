@@ -60,9 +60,7 @@ class StorageCapabilities:
         if self.schema_version < 1:
             raise ValueError(f"schema_version must be >= 1, got {self.schema_version}")
         if self.min_compatible_version < 1:
-            raise ValueError(
-                f"min_compatible_version must be >= 1, got {self.min_compatible_version}"
-            )
+            raise ValueError(f"min_compatible_version must be >= 1, got {self.min_compatible_version}")
         if self.min_compatible_version > self.schema_version:
             raise ValueError(
                 f"min_compatible_version ({self.min_compatible_version}) "

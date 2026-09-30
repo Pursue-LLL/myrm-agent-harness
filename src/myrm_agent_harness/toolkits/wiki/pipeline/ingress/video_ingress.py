@@ -133,18 +133,10 @@ async def publish_video_url_ingress(
     else:
         fname = f"{slugify_video_title(title, url_hash)}.md"
 
-    folder = (
-        WikiStructure._sanitize_path(request.folder_path.strip())
-        if request.folder_path.strip()
-        else "videos"
-    )
+    folder = WikiStructure._sanitize_path(request.folder_path.strip()) if request.folder_path.strip() else "videos"
     rel_path = f"{folder}/{fname}"
 
-    conflict_policy = (
-        request.conflict_policy
-        if request.conflict_policy is not None
-        else RawConflictPolicy.FAIL
-    )
+    conflict_policy = request.conflict_policy if request.conflict_policy is not None else RawConflictPolicy.FAIL
 
     try:
         pub_res = await publish_raw(
@@ -192,9 +184,7 @@ async def publish_media_ingress(
 ) -> ClipIngressResult:
     """Ingest transcribed media segments and keyframes directly into Wiki."""
     title = request.title.strip() or Path(request.media_filename).stem or "Media Note"
-    url_hash = hashlib.sha256(
-        (request.source_url or request.media_filename).encode()
-    ).hexdigest()
+    url_hash = hashlib.sha256((request.source_url or request.media_filename).encode()).hexdigest()
 
     asset_stats = IngressAssetStats()
     keyframes_map: dict[float, str] = {}
@@ -232,11 +222,7 @@ async def publish_media_ingress(
         )
 
     merged = adaptive_merge_segments(request.segments)
-    duration_str = (
-        format_timestamp(request.duration_seconds)
-        if request.duration_seconds > 0
-        else ""
-    )
+    duration_str = format_timestamp(request.duration_seconds) if request.duration_seconds > 0 else ""
 
     markdown_body = build_video_markdown(
         title=title,
@@ -249,18 +235,10 @@ async def publish_media_ingress(
     )
 
     fname = f"{slugify_video_title(title, url_hash)}.md"
-    folder = (
-        WikiStructure._sanitize_path(request.folder_path.strip())
-        if request.folder_path.strip()
-        else "videos"
-    )
+    folder = WikiStructure._sanitize_path(request.folder_path.strip()) if request.folder_path.strip() else "videos"
     rel_path = f"{folder}/{fname}"
 
-    conflict_policy = (
-        request.conflict_policy
-        if request.conflict_policy is not None
-        else RawConflictPolicy.FAIL
-    )
+    conflict_policy = request.conflict_policy if request.conflict_policy is not None else RawConflictPolicy.FAIL
 
     try:
         pub_res = await publish_raw(

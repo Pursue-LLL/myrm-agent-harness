@@ -49,9 +49,7 @@ class AdbDeviceDriver:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                proc.communicate(), timeout=timeout_sec
-            )
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=timeout_sec)
             stdout = stdout_bytes.decode("utf-8", errors="replace")
             stderr = stderr_bytes.decode("utf-8", errors="replace")
             return proc.returncode or 0, stdout, stderr
@@ -149,9 +147,7 @@ class AdbDeviceDriver:
 
     async def tap_at(self, target: str, x: int, y: int) -> MobileActionResult:
         """Tap absolute screen coordinates."""
-        code, out, err = await self._run_adb(
-            "-s", target, "shell", "input", "tap", str(x), str(y)
-        )
+        code, out, err = await self._run_adb("-s", target, "shell", "input", "tap", str(x), str(y))
         return MobileActionResult(
             success=code == 0,
             action="tap",
@@ -216,9 +212,7 @@ class AdbDeviceDriver:
         xml_content = ""
         elements: list[MobileUIElement] = []
         if dump_code == 0:
-            cat_code, xml_out, _ = await self._run_adb(
-                "-s", target, "shell", "cat", "/sdcard/window_dump.xml"
-            )
+            cat_code, xml_out, _ = await self._run_adb("-s", target, "shell", "cat", "/sdcard/window_dump.xml")
             if cat_code == 0:
                 xml_content = xml_out
                 elements, self._current_ref_map = MobileUIParser.parse_xml_tree(xml_content)
@@ -283,9 +277,7 @@ class AdbDeviceDriver:
             )
 
         if action == "click":
-            code, _, _ = await self._run_adb(
-                "-s", target, "shell", "input", "tap", str(center_x), str(center_y)
-            )
+            code, _, _ = await self._run_adb("-s", target, "shell", "input", "tap", str(center_x), str(center_y))
             return MobileActionResult(
                 success=code == 0,
                 action="click",
@@ -393,9 +385,7 @@ class AdbDeviceDriver:
                     message=f"Key '{keycode}' restricted for safety",
                     error="SAFETY_BARRIER_TRIGGERED",
                 )
-            code, _, _ = await self._run_adb(
-                "-s", target, "shell", "input", "keyevent", keycode
-            )
+            code, _, _ = await self._run_adb("-s", target, "shell", "input", "keyevent", keycode)
             return MobileActionResult(
                 success=code == 0,
                 action=action,
@@ -461,17 +451,13 @@ class AdbDeviceDriver:
             )
 
         elif action in ("wake", "unlock"):
-            code, _, _ = await self._run_adb(
-                "-s", target, "shell", "input", "keyevent", "82"
-            )
+            code, _, _ = await self._run_adb("-s", target, "shell", "input", "keyevent", "82")
             if code != 0:
                 return MobileActionResult(
                     success=False, action=action, message="Wake/unlock failed", error="WAKE_FAILED"
                 )
             await self._run_adb("-s", target, "shell", "wm", "dismiss-keyguard")
-            return MobileActionResult(
-                success=True, action=action, message="Device woken and keyguard dismissed"
-            )
+            return MobileActionResult(success=True, action=action, message="Device woken and keyguard dismissed")
 
         return MobileActionResult(
             success=False, action=action, message=f"Unknown global action: {action}", error="UNKNOWN_ACTION"

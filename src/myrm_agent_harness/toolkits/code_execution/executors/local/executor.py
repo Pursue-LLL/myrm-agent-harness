@@ -674,9 +674,7 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
                 store = get_ephemeral_credential_store()
                 summaries = store.list_summaries(current_session)
                 current_action_digest = (
-                    hashlib.sha256(command.strip().encode("utf-8")).hexdigest()
-                    if command and command.strip()
-                    else None
+                    hashlib.sha256(command.strip().encode("utf-8")).hexdigest() if command and command.strip() else None
                 )
                 for s in summaries:
                     if not s.is_consumed and not s.is_expired:

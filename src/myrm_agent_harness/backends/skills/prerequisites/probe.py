@@ -142,7 +142,9 @@ class PrerequisiteProbe:
 
 def parse_prerequisites_from_frontmatter(metadata: dict[str, Any]) -> SkillPrerequisites:
     """Parse structured prerequisites from frontmatter YAML dictionary."""
-    supported_os: list[str] = metadata.get("supported_os") or metadata.get("os") or metadata.get("os_compat") or ["macos", "linux", "windows"]
+    supported_os: list[str] = (
+        metadata.get("supported_os") or metadata.get("os") or metadata.get("os_compat") or ["macos", "linux", "windows"]
+    )
     binaries: list[BinaryDependency] = []
     python_packages: list[PythonDependency] = []
     env_vars: list[str] = metadata.get("env_vars", [])
@@ -166,8 +168,10 @@ def parse_prerequisites_from_frontmatter(metadata: dict[str, Any]) -> SkillPrere
                 )
 
     # Parse python packages
-    raw_python = metadata.get("python_packages") or metadata.get("packages") or metadata.get("dependencies", {}).get(
-        "python", []
+    raw_python = (
+        metadata.get("python_packages")
+        or metadata.get("packages")
+        or metadata.get("dependencies", {}).get("python", [])
     )
     if isinstance(raw_python, list):
         for p in raw_python:

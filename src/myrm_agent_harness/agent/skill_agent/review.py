@@ -388,7 +388,9 @@ class SkillAgentReviewMixin:
                 if allow_extraction:
                     recurrence_summary = self._build_recurrence_summary(query, assistant_chunks)
                     if recurrence_summary:
-                        recurrence_task = asyncio.create_task(memory_manager.check_session_recurrence(recurrence_summary))
+                        recurrence_task = asyncio.create_task(
+                            memory_manager.check_session_recurrence(recurrence_summary)
+                        )
                         track_background_task(recurrence_task)
             finally:
                 teardown_privacy_context(privacy_restored)

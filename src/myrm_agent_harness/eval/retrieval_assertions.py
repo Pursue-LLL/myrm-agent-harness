@@ -201,9 +201,7 @@ def evaluate_retrieval_assertions(
 
         # 4. Expected spans (Head/Tail deep body verification)
         if assertion.expected_spans:
-            all_body_text = " ".join(
-                normalize_retrieval_text(b) for h in eval_collapsed for b in h.bodies
-            )
+            all_body_text = " ".join(normalize_retrieval_text(b) for h in eval_collapsed for b in h.bodies)
             matched_spans: list[str] = []
             missing_spans: list[str] = []
             for span in assertion.expected_spans:

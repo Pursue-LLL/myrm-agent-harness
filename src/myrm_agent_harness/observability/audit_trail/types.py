@@ -29,17 +29,17 @@ class PriorAuditState(StrEnum):
     """Lifecycle progression state of a dual-track audit record."""
 
     INTENT_LOGGED = "INTENT_LOGGED"  # Pre-execution intent recorded (fail-closed proof)
-    COMPLETED = "COMPLETED"          # Successfully executed post-act paired
-    REFUSED = "REFUSED"              # Blocked/denied by policy or human review
-    FAILED = "FAILED"                # Failed during execution (exception / timeout)
+    COMPLETED = "COMPLETED"  # Successfully executed post-act paired
+    REFUSED = "REFUSED"  # Blocked/denied by policy or human review
+    FAILED = "FAILED"  # Failed during execution (exception / timeout)
 
 
 class ComplianceOutcome(StrEnum):
     """High-level compliance verdict."""
 
-    PERMITTED = "PERMITTED"          # Allowed and completed safely
-    REFUSED = "REFUSED"              # Policy or human interception blocked execution
-    FAILED = "FAILED"                # Execution crashed or aborted unexpectedly
+    PERMITTED = "PERMITTED"  # Allowed and completed safely
+    REFUSED = "REFUSED"  # Policy or human interception blocked execution
+    FAILED = "FAILED"  # Execution crashed or aborted unexpectedly
 
 
 @dataclass(frozen=True, slots=True)

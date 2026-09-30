@@ -278,7 +278,9 @@ class SqliteDurableStorage(DurableStorageProtocol):
                             entry.entry_id,
                             entry.parent_id,
                             entry.entry_type,
-                            json.dumps(entry.content, ensure_ascii=False) if isinstance(entry.content, dict) else str(entry.content),
+                            json.dumps(entry.content, ensure_ascii=False)
+                            if isinstance(entry.content, dict)
+                            else str(entry.content),
                             json.dumps(entry.metadata, ensure_ascii=False),
                             entry.sequence,
                             entry.created_at_ms,

@@ -118,9 +118,7 @@ class AutoApprovalAuditor:
             audit_agent_completion_tokens=audit_completion_tokens,
             audit_agent_cost_usd=round(audit_cost_usd, 6),
         )
-        return self.evaluate_audit_report(
-            events, session_id=session_id, dual_track=dual_track
-        )
+        return self.evaluate_audit_report(events, session_id=session_id, dual_track=dual_track)
 
     @classmethod
     def normalize_target(
@@ -249,8 +247,8 @@ class AutoApprovalAuditor:
             category_counts[cat] = 0
 
         # Cluster by (category, normalized_target)
-        clusters: dict[tuple[ApprovalTriggerCategory, str], dict[str, float | int]] = (
-            defaultdict(lambda: {"hits": 0, "tokens": 0, "cost": 0.0})
+        clusters: dict[tuple[ApprovalTriggerCategory, str], dict[str, float | int]] = defaultdict(
+            lambda: {"hits": 0, "tokens": 0, "cost": 0.0}
         )
 
         audit_rounds_from_events = 0
@@ -309,9 +307,7 @@ class AutoApprovalAuditor:
         # Generate recommendations
         recommendations: list[str] = []
         if len(events) == 0:
-            recommendations.append(
-                "No security approval triggers recorded in this evaluation window."
-            )
+            recommendations.append("No security approval triggers recorded in this evaluation window.")
         else:
             if final_dual_track.audit_cost_ratio >= 0.10:
                 recommendations.append(

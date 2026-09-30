@@ -127,6 +127,7 @@ class BoundedStringIO(io.StringIO):
     from myrm_agent_harness.toolkits.code_execution.security.audit_sandbox import (
         get_audit_hook_source_code,
     )
+
     audit_hook_code = get_audit_hook_source_code()
 
     return f'''#!/usr/bin/env python3

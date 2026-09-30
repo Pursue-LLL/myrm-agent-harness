@@ -97,9 +97,7 @@ class ComplianceAuditEngine:
 
         with _PTC_LOCK:
             # Check 1: Inconsistency between tree metadata and flat index
-            indexed_tools_in_tree = {
-                tname for skill_tools in _PTC_SAFETY_METADATA.values() for tname in skill_tools
-            }
+            indexed_tools_in_tree = {tname for skill_tools in _PTC_SAFETY_METADATA.values() for tname in skill_tools}
             flat_tools = set(_PTC_TOOL_FLAT_INDEX.keys())
 
             orphans_in_flat = flat_tools - indexed_tools_in_tree

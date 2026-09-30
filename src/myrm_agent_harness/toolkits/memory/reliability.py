@@ -477,4 +477,3 @@ def create_corrupted_index_probe_result(
         safe_to_retry=False,
         repair_plans=[repair_plan],
     )
-

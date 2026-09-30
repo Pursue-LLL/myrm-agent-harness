@@ -156,8 +156,23 @@ _MASKING_OR_RE = re.compile(r"\|\|\s*(?:echo\b|printf\b|true\b|:\s|:$)")
 
 _READONLY_HEADS = frozenset(
     {
-        "grep", "rg", "ag", "find", "ls", "cat", "head", "tail", "jq", "awk",
-        "sed", "strings", "zcat", "journalctl", "dmesg", "echo", "printf",
+        "grep",
+        "rg",
+        "ag",
+        "find",
+        "ls",
+        "cat",
+        "head",
+        "tail",
+        "jq",
+        "awk",
+        "sed",
+        "strings",
+        "zcat",
+        "journalctl",
+        "dmesg",
+        "echo",
+        "printf",
     }
 )
 

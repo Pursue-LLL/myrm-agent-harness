@@ -151,7 +151,11 @@ class HollowTestDetector:
 
         # assert 1 == 1 / assert "a" == "a"
         if isinstance(test, ast.Compare):
-            if isinstance(test.left, ast.Constant) and len(test.comparators) == 1 and isinstance(test.comparators[0], ast.Constant):
+            if (
+                isinstance(test.left, ast.Constant)
+                and len(test.comparators) == 1
+                and isinstance(test.comparators[0], ast.Constant)
+            ):
                 if test.left.value == test.comparators[0].value:
                     return True, f"identical constant comparison `{test.left.value} == {test.comparators[0].value}`"
 

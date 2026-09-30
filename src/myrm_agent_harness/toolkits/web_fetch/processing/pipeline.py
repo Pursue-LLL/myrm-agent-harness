@@ -91,10 +91,10 @@ class ContentPipeline:
 
         return (fit, result.was_truncated) if len(fit) > _FIT_MARKDOWN_THRESHOLD else ("", False)
 
-    def _try_structured_data_bypass(
-        self, fetch_result: FetchResult, max_chars: int = 0
-    ) -> Document | None:
-        content_type = (fetch_result.headers.get("content-type") or fetch_result.headers.get("Content-Type") or "").lower()
+    def _try_structured_data_bypass(self, fetch_result: FetchResult, max_chars: int = 0) -> Document | None:
+        content_type = (
+            fetch_result.headers.get("content-type") or fetch_result.headers.get("Content-Type") or ""
+        ).lower()
         body_text = fetch_result.html.strip()
 
         # 1. JSON bypass

@@ -209,9 +209,7 @@ class MemorySearchService:
         search_types = pruning_res.search_types
         runtime_config = pruning_res.runtime_config
         claim_requested = self._graph is not None and (
-            memory_types_unspecified
-            or MemoryType.CLAIM in memory_types
-            or MemoryType.SEMANTIC in search_types
+            memory_types_unspecified or MemoryType.CLAIM in memory_types or MemoryType.SEMANTIC in search_types
         )
         if dynamic_signal_weights:
             runtime_config = replace(
@@ -317,7 +315,9 @@ class MemorySearchService:
             collect_metadata: dict[str, Any] = {"result_lists": len(result_lists), "sources": source_names}
             if collect_degraded:
                 collect_metadata["degraded"] = True
-                collect_metadata["kind"] = "timeout" if any(w.endswith("_TIMEOUT") for w in collect_warnings) else "error"
+                collect_metadata["kind"] = (
+                    "timeout" if any(w.endswith("_TIMEOUT") for w in collect_warnings) else "error"
+                )
             if collect_warnings:
                 collect_metadata["warning_codes"] = list(collect_warnings)
             steps.append(

@@ -101,7 +101,9 @@ def export_commerce_slice_eval(
     title: str,
     assertions: list[SliceAssertion],
     tags: list[str] | None = None,
-) -> dict[str, str | int | float | bool | list[dict[str, str | int | float | bool | None | list[str]]] | dict[str, str]]:
+) -> dict[
+    str, str | int | float | bool | list[dict[str, str | int | float | bool | None | list[str]]] | dict[str, str]
+]:
     """Export a CommerceSessionSlice into a structured slice evaluation dictionary.
 
     Replaces terminal CLI eval authoring with deterministic JSON structure.

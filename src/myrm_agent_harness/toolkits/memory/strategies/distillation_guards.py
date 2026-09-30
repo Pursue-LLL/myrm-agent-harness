@@ -48,7 +48,10 @@ T = TypeVar("T")
 
 # Precompiled regex patterns for detecting automated system monitoring bots
 _ALERT_BOT_PATTERNS: tuple[re.Pattern[str], ...] = (
-    re.compile(r"(?:bot|webhook|cron|daemon|alertmanager|prometheus|grafana|sentry|datadog|jenkins|ci[-_]?cd|actions)", re.IGNORECASE),
+    re.compile(
+        r"(?:bot|webhook|cron|daemon|alertmanager|prometheus|grafana|sentry|datadog|jenkins|ci[-_]?cd|actions)",
+        re.IGNORECASE,
+    ),
     re.compile(r"(?:监控|告警|机器人|系统通知|打卡助手|运维通知|报警)"),
 )
 
@@ -276,7 +279,11 @@ def filter_distillable_messages(
         else:
             # If allow_other_as_context is True and rejection was merely OTHER identity,
             # allow keeping it as third-party dialogue background, but tag it
-            if allow_other_as_context and candidate.is_self == SelfIdentityState.OTHER and candidate.origin == DistillationOrigin.USER:
+            if (
+                allow_other_as_context
+                and candidate.is_self == SelfIdentityState.OTHER
+                and candidate.origin == DistillationOrigin.USER
+            ):
                 tagged = dict(msg)
                 tagged["_third_party_context"] = True
                 admitted.append(tagged)
@@ -371,11 +378,17 @@ def assert_has_evidence(
                     else:
                         rejection_code = code or DistillationRejectionCode.REJECT_MISSING_EVIDENCE
                         rejection_reason = reason
-        elif getattr(mem, "source_message", None) or getattr(mem, "source_chat_id", None) or getattr(mem, "source_message_id", None):
+        elif (
+            getattr(mem, "source_message", None)
+            or getattr(mem, "source_chat_id", None)
+            or getattr(mem, "source_message_id", None)
+        ):
             has_valid_evidence = True
         else:
             meta = getattr(mem, "metadata", None)
-            if (isinstance(meta, dict) and (meta.get("evidence_quote") or meta.get("evidence_count"))) or (hasattr(mem, "key") and hasattr(mem, "value")):
+            if (isinstance(meta, dict) and (meta.get("evidence_quote") or meta.get("evidence_count"))) or (
+                hasattr(mem, "key") and hasattr(mem, "value")
+            ):
                 has_valid_evidence = True
 
         if not has_valid_evidence:
@@ -414,7 +427,11 @@ def filter_memories_with_evidence[T](
                         has_ev = True
                         break
         if not has_ev:
-            if getattr(mem, "source_message", None) or getattr(mem, "source_chat_id", None) or getattr(mem, "source_message_id", None):
+            if (
+                getattr(mem, "source_message", None)
+                or getattr(mem, "source_chat_id", None)
+                or getattr(mem, "source_message_id", None)
+            ):
                 has_ev = True
             elif fallback_source_id:
                 if hasattr(mem, "source_chat_id") and getattr(mem, "source_chat_id", None) is None:
@@ -423,7 +440,9 @@ def filter_memories_with_evidence[T](
                 has_ev = True
             else:
                 meta = getattr(mem, "metadata", None)
-                if (isinstance(meta, dict) and (meta.get("evidence_quote") or meta.get("evidence_count"))) or (hasattr(mem, "key") and hasattr(mem, "value")):
+                if (isinstance(meta, dict) and (meta.get("evidence_quote") or meta.get("evidence_count"))) or (
+                    hasattr(mem, "key") and hasattr(mem, "value")
+                ):
                     has_ev = True
 
         if has_ev:

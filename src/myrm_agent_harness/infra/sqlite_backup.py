@@ -176,9 +176,7 @@ class SQLiteBackupManager:
             return "ok"
         return _pragma_quick_check(self._db_path)
 
-    def verify_snapshot(
-        self, snapshot_ref: str | Path | BackupRecord | None = None
-    ) -> SnapshotVerificationResult:
+    def verify_snapshot(self, snapshot_ref: str | Path | BackupRecord | None = None) -> SnapshotVerificationResult:
         """Verify artifact hash and SQLite integrity for a snapshot.
 
         Validates:
@@ -210,9 +208,7 @@ class SQLiteBackupManager:
                 (r for r in manifest if r.backup_id == snapshot_ref or r.file_name == snapshot_ref),
                 None,
             )
-            target_path = self._snapshots_dir / (
-                target_record.file_name if target_record else snapshot_ref
-            )
+            target_path = self._snapshots_dir / (target_record.file_name if target_record else snapshot_ref)
         else:
             return SnapshotVerificationResult(
                 valid=False,

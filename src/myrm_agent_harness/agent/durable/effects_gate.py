@@ -31,6 +31,7 @@ class DriveMode(str, Enum):
 
 class SimulatedCrashError(RuntimeError):
     """Simulated process termination / crash injected during testing."""
+
     pass
 
 
@@ -69,7 +70,9 @@ class ManualDriveEffectsGate(EffectsBoundaryProtocol):
         if self._crash_before_effect:
             if not self._break_on_effect_type or self._break_on_effect_type == intent.effect_type.value:
                 self._crash_before_effect = False
-                raise SimulatedCrashError(f"Simulated Crash before effect {intent.effect_type.value} on intent {intent.intent_id}")
+                raise SimulatedCrashError(
+                    f"Simulated Crash before effect {intent.effect_type.value} on intent {intent.intent_id}"
+                )
 
     async def after_effect(self, intent: IntentRecord, result: Any) -> None:
         """Intercept after effect execution."""
@@ -77,4 +80,6 @@ class ManualDriveEffectsGate(EffectsBoundaryProtocol):
         if self._crash_after_effect:
             if not self._break_on_effect_type or self._break_on_effect_type == intent.effect_type.value:
                 self._crash_after_effect = False
-                raise SimulatedCrashError(f"Simulated Crash after effect {intent.effect_type.value} on intent {intent.intent_id}")
+                raise SimulatedCrashError(
+                    f"Simulated Crash after effect {intent.effect_type.value} on intent {intent.intent_id}"
+                )

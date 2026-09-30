@@ -203,9 +203,7 @@ def validate_privacy_ladder(
     ws_clean = workspace_root.strip()
     try:
         ws_real = os.path.realpath(os.path.abspath(ws_clean))
-        target_abs = os.path.abspath(
-            cleaned if os.path.isabs(cleaned) else os.path.join(ws_real, cleaned)
-        )
+        target_abs = os.path.abspath(cleaned if os.path.isabs(cleaned) else os.path.join(ws_real, cleaned))
         target_real = os.path.realpath(target_abs)
     except Exception as exc:
         return PrivacyLadderResult(
@@ -220,7 +218,9 @@ def validate_privacy_ladder(
     cmp_target = target_real.lower() if is_case_insensitive else target_real
     cmp_ws = ws_real.lower() if is_case_insensitive else ws_real
 
-    if cmp_target != cmp_ws and not cmp_target.startswith(cmp_ws + os.sep.lower() if is_case_insensitive else cmp_ws + os.sep):
+    if cmp_target != cmp_ws and not cmp_target.startswith(
+        cmp_ws + os.sep.lower() if is_case_insensitive else cmp_ws + os.sep
+    ):
         return PrivacyLadderResult(
             is_allowed=False,
             tier=PrivacyTier.TIER_3_WORKSPACE,

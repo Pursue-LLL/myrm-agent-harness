@@ -162,7 +162,9 @@ class GatewayHealthInspector:
     @classmethod
     def check_otlp_posture(cls) -> tuple[bool, bool]:
         """Check OTLP export environment configuration and SDK initialization status."""
-        otlp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT") or os.environ.get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
+        otlp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT") or os.environ.get(
+            "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
+        )
         is_configured = bool(otlp_endpoint and otlp_endpoint.strip())
 
         is_connected = False
@@ -279,9 +281,7 @@ async def check_gateway_runtime_health() -> HealthReport:
     detail_msg = "; ".join(dto.redacted_diagnostics)
 
     fix_suggestion = (
-        "Inspect synchronous blocking operations or compact long-running agent state."
-        if status_str != "pass"
-        else ""
+        "Inspect synchronous blocking operations or compact long-running agent state." if status_str != "pass" else ""
     )
 
     return HealthReport(

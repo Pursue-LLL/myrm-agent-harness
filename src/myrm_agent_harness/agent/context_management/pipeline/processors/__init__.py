@@ -54,4 +54,3 @@ __all__ = [
     "prune_tool_results_deterministic",
     "replace_tool_message_content",
 ]
-

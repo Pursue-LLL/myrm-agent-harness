@@ -88,9 +88,7 @@ class SessionOverlay:
     def to_dict(self) -> dict[str, object]:
         """Serialize overlay to pure dictionary for audit and telemetry."""
         advisory = str(
-            self.patch_payload.get("advisory_instruction")
-            or self.patch_payload.get("negative_constraint")
-            or ""
+            self.patch_payload.get("advisory_instruction") or self.patch_payload.get("negative_constraint") or ""
         )
         return {
             "overlay_id": self.overlay_id,

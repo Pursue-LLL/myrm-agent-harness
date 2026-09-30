@@ -55,15 +55,11 @@ class MacOSBackend:
     def __init__(self) -> None:
         self._screen_info: ScreenInfo | None = None
 
-    async def resolve_window_target(
-        self, app_name: str, window_index: int = 0
-    ) -> tuple[int, int, int, int] | None:
+    async def resolve_window_target(self, app_name: str, window_index: int = 0) -> tuple[int, int, int, int] | None:
         target = _resolve_target_window(app_name, window_index)
         return target.bounds if target else None
 
-    async def screenshot(
-        self, app_name: str | None = None, window_index: int = 0
-    ) -> bytes:
+    async def screenshot(self, app_name: str | None = None, window_index: int = 0) -> bytes:
         """Capture PNG bytes: target window when ``app_name`` is set.
 
         Targeted capture never activates the window; a missing window raises
@@ -73,8 +69,7 @@ class MacOSBackend:
             target = _resolve_target_window(app_name, window_index)
             if target is None:
                 raise RuntimeError(
-                    f"no on-screen window for app '{app_name}' "
-                    f"(index {window_index}); refusing fullscreen fallback"
+                    f"no on-screen window for app '{app_name}' (index {window_index}); refusing fullscreen fallback"
                 )
             return await _capture_window_png(target.window_id)
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
@@ -104,15 +99,11 @@ class MacOSBackend:
         clicks: int = 1,
         modifiers: list[ModifierKey] | None = None,
     ) -> ActionResult:
-        modifier_keys = (
-            [_MODIFIER_TO_QUARTZ_KEY[m] for m in modifiers] if modifiers else []
-        )
+        modifier_keys = [_MODIFIER_TO_QUARTZ_KEY[m] for m in modifiers] if modifiers else []
         try:
             for key in modifier_keys:
                 await asyncio.to_thread(macos_input.key_down, key)
-            await asyncio.to_thread(
-                macos_input.click, x=x, y=y, button=button, clicks=clicks
-            )
+            await asyncio.to_thread(macos_input.click, x=x, y=y, button=button, clicks=clicks)
             return ActionResult(success=True)
         except Exception as e:
             return ActionResult(success=False, error=str(e))
@@ -120,9 +111,7 @@ class MacOSBackend:
             for key in reversed(modifier_keys):
                 await asyncio.to_thread(macos_input.key_up, key)
 
-    async def type_text(
-        self, text: str, delay_ms: int = 12, chunk_size: int = 50
-    ) -> ActionResult:
+    async def type_text(self, text: str, delay_ms: int = 12, chunk_size: int = 50) -> ActionResult:
         """Type text — ASCII via Quartz unicode input, non-ASCII via clipboard paste."""
         try:
             if text.isascii():
@@ -160,9 +149,7 @@ class MacOSBackend:
             if secret_text.isascii():
                 interval = 12 / 1000.0
                 # Quartz unicode input — direct OS event injection, no subprocess exposure
-                await asyncio.to_thread(
-                    macos_input.write, secret_text, interval=interval
-                )
+                await asyncio.to_thread(macos_input.write, secret_text, interval=interval)
             else:
                 await self._paste_text(secret_text)
             return ActionResult(success=True)
@@ -206,9 +193,7 @@ class MacOSBackend:
         amount: int = 3,
         modifiers: list[ModifierKey] | None = None,
     ) -> ActionResult:
-        modifier_keys = (
-            [_MODIFIER_TO_QUARTZ_KEY[m] for m in modifiers] if modifiers else []
-        )
+        modifier_keys = [_MODIFIER_TO_QUARTZ_KEY[m] for m in modifiers] if modifiers else []
         try:
             await asyncio.to_thread(macos_input.move_to, x, y)
             for key in modifier_keys:
@@ -235,9 +220,7 @@ class MacOSBackend:
         end_y: int,
         modifiers: list[ModifierKey] | None = None,
     ) -> ActionResult:
-        modifier_keys = (
-            [_MODIFIER_TO_QUARTZ_KEY[m] for m in modifiers] if modifiers else []
-        )
+        modifier_keys = [_MODIFIER_TO_QUARTZ_KEY[m] for m in modifiers] if modifiers else []
         try:
             for key in modifier_keys:
                 await asyncio.to_thread(macos_input.key_down, key)
@@ -286,9 +269,7 @@ class MacOSBackend:
         """Extract text from frontmost window via Accessibility API (AppleScript)."""
         return await asyncio.to_thread(_extract_window_text)
 
-    async def has_blocking_dialog(
-        self, target_app_names: list[str] | None = None
-    ) -> bool:
+    async def has_blocking_dialog(self, target_app_names: list[str] | None = None) -> bool:
         """Check if there is an OS-level dialog window blocking the target application."""
         return await asyncio.to_thread(_has_blocking_dialog, target_app_names)
 
@@ -540,10 +521,7 @@ def _osascript_ax_capable() -> bool:
     ``name of every process whose frontmost is true`` returns the frontmost
     process name with AX access and errors (-25211/-1719) without it.
     """
-    script = (
-        'tell application "System Events" '
-        'to get name of every process whose frontmost is true'
-    )
+    script = 'tell application "System Events" to get name of every process whose frontmost is true'
     try:
         result = subprocess.run(
             ["osascript", "-e", script],
@@ -635,15 +613,12 @@ def _probe_screencapture_capturable(*, timeout_s: float = 1.5) -> bool:
         tmp_path.unlink(missing_ok=True)
 
 
-
 def _check_macos_permissions(probe_capture: bool = False) -> PermissionStatus:
     accessibility = _check_accessibility()
     screen_recording = _check_screen_recording()
     capturable: bool | None = None
     if probe_capture:
-        capturable = (
-            _probe_screencapture_capturable() if screen_recording else False
-        )
+        capturable = _probe_screencapture_capturable() if screen_recording else False
     return PermissionStatus(
         accessibility=accessibility,
         screen_recording=screen_recording,

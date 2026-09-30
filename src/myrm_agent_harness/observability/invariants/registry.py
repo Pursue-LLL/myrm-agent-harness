@@ -33,17 +33,14 @@ class InvariantError(RuntimeError):
     def __init__(self, violation: InvariantViolation) -> None:
         self.violation = violation
         self.code = violation.code
-        super().__init__(
-            f"[{violation.code}:{violation.package_name}:{violation.invariant_name}] "
-            f"{violation.message}"
-        )
+        super().__init__(f"[{violation.code}:{violation.package_name}:{violation.invariant_name}] {violation.message}")
 
 
 class InvariantMode(str, Enum):
     """Execution mode for runtime invariants."""
 
     STRICT = "STRICT"  # Raises InvariantError immediately on first ERROR violation
-    WARN = "WARN"      # Logs violations and returns list without interrupting flow
+    WARN = "WARN"  # Logs violations and returns list without interrupting flow
     DISABLED = "DISABLED"  # Completely bypasses execution for 0-overhead production
 
 

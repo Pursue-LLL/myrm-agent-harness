@@ -105,7 +105,9 @@ class Allowlist:
     """
 
     def __init__(self, store: AllowlistStore | None = None, ttl_seconds: float = 300.0) -> None:
-        self._entries: dict[str, dict[tuple[str, str | None, str | None, str | None, str | None, str | None], AllowlistEntry]] = {}
+        self._entries: dict[
+            str, dict[tuple[str, str | None, str | None, str | None, str | None, str | None], AllowlistEntry]
+        ] = {}
         self._store = store
         self._cache_meta: dict[str, tuple[float | None, asyncio.Lock]] = {}
         self._meta_lock = asyncio.Lock()
@@ -275,11 +277,7 @@ class Allowlist:
                 return entry
 
         for entry in entries:
-            if (
-                entry.permission == permission_type
-                and entry.tool_name is None
-                and _scope_matches(entry)
-            ):
+            if entry.permission == permission_type and entry.tool_name is None and _scope_matches(entry):
                 return entry
 
         return None
@@ -342,7 +340,14 @@ class Allowlist:
         async with lock:
             if user_id not in self._entries:
                 self._entries[user_id] = {}
-            key = (entry.permission, entry.tool_name, entry.tool_args_hash, entry.command_pattern, entry.agent_id, entry.session_id)
+            key = (
+                entry.permission,
+                entry.tool_name,
+                entry.tool_args_hash,
+                entry.command_pattern,
+                entry.agent_id,
+                entry.session_id,
+            )
 
             if key in self._entries[user_id]:
                 return
@@ -413,7 +418,12 @@ class Allowlist:
                 user_entries.pop(k, None)
                 cleared_count += 1
         if cleared_count > 0:
-            logger.info("[ALLOWLIST] Cleared %d session-scoped entries for session %s (user %s)", cleared_count, session_id, user_id)
+            logger.info(
+                "[ALLOWLIST] Cleared %d session-scoped entries for session %s (user %s)",
+                cleared_count,
+                session_id,
+                user_id,
+            )
         return cleared_count
 
     async def list_active_grants(self, user_id: str) -> list[AllowlistEntry]:
@@ -484,4 +494,3 @@ def reset_denial_counter(chat_id: str) -> None:
     )
 
     _reset(chat_id)
-

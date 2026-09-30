@@ -250,11 +250,7 @@ async def publish_url_markdown_ingress(
         + body
     )
 
-    conflict_policy = (
-        request.conflict_policy
-        if request.conflict_policy is not None
-        else RawConflictPolicy.FAIL
-    )
+    conflict_policy = request.conflict_policy if request.conflict_policy is not None else RawConflictPolicy.FAIL
     try:
         result = await publish_raw(
             structure,

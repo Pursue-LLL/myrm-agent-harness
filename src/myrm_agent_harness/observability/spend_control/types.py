@@ -26,32 +26,20 @@ from enum import StrEnum
 class SpendInterventionTier(StrEnum):
     """The four progressive tiers of spend control and soft quota intervention."""
 
-    TIER_1_VISIBILITY = (
-        "tier_1_visibility"  # Real-time visibility & model downgrade recommendation
-    )
-    TIER_2_SOFT_GATE = (
-        "tier_2_soft_gate"  # Soft spend gate: one-click self-confirmation to proceed
-    )
+    TIER_1_VISIBILITY = "tier_1_visibility"  # Real-time visibility & model downgrade recommendation
+    TIER_2_SOFT_GATE = "tier_2_soft_gate"  # Soft spend gate: one-click self-confirmation to proceed
     TIER_3_AUTO_DOWNGRADE = "tier_3_auto_downgrade"  # Automatic seamless fallback to economy/efficient model
-    TIER_4_CRITICAL_PAUSE = (
-        "tier_4_critical_pause"  # High-risk safety pause with approval link generation
-    )
+    TIER_4_CRITICAL_PAUSE = "tier_4_critical_pause"  # High-risk safety pause with approval link generation
 
 
 class InterventionAction(StrEnum):
     """Specific enforcement or guidance action resulting from tier evaluation."""
 
     ALLOW = "allow"  # Normal execution allowed without intervention
-    RECOMMEND_DOWNGRADE = (
-        "recommend_downgrade"  # Display warning & cost-saving suggestion
-    )
-    REQUIRE_CONFIRMATION = (
-        "require_confirmation"  # Soft gate: wait for developer confirmation token
-    )
+    RECOMMEND_DOWNGRADE = "recommend_downgrade"  # Display warning & cost-saving suggestion
+    REQUIRE_CONFIRMATION = "require_confirmation"  # Soft gate: wait for developer confirmation token
     SWITCH_MODEL = "switch_model"  # Switch to economy model seamlessly
-    PAUSE_FOR_APPROVAL = (
-        "pause_for_approval"  # Suspend session and require manager/admin sign-off
-    )
+    PAUSE_FOR_APPROVAL = "pause_for_approval"  # Suspend session and require manager/admin sign-off
 
 
 @dataclass(frozen=True, slots=True)

@@ -74,10 +74,7 @@ def quantize_int8(vector: Sequence[float]) -> QuantizedVector:
     inv_scale = 1.0 / scale
 
     # Clamp to [-127, 127] to maintain symmetric dynamic range without -128 overflow
-    quantized_ints = [
-        max(-INT8_MAX, min(INT8_MAX, round(v * inv_scale)))
-        for v in normalized
-    ]
+    quantized_ints = [max(-INT8_MAX, min(INT8_MAX, round(v * inv_scale))) for v in normalized]
 
     data = struct.pack(f"{dim}b", *quantized_ints)
     return QuantizedVector(data=data, scale=scale, dim=dim)

@@ -239,9 +239,7 @@ class FourTierSpendControlEngine:
 
         return item
 
-    def get_fleet_quota_deck(
-        self, dimension: str | None = None
-    ) -> list[FleetQuotaItem]:
+    def get_fleet_quota_deck(self, dimension: str | None = None) -> list[FleetQuotaItem]:
         """Retrieve aggregated fleet quota deck, optionally filtered by dimension."""
         with self._lock:
             items = list(self._fleet_records.values())

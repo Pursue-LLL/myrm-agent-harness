@@ -69,9 +69,11 @@ class RestrictedAccessibilityBrowserSession(BrowserSession):
         """Initialize restricted AX browser session with optional mockable pool."""
         if browser_pool is None:
             from unittest.mock import MagicMock
+
             browser_pool = MagicMock()
         if context_type is None:
             from unittest.mock import MagicMock
+
             context_type = MagicMock()
         super().__init__(browser_pool, context_type, *args, **kwargs)
 

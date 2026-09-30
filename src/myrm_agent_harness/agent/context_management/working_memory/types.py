@@ -66,4 +66,3 @@ class LocalWorkingState:
     scratchpad: dict[str, str] = field(default_factory=dict)
     active_turn: int = 0
     consolidated: bool = False
-

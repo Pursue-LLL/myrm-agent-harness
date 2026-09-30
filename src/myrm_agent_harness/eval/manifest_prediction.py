@@ -27,9 +27,7 @@ class PredictionDirection(enum.StrEnum):
     """Direction of predicted metric movement."""
 
     INCREASE = "increase"  # Metric expected to rise (e.g. pass rate, speed)
-    DECREASE = (
-        "decrease"  # Metric expected to drop (e.g. latency, token cost, error count)
-    )
+    DECREASE = "decrease"  # Metric expected to drop (e.g. latency, token cost, error count)
     NEUTRAL = "neutral"  # Metric expected to remain roughly unchanged
     PRESERVE_MIN = "preserve_min"  # Baseline threshold that must not regress below
 
@@ -151,11 +149,7 @@ def evaluate_manifest_attribution(
     for p in manifest.predictions:
         actual = actual_metrics.get(p.metric_name, p.baseline_value)
         delta = actual - p.baseline_value
-        tol = (
-            abs(p.target_value) * p.relative_tolerance
-            if p.relative_tolerance is not None
-            else p.tolerance
-        )
+        tol = abs(p.target_value) * p.relative_tolerance if p.relative_tolerance is not None else p.tolerance
         verdict = AttributionVerdict.INCONCLUSIVE
         explanation = ""
 
@@ -195,18 +189,14 @@ def evaluate_manifest_attribution(
                 explanation = f"Preserved baseline threshold ({actual:.2f} >= {p.target_value:.2f})"
             else:
                 verdict = AttributionVerdict.REGRESSION
-                explanation = (
-                    f"Violated baseline threshold ({actual:.2f} < {p.target_value:.2f})"
-                )
+                explanation = f"Violated baseline threshold ({actual:.2f} < {p.target_value:.2f})"
                 has_regression = True
                 all_confirmed = False
 
         else:  # NEUTRAL
             if abs(delta) <= tol:
                 verdict = AttributionVerdict.CONFIRMED
-                explanation = (
-                    f"Remained within stable noise bounds (|Δ|={abs(delta):.2f})"
-                )
+                explanation = f"Remained within stable noise bounds (|Δ|={abs(delta):.2f})"
             else:
                 verdict = AttributionVerdict.INCONCLUSIVE
                 explanation = f"Observed minor drift (|Δ|={abs(delta):.2f})"

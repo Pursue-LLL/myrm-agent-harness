@@ -168,15 +168,11 @@ def _extract_cell_outputs(
                     if "text/plain" in data:
                         text_val = _source_text(data.get("text/plain"))
                         if text_val.strip():
-                            output_parts.append(
-                                f"**Result**:\n```\n{_truncate_output_text(text_val)}\n```"
-                            )
+                            output_parts.append(f"**Result**:\n```\n{_truncate_output_text(text_val)}\n```")
                     elif "text/html" in data:
                         html_val = _source_text(data.get("text/html"))
                         if html_val.strip():
-                            output_parts.append(
-                                f"**HTML Output**:\n```html\n{_truncate_output_text(html_val)}\n```"
-                            )
+                            output_parts.append(f"**HTML Output**:\n```html\n{_truncate_output_text(html_val)}\n```")
 
         elif output_type == "error":
             ename = out.get("ename", "Error")

@@ -172,13 +172,9 @@ def _parse_case(item: dict[str, object]) -> EvalCase:
         compaction_assertions.append(
             CompactionAssertion(
                 type=a.get("type", "compaction_fidelity"),
-                expected_constraints=tuple(
-                    str(x) for x in a.get("expected_constraints", ())
-                ),
+                expected_constraints=tuple(str(x) for x in a.get("expected_constraints", ())),
                 forbidden_claims=tuple(str(x) for x in a.get("forbidden_claims", ())),
-                required_artifacts=tuple(
-                    str(x) for x in a.get("required_artifacts", ())
-                ),
+                required_artifacts=tuple(str(x) for x in a.get("required_artifacts", ())),
                 expected_tools=tuple(str(x) for x in a.get("expected_tools", ())),
                 min_fidelity_score=float(a.get("min_fidelity_score", 0.8)),
             )
@@ -193,14 +189,10 @@ def _parse_case(item: dict[str, object]) -> EvalCase:
                 expected_doc_ids=tuple(str(x) for x in a.get("expected_doc_ids", ())),
                 min_recall=float(a.get("min_recall", 1.0)),
                 max_duplicate_rate=(
-                    float(a["max_duplicate_rate"])
-                    if a.get("max_duplicate_rate") is not None
-                    else None
+                    float(a["max_duplicate_rate"]) if a.get("max_duplicate_rate") is not None else None
                 ),
                 min_distinct_sources=(
-                    int(a["min_distinct_sources"])
-                    if a.get("min_distinct_sources") is not None
-                    else None
+                    int(a["min_distinct_sources"]) if a.get("min_distinct_sources") is not None else None
                 ),
                 top_k=int(a.get("top_k", 5)),
                 strip_headers=bool(a.get("strip_headers", True)),

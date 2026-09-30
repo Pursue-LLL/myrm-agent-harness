@@ -96,9 +96,7 @@ class VulnScanCache:
     def prune_expired(self) -> int:
         """Prune all expired entries from memory."""
         now = time.time()
-        expired_keys = [
-            k for k, v in self._entries.items() if (now - v.cached_at) > v.ttl_seconds
-        ]
+        expired_keys = [k for k, v in self._entries.items() if (now - v.cached_at) > v.ttl_seconds]
         for k in expired_keys:
             self._entries.pop(k, None)
         return len(expired_keys)

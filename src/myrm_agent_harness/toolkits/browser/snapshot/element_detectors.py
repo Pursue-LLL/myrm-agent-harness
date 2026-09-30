@@ -149,4 +149,3 @@ async def detect_hover_surfaces(frame: Page | Frame) -> list[dict[str, object]]:
     except Exception as exc:
         logger.debug("Hover surfaces detection non-critical failure: %s", exc)
         return []
-

@@ -221,9 +221,7 @@ class SidecarIndexMixin:
                 if not fts_query:
                     return []
                 fts_tables = ["wiki_fts"]
-                attached_dbs = {
-                    str(row["name"]) for row in conn.execute("PRAGMA database_list").fetchall()
-                }
+                attached_dbs = {str(row["name"]) for row in conn.execute("PRAGMA database_list").fetchall()}
                 for idx in range(min(len(self._structure.public_dirs), 6)):
                     alias = f"pub_{idx}"
                     if alias in attached_dbs:

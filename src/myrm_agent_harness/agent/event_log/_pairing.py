@@ -73,9 +73,7 @@ def _pop_pending(
     return pt
 
 
-def _find_tool_record(
-    tool_calls: list[ToolCallRecord], tool_call_id: str | None
-) -> ToolCallRecord | None:
+def _find_tool_record(tool_calls: list[ToolCallRecord], tool_call_id: str | None) -> ToolCallRecord | None:
     """Find an already-recorded tool call by its ``tool_call_id``.
 
     The same invocation can surface both as a ``tasks_steps`` progress event and
@@ -95,9 +93,7 @@ def _replace_tool_record(
     **changes: object,
 ) -> None:
     """Swap ``existing`` with a copy carrying ``changes`` (frozen record)."""
-    trace.tool_calls = [
-        replace(existing, **changes) if tc is existing else tc for tc in trace.tool_calls
-    ]
+    trace.tool_calls = [replace(existing, **changes) if tc is existing else tc for tc in trace.tool_calls]
 
 
 def _find_open_record_by_context(

@@ -150,9 +150,7 @@ async def build_multimodal_result(
 
             for tp in text_paths:
                 base_tp = path_base(tp)
-                raw_out = await _read_via_service(
-                    tp, executor, skills, reason, config=config, max_lines=5000
-                )
+                raw_out = await _read_via_service(tp, executor, skills, reason, config=config, max_lines=5000)
                 outline = extract_file_outline(raw_out, base_tp, max_symbols=100)
                 if outline:
                     blocks.append(create_text_block(outline))
@@ -340,9 +338,7 @@ async def process_text_paths(
         if parse_mode == "structure":
             from .file_read_outline import extract_file_outline
 
-            raw_out = await _read_via_service(
-                path_str, executor, skills, reason, config=config, max_lines=5000
-            )
+            raw_out = await _read_via_service(path_str, executor, skills, reason, config=config, max_lines=5000)
             outline = extract_file_outline(raw_out, base_path_str, max_symbols=100)
             if outline:
                 text_content_parts.append(outline)

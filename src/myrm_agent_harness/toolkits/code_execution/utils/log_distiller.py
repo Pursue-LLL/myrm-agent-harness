@@ -52,7 +52,10 @@ _ERROR_ANCHOR_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("FATAL_PANIC", re.compile(r"\b(?:FATAL|PANIC|Segmentation\s+fault|core\s+dumped)\b", re.IGNORECASE)),
     ("PERMISSION_DENIED", re.compile(r"\bPermission\s+denied\b|\bAccess\s+denied\b", re.IGNORECASE)),
     ("MODULE_NOT_FOUND", re.compile(r"\b(?:ModuleNotFoundError|Cannot\s+find\s+module)\b", re.IGNORECASE)),
-    ("COMMAND_NOT_FOUND", re.compile(r"\b(?:command\s+not\s+found|not\s+recognized\s+as\s+an\s+internal)\b", re.IGNORECASE)),
+    (
+        "COMMAND_NOT_FOUND",
+        re.compile(r"\b(?:command\s+not\s+found|not\s+recognized\s+as\s+an\s+internal)\b", re.IGNORECASE),
+    ),
 )
 
 

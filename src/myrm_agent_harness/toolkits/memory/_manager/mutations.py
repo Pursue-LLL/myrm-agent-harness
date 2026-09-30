@@ -268,9 +268,7 @@ class MemoryManagerMutationsMixin:
 
         content_changed = content is not None
         if not allow_protected and existing.is_user_protected:
-            raise MemoryProtectedError(
-                f"Memory {memory_id} is protected by the user; automated writes are not allowed"
-            )
+            raise MemoryProtectedError(f"Memory {memory_id} is protected by the user; automated writes are not allowed")
 
         updated = existing.model_copy(deep=True)
 

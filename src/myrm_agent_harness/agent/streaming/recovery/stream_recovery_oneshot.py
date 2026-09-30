@@ -626,10 +626,12 @@ def _evict_aggregate_historical_images(messages: list[BaseMessage]) -> int:
                 else:
                     # If compression yields no gain, replace with semantic placeholder
                     part.clear()
-                    part.update({
-                        "type": "text",
-                        "text": f"[Historical image omitted to reduce aggregate payload: {original_size // 1024}KB]",
-                    })
+                    part.update(
+                        {
+                            "type": "text",
+                            "text": f"[Historical image omitted to reduce aggregate payload: {original_size // 1024}KB]",
+                        }
+                    )
                     evicted_count += 1
             except Exception as evict_err:
                 logger.warning("[_evict_aggregate] Fallback eviction failed: %s", evict_err)

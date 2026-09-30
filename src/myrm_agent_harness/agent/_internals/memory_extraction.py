@@ -281,11 +281,7 @@ async def persist_extracted_memories(
             dropped += len(ungrounded)
         batch = grounded
 
-    stored = (
-        await memory_manager.store_batch(batch, _force_pending=force_pending)
-        if batch
-        else []
-    )
+    stored = await memory_manager.store_batch(batch, _force_pending=force_pending) if batch else []
     return len(stored) + len(concrete) - len(batch) - dropped
 
 

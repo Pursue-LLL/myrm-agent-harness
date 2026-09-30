@@ -22,9 +22,7 @@ from __future__ import annotations
 import re
 
 # CJK Unified Ideographs, Extension A, Compatibility, Kana, Hangul
-_CJK_CHAR_PATTERN = re.compile(
-    r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uac00-\ud7af]"
-)
+_CJK_CHAR_PATTERN = re.compile(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uac00-\ud7af]")
 
 # ASCII word characters including alphanumeric, underscore, plus, hash, dot, hyphen
 # Preserves identifiers such as 'k8s-prod', 'v1.2.0', 'gpt-4o'
@@ -141,11 +139,7 @@ def build_cjk_query_token_tiers(query: str) -> list[list[str]]:
     if not strict:
         return []
 
-    relaxed = [
-        t
-        for t in strict
-        if not (len(t) == 2 and is_cjk_char(t[0]) and is_cjk_char(t[1]))
-    ]
+    relaxed = [t for t in strict if not (len(t) == 2 and is_cjk_char(t[0]) and is_cjk_char(t[1]))]
 
     if not relaxed or relaxed == strict:
         return [strict]

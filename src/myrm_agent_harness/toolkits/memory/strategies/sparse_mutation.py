@@ -120,9 +120,7 @@ class SparseSemanticMaskGenerator:
                 if c_idx in used_candidates or not cand.is_negated:
                     continue
                 cand_subj = cand.key
-                if cand_subj and (
-                    cand_subj in ex_val_norm or cand_subj in ex_slot.key or ex_val_norm in cand_subj
-                ):
+                if cand_subj and (cand_subj in ex_val_norm or cand_subj in ex_slot.key or ex_val_norm in cand_subj):
                     matched_cand[ex_idx] = (cand, True)
                     used_candidates.add(c_idx)
                     break
@@ -252,9 +250,7 @@ class MinimalOverwritePipeline:
 
         output_lines: list[str] = []
         appended_slots = [
-            s
-            for s in candidate_slots
-            if mask_by_key.get(s.key) and mask_by_key[s.key].action == SlotAction.APPEND
+            s for s in candidate_slots if mask_by_key.get(s.key) and mask_by_key[s.key].action == SlotAction.APPEND
         ]
 
         slots_by_line: dict[int, list[SemanticSlot]] = {}
@@ -315,8 +311,7 @@ class MinimalOverwritePipeline:
 
         mutated_text = "\n".join(output_lines)
         summary = (
-            f"Sparse mutation: {retained} retained, {overwritten} overwritten, "
-            f"{appended} appended, {removed} removed."
+            f"Sparse mutation: {retained} retained, {overwritten} overwritten, {appended} appended, {removed} removed."
         )
 
         return SparseMutationResult(
@@ -337,9 +332,7 @@ def apply_sparse_mutation(existing_text: str, candidate_text: str) -> SparseMuta
     ex_slots = SemanticSlotParser.parse(existing_text)
     cand_slots = SemanticSlotParser.parse(candidate_text)
 
-    if not SemanticSlotParser.is_structured(ex_slots) and not SemanticSlotParser.is_structured(
-        cand_slots
-    ):
+    if not SemanticSlotParser.is_structured(ex_slots) and not SemanticSlotParser.is_structured(cand_slots):
         return SparseMutationResult(
             original_text=existing_text,
             mutated_text=existing_text,

@@ -186,9 +186,7 @@ class _Point(NamedTuple):
 # 由上层（target scope 交互路径）在操作前后成对设置/清除。任务级隔离：
 # ContextVar 保证同进程并发任务互不污染；asyncio.to_thread 会传播调用方
 # 上下文，因此后台线程投递同样读到正确的目标。
-_input_target_pid: contextvars.ContextVar[int | None] = contextvars.ContextVar(
-    "macos_input_target_pid", default=None
-)
+_input_target_pid: contextvars.ContextVar[int | None] = contextvars.ContextVar("macos_input_target_pid", default=None)
 
 
 def set_input_target(pid: int | None) -> None:

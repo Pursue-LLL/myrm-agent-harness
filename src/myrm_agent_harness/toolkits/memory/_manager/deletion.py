@@ -77,8 +77,7 @@ class MemoryManagerDeletionMixin(MemoryManagerArchivalMixin, MemoryManagerQuerie
             owned_docs = [
                 doc
                 for doc in docs
-                if self._owns_vector_doc(doc)
-                and (allow_protected or not doc.metadata.get("pinned"))
+                if self._owns_vector_doc(doc) and (allow_protected or not doc.metadata.get("pinned"))
             ]
             if not owned_docs:
                 return 0
@@ -120,9 +119,7 @@ class MemoryManagerDeletionMixin(MemoryManagerArchivalMixin, MemoryManagerQuerie
         if deleted:
             await self._cascade_clean_derived_graph_nodes(rule_id)
             evict_text = (
-                getattr(rule, "action", None)
-                or getattr(rule, "action_text", None)
-                or getattr(rule, "content", None)
+                getattr(rule, "action", None) or getattr(rule, "action_text", None) or getattr(rule, "content", None)
             )
             if self._cache is not None and evict_text and hasattr(self._cache, "evict"):
                 await self._cache.evict(evict_text)
@@ -162,13 +159,7 @@ class MemoryManagerDeletionMixin(MemoryManagerArchivalMixin, MemoryManagerQuerie
             for memory_type, collection in vector_collections.items():
                 if memory_type not in selected_types:
                     continue
-                memory_ids = [
-                    doc_id
-                    for doc_id, owned in await self._collect_vector_ids(
-                        collection, filters
-                    )
-                    if owned
-                ]
+                memory_ids = [doc_id for doc_id, owned in await self._collect_vector_ids(collection, filters) if owned]
                 deleted = await self.delete_memory(collection, memory_ids)
                 counts[memory_type.value] = deleted
 
@@ -196,9 +187,7 @@ class MemoryManagerDeletionMixin(MemoryManagerArchivalMixin, MemoryManagerQuerie
 
         return counts
 
-    async def delete_memories_by_ids(
-        self, memory_ids_by_type: dict[str, list[str]]
-    ) -> MemoryMutationResult:
+    async def delete_memories_by_ids(self, memory_ids_by_type: dict[str, list[str]]) -> MemoryMutationResult:
         """Delete owned memories by explicit type/id refs and return exact outcomes."""
 
         result = MemoryMutationResult()
@@ -220,14 +209,9 @@ class MemoryManagerDeletionMixin(MemoryManagerArchivalMixin, MemoryManagerQuerie
                     ids=ids,
                 )
                 continue
-            if (
-                memory_type == MemoryType.PROCEDURAL.value
-                and self._relational is not None
-            ):
+            if memory_type == MemoryType.PROCEDURAL.value and self._relational is not None:
                 for rule_id in ids:
-                    rule = await self._relational.get_rule(
-                        rule_id, namespaces=self._namespaces
-                    )
+                    rule = await self._relational.get_rule(rule_id, namespaces=self._namespaces)
                     if rule is None:
                         result.missing_refs.append(
                             MemoryMutationRef(
@@ -322,17 +306,11 @@ class MemoryManagerDeletionMixin(MemoryManagerArchivalMixin, MemoryManagerQuerie
                     )
                 )
 
-        owned_ids = [
-            memory_id
-            for memory_id, doc in docs_by_id.items()
-            if self._owns_vector_doc(doc)
-        ]
+        owned_ids = [memory_id for memory_id, doc in docs_by_id.items() if self._owns_vector_doc(doc)]
         if not owned_ids:
             return
         try:
-            deleted_count = await delete_from_vector(
-                collection, owned_ids, self._vector
-            )
+            deleted_count = await delete_from_vector(collection, owned_ids, self._vector)
         except Exception as e:
             for memory_id in owned_ids:
                 result.failed_refs.append(
@@ -350,9 +328,7 @@ class MemoryManagerDeletionMixin(MemoryManagerArchivalMixin, MemoryManagerQuerie
         else:
             remaining_docs = await self._vector.get(collection, owned_ids) or []
             remaining_ids = {doc.id for doc in remaining_docs}
-            deleted_ids = [
-                memory_id for memory_id in owned_ids if memory_id not in remaining_ids
-            ]
+            deleted_ids = [memory_id for memory_id in owned_ids if memory_id not in remaining_ids]
             for memory_id in remaining_ids:
                 result.failed_refs.append(
                     MemoryMutationRef(
@@ -365,9 +341,7 @@ class MemoryManagerDeletionMixin(MemoryManagerArchivalMixin, MemoryManagerQuerie
 
         for memory_id in deleted_ids:
             result.deleted_refs.append(
-                MemoryMutationRef(
-                    memory_type=memory_type, memory_id=memory_id, backend=collection
-                )
+                MemoryMutationRef(memory_type=memory_type, memory_id=memory_id, backend=collection)
             )
             await self._cascade_clean_derived_graph_nodes(memory_id)
             if self._relational is not None and hasattr(self._relational, "delete_exact_fact"):
@@ -378,9 +352,7 @@ class MemoryManagerDeletionMixin(MemoryManagerArchivalMixin, MemoryManagerQuerie
 
         if self._cache is not None and deleted_ids:
             evict_texts = [
-                docs_by_id[mid].content
-                for mid in deleted_ids
-                if mid in docs_by_id and docs_by_id[mid].content
+                docs_by_id[mid].content for mid in deleted_ids if mid in docs_by_id and docs_by_id[mid].content
             ]
             if evict_texts:
                 if hasattr(self._cache, "evict_batch"):
@@ -420,32 +392,24 @@ class MemoryManagerDeletionMixin(MemoryManagerArchivalMixin, MemoryManagerQuerie
                 logger.warning("Error clearing cache in delete_all: %s", e)
         return counts
 
-    async def _collect_vector_ids(
-        self, collection: str, filters: FilterDict
-    ) -> list[tuple[str, bool]]:
+    async def _collect_vector_ids(self, collection: str, filters: FilterDict) -> list[tuple[str, bool]]:
         if self._vector is None:
             return []
         ids: list[tuple[str, bool]] = []
         offset: str | None = None
         while True:
-            docs, offset = await self._vector.scroll(
-                collection, limit=500, offset=offset, filters=filters
-            )
+            docs, offset = await self._vector.scroll(collection, limit=500, offset=offset, filters=filters)
             ids.extend((doc.id, self._owns_vector_doc(doc)) for doc in docs)
             if offset is None:
                 return ids
 
-    async def _collect_vector_docs(
-        self, collection: str, filters: FilterDict
-    ) -> list[VectorDocument]:
+    async def _collect_vector_docs(self, collection: str, filters: FilterDict) -> list[VectorDocument]:
         if self._vector is None:
             return []
         collected: list[VectorDocument] = []
         offset: str | None = None
         while True:
-            docs, offset = await self._vector.scroll(
-                collection, limit=500, offset=offset, filters=filters
-            )
+            docs, offset = await self._vector.scroll(collection, limit=500, offset=offset, filters=filters)
             collected.extend(docs)
             if offset is None:
                 return collected

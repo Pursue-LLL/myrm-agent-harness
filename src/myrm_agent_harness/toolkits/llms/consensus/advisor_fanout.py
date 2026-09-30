@@ -134,7 +134,6 @@ class AdvisorFanoutRunner:
         ):
             return []
 
-
         query = _extract_last_human_query(messages)
         if not query:
             return []

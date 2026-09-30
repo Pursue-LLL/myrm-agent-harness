@@ -33,8 +33,7 @@ logger = logging.getLogger(__name__)
 class ConnectionLike(Protocol):
     """Protocol for SQLite connection or proxy wrapping a SQLite connection."""
 
-    def execute(self, sql: str, *args: object, **kwargs: object) -> object:
-        ...
+    def execute(self, sql: str, *args: object, **kwargs: object) -> object: ...
 
 
 def sanitize_fts5_query(query: str) -> str:

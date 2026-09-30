@@ -60,11 +60,7 @@ class FocusChangedError(ElementRefError):
     """
 
     def __init__(self, expected: str = "", actual: str = "") -> None:
-        detail = (
-            f" (expected foreground '{expected}', now '{actual}')"
-            if expected or actual
-            else ""
-        )
+        detail = f" (expected foreground '{expected}', now '{actual}')" if expected or actual else ""
         super().__init__(
             f"Foreground app changed during background operation{detail}. "
             "The action may have leaked to the wrong app: do NOT assume success. "

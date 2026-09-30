@@ -117,7 +117,9 @@ async def get_note_feed(session: BrowserSession, args: dict[str, str | int]) -> 
                     "author": "",
                     "likes": likes,
                     "note_type": note_type,
-                    "url": f"https://www.xiaohongshu.com/explore/{note_id}" if not note_id.startswith("xhs_ref_") else "",
+                    "url": f"https://www.xiaohongshu.com/explore/{note_id}"
+                    if not note_id.startswith("xhs_ref_")
+                    else "",
                 }
             )
 

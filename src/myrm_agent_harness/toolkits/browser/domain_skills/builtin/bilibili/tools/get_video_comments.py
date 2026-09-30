@@ -63,12 +63,14 @@ async def get_video_comments(session: Any, args: dict[str, Any]) -> str:
             items = await page.evaluate(eval_script)
             if isinstance(items, list) and items:
                 for it in items[:max_comments]:
-                    comments.append({
-                        "user": str(it.get("user", "")),
-                        "comment": str(it.get("comment", "")),
-                        "like_count": str(it.get("like_count", "")),
-                        "time": str(it.get("time", "")),
-                    })
+                    comments.append(
+                        {
+                            "user": str(it.get("user", "")),
+                            "comment": str(it.get("comment", "")),
+                            "like_count": str(it.get("like_count", "")),
+                            "time": str(it.get("time", "")),
+                        }
+                    )
     except Exception as exc:
         logger.debug("Bilibili comments evaluate track encountered non-fatal error: %s", exc)
 
@@ -85,12 +87,14 @@ async def get_video_comments(session: Any, args: dict[str, Any]) -> str:
             name = (info.name or "").strip()
             # Bilibili comment refs often contain 回复 or 点赞
             if info.role in ("article", "listitem") and len(name) > 10:
-                comments.append({
-                    "user": "",
-                    "comment": name[:300],
-                    "like_count": "",
-                    "time": "",
-                    "ref": ref_id,
-                })
+                comments.append(
+                    {
+                        "user": "",
+                        "comment": name[:300],
+                        "like_count": "",
+                        "time": "",
+                        "ref": ref_id,
+                    }
+                )
 
     return json.dumps(comments, ensure_ascii=False, indent=2)

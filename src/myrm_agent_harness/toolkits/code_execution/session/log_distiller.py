@@ -37,10 +37,14 @@ _PROGRESS_LINE_PATTERNS: Final[tuple[Pattern[str], ...]] = (
 )
 
 _ERROR_SIGNAL_PATTERNS: Final[tuple[Pattern[str], ...]] = (
-    re.compile(r"\b(?:401\s+Unauthorized|403\s+Forbidden|426\s+Upgrade\s+Required|502\s+Bad\s+Gateway)\b", re.IGNORECASE),
+    re.compile(
+        r"\b(?:401\s+Unauthorized|403\s+Forbidden|426\s+Upgrade\s+Required|502\s+Bad\s+Gateway)\b", re.IGNORECASE
+    ),
     re.compile(r"\b(?:EADDRINUSE|ECONNREFUSED|ETIMEDOUT|ECONNRESET|ENOTFOUND)\b"),
     re.compile(r"\b(?:Permission\s+denied|Access\s+denied|Operation\s+not\s+permitted)\b", re.IGNORECASE),
-    re.compile(r"\b(?:npm\s+ERR!|yarn\s+error|pip\s+error|fatal:\s+|panic:\s+|SIGSEGV|OutOfMemoryError)\b", re.IGNORECASE),
+    re.compile(
+        r"\b(?:npm\s+ERR!|yarn\s+error|pip\s+error|fatal:\s+|panic:\s+|SIGSEGV|OutOfMemoryError)\b", re.IGNORECASE
+    ),
     re.compile(r"\b(?:Traceback\s+\(most\s+recent\s+call\s+last\):|SyntaxError:|TypeError:|ValueError:|KeyError:)\b"),
     re.compile(r"\b(?:error\[E\d+\]:|error:\s+|FAILED\b|CMake\s+Error|make:\s+\*\*\*)\b", re.IGNORECASE),
     re.compile(r"\b(?:nginx:\s+\[emerg\]|nginx:\s+\[alert\]|systemctl:\s+Job\s+failed)\b", re.IGNORECASE),
@@ -158,7 +162,9 @@ class TerminalLogDistiller:
 
         # 3. Assemble formatted snippet with omission indicators
         snippet_parts: list[str] = []
-        snippet_parts.append(f"--- [DISTILLED LOG: {original_line_count} lines -> top signals, exit_code={exit_code}] ---")
+        snippet_parts.append(
+            f"--- [DISTILLED LOG: {original_line_count} lines -> top signals, exit_code={exit_code}] ---"
+        )
 
         last_idx = -1
         current_lines_budget = max_output_lines - 4  # Reserve lines for headers and footer
@@ -216,4 +222,3 @@ def distill_terminal_output(
         raw_log_path=raw_log_path,
         exit_code=exit_code,
     )
-

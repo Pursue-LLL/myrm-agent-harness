@@ -270,6 +270,3 @@ class MerchantBackendProtocol(Protocol):
 # Aliases for compatibility
 StorefrontBackend = StorefrontBackendProtocol
 MerchantBackend = MerchantBackendProtocol
-
-
-

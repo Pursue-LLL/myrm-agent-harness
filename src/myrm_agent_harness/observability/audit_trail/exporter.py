@@ -110,38 +110,42 @@ class ComplianceTrailExporter:
         """Export compliance report entries as standard CSV."""
         output = io.StringIO()
         writer = csv.writer(output)
-        writer.writerow([
-            "entry_id",
-            "created_at",
-            "session_id",
-            "agent_id",
-            "tool_name",
-            "intent_summary",
-            "rule_name",
-            "state",
-            "outcome",
-            "is_human_take_the_wheel",
-            "latency_ms",
-            "output_length",
-            "error_message",
-        ])
+        writer.writerow(
+            [
+                "entry_id",
+                "created_at",
+                "session_id",
+                "agent_id",
+                "tool_name",
+                "intent_summary",
+                "rule_name",
+                "state",
+                "outcome",
+                "is_human_take_the_wheel",
+                "latency_ms",
+                "output_length",
+                "error_message",
+            ]
+        )
 
         for e in report.entries:
-            writer.writerow([
-                e.entry_id,
-                e.created_at.isoformat(),
-                e.session_id,
-                e.agent_id,
-                e.tool_name,
-                e.intent_summary,
-                e.rule_name,
-                str(e.state),
-                str(e.outcome),
-                "YES" if e.is_human_take_the_wheel else "NO",
-                e.latency_ms,
-                e.output_length,
-                e.error_message or "",
-            ])
+            writer.writerow(
+                [
+                    e.entry_id,
+                    e.created_at.isoformat(),
+                    e.session_id,
+                    e.agent_id,
+                    e.tool_name,
+                    e.intent_summary,
+                    e.rule_name,
+                    str(e.state),
+                    str(e.outcome),
+                    "YES" if e.is_human_take_the_wheel else "NO",
+                    e.latency_ms,
+                    e.output_length,
+                    e.error_message or "",
+                ]
+            )
 
         return output.getvalue()
 
@@ -170,13 +174,15 @@ class ComplianceTrailExporter:
                 f"| `{r.rule_name}` | {r.trigger_count} | {r.refused_count} | {r.permitted_count} | {r.failed_count} | {r.refusal_rate:.1%} |"
             )
 
-        lines.extend([
-            "",
-            "## Recent Audit Trail Log Entries (Redacted & Sealed)",
-            "",
-            "| Time | Session | Tool | State | Outcome | Rule | TTW | Latency | Summary |",
-            "|------|---------|------|-------|---------|------|-----|---------|---------|",
-        ])
+        lines.extend(
+            [
+                "",
+                "## Recent Audit Trail Log Entries (Redacted & Sealed)",
+                "",
+                "| Time | Session | Tool | State | Outcome | Rule | TTW | Latency | Summary |",
+                "|------|---------|------|-------|---------|------|-----|---------|---------|",
+            ]
+        )
 
         for e in report.entries[:50]:
             ttw_tag = "🧑 TakeWheel" if e.is_human_take_the_wheel else "🤖 Auto"

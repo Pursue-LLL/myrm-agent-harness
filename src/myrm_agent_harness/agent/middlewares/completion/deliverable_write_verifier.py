@@ -105,7 +105,9 @@ _EXPLANATION_INTENT_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(
         r"(?i)\b(what is|explain|difference between|how does|why does|what are|example|sample|demo|snippet|don't save|do not save|no need to save|just show|just explain)\b"
     ),
-    re.compile(r"(什么是|解释一下|解释|为什么|区别是什么|怎么理解|如何理解|原理是什么|原理|例子|示例|演示|片段|不用保存|无需保存|不要保存|仅供参考|只看不写|纯演示)"),
+    re.compile(
+        r"(什么是|解释一下|解释|为什么|区别是什么|怎么理解|如何理解|原理是什么|原理|例子|示例|演示|片段|不用保存|无需保存|不要保存|仅供参考|只看不写|纯演示)"
+    ),
 )
 
 _DELIVERABLE_INTENT_PATTERNS: tuple[re.Pattern[str], ...] = (
@@ -171,7 +173,9 @@ def _extract_filename_hint(code_body: str, preceding_text: str | None = None) ->
                 if match:
                     return match.group(1).strip()
             # Also check markdown header path like `### 1. app/server.py` or `**config.yaml**`
-            header_match = re.search(r"[`*#\s]*([a-zA-Z0-9_\-./]+\.(?:py|ts|tsx|js|jsx|html|css|sh|sql|json|yaml|yml|md|csv))\b", line)
+            header_match = re.search(
+                r"[`*#\s]*([a-zA-Z0-9_\-./]+\.(?:py|ts|tsx|js|jsx|html|css|sh|sql|json|yaml|yml|md|csv))\b", line
+            )
             if header_match:
                 candidate = header_match.group(1).strip()
                 if not candidate.startswith(("http:", "https:", "www.")):

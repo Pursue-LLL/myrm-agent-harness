@@ -67,11 +67,6 @@ def extract_spend_info(
     except (ValueError, TypeError):
         return None
 
-    raw_currency = (
-        args.get("currency")
-        or args.get("currency_code")
-        or args.get("curr")
-        or "USD"
-    )
+    raw_currency = args.get("currency") or args.get("currency_code") or args.get("curr") or "USD"
     currency = str(raw_currency).strip().upper() if raw_currency else "USD"
     return (parsed_amount, currency)

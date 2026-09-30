@@ -26,7 +26,6 @@ class SnapshotTrigger(StrEnum):
     CHECKPOINT_SYNC = "checkpoint_sync"
 
 
-
 SnapshotId = str
 
 

@@ -356,17 +356,13 @@ def _parse_ax_output(
         if role not in INTERACTIVE_AX_ROLES and role not in set(_SNAPSHOT_ROLE_FILTER):
             continue
         try:
-            bbox = BBox(
-                int(float(x_s)), int(float(y_s)), int(float(w_s)), int(float(h_s))
-            )
+            bbox = BBox(int(float(x_s)), int(float(y_s)), int(float(w_s)), int(float(h_s)))
         except ValueError:
             continue
         if bbox.width <= 0 or bbox.height <= 0:
             continue
         ref_id = f"d{ref_index}"
-        actions = (
-            ("click", "fill") if role in {"AXTextField", "AXTextArea"} else ("click",)
-        )
+        actions = ("click", "fill") if role in {"AXTextField", "AXTextArea"} else ("click",)
         refs[ref_id] = ElementRef(
             ref_id=ref_id,
             role=role,
@@ -413,14 +409,10 @@ def capture_ax_snapshot(
             _set_enhanced_ui(pid)
 
     if target_app is not None or query or role:
-        script = _build_ax_snapshot_script(
-            target_app=target_app, query=query, role=role
-        )
+        script = _build_ax_snapshot_script(target_app=target_app, query=query, role=role)
         try:
             result = _run_ax_snapshot(script)
-            return _parse_ax_output(
-                result, effective_scope=scope if target_app else "foreground"
-            )
+            return _parse_ax_output(result, effective_scope=scope if target_app else "foreground")
         except AXTreeEmptyError:
             if target_app is not None:
                 logger.info(
@@ -528,12 +520,8 @@ def invoke_ax_element(
     }:
         return ActionResult(success=False, error=f"Unsupported AX action: {action}")
 
-    ax_action = (
-        "fill" if normalized_action in {"fill", "type", "set_value"} else "click"
-    )
-    invoke_script = (
-        _build_ax_invoke_script(target_app=app_name) if app_name else _AX_INVOKE_SCRIPT
-    )
+    ax_action = "fill" if normalized_action in {"fill", "type", "set_value"} else "click"
+    invoke_script = _build_ax_invoke_script(target_app=app_name) if app_name else _AX_INVOKE_SCRIPT
     try:
         result = subprocess.run(
             ["osascript", "-e", invoke_script, ax_action, backend_key, text],
@@ -547,30 +535,66 @@ def invoke_ax_element(
     if result.returncode != 0:
         stderr = result.stderr.strip()
         if "不允许辅助访问" in stderr or "not allowed assistive" in stderr.lower():
-            return ActionResult(
-                success=False, error="Accessibility permission required on macOS"
-            )
+            return ActionResult(success=False, error="Accessibility permission required on macOS")
         return ActionResult(success=False, error=stderr or "AX invoke failed")
 
     if result.stdout.strip() != "OK":
-        return ActionResult(
-            success=False, error=result.stdout.strip() or "AX invoke failed"
-        )
+        return ActionResult(success=False, error=result.stdout.strip() or "AX invoke failed")
     return ActionResult(success=True, output=f"AX {ax_action} succeeded")
 
 
 _SCRIPTABLE_APPS: frozenset[str] = frozenset(
     {
-        "Finder", "Mail", "Safari", "Notes", "Reminders",
-        "Calendar", "Messages", "Preview", "Music", "TV",
-        "Podcasts", "Photos", "Keynote", "Pages", "Numbers",
-        "TextEdit", "Terminal", "Script Editor", "System Settings", "System Preferences",
-        "Automator", "Shortcuts", "Microsoft Excel", "Microsoft Word", "Microsoft PowerPoint",
-        "Microsoft Outlook", "Google Chrome", "Slack", "Spotify", "iTerm2",
-        "iTerm", "Adobe Photoshop", "Adobe Illustrator", "Adobe Acrobat", "Adobe InDesign",
-        "Sketch", "Final Cut Pro", "Logic Pro", "GarageBand", "Xcode",
-        "WPS Office", "Firefox", "Arc", "Obsidian", "Discord",
-        "Visual Studio Code", "Cursor", "OmniGraffle", "DEVONthink", "Affinity Designer",
+        "Finder",
+        "Mail",
+        "Safari",
+        "Notes",
+        "Reminders",
+        "Calendar",
+        "Messages",
+        "Preview",
+        "Music",
+        "TV",
+        "Podcasts",
+        "Photos",
+        "Keynote",
+        "Pages",
+        "Numbers",
+        "TextEdit",
+        "Terminal",
+        "Script Editor",
+        "System Settings",
+        "System Preferences",
+        "Automator",
+        "Shortcuts",
+        "Microsoft Excel",
+        "Microsoft Word",
+        "Microsoft PowerPoint",
+        "Microsoft Outlook",
+        "Google Chrome",
+        "Slack",
+        "Spotify",
+        "iTerm2",
+        "iTerm",
+        "Adobe Photoshop",
+        "Adobe Illustrator",
+        "Adobe Acrobat",
+        "Adobe InDesign",
+        "Sketch",
+        "Final Cut Pro",
+        "Logic Pro",
+        "GarageBand",
+        "Xcode",
+        "WPS Office",
+        "Firefox",
+        "Arc",
+        "Obsidian",
+        "Discord",
+        "Visual Studio Code",
+        "Cursor",
+        "OmniGraffle",
+        "DEVONthink",
+        "Affinity Designer",
     }
 )
 

@@ -39,9 +39,7 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
 
     vault = get_global_credential_vault()
     labels = vault.list_labels()
-    labels_str = (
-        ", ".join([f"'{lbl}'" for lbl in labels]) if labels else "none available"
-    )
+    labels_str = ", ".join([f"'{lbl}'" for lbl in labels]) if labels else "none available"
 
     class SnapshotInput(BaseModel):
         scope: SnapshotScope = Field(

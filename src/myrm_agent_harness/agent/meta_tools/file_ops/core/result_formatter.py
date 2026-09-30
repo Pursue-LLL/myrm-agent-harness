@@ -41,7 +41,6 @@ def clamp_line(line: str, max_length: int | None) -> str:
     return f"{line[:max_length]}{_TRUNCATED_MARKER}"
 
 
-
 @dataclass
 class FileContent:
     """文件内容数据"""
@@ -120,8 +119,7 @@ class ResultFormatter:
         else:
             # 添加行号（超长行按 max_line_length clamp）
             numbered_lines = [
-                f"{i + 1:{LINE_NUMBER_WIDTH}}|{clamp_line(line, max_line_length)}"
-                for i, line in enumerate(lines)
+                f"{i + 1:{LINE_NUMBER_WIDTH}}|{clamp_line(line, max_line_length)}" for i, line in enumerate(lines)
             ]
             result_content = "\n".join(numbered_lines)
 

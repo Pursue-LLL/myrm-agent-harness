@@ -29,12 +29,14 @@ SourceProvenanceClass = Literal[
 
 SourceRiskLevel = Literal["low", "medium", "high"]
 
-VALID_PROVENANCE_CLASSES: frozenset[str] = frozenset({
-    "official_doc",
-    "author_claim",
-    "untrusted",
-    "agent_synthesis",
-})
+VALID_PROVENANCE_CLASSES: frozenset[str] = frozenset(
+    {
+        "official_doc",
+        "author_claim",
+        "untrusted",
+        "agent_synthesis",
+    }
+)
 
 VALID_RISK_LEVELS: frozenset[str] = frozenset({"low", "medium", "high"})
 
@@ -48,9 +50,7 @@ class SourceCardContract:
     author: str
     platform: str
     url_or_path: str
-    captured_at: str = field(
-        default_factory=lambda: datetime.now(UTC).isoformat(timespec="seconds")
-    )
+    captured_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat(timespec="seconds"))
     provenance_class: SourceProvenanceClass = "author_claim"
     risk_level: SourceRiskLevel = "medium"
     covered_concepts: list[str] = field(default_factory=list)
@@ -71,14 +71,10 @@ def parse_source_card(content: str, default_source_id: str = "") -> SourceCardCo
     author = str(metadata.get("author") or "Unknown").strip()
     platform = str(metadata.get("platform") or "web").strip()
     url_or_path = str(metadata.get("url_or_path") or metadata.get("url") or "").strip()
-    captured_at = str(
-        metadata.get("captured_at") or datetime.now(UTC).isoformat(timespec="seconds")
-    ).strip()
+    captured_at = str(metadata.get("captured_at") or datetime.now(UTC).isoformat(timespec="seconds")).strip()
 
     raw_prov = str(metadata.get("provenance_class") or "author_claim").strip()
-    provenance_class: SourceProvenanceClass = (
-        raw_prov if raw_prov in VALID_PROVENANCE_CLASSES else "author_claim"
-    )
+    provenance_class: SourceProvenanceClass = raw_prov if raw_prov in VALID_PROVENANCE_CLASSES else "author_claim"
 
     raw_risk = str(metadata.get("risk_level") or "medium").strip()
     risk_level: SourceRiskLevel = raw_risk if raw_risk in VALID_RISK_LEVELS else "medium"

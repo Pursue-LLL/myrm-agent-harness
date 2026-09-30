@@ -48,11 +48,7 @@ class ReviewComment:
         """Serialize review comment for metadata persistence and SSE transport."""
         result: dict[str, object] = {
             "message": self.message,
-            "severity": (
-                self.severity.value
-                if isinstance(self.severity, ReviewSeverity)
-                else str(self.severity)
-            ),
+            "severity": (self.severity.value if isinstance(self.severity, ReviewSeverity) else str(self.severity)),
         }
         if self.target_path:
             result["target_path"] = self.target_path
@@ -79,9 +75,7 @@ class ReviewComment:
             severity=severity,
             target_path=str(data["target_path"]) if data.get("target_path") else None,
             line_range=str(data["line_range"]) if data.get("line_range") else None,
-            fix_suggestion=(
-                str(data["fix_suggestion"]) if data.get("fix_suggestion") else None
-            ),
+            fix_suggestion=(str(data["fix_suggestion"]) if data.get("fix_suggestion") else None),
             id=str(data["id"]) if data.get("id") else None,
         )
 
@@ -159,9 +153,7 @@ class AggregatedVerificationResult:
     @property
     def error_logs(self) -> str | None:
         """Combined error logs from failed criteria."""
-        logs = [
-            r.error_logs for r in self.per_criterion if not r.passed and r.error_logs
-        ]
+        logs = [r.error_logs for r in self.per_criterion if not r.passed and r.error_logs]
         return "\n".join(logs) if logs else None
 
     @property
@@ -184,9 +176,7 @@ class AggregatedVerificationResult:
     @property
     def infra_guidance(self) -> str | None:
         """Combined infrastructure fault guidance to instruct agent not to mutate business code."""
-        items = [
-            r.fault_guidance for r in self.per_criterion if not r.passed and r.fault_guidance
-        ]
+        items = [r.fault_guidance for r in self.per_criterion if not r.passed and r.fault_guidance]
         return "\n\n".join(items) if items else None
 
 
@@ -197,9 +187,7 @@ class BaseCriterion(ABC):
         self.config = kwargs
 
     @abstractmethod
-    async def verify(
-        self, goal_provider: GoalProvider | None = None
-    ) -> VerificationResult:
+    async def verify(self, goal_provider: GoalProvider | None = None) -> VerificationResult:
         """Execute the verification logic.
 
         Args:

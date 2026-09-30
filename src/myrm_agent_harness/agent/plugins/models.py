@@ -66,9 +66,7 @@ class PluginSkill:
     name: str  # immediate child directory name that contains SKILL.md
     description: str  # parsed from SKILL.md frontmatter description (may be empty)
     content: str  # SKILL.md pure content (frontmatter stripped)
-    files: dict[str, bytes] = field(
-        default_factory=dict
-    )  # all files under the skill dir (relative paths)
+    files: dict[str, bytes] = field(default_factory=dict)  # all files under the skill dir (relative paths)
     metadata: dict[str, Any] = field(default_factory=dict)  # skill frontmatter metadata
 
     @property
@@ -183,4 +181,3 @@ class PluginParseResult:
         level: PluginDiagnosticLevel = PluginDiagnosticLevel.ERROR,
     ) -> None:
         self.diagnostics.append(PluginDiagnostic(component, code, message, level))
-

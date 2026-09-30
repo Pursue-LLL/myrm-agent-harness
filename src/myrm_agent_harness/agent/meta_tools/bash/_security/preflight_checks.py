@@ -170,9 +170,7 @@ def _scan_python_file_path(script_path: Path, command: str) -> None:
     try:
         source = script_path.read_text(encoding="utf-8")
     except OSError as exc:
-        logger.warning(
-            "Unable to read referenced python script %s: %s", script_path, exc
-        )
+        logger.warning("Unable to read referenced python script %s: %s", script_path, exc)
         return
     if _python_ast_references_myrm_tools(source):
         _raise_myrm_tools_blocked(command)
@@ -186,9 +184,7 @@ def _extract_referenced_python_scripts(command: str) -> list[str]:
     return list(dict.fromkeys(_PYTHON_SCRIPT_INVOCATION_RE.findall(command)))
 
 
-def _resolve_referenced_python_path(
-    script_ref: str, workspace_root: str | None
-) -> Path | None:
+def _resolve_referenced_python_path(script_ref: str, workspace_root: str | None) -> Path | None:
     from myrm_agent_harness.toolkits.code_execution.utils.workspace_path import (
         WorkspacePathResolver,
     )
@@ -229,9 +225,7 @@ def _scan_referenced_python_files(command: str, workspace_root: str | None) -> N
         _scan_python_file_path(script_path, command)
 
 
-def _scan_cat_pipe_feeder_python_files(
-    command: str, workspace_root: str | None
-) -> None:
+def _scan_cat_pipe_feeder_python_files(command: str, workspace_root: str | None) -> None:
     from myrm_agent_harness.toolkits.code_execution.python_extractor import (
         extract_cat_py_paths_from_pipe_feeders,
     )
@@ -262,9 +256,7 @@ def check_myrm_tools_import(command: str, *, workspace_root: str | None = None) 
     )
 
     detection = code_detector.detect(command)
-    code = (
-        detection.extracted_code if detection.code_type == CodeType.PYTHON else command
-    )
+    code = detection.extracted_code if detection.code_type == CodeType.PYTHON else command
 
     if _python_ast_references_myrm_tools(code):
         _raise_myrm_tools_blocked(command)
@@ -274,9 +266,7 @@ def check_myrm_tools_import(command: str, *, workspace_root: str | None = None) 
         _raise_myrm_tools_blocked(command)
         return
 
-    if detection.code_type == CodeType.BASH and _shell_command_references_myrm_tools(
-        command
-    ):
+    if detection.code_type == CodeType.BASH and _shell_command_references_myrm_tools(command):
         _raise_myrm_tools_blocked(command)
         return
 
@@ -285,9 +275,7 @@ def check_myrm_tools_import(command: str, *, workspace_root: str | None = None) 
     )
 
     pipe_stdin_code = extract_python_from_pipe_stdin(command)
-    if pipe_stdin_code is not None and _python_ast_references_myrm_tools(
-        pipe_stdin_code
-    ):
+    if pipe_stdin_code is not None and _python_ast_references_myrm_tools(pipe_stdin_code):
         _raise_myrm_tools_blocked(command)
         return
 
@@ -331,9 +319,7 @@ def check_command_url_exfiltration(command: str) -> None:
         warnings = check_url_exfiltration(url, allow_private_networks=True)
         if warnings:
             safe_url = sanitize_url_for_error(url)
-            logger.warning(
-                f" Data exfiltration detected in bash command: {command[:100]}"
-            )
+            logger.warning(f" Data exfiltration detected in bash command: {command[:100]}")
             for warning in warnings:
                 logger.warning(f" - {warning} in URL: {safe_url}")
             raise ToolError(
@@ -575,7 +561,11 @@ def _detect_destructive_tokens(segment: str) -> str | None:
     # rm command inspection
     if "rm" in tokens:
         rm_idx = tokens.index("rm")
-        if rm_idx == 0 or tokens[rm_idx - 1] in ("sudo", "env", "xargs", "do", "then") or any(t == "xargs" for t in tokens[:rm_idx]):
+        if (
+            rm_idx == 0
+            or tokens[rm_idx - 1] in ("sudo", "env", "xargs", "do", "then")
+            or any(t == "xargs" for t in tokens[:rm_idx])
+        ):
             rm_args = tokens[rm_idx + 1 :]
             rm_flags: set[str] = set()
             targets: list[str] = []
@@ -685,12 +675,8 @@ _SCAFFOLD_NON_INTERACTIVE_RE = re.compile(
 )
 
 _GIT_COMMIT_RE = re.compile(r"\bgit\s+commit\b")
-_GIT_COMMIT_MSG_RE = re.compile(
-    r"(?:\s-[a-zA-Z]*m[\s\"']|\s--message[\s=]|\s-F\s|\s--file[\s=])"
-)
-_GIT_INTERACTIVE_RE = re.compile(
-    r"\bgit\s+(?:rebase\s+(?:-i|--interactive)|add\s+(?:-i|-p|--interactive|--patch))\b"
-)
+_GIT_COMMIT_MSG_RE = re.compile(r"(?:\s-[a-zA-Z]*m[\s\"']|\s--message[\s=]|\s-F\s|\s--file[\s=])")
+_GIT_INTERACTIVE_RE = re.compile(r"\bgit\s+(?:rebase\s+(?:-i|--interactive)|add\s+(?:-i|-p|--interactive|--patch))\b")
 _POETRY_INIT_RE = re.compile(r"\bpoetry\s+init\b")
 
 
@@ -701,9 +687,7 @@ def check_interactive_command(command: str) -> str | None:
     """
     lowered = command.lower()
 
-    if any(
-        marker in lowered for marker in _SCAFFOLD_MARKERS
-    ) and not _SCAFFOLD_NON_INTERACTIVE_RE.search(lowered):
+    if any(marker in lowered for marker in _SCAFFOLD_MARKERS) and not _SCAFFOLD_NON_INTERACTIVE_RE.search(lowered):
         return (
             "This command requires interactive input (template/option selection). "
             "The bash tool cannot answer prompts. "
@@ -711,15 +695,17 @@ def check_interactive_command(command: str) -> str | None:
         )
 
     if _GIT_COMMIT_RE.search(lowered) and not _GIT_COMMIT_MSG_RE.search(command):
-        return 'git commit without -m/--message opens an editor for interactive input. Use: git commit -m "your message"'
+        return (
+            'git commit without -m/--message opens an editor for interactive input. Use: git commit -m "your message"'
+        )
 
     if _GIT_INTERACTIVE_RE.search(lowered):
-        return "This git command opens an interactive editor/UI. The bash tool cannot handle interactive git operations."
+        return (
+            "This git command opens an interactive editor/UI. The bash tool cannot handle interactive git operations."
+        )
 
     if _POETRY_INIT_RE.search(lowered) and "--no-interaction" not in lowered:
-        return (
-            "poetry init requires interactive input. Use: poetry init --no-interaction"
-        )
+        return "poetry init requires interactive input. Use: poetry init --no-interaction"
 
     return None
 
@@ -884,18 +870,12 @@ async def _probe_registry(package: str, url: str, cache_key: str) -> tuple[str, 
 def _probe_pypi(package: str) -> asyncio.Task[tuple[str, bool]]:
     normalized = _normalize_pypi_name(package)
     return asyncio.create_task(
-        _probe_registry(
-            package, f"https://pypi.org/pypi/{normalized}/json", f"pypi:{normalized}"
-        )
+        _probe_registry(package, f"https://pypi.org/pypi/{normalized}/json", f"pypi:{normalized}")
     )
 
 
 def _probe_npm(package: str) -> asyncio.Task[tuple[str, bool]]:
-    return asyncio.create_task(
-        _probe_registry(
-            package, f"https://registry.npmjs.org/{package}", f"npm:{package}"
-        )
-    )
+    return asyncio.create_task(_probe_registry(package, f"https://registry.npmjs.org/{package}", f"npm:{package}"))
 
 
 async def check_install_packages(command: str) -> None:
@@ -952,9 +932,7 @@ async def check_install_packages(command: str) -> None:
         from myrm_agent_harness.utils.errors import ToolError
 
         details = "; ".join(f"'{name}' not found on {reg}" for name, reg in missing)
-        logger.warning(
-            "Slopcheck blocked install: %s (command: %s)", details, command[:120]
-        )
+        logger.warning("Slopcheck blocked install: %s (command: %s)", details, command[:120])
         raise ToolError(
             f"Package verification failed: {details}. "
             "Please verify the package name(s) — AI models sometimes hallucinate non-existent packages.",

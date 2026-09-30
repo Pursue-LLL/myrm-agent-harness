@@ -83,9 +83,7 @@ class StreamTruncationRecoveryMixin:
         # providers that inline ``<think>`` into ``content`` (MiniMax) otherwise
         # look like they produced user-visible text.
         has_tagged_reasoning = self._has_inline_reasoning(last_ai_msg)
-        has_content = (
-            False if has_tagged_reasoning else self._has_non_reasoning_content(last_ai_msg)
-        )
+        has_content = False if has_tagged_reasoning else self._has_non_reasoning_content(last_ai_msg)
         has_reasoning = has_tagged_reasoning or self._has_reasoning_content(last_ai_msg)
 
         ctx = self._ctx
@@ -313,10 +311,7 @@ class StreamTruncationRecoveryMixin:
         if base is None:
             base = self._default_output_tokens()
         if base is None:
-            logger.warning(
-                " Output token boost skipped: no configured max_tokens and model "
-                "ceiling unknown"
-            )
+            logger.warning(" Output token boost skipped: no configured max_tokens and model ceiling unknown")
             return
 
         multiplier = min(retries + 2, 4)
@@ -346,9 +341,7 @@ class StreamTruncationRecoveryMixin:
         if not isinstance(model, str) or not model:
             return None
         llm_kwargs = getattr(llm, "model_kwargs", None)
-        return thinking_output_floor(
-            model, llm_kwargs if isinstance(llm_kwargs, dict) else None
-        )
+        return thinking_output_floor(model, llm_kwargs if isinstance(llm_kwargs, dict) else None)
 
     def _get_configured_max_tokens(self) -> int | None:
         """Read the configured max_tokens from the LLM instance.

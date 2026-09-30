@@ -30,59 +30,216 @@ class ValidationResult:
 
 
 # Read-only primary command names allowed by default
-_READ_ONLY_COMMANDS: Final[frozenset[str]] = frozenset({
-    # Text and file display
-    "cat", "head", "tail", "more", "less", "grep", "egrep", "fgrep",
-    "awk", "sed", "cut", "tr", "sort", "uniq", "wc", "diff", "cmp",
-    "comm", "column", "paste", "fold", "nl", "pr", "od", "hexdump",
-    "xxd", "strings", "file", "stat", "ls", "dir", "vdir", "find",
-    "which", "whereis", "type", "locate",
-    # System and hardware telemetry
-    "du", "df", "free", "vmstat", "iostat", "mpstat", "top", "htop",
-    "ps", "pgrep", "pstree", "pidof", "uptime", "dmesg", "journalctl",
-    "uname", "hostname", "id", "whoami", "who", "w", "last", "lastlog",
-    "env", "printenv", "echo", "printf", "date", "cal",
-    "lsblk", "blkid", "lscpu", "lsmem", "lspci", "lsusb", "dmidecode",
-    "nvidia-smi", "rocm-smi",
-    # Network state inspection
-    "netstat", "ss", "lsof", "ping", "traceroute", "tracepath",
-    "dig", "nslookup", "host",
-    # Checksums and archive inspection
-    "md5sum", "sha1sum", "sha256sum", "sha512sum", "base64",
-    "zcat", "zgrep", "zless", "bzcat", "xzcat", "zipinfo",
-    # Monitored multi-subcommand utilities
-    "systemctl", "service", "docker", "kubectl", "sysctl", "ip", "ifconfig",
-    "tar", "unzip", "curl", "wget", "git",
-})
+_READ_ONLY_COMMANDS: Final[frozenset[str]] = frozenset(
+    {
+        # Text and file display
+        "cat",
+        "head",
+        "tail",
+        "more",
+        "less",
+        "grep",
+        "egrep",
+        "fgrep",
+        "awk",
+        "sed",
+        "cut",
+        "tr",
+        "sort",
+        "uniq",
+        "wc",
+        "diff",
+        "cmp",
+        "comm",
+        "column",
+        "paste",
+        "fold",
+        "nl",
+        "pr",
+        "od",
+        "hexdump",
+        "xxd",
+        "strings",
+        "file",
+        "stat",
+        "ls",
+        "dir",
+        "vdir",
+        "find",
+        "which",
+        "whereis",
+        "type",
+        "locate",
+        # System and hardware telemetry
+        "du",
+        "df",
+        "free",
+        "vmstat",
+        "iostat",
+        "mpstat",
+        "top",
+        "htop",
+        "ps",
+        "pgrep",
+        "pstree",
+        "pidof",
+        "uptime",
+        "dmesg",
+        "journalctl",
+        "uname",
+        "hostname",
+        "id",
+        "whoami",
+        "who",
+        "w",
+        "last",
+        "lastlog",
+        "env",
+        "printenv",
+        "echo",
+        "printf",
+        "date",
+        "cal",
+        "lsblk",
+        "blkid",
+        "lscpu",
+        "lsmem",
+        "lspci",
+        "lsusb",
+        "dmidecode",
+        "nvidia-smi",
+        "rocm-smi",
+        # Network state inspection
+        "netstat",
+        "ss",
+        "lsof",
+        "ping",
+        "traceroute",
+        "tracepath",
+        "dig",
+        "nslookup",
+        "host",
+        # Checksums and archive inspection
+        "md5sum",
+        "sha1sum",
+        "sha256sum",
+        "sha512sum",
+        "base64",
+        "zcat",
+        "zgrep",
+        "zless",
+        "bzcat",
+        "xzcat",
+        "zipinfo",
+        # Monitored multi-subcommand utilities
+        "systemctl",
+        "service",
+        "docker",
+        "kubectl",
+        "sysctl",
+        "ip",
+        "ifconfig",
+        "tar",
+        "unzip",
+        "curl",
+        "wget",
+        "git",
+    }
+)
 
 # Subcommand restrictions for dual-use tools
 _ALLOWED_SUBCOMMANDS: Final[dict[str, frozenset[str]]] = {
-    "systemctl": frozenset({
-        "status", "is-active", "is-failed", "is-enabled", "list-units",
-        "list-unit-files", "cat", "show", "help",
-    }),
+    "systemctl": frozenset(
+        {
+            "status",
+            "is-active",
+            "is-failed",
+            "is-enabled",
+            "list-units",
+            "list-unit-files",
+            "cat",
+            "show",
+            "help",
+        }
+    ),
     "service": frozenset({"status"}),
-    "docker": frozenset({
-        "ps", "logs", "inspect", "images", "stats", "top", "version", "info", "diff",
-    }),
-    "kubectl": frozenset({
-        "get", "describe", "logs", "explain", "top", "cluster-info", "version", "diff",
-    }),
-    "git": frozenset({
-        "status", "log", "diff", "show", "branch", "tag", "rev-parse",
-    }),
+    "docker": frozenset(
+        {
+            "ps",
+            "logs",
+            "inspect",
+            "images",
+            "stats",
+            "top",
+            "version",
+            "info",
+            "diff",
+        }
+    ),
+    "kubectl": frozenset(
+        {
+            "get",
+            "describe",
+            "logs",
+            "explain",
+            "top",
+            "cluster-info",
+            "version",
+            "diff",
+        }
+    ),
+    "git": frozenset(
+        {
+            "status",
+            "log",
+            "diff",
+            "show",
+            "branch",
+            "tag",
+            "rev-parse",
+        }
+    ),
 }
 
 # Dangerous write pipelines that accept piped input to modify state
-_DANGEROUS_PIPE_TARGETS: Final[frozenset[str]] = frozenset({
-    "tee", "dd", "sh", "bash", "zsh", "ksh", "csh", "sudo", "su", "doas",
-    "python", "python3", "perl", "ruby", "node", "rm", "mv", "cp",
-})
+_DANGEROUS_PIPE_TARGETS: Final[frozenset[str]] = frozenset(
+    {
+        "tee",
+        "dd",
+        "sh",
+        "bash",
+        "zsh",
+        "ksh",
+        "csh",
+        "sudo",
+        "su",
+        "doas",
+        "python",
+        "python3",
+        "perl",
+        "ruby",
+        "node",
+        "rm",
+        "mv",
+        "cp",
+    }
+)
 
 # Redirection operators indicating write/append
-_WRITE_REDIRECTION_OPS: Final[frozenset[str]] = frozenset({
-    ">", ">>", ">|", "<>", ">&", "1>", "2>", "1>>", "2>>", "&>",
-})
+_WRITE_REDIRECTION_OPS: Final[frozenset[str]] = frozenset(
+    {
+        ">",
+        ">>",
+        ">|",
+        "<>",
+        ">&",
+        "1>",
+        "2>",
+        "1>>",
+        "2>>",
+        "&>",
+    }
+)
 
 # Command substitution patterns: $(...) and `...`
 _COMMAND_SUBST_DOLLAR: Final[re.Pattern[str]] = re.compile(r"\$\((.+?)\)")
@@ -213,9 +370,7 @@ class ReadOnlySSHValidator:
 
         return ValidationResult(is_safe=True)
 
-    def _validate_stage_tokens(
-        self, tokens: list[str], is_piped_target: bool, full_command: str
-    ) -> ValidationResult:
+    def _validate_stage_tokens(self, tokens: list[str], is_piped_target: bool, full_command: str) -> ValidationResult:
         """Validate tokens for an individual command segment in a pipeline."""
         if not tokens:
             return ValidationResult(is_safe=True)
@@ -255,9 +410,7 @@ class ReadOnlySSHValidator:
         stage_str = " ".join(tokens)
         return self._validate_tool_args(cmd_name, args, stage_str)
 
-    def _validate_tool_args(
-        self, cmd_name: str, args: list[str], full_stage: str
-    ) -> ValidationResult:
+    def _validate_tool_args(self, cmd_name: str, args: list[str], full_stage: str) -> ValidationResult:
         """Inspect command arguments for flags that perform destructive mutations."""
         if cmd_name == "sed":
             for arg in args:

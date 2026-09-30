@@ -98,9 +98,7 @@ def infer_item_category(filename: str) -> DeliverableCategory:
         )
     ):
         return DeliverableCategory.COPYWRITING
-    if lower.endswith(
-        (".png", ".jpg", ".jpeg", ".svg", ".webp", ".gif", ".mp4", ".mp3", ".wav")
-    ):
+    if lower.endswith((".png", ".jpg", ".jpeg", ".svg", ".webp", ".gif", ".mp4", ".mp3", ".wav")):
         return DeliverableCategory.VISUAL
     if lower.endswith((".xlsx", ".xls", ".csv")):
         return DeliverableCategory.DATA_SHEET
@@ -119,24 +117,16 @@ class DeliverableItem(BaseModel):
         description="在交付包逻辑目录中的相对路径，例如: articles/wechat_main.md",
     )
     title: str = Field(default="", description="交付物名称/标题")
-    category: DeliverableCategory = Field(
-        default=DeliverableCategory.OTHER, description="交付物分类"
-    )
-    platform: str | None = Field(
-        default=None, description="发布平台标识 (如 xiaohongshu, wechat)"
-    )
+    category: DeliverableCategory = Field(default=DeliverableCategory.OTHER, description="交付物分类")
+    platform: str | None = Field(default=None, description="发布平台标识 (如 xiaohongshu, wechat)")
     vault_uri: str = Field(default="", description="Vault 存储指针 (vault://<uuid>)")
     sha256_hash: str = Field(default="", description="工件内容的 SHA-256 哈希值")
     size_bytes: int = Field(default=0, ge=0, description="工件字节大小")
     mime_type: str = Field(default="application/octet-stream", description="MIME 类型")
-    status: DeliverableStatus = Field(
-        default=DeliverableStatus.READY_FOR_DISTRIBUTION, description="交付状态"
-    )
+    status: DeliverableStatus = Field(default=DeliverableStatus.READY_FOR_DISTRIBUTION, description="交付状态")
     version_id: str = Field(default="", description="锁定的不可变工件版本 ID")
     description: str = Field(default="", description="交付物说明或业务用途")
-    metadata: dict[str, Any] = Field(
-        default_factory=dict, description="业务元数据 (如尺寸、字数、平台等)"
-    )
+    metadata: dict[str, Any] = Field(default_factory=dict, description="业务元数据 (如尺寸、字数、平台等)")
 
     @model_validator(mode="after")
     def _fill_filename_or_path(self) -> DeliverableItem:
@@ -152,9 +142,7 @@ class DeliverableItem(BaseModel):
 class DeliverableManifest(BaseModel):
     """成套交付物清单 (Deliverable Manifest)"""
 
-    bundle_id: str = Field(
-        default_factory=lambda: str(uuid4()), description="交付包唯一标识 (UUID)"
-    )
+    bundle_id: str = Field(default_factory=lambda: str(uuid4()), description="交付包唯一标识 (UUID)")
     session_id: str = Field(default="", description="关联的会话或任务 ID")
     title: str = Field(default="Deliverable Package", description="交付包总标题")
     description: str = Field(default="", description="交付包描述")
@@ -162,12 +150,8 @@ class DeliverableManifest(BaseModel):
     agent_id: str | None = Field(default=None, description="产出该交付包的智能体 ID")
     goal_id: str | None = Field(default=None, description="关联的目标 ID")
     task_prompt: str = Field(default="", description="触发本次交付的原始任务意图")
-    evidence_sources: list[str] = Field(
-        default_factory=list, description="交付包依赖的只读原始事实证据来源 URI 列表"
-    )
-    items: list[DeliverableItem] = Field(
-        default_factory=list, description="交付物清单列表"
-    )
+    evidence_sources: list[str] = Field(default_factory=list, description="交付包依赖的只读原始事实证据来源 URI 列表")
+    items: list[DeliverableItem] = Field(default_factory=list, description="交付物清单列表")
     metadata: dict[str, Any] = Field(default_factory=dict, description="扩展元数据")
 
     @property

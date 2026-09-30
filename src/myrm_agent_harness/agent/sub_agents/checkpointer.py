@@ -135,9 +135,7 @@ class SubagentSqliteCheckpointer(BaseCheckpointSaver[str]):
             if conn is None:
                 conn = await aiosqlite.connect(":memory:")
 
-            await harden_connection_async(
-                conn, DEFAULT, db_path=Path(db_target) if db_target != ":memory:" else None
-            )
+            await harden_connection_async(conn, DEFAULT, db_path=Path(db_target) if db_target != ":memory:" else None)
 
             saver = AsyncSqliteSaver(conn, serde=PickleSerde())
             await saver.setup()

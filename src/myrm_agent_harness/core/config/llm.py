@@ -145,11 +145,7 @@ class LLMConfig(BaseModel):
         max_ctx_str = os.getenv("MYRM_MAX_CONTEXT_TOKENS")
         temp_str = os.getenv("MYRM_TEMPERATURE")
         effort_str = os.getenv("MYRM_REASONING_EFFORT")
-        proxy_str = (
-            os.getenv("MYRM_EGRESS_PROXY")
-            or os.getenv("MYRM_LLM_PROXY")
-            or os.getenv("ALL_PROXY")
-        )
+        proxy_str = os.getenv("MYRM_EGRESS_PROXY") or os.getenv("MYRM_LLM_PROXY") or os.getenv("ALL_PROXY")
         return cls(
             model=model,
             api_key=api_key,

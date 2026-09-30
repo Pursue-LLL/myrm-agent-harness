@@ -58,9 +58,7 @@ class SSHRemoteExecutor:
             custom_destructive_patterns=self._dangerous_patterns
         )
 
-    def check_command_safety(
-        self, command: str, host: SSHHostSpec | None = None
-    ) -> tuple[bool, str]:
+    def check_command_safety(self, command: str, host: SSHHostSpec | None = None) -> tuple[bool, str]:
         """Check if command matches high-risk destructive patterns or violates read-only rules."""
         normalized = command.strip()
         for pattern in self._dangerous_patterns:
@@ -195,10 +193,14 @@ class SSHRemoteExecutor:
         """Fallback execution using system ssh CLI."""
         ssh_cmd = [
             "ssh",
-            "-o", "BatchMode=yes",
-            "-o", "StrictHostKeyChecking=no",
-            "-o", f"ConnectTimeout={int(timeout)}",
-            "-p", str(host.port),
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            f"ConnectTimeout={int(timeout)}",
+            "-p",
+            str(host.port),
             f"{host.username}@{host.hostname}",
             command,
         ]

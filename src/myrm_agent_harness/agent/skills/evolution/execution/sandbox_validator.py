@@ -160,12 +160,14 @@ def test_syntax():
                 test_code=pytest_code,
                 skill_name=skill.name,
             )
-            command_results.append({
-                "type": "python_syntax_and_eval",
-                "passed": result.passed,
-                "stdout": result.stdout,
-                "stderr": result.stderr,
-            })
+            command_results.append(
+                {
+                    "type": "python_syntax_and_eval",
+                    "passed": result.passed,
+                    "stdout": result.stdout,
+                    "stderr": result.stderr,
+                }
+            )
             if not result.passed:
                 return VerificationProof(
                     is_verified=False,
@@ -230,12 +232,14 @@ def test_syntax():
                         )
 
                         exec_result = await executor.execute_bash(context)
-                        command_results.append({
-                            "command": cmd,
-                            "success": exec_result.success,
-                            "stdout": exec_result.stdout,
-                            "stderr": exec_result.stderr,
-                        })
+                        command_results.append(
+                            {
+                                "command": cmd,
+                                "success": exec_result.success,
+                                "stdout": exec_result.stdout,
+                                "stderr": exec_result.stderr,
+                            }
+                        )
 
                         if not exec_result.success:
                             return VerificationProof(

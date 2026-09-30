@@ -136,10 +136,7 @@ def detect_tool_lifting_candidates(
         app_lower = (ev.app_name or "").lower()
 
         # Terminal / Shell tool lifting
-        if any(
-            term in app_lower
-            for term in ["terminal", "iterm", "cmd", "powershell", "alacritty", "kitty"]
-        ):
+        if any(term in app_lower for term in ["terminal", "iterm", "cmd", "powershell", "alacritty", "kitty"]):
             if ev.action == RecordedActionType.TYPE.value and ev.value:
                 cmd = ev.value.strip()
                 candidates.append(
@@ -170,14 +167,13 @@ def detect_tool_lifting_candidates(
 
         # Excel / Spreadsheet manipulation tool lifting
         elif any(sheet in app_lower for sheet in ["excel", "wps", "calc", "numbers"]) and (
-            ev.action == RecordedActionType.CLICK.value
-            and "export" in (ev.element_title or "").lower()
+            ev.action == RecordedActionType.CLICK.value and "export" in (ev.element_title or "").lower()
         ):
             candidates.append(
                 ToolLiftingCandidate(
                     original_seqs=[ev.seq],
-                        lifted_tool="bash_code_execute_tool",
-                        rationale=f"Elevated Excel export in {ev.app_name} to Python pandas automation",
+                    lifted_tool="bash_code_execute_tool",
+                    rationale=f"Elevated Excel export in {ev.app_name} to Python pandas automation",
                     code_snippet="# Automated via Python pandas\nimport pandas as pd\n",
                     confidence=0.88,
                 )
@@ -257,11 +253,7 @@ def synthesize_desktop_skill_draft(
                     target_app=ev.app_name or "System",
                     tool_name=cand.lifted_tool,
                     parameters={"snippet": cand.code_snippet or ""},
-                    variables=[
-                        s["name"]
-                        for s in slots
-                        if s["default_value"] in (cand.code_snippet or "")
-                    ],
+                    variables=[s["name"] for s in slots if s["default_value"] in (cand.code_snippet or "")],
                 )
             )
             step_seq += 1
@@ -277,9 +269,7 @@ def synthesize_desktop_skill_draft(
                 description=step_desc,
                 action_type="semantic_dref" if ev.dref_id else "gui_interaction",
                 target_app=ev.app_name or "Desktop",
-                tool_name=(
-                    "desktop_interact_tool" if ev.dref_id else "desktop_snapshot_tool"
-                ),
+                tool_name=("desktop_interact_tool" if ev.dref_id else "desktop_snapshot_tool"),
                 parameters={
                     "dref": ev.dref_id or "",
                     "action": ev.action,
@@ -287,9 +277,7 @@ def synthesize_desktop_skill_draft(
                     "element_title": ev.element_title or "",
                     "is_password": ev.is_password,
                 },
-                variables=[
-                    s["name"] for s in slots if s["default_value"] in (ev.value or "")
-                ],
+                variables=[s["name"] for s in slots if s["default_value"] in (ev.value or "")],
             )
         )
         step_seq += 1
@@ -361,9 +349,9 @@ def render_skill_markdown(draft: SynthesizedSkillDraft) -> str:
         for p in draft.parameters:
             lines.append(f"  - name: {p['name']}")
             lines.append(f"    type: {p.get('type', 'string')}")
-            lines.append(f"    description: \"{p.get('description', '')}\"")
+            lines.append(f'    description: "{p.get("description", "")}"')
             if "default_value" in p:
-                lines.append(f"    default: \"{p['default_value']}\"")
+                lines.append(f'    default: "{p["default_value"]}"')
 
     lines.append("---")
     lines.append("")
@@ -389,9 +377,7 @@ def render_skill_markdown(draft: SynthesizedSkillDraft) -> str:
 
     lines.append("## Verification & Quality Assurance")
     lines.append("1. Verify the final application state meets the expected outcome.")
-    lines.append(
-        "2. In case of UI element drift, fallback to `desktop_snapshot_tool` to re-resolve `@dref`."
-    )
+    lines.append("2. In case of UI element drift, fallback to `desktop_snapshot_tool` to re-resolve `@dref`.")
     lines.append("")
 
     return "\n".join(lines)

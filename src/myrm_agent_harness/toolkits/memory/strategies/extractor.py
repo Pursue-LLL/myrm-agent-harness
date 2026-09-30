@@ -59,19 +59,13 @@ class FeedbackSignal(StrEnum):
 
 
 _NEGATIVE_PATTERNS = (
-    re.compile(
-        r"\bthat(?:'s| is) (?:wrong|incorrect|not (?:right|what I))\b", re.IGNORECASE
-    ),
+    re.compile(r"\bthat(?:'s| is) (?:wrong|incorrect|not (?:right|what I))\b", re.IGNORECASE),
     re.compile(r"\byou (?:misunderstood|got it wrong|made a mistake)\b", re.IGNORECASE),
     re.compile(r"\bno[,.]?\s+I (?:meant|said|asked|want)\b", re.IGNORECASE),
-    re.compile(
-        r"\bactually[,.]?\s+(?:it should|you should|the correct)\b", re.IGNORECASE
-    ),
+    re.compile(r"\bactually[,.]?\s+(?:it should|you should|the correct)\b", re.IGNORECASE),
     re.compile(r"\b(?:please\s+)?(?:redo|try again)\b", re.IGNORECASE),
     re.compile(r"\bshould be\b.+\bnot\b", re.IGNORECASE),
-    re.compile(
-        r"\bthat(?:'s| is) (?:not what I|not correct|not accurate)\b", re.IGNORECASE
-    ),
+    re.compile(r"\bthat(?:'s| is) (?:not what I|not correct|not accurate)\b", re.IGNORECASE),
     re.compile(r"不对"),
     re.compile(r"你(?:理解|搞|弄)错了"),
     re.compile(r"你理解有误"),
@@ -471,9 +465,7 @@ def _build_system_prompt(
     if config.extract_semantic or config.extract_episodic:
         parts.append(_VALIDITY_SECTION)
 
-    if config.wiki_boundary_enabled and (
-        config.extract_semantic or config.extract_episodic
-    ):
+    if config.wiki_boundary_enabled and (config.extract_semantic or config.extract_episodic):
         parts.append(_WIKI_BOUNDARY_SECTION)
 
     parts.append(_GUIDELINES)
@@ -494,9 +486,7 @@ _ENABLED_TYPE_MAP: dict[MemoryType, str] = {
 class MemoryExtractor:
     """Extracts memorable information from conversations via LLM."""
 
-    def __init__(
-        self, config: ExtractionConfig | None = None, llm_func: LLMFunc | None = None
-    ) -> None:
+    def __init__(self, config: ExtractionConfig | None = None, llm_func: LLMFunc | None = None) -> None:
         self.config = config or ExtractionConfig()
         self.llm_func = llm_func
         self._last_detected_language: Literal["zh", "en"] = "en"
@@ -607,10 +597,7 @@ class MemoryExtractor:
         detected_language = detect_language(full_text)
         self._last_detected_language = detected_language
 
-        formatted = "\n".join(
-            f"[{m.get('role', 'user').upper()}]: {m.get('content', '')}"
-            for m in messages
-        )
+        formatted = "\n".join(f"[{m.get('role', 'user').upper()}]: {m.get('content', '')}" for m in messages)
         session_date = start.strftime("%Y-%m-%d (%A)")
         prompt = f"Session date: {session_date}\n\n## Conversation to Analyze\n\n{formatted}\n\n"
         prompt += "## Instructions\n\nAnalyze the conversation. If and ONLY if it contains critical constraints, high-leverage knowledge, or valuable personal facts, output them. Otherwise, output [].\n"
@@ -642,9 +629,7 @@ class MemoryExtractor:
             ]
             memories = fragments[: self.config.max_extractions_per_turn] + digests
             if self.config.enable_task_digest:
-                has_digest = any(
-                    m.memory_type == MemoryType.TASK_DIGEST for m in memories
-                )
+                has_digest = any(m.memory_type == MemoryType.TASK_DIGEST for m in memories)
                 logger.debug(
                     "Task digest %s",
                     "generated" if has_digest else "skipped (no substantive task)",
@@ -683,11 +668,7 @@ class MemoryExtractor:
                     meta["evidence_author"] = first_ev.author_id
                 meta["evidence_count"] = len(m.evidence)
 
-            if (
-                m.memory_type == MemoryType.PROFILE
-                and m.profile_key
-                and m.profile_value
-            ):
+            if m.memory_type == MemoryType.PROFILE and m.profile_key and m.profile_value:
                 result.append(
                     ProfileEntry(
                         key=m.profile_key,
@@ -735,9 +716,7 @@ class MemoryExtractor:
                 )
             elif m.memory_type == MemoryType.PROCEDURAL and m.trigger and m.action:
                 priority_val = (
-                    ToolRulePriority(m.tool_rule_priority)
-                    if m.tool_rule_priority
-                    else ToolRulePriority.NORMAL
+                    ToolRulePriority(m.tool_rule_priority) if m.tool_rule_priority else ToolRulePriority.NORMAL
                 )
                 result.append(
                     ProceduralMemory(
@@ -799,24 +778,14 @@ def _parse_response(raw: str) -> list[ExtractedMemory]:
             continue
         try:
             raw_pref_type = item.get("preference_type")
-            pref_type = (
-                raw_pref_type if raw_pref_type in ("explicit", "implicit") else None
-            )
+            pref_type = raw_pref_type if raw_pref_type in ("explicit", "implicit") else None
             raw_source_error = item.get("source_error") or item.get("sourceError")
             raw_tool_name = item.get("tool_name")
             raw_tool_priority = item.get("tool_rule_priority")
-            tool_priority = (
-                str(raw_tool_priority)
-                if raw_tool_priority in ("critical", "high", "normal")
-                else None
-            )
+            tool_priority = str(raw_tool_priority) if raw_tool_priority in ("critical", "high", "normal") else None
             raw_evd = item.get("expected_valid_days")
             evd: int | None = None
-            if (
-                isinstance(raw_evd, (int, float))
-                and not isinstance(raw_evd, bool)
-                and raw_evd > 0
-            ):
+            if isinstance(raw_evd, (int, float)) and not isinstance(raw_evd, bool) and raw_evd > 0:
                 evd = min(int(raw_evd), 730)
 
             parsed_evidences: list[EvidenceReference] = []
@@ -850,9 +819,7 @@ def _parse_response(raw: str) -> list[ExtractedMemory]:
                     reasoning=item.get("reasoning"),
                     preference_type=pref_type,
                     preference_strength=float(item.get("preference_strength", 0.0)),
-                    source_error=(
-                        raw_source_error if isinstance(raw_source_error, str) else None
-                    ),
+                    source_error=(raw_source_error if isinstance(raw_source_error, str) else None),
                     evidence=parsed_evidences,
                 )
             )
@@ -1046,17 +1013,10 @@ async def extract_goal_learnings(
     seen_contents: set[str] = set()
 
     for batch_msgs in batches:
-        formatted = "\n".join(
-            f"[{m.get('role', 'user').upper()}]: {m.get('content', '')}"
-            for m in batch_msgs
-        )
+        formatted = "\n".join(f"[{m.get('role', 'user').upper()}]: {m.get('content', '')}" for m in batch_msgs)
 
         language = detect_language(formatted)
-        lang_hint = (
-            "\n\n**IMPORTANT**: Write all learnings in Chinese (中文)."
-            if language == "zh"
-            else ""
-        )
+        lang_hint = "\n\n**IMPORTANT**: Write all learnings in Chinese (中文)." if language == "zh" else ""
 
         prompt = (
             f"## Goal Objective\n\n{goal_objective}\n\n"

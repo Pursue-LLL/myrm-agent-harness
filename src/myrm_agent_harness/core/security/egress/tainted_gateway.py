@@ -66,7 +66,6 @@ class TaintedEgressBlockedError(Exception):
         self.reason = reason
         super().__init__(f"Tainted egress blocked for {host}:{port} - {reason}")
 
-
     def format_for_user(self) -> str:
         """Format an actionable diagnostic message for user-facing audit logs."""
         return (
@@ -96,9 +95,7 @@ class TaintedEgressGateway:
             allow_loopback: Whether loopback (localhost/127.0.0.1) connections are always permitted.
             default_tainted: Initial taint status for this gateway instance.
         """
-        self._static_trusted: set[str] = {
-            d.lower().strip() for d in (static_trusted_domains or []) if d and d.strip()
-        }
+        self._static_trusted: set[str] = {d.lower().strip() for d in (static_trusted_domains or []) if d and d.strip()}
         self._session_trusted: set[str] = set()
         self._allow_loopback = allow_loopback
         self._session_tainted = default_tainted
@@ -174,11 +171,7 @@ class TaintedEgressGateway:
         Returns:
             Tuple of (TaintedEgressDecision, reason_str).
         """
-        tainted = (
-            is_tainted
-            if is_tainted is not None
-            else (self._session_tainted or is_current_egress_tainted())
-        )
+        tainted = is_tainted if is_tainted is not None else (self._session_tainted or is_current_egress_tainted())
 
         clean_host = host.lower().strip("[]").strip()
         if not clean_host:
@@ -193,9 +186,7 @@ class TaintedEgressGateway:
                 f"Host '{clean_host}' is trusted in session or static allowlist",
             )
 
-        reason = (
-            f"Host '{clean_host}' is unapproved for egress while session holds tainted data"
-        )
+        reason = f"Host '{clean_host}' is unapproved for egress while session holds tainted data"
         return TaintedEgressDecision.BLOCKED_TAINTED, reason
 
     def check_or_raise(

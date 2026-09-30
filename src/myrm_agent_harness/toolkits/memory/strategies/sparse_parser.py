@@ -34,12 +34,8 @@ class SemanticSlotParser:
         r"^(?:deprecated|disabled|obsolete|false|none|null|已废弃|已禁用|禁用|移除|删除)$",
         re.IGNORECASE,
     )
-    LIST_PREFIX_PATTERN: ClassVar[re.Pattern[str]] = re.compile(
-        r"^(\s*)([-*+]|\d+\.)\s+(.*)$"
-    )
-    KV_PATTERN: ClassVar[re.Pattern[str]] = re.compile(
-        r"^([^\n]{1,120}?)(:\s+|：\s*)(.*)$"
-    )
+    LIST_PREFIX_PATTERN: ClassVar[re.Pattern[str]] = re.compile(r"^(\s*)([-*+]|\d+\.)\s+(.*)$")
+    KV_PATTERN: ClassVar[re.Pattern[str]] = re.compile(r"^([^\n]{1,120}?)(:\s+|：\s*)(.*)$")
     CLAUSE_SPLIT_PATTERN: ClassVar[re.Pattern[str]] = re.compile(r"(?:;\s*|；\s*)")
 
     @classmethod

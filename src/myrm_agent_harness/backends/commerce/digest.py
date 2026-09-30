@@ -165,14 +165,8 @@ class CommercialDigestCard:
             "### 📈 Key Performance Indicators",
         ]
         for kpi in self.kpis:
-            prev_str = (
-                f" (vs {kpi.previous_value:,.2f})"
-                if kpi.previous_value is not None
-                else ""
-            )
-            lines.append(
-                f"- **{kpi.name}**: {kpi.current_value:,.2f}{prev_str} [{kpi.trend} {kpi.change_pct:+.1f}%]"
-            )
+            prev_str = f" (vs {kpi.previous_value:,.2f})" if kpi.previous_value is not None else ""
+            lines.append(f"- **{kpi.name}**: {kpi.current_value:,.2f}{prev_str} [{kpi.trend} {kpi.change_pct:+.1f}%]")
 
         lines.extend(
             [
@@ -185,9 +179,7 @@ class CommercialDigestCard:
         else:
             for item in self.attention_items:
                 badge = "🔴" if item.severity == AttentionSeverity.CRITICAL else "🟡"
-                lines.append(
-                    f"- {badge} **[{item.category.value.upper()}]** {item.title}"
-                )
+                lines.append(f"- {badge} **[{item.category.value.upper()}]** {item.title}")
                 if item.attribution:
                     lines.append(f"  - *Attribution*: {item.attribution}")
                 if item.recommended_action:
@@ -226,9 +218,7 @@ class CommercialDigestRunner:
             float(current.order_count),
             float(previous.order_count) if previous else None,
         )
-        cr_pct, cr_trend = calc_delta(
-            current.conversion_rate, previous.conversion_rate if previous else None
-        )
+        cr_pct, cr_trend = calc_delta(current.conversion_rate, previous.conversion_rate if previous else None)
         aov_pct, aov_trend = calc_delta(
             current.average_order_value,
             previous.average_order_value if previous else None,
@@ -332,9 +322,7 @@ class CommercialDigestRunner:
 
         kpis = self._compile_kpis(summary)
         items, actions = self._extract_attention_and_actions(summary, alerts)
-        critical_count = sum(
-            1 for it in items if it.severity == AttentionSeverity.CRITICAL
-        )
+        critical_count = sum(1 for it in items if it.severity == AttentionSeverity.CRITICAL)
 
         headline = (
             "Today's Overview: Healthy Run"

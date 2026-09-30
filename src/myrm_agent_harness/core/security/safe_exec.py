@@ -107,10 +107,7 @@ def credential_env_overrides(
         return actual_secret
 
     for cred in credentials:
-        if (
-            normalized_allowed is not None
-            and cred.issuer.lower() not in normalized_allowed
-        ):
+        if normalized_allowed is not None and cred.issuer.lower() not in normalized_allowed:
             continue
         if cred.issuer == "feishu":
             overrides["FEISHU_USER_ACCESS_TOKEN"] = _wrap_val(cred.token, "FEISHU_USER_ACCESS_TOKEN")
@@ -191,9 +188,7 @@ async def safe_exec(
             use_shell = True
         else:
             if not argv:
-                return ExecResult(
-                    stdout="", stderr="empty command", returncode=1, mode="direct"
-                )
+                return ExecResult(stdout="", stderr="empty command", returncode=1, mode="direct")
 
     from myrm_agent_harness.core.security.types import user_credentials_ctx
     from myrm_agent_harness.toolkits.code_execution.security.env_isolation import (
@@ -211,9 +206,7 @@ async def safe_exec(
 
     try:
         credentials = user_credentials_ctx.get()
-        active_env.update(
-            credential_env_overrides(credentials, allowed_issuers=allowed_issuers)
-        )
+        active_env.update(credential_env_overrides(credentials, allowed_issuers=allowed_issuers))
     except LookupError:
         pass
 
@@ -241,9 +234,7 @@ async def safe_exec(
         mode = "direct"
 
     try:
-        stdout_bytes, stderr_bytes = await asyncio.wait_for(
-            proc.communicate(), timeout=timeout
-        )
+        stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=timeout)
     except TimeoutError:
         _kill_process_tree(proc)
         raise

@@ -239,7 +239,11 @@ def check_merchant_guardrails(
 
                 # Check PricingContext absolute bounds if available
                 if pricing_context is not None:
-                    floor = pricing_context.floor_price if pricing_context.floor_price is not None else pricing_context.min_allowed_price
+                    floor = (
+                        pricing_context.floor_price
+                        if pricing_context.floor_price is not None
+                        else pricing_context.min_allowed_price
+                    )
                     if floor > 0.0 and new_price < floor:
                         violations.append(
                             GuardrailViolation(
@@ -251,12 +255,14 @@ def check_merchant_guardrails(
                                     f"Proposed price {new_price:.2f} violates profit margin policy; "
                                     f"minimum allowed price is {floor:.2f}."
                                 ),
-                                compliant_alternative=(
-                                    f"Propose a price of at least {floor:.2f}."
-                                ),
+                                compliant_alternative=(f"Propose a price of at least {floor:.2f}."),
                             )
                         )
-                    ceiling = pricing_context.ceiling_price if pricing_context.ceiling_price is not None else pricing_context.max_allowed_price
+                    ceiling = (
+                        pricing_context.ceiling_price
+                        if pricing_context.ceiling_price is not None
+                        else pricing_context.max_allowed_price
+                    )
                     if ceiling > 0.0 and new_price > ceiling:
                         violations.append(
                             GuardrailViolation(
@@ -268,9 +274,7 @@ def check_merchant_guardrails(
                                     f"Proposed price {new_price:.2f} exceeds ceiling; "
                                     f"maximum allowed price is {ceiling:.2f}."
                                 ),
-                                compliant_alternative=(
-                                    f"Propose a price of at most {ceiling:.2f}."
-                                ),
+                                compliant_alternative=(f"Propose a price of at most {ceiling:.2f}."),
                             )
                         )
 
@@ -305,8 +309,7 @@ def check_merchant_guardrails(
                             f"of {active_config.max_promotion_discount_pct:.1f}%."
                         ),
                         compliant_alternative=(
-                            f"Propose a discount percentage of at most "
-                            f"{active_config.max_promotion_discount_pct:.1f}%."
+                            f"Propose a discount percentage of at most {active_config.max_promotion_discount_pct:.1f}%."
                         ),
                     )
                 )
@@ -384,9 +387,7 @@ def check_merchant_guardrails(
     # 5. Synthesize Guidance Prompt and Result
     if violations:
         phase_label = "Apply" if is_apply_phase else "Stage"
-        lines = [
-            f"[{phase_label} Guardrail Blocked] {len(violations)} safety rule(s) were breached:"
-        ]
+        lines = [f"[{phase_label} Guardrail Blocked] {len(violations)} safety rule(s) were breached:"]
         for v in violations:
             lines.append(f"- Field '{v.field}' violated '{v.rule}': {v.message}")
             if v.compliant_alternative:
@@ -438,12 +439,13 @@ def evaluate_options_explosion(
     if product is not None and getattr(product, "variants", None):
         target_variant_id = payload.get("variant_id")
         if not target_variant_id:
-            return False, "Modifications to products with options must explicitly target a specific 'variant_id' to prevent ambiguous options explosion."
+            return (
+                False,
+                "Modifications to products with options must explicitly target a specific 'variant_id' to prevent ambiguous options explosion.",
+            )
         variants = getattr(product, "variants", ())
         variant_ids = {getattr(v, "variant_id", None) for v in variants}
         if target_variant_id not in variant_ids:
             prod_id = getattr(product, "product_id", "unknown")
             return False, f"Variant '{target_variant_id}' not found on product '{prod_id}'."
     return True, None
-
-

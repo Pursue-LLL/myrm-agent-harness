@@ -40,16 +40,12 @@ class NativeCompactionSidecarStore:
     """Crash-safe local store for native encrypted compaction checkpoints."""
 
     def __init__(self, base_dir: Path | str | None = None) -> None:
-        self.base_dir = (
-            Path(base_dir) if base_dir else Path(".context/native_checkpoints")
-        )
+        self.base_dir = Path(base_dir) if base_dir else Path(".context/native_checkpoints")
 
     def _get_path(self, session_id: str) -> Path:
         return self.base_dir / f"{session_id}.json"
 
-    async def save_checkpoint(
-        self, session_id: str, item: NativeCompactionItem
-    ) -> None:
+    async def save_checkpoint(self, session_id: str, item: NativeCompactionItem) -> None:
         """Atomically persist an encrypted compaction item."""
         if not session_id:
             return
@@ -78,9 +74,7 @@ class NativeCompactionSidecarStore:
                 item_id=str(data.get("id") or data.get("item_id") or ""),
                 encrypted_payload=str(data.get("encrypted_payload") or ""),
                 created_at=int(data.get("created_at") or 0),
-                compact_threshold=int(
-                    data.get("compact_threshold") or DEFAULT_SERVER_COMPACT_THRESHOLD
-                ),
+                compact_threshold=int(data.get("compact_threshold") or DEFAULT_SERVER_COMPACT_THRESHOLD),
                 model=str(data.get("model") or ""),
             )
         except Exception as e:
@@ -125,9 +119,7 @@ class NativeCompactionCoordinator:
         """Check if native compaction is active and not disabled by one-shot recovery."""
         return session_id not in self._disabled_sessions
 
-    def mark_session_rejection_fallback(
-        self, session_id: str, reason: str = ""
-    ) -> None:
+    def mark_session_rejection_fallback(self, session_id: str, reason: str = "") -> None:
         """Disable native compaction for this session on 400/422 rejection and fallback to local."""
         if session_id:
             self._disabled_sessions.add(session_id)
@@ -169,6 +161,4 @@ class NativeCompactionCoordinator:
                     if inspect.isawaitable(res):
                         await res
             except Exception as e:
-                logger.warning(
-                    "Error running pre_compact_hook on native compaction: %s", e
-                )
+                logger.warning("Error running pre_compact_hook on native compaction: %s", e)

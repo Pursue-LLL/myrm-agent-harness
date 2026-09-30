@@ -110,11 +110,7 @@ def is_same_origin(from_url: str, to_url: str) -> bool:
     origin_b = extract_origin(to_url)
     if origin_a is None or origin_b is None:
         return False
-    return (
-        origin_a.scheme == origin_b.scheme
-        and origin_a.host == origin_b.host
-        and origin_a.port == origin_b.port
-    )
+    return origin_a.scheme == origin_b.scheme and origin_a.host == origin_b.host and origin_a.port == origin_b.port
 
 
 def is_sensitive_header(
@@ -152,11 +148,7 @@ def strip_sensitive_headers_on_redirect(
 
     if origin_from is None or origin_to is None:
         # Cannot determine origin safety; fail-closed by stripping sensitive headers
-        return {
-            k: v
-            for k, v in headers.items()
-            if not is_sensitive_header(k, custom_sensitive_headers)
-        }
+        return {k: v for k, v in headers.items() if not is_sensitive_header(k, custom_sensitive_headers)}
 
     # Detect HTTPS -> HTTP downgrade
     if origin_from.is_secure and not origin_to.is_secure:

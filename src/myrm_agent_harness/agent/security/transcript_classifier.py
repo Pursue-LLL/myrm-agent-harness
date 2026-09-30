@@ -229,6 +229,7 @@ class TranscriptClassifier:
             # Resilient fallback: attempt raw text invocation and extract decision
             try:
                 from langchain_core.messages import HumanMessage, SystemMessage
+
                 fallback_prompt = (
                     f"{_SYSTEM_PROMPT}\n\nRespond with valid JSON: "
                     '{"decision": "allow" | "deny" | "uncertain", "reason": "short explanation"}'
@@ -247,7 +248,7 @@ class TranscriptClassifier:
                 # Robust JSON or bare token parsing
                 if "{" in raw_str and "}" in raw_str:
                     try:
-                        extracted = json.loads(raw_str[raw_str.find("{"):raw_str.rfind("}") + 1])
+                        extracted = json.loads(raw_str[raw_str.find("{") : raw_str.rfind("}") + 1])
                         if isinstance(extracted, dict) and "decision" in extracted:
                             dec_str = str(extracted["decision"]).lower().strip()
                             dec = _DECISION_MAP.get(dec_str, ReviewDecision.UNCERTAIN)
@@ -257,7 +258,9 @@ class TranscriptClassifier:
 
                 for candidate in ("deny", "allow", "uncertain"):
                     if candidate in raw_str:
-                        return ReviewResult(decision=_DECISION_MAP[candidate], reason=f"Extracted from text: {raw_str[:100]}")
+                        return ReviewResult(
+                            decision=_DECISION_MAP[candidate], reason=f"Extracted from text: {raw_str[:100]}"
+                        )
             except Exception:
                 logger.warning("Classifier raw fallback also failed", exc_info=True)
 

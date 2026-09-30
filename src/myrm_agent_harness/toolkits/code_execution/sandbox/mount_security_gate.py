@@ -147,9 +147,7 @@ def _resolve_physical_path(raw_path: str, max_depth: int = 32) -> str:
         depth += 1
 
     if depth >= max_depth:
-        raise ValueError(
-            f"Path nesting exceeds maximum resolution depth limit of {max_depth}"
-        )
+        raise ValueError(f"Path nesting exceeds maximum resolution depth limit of {max_depth}")
 
     resolved_parent = os.path.realpath(curr) if os.path.exists(curr) else curr
     for tail in reversed(parts):
@@ -167,11 +165,7 @@ def _is_path_enclosed_in_boundary(target_path: str, boundary_path: str) -> bool:
         b_cmp = _normalize_case_for_os(b_real)
 
         # Enclosure check
-        if (
-            t_cmp == b_cmp
-            or t_cmp.startswith(b_cmp + os.sep)
-            or (b_cmp.endswith(os.sep) and t_cmp.startswith(b_cmp))
-        ):
+        if t_cmp == b_cmp or t_cmp.startswith(b_cmp + os.sep) or (b_cmp.endswith(os.sep) and t_cmp.startswith(b_cmp)):
             return True
         return False
     except Exception:
@@ -214,11 +208,7 @@ def _validate_in_sandbox_target_path(
             )
 
     normalized_target = os.path.normpath(trimmed)
-    if (
-        normalized_target == ".."
-        or normalized_target.startswith(f"..{os.sep}")
-        or normalized_target.startswith("../")
-    ):
+    if normalized_target == ".." or normalized_target.startswith(f"..{os.sep}") or normalized_target.startswith("../"):
         return (
             False,
             MountViolationType.PATH_TRAVERSAL,
@@ -320,19 +310,11 @@ def validate_mount_spec(
 
     # 5. Boundary enclosure check
     if allowed_boundaries:
-        enclosed = any(
-            _is_path_enclosed_in_boundary(resolved_src, b)
-            for b in allowed_boundaries
-            if b and b.strip()
-        )
+        enclosed = any(_is_path_enclosed_in_boundary(resolved_src, b) for b in allowed_boundaries if b and b.strip())
         if not enclosed:
             # Check if this is a symlink escape
             is_symlink = os.path.islink(os.path.expanduser(trimmed))
-            violation = (
-                MountViolationType.SYMLINK_ESCAPE
-                if is_symlink
-                else MountViolationType.UNAUTHORIZED_BOUNDARY
-            )
+            violation = MountViolationType.SYMLINK_ESCAPE if is_symlink else MountViolationType.UNAUTHORIZED_BOUNDARY
             return MountValidationResult(
                 is_valid=False,
                 violation_type=violation,
@@ -342,9 +324,7 @@ def validate_mount_spec(
     # 6. Validate in-sandbox target path if specified
     raw_target = spec.target_path.strip() if spec.target_path else ""
     if raw_target:
-        is_target_valid, target_violation, target_err = (
-            _validate_in_sandbox_target_path(raw_target)
-        )
+        is_target_valid, target_violation, target_err = _validate_in_sandbox_target_path(raw_target)
         if not is_target_valid:
             return MountValidationResult(
                 is_valid=False,

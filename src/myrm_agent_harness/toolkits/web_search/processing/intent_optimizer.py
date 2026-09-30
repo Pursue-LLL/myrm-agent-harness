@@ -335,4 +335,3 @@ def detect_search_intent(query: str) -> SearchIntentResult:
         Intent detection result
     """
     return _default_detector.detect(query)
-

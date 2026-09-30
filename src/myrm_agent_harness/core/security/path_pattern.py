@@ -204,9 +204,7 @@ def normalise_path_pattern(pattern: str) -> str:
     return normalised
 
 
-def path_matches_pattern(
-    path: str | Path, pattern: str, *, case_sensitive: bool = False
-) -> bool:
+def path_matches_pattern(path: str | Path, pattern: str, *, case_sensitive: bool = False) -> bool:
     """Return True when *path* is covered by *pattern*.
 
     A relative pattern is matched against every segment-aligned suffix of the
@@ -255,9 +253,7 @@ def path_matches_pattern(
     return False
 
 
-def first_matching_pattern(
-    path: str | Path, patterns: Sequence[str], *, case_sensitive: bool = False
-) -> str | None:
+def first_matching_pattern(path: str | Path, patterns: Sequence[str], *, case_sensitive: bool = False) -> str | None:
     """Return the first pattern in *patterns* that covers *path*, else None.
 
     The result names the rule that fired, so an error message can point at the

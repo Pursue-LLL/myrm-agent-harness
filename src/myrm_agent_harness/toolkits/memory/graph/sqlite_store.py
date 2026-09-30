@@ -303,9 +303,7 @@ class SQLiteGraphStore(GraphStore):
 
     # ── Listing & Stats (for visualization API) ─────────────────────
 
-    async def list_nodes(
-        self, *, limit: int = 50, offset: int = 0, namespace: str | None = None
-    ) -> list[GraphNode]:
+    async def list_nodes(self, *, limit: int = 50, offset: int = 0, namespace: str | None = None) -> list[GraphNode]:
         conn = await self._get_connection()
         if namespace:
             query = (

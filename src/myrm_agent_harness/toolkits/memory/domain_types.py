@@ -65,9 +65,7 @@ DOMAIN_CATEGORY_MAP: dict[MemoryDomain, list[DomainCategory]] = {
 
 
 CATEGORY_TO_DOMAIN_MAP: dict[DomainCategory, MemoryDomain] = {
-    cat: domain
-    for domain, categories in DOMAIN_CATEGORY_MAP.items()
-    for cat in categories
+    cat: domain for domain, categories in DOMAIN_CATEGORY_MAP.items() for cat in categories
 }
 
 
@@ -109,9 +107,8 @@ def infer_domain_and_category(
     ):
         return MemoryDomain.TASK, DomainCategory.TRAPS
 
-    if (
-        event_type in ("task_trajectory", "subtask", "sop")
-        or any(k in clean_tags for k in ("trajectory", "sop", "workflow", "runbook", "guideline", "protocol"))
+    if event_type in ("task_trajectory", "subtask", "sop") or any(
+        k in clean_tags for k in ("trajectory", "sop", "workflow", "runbook", "guideline", "protocol")
     ):
         return MemoryDomain.TASK, DomainCategory.TRAJECTORIES
 

@@ -147,10 +147,7 @@ def should_skip_semantic_sniff(
     """Determine whether a tool is exempt from observation failure sniffing."""
     if metadata and bool(metadata.get("skip_semantic_failure_sniffing")):
         return True
-    if tool_args and bool(
-        tool_args.get("skip_semantic_failure_sniffing")
-        or tool_args.get("skip_semantic_sniff")
-    ):
+    if tool_args and bool(tool_args.get("skip_semantic_failure_sniffing") or tool_args.get("skip_semantic_sniff")):
         return True
     if tool_name in _DEFAULT_EXEMPT_TOOL_NAMES:
         return True
@@ -273,8 +270,12 @@ def _inspect_dict_payload(data: dict[str, object]) -> SemanticFailureSniffResult
                 has_entity_identifier = any(
                     k in data for k in ("id", "task_id", "job_id", "order_id", "build_id", "run_id", "device_id")
                 )
-                has_substantive_data = bool(data.get("data") or data.get("result") or data.get("records") or data.get("items"))
-                has_explicit_error = bool(msg or "error" in data or "errors" in data or (code and code not in _SUCCESS_CODES))
+                has_substantive_data = bool(
+                    data.get("data") or data.get("result") or data.get("records") or data.get("items")
+                )
+                has_explicit_error = bool(
+                    msg or "error" in data or "errors" in data or (code and code not in _SUCCESS_CODES)
+                )
 
                 # If it's a domain entity query with entity identifier/data and no explicit error message, do not misclassify as RPC failure
                 if (has_entity_identifier or has_substantive_data) and not has_explicit_error:
@@ -316,7 +317,11 @@ def _inspect_dict_payload(data: dict[str, object]) -> SemanticFailureSniffResult
     ):
         code, msg = _extract_error_detail(data)
         ftype = _classify_tier(code, msg, str(data))
-        reason = "Payload contains 'errors' array" if "errors" in data and not data.get("error") else "Payload contains root 'error' field"
+        reason = (
+            "Payload contains 'errors' array"
+            if "errors" in data and not data.get("error")
+            else "Payload contains root 'error' field"
+        )
         return SemanticFailureSniffResult(
             is_failure=True,
             failure_type=ftype,
@@ -382,9 +387,7 @@ def sniff_semantic_failure(
                 reason="Content is not a JSON object",
             )
         # Fast check: skip parsing if typical tokens are completely absent
-        if not any(
-            token in trimmed for token in ('"success"', '"status"', '"code"', '"err', '"error"', '"errno"')
-        ):
+        if not any(token in trimmed for token in ('"success"', '"status"', '"code"', '"err', '"error"', '"errno"')):
             return SemanticFailureSniffResult(
                 is_failure=False,
                 failure_type=SemanticFailureType.NONE,

@@ -58,11 +58,15 @@ class WorkflowLintReport:
 
     @property
     def warnings(self) -> list[str]:
-        return [f"[{issue.issue_code}] {issue.message}" for issue in self.issues if issue.severity == LintSeverity.WARNING]
+        return [
+            f"[{issue.issue_code}] {issue.message}" for issue in self.issues if issue.severity == LintSeverity.WARNING
+        ]
 
     @property
     def fatal_errors(self) -> list[str]:
-        return [f"[{issue.issue_code}] {issue.message}" for issue in self.issues if issue.severity == LintSeverity.FATAL]
+        return [
+            f"[{issue.issue_code}] {issue.message}" for issue in self.issues if issue.severity == LintSeverity.FATAL
+        ]
 
 
 class _WorkflowASTVisitor(ast.NodeVisitor):
@@ -113,7 +117,9 @@ class _WorkflowASTVisitor(ast.NodeVisitor):
         self._loop_depth += 1
         # Check for while True / while 1 unbounded loop
         is_constant_truthy = False
-        if (isinstance(node.test, ast.Constant) and bool(node.test.value)) or (isinstance(node.test, ast.NameConstant) and node.test.value is True):
+        if (isinstance(node.test, ast.Constant) and bool(node.test.value)) or (
+            isinstance(node.test, ast.NameConstant) and node.test.value is True
+        ):
             is_constant_truthy = True
 
         if is_constant_truthy:
@@ -166,7 +172,9 @@ class _WorkflowASTVisitor(ast.NodeVisitor):
         if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
             if func.value.id in self.module_aliases:
                 tool_name = func.attr
-            elif func.attr == "ThreadPoolExecutor" or (isinstance(func.value, ast.Name) and func.value.id == "concurrent" and func.attr == "futures"):
+            elif func.attr == "ThreadPoolExecutor" or (
+                isinstance(func.value, ast.Name) and func.value.id == "concurrent" and func.attr == "futures"
+            ):
                 pass
         elif isinstance(func, ast.Name):
             tool_name = self.imported_func_aliases.get(func.id)
@@ -190,7 +198,9 @@ class _WorkflowASTVisitor(ast.NodeVisitor):
             self.steer_child_count += 1
 
         # Check ThreadPoolExecutor max_workers
-        if (isinstance(func, ast.Name) and func.id == "ThreadPoolExecutor") or (isinstance(func, ast.Attribute) and func.attr == "ThreadPoolExecutor"):
+        if (isinstance(func, ast.Name) and func.id == "ThreadPoolExecutor") or (
+            isinstance(func, ast.Attribute) and func.attr == "ThreadPoolExecutor"
+        ):
             self._check_thread_pool_workers(node)
 
         self.generic_visit(node)

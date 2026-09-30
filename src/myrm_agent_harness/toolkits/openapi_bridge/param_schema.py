@@ -54,9 +54,7 @@ def extract_endpoint_params(
         for param in params:
             if not isinstance(param, dict):
                 continue
-            param = _resolve_param_ref(
-                param, components, definitions, top_parameters
-            )
+            param = _resolve_param_ref(param, components, definitions, top_parameters)
             name = param.get("name")
             location = param.get("in")
             if not isinstance(name, str) or not name or location in ("", "header"):
@@ -80,9 +78,7 @@ def extract_endpoint_params(
     if not is_swagger_2:
         request_body = operation.get("requestBody")
         if isinstance(request_body, dict):
-            request_body = _resolve_request_body_ref(
-                request_body, components, definitions
-            )
+            request_body = _resolve_request_body_ref(request_body, components, definitions)
             body_schema = _pick_json_schema(request_body)
     else:
         body_param = raw_params.get(("body", "body"))

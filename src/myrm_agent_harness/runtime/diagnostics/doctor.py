@@ -321,7 +321,6 @@ class Doctor:
             "No plaintext API keys found in default environment.",
         )
 
-
     async def _check_system_resources(self) -> list[DoctorCheckResult]:
         from myrm_agent_harness.toolkits.browser.doctor import _check_disk, _check_memory
 

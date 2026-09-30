@@ -126,10 +126,7 @@ class ProviderQuotaTracker:
             now = time.monotonic()
             result: dict[str, dict[str, object]] = {}
             for provider, state in self._states.items():
-                is_active_rl = (
-                    state.status == ProviderQuotaStatus.RATE_LIMITED
-                    and now < state.rate_limited_until
-                )
+                is_active_rl = state.status == ProviderQuotaStatus.RATE_LIMITED and now < state.rate_limited_until
                 effective_status = (
                     state.status
                     if state.status != ProviderQuotaStatus.RATE_LIMITED or is_active_rl
@@ -139,9 +136,7 @@ class ProviderQuotaTracker:
                     "status": effective_status.value,
                     "reason": state.reason,
                     "depleted_at": state.depleted_at,
-                    "cooldown_remaining": (
-                        max(0.0, state.rate_limited_until - now) if is_active_rl else 0.0
-                    ),
+                    "cooldown_remaining": (max(0.0, state.rate_limited_until - now) if is_active_rl else 0.0),
                 }
             return result
 

@@ -51,9 +51,7 @@ def is_iphone_mirror_app(app_name: str, app_id: str = "") -> bool:
     return "iphone" in app_name.strip().lower()
 
 
-_CONNECT_WINDOW_KEYWORDS: Final[frozenset[str]] = frozenset(
-    {"connect", "连接", "解锁", "unlock", "passcode"}
-)
+_CONNECT_WINDOW_KEYWORDS: Final[frozenset[str]] = frozenset({"connect", "连接", "解锁", "unlock", "passcode"})
 
 
 def is_iphone_mirror_connect_window(window_title: str) -> bool:

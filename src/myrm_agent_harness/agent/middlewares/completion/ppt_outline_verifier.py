@@ -24,22 +24,47 @@ from __future__ import annotations
 import re
 
 # Trigger patterns in user query or assistant plan indicating presentation outline delivery
-_PPT_INTENT_PATTERN = re.compile(
-    r"(?i)\b(ppt|pptx|powerpoint|slides?|presentation|deck|汇报|幻灯片|演示文稿|演讲稿)\b"
-)
+_PPT_INTENT_PATTERN = re.compile(r"(?i)\b(ppt|pptx|powerpoint|slides?|presentation|deck|汇报|幻灯片|演示文稿|演讲稿)\b")
 
 _SLIDE_HEADER_PATTERN = re.compile(
     r"(?im)^(?:###?\s*|(?:\d+[\.、]\s*))?(?:slide|page|第[一二三四五六七八九十\d]+[页张]|第\s*\d+\s*[页张]|p\d+)[:：\s]+([^\n]+)",
 )
 
 _VISUAL_ANCHOR_KEYWORDS = (
-    "chart", "table", "graph", "metric", "kpi", "diagram", "card", "layout",
-    "图表", "表格", "柱状图", "折线图", "饼图", "漏斗图", "数据看板", "指标", "卡片", "架构图", "对比表"
+    "chart",
+    "table",
+    "graph",
+    "metric",
+    "kpi",
+    "diagram",
+    "card",
+    "layout",
+    "图表",
+    "表格",
+    "柱状图",
+    "折线图",
+    "饼图",
+    "漏斗图",
+    "数据看板",
+    "指标",
+    "卡片",
+    "架构图",
+    "对比表",
 )
 
 _THESIS_KEYWORDS = (
-    "takeaway", "thesis", "core message", "key point", "insight", "conclusion",
-    "观点", "核心观点", "结论", "洞察", "要点", "主旨"
+    "takeaway",
+    "thesis",
+    "core message",
+    "key point",
+    "insight",
+    "conclusion",
+    "观点",
+    "核心观点",
+    "结论",
+    "洞察",
+    "要点",
+    "主旨",
 )
 
 

@@ -33,38 +33,40 @@ from myrm_agent_harness.core.security.redact import redact_sensitive_text
 class ConnectorErrorCategory(StrEnum):
     """Canonical classification for connector and delivery failures."""
 
-    HTTP_CLIENT_ERROR = "http_client_error"      # 4xx errors (excluding 401/403 auth)
-    HTTP_SERVER_ERROR = "http_server_error"      # 500, 502, 503, 504 gateway/upstream failures
+    HTTP_CLIENT_ERROR = "http_client_error"  # 4xx errors (excluding 401/403 auth)
+    HTTP_SERVER_ERROR = "http_server_error"  # 500, 502, 503, 504 gateway/upstream failures
     NETWORK_UNREACHABLE = "network_unreachable"  # DNS resolution failed, Connection Refused
-    TIMEOUT = "timeout"                          # Connect, read, or socket timeout
-    AUTH_FAILURE = "auth_failure"                # 401 Unauthorized, 403 Forbidden, invalid key
-    PAYLOAD_CONTRACT = "payload_contract"        # Invalid JSON-like response, response too large
-    PROCESS_ERROR = "process_error"              # Stdio broken pipe, child process exit
+    TIMEOUT = "timeout"  # Connect, read, or socket timeout
+    AUTH_FAILURE = "auth_failure"  # 401 Unauthorized, 403 Forbidden, invalid key
+    PAYLOAD_CONTRACT = "payload_contract"  # Invalid JSON-like response, response too large
+    PROCESS_ERROR = "process_error"  # Stdio broken pipe, child process exit
     UNKNOWN = "unknown"
 
 
 class ConnectorHealthStatus(StrEnum):
     """Health state of a specific connector destination."""
 
-    HEALTHY = "healthy"      # 0 consecutive failures (or recovered)
-    DEGRADED = "degraded"    # 1-2 consecutive failures, transient degradation
-    DOWN = "down"            # >= 3 consecutive failures or permanent auth/client rejection
+    HEALTHY = "healthy"  # 0 consecutive failures (or recovered)
+    DEGRADED = "degraded"  # 1-2 consecutive failures, transient degradation
+    DOWN = "down"  # >= 3 consecutive failures or permanent auth/client rejection
 
 
-_SENSITIVE_PARAM_NAMES = frozenset({
-    "access_token",
-    "token",
-    "secret",
-    "key",
-    "apikey",
-    "api_key",
-    "auth",
-    "authorization",
-    "password",
-    "sig",
-    "signature",
-    "sign",
-})
+_SENSITIVE_PARAM_NAMES = frozenset(
+    {
+        "access_token",
+        "token",
+        "secret",
+        "key",
+        "apikey",
+        "api_key",
+        "auth",
+        "authorization",
+        "password",
+        "sig",
+        "signature",
+        "sign",
+    }
+)
 
 
 def redact_connector_url(url: str | None) -> str:
@@ -102,14 +104,16 @@ def redact_connector_url(url: str | None) -> str:
     else:
         new_query = ""
 
-    redacted = urlunparse((
-        parsed.scheme,
-        netloc,
-        parsed.path,
-        parsed.params,
-        new_query,
-        parsed.fragment,
-    ))
+    redacted = urlunparse(
+        (
+            parsed.scheme,
+            netloc,
+            parsed.path,
+            parsed.params,
+            new_query,
+            parsed.fragment,
+        )
+    )
     return redacted
 
 
@@ -137,7 +141,12 @@ def classify_connector_error(
     lower = error_text.lower()
 
     # 2. Pattern matching for HTTP status inside error text
-    if "webhook returned 401" in lower or "webhook returned 403" in lower or "unauthorized" in lower or "forbidden" in lower:
+    if (
+        "webhook returned 401" in lower
+        or "webhook returned 403" in lower
+        or "unauthorized" in lower
+        or "forbidden" in lower
+    ):
         return ConnectorErrorCategory.AUTH_FAILURE, "Destination rejected credentials (401/403)"
     if "webhook returned 4" in lower:
         return ConnectorErrorCategory.HTTP_CLIENT_ERROR, "Destination rejected request (4xx)"
@@ -155,12 +164,25 @@ def classify_connector_error(
         return ConnectorErrorCategory.TIMEOUT, "Connection or read timed out"
 
     # 4. Network and DNS resolution patterns
-    if any(k in lower for k in (
-        "connection refused", "econnrefused", "name or service not known",
-        "nodename nor servname", "dns", "unreachable", "network is unreachable",
-        "ssl", "certificate", "tlsv1", "handshake failure", "connection reset",
-        "econnreset", "connection aborted",
-    )):
+    if any(
+        k in lower
+        for k in (
+            "connection refused",
+            "econnrefused",
+            "name or service not known",
+            "nodename nor servname",
+            "dns",
+            "unreachable",
+            "network is unreachable",
+            "ssl",
+            "certificate",
+            "tlsv1",
+            "handshake failure",
+            "connection reset",
+            "econnreset",
+            "connection aborted",
+        )
+    ):
         return ConnectorErrorCategory.NETWORK_UNREACHABLE, "Destination network or DNS unreachable"
 
     # 5. Payload / contract patterns

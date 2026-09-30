@@ -130,9 +130,11 @@ def validate_python_syntax(code: str) -> str | None:
         # If the syntax error is caused by top-level async constructs ('await', 'async for', 'async with' outside function),
         # re-validate wrapped in an async function to allow valid top-level async code while preserving __future__ headers.
         msg = str(exc.msg).lower()
-        if ("outside" in msg or "function" in msg) and any(
-            kw in msg for kw in ("'await'", "'async for'", "'async with'", "await", "async for", "async with")
-        ) and "return" not in msg:
+        if (
+            ("outside" in msg or "function" in msg)
+            and any(kw in msg for kw in ("'await'", "'async for'", "'async with'", "await", "async for", "async with"))
+            and "return" not in msg
+        ):
             try:
                 wrapped = _wrap_top_level_async_code(code)
                 compile(wrapped, "<string>", "exec")

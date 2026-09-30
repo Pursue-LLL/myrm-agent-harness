@@ -258,6 +258,7 @@ def clear_dynamic_blocked_hostnames() -> None:
     """Clear all dynamically registered blocked hostnames (useful for tests)."""
     _DYNAMIC_BLOCKED_HOSTNAMES.clear()
 
+
 _FAKE_IP_NETWORK = ipaddress.ip_network("198.18.0.0/15")
 _CGNAT_NETWORK = ipaddress.ip_network("100.64.0.0/10")
 

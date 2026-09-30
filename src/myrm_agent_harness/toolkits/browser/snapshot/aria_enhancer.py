@@ -344,4 +344,3 @@ def enhance_aria_tree(
     enhanced_nodes = [_enhance_node(node) for node in nodes]
 
     return enhanced_nodes, refs
-

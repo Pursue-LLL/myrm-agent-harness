@@ -53,10 +53,7 @@ def assert_mcp_spawn_allowed(
 ) -> None:
     """Block MCP subprocess spawn from an untrusted workspace scope."""
     if blocks_workspace_side_channels(trust_level):
-        scoped = any(
-            is_path_within_workspace(path, workspace_root)
-            for path in (cwd, plugin_root)
-        )
+        scoped = any(is_path_within_workspace(path, workspace_root) for path in (cwd, plugin_root))
         if scoped:
             from .errors import WorkspaceTrustBlockedError
 

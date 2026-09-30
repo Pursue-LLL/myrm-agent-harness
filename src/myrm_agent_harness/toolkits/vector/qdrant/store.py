@@ -161,7 +161,9 @@ class QdrantVectorStore(VectorStore):
             self._client.create_collection,  # type: ignore[attr-defined]
             **create_kwargs,
         )
-        logger.debug(f"Created collection: {name} (dim={dim}, distance={distance}, quant={quantization_config is not None})")
+        logger.debug(
+            f"Created collection: {name} (dim={dim}, distance={distance}, quant={quantization_config is not None})"
+        )
         return True
 
     async def ensure_collection(

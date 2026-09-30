@@ -86,11 +86,7 @@ class SkillAgentToolsMixin:
                 for tool in self.user_tools  # type: ignore[attr-defined]
             )
 
-        prompt_locale = (
-            getattr(self.config, "prompt_locale", None)
-            or getattr(self.config, "locale", None)
-            or "en"
-        )  # type: ignore[attr-defined]
+        prompt_locale = getattr(self.config, "prompt_locale", None) or getattr(self.config, "locale", None) or "en"  # type: ignore[attr-defined]
 
         supplemental_user_tools: list[BaseTool] = []
         if self.market_backend is not None and not _user_has_tool("skill_market_tool"):  # type: ignore[attr-defined]

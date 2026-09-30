@@ -155,9 +155,7 @@ async def check_system_exhaustion() -> HealthReport:
         fd_allocated = snapshot.get("fd_allocated")
         fd_max = snapshot.get("fd_max")
 
-        detail = (
-            f"Swap/Pagefile: {swap_percent:.1f}% ({swap_used_mb:.1f}/{swap_total_mb:.1f}MB)"
-        )
+        detail = f"Swap/Pagefile: {swap_percent:.1f}% ({swap_used_mb:.1f}/{swap_total_mb:.1f}MB)"
         if fd_allocated is not None and fd_max is not None:
             detail += f", FD/Handles: {fd_allocated}/{fd_max}"
             if fd_ratio is not None:

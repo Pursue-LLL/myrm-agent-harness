@@ -62,11 +62,7 @@ def windows_cmd_quote(
         return '""'
 
     # Fast-path for simple safe tokens without spaces or quotes
-    if (
-        not force_quote
-        and _SAFE_WINDOWS_RE.match(arg)
-        and not any(c in arg for c in " \t\"")
-    ):
+    if not force_quote and _SAFE_WINDOWS_RE.match(arg) and not any(c in arg for c in ' \t"'):
         return arg
 
     # 1. Normalize line endings to avoid multiline cmd.exe breakages
@@ -74,7 +70,7 @@ def windows_cmd_quote(
 
     # 2. CommandLineToArgvW escaping:
     # Double backslashes before a quote: (\+)" -> \1\1\"
-    out = re.sub(r'(\\*)(")', r'\1\1\\\2', sanitized)
+    out = re.sub(r'(\\*)(")', r"\1\1\\\2", sanitized)
     # Double backslashes at the end: (\+)$ -> \1\1
     out = re.sub(r"(\\+)$", r"\1\1", out)
     # Wrap in outer double quotes

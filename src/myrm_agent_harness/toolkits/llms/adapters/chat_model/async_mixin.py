@@ -297,9 +297,7 @@ class ChatLiteLLMAsyncMixin:
                     evicted = emergency_evict_from_message_dicts(
                         message_dicts, target_bytes=2 * 1024 * 1024, force_shrink=True
                     )
-                    evicted_msgs = emergency_evict(
-                        messages, target_bytes=2 * 1024 * 1024, force_shrink=True
-                    )
+                    evicted_msgs = emergency_evict(messages, target_bytes=2 * 1024 * 1024, force_shrink=True)
                     if evicted > 0 or evicted_msgs > 0:
                         logger.warning(
                             f" Payload overflow 400/413 intercepted: evicted {max(evicted, evicted_msgs)} historical images, retrying (attempt {attempt + 1})"
@@ -564,9 +562,7 @@ class ChatLiteLLMAsyncMixin:
                     evicted = emergency_evict_from_message_dicts(
                         message_dicts, target_bytes=4 * 1024 * 1024, force_shrink=True
                     )
-                    evicted_msgs = emergency_evict(
-                        messages, target_bytes=4 * 1024 * 1024, force_shrink=True
-                    )
+                    evicted_msgs = emergency_evict(messages, target_bytes=4 * 1024 * 1024, force_shrink=True)
                     if evicted > 0 or evicted_msgs > 0:
                         logger.warning(
                             f" Streaming payload overflow 400/413 intercepted: evicted {evicted} historical images, retrying (attempt {attempt + 1})"

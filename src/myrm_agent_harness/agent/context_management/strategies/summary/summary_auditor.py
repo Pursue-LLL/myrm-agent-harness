@@ -197,15 +197,11 @@ def build_retry_guidance(result: AuditResult) -> str:
 
     if result.hallucinated_files:
         sample = result.hallucinated_files[:5]
-        parts.append(
-            f"Do NOT claim these files were modified (no write operations occurred): {', '.join(sample)}"
-        )
+        parts.append(f"Do NOT claim these files were modified (no write operations occurred): {', '.join(sample)}")
 
     if result.missing_physical_files:
         sample = result.missing_physical_files[:5]
-        parts.append(
-            f"Please include these physically modified files in files_modified: {', '.join(sample)}"
-        )
+        parts.append(f"Please include these physically modified files in files_modified: {', '.join(sample)}")
 
     for issue in result.issues:
         if "too sparse" in issue.lower():

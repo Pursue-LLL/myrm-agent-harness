@@ -247,10 +247,7 @@ class RecurrenceDetector:
             score_threshold=self._similarity_threshold,
         )
 
-        similar_active = [
-            r for r in similar
-            if not r.document.metadata.get("is_deprecated")
-        ]
+        similar_active = [r for r in similar if not r.document.metadata.get("is_deprecated")]
 
         recurrence_count = len(similar_active) + 1  # +1 for current session
 
@@ -371,4 +368,3 @@ def _is_trivial_summary(text: str) -> bool:
     if not cleaned or cleaned in _TRIVIAL_SUMMARY_PATTERNS:
         return True
     return len(cleaned) <= 4 and not _is_important(text)
-

@@ -211,7 +211,9 @@ async def search_memory_corpus(
         if detail_level == "overview" and getattr(memory, "overview_l1", ""):
             content_to_render = f"[L1] {memory.overview_l1}"
             if len(result.content) > len(memory.overview_l1) + 40:
-                suffix += f" [id: {memory.id} | Drill-down: memory_search_tool(memory_id='{memory.id}', detail_level='full')]"
+                suffix += (
+                    f" [id: {memory.id} | Drill-down: memory_search_tool(memory_id='{memory.id}', detail_level='full')]"
+                )
         else:
             content_to_render = result.content
         budgeted = budget_recall_line(
@@ -382,4 +384,3 @@ async def drill_down_single_memory(
         evidence_repr = f"\nEvidence: {[e.source_id for e in memory.evidence]}"
 
     return f"{header}\n[L2 Verbatim Full Content]\n{full_content}{metadata_repr}{evidence_repr}"
-

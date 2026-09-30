@@ -92,5 +92,5 @@ def build_stream_continuation_instruction(tail_anchor: str) -> str:
     return (
         f"\n\n[System Recovery]: Your previous generation was cut off by a connection drop. "
         f"Continue outputting seamlessly right from the following text without repeating it:\n"
-        f"\"{tail_anchor}\""
+        f'"{tail_anchor}"'
     )

@@ -54,9 +54,7 @@ from .retrieval.source_citations import (
 
 logger = get_agent_logger(__name__)
 
-_BINARY_DOC_EXTENSIONS = frozenset(
-    {".pdf", ".docx", ".doc", ".xlsx", ".xls", ".pptx", ".ppt"}
-)
+_BINARY_DOC_EXTENSIONS = frozenset({".pdf", ".docx", ".doc", ".xlsx", ".xls", ".pptx", ".ppt"})
 _LARGE_DOC_CHUNK_THRESHOLD = 80_000
 
 # ---------------------------------------------------------------------------
@@ -120,23 +118,17 @@ WIKI_APPLY_DESCRIPTION_ZH = """对 Wiki 概念页面应用结构化更新。
 
 def resolve_wiki_ingest_description(locale: str | None = None) -> str:
     """Resolve localized description for wiki_ingest_tool."""
-    return (
-        WIKI_INGEST_DESCRIPTION_ZH if is_chinese(locale) else WIKI_INGEST_DESCRIPTION_EN
-    )
+    return WIKI_INGEST_DESCRIPTION_ZH if is_chinese(locale) else WIKI_INGEST_DESCRIPTION_EN
 
 
 def resolve_wiki_query_description(locale: str | None = None) -> str:
     """Resolve localized description for wiki_query_tool."""
-    return (
-        WIKI_QUERY_DESCRIPTION_ZH if is_chinese(locale) else WIKI_QUERY_DESCRIPTION_EN
-    )
+    return WIKI_QUERY_DESCRIPTION_ZH if is_chinese(locale) else WIKI_QUERY_DESCRIPTION_EN
 
 
 def resolve_wiki_apply_description(locale: str | None = None) -> str:
     """Resolve localized description for wiki_apply_tool."""
-    return (
-        WIKI_APPLY_DESCRIPTION_ZH if is_chinese(locale) else WIKI_APPLY_DESCRIPTION_EN
-    )
+    return WIKI_APPLY_DESCRIPTION_ZH if is_chinese(locale) else WIKI_APPLY_DESCRIPTION_EN
 
 
 def create_wiki_tools(
@@ -178,9 +170,7 @@ def create_wiki_agent_tools(
             str,
             "URL or file path to ingest (supports Web URLs, local documents like PDF/Word/Excel/Markdown, or raw text)",
         ],
-        filename: Annotated[
-            str, "Optional custom filename for the ingested document"
-        ] = "",
+        filename: Annotated[str, "Optional custom filename for the ingested document"] = "",
         folder_path: Annotated[
             str,
             "Optional logical folder path to categorize this document (e.g., 'Research/AI')",
@@ -191,10 +181,7 @@ def create_wiki_agent_tools(
         try:
             if source.startswith("http://") or source.startswith("https://"):
                 content = await _fetch_url_as_markdown(source)
-                resolved_filename = (
-                    filename
-                    or f"web_{hashlib.sha256(source.encode()).hexdigest()[:12]}.md"
-                )
+                resolved_filename = filename or f"web_{hashlib.sha256(source.encode()).hexdigest()[:12]}.md"
                 resolved_filename = Path(resolved_filename).name
                 if folder_path:
                     safe_folder = structure._sanitize_path(folder_path)
@@ -236,9 +223,7 @@ def create_wiki_agent_tools(
                             "Remove credentials before ingesting."
                         )
                     if ingress_result.written:
-                        compiler.enqueue_file(
-                            structure.get_raw_file_path(ingress_result.relative_path)
-                        )
+                        compiler.enqueue_file(structure.get_raw_file_path(ingress_result.relative_path))
                         ingested_count += 1
                         display_path = ingress_result.relative_path
 
@@ -264,10 +249,7 @@ def create_wiki_agent_tools(
                     filename = Path(filename).stem + ".md"
             else:
                 content = source
-                filename = (
-                    filename
-                    or f"text_{hashlib.sha256(source.encode()).hexdigest()[:12]}.md"
-                )
+                filename = filename or f"text_{hashlib.sha256(source.encode()).hexdigest()[:12]}.md"
 
             filename = Path(filename).name
 
@@ -341,11 +323,7 @@ def create_wiki_agent_tools(
         try:
             result = await query_engine.query(question)
 
-            if (
-                not result.source_snippets
-                and not result.related_articles
-                and result.confidence_score == 0.0
-            ):
+            if not result.source_snippets and not result.related_articles and result.confidence_score == 0.0:
                 return "No relevant information found in wiki. Consider ingesting more documents."
 
             from myrm_agent_harness.utils.context_format import (
@@ -358,9 +336,7 @@ def create_wiki_agent_tools(
                 structure=structure,
             )
 
-            wrapped_context = wrap_with_external_sources_tag(
-                evidence_context, source="LLM-Wiki"
-            )
+            wrapped_context = wrap_with_external_sources_tag(evidence_context, source="LLM-Wiki")
 
             sources = attach_wiki_scope_id(
                 build_wiki_query_sources(result, structure=structure),
@@ -368,19 +344,11 @@ def create_wiki_agent_tools(
             )
 
             # Archive only when high confidence and verified source snippets exist to prevent synthetic contamination
-            if (
-                result.should_archive
-                and result.confidence_score >= 0.8
-                and result.source_snippets
-            ):
+            if result.should_archive and result.confidence_score >= 0.8 and result.source_snippets:
                 try:
-                    await _archive_query_result(
-                        structure, compiler, question, result.answer
-                    )
+                    await _archive_query_result(structure, compiler, question, result.answer)
                 except Exception as archive_err:
-                    logger.warning(
-                        f"Query archive failed (non-blocking): {archive_err}"
-                    )
+                    logger.warning(f"Query archive failed (non-blocking): {archive_err}")
 
             return {"content": wrapped_context, "metadata": {"sources": sources}}
 
@@ -394,15 +362,9 @@ def create_wiki_agent_tools(
             str,
             "Operation: 'create_note' (new note with body), 'patch_compiled_truth' (update core facts with compiled_truth), 'append_timeline' (add event with timeline_entry), or 'update_metadata' (tags/aliases)",
         ],
-        concept_name: Annotated[
-            str, "Concept path, e.g. 'research/react-hooks' or 'team/onboarding'"
-        ],
-        compiled_truth: Annotated[
-            str, "For patch_compiled_truth: New Compiled Truth section content"
-        ] = "",
-        timeline_entry: Annotated[
-            str, "For append_timeline: Milestone or event bullet to append"
-        ] = "",
+        concept_name: Annotated[str, "Concept path, e.g. 'research/react-hooks' or 'team/onboarding'"],
+        compiled_truth: Annotated[str, "For patch_compiled_truth: New Compiled Truth section content"] = "",
+        timeline_entry: Annotated[str, "For append_timeline: Milestone or event bullet to append"] = "",
         body: Annotated[str, "For create_note: Main note content"] = "",
         tags: Annotated[
             str,
@@ -412,21 +374,13 @@ def create_wiki_agent_tools(
             str,
             "Comma-separated aliases for update_metadata or create_note (e.g. 'Hooks,React Hooks')",
         ] = "",
-        sources: Annotated[
-            str, "Comma-separated source references for update_metadata or create_note"
-        ] = "",
-        clear_confidence: Annotated[
-            bool, "For update_metadata: Reset frontmatter confidence score"
-        ] = False,
+        sources: Annotated[str, "Comma-separated source references for update_metadata or create_note"] = "",
+        clear_confidence: Annotated[bool, "For update_metadata: Reset frontmatter confidence score"] = False,
     ) -> str:
         try:
             apply_op = WikiApplyOp(op.strip().lower())
         except ValueError:
-            allowed = ", ".join(
-                member.value
-                for member in WikiApplyOp
-                if member != WikiApplyOp.REPLACE_FULL_DOCUMENT
-            )
+            allowed = ", ".join(member.value for member in WikiApplyOp if member != WikiApplyOp.REPLACE_FULL_DOCUMENT)
             return f"Invalid op '{op}'. Allowed: {allowed}"
 
         def _split_csv(raw: str) -> tuple[str, ...] | None:
@@ -448,9 +402,7 @@ def create_wiki_agent_tools(
         )
         indexer = WikiIndexer(structure)
         try:
-            result = await apply_wiki_mutation(
-                structure, indexer, request, caller="agent"
-            )
+            result = await apply_wiki_mutation(structure, indexer, request, caller="agent")
         except WikiApplyError as exc:
             return f"Wiki apply failed ({exc.code}): {exc.message}"
 
@@ -604,9 +556,7 @@ def _split_if_large(content: str, base_path: str) -> list[tuple[str, str]]:
     from myrm_agent_harness.toolkits.retriever.splitter import TextChunker
 
     chunker = TextChunker(min_chunk_tokens=200)
-    docs = chunker.chunk_text(
-        content, document_metadata={"title": Path(base_path).stem}
-    )
+    docs = chunker.chunk_text(content, document_metadata={"title": Path(base_path).stem})
 
     if len(docs) <= 1:
         return [(base_path, content)]
@@ -632,9 +582,7 @@ async def _fetch_url_as_markdown(url: str) -> str:
         doc = await web_fetch_tools.crawl(url)
         if doc and doc.page_content:
             return doc.page_content
-        logger.debug(
-            "FetchEngine returned empty for %s, falling back to secure_get", url
-        )
+        logger.debug("FetchEngine returned empty for %s, falling back to secure_get", url)
     except Exception:
         logger.debug("FetchEngine failed for %s, falling back to secure_get", url)
 

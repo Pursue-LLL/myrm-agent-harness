@@ -307,9 +307,7 @@ class SpendGovernor:
         entry_hash = hashlib.sha256(entry_payload.encode("utf-8")).hexdigest()
         self._prev_entry_hash = entry_hash
 
-        action_digest = (
-            f"{lease.currency} {lease.amount_cents / 100:.2f} paid to {lease.merchant_domain}"
-        )
+        action_digest = f"{lease.currency} {lease.amount_cents / 100:.2f} paid to {lease.merchant_domain}"
         return SpendCommitResult(
             success=True,
             code="COMMITTED",

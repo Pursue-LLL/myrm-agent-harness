@@ -26,14 +26,14 @@ from enum import Enum
 class MigrationPhase(str, Enum):
     """Lifecycle phases of a data or configuration migration task."""
 
-    PREPARING = "PREPARING"            # Inspecting source files, backing up existing data
+    PREPARING = "PREPARING"  # Inspecting source files, backing up existing data
     COPYING_CONFIG = "COPYING_CONFIG"  # Copying legacy configurations / settings
-    PARSING_JSONL = "PARSING_JSONL"    # Parsing and validating session/event JSONL records
-    MIGRATING_DB = "MIGRATING_DB"      # Schema alter, SQLite transaction execution
+    PARSING_JSONL = "PARSING_JSONL"  # Parsing and validating session/event JSONL records
+    MIGRATING_DB = "MIGRATING_DB"  # Schema alter, SQLite transaction execution
     VECTOR_REINDEX = "VECTOR_REINDEX"  # Rebuilding embeddings or Qdrant index
-    FINALIZING = "FINALIZING"          # Committing changes, cleaning temporary files
-    COMPLETED = "COMPLETED"            # Migration finished successfully
-    FAILED = "FAILED"                  # Migration terminated on fatal error
+    FINALIZING = "FINALIZING"  # Committing changes, cleaning temporary files
+    COMPLETED = "COMPLETED"  # Migration finished successfully
+    FAILED = "FAILED"  # Migration terminated on fatal error
 
 
 @dataclass(frozen=True, slots=True)

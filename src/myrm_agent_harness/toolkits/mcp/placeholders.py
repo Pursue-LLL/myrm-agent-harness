@@ -144,9 +144,7 @@ def resolve_stdio_launch(
         raw_env = extra_params.get("env")
         if isinstance(raw_env, dict):
             expanded = {
-                str(key): expand_placeholders(
-                    str(val), plugin_root=plugin_root, data_root=data_root
-                )
+                str(key): expand_placeholders(str(val), plugin_root=plugin_root, data_root=data_root)
                 for key, val in raw_env.items()
                 if val is not None and val != ""
             }
@@ -178,25 +176,13 @@ def resolve_stdio_launch(
 
     # A ./-relative executable runs from the plugin root even when no cwd was
     # declared (command == "./bin/foo" is a plugin-relative path per §7.2.1).
-    if (
-        cwd is None
-        and command is not None
-        and command.startswith("./")
-        and plugin_root is not None
-    ):
+    if cwd is None and command is not None and command.startswith("./") and plugin_root is not None:
         cwd = plugin_root
 
     expanded_args = (
-        [
-            expand_placeholders(a, plugin_root=plugin_root, data_root=data_root)
-            for a in args
-        ]
-        if args
-        else None
+        [expand_placeholders(a, plugin_root=plugin_root, data_root=data_root) for a in args] if args else None
     )
-    resolved_command, resolved_args = apply_windows_script_interpreter(
-        command or "", expanded_args or []
-    )
+    resolved_command, resolved_args = apply_windows_script_interpreter(command or "", expanded_args or [])
     return resolved_command, resolved_args, env, cwd
 
 
@@ -210,9 +196,7 @@ def _quote_cmd_component(value: str) -> str:
     return '"' + value.replace('"', '""') + '"'
 
 
-def apply_windows_script_interpreter(
-    command: str, args: list[str]
-) -> tuple[str, list[str]]:
+def apply_windows_script_interpreter(command: str, args: list[str]) -> tuple[str, list[str]]:
     """Map a Windows batch script to its platform interpreter (no-op elsewhere).
 
     On Windows, ``.bat`` / ``.cmd`` files are not directly executable, so the
@@ -229,6 +213,5 @@ def apply_windows_script_interpreter(
         return command, args
     return (
         "cmd.exe",
-        ["/d", "/c", _quote_cmd_component(command)]
-        + [_quote_cmd_component(a) for a in args],
+        ["/d", "/c", _quote_cmd_component(command)] + [_quote_cmd_component(a) for a in args],
     )

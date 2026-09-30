@@ -191,7 +191,5 @@ async def connect_async(
     import aiosqlite
 
     async with aiosqlite.connect(str(db_path)) as conn:
-        await harden_connection_async(
-            conn, profile, db_path=Path(db_path), capabilities=capabilities
-        )
+        await harden_connection_async(conn, profile, db_path=Path(db_path), capabilities=capabilities)
         yield conn

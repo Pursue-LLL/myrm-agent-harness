@@ -73,6 +73,8 @@ class EphemeralTransientSweeper:
                 tmp_item.unlink(missing_ok=True)
 
         if removed_count > 0:
-            logger.info("EphemeralTransientSweeper purged %d stale spillover files from %s", removed_count, spillover_dir)
+            logger.info(
+                "EphemeralTransientSweeper purged %d stale spillover files from %s", removed_count, spillover_dir
+            )
 
         return removed_count

@@ -27,15 +27,15 @@ from urllib.parse import quote, urlparse, urlunparse
 logger = logging.getLogger(__name__)
 
 ALLOWED_PROXY_SCHEMES = frozenset({"http", "https", "socks5", "socks5h"})
-_BLOCKED_METADATA_HOSTNAMES = frozenset({
-    "instance-data",
-    "metadata.google.internal",
-    "metadata",
-})
-
-_CREDENTIAL_URL_PATTERN = re.compile(
-    r"(?P<scheme>[a-zA-Z][a-zA-Z0-9+.-]*://)(?P<user>[^:\s/@]+):(?P<pass>[^@\s]+)@"
+_BLOCKED_METADATA_HOSTNAMES = frozenset(
+    {
+        "instance-data",
+        "metadata.google.internal",
+        "metadata",
+    }
 )
+
+_CREDENTIAL_URL_PATTERN = re.compile(r"(?P<scheme>[a-zA-Z][a-zA-Z0-9+.-]*://)(?P<user>[^:\s/@]+):(?P<pass>[^@\s]+)@")
 
 _PROBE_CACHE_MAX_ENTRIES = 256
 _probe_cache: dict[tuple[str, str], tuple[float, bool, str | None]] = {}
@@ -104,7 +104,7 @@ def normalize_proxy_url(proxy_url: str | None) -> str | None:
         return None
 
     if cleaned.lower().startswith("socks://"):
-        return "socks5://" + cleaned[len("socks://"):]
+        return "socks5://" + cleaned[len("socks://") :]
 
     return cleaned
 
@@ -137,14 +137,16 @@ def mask_proxy_url(url: str | None) -> str | None:
                 port_part = f":{parsed.port}" if parsed.port is not None else ""
                 masked_netloc = f"{username}:***@{parsed.hostname}{port_part}"
 
-                return urlunparse((
-                    parsed.scheme,
-                    masked_netloc,
-                    parsed.path,
-                    parsed.params,
-                    parsed.query,
-                    parsed.fragment,
-                ))
+                return urlunparse(
+                    (
+                        parsed.scheme,
+                        masked_netloc,
+                        parsed.path,
+                        parsed.params,
+                        parsed.query,
+                        parsed.fragment,
+                    )
+                )
         except Exception:
             return "<invalid-proxy-url>"
 

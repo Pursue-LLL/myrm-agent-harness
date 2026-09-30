@@ -478,5 +478,7 @@ def get_vertical_starter_pack(domain: VerticalDomain) -> CommerceStarterPack:
     """Retrieve an initialized vertical commerce starter pack by industry identifier."""
     factory = VERTICAL_FACTORIES.get(domain)
     if not factory:
-        raise ValueError(f"Unknown commerce vertical domain '{domain}'. Valid options: {list(VERTICAL_FACTORIES.keys())}")
+        raise ValueError(
+            f"Unknown commerce vertical domain '{domain}'. Valid options: {list(VERTICAL_FACTORIES.keys())}"
+        )
     return factory()

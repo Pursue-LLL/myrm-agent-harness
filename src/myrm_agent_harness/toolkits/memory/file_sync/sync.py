@@ -101,9 +101,7 @@ class FileMemorySyncEngine:
                     break
 
             # 3. Check for deleted files that were previously indexed
-            current_rel_paths = {
-                str(p.relative_to(self.topology.root_dir)) for p in candidate_paths
-            }
+            current_rel_paths = {str(p.relative_to(self.topology.root_dir)) for p in candidate_paths}
             if set(self._known_stats.keys()) - current_rel_paths:
                 needs_resync = True
 

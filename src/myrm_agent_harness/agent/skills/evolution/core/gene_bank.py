@@ -126,7 +126,5 @@ class GeneBankArchive:
         archive_inst = cls(max_elites_per_cell=max_elites)
         raw_archive = data.get("archive", {})
         for cell_key_str, records_data in raw_archive.items():
-            archive_inst._archive[cell_key_str] = [
-                GeneEliteRecord.from_dict(rec) for rec in records_data
-            ]
+            archive_inst._archive[cell_key_str] = [GeneEliteRecord.from_dict(rec) for rec in records_data]
         return archive_inst

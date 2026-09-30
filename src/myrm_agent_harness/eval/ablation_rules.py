@@ -60,9 +60,7 @@ class AblationRecommendation:
 
 
 # Canonical mapping from Trajectory FailureMode to high-ROI component remediation
-_FAILURE_TO_ABLATION_MAP: dict[
-    str, tuple[ComponentTier, int, str, str, str, str, str]
-] = {
+_FAILURE_TO_ABLATION_MAP: dict[str, tuple[ComponentTier, int, str, str, str, str, str]] = {
     FailureMode.TOOL_SELECTION_ERROR.value: (
         ComponentTier.TOOL,
         1,

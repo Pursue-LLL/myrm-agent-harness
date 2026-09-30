@@ -47,7 +47,9 @@ class ToolOutputCompactor:
         lines = raw_output.splitlines(keepends=True)
         if len(lines) <= (self._head_lines + self._tail_lines + 2):
             # Short line count but large lines: truncate character-wise
-            truncated_body = raw_output[:1024] + f"\n\n... [truncated {output_bytes_len - 1536} bytes] ...\n\n" + raw_output[-512:]
+            truncated_body = (
+                raw_output[:1024] + f"\n\n... [truncated {output_bytes_len - 1536} bytes] ...\n\n" + raw_output[-512:]
+            )
             return CanonicalToolCall(
                 call_id=tool_call.call_id,
                 tool_name=tool_call.tool_name,
@@ -62,7 +64,9 @@ class ToolOutputCompactor:
         head_part = "".join(lines[: self._head_lines])
         tail_part = "".join(lines[-self._tail_lines :])
         omitted_lines = len(lines) - self._head_lines - self._tail_lines
-        separator = f"\n... [omitted {omitted_lines} lines / {output_bytes_len} bytes total for context efficiency] ...\n"
+        separator = (
+            f"\n... [omitted {omitted_lines} lines / {output_bytes_len} bytes total for context efficiency] ...\n"
+        )
 
         compacted_output = f"{head_part}{separator}{tail_part}"
         return CanonicalToolCall(

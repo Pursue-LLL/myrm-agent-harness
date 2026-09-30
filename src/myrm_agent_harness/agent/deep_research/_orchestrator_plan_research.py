@@ -127,9 +127,7 @@ class DeepResearchPlanResearchMixin:
             HumanMessage(content=reminder),
         ]
 
-        evidence_tree = EvidenceTree(
-            root_id="root_plan", root_claim=self._result.research_plan or "Deep Research Goal"
-        )
+        evidence_tree = EvidenceTree(root_id="root_plan", root_claim=self._result.research_plan or "Deep Research Goal")
         detector = FastContradictionDetector(arbitrator_llm=self._llm)
         repair_engine = TreeRepairEngine(tree=evidence_tree)
 

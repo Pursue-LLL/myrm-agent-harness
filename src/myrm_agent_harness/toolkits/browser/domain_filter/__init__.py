@@ -309,9 +309,7 @@ async def install_domain_filter(
     """
     has_resource_block = False
     if resource_block:
-        has_resource_block = any(
-            getattr(resource_block, k) for k in _RESOURCE_TYPE_MAP.values()
-        )
+        has_resource_block = any(getattr(resource_block, k) for k in _RESOURCE_TYPE_MAP.values())
 
     ad_blocklist: frozenset[str] | None = None
     if resource_block and resource_block.block_ad_domains:
@@ -333,9 +331,7 @@ async def install_domain_filter(
         await _install_csp_policy(context, allowlist)
         await _install_main_thread_hardening(context)
 
-    await _install_http_filter(
-        context, allowlist, resource_block, ad_blocklist, domain_blocklist
-    )
+    await _install_http_filter(context, allowlist, resource_block, ad_blocklist, domain_blocklist)
 
     if enable_cdp_audit and not allowlist.is_empty:
         context.on("page", lambda page: _schedule_cdp_audit(page, allowlist))
@@ -355,9 +351,7 @@ async def install_domain_filter(
 # ---------------------------------------------------------------------------
 
 
-async def _install_csp_policy(
-    context: BrowserContext, allowlist: DomainAllowlist
-) -> None:
+async def _install_csp_policy(context: BrowserContext, allowlist: DomainAllowlist) -> None:
     """Inject CSP meta tag to restrict network access in main thread and Workers."""
     from myrm_agent_harness.toolkits.browser.enhancers import (
         install_document_script_injection,
@@ -401,9 +395,7 @@ async def _continue_route_safely(route: Route) -> None:
         raise
 
 
-async def _abort_route_safely(
-    route: Route, *, error_code: str = "blockedbyclient"
-) -> None:
+async def _abort_route_safely(route: Route, *, error_code: str = "blockedbyclient") -> None:
     try:
         await route.abort(error_code)
     except Exception as exc:
@@ -462,11 +454,7 @@ async def _install_http_filter(
             await _abort_route_safely(route)
             return
 
-        if (
-            domain_blocklist
-            and not domain_blocklist.is_empty
-            and domain_blocklist.is_blocked(hostname)
-        ):
+        if domain_blocklist and not domain_blocklist.is_empty and domain_blocklist.is_blocked(hostname):
             await _abort_route_safely(route)
             return
 

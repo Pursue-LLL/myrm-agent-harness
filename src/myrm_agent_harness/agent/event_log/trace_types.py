@@ -206,7 +206,10 @@ class ExecutionTrace:
             "completion_tokens": sum(lc.completion_tokens for lc in self.llm_calls),
             "cache_read_tokens": sum(lc.cache_read_tokens for lc in self.llm_calls),
             "cache_hit_ratio": (
-                round(sum(lc.cache_read_tokens for lc in self.llm_calls) / sum(lc.prompt_tokens for lc in self.llm_calls), 4)
+                round(
+                    sum(lc.cache_read_tokens for lc in self.llm_calls) / sum(lc.prompt_tokens for lc in self.llm_calls),
+                    4,
+                )
                 if sum(lc.prompt_tokens for lc in self.llm_calls) > 0
                 else 0.0
             ),

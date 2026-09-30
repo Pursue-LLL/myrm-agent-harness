@@ -183,7 +183,12 @@ def detect_platform() -> PlatformInfo:
     is_wsl = _detect_wsl()
 
     if os_type == "windows":
-        powershell_bin = shutil.which("powershell.exe") or shutil.which("pwsh.exe") or shutil.which("powershell") or shutil.which("pwsh")
+        powershell_bin = (
+            shutil.which("powershell.exe")
+            or shutil.which("pwsh.exe")
+            or shutil.which("powershell")
+            or shutil.which("pwsh")
+        )
         if powershell_bin:
             return PlatformInfo(
                 os_type=os_type,

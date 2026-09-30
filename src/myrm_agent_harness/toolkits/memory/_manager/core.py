@@ -174,11 +174,7 @@ class MemoryManagerCore:
                 deduplicator=self._deduplicator,
             ),
         )
-        if (
-            fts5_searcher is None
-            and relational is not None
-            and hasattr(relational, "search_fts5")
-        ):
+        if fts5_searcher is None and relational is not None and hasattr(relational, "search_fts5"):
             fts5_searcher = relational.search_fts5
 
         self._search_service = MemorySearchService(

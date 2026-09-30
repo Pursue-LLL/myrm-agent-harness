@@ -63,10 +63,7 @@ class SpilloverEngine:
         char_count = len(raw_text)
         token_pressure = estimate_token_pressure(raw_text)
 
-        if (
-            char_count <= self.config.max_message_chars
-            and token_pressure <= self.config.max_token_pressure
-        ):
+        if char_count <= self.config.max_message_chars and token_pressure <= self.config.max_token_pressure:
             return SpilloverResult(
                 spilled=False,
                 sanitized_content=raw_text,
@@ -96,9 +93,7 @@ class SpilloverEngine:
                 "Security violation: spillover target escaped directory: %s",
                 target_file,
             )
-            raise PermissionError(
-                "Path traversal detected in spillover target file"
-            ) from err
+            raise PermissionError("Path traversal detected in spillover target file") from err
 
         lines = raw_text.count("\n") + 1
         preview = raw_text[: self.config.preview_chars].strip()

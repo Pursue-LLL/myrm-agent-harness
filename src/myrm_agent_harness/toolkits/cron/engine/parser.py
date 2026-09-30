@@ -29,9 +29,7 @@ from croniter import croniter
 from myrm_agent_harness.toolkits.cron.types import Schedule, ScheduleKind
 
 
-def compute_prev_run(
-    schedule: Schedule, reference: datetime | None = None
-) -> datetime | None:
+def compute_prev_run(schedule: Schedule, reference: datetime | None = None) -> datetime | None:
     """Return the most recent fire time **before** *reference* (defaults to now UTC).
 
     Returns ``None`` for ONCE schedules or when no prior occurrence can be
@@ -50,9 +48,7 @@ def compute_prev_run(
     return None
 
 
-def compute_next_run(
-    schedule: Schedule, reference: datetime | None = None
-) -> datetime | None:
+def compute_next_run(schedule: Schedule, reference: datetime | None = None) -> datetime | None:
     """Return the next fire time **after** *reference* (defaults to now UTC).
 
     Returns ``None`` when the schedule has no future occurrence (e.g. a
@@ -118,9 +114,7 @@ _DEFAULT_LOOP_INTERVAL_MS = 600_000  # 10m
 _MIN_LOOP_INTERVAL_MS = 60_000  # 1m
 
 
-def parse_natural_interval(
-    text: str, default_ms: int = _DEFAULT_LOOP_INTERVAL_MS
-) -> int:
+def parse_natural_interval(text: str, default_ms: int = _DEFAULT_LOOP_INTERVAL_MS) -> int:
     """Parse natural language duration string into milliseconds.
 
     Supports:
@@ -207,9 +201,8 @@ def parse_loop_command_input(raw_input: str) -> tuple[int, str]:
 
     def _clean_prompt(p: str) -> str:
         trimmed = p.strip()
-        if (
-            (trimmed.startswith('"') and trimmed.endswith('"') and len(trimmed) >= 2)
-            or (trimmed.startswith("'") and trimmed.endswith("'") and len(trimmed) >= 2)
+        if (trimmed.startswith('"') and trimmed.endswith('"') and len(trimmed) >= 2) or (
+            trimmed.startswith("'") and trimmed.endswith("'") and len(trimmed) >= 2
         ):
             return trimmed[1:-1].strip()
         return trimmed

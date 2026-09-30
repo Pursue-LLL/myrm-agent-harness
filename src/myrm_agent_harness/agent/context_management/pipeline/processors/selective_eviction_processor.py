@@ -47,9 +47,7 @@ class SelectiveEvictionProcessor(BaseProcessor):
         self.target_marks: frozenset[str] = (
             frozenset(target_marks) if target_marks is not None else DEFAULT_TRANSIENT_MARKS
         )
-        self.preserve_marks: frozenset[str] = (
-            frozenset(preserve_marks) if preserve_marks is not None else frozenset()
-        )
+        self.preserve_marks: frozenset[str] = frozenset(preserve_marks) if preserve_marks is not None else frozenset()
 
     @property
     def name(self) -> str:

@@ -42,4 +42,3 @@ class RunawayCircuitBreakException(Exception):  # noqa: N818
         self.tool_name = tool_name
         self.consecutive_count = consecutive_count
         self.signature_hash = signature_hash
-

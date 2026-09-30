@@ -97,7 +97,9 @@ def synthesize_fault_site_overlay(
     # L0/L1: Unknown / extra argument error -> TEMP_SKILL_VARIANT with strip_params
     bad_field = _extract_forbidden_field(error_msg)
     if bad_field and (not args_dict or bad_field in args_dict):
-        advisory = f"Tool '{tool_name}' rejected extra parameter '{bad_field}'. In subsequent calls, omit '{bad_field}'."
+        advisory = (
+            f"Tool '{tool_name}' rejected extra parameter '{bad_field}'. In subsequent calls, omit '{bad_field}'."
+        )
         return SessionOverlay(
             overlay_id=overlay_uid,
             scope=scope,

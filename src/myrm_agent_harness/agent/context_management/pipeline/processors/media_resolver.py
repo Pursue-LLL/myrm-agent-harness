@@ -84,9 +84,7 @@ async def resolve_image_reference_to_data_url(
         return await _resolve_http(url)
 
     if url.startswith("/api/"):
-        return await _resolve_api_file_path(
-            url, file_content_reader=file_content_reader
-        )
+        return await _resolve_api_file_path(url, file_content_reader=file_content_reader)
 
     return await asyncio.to_thread(_resolve_local_file, url)
 
@@ -168,9 +166,7 @@ class MediaResolverProcessor(BaseProcessor):
         )
 
         resolved_count = 0
-        for (msg_idx, item_idx, original_url), result in zip(
-            resolve_tasks, results, strict=True
-        ):
+        for (msg_idx, item_idx, original_url), result in zip(resolve_tasks, results, strict=True):
             if isinstance(result, Exception):
                 logger.warning(
                     "[MediaResolver] Failed to resolve %s: %s",
@@ -197,9 +193,7 @@ class MediaResolverProcessor(BaseProcessor):
 
         return context
 
-    async def _resolve_with_semaphore(
-        self, sem: asyncio.Semaphore, url: str
-    ) -> str | None:
+    async def _resolve_with_semaphore(self, sem: asyncio.Semaphore, url: str) -> str | None:
         async with sem:
             return await self._resolve_url(url)
 
@@ -219,16 +213,12 @@ def _resolve_local_file(path_str: str) -> str | None:
             return None
         size = p.stat().st_size
         if size > MAX_IMAGE_READ_BYTES:
-            logger.warning(
-                "[MediaResolver] Local file too large (%d bytes): %s", size, path_str
-            )
+            logger.warning("[MediaResolver] Local file too large (%d bytes): %s", size, path_str)
             return None
         data = p.read_bytes()
         return _bytes_to_data_url(_compress_for_send(data), path_str)
     except Exception as exc:
-        logger.warning(
-            "[MediaResolver] Local file read failed for %s: %s", path_str, exc
-        )
+        logger.warning("[MediaResolver] Local file read failed for %s: %s", path_str, exc)
         return None
 
 

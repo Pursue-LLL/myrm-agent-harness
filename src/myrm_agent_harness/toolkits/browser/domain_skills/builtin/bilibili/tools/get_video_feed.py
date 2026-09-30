@@ -72,13 +72,15 @@ async def get_video_feed(session: Any, args: dict[str, Any]) -> str:
             items = await page.evaluate(eval_script)
             if isinstance(items, list) and items:
                 for it in items[:max_items]:
-                    videos.append({
-                        "title": str(it.get("title", "")),
-                        "author": str(it.get("author", "")),
-                        "play_count": str(it.get("play_count", "")),
-                        "danmaku": str(it.get("danmaku", "")),
-                        "url": str(it.get("url", "")),
-                    })
+                    videos.append(
+                        {
+                            "title": str(it.get("title", "")),
+                            "author": str(it.get("author", "")),
+                            "play_count": str(it.get("play_count", "")),
+                            "danmaku": str(it.get("danmaku", "")),
+                            "url": str(it.get("url", "")),
+                        }
+                    )
     except Exception as exc:
         logger.debug("Bilibili DOM evaluate track encountered non-fatal error: %s", exc)
 
@@ -96,14 +98,16 @@ async def get_video_feed(session: Any, args: dict[str, Any]) -> str:
             # Bilibili video links usually contain BV/av or title text
             if info.role in ("link", "article") and len(name) > 8:
                 if any(kw in name for kw in ("UP", "播放", "弹幕", "BV", "观看")):
-                    videos.append({
-                        "title": name[:150],
-                        "author": "",
-                        "play_count": "",
-                        "danmaku": "",
-                        "url": "",
-                        "ref": ref_id,
-                    })
+                    videos.append(
+                        {
+                            "title": name[:150],
+                            "author": "",
+                            "play_count": "",
+                            "danmaku": "",
+                            "url": "",
+                            "ref": ref_id,
+                        }
+                    )
 
     # 3. Tertiary fallback track: text content parsing
     if not videos and hasattr(session, "extract_text"):
@@ -113,12 +117,14 @@ async def get_video_feed(session: Any, args: dict[str, Any]) -> str:
             if len(videos) >= max_items:
                 break
             if len(line) > 12 and any(k in line for k in ("UP", "观看", "弹幕", "万", "亿")):
-                videos.append({
-                    "title": line[:150],
-                    "author": "",
-                    "play_count": "",
-                    "danmaku": "",
-                    "url": "",
-                })
+                videos.append(
+                    {
+                        "title": line[:150],
+                        "author": "",
+                        "play_count": "",
+                        "danmaku": "",
+                        "url": "",
+                    }
+                )
 
     return json.dumps(videos, ensure_ascii=False, indent=2)

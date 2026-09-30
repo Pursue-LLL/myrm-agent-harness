@@ -162,6 +162,7 @@ class BrowserObservability:
 
     def attach_to_context(self, context: BrowserContext) -> None:
         """Attach lightweight observers to BrowserContext for real-time bandwidth and page telemetry."""
+
         def _on_page(_page: Page) -> None:
             self._telemetry.page_count += 1
 

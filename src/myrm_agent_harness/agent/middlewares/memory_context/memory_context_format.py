@@ -79,7 +79,6 @@ def _has_memory_context(messages: Sequence[BaseMessage]) -> bool:
     return False
 
 
-
 def _format_memory_context(
     ctx: dict[str, object],
     learned: dict[str, list[dict[str, str]]],
@@ -129,7 +128,9 @@ def _format_memory_context(
             # Heuristic detection for negative constraints if not explicitly marked
             if not is_veto:
                 action_lower = action_str.lower()
-                if any(kw in action_lower for kw in ("never", "forbidden", "prohibited", "do not", "禁止", "严禁", "不得")):
+                if any(
+                    kw in action_lower for kw in ("never", "forbidden", "prohibited", "do not", "禁止", "严禁", "不得")
+                ):
                     is_veto = True
 
             if is_veto:
@@ -276,9 +277,13 @@ def _format_memory_context(
             if is_failure:
                 warn_text = f"{phase_label}{content}" if content else phase_label.strip()
                 if reason:
-                    warn_text = f"{warn_text} | Cause: {sanitize(reason)}" if warn_text else f"Cause: {sanitize(reason)}"
+                    warn_text = (
+                        f"{warn_text} | Cause: {sanitize(reason)}" if warn_text else f"Cause: {sanitize(reason)}"
+                    )
                 if lesson:
-                    warn_text = f"{warn_text} — AVOID: {sanitize(lesson)}" if warn_text else f"AVOID: {sanitize(lesson)}"
+                    warn_text = (
+                        f"{warn_text} — AVOID: {sanitize(lesson)}" if warn_text else f"AVOID: {sanitize(lesson)}"
+                    )
                 failure_traps.append(warn_text)
             elif not content:
                 # Non-failure memory requires meaningful content
@@ -299,9 +304,7 @@ def _format_memory_context(
                 BudgetedSection("Failed Attempts & Negative Traps (Do not repeat)", failure_traps, priority=3)
             )
         if phase_memories:
-            untrusted_sections.append(
-                BudgetedSection("Subtask Phase Memories", phase_memories, priority=5)
-            )
+            untrusted_sections.append(BudgetedSection("Subtask Phase Memories", phase_memories, priority=5))
         if background_memories:
             untrusted_sections.append(
                 BudgetedSection(
@@ -359,9 +362,7 @@ def _format_memory_context(
             "Use memory_search_tool to search for more.)"
         )
     else:
-        truncation_message = (
-            "\n... (Some lower-priority memory items were truncated to preserve prompt stability.)"
-        )
+        truncation_message = "\n... (Some lower-priority memory items were truncated to preserve prompt stability.)"
     escaped_untrusted = [
         BudgetedSection(sec.title, [_escape_xml_item(i) for i in sec.items], priority=sec.priority)
         for sec in untrusted_sections

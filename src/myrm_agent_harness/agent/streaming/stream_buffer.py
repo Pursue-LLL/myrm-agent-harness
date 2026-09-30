@@ -131,9 +131,7 @@ class ResilientStreamBuffer:
                     break
                 else:
                     try:
-                        await asyncio.wait_for(
-                            self._condition.wait(), timeout=heartbeat_interval
-                        )
+                        await asyncio.wait_for(self._condition.wait(), timeout=heartbeat_interval)
                     except TimeoutError:
                         is_heartbeat = True
                     else:

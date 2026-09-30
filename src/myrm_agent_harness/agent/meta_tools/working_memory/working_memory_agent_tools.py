@@ -142,11 +142,13 @@ def create_working_memory_manage_tool() -> BaseTool:
             if action == "add_subtask":
                 task_title = (title or notes or "").strip()
                 if not task_title:
-                    return json.dumps({
-                        "status": "error",
-                        "error": "Missing required 'title' for 'add_subtask'.",
-                        "hint": "Provide a clear task title (e.g. title='Verify deployment logs').",
-                    })
+                    return json.dumps(
+                        {
+                            "status": "error",
+                            "error": "Missing required 'title' for 'add_subtask'.",
+                            "hint": "Provide a clear task title (e.g. title='Verify deployment logs').",
+                        }
+                    )
 
                 task_notes = notes.strip() if notes and notes.strip() != task_title else ""
                 item = LocalWorkingMemoryBlock.add_subtask(
@@ -155,10 +157,12 @@ def create_working_memory_manage_tool() -> BaseTool:
                     notes=task_notes,
                 )
                 if item is None:
-                    return json.dumps({
-                        "status": "error",
-                        "error": "Working memory is not initialized.",
-                    })
+                    return json.dumps(
+                        {
+                            "status": "error",
+                            "error": "Working memory is not initialized.",
+                        }
+                    )
 
                 new_id = item.id
 
@@ -176,34 +180,42 @@ def create_working_memory_manage_tool() -> BaseTool:
                 except Exception as exc:
                     logger.debug("Failed to dispatch working_memory_update event: %s", exc)
 
-                return json.dumps({
-                    "status": "success",
-                    "action": "add_subtask",
-                    "subtask_id": new_id,
-                    "title": task_title,
-                })
+                return json.dumps(
+                    {
+                        "status": "success",
+                        "action": "add_subtask",
+                        "subtask_id": new_id,
+                        "title": task_title,
+                    }
+                )
 
             if action == "update_subtask":
                 if not subtask_id:
-                    return json.dumps({
-                        "status": "error",
-                        "error": "Missing required 'subtask_id' for 'update_subtask'.",
-                        "hint": "Provide a valid subtask_id (e.g. 'step-1').",
-                    })
+                    return json.dumps(
+                        {
+                            "status": "error",
+                            "error": "Missing required 'subtask_id' for 'update_subtask'.",
+                            "hint": "Provide a valid subtask_id (e.g. 'step-1').",
+                        }
+                    )
                 if not status:
-                    return json.dumps({
-                        "status": "error",
-                        "error": "Missing required 'status' for 'update_subtask'.",
-                        "hint": "Choose from 'pending', 'in_progress', 'completed', 'failed', 'skipped'.",
-                    })
+                    return json.dumps(
+                        {
+                            "status": "error",
+                            "error": "Missing required 'status' for 'update_subtask'.",
+                            "hint": "Choose from 'pending', 'in_progress', 'completed', 'failed', 'skipped'.",
+                        }
+                    )
 
                 parsed_status = _VALID_STATUSES.get(status.lower())
                 if parsed_status is None:
-                    return json.dumps({
-                        "status": "error",
-                        "error": f"Invalid status '{status}'.",
-                        "valid_options": list(_VALID_STATUSES.keys()),
-                    })
+                    return json.dumps(
+                        {
+                            "status": "error",
+                            "error": f"Invalid status '{status}'.",
+                            "valid_options": list(_VALID_STATUSES.keys()),
+                        }
+                    )
 
                 ok = LocalWorkingMemoryBlock.update_subtask(
                     subtask_id=subtask_id,
@@ -211,11 +223,13 @@ def create_working_memory_manage_tool() -> BaseTool:
                     notes=notes or "",
                 )
                 if not ok:
-                    return json.dumps({
-                        "status": "error",
-                        "error": f"Subtask '{subtask_id}' not found.",
-                        "hint": "Use action='add_subtask' with 'title' to create a new step, or check existing subtask IDs.",
-                    })
+                    return json.dumps(
+                        {
+                            "status": "error",
+                            "error": f"Subtask '{subtask_id}' not found.",
+                            "hint": "Use action='add_subtask' with 'title' to create a new step, or check existing subtask IDs.",
+                        }
+                    )
 
                 try:
                     dispatch_custom_event(
@@ -231,12 +245,14 @@ def create_working_memory_manage_tool() -> BaseTool:
                 except Exception as exc:
                     logger.debug("Failed to dispatch working_memory_update event: %s", exc)
 
-                return json.dumps({
-                    "status": "success",
-                    "action": "update_subtask",
-                    "subtask_id": subtask_id,
-                    "new_status": parsed_status.value,
-                })
+                return json.dumps(
+                    {
+                        "status": "success",
+                        "action": "update_subtask",
+                        "subtask_id": subtask_id,
+                        "new_status": parsed_status.value,
+                    }
+                )
 
             if action == "discard":
                 rule = avoidance_rule or reason or f"Avoid failing approach: {target or 'unknown'}"
@@ -268,20 +284,24 @@ def create_working_memory_manage_tool() -> BaseTool:
                 except Exception as exc:
                     logger.debug("Failed to dispatch working_memory_update event: %s", exc)
 
-                return json.dumps({
-                    "status": "success",
-                    "action": "discard",
-                    "target": fingerprint,
-                    "avoidance_rule": rule,
-                    "message": "Hypothesis successfully pruned and registered as an avoidance trap.",
-                })
+                return json.dumps(
+                    {
+                        "status": "success",
+                        "action": "discard",
+                        "target": fingerprint,
+                        "avoidance_rule": rule,
+                        "message": "Hypothesis successfully pruned and registered as an avoidance trap.",
+                    }
+                )
 
             if action == "summarize":
                 if not summary:
-                    return json.dumps({
-                        "status": "error",
-                        "error": "Missing required 'summary' text for 'summarize'.",
-                    })
+                    return json.dumps(
+                        {
+                            "status": "error",
+                            "error": "Missing required 'summary' text for 'summarize'.",
+                        }
+                    )
 
                 LocalWorkingMemoryBlock.set_scratchpad("latest_summary", summary)
 
@@ -297,18 +317,22 @@ def create_working_memory_manage_tool() -> BaseTool:
                 except Exception as exc:
                     logger.debug("Failed to dispatch working_memory_update event: %s", exc)
 
-                return json.dumps({
-                    "status": "success",
-                    "action": "summarize",
-                    "message": "Working memory summary recorded.",
-                })
+                return json.dumps(
+                    {
+                        "status": "success",
+                        "action": "summarize",
+                        "message": "Working memory summary recorded.",
+                    }
+                )
 
             if action == "set_scratchpad":
                 if not key or value is None:
-                    return json.dumps({
-                        "status": "error",
-                        "error": "Both 'key' and 'value' are required for 'set_scratchpad'.",
-                    })
+                    return json.dumps(
+                        {
+                            "status": "error",
+                            "error": "Both 'key' and 'value' are required for 'set_scratchpad'.",
+                        }
+                    )
 
                 safe_value = value[:2000] if len(value) > 2000 else value
                 LocalWorkingMemoryBlock.set_scratchpad(key=key, value=safe_value)
@@ -325,24 +349,30 @@ def create_working_memory_manage_tool() -> BaseTool:
                 except Exception as exc:
                     logger.debug("Failed to dispatch working_memory_update event: %s", exc)
 
-                return json.dumps({
-                    "status": "success",
-                    "action": "set_scratchpad",
-                    "key": key,
-                    "truncated": len(value) > 2000,
-                })
+                return json.dumps(
+                    {
+                        "status": "success",
+                        "action": "set_scratchpad",
+                        "key": key,
+                        "truncated": len(value) > 2000,
+                    }
+                )
 
-            return json.dumps({
-                "status": "error",
-                "error": f"Unsupported action: '{action}'.",
-                "valid_actions": ["add_subtask", "update_subtask", "discard", "summarize", "set_scratchpad"],
-            })
+            return json.dumps(
+                {
+                    "status": "error",
+                    "error": f"Unsupported action: '{action}'.",
+                    "valid_actions": ["add_subtask", "update_subtask", "discard", "summarize", "set_scratchpad"],
+                }
+            )
 
         except Exception as exc:
             logger.exception("Error in working_memory_manage: %s", exc)
-            return json.dumps({
-                "status": "error",
-                "error": f"Failed to execute working_memory_manage: {exc}",
-            })
+            return json.dumps(
+                {
+                    "status": "error",
+                    "error": f"Failed to execute working_memory_manage: {exc}",
+                }
+            )
 
     return working_memory_manage

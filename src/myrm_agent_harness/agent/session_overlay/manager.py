@@ -66,8 +66,7 @@ class SessionOverlayManager:
                     patch_payload={**old_ovl.patch_payload, **overlay.patch_payload},
                     ttl_turns=max(old_ovl.ttl_turns, overlay.ttl_turns),
                     attempt_count=old_ovl.attempt_count + 1,
-                    failure_signature=overlay.failure_signature
-                    or old_ovl.failure_signature,
+                    failure_signature=overlay.failure_signature or old_ovl.failure_signature,
                     status=OverlayStatus.ACTIVE,
                 )
                 logger.info(
@@ -81,9 +80,7 @@ class SessionOverlayManager:
             active_count = sum(1 for o in self._overlays.values() if o.is_alive())
             if active_count >= MAX_ACTIVE_OVERLAYS:
                 # Evict earliest active overlay to prevent cascade
-                earliest = next(
-                    (k for k, v in self._overlays.items() if v.is_alive()), None
-                )
+                earliest = next((k for k, v in self._overlays.items() if v.is_alive()), None)
                 if earliest:
                     self._overlays[earliest] = SessionOverlay(
                         overlay_id=self._overlays[earliest].overlay_id,
@@ -125,11 +122,7 @@ class SessionOverlayManager:
                     continue
                 if target_type is not None and ovl.target_type != target_type:
                     continue
-                if (
-                    target_name is not None
-                    and ovl.target_name != target_name
-                    and ovl.target_name != "global"
-                ):
+                if target_name is not None and ovl.target_name != target_name and ovl.target_name != "global":
                     continue
                 results.append(ovl)
             return results
@@ -138,9 +131,7 @@ class SessionOverlayManager:
         self, tool_name: str, tool_args: dict[str, object]
     ) -> tuple[dict[str, object], SessionOverlay | None]:
         """Apply active argument-stripping or alias patch if target tool matches."""
-        active = self.get_active_overlays(
-            target_type=OverlayTargetType.TEMP_SKILL_VARIANT, target_name=tool_name
-        )
+        active = self.get_active_overlays(target_type=OverlayTargetType.TEMP_SKILL_VARIANT, target_name=tool_name)
         if not active:
             return tool_args, None
 
@@ -158,9 +149,7 @@ class SessionOverlayManager:
         )
         return adapted_args, selected
 
-    def record_tool_outcome(
-        self, tool_name: str, is_error: bool, error_signature: str = ""
-    ) -> list[str]:
+    def record_tool_outcome(self, tool_name: str, is_error: bool, error_signature: str = "") -> list[str]:
         """Record tool execution outcome. Triggers Trial & Rollback Guard on failure."""
         rolled_back_ids: list[str] = []
         with self._lock:
@@ -191,9 +180,7 @@ class SessionOverlayManager:
                 else:
                     # Success: increment attempt, decrement TTL per tool invocation cycle, and record for Growth
                     new_ttl = max(0, ovl.ttl_turns - 1)
-                    new_status = (
-                        OverlayStatus.ACTIVE if new_ttl > 0 else OverlayStatus.EXPIRED
-                    )
+                    new_status = OverlayStatus.ACTIVE if new_ttl > 0 else OverlayStatus.EXPIRED
                     self._overlays[ovl_id] = SessionOverlay(
                         overlay_id=ovl.overlay_id,
                         scope=ovl.scope,
@@ -238,9 +225,7 @@ class SessionOverlayManager:
                 if not ovl.is_alive():
                     continue
                 new_ttl = ovl.ttl_turns - 1
-                new_status = (
-                    OverlayStatus.ACTIVE if new_ttl > 0 else OverlayStatus.EXPIRED
-                )
+                new_status = OverlayStatus.ACTIVE if new_ttl > 0 else OverlayStatus.EXPIRED
                 self._overlays[ovl_id] = SessionOverlay(
                     overlay_id=ovl.overlay_id,
                     scope=ovl.scope,
@@ -254,16 +239,12 @@ class SessionOverlayManager:
                 )
                 if new_status == OverlayStatus.EXPIRED:
                     expired_ids.append(ovl_id)
-                    logger.info(
-                        "[SessionOverlay] %s expired gracefully (TTL=0)", ovl_id
-                    )
+                    logger.info("[SessionOverlay] %s expired gracefully (TTL=0)", ovl_id)
         return expired_ids
 
     def get_active_negative_constraints(self) -> list[str]:
         """Retrieve active negative pattern constraints for turn prompt injection."""
-        overlays = self.get_active_overlays(
-            target_type=OverlayTargetType.PROCEDURAL_MEMORY
-        )
+        overlays = self.get_active_overlays(target_type=OverlayTargetType.PROCEDURAL_MEMORY)
         constraints: list[str] = []
         for ovl in overlays:
             c = ovl.patch_payload.get("negative_constraint")
@@ -278,9 +259,7 @@ class SessionOverlayManager:
             for ovl in self._overlays.values():
                 if not ovl.is_alive():
                     continue
-                adv = ovl.patch_payload.get(
-                    "advisory_instruction"
-                ) or ovl.patch_payload.get("negative_constraint")
+                adv = ovl.patch_payload.get("advisory_instruction") or ovl.patch_payload.get("negative_constraint")
                 if isinstance(adv, str) and adv:
                     advisories.append(adv)
             return advisories
@@ -299,9 +278,7 @@ class SessionOverlayManager:
 # ContextVar session bindings
 # ---------------------------------------------------------------------------
 
-_overlay_manager_var: ContextVar[SessionOverlayManager | None] = ContextVar(
-    "session_overlay_manager", default=None
-)
+_overlay_manager_var: ContextVar[SessionOverlayManager | None] = ContextVar("session_overlay_manager", default=None)
 
 
 def get_session_overlay_manager(session_id: str = "default") -> SessionOverlayManager:

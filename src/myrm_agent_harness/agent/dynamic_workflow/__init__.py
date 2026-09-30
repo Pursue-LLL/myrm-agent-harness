@@ -187,11 +187,7 @@ async def run_dynamic_workflow_stream(
     template_store = WorkflowTemplateStore(workflow_db_path)
 
     def _tool_registry_getter() -> list[object]:
-        return (
-            list(parent_agent._cached_tools or parent_agent.user_tools)
-            if parent_agent
-            else []
-        )
+        return list(parent_agent._cached_tools or parent_agent.user_tools) if parent_agent else []
 
     notify_queue: asyncio.Queue[dict[str, object]] = asyncio.Queue()
     run_guard = WorkflowRunGuard()
@@ -303,9 +299,7 @@ async def run_dynamic_workflow_stream(
             }
             return
         try:
-            script_code = apply_template_args(
-                pinned_template.script_code, template_args
-            )
+            script_code = apply_template_args(pinned_template.script_code, template_args)
         except ValueError as exc:
             yield {
                 "type": "message",
@@ -378,14 +372,12 @@ async def run_dynamic_workflow_stream(
     if llm_query_calls == (0, 0):
         llm_query_calls = count_llm_query_calls(script_code)
 
-    estimated_cost_usd, remaining_budget_usd, cost_status = (
-        await estimate_workflow_cost(
-            parent_agent,
-            catalog,
-            spawn_count,
-            query,
-            llm_query_calls=llm_query_calls,
-        )
+    estimated_cost_usd, remaining_budget_usd, cost_status = await estimate_workflow_cost(
+        parent_agent,
+        catalog,
+        spawn_count,
+        query,
+        llm_query_calls=llm_query_calls,
     )
     plan_review = WorkflowPlanReview(
         script_code=script_code,
@@ -545,9 +537,7 @@ async def run_dynamic_workflow_stream(
                     llm_query_tool,
                     llm_query_batched_tool,
                 ],
-                override_allowed=frozenset(
-                    {"spawn_subagent", "notify", "human_ask", "steer_child"}
-                ),
+                override_allowed=frozenset({"spawn_subagent", "notify", "human_ask", "steer_child"}),
             )
         )
         async for notify_event in iter_notify_events_while_task_runs(
@@ -590,10 +580,7 @@ async def run_dynamic_workflow_stream(
             )
             for item in merge_results:
                 task_id_val = item.get("task_id")
-                if (
-                    isinstance(task_id_val, str)
-                    and item.get("workspace_merge_status") == "merged"
-                ):
+                if isinstance(task_id_val, str) and item.get("workspace_merge_status") == "merged":
                     store.update_stored_result(
                         workflow_id,
                         task_id_val,
@@ -602,9 +589,7 @@ async def run_dynamic_workflow_stream(
             if not merge_summary.get("workspace_merge_ok", True):
                 errors = merge_summary.get("workspace_merge_errors", [])
                 if isinstance(errors, list) and errors:
-                    merge_error_note = "Workspace merge errors:\n" + "\n".join(
-                        str(item) for item in errors
-                    )
+                    merge_error_note = "Workspace merge errors:\n" + "\n".join(str(item) for item in errors)
 
     exec_status = "success"
     exec_message = "Workflow execution completed."
@@ -623,9 +608,7 @@ async def run_dynamic_workflow_stream(
     }
 
     if workflow_failed:
-        failure_body = (
-            f"Dynamic Workflow `{workflow_id}` failed.\n\n**Error:** {workflow_error}"
-        )
+        failure_body = f"Dynamic Workflow `{workflow_id}` failed.\n\n**Error:** {workflow_error}"
         if merge_error_note:
             failure_body += f"\n\n{merge_error_note}"
         yield {
@@ -654,21 +637,12 @@ async def run_dynamic_workflow_stream(
     stdout = (result.stdout or "").strip() if result is not None else ""
     stderr = (result.stderr or "").strip() if result is not None else ""
     if merge_error_note:
-        stderr = (
-            f"{stderr}\n\n{merge_error_note}".strip() if stderr else merge_error_note
-        )
+        stderr = f"{stderr}\n\n{merge_error_note}".strip() if stderr else merge_error_note
 
     if stdout or stderr:
-        truncated = (
-            stdout[-_MAX_STDOUT_FOR_SUMMARY:]
-            if len(stdout) > _MAX_STDOUT_FOR_SUMMARY
-            else stdout
-        )
+        truncated = stdout[-_MAX_STDOUT_FOR_SUMMARY:] if len(stdout) > _MAX_STDOUT_FOR_SUMMARY else stdout
         if len(stdout) > _MAX_STDOUT_FOR_SUMMARY:
-            truncated = (
-                f"[...truncated {len(stdout) - _MAX_STDOUT_FOR_SUMMARY} chars...]\n"
-                + truncated
-            )
+            truncated = f"[...truncated {len(stdout) - _MAX_STDOUT_FOR_SUMMARY} chars...]\n" + truncated
 
         summary_input = f"User Request:\n{query}\n\nExecution Output:\n{truncated}"
         if stderr:
@@ -683,16 +657,12 @@ async def run_dynamic_workflow_stream(
             summary_response = await parent_agent.llm.ainvoke(summary_messages)
             summary_text = extract_answer_text(summary_response)
         except Exception as e:
-            logger.warning(
-                "Summarization LLM call failed, falling back to raw output: %s", e
-            )
+            logger.warning("Summarization LLM call failed, falling back to raw output: %s", e)
             summary_text = f"## Workflow Results\n\n```\n{truncated}\n```"
             if stderr:
                 summary_text += f"\n\n### Errors\n```\n{stderr}\n```"
     else:
-        summary_text = (
-            f"Dynamic Workflow `{workflow_id}` completed but produced no output."
-        )
+        summary_text = f"Dynamic Workflow `{workflow_id}` completed but produced no output."
 
     workspace_diff_text = diff_snapshots(
         pre_workspace_snapshot,

@@ -92,18 +92,10 @@ class MergeResult(BaseModel):
     evidence: list[EvidenceReference] = Field(
         default_factory=list, description="Merged deduplicated evidence provenance chain"
     )
-    conflict: ConflictDetail | None = Field(
-        default=None, description="Populated when relation is CONFLICT"
-    )
-    is_user_locked: bool = Field(
-        default=False, description="Whether this memory is protected by human override"
-    )
-    skip_reason: str | None = Field(
-        default=None, description="Reason if action is SKIP"
-    )
-    requires_governance: bool = Field(
-        default=False, description="True if human intervention is required"
-    )
+    conflict: ConflictDetail | None = Field(default=None, description="Populated when relation is CONFLICT")
+    is_user_locked: bool = Field(default=False, description="Whether this memory is protected by human override")
+    skip_reason: str | None = Field(default=None, description="Reason if action is SKIP")
+    requires_governance: bool = Field(default=False, description="True if human intervention is required")
     mutation_summary: str | None = Field(
         default=None, description="Detailed audit summary of in-place sparse semantic slot mutations"
     )
@@ -250,10 +242,7 @@ def merge_memory_candidate(
         )
 
     # 2. Extract metadata & User Override Wins rule
-    existing_locked = bool(
-        getattr(existing, "is_user_protected", False)
-        or getattr(existing, "source", "") == "user"
-    )
+    existing_locked = bool(getattr(existing, "is_user_protected", False) or getattr(existing, "source", "") == "user")
     candidate_is_user = candidate_source == "user" or getattr(candidate, "source", "") == "user"
 
     # CRITICAL: User override wins. Automated pipelines can never silently overwrite human edits!
@@ -342,11 +331,7 @@ def merge_memory_candidate(
         # natural migration occurs, resolving the stale conflict.
         created_at = getattr(existing, "created_at", None)
         can_meta = getattr(candidate, "metadata", {}) or {}
-        confirm_count = int(
-            can_meta.get("confirm_count")
-            or getattr(candidate, "confirm_count", None)
-            or 1
-        )
+        confirm_count = int(can_meta.get("confirm_count") or getattr(candidate, "confirm_count", None) or 1)
         if (
             created_at
             and isinstance(created_at, datetime)

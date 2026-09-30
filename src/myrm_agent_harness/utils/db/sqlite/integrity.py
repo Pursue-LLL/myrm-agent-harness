@@ -200,4 +200,3 @@ async def incremental_vacuum_async(conn: aiosqlite.Connection, pages: int = 100)
         await conn.execute(f"PRAGMA incremental_vacuum({pages})")
     except sqlite3.Error as exc:
         logger.debug("incremental_vacuum (async) skipped: %s", exc)
-

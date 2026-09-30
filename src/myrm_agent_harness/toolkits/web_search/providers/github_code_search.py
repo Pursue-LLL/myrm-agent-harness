@@ -147,7 +147,9 @@ async def search_github_code(
             logger.info("GitHub code search rate limit or auth constraint encountered (status=%s)", resp.status_code)
             return None
         if resp.status_code != 200:
-            logger.info("GitHub code search API returned status %s for query '%s'", resp.status_code, effective_query[:40])
+            logger.info(
+                "GitHub code search API returned status %s for query '%s'", resp.status_code, effective_query[:40]
+            )
             return None
 
         data = resp.json()

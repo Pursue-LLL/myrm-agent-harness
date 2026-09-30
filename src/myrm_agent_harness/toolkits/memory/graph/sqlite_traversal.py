@@ -146,9 +146,7 @@ async def execute_delete_subgraph(conn: aiosqlite.Connection, node_id: str) -> i
         return 0
 
 
-async def execute_delete_all_by_owner(
-    conn: aiosqlite.Connection, owner_id: str, *, owner_key: str = "user_id"
-) -> int:
+async def execute_delete_all_by_owner(conn: aiosqlite.Connection, owner_id: str, *, owner_key: str = "user_id") -> int:
     """Delete all nodes and connected relationships whose properties match owner_id."""
     try:
         async with conn.execute(
@@ -170,4 +168,3 @@ async def execute_delete_all_by_owner(
     except Exception as e:
         logger.warning("delete_all_by_owner failed for %s: %s", owner_id, e)
         return 0
-

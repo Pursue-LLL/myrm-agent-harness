@@ -81,15 +81,11 @@ class A2AClient:
         if bearer_token:
             headers["Authorization"] = f"Bearer {bearer_token}"
 
-        payload_bytes = json.dumps(request.model_dump(exclude_none=True)).encode(
-            "utf-8"
-        )
+        payload_bytes = json.dumps(request.model_dump(exclude_none=True)).encode("utf-8")
         actual_timeout = timeout_sec or self.timeout_seconds
 
         try:
-            async with create_httpx_client(
-                timeout=actual_timeout, follow_redirects=False
-            ) as http_client:
+            async with create_httpx_client(timeout=actual_timeout, follow_redirects=False) as http_client:
                 resp = await secure_request(
                     http_client,
                     "POST",
@@ -100,18 +96,12 @@ class A2AClient:
                     allowed_internal_hosts=self.allowed_internal_hosts,
                 )
         except SSRFSecurityError as e:
-            raise A2ASSRFBlockedError(
-                f"A2A request to {endpoint_url} blocked by SSRF: {e}"
-            ) from e
+            raise A2ASSRFBlockedError(f"A2A request to {endpoint_url} blocked by SSRF: {e}") from e
         except Exception as e:
-            raise A2AClientError(
-                f"HTTP transport error contacting {endpoint_url}: {e}"
-            ) from e
+            raise A2AClientError(f"HTTP transport error contacting {endpoint_url}: {e}") from e
 
         if not resp.is_success:
-            raise A2AClientError(
-                f"HTTP status {resp.status_code} from {endpoint_url}: {resp.text[:200]}"
-            )
+            raise A2AClientError(f"HTTP status {resp.status_code} from {endpoint_url}: {resp.text[:200]}")
 
         try:
             data = resp.json()
@@ -122,9 +112,7 @@ class A2AClient:
         except A2ARpcError:
             raise
         except Exception as e:
-            raise A2AClientError(
-                f"Malformed JSON-RPC response from {endpoint_url}: {e}"
-            ) from e
+            raise A2AClientError(f"Malformed JSON-RPC response from {endpoint_url}: {e}") from e
 
     async def send_task(
         self,
@@ -149,9 +137,7 @@ class A2AClient:
         if push_secret:
             params["pushSecret"] = push_secret
 
-        req = JsonRpcRequest(
-            method="tasks/send", params=params, id=f"send-{int(time.time()*1000)}"
-        )
+        req = JsonRpcRequest(method="tasks/send", params=params, id=f"send-{int(time.time() * 1000)}")
         resp = await self._post_json_rpc(
             endpoint_url,
             req,
@@ -175,7 +161,7 @@ class A2AClient:
         req = JsonRpcRequest(
             method="tasks/get",
             params={"taskId": task_id},
-            id=f"get-{int(time.time()*1000)}",
+            id=f"get-{int(time.time() * 1000)}",
         )
         resp = await self._post_json_rpc(
             endpoint_url,
@@ -200,7 +186,7 @@ class A2AClient:
         req = JsonRpcRequest(
             method="tasks/cancel",
             params={"taskId": task_id},
-            id=f"cancel-{int(time.time()*1000)}",
+            id=f"cancel-{int(time.time() * 1000)}",
         )
         resp = await self._post_json_rpc(
             endpoint_url,
@@ -234,6 +220,4 @@ class A2AClient:
                 return task
             await asyncio.sleep(poll_interval_sec)
 
-        raise TimeoutError(
-            f"A2A task {task_id} did not complete within {max_wait_sec} seconds."
-        )
+        raise TimeoutError(f"A2A task {task_id} did not complete within {max_wait_sec} seconds.")

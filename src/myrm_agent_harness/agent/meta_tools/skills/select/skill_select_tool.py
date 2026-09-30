@@ -160,9 +160,8 @@ def create_select_skill_tool(
                 or "Error: file '" in info
             )
             status = "error" if is_err else "ready"
-            safe_info = (
-                info.replace("</skill_entry>", "&lt;/skill_entry&gt;")
-                .replace("</skills_sop>", "&lt;/skills_sop&gt;")
+            safe_info = info.replace("</skill_entry>", "&lt;/skill_entry&gt;").replace(
+                "</skills_sop>", "&lt;/skills_sop&gt;"
             )
             skill_entries.append(
                 f'<skill_entry name="{skill_name}" status="{status}">\n{skill_name}：{safe_info}\n</skill_entry>'

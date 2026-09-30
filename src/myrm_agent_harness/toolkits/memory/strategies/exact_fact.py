@@ -28,9 +28,7 @@ from collections.abc import Mapping
 _UUID_PATTERN = re.compile(
     r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\b"
 )
-_GIT_SHA_PATTERN = re.compile(
-    r"\b[0-9a-fA-F]{40}\b|\b[0-9a-fA-F]{7,12}\b"
-)
+_GIT_SHA_PATTERN = re.compile(r"\b[0-9a-fA-F]{40}\b|\b[0-9a-fA-F]{7,12}\b")
 _SEMVER_PATTERN = re.compile(
     r"\bv?(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9a-zA-Z.-]+)?(?:\+[0-9a-zA-Z.-]+)?\b"
 )
@@ -38,25 +36,64 @@ _NETWORK_ENDPOINT_PATTERN = re.compile(
     r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(?::[1-9][0-9]{0,4})\b"
     r"|\b(?:localhost|0\.0\.0\.0):[1-9][0-9]{0,4}\b"
 )
-_CONFIG_KEY_PATTERN = re.compile(
-    r"\b[A-Z][A-Z0-9_]{3,}[A-Z0-9]\b"
-)
-_PORT_DECLARATION_PATTERN = re.compile(
-    r"\b(?:port|PORT|端口)[:\s=]+([1-9][0-9]{1,4})\b"
-)
+_CONFIG_KEY_PATTERN = re.compile(r"\b[A-Z][A-Z0-9_]{3,}[A-Z0-9]\b")
+_PORT_DECLARATION_PATTERN = re.compile(r"\b(?:port|PORT|端口)[:\s=]+([1-9][0-9]{1,4})\b")
 
 # Common words matching hex/config patterns that are pure false-positives
-_CONFIG_DENYLIST = frozenset({
-    "THE", "AND", "FOR", "NOT", "WITH", "THIS", "THAT", "FROM", "HAVE", "USER",
-    "TRUE", "FALSE", "NONE", "NULL", "INFO", "WARN", "DEBUG", "ERROR", "FATAL",
-    "HTTP", "HTTPS", "JSON", "YAML", "HTML", "REST", "GRPC", "TODO", "NOTE",
-})
+_CONFIG_DENYLIST = frozenset(
+    {
+        "THE",
+        "AND",
+        "FOR",
+        "NOT",
+        "WITH",
+        "THIS",
+        "THAT",
+        "FROM",
+        "HAVE",
+        "USER",
+        "TRUE",
+        "FALSE",
+        "NONE",
+        "NULL",
+        "INFO",
+        "WARN",
+        "DEBUG",
+        "ERROR",
+        "FATAL",
+        "HTTP",
+        "HTTPS",
+        "JSON",
+        "YAML",
+        "HTML",
+        "REST",
+        "GRPC",
+        "TODO",
+        "NOTE",
+    }
+)
 
 # Words that look like short hex SHAs but are common English words
-_HEX_DENYLIST = frozenset({
-    "decade", "defaced", "accord", "afford", "beefed", "coffee", "facade",
-    "added", "dead", "beef", "fade", "face", "deed", "feed", "cede", "cafe",
-})
+_HEX_DENYLIST = frozenset(
+    {
+        "decade",
+        "defaced",
+        "accord",
+        "afford",
+        "beefed",
+        "coffee",
+        "facade",
+        "added",
+        "dead",
+        "beef",
+        "fade",
+        "face",
+        "deed",
+        "feed",
+        "cede",
+        "cafe",
+    }
+)
 
 
 def compute_shannon_entropy(token: str) -> float:

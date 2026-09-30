@@ -50,9 +50,7 @@ def _has_workspace_context(messages: Sequence[object]) -> bool:
     for msg in messages[:8]:
         if isinstance(msg, SystemMessage):
             content = msg.content
-            if isinstance(content, str) and (
-                WORKSPACE_CONTEXT_MARKER in content or SANDBOX_SNAPSHOT_MARKER in content
-            ):
+            if isinstance(content, str) and (WORKSPACE_CONTEXT_MARKER in content or SANDBOX_SNAPSHOT_MARKER in content):
                 return True
     return False
 

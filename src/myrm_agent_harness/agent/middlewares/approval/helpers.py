@@ -254,9 +254,7 @@ async def add_to_allowlist_if_needed(
             bound_session_id = get_approval_session() or "ephemeral_session"
     else:
         expires_at = (
-            (time.time() + float(effective_ttl))
-            if (effective_ttl is not None and float(effective_ttl) > 0)
-            else None
+            (time.time() + float(effective_ttl)) if (effective_ttl is not None and float(effective_ttl) > 0) else None
         )
         bound_session_id = None
 

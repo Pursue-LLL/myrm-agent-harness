@@ -198,7 +198,9 @@ def is_self_app(
                 "Use chat approval buttons directly instead of desktop automation."
             )
         if "todesktop" in lower_id and "cursor" in app_name.lower():
-            return "Blocked: Agent cannot control the Cursor host application. Complete approvals in the chat UI instead."
+            return (
+                "Blocked: Agent cannot control the Cursor host application. Complete approvals in the chat UI instead."
+            )
 
     lower_name = app_name.lower()
     for keyword in _SELF_APP_NAME_KEYWORDS:

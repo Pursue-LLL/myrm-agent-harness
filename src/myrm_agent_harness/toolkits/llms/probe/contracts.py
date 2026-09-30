@@ -26,9 +26,7 @@ class ProviderBalanceStatus(StrEnum):
 
     HEALTHY = "healthy"  # Balance is sufficient (> 20% or > $2.00 / ¥10.00)
     WARNING = "warning"  # Balance approaching threshold (<= 20% or <= $2.00 / ¥10.00)
-    CRITICAL = (
-        "critical"  # Balance severely low or depleted (<= 10% or <= $0.50 / ¥2.00)
-    )
+    CRITICAL = "critical"  # Balance severely low or depleted (<= 10% or <= $0.50 / ¥2.00)
     UNSUPPORTED = "unsupported"  # Provider lacks direct balance query endpoint (falls back to local estimate)
 
 

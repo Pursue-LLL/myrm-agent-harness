@@ -256,15 +256,16 @@ def check_cart_cap(
     new_line_quantity = existing_line_quantity + target_qty
 
     # 2. Check per-item cap
-    max_per_item = active_limits.max_quantity_per_line if hasattr(active_limits, "max_quantity_per_line") and active_limits.max_quantity_per_line else active_limits.max_quantity_per_item
+    max_per_item = (
+        active_limits.max_quantity_per_line
+        if hasattr(active_limits, "max_quantity_per_line") and active_limits.max_quantity_per_line
+        else active_limits.max_quantity_per_item
+    )
     if new_line_quantity > max_per_item:
         return CartCapCheckResult(
             decision="blocked",
             allowed=False,
-            reason=(
-                f"Per-item cap exceeded: cannot hold {new_line_quantity} units "
-                f"(limit: {max_per_item})."
-            ),
+            reason=(f"Per-item cap exceeded: cannot hold {new_line_quantity} units (limit: {max_per_item})."),
             current_quantity=existing_line_quantity,
             adding_quantity=target_qty,
             limit=max_per_item,
@@ -433,4 +434,3 @@ async def gated_add_to_cart(
             return await _perform_guarded_write()
     else:
         return await _perform_guarded_write()
-

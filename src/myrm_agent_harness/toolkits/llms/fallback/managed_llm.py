@@ -227,9 +227,7 @@ class ManagedLLM(BaseChatModel):
 
         return call_fn
 
-    async def _run_preflight_guard(
-        self, messages: list[BaseMessage], **kwargs: Any
-    ) -> None:
+    async def _run_preflight_guard(self, messages: list[BaseMessage], **kwargs: Any) -> None:
         """Zero-cost preflight check to prevent 400 Context Exceeded errors.
 
         Estimates the total token count of the messages locally. If it exceeds
@@ -332,9 +330,7 @@ class ManagedLLM(BaseChatModel):
         so here we simply stream from the current main LLM.
         """
         await self._run_preflight_guard(messages, **kwargs)
-        async for chunk in self._main_llm._astream(
-            messages, stop=stop, run_manager=run_manager, **kwargs
-        ):
+        async for chunk in self._main_llm._astream(messages, stop=stop, run_manager=run_manager, **kwargs):
             yield chunk
 
     def _generate(
@@ -345,9 +341,7 @@ class ManagedLLM(BaseChatModel):
         **kwargs: Any,
     ) -> ChatResult:
         """Synchronous generation (not supported, use async)."""
-        raise NotImplementedError(
-            "ManagedLLM only supports async operation. Use ainvoke() instead."
-        )
+        raise NotImplementedError("ManagedLLM only supports async operation. Use ainvoke() instead.")
 
     def bind_tools(
         self,

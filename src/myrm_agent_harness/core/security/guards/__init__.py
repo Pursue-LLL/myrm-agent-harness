@@ -66,4 +66,3 @@ __all__ = [
     "set_privacy_policy",
     "validate_url_for_ssrf",
 ]
-

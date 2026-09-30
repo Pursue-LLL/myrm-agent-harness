@@ -57,9 +57,7 @@ _EN_INTENT_PATTERN = re.compile(
 )
 
 # 显式单号标识符模式（如 OD-12345, ORDER_9921, TK-8802）配合查询动词
-_IDENTIFIER_PATTERN = re.compile(
-    r"(?i)\b([A-Z]{2,8}[-_]\d{3,20}|(?:order|ticket|invoice|txn|bill)[-_#]?\d{3,20})\b"
-)
+_IDENTIFIER_PATTERN = re.compile(r"(?i)\b([A-Z]{2,8}[-_]\d{3,20}|(?:order|ticket|invoice|txn|bill)[-_#]?\d{3,20})\b")
 
 # 诚实否定与澄清模式：模型若如实声明查不到、不存在或请求澄清，合法放行，严禁误阻断
 _HONEST_NEGATIVE_OR_CLARIFICATION_PATTERNS: tuple[re.Pattern[str], ...] = (

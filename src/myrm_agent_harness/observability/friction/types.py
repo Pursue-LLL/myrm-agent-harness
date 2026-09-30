@@ -23,12 +23,12 @@ from enum import Enum
 class FrictionCategory(str, Enum):
     """Categorization of agent execution friction points."""
 
-    FORMAT_ERROR = "FORMAT_ERROR"          # Tool input JSON/schema parse failure, retry needed
-    SPILL_OVERFLOW = "SPILL_OVERFLOW"      # Tool or command output exceeded buffer/context limit
-    TOOL_TIMEOUT = "TOOL_TIMEOUT"          # Tool execution exceeded time budget
-    PERMISSION_DENIED = "PERMISSION_DENIED"# Sandbox/filesystem permission or security violation
-    LOOP_STUCK = "LOOP_STUCK"              # Repetitive tool calls or cyclic reasoning stuck state
-    TOOL_FAULT = "TOOL_FAULT"              # General unhandled exception raised by underlying tool
+    FORMAT_ERROR = "FORMAT_ERROR"  # Tool input JSON/schema parse failure, retry needed
+    SPILL_OVERFLOW = "SPILL_OVERFLOW"  # Tool or command output exceeded buffer/context limit
+    TOOL_TIMEOUT = "TOOL_TIMEOUT"  # Tool execution exceeded time budget
+    PERMISSION_DENIED = "PERMISSION_DENIED"  # Sandbox/filesystem permission or security violation
+    LOOP_STUCK = "LOOP_STUCK"  # Repetitive tool calls or cyclic reasoning stuck state
+    TOOL_FAULT = "TOOL_FAULT"  # General unhandled exception raised by underlying tool
 
 
 @dataclass(frozen=True)

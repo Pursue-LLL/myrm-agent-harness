@@ -52,35 +52,37 @@ _GOOGLE_URL_PATH = re.compile(r"^/url/?$", re.IGNORECASE)
 _DUCKDUCKGO_L_PATH = re.compile(r"^/l/?", re.IGNORECASE)
 _BING_CK_PATH = re.compile(r"^/ck/", re.IGNORECASE)
 
-_KNOWN_TRACKING_KEYS: frozenset[str] = frozenset({
-    "utm_source",
-    "utm_medium",
-    "utm_campaign",
-    "utm_term",
-    "utm_content",
-    "utm_id",
-    "utm_name",
-    "spm",
-    "spm_id_from",
-    "from_source",
-    "ref",
-    "ref_src",
-    "ref_url",
-    "fbclid",
-    "gclid",
-    "gbraid",
-    "wbraid",
-    "msclkid",
-    "twclid",
-    "igshid",
-    "dclid",
-    "_hsenc",
-    "_hsmi",
-    "mc_cid",
-    "mc_eid",
-    "yclid",
-    "mkt_tok",
-})
+_KNOWN_TRACKING_KEYS: frozenset[str] = frozenset(
+    {
+        "utm_source",
+        "utm_medium",
+        "utm_campaign",
+        "utm_term",
+        "utm_content",
+        "utm_id",
+        "utm_name",
+        "spm",
+        "spm_id_from",
+        "from_source",
+        "ref",
+        "ref_src",
+        "ref_url",
+        "fbclid",
+        "gclid",
+        "gbraid",
+        "wbraid",
+        "msclkid",
+        "twclid",
+        "igshid",
+        "dclid",
+        "_hsenc",
+        "_hsmi",
+        "mc_cid",
+        "mc_eid",
+        "yclid",
+        "mkt_tok",
+    }
+)
 
 
 def strip_tracking_parameters(url: str) -> str:
@@ -93,9 +95,7 @@ def strip_tracking_parameters(url: str) -> str:
             return url
         query_pairs = parse_qsl(parsed.query, keep_blank_values=True)
         filtered_pairs = [
-            (k, v)
-            for k, v in query_pairs
-            if k.lower() not in _KNOWN_TRACKING_KEYS and not k.lower().startswith("utm_")
+            (k, v) for k, v in query_pairs if k.lower() not in _KNOWN_TRACKING_KEYS and not k.lower().startswith("utm_")
         ]
         if len(filtered_pairs) == len(query_pairs):
             return url

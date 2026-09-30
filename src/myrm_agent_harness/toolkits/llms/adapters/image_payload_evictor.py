@@ -33,8 +33,6 @@ logger = get_agent_logger(__name__)
 _TINY_ICON_BYTES: Final[int] = 2 * 1024
 
 
-
-
 def _extract_image_url(part: dict[str, object]) -> str:
     """Extract a base64-capable URL from an OpenAI- or Anthropic-shaped image part."""
     image_url = part.get("image_url")

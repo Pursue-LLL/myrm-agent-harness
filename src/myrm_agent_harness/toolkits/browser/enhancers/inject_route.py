@@ -67,8 +67,7 @@ async def _inject_handler(route: object, providers: list[Callable[[], str]]) -> 
             await route.fallback()
             return
         script_tags = "".join(
-            "<script>{}</script>".format(provider().replace("</script>", "<\\/script>"))
-            for provider in providers
+            "<script>{}</script>".format(provider().replace("</script>", "<\\/script>")) for provider in providers
         )
         head_pos = text.find("</head>")
         if head_pos != -1:
@@ -116,6 +115,4 @@ async def install_document_script_injection(
         setattr(context, _INSTALLED_FLAG, True)
 
     providers.append(script_provider)
-    logger.debug(
-        "Document %s injection registered (%d scripts total)", label, len(providers)
-    )
+    logger.debug("Document %s injection registered (%d scripts total)", label, len(providers))

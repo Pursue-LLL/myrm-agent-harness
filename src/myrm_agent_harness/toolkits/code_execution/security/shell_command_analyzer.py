@@ -423,9 +423,7 @@ def analyze_command(command: str, *, _depth: int = 0) -> tuple[CommandThreat, ..
                 continue
             detail_msg = desc
             if desc == "semicolon command chaining":
-                detail_msg = (
-                    "semicolon command chaining (';' is forbidden; use '&&' or separate lines/calls)"
-                )
+                detail_msg = "semicolon command chaining (';' is forbidden; use '&&' or separate lines/calls)"
             threats.append(
                 CommandThreat(
                     level=ThreatLevel.BLOCK,
@@ -531,7 +529,6 @@ def is_protected_instruction_mutation_command(command: str) -> bool:
     if not command or not command.strip():
         return False
     return any(p.search(command) for p in _PROTECTED_INSTRUCTION_SHELL_PATTERNS)
-
 
 
 def has_block_threat(command: str) -> CommandThreat | None:

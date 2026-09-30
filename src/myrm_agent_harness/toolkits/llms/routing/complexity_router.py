@@ -606,9 +606,7 @@ def _apply_momentum(
         if has_image and adjusted == RoutingTier.SIMPLE:
             # Vision floor: SIMPLE selects the light (non-vision-guaranteed)
             # model, so an image query keeps its rule verdict (STANDARD+).
-            logger.debug(
-                "Momentum downgrade to SIMPLE skipped: image query requires a vision-capable tier"
-            )
+            logger.debug("Momentum downgrade to SIMPLE skipped: image query requires a vision-capable tier")
             return tier, False
 
         logger.info(

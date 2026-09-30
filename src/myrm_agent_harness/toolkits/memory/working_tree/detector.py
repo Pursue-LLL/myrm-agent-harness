@@ -230,9 +230,7 @@ class FastContradictionDetector:
             reason="Arbitration fallback to neutral",
         )
 
-    def _arbitrate_with_llm(
-        self, new_claim: str, new_summary: str, candidate_node: EvidenceNode
-    ) -> ConflictVerdict:
+    def _arbitrate_with_llm(self, new_claim: str, new_summary: str, candidate_node: EvidenceNode) -> ConflictVerdict:
         """Invoke fast lightweight LLM synchronously to classify contradiction vs temporal update."""
         if not self.arbitrator_llm:
             return ConflictVerdict(conflict_type=ConflictType.NONE)

@@ -87,8 +87,8 @@ class ImageItemRef:
     is_focus: bool
 
 
-
 import asyncio
+
 
 class CumulativeImageBudgetGovernor:
     """Core governor tracking and progressively enforcing multi-turn image payload limits."""
@@ -286,7 +286,6 @@ class CumulativeImageBudgetGovernor:
         )
 
         return _evict(messages, target_bytes=target_bytes, force_shrink=force_shrink)
-
 
 
 class MediaBudgetGovernorProcessor(BaseProcessor):

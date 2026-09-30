@@ -258,9 +258,7 @@ async def run_pre_call_guards(
                 compliance_verdict.reason,
                 tool_call_id=tool_call_id,
             )
-            await _emit_compliance_guard_event(
-                rule_name, tool_name, compliance_verdict.reason, action_type="blocked"
-            )
+            await _emit_compliance_guard_event(rule_name, tool_name, compliance_verdict.reason, action_type="blocked")
             return make_error_msg(
                 tool_name,
                 tool_call_id,
@@ -338,9 +336,7 @@ async def run_pre_call_guards(
         loop_kind = raw_loop_kind if isinstance(raw_loop_kind, str) else "loop_break"
 
         if loop_kind == "sandbox_boundary":
-            record_decision(
-                tool_name, "SANDBOX_BOUNDARY_ESCALATE", loop_verdict.reason, tool_call_id=tool_call_id
-            )
+            record_decision(tool_name, "SANDBOX_BOUNDARY_ESCALATE", loop_verdict.reason, tool_call_id=tool_call_id)
             logger.warning("Sandbox boundary escalation: %s -- %s", tool_name, loop_verdict.reason)
             await _emit_loop_guard_event("sandbox_boundary", tool_name, loop_verdict.reason, "error")
             return make_error_msg(
@@ -370,6 +366,7 @@ async def run_pre_call_guards(
                 get_session_overlay_manager,
                 synthesize_loop_stall_overlay,
             )
+
             overlay_mgr = get_session_overlay_manager()
             if overlay_mgr is not None:
                 stall_overlay = synthesize_loop_stall_overlay(
@@ -500,9 +497,7 @@ def _check_circuit_breaker(tool_name: str, tool_call_id: str) -> ToolMessage | N
     elif "sandbox_ro" in terminal_errors and is_write_tool:
         blocker = "sandbox_ro"
     elif config_auth_families := {
-        category.split(":", 1)[1]
-        for category in terminal_errors
-        if category.startswith("config_or_auth:")
+        category.split(":", 1)[1] for category in terminal_errors if category.startswith("config_or_auth:")
     }:
         # Family-scoped: a broken search configuration must not disable
         # browser tools (independent infrastructure) and vice versa.

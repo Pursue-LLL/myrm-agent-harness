@@ -18,6 +18,7 @@ Core modules:
 - checkpoint_protocol: Checkpointer protocol definition
 - fork_types: Conversation fork data structures
 """
+
 from myrm_agent_harness.runtime.cognitive_clock import (
     CognitiveCadence,
     CognitiveClockBus,

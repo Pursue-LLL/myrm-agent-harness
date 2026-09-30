@@ -56,9 +56,7 @@ class SandboxAssertion:
     target: str  # e.g., file path or command
     expected: str | None = None  # e.g., expected text content
     result_file: str | None = None  # e.g., test_suite: path to JUnit/reward result file
-    timeout: int | None = (
-        None  # e.g., test_suite: command timeout in seconds (default 600)
-    )
+    timeout: int | None = None  # e.g., test_suite: command timeout in seconds (default 600)
     readonly_paths: tuple[
         str, ...
     ] = ()  # e.g., test_suite: read-only grader assets mounted outside the agent workspace
@@ -293,9 +291,7 @@ class EvalTurnResult:
     contamination_audit: dict[str, object] | None = None
     timings: EvalTimings = field(default_factory=EvalTimings)
     error: str | None = None
-    scores: dict[str, float] = field(
-        default_factory=dict
-    )  # numeric verdicts (e.g. test_suite pass_rate)
+    scores: dict[str, float] = field(default_factory=dict)  # numeric verdicts (e.g. test_suite pass_rate)
 
 
 @dataclass(frozen=True, slots=True)
@@ -321,15 +317,9 @@ class EvalManifest:
     profile_id: str = "default"
     benchmark_mode: bool = False
     judge_model: str = "none"  # LLM judge model used for semantic assertions
-    limit: int | None = (
-        None  # Reproducible sample size actually applied (None = full run)
-    )
-    max_tool_calls: int | None = (
-        None  # Benchmark-declared tool-call budget (None = engine default)
-    )
-    max_iterations: int | None = (
-        None  # Benchmark-declared turn budget (None = engine default)
-    )
+    limit: int | None = None  # Reproducible sample size actually applied (None = full run)
+    max_tool_calls: int | None = None  # Benchmark-declared tool-call budget (None = engine default)
+    max_iterations: int | None = None  # Benchmark-declared turn budget (None = engine default)
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -384,11 +374,7 @@ class EvalResult:
     @property
     def skip_count(self) -> int:
         """Cases with no assertions (assertion_passed is None and no error)."""
-        return sum(
-            1
-            for r in self.turn_results
-            if r.assertion_passed is None and r.error is None
-        )
+        return sum(1 for r in self.turn_results if r.assertion_passed is None and r.error is None)
 
     @property
     def pass_rate(self) -> float:
@@ -403,11 +389,7 @@ class EvalResult:
         numeric Rule-judge pass_rates so partial successes (e.g. 62/80 tests)
         are not flattened away at the report level.
         """
-        rates = [
-            r.scores["pass_rate"]
-            for r in self.turn_results
-            if r.scores.get("pass_rate") is not None
-        ]
+        rates = [r.scores["pass_rate"] for r in self.turn_results if r.scores.get("pass_rate") is not None]
         if not rates:
             return None
         return round(sum(rates) / len(rates), 4)
@@ -419,9 +401,7 @@ class EvalResult:
     @property
     def total_tokens(self) -> int:
         """Sum of total_tokens across all turns."""
-        return sum(
-            r.response.token_usage.get("total_tokens", 0) for r in self.turn_results
-        )
+        return sum(r.response.token_usage.get("total_tokens", 0) for r in self.turn_results)
 
     @property
     def total_cost(self) -> float:
@@ -462,11 +442,7 @@ class EvalResult:
         failure_analysis = aggregate_failure_modes(self)
         result["failure_analysis"] = failure_analysis
 
-        failure_dist = (
-            failure_analysis.get("failure_distribution", {})
-            if isinstance(failure_analysis, dict)
-            else {}
-        )
+        failure_dist = failure_analysis.get("failure_distribution", {}) if isinstance(failure_analysis, dict) else {}
         recs = derive_ablation_recommendations(failure_dist)
         result["ablation_recommendations"] = [r.to_dict() for r in recs]
 
@@ -489,8 +465,7 @@ class EvalResult:
                     for a in r.case.sandbox_assertions
                 ],
                 "state_assertions": [
-                    {"type": a.type, "expected": a.expected, "threshold": a.threshold}
-                    for a in r.case.state_assertions
+                    {"type": a.type, "expected": a.expected, "threshold": a.threshold} for a in r.case.state_assertions
                 ],
                 "semantic_assertions": [
                     {
@@ -499,16 +474,8 @@ class EvalResult:
                         "threshold": a.threshold,
                         **({"judge_prompt": a.judge_prompt} if a.judge_prompt else {}),
                         **({"judge_model": a.judge_model} if a.judge_model else {}),
-                        **(
-                            {"judge_api_key": a.judge_api_key}
-                            if a.judge_api_key
-                            else {}
-                        ),
-                        **(
-                            {"judge_api_base": a.judge_api_base}
-                            if a.judge_api_base
-                            else {}
-                        ),
+                        **({"judge_api_key": a.judge_api_key} if a.judge_api_key else {}),
+                        **({"judge_api_base": a.judge_api_base} if a.judge_api_base else {}),
                     }
                     for a in r.case.semantic_assertions
                 ],
@@ -683,9 +650,7 @@ class AgentExecutor(Protocol):
     eval framework with the actual agent system.
     """
 
-    async def execute(
-        self, message: str, *, session_id: str | None = None
-    ) -> AgentResponse:
+    async def execute(self, message: str, *, session_id: str | None = None) -> AgentResponse:
         """Send a message to the agent and collect the response.
 
         For multi-turn evals, the same session_id is passed across turns
@@ -701,9 +666,7 @@ class AgentExecutor(Protocol):
         """
         ...
 
-    def get_sandbox_executor(
-        self, session_id: str | None = None
-    ) -> CodeExecutor | None:
+    def get_sandbox_executor(self, session_id: str | None = None) -> CodeExecutor | None:
         """Return the SandboxExecutor for this session if available.
 
         Used for evaluating sandbox state assertions (e.g., file_exists).

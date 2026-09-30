@@ -57,9 +57,7 @@ class CodebaseSlimmingPipeline:
         """Scan workspace and generate dead code candidate report."""
         return DeadCodeTopologyScanner.scan_workspace(self.workspace_dir)
 
-    def group_tasks_by_file(
-        self, report: DeadCodeScanReport
-    ) -> list[SlimmingModuleTask]:
+    def group_tasks_by_file(self, report: DeadCodeScanReport) -> list[SlimmingModuleTask]:
         """Group candidates into discrete file/module tasks."""
         by_file: dict[str, list[DeadCodeCandidate]] = {}
         for c in report.candidates:
@@ -131,9 +129,7 @@ class CodebaseSlimmingPipeline:
                     # 3. If passed, apply changes to live workspace directly
                     iso_target = iso_dir / task.module_path
                     if iso_target.exists():
-                        target_file.write_text(
-                            iso_target.read_text(encoding="utf-8"), encoding="utf-8"
-                        )
+                        target_file.write_text(iso_target.read_text(encoding="utf-8"), encoding="utf-8")
 
                     return (
                         SlimmingModuleTask(
@@ -171,9 +167,7 @@ class CodebaseSlimmingPipeline:
             return SlimmingLedger(duration_seconds=time.time() - start_time), []
 
         # Execute concurrent waves
-        results = await asyncio.gather(
-            *[self.execute_task_with_worker(t, worker_fn) for t in tasks]
-        )
+        results = await asyncio.gather(*[self.execute_task_with_worker(t, worker_fn) for t in tasks])
 
         completed_tasks: list[SlimmingModuleTask] = []
         total_lines_cut = 0

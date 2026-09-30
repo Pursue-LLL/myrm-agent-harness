@@ -26,10 +26,10 @@ from enum import StrEnum
 class SkillHealthStatus(StrEnum):
     """Categorical classification of skill health and compounding value."""
 
-    STAR = "STAR"          # High adoption, zero error, frequent reuse
-    HEALTHY = "HEALTHY"    # Regular usage, low error rate
-    AT_RISK = "AT_RISK"    # High retry rate, frequent execution failures
-    STALE = "STALE"        # Dormant, not invoked in last 30 days
+    STAR = "STAR"  # High adoption, zero error, frequent reuse
+    HEALTHY = "HEALTHY"  # Regular usage, low error rate
+    AT_RISK = "AT_RISK"  # High retry rate, frequent execution failures
+    STALE = "STALE"  # Dormant, not invoked in last 30 days
 
 
 @dataclass(frozen=True, slots=True)

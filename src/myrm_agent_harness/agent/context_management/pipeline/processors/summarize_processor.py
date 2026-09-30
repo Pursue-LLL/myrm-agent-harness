@@ -437,9 +437,7 @@ class SummarizeProcessor(BaseProcessor):
                 safety_verdict.max_context_tokens,
                 safety_verdict.action_recommended,
             )
-            await self._emit_compaction_status(
-                context, "fallback", reason="preflight_fence_overflow"
-            )
+            await self._emit_compaction_status(context, "fallback", reason="preflight_fence_overflow")
             return self._apply_deterministic_fallback(context, original_tokens, last_msg_db_id)
 
         try:
@@ -559,10 +557,7 @@ class SummarizeProcessor(BaseProcessor):
         from ...strategies.summary.summary_builder import extract_protected_head
 
         protected_head = extract_protected_head(context.messages)
-        tail_budget = int(
-            (self.config.max_context_tokens or 128000)
-            * getattr(self.config, "tail_budget_ratio", 0.20)
-        )
+        tail_budget = int((self.config.max_context_tokens or 128000) * getattr(self.config, "tail_budget_ratio", 0.20))
         recent_messages = extract_recent_messages(context.messages, tail_budget)
         protected_ids = {id(m) for m in protected_head}
         recent_messages = [m for m in recent_messages if id(m) not in protected_ids]

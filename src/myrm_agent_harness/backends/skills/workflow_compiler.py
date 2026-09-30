@@ -135,12 +135,8 @@ class WorkflowIntentPlan:
     steps: list[WorkflowPlanStep] = field(default_factory=list)
     hard_invariants: list[str] = field(default_factory=list)
     house_conventions: list[str] = field(default_factory=list)
-    variables: dict[str, str] = field(
-        default_factory=dict
-    )  # var_name -> description/default
-    allowed_tools: list[str] = field(
-        default_factory=lambda: list(DEFAULT_ALLOWED_TOOLS)
-    )
+    variables: dict[str, str] = field(default_factory=dict)  # var_name -> description/default
+    allowed_tools: list[str] = field(default_factory=lambda: list(DEFAULT_ALLOWED_TOOLS))
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -157,9 +153,7 @@ class WorkflowIntentPlan:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> WorkflowIntentPlan:
         steps_raw = data.get("steps", [])
-        steps = [
-            WorkflowPlanStep.from_dict(s) for s in steps_raw if isinstance(s, dict)
-        ]
+        steps = [WorkflowPlanStep.from_dict(s) for s in steps_raw if isinstance(s, dict)]
         return cls(
             name=str(data.get("name", "desktop-workflow-skill")),
             description=str(data.get("description", "")),
@@ -167,11 +161,7 @@ class WorkflowIntentPlan:
             steps=steps,
             hard_invariants=[str(x) for x in data.get("hard_invariants", []) if str(x).strip()],
             house_conventions=[str(x) for x in data.get("house_conventions", []) if str(x).strip()],
-            variables=(
-                data.get("variables", {})
-                if isinstance(data.get("variables"), dict)
-                else {}
-            ),
+            variables=(data.get("variables", {}) if isinstance(data.get("variables"), dict) else {}),
             allowed_tools=list(data.get("allowed_tools", list(DEFAULT_ALLOWED_TOOLS))),
         )
 
@@ -191,11 +181,7 @@ def compile_workflow_plan_to_skill_markdown(plan: WorkflowIntentPlan) -> str:
     """
     slug = slugify_skill_name(plan.name)
     desc = plan.description.strip() or f"Automated workflow for {plan.name}."
-    tools_str = (
-        " ".join(plan.allowed_tools)
-        if plan.allowed_tools
-        else " ".join(DEFAULT_ALLOWED_TOOLS)
-    )
+    tools_str = " ".join(plan.allowed_tools) if plan.allowed_tools else " ".join(DEFAULT_ALLOWED_TOOLS)
 
     lines: list[str] = [
         "---",
@@ -247,22 +233,18 @@ def compile_workflow_plan_to_skill_markdown(plan: WorkflowIntentPlan) -> str:
             lines.append("")
         if plan.house_conventions:
             lines.append("### House Conventions (Team Defaults & Style Preferences)")
-            lines.append("> Default recommendations and formatting styles. If the user explicitly asks for an exception, gracefully yield without arguing or lecturing.")
+            lines.append(
+                "> Default recommendations and formatting styles. If the user explicitly asks for an exception, gracefully yield without arguing or lecturing."
+            )
             lines.append("")
             for conv in plan.house_conventions:
                 lines.append(f"- **[House Convention]**: {conv}")
             lines.append("")
 
     lines.append("## Guidelines & Fallback")
-    lines.append(
-        "- Prefer executing with native system tools (HTTP, CLI, file operations) when available."
-    )
-    lines.append(
-        "- Validate intermediate step outcomes before proceeding to subsequent mutations."
-    )
-    lines.append(
-        "- In case of unexpected UI state or API errors, report the exact error with context to the user."
-    )
+    lines.append("- Prefer executing with native system tools (HTTP, CLI, file operations) when available.")
+    lines.append("- Validate intermediate step outcomes before proceeding to subsequent mutations.")
+    lines.append("- In case of unexpected UI state or API errors, report the exact error with context to the user.")
     lines.append("")
 
     return "\n".join(lines)

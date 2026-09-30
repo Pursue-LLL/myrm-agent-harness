@@ -116,13 +116,9 @@ class DesktopSession(ComputerSession):
         try:
             if interact_ref is not None:
                 meta, refs = capture_snapshot(self._backend, "foreground", None)
-                blocked = safety.is_sensitive_app(
-                    meta.app_name, meta.window_title, meta.app_id
-                )
+                blocked = safety.is_sensitive_app(meta.app_name, meta.window_title, meta.app_id)
                 if blocked:
-                    logger.warning(
-                        "[SECURITY] Sensitive app guard (interact): %s", blocked
-                    )
+                    logger.warning("[SECURITY] Sensitive app guard (interact): %s", blocked)
                     return f"Safety: {blocked}"
                 if interact_ref not in refs:
                     return (
@@ -181,9 +177,7 @@ class DesktopSession(ComputerSession):
             await asyncio.sleep(effective_delay)
 
         try:
-            meta, refs = capture_snapshot(
-                self._backend, scope, app_name=app_name, query=query, role=role
-            )
+            meta, refs = capture_snapshot(self._backend, scope, app_name=app_name, query=query, role=role)
         except AXPermissionRequiredError as exc:
             await self._emit_permission_view_update()
             return str(exc)
@@ -192,9 +186,7 @@ class DesktopSession(ComputerSession):
 
         blocked = safety.is_sensitive_app(meta.app_name, meta.window_title, meta.app_id)
         if blocked:
-            logger.warning(
-                "[SECURITY] Sensitive app guard: %s (app=%s)", blocked, meta.app_name
-            )
+            logger.warning("[SECURITY] Sensitive app guard: %s (app=%s)", blocked, meta.app_name)
             return f"Safety: {blocked}"
 
         prev_refs = self._refs.all_refs()
@@ -214,9 +206,7 @@ class DesktopSession(ComputerSession):
                 use_diff = True
 
         if not use_diff:
-            tree_text, enriched_meta = render_snapshot_tree(
-                meta, refs, som_index_map=som_index_map
-            )
+            tree_text, enriched_meta = render_snapshot_tree(meta, refs, som_index_map=som_index_map)
         else:
             tree_text = diff_text
 
@@ -246,10 +236,7 @@ class DesktopSession(ComputerSession):
         if is_iphone_mirror_app(meta.app_name, meta.app_id):
             probe = probe_iphone_mirror_state()
             if probe.state == IPhoneMirrorState.BLOCKED_CONNECT_PROMPT:
-                header = (
-                    f"{header}\n"
-                    f"[IPHONE_MIRROR_GATE] {probe.detail} {probe.remedy_hint}"
-                )
+                header = f"{header}\n[IPHONE_MIRROR_GATE] {probe.detail} {probe.remedy_hint}"
         if include_screenshot and screenshot_b64:
             from langchain_core.messages.content import (
                 ContentBlock,
@@ -291,9 +278,7 @@ class DesktopSession(ComputerSession):
                 return f"Control denied: {app_denied.error}"
 
             try:
-                stale_error = await self._revalidate_if_stale_after_approval(
-                    interact_ref=ref
-                )
+                stale_error = await self._revalidate_if_stale_after_approval(interact_ref=ref)
                 if stale_error is not None:
                     return stale_error
 
@@ -351,9 +336,7 @@ class DesktopSession(ComputerSession):
                     app_name=snapshot_app,
                 )
                 if not ax_result.success:
-                    bbox_result = await try_bbox_click(
-                        self, element, effective_action, effective_text, modifiers
-                    )
+                    bbox_result = await try_bbox_click(self, element, effective_action, effective_text, modifiers)
                     if not bbox_result.success:
                         remedy_hint = (
                             f"[REMEDY_HINT: Action '{action}' on @{element.ref_id} failed via accessibility invocation "
@@ -386,9 +369,7 @@ class DesktopSession(ComputerSession):
                 if action == "fill_credential":
                     result_prefix = f"Filled credential '{text}' into @{element.ref_id} [CREDENTIAL_FILLED]\n\n"
                 else:
-                    result_prefix = (
-                        f"Action '{action}' on @{element.ref_id} succeeded.\n\n"
-                    )
+                    result_prefix = f"Action '{action}' on @{element.ref_id} succeeded.\n\n"
                 if isinstance(follow_up, list):
                     first = follow_up[0]
                     if hasattr(first, "text"):
@@ -504,9 +485,7 @@ class DesktopSession(ComputerSession):
                 if coordinate is None or len(coordinate) != 2:
                     return "Error: coordinate [x, y] is required for click actions"
                 clicks = {"double_click": 2, "triple_click": 3}.get(action, 1)
-                button = {"right_click": "right", "middle_click": "middle"}.get(
-                    action, "left"
-                )
+                button = {"right_click": "right", "middle_click": "middle"}.get(action, "left")
                 result = await self.click_at(
                     coordinate[0],
                     coordinate[1],
@@ -522,9 +501,7 @@ class DesktopSession(ComputerSession):
                 result = await self.key_press(text or "")
             elif action == "scroll":
                 if coordinate is None or len(coordinate) != 2 or not scroll_direction:
-                    return (
-                        "Error: coordinate and scroll_direction are required for scroll"
-                    )
+                    return "Error: coordinate and scroll_direction are required for scroll"
                 result = await self.scroll_at(
                     coordinate[0],
                     coordinate[1],
@@ -534,9 +511,7 @@ class DesktopSession(ComputerSession):
                 )
             elif action == "drag":
                 if start_coordinate is None or coordinate is None:
-                    return (
-                        "Error: start_coordinate and coordinate are required for drag"
-                    )
+                    return "Error: start_coordinate and coordinate are required for drag"
                 result = await self.drag(
                     start_coordinate[0],
                     start_coordinate[1],
@@ -558,14 +533,10 @@ class DesktopSession(ComputerSession):
             if not result.success:
                 return f"Vision action '{action}' failed: {result.error}"
             if result.screenshot_base64:
-                return self._build_multimodal_response(
-                    result, f"Vision action '{action}' completed."
-                )
+                return self._build_multimodal_response(result, f"Vision action '{action}' completed.")
             return f"Vision action '{action}' completed."
 
-    def _build_multimodal_response(
-        self, result: ActionResult, action_description: str
-    ) -> list[object]:
+    def _build_multimodal_response(self, result: ActionResult, action_description: str) -> list[object]:
         from langchain_core.messages.content import (
             ContentBlock,
             create_image_block,
@@ -609,9 +580,7 @@ class DesktopSession(ComputerSession):
         )
 
         assert isinstance(meta, SnapshotMeta)
-        element_refs = {
-            key: value for key, value in refs.items() if isinstance(value, ElementRef)
-        }
+        element_refs = {key: value for key, value in refs.items() if isinstance(value, ElementRef)}
         viewport_width = screenshot_size[0] or self.screen_info.width
         viewport_height = screenshot_size[1] or self.screen_info.height
         payload = {
@@ -660,9 +629,7 @@ class DesktopSession(ComputerSession):
             meta=meta,
         )
 
-    async def check_permissions(
-        self, *, probe_capture: bool = False
-    ) -> PermissionStatus:
+    async def check_permissions(self, *, probe_capture: bool = False) -> PermissionStatus:
         """Delegate to the platform backend to probe OS-level permissions."""
         return await super().check_permissions(probe_capture=probe_capture)
 
@@ -674,9 +641,7 @@ class DesktopSession(ComputerSession):
         refs = self._refs.all_refs()
         if meta is None or not refs:
             return None
-        element_refs = {
-            key: value for key, value in refs.items() if isinstance(value, ElementRef)
-        }
+        element_refs = {key: value for key, value in refs.items() if isinstance(value, ElementRef)}
         if not element_refs:
             return None
         info = self.screen_info
@@ -732,13 +697,9 @@ class DesktopSession(ComputerSession):
             shot = ActionResult(success=False, error=str(exc))
         screenshot_b64 = shot.screenshot_base64 if shot.success else ""
         screenshot_size = shot.screenshot_size if shot.success else (0, 0)
-        element_refs = {
-            key: value for key, value in refs.items() if isinstance(value, ElementRef)
-        }
+        element_refs = {key: value for key, value in refs.items() if isinstance(value, ElementRef)}
         if screenshot_b64:
-            screenshot_b64 = self._annotate_screenshot_som(
-                screenshot_b64, element_refs, som_index_map
-            )
+            screenshot_b64 = self._annotate_screenshot_som(screenshot_b64, element_refs, som_index_map)
         viewport_width = screenshot_size[0] or self.screen_info.width
         viewport_height = screenshot_size[1] or self.screen_info.height
 

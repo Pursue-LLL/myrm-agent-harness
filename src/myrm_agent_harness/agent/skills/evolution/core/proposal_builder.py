@@ -84,8 +84,12 @@ def build_change_manifest(
         ),
     ]
 
-    base_search_rate = evaluate_content_assertions(search_cases, original_content) if search_cases else baseline_pass_rate
-    target_search_rate = evaluate_content_assertions(search_cases, proposed_content) if search_cases else target_pass_rate
+    base_search_rate = (
+        evaluate_content_assertions(search_cases, original_content) if search_cases else baseline_pass_rate
+    )
+    target_search_rate = (
+        evaluate_content_assertions(search_cases, proposed_content) if search_cases else target_pass_rate
+    )
 
     base_test_rate = evaluate_content_assertions(test_cases, original_content) if test_cases else None
     target_test_rate = evaluate_content_assertions(test_cases, proposed_content) if test_cases else None
@@ -193,11 +197,7 @@ class ProposalBuilder:
             created_at=datetime.now(),
             security_scan_summary=security_scan_summary_dict,
             change_manifest=build_change_manifest(
-                eval_cases=(
-                    updated_eval_cases
-                    if updated_eval_cases is not None
-                    else skill.eval_cases
-                ),
+                eval_cases=(updated_eval_cases if updated_eval_cases is not None else skill.eval_cases),
                 skill_name=skill.name,
                 skill_id=skill.skill_id,
                 evolution_type=evolution_type.value,
@@ -207,9 +207,7 @@ class ProposalBuilder:
             ),
         )
 
-        logger.info(
-            "Built EvolutionProposal for skill %s (Score: %.2f)", skill.name, score
-        )
+        logger.info("Built EvolutionProposal for skill %s (Score: %.2f)", skill.name, score)
         return proposal
 
     @staticmethod

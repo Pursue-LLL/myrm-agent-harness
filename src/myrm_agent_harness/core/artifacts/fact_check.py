@@ -29,15 +29,15 @@ class ConflictSeverity(StrEnum):
     """事实冲突严重级别"""
 
     CRITICAL = "critical"  # 核心商业要素冲突 (如价格、交期、法务责任)
-    WARNING = "warning"    # 参数规格或技术细节演进冲突
-    INFO = "info"          # 措辞描述或轻微统计口径差异
+    WARNING = "warning"  # 参数规格或技术细节演进冲突
+    INFO = "info"  # 措辞描述或轻微统计口径差异
 
 
 class ResolutionStatus(StrEnum):
     """冲突仲裁状态"""
 
-    RESOLVED = "resolved"        # 已确定采纳最新权威口径
-    UNRESOLVED = "unresolved"    # 存在重大未决争议，需人工决策
+    RESOLVED = "resolved"  # 已确定采纳最新权威口径
+    UNRESOLVED = "unresolved"  # 存在重大未决争议，需人工决策
     CONDITIONAL = "conditional"  # 根据特定前置条件分支生效
 
 
@@ -105,17 +105,21 @@ class FactCheckSheet(BaseModel):
         ]
 
         if self.summary:
-            lines.extend([
-                "## 📋 核查总览与质检摘要",
-                "",
-                self.summary.strip(),
-                "",
-            ])
+            lines.extend(
+                [
+                    "## 📋 核查总览与质检摘要",
+                    "",
+                    self.summary.strip(),
+                    "",
+                ]
+            )
 
-        lines.extend([
-            "## 🔍 事实核查与多源口径仲裁明细",
-            "",
-        ])
+        lines.extend(
+            [
+                "## 🔍 事实核查与多源口径仲裁明细",
+                "",
+            ]
+        )
 
         for idx, item in enumerate(self.items, 1):
             severity_badge = {
@@ -130,17 +134,19 @@ class FactCheckSheet(BaseModel):
                 ResolutionStatus.CONDITIONAL: "🔀 按场景条件分支采纳",
             }.get(item.status, str(item.status.value))
 
-            lines.extend([
-                f"### {idx}. {item.claim_topic}",
-                f"- **严重级别**: {severity_badge}",
-                f"- **仲裁状态**: {status_badge} (置信度: {item.confidence_score * 100:.0f}%)",
-                f"- **最终采纳标准口径**: `{item.adopted_value}`",
-                f"- **取舍与仲裁依据**: {item.resolution_rationale}",
-                "",
-                "#### 多源素材比对对照矩阵：",
-                "| 来源文档 | 原始主张数据 | 锚点/时效 | 上下文原句摘录 |",
-                "| :--- | :--- | :--- | :--- |",
-            ])
+            lines.extend(
+                [
+                    f"### {idx}. {item.claim_topic}",
+                    f"- **严重级别**: {severity_badge}",
+                    f"- **仲裁状态**: {status_badge} (置信度: {item.confidence_score * 100:.0f}%)",
+                    f"- **最终采纳标准口径**: `{item.adopted_value}`",
+                    f"- **取舍与仲裁依据**: {item.resolution_rationale}",
+                    "",
+                    "#### 多源素材比对对照矩阵：",
+                    "| 来源文档 | 原始主张数据 | 锚点/时效 | 上下文原句摘录 |",
+                    "| :--- | :--- | :--- | :--- |",
+                ]
+            )
 
             for src in item.sources:
                 anchor = src.line_anchor or src.timestamp_hint or "-"
@@ -148,10 +154,12 @@ class FactCheckSheet(BaseModel):
                 lines.append(f"| {src.document_title} | `{src.claimed_value}` | {anchor} | {snippet_clean} |")
 
             if item.affected_artifacts:
-                lines.extend([
-                    "",
-                    f"- **同步修正的交付物**: {', '.join(f'`{art}`' for art in item.affected_artifacts)}",
-                ])
+                lines.extend(
+                    [
+                        "",
+                        f"- **同步修正的交付物**: {', '.join(f'`{art}`' for art in item.affected_artifacts)}",
+                    ]
+                )
 
             lines.append("")
 

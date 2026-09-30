@@ -129,7 +129,11 @@ def is_irreversible_social_action(tool_name: str, args: dict[str, object] | None
                     for sub_idx in range(idx + 1, min(idx + 8, len(tokens))):
                         if tokens[sub_idx] in (";", "&&", "||", "|", "&"):
                             break
-                        if tokens[sub_idx] in ("release", "pr") and sub_idx + 1 < len(tokens) and tokens[sub_idx + 1] in ("create", "merge"):
+                        if (
+                            tokens[sub_idx] in ("release", "pr")
+                            and sub_idx + 1 < len(tokens)
+                            and tokens[sub_idx + 1] in ("create", "merge")
+                        ):
                             return True
 
     return False
@@ -243,7 +247,10 @@ class SpendPolicy:
             return True, "No positive financial spend detected"
 
         if amount > self.per_action_cap:
-            return False, f"Amount ({amount:.2f} {self.currency}) exceeds per-action cap ({self.per_action_cap:.2f} {self.currency})"
+            return (
+                False,
+                f"Amount ({amount:.2f} {self.currency}) exceeds per-action cap ({self.per_action_cap:.2f} {self.currency})",
+            )
 
         if (current_session_spent + amount) > self.session_cap:
             return False, (
@@ -407,4 +414,3 @@ def verify_script_file_integrity(file_path: str, expected_hash: str) -> tuple[bo
         )
 
     return True, ""
-

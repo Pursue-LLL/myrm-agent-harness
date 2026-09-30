@@ -166,8 +166,7 @@ class TaintTracker:
                         if host in self._allowed_sinks:
                             return None
                         if trusted_hosts and (
-                            host in trusted_hosts
-                            or any(host.endswith(f".{th.lower()}") for th in trusted_hosts)
+                            host in trusted_hosts or any(host.endswith(f".{th.lower()}") for th in trusted_hosts)
                         ):
                             return None
                 except Exception:
@@ -176,11 +175,7 @@ class TaintTracker:
         blocked = set(TAINT_SINK_POLICIES.get(tool_name, frozenset()))
 
         # Dynamic sink escalation: if session holds SECRET taint and bash attempts network transfer
-        if (
-            tool_name in ("bash_code_execute_tool", "shell_exec")
-            and TaintLabel.SECRET in self._taints
-            and tool_input
-        ):
+        if tool_name in ("bash_code_execute_tool", "shell_exec") and TaintLabel.SECRET in self._taints and tool_input:
             cmd_str = str(tool_input.get("command") or tool_input.get("cmd") or "")
             if _BASH_EGRESS_RE.search(cmd_str):
                 blocked.add(TaintLabel.SECRET)

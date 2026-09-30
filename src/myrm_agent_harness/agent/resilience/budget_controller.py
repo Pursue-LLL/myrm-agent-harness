@@ -75,7 +75,9 @@ class DynamicExecutionBudgetController:
     def record_success(self) -> None:
         """Reset consecutive errors on successful execution."""
         if self._consecutive_errors > 0:
-            logger.info("DynamicExecutionBudgetController consecutive errors reset from %d to 0", self._consecutive_errors)
+            logger.info(
+                "DynamicExecutionBudgetController consecutive errors reset from %d to 0", self._consecutive_errors
+            )
             self._consecutive_errors = 0
 
     def check_budget_violation(self) -> str | None:

@@ -92,11 +92,23 @@ _ACTION_GRADIENTS: Final[dict[FeedbackAction, dict[PreferenceDimension, float]]]
 
 # Regex patterns for non-intrusive implicit feedback detection in natural language
 _IMPLICIT_FEEDBACK_RULES: Final[list[tuple[re.Pattern[str], FeedbackAction]]] = [
-    (re.compile(r"(只(?:要|给|看)代码|给出?可运行代码|直接上代码|show\s+me\s+the\s+code)", re.IGNORECASE), FeedbackAction.MORE_CODE),
-    (re.compile(r"(太长|太啰嗦|简短(?:点|一点)|精简|别废话|一句话(?:总结|说明)|tl;?dr|be\s+concise)", re.IGNORECASE), FeedbackAction.MORE_CONCISE),
-    (re.compile(r"(底层原理|深度分析|深入剖析|技术内幕|架构演进|源码分析|deep\s+dive|in[- ]depth)", re.IGNORECASE), FeedbackAction.MORE_IN_DEPTH),
+    (
+        re.compile(r"(只(?:要|给|看)代码|给出?可运行代码|直接上代码|show\s+me\s+the\s+code)", re.IGNORECASE),
+        FeedbackAction.MORE_CODE,
+    ),
+    (
+        re.compile(r"(太长|太啰嗦|简短(?:点|一点)|精简|别废话|一句话(?:总结|说明)|tl;?dr|be\s+concise)", re.IGNORECASE),
+        FeedbackAction.MORE_CONCISE,
+    ),
+    (
+        re.compile(r"(底层原理|深度分析|深入剖析|技术内幕|架构演进|源码分析|deep\s+dive|in[- ]depth)", re.IGNORECASE),
+        FeedbackAction.MORE_IN_DEPTH,
+    ),
     (re.compile(r"(最新|近期|近两周|202[5-9]|实时动态|时效|latest|recent)", re.IGNORECASE), FeedbackAction.MORE_RECENT),
-    (re.compile(r"(宏观|整体概览|全局视角|系统全景|对比分析|overview|high[- ]level)", re.IGNORECASE), FeedbackAction.MORE_OVERVIEW),
+    (
+        re.compile(r"(宏观|整体概览|全局视角|系统全景|对比分析|overview|high[- ]level)", re.IGNORECASE),
+        FeedbackAction.MORE_OVERVIEW,
+    ),
 ]
 
 

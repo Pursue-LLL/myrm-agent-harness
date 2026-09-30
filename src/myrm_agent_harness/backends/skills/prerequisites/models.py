@@ -99,7 +99,11 @@ class SkillPrerequisites:
         os_compat: tuple[str, ...] | list[str] | None = None,
         packages: tuple[PythonDependency, ...] | list[PythonDependency] | None = None,
     ) -> None:
-        effective_os = os_compat if os_compat is not None else (supported_os if supported_os is not None else ("macos", "linux", "windows"))
+        effective_os = (
+            os_compat
+            if os_compat is not None
+            else (supported_os if supported_os is not None else ("macos", "linux", "windows"))
+        )
         effective_pkgs = packages if packages is not None else (python_packages if python_packages is not None else ())
         effective_bins = binaries if binaries is not None else ()
         effective_envs = env_vars if env_vars is not None else ()

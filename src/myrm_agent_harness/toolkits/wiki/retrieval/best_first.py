@@ -76,10 +76,7 @@ def _claim_health_multiplier(
     if structure is None or not claim.evidence:
         return multiplier
     if any(
-        resolve_evidence_snapshot_status(
-            evidence.path, evidence.content_sha256, structure
-        )
-        == "stale"
+        resolve_evidence_snapshot_status(evidence.path, evidence.content_sha256, structure) == "stale"
         for evidence in claim.evidence
     ):
         multiplier *= STALE_EVIDENCE_MULTIPLIER
@@ -122,9 +119,7 @@ def _apply_claim_mode_adjustment(
     base_score: float,
 ) -> float:
     if claim_overlap <= 0:
-        return base_score * (
-            NON_CLAIM_DEMOTION if query_config.query_mode == "raw_claim" else 1.0
-        )
+        return base_score * (NON_CLAIM_DEMOTION if query_config.query_mode == "raw_claim" else 1.0)
 
     boosted = base_score + claim_overlap * query_config.raw_claim_boost
     if query_config.query_mode == "raw_claim":

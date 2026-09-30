@@ -43,9 +43,7 @@ async def read_checkpoint_messages(
     try:
         checkpoint = await checkpointer.aget(config)  # type: ignore[attr-defined]
     except Exception:
-        logger.warning(
-            "Failed to read checkpoint for thread %s", thread_id, exc_info=True
-        )
+        logger.warning("Failed to read checkpoint for thread %s", thread_id, exc_info=True)
         return []
 
     if not isinstance(checkpoint, Mapping):

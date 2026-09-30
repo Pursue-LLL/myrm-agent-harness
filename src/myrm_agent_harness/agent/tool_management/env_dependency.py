@@ -227,7 +227,9 @@ def probe_dependency_satisfaction(spec: EnvDependencySpec) -> DependencyProbeRes
             if spec.name in ("sh", "bash"):
                 if shutil.which("powershell") or shutil.which("cmd") or shutil.which("pwsh"):
                     return DependencyProbeResult(spec=spec, satisfied=True, detected_version="windows_shell")
-            return DependencyProbeResult(spec=spec, satisfied=False, probe_error=f"Binary '{spec.name}' not found on PATH")
+            return DependencyProbeResult(
+                spec=spec, satisfied=False, probe_error=f"Binary '{spec.name}' not found on PATH"
+            )
 
         if spec.kind == DependencyKind.PYTHON_PACKAGE:
             # Check Python import availability
@@ -289,17 +291,19 @@ def export_env_dependency_inventory() -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
     for tool_name in sorted(TOOL_ENV_DEPENDENCY_REGISTRY.keys()):
         profile = TOOL_ENV_DEPENDENCY_REGISTRY[tool_name]
-        items.append({
-            "tool_name": tool_name,
-            "dependencies": [
-                {
-                    "name": dep.name,
-                    "kind": dep.kind.value,
-                    "level": dep.level.value,
-                    "description": dep.description,
-                    "fallback_strategy": dep.fallback_strategy,
-                }
-                for dep in profile.dependencies
-            ],
-        })
+        items.append(
+            {
+                "tool_name": tool_name,
+                "dependencies": [
+                    {
+                        "name": dep.name,
+                        "kind": dep.kind.value,
+                        "level": dep.level.value,
+                        "description": dep.description,
+                        "fallback_strategy": dep.fallback_strategy,
+                    }
+                    for dep in profile.dependencies
+                ],
+            }
+        )
     return items

@@ -95,9 +95,7 @@ class AppEvent:
     session_id: str
     message: str | None = None
     payload: dict[str, object] = field(default_factory=dict)
-    created_at_iso: str = field(
-        default_factory=lambda: datetime.now(UTC).isoformat()
-    )
+    created_at_iso: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     def format_for_transcript(self) -> str:
         """Format event as structured prefix message for next agent turn."""
@@ -140,9 +138,7 @@ class AppEventQueue:
             events = self._events_by_session.pop(session_id, [])
             return events
 
-    def format_and_consume(
-        self, session_id: str, *, label: str = "Host Events since your last reply"
-    ) -> str | None:
+    def format_and_consume(self, session_id: str, *, label: str = "Host Events since your last reply") -> str | None:
         """Atomically consume events and format them into conversational context prefix."""
         events = self.consume(session_id)
         if not events:

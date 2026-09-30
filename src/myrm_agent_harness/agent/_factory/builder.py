@@ -365,9 +365,7 @@ async def create_skill_agent(
                 )
             )
             compactor_type = type(compactor_aux_llm).__name__ if compactor_aux_llm is not None else "None"
-            logger.info(
-                f" 使用主 LLM ({type(llm).__name__}) + 辅助压缩器 ({compactor_type}) 创建默认上下文管理中间件"
-            )
+            logger.info(f" 使用主 LLM ({type(llm).__name__}) + 辅助压缩器 ({compactor_type}) 创建默认上下文管理中间件")
         else:
             logger.info(" 上下文管理中间件已通过 EngineParams 禁用")
     else:

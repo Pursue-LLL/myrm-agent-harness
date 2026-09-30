@@ -264,9 +264,7 @@ class TaskRunner(Protocol):
     SubagentManager, agent configuration, and tool injection.
     """
 
-    async def run(
-        self, task: KanbanTask
-    ) -> tuple[bool, str] | TaskExecutionResult:
+    async def run(self, task: KanbanTask) -> tuple[bool, str] | TaskExecutionResult:
         """Execute a task.
 
         Returns:
@@ -539,4 +537,3 @@ class TaskReplanner(Protocol):
     ) -> PlanRevisionOutcome:
         """Produce a plan revision proposal for the given board state."""
         ...
-

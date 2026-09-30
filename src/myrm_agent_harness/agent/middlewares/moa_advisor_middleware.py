@@ -208,11 +208,7 @@ def create_moa_advisor_middleware(
         trigger_reason: str | None = None
 
         if overlay_cfg.fanout == "risk_triggered":
-            decision = (
-                router.evaluate_trigger(messages, current_turn=next_iteration)
-                if router
-                else None
-            )
+            decision = router.evaluate_trigger(messages, current_turn=next_iteration) if router else None
             fanout_this_call = bool(decision and decision.should_trigger)
             if fanout_this_call and decision and decision.reason:
                 trigger_reason = decision.reason.value
@@ -233,7 +229,6 @@ def create_moa_advisor_middleware(
                 _moa_budget_skip_notified_var.set(True)
             logger.debug("MoA overlay skipped: budget pressure active")
             return await handler(request)
-
 
         if fanout_this_call:
             ref_names = [_model_name(llm) for llm in reference_llms]
@@ -262,7 +257,6 @@ def create_moa_advisor_middleware(
                 timeout=timeout_limit,
             )
         except TimeoutError:
-
             logger.warning(
                 "MoA overlay: hard timeout reached (%.1fs) during fan-out; silent fallback to acting model",
                 timeout_limit,
@@ -306,4 +300,3 @@ __all__ = [
     "_inject_advisor_block_cache_safe",
     "create_moa_advisor_middleware",
 ]
-

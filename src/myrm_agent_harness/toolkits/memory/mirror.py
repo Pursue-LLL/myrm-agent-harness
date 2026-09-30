@@ -177,9 +177,7 @@ class HotColdMirrorEngine:
 
         if self._debounce_task is not None and not self._debounce_task.done():
             self._debounce_task.cancel()
-        self._debounce_task = asyncio.create_task(
-            self._debounce_worker(self._debounce_interval)
-        )
+        self._debounce_task = asyncio.create_task(self._debounce_worker(self._debounce_interval))
 
     async def _debounce_worker(self, delay: float) -> None:
         try:
@@ -209,16 +207,8 @@ class HotColdMirrorEngine:
             mem_type = getattr(mem, "memory_type", "semantic")
             type_val = mem_type.value if hasattr(mem_type, "value") else str(mem_type)
             dom_val = mem.domain.value if hasattr(mem.domain, "value") else str(mem.domain)
-            created_str = (
-                mem.created_at.isoformat()
-                if hasattr(mem, "created_at") and mem.created_at
-                else now_str
-            )
-            updated_str = (
-                mem.updated_at.isoformat()
-                if hasattr(mem, "updated_at") and mem.updated_at
-                else now_str
-            )
+            created_str = mem.created_at.isoformat() if hasattr(mem, "created_at") and mem.created_at else now_str
+            updated_str = mem.updated_at.isoformat() if hasattr(mem, "updated_at") and mem.updated_at else now_str
             meta = getattr(mem, "metadata", {}) or {}
             meta_json = json.dumps(meta, default=str)
 
@@ -279,8 +269,8 @@ class HotColdMirrorEngine:
         offset: int = 0,
     ) -> Sequence[ColdMemoryRecord]:
         """Query cold SQLite mirror directly.
-<BLANK_LINE>
-        STRONG ISOLATION: Cold queries never pollute or overwrite hot cache.
+        <BLANK_LINE>
+                STRONG ISOLATION: Cold queries never pollute or overwrite hot cache.
         """
         conn = await self._ensure_connection()
         clauses = ["user_id = ?"]

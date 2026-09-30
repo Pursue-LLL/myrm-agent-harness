@@ -188,9 +188,7 @@ async def enrich_with_graph(
                     pass
         return siblings_found
 
-    sibling_lists = await asyncio.gather(
-        *[_fetch_subgraph_siblings(mid, rels) for mid, rels in expandable_hits]
-    )
+    sibling_lists = await asyncio.gather(*[_fetch_subgraph_siblings(mid, rels) for mid, rels in expandable_hits])
     for siblings in sibling_lists:
         for mid, depth in siblings:
             if mid not in existing_ids and mid not in related_with_depth:
@@ -210,9 +208,7 @@ async def enrich_with_graph(
         # Concurrently fetch candidates from both episodic and semantic collections
         episodic_task = vector.get(config.episodic_collection, candidate_ids)
         semantic_task = vector.get(config.semantic_collection, candidate_ids)
-        episodic_res, semantic_res = await asyncio.gather(
-            episodic_task, semantic_task, return_exceptions=True
-        )
+        episodic_res, semantic_res = await asyncio.gather(episodic_task, semantic_task, return_exceptions=True)
 
         typed_docs: list[tuple[VectorDocument, MemoryType]] = []
         if isinstance(episodic_res, list):

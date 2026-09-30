@@ -205,4 +205,3 @@ __all__ = [
     "is_path_redirect",
     "validate_safe_install_target",
 ]
-

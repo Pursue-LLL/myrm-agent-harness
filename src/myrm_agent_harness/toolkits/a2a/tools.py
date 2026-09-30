@@ -42,21 +42,11 @@ class FanoutMode(StrEnum):
 class A2ACallInput(BaseModel):
     """Input arguments for a2a_call tool."""
 
-    peer_url: str = Field(
-        description="Remote A2A endpoint URL (e.g. http://peer:8080/api/v1/a2a/rpc)"
-    )
-    prompt: str = Field(
-        description="The task instruction or query to send to the remote agent."
-    )
-    agent_id: str | None = Field(
-        default=None, description="Optional target remote agent profile ID."
-    )
-    bearer_token: str | None = Field(
-        default=None, description="Optional authentication Bearer token."
-    )
-    timeout_seconds: float = Field(
-        default=60.0, description="Maximum wait time in seconds."
-    )
+    peer_url: str = Field(description="Remote A2A endpoint URL (e.g. http://peer:8080/api/v1/a2a/rpc)")
+    prompt: str = Field(description="The task instruction or query to send to the remote agent.")
+    agent_id: str | None = Field(default=None, description="Optional target remote agent profile ID.")
+    bearer_token: str | None = Field(default=None, description="Optional authentication Bearer token.")
+    timeout_seconds: float = Field(default=60.0, description="Maximum wait time in seconds.")
 
 
 class A2AOrchestrateInput(BaseModel):
@@ -68,9 +58,7 @@ class A2AOrchestrateInput(BaseModel):
         default=FanoutMode.ALL,
         description="Aggregation strategy: 'all' (gather all), 'first' (fastest success), 'best' (highest detail).",
     )
-    timeout_seconds: float = Field(
-        default=90.0, description="Overall fan-out timeout in seconds."
-    )
+    timeout_seconds: float = Field(default=90.0, description="Overall fan-out timeout in seconds.")
 
 
 async def execute_a2a_call(
@@ -101,9 +89,7 @@ async def execute_a2a_call(
             max_wait_sec=timeout_seconds,
         )
 
-        agent_messages = [
-            m.content for m in completed_task.messages if m.role == "agent"
-        ]
+        agent_messages = [m.content for m in completed_task.messages if m.role == "agent"]
         final_answer = agent_messages[-1] if agent_messages else ""
 
         return {
@@ -111,9 +97,7 @@ async def execute_a2a_call(
             "status": completed_task.status.value,
             "taskId": completed_task.task_id,
             "answer": final_answer,
-            "artifacts": [
-                a.model_dump(by_alias=True) for a in completed_task.artifacts
-            ],
+            "artifacts": [a.model_dump(by_alias=True) for a in completed_task.artifacts],
             "error": completed_task.error,
         }
     except A2ASSRFBlockedError as e:
@@ -186,9 +170,7 @@ async def execute_a2a_orchestrate(
         }
 
     # FanoutMode.ALL or FanoutMode.BEST
-    results = await asyncio.gather(
-        *[_call_single(p) for p in peers], return_exceptions=False
-    )
+    results = await asyncio.gather(*[_call_single(p) for p in peers], return_exceptions=False)
     successful = [r for r in results if r.get("success") is True]
 
     if mode == FanoutMode.BEST:

@@ -248,9 +248,7 @@ class FileEventLogBackend:
                         continue
 
                     raw_state = data.get("state")
-                    state_dict: dict[str, object] = (
-                        raw_state if isinstance(raw_state, dict) else {"value": raw_state}
-                    )
+                    state_dict: dict[str, object] = raw_state if isinstance(raw_state, dict) else {"value": raw_state}
 
                     if custom_type is not None:
                         if ctype == custom_type:

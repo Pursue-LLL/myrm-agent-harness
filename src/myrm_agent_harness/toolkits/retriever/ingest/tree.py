@@ -58,9 +58,7 @@ class DirTreeBuilder:
     """Per-run in-memory directory tree DAG builder for Job Lane."""
 
     def __init__(self) -> None:
-        self._nodes: dict[str, DirNode] = {
-            "/": DirNode(path="/", parent_path=None, depth=0)
-        }
+        self._nodes: dict[str, DirNode] = {"/": DirNode(path="/", parent_path=None, depth=0)}
         self._is_finalized: bool = False
 
     def add_object(self, relpath: str) -> None:

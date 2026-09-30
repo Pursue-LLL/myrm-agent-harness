@@ -59,31 +59,19 @@ def build_sandbox_policy_from_path_policy(
         )
 
     # Build MountSpecs for gate validation
-    mount_specs: list[MountSpec] = [
-        MountSpec(source_path=work_dir, mode=MountMode.RW, label="work_dir")
-    ]
+    mount_specs: list[MountSpec] = [MountSpec(source_path=work_dir, mode=MountMode.RW, label="work_dir")]
     for root in access_roots:
         mode = MountMode.RW if root.writable else MountMode.RO
-        mount_specs.append(
-            MountSpec(source_path=root.path, mode=mode, label=root.label or root.source)
-        )
+        mount_specs.append(MountSpec(source_path=root.path, mode=mode, label=root.label or root.source))
     for p in extra_writable:
-        mount_specs.append(
-            MountSpec(source_path=p, mode=MountMode.RW, label="extra_writable")
-        )
+        mount_specs.append(MountSpec(source_path=p, mode=MountMode.RW, label="extra_writable"))
     for p in extra_readable:
-        mount_specs.append(
-            MountSpec(source_path=p, mode=MountMode.RO, label="extra_readable")
-        )
+        mount_specs.append(MountSpec(source_path=p, mode=MountMode.RO, label="extra_readable"))
 
     sanitized = validate_and_sanitize_mounts(mount_specs)
 
-    writable_paths = tuple(
-        sorted(s.source_path for s in sanitized if s.mode == MountMode.RW)
-    )
-    readable_paths = tuple(
-        sorted(s.source_path for s in sanitized if s.mode == MountMode.RO)
-    )
+    writable_paths = tuple(sorted(s.source_path for s in sanitized if s.mode == MountMode.RW))
+    readable_paths = tuple(sorted(s.source_path for s in sanitized if s.mode == MountMode.RO))
 
     return SandboxPolicy(
         writable_paths=writable_paths,

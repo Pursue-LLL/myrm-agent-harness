@@ -113,9 +113,7 @@ class ImageCompressor:
 
             # Select compression method based on format
             if suffix == ".png" and output_format is None:
-                return self._compress_png(
-                    input_path, output_path, quality, max_dimension
-                )
+                return self._compress_png(input_path, output_path, quality, max_dimension)
             else:
                 return self._compress_with_pillow(
                     input_path,
@@ -138,14 +136,10 @@ class ImageCompressor:
 
                 tmp_path: Path | None = None
                 try:
-                    with tempfile.NamedTemporaryFile(
-                        suffix=".png", delete=False
-                    ) as tmp:
+                    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
                         tmp_path = Path(tmp.name)
                         img.save(tmp.name, "PNG")
-                        return self._compress_png(
-                            tmp.name, output_path, quality, max_dimension
-                        )
+                        return self._compress_png(tmp.name, output_path, quality, max_dimension)
                 finally:
                     if tmp_path is not None:
                         tmp_path.unlink(missing_ok=True)
@@ -211,11 +205,7 @@ class ImageCompressor:
         # a 4 MiB raw image (≈5.3 MiB base64) sail past a 5 MiB ceiling and
         # burn a recovery round-trip.
         b64_len = 4 * ((len(raw_bytes) + 2) // 3)
-        if (
-            width <= max_dimension
-            and height <= max_dimension
-            and b64_len <= trigger_bytes
-        ):
+        if width <= max_dimension and height <= max_dimension and b64_len <= trigger_bytes:
             return raw_bytes
 
         try:
@@ -234,9 +224,7 @@ class ImageCompressor:
             return raw_bytes
         return compressed
 
-    def _resize_if_needed(
-        self, img: Image.Image, max_dimension: int | None
-    ) -> Image.Image:
+    def _resize_if_needed(self, img: Image.Image, max_dimension: int | None) -> Image.Image:
         """Resize image if it exceeds max_dimension."""
         if not max_dimension:
             return img
@@ -301,7 +289,6 @@ class ImageCompressor:
             logger.warning("slice_long_image_if_needed failed fallback to original: %s", exc)
             return [img_bytes]
 
-
     def _compress_with_pillow(
         self,
         input_source: Path | BinaryIO,
@@ -330,9 +317,7 @@ class ImageCompressor:
 
         # Convert to RGB if needed for JPEG
         if format_suffix in [".jpg", ".jpeg"] or output_format == "jpeg":
-            if img.mode in ("RGBA", "LA") or (
-                img.mode == "P" and "transparency" in img.info
-            ):
+            if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
                 img = img.convert("RGBA")
                 background = Image.new("RGB", img.size, (255, 255, 255))
                 background.paste(img, mask=img.split()[3])
@@ -345,9 +330,7 @@ class ImageCompressor:
 
         # Compress and save
         if output_path:
-            img.save(
-                output_path, format=save_format, quality=pillow_quality, optimize=True
-            )
+            img.save(output_path, format=save_format, quality=pillow_quality, optimize=True)
             return None
         else:
             buffer = io.BytesIO()
@@ -362,16 +345,12 @@ class ImageCompressor:
         max_dimension: int | None,
     ) -> bytes | None:
         """Compress PNG using imagequant or Pillow fallback."""
-        result = self._compress_png_with_imagequant(
-            input_path, output_path, quality, max_dimension
-        )
+        result = self._compress_png_with_imagequant(input_path, output_path, quality, max_dimension)
         if result is not False:  # Success or returned bytes
             return result  # type: ignore
 
         # Pillow fallback
-        return self._compress_png_with_pillow(
-            input_path, output_path, quality, max_dimension
-        )
+        return self._compress_png_with_pillow(input_path, output_path, quality, max_dimension)
 
     def _compress_png_with_imagequant(
         self,
@@ -417,9 +396,7 @@ class ImageCompressor:
             # Quantize image using imagequant
             quantized_img = imagequant.quantize_pil_image(
                 img,
-                dithering_level=(
-                    0.0 if quality < 0.3 else (0.5 if quality < 0.7 else 1.0)
-                ),
+                dithering_level=(0.0 if quality < 0.3 else (0.5 if quality < 0.7 else 1.0)),
                 max_colors=max_colors,
                 min_quality=min_quality,
                 max_quality=max_quality,
@@ -430,17 +407,13 @@ class ImageCompressor:
 
             # Compress to memory first to check size
             buffer = io.BytesIO()
-            quantized_img.save(
-                buffer, "PNG", optimize=True, compress_level=compress_level
-            )
+            quantized_img.save(buffer, "PNG", optimize=True, compress_level=compress_level)
             compressed_data = buffer.getvalue()
 
             # Check compressed size
             if isinstance(input_path, (str, Path)):
                 original_size = Path(input_path).stat().st_size
-                if (
-                    len(compressed_data) >= original_size * 0.9
-                ):  # No significant reduction
+                if len(compressed_data) >= original_size * 0.9:  # No significant reduction
                     return False  # Use fallback
 
             if output_path:

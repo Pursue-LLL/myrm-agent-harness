@@ -86,6 +86,7 @@ def resolve_skill_market_tool_description(locale: str | None = None) -> str:
         return TOOL_DESCRIPTION_ZH
     return TOOL_DESCRIPTION_EN
 
+
 _SKILL_SEARCH_MARKET_HINTS: dict[str, str] = {
     "skill_search_tool": ("NOT for searching skills already bound to this agent — use skill_search_tool for that."),
 }

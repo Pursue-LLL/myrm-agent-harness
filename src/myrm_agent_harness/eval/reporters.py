@@ -109,9 +109,7 @@ class JsonlReporter:
                             }
                             for a in getattr(turn.case, "post_episode_assertions", [])
                         ],
-                        "canary_protected": getattr(
-                            turn.case, "canary_protected", False
-                        ),
+                        "canary_protected": getattr(turn.case, "canary_protected", False),
                         "canary_token": getattr(turn.case, "canary_token", ""),
                     },
                     "actual_tools": turn.response.tools_called,
@@ -140,12 +138,8 @@ class JsonlReporter:
                 "pass_rate": result.pass_rate,
                 "all_passed": result.all_passed,
                 "total_ms": result.total_ms,
-                "avg_time_secs": (
-                    round(total_time_secs / case_count, 3) if case_count else 0.0
-                ),
-                "avg_total_tokens": (
-                    round(total_tokens_sum / case_count) if case_count else 0
-                ),
+                "avg_time_secs": (round(total_time_secs / case_count, 3) if case_count else 0.0),
+                "avg_total_tokens": (round(total_tokens_sum / case_count) if case_count else 0),
             }
             if result.avg_pass_rate is not None:
                 summary["avg_pass_rate"] = result.avg_pass_rate
@@ -155,9 +149,7 @@ class JsonlReporter:
                 failure_agg = aggregate_failure_modes(result)
                 if failure_agg["total_failures"] > 0:
                     summary["failure_analysis"] = failure_agg
-                    recs = derive_ablation_recommendations(
-                        failure_agg["failure_distribution"]
-                    )
+                    recs = derive_ablation_recommendations(failure_agg["failure_distribution"])
                     summary["ablation_recommendations"] = [r.to_dict() for r in recs]
                     from .failure_clustering import cluster_failure_signatures
 
@@ -199,9 +191,7 @@ class MarkdownReporter:
 
         if total_tokens > 0:
             avg_tokens = total_tokens // result.total_cases if result.total_cases else 0
-            lines.append(
-                f"- **Total Tokens**: {total_tokens:,} (avg {avg_tokens:,}/case)"
-            )
+            lines.append(f"- **Total Tokens**: {total_tokens:,} (avg {avg_tokens:,}/case)")
         if total_cost > 0:
             lines.append(f"- **Total Cost**: ${total_cost:.4f}")
 
@@ -226,9 +216,7 @@ class MarkdownReporter:
         if result.fail_count > 0 or result.error_count > 0:
             failure_agg = aggregate_failure_modes(result)
             if failure_agg["total_failures"] > 0:
-                recs = derive_ablation_recommendations(
-                    failure_agg["failure_distribution"]
-                )
+                recs = derive_ablation_recommendations(failure_agg["failure_distribution"])
                 if recs:
                     lines.extend(
                         [
@@ -251,11 +239,7 @@ class MarkdownReporter:
         )
 
         for i, turn in enumerate(result.turn_results, 1):
-            status = (
-                " PASS"
-                if turn.assertion_passed
-                else (" FAIL" if turn.assertion_passed is False else " SKIP")
-            )
+            status = " PASS" if turn.assertion_passed else (" FAIL" if turn.assertion_passed is False else " SKIP")
             if turn.error:
                 status = " ERROR"
 
@@ -273,9 +257,7 @@ class MarkdownReporter:
             )
 
             if turn.scores:
-                score_desc = ", ".join(
-                    f"{k}: {v:g}" for k, v in sorted(turn.scores.items())
-                )
+                score_desc = ", ".join(f"{k}: {v:g}" for k, v in sorted(turn.scores.items()))
                 lines.extend(
                     [
                         f"- **Scores**: `{score_desc}`",

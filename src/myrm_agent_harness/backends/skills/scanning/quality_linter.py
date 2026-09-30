@@ -28,15 +28,48 @@ from myrm_agent_harness.backends.skills._utils import parse_frontmatter
 logger = logging.getLogger(__name__)
 
 # Action verbs commonly used for imperative commands
-IMPERATIVE_VERBS: frozenset[str] = frozenset({
-    "run", "execute", "check", "verify", "fetch", "get", "set", "create",
-    "delete", "update", "build", "parse", "extract", "validate", "generate",
-    "inspect", "query", "call", "send", "receive", "load", "save", "scan",
-    "clean", "filter", "sort", "format", "render", "return", "ensure",
-})
+IMPERATIVE_VERBS: frozenset[str] = frozenset(
+    {
+        "run",
+        "execute",
+        "check",
+        "verify",
+        "fetch",
+        "get",
+        "set",
+        "create",
+        "delete",
+        "update",
+        "build",
+        "parse",
+        "extract",
+        "validate",
+        "generate",
+        "inspect",
+        "query",
+        "call",
+        "send",
+        "receive",
+        "load",
+        "save",
+        "scan",
+        "clean",
+        "filter",
+        "sort",
+        "format",
+        "render",
+        "return",
+        "ensure",
+    }
+)
 
 POLITE_REQUEST_PREFIXES: tuple[str, ...] = (
-    "please", "could you", "would you", "kindly", "you should", "we need you to",
+    "please",
+    "could you",
+    "would you",
+    "kindly",
+    "you should",
+    "we need you to",
 )
 
 
@@ -112,8 +145,13 @@ class SkillQualityLinter:
         has_negative_boundary = any(
             phrase in body_lower or phrase in description.lower()
             for phrase in (
-                "do not use for", "don't use for", "not for", "avoid using for",
-                "use /", "use `", "when not to use",
+                "do not use for",
+                "don't use for",
+                "not for",
+                "avoid using for",
+                "use /",
+                "use `",
+                "when not to use",
             )
         )
         if not has_negative_boundary:
@@ -148,7 +186,8 @@ class SkillQualityLinter:
 
         # Rule 4: Output Template Anchor
         has_template = any(
-            marker in body for marker in ("```markdown", "```json", "### Output Template", "## Output Format", "<output_template>")
+            marker in body
+            for marker in ("```markdown", "```json", "### Output Template", "## Output Format", "<output_template>")
         ) or ("```" in body and "template" in body_lower)
 
         if not has_template:
@@ -164,7 +203,8 @@ class SkillQualityLinter:
 
         # Rule 5: Worked Example
         has_example = any(
-            marker in body_lower for marker in ("## example", "### example", "<example>", "example input", "example output")
+            marker in body_lower
+            for marker in ("## example", "### example", "<example>", "example input", "example output")
         )
         if not has_example:
             violations.append(

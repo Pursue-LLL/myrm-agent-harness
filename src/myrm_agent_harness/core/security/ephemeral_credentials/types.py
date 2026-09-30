@@ -20,20 +20,22 @@ import time
 from dataclasses import dataclass, field
 
 _VALID_KEY_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
-_BLOCKED_ENV_KEYS = frozenset({
-    "PATH",
-    "LD_PRELOAD",
-    "LD_LIBRARY_PATH",
-    "PYTHONPATH",
-    "PYTHONHOME",
-    "DYLD_INSERT_LIBRARIES",
-    "DYLD_LIBRARY_PATH",
-    "NODE_OPTIONS",
-    "PERL5LIB",
-    "RUBYLIB",
-    "SHELL",
-    "IFS",
-})
+_BLOCKED_ENV_KEYS = frozenset(
+    {
+        "PATH",
+        "LD_PRELOAD",
+        "LD_LIBRARY_PATH",
+        "PYTHONPATH",
+        "PYTHONHOME",
+        "DYLD_INSERT_LIBRARIES",
+        "DYLD_LIBRARY_PATH",
+        "NODE_OPTIONS",
+        "PERL5LIB",
+        "RUBYLIB",
+        "SHELL",
+        "IFS",
+    }
+)
 
 
 def validate_credential_key(key: str) -> str:

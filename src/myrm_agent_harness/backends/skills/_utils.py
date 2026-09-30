@@ -613,8 +613,7 @@ def parse_skill_frontmatter(content: str, skill_dir_name: str) -> SkillFrontmatt
         raw_allowed_tools = parsed["allowed-tools"]
         if isinstance(raw_allowed_tools, list):
             normalized = " ".join(
-                str(item).strip() for item in raw_allowed_tools
-                if item is not None and str(item).strip()
+                str(item).strip() for item in raw_allowed_tools if item is not None and str(item).strip()
             )
             allowed_tools = normalized or None
         else:
@@ -722,7 +721,9 @@ def parse_skill_frontmatter(content: str, skill_dir_name: str) -> SkillFrontmatt
 
     # specialized-model: optional model slug (Model-As-A-Skill)
     specialized_model: str | None = None
-    raw_spec_model = parsed.get("specialized-model") or parsed.get("specialized_model") or parsed.get("specializedModel")
+    raw_spec_model = (
+        parsed.get("specialized-model") or parsed.get("specialized_model") or parsed.get("specializedModel")
+    )
     if raw_spec_model:
         sm = str(raw_spec_model).strip()
         if sm:

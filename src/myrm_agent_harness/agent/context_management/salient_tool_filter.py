@@ -65,9 +65,7 @@ class SalientToolEvidence:
     snippet: str
     is_error: bool
     salience_score: float
-    occurred_at: str = field(
-        default_factory=lambda: datetime.now(UTC).isoformat()
-    )
+    occurred_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
 
 @dataclass(frozen=True, slots=True)
@@ -189,22 +187,10 @@ def extract_salient_tool_evidences(
         elif isinstance(msg, dict) and "metadata" in msg and isinstance(msg["metadata"], dict):
             meta = msg["metadata"]
 
-        tool_name = str(
-            getattr(msg, "name", None)
-            or (meta.get("tool_name") if meta else None)
-            or "unknown_tool"
-        )
-        tool_call_id = str(
-            getattr(msg, "tool_call_id", None)
-            or (meta.get("tool_call_id") if meta else None)
-            or ""
-        )
+        tool_name = str(getattr(msg, "name", None) or (meta.get("tool_name") if meta else None) or "unknown_tool")
+        tool_call_id = str(getattr(msg, "tool_call_id", None) or (meta.get("tool_call_id") if meta else None) or "")
         has_error_kw = any(kw in content_lower for kw in _HIGH_SEVERITY_KEYWORDS)
-        is_error = bool(
-            getattr(msg, "status", "") == "error"
-            or meta.get("is_error") is True
-            or has_error_kw
-        )
+        is_error = bool(getattr(msg, "status", "") == "error" or meta.get("is_error") is True or has_error_kw)
 
         exit_code = _detect_exit_code(clean_text, meta)
 

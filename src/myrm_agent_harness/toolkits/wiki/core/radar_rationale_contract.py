@@ -70,9 +70,7 @@ def parse_zero_yield_report(content: str) -> ZeroYieldRationaleReport:
     metadata, body = parse_frontmatter(content)
     batch_id = str(metadata.get("batch_id") or "batch_unknown").strip()
     query_topic = str(metadata.get("query_topic") or "General Radar").strip()
-    executed_at = str(
-        metadata.get("executed_at") or datetime.now(UTC).isoformat(timespec="seconds")
-    ).strip()
+    executed_at = str(metadata.get("executed_at") or datetime.now(UTC).isoformat(timespec="seconds")).strip()
     deep_c = int(metadata.get("deep_research_candidates") or 0)
     rep_c = int(metadata.get("report_candidates") or 0)
     web_c = int(metadata.get("web_baseline_candidates") or 0)

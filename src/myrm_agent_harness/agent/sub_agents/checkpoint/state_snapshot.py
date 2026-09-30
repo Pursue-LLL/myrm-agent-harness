@@ -69,9 +69,7 @@ def project_run_statistics(stats: AgentRunStatistics) -> tuple[dict[str, object]
     projected: dict[str, object] = {
         "token_usage": last_call_usage,
         "duration_seconds": stats.total_duration_seconds,
-        "status": (
-            stats.completion_status.value if stats.completion_status else "unknown"
-        ),
+        "status": (stats.completion_status.value if stats.completion_status else "unknown"),
     }
     progress = 1.0 if stats.completion_status else 0.5
     return projected, progress

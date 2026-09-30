@@ -47,9 +47,7 @@ class _PendingLLMRequest:
         self.retry_count = retry_count
 
 
-def _handle_llm_request(
-    event: StructuredEvent, pending_llm: list[_PendingLLMRequest]
-) -> None:
+def _handle_llm_request(event: StructuredEvent, pending_llm: list[_PendingLLMRequest]) -> None:
     """Queue an llm_request waiting for its token_usage completion."""
     raw_attempt = event.data.get("attempt") or event.data.get("retry_attempt") or 1
     raw_retry = event.data.get("retry_count") or 0
@@ -74,9 +72,7 @@ def _handle_token_usage(
     pending_llm: list[_PendingLLMRequest],
 ) -> None:
     """Merge a token_usage event into the trace as an LLMCallRecord."""
-    payload_data = (
-        event.data.get("data") if isinstance(event.data.get("data"), dict) else event.data
-    )
+    payload_data = event.data.get("data") if isinstance(event.data.get("data"), dict) else event.data
     usage = payload_data.get("usage", {})
     if not isinstance(usage, dict):
         return
@@ -109,15 +105,10 @@ def _handle_token_usage(
         cached_tokens = int(usage.get("cache_read_input_tokens", 0))
 
     raw_attempt = (
-        payload_data.get("attempt")
-        or payload_data.get("retry_attempt")
-        or (pending_req.attempt if pending_req else 1)
+        payload_data.get("attempt") or payload_data.get("retry_attempt") or (pending_req.attempt if pending_req else 1)
     )
     attempt = int(raw_attempt) if isinstance(raw_attempt, (int, float)) else 1
-    raw_retry = (
-        payload_data.get("retry_count")
-        or (pending_req.retry_count if pending_req else 0)
-    )
+    raw_retry = payload_data.get("retry_count") or (pending_req.retry_count if pending_req else 0)
     retry_count = int(raw_retry) if isinstance(raw_retry, (int, float)) else 0
 
     trace.llm_calls.append(
@@ -129,11 +120,7 @@ def _handle_token_usage(
             prompt_preview=prompt_preview,
             message_count=message_count,
             duration_ms=duration_ms,
-            ttft_ms=(
-                float(payload_data.get("ttft_ms"))
-                if payload_data.get("ttft_ms") is not None
-                else None
-            ),
+            ttft_ms=(float(payload_data.get("ttft_ms")) if payload_data.get("ttft_ms") is not None else None),
             prompt_tokens=int(usage.get("prompt_tokens", 0)),
             completion_tokens=int(usage.get("completion_tokens", 0)),
             total_tokens=int(usage.get("total_tokens", 0)),

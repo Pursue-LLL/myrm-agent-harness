@@ -18,12 +18,14 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal
 
-_SYSTEM_DIALOG_BUNDLE_IDS: frozenset[str] = frozenset({
-    "com.apple.appkit.xpc.openandsavepanelservice",
-    "com.apple.finder",
-    "com.apple.securityui",
-    "com.apple.coreauthui",
-})
+_SYSTEM_DIALOG_BUNDLE_IDS: frozenset[str] = frozenset(
+    {
+        "com.apple.appkit.xpc.openandsavepanelservice",
+        "com.apple.finder",
+        "com.apple.securityui",
+        "com.apple.coreauthui",
+    }
+)
 
 _DEFAULT_HIGH_RISK_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\brm\s+-(?:r|f|rf|fr)\s+[/~]", re.IGNORECASE),

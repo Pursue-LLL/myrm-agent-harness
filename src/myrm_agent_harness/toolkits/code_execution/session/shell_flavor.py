@@ -140,7 +140,7 @@ class PowerShellFlavor(ShellFlavor):
 
 class WindowsFlavor(ShellFlavor):
     def build_init_commands(self, work_dir: str, timeout: int, max_memory_mb: int) -> list[str]:
-        return ["@echo off", "prompt $G", f'cd /d {windows_cmd_quote(work_dir)}']
+        return ["@echo off", "prompt $G", f"cd /d {windows_cmd_quote(work_dir)}"]
 
     def format_env_set(self, key: str, value: str) -> str:
         # CMD environment variable setting with % escape and proper wrapping
@@ -158,4 +158,3 @@ def get_flavor(platform_info: PlatformInfo) -> ShellFlavor:
             return PowerShellFlavor()
         return WindowsFlavor()
     return BashFlavor()
-

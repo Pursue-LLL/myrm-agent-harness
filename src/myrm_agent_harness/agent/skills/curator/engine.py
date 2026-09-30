@@ -104,9 +104,7 @@ class SkillCurator:
             and self._write_backend is not None
         )
 
-    def run(
-        self, skills: list[SkillMetadata], *, force: bool = False
-    ) -> CuratorRunResult:
+    def run(self, skills: list[SkillMetadata], *, force: bool = False) -> CuratorRunResult:
         """Execute a single curator sweep over the provided skills.
 
         Evaluates each skill and applies state transitions where warranted.
@@ -176,9 +174,7 @@ class SkillCurator:
 
         consolidation_result: ConsolidationPlan | ConsolidationReport | None = None
         if self.consolidation_available:
-            consolidation_result = await self._run_consolidation(
-                skills, dry_run=consolidation_dry_run
-            )
+            consolidation_result = await self._run_consolidation(skills, dry_run=consolidation_dry_run)
 
         return lifecycle_result, consolidation_result
 
@@ -214,9 +210,7 @@ class SkillCurator:
             logger.error("Consolidation pass failed: %s", e)
             return None
 
-    def _apply_lru_eviction(
-        self, skills: list[SkillMetadata], now: datetime, result: CuratorRunResult
-    ) -> None:
+    def _apply_lru_eviction(self, skills: list[SkillMetadata], now: datetime, result: CuratorRunResult) -> None:
         """Evict least-recently-used skills when active count exceeds max_skills."""
         already_transitioned = {t.skill_name for t in result.transitions}
         lru_candidates = self._strategy.select_lru_candidates(skills)
@@ -233,9 +227,7 @@ class SkillCurator:
                 result.errors.append(f"{skill.name}: no storage_path for LRU eviction")
                 continue
 
-            current_status = str(
-                SkillLifecycleStatus(skill.usage_stats.lifecycle_status).value
-            )
+            current_status = str(SkillLifecycleStatus(skill.usage_stats.lifecycle_status).value)
             target_status = str(SkillLifecycleStatus(reason.target_status).value)
 
             self._stats.update_lifecycle_status(skill_path, reason.target_status)
@@ -257,9 +249,7 @@ class SkillCurator:
                 skill.name,
             )
 
-    def _evaluate_skill(
-        self, skill: SkillMetadata, now: datetime, result: CuratorRunResult
-    ) -> None:
+    def _evaluate_skill(self, skill: SkillMetadata, now: datetime, result: CuratorRunResult) -> None:
         """Evaluate a single skill and apply transition if needed."""
         if skill.usage_stats.pinned:
             result.skipped_pinned += 1
@@ -269,9 +259,7 @@ class SkillCurator:
         if reason is None:
             return
 
-        current_status = str(
-            SkillLifecycleStatus(skill.usage_stats.lifecycle_status).value
-        )
+        current_status = str(SkillLifecycleStatus(skill.usage_stats.lifecycle_status).value)
         target_status = str(SkillLifecycleStatus(reason.target_status).value)
 
         if current_status == target_status:
@@ -279,9 +267,7 @@ class SkillCurator:
 
         skill_path = Path(skill.storage_path) if skill.storage_path else None
         if skill_path is None:
-            result.errors.append(
-                f"{skill.name}: no storage_path, cannot persist transition"
-            )
+            result.errors.append(f"{skill.name}: no storage_path, cannot persist transition")
             return
 
         self._stats.update_lifecycle_status(skill_path, reason.target_status)

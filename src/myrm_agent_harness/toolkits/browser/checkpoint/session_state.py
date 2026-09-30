@@ -222,7 +222,9 @@ async def apply_storage_state(
                 try:
                     page_origin = urlparse(page.url)
                     page_origin = (
-                        f"{page_origin.scheme}://{page_origin.netloc}" if page_origin.scheme and page_origin.netloc else None
+                        f"{page_origin.scheme}://{page_origin.netloc}"
+                        if page_origin.scheme and page_origin.netloc
+                        else None
                     )
                 except Exception:
                     page_origin = None

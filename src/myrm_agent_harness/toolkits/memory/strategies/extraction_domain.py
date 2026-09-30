@@ -45,7 +45,10 @@ _PERSONA_HINTS: tuple[tuple[str, str], ...] = (
 
 _WORK_ASSISTANT_HINTS: tuple[tuple[str, str], ...] = (
     ("tech_stack", "Languages, frameworks, tools, preferred AI models with versions when stated"),
-    ("model_preferences", "User preferences for AI models and provider affinities across tasks (e.g. coding, reasoning, fast review)"),
+    (
+        "model_preferences",
+        "User preferences for AI models and provider affinities across tasks (e.g. coding, reasoning, fast review)",
+    ),
     ("project_decisions", "Architecture/design decisions with rationale and context"),
     ("team_context", "Team members, roles, reporting lines"),
     ("deadlines", "Project milestones with dates and deliverables"),

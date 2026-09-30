@@ -66,10 +66,7 @@ class EvidenceTree:
 
     def get_active_nodes(self) -> list[EvidenceNode]:
         """Return all nodes currently active or disputed (eligible for prompt context)."""
-        return [
-            n for n in self.nodes.values()
-            if n.status in (EvidenceNodeStatus.ACTIVE, EvidenceNodeStatus.DISPUTED)
-        ]
+        return [n for n in self.nodes.values() if n.status in (EvidenceNodeStatus.ACTIVE, EvidenceNodeStatus.DISPUTED)]
 
     def get_downstream_dependents(self, node_id: str) -> list[str]:
         """Collect all downstream nodes recursively dependent on node_id (excluding self)."""
@@ -121,9 +118,7 @@ class EvidenceTree:
                 node = self.nodes[nid]
                 filtered_deps = [d for d in node.dependencies if d in relevant_ids]
                 filtered_dependents = [d for d in node.dependents if d in relevant_ids]
-                clone = node.model_copy(
-                    update={"dependencies": filtered_deps, "dependents": filtered_dependents}
-                )
+                clone = node.model_copy(update={"dependencies": filtered_deps, "dependents": filtered_dependents})
                 projected.add_node(clone)
 
         return projected
@@ -134,7 +129,8 @@ class EvidenceTree:
         Nodes are sorted stably by creation timestamp to preserve KV prompt cache prefixes.
         """
         active_nodes = [
-            n for n in self.nodes.values()
+            n
+            for n in self.nodes.values()
             if n.node_id != self.root_id and n.status in (EvidenceNodeStatus.ACTIVE, EvidenceNodeStatus.DISPUTED)
         ]
         # Sort stably by creation timestamp to maintain identical prefix tokens for KV caching
@@ -154,9 +150,7 @@ class EvidenceTree:
                 if node.bounded_summary.key_metrics
                 else ""
             )
-            node_line = (
-                f"- [{node.node_id}]{status_tag} {node.bounded_summary.summary}{metrics_str}{source_tag}"
-            )
+            node_line = f"- [{node.node_id}]{status_tag} {node.bounded_summary.summary}{metrics_str}{source_tag}"
             approx_tokens = len(node_line) // 4
             if total_tokens + approx_tokens > max_tokens:
                 lines.append("... [Additional earlier evidence nodes omitted to respect bounded budget]")

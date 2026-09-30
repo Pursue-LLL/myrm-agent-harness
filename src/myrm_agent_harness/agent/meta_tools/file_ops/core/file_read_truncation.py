@@ -98,7 +98,7 @@ def truncate_file_output(
     lines = output.split("\n")
 
     if is_dir:
-        dir_lines = lines[: max_lines] if max_lines is not None else lines
+        dir_lines = lines[:max_lines] if max_lines is not None else lines
         dir_text = "\n".join(dir_lines)
         if len(dir_text) > max_chars:
             dir_lines = _head_truncate_on_line_boundary(dir_lines, max_chars)
@@ -113,7 +113,7 @@ def truncate_file_output(
     # Line-count cap first (cheap, bounds the work for the char scan).
     line_capped = max_lines is not None and len(lines) > max_lines
     if line_capped:
-        lines = lines[: max_lines]
+        lines = lines[:max_lines]
 
     # Char budget, then, on a complete-line boundary.
     char_capped = len("\n".join(lines)) > max_chars

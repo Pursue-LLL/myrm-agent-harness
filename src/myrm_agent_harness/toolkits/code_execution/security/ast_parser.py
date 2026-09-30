@@ -69,38 +69,123 @@ class AtomicCommandAction:
 
 SAFE_READONLY_COMMANDS: frozenset[str] = frozenset(
     {
-        "ls", "dir", "cat", "head", "tail", "less", "more", "file", "wc", "du", "df",
-        "stat", "tree", "realpath", "basename", "dirname", "readlink", "pwd", "grep",
-        "rg", "ag", "fd", "fzf", "sort", "uniq", "diff", "comm", "cut", "tr", "echo",
-        "printf", "uname", "arch", "id", "whoami", "groups", "uptime", "which", "where",
-        "type", "command", "date", "cd", "env", "md5sum", "sha256sum", "hexdump", "strings",
+        "ls",
+        "dir",
+        "cat",
+        "head",
+        "tail",
+        "less",
+        "more",
+        "file",
+        "wc",
+        "du",
+        "df",
+        "stat",
+        "tree",
+        "realpath",
+        "basename",
+        "dirname",
+        "readlink",
+        "pwd",
+        "grep",
+        "rg",
+        "ag",
+        "fd",
+        "fzf",
+        "sort",
+        "uniq",
+        "diff",
+        "comm",
+        "cut",
+        "tr",
+        "echo",
+        "printf",
+        "uname",
+        "arch",
+        "id",
+        "whoami",
+        "groups",
+        "uptime",
+        "which",
+        "where",
+        "type",
+        "command",
+        "date",
+        "cd",
+        "env",
+        "md5sum",
+        "sha256sum",
+        "hexdump",
+        "strings",
     }
 )
 
 SAFE_TEST_COMMANDS: frozenset[str] = frozenset(
     {
-        "pytest", "jest", "vitest", "mocha", "cargo", "go", "bun", "npm", "yarn",
-        "pnpm", "mypy", "pyright", "tsc", "ruff", "eslint", "biome", "flake8",
-        "shellcheck", "black", "isort",
+        "pytest",
+        "jest",
+        "vitest",
+        "mocha",
+        "cargo",
+        "go",
+        "bun",
+        "npm",
+        "yarn",
+        "pnpm",
+        "mypy",
+        "pyright",
+        "tsc",
+        "ruff",
+        "eslint",
+        "biome",
+        "flake8",
+        "shellcheck",
+        "black",
+        "isort",
     }
 )
 
 _GIT_SAFE_READONLY_SUBCOMMANDS: frozenset[str] = frozenset(
     {
-        "status", "log", "diff", "show", "branch", "tag", "describe", "rev-parse",
-        "rev-list", "ls-files", "ls-tree", "ls-remote", "remote", "config", "version", "help",
+        "status",
+        "log",
+        "diff",
+        "show",
+        "branch",
+        "tag",
+        "describe",
+        "rev-parse",
+        "rev-list",
+        "ls-files",
+        "ls-tree",
+        "ls-remote",
+        "remote",
+        "config",
+        "version",
+        "help",
     }
 )
 
 _GIT_DESTRUCTIVE_SUBCOMMANDS: frozenset[str] = frozenset(
     {
-        "push", "reset", "clean", "rebase", "filter-branch", "gc",
+        "push",
+        "reset",
+        "clean",
+        "rebase",
+        "filter-branch",
+        "gc",
     }
 )
 
 _GIT_GLOBAL_OPTS_WITH_ARG: frozenset[str] = frozenset(
     {
-        "-C", "-c", "--git-dir", "--work-tree", "--namespace", "--super-prefix", "--exec-path",
+        "-C",
+        "-c",
+        "--git-dir",
+        "--work-tree",
+        "--namespace",
+        "--super-prefix",
+        "--exec-path",
     }
 )
 
@@ -365,8 +450,7 @@ class BashASTParser:
 
         # 2. Symlink creation boundary (ln -s / --symbolic)
         if base_cmd == "ln" and any(
-            arg in ("-s", "-sf", "-sfn", "--symbolic") or (arg.startswith("-") and "s" in arg)
-            for arg in args
+            arg in ("-s", "-sf", "-sfn", "--symbolic") or (arg.startswith("-") and "s" in arg) for arg in args
         ):
             return CapabilityLevel.CAPABILITY_ESCALATION, "symlink_creation"
 
@@ -416,4 +500,3 @@ def classify_command_boundary(
 ) -> list[AtomicCommandAction]:
     """Parse and classify command capability boundaries using BashASTParser."""
     return BashASTParser.parse(command, workspace_path)
-

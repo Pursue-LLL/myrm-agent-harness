@@ -68,7 +68,9 @@ def render_to_yaml(
                 attrs = node.node.attributes
                 rest = " ".join(f"[{k}={v}]" for k, v in attrs.items()) if attrs else ""
                 rest = f" {rest}" if rest else ""
-                lines.append(f'{indent_str}- {blocked_prefix}{role} "{name}" [ref={node.ref_id}]{position_suffix}{hover_suffix}{rest}')
+                lines.append(
+                    f'{indent_str}- {blocked_prefix}{role} "{name}" [ref={node.ref_id}]{position_suffix}{hover_suffix}{rest}'
+                )
         else:
             # Non-ref element
             if compact:

@@ -71,9 +71,7 @@ class DeadCodeTopologyScanner:
                             sym_name.startswith("__") and sym_name.endswith("__")
                         )
                         end_lineno = getattr(node, "end_lineno", node.lineno)
-                        defined_symbols.setdefault(sym_name, []).append(
-                            (p, node.lineno, end_lineno, is_private)
-                        )
+                        defined_symbols.setdefault(sym_name, []).append((p, node.lineno, end_lineno, is_private))
             except Exception:
                 continue
 

@@ -262,8 +262,7 @@ async def run_parallel_task_requests(
         if ratio < min_completeness_ratio:
             gate_passed = False
             gate_error = (
-                f"Fleet completeness ratio {ratio:.1%} is below required threshold "
-                f"{min_completeness_ratio:.1%}."
+                f"Fleet completeness ratio {ratio:.1%} is below required threshold {min_completeness_ratio:.1%}."
             )
 
     if not gate_passed:

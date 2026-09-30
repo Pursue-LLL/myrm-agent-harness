@@ -281,10 +281,9 @@ class SubagentSpawnMixin:
             resolve_delegate_parallel_write_batch,
         )
 
-        parallel_write_active = (
-            bool(context.get("_parallel_write_batch", False))
-            or resolve_delegate_parallel_write_batch(self._parent_agent)
-        )
+        parallel_write_active = bool(
+            context.get("_parallel_write_batch", False)
+        ) or resolve_delegate_parallel_write_batch(self._parent_agent)
         is_readonly = bool(context.get("readonly", False))
         spawn_prep = apply_spawn_workspace_isolation(
             config=config,

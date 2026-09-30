@@ -56,7 +56,7 @@ def create_manage_tool(session: BrowserSession):
             "'smart'/'auto_accept'/'auto_dismiss'/'wait_for_agent' for 'dialog_policy'; "
             "domain name for 'save_session'/'restore_session'/'delete_session'; "
             "integer request index for 'network_detail'/'network_replay'; "
-            "JSON string for 'save_site_experience' (e.g. '{\"domain\":\"example.com\",\"known_traps\":[\"login wall\"]}'); "
+            'JSON string for \'save_site_experience\' (e.g. \'{"domain":"example.com","known_traps":["login wall"]}\'); '
             "domain for 'delete_site_experience'; "
             "'skill_id:tool_name:{json_args}' for 'run_site_tool' (e.g. 'x-com:get_timeline_posts:{\"max_posts\":20}'); "
             "leave empty for actions without arguments.",

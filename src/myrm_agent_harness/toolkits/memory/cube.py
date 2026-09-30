@@ -179,7 +179,11 @@ _TYPE_MODEL_MAP: dict[str, type[BaseMemory]] = {
 
 def unwrap_envelope(envelope: MemCubeEnvelope[dict[str, object]]) -> BaseMemory:
     """Restore concrete BaseMemory derivative from an envelope payload."""
-    mem_type_val = envelope.header.memory_type.value if hasattr(envelope.header.memory_type, "value") else str(envelope.header.memory_type)
+    mem_type_val = (
+        envelope.header.memory_type.value
+        if hasattr(envelope.header.memory_type, "value")
+        else str(envelope.header.memory_type)
+    )
     model_cls = _TYPE_MODEL_MAP.get(mem_type_val)
     if model_cls is None:
         raise ValueError(f"Unsupported memory type in envelope: {mem_type_val}")

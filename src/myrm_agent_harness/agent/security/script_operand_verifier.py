@@ -113,9 +113,7 @@ def _extract_candidate_token_from_clause(clause: list[str]) -> str | None:
     while idx < len(clause) and os.path.basename(clause[idx]).lower() in _WRAPPER_COMMANDS:
         idx += 1
         # env command may have flags (e.g. env -i FOO=bar python script.py)
-        while idx < len(clause) and (
-            clause[idx].startswith("-") or _ENV_VAR_ASSIGNMENT_RE.match(clause[idx])
-        ):
+        while idx < len(clause) and (clause[idx].startswith("-") or _ENV_VAR_ASSIGNMENT_RE.match(clause[idx])):
             idx += 1
 
     if idx >= len(clause):

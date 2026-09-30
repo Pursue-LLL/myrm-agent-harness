@@ -49,9 +49,7 @@ class RelationalStore(ABC):
     # ── Profile ──────────────────────────────────────────────────────
 
     @abstractmethod
-    async def get_profile(
-        self, key: str, *, namespaces: list[str] | None = None
-    ) -> str | None: ...
+    async def get_profile(self, key: str, *, namespaces: list[str] | None = None) -> str | None: ...
 
     @abstractmethod
     async def get_profile_snapshot(
@@ -59,14 +57,10 @@ class RelationalStore(ABC):
     ) -> ProfileAttributeSnapshot: ...
 
     @abstractmethod
-    async def set_profile(
-        self, key: str, value: str, *, scope: MemoryScope | None = None
-    ) -> None: ...
+    async def set_profile(self, key: str, value: str, *, scope: MemoryScope | None = None) -> None: ...
 
     @abstractmethod
-    async def delete_profile(
-        self, key: str, *, namespaces: list[str] | None = None
-    ) -> bool: ...
+    async def delete_profile(self, key: str, *, namespaces: list[str] | None = None) -> bool: ...
 
     @abstractmethod
     async def list_profiles(
@@ -82,9 +76,7 @@ class RelationalStore(ABC):
     async def create_rule(self, rule: ProceduralMemory) -> ProceduralMemory: ...
 
     @abstractmethod
-    async def get_rule(
-        self, rule_id: str, *, namespaces: list[str] | None = None
-    ) -> ProceduralMemory | None: ...
+    async def get_rule(self, rule_id: str, *, namespaces: list[str] | None = None) -> ProceduralMemory | None: ...
 
     @abstractmethod
     async def search_rules(
@@ -102,14 +94,10 @@ class RelationalStore(ABC):
     ) -> list[ProceduralMemory]: ...
 
     @abstractmethod
-    async def count_rules(
-        self, *, active_only: bool = True, namespaces: list[str] | None = None
-    ) -> int: ...
+    async def count_rules(self, *, active_only: bool = True, namespaces: list[str] | None = None) -> int: ...
 
     @abstractmethod
-    async def update_rule(
-        self, rule_id: str, rule: ProceduralMemory
-    ) -> ProceduralMemory: ...
+    async def update_rule(self, rule_id: str, rule: ProceduralMemory) -> ProceduralMemory: ...
 
     @abstractmethod
     async def delete_rule(self, rule_id: str) -> bool: ...

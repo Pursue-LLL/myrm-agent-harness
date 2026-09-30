@@ -111,19 +111,11 @@ class CompactionABEvaluator:
 
         # Baseline comparative tool alignment check
         baseline_tools = {
-            canonicalize_tool_name(
-                str(
-                    t.get("name") if isinstance(t, dict) else getattr(t, "name", str(t))
-                )
-            )
+            canonicalize_tool_name(str(t.get("name") if isinstance(t, dict) else getattr(t, "name", str(t))))
             for t in baseline_response.tools_called
         }
         compacted_tools = {
-            canonicalize_tool_name(
-                str(
-                    t.get("name") if isinstance(t, dict) else getattr(t, "name", str(t))
-                )
-            )
+            canonicalize_tool_name(str(t.get("name") if isinstance(t, dict) else getattr(t, "name", str(t))))
             for t in compacted_response.tools_called
         }
 

@@ -95,7 +95,6 @@ def is_tool_allowed_under_untrusted_ingress(tool_name: str) -> bool:
     return perm_type not in DISALLOWED_UNTRUSTED_PERMISSIONS
 
 
-
 def filter_untrusted_ingress_tools(tool_names: Iterable[str]) -> list[str]:
     """Filter an iterable of tool names, stripping destructive privileges if untrusted.
 

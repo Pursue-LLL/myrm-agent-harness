@@ -169,9 +169,7 @@ class DesktopCaptureDriver:
 
         # Navigation/state changes: interactable roles that appeared.
         for element in added:
-            emitted.append(
-                self._build_event(meta=meta, action=RecordedActionType.CLICK.value, element=element)
-            )
+            emitted.append(self._build_event(meta=meta, action=RecordedActionType.CLICK.value, element=element))
 
         # Text entry: value changed on an input-bearing role.
         for change in updated:
@@ -188,15 +186,11 @@ class DesktopCaptureDriver:
                 # A secure field is reported as a type interaction with no value: only that text
                 # was entered, never the text itself. The role is the sole signal, because macOS
                 # reports a password field as an ordinary text field at the AppleScript layer.
-                emitted.append(
-                    self._build_event(meta=meta, action=RecordedActionType.TYPE.value, element=element)
-                )
+                emitted.append(self._build_event(meta=meta, action=RecordedActionType.TYPE.value, element=element))
             elif overlay_role not in _GENERIC_OVERLAY_ROLES:
                 # A value change on a checkbox/radio/switch/slider is the *result* of a click;
                 # dropping it would lose the interaction from the recorded skill.
-                emitted.append(
-                    self._build_event(meta=meta, action=RecordedActionType.CLICK.value, element=element)
-                )
+                emitted.append(self._build_event(meta=meta, action=RecordedActionType.CLICK.value, element=element))
 
         return emitted
 
@@ -229,10 +223,6 @@ class DesktopCaptureDriver:
             element_role=element.role if element else None,
             element_title=element.name if element else None,
             # Password fields never surface their value into the event stream.
-            value=(
-                element.value
-                if element and action == RecordedActionType.TYPE.value and not secure
-                else None
-            ),
+            value=(element.value if element and action == RecordedActionType.TYPE.value and not secure else None),
             is_password=secure and action == RecordedActionType.TYPE.value,
         )

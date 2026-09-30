@@ -171,9 +171,7 @@ def tool_layer_snapshot_label(layer: ToolLayer) -> str:
     return _LAYER_SNAPSHOT_LABELS[layer]
 
 
-def get_tool_registry_sort_key(
-    tool_name: str, layer: ToolLayer
-) -> tuple[int, int, str]:
+def get_tool_registry_sort_key(tool_name: str, layer: ToolLayer) -> tuple[int, int, str]:
     """Cache-friendly registry sort key: layer → group rank → name.
 
     高优层按 _HIGH_PRIORITY_LAYER_SORT_RANK 排序以固化高优 Golden Prefix;
@@ -253,4 +251,3 @@ def register_tool_layers(specs: dict[str, ToolLayer]) -> None:
         specs: 工具名到层级的映射字典
     """
     _TOOL_LAYERS.update(specs)
-

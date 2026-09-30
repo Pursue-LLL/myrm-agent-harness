@@ -20,9 +20,7 @@ import math
 import sqlite3
 
 
-def label_propagation(
-    nodes: list[dict], edges: list[dict], iterations: int = 10
-) -> dict[str, int]:
+def label_propagation(nodes: list[dict], edges: list[dict], iterations: int = 10) -> dict[str, int]:
     """Deterministic Label Propagation Algorithm for community detection (pure Python, no deps)."""
     if not nodes:
         return {}
@@ -56,9 +54,7 @@ def label_propagation(
                 label_counts[lbl] = label_counts.get(lbl, 0) + 1
             max_count = max(label_counts.values())
             # Deterministic tie-breaking: pick the smallest label ID in tie
-            best_labels = sorted(
-                [lbl for lbl, cnt in label_counts.items() if cnt == max_count]
-            )
+            best_labels = sorted([lbl for lbl, cnt in label_counts.items() if cnt == max_count])
             new_label = best_labels[0]
             if labels[node_id] != new_label:
                 labels[node_id] = new_label
@@ -96,10 +92,7 @@ def compute_graph_insights(conn: sqlite3.Connection) -> dict[str, list[dict]]:
     all_nodes = [row["concept_name"] for row in cursor.fetchall()]
 
     cursor = conn.execute("SELECT source, target, weight FROM wiki_edges")
-    all_edges = [
-        (row["source"], row["target"], row["weight"] or 1.0)
-        for row in cursor.fetchall()
-    ]
+    all_edges = [(row["source"], row["target"], row["weight"] or 1.0) for row in cursor.fetchall()]
 
     if not all_nodes:
         return {"unexpected_connections": [], "knowledge_gaps": [], "communities": []}
@@ -143,9 +136,7 @@ def compute_graph_insights(conn: sqlite3.Connection) -> dict[str, list[dict]]:
             gaps.append({"node": node_id, "type": "isolated", "degree": degree})
 
     for node_id in sorted(all_nodes):
-        nbr_communities = {
-            communities.get(n, -1) for n in neighbors.get(node_id, set())
-        }
+        nbr_communities = {communities.get(n, -1) for n in neighbors.get(node_id, set())}
         if len(nbr_communities) >= 3:
             gaps.append(
                 {
@@ -160,9 +151,7 @@ def compute_graph_insights(conn: sqlite3.Connection) -> dict[str, list[dict]]:
     for comm_id, members in sorted(community_groups.items()):
         sorted_members = sorted(members)
         internal_edges = sum(
-            1
-            for s, t, _ in all_edges
-            if communities.get(s) == comm_id and communities.get(t) == comm_id
+            1 for s, t, _ in all_edges if communities.get(s) == comm_id and communities.get(t) == comm_id
         )
         max_possible = len(members) * (len(members) - 1) / 2
         cohesion = internal_edges / max_possible if max_possible > 0 else 0

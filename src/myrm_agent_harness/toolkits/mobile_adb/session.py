@@ -40,9 +40,7 @@ class MobileSession:
         """Resolve effective target device."""
         target = explicit_target.strip() or self.default_device
         if not target:
-            raise ValueError(
-                "No target device specified and no default device set. Please connect to a device first."
-            )
+            raise ValueError("No target device specified and no default device set. Please connect to a device first.")
         return target
 
     async def pair_device(self, host: str, port: int, pairing_code: str) -> MobileActionResult:

@@ -167,9 +167,7 @@ def create_subagent_control_tool(parent_agent: BaseAgent) -> BaseTool:
 
         return {
             "success": False,
-            "error": (
-                f"Unknown action: {action!r}. Supported actions are exactly: list, cancel, steer, wait."
-            ),
+            "error": (f"Unknown action: {action!r}. Supported actions are exactly: list, cancel, steer, wait."),
         }
 
     return subagent_control_func

@@ -202,7 +202,7 @@ def _repair_table_block(
     else:
         # Has divider row
         # Align header
-        header_cells = parsed_rows[0] if divider_index > 0 else [f"Col {i+1}" for i in range(target_cols)]
+        header_cells = parsed_rows[0] if divider_index > 0 else [f"Col {i + 1}" for i in range(target_cols)]
         padded_header = header_cells + [""] * max(0, target_cols - len(header_cells))
         repaired_rows.append(_format_row(padded_header[:target_cols]))
 
@@ -216,7 +216,7 @@ def _repair_table_block(
             repaired_rows.append(_format_row(padded_row[:target_cols]))
 
         # Process rows after divider
-        for row in parsed_rows[divider_index + 1:]:
+        for row in parsed_rows[divider_index + 1 :]:
             padded_row = row + [""] * max(0, target_cols - len(row))
             repaired_rows.append(_format_row(padded_row[:target_cols]))
 

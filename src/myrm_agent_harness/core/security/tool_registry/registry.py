@@ -350,9 +350,7 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
     "external_cli": frozenset({"invoke_acp_agent_tool"}),
 }
 
-TOOL_TO_GROUP: dict[str, str] = {
-    tool: group for group, tools in TOOL_GROUP_MAP.items() for tool in tools
-}
+TOOL_TO_GROUP: dict[str, str] = {tool: group for group, tools in TOOL_GROUP_MAP.items() for tool in tools}
 
 TOOL_GROUP_NAMES: frozenset[str] = frozenset(TOOL_GROUP_MAP)
 
@@ -417,9 +415,7 @@ TOOL_CANONICAL_PARAMS: dict[str, list[str]] = {
 }
 
 
-def compute_canonical_args_hash(
-    tool_name: str, tool_args: dict[str, object] | None
-) -> str | None:
+def compute_canonical_args_hash(tool_name: str, tool_args: dict[str, object] | None) -> str | None:
     """Compute hash of canonical parameters, ignoring LLM-generated auxiliary fields.
 
     Only core functional parameters are hashed (e.g., 'command' for bash tools),
@@ -450,9 +446,7 @@ def compute_canonical_args_hash(
     return hashlib.sha256(sorted_json.encode()).hexdigest()[:16]
 
 
-def resolve_permission_type(
-    tool_name: str, tool_input: dict[str, object] | None = None
-) -> str:
+def resolve_permission_type(tool_name: str, tool_input: dict[str, object] | None = None) -> str:
     """Resolve a concrete tool name to its abstract permission type.
 
     Lookup order:
@@ -547,9 +541,7 @@ def register_ptc_safety_metadata(
         _PTC_TOOL_FLAT_INDEX[tool_name] = safety_meta
 
 
-def get_ptc_safety_metadata(
-    skill_name: str, tool_name: str
-) -> tuple[SafetyMetadata, MCPAnnotations] | None:
+def get_ptc_safety_metadata(skill_name: str, tool_name: str) -> tuple[SafetyMetadata, MCPAnnotations] | None:
     """Retrieve dynamic safety metadata for an MCP tool."""
     with _PTC_LOCK:
         return _PTC_SAFETY_METADATA.get(skill_name, {}).get(tool_name)
@@ -664,15 +656,9 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
         taint_label="secret",
         taint_extractor=_taint_secret_file_from_args,
     ),
-    "grep_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
-    "glob_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
-    "browser_inspect_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
+    "grep_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "glob_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "browser_inspect_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     "browser_snapshot_tool": SafetyMetadata(
         is_read_only=True,
         is_concurrent_safe=True,
@@ -692,9 +678,7 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
         is_concurrent_safe=True,
         is_idempotent=True,
         taint_label="external_network",
-        taint_extractor=lambda args: (
-            f"search_query: {args.get('query', '')}" if args.get("query") else None
-        ),
+        taint_extractor=lambda args: f"search_query: {args.get('query', '')}" if args.get("query") else None,
     ),
     "web_fetch_tool": SafetyMetadata(
         is_read_only=True,
@@ -703,27 +687,13 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
         taint_label="external_network",
         taint_extractor=_taint_url_from_args,
     ),
-    "memory_search_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
-    "todo_write": SafetyMetadata(
-        is_read_only=False, is_concurrent_safe=False, is_idempotent=False
-    ),
-    "working_memory_manage_tool": SafetyMetadata(
-        is_read_only=False, is_concurrent_safe=False, is_idempotent=False
-    ),
-    "skill_search_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
-    "skill_market_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
-    "skill_select_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
-    "request_answer_user_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
+    "memory_search_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "todo_write": SafetyMetadata(is_read_only=False, is_concurrent_safe=False, is_idempotent=False),
+    "working_memory_manage_tool": SafetyMetadata(is_read_only=False, is_concurrent_safe=False, is_idempotent=False),
+    "skill_search_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "skill_market_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "skill_select_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "request_answer_user_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     # Concurrent-safe but not read-only (independent execution contexts)
     "delegate_task_tool": SafetyMetadata(is_concurrent_safe=True),
     "subagent_control_tool": SafetyMetadata(is_concurrent_safe=True),
@@ -736,9 +706,7 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
         taint_extractor=_taint_secret_command_from_args,
     ),
     "bash_process_tool": SafetyMetadata(),
-    "file_write_tool": SafetyMetadata(
-        is_destructive=True, is_idempotent=True
-    ),  # Writing same content is idempotent
+    "file_write_tool": SafetyMetadata(is_destructive=True, is_idempotent=True),  # Writing same content is idempotent
     "file_edit_tool": SafetyMetadata(is_destructive=True),
     # Stateful tools (explicit fail-closed: is_concurrent_safe=False)
     "browser_navigate_tool": SafetyMetadata(
@@ -753,26 +721,16 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     "memory_save_tool": SafetyMetadata(is_idempotent=True),
     "memory_manage_tool": SafetyMetadata(),
     "complete_goal_tool": SafetyMetadata(),
-    "desktop_snapshot_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
+    "desktop_snapshot_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     "desktop_interact_tool": SafetyMetadata(is_destructive=True),
     "desktop_vision_tool": SafetyMetadata(is_destructive=True),
-    "mobile_snapshot_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
+    "mobile_snapshot_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     "mobile_interact_tool": SafetyMetadata(is_destructive=True),
     "mobile_global_tool": SafetyMetadata(is_destructive=True),
-    "ask_question_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=False, is_idempotent=True
-    ),
+    "ask_question_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=False, is_idempotent=True),
     # kanban worker/orchestrator tools — stateful board mutations, serialized by store lock
-    "kanban_show": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
-    "kanban_list_tasks": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
+    "kanban_show": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "kanban_list_tasks": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     "kanban_add_task": SafetyMetadata(),
     "kanban_attach": SafetyMetadata(),
     "kanban_block": SafetyMetadata(),
@@ -784,15 +742,11 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     "kanban_revise_plan": SafetyMetadata(),
     "kanban_unblock": SafetyMetadata(),
     # wiki knowledge-base tools — query read-only; mutations stateful
-    "wiki_query_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
+    "wiki_query_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     "wiki_apply_tool": SafetyMetadata(),
     "wiki_ingest_tool": SafetyMetadata(),
     # browser HITL prompt — user-visible, no side effects beyond asking
-    "browser_ask_human_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=False, is_idempotent=True
-    ),
+    "browser_ask_human_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=False, is_idempotent=True),
     # explicit mcp_invoke fallback tools — declared for module-load gate transparency
     "browser_execute_script_tool": SafetyMetadata(),
     "send_teammate_message_tool": SafetyMetadata(),

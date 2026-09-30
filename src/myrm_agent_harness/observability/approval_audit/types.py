@@ -27,11 +27,11 @@ from enum import StrEnum
 class ApprovalTriggerCategory(StrEnum):
     """Four-category classification of auto-approval trigger causes."""
 
-    FILE_BOUNDARY = "FILE_BOUNDARY"          # Writing/reading outside workspace boundary
-    NETWORK_DOMAIN = "NETWORK_DOMAIN"        # Accessing non-whitelisted external URLs/domains
+    FILE_BOUNDARY = "FILE_BOUNDARY"  # Writing/reading outside workspace boundary
+    NETWORK_DOMAIN = "NETWORK_DOMAIN"  # Accessing non-whitelisted external URLs/domains
     COMMAND_EXECUTION = "COMMAND_EXECUTION"  # Executing unapproved shell commands/binaries
-    TOOL_ELEVATION = "TOOL_ELEVATION"        # High-risk tool or MCP privilege elevation
-    UNKNOWN = "UNKNOWN"                      # Fallback / unclassified trigger
+    TOOL_ELEVATION = "TOOL_ELEVATION"  # High-risk tool or MCP privilege elevation
+    UNKNOWN = "UNKNOWN"  # Fallback / unclassified trigger
 
 
 @dataclass(frozen=True, slots=True)

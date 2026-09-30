@@ -84,10 +84,7 @@ class SessionPersistence:
         ]
         storage_state["cookies"] = filtered_cookies
 
-        local_storage_count = sum(
-            len(origin.get("localStorage", []))
-            for origin in storage_state.get("origins", [])
-        )
+        local_storage_count = sum(len(origin.get("localStorage", [])) for origin in storage_state.get("origins", []))
 
         try:
             await self._vault.save(
@@ -234,14 +231,10 @@ class SessionPersistence:
         try:
             removed = await self._vault.cleanup_expired()
             if removed > 0:
-                logger.info(
-                    "SessionPersistence: cleaned up %d expired session(s)", removed
-                )
+                logger.info("SessionPersistence: cleaned up %d expired session(s)", removed)
             return removed
         except Exception as exc:
-            logger.warning(
-                "SessionPersistence: failed to cleanup expired sessions: %s", exc
-            )
+            logger.warning("SessionPersistence: failed to cleanup expired sessions: %s", exc)
             return 0
 
     async def compute_hash(self, domain: str) -> str | None:
@@ -262,9 +255,7 @@ class SessionPersistence:
 
             import orjson
 
-            storage_json = orjson.dumps(
-                entry.storage_state, option=orjson.OPT_SORT_KEYS
-            )
+            storage_json = orjson.dumps(entry.storage_state, option=orjson.OPT_SORT_KEYS)
             return hashlib.sha256(storage_json).hexdigest()
         except Exception as exc:
             logger.error("Failed to compute session hash for %s: %s", domain, exc)
@@ -298,8 +289,5 @@ class SessionPersistence:
             target_domain = target_domain.rsplit(":", 1)[0]
 
         if cookie_domain.startswith("."):
-            return (
-                target_domain.endswith(cookie_domain[1:])
-                or target_domain == cookie_domain[1:]
-            )
+            return target_domain.endswith(cookie_domain[1:]) or target_domain == cookie_domain[1:]
         return cookie_domain == target_domain

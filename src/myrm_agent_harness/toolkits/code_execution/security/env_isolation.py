@@ -259,8 +259,10 @@ def _matches_wildcard(key: str) -> bool:
     upper = key.upper()
     for wildcard in SENSITIVE_WILDCARDS:
         if wildcard in upper:
-            if "AUTHOR" in upper and "AUTHORIZATION" not in upper and not any(
-                p in upper for p in ("TOKEN", "KEY", "SECRET", "PASSWORD", "PASS")
+            if (
+                "AUTHOR" in upper
+                and "AUTHORIZATION" not in upper
+                and not any(p in upper for p in ("TOKEN", "KEY", "SECRET", "PASSWORD", "PASS"))
             ):
                 continue
             return True

@@ -52,13 +52,9 @@ class VerificationGatekeeper:
                 cls = CRITERION_REGISTRY[crit_type]
                 self.criteria.append(cls.from_dict(config))
             else:
-                logger.warning(
-                    "Unknown acceptance criterion type %r — skipped", crit_type
-                )
+                logger.warning("Unknown acceptance criterion type %r — skipped", crit_type)
 
-    async def verify_all(
-        self, goal_provider: GoalProvider | None = None
-    ) -> AggregatedVerificationResult:
+    async def verify_all(self, goal_provider: GoalProvider | None = None) -> AggregatedVerificationResult:
         """Run all criteria sequentially and return per-criterion results."""
         if not self.criteria:
             return AggregatedVerificationResult(passed=True)

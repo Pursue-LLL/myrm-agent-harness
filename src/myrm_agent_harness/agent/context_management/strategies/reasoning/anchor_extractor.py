@@ -132,7 +132,9 @@ def extract_reasoning_anchors(
         return []
 
     # Bounded tail scanning to prevent large string overhead
-    bounded_text = reasoning_text[-_MAX_TAIL_SCAN_CHARS:] if len(reasoning_text) > _MAX_TAIL_SCAN_CHARS else reasoning_text
+    bounded_text = (
+        reasoning_text[-_MAX_TAIL_SCAN_CHARS:] if len(reasoning_text) > _MAX_TAIL_SCAN_CHARS else reasoning_text
+    )
     lines = [line.strip() for line in bounded_text.splitlines() if line.strip()]
     if not lines:
         return []

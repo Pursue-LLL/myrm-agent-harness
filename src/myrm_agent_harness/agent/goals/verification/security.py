@@ -73,9 +73,7 @@ class SecurityScanCriterion(BaseCriterion):
         self.cwe_allowlist = cwe_allowlist or []
         self.label = criterion_label
 
-    async def verify(
-        self, goal_provider: GoalProvider | None = None
-    ) -> VerificationResult:
+    async def verify(self, goal_provider: GoalProvider | None = None) -> VerificationResult:
         """Run security verification through GoalProvider delegation or local sandbox execution."""
         # 1. If GoalProvider implements evaluate_security_scan, delegate to it
         if goal_provider and hasattr(goal_provider, "evaluate_security_scan"):
@@ -102,9 +100,7 @@ class SecurityScanCriterion(BaseCriterion):
                     error_logs=f"Execution exceeded deadline of {self.timeout_seconds} seconds.",
                 )
             except Exception as e:
-                logger.warning(
-                    "GoalProvider security scan evaluation failed, falling back: %s", e
-                )
+                logger.warning("GoalProvider security scan evaluation failed, falling back: %s", e)
 
         # 2. Local sandbox verification fallback (e.g. executing targeted PoC script or diff sanity)
         executor = get_executor()
@@ -128,11 +124,7 @@ class SecurityScanCriterion(BaseCriterion):
                 # If the PoC command succeeds in exploiting (exit_code == 0), the vulnerability is verified (FAILED).
                 # If the PoC fails to exploit (exit_code != 0), the vulnerability is mitigated (PASSED).
                 if poc_result.exit_code == 0:
-                    raw_logs = (
-                        poc_result.stdout
-                        or poc_result.stderr
-                        or "PoC payload triggered exploit condition."
-                    )
+                    raw_logs = poc_result.stdout or poc_result.stderr or "PoC payload triggered exploit condition."
                     safe_logs = _truncate_evidence(raw_logs)
                     comment = ReviewComment(
                         message="PoC attack payload executed successfully against codebase. Vulnerability confirmed.",
@@ -170,17 +162,9 @@ class SecurityScanCriterion(BaseCriterion):
     def from_dict(cls, data: dict[str, object]) -> SecurityScanCriterion:
         """Construct SecurityScanCriterion from serialized dictionary config."""
         raw_target_paths = data.get("target_paths")
-        target_paths: list[str] = (
-            [str(p) for p in raw_target_paths]
-            if isinstance(raw_target_paths, list)
-            else []
-        )
+        target_paths: list[str] = [str(p) for p in raw_target_paths] if isinstance(raw_target_paths, list) else []
         raw_cwe_allowlist = data.get("cwe_allowlist")
-        cwe_allowlist: list[str] = (
-            [str(c) for c in raw_cwe_allowlist]
-            if isinstance(raw_cwe_allowlist, list)
-            else []
-        )
+        cwe_allowlist: list[str] = [str(c) for c in raw_cwe_allowlist] if isinstance(raw_cwe_allowlist, list) else []
         return cls(
             scan_mode=str(data.get("scan_mode", "diff")),
             fail_on_severity=str(data.get("fail_on_severity", "high")),

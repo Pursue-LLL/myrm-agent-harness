@@ -66,8 +66,7 @@ class EntityGraphBridge:
                 matched = [
                     n
                     for n in all_nodes
-                    if n.id == clean_name
-                    or str(n.properties.get("name", "")).lower() == clean_name.lower()
+                    if n.id == clean_name or str(n.properties.get("name", "")).lower() == clean_name.lower()
                 ]
                 if not matched:
                     direct_node = await self._graph_store.get_node(clean_name)
@@ -108,16 +107,8 @@ class EntityGraphBridge:
                     if source_id is not None and target_id is not None:
                         source_node = node_map.get(source_id)
                         target_node = node_map.get(target_id)
-                        s_name = (
-                            str(source_node.properties.get("name", source_id))
-                            if source_node
-                            else source_id
-                        )
-                        t_name = (
-                            str(target_node.properties.get("name", target_id))
-                            if target_node
-                            else target_id
-                        )
+                        s_name = str(source_node.properties.get("name", source_id)) if source_node else source_id
+                        t_name = str(target_node.properties.get("name", target_id)) if target_node else target_id
                         relation_lines.append(f"{s_name} --[{rel.rel_type}]--> {t_name}")
 
                         if target_id not in visited_node_ids:

@@ -235,9 +235,7 @@ class LocalWorkingMemoryBlock:
             lines.append("**Subtasks**:")
 
             completed_indices = [
-                i
-                for i, s in enumerate(state.subtasks)
-                if s.status in (SubtaskStatus.COMPLETED, SubtaskStatus.SKIPPED)
+                i for i, s in enumerate(state.subtasks) if s.status in (SubtaskStatus.COMPLETED, SubtaskStatus.SKIPPED)
             ]
             current_est = cls.estimate_tokens(state)
 

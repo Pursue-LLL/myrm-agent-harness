@@ -45,4 +45,3 @@ class CorruptedMemoryIndexError(RelationalStoreError):
         self.db_path = db_path
         self.index_type = index_type
         self.repair_suggestion = repair_suggestion
-
