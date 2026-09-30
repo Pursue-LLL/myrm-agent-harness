@@ -116,3 +116,55 @@ class TestPathHelpers:
     )
     def test_extract_skill_directory(self, file_path: str, expected: str | None) -> None:
         assert _extract_skill_directory(file_path) == expected
+
+
+class TestGitHubRefUrlParsing:
+    def test_ref_skill_id_includes_subdirectory(self) -> None:
+        from myrm_agent_harness.agent.skills.market.sources.github import GitHubRef
+
+        ref = GitHubRef(owner="acme", repo="tools", subdirectory="skills/pdf")
+        assert ref.skill_id == "acme/tools/skills/pdf"
+        assert ref.clone_url == "https://github.com/acme/tools.git"
+
+    def test_ref_without_subdirectory_uses_base(self) -> None:
+        from myrm_agent_harness.agent.skills.market.sources.github import GitHubRef
+
+        assert GitHubRef(owner="acme", repo="tools").skill_id == "acme/tools"
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "https://github.com/acme/tools",
+            "https://github.com/acme/tools.git",
+            "acme/tools",
+        ],
+    )
+    def test_parses_owner_repo_forms(self, url: str) -> None:
+        from myrm_agent_harness.agent.skills.market.sources.github import parse_github_url
+
+        ref = parse_github_url(url)
+        assert (ref.owner, ref.repo) == ("acme", "tools")
+
+    def test_parses_tree_url_with_subdirectory(self) -> None:
+        from myrm_agent_harness.agent.skills.market.sources.github import parse_github_url
+
+        ref = parse_github_url("https://github.com/acme/tools/tree/main/skills/pdf")
+        assert ref.subdirectory == "skills/pdf"
+
+    def test_parses_shorthand_with_subdirectory(self) -> None:
+        from myrm_agent_harness.agent.skills.market.sources.github import parse_github_url
+
+        assert parse_github_url("acme/tools/skills/pdf").subdirectory == "skills/pdf"
+
+    @pytest.mark.parametrize("url", ["", "   "])
+    def test_rejects_empty_url(self, url: str) -> None:
+        from myrm_agent_harness.agent.skills.market.sources.github import parse_github_url
+
+        with pytest.raises(ValueError, match="Empty URL"):
+            parse_github_url(url)
+
+    def test_rejects_path_traversal(self) -> None:
+        from myrm_agent_harness.agent.skills.market.sources.github import parse_github_url
+
+        with pytest.raises(ValueError):
+            parse_github_url("https://github.com/acme/tools/tree/main/../../etc")
