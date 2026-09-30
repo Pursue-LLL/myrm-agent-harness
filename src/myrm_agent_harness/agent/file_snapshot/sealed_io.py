@@ -12,6 +12,7 @@ File snapshot subsystem component ensuring zero-corruption persistence.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import logging
@@ -131,10 +132,8 @@ def atomic_sealed_write(
         return target
     except BaseException:
         if tmp_path.exists():
-            try:
+            with contextlib.suppress(OSError):
                 tmp_path.unlink()
-            except OSError:
-                pass
         raise
 
 

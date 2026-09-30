@@ -79,7 +79,7 @@ def test_corruption_detection_truncated_json(tmp_path: Path):
     target = tmp_path / "msg_truncated.json"
     target.write_text('{"__sealed_envelope__": true, "version": 1, "check', "utf-8")
 
-    is_valid, payload, envelope = verify_and_load_sealed(target, auto_quarantine=True)
+    is_valid, payload, _envelope = verify_and_load_sealed(target, auto_quarantine=True)
     assert is_valid is False
     assert payload is None
     assert not target.exists()

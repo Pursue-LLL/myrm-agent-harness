@@ -40,3 +40,11 @@ repos:
         pass_filenames: false
         always_run: true
         description: "Reject .py files exceeding the 500-line cap or their baseline allowance (incremental: changed files only)"
+
+      - id: harness-test-source-assertion-check
+        name: Harness Test Source-Text Assertion Check
+        entry: python scripts/check_test_source_assertions.py --incremental
+        language: system
+        pass_filenames: false
+        always_run: true
+        description: "Reject tests asserting on raw .py source text; assert on the ast tree so reformatting cannot break them (incremental: changed tests only)"

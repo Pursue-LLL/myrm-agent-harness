@@ -42,10 +42,12 @@ the resume pass can restore them.
 from __future__ import annotations
 
 import asyncio
+import atexit
 import logging
 import os
 import sqlite3
 from collections.abc import AsyncIterator, Sequence
+from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -123,7 +125,10 @@ class SubagentSqliteCheckpointer(BaseCheckpointSaver[str]):
             if db_target != ":memory:":
                 try:
                     Path(db_target).parent.mkdir(parents=True, exist_ok=True)
-                    conn = await aiosqlite.connect(db_target)
+                    proxy = aiosqlite.connect(db_target)
+                    if hasattr(proxy, "_thread"):
+                        proxy._thread.daemon = True
+                    conn = await proxy
                 except (OSError, aiosqlite.Error, sqlite3.OperationalError) as err:
                     logger.warning(
                         "[SubagentCheckpointer] Failed to open SQLite checkpointer at %s (%s). Falling back to :memory:.",
@@ -134,7 +139,10 @@ class SubagentSqliteCheckpointer(BaseCheckpointSaver[str]):
                     conn = None
 
             if conn is None:
-                conn = await aiosqlite.connect(":memory:")
+                proxy = aiosqlite.connect(":memory:")
+                if hasattr(proxy, "_thread"):
+                    proxy._thread.daemon = True
+                conn = await proxy
 
             await harden_connection_async(conn, DEFAULT, db_path=Path(db_target) if db_target != ":memory:" else None)
 
@@ -247,6 +255,9 @@ def reset_subagent_checkpointer() -> None:
     old_saver = _subagent_checkpointer
     _subagent_checkpointer = None
     if isinstance(old_saver, SubagentSqliteCheckpointer):
+        if old_saver._conn is not None:
+            with suppress(Exception):
+                old_saver._conn.stop()
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
@@ -256,6 +267,16 @@ def reset_subagent_checkpointer() -> None:
                 task = loop.create_task(old_saver.aclose())
                 _cleanup_tasks.add(task)
                 task.add_done_callback(_cleanup_tasks.discard)
+
+
+def _cleanup_subagent_checkpointer_at_exit() -> None:
+    global _subagent_checkpointer
+    if isinstance(_subagent_checkpointer, SubagentSqliteCheckpointer) and _subagent_checkpointer._conn is not None:
+        with suppress(Exception):
+            _subagent_checkpointer._conn.stop()
+
+
+atexit.register(_cleanup_subagent_checkpointer_at_exit)
 
 
 async def delete_subagent_checkpoint(thread_id: str) -> None:

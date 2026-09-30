@@ -52,6 +52,10 @@ atexit.register(_cleanup_browser_child_processes)
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     _cleanup_browser_child_processes()
+    with suppress(Exception):
+        from myrm_agent_harness.agent.sub_agents.checkpointer import reset_subagent_checkpointer
+
+        reset_subagent_checkpointer()
 
 
 _BROWSER_TEST_ROOT = Path(__file__).resolve().parent / "toolkits" / "browser"

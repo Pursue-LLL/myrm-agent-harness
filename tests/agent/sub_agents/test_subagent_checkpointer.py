@@ -26,6 +26,7 @@ from myrm_agent_harness.agent.sub_agents.checkpointer import (
     SubagentSqliteCheckpointer,
     _drop_finished_subagent_thread,
     close_subagent_checkpointer,
+    delete_subagent_checkpoint,
     drop_subagent_checkpoint_if_terminal,
     get_subagent_checkpointer,
     reset_subagent_checkpointer,
@@ -281,4 +282,59 @@ async def test_reset_subagent_checkpointer_active_connection_cleanup(tmp_path: P
         reset_subagent_checkpointer()
         # Clean state verified
         assert get_subagent_checkpointer() is not checkpointer
+
+
+@pytest.mark.asyncio
+async def test_resolve_subagent_checkpoint_db_path_default():
+    """Default fallback path when no env vars are present."""
+    with patch.dict(os.environ, {}, clear=True):
+        expected = str(Path.home() / ".myrm" / "data" / "subagent_checkpoints.sqlite")
+        assert resolve_subagent_checkpoint_db_path() == expected
+
+
+@pytest.mark.asyncio
+async def test_subagent_sqlite_alist_and_writes(tmp_path: Path):
+    """Verify alist iteration and aput_writes methods."""
+    db_file = str(tmp_path / "subagent_list_writes.sqlite")
+    checkpointer = SubagentSqliteCheckpointer(db_file)
+
+    cfg: RunnableConfig = {
+        "configurable": {
+            "thread_id": "task_list",
+            "checkpoint_id": "cp_list_01",
+        }
+    }
+    cp: Checkpoint = {
+        "v": 1,
+        "ts": "2026-09-27T12:00:00Z",
+        "id": "cp_list_01",
+        "channel_values": {"step": 1},
+        "channel_versions": {"step": 1},
+        "versions_seen": {},
+        "pending_sends": [],
+    }
+    meta: CheckpointMetadata = {"source": "loop", "step": 1, "writes": {}, "parents": {}}
+
+    await checkpointer.aput(cfg, cp, meta, {"step": 1})
+    await checkpointer.aput_writes(cfg, [("channel_a", "val_a")], "task_01")
+
+    items = [item async for item in checkpointer.alist(cfg)]
+    assert len(items) == 1
+    assert items[0].checkpoint["channel_values"]["step"] == 1
+
+    await checkpointer.aclose()
+
+
+@pytest.mark.asyncio
+async def test_uninitialized_adelete_and_close_resilience(tmp_path: Path):
+    """Verify uninitialized checkpointer adelete and delete_subagent_checkpoint when None are resilient."""
+    db_file = str(tmp_path / "uninit.sqlite")
+    checkpointer = SubagentSqliteCheckpointer(db_file)
+    # Adelete on uninitialized saver must be safe no-op
+    await checkpointer.adelete_thread("nonexistent")
+    # Aclose on uninitialized saver must be safe no-op
+    await checkpointer.aclose()
+    # Delete subagent checkpoint when global is None is safe no-op
+    reset_subagent_checkpointer()
+    await delete_subagent_checkpoint("any_task")
 

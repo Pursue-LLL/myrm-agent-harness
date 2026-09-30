@@ -746,12 +746,18 @@ class TestApplyBoundSkillCatalogForResume:
         assert _first_human_content([AIMessage(content="assistant only")]) is None
 
     def test_run_agent_loop_wires_resume_catalog_helper(self) -> None:
+        import ast
         from pathlib import Path
 
         source = (
             Path(__file__).resolve().parents[3] / "src/myrm_agent_harness/agent/_internals/agent_runtime.py"
         ).read_text(encoding="utf-8")
-        assert "await apply_bound_skill_catalog_for_resume(" in source
+        awaits = {
+            ast.unparse(n.value)
+            for n in ast.walk(ast.parse(source))
+            if isinstance(n, ast.Await)
+        }
+        assert any("apply_bound_skill_catalog_for_resume(" in awaited for awaited in awaits)
 
 
 class TestPopCheckpointIncompatibleMergedContext:
@@ -816,14 +822,20 @@ class TestRunAgentLoopModelSlugSource:
     """
 
     def test_model_slug_reads_from_agent_llm_not_config(self) -> None:
+        import ast
         from pathlib import Path
 
         source = (
             Path(__file__).resolve().parents[3] / "src/myrm_agent_harness/agent/_internals/agent_runtime.py"
         ).read_text(encoding="utf-8")
-        assert 'parse_litellm_model(llm_model or "")' in source
-        assert 'getattr(agent_state.llm, "model_name", None)' in source
-        assert "agent_state.config.llm" not in source
+        # Compare signatures rebuilt from the AST so quote style and line wrapping
+        # in the module under test cannot invalidate this regression guard.
+        tree = ast.parse(source)
+        calls = {ast.unparse(n) for n in ast.walk(tree) if isinstance(n, ast.Call)}
+        attributes = {ast.unparse(n) for n in ast.walk(tree) if isinstance(n, ast.Attribute)}
+        assert "parse_litellm_model(llm_model or '')" in calls
+        assert "getattr(agent_state.llm, 'model_name', None)" in calls
+        assert "agent_state.config.llm" not in attributes
 
 
 class TestRunAgentLoopOuterErrorFaultSide:
@@ -833,28 +845,30 @@ class TestRunAgentLoopOuterErrorFaultSide:
     — this branch previously dropped fault_side/recovery_actions)."""
 
     def test_outer_error_event_attributes_fault_side(self) -> None:
-        import re
+        import ast
         from pathlib import Path
 
         source = (
             Path(__file__).resolve().parents[3] / "src/myrm_agent_harness/agent/_internals/agent_runtime.py"
         ).read_text(encoding="utf-8")
 
-        def squash(text: str) -> str:
-            """Drop whitespace so formatter re-wrapping cannot invalidate the guard."""
-            return re.sub(r"\s+", "", text)
+        def calls() -> set[str]:
+            """Call signatures rebuilt from the AST, so line wrapping is irrelevant."""
+            return {ast.unparse(node) for node in ast.walk(ast.parse(source)) if isinstance(node, ast.Call)}
 
-        squashed = squash(source)
+        signatures = calls()
         # fault_side must be computed via the pure-rules classifier, not guessed.
-        assert squash("classify_fault_side(error_kind=error_kind.value)") in squashed
+        assert "classify_fault_side(error_kind=error_kind.value)" in signatures
         # When error_kind is UNKNOWN, the diagnostic error_type refines the
         # attribution (unified classifier falls back error_kind → error_type).
-        assert squash("error_type=diagnostic_type") in squashed
+        assert "error_type=diagnostic_type" in next(
+            sig for sig in signatures if sig.startswith("classify_fault_side(") and "error_type" in sig
+        )
         # recovery_actions must be generated when a diagnostic payload exists.
-        assert squash("LLMErrorDiagnostic.get_recovery_actions") in squashed
+        assert any(sig.startswith("LLMErrorDiagnostic.get_recovery_actions(") for sig in signatures)
         # The outer-loop error_event must be persisted to the event journal
         # (transport-only fields stripped) so trace reconstruction sees fatal
         # errors raised outside the executor.
-        assert squash("event_logger.log(AgentEventType.ERROR.value, persisted)") in squashed
-        assert squash('persisted.pop("type", None)') in squashed
-        assert squash('persisted.pop("messageId", None)') in squashed
+        assert "event_logger.log(AgentEventType.ERROR.value, persisted)" in signatures
+        assert "persisted.pop('type', None)" in signatures
+        assert "persisted.pop('messageId', None)" in signatures

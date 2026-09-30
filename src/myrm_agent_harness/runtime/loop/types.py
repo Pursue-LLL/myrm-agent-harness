@@ -103,6 +103,15 @@ class LoopState:
     paused_reason: str | None = None
     extra_metadata: dict[str, Any] = field(default_factory=dict)
 
+    def cadence_label(self) -> str:
+        """Human-readable representation of current cadence."""
+        from .parser import format_interval
+
+        if self.mode == LoopMode.SELF_PACED:
+            delay_str = format_interval(self.current_delay)
+            return f"self-paced ({delay_str})"
+        return f"every {format_interval(self.interval_seconds)}"
+
     def to_dict(self) -> dict[str, object]:
         """Convert state to dictionary for DB persistence."""
         data = asdict(self)

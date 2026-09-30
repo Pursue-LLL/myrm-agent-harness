@@ -355,6 +355,8 @@ include = [
   "*/myrm_agent_harness/agent/tool_management/*",
   "*/myrm_agent_harness/agent/_factory/*",
   "*/myrm_agent_harness/agent/hooks/*",
+  "*/myrm_agent_harness/agent/_internals/*",
+  "*/myrm_agent_harness/agent/context_management/pipeline/*",
   "*/myrm_agent_harness/agent/sub_agents/*",
   "*/myrm_agent_harness/agent/middlewares/*",
   "*/myrm_agent_harness/agent/streaming/*",

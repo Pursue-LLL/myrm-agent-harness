@@ -159,7 +159,7 @@ def _is_tar_write(words: Sequence[str]) -> bool:
     """Return True when a ``tar`` invocation writes into the archive tree.
 
     Short flags bundle (``xzf`` carries the same operation as ``x``), so each
-    flag cluster is scanned letter by letter. Legacy ``tar`` also accepts the
+    flag cluster is scanned letter by letter. ``tar`` also accepts the
     cluster without a leading dash, so a bare word counts only when it is all
     letters — that keeps operands such as ``out.tgz`` out of the scan.
     ``-O`` / ``--to-stdout`` send the archive to standard output and therefore

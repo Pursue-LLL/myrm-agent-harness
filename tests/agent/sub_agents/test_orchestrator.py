@@ -2159,7 +2159,6 @@ class TestRunAlternatives:
         async def _spawn_child(**kwargs):
             task_id = kwargs["task_id"]
             agent_type = kwargs["agent_type"]
-            context = kwargs.get("context", {})
             # Emulate child mutating its isolated workspace copy
             child_dir = tmp_path / f"isolated_{task_id}"
             child_dir.mkdir(exist_ok=True)
