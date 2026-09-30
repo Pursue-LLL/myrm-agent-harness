@@ -17,6 +17,9 @@ LLM-based structured summarization strategy with quality gate, circuit breaker, 
 | `summarize_circuit_guard.py` | Core | Circuit breaker shared by turn pipeline and server compact paths. |
 | `progress_timeout.py` | Core | Progress-aware timeout primitives for detecting stalled summarization (InactivityTimeoutError, TotalCeilingTimeoutError). |
 | `dropped_manifest.py` | Core | Dropped-constraint manifest builder for the compaction pipeline. Records redacted+truncated constraint snippets evicted by compaction so the GUI can distinguish "compaction dropped my constraint" from "the model ignored it" (fault-side attribution). Zero prompt cost — attached to StructuredSummary as audit metadata, excluded from `to_json()` so prompt-cache payloads never inflate. Exports `build_dropped_manifest` (pure) + `contains_constraint_marker` (shared matcher). |
+| `exact_anchor.py` | Core | Deterministic machine symbol anchor extraction engine. Extracts Git commit SHAs, file paths, high severity error traces, code symbols, and API endpoints before compaction with quota safety limits and ReDoS protection. |
+| `lean_summary.py` | Core | Token-lean 4-pillar summary data model and prompt templates. Manages high-cohesion summary contract (user_goal, active_state, key_decisions, next_steps) with bidirectional lossless conversion to standard StructuredSummary. |
+| `turn_refetcher.py` | Core | Single-turn targeted historical verbatim retrieval engine. Pinpoints specific turn message content on-demand, with automatic degradation to zero-copy vault:// pointers for payloads exceeding 2048 chars to prevent context re-inflation. |
 
 ## Key Dependencies
 
