@@ -13,7 +13,8 @@ it, a wildcard re-export would also republish ``os``/``Path`` and invite callers
 bypass the predicates that carry the security policy.
 
 [INPUT]
-- (none — pure data + logic package)
+- path.filesystem (POS: Generic filesystem path safety — no product protection policy)
+- path.rules (POS: Protected-path policy)
 
 [OUTPUT]
 - is_dangerous_path, is_blocked_device_path, is_within_boundary, safe_join_path, coerce_filesystem_path, is_content_not_path

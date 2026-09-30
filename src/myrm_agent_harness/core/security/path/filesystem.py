@@ -6,7 +6,7 @@ product protects* — that policy lives in the sibling `rules` module, so toolin
 only needs to resolve a path safely does not pull protection policy into scope.
 
 [INPUT]
-- (none — pure data + logic module)
+- (none — stdlib only: os, platform, stat, pathlib)
 
 [OUTPUT]
 - DANGEROUS_PATHS: frozenset[str] — normalised dangerous root paths

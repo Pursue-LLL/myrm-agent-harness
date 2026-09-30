@@ -7,7 +7,8 @@ the same path. Rules are data; the predicates below are the only way to read
 them, which keeps a caller from matching a half-remembered pattern list.
 
 [INPUT]
-- (none — pure data + logic module)
+- path.filesystem::is_content_not_path (POS: Generic filesystem path safety — no product protection policy)
+- path.pattern::first_matching_pattern (POS: Path pattern matching — single source of truth for glob-style path protection)
 
 [OUTPUT]
 - SENSITIVE_FILE_PATTERNS: tuple[str, ...] — credentials and secrets
