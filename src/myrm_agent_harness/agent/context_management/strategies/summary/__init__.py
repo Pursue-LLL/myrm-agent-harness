@@ -37,6 +37,9 @@ from .summary_prompts import (
 )
 from .turn_refetcher import (
     HistoricalTurnRefetchResult,
+    RefetchHistoricalTurnInput,
+    RefetchHistoricalTurnTool,
+    create_refetch_historical_turn_tool,
     refetch_historical_turn,
 )
 
@@ -48,9 +51,12 @@ __all__ = [
     "LEAN_SUMMARY_MERGE_PROMPT_TEMPLATE",
     "LEAN_SUMMARY_PROMPT_TEMPLATE",
     "LeanStructuredSummary",
+    "RefetchHistoricalTurnInput",
+    "RefetchHistoricalTurnTool",
     "SUMMARY_MERGE_PROMPT_TEMPLATE",
     "SUMMARY_PROMPT_TEMPLATE",
     "UNVERIFIED_CONTEXT_MARKER",
+    "create_refetch_historical_turn_tool",
     "extract_exact_anchors",
     "extract_protected_head",
     "generate_structured_summary",

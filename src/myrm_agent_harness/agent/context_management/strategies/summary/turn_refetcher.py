@@ -16,12 +16,12 @@ permanently inflating the active conversational window.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from langchain_core.messages import BaseMessage
+from langchain_core.messages import BaseMessage
+from langchain_core.tools import BaseTool
+from pydantic import BaseModel, Field, PrivateAttr
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,4 +78,73 @@ def refetch_historical_turn(
         content=pointer_text,
         is_vault_pointer=True,
         char_count=char_len,
+    )
+
+
+class RefetchHistoricalTurnInput(BaseModel):
+    """Input payload for refetching a historical logical turn."""
+
+    turn_index: int = Field(
+        ...,
+        description="Zero-based logical turn index to inspect and retrieve verbatim messages or vault pointers from.",
+        ge=0,
+    )
+
+
+class RefetchHistoricalTurnTool(BaseTool):
+    """Tool enabling the agent to pinpoint and retrieve historical turns verbatim."""
+
+    name: str = "refetch_historical_turn"
+    description: str = (
+        "Retrieve verbatim messages or a zero-copy vault pointer for a specific historical "
+        "logical turn index. Use this tool when you need exact error traces, past code blocks, "
+        "or full command outputs that were compacted into summary anchors."
+    )
+    args_schema: type[BaseModel] = RefetchHistoricalTurnInput
+
+    _get_messages: Callable[[], Sequence[BaseMessage]] = PrivateAttr()
+    _chat_id: str | None = PrivateAttr(default=None)
+    _max_inline_chars: int = PrivateAttr(default=2048)
+
+    def __init__(
+        self,
+        get_messages: Callable[[], Sequence[BaseMessage]],
+        *,
+        chat_id: str | None = None,
+        max_inline_chars: int = 2048,
+    ) -> None:
+        super().__init__()
+        self._get_messages = get_messages
+        self._chat_id = chat_id
+        self._max_inline_chars = max_inline_chars
+
+    def _run(self, turn_index: int, **kwargs: object) -> str:
+        messages = self._get_messages()
+        result = refetch_historical_turn(
+            messages,
+            turn_index,
+            max_inline_chars=self._max_inline_chars,
+            chat_id=self._chat_id,
+        )
+        if result is None:
+            max_valid = len(messages) - 1
+            valid_range = f"[0, {max_valid}]" if max_valid >= 0 else "empty"
+            return f"Historical turn #{turn_index} not found. Valid turn range is {valid_range}."
+        return result.content
+
+    async def _arun(self, turn_index: int, **kwargs: object) -> str:
+        return self._run(turn_index, **kwargs)
+
+
+def create_refetch_historical_turn_tool(
+    get_messages: Callable[[], Sequence[BaseMessage]],
+    *,
+    chat_id: str | None = None,
+    max_inline_chars: int = 2048,
+) -> RefetchHistoricalTurnTool:
+    """Create a LangChain BaseTool bound to conversation message history."""
+    return RefetchHistoricalTurnTool(
+        get_messages=get_messages,
+        chat_id=chat_id,
+        max_inline_chars=max_inline_chars,
     )
