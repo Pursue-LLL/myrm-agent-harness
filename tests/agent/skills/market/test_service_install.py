@@ -14,6 +14,7 @@ myrm-agent-harness/tests/agent/skills/market/test_service_install.py
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -201,3 +202,174 @@ async def test_preview_returns_prebuilt_without_download(service: BaseSkillMarke
 
     assert preview.skill_id == "prebuilt:s"
     assert preview.is_clean is True
+
+
+def _async_return(value):
+    """Build a coroutine function returning a fixed value."""
+    from unittest.mock import AsyncMock
+
+    return AsyncMock(return_value=value)
+
+
+def _downloaded():
+    """Build a stand-in for the installer download result."""
+    from types import SimpleNamespace
+
+    return SimpleNamespace(
+        name="Alpha",
+        description="from archive",
+        files={"SKILL.md": b"# alpha"},
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", ["git", "zip"])
+async def test_preview_downloads_scans_and_reports(
+    service: BaseSkillMarketService,
+    method: str,
+) -> None:
+    detail = _detail(skill_id="repo:alpha", source="repo", install_method=method, name="Alpha")
+    installer = service._git_installer if method == "git" else service._zip_installer
+
+    with (
+        patch.object(BaseSkillMarketService, "get_detail", return_value=detail),
+        patch.object(
+            type(installer),
+            "download",
+            new=_async_return(_downloaded()),
+        ),
+        patch("myrm_agent_harness.agent.skills.market.service.scan_all_text_files") as scan,
+    ):
+        scan.return_value = SimpleNamespace(findings=[], is_clean=True)
+        preview = await service.preview("repo:alpha", "repo")
+
+    assert preview.files == ["SKILL.md"]
+    assert preview.is_clean is True
+    assert preview.installed_skills == ["Alpha"]
+    assert preview.prerequisites is None
+
+
+@pytest.mark.asyncio
+async def test_preview_rejects_unsupported_install_method(
+    service: BaseSkillMarketService,
+) -> None:
+    detail = _detail(skill_id="weird:s", source="weird", install_method="direct", name="Weird")
+    detail = detail.__class__(**{**detail.__dict__, "install_method": "direct"})
+
+    with (
+        patch.object(BaseSkillMarketService, "get_detail", return_value=detail),
+        pytest.raises(
+            ValueError,
+            match="Unsupported install method",
+        ),
+    ):
+        await service.preview("weird:s", "weird")
+
+
+@pytest.mark.asyncio
+async def test_preview_surfaces_requirements_report(service: BaseSkillMarketService) -> None:
+    detail = _detail(skill_id="repo:alpha", source="repo", install_method="git", name="Alpha")
+    detail = SkillSearchResult(
+        id=detail.id,
+        name=detail.name,
+        description=detail.description,
+        source=detail.source,
+        author=detail.author,
+        install_url=detail.install_url,
+        install_method="git",
+        extra_manifest={"requirements": {"python": ">=3.11"}},
+    )
+    report = SimpleNamespace(to_dict=lambda: {"ok": True})
+
+    with (
+        patch.object(BaseSkillMarketService, "get_detail", return_value=detail),
+        patch.object(
+            type(service._git_installer),
+            "download",
+            new=_async_return(_downloaded()),
+        ),
+        patch("myrm_agent_harness.agent.skills.market.service.scan_all_text_files") as scan,
+        patch(
+            "myrm_agent_harness.backends.skills.prerequisites.check_skill_prerequisites",
+            return_value=report,
+        ),
+    ):
+        scan.return_value = SimpleNamespace(findings=[], is_clean=True)
+        preview = await service.preview("repo:alpha", "repo")
+
+    assert preview.prerequisites == {"ok": True}
+
+
+@pytest.mark.asyncio
+async def test_install_routes_download_through_quarantine(service: BaseSkillMarketService) -> None:
+    detail = _detail(skill_id="repo:alpha", source="repo", install_method="git", name="Alpha")
+
+    with (
+        patch.object(BaseSkillMarketService, "get_detail", return_value=detail),
+        patch.object(
+            type(service._git_installer),
+            "download",
+            new=_async_return(_downloaded()),
+        ),
+        patch.object(
+            BaseSkillMarketService,
+            "_quarantine_install",
+            new=_async_return("quarantined"),
+        ) as quarantine,
+    ):
+        result = await service.install("repo:alpha", "repo")
+
+    assert result == "quarantined"
+    assert quarantine.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_install_rejects_unsupported_method_with_error_code(
+    service: BaseSkillMarketService,
+) -> None:
+    detail = SkillSearchResult(
+        id="weird:s",
+        name="Weird",
+        description="d",
+        source="weird",
+        author="a",
+        install_url="https://example.invalid",
+        install_method="direct",
+    )
+
+    with patch.object(BaseSkillMarketService, "get_detail", return_value=detail):
+        result = await service.install("weird:s", "weird")
+
+    assert result.success is False
+    assert "Unsupported install method" in (result.error or "")
+
+
+@pytest.mark.asyncio
+async def test_install_surfaces_value_error_from_download(
+    service: BaseSkillMarketService,
+) -> None:
+    from unittest.mock import AsyncMock
+
+    detail = _detail(skill_id="repo:alpha", source="repo", install_method="git", name="Alpha")
+
+    with (
+        patch.object(BaseSkillMarketService, "get_detail", return_value=detail),
+        patch.object(
+            type(service._git_installer),
+            "download",
+            new=AsyncMock(side_effect=ValueError("broken archive")),
+        ),
+    ):
+        result = await service.install("repo:alpha", "repo")
+
+    assert result.success is False
+    assert "broken archive" in (result.error or "")
+
+
+@pytest.mark.asyncio
+async def test_install_from_url_rejects_non_http_scheme(
+    service: BaseSkillMarketService,
+) -> None:
+    result = await service.install_from_url("ftp://example.invalid/skill.zip")
+
+    assert result.success is False
