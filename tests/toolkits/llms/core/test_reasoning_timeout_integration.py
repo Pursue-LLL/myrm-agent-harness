@@ -51,7 +51,8 @@ class TestReasoningTimeoutIntegration:
             ("deepseek/deepseek-r1", 600.0),
             ("anthropic/claude-opus-4", 450.0),
             ("openai/gpt-4o", 300.0),
-            ("minimax/MiniMax-M3", 300.0),
+            ("minimax/MiniMax-M3", 450.0),
+            ("minimax/MiniMax-M3.1-Flash-Preview", 450.0),
         ],
     )
     def test_timeout_matrix(self, model: str, expected_timeout: float) -> None:

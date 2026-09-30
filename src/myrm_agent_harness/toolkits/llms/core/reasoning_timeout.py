@@ -1,75 +1,35 @@
 """Reasoning model timeout floor detection.
 
 [INPUT]
-- (none)
+- model identifier, optional llm_kwargs mapping
 
 [OUTPUT]
 - get_reasoning_timeout_floor(): Returns the minimum timeout floor for a model slug
 
 [POS]
-Reasoning models (OpenAI o-series, DeepSeek-R1, Nemotron, etc.) require longer
-timeouts due to extended thinking phases. This module provides model-specific
-timeout floors that override the default 300s when a reasoning model is detected.
-Used by create_litellm_model() to automatically adjust force_timeout.
+Stateless facade delegating to the unified reasoning_profile SSOT.
+Reasoning models require longer timeouts due to extended thinking phases.
+This module provides model-specific timeout floors that override the default 300s.
 """
 
 from __future__ import annotations
 
-_REASONING_TIMEOUT_FLOORS: dict[str, float] = {
-    # OpenAI o-series (thinking phase does not stream data)
-    "o1": 600.0,
-    "o1-mini": 600.0,
-    "o1-pro": 600.0,
-    "o1-preview": 600.0,
-    "o3": 600.0,
-    "o3-pro": 600.0,
-    "o3-mini": 450.0,
-    "o4-mini": 450.0,
-    # DeepSeek reasoning (streams thinking tokens, but long total time possible)
-    "deepseek-r1": 600.0,
-    "deepseek-reasoner": 600.0,
-    "deepseek-v4-pro": 600.0,
-    "deepseek-v4-flash": 450.0,
-    # NVIDIA Nemotron
-    "nemotron-3-ultra": 600.0,
-    "nemotron-3-super": 600.0,
-    # Qwen reasoning
-    "qwq": 450.0,
-    # Google Gemini thinking
-    "gemini-2.5": 450.0,
-    # Anthropic extended thinking
-    "claude-opus-4": 450.0,
-    # xAI Grok reasoning
-    "grok-4-fast-reasoning": 450.0,
-    "grok-4.20-reasoning": 450.0,
-}
+from typing import Mapping
 
-
-_SORTED_PREFIXES: tuple[tuple[str, float], ...] = tuple(
-    sorted(_REASONING_TIMEOUT_FLOORS.items(), key=lambda x: -len(x[0]))
+from myrm_agent_harness.toolkits.llms.core.reasoning_profile import (
+    _CATALOG_TIMEOUT_FLOORS,
+    _SORTED_TIMEOUT_PREFIXES,
+    get_model_timeout_floor,
 )
 
+# Export legacy symbols for backwards compatibility with tests and consumers
+_REASONING_TIMEOUT_FLOORS: dict[str, float] = _CATALOG_TIMEOUT_FLOORS
+_SORTED_PREFIXES: tuple[tuple[str, float], ...] = _SORTED_TIMEOUT_PREFIXES
 
-def get_reasoning_timeout_floor(model: str) -> float | None:
-    """Return the minimum timeout (seconds) for a reasoning model, or None.
 
-    Uses prefix matching against the model slug (case-insensitive) to handle
-    versioned model names (e.g. "o3-2025-04-16" matches "o3"). Longer prefixes
-    are matched first to ensure "o3-mini" matches before "o3".
-
-    Args:
-        model: Model identifier (e.g. "openai/o3", "deepseek/deepseek-r1")
-
-    Returns:
-        Timeout floor in seconds, or None if the model is not a known reasoning model.
-    """
-    if not model:
-        return None
-
-    slug = model.rsplit("/", 1)[-1].lower()
-
-    for prefix, floor in _SORTED_PREFIXES:
-        if slug.startswith(prefix):
-            return floor
-
-    return None
+def get_reasoning_timeout_floor(
+    model: str,
+    llm_kwargs: Mapping[str, object] | None = None,
+) -> float | None:
+    """Return the minimum timeout (seconds) for a reasoning model, or None."""
+    return get_model_timeout_floor(model, llm_kwargs)

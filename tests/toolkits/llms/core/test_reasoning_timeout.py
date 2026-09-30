@@ -34,6 +34,8 @@ class TestGetReasoningTimeoutFloor:
             ("qwq-32b", 450.0),
             ("gemini-2.5-pro", 450.0),
             ("grok-4-fast-reasoning", 450.0),
+            ("minimax/MiniMax-M3", 450.0),
+            ("minimax/MiniMax-M3.1-Flash-Preview", 450.0),
         ],
     )
     def test_known_reasoning_models(self, model: str, expected: float) -> None:

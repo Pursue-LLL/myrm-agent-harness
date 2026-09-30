@@ -1,35 +1,33 @@
 """Thinking model max_tokens headroom adjustment.
 
 [INPUT]
-- (none, stateless utility)
+- model identifier, llm_kwargs mapping
 
 [OUTPUT]
 - ensure_thinking_headroom(): proactively raise max_tokens when a thinking
   model is detected, preventing truncation caused by thinking tokens
   consuming the output budget.
+- thinking_output_floor(): return output-token floor applied to a thinking model.
 
 [POS]
-All major reasoning model providers (Anthropic, DeepSeek, OpenAI, Google)
-count thinking/reasoning tokens against max_tokens.  When users set a modest
-max_tokens (e.g. 4096 or 8192), the thinking phase can exhaust the budget
-before the response even starts — causing a guaranteed truncation that wastes
-an entire API round-trip via stream recovery.
-
-This module bridges the gap at LLM-creation time: it detects thinking-capable
-models, reads the requested reasoning effort (if any), and raises max_tokens
-to a safe floor so both thinking and response fit within the budget.  When no
-effort is explicitly set, a conservative default floor is applied because all
-thinking models default to thinking-on.  The existing post-hoc
-`_boost_output_tokens` recovery remains as a fallback for edge cases.
+Stateless facade delegating to the unified reasoning_profile SSOT.
+Raises max_tokens to a safe floor for thinking models.
 """
 
 from __future__ import annotations
 
-import logging
-from typing import Any
+from typing import Mapping
 
-logger = logging.getLogger(__name__)
+from myrm_agent_harness.toolkits.llms.core.reasoning_profile import (
+    _DEFAULT_HEADROOM_FLOOR,
+    _EFFORT_HEADROOM_FLOORS,
+    apply_thinking_headroom,
+    extract_reasoning_effort,
+    get_model_headroom_floor,
+    is_thinking_model,
+)
 
+# Export legacy symbols for backwards compatibility with tests and consumers
 _THINKING_MODEL_PREFIXES: tuple[str, ...] = (
     "claude-opus",
     "claude-sonnet-4",
@@ -49,111 +47,28 @@ _THINKING_MODEL_PREFIXES: tuple[str, ...] = (
     "minimax-m",
     "grok-4",
 )
-
-_EFFORT_FLOORS: dict[str, int] = {
-    "low": 8192,
-    "medium": 16384,
-    "high": 32768,
-    "xhigh": 65536,
-    "max": 65536,
-}
-
-_DEFAULT_FLOOR = 16384
+_EFFORT_FLOORS: dict[str, int] = _EFFORT_HEADROOM_FLOORS
+_DEFAULT_FLOOR: int = _DEFAULT_HEADROOM_FLOOR
 
 
 def _is_thinking_model(model: str) -> bool:
     """Check whether a model slug matches a known thinking/reasoning model."""
-    if not model:
-        return False
-    slug = model.rsplit("/", 1)[-1].lower()
-    return any(slug.startswith(prefix) for prefix in _THINKING_MODEL_PREFIXES)
+    return is_thinking_model(model)
 
 
-def thinking_output_floor(model: str, llm_kwargs: dict[str, Any] | None = None) -> int | None:
-    """Return the output-token floor applied to a thinking model, else None.
-
-    Exposed so budget-boost recovery can scale from the same headroom the model is
-    guaranteed, instead of only from a user-configured ``max_tokens`` (which is
-    absent when the deployment relies on the provider default).
-    """
-    if not _is_thinking_model(model):
-        return None
-    effort = _extract_effort(llm_kwargs or {})
-    return _EFFORT_FLOORS.get(effort, _DEFAULT_FLOOR) if effort else _DEFAULT_FLOOR
+def _extract_effort(llm_kwargs: Mapping[str, object] | None) -> str | None:
+    """Extract reasoning effort from all possible locations in llm_kwargs."""
+    return extract_reasoning_effort(llm_kwargs)
 
 
-def _extract_effort(llm_kwargs: dict[str, Any]) -> str | None:
-    """Extract reasoning effort from all possible locations in llm_kwargs.
-
-    Effort may appear in (checked in order):
-    1. Top-level ``reasoning_effort``
-    2. ``extra_body.reasoning_effort``
-    3. ``extra_body.reasoning.effort`` (after OpenRouter rewrite)
-    """
-    effort = llm_kwargs.get("reasoning_effort")
-    if effort is not None:
-        return str(effort).lower()
-
-    extra_body = llm_kwargs.get("extra_body")
-    if not isinstance(extra_body, dict):
-        return None
-
-    effort = extra_body.get("reasoning_effort")
-    if effort is not None:
-        return str(effort).lower()
-
-    reasoning = extra_body.get("reasoning")
-    if isinstance(reasoning, dict):
-        effort = reasoning.get("effort")
-        if effort is not None:
-            return str(effort).lower()
-
-    return None
+def thinking_output_floor(
+    model: str,
+    llm_kwargs: Mapping[str, object] | None = None,
+) -> int | None:
+    """Return the output-token floor applied to a thinking model, else None."""
+    return get_model_headroom_floor(model, llm_kwargs)
 
 
-def ensure_thinking_headroom(model: str, llm_kwargs: dict[str, Any]) -> None:
-    """Raise max_tokens to a safe floor for thinking models.
-
-    Thinking-capable models (Claude 4.6+, DeepSeek R1, OpenAI o-series,
-    Gemini 2.5+) count thinking tokens against max_tokens.  When max_tokens
-    is too small, the thinking phase exhausts the budget and the response is
-    truncated — wasting an API round-trip via stream recovery.
-
-    This function applies an effort-based floor when reasoning_effort is
-    explicitly set, or a conservative default floor when the model is a
-    known thinking model but no effort is provided (all thinking models
-    default to thinking-on, so a small max_tokens will still truncate).
-
-    For non-thinking models this is a no-op.  Uses ``max()`` semantics to
-    only raise — never lower — the user's value.
-
-    Args:
-        model: Full LiteLLM model identifier (e.g. ``anthropic/claude-opus-5``).
-        llm_kwargs: Mutable LLM parameter dict (modified in place).
-    """
-    if not _is_thinking_model(model):
-        return
-
-    effort = _extract_effort(llm_kwargs)
-    floor = _EFFORT_FLOORS.get(effort, _DEFAULT_FLOOR) if effort else _DEFAULT_FLOOR
-    current = llm_kwargs.get("max_tokens")
-
-    if not isinstance(current, int) or current <= 0:
-        llm_kwargs["max_tokens"] = floor
-        logger.info(
-            "Thinking headroom: set max_tokens=%d for %s (effort=%s, was unset)",
-            floor,
-            model,
-            effort or "default",
-        )
-        return
-
-    if current < floor:
-        llm_kwargs["max_tokens"] = floor
-        logger.info(
-            "Thinking headroom: raised max_tokens %d → %d for %s (effort=%s)",
-            current,
-            floor,
-            model,
-            effort or "default",
-        )
+def ensure_thinking_headroom(model: str, llm_kwargs: dict[str, object]) -> None:
+    """Raise max_tokens to a safe floor for thinking models."""
+    apply_thinking_headroom(model, llm_kwargs)
