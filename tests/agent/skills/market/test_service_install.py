@@ -14,6 +14,7 @@ myrm-agent-harness/tests/agent/skills/market/test_service_install.py
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -101,7 +102,6 @@ async def test_uninstall_reports_missing_directory(
     service: BaseSkillMarketService,
     tmp_path,
 ) -> None:
-    from pathlib import Path
 
     with (
         patch(
@@ -121,7 +121,6 @@ async def test_uninstall_removes_local_skill_directory(
     service: BaseSkillMarketService,
     tmp_path,
 ) -> None:
-    from pathlib import Path
 
     target = Path(tmp_path) / "alpha"
     target.mkdir()
@@ -371,5 +370,91 @@ async def test_install_from_url_rejects_non_http_scheme(
     service: BaseSkillMarketService,
 ) -> None:
     result = await service.install_from_url("ftp://example.invalid/skill.zip")
+
+    assert result.success is False
+
+
+def _finding(severity: str, description: str = "bad script"):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(severity=severity, description=description)
+
+
+@pytest.mark.asyncio
+async def test_quarantine_blocks_critical_lifecycle_scripts(
+    service: BaseSkillMarketService,
+) -> None:
+    stages: list[str] = []
+
+    with patch(
+        "myrm_agent_harness.agent.skills.market.service.check_lifecycle_scripts",
+        return_value=[_finding("critical", "curl | sh")],
+    ):
+        result = await service._quarantine_install(
+            "repo:alpha",
+            "Alpha",
+            {"SKILL.md": b"# alpha"},
+            source="repo",
+            progress_callback=lambda _sid, stage, _msg: stages.append(stage),
+        )
+
+    assert result.success is False
+    assert "malicious lifecycle scripts" in (result.error or "")
+    assert "rejected" in stages
+
+
+@pytest.mark.asyncio
+async def test_quarantine_writes_files_and_blocks_path_escape(
+    service: BaseSkillMarketService,
+    caplog,
+) -> None:
+    caplog.set_level("WARNING")
+    with (
+        patch(
+            "myrm_agent_harness.agent.skills.market.service.check_lifecycle_scripts",
+            return_value=[],
+        ),
+        patch("myrm_agent_harness.agent.skills.market.service.scan_all_text_files") as scan,
+        patch("myrm_agent_harness.agent.skills.market.service.compute_scan_summary") as summary,
+        patch.object(
+            BaseSkillMarketService,
+            "_promote_quarantined_skill",
+            new=_async_return("promoted"),
+            create=True,
+        ),
+    ):
+        scan.return_value = SimpleNamespace(findings=[], is_clean=True)
+        summary.return_value = SimpleNamespace(score=100)
+
+        result = await service._quarantine_install(
+            "repo:alpha",
+            "Alpha",
+            {"SKILL.md": b"# alpha", "../escape.txt": b"nope"},
+            source="repo",
+        )
+
+    assert result.success is True
+    assert result.skill_name == "Alpha"
+
+
+@pytest.mark.asyncio
+async def test_quarantine_rejects_low_scan_score(service: BaseSkillMarketService) -> None:
+    with (
+        patch(
+            "myrm_agent_harness.agent.skills.market.service.check_lifecycle_scripts",
+            return_value=[],
+        ),
+        patch("myrm_agent_harness.agent.skills.market.service.scan_all_text_files") as scan,
+        patch("myrm_agent_harness.agent.skills.market.service.compute_scan_summary") as summary,
+    ):
+        scan.return_value = SimpleNamespace(findings=[], is_clean=False, summary="risky content")
+        summary.return_value = SimpleNamespace(score=10)
+
+        result = await service._quarantine_install(
+            "repo:alpha",
+            "Alpha",
+            {"SKILL.md": b"# alpha"},
+            source="repo",
+        )
 
     assert result.success is False
