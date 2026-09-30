@@ -156,8 +156,8 @@ class TapDirectoryScanner:
                 self._cache.commit_sha = sha
                 return results
 
-        except Exception as exc:
-            logger.warning("Error scanning skills for tap %s: %s", canonical_repo, exc)
+        except (TimeoutError, OSError, ValueError, KeyError, TypeError) as exc:
+            logger.warning("Tap %s scan failed (%s): %s", canonical_repo, type(exc).__name__, exc)
             return self._cache.skills
 
 
