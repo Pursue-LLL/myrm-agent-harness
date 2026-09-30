@@ -138,10 +138,11 @@ class TapDirectoryScanner:
                             description=desc,
                             source="github-tap",
                             author=owner,
+                            install_url=f"https://github.com/{canonical_repo}/tree/{self.tap.branch}/{skill_subpath}",
+                            install_method="git",
                             stars=0,
-                            forks=0,
-                            url=f"https://github.com/{canonical_repo}/tree/{self.tap.branch}/{skill_subpath}",
-                            extra={
+                            extra_manifest={
+                                "forks": 0,
                                 "tap_repo": canonical_repo,
                                 "tap_path": self.tap.path,
                                 "branch": self.tap.branch,

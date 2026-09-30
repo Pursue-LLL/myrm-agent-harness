@@ -12,7 +12,7 @@
 myrm-agent-harness/tests/agent/skills/market/test_taps.py
 """
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -47,7 +47,7 @@ async def test_tap_directory_scanner_success() -> None:
         ],
     }
 
-    mock_resp = AsyncMock()
+    mock_resp = MagicMock()
     mock_resp.status_code = 200
     mock_resp.json.return_value = mock_tree_payload
 
@@ -78,7 +78,7 @@ async def test_github_tap_source_search() -> None:
         ],
     }
 
-    mock_resp = AsyncMock()
+    mock_resp = MagicMock()
     mock_resp.status_code = 200
     mock_resp.json.return_value = mock_tree_payload
 
@@ -105,11 +105,11 @@ async def test_github_skill_source_with_extra_taps() -> None:
         ],
     }
 
-    mock_resp_tree = AsyncMock()
+    mock_resp_tree = MagicMock()
     mock_resp_tree.status_code = 200
     mock_resp_tree.json.return_value = mock_tree_payload
 
-    mock_resp_search = AsyncMock()
+    mock_resp_search = MagicMock()
     mock_resp_search.status_code = 200
     mock_resp_search.json.return_value = {"items": []}
 
