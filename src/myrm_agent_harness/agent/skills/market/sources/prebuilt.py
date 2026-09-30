@@ -95,6 +95,7 @@ def _compute_match_score(name: str, description: str, tags: list[str], keywords:
     tags_lower = " ".join(tags).lower()
 
     for kw in keywords:
+        kw = kw.lower()
         if kw in name_lower:
             score += 10
         if kw in tags_lower:
