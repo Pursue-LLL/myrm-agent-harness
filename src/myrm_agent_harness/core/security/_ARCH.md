@@ -10,8 +10,6 @@ Foundational security primitives used across all layers. Zero dependency on agen
 | __init__.py | Package | Module docstring. Submodules imported directly. | — |
 | audit.py | Core | Audit log writer — records security events to structured log. `SecurityDecision` carries optional `tool_call_id` that anchors a decision to the specific tool invocation that fired it (downstream lineage views attach the decision to the exact call). Tracks `PROTECTED_INSTRUCTION_ATTEMPT` and `PROTECTED_INSTRUCTION_ALLOWLIST_BLOCKED` events. | ✅ |
 | execution_policy.py | Core | Execution policy enums and interception contracts. | ✅ |
-| path_pattern.py | Core | Path-glob matcher SSOT for every path protection rule — `compile_path_pattern` (segment-scoped `*`/`?`, recursive `**`, character classes, cached, consecutive `**/` collapsed), `path_matches_pattern` (relative patterns apply at any depth, absolute patterns anchored, dotfiles reachable; **case ignored by default** so a protected file cannot be reached by respelling it on APFS/NTFS), `first_matching_pattern` (names the rule that fired), `PathPatternMatch` (protected file + covering rule), `iter_matching_files` (bounded sweep: prunes dependency/build dirs, caps inspected files, logs when the cap trips), `normalise_path_pattern`. Its prune list is independent of the search-candidate pruner in `agent/meta_tools/file_search/fallback_discovery.py`. | ✅ |
-| path_security.py | Core | Path security — dangerous path sets, blocked system and Windows device names, boundary checks, safe path joining (`safe_join_path`), runtime path coercion (`coerce_filesystem_path`), text/code content vs path safe disambiguation (`is_content_not_path`, `MAX_PATH_LENGTH`), protected instruction files SSOT (`PROTECTED_INSTRUCTION_PATTERNS`, `is_protected_instruction_file`) against persona prompt injection persistence. Pattern matching delegates to `path_pattern.py`. | ✅ |
 | redact/ | Core | Output redaction domain — regex SSOT (`patterns.py`) + bounded-replace engine & public APIs (`engine.py`) + facade (`__init__.py`): token prefixes, ENV/JSON/Auth/header/URL userinfo/query/bare-token/JWT, YAML/colon + form-urlencoded configs, word-boundary key validation, dotted-short-name keys (app.api.key=), CLI `=` flags, control-split bypass guard + double-match collapse guard; `redact_for_llm` (nested diagnostic value → str) + `redact_for_display` (args → dict). See `redact/_ARCH.md`. | ✅ |
 | safe_exec.py | Core | Safe command execution — direct exec by default, shell fallback when needed. Env derived from caller env or ``os.environ`` is always passed through ``sanitize_env()`` (dangerous vars stripped) before credential overrides are injected post-sanitize. Process-group isolation + full-tree SIGKILL on timeout. | ✅ |
 | tool_registry/ | Core | Tool metadata registry domain — permission mapping, canonical params, safety metadata, canonical tool group mapping (TOOL_GROUP_MAP/TOOL_TO_GROUP for skill conditional activation) + module-load safety coverage gate. See `tool_registry/_ARCH.md`. | ✅ |
@@ -24,6 +22,7 @@ Foundational security primitives used across all layers. Zero dependency on agen
 
 | Submodule | Description |
 |-----------|-------------|
+| path/ | Path security domain — glob matcher engine (`pattern.py`), generic path safety (`filesystem.py`), protected-path policy (`rules.py`), aggregation facade (`__init__.py`). See [path/_ARCH.md](path/_ARCH.md). |
 | redact/ | Secret redaction domain — `patterns.py` (compiled regex SSOT + shared replacers), `engine.py` (bounded-replace pipeline + public APIs), `__init__.py` (aggregation facade). |
 | tool_registry/ | Tool registry domain — `registry.py` (tool safety SSOT: permission mapping, canonical params, safety metadata, tool groups) + `safety.py` (module-load coverage gate), `__init__.py` (aggregation facade). |
 | detection/ | PII classification, content boundary marking, leak detection, prompt injection guard, pseudonymization. |
@@ -59,6 +58,22 @@ default. That default is the security invariant, not a convenience: APFS and
 NTFS resolve `Key.Pem` and `key.pem` to one file, so a case-sensitive rule would
 let a protected credential be reached by changing only its spelling. A caller
 that genuinely needs case-distinguishing rules passes `case_sensitive=True`.
+
+## Layout Convention
+
+Package roots in this repository carry only three kinds of file: the outward facade,
+a domain entry document (`_ARCH.md`), and the package `__init__.py`. Implementation
+detail never sits flat at a package root.
+
+- **One file for a domain** → a single flat module named after the domain
+  (`audit.py`, `safe_exec.py`, `spend_governance.py`).
+- **More than one file for a domain** → a subdirectory named after the domain
+  (`detection/`, `egress/`, `redact/`, `path/`). Two files is already enough to warrant
+  a subdirectory; the pattern is not reserved for large domains.
+- **Renaming a domain's public import path** is a breaking change for every consumer,
+  including sibling repositories. Add the subpackage, move the implementation, and
+  update all call sites in one change — do not leave a compatibility shim behind, which
+  would give the same API two addresses.
 
 ## Consumer Note
 

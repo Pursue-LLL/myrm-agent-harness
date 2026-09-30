@@ -90,7 +90,7 @@ bash/
 | File | Role | Description |
 |------|------|-------------|
 | `_security/_ARCH.md` | Doc | 安全域架构文档。 |
-| `_security/preflight_checks.py` | Internal | 执行前安全预检：URL 外泄、敏感路径（与文件工具共用 `core/security/path_security` 规则）、工作区破坏性命令拦截、myrm_tools 守卫、交互检测、包注册表校验。 |
+| `_security/preflight_checks.py` | Internal | 执行前安全预检：URL 外泄、敏感路径（凭据读写皆拦；只读证据目录与 Goal 保护路径仅拦写，与文件工具共用规则）、工作区破坏性命令拦截、myrm_tools 守卫、交互检测、包注册表校验。 |
 
 ### `_background/` 后台任务域
 

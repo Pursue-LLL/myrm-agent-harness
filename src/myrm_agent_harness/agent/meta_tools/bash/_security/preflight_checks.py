@@ -3,11 +3,10 @@
 [INPUT]
 utils.url_utils::check_url_exfiltration, sanitize_url_for_error (POS: URL security validation)
 utils.errors::ToolError (POS: Agent tool error with format_for_llm protocol)
-core.security.path_security::is_sensitive_file (POS: single source of truth for sensitive-file rules, shared with the file tools)
+_security.shell_parse::extract_shell_c_payload (POS: quote-aware inline `sh -c` script extraction)
 
 [OUTPUT]
 check_command_url_exfiltration: Block commands with URL data exfiltration.
-check_sensitive_paths: Block commands accessing sensitive directories or credentials.
 check_destructive_commands: Block destructive commands that irreversibly wipe workspace state.
 check_myrm_tools_import: Block myrm_tools in bash via AST, shell `-c`, `-m`, pipe stdin, cat|pipe `.py`, and referenced `.py` files.
 check_unquoted_background_ampersand: Detect unquoted background ampersand operators that would detach orphan processes.
@@ -16,11 +15,13 @@ check_install_packages: Verify install package names exist on public registries.
 
 [POS]
 Security preflight for bash commands. Validates URLs against data exfiltration,
-blocks access to sensitive paths (resolved through the shared sensitive-file rules, so the shell and
-the file tools refuse the same files), blocks destructive workspace commands
-(git reset --hard, rm -rf *, git clean, etc.), blocks myrm_tools in bash (command AST,
-referenced script files under workspace), detects interactive commands that would hang in a non-TTY environment, and verifies
+blocks destructive workspace commands (git reset --hard, rm -rf *, git clean, etc.),
+blocks myrm_tools in bash (command AST, referenced script files under workspace),
+detects interactive commands that would hang in a non-TTY environment, and verifies
 package names in install commands against public registries (anti-slopsquatting).
+
+Path protection lives in the sibling `path_guard` module, which shares
+`extract_shell_c_payload` with the myrm_tools guard above.
 """
 
 from __future__ import annotations
@@ -31,10 +32,9 @@ import logging
 import re
 import urllib.error
 import urllib.request
-from collections.abc import Iterator
 from pathlib import Path
 
-from myrm_agent_harness.core.security.path_security import is_sensitive_file
+from myrm_agent_harness.agent.meta_tools.bash._security.shell_parse import extract_shell_c_payload
 
 logger = logging.getLogger(__name__)
 
@@ -44,11 +44,6 @@ logger = logging.getLogger(__name__)
 
 _SHELL_MYRM_TOOLS_IMPORT_RE = re.compile(
     r"(?:^|\n)\s*(?:import\s+myrm_tools\b|from\s+myrm_tools\s+import\b)",
-    re.MULTILINE,
-)
-
-_SHELL_C_CMD_RE = re.compile(
-    r"(?:^|[\s;&|])(?:bash|sh|/bin/bash|/bin/sh)\s+(?:-[^\s]+\s+)*-c\s+",
     re.MULTILINE,
 )
 
@@ -86,37 +81,10 @@ def _ast_root_name(node: ast.AST) -> str | None:
     return None
 
 
-def _extract_shell_c_payload(command: str) -> str | None:
-    """Quote-aware extraction from ``bash -c`` / ``sh -c`` inline scripts."""
-    match = _SHELL_C_CMD_RE.search(command)
-    if match is None:
-        return None
-
-    rest = command[match.end() :]
-    if not rest:
-        return None
-
-    quote = rest[0]
-    if quote not in ('"', "'"):
-        return None
-
-    escaped = False
-    for index, char in enumerate(rest[1:], start=1):
-        if escaped:
-            escaped = False
-            continue
-        if char == "\\":
-            escaped = True
-            continue
-        if char == quote:
-            return rest[1:index]
-    return None
-
-
 def _shell_command_references_myrm_tools(command: str) -> bool:
     if _SHELL_MYRM_TOOLS_IMPORT_RE.search(command):
         return True
-    shell_c_payload = _extract_shell_c_payload(command)
+    shell_c_payload = extract_shell_c_payload(command)
     if shell_c_payload is None:
         return False
     return _python_ast_references_myrm_tools(shell_c_payload) or bool(
@@ -329,144 +297,6 @@ def check_command_url_exfiltration(command: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Sensitive Path Preflight
-# ---------------------------------------------------------------------------
-
-_SENSITIVE_PATH_RE = re.compile(
-    r'(?:^|[\s"\'=/])(?:\.ssh|\.aws|\.npmrc|\.gnupg|\.docker|\.kube|\.bash_history|\.zsh_history|id_rsa|id_ed25519|id_ecdsa|id_dsa|authorized_keys|etc/shadow|etc/passwd)(?:/|[\s"\'$]|$)',
-    re.IGNORECASE,
-)
-
-# Shell metacharacters that end one command word. A path operand is delimited by
-# one of these, so splitting on them yields the same words the shell would.
-_SHELL_WORD_SEPARATORS = re.compile(r"[\s\"'|<>;()`&]")
-
-# A word carrying a URI scheme names a remote resource, not a file on this
-# machine, so its path component is out of scope for the local file rules.
-_URI_SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.\-]*://")
-
-# ``sh -c "sh -c '...'"`` nests arbitrarily deep in principle; the cap keeps the
-# unwrap loop bounded on a self-referential payload.
-_MAX_NESTED_SHELL_DEPTH = 4
-
-_COMMIT_MESSAGE_PATTERN = re.compile(
-    r'(?:^|[\s;&|])git\s+commit\s+(?:-[a-zA-Z]*m[a-zA-Z]*|--message(?:=|\s+))\s*(?:\'([^\']*)\'|"([^"]*)")',
-    re.IGNORECASE,
-)
-_ECHO_PRINT_PATTERN = re.compile(
-    r'(?:^|[\s;&|])(?:echo|printf)\s+(?:\'([^\']*)\'|"([^"]*)")',
-    re.IGNORECASE,
-)
-
-
-def _strip_benign_text_literals_for_sensitive_check(command: str) -> str:
-    """Strip commit message strings and echo print literals to prevent false alarms on commit texts."""
-    cleaned = _COMMIT_MESSAGE_PATTERN.sub(" git commit ", command)
-    cleaned = _ECHO_PRINT_PATTERN.sub(" echo ", cleaned)
-    return cleaned
-
-
-def _iter_command_words(command: str) -> Iterator[str]:
-    """Yield each shell word of *command* that could name a filesystem path.
-
-    Splits on shell metacharacters so that redirections (``>``, ``>>``) and
-    pipes separate words the same way the shell does. Quoted spans keep their
-    contents together, so a path written as ``"vault/secrets.json"`` survives
-    as one word instead of being cut at the quote.
-    """
-    word: list[str] = []
-    quote: str | None = None
-    for char in command:
-        if quote is not None:
-            if char == quote:
-                quote = None
-            else:
-                word.append(char)
-            continue
-        if char in "\"'":
-            quote = char
-            continue
-        if _SHELL_WORD_SEPARATORS.search(char):
-            if word:
-                yield "".join(word)
-                word.clear()
-            continue
-        word.append(char)
-    if word:
-        yield "".join(word)
-
-
-def _is_protected_path_word(word: str) -> bool:
-    """Return True when *word* names a credential or key file on this machine.
-
-    Path operands reach the file tools as plain strings, so the same matcher
-    that guards ``file_write_tool`` also guards the shell. A word only counts
-    when it looks like a path — a dot, a separator, or a leading ``~`` — which
-    keeps ordinary arguments such as ``id_rsa_keygen`` out of the comparison.
-    URI operands are skipped: ``https://host/config.json`` ends in a protected
-    name but fetches a remote document rather than reading a local file.
-    """
-    if not word or word.startswith("-") or _URI_SCHEME.match(word):
-        return False
-    if not any(marker in word for marker in (".", "/", "~")):
-        return False
-    return is_sensitive_file(word.rstrip("/"))
-
-
-def _find_sensitive_path(command: str) -> str | None:
-    """Return the first sensitive path *command* touches, else None.
-
-    Inline ``sh -c`` / ``bash -c`` scripts are unwrapped and rescanned so a
-    protected path cannot be hidden one quoting level down. The bare-credential
-    alternation is kept as a second opinion: it recognises filenames such as
-    ``id_rsa`` that carry no dot or separator, which the path-shaped test above
-    cannot see.
-    """
-    scripts = [command]
-    for _ in range(_MAX_NESTED_SHELL_DEPTH):
-        nested = [payload for payload in map(_extract_shell_c_payload, scripts) if payload]
-        if not nested:
-            break
-        scripts.extend(nested)
-
-    for script in scripts:
-        for word in _iter_command_words(script):
-            if _is_protected_path_word(word):
-                return word
-
-    match = _SENSITIVE_PATH_RE.search(command)
-    return match.group(0).strip(" \"'=/") if match else None
-
-
-def check_sensitive_paths(command: str) -> None:
-    """Block commands that access sensitive directories (.ssh, .aws, etc.) or credentials (id_rsa, shadow, etc.).
-
-    Path operands are resolved against the shared sensitive-file rules, so the
-    shell and the file tools refuse the same set of files. Inline ``sh -c`` /
-    ``bash -c`` scripts are unwrapped and rescanned, and commit messages and
-    ``echo``/``printf`` literals are stripped first, so neither a protected path
-    hidden one quoting level down nor prose that merely names a credential
-    decides the outcome.
-
-    Raises:
-        ToolError: If sensitive path access is detected.
-    """
-    from myrm_agent_harness.utils.errors import ToolError
-
-    eval_cmd = _strip_benign_text_literals_for_sensitive_check(command)
-
-    if sensitive_path := _find_sensitive_path(eval_cmd):
-        logger.warning(f" Sensitive path access detected: {command[:100]}")
-        raise ToolError(
-            f"Command blocked (security): '{sensitive_path}' is on the protected file list.",
-            user_hint=(
-                f"Do not route around this restriction. Continue without {sensitive_path}, "
-                f"or tell the user which file you could not use."
-            ),
-        )
-
-
-# ---------------------------------------------------------------------------
 # Destructive Command Preflight
 # ---------------------------------------------------------------------------
 
@@ -598,56 +428,56 @@ def check_destructive_commands(command: str) -> None:
     from myrm_agent_harness.utils.errors import ToolError
 
     candidates = [command]
-    if payload := _extract_shell_c_payload(command):
+    if payload := extract_shell_c_payload(command):
         candidates.append(payload)
 
     for candidate in candidates:
         sanitized = _strip_quotes_for_destructive_check(candidate)
 
         # 1. Fast regex scan
-        for pattern, label in _DESTRUCTIVE_COMMAND_PATTERNS:
+        for pattern, pattern_label in _DESTRUCTIVE_COMMAND_PATTERNS:
             if pattern.search(sanitized):
                 logger.warning(
                     "Destructive workspace command blocked (regex): %s in %s",
-                    label,
+                    pattern_label,
                     command[:100],
                 )
                 raise ToolError(
-                    f"Command blocked (destructive workspace command): Detected '{label}' in command '{command.strip()}'. "
+                    f"Command blocked (destructive workspace command): Detected '{pattern_label}' in command '{command.strip()}'. "
                     "Destructive commands that permanently discard uncommitted changes or wipe workspace files are prohibited. "
                     "If the user explicitly requested resetting the workspace, please ask the user for confirmation.",
                     user_hint=(
-                        f"Destructive command '{label}' is prohibited to protect uncommitted changes. "
+                        f"Destructive command '{pattern_label}' is prohibited to protect uncommitted changes. "
                         "Inspect errors and resolve issues without wiping the workspace. "
                         "If you need to discard changes in a specific file, use git checkout -- <file> or target the specific file."
                     ),
                     diagnostic_info={
                         "destructive_command_prohibited": True,
-                        "command_label": label,
+                        "command_label": pattern_label,
                     },
                 )
 
         # 2. Token-based semantic scan for displaced flags and permutations
         segments = re.split(r"[;&|\n]+", sanitized)
         for segment in segments:
-            if label := _detect_destructive_tokens(segment):
+            if detected := _detect_destructive_tokens(segment):
                 logger.warning(
                     "Destructive workspace command blocked (semantic): %s in %s",
-                    label,
+                    detected,
                     command[:100],
                 )
                 raise ToolError(
-                    f"Command blocked (destructive workspace command): Detected '{label}' in command '{command.strip()}'. "
+                    f"Command blocked (destructive workspace command): Detected '{detected}' in command '{command.strip()}'. "
                     "Destructive commands that permanently discard uncommitted changes or wipe workspace files are prohibited. "
                     "If the user explicitly requested resetting the workspace, please ask the user for confirmation.",
                     user_hint=(
-                        f"Destructive command '{label}' is prohibited to protect uncommitted changes. "
+                        f"Destructive command '{detected}' is prohibited to protect uncommitted changes. "
                         "Inspect errors and resolve issues without wiping the workspace. "
                         "If you need to discard changes in a specific file, use git checkout -- <file> or target the specific file."
                     ),
                     diagnostic_info={
                         "destructive_command_prohibited": True,
-                        "command_label": label,
+                        "command_label": detected,
                     },
                 )
 
@@ -921,7 +751,7 @@ async def check_install_packages(command: str) -> None:
 
     missing: list[tuple[str, str]] = []
     for result in results:
-        if isinstance(result, Exception):
+        if isinstance(result, BaseException):
             continue
         name, exists = result
         if not exists:

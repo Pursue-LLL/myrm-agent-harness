@@ -31,7 +31,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
 
-from myrm_agent_harness.core.security.path_security import is_within_boundary
+from myrm_agent_harness.core.security.path import is_within_boundary
 from myrm_agent_harness.toolkits.code_execution.security.blacklist import (
     DANGEROUS_MODULES,
     DANGEROUS_MODULES_REASONS,

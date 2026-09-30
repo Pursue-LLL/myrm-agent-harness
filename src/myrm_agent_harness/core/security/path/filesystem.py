@@ -1,8 +1,9 @@
-"""Path security — single source of truth for dangerous paths and sensitive files.
+"""Generic filesystem path safety primitives.
 
-All path-based security knowledge lives here. Both the permission engine
-(Layer 2.5 PathPolicy) and the file-operation validators reference this
-module, ensuring a single set of definitions and consistent checks.
+Dangerous system roots, Windows device names, boundary enforcement, traversal-safe
+joining and runtime path coercion. This module knows nothing about *which files a
+product protects* — that policy lives in the sibling `rules` module, so tooling that
+only needs to resolve a path safely does not pull protection policy into scope.
 
 [INPUT]
 - (none — pure data + logic module)
@@ -10,22 +11,16 @@ module, ensuring a single set of definitions and consistent checks.
 [OUTPUT]
 - DANGEROUS_PATHS: frozenset[str] — normalised dangerous root paths
 - BLOCKED_DEVICE_NAMES: frozenset[str] — Windows reserved device names
-- SENSITIVE_FILE_PATTERNS: tuple[str, ...] — glob patterns for sensitive files
-- PROTECTED_INSTRUCTION_PATTERNS: tuple[str, ...] — glob patterns for protected instruction files
 - MAX_PATH_LENGTH: int — maximum allowed path length (4096 bytes)
 - is_content_not_path(value) -> bool — disambiguates multiline/oversized text from filesystem path
 - coerce_filesystem_path(value) -> Path | None — runtime path coercion; rejects unittest.mock objects and text content
-- (pattern matching delegated to path_pattern::first_matching_pattern)
-- is_dangerous_path(path) -> bool — unified check function
-- is_blocked_device_path(path) -> bool — pre-IO device path blocklist check
-- is_sensitive_file(path) -> bool — sensitive file check function
-- is_protected_instruction_file(path) -> bool — protected instruction check function
-- is_evidence_readonly_file(path) -> bool — read-only session evidence check function
 - is_within_boundary(target, boundary) -> bool — boundary check immune to symlink escape
 - safe_join_path(base_dir, user_input) -> Path — secure path resolution against traversal
+- is_dangerous_path(path) -> bool — unified check function
+- is_blocked_device_path(path) -> bool — pre-IO device path blocklist check
 
 [POS]
-Path security — single source of truth for dangerous paths and sensitive files.
+Generic filesystem path safety — no product protection policy.
 """
 
 from __future__ import annotations
@@ -35,26 +30,14 @@ import platform
 import stat
 from pathlib import Path
 
-from myrm_agent_harness.core.security.path_pattern import first_matching_pattern
-
-# Declared so the `agent.security.path_security` re-export shim forwards exactly
-# this API. Without it, `import *` would also republish this module's imports
-# (`os`, `Path`) and the raw matcher, inviting callers to reach for the matcher
-# instead of the predicates that carry the security policy.
 __all__ = (
     "BLOCKED_DEVICE_NAMES",
     "DANGEROUS_PATHS",
-    "EVIDENCE_READONLY_PATTERNS",
     "MAX_PATH_LENGTH",
-    "PROTECTED_INSTRUCTION_PATTERNS",
-    "SENSITIVE_FILE_PATTERNS",
     "coerce_filesystem_path",
     "is_blocked_device_path",
     "is_content_not_path",
     "is_dangerous_path",
-    "is_evidence_readonly_file",
-    "is_protected_instruction_file",
-    "is_sensitive_file",
     "is_within_boundary",
     "safe_join_path",
 )
@@ -144,11 +127,14 @@ BLOCKED_DEVICE_NAMES: frozenset[str] = frozenset(
 )
 """Windows reserved device names (matched case-insensitively with or without extensions)."""
 
-_DEVICE_PREFIXES: tuple[str, ...] = (
+_WINDOWS_DEVICE_NAMESPACE_PREFIXES: tuple[str, ...] = (
     "\\\\.\\",
     "//./",
     "\\\\?\\",
     "//?/",
+)
+
+_POSIX_SPECIAL_FILESYSTEM_PREFIXES: tuple[str, ...] = (
     "/dev/",
     "dev/",
     "/proc/",
@@ -157,79 +143,13 @@ _DEVICE_PREFIXES: tuple[str, ...] = (
     "sys/",
 )
 
-# ---------------------------------------------------------------------------
-# Sensitive file patterns
-# ---------------------------------------------------------------------------
+_POSIX_SPECIAL_FILESYSTEM_ROOTS: tuple[str, ...] = ("/dev", "/proc", "/sys")
 
-SENSITIVE_FILE_PATTERNS: tuple[str, ...] = (
-    # Credentials and keys
-    "**/id_rsa",
-    "**/id_dsa",
-    "**/id_ecdsa",
-    "**/id_ed25519",
-    "**/*.pem",
-    "**/*.key",
-    "**/*.p12",
-    "**/*.pfx",
-    # Environment files
-    "**/.env*",
-    "**/credentials.json",
-    "**/secrets.json",
-    "**/config.json",
-    # AWS credentials
-    "**/.aws/credentials",
-    "**/.aws/config",
-    # Git config (may contain tokens)
-    "**/.git/config",
-    # Database files
-    "**/*.db",
-    "**/*.sqlite",
-    "**/*.sqlite3",
-    # Password files
-    "**/password.txt",
-    "**/passwd",
-    "**/shadow",
-)
-
-# ---------------------------------------------------------------------------
-# Protected instruction file patterns (anti-persona tampering & prompt injection persistence)
-# ---------------------------------------------------------------------------
-
-PROTECTED_INSTRUCTION_PATTERNS: tuple[str, ...] = (
-    "**/AGENTS.md",
-    "**/CLAUDE.md",
-    "**/SOUL.md",
-    "**/USER.md",
-    "**/.user.md",
-    "**/MEMORY.md",
-    "**/.myrm.md",
-    "**/myrm.md",
-    "**/.hermes.md",
-    "**/HERMES.md",
-    "**/.cursorrules",
-    "**/.clinerules",
-    "**/.windsurfrules",
-    "**/.cursor/rules/**",
-    "**/.myrm/rules/**",
-    "**/.claude/CLAUDE.md",
-    "**/.github/copilot-instructions.md",
-)
-
-# ---------------------------------------------------------------------------
-# Session Evidence and Read-only Input File Patterns
-# ---------------------------------------------------------------------------
-
-EVIDENCE_READONLY_PATTERNS: tuple[str, ...] = (
-    "**/evidence/**",
-    "**/evidence/*",
-    "evidence/**",
-    "evidence/*",
-    "**/user_inputs/**",
-    "**/user_inputs/*",
-    "user_inputs/**",
-    "user_inputs/*",
-    "**/.evidence/**",
-    "**/.evidence/*",
+# Bare spellings of the same roots (no trailing separator), both absolute and
+# workspace-relative, so `dev/urandom` is blocked alongside `/dev/urandom`.
+_POSIX_SPECIAL_FILESYSTEM_BARE_NAMES: frozenset[str] = frozenset(
+    {root for root in _POSIX_SPECIAL_FILESYSTEM_ROOTS}
+    | {root.lstrip("/") for root in _POSIX_SPECIAL_FILESYSTEM_ROOTS}
 )
 
 # ---------------------------------------------------------------------------
@@ -390,15 +310,13 @@ def is_blocked_device_path(path: str) -> bool:
     norm_slash = cleaned.replace("\\", "/")
 
     # 1. Device namespace prefixes (\\.\, //./, \\?\, //?/)
-    for prefix in ("\\\\.\\", "//./", "\\\\?\\", "//?/"):
-        if cleaned.startswith(prefix):
-            return True
+    if cleaned.startswith(_WINDOWS_DEVICE_NAMESPACE_PREFIXES):
+        return True
 
     # 2. POSIX special system device prefixes (/dev/, /proc/, /sys/, dev/, proc/, sys/)
-    for dev_prefix in ("/dev/", "dev/", "/proc/", "proc/", "/sys/", "sys/"):
-        if norm_slash.startswith(dev_prefix):
-            return True
-    if norm_slash in ("/dev", "dev", "/proc", "proc", "/sys", "sys"):
+    if norm_slash.startswith(_POSIX_SPECIAL_FILESYSTEM_PREFIXES):
+        return True
+    if norm_slash.rstrip("/") in _POSIX_SPECIAL_FILESYSTEM_BARE_NAMES:
         return True
 
     # 3. Windows reserved device names (CON, PRN, AUX, NUL, COM1-9, LPT1-9) with or without extensions
@@ -420,65 +338,6 @@ def is_blocked_device_path(path: str) -> bool:
     # 5. Check normalised realpath against dangerous roots if Unix device root is present
     try:
         real_p = os.path.realpath(os.path.expanduser(cleaned))
-        for root in ("/dev", "/proc", "/sys"):
-            if is_within_boundary(real_p, root):
-                return True
+        return any(is_within_boundary(real_p, root) for root in _POSIX_SPECIAL_FILESYSTEM_ROOTS)
     except Exception:
-        pass
-
-    return False
-
-
-def is_sensitive_file(path: str) -> bool:
-    """Check if *path* matches any sensitive file pattern.
-
-    Matching ignores case: on the case-insensitive filesystems that host the
-    desktop and local-server builds (APFS, NTFS) ``Key.Pem`` and ``key.pem`` are
-    one and the same file, so a case-sensitive rule would let a credential be
-    renamed into a spelling the guard no longer recognises. Failing closed is
-    the only safe direction for a guard whose failure mode is secret exposure.
-    """
-    if not path or not path.strip() or is_content_not_path(path):
         return False
-    return first_matching_pattern(path, SENSITIVE_FILE_PATTERNS) is not None
-
-
-def is_protected_instruction_file(path: str) -> bool:
-    """Check if *path* refers to a protected instruction file (case-insensitive & normalised).
-
-    Protected instruction files steer the future persona and behavioral guardrails
-    of AI agents (e.g. AGENTS.md, SOUL.md, .cursorrules). Modifications to these files
-    are high-risk persistence vectors for indirect prompt injection and MUST
-    require human approval.
-
-    The symlink target is checked as well as the given path, so a harmless-looking
-    link cannot be used to rewrite an instruction file indirectly.
-    """
-    if not path or not str(path).strip() or is_content_not_path(path):
-        return False
-    if first_matching_pattern(path, PROTECTED_INSTRUCTION_PATTERNS) is not None:
-        return True
-    try:
-        resolved = str(Path(path).resolve())
-    except OSError:
-        return False
-    if resolved == path:
-        return False
-    return first_matching_pattern(resolved, PROTECTED_INSTRUCTION_PATTERNS) is not None
-
-
-def is_evidence_readonly_file(path: str) -> bool:
-    """Check if *path* falls under a protected session evidence or user input directory.
-
-    Evidence directories (e.g. `evidence/`, `user_inputs/`) store read-only raw factual
-    sources pulled by tools or provided by users. The Agent must NOT overwrite or modify
-    these raw materials during multi-step execution.
-
-    Matching ignores case for the same reason as :func:`is_sensitive_file`: on
-    case-insensitive filesystems ``Evidence/`` and ``evidence/`` denote one directory,
-    so a case-sensitive rule could be side-stepped by changing only the spelling.
-    """
-    if not path or not str(path).strip() or is_content_not_path(path):
-        return False
-    normalised = str(path).replace("\\", "/")
-    return first_matching_pattern(normalised, EVIDENCE_READONLY_PATTERNS) is not None

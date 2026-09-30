@@ -273,7 +273,7 @@ def _default_privacy_policy() -> PrivacyPolicy:
 
 
 def _default_dangerous_paths() -> frozenset[str]:
-    from myrm_agent_harness.core.security.path_security import DANGEROUS_PATHS
+    from myrm_agent_harness.core.security.path import DANGEROUS_PATHS
 
     return DANGEROUS_PATHS
 

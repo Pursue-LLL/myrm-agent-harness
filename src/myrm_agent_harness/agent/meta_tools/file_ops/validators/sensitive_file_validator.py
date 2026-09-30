@@ -5,7 +5,7 @@ Detects and warns about operations on sensitive files (credentials, keys, etc.).
 [INPUT]
 - agent.config::DEFAULT_FILE_IO_CONFIG, (POS: Configuration and type definitions for the Deep Research system. Pure data structures with no business logic dependencies.)
 - agent.security.path_security::SENSITIVE_FILE_PATTERNS (POS: Path security — single source of truth for dangerous paths and sensitive files.)
-- core.security.path_pattern::first_matching_pattern (POS: shared path-pattern matcher)
+- core.security.path.pattern::first_matching_pattern (POS: shared path-pattern matcher)
 
 [OUTPUT]
 - SensitiveFileValidator: Sensitive file validator
@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING
 
 from myrm_agent_harness.agent.config import DEFAULT_FILE_IO_CONFIG, FileIOConfig
 from myrm_agent_harness.agent.security.path_security import SENSITIVE_FILE_PATTERNS
-from myrm_agent_harness.core.security.path_pattern import first_matching_pattern
+from myrm_agent_harness.core.security.path.pattern import first_matching_pattern
 
 from ..core.operation_context import OperationType
 from .base import Validator

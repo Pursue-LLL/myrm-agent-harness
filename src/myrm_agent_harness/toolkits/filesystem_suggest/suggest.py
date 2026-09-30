@@ -1,6 +1,6 @@
 """
 [INPUT]
-myrm_agent_harness.core.security.path_security::safe_join_path (POS: Workspace path boundary guard)
+myrm_agent_harness.core.security.path::safe_join_path (POS: Workspace path boundary guard)
 myrm_agent_harness.toolkits.filesystem_suggest.indexer::WorkspacePathIndexer (POS: Local workspace file enumerator)
 
 [OUTPUT]
@@ -17,7 +17,7 @@ import os
 import re
 from pathlib import Path
 
-from myrm_agent_harness.core.security.path_security import (
+from myrm_agent_harness.core.security.path import (
     is_dangerous_path,
     is_sensitive_file,
     safe_join_path,

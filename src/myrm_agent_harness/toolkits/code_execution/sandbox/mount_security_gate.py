@@ -4,7 +4,7 @@ Single source of truth for sandbox filesystem mount validation across local OS p
 sandboxes (bwrap, seatbelt, appcontainer) and multi-session workspace directory grants.
 
 [INPUT]
-- core.security.path_security::DANGEROUS_PATHS, is_dangerous_path, is_blocked_device_path, is_within_boundary
+- core.security.path::DANGEROUS_PATHS, is_dangerous_path, is_blocked_device_path, is_within_boundary
 
 [OUTPUT]
 - MountMode (Enum: RO, RW)
@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Final
 
-from myrm_agent_harness.core.security.path_security import (
+from myrm_agent_harness.core.security.path import (
     is_blocked_device_path,
     is_dangerous_path,
 )
@@ -165,9 +165,11 @@ def _is_path_enclosed_in_boundary(target_path: str, boundary_path: str) -> bool:
         b_cmp = _normalize_case_for_os(b_real)
 
         # Enclosure check
-        if t_cmp == b_cmp or t_cmp.startswith(b_cmp + os.sep) or (b_cmp.endswith(os.sep) and t_cmp.startswith(b_cmp)):
-            return True
-        return False
+        return bool(
+            t_cmp == b_cmp
+            or t_cmp.startswith(b_cmp + os.sep)
+            or (b_cmp.endswith(os.sep) and t_cmp.startswith(b_cmp))
+        )
     except Exception:
         return False
 

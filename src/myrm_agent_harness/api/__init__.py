@@ -333,8 +333,8 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "SkillHealthStatus": ("myrm_agent_harness.observability.digest.types", "SkillHealthStatus"),
     "SkillHealthEvaluator": ("myrm_agent_harness.observability.digest.health_evaluator", "SkillHealthEvaluator"),
     "cosine_similarity_int8": ("myrm_agent_harness.toolkits.vector.quantization", "cosine_similarity_int8"),
-    "is_within_boundary": ("myrm_agent_harness.core.security.path_security", "is_within_boundary"),
-    "safe_join_path": ("myrm_agent_harness.core.security.path_security", "safe_join_path"),
+    "is_within_boundary": ("myrm_agent_harness.core.security.path", "is_within_boundary"),
+    "safe_join_path": ("myrm_agent_harness.core.security.path", "safe_join_path"),
     "safe_purge_fts5_virtual_table": ("myrm_agent_harness.utils.db.fts5", "safe_purge_fts5_virtual_table"),
     "build_isolated_child_env": (
         "myrm_agent_harness.toolkits.code_execution.security.env_isolation",

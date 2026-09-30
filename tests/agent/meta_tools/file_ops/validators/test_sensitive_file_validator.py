@@ -19,8 +19,8 @@ from myrm_agent_harness.agent.meta_tools.file_ops.validators import sensitive_fi
 from myrm_agent_harness.agent.meta_tools.file_ops.validators.sensitive_file_validator import (
     SensitiveFileValidator,
 )
-from myrm_agent_harness.core.security.path_pattern import first_matching_pattern
-from myrm_agent_harness.core.security.path_security import is_sensitive_file
+from myrm_agent_harness.core.security.path import is_sensitive_file
+from myrm_agent_harness.core.security.path.pattern import first_matching_pattern
 
 SENSITIVE_PATHS = [
     "id_rsa",

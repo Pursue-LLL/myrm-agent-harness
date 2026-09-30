@@ -6,7 +6,7 @@ This is the safety-net layer that catches modifications made through channels
 that bypass the file_write_tool validator chain (e.g. ``bash_code_execute_tool``).
 
 Pattern resolution goes through the shared matcher in
-``core.security.path_pattern``, the same one the pre-write
+``core.security.path.pattern``, the same one the pre-write
 ``InvariantValidator`` uses, so the two layers can never disagree about which
 files are protected.
 
@@ -17,7 +17,7 @@ instead of logging an intact result for an empty baseline.
 
 [INPUT]
 - .types::Goal (POS: Goal data model with protected_paths)
-- core.security.path_pattern::iter_matching_files (POS: shared pattern matcher + bounded walk)
+- core.security.path.pattern::iter_matching_files (POS: shared pattern matcher + bounded walk)
 
 [OUTPUT]
 - capture_protected_snapshot: Hash all files matching protected_paths at Goal start.
@@ -36,7 +36,7 @@ import logging
 import os
 from dataclasses import dataclass, field
 
-from myrm_agent_harness.core.security.path_pattern import (
+from myrm_agent_harness.core.security.path.pattern import (
     first_matching_pattern,
     iter_matching_files,
 )

@@ -127,7 +127,7 @@ class LocalFSSyncBackend:
                 skill_dir.mkdir(parents=True, exist_ok=True)
                 existed = (skill_dir / "SKILL.md").exists()
 
-                from myrm_agent_harness.core.security.path_security import is_within_boundary
+                from myrm_agent_harness.core.security.path import is_within_boundary
 
                 for rel_path, content in result.files.items():
                     file_path = (skill_dir / rel_path).resolve()

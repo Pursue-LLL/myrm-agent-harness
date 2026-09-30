@@ -7,7 +7,7 @@ post-hoc hash integrity check in CompletionGuard.
 
 [INPUT]
 - agent.middlewares._session_context::get_protected_paths (POS: ContextVar for Goal-scoped protected patterns)
-- core.security.path_pattern::first_matching_pattern (POS: shared path-pattern matcher)
+- core.security.path.pattern::first_matching_pattern (POS: shared path-pattern matcher)
 
 [OUTPUT]
 - InvariantValidator: class — Goal-scoped invariant file protection validator
@@ -21,7 +21,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.core.security.path_pattern import first_matching_pattern
+from myrm_agent_harness.core.security.path.pattern import first_matching_pattern
 
 from ..core.operation_context import OperationType
 from .base import Validator

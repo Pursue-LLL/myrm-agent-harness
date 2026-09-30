@@ -6,7 +6,7 @@ Ensures models cannot tamper with or overwrite raw factual inputs pulled by tool
 or supplied by humans.
 
 [INPUT]
-- myrm_agent_harness.core.security.path_security::is_evidence_readonly_file (POS: evidence path security check)
+- myrm_agent_harness.core.security.path::is_evidence_readonly_file (POS: evidence path security check)
 - core.operation_context::OperationContext, OperationType (POS: operation context)
 
 [OUTPUT]
@@ -21,7 +21,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.core.security.path_security import is_evidence_readonly_file
+from myrm_agent_harness.core.security.path import is_evidence_readonly_file
 
 from ..core.operation_context import OperationType
 from .base import Validator

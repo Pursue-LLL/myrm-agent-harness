@@ -4,7 +4,7 @@
 - base_agent::BaseAgent (POS: Parent agent with _spawn_child capability)
 - agent.sub_agents.orchestrator::run_with_verification (POS: Adversarial worker+verifier retry loop)
 - agent.sub_agents.spawn_prep (POS: Shared spawn prep SSOT with delegate path)
-- core.security.path_security::coerce_filesystem_path (POS: Runtime path coercion for workspace journal sidecar)
+- core.security.path::coerce_filesystem_path (POS: Runtime path coercion for workspace journal sidecar)
 - dynamic_workflow.store::WorkflowEventStore (POS: L2 persistent cache)
 - dynamic_workflow.spawn_cache::SpawnCacheParams (POS: Cache fingerprint)
 - agent.skills.mcp.progress_payload::build_workflow_stage_event (POS: Shared notify field SSOT)
@@ -57,7 +57,7 @@ from myrm_agent_harness.agent.sub_agents.spawn_prep import (
     sanitize_spawn_result_for_store,
 )
 from myrm_agent_harness.agent.sub_agents.types import SubagentCatalog, SubAgentResult
-from myrm_agent_harness.core.security.path_security import coerce_filesystem_path
+from myrm_agent_harness.core.security.path import coerce_filesystem_path
 from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
 
 if TYPE_CHECKING:

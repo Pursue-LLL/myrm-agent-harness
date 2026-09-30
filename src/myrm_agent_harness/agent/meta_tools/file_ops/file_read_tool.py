@@ -8,7 +8,7 @@
 - file_read_handlers::build_multimodal_result, append_media_text_parts, process_text_paths (POS: file_read 执行处理器)
 - file_search.path_hint::suggest_similar_paths, format_path_not_found_hint, find_existing_unicode_path (POS: 路径不存在提示与 Unicode 探测自愈)
 - file_search.skill_path_filter::get_disabled_skill_roots, is_under_disabled_skill_root (POS: disabled skill 路径拦截)
-- core.security.path_security::is_blocked_device_path (POS: Pre-IO 设备路径安全阻断)
+- core.security.path::is_blocked_device_path (POS: Pre-IO 设备路径安全阻断)
 - context_management.infra.evicted::normalize_delivery_chat_id (POS: UECD 会话 id 归一化，读写侧对称)
 - utils.vault_read::is_vault_uri, path_base, read_vault_paths_to_parts (POS: vault:// URI 读取)
 - mcp_read_next_step_hint::append_mcp_docs_next_step_hint (POS: MCP 函数文档批量读取后的下一步操作提示)

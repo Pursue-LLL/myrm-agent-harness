@@ -14,7 +14,7 @@ from typing import ClassVar
 
 import pytest
 
-from myrm_agent_harness.core.security.path_pattern import (
+from myrm_agent_harness.core.security.path.pattern import (
     MAX_WALK_FILES,
     PathPatternMatch,
     compile_path_pattern,

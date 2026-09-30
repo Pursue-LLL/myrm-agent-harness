@@ -2,7 +2,7 @@
 
 
 [INPUT]
-- myrm_agent_harness.core.security.path_security::safe_join_path (POS: Path security checks)
+- myrm_agent_harness.core.security.path::safe_join_path (POS: Path security checks)
 - _fs_backend::BaseFileSystemBackend (POS: file system storage backend base class)
 - base::StorageError (POS: storage exception types)
 - pathlib::Path (POS: Python path library)
@@ -98,7 +98,7 @@ class PersistentStorageBackend(BaseFileSystemBackend):
         Raises:
             StorageError: Path越界
         """
-        from myrm_agent_harness.core.security.path_security import safe_join_path
+        from myrm_agent_harness.core.security.path import safe_join_path
 
         key_normalized = os.path.normpath(key).lstrip("/")
 

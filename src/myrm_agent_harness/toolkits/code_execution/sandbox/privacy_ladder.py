@@ -7,7 +7,7 @@ across three distinct fail-closed privacy tiers:
 - Tier 3 (Workspace-Level): Boundary containment against physical directory traversal/symlink escape
 
 [INPUT]
-- myrm_agent_harness.core.security.path_security (POS: is_sensitive_file, is_dangerous_path, is_blocked_device_path)
+- myrm_agent_harness.core.security.path (POS: is_sensitive_file, is_dangerous_path, is_blocked_device_path)
 - myrm_agent_harness.toolkits.code_execution.sandbox.mount_security_gate (POS: is_within_boundary, realpath resolution)
 
 [OUTPUT]
@@ -31,7 +31,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
-from myrm_agent_harness.core.security.path_security import (
+from myrm_agent_harness.core.security.path import (
     is_blocked_device_path,
     is_dangerous_path,
     is_sensitive_file,
@@ -104,10 +104,7 @@ def _is_persistence_secret(path_str: str) -> bool:
 
     name = Path(path_str).name
     lower_name = name.lower()
-    for pattern in _EXTRA_PERSISTENCE_SECRET_PATTERNS:
-        if fnmatch(lower_name, pattern.lower()):
-            return True
-    return False
+    return any(fnmatch(lower_name, pattern.lower()) for pattern in _EXTRA_PERSISTENCE_SECRET_PATTERNS)
 
 
 def validate_privacy_ladder(

@@ -6,7 +6,7 @@ prior to workspace snapshotting, file mutations, or cloud persistence commits.
 [INPUT]
 - core.security.types::SensitivityLevel, PrivacyPolicy
 - core.security.guards.privacy_tracker::get_privacy_policy, get_privacy_tracker
-- core.security.path_security::is_within_boundary, is_dangerous_path, is_blocked_device_path
+- core.security.path::is_within_boundary, is_dangerous_path, is_blocked_device_path
 - core.security.detection.pii_classifier::classify_content
 
 [OUTPUT]
@@ -37,7 +37,7 @@ from myrm_agent_harness.core.security.guards.privacy_tracker import (
     get_privacy_policy,
     get_privacy_tracker,
 )
-from myrm_agent_harness.core.security.path_security import (
+from myrm_agent_harness.core.security.path import (
     is_blocked_device_path,
     is_dangerous_path,
     is_within_boundary,

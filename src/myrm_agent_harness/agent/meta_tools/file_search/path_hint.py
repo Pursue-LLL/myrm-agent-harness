@@ -19,7 +19,7 @@ import unicodedata
 from difflib import SequenceMatcher, get_close_matches
 from pathlib import Path
 
-from myrm_agent_harness.core.security.path_security import is_blocked_device_path
+from myrm_agent_harness.core.security.path import is_blocked_device_path
 
 _QUOTE_STRIP_RE = re.compile(r"^[\s\"'“”‘’`]+|[\s\"'“”‘’`]+$")
 _SLASH_COLLAPSE_RE = re.compile(r"[\\/]+")

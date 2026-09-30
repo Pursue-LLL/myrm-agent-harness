@@ -1,10 +1,10 @@
 """Cloud sandbox privacy fail-closed ladder validator.
 
 [INPUT]
-- myrm_agent_harness.core.security.path_security::is_sensitive_file (POS: Sensitive file patterns check)
-- myrm_agent_harness.core.security.path_security::is_within_boundary (POS: Symlink-immune workspace boundary check)
-- myrm_agent_harness.core.security.path_security::is_dangerous_path (POS: System dangerous roots check)
-- myrm_agent_harness.core.security.path_security::is_blocked_device_path (POS: Blocked device path check)
+- myrm_agent_harness.core.security.path::is_sensitive_file (POS: Sensitive file patterns check)
+- myrm_agent_harness.core.security.path::is_within_boundary (POS: Symlink-immune workspace boundary check)
+- myrm_agent_harness.core.security.path::is_dangerous_path (POS: System dangerous roots check)
+- myrm_agent_harness.core.security.path::is_blocked_device_path (POS: Blocked device path check)
 
 [OUTPUT]
 - PrivacyLadderLevel: Enum for ladder level (FILE_LEVEL, SESSION_LEVEL, WORKSPACE_LEVEL)
@@ -24,7 +24,7 @@ from enum import StrEnum
 from fnmatch import fnmatch
 from pathlib import Path
 
-from myrm_agent_harness.core.security.path_security import (
+from myrm_agent_harness.core.security.path import (
     is_blocked_device_path,
     is_dangerous_path,
     is_sensitive_file,

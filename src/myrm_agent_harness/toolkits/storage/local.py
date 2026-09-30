@@ -2,7 +2,7 @@
 
 
 [INPUT]
-- myrm_agent_harness.core.security.path_security::safe_join_path (POS: Path security checks)
+- myrm_agent_harness.core.security.path::safe_join_path (POS: Path security checks)
 - _fs_backend::BaseFileSystemBackend (POS: file system storage backend base class)
 - base::StorageError (POS: storage exception types)
 - pathlib::Path (POS: Python path library)
@@ -70,7 +70,7 @@ class LocalStorageBackend(BaseFileSystemBackend):
 
         使用 safe_join_path 确保路径安全，防止路径遍历、空字节和符号链接攻击。
         """
-        from myrm_agent_harness.core.security.path_security import safe_join_path
+        from myrm_agent_harness.core.security.path import safe_join_path
 
         full_key = self._get_full_key(key)
         normalized_key = Path(full_key).as_posix().lstrip("/")

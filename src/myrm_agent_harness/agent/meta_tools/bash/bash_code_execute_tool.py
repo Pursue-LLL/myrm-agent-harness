@@ -46,13 +46,15 @@ from myrm_agent_harness.agent.meta_tools.bash._executor.auto_yield import (
     should_auto_yield,
     wait_for_yield_window,
 )
+from myrm_agent_harness.agent.meta_tools.bash._security.path_guard import (
+    check_sensitive_paths,
+)
 from myrm_agent_harness.agent.meta_tools.bash._security.preflight_checks import (
     check_command_url_exfiltration,
     check_destructive_commands,
     check_install_packages,
     check_interactive_command,
     check_myrm_tools_import,
-    check_sensitive_paths,
     check_unquoted_background_ampersand,
 )
 from myrm_agent_harness.agent.meta_tools.bash._tool.background_listeners import (

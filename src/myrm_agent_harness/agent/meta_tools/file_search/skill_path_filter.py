@@ -25,7 +25,7 @@ from collections.abc import Sequence
 from langchain_core.runnables import RunnableConfig
 
 from myrm_agent_harness.agent.context_management.context import extract_context_from_runnable_config
-from myrm_agent_harness.core.security.path_security import is_within_boundary
+from myrm_agent_harness.core.security.path import is_within_boundary
 
 
 def normalize_path(path: str) -> str:

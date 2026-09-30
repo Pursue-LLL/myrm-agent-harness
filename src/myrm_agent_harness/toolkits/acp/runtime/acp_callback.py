@@ -22,7 +22,7 @@ import asyncio
 import logging
 from pathlib import Path
 
-from myrm_agent_harness.core.security.path_security import is_within_boundary
+from myrm_agent_harness.core.security.path import is_within_boundary
 from myrm_agent_harness.toolkits.acp.core.event_bus import EventBus
 from myrm_agent_harness.toolkits.acp.types import (
     PermissionDecision,

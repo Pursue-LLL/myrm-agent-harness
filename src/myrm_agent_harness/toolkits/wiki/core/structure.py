@@ -2,7 +2,7 @@
 
 [INPUT]
 - pathlib::Path (POS: standard library file path operations)
-- core.security.path_security::safe_join_path (POS: secure path resolution against traversal)
+- core.security.path::safe_join_path (POS: secure path resolution against traversal)
 - utils.markdown_frontmatter::parse_frontmatter (POS: robust frontmatter YAML parser)
 
 [OUTPUT]
@@ -18,7 +18,7 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
-from myrm_agent_harness.core.security.path_security import safe_join_path
+from myrm_agent_harness.core.security.path import safe_join_path
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer
