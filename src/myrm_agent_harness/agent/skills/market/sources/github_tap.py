@@ -133,7 +133,7 @@ class GitHubTapSkillSource:
         try:
             skills = await self._fetch_all_skills(force_refresh=False)
             for skill in skills:
-                if skill.skill_id == skill_id:
+                if skill.id == skill_id:
                     return skill
         except Exception as exc:
             logger.warning("Failed to get detail for %s from GitHub Tap: %s", skill_id, exc)
@@ -206,12 +206,13 @@ class GitHubTapSkillSource:
             install_url = f"{install_url}/tree/{self._ref}/{parent_dir}"
 
         return SkillSearchResult(
-            skill_id=skill_id,
+            id=skill_id,
             name=name,
             description=description,
             author=self._owner,
             source=self.source_name,
             install_url=install_url,
+            install_method="git",
             tags=tags,
             prerequisites=prereqs,
         )
