@@ -7,6 +7,9 @@
 [OUTPUT]
 - HistoricalTurnRefetchResult: Dataclass containing retrieved verbatim text or vault pointer
 - refetch_historical_turn: Pure functional targeted single-turn refetcher
+- RefetchHistoricalTurnInput: Pydantic schema for turn index parameter
+- RefetchHistoricalTurnTool: LangChain BaseTool for on-demand historical turn retrieval
+- create_refetch_historical_turn_tool: Factory function creating the tool bound to message history
 
 [POS]
 Harness framework layer context management. Allows the agent to pinpoint and
