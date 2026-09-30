@@ -37,7 +37,7 @@ Consumers:
 - toolkits/cron/runners.ShellJobRunner — pre-execution check
 
 [INPUT]
-- (none)
+- core.security.path.rules::PROTECTED_INSTRUCTION_PATTERNS (POS: Protected-path policy)
 
 [OUTPUT]
 - ThreatLevel: Severity level of a detected command threat.
@@ -501,10 +501,27 @@ def is_integration_mutation_command(command: str) -> bool:
     return any(pattern.search(normalized) for pattern, _desc in _integration_write_patterns_compiled())
 
 
-_PROTECTED_FILE_NAMES_RE = (
-    r"(?:AGENTS\.md|CLAUDE\.md|SOUL\.md|USER\.md|\.user\.md|MEMORY\.md|\.myrm\.md|myrm\.md|\.hermes\.md|"
-    r"HERMES\.md|\.cursorrules|\.clinerules|\.windsurfrules|copilot-instructions\.md)"
-)
+def _protected_path_alternation() -> str:
+    """Render the shared persona-protection rules as a shell-side path alternation.
+
+    The rule list lives in ``core.security.path`` so the file tools, the shell
+    pre-flight and this analyzer cannot drift apart. A rule of the form
+    ``**/name`` matches the file itself and ``**/dir/**`` matches everything
+    under a protected directory, so a directory rule contributes its prefix and
+    the alternation matches both the directory and its contents.
+    """
+    from myrm_agent_harness.core.security.path.rules import (
+        PROTECTED_INSTRUCTION_PATTERNS,
+    )
+
+    fragments: list[str] = []
+    for rule in PROTECTED_INSTRUCTION_PATTERNS:
+        body = rule[3:] if rule.startswith("**/") else rule
+        fragments.append(re.escape(body[:-3] if body.endswith("/**") else body))
+    return "(?:" + "|".join(fragments) + ")"
+
+
+_PROTECTED_FILE_NAMES_RE = _protected_path_alternation()
 
 _PROTECTED_INSTRUCTION_SHELL_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(

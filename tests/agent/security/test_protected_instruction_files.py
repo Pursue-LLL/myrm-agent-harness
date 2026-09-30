@@ -182,6 +182,33 @@ class TestShellCommandAnalyzerProtectedMutation:
     def test_safe_command_not_detected_as_mutation(self, safe_cmd: str) -> None:
         assert is_protected_instruction_mutation_command(safe_cmd) is False
 
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            "rm .cursor/rules/style.md",
+            "rm -rf .cursor/rules",
+            "mv .cursor/rules /tmp/stash",
+            "rm .myrm/rules/policy.md",
+            "rm -rf .myrm/rules",
+            "echo x > .cursor/rules/new.md",
+        ],
+    )
+    def test_directory_scoped_rule_is_detected(self, cmd: str) -> None:
+        """Rules that protect a whole directory cover the commands that empty it."""
+        assert is_protected_instruction_mutation_command(cmd) is True
+
+    @pytest.mark.parametrize(
+        "safe_cmd",
+        [
+            "ls .cursor",
+            "cat .claude/notes.md",
+            "rm -rf .github/workflows",
+            "rm src/cursor_rules.py",
+        ],
+    )
+    def test_neighbouring_paths_not_detected(self, safe_cmd: str) -> None:
+        assert is_protected_instruction_mutation_command(safe_cmd) is False
+
 
 class TestBatchProcessorAllowlistAndExemptionGuards:
     """Test batch approval workflow blocks allowlist bypass and permanent exemption."""

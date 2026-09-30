@@ -7,6 +7,7 @@ Mirrors `core.security.path.rules`.
 from myrm_agent_harness.core.security.path import (
     SENSITIVE_FILE_PATTERNS,
     is_evidence_readonly_file,
+    is_protected_instruction_file,
     is_sensitive_file,
 )
 
@@ -85,6 +86,33 @@ class TestIsEvidenceReadonlyFile:
     def test_similarly_named_paths_stay_writable(self) -> None:
         for path in ("my-evidence", "evidence_report.md", "src/evidence_handler.py"):
             assert is_evidence_readonly_file(path) is False, path
+
+
+class TestIsProtectedInstructionFile:
+    def test_named_instruction_files(self) -> None:
+        for path in ("AGENTS.md", "CLAUDE.md", "SOUL.md", ".cursorrules"):
+            assert is_protected_instruction_file(path) is True, path
+
+    def test_directory_scoped_rules_cover_directory_and_contents(self) -> None:
+        for path in (
+            ".cursor/rules",
+            ".cursor/rules/style.md",
+            "project/.myrm/rules",
+            "project/.myrm/rules/policy.md",
+            ".claude/CLAUDE.md",
+            ".github/copilot-instructions.md",
+        ):
+            assert is_protected_instruction_file(path) is True, path
+
+    def test_neighbouring_paths_are_not_protected(self) -> None:
+        for path in (
+            ".cursor",
+            ".myrm",
+            ".cursorrules.bak",
+            "src/cursor_rules.py",
+            ".github/workflows/ci.yml",
+        ):
+            assert is_protected_instruction_file(path) is False, path
 
 
 class TestSensitiveFilePatterns:
