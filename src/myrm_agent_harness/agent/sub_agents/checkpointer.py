@@ -32,8 +32,9 @@ Persistence & Resilience:
 - In test environments (PYTEST_CURRENT_TEST), defaults to an in-memory SQLite backend
   or isolated test directory to prevent state pollution.
 - Concurrency-hardened via SQLite WAL mode and busy_timeout.
+- Unwritable or read-only volume directories gracefully fall back to :memory:.
 
-Memory hygiene: delete_subagent_checkpoint() drops the thread once a subagent
+Memory hygiene: drop_subagent_checkpoint_if_terminal() drops the thread once a subagent
 reaches a terminal (non-approval) status. PENDING_APPROVAL threads are kept so
 the resume pass can restore them.
 """
