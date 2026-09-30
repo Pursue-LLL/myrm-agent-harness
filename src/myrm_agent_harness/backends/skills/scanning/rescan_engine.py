@@ -37,7 +37,10 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from myrm_agent_harness.backends.skills.scanning.ast_analyzer import AstScanFinding
+from myrm_agent_harness.backends.skills.scanning.ast_analyzer import (
+    AstScanFinding,
+    analyze_python_ast,
+)
 from myrm_agent_harness.backends.skills.scanning.dependency_extractor import (
     DeclaredDependency,
     extract_dependencies_from_files,

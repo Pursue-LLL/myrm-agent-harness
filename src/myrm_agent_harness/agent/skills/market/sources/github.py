@@ -20,12 +20,14 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
 import httpx
 import yaml
 
+from myrm_agent_harness.agent.skills.market.taps import TapSubscription
 from myrm_agent_harness.backends.skills.market_protocols import SkillSearchResult
 from myrm_agent_harness.infra.tls_compat import create_httpx_client
 
@@ -43,11 +45,15 @@ class GitHubSkillSource:
     搜索策略：query + "SKILL.md in:path" 确保结果包含 SKILL.md。
     """
 
-    def __init__(self, token: str | None = None, extra_taps: list[Any] | None = None):
+    def __init__(
+        self,
+        token: str | None = None,
+        extra_taps: Sequence[TapSubscription | Mapping[str, object]] | None = None,
+    ):
         self._token = token
         self._tap_source = None
         if extra_taps:
-            from myrm_agent_harness.agent.skills.market.taps import GitHubTapSource, TapSubscription
+            from myrm_agent_harness.agent.skills.market.taps import GitHubTapSource
 
             tap_subs = [t if isinstance(t, TapSubscription) else TapSubscription(**t) for t in extra_taps]
             self._tap_source = GitHubTapSource(tap_subs)
