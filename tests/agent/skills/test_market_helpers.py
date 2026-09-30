@@ -120,10 +120,13 @@ class TestFetchLobehubAsSkill:
     def test_non_200_raises(self) -> None:
         resp = MagicMock()
         resp.status_code = 404
-        with patch(
-            "myrm_agent_harness.core.security.http.secure_fetch.secure_get",
-            new=AsyncMock(return_value=resp),
-        ), pytest.raises(ValueError, match="fetch failed: HTTP 404"):
+        with (
+            patch(
+                "myrm_agent_harness.core.security.http.secure_fetch.secure_get",
+                new=AsyncMock(return_value=resp),
+            ),
+            pytest.raises(ValueError, match="fetch failed: HTTP 404"),
+        ):
             asyncio.run(fetch_lobehub_as_skill(self._detail()))
 
     def test_content_too_large_raises(self) -> None:
@@ -131,20 +134,26 @@ class TestFetchLobehubAsSkill:
             ContentTooLargeError,
         )
 
-        with patch(
-            "myrm_agent_harness.core.security.http.secure_fetch.secure_get",
-            new=AsyncMock(side_effect=ContentTooLargeError("too big")),
-        ), pytest.raises(ValueError, match="too large"):
+        with (
+            patch(
+                "myrm_agent_harness.core.security.http.secure_fetch.secure_get",
+                new=AsyncMock(side_effect=ContentTooLargeError("too big")),
+            ),
+            pytest.raises(ValueError, match="too large"),
+        ):
             asyncio.run(fetch_lobehub_as_skill(self._detail()))
 
     def test_invalid_json_root_raises(self) -> None:
         resp = MagicMock()
         resp.status_code = 200
         resp.json.return_value = ["not", "a", "dict"]
-        with patch(
-            "myrm_agent_harness.core.security.http.secure_fetch.secure_get",
-            new=AsyncMock(return_value=resp),
-        ), pytest.raises(ValueError, match="not a valid JSON object"):
+        with (
+            patch(
+                "myrm_agent_harness.core.security.http.secure_fetch.secure_get",
+                new=AsyncMock(return_value=resp),
+            ),
+            pytest.raises(ValueError, match="not a valid JSON object"),
+        ):
             asyncio.run(fetch_lobehub_as_skill(self._detail()))
 
     def test_meta_not_dict_falls_back_to_root(self) -> None:

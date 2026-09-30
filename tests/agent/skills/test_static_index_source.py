@@ -74,9 +74,7 @@ def sample_raw_entries() -> list[dict[str, object]]:
 
 class TestStaticIndexSkillSource:
     @pytest.mark.asyncio
-    async def test_search_with_preloaded_entries(
-        self, sample_raw_entries: list[dict[str, object]]
-    ) -> None:
+    async def test_search_with_preloaded_entries(self, sample_raw_entries: list[dict[str, object]]) -> None:
         source = StaticIndexSkillSource(preloaded_entries=sample_raw_entries)
         assert source.source_name == "static_index"
         assert source.total_indexed_skills == 3
@@ -107,9 +105,7 @@ class TestStaticIndexSkillSource:
         assert empty == []
 
     @pytest.mark.asyncio
-    async def test_get_detail(
-        self, sample_raw_entries: list[dict[str, object]]
-    ) -> None:
+    async def test_get_detail(self, sample_raw_entries: list[dict[str, object]]) -> None:
         source = StaticIndexSkillSource(preloaded_entries=sample_raw_entries)
 
         # Exact ID match
@@ -127,9 +123,7 @@ class TestStaticIndexSkillSource:
         assert await source.get_detail("unknown::item") is None
 
     @pytest.mark.asyncio
-    async def test_disk_cache_load_and_etag(
-        self, tmp_path: Path, sample_raw_entries: list[dict[str, object]]
-    ) -> None:
+    async def test_disk_cache_load_and_etag(self, tmp_path: Path, sample_raw_entries: list[dict[str, object]]) -> None:
         cache_dir = tmp_path / "cache"
         cache_dir.mkdir()
         cache_file = cache_dir / "skills-index.json.gz"
@@ -173,7 +167,9 @@ class TestStaticIndexSkillSource:
             request=httpx.Request("GET", "https://cdn.myrm.io/skills/skills-index.json.gz"),
         )
 
-        with patch("myrm_agent_harness.agent.skills.market.sources.static_index.create_httpx_client") as mock_client_factory:
+        with patch(
+            "myrm_agent_harness.agent.skills.market.sources.static_index.create_httpx_client"
+        ) as mock_client_factory:
             mock_client = AsyncMock()
             mock_client.get.return_value = mock_resp
             mock_client_factory.return_value.__aenter__.return_value = mock_client
@@ -208,7 +204,9 @@ class TestStaticIndexSkillSource:
             request=httpx.Request("GET", "https://cdn.myrm.io/skills/skills-index.json.gz"),
         )
 
-        with patch("myrm_agent_harness.agent.skills.market.sources.static_index.create_httpx_client") as mock_client_factory:
+        with patch(
+            "myrm_agent_harness.agent.skills.market.sources.static_index.create_httpx_client"
+        ) as mock_client_factory:
             mock_client = AsyncMock()
             mock_client.get.return_value = mock_resp
             mock_client_factory.return_value.__aenter__.return_value = mock_client
@@ -232,7 +230,9 @@ class TestStaticIndexSkillSource:
             ttl_seconds=0.0,
         )
 
-        with patch("myrm_agent_harness.agent.skills.market.sources.static_index.create_httpx_client") as mock_client_factory:
+        with patch(
+            "myrm_agent_harness.agent.skills.market.sources.static_index.create_httpx_client"
+        ) as mock_client_factory:
             mock_client = AsyncMock()
             mock_client.get.side_effect = httpx.ConnectTimeout("Connection timed out")
             mock_client_factory.return_value.__aenter__.return_value = mock_client
@@ -244,14 +244,10 @@ class TestStaticIndexSkillSource:
 
 class TestMarketServiceIntegration:
     @pytest.mark.asyncio
-    async def test_market_service_aggregates_static_index(
-        self, sample_raw_entries: list[dict[str, object]]
-    ) -> None:
+    async def test_market_service_aggregates_static_index(self, sample_raw_entries: list[dict[str, object]]) -> None:
         service = BaseSkillMarketService()
         # Find static index source
-        static_src = next(
-            s for s in service._sources if s.source_name == "static_index"
-        )
+        static_src = next(s for s in service._sources if s.source_name == "static_index")
         assert isinstance(static_src, StaticIndexSkillSource)
         # Preload entries into static source
         static_src._load_from_raw_dicts(sample_raw_entries)

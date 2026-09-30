@@ -164,9 +164,8 @@ class GitHubTapSkillSource:
         for item in tree:
             if item.get("type") == "blob":
                 path = item.get("path", "")
-                if path.endswith("SKILL.md"):
-                    if not prefix or path.startswith(prefix):
-                        skill_files.append(path)
+                if path.endswith("SKILL.md") and (not prefix or path.startswith(prefix)):
+                    skill_files.append(path)
 
         results: list[SkillSearchResult] = []
         for path in skill_files:

@@ -411,7 +411,6 @@ class TestIdleIntegration:
         assert not (tmp_path / "skills_evil").exists()
         assert not (tmp_path / "outside.txt").exists()
 
-
     def test_task_type_constant(self) -> None:
         from myrm_agent_harness.agent.skills.sync.idle_integration import SKILL_SYNC_TASK_TYPE
 

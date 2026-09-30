@@ -40,7 +40,6 @@ from myrm_agent_harness.backends.skills.market_protocols import (
 )
 from myrm_agent_harness.backends.skills.scanning import (
     ScanFinding,
-    SkillTrustRecommendation,
     compute_scan_summary,
 )
 from myrm_agent_harness.backends.skills.scanning.archive_security import (

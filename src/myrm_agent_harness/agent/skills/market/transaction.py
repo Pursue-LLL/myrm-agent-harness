@@ -167,15 +167,17 @@ class SkillInstallTransaction:
 
     def stage_replace(self, source_dir: Path, target_dir: Path) -> None:
         """Stage an atomic directory replacement by taking a snapshot backup of existing target."""
-        target_dir = target_dir.resolve()
-        source_dir = source_dir.resolve()
-
         # Category bucket collision and junction safety validation
         from myrm_agent_harness.backends.skills.scanning.path_security import (
             assert_safe_install_target,
         )
 
+        # 守卫必须在 resolve() 之前执行：resolve 会跟随符号链接，
+        # 使 is_path_redirect 永远看不到链接本身而形同虚设
         assert_safe_install_target(target_dir)
+
+        target_dir = target_dir.resolve()
+        source_dir = source_dir.resolve()
 
         backup_temp: Path | None = None
         if target_dir.exists():

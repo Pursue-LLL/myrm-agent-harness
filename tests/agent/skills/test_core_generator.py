@@ -405,7 +405,16 @@ class TestResolveDescriptionPriority:
     """_resolve_description priority: user > instructions > auto-generated."""
 
     def test_user_description_wins(self, generator: MCPSkillGenerator) -> None:
-        assert generator._resolve_description("user desc", "instr", [], "srv") == "user desc"
+        # 用户描述优先；缺少触发语时会自动补一条引导语（见 _TRIGGER_HINT）
+        desc = generator._resolve_description("user desc", "instr", [], "srv")
+        assert desc.startswith("user desc")
+        assert "instr" not in desc.replace("本技能", "")
+        assert "必须首先选择本技能" in desc
+
+    def test_user_description_keeps_existing_trigger_phrase(self, generator: MCPSkillGenerator) -> None:
+        desc = generator._resolve_description("Use when handling tickets", "instr", [], "srv")
+        assert desc == "Use when handling tickets"
+        assert desc.count("必须首先选择本技能") == 0
 
     def test_instructions_fallback_cleans_markdown(self, generator: MCPSkillGenerator) -> None:
         desc = generator._resolve_description("", "**Hello** world.\n\nExtra", [], "srv")
@@ -424,7 +433,9 @@ class TestResolveDescriptionPriority:
 
         tools = [SimpleNamespace(description=""), SimpleNamespace(description="")]
         desc = generator._resolve_description("", None, tools, "my-server")
-        assert desc == "My Server (2 tools available)"
+        # 工具无描述时回退为 "Server (N tools available)"，并补触发引导语
+        assert desc.startswith("My Server (2 tools available)")
+        assert "选择本技能" in desc
 
     def test_auto_generated_more_than_three(self, generator: MCPSkillGenerator) -> None:
         from types import SimpleNamespace

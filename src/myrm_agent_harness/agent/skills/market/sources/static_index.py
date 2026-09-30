@@ -119,10 +119,9 @@ class StaticIndexSkillSource:
         if self._is_loaded and (time.time() - self._last_synced_at < self._ttl_seconds):
             return
 
-        if not self._is_loaded:
-            # 1. Try loading from local disk cache snapshot first
-            if self._load_from_disk_cache():
-                self._is_loaded = True
+        # 1. Try loading from local disk cache snapshot first
+        if not self._is_loaded and self._load_from_disk_cache():
+            self._is_loaded = True
 
         # 2. If TTL expired or not yet synced, attempt background remote sync
         now = time.time()
@@ -205,10 +204,13 @@ class StaticIndexSkillSource:
                         items: list[dict[str, Any]] | None = None
                         if isinstance(data, list):
                             items = data
-                        elif isinstance(data, dict):
-                            raw_items = data.get("skills") or data.get("items") or []
-                            if isinstance(raw_items, list):
-                                items = raw_items
+                        elif isinstance(data, dict) and ("skills" in data or "items" in data):
+                            # 必须显式声明条目数组才可采纳；缺键或类型错误视为不可用载荷，
+                            # 否则一次坏响应就会用空索引覆盖本地镜像。显式空数组是合法空索引，
+                            # 因此按键存在性取值而非用 `or` 链（后者会吞掉空列表）。
+                            candidate = data["skills"] if "skills" in data else data["items"]
+                            if isinstance(candidate, list):
+                                items = candidate
 
                         if items is not None:
                             self._load_from_raw_dicts(items)

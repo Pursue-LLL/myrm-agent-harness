@@ -67,9 +67,7 @@ def sample_raw_entries() -> list[dict[str, object]]:
 
 
 @pytest.mark.asyncio
-async def test_static_index_preloaded_search(
-    sample_raw_entries: list[dict[str, object]]
-) -> None:
+async def test_static_index_preloaded_search(sample_raw_entries: list[dict[str, object]]) -> None:
     source = StaticIndexSkillSource(preloaded_entries=sample_raw_entries)
     assert source.source_name == "static_index"
     assert source.total_indexed_skills == 3
@@ -90,9 +88,7 @@ async def test_static_index_preloaded_search(
 
 
 @pytest.mark.asyncio
-async def test_static_index_get_detail(
-    sample_raw_entries: list[dict[str, object]]
-) -> None:
+async def test_static_index_get_detail(sample_raw_entries: list[dict[str, object]]) -> None:
     source = StaticIndexSkillSource(preloaded_entries=sample_raw_entries)
 
     detail = await source.get_detail("pdf-extractor")

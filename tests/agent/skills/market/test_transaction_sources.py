@@ -199,16 +199,33 @@ class TestTransaction:
 
         assert (target / "SKILL.md").read_bytes() == b"new"
 
-    def test_stage_resolves_symlink_to_its_target(self, tmp_path: Path) -> None:
-        """stage_replace 先 resolve()，因此符号链接目标才是实际写入位置。"""
+    def test_stage_rejects_symlink_target(self, tmp_path: Path) -> None:
+        """守卫在 resolve() 之前执行，故符号链接目标被拒绝而非被静默跟随。"""
+        from myrm_agent_harness.backends.skills.scanning.path_security import (
+            PathRedirectSecurityError,
+        )
+
         source = _make_dir(tmp_path / "src", "s", b"new")
         real = _make_dir(tmp_path / "real", "skill", b"old")
         link = tmp_path / "link"
         link.symlink_to(real, target_is_directory=True)
 
-        SkillInstallTransaction().stage_replace(source, link)
+        with pytest.raises(PathRedirectSecurityError):
+            SkillInstallTransaction().stage_replace(source, link)
 
-        assert (real / "SKILL.md").read_bytes() == b"new"
+        assert (real / "SKILL.md").read_bytes() == b"old"
+
+    def test_symlinked_parent_directory_is_allowed(self, tmp_path: Path) -> None:
+        """只有最终目标自身是链接才拒绝；父目录为链接（常见磁盘外挂）不受影响。"""
+        source = _make_dir(tmp_path / "src", "s", b"new")
+        real_root = tmp_path / "real-root"
+        real_root.mkdir()
+        linked_root = tmp_path / "linked-root"
+        linked_root.symlink_to(real_root, target_is_directory=True)
+
+        SkillInstallTransaction().stage_replace(source, linked_root / "skill")
+
+        assert (real_root / "skill" / "SKILL.md").read_bytes() == b"new"
 
     def test_rollback_skips_already_removed_created_dirs(self, tmp_path: Path) -> None:
         import shutil

@@ -158,6 +158,34 @@ class TestGitHubRefUrlParsing:
         ref = parse_github_url("https://github.com/acme/tools/tree/main/skills/pdf")
         assert ref.subdirectory == "skills/pdf"
 
+    @pytest.mark.parametrize(
+        ("url", "ref", "subdir"),
+        [
+            ("acme/tools/tree/v2", "v2", None),
+            ("acme/tools/tree/main/skills/pdf", "main", "skills/pdf"),
+            ("acme/tools/blob/v2/SKILL.md", "v2", "SKILL.md"),
+        ],
+    )
+    def test_parses_shorthand_tree_forms(self, url: str, ref: str, subdir: str | None) -> None:
+        from myrm_agent_harness.agent.skills.market.sources.github import parse_github_url
+
+        parsed = parse_github_url(url)
+        assert parsed.ref == ref
+        assert parsed.subdirectory == subdir
+
+    def test_shorthand_tree_rejects_traversal(self) -> None:
+        from myrm_agent_harness.agent.skills.market.sources.github import parse_github_url
+
+        with pytest.raises(ValueError, match="traversal"):
+            parse_github_url("acme/tools/tree/main/../etc")
+
+    def test_shorthand_subdirectory_without_tree_still_works(self) -> None:
+        from myrm_agent_harness.agent.skills.market.sources.github import parse_github_url
+
+        parsed = parse_github_url("acme/tools/skills/pdf")
+        assert parsed.ref is None
+        assert parsed.subdirectory == "skills/pdf"
+
     def test_parses_shorthand_with_subdirectory(self) -> None:
         from myrm_agent_harness.agent.skills.market.sources.github import parse_github_url
 

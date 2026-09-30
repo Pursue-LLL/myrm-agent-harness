@@ -548,10 +548,29 @@ class TestStaticIndexCacheAndSync:
 
     @pytest.mark.asyncio
     @respx.mock
-    async def test_unrecognized_payload_is_treated_as_empty_index(self, tmp_path: Path) -> None:
-        """已知行为：缺少 skills/items 的对象按“空索引”接受，会覆盖本地镜像。"""
+    async def test_unrecognized_payload_keeps_local_mirror(self, tmp_path: Path) -> None:
+        """缺少 skills/items 键的响应不可采纳，否则坏载荷会清空本地镜像。"""
         for url in (INDEX_URL, *DEFAULT_MIRROR_URLS):
             respx.get(url).mock(return_value=httpx.Response(200, content=json.dumps({"nope": 1}).encode()))
+        source = _source(tmp_path, preloaded_entries=[{"id": "a", "name": "A"}])
+        assert await source.force_refresh() is False
+        assert source.total_indexed_skills == 1
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_wrong_items_type_keeps_local_mirror(self, tmp_path: Path) -> None:
+        for url in (INDEX_URL, *DEFAULT_MIRROR_URLS):
+            respx.get(url).mock(return_value=httpx.Response(200, content=json.dumps({"skills": "nope"}).encode()))
+        source = _source(tmp_path, preloaded_entries=[{"id": "a", "name": "A"}])
+        assert await source.force_refresh() is False
+        assert source.total_indexed_skills == 1
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_explicit_empty_index_is_accepted(self, tmp_path: Path) -> None:
+        """显式声明 skills: [] 视为合法空索引。"""
+        for url in (INDEX_URL, *DEFAULT_MIRROR_URLS):
+            respx.get(url).mock(return_value=httpx.Response(200, content=json.dumps({"skills": []}).encode()))
         source = _source(tmp_path, preloaded_entries=[{"id": "a", "name": "A"}])
         assert await source.force_refresh() is True
         assert source.total_indexed_skills == 0

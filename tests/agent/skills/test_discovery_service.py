@@ -1125,6 +1125,7 @@ class TestAgentPluginMarketDiscoveryAndInstall:
 
             # Now test cascade uninstall: uninstalling dev-bundle should clean dev-bundle, reviewer, and tester
             from myrm_agent_harness.backends.skills.local_skill_id import local_skill_id_from_path
+
             dev_bundle_id = local_skill_id_from_path(tmp_path / "dev-bundle")
             un_res = await svc.uninstall(dev_bundle_id)
             assert un_res.success is True
@@ -1188,5 +1189,3 @@ class TestAgentPluginMarketDiscoveryAndInstall:
             assert install_res.declared_mcp_servers == ["sqlite-srv"]
             assert (tmp_path / "db-tools" / "plugin.json").exists()
             assert (tmp_path / "db-query" / "SKILL.md").exists()
-
-

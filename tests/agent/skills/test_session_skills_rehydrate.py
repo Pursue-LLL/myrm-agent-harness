@@ -281,5 +281,3 @@ def test_collect_loaded_skill_names_with_reordered_entry_tags() -> None:
 
     loaded = collect_loaded_skill_names_from_messages(messages)
     assert loaded == ["second_skill"]
-
-

@@ -254,6 +254,12 @@ _GITHUB_TREE_RE = re.compile(
 
 _SHORT_RE = re.compile(r"^(?P<owner>[A-Za-z0-9\-_.]+)/(?P<repo>[A-Za-z0-9\-_.]+)(?:/(?P<path>.+))?$")
 
+# 简写形式的 tree/blob：与完整 URL 语义对齐，tree/blob 为 GitHub 保留段
+_SHORT_REF_RE = re.compile(
+    r"^(?P<owner>[A-Za-z0-9\-_.]+)/(?P<repo>[A-Za-z0-9\-_.]+)/"
+    r"(?:tree|blob)/(?P<ref>[^/]+)(?:/(?P<path>.+))?$"
+)
+
 
 @dataclass(frozen=True)
 class GitHubRef:
@@ -308,7 +314,17 @@ def parse_github_url(url: str) -> GitHubRef:
     if parsed.scheme in ("http", "https"):
         raise ValueError(f"Only github.com URLs are supported, got: {parsed.netloc}")
 
-    # Short format: owner/repo or owner/repo/path
+    # Short format: owner/repo, owner/repo/tree/<ref>[/<path>], or owner/repo/<subdir>
+    m = _SHORT_REF_RE.match(raw)
+    if m:
+        subdir = _sanitize_path(m.group("path"))
+        return GitHubRef(
+            owner=m.group("owner"),
+            repo=m.group("repo"),
+            ref=m.group("ref"),
+            subdirectory=subdir,
+        )
+
     m = _SHORT_RE.match(raw)
     if m:
         subdir = _sanitize_path(m.group("path"))

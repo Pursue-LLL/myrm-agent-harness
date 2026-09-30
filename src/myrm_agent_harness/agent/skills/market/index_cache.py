@@ -137,7 +137,6 @@ class SkillsIndexCache:
         for r in self._in_memory_records:
             score = 0
             name_lower = r.name.lower()
-            desc_lower = r.description.lower()
 
             # Exact match bonus
             if q == name_lower:
