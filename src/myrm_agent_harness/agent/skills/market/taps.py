@@ -24,6 +24,8 @@ import time
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+import httpx
+
 from myrm_agent_harness.backends.skills.market_protocols import SkillSearchResult
 from myrm_agent_harness.infra.tls_compat import create_httpx_client
 
@@ -156,7 +158,7 @@ class TapDirectoryScanner:
                 self._cache.commit_sha = sha
                 return results
 
-        except (TimeoutError, OSError, ValueError, KeyError, TypeError) as exc:
+        except (httpx.HTTPError, TimeoutError, OSError, ValueError, KeyError, TypeError) as exc:
             logger.warning("Tap %s scan failed (%s): %s", canonical_repo, type(exc).__name__, exc)
             return self._cache.skills
 
