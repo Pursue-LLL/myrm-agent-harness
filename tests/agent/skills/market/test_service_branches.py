@@ -557,3 +557,58 @@ class TestQuarantineInstallBranches:
 
         assert result.success is True
         assert result.scan_summary
+
+
+class TestUnsafeInstallTarget:
+    @pytest.mark.asyncio
+    async def test_symlinked_target_is_rejected_cleanly(
+        self,
+        service: BaseSkillMarketService,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """安装目标是符号链接时返回结构化失败，而不是抛出 500。"""
+        import myrm_agent_harness.agent.skills.market.service as service_mod
+
+        install_dir = tmp_path / "skills"
+        install_dir.mkdir()
+        real = install_dir / "real"
+        real.mkdir()
+        (real / "keep.txt").write_text("original")
+        (install_dir / "pdf").symlink_to(real, target_is_directory=True)
+        monkeypatch.setattr(service_mod, "LOCAL_INSTALL_DIR", install_dir)
+        monkeypatch.setattr(service_mod, "write_receipt_file", lambda *a, **k: None)
+
+        result = await service._quarantine_install("acme/skills/pdf", "pdf", {"SKILL.md": _skill_md()}, source="github")
+
+        assert result.success is False
+        assert result.error_code == "PATH_REDIRECT_ATTACK"
+        assert (real / "keep.txt").read_text() == "original"
+
+    @pytest.mark.asyncio
+    async def test_rejection_emits_progress_stage(
+        self,
+        service: BaseSkillMarketService,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        import myrm_agent_harness.agent.skills.market.service as service_mod
+
+        install_dir = tmp_path / "skills"
+        install_dir.mkdir()
+        real = install_dir / "real"
+        real.mkdir()
+        (install_dir / "pdf").symlink_to(real, target_is_directory=True)
+        monkeypatch.setattr(service_mod, "LOCAL_INSTALL_DIR", install_dir)
+        monkeypatch.setattr(service_mod, "write_receipt_file", lambda *a, **k: None)
+        stages: list[tuple[str, str]] = []
+
+        await service._quarantine_install(
+            "acme/skills/pdf",
+            "pdf",
+            {"SKILL.md": _skill_md()},
+            source="github",
+            progress_callback=lambda _sid, stage, _msg: stages.append((stage, _msg)),  # type: ignore[arg-type]
+        )
+
+        assert any(stage == "rejected" for stage, _ in stages)

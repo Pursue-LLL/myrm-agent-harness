@@ -49,6 +49,10 @@ from myrm_agent_harness.backends.skills.scanning.archive_security import (
 from myrm_agent_harness.backends.skills.scanning.package_audit import (
     check_lifecycle_scripts,
 )
+from myrm_agent_harness.backends.skills.scanning.path_security import (
+    CategoryBucketCollisionError,
+    PathRedirectSecurityError,
+)
 from myrm_agent_harness.backends.skills.versioning import (
     SkillDowngradeBlockedError,
     compare_versions,
@@ -769,6 +773,18 @@ class BaseSkillMarketService:
                 installed_skills=installed_skills or [name],
                 declared_mcp_servers=declared_mcp_servers,
                 receipt=receipt,
+            )
+        except (CategoryBucketCollisionError, PathRedirectSecurityError) as exc:
+            # 安装目标是符号链接/分类桶等不安全路径：属于可预期的安全拒绝，
+            # 转成结构化失败结果，避免调用方收到不透明的 500
+            resolved_error, error_code = _resolve_install_error(exc)
+            logger.warning("Skill '%s' install target rejected: %s", name, resolved_error)
+            _emit("rejected", resolved_error)
+            return SkillInstallResult(
+                success=False,
+                skill_name=name,
+                error=resolved_error,
+                error_code=error_code,
             )
         finally:
             if quarantine_dir.exists():
