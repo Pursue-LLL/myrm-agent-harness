@@ -85,7 +85,8 @@ class TapDirectoryScanner:
 
     async def scan_skills(self, force_refresh: bool = False) -> list[SkillSearchResult]:
         now = time.monotonic()
-        if not force_refresh and self._cache.skills and (now - self._cache.cached_at < TAP_CACHE_TTL_SEC):
+        # 缓存有效性由 cached_at 判定：空结果同样需要命中，否则空 tap 会反复请求 API
+        if not force_refresh and self._cache.cached_at and (now - self._cache.cached_at < TAP_CACHE_TTL_SEC):
             return self._cache.skills
 
         canonical_repo = self.tap.get_canonical_name()
