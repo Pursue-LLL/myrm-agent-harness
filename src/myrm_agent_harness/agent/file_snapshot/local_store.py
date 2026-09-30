@@ -3,8 +3,16 @@
 Provides workspace file versioning using file-copy snapshots with a JSON manifest.
 Snapshots are stored in {MYRM_DATA_DIR}/file_snapshots/local/{workspace_hash}/{snapshot_id}/.
 
+[INPUT]
+- core.security.path::is_sensitive_file (POS: path security domain)
+
+[OUTPUT]
+LocalFileSnapshotStore: file-copy snapshot store whose copy loop and diff walk both
+skip credential paths, so a snapshot never carries secrets out of the workspace.
+
 [POS]
-Local filesystem-based file snapshot store.
+Local filesystem-based file snapshot store. Copies the workspace excluding
+configured directories, oversized files and credential paths.
 """
 
 from __future__ import annotations
@@ -18,6 +26,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from myrm_agent_harness.core.security.path import is_sensitive_file
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from .types import (
@@ -143,6 +152,13 @@ class LocalFileSnapshotStore:
                     src = Path(root) / filename
                     rel_path = src.relative_to(workspace)
 
+                    # Credentials never enter a snapshot: they would be copied out
+                    # of the workspace into snapshot storage on every turn, and a
+                    # snapshot is a copy of the whole tree rather than of the one
+                    # file a guard was asked about.
+                    if is_sensitive_file(str(rel_path)):
+                        continue
+
                     # Skip large files
                     try:
                         if src.stat().st_size > _MAX_FILE_SIZE:
@@ -233,7 +249,7 @@ class LocalFileSnapshotStore:
         target_files = set(files) if files else None
 
         try:
-            for rel_path_str, _file_meta in manifest.get("files", {}).items():  # type: ignore[assignment]
+            for rel_path_str, _file_meta in manifest["files"].items():
                 if target_files and rel_path_str not in target_files:
                     continue
 
@@ -287,7 +303,7 @@ class LocalFileSnapshotStore:
         working_dir = Path(manifest["working_dir"])
         changes: list[FileChange] = []
 
-        snapshot_files: dict[str, dict] = manifest.get("files", {})  # type: ignore[assignment]
+        snapshot_files: dict[str, dict[str, Any]] = manifest["files"]
 
         # Check files in snapshot
         for rel_path_str, file_meta in snapshot_files.items():
@@ -317,6 +333,8 @@ class LocalFileSnapshotStore:
             for filename in files:
                 src = Path(root) / filename
                 rel_path = str(src.relative_to(working_dir))
+                if is_sensitive_file(rel_path):
+                    continue
                 if rel_path not in snapshot_files:
                     changes.append(
                         FileChange(

@@ -6,7 +6,7 @@ prior to workspace snapshotting, file mutations, or cloud persistence commits.
 [INPUT]
 - core.security.types::SensitivityLevel, PrivacyPolicy
 - core.security.guards.privacy_tracker::get_privacy_policy, get_privacy_tracker
-- core.security.path::is_within_boundary, is_dangerous_path, is_blocked_device_path
+- core.security.path::SENSITIVE_FILE_PATTERNS, is_within_boundary, is_dangerous_path, is_blocked_device_path
 - core.security.detection.pii_classifier::classify_content
 
 [OUTPUT]
@@ -38,6 +38,7 @@ from myrm_agent_harness.core.security.guards.privacy_tracker import (
     get_privacy_tracker,
 )
 from myrm_agent_harness.core.security.path import (
+    SENSITIVE_FILE_PATTERNS,
     is_blocked_device_path,
     is_dangerous_path,
     is_within_boundary,
@@ -82,13 +83,7 @@ class PrivacyScope:
     allowed_extra_roots: tuple[str, ...] = ()
     max_allowed_sensitivity: SensitivityLevel = SensitivityLevel.S3
     allow_s3_persistence: bool = False
-    restricted_patterns: tuple[str, ...] = (
-        ".git/config",
-        "*.pem",
-        "*.key",
-        "id_rsa",
-        "id_ed25519",
-    )
+    restricted_patterns: tuple[str, ...] = SENSITIVE_FILE_PATTERNS
 
 
 @dataclass(frozen=True, slots=True)

@@ -403,3 +403,64 @@ def test_find_snapshot_dir_skips_non_dir_entries(store: LocalFileSnapshotStore):
     """Non-directory entries under storage root are skipped during lookup."""
     (store._storage_path / "stray.txt").write_text("x")
     assert store._find_snapshot_dir("fs_whatever") is None
+
+
+# ------------------------------------------------------------------
+# Credential exclusion
+# ------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "name",
+    [
+        ".env",
+        ".env.production",
+        "secrets.json",
+        "app.db",
+        "id_rsa",
+        "key.pem",
+        "config/id_ed25519",
+    ],
+)
+async def test_snapshot_excludes_credential_files(
+    store: LocalFileSnapshotStore, workspace: Path, name: str
+):
+    """A snapshot copies the tree, so a credential in it would be copied out too."""
+    target = workspace / name
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("DB_URL=postgres://real:pw@host/db\n")
+
+    snapshot_id = await store.take_snapshot(
+        working_dir=str(workspace), trigger=SnapshotTrigger.MANUAL
+    )
+
+    files_dir = store._snapshot_dir(str(workspace), snapshot_id) / "files"
+    copied = {str(p.relative_to(files_dir)) for p in files_dir.rglob("*") if p.is_file()}
+    assert name not in copied
+    assert name not in json.loads((store._snapshot_dir(str(workspace), snapshot_id) / "manifest.json").read_text())["files"]
+
+
+@pytest.mark.asyncio
+async def test_snapshot_keeps_ordinary_files(store: LocalFileSnapshotStore, workspace: Path):
+    snapshot_id = await store.take_snapshot(
+        working_dir=str(workspace), trigger=SnapshotTrigger.MANUAL
+    )
+    files_dir = store._snapshot_dir(str(workspace), snapshot_id) / "files"
+    copied = {str(p.relative_to(files_dir)) for p in files_dir.rglob("*") if p.is_file()}
+    assert {"main.py", "docs/readme.txt"} <= copied
+
+
+@pytest.mark.asyncio
+async def test_diff_does_not_report_credentials_as_added(
+    store: LocalFileSnapshotStore, workspace: Path
+):
+    """A credential is never in the snapshot, so it must not read as a new file."""
+    (workspace / ".env").write_text("DB_URL=postgres://real:pw@host/db\n")
+    snapshot_id = await store.take_snapshot(
+        working_dir=str(workspace), trigger=SnapshotTrigger.MANUAL
+    )
+
+    diff = await store.diff(snapshot_id)
+
+    assert ".env" not in {c.path for c in diff.changes}

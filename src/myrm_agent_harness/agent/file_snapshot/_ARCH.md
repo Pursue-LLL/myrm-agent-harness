@@ -12,7 +12,7 @@ Workspace file versioning and rollback subsystem. Provides transparent file-leve
 | protocols.py | Protocol | FileSnapshotProtocol — runtime_checkable Protocol for snapshot operations. | ✅ |
 | shadow_git_store.py | Implementation | ShadowGitSnapshotStore — shared bare repo with env-variable isolation (GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE). Preferred. | ✅ |
 | shadow_git_maintenance.py | Mixin | ShadowGitMaintenance — auto-pruning, orphan detection, repair, oversized workspace validation, project-commit lookup. | ✅ |
-| local_store.py | Implementation | LocalFileSnapshotStore — file copy + JSON manifest. Fallback when git is absent. | ✅ |
+| local_store.py | Implementation | LocalFileSnapshotStore — file copy + JSON manifest. Fallback when git is absent. The copy walk and the diff walk both skip credential paths via `core.security.path::is_sensitive_file`, so a snapshot never carries a secret out of the workspace and a credential does not read as a newly added file. | ✅ |
 | factory.py | Factory | create_file_snapshot_store() — auto-selects Shadow Git or Local File based on git availability. | ✅ |
 | restore_inbox.py | Notification | In-process deque inbox. Server pushes restore events; agent_runtime drains them as HumanMessage on next turn. | ✅ |
 | sealed_io.py | Core I/O | Atomic write (temp+fsync+replace), SHA-256 integrity sealing, and .corrupted/ quarantine isolation. | ✅ |
