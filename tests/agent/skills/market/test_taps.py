@@ -14,6 +14,7 @@ myrm-agent-harness/tests/agent/skills/market/test_taps.py
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from myrm_agent_harness.agent.skills.market.sources.github import GitHubSkillSource
@@ -129,3 +130,92 @@ async def test_github_skill_source_with_extra_taps() -> None:
             assert len(results) == 1
             assert results[0].name == "unique-tap-skill"
             assert results[0].source == "github-tap"
+
+
+def test_github_skill_source_accepts_tap_mapping() -> None:
+    """A tap given as a plain mapping is normalised into a TapSubscription."""
+    source = GitHubSkillSource(
+        token=None,
+        extra_taps=[{"repo": "myorg/skills-repo", "path": "skills/"}],
+    )
+    taps = source._tap_source._taps
+    assert set(taps) == {"myorg/skills-repo"}
+
+
+def test_github_skill_source_without_taps_has_no_tap_source() -> None:
+    source = GitHubSkillSource(token=None)
+    assert source._tap_source is None
+
+
+@pytest.mark.asyncio
+async def test_scan_skills_degrades_on_httpx_error() -> None:
+    """Network failures keep the cached-result fallback rather than raising."""
+    scanner = TapDirectoryScanner(TapSubscription(repo="myorg/skills-repo"))
+    boom = httpx.ConnectError("network down")
+
+    with patch("myrm_agent_harness.agent.skills.market.taps.create_httpx_client") as client_cls:
+        client = AsyncMock()
+        client.get.side_effect = boom
+        client.__aenter__.return_value = client
+        client_cls.return_value = client
+
+        assert await scanner.scan_skills(force_refresh=True) == []
+
+
+@pytest.mark.asyncio
+async def test_scan_skills_degrades_on_contract_error() -> None:
+    """A malformed payload is a data error, so it degrades instead of raising."""
+    scanner = TapDirectoryScanner(TapSubscription(repo="myorg/skills-repo"))
+
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.json.return_value = {"tree": [{"path": "skills/a/SKILL.md", "type": "blob"}], "sha": "s"}
+
+    with patch("myrm_agent_harness.agent.skills.market.taps.create_httpx_client") as client_cls:
+        client = AsyncMock()
+        client.get.return_value = resp
+        client.__aenter__.return_value = client
+        client_cls.return_value = client
+
+        # Constructing a result from a malformed item raises TypeError.
+        resp.json.return_value = {
+            "tree": [{"path": "skills/a/SKILL.md", "type": "blob"}],
+            "sha": "s",
+        }
+
+        with patch(
+            "myrm_agent_harness.agent.skills.market.taps.SkillSearchResult",
+            side_effect=TypeError("bad payload"),
+        ):
+            assert await scanner.scan_skills(force_refresh=True) == []
+
+
+@pytest.mark.asyncio
+async def test_scan_skills_propagates_unexpected_error() -> None:
+    """Programming errors are not disguised as an empty catalog."""
+    scanner = TapDirectoryScanner(TapSubscription(repo="myorg/skills-repo"))
+
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.json.return_value = {"tree": [{"path": "skills/a/SKILL.md", "type": "blob"}], "sha": "s"}
+
+    with patch("myrm_agent_harness.agent.skills.market.taps.create_httpx_client") as client_cls:
+        client = AsyncMock()
+        client.get.return_value = resp
+        client.__aenter__.return_value = client
+        client_cls.return_value = client
+
+        # An unexpected error class must surface instead of faking an empty catalog.
+        resp.json.return_value = {
+            "tree": [{"path": "skills/a/SKILL.md", "type": "blob"}],
+            "sha": "s",
+        }
+
+        with (
+            patch(
+                "myrm_agent_harness.agent.skills.market.taps.SkillSearchResult",
+                side_effect=RuntimeError("genuine bug"),
+            ),
+            pytest.raises(RuntimeError, match="genuine bug"),
+        ):
+            await scanner.scan_skills(force_refresh=True)
