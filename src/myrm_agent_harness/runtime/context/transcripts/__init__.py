@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from .claude_parser import ClaudeTranscriptParser
 from .codex_parser import CodexTranscriptParser
+from .hermes_parser import HermesTranscriptParser
 from .path_remapper import SandboxPathRemapper, remap_path_string
 from .tool_compactor import ToolOutputCompactor, compact_tool_output
 from .types import (
@@ -39,4 +40,5 @@ __all__ = [
     "compact_tool_output",
     "ClaudeTranscriptParser",
     "CodexTranscriptParser",
+    "HermesTranscriptParser",
 ]

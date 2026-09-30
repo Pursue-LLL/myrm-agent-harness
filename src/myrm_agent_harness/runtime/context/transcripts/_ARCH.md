@@ -12,6 +12,7 @@
 | `types.py` | 核心 | 统一多轮对话数据模型（`CanonicalTranscriptTurn`、`CanonicalToolCall`、`TranscriptParseResult`） | ✅ |
 | `claude_parser.py` | 核心 | Claude Code JSONL 会话流逐行解析、ThinkingTrace 提取与工具调用挂接 | ✅ |
 | `codex_parser.py` | 核心 | OpenAI Codex CLI JSON 会话解析与结构化工具映射 | ✅ |
+| `hermes_parser.py` | 核心 | Hermes Agent v0.20.2 JSON/JSONL 会话流解析、工具调用提取与状态紧凑规约 | ✅ |
 | `path_remapper.py` | 辅助 | 宿主机物理绝对路径到沙箱工作区（`/workspace`）的自动重锚替换 | ✅ |
 | `tool_compactor.py` | 辅助 | 两阶段工具输出紧凑规约（超阈值首尾保留），防止首轮续聊上下文爆仓 | ✅ |
 
