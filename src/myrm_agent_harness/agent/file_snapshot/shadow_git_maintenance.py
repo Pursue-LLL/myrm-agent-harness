@@ -28,7 +28,6 @@ from pathlib import Path
 from myrm_agent_harness.core.security.path import is_sensitive_file
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
-
 logger = get_agent_logger(__name__)
 
 _PRUNE_MARKER = ".last_prune"
