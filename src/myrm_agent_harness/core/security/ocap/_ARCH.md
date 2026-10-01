@@ -10,8 +10,8 @@ Object-Capability (OCap) zero-trust delegation mesh primitives. Eliminates ambie
 | `__init__.py` | Package | Public export facade for all OCap primitives. | ✅ |
 | `types.py` | Core | Foundation type contracts: `CapabilityAction`, `ResourceScope`, `CapabilityHandle`, `AttenuationError`, `CapabilityDeniedError`. | ✅ |
 | `token.py` | Core | HMAC-SHA256 signature calculation, verification, and timing-safe comparison. | ✅ |
-| `attenuation.py` | Core | One-way capability attenuation pipeline (`attenuate_capability`, `validate_scope_subset`). Blocks permission elevation. | ✅ |
-| `registry.py` | Core | Sharded concurrent lifecycle registry (`CapabilityRegistry`) with instant cascading tree revocation and monotonic TTL pruning. | ✅ |
+| `attenuation.py` | Core | One-way capability attenuation pipeline (`attenuate_capability`, `validate_scope_subset`) with two-tier lexical and realpath physical boundary verification. | ✅ |
+| `registry.py` | Core | Sharded concurrent lifecycle registry (`CapabilityRegistry`) with instant cascading tree revocation, amortized opportunistic pruning, and monotonic TTL checking. | ✅ |
 | `context.py` | Core | Async-safe ContextVar management (`capability_scope`, `get_current_capability`). | ✅ |
 | `guard.py` | Core | Execution-layer enforcement guard (`check_capability_access`, `enforce_capability_access`) for file ops, bash, network, and MCP. | ✅ |
 
