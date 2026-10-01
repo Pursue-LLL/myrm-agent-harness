@@ -128,8 +128,8 @@ class TestCreateLitellmModelLocalTimeout:
     def test_local_reasoning_model(self, _mock_clean, mock_llm) -> None:
         create_litellm_model("deepseek-r1", base_url="http://localhost:11434", streaming=True)
         kwargs = mock_llm.call_args[1]
-        assert kwargs["request_timeout"] == 600.0  # reasoning floor
-        assert kwargs["first_event_timeout"] == 300.0  # reasoning floor / 2
+        assert kwargs["request_timeout"] == 1800.0  # max(reasoning 600, local 1800)
+        assert kwargs["first_event_timeout"] == 300.0  # max(reasoning 300, local 300)
         assert kwargs["inter_chunk_timeout"] == _LOCAL_INTER_CHUNK_TIMEOUT
 
     @patch("myrm_agent_harness.toolkits.llms.core.llm.ChatLiteLLM")
