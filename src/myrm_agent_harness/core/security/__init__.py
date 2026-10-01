@@ -10,6 +10,16 @@
 Core security exports. Foundational security primitives used across all layers.
 """
 
+from myrm_agent_harness.core.security.autonomy import (
+    AutonomyBreakerEvent,
+    AutonomyCircuitBreaker,
+    AutonomyExecutionInterceptor,
+    AutonomyLevel,
+    AutonomyMetrics,
+    AutonomyPromotionResult,
+    BreakerState,
+    PromotionGateCalculator,
+)
 from myrm_agent_harness.core.security.device_policy import (
     BatchRiskAssessment,
     DeviceSecurityPolicy,
@@ -61,8 +71,16 @@ from myrm_agent_harness.core.security.spend_governance import (
 
 __all__ = [
     "ActionRecoveryHint",
+    "AutonomyBreakerEvent",
+    "AutonomyCircuitBreaker",
+    "AutonomyExecutionInterceptor",
+    "AutonomyLevel",
+    "AutonomyMetrics",
+    "AutonomyPromotionResult",
     "BatchRiskAssessment",
+    "BreakerState",
     "DeviceSecurityPolicy",
+    "PromotionGateCalculator",
     "MissingDependencyFailClosedError",
     "MissingDependencyFailFastError",
     "MissingSemanticsBlockedError",
