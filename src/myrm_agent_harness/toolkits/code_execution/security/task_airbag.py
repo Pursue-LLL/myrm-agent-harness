@@ -16,6 +16,7 @@ user draft protection, and crash-resilient rollback.
 - TaskAirbagDiffSummary: Summary of files mutated since airbag baseline.
 - arm_task_airbag: Capture pre-flight baseline before unattended execution.
 - rollback_task_airbag: Atomically restore working tree to pre-flight baseline.
+- rollback_task_airbag_with_rescue: Atomically restore working tree, capturing a pre-rollback rescue snapshot.
 - get_task_airbag_diff: Inspect cumulative mutations since baseline.
 
 [POS]
@@ -61,8 +62,13 @@ class TaskAirbagManifest:
     created_at_epoch_ms: int
     status: TaskAirbagStatus = TaskAirbagStatus.ARMED
     external_effects: tuple[str, ...] = field(default_factory=tuple)
+    rescue_snapshot_id: str | None = None
 
-    def with_status(self, new_status: TaskAirbagStatus) -> TaskAirbagManifest:
+    def with_status(
+        self,
+        new_status: TaskAirbagStatus,
+        rescue_snapshot_id: str | None = None,
+    ) -> TaskAirbagManifest:
         return TaskAirbagManifest(
             task_id=self.task_id,
             workspace_path=self.workspace_path,
@@ -71,6 +77,7 @@ class TaskAirbagManifest:
             created_at_epoch_ms=self.created_at_epoch_ms,
             status=new_status,
             external_effects=self.external_effects,
+            rescue_snapshot_id=rescue_snapshot_id if rescue_snapshot_id is not None else self.rescue_snapshot_id,
         )
 
     def with_external_effects(self, effects: list[str] | tuple[str, ...]) -> TaskAirbagManifest:
@@ -82,6 +89,7 @@ class TaskAirbagManifest:
             created_at_epoch_ms=self.created_at_epoch_ms,
             status=self.status,
             external_effects=tuple(effects),
+            rescue_snapshot_id=self.rescue_snapshot_id,
         )
 
 
@@ -149,24 +157,46 @@ async def arm_task_airbag(task_id: str, workspace_path: Path | str) -> TaskAirba
     return None
 
 
-async def rollback_task_airbag(manifest: TaskAirbagManifest) -> bool:
-    """Atomically restore working tree to the captured pre-flight baseline."""
+async def rollback_task_airbag_with_rescue(manifest: TaskAirbagManifest) -> tuple[bool, str | None]:
+    """Atomically restore working tree to baseline, capturing a pre-rollback rescue snapshot."""
     if manifest.status == TaskAirbagStatus.ROLLED_BACK:
         logger.warning("Airbag for task '%s' already rolled back", manifest.task_id)
-        return True
+        return True, manifest.rescue_snapshot_id
 
     wpath = Path(manifest.workspace_path).resolve()
     if not wpath.exists():
         logger.error("Cannot rollback: workspace path does not exist: %s", wpath)
-        return False
+        return False, None
 
+    rescue_snapshot_id: str | None = None
+
+    # Step 1: Capture pre-rollback rescue snapshot (12ms zero-copy safety net)
+    if manifest.is_git_repo:
+        rescue_res = create_workspace_snapshot(wpath)
+        if rescue_res.success and rescue_res.snapshot_id:
+            rescue_snapshot_id = rescue_res.snapshot_id
+            logger.info("Captured Git pre-rollback rescue snapshot '%s' for task '%s'", rescue_snapshot_id, manifest.task_id)
+    else:
+        try:
+            store = await create_file_snapshot_store()
+            rescue_snapshot_id = await store.take_snapshot(
+                working_dir=str(wpath),
+                trigger=SnapshotTrigger.MANUAL,
+                description=f"airbag_rescue_{manifest.task_id}",
+            )
+            if rescue_snapshot_id:
+                logger.info("Captured fallback pre-rollback rescue snapshot '%s' for task '%s'", rescue_snapshot_id, manifest.task_id)
+        except Exception as exc:
+            logger.warning("Failed to capture fallback rescue snapshot for task '%s': %s", manifest.task_id, exc)
+
+    # Step 2: Atomic rollback to pre-flight baseline
     if manifest.is_git_repo:
         success = rollback_workspace_snapshot(wpath, manifest.base_snapshot_id)
         if success:
             logger.info("Successfully rolled back Git airbag for task '%s'", manifest.task_id)
-            return True
+            return True, rescue_snapshot_id
         logger.error("Git rollback failed for task '%s'", manifest.task_id)
-        return False
+        return False, rescue_snapshot_id
 
     # Non-Git fallback restore via FileSnapshotStore
     try:
@@ -174,12 +204,18 @@ async def rollback_task_airbag(manifest: TaskAirbagManifest) -> bool:
         restore_res = await store.restore(manifest.base_snapshot_id)
         if restore_res.success:
             logger.info("Successfully rolled back fallback airbag for task '%s'", manifest.task_id)
-            return True
+            return True, rescue_snapshot_id
         logger.error("Fallback rollback failed for task '%s': %s", manifest.task_id, restore_res.error)
-        return False
+        return False, rescue_snapshot_id
     except Exception as exc:
         logger.error("Exception during airbag rollback for task '%s': %s", manifest.task_id, exc)
-        return False
+        return False, rescue_snapshot_id
+
+
+async def rollback_task_airbag(manifest: TaskAirbagManifest) -> bool:
+    """Atomically restore working tree to the captured pre-flight baseline."""
+    success, _ = await rollback_task_airbag_with_rescue(manifest)
+    return success
 
 
 async def get_task_airbag_diff(manifest: TaskAirbagManifest) -> TaskAirbagDiffSummary:

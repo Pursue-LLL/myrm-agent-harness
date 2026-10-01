@@ -46,6 +46,7 @@ from myrm_agent_harness.toolkits.code_execution.security.task_airbag import (
     arm_task_airbag,
     get_task_airbag_diff,
     rollback_task_airbag,
+    rollback_task_airbag_with_rescue,
 )
 from myrm_agent_harness.toolkits.code_execution.security.workspace_snapshot import (
     WorkspaceSnapshotResult,
@@ -94,6 +95,7 @@ __all__ = [
     "load_managed_approval_policy_from_env",
     "register_blocked_hostnames",
     "rollback_task_airbag",
+    "rollback_task_airbag_with_rescue",
     "rollback_workspace_snapshot",
     "set_untrusted_ingress",
     "unregister_blocked_hostnames",

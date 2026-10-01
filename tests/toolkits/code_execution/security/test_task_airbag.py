@@ -12,6 +12,7 @@ from myrm_agent_harness.api.security import (
     arm_task_airbag,
     get_task_airbag_diff,
     rollback_task_airbag,
+    rollback_task_airbag_with_rescue,
 )
 
 
@@ -75,9 +76,11 @@ async def test_rollback_task_airbag_git_repo(git_workspace: Path) -> None:
     assert diff.total_files_changed >= 1
     assert "hello.txt" in diff.modified_files
 
-    # Perform time-travel rollback
-    success = await rollback_task_airbag(manifest)
+    # Perform time-travel rollback with rescue snapshot capture
+    success, rescue_id = await rollback_task_airbag_with_rescue(manifest)
     assert success is True
+    assert rescue_id is not None
+    assert len(rescue_id) >= 7
 
     # Verify workspace completely restored
     assert target.read_text(encoding="utf-8") == "initial content\n"
