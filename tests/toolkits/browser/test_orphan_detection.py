@@ -16,6 +16,7 @@ from myrm_agent_harness.toolkits.browser.doctor import (
     _is_automation_cache_path,
     _is_automation_driver_cmdline,
     cleanup_orphan_processes,
+    cleanup_stale_automation_sandboxes,
     find_orphan_automation_processes,
     find_orphan_chromium_processes,
     find_orphan_driver_processes,
@@ -60,6 +61,8 @@ def test_extract_user_data_dir_missing():
         ("/home/user/.cache/ms-playwright/chromium-456", True),
         ("/home/user/.cache/puppeteer/chrome/mac_arm-147", True),
         ("/var/folders/tmp/playwright_chromiumdev_profile-abc", True),
+        ("/private/var/folders/sf/cw/X/com.google.Chrome.code_sign_clone", True),
+        ("/tmp/chrome_e2e_profile", True),
         ("/home/user/.config/google-chrome", False),
         ("/tmp/selenium_chrome", False),
         ("/Applications/Google Chrome.app", False),
@@ -608,3 +611,54 @@ def test_check_orphan_processes_previews_only_first_pids():
         "pids": [1111, 2222, 3333, 4444],
         "paths": ["/tmp/x", "/tmp/x", "/tmp/x", "/tmp/x"],
     }
+
+
+def test_cleanup_stale_automation_sandboxes_dry_run(tmp_path):
+    """Should discover stale sandboxes in dry-run mode without deleting them."""
+    test_sandbox = tmp_path / "com.google.Chrome.code_sign_clone"
+    test_sandbox.mkdir(parents=True)
+    sample_file = test_sandbox / "sample.txt"
+    sample_file.write_text("dummy payload")
+
+    with patch("myrm_agent_harness.toolkits.browser.doctor.orphans.Path") as mock_path_cls:
+        # Let real Path handle everything except the specific search path
+        real_path = tmp_path.parent
+        mock_path_instance = MagicMock()
+        mock_path_instance.is_dir.return_value = True
+        mock_path_instance.glob.return_value = [test_sandbox]
+
+        def path_side_effect(*args, **kwargs):
+            if args and args[0] == "/private/var/folders":
+                return mock_path_instance
+            from pathlib import Path as RealPath
+            return RealPath(*args, **kwargs)
+
+        mock_path_cls.side_effect = path_side_effect
+
+        result = cleanup_stale_automation_sandboxes(max_age_hours=0.0, dry_run=True)
+        assert result["dry_run"] is True
+        assert result["candidates_inspected"] >= 1
+        assert result["pruned"] >= 1
+        assert result["reclaimed_bytes"] > 0
+        assert test_sandbox.exists()
+
+
+@psutil_required
+def test_cleanup_orphan_processes_escalates_to_sigkill():
+    """Should escalate to SIGKILL when process does not terminate within timeout_s."""
+    call_log = []
+
+    def mock_kill(pid, sig):
+        call_log.append((pid, sig))
+        if sig == 0:
+            return None
+        return None
+
+    with patch("os.kill", side_effect=mock_kill):
+        result = cleanup_orphan_processes([54321], force=True, timeout_s=0.1)
+
+        assert result["dry_run"] is False
+        assert result["killed"] == 1
+        signals_sent = [sig for (_, sig) in call_log]
+        assert signal.SIGTERM in signals_sent
+        assert signal.SIGKILL in signals_sent

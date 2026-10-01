@@ -13,7 +13,7 @@ with clear fix suggestions per failure. Includes precise orphan process detectio
 |------|------|-------------|-------|
 | `__init__.py` | Package | Public facade. Re-exports all symbols from `checks`/`orphans`/`report` so `toolkits.browser.doctor` remains a single import point (incl. private symbols for backward-compatible imports) | ✅ |
 | `checks.py` | Core | Environment and dependency checks: patchright/camoufox/memory/disk/proxy/launch/extension relay + `run_doctor` orchestrator | ✅ |
-| `orphans.py` | Core | Orphan automation process detection (chromium/driver), cleanup with safety dry-run, and `check_orphan_processes` | ✅ |
+| `orphans.py` | Core | Orphan automation process detection (chromium/driver), safe process escalation cleanup, stale automation sandbox cleanup, and `check_orphan_processes` | ✅ |
 | `report.py` | Core | Report data model (`CheckStatus`/`DoctorCheckResult`/`DoctorReport`) and colored CLI rendering (`format_report`) | ✅ |
 
 ## Key Dependencies

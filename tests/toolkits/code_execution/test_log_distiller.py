@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from myrm_agent_harness.toolkits.code_execution.utils.log_distiller import (
     TerminalLogDistiller,
+    extract_terminal_prompt,
 )
 
 
@@ -94,3 +95,94 @@ def test_multiple_error_signals_anchoring() -> None:
     assert "SOCKET_ECONNREFUSED" in result.extracted_error_signals
     assert "EADDRINUSE" in result.distilled_text
     assert "ConnectionRefusedError" in result.distilled_text
+
+
+def test_terminal_prompt_returns_none_without_interactive_prompt() -> None:
+    assert extract_terminal_prompt([]) is None
+    assert extract_terminal_prompt(["npm install", "added 12 packages"]) is None
+    assert extract_terminal_prompt(["1) first", "2) second"]) is None
+
+
+def test_terminal_prompt_extracts_confirmation_options() -> None:
+    prompt = extract_terminal_prompt(["Installing dependencies…", "Proceed? [y/N]"])
+
+    assert prompt is not None
+    assert prompt.kind == "confirm"
+    assert prompt.question == "Proceed?"
+    assert [(option.id, option.label, option.value) for option in prompt.options] == [
+        ("confirm-1", "y", "y"),
+        ("confirm-2", "N", "N"),
+    ]
+    assert prompt.default_value == "N"
+    assert prompt.to_dict() == {
+        "kind": "confirm",
+        "question": "Proceed?",
+        "default_value": "N",
+        "options": [
+            {"id": "confirm-1", "label": "y", "value": "y", "submit": True},
+            {"id": "confirm-2", "label": "N", "value": "N", "submit": True},
+        ],
+    }
+
+
+def test_terminal_prompt_extracts_numbered_choice() -> None:
+    lines = [
+        "Select the deployment target:",
+        "1) staging",
+        "2) production",
+        "Enter choice [1-2]:",
+    ]
+    prompt = extract_terminal_prompt(lines)
+
+    assert prompt is not None
+    assert prompt.kind == "choice"
+    assert prompt.question == "Select the deployment target:"
+    assert [(option.id, option.label, option.value) for option in prompt.options] == [
+        ("choice-1", "staging", "1"),
+        ("choice-2", "production", "2"),
+    ]
+    assert prompt.to_dict()["options"][0]["submit"] is True
+    assert prompt.default_value is None
+
+
+def test_terminal_prompt_extracts_press_enter_action() -> None:
+    prompt = extract_terminal_prompt(["Copying files…", "Press ENTER to continue"])
+
+    assert prompt is not None
+    assert prompt.kind == "action"
+    assert prompt.question == "Press ENTER to continue"
+    assert [(option.id, option.label, option.value) for option in prompt.options] == [
+        ("action-continue", "Continue", ""),
+    ]
+
+
+def test_terminal_prompt_rejects_keyboard_only_menus() -> None:
+    assert (
+        extract_terminal_prompt(
+            [
+                "Use arrow keys to move:",
+                "❯ staging",
+                "  production",
+            ]
+        )
+        is None
+    )
+    assert (
+        extract_terminal_prompt(
+            [
+                "Select packages:",
+                "[ ] staging tools",
+                "[x] production tools",
+            ]
+        )
+        is None
+    )
+    assert (
+        extract_terminal_prompt(
+            [
+                "Continue?",
+                "y\x00",
+            ]
+        )
+        is None
+    )

@@ -20,7 +20,9 @@ Execution layer utility for myrm_agent_harness.toolkits.code_execution.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Final, Literal
 
 from myrm_agent_harness.utils.text_utils import strip_ansi
 
@@ -57,6 +59,240 @@ _ERROR_ANCHOR_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         re.compile(r"\b(?:command\s+not\s+found|not\s+recognized\s+as\s+an\s+internal)\b", re.IGNORECASE),
     ),
 )
+
+_PROMPT_TAIL_LINES: Final[int] = 12
+_PROMPT_MAX_OPTIONS: Final[int] = 6
+_PROMPT_MAX_QUESTION_CHARS: Final[int] = 200
+_PROMPT_MAX_LABEL_CHARS: Final[int] = 80
+_PROMPT_MAX_VALUE_CHARS: Final[int] = 32
+_PROMPT_CONTROL_CHAR_RE: Final[re.Pattern[str]] = re.compile(r"[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f]")
+_PROMPT_CUE_RE: Final[re.Pattern[str]] = re.compile(
+    r"(?:\bselect\b|\bchoose\b|\bpick\b|\benter\b|\btype\b|\bpress\b|\boption\b|\bnumber\b"
+    r"|\bchoice\b|\bconfirm\b|\bcontinue\b|请选择|选择|输入|确认|继续)",
+    re.IGNORECASE,
+)
+_CONFIRM_PROMPT_RE: Final[re.Pattern[str]] = re.compile(
+    r"^(?P<question>[^\[\]\r\n]{1,200}?)\s*\[(?P<choices>[^\]\r\n]{1,32})\]\s*:?\s*$"
+)
+_NUMBERED_OPTION_RE: Final[re.Pattern[str]] = re.compile(
+    r"^\s*(?:\(?(\d{1,2})\)?[\s.\)\]:-]+)\s*(?P<label>.{1,80}?)\s*$"
+)
+_PRESS_ACTION_PATTERNS: Final[tuple[tuple[re.Pattern[str], str, str], ...]] = (
+    (
+        re.compile(r"^\s*press\s+enter\s*(?:to\s+continue)?\s*[.!]?\s*$", re.IGNORECASE),
+        "",
+        "Continue",
+    ),
+    (
+        re.compile(r"^\s*press\s+any\s+key(?:\s+to\s+continue)?\s*[.!]?\s*$", re.IGNORECASE),
+        "",
+        "Continue",
+    ),
+    (
+        re.compile(r"^\s*press\s+([A-Za-z0-9])\s+to\s+continue\s*[.!]?\s*$", re.IGNORECASE),
+        "",
+        "",
+    ),
+    (
+        re.compile(r"^\s*按\s*(?:回车|任意键)(?:继续)?\s*[。！!.\s]*$", re.IGNORECASE),
+        "",
+        "继续",
+    ),
+)
+
+
+@dataclass(frozen=True)
+class TerminalPromptOption:
+    """One explicitly submittable answer extracted from a terminal prompt."""
+
+    id: str
+    label: str
+    value: str
+    submit: bool = True
+
+    def to_dict(self) -> dict[str, object]:
+        """Return a JSON-serializable option."""
+        return {"id": self.id, "label": self.label, "value": self.value, "submit": self.submit}
+
+
+@dataclass(frozen=True)
+class TerminalPrompt:
+    """A conservatively recognized terminal prompt that can be answered once."""
+
+    kind: Literal["confirm", "choice", "action"]
+    question: str
+    options: tuple[TerminalPromptOption, ...]
+    default_value: str | None = None
+
+    def to_dict(self) -> dict[str, object]:
+        """Return a JSON-serializable prompt."""
+        return {
+            "kind": self.kind,
+            "question": self.question,
+            "default_value": self.default_value,
+            "options": [option.to_dict() for option in self.options],
+        }
+
+
+def _clean_prompt_text(value: str, *, max_chars: int) -> str:
+    """Return sanitized terminal text without ANSI, redraw fragments, or control codes."""
+    text = strip_ansi(value)
+    if "\r" in text:
+        fragments = text.split("\r")
+        if fragments[-1].strip():
+            text = fragments[-1]
+        elif len(fragments) > 1:
+            text = fragments[-2]
+        else:
+            text = ""
+    return _PROMPT_CONTROL_CHAR_RE.sub("", text).strip()[:max_chars].strip()
+
+
+def _clean_prompt_tail(lines: Sequence[str]) -> list[str]:
+    """Retain only the bounded, non-empty tail of a terminal screen."""
+    tail = list(lines[-_PROMPT_TAIL_LINES:]) if lines else []
+    cleaned: list[str] = []
+    for raw_line in tail:
+        text = _clean_prompt_text(raw_line, max_chars=_PROMPT_MAX_QUESTION_CHARS)
+        if text:
+            cleaned.append(text)
+    return cleaned
+
+
+def _prompt_option_id(prefix: str, position: int) -> str:
+    """Return a stable, terminal-content-independent option identifier."""
+    return f"{prefix}-{position}"
+
+
+def _match_confirmation(lines: list[str]) -> tuple[int, TerminalPrompt] | None:
+    """Match an explicit bracketed confirmation such as ``Proceed? [y/N]``."""
+    for index in range(len(lines) - 1, -1, -1):
+        match = _CONFIRM_PROMPT_RE.match(lines[index])
+        if match is None:
+            continue
+        question = match.group("question").strip()
+        tokens = [token.strip() for token in re.split(r"[/|\s]+", match.group("choices"))]
+        tokens = [token for token in tokens if token]
+        if not question or not 2 <= len(tokens) <= 4:
+            continue
+        if any(len(token) > 8 or re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]*", token) is None for token in tokens):
+            continue
+        lowered = [token.lower() for token in tokens]
+        if len(set(lowered)) != len(tokens):
+            continue
+        options = tuple(
+            TerminalPromptOption(
+                id=_prompt_option_id("confirm", position),
+                label=token,
+                value=token,
+            )
+            for position, token in enumerate(tokens, start=1)
+        )
+        default_value = next((token for token in tokens if any(char.isupper() for char in token)), None)
+        return index, TerminalPrompt(
+            kind="confirm",
+            question=question,
+            options=options,
+            default_value=default_value,
+        )
+    return None
+
+
+def _match_numbered_choice(lines: list[str]) -> tuple[int, TerminalPrompt] | None:
+    """Match a numbered, explicitly requested menu without emulating cursor keys."""
+    matches: list[tuple[int, str, str]] = []
+    for index, line in enumerate(lines):
+        match = _NUMBERED_OPTION_RE.match(line)
+        if match is not None:
+            matches.append((index, match.group(1), match.group("label").strip()))
+    if len(matches) < 2:
+        return None
+
+    end_position = len(matches) - 1
+    end_line = matches[end_position][0]
+    start_position = end_position
+    while start_position > 0 and matches[start_position - 1][0] == matches[start_position][0] - 1:
+        start_position -= 1
+    block = matches[start_position : end_position + 1]
+    if not 2 <= len(block) <= _PROMPT_MAX_OPTIONS:
+        return None
+
+    question: str | None = None
+    for offset in range(1, 4):
+        before = end_line - len(block) - offset + 1
+        if before >= 0 and _PROMPT_CUE_RE.search(lines[before]):
+            question = lines[before]
+            break
+        after = end_line + offset
+        if after < len(lines) and _PROMPT_CUE_RE.search(lines[after]):
+            question = lines[after]
+            break
+    if question is None:
+        return None
+
+    seen: set[str] = set()
+    options: list[TerminalPromptOption] = []
+    for position, (_, value, label) in enumerate(block, start=1):
+        if not label or value in seen:
+            return None
+        seen.add(value)
+        options.append(
+            TerminalPromptOption(
+                id=_prompt_option_id("choice", position),
+                label=label[:_PROMPT_MAX_LABEL_CHARS].strip(),
+                value=value[:_PROMPT_MAX_VALUE_CHARS],
+            )
+        )
+        if len(value) > _PROMPT_MAX_VALUE_CHARS or not options[-1].value:
+            return None
+    return end_line, TerminalPrompt(
+        kind="choice",
+        question=question[:_PROMPT_MAX_QUESTION_CHARS].strip(),
+        options=tuple(options),
+    )
+
+
+def _match_press_action(lines: list[str]) -> tuple[int, TerminalPrompt] | None:
+    """Match an explicit single action such as ``Press ENTER to continue``."""
+    for index in range(len(lines) - 1, -1, -1):
+        for pattern, value, label in _PRESS_ACTION_PATTERNS:
+            match = pattern.match(lines[index])
+            if match is None:
+                continue
+            if match.lastindex:
+                value = match.group(1)
+                label = f"Press {value}"
+            return index, TerminalPrompt(
+                kind="action",
+                question=lines[index],
+                options=(TerminalPromptOption(id="action-continue", label=label, value=value),),
+            )
+    return None
+
+
+def extract_terminal_prompt(lines: Sequence[str]) -> TerminalPrompt | None:
+    """Extract a conservatively recognized actionable terminal prompt.
+
+    Only static prompts with an unambiguous submission value qualify. Arrow-key
+    menus, multi-select checklists, and unrelated numbered logs return None
+    rather than guessing an answer.
+    """
+    cleaned = _clean_prompt_tail(lines)
+    if not cleaned:
+        return None
+
+    candidates = [
+        result
+        for result in (
+            _match_confirmation(cleaned),
+            _match_numbered_choice(cleaned),
+            _match_press_action(cleaned),
+        )
+        if result is not None
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda candidate: candidate[0])[1]
 
 
 @dataclass(frozen=True)
@@ -167,7 +403,7 @@ class TerminalLogDistiller:
         if len(distilled_lines) > target_max_lines:
             head_part = distilled_lines[: target_max_lines // 2]
             tail_part = distilled_lines[-(target_max_lines // 2) :]
-            distilled_lines = head_part + ["... [truncated for token efficiency] ..."] + tail_part
+            distilled_lines = [*head_part, "... [truncated for token efficiency] ...", *tail_part]
 
         distilled_text_body = "\n".join(distilled_lines)
 
@@ -201,10 +437,7 @@ class TerminalLogDistiller:
         """Check if line matches transient progress bar patterns."""
         if not line:
             return False
-        for pattern in _PROGRESS_PATTERNS:
-            if pattern.search(line):
-                return True
-        return False
+        return any(pattern.search(line) for pattern in _PROGRESS_PATTERNS)
 
     def _detect_signals(self, lines: list[str]) -> list[str]:
         """Scan line list for matching error signal labels."""

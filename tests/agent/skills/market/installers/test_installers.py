@@ -489,3 +489,44 @@ class TestHermesBatchParser:
         assert batch_excluded("a/.DS_Store") is True
         assert batch_excluded("a/__MACOSX/b") is True
         assert batch_excluded("alpha/SKILL.md") is False
+
+
+class TestInstallerErrorPaths:
+    def test_collect_skips_unreadable_files(self, tmp_path: Path) -> None:
+        skill_dir = _make_skill(tmp_path, "pdf", body=b"data")
+        locked = skill_dir / "locked.txt"
+        locked.write_bytes(b"secret")
+        locked.chmod(0o000)
+        try:
+            result = GitInstaller()._collect_skill_files(skill_dir)
+        finally:
+            locked.chmod(0o644)
+        assert set(result.files) == {"SKILL.md", "data.txt"}
+
+    def test_find_skill_md_survives_permission_error(self, tmp_path: Path) -> None:
+        blocked = tmp_path / "blocked"
+        blocked.mkdir()
+        blocked.chmod(0o000)
+        try:
+            assert _find_skill_md(tmp_path) is None
+        finally:
+            blocked.chmod(0o755)
+
+    def test_walk_survives_permission_error(self, tmp_path: Path) -> None:
+        blocked = tmp_path / "blocked"
+        blocked.mkdir()
+        (tmp_path / "ok.txt").write_bytes(b"x")
+        blocked.chmod(0o000)
+        try:
+            names = {p.name for p in _walk_skill_dir(tmp_path)}
+        finally:
+            blocked.chmod(0o755)
+        assert names == {"ok.txt"}
+
+    @pytest.mark.asyncio
+    async def test_zip_download_composes_fetch_and_extract(self) -> None:
+        payload = _zip_bytes({"SKILL.md": SKILL_MD})
+        with patch.object(ZipInstaller, "_download_zip", new=AsyncMock(return_value=payload)):
+            result = await ZipInstaller().download("https://example.invalid/a.zip", None)
+        assert result.name == "Alpha"
+        assert set(result.files) == {"SKILL.md"}

@@ -611,3 +611,48 @@ class TestAnalyzeGitHubUrl:
     async def test_rejects_unparseable_url(self) -> None:
         with pytest.raises(ValueError):
             await analyze_github_url("")
+
+
+class TestParserDefensiveBranches:
+    def test_non_list_items_returns_empty(self) -> None:
+        source = GitHubSkillSource()
+        assert source._parse_code_search_results({"items": "nope"}, limit=5) == []
+
+    def test_non_dict_repository_is_skipped(self) -> None:
+        source = GitHubSkillSource()
+        payload = {"items": [{"repository": "nope", "path": "skills/a/SKILL.md"}]}
+        assert source._parse_code_search_results(payload, limit=5) == []
+
+    @pytest.mark.parametrize("url", ["justoneword", "acme/to@ols", "acme/tools extra"])
+    def test_rejects_unparseable_reference(self, url: str) -> None:
+        from myrm_agent_harness.agent.skills.market.sources.github import parse_github_url
+
+        with pytest.raises(ValueError, match="Cannot parse GitHub reference"):
+            parse_github_url(url)
+
+    def test_rejects_non_github_host(self) -> None:
+        from myrm_agent_harness.agent.skills.market.sources.github import parse_github_url
+
+        with pytest.raises(ValueError, match=r"Only github\.com"):
+            parse_github_url("https://gitlab.com/acme/tools")
+
+    def test_blank_path_after_strip_returns_none(self) -> None:
+        from myrm_agent_harness.agent.skills.market.sources.github import _sanitize_path
+
+        assert _sanitize_path("///") is None
+        assert _sanitize_path(None) is None
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_truncates_at_max_skills_per_repo(self) -> None:
+        respx.get("https://api.github.com/repos/acme/tools").mock(
+            return_value=httpx.Response(200, json={"default_branch": "main"})
+        )
+        tree = [{"path": f"skills/s{i:03d}/SKILL.md", "type": "blob"} for i in range(105)]
+        respx.get("https://api.github.com/repos/acme/tools/git/trees/main", params={"recursive": "1"}).mock(
+            return_value=httpx.Response(200, json={"tree": tree})
+        )
+
+        refs = await analyze_github_url("acme/tools")
+
+        assert len(refs) == 100

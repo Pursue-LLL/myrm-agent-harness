@@ -10,7 +10,8 @@ Precisely detects orphan patchright/playwright chromium and driver processes
 
 [OUTPUT]
 - find_orphan_chromium_processes / find_orphan_driver_processes / find_orphan_automation_processes: orphan process detection
-- cleanup_orphan_processes: safe cleanup (dry-run by default)
+- cleanup_orphan_processes: safe cleanup (dry-run by default, SIGTERM/SIGKILL escalation)
+- cleanup_stale_automation_sandboxes: stale automation sandbox cleanup
 - check_orphan_processes: doctor check result for the orphan scan
 
 [POS]
@@ -237,14 +238,15 @@ def cleanup_orphan_processes(
     orphan_pids: list[int] | None = None,
     *,
     force: bool = False,
-    timeout_s: float = 0.5,
+    timeout_s: float = 0.0,
 ) -> dict[str, object]:
     """Clean up orphan automation processes with safety checks.
 
     Args:
         orphan_pids: Optional list of PIDs to kill. If None, auto-detect.
         force: Must be True to actually kill processes (safety mechanism).
-        timeout_s: Grace period in seconds to wait for SIGTERM before SIGKILL.
+        timeout_s: Grace period in seconds to wait after SIGTERM before SIGKILL.
+                   Defaults to 0.0 (immediate SIGTERM only, non-blocking).
 
     Returns:
         Result dict with killed count, dry_run flag, would_kill (dry-run), and details.
@@ -276,21 +278,22 @@ def cleanup_orphan_processes(
     for pid in orphan_pids:
         try:
             os.kill(pid, signal.SIGTERM)
-            deadline = time.time() + max(0.1, timeout_s)
-            terminated = False
-            while time.time() < deadline:
-                try:
-                    os.kill(pid, 0)
-                    time.sleep(0.05)
-                except ProcessLookupError:
-                    terminated = True
-                    break
-            if not terminated:
-                try:
-                    os.kill(pid, signal.SIGKILL)
-                    logger.info(f"Force killed (SIGKILL) stubborn orphan process: {pid}")
-                except ProcessLookupError:
-                    pass
+            if timeout_s > 0.0:
+                deadline = time.time() + timeout_s
+                terminated = False
+                while time.time() < deadline:
+                    try:
+                        os.kill(pid, 0)
+                        time.sleep(0.05)
+                    except ProcessLookupError:
+                        terminated = True
+                        break
+                if not terminated:
+                    try:
+                        os.kill(pid, signal.SIGKILL)
+                        logger.info(f"Force killed (SIGKILL) stubborn orphan process: {pid}")
+                    except ProcessLookupError:
+                        pass
             killed += 1
             logger.info(f"Killed orphan automation process: {pid}")
         except ProcessLookupError:
