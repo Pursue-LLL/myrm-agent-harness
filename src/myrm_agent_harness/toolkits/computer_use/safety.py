@@ -1,11 +1,23 @@
 """Safety guardrails for desktop control tools.
 
-Four guardrail types:
+Safety guardrails for desktop control tools:
 - Blocked key combos: prevents dangerous system shortcuts (macOS + Windows)
 - Operator-as-key rejection: printable operators must not be used as vision `key` names
 - Dangerous type-text patterns: prevents shell injection via typed text
-- Sensitive app guard: prevents interaction with financial, communication,
-  and password management applications
+- Sensitive app guard: prevents interaction with financial, communication, and password management applications
+- Screen lock and physical sleep gate: hard interruption on locked or asleep desktop
+
+[INPUT]
+- myrm_agent_harness.toolkits.computer_use.iphone_mirror::is_iphone_mirror_app (POS: iPhone Mirroring probe and viewport gate)
+- myrm_agent_harness.toolkits.computer_use.types::ModifierKey (POS: Shared type definitions consumed by all computer_use submodules)
+- myrm_agent_harness.toolkits.computer_use.screen_detector::get_default_screen_detector (POS: Desktop lock-screen and physical sleep detection gate)
+
+[OUTPUT]
+- ScreenLockedInterruptionError, PhysicalSleepInterruptionError, check_screen_lock_safety, ensure_screen_safe
+- is_blocked_key_combo, is_dangerous_type_text, is_sensitive_app, check_vision_key_safety
+
+[POS]
+Desktop safety guardrail layer. Intercepts dangerous keystrokes, sensitive applications, and screen lock/sleep states.
 """
 
 from __future__ import annotations

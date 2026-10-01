@@ -42,6 +42,7 @@ from .orphans import (
     _is_automation_driver_cmdline,  # noqa: F401
     check_orphan_processes,
     cleanup_orphan_processes,
+    cleanup_stale_automation_sandboxes,
     find_orphan_automation_processes,
     find_orphan_chromium_processes,
     find_orphan_driver_processes,
@@ -59,6 +60,7 @@ __all__ = [
     "DoctorReport",
     "check_orphan_processes",
     "cleanup_orphan_processes",
+    "cleanup_stale_automation_sandboxes",
     "find_orphan_automation_processes",
     "find_orphan_chromium_processes",
     "find_orphan_driver_processes",

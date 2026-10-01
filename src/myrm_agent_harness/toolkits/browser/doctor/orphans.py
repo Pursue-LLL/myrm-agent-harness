@@ -23,7 +23,10 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
 import signal
+import time
+from pathlib import Path
 
 from .report import CheckStatus, DoctorCheckResult
 
@@ -171,6 +174,9 @@ def _is_automation_cache_path(path: str) -> bool:
         ".cache/ms-playwright",
         ".cache/puppeteer",
         "playwright_chromium",
+        "com.google.chrome.code_sign_clone",
+        "chrome_e2e",
+        "myrm_chrome_e2e",
     ]
     path_lower = path.lower()
     return any(marker in path_lower for marker in automation_markers)
@@ -227,12 +233,18 @@ def _has_python_ancestor(proc: object, current_pid: int) -> bool:
         return True
 
 
-def cleanup_orphan_processes(orphan_pids: list[int] | None = None, *, force: bool = False) -> dict[str, object]:
+def cleanup_orphan_processes(
+    orphan_pids: list[int] | None = None,
+    *,
+    force: bool = False,
+    timeout_s: float = 0.5,
+) -> dict[str, object]:
     """Clean up orphan automation processes with safety checks.
 
     Args:
         orphan_pids: Optional list of PIDs to kill. If None, auto-detect.
         force: Must be True to actually kill processes (safety mechanism).
+        timeout_s: Grace period in seconds to wait for SIGTERM before SIGKILL.
 
     Returns:
         Result dict with killed count, dry_run flag, would_kill (dry-run), and details.
@@ -259,11 +271,26 @@ def cleanup_orphan_processes(orphan_pids: list[int] | None = None, *, force: boo
         }
 
     killed = 0
-    failed = []
+    failed: list[dict[str, object]] = []
 
     for pid in orphan_pids:
         try:
             os.kill(pid, signal.SIGTERM)
+            deadline = time.time() + max(0.1, timeout_s)
+            terminated = False
+            while time.time() < deadline:
+                try:
+                    os.kill(pid, 0)
+                    time.sleep(0.05)
+                except ProcessLookupError:
+                    terminated = True
+                    break
+            if not terminated:
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                    logger.info(f"Force killed (SIGKILL) stubborn orphan process: {pid}")
+                except ProcessLookupError:
+                    pass
             killed += 1
             logger.info(f"Killed orphan automation process: {pid}")
         except ProcessLookupError:
@@ -276,6 +303,71 @@ def cleanup_orphan_processes(orphan_pids: list[int] | None = None, *, force: boo
     return {
         "killed": killed,
         "dry_run": False,
+        "failed": failed,
+    }
+
+
+def cleanup_stale_automation_sandboxes(
+    max_age_hours: float = 24.0,
+    *,
+    dry_run: bool = True,
+) -> dict[str, object]:
+    """Prune stale automation sandboxes (e.g. macOS code_sign_clone) older than max_age_hours.
+
+    Args:
+        max_age_hours: Minimum age in hours before a sandbox is eligible for cleanup.
+        dry_run: If True, only reports candidates without deleting.
+
+    Returns:
+        Summary dict containing inspected, pruned counts, and reclaimed bytes.
+    """
+    candidates: list[Path] = []
+    # 1. macOS AMFI code_sign_clone path probe
+    var_folders = Path("/private/var/folders")
+    if var_folders.is_dir():
+        try:
+            for clone_dir in var_folders.glob("*/*/X/com.google.Chrome.code_sign_clone"):
+                if clone_dir.is_dir():
+                    candidates.append(clone_dir)
+        except (PermissionError, OSError) as exc:
+            logger.debug(f"Scan var_folders code_sign_clone skipped: {exc}")
+
+    pruned = 0
+    reclaimed_bytes = 0
+    now = time.time()
+    cutoff_s = max_age_hours * 3600.0
+    failed: list[dict[str, object]] = []
+
+    for candidate in candidates:
+        try:
+            stat = candidate.stat()
+            age_s = now - stat.st_mtime
+            if age_s < cutoff_s:
+                continue
+
+            # Calculate directory size
+            dir_bytes = 0
+            for item in candidate.rglob("*"):
+                try:
+                    if item.is_file() and not item.is_symlink():
+                        dir_bytes += item.stat().st_size
+                except (OSError, PermissionError):
+                    pass
+
+            if not dry_run:
+                shutil.rmtree(candidate, ignore_errors=True)
+                logger.info(f"Pruned stale automation sandbox: {candidate}")
+
+            pruned += 1
+            reclaimed_bytes += dir_bytes
+        except Exception as exc:
+            failed.append({"path": str(candidate), "reason": str(exc)})
+
+    return {
+        "candidates_inspected": len(candidates),
+        "pruned": pruned,
+        "reclaimed_bytes": reclaimed_bytes,
+        "dry_run": dry_run,
         "failed": failed,
     }
 

@@ -5,11 +5,14 @@ across macOS, Windows, Linux, and gracefully bypasses in headless/CI environment
 Zero external heavy dependencies, zero extra daemon processes.
 
 [INPUT]
-- types::ScreenLockState
+- myrm_agent_harness.toolkits.computer_use.types::ScreenLockState (POS: Shared type definitions consumed by all computer_use submodules)
 
 [OUTPUT]
 - ScreenDetector: cross-platform detector with TTL cache
 - get_default_screen_detector: singleton accessor
+
+[POS]
+Desktop lock-screen and physical sleep detection gate. Provides native OS state detection and throttling cache for Computer Use safety.
 """
 
 from __future__ import annotations

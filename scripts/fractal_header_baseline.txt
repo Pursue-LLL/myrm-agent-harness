@@ -183,4 +183,9 @@ myrm_agent_harness/toolkits/web_search/probe/constants.py
 myrm_agent_harness/toolkits/web_search/probe/local_probe.py
 myrm_agent_harness/utils/crypto/__init__.py
 myrm_agent_harness/utils/mime_types.py
+myrm_agent_harness/agent/streaming/rules/__init__.py
+myrm_agent_harness/agent/streaming/rules/coordinator.py
+myrm_agent_harness/agent/streaming/rules/matcher.py
+myrm_agent_harness/agent/streaming/rules/types.py
+myrm_agent_harness/runtime/loop/__init__.py
 myrm_agent_harness/utils/tree_truncator.py

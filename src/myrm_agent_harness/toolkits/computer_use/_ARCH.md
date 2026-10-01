@@ -13,7 +13,8 @@ with native desktop applications via accessibility trees (@dref) with coordinate
 | capture_probe.py | Core | PNG capturable probe (center-sample non-black/white) for PermissionStatus.screen_recording_capturable | ✅ |
 | app_identity.py | Core | Stable trust keys: `resolve_trust_key`, `trust_key_matches` (bundle_id / win exe / linux app id) | ✅ |
 | iphone_mirror.py | Core | iPhone Mirroring (`com.apple.ScreenContinuity`) probe (`probe_iphone_mirror_state`), viewport bounds & state gate | ✅ |
-| safety.py | Core | Blocked key combos, operator-as-key rejection (lone `*`/`/`/`+`/`-`/`%`/`=`), dangerous type-text guardrails, sensitive app guard (incl. terminal/shell + SelfAppGuard via bundle_id / host names), iPhone Mirroring connect popup guard, foreground permission classification | ✅ |
+| safety.py | Core | Blocked key combos, operator-as-key rejection (lone `*`/`/`/`+`/`-`/`%`/`=`), dangerous type-text guardrails, sensitive app guard (incl. terminal/shell + SelfAppGuard via bundle_id / host names), iPhone Mirroring connect popup guard, lock-screen & physical sleep hard interruption, foreground permission classification | ✅ |
+| screen_detector.py | Core | Microsecond native desktop lock-screen & sleep detection (Quartz C-API / OpenInputDesktop / loginctl) with 200ms throttling cache | ✅ |
 | screenshot_processor.py | Core | Binary-search downsampling pipeline | ✅ |
 | coordinate_scaler.py | Core | DPI-aware coordinate transformer | ✅ |
 | som_overlay.py | Core | SOM numbered overlay on JPEG; agent path when `include_screenshot=True`, inspector refresh when screenshot captured; stable [N]↔@dref map (cap 80) | ✅ |
@@ -70,6 +71,7 @@ Agent → desktop_agent_tools (3 tools)
 13. **Action Serialization & Self-Healing**: `DesktopSession` enforces session-level concurrency control via `asyncio.Lock()`, serializing mutating desktop actions (`desktop_interact`, `desktop_vision_action`) while keeping AX snapshots non-blocking. Stale references (`DRefStaleError`) and invocation/fallback failures return structured `[REMEDY_HINT: ...]` to guide LLM self-healing without hallucinated retries.
 14. **Human Takeover Parity Gate & Hard Refusal**: `ComputerSession` and `DesktopSession` implement `pause_for_takeover()`, `resume_from_takeover()`, and `_ensure_not_user_takeover()` with `asyncio.Event`. When a human user takes over control, all mutating desktop actions (`desktop_interact`, `desktop_vision_action`, `click_at`, `type_text`, `key_press`, etc.) are physically intercepted. If the wait times out, `UserTakeoverTimeoutError` is raised and the session remains strictly locked (never auto-unblocking), preventing bot ghost runs and cursor contention.
 15. **Intent Envelope & Non-Interruptive Runner**: Pre-flight consent envelope establishes a bound on target applications, maximum lease steps, and sensitive key sanitization. Actions strictly inside the envelope bypass repetitive approval popups, dynamically escalating to approval only on boundary overflow or quota exhaustion.
+16. **Desktop Lock-Screen Guardian & Physical Sleep Gate**: Real-time OS-level detection of lock screen and display sleep states (macOS Quartz `CGSessionCopyCurrentDictionary`, Windows `OpenInputDesktop`, Linux `loginctl LockedHint`, headless/CI auto-bypass). Microsecond-level hard refusal on all mouse/keyboard inputs (`ScreenLockedInterruptionError`), snapshot redaction to prevent multimodal LLM hallucination loops on black/login screens, and `reanchor_visual_state()` self-healing on unlock.
 
 ## Key Dependencies
 
