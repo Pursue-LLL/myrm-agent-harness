@@ -4,9 +4,10 @@ External consumers import here instead of reaching into ``agent.security``.
 
 [INPUT]
 - agent.security.managed_approval_policy::ManagedApprovalPolicy / get_process_managed_approval_policy (POS: 进程级托管审批策略)
+- toolkits.code_execution.security.task_airbag::arm_task_airbag (POS: 挂机安全气囊武装与快照捕捉)
 
 [OUTPUT]
-- myrm_agent_harness.api.security → server 只读 MAP 查询接口
+- myrm_agent_harness.api.security → server 统一安全策略与挂机安全气囊导出接口
 """
 
 from __future__ import annotations

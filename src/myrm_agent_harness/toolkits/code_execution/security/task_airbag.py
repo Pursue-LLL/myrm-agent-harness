@@ -5,9 +5,10 @@ supporting dual-track fallback (Git stash shadow commits or ShadowGit bare repo)
 user draft protection, and crash-resilient rollback.
 
 [INPUT]
-- task_id: Identifier of the autonomous task or goal.
-- workspace_path: Target directory of the project.
-- manifest: TaskAirbagManifest holding baseline snapshot metadata.
+- myrm_agent_harness.agent.file_snapshot::create_file_snapshot_store (POS: 工作区文件快照存储工厂)
+- myrm_agent_harness.toolkits.code_execution.security.workspace_snapshot::create_workspace_snapshot (POS: Git 零拷贝快照与重置树还原器)
+- myrm_agent_harness.toolkits.code_execution.security.workspace_snapshot::rollback_workspace_snapshot (POS: Git 零拷贝快照与重置树还原器)
+- myrm_agent_harness.toolkits.code_execution.security.workspace_snapshot::is_git_repo (POS: Git 仓库探测器)
 
 [OUTPUT]
 - TaskAirbagStatus: Enum representing airbag lifecycle state (ARMED, DISMISSED, ROLLED_BACK).
