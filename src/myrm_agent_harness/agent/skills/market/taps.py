@@ -84,6 +84,12 @@ class TapDirectoryScanner:
         return headers
 
     async def scan_skills(self, force_refresh: bool = False) -> list[SkillSearchResult]:
+        """Scan the tap repository tree for skills, with TTL caching.
+
+        Cache validity is keyed on the snapshot timestamp, not result
+        truthiness, so taps with zero skills also hit the cache instead of
+        re-requesting the API on every search.
+        """
         now = time.monotonic()
         # 缓存有效性由 cached_at 判定：空结果同样需要命中，否则空 tap 会反复请求 API
         if not force_refresh and self._cache.cached_at and (now - self._cache.cached_at < TAP_CACHE_TTL_SEC):

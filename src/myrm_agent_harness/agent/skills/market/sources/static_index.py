@@ -160,6 +160,13 @@ class StaticIndexSkillSource:
         return False
 
     async def _sync_remote_index(self, force: bool = False) -> bool:
+        """Sync the index from the primary URL with mirror fallback.
+
+        A response is only adopted when it explicitly declares an entry
+        array (`skills`/`items`, possibly empty). Payloads lacking those keys
+        or carrying a wrong-typed value are treated as unusable so a single
+        bad response never wipes the local mirror.
+        """
         candidate_urls: list[str] = []
         if self._index_url:
             candidate_urls.append(self._index_url)

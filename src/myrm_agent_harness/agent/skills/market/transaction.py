@@ -166,7 +166,15 @@ class SkillInstallTransaction:
         self._is_committed = False
 
     def stage_replace(self, source_dir: Path, target_dir: Path) -> None:
-        """Stage an atomic directory replacement by taking a snapshot backup of existing target."""
+        """Stage an atomic directory replacement by taking a snapshot backup of existing target.
+
+        Raises:
+            PathRedirectSecurityError: If the target itself is a symlink or
+                junction. The check runs before resolve() so the link is
+                observed instead of silently followed.
+            CategoryBucketCollisionError: If the target is a category bucket
+                holding other sub-skills.
+        """
         # Category bucket collision and junction safety validation
         from myrm_agent_harness.backends.skills.scanning.path_security import (
             assert_safe_install_target,

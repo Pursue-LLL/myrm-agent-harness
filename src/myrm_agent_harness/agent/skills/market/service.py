@@ -581,6 +581,14 @@ class BaseSkillMarketService:
         allow_downgrade: bool = False,
         progress_callback: Callable[[str, str, str], None] | None = None,
     ) -> SkillInstallResult:
+        """Install files through quarantine scan into the local skill directory.
+
+        Rejection pipeline (each returns a failed SkillInstallResult, never
+        raises): invalid directory name → lifecycle script guard → security
+        score gate → version downgrade guard → unsafe install target
+        (symlink/junction or category bucket). Unexpected errors propagate.
+        """
+
         def _emit(stage: str, msg: str):
             if progress_callback:
                 progress_callback(skill_id, stage, msg)
