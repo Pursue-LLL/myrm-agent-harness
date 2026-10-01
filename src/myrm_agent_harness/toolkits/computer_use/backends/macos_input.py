@@ -293,8 +293,11 @@ def write(text: str, interval: float = 0.0) -> None:
     """逐字符输入文本（CGEventKeyboardSetUnicodeString，任意 Unicode 均可靠）。"""
     from Quartz import CGEventCreate, CGEventCreateKeyboardEvent, CGEventKeyboardSetUnicodeString
 
+    from myrm_agent_harness.toolkits.computer_use.safety import ensure_screen_safe
+
     source = CGEventCreate(None)
     for char in text:
+        ensure_screen_safe()
         down = CGEventCreateKeyboardEvent(source, 0, True)
         CGEventKeyboardSetUnicodeString(down, 1, char)
         _post_event(down)

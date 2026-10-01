@@ -194,3 +194,16 @@ class TestDesktopSessionInterruption:
         res_vision = await session.desktop_vision_action("left_click", coordinate=[100, 100])
         assert "Safety: Screen is locked" in str(res_vision)
         assert backend.click.call_count == 0
+
+
+def test_macos_input_write_interrupted_when_locked() -> None:
+    from myrm_agent_harness.toolkits.computer_use.backends import macos_input
+    from myrm_agent_harness.toolkits.computer_use.screen_detector import get_default_screen_detector
+
+    detector = get_default_screen_detector()
+    detector.set_override_state(ScreenLockState.LOCKED)
+    try:
+        with pytest.raises(ScreenLockedInterruptionError):
+            macos_input.write("hello_world")
+    finally:
+        detector.set_override_state(None)
