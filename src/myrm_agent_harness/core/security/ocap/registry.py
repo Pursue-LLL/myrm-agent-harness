@@ -26,6 +26,8 @@ if TYPE_CHECKING:
     from myrm_agent_harness.core.security.ocap.types import CapabilityHandle
 
 _NUM_SHARDS = 16
+_AUTO_PRUNE_INTERVAL = 128
+_DEFAULT_RETENTION_SECONDS = 300.0
 
 
 class _RegistryShard:
@@ -36,12 +38,17 @@ class _RegistryShard:
         self._handles: dict[str, CapabilityHandle] = {}
         self._revoked_ids: dict[str, str] = {}
         self._parent_to_children: dict[str, set[str]] = defaultdict(set)
+        self._reg_counter = 0
 
     def register(self, handle: CapabilityHandle) -> None:
         with self._lock:
             self._handles[handle.handle_id] = handle
             if handle.parent_handle_id:
                 self._parent_to_children[handle.parent_handle_id].add(handle.handle_id)
+            self._reg_counter += 1
+            if self._reg_counter >= _AUTO_PRUNE_INTERVAL:
+                self._reg_counter = 0
+                self._prune_expired_locked(time.monotonic() - _DEFAULT_RETENTION_SECONDS)
 
     def is_revoked(self, handle_id: str) -> bool:
         with self._lock:
@@ -60,12 +67,15 @@ class _RegistryShard:
 
     def prune_expired(self, cutoff_time: float) -> int:
         with self._lock:
-            expired_ids = [hid for hid, h in self._handles.items() if h.expires_at < cutoff_time]
-            for hid in expired_ids:
-                self._handles.pop(hid, None)
-                self._revoked_ids.pop(hid, None)
-                self._parent_to_children.pop(hid, None)
-            return len(expired_ids)
+            return self._prune_expired_locked(cutoff_time)
+
+    def _prune_expired_locked(self, cutoff_time: float) -> int:
+        expired_ids = [hid for hid, h in self._handles.items() if h.expires_at < cutoff_time]
+        for hid in expired_ids:
+            self._handles.pop(hid, None)
+            self._revoked_ids.pop(hid, None)
+            self._parent_to_children.pop(hid, None)
+        return len(expired_ids)
 
 
 class CapabilityRegistry:

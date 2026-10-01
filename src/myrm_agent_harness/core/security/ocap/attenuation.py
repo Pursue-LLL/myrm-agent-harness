@@ -30,18 +30,36 @@ from myrm_agent_harness.core.security.ocap.types import (
 
 
 def _is_path_subscope(child_path: str, parent_pattern: str) -> bool:
-    """Check if child_path is strictly within parent_pattern boundaries."""
+    """Check if child_path is strictly within parent_pattern boundaries.
+
+    Implements two-tier defense:
+    1. Fast lexical normpath check.
+    2. Physical realpath verification if path physically exists (blocks symlink traversal).
+    """
     norm_child = os.path.normpath(child_path)
     norm_parent = os.path.normpath(parent_pattern)
 
-    if norm_child == norm_parent:
-        return True
-
     clean_parent = norm_parent.rstrip("/*")
-    if norm_child.startswith(clean_parent + os.sep) or norm_child == clean_parent:
-        return True
 
-    return fnmatch.fnmatch(norm_child, norm_parent)
+    lexical_match = (
+        norm_child == norm_parent
+        or norm_child == clean_parent
+        or norm_child.startswith(clean_parent + os.sep)
+        or fnmatch.fnmatch(norm_child, norm_parent)
+    )
+    if not lexical_match:
+        return False
+
+    try:
+        if os.path.lexists(norm_child):
+            real_child = os.path.realpath(norm_child)
+            real_parent = os.path.realpath(clean_parent) if os.path.exists(clean_parent) else clean_parent
+            if real_child != real_parent and not real_child.startswith(real_parent + os.sep):
+                return False
+    except (OSError, ValueError):
+        return False
+
+    return True
 
 
 def _is_domain_subscope(child_domain: str, parent_domain: str) -> bool:
