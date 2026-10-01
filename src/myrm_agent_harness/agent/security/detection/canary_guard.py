@@ -21,6 +21,7 @@ Properties:
 [OUTPUT]
 - generate_canary(): create a session-scoped random token
 - build_canary_instruction(canary): system prompt suffix
+- inject_canary_environment_variables(canary, env, var_name): inject canary into sandbox env preserving cache
 - check_canary(value, canary): recursive structure scan
 - scrub_canary(text, canary): remove canary from output
 

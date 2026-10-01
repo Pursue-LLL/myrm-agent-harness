@@ -16,6 +16,7 @@ Detailed design: [SECURITY_SYSTEM.md](SECURITY_SYSTEM.md)
 |------|------|-------------|-------|
 | `__init__.py` | Package | Agent security subsystem — 6-layer onion defense architecture. | ✅ |
 | approval_flow.py | Core | Persistent allow-always, time-bound scoped allowlist, and in-memory session-scoped grants (permission/tool/exact/pattern matching, opportunistic expiry pruning, session isolation, find_matching_entry discovery, zero DB persistence for session-scoped grants, DB TTL cache). | ✅ |
+| circuit_breaker.py | Core | Session-scoped security circuit breaker (`SessionCircuitBreaker`, `CircuitBreakerTripInfo`) for quarantine and one-click self-healing on indirect injection or exfiltration. | ✅ |
 | command_allowlist_pattern.py | Core | Shell command glob derivation, compound-operator guard, parity vectors (`DERIVE_PATTERN_PARITY_VECTORS`). | ✅ |
 | mcp_approval_identity.py | Core | Hosted MCP Approval Identity Scope and Scope Isolation. Prevents Confused Deputy attacks across subagents and sessions. | ✅ |
 | audit.py | Core | Cross-cutting concern. Called from tool_interceptor_middleware and all | ✅ |
