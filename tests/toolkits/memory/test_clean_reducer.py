@@ -59,7 +59,7 @@ def test_clean_reduce_claude_code_transcript() -> None:
     turn = res.turns[0]
     assert turn.user_content == "Fix the bug in auth.py"
     assert "<thinking>" not in turn.assistant_content
-    assert "🛠️ [Executed: bash" in turn.assistant_content
+    assert "[Tool] [Executed: bash" in turn.assistant_content
     assert "I fixed the auth bug" in turn.assistant_content
     assert res.reduction_ratio > 0.0
 
@@ -100,7 +100,7 @@ def test_clean_reduce_codex_transcript() -> None:
     t = res.turns[0]
     assert "Run tests on api module" in t.user_content
     assert "All 5 tests in api passed" in t.assistant_content
-    assert "🛠️" in t.assistant_content
+    assert "[Tool]" in t.assistant_content
 
 
 def test_clean_reduce_multiple_turns_and_truncation() -> None:
