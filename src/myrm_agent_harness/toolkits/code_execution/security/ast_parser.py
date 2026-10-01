@@ -76,7 +76,7 @@ class AtomicCommandAction:
 SAFE_READONLY_COMMANDS: frozenset[str] = frozenset({
     "ls", "dir", "cat", "head", "tail", "less", "more", "file", "wc", "du", "df", "stat",
     "tree", "realpath", "basename", "dirname", "readlink", "pwd", "grep", "rg", "ag", "fd",
-    "fzf", "sort", "uniq", "diff", "comm", "cut", "tr", "echo", "printf", "uname", "arch",
+    "find", "fzf", "sort", "uniq", "diff", "comm", "cut", "tr", "echo", "printf", "uname", "arch",
     "id", "whoami", "groups", "uptime", "which", "where", "type", "command", "date", "cd",
     "env", "md5sum", "sha256sum", "hexdump", "strings",
 })
