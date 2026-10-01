@@ -38,6 +38,14 @@ from myrm_agent_harness.core.security.egress.spend_governor import (
     SpendGovernor,
     SpendGovernorConfig,
 )
+from myrm_agent_harness.toolkits.code_execution.security.task_airbag import (
+    TaskAirbagDiffSummary,
+    TaskAirbagManifest,
+    TaskAirbagStatus,
+    arm_task_airbag,
+    get_task_airbag_diff,
+    rollback_task_airbag,
+)
 from myrm_agent_harness.toolkits.code_execution.security.workspace_snapshot import (
     WorkspaceSnapshotResult,
     create_workspace_snapshot,
@@ -67,7 +75,11 @@ __all__ = [
     "SpendGovernor",
     "SpendGovernorConfig",
     "TaintLabel",
+    "TaskAirbagDiffSummary",
+    "TaskAirbagManifest",
+    "TaskAirbagStatus",
     "WorkspaceSnapshotResult",
+    "arm_task_airbag",
     "classify_batch_approval_risk",
     "clear_dynamic_blocked_hostnames",
     "configure_process_managed_approval_policy",
@@ -77,8 +89,10 @@ __all__ = [
     "get_process_managed_approval_policy",
     "get_process_managed_approval_revision",
     "get_taint_tracker",
+    "get_task_airbag_diff",
     "load_managed_approval_policy_from_env",
     "register_blocked_hostnames",
+    "rollback_task_airbag",
     "rollback_workspace_snapshot",
     "set_untrusted_ingress",
     "unregister_blocked_hostnames",
