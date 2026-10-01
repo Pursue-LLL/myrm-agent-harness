@@ -19,8 +19,10 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING
 
-from myrm_agent_harness.agent.meta_tools.progress.schemas import TodoStore
+if TYPE_CHECKING:
+    from myrm_agent_harness.agent.meta_tools.progress.schemas import TodoStore
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +39,8 @@ def extract_todo_store_from_payload(payload: object) -> TodoStore | None:
     # Case 1: direct TodoStore structure
     if "todos" in payload and isinstance(payload.get("todos"), list):
         try:
+            from myrm_agent_harness.agent.meta_tools.progress.schemas import TodoStore
+
             return TodoStore.model_validate(payload)
         except Exception:
             pass
