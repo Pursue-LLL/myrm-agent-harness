@@ -182,7 +182,9 @@ async def test_exact_anchor_index_and_lean_compaction_real_llm_flow() -> None:
     # 5. Dependency & build blacklist enforcement check (in exact anchor table)
     anchor_idx = summary_content.find("### ⚓ Exact Anchor Index")
     assert anchor_idx > 0, "Exact Anchor Index heading must be present"
-    anchor_section = summary_content[anchor_idx:]
+    preserve_end = summary_content.find("</preserve_context>", anchor_idx)
+    assert preserve_end > anchor_idx, "Closing </preserve_context> tag must follow anchor table"
+    anchor_section = summary_content[anchor_idx:preserve_end]
     assert "node_modules" not in anchor_section
     assert ".venv" not in anchor_section
 
@@ -198,7 +200,7 @@ async def test_exact_anchor_index_and_lean_compaction_real_llm_flow() -> None:
     # 7. 4-Pillar Lean Structured Summary conversion check
     lean = LeanStructuredSummary.from_structured_summary(summary)
     assert lean.user_goal, "Lean user_goal must be preserved"
-    lean_dict = lean.to_dict()
+    lean_dict = lean.model_dump()
     assert set(lean_dict.keys()) == {"user_goal", "active_state", "key_decisions", "next_steps"}
 
     # 8. Single-Turn Verbatim Refetcher check (Zero loss after compaction)

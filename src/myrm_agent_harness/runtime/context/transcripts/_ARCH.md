@@ -15,6 +15,7 @@
 | `hermes_parser.py` | 核心 | Hermes Agent v0.20.2 JSON/JSONL 会话流解析、工具调用提取与状态紧凑规约 | ✅ |
 | `path_remapper.py` | 辅助 | 宿主机物理绝对路径到沙箱工作区（`/workspace`）的自动重锚替换 | ✅ |
 | `tool_compactor.py` | 辅助 | 两阶段工具输出紧凑规约（超阈值首尾保留），防止首轮续聊上下文爆仓 | ✅ |
+| `clean_reducer.py` | 适配 | 导出纯净转录本压缩器（CleanTranscriptReducer）供全栈统一会话导入使用 | ✅ |
 
 ## 模块依赖
 

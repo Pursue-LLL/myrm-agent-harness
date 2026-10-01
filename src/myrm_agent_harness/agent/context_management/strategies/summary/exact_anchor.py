@@ -35,9 +35,7 @@ _FILE_PATH_RE = re.compile(
     r")"
 )
 
-_IDENT_RE = re.compile(
-    r"(?:def|class|function|interface|type|const|let|var|struct|enum)\s+([a-zA-Z_][a-zA-Z0-9_]{2,})"
-)
+_IDENT_RE = re.compile(r"(?:def|class|function|interface|type|const|let|var|struct|enum)\s+([a-zA-Z_][a-zA-Z0-9_]{2,})")
 
 _COMMIT_SHA_RE = re.compile(
     r"(?:(?:commit|commit\s*[:=]|sha\s*[:=]|rev\s*[:=])\s*([0-9a-f]{7,40})|\b([0-9a-f]{40})\b)",
@@ -48,12 +46,7 @@ _API_ENDPOINT_RE = re.compile(r"/api/v\d+/[a-zA-Z0-9_/-]+")
 
 _HIGH_SEVERITY_ERROR_RE = re.compile(
     r"((?:Traceback\s*\(most recent call last\):.*?"
-    r"|SyntaxError:.*?"
-    r"|TypeError:.*?"
-    r"|AttributeError:.*?"
-    r"|ModuleNotFoundError:.*?"
-    r"|ImportError:.*?"
-    r"|AssertionError:.*?"
+    r"|[A-Za-z0-9_.]*(?:Error|Exception|Fault|Failure):.*?"
     r"|panic:.*?"
     r"|FATAL ERROR:.*?"
     r"|exit code:\s*[1-9]\d*).*?)(?:\n|$)",
@@ -97,7 +90,6 @@ _IGNORED_PATH_PREFIXES: tuple[str, ...] = (
     ".next/",
     ".cache/",
 )
-
 
 
 @dataclass(frozen=True, slots=True)
@@ -257,8 +249,7 @@ def extract_exact_anchors(
                         and path not in seen_paths
                         and len(path) >= 4
                         and not any(
-                            path.startswith(prefix) or f"/{prefix}" in path
-                            for prefix in _IGNORED_PATH_PREFIXES
+                            path.startswith(prefix) or f"/{prefix}" in path for prefix in _IGNORED_PATH_PREFIXES
                         )
                     ):
                         seen_paths.add(path)
@@ -280,12 +271,7 @@ def extract_exact_anchors(
             if len(symbols) < cfg.max_code_symbols:
                 for match in _IDENT_RE.finditer(line):
                     sym = match.group(1).strip()
-                    if (
-                        sym
-                        and sym.lower() not in seen_symbols
-                        and sym.lower() not in _NOISE_WORDS
-                        and len(sym) >= 3
-                    ):
+                    if sym and sym.lower() not in seen_symbols and sym.lower() not in _NOISE_WORDS and len(sym) >= 3:
                         seen_symbols.add(sym.lower())
                         symbols.append(sym)
                         if len(symbols) >= cfg.max_code_symbols:
