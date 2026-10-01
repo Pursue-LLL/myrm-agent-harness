@@ -352,6 +352,9 @@ def cleanup_stale_automation_sandboxes(
 
     for candidate in candidates:
         try:
+            if not candidate.exists():
+                continue
+
             stat = candidate.stat()
             age_s = now - stat.st_mtime
             if age_s < cutoff_s:
@@ -369,6 +372,8 @@ def cleanup_stale_automation_sandboxes(
             if not dry_run:
                 try:
                     shutil.rmtree(candidate)
+                except FileNotFoundError:
+                    pass
                 except Exception as rm_exc:
                     logger.warning("Failed to remove sandbox %s: %s", candidate, rm_exc)
 
@@ -376,10 +381,13 @@ def cleanup_stale_automation_sandboxes(
                     failed.append({"path": str(candidate), "reason": "directory_still_exists_after_rmtree"})
                     continue
 
-                logger.info(f"Pruned stale automation sandbox: {candidate}")
+                logger.info("Pruned stale automation sandbox: %s", candidate)
 
             pruned += 1
             reclaimed_bytes += dir_bytes
+        except FileNotFoundError:
+            # Removed concurrently by another process or OS cleaner
+            continue
         except Exception as exc:
             failed.append({"path": str(candidate), "reason": str(exc)})
 

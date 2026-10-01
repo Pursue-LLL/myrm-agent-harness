@@ -13,7 +13,8 @@
 [POS]
 MCP schema-token routing for SkillAgent factory. **Two outcomes only** (see
 ``TOOL_DESIGN_STRATEGY.md`` §MCP 路由铁律 — 禁止 catalog_invoke / proxy 第三路径):
-- Direct FC: per-server and aggregate within budget → native Turn1 FC with full schema
+- Direct FC (AUTO): per-server and aggregate within budget → native Turn1 FC with full schema
+- Direct FC (DIRECT_FC mode): forced direct regardless of per-server / aggregate thresholds
 - MCP PTC: per-server schema over threshold OR aggregate overflow → skill_select + bash SOP
 """
 
@@ -276,6 +277,7 @@ async def route_mcp_servers(
 
     all_mcp_configs = cast("list[MCPConfig]", list(mcp_servers))
     manager = await get_mcp_connection_manager()
+    force_direct = resolved_surface == MCPSurfaceMode.DIRECT_FC
 
     for cfg in all_mcp_configs:
         try:
@@ -292,7 +294,7 @@ async def route_mcp_servers(
             continue
 
         raw_schema_tokens = estimate_schema_tokens(server_tools)
-        if raw_schema_tokens <= direct_threshold:
+        if raw_schema_tokens <= direct_threshold or force_direct:
             compressed_tools = tuple(_compress_direct_tools(server_tools))
             schema_tokens = estimate_schema_tokens(compressed_tools)
             direct_bundles.append(
@@ -302,14 +304,23 @@ async def route_mcp_servers(
                     schema_tokens=schema_tokens,
                 )
             )
-            logger.info(
-                "MCP hybrid: server '%s' (%d tools, raw~%d tokens, compact~%d tokens, threshold=%d) → direct candidate",
-                cfg.name,
-                len(server_tools),
-                raw_schema_tokens,
-                schema_tokens,
-                direct_threshold,
-            )
+            if force_direct and raw_schema_tokens > direct_threshold:
+                logger.info(
+                    "MCP direct_fc override: server '%s' (%d tools, ~%d tokens, threshold=%d) → forced direct",
+                    cfg.name,
+                    len(server_tools),
+                    raw_schema_tokens,
+                    direct_threshold,
+                )
+            else:
+                logger.info(
+                    "MCP hybrid: server '%s' (%d tools, raw~%d tokens, compact~%d tokens, threshold=%d) → direct candidate",
+                    cfg.name,
+                    len(server_tools),
+                    raw_schema_tokens,
+                    schema_tokens,
+                    direct_threshold,
+                )
         else:
             ptc_servers.append(cfg)
             logger.info(

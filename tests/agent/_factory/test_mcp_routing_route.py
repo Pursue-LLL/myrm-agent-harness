@@ -285,6 +285,59 @@ class TestCompressDirectToolsEdgeCases:
         assert compressed is tool
 
 
+@pytest.mark.asyncio
+async def test_route_mcp_servers_direct_fc_overrides_per_server_threshold() -> None:
+    """DIRECT_FC mode forces all servers into direct path, even above per-server threshold."""
+    cfg = MCPConfig(name="large", type="stdio", command="echo")
+    tools = [_make_mock_tool(f"tool_{i}", schema_size=500) for i in range(30)]
+    manager = MagicMock()
+    manager.get_connection = AsyncMock(return_value=_mock_connection({"large": tools}))
+
+    with patch(
+        "myrm_agent_harness.toolkits.mcp.connection_manager.get_mcp_connection_manager",
+        AsyncMock(return_value=manager),
+    ):
+        result = await route_mcp_servers([cfg], surface_mode=MCPSurfaceMode.DIRECT_FC)
+
+    assert len(result.direct_tools) == 30
+    assert result.skills == []
+
+
+@pytest.mark.asyncio
+async def test_route_mcp_servers_auto_mode_unaffected_by_direct_fc_fix() -> None:
+    """AUTO mode still routes large servers to PTC (regression guard)."""
+    cfg = MCPConfig(name="large", type="stdio", command="echo")
+    tools = [_make_mock_tool(f"tool_{i}", schema_size=500) for i in range(30)]
+    manager = MagicMock()
+    manager.get_connection = AsyncMock(return_value=_mock_connection({"large": tools}))
+
+    skill_meta = SkillMetadata(
+        name="mcp_large_skill",
+        description="Large MCP",
+        mcp=MCPSkillData(
+            server="large",
+            tools=["tool_0"],
+            config=[{"name": "large", "type": "stdio", "command": "echo"}],
+        ),
+    )
+
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.mcp.connection_manager.get_mcp_connection_manager",
+            AsyncMock(return_value=manager),
+        ),
+        patch(
+            "myrm_agent_harness.agent.skills.mcp.core_generator.mcp_skill_generator.generate_metadata_only",
+            AsyncMock(return_value=[skill_meta]),
+        ),
+        patch("myrm_agent_harness.agent.skills.runtime.registry.skill_registry.register"),
+    ):
+        result = await route_mcp_servers([cfg], surface_mode=MCPSurfaceMode.AUTO)
+
+    assert result.direct_tools == []
+    assert len(result.skills) == 1
+
+
 class TestEstimateSingleToolTokens:
     def test_returns_positive_for_valid_tool(self) -> None:
         tool = _make_mock_tool("single")
