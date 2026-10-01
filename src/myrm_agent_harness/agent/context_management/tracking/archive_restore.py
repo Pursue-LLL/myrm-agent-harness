@@ -18,10 +18,9 @@ Archive restore DTO layer. Defines stable budget, decision, and restore-map-awar
 from dataclasses import dataclass, field
 from typing import Literal
 
-from myrm_agent_harness.runtime.context.restore_map_contract import (
+from myrm_agent_harness.runtime.context.restore_map_structures import (
     RestoreContentFeature,
     RestoreRangeHint,
-    load_restore_map_ranges,
 )
 
 MAX_ARCHIVE_REFETCHES_PER_PATH = 2
@@ -119,6 +118,8 @@ def build_archive_restore_guidance(
     if backoff_adjusted:
         safe_chunk_size = min(safe_chunk_size, ARCHIVE_RESTORE_BACKOFF_RANGE_CHUNK_LINES)
         safe_range_count = 1
+    from myrm_agent_harness.runtime.context.restore_map_contract import load_restore_map_ranges
+
     restore_map = load_restore_map_ranges(archive_path, safe_range_count)
     ranges = restore_map.ranges
     if not ranges:

@@ -46,6 +46,8 @@ from .orphans import (
     find_orphan_automation_processes,
     find_orphan_chromium_processes,
     find_orphan_driver_processes,
+    register_browser_exit_reaper,
+    unregister_browser_exit_reaper,
 )
 from .report import (
     CheckStatus,
@@ -65,5 +67,7 @@ __all__ = [
     "find_orphan_chromium_processes",
     "find_orphan_driver_processes",
     "format_report",
+    "register_browser_exit_reaper",
     "run_doctor",
+    "unregister_browser_exit_reaper",
 ]

@@ -48,9 +48,6 @@ from myrm_agent_harness.agent.config import DEFAULT_FILE_IO_CONFIG, FileIOConfig
 from myrm_agent_harness.agent.context_management.infra.session_lock import (
     get_current_chat_id,
 )
-from myrm_agent_harness.agent.context_management.tracking.task_metrics import (
-    evaluate_archive_refetch_for_path,
-)
 from myrm_agent_harness.utils.token_estimation import (
     estimate_content_tokens,
 )
@@ -284,6 +281,10 @@ class FileOperationService:
         lines = await strategy.read_file(resolved_path)
         content_text = "\n".join(lines)
         estimated_content_tokens = estimate_content_tokens(content_text)
+        from myrm_agent_harness.agent.context_management.tracking.archive_restore_runtime import (
+            evaluate_archive_refetch_for_path,
+        )
+
         archive_refetch_decision = evaluate_archive_refetch_for_path(
             resolved_path,
             estimated_tokens=estimated_content_tokens,

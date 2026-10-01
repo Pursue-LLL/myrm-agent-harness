@@ -13,6 +13,7 @@ Precisely detects orphan patchright/playwright chromium and driver processes
 - cleanup_orphan_processes: safe cleanup (dry-run by default, SIGTERM/SIGKILL escalation)
 - cleanup_stale_automation_sandboxes: stale automation sandbox cleanup
 - check_orphan_processes: doctor check result for the orphan scan
+- register_browser_exit_reaper / unregister_browser_exit_reaper: atexit emergency reaper lifecycle hooks
 
 [POS]
 Orphan process detection and cleanup. The psutil process-table walk is
@@ -22,6 +23,8 @@ server health endpoints) so it never blocks an event loop.
 
 from __future__ import annotations
 
+import atexit
+import contextlib
 import logging
 import os
 import shutil
@@ -325,11 +328,11 @@ def cleanup_stale_automation_sandboxes(
         Summary dict containing inspected, pruned counts, and reclaimed bytes.
     """
     candidates: list[Path] = []
-    # 1. macOS AMFI code_sign_clone path probe
+    # 1. macOS AMFI code_sign_clone path probe (*.code_sign_clone covers Chrome, Patchright Chromium, Canary, etc.)
     var_folders = Path("/private/var/folders")
     if var_folders.is_dir():
         try:
-            for clone_dir in var_folders.glob("*/*/X/com.google.Chrome.code_sign_clone"):
+            for clone_dir in var_folders.glob("*/*/X/*.code_sign_clone"):
                 if clone_dir.is_dir():
                     candidates.append(clone_dir)
         except (PermissionError, OSError) as exc:
@@ -358,7 +361,15 @@ def cleanup_stale_automation_sandboxes(
                     pass
 
             if not dry_run:
-                shutil.rmtree(candidate, ignore_errors=True)
+                try:
+                    shutil.rmtree(candidate)
+                except Exception as rm_exc:
+                    logger.warning("Failed to remove sandbox %s: %s", candidate, rm_exc)
+
+                if candidate.exists():
+                    failed.append({"path": str(candidate), "reason": "directory_still_exists_after_rmtree"})
+                    continue
+
                 logger.info(f"Pruned stale automation sandbox: {candidate}")
 
             pruned += 1
@@ -402,3 +413,52 @@ def check_orphan_processes() -> DoctorCheckResult:
             "paths": [o["user_data_dir"] for o in orphans],
         },
     )
+
+
+_exit_reaper_registered: bool = False
+
+
+def _emergency_cleanup_orphans_on_exit() -> None:
+    """Best-effort emergency cleanup registered via atexit.
+
+    Sweeps orphan browser and driver automation processes when the interpreter exits,
+    preventing detached Chromium zombies from persisting after unexpected process termination.
+    """
+    if os.environ.get("MYRM_BROWSER_EXIT_REAP_DISABLED", "").strip().lower() in ("1", "true", "yes"):
+        return
+    try:
+        cleanup_orphan_processes(force=True, timeout_s=0.5)
+    except Exception as exc:
+        logger.debug(f"atexit emergency orphan cleanup swallowed exception: {exc}")
+
+
+def register_browser_exit_reaper() -> bool:
+    """Register the atexit emergency browser orphan cleanup hook idempotently.
+
+    Returns:
+        True if the hook was newly registered, False if already registered.
+    """
+    global _exit_reaper_registered
+    if _exit_reaper_registered:
+        return False
+
+    atexit.register(_emergency_cleanup_orphans_on_exit)
+    _exit_reaper_registered = True
+    return True
+
+
+def unregister_browser_exit_reaper() -> bool:
+    """Unregister the atexit emergency browser orphan cleanup hook if registered.
+
+    Returns:
+        True if the hook was unregistered, False if it was not registered.
+    """
+    global _exit_reaper_registered
+    if not _exit_reaper_registered:
+        return False
+
+    with contextlib.suppress(Exception):
+        atexit.unregister(_emergency_cleanup_orphans_on_exit)
+    _exit_reaper_registered = False
+    return True
+

@@ -20,8 +20,11 @@ from myrm_agent_harness.toolkits.browser.doctor import (
     find_orphan_automation_processes,
     find_orphan_chromium_processes,
     find_orphan_driver_processes,
+    register_browser_exit_reaper,
+    unregister_browser_exit_reaper,
 )
 from myrm_agent_harness.toolkits.browser.doctor.orphans import (
+    _emergency_cleanup_orphans_on_exit,
     _has_python_ancestor,
     check_orphan_processes,
 )
@@ -622,7 +625,6 @@ def test_cleanup_stale_automation_sandboxes_dry_run(tmp_path):
 
     with patch("myrm_agent_harness.toolkits.browser.doctor.orphans.Path") as mock_path_cls:
         # Let real Path handle everything except the specific search path
-        real_path = tmp_path.parent
         mock_path_instance = MagicMock()
         mock_path_instance.is_dir.return_value = True
         mock_path_instance.glob.return_value = [test_sandbox]
@@ -662,3 +664,84 @@ def test_cleanup_orphan_processes_escalates_to_sigkill():
         signals_sent = [sig for (_, sig) in call_log]
         assert signal.SIGTERM in signals_sent
         assert signal.SIGKILL in signals_sent
+
+
+def test_cleanup_stale_automation_sandboxes_post_assertion_failure(tmp_path):
+    """Should record failure and zero reclaimed_bytes when candidate exists after rmtree."""
+    test_sandbox = tmp_path / "com.google.Chrome.code_sign_clone"
+    test_sandbox.mkdir(parents=True)
+    sample_file = test_sandbox / "sample.txt"
+    sample_file.write_text("dummy payload")
+
+    mock_path_instance = MagicMock()
+    mock_path_instance.is_dir.return_value = True
+    mock_path_instance.glob.return_value = [test_sandbox]
+
+    with (
+        patch("myrm_agent_harness.toolkits.browser.doctor.orphans.Path") as mock_path_cls,
+        patch("shutil.rmtree") as mock_rmtree,
+    ):
+        def path_side_effect(*args, **kwargs):
+            if args and args[0] == "/private/var/folders":
+                return mock_path_instance
+            from pathlib import Path as RealPath
+            return RealPath(*args, **kwargs)
+
+        mock_path_cls.side_effect = path_side_effect
+        # Simulates rmtree not actually removing directory due to OS locks
+        mock_rmtree.return_value = None
+
+        result = cleanup_stale_automation_sandboxes(max_age_hours=0.0, dry_run=False)
+
+        assert result["pruned"] == 0
+        assert result["reclaimed_bytes"] == 0
+        assert len(result["failed"]) == 1
+        assert result["failed"][0]["reason"] == "directory_still_exists_after_rmtree"
+
+
+def test_cleanup_stale_automation_sandboxes_glob_wildcard(tmp_path):
+    """Should discover both Chrome and Patchright Chromium code_sign_clone variants."""
+    chrome_clone = tmp_path / "com.google.Chrome.code_sign_clone"
+    chromium_clone = tmp_path / "org.chromium.Chromium.code_sign_clone"
+    chrome_clone.mkdir(parents=True)
+    chromium_clone.mkdir(parents=True)
+
+    mock_path_instance = MagicMock()
+    mock_path_instance.is_dir.return_value = True
+    mock_path_instance.glob.return_value = [chrome_clone, chromium_clone]
+
+    with patch("myrm_agent_harness.toolkits.browser.doctor.orphans.Path") as mock_path_cls:
+        def path_side_effect(*args, **kwargs):
+            if args and args[0] == "/private/var/folders":
+                return mock_path_instance
+            from pathlib import Path as RealPath
+            return RealPath(*args, **kwargs)
+
+        mock_path_cls.side_effect = path_side_effect
+
+        result = cleanup_stale_automation_sandboxes(max_age_hours=0.0, dry_run=True)
+        assert result["candidates_inspected"] == 2
+        mock_path_instance.glob.assert_called_once_with("*/*/X/*.code_sign_clone")
+
+
+def test_register_and_unregister_browser_exit_reaper():
+    """Should register and unregister atexit hook idempotently, respecting env disable."""
+    unregister_browser_exit_reaper()
+
+    # First register should succeed
+    assert register_browser_exit_reaper() is True
+    # Second register should be idempotent (return False)
+    assert register_browser_exit_reaper() is False
+
+    # Unregister should succeed
+    assert unregister_browser_exit_reaper() is True
+    assert unregister_browser_exit_reaper() is False
+
+    # Test disabled via environment variable
+    with (
+        patch.dict(os.environ, {"MYRM_BROWSER_EXIT_REAP_DISABLED": "1"}),
+        patch("myrm_agent_harness.toolkits.browser.doctor.orphans.cleanup_orphan_processes") as mock_cleanup,
+    ):
+        _emergency_cleanup_orphans_on_exit()
+        mock_cleanup.assert_not_called()
+

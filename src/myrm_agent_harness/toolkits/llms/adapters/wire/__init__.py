@@ -28,10 +28,16 @@ from myrm_agent_harness.toolkits.llms.adapters.wire.translator import (
     chat_messages_to_responses_input,
     resolve_min_output_tokens,
 )
+from myrm_agent_harness.toolkits.llms.adapters.wire.zdr_interceptor import (
+    apply_zdr_outbound_params,
+    is_zdr_eligible_provider,
+)
 
 __all__ = [
+    "apply_zdr_outbound_params",
     "build_responses_kwargs",
     "chat_messages_to_responses_input",
+    "is_zdr_eligible_provider",
     "resolve_min_output_tokens",
     "responses_dict_to_chat_completion",
     "responses_event_to_completion_chunk",

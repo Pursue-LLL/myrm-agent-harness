@@ -89,11 +89,14 @@ if TYPE_CHECKING:
         DoctorCheckResult,
         DoctorReport,
         cleanup_orphan_processes,
+        cleanup_stale_automation_sandboxes,
         find_orphan_automation_processes,
         find_orphan_chromium_processes,
         find_orphan_driver_processes,
         format_report,
+        register_browser_exit_reaper,
         run_doctor,
+        unregister_browser_exit_reaper,
     )
     from .observability import BrowserObservability, RecordingConfig
     from .session_vault import (
@@ -152,6 +155,7 @@ __all__ = [
     "StorageVaultBackend",
     "VaultMetrics",
     "cleanup_orphan_processes",
+    "cleanup_stale_automation_sandboxes",
     "create_browser_context_updater",
     "extract_metadata_from_messages",
     "find_orphan_automation_processes",
@@ -161,8 +165,10 @@ __all__ = [
     "get_browser_state",
     "load_or_create_key",
     "merge_metadata",
+    "register_browser_exit_reaper",
     "restore_browser_state",
     "run_doctor",
+    "unregister_browser_exit_reaper",
 ]
 
 _LAZY_MODULES = {
@@ -185,9 +191,12 @@ _LAZY_MODULES = {
     ],
     "doctor.orphans": [
         "cleanup_orphan_processes",
+        "cleanup_stale_automation_sandboxes",
         "find_orphan_automation_processes",
         "find_orphan_chromium_processes",
         "find_orphan_driver_processes",
+        "register_browser_exit_reaper",
+        "unregister_browser_exit_reaper",
     ],
     "doctor.report": [
         "CheckStatus",
@@ -246,3 +255,12 @@ def __getattr__(name: str):
         return globals()[name]
 
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+# Automatically register emergency orphan reaper on interpreter exit
+try:
+    from .doctor.orphans import register_browser_exit_reaper as _register_exit_reaper
+
+    _register_exit_reaper()
+except Exception:
+    pass
