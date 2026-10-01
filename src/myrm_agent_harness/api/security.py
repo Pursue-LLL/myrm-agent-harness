@@ -43,6 +43,11 @@ from myrm_agent_harness.toolkits.code_execution.security.workspace_snapshot impo
     create_workspace_snapshot,
     rollback_workspace_snapshot,
 )
+from myrm_agent_harness.toolkits.computer_use.screen_detector import (
+    ScreenDetector,
+    get_default_screen_detector,
+)
+from myrm_agent_harness.toolkits.computer_use.types import ScreenLockState
 from myrm_agent_harness.toolkits.ssh_remote import ReadOnlySSHValidator
 from myrm_agent_harness.utils.url_utils import (
     clear_dynamic_blocked_hostnames,
@@ -57,6 +62,8 @@ __all__ = [
     "BatchRiskReport",
     "ManagedApprovalPolicy",
     "ReadOnlySSHValidator",
+    "ScreenDetector",
+    "ScreenLockState",
     "SpendGovernor",
     "SpendGovernorConfig",
     "TaintLabel",
@@ -66,6 +73,7 @@ __all__ = [
     "configure_process_managed_approval_policy",
     "create_workspace_snapshot",
     "detect_suspicious",
+    "get_default_screen_detector",
     "get_process_managed_approval_policy",
     "get_process_managed_approval_revision",
     "get_taint_tracker",
