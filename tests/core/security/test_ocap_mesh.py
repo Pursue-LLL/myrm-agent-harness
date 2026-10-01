@@ -356,3 +356,43 @@ def test_symlink_traversal_blocked_by_realpath(tmp_path: pytest.TempPathFactory)
     # Must be blocked by realpath resolution!
     assert _is_path_subscope(str(symlink_path), parent_scope) is False
 
+
+def test_guard_egress_and_mcp_enforcement() -> None:
+    """Verify guard correctly validates and enforces EGRESS domains and MCP tool patterns."""
+    registry = CapabilityRegistry(num_shards=1)
+    now = time.monotonic()
+    raw_handle = CapabilityHandle(
+        handle_id="cap-egress-mcp-01",
+        issuer_id="root",
+        subject_id="sub-worker",
+        scope=ResourceScope(
+            domains=("*.openai.com", "api.github.com"),
+            mcp_tools=("git_*", "fetch_*"),
+        ),
+        actions=frozenset({CapabilityAction.EGRESS, CapabilityAction.MCP}),
+        issued_at=now,
+        expires_at=now + 3600.0,
+    )
+    sig = sign_capability_handle(raw_handle)
+    root = replace(raw_handle, signature=sig)
+    registry.register(root)
+
+    # 1. EGRESS verification
+    assert check_capability_access(CapabilityAction.EGRESS, "api.openai.com", handle=root, registry=registry) is True
+    assert check_capability_access(CapabilityAction.EGRESS, "evil.attacker.com", handle=root, registry=registry) is False
+    enforce_capability_access(CapabilityAction.EGRESS, "api.openai.com", handle=root, registry=registry)
+    with pytest.raises(CapabilityDeniedError, match="Egress domain 'evil.attacker.com' is not in capability whitelist"):
+        enforce_capability_access(CapabilityAction.EGRESS, "evil.attacker.com", handle=root, registry=registry)
+
+    # 2. MCP verification
+    assert check_capability_access(CapabilityAction.MCP, "git_status", handle=root, registry=registry) is True
+    assert check_capability_access(CapabilityAction.MCP, "bash_exec", handle=root, registry=registry) is False
+    enforce_capability_access(CapabilityAction.MCP, "fetch_url", handle=root, registry=registry)
+    with pytest.raises(CapabilityDeniedError, match="MCP tool 'bash_exec' is not in capability whitelist"):
+        enforce_capability_access(CapabilityAction.MCP, "bash_exec", handle=root, registry=registry)
+
+    # 3. Unconstrained fallback (handle=None with empty context)
+    assert check_capability_access(CapabilityAction.READ, "/any/path") is True
+    enforce_capability_access(CapabilityAction.READ, "/any/path")
+
+
