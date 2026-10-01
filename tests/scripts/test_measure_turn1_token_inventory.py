@@ -183,7 +183,7 @@ _DOC_TURN1_TOOL_TOKENS: dict[str, int] = {
     "skill_select_tool": 240,
     "web_fetch_tool": 148,
     "web_search_tool": 1174,
-    "working_memory_manage_tool": 51,
+    "working_memory_manage_tool": 52,
 }
 
 

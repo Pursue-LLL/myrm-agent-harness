@@ -99,7 +99,7 @@
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
 |---|--------|------------------:|----------|------|----------|
-| 17 | `working_memory_manage_tool` | **51** | `harness/agent/meta_tools/working_memory/working_memory_agent_tools.py` | 多步执行的工作台：子任务状态推进、死路丢弃（自动沉淀避坑防线）、结论压缩、临时备忘 | `enable_working_memory_tool`（harness 默认 True；server 目前未暴露开关） |
+| 17 | `working_memory_manage_tool` | **52** | `harness/agent/meta_tools/working_memory/working_memory_agent_tools.py` | 多步执行的工作台：子任务状态推进、死路丢弃（自动沉淀避坑防线）、结论压缩、临时备忘 | `enable_working_memory_tool`（harness 默认 True；server 目前未暴露开关） |
 
 参数 JSON Schema 本体约 **600 tokens**，计入 §六 全量口径。
 
@@ -260,11 +260,11 @@ Token 明细（历史 tiktoken 计量保留）：
 
 ---
 
-## 六、格式开销（~2,900 + 参数 schema ~5,142 ≈ **~8,042 tokens**，模型/API 相关）
+## 六、格式开销（~2,900 + 参数 schema ~5,225 ≈ **~8,125 tokens**，模型/API 相关）
 
 | 组件 | Token (估算) | 说明 |
 |------|------------:|------|
-| 工具参数 schema | ~367/tool | 参数 JSON Schema 本体；`estimate_bound_tools_tokens` 不含此项，仅 `measure_tool_schema_tokens.py` 全量口径统计 |
+| 工具参数 schema | ~373/tool | 参数 JSON Schema 本体；`estimate_bound_tools_tokens` 不含此项，仅 `measure_tool_schema_tokens.py` 全量口径统计 |
 | schema wrapper 包装 | ~65/tool | 每个工具 API 格式的**包装**开销（function name、schema 外壳等），**不含参数 schema**；参数 schema 见上一行 |
 | Qwen tokenizer 差异 | ~20-30% | Qwen3 tokenizer 对中文分词效率低于 tiktoken，中文内容 token 数会更高 |
 | 特殊 token/消息格式 | ~500 | role tags, tool_use markers, message boundaries 等 |
@@ -302,7 +302,7 @@ Token 明细（历史 tiktoken 计量保留）：
 | System Prompt 层 | **2,568** | `messages[0]` 2,269（GPT-5 族 · ZH · full）+ `messages[1]` 299，固定，跨用户缓存 |
 | CORE 工具层 | **2,668** | 8 工具描述（含 bash_process；`measure_turn1_token_inventory.py` 实测，o200k_base） |
 | HIGH_PRIORITY 工具层 | **2,649** | web_search + memory×3 + skill_select |
-| EXTENDED 工具层 | **51** | working_memory_manage_tool（`enable_working_memory_tool` 默认开启） |
+| EXTENDED 工具层 | **52** | working_memory_manage_tool（`enable_working_memory_tool` 默认开启） |
 | schema wrapper 包装 | **910** | 14 工具 × 65（仅 API 包装，不含参数 schema） |
 | 动态注入 | ~1,200 | user_instructions + memory_context + inline_skills |
 | 消息格式 | ~500 | role tags, boundaries 等 |
@@ -346,7 +346,7 @@ Token 明细（历史 tiktoken 计量保留）：
 [HIGH_PRIORITY: web_search + memory_* + skill_select (~2,649 tok)]
   ↑ web_search 优先；memory 组紧随；skill_select 承接；GUI 可关
 
-[EXTENDED: working_memory_manage_tool (51) + 可选工具 (~0~7,411 tok)]
+[EXTENDED: working_memory_manage_tool (52) + 可选工具 (~0~7,411 tok)]
   ↑ 按需变化，不影响 CORE/HIGH_PRIORITY 前缀
 
 [System Prompt: messages[0] 2,269 (GPT-5·ZH·full) + messages[1] 299]
@@ -356,15 +356,15 @@ Token 明细（历史 tiktoken 计量保留）：
   ↑ 同用户会话内稳定
 ```
 
-**实测 Turn1 工具层合计**：描述 **5,368** + schema wrapper **910** = **6,278 tokens**（14 工具，`measure_turn1_token_inventory.py`，o200k_base，macOS arm64 宿主）。Linux 宿主因 bash OS hint 更短而为 6,252。
+**实测 Turn1 工具层合计**：描述 **5,369** + schema wrapper **910** = **6,279 tokens**（14 工具，`measure_turn1_token_inventory.py`，o200k_base，macOS arm64 宿主）。Linux 宿主因 bash OS hint 更短而为 6,252。
 
-> **口径边界（重要）**：`6,278` 为「描述 + wrapper 包装」口径，**不含工具参数 schema**。参数 schema 是真实发送给模型的 payload 一部分，全量口径见 `measure_tool_schema_tokens.py`（其 `Turn-1 Total Budget` = 描述 **5,368** + 参数 schema **5,142** + wrapper **910** = **11,420**）。下方各 Turn-1 场景表的「schema wrapper 包装」行与 harness 门禁阈值均沿用「描述 + wrapper」口径，与 `estimate_bound_tools_tokens`（`utils/token_estimation.py:117-120`）一致；该估算仅用于展示与预检，压缩与预算决策以 provider 实测 `prompt_tokens` 为准（`estimate_context_tokens` 取 `max(estimate, provider)`）。
+> **口径边界（重要）**：`6,279` 为「描述 + wrapper 包装」口径，**不含工具参数 schema**。参数 schema 是真实发送给模型的 payload 一部分，全量口径见 `measure_tool_schema_tokens.py`（其 `Turn-1 Total Budget` = 描述 **5,369** + 参数 schema **5,225** + wrapper **910** = **11,504**）。下方各 Turn-1 场景表的「schema wrapper 包装」行与 harness 门禁阈值均沿用「描述 + wrapper」口径，与 `estimate_bound_tools_tokens`（`utils/token_estimation.py:117-120`）一致；该估算仅用于展示与预检，压缩与预算决策以 provider 实测 `prompt_tokens` 为准（`estimate_context_tokens` 取 `max(estimate, provider)`）。
 
 **CI 门禁（横跨 harness / server 两仓）**：
 
 | 仓 | 门禁文件 | 锁定项 |
 |----|----------|--------|
-| harness | `tests/architecture/test_prompt_token_budget_gate.py` | Turn-1 默认工具集 ≤ **6,500**（当前 6,278，余量 222；口径=描述+wrapper，**不含参数 schema**）；`AGENT_CORE_RULES` ≤ 350 / `SECURITY_BOUNDARY_SYSTEM_RULES` ≤ 350 / `DATETIME_SYSTEM_RULES` ≤ 120；SystemMessage 哈希跨调用恒定 |
+| harness | `tests/architecture/test_prompt_token_budget_gate.py` | Turn-1 默认工具集 ≤ **6,500**（当前 6,279，余量 221；口径=描述+wrapper，**不含参数 schema**）；`AGENT_CORE_RULES` ≤ 350 / `SECURITY_BOUNDARY_SYSTEM_RULES` ≤ 350 / `DATETIME_SYSTEM_RULES` ≤ 120；SystemMessage 哈希跨调用恒定 |
 | harness | `tests/scripts/test_measure_turn1_token_inventory.py` | 逐工具描述 token 与 §二/§三 表格一致（漂移即失败并指出工具名）；`bash_code_execute` 的宿主相关 OS hint 单独扣减，故 macOS 与 Linux CI 结果一致 |
 | server | `tests/ai_agents/test_prompt_integrity.py:187-224`（`cl100k_base`） | CORE full ≤ **2,000** / lean ≤ **1,200** / lean÷full ratio ≤ **0.70** |
 

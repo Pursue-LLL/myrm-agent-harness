@@ -861,9 +861,9 @@ class TestRunAgentLoopOuterErrorFaultSide:
         assert "classify_fault_side(error_kind=error_kind.value)" in signatures
         # When error_kind is UNKNOWN, the diagnostic error_type refines the
         # attribution (unified classifier falls back error_kind → error_type).
-        assert "error_type=diagnostic_type" in next(
-            sig for sig in signatures if sig.startswith("classify_fault_side(") and "error_type" in sig
-        )
+        refined = [sig for sig in signatures if sig.startswith("classify_fault_side(") and "error_type" in sig]
+        assert refined, "no classify_fault_side call passes error_type for diagnostic refinement"
+        assert any("error_type=diagnostic_type" in sig for sig in refined)
         # recovery_actions must be generated when a diagnostic payload exists.
         assert any(sig.startswith("LLMErrorDiagnostic.get_recovery_actions(") for sig in signatures)
         # The outer-loop error_event must be persisted to the event journal

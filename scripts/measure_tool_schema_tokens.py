@@ -39,7 +39,6 @@ sys.path.insert(0, str(_repo_root))
 sys.path.insert(0, str(_repo_root / "src"))
 
 from myrm_agent_harness.agent.tool_management.tool_layers import (  # noqa: E402
-    _TOOL_LAYERS,
     get_tool_layer,
 )
 from myrm_agent_harness.utils.text_utils import PLANNING_ENCODING, get_token_count  # noqa: E402

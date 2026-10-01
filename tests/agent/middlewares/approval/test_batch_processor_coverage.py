@@ -84,7 +84,7 @@ class TestYOLOMode:
                         ToolCall(
                             type="tool_call",
                             name="bash_code_execute_tool",
-                            args={"command": "rm -rf /"},
+                            args={"command": "echo hello"},
                             id="c1",
                         ),
                     ],
@@ -94,6 +94,43 @@ class TestYOLOMode:
 
         result = await middleware.aafter_model(state, MockRuntime())
         assert result is None, "YOLO mode should auto-approve"
+
+    @pytest.mark.asyncio
+    async def test_yolo_mode_still_blocks_irreversible_destructive(self):
+        """Irreversible destructive work is immune to YOLO auto-approval."""
+        config = SecurityConfig(
+            ruleset=(PermissionRule("*", "*", PermissionAction.ASK),),
+            yolo_mode_enabled=True,
+        )
+        set_security_config(config)
+        set_workspace_root("/tmp")
+        set_approval_session("test-session")
+        set_approval_user_id("user1")
+
+        middleware = ToolApprovalMiddleware()
+        state = {
+            "messages": [
+                AIMessage(
+                    content="test",
+                    tool_calls=[
+                        ToolCall(
+                            type="tool_call",
+                            name="bash_code_execute_tool",
+                            args={"command": "rm -rf /"},
+                            id="c1",
+                        ),
+                    ],
+                )
+            ]
+        }
+
+        # interrupt() needs a LangGraph runnable context, which this direct
+        # middleware call does not provide.
+        with patch("myrm_agent_harness.agent.middlewares.approval.middleware.interrupt") as mock_interrupt:
+            mock_interrupt.return_value = {"decisions": [{"tool_call_id": "c1", "action": "reject"}]}
+            await middleware.aafter_model(state, MockRuntime())
+
+        assert mock_interrupt.called, "Irreversible destructive calls must still ask the user"
 
     @pytest.mark.asyncio
     async def test_yolo_mode_with_timeout_still_active(self):
