@@ -48,6 +48,12 @@ def emit_todo_progress_events(store: TodoStore) -> None:
                 "status": "in_progress",
                 "data": [{"text": root_label}],
                 "revision": store.revision,
+                "tool_name": "todo_write",
+                "tool_result_details": {
+                    "goal": store.goal,
+                    "revision": store.revision,
+                    "todos": [item.model_dump() for item in store.todos],
+                },
             },
         )
 
