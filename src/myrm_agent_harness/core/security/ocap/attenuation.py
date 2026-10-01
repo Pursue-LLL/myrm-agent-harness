@@ -61,23 +61,20 @@ def validate_scope_subset(child_scope: ResourceScope, parent_scope: ResourceScop
     if parent_scope.is_unrestricted():
         return
 
-    if parent_scope.paths:
-        if not child_scope.paths:
-            raise AttenuationError("Child cannot have unrestricted paths when parent is restricted")
+    if child_scope.is_unrestricted():
+        raise AttenuationError("Child cannot have unrestricted scope when parent is restricted")
+
+    if parent_scope.paths and child_scope.paths:
         for cp in child_scope.paths:
             if not any(_is_path_subscope(cp, pp) for pp in parent_scope.paths):
                 raise AttenuationError(f"Path elevation denied: '{cp}' is outside parent path boundaries")
 
-    if parent_scope.domains:
-        if not child_scope.domains:
-            raise AttenuationError("Child cannot have unrestricted domains when parent is restricted")
+    if parent_scope.domains and child_scope.domains:
         for cd in child_scope.domains:
             if not any(_is_domain_subscope(cd, pd) for pd in parent_scope.domains):
                 raise AttenuationError(f"Domain elevation denied: '{cd}' is outside parent domain whitelist")
 
-    if parent_scope.mcp_tools:
-        if not child_scope.mcp_tools:
-            raise AttenuationError("Child cannot have unrestricted MCP access when parent is restricted")
+    if parent_scope.mcp_tools and child_scope.mcp_tools:
         for cm in child_scope.mcp_tools:
             if not any(fnmatch.fnmatch(cm, pm) for pm in parent_scope.mcp_tools):
                 raise AttenuationError(f"MCP elevation denied: '{cm}' is outside parent allowed tools")

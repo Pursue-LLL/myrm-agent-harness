@@ -19,10 +19,10 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 
-class CapabilityAction(str, Enum):
+class CapabilityAction(StrEnum):
     """Permitted operation action types within a capability scope."""
 
     READ = "read"

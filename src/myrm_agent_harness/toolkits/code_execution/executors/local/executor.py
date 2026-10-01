@@ -311,6 +311,10 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
             allowed_hosts=effective_allowed_hosts,
         )
 
+        from myrm_agent_harness.core.security.ocap import CapabilityAction, enforce_capability_access
+
+        enforce_capability_access(CapabilityAction.EXECUTE, str(effective_cwd))
+
         # Audit potential environment variable secret leaks in command
         try:
             from myrm_agent_harness.toolkits.code_execution.security.shell_bleed import (
@@ -437,6 +441,10 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
         if not validation_result.is_safe:
             yield f"[ERROR] Command blocked: {validation_result.reason}\n"
             return
+
+        from myrm_agent_harness.core.security.ocap import CapabilityAction, enforce_capability_access
+
+        enforce_capability_access(CapabilityAction.EXECUTE, str(effective_cwd))
 
         self._setup_workspace(str(effective_cwd) if effective_cwd else None)
         command = await self._prepare_bash_command(command)

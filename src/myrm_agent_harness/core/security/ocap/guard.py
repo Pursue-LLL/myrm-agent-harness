@@ -77,9 +77,8 @@ def check_capability_access(
         if scope.domains:
             return any(_is_domain_subscope(target, d) for d in scope.domains)
 
-    elif action == CapabilityAction.MCP:
-        if scope.mcp_tools:
-            return any(fnmatch.fnmatch(target, m) for m in scope.mcp_tools)
+    elif action == CapabilityAction.MCP and scope.mcp_tools:
+        return any(fnmatch.fnmatch(target, m) for m in scope.mcp_tools)
 
     return True
 
@@ -119,8 +118,7 @@ def enforce_capability_access(
                 raise CapabilityDeniedError(
                     f"Egress domain '{target}' is not in capability whitelist: {list(scope.domains)}"
                 )
-        elif action == CapabilityAction.MCP:
-            if scope.mcp_tools and not any(fnmatch.fnmatch(target, m) for m in scope.mcp_tools):
-                raise CapabilityDeniedError(
-                    f"MCP tool '{target}' is not in capability whitelist: {list(scope.mcp_tools)}"
-                )
+        elif action == CapabilityAction.MCP and scope.mcp_tools and not any(fnmatch.fnmatch(target, m) for m in scope.mcp_tools):
+            raise CapabilityDeniedError(
+                f"MCP tool '{target}' is not in capability whitelist: {list(scope.mcp_tools)}"
+            )

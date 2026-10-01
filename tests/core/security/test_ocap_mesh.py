@@ -122,7 +122,7 @@ def test_ocap_attenuation_blocks_path_elevation() -> None:
         )
 
     # Attempting to elevate to unrestricted
-    with pytest.raises(AttenuationError, match="Child cannot have unrestricted paths"):
+    with pytest.raises(AttenuationError, match="Child cannot have unrestricted"):
         attenuate_capability(
             parent=root,
             subject_id="rogue-child",
@@ -237,3 +237,68 @@ def test_concurrent_registry_access() -> None:
         results = [f.result() for f in futures]
 
     assert all(results) is True
+
+
+@pytest.mark.asyncio
+async def test_file_ops_ocap_integration(tmp_path: pytest.TempPathFactory) -> None:
+    from pathlib import Path
+
+    from myrm_agent_harness.core.security.ocap import (
+        capability_scope,
+        get_default_capability_registry,
+    )
+    from myrm_agent_harness.toolkits.code_execution.config import ExecutionConfig
+    from myrm_agent_harness.toolkits.code_execution.executors.local.executor import LocalExecutor
+
+    work_dir = Path(str(tmp_path))
+    allowed_dir = work_dir / "allowed"
+    secret_dir = work_dir / "secret"
+    allowed_dir.mkdir()
+    secret_dir.mkdir()
+
+    allowed_file = allowed_dir / "doc.txt"
+    allowed_file.write_text("allowed content", encoding="utf-8")
+
+    secret_file = secret_dir / ".env"
+    secret_file.write_text("SECRET_KEY=12345", encoding="utf-8")
+
+    executor = LocalExecutor(config=ExecutionConfig(), workspace_path=str(work_dir))
+
+    # 1. Unconstrained: can read both
+    assert await executor.read_file(str(allowed_file)) == "allowed content"
+    assert "SECRET_KEY" in await executor.read_file(str(secret_file))
+
+    # 2. In restricted OCap scope (only allowed_dir)
+    registry = get_default_capability_registry()
+    root = _create_root_handle(paths=(f"{work_dir}/**",))
+    registry.register(root)
+
+    child = attenuate_capability(
+        root,
+        "worker-sandbox",
+        target_scope=ResourceScope(paths=(f"{allowed_dir}/**",)),
+        target_actions={CapabilityAction.READ, CapabilityAction.WRITE},
+    )
+    registry.register(child)
+
+    with capability_scope(child):
+        # Reading allowed file succeeds
+        assert await executor.read_file(str(allowed_file)) == "allowed content"
+
+        # Reading secret file is physically blocked by OCap guard!
+        with pytest.raises(CapabilityDeniedError, match="outside granted capability"):
+            await executor.read_file(str(secret_file))
+
+        # Writing to secret file is physically blocked!
+        with pytest.raises(CapabilityDeniedError, match="outside granted capability"):
+            await executor.write_file(str(secret_file), "hacked")
+
+        # Writing to allowed file succeeds
+        await executor.write_file(str(allowed_dir / "out.txt"), "hello")
+        assert (allowed_dir / "out.txt").read_text() == "hello"
+
+    # 3. Cascading Revocation works end-to-end
+    registry.revoke(child.handle_id, reason="finished")
+    with capability_scope(child), pytest.raises(CapabilityDeniedError, match="invalid, expired, or revoked"):
+        await executor.read_file(str(allowed_file))
+

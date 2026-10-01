@@ -22,9 +22,12 @@ Single SSOT for spawn prep so delegate_task_tool and SpawnSubagentTool stay alig
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
+from typing import TYPE_CHECKING
+from uuid import uuid4
 
 from myrm_agent_harness.agent.sub_agents.types import (
     ControlScope,
@@ -38,6 +41,9 @@ from myrm_agent_harness.agent.workspace_coordination.merge.merge_metadata import
 from myrm_agent_harness.agent.workspace_coordination.policy import (
     apply_parallel_write_isolation,
 )
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.core.security.ocap.types import CapabilityHandle
 
 logger = logging.getLogger(__name__)
 
@@ -228,3 +234,77 @@ def spawn_result_for_store_after_merge(result: dict[str, object]) -> dict[str, o
     if result.get("workspace_merge_status") == "merged":
         out["workspace_merge_status"] = "merged"
     return out
+
+
+def derive_spawn_capability(
+    *,
+    parent_agent: object,
+    config: SubagentConfig,
+    child_context: dict[str, object],
+    readonly: bool,
+    context_files: list[str] | None = None,
+    ttl_seconds: float = 300.0,
+) -> CapabilityHandle:
+    """Generate cryptographically signed, attenuated CapabilityHandle for child execution."""
+    from myrm_agent_harness.core.security.ocap import (
+        CapabilityAction,
+        CapabilityHandle,
+        ResourceScope,
+        get_default_capability_registry,
+        sign_capability_handle,
+    )
+
+    workspace_path = str(child_context.get("workspace_path", "") or "")
+    paths: list[str] = []
+    if workspace_path:
+        paths.append(f"{workspace_path.rstrip('/')}/**")
+    if context_files:
+        for f in context_files:
+            clean_f = str(f).strip()
+            if clean_f:
+                paths.append(clean_f if clean_f.startswith("/") else f"{workspace_path}/{clean_f}")
+
+    if readonly:
+        actions = frozenset({CapabilityAction.READ})
+    else:
+        actions = frozenset({CapabilityAction.READ, CapabilityAction.WRITE, CapabilityAction.EXECUTE})
+
+    now = time.monotonic()
+    parent_ctx = getattr(parent_agent, "_last_context", None) or {}
+    parent_handle = parent_ctx.get("active_capability_handle")
+    parent_id = getattr(parent_handle, "handle_id", None) if parent_handle else None
+
+    scope = ResourceScope(paths=tuple(paths))
+    handle = CapabilityHandle(
+        handle_id=f"cap-sub-{uuid4().hex[:10]}",
+        issuer_id="parent_agent",
+        subject_id=config.agent_type,
+        scope=scope,
+        actions=actions,
+        issued_at=now,
+        expires_at=now + max(10.0, ttl_seconds),
+        parent_handle_id=parent_id,
+    )
+    sig = sign_capability_handle(handle)
+    signed_handle = replace(handle, signature=sig)
+
+    registry = get_default_capability_registry()
+    registry.register(signed_handle)
+    child_context["active_capability_handle"] = signed_handle
+    return signed_handle
+
+
+@contextmanager
+def subagent_capability_scope(child_context: dict[str, object] | None) -> Iterator[None]:
+    """Scoped binding of child's active capability handle to ContextVar."""
+    handle: object | None = None
+    if isinstance(child_context, dict):
+        handle = child_context.get("active_capability_handle")
+
+    from myrm_agent_harness.core.security.ocap import capability_scope
+    from myrm_agent_harness.core.security.ocap.types import CapabilityHandle
+
+    cap_handle = handle if isinstance(handle, CapabilityHandle) else None
+    with capability_scope(cap_handle):
+        yield
+
