@@ -38,6 +38,11 @@ from myrm_agent_harness.core.security.egress.spend_governor import (
     SpendGovernor,
     SpendGovernorConfig,
 )
+from myrm_agent_harness.toolkits.code_execution.security.workspace_snapshot import (
+    WorkspaceSnapshotResult,
+    create_workspace_snapshot,
+    rollback_workspace_snapshot,
+)
 from myrm_agent_harness.toolkits.ssh_remote import ReadOnlySSHValidator
 from myrm_agent_harness.utils.url_utils import (
     clear_dynamic_blocked_hostnames,
@@ -55,15 +60,18 @@ __all__ = [
     "SpendGovernor",
     "SpendGovernorConfig",
     "TaintLabel",
+    "WorkspaceSnapshotResult",
     "classify_batch_approval_risk",
     "clear_dynamic_blocked_hostnames",
     "configure_process_managed_approval_policy",
+    "create_workspace_snapshot",
     "detect_suspicious",
     "get_process_managed_approval_policy",
     "get_process_managed_approval_revision",
     "get_taint_tracker",
     "load_managed_approval_policy_from_env",
     "register_blocked_hostnames",
+    "rollback_workspace_snapshot",
     "set_untrusted_ingress",
     "unregister_blocked_hostnames",
     "wrap_untrusted",

@@ -362,6 +362,18 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "SSHRemoteExecutor": ("myrm_agent_harness.toolkits.ssh_remote", "SSHRemoteExecutor"),
     "SSHHostSpec": ("myrm_agent_harness.toolkits.ssh_remote", "SSHHostSpec"),
     "SSHCommandResult": ("myrm_agent_harness.toolkits.ssh_remote", "SSHCommandResult"),
+    "WorkspaceSnapshotResult": (
+        "myrm_agent_harness.toolkits.code_execution.security.workspace_snapshot",
+        "WorkspaceSnapshotResult",
+    ),
+    "create_workspace_snapshot": (
+        "myrm_agent_harness.toolkits.code_execution.security.workspace_snapshot",
+        "create_workspace_snapshot",
+    ),
+    "rollback_workspace_snapshot": (
+        "myrm_agent_harness.toolkits.code_execution.security.workspace_snapshot",
+        "rollback_workspace_snapshot",
+    ),
 }
 
 # ``__all__`` is derived from ``_EXPORTS`` so the two cannot drift: every name is declared once,
