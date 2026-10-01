@@ -97,6 +97,20 @@ CACHE_MAX_ENTRIES = 100
 CACHE_TTL_SECONDS = 300
 
 
+def _is_safe_skill_dir_name(name: str) -> bool:
+    """Skill install directory names must be a single relative path segment.
+
+    The name comes from publisher-controlled frontmatter, so anything that
+    could escape the install root (separators, dot segments, absolute paths)
+    must be rejected before it reaches filesystem operations.
+    """
+    if not name or name in {".", ".."}:
+        return False
+    if "/" in name or "\\" in name:
+        return False
+    return not Path(name).is_absolute()
+
+
 def _resolve_install_error(error: Exception) -> tuple[str, str]:
     from myrm_agent_harness.backends.skills.scanning.path_security import (
         CategoryBucketCollisionError,
@@ -570,6 +584,19 @@ class BaseSkillMarketService:
         def _emit(stage: str, msg: str):
             if progress_callback:
                 progress_callback(skill_id, stage, msg)
+
+        # 0. 安装目录名必须是单个相对路径段：frontmatter 的 name 完全由
+        # 技能发布方控制，未经校验会拼出目录穿越或让 mkdtemp 直接崩溃
+        if not _is_safe_skill_dir_name(name):
+            reason = f"Invalid skill name for install directory: {name!r}"
+            logger.warning("Skill install rejected: %s", reason)
+            _emit("rejected", reason)
+            return SkillInstallResult(
+                success=False,
+                skill_name=name,
+                error=reason,
+                error_code="INVALID_SKILL_NAME",
+            )
 
         # 1. 前置生命周期脚本防御门禁 (Lifecycle Script Guard)
         lifecycle_findings = check_lifecycle_scripts(files)

@@ -612,3 +612,33 @@ class TestUnsafeInstallTarget:
         )
 
         assert any(stage == "rejected" for stage, _ in stages)
+
+
+class TestUnsafeSkillNames:
+    @pytest.mark.parametrize(
+        "name",
+        ["", ".", "..", "a/b", "a\\b", "/abs/path", "../escape", "sub/../../x"],
+    )
+    @pytest.mark.asyncio
+    async def test_rejects_unsafe_names_cleanly(self, service: BaseSkillMarketService, name: str) -> None:
+        result = await service._quarantine_install("evil/id", name, {"SKILL.md": _skill_md()}, source="github")
+        assert result.success is False
+        assert result.error_code == "INVALID_SKILL_NAME"
+
+    @pytest.mark.parametrize("name", ["pdf", "my skill", "技能-1.0", "a.b_c"])
+    def test_accepts_legitimate_names(self, name: str) -> None:
+        from myrm_agent_harness.agent.skills.market.service import _is_safe_skill_dir_name
+
+        assert _is_safe_skill_dir_name(name) is True
+
+    @pytest.mark.asyncio
+    async def test_rejection_emits_progress_stage(self, service: BaseSkillMarketService) -> None:
+        stages: list[str] = []
+        await service._quarantine_install(
+            "evil/id",
+            "../escape",
+            {"SKILL.md": _skill_md()},
+            source="github",
+            progress_callback=lambda _sid, stage, _msg: stages.append(stage),  # type: ignore[arg-type]
+        )
+        assert stages == ["rejected"]

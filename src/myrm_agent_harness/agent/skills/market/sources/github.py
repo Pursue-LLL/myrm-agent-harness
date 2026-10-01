@@ -290,6 +290,9 @@ def parse_github_url(url: str) -> GitHubRef:
         - https://github.com/owner/repo/blob/v2/SKILL.md
         - owner/repo
         - owner/repo/skills/my-skill
+        - owner/repo/tree/<ref>[/<path>] (same as the full-URL tree form;
+          the literal segments `tree`/`blob` are reserved and never treated
+          as a subdirectory name)
 
     Raises:
         ValueError: If the URL cannot be parsed or contains path traversal.
