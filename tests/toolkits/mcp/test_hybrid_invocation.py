@@ -121,8 +121,8 @@ class TestDynamicThreshold:
         expected = estimate_schema_tokens(overhead) * PTC_OVERHEAD_MULTIPLIER
         assert threshold == expected
 
-    def test_multiplier_is_2(self) -> None:
-        assert PTC_OVERHEAD_MULTIPLIER == 2
+    def test_multiplier_is_25(self) -> None:
+        assert PTC_OVERHEAD_MULTIPLIER == 25
 
     def test_fallback_overhead_tokens_is_450(self) -> None:
         assert FALLBACK_PTC_OVERHEAD_TOKENS == 450

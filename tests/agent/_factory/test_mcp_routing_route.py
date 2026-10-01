@@ -59,7 +59,7 @@ async def test_route_mcp_servers_direct_path() -> None:
 @pytest.mark.asyncio
 async def test_route_mcp_servers_ptc_path() -> None:
     cfg = MCPConfig(name="large", type="stdio", command="echo")
-    tools = [_make_mock_tool(f"tool_{i}", schema_size=500) for i in range(30)]
+    tools = [_make_mock_tool(f"tool_{i}", schema_size=500, param_props=5) for i in range(100)]
     manager = MagicMock()
     manager.get_connection = AsyncMock(return_value=_mock_connection({"large": tools}))
 
@@ -196,19 +196,27 @@ async def test_route_mcp_servers_aggregate_demotion() -> None:
 
 @pytest.mark.asyncio
 async def test_route_mcp_servers_aggregate_over_budget_demotes_to_ptc() -> None:
-    """Aggregate direct schema over budget demotes to MCP PTC (no catalog_invoke)."""
-    cfg = MCPConfig(name="medium", type="stdio", command="echo")
-    tools = [_make_mock_tool(f"tool_{i}", schema_size=250, param_props=3) for i in range(8)]
+    """Aggregate direct schema over budget demotes largest server to PTC."""
+    cfg_a = MCPConfig(name="server_a", type="stdio", command="echo")
+    cfg_b = MCPConfig(name="server_b", type="stdio", command="echo")
+    tools_a = [_make_mock_tool(f"a_{i}", schema_size=250, param_props=3) for i in range(8)]
+    tools_b = [_make_mock_tool(f"b_{i}", schema_size=250, param_props=3) for i in range(8)]
+
+    async def get_connection(cfgs: list[MCPConfig]) -> MagicMock:
+        name = cfgs[0].name
+        conn_tools = {"server_a": tools_a, "server_b": tools_b}
+        return _mock_connection({name: conn_tools[name]})
+
     manager = MagicMock()
-    manager.get_connection = AsyncMock(return_value=_mock_connection({"medium": tools}))
+    manager.get_connection = get_connection
 
     skill_meta = SkillMetadata(
-        name="mcp_medium_skill",
-        description="Medium MCP",
+        name="mcp_server_a_skill",
+        description="Demoted server",
         mcp=MCPSkillData(
-            server="medium",
-            tools=["tool_0"],
-            config=[{"name": "medium", "type": "stdio", "command": "echo"}],
+            server="server_a",
+            tools=["a_0"],
+            config=[{"name": "server_a", "type": "stdio", "command": "echo"}],
         ),
     )
 
@@ -216,6 +224,10 @@ async def test_route_mcp_servers_aggregate_over_budget_demotes_to_ptc() -> None:
         patch(
             "myrm_agent_harness.agent._factory.mcp_routing.compute_direct_threshold",
             return_value=10000,
+        ),
+        patch(
+            "myrm_agent_harness.agent._factory.mcp_routing.demote_direct_servers_over_budget",
+            lambda bundles: demote_direct_servers_over_budget(bundles, budget=1500),
         ),
         patch(
             "myrm_agent_harness.toolkits.mcp.connection_manager.get_mcp_connection_manager",
@@ -227,9 +239,12 @@ async def test_route_mcp_servers_aggregate_over_budget_demotes_to_ptc() -> None:
         ),
         patch("myrm_agent_harness.agent.skills.runtime.registry.skill_registry.register"),
     ):
-        result = await route_mcp_servers([cfg], surface_mode=MCPSurfaceMode.AUTO)
+        result = await route_mcp_servers(
+            [cfg_a, cfg_b],
+            surface_mode=MCPSurfaceMode.AUTO,
+        )
 
-    assert result.direct_tools == []
+    assert len(result.direct_tools) > 0
     assert len(result.skills) == 1
 
 
@@ -307,7 +322,7 @@ async def test_route_mcp_servers_direct_fc_overrides_per_server_threshold() -> N
 async def test_route_mcp_servers_auto_mode_unaffected_by_direct_fc_fix() -> None:
     """AUTO mode still routes large servers to PTC (regression guard)."""
     cfg = MCPConfig(name="large", type="stdio", command="echo")
-    tools = [_make_mock_tool(f"tool_{i}", schema_size=500) for i in range(30)]
+    tools = [_make_mock_tool(f"tool_{i}", schema_size=500, param_props=5) for i in range(100)]
     manager = MagicMock()
     manager.get_connection = AsyncMock(return_value=_mock_connection({"large": tools}))
 

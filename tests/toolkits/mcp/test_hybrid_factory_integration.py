@@ -32,10 +32,10 @@ def _make_mock_tool(name: str, schema_size: int = 50) -> MagicMock:
 @pytest.mark.asyncio
 async def test_factory_hybrid_splits_direct_and_ptc() -> None:
     """Low-token server → direct, high-token server → PTC."""
-    threshold = compute_direct_threshold()  # fallback = 450 * 2 = 900
+    threshold = compute_direct_threshold()  # fallback = 450 * 25 = 11,250
 
     small_tools = [_make_mock_tool(f"small_tool_{i}", schema_size=20) for i in range(3)]
-    large_tools = [_make_mock_tool(f"large_tool_{i}", schema_size=400) for i in range(30)]
+    large_tools = [_make_mock_tool(f"large_tool_{i}", schema_size=1500) for i in range(100)]
 
     small_tokens = estimate_schema_tokens(small_tools)
     large_tokens = estimate_schema_tokens(large_tools)
@@ -58,7 +58,7 @@ async def test_threshold_correctly_routes_mixed_servers() -> None:
 
     tools_by_server = {
         "small": [_make_mock_tool(f"s_{i}", schema_size=20) for i in range(3)],
-        "large": [_make_mock_tool(f"l_{i}", schema_size=400) for i in range(30)],
+        "large": [_make_mock_tool(f"l_{i}", schema_size=1500) for i in range(100)],
     }
 
     direct_servers: list[str] = []

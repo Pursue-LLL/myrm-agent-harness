@@ -41,9 +41,18 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-PTC_OVERHEAD_MULTIPLIER = 2
-"""Multiplier for PTC overhead tool schema cost (skill_search + skill_select).
-If MCP schema > overhead * multiplier, PTC/Skill is more efficient."""
+PTC_OVERHEAD_MULTIPLIER = 25
+"""Per-server schema threshold = PTC_overhead_tokens × multiplier.
+
+Empirical derivation (12306 benchmark, 8 tools, 2077 schema tokens):
+  PTC extra cost ≈ ΔT×P + D_eff×(T+ΔT−2) where ΔT=3, P≈11K, D_eff≈17.5K, T≈5
+  → theoretical crossover ≈ 27.8K tokens (≈100+ tools)
+  → practical threshold = crossover × 0.4 safety margin ≈ 11K tokens
+  → multiplier = 11K / 450 ≈ 25
+
+Below this threshold DIRECT_FC always wins because PTC's 3 extra turns
+(skill_select + file_read + planning) cause quadratic history accumulation
+that far exceeds the per-turn schema injection cost of DIRECT_FC."""
 
 FALLBACK_PTC_OVERHEAD_TOKENS = 450
 """Estimated PTC overhead (skill_select_tool + skill_search_tool schema tokens)
@@ -51,15 +60,16 @@ when actual overhead tools are not available for measurement."""
 
 CHARS_PER_TOKEN = 4.0
 
-AGGREGATE_DIRECT_TOKEN_BUDGET = 1200
-"""Maximum total schema tokens for all MCP direct tools combined.
+AGGREGATE_DIRECT_TOKEN_BUDGET = 15_000
+"""Maximum aggregate schema tokens for all MCP direct servers combined.
 
-When multiple lightweight MCP servers individually pass the per-server threshold
-but their aggregate schema exceeds this budget, whole servers (largest first) are
-demoted to PTC/Skill until the remaining direct pool fits within budget.
+Set to ~1.5× the per-server threshold (450×25 = 11.25K) so that 2–3 medium
+MCP servers (each ≈5K tokens) can coexist as DIRECT without demotion.
+Demoting multiple servers to PTC multiplies the SOP/L3 accumulation penalty
+(each PTC server adds its own 3-turn overhead), so the aggregate cap should
+be generous.
 
-Single aggregate threshold — overflow demotes whole servers to PTC/Skill (largest first).
-"""
+When exceeded, whole servers (largest first) are demoted to PTC/Skill."""
 
 DIRECT_MCP_DESCRIPTION_SOFT_LIMIT = 180
 """Soft character limit for direct MCP tool descriptions.
