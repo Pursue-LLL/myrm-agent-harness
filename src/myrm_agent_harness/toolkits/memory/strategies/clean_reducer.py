@@ -169,7 +169,7 @@ class CleanTranscriptReducer:
 
             asst_text = "\n\n".join(p for p in pending_asst_parts if p.strip()).strip()
             if pending_tools:
-                tools_block = "\n".join(f"> 🛠️ {t}" for t in pending_tools)
+                tools_block = "\n".join(f"> [Tool] {t}" for t in pending_tools)
                 asst_text = f"{tools_block}\n\n{asst_text}".strip() if asst_text else tools_block
 
             clean_user = scrub_secrets(pending_user or "")
