@@ -302,3 +302,57 @@ async def test_file_ops_ocap_integration(tmp_path: pytest.TempPathFactory) -> No
     with capability_scope(child), pytest.raises(CapabilityDeniedError, match="invalid, expired, or revoked"):
         await executor.read_file(str(allowed_file))
 
+
+def test_registry_amortized_auto_pruning() -> None:
+    """Verify registry automatically prunes expired handles during high-frequency registration."""
+    reg = CapabilityRegistry(num_shards=1)
+    now = time.monotonic()
+
+    # Register 130 expired handles to trigger automatic pruning threshold (128)
+    for i in range(130):
+        handle = CapabilityHandle(
+            handle_id=f"cap-exp-{i}",
+            issuer_id="root",
+            subject_id="sub",
+            scope=ResourceScope(),
+            actions=frozenset({CapabilityAction.READ}),
+            issued_at=now - 500.0,
+            expires_at=now - 400.0,
+        )
+        sig = sign_capability_handle(handle)
+        reg.register(replace(handle, signature=sig))
+
+    # The 128th registration should have auto-evicted the earlier expired handles
+    # Confirm that early handles were pruned
+    assert reg._shards[0].get_handle("cap-exp-0") is None
+    assert reg._shards[0].get_handle("cap-exp-10") is None
+
+
+def test_symlink_traversal_blocked_by_realpath(tmp_path: pytest.TempPathFactory) -> None:
+    """Verify that a symlink pointing outside granted boundaries is fail-closed blocked."""
+    import os
+    from pathlib import Path
+
+    from myrm_agent_harness.core.security.ocap.attenuation import _is_path_subscope
+
+    base = Path(str(tmp_path))
+    allowed_dir = base / "safe_zone"
+    forbidden_dir = base / "forbidden_secrets"
+    allowed_dir.mkdir()
+    forbidden_dir.mkdir()
+
+    secret_file = forbidden_dir / "master.key"
+    secret_file.write_text("SUPER_SECRET_KEY", encoding="utf-8")
+
+    # Create a malicious symlink inside safe_zone pointing to forbidden_secrets
+    symlink_path = allowed_dir / "leak_link"
+    try:
+        os.symlink(str(secret_file), str(symlink_path))
+    except (OSError, NotImplementedError):
+        pytest.skip("Symlinks not supported in environment")
+
+    # Lexically, leak_link is under safe_zone, but physically points to forbidden_secrets
+    parent_scope = f"{allowed_dir}/**"
+    # Must be blocked by realpath resolution!
+    assert _is_path_subscope(str(symlink_path), parent_scope) is False
+

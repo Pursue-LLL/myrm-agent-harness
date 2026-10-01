@@ -42,8 +42,7 @@ def _is_path_subscope(child_path: str, parent_pattern: str) -> bool:
     clean_parent = norm_parent.rstrip("/*")
 
     lexical_match = (
-        norm_child == norm_parent
-        or norm_child == clean_parent
+        norm_child in (norm_parent, clean_parent)
         or norm_child.startswith(clean_parent + os.sep)
         or fnmatch.fnmatch(norm_child, norm_parent)
     )
