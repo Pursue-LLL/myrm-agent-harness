@@ -253,13 +253,43 @@ async def test_auto_mode_suspended_propagates_to_review_config() -> None:
 
 
 def test_should_block_allow_always_for_hardened_flags() -> None:
-    """_should_block_allow_always returns True for socially_irreversible and auto_mode_suspended."""
+    """_should_block_allow_always returns True for socially_irreversible, irreversible_destructive, and auto_mode_suspended."""
     tool_call = {"name": "bash", "args": {"command": "git push"}}
 
     assert _should_block_allow_always(tool_call, {"socially_irreversible": True}) is True
+    assert _should_block_allow_always(tool_call, {"irreversible_destructive": True}) is True
     assert _should_block_allow_always(tool_call, {"auto_mode_suspended": "consecutive"}) is True
     assert _should_block_allow_always(tool_call, {"auto_mode_suspended": "total"}) is True
     assert _should_block_allow_always(tool_call, {}) is False
+
+
+@pytest.mark.asyncio
+async def test_yolo_mode_destructive_irreversible_gate() -> None:
+    """Destructive irreversible command (e.g. rm -rf) cannot be bypassed by YOLO mode."""
+    config = SecurityConfig(yolo_mode_enabled=True)
+    rm_call = _make_shell_call("rm -rf /workspace/test_dir", tc_id="tc_rm")
+
+    approved, denied, pending = await evaluate_tool_batch(
+        [rm_call],
+        config,
+        is_cron=False,
+        workspace_root="/tmp",
+        session_key="s_destr",
+        args_hashes={},
+        is_interactive=True,
+    )
+
+    assert len(approved) == 0
+    assert len(denied) == 0
+    assert len(pending) == 1
+    idx, tc, perm_type, reason, extra_ctx = pending[0]
+    assert idx == 0
+    assert tc["id"] == "tc_rm"
+    assert extra_ctx.get("irreversible_destructive") is True
+    assert extra_ctx.get("hide_allow_always") is True
+    assert extra_ctx.get("high_risk") is True
+    assert "Irreversible destructive operation" in reason
+
 
 
 @pytest.mark.asyncio

@@ -66,6 +66,9 @@ from myrm_agent_harness.core.security.spend_governance import (
     is_irreversible_social_action,
     parse_spend_amount,
 )
+from myrm_agent_harness.toolkits.code_execution.security.ast_parser import (
+    is_destructive_shell_tool_call,
+)
 
 from . import _batch_review
 from ._batch_decisions import apply_approval_decisions, build_interrupt_payload
@@ -307,8 +310,43 @@ async def evaluate_tool_batch(
                     )
                 )
             else:
-                record_decision(tool_name, "YOLO_AUTO_APPROVE", "YOLO mode enabled")
-                auto_approved.append((idx, tool_call))
+                is_destr, destr_reason, blast_info = is_destructive_shell_tool_call(tool_name, tool_input)
+                if is_destr:
+                    logger.warning(
+                        "[YOLO_DESTRUCTIVE_IRREVERSIBLE_GATE] Tool %s blocked from YOLO auto-approval (%s)",
+                        tool_name,
+                        destr_reason,
+                    )
+                    record_decision(
+                        tool_name,
+                        "YOLO_DESTRUCTIVE_IRREVERSIBLE_BLOCKED",
+                        f"Irreversible destructive operations are immune to YOLO auto-approval: {destr_reason}",
+                    )
+                    from pathlib import Path
+
+                    from myrm_agent_harness.toolkits.code_execution.security.workspace_snapshot import (
+                        create_workspace_snapshot,
+                    )
+                    snap_res = create_workspace_snapshot(Path.cwd())
+                    destr_ctx: dict[str, object] = {
+                        "irreversible_destructive": True,
+                        "high_risk": True,
+                        "hide_allow_always": True,
+                        "blast_radius": blast_info,
+                        "snapshot_id": snap_res.snapshot_id,
+                    }
+                    pending_approval.append(
+                        (
+                            idx,
+                            tool_call,
+                            permission_type,
+                            f"Irreversible destructive operation ({destr_reason or tool_name}) requires explicit human approval",
+                            destr_ctx,
+                        )
+                    )
+                else:
+                    record_decision(tool_name, "YOLO_AUTO_APPROVE", "YOLO mode enabled")
+                    auto_approved.append((idx, tool_call))
         return auto_approved, auto_denied, pending_approval
 
     from myrm_agent_harness.core.security.device_policy import evaluate_batch_risk
@@ -539,6 +577,23 @@ async def evaluate_tool_batch(
             extra_ctx["high_risk"] = True
             extra_ctx["hide_allow_always"] = True
             record_decision(tool_name, "SOCIAL_IRREVERSIBLE_GATE_ESCALATED", reason)
+
+        is_destr, destr_reason, blast_info = is_destructive_shell_tool_call(tool_name, tool_input)
+        if action == PermissionAction.ALLOW and is_destr:
+            action = PermissionAction.ASK
+            reason = f"Irreversible destructive operation ({destr_reason or tool_name}) requires explicit human approval"
+            extra_ctx = extra_ctx or {}
+            extra_ctx["irreversible_destructive"] = True
+            extra_ctx["high_risk"] = True
+            extra_ctx["hide_allow_always"] = True
+            extra_ctx["blast_radius"] = blast_info
+            from pathlib import Path
+
+            from myrm_agent_harness.toolkits.code_execution.security.workspace_snapshot import create_workspace_snapshot
+            snap_res = create_workspace_snapshot(Path.cwd())
+            if snap_res.snapshot_id:
+                extra_ctx["snapshot_id"] = snap_res.snapshot_id
+            record_decision(tool_name, "DESTRUCTIVE_IRREVERSIBLE_GATE_ESCALATED", reason)
 
         if (
             action == PermissionAction.ALLOW
@@ -1087,6 +1142,21 @@ async def evaluate_tool_batch(
             extra_ctx["action_digest"] = compute_action_digest(tool_name, tool_input)
             extra_ctx["high_risk"] = True
             extra_ctx["hide_allow_always"] = True
+
+        is_destr, destr_reason, blast_info = is_destructive_shell_tool_call(tool_name, tool_input)
+        if is_destr:
+            extra_ctx = extra_ctx or {}
+            extra_ctx["is_irreversible"] = True
+            extra_ctx["irreversible_destructive"] = True
+            extra_ctx["blast_radius"] = blast_info
+            extra_ctx["high_risk"] = True
+            extra_ctx["hide_allow_always"] = True
+            from pathlib import Path
+
+            from myrm_agent_harness.toolkits.code_execution.security.workspace_snapshot import create_workspace_snapshot
+            snap_res = create_workspace_snapshot(Path.cwd())
+            if snap_res.snapshot_id:
+                extra_ctx["snapshot_id"] = snap_res.snapshot_id
 
         raw_path_arg = str(
             tool_input.get("path", "") or tool_input.get("file_path", "") or tool_input.get("filepath", "")

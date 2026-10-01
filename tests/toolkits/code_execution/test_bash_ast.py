@@ -107,8 +107,8 @@ class TestBashASTParser:
     def test_git_destructive_and_remote_escalations(self) -> None:
         actions = BashASTParser.parse("git reset --hard HEAD~1 && git push origin main")
         assert len(actions) == 2
-        assert actions[0].capability_level == CapabilityLevel.CAPABILITY_ESCALATION
-        assert actions[0].escalation_reason == "git_destructive_action"
+        assert actions[0].capability_level == CapabilityLevel.IRREVERSIBLE_DESTRUCTIVE
+        assert actions[0].escalation_reason == "git_hard_reset"
         assert actions[1].capability_level == CapabilityLevel.CAPABILITY_ESCALATION
         assert actions[1].escalation_reason == "git_remote_sync"
 

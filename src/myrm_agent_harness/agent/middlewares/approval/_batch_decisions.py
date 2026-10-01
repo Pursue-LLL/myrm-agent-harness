@@ -72,6 +72,7 @@ def _should_block_allow_always(
         or extra_ctx.get("hide_allow_always")
         or extra_ctx.get("requires_dual_insurance")
         or extra_ctx.get("socially_irreversible")
+        or extra_ctx.get("irreversible_destructive")
         or extra_ctx.get("auto_mode_suspended")
         or extra_ctx.get("protected_instruction")
     ):
@@ -277,6 +278,14 @@ def build_interrupt_payload(
             review_config["sociallyIrreversible"] = True
             review_config["hideAllowAlways"] = True
             action_request["sociallyIrreversible"] = True
+        if extra_ctx and extra_ctx.get("irreversible_destructive"):
+            review_config["irreversibleDestructive"] = True
+            review_config["hideAllowAlways"] = True
+            review_config["blastRadius"] = extra_ctx.get("blast_radius")
+            review_config["snapshotId"] = extra_ctx.get("snapshot_id")
+            action_request["irreversibleDestructive"] = True
+            if extra_ctx.get("snapshot_id"):
+                action_request["snapshotId"] = extra_ctx.get("snapshot_id")
         if extra_ctx and extra_ctx.get("script_operand_path"):
             action_request["scriptOperandPath"] = extra_ctx.get("script_operand_path")
             action_request["scriptOperandHash"] = extra_ctx.get("script_operand_hash")

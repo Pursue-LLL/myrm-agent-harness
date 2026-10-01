@@ -33,6 +33,11 @@ from myrm_agent_harness.toolkits.code_execution.security.blacklist import (
     NON_INHERITABLE_ENV_VARS,
     get_dangerous_modules,
 )
+from myrm_agent_harness.toolkits.code_execution.security.destructive_rules import (
+    BlastRadiusInfo,
+    DestructiveAnalysisResult,
+    analyze_destructive_action,
+)
 from myrm_agent_harness.toolkits.code_execution.security.risk_classifier import (
     SAFE_COMMANDS,
     CommandRiskLevel,
@@ -74,6 +79,11 @@ from myrm_agent_harness.toolkits.code_execution.security.validator import (
     validate_path,
     validate_path_component,
 )
+from myrm_agent_harness.toolkits.code_execution.security.workspace_snapshot import (
+    WorkspaceSnapshotResult,
+    create_workspace_snapshot,
+    rollback_workspace_snapshot,
+)
 
 __all__ = [
     "CORE_DANGEROUS_MODULES",
@@ -87,6 +97,13 @@ __all__ = [
     "BashASTParser",
     "CapabilityLevel",
     "Redirection",
+    # Destructive Hard Stop and Snapshot
+    "BlastRadiusInfo",
+    "DestructiveAnalysisResult",
+    "analyze_destructive_action",
+    "WorkspaceSnapshotResult",
+    "create_workspace_snapshot",
+    "rollback_workspace_snapshot",
     # Blacklist definitions
     "DANGEROUS_MODULES",
     "DANGEROUS_MODULES_REASONS",
