@@ -21,80 +21,16 @@ Harness core execution security: fine-grained destructive command gating.
 
 from __future__ import annotations
 
-import re
 from collections.abc import Sequence
-from dataclasses import dataclass
 
-# ---------------------------------------------------------------------------
-# Destruction Classifications and Constants
-# ---------------------------------------------------------------------------
-
-SYSTEM_DESTRUCTIVE_COMMANDS: frozenset[str] = frozenset(
-    {
-        "mkfs",
-        "fdisk",
-        "sfdisk",
-        "parted",
-        "wipefs",
-        "shred",
-        "cryptsetup",
-    }
+from myrm_agent_harness.toolkits.code_execution.security.destructive_types import (
+    GIT_IRREVERSIBLE_SUBCOMMANDS,
+    RAW_DEVICE_PREFIXES,
+    ROOT_OR_PARENT_PATH_PATTERNS,
+    SYSTEM_DESTRUCTIVE_COMMANDS,
+    BlastRadiusInfo,
+    DestructiveAnalysisResult,
 )
-
-GIT_IRREVERSIBLE_SUBCOMMANDS: frozenset[str] = frozenset(
-    {
-        "reset",
-        "clean",
-        "push",
-        "branch",
-        "checkout",
-    }
-)
-
-DANGEROUS_SQL_PATTERNS: tuple[re.Pattern[str], ...] = (
-    re.compile(r"\bDROP\s+(DATABASE|SCHEMA|TABLE)\b", re.IGNORECASE),
-    re.compile(r"\bTRUNCATE(\s+TABLE)?\b", re.IGNORECASE),
-    re.compile(r"\bDELETE\s+FROM\s+\w+\s*(;|$)", re.IGNORECASE),
-)
-
-ROOT_OR_PARENT_PATH_PATTERNS: frozenset[str] = frozenset(
-    {
-        "/",
-        "/*",
-        ".",
-        "./",
-        "./*",
-        "..",
-        "../",
-        "~",
-        "~/",
-        "~/*",
-        "$HOME",
-        "$HOME/*",
-        "${HOME}",
-        "${HOME}/*",
-    }
-)
-
-
-@dataclass(frozen=True, slots=True)
-class BlastRadiusInfo:
-    """Estimated destruction scope and blast radius."""
-
-    impact_scope: str  # "workspace_root", "recursive_dir", "disk_block", "git_history", "database"
-    affected_targets: tuple[str, ...]
-    is_high_cardinality: bool
-    summary_reason: str
-
-
-@dataclass(frozen=True, slots=True)
-class DestructiveAnalysisResult:
-    """Structured result of destructive command analysis."""
-
-    is_destructive: bool
-    reason: str | None
-    blast_radius: BlastRadiusInfo | None
-
 
 # ---------------------------------------------------------------------------
 # Flag Normalization Helpers
@@ -294,7 +230,7 @@ def check_dd_destruction(args: Sequence[str]) -> DestructiveAnalysisResult | Non
     for arg in args:
         if arg.startswith("of="):
             target = arg[3:].strip()
-            if target.startswith(("/dev/sd", "/dev/nvme", "/dev/hd", "/dev/vd", "/dev/loop")):
+            if target.startswith(RAW_DEVICE_PREFIXES):
                 return DestructiveAnalysisResult(
                     is_destructive=True,
                     reason="raw_device_overwrite",
@@ -315,7 +251,7 @@ def check_redirection_destruction(
     for op, target in redirections:
         if op in {">", ">>", "&>", ">&"}:
             t = target.strip()
-            if t.startswith(("/dev/sd", "/dev/nvme", "/dev/hd", "/dev/vd", "/dev/loop")):
+            if t.startswith(RAW_DEVICE_PREFIXES):
                 return DestructiveAnalysisResult(
                     is_destructive=True,
                     reason="raw_device_redirection_overwrite",
@@ -326,6 +262,61 @@ def check_redirection_destruction(
                         summary_reason=f"I/O redirection overwrite directly targeting {t}",
                     ),
                 )
+    return None
+
+
+def check_find_destruction(args: Sequence[str]) -> DestructiveAnalysisResult | None:
+    """Check if 'find' command executes in-place deletion or invokes rm."""
+    arg_line = " ".join(args)
+    if "-delete" in args or "-exec rm" in arg_line or "-ok rm" in arg_line:
+        operands = extract_non_flag_operands(args)
+        return DestructiveAnalysisResult(
+            is_destructive=True,
+            reason="find_bulk_deletion",
+            blast_radius=BlastRadiusInfo(
+                impact_scope="recursive_dir",
+                affected_targets=tuple(operands) if operands else ("matched_files",),
+                is_high_cardinality=True,
+                summary_reason="Find command with -delete or -exec rm performs irreversible batch deletion",
+            ),
+        )
+    return None
+
+
+def check_inline_script_destruction(base_cmd: str, args: Sequence[str]) -> DestructiveAnalysisResult | None:
+    """Check if inline python/node execution invokes destructive filesystem APIs."""
+    if base_cmd in {"python", "python3"} and "-c" in args:
+        idx = args.index("-c")
+        if idx + 1 < len(args):
+            code = args[idx + 1]
+            if any(k in code for k in ("shutil.rmtree", "os.unlink", "os.remove")):
+                return DestructiveAnalysisResult(
+                    is_destructive=True,
+                    reason="python_inline_file_destruction",
+                    blast_radius=BlastRadiusInfo(
+                        impact_scope="recursive_dir",
+                        affected_targets=("python_script_target",),
+                        is_high_cardinality=True,
+                        summary_reason="Inline Python script invokes destructive shutil.rmtree or file removal",
+                    ),
+                )
+    elif base_cmd in {"node", "bun", "deno"} and any(f in args for f in ("-e", "--eval")):
+        for f in ("-e", "--eval"):
+            if f in args:
+                idx = args.index(f)
+                if idx + 1 < len(args):
+                    code = args[idx + 1]
+                    if any(k in code for k in ("rmSync", "unlinkSync", "rmdirSync")):
+                        return DestructiveAnalysisResult(
+                            is_destructive=True,
+                            reason="node_inline_file_destruction",
+                            blast_radius=BlastRadiusInfo(
+                                impact_scope="recursive_dir",
+                                affected_targets=("node_script_target",),
+                                is_high_cardinality=True,
+                                summary_reason="Inline JS script invokes destructive fs.rmSync or file removal",
+                            ),
+                        )
     return None
 
 
@@ -378,5 +369,16 @@ def analyze_destructive_action(
     redir_res = check_redirection_destruction(redirections)
     if redir_res:
         return redir_res
+
+    # 6. Find bulk deletion (-delete, -exec rm)
+    if base_cmd == "find":
+        find_res = check_find_destruction(args)
+        if find_res:
+            return find_res
+
+    # 7. Inline script file destruction (python -c shutil.rmtree, node -e rmSync)
+    script_res = check_inline_script_destruction(base_cmd, args)
+    if script_res:
+        return script_res
 
     return DestructiveAnalysisResult(is_destructive=False, reason=None, blast_radius=None)

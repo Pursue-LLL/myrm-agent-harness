@@ -196,7 +196,7 @@ class TestHelpers:
 
     def test_helpers_shell_quote_runtime_execution(self):
         namespace: dict = {}
-        exec(
+        exec(  # noqa: S102
             "import json, os, time, sys, shlex, re\n" + HELPERS_SOURCE,
             namespace,
         )

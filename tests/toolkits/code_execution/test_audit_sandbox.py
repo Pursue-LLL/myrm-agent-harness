@@ -187,7 +187,7 @@ def test_readonly_workspace_blocks_destructive_writes(tmp_path):
     with pytest.raises(SecurityError, match="Write operation inside workspace blocked by readonly_workspace policy"):
         hook("open", (workspace_file, "w", 0))
 
-    with pytest.raises(SecurityError, match="Destructive file operation.*blocked by readonly_workspace policy"):
+    with pytest.raises(SecurityError, match=r"Destructive file operation.*blocked by readonly_workspace policy"):
         hook("os.remove", (workspace_file, None))
 
     # Writes to system tempdir are still permitted for Python runtime internals

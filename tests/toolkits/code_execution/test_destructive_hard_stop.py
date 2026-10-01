@@ -9,9 +9,6 @@ from myrm_agent_harness.toolkits.code_execution.security.ast_parser import (
     BashASTParser,
     CapabilityLevel,
 )
-from myrm_agent_harness.toolkits.code_execution.security.destructive_rules import (
-    analyze_destructive_action,
-)
 from myrm_agent_harness.toolkits.code_execution.security.workspace_snapshot import (
     create_workspace_snapshot,
     rollback_workspace_snapshot,
@@ -97,6 +94,43 @@ class TestDestructiveActionClassification:
         actions = BashASTParser.parse("echo 'corrupt' > /dev/sda")
         assert len(actions) == 1
         assert actions[0].capability_level == CapabilityLevel.IRREVERSIBLE_DESTRUCTIVE
+
+    def test_find_destructive_variants(self) -> None:
+        """Verify find with -delete, -exec rm, or -ok rm is caught as IRREVERSIBLE_DESTRUCTIVE."""
+        find_cases = [
+            ("find . -name '*.tmp' -delete", "find_bulk_deletion"),
+            ("find /var/log -type f -exec rm -rf {} +", "find_bulk_deletion"),
+            ("find . -type f -ok rm {} \\;", "find_bulk_deletion"),
+        ]
+        for cmd, expected_reason in find_cases:
+            actions = BashASTParser.parse(cmd)
+            assert len(actions) == 1, f"Failed for {cmd}"
+            assert actions[0].capability_level == CapabilityLevel.IRREVERSIBLE_DESTRUCTIVE, f"Failed for {cmd}"
+            assert actions[0].escalation_reason == expected_reason, f"Failed for {cmd}"
+
+        # Safe find should not be marked destructive
+        safe_find = BashASTParser.parse("find . -name '*.py'")
+        assert len(safe_find) == 1
+        assert safe_find[0].capability_level != CapabilityLevel.IRREVERSIBLE_DESTRUCTIVE
+
+    def test_inline_script_destruction(self) -> None:
+        """Verify inline python and node scripts invoking deletion APIs are caught."""
+        script_cases = [
+            ('python -c "import shutil; shutil.rmtree(\'/tmp/cache\')"', "python_inline_file_destruction"),
+            ('python3 -c "import os; os.remove(\'secret.key\')"', "python_inline_file_destruction"),
+            ('node -e "require(\'fs\').rmSync(\'/var/data\', { recursive: true })"', "node_inline_file_destruction"),
+            ('bun -e "import fs from \'fs\'; fs.unlinkSync(\'db.sqlite\')"', "node_inline_file_destruction"),
+        ]
+        for cmd, expected_reason in script_cases:
+            actions = BashASTParser.parse(cmd)
+            assert len(actions) == 1, f"Failed for {cmd}"
+            assert actions[0].capability_level == CapabilityLevel.IRREVERSIBLE_DESTRUCTIVE, f"Failed for {cmd}"
+            assert actions[0].escalation_reason == expected_reason, f"Failed for {cmd}"
+
+        # Safe inline script should not be marked destructive
+        safe_script = BashASTParser.parse('python -c "print(\'hello\')"')
+        assert len(safe_script) == 1
+        assert safe_script[0].capability_level != CapabilityLevel.IRREVERSIBLE_DESTRUCTIVE
 
     def test_compound_commands_with_destruction(self) -> None:
         """Verify compound pipeline correctly identifies the destructive sub-action."""
