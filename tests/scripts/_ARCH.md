@@ -15,6 +15,8 @@ Unit tests for `scripts/` maintenance tooling (tool registry engine/models/confi
 | `test_validate_tool_registry.py` | Unit | `scripts/validate_tool_registry.py` CLI + exit codes |
 | `test_check_file_line_limit.py` | Unit | `scripts/check_file_line_limit.py` incremental scope (explicit file list) |
 | `test_boundary_engine.py` | Unit | `scripts/boundary_engine.py` core detection (git-change discovery, static/dynamic import collection, banned/priority classification, fix) |
+| `test_check_test_source_assertions.py` | Unit | `scripts/check_test_source_assertions.py` AST scanners (source-text assertion detection, non-Python and structural reads ignored, unparsable input) |
+| `test_check_module_coverage.py` | Unit | `scripts/check_module_coverage.py` floor CLI (below/at floor, unmeasured module, missing data file) |
 
 ## Key Dependencies
 

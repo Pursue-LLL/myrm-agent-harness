@@ -120,6 +120,51 @@ class ComputerSession:
                     timeout_seconds=effective_timeout,
                 ) from exc
 
+    def _is_backend_locked(self) -> bool:
+        fn = getattr(self._backend, "is_screen_locked", None)
+        if callable(fn):
+            val = fn()
+            if isinstance(val, bool):
+                return val
+        return False
+
+    def _is_backend_sleeping(self) -> bool:
+        fn = getattr(self._backend, "is_display_asleep", None)
+        if callable(fn):
+            val = fn()
+            if isinstance(val, bool):
+                return val
+        return False
+
+    async def _ensure_screen_safe(self) -> None:
+        """Ensure host physical display is unlocked and awake before simulating input.
+
+        Raises ScreenLockedInterruptionError or PhysicalSleepInterruptionError if the
+        machine display is locked or sleeping.
+        """
+        if self._is_backend_locked():
+            logger.warning("[SAFETY_GUARD] Physical input blocked: host screen is locked")
+            from myrm_agent_harness.toolkits.computer_use.safety import (
+                ScreenLockedInterruptionError,
+            )
+
+            raise ScreenLockedInterruptionError()
+
+        if self._is_backend_sleeping():
+            logger.warning("[SAFETY_GUARD] Physical input blocked: host display is sleeping")
+            from myrm_agent_harness.toolkits.computer_use.safety import (
+                PhysicalSleepInterruptionError,
+            )
+
+            raise PhysicalSleepInterruptionError()
+
+    def reanchor_visual_state(self) -> None:
+        """Discard cached screenshots and scaler after unlock to re-align coordinates."""
+        self._last_screenshot_bytes = None
+        self._scaler = None
+        self._screen_info = None
+        logger.info("[REANCHOR] Visual state discarded; next action will recapture screen")
+
     def reset_runtime_permission_cache(self) -> None:
         """Clear in-memory foreground/app approval shortcuts (E2E/dev recovery)."""
         self._session_permission_granted = False
@@ -369,6 +414,7 @@ class ComputerSession:
     ) -> ActionResult:
         """Click at API coordinates, auto-scaling to screen coordinates."""
         await self._ensure_not_user_takeover()
+        await self._ensure_screen_safe()
         if self._scaler is None:
             await self.take_screenshot()
         assert self._scaler is not None
@@ -393,6 +439,7 @@ class ComputerSession:
     async def type_text(self, text: str) -> ActionResult:
         """Type text at current cursor position."""
         await self._ensure_not_user_takeover()
+        await self._ensure_screen_safe()
         result = await self._backend.type_text(
             text,
             delay_ms=self._config.typing_delay_ms,
@@ -407,6 +454,7 @@ class ComputerSession:
     async def key_press(self, keys: str) -> ActionResult:
         """Press key combination."""
         await self._ensure_not_user_takeover()
+        await self._ensure_screen_safe()
         from myrm_agent_harness.toolkits.computer_use import safety
 
         operator_blocked = safety.is_operator_as_key_name(keys)
@@ -423,6 +471,7 @@ class ComputerSession:
     async def mouse_move_to(self, x: int, y: int) -> ActionResult:
         """Move mouse to API coordinates."""
         await self._ensure_not_user_takeover()
+        await self._ensure_screen_safe()
         if self._scaler is None:
             await self.take_screenshot()
         assert self._scaler is not None
@@ -440,6 +489,7 @@ class ComputerSession:
     ) -> ActionResult:
         """Scroll at API coordinates."""
         await self._ensure_not_user_takeover()
+        await self._ensure_screen_safe()
         if self._scaler is None:
             await self.take_screenshot()
         assert self._scaler is not None
@@ -465,6 +515,7 @@ class ComputerSession:
     ) -> ActionResult:
         """Drag from start to end in API coordinates."""
         await self._ensure_not_user_takeover()
+        await self._ensure_screen_safe()
         if self._scaler is None:
             await self.take_screenshot()
         assert self._scaler is not None

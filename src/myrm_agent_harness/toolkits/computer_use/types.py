@@ -302,3 +302,12 @@ class ComputerUseConfig:
     typing_delay_ms: int = 12
     typing_chunk_size: int = 50
     execution_mode: ExecutionMode = ExecutionMode.background_best_effort
+
+
+class ScreenLockState(StrEnum):
+    """Physical hardware and session lock state of the desktop display."""
+
+    UNLOCKED = "unlocked"
+    LOCKED = "locked"
+    SLEEPING = "sleeping"
+    UNKNOWN = "unknown"

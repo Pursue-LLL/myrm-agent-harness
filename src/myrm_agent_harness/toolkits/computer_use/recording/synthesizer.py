@@ -15,6 +15,8 @@ from __future__ import annotations
 import re
 import time
 
+from myrm_agent_harness.backends.skills.workflow_compiler import DEFAULT_ALLOWED_TOOLS
+
 from .types import (
     DesktopRecordedEvent,
     RecordedActionType,
@@ -22,7 +24,6 @@ from .types import (
     SynthesizedSkillStep,
     ToolLiftingCandidate,
 )
-from myrm_agent_harness.backends.skills.workflow_compiler import DEFAULT_ALLOWED_TOOLS
 
 _FILE_PATH_PATTERN = re.compile(
     r"([a-zA-Z]:\\[^\s\"\'<>|*?]+\.[a-zA-Z0-9]+|/(?:[^\s\"\'<>|*?]+/)+[^\s\"\'<>|*?]+\.[a-zA-Z0-9]+)"

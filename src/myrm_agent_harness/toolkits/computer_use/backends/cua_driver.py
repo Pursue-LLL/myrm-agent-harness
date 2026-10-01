@@ -427,6 +427,12 @@ class CuaDriverBackend:
             logger.warning("cua-driver drag failed, falling back: %s", exc)
             return await self._fallback.drag(start_x, start_y, end_x, end_y, modifiers=modifiers)
 
+    def is_screen_locked(self) -> bool:
+        return self._fallback.is_screen_locked()
+
+    def is_display_asleep(self) -> bool:
+        return self._fallback.is_display_asleep()
+
     async def close(self) -> None:
         """Shut down the cua-driver MCP session."""
         await self._mcp.stop()

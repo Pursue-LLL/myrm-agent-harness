@@ -52,10 +52,7 @@ def png_bytes_look_capturable(data: bytes, *, min_bytes: int = _MIN_PNG_BYTES) -
                 luminances.append(0.299 * r + 0.587 * g + 0.114 * b)
         mean_l = sum(luminances) / len(luminances)
         spread = max(luminances) - min(luminances)
-        if mean_l <= 2.0 or mean_l >= 253.0:
-            if spread <= 2.0:
-                return False
-        return True
+        return not ((mean_l <= 2.0 or mean_l >= 253.0) and spread <= 2.0)
     except Exception as exc:
         logger.debug("Capture probe PNG decode failed: %s", exc)
         return False

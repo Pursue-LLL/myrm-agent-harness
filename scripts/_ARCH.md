@@ -29,6 +29,8 @@ Harness 仓维护脚本：框架-业务边界 enforcement、PyPI 发布校验、
 | `md_ref_validator.py` | 辅助 | md 引用校验核心：`scan_md_refs` / `_extract_md_refs` / `_resolve_md_ref` / 渐退 symbol 剥离 / 源码根自动发现（harness `src/myrm_agent_harness`，server `app/`，跨仓快捷引用按被扫描仓识别）/ 白名单（`SKILL_SYSTEM.md` 竞品规划表、`eval/_ARCH.md` 候选决策表、`prebuilt_skills/` 运行时产物），被 `validate_arch_inventory.py` 复用 | ✅ |
 | `check_fractal_docs.py` | 辅助 | 分形 `_ARCH.md` 目录覆盖 + IOP 头 baseline 门禁（`fractal_header_baseline.txt`） | ✅ |
 | `check_file_line_limit.py` | 辅助 | 单文件行数 baseline 门禁（>500 行须登记且不可增长）；`--incremental` 仅扫描 git 变更文件（pre-commit），无 git 时回退全量 | ✅ |
+| `check_test_source_assertions.py` | 辅助 | 测试源码文本断言门禁：以 `ast` 识别「读 `.py` 源码 + 断言字符串包含」写法，强制改用语法树断言，使断言不受格式化换行影响；`--incremental` 供 pre-commit 使用 | ✅ |
+| `check_module_coverage.py` | 辅助 | 每模块覆盖率下限门禁：读取 `.coverage` 数据，对 `COVERAGE_FLOORS` 登记的模块逐个校验执行率，不嵌套执行 pytest | ✅ |
 | `file_line_baseline.txt` | 辅助 | legacy 大文件 grandfather 清单：允许 >500 行但不得超过登记行数；拆分至 ≤500 后移除 | — |
 | `fractal_header_baseline.txt` | 辅助 | 允许暂缺 IOP 头的 legacy 路径清单（相对 `src/`）；新文件不得加入 | — |
 | `detect_blocking_io.py` | 辅助 | 阻塞 I/O 检测 | ✅ |
@@ -48,9 +50,12 @@ python scripts/check_file_line_limit.py --incremental  # pre-commit: changed fil
 python scripts/validate_arch_inventory.py --root src/myrm_agent_harness
 python scripts/validate_arch_inventory.py --root . --md-refs          # 仓根（含顶层文档）引用校验
 python scripts/validate_arch_inventory.py --root ../myrm-agent/myrm-agent-server --md-refs  # 跨仓扫描
+python scripts/check_test_source_assertions.py            # 全量扫描 tests/
+python scripts/check_test_source_assertions.py --incremental  # pre-commit: changed tests only
+python scripts/check_module_coverage.py --data .coverage  # 需先以 --cov 产出覆盖率数据
 ```
 
-Pre-commit runs `validate_arch_inventory.py` via hook `harness-arch-inventory-check` and `check_file_line_limit.py` via hook `harness-line-limit-check` (see `.pre-commit-config.yaml`).
+Pre-commit runs `validate_arch_inventory.py` via hook `harness-arch-inventory-check` and `check_file_line_limit.py` via hook `harness-line-limit-check`, and `check_test_source_assertions.py` via hook `harness-test-source-assertion-check` (see `.pre-commit-config.yaml`).
 
 ## File line grandfather 策略
 

@@ -115,8 +115,7 @@ def main(argv: list[str] | None = None) -> int:
         for test_file, line, text in violations:
             print(f"  - {test_file}:{line}  {text}", file=sys.stderr)
         print(
-            "\nAssert against the parsed tree with `ast` instead, so the check is\n"
-            "independent of line wrapping.",
+            "\nAssert against the parsed tree with `ast` instead, so the check is\nindependent of line wrapping.",
             file=sys.stderr,
         )
         return 1

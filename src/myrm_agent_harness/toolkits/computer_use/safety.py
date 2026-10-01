@@ -231,12 +231,13 @@ def is_iphone_mirror_blocked_action(
     lower_action = action_text.lower() if action_text else ""
 
     # Check if window is waiting for manual connect/passcode confirmation
-    if is_iphone_mirror_connect_window(lower_title):
-        if any(k in lower_action for k in ["connect", "连接", "confirm", "确认", "ok"]):
-            return (
-                f"Blocked: Agent must NOT automatically click connect/pairing prompt on '{app_name}'. "
-                "User must manually confirm connection and unlock their iPhone."
-            )
+    if is_iphone_mirror_connect_window(lower_title) and any(
+        k in lower_action for k in ["connect", "连接", "confirm", "确认", "ok"]
+    ):
+        return (
+            f"Blocked: Agent must NOT automatically click connect/pairing prompt on '{app_name}'. "
+            "User must manually confirm connection and unlock their iPhone."
+        )
     return None
 
 
@@ -301,13 +302,55 @@ _BACKGROUND_SAFE_ACTIONS: frozenset[str] = frozenset(
 
 
 def is_foreground_required(action: str) -> bool:
-    """Determine whether an action requires foreground focus (mouse/keyboard control).
-
-    AX invoke operations (handled at the perception layer) are inherently
-    background-safe. Coordinate-based actions (click, type, key, scroll, drag,
-    mouse_move) require foreground access via the native input layer
-    (macOS Quartz CGEvent, Windows pyautogui, Linux xdotool).
-
-    Returns True if the action needs foreground permission.
-    """
+    """Determine whether an action requires foreground focus (mouse/keyboard control)."""
     return action.lower() not in _BACKGROUND_SAFE_ACTIONS
+
+
+class ScreenLockedInterruptionError(RuntimeError):
+    """Raised when an automated input action is attempted while the screen is locked."""
+
+    def __init__(self, message: str = "Action blocked: host desktop screen is locked.") -> None:
+        super().__init__(message)
+
+
+class PhysicalSleepInterruptionError(RuntimeError):
+    """Raised when an automated input action is attempted while the host display/system is sleeping."""
+
+    def __init__(self, message: str = "Action blocked: host desktop display is sleeping.") -> None:
+        super().__init__(message)
+
+
+def check_screen_lock_safety(detector: object | None = None) -> str | None:
+    """Check if the physical screen is safe for automated input.
+
+    Returns an error message if locked or sleeping, or None if safe.
+    """
+    from myrm_agent_harness.toolkits.computer_use.screen_detector import (
+        ScreenDetector,
+        ScreenLockState,
+        get_default_screen_detector,
+    )
+
+    det: ScreenDetector = detector if isinstance(detector, ScreenDetector) else get_default_screen_detector()
+    state = det.get_state()
+    if state == ScreenLockState.LOCKED:
+        return "Safety: Screen is locked. Automated inputs are halted to prevent password leakage and account lockout."
+    if state == ScreenLockState.SLEEPING:
+        return "Safety: Display is sleeping. Automated inputs are halted to prevent unintended actions."
+    return None
+
+
+def ensure_screen_safe(detector: object | None = None) -> None:
+    """Ensure screen is unlocked and awake before physical input; raises on violation."""
+    from myrm_agent_harness.toolkits.computer_use.screen_detector import (
+        ScreenDetector,
+        ScreenLockState,
+        get_default_screen_detector,
+    )
+
+    det: ScreenDetector = detector if isinstance(detector, ScreenDetector) else get_default_screen_detector()
+    state = det.get_state()
+    if state == ScreenLockState.LOCKED:
+        raise ScreenLockedInterruptionError()
+    if state == ScreenLockState.SLEEPING:
+        raise PhysicalSleepInterruptionError()

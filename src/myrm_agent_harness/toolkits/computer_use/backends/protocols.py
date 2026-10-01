@@ -135,6 +135,14 @@ class ComputerBackend(Protocol):
         """
         ...
 
+    def is_screen_locked(self) -> bool:
+        """Return True if the screen is currently locked or asleep."""
+        ...
+
+    def is_display_asleep(self) -> bool:
+        """Return True if the physical display is currently in low-power/sleep state."""
+        ...
+
     async def check_permissions(self, *, probe_capture: bool = False) -> PermissionStatus:
         """Probe OS-level permissions required for desktop automation.
 

@@ -11,19 +11,19 @@ from myrm_agent_harness.toolkits.computer_use.desktop_session import (
     DesktopSession,
     create_desktop_session,
 )
-from myrm_agent_harness.toolkits.computer_use.mcp_server import (
-    DesktopMCPServer,
-    get_request_desktop_session,
-    register_desktop_mcp_tools,
-    reset_request_desktop_session,
-    set_request_desktop_session,
-)
 from myrm_agent_harness.toolkits.computer_use.envelope import (
     EnvelopeCheckResult,
     IntentEnvelopeSpec,
     KeystrokeSanitizer,
     WindowHierarchyContext,
     check_envelope_action,
+)
+from myrm_agent_harness.toolkits.computer_use.mcp_server import (
+    DesktopMCPServer,
+    get_request_desktop_session,
+    register_desktop_mcp_tools,
+    reset_request_desktop_session,
+    set_request_desktop_session,
 )
 from myrm_agent_harness.toolkits.computer_use.session import (
     ComputerSession,

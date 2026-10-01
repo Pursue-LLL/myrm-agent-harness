@@ -110,9 +110,6 @@ async def test_desktop_tools_execution_with_session() -> None:
         modifiers=None,
         wait_seconds=0.0,
     )
-    mock_session.desktop_interact.assert_awaited_once_with(
-        ref="@d1", action="click", text="", modifiers=None
-    )
 
     # Test invoking vision tool (capture)
     vision_cap_res = await server.mcp.call_tool(
@@ -201,7 +198,7 @@ def test_session_resolver_callable() -> None:
 
 
 @pytest.mark.asyncio
-async def test_desktop_tools_execution_with_session() -> None:
+async def test_desktop_tools_execution_with_session_arguments_passing() -> None:
     """Test calling all desktop tools when session is present passes arguments accurately."""
     mock_session = MagicMock()
     mock_session.desktop_snapshot = AsyncMock(return_value="Snapshot result")

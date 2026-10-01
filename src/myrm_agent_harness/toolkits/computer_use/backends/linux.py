@@ -384,6 +384,19 @@ class LinuxBackend:
         except Exception:
             return False
 
+    def is_screen_locked(self) -> bool:
+        from myrm_agent_harness.toolkits.computer_use.screen_detector import get_default_screen_detector
+
+        return get_default_screen_detector().is_locked()
+
+    def is_display_asleep(self) -> bool:
+        from myrm_agent_harness.toolkits.computer_use.screen_detector import (
+            ScreenLockState,
+            get_default_screen_detector,
+        )
+
+        return get_default_screen_detector().get_state() == ScreenLockState.SLEEPING
+
     async def check_permissions(self, *, probe_capture: bool = False) -> PermissionStatus:
         """Probe Linux environment readiness for desktop automation.
 
