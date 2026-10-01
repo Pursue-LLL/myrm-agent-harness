@@ -139,8 +139,8 @@ class TestLocalEndpointConvergence:
             api_key="sk-test",
             base_url="http://127.0.0.1:11434",
         )
-        assert llm.request_timeout == 450.0  # reasoning floor
-        assert llm.first_event_timeout == 225.0  # min(450 / 2, 300)
+        assert llm.request_timeout == 1800.0  # max(reasoning 450, local 1800)
+        assert llm.first_event_timeout == 300.0  # max(reasoning 225, local 300)
         assert llm.inter_chunk_timeout == 600.0  # local inter_chunk relaxation
 
     def test_user_explicit_override_takes_precedence(self) -> None:

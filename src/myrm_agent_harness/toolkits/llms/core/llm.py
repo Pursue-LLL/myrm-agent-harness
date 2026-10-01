@@ -238,6 +238,10 @@ def create_litellm_model(
         if verify is not True:
             llm_kwargs["ssl_verify"] = verify
 
+    # Capture user-explicit timeout keys before internal processing
+    _TIMEOUT_KEYS = ("request_timeout", "first_event_timeout", "inter_chunk_timeout")
+    user_explicit_timeouts = frozenset(k for k in _TIMEOUT_KEYS if k in llm_kwargs)
+
     # Apply reasoning model timeout floor (e.g. o3 needs 600s for thinking phase)
     reasoning_floor = get_reasoning_timeout_floor(model, llm_kwargs)
 
@@ -247,15 +251,21 @@ def create_litellm_model(
     if "first_event_timeout" not in llm_kwargs and reasoning_floor is not None:
         llm_kwargs["first_event_timeout"] = min(reasoning_floor / 2, 300.0)
 
-    # Local endpoints: relax stall detection to avoid killing long prefills
+    # Local endpoints: relax stall detection to avoid killing long prefills.
+    # Use max() for non-user-explicit keys so reasoning models on local hardware
+    # get at least the local relaxation threshold (not clamped to cloud-speed floors).
     if _is_local_endpoint(base_url):
         logger.info("Local endpoint detected (%s), relaxing stall timeouts", base_url)
-        if "first_event_timeout" not in llm_kwargs:
-            llm_kwargs["first_event_timeout"] = _LOCAL_FIRST_EVENT_TIMEOUT
-        if "inter_chunk_timeout" not in llm_kwargs:
-            llm_kwargs["inter_chunk_timeout"] = _LOCAL_INTER_CHUNK_TIMEOUT
-        if "request_timeout" not in llm_kwargs:
-            llm_kwargs["request_timeout"] = _LOCAL_REQUEST_TIMEOUT
+        for key, local_val in (
+            ("first_event_timeout", _LOCAL_FIRST_EVENT_TIMEOUT),
+            ("inter_chunk_timeout", _LOCAL_INTER_CHUNK_TIMEOUT),
+            ("request_timeout", _LOCAL_REQUEST_TIMEOUT),
+        ):
+            if key in user_explicit_timeouts:
+                continue
+            current = llm_kwargs.get(key)
+            if not isinstance(current, (int, float)) or current < local_val:
+                llm_kwargs[key] = local_val
 
     # Ollama only: share the 64k agentic context window through options.num_ctx
     if _is_ollama_endpoint(base_url, model):
