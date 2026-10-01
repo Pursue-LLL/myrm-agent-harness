@@ -374,6 +374,18 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.toolkits.code_execution.security.workspace_snapshot",
         "rollback_workspace_snapshot",
     ),
+    "fold_branch_todo_state": (
+        "myrm_agent_harness.runtime.context.tree_state",
+        "fold_branch_todo_state",
+    ),
+    "create_compaction_todo_anchor": (
+        "myrm_agent_harness.runtime.context.tree_state",
+        "create_compaction_todo_anchor",
+    ),
+    "extract_todo_store_from_payload": (
+        "myrm_agent_harness.runtime.context.tree_state",
+        "extract_todo_store_from_payload",
+    ),
 }
 
 # ``__all__`` is derived from ``_EXPORTS`` so the two cannot drift: every name is declared once,
