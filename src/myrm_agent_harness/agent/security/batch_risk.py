@@ -121,9 +121,8 @@ def _classify_single_item(item: BatchApprovalItem) -> tuple[BatchItemRiskLevel, 
     review_configs = item.payload.get("reviewConfigs")
     if isinstance(review_configs, list):
         for cfg in review_configs:
-            if isinstance(cfg, dict):
-                if cfg.get("smartDenied") or cfg.get("hideAllowAlways"):
-                    return BatchItemRiskLevel.HIGH, item.reason or "High-risk review configuration detected"
+            if isinstance(cfg, dict) and (cfg.get("smartDenied") or cfg.get("hideAllowAlways")):
+                return BatchItemRiskLevel.HIGH, item.reason or "High-risk review configuration detected"
 
     # Action type inspection
     act = item.action_type.lower()

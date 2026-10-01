@@ -237,9 +237,8 @@ class Allowlist:
 
         # Helper to check if entry agent_id and session_id are compatible with current caller
         def _scope_matches(entry: AllowlistEntry) -> bool:
-            if entry.session_id:
-                if not session_id or entry.session_id.strip() != session_id.strip():
-                    return False
+            if entry.session_id and (not session_id or entry.session_id.strip() != session_id.strip()):
+                return False
             if entry.agent_id:
                 return bool(agent_id and entry.agent_id.strip() == agent_id.strip())
             return True

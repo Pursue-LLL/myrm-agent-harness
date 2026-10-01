@@ -188,11 +188,11 @@ def parse_security_config(raw: dict[str, object] | None) -> SecurityConfig | Non
     typed_permissions: dict[str, str | dict[str, str]] = {}
     if isinstance(matrix_raw, dict):
         for key, value in matrix_raw.items():
-            if isinstance(key, str) and (isinstance(value, str) or isinstance(value, dict)):
+            if isinstance(key, str) and isinstance(value, (str, dict)):
                 typed_permissions[key] = value
     if isinstance(permissions_raw, dict):
         for key, value in permissions_raw.items():
-            if isinstance(key, str) and (isinstance(value, str) or isinstance(value, dict)):
+            if isinstance(key, str) and isinstance(value, (str, dict)):
                 typed_permissions[key] = value
 
     if typed_permissions:

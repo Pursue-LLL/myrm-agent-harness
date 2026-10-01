@@ -60,9 +60,7 @@ def is_mcp_permission_or_tool(permission_type: str, tool_name: str | None = None
     """Return True if the permission or tool name represents an MCP tool call."""
     if permission_type == "mcp_invoke":
         return True
-    if tool_name and (tool_name.startswith("mcp__") or tool_name.startswith("mcp_")):
-        return True
-    return False
+    return bool(tool_name and (tool_name.startswith("mcp__") or tool_name.startswith("mcp_")))
 
 
 def validate_mcp_approval_identity_scope(
