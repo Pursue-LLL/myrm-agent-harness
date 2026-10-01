@@ -652,8 +652,9 @@ def test_cleanup_orphan_processes_escalates_to_sigkill():
 
     def mock_kill(pid, sig):
         call_log.append((pid, sig))
-        if sig == 0:
-            return None
+        # After SIGKILL is sent, the next os.kill(pid, 0) probe should report process is gone
+        if sig == 0 and any(s == signal.SIGKILL for (_, s) in call_log):
+            raise ProcessLookupError()
         return None
 
     with patch("os.kill", side_effect=mock_kill):
@@ -744,4 +745,21 @@ def test_register_and_unregister_browser_exit_reaper():
     ):
         _emergency_cleanup_orphans_on_exit()
         mock_cleanup.assert_not_called()
+
+
+def test_cleanup_orphan_processes_escalation_still_running():
+    """Should record failure if process remains alive after SIGKILL escalation."""
+    # os.kill is called with: SIGTERM, os.kill(pid, 0) during wait (raises ProcessLookupError if dead),
+    # then SIGKILL, then os.kill(pid, 0) post-kill verification.
+    # Return None for all os.kill calls to simulate process never dying.
+    with (
+        patch("os.kill"),
+        patch("time.time", side_effect=[0.0, 1.0, 2.0]),
+        patch("time.sleep"),
+    ):
+        result = cleanup_orphan_processes([99999], force=True, timeout_s=0.1)
+        assert result["killed"] == 0
+        assert len(result["failed"]) == 1
+        assert result["failed"][0]["reason"] == "process_still_running_after_kill"
+
 

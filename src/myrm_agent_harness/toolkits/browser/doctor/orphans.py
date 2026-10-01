@@ -297,6 +297,12 @@ def cleanup_orphan_processes(
                         logger.info(f"Force killed (SIGKILL) stubborn orphan process: {pid}")
                     except ProcessLookupError:
                         pass
+                try:
+                    os.kill(pid, 0)
+                    failed.append({"pid": pid, "reason": "process_still_running_after_kill"})
+                    continue
+                except ProcessLookupError:
+                    pass
             killed += 1
             logger.info(f"Killed orphan automation process: {pid}")
         except ProcessLookupError:
