@@ -34,6 +34,7 @@ Foundational security primitives used across all layers. Zero dependency on agen
 | http/ | SSRF-protected outbound HTTP fetch — DNS pinning and redirect validation (`secure_fetch.py`). |
 | external_secrets/ | Zero-disk plaintext external secrets vault gateway (1Password/Bitwarden) with LRU caching and 401 rotation ([external_secrets/_ARCH.md](external_secrets/_ARCH.md)). |
 | ephemeral_credentials/ | Session-isolated ephemeral credential store and single-use zero-disk injection primitives with memory wipe ([ephemeral_credentials/_ARCH.md](ephemeral_credentials/_ARCH.md)). |
+| ocap/ | Object-Capability (OCap) zero-trust delegation mesh primitives: signed handles, one-way attenuation, and cascading revocation ([ocap/_ARCH.md](ocap/_ARCH.md)). |
 
 ## Key Dependencies
 
