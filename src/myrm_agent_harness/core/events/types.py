@@ -161,6 +161,7 @@ class AgentEventType(StrEnum):
     CUSTOM = "custom"
     CUSTOM_MESSAGE = "custom_message"
     TTSR_TRIGGERED = "ttsr_triggered"
+    ASYNC_USER_MESSAGE = "async_user_message"
 
 
 class ExecutionPhase(StrEnum):
@@ -271,3 +272,13 @@ class ApprovalInterceptedEventData:
     original_text: str | None = None
     visual_context: dict[str, Any] | None = field(default=None)
     action_description: str | None = field(default=None)
+
+
+@dataclass(frozen=True, slots=True)
+class AsyncUserMessageEventData:
+    """Strongly typed payload for AgentEventType.ASYNC_USER_MESSAGE."""
+
+    message: str
+    category: str = "progress"
+    recommendation: str | None = None
+    call_id: str = ""

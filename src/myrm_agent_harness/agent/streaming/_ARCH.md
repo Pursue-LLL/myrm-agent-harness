@@ -25,7 +25,7 @@
 | `step_builder.py` | 核心 | 智能体步骤执行数据格式化（面向 WebUI 的多类型工具状态渲染契约） |
 | `stream_buffer.py` | 核心 | 内存滑动窗口流式重放缓冲与 Last-Event-ID 重连恢复 |
 | `stream_compactor.py` | 核心 | 高频文本片段流式合并压实器（降低前端事件风暴与渲染开销） |
-| `stream_dispatcher.py` | 核心 | 流式执行引擎事件分发 Mixin 与 AgentStatus 状态机透传 |
+| `stream_dispatcher.py` | 核心 | 流式执行引擎事件分发 Mixin（覆盖 Tool Stdout、UI 更新、任务步骤、AgentStatus 状态机透传与 ASYNC_USER_MESSAGE 异步通报分发） |
 | `stream_executor.py` | 核心 | 流式执行引擎生命周期封装（Agent.astream 调度、重试恢复与异常拦截） |
 | `types.py` | 核心 | 流式事件类型定义与 core.events.types 兼容重导出 |
 | `turn_outline.py` | 核心 | 回合大纲投影提取器（`TurnOutlineItem` / `TurnOutlineProjection` / `TurnOutlineExtractor`），为轻量会话折叠导航提供结构数据 |
