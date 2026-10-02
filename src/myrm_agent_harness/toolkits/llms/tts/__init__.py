@@ -6,7 +6,8 @@
 
 [POS]
 Audio generation capability — symmetric with llms/image and llms/video.
-Supports OpenAI and ElevenLabs with gateway routing and BYOK fallback.
+Supports OpenAI, ElevenLabs, and Volcengine (Doubao-TTS / Seed-Audio)
+with gateway routing and BYOK fallback (Volcengine always direct).
 LangChain adapters live in myrm-agent-server/app/ai_agents/media_tools/.
 """
 

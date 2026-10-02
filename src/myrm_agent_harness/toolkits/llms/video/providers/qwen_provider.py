@@ -156,7 +156,9 @@ class QwenVideoProvider(VideoGenerationProvider):
         }
 
         async with create_httpx_client(timeout=timeout, headers=headers) as client:
-            submit_url = f"{base_url}/api/v1/services/aigc/video-generation/video-synthesis"
+            submit_url = (
+                f"{base_url}/api/v1/services/aigc/video-generation/video-synthesis"
+            )
             resp = await client.post(submit_url, json=body)
             resp.raise_for_status()
             submitted = resp.json()
@@ -165,12 +167,16 @@ class QwenVideoProvider(VideoGenerationProvider):
                 raise ValueError("Qwen response missing task_id")
 
             if config.progress_callback:
-                await config.progress_callback(f"Submitted to Qwen (task={task_id}), polling...")
+                await config.progress_callback(
+                    f"Submitted to Qwen (task={task_id}), polling..."
+                )
 
             completed = await self._poll(client, base_url, task_id, config)
 
             if config.progress_callback:
-                await config.progress_callback("Generation complete, downloading video...")
+                await config.progress_callback(
+                    "Generation complete, downloading video..."
+                )
 
             assets = await self._download_videos(client, completed, config)
             return ProviderOutput(assets=assets)
@@ -210,19 +216,25 @@ class QwenVideoProvider(VideoGenerationProvider):
         for _ in range(config.max_poll_attempts):
             resp = await client.get(f"{base_url}/api/v1/tasks/{task_id}")
             resp.raise_for_status()
-            payload = resp.json()
-            status = (payload.get("output", {}).get("task_status") or "").strip().upper()
+            payload: dict[str, object] = resp.json()
+            output_obj = payload.get("output")
+            output: dict[str, object] = (
+                output_obj if isinstance(output_obj, dict) else {}
+            )
+            status = str(output.get("task_status") or "").strip().upper()
             if status == "SUCCEEDED":
                 return payload
             if status in ("FAILED", "CANCELED"):
                 msg = (
-                    payload.get("output", {}).get("message")
+                    output.get("message")
                     or payload.get("message")
                     or f"Qwen task {task_id} {status.lower()}"
                 )
                 raise RuntimeError(str(msg))
             await asyncio.sleep(config.poll_interval_seconds)
-        raise TimeoutError(f"Qwen video generation task {task_id} did not finish in time")
+        raise TimeoutError(
+            f"Qwen video generation task {task_id} did not finish in time"
+        )
 
     async def _download_videos(
         self,

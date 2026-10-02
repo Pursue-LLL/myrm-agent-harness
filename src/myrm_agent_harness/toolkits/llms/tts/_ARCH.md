@@ -3,8 +3,10 @@
 ## Overview
 
 Audio generation module — symmetric with `llms/image/` and `llms/video/`.
-Provides text-to-speech via OpenAI and ElevenLabs with Unified Tool Gateway
-billing and BYOK fallback.
+Provides text-to-speech via OpenAI, ElevenLabs, and Volcengine
+(Doubao-TTS / Seed-Audio) with Unified Tool Gateway billing and BYOK
+fallback. Volcengine endpoints are not proxied by the gateway and always
+connect directly.
 
 ## File Index
 
@@ -12,6 +14,7 @@ billing and BYOK fallback.
 |------|------|-------------|-------|
 | `models.py` | Config | `TTSConfig`, `TTSResult`, `MediaMeta`, `MediaCallback` | — |
 | `generator.py` | Core | `AsyncTTSEngine` — HTTP + gateway failover | ✅ |
+| `volcengine.py` | Core | Volcengine speech request build + response parse (Doubao-TTS v1 / Seed-Audio v3) | ✅ |
 | `__init__.py` | Package | Generic engine exports | — |
 
 ## Layering

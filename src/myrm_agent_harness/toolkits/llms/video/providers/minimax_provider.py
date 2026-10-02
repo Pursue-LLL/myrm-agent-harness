@@ -164,18 +164,24 @@ class MiniMaxVideoProvider(VideoGenerationProvider):
             resp = await client.post(f"{base_url}/v1/video_generation", json=body)
             resp.raise_for_status()
             submitted = resp.json()
-            _assert_base_resp(submitted.get("base_resp"), "MiniMax video generation failed")
+            _assert_base_resp(
+                submitted.get("base_resp"), "MiniMax video generation failed"
+            )
             task_id = (submitted.get("task_id") or "").strip()
             if not task_id:
                 raise ValueError("MiniMax response missing task_id")
 
             if config.progress_callback:
-                await config.progress_callback(f"Submitted to MiniMax (task={task_id}), polling...")
+                await config.progress_callback(
+                    f"Submitted to MiniMax (task={task_id}), polling..."
+                )
 
             completed = await self._poll(client, base_url, task_id, config)
 
             if config.progress_callback:
-                await config.progress_callback("Generation complete, downloading video...")
+                await config.progress_callback(
+                    "Generation complete, downloading video..."
+                )
 
             assets = await self._download(client, base_url, completed, config)
             return ProviderOutput(assets=assets)
@@ -193,13 +199,20 @@ class MiniMaxVideoProvider(VideoGenerationProvider):
                 params={"task_id": task_id},
             )
             resp.raise_for_status()
-            payload = resp.json()
-            _assert_base_resp(payload.get("base_resp"), "MiniMax video generation failed")
-            status = (payload.get("status") or "").strip()
+            payload: dict[str, object] = resp.json()
+            base_resp_obj = payload.get("base_resp")
+            base_resp: dict[str, object] | None = (
+                base_resp_obj if isinstance(base_resp_obj, dict) else None
+            )
+            _assert_base_resp(base_resp, "MiniMax video generation failed")
+            raw_status = payload.get("status")
+            status = raw_status.strip() if isinstance(raw_status, str) else ""
             if status == "Success":
                 return payload
             if status == "Fail":
-                msg = payload.get("base_resp", {}).get("status_msg") or "MiniMax video generation failed"
+                msg = (base_resp or {}).get(
+                    "status_msg"
+                ) or "MiniMax video generation failed"
                 raise RuntimeError(str(msg))
             await asyncio.sleep(config.poll_interval_seconds)
         raise TimeoutError(f"MiniMax task {task_id} did not finish in time")
@@ -218,7 +231,11 @@ class MiniMaxVideoProvider(VideoGenerationProvider):
             return [await self._download_from_url(client, video_url.strip(), config)]
 
         if isinstance(file_id, str) and file_id.strip():
-            return [await self._download_from_file_id(client, base_url, file_id.strip(), config)]
+            return [
+                await self._download_from_file_id(
+                    client, base_url, file_id.strip(), config
+                )
+            ]
 
         raise ValueError("MiniMax completed without video URL or file_id")
 

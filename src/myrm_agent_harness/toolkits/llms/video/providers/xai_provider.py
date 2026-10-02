@@ -107,7 +107,9 @@ class XAIGrokProvider(VideoGenerationProvider):
     def supported_models(self) -> tuple[ModelInfo, ...]:
         return (
             ModelInfo(id="grok-imagine-video", display_name="Grok Imagine Video"),
-            ModelInfo(id="grok-imagine-video-1.5", display_name="Grok Imagine Video 1.5"),
+            ModelInfo(
+                id="grok-imagine-video-1.5", display_name="Grok Imagine Video 1.5"
+            ),
         )
 
     @property
@@ -156,8 +158,9 @@ class XAIGrokProvider(VideoGenerationProvider):
         if not api_key:
             raise ValueError("xAI API key missing")
 
-        is_single_image = bool(reference_images) and len(reference_images) == 1
-        is_multi_ref = bool(reference_images) and len(reference_images) > 1
+        images: list[bytes] = reference_images or []
+        is_single_image = len(images) == 1
+        is_multi_ref = len(images) > 1
         if model:
             effective_model = model
         elif config.model:
@@ -199,9 +202,9 @@ class XAIGrokProvider(VideoGenerationProvider):
                 body["aspect_ratio"] = resolved_ar
                 body["resolution"] = resolved_res
                 if is_single_image:
-                    body["image"] = _build_image_input(reference_images[0])
+                    body["image"] = _build_image_input(images[0])
                 elif is_multi_ref:
-                    body["reference_images"] = _build_reference_images_input(reference_images)
+                    body["reference_images"] = _build_reference_images_input(images)
                 endpoint = "/videos/generations"
 
             resp = await client.post(
@@ -216,7 +219,9 @@ class XAIGrokProvider(VideoGenerationProvider):
                 raise ValueError("xAI response missing request_id")
 
             if config.progress_callback:
-                await config.progress_callback(f"Submitted to xAI {mode} (id={request_id}), polling...")
+                await config.progress_callback(
+                    f"Submitted to xAI {mode} (id={request_id}), polling..."
+                )
 
             completed = await self._poll(client, base_url, request_id, config)
 
@@ -228,7 +233,9 @@ class XAIGrokProvider(VideoGenerationProvider):
                 raise ValueError("xAI video response missing video URL")
 
             if config.progress_callback:
-                await config.progress_callback("Generation complete, downloading video...")
+                await config.progress_callback(
+                    "Generation complete, downloading video..."
+                )
 
             video_bytes = await self._download(video_url, config)
 
@@ -284,7 +291,7 @@ class XAIGrokProvider(VideoGenerationProvider):
         for _attempt in range(config.max_poll_attempts):
             resp = await client.get(f"{base_url}/videos/{request_id}")
             resp.raise_for_status()
-            payload = resp.json()
+            payload: dict[str, object] = resp.json()
             status = str(payload.get("status", "")).lower().strip()
             if status == "done":
                 return payload

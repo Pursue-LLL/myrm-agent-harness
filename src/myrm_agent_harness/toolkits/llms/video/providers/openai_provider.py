@@ -157,12 +157,16 @@ class OpenAISoraProvider(VideoGenerationProvider):
                 raise ValueError("OpenAI response missing video id")
 
             if config.progress_callback:
-                await config.progress_callback(f"Submitted to OpenAI (id={video_id}), polling...")
+                await config.progress_callback(
+                    f"Submitted to OpenAI (id={video_id}), polling..."
+                )
 
             completed = await self._poll(client, base_url, video_id, config)
 
             if config.progress_callback:
-                await config.progress_callback("Generation complete, downloading video...")
+                await config.progress_callback(
+                    "Generation complete, downloading video..."
+                )
 
             video = await self._download(client, base_url, video_id, config)
             video_meta: dict[str, object] = {
@@ -191,13 +195,16 @@ class OpenAISoraProvider(VideoGenerationProvider):
         for _attempt in range(config.max_poll_attempts):
             resp = await client.get(f"{base_url}/videos/{video_id}")
             resp.raise_for_status()
-            payload = resp.json()
+            payload: dict[str, object] = resp.json()
             status = str(payload.get("status", "")).strip()
             if status == "completed":
                 return payload
             if status == "failed":
-                err = payload.get("error", {})
-                raise RuntimeError(str(err.get("message", "")) or "OpenAI video generation failed")
+                err_obj = payload.get("error")
+                err: dict[str, object] = err_obj if isinstance(err_obj, dict) else {}
+                raise RuntimeError(
+                    str(err.get("message", "")) or "OpenAI video generation failed"
+                )
             await asyncio.sleep(config.poll_interval_seconds)
         raise TimeoutError(f"OpenAI video generation {video_id} did not finish in time")
 

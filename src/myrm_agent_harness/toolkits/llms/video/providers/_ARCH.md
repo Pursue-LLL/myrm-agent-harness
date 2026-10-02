@@ -16,4 +16,5 @@ Video generation providers — pluggable backends for video generation.
 | openai_provider.py | Core | OpenAI Sora video generation provider. | ✅ |
 | qwen_provider.py | Core | Qwen (Tongyi Wanxiang) video generation provider. | ✅ |
 | registry.py | Core | Global provider registry with lazy initialization of built-in providers. | ✅ |
+| volcengine_provider.py | Core | Volcengine (ByteDance Ark) Seedance 2.0 video generation provider. | ✅ |
 | xai_provider.py | Core | xAI Grok Imagine video generation provider. | ✅ |

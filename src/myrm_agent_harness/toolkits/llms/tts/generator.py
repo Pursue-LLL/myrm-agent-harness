@@ -8,8 +8,10 @@
 - AsyncTTSEngine: Core TTS generation engine
 
 [POS]
-Handles HTTP requests to TTS providers (OpenAI, ElevenLabs) with
-Try-Catch flexible fallback for gateway routing.
+Handles HTTP requests to TTS providers (OpenAI, ElevenLabs, Volcengine
+Doubao-TTS / Seed-Audio) with Try-Catch flexible fallback for gateway
+routing. Volcengine OpenSpeech endpoints are not proxied by the gateway
+and always connect directly via tts/volcengine.py.
 """
 
 from __future__ import annotations
@@ -36,8 +38,8 @@ class AsyncTTSEngine:
     def __init__(self, config: TTSConfig) -> None:
         self.config = config
 
-    async def generate(self, text: str) -> TTSResult:
-        """Generate speech from text."""
+    async def generate(self, text: str, *, style: str | None = None) -> TTSResult:
+        """Generate speech from text with an optional speaking style directive."""
         max_attempts = self.config.max_retries + 1
         bypass_gateway = False
         last_error: Exception | None = None
@@ -45,13 +47,16 @@ class AsyncTTSEngine:
 
         for attempt in range(max_attempts):
             try:
-                return await self._call_provider(text, bypass_gateway=bypass_gateway)
+                return await self._call_provider(
+                    text, bypass_gateway=bypass_gateway, style=style
+                )
             except Exception as e:
                 last_error = e
                 error_msg = str(e).lower()
 
                 if (
                     not bypass_gateway
+                    and self.config.provider != "volcengine"
                     and self.config.gateway_config
                     and self.config.gateway_config.use_gateway
                     and self.config.api_key
@@ -63,9 +68,14 @@ class AsyncTTSEngine:
                     or "insufficient" in error_msg
                     or "timeout" in error_msg
                 ):
-                    logger.warning("Gateway TTS failed (%s), falling back to direct provider API (BYOK)", error_msg)
+                    logger.warning(
+                        "Gateway TTS failed (%s), falling back to direct provider API (BYOK)",
+                        error_msg,
+                    )
                     try:
-                        from myrm_agent_harness.utils.event_utils import dispatch_custom_event
+                        from myrm_agent_harness.utils.event_utils import (
+                            dispatch_custom_event,
+                        )
 
                         await dispatch_custom_event(
                             "agent_status",
@@ -90,25 +100,56 @@ class AsyncTTSEngine:
             latency_ms=latency_ms,
         )
 
-    async def _call_provider(self, text: str, bypass_gateway: bool) -> TTSResult:
+    async def _call_provider(
+        self,
+        text: str,
+        bypass_gateway: bool,
+        style: str | None = None,
+    ) -> TTSResult:
         start_time = time.time()
         provider = self.config.provider
 
-        url, headers, payload = self._build_request(text, bypass_gateway)
+        if provider == "volcengine":
+            # The unified gateway does not proxy Volcengine OpenSpeech
+            # endpoints; always connect directly with the Volcengine protocol.
+            from .volcengine import (
+                build_volcengine_request,
+                parse_volcengine_response,
+                resolve_volcengine_timeout,
+            )
 
-        async with create_httpx_client(timeout=self.config.timeout_seconds) as client:
-            response = await client.post(url, headers=headers, json=payload)
-            response.raise_for_status()
-            audio_bytes = response.content
+            request = build_volcengine_request(self.config, text, style)
+            async with create_httpx_client(
+                timeout=resolve_volcengine_timeout(self.config)
+            ) as client:
+                response = await client.post(
+                    request.url, headers=request.headers, json=request.payload
+                )
+                response.raise_for_status()
+                audio_bytes, mime_type, duration_seconds = (
+                    await parse_volcengine_response(request, response, self.config)
+                )
+        else:
+            url, headers, payload = self._build_request(text, bypass_gateway)
+
+            async with create_httpx_client(
+                timeout=self.config.timeout_seconds
+            ) as client:
+                response = await client.post(url, headers=headers, json=payload)
+                response.raise_for_status()
+                audio_bytes = response.content
+                mime_type = response.headers.get("content-type", "audio/mpeg")
+                duration_seconds = None
 
         latency_ms = (time.time() - start_time) * 1000
-        mime_type = response.headers.get("content-type", "audio/mpeg")
 
         persisted_url = None
         if self.config.media_callback:
             meta = MediaMeta(prompt=text, model=self.config.model, provider=provider)
             try:
-                persisted_url = await self.config.media_callback(audio_bytes, mime_type, meta)
+                persisted_url = await self.config.media_callback(
+                    audio_bytes, mime_type, meta
+                )
             except Exception as e:
                 logger.warning("Failed to persist TTS audio: %s", e)
 
@@ -119,13 +160,20 @@ class AsyncTTSEngine:
             model=self.config.model,
             latency_ms=latency_ms,
             persisted_url=persisted_url,
+            duration_seconds=duration_seconds,
         )
 
-    def _build_request(self, text: str, bypass_gateway: bool) -> tuple[str, dict[str, str], dict[str, object]]:
+    def _build_request(
+        self, text: str, bypass_gateway: bool
+    ) -> tuple[str, dict[str, str], dict[str, object]]:
         provider = self.config.provider
 
-        if not bypass_gateway and self.config.gateway_config and self.config.gateway_config.use_gateway:
-            base_url = self.config.gateway_config.gateway_url.rstrip("/")
+        if (
+            not bypass_gateway
+            and self.config.gateway_config
+            and self.config.gateway_config.use_gateway
+        ):
+            base_url = (self.config.gateway_config.gateway_url or "").rstrip("/")
             if provider == "openai":
                 url = f"{base_url}/tts/openai/{self.config.model}"
             elif provider == "elevenlabs":
@@ -138,7 +186,9 @@ class AsyncTTSEngine:
                 "Content-Type": "application/json",
             }
         else:
-            api_key = self.config.api_key.get_secret_value() if self.config.api_key else ""
+            api_key = (
+                self.config.api_key.get_secret_value() if self.config.api_key else ""
+            )
             if provider == "openai":
                 url = self.config.base_url or "https://api.openai.com/v1/audio/speech"
                 headers = {
@@ -146,7 +196,10 @@ class AsyncTTSEngine:
                     "Content-Type": "application/json",
                 }
             elif provider == "elevenlabs":
-                url = self.config.base_url or f"https://api.elevenlabs.io/v1/text-to-speech/{self.config.voice}"
+                url = (
+                    self.config.base_url
+                    or f"https://api.elevenlabs.io/v1/text-to-speech/{self.config.voice}"
+                )
                 headers = {
                     "xi-api-key": api_key,
                     "Content-Type": "application/json",

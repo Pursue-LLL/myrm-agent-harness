@@ -39,12 +39,15 @@ def get_registry() -> ProviderRegistry:
     _register_builtin(_registry, "minimax_provider", "MiniMaxVideoProvider")
     _register_builtin(_registry, "xai_provider", "XAIGrokProvider")
     _register_builtin(_registry, "fal_provider", "FalVideoProvider")
+    _register_builtin(_registry, "volcengine_provider", "VolcengineSeedanceProvider")
 
     logger.info("Video provider registry initialized with %d providers", len(_registry))
     return _registry
 
 
-def _register_builtin(registry: ProviderRegistry, module_name: str, class_name: str) -> None:
+def _register_builtin(
+    registry: ProviderRegistry, module_name: str, class_name: str
+) -> None:
     """Import and register a single built-in provider, tolerating import failures."""
     try:
         import importlib
@@ -53,4 +56,6 @@ def _register_builtin(registry: ProviderRegistry, module_name: str, class_name: 
         cls = getattr(mod, class_name)
         registry.register(cls())
     except Exception:
-        logger.warning("Failed to register built-in video provider '%s'", class_name, exc_info=True)
+        logger.warning(
+            "Failed to register built-in video provider '%s'", class_name, exc_info=True
+        )
