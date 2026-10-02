@@ -38,7 +38,7 @@ from myrm_agent_harness.toolkits.memory._manager.shared import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Coroutine
+    from collections.abc import Callable, Coroutine
     from datetime import datetime
 
     from myrm_agent_harness.toolkits.memory.session import MemorySession

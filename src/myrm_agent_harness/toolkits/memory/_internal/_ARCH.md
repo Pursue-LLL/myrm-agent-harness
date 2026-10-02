@@ -9,6 +9,7 @@ Internal implementation details — not part of the public API.
 |------|------|-------------|-------|
 | __init__.py | Package | Internal implementation details — not part of the public API. | — |
 | approval.py | Core | Approval queue helpers. Handles AnyMemory ↔ PendingRecord conversion for the approval | ✅ |
+| bm25_sparse_index.py | Core | Persistent BM25 sparse mirror. Token hashing (crc32 u31), saturated term-frequency vectors, and the `BM25SparseIndexStore` wrapper that fail-open mirrors every upsert/delete into a `{collection}_bm25` sparse collection and serves BM25 queries from it after a one-shot backfill. `wrap_with_bm25_sparse_index` decides capability by exact `isinstance` at assembly time; legacy backends stay unwrapped on the corpus-scroll fallback path. | ✅ |
 | channel_pruning.py | Core | Channel pruning and sub-graph dispatch coordinator with explicit-scope invariance protection. | ✅ |
 | embedding_cache.py | Core | Two-tier embedding cache. L1 uses in-memory LRU (OrderedDict + access-count eviction), L2 calls the  | ✅ |
 | governance_service.py | Core | Governance-side orchestration. Handles approval flow, profile updates, and content scanning. | ✅ |
@@ -28,7 +29,7 @@ Internal implementation details — not part of the public API.
 | storage_conversation.py | Core | Conversation memory storage with dual-embedding (Qdrant named vectors). | ✅ |
 | storage_converters.py | Core | Document ↔ Schema converters and shared metadata helpers (scope, lifecycle, filter). `_COMMON_KNOWN_KEYS` must only list keys that `doc_to_*` assigns onto the model — listing one without that mapping silently drops it from `metadata` on every round-trip. | ✅ |
 | _storage_payload_helpers.py | Core | Payload extraction helpers for document conversion and metadata filtering. | ✅ |
-| storage_search.py | Core | Search operations: vector similarity, BM25 keyword, profile/procedural text, dual-channel conversation search with RRF fusion. | ✅ |
+| storage_search.py | Core | Search operations: vector similarity, BM25 keyword (persistent sparse channel first, corpus-scroll fallback with degradation metrics on overflow), profile/procedural text, dual-channel conversation search with RRF fusion. | ✅ |
 | write_service.py | Core | Write-side orchestration for memory persistence. Handles memory scanning, transient business fact L3 write gate, approval routing, batch dedup, and the write-scope fence (`_validate_write_scope`) that rejects namespaces outside the writer's grant. | ✅ |
 
 ## Key Dependencies

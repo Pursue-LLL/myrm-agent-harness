@@ -30,7 +30,6 @@ from myrm_agent_harness.toolkits.memory.config import MemoryConfig
 from myrm_agent_harness.toolkits.memory.protocols.vector import FilterDict, VectorDocument
 from myrm_agent_harness.toolkits.vector.base import SparsePoint
 
-
 CONFIG = MemoryConfig(embedding_model="test-model", collection_prefix="bmi")
 
 
@@ -153,6 +152,19 @@ class TestWrapperDegradation:
         assert ids is not None and len(ids) == 1
         assert stub.upsert_calls == [CONFIG.semantic_collection]
         # sparse sync raised, dense upsert still succeeded
+
+    @pytest.mark.asyncio
+    async def test_upsert_mirrors_before_backfill_completes(self) -> None:
+        """A write landing mid-backfill must mirror immediately (no readiness gate)."""
+        stub = _SparseCapableStub()
+        wrapped = BM25SparseIndexStore(stub)  # type: ignore[arg-type]
+        # sparse_ready stays False — backfill has not run — yet the mirror
+        # write must still go through so no scroll-snapshot gap can drop it.
+        assert wrapped._sparse_ready is False
+
+        await wrapped.upsert(CONFIG.semantic_collection, [make_doc("mid backfill write", datetime.now(UTC))])
+
+        assert stub.sparse_upsert_calls == [bm25_collection_for(CONFIG.semantic_collection)]
 
     @pytest.mark.asyncio
     async def test_search_bm25_falls_back_to_corpus_scroll_before_warm(self) -> None:

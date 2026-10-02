@@ -516,7 +516,8 @@ Query
   │     └─→ Semantic + Episodic collections
   │
   ├─→ BM25 通道（关键词匹配）
-  │     └─→ Semantic + Episodic full-text (auto-degrades >5000)
+  │     ├─→ 持久稀疏索引（{collection}_bm25，服务端 IDF，无全库扫描）
+  │     └─→ Fallback：corpus scroll + BM25Okapi（后端无 sparse 能力或索引未预热）
   │
   └─→ RRF 融合 + 纠正链抑制 + MMR 多样性选择（content_sim + source_decay）+ 归一化
         └─→ 最终结果
@@ -551,7 +552,7 @@ final = semantic^w0 × recency^w1 × frequency^w2 × importance^w3 × preference
 - **Preference**: 直接提取 `memory.preference_strength`
 - **Confidence**: 直接提取 `memory.confidence`（作为最终乘数）
 
-**BM25 自动降级**：当用户记忆总量超过 `bm25_max_corpus_size`（默认 5000）时，自动禁用 BM25 通道以保证性能，回退到纯 Vector 检索。
+**BM25 持久稀疏索引**：Qdrant 后端为 Semantic/Episodic 各维护一个 `{collection}_bm25` sparse collection（token 经 crc32 u31 哈希、词频饱和 `1+ln(tf)`、IDF 由服务端计算）。写入路径 fail-open 双镜像（upsert/delete 同步镜像，失败仅日志不阻塞 dense 写入）；首个 BM25 查询触发一次性 backfill 预热，此后增量维护。无 sparse 能力的后端（及预热完成前）走 corpus-scroll + BM25Okapi fallback；此时若用户记忆总量超过 `bm25_max_corpus_size`（默认 5000），fallback 路径自动禁用并记入降级指标（`record_degradation("corpus_overflow")`，与超时/错误同级可观测）。实测（embedded Qdrant，1000 条记忆）：持久稀疏通道 8.9 ms/query vs fallback 41.6 ms/query（4.6x）；同一超上限语料下 sparse 通道正常返回，fallback 返回空结果。
 
 **检索超时 fail-open**（`RetrievalConfig.timeout_seconds`，默认 10s）：
 

@@ -156,32 +156,47 @@ class BM25SparseIndexStore:
         task.add_done_callback(_log_task_failure)
     # ── Write interception (fail-open sparse sync) ──────────────────────
 
+    def _log_sync_failure(self, op: str, collection: str, exc: Exception) -> None:
+        """Fail-open mirror logging.
+
+        A missing sparse collection is expected before the backfill ensures
+        it (debug, no operator action needed); anything else is a real sync
+        failure (warning).
+        """
+        if "not found" in str(exc).lower():
+            logger.debug("BM25 sparse mirror absent pre-backfill; skipped %s sync for %s", op, collection)
+            return
+        logger.warning("BM25 sparse index %s sync failed for %s (non-fatal): %s", op, collection, exc)
+
     async def upsert(self, collection: str, documents: Sequence[VectorDocument]) -> list[str]:
         ids = await self._inner.upsert(collection, documents)
-        if self._sparse_ready and documents:
+        # Unconditional mirror attempt (no readiness gate): a write landing
+        # mid-backfill must not fall through a scroll snapshot gap, and a
+        # pre-backfill attempt just fails open on the missing collection.
+        if documents:
             try:
                 points = [doc_to_sparse_point(doc) for doc in documents]
                 await self._inner.upsert_sparse(bm25_collection_for(collection), points)  # type: ignore[attr-defined]
             except Exception as exc:
-                logger.warning("BM25 sparse index sync failed for %s (non-fatal): %s", collection, exc)
+                self._log_sync_failure("upsert", collection, exc)
         return ids
 
     async def delete(self, collection: str, ids: list[str]) -> int:
         deleted = await self._inner.delete(collection, ids)
-        if self._sparse_ready and deleted:
+        if deleted:
             try:
                 await self._inner.delete(bm25_collection_for(collection), ids)
             except Exception as exc:
-                logger.warning("BM25 sparse index delete sync failed for %s (non-fatal): %s", collection, exc)
+                self._log_sync_failure("delete", collection, exc)
         return deleted
 
     async def delete_by_filter(self, collection: str, filters: FilterDict) -> int:
         deleted = await self._inner.delete_by_filter(collection, filters)
-        if self._sparse_ready:
+        if deleted:
             try:
                 await self._inner.delete_by_filter(bm25_collection_for(collection), filters)
             except Exception as exc:
-                logger.warning("BM25 sparse index filter-delete sync failed (non-fatal): %s", exc)
+                self._log_sync_failure("filter-delete", collection, exc)
         return deleted
 
     # ── BM25 sparse lifecycle ────────────────────────────────────────────
@@ -266,21 +281,26 @@ class BM25SparseIndexStore:
             (config.semantic_collection, MemoryType.SEMANTIC, doc_to_semantic),
             (config.episodic_collection, MemoryType.EPISODIC, doc_to_episodic),
         ]
-        hits: list[tuple[float, VectorDocument, MemoryType]] = []
-        for collection, memory_type, converter in targets:
-            try:
-                results = await self._inner.search_sparse(  # type: ignore[attr-defined]
-                    bm25_collection_for(collection),
-                    indices,
-                    values,
-                    limit=top_k,
-                    filters=filters,
-                )
-            except Exception as exc:
-                logger.warning("BM25 sparse search degraded for %s (non-fatal): %s", collection, exc)
-                return None
-            for r in results:
-                hits.append((r.score, r.document, memory_type))
+
+        async def search_one(
+            collection: str, memory_type: MemoryType
+        ) -> list[tuple[float, VectorDocument, MemoryType]]:
+            results = await self._inner.search_sparse(  # type: ignore[attr-defined]
+                bm25_collection_for(collection),
+                indices,
+                values,
+                limit=top_k,
+                filters=filters,
+            )
+            return [(r.score, r.document, memory_type) for r in results]
+
+        # Both collections queried in parallel, mirroring the legacy dual-scroll.
+        try:
+            outcomes = await asyncio.gather(*(search_one(c, mt) for c, mt, _ in targets))
+        except Exception as exc:
+            logger.warning("BM25 sparse search degraded (non-fatal): %s", exc)
+            return None
+        hits = [hit for outcome in outcomes for hit in outcome]
 
         if not hits:
             return []
@@ -288,11 +308,15 @@ class BM25SparseIndexStore:
         hits.sort(key=lambda h: h[0], reverse=True)
         hits = hits[:top_k]
         normalizer = hits[0][0] if hits[0][0] > 0 else 1.0
+        converters: dict[MemoryType, Callable[[VectorDocument], SemanticMemory | EpisodicMemory]] = {
+            MemoryType.SEMANTIC: doc_to_semantic,
+            MemoryType.EPISODIC: doc_to_episodic,
+        }
         converted: list[MemorySearchResult] = []
         for score, doc, memory_type in hits:
             converted.append(
                 MemorySearchResult(
-                    memory=converter(doc),
+                    memory=converters[memory_type](doc),
                     score=min(score / normalizer, 1.0),
                     memory_type=memory_type,
                 )

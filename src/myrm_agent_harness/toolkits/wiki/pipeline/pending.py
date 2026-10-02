@@ -73,6 +73,7 @@ class WikiPendingEditsManager:
                 )
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_status ON pending_edits(status)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_created_at ON pending_edits(created_at)")
             with contextlib.suppress(sqlite3.OperationalError):
                 conn.execute("ALTER TABLE pending_edits ADD COLUMN provenance TEXT")
 

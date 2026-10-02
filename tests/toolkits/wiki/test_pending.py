@@ -134,6 +134,11 @@ def test_get_edits_created_since_is_status_agnostic_and_ordered(wiki_structure):
     future = (datetime.now(UTC) + timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
     assert mgr.get_edits_created_since(future) == []
 
+    # The created_at window predicate is backed by an index, symmetric with idx_status.
+    with mgr._get_conn() as conn:
+        index_names = {row["name"] for row in conn.execute("PRAGMA index_list('pending_edits')")}
+    assert {"idx_status", "idx_created_at"} <= index_names
+
 
 @pytest.mark.asyncio
 async def test_approve_with_modified_content(wiki_structure, mock_indexer):
