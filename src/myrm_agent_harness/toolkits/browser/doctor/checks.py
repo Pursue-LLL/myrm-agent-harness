@@ -27,6 +27,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import sys
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -254,9 +255,13 @@ async def _check_browser_launch(
             fix="uv add patchright",
         )
 
+    default_args = ["--no-sandbox", "--disable-dev-shm-usage"]
+    if sys.platform == "darwin":
+        default_args.append("--disable-features=MacAppCodeSignClone")
+
     launch_opts = launch_options or {
         "headless": True,
-        "args": ["--no-sandbox", "--disable-dev-shm-usage"],
+        "args": default_args,
     }
 
     try:

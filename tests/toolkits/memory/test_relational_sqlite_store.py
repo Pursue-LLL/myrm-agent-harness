@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -594,3 +595,90 @@ async def test_corrupted_memory_index_fail_fast(tmp_path: Path, monkeypatch: pyt
     assert "failed quick_check" in str(exc_write.value)
 
     await store.close()
+
+
+# ── Exact fact search time bounds ────────────────────────────────────
+
+_OLD_UUID = "11111111-2222-3333-a444-555555555555"
+_NEW_UUID = "66666666-7777-1888-b999-000000000000"
+_STALE_CREATED_AT = "2020-01-01T00:00:00+00:00"
+
+
+async def _record_two_exact_facts(store: SQLiteRelationalStore) -> None:
+    """Write two exact facts, backdate the first to a stale created_at."""
+    await store.record_exact_fact(
+        memory_id="m-old", user_id="u1", content="old deploy runbook fact",
+        identifiers=[_OLD_UUID],
+    )
+    await store.record_exact_fact(
+        memory_id="m-new", user_id="u1", content="new deploy runbook fact",
+        identifiers=[_NEW_UUID],
+    )
+    conn = await store._get_connection()
+    await conn.execute(
+        "UPDATE exact_fact_identifiers SET created_at = ? WHERE memory_id = ?",
+        (_STALE_CREATED_AT, "m-old"),
+    )
+    await conn.commit()
+
+
+@pytest.mark.asyncio
+async def test_search_fts5_time_bounds_filter_btree_identifier_matches(
+    store: SQLiteRelationalStore,
+) -> None:
+    """since/until must filter the deterministic identifier path, not just BM25."""
+    await _record_two_exact_facts(store)
+    q = f"{_OLD_UUID} {_NEW_UUID}"
+
+    ids_all = sorted(m.memory.id for m in await store.search_fts5(q, 10))
+    assert ids_all == ["m-new", "m-old"]
+
+    ids_since = sorted(
+        m.memory.id
+        for m in await store.search_fts5(q, 10, since=datetime(2024, 1, 1, tzinfo=UTC))
+    )
+    assert ids_since == ["m-new"]
+
+    ids_until = sorted(
+        m.memory.id
+        for m in await store.search_fts5(q, 10, until=datetime(2024, 1, 1, tzinfo=UTC))
+    )
+    assert ids_until == ["m-old"]
+
+
+@pytest.mark.asyncio
+async def test_search_fts5_time_bounds_filter_fts5_keyword_matches(
+    store: SQLiteRelationalStore,
+) -> None:
+    """since/until must also constrain the FTS5 virtual-table path via the identifiers table."""
+    await _record_two_exact_facts(store)
+
+    ids_all = sorted(m.memory.id for m in await store.search_fts5("runbook", 10))
+    assert ids_all == ["m-new", "m-old"]
+
+    ids_until = sorted(
+        m.memory.id
+        for m in await store.search_fts5("runbook", 10, until=datetime(2024, 1, 1, tzinfo=UTC))
+    )
+    assert ids_until == ["m-old"]
+
+    ids_since = sorted(
+        m.memory.id
+        for m in await store.search_fts5("runbook", 10, since=datetime(2024, 1, 1, tzinfo=UTC))
+    )
+    assert ids_since == ["m-new"]
+
+
+@pytest.mark.asyncio
+async def test_search_fts5_time_bounds_naive_datetimes_are_coerced(
+    store: SQLiteRelationalStore,
+) -> None:
+    """Naive bounds are treated as UTC so they still compare against the +00:00 storage format."""
+    await _record_two_exact_facts(store)
+    q = f"{_OLD_UUID} {_NEW_UUID}"
+
+    ids_until = sorted(m.memory.id for m in await store.search_fts5(q, 10, until=datetime(2024, 1, 1)))
+    assert ids_until == ["m-old"]
+
+    ids_since = sorted(m.memory.id for m in await store.search_fts5(q, 10, since=datetime(2024, 1, 1)))
+    assert ids_since == ["m-new"]

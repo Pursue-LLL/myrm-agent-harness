@@ -62,6 +62,7 @@
 | `goals/` | Goal 引擎 LLM 工具面（域逻辑在 `agent/goals/`） | `create_goal_tools` |
 | `progress/` | 主 Agent 多步 todo 进度（workspace SSOT + SSE，支持 blocked 状态与自愈） | `create_todo_write_tool` |
 | `clarification/` | 结构化 HITL 澄清；`requires_confirmation` 驱动危险强调 UI；`ClarificationGuardMiddleware` 强制单轮单次 | `ask_question_tool` |
+| `communication/` | 非阻塞异步汇报与提问（零上下文税、单轮限额熔断） | `create_send_user_message_async_tool` |
 | `discover_capability/` | 统一能力发现网关 | `skill_search_tool` |
 
 ### Skill 工具边界（discover vs discovery）

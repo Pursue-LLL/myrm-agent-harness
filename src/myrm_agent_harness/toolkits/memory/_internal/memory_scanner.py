@@ -37,7 +37,9 @@ from __future__ import annotations
 
 import logging
 import threading
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from enum import StrEnum
 
@@ -116,6 +118,28 @@ def scan_memory_content(text: str, *, block_threshold: float = 0.8) -> ScanResul
 
 PseudonymizeFn = Callable[[str], str]
 
+# True while a fire-and-forget background memory write is in flight (post-run
+# auto-extraction). No LangGraph runnable context exists there to service the
+# approval interrupt, so a BLOCKED verdict must reject that single memory via
+# MemoryTaintedError instead of crashing the whole extraction batch.
+_background_memory_write: ContextVar[bool] = ContextVar("_background_memory_write", default=False)
+
+
+@asynccontextmanager
+async def background_memory_write() -> AsyncIterator[None]:
+    """Scope a fire-and-forget memory write as background (non-graph) context.
+
+    BLOCKED verdicts inside this scope skip the approval interrupt (there is no
+    interactive agent to resume it) and degrade to the same single-memory
+    rejection an explicit user denial takes, so one tainted memory cannot lose
+    the whole session's extraction.
+    """
+    token = _background_memory_write.set(True)
+    try:
+        yield
+    finally:
+        _background_memory_write.reset(token)
+
 
 def set_pii_pseudonymizer(fn: PseudonymizeFn | None) -> None:
     """Register a PII pseudonymization function for the current context.
@@ -150,6 +174,19 @@ def _handle_blocked_verdict(result: ScanResult, content: str) -> ScanResult:
             "injection_patterns": result.injection_patterns,
             "content": content,
         }
+
+    if _background_memory_write.get():
+        # Background writes have no runnable graph context to suspend for
+        # approval; degrade to the user-denied rejection path so the batch
+        # scanner drops only this memory instead of losing the whole batch.
+        logger.warning(
+            "[MEMORY_SCAN] BLOCKED memory dropped in background write (no approval channel): %s snippet=%.100s",
+            reason,
+            content,
+        )
+        if result.harmful_state_patterns:
+            raise MemoryTaintedError(1.0, result.harmful_state_patterns)
+        raise MemoryTaintedError(result.injection_score, result.injection_patterns)
 
     contract = ApprovalContract[dict[str, object]](
         action_type="memory_mutation",

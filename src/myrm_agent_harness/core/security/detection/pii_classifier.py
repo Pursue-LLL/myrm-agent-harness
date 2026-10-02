@@ -327,11 +327,15 @@ def classify_content(content: str, policy: PrivacyPolicy) -> PIIClassification:
 
     # --- S2 built-in patterns ---
     if level == SensitivityLevel.S1:
+        # ASCII short-text fast path skips only patterns that require CJK characters to
+        # match (china_address). china_phone and china_courier match pure ASCII digit /
+        # alphanumeric sequences ("13800138000", "SF1234567890123"), so skipping them on
+        # short ASCII input silently misclassifies a bare phone or tracking number as S1.
         is_ascii_short = len(content) < _FAST_PATH_ASCII_LENGTH and content.isascii()
         check_patterns = (
             _S2_PATTERNS
             if not is_ascii_short
-            else (p for p in _S2_PATTERNS if p[0] not in ("china_phone", "china_address", "china_courier"))
+            else (p for p in _S2_PATTERNS if p[0] != "china_address")
         )
         for name, pat in check_patterns:
             for m in pat.finditer(content):

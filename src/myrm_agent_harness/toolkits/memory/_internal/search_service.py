@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable, Coroutine
 from dataclasses import replace
 from datetime import UTC, datetime
 from time import perf_counter
@@ -80,7 +80,10 @@ from myrm_agent_harness.toolkits.memory.types import (
 
 logger = logging.getLogger(__name__)
 
-FTS5SearcherFunc = Callable[[str, int], Awaitable[list[MemorySearchResult]]]
+FTS5SearcherFunc = Callable[
+    [str, int, datetime | None, datetime | None],
+    Coroutine[None, None, list[MemorySearchResult]],
+]
 
 _STREAM_WARNING_MAP: dict[str, tuple[str, str]] = {
     "query_embedding": (GATHER_QUERY_EMBEDDING_TIMEOUT, GATHER_QUERY_EMBEDDING_FAILED),
@@ -516,7 +519,7 @@ class MemorySearchService:
             task_stream_map[bm25_task] = "bm25"
 
         if self._fts5_searcher is not None:
-            fts_t = asyncio.create_task(self._fts5_searcher(query, limit))
+            fts_t = asyncio.create_task(self._fts5_searcher(query, limit, since, until))
             tasks.append(fts_t)
             task_stream_map[fts_t] = "fts5"
 

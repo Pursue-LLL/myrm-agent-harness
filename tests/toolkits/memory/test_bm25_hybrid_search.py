@@ -557,6 +557,29 @@ class TestBM25PerformanceCharacteristics:
         assert any("BM25 auto-degraded" in record.message for record in caplog.records)
 
     @pytest.mark.asyncio
+    async def test_auto_degradation_records_overflow_metric(self, mock_vector_store, memory_config) -> None:
+        """Corpus-overflow degradation must be visible in global degradation metrics."""
+        from myrm_agent_harness.toolkits.memory.metrics import get_search_metrics
+
+        metrics = get_search_metrics()
+        snapshot_before = metrics.snapshot()
+        overflow_before = snapshot_before.degradation_corpus_overflow_count
+        timeout_before = snapshot_before.degradation_timeout_count
+        error_before = snapshot_before.degradation_error_count
+
+        sem_docs = [create_vector_doc(f"s{i}", f"Doc {i}") for i in range(3000)]
+        epi_docs = [create_vector_doc(f"e{i}", f"Event {i}") for i in range(3000)]
+        mock_vector_store.scroll.side_effect = [(sem_docs, None), (epi_docs, None)]
+
+        results = await search_bm25("C++ programming", mock_vector_store, memory_config)
+
+        assert results == []
+        snapshot_after = metrics.snapshot()
+        assert snapshot_after.degradation_corpus_overflow_count == overflow_before + 1
+        assert snapshot_after.degradation_timeout_count == timeout_before
+        assert snapshot_after.degradation_error_count == error_before
+
+    @pytest.mark.asyncio
     async def test_large_corpus_near_threshold(self, mock_vector_store, memory_config):
         """Test performance with corpus size near threshold."""
         large_sem_docs = [create_vector_doc(f"sem{i}", f"Content {i}") for i in range(2500)]

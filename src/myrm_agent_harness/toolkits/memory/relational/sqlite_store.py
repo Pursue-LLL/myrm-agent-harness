@@ -19,6 +19,7 @@ import asyncio
 import hashlib
 import json
 import logging
+from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -944,12 +945,15 @@ class SQLiteRelationalStore(RelationalStore):
         self,
         query: str,
         limit: int = 10,
+        since: datetime | None = None,
+        until: datetime | None = None,
         *,
         namespaces: list[str] | None = None,
     ) -> list[MemorySearchResult]:
         """Perform exact identifier match and FTS5 inverted search.
 
-        Conforms to FTS5SearcherFunc: Callable[[str, int], Awaitable[list[MemorySearchResult]]].
+        Conforms to FTS5SearcherFunc:
+        Callable[[str, int, datetime | None, datetime | None], Awaitable[list[MemorySearchResult]]].
         """
         conn = await self._get_connection()
         try:
@@ -957,6 +961,8 @@ class SQLiteRelationalStore(RelationalStore):
                 conn,
                 query=query,
                 limit=limit,
+                since=since,
+                until=until,
                 namespaces=namespaces,
                 fts5_supported=self._fts5_supported,
             )

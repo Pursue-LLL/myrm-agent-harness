@@ -160,10 +160,12 @@ class TestDegradationMetrics:
         metrics.record_degradation("timeout")
         metrics.record_degradation("timeout")
         metrics.record_degradation("error")
+        metrics.record_degradation("corpus_overflow")
 
         snapshot = metrics.snapshot()
         assert snapshot.degradation_timeout_count == 2
         assert snapshot.degradation_error_count == 1
+        assert snapshot.degradation_corpus_overflow_count == 1
 
     @pytest.mark.asyncio
     async def test_collect_timeout_increments_global_metrics(self, mock_relational_store, fast_timeout_config) -> None:

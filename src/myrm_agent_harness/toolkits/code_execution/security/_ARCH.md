@@ -24,7 +24,7 @@ Execution security — shell command analysis, blacklists, validators, and C-lev
 | destructive_rules.py | Core | 细粒度破坏性命令静态规则分析器（rm/git/dd/mkfs/find/inline-script）与爆炸半径推导 | ✅ |
 | destructive_types.py | Core | 破坏性分析类型定义、不可逆常量命令集与爆炸半径数据结构 | ✅ |
 | workspace_snapshot.py | Core | 零拷贝原子工作区快照创建（create_workspace_snapshot）与一键撤销回滚（rollback_workspace_snapshot） | ✅ |
-| task_airbag.py | Core | 长任务与无人值守挂机安全气囊管理器（双轨自适应快照武装、反向 Diff 账本汇总与原子时光倒流一键重置） | ✅ |
+| task_airbag.py | Core | 长任务与无人值守挂机安全气囊管理器（双轨自适应快照武装、反向 Diff 账本汇总、翻车现场救援快照捕获与原子时光倒流一键重置） | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|

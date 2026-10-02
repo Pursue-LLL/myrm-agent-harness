@@ -83,6 +83,11 @@ _DEFAULT_LAUNCH_OPTIONS: dict[str, object] = {
 if os.getenv("VISUAL_DESKTOP") == "1" and sys.platform != "darwin":
     _DEFAULT_LAUNCH_OPTIONS["env"] = {**os.environ, "DISPLAY": ":99"}
 
+if sys.platform == "darwin":
+    args_list = _DEFAULT_LAUNCH_OPTIONS.get("args")
+    if isinstance(args_list, list) and "--disable-features=MacAppCodeSignClone" not in args_list:
+        args_list.append("--disable-features=MacAppCodeSignClone")
+
 
 class ContextType(Enum):
     """Context purpose classification.

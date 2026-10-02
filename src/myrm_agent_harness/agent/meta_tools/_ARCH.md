@@ -23,6 +23,7 @@ Detailed design: [META_TOOLS_SYSTEM.md](META_TOOLS_SYSTEM.md)
 | goals/ | Goal interaction tools — LLM tools for querying/completing goals. |
 | progress/ | Main-agent todo progress (`todo_write`, workspace todos SSOT). |
 | clarification/ | Structured HITL clarification (`ask_question_tool`) — schemas and LangChain adapter; HITL policy SSOT is in `sub_agents/hitl_tool_policy.py`. |
+| communication/ | Non-blocking async user message meta-tool (`send_user_message_async`, rate-limiting, zero-context-tax). |
 | skills/ | Skills submodule；`skill_market_tool` / `skill_manage_tool` **由产品层 Turn1 条件 mount**（非 `get_meta_tools` 默认）。 |
 | spawn_subagent/ | LLM 子 Agent 委派（`delegate_task_tool` 等；≠ PTC `dynamic_workflow/tools.py`） |
 | working_memory/ | 工作记忆自治元工具（`working_memory_manage_tool`，支持 update_subtask/discard/summarize/set_scratchpad） |

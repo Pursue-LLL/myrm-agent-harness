@@ -63,6 +63,9 @@ class SearchSnapshot:
     cross_session_hit_rate: float
     degradation_timeout_count: int
     degradation_error_count: int
+    # BM25 silently dropping recall when the corpus outgrew bm25_max_corpus_size;
+    # distinct from error/timeout so operators can size the index accordingly.
+    degradation_corpus_overflow_count: int = 0
 
 
 class SearchMetrics:
@@ -81,12 +84,14 @@ class SearchMetrics:
 
     __slots__ = (
         "_cross_session_hits",
+        "_degradation_corpus_overflow_count",
         "_degradation_error_count",
         "_degradation_timeout_count",
         "_latencies_ms",
         "_latency_max_stored",
         "_lock",
         "_otel_assistant_reference_query_count",
+        "_otel_degradation_corpus_overflow_total",
         "_otel_degradation_error_total",
         "_otel_degradation_timeout_total",
         "_otel_keyword_boost_count",
@@ -127,6 +132,7 @@ class SearchMetrics:
         self._total_sourced_hits = 0
         self._degradation_timeout_count = 0
         self._degradation_error_count = 0
+        self._degradation_corpus_overflow_count = 0
 
         self._otel_search_total: Counter | None = None
         self._otel_zero_result_total: Counter | None = None
@@ -140,6 +146,7 @@ class SearchMetrics:
         self._otel_preference_boost_count: Counter | None = None
         self._otel_degradation_timeout_total: Counter | None = None
         self._otel_degradation_error_total: Counter | None = None
+        self._otel_degradation_corpus_overflow_total: Counter | None = None
         self._init_otel_instruments()
 
     def _init_otel_instruments(self) -> None:
@@ -197,6 +204,10 @@ class SearchMetrics:
             self._otel_degradation_error_total = meter.create_counter(
                 "memory_search_degradation_error_total",
                 description="Memory searches degraded by a backing-store error",
+            )
+            self._otel_degradation_corpus_overflow_total = meter.create_counter(
+                "memory_search_degradation_corpus_overflow_total",
+                description="Memory searches degraded by BM25 corpus overflow beyond bm25_max_corpus_size",
             )
         except Exception:
             logger.debug("OTEL instruments not available, metrics will be in-memory only")
@@ -321,6 +332,7 @@ class SearchMetrics:
                 cross_session_hit_rate=round(cs_rate, 4),
                 degradation_timeout_count=self._degradation_timeout_count,
                 degradation_error_count=self._degradation_error_count,
+                degradation_corpus_overflow_count=self._degradation_corpus_overflow_count,
             )
 
     def reset(self) -> None:
@@ -340,23 +352,30 @@ class SearchMetrics:
             self._total_sourced_hits = 0
             self._degradation_timeout_count = 0
             self._degradation_error_count = 0
+            self._degradation_corpus_overflow_count = 0
 
-    def record_degradation(self, kind: Literal["timeout", "error"]) -> None:
-        """Record a degraded retrieval (``timeout`` or ``error``) for observability.
+    def record_degradation(self, kind: Literal["timeout", "error", "corpus_overflow"]) -> None:
+        """Record a degraded retrieval for observability.
 
-        Degraded searches are counted separately from ordinary zero-result searches
-        so consumers can tell a genuine empty recall apart from a store failure.
+        ``timeout`` / ``error`` mark store failures; ``corpus_overflow`` marks the
+        policy-driven BM25 skip when the scroll corpus outgrew
+        ``bm25_max_corpus_size`` — a recall loss operators must be able to see,
+        not a genuine zero-result recall.
         """
         with self._lock:
             if kind == "timeout":
                 self._degradation_timeout_count += 1
             elif kind == "error":
                 self._degradation_error_count += 1
+            elif kind == "corpus_overflow":
+                self._degradation_corpus_overflow_count += 1
         with suppress(Exception):
             if kind == "timeout" and self._otel_degradation_timeout_total:
                 self._otel_degradation_timeout_total.add(1)
             elif kind == "error" and self._otel_degradation_error_total:
                 self._otel_degradation_error_total.add(1)
+            elif kind == "corpus_overflow" and self._otel_degradation_corpus_overflow_total:
+                self._otel_degradation_corpus_overflow_total.add(1)
 
     def record_assistant_reference_query(self) -> None:
         """Record assistant-reference query detection (MemPalace Two-Pass)."""

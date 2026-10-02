@@ -75,6 +75,17 @@ class CustomMessagePayload(EventPayload):
     details: dict[str, object] | None = None
 
 
+class AsyncUserMessagePayload(EventPayload):
+    """Strongly typed payload for AgentEventType.ASYNC_USER_MESSAGE.
+    Carries non-blocking user updates and questions without polluting LLM context.
+    """
+
+    message: str
+    category: Literal["progress", "milestone", "question"] = "progress"
+    recommendation: str | None = None
+    call_id: str = ""
+
+
 class StructuredEvent(BaseModel):
     """Immutable event record for the append-only log.
 

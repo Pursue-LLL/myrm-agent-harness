@@ -22,12 +22,16 @@ import logging
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.toolkits.memory._internal.bm25_sparse_index import (
+    BM25SparseIndexStore,
+)
 from myrm_agent_harness.toolkits.memory._internal.storage_converters import (
     _user_filter,
     doc_to_conversation,
     doc_to_episodic,
     doc_to_semantic,
 )
+from myrm_agent_harness.toolkits.memory.metrics import get_search_metrics
 from myrm_agent_harness.toolkits.memory.protocols.vector import VectorDocument
 from myrm_agent_harness.toolkits.memory.types import (
     MemorySearchResult,
@@ -216,13 +220,27 @@ async def search_bm25(
     Complements vector search by providing keyword matching across Semantic + Episodic
     memories. Results are fused with vector results via RRF in MemoryManager.
 
-    Auto-degrades to empty results when total memory count exceeds bm25_max_corpus_size
-    to maintain performance guarantees.
+    Prefers the persistent sparse index (server-side IDF scoring, no corpus
+    rebuild, no corpus-size ceiling); falls back to the legacy corpus-scroll
+    + BM25Okapi path for backends without sparse support or before the index
+    warms up. The legacy path auto-degrades to empty results (visible in
+    degradation metrics) when total memory count exceeds bm25_max_corpus_size.
     """
+    # Persistent sparse channel first: the wrapper serves it once warmed.
+    # isinstance (not duck-typed getattr) so AsyncMock vector stand-ins with
+    # auto-generated attributes cannot shadow the legacy corpus path.
+    if isinstance(vector, BM25SparseIndexStore):
+        sparse_results = await vector.bm25_search(query, config, namespaces=namespaces, since=since, until=until)
+        if sparse_results is not None:
+            return sparse_results
+
     sem_docs, epi_docs = await _scroll_vector_memories(vector, config, namespaces, since=since, until=until)
     total_count = len(sem_docs) + len(epi_docs)
 
     if total_count > config.bm25_max_corpus_size:
+        # Visible recall loss, not a genuine zero-result recall: surface it in
+        # the same degradation metrics operators already watch for timeouts/errors.
+        get_search_metrics().record_degradation("corpus_overflow")
         logger.warning(
             "BM25 auto-degraded: memory count %d exceeds max_corpus_size %d",
             total_count,

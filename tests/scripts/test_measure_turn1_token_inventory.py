@@ -143,7 +143,7 @@ async def test_build_default_turn1_tools_resolves_default_profile() -> None:
     """Smoke: default product profile resolves 14 Turn-1 tools (P3 baseline)."""
     tools = await measure._build_default_turn1_tools()
     names = {tool.name for tool in tools}
-    assert len(tools) == 14
+    assert len(tools) == 15
     assert "web_search_tool" in names
     assert "bash_code_execute_tool" in names
     assert "skill_select_tool" in names
@@ -180,6 +180,7 @@ _DOC_TURN1_TOOL_TOKENS: dict[str, int] = {
     "memory_manage_tool": 359,
     "memory_save_tool": 720,
     "memory_search_tool": 156,
+    "send_user_message_async_tool": 94,
     "skill_select_tool": 240,
     "web_fetch_tool": 148,
     "web_search_tool": 1174,
@@ -225,20 +226,24 @@ async def test_measure_turn1_inventory_matches_documented_token_baseline() -> No
         f"(composite minus static vs measured hint) -> {bash_tokens - bash_static} vs {host_hint}"
     )
 
-    assert report["tool_count"] == 14
+    assert report["tool_count"] == 15
     layer_totals = report["layer_totals"]
     assert isinstance(layer_totals, dict)
     description_tokens = report["description_tokens"]
     assert isinstance(description_tokens, int)
     schema_wrapper_tokens = report["schema_wrapper_tokens"]
     assert isinstance(schema_wrapper_tokens, int)
-    # CORE is host-dependent solely through the bash tool; HIGH_PRIORITY and EXTENDED
-    # contribute the Turn-1 mounted working-memory tool, so all three layers sum to the total.
+    # CORE is host-dependent solely through the bash tool; HIGH_PRIORITY, EXTENDED and
+    # EXTERNAL contribute the remaining mounted tools, so all four layers sum to the total.
     assert (
-        layer_totals["CORE"] + layer_totals["HIGH_PRIORITY"] + layer_totals["EXTENDED"]
+        layer_totals["CORE"]
+        + layer_totals["HIGH_PRIORITY"]
+        + layer_totals["EXTENDED"]
+        + layer_totals["EXTERNAL"]
         == description_tokens
     )
     assert layer_totals["HIGH_PRIORITY"] == 2649
+    assert layer_totals["EXTERNAL"] == 94
     # Holds on any host: both sides derive from the same per-host descriptions.
     assert description_tokens == measured[_BASH_TOOL_NAME] + sum(
         _DOC_TURN1_TOOL_TOKENS.values()

@@ -162,10 +162,25 @@ async def save_exact_fact(
             logger.warning("FTS5 sync error for exact fact %s: %s", memory_id, fts_err)
 
 
+def _utc_bound_iso(value: datetime | None) -> str | None:
+    """Normalize a time bound to a UTC ISO string for lexicographic SQL comparison.
+
+    Stored ``created_at`` uses ``datetime.now(UTC).isoformat()``; naive bounds must
+    be coerced to the same UTC form so ``>=`` / ``<=`` string comparisons stay exact.
+    """
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=UTC)
+    return value.astimezone(UTC).isoformat()
+
+
 async def search_exact_facts(
     conn: aiosqlite.Connection,
     query: str,
     limit: int = 10,
+    since: datetime | None = None,
+    until: datetime | None = None,
     *,
     namespaces: list[str] | None = None,
     fts5_supported: bool = True,
@@ -179,16 +194,30 @@ async def search_exact_facts(
 
     extracted = ExactFactClassifier.extract_identifiers(query)
 
+    # Shared created_at bounds for both the B-Tree and FTS5 paths, matching the
+    # vector store's _user_filter semantics (created_at gte/lte on ISO strings).
+    since_iso = _utc_bound_iso(since)
+    until_iso = _utc_bound_iso(until)
+    time_clauses: list[str] = []
+    time_params: list[str] = []
+    if since_iso is not None:
+        time_clauses.append("created_at >= ?")
+        time_params.append(since_iso)
+    if until_iso is not None:
+        time_clauses.append("created_at <= ?")
+        time_params.append(until_iso)
+    time_sql = f" AND {' AND '.join(time_clauses)}" if time_clauses else ""
+
     # 1. Deterministic B-Tree search by exact identifier
     if extracted:
         placeholders = ",".join("?" for _ in extracted)
         sql = f"""
             SELECT memory_id, user_id, content, primary_namespace, namespaces, identifier
             FROM exact_fact_identifiers
-            WHERE identifier IN ({placeholders})
+            WHERE identifier IN ({placeholders}){time_sql}
             LIMIT ?
         """
-        params = [*extracted, limit]
+        params = [*extracted, *time_params, limit]
         async with conn.execute(sql, params) as cursor:
             rows = await cursor.fetchall()
             for row in rows:
@@ -219,13 +248,21 @@ async def search_exact_facts(
         if sanitized:
             remaining = limit - len(results)
             try:
-                fts_sql = """
+                # exact_facts_fts has no time column; filter by round-tripping
+                # through exact_fact_identifiers.created_at via an IN subquery,
+                # which avoids the row duplication a JOIN would introduce.
+                time_filter = (
+                    f" AND memory_id IN (SELECT memory_id FROM exact_fact_identifiers WHERE 1=1{time_sql})"
+                    if time_sql
+                    else ""
+                )
+                fts_sql = f"""
                     SELECT memory_id, user_id, content, identifiers
                     FROM exact_facts_fts
-                    WHERE exact_facts_fts MATCH ?
+                    WHERE exact_facts_fts MATCH ?{time_filter}
                     LIMIT ?
                 """
-                async with conn.execute(fts_sql, (sanitized, remaining)) as cursor:
+                async with conn.execute(fts_sql, (sanitized, *time_params, remaining)) as cursor:
                     rows = await cursor.fetchall()
                     for row in rows:
                         mem_id, u_id, cnt, idents_str = row

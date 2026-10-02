@@ -53,6 +53,27 @@ class SearchResult(BaseModel):
     score: float = Field(ge=0.0, description="Similarity score (higher is better for cosine/dot)")
 
 
+class SparsePoint(BaseModel):
+    """Document with a sparse (hash-indexed term-frequency) vector.
+
+    Backs persistent BM25-style inverted retrieval: ``indices`` are stable
+    token hashes and ``values`` are term-frequency weights, so scoring (IDF
+    weighting happens server-side) approximates BM25 without rebuilding a
+    client-side corpus index on every query.
+    """
+
+    id: str = Field(description="Caller-facing document id (same id space as VectorDocument)")
+    indices: list[int] = Field(description="Sorted stable token-hash indices (u31)")
+    values: list[float] = Field(description="Per-index term-frequency weights")
+    content: str = Field(description="Document text content")
+    metadata: dict[str, str | int | float | bool | list[str]] = Field(
+        default_factory=dict,
+        description="Additional document metadata",
+    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
 class CollectionInfo(BaseModel):
     """Vector collection metadata."""
 

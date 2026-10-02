@@ -29,11 +29,12 @@ from myrm_agent_harness.toolkits.vector.base import (
 )
 from myrm_agent_harness.toolkits.vector.config import VectorStoreConfig
 from myrm_agent_harness.toolkits.vector.qdrant.filters import build_qdrant_filter
+from myrm_agent_harness.toolkits.vector.qdrant.sparse import QdrantSparseMixin
 
 logger = logging.getLogger(__name__)
 
 
-class QdrantVectorStore(VectorStore):
+class QdrantVectorStore(QdrantSparseMixin, VectorStore):
     """Qdrant implementation of VectorStore.
 
     Supports embedded (local file) and remote (server/cloud) modes.
@@ -318,19 +319,9 @@ class QdrantVectorStore(VectorStore):
             if doc.vector is None:
                 raise ValueError(f"Document {doc.id} is missing vector")
 
-        import uuid
-
-        def _ensure_valid_uuid(id_str: str) -> str:
-            try:
-                uuid.UUID(id_str)
-                return id_str
-            except ValueError:
-                # If not a valid UUID, generate a deterministic one based on the string
-                return str(uuid.uuid5(uuid.NAMESPACE_OID, id_str))
-
         points = [
             PointStruct(
-                id=_ensure_valid_uuid(doc.id),
+                id=self.point_id_for(doc.id),
                 vector=doc.vector,  # type: ignore[arg-type]
                 payload={
                     "original_id": doc.id,
@@ -564,6 +555,22 @@ class QdrantVectorStore(VectorStore):
             return {}
 
     # Private helpers
+
+    def point_id_for(self, id_str: str) -> str:
+        """Map a caller-facing id to a valid Qdrant UUID point id.
+
+        Qdrant point ids must be valid UUIDs; non-UUID ids are remapped via
+        uuid5 and the caller's id is preserved under the ``original_id``
+        payload key. Shared by dense upsert and the sparse mixin.
+        """
+        import uuid
+
+        try:
+            uuid.UUID(id_str)
+            return id_str
+        except ValueError:
+            # If not a valid UUID, generate a deterministic one based on the string
+            return str(uuid.uuid5(uuid.NAMESPACE_OID, id_str))
 
     def _point_to_document(self, point: object) -> VectorDocument:
         """Convert Qdrant point to VectorDocument."""

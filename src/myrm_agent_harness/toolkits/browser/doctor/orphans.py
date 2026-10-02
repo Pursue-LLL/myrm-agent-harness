@@ -12,7 +12,7 @@ Precisely detects orphan patchright/playwright chromium and driver processes
 - find_orphan_chromium_processes / find_orphan_driver_processes / find_orphan_automation_processes: orphan process detection
 - cleanup_orphan_processes: safe cleanup (dry-run by default, SIGTERM/SIGKILL escalation)
 - cleanup_stale_automation_sandboxes: stale automation sandbox cleanup
-- check_orphan_processes: doctor check result for the orphan scan
+- check_orphan_processes: doctor check result for orphan process and stale sandbox scan
 - register_browser_exit_reaper / unregister_browser_exit_reaper: atexit emergency reaper lifecycle hooks
 
 [POS]
@@ -29,6 +29,7 @@ import logging
 import os
 import shutil
 import signal
+import subprocess
 import time
 from pathlib import Path
 
@@ -338,9 +339,20 @@ def cleanup_stale_automation_sandboxes(
     var_folders = Path("/private/var/folders")
     if var_folders.is_dir():
         try:
-            for clone_dir in var_folders.glob("*/*/X/*.code_sign_clone"):
+            for clone_dir in var_folders.glob("*/*/*/*.code_sign_clone"):
                 if clone_dir.is_dir():
-                    candidates.append(clone_dir)
+                    try:
+                        sub_clones = [
+                            sub
+                            for sub in clone_dir.iterdir()
+                            if sub.is_dir() and sub.name.startswith("code_sign_clone.")
+                        ]
+                    except (OSError, PermissionError):
+                        sub_clones = []
+                    if sub_clones:
+                        candidates.extend(sub_clones)
+                    else:
+                        candidates.append(clone_dir)
         except (PermissionError, OSError) as exc:
             logger.debug(f"Scan var_folders code_sign_clone skipped: {exc}")
 
@@ -349,6 +361,7 @@ def cleanup_stale_automation_sandboxes(
     now = time.time()
     cutoff_s = max_age_hours * 3600.0
     failed: list[dict[str, object]] = []
+    sample_sizes: list[int] = []
 
     for candidate in candidates:
         try:
@@ -360,16 +373,35 @@ def cleanup_stale_automation_sandboxes(
             if age_s < cutoff_s:
                 continue
 
-            # Calculate directory size
-            dir_bytes = 0
-            for item in candidate.rglob("*"):
-                try:
-                    if item.is_file() and not item.is_symlink():
-                        dir_bytes += item.stat().st_size
-                except (OSError, PermissionError):
-                    pass
+            # Calculate directory size (in dry_run, sample first 3 if large batch to avoid I/O storms)
+            if dry_run and len(sample_sizes) >= 3:
+                dir_bytes = int(sum(sample_sizes) / len(sample_sizes))
+            else:
+                dir_bytes = 0
+                for item in candidate.rglob("*"):
+                    try:
+                        if item.is_file() and not item.is_symlink():
+                            dir_bytes += item.stat().st_size
+                    except (OSError, PermissionError):
+                        pass
+                if dry_run:
+                    sample_sizes.append(dir_bytes)
 
             if not dry_run:
+                if str(candidate).startswith("/private/var/folders"):
+                    try:
+                        probe = subprocess.run(
+                            ["lsof", "+D", str(candidate)],
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                            timeout=1.5,
+                        )
+                        if probe.returncode == 0:
+                            logger.debug("Skipping sandbox %s: active process holds files open", candidate)
+                            continue
+                    except Exception:
+                        pass
+
                 try:
                     shutil.rmtree(candidate)
                 except FileNotFoundError:
@@ -380,6 +412,12 @@ def cleanup_stale_automation_sandboxes(
                 if candidate.exists():
                     failed.append({"path": str(candidate), "reason": "directory_still_exists_after_rmtree"})
                     continue
+
+                with contextlib.suppress(Exception):
+                    parent = candidate.parent
+                    if parent.name.endswith(".code_sign_clone") and parent.exists():
+                        if not any(parent.iterdir()):
+                            parent.rmdir()
 
                 logger.info("Pruned stale automation sandbox: %s", candidate)
 
@@ -401,30 +439,45 @@ def cleanup_stale_automation_sandboxes(
 
 
 def check_orphan_processes() -> DoctorCheckResult:
-    """Check for orphan automation browser processes (chromium + driver)."""
+    """Check for orphan automation browser processes and stale automation sandboxes."""
     orphans = find_orphan_automation_processes()
+    sandbox_stat = cleanup_stale_automation_sandboxes(max_age_hours=24.0, dry_run=True)
+    stale_sandboxes = int(sandbox_stat.get("pruned", 0))
+    stale_bytes = int(sandbox_stat.get("reclaimed_bytes", 0))
 
-    if not orphans:
+    if not orphans and stale_sandboxes == 0:
         return DoctorCheckResult(
             name="orphan_processes",
             status=CheckStatus.OK,
-            message="No orphan automation processes detected",
-            details={"count": 0},
+            message="No orphan automation processes or stale sandboxes detected",
+            details={
+                "count": 0,
+                "stale_sandboxes": 0,
+                "stale_sandbox_bytes": 0,
+            },
         )
 
-    pids_preview = [o["pid"] for o in orphans[:3]]
-    if len(orphans) > 3:
-        pids_preview.append("...")
+    msg_parts: list[str] = []
+    if orphans:
+        pids_preview = [o["pid"] for o in orphans[:3]]
+        if len(orphans) > 3:
+            pids_preview.append("...")
+        msg_parts.append(f"{len(orphans)} orphan automation process(es): {pids_preview}")
+    if stale_sandboxes > 0:
+        reclaimed_mb = round(stale_bytes / (1024 * 1024), 1)
+        msg_parts.append(f"{stale_sandboxes} stale sandbox(es) ({reclaimed_mb} MB)")
 
     return DoctorCheckResult(
         name="orphan_processes",
         status=CheckStatus.WARNING,
-        message=f"Found {len(orphans)} orphan automation process(es): {pids_preview}",
+        message=f"Found {', '.join(msg_parts)}",
         fix="python -m myrm_agent_harness.toolkits.browser --cleanup-orphans --force",
         details={
             "count": len(orphans),
             "pids": [o["pid"] for o in orphans],
             "paths": [o["user_data_dir"] for o in orphans],
+            "stale_sandboxes": stale_sandboxes,
+            "stale_sandbox_bytes": stale_bytes,
         },
     )
 

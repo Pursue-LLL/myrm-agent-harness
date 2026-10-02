@@ -613,7 +613,30 @@ def test_check_orphan_processes_previews_only_first_pids():
         "count": 4,
         "pids": [1111, 2222, 3333, 4444],
         "paths": ["/tmp/x", "/tmp/x", "/tmp/x", "/tmp/x"],
+        "stale_sandboxes": 0,
+        "stale_sandbox_bytes": 0,
     }
+
+
+def test_check_orphan_processes_reports_stale_sandboxes_when_no_orphans():
+    """Should report WARNING when no orphan processes exist but stale sandboxes are detected."""
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.browser.doctor.orphans.find_orphan_automation_processes",
+            return_value=[],
+        ),
+        patch(
+            "myrm_agent_harness.toolkits.browser.doctor.orphans.cleanup_stale_automation_sandboxes",
+            return_value={"pruned": 3, "reclaimed_bytes": 104857600},
+        ),
+    ):
+        result = check_orphan_processes()
+
+    assert result.status == CheckStatus.WARNING
+    assert "3 stale sandbox(es) (100.0 MB)" in result.message
+    assert result.details["count"] == 0
+    assert result.details["stale_sandboxes"] == 3
+    assert result.details["stale_sandbox_bytes"] == 104857600
 
 
 def test_cleanup_stale_automation_sandboxes_dry_run(tmp_path):
@@ -722,7 +745,37 @@ def test_cleanup_stale_automation_sandboxes_glob_wildcard(tmp_path):
 
         result = cleanup_stale_automation_sandboxes(max_age_hours=0.0, dry_run=True)
         assert result["candidates_inspected"] == 2
-        mock_path_instance.glob.assert_called_once_with("*/*/X/*.code_sign_clone")
+        mock_path_instance.glob.assert_called_once_with("*/*/*/*.code_sign_clone")
+
+
+def test_cleanup_stale_automation_sandboxes_dry_run_sampling(tmp_path):
+    """When candidates > 3, dry_run uses average of first 3 samples to avoid I/O storms."""
+    sandboxes = []
+    for i in range(5):
+        s_dir = tmp_path / f"test_{i}.code_sign_clone"
+        s_dir.mkdir()
+        # Each sandbox gets a 1000-byte file
+        (s_dir / "test.bin").write_bytes(b"x" * 1000)
+        sandboxes.append(s_dir)
+
+    mock_path_instance = MagicMock()
+    mock_path_instance.is_dir.return_value = True
+    mock_path_instance.glob.return_value = sandboxes
+
+    with patch("myrm_agent_harness.toolkits.browser.doctor.orphans.Path") as mock_path_cls:
+        def path_side_effect(*args, **kwargs):
+            if args and args[0] == "/private/var/folders":
+                return mock_path_instance
+            from pathlib import Path as RealPath
+            return RealPath(*args, **kwargs)
+
+        mock_path_cls.side_effect = path_side_effect
+
+        result = cleanup_stale_automation_sandboxes(max_age_hours=0.0, dry_run=True)
+        assert result["candidates_inspected"] == 5
+        assert result["pruned"] == 5
+        # 5 sandboxes * 1000 bytes sampled average = 5000 bytes
+        assert result["reclaimed_bytes"] == 5000
 
 
 def test_register_and_unregister_browser_exit_reaper():
@@ -761,5 +814,86 @@ def test_cleanup_orphan_processes_escalation_still_running():
         assert result["killed"] == 0
         assert len(result["failed"]) == 1
         assert result["failed"][0]["reason"] == "process_still_running_after_kill"
+
+
+def test_mac_app_code_sign_clone_flag_on_darwin():
+    """Should ensure --disable-features=MacAppCodeSignClone is included in launch args on darwin."""
+    from myrm_agent_harness.toolkits.browser.pool.browser_pool import _DEFAULT_LAUNCH_OPTIONS
+    from myrm_agent_harness.toolkits.browser.doctor.checks import _check_browser_launch
+
+    if sys.platform == "darwin":
+        args = _DEFAULT_LAUNCH_OPTIONS.get("args", [])
+        assert "--disable-features=MacAppCodeSignClone" in args
+
+
+def test_cleanup_stale_automation_sandboxes_versioned_sub_clones(tmp_path):
+    """Should discover individual versioned sub-sandboxes within code_sign_clone parent directory."""
+    parent_dir = tmp_path / "com.google.Chrome.code_sign_clone"
+    parent_dir.mkdir(parents=True)
+    sub1 = parent_dir / "code_sign_clone.01ABC"
+    sub2 = parent_dir / "code_sign_clone.02DEF"
+    sub1.mkdir()
+    sub2.mkdir()
+    (sub1 / "binary.bin").write_bytes(b"x" * 2000)
+    (sub2 / "binary.bin").write_bytes(b"y" * 3000)
+
+    mock_path_instance = MagicMock()
+    mock_path_instance.is_dir.return_value = True
+    mock_path_instance.glob.return_value = [parent_dir]
+
+    with patch("myrm_agent_harness.toolkits.browser.doctor.orphans.Path") as mock_path_cls:
+        def path_side_effect(*args, **kwargs):
+            if args and args[0] == "/private/var/folders":
+                return mock_path_instance
+            from pathlib import Path as RealPath
+            return RealPath(*args, **kwargs)
+
+        mock_path_cls.side_effect = path_side_effect
+
+        result = cleanup_stale_automation_sandboxes(max_age_hours=0.0, dry_run=False)
+        assert result["dry_run"] is False
+        assert result["candidates_inspected"] == 2
+        assert result["pruned"] == 2
+        assert result["reclaimed_bytes"] == 5000
+        assert not sub1.exists()
+        assert not sub2.exists()
+        assert not parent_dir.exists()
+
+
+def test_cleanup_stale_automation_sandboxes_skips_active_locked_sandbox(tmp_path):
+    """Should skip pruning sandboxes currently held open by an active process."""
+    from pathlib import Path
+
+    fake_var = Path("/private/var/folders/sub/test.code_sign_clone")
+    mock_path_instance = MagicMock()
+    mock_path_instance.is_dir.return_value = True
+    mock_path_instance.glob.return_value = [fake_var]
+
+    with (
+        patch("myrm_agent_harness.toolkits.browser.doctor.orphans.Path") as mock_path_cls,
+        patch("subprocess.run") as mock_subproc,
+    ):
+        mock_candidate = MagicMock()
+        mock_candidate.exists.return_value = True
+        mock_candidate.stat.return_value = MagicMock(st_mtime=0.0)
+        mock_candidate.rglob.return_value = []
+        mock_candidate.__str__.return_value = "/private/var/folders/sub/test.code_sign_clone"
+
+        mock_path_instance.glob.return_value = [mock_candidate]
+
+        def path_side_effect(*args, **kwargs):
+            if args and args[0] == "/private/var/folders":
+                return mock_path_instance
+            from pathlib import Path as RealPath
+            return RealPath(*args, **kwargs)
+
+        mock_path_cls.side_effect = path_side_effect
+        mock_subproc.return_value = MagicMock(returncode=0)
+
+        result = cleanup_stale_automation_sandboxes(max_age_hours=0.0, dry_run=False)
+        assert result["pruned"] == 0
+        assert result["reclaimed_bytes"] == 0
+        mock_subproc.assert_called_once()
+
 
 

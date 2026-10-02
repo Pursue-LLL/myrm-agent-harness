@@ -57,6 +57,7 @@ from .file_search import (
     create_grep_tool,
 )
 from .skills.manage import create_skill_manage_tool
+from .communication import create_send_user_message_async_tool
 from .skills.market import create_skill_market_tool
 from .skills.select import create_select_skill_tool
 from .spawn_subagent import (
@@ -79,6 +80,7 @@ def get_meta_tools(
     enable_shell_tools: bool = True,
     enable_answer_tool: bool = False,
     enable_working_memory_tool: bool = True,
+    enable_async_user_message_tool: bool = True,
     has_manage_tool: bool = False,
     available_tool_names: frozenset[str] | None = None,
     available_tool_groups: frozenset[str] | None = None,
@@ -228,6 +230,9 @@ def get_meta_tools(
     if enable_working_memory_tool:
         tools.append(create_working_memory_manage_tool())
 
+    if enable_async_user_message_tool:
+        tools.append(create_send_user_message_async_tool())
+
     # discover_capability_tool → skill_search_tool SSOT: SkillAgent calls sync_discover_capability_tool()
     # after all skills are registered.
     discoverable_skills = [s for s in skills if s.model_invocable] if skills else []
@@ -256,6 +261,7 @@ __all__ = [
     "create_glob_tool",
     "create_grep_tool",
     "create_select_skill_tool",
+    "create_send_user_message_async_tool",
     "create_skill_manage_tool",
     "create_skill_market_tool",
     "create_subagent_control_tool",

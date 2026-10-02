@@ -131,10 +131,13 @@ from myrm_agent_harness.toolkits.memory.types import (
 from myrm_agent_harness.toolkits.vector.base import VectorDocument
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+    from collections.abc import Awaitable, Callable, Coroutine
 
     ConsolidationLLMFunc = Callable[[str, str], Awaitable[str]]
-    FTS5SearcherFunc = Callable[[str, int], Awaitable[list[MemorySearchResult]]]
+    FTS5SearcherFunc = Callable[
+        [str, int, datetime | None, datetime | None],
+        Coroutine[None, None, list[MemorySearchResult]],
+    ]
 
 logger = logging.getLogger(__name__)
 

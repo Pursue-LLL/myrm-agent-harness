@@ -473,6 +473,11 @@ class BrowserLauncher:
 
                     launch_kwargs = dict(self._launch_options)
                     launch_kwargs["env"] = sanitize_env(os.environ.copy())
+                    if sys.platform == "darwin":
+                        existing_args = list(launch_kwargs.get("args") or [])
+                        if not any("MacAppCodeSignClone" in str(arg) for arg in existing_args):
+                            existing_args.append("--disable-features=MacAppCodeSignClone")
+                            launch_kwargs["args"] = existing_args
                     browser = await pw.chromium.launch(**launch_kwargs)  # type: ignore[arg-type]
 
                     pid = None

@@ -72,6 +72,25 @@ class TestS2Detection:
         result = classify_content("call +86 13812345678", _ENABLED)
         assert result.level == SensitivityLevel.S2
 
+    def test_bare_ascii_china_phone_detected(self):
+        # Regression: the ASCII short-text fast path used to skip china_phone, so a bare
+        # phone number in an <20-char ASCII text was misclassified as S1 (public).
+        result = classify_content("13800138000", _ENABLED)
+        assert result.level == SensitivityLevel.S2
+        assert "china_phone" in result.patterns
+
+    def test_bare_ascii_china_courier_detected(self):
+        # Regression: china_courier matches pure ASCII (SF/YT/EMS + digits) and was
+        # skipped by the same fast path.
+        result = classify_content("SF1234567890123", _ENABLED)
+        assert result.level == SensitivityLevel.S2
+        assert "china_courier" in result.patterns
+
+    def test_short_ascii_english_stays_s1(self):
+        # The fast path must still skip CJK-only patterns without false positives.
+        result = classify_content("ok hello there", _ENABLED)
+        assert result.level == SensitivityLevel.S1
+
     def test_email(self):
         result = classify_content("请联系 zhangsan@company.com", _ENABLED)
         assert result.level == SensitivityLevel.S2

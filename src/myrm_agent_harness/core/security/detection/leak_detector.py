@@ -54,8 +54,11 @@ _API_KEY_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("huggingface_token", re.compile(r"hf_[a-zA-Z0-9]{34,}")),
     ("replicate_token", re.compile(r"r8_[a-zA-Z0-9]{36,}")),
     ("perplexity_key", re.compile(r"pplx-[a-zA-Z0-9]{48,}")),
+    ("groq_key", re.compile(r"gsk_[a-zA-Z0-9]{40,}")),
+    ("databricks_token", re.compile(r"dapi[a-f0-9]{32}")),
     # Cloud
     ("aws_access_key", re.compile(r"AKIA[A-Z0-9]{16}")),
+    ("aws_session_token", re.compile(r"ASIA[A-Z0-9]{16}")),
     ("digitalocean_token", re.compile(r"dop_v1_[a-f0-9]{64}")),
     ("vercel_token", re.compile(r"vercel_[a-zA-Z0-9_-]{24,}")),
     ("supabase_key", re.compile(r"sbp_[a-f0-9]{40,}")),

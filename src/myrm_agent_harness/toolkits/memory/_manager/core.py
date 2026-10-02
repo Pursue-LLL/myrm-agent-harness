@@ -5,6 +5,9 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.toolkits.memory._internal.bm25_sparse_index import (
+    wrap_with_bm25_sparse_index,
+)
 from myrm_agent_harness.toolkits.memory._manager.shared import (
     AgentMemoryPolicy,
     BaseChatModel,
@@ -35,7 +38,8 @@ from myrm_agent_harness.toolkits.memory._manager.shared import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+    from collections.abc import Awaitable, Callable, Coroutine
+    from datetime import datetime
 
     from myrm_agent_harness.toolkits.memory.session import MemorySession
     from myrm_agent_harness.toolkits.memory.strategies.consolidation import (
@@ -45,7 +49,10 @@ if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.strategies.preference_stability_store import PreferenceFacetStoreProtocol
     from myrm_agent_harness.toolkits.memory.types import MemorySearchResult
 
-    FTS5SearcherFunc = Callable[[str, int], Awaitable[list[MemorySearchResult]]]
+    FTS5SearcherFunc = Callable[
+        [str, int, datetime | None, datetime | None],
+        Coroutine[None, None, list[MemorySearchResult]],
+    ]
 
 
 class MemoryManagerCore:
@@ -131,7 +138,10 @@ class MemoryManagerCore:
         )
         self._config = config
         self._relational = relational
-        self._vector = vector
+        # Wrap once at the single vector assignment so every consumer (writer,
+        # search service, maintenance, recurrence) shares the same BM25 sparse
+        # mirror; the wrapper is a pure pass-through until the index warms up.
+        self._vector = wrap_with_bm25_sparse_index(vector)
         self._graph = graph
         self._embedding = embedding
         self._cache = cache

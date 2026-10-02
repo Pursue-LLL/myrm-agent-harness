@@ -247,13 +247,15 @@ def extract_special_patterns(text: str) -> list[str]:
     return special_tokens
 
 
-def preprocess_text(text: str) -> list[str]:
+def preprocess_text(text: str, *, dedupe: bool = True) -> list[str]:
     """Enhanced tokenization strategy integrating special pattern extraction.
 
     Supports version numbers, URLs, and other intelligent tokenization patterns.
 
     Args:
         text: Raw text
+        dedupe: Drop duplicate tokens (BM25Okapi dedupes on its own; the sparse
+            index passes ``dedupe=False`` to keep term frequencies)
 
     Returns:
         List of tokens
@@ -308,6 +310,9 @@ def preprocess_text(text: str) -> list[str]:
                 tokens.append(word)
 
     # 5. Deduplicate and filter empty values
+    if not dedupe:
+        return [token for token in tokens if token and len(token.strip()) > 0]
+
     result = []
     seen = set()
     for token in tokens:

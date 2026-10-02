@@ -52,10 +52,25 @@ class TestApiKeyPatterns:
     def test_perplexity_key(self) -> None:
         assert "perplexity_key" in scan_for_leaks("pplx-" + "a" * 48)
 
+    def test_groq_key(self) -> None:
+        assert "groq_key" in scan_for_leaks("gsk_" + "a" * 48)
+
+    def test_databricks_token(self) -> None:
+        assert "databricks_token" in scan_for_leaks("dapi" + "a" * 32)
+
     # --- Cloud ---
 
     def test_aws_access_key(self) -> None:
         assert "aws_access_key" in scan_for_leaks("AKIAIOSFODNN7EXAMPLE")
+
+    def test_aws_session_token(self) -> None:
+        # STS temporary session credentials — same shape as AKIA but ASIA-prefixed;
+        # previously missed (entropy fallback does not catch the 20-char mixed case).
+        assert "aws_session_token" in scan_for_leaks("ASIAIOSFODNN7EXAMPLE")
+
+    def test_asia_plain_word_not_flagged(self) -> None:
+        # Benign prose mentioning the ASIA region must not trip the pattern.
+        assert "aws_session_token" not in scan_for_leaks("deploy to ASIA region servers")
 
     def test_digitalocean_token(self) -> None:
         assert "digitalocean_token" in scan_for_leaks("dop_v1_" + "a" * 64)
