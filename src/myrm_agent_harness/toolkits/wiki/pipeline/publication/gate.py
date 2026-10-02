@@ -74,12 +74,12 @@ async def route_concept_publication(
     """Route a concept write through the deterministic gate.
 
     LLM origins stage a pending draft for human review; human origins publish
-    directly through the WPG funnel. Frontmatter is validated up front so
+    directly through the WPG funnel. Staged content is validated up front so
     callers get immediate feedback instead of approve-time surprises.
     """
-    assert_valid_wiki_frontmatter(content)
-
     if evaluate_publication_decision(origin) is PublicationDecision.STAGE_PENDING:
+        assert_valid_wiki_frontmatter(content)
+
         # Lazy import: pending imports this publication package (import cycle).
         from myrm_agent_harness.toolkits.wiki.pipeline.pending import WikiPendingEditsManager
 
