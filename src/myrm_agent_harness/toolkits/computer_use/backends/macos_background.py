@@ -7,6 +7,7 @@
 [OUTPUT]
 - resolve_app_pid, _capture_window_png, guard_foreground
 - _check_post_event_access, _request_post_event_access, _set_enhanced_ui
+- _capture_screen_excluding_titles (POS: overlay-excluded fullscreen capture)
 
 [POS]
 Background-operation primitives for the macOS backend. Imported by
@@ -17,6 +18,7 @@ and execution.healer (routed input + guard).
 from __future__ import annotations
 
 import asyncio
+import logging
 import subprocess
 import sys
 import tempfile
@@ -24,6 +26,8 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import NamedTuple
+
+logger = logging.getLogger(__name__)
 
 
 class _WindowTarget(NamedTuple):
@@ -95,6 +99,76 @@ async def _capture_window_png(window_id: int) -> bytes:
         tmp_path.unlink(missing_ok=True)
 
 
+def _lowest_overlay_window_id(titles: frozenset[str]) -> int | None:
+    """z 序最低的 title 匹配窗（below-window 锚点：其上置顶遮罩被整组排除）。"""
+    from Quartz import (
+        CGWindowListCopyWindowInfo,
+        kCGNullWindowID,
+        kCGWindowListOptionOnScreenOnly,
+    )
+
+    try:
+        windows = CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly, kCGNullWindowID)
+    except Exception:
+        return None
+    # 窗口列表按 z 序 front→back；reversed 的首个匹配 = 最低遮罩窗。
+    for window in reversed(windows):
+        if str(window.get("kCGWindowName", "")) in titles:
+            try:
+                return int(window.get("kCGWindowNumber", 0))
+            except (TypeError, ValueError):
+                return None
+    return None
+
+
+def _capture_screen_excluding_titles(titles: frozenset[str]) -> bytes | None:
+    """全屏截图但排除 title 匹配的置顶遮罩窗（隐私帷幕等场景的通用能力）。
+
+    Quartz in-process 通道：锚点取 z 序最低匹配窗，kCGWindowListOptionOnScreenBelowWindow
+    截其下全部屏幕内容（真实桌面），锚点之上的整组置顶遮罩被排除。CGRectNull 覆盖全部
+    显示器 union，Retina 像素密度与 ``screencapture -x -C`` parity。
+    返回 None = 无匹配遮罩或通道失败（调用方降级走原 screencapture 路径；
+    遮罩本身不含敏感内容，降级截图只是遮罩黑屏而非泄露）。
+    """
+    from Quartz import (
+        CGRectNull,
+        CGWindowListCreateImage,
+        kCGWindowImageDefault,
+        kCGWindowListOptionOnScreenBelowWindow,
+    )
+
+    anchor = _lowest_overlay_window_id(titles)
+    if not anchor:
+        return None
+
+    try:
+        image = CGWindowListCreateImage(
+            CGRectNull,
+            kCGWindowListOptionOnScreenBelowWindow,
+            anchor,
+            kCGWindowImageDefault,
+        )
+    except Exception as error:
+        logger.warning("Overlay-excluded capture channel failed: %s", error)
+        return None
+    if image is None:
+        logger.warning("Overlay-excluded capture returned no image; anchor window vanished")
+        return None
+
+    try:
+        from AppKit import NSBitmapImageFileTypePNG, NSBitmapImageRep  # type: ignore[import-untyped]
+
+        rep = NSBitmapImageRep.alloc().initWithCGImage_(image)
+        png = rep.representationUsingType_properties_(NSBitmapImageFileTypePNG, None)
+        if png is None:
+            logger.warning("Overlay-excluded capture PNG serialization returned nothing")
+            return None
+        return bytes(png)
+    except Exception as error:
+        logger.warning("Overlay-excluded capture PNG serialization failed: %s", error)
+        return None
+
+
 def resolve_app_pid(app_name: str, window_index: int = 0) -> int | None:
     """Public pid lookup for perception/tools: None when not on-screen."""
     target = _resolve_target_window(app_name, window_index)
@@ -104,7 +178,7 @@ def resolve_app_pid(app_name: str, window_index: int = 0) -> int | None:
 def _frontmost_pid_nsworkspace() -> int | None:
     """Fast path: read frontmost pid in-process (no subprocess spawn)."""
     try:
-        from AppKit import NSWorkspace  # type: ignore[import-untyped]
+        from AppKit import NSWorkspace
 
         app = NSWorkspace.sharedWorkspace().frontmostApplication()
         if app is None:

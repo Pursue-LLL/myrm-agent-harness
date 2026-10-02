@@ -26,6 +26,7 @@ from pathlib import Path
 
 from myrm_agent_harness.toolkits.computer_use.backends import macos_input
 from myrm_agent_harness.toolkits.computer_use.backends.macos_background import (
+    _capture_screen_excluding_titles,
     _capture_window_png,
     _check_post_event_access,
     _resolve_target_window,
@@ -54,6 +55,14 @@ class MacOSBackend:
 
     def __init__(self) -> None:
         self._screen_info: ScreenInfo | None = None
+        self._excluded_capture_titles: frozenset[str] = frozenset()
+
+    def set_excluded_capture_window_titles(self, titles: list[str]) -> None:
+        """置顶遮罩窗 title 注入（隐私帷幕等场景）：仅影响全屏截图，定向截窗不受影响。
+
+        通用能力：不携带任何调用方业务语义，帷幕识别契约由注入方持有。
+        """
+        self._excluded_capture_titles = frozenset(titles)
 
     async def resolve_window_target(self, app_name: str, window_index: int = 0) -> tuple[int, int, int, int] | None:
         target = _resolve_target_window(app_name, window_index)
@@ -72,6 +81,10 @@ class MacOSBackend:
                     f"no on-screen window for app '{app_name}' (index {window_index}); refusing fullscreen fallback"
                 )
             return await _capture_window_png(target.window_id)
+        if self._excluded_capture_titles:
+            excluded = _capture_screen_excluding_titles(self._excluded_capture_titles)
+            if excluded is not None:
+                return excluded
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
             tmp_path = Path(tmp.name)
 
@@ -284,9 +297,9 @@ class MacOSBackend:
 
     def is_display_asleep(self) -> bool:
         from myrm_agent_harness.toolkits.computer_use.screen_detector import (
-            ScreenLockState,
             get_default_screen_detector,
         )
+        from myrm_agent_harness.toolkits.computer_use.types import ScreenLockState
 
         return get_default_screen_detector().get_state() == ScreenLockState.SLEEPING
 
