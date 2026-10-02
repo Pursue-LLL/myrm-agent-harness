@@ -124,6 +124,22 @@ class WikiPendingEditsManager:
             # The type ignore is needed because sqlite3.Row isn't exactly matching TypedDict
             return [dict(row) for row in cursor.fetchall()]  # type: ignore
 
+    def get_edits_created_since(self, since: str, *, limit: int = 500) -> list[PendingWikiEdit]:
+        """Get drafts created at-or-after ``since`` regardless of current status.
+
+        ``since`` is a SQLite-comparable UTC timestamp (``YYYY-MM-DD HH:MM:SS``
+        or a date prefix). Unlike get_pending_edits, approved/rejected drafts stay
+        visible so callers can report what a pipeline actually produced within a
+        time window instead of only what is still awaiting review.
+        """
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                "SELECT * FROM pending_edits WHERE created_at >= ? ORDER BY created_at DESC LIMIT ?",
+                (since, limit),
+            )
+            # The type ignore is needed because sqlite3.Row isn't exactly matching TypedDict
+            return [dict(row) for row in cursor.fetchall()]  # type: ignore
+
     async def approve_edit(self, edit_id: int, modified_content: str | None = None) -> bool:
         """Approve an edit, write to file system, and upsert FTS5 index. Returns True if successful."""
         with self._get_conn() as conn:

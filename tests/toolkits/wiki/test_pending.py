@@ -106,6 +106,35 @@ def test_get_stats(wiki_structure):
     assert stats["rejected"] == 1
 
 
+def test_get_edits_created_since_is_status_agnostic_and_ordered(wiki_structure):
+    from datetime import UTC, datetime, timedelta
+
+    mgr = WikiPendingEditsManager(wiki_structure)
+    reviewed_id = mgr.add_pending_edit("Knowledge/ReviewedByUser", _VALID_DRAFT)
+    mgr.add_pending_edit("Methods/StillPending", _VALID_DRAFT)
+    mgr.add_pending_edit("Comparisons/StillPending", _VALID_DRAFT)
+    mgr.reject_edit(reviewed_id)
+
+    since = (datetime.now(UTC) - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+    edits = mgr.get_edits_created_since(since)
+    names = [edit["concept_name"] for edit in edits]
+
+    # Reviewed drafts stay visible: window stats must reflect what the
+    # pipeline produced, not what is still pending.
+    assert set(names) == {"Knowledge/ReviewedByUser", "Methods/StillPending", "Comparisons/StillPending"}
+    assert mgr.get_stats()["pending"] == 2
+    assert mgr.get_stats()["rejected"] == 1
+
+    # Limit keeps a subset of the window rows only.
+    limited = mgr.get_edits_created_since(since, limit=2)
+    assert len(limited) == 2
+    assert {edit["concept_name"] for edit in limited} <= set(names)
+
+    # A future cutoff sees nothing.
+    future = (datetime.now(UTC) + timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
+    assert mgr.get_edits_created_since(future) == []
+
+
 @pytest.mark.asyncio
 async def test_approve_with_modified_content(wiki_structure, mock_indexer):
     mgr = WikiPendingEditsManager(wiki_structure, indexer=mock_indexer)
