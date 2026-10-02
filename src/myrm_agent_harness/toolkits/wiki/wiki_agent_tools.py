@@ -87,12 +87,17 @@ WIKI_QUERY_DESCRIPTION_EN = """Query the Wiki knowledge base.
 
 Searches relevant wiki articles and returns grounded context with source citations.
 Search here first when answering questions about project concepts, domain knowledge, team notes, or compiled research.
+When the tool refuses (insufficient evidence), tell the user honestly that the
+knowledge base has no verified basis for the question and suggest ingesting source
+documents - never guess or invent an answer.
 """
 
 WIKI_QUERY_DESCRIPTION_ZH = """检索 Wiki 知识库。
 
 搜索相关 Wiki 概念词条与文档，返回带有来源引用的可信上下文。
 在回答有关项目概念、领域知识、团队笔记或沉淀研究的问题时优先在此搜索。
+当工具返回拒答（证据不足）时，必须如实告知用户知识库中无可靠依据，
+并建议补充录入相关源文档——严禁猜测或编造答案。
 """
 
 WIKI_APPLY_DESCRIPTION_EN = """Apply a narrow, structured mutation to a wiki concept page.
@@ -327,8 +332,17 @@ def create_wiki_agent_tools(
         try:
             result = await query_engine.query(question)
 
-            if not result.source_snippets and not result.related_articles and result.confidence_score == 0.0:
-                return "No relevant information found in wiki. Consider ingesting more documents."
+            # Hard refusal gate: below-threshold confidence means the wiki has no
+            # verified basis — return an honest refusal instead of soft-copy the LLM
+            # may ignore and hallucinate over. Template stays question-free (zero
+            # interpolation) so raw user input can never inject instructions.
+            if result.refused:
+                return (
+                    "REFUSED: the wiki knowledge base has no verified basis for this "
+                    "question (evidence below confidence floor). Tell the user honestly "
+                    "that no reliable answer exists in the knowledge base and suggest "
+                    "ingesting the relevant source documents. Do not guess."
+                )
 
             from myrm_agent_harness.utils.context_format import (
                 wrap_with_external_sources_tag,
@@ -339,6 +353,15 @@ def create_wiki_agent_tools(
                 result.source_snippets,
                 structure=structure,
             )
+
+            # Moderate-confidence advisory header (answer-level; snippet-level claim
+            # confidence is already annotated per evidence card). Reuses the engine's
+            # own archive verdict: not refused but also not archive-grade confidence.
+            if not result.should_archive:
+                evidence_context = (
+                    f"[Confidence: {result.confidence_score:.2f} | moderate - verify "
+                    f"critical facts before relying on this]\n\n{evidence_context}"
+                )
 
             wrapped_context = wrap_with_external_sources_tag(evidence_context, source="LLM-Wiki")
 

@@ -125,6 +125,7 @@ class QueryResult:
     related_articles: list[str]
     should_archive: bool = False
     confidence_score: float = 0.0
+    refused: bool = False
     source_snippets: list[SourceSnippet] = field(default_factory=list)
     retrieval_trace: WikiRetrievalTrace | None = None
 

@@ -155,6 +155,9 @@ class WikiQueryConfig:
         best_first_graph_decay: Score decay applied when expanding graph neighbors
         raw_claim_boost: Score boost multiplier for query-matching frontmatter claims
         enable_related_concepts: Show related concepts in query results
+        min_answer_confidence: Hard refusal floor — results below this confidence are flagged
+            refused (honest "no verified basis" answer instead of hallucination). Decoupled
+            from min_query_quality_score (archive gate) so each threshold tunes independently.
     """
 
     auto_enhance_enabled: bool = True
@@ -172,3 +175,4 @@ class WikiQueryConfig:
     best_first_graph_decay: float = 0.65
     raw_claim_boost: float = 1.5
     enable_related_concepts: bool = True
+    min_answer_confidence: float = 0.35

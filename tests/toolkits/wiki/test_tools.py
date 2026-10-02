@@ -244,12 +244,13 @@ async def test_wiki_query_no_articles(
     wiki_tools: list,
     mock_llm: MagicMock,
 ) -> None:
-    """Test wiki_query graceful response when no articles exist."""
+    """Test wiki_query hard refusal when no articles exist (no hallucination path)."""
     query_tool = next(tool for tool in wiki_tools if tool.name == "wiki_query_tool")
 
     result = await query_tool.ainvoke({"question": "What is this?"})
 
-    assert "No relevant information found" in result
+    assert "REFUSED" in result
+    assert "no verified basis" in result
 
 
 @pytest.mark.asyncio

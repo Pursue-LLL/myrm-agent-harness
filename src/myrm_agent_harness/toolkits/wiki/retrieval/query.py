@@ -148,6 +148,7 @@ class WikiQueryEngine:
                     related_articles=[],
                     should_archive=False,
                     confidence_score=0.1,
+                    refused=self._refused_verdict(0.1, effective_query_config.min_answer_confidence),
                 )
             return QueryResult(
                 question=question,
@@ -155,6 +156,7 @@ class WikiQueryEngine:
                 related_articles=[],
                 should_archive=False,
                 confidence_score=0.0,
+                refused=self._refused_verdict(0.0, effective_query_config.min_answer_confidence),
             )
 
         # Step 2: Load article context and extract citation snippets
@@ -186,6 +188,9 @@ class WikiQueryEngine:
         should_archive = (
             effective_query_config.auto_enhance_enabled and confidence >= effective_query_config.min_query_quality_score
         )
+        # Fail-closed refusal: an invalid threshold config refuses answering
+        # instead of silently passing unvetted content through on a broken gate.
+        refused = self._refused_verdict(confidence, effective_query_config.min_answer_confidence)
 
         return QueryResult(
             question=question,
@@ -193,9 +198,17 @@ class WikiQueryEngine:
             related_articles=[str(a) for a in related_articles],
             should_archive=should_archive,
             confidence_score=confidence,
+            refused=refused,
             source_snippets=snippets,
             retrieval_trace=retrieval_trace,
         )
+
+    @staticmethod
+    def _refused_verdict(confidence: float, min_answer_confidence: float) -> bool:
+        """Refusal verdict; out-of-bounds threshold fails closed to refused."""
+        if not 0.0 <= min_answer_confidence <= 1.0:
+            return True
+        return confidence < min_answer_confidence
 
     @staticmethod
     def _format_vault_prefix(hot_context: str, log_context: str) -> str:
