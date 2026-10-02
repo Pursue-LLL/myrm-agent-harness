@@ -109,7 +109,9 @@ class MemoryOperationEvent(BaseModel):
 class MemoryTraceStep(BaseModel):
     """One business-neutral step in a memory retrieval trace."""
 
-    phase: Literal["sanitize", "route", "embed", "collect", "rank", "graph", "budget", "cite"]
+    phase: Literal[
+        "sanitize", "route", "embed", "collect", "rank", "graph", "rerank", "budget", "cite"
+    ]
     status: Literal["success", "skipped", "warning", "error"] = "success"
     title: str
     summary: str = ""
@@ -140,6 +142,8 @@ GATHER_WIKI_TIMEOUT = "GATHER_WIKI_TIMEOUT"
 GATHER_WIKI_FAILED = "GATHER_WIKI_FAILED"
 GATHER_SESSIONS_TIMEOUT = "GATHER_SESSIONS_TIMEOUT"
 GATHER_SESSIONS_FAILED = "GATHER_SESSIONS_FAILED"
+GATHER_RERANK_TIMEOUT = "GATHER_RERANK_TIMEOUT"
+GATHER_RERANK_FAILED = "GATHER_RERANK_FAILED"
 
 GatherStreamWarningCode = Literal[
     "GATHER_QUERY_EMBEDDING_TIMEOUT",
@@ -162,6 +166,8 @@ GatherStreamWarningCode = Literal[
     "GATHER_WIKI_FAILED",
     "GATHER_SESSIONS_TIMEOUT",
     "GATHER_SESSIONS_FAILED",
+    "GATHER_RERANK_TIMEOUT",
+    "GATHER_RERANK_FAILED",
 ]
 
 

@@ -234,6 +234,14 @@ class RetrievalConfig:
         preference_boost_weight: Preference boost weight (multiplicative factor, applied to preference_strength)
         source_diversity_weight: Source diversity penalty weight for MMR session diversification
         min_relevance_score: Absolute minimum RRF score threshold (anti-hallucination hard cutoff)
+        enable_temporal_window: Derive since/until hard-filter bounds from past-facing temporal
+            markers ("上个月", "last spring") when the caller passes neither bound; pure local regex
+        enable_cross_rerank: Rerank the fused candidate head with a cross-encoder after graph
+            enrichment (effective only when a RerankerService is injected at construction)
+        cross_rerank_top_n: Maximum head candidates reranked per query (cost ceiling)
+        cross_rerank_min_candidates: Skip reranking at or below this candidate count
+        cross_rerank_batch_size: Query-document pairs per rerank call (provider batch limit)
+        cross_rerank_timeout: Wall-clock ceiling (seconds) for the whole rerank gate
         timeout_seconds: Wall-clock ceiling for one retrieval pipeline. When a backing
             store (remote embedding/vector) hangs, the collect stage returns whatever
             completed first and the whole pipeline is cut at this budget, failing open
@@ -290,6 +298,24 @@ class RetrievalConfig:
     Set to 0.0 to disable. Default 0.35 is conservative for BGE-M3 embeddings."""
     enable_intent_recognition: bool = True
     intent_recognizer: QueryIntentRecognizer | None = None
+    enable_temporal_window: bool = True
+    """Derive since/until hard-filter bounds from past-facing temporal markers
+    (“上个月”, “last spring”) when the caller passes neither bound. Pure local
+    regex, zero-cost when no marker matches; explicit bounds always win."""
+    enable_cross_rerank: bool = True
+    """Rerank the fused candidate head with a cross-encoder after graph
+    enrichment, unifying the RRF and graph score systems into one relevance
+    order. Effective only when a RerankerService is injected at construction
+    (instance injection gates it, config alone never flips it on)."""
+    cross_rerank_top_n: int = 24
+    """Maximum head candidates reranked per query; the tail keeps fused order."""
+    cross_rerank_min_candidates: int = 3
+    """Skip the gate at or below this candidate count (no signal on tiny lists)."""
+    cross_rerank_batch_size: int = 32
+    """Query-document pairs per rerank call, aligned with RerankingPipeline."""
+    cross_rerank_timeout: float = 8.0
+    """Wall-clock ceiling (seconds) for the rerank gate, also bounded by the
+    pipeline deadline remainder; timeout degrades to the fused order."""
     timeout_seconds: float = 10.0
     enable_gravity_decay: bool = False
     gravity_power: float = 1.8

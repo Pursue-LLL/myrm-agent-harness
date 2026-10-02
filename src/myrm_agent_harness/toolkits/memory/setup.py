@@ -32,6 +32,10 @@ from myrm_agent_harness.toolkits.retriever.embedding.factory import (
     EmbeddingConfig,
     get_embedding_service,
 )
+from myrm_agent_harness.toolkits.retriever.reranker.factory import (
+    RerankerConfig,
+    get_reranker_service,
+)
 from myrm_agent_harness.toolkits.vector.config import DeploymentMode, VectorStoreConfig
 from myrm_agent_harness.toolkits.vector.qdrant.factory import create_vector_store
 
@@ -61,6 +65,7 @@ async def create_local_memory_manager(
     memory_policy: AgentMemoryPolicy | None = None,
     recall_mode: RecallMode = RecallMode.HYBRID,
     vector_store: object | None = None,
+    reranker_config: RerankerConfig | None = None,
     time_decay_half_life_days: float | None = None,
     on_conflict: ConflictCallback | None = None,
     on_consolidation_complete: ConsolidationCompleteCallback | None = None,
@@ -185,6 +190,10 @@ async def create_local_memory_manager(
     # 6. Create and return the MemoryManager
     consolidation_llm = dedup_llm  # Reuse dedup_llm for consolidation
 
+    # Cross-encoder rerank gate for the retrieval pipeline; the factory-level
+    # process cache dedupes identical configs across manager instances.
+    reranker = get_reranker_service(reranker_config) if reranker_config is not None else None
+
     manager = MemoryManager(
         config=mem_config,
         user_id=user_id,
@@ -192,6 +201,7 @@ async def create_local_memory_manager(
         vector=vector_store,
         graph=graph_store,
         fts5_searcher=relational_store.search_fts5,
+        reranker=reranker,
         embedding=embedding_service,
         cache=cache,
         approval_required=approval_required,

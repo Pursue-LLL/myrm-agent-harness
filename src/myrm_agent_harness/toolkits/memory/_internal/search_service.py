@@ -24,12 +24,13 @@ from collections.abc import Callable, Coroutine
 from dataclasses import replace
 from datetime import UTC, datetime
 from time import perf_counter
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 from uuid import uuid4
 
 from myrm_agent_harness.toolkits.memory._assistant_retrieval import search_conversation_two_pass
 from myrm_agent_harness.toolkits.memory._internal.channel_pruning import ChannelPruner
 from myrm_agent_harness.toolkits.memory._internal.maintenance import enrich_with_graph
+from myrm_agent_harness.toolkits.memory._internal.rerank_gate import apply_cross_rerank
 from myrm_agent_harness.toolkits.memory._internal.scope import apply_channel_affinity
 from myrm_agent_harness.toolkits.memory._internal.storage import (
     embed_single,
@@ -58,8 +59,10 @@ from myrm_agent_harness.toolkits.memory.observability import (
     GATHER_PROFILE_TIMEOUT,
     GATHER_QUERY_EMBEDDING_FAILED,
     GATHER_QUERY_EMBEDDING_TIMEOUT,
+    GATHER_RERANK_TIMEOUT,
     GATHER_SEMANTIC_FAILED,
     GATHER_SEMANTIC_TIMEOUT,
+    JsonValue,
     MemoryRetrievalTrace,
     MemoryTraceStep,
 )
@@ -71,12 +74,16 @@ from myrm_agent_harness.toolkits.memory.protocols.vector import VectorStoreProto
 from myrm_agent_harness.toolkits.memory.query_analyzer import analyze_query, is_assistant_reference_query
 from myrm_agent_harness.toolkits.memory.query_sanitizer import QuerySanitizer
 from myrm_agent_harness.toolkits.memory.retriever import MemoryRetriever
+from myrm_agent_harness.toolkits.memory.temporal_window import TemporalWindow, derive_temporal_window
 from myrm_agent_harness.toolkits.memory.types import (
     ConversationMemory,
     MemorySearchResult,
     MemoryType,
     ProceduralMemory,
 )
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.toolkits.retriever.reranker.base import RerankerService
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +102,18 @@ _STREAM_WARNING_MAP: dict[str, tuple[str, str]] = {
     "bm25": (GATHER_BM25_TIMEOUT, GATHER_BM25_FAILED),
     "graph": (GATHER_GRAPH_TIMEOUT, GATHER_GRAPH_FAILED),
 }
+
+
+def _temporal_window_metadata(window: TemporalWindow | None) -> dict[str, str] | None:
+    """Trace-friendly view of a derived temporal window (None when not derived)."""
+    if window is None:
+        return None
+    return {
+        "marker": window.marker,
+        "kind": window.window_kind,
+        "since": window.since.isoformat(),
+        "until": window.until.isoformat(),
+    }
 
 
 def _stream_warning_code(stream: str, failure_type: Literal["timeout", "failed"]) -> str:
@@ -142,6 +161,7 @@ class MemorySearchService:
         "_last_trace",
         "_namespaces",
         "_relational",
+        "_reranker",
         "_retriever",
         "_vector",
     )
@@ -159,6 +179,7 @@ class MemorySearchService:
         cache: EmbeddingCacheProtocol | None,
         retriever: MemoryRetriever,
         fts5_searcher: FTS5SearcherFunc | None,
+        reranker: RerankerService | None = None,
     ) -> None:
         self._namespaces = list(namespaces)
         self._current_channel_id = current_channel_id
@@ -170,6 +191,7 @@ class MemorySearchService:
         self._cache = cache
         self._retriever = retriever
         self._fts5_searcher = fts5_searcher
+        self._reranker = reranker
         self._last_trace: MemoryRetrievalTrace | None = None
 
     @property
@@ -211,6 +233,15 @@ class MemorySearchService:
         )
         search_types = pruning_res.search_types
         runtime_config = pruning_res.runtime_config
+        # Temporal hard-filter derivation: only when the caller passed neither
+        # bound (explicit scope always wins, mirroring ChannelPruner invariance).
+        effective_since, effective_until = since, until
+        temporal_window: TemporalWindow | None = None
+        if since is None and until is None and runtime_config.retrieval.enable_temporal_window:
+            temporal_window = derive_temporal_window(sanitized_query)
+            if temporal_window is not None:
+                effective_since = temporal_window.since
+                effective_until = temporal_window.until
         claim_requested = self._graph is not None and (
             memory_types_unspecified or MemoryType.CLAIM in memory_types or MemoryType.SEMANTIC in search_types
         )
@@ -224,6 +255,16 @@ class MemorySearchService:
             )
         tracked_types = list(dict.fromkeys([*search_types, *([MemoryType.CLAIM] if claim_requested else [])]))
         metrics = get_search_metrics()
+        route_metadata: dict[str, Any] = {
+            "claim_requested": claim_requested,
+            "use_rrf": use_rrf,
+            "intent": pruning_res.decision.intent.value if pruning_res.decision else None,
+            "confidence": pruning_res.decision.confidence if pruning_res.decision else None,
+            "routing_mode": pruning_res.decision.routing_mode if pruning_res.decision else "broadcast",
+            "pruned_channels": [t.value for t in pruning_res.pruned_types],
+            "target_subgraphs": pruning_res.decision.target_subgraphs if pruning_res.decision else [],
+            "temporal_window": _temporal_window_metadata(temporal_window),
+        }
         steps.append(
             MemoryTraceStep(
                 phase="route",
@@ -235,15 +276,7 @@ class MemorySearchService:
                 ),
                 input_count=len(memory_types),
                 output_count=len(tracked_types),
-                metadata={
-                    "claim_requested": claim_requested,
-                    "use_rrf": use_rrf,
-                    "intent": pruning_res.decision.intent.value if pruning_res.decision else None,
-                    "confidence": pruning_res.decision.confidence if pruning_res.decision else None,
-                    "routing_mode": pruning_res.decision.routing_mode if pruning_res.decision else "broadcast",
-                    "pruned_channels": [t.value for t in pruning_res.pruned_types],
-                    "target_subgraphs": pruning_res.decision.target_subgraphs if pruning_res.decision else [],
-                },
+                metadata=route_metadata,
             )
         )
 
@@ -309,8 +342,8 @@ class MemorySearchService:
                 config=runtime_config,
                 query_vector=query_vector,
                 deadline=deadline,
-                since=since,
-                until=until,
+                since=effective_since,
+                until=effective_until,
             )
             degraded = degraded or collect_degraded
             warning_codes.extend(collect_warnings)
@@ -421,6 +454,51 @@ class MemorySearchService:
                         output_count=len(final),
                     )
                 )
+            rerank_input_count = len(final)
+            rerank_outcome = await apply_cross_rerank(
+                final,
+                sanitized_query,
+                reranker=self._reranker,
+                config=runtime_config,
+                deadline=deadline,
+            )
+            final = rerank_outcome.results
+            if rerank_outcome.degraded:
+                degraded = True
+                warning_codes.extend(rerank_outcome.warning_codes)
+                get_search_metrics().record_degradation(
+                    "timeout" if GATHER_RERANK_TIMEOUT in rerank_outcome.warning_codes else "error"
+                )
+            rerank_metadata: dict[str, JsonValue] = {
+                "applied": rerank_outcome.applied,
+                "degraded": rerank_outcome.degraded,
+                "reranked_count": rerank_outcome.reranked_count,
+                "skip_reason": rerank_outcome.skip_reason,
+            }
+            if rerank_outcome.warning_codes:
+                rerank_metadata["warning_codes"] = list(rerank_outcome.warning_codes)
+            steps.append(
+                MemoryTraceStep(
+                    phase="rerank",
+                    status=(
+                        "warning"
+                        if rerank_outcome.degraded
+                        else "success"
+                        if rerank_outcome.applied
+                        else "skipped"
+                    ),
+                    title="cross_rerank",
+                    summary=(
+                        "Cross-encoder rerank unified fused and graph scores into one relevance order."
+                        if rerank_outcome.applied
+                        else "Cross-encoder rerank skipped for this query."
+                    ),
+                    duration_ms=rerank_outcome.duration_ms,
+                    input_count=rerank_input_count,
+                    output_count=len(final),
+                    metadata=rerank_metadata,
+                )
+            )
             if not include_raw:
                 final = self._strip_raw_exchange(final)
             tracker.record(final)
@@ -668,6 +746,7 @@ class MemorySearchService:
                 include_raw=include_raw,
                 config=config,
                 query_vector=query_vector,
+                vector=self._vector,
                 since=since,
                 until=until,
             )
@@ -682,6 +761,7 @@ class MemorySearchService:
         include_raw: bool,
         config: MemoryConfig,
         query_vector: list[float],
+        vector: VectorStoreProtocol,
         since: datetime | None = None,
         until: datetime | None = None,
     ) -> None:
@@ -695,7 +775,7 @@ class MemorySearchService:
                     query_vector,
                     query,
                     limit,
-                    self._vector,
+                    vector,
                     config,
                     namespaces=self._namespaces,
                     include_raw=include_raw,
@@ -714,7 +794,7 @@ class MemorySearchService:
                 query_raw,
                 query_vector,
                 limit,
-                self._vector,
+                vector,
                 config,
                 namespaces=self._namespaces,
                 include_raw=include_raw,

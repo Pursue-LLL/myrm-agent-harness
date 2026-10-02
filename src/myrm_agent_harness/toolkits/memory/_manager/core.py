@@ -48,6 +48,7 @@ if TYPE_CHECKING:
     )
     from myrm_agent_harness.toolkits.memory.strategies.preference_stability_store import PreferenceFacetStoreProtocol
     from myrm_agent_harness.toolkits.memory.types import MemorySearchResult
+    from myrm_agent_harness.toolkits.retriever.reranker.base import RerankerService
 
     FTS5SearcherFunc = Callable[
         [str, int, datetime | None, datetime | None],
@@ -103,6 +104,7 @@ class MemoryManagerCore:
         dedup_llm: object | None = None,
         consolidation_llm: BaseChatModel | None = None,
         fts5_searcher: FTS5SearcherFunc | None = None,
+        reranker: RerankerService | None = None,
         auto_warmup: bool = True,
         namespaces: list[str] | None = None,
         agent_id: str | None = None,
@@ -198,6 +200,7 @@ class MemoryManagerCore:
             cache=cache,
             retriever=self._retriever,
             fts5_searcher=fts5_searcher,
+            reranker=reranker,
         )
         self._governance = GovernanceService(
             user_id=self._user_id,

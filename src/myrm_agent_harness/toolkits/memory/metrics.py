@@ -32,7 +32,7 @@ import logging
 import threading
 import time
 from collections import defaultdict
-from collections.abc import Generator
+from collections.abc import Generator, Sequence
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from typing import Literal
@@ -219,7 +219,12 @@ class SearchMetrics:
         latency_ms: float,
     ) -> None:
         """Push metrics to OTEL instruments. Called outside lock for minimal contention."""
-        if self._otel_search_total is None:
+        if (
+            self._otel_search_total is None
+            or self._otel_zero_result_total is None
+            or self._otel_latency_ms is None
+            or self._otel_result_score is None
+        ):
             return
         try:
             self._otel_search_total.add(1)
@@ -279,10 +284,10 @@ class SearchMetrics:
                 idx = self._total_searches % self._latency_max_stored
                 self._latencies_ms[idx] = latency_ms
 
-            for t in searched_types:
-                self._type_searches[t.value] += 1
-            for t in hit_types:
-                self._type_hits[t] += 1
+            for searched_type in searched_types:
+                self._type_searches[searched_type.value] += 1
+            for hit_type in hit_types:
+                self._type_hits[hit_type] += 1
 
             self._cross_session_hits += cross_session_hits
             self._total_sourced_hits += total_sourced_hits
@@ -431,7 +436,7 @@ class _SearchTracker:
     def start(self) -> None:
         self._start_ns = time.perf_counter_ns()
 
-    def record(self, results: list[object]) -> None:
+    def record(self, results: Sequence[object]) -> None:
         """Record search results. Call this before the context manager exits.
 
         Args:

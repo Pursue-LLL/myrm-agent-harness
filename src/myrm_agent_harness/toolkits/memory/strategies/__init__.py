@@ -15,6 +15,12 @@ from myrm_agent_harness.toolkits.memory.strategies.blind_spot import (
     PatchTargetType,
     extract_blind_spot_patches,
 )
+from myrm_agent_harness.toolkits.memory.strategies.clean_reducer import (
+    CleanReductionResult,
+    CleanTranscriptReducer,
+    CleanTurn,
+    clean_reduce_transcript,
+)
 from myrm_agent_harness.toolkits.memory.strategies.conflict_merger import (
     ConflictDetail,
     MergeAction,
@@ -82,12 +88,6 @@ from myrm_agent_harness.toolkits.memory.strategies.implicit_feedback import (
     ImplicitFeedbackResult,
     detect_implicit_feedback,
     plan_memory_corrections,
-)
-from myrm_agent_harness.toolkits.memory.strategies.clean_reducer import (
-    CleanReductionResult,
-    CleanTranscriptReducer,
-    CleanTurn,
-    clean_reduce_transcript,
 )
 from myrm_agent_harness.toolkits.memory.strategies.incremental_transcript import (
     IncrementalTranscriptParser,

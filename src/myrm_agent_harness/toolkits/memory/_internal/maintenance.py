@@ -34,13 +34,13 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.memory._internal.maintenance_claim_compile import (
-    compile_claim_graph,  # noqa: F401 — re-export
+    compile_claim_graph,
 )
 from myrm_agent_harness.toolkits.memory._internal.maintenance_claim_support import (
     search_claim_graph as _search_claim_graph,  # noqa: F401 — re-export
 )
 from myrm_agent_harness.toolkits.memory._internal.maintenance_enrichment import (
-    enrich_with_graph,  # noqa: F401 — re-export
+    enrich_with_graph,
 )
 from myrm_agent_harness.toolkits.memory._internal.maintenance_rule_forgetting import (
     forget_procedural_rules,
@@ -82,6 +82,15 @@ if TYPE_CHECKING:
         ForgettingConfig,
         ForgettingResult,
     )
+
+__all__ = [
+    "bump_access_counts",
+    "compile_claim_graph",
+    "dedup_semantics",
+    "enrich_with_graph",
+    "run_forgetting",
+    "sweep_orphaned_blobs",
+]
 
 logger = logging.getLogger(__name__)
 

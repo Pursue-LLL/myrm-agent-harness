@@ -562,6 +562,20 @@ final = semantic^w0 × recency^w1 × frequency^w2 × importance^w3 × preference
 - 降级可观测：`MemoryRetrievalTrace.degraded` 顶层标记 + `SearchMetrics.record_degradation(timeout|error)` 独立计数（与普通 0 结果区分）+ 各阶段 `status="warning"`。
 - 注入侧一致化：`memory_context_middleware` 加载静态上下文同样套 wall-clock 超时，超时返回 `not_applied/load_timeout`，不阻塞首轮 LLM 调用。
 
+**时间范围硬剪枝**（`temporal_window.py`，`RetrievalConfig.enable_temporal_window`，默认开启）：
+
+- 调用方未显式传入 `since/until` 时，从查询中的过去向时间标记（中英双语：昨天 / 上周 / 上个月 / 上季度 / 去年 / 去年春天 / 最近三个月 / 三天前 / last spring / 3 weeks ago…）推导宽窗口 `(since, until)` 注入 collect 阶段做硬过滤；显式边界永远优先（explicit-scope invariance，与 ChannelPruner 同一原则）。
+- 窗口刻意放宽：每类标记的语义周期双侧加溢出（day ±1d / week ±2d / month ±5d / quarter ±7d / year·season ±15d / relative ±max(1d, span/4)），吸收时区偏差与口语模糊；窗口内的精确定位交给结果侧时间邻近加权（`query_analyzer`）——硬过滤剪枝，软加权排序。
+- 纯本地正则、零成本；中文数字（三天前 / 三个月）原生解析，「3月前」不会被误判为「三个月前」（月单位必须带「个」）。全未来窗口（如秋季问「今年冬天」）跳过该标记并落到更宽的「今年」规则；命中信息记入 route trace 的 `temporal_window` metadata（marker / kind / 窗口边界）。
+
+**跨引擎精排门**（`_internal/rerank_gate.py`，`RetrievalConfig.enable_cross_rerank` + 构造注入 `RerankerService`，实例注入即生效）：
+
+- graph enrich 之后、输出预算截断之前，对融合头部（Top `cross_rerank_top_n`，默认 24）执行 cross-encoder 查询-文档精排，统一 RRF 融合分与图评分两套不可比分数体系为单一相关度序；尾部保持融合序。
+- 门控四重：无注入 / 配置关闭 / 候选数 ≤ `cross_rerank_min_candidates`（默认 3）/ 管线 deadline 耗尽——一律跳过且管线字节级不变（fail-open，零回归）。
+- 分批调用 `rerank_pairs`（`cross_rerank_batch_size`，默认 32），整体受 `min(管线剩余, cross_rerank_timeout)`（默认 8s）约束；超时或 provider 异常降级回融合序并记 `GATHER_RERANK_TIMEOUT / GATHER_RERANK_FAILED` 降级码，绝不阻塞 agent turn。
+- 命中头部 score 替换为 cross-encoder 归一分（max 归一、0 下限），展示序与相关度序一致；排序稳定（同分保序，常分数 provider 等价 no-op）。
+- 装配：`create_local_memory_manager(reranker_config=RerankerConfig(...))` 工厂构造（进程级实例缓存），server 侧经 `create_memory_manager(reranker_config=...)` 透传（与 agent 的 `enable_advanced_retrieval` 联合门控）；后台维护型实例（cascade）不注入。
+
 ### 5.4 EmbeddingCache（双层缓存）
 
 ```
