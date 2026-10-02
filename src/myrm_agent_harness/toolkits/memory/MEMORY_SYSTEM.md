@@ -566,7 +566,7 @@ final = semantic^w0 × recency^w1 × frequency^w2 × importance^w3 × preference
 
 - 调用方未显式传入 `since/until` 时，从查询中的过去向时间标记（中英双语：昨天 / 上周 / 上个月 / 上季度 / 去年 / 去年春天 / 最近三个月 / 三天前 / last spring / 3 weeks ago…）推导宽窗口 `(since, until)` 注入 collect 阶段做硬过滤；显式边界永远优先（explicit-scope invariance，与 ChannelPruner 同一原则）。
 - 窗口刻意放宽：每类标记的语义周期双侧加溢出（day ±1d / week ±2d / month ±5d / quarter ±7d / year·season ±15d / relative ±max(1d, span/4)），吸收时区偏差与口语模糊；窗口内的精确定位交给结果侧时间邻近加权（`query_analyzer`）——硬过滤剪枝，软加权排序。
-- 纯本地正则、零成本；中文数字（三天前 / 三个月）原生解析，「3月前」不会被误判为「三个月前」（月单位必须带「个」）。全未来窗口（如秋季问「今年冬天」）跳过该标记并落到更宽的「今年」规则；命中信息记入 route trace 的 `temporal_window` metadata（marker / kind / 窗口边界）。
+- 纯本地正则、微秒级开销（实测 2.9 µs/call）；中文数字（三天前 / 三个月）原生解析，「3月前」不会被误判为「三个月前」（月单位必须带「个」）。全未来窗口（如秋季问「今年冬天」）跳过该标记并落到更宽的「今年」规则；命中信息记入 route trace 的 `temporal_window` metadata（marker / kind / 窗口边界）。
 
 **跨引擎精排门**（`_internal/rerank_gate.py`，`RetrievalConfig.enable_cross_rerank` + 构造注入 `RerankerService`，实例注入即生效）：
 
