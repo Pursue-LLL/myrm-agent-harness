@@ -117,10 +117,10 @@ class WikiPendingEditsManager:
             return cursor.lastrowid or 0
 
     def get_pending_edits(self, limit: int = 50, offset: int = 0) -> list[PendingWikiEdit]:
-        """Get one page of pending drafts, newest first (offset skips older pages)."""
+        """Get one page of pending drafts, newest first (id tiebreaker; offset skips older pages)."""
         with self._get_conn() as conn:
             cursor = conn.execute(
-                "SELECT * FROM pending_edits WHERE status = 'pending' ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                "SELECT * FROM pending_edits WHERE status = 'pending' ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?",
                 (limit, offset),
             )
             # The type ignore is needed because sqlite3.Row isn't exactly matching TypedDict
@@ -135,11 +135,12 @@ class WikiPendingEditsManager:
         or a date prefix). Unlike get_pending_edits, approved/rejected drafts stay
         visible so callers can report what a pipeline actually produced within a
         time window instead of only what is still awaiting review. Pages follow
-        the same newest-first ordering, so exhausting offsets yields every row.
+        the same newest-first ordering (id as the created_at tiebreaker), so
+        exhausting offsets yields every row exactly once.
         """
         with self._get_conn() as conn:
             cursor = conn.execute(
-                "SELECT * FROM pending_edits WHERE created_at >= ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                "SELECT * FROM pending_edits WHERE created_at >= ? ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?",
                 (since, limit, offset),
             )
             # The type ignore is needed because sqlite3.Row isn't exactly matching TypedDict
@@ -227,6 +228,3 @@ class WikiPendingEditsManager:
                 if status in stats:
                     stats[status] = row["count"]
             return stats
-
-
-WikiPendingManager = WikiPendingEditsManager
