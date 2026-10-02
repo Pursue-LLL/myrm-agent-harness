@@ -1,9 +1,10 @@
 """BM25 sparse index tests — tokenization, wrapper sync, E2E on embedded Qdrant.
 
 Covers the persistent BM25 channel end-to-end: hash tokenization, saturated
-term-frequency vectors, wrapper write interception (fail-open), backfill
-warmup, sparse retrieval with time bounds, incremental upsert/delete sync, and
-degradation to the legacy corpus-scroll path when the backend lacks sparse.
+term-frequency vectors, capability decision at the factory, wrapper write
+interception (fail-open), backfill warmup, sparse retrieval with time
+bounds, incremental upsert/delete sync, and degradation to the legacy
+corpus-scroll path before warmup or on non-sparse backends.
 """
 
 from __future__ import annotations
@@ -129,17 +130,17 @@ class TestSparseTokenization:
 
 
 class TestWrapperDegradation:
-    def test_pure_passthrough_when_backend_lacks_sparse(self) -> None:
-        wrapped = wrap_with_bm25_sparse_index(_ScrollOnlyStub())  # type: ignore[arg-type]
+    def test_legacy_backend_passes_through_unwrapped(self) -> None:
+        stub = _ScrollOnlyStub()
+        wrapped = wrap_with_bm25_sparse_index(stub)  # type: ignore[arg-type]
 
-        assert isinstance(wrapped, BM25SparseIndexStore)
-        assert wrapped.bm25_sparse_enabled is False
+        # Identity: legacy backends (no sparse hooks) are not wrapped at all.
+        assert wrapped is stub
 
     @pytest.mark.asyncio
     async def test_bm25_search_returns_none_until_backfilled(self) -> None:
         wrapped = BM25SparseIndexStore(_SparseCapableStub())  # type: ignore[arg-type]
 
-        assert wrapped.bm25_sparse_enabled is True
         assert await wrapped.bm25_search("litellm", CONFIG) is None
 
     @pytest.mark.asyncio

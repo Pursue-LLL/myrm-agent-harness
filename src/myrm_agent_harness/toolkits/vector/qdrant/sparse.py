@@ -21,7 +21,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from myrm_agent_harness.toolkits.vector.base import (
     FilterDict,
@@ -37,7 +37,6 @@ logger = logging.getLogger(__name__)
 
 # Named sparse vector used for every sparse collection created by this mixin.
 BM25_SPARSE_VECTOR_NAME = "bm25"
-
 
 def sparse_payload(point: SparsePoint) -> dict[str, object]:
     """Build the sparse-collection payload, mirroring the dense upsert layout.
@@ -61,16 +60,20 @@ def sparse_payload(point: SparsePoint) -> dict[str, object]:
 class QdrantSparseMixin:
     """Sparse-vector operations hosted by QdrantVectorStore.
 
-    Hosts provide ``_client``, ``_with_retry`` and ``point_id_for``; the
-    declarations below exist only for static analysis (runtime no-op).
+    Hosts provide ``_client``, ``_execute``, ``_with_retry`` and
+    ``point_id_for``; the declarations below exist only for static analysis
+    (runtime no-op) and mirror the host signatures exactly — async hosts so
+    ``await`` stays type-clean without a single ignore in this module.
     """
 
     if TYPE_CHECKING:
+        # ``object`` mirrors the host inference (store assigns ``client: object``)
+        # so subclass type resolution stays byte-identical to the unwrapped host.
         _client: object
 
-        def _execute(self, operation: object, *args: object, **kwargs: object) -> object: ...
+        async def _execute(self, operation: object, *args: object, **kwargs: object) -> object: ...
 
-        def _with_retry(self, operation: object, *args: object, **kwargs: object) -> object: ...
+        async def _with_retry(self, operation: object, *args: object, **kwargs: object) -> object: ...
 
         def point_id_for(self, id_str: str) -> str: ...
 
@@ -98,8 +101,8 @@ class QdrantSparseMixin:
             # Single-shot _execute (not _with_retry): the only expected failure
             # ("already exists" from a concurrent creator) must fail fast to the
             # except below, not burn the retry backoff on a deterministic 409.
-            await self._execute(  # type: ignore[attr-defined]
-                self._client.create_collection,  # type: ignore[union-attr]
+            await self._execute(
+                self._client.create_collection,  # type: ignore[attr-defined]
                 collection_name=name,
                 sparse_vectors_config={
                     BM25_SPARSE_VECTOR_NAME: models.SparseVectorParams(
@@ -121,7 +124,7 @@ class QdrantSparseMixin:
 
         structs = [
             models.PointStruct(
-                id=self.point_id_for(p.id),  # type: ignore[attr-defined]
+                id=self.point_id_for(p.id),
                 vector={
                     BM25_SPARSE_VECTOR_NAME: models.SparseVector(
                         indices=list(p.indices),
@@ -132,8 +135,8 @@ class QdrantSparseMixin:
             )
             for p in points
         ]
-        await self._with_retry(  # type: ignore[attr-defined]
-            self._client.upsert,  # type: ignore[union-attr]
+        await self._with_retry(
+            self._client.upsert,  # type: ignore[attr-defined]
             collection_name=collection,
             points=structs,
         )
@@ -154,8 +157,8 @@ class QdrantSparseMixin:
 
         from myrm_agent_harness.toolkits.vector.qdrant.filters import build_qdrant_filter
 
-        results = await self._with_retry(  # type: ignore[attr-defined]
-            self._client.query_points,  # type: ignore[union-attr]
+        results = await self._with_retry(
+            self._client.query_points,  # type: ignore[attr-defined]
             collection_name=collection,
             query=models.SparseVector(indices=indices, values=values),
             using=BM25_SPARSE_VECTOR_NAME,
@@ -169,17 +172,17 @@ class QdrantSparseMixin:
                 document=self._sparse_point_to_document(point),
                 score=point.score,
             )
-            for point in results.points  # type: ignore[union-attr]
+            for point in cast("models.QueryResponse", results).points
         ]
 
-    def _sparse_point_to_document(self, point: object) -> VectorDocument:
+    def _sparse_point_to_document(self, point: models.ScoredPoint) -> VectorDocument:
         """Convert a sparse-collection point back to a VectorDocument."""
-        payload = dict(point.payload) if point.payload else {}  # type: ignore[union-attr]
+        payload = dict(point.payload) if point.payload else {}
         content = payload.pop("content", "")
         created_at_str = payload.pop("created_at", None)
         updated_at_str = payload.pop("updated_at", None)
         return VectorDocument(
-            id=str(payload.pop("original_id", None) or point.id),  # type: ignore[union-attr]
+            id=str(payload.pop("original_id", None) or point.id),
             content=content,
             vector=None,
             metadata=payload,

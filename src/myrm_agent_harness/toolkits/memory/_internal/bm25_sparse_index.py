@@ -9,10 +9,11 @@
 [OUTPUT]
 - token_index: stable u31 token hash (zero-vocabulary, no term dictionary)
 - content_to_sparse / query_to_sparse: token stream -> (indices, values)
-- BM25SparseIndexStore: VectorStoreProtocol wrapper that mirrors every
-  upsert/delete into a ``{collection}_bm25`` sparse collection and serves
-  BM25 queries from it; pure pass-through when the backend lacks sparse
-- wrap_with_bm25_sparse_index: factory used at manager assembly
+- BM25SparseIndexStore: VectorStoreProtocol wrapper (sparse-capable backends
+  only) that mirrors every upsert/delete into a ``{collection}_bm25`` sparse
+  collection and serves BM25 queries from it
+- wrap_with_bm25_sparse_index: factory deciding capability at assembly time;
+  legacy backends stay unwrapped on the corpus-scroll fallback path
 
 [POS]
 Replaces the per-query full-corpus scroll + BM25Okapi rebuild (24x build/query
@@ -30,20 +31,27 @@ import logging
 import math
 import zlib
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import datetime
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.memory.protocols.vector import (
     FilterDict,
     VectorDocument,
+    VectorSearchResult,
     VectorStoreProtocol,
 )
+from myrm_agent_harness.toolkits.memory.types import (
+    EpisodicMemory,
+    MemorySearchResult,
+    MemoryType,
+    SemanticMemory,
+)
 from myrm_agent_harness.toolkits.vector.base import SparsePoint
+from myrm_agent_harness.toolkits.vector.qdrant.sparse import QdrantSparseMixin
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.config import MemoryConfig
-    from myrm_agent_harness.toolkits.memory.types import MemorySearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -120,22 +128,18 @@ def doc_to_sparse_point(doc: VectorDocument) -> SparsePoint:
 class BM25SparseIndexStore:
     """VectorStoreProtocol wrapper maintaining a persistent BM25 sparse mirror.
 
-    Every upsert/delete/delete_by_filter is mirrored (fail-open) into
-    ``{collection}_bm25`` once the index is warm; ``bm25_backfill`` warms it
-    from the dense collections; ``bm25_search`` serves BM25 queries from it.
-    Backends without sparse support get a pure pass-through wrapper.
+    Only sparse-capable backends (qdrant with the sparse mixin) are wrapped —
+    ``wrap_with_bm25_sparse_index`` decides capability at assembly time, so
+    this class can assume the sparse hooks exist. Every upsert/delete/
+    delete_by_filter is mirrored (fail-open) into ``{collection}_bm25`` once
+    the index is warm; ``bm25_backfill`` warms it from the dense collections;
+    ``bm25_search`` serves BM25 queries from it.
     """
 
     def __init__(self, inner: VectorStoreProtocol) -> None:
         self._inner = inner
-        self._sparse_capable = hasattr(inner, "upsert_sparse") and hasattr(inner, "search_sparse")
         self._sparse_ready = False
         self._backfill_scheduled = False
-
-    @property
-    def bm25_sparse_enabled(self) -> bool:
-        """True when the backend can serve persistent BM25 sparse queries."""
-        return self._sparse_capable
 
     def _schedule_backfill_once(self, config: MemoryConfig) -> None:
         """Kick off the one-time warmup from the first BM25 query.
@@ -145,7 +149,7 @@ class BM25SparseIndexStore:
         Re-scheduling is suppressed for the process lifetime; failures log
         and leave the wrapper on the legacy corpus-scroll path.
         """
-        if self._backfill_scheduled or not self._sparse_capable:
+        if self._backfill_scheduled:
             return
         self._backfill_scheduled = True
         task = asyncio.get_running_loop().create_task(self._backfill_task(config))
@@ -154,7 +158,7 @@ class BM25SparseIndexStore:
 
     async def upsert(self, collection: str, documents: Sequence[VectorDocument]) -> list[str]:
         ids = await self._inner.upsert(collection, documents)
-        if self._sparse_capable and self._sparse_ready and documents:
+        if self._sparse_ready and documents:
             try:
                 points = [doc_to_sparse_point(doc) for doc in documents]
                 await self._inner.upsert_sparse(bm25_collection_for(collection), points)  # type: ignore[attr-defined]
@@ -164,18 +168,18 @@ class BM25SparseIndexStore:
 
     async def delete(self, collection: str, ids: list[str]) -> int:
         deleted = await self._inner.delete(collection, ids)
-        if self._sparse_capable and self._sparse_ready and deleted:
+        if self._sparse_ready and deleted:
             try:
-                await self._inner.delete(bm25_collection_for(collection), ids)  # type: ignore[attr-defined]
+                await self._inner.delete(bm25_collection_for(collection), ids)
             except Exception as exc:
                 logger.warning("BM25 sparse index delete sync failed for %s (non-fatal): %s", collection, exc)
         return deleted
 
     async def delete_by_filter(self, collection: str, filters: FilterDict) -> int:
         deleted = await self._inner.delete_by_filter(collection, filters)
-        if self._sparse_capable and self._sparse_ready:
+        if self._sparse_ready:
             try:
-                await self._inner.delete_by_filter(bm25_collection_for(collection), filters)  # type: ignore[attr-defined]
+                await self._inner.delete_by_filter(bm25_collection_for(collection), filters)
             except Exception as exc:
                 logger.warning("BM25 sparse index filter-delete sync failed (non-fatal): %s", exc)
         return deleted
@@ -196,20 +200,13 @@ class BM25SparseIndexStore:
         collection; upserts are per-point replaces, so re-running only costs
         a re-write, never a duplicate. Returns the number of indexed documents.
         """
-        if not self._sparse_capable:
-            return 0
-
-        ensure = getattr(self._inner, "ensure_sparse_collection", None)
-        if ensure is None:
-            return 0
-
         total = 0
         for collection in (config.semantic_collection, config.episodic_collection):
             if not await self._inner.collection_exists(collection):
                 continue
             sparse_name = bm25_collection_for(collection)
             try:
-                await ensure(sparse_name)
+                await self._inner.ensure_sparse_collection(sparse_name)  # type: ignore[attr-defined]
                 docs, cursor = await self._inner.scroll(collection, limit=500)
                 while True:
                     if docs:
@@ -243,8 +240,6 @@ class BM25SparseIndexStore:
         warmed so the caller can fall back to the corpus-scroll path; raises
         nothing — transient sparse failures also degrade to ``None``.
         """
-        if not self._sparse_capable:
-            return None
         if not self._sparse_ready:
             # First BM25 query in an async context: warm the index in the
             # background; this query (and any racing ones) use the legacy
@@ -257,7 +252,6 @@ class BM25SparseIndexStore:
             doc_to_episodic,
             doc_to_semantic,
         )
-        from myrm_agent_harness.toolkits.memory.types import MemorySearchResult, MemoryType
 
         indices, values = query_to_sparse(query)
         if not indices:
@@ -266,11 +260,14 @@ class BM25SparseIndexStore:
         filters = _user_filter(namespaces=namespaces, since=since, until=until)
         top_k = limit if limit is not None else config.bm25_top_k
 
-        hits: list[tuple[float, VectorDocument, object]] = []
-        for collection, memory_type, converter in (
+        # converters produce concrete memory models; the record type is the
+        # same union MemorySearchResult.memory accepts, so no cast is needed.
+        targets: list[tuple[str, MemoryType, Callable[[VectorDocument], SemanticMemory | EpisodicMemory]]] = [
             (config.semantic_collection, MemoryType.SEMANTIC, doc_to_semantic),
             (config.episodic_collection, MemoryType.EPISODIC, doc_to_episodic),
-        ):
+        ]
+        hits: list[tuple[float, VectorDocument, MemoryType]] = []
+        for collection, memory_type, converter in targets:
             try:
                 results = await self._inner.search_sparse(  # type: ignore[attr-defined]
                     bm25_collection_for(collection),
@@ -295,9 +292,9 @@ class BM25SparseIndexStore:
         for score, doc, memory_type in hits:
             converted.append(
                 MemorySearchResult(
-                    memory=converter(doc),  # type: ignore[arg-type]
+                    memory=converter(doc),
                     score=min(score / normalizer, 1.0),
-                    memory_type=memory_type,  # type: ignore[arg-type]
+                    memory_type=memory_type,
                 )
             )
         return converted
@@ -312,7 +309,7 @@ class BM25SparseIndexStore:
         limit: int = 10,
         filters: FilterDict | None = None,
         score_threshold: float | None = None,
-    ) -> list:
+    ) -> list[VectorSearchResult]:
         return await self._inner.search(
             collection,
             query_vector,
@@ -361,9 +358,17 @@ class BM25SparseIndexStore:
 def wrap_with_bm25_sparse_index(
     vector: VectorStoreProtocol | None,
 ) -> VectorStoreProtocol | None:
-    """Wrap a vector backend with the BM25 sparse mirror (no-op when None)."""
+    """Wrap a sparse-capable backend with the BM25 sparse mirror.
+
+    Capability is decided here and exactly once, by exact class membership —
+    qdrant with the sparse mixin is the only sparse backend, and an isinstance
+    check (unlike hasattr duck-probing) cannot be spoofed by mock stand-ins,
+    so tests keep direct attribute reach into their store.
+    """
     if vector is None:
         return None
     if isinstance(vector, BM25SparseIndexStore):
         return vector
-    return BM25SparseIndexStore(vector)
+    if isinstance(vector, QdrantSparseMixin):
+        return BM25SparseIndexStore(vector)
+    return vector
