@@ -8,8 +8,8 @@ API layer of the browser toolkit. Maps BrowserSession capabilities to 8 LangChai
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | API layer of the browser toolkit. Maps BrowserSession capabilities to 8 LangChain @tool functions. | ✅ |
-| _semantic_risk.py | Internal | Semantic DOM risk classification (ARIA role+name, check/uncheck mutations, key activation mutations, implicit submit, and JS eval patterns). Consumed by semantic_dom_hitl.py. | ✅ |
-| semantic_dom_hitl.py | Internal | Shared LangGraph HITL gate for session.interact, browser_interact_tool, and evaluate paths with key activation propagation. | ✅ |
+| _semantic_risk.py | Internal | Browser-layer semantic DOM risk classification — browser action preconditions (click/dblclick/check/uncheck mutations, key activation, implicit submit) and JS eval patterns layered on the shared cross-channel lexicon from `core.security.detection.semantic_risk` (SSOT shared with desktop AX gates). Consumed by semantic_dom_hitl.py. | ✅ |
+| semantic_dom_hitl.py | Internal | Shared LangGraph HITL gate for session.interact, browser_interact_tool, and evaluate paths with key activation propagation; fail-closed when no graph context is available. | ✅ |
 | common.py | Core | Shared utilities for browser tools. `mark_untrusted`: unified output security boundary (credential redaction + untrusted-content wrapping) for every browser tool result. | ✅ |
 | execute_script.py | Core | browser_execute_script_tool: Code-as-Action batch execution with AST privileged-API scanner + HITL gating. Output redacted + wrapped via mark_untrusted. | ✅ |
 | extract.py | Core | browser_extract_tool: content extraction. | ✅ |

@@ -10,7 +10,7 @@
 2. **Semantic-first**: Prefer `desktop_interact_tool(ref=@dref)` over coordinate guessing
 3. **Explicit fallback**: `desktop_vision_tool` for canvas-only UIs, empty AX trees, or failed semantic invoke
 4. **WebUI parity**: Mirror browser inspector via `DESKTOP_VIEW_UPDATE` SSE + `/webui/desktop/snapshot` REST refresh
-5. **Safety**: Four guardrail types in `safety.py` — blocked key combos (macOS + Windows), operator-as-key rejection (lone `*`/`/`/`+`/`-`/`%`/`=` on vision `key`), dangerous type-text patterns, and sensitive application guard (`is_sensitive_app`, including terminal/shell apps and SelfAppGuard for Myrm/Cursor host UI via bundle_id + host names). Enforced in `desktop_snapshot`, `desktop_interact`, and `desktop_vision_action`
+5. **Safety**: Four guardrail types in `safety.py` — blocked key combos (macOS + Windows), operator-as-key rejection (lone `*`/`/`/`+`/`-`/`%`/`=` on vision `key`), dangerous type-text patterns, and sensitive application guard (`is_sensitive_app`, including terminal/shell apps and SelfAppGuard for Myrm/Cursor host UI via bundle_id + host names). Enforced in `desktop_snapshot`, `desktop_interact`, and `desktop_vision_action`. On top of these, `semantic_gate.py` adds control-level destructive-action HITL: both `desktop_interact` (AX @dref actions) and `desktop_vision_action` (coordinate clicks, via bbox reverse-lookup to the smallest containing element) classify the target against the shared risk lexicon SSOT (`core/security/detection/semantic_risk.py`) and interrupt with fail-closed HITL evidence (screenshot + red-circle highlight) before any high-risk activation
 
 ---
 

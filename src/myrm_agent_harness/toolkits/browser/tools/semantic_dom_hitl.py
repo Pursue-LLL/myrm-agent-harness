@@ -88,8 +88,15 @@ async def _require_hitl_approval(
     try:
         user_response = interrupt(hitl_payload)
     except RuntimeError:
-        record_decision(tool_name, "AUTO_APPROVED", "No LangGraph context — auto-approve")
-        return None
+        # Fail-closed: without a LangGraph execution context no human can ever
+        # confirm this action, so a high-risk target must be blocked instead of
+        # silently auto-approved (unattended paths must not bypass the gate).
+        record_decision(tool_name, "NO_CONTEXT_DENIED", "No LangGraph context — fail-closed deny")
+        return (
+            "[BLOCKED] High-risk action requires human approval, but no interactive agent "
+            f"session is available to confirm it: {reason}. Re-run this step inside an agent "
+            "chat so a human can approve it, or find an alternative approach."
+        )
 
     if not _parse_interrupt_decision(user_response):
         record_decision(

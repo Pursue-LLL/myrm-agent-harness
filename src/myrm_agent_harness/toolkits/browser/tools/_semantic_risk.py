@@ -1,16 +1,19 @@
 """Semantic DOM risk classification for browser interactions.
 
-Classifies browser element interactions as high-risk based on the semantic
-content of the target element (role + name from ARIA snapshot). When a
-destructive action targets a dangerous element, the tool interrupts execution
-to request explicit user approval via LangGraph's HITL mechanism.
+Layers browser-specific action preconditions (mutating actions, activation
+keys, JS evaluate patterns) on top of the shared cross-channel destructive
+element lexicon from ``core.security.detection.semantic_risk``, so a browser
+element interaction and a desktop AX element interaction are gated by one
+identical high-risk vocabulary.
 
 [INPUT]
+- core.security.detection.semantic_risk::SemanticRiskLevel, RiskVerdict,
+  classify_element_risk (POS: 跨通道破坏性控件语义词典 SSOT)
 - snapshot::RefInfo (POS: element ref metadata with role/name)
 
 [OUTPUT]
-- SemanticRiskLevel: risk classification enum
 - classify_interaction_risk: classify (action, RefInfo) → risk level + reason
+- classify_js_eval_risk: classify browser_manage evaluate expressions
 
 [POS]
 Pure function module — no side effects, no I/O. Consumed by semantic_dom_hitl
@@ -20,94 +23,23 @@ Pure function module — no side effects, no I/O. Consumed by semantic_dom_hitl
 from __future__ import annotations
 
 import re
-from enum import Enum
-from typing import NamedTuple
 
+from myrm_agent_harness.core.security.detection.semantic_risk import (
+    RiskVerdict,
+    SemanticRiskLevel,
+    classify_element_risk,
+)
 from myrm_agent_harness.toolkits.browser.snapshot.aria_types import RefInfo
 
-
-class SemanticRiskLevel(Enum):
-    SAFE = "safe"
-    HIGH = "high"
-
-
-class RiskVerdict(NamedTuple):
-    level: SemanticRiskLevel
-    reason: str
-
+__all__ = [
+    "RiskVerdict",
+    "SemanticRiskLevel",
+    "classify_interaction_risk",
+    "classify_js_eval_risk",
+]
 
 _MUTATING_ACTIONS = frozenset({"click", "dblclick", "check", "uncheck"})
 _ACTIVATION_KEYS = frozenset({"enter", "return", "space", "numpadenter", "\n", "\r\n"})
-
-# Patterns matched against the lowercased element name.
-# Each entry is (compiled regex, human-readable category).
-_HIGH_RISK_NAME_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
-    # Destructive / irreversible
-    (re.compile(r"\bdelete\b"), "destructive"),
-    (re.compile(r"\bremove\b"), "destructive"),
-    (re.compile(r"\bdestroy\b"), "destructive"),
-    (re.compile(r"\bterminate\b"), "destructive"),
-    (re.compile(r"\bpurge\b"), "destructive"),
-    (re.compile(r"\bdrop\b"), "destructive"),
-    (re.compile(r"\bformat\b"), "destructive"),
-    (re.compile(r"\berase\b"), "destructive"),
-    (re.compile(r"\bwipe\b"), "destructive"),
-    (re.compile(r"\brunrevocabl"), "destructive"),
-    (re.compile(r"\birreversible\b"), "destructive"),
-    # Financial / transactional
-    (re.compile(r"\bpay\b"), "financial"),
-    (re.compile(r"\bpurchase\b"), "financial"),
-    (re.compile(r"\bbuy\b"), "financial"),
-    (re.compile(r"\bcheckout\b"), "financial"),
-    (re.compile(r"\bsubscribe\b"), "financial"),
-    (re.compile(r"\bplace\s*order\b"), "financial"),
-    (re.compile(r"\bconfirm\s*(payment|order|purchase)\b"), "financial"),
-    (re.compile(r"\btransfer\s*(fund|money)\b"), "financial"),
-    # Account / access
-    (re.compile(r"\bdeactivat"), "account"),
-    (re.compile(r"\bclose\s*account\b"), "account"),
-    (re.compile(r"\bdelete\s*account\b"), "account"),
-    (re.compile(r"\brevoke\b"), "account"),
-    (re.compile(r"\bunsubscribe\b"), "account"),
-    # Admin / infrastructure
-    (re.compile(r"\bshutdown\b"), "admin"),
-    (re.compile(r"\breboot\b"), "admin"),
-    (re.compile(r"\brestart\b"), "admin"),
-    (re.compile(r"\bdeploy\b"), "admin"),
-    (re.compile(r"\brollback\b"), "admin"),
-    (re.compile(r"\breset\b"), "admin"),
-    (re.compile(r"\bfactory\s*reset\b"), "admin"),
-    # Publishing / broadcast
-    (re.compile(r"\bpublish\b"), "publish"),
-    (re.compile(r"\bsend\s*to\s*all\b"), "publish"),
-    (re.compile(r"\bbroadcast\b"), "publish"),
-    (re.compile(r"\bannounce\b"), "publish"),
-    # Chinese equivalents for i18n
-    (re.compile(r"删除"), "destructive"),
-    (re.compile(r"移除"), "destructive"),
-    (re.compile(r"销毁"), "destructive"),
-    (re.compile(r"清空"), "destructive"),
-    (re.compile(r"终止"), "destructive"),
-    (re.compile(r"付款"), "financial"),
-    (re.compile(r"支付"), "financial"),
-    (re.compile(r"购买"), "financial"),
-    (re.compile(r"下单"), "financial"),
-    (re.compile(r"注销"), "account"),
-    (re.compile(r"停用"), "account"),
-    (re.compile(r"发布"), "publish"),
-    (re.compile(r"广播"), "publish"),
-)
-
-_HIGH_RISK_ROLES = frozenset({"alertdialog"})
-
-_CATEGORY_LABELS: dict[str, str] = {
-    "destructive": "Destructive action",
-    "financial": "Financial transaction",
-    "account": "Account modification",
-    "admin": "Infrastructure operation",
-    "publish": "Content publishing",
-}
-
 
 _JS_MUTATION_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\.click\s*\("), "DOM click via JS"),
@@ -140,11 +72,10 @@ def classify_js_eval_risk(expression: str) -> RiskVerdict:
     lowered = stripped.lower()
     for pattern, category in _JS_MUTATION_PATTERNS:
         if pattern.search(stripped) or pattern.search(lowered):
-            label = _CATEGORY_LABELS.get(category, category)
             preview = stripped[:120] + ("…" if len(stripped) > 120 else "")
             return RiskVerdict(
                 SemanticRiskLevel.HIGH,
-                f"{label}: JS evaluate `{preview}`",
+                f"{category}: JS evaluate `{preview}`",
             )
 
     return RiskVerdict(SemanticRiskLevel.SAFE, "")
@@ -186,29 +117,20 @@ def classify_interaction_risk(
             ):
                 is_mutating = True
                 is_key_activation = True
-    elif not is_mutating and action == "type":
-        if isinstance(text, str) and ("\n" in text or "\r" in text):
-            is_mutating = True
-            is_key_activation = True
+    elif not is_mutating and action == "type" and isinstance(text, str) and ("\n" in text or "\r" in text):
+        is_mutating = True
+        is_key_activation = True
 
     if not is_mutating:
         return RiskVerdict(SemanticRiskLevel.SAFE, "")
 
     key_suffix = f" (key activation [{text}])" if is_key_activation else ""
 
-    if ref_info.role in _HIGH_RISK_ROLES:
-        return RiskVerdict(
-            SemanticRiskLevel.HIGH,
-            f'Interaction with alert dialog{key_suffix}: [{ref_info.role}] "{ref_info.name}"',
-        )
+    verdict = classify_element_risk(ref_info.role, ref_info.name)
+    if verdict.level is not SemanticRiskLevel.HIGH:
+        return RiskVerdict(SemanticRiskLevel.SAFE, "")
 
-    name_lower = ref_info.name.lower()
-    for pattern, category in _HIGH_RISK_NAME_PATTERNS:
-        if pattern.search(name_lower):
-            label = _CATEGORY_LABELS.get(category, category)
-            return RiskVerdict(
-                SemanticRiskLevel.HIGH,
-                f'{label}{key_suffix}: [{ref_info.role}] "{ref_info.name}"',
-            )
-
-    return RiskVerdict(SemanticRiskLevel.SAFE, "")
+    return RiskVerdict(
+        SemanticRiskLevel.HIGH,
+        f"{verdict.reason}{key_suffix}",
+    )

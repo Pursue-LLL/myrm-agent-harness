@@ -14,10 +14,12 @@
   (POS: 个人身份信息分类层)
 - core.security.detection.prompt_guard::GuardResult, log_guard_result, scan_input
   (POS: 提示注入防护层)
+- core.security.detection.semantic_risk::SemanticRiskLevel, RiskVerdict,
+  classify_element_risk (POS: 跨通道破坏性控件语义词典分类层)
 
 [OUTPUT]
-- Content boundary, instruction-shape, intent-routing, leak-detection, PII-classification
-  and prompt-injection guard primitives
+- Content boundary, instruction-shape, intent-routing, leak-detection, PII-classification,
+  prompt-injection guard, and semantic element risk primitives
 
 [POS]
 Public surface of the core security detection package. Aggregates the deterministic guardrails
@@ -53,6 +55,11 @@ from .prompt_guard import (
     log_guard_result,
     scan_input,
 )
+from .semantic_risk import (
+    RiskVerdict,
+    SemanticRiskLevel,
+    classify_element_risk,
+)
 
 __all__ = [
     "DangerousIntent",
@@ -60,7 +67,10 @@ __all__ = [
     "InstructionShapeLabel",
     "IntentSafetyResult",
     "PIIClassification",
+    "RiskVerdict",
+    "SemanticRiskLevel",
     "classify_content",
+    "classify_element_risk",
     "detect_instruction_shapes",
     "extract_wrapped_payload",
     "log_guard_result",

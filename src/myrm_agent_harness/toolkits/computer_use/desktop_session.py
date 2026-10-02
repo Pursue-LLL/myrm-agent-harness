@@ -154,6 +154,13 @@ class DesktopSession(ComputerSession):
             "dpi_scale": info.dpi_scale,
         }
 
+    async def _capture_guard_screenshot(self) -> tuple[str, tuple[int, int]]:
+        """Capture a guard-evidence screenshot (base64, image size) for HITL cards."""
+        shot = await self.take_screenshot()
+        if not shot.success:
+            return "", (0, 0)
+        return shot.screenshot_base64 or "", shot.screenshot_size
+
     def _annotate_screenshot_som(
         self,
         screenshot_b64: str,
@@ -322,6 +329,29 @@ class DesktopSession(ComputerSession):
                         mirror_blocked,
                     )
                     return f"Safety: {mirror_blocked}"
+
+                # [SECURITY] Desktop semantic guard — destructive AX control gate
+                # sharing the cross-channel lexicon with the browser DOM gate.
+                from myrm_agent_harness.toolkits.computer_use.semantic_gate import (
+                    DesktopGuardContext,
+                    enforce_desktop_interact_guard,
+                )
+
+                semantic_blocked = await enforce_desktop_interact_guard(
+                    ctx=DesktopGuardContext(
+                        app_name=app_name,
+                        window_title=window_title,
+                        screenshot_provider=self._capture_guard_screenshot,
+                        scaler=self.scaler,
+                    ),
+                    ref_id=element.ref_id,
+                    role=element.role,
+                    name=element.name,
+                    action=action,
+                    text=text,
+                )
+                if semantic_blocked is not None:
+                    return semantic_blocked
 
                 effective_action = action
                 effective_text = text
@@ -495,6 +525,27 @@ class DesktopSession(ComputerSession):
                         return stale_error
                 finally:
                     self.clear_operation_foreground_waiver()
+
+            # [SECURITY] Desktop semantic guard — coordinate landing-point gate
+            # hit-testing the interactive AX refs; unresolvable coordinates pass.
+            from myrm_agent_harness.toolkits.computer_use.semantic_gate import (
+                DesktopGuardContext,
+                enforce_desktop_vision_guard,
+            )
+
+            semantic_blocked = await enforce_desktop_vision_guard(
+                ctx=DesktopGuardContext(
+                    app_name=fg_app,
+                    window_title=fg_title,
+                    screenshot_provider=self._capture_guard_screenshot,
+                    scaler=self.scaler,
+                ),
+                refs=self._refs.all_refs(),
+                action=action,
+                coordinate=coordinate,
+            )
+            if semantic_blocked is not None:
+                return semantic_blocked
 
             if action in (
                 "left_click",

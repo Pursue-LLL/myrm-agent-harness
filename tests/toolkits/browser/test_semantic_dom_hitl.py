@@ -162,6 +162,22 @@ class TestEnforceSemanticInteractionGuard:
         payload = mock_interrupt.call_args[0][0]
         assert payload["page_url"] == ""
 
+    @pytest.mark.asyncio
+    async def test_high_risk_click_without_graph_context_fail_closed(self, mock_session: MagicMock) -> None:
+        """No LangGraph context must fail closed: high-risk actions are blocked, never auto-approved."""
+        with patch("langgraph.types.interrupt", side_effect=RuntimeError("no graph context")):
+            result = await enforce_semantic_interaction_guard(
+                session=mock_session,
+                tool_name="browser_interact_tool",
+                action="click",
+                ref="e5",
+                ref_info=_ref("button", "Delete Repository"),
+            )
+        assert result is not None
+        assert "[BLOCKED]" in result
+        assert "Delete Repository" in result
+        assert "alternative approach" in result
+
 
 class TestEnforceJsEvalGuard:
     @pytest.mark.asyncio
@@ -231,3 +247,16 @@ class TestEnforceJsEvalGuard:
                 expression="document.forms[0].submit()",
             )
         assert result is None
+
+    @pytest.mark.asyncio
+    async def test_mutating_expression_without_graph_context_fail_closed(self, mock_session: MagicMock) -> None:
+        """No LangGraph context must fail closed for JS evaluate mutations too."""
+        with patch("langgraph.types.interrupt", side_effect=RuntimeError("no graph context")):
+            result = await enforce_js_eval_guard(
+                session=mock_session,
+                tool_name="browser_manage_tool",
+                expression="document.forms[0].submit()",
+            )
+        assert result is not None
+        assert "[BLOCKED]" in result
+        assert "alternative approach" in result

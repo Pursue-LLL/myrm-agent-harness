@@ -764,7 +764,7 @@ evaluate("document.querySelector('.pay').click()") → HIGH → interrupt()
 evaluate("document.title")                → SAFE               → 直接执行
 ```
 
-实现：`tools/_semantic_risk.py`（纯函数）+ `tools/semantic_dom_hitl.py`（共享 interrupt 路径）
+实现：`tools/_semantic_risk.py`（浏览器动作前置 + JS eval 模式，纯函数）+ `tools/semantic_dom_hitl.py`（共享 interrupt 路径，无 LangGraph 上下文时 fail-closed 阻断）；元素词典 SSOT 位于 `core/security/detection/semantic_risk.py`（与桌面 AX/坐标语义门共享）
 
 ### URL 安全验证
 
@@ -1117,7 +1117,7 @@ browser/
 │   ├── execute_script.py — browser_execute_script_tool（含 AST 特权API Scanner + HITL 门禁）
 │   ├── takeover.py — browser_ask_human_tool（人类接管，LangGraph interrupt + extension 横幅 / managed VNC）
 │   ├── inspect.py — browser_inspect_tool
-│   ├── _semantic_risk.py — 语义 DOM 风险分类（纯函数）
+│   ├── _semantic_risk.py — 语义 DOM 风险分类（浏览器动作前置 + JS eval 模式；元素词典 SSOT 上移至 core/security/detection/semantic_risk.py，与桌面语义门共享）
 │   └── common.py — 工具共享工具函数
 ├── pool/
 │   ├── browser_pool.py (716 行) — GlobalBrowserPool（全局调度中枢）

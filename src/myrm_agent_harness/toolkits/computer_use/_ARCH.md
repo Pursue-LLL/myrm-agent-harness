@@ -14,6 +14,7 @@ with native desktop applications via accessibility trees (@dref) with coordinate
 | app_identity.py | Core | Stable trust keys: `resolve_trust_key`, `trust_key_matches` (bundle_id / win exe / linux app id) | ✅ |
 | iphone_mirror.py | Core | iPhone Mirroring (`com.apple.ScreenContinuity`) probe (`probe_iphone_mirror_state`), viewport bounds & state gate | ✅ |
 | safety.py | Core | Blocked key combos, operator-as-key rejection (lone `*`/`/`/`+`/`-`/`%`/`=`), dangerous type-text guardrails, sensitive app guard (incl. terminal/shell + SelfAppGuard via bundle_id / host names), iPhone Mirroring connect popup guard, lock-screen & physical sleep hard interruption, foreground permission classification | ✅ |
+| semantic_gate.py | Core | Control-level semantic risk gate (SSOT lexicon: `core/security/detection/semantic_risk.py`): AX interact gate (`enforce_desktop_interact_guard`) + vision coordinate gate with bbox reverse-lookup (`enforce_desktop_vision_guard`, `resolve_coordinate_target`), both fail-closed HITL interrupts with screenshot evidence + red-circle highlight payload | ✅ |
 | screen_detector.py | Core | Microsecond native desktop lock-screen & sleep detection (Quartz C-API / OpenInputDesktop / loginctl) with 200ms throttling cache | ✅ |
 | screenshot_processor.py | Core | Binary-search downsampling pipeline | ✅ |
 | coordinate_scaler.py | Core | DPI-aware coordinate transformer | ✅ |

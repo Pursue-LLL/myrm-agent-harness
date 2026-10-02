@@ -1,7 +1,7 @@
 # core/security/detection/
 
 ## Overview
-Security detection modules — PII classification, content boundary marking, information leak detection, prompt injection guard, intent router, and pseudonymization.
+Security detection modules — PII classification, content boundary marking, information leak detection, prompt injection guard, intent router, pseudonymization, and semantic element risk classification.
 
 ## File & Submodule Index
 
@@ -14,6 +14,7 @@ Security detection modules — PII classification, content boundary marking, inf
 | leak_detector.py | Core | Information leak detector — identifies sensitive data patterns in text, incl. password-like heuristic and numeric-credential (PIN/OTP/2FA) detection. | ✅ |
 | pii_classifier.py | Core | PII classifier — detects personally identifiable information (emails, phones, IDs, etc.). | ✅ |
 | prompt_guard.py | Core | Prompt injection guard — detects prompt injection attempts in user/tool input. | ✅ |
+| semantic_risk.py | Core | Semantic element risk lexicon (SSOT) — bilingual destructive/financial/account/admin/publish vocabulary classifying GUI controls (role + name) as high-risk; consumed by browser DOM and desktop AX interaction gates so all GUI channels share one identical gate vocabulary. | ✅ |
 | harmful_state_detector.py | Core | Harmful psychological state detector — blocks self-harm/severe depression patterns from persistent memory storage. | ✅ |
 | pseudonym_store.py | Core | Pseudonym store — persistent mapping between real values and pseudonyms. | ✅ |
 | pseudonymizer.py | Core | Pseudonymizer — replaces PII with reversible pseudonyms using the pseudonym store. | ✅ |
