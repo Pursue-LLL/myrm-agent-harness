@@ -134,10 +134,34 @@ def test_get_edits_created_since_is_status_agnostic_and_ordered(wiki_structure):
     future = (datetime.now(UTC) + timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
     assert mgr.get_edits_created_since(future) == []
 
+    # Offset pages through the same newest-first ordering.
+    paged = mgr.get_edits_created_since(since, limit=1, offset=1)
+    assert len(paged) == 1
+    assert paged[0]["concept_name"] != edits[0]["concept_name"]
+
     # The created_at window predicate is backed by an index, symmetric with idx_status.
     with mgr._get_conn() as conn:
         index_names = {row["name"] for row in conn.execute("PRAGMA index_list('pending_edits')")}
     assert {"idx_status", "idx_created_at"} <= index_names
+
+
+def test_get_pending_edits_pages_with_offset(wiki_structure):
+    mgr = WikiPendingEditsManager(wiki_structure)
+    for i in range(5):
+        mgr.add_pending_edit(f"Knowledge/Page {i}", _VALID_DRAFT)
+
+    first_page = mgr.get_pending_edits(limit=3)
+    second_page = mgr.get_pending_edits(limit=3, offset=3)
+    tail = mgr.get_pending_edits(limit=3, offset=4)
+
+    assert len(first_page) == 3
+    assert len(second_page) == 2
+    assert len(tail) == 1
+    first_names = {edit["concept_name"] for edit in first_page}
+    second_names = {edit["concept_name"] for edit in second_page}
+    assert first_names.isdisjoint(second_names), "pages must not overlap"
+    all_names = first_names | second_names | {edit["concept_name"] for edit in tail}
+    assert len(all_names) == 5, "offset pagination must reach every pending draft"
 
 
 @pytest.mark.asyncio

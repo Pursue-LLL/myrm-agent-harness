@@ -116,27 +116,31 @@ class WikiPendingEditsManager:
             )
             return cursor.lastrowid or 0
 
-    def get_pending_edits(self, limit: int = 50) -> list[PendingWikiEdit]:
-        """Get list of pending drafts."""
+    def get_pending_edits(self, limit: int = 50, offset: int = 0) -> list[PendingWikiEdit]:
+        """Get one page of pending drafts, newest first (offset skips older pages)."""
         with self._get_conn() as conn:
             cursor = conn.execute(
-                "SELECT * FROM pending_edits WHERE status = 'pending' ORDER BY created_at DESC LIMIT ?", (limit,)
+                "SELECT * FROM pending_edits WHERE status = 'pending' ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                (limit, offset),
             )
             # The type ignore is needed because sqlite3.Row isn't exactly matching TypedDict
             return [dict(row) for row in cursor.fetchall()]  # type: ignore
 
-    def get_edits_created_since(self, since: str, *, limit: int = 500) -> list[PendingWikiEdit]:
-        """Get drafts created at-or-after ``since`` regardless of current status.
+    def get_edits_created_since(
+        self, since: str, *, limit: int = 500, offset: int = 0
+    ) -> list[PendingWikiEdit]:
+        """Get one page of drafts created at-or-after ``since`` regardless of current status.
 
         ``since`` is a SQLite-comparable UTC timestamp (``YYYY-MM-DD HH:MM:SS``
         or a date prefix). Unlike get_pending_edits, approved/rejected drafts stay
         visible so callers can report what a pipeline actually produced within a
-        time window instead of only what is still awaiting review.
+        time window instead of only what is still awaiting review. Pages follow
+        the same newest-first ordering, so exhausting offsets yields every row.
         """
         with self._get_conn() as conn:
             cursor = conn.execute(
-                "SELECT * FROM pending_edits WHERE created_at >= ? ORDER BY created_at DESC LIMIT ?",
-                (since, limit),
+                "SELECT * FROM pending_edits WHERE created_at >= ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                (since, limit, offset),
             )
             # The type ignore is needed because sqlite3.Row isn't exactly matching TypedDict
             return [dict(row) for row in cursor.fetchall()]  # type: ignore
