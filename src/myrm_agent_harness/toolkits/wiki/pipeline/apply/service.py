@@ -2,7 +2,7 @@
 
 [INPUT]
 - ..handlers.apply_mutation_to_content (POS: narrow-write transforms)
-- ..publication.publish_concept_article (POS: WPG publish SSOT)
+- ..publication.route_concept_publication (POS: deterministic publish routing gate)
 - ..core.structure::WikiStructure (POS: vault paths)
 - ..retrieval.indexer::WikiIndexer (POS: FTS/Qdrant upsert)
 
@@ -11,6 +11,8 @@
 
 [POS]
 Single write orchestrator for REST, agent tool, and chat capture callers.
+Human-originated settings writes publish directly; agent and chat writes are
+staged as pending drafts for human review (fail-closed publish gate).
 """
 
 from __future__ import annotations
@@ -26,6 +28,7 @@ from myrm_agent_harness.toolkits.wiki.core.canonical_registry import (
 )
 from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
     FrontmatterValidationError,
+    WikiProvenance,
 )
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.pipeline.apply.errors import WikiApplyError
@@ -39,7 +42,10 @@ from myrm_agent_harness.toolkits.wiki.pipeline.apply.types import (
     WikiApplyResult,
 )
 from myrm_agent_harness.toolkits.wiki.pipeline.publication import (
-    publish_concept_article,
+    ArticlePublishOutcome,
+    PublicationDecision,
+    PublicationOrigin,
+    route_concept_publication,
 )
 from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer
 
@@ -144,18 +150,40 @@ async def apply_wiki_mutation(
 
         content = stamp_content_hash(content)
 
+        origin = PublicationOrigin.HUMAN if caller == "settings" else PublicationOrigin.AGENT
         try:
-            await publish_concept_article(structure, indexer, concept_name, content)
+            route = await route_concept_publication(
+                structure,
+                indexer,
+                concept_name,
+                content,
+                origin=origin,
+                provenance=request.provenance or WikiProvenance.AGENT.value,
+            )
         except FrontmatterValidationError as exc:
             raise WikiApplyError("invalid_frontmatter", "; ".join(exc.errors)) from exc
+        if route.publish_outcome is ArticlePublishOutcome.BLOCKED:
+            raise WikiApplyError(
+                "publish_blocked",
+                "Content rejected by the publish security scan.",
+            )
+
+        staged = route.decision is PublicationDecision.STAGE_PENDING
+        message = (
+            f"Staged {request.op.value} for {concept_name} as pending edit #{route.pending_edit_id}; awaiting human review"
+            if staged
+            else f"Applied {request.op.value} to {concept_name}"
+        )
 
     return WikiApplyResult(
         success=True,
         op=request.op,
         concept_name=concept_name,
-        message=f"Applied {request.op.value} to {concept_name}",
+        message=message,
         created=created,
         appended=appended,
         content=content,
         content_hash=compute_page_lease_hash(content),
+        staged_for_review=staged,
+        pending_edit_id=route.pending_edit_id,
     )

@@ -98,6 +98,8 @@ WIKI_QUERY_DESCRIPTION_ZH = """检索 Wiki 知识库。
 WIKI_APPLY_DESCRIPTION_EN = """Apply a narrow, structured mutation to a wiki concept page.
 
 Protects managed sections (Compiled Truth, Timeline, claims frontmatter).
+Writes are staged as pending drafts for human review and publish only after
+approval; report the note as awaiting review, not published.
 Do not use whole-page rewrites; pick the smallest op that fits:
 - create_note: Create a new structured note (requires concept_name and body; optional tags/aliases/sources)
 - patch_compiled_truth: Update the core facts section (requires concept_name and compiled_truth)
@@ -108,6 +110,8 @@ Do not use whole-page rewrites; pick the smallest op that fits:
 WIKI_APPLY_DESCRIPTION_ZH = """对 Wiki 概念页面应用结构化更新。
 
 保护受管区域（核心事实 Compiled Truth、时间线 Timeline、元数据 frontmatter）。
+通过本工具写入的内容会进入待审箱等待人工审核，批准后才发布；请告知用户
+笔记处于待审状态，而非已发布。
 请勿全量重写整个页面，按需选择最轻量的操作：
 - create_note: 创建新结构化笔记（需 concept_name 与 body；可选 tags/aliases/sources）
 - patch_compiled_truth: 局部修正核心事实段落（需 concept_name 与 compiled_truth）

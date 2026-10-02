@@ -60,3 +60,5 @@ class WikiApplyResult:
     appended: bool = False
     content: str = ""
     content_hash: str = ""
+    staged_for_review: bool = False
+    pending_edit_id: int | None = None

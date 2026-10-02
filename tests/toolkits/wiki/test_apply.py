@@ -60,7 +60,7 @@ async def test_create_note_builds_managed_sections(wiki_structure: WikiStructure
             metadata={"source_chat": "chat-1", "source_message": "msg-1"},
             provenance="chat-save",
         ),
-        caller="agent",
+        caller="settings",
     )
     assert result.created is True
     content = wiki_structure.get_concept_file_path("chat/saved-note").read_text(encoding="utf-8")
@@ -84,7 +84,7 @@ async def test_patch_compiled_truth_preserves_timeline(wiki_structure: WikiStruc
             concept_name="physics/gravity",
             compiled_truth="Updated gravity summary",
         ),
-        caller="agent",
+        caller="settings",
     )
 
     assert result.success is True

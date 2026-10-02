@@ -17,8 +17,8 @@ with provenance, HITL pending edits, and bottom-up incremental L0/L1 directory s
 | cognitive_map/ | Core | OKF index.md, log.md, hot.md, **SCHEMA.md** deterministic writers + refresh service | ✅ |
 | sidecar.py | Core | Directory sidecar builder (`.abstract.md`/`.overview.md`): bottom-up DAG invalidation + incremental rebuild + index sync; LLM summary parsed via `parse_llm_json_object` (robust against fences, prose, bare control chars, trailing commas) | ✅ |
 | pending.py | Core | HITL pending edits; `stage_pending_edit` demotes stale published + stores `provenance`; approve blocks stale + uses `publish_concept_article`; **CCSP approve backlinks**; `count_synthesis_pending` SQL | ✅ |
-| publication/ | Core | WPG publish SSOT: `publish_concept_article`, `repair_publication_status` | ✅ |
-| apply/ | Core | Narrow-write apply SSOT: `apply_wiki_mutation` (metadata/truth/timeline/create) | ✅ |
+| publication/ | Core | WPG publish SSOT: `publish_concept_article`, `repair_publication_status`, deterministic fail-closed routing `gate.py` (LLM origins stage, human origins publish) | ✅ |
+| apply/ | Core | Narrow-write apply SSOT: `apply_wiki_mutation` (metadata/truth/timeline/create) — agent/chat callers stage as HITL pending drafts | ✅ |
 | chat_compound.py | Core | Chat Q&A → pending compound staging (zero LLM · trust claims · source_message dedup) | ✅ |
 | raw_gate/ | Core | Raw publication gate SSOT: `publish_raw` (FAIL/SKIP/SUPERSEDE/PUT_IF_ABSENT) + `RAW_SUPERSEDE` audit + `evidence_removal` shared re-anchor | ✅ |
 | ingress/ | Core | Browser clip + URL markdown ingress → `publish_raw`; `.wikiignore` patterns — see [ingress/_ARCH.md](ingress/_ARCH.md) | ✅ |
