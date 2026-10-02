@@ -9,9 +9,9 @@ Platform-specific implementations of the ComputerBackend protocol. Provides macO
 |------|------|-------------|-------|
 | __init__.py | Package | Computer use backends — re-exports ComputerBackend protocol. | — |
 | protocols.py | Core | ComputerBackend protocol — abstract interface for platform backends. | ✅ |
-| macos.py | Core | macOS backend — screencapture + Quartz CGEvent + NSScreen DPI + AX text; window-targeted capture (`screencapture -l`), foreground guard, post-event permission probe/request, EnhancedUI. | ✅ |
+| macos.py | Core | macOS backend — screencapture + Quartz CGEvent + NSScreen DPI + AX text; window-targeted capture (`screencapture -l`), foreground guard, post-event permission probe/request, EnhancedUI; `set_excluded_capture_window_titles` 帷幕排除通道注入. | ✅ |
 | macos_input.py | Core | macOS input primitives — Quartz CGEvent keyboard/mouse (replaces pyautogui); PID-targeted delivery via single post router. | ✅ |
-| macos_background.py | Core | macOS background ops — window resolve, `screencapture -l` capture, foreground guard, post-event permission, EnhancedUI (crash-contained probe). | ✅ |
+| macos_background.py | Core | macOS background ops — window resolve, `screencapture -l` capture, foreground guard, post-event permission, EnhancedUI (crash-contained probe); `_capture_screen_excluding_titles` Quartz below-window 截图通道（帷幕窗排除，失败降级原 screencapture 路径）. | ✅ |
 | windows.py | Core | Windows backend — mss + pyautogui + ctypes/user32 + uiautomation. | ✅ |
 | linux.py | Core | Linux backend — scrot/gnome-screenshot + xdotool + DISPLAY auto-detection. | ✅ |
 | cua_driver.py | Enhancement | Background-input backend via cua-driver MCP. Wraps a native backend. | ✅ |
