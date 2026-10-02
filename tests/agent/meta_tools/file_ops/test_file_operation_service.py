@@ -226,7 +226,9 @@ async def test_execute_view_blocks_archive_read_when_budget_denies() -> None:
             "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.ValidatorChain",
         ) as mock_vc,
         patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.evaluate_archive_refetch_for_path",
+            # Lazy in-function import: patch the source module (the function
+            # rebinds from it on every call), not the importing module.
+            "myrm_agent_harness.agent.context_management.tracking.archive_restore_runtime.evaluate_archive_refetch_for_path",
             return_value=ArchiveRefetchDecision(
                 is_archive_path=True,
                 allowed=False,
@@ -1111,9 +1113,7 @@ async def test_file_operation_service_version_mismatch_raises_structured_tool_er
         with pytest.raises(ToolError) as exc_info:
             await service.execute()
 
-        mock_guard.require_version_match.assert_called_once_with(
-            "/workspace/main.py", "x = 100", anchor=["x = 1"]
-        )
+        mock_guard.require_version_match.assert_called_once_with("/workspace/main.py", "x = 100", anchor=["x = 1"])
         err = exc_info.value
         assert err.error_code == "FILE_VERSION_MISMATCH"
         assert "Current disk content snippet" in str(err)
@@ -1148,5 +1148,3 @@ async def test_evidence_readonly_validator_blocks_write_in_chain() -> None:
     )
     strategy.exists = AsyncMock(return_value=True)
     await chain.validate(view_ctx, "/workspace/evidence/interview_raw.pdf")
-
-

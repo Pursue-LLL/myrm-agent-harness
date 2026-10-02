@@ -28,7 +28,7 @@ from myrm_agent_harness.toolkits.vector.base import (
     VectorStore,
 )
 from myrm_agent_harness.toolkits.vector.config import VectorStoreConfig
-from myrm_agent_harness.toolkits.vector.qdrant.filters import build_qdrant_filter
+from myrm_agent_harness.toolkits.vector.qdrant.filters import build_qdrant_filter, point_id_for
 from myrm_agent_harness.toolkits.vector.qdrant.sparse import QdrantSparseMixin
 
 logger = logging.getLogger(__name__)
@@ -559,18 +559,11 @@ class QdrantVectorStore(QdrantSparseMixin, VectorStore):
     def point_id_for(self, id_str: str) -> str:
         """Map a caller-facing id to a valid Qdrant UUID point id.
 
-        Qdrant point ids must be valid UUIDs; non-UUID ids are remapped via
-        uuid5 and the caller's id is preserved under the ``original_id``
-        payload key. Shared by dense upsert and the sparse mixin.
+        Delegates to the module-level single implementation in `filters.py`
+        (shared by dense/sparse upserts and id filters so HasIdCondition
+        always matches the stored point id).
         """
-        import uuid
-
-        try:
-            uuid.UUID(id_str)
-            return id_str
-        except ValueError:
-            # If not a valid UUID, generate a deterministic one based on the string
-            return str(uuid.uuid5(uuid.NAMESPACE_OID, id_str))
+        return point_id_for(id_str)
 
     def _point_to_document(self, point: object) -> VectorDocument:
         """Convert Qdrant point to VectorDocument."""

@@ -15,6 +15,11 @@ def test_spill_and_uploads_mounts_file_read_only() -> None:
         registry=registry,
         file_access_mode=FileAccessMode.SPILL_AND_UPLOADS,
         enable_shell_tools=False,
+        # Working-memory / async-message tools are orthogonal mount dimensions
+        # (default True); disable them so this test isolates the file-access
+        # mode semantics alone.
+        enable_working_memory_tool=False,
+        enable_async_user_message_tool=False,
     )
     names = {t.name for t in tools}
     assert names == {"file_read_tool"}

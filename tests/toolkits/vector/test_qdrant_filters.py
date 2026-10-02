@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from myrm_agent_harness.toolkits.vector.qdrant.filters import build_qdrant_filter
+from myrm_agent_harness.toolkits.vector.qdrant.filters import build_qdrant_filter, point_id_for
 
 
 def test_build_qdrant_filter_empty():
@@ -79,7 +79,7 @@ def test_build_qdrant_filter_has_id():
     f = build_qdrant_filter({"id": {"$in": ["m1", "m2"]}})
     assert len(f.must) == 1
     assert isinstance(f.must[0], HasIdCondition)
-    assert f.must[0].has_id == ["m1", "m2"]
+    assert f.must[0].has_id == [point_id_for("m1"), point_id_for("m2")]
 
 
 def test_build_qdrant_filter_id_list_uses_has_id():
@@ -88,7 +88,7 @@ def test_build_qdrant_filter_id_list_uses_has_id():
     f = build_qdrant_filter({"id": ["m1", "m2"]})
     assert len(f.must) == 1
     assert isinstance(f.must[0], HasIdCondition)
-    assert f.must[0].has_id == ["m1", "m2"]
+    assert f.must[0].has_id == [point_id_for("m1"), point_id_for("m2")]
 
 
 def test_build_qdrant_filter_id_list_mixed_with_field_filter():
@@ -99,7 +99,7 @@ def test_build_qdrant_filter_id_list_mixed_with_field_filter():
     assert f.must[0].key == "archived"
     assert isinstance(f.must[0].match, MatchValue)
     assert isinstance(f.must[1], HasIdCondition)
-    assert f.must[1].has_id == ["m1"]
+    assert f.must[1].has_id == [point_id_for("m1")]
 
 
 def test_build_qdrant_filter_mixed_with_has_id():
@@ -110,7 +110,7 @@ def test_build_qdrant_filter_mixed_with_has_id():
     assert f.must[0].key == "archived"
     assert isinstance(f.must[0].match, MatchValue)
     assert isinstance(f.must[1], HasIdCondition)
-    assert f.must[1].has_id == ["m1"]
+    assert f.must[1].has_id == [point_id_for("m1")]
 
 
 def test_build_qdrant_filter_id_plain_value_uses_has_id():
@@ -119,16 +119,18 @@ def test_build_qdrant_filter_id_plain_value_uses_has_id():
     f = build_qdrant_filter({"id": "plain-value"})
     assert len(f.must) == 1
     assert isinstance(f.must[0], HasIdCondition)
-    assert f.must[0].has_id == ["plain-value"]
+    assert f.must[0].has_id == [point_id_for("plain-value")]
 
 
 def test_build_qdrant_filter_id_int_value_uses_has_id():
     from qdrant_client.models import HasIdCondition
 
+    # Integer ids re-key through the same deterministic mapping as string ids
+    # (str(42) -> uuid5), matching what upsert stores for a "42" document id.
     f = build_qdrant_filter({"id": 42})
     assert len(f.must) == 1
     assert isinstance(f.must[0], HasIdCondition)
-    assert f.must[0].has_id == [42]
+    assert f.must[0].has_id == [point_id_for("42")]
 
 
 def test_build_qdrant_filter_id_plain_mixed_with_field_filter():
@@ -139,7 +141,7 @@ def test_build_qdrant_filter_id_plain_mixed_with_field_filter():
     assert f.must[0].key == "archived"
     assert isinstance(f.must[0].match, MatchValue)
     assert isinstance(f.must[1], HasIdCondition)
-    assert f.must[1].has_id == ["m1"]
+    assert f.must[1].has_id == [point_id_for("m1")]
 
 
 def test_build_qdrant_filter_id_bool_not_has_id():
