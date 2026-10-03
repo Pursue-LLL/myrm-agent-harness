@@ -32,6 +32,12 @@ from langchain_core.tools import BaseTool
 from mcp.server.mcpserver import MCPServer
 from mcp.types import TextContent
 
+from .wiki_agent_tools import (
+    resolve_wiki_apply_description,
+    resolve_wiki_ingest_description,
+    resolve_wiki_query_description,
+)
+
 logger = logging.getLogger(__name__)
 
 # Name → tool bundle for the current request. Built by the server layer via
@@ -115,15 +121,9 @@ def register_wiki_mcp_tools(
 
     @mcp.tool(
         name="wiki_query_tool",
-        description=(
-            "Query the Wiki knowledge base.\n\n"
-            "Searches compiled wiki articles and returns grounded context with "
-            "source citations. Search here first when answering questions about "
-            "project concepts, domain knowledge, team notes, or compiled research. "
-            "When the tool refuses (insufficient evidence), tell the user honestly "
-            "that the knowledge base has no verified basis for the question — "
-            "never guess or invent an answer."
-        ),
+        # Single source of truth: reuses the LangChain tool description so the
+        # two surfaces cannot drift (L1 test also locks the parameter surface).
+        description=resolve_wiki_query_description(),
     )
     async def wiki_query(question: str) -> list[TextContent]:
         tools = tools_resolver()
@@ -133,14 +133,12 @@ def register_wiki_mcp_tools(
 
     @mcp.tool(
         name="wiki_ingest_tool",
+        # LangChain description + the trusted-surface narrowing delta (local
+        # file paths are accepted in-process but refused for remote callers).
         description=(
-            "Ingest a document into the Wiki knowledge base for compilation.\n\n"
-            "Supported inputs on this surface: public Web URLs (fetched and "
-            "converted to markdown) or raw text content. Local file paths are "
-            "not supported here — read the file first and pass its content as "
-            "raw text. Use folder_path to categorize the document (e.g. "
-            "'Research/AI'). Ingestion queues the document for knowledge "
-            "compilation automatically."
+            resolve_wiki_ingest_description()
+            + "\n\nOn this MCP surface local file paths are not accepted — "
+            "read the file first and pass its content as raw text."
         ),
     )
     async def wiki_ingest(
@@ -164,14 +162,8 @@ def register_wiki_mcp_tools(
 
     @mcp.tool(
         name="wiki_apply_tool",
-        description=(
-            "Apply a narrow, structured mutation to a wiki concept page.\n\n"
-            "Protects managed sections. Writes are staged as pending drafts for "
-            "human review in the WebUI and publish only after approval; report "
-            "the note as awaiting review, not published. Pick the smallest op "
-            "that fits: create_note, patch_compiled_truth, append_timeline, "
-            "update_metadata."
-        ),
+        # Single source of truth: reuses the LangChain tool description.
+        description=resolve_wiki_apply_description(),
     )
     async def wiki_apply(
         op: str,
