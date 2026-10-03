@@ -7,7 +7,10 @@ fall-through guard, and the March-vs-months disambiguation.
 
 from datetime import UTC, datetime, timedelta, timezone
 
-from myrm_agent_harness.toolkits.memory.temporal_window import derive_temporal_window
+from myrm_agent_harness.toolkits.memory._internal.temporal_window import (
+    _unit_key,
+    derive_temporal_window,
+)
 
 # Fixed Friday evening: every calendar edge below is deterministic.
 NOW = datetime(2026, 10, 2, 21, 0, tzinfo=UTC)
@@ -202,3 +205,25 @@ def test_first_rule_in_priority_order_wins() -> None:
     # is "day" regardless of marker position in the query.
     assert window is not None
     assert window.window_kind == "day"
+
+
+def test_compound_chinese_numerals_parse_to_days() -> None:
+    # "三十天前" (30) and "一百天前" (100) exercise the compound numeral
+    # branch (十/百 positional parsing), not the single-digit table.
+    window = _derive("三十天前定的方案")
+    assert window is not None
+    assert window.window_kind == "relative"
+    thirty_days_ago = NOW - timedelta(days=30)
+    assert window.since < thirty_days_ago < window.until
+
+    window = _derive("一百天前提到的服务器")
+    assert window is not None
+    hundred_days_ago = NOW - timedelta(days=100)
+    assert window.since < hundred_days_ago < window.until
+
+
+def test_unit_key_maps_unmapped_unit_to_year_span() -> None:
+    # Defensive fallback: the relative unit patterns only admit tokens already
+    # present in _UNIT_DAYS; a future token outside the table must stay usable
+    # (year span) instead of raising on the retrieval path.
+    assert _unit_key("quarter") == "year"
