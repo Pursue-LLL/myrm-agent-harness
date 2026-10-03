@@ -38,7 +38,7 @@ class WikiConfig:
         purpose: Knowledge base direction/scope description. Guides LLM during compilation and
             query to stay focused on the defined domain (e.g., "AI/ML research papers")
         auto_archive_enabled: Enable automatic archiving from Memory to Wiki
-        auto_archive_min_turns: Minimum conversation turns to trigger auto-archive (default: 10)
+        auto_archive_min_turns: Minimum conversation turns to trigger auto-archive (default: 5)
         max_concepts_per_doc: Maximum concepts to extract per document (prevent explosion)
         enable_semantic_search: Enable semantic search in addition to keyword search
         enable_backlinks: Generate backlinks and cross-references
@@ -55,7 +55,7 @@ class WikiConfig:
     compile_strategy: Literal["incremental", "full", "lazy"] = "incremental"
     purpose: str = ""
     auto_archive_enabled: bool = True
-    auto_archive_min_turns: int = 10
+    auto_archive_min_turns: int = 5
     max_concepts_per_doc: int = 20
     enable_semantic_search: bool = True
     enable_hybrid_search: bool = True
