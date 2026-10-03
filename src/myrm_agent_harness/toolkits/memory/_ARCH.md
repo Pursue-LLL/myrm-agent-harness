@@ -43,7 +43,6 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | session.py               | Core     | Conversation-level memory buffer. Buffers memory writes during a session and batch-flushes                    | ✅    |
 | session_post_process.py  | Core     | Unified post-session task runner (memory consolidation + proactive extraction). | ✅ |
 | signals.py               | Core     | Context signal calculator for memory retrieval scoring. Provides normalized [0,1] factors                     | ✅    |
-| temporal_window.py      | Core     | Temporal window derivation. Parses bilingual past-facing time markers (昨天/上个月/去年春天/last spring/3 weeks ago, Chinese numerals) into wide (since, until) collect-stage hard-filter bounds; explicit bounds always win, fully-future windows fall through to broader markers. | ✅    |
 | text_utils.py            | Core     | Unified multi-language tokenization for memory retrieval. Uses re.UNICODE                                     | ✅    |
 | tool_capture.py          | Core     | Tool-scoped memory capture hook. Detects user edicts and repeated tool failures, auto-creates procedural rules. | ✅    |
 | tool_guidance.py         | Facade   | Facade re-exporting types and synthesis engine from `tool_guidance` domain subpackage.                         | ✅    |

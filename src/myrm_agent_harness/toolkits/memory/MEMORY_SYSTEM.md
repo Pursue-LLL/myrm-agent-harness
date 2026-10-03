@@ -562,7 +562,7 @@ final = semantic^w0 × recency^w1 × frequency^w2 × importance^w3 × preference
 - 降级可观测：`MemoryRetrievalTrace.degraded` 顶层标记 + `SearchMetrics.record_degradation(timeout|error)` 独立计数（与普通 0 结果区分）+ 各阶段 `status="warning"`。
 - 注入侧一致化：`memory_context_middleware` 加载静态上下文同样套 wall-clock 超时，超时返回 `not_applied/load_timeout`，不阻塞首轮 LLM 调用。
 
-**时间范围硬剪枝**（`temporal_window.py`，`RetrievalConfig.enable_temporal_window`，默认开启）：
+**时间范围硬剪枝**（`_internal/temporal_window.py`，`RetrievalConfig.enable_temporal_window`，默认开启）：
 
 - 调用方未显式传入 `since/until` 时，从查询中的过去向时间标记（中英双语：昨天 / 上周 / 上个月 / 上季度 / 去年 / 去年春天 / 最近三个月 / 三天前 / last spring / 3 weeks ago…）推导宽窗口 `(since, until)` 注入 collect 阶段做硬过滤；显式边界永远优先（explicit-scope invariance，与 ChannelPruner 同一原则）。
 - 窗口刻意放宽：每类标记的语义周期双侧加溢出（day ±1d / week ±2d / month ±5d / quarter ±7d / year·season ±15d / relative ±max(1d, span/4)），吸收时区偏差与口语模糊；窗口内的精确定位交给结果侧时间邻近加权（`query_analyzer`）——硬过滤剪枝，软加权排序。

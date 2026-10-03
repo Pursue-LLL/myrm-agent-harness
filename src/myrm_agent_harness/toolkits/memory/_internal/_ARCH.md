@@ -31,6 +31,7 @@ Internal implementation details — not part of the public API.
 | storage_converters.py | Core | Document ↔ Schema converters and shared metadata helpers (scope, lifecycle, filter). `_COMMON_KNOWN_KEYS` must only list keys that `doc_to_*` assigns onto the model — listing one without that mapping silently drops it from `metadata` on every round-trip. | ✅ |
 | _storage_payload_helpers.py | Core | Payload extraction helpers for document conversion and metadata filtering. | ✅ |
 | storage_search.py | Core | Search operations: vector similarity, BM25 keyword (persistent sparse channel first, corpus-scroll fallback with degradation metrics on overflow), profile/procedural text, dual-channel conversation search with RRF fusion. | ✅ |
+| temporal_window.py | Core | Temporal window derivation. Parses bilingual past-facing time markers (昨天/上个月/去年春天/last spring/3 weeks ago, Chinese numerals) into wide (since, until) collect-stage hard-filter bounds; explicit bounds always win, fully-future windows fall through to broader markers. | ✅ |
 | write_service.py | Core | Write-side orchestration for memory persistence. Handles memory scanning, transient business fact L3 write gate, approval routing, batch dedup, and the write-scope fence (`_validate_write_scope`) that rejects namespaces outside the writer's grant. | ✅ |
 
 ## Key Dependencies

@@ -32,6 +32,7 @@ from myrm_agent_harness.toolkits.memory._internal.channel_pruning import Channel
 from myrm_agent_harness.toolkits.memory._internal.maintenance import enrich_with_graph
 from myrm_agent_harness.toolkits.memory._internal.rerank_gate import apply_cross_rerank
 from myrm_agent_harness.toolkits.memory._internal.scope import apply_channel_affinity
+from myrm_agent_harness.toolkits.memory._internal.temporal_window import TemporalWindow, derive_temporal_window
 from myrm_agent_harness.toolkits.memory._internal.storage import (
     embed_single,
     search_bm25,
@@ -74,7 +75,6 @@ from myrm_agent_harness.toolkits.memory.protocols.vector import VectorStoreProto
 from myrm_agent_harness.toolkits.memory.query_analyzer import analyze_query, is_assistant_reference_query
 from myrm_agent_harness.toolkits.memory.query_sanitizer import QuerySanitizer
 from myrm_agent_harness.toolkits.memory.retriever import MemoryRetriever
-from myrm_agent_harness.toolkits.memory.temporal_window import TemporalWindow, derive_temporal_window
 from myrm_agent_harness.toolkits.memory.types import (
     ConversationMemory,
     MemorySearchResult,
