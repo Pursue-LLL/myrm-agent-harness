@@ -89,6 +89,29 @@ def test_parse_prose_with_trailing_commas_and_bare_newlines(wiki_structure: Wiki
     assert concepts[0].related_concepts == ["AI"]
 
 
+def test_parse_json_mentions_count(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
+    """In-document mention counts must survive parsing (min_concept_mentions floor)."""
+    concepts = parse_concepts_response(
+        '[{"name": "ML", "definition": "Machine Learning", "mentions": 3}]', "test.md"
+    )
+    assert len(concepts) == 1
+    assert concepts[0].mentions == 3
+
+
+def test_parse_json_invalid_mentions_falls_back_to_one(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
+    """Non-integer or non-positive mentions degrade to 1 instead of crashing."""
+    invalid_payloads = (
+        '[{"name": "ML", "definition": "Machine Learning", "mentions": "many"}]',
+        '[{"name": "ML", "definition": "Machine Learning", "mentions": 0}]',
+        '[{"name": "ML", "definition": "Machine Learning", "mentions": -2}]',
+        '[{"name": "ML", "definition": "Machine Learning", "mentions": null}]',
+    )
+    for payload in invalid_payloads:
+        concepts = parse_concepts_response(payload, "test.md")
+        assert len(concepts) == 1
+        assert concepts[0].mentions == 1, payload
+
+
 # --- _filter_changed_files ---
 
 

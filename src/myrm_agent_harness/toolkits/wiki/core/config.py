@@ -91,6 +91,7 @@ class WikiCompileConfig:
             '- "name": concept name with logical folder path (e.g., "Programming/Rust/Ownership")\n'
             '- "definition": brief definition of the concept\n'
             '- "related_concepts": array of related concept names from the same document\n'
+            '- "mentions": integer count of how many times the concept is actually mentioned in the document\n'
             "CRITICAL: The concept 'name' MUST include a logical folder path for categorization.\n"
             "Use forward slashes '/' for paths. If no path is obvious, use 'Uncategorized/ConceptName'.\n"
             "Output ONLY the JSON array, no extra text."

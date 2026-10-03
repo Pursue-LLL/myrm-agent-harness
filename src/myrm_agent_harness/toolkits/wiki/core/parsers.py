@@ -33,11 +33,17 @@ def parse_concepts_response(response: str, source_file: str) -> list[ConceptInfo
             if isinstance(item, dict) and "name" in item and "definition" in item:
                 raw_related = item.get("related_concepts", [])
                 related = [str(r) for r in raw_related] if isinstance(raw_related, list) else []
+                # "mentions" carries the in-document mention count the
+                # min_concept_mentions noise floor filters on; without it every
+                # concept defaults to 1 and single-document concepts can never
+                # clear the floor regardless of how often they recur.
+                raw_mentions = item.get("mentions", 1)
+                mentions = raw_mentions if isinstance(raw_mentions, int) and raw_mentions > 0 else 1
                 concepts.append(
                     ConceptInfo(
                         name=item["name"],
                         definition=item["definition"],
-                        mentions=1,
+                        mentions=mentions,
                         source_files=[source_file],
                         related_concepts=related,
                     )
