@@ -52,7 +52,7 @@ class ConversationEpisode:
     """
 
     index: int
-    messages: list[dict[str, str]]
+    messages: list[dict[str, object]]
     start_time: datetime | None = None
     end_time: datetime | None = None
     turn_count: int = 0
@@ -60,7 +60,7 @@ class ConversationEpisode:
     summary_hint: str | None = None
 
 
-def _parse_message_timestamp(msg: dict[str, str | object]) -> datetime | None:
+def _parse_message_timestamp(msg: dict[str, object]) -> datetime | None:
     """Extract and parse timestamp from message dictionary with wide format tolerance."""
     raw = msg.get("timestamp") or msg.get("created_at")
     if raw is None:
@@ -104,15 +104,15 @@ class EpisodesChunker:
         self.soft_max_chars = max(10, int(soft_max_chars))
         self.overlap_turns = max(0, int(overlap_turns))
 
-    def _split_oversized_message(self, msg: dict[str, str]) -> list[dict[str, str]]:
+    def _split_oversized_message(self, msg: dict[str, object]) -> list[dict[str, object]]:
         """Split a gigantic single message (e.g. large log or diff) into paragraph-bounded units."""
-        content = msg.get("content", "")
-        role = msg.get("role", "user")
+        content = str(msg.get("content") or "")
+        role = str(msg.get("role") or "user")
         if len(content) <= self.soft_max_chars:
             return [msg]
 
         paragraphs = content.split("\n\n")
-        sub_messages: list[dict[str, str]] = []
+        sub_messages: list[dict[str, object]] = []
         current_buf: list[str] = []
         current_len = 0
 
@@ -132,11 +132,11 @@ class EpisodesChunker:
         return sub_messages or [msg]
 
     def _group_into_turns(
-        self, messages: list[dict[str, str]]
-    ) -> list[tuple[list[dict[str, str]], datetime | None, datetime | None]]:
+        self, messages: list[dict[str, object]]
+    ) -> list[tuple[list[dict[str, object]], datetime | None, datetime | None]]:
         """Group linear message stream into atomic user-assistant interaction turns."""
-        turns: list[tuple[list[dict[str, str]], datetime | None, datetime | None]] = []
-        current_turn: list[dict[str, str]] = []
+        turns: list[tuple[list[dict[str, object]], datetime | None, datetime | None]] = []
+        current_turn: list[dict[str, object]] = []
         first_time: datetime | None = None
         last_time: datetime | None = None
 
@@ -161,7 +161,7 @@ class EpisodesChunker:
 
         return turns
 
-    def split_into_episodes(self, messages: list[dict[str, str]]) -> list[ConversationEpisode]:
+    def split_into_episodes(self, messages: list[dict[str, object]]) -> list[ConversationEpisode]:
         """Split conversation messages into structured episodes with causal sliding overlap."""
         if not messages:
             return []
@@ -170,13 +170,13 @@ class EpisodesChunker:
         if not turns:
             return []
 
-        episodes_raw: list[list[tuple[list[dict[str, str]], datetime | None, datetime | None]]] = []
-        current_bucket: list[tuple[list[dict[str, str]], datetime | None, datetime | None]] = []
+        episodes_raw: list[list[tuple[list[dict[str, object]], datetime | None, datetime | None]]] = []
+        current_bucket: list[tuple[list[dict[str, object]], datetime | None, datetime | None]] = []
         current_chars = 0
         prev_end_time: datetime | None = None
 
         for turn_msgs, t_start, t_end in turns:
-            turn_chars = sum(len(m.get("content", "")) for m in turn_msgs)
+            turn_chars = sum(len(str(m.get("content") or "")) for m in turn_msgs)
             is_idle_gap = False
             if prev_end_time and t_start:
                 gap_sec = (t_start - prev_end_time).total_seconds()
@@ -203,7 +203,7 @@ class EpisodesChunker:
 
         episodes: list[ConversationEpisode] = []
         for ep_idx, raw_bucket in enumerate(episodes_raw):
-            final_msgs: list[dict[str, str]] = []
+            final_msgs: list[dict[str, object]] = []
             if ep_idx > 0 and self.overlap_turns > 0:
                 prev_bucket = episodes_raw[ep_idx - 1]
                 overlap_slice = prev_bucket[-self.overlap_turns :]
@@ -222,7 +222,7 @@ class EpisodesChunker:
                 elif s_t is not None:
                     bucket_end = s_t
 
-            total_chars = sum(len(m.get("content", "")) for m in final_msgs)
+            total_chars = sum(len(str(m.get("content") or "")) for m in final_msgs)
             turn_count = len(raw_bucket)
             episodes.append(
                 ConversationEpisode(
@@ -240,7 +240,7 @@ class EpisodesChunker:
 
 
 def chunk_conversation(
-    messages: list[dict[str, str]], strategy: ChunkingStrategy = ChunkingStrategy.EXCHANGE_PAIR
+    messages: list[dict[str, object]], strategy: ChunkingStrategy = ChunkingStrategy.EXCHANGE_PAIR
 ) -> list[ConversationChunk]:
     """Chunk conversation based on strategy.
 
@@ -272,7 +272,7 @@ def chunk_conversation(
         return _chunk_by_exchange_pair(messages)
 
 
-def _chunk_by_exchange_pair(messages: list[dict[str, str]]) -> list[ConversationChunk]:
+def _chunk_by_exchange_pair(messages: list[dict[str, object]]) -> list[ConversationChunk]:
     """One user turn + subsequent AI response = one chunk (MemPalace strategy).
 
     Preserves semantic completeness of Q+A pairs.
@@ -285,11 +285,11 @@ def _chunk_by_exchange_pair(messages: list[dict[str, str]]) -> list[Conversation
         msg = messages[i]
 
         if msg.get("role") == "user":
-            user_turn = msg.get("content", "")
+            user_turn = str(msg.get("content") or "")
             ai_turn = None
 
             if i + 1 < len(messages) and messages[i + 1].get("role") == "assistant":
-                ai_turn = messages[i + 1].get("content", "")
+                ai_turn = str(messages[i + 1].get("content") or "")
                 i += 2
             else:
                 i += 1
@@ -313,14 +313,14 @@ def _chunk_by_exchange_pair(messages: list[dict[str, str]]) -> list[Conversation
     return chunks
 
 
-def _chunk_by_user_turn(messages: list[dict[str, str]]) -> list[ConversationChunk]:
+def _chunk_by_user_turn(messages: list[dict[str, object]]) -> list[ConversationChunk]:
     """Each user turn = one chunk (ultra-precision mode)."""
     chunks: list[ConversationChunk] = []
     chunk_idx = 0
 
     for msg in messages:
         if msg.get("role") == "user":
-            content = msg.get("content", "")
+            content = str(msg.get("content") or "")
             chunk = ConversationChunk(
                 raw_text=f"User: {content}",
                 user_turn=content,
@@ -334,7 +334,7 @@ def _chunk_by_user_turn(messages: list[dict[str, str]]) -> list[ConversationChun
     return chunks
 
 
-def _chunk_by_session(messages: list[dict[str, str]]) -> list[ConversationChunk]:
+def _chunk_by_session(messages: list[dict[str, object]]) -> list[ConversationChunk]:
     """Entire session = one chunk (context-rich mode for short sessions)."""
     if not messages:
         return []
@@ -365,7 +365,7 @@ def _chunk_by_session(messages: list[dict[str, str]]) -> list[ConversationChunk]
     return [chunk]
 
 
-def _chunk_by_episodes(messages: list[dict[str, str]]) -> list[ConversationChunk]:
+def _chunk_by_episodes(messages: list[dict[str, object]]) -> list[ConversationChunk]:
     """Chunk conversation using adaptive episodes strategy."""
     chunker = EpisodesChunker()
     episodes = chunker.split_into_episodes(messages)
@@ -374,14 +374,16 @@ def _chunk_by_episodes(messages: list[dict[str, str]]) -> list[ConversationChunk
         user_parts: list[str] = []
         ai_parts: list[str] = []
         for m in ep.messages:
-            r = m.get("role", "user")
-            c = m.get("content", "")
+            r = str(m.get("role") or "user")
+            c = str(m.get("content") or "")
             if r == "user":
                 user_parts.append(c)
             elif r == "assistant":
                 ai_parts.append(c)
 
-        raw = "\n".join(f"[{m.get('role', 'user').upper()}]: {m.get('content', '')}" for m in ep.messages)
+        raw = "\n".join(
+            f"[{str(m.get('role') or 'user').upper()}]: {m.get('content', '')}" for m in ep.messages
+        )
         chunks.append(
             ConversationChunk(
                 raw_text=raw,

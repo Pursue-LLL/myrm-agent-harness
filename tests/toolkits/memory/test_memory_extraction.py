@@ -1141,6 +1141,29 @@ class TestExtractionQualityRules:
         assert "cron heartbeats" in prompt
         assert "acknowledgments" in prompt
 
+    def test_language_fidelity_rule_present_for_english(self):
+        """English extraction must also keep CJK names verbatim (no romanization)."""
+        from myrm_agent_harness.toolkits.memory.strategies.extractor import (
+            _build_system_prompt,
+        )
+
+        prompt = _build_system_prompt(ExtractionConfig(), "en")
+        assert "Never translate" in prompt
+        assert "stay verbatim" in prompt
+        assert "张伟" in prompt
+        assert "Extract all memories in Chinese" not in prompt
+
+    def test_language_fidelity_rule_present_for_chinese(self):
+        """Chinese extraction keeps prose Chinese while names stay verbatim."""
+        from myrm_agent_harness.toolkits.memory.strategies.extractor import (
+            _build_system_prompt,
+        )
+
+        prompt = _build_system_prompt(ExtractionConfig(), "zh")
+        assert "Never translate" in prompt
+        assert "Extract all memories in Chinese" in prompt
+        assert "verbatim in their" in prompt
+
     def test_wiki_boundary_section_when_enabled(self):
         from myrm_agent_harness.toolkits.memory.strategies.extractor import (
             _build_system_prompt,

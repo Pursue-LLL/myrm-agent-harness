@@ -320,6 +320,17 @@ Pay special attention to what the agent got wrong, what the user corrected,
 and record the correct approach with confidence ≥ 0.95 and "source_error"
 describing the prior mistake."""
 
+# Anti-transliteration fidelity rule (Hindsight fact_extraction.py:1053 pattern):
+# BM25/FTS5 exact-token recall depends on entity spellings surviving extraction
+# byte-identical — a transliterated entity ("张伟" → "Zhang Wei") silently misses
+# every literal query for the original form.
+_LANGUAGE_FIDELITY_RULE = (
+    "\n**LANGUAGE**: Write every memory in the same language and script as the "
+    "input text. Never translate. Names, identifiers, code, and quoted text "
+    "stay verbatim (e.g. \"张伟\" stays \"张伟\", never \"Zhang Wei\"; "
+    "\"Kubernetes\" stays \"Kubernetes\" in Chinese sentences)."
+)
+
 _VALIDITY_SECTION = """
 ## Fact Validity Estimation
 
@@ -422,8 +433,19 @@ def _build_system_prompt(
     gate_directive = "You are a strict memory gatekeeper. Default to returning an empty array [] unless high-leverage knowledge, explicit user constraints, or valuable personal facts are present."
     parts = [gate_directive, _CORE_RULES]
 
+    # Fidelity applies to every language: English extraction must also keep
+    # CJK names verbatim, not romanize them.
+    parts.append(_LANGUAGE_FIDELITY_RULE)
+
     if language == "zh":
-        parts.append("\n**IMPORTANT**: Extract all memories in Chinese (中文).")
+        # Prose output follows the input language; the fidelity rule above
+        # keeps embedded names/identifiers verbatim so mixed-language input
+        # (Chinese prose + English tool names) never gets transliterated.
+        parts.append(
+            "\n**IMPORTANT**: Extract all memories in Chinese (中文), keeping "
+            "names, identifiers, code, and quoted text verbatim in their "
+            "original language."
+        )
 
     enabled_types: list[str] = []
     if config.extract_profile:
@@ -493,8 +515,8 @@ class MemoryExtractor:
 
     async def extract(
         self,
-        messages: Sequence[dict[str, str]],
-        context: dict[str, str] | None = None,
+        messages: Sequence[dict[str, object]],
+        context: dict[str, object] | None = None,
         *,
         correction_detected: bool = False,
     ) -> ExtractionResult:
@@ -520,7 +542,7 @@ class MemoryExtractor:
             return ExtractionResult()
 
         start = datetime.now(UTC)
-        total_chars = sum(len(m.get("content", "")) for m in filtered_messages)
+        total_chars = sum(len(str(m.get("content") or "")) for m in filtered_messages)
 
         # Single batch fast path for dialogs fitting within budget
         if total_chars <= self.config.max_input_chars:
@@ -587,17 +609,23 @@ class MemoryExtractor:
 
     async def _extract_for_message_subset(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, object]],
         *,
         context: dict[str, object] | None,
         correction_detected: bool,
         start: datetime,
     ) -> ExtractionResult:
-        full_text = "".join(m.get("content", "") for m in messages)
+        if not self.llm_func:
+            logger.warning("No LLM function provided, skipping extraction")
+            return ExtractionResult()
+
+        full_text = "".join(str(m.get("content") or "") for m in messages)
         detected_language = detect_language(full_text)
         self._last_detected_language = detected_language
 
-        formatted = "\n".join(f"[{m.get('role', 'user').upper()}]: {m.get('content', '')}" for m in messages)
+        formatted = "\n".join(
+            f"[{str(m.get('role') or 'user').upper()}]: {m.get('content', '')}" for m in messages
+        )
         session_date = start.strftime("%Y-%m-%d (%A)")
         prompt = f"Session date: {session_date}\n\n## Conversation to Analyze\n\n{formatted}\n\n"
         prompt += "## Instructions\n\nAnalyze the conversation. If and ONLY if it contains critical constraints, high-leverage knowledge, or valuable personal facts, output them. Otherwise, output [].\n"
@@ -829,7 +857,7 @@ def _parse_response(raw: str) -> list[ExtractedMemory]:
 
 
 async def extract_memories_from_conversation(
-    messages: Sequence[dict[str, str]],
+    messages: Sequence[dict[str, object]],
     llm_func: LLMFunc,
     config: ExtractionConfig | None = None,
     *,
@@ -866,7 +894,7 @@ async def extract_memories_from_conversation(
     for msg in filtered_messages:
         if msg.get("role") != "user" or msg.get("_third_party_context"):
             continue
-        text = msg.get("content", "")
+        text = str(msg.get("content") or "")
         for edict in extract_tool_edicts(text):
             tool = associate_tool(edict.rule_text, None)
             msg_id = str(msg.get("id") or msg.get("message_id") or "")
@@ -975,7 +1003,7 @@ _GOAL_LEARNINGS_MAX_CHARS = 60_000
 
 
 async def extract_goal_learnings(
-    messages: Sequence[dict[str, str]],
+    messages: Sequence[dict[str, object]],
     goal_objective: str,
     llm_func: LLMFunc,
     *,
@@ -1001,19 +1029,21 @@ async def extract_goal_learnings(
 
     from myrm_agent_harness.toolkits.memory.chunking import EpisodesChunker
 
-    total_chars = sum(len(m.get("content", "")) for m in messages)
+    total_chars = sum(len(str(m.get("content") or "")) for m in messages)
     if total_chars <= max_chars:
-        batches = [messages]
+        batches: list[Sequence[dict[str, object]]] = [messages]
     else:
         chunker = EpisodesChunker(soft_max_chars=max(4_000, max_chars // 2), overlap_turns=1)
-        episodes = chunker.split_into_episodes(messages)
+        episodes = chunker.split_into_episodes(list(messages))
         batches = [ep.messages for ep in episodes]
 
     all_learnings: list[ExtractedMemory] = []
     seen_contents: set[str] = set()
 
     for batch_msgs in batches:
-        formatted = "\n".join(f"[{m.get('role', 'user').upper()}]: {m.get('content', '')}" for m in batch_msgs)
+        formatted = "\n".join(
+            f"[{str(m.get('role') or 'user').upper()}]: {m.get('content', '')}" for m in batch_msgs
+        )
 
         language = detect_language(formatted)
         lang_hint = "\n\n**IMPORTANT**: Write all learnings in Chinese (中文)." if language == "zh" else ""

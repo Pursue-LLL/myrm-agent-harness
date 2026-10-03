@@ -164,7 +164,8 @@ class TestBuildSystemPromptLanguage:
         prompt = _build_system_prompt(config, "zh")
 
         assert "You are a strict memory gatekeeper" in prompt
-        assert "**IMPORTANT**: Extract all memories in Chinese (中文)." in prompt
+        assert "**IMPORTANT**: Extract all memories in Chinese (中文), keeping" in prompt
+        assert "verbatim in their original language" in prompt
 
     def test_language_instruction_position(self):
         """Test language instruction is placed after core rules."""
