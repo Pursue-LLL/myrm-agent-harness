@@ -8,6 +8,7 @@ fall-through guard, and the March-vs-months disambiguation.
 from datetime import UTC, datetime, timedelta, timezone
 
 from myrm_agent_harness.toolkits.memory._internal.temporal_window import (
+    TemporalWindow,
     _unit_key,
     derive_temporal_window,
 )
@@ -16,7 +17,7 @@ from myrm_agent_harness.toolkits.memory._internal.temporal_window import (
 NOW = datetime(2026, 10, 2, 21, 0, tzinfo=UTC)
 
 
-def _derive(query: str):
+def _derive(query: str) -> TemporalWindow | None:
     return derive_temporal_window(query, now=NOW)
 
 
