@@ -72,3 +72,21 @@ class TestSummarizeRecallBenchmark:
         summary = summarize_recall_benchmark(results)
         assert summary.latency_p50_ms == 0.0
         assert summary.latency_p95_ms == 0.0
+        assert summary.latency_p99_ms == 0.0
+
+    def test_latency_percentiles_p99(self) -> None:
+        """P99 tail latency is surfaced for SLO gating at scale."""
+        results = [
+            MemoryRecallBenchmarkResult(case_id=f"c{i}", expected_found=True, best_rank=1, top_k=5, score=1.0, latency_ms=10.0)
+            for i in range(99)
+        ]
+        # One extreme outlier defines the tail beyond p95.
+        results.append(
+            MemoryRecallBenchmarkResult(case_id="c_outlier", expected_found=True, best_rank=1, top_k=5, score=1.0, latency_ms=900.0)
+        )
+        summary = summarize_recall_benchmark(results)
+        # Linear interpolation at k=98.01 lands between idx 98 (10ms) and
+        # idx 99 (900ms): 10 + 0.01 * 890 = 18.9 — the outlier drags the tail.
+        assert summary.latency_p99_ms == 18.9
+        assert summary.latency_p99_ms > summary.latency_p95_ms
+        assert summary.latency_p95_ms >= summary.latency_p50_ms

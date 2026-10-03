@@ -365,6 +365,7 @@ class MemoryRecallBenchmarkSummary(BaseModel):
     distinct_source_ratio: float = Field(default=1.0, ge=0.0, le=1.0)
     latency_p50_ms: float = Field(default=0.0, ge=0.0)
     latency_p95_ms: float = Field(default=0.0, ge=0.0)
+    latency_p99_ms: float = Field(default=0.0, ge=0.0)
     status: MemoryReliabilityStatus = "missing"
 
 
@@ -404,6 +405,7 @@ def summarize_recall_benchmark(results: list[MemoryRecallBenchmarkResult]) -> Me
     latencies = [r.latency_ms for r in results if r.latency_ms > 0]
     latency_p50 = _percentile(latencies, 50.0) if latencies else 0.0
     latency_p95 = _percentile(latencies, 95.0) if latencies else 0.0
+    latency_p99 = _percentile(latencies, 99.0) if latencies else 0.0
 
     if recall_at_k >= 1.0 and duplicate_rate <= 0.4:
         status: MemoryReliabilityStatus = "ready"
@@ -424,6 +426,7 @@ def summarize_recall_benchmark(results: list[MemoryRecallBenchmarkResult]) -> Me
         distinct_source_ratio=round(distinct_source_ratio, 4),
         latency_p50_ms=round(latency_p50, 2),
         latency_p95_ms=round(latency_p95, 2),
+        latency_p99_ms=round(latency_p99, 2),
         status=status,
     )
 
