@@ -103,6 +103,9 @@ from .wiki_agent_tools import (
     create_wiki_agent_tools,
     create_wiki_tools,
 )
+from .mcp_server import (
+    register_wiki_mcp_tools,
+)
 
 __all__ = [
     "CompileResult",
@@ -126,4 +129,5 @@ __all__ = [
     "create_wiki_admin_tools",
     "create_wiki_agent_tools",
     "create_wiki_tools",
+    "register_wiki_mcp_tools",
 ]

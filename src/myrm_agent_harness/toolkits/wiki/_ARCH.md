@@ -12,6 +12,7 @@ directory sidecars, bottom-up incremental DAG refresh, and LLM-driven wikilink e
 |------|------|-------------|-------|
 | __init__.py | Package | Wiki toolkit entry point | ✅ |
 | wiki_agent_tools.py | Core | LangChain tool integration: **ingest/query/apply** agent tools (bilingual schema & prompt optimization; apply writes stage as HITL pending drafts, never publish directly); URL ingest via `pipeline/ingress/publish_url_markdown_ingress`; admin compile/maintain via REST. Auto-compile on ingest, knowledge compounding on query, FetchEngine URL/binary ingest. | ✅ |
+| mcp_server.py | Surface | MCP adapter exposing wiki tools (`wiki_query_tool`, `wiki_ingest_tool`, `wiki_apply_tool`) to external agents (Claude Code, Cursor) — thin shell over the LangChain tools via `register_wiki_mcp_tools` + request-level ContextVar; ingest is URL/raw-text only on this surface (local file paths refused). | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|
