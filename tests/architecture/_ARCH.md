@@ -50,7 +50,9 @@ CI 架构门禁：层边界、分形文档、PyPI wheel 打包不变量、tool r
 | `test_bash_native_ptc_removed.py` | Gate | bash 路径禁止 Turn1 native PTC stub（`_ptc_tools_ref` / `inject_ptc_for_python_execution` / `get_ptc_description`） | — |
 | `test_no_ghost_registry_metadata.py` | Gate | `tool_registry.py` metadata maps 不得含无 @tool 源的幽灵键 | — |
 | `test_types_reexport.py` | Gate | `backends/skills/types/` `__all__` 聚合 re-export 完整性 | — |
-| `test_validate_arch_inventory.py` | Gate | `_ARCH.md` 文件表 vs 同级 `.py` 一致性（table-only 解析）；含 agent/ 与全 harness subprocess gate | — |
+| `test_validate_arch_inventory.py` | Gate | `_ARCH.md` 文件表 vs 同级 `.py` 一致性（table-only 解析）；含 agent/ 与全 harness subprocess gate、单测与跨仓 server md-refs gate | — |
+| `test_md_ref_inline_links.py` | Gate | md 反引号 span 与内联链接统一解析回归（链接提取·anchor 剥离、`{placeholder}` 符号行跳过、导入规格表首列源文件锚定、TS/JS 扩展名探测、拒绝截断父级标记、非 UTF-8 跳过） | — |
+| `test_cross_repo_md_refs.py` | Gate | 兄弟仓（frontend/control-plane/brand）markdown 路径引用解析门禁；仓缺失时 skip | — |
 | `test_readme_claims.py` | Gate | README 声明与实际代码/性能基准一致性校验 | — |
 | `test_core_dependencies.py` | Gate | core vs optional/dev 分层：4 项 optional-only 包不得回 core；uv.lock core 与 pyproject 对齐 | — |
 | `test_orchestration_registry_parity.py` | Gate | `tool_registry_config` 与 orchestration SSOT 对齐（hook / signal 命名回归） | — |

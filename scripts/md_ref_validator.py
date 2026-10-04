@@ -58,7 +58,9 @@ _MD_SKIP_PREFIXES = (
     "{",  # template/glob braces
     "<",  # angle-bracket refs (e.g. docs-placeholder)
 )
-_MD_SKIP_CHARS = frozenset(" \t*?[]{}<>,")
+# Characters that mark a span as non-path noise. Kept out of the set: ``[``/``]``
+# so dynamic path segments (``app/mobile/[chatId]/page.tsx``) still resolve.
+_MD_SKIP_CHARS = frozenset(" \t*?{}<>,")
 _MD_TRAILING_PUNCT = ".,;:!?)]}>'\""
 _FILE_EXTENSIONS = frozenset(
     {".py", ".md", ".ts", ".tsx", ".mjs", ".js", ".cjs", ".sh", ".json", ".yaml", ".yml", ".toml"}

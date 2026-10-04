@@ -96,6 +96,18 @@ def test_progressive_paths_never_strips_parent_markers() -> None:
     assert _progressive_paths("../common/...") == ["../common/..."]
 
 
+@pytest.mark.architecture
+def test_extract_md_refs_keeps_dynamic_segments(tmp_path: Path) -> None:
+    """Bracketed dynamic path segments (``[chatId]``) are part of the path and
+    must still be extracted and resolvable, not dropped as noise."""
+    (tmp_path / "app" / "mobile" / "[chatId]").mkdir(parents=True)
+    (tmp_path / "app" / "mobile" / "[chatId]" / "page.tsx").write_text("", encoding="utf-8")
+    md = tmp_path / "doc.md"
+    md.write_text("| `./app/mobile/[chatId]/page.tsx` | 路由页 |\n", encoding="utf-8")
+    refs = _extract_md_refs(md, frozenset())
+    assert [(ref, line) for ref, line, _ in refs] == [("./app/mobile/[chatId]/page.tsx", 1)]
+
+
 def test_extract_md_refs_skips_non_utf8(tmp_path: Path) -> None:
     """Non-UTF-8 markdown (fixtures/binary dumps) is skipped, not fatal."""
     md = tmp_path / "bad.md"
