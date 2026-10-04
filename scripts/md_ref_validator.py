@@ -2,8 +2,11 @@
 """Validate markdown path references across a repo tree.
 
 Two reference syntaxes are checked: backtick code spans (``path``) and inline
-links (``[label](path)``). Spans that carry a directory separator are resolved
-for existence in a deterministic order:
+links (``[label](path)``). Backtick spans must carry a directory separator to
+count, but an inline link is validated whenever it carries a file extension
+even without a separator — ``[guide](other.md)`` resolves against the md's own
+directory. Spans that carry a directory separator are resolved for existence in
+a deterministic order:
 
 1. explicit relatives (``./`` / ``../``) — against the md file's directory,
    plus the table row's first-cell directory when present;
@@ -229,11 +232,14 @@ def _extract_md_refs(md_path: Path, top_dirs: frozenset[str]) -> list[tuple[str,
     """Extract path candidates from backtick spans and inline links.
 
     Both ``path``-style code spans and ``[label](path)`` links feed the same
-    filter, so a link target is validated exactly like a backticked ref (except
-    bare link targets without a ``/`` are allowed, since ``doc.md`` style
-    links are common). ``top_dirs`` are the harness top-level module
-    directories used to recognize module-shortcut refs; pass an empty set to
-    restrict validation to explicit relatives and cross-repo aliases.
+    filter, so a separated link target is validated exactly like a backticked
+    ref. Inline links get one extra rule: a bare leaf filename that carries a
+    file extension (``[guide](other.md)``) is validated against the md's
+    directory too, whereas the backtick branch keeps the ``/`` requirement so a
+    prose mention such as ``main.py`` is not mistaken for a path. ``top_dirs``
+    are the harness top-level module directories used to recognize
+    module-shortcut refs; pass an empty set to restrict validation to explicit
+    relatives and cross-repo aliases.
 
     For table rows whose first cell is a backticked directory (e.g.
     ``| `docker/` | ... ``), that directory is returned as ``row_dir`` so
@@ -284,10 +290,17 @@ def _extract_md_refs(md_path: Path, top_dirs: frozenset[str]) -> list[tuple[str,
             cleaned = _clean_ref(match.group(1))
             if cleaned is None:
                 continue
-            if "/" not in cleaned and not cleaned.endswith(tuple(_FILE_SUFFIXES)):
-                continue  # bare anchor-like label without a path
-            if not _is_verifiable_ref(cleaned, top_dirs):
+            if "/" in cleaned:
+                if not _is_verifiable_ref(cleaned, top_dirs):
+                    continue
+            elif not cleaned.lower().endswith(tuple(_FILE_SUFFIXES)):
+                # A bare label carrying no file extension is prose (``#anchor``
+                # targets were already dropped by ``_clean_ref``), not a path.
                 continue
+            # Inline links are explicit navigation targets, so a bare leaf
+            # filename (``[guide](other.md)``) is validated against the md's
+            # own directory. Backtick prose deliberately keeps the top-dir
+            # gate below, which would otherwise flag every ``main.py`` mention.
             refs.append((cleaned, line_no, row_dir))
     return refs
 

@@ -20,6 +20,7 @@ from scripts.md_ref_validator import (
     _extract_md_refs,
     _path_exists,
     _progressive_paths,
+    scan_md_refs,
 )
 
 _TOP_DIRS = frozenset({"agent", "api", "core", "runtime", "toolkits"})
@@ -28,13 +29,15 @@ _TOP_DIRS = frozenset({"agent", "api", "core", "runtime", "toolkits"})
 @pytest.mark.architecture
 def test_extract_md_refs_captures_inline_links(tmp_path: Path) -> None:
     """Inline ``[label](path)`` and image links feed the same pipeline as
-    backtick spans; anchors, external URLs, and bare labels are dropped."""
+    backtick spans; anchors, external URLs, and extension-less labels are
+    dropped while a bare filename carrying a file extension is kept."""
     md = tmp_path / "doc.md"
     md.write_text(
         "See [guide](./sub/guide.md) and ![diagram](./assets/diagram.png).\n"
         "Anchor [top](#overview), external [site](https://example.com/x.md), "
         "anchor-strip [sec](./sub/guide.md#part) cover.\n"
-        "Bare [readme](README.md) carries no directory separator.\n",
+        "Bare [readme](README.md) is a leaf file target, "
+        "label [go](nowhere) carries no extension.\n",
         encoding="utf-8",
     )
     refs = _extract_md_refs(md, frozenset())
@@ -42,6 +45,7 @@ def test_extract_md_refs_captures_inline_links(tmp_path: Path) -> None:
         ("./sub/guide.md", 1),
         ("./assets/diagram.png", 1),
         ("./sub/guide.md", 2),
+        ("README.md", 3),
     ]
 
 
@@ -113,3 +117,19 @@ def test_extract_md_refs_skips_non_utf8(tmp_path: Path) -> None:
     md = tmp_path / "bad.md"
     md.write_bytes(b"\xff\xfe`./x.py`\n")
     assert _extract_md_refs(md, frozenset()) == []
+
+
+@pytest.mark.architecture
+def test_bare_filename_links_are_validated(tmp_path: Path) -> None:
+    """A bare leaf filename link resolves against the md's own directory: an
+    existing sibling passes while a missing one is reported broken. A plain
+    backtick mention of the same name stays unchecked (prose, not navigation)."""
+    (tmp_path / "sibling.md").write_text("", encoding="utf-8")
+    md = tmp_path / "doc.md"
+    md.write_text(
+        "OK [a](sibling.md), broken [b](missing.md), prose `missing.md` here.\n",
+        encoding="utf-8",
+    )
+    reports = scan_md_refs(tmp_path, monorepo_root=tmp_path, repo_root=tmp_path)
+    broken = [(ref, line) for report in reports for ref, line in report.broken_refs]
+    assert broken == [("missing.md", 1)]

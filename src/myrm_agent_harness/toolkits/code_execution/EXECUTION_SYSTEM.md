@@ -306,7 +306,7 @@ from myrm_agent_harness.toolkits.execution.execution_tools import (
 | 幻觉/偏移率 | 29% | **11%** | -62% |
 | 每 100 复杂任务成本 | $18-42 | **$9-21** | -50% |
 
-25 维度完整对比见 [CODE_EXECUTION_SYSTEM_REFERENCE.md § 3.6.3.5](CODE_EXECUTION_SYSTEM_REFERENCE.md)。
+完整对比见 [§ 与竞品对比](#与竞品对比)。
 
 **注**：Credits 浪费率 72.4% 是 Manus 当前实现的实测数据，非 per-task 固有缺陷。per-task 可通过完善的外部记忆系统降低浪费，但需要额外工程（共享数据库 + API 调用）。per-user 天然避免上下文丢失——数据在沙箱内自然存在。
 
