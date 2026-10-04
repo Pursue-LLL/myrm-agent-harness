@@ -6,7 +6,7 @@ Session-scoped recurring loop scheduling runtime algorithms and models.
 Pure stateless algorithms for command parsing, noise-stripped semantic fingerprinting,
 and adaptive exponential backoff pacing.
 
-Layer cheatsheet: [ARCHITECTURE.md](../../../ARCHITECTURE.md) §Harness 五层落点.
+Layer cheatsheet: [ARCHITECTURE.md](../../../../ARCHITECTURE.md) §Harness 五层落点.
 
 ## File Index
 

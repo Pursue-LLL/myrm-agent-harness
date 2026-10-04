@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Validate markdown backtick path references across a repo tree.
+"""Validate markdown path references across a repo tree.
 
-Backtick spans that carry a directory separator are resolved for existence in
-a deterministic order:
+Two reference syntaxes are checked: backtick code spans (``path``) and inline
+links (``[label](path)``). Spans that carry a directory separator are resolved
+for existence in a deterministic order:
 
 1. explicit relatives (``./`` / ``../``) — against the md file's directory,
    plus the table row's first-cell directory when present;
@@ -33,15 +34,19 @@ from dataclasses import dataclass
 from pathlib import Path
 
 _PKG_REL = "src/myrm_agent_harness"
-# Alternate package root names probed for non-harness repos (server: app/).
+# Alternate package root names probed for non-harness repos (server: ``app/``).
 # Frontend TS/TSX docs are intentionally not shortcut-scanned: their backtick
-# refs name components/hooks without extensions (``./useMessageQueue``) and
-# cross-repo server paths without a prefix, which this validator cannot resolve
-# reliably; only explicit relatives and aliases apply there.
+# refs mix extension-less imports, barrel paths, and prefix-less cross-repo
+# server paths (``app/...``), which this validator cannot resolve reliably
+# without false positives; only explicit relatives and aliases apply there.
 _PKG_ROOT_CANDIDATES = ("app",)
 
 # Backtick-wrapped code spans that may carry file paths.
 _MD_REF_RE = re.compile(r"`([^`\n]+)`")
+# Inline links ``[label](target)`` — the leading ``!`` (image) is optional; the
+# target stops at the first ``)`` and never spans lines. Link targets carry the
+# same path semantics as backtick spans, so both feed one resolution pipeline.
+_MD_LINK_RE = re.compile(r"!?\[[^\]\n]*\]\(([^)\n]+)\)")
 _MD_SKIP_PREFIXES = (
     "http://",
     "https://",
@@ -58,6 +63,10 @@ _MD_TRAILING_PUNCT = ".,;:!?)]}>'\""
 _FILE_EXTENSIONS = frozenset(
     {".py", ".md", ".ts", ".tsx", ".mjs", ".js", ".cjs", ".sh", ".json", ".yaml", ".yml", ".toml"}
 )
+# Extension-less refs are probed against these source extensions (frontend refs
+# like ``./useMessageQueue`` map to ``useMessageQueue.ts``); Python probing
+# (``mod`` -> ``mod.py``) is handled separately in ``_path_exists``.
+_PROBE_EXTENSIONS = (".tsx", ".ts", ".mjs", ".js", ".cjs")
 # Data file extensions commonly backticked in docs; treated as file refs, not
 # dotted symbol suffixes.
 _DATA_EXTENSIONS = frozenset({".txt", ".jsonl", ".ndjson", ".csv", ".tsv", ".lock", ".env"})
@@ -148,6 +157,8 @@ def _progressive_paths(ref: str) -> list[str]:
         last = head.rsplit("/", 1)[-1]
         if not last:
             break
+        if last in {".", ".."}:
+            break  # never strip parent-directory markers; ``../..`` is not a symbol
         if last.endswith(tuple(_FILE_SUFFIXES)):
             break
         if "." in last:
@@ -158,6 +169,8 @@ def _progressive_paths(ref: str) -> list[str]:
             break
         if not head or "/" not in head:
             break
+        if head.rsplit("/", 1)[-1] in {".", ".."}:
+            break  # a stripped head must remain a real path, not ``../..``
         paths.append(head)
     return paths
 
@@ -174,52 +187,103 @@ def _is_verifiable_ref(ref: str, top_dirs: frozenset[str]) -> bool:
 def _path_exists(base: Path, ref: str) -> bool:
     """Check a file, a bare module name (``mod`` -> ``mod.py`` / ``mod/``), or
     a package directory (``pkg/mod`` -> ``pkg/mod/__init__.py``). A trailing
-    slash (``pkg/mod/``) is tolerated for file refs."""
+    slash (``pkg/mod/``) is tolerated for file refs. Extension-less refs are
+    also probed against TS/JS source extensions so frontend refs written in
+    import notation (``./useMessageQueue``) resolve to their real file."""
     ref = ref.rstrip("/")
-    if (base / ref).exists():
-        return True
-    if (base / f"{ref}.py").exists():
-        return True
-    return (base / ref / "__init__.py").exists()
+    candidates = [ref, f"{ref}.py", f"{ref}/__init__.py"]
+    if not Path(ref).suffix:
+        candidates.extend(f"{ref}{ext}" for ext in _PROBE_EXTENSIONS)
+    return any((base / cand).exists() for cand in candidates)
+
+
+def _clean_ref(raw: str) -> str | None:
+    """Normalize a raw backtick span or link target into a verifiable ref.
+
+    Returns ``None`` when the candidate is not a path we can check (non-path
+    span, URL, anchor-only, templated, elided). The ``#fragment`` anchor is
+    dropped so ``docs/x.md#section`` resolves against ``docs/x.md``."""
+    ref = raw.strip()
+    if "://" in ref or "..." in ref:  # URI scheme or path elision
+        return None
+    if any(ref.startswith(prefix) for prefix in _MD_SKIP_PREFIXES):
+        return None
+    if ref.startswith(".") and not ref.startswith(("./", "../")):
+        return None  # dotfile / single-dot refs
+    ref = ref.split("#", 1)[0]
+    if not ref:
+        return None  # anchor-only link (``[x](#top)``)
+    if _MD_SKIP_CHARS.intersection(ref):
+        return None
+    cleaned = ref.rstrip(_MD_TRAILING_PUNCT)
+    if not cleaned:
+        return None
+    if _has_env_var_segment(cleaned):
+        return None
+    return cleaned
 
 
 def _extract_md_refs(md_path: Path, top_dirs: frozenset[str]) -> list[tuple[str, int, str | None]]:
-    """Extract backtick path candidates that carry a directory separator.
+    """Extract path candidates from backtick spans and inline links.
 
-    ``top_dirs`` are the harness top-level module directories used to recognize
-    module-shortcut refs; pass an empty set to restrict validation to explicit
-    relatives and cross-repo aliases.
+    Both ``path``-style code spans and ``[label](path)`` links feed the same
+    filter, so a link target is validated exactly like a backticked ref (except
+    bare link targets without a ``/`` are allowed, since ``doc.md`` style
+    links are common). ``top_dirs`` are the harness top-level module
+    directories used to recognize module-shortcut refs; pass an empty set to
+    restrict validation to explicit relatives and cross-repo aliases.
 
     For table rows whose first cell is a backticked directory (e.g.
     ``| `docker/` | ... ``), that directory is returned as ``row_dir`` so
     cell refs can be resolved relative to it before falling back to the md."""
     refs: list[tuple[str, int, str | None]] = []
-    for line_no, line in enumerate(md_path.read_text(encoding="utf-8").splitlines(), start=1):
+    try:
+        text = md_path.read_text(encoding="utf-8")
+    except (UnicodeDecodeError, OSError):
+        # Non-UTF-8 or unreadable markdown (fixtures, binary-ish dumps) carries
+        # no verifiable refs; skip it instead of aborting the whole scan.
+        return refs
+    for line_no, line in enumerate(text.splitlines(), start=1):
         row_dir: str | None = None
+        symbolic_row = False
         stripped = line.lstrip()
         if stripped.startswith("|"):
             cells = stripped.split("|")
             if len(cells) >= 2:
                 first_cell = _MD_REF_RE.search(cells[1])
-                if first_cell and first_cell.group(1).strip().endswith("/"):
-                    row_dir = first_cell.group(1).strip().rstrip("/")
+                if first_cell:
+                    cell = first_cell.group(1).strip()
+                    if "{" in cell:
+                        # Placeholder-anchored rows (``| `sections/{group}/X.tsx` ...``)
+                        # are illustrative patterns, not assertions about specific
+                        # files, so their refs are not existence-checked.
+                        symbolic_row = True
+                    elif cell.endswith("/"):
+                        row_dir = cell.rstrip("/")
+                    elif cell.endswith(tuple(_FILE_SUFFIXES)) and "/" in cell:
+                        # Import-specifier tables anchor refs to the first cell's
+                        # source file (``| `sections/{g}/X.tsx` | ... | `../Y` |``).
+                        # The cell path is source-tree-relative, so strip the
+                        # segment matching the md's own directory before resolving
+                        # cell refs relative to that source file's directory.
+                        cell_dir = cell.rsplit("/", 1)[0]
+                        prefix = f"{md_path.parent.name}/"
+                        row_dir = cell_dir[len(prefix) :] if cell_dir.startswith(prefix) else cell_dir
+        if symbolic_row:
+            continue
         for match in _MD_REF_RE.finditer(line):
-            ref = match.group(1).strip()
-            if "/" not in ref:
+            cleaned = _clean_ref(match.group(1))
+            if cleaned is None or "/" not in cleaned:
                 continue
-            if "://" in ref or "..." in ref:  # URI scheme or path elision
+            if not _is_verifiable_ref(cleaned, top_dirs):
                 continue
-            if any(ref.startswith(prefix) for prefix in _MD_SKIP_PREFIXES):
+            refs.append((cleaned, line_no, row_dir))
+        for match in _MD_LINK_RE.finditer(line):
+            cleaned = _clean_ref(match.group(1))
+            if cleaned is None:
                 continue
-            if ref.startswith(".") and not ref.startswith(("./", "../")):
-                continue  # dotfile / single-dot refs
-            if _MD_SKIP_CHARS.intersection(ref):
-                continue
-            cleaned = ref.rstrip(_MD_TRAILING_PUNCT)
-            if not cleaned:
-                continue
-            if _has_env_var_segment(cleaned):
-                continue
+            if "/" not in cleaned and not cleaned.endswith(tuple(_FILE_SUFFIXES)):
+                continue  # bare anchor-like label without a path
             if not _is_verifiable_ref(cleaned, top_dirs):
                 continue
             refs.append((cleaned, line_no, row_dir))

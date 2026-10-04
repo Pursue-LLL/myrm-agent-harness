@@ -155,7 +155,7 @@ class ToolLayer(IntEnum):
 
 ### 2.4 层分配铁律（CI 强制执行）
 
-证据来源: [tool_catalog.py](tool_catalog.py) `validate_layer_product_consistency()` · [scripts/validate_tool_registry.py](../../../scripts/validate_tool_registry.py)
+证据来源: [tool_catalog.py](tool_catalog.py) `validate_layer_product_consistency()` · [scripts/validate_tool_registry.py](../../../../scripts/validate_tool_registry.py)
 
 | 层 | 准入条件 | 反例（CI 失败） |
 |----|----------|----------------|
@@ -201,7 +201,7 @@ class ToolLayer(IntEnum):
 
 **差异化认知负载管理**
 
-证据来源: [myrm-agent-server/app/api/agents/agent.py:644-651](../../../myrm-agent-server/app/api/agents/agent.py)
+证据来源: [myrm-agent-server/app/api/agents/agent.py:644-651](myrm-agent-server/app/api/agents/agent.py)
 
 ### 3.2 核心技能 (Core Skills)
 - **特征**: 常驻在模型 Prompt 中
@@ -221,7 +221,7 @@ if not is_core:
     cost = int(cost * 0.5)  # 外围工具因按需加载，常驻认知负载减半
 ```
 
-证据来源: [myrm-agent-server/app/api/agents/agent.py:648-650](../../../myrm-agent-server/app/api/agents/agent.py)
+证据来源: [myrm-agent-server/app/api/agents/agent.py:648-650](myrm-agent-server/app/api/agents/agent.py)
 
 ---
 
@@ -269,7 +269,7 @@ noise_level = min(100, round((total_score / max_safe_score) * 100))
 accuracy_level = 100 - noise_level
 ```
 
-证据来源: [myrm-agent-server/app/api/agents/agent.py:660-662](../../../myrm-agent-server/app/api/agents/agent.py)
+证据来源: [myrm-agent-server/app/api/agents/agent.py:660-662](myrm-agent-server/app/api/agents/agent.py)
 
 ### 4.4 警告阈值
 
@@ -285,7 +285,7 @@ accuracy_level = 100 - noise_level
 
 ### 5.1 闲置技能检测
 
-证据来源: [myrm-agent-frontend/src/components/ui/chat-window/agent-config-panel/AgentConfigEditDialog.tsx:327-334](../../../myrm-agent-frontend/src/components/ui/chat-window/agent-config-panel/AgentConfigEditDialog.tsx)
+证据来源: [myrm-agent-frontend/src/components/features/chat-window/agent-config-panel/AgentConfigEditDialog.tsx:327-334](myrm-agent-frontend/src/components/features/chat-window/agent-config-panel/AgentConfigEditDialog.tsx)
 
 **检测逻辑**:
 ```typescript
@@ -409,7 +409,7 @@ def get_tool_layer(tool_name: str) -> ToolLayer:
 
 ### 9.1 实时准确度预测雷达
 
-证据来源: [AgentConfigEditDialog.tsx:375-410](../../../myrm-agent-frontend/src/components/ui/chat-window/agent-config-panel/AgentConfigEditDialog.tsx)
+证据来源: [myrm-agent-frontend/src/components/features/chat-window/agent-config-panel/AgentConfigEditDialog.tsx:375-410](myrm-agent-frontend/src/components/features/chat-window/agent-config-panel/AgentConfigEditDialog.tsx)
 
 **位置**: Agent 配置编辑面板
 
