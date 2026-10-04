@@ -170,7 +170,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--md-refs",
         action="store_true",
-        help="Also validate backtick path references in *.md under the root",
+        help="Also validate backtick spans and inline links in *.md under the root",
     )
     parser.add_argument("--json", action="store_true", help="JSON output")
     args = parser.parse_args(argv)
