@@ -5,10 +5,11 @@ Two independent checks:
 
 1. **_ARCH inventory** — module-level ``_ARCH.md`` file tables must list sibling
    ``.py`` files (bidirectional: every py file listed, every listed py on disk).
-2. **markdown path refs** (``--md-refs``) — backtick-wrapped relative paths in
-   any ``*.md`` under the scanned root must resolve to a real file/directory.
-   Resolution rules live in :mod:`scripts.md_ref_validator` (explicit relatives,
-   cross-repo aliases, and source-root module shortcuts).
+2. **markdown path refs** (``--md-refs``) — backtick-wrapped relative paths and
+   inline ``[label](path)`` links in any ``*.md`` under the scanned root must
+   resolve to a real file/directory. Resolution rules live in
+   :mod:`scripts.md_ref_validator` (explicit relatives, cross-repo aliases, and
+   source-root module shortcuts).
 
 Only parses markdown **table rows** (lines starting with ``|``) in ``_ARCH.md`` —
 prose mentions of ``other_module.py`` are ignored by check 1; check 2 also scans

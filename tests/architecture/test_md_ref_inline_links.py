@@ -133,3 +133,19 @@ def test_bare_filename_links_are_validated(tmp_path: Path) -> None:
     reports = scan_md_refs(tmp_path, monorepo_root=tmp_path, repo_root=tmp_path)
     broken = [(ref, line) for report in reports for ref, line in report.broken_refs]
     assert broken == [("missing.md", 1)]
+
+
+@pytest.mark.architecture
+def test_link_syntax_inside_code_span_is_literal(tmp_path: Path) -> None:
+    """A link written inside a backtick code span (docs that describe the
+    syntax itself) is literal text, not a navigation target, and must not be
+    reported broken even though its target does not exist."""
+    md = tmp_path / "doc.md"
+    md.write_text(
+        "Bare links like `[x](other.md)` are validated; "
+        "real [broken](gone.md) is not.\n",
+        encoding="utf-8",
+    )
+    reports = scan_md_refs(tmp_path, monorepo_root=tmp_path, repo_root=tmp_path)
+    broken = [(ref, line) for report in reports for ref, line in report.broken_refs]
+    assert broken == [("gone.md", 1)]

@@ -236,10 +236,12 @@ def _extract_md_refs(md_path: Path, top_dirs: frozenset[str]) -> list[tuple[str,
     ref. Inline links get one extra rule: a bare leaf filename that carries a
     file extension (``[guide](other.md)``) is validated against the md's
     directory too, whereas the backtick branch keeps the ``/`` requirement so a
-    prose mention such as ``main.py`` is not mistaken for a path. ``top_dirs``
-    are the harness top-level module directories used to recognize
-    module-shortcut refs; pass an empty set to restrict validation to explicit
-    relatives and cross-repo aliases.
+    prose mention such as ``main.py`` is not mistaken for a path. Link syntax
+    written inside a code span (documentation of the syntax itself) is literal
+    text and is not treated as a navigation target. ``top_dirs`` are the harness
+    top-level module directories used to recognize module-shortcut refs; pass an
+    empty set to restrict validation to explicit relatives and cross-repo
+    aliases.
 
     For table rows whose first cell is a backticked directory (e.g.
     ``| `docker/` | ... ``), that directory is returned as ``row_dir`` so
@@ -286,7 +288,11 @@ def _extract_md_refs(md_path: Path, top_dirs: frozenset[str]) -> list[tuple[str,
             if not _is_verifiable_ref(cleaned, top_dirs):
                 continue
             refs.append((cleaned, line_no, row_dir))
-        for match in _MD_LINK_RE.finditer(line):
+        # Link syntax inside a code span is literal text (docs that document the
+        # syntax itself), so blank out code spans before scanning links to avoid
+        # validating it as a navigation target.
+        link_source = _MD_REF_RE.sub(lambda m: " " * len(m.group(0)), line)
+        for match in _MD_LINK_RE.finditer(link_source):
             cleaned = _clean_ref(match.group(1))
             if cleaned is None:
                 continue
@@ -300,7 +306,7 @@ def _extract_md_refs(md_path: Path, top_dirs: frozenset[str]) -> list[tuple[str,
             # Inline links are explicit navigation targets, so a bare leaf
             # filename (``[guide](other.md)``) is validated against the md's
             # own directory. Backtick prose deliberately keeps the top-dir
-            # gate below, which would otherwise flag every ``main.py`` mention.
+            # gate above, which would otherwise flag every ``main.py`` mention.
             refs.append((cleaned, line_no, row_dir))
     return refs
 
