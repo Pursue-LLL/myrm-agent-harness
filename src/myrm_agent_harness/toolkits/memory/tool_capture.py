@@ -34,6 +34,7 @@ from __future__ import annotations
 import logging
 import re
 from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -140,16 +141,101 @@ _TOOL_KEYWORD_MAP: dict[str, list[str]] = {
 }
 
 
-def associate_tool(edict_text: str, recent_tool: str | None) -> str | None:
+_TOOL_PRONOUNS: tuple[str, ...] = (
+    "该工具",
+    "这个工具",
+    "刚才的工具",
+    "刚才那个工具",
+    "这个命令",
+    "刚才的命令",
+    "刚才那个命令",
+    "这个操作",
+    "该操作",
+    "this tool",
+    "that tool",
+    "the tool",
+    "this command",
+    "that command",
+    "the command",
+    "last command",
+    "last tool",
+)
+
+
+def _match_dynamic_tool(text_lower: str, available_tools: Sequence[str]) -> str | None:
+    # 1. Exact substring match of full tool name
+    for tool_name in available_tools:
+        if tool_name.lower() in text_lower:
+            return tool_name
+
+    # 2. Structured MCP namespace and action keywords matching
+    for tool_name in available_tools:
+        name_lower = tool_name.lower()
+        if "__" in tool_name:
+            ns = name_lower.split("__")[0]
+            action_words = [s for s in re.split(r"[_\-:]+", name_lower.split("__", 1)[1]) if len(s) >= 3]
+            if ns in text_lower and (not action_words or any(w in text_lower for w in action_words)):
+                return tool_name
+        else:
+            segments = [s for s in re.split(r"[_\-:]+", name_lower) if len(s) >= 3]
+            if len(segments) >= 2 and all(s in text_lower for s in segments):
+                return tool_name
+
+    return None
+
+
+def associate_tool(
+    edict_text: str,
+    recent_tool: str | None = None,
+    available_tools: Sequence[str] | None = None,
+) -> str | None:
     """Associate an edict with a tool name.
 
-    Priority: keyword matching > most recently used tool.
+    Priority:
+    1. Built-in keywords matching (_TOOL_KEYWORD_MAP)
+    2. Dynamic registered tools (including MCP tools)
+    3. Explicit referential pronouns pointing to recent_tool
+    4. Unrelated text returns None (prevents false-positive pollution).
     """
     text_lower = edict_text.lower()
+
+    # 1. Built-in keywords matching
     for tool_name, keywords in _TOOL_KEYWORD_MAP.items():
         if any(kw in text_lower for kw in keywords):
             return tool_name
-    return recent_tool
+
+    # 2. Dynamic tools matching
+    if available_tools:
+        matched = _match_dynamic_tool(text_lower, available_tools)
+        if matched:
+            return matched
+
+    # 3. Explicit referential pronouns pointing to recent_tool
+    if recent_tool and any(pronoun in text_lower for pronoun in _TOOL_PRONOUNS):
+        return recent_tool
+
+    # 4. Strict rejection for generic negatives ("don't lie", "不要啰嗦")
+    return None
+
+
+def extract_clean_error_summary(error: str, max_length: int = 140) -> str:
+    """Extract the most relevant tail exception message from traceback or raw error."""
+    if not error:
+        return "unknown error"
+
+    clean = re.sub(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])", "", error).strip()
+    if not clean:
+        return "unknown error"
+
+    lines = [line.strip() for line in clean.splitlines() if line.strip()]
+    if not lines:
+        return "unknown error"
+
+    for line in reversed(lines):
+        if any(marker in line for marker in ("Error:", "Exception:", "Timeout:", "Failed:", "Denied:", "NotFound:")):
+            return line[:max_length]
+
+    return lines[-1][:max_length]
 
 
 # ── Failure tracker ──────────────────────────────────────────────────
@@ -190,10 +276,15 @@ class ToolMemoryCaptureHook:
         registry.register(HookEvent.POST_TOOL_USE_FAILURE, CallableHookDefinition(fn=hook.on_post_tool_failure))
     """
 
-    def __init__(self) -> None:
+    def __init__(self, available_tools: Sequence[str] | None = None) -> None:
         self._failure_tracker = _FailureTracker()
         self._pending_rules: list[ProceduralMemory] = []
         self._last_tool_name: str | None = None
+        self._available_tools: list[str] = list(available_tools) if available_tools else []
+
+    def set_available_tools(self, tools: Sequence[str]) -> None:
+        """Dynamically update available tools (e.g. after MCP tool registration)."""
+        self._available_tools = list(tools)
 
     @property
     def pending_rules(self) -> list[ProceduralMemory]:
@@ -221,7 +312,11 @@ class ToolMemoryCaptureHook:
 
         edicts = extract_tool_edicts(user_input)
         for edict in edicts:
-            tool_name = associate_tool(edict.rule_text, self._last_tool_name)
+            tool_name = associate_tool(
+                edict.rule_text,
+                self._last_tool_name,
+                self._available_tools,
+            )
             if tool_name:
                 rule = ProceduralMemory(
                     content=edict.rule_text,
@@ -254,10 +349,11 @@ class ToolMemoryCaptureHook:
 
         if self._failure_tracker.should_create_rule(tool_name, _FAILURE_THRESHOLD):
             self._failure_tracker.mark_recorded(tool_name)
+            clean_error = extract_clean_error_summary(error)
             rule = ProceduralMemory(
                 content=f"Tool '{tool_name}' failed {count} times in this session",
                 trigger=f"{tool_name} repeated failure",
-                action=f"Consider alternative approach when using {tool_name}. Last error: {error[:200]}",
+                action=f"Consider alternative approach when using {tool_name}. Last error: {clean_error}",
                 tool_name=tool_name,
                 tool_rule_priority=ToolRulePriority.NORMAL,
                 source=RuleSource.AGENT_SELF,

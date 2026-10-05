@@ -15,6 +15,7 @@ from myrm_agent_harness.toolkits.memory.tool_capture import (
     ToolMemoryCaptureHook,
     _FailureTracker,
     associate_tool,
+    extract_clean_error_summary,
     extract_tool_edicts,
 )
 from myrm_agent_harness.toolkits.memory.types import ToolRulePriority
@@ -77,11 +78,48 @@ class TestAssociateTool:
     def test_keyword_match_chinese(self):
         assert associate_tool("不要使用终端删除", None) == "bash_code_execute_tool"
 
-    def test_fallback_to_recent_tool(self):
-        assert associate_tool("something unrelated", "my_tool") == "my_tool"
+    def test_unrelated_text_strictly_isolated_from_recent_tool(self):
+        # Bug fix: unrelated negatives should NOT be falsely bound to recent_tool
+        assert associate_tool("不要说谎，直接告诉我", "my_tool") is None
+        assert associate_tool("something unrelated", "my_tool") is None
+        assert associate_tool("别太啰嗦", "web_search_tool") is None
+
+    def test_explicit_pronoun_fallback_to_recent_tool(self):
+        # Legitimate pronoun pointing back to recent tool
+        assert associate_tool("不要再用这个工具了", "bash_code_execute_tool") == "bash_code_execute_tool"
+        assert associate_tool("该工具禁止在此目录下运行", "file_write_tool") == "file_write_tool"
+        assert associate_tool("don't run this command again", "bash_code_execute_tool") == "bash_code_execute_tool"
+        assert associate_tool("never execute that tool", "my_tool") == "my_tool"
+
+    def test_dynamic_tools_and_mcp_matching(self):
+        avail = ["github__create_issue", "postgres__run_query", "slack__send_message"]
+        assert associate_tool("不要使用 github 创建 issue", available_tools=avail) == "github__create_issue"
+        assert associate_tool("never run postgres query directly", available_tools=avail) == "postgres__run_query"
+        assert associate_tool("something else", available_tools=avail) is None
 
     def test_no_match_no_recent(self):
         assert associate_tool("something unrelated", None) is None
+
+
+class TestExtractCleanErrorSummary:
+    def test_python_traceback_extracts_tail_exception(self):
+        tb = """Traceback (most recent call last):
+  File "app.py", line 42, in <module>
+    do_something()
+  File "app.py", line 12, in do_something
+    raise PermissionError("Permission denied: /etc/shadow")"""
+        summary = extract_clean_error_summary(tb)
+        assert "PermissionError" in summary or "Permission denied" in summary
+
+    def test_ansi_escape_cleaning(self):
+        raw = "\x1b[31m[ERROR]\x1b[0m ConnectionTimeout: endpoint unreachable"
+        summary = extract_clean_error_summary(raw)
+        assert "\x1b" not in summary
+        assert "ConnectionTimeout: endpoint unreachable" in summary
+
+    def test_empty_error_handling(self):
+        assert extract_clean_error_summary("") == "unknown error"
+        assert extract_clean_error_summary("   \n\t  ") == "unknown error"
 
 
 # ── _FailureTracker ─────────────────────────────────────────────────
