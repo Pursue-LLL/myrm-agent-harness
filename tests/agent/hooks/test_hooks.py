@@ -504,6 +504,20 @@ class TestPayloadFromDataclass:
             payload_from_dataclass({"tool_name": "test"})
 
 
+class TestSessionAccess:
+    def test_bootstrap_returns_same_registry_per_session(self):
+        from myrm_agent_harness.agent.hooks import (
+            bootstrap_hook_registry,
+            set_hook_executor,
+        )
+
+        set_hook_executor(None)  # start from a clean session
+        first = bootstrap_hook_registry()
+        second = bootstrap_hook_registry()
+        assert first is second
+        set_hook_executor(None)  # leave the session clean
+
+
 class TestParseHookJson:
     def test_valid_json_ok_true(self):
         from myrm_agent_harness.agent.hooks.executor import _parse_hook_json
