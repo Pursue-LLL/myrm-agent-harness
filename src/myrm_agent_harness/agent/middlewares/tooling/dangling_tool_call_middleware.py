@@ -9,10 +9,10 @@ This middleware scans the message history before each LLM invocation and
 inserts synthetic error ToolMessages for any dangling tool_calls, restoring
 a well-formed conversation that the LLM can process.
 
-Covers all three tool_call sources that langchain_openai serializes:
-1. msg.tool_calls (standard parsed calls)
-2. msg.invalid_tool_calls (malformed JSON args that LangChain failed to parse)
-3. msg.additional_kwargs["tool_calls"] (raw provider-level payloads)
+Covers the tool_call sources that langchain_openai serializes:
+1. msg.tool_calls (standard parsed calls, including calls promoted by quarantine
+   and args-recovery withholding so they receive an invalid-args ToolMessage)
+2. msg.additional_kwargs["tool_calls"] (raw provider-level payloads)
 
 Uses wrap_model_call (not before_model) to insert patches at the correct
 position — immediately after the dangling AIMessage — rather than appending
@@ -60,16 +60,18 @@ _MAX_ERROR_DETAIL_LEN = 500
 
 
 def _synthetic_content(
-    is_invalid: bool,
     tool_name: str = "unknown",
     error: str | None = None,
 ) -> tuple[str, str]:
-    """Generate appropriate synthetic ToolMessage content and status."""
-    if is_invalid:
-        if error:
-            truncated = error[:_MAX_ERROR_DETAIL_LEN]
-            return f"{_INVALID_ARGS_CONTENT[:-1]}: {truncated}]", "error"
-        return _INVALID_ARGS_CONTENT, "error"
+    """Generate appropriate synthetic ToolMessage content and status.
+
+    An ``error`` diagnosis means the call was quarantined as unrepairable —
+    surface it with invalid-args semantics; otherwise the call was valid or
+    repaired, and replay safety decides interrupted semantics.
+    """
+    if error:
+        truncated = error[:_MAX_ERROR_DETAIL_LEN]
+        return f"{_INVALID_ARGS_CONTENT[:-1]}: {truncated}]", "error"
 
     safety = get_tool_replay_safety(tool_name)
     if safety == ReplaySafety.SAFE:
@@ -221,43 +223,25 @@ def _sanitize_ai_message(msg: BaseMessage) -> bool:
     return changed
 
 
-def _extract_invalid_call_errors(msg: BaseMessage) -> dict[str, str]:
-    errors: dict[str, str] = {}
-    for itc in getattr(msg, "invalid_tool_calls", None) or []:
-        if not isinstance(itc, dict):
-            continue
-        itc_id = itc.get("id")
-        err = itc.get("error")
-        if isinstance(itc_id, str) and itc_id and isinstance(err, str) and err:
-            errors[itc_id] = err
-    return errors
+def _extract_tool_calls(msg: BaseMessage) -> list[tuple[str, str]]:
+    """Extract all tool call (id, name) pairs from an AIMessage.
 
-
-def _extract_tool_calls(msg: BaseMessage) -> list[tuple[str, str, bool]]:
-    """Extract all tool call (id, name, is_invalid) tuples from an AIMessage.
-
-    Covers the three sources that langchain_openai/_convert_message_to_dict
+    Quarantine runs upstream in _build_patched_messages, so invalid calls
+    are already upgraded into ``tool_calls`` (or dropped); extraction covers
+    the remaining sources that langchain_openai/_convert_message_to_dict
     serializes into the API request:
-    1. msg.tool_calls — standard parsed calls
-    2. msg.invalid_tool_calls — malformed calls (args failed JSON parsing)
-    3. msg.additional_kwargs["tool_calls"] — raw provider payloads (fallback)
+    1. msg.tool_calls — standard parsed calls (includes quarantined upgrades)
+    2. msg.additional_kwargs["tool_calls"] — raw provider payloads (fallback)
     """
-    results: list[tuple[str, str, bool]] = []
+    results: list[tuple[str, str]] = []
     seen_ids: set[str] = set()
 
     for tc in getattr(msg, "tool_calls", None) or []:
         tc_id = tc.get("id") if isinstance(tc, dict) else getattr(tc, "id", None)
         if tc_id and tc_id not in seen_ids:
             name = tc.get("name", "unknown") if isinstance(tc, dict) else getattr(tc, "name", "unknown")
-            results.append((tc_id, name, False))
+            results.append((tc_id, name))
             seen_ids.add(tc_id)
-
-    for itc in getattr(msg, "invalid_tool_calls", None) or []:
-        itc_id = itc.get("id") if isinstance(itc, dict) else getattr(itc, "id", None)
-        if itc_id and itc_id not in seen_ids:
-            name = itc.get("name", "unknown") if isinstance(itc, dict) else getattr(itc, "name", "unknown")
-            results.append((itc_id, name, True))
-            seen_ids.add(itc_id)
 
     if not results:
         raw_tool_calls = (getattr(msg, "additional_kwargs", None) or {}).get("tool_calls") or []
@@ -269,24 +253,70 @@ def _extract_tool_calls(msg: BaseMessage) -> list[tuple[str, str, bool]]:
                 continue
             function = raw_tc.get("function")
             name = raw_tc.get("name") or (function.get("name") if isinstance(function, dict) else None) or "unknown"
-            results.append((tc_id, name, False))
+            results.append((tc_id, name))
             seen_ids.add(tc_id)
 
     return results
 
 
+def _promote_withheld_tool_calls(msg: BaseMessage) -> dict[str, str]:
+    """Promote args-recovery-withheld calls into well-formed declarations.
+
+    Streaming aggregation cannot carry ``invalid_tool_calls`` across chunk
+    merges (LangChain ``add_ai_message_chunks`` drops the field), so the adapter
+    records calls it refused to execute in
+    ``additional_kwargs["tool_call_recovery"]`` with ``safe=False``. Those calls
+    never became executable tool calls; this step re-declares each as an
+    empty-args call (with a structured diagnosis keyed by id) so the dangling
+    pipeline pairs it with an informative invalid-args ``ToolMessage`` and the
+    model retries, instead of the turn silently losing its tool call.
+
+    Idempotent: ids already present in ``tool_calls`` (already promoted or
+    quarantined) are skipped, so repeated runs produce identical output.
+    """
+    if getattr(msg, "type", None) != "ai":
+        return {}
+    additional_kwargs = getattr(msg, "additional_kwargs", None)
+    recovery_items = additional_kwargs.get("tool_call_recovery") if isinstance(additional_kwargs, dict) else None
+    if not isinstance(recovery_items, list) or not recovery_items:
+        return {}
+
+    known_ids = {tc.get("id") for tc in (getattr(msg, "tool_calls", None) or []) if isinstance(tc, dict)}
+    declarations: list[dict[str, object]] = []
+    errors: dict[str, str] = {}
+    for item in recovery_items:
+        if not isinstance(item, dict) or item.get("safe") is not False:
+            continue
+        tc_id = item.get("tool_call_id")
+        if not isinstance(tc_id, str) or not tc_id.strip() or tc_id in known_ids:
+            continue
+        tool_name = item.get("tool_name")
+        name = tool_name if isinstance(tool_name, str) and tool_name.strip() else "unknown"
+        declarations.append({"name": name, "args": {}, "id": tc_id, "type": "tool_call"})
+        error = item.get("error")
+        errors[tc_id] = (
+            error if isinstance(error, str) and error else "Tool call arguments could not be safely parsed"
+        )
+        known_ids.add(tc_id)
+
+    if declarations:
+        msg.tool_calls = [*(getattr(msg, "tool_calls", None) or []), *declarations]  # type: ignore[attr-defined]
+    return errors
+
+
 def _build_patched_messages(messages: list[BaseMessage]) -> list[BaseMessage] | None:
     """Scan messages and insert synthetic ToolMessages for dangling tool_calls.
 
-    For each AIMessage whose tool_calls (including invalid_tool_calls and
-    additional_kwargs raw payloads) lack a corresponding ToolMessage, a
-    synthetic error ToolMessage is inserted immediately after that AIMessage.
+    For each AIMessage whose tool_calls (standard calls, withheld-recovery
+    promotions, quarantined upgrades, additional_kwargs raw payloads) lack a
+    corresponding ToolMessage, a synthetic error ToolMessage is inserted
+    immediately after that AIMessage.
 
     Returns a new list with patches, or None if no patching is needed.
     """
     working = deepcopy(messages)
     changed = False
-    ai_tool_calls_by_msg: dict[int, list[tuple[str, str, bool]]] = {}
+    ai_tool_calls_by_msg: dict[int, list[tuple[str, str]]] = {}
     invalid_errors_by_msg: dict[int, dict[str, str]] = {}
     referenced_ids: set[str] = set()
 
@@ -295,17 +325,22 @@ def _build_patched_messages(messages: list[BaseMessage]) -> list[BaseMessage] | 
             changed = True
         if getattr(msg, "type", None) != "ai":
             continue
+        # Withheld calls (args refused by safe recovery) are re-declared first so
+        # they receive an invalid-args ToolMessage instead of being lost.
+        withheld_errors = _promote_withheld_tool_calls(msg)
+        if withheld_errors:
+            changed = True
         # Replay-poisoning isolation: upgrade invalid calls (malformed args)
         # into well-formed declarations before extraction, so malformed raw
         # text never reaches the provider. Unrepairable ones carry a
         # structured diagnosis keyed by call id.
-        quarantine_errors = quarantine_invalid_tool_calls(msg)
-        if quarantine_errors:
+        quarantine_errors, quarantine_changed = quarantine_invalid_tool_calls(msg)
+        if quarantine_changed:
             changed = True
         tool_calls = _extract_tool_calls(msg)
         ai_tool_calls_by_msg[id(msg)] = tool_calls
-        invalid_errors_by_msg[id(msg)] = {**_extract_invalid_call_errors(msg), **quarantine_errors}
-        for tc_id, _, _ in tool_calls:
+        invalid_errors_by_msg[id(msg)] = {**withheld_errors, **quarantine_errors}
+        for tc_id, _ in tool_calls:
             referenced_ids.add(tc_id)
 
     # Count per-id ToolMessage availability. A tool_call_id declared N times needs
@@ -332,7 +367,7 @@ def _build_patched_messages(messages: list[BaseMessage]) -> list[BaseMessage] | 
             continue
         tool_calls = ai_tool_calls_by_msg.get(id(msg), [])
         invalid_errors = invalid_errors_by_msg.get(id(msg), {})
-        for tc_id, tool_name, is_invalid in tool_calls:
+        for tc_id, tool_name in tool_calls:
             consumed_so_far[tc_id] = consumed_so_far.get(tc_id, 0) + 1
             if consumed_so_far[tc_id] > tool_count.get(tc_id, 0):
                 # Quarantined calls upgraded from invalid_tool_calls keep a
@@ -340,7 +375,7 @@ def _build_patched_messages(messages: list[BaseMessage]) -> list[BaseMessage] | 
                 # the synthetic ToolMessage explains the failure instead of
                 # replaying the malformed text.
                 error = invalid_errors.get(tc_id)
-                content, status = _synthetic_content(is_invalid or error is not None, tool_name=tool_name, error=error)
+                content, status = _synthetic_content(tool_name=tool_name, error=error)
                 patched.append(
                     ToolMessage(
                         content=content,

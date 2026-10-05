@@ -33,9 +33,7 @@ class TestBuildPatchedMessages:
             HumanMessage(content="search for cats"),
             AIMessage(
                 content="",
-                tool_calls=[
-                    {"id": "tc_1", "name": "web_search", "args": {"q": "cats"}}
-                ],
+                tool_calls=[{"id": "tc_1", "name": "web_search", "args": {"q": "cats"}}],
             ),
             ToolMessage(content="Found cats", tool_call_id="tc_1", name="web_search"),
             AIMessage(content="Here are the results."),
@@ -48,9 +46,7 @@ class TestBuildPatchedMessages:
             HumanMessage(content="search for cats"),
             AIMessage(
                 content="",
-                tool_calls=[
-                    {"id": "tc_1", "name": "web_search_tool", "args": {"q": "cats"}}
-                ],
+                tool_calls=[{"id": "tc_1", "name": "web_search_tool", "args": {"q": "cats"}}],
             ),
         ]
         patched = _build_patched_messages(messages)
@@ -125,9 +121,7 @@ class TestBuildPatchedMessages:
                     {"id": "tc_2", "name": "file_read", "args": {"path": "/tmp"}},
                 ],
             ),
-            ToolMessage(
-                content="search result", tool_call_id="tc_1", name="web_search"
-            ),
+            ToolMessage(content="search result", tool_call_id="tc_1", name="web_search"),
         ]
         patched = _build_patched_messages(messages)
         assert patched is not None
@@ -147,13 +141,9 @@ class TestBuildPatchedMessages:
         """Multiple interrupted turns in history → all dangling calls patched."""
         messages = [
             HumanMessage(content="first"),
-            AIMessage(
-                content="", tool_calls=[{"id": "tc_1", "name": "tool_a", "args": {}}]
-            ),
+            AIMessage(content="", tool_calls=[{"id": "tc_1", "name": "tool_a", "args": {}}]),
             HumanMessage(content="second"),
-            AIMessage(
-                content="", tool_calls=[{"id": "tc_2", "name": "tool_b", "args": {}}]
-            ),
+            AIMessage(content="", tool_calls=[{"id": "tc_2", "name": "tool_b", "args": {}}]),
         ]
         patched = _build_patched_messages(messages)
         assert patched is not None
@@ -170,9 +160,7 @@ class TestBuildPatchedMessages:
         messages = [
             HumanMessage(content="hello"),
             AIMessage(content="world"),
-            AIMessage(
-                content="", tool_calls=[{"id": "tc_1", "name": "search", "args": {}}]
-            ),
+            AIMessage(content="", tool_calls=[{"id": "tc_1", "name": "search", "args": {}}]),
         ]
         patched = _build_patched_messages(messages)
         assert patched is not None
@@ -227,9 +215,7 @@ class TestBuildPatchedMessages:
         """Running on already-patched messages produces no new patches."""
         messages = [
             HumanMessage(content="search"),
-            AIMessage(
-                content="", tool_calls=[{"id": "tc_1", "name": "search", "args": {}}]
-            ),
+            AIMessage(content="", tool_calls=[{"id": "tc_1", "name": "search", "args": {}}]),
         ]
         first_patch = _build_patched_messages(messages)
         assert first_patch is not None
@@ -242,9 +228,7 @@ class TestBuildPatchedMessages:
         not at the end of the list."""
         messages = [
             HumanMessage(content="first"),
-            AIMessage(
-                content="", tool_calls=[{"id": "tc_1", "name": "tool_a", "args": {}}]
-            ),
+            AIMessage(content="", tool_calls=[{"id": "tc_1", "name": "tool_a", "args": {}}]),
             HumanMessage(content="second"),
             AIMessage(content="response"),
         ]
@@ -344,9 +328,7 @@ class TestInvalidToolCalls:
             HumanMessage(content="do stuff"),
             AIMessage(
                 content="",
-                tool_calls=[
-                    {"id": "tc_valid", "name": "search", "args": {"q": "test"}}
-                ],
+                tool_calls=[{"id": "tc_valid", "name": "search", "args": {"q": "test"}}],
                 invalid_tool_calls=[
                     {
                         "name": "write_file",
@@ -421,9 +403,7 @@ class TestInvalidToolCalls:
             AIMessage(
                 content="",
                 tool_calls=[],
-                invalid_tool_calls=[
-                    {"name": "fn", "args": "bad", "id": "tc_answered", "error": "err"}
-                ],
+                invalid_tool_calls=[{"name": "fn", "args": "bad", "id": "tc_answered", "error": "err"}],
             ),
             ToolMessage(content="handled", tool_call_id="tc_answered", name="fn"),
         ]
@@ -445,32 +425,20 @@ class TestExtractToolCalls:
     def test_standard_tool_calls(self):
         msg = AIMessage(content="", tool_calls=[{"id": "a", "name": "fn", "args": {}}])
         result = _extract_tool_calls(msg)
-        assert result == [("a", "fn", False)]
-
-    def test_invalid_tool_calls(self):
-        msg = AIMessage(
-            content="",
-            invalid_tool_calls=[
-                {"id": "b", "name": "bad_fn", "args": "x", "error": "e"}
-            ],
-        )
-        result = _extract_tool_calls(msg)
-        assert result == [("b", "bad_fn", True)]
+        assert result == [("a", "fn")]
 
     def test_additional_kwargs_fallback(self):
         msg = AIMessage(
             content="",
-            additional_kwargs={
-                "tool_calls": [
-                    {"id": "c", "function": {"name": "raw_fn", "arguments": "{}"}}
-                ]
-            },
+            additional_kwargs={"tool_calls": [{"id": "c", "function": {"name": "raw_fn", "arguments": "{}"}}]},
         )
         result = _extract_tool_calls(msg)
-        assert result == [("c", "raw_fn", False)]
+        assert result == [("c", "raw_fn")]
 
     def test_deduplication(self):
-        """Same ID in both tool_calls and invalid_tool_calls → only counted once."""
+        """Same ID in both tool_calls and invalid_tool_calls → the valid
+        declaration wins; quarantine clears the invalid bucket upstream, and
+        extraction never re-reads it (no duplicate double declaration)."""
         msg = AIMessage(
             content="",
             tool_calls=[{"id": "dup", "name": "fn", "args": {}}],
@@ -488,9 +456,7 @@ class TestDanglingToolCallMiddlewareAsync:
         """Middleware patches dangling calls and forwards to handler."""
         messages = [
             HumanMessage(content="go"),
-            AIMessage(
-                content="", tool_calls=[{"id": "tc_1", "name": "search", "args": {}}]
-            ),
+            AIMessage(content="", tool_calls=[{"id": "tc_1", "name": "search", "args": {}}]),
         ]
         sentinel = MagicMock()
         handler = AsyncMock(return_value=sentinel)
@@ -523,6 +489,65 @@ class TestDanglingToolCallMiddlewareAsync:
         request.override.assert_not_called()
         handler.assert_awaited_once_with(request)
         assert result is sentinel
+
+
+class TestWithheldToolCallsPromotion:
+    """Streaming aggregation cannot carry invalid_tool_calls across chunk merges,
+    so args-recovery-withheld calls arrive as additional_kwargs["tool_call_recovery"]
+    with safe=False. The middleware must re-declare them so the model gets a
+    structured invalid-args ToolMessage instead of silently losing the turn."""
+
+    @staticmethod
+    def _withheld_message() -> AIMessage:
+        return AIMessage(
+            content="",
+            tool_calls=[],
+            additional_kwargs={
+                "tool_call_recovery": [
+                    {
+                        "tool_call_id": "call_w",
+                        "tool_name": "write_file",
+                        "strategy": "truncated_stream_unverified",
+                        "degraded": True,
+                        "safe": False,
+                        "raw_arguments": '{"path": "repor',
+                        "error": "Tool call arguments for 'write_file' could not be safely parsed",
+                    }
+                ]
+            },
+        )
+
+    def test_withheld_call_promoted_to_invalid_args_toolmessage(self):
+        messages = [HumanMessage(content="go"), self._withheld_message()]
+        patched = _build_patched_messages(messages)
+        assert patched is not None
+        ai_msg = patched[1]
+        assert [tc["id"] for tc in ai_msg.tool_calls] == ["call_w"]
+        assert ai_msg.tool_calls[0]["args"] == {}
+
+        synthetic = patched[2]
+        assert isinstance(synthetic, ToolMessage)
+        assert synthetic.tool_call_id == "call_w"
+        assert synthetic.status == "error"
+        assert "could not be safely parsed" in synthetic.content
+
+    def test_withheld_call_promotion_idempotent(self):
+        first = _build_patched_messages([HumanMessage(content="go"), self._withheld_message()])
+        assert first is not None
+        # Re-running on the patched output declares nothing new.
+        assert _build_patched_messages(list(first)) is None
+
+    def test_safe_recovery_entries_are_ignored(self):
+        msg = AIMessage(
+            content="",
+            tool_calls=[],
+            additional_kwargs={
+                "tool_call_recovery": [
+                    {"tool_call_id": "call_s", "tool_name": "search", "strategy": "standard_json", "safe": True}
+                ]
+            },
+        )
+        assert _build_patched_messages([HumanMessage(content="go"), msg]) is None
 
 
 class TestReplayIsolation:
@@ -618,3 +643,57 @@ class TestReplayIsolation:
             args_text = call["function"]["arguments"]
             assert json.loads(args_text) is not None  # every field must parse
         assert self.BAD_ARGS not in json.dumps(outbound)
+
+    def test_duplicate_id_invalid_entry_never_replayed(self):
+        """Probe regression (contract hole): an invalid entry sharing an id
+        with a valid call used to survive quarantine — the pipeline reported
+        no change and langchain replayed the malformed text as a duplicate-id
+        double declaration. Now the invalid bucket is always cleared: the
+        valid declaration wins, the malformed text never reaches the
+        provider, and the dangling call still gets its synthetic response."""
+        messages = [
+            HumanMessage(content="go"),
+            AIMessage(
+                content="",
+                tool_calls=[{"name": "good_tool", "args": {"x": 1}, "id": "c1"}],
+                invalid_tool_calls=[{"name": "bad_tool", "args": '{"path": "repor', "id": "c1", "error": "truncated"}],
+            ),
+        ]
+        patched = _build_patched_messages(messages)
+        # Clearing the invalid bucket mutates the message → a patch is produced
+        # (previously the pipeline returned None and replayed the poison verbatim).
+        assert patched is not None
+        ai_msg = patched[1]
+        assert ai_msg.invalid_tool_calls == []
+        assert [tc["id"] for tc in ai_msg.tool_calls] == ["c1"]
+
+        # The dangling declaration gets exactly one synthetic response.
+        assert isinstance(patched[2], ToolMessage)
+        assert patched[2].tool_call_id == "c1"
+
+        # Malformed raw text must not survive anywhere in the patched history.
+        assert '{"path": "repor' not in str([m.model_dump() for m in patched])
+
+    def test_duplicate_id_outbound_single_declaration(self):
+        """Probe regression: the outbound payload must carry exactly one
+        well-formed declaration per id — no duplicate-id double declaration,
+        no malformed arguments (verified against real langchain_openai)."""
+        pytest.importorskip("langchain_openai")
+        from langchain_openai.chat_models.base import _convert_message_to_dict
+
+        messages = [
+            HumanMessage(content="go"),
+            AIMessage(
+                content="",
+                tool_calls=[{"name": "good_tool", "args": {"x": 1}, "id": "c1"}],
+                invalid_tool_calls=[{"name": "bad_tool", "args": '{"path": "repor', "id": "c1", "error": "truncated"}],
+            ),
+        ]
+        patched = _build_patched_messages(messages)
+        assert patched is not None
+        outbound = _convert_message_to_dict(patched[1])
+        calls = outbound.get("tool_calls") or []
+        ids = [c.get("id") for c in calls]
+        assert len(ids) == len(set(ids)), "duplicate-id double declaration sent to API"
+        assert ids == ["c1"]
+        assert json.loads(calls[0]["function"]["arguments"]) == {"x": 1}

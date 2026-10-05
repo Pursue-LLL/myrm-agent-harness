@@ -22,7 +22,9 @@ such records from ever reaching the provider in raw form.
 - quarantine_invalid_tool_calls(): outbound poison isolation — upgrade each
   AIMessage.invalid_tool_call into a well-formed tool_call declaration
   (repaired args, or empty args + structured diagnosis when unrepairable).
-  Deterministic and idempotent, so repeated runs produce identical output
+  Returns (errors, changed) and always clears the invalid bucket once it
+  runs, so no malformed raw text survives in any code path. Deterministic
+  and idempotent, so repeated runs produce identical output
   (prompt-cache friendly).
 
 [POS]
@@ -217,7 +219,7 @@ def _raw_tool_call_arguments_by_id(msg: BaseMessage) -> dict[str, dict[str, obje
     return indexed
 
 
-def quarantine_invalid_tool_calls(msg: BaseMessage) -> dict[str, str]:
+def quarantine_invalid_tool_calls(msg: BaseMessage) -> tuple[dict[str, str], bool]:
     """Outbound poison isolation: neutralize ``msg.invalid_tool_calls`` in place.
 
     Each invalid call is upgraded into a well-formed ``tool_calls`` entry on
@@ -226,24 +228,27 @@ def quarantine_invalid_tool_calls(msg: BaseMessage) -> dict[str, str]:
       *meant* to make; the dangling pipeline then pairs it with a synthetic
       interrupted ToolMessage per replay safety)
     - unrepairable args → empty args and a structured key-path diagnosis,
-      returned as ``{tool_call_id: diagnosis}`` so the dangling pipeline can
+      returned in ``errors`` keyed by call id, so the dangling pipeline can
       pair it with an informative invalid-args ToolMessage
 
-    Malformed raw text never leaves the process afterwards: the matching
-    ``additional_kwargs`` raw payloads are synced to the same sanitized
-    arguments. Idempotent — on the second pass ``invalid_tool_calls`` is
-    empty and nothing changes.
+    Malformed raw text never leaves the process: once quarantine runs, the
+    invalid bucket is always cleared. Entries that cannot be upgraded —
+    duplicate id against an existing valid call, blank/non-string id,
+    non-dict shape — are dropped (the valid declaration wins). Matching
+    ``additional_kwargs`` raw payloads are synced to the sanitized args.
+
+    Returns ``(errors, changed)``: per-id diagnoses for unrepairable calls,
+    and whether the message was mutated. Idempotent — on the second pass
+    ``invalid_tool_calls`` is empty and nothing changes.
     """
     invalid_calls = getattr(msg, "invalid_tool_calls", None)
     if not isinstance(invalid_calls, list) or not invalid_calls:
-        return {}
+        return {}, False
     if getattr(msg, "type", None) != "ai":
-        return {}
+        return {}, False
 
     valid_calls = list(getattr(msg, "tool_calls", None) or [])
-    known_ids = {
-        tc.get("id") for tc in cast(Iterable[dict[str, object]], valid_calls) if isinstance(tc, dict)
-    }
+    known_ids = {tc.get("id") for tc in cast(Iterable[dict[str, object]], valid_calls) if isinstance(tc, dict)}
     upgraded: list[dict[str, object]] = []
     errors: dict[str, str] = {}
     arguments_by_id: dict[str, str] = {}
@@ -275,13 +280,13 @@ def quarantine_invalid_tool_calls(msg: BaseMessage) -> dict[str, str]:
         upgraded.append({"name": tool_name, "args": {}, "id": tc_id, "type": "tool_call"})
         arguments_by_id[tc_id] = "{}"
 
-    if not upgraded:
-        return {}
-
-    msg.tool_calls = [*valid_calls, *upgraded]  # type: ignore[attr-defined]
+    if upgraded:
+        msg.tool_calls = [*valid_calls, *upgraded]  # type: ignore[attr-defined]
+    # Always clear the invalid bucket: any surviving entry (duplicate id,
+    # blank id, non-dict) would be serialized back to the provider verbatim.
     msg.invalid_tool_calls = []  # type: ignore[attr-defined]
     for tc_id, arguments in arguments_by_id.items():
         raw_function = raw_functions.get(tc_id)
         if raw_function is not None:
             raw_function["arguments"] = arguments
-    return errors
+    return errors, True
