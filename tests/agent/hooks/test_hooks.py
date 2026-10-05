@@ -497,6 +497,12 @@ class TestPayloadFromDataclass:
         result = payload_from_dataclass(payload)
         assert result == {"tool_name": "test", "args": {"k": "v"}}
 
+    def test_rejects_non_dataclass_payload(self):
+        from myrm_agent_harness.agent.hooks import payload_from_dataclass
+
+        with pytest.raises(TypeError, match="hook payload must be a dataclass"):
+            payload_from_dataclass({"tool_name": "test"})
+
 
 class TestParseHookJson:
     def test_valid_json_ok_true(self):

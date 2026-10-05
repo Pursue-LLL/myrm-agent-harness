@@ -1,7 +1,7 @@
 """Hook system type definitions — re-export from core.hooks.
 
-All definitions now live in ``myrm_agent_harness.core.hooks.types``.
-This module re-exports them for backward compatibility within agent/.
+All definitions live in ``myrm_agent_harness.core.hooks.types``; this
+module provides the agent-internal import surface.
 """
 
 from myrm_agent_harness.core.hooks.types import *  # noqa: F403

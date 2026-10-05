@@ -1,23 +1,34 @@
 """Command hook safety gate and approval injection point.
 
-Hooks declared as shell commands are the only spawn path that historically
-bypassed the code_execution safety family. This gate reuses the same static
-command analyzer (``analyze_command`` / ``is_destructive_command``) so command
-hooks are judged by the same rules as agent bash commands:
+Shell-command hooks spawn a subprocess that the code_execution safety
+family does not cover. This gate reuses the same static command analyzer
+(``analyze_command`` / ``is_destructive_command``) so command hooks are
+judged by the same rules as agent bash commands:
 
 - BLOCK-level threats are refused unconditionally.
-- ESCALATE-level threats are refused in ``strict`` mode — used for hooks from
-  third-party provenance (skill/plugin/user config), because hooks fire
-  silently and unreviewed commands only get the narrowest path. Built-in
-  framework hooks keep the wider path.
+- ESCALATE-level threats are refused in ``strict`` mode — used for hooks
+  from third-party provenance (skill/plugin/user config), because hooks
+  fire silently and unreviewed commands only get the narrowest path.
+  Built-in framework hooks keep the wider path.
 - A product-layer approver (server approval card) can be injected via
   ``set_command_hook_approver`` to override a refusal at runtime.
+
+[INPUT]
+- agent.hooks.types (POS: Hook 类型定义，含 priority/source 治理字段)
+- toolkits.code_execution.security.shell_command_analyzer (POS: 命令静态安全分析器)
+- utils.logger_utils (POS: 日志工具)
 
 [OUTPUT]
 - HookCommandApprover, get/set_command_hook_approver: approval injection point
 - gate_hook_command: static gate check (BLOCK always; ESCALATE in strict mode)
 - approve_hook_command: ask the injected approver to override a refusal
 - merged_governance_metadata: attach source/priority provenance to results
+
+[POS]
+Command hook safety gate. Runs command-type hooks through the code_execution
+static analyzer before spawn, with a product-layer approval injection point;
+absent approver means the gate verdict stands (fail-closed for third-party
+hooks).
 """
 
 from __future__ import annotations
@@ -101,6 +112,9 @@ async def approve_hook_command(hook: CommandHookDefinition, event: str, command:
         return False
     try:
         return bool(await asyncio.wait_for(approver(hook, event, command), timeout=hook.timeout_seconds))
+    except TimeoutError:
+        logger.warning("hooks: command approver timed out after %ss, treating as refused", hook.timeout_seconds)
+        return False
     except Exception as exc:
         logger.warning("hooks: command approver raised, treating as refused: %s", exc)
         return False

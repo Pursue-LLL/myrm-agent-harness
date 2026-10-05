@@ -82,6 +82,7 @@ from myrm_agent_harness.core.security.guards.privacy_tracker import (
     set_privacy_policy,
 )
 from myrm_agent_harness.core.security.persistence.content_scan import (
+    PseudonymizeFn,
     get_pii_pseudonymizer,
     set_pii_pseudonymizer,
 )
@@ -121,7 +122,7 @@ def set_workspace_root(path: str) -> None:
     return _set_workspace_root(path)
 
 
-def install_memory_pseudonymizer(policy: object, store: object) -> object | None:
+def install_memory_pseudonymizer(policy: object, store: object) -> PseudonymizeFn | None:
     """Install the memory-write PII pseudonymizer for a background task context.
 
     Uses the same closure builder as the agent-run path so regex-level S2/S3
@@ -138,7 +139,7 @@ def install_memory_pseudonymizer(policy: object, store: object) -> object | None
     return previous
 
 
-def restore_memory_pseudonymizer(previous: object | None) -> None:
+def restore_memory_pseudonymizer(previous: PseudonymizeFn | None) -> None:
     """Restore the memory-write PII pseudonymizer captured by install."""
     set_pii_pseudonymizer(previous)
 

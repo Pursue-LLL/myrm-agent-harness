@@ -3,7 +3,7 @@
 [INPUT]
 - agent.hooks.types (POS: Hook 类型定义)
 - agent.hooks.command_gate (POS: 命令钩子安全网关+审批注入点)
-- agent.hooks.session_access (POS: 会话级 ContextVar 访问 API，本文件尾部 re-export)
+- agent.hooks.session_access (POS: 会话级 ContextVar 访问 API，本文件头部 re-export)
 - core.security.http.secure_fetch::secure_request (POS: SSRF-protected outbound HTTP)
 - utils.chat_utils::extract_answer_text (POS: LLM 响应文本提取)
 - utils.json_parsing::parse_llm_json_object (POS: robust JSON object extraction from LLM hook output — fences, prose, bare control chars, trailing commas)
@@ -66,8 +66,7 @@ from myrm_agent_harness.utils.json_parsing import parse_llm_json_object
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 # session_access re-exports: PEP 484 explicit-export marker so mypy
-# (implicit_reexport=False) accepts the legacy
-# ``from ...hooks.executor import fire_hook`` import path.
+# (implicit_reexport=False) accepts ``from ...hooks.executor import fire_hook``.
 __all__ = [
     "bootstrap_hook_registry",
     "fire_hook",
@@ -489,6 +488,5 @@ def _parse_hook_json(text: str) -> dict[str, object]:
 # ---------------------------------------------------------------------------
 # ContextVar-based session-scoped access
 # ---------------------------------------------------------------------------
-# Definitions live in session_access.py and are re-exported at the top of this
-# module so long-standing ``from ...hooks.executor import fire_hook`` call
-# sites keep working.
+# Definitions live in session_access.py; both import paths
+# (``hooks.session_access`` / ``hooks.executor``) expose the same API.

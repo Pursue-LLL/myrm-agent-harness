@@ -1,22 +1,30 @@
 """Session-scoped hook access API.
 
 ContextVar-based session access for the hook executor plus convenience
-helpers, split from ``executor.py`` so the execution engine stays focused
-on dispatching. ``executor.py`` re-exports these names, so existing
-``from ...hooks.executor import fire_hook`` call sites keep working.
+helpers. ``executor.py`` re-exports these names, so both import paths
+(``hooks.session_access`` / ``hooks.executor``) expose the same API.
+
+[INPUT]
+- agent.hooks.types (POS: Hook 类型定义)
+- agent.hooks.executor::HookExecutor/HookRegistry (POS: 钩子执行引擎与注册管理器，懒加载避免环)
 
 [OUTPUT]
 - get/set_hook_executor: ContextVar accessors
 - fire_hook: fire a hook event on the current session's executor
 - payload_from_dataclass: frozen-dataclass payload → dict conversion
 - bootstrap_hook_registry: get-or-create the session-scoped registry
+
+[POS]
+Session-scoped hook access layer. Holds the ContextVar singleton for the
+hook executor and provides fire-and-forget event firing with zero overhead
+when hooks are not configured.
 """
 
 from __future__ import annotations
 
 from contextvars import ContextVar
-from dataclasses import asdict
-from typing import TYPE_CHECKING, Any, cast
+from dataclasses import asdict, is_dataclass
+from typing import TYPE_CHECKING, cast
 
 from myrm_agent_harness.agent.hooks.types import EMPTY_RESULT, AggregatedHookResult
 
@@ -50,7 +58,9 @@ async def fire_hook(event: str, payload: dict[str, object]) -> AggregatedHookRes
 
 def payload_from_dataclass(obj: object) -> dict[str, object]:
     """Convert a frozen dataclass payload to dict for hook execution."""
-    return cast(dict[str, object], asdict(cast(Any, obj)))
+    if not is_dataclass(obj) or isinstance(obj, type):
+        raise TypeError(f"hook payload must be a dataclass, got {type(obj).__name__}")
+    return cast("dict[str, object]", asdict(obj))
 
 
 def bootstrap_hook_registry() -> HookRegistry:
