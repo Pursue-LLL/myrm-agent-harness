@@ -2,7 +2,7 @@
 
 [INPUT]
 - pathlib::Path (POS: Python filesystem path standard library)
-- toolkits.memory.workspace_living.models::KnownIssueEntry, CausalDeduplicationReport, compute_error_signature
+- toolkits.memory.workspace_living.models::KnownIssueEntry, CausalDeduplicationReport, compute_error_signature (POS: Domain contract layer for workspace living documentation synchronization)
 
 [OUTPUT]
 - CausalIssueMerger: Atomic deduplication merger ensuring zero duplicated pitfalls in KNOWN_ISSUES.md
@@ -33,6 +33,7 @@ _SIGNATURE_COMMENT_RE = re.compile(
     r"<!--\s*signature:\s*([a-fA-F0-9]+)\s*\|\s*occurrences:\s*(\d+)\s*-->",
 )
 _HEADER_RE = re.compile(r"^###\s*\[([^\]]+)\]\s*(.*)$", re.MULTILINE)
+_TIMELINE_RE = re.compile(r"(\-\s*\*\*记录时间 \(Timeline\)\*\*:\s*([0-9\-]+)\s*~\s*)([0-9\-]+)")
 
 
 class CausalIssueMerger:
@@ -68,7 +69,6 @@ class CausalIssueMerger:
                     logger.warning("Failed to read %s: %s", file_path, exc)
 
             # Check if signature already exists
-            match = _SIGNATURE_COMMENT_RE.search(content)
             sig_pattern = re.compile(
                 rf"(###\s*\[([^\]]+)\][^\n]*\n)<!--\s*signature:\s*{re.escape(signature)}\s*\|\s*occurrences:\s*(\d+)\s*-->"
             )
@@ -86,6 +86,12 @@ class CausalIssueMerger:
                     f"{header}<!-- signature: {signature} | occurrences: {count} -->"
                 )
                 new_content = sig_pattern.sub(replacement, content, count=1)
+
+                # Update the last_seen date in the Timeline field for this entry if present
+                def _update_timeline(match_obj: re.Match[str]) -> str:
+                    return f"{match_obj.group(1)}{today}"
+
+                new_content = _TIMELINE_RE.sub(_update_timeline, new_content, count=1)
 
                 self._atomic_write(file_path, new_content)
                 return CausalDeduplicationReport(

@@ -28,6 +28,18 @@ class TestCausalSignature:
         assert sig1 == sig2
         assert len(sig1) == 16
 
+    def test_signature_noise_resilience(self) -> None:
+        # Dynamic timestamps, pointers, and UUIDs should normalize to the same signature
+        sig1 = compute_error_signature(
+            "Failed at 2026-10-05T16:09:02.123Z with error at 0x7ffee1234abc (pid 1024)",
+            "task 12345678-1234-1234-1234-123456789abc",
+        )
+        sig2 = compute_error_signature(
+            "Failed at 2026-10-06 09:00:00 with error at 0x00007fffdeadbeef (pid 9999)",
+            "task 87654321-4321-4321-4321-cba987654321",
+        )
+        assert sig1 == sig2
+
 
 class TestCausalIssueMerger:
     @pytest.mark.asyncio

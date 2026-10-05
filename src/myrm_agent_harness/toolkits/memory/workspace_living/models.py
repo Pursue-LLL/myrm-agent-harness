@@ -19,11 +19,27 @@ import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
+_TIMESTAMP_RE = re.compile(
+    r"\b\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?\b"
+)
+_HEX_ADDR_RE = re.compile(r"\b0x[0-9a-fA-F]+\b")
+_UUID_RE = re.compile(r"\b[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\b")
+_PID_RE = re.compile(r"\bpid\s*[:=]?\s*\d+\b", re.IGNORECASE)
+
+
+def _normalize_causal_text(text: str) -> str:
+    """Strip dynamic runtime artifacts (timestamps, pointers, UUIDs) for stable fingerprinting."""
+    cleaned = _TIMESTAMP_RE.sub("<TIMESTAMP>", text)
+    cleaned = _HEX_ADDR_RE.sub("<ADDR>", cleaned)
+    cleaned = _UUID_RE.sub("<UUID>", cleaned)
+    cleaned = _PID_RE.sub("pid <PID>", cleaned)
+    return re.sub(r"\s+", " ", cleaned.strip().lower())
+
 
 def compute_error_signature(symptom: str, trigger_condition: str) -> str:
     """Compute normalized SHA-256 fingerprint from symptom and trigger condition."""
-    normalized_symptom = re.sub(r"\s+", " ", symptom.strip().lower())
-    normalized_trigger = re.sub(r"\s+", " ", trigger_condition.strip().lower())
+    normalized_symptom = _normalize_causal_text(symptom)
+    normalized_trigger = _normalize_causal_text(trigger_condition)
     combined = f"{normalized_symptom}::{normalized_trigger}"
     return hashlib.sha256(combined.encode("utf-8")).hexdigest()[:16]
 

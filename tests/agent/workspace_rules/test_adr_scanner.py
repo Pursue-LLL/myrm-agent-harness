@@ -51,6 +51,26 @@ date: 2026-09-02
         assert parse_adr_status(content) == "active"
         assert is_adr_active(content) is True
 
+    def test_parse_bold_and_bracketed_status(self) -> None:
+        content = """# 0004: Clean Architecture
+**Status:** accepted
+* Date: 2026-09-03
+"""
+        assert parse_adr_status(content) == "accepted"
+        assert is_adr_active(content) is True
+
+        content_deprecated = """# 0005: Old Framework
+* **Status:** deprecated
+"""
+        assert parse_adr_status(content_deprecated) == "deprecated"
+        assert is_adr_active(content_deprecated) is False
+
+        content_bracketed = """# 0006: Decision
+Status: [accepted]
+"""
+        assert parse_adr_status(content_bracketed) == "accepted"
+        assert is_adr_active(content_bracketed) is True
+
     def test_defaults_to_accepted_when_no_status(self) -> None:
         content = """# Unversioned Note
 We decided to adopt UV.

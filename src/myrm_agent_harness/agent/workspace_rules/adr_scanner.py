@@ -6,7 +6,7 @@ while filtering out deprecated, superseded, or rejected records.
 
 [INPUT]
 - pathlib::Path (POS: Python filesystem path standard library)
-- agent.workspace_rules.scanner::RuleFile, _load_rule_file, _inode_key
+- agent.workspace_rules.scanner::RuleFile, _load_rule_file, _inode_key (POS: Workspace rule file models and low-level inode loading)
 
 [OUTPUT]
 - scan_adr_rules(): Discover and filter accepted ADR files, returns list[RuleFile]
@@ -46,7 +46,7 @@ _INACTIVE_STATUSES: frozenset[str] = frozenset(
 )
 
 _STATUS_LINE_RE = re.compile(
-    r"(?:^\s*[\*\-]?\s*Status\s*:\s*|^status\s*:\s*[\"']?)([a-zA-Z_\-]+)",
+    r"^\s*(?:[\*\-]\s+)?(?:\*\*)?status(?::\*\*|\*\*:|:)\s*[\"'\[]?([a-zA-Z_\-]+)[\"'\]]?",
     re.IGNORECASE | re.MULTILINE,
 )
 
@@ -54,7 +54,8 @@ _STATUS_LINE_RE = re.compile(
 def parse_adr_status(content: str) -> str:
     """Extract normalized status keyword from ADR content.
 
-    Inspects both markdown lists (* Status: accepted) and YAML frontmatter (status: accepted).
+    Inspects markdown lists (* Status: accepted, **Status:** accepted), bracketed statuses,
+    and YAML frontmatter (status: accepted).
     Returns lowercased status string, or 'accepted' if no explicit status is declared.
     """
     match = _STATUS_LINE_RE.search(content)

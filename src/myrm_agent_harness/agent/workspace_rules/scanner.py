@@ -16,7 +16,8 @@ to find rule files in parent directories (max 5 levels).
 
 [INPUT]
 - agent.security.detection.prompt_guard::scan_input (POS: Input-side injection detector)
-- agent.security.detection.content_boundary::sanitize, detect_suspicious, strip_invisible_unicode
+- agent.security.detection.content_boundary::sanitize, detect_suspicious, strip_invisible_unicode (POS: Boundary sanitization and security marker detection)
+- agent.workspace_rules.adr_scanner::scan_adr_rules (POS: Living architecture decision record scanner and MADR status filter)
 
 [OUTPUT]
 - scan_workspace_rules(): Discover and load all rule files, returns list[RuleFile]
