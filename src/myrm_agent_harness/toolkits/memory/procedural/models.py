@@ -94,3 +94,86 @@ class RuleInjectionContext(BaseModel):
         default_factory=list,
         description="List of explicitly prohibited action descriptions",
     )
+
+
+class EngineeringRuleSeverity(StrEnum):
+    """Severity classification for engineering procedural rule violations."""
+
+    ERROR = "error"
+    WARNING = "warning"
+    INFO = "info"
+
+
+class ConstraintBoundary(BaseModel):
+    """Quantitative or categorical boundary defining engineering manufacturing limits."""
+
+    min_value: float | None = Field(default=None, description="Lower inclusive threshold")
+    max_value: float | None = Field(default=None, description="Upper inclusive threshold")
+    allowed_values: list[str] | None = Field(default=None, description="Permissible discrete set")
+    unit: str | None = Field(default=None, description="Engineering physical unit (e.g., 'mm', 'mil')")
+
+
+class EngineeringProceduralRule(BaseModel):
+    """Immutable domain engineering procedural specification governing agent workflow execution."""
+
+    rule_id: str = Field(description="Unique rule identifier (e.g., 'pcb_drc_min_trace_width')")
+    domain: str = Field(description="Vertical engineering domain (e.g., 'pcb_drc', 'eda_routing')")
+    version: str = Field(default="1.0.0", description="Semantic rule specification version")
+    parameter_name: str = Field(description="Target design parameter or configuration key")
+    boundary: ConstraintBoundary = Field(description="Physical tolerance and validity bounds")
+    description: str = Field(description="Formal engineering rationale and physical rule context")
+    severity: EngineeringRuleSeverity = Field(
+        default=EngineeringRuleSeverity.ERROR,
+        description="Violation impact level",
+    )
+    fix_suggestion: str | None = Field(
+        default=None,
+        description="Automated corrective adjustment suggestion if breached",
+    )
+    precondition_tags: list[str] = Field(
+        default_factory=list,
+        description="Context tags required to activate this rule",
+    )
+    created_at: datetime = Field(description="Registration timestamp")
+
+
+class RuleEvaluationResult(BaseModel):
+    """Diagnostic outcome of evaluating an engineering design parameter against a procedural rule."""
+
+    rule_id: str = Field(description="Evaluated rule identifier")
+    parameter_name: str = Field(description="Inspected parameter key")
+    passed: bool = Field(description="Whether the parameter satisfies the engineering boundary")
+    severity: EngineeringRuleSeverity = Field(description="Assigned violation severity")
+    actual_value: str | float | int | bool | None = Field(
+        default=None,
+        description="Value inspected during evaluation",
+    )
+    violation_message: str | None = Field(
+        default=None,
+        description="Explanation when boundary check fails",
+    )
+    suggested_value: str | float | int | bool | None = Field(
+        default=None,
+        description="Automatic correction candidate value",
+    )
+
+
+class PreflightCheckReport(BaseModel):
+    """Comprehensive DRC/engineering preflight gate evaluation report."""
+
+    domain: str = Field(description="Evaluated vertical engineering domain")
+    total_rules_checked: int = Field(ge=0, description="Number of rules evaluated")
+    passed: bool = Field(description="Whether all blocking rules passed without errors")
+    violations: list[RuleEvaluationResult] = Field(
+        default_factory=list,
+        description="List of blocking errors that abort execution",
+    )
+    warnings: list[RuleEvaluationResult] = Field(
+        default_factory=list,
+        description="List of non-blocking warnings",
+    )
+    recommended_fixes: dict[str, str | float | int | bool] = Field(
+        default_factory=dict,
+        description="Key-value mapping of proposed parameter corrections",
+    )
+
