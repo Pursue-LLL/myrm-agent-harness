@@ -187,9 +187,15 @@ class TestWorkspaceRulesMiddleware:
         request.state = {"messages": []}
         request.override = MagicMock(return_value=request)
 
-        with patch(
-            "myrm_agent_harness.agent.workspace_rules.middleware.WorkspaceRulesMiddleware._resolve_workspace_root",
-            return_value=str(tmp_path),
+        with (
+            patch(
+                "myrm_agent_harness.agent.workspace_rules.middleware.WorkspaceRulesMiddleware._resolve_workspace_root",
+                return_value=str(tmp_path),
+            ),
+            patch(
+                "myrm_agent_harness.agent.security.workspace_trust.gate.blocks_workspace_side_channels",
+                return_value=False,
+            ),
         ):
             await mw.awrap_model_call(request, handler)
 

@@ -68,6 +68,7 @@ _MYRM_RULES_DIR = ".myrm/rules"
 _CURSOR_RULES_DIR = ".cursor/rules"
 _CLAUDE_SUBDIR_FILE = ".claude/CLAUDE.md"
 _COPILOT_INSTRUCTIONS_FILE = ".github/copilot-instructions.md"
+_KNOWN_ISSUES_FILENAMES: tuple[str, ...] = ("KNOWN_ISSUES.md", "known_issues.md")
 
 
 @dataclass(frozen=True, slots=True)
@@ -244,7 +245,24 @@ def _scan_directory(directory: Path) -> list[RuleFile]:
     results.extend(_scan_rules_subdir(directory, _MYRM_RULES_DIR, "*.md", seen_inodes))
     results.extend(_scan_rules_subdir(directory, _CURSOR_RULES_DIR, "*.mdc", seen_inodes))
 
-    # 2. First-Match-Wins for global rule files
+    # 2. Load living architectural decision records (MADR / docs/decisions/*.md)
+    from myrm_agent_harness.agent.workspace_rules.adr_scanner import scan_adr_rules
+
+    results.extend(scan_adr_rules(directory, seen_inodes))
+
+    # 3. Load living known issues and environment pitfalls (KNOWN_ISSUES.md)
+    for filename in _KNOWN_ISSUES_FILENAMES:
+        filepath = directory / filename
+        if filepath.is_file():
+            key = _inode_key(filepath)
+            if key not in seen_inodes:
+                seen_inodes.add(key)
+                rule = _load_rule_file(filepath, source=filename)
+                if rule:
+                    results.append(rule)
+                    break
+
+    # 4. First-Match-Wins for global rule files
     for filename in _RULE_FILENAMES:
         filepath = directory / filename
         if filepath.is_file():
