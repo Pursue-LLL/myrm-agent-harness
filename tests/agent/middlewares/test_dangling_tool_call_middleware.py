@@ -1,7 +1,9 @@
 """Unit tests for DanglingToolCallMiddleware."""
 
+import json
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from myrm_agent_harness.agent.middlewares.tooling.dangling_tool_call_middleware import (
@@ -291,8 +293,7 @@ class TestInvalidToolCalls:
         assert "invalid" in synthetic.content.lower()
 
     def test_invalid_tool_calls_with_error_detail(self):
-        """Error detail from invalid_tool_calls is included in synthetic content."""
-        error_msg = "Expected comma in JSON at position 42"
+        """Structured parse diagnosis is included in the synthetic content."""
         messages = [
             HumanMessage(content="go"),
             AIMessage(
@@ -303,7 +304,7 @@ class TestInvalidToolCalls:
                         "name": "bash",
                         "args": "{broken",
                         "id": "call_err_1",
-                        "error": error_msg,
+                        "error": "Expected comma in JSON at position 42",
                     }
                 ],
             ),
@@ -311,7 +312,8 @@ class TestInvalidToolCalls:
         patched = _build_patched_messages(messages)
         assert patched is not None
         synthetic = patched[2]
-        assert error_msg in synthetic.content
+        assert "failed to parse" in synthetic.content
+        assert synthetic.status == "error"
 
     def test_invalid_tool_calls_error_truncation(self):
         """Huge error details are truncated to _MAX_ERROR_DETAIL_LEN."""
@@ -413,7 +415,7 @@ class TestInvalidToolCalls:
         assert patched is None
 
     def test_invalid_tool_calls_already_answered(self):
-        """invalid_tool_calls with existing ToolMessage → no patching needed."""
+        """Answered invalid calls are still quarantined (upgrade), but never double-patched."""
         messages = [
             HumanMessage(content="go"),
             AIMessage(
@@ -426,7 +428,15 @@ class TestInvalidToolCalls:
             ToolMessage(content="handled", tool_call_id="tc_answered", name="fn"),
         ]
         patched = _build_patched_messages(messages)
-        assert patched is None
+        # Quarantine must still upgrade the declaration (poison isolation runs
+        # even when a ToolMessage already exists), so a patch is produced.
+        assert patched is not None
+        upgraded = patched[1]
+        assert getattr(upgraded, "invalid_tool_calls", None) == []
+        assert [tc["id"] for tc in upgraded.tool_calls] == ["tc_answered"]
+        # No synthetic ToolMessage appended — the real answer already pairs it.
+        assert len(patched) == 3
+        assert patched[2].content == "handled"
 
 
 class TestExtractToolCalls:
@@ -513,3 +523,98 @@ class TestDanglingToolCallMiddlewareAsync:
         request.override.assert_not_called()
         handler.assert_awaited_once_with(request)
         assert result is sentinel
+
+
+class TestReplayIsolation:
+    """End-to-end replay-poisoning isolation: malformed tool_call args never
+    reach the provider in raw form (langchain serializes invalid_tool_calls
+    verbatim), and output is stable across replays."""
+
+    BAD_ARGS = '{"path": "report\ndocs/final.md", "optio'
+
+    @staticmethod
+    def _invalid_history() -> list:
+        return [
+            HumanMessage(content="go"),
+            AIMessage(
+                content="",
+                tool_calls=[],
+                invalid_tool_calls=[
+                    {
+                        "name": "write_file",
+                        "args": TestReplayIsolation.BAD_ARGS,
+                        "id": "call_bad",
+                        "error": "truncated JSON",
+                    }
+                ],
+            ),
+        ]
+
+    def test_unrepairable_malformed_args_never_replayed(self):
+        """Quarantine rewrites the declaration; raw malformed text is gone."""
+        patched = _build_patched_messages(self._invalid_history())
+        assert patched is not None
+        ai_msg = patched[1]
+        assert ai_msg.invalid_tool_calls == []
+        upgraded = ai_msg.tool_calls[0]
+        assert upgraded["id"] == "call_bad"
+        assert upgraded["args"] == {}
+        # The malformed raw text must not survive anywhere in the patched history.
+        assert self.BAD_ARGS not in str([m.model_dump() for m in patched])
+
+        synthetic = patched[2]
+        assert isinstance(synthetic, ToolMessage)
+        assert synthetic.tool_call_id == "call_bad"
+        assert synthetic.status == "error"
+        assert "failed to parse" in synthetic.content
+
+    def test_repairable_malformed_args_upgraded_with_interrupted_semantics(self):
+        """A repairable truncation becomes a well-formed declaration paired
+        with interrupted semantics (replay-safety aware), not invalid-args."""
+        messages = [
+            HumanMessage(content="go"),
+            AIMessage(
+                content="",
+                tool_calls=[],
+                invalid_tool_calls=[
+                    {"name": "write_file", "args": '{"path": "repor', "id": "call_fix", "error": "truncated"}
+                ],
+            ),
+        ]
+        patched = _build_patched_messages(messages)
+        assert patched is not None
+        ai_msg = patched[1]
+        assert ai_msg.invalid_tool_calls == []
+        assert ai_msg.tool_calls[0]["args"] == {"path": "repor"}
+
+        synthetic = patched[2]
+        assert isinstance(synthetic, ToolMessage)
+        assert synthetic.tool_call_id == "call_fix"
+        assert synthetic.content in (_INTERRUPTED_SAFE_CONTENT, _INTERRUPTED_MUTATION_CONTENT)
+
+    def test_output_stable_across_replays(self):
+        """Deterministic isolation: repeated runs produce identical output."""
+        first = _build_patched_messages(self._invalid_history())
+        second = _build_patched_messages(self._invalid_history())
+        assert first is not None and second is not None
+        assert str([m.model_dump() for m in first]) == str([m.model_dump() for m in second])
+
+        # Re-running on the patched output itself changes nothing (idempotent).
+        assert _build_patched_messages(list(first)) is None
+
+    def test_openai_serialization_contains_no_malformed_text(self):
+        """Probe regression: langchain_openai serializes invalid_tool_calls into
+        the API request verbatim — after repair, every outbound arguments field
+        must be valid JSON with no malformed leftovers."""
+        pytest.importorskip("langchain_openai")
+        from langchain_openai.chat_models.base import _convert_message_to_dict
+
+        patched = _build_patched_messages(self._invalid_history())
+        assert patched is not None
+        outbound = _convert_message_to_dict(patched[1])
+        calls = outbound.get("tool_calls") or []
+        assert calls, "upgraded declaration must be present in outbound payload"
+        for call in calls:
+            args_text = call["function"]["arguments"]
+            assert json.loads(args_text) is not None  # every field must parse
+        assert self.BAD_ARGS not in json.dumps(outbound)

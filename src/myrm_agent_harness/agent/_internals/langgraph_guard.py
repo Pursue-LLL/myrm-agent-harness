@@ -31,6 +31,9 @@ LangGraph ToolNode monkey-patch for robust tool_call args handling.
 
 from __future__ import annotations
 
+from typing import cast
+
+from myrm_agent_harness.utils.json_args_repair import repair_json_args
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 logger = get_agent_logger(__name__)
@@ -57,7 +60,7 @@ def apply_langgraph_tool_args_guard() -> None:
         tc_id = call.get("id", "")
         args = call.get("args")
         if args is not None and isinstance(tc_id, str):
-            _args_stash[tc_id] = deepcopy(args)
+            _args_stash[tc_id] = deepcopy(cast("dict[str, object]", args))
 
     def _get_coercible_fields(tool: object) -> frozenset[str]:
         """Return field names whose schema type is array or object."""
@@ -94,7 +97,13 @@ def apply_langgraph_tool_args_guard() -> None:
         args: dict[str, object],
         coercible: frozenset[str],
     ) -> None:
-        """Parse JSON strings in-place for fields that expect array/object."""
+        """Parse JSON strings in-place for fields that expect array/object.
+
+        Malformed strings (raw control chars, truncation) get one
+        deterministic syntax-level repair attempt via ``repair_json_args``
+        before giving up, so stream-truncated arguments do not fail
+        Pydantic validation on pure syntax grounds.
+        """
         for key in coercible:
             value = args.get(key)
             if not isinstance(value, str) or len(value) < 2:
@@ -107,7 +116,16 @@ def apply_langgraph_tool_args_guard() -> None:
                     args[key] = parsed
                     logger.info("Coerced stringified JSON for arg '%s'", key)
             except (ValueError, _json.JSONDecodeError):
-                pass
+                result = repair_json_args(value)
+                if result.repaired is None:
+                    continue
+                try:
+                    parsed = _json.loads(result.repaired)
+                except (ValueError, _json.JSONDecodeError):
+                    continue
+                if isinstance(parsed, (list, dict)):
+                    args[key] = parsed
+                    logger.info("Repaired malformed JSON for arg '%s'", key)
 
     _orig_arun = ToolNode._arun_one
 

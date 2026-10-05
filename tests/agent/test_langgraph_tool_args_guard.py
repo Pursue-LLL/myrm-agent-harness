@@ -239,3 +239,64 @@ class TestStashRecoveryMechanism:
             node._inject_tool_args(call, fake_runtime)
 
         assert call["args"] == {"x": 99}
+
+
+class TestStringifiedJsonCoercion:
+    """Coercion of stringified JSON args fields, incl. the repair fallback."""
+
+    @staticmethod
+    def _make_tool_with_array_field() -> MagicMock:
+        """Tool whose schema declares an object-typed field (coercible)."""
+        from pydantic import BaseModel
+
+        class _SchemaWithObject(BaseModel):
+            filters: dict[str, str] = {}
+
+        tool = MagicMock()
+        tool.args_schema = _SchemaWithObject
+        return tool
+
+    def test_valid_stringified_json_coerced(self):
+        """Well-formed JSON string for an object field → parsed in place."""
+        from langgraph.prebuilt.tool_node import ToolNode
+
+        tool = self._make_tool_with_array_field()
+        tool_call = {
+            "name": "t",
+            "id": "tc_coerce_1",
+            "args": {"filters": '{"status": "open"}'},
+        }
+
+        with contextlib.suppress(Exception):
+            ToolNode._inject_tool_args(MagicMock(), tool_call, MagicMock(), tool)
+
+        assert tool_call["args"]["filters"] == {"status": "open"}
+
+    def test_malformed_truncated_string_repaired(self):
+        """Stream-truncated object string gets one deterministic repair attempt."""
+        from langgraph.prebuilt.tool_node import ToolNode
+
+        tool = self._make_tool_with_array_field()
+        tool_call = {
+            "name": "t",
+            "id": "tc_coerce_2",
+            "args": {"filters": '{"status": "open", "kind": "fil'},
+        }
+
+        with contextlib.suppress(Exception):
+            ToolNode._inject_tool_args(MagicMock(), tool_call, MagicMock(), tool)
+
+        assert tool_call["args"]["filters"] == {"status": "open", "kind": "fil"}
+
+    def test_unrepairable_string_left_untouched(self):
+        """When repair cannot succeed, the original string is preserved."""
+        from langgraph.prebuilt.tool_node import ToolNode
+
+        tool = self._make_tool_with_array_field()
+        original = '{"status": '
+        tool_call = {"name": "t", "id": "tc_coerce_3", "args": {"filters": original}}
+
+        with contextlib.suppress(Exception):
+            ToolNode._inject_tool_args(MagicMock(), tool_call, MagicMock(), tool)
+
+        assert tool_call["args"]["filters"] == original

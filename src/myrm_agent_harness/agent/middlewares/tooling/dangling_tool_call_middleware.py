@@ -32,12 +32,14 @@ import logging
 from collections.abc import Awaitable, Callable
 from copy import deepcopy
 from json import JSONDecodeError, loads
+from typing import cast
 
 from langchain.agents.middleware import AgentMiddleware, ModelRequest, ModelResponse
-from langchain_core.messages import BaseMessage, ToolMessage
+from langchain_core.messages import AnyMessage, BaseMessage, ToolMessage
 
 from myrm_agent_harness.agent.tool_management.tool_layers import get_tool_replay_safety
 from myrm_agent_harness.agent.tool_management.types import ReplaySafety
+from myrm_agent_harness.utils.json_args_repair import quarantine_invalid_tool_calls
 
 logger = logging.getLogger(__name__)
 
@@ -289,9 +291,16 @@ def _build_patched_messages(messages: list[BaseMessage]) -> list[BaseMessage] | 
             changed = True
         if getattr(msg, "type", None) != "ai":
             continue
+        # Replay-poisoning isolation: upgrade invalid calls (malformed args)
+        # into well-formed declarations before extraction, so malformed raw
+        # text never reaches the provider. Unrepairable ones carry a
+        # structured diagnosis keyed by call id.
+        quarantine_errors = quarantine_invalid_tool_calls(msg)
+        if quarantine_errors:
+            changed = True
         tool_calls = _extract_tool_calls(msg)
         ai_tool_calls_by_msg[id(msg)] = tool_calls
-        invalid_errors_by_msg[id(msg)] = _extract_invalid_call_errors(msg)
+        invalid_errors_by_msg[id(msg)] = {**_extract_invalid_call_errors(msg), **quarantine_errors}
         for tc_id, _, _ in tool_calls:
             referenced_ids.add(tc_id)
 
@@ -322,8 +331,12 @@ def _build_patched_messages(messages: list[BaseMessage]) -> list[BaseMessage] | 
         for tc_id, tool_name, is_invalid in tool_calls:
             consumed_so_far[tc_id] = consumed_so_far.get(tc_id, 0) + 1
             if consumed_so_far[tc_id] > tool_count.get(tc_id, 0):
-                error = invalid_errors.get(tc_id) if is_invalid else None
-                content, status = _synthetic_content(is_invalid, tool_name=tool_name, error=error)
+                # Quarantined calls upgraded from invalid_tool_calls keep a
+                # diagnosis here; they must retain invalid-args semantics so
+                # the synthetic ToolMessage explains the failure instead of
+                # replaying the malformed text.
+                error = invalid_errors.get(tc_id)
+                content, status = _synthetic_content(is_invalid or error is not None, tool_name=tool_name, error=error)
                 patched.append(
                     ToolMessage(
                         content=content,
@@ -359,7 +372,7 @@ def repair_dangling_tool_calls(messages: list[BaseMessage]) -> list[BaseMessage]
     return patched if patched is not None else messages
 
 
-class DanglingToolCallMiddleware(AgentMiddleware):  # type: ignore[type-arg]
+class DanglingToolCallMiddleware(AgentMiddleware):
     """Repair dangling tool_calls in message history before LLM invocation.
 
     Scans request.messages for AIMessages whose tool_calls have no matching
@@ -371,7 +384,7 @@ class DanglingToolCallMiddleware(AgentMiddleware):  # type: ignore[type-arg]
     def _maybe_patch_request(self, request: ModelRequest) -> ModelRequest:
         patched = _build_patched_messages(list(request.messages))
         if patched is not None:
-            return request.override(messages=patched)
+            return request.override(messages=cast("list[AnyMessage]", patched))
         return request
 
     def wrap_model_call(
