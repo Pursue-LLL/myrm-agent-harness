@@ -9,10 +9,10 @@ knowledge direction, compile/query configs, and recursive file system operations
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | `__init__.py` | Package | Wiki 核心模块入口包：聚合导出配置、结构与核心数据模型 | ✅ |
-| config.py | Config | WikiConfig, WikiQueryConfig (incl. index_first/sidecar/best-first/raw_claim knobs), WikiCompileConfig | ✅ |
+| config.py | Config | WikiConfig, WikiQueryConfig (incl. index_first/sidecar/best-first/raw_claim knobs + `min_answer_confidence` refusal floor decoupled from `min_query_quality_score` archive gate), WikiCompileConfig | ✅ |
 | parsers.py | Core | LLM response parsers — JSON (via `parse_llm_json_list`, robust against fences, prose, bare control chars, trailing commas) and bullet-point format to ConceptInfo list | ✅ |
 | structure.py | Core | File system layout, OKF paths (`index.md`, `log.md`, `hot.md`, `SCHEMA.md`), frontmatter alias mtime-guarded process cache resolution (`resolve_alias_file_path`, `invalidate_alias_cache`), directory sidecar helpers, tree CRUD | ✅ |
-| types.py | Types | Data models: ConceptInfo, WikiArticle, CompileResult (incl. publication counts), SourceSnippet (incl. claim citation + `claim_confidence` + `evidence_snapshot_status`), QueryResult (incl. `retrieval_trace`, derived `confidence_score`), LintIssue, LintResult | ✅ |
+| types.py | Types | Data models: ConceptInfo, WikiArticle, CompileResult (incl. publication counts), SourceSnippet (incl. claim citation + `claim_confidence` + `evidence_snapshot_status`), QueryResult (incl. `retrieval_trace`, derived `confidence_score`, `refused` fail-closed verdict), LintIssue, LintResult | ✅ |
 | `frontmatter_contract.py` | Contract | WikiPageType (含 `metric`)+ WikiPublishStatus + WikiProvenance；validate/infer/repair `type` 与指标强类型前置校验；yaml-aware `load_frontmatter_metadata` / `serialize_frontmatter_block`；`repair_publication_on_disk` grandfathers missing publish_status only (skips draft/blocked) | ✅ |
 | claims_contract.py | Contract | OC-compatible structured `claims` parse/validate/merge; compile-time evidence `contentSha256` pin; read-time snapshot+excerpt with process LRU raw bytes cache (mtime invalidation); portable `last_compile_raw_hashes` + `raw_supersede`; `format_resource_uri` / `build_evidence_resource_uri` | ✅ |
 | section_contract.py | Contract | Managed block SSOT: extract/replace/append + `parse_editor_sections` for GUI | ✅ |
