@@ -19,10 +19,14 @@ position — immediately after the dangling AIMessage — rather than appending
 to the end via the add_messages reducer.
 
 [INPUT]
-- (none)
+- langchain.agents.middleware (POS: Agent middleware framework — ModelRequest/ModelResponse pipeline)
+- langchain_core.messages (POS: Core message types — AIMessage/ToolMessage/AnyMessage)
+- tool_management.tool_layers (POS: Tool replay-safety registry)
+- utils.json_args_repair (POS: Tool-call args repair and outbound invalid-call quarantine)
 
 [OUTPUT]
 - dangling_tool_call_middleware: Repair dangling tool_calls in message history before LLM ...
+- repair_dangling_tool_calls: Patch dangling tool_calls for direct LLM invocations outside agent middleware.
 
 [POS]
 Dangling tool call repair middleware.

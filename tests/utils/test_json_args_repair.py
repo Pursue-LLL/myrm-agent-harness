@@ -38,6 +38,16 @@ class TestRepairJsonArgs:
         result = repair_json_args('{"items": [1, 2')
         assert result.args == {"items": [1, 2]}
 
+    def test_truncated_mixed_nesting_closed_in_order(self) -> None:
+        result = repair_json_args('{"a": [{"b": 1')
+        assert result.args == {"a": [{"b": 1}]}
+
+    def test_unbalanced_bracket_never_misrepaired(self) -> None:
+        """A stray closer must not be 'repaired' into a wrong-but-parsing shape."""
+        result = repair_json_args('{"a": 1]')
+        assert result.repaired is None
+        assert result.diagnosis is not None
+
     def test_truncated_container_with_trailing_comma(self) -> None:
         result = repair_json_args('{"a": 1,')
         assert result.args == {"a": 1}
@@ -149,6 +159,27 @@ class TestQuarantineInvalidToolCalls:
         quarantine_invalid_tool_calls(msg)
         raw = msg.additional_kwargs["tool_calls"][0]
         assert raw["function"]["arguments"] == '{"path": "repor"}'
+
+    def test_raw_payload_synced_to_placeholder_when_unrepairable(self) -> None:
+        msg = AIMessage(
+            content="",
+            invalid_tool_calls=[
+                {"name": "bad_tool", "args": '{"a": ', "id": "c4", "error": "truncated"},
+            ],
+            additional_kwargs={
+                "tool_calls": [
+                    {
+                        "id": "c4",
+                        "type": "function",
+                        "function": {"name": "bad_tool", "arguments": '{"a": '},
+                    }
+                ]
+            },
+        )
+        errors = quarantine_invalid_tool_calls(msg)
+        assert "c4" in errors
+        raw = msg.additional_kwargs["tool_calls"][0]
+        assert raw["function"]["arguments"] == "{}"
 
     def test_non_ai_message_is_noop(self) -> None:
         msg = ToolMessage(content="x", tool_call_id="c1", name="t")

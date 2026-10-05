@@ -9,8 +9,9 @@ format, degrading the whole session (history poisoning). This module keeps
 such records from ever reaching the provider in raw form.
 
 [INPUT]
-- json_parsing (harness): low-level JSON text repair primitives
-  (control-char escaping, trailing-comma stripping)
+- json_parsing (POS: Robust LLM reply JSON extraction) — low-level JSON text repair
+  primitives (control-char escaping, trailing-comma stripping)
+- langchain_core.messages (POS: Core message types — BaseMessage for quarantine)
 
 [OUTPUT]
 - ArgsRepairResult: frozen outcome of one repair attempt
@@ -252,9 +253,11 @@ def quarantine_invalid_tool_calls(msg: BaseMessage) -> dict[str, str]:
         if not isinstance(itc, dict):
             continue
         raw_id = itc.get("id")
-        if not isinstance(raw_id, str) or not raw_id.strip() or raw_id in known_ids:
+        if not isinstance(raw_id, str):
             continue
         tc_id = raw_id.strip()
+        if not tc_id or tc_id in known_ids:
+            continue
         raw_name = itc.get("name")
         tool_name = raw_name if isinstance(raw_name, str) and raw_name.strip() else "unknown"
         raw_args = itc.get("args")
@@ -264,8 +267,9 @@ def quarantine_invalid_tool_calls(msg: BaseMessage) -> dict[str, str]:
             else ArgsRepairResult(None, None, "args failed to parse: non-string arguments")
         )
         if result.args is not None:
+            assert result.repaired is not None  # contract: repaired/args set together on success
             upgraded.append({"name": tool_name, "args": result.args, "id": tc_id, "type": "tool_call"})
-            arguments_by_id[tc_id] = result.repaired or json.dumps(result.args)
+            arguments_by_id[tc_id] = result.repaired
             continue
         errors[tc_id] = result.diagnosis or "args failed to parse"
         upgraded.append({"name": tool_name, "args": {}, "id": tc_id, "type": "tool_call"})

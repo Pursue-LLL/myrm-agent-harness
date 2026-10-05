@@ -30,7 +30,7 @@
 │ security_*_middleware                   │  ← 安全边界/护栏
 │ subagent_limit / concurrency_limiter    │  ← 委派 fan-out 限制
 │ tool_history_hygiene.py                 │  ← ToolMessage dedup + within/cross-turn tool_call_id re-id
-│ dangling_tool_call_middleware           │  ← 悬空 tool_call 修复
+│ dangling_tool_call_middleware           │  ← 悬空 tool_call 修复 + invalid 重放隔离
 │ skill_attenuation_middleware (tooling/)  │  ← skill attenuation + runtime intent gating
 │ filesystem_search_middleware            │  ← glob/grep 注入
 │ tool_interceptor_middleware (tooling/)  │  ← ★ 工具执行主拦截点
@@ -54,7 +54,7 @@
 
 | 子目录/文件 | 职责 |
 |-------------|------|
-| `tooling/` | 工具执行子系统：`tool_interceptor_middleware.py`（唯一编排入口；GraphInterrupt on stuck）、`tool_executor.py`（超时、重试、指数退避）、`tool_history_hygiene.py`（within-AIMessage re-id → ToolMessage keep-last dedup → cross-turn re-id；导出 `sanitize_tool_history()`）、`dangling_tool_call_middleware.py`（修复 strict provider 400）、`skill_attenuation_middleware.py`（skill attenuation + runtime intent-aware narrowing via `tool_choice.allowed_tools`）、`_tool_guards.py`/`_tool_helpers.py`（拦截辅助）、`_mutation_verifier.py`（文件变更 per-turn 验证 → SSE）、`_skill_failure_tracking.py`（技能失败事件跟踪）、`_tool_execution_lifecycle.py`（执行生命周期 hook）、`_runtime_tool_governance.py`（回合级工具面收敛 UI intent gate + readonly intent gate）、`_skill_tool_choice.py`（attenuation tool_choice 构建） |
+| `tooling/` | 工具执行子系统：`tool_interceptor_middleware.py`（唯一编排入口；GraphInterrupt on stuck）、`tool_executor.py`（超时、重试、指数退避）、`tool_history_hygiene.py`（within-AIMessage re-id → ToolMessage keep-last dedup → cross-turn re-id；导出 `sanitize_tool_history()`）、`dangling_tool_call_middleware.py`（修复 strict provider 400；invalid_tool_calls 出站隔离——升级为合法声明并回填结构化诊断，畸形原文不回喂 provider）、`skill_attenuation_middleware.py`（skill attenuation + runtime intent-aware narrowing via `tool_choice.allowed_tools`）、`_tool_guards.py`/`_tool_helpers.py`（拦截辅助）、`_mutation_verifier.py`（文件变更 per-turn 验证 → SSE）、`_skill_failure_tracking.py`（技能失败事件跟踪）、`_tool_execution_lifecycle.py`（执行生命周期 hook）、`_runtime_tool_governance.py`（回合级工具面收敛 UI intent gate + readonly intent gate）、`_skill_tool_choice.py`（attenuation tool_choice 构建） |
 | `_session_context.py` | Middleware 链共享 ContextVar |
 | `approval/` | HITL 审批队列、batch、scheduler、correction_learning |
 | `approval_interception/` | 审批拦截识别与注入 |

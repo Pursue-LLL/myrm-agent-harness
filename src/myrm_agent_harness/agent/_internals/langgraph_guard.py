@@ -20,7 +20,10 @@ Applied once at module load time by ``base_agent``.  Protections:
    without forcing full-batch serialization.
 
 [INPUT]
-- (none)
+- utils.json_args_repair (POS: Tool-call args repair and outbound invalid-call quarantine)
+- utils.logger_utils (POS: Agent-aware logging helpers)
+- langgraph.prebuilt.tool_node (POS: ToolNode execution pipeline — monkey-patch target, lazy-imported)
+- middlewares.concurrency.concurrency_router (POS: Tool batch execution stage planner, lazy-imported)
 
 [OUTPUT]
 - apply_langgraph_tool_args_guard: Apply the ToolNode monkey-patch (idempotent).
