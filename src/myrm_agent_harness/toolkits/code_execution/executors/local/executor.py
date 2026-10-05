@@ -669,15 +669,13 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
         try:
             import hashlib
 
-            from myrm_agent_harness.agent.middlewares._session_context import (
-                get_approval_session,
-            )
+            from myrm_agent_harness.core.context_vars import approval_session_var
             from myrm_agent_harness.core.security.ephemeral_credentials import (
                 get_ephemeral_credential_store,
                 validate_credential_key,
             )
 
-            current_session = get_approval_session()
+            current_session = approval_session_var.get()
             if current_session:
                 store = get_ephemeral_credential_store()
                 summaries = store.list_summaries(current_session)

@@ -100,6 +100,9 @@ async def spawn_background_process(
     from myrm_agent_harness.toolkits.code_execution.sandbox.sandbox_types import (
         SandboxPolicy,
     )
+    from myrm_agent_harness.toolkits.code_execution.security.env_isolation import (
+        DEFAULT_CHILD_SAFE_ENV_KEYS,
+    )
     from myrm_agent_harness.toolkits.code_execution.security.validator import (
         sanitize_env,
     )
@@ -108,7 +111,11 @@ async def spawn_background_process(
     effective_cwd = resolve_work_dir(context.work_dir, workspace)
     setup_workspace(str(effective_cwd) if effective_cwd else None)
 
-    base_env = {k: v for k, v in os.environ.items() if k in ("PATH", "HOME", "USER", "LANG", "LC_ALL")}
+    # Inherit the framework's documented child-safe env allowlist (SSOT) instead of an
+    # ad-hoc subset. Dropping the temp vars (TMPDIR/TMP/TEMP) makes the child compute a
+    # different ``tempfile.gettempdir()`` than the host, so the PEP 578 audit hook then
+    # flags legitimate writes into the real temp dir as "outside allowed workspace".
+    base_env = {k: v for k, v in os.environ.items() if k in DEFAULT_CHILD_SAFE_ENV_KEYS}
     env = sanitize_env(base_env)
 
     if venv_path.exists():

@@ -1,6 +1,21 @@
 """Data-driven autonomy level escalation and exception circuit breaker governance suite.
 
 Exports foundational protocols, sliding-window gate calculators, and breaker interceptors.
+
+[INPUT]
+- myrm_agent_harness.core.security.autonomy.circuit_breaker (POS: Breaker state machine)
+- myrm_agent_harness.core.security.autonomy.gate_calculator (POS: Promotion gate calculator)
+- myrm_agent_harness.core.security.autonomy.interceptor (POS: Execution interceptor)
+- myrm_agent_harness.core.security.autonomy.models (POS: Autonomy domain models)
+
+[OUTPUT]
+- AutonomyCircuitBreaker: 异常熔断器
+- PromotionGateCalculator: 滑动窗口晋级门计算器
+- AutonomyExecutionInterceptor: 自治执行拦截器
+- AutonomyLevel / AutonomyMetrics / BreakerState: 自治领域模型与默认阈值
+
+[POS]
+自治等级晋级与异常熔断治理包。数据驱动地计算晋升门限并拦截越权执行。
 """
 
 from __future__ import annotations

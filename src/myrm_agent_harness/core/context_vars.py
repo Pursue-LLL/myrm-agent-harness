@@ -12,6 +12,7 @@ introducing forbidden dependencies (e.g. toolkits/ → agent/).
 - prompt_routing_key_var: Session-scoped routing key for OpenAI prompt cache affinity
 - workspace_root_var: Sandbox workspace root for toolkit spill paths
 - chat_id_var: Active chat/session id for per-session spill directories
+- approval_session_var: Approval-routing session key shared by agent/ and toolkits/
 - protected_paths_var: Goal-scoped protected path patterns every write channel must honour
 
 [POS]
@@ -32,6 +33,12 @@ prompt_routing_key_var: ContextVar[str | None] = ContextVar("prompt_routing_key"
 
 workspace_root_var: ContextVar[str] = ContextVar("workspace_root", default="")
 chat_id_var: ContextVar[str] = ContextVar("chat_id", default="")
+
+# Approval-routing session key. Held here rather than in
+# agent/middlewares/_session_context so the sandbox executor can resolve the
+# active approval session without depending on agent/; the agent accessor
+# keeps ``get_approval_session`` / ``set_approval_session`` for its callers.
+approval_session_var: ContextVar[str] = ContextVar("approval_session_key", default="")
 
 # Goal-scoped protected path patterns. Held here rather than in
 # agent/middlewares/_session_context so the sandbox executor can enforce the same

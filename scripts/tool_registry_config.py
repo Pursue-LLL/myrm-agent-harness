@@ -82,6 +82,9 @@ ORPHAN_FACTORY_WHITELIST: frozenset[str] = frozenset(
         "create_mobile_adb_tools",
         "create_wiki_admin_tools",
         "create_restricted_ax_browser_tools",
+        # Landed selectively-wired: exposed via public api for callers that
+        # supply a live message accessor; not part of the Turn1 meta-tool set.
+        "create_refetch_historical_turn_tool",
     }
 )
 
@@ -118,9 +121,7 @@ def validate_config() -> None:
     for name in INTERNAL_TOOL_NAMES:
         assert name and isinstance(name, str), f"Invalid internal tool name: {name!r}"
     for factory in ORPHAN_FACTORY_WHITELIST:
-        assert factory.startswith(
-            "create_"
-        ), f"ORPHAN_FACTORY_WHITELIST entries must start with 'create_': {factory}"
+        assert factory.startswith("create_"), f"ORPHAN_FACTORY_WHITELIST entries must start with 'create_': {factory}"
 
 
 validate_config()

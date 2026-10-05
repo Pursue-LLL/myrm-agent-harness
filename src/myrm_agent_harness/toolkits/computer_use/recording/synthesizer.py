@@ -1,6 +1,7 @@
 """
 [INPUT]
 - .types::DesktopRecordedEvent, RecordedActionType, ToolLiftingCandidate, SynthesizedSkillStep, SynthesizedSkillDraft
+- core.skill::DEFAULT_ALLOWED_TOOLS (POS: 编译技能默认 allowed-tools SSOT)
 - re, os, pathlib, time, typing
 
 [OUTPUT]
@@ -15,7 +16,7 @@ from __future__ import annotations
 import re
 import time
 
-from myrm_agent_harness.backends.skills.workflow_compiler import DEFAULT_ALLOWED_TOOLS
+from myrm_agent_harness.core.skill import DEFAULT_ALLOWED_TOOLS
 
 from .types import (
     DesktopRecordedEvent,

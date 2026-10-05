@@ -4,7 +4,7 @@ External consumers import here instead of reaching into ``agent.security``.
 
 [INPUT]
 - agent.security.managed_approval_policy::ManagedApprovalPolicy / get_process_managed_approval_policy (POS: 进程级托管审批策略)
-- toolkits.code_execution.security.task_airbag::arm_task_airbag (POS: 挂机安全气囊武装与快照捕捉)
+- agent.resilience.task_airbag::arm_task_airbag (POS: 挂机安全气囊武装与快照捕捉)
 
 [OUTPUT]
 - myrm_agent_harness.api.security → server 统一安全策略与挂机安全气囊导出接口
@@ -12,6 +12,15 @@ External consumers import here instead of reaching into ``agent.security``.
 
 from __future__ import annotations
 
+from myrm_agent_harness.agent.resilience.task_airbag import (
+    TaskAirbagDiffSummary,
+    TaskAirbagManifest,
+    TaskAirbagStatus,
+    arm_task_airbag,
+    get_task_airbag_diff,
+    rollback_task_airbag,
+    rollback_task_airbag_with_rescue,
+)
 from myrm_agent_harness.agent.security.batch_risk import (
     BatchApprovalItem,
     BatchItemRiskLevel,
@@ -38,15 +47,6 @@ from myrm_agent_harness.agent.security.managed_approval_policy import (
 from myrm_agent_harness.core.security.egress.spend_governor import (
     SpendGovernor,
     SpendGovernorConfig,
-)
-from myrm_agent_harness.toolkits.code_execution.security.task_airbag import (
-    TaskAirbagDiffSummary,
-    TaskAirbagManifest,
-    TaskAirbagStatus,
-    arm_task_airbag,
-    get_task_airbag_diff,
-    rollback_task_airbag,
-    rollback_task_airbag_with_rescue,
 )
 from myrm_agent_harness.toolkits.code_execution.security.workspace_snapshot import (
     WorkspaceSnapshotResult,

@@ -8,7 +8,8 @@ Framework-agnostic foundation layer. Provides security, config, events, hooks, a
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Core layer entry — module docstring only, no re-exports at this level. | — |
-| context_vars.py | Core | Cross-layer ContextVar registry shared by agent/ and toolkits/ without coupling. Holds `protected_paths_var` (Goal-scoped protected path patterns) so the sandbox executor enforces the same Goal protection as the file tools and the shell pre-flight; `agent/middlewares/_session_context` is the accessor for agent code. | ✅ |
+| context_vars.py | Core | Cross-layer ContextVar registry shared by agent/ and toolkits/ without coupling. Holds `protected_paths_var` (Goal-scoped protected path patterns) so the sandbox executor enforces the same Goal protection as the file tools and the shell pre-flight, and `approval_session_var` (approval-routing session key) so the sandbox executor resolves the active approval session without importing agent/; `agent/middlewares/_session_context` is the accessor for agent code. | ✅ |
+| skill.py | Core | 技能声明领域常量 — `DEFAULT_ALLOWED_TOOLS`（编译技能默认 allowed-tools SSOT）。供 `backends/skills/workflow_compiler` 与 `toolkits/*` 共享，避免 toolkits→backends 依赖。 | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|

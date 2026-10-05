@@ -420,7 +420,7 @@ def create_delegate_task_tool(
 
         derive_spawn_capability(
             parent_agent=parent_agent,
-            config=config,
+            agent_type=agent_type,
             child_context=child_context,
             readonly=effective_readonly,
             context_files=context_files,
@@ -435,7 +435,10 @@ def create_delegate_task_tool(
         )
 
         try:
-            with memory_isolation_scope(parent_agent=parent_agent, config=config), subagent_capability_scope(child_context):
+            with (
+                memory_isolation_scope(parent_agent=parent_agent, config=config),
+                subagent_capability_scope(child_context),
+            ):
                 if verifier_prompt and single_wait:
                     logger.info(f"Running adversarial verification for subagent {task_id}")
                     from myrm_agent_harness.agent.sub_agents.orchestrator import run_with_verification

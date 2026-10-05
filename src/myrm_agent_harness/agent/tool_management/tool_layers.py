@@ -130,6 +130,9 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "kanban_cancel_task": ToolLayer.EXTENDED,
     "kanban_retry_task": ToolLayer.EXTENDED,
     "kanban_revise_plan": ToolLayer.EXTENDED,
+    # --- 通信与历史检索 ---
+    "send_user_message_async": ToolLayer.EXTENDED,
+    "refetch_historical_turn": ToolLayer.EXTENDED,
     # --- 记忆工具（search/save/manage → HIGH_PRIORITY；sessions/wiki 通过 corpus ACL）---
     # --- 技能工具 ---
     "skill_search_tool": ToolLayer.EXTENDED,

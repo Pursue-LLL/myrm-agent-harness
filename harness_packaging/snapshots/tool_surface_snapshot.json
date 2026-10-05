@@ -222,12 +222,22 @@
   {
     "layer": "EXTENDED",
     "layer_value": 3,
+    "name": "refetch_historical_turn"
+  },
+  {
+    "layer": "EXTENDED",
+    "layer_value": 3,
     "name": "request_answer_user_tool"
   },
   {
     "layer": "EXTENDED",
     "layer_value": 3,
     "name": "send_teammate_message_tool"
+  },
+  {
+    "layer": "EXTENDED",
+    "layer_value": 3,
+    "name": "send_user_message_async"
   },
   {
     "layer": "EXTENDED",

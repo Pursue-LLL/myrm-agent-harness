@@ -239,13 +239,18 @@ def spawn_result_for_store_after_merge(result: dict[str, object]) -> dict[str, o
 def derive_spawn_capability(
     *,
     parent_agent: object,
-    config: SubagentConfig,
+    agent_type: str,
     child_context: dict[str, object],
     readonly: bool,
     context_files: list[str] | None = None,
     ttl_seconds: float = 300.0,
 ) -> CapabilityHandle:
-    """Generate cryptographically signed, attenuated CapabilityHandle for child execution."""
+    """Generate cryptographically signed, attenuated CapabilityHandle for child execution.
+
+    ``agent_type`` is the delegated target resolved by the caller. ``SubagentConfig``
+    carries the resolved settings but not the type id, so the subject must be passed
+    in explicitly rather than read off the config.
+    """
     from myrm_agent_harness.core.security.ocap import (
         CapabilityAction,
         CapabilityHandle,
@@ -278,7 +283,7 @@ def derive_spawn_capability(
     handle = CapabilityHandle(
         handle_id=f"cap-sub-{uuid4().hex[:10]}",
         issuer_id="parent_agent",
-        subject_id=config.agent_type,
+        subject_id=agent_type,
         scope=scope,
         actions=actions,
         issued_at=now,
@@ -307,4 +312,3 @@ def subagent_capability_scope(child_context: dict[str, object] | None) -> Iterat
     cap_handle = handle if isinstance(handle, CapabilityHandle) else None
     with capability_scope(cap_handle):
         yield
-

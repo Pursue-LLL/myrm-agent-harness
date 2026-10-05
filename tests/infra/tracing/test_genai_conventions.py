@@ -1,7 +1,7 @@
 """Unit tests for OpenTelemetry GenAI Semantic Conventions and Trace Performance calculation."""
 
 from myrm_agent_harness.agent.event_log.trace_types import ExecutionTrace, LLMCallRecord, ToolCallRecord
-from myrm_agent_harness.infra.tracing.tracer import (
+from myrm_agent_harness.infra.tracing.gen_ai_conventions import (
     GEN_AI_AGENT_TURN,
     GEN_AI_REQUEST_MODEL,
     GEN_AI_SERVER_TTFT_MS,
@@ -164,5 +164,3 @@ def test_record_gen_ai_helpers_not_recording():
     record_gen_ai_tool_call(mock_span, tool_name="bash")
 
     mock_span.set_attribute.assert_not_called()
-
-

@@ -141,11 +141,36 @@ def _reset_approval_denial_state() -> Iterator[None]:
     """Isolate approval denial counters between all tests."""
     with suppress(Exception):
         from myrm_agent_harness.agent.middlewares.approval.helpers import clear_all_session_denials_for_tests
+
         clear_all_session_denials_for_tests()
     yield
     with suppress(Exception):
         from myrm_agent_harness.agent.middlewares.approval.helpers import clear_all_session_denials_for_tests
+
         clear_all_session_denials_for_tests()
+
+
+@pytest.fixture(autouse=True)
+def _reset_session_executor_stash() -> Iterator[None]:
+    """Isolate the process-global session executor stash between all tests.
+
+    A test that spawns a child under a fixed ``session_id`` and cancels it before
+    teardown leaves a stale stashed executor; a later test reusing that id then
+    recovers the stale executor instead of exercising the no-executor path.
+    """
+    with suppress(Exception):
+        from myrm_agent_harness.toolkits.code_execution.executors.base import (
+            clear_all_stashed_executors_for_tests,
+        )
+
+        clear_all_stashed_executors_for_tests()
+    yield
+    with suppress(Exception):
+        from myrm_agent_harness.toolkits.code_execution.executors.base import (
+            clear_all_stashed_executors_for_tests,
+        )
+
+        clear_all_stashed_executors_for_tests()
 
 
 @pytest.fixture(autouse=True)

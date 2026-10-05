@@ -41,7 +41,7 @@ from myrm_agent_harness.agent.security.terminal_error_registry import (
     TerminalErrorRegistry,
 )
 from myrm_agent_harness.agent.security.types import PrivacyPolicy, SecurityConfig
-from myrm_agent_harness.core.context_vars import protected_paths_var
+from myrm_agent_harness.core.context_vars import approval_session_var, protected_paths_var
 
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
@@ -59,7 +59,6 @@ if TYPE_CHECKING:
 _security_config_var: ContextVar[SecurityConfig | None] = ContextVar("security_config", default=None)
 _workspace_root_var: ContextVar[str] = ContextVar("workspace_root", default="")
 _pseudonym_store_var: ContextVar[PseudonymStore | None] = ContextVar("pseudonym_store", default=None)
-_session_key_var: ContextVar[str] = ContextVar("approval_session_key", default="")
 _active_message_id_var: ContextVar[str | None] = ContextVar("active_message_id", default=None)
 _agent_id_var: ContextVar[str] = ContextVar("agent_id", default="")
 _agent_primary_model_var: ContextVar[str] = ContextVar("agent_primary_model", default="")
@@ -159,7 +158,7 @@ def get_workspace_root() -> str:
 
 def set_approval_session(session_key: str) -> None:
     """Set the session key for approval routing."""
-    _session_key_var.set(session_key)
+    approval_session_var.set(session_key)
     from myrm_agent_harness.core.context_vars import chat_id_var
 
     chat_id_var.set(session_key)
@@ -167,7 +166,7 @@ def set_approval_session(session_key: str) -> None:
 
 def get_approval_session() -> str:
     """Get the session key for the current async context."""
-    return _session_key_var.get()
+    return approval_session_var.get()
 
 
 def set_active_message_id(message_id: str | None) -> None:

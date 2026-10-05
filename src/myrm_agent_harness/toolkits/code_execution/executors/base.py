@@ -16,6 +16,7 @@ Lifecycle: bind_workspace(path) -> execute()/execute_bash()/read_file()/... -> c
 - reset_executor: Restore a previous executor binding from a ContextVar token.
 - require_executor: Return the current executor, raising if unavailable.
 - clear_and_close_stashed_executor: Remove and close stashed executor asynchronously.
+- clear_all_stashed_executors_for_tests: Drop every stashed executor (test isolation).
 
 [POS]
 Code executor base classes.
@@ -537,3 +538,14 @@ async def clear_and_close_stashed_executor(session_id: str) -> None:
             await executor.close()
         except Exception as e:
             logger.warning("Failed to close stashed executor for session %s: %s", session_id, e)
+
+
+def clear_all_stashed_executors_for_tests() -> None:
+    """Drop every stashed executor unconditionally for test isolation.
+
+    The stash is process-global and keyed by ``session_id``; a test that spawns a
+    child with a fixed id (e.g. ``test_session``) and cancels it before teardown
+    leaves the entry behind, so a later test in the same session recovers the
+    stale executor and fails. Production teardown clears per-session instead.
+    """
+    _session_executor_stash.clear()

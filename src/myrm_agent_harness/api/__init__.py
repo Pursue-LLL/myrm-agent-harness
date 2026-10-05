@@ -188,7 +188,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "TranscriptIncrementalChunk",
     ),
     "TranscriptTurn": ("myrm_agent_harness.toolkits.memory.strategies.incremental_transcript", "TranscriptTurn"),
-    "DEFAULT_ALLOWED_TOOLS": ("myrm_agent_harness.backends.skills.workflow_compiler", "DEFAULT_ALLOWED_TOOLS"),
+    "DEFAULT_ALLOWED_TOOLS": ("myrm_agent_harness.core.skill", "DEFAULT_ALLOWED_TOOLS"),
     "RecordedActionType": ("myrm_agent_harness.toolkits.computer_use.recording.types", "RecordedActionType"),
     "is_secure_role": ("myrm_agent_harness.toolkits.computer_use.dref.types", "is_secure_role"),
     "WorkflowIntentPlan": ("myrm_agent_harness.backends.skills.workflow_compiler", "WorkflowIntentPlan"),

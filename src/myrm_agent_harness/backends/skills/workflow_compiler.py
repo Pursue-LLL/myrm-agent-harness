@@ -25,6 +25,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from myrm_agent_harness.core.skill import DEFAULT_ALLOWED_TOOLS
+
 EventType = Literal[
     "app_switch",
     "clipboard_copy",
@@ -35,22 +37,7 @@ EventType = Literal[
     "custom_step",
 ]
 
-# Default ``allowed-tools`` for a compiled workflow skill. Every entry MUST be a name registered
-# in ``agent.tool_management.tool_layers``: skill attenuation *removes* any tool absent from a
-# skill's declared ``allowed_tools`` union, so a stale name here silently strips that capability
-# from the agent on every turn the skill is active. ``bash_code_execute_tool`` and
-# ``file_write_tool`` are intentionally declared — attenuation still intersects the declaration
-# with the trust ceiling, so declaring an elevated tool never grants it to an INSTALLED skill.
-DEFAULT_ALLOWED_TOOLS: tuple[str, ...] = (
-    "browser_navigate_tool",
-    "browser_interact_tool",
-    "browser_snapshot_tool",
-    "browser_extract_tool",
-    "bash_code_execute_tool",
-    "file_read_tool",
-    "file_write_tool",
-    "web_fetch_tool",
-)
+# ``DEFAULT_ALLOWED_TOOLS`` is re-exported from ``core.skill`` (shared SSOT with toolkits/).
 
 
 @dataclass(slots=True)

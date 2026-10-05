@@ -5,10 +5,10 @@ supporting dual-track fallback (Git stash shadow commits or ShadowGit bare repo)
 user draft protection, and crash-resilient rollback.
 
 [INPUT]
-- myrm_agent_harness.agent.file_snapshot::create_file_snapshot_store (POS: 工作区文件快照存储工厂)
-- myrm_agent_harness.toolkits.code_execution.security.workspace_snapshot::create_workspace_snapshot (POS: Git 零拷贝快照与重置树还原器)
-- myrm_agent_harness.toolkits.code_execution.security.workspace_snapshot::rollback_workspace_snapshot (POS: Git 零拷贝快照与重置树还原器)
-- myrm_agent_harness.toolkits.code_execution.security.workspace_snapshot::is_git_repo (POS: Git 仓库探测器)
+- agent.file_snapshot::create_file_snapshot_store (POS: 工作区文件快照存储工厂)
+- toolkits.code_execution.security.workspace_snapshot::create_workspace_snapshot (POS: Git 零拷贝快照与重置树还原器)
+- toolkits.code_execution.security.workspace_snapshot::rollback_workspace_snapshot (POS: Git 零拷贝快照与重置树还原器)
+- toolkits.code_execution.security.workspace_snapshot::is_git_repo (POS: Git 仓库探测器)
 
 [OUTPUT]
 - TaskAirbagStatus: Enum representing airbag lifecycle state (ARMED, DISMISSED, ROLLED_BACK).
@@ -20,7 +20,9 @@ user draft protection, and crash-resilient rollback.
 - get_task_airbag_diff: Inspect cumulative mutations since baseline.
 
 [POS]
-Harness core execution security: unattended task safety net and time-travel undo.
+Agent-layer unattended task safety net and time-travel undo. The airbag orchestrates the
+agent-owned ``file_snapshot`` store with the toolkit Git snapshot utilities, so it is a
+runtime binding rather than a framework-agnostic toolkit capability.
 """
 
 from __future__ import annotations
@@ -175,7 +177,9 @@ async def rollback_task_airbag_with_rescue(manifest: TaskAirbagManifest) -> tupl
         rescue_res = create_workspace_snapshot(wpath)
         if rescue_res.success and rescue_res.snapshot_id:
             rescue_snapshot_id = rescue_res.snapshot_id
-            logger.info("Captured Git pre-rollback rescue snapshot '%s' for task '%s'", rescue_snapshot_id, manifest.task_id)
+            logger.info(
+                "Captured Git pre-rollback rescue snapshot '%s' for task '%s'", rescue_snapshot_id, manifest.task_id
+            )
     else:
         try:
             store = await create_file_snapshot_store()
@@ -185,7 +189,11 @@ async def rollback_task_airbag_with_rescue(manifest: TaskAirbagManifest) -> tupl
                 description=f"airbag_rescue_{manifest.task_id}",
             )
             if rescue_snapshot_id:
-                logger.info("Captured fallback pre-rollback rescue snapshot '%s' for task '%s'", rescue_snapshot_id, manifest.task_id)
+                logger.info(
+                    "Captured fallback pre-rollback rescue snapshot '%s' for task '%s'",
+                    rescue_snapshot_id,
+                    manifest.task_id,
+                )
         except Exception as exc:
             logger.warning("Failed to capture fallback rescue snapshot for task '%s': %s", manifest.task_id, exc)
 
