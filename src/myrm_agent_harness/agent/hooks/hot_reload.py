@@ -19,8 +19,10 @@ from pathlib import Path
 
 from myrm_agent_harness.agent.hooks.executor import HookRegistry
 from myrm_agent_harness.agent.hooks.types import (
+    HOOK_PRIORITY_SECURITY,
     CommandHookDefinition,
     HookDefinition,
+    HookSource,
     HttpHookDefinition,
     LLMHookDefinition,
 )
@@ -105,6 +107,12 @@ def _load_registry_from_file(path: Path) -> HookRegistry:
                 logger.warning("Unknown hook type '%s' in config, skipping", hook_type)
                 continue
             try:
+                # Governance stamp: provenance belongs to the loader, not the
+                # file — config-loaded hooks register as user_config and their
+                # priority stays below the security band, so a config file can
+                # never impersonate built-in hooks or outrank safety hooks.
+                hook_data["source"] = HookSource.USER_CONFIG
+                hook_data["priority"] = min(int(hook_data.get("priority", 0)), HOOK_PRIORITY_SECURITY - 1)
                 hook_def = definition_cls.model_validate(hook_data)
                 registry.register(event_name, hook_def)
             except Exception as exc:

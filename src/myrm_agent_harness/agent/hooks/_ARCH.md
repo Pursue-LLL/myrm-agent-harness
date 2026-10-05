@@ -15,7 +15,7 @@ User-configurable lifecycle hook system. Complements middlewares (framework-inte
 | session_access.py | Core | Session-scoped ContextVar access API (get/set_hook_executor, fire_hook, payload_from_dataclass, bootstrap_hook_registry); both import paths (session_access / executor) expose the same API. | ✅ |
 | output_spiller.py | Core | Hook output spiller. Prevents oversized hook outputs (>2500 tokens) from bloating context by writing to disk. | ✅ |
 | graceful_shutdown.py | Core | Graceful shutdown manager. Handles SIGTERM/SIGINT signals, triggers graceful shutdown, and auto-saves checkpoints. Zero-configuration, works out of the box. | ✅ |
-| hot_reload.py | Core | Hook hot-reload watcher. Monitors JSON/YAML config file changes and auto-reloads hook definitions without agent restart. | ✅ |
+| hot_reload.py | Core | Hook hot-reload watcher. Monitors JSON/YAML config file changes and auto-reloads hook definitions without agent restart. Config-loaded hooks are governance-stamped at load time: `source=user_config` and priority capped below the security band, so a config file can never impersonate built-in hooks or outrank safety hooks. | ✅ |
 | skill_parser.py | Core | SKILL.md Hook parser — extract hooks from Markdown frontmatter; parsed hooks are tagged `source=skill` so the gate applies the strict path. | ✅ |
 | tool_name_mapping.py | Core | Provides map_to_claude_tool_name, map_from_claude_tool_name, should_trigger_hook. | ✅ |
 | types.py | Core | Hook type definitions. Re-exports `core/hooks/types.py` (HookEvent, 4 hook variants with `priority`/`source` governance fields, HookResult, payloads, HookRegistryProtocol). | ✅ |

@@ -643,6 +643,50 @@ class TestHotReload:
         registry = reloader.current_registry()
         assert registry.total_count == 1
 
+    def test_config_hooks_stamped_user_config_and_priority_capped(self, tmp_path):
+        from myrm_agent_harness.agent.hooks.hot_reload import HookReloader
+        from myrm_agent_harness.core.hooks.types import HOOK_PRIORITY_SECURITY, HookSource
+
+        config = tmp_path / "hooks.json"
+        config.write_text(
+            json.dumps(
+                {
+                    "hooks": {
+                        "pre_tool_use": [
+                            {"type": "command", "command": "echo hi", "source": "builtin", "priority": 2000},
+                        ]
+                    }
+                }
+            )
+        )
+
+        reloader = HookReloader(config)
+        hook = reloader.current_registry().get("pre_tool_use")[0]
+        assert hook.source is HookSource.USER_CONFIG
+        assert hook.priority == HOOK_PRIORITY_SECURITY - 1
+
+    def test_llm_config_hooks_governed_too(self, tmp_path):
+        from myrm_agent_harness.agent.hooks.hot_reload import HookReloader
+        from myrm_agent_harness.core.hooks.types import HOOK_PRIORITY_SECURITY, HookSource
+
+        config = tmp_path / "hooks.json"
+        config.write_text(
+            json.dumps(
+                {
+                    "hooks": {
+                        "post_tool_use": [
+                            {"type": "llm", "prompt": "summarize", "priority": 5000, "source": "plugin"},
+                        ]
+                    }
+                }
+            )
+        )
+
+        reloader = HookReloader(config)
+        hook = reloader.current_registry().get("post_tool_use")[0]
+        assert hook.source is HookSource.USER_CONFIG
+        assert hook.priority == HOOK_PRIORITY_SECURITY - 1
+
     def test_reload_on_mtime_change(self, tmp_path):
         import time
 
