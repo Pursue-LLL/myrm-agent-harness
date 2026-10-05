@@ -86,6 +86,30 @@ class TestLoadRuleFile:
         assert "truncated" in result.content
         assert result.truncated is True
 
+    def test_truncation_repairs_unclosed_markdown_fence(self, tmp_path: Path) -> None:
+        rule_file = tmp_path / "fenced_big.md"
+        # Create content where head cuts inside an open code block
+        head_part = "# Rules\n\n```python\n" + "x = 1\n" * 800  # ~4800 chars inside code block
+        tail_part = "y = 2\n```\n\n# Footer\n" + "Z" * 4000
+        rule_file.write_text(head_part + tail_part)
+        result = _load_rule_file(rule_file, source="fenced_big.md")
+        assert result is not None
+        assert result.truncated is True
+        # Both head and tail segments should be balanced (even number of code fence markers)
+        import re
+        fences = re.findall(r"^\s*```", result.content, re.MULTILINE)
+        assert len(fences) % 2 == 0
+
+    def test_truncation_aligns_to_newlines(self, tmp_path: Path) -> None:
+        rule_file = tmp_path / "lines_big.md"
+        lines = [f"line {i:04d}: some descriptive rule text here" for i in range(500)]
+        rule_file.write_text("\n".join(lines))
+        result = _load_rule_file(rule_file, source="lines_big.md")
+        assert result is not None
+        assert result.truncated is True
+        # Ensure no line is half-cut in head
+        assert "\n\n[...truncated" in result.content
+
     def test_nonexistent_file(self, tmp_path: Path) -> None:
         assert _load_rule_file(tmp_path / "nope.md", source="test") is None
 

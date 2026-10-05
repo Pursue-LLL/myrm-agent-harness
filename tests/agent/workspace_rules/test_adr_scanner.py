@@ -114,3 +114,22 @@ class TestScanADRRules:
         seen_inodes: set[tuple[int, int]] = set()
         rules = scan_adr_rules(tmp_path, seen_inodes)
         assert rules == []
+
+    def test_scans_adrs_latest_first(self, tmp_path: Path) -> None:
+        decisions_dir = tmp_path / "docs" / "adr"
+        decisions_dir.mkdir(parents=True)
+
+        for i in range(1, 4):
+            (decisions_dir / f"000{i}-decision.md").write_text(
+                f"# 000{i}: Decision {i}\n\n* Status: accepted\n\nContent {i}",
+                encoding="utf-8",
+            )
+
+        seen_inodes: set[tuple[int, int]] = set()
+        rules = scan_adr_rules(tmp_path, seen_inodes)
+        assert len(rules) == 3
+        # Ensure latest ADR (0003) appears first
+        assert "0003-decision.md" in rules[0].path
+        assert "0002-decision.md" in rules[1].path
+        assert "0001-decision.md" in rules[2].path
+

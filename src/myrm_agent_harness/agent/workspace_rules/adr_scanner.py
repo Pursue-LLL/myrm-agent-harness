@@ -32,6 +32,8 @@ logger = logging.getLogger(__name__)
 _ADR_SUBDIRS: tuple[str, ...] = (
     "docs/decisions",
     "doc/decisions",
+    "docs/adr",
+    "doc/adr",
     ".myrm/decisions",
 )
 
@@ -96,7 +98,8 @@ def scan_adr_rules(
             continue
 
         try:
-            for adr_path in sorted(adr_dir.glob("*.md")):
+            # Enumerate in reverse order so latest ADRs (higher numbers) take priority in budget
+            for adr_path in sorted(adr_dir.glob("*.md"), reverse=True):
                 if not adr_path.is_file():
                     continue
 

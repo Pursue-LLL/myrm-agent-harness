@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -46,6 +47,7 @@ logger = logging.getLogger(__name__)
 MAX_RULE_FILE_CHARS = 8000
 MAX_TOTAL_CHARS = 20000
 MAX_UPWARD_LEVELS = 5
+_CODE_FENCE_PATTERN = re.compile(r"^\s*```", re.MULTILINE)
 
 _RULE_FILENAMES: tuple[str, ...] = (
     ".myrm.md",
@@ -145,8 +147,52 @@ def _strip_yaml_frontmatter(text: str) -> str:
     return text
 
 
+def _truncate_with_markdown_repair(
+    content: str,
+    filename: str,
+    max_chars: int = MAX_RULE_FILE_CHARS,
+) -> str:
+    """Truncate content with newline alignment and Markdown fence closure repair.
+
+    Protects System Prompt context from syntax tearing:
+    1. Aligns head cut to the nearest preceding newline within a search window.
+    2. Aligns tail cut to the nearest following newline within a search window.
+    3. Closes any open Markdown code fences at the end of head segment.
+    4. Re-opens any severed Markdown code fences at the start of tail segment.
+    """
+    head_target = int(max_chars * 0.7)
+    tail_target = int(max_chars * 0.2)
+
+    # 1. Align head to nearest preceding newline (look back up to 500 chars)
+    head_cut = content.rfind("\n", max(0, head_target - 500), head_target)
+    head = content[:head_cut] if head_cut != -1 else content[:head_target]
+
+    # 2. Align tail to nearest following newline (look ahead up to 500 chars)
+    tail_start = len(content) - tail_target
+    tail_cut = content.find("\n", tail_start, min(len(content), tail_start + 500))
+    tail = content[tail_cut + 1 :] if tail_cut != -1 else content[tail_start:]
+
+    # 3. Detect unclosed code fences in head (odd count means open fence)
+    if len(_CODE_FENCE_PATTERN.findall(head)) % 2 != 0:
+        head = f"{head}\n```"
+
+    # 4. Detect orphaned code fences in tail (odd count means severed start)
+    if len(_CODE_FENCE_PATTERN.findall(tail)) % 2 != 0:
+        tail = f"```\n{tail}"
+
+    return (
+        f"{head}\n\n[...truncated {filename}: "
+        f"kept {len(head)}+{len(tail)} of {len(content)} chars]\n\n{tail}"
+    )
+
+
 def _load_rule_file(filepath: Path, source: str) -> RuleFile | None:
-    """Load a single rule file with security scanning and truncation."""
+    """Load, sanitize, and validate a single rule file.
+
+    Returns None if the file is missing, empty, or unreadable.
+    Returns RuleFile(blocked=True) if prompt injection patterns are detected.
+    Truncates content exceeding MAX_RULE_FILE_CHARS with Markdown fence repair.
+    """
     try:
         raw = filepath.read_text(encoding="utf-8", errors="replace")
     except OSError as exc:
@@ -182,17 +228,14 @@ def _load_rule_file(filepath: Path, source: str) -> RuleFile | None:
 
     was_truncated = False
     if len(content) > MAX_RULE_FILE_CHARS:
-        head_chars = int(MAX_RULE_FILE_CHARS * 0.7)
-        tail_chars = int(MAX_RULE_FILE_CHARS * 0.2)
-        head = content[:head_chars]
-        tail = content[-tail_chars:]
-        content = (
-            f"{head}\n\n[...truncated {os.path.basename(str(filepath))}: "
-            f"kept {head_chars}+{tail_chars} of {len(content)} chars]\n\n{tail}"
+        content = _truncate_with_markdown_repair(
+            content=content,
+            filename=os.path.basename(str(filepath)),
+            max_chars=MAX_RULE_FILE_CHARS,
         )
         was_truncated = True
         logger.info(
-            "Workspace rule file truncated (head/tail) to %d chars: %s",
+            "Workspace rule file truncated (head/tail with fence repair) to %d chars: %s",
             MAX_RULE_FILE_CHARS,
             filepath,
         )
