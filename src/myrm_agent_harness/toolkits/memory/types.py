@@ -162,6 +162,19 @@ class MemoryStatus(StrEnum):
     ARCHIVED = "archived"
 
 
+class PendingResolutionAction(StrEnum):
+    """How an approved pending memory is applied to storage.
+
+    ``STORE`` persists the candidate as a new memory (default, non-destructive).
+    ``CORRECT`` demotes the targeted memory and stores the candidate as its linked
+    correction. ``DELETE`` removes the targeted memory that is now factually wrong.
+    """
+
+    STORE = "store"
+    CORRECT = "correct"
+    DELETE = "delete"
+
+
 class MemoryMutationRef(BaseModel):
     """A single typed memory mutation outcome reference."""
 
@@ -793,6 +806,9 @@ class PendingRecord(BaseModel):
     conflict_accuracy_score: float | None = None
     conflict_importance: float | None = None
     conflict_auto_resolve_at: datetime | None = None
+
+    resolution_action: PendingResolutionAction = PendingResolutionAction.STORE
+    target_memory_id: str | None = None
 
     @property
     def confidence(self) -> float | None:

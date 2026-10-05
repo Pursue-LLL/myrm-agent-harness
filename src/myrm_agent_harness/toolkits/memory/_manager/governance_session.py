@@ -21,6 +21,7 @@ from myrm_agent_harness.toolkits.memory._manager.shared import (
     logger,
     run_forgetting,
 )
+from myrm_agent_harness.toolkits.memory.types import PendingResolutionAction
 from myrm_agent_harness.utils.chat_utils import extract_answer_text
 
 if TYPE_CHECKING:
@@ -30,15 +31,30 @@ if TYPE_CHECKING:
 
 
 class MemoryManagerGovernanceSessionMixin:
-    async def submit_pending(self, memory: AnyMemory) -> str:
-        """Submit a memory for approval. Returns pending ID, or '' if duplicate."""
-        return await self._governance.submit_pending(memory)
+    async def submit_pending(
+        self,
+        memory: AnyMemory,
+        *,
+        resolution_action: PendingResolutionAction = PendingResolutionAction.STORE,
+        target_memory_id: str | None = None,
+    ) -> str:
+        """Submit a memory for approval.
+
+        ``resolution_action``/``target_memory_id`` record what approval should do
+        (persist as new / correct the target / delete the target).
+        Returns the pending ID, or '' if an identical candidate is already queued.
+        """
+        return await self._governance.submit_pending(
+            memory, resolution_action=resolution_action, target_memory_id=target_memory_id
+        )
 
     async def approve(self, pending_id: str) -> AnyMemory | None:
         """Approve a pending memory and persist to permanent storage."""
         return await self._governance.approve(
             pending_id,
             store_func=lambda memory: self.store(memory, _bypass_approval=True),
+            correct_func=self.correct_memory,
+            delete_func=self.delete_memory_by_id,
         )
 
     async def reject(self, pending_id: str) -> None:

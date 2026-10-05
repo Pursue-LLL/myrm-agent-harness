@@ -24,6 +24,7 @@ from myrm_agent_harness.toolkits.memory.types import (
     MemoryStatus,
     MemoryType,
     PendingRecord,
+    PendingResolutionAction,
     ProceduralMemory,
     ProfileEntry,
     RuleSource,
@@ -141,9 +142,14 @@ def row_to_procedural(row: tuple[object, ...]) -> ProceduralMemory:
 
 def row_to_pending(row: tuple[object, ...]) -> PendingRecord:
     """Column order: id, user_id, memory_type, content, memory_data,
-    source_chat_id, source_message_id, status, created_at, resolved_at.
+    source_chat_id, source_message_id, status, created_at, resolved_at,
+    resolution_action, target_memory_id.
     """
     memory_data = json.loads(row[4]) if row[4] else {}  # type: ignore[arg-type]
+    try:
+        resolution_action = PendingResolutionAction(str(row[10])) if len(row) > 10 and row[10] else PendingResolutionAction.STORE
+    except ValueError:
+        resolution_action = PendingResolutionAction.STORE
     return PendingRecord(
         id=str(row[0]),
         user_id=str(row[1]),
@@ -155,4 +161,6 @@ def row_to_pending(row: tuple[object, ...]) -> PendingRecord:
         status=str(row[7]),
         created_at=parse_dt(str(row[8])),
         resolved_at=parse_dt(str(row[9])) if row[9] else None,
+        resolution_action=resolution_action,
+        target_memory_id=str(row[11]) if len(row) > 11 and row[11] else None,
     )

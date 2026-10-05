@@ -30,6 +30,7 @@ from myrm_agent_harness.toolkits.memory.types import (
     MemorySearchResult,
     MemoryStatus,
     MemoryType,
+    PendingResolutionAction,
     ProceduralMemory,
     RuleSource,
     SemanticMemory,
@@ -165,6 +166,10 @@ class ReadOnlyMemoryView(MemoryManager):
         self._deny()
         return 0
 
+    async def delete_memory_by_id(self, memory_id: str) -> int:
+        self._deny()
+        return 0
+
     async def delete_rule(self, rule_id: str, *, allow_protected: bool = True) -> bool:
         self._deny()
         return False
@@ -267,7 +272,13 @@ class ReadOnlyMemoryView(MemoryManager):
         self._deny()
         return {}
 
-    async def submit_pending(self, memory: AnyMemory) -> str:
+    async def submit_pending(
+        self,
+        memory: AnyMemory,
+        *,
+        resolution_action: PendingResolutionAction = PendingResolutionAction.STORE,
+        target_memory_id: str | None = None,
+    ) -> str:
         self._deny()
         return ""
 
@@ -506,6 +517,13 @@ class EphemeralMemoryManager(MemoryManager):
                 del self._ephemeral_store[mid]
                 count += 1
         return count
+
+    async def delete_memory_by_id(self, memory_id: str) -> int:
+        """Delete an ephemeral memory in-place, delegating persistent ids to the parent."""
+        if memory_id in self._ephemeral_store:
+            del self._ephemeral_store[memory_id]
+            return 1
+        return await self._parent.delete_memory_by_id(memory_id)
 
     async def list_memories(
         self, memory_type: MemoryType, *, limit: int = 100, offset: int = 0, include_archived: bool = False

@@ -34,6 +34,7 @@ from myrm_agent_harness.toolkits.memory.types import (
     MemoryScope,
     MemoryType,
     PendingRecord,
+    PendingResolutionAction,
 )
 
 logger = logging.getLogger(__name__)
@@ -67,13 +68,28 @@ class GovernanceService:
         self._namespaces = list(namespaces)
         self._scope = scope.model_copy(deep=True)
 
-    async def submit_pending(self, memory: AnyMemory) -> str:
+    async def submit_pending(
+        self,
+        memory: AnyMemory,
+        *,
+        resolution_action: PendingResolutionAction = PendingResolutionAction.STORE,
+        target_memory_id: str | None = None,
+    ) -> str:
         rel = self._rel()
         if await rel.pending_exists(memory.memory_type.value, memory.content):
             return ""
-        return await rel.submit_pending(memory_to_pending(memory))
+        return await rel.submit_pending(
+            memory_to_pending(memory, resolution_action=resolution_action, target_memory_id=target_memory_id)
+        )
 
-    async def approve(self, pending_id: str, *, store_func: StoreFunc) -> AnyMemory | None:
+    async def approve(
+        self,
+        pending_id: str,
+        *,
+        store_func: StoreFunc,
+        correct_func: Callable[[str, str], Awaitable[AnyMemory]],
+        delete_func: Callable[[str], Awaitable[int]],
+    ) -> AnyMemory | None:
         rel = self._rel()
         record = await rel.get_pending(pending_id)
         if record is None:
@@ -85,6 +101,17 @@ class GovernanceService:
             await rel.set_profile(str(data.get("key", "")), str(data.get("value", "")), scope=scope)
             await rel.mark_pending(pending_id, "approved")
             return None
+
+        if record.resolution_action == PendingResolutionAction.DELETE:
+            if record.target_memory_id:
+                await delete_func(record.target_memory_id)
+            await rel.mark_pending(pending_id, "approved")
+            return None
+
+        if record.resolution_action == PendingResolutionAction.CORRECT and record.target_memory_id:
+            stored = await correct_func(record.target_memory_id, record.content)
+            await rel.mark_pending(pending_id, "approved")
+            return stored
 
         stored = await store_func(pending_to_memory(record))
         await rel.mark_pending(pending_id, "approved")

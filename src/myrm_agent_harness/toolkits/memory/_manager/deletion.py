@@ -99,6 +99,28 @@ class MemoryManagerDeletionMixin(MemoryManagerArchivalMixin, MemoryManagerQuerie
                     await self._cache.evict(t)
         return deleted
 
+    async def delete_memory_by_id(self, memory_id: str) -> int:
+        """Delete a single owned memory, resolving its collection from its type.
+
+        ``delete_memory`` requires the caller to know the vector collection up
+        front. Governance and approval flows only hold a memory id, so this
+        probes the vector collections and delegates to the canonical typed-delete
+        path (ownership-gated, with graph/cache cascade).
+        """
+        if self._vector is None:
+            return 0
+        for collection, memory_type in (
+            (self._config.semantic_collection, MemoryType.SEMANTIC),
+            (self._config.episodic_collection, MemoryType.EPISODIC),
+            (self._config.conversation_collection, MemoryType.CONVERSATION),
+        ):
+            docs = await self._vector.get(collection, [memory_id])
+            if not docs:
+                continue
+            result = await self.delete_memories_by_ids({memory_type.value: [memory_id]})
+            return len(result.deleted_refs)
+        return 0
+
     async def delete_rule(self, rule_id: str, *, allow_protected: bool = True) -> bool:
         """Delete an owned procedural rule.
 

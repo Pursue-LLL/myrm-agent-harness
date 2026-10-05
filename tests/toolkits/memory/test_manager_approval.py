@@ -7,7 +7,12 @@ import pytest
 
 from myrm_agent_harness.toolkits.memory._internal.storage import MemoryNotFoundError
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
-from myrm_agent_harness.toolkits.memory.types import MemoryType, PendingRecord, SemanticMemory
+from myrm_agent_harness.toolkits.memory.types import (
+    MemoryType,
+    PendingRecord,
+    PendingResolutionAction,
+    SemanticMemory,
+)
 
 
 class TestApprovalWorkflow:
@@ -114,6 +119,69 @@ class TestApprovalWorkflow:
 
         with pytest.raises(MemoryNotFoundError, match="Pending record pending-1 not found"):
             await manager.approve("pending-1")
+
+    @pytest.mark.asyncio
+    async def test_approve_delete_action_removes_target(self, mock_relational_store, memory_config):
+        """Approving a DELETE proposal removes the targeted memory, not the candidate."""
+        pending_record = PendingRecord(
+            id="pending-del",
+            memory_type=MemoryType.SEMANTIC,
+            content="Remove stale fact",
+            memory_data={"content": "Remove stale fact", "importance": 0.5},
+            created_at=datetime.now(UTC),
+            status="pending",
+            resolution_action=PendingResolutionAction.DELETE,
+            target_memory_id="mem-stale",
+        )
+        mock_relational_store.get_pending.return_value = pending_record
+
+        manager = MemoryManager(
+            memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True
+        )
+        delete_calls: list[str] = []
+
+        async def _record_delete(memory_id: str) -> int:
+            delete_calls.append(memory_id)
+            return 1
+
+        with patch.object(manager, "delete_memory_by_id", side_effect=_record_delete):
+            result = await manager.approve("pending-del")
+
+        assert result is None
+        assert delete_calls == ["mem-stale"]
+        mock_relational_store.mark_pending.assert_called_once_with("pending-del", "approved")
+
+    @pytest.mark.asyncio
+    async def test_approve_correct_action_delegates_to_correct_memory(self, mock_relational_store, memory_config):
+        """Approving a CORRECT proposal demotes the target and stores the corrected fact."""
+        pending_record = PendingRecord(
+            id="pending-fix",
+            memory_type=MemoryType.SEMANTIC,
+            content="User now works at Google",
+            memory_data={"content": "User now works at Google", "importance": 0.8},
+            created_at=datetime.now(UTC),
+            status="pending",
+            resolution_action=PendingResolutionAction.CORRECT,
+            target_memory_id="mem-old",
+        )
+        mock_relational_store.get_pending.return_value = pending_record
+
+        manager = MemoryManager(
+            memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True
+        )
+        corrected = SemanticMemory(content="User now works at Google")
+        correct_calls: list[tuple[str, str]] = []
+
+        async def _record_correct(memory_id: str, content: str) -> SemanticMemory:
+            correct_calls.append((memory_id, content))
+            return corrected
+
+        with patch.object(manager, "correct_memory", side_effect=_record_correct):
+            result = await manager.approve("pending-fix")
+
+        assert result is corrected
+        assert correct_calls == [("mem-old", "User now works at Google")]
+        mock_relational_store.mark_pending.assert_called_once_with("pending-fix", "approved")
 
     @pytest.mark.asyncio
     async def test_reject_pending_memory(self, mock_relational_store, memory_config):

@@ -299,6 +299,15 @@ class SQLiteRelationalStore(RelationalStore):
             if "expected_valid_days" not in rule_columns:
                 await self._connection.execute("ALTER TABLE procedural_rules ADD COLUMN expected_valid_days INTEGER")
 
+        if await self._table_exists("pending_records"):
+            pending_columns = await self._table_columns("pending_records")
+            if "resolution_action" not in pending_columns:
+                await self._connection.execute(
+                    "ALTER TABLE pending_records ADD COLUMN resolution_action TEXT NOT NULL DEFAULT 'store'"
+                )
+            if "target_memory_id" not in pending_columns:
+                await self._connection.execute("ALTER TABLE pending_records ADD COLUMN target_memory_id TEXT")
+
     def _scope_values(
         self, scope: MemoryScope | None
     ) -> tuple[str, str, str | None, str | None, str | None, str | None]:
@@ -383,7 +392,9 @@ class SQLiteRelationalStore(RelationalStore):
                     source_message_id TEXT,
                     status TEXT NOT NULL DEFAULT 'pending',
                     created_at TEXT NOT NULL,
-                    resolved_at TEXT
+                    resolved_at TEXT,
+                    resolution_action TEXT NOT NULL DEFAULT 'store',
+                    target_memory_id TEXT
                 )
             """
             )
@@ -775,8 +786,8 @@ class SQLiteRelationalStore(RelationalStore):
         try:
             await conn.execute(
                 """INSERT INTO pending_records
-                   (id, user_id, memory_type, content, memory_data, source_chat_id, source_message_id, status, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)""",
+                   (id, user_id, memory_type, content, memory_data, source_chat_id, source_message_id, status, created_at, resolution_action, target_memory_id)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)""",
                 (
                     record.id,
                     "default",
@@ -786,6 +797,8 @@ class SQLiteRelationalStore(RelationalStore):
                     record.source_chat_id,
                     record.source_message_id,
                     now,
+                    record.resolution_action.value,
+                    record.target_memory_id,
                 ),
             )
             await conn.commit()

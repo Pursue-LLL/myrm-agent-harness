@@ -32,7 +32,6 @@ from myrm_agent_harness.toolkits.memory._internal.channel_pruning import Channel
 from myrm_agent_harness.toolkits.memory._internal.maintenance import enrich_with_graph
 from myrm_agent_harness.toolkits.memory._internal.rerank_gate import apply_cross_rerank
 from myrm_agent_harness.toolkits.memory._internal.scope import apply_channel_affinity
-from myrm_agent_harness.toolkits.memory._internal.temporal_window import TemporalWindow, derive_temporal_window
 from myrm_agent_harness.toolkits.memory._internal.storage import (
     embed_single,
     search_bm25,
@@ -42,6 +41,7 @@ from myrm_agent_harness.toolkits.memory._internal.storage import (
     search_profile,
     search_semantic,
 )
+from myrm_agent_harness.toolkits.memory._internal.temporal_window import TemporalWindow, derive_temporal_window
 from myrm_agent_harness.toolkits.memory.adaptive import should_use_dual_channel
 from myrm_agent_harness.toolkits.memory.config import MemoryConfig
 from myrm_agent_harness.toolkits.memory.metrics import get_search_metrics

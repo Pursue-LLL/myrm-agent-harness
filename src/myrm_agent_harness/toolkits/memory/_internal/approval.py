@@ -21,13 +21,24 @@ from myrm_agent_harness.toolkits.memory.types import (
     EpisodicMemory,
     MemoryType,
     PendingRecord,
+    PendingResolutionAction,
     ProceduralMemory,
     SemanticMemory,
 )
 
 
-def memory_to_pending(memory: AnyMemory) -> PendingRecord:
-    """Serialise an AnyMemory into a PendingRecord for the approval queue."""
+def memory_to_pending(
+    memory: AnyMemory,
+    *,
+    resolution_action: PendingResolutionAction = PendingResolutionAction.STORE,
+    target_memory_id: str | None = None,
+) -> PendingRecord:
+    """Serialise an AnyMemory into a PendingRecord for the approval queue.
+
+    ``resolution_action``/``target_memory_id`` describe what approving the record
+    should do: persist it as-is (``STORE``), replace the targeted memory with it
+    (``CORRECT``), or delete the targeted memory (``DELETE``).
+    """
     data = memory.model_dump(exclude={"embedding"}, mode="json")
     return PendingRecord(
         id=memory.id,
@@ -36,6 +47,8 @@ def memory_to_pending(memory: AnyMemory) -> PendingRecord:
         memory_data=data,
         source_chat_id=getattr(memory, "source_chat_id", None),
         source_message_id=getattr(memory, "source_message_id", None),
+        resolution_action=resolution_action,
+        target_memory_id=target_memory_id,
     )
 
 
