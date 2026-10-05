@@ -7,10 +7,10 @@ import pytest
 
 from myrm_agent_harness.agent.hooks import (
     EMPTY_RESULT,
+    HOOK_PRIORITY_SECURITY,
     AggregatedHookResult,
     CallableHookDefinition,
     CommandHookDefinition,
-    HOOK_PRIORITY_SECURITY,
     HookEvent,
     HookExecutor,
     HookRegistry,
@@ -18,7 +18,6 @@ from myrm_agent_harness.agent.hooks import (
     HookSource,
     HttpHookDefinition,
     fire_hook,
-    get_command_hook_approver,
     get_hook_executor,
     set_command_hook_approver,
     set_hook_executor,
@@ -1620,7 +1619,7 @@ class TestHookGovernance:
 
     @pytest.mark.asyncio
     async def test_command_gate_approver_overrides_refusal(self):
-        async def allow(hook, event, command):  # noqa: ANN001
+        async def allow(hook, event, command):
             return True
 
         set_command_hook_approver(allow)
