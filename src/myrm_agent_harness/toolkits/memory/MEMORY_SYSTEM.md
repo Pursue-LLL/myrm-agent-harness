@@ -883,15 +883,17 @@ tools = create_memory_tools(manager=manager)
 
 `MemoryManager` 审批相关方法：
 
-| 方法                     | 功能                       |
-| ------------------------ | -------------------------- |
-| `submit_pending(memory)` | 提交记忆到审批队列（去重） |
-| `approve(pending_id)`    | 审批通过并持久化           |
-| `reject(pending_id)`     | 拒绝                       |
-| `list_pending(limit=50)` | 列出待审批记忆             |
-| `count_pending()`        | 统计待审批数量             |
-| `batch_approve(ids)`     | 批量审批                   |
-| `batch_reject(ids)`      | 批量拒绝                   |
+| 方法                                                                              | 功能                                                                              |
+| --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `submit_pending(memory, *, resolution_action=STORE, target_memory_id=None)`       | 提交记忆到审批队列（去重），并声明批准后应执行的落库语义                          |
+| `approve(pending_id)`                                                             | 按 `resolution_action` 分派：`STORE` 持久化新记忆 / `CORRECT` 纠正目标记忆 / `DELETE` 删除目标记忆 |
+| `reject(pending_id)`                                                              | 拒绝                                                                              |
+| `list_pending(limit=50)`                                                          | 列出待审批记忆                                                                    |
+| `count_pending()`                                                                 | 统计待审批数量                                                                    |
+| `batch_approve(ids)`                                                              | 批量审批                                                                          |
+| `batch_reject(ids)`                                                               | 批量拒绝                                                                          |
+
+`PendingResolutionAction` 取值：`STORE`（默认，持久化候选记忆本身）、`CORRECT`（以候选内容纠正 `target_memory_id`，触发旧记忆降级并建立纠正链）、`DELETE`（删除 `target_memory_id`）。`CORRECT`/`DELETE` 需携带 `target_memory_id`；删除经 `delete_memory_by_id` 按记忆 id 解析集合后走带所有权校验的删除路径。
 
 ---
 
