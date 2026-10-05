@@ -645,12 +645,10 @@ class TestReplayIsolation:
         assert self.BAD_ARGS not in json.dumps(outbound)
 
     def test_duplicate_id_invalid_entry_never_replayed(self):
-        """Probe regression (contract hole): an invalid entry sharing an id
-        with a valid call used to survive quarantine — the pipeline reported
-        no change and langchain replayed the malformed text as a duplicate-id
-        double declaration. Now the invalid bucket is always cleared: the
-        valid declaration wins, the malformed text never reaches the
-        provider, and the dangling call still gets its synthetic response."""
+        """An invalid entry sharing an id with a valid call must not survive
+        quarantine: the valid declaration wins, the invalid bucket is
+        cleared, malformed text never reaches the provider, and the dangling
+        call still gets its synthetic response."""
         messages = [
             HumanMessage(content="go"),
             AIMessage(
@@ -673,6 +671,38 @@ class TestReplayIsolation:
 
         # Malformed raw text must not survive anywhere in the patched history.
         assert '{"path": "repor' not in str([m.model_dump() for m in patched])
+
+    def test_three_source_collision_single_declaration_per_id(self):
+        """A call id appearing in valid tool_calls, invalid_tool_calls and
+        args-recovery withholding simultaneously resolves to exactly one
+        declaration per id, with the recovery promotion getting its own
+        invalid-args ToolMessage and no malformed text anywhere."""
+        messages = [
+            HumanMessage(content="go"),
+            AIMessage(
+                content="",
+                tool_calls=[{"name": "good_tool", "args": {"x": 1}, "id": "c1"}],
+                invalid_tool_calls=[{"name": "bad_tool", "args": '{"path": "repor', "id": "c1", "error": "truncated"}],
+                additional_kwargs={
+                    "tool_call_recovery": [
+                        {"tool_call_id": "c9", "tool_name": "rec_tool", "safe": False, "error": "refused"}
+                    ]
+                },
+            ),
+        ]
+        patched = _build_patched_messages(messages)
+        assert patched is not None
+        ai_msg = patched[1]
+        assert ai_msg.invalid_tool_calls == []
+        ids = [tc["id"] for tc in ai_msg.tool_calls]
+        assert ids == ["c1", "c9"]  # one declaration per id, no duplicates
+        assert '{"path": "repor' not in str([m.model_dump() for m in patched])
+
+        synthetics = [m for m in patched if isinstance(m, ToolMessage)]
+        assert [m.tool_call_id for m in synthetics] == ["c1", "c9"]
+        # The refused recovery call gets invalid-args semantics with its reason.
+        assert "refused" in synthetics[1].content
+        assert synthetics[1].status == "error"
 
     def test_duplicate_id_outbound_single_declaration(self):
         """Probe regression: the outbound payload must carry exactly one
