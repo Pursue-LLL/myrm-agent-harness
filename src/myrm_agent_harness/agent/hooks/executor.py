@@ -2,14 +2,16 @@
 
 [INPUT]
 - agent.hooks.types (POS: Hook 类型定义)
+- agent.hooks.command_gate (POS: 命令钩子安全网关+审批注入点)
+- agent.hooks.session_access (POS: 会话级 ContextVar 访问 API，本文件尾部 re-export)
 - core.security.http.secure_fetch::secure_request (POS: SSRF-protected outbound HTTP)
 - utils.chat_utils::extract_answer_text (POS: LLM 响应文本提取)
 - utils.json_parsing::parse_llm_json_object (POS: robust JSON object extraction from LLM hook output — fences, prose, bare control chars, trailing commas)
 - utils.logger_utils (POS: 日志工具)
 
 [OUTPUT]
-- HookRegistry: 钩子注册管理器
-- HookExecutor: 钩子执行引擎 (4 种执行器, elapsed_ms 计时)
+- HookRegistry: 钩子注册管理器（get() 按 -priority 稳定排序，安全钩子恒定最先）
+- HookExecutor: 钩子执行引擎 (4 种执行器, elapsed_ms 计时, 安全决策锁定防 deny→approve 翻转)
 - get_hook_executor, set_hook_executor: ContextVar 访问器
 - _SLOW_HOOK_THRESHOLD_MS: 慢 Hook 日志阈值 (500ms)
 
@@ -27,12 +29,30 @@ import os
 import shlex
 import time
 from collections import defaultdict
-from contextvars import ContextVar
-from dataclasses import asdict, replace
-from typing import Any, cast
+from dataclasses import replace
 
+from myrm_agent_harness.agent.hooks.command_gate import (
+    approve_hook_command as _approve_hook_command,
+)
+from myrm_agent_harness.agent.hooks.command_gate import (
+    gate_hook_command as _gate_hook_command,
+)
+from myrm_agent_harness.agent.hooks.command_gate import (
+    is_strict_source as _is_strict_source,
+)
+from myrm_agent_harness.agent.hooks.command_gate import (
+    merged_governance_metadata as _merged_metadata,
+)
+from myrm_agent_harness.agent.hooks.session_access import (
+    bootstrap_hook_registry,
+    fire_hook,
+    get_hook_executor,
+    payload_from_dataclass,
+    set_hook_executor,
+)
 from myrm_agent_harness.agent.hooks.types import (
     EMPTY_RESULT,
+    HOOK_PRIORITY_SECURITY,
     AggregatedHookResult,
     CallableHookDefinition,
     CommandHookDefinition,
@@ -44,6 +64,17 @@ from myrm_agent_harness.agent.hooks.types import (
 from myrm_agent_harness.utils.chat_utils import extract_answer_text
 from myrm_agent_harness.utils.json_parsing import parse_llm_json_object
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
+
+# session_access re-exports: PEP 484 explicit-export marker so mypy
+# (implicit_reexport=False) accepts the legacy
+# ``from ...hooks.executor import fire_hook`` import path.
+__all__ = [
+    "bootstrap_hook_registry",
+    "fire_hook",
+    "get_hook_executor",
+    "payload_from_dataclass",
+    "set_hook_executor",
+]
 
 logger = get_agent_logger(__name__)
 
@@ -70,7 +101,13 @@ class HookRegistry:
         self._hooks[event].append(hook)
 
     def get(self, event: str) -> list[HookDefinition]:
-        return list(self._hooks.get(event, []))
+        """Return hooks ordered by ``(-priority, registration order)``.
+
+        ``sorted`` is stable, so equal priorities keep the onion-model
+        registration order (first registered sees the event first) while
+        security-priority hooks always run before user-authored hooks.
+        """
+        return sorted(self._hooks.get(event, []), key=lambda h: -h.priority)
 
     def clear(self) -> None:
         self._hooks.clear()
@@ -134,7 +171,11 @@ class HookExecutor:
         if not hooks:
             return EMPTY_RESULT
 
+        logger.info("hooks: event=%s registered=%d", event, len(hooks))
         results: list[HookResult] = []
+        # Highest priority whose decision is already locked by a security hook.
+        # Lower-priority hooks must not override a locked ``updated_input``.
+        locked_priority: int | None = None
         for hook in hooks:
             if not _matches_hook(hook, payload):
                 continue
@@ -150,7 +191,13 @@ class HookExecutor:
                     reason=f"{type(exc).__name__}: {exc}",
                 )
             elapsed_ms = (time.monotonic() - t0) * 1000
-            result = replace(result, elapsed_ms=elapsed_ms)
+            result = replace(result, elapsed_ms=elapsed_ms, metadata=_merged_metadata(result.metadata, hook))
+            if hook.priority >= HOOK_PRIORITY_SECURITY and (result.blocked or result.updated_input is not None):
+                locked_priority = hook.priority
+            elif locked_priority is not None and hook.priority < locked_priority and result.updated_input is not None:
+                # A user-authored hook may not rewrite input that a security
+                # hook has already rewritten or guarded (deny→approve flip).
+                result = replace(result, updated_input=None)
             if elapsed_ms > _SLOW_HOOK_THRESHOLD_MS:
                 logger.warning(
                     "Slow hook [%s] %s took %.0fms (>%.0fms)",
@@ -191,6 +238,27 @@ class HookExecutor:
         )
 
         command = _inject_arguments(hook.command, payload, shell_escape=True)
+        refusal = _gate_hook_command(command, strict=_is_strict_source(hook))
+        if refusal is not None:
+            # The gate judges the hook, not the event: a refused command never
+            # blocks the main flow unless the hook itself opted into fail-closed.
+            if await _approve_hook_command(hook, event, command):
+                logger.info("hooks: command hook approved via approver [event=%s source=%s]", event, hook.source.value)
+            else:
+                logger.warning(
+                    "hooks: command hook refused by safety gate [event=%s source=%s] — %s",
+                    event,
+                    hook.source.value,
+                    refusal,
+                )
+                return HookResult(
+                    hook_type="command",
+                    success=False,
+                    blocked=hook.block_on_failure,
+                    reason=f"Command refused by hook safety gate: {refusal}",
+                    metadata={"gate_blocked": True},
+                )
+
         extra_env = {
             "HOOK_EVENT": event,
             "HOOK_PAYLOAD": json.dumps(payload, default=str, ensure_ascii=True),
@@ -332,7 +400,7 @@ class HookExecutor:
                 )
             llm = create_litellm_model(model=model)
             response = await asyncio.wait_for(
-                llm.ainvoke(f"{prefix}\n\n{prompt}"),  # type: ignore[no-untyped-call]
+                llm.ainvoke(f"{prefix}\n\n{prompt}"),
                 timeout=hook.timeout_seconds,
             )
             # 兼容 reasoning 模型 content 空回退（DeepSeek-R1/Qwen3 等）
@@ -421,48 +489,6 @@ def _parse_hook_json(text: str) -> dict[str, object]:
 # ---------------------------------------------------------------------------
 # ContextVar-based session-scoped access
 # ---------------------------------------------------------------------------
-
-
-_executor_var: ContextVar[HookExecutor | None] = ContextVar("hook_executor", default=None)
-
-
-def get_hook_executor() -> HookExecutor | None:
-    """Get the session-scoped HookExecutor, or None if not configured."""
-    return _executor_var.get()
-
-
-def set_hook_executor(executor: HookExecutor | None) -> None:
-    """Set the session-scoped HookExecutor."""
-    _executor_var.set(executor)
-
-
-async def fire_hook(event: str, payload: dict[str, object]) -> AggregatedHookResult:
-    """Convenience: fire a hook event on the current session's executor.
-
-    Returns EMPTY_RESULT if no executor is configured — zero overhead when
-    hooks are not used.
-    """
-    executor = _executor_var.get()
-    if executor is None:
-        return EMPTY_RESULT
-    return await executor.execute(event, payload)
-
-
-def payload_from_dataclass(obj: object) -> dict[str, object]:
-    """Convert a frozen dataclass payload to dict for hook execution."""
-    return cast(dict[str, object], asdict(cast(Any, obj)))
-
-
-def bootstrap_hook_registry() -> HookRegistry:
-    """Get or create the session-scoped HookRegistry.
-
-    Ensures that the registry is a singleton per session and avoids
-    duplicate registration of core framework hooks.
-    """
-    executor = get_hook_executor()
-    if executor is not None:
-        return executor.registry
-
-    registry = HookRegistry()
-    set_hook_executor(HookExecutor(registry))
-    return registry
+# Definitions live in session_access.py and are re-exported at the top of this
+# module so long-standing ``from ...hooks.executor import fire_hook`` call
+# sites keep working.

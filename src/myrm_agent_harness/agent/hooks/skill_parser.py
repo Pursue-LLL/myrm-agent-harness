@@ -21,7 +21,13 @@ import re
 
 import yaml
 
-from myrm_agent_harness.agent.hooks.types import CommandHookDefinition, HookDefinition, HookEvent, HttpHookDefinition
+from myrm_agent_harness.agent.hooks.types import (
+    CommandHookDefinition,
+    HookDefinition,
+    HookEvent,
+    HookSource,
+    HttpHookDefinition,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -105,9 +111,10 @@ def _parse_hooks(hooks_data: object) -> list[tuple[HookEvent, HookDefinition]]:
                             headers=_build_auth_headers(config.get("auth", "")),
                             matcher=tool_matcher,
                             block_on_failure=config.get("failure_mode", "").lower() in ("fail_closed", "closed"),
-                            timeout_seconds=float(config.get("timeout", 10)),
+                            timeout_seconds=round(float(config.get("timeout", 10))),
                             secret=secret or None,
                             fire_and_forget=bool(config.get("fire_and_forget", False)),
+                            source=HookSource.SKILL,
                         ),
                     )
                 )
@@ -119,7 +126,8 @@ def _parse_hooks(hooks_data: object) -> list[tuple[HookEvent, HookDefinition]]:
                             command=script,
                             matcher=tool_matcher,
                             block_on_failure=config.get("failure_mode", "").lower() in ("fail_closed", "closed"),
-                            timeout_seconds=float(config.get("timeout", 10)),
+                            timeout_seconds=round(float(config.get("timeout", 10))),
+                            source=HookSource.SKILL,
                         ),
                     )
                 )

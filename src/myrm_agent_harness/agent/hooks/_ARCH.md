@@ -10,13 +10,15 @@ User-configurable lifecycle hook system. Complements middlewares (framework-inte
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | User-configurable lifecycle hook system. Complements middlewares (framework-internal safety logic) b | — |
-| executor.py | Core | Hook execution layer. Manages hook registration and execution with ContextVar-based session isolation and per-hook elapsed_ms timing. LLM hooks build the model via `create_litellm_model` (model from hook config or `MYRM_HOOK_MODEL` env). `_parse_hook_json` parses LLM-hook verdicts via `parse_llm_json_object` (robust against fences, prose, bare control chars, trailing commas). | ✅ |
+| executor.py | Core | Hook execution layer. Manages hook registration and execution with ContextVar-based session isolation and per-hook elapsed_ms timing. LLM hooks build the model via `create_litellm_model` (model from hook config or `MYRM_HOOK_MODEL` env). `_parse_hook_json` parses LLM-hook verdicts via `parse_llm_json_object` (robust against fences, prose, bare control chars, trailing commas). `get()` orders hooks by `-priority` (stable ties = onion registration order); security-priority hooks run first and their decisions (block / `updated_input`) are locked against lower-priority overrides (deny→approve flip protection). | ✅ |
+| command_gate.py | Core | Command hook safety gate + approval injection point. Reuses the code_execution static analyzer (`analyze_command` / `is_destructive_command`): BLOCK-level threats refused unconditionally, ESCALATE-level refused for third-party provenance (skill/plugin/user_config — hooks fire silently), built-in hooks keep the wider path. `set_command_hook_approver` lets the product layer surface an approval card; standalone default is fail-closed for third-party hooks. | ✅ |
+| session_access.py | Core | Session-scoped ContextVar access API (get/set_hook_executor, fire_hook, payload_from_dataclass, bootstrap_hook_registry); re-exported by executor.py for legacy import paths. | ✅ |
 | output_spiller.py | Core | Hook output spiller. Prevents oversized hook outputs (>2500 tokens) from bloating context by writing to disk. | ✅ |
 | graceful_shutdown.py | Core | Graceful shutdown manager. Handles SIGTERM/SIGINT signals, triggers graceful shutdown, and auto-save | ✅ |
 | hot_reload.py | Core | Hook hot-reload watcher. Monitors JSON/YAML config file changes and auto-reloads hook definitions wi | ✅ |
-| skill_parser.py | Core | SKILL.md Hook parser — extract hooks from Markdown frontmatter. | ✅ |
+| skill_parser.py | Core | SKILL.md Hook parser — extract hooks from Markdown frontmatter; parsed hooks are tagged `source=skill` so the gate applies the strict path. | ✅ |
 | tool_name_mapping.py | Core | Provides map_to_claude_tool_name, map_from_claude_tool_name, should_trigger_hook. | ✅ |
-| types.py | Core | Hook type definitions. Defines all Hook-related data structures, consumed by executor.py and integra | ✅ |
+| types.py | Core | Hook type definitions. Re-exports `core/hooks/types.py` (HookEvent, 4 hook variants with `priority`/`source` governance fields, HookResult, payloads, HookRegistryProtocol). | ✅ |
 
 HTTP hooks use `core/security/http/secure_fetch.py` (`secure_request`) for SSRF protection — not a local duplicate.
 HTTP hooks support optional HMAC-SHA256 signing (`secret` field → `X-Webhook-Signature: sha256=…` header) and fire-and-forget mode (`fire_and_forget` field → `asyncio.create_task`, notification events don't block the main flow).

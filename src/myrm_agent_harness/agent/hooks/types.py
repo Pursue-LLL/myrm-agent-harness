@@ -9,6 +9,9 @@ from myrm_agent_harness.core.hooks.types import (
     EMPTY_RESULT as EMPTY_RESULT,
 )
 from myrm_agent_harness.core.hooks.types import (
+    HOOK_PRIORITY_SECURITY as HOOK_PRIORITY_SECURITY,
+)
+from myrm_agent_harness.core.hooks.types import (
     AggregatedHookResult as AggregatedHookResult,
 )
 from myrm_agent_harness.core.hooks.types import (
@@ -31,6 +34,9 @@ from myrm_agent_harness.core.hooks.types import (
 )
 from myrm_agent_harness.core.hooks.types import (
     HookResult as HookResult,
+)
+from myrm_agent_harness.core.hooks.types import (
+    HookSource as HookSource,
 )
 from myrm_agent_harness.core.hooks.types import (
     HttpHookDefinition as HttpHookDefinition,

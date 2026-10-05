@@ -44,6 +44,25 @@ class HookEvent(StrEnum):
 
 
 # ---------------------------------------------------------------------------
+# Hook Governance (priority & provenance)
+# ---------------------------------------------------------------------------
+
+class HookSource(StrEnum):
+    """Provenance of a hook registration — drives governance and audit."""
+
+    BUILTIN = "builtin"  # framework built-in hooks (incl. safety hooks)
+    SKILL = "skill"  # hooks declared in third-party SKILL.md frontmatter
+    PLUGIN = "plugin"  # hooks from installed plugins
+    USER_CONFIG = "user_config"  # hooks from user hook config files
+
+
+#: Safety hooks run before everything else and lock their decisions: hooks
+#: registered with this priority cannot have their ``updated_input`` or block
+#: verdict flipped by lower-priority (user-authored) hooks.
+HOOK_PRIORITY_SECURITY = 1000
+
+
+# ---------------------------------------------------------------------------
 # Hook Definitions (4 types)
 # ---------------------------------------------------------------------------
 
@@ -54,6 +73,15 @@ class _HookBase(BaseModel):
     matcher: str | None = Field(default=None, description="fnmatch pattern to filter tool names (e.g. 'bash_*')")
     block_on_failure: bool = Field(default=False, description="If true, a failed hook blocks the main flow")
     timeout_seconds: int = Field(default=30, ge=1, le=600)
+    priority: int = Field(
+        default=0,
+        ge=0,
+        description="Execution order within an event: higher runs first; ties keep registration order (onion model). Safety hooks must use HOOK_PRIORITY_SECURITY.",
+    )
+    source: HookSource = Field(
+        default=HookSource.BUILTIN,
+        description="Registration provenance, used for governance, audit, and gate policies.",
+    )
 
 
 HookCallable = Callable[[str, dict[str, object]], Awaitable["HookResult"]]

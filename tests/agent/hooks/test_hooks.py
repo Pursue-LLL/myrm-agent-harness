@@ -10,15 +10,20 @@ from myrm_agent_harness.agent.hooks import (
     AggregatedHookResult,
     CallableHookDefinition,
     CommandHookDefinition,
+    HOOK_PRIORITY_SECURITY,
     HookEvent,
     HookExecutor,
     HookRegistry,
     HookResult,
+    HookSource,
     HttpHookDefinition,
     fire_hook,
+    get_command_hook_approver,
     get_hook_executor,
+    set_command_hook_approver,
     set_hook_executor,
 )
+from myrm_agent_harness.agent.hooks.skill_parser import parse_hooks_from_skill_md
 from myrm_agent_harness.agent.hooks.tool_name_mapping import (
     map_from_claude_tool_name,
     map_to_claude_tool_name,
@@ -1450,3 +1455,197 @@ class TestSlowHookWarning:
             await executor.execute(HookEvent.SESSION_START, {})
             slow_calls = [call for call in mock_logger.warning.call_args_list if "Slow hook" in str(call)]
             assert len(slow_calls) == 0
+
+
+class TestHookGovernance:
+    """Priority ordering, security decision locking, and the command gate."""
+
+    # -- ordering --
+
+    def test_get_orders_by_priority_desc(self):
+        registry = HookRegistry()
+        registry.register(HookEvent.PRE_TOOL_USE, CommandHookDefinition(command="user-hook"))
+        registry.register(
+            HookEvent.PRE_TOOL_USE,
+            CallableHookDefinition(fn=_noop_hook, priority=HOOK_PRIORITY_SECURITY),
+        )
+        hooks = registry.get(HookEvent.PRE_TOOL_USE)
+        assert hooks[0].priority == HOOK_PRIORITY_SECURITY
+        assert hooks[1].priority == 0
+
+    def test_priority_ties_keep_registration_order(self):
+        registry = HookRegistry()
+        registry.register(HookEvent.PRE_TOOL_USE, CommandHookDefinition(command="first"))
+        registry.register(HookEvent.PRE_TOOL_USE, CommandHookDefinition(command="second"))
+        hooks = registry.get(HookEvent.PRE_TOOL_USE)
+        assert [h.command for h in hooks] == ["first", "second"]  # type: ignore[union-attr]
+
+    # -- security decision locking --
+
+    @pytest.mark.asyncio
+    async def test_security_hook_blocks_first_user_hook_never_runs(self):
+        calls: list[str] = []
+
+        async def guard(event: str, payload: dict[str, object]) -> HookResult:
+            calls.append("guard")
+            return HookResult(hook_type="callable", success=False, blocked=True, reason="denied")
+
+        async def user_hook(event: str, payload: dict[str, object]) -> HookResult:
+            calls.append("user")
+            return HookResult(hook_type="callable", success=True)
+
+        registry = HookRegistry()
+        registry.register(HookEvent.PRE_TOOL_USE, CallableHookDefinition(fn=user_hook))
+        registry.register(
+            HookEvent.PRE_TOOL_USE,
+            CallableHookDefinition(fn=guard, priority=HOOK_PRIORITY_SECURITY),
+        )
+        result = await HookExecutor(registry).execute(HookEvent.PRE_TOOL_USE, {})
+        assert result.blocked is True
+        assert calls == ["guard"]  # user hook cannot flip deny→approve: it never runs
+
+    @pytest.mark.asyncio
+    async def test_security_updated_input_not_overridden_by_user_hook(self):
+        async def guard(event: str, payload: dict[str, object]) -> HookResult:
+            return HookResult(hook_type="callable", success=True, updated_input={"safe": True})
+
+        async def user_hook(event: str, payload: dict[str, object]) -> HookResult:
+            return HookResult(hook_type="callable", success=True, updated_input={"safe": False})
+
+        registry = HookRegistry()
+        registry.register(HookEvent.PRE_TOOL_USE, CallableHookDefinition(fn=user_hook))
+        registry.register(
+            HookEvent.PRE_TOOL_USE,
+            CallableHookDefinition(fn=guard, priority=HOOK_PRIORITY_SECURITY),
+        )
+        result = await HookExecutor(registry).execute(HookEvent.PRE_TOOL_USE, {})
+        assert result.updated_input == {"safe": True}
+
+    @pytest.mark.asyncio
+    async def test_user_updated_input_wins_without_security_hook(self):
+        """Onion cascade (last wins) is preserved when no security hook locks it."""
+
+        async def first(event: str, payload: dict[str, object]) -> HookResult:
+            return HookResult(hook_type="callable", success=True, updated_input={"v": 1})
+
+        async def second(event: str, payload: dict[str, object]) -> HookResult:
+            return HookResult(hook_type="callable", success=True, updated_input={"v": 2})
+
+        registry = HookRegistry()
+        registry.register(HookEvent.PRE_TOOL_USE, CallableHookDefinition(fn=first))
+        registry.register(HookEvent.PRE_TOOL_USE, CallableHookDefinition(fn=second))
+        result = await HookExecutor(registry).execute(HookEvent.PRE_TOOL_USE, {})
+        assert result.updated_input == {"v": 2}
+
+    @pytest.mark.asyncio
+    async def test_metadata_carries_source_and_priority(self):
+        registry = HookRegistry()
+        registry.register(
+            HookEvent.SESSION_START,
+            CommandHookDefinition(command="echo hi", source=HookSource.USER_CONFIG),
+        )
+        result = await HookExecutor(registry).execute(HookEvent.SESSION_START, {})
+        assert result.results[0].metadata["source"] == "user_config"
+        assert result.results[0].metadata["priority"] == 0
+
+    # -- command gate --
+
+    @pytest.mark.asyncio
+    async def test_command_gate_blocks_destructive_command(self):
+        registry = HookRegistry()
+        registry.register(
+            HookEvent.SESSION_START,
+            CommandHookDefinition(command="rm -rf /", source=HookSource.SKILL),
+        )
+        result = await HookExecutor(registry).execute(HookEvent.SESSION_START, {})
+        assert result.results[0].success is False
+        assert result.results[0].blocked is False  # gate judges the hook, not the event
+        assert result.results[0].metadata["gate_blocked"] is True
+        assert "safety gate" in result.results[0].reason
+
+    @pytest.mark.asyncio
+    async def test_command_gate_strict_for_third_party_escalation(self):
+        """ESCALATE-level commands are refused for skill-sourced hooks (silent fire)."""
+        registry = HookRegistry()
+        registry.register(
+            HookEvent.SESSION_START,
+            CommandHookDefinition(command="eval true", source=HookSource.SKILL),
+        )
+        result = await HookExecutor(registry).execute(HookEvent.SESSION_START, {})
+        assert result.results[0].success is False
+        assert result.results[0].metadata["gate_blocked"] is True
+
+    @pytest.mark.asyncio
+    async def test_command_gate_allows_builtin_escalation(self):
+        """Framework-internal hooks keep the wider path (source=builtin)."""
+        registry = HookRegistry()
+        registry.register(
+            HookEvent.SESSION_START,
+            CommandHookDefinition(command="eval true", source=HookSource.BUILTIN),
+        )
+        result = await HookExecutor(registry).execute(HookEvent.SESSION_START, {})
+        assert result.results[0].success is True
+        assert "gate_blocked" not in result.results[0].metadata
+
+    @pytest.mark.asyncio
+    async def test_command_gate_normal_command_passes(self):
+        registry = HookRegistry()
+        registry.register(
+            HookEvent.SESSION_START,
+            CommandHookDefinition(command="echo gate-ok", source=HookSource.SKILL),
+        )
+        result = await HookExecutor(registry).execute(HookEvent.SESSION_START, {})
+        assert result.results[0].success is True
+        assert "gate-ok" in result.results[0].output
+
+    @pytest.mark.asyncio
+    async def test_command_gate_approver_overrides_refusal(self):
+        async def allow(hook, event, command):  # noqa: ANN001
+            return True
+
+        set_command_hook_approver(allow)
+        try:
+            registry = HookRegistry()
+            registry.register(
+                HookEvent.SESSION_START,
+                CommandHookDefinition(command="eval true", source=HookSource.SKILL),
+            )
+            result = await HookExecutor(registry).execute(HookEvent.SESSION_START, {})
+            assert result.results[0].success is True
+            assert "gate_blocked" not in result.results[0].metadata
+        finally:
+            set_command_hook_approver(None)
+
+    @pytest.mark.asyncio
+    async def test_command_gate_fail_closed_respects_block_on_failure(self):
+        registry = HookRegistry()
+        registry.register(
+            HookEvent.SESSION_START,
+            CommandHookDefinition(command="rm -rf /", source=HookSource.SKILL, block_on_failure=True),
+        )
+        result = await HookExecutor(registry).execute(HookEvent.SESSION_START, {})
+        assert result.blocked is True  # fail-closed hook: refusal blocks the flow
+
+
+class TestSkillParserSourceTagging:
+    def test_parsed_skill_hooks_are_tagged_skill_source(self):
+        skill_md = """---
+name: demo
+hooks:
+  SessionStart:
+    - type: command
+      script: "curl -s https://api.example.com/market"
+  SessionEnd:
+    - type: http
+      url: "https://audit.example.com/hook"
+---
+# Demo skill
+"""
+        hooks, _allowed = parse_hooks_from_skill_md(skill_md)
+        assert hooks, "expected at least one parsed hook"
+        for _event, definition in hooks:
+            assert definition.source is HookSource.SKILL
+
+
+async def _noop_hook(event: str, payload: dict[str, object]) -> HookResult:
+    return HookResult(hook_type="callable", success=True)

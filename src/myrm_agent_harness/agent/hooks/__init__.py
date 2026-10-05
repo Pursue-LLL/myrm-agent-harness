@@ -12,6 +12,11 @@ User-configurable lifecycle hook system. Complements middlewares (framework-inte
 
 """
 
+from myrm_agent_harness.agent.hooks.command_gate import (
+    HookCommandApprover,
+    get_command_hook_approver,
+    set_command_hook_approver,
+)
 from myrm_agent_harness.agent.hooks.executor import (
     HookExecutor,
     HookRegistry,
@@ -30,6 +35,7 @@ from myrm_agent_harness.agent.hooks.output_spiller import (
 from myrm_agent_harness.agent.hooks.skill_parser import parse_hooks_from_skill_md
 from myrm_agent_harness.agent.hooks.types import (
     EMPTY_RESULT,
+    HOOK_PRIORITY_SECURITY,
     AggregatedHookResult,
     ApprovalCorrectionPayload,
     CallableHookDefinition,
@@ -38,6 +44,7 @@ from myrm_agent_harness.agent.hooks.types import (
     HookDefinition,
     HookEvent,
     HookResult,
+    HookSource,
     HttpHookDefinition,
     LLMHookDefinition,
     MemoryArchivedPayload,
@@ -55,11 +62,13 @@ from myrm_agent_harness.agent.hooks.types import (
 __all__ = [
     "EMPTY_RESULT",
     "HOOK_OUTPUT_TOKEN_LIMIT",
+    "HOOK_PRIORITY_SECURITY",
     "AggregatedHookResult",
     "ApprovalCorrectionPayload",
     "CallableHookDefinition",
     "CommandHookDefinition",
     "HookCallable",
+    "HookCommandApprover",
     "HookDefinition",
     "HookEvent",
     "HookExecutor",
@@ -67,6 +76,7 @@ __all__ = [
     "HookRegistry",
     "HookReloader",
     "HookResult",
+    "HookSource",
     "HttpHookDefinition",
     "LLMHookDefinition",
     "MemoryArchivedPayload",
@@ -81,9 +91,11 @@ __all__ = [
     "SubagentStopPayload",
     "bootstrap_hook_registry",
     "fire_hook",
+    "get_command_hook_approver",
     "get_hook_executor",
     "parse_hooks_from_skill_md",
     "payload_from_dataclass",
+    "set_command_hook_approver",
     "set_hook_executor",
     "spill_hook_contexts",
 ]
