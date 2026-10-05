@@ -146,6 +146,16 @@ from myrm_agent_harness.toolkits.memory.setup import (
     setup_local_file_memory_sync,
 )
 from myrm_agent_harness.toolkits.memory.signals import SignalCalculator
+from myrm_agent_harness.toolkits.memory.social_curator import (
+    HighSignalBriefing,
+    HighSignalSocialFeedCurator,
+    InformationGainScorer,
+    RawSocialPost,
+    ScoredSocialInsight,
+    SocialInsightCategory,
+    UserAffinityProfile,
+    UserAffinityProfileBuilder,
+)
 from myrm_agent_harness.toolkits.memory.strategies import (
     DynamicPreferenceFitter,
     DynamicPreferenceVector,
@@ -207,6 +217,14 @@ from myrm_agent_harness.toolkits.memory.working_tree import (
 )
 
 __all__ = [
+    "HighSignalBriefing",
+    "HighSignalSocialFeedCurator",
+    "InformationGainScorer",
+    "RawSocialPost",
+    "ScoredSocialInsight",
+    "SocialInsightCategory",
+    "UserAffinityProfile",
+    "UserAffinityProfileBuilder",
     "AMemCard",
     "AMemZettelkastenNetwork",
     "AssembledMemoryContext",
