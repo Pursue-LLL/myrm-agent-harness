@@ -108,6 +108,13 @@ from myrm_agent_harness.runtime.context.headroom_adaptive_budget_compressor impo
     ProgressiveSlidingWindowCompactor,
     TaskPhase,
 )
+from myrm_agent_harness.runtime.context.hidden_goal_rubric_preamble import (
+    GoalRubricContext,
+    GoalStatus,
+    HiddenGoalRubricPreamble,
+    PreambleInjectionPolicy,
+    RubricSource,
+)
 from myrm_agent_harness.runtime.context.instance_metrics import (
     ContextMetrics,
     get_context_metrics,
@@ -388,4 +395,9 @@ __all__ = [
     "ProgressiveCompactionResult",
     "ProgressiveSlidingWindowCompactor",
     "TaskPhase",
+    "GoalRubricContext",
+    "GoalStatus",
+    "HiddenGoalRubricPreamble",
+    "PreambleInjectionPolicy",
+    "RubricSource",
 ]
