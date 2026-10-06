@@ -81,6 +81,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | unload_guard/ | Desktop & WebUI Unload Graceful Flush Finalize Guard: zero-LLM crash-proof emergency snapshotting upon browser unload or window close, sub-millisecond markdown memorandum persistence, and startup restoration. |
 | sovereign_migration/ | Sovereign Asset Package Cross-Machine Migration Protocol & One-Click Restore: portable bundle packaging (.myrmpkg), checksum verification, dynamic path relativization, atomic restoring, and competitor ingestion adapters (Hermes, Claude Code, Codex). |
 | conflict_arbitration/ | Memory Conflict Semantic Arbitration & User-Confirmed Decision Freeze Gate: multi-source factual divergence detection (Merge vs Override vs Contradiction), human arbitration cards, cryptographic immutable freeze locks, and anti-tamper write gates. |
+| openclaw_adapter/ | OpenClaw 2.0 Format Adapter & Crash Recovery Rescue Pipeline: multi-user & Swarm topology tree extraction, new SQLite/Memory schema mapping, read-only WAL isolation, integrity probe, and corrupted page auto-rescue. |
 | workspace_living/ | Living Workspace Governance & documentation synchronization toolkit (CausalIssueMerger, KnownIssueEntry, ADRMetadata, idempotent error signature deduplication). |
 
 ## Key Dependencies
