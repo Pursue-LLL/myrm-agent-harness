@@ -114,6 +114,16 @@ from myrm_agent_harness.runtime.context.diff_protocol_scorer import (
     parse_diff_operations,
     score_soft_context,
 )
+from myrm_agent_harness.runtime.context.dual_track_session_guard import (
+    BurnGuardAction,
+    BurnGuardDecision,
+    DualTrackContextAssembly,
+    DualTrackSessionGuardHub,
+    IntentCategory,
+    SessionScenarioTrack,
+    TokenBurnGuard,
+    UserIntentClassifier,
+)
 from myrm_agent_harness.runtime.context.durable_deferred_write_manager import (
     AbortDeferredApplyResult,
     DeferredFactKind,
@@ -654,4 +664,12 @@ __all__ = [
     "StreamChunkItem",
     "StreamGovernorStats",
     "StreamResumeCursor",
+    "BurnGuardAction",
+    "BurnGuardDecision",
+    "DualTrackContextAssembly",
+    "DualTrackSessionGuardHub",
+    "IntentCategory",
+    "SessionScenarioTrack",
+    "TokenBurnGuard",
+    "UserIntentClassifier",
 ]
