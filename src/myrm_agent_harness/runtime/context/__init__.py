@@ -335,6 +335,17 @@ from myrm_agent_harness.runtime.context.session_resume_integrity_validator impor
     SessionResumeValidator,
     SessionTurnRecord,
 )
+from myrm_agent_harness.runtime.context.session_soft_reset import (
+    InstantMemoryVault,
+    ResetIntentDetector,
+    SessionSoftResetEngine,
+)
+from myrm_agent_harness.runtime.context.session_soft_reset_types import (
+    ResetTriggerKind,
+    SoftResetExecutionResult,
+    VaultedConsolidatedMemory,
+    VaultedMemoryItem,
+)
 from myrm_agent_harness.runtime.context.session_tree_navigator import (
     BranchSummaryPayload,
     NavigateTreeResult,
@@ -770,4 +781,11 @@ __all__ = [
     "DynamicToolInjectionHub",
     "LazySubdirectoryRulesProbe",
     "SubdirectoryRuleDiscoveryMode",
+    "InstantMemoryVault",
+    "ResetIntentDetector",
+    "ResetTriggerKind",
+    "SessionSoftResetEngine",
+    "SoftResetExecutionResult",
+    "VaultedConsolidatedMemory",
+    "VaultedMemoryItem",
 ]
