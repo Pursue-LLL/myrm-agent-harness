@@ -196,6 +196,13 @@ from myrm_agent_harness.runtime.context.session_cwd_guard import (
     SessionCwdHealthGuard,
     SessionCwdIssue,
 )
+from myrm_agent_harness.runtime.context.session_resume_integrity_validator import (
+    AnomalyKind,
+    IntegrityAnomaly,
+    SessionResumeIntegrityReport,
+    SessionResumeValidator,
+    SessionTurnRecord,
+)
 from myrm_agent_harness.runtime.context.session_tree_navigator import (
     BranchSummaryPayload,
     NavigateTreeResult,
@@ -466,4 +473,9 @@ __all__ = [
     "ContextBudgetAdaptiveAligner",
     "HandshakeResult",
     "RelayStatePayload",
+    "AnomalyKind",
+    "IntegrityAnomaly",
+    "SessionResumeIntegrityReport",
+    "SessionResumeValidator",
+    "SessionTurnRecord",
 ]
