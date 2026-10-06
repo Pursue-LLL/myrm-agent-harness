@@ -46,6 +46,11 @@ class UnloadGracefulFlushGuard:
         self._builder = builder or ZeroLlmEmergencySnapshotBuilder()
         logger.info("UnloadGracefulFlushGuard initialized")
 
+    @property
+    def storage_dir(self) -> Path:
+        """Directory path where emergency snapshots and handoffs are stored."""
+        return self._engine.store.storage_dir
+
     def flush(self, request: EmergencyFlushRequest) -> EmergencyFlushResult:
         """Atomically persist in-flight session state as an emergency handoff memorandum."""
         now = time.time()
