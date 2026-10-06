@@ -3,6 +3,9 @@
 from myrm_agent_harness.toolkits.memory.protocols.cache import EmbeddingCacheProtocol
 from myrm_agent_harness.toolkits.memory.protocols.conversation_search import ConversationSearchProtocol
 from myrm_agent_harness.toolkits.memory.protocols.embedding import EmbeddingProtocol
+from myrm_agent_harness.toolkits.memory.protocols.external_provider import (
+    ExternalMemoryProviderProtocol,
+)
 from myrm_agent_harness.toolkits.memory.protocols.graph import GraphNode, GraphRelationship, GraphStoreProtocol
 from myrm_agent_harness.toolkits.memory.protocols.hooks import (
     MemoryLifecycleHookProtocol,
@@ -20,6 +23,7 @@ __all__ = [
     "ConversationSearchProtocol",
     "EmbeddingCacheProtocol",
     "EmbeddingProtocol",
+    "ExternalMemoryProviderProtocol",
     "GraphNode",
     "GraphRelationship",
     "GraphStoreProtocol",

@@ -66,6 +66,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | governance/ | Unified four-dimensional memory governance engine (ProfileSlots, EventTimeline, DynamicFacts with 4-state reconciliation & TTL, bounded 2-hop SQLite CTE entity graph). See [governance/_ARCH.md](governance/_ARCH.md). |
 | file_sync/ | Local-First Markdown File-as-Memory sync subsystem (LenientMarkdownParser, FileMemoryStore, MemoryAnchorFormatter, FileMemorySyncEngine). |
 | prompt_cache_guard/ | In-Context Frozen Snapshot & Prompt Cache Stability Guard: immutable resident memory snapshotting, Read-Free toolsuite, zero-width Unicode filtering, and explicit capacity overflow gates. See [prompt_cache_guard/_ARCH.md](prompt_cache_guard/_ARCH.md). |
+| external_providers/ | Pluggable external memory provider lifecycle & supersedes lineage pack: unified 5-stage contract (prefetch/inject/sync/extract/mirror), single active provider scheduling, 300ms circuit breaking, supersedes version chains, scope isolation, and 3D benchmark suite. See [external_providers/_ARCH.md](external_providers/_ARCH.md). |
 | workspace_living/ | Living Workspace Governance & documentation synchronization toolkit (CausalIssueMerger, KnownIssueEntry, ADRMetadata, idempotent error signature deduplication). |
 
 ## Key Dependencies
