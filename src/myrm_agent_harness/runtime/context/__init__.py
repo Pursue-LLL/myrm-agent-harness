@@ -156,6 +156,18 @@ from myrm_agent_harness.runtime.context.diff_protocol_scorer import (
     parse_diff_operations,
     score_soft_context,
 )
+from myrm_agent_harness.runtime.context.dual_tier_compactor_engine import (
+    DualTierAdaptiveCompactor,
+    SteerQueue,
+)
+from myrm_agent_harness.runtime.context.dual_tier_compactor_types import (
+    CompactorTierKind,
+    DualTierCompactorDecision,
+    MicroFoldedItem,
+    SteerInstruction,
+    ToolCallSignature,
+    ToolLoopCircuitState,
+)
 from myrm_agent_harness.runtime.context.dual_track_session_guard import (
     BurnGuardAction,
     BurnGuardDecision,
@@ -597,6 +609,10 @@ from myrm_agent_harness.runtime.context.token_estimator import (
     estimate_context_tokens_anchored,
     extract_provider_usage_anchor,
     is_compaction_triggered,
+)
+from myrm_agent_harness.runtime.context.tool_loop_tracker import (
+    ToolLoopTracker,
+    compute_canonical_args_hash,
 )
 from myrm_agent_harness.runtime.context.tool_output_auditor import (
     DynamicSemanticTruncationConfig,
@@ -1120,4 +1136,14 @@ __all__ = [
     "RollingStructuredSummary",
     "estimate_message_tokens",
     "find_pi_protocol_safe_cut_point",
+    "CompactorTierKind",
+    "DualTierAdaptiveCompactor",
+    "DualTierCompactorDecision",
+    "MicroFoldedItem",
+    "SteerInstruction",
+    "SteerQueue",
+    "ToolCallSignature",
+    "ToolLoopCircuitState",
+    "ToolLoopTracker",
+    "compute_canonical_args_hash",
 ]
