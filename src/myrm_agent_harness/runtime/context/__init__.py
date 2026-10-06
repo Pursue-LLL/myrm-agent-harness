@@ -40,6 +40,13 @@ from myrm_agent_harness.runtime.context.offload import (
     cleanup_session_context_files,
     create_compress_offload_callback,
 )
+from myrm_agent_harness.runtime.context.plan_mode_boundary_locker import (
+    ExecutionMode,
+    ImplementationPlanContract,
+    PlanModeBoundaryLocker,
+    filter_tools_for_mode,
+    is_read_only_tool,
+)
 from myrm_agent_harness.runtime.context.session.event_sourcing_store import (
     EventSourcingLoadResult,
     EventSourcingSessionStore,
@@ -140,4 +147,9 @@ __all__ = [
     "EventSourcingSessionStore",
     "load_session_events_with_auto_repair",
     "fork_session_by_stream_copy",
+    "ExecutionMode",
+    "ImplementationPlanContract",
+    "PlanModeBoundaryLocker",
+    "filter_tools_for_mode",
+    "is_read_only_tool",
 ]
