@@ -215,6 +215,17 @@ from myrm_agent_harness.runtime.context.instance_metrics import (
     get_context_metrics,
     set_context_metrics,
 )
+from myrm_agent_harness.runtime.context.internal_external_message_pipeline import (
+    InternalExternalMessagePipeline,
+)
+from myrm_agent_harness.runtime.context.internal_external_message_pipeline_types import (
+    AgentMessage,
+    AgentMessageKind,
+    LlmMessage,
+    LlmToolCall,
+    TransformPipelineMetrics,
+    TransformPipelineOptions,
+)
 from myrm_agent_harness.runtime.context.lazy_subdirectory_rules import (
     DynamicToolInjectionHub,
     LazySubdirectoryRulesProbe,
@@ -802,4 +813,11 @@ __all__ = [
     "SessionTreeEntryKind",
     "GitSessionTreeNode",
     "SessionTreeTopology",
+    "AgentMessage",
+    "AgentMessageKind",
+    "InternalExternalMessagePipeline",
+    "LlmMessage",
+    "LlmToolCall",
+    "TransformPipelineMetrics",
+    "TransformPipelineOptions",
 ]
