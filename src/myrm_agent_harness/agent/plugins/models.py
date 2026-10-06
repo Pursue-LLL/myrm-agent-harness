@@ -77,7 +77,7 @@ class PluginSkill:
 
 @dataclass(frozen=True)
 class PluginAgent:
-    """One agent profile discovered from ``agents/<name>.md`` or ``agents/<name>/AGENT.md``."""
+    """One agent profile discovered from ``ai.myrm/agents/<slug>.md`` (or the community ``agents/`` layout)."""
 
     name: str  # agent display name
     description: str = ""
@@ -131,6 +131,7 @@ class AgentPluginManifestMeta:
     license: str | None = None
     keywords: tuple[str, ...] = ()
     declared_capabilities: tuple[PluginCapabilityTier, ...] = ()
+    extensions: dict[str, dict[str, Any]] = field(default_factory=dict)  # client namespaces (§8), each an object
 
 
 @dataclass

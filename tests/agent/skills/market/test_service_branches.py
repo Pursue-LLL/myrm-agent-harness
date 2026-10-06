@@ -417,7 +417,7 @@ class TestQuarantineInstallBranches:
             "SKILL.md": _skill_md("pdfsuite"),
             "skills/extract/SKILL.md": _skill_md("extract"),
         }
-        result = await service._quarantine_install("acme/skills/pdfsuite", "pdfsuite", files, source="github")
+        result = await service.install_files("acme/skills/pdfsuite", "pdfsuite", files, source="github")
 
         assert result.success is True
         assert (install_dir / "pdfsuite" / "plugin.json").exists()
@@ -439,7 +439,7 @@ class TestQuarantineInstallBranches:
         monkeypatch.setattr(service_mod, "write_receipt_file", lambda *a, **k: None)
 
         files = {"plugin.json": b"{not json", "SKILL.md": _skill_md("broken")}
-        result = await service._quarantine_install("acme/skills/broken", "broken", files, source="github")
+        result = await service.install_files("acme/skills/broken", "broken", files, source="github")
 
         assert result.success is True
         assert (install_dir / "broken" / "SKILL.md").exists()
@@ -461,7 +461,7 @@ class TestQuarantineInstallBranches:
         monkeypatch.setattr(service_mod, "LOCAL_INSTALL_DIR", install_dir)
         monkeypatch.setattr(service_mod, "write_receipt_file", lambda *a, **k: None)
 
-        result = await service._quarantine_install(
+        result = await service.install_files(
             "acme/skills/pdf", "pdf", {"SKILL.md": _skill_md("pdf", "1.0.0")}, source="github"
         )
 
@@ -485,7 +485,7 @@ class TestQuarantineInstallBranches:
         monkeypatch.setattr(service_mod, "LOCAL_INSTALL_DIR", install_dir)
         monkeypatch.setattr(service_mod, "write_receipt_file", lambda *a, **k: None)
 
-        result = await service._quarantine_install(
+        result = await service.install_files(
             "acme/skills/pdf", "pdf", {"SKILL.md": _skill_md("pdf", "1.0.0")}, source="github"
         )
 
@@ -506,7 +506,7 @@ class TestQuarantineInstallBranches:
         monkeypatch.setattr(service_mod, "LOCAL_INSTALL_DIR", install_dir)
         monkeypatch.setattr(service_mod, "write_receipt_file", lambda *a, **k: None)
 
-        result = await service._quarantine_install(
+        result = await service.install_files(
             "acme/skills/pdf",
             "pdf",
             {"SKILL.md": _skill_md(), "../escape.md": b"nope"},
@@ -551,7 +551,7 @@ class TestQuarantineInstallBranches:
             "myrm_agent_harness.agent.skills.market.service.scan_all_text_files",
             return_value=dirty,
         ):
-            result = await service._quarantine_install(
+            result = await service.install_files(
                 "acme/skills/pdf", "pdf", {"SKILL.md": _skill_md()}, source="github"
             )
 
@@ -579,7 +579,7 @@ class TestUnsafeInstallTarget:
         monkeypatch.setattr(service_mod, "LOCAL_INSTALL_DIR", install_dir)
         monkeypatch.setattr(service_mod, "write_receipt_file", lambda *a, **k: None)
 
-        result = await service._quarantine_install("acme/skills/pdf", "pdf", {"SKILL.md": _skill_md()}, source="github")
+        result = await service.install_files("acme/skills/pdf", "pdf", {"SKILL.md": _skill_md()}, source="github")
 
         assert result.success is False
         assert result.error_code == "PATH_REDIRECT_ATTACK"
@@ -603,7 +603,7 @@ class TestUnsafeInstallTarget:
         monkeypatch.setattr(service_mod, "write_receipt_file", lambda *a, **k: None)
         stages: list[tuple[str, str]] = []
 
-        await service._quarantine_install(
+        await service.install_files(
             "acme/skills/pdf",
             "pdf",
             {"SKILL.md": _skill_md()},
@@ -621,7 +621,7 @@ class TestUnsafeSkillNames:
     )
     @pytest.mark.asyncio
     async def test_rejects_unsafe_names_cleanly(self, service: BaseSkillMarketService, name: str) -> None:
-        result = await service._quarantine_install("evil/id", name, {"SKILL.md": _skill_md()}, source="github")
+        result = await service.install_files("evil/id", name, {"SKILL.md": _skill_md()}, source="github")
         assert result.success is False
         assert result.error_code == "INVALID_SKILL_NAME"
 
@@ -634,7 +634,7 @@ class TestUnsafeSkillNames:
     @pytest.mark.asyncio
     async def test_rejection_emits_progress_stage(self, service: BaseSkillMarketService) -> None:
         stages: list[str] = []
-        await service._quarantine_install(
+        await service.install_files(
             "evil/id",
             "../escape",
             {"SKILL.md": _skill_md()},

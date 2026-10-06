@@ -134,7 +134,7 @@ async def test_package_as_agent_plugin_roundtrip():
     # 验证技能解析结果
     assert len(parse_result.skills) == 1
     skill = parse_result.skills[0]
-    assert skill.name == "my-test-skill"
+    assert skill.name == "my_test_skill"  # the skill keeps its real name; only the package id is slugged
     assert "scripts/helper.py" in skill.files
     assert skill.files["scripts/helper.py"].decode("utf-8") == "def add(a, b): return a + b"
     assert len(parse_result.diagnostics) == 0

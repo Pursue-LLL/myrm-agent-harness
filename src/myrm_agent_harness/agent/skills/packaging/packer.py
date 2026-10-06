@@ -66,11 +66,8 @@ class SkillPacker:
                 )
 
             # Ensure we're using the skill name and version from SKILL.md if possible
-            skill_info = parse_skill_md(
-                file_contents[SKILL_MD_FILE].decode("utf-8")
-                if isinstance(file_contents[SKILL_MD_FILE], bytes)
-                else file_contents[SKILL_MD_FILE]
-            )
+            skill_md = file_contents[SKILL_MD_FILE]
+            skill_info = parse_skill_md(skill_md.decode("utf-8") if isinstance(skill_md, bytes) else skill_md)
 
             actual_name = skill_info.name or skill_name
             actual_version = skill_info.version or version
@@ -108,8 +105,7 @@ class SkillPacker:
         description: str | None = None,
         author_name: str = "Myrm User",
         keywords: list[str] | None = None,
-        mcp_servers: dict[str, Any] | None = None,
-        extra_extensions: dict[str, Any] | None = None,
+        extra_extensions: Mapping[str, Mapping[str, Any]] | None = None,
     ) -> PackageResult:
         """从文件字典打包为标准 Agent Plugins 1.0.0 ZIP 包"""
         res = self._plugin_packer.package_skill_as_plugin(
@@ -119,7 +115,6 @@ class SkillPacker:
             description=description,
             author_name=author_name,
             keywords=keywords,
-            mcp_servers=mcp_servers,
             extra_extensions=extra_extensions,
         )
         return PackageResult(

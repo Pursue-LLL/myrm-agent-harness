@@ -409,7 +409,7 @@ class TestQuarantineInstall:
         }
 
         with patch("myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR", tmp_path):
-            result = await svc._quarantine_install(
+            result = await svc.install_files(
                 "test-id",
                 "clean-skill",
                 files,
@@ -431,7 +431,7 @@ class TestQuarantineInstall:
             "../escape.py": b"import os",
         }
         with patch("myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR", tmp_path):
-            result = await svc._quarantine_install(
+            result = await svc.install_files(
                 "escape-id",
                 "escape-skill",
                 files,
@@ -451,7 +451,7 @@ class TestQuarantineInstall:
         files = {"new.txt": b"new content"}
 
         with patch("myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR", tmp_path):
-            result = await svc._quarantine_install("id", "existing-skill", files, source="test")
+            result = await svc.install_files("id", "existing-skill", files, source="test")
 
         assert result.success is True
         assert (tmp_path / "existing-skill" / "new.txt").exists()
@@ -497,7 +497,7 @@ class TestInstallGitFlow:
             ),
             patch.object(
                 svc,
-                "_quarantine_install",
+                "install_files",
                 new_callable=AsyncMock,
                 return_value=SkillInstallResult(success=True),
             ),
@@ -856,7 +856,7 @@ class TestQuarantineReject:
                 tmp_path,
             ),
         ):
-            result = await svc._quarantine_install("evil-id", "evil-skill", malicious_files, source="test")
+            result = await svc.install_files("evil-id", "evil-skill", malicious_files, source="test")
 
         assert result.success is False
         assert "Security scan blocked" in (result.error or "")
@@ -883,7 +883,7 @@ class TestQuarantineReject:
                 tmp_path,
             ),
         ):
-            result = await svc._quarantine_install("warn-id", "warn-skill", files, source="test")
+            result = await svc.install_files("warn-id", "warn-skill", files, source="test")
 
         assert result.success is True
         assert result.scan_summary == "Uses subprocess"
@@ -1073,18 +1073,19 @@ class TestAgentPluginMarketDiscoveryAndInstall:
 
     @pytest.mark.asyncio
     async def test_agent_plugin_install_unpacks_multiple_skills(self, tmp_path) -> None:
-        from myrm_agent_harness.agent.plugins.exporter import AgentPluginPacker
+        from myrm_agent_harness.agent.plugins import PluginBundleSpec, build_plugin_bundle
 
         # Build an Agent Plugin with 2 skills
-        packer = AgentPluginPacker()
-        res = packer.package_multi_skills_as_plugin(
-            name="dev-bundle",
-            version="1.0.0",
-            description="Dev bundle plugin",
-            skills=[
-                ("reviewer", {"SKILL.md": b"---\nname: reviewer\ndescription: Reviewer skill\n---\nReview code."}),
-                ("tester", {"SKILL.md": b"---\nname: tester\ndescription: Tester skill\n---\nRun tests."}),
-            ],
+        res = build_plugin_bundle(
+            PluginBundleSpec(
+                name="dev-bundle",
+                version="1.0.0",
+                description="Dev bundle plugin",
+                skills={
+                    "reviewer": {"SKILL.md": b"---\nname: reviewer\ndescription: Reviewer skill\n---\nReview code."},
+                    "tester": {"SKILL.md": b"---\nname: tester\ndescription: Tester skill\n---\nRun tests."},
+                },
+            )
         )
         assert res.success is True
         zip_bytes = res.zip_content
@@ -1138,17 +1139,26 @@ class TestAgentPluginMarketDiscoveryAndInstall:
 
     @pytest.mark.asyncio
     async def test_agent_plugin_preview_and_install_declared_mcp_servers(self, tmp_path) -> None:
-        from myrm_agent_harness.agent.plugins.exporter import AgentPluginPacker
+        from myrm_agent_harness.agent.plugins import PluginBundleSpec, PluginMcpServer, build_plugin_bundle
 
-        packer = AgentPluginPacker()
-        res = packer.package_multi_skills_as_plugin(
-            name="db-tools",
-            version="1.0.0",
-            description="Database tools plugin",
-            skills=[
-                ("db-query", {"SKILL.md": b"---\nname: db-query\ndescription: DB Query\n---\nRun SQL."}),
-            ],
-            mcp_servers={"sqlite-srv": {"type": "stdio", "command": "uvx", "args": ["mcp-server-sqlite"]}},
+        res = build_plugin_bundle(
+            PluginBundleSpec(
+                name="db-tools",
+                version="1.0.0",
+                description="Database tools plugin",
+                skills={"db-query": {"SKILL.md": b"---\nname: db-query\ndescription: DB Query\n---\nRun SQL."}},
+                mcp_servers=(
+                    PluginMcpServer(
+                        name="sqlite-srv",
+                        server_type="stdio",
+                        command="uvx",
+                        args=["mcp-server-sqlite"],
+                        url=None,
+                        headers=None,
+                        cwd=None,
+                    ),
+                ),
+            )
         )
         assert res.success is True
         zip_bytes = res.zip_content

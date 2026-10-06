@@ -8,9 +8,11 @@ Orchestrates secure extraction and discovery with per-component failure isolatio
     skipped; neither ever affects skills.
 
 [INPUT]
+-- .agents::discover_agents / discover_workspace_files (POS: client-specific component discovery)
 -- .manifest::parse_manifest (POS: closed-schema plugin.json manifest validation)
 -- .mcp_config::parse_mcp_servers (POS: per-server mcp.json variant parsing)
 -- .models::PluginParseResult (POS: shared parser output dataclasses)
+-- .rules::is_excluded_path (POS: shared path-exclusion rule)
 -- backends.skills.scanning.zip_extract::safe_extract_zip (POS: secure archive extraction)
 
 [OUTPUT]
@@ -27,13 +29,14 @@ persistence owned by the business layer).
 from __future__ import annotations
 
 import logging
-import re
 from dataclasses import replace
 from typing import Any
 
 from myrm_agent_harness.backends.skills.scanning.zip_extract import safe_extract_zip
 
 from . import manifest, mcp_config
+from .agents import discover_agents, discover_workspace_files
+from .frontmatter import split_frontmatter
 from .integrity import (
     verify_mcp_server_artifacts,
     verify_plugin_capability_diff,
@@ -41,20 +44,17 @@ from .integrity import (
 from .manifest import decode_manifest_json, parse_manifest
 from .mcp_config import decode_mcp_json, parse_mcp_servers
 from .models import (
-    PluginAgent,
     PluginDiagnosticLevel,
     PluginParseResult,
     PluginSkill,
 )
+from .rules import is_excluded_path
 
 logger = logging.getLogger(__name__)
 
-_EXCLUDED_SEGMENTS = frozenset({".git", ".venv", "__pycache__", "node_modules", ".DS_Store", "__MACOSX"})
-
-
-def _is_excluded_file(path: str) -> bool:
-    parts = path.split("/")
-    return any(part.startswith(".") or part in _EXCLUDED_SEGMENTS for part in parts)
+# Build/VCS/platform leftovers that are never worth reporting as ignored files.
+_NOISE_SEGMENTS = frozenset({".git", ".venv", "__pycache__", "node_modules", ".DS_Store", "__MACOSX"})
+_MAX_REPORTED_IGNORED = 5
 
 
 class AgentPluginParser:
@@ -68,14 +68,20 @@ class AgentPluginParser:
                 entry-count, executable-binary, traversal, symlink). The caller maps
                 this to a user-facing archive-security message.
         """
+        ignored: list[str] = []
+
+        def _skip_excluded(path: str) -> bool:
+            if is_excluded_path(path):
+                ignored.append(path)
+                return True
+            return False
+
         # safe_extract_zip enforces Zip Bomb / symlink / traversal / executable defenses.
         # strip_top_dir=True -> the plugin root becomes the archive's top-level directory.
-        all_files = safe_extract_zip(
-            zip_bytes,
-            strip_top_dir=True,
-            forbidden_check=_is_excluded_file,
-        )
-        return self._parse_files(all_files)
+        all_files = safe_extract_zip(zip_bytes, strip_top_dir=True, forbidden_check=_skip_excluded)
+        result = self._parse_files(all_files)
+        _report_ignored_files(result, ignored)
+        return result
 
     def parse_files(self, all_files: dict[str, bytes]) -> PluginParseResult:
         """Parse uncompressed file mapping of an Agent Plugins package."""
@@ -120,11 +126,9 @@ class AgentPluginParser:
         # MCP discovery (§6.1, §7.2): invalid mcp.json disables MCP only.
         self._discover_mcp(all_files, result)
 
-        # Agent profiles discovery (WorkBuddy & community multi-agent layout).
-        self._discover_agents(all_files, result, raw_manifest)
-
-        # Prebuilt workspace template assets discovery.
-        self._discover_workspace_files(all_files, result)
+        # Client-specific components: ``ai.myrm/`` namespace first, community layout as fallback.
+        result.agents.extend(discover_agents(all_files, extensions=meta.extensions, raw_manifest=raw_manifest))
+        result.workspace_files.update(discover_workspace_files(all_files))
 
         return result
 
@@ -171,7 +175,7 @@ class AgentPluginParser:
             return None
 
         skill_md = skill_files["SKILL.md"].decode("utf-8", errors="replace")
-        metadata, description, pure_content = _parse_skill_frontmatter(skill_md)
+        metadata, description, pure_content = split_frontmatter(skill_md)
         return PluginSkill(
             name=name,
             description=description,
@@ -239,136 +243,18 @@ class AgentPluginParser:
             diff_diags = verify_plugin_capability_diff(result.meta.declared_capabilities, result.servers)
             result.diagnostics.extend(diff_diags)
 
-    def _discover_agents(
-        self,
-        all_files: dict[str, bytes],
-        result: PluginParseResult,
-        manifest_meta: dict[str, Any] | None,
-    ) -> None:
-        """Discover agents from `agents/*.md` or `agents/<name>/AGENT.md`."""
-        agent_paths: dict[str, bytes] = {}
-        for path, content in all_files.items():
-            if path.startswith("agents/") and path.endswith(".md"):
-                agent_paths[path] = content
 
-        if not agent_paths:
-            return
-
-        entry_agent_hint: str | None = None
-        if isinstance(manifest_meta, dict):
-            raw_entry = manifest_meta.get("entry_agent") or manifest_meta.get("main_agent")
-            if isinstance(raw_entry, str) and raw_entry.strip():
-                entry_agent_hint = raw_entry.strip().lower()
-
-        parsed_agents: list[PluginAgent] = []
-        for path in sorted(agent_paths):
-            content = agent_paths[path]
-            text = content.decode("utf-8", errors="replace")
-            metadata, description, prompt = _parse_skill_frontmatter(text)
-
-            # Derive agent name
-            rel_name = path[len("agents/") :]
-            if rel_name.endswith("/AGENT.md"):
-                agent_name = rel_name.removesuffix("/AGENT.md")
-            elif rel_name.endswith(".md"):
-                agent_name = rel_name.removesuffix(".md")
-            else:
-                continue
-
-            display_name = str(metadata.get("name") or agent_name)
-            metadata.setdefault("slug", agent_name)
-            max_iters = metadata.get("max_iterations") or metadata.get("max_iters")
-            parsed_iters = int(max_iters) if isinstance(max_iters, (int, str)) and str(max_iters).isdigit() else None
-
-            # Subagents / Skills / Tools dependencies from metadata
-            raw_skills = metadata.get("skills") or metadata.get("skill_names") or ()
-            skill_tuple = tuple(str(s) for s in raw_skills) if isinstance(raw_skills, (list, tuple)) else ()
-
-            raw_tools = metadata.get("tools") or metadata.get("tool_names") or ()
-            tool_tuple = tuple(str(t) for t in raw_tools) if isinstance(raw_tools, (list, tuple)) else ()
-
-            raw_mcps = metadata.get("mcps") or metadata.get("mcp_names") or ()
-            mcp_tuple = tuple(str(m) for m in raw_mcps) if isinstance(raw_mcps, (list, tuple)) else ()
-
-            raw_subagents = metadata.get("subagents") or metadata.get("subagent_names") or ()
-            subagent_tuple = tuple(str(sa) for sa in raw_subagents) if isinstance(raw_subagents, (list, tuple)) else ()
-
-            is_sub = bool(metadata.get("is_subagent", False))
-            is_entry = False
-            if entry_agent_hint:
-                is_entry = (agent_name.lower() == entry_agent_hint) or (display_name.lower() == entry_agent_hint)
-
-            parsed_agents.append(
-                PluginAgent(
-                    name=display_name,
-                    description=description or str(metadata.get("description", "")),
-                    system_prompt=prompt,
-                    max_iterations=parsed_iters,
-                    skill_names=skill_tuple,
-                    tool_names=tool_tuple,
-                    mcp_names=mcp_tuple,
-                    subagent_names=subagent_tuple,
-                    is_subagent=is_sub,
-                    is_entry_agent=is_entry,
-                    metadata=metadata,
-                )
-            )
-
-        # If no explicit entry agent was marked and we have multiple agents, mark the first or root one as entry
-        if parsed_agents and not any(a.is_entry_agent for a in parsed_agents):
-            first = parsed_agents[0]
-            parsed_agents[0] = PluginAgent(
-                name=first.name,
-                description=first.description,
-                system_prompt=first.system_prompt,
-                max_iterations=first.max_iterations,
-                skill_names=first.skill_names,
-                tool_names=first.tool_names,
-                mcp_names=first.mcp_names,
-                subagent_names=first.subagent_names,
-                is_subagent=False,
-                is_entry_agent=True,
-                metadata=first.metadata,
-            )
-
-        result.agents.extend(parsed_agents)
-
-    def _discover_workspace_files(
-        self,
-        all_files: dict[str, bytes],
-        result: PluginParseResult,
-    ) -> None:
-        """Discover bundled workspace template files under `workspace/` or `template_files/`."""
-        for path, content in all_files.items():
-            if path.startswith("workspace/"):
-                rel_path = path[len("workspace/") :]
-                if rel_path:
-                    result.workspace_files[rel_path] = content
-            elif path.startswith("template_files/"):
-                rel_path = path[len("template_files/") :]
-                if rel_path:
-                    result.workspace_files[rel_path] = content
-
-
-def _parse_skill_frontmatter(text: str) -> tuple[dict[str, Any], str, str]:
-    """Split SKILL.md frontmatter (``---`` delimited YAML) from body, returning
-    (metadata, description, pure_content)."""
-    import yaml
-
-    match = re.match(r"^---\s*\n(.*?)\n---\s*\n", text, re.DOTALL)
-    if not match:
-        return {}, "", text.strip()
-
-    pure_content = text[match.end() :].strip()
-    metadata: dict[str, Any] = {}
-    description = ""
-    try:
-        frontmatter = yaml.safe_load(match.group(1))
-        if isinstance(frontmatter, dict):
-            metadata = frontmatter
-            raw_description = frontmatter.get("description")
-            description = raw_description if isinstance(raw_description, str) else ""
-    except Exception as exc:  # frontmatter parse failure -> treat as pure content
-        logger.warning("Failed to parse skill frontmatter: %s", exc)
-        return {}, "", text.strip()
-    return metadata, description, pure_content
+def _report_ignored_files(result: PluginParseResult, ignored: list[str]) -> None:
+    """Surface hidden/build files dropped by the archive filter (excluding well-known noise)."""
+    meaningful = [path for path in ignored if not any(part in _NOISE_SEGMENTS for part in path.split("/"))]
+    if not meaningful:
+        return
+    shown = ", ".join(sorted(meaningful)[:_MAX_REPORTED_IGNORED])
+    more = len(meaningful) - _MAX_REPORTED_IGNORED
+    suffix = f" and {more} more" if more > 0 else ""
+    result.add_diagnostic(
+        "plugin",
+        "files_ignored",
+        f"{len(meaningful)} hidden files were not imported: {shown}{suffix}",
+        PluginDiagnosticLevel.INFO,
+    )

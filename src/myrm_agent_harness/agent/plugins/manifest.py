@@ -21,10 +21,10 @@ Closed-schema plugin.json manifest validator for the framework parser.
 from __future__ import annotations
 
 import json
-import re
 from typing import Any
 
-from .models import AgentPluginManifestMeta
+from .models import AgentPluginManifestMeta, PluginCapabilityTier
+from .rules import is_valid_plugin_name
 
 # Canonical schema identifiers for the 1.0.0 release (spec §5.2 / §7.2.1).
 PLUGIN_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
@@ -62,9 +62,6 @@ _ALLOWED_FIELDS = frozenset(
         "extensions",
     }
 )
-
-# §5.5 name constraints.
-_NAME_RE = re.compile(r"^(?!.*(?:--|\.\.))[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$")
 
 
 class ManifestSchemaError(ValueError):
@@ -123,7 +120,7 @@ def parse_manifest(
     name = raw.get("name")
     if not isinstance(name, str) or not name.strip():
         raise ManifestSchemaValidationError("plugin.json is missing required field 'name'")
-    if not _NAME_RE.match(name):
+    if not is_valid_plugin_name(name):
         raise ManifestSchemaValidationError(
             f"plugin.json 'name' violates Agent Plugins naming constraints: {name!r}",
             code="manifest_invalid_name",
@@ -174,8 +171,6 @@ def parse_manifest(
     else:
         raise ManifestSchemaValidationError("plugin.json 'keywords' must be an array of strings")
 
-    from .models import PluginCapabilityTier
-
     caps_raw = raw.get("capabilities")
     declared_capabilities: list[PluginCapabilityTier] = []
     if caps_raw is not None:
@@ -201,6 +196,7 @@ def parse_manifest(
         license=license_,
         keywords=keywords,
         declared_capabilities=tuple(declared_capabilities),
+        extensions={str(ns): dict(value) for ns, value in extensions.items()} if isinstance(extensions, dict) else {},
     )
     return meta, reported
 

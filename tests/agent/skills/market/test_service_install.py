@@ -312,7 +312,7 @@ async def test_install_routes_download_through_quarantine(service: BaseSkillMark
         ),
         patch.object(
             BaseSkillMarketService,
-            "_quarantine_install",
+            "install_files",
             new=_async_return("quarantined"),
         ) as quarantine,
     ):
@@ -390,7 +390,7 @@ async def test_quarantine_blocks_critical_lifecycle_scripts(
         "myrm_agent_harness.agent.skills.market.service.check_lifecycle_scripts",
         return_value=[_finding("critical", "curl | sh")],
     ):
-        result = await service._quarantine_install(
+        result = await service.install_files(
             "repo:alpha",
             "Alpha",
             {"SKILL.md": b"# alpha"},
@@ -426,7 +426,7 @@ async def test_quarantine_writes_files_and_blocks_path_escape(
         scan.return_value = SimpleNamespace(findings=[], is_clean=True)
         summary.return_value = SimpleNamespace(score=100)
 
-        result = await service._quarantine_install(
+        result = await service.install_files(
             "repo:alpha",
             "Alpha",
             {"SKILL.md": b"# alpha", "../escape.txt": b"nope"},
@@ -450,7 +450,7 @@ async def test_quarantine_rejects_low_scan_score(service: BaseSkillMarketService
         scan.return_value = SimpleNamespace(findings=[], is_clean=False, summary="risky content")
         summary.return_value = SimpleNamespace(score=10)
 
-        result = await service._quarantine_install(
+        result = await service.install_files(
             "repo:alpha",
             "Alpha",
             {"SKILL.md": b"# alpha"},

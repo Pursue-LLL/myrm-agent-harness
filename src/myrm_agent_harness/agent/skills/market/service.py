@@ -379,7 +379,7 @@ class BaseSkillMarketService:
                 resolved_error, error_code = _resolve_install_error(e)
                 _emit("failed", resolved_error)
                 return SkillInstallResult(success=False, error=resolved_error, error_code=error_code)
-            return await self._quarantine_install(
+            return await self.install_files(
                 skill_id,
                 detail.name,
                 files,
@@ -406,7 +406,7 @@ class BaseSkillMarketService:
             return SkillInstallResult(success=False, error=resolved_error, error_code=error_code)
 
         sanitized = sanitize_skill_files(skill_files.files)
-        return await self._quarantine_install(
+        return await self.install_files(
             skill_id,
             skill_files.name,
             sanitized,
@@ -447,7 +447,7 @@ class BaseSkillMarketService:
             return SkillInstallResult(success=False, error=resolved_error, error_code=error_code)
 
         sanitized = sanitize_skill_files(skill_files.files)
-        return await self._quarantine_install(
+        return await self.install_files(
             skill_id,
             skill_files.name,
             sanitized,
@@ -571,7 +571,7 @@ class BaseSkillMarketService:
             logger.warning("Search failed for source %s: %s", source.source_name, e)
             return []
 
-    async def _quarantine_install(
+    async def install_files(
         self,
         skill_id: str,
         name: str,
@@ -581,7 +581,12 @@ class BaseSkillMarketService:
         allow_downgrade: bool = False,
         progress_callback: Callable[[str, str, str], None] | None = None,
     ) -> SkillInstallResult:
-        """Install files through quarantine scan into the local skill directory.
+        """Install an in-memory skill file tree through the quarantine pipeline.
+
+        Single install entry for every source that already holds the files
+        (market downloads, LobeHub templates, Agent Plugin skills, business-layer
+        imports). ``skill_id`` is a provenance label written to the origin file;
+        the canonical local skill id is derived from the install path.
 
         Rejection pipeline (each returns a failed SkillInstallResult, never
         raises): invalid directory name → lifecycle script guard → security

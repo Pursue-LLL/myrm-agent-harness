@@ -92,7 +92,7 @@ class TestPreflightSecurityGate:
                 tmp_path,
             ),
         ):
-            res = await svc._quarantine_install("bad-id", "bad-skill", files, source="test")
+            res = await svc.install_files("bad-id", "bad-skill", files, source="test")
 
             assert not res.success
             assert res.error_code == "SECURITY_SCORE_BELOW_THRESHOLD"
@@ -107,7 +107,7 @@ class TestPreflightSecurityGate:
             "myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR",
             tmp_path,
         ):
-            res = await svc._quarantine_install("clean-id", "clean-skill", files, source="test")
+            res = await svc.install_files("clean-id", "clean-skill", files, source="test")
 
             assert res.success
             assert res.receipt is not None
