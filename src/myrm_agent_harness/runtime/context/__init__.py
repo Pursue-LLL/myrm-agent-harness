@@ -210,6 +210,16 @@ from myrm_agent_harness.runtime.context.session_cwd_guard import (
     SessionCwdHealthGuard,
     SessionCwdIssue,
 )
+from myrm_agent_harness.runtime.context.session_epoch_splitter import (
+    EpochSplitUrgency,
+    ForkedEpochSessionDescriptor,
+    LongSessionEpochSplitter,
+    MilestoneArtifactRef,
+    MilestoneCheckpointArchiver,
+    MilestoneCheckpointPayload,
+    SessionSaturationGovernor,
+    SessionSaturationProbeReport,
+)
 from myrm_agent_harness.runtime.context.session_resume_integrity_validator import (
     AnomalyKind,
     IntegrityAnomaly,
@@ -504,4 +514,12 @@ __all__ = [
     "SessionCheckpointCapsuleEntry",
     "SkillCapsuleEntry",
     "UniversalAgentCapsule",
+    "EpochSplitUrgency",
+    "ForkedEpochSessionDescriptor",
+    "LongSessionEpochSplitter",
+    "MilestoneArtifactRef",
+    "MilestoneCheckpointArchiver",
+    "MilestoneCheckpointPayload",
+    "SessionSaturationGovernor",
+    "SessionSaturationProbeReport",
 ]
