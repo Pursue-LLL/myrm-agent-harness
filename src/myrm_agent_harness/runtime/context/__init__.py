@@ -124,6 +124,13 @@ from myrm_agent_harness.runtime.context.session.event_sourcing_store import (
     fork_session_by_stream_copy,
     load_session_events_with_auto_repair,
 )
+from myrm_agent_harness.runtime.context.session_cwd_guard import (
+    CwdHealthCheckResult,
+    CwdRelocationStrategy,
+    MissingSessionCwdError,
+    SessionCwdHealthGuard,
+    SessionCwdIssue,
+)
 from myrm_agent_harness.runtime.context.session_tree_navigator import (
     BranchSummaryPayload,
     NavigateTreeResult,
@@ -312,4 +319,9 @@ __all__ = [
     "RpcResponseFrame",
     "RpcUIRequestFrame",
     "RpcUIResponseFrame",
+    "CwdHealthCheckResult",
+    "CwdRelocationStrategy",
+    "MissingSessionCwdError",
+    "SessionCwdHealthGuard",
+    "SessionCwdIssue",
 ]
