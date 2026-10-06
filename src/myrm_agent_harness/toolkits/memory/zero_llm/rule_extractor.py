@@ -34,7 +34,7 @@ _RE_PREFERENCE_ZH = re.compile(
 
 # 2. Configuration & Environment Variables
 _RE_ENV_CONFIG = re.compile(
-    r"(?m)^\s*(?:export\s+)?([A-Z][A-Z0-9_]{2,30})\s*=\s*([\"']?[^\"'\n\r\t#\s]{1,120}[\"']?)",
+    r"(?m)(?:^\s*|\bexport\s+)([A-Z][A-Z0-9_]{2,30})\s*=\s*([\"']?[^\"'\n\r\t#\s]{1,120}[\"']?)",
 )
 _RE_PORT_CONFIG = re.compile(
     r"\b(?:port|PORT|listening on)\s*[:= ]\s*([0-9]{2,5})\b",
