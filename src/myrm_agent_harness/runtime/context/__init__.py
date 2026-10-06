@@ -21,6 +21,15 @@ from myrm_agent_harness.runtime.context.artifact_centric_loop import (
     WorkingSceneHydrationPayload,
     WorkingSceneHydrator,
 )
+from myrm_agent_harness.runtime.context.big_at_context_bridge import (
+    BigAtReference,
+    BigAtSyntaxParser,
+    BigAtTargetKind,
+    ContextBorrowingBridge,
+    ContextBorrowingConfig,
+    DistilledSessionContext,
+    ZeroExplanationContextExtractor,
+)
 from myrm_agent_harness.runtime.context.cleanup import (
     cleanup_context_files_async,
     cleanup_context_files_local,
@@ -436,4 +445,11 @@ __all__ = [
     "ToolAuditorSummary",
     "ToolHungerStats",
     "ToolOutputTokenAuditor",
+    "BigAtReference",
+    "BigAtSyntaxParser",
+    "BigAtTargetKind",
+    "ContextBorrowingBridge",
+    "ContextBorrowingConfig",
+    "DistilledSessionContext",
+    "ZeroExplanationContextExtractor",
 ]
