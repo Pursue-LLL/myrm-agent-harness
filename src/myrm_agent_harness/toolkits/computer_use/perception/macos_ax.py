@@ -23,7 +23,7 @@ import logging
 import subprocess
 from dataclasses import dataclass
 
-from myrm_agent_harness.toolkits.computer_use.backends.macos import _MACOS_DEEPLINKS
+from myrm_agent_harness.toolkits.computer_use.backends.macos_permissions import _MACOS_DEEPLINKS
 from myrm_agent_harness.toolkits.computer_use.dref.errors import AXPermissionRequiredError, AXTreeEmptyError
 from myrm_agent_harness.toolkits.computer_use.dref.types import (
     INTERACTIVE_AX_ROLES,

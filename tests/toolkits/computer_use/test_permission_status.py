@@ -94,7 +94,7 @@ class TestCheckAccessibility:
     """_check_accessibility via ctypes AXIsProcessTrusted + osascript probe mocking."""
 
     def test_granted_when_process_and_osascript_trusted(self) -> None:
-        from myrm_agent_harness.toolkits.computer_use.backends.macos import _check_accessibility
+        from myrm_agent_harness.toolkits.computer_use.backends.macos_permissions import _check_accessibility
 
         mock_ax = MagicMock()
         mock_ax.AXIsProcessTrusted.return_value = True
@@ -104,7 +104,7 @@ class TestCheckAccessibility:
             patch("ctypes.util.find_library", return_value="/System/Library/ApplicationServices"),
             patch("ctypes.cdll.LoadLibrary", return_value=mock_ax),
             patch(
-                "myrm_agent_harness.toolkits.computer_use.backends.macos._osascript_ax_capable",
+                "myrm_agent_harness.toolkits.computer_use.backends.macos_permissions._osascript_ax_capable",
                 return_value=True,
             ),
         ):
@@ -112,7 +112,7 @@ class TestCheckAccessibility:
             mock_ax.AXIsProcessTrusted.assert_called_once_with()
 
     def test_denied_when_process_not_trusted(self) -> None:
-        from myrm_agent_harness.toolkits.computer_use.backends.macos import _check_accessibility
+        from myrm_agent_harness.toolkits.computer_use.backends.macos_permissions import _check_accessibility
 
         mock_ax = MagicMock()
         mock_ax.AXIsProcessTrusted.return_value = False
@@ -126,7 +126,7 @@ class TestCheckAccessibility:
 
     def test_denied_when_osascript_not_trusted(self) -> None:
         """Partial grant (Python trusted, osascript denied) must report false."""
-        from myrm_agent_harness.toolkits.computer_use.backends.macos import _check_accessibility
+        from myrm_agent_harness.toolkits.computer_use.backends.macos_permissions import _check_accessibility
 
         mock_ax = MagicMock()
         mock_ax.AXIsProcessTrusted.return_value = True
@@ -136,20 +136,20 @@ class TestCheckAccessibility:
             patch("ctypes.util.find_library", return_value="/System/Library/ApplicationServices"),
             patch("ctypes.cdll.LoadLibrary", return_value=mock_ax),
             patch(
-                "myrm_agent_harness.toolkits.computer_use.backends.macos._osascript_ax_capable",
+                "myrm_agent_harness.toolkits.computer_use.backends.macos_permissions._osascript_ax_capable",
                 return_value=False,
             ),
         ):
             assert _check_accessibility() is False
 
     def test_denied_when_library_not_found(self) -> None:
-        from myrm_agent_harness.toolkits.computer_use.backends.macos import _check_accessibility
+        from myrm_agent_harness.toolkits.computer_use.backends.macos_permissions import _check_accessibility
 
         with patch("ctypes.util.find_library", return_value=None):
             assert _check_accessibility() is False
 
     def test_denied_on_load_failure(self) -> None:
-        from myrm_agent_harness.toolkits.computer_use.backends.macos import _check_accessibility
+        from myrm_agent_harness.toolkits.computer_use.backends.macos_permissions import _check_accessibility
 
         with (
             patch("ctypes.util.find_library", return_value="/System/Library/ApplicationServices"),
@@ -162,7 +162,7 @@ class TestCheckScreenRecording:
     """_check_screen_recording via ctypes mocking."""
 
     def test_granted_when_preflight_returns_true(self) -> None:
-        from myrm_agent_harness.toolkits.computer_use.backends.macos import _check_screen_recording
+        from myrm_agent_harness.toolkits.computer_use.backends.macos_permissions import _check_screen_recording
 
         mock_cg = MagicMock()
         mock_cg.CGPreflightScreenCaptureAccess.return_value = True
@@ -175,7 +175,7 @@ class TestCheckScreenRecording:
             assert _check_screen_recording() is True
 
     def test_denied_when_preflight_returns_false(self) -> None:
-        from myrm_agent_harness.toolkits.computer_use.backends.macos import _check_screen_recording
+        from myrm_agent_harness.toolkits.computer_use.backends.macos_permissions import _check_screen_recording
 
         mock_cg = MagicMock()
         mock_cg.CGPreflightScreenCaptureAccess.return_value = False
@@ -188,13 +188,13 @@ class TestCheckScreenRecording:
             assert _check_screen_recording() is False
 
     def test_denied_when_library_not_found(self) -> None:
-        from myrm_agent_harness.toolkits.computer_use.backends.macos import _check_screen_recording
+        from myrm_agent_harness.toolkits.computer_use.backends.macos_permissions import _check_screen_recording
 
         with patch("ctypes.util.find_library", return_value=None):
             assert _check_screen_recording() is False
 
     def test_denied_on_load_failure(self) -> None:
-        from myrm_agent_harness.toolkits.computer_use.backends.macos import _check_screen_recording
+        from myrm_agent_harness.toolkits.computer_use.backends.macos_permissions import _check_screen_recording
 
         with (
             patch("ctypes.util.find_library", return_value="/System/Library/CoreGraphics"),
@@ -207,7 +207,7 @@ class TestOsascriptAxCapable:
     """_osascript_ax_capable probe behavior."""
 
     def test_capable_when_process_name_returned(self) -> None:
-        from myrm_agent_harness.toolkits.computer_use.backends.macos import _osascript_ax_capable
+        from myrm_agent_harness.toolkits.computer_use.backends.macos_permissions import _osascript_ax_capable
 
         mock_result = MagicMock()
         mock_result.returncode = 0
@@ -224,7 +224,7 @@ class TestOsascriptAxCapable:
             assert "frontmost" in script
 
     def test_denied_when_nonzero_returncode(self) -> None:
-        from myrm_agent_harness.toolkits.computer_use.backends.macos import _osascript_ax_capable
+        from myrm_agent_harness.toolkits.computer_use.backends.macos_permissions import _osascript_ax_capable
 
         mock_result = MagicMock()
         mock_result.returncode = 1
@@ -236,7 +236,7 @@ class TestOsascriptAxCapable:
             assert _osascript_ax_capable() is False
 
     def test_denied_on_oserror(self) -> None:
-        from myrm_agent_harness.toolkits.computer_use.backends.macos import _osascript_ax_capable
+        from myrm_agent_harness.toolkits.computer_use.backends.macos_permissions import _osascript_ax_capable
 
         with patch(
             "myrm_agent_harness.toolkits.computer_use.backends.macos.subprocess.run",
@@ -245,7 +245,7 @@ class TestOsascriptAxCapable:
             assert _osascript_ax_capable() is False
 
     def test_denied_on_timeout(self) -> None:
-        from myrm_agent_harness.toolkits.computer_use.backends.macos import _osascript_ax_capable
+        from myrm_agent_harness.toolkits.computer_use.backends.macos_permissions import _osascript_ax_capable
 
         with patch(
             "myrm_agent_harness.toolkits.computer_use.backends.macos.subprocess.run",
@@ -258,22 +258,22 @@ class TestCheckMacosPermissions:
     """_check_macos_permissions integration."""
 
     def test_both_granted(self) -> None:
-        from myrm_agent_harness.toolkits.computer_use.backends.macos import (
+        from myrm_agent_harness.toolkits.computer_use.backends.macos_permissions import (
             _MACOS_DEEPLINKS,
             _check_macos_permissions,
         )
 
         with (
             patch(
-                "myrm_agent_harness.toolkits.computer_use.backends.macos._check_accessibility",
+                "myrm_agent_harness.toolkits.computer_use.backends.macos_permissions._check_accessibility",
                 return_value=True,
             ),
             patch(
-                "myrm_agent_harness.toolkits.computer_use.backends.macos._check_screen_recording",
+                "myrm_agent_harness.toolkits.computer_use.backends.macos_permissions._check_screen_recording",
                 return_value=True,
             ),
             patch(
-                "myrm_agent_harness.toolkits.computer_use.backends.macos._probe_screencapture_capturable",
+                "myrm_agent_harness.toolkits.computer_use.backends.macos_permissions._probe_screencapture_capturable",
                 return_value=True,
             ),
         ):
@@ -286,19 +286,19 @@ class TestCheckMacosPermissions:
             assert status.settings_deeplinks == _MACOS_DEEPLINKS
 
     def test_capture_not_ready(self) -> None:
-        from myrm_agent_harness.toolkits.computer_use.backends.macos import _check_macos_permissions
+        from myrm_agent_harness.toolkits.computer_use.backends.macos_permissions import _check_macos_permissions
 
         with (
             patch(
-                "myrm_agent_harness.toolkits.computer_use.backends.macos._check_accessibility",
+                "myrm_agent_harness.toolkits.computer_use.backends.macos_permissions._check_accessibility",
                 return_value=True,
             ),
             patch(
-                "myrm_agent_harness.toolkits.computer_use.backends.macos._check_screen_recording",
+                "myrm_agent_harness.toolkits.computer_use.backends.macos_permissions._check_screen_recording",
                 return_value=True,
             ),
             patch(
-                "myrm_agent_harness.toolkits.computer_use.backends.macos._probe_screencapture_capturable",
+                "myrm_agent_harness.toolkits.computer_use.backends.macos_permissions._probe_screencapture_capturable",
                 return_value=False,
             ),
         ):
@@ -308,19 +308,19 @@ class TestCheckMacosPermissions:
             assert status.capture_ready is False
 
     def test_accessibility_denied(self) -> None:
-        from myrm_agent_harness.toolkits.computer_use.backends.macos import _check_macos_permissions
+        from myrm_agent_harness.toolkits.computer_use.backends.macos_permissions import _check_macos_permissions
 
         with (
             patch(
-                "myrm_agent_harness.toolkits.computer_use.backends.macos._check_accessibility",
+                "myrm_agent_harness.toolkits.computer_use.backends.macos_permissions._check_accessibility",
                 return_value=False,
             ),
             patch(
-                "myrm_agent_harness.toolkits.computer_use.backends.macos._check_screen_recording",
+                "myrm_agent_harness.toolkits.computer_use.backends.macos_permissions._check_screen_recording",
                 return_value=True,
             ),
             patch(
-                "myrm_agent_harness.toolkits.computer_use.backends.macos._probe_screencapture_capturable",
+                "myrm_agent_harness.toolkits.computer_use.backends.macos_permissions._probe_screencapture_capturable",
                 return_value=True,
             ),
         ):
@@ -330,15 +330,15 @@ class TestCheckMacosPermissions:
             assert status.all_granted is False
 
     def test_screen_recording_denied(self) -> None:
-        from myrm_agent_harness.toolkits.computer_use.backends.macos import _check_macos_permissions
+        from myrm_agent_harness.toolkits.computer_use.backends.macos_permissions import _check_macos_permissions
 
         with (
             patch(
-                "myrm_agent_harness.toolkits.computer_use.backends.macos._check_accessibility",
+                "myrm_agent_harness.toolkits.computer_use.backends.macos_permissions._check_accessibility",
                 return_value=True,
             ),
             patch(
-                "myrm_agent_harness.toolkits.computer_use.backends.macos._check_screen_recording",
+                "myrm_agent_harness.toolkits.computer_use.backends.macos_permissions._check_screen_recording",
                 return_value=False,
             ),
         ):
@@ -348,19 +348,19 @@ class TestCheckMacosPermissions:
             assert status.all_granted is False
 
     def test_both_denied(self) -> None:
-        from myrm_agent_harness.toolkits.computer_use.backends.macos import _check_macos_permissions
+        from myrm_agent_harness.toolkits.computer_use.backends.macos_permissions import _check_macos_permissions
 
         with (
             patch(
-                "myrm_agent_harness.toolkits.computer_use.backends.macos._check_accessibility",
+                "myrm_agent_harness.toolkits.computer_use.backends.macos_permissions._check_accessibility",
                 return_value=False,
             ),
             patch(
-                "myrm_agent_harness.toolkits.computer_use.backends.macos._check_screen_recording",
+                "myrm_agent_harness.toolkits.computer_use.backends.macos_permissions._check_screen_recording",
                 return_value=False,
             ),
             patch(
-                "myrm_agent_harness.toolkits.computer_use.backends.macos._probe_screencapture_capturable",
+                "myrm_agent_harness.toolkits.computer_use.backends.macos_permissions._probe_screencapture_capturable",
                 return_value=False,
             ),
         ):
@@ -370,7 +370,7 @@ class TestCheckMacosPermissions:
             assert status.all_granted is False
 
     def test_deeplinks_contain_required_keys(self) -> None:
-        from myrm_agent_harness.toolkits.computer_use.backends.macos import _MACOS_DEEPLINKS
+        from myrm_agent_harness.toolkits.computer_use.backends.macos_permissions import _MACOS_DEEPLINKS
 
         assert "accessibility" in _MACOS_DEEPLINKS
         assert "screen_recording" in _MACOS_DEEPLINKS

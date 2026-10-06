@@ -9,10 +9,11 @@ Platform-specific implementations of the ComputerBackend protocol. Provides macO
 |------|------|-------------|-------|
 | __init__.py | Package | Computer use backends — re-exports ComputerBackend protocol. | — |
 | protocols.py | Core | ComputerBackend protocol — abstract interface for platform backends. | ✅ |
-| macos.py | Core | macOS backend — screencapture + Quartz CGEvent + NSScreen DPI + AX text; window-targeted capture (`screencapture -l`), foreground guard, post-event permission probe/request, EnhancedUI; `set_excluded_capture_window_titles` 帷幕排除通道注入；帷幕在屏时全局 HID 坐标类指针动作（click/mouse_move/scroll/drag）fail-closed（`_pointer_occluded`，定向投递与键盘不受影响）. | ✅ |
+| macos.py | Core | macOS backend — screencapture + Quartz CGEvent + NSScreen DPI + AX text; window-targeted capture (`screencapture -l`) and foreground guard via `macos_background`, `check_permissions` via `macos_permissions`; `set_excluded_capture_window_titles` 帷幕排除通道注入；帷幕在屏时全局 HID 坐标类指针动作（click/mouse_move/scroll/drag）fail-closed（`_pointer_occluded`，定向投递与键盘不受影响）. | ✅ |
 | macos_input.py | Core | macOS input primitives — Quartz CGEvent keyboard/mouse (replaces pyautogui); PID-targeted delivery via single post router; `has_input_target()` 判定当前任务是否定向投递. | ✅ |
 | macos_background.py | Core | macOS background ops — window resolve, `screencapture -l` capture, foreground guard, post-event permission, EnhancedUI (crash-contained probe); `_capture_screen_excluding_titles` Quartz below-window 截图通道（帷幕窗排除，失败降级原 screencapture 路径）. | ✅ |
 | macos_ax_scripts.py | Core | macOS accessibility probe scripts — AppleScript sources (`AX_TEXT_SCRIPT` window text, `AX_DIALOG_SCRIPT` blocking dialog) consumed by `macos.py`; parsing and timeouts stay with the callers. | — |
+| macos_permissions.py | Core | macOS TCC permission probes — Accessibility (`AXIsProcessTrusted` + osascript capability probe), Screen Recording (`CGPreflightScreenCaptureAccess`), optional capture-usability probe, post-event access, System Settings deeplinks (`_MACOS_DEEPLINKS`, also consumed by `perception/macos_ax.py`); consumed by `macos.py` `check_permissions`. | ✅ |
 | windows.py | Core | Windows backend — mss + pyautogui + ctypes/user32 + uiautomation. | ✅ |
 | linux.py | Core | Linux backend — scrot/gnome-screenshot + xdotool + DISPLAY auto-detection. | ✅ |
 | cua_driver.py | Enhancement | Background-input backend via cua-driver MCP. Wraps a native backend. | ✅ |

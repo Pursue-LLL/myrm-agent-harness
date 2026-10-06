@@ -19,6 +19,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from myrm_agent_harness.toolkits.computer_use.backends import macos as macos_mod
+from myrm_agent_harness.toolkits.computer_use.backends import macos_permissions as permissions_mod
 from myrm_agent_harness.toolkits.computer_use.backends.macos import (
     MacOSBackend,
     _detect_dpi_scale_quartz,
@@ -54,9 +55,7 @@ class TestWindowTargetResolution:
 class TestInputPrimitiveErrorPaths:
     @pytest.mark.asyncio()
     async def test_click_error_is_reported(self, backend: MacOSBackend) -> None:
-        with patch.object(
-            macos_mod.macos_input, "click", MagicMock(side_effect=RuntimeError("no accessibility"))
-        ):
+        with patch.object(macos_mod.macos_input, "click", MagicMock(side_effect=RuntimeError("no accessibility"))):
             result = await backend.click(1, 2, modifiers=["ctrl"])
         assert result.success is False
         assert "no accessibility" in (result.error or "")
@@ -183,7 +182,7 @@ class TestClipboardHelpers:
         proc = MagicMock()
         with patch("subprocess.Popen", return_value=proc):
             _set_clipboard("密钥")
-        proc.communicate.assert_called_once_with("密钥".encode("utf-8"), timeout=2)
+        proc.communicate.assert_called_once_with("密钥".encode(), timeout=2)
 
 
 class TestPlatformDelegation:
@@ -286,7 +285,7 @@ class TestCaptureProbe:
     def test_nonzero_exit_is_false(self) -> None:
         with patch("subprocess.run") as run:
             run.return_value = MagicMock(returncode=1)
-            assert macos_mod._probe_screencapture_capturable() is False
+            assert permissions_mod._probe_screencapture_capturable() is False
 
     def test_missing_file_is_false(self) -> None:
         with (
@@ -294,7 +293,7 @@ class TestCaptureProbe:
             patch("pathlib.Path.is_file", MagicMock(return_value=False)),
             patch("pathlib.Path.unlink"),
         ):
-            assert macos_mod._probe_screencapture_capturable() is False
+            assert permissions_mod._probe_screencapture_capturable() is False
 
     def test_success_defers_to_luminance_gate(self) -> None:
         with (
@@ -307,9 +306,9 @@ class TestCaptureProbe:
                 MagicMock(return_value=True),
             ) as gate,
         ):
-            assert macos_mod._probe_screencapture_capturable() is True
+            assert permissions_mod._probe_screencapture_capturable() is True
         gate.assert_called_once_with(b"PNG")
 
     def test_os_error_is_false(self) -> None:
         with patch("subprocess.run", side_effect=OSError("no screencapture")):
-            assert macos_mod._probe_screencapture_capturable() is False
+            assert permissions_mod._probe_screencapture_capturable() is False
