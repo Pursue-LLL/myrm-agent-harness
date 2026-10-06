@@ -1,5 +1,13 @@
 """Context lifecycle management — cleanup, config, metrics, tracking, reading, offload."""
 
+from myrm_agent_harness.runtime.context.agent_relay_handshake import (
+    AgentProfileDescriptor,
+    AgentRelayHandshakeBridge,
+    AgentRelayPacketBuilder,
+    ContextBudgetAdaptiveAligner,
+    HandshakeResult,
+    RelayStatePayload,
+)
 from myrm_agent_harness.runtime.context.append_only_kv_cache_guard import (
     AppendOnlyContextTailInvariantGuard,
     CompactionBypassToken,
@@ -452,4 +460,10 @@ __all__ = [
     "ContextBorrowingConfig",
     "DistilledSessionContext",
     "ZeroExplanationContextExtractor",
+    "AgentProfileDescriptor",
+    "AgentRelayHandshakeBridge",
+    "AgentRelayPacketBuilder",
+    "ContextBudgetAdaptiveAligner",
+    "HandshakeResult",
+    "RelayStatePayload",
 ]
