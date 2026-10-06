@@ -174,6 +174,22 @@ def _reset_session_executor_stash() -> Iterator[None]:
 
 
 @pytest.fixture(autouse=True)
+def _restore_chat_id_var() -> Iterator[None]:
+    """Isolate the active chat id ContextVar between all tests.
+
+    ``set_approval_session`` writes ``chat_id_var`` in the calling context; a sync
+    test that never restores it leaks that id into every later test of the process,
+    so code reading the active session (e.g. eviction persistence) sees a stale id
+    instead of none.
+    """
+    from myrm_agent_harness.core.context_vars import chat_id_var
+
+    original = chat_id_var.get()
+    yield
+    chat_id_var.set(original)
+
+
+@pytest.fixture(autouse=True)
 async def _reset_global_browser_pool_singleton(request: pytest.FixtureRequest) -> AsyncIterator[None]:
     """Shut down GlobalBrowserPool singleton after browser-related tests.
 
