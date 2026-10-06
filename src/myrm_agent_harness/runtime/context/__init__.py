@@ -99,6 +99,15 @@ from myrm_agent_harness.runtime.context.headless_rpc_gateway import (
     RpcUIRequestFrame,
     RpcUIResponseFrame,
 )
+from myrm_agent_harness.runtime.context.headroom_adaptive_budget_compressor import (
+    AdaptiveBudgetManager,
+    AdaptiveBudgetProfile,
+    CompressionLevel,
+    FoldedToolRecord,
+    ProgressiveCompactionResult,
+    ProgressiveSlidingWindowCompactor,
+    TaskPhase,
+)
 from myrm_agent_harness.runtime.context.instance_metrics import (
     ContextMetrics,
     get_context_metrics,
@@ -372,4 +381,11 @@ __all__ = [
     "LivingArtifactStateMachine",
     "WorkingSceneHydrationPayload",
     "WorkingSceneHydrator",
+    "AdaptiveBudgetManager",
+    "AdaptiveBudgetProfile",
+    "CompressionLevel",
+    "FoldedToolRecord",
+    "ProgressiveCompactionResult",
+    "ProgressiveSlidingWindowCompactor",
+    "TaskPhase",
 ]
