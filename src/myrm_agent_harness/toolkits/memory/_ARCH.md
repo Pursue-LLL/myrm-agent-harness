@@ -72,6 +72,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | codegraph/ | CodeGraph Memory Asset & Pre-Modification Impact Analysis Engine: AST symbol topology extraction (classes, methods, functions, inheritance, calls), in-memory & SQLite persistent store with incremental synchronization, multi-hop BFS blast radius evaluation, and agent-facing risk prevention tool. |
 | compaction/ | Token-Budget-Aware Codebase Semantic Memory Compaction Engine: AST-based and regex fallback code skeleton extractor (L1 signatures, L2 control flow, L3 full source), and dynamic budget-aware compactor with multi-tier adaptive downgrade. |
 | decay/ | Ebbinghaus Temporal Decay & Tiered Storage Lifecycle Engine: dynamic exponential decay scoring S(t) = I * exp(-lambda*dt) * (1 + alpha*ln(1+f)), RFM frequency boost, hot-warm-cold three-tier storage transitions, decay-aware blended retrieval reranking, and cold archive export/revival. |
+| evolution/ | Order-Invariant Memory Evolution & Causal Experience Gene Ledger: temporal order-invariance validation gates, asymptotic confidence decay and Darwinian gene reinforcement (proof_count), causal trial-error gene extraction (CausalGeneExtractor), and planning-stage mutation advice (ExperienceGeneLedger). |
 | workspace_living/ | Living Workspace Governance & documentation synchronization toolkit (CausalIssueMerger, KnownIssueEntry, ADRMetadata, idempotent error signature deduplication). |
 
 ## Key Dependencies
