@@ -201,6 +201,14 @@ from myrm_agent_harness.runtime.context.token_estimator import (
     extract_provider_usage_anchor,
     is_compaction_triggered,
 )
+from myrm_agent_harness.runtime.context.tool_output_auditor import (
+    DynamicSemanticTruncationConfig,
+    DynamicSemanticTruncator,
+    ToolAuditorSummary,
+    ToolAuditRecord,
+    ToolHungerStats,
+    ToolOutputTokenAuditor,
+)
 from myrm_agent_harness.runtime.context.transcripts import (
     CanonicalToolCall,
     CanonicalTranscriptTurn,
@@ -422,4 +430,10 @@ __all__ = [
     "HumanRejectionEvent",
     "HumanRejectionGuard",
     "RejectionCategory",
+    "DynamicSemanticTruncationConfig",
+    "DynamicSemanticTruncator",
+    "ToolAuditRecord",
+    "ToolAuditorSummary",
+    "ToolHungerStats",
+    "ToolOutputTokenAuditor",
 ]
