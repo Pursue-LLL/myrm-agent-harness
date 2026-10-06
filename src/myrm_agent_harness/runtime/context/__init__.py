@@ -276,6 +276,14 @@ from myrm_agent_harness.runtime.context.lazy_subdirectory_rules_types import (
     DynamicToolInjectionEnvelope,
     SubdirectoryRuleDiscoveryMode,
 )
+from myrm_agent_harness.runtime.context.model_free_tool_pruner import (
+    ModelFreeDeterministicToolResultPruner,
+)
+from myrm_agent_harness.runtime.context.model_free_tool_pruner_types import (
+    ModelFreeCompactionReport,
+    ModelFreePrunerConfig,
+    PruningAuditItem,
+)
 from myrm_agent_harness.runtime.context.multi_dimension_at_resolver import (
     AtContextIngestionResult,
     AtReferenceKind,
@@ -902,4 +910,8 @@ __all__ = [
     "SpillRecord",
     "SpillSliceRequest",
     "SpillSliceResult",
+    "ModelFreeCompactionReport",
+    "ModelFreeDeterministicToolResultPruner",
+    "ModelFreePrunerConfig",
+    "PruningAuditItem",
 ]
