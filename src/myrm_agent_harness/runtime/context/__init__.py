@@ -219,6 +219,9 @@ from myrm_agent_harness.runtime.context.durable_tri_queue import (
 from myrm_agent_harness.runtime.context.dynamic_tool_schema_pruner import (
     DynamicToolSchemaPruner,
 )
+from myrm_agent_harness.runtime.context.entropy_draining_engine import (
+    EntropyDrainingEngine,
+)
 from myrm_agent_harness.runtime.context.environment_changelog import (
     EnvironmentChangelogLedger,
 )
@@ -436,6 +439,9 @@ from myrm_agent_harness.runtime.context.overflow_compaction_guard import (
     classify_response_overflow,
     is_recoverable_length,
 )
+from myrm_agent_harness.runtime.context.path_scoped_rule_matcher import (
+    PathScopedRuleMatcher,
+)
 from myrm_agent_harness.runtime.context.path_stable_doc_session import (
     DocChunkCacheEntry,
     DocDiffProposalEntry,
@@ -516,6 +522,9 @@ from myrm_agent_harness.runtime.context.rejection_reason_guard import (
 )
 from myrm_agent_harness.runtime.context.rule_based_session_synthesizer import (
     RuleBasedSessionSynthesizer,
+)
+from myrm_agent_harness.runtime.context.rule_telemetry_ledger import (
+    RuleTelemetryLedger,
 )
 from myrm_agent_harness.runtime.context.session.event_sourcing_store import (
     EventSourcingLoadResult,
@@ -700,6 +709,16 @@ from myrm_agent_harness.runtime.context.user_query_disambiguation_guard import (
     MetadataPrefixKind,
     ParsedUserQuery,
     UserQueryDisambiguationGuard,
+)
+from myrm_agent_harness.runtime.context.working_set_rules_types import (
+    ActiveWorkingSet,
+    EntropyAuditReport,
+    EntropyConflictItem,
+    PathScope,
+    RuleItem,
+    RuleSeverity,
+    RuleTaskPhase,
+    RuleTelemetryRecord,
 )
 
 __all__ = [
@@ -1188,4 +1207,15 @@ __all__ = [
     "ScenarioType",
     "StructuredNote",
     "TrapType",
+    "ActiveWorkingSet",
+    "EntropyAuditReport",
+    "EntropyConflictItem",
+    "EntropyDrainingEngine",
+    "PathScope",
+    "PathScopedRuleMatcher",
+    "RuleItem",
+    "RuleSeverity",
+    "RuleTelemetryLedger",
+    "RuleTelemetryRecord",
+    "RuleTaskPhase",
 ]
