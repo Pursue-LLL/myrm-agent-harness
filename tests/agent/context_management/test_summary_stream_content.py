@@ -1,7 +1,8 @@
 """Streamed summary text is assembled from text content, whatever shape the provider streams it in.
 
-Providers that stream content blocks (``[{"type": "text", ...}]``) used to make the chunk join fail,
-and the failure was swallowed by the ``ainvoke`` fallback: the whole summary was generated twice.
+Content blocks (``[{"type": "text", ...}]``) are joined like plain strings. A join that raised would be
+swallowed by the ``ainvoke`` fallback and the whole summary generated twice, so every case also asserts
+that the fallback is not taken.
 """
 
 from __future__ import annotations
