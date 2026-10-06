@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 # Heuristic patterns indicating procedural / operational rules (When/If X, Do Y or Remember Z)
 _PROCEDURAL_PATTERNS: list[re.Pattern[str]] = [
-    re.compile(r"(遇到|如果|当|一旦|若).{0,50}?(记得|务必|必须|先|先查|先检查|要|统统|一律)", re.IGNORECASE),
+    re.compile(r"(遇到|如果|当|一旦|若|只要).{0,50}?(记得|务必|必须|先|先查|先检查|要|统统|一律)", re.IGNORECASE),
     re.compile(r"(以后|之后|后续|日常).{0,50}?(写|做|用|跑|调用|提交).{0,50}?(记得|加上|带上|务必|必须)", re.IGNORECASE),
     re.compile(r"\b(when|if|whenever)\b.{0,80}?\b(always|never|make sure to|check first|remember to|guide to)\b", re.IGNORECASE),
     re.compile(r"(排障|报警|报错|故障).{0,50}?(先查|检查|看|核对)", re.IGNORECASE),
@@ -20,8 +20,8 @@ _PROCEDURAL_PATTERNS: list[re.Pattern[str]] = [
 
 # Heuristic patterns indicating declarative user facts or preferences
 _FACT_PATTERNS: list[re.Pattern[str]] = [
-    re.compile(r"(名字叫|名字是|是一名|身份是|在做|坐标在|住址在)", re.IGNORECASE),
-    re.compile(r"(喜欢|偏好|习惯用|主要用|擅长|核心技术栈是|唯一数据库是)", re.IGNORECASE),
+    re.compile(r"(名字叫|名字是|是一名|身份是|在做|坐标在|住址在|负责|运维)", re.IGNORECASE),
+    re.compile(r"(喜欢|偏好|首选|习惯用|常用|主要用|擅长|核心技术栈是|语言是|数据库是|时区)", re.IGNORECASE),
     re.compile(r"\b(my name is|i prefer|i like|i work at|my stack is|our database is)\b", re.IGNORECASE),
     re.compile(r"(目标是|预算是|截止时间是|项目是)", re.IGNORECASE),
 ]
