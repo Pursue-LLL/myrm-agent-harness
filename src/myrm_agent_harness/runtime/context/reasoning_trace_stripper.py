@@ -52,9 +52,19 @@ class ReasoningTraceStripper:
                 matches = list(pattern.finditer(cleaned))
                 if matches:
                     changed = True
-                    total_tags_count += len(matches)
                     for m in matches:
                         total_stripped_chars += len(m.group(0))
+                        nested_count = sum(
+                            len(
+                                re.findall(
+                                    rf"<{re.escape(t.value)}(?:\s+[^>]*)?>",
+                                    m.group(0),
+                                    re.IGNORECASE,
+                                )
+                            )
+                            for t in self.target_tags
+                        )
+                        total_tags_count += max(1, nested_count)
                     cleaned = pattern.sub("", cleaned)
 
         # Handle unclosed tags at the end of text (e.g. streaming truncated output)

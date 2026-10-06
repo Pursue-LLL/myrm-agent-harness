@@ -275,6 +275,9 @@ from myrm_agent_harness.runtime.context.file_move_tracking_store_types import (
     FileMoveEvent,
     FileTrackResolution,
 )
+from myrm_agent_harness.runtime.context.five_layer_rule_arbiter import (
+    FiveLayerRuleArbiter,
+)
 from myrm_agent_harness.runtime.context.full_repo_ast_packer import (
     FullRepoAstPacker,
 )
@@ -426,6 +429,9 @@ from myrm_agent_harness.runtime.context.model_free_tool_pruner_types import (
     ModelFreePrunerConfig,
     PruningAuditItem,
 )
+from myrm_agent_harness.runtime.context.model_harness_cost_router import (
+    ModelHarnessCostRouter,
+)
 from myrm_agent_harness.runtime.context.multi_dimension_at_resolver import (
     AtContextIngestionResult,
     AtReferenceKind,
@@ -435,6 +441,27 @@ from myrm_agent_harness.runtime.context.multi_dimension_at_resolver import (
     SnapshotCompressor,
     SnapshotDetailLevel,
     UnifiedMultiDimensionAtResolver,
+)
+from myrm_agent_harness.runtime.context.multi_gateway_trust_governor import (
+    MultiGatewayTrustGovernor,
+)
+from myrm_agent_harness.runtime.context.multi_gateway_trust_types import (
+    CostRoutingDecision,
+    FiveLayerRuleMatrix,
+    GatewayTrustTier,
+    HandoffCard,
+    HandoffCardStatus,
+    HighRiskActionKind,
+    ModelCostProfile,
+    PrunedContextItem,
+    RealityCheckReceipt,
+    RuleConflictResolution,
+    RuleEntry,
+    RuleLayerKind,
+    TaskComplexity,
+    TriStateTag,
+    WorktreeAllocation,
+    WorktreeReconcileResult,
 )
 from myrm_agent_harness.runtime.context.multi_ide_ruleset_bridge import (
     IdeEcosystemClassifier,
@@ -568,6 +595,9 @@ from myrm_agent_harness.runtime.context.rule_based_session_synthesizer import (
 from myrm_agent_harness.runtime.context.rule_telemetry_ledger import (
     RuleTelemetryLedger,
 )
+from myrm_agent_harness.runtime.context.scoped_rules_importer import (
+    ScopedRulesImporter,
+)
 from myrm_agent_harness.runtime.context.session.event_sourcing_store import (
     EventSourcingLoadResult,
     EventSourcingSessionStore,
@@ -659,6 +689,9 @@ from myrm_agent_harness.runtime.context.structured_checkpoint_generator import (
     create_checkpoint_from_messages,
     parse_checkpoint_contract,
 )
+from myrm_agent_harness.runtime.context.subagent_worktree_isolator import (
+    SubagentWorktreeIsolator,
+)
 from myrm_agent_harness.runtime.context.surface_projection_engine import (
     HandoffConstraintPreservationGate,
     ImmutableEventLog,
@@ -726,6 +759,9 @@ from myrm_agent_harness.runtime.context.tree_state import (
     create_compaction_todo_anchor,
     extract_todo_store_from_payload,
     fold_branch_todo_state,
+)
+from myrm_agent_harness.runtime.context.tri_state_handoff_engine import (
+    TriStateHandoffEngine,
 )
 from myrm_agent_harness.runtime.context.tripartite_identity_anchor import (
     SoulDriftDetector,
@@ -1284,4 +1320,26 @@ __all__ = [
     "LosslessCompactorConfig",
     "MessageImportanceClassifier",
     "MessageImportanceTier",
+    "CostRoutingDecision",
+    "FiveLayerRuleArbiter",
+    "FiveLayerRuleMatrix",
+    "GatewayTrustTier",
+    "HandoffCard",
+    "HandoffCardStatus",
+    "HighRiskActionKind",
+    "ModelCostProfile",
+    "ModelHarnessCostRouter",
+    "MultiGatewayTrustGovernor",
+    "PrunedContextItem",
+    "RealityCheckReceipt",
+    "RuleConflictResolution",
+    "RuleEntry",
+    "RuleLayerKind",
+    "ScopedRulesImporter",
+    "SubagentWorktreeIsolator",
+    "TaskComplexity",
+    "TriStateHandoffEngine",
+    "TriStateTag",
+    "WorktreeAllocation",
+    "WorktreeReconcileResult",
 ]
