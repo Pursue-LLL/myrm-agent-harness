@@ -609,6 +609,36 @@ class ProceduralMemory(BaseMemory):
         default_factory=list,
         description="Ordered corrective actions or instructions taken to resolve the error",
     )
+    facets: list[str] = Field(
+        default_factory=lambda: ["global"],
+        description="Domain or role scopes (e.g. ['frontend', 'devops'])",
+    )
+    confidence: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        description="Crystallization confidence factor",
+    )
+    severity: float = Field(
+        default=0.8,
+        ge=0.0,
+        le=1.0,
+        description="Failure severity or impact factor",
+    )
+    success_count: int = Field(
+        default=0,
+        ge=0,
+        description="Total execution success occurrences",
+    )
+    fail_count: int = Field(
+        default=0,
+        ge=0,
+        description="Total execution failure occurrences",
+    )
+    lifecycle_state: str = Field(
+        default="active",
+        description="Lifecycle state: active, degraded, or retired",
+    )
 
     def model_post_init(self, __context: object) -> None:
         """Sync is_active ↔ status on construction for legacy data."""
@@ -809,6 +839,10 @@ class PendingRecord(BaseModel):
 
     resolution_action: PendingResolutionAction = PendingResolutionAction.STORE
     target_memory_id: str | None = None
+    target_content: str | None = Field(
+        default=None,
+        description="Content of the memory targeted by CORRECT/DELETE, captured for review display",
+    )
 
     @property
     def confidence(self) -> float | None:
