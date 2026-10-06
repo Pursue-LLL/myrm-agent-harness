@@ -75,6 +75,15 @@ from myrm_agent_harness.runtime.context.offload import (
     cleanup_session_context_files,
     create_compress_offload_callback,
 )
+from myrm_agent_harness.runtime.context.orphaned_tool_healing_transform import (
+    CanonicalMessageRole,
+    CanonicalMessageTurn,
+    CanonicalToolCallDescriptor,
+    HealingMetrics,
+    OrphanedToolCallHealingTransform,
+    heal_orphaned_tool_calls_canonical,
+    heal_orphaned_tool_calls_langchain,
+)
 from myrm_agent_harness.runtime.context.overflow_compaction_guard import (
     OverflowClassification,
     OverflowCompactionExhaustedGiveUpError,
@@ -264,4 +273,11 @@ __all__ = [
     "SessionTreeNode",
     "SessionTreeNodeEntry",
     "SessionTreeNavigator",
+    "CanonicalMessageRole",
+    "CanonicalMessageTurn",
+    "CanonicalToolCallDescriptor",
+    "HealingMetrics",
+    "OrphanedToolCallHealingTransform",
+    "heal_orphaned_tool_calls_canonical",
+    "heal_orphaned_tool_calls_langchain",
 ]
