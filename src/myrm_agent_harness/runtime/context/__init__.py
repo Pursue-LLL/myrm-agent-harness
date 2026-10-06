@@ -41,6 +41,13 @@ from myrm_agent_harness.runtime.context.cut_point_selector import (
     repair_tool_pairing_invariants,
     validate_tool_pairing_invariants,
 )
+from myrm_agent_harness.runtime.context.durable_deferred_write_manager import (
+    AbortDeferredApplyResult,
+    DeferredFactKind,
+    DeferredWriteRecordType,
+    DurableDeferredWriteItem,
+    DurableDeferredWriteManager,
+)
 from myrm_agent_harness.runtime.context.durable_tri_queue import (
     AbortOutcome,
     DurableTriQueueManager,
@@ -226,4 +233,9 @@ __all__ = [
     "OverflowRecoveryDecision",
     "classify_response_overflow",
     "is_recoverable_length",
+    "AbortDeferredApplyResult",
+    "DeferredFactKind",
+    "DeferredWriteRecordType",
+    "DurableDeferredWriteItem",
+    "DurableDeferredWriteManager",
 ]

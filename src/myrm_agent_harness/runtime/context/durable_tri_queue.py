@@ -122,7 +122,7 @@ class DurableTriQueueManager:
 
     def __init__(self, journal_path: Path | str | None = None) -> None:
         self._journal_path = Path(journal_path) if journal_path is not None else None
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._steer_queue: list[ProvisionedQueueItem] = []
         self._followup_queue: list[ProvisionedQueueItem] = []
         self._next_run_queue: list[ProvisionedQueueItem] = []
