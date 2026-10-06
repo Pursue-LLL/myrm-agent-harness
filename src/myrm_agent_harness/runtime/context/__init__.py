@@ -247,6 +247,18 @@ from myrm_agent_harness.runtime.context.session_tree_navigator import (
     SessionTreeNode,
     SessionTreeNodeEntry,
 )
+from myrm_agent_harness.runtime.context.social_work_context_graph import (
+    CrossAppChronologicalResolver,
+    CrossAppWorkAsset,
+    FuzzyQueryIntent,
+    PersonEntity,
+    PersonRoleKind,
+    PrivacyAuditRecord,
+    PrivacyAuditSentinel,
+    ResolvedContextAnchor,
+    SocialCollaborationGraph,
+    WorkAssetKind,
+)
 from myrm_agent_harness.runtime.context.structured_checkpoint_generator import (
     StructuredCheckpointContract,
     build_checkpoint_prompt,
@@ -544,4 +556,14 @@ __all__ = [
     "WorkspaceHealthAndOrphanDetector",
     "WorkspaceHealthReport",
     "WorkspaceSessionRef",
+    "CrossAppChronologicalResolver",
+    "CrossAppWorkAsset",
+    "FuzzyQueryIntent",
+    "PersonEntity",
+    "PersonRoleKind",
+    "PrivacyAuditRecord",
+    "PrivacyAuditSentinel",
+    "ResolvedContextAnchor",
+    "SocialCollaborationGraph",
+    "WorkAssetKind",
 ]
