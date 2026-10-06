@@ -99,6 +99,15 @@ from myrm_agent_harness.runtime.context.plan_mode_boundary_locker import (
     filter_tools_for_mode,
     is_read_only_tool,
 )
+from myrm_agent_harness.runtime.context.prune_and_spill_recall import (
+    GrepMatchItem,
+    GrepRecallResult,
+    OffsetRecallResult,
+    PruneAndSpillConfig,
+    PruneAndSpillRecallEngine,
+    PruneAndSpillResult,
+    SpillMetadata,
+)
 from myrm_agent_harness.runtime.context.session.event_sourcing_store import (
     EventSourcingLoadResult,
     EventSourcingSessionStore,
@@ -280,4 +289,11 @@ __all__ = [
     "OrphanedToolCallHealingTransform",
     "heal_orphaned_tool_calls_canonical",
     "heal_orphaned_tool_calls_langchain",
+    "PruneAndSpillConfig",
+    "SpillMetadata",
+    "PruneAndSpillResult",
+    "OffsetRecallResult",
+    "GrepMatchItem",
+    "GrepRecallResult",
+    "PruneAndSpillRecallEngine",
 ]
