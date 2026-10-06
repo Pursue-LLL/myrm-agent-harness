@@ -1,13 +1,15 @@
-"""Provider Safety — normalize messages before LLM calls.
+"""Provider Safety — tool-history pairing gate for LLM calls made outside the middleware chain.
 
-Inspired by lime's provider_safety.rs, adapted for LangChain architecture.
+Direct LLM paths (summary prefix, grace call) bypass the agent middleware chain, so they call
+``normalize_messages`` to pass the same gate as the main call: id hygiene, then dangling repair.
 
 [INPUT]
 - langchain_core.messages::BaseMessage (POS: Core message type definitions. All cross-channel communication data structures are defined here; zero I/O, pure data.)
 - agent.middlewares.tooling.tool_history_hygiene::sanitize_tool_history (POS: Tool history hygiene middleware. Runs BEFORE dangling_tool_call_middleware.)
+- agent.middlewares.tooling.dangling_tool_call_middleware::repair_dangling_tool_calls (POS: Dangling tool call repair middleware.)
 
 [OUTPUT]
-- normalize_messages(): Clean invalid tool calls, orphan responses, and duplicate tool_call_ids
+- normalize_messages(): The production sanitize → repair pair; a well-formed history is returned unchanged
 
 [POS]
 Provider safety normalization. Pure function for direct LLM paths; agent middleware covers the primary runtime.
@@ -15,132 +17,31 @@ Provider safety normalization. Pure function for direct LLM paths; agent middlew
 
 from collections.abc import Sequence
 
-from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
-
-from myrm_agent_harness.utils.logger_utils import get_agent_logger
-
-logger = get_agent_logger(__name__)
+from langchain_core.messages import BaseMessage
 
 
 def normalize_messages(messages: Sequence[BaseMessage]) -> list[BaseMessage]:
-    """Normalize message chain before sending to LLM provider.
+    """Pair tool requests and results the way the agent middleware chain does before a model call.
 
-    Removes:
-    1. Invalid tool requests (wrong role or failed parsing)
-    2. Orphan tool responses (no matching request)
-    3. Duplicate tool responses (multiple responses for same request)
-
-    Ensures strict tool request-response pairing and global tool_call_id uniqueness.
+    Runs ``sanitize_tool_history`` (unique tool_call_ids), then ``repair_dangling_tool_calls``
+    (drops orphan results, answers unanswered requests with a synthetic result). A well-formed
+    history is returned as-is (same message objects, same order), so a cached prompt prefix stays
+    byte-identical.
 
     Args:
-        messages: Original message sequence
+        messages: Message sequence about to be sent to the provider.
 
     Returns:
-        Cleaned message list (may be shorter)
-
-    Example:
-        >>> messages = [
-        ...     HumanMessage(content="run ls"),
-        ...     AIMessage(content="", tool_calls=[{"id": "1", "name": "bash", "args": {...}}]),
-        ...     ToolMessage(content="file.txt", tool_call_id="1"),
-        ... ]
-        >>> normalized = normalize_messages(messages)
-        >>> len(normalized) == 3  # All valid
+        Messages safe to send to a strict provider; the input messages are never mutated.
     """
-    if not messages:
-        return []
-
-    from myrm_agent_harness.agent.middlewares.tooling.tool_history_hygiene import (
-        sanitize_tool_history,
+    # Imported lazily: the middleware package loads thousands of modules and pulls in
+    # context_management, whose summarizer calls this function (a top-level import would be circular).
+    from myrm_agent_harness.agent.middlewares.tooling.dangling_tool_call_middleware import (
+        repair_dangling_tool_calls,
     )
+    from myrm_agent_harness.agent.middlewares.tooling.tool_history_hygiene import sanitize_tool_history
 
-    working = sanitize_tool_history(list(messages))
-
-    # Collect valid tool request IDs
-    valid_request_ids: set[str] = set()
-    matched_request_ids: set[str] = set()
-    removed_invalid_requests = 0
-    removed_invalid_responses = 0
-
-    normalized: list[BaseMessage] = []
-
-    # First pass: collect valid requests and filter messages
-    for msg in working:
-        if isinstance(msg, AIMessage):
-            # Check tool_calls validity
-            if msg.tool_calls:
-                valid_calls = []
-                for tc in msg.tool_calls:
-                    # Tool call must have id and valid structure
-                    tc_id = tc.get("id") if isinstance(tc, dict) else getattr(tc, "id", None)
-                    if tc_id and isinstance(tc_id, str):
-                        valid_request_ids.add(tc_id)
-                        valid_calls.append(tc)
-                    else:
-                        removed_invalid_requests += 1
-
-                # Keep message only if it has valid content or valid tool calls
-                if valid_calls or msg.content:
-                    cloned = msg.model_copy(deep=True)
-                    cloned.tool_calls = valid_calls
-                    normalized.append(cloned)
-                # else: drop message entirely (no content, no valid tools)
-            else:
-                # No tool calls, keep as-is
-                normalized.append(msg)
-
-        elif isinstance(msg, ToolMessage):
-            # Tool response must have matching request
-            tc_id = getattr(msg, "tool_call_id", None)
-            if tc_id and tc_id in valid_request_ids and tc_id not in matched_request_ids:
-                matched_request_ids.add(tc_id)
-                normalized.append(msg)
-            else:
-                removed_invalid_responses += 1
-
-        else:
-            # HumanMessage, SystemMessage, etc. — keep as-is
-            normalized.append(msg)
-
-    # Second pass: filter to keep only matched tool pairs
-    # Remove tool requests that never got a response AND tool responses for unmatched requests
-    final: list[BaseMessage] = []
-    for msg in normalized:
-        if isinstance(msg, AIMessage):
-            if msg.tool_calls:
-                # Keep only matched tool calls
-                matched_calls = [
-                    tc
-                    for tc in msg.tool_calls
-                    if (tc.get("id") if isinstance(tc, dict) else getattr(tc, "id", None)) in matched_request_ids
-                ]
-                if matched_calls or msg.content:
-                    cloned = msg.model_copy(deep=True)
-                    cloned.tool_calls = matched_calls
-                    final.append(cloned)
-            else:
-                final.append(msg)
-
-        elif isinstance(msg, ToolMessage):
-            tc_id = getattr(msg, "tool_call_id", None)
-            if tc_id and tc_id in matched_request_ids:
-                final.append(msg)
-
-        else:
-            final.append(msg)
-
-    # Remove empty messages (no content and no tool calls)
-    final = [msg for msg in final if msg.content or (hasattr(msg, "tool_calls") and msg.tool_calls)]
-
-    if removed_invalid_requests > 0 or removed_invalid_responses > 0:
-        logger.warning(
-            "[ProviderSafety] Normalized tool messages before LLM call: "
-            f"removed {removed_invalid_requests} invalid requests, "
-            f"{removed_invalid_responses} invalid responses, "
-            f"{len(working)} → {len(final)} messages"
-        )
-
-    return final
+    return repair_dangling_tool_calls(sanitize_tool_history(list(messages)))
 
 
 __all__ = [

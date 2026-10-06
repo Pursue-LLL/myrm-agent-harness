@@ -14,10 +14,10 @@
 
 [OUTPUT]
 - should_summarize: dual-signal check (full-context local estimate OR API input_tokens; optional bound_tool_overhead_tokens + last_provider_prompt_tokens)
-- generate_structured_summary: core summarization function with streaming progress tracking, cache-safe message-prefix invocation (supports focus_topic + progress_tracker)
+- generate_structured_summary: core summarization function with streaming progress tracking, cache-safe message-prefix invocation, prefix re-paired by agent.config.llm_safety::normalize_messages (supports focus_topic + progress_tracker)
 
 [POS]
-Context summarizer. Pure in-memory summarization strategy using structured summary schema (StructuredSummary + Handoff fields), streaming progress tracking for timeout-aware invocation, cache-safe message-prefix invocation, and aux-model context guard (_guard_aux_context: auto-trims messages when summarizer LLM has a smaller context window).
+Context summarizer. Pure in-memory summarization strategy using structured summary schema (StructuredSummary + Handoff fields), streaming progress tracking for timeout-aware invocation, cache-safe message-prefix invocation, and aux-model context guard (_guard_aux_context: auto-trims messages when summarizer LLM has a smaller context window; the trimmed prefix is re-paired so orphaned tool results never reach strict providers).
 
 """
 
@@ -30,6 +30,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from langchain_core.output_parsers import PydanticOutputParser
 from pydantic import BaseModel, Field
 
+from myrm_agent_harness.agent.config.llm_safety import normalize_messages
 from myrm_agent_harness.agent.security.detection.leak_detector import redact_leaks
 from myrm_agent_harness.agent.security.detection.pii_redactor import redact_pii
 from myrm_agent_harness.toolkits.llms.utils.model_utils import get_model_context_limit
@@ -224,9 +225,8 @@ def _build_summary_invocation_messages(
     prompt: str,
     cache_prefix_messages: list[BaseMessage] | None,
 ) -> list[BaseMessage]:
-    if not cache_prefix_messages:
-        return [HumanMessage(content=prompt)]
-    return [*cache_prefix_messages, HumanMessage(content=prompt)]
+    # Aux-guard head trimming can orphan tool results; re-pair like the main call (healthy prefix stays identical).
+    return [*normalize_messages(cache_prefix_messages or []), HumanMessage(content=prompt)]
 
 
 logger = get_agent_logger(__name__)

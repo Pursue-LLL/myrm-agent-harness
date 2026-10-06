@@ -1,7 +1,7 @@
 """Integration tests for tool history hygiene — real message pipeline, no LLM.
 
 Validates the pre-LLM sanitize chain wired in production:
-tool_history_hygiene → dangling_tool_call repair → normalize_messages (direct paths).
+tool_history_hygiene → dangling_tool_call repair, composed for direct LLM paths by normalize_messages.
 """
 
 from __future__ import annotations
@@ -9,12 +9,6 @@ from __future__ import annotations
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from myrm_agent_harness.agent.config.llm_safety import normalize_messages
-from myrm_agent_harness.agent.middlewares.tooling.dangling_tool_call_middleware import (
-    repair_dangling_tool_calls,
-)
-from myrm_agent_harness.agent.middlewares.tooling.tool_history_hygiene import (
-    sanitize_tool_history,
-)
 
 
 def _unwrap_middleware(middleware: object) -> object:
@@ -42,7 +36,7 @@ class TestBuildMiddlewaresWiring:
 
 
 class TestGraceCallPipeline:
-    """stream_recovery._grace_call_summary uses sanitize → repair (real functions)."""
+    """Direct LLM paths (grace call, summary prefix) share normalize_messages (real functions)."""
 
     def test_cross_turn_duplicate_ids_then_dangling_repair(self) -> None:
         messages = [
@@ -58,7 +52,7 @@ class TestGraceCallPipeline:
             ),
             # Dangling: second AIMessage never got a ToolMessage response
         ]
-        repaired = repair_dangling_tool_calls(sanitize_tool_history(list(messages)))
+        repaired = normalize_messages(messages)
 
         ai_ids = [tc["id"] for m in repaired if isinstance(m, AIMessage) for tc in (m.tool_calls or [])]
         assert ai_ids == ["call_x", "call_x@2"]
@@ -71,7 +65,7 @@ class TestGraceCallPipeline:
 
 
 class TestNormalizeMessagesIntegration:
-    """normalize_messages delegates sanitize then enforces strict pairing."""
+    """normalize_messages composes id hygiene and dangling repair into strict pairing."""
 
     def test_duplicate_tool_messages_keep_last_then_pair(self) -> None:
         messages = [

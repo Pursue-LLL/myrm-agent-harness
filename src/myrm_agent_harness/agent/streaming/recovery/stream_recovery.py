@@ -669,12 +669,7 @@ class StreamRecoveryMixin(
         """
         from langchain_core.messages import AIMessage, HumanMessage
 
-        from myrm_agent_harness.agent.middlewares.tooling.dangling_tool_call_middleware import (
-            repair_dangling_tool_calls,
-        )
-        from myrm_agent_harness.agent.middlewares.tooling.tool_history_hygiene import (
-            sanitize_tool_history,
-        )
+        from myrm_agent_harness.agent.config.llm_safety import normalize_messages
 
         llm = self._ctx.llm
         if llm is None:
@@ -692,7 +687,7 @@ class StreamRecoveryMixin(
                 "Respond in the same language as the conversation."
             ),
         )
-        repaired_messages = repair_dangling_tool_calls(sanitize_tool_history(list(collected_messages)))
+        repaired_messages = normalize_messages(collected_messages)
         tail = repaired_messages[-20:]
         while tail and getattr(tail[0], "type", None) == "tool":
             tail = tail[1:]

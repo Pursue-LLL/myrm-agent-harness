@@ -47,7 +47,7 @@ myrm_agent_harness/agent/skills/optimization/in_memory_storage.py	524
 myrm_agent_harness/agent/skills/optimization/protocols.py	681
 myrm_agent_harness/agent/skills/optimization/types.py	541
 myrm_agent_harness/agent/skills/runtime/loader.py	571
-myrm_agent_harness/agent/streaming/recovery/stream_recovery.py	815
+myrm_agent_harness/agent/streaming/recovery/stream_recovery.py	810
 myrm_agent_harness/agent/streaming/recovery/stream_recovery_oneshot.py	673
 myrm_agent_harness/agent/streaming/stream_executor.py	642
 myrm_agent_harness/agent/sub_agents/checkpoint/checkpoint_manager.py	502

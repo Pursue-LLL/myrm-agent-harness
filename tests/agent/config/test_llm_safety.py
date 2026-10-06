@@ -1,4 +1,4 @@
-"""Test Provider Safety — Message normalization."""
+"""Test Provider Safety — normalize_messages is the production sanitize → dangling-repair pair."""
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
@@ -106,20 +106,21 @@ class TestNormalizeMessages:
         assert isinstance(result[0], SystemMessage)
         assert result[0].content == "You are a helpful assistant"
 
-    def test_unmatched_tool_request_removed(self) -> None:
-        """Tool request without response is removed."""
+    def test_unanswered_tool_request_gets_a_synthetic_result(self) -> None:
+        """A tool request without a result is answered, as the middleware chain does before a model call."""
         messages = [
             HumanMessage(content="run ls"),
             AIMessage(content="", tool_calls=[{"id": "call_1", "name": "bash", "args": {"command": "ls"}}]),
             # No ToolMessage response
         ]
         result = normalize_messages(messages)
-        # Should only keep HumanMessage (AIMessage has unmatched tool call and no content)
-        assert len(result) == 1
-        assert isinstance(result[0], HumanMessage)
+        assert [type(msg) for msg in result] == [HumanMessage, AIMessage, ToolMessage]
+        answer = result[2]
+        assert isinstance(answer, ToolMessage)
+        assert answer.tool_call_id == "call_1"
 
-    def test_ai_message_with_content_and_unmatched_tools(self) -> None:
-        """AIMessage with content but unmatched tools keeps content, drops tools."""
+    def test_ai_message_with_content_and_unanswered_tools_keeps_its_request(self) -> None:
+        """The request keeps its content and tool calls; only the missing result is synthesized."""
         messages = [
             HumanMessage(content="run ls"),
             AIMessage(
@@ -129,11 +130,38 @@ class TestNormalizeMessages:
             # No ToolMessage response
         ]
         result = normalize_messages(messages)
-        # Should keep both messages, but AIMessage loses tool_calls
-        assert len(result) == 2
-        ai_msg = next(msg for msg in result if isinstance(msg, AIMessage))
+        assert [type(msg) for msg in result] == [HumanMessage, AIMessage, ToolMessage]
+        ai_msg = result[1]
+        assert isinstance(ai_msg, AIMessage)
         assert ai_msg.content == "I will run ls for you"
-        assert len(ai_msg.tool_calls) == 0
+        assert [call["id"] for call in ai_msg.tool_calls] == ["call_1"]
+
+    def test_empty_tool_result_is_kept(self) -> None:
+        """A command with no output is a legitimate result; dropping it would leave its request unanswered."""
+        messages = [
+            HumanMessage(content="touch f"),
+            AIMessage(content="", tool_calls=[{"id": "call_1", "name": "bash", "args": {"command": "touch f"}}]),
+            ToolMessage(content="", tool_call_id="call_1"),
+        ]
+        result = normalize_messages(messages)
+        assert len(result) == 3
+        kept = result[2]
+        assert isinstance(kept, ToolMessage)
+        assert kept.tool_call_id == "call_1"
+        assert kept.content == ""
+
+    def test_well_formed_history_is_returned_unchanged(self) -> None:
+        """A history the provider accepts comes back message-for-message identical (prompt-cache prefix)."""
+        messages = [
+            SystemMessage(content="You are a helpful assistant"),
+            HumanMessage(content="run ls"),
+            AIMessage(content="", tool_calls=[{"id": "call_1", "name": "bash", "args": {"command": "ls"}}]),
+            ToolMessage(content="file.txt", tool_call_id="call_1"),
+            AIMessage(content="done"),
+        ]
+        result = normalize_messages(messages)
+        assert len(result) == len(messages)
+        assert all(kept is original for kept, original in zip(result, messages, strict=True))
 
 
 if __name__ == "__main__":
