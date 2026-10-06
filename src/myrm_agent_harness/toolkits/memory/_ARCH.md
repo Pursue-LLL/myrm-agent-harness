@@ -67,6 +67,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | file_sync/ | Local-First Markdown File-as-Memory sync subsystem (LenientMarkdownParser, FileMemoryStore, MemoryAnchorFormatter, FileMemorySyncEngine). |
 | prompt_cache_guard/ | In-Context Frozen Snapshot & Prompt Cache Stability Guard: immutable resident memory snapshotting, Read-Free toolsuite, zero-width Unicode filtering, and explicit capacity overflow gates. See [prompt_cache_guard/_ARCH.md](prompt_cache_guard/_ARCH.md). |
 | external_providers/ | Pluggable external memory provider lifecycle & supersedes lineage pack: unified 5-stage contract (prefetch/inject/sync/extract/mirror), single active provider scheduling, 300ms circuit breaking, supersedes version chains, scope isolation, and 3D benchmark suite. See [external_providers/_ARCH.md](external_providers/_ARCH.md). |
+| ripplemem/ | RippleMem Sparse Event Graph & Budgeted Active Recall Controller: normalized event units m=(r, v, p, l, t, c), dual-edge sparse graph indexing with super-node degree pruning & temporal decay, saturation fast-path gate, and bounded directional ripple spreading. |
 | workspace_living/ | Living Workspace Governance & documentation synchronization toolkit (CausalIssueMerger, KnownIssueEntry, ADRMetadata, idempotent error signature deduplication). |
 
 ## Key Dependencies

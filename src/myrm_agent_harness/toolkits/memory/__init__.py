@@ -185,6 +185,14 @@ from myrm_agent_harness.toolkits.memory.reliability import (
     summarize_recall_benchmark,
 )
 from myrm_agent_harness.toolkits.memory.retriever import MemoryRetriever
+from myrm_agent_harness.toolkits.memory.ripplemem import (
+    ActiveRecallController,
+    DualEdgeSparseGraphStore,
+    NormalizedEventExtractor,
+    NormalizedEventUnit,
+    RippleRecallResult,
+    RippleSpreadBudget,
+)
 from myrm_agent_harness.toolkits.memory.scheduler import MultiTierMemoryScheduler
 from myrm_agent_harness.toolkits.memory.session import MemorySession
 from myrm_agent_harness.toolkits.memory.setup import (
@@ -263,17 +271,23 @@ from myrm_agent_harness.toolkits.memory.working_tree import (
 )
 
 __all__ = [
+    "ActiveRecallController",
     "AdaptiveBatcher",
     "AtomicReplacePayload",
     "BenchmarkReport",
     "CapacityLimitConfig",
     "CapacityOverflowError",
     "DerivedObservationRecord",
+    "DualEdgeSparseGraphStore",
     "EvidenceRecord",
     "ExternalMemoryBenchmarkSuite",
     "ExternalMemoryProviderProtocol",
     "FrozenMemorySnapshot",
     "FrozenMemorySnapshotProvider",
+    "NormalizedEventExtractor",
+    "NormalizedEventUnit",
+    "RippleRecallResult",
+    "RippleSpreadBudget",
     "MemoryLifecycleStage",
     "MemoryScopeContext",
     "MemoryScopeType",
