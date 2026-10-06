@@ -83,6 +83,13 @@ from myrm_agent_harness.runtime.context.config import (
     ContextCleanupConfig,
     StorageQuotaConfig,
 )
+from myrm_agent_harness.runtime.context.cow_session_branch import (
+    BranchMessageEntry,
+    CoWArtifactRecord,
+    CoWSessionBranchManager,
+    ProjectedSessionView,
+    SessionBranchDescriptor,
+)
 from myrm_agent_harness.runtime.context.cut_point_selector import (
     CutPointAlignmentStrategy,
     ToolPairingValidationResult,
@@ -600,4 +607,9 @@ __all__ = [
     "SnapshotCompressor",
     "SnapshotDetailLevel",
     "UnifiedMultiDimensionAtResolver",
+    "BranchMessageEntry",
+    "CoWArtifactRecord",
+    "CoWSessionBranchManager",
+    "ProjectedSessionView",
+    "SessionBranchDescriptor",
 ]
