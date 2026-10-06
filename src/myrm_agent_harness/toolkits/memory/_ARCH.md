@@ -78,6 +78,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | zero_llm/ | Zero-LLM Local Memory Capture & Rule-Based FTS Graph Retrieval Engine: deterministic 6-category fact extraction (preferences, config, tool outcomes, decisions, dependencies, entities), SQLite FTS5 lexical matching, 1-hop [[Wikilink]] graph topology traversal, and progressive enhancement gate with fail-open fallback. |
 | privacy_gate/ | Typed Memory Privacy Boundary & Allowlist Security Gate: static regex secret scanning (API keys, private keys, connection URIs, JWTs), .myrmignore exclusion and allowlist matching, safe semantic redaction, and hard veto enforcement. |
 | drift_defense/ | Ground Truth Priority & Code Drift Stale Memory Defense: zero-LLM reference extraction, sub-5ms physical presence & symbol AST validation, prompt-level stale warning decoration, and confidence decay. |
+| unload_guard/ | Desktop & WebUI Unload Graceful Flush Finalize Guard: zero-LLM crash-proof emergency snapshotting upon browser unload or window close, sub-millisecond markdown memorandum persistence, and startup restoration. |
 | workspace_living/ | Living Workspace Governance & documentation synchronization toolkit (CausalIssueMerger, KnownIssueEntry, ADRMetadata, idempotent error signature deduplication). |
 
 ## Key Dependencies
