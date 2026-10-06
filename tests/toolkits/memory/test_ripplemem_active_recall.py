@@ -198,3 +198,47 @@ def test_cycle_defense_and_budget_exhaustion(
 
     # Must complete safely without hang or recursion error
     assert result.budget_exhausted is True or len(result.events) >= 1
+
+
+def test_multi_lingual_entity_and_dietary_constraint_active_recall(
+    extractor: NormalizedEventExtractor,
+    graph_store: DualEdgeSparseGraphStore,
+) -> None:
+    """Verify multi-lingual names (e.g. Bob) and dietary constraints trigger active recall."""
+    controller = ActiveRecallController(graph_store)
+
+    # Session 1: Bob's strict vegan dietary constraint and severe peanut allergy
+    ref_t1 = datetime(2026, 9, 10, 10, 0, tzinfo=UTC)
+    evt_bob_diet = extractor.extract_event(
+        "Bob is a strict vegan and has a severe allergy to peanuts and nuts.",
+        session_id="session_bob_01",
+        reference_time=ref_t1,
+        context_speaker="Alice",
+    )
+    graph_store.add_event(evt_bob_diet)
+
+    # Session 2: Steakhouse restaurant recommendation event
+    ref_t2 = datetime(2026, 9, 15, 12, 0, tzinfo=UTC)
+    evt_steakhouse = extractor.extract_event(
+        "Sanlitun Prime Steakhouse features dry-aged beef and peanut oil seasoning.",
+        session_id="session_steakhouse",
+        reference_time=ref_t2,
+    )
+    graph_store.add_event(evt_steakhouse)
+
+    # Query asking if dining with Bob at the steakhouse is suitable
+    query = "我和 Bob 打算去 Sanlitun Prime Steakhouse 聚餐，合适吗？"
+    result = controller.execute_active_recall(
+        query=query,
+        initial_candidates=[evt_steakhouse],
+    )
+
+    # 1. Saturation gate must recognize Bob and detect missing dietary constraints
+    assert result.saturated_fast_path is False
+    assert len(result.provenance.missing_targets) >= 1
+    assert any(target.target_entity == "Bob" for target in result.provenance.missing_targets)
+
+    # 2. Bounded directional ripple spreading must recall Bob's constraint event
+    recalled_ids = {e.id for e in result.events}
+    assert evt_bob_diet.id in recalled_ids
+    assert evt_steakhouse.id in recalled_ids

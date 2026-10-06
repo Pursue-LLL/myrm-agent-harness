@@ -37,6 +37,70 @@ from myrm_agent_harness.toolkits.memory.ripplemem.sparse_graph import (
 
 logger = logging.getLogger(__name__)
 
+_DEFAULT_CONSTRAINT_KEYWORDS: tuple[str, ...] = (
+    "过敏",
+    "禁忌",
+    "忌口",
+    "素食",
+    "清真",
+    "痛风",
+    "不吃",
+    "冲突",
+    "限制",
+)
+
+_COMMON_STOPWORDS_EN: set[str] = {
+    "The",
+    "And",
+    "For",
+    "With",
+    "Today",
+    "Yesterday",
+    "Notice",
+    "Who",
+    "Where",
+    "When",
+    "What",
+    "How",
+}
+
+_NON_PERSON_SUBSTRINGS: tuple[str, ...] = (
+    "码头",
+    "海鲜",
+    "蟹",
+    "一起",
+    "店",
+    "坊",
+    "方案",
+    "网关",
+    "火锅",
+    "餐厅",
+    "天气",
+    "北京",
+    "上海",
+)
+
+
+def _extract_query_person_entities(query: str) -> list[str]:
+    """Extract Chinese and English person names from input query."""
+    raw_cn_names = re.findall(
+        r"(?:小|老|王|李|张|刘|陈|赵|周|孙|钱|吴|郑|冯|韩|杨|朱|秦|许|何|吕|施|孔|曹|严|华|金|魏|陶|姜)[一-龥]{1,2}",
+        query,
+    )
+    raw_en_names = re.findall(r"\b[A-Z][a-z]{2,15}\b", query)
+
+    clean_names: list[str] = []
+    for n in raw_cn_names:
+        c = re.sub(r"[去在和与的一到来想带做吃看]$", "", n).strip()
+        if len(c) >= 2 and not any(sub in c for sub in _NON_PERSON_SUBSTRINGS):
+            clean_names.append(c)
+
+    for n in raw_en_names:
+        if n not in _COMMON_STOPWORDS_EN and len(n) >= 2:
+            clean_names.append(n)
+
+    return sorted(set(clean_names))
+
 
 class ActiveRecallController:
     """Controls the active recall lifecycle: saturation fast-path, gap deduction, and ripple spread."""
@@ -157,17 +221,11 @@ class ActiveRecallController:
             return True
 
         # Check if the query asks about a specific person whose constraints are already in candidates
-        raw_names = re.findall(r"(?:小|老|王|李|张|刘|陈|赵|周)[一-龥]{1,2}", query)
-        non_person = ("码头", "海鲜", "蟹", "一起", "店", "坊", "方案", "网关", "火锅", "餐厅", "天气", "北京", "上海")
-        clean_names: list[str] = []
-        for n in raw_names:
-            c = re.sub(r"[去在和与的一到来想带做吃看]$", "", n).strip()
-            if len(c) >= 2 and not any(sub in c for sub in non_person):
-                clean_names.append(c)
-
+        clean_names = _extract_query_person_entities(query)
         for name in clean_names:
             has_constraint = any(
-                name in e.participants and ("过敏" in e.representation or "禁忌" in e.representation)
+                name in e.participants
+                and any(kw in e.representation for kw in _DEFAULT_CONSTRAINT_KEYWORDS)
                 for e in candidates
             )
             if not has_constraint:
@@ -184,23 +242,20 @@ class ActiveRecallController:
         gaps: list[MissingSupportTarget] = []
 
         # Detect involved persons in query or anchors that lack preference/constraint events
-        raw_query_names = re.findall(r"(?:小|老|王|李|张|刘|陈|赵|周)[一-龥]{1,2}", query)
-        non_person = ("码头", "海鲜", "蟹", "一起", "店", "坊", "方案", "网关", "火锅", "餐厅", "天气", "北京", "上海")
-        clean_query_names: list[str] = []
-        for n in raw_query_names:
-            c = re.sub(r"[去在和与的一到来想带做吃看]$", "", n).strip()
-            if len(c) >= 2 and not any(sub in c for sub in non_person):
-                clean_query_names.append(c)
-
+        clean_query_names = _extract_query_person_entities(query)
         persons_in_query = set(clean_query_names)
         for a in anchors:
             for p in a.participants:
-                if len(p) >= 2 and not any(sub in p for sub in non_person):
+                if len(p) >= 2 and not any(sub in p for sub in _NON_PERSON_SUBSTRINGS):
                     persons_in_query.add(p)
 
-        for person in persons_in_query:
+        for person in sorted(persons_in_query):
             has_preferences = any(
-                person in a.participants and any(c in a.concepts for c in ["过敏", "忌口", "偏好", "禁忌"])
+                person in a.participants
+                and (
+                    any(c in a.concepts for c in ["过敏", "忌口", "偏好", "禁忌", "素食", "清真"])
+                    or any(kw in a.representation for kw in _DEFAULT_CONSTRAINT_KEYWORDS)
+                )
                 for a in anchors
             )
             if not has_preferences:
@@ -246,6 +301,31 @@ class ActiveRecallController:
 
         # Target clues to guide directional search
         target_clue_entities = {t.target_entity.lower() for t in missing_targets}
+
+        # Direct clue seed grounding for explicit missing targets (e.g. participant constraints)
+        for target in missing_targets:
+            if target.target_entity:
+                direct_clue_events = self._graph.find_events_by_clue(participant=target.target_entity)
+                for clue_evt in direct_clue_events:
+                    if clue_evt.id not in visited_ids:
+                        visited_ids.add(clue_evt.id)
+                        resolved.append(clue_evt)
+                        steps.append(
+                            MultiHopProvenanceStep(
+                                from_event_id=anchors[0].id if anchors else "query_intent",
+                                to_event_id=clue_evt.id,
+                                edge_type=GraphEdgeType.PARTICIPANT,
+                                clue=target.target_entity,
+                                hop_depth=1,
+                                event_summary=clue_evt.representation[:60],
+                            )
+                        )
+                        current_frontier.append((clue_evt, 1))
+                        if len(resolved) >= budget.max_events:
+                            budget_exhausted = True
+                            break
+            if budget_exhausted:
+                break
 
         while current_frontier:
             # Check budget constraints
