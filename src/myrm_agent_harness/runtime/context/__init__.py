@@ -169,6 +169,9 @@ from myrm_agent_harness.runtime.context.cut_point_selector import (
     repair_tool_pairing_invariants,
     validate_tool_pairing_invariants,
 )
+from myrm_agent_harness.runtime.context.default_lossless_lean_tail_compactor import (
+    DefaultLosslessLeanTailCompactor,
+)
 from myrm_agent_harness.runtime.context.diff_protocol_scorer import (
     DiffApplyResult,
     DiffHunk,
@@ -404,6 +407,16 @@ from myrm_agent_harness.runtime.context.lean_tail_compression_types import (
     LeanTailWindowBudget,
     ReasoningTagKind,
     StrippedMessageResult,
+)
+from myrm_agent_harness.runtime.context.lossless_lean_tail_types import (
+    ClassifiedMessage,
+    ConstraintAnchor,
+    LeanReductionStats,
+    LosslessCompactorConfig,
+    MessageImportanceTier,
+)
+from myrm_agent_harness.runtime.context.message_importance_classifier import (
+    MessageImportanceClassifier,
 )
 from myrm_agent_harness.runtime.context.model_free_tool_pruner import (
     ModelFreeDeterministicToolResultPruner,
@@ -1264,4 +1277,11 @@ __all__ = [
     "ReasoningTagKind",
     "ReasoningTraceStripper",
     "StrippedMessageResult",
+    "ClassifiedMessage",
+    "ConstraintAnchor",
+    "DefaultLosslessLeanTailCompactor",
+    "LeanReductionStats",
+    "LosslessCompactorConfig",
+    "MessageImportanceClassifier",
+    "MessageImportanceTier",
 ]
