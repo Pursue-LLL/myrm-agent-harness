@@ -64,6 +64,9 @@ from myrm_agent_harness.runtime.context.caveman_output_throttle import (
     SanitizedOutputResult,
     ThrottleDecision,
 )
+from myrm_agent_harness.runtime.context.ccr_context_archival_transformer import (
+    CCRContextArchivalTransformer,
+)
 from myrm_agent_harness.runtime.context.cleanup import (
     cleanup_context_files_async,
     cleanup_context_files_local,
@@ -92,6 +95,16 @@ from myrm_agent_harness.runtime.context.compression_budget_router import (
 from myrm_agent_harness.runtime.context.config import (
     ContextCleanupConfig,
     StorageQuotaConfig,
+)
+from myrm_agent_harness.runtime.context.content_addressed_dedup_store import (
+    ContentAddressedDedupStore,
+)
+from myrm_agent_harness.runtime.context.content_addressed_dedup_types import (
+    ArchivedChunkMetadata,
+    CCRTransformResult,
+    ContentRefAnchor,
+    DedupConfig,
+    DedupContentType,
 )
 from myrm_agent_harness.runtime.context.content_density_ladder import (
     ContentDensityLadderThrottler,
@@ -1384,6 +1397,14 @@ __all__ = [
     "RTKCommandAwareToolOutputCompressor",
     "RTKCompressorConfig",
     "ToolCommandType",
+    "ArchivedChunkMetadata",
+    "CCRContextArchivalTransformer",
+    "CCRTransformResult",
+    "ContentAddressedDedupStore",
+    "ContentRefAnchor",
+    "DedupConfig",
+    "DedupContentType",
 ]
+
 
 
