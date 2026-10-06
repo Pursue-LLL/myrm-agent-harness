@@ -5,9 +5,11 @@ External consumers import here instead of reaching into ``agent.security``.
 [INPUT]
 - agent.security.managed_approval_policy::ManagedApprovalPolicy / get_process_managed_approval_policy (POS: 进程级托管审批策略)
 - agent.resilience.task_airbag::arm_task_airbag (POS: 挂机安全气囊武装与快照捕捉)
+- toolkits.computer_use.screen_detector::ScreenDetector / get_default_screen_detector / hid_idle_seconds (POS: 桌面锁屏探针与硬件输入空闲读数)
+- toolkits.computer_use.types::ScreenLockState (POS: 锁屏状态共享类型)
 
 [OUTPUT]
-- myrm_agent_harness.api.security → server 统一安全策略与挂机安全气囊导出接口
+- myrm_agent_harness.api.security → server 统一安全策略、挂机安全气囊与锁屏/在场探针导出接口
 """
 
 from __future__ import annotations
