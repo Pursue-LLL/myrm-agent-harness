@@ -178,6 +178,9 @@ from myrm_agent_harness.runtime.context.durable_tri_queue import (
     QueueRecordType,
     QueueType,
 )
+from myrm_agent_harness.runtime.context.dynamic_tool_schema_pruner import (
+    DynamicToolSchemaPruner,
+)
 from myrm_agent_harness.runtime.context.environment_changelog import (
     EnvironmentChangelogLedger,
 )
@@ -310,6 +313,17 @@ from myrm_agent_harness.runtime.context.hierarchical_project_matrix import (
     WorkspaceHealthAndOrphanDetector,
     WorkspaceHealthReport,
     WorkspaceSessionRef,
+)
+from myrm_agent_harness.runtime.context.in_process_bm25_retriever import (
+    InProcessBM25Retriever,
+    tokenize_lexical,
+)
+from myrm_agent_harness.runtime.context.in_process_bm25_types import (
+    BM25Document,
+    BM25SearchResult,
+    ProgressiveDisclosureConfig,
+    PrunedToolSet,
+    ToolSchemaEntry,
 )
 from myrm_agent_harness.runtime.context.instance_metrics import (
     ContextMetrics,
@@ -1068,4 +1082,12 @@ __all__ = [
     "SurfaceProjectionEngine",
     "derive_messages",
     "fold_surface",
+    "BM25Document",
+    "BM25SearchResult",
+    "DynamicToolSchemaPruner",
+    "InProcessBM25Retriever",
+    "ProgressiveDisclosureConfig",
+    "PrunedToolSet",
+    "ToolSchemaEntry",
+    "tokenize_lexical",
 ]
