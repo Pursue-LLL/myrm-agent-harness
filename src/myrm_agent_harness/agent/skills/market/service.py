@@ -622,6 +622,7 @@ class BaseSkillMarketService:
                 success=False,
                 skill_name=name,
                 error=f"Security policy blocked installation: malicious lifecycle scripts detected ({reason_str})",
+                error_code="LIFECYCLE_SCRIPT_BLOCKED",
                 scan_summary=reason_str,
             )
 

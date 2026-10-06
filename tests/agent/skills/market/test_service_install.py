@@ -400,6 +400,7 @@ async def test_quarantine_blocks_critical_lifecycle_scripts(
 
     assert result.success is False
     assert "malicious lifecycle scripts" in (result.error or "")
+    assert result.error_code == "LIFECYCLE_SCRIPT_BLOCKED"
     assert "rejected" in stages
 
 
