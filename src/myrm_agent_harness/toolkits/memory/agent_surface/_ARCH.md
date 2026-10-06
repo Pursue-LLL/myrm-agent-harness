@@ -21,6 +21,7 @@ Parent index: [../_ARCH.md](../_ARCH.md). System design: [../MEMORY_SYSTEM.md](.
 | `memory_citations.py` | Core | cited_memory_ids SSE bridge (sources via tool metadata → SourceTracker). | ✅ |
 | `tool_result_sources.py` | Core | Pack/unpack metadata.sources for memory_search wiki/sessions results. | ✅ |
 | `mcp_server.py` | Core | MCP adapter (recall/list/store/manage). | ✅ |
+| `mcp/` | Package | Cross-tool memory MCP interop gateway & wire adapter (ai-memory parity). | ✅ |
 | `wiki_memory_boundary.py` | Core | Wiki vs memory write boundary heuristics. | ✅ |
 | `transient_fact_boundary.py` | Core | Transient business state memory write boundary heuristics. | ✅ |
 | `rule_write_boundary.py` | Core | Agent-facing rejection message for writes to user-protected (`is_user_protected`) memories; the guard itself lives in `MemoryManager.update_memory`. | ✅ |
