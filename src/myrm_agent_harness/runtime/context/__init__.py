@@ -538,6 +538,24 @@ from myrm_agent_harness.runtime.context.structured_checkpoint_generator import (
     create_checkpoint_from_messages,
     parse_checkpoint_contract,
 )
+from myrm_agent_harness.runtime.context.surface_projection_engine import (
+    HandoffConstraintPreservationGate,
+    ImmutableEventLog,
+    SurfaceProjectionEngine,
+    derive_messages,
+    fold_surface,
+)
+from myrm_agent_harness.runtime.context.surface_projection_types import (
+    HandoffConstraints,
+    MessageRole,
+    ProjectedMessage,
+    SessionEvent,
+    SessionEventType,
+    SurfaceNode,
+    SurfaceOp,
+    SurfaceOpType,
+    SurfaceProjectionAudit,
+)
 from myrm_agent_harness.runtime.context.tiered_token_compression_governor import (
     TieredTokenCompressionGovernor,
 )
@@ -1036,4 +1054,18 @@ __all__ = [
     "TreeExportFormat",
     "TreeFilterCriteria",
     "TreeNodeKind",
+    "HandoffConstraintPreservationGate",
+    "HandoffConstraints",
+    "ImmutableEventLog",
+    "MessageRole",
+    "ProjectedMessage",
+    "SessionEvent",
+    "SessionEventType",
+    "SurfaceNode",
+    "SurfaceOp",
+    "SurfaceOpType",
+    "SurfaceProjectionAudit",
+    "SurfaceProjectionEngine",
+    "derive_messages",
+    "fold_surface",
 ]
