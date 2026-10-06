@@ -139,6 +139,16 @@ from myrm_agent_harness.runtime.context.durable_tri_queue import (
     QueueRecordType,
     QueueType,
 )
+from myrm_agent_harness.runtime.context.environment_changelog import (
+    EnvironmentChangelogLedger,
+)
+from myrm_agent_harness.runtime.context.environment_changelog_types import (
+    EnvironmentChangelogEntry,
+    EnvironmentMutationKind,
+    EnvironmentStateDigest,
+    MutationActor,
+    RehydrationInjectionPayload,
+)
 from myrm_agent_harness.runtime.context.extreme_streaming_governor import (
     CursorExpiredError,
     ExtremeStreamingGovernor,
@@ -820,4 +830,10 @@ __all__ = [
     "LlmToolCall",
     "TransformPipelineMetrics",
     "TransformPipelineOptions",
+    "EnvironmentChangelogEntry",
+    "EnvironmentChangelogLedger",
+    "EnvironmentMutationKind",
+    "EnvironmentStateDigest",
+    "MutationActor",
+    "RehydrationInjectionPayload",
 ]
