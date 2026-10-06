@@ -9,7 +9,8 @@ This middleware scans the message history before each LLM invocation and
 inserts synthetic error ToolMessages for any dangling tool_calls, restoring
 a well-formed conversation that the LLM can process.
 
-Covers the tool_call sources that langchain_openai serializes:
+Covers the tool_call sources that outbound serializers replay (langchain_openai
+and the harness's adapters.converters.convert_message_to_dict):
 1. msg.tool_calls (standard parsed calls, including calls promoted by quarantine
    and args-recovery withholding so they receive an invalid-args ToolMessage)
 2. msg.additional_kwargs["tool_calls"] (raw provider-level payloads)
@@ -228,8 +229,8 @@ def _extract_tool_calls(msg: BaseMessage) -> list[tuple[str, str]]:
 
     Quarantine runs upstream in _build_patched_messages, so invalid calls
     are already upgraded into ``tool_calls`` (or dropped); extraction covers
-    the remaining sources that langchain_openai/_convert_message_to_dict
-    serializes into the API request:
+    the remaining sources that langchain_openai/_convert_message_to_dict and the
+    harness's adapters.converters.convert_message_to_dict serialize into the API request:
     1. msg.tool_calls — standard parsed calls (includes quarantined upgrades)
     2. msg.additional_kwargs["tool_calls"] — raw provider payloads (fallback)
     """
@@ -294,9 +295,7 @@ def _promote_withheld_tool_calls(msg: BaseMessage) -> dict[str, str]:
         name = tool_name if isinstance(tool_name, str) and tool_name.strip() else "unknown"
         declarations.append({"name": name, "args": {}, "id": tc_id, "type": "tool_call"})
         error = item.get("error")
-        errors[tc_id] = (
-            error if isinstance(error, str) and error else "Tool call arguments could not be safely parsed"
-        )
+        errors[tc_id] = error if isinstance(error, str) and error else "Tool call arguments could not be safely parsed"
         known_ids.add(tc_id)
 
     if declarations:

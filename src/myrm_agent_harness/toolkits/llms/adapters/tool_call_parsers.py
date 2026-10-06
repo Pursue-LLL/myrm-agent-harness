@@ -21,7 +21,7 @@ stable and hosts the priority-ordered parse_tool_calls() dispatcher.
 [POS]
 Tool call parser facade. Unified handling of tool call formats from multiple LLMs.
 Parses by priority: OpenAI standard format, GLM XML, Anthropic XML, Qwen XML JSON, DeepSeek inline, DeepSeek DSML, Leaked raw JSON.
-Provides HTML entity decoding (xAI/Grok workaround), called by adapters.converters after args parsing.
+Provides HTML entity decoding (xAI/Grok workaround), applied by adapters.converters after args parsing only when the model opts in (xAI Grok).
 As the parser layer, depended on by adapters.converters for cross-model tool call compatibility.
 """
 

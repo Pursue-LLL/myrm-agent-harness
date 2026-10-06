@@ -1,12 +1,14 @@
 """JSON args repair and outbound invalid-call quarantine (replay-poisoning defense).
 
 Some providers emit malformed tool_call arguments — raw control characters,
-invalid escapes, truncated JSON — and langchain_openai serializes
-``AIMessage.invalid_tool_calls`` verbatim back into the API request
-(``_convert_message_to_dict`` merges them into the outbound ``tool_calls``).
-Replaying the malformed text teaches the model to imitate its own broken
-format, degrading the whole session (history poisoning). This module keeps
-such records from ever reaching the provider in raw form.
+invalid escapes, truncated JSON — and outbound serializers replay them:
+langchain_openai merges ``AIMessage.invalid_tool_calls`` into the outbound
+``tool_calls`` (``_convert_message_to_dict``), and the harness serializer
+(``adapters.converters.convert_message_to_dict``) replays the raw provider
+payload ``additional_kwargs["tool_calls"]`` whenever ``AIMessage.tool_calls``
+is empty. Replaying the malformed text teaches the model to imitate its own
+broken format, degrading the whole session (history poisoning). This module
+keeps such records from ever reaching the provider in raw form.
 
 [INPUT]
 - json_parsing (POS: Robust LLM reply JSON extraction) — low-level JSON text repair
