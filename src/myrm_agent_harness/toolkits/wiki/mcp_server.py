@@ -29,7 +29,10 @@ from contextvars import ContextVar, Token
 from pathlib import Path
 
 from langchain_core.tools import BaseTool
-from mcp.server.mcpserver import MCPServer
+try:
+    from mcp.server.fastmcp import FastMCP as MCPServer
+except ImportError:
+    from mcp.server.mcpserver import MCPServer  # type: ignore[no-redef]
 from mcp.types import TextContent
 
 from .wiki_agent_tools import (
