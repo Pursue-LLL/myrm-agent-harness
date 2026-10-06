@@ -2,7 +2,7 @@
 
 [INPUT]
 - backends.protocols::ComputerBackend (POS: is_screen_locked / is_display_asleep probes)
-- safety::SCREEN_LOCKED_REFUSAL, DISPLAY_SLEEPING_REFUSAL, SNAPSHOT_SCREEN_LOCKED_REFUSAL, SNAPSHOT_DISPLAY_SLEEPING_REFUSAL (POS: model-facing refusal wording for an unusable screen)
+- safety::SCREEN_LOCKED_REFUSAL, DISPLAY_SLEEPING_REFUSAL, SNAPSHOT_SCREEN_LOCKED_REFUSAL, SNAPSHOT_DISPLAY_SLEEPING_REFUSAL (POS: Desktop safety guardrail layer)
 - types::ScreenUnlockCallback (POS: host-provided on-demand unlock)
 
 [OUTPUT]

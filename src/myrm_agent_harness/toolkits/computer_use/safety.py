@@ -1,6 +1,6 @@
 """Safety guardrails for desktop control tools.
 
-Safety guardrails for desktop control tools:
+Covered guardrails:
 - Blocked key combos: prevents dangerous system shortcuts (macOS + Windows)
 - Operator-as-key rejection: printable operators must not be used as vision `key` names
 - Dangerous type-text patterns: prevents shell injection via typed text
