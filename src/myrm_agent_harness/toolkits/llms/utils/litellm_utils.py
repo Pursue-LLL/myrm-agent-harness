@@ -189,6 +189,7 @@ _LITERAL_PREFIXES: dict[str, str] = {
 }
 _LITERAL_TAIL_RE = re.compile(r"[{,:\[]\s*(t(?:r(?:u)?)?|f(?:a(?:l(?:s)?)?)?|n(?:u(?:l)?)?)\s*$")
 _DANGLING_KEY_RE = re.compile(r'"\s*:\s*$')
+_NONE_OUTSIDE_STRINGS = re.compile(r'("(?:\\.?|[^"\\])*(?:"|\Z))|\bNone\b', re.DOTALL)
 
 
 def _close_truncated_json(text: str) -> str:
@@ -350,9 +351,9 @@ def parse_tool_call_arguments_with_recovery(
 ) -> ToolArgumentRecoveryResult:
     """Recover malformed tool-call argument JSON using a strict staged pipeline.
 
-    Supports 7 recovery strategies:
-    1. Python None → JSON null (Weak model outputs Python literals)
-    2. Standard JSON parsing
+    Supports 8 recovery strategies, tried in this order:
+    1. Standard JSON parsing (valid input is returned untouched)
+    2. Python None → JSON null (bare tokens only; "None" inside a string is data)
     3. Invalid escape sequence fixing
     4. Long text field repair (schema-aware)
     5. Truncated JSON completion
@@ -365,18 +366,17 @@ def parse_tool_call_arguments_with_recovery(
 
     normalized = _strip_common_artifacts(args)
 
-    # Strategy 0: Python None → JSON null
-    if "None" in normalized:
-        python_to_json = re.sub(r"\bNone\b", "null", normalized)
-        if python_to_json != normalized:
-            parsed = _load_json_object(python_to_json)
-            if parsed is not None:
-                return ToolArgumentRecoveryResult(args=parsed, strategy="python_none_to_null", degraded=True)
-            normalized = python_to_json
-
     parsed = _load_json_object(normalized)
     if parsed is not None:
         return ToolArgumentRecoveryResult(args=parsed, strategy="standard_json")
+
+    # Python None → JSON null, outside string literals only ("None" inside a string value is user data).
+    python_to_json = _NONE_OUTSIDE_STRINGS.sub(lambda m: m.group(1) or "null", normalized)
+    if python_to_json != normalized:
+        parsed = _load_json_object(python_to_json)
+        if parsed is not None:
+            return ToolArgumentRecoveryResult(args=parsed, strategy="python_none_to_null", degraded=True)
+        normalized = python_to_json
 
     escaped = fix_invalid_json_escapes(normalized)
     if escaped != normalized:

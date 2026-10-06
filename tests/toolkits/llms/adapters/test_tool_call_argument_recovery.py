@@ -1,13 +1,18 @@
 """Tests for resilient tool-call argument recovery."""
 
 import json
+import time
+
+import pytest
 
 from myrm_agent_harness.toolkits.llms.adapters.chat_model import ChatLiteLLM
 from myrm_agent_harness.toolkits.llms.adapters.converters import (
     _parse_tool_call_args,
     convert_dict_to_message,
 )
+from myrm_agent_harness.toolkits.llms.adapters.tool_recovery import recover_tool_call_payloads
 from myrm_agent_harness.toolkits.llms.utils.litellm_utils import (
+    _NONE_OUTSIDE_STRINGS,
     parse_tool_call_arguments_with_recovery,
 )
 
@@ -184,3 +189,82 @@ class TestStreamFinalizationRecovery:
         assert result.degraded in (True, False)
         assert result.safe is True
         assert result.args == {"items": ["a", "b", "c"]}
+
+
+class TestPythonNoneLiteralRecovery:
+    """Bare Python ``None`` is repaired; the same word inside a string value is data and stays untouched."""
+
+    @pytest.mark.parametrize(
+        "content",
+        [
+            "def parse(raw, default=None):\n    return default if raw is None else raw\n",
+            "Findings: None of the vendors reported a breach.\n",
+            'He said "None" and left.',
+        ],
+        ids=["code", "prose", "quoted"],
+    )
+    def test_valid_json_is_returned_untouched(self, content: str) -> None:
+        raw = json.dumps({"path": "notes.md", "content": content})
+
+        result = parse_tool_call_arguments_with_recovery(raw, "file_write_tool")
+
+        assert result.strategy == "standard_json"
+        assert result.degraded is False
+        assert result.args == {"path": "notes.md", "content": content}
+
+    def test_bare_none_is_repaired_and_string_values_are_not(self) -> None:
+        raw = '{"path": "a.py", "content": "x = None", "mode": None}'
+
+        result = parse_tool_call_arguments_with_recovery(raw, "file_write_tool")
+
+        assert result.strategy == "python_none_to_null"
+        assert result.args == {"path": "a.py", "content": "x = None", "mode": None}
+
+    def test_escaped_quote_does_not_end_the_string_early(self) -> None:
+        raw = r'{"content": "say \"None\" now", "mode": None}'
+
+        result = parse_tool_call_arguments_with_recovery(raw, "file_write_tool")
+
+        assert result.args == {"content": 'say "None" now', "mode": None}
+
+    def test_none_inside_a_truncated_string_is_preserved(self) -> None:
+        raw = '{"path": "a.py", "content": "return None'
+
+        result = parse_tool_call_arguments_with_recovery(raw, "file_write_tool")
+
+        assert result.strategy == "truncated_completion"
+        assert result.args == {"path": "a.py", "content": "return None"}
+
+    @pytest.mark.parametrize("pipeline", ["non_stream", "stream"])
+    def test_tool_call_reaches_the_tool_as_the_model_sent_it(self, pipeline: str) -> None:
+        content = "Findings: None of the vendors reported a breach.\n"
+        tool_calls = [
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {
+                    "name": "file_write_tool",
+                    "arguments": json.dumps({"path": "report.md", "content": content}),
+                },
+            }
+        ]
+
+        if pipeline == "non_stream":
+            message = convert_dict_to_message({"role": "assistant", "content": "", "tool_calls": tool_calls})
+            args = message.tool_calls[0]["args"]
+        else:
+            payloads, metadata = recover_tool_call_payloads(tool_calls)
+            args = json.loads(payloads[0]["function"]["arguments"])
+            assert metadata[0]["degraded"] is False
+
+        assert args == {"path": "report.md", "content": content}
+
+    def test_none_scan_stays_linear_on_a_pathological_escape_tail(self) -> None:
+        # 20k escaped quotes cut mid-escape: a scanner that backtracks over the escape
+        # alternatives is quadratic here (seconds); a linear one finishes in milliseconds.
+        payload = '{"content": "' + '\\"' * 20_000 + "\\"
+        started = time.perf_counter()
+
+        _NONE_OUTSIDE_STRINGS.findall(payload)
+
+        assert time.perf_counter() - started < 1.0
