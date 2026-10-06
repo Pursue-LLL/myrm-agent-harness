@@ -8,6 +8,20 @@ from myrm_agent_harness.runtime.context.agent_relay_handshake import (
     HandshakeResult,
     RelayStatePayload,
 )
+from myrm_agent_harness.runtime.context.agent_state_capsule import (
+    AgentProfileCapsule,
+    CapsuleEnvironmentDiagnostic,
+    CapsuleHeader,
+    CapsuleIntegrityError,
+    CapsuleMergeStrategy,
+    CapsuleMigrationResolver,
+    CapsuleSerializationEngine,
+    MemoryCapsuleEntry,
+    ResolvedMigrationBundle,
+    SessionCheckpointCapsuleEntry,
+    SkillCapsuleEntry,
+    UniversalAgentCapsule,
+)
 from myrm_agent_harness.runtime.context.append_only_kv_cache_guard import (
     AppendOnlyContextTailInvariantGuard,
     CompactionBypassToken,
@@ -478,4 +492,16 @@ __all__ = [
     "SessionResumeIntegrityReport",
     "SessionResumeValidator",
     "SessionTurnRecord",
+    "AgentProfileCapsule",
+    "CapsuleEnvironmentDiagnostic",
+    "CapsuleHeader",
+    "CapsuleIntegrityError",
+    "CapsuleMergeStrategy",
+    "CapsuleMigrationResolver",
+    "CapsuleSerializationEngine",
+    "MemoryCapsuleEntry",
+    "ResolvedMigrationBundle",
+    "SessionCheckpointCapsuleEntry",
+    "SkillCapsuleEntry",
+    "UniversalAgentCapsule",
 ]
