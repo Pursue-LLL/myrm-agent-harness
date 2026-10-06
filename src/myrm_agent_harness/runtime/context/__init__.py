@@ -1,5 +1,8 @@
 """Context lifecycle management — cleanup, config, metrics, tracking, reading, offload."""
 
+from myrm_agent_harness.runtime.context.aci_tool_contract_linter import (
+    ACIToolContractLinter,
+)
 from myrm_agent_harness.runtime.context.agent_relay_handshake import (
     AgentProfileDescriptor,
     AgentRelayHandshakeBridge,
@@ -92,8 +95,28 @@ from myrm_agent_harness.runtime.context.content_density_ladder_types import (
     DensityReadingRequest,
     DensityReadingResult,
 )
+from myrm_agent_harness.runtime.context.context_engineering_pipeline import (
+    ContextEngineeringPipeline,
+)
+from myrm_agent_harness.runtime.context.context_engineering_types import (
+    ACILintIssue,
+    ACILintReport,
+    ACISeverity,
+    ACIToolContract,
+    ACIToolParam,
+    ContextRemediationConfig,
+    NoteType,
+    RemediationResult,
+    ScenarioProfile,
+    ScenarioType,
+    StructuredNote,
+    TrapType,
+)
 from myrm_agent_harness.runtime.context.context_overflow_detector import (
     ContextOverflowDetector,
+)
+from myrm_agent_harness.runtime.context.context_virtual_memory import (
+    ContextVirtualMemoryManager,
 )
 from myrm_agent_harness.runtime.context.conversation_tree_graph import (
     ConversationTreeGraph,
@@ -470,6 +493,9 @@ from myrm_agent_harness.runtime.context.prune_and_spill_recall import (
     PruneAndSpillRecallEngine,
     PruneAndSpillResult,
     SpillMetadata,
+)
+from myrm_agent_harness.runtime.context.react_trap_remediator import (
+    ReActTrapRemediator,
 )
 from myrm_agent_harness.runtime.context.reasoning_anchor_extractor import (
     ReasoningAnchorExtractor,
@@ -1146,4 +1172,20 @@ __all__ = [
     "ToolLoopCircuitState",
     "ToolLoopTracker",
     "compute_canonical_args_hash",
+    "ACILintIssue",
+    "ACILintReport",
+    "ACISeverity",
+    "ACIToolContract",
+    "ACIToolContractLinter",
+    "ACIToolParam",
+    "ContextEngineeringPipeline",
+    "ContextRemediationConfig",
+    "ContextVirtualMemoryManager",
+    "NoteType",
+    "ReActTrapRemediator",
+    "RemediationResult",
+    "ScenarioProfile",
+    "ScenarioType",
+    "StructuredNote",
+    "TrapType",
 ]
