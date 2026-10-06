@@ -40,6 +40,13 @@ from myrm_agent_harness.runtime.context.offload import (
     cleanup_session_context_files,
     create_compress_offload_callback,
 )
+from myrm_agent_harness.runtime.context.session.event_sourcing_store import (
+    EventSourcingLoadResult,
+    EventSourcingSessionStore,
+    SessionEventRecord,
+    fork_session_by_stream_copy,
+    load_session_events_with_auto_repair,
+)
 from myrm_agent_harness.runtime.context.structured_checkpoint_generator import (
     StructuredCheckpointContract,
     build_checkpoint_prompt,
@@ -128,4 +135,9 @@ __all__ = [
     "compute_summary_max_output_tokens",
     "create_checkpoint_from_messages",
     "parse_checkpoint_contract",
+    "SessionEventRecord",
+    "EventSourcingLoadResult",
+    "EventSourcingSessionStore",
+    "load_session_events_with_auto_repair",
+    "fork_session_by_stream_copy",
 ]
