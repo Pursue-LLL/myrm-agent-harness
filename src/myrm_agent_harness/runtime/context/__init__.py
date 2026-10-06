@@ -407,6 +407,16 @@ from myrm_agent_harness.runtime.context.session_soft_reset_types import (
     VaultedConsolidatedMemory,
     VaultedMemoryItem,
 )
+from myrm_agent_harness.runtime.context.session_spill_store import (
+    SessionScopedToolOutputSpillStore,
+)
+from myrm_agent_harness.runtime.context.session_spill_store_types import (
+    SpillPolicy,
+    SpillProcessResult,
+    SpillRecord,
+    SpillSliceRequest,
+    SpillSliceResult,
+)
 from myrm_agent_harness.runtime.context.session_tree_navigator import (
     BranchSummaryPayload,
     NavigateTreeResult,
@@ -886,4 +896,10 @@ __all__ = [
     "DensityOutlineNode",
     "DensityReadingRequest",
     "DensityReadingResult",
+    "SessionScopedToolOutputSpillStore",
+    "SpillPolicy",
+    "SpillProcessResult",
+    "SpillRecord",
+    "SpillSliceRequest",
+    "SpillSliceResult",
 ]
