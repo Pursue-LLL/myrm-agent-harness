@@ -59,6 +59,9 @@ def estimate_content_tokens(content: str | Sequence[object]) -> int:
     return total
 
 
+estimate_tokens = estimate_content_tokens
+
+
 def estimate_message_tokens(msg: BaseMessage) -> int:
     """Estimate token count for a complete message including all token-consuming fields.
 
