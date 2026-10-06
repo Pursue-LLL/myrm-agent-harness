@@ -92,6 +92,20 @@ from myrm_agent_harness.runtime.context.content_density_ladder_types import (
     DensityReadingRequest,
     DensityReadingResult,
 )
+from myrm_agent_harness.runtime.context.conversation_tree_graph import (
+    ConversationTreeGraph,
+)
+from myrm_agent_harness.runtime.context.conversation_tree_html_exporter import (
+    ConversationTreeHtmlExporter,
+)
+from myrm_agent_harness.runtime.context.conversation_tree_types import (
+    BranchPathInfo,
+    ConversationTreeNode,
+    TreeBookmark,
+    TreeExportFormat,
+    TreeFilterCriteria,
+    TreeNodeKind,
+)
 from myrm_agent_harness.runtime.context.cow_session_branch import (
     BranchMessageEntry,
     CoWArtifactRecord,
@@ -1014,4 +1028,12 @@ __all__ = [
     "TieredTokenBudget",
     "TieredTokenCompressionGovernor",
     "UnifiedCompactedTurn",
+    "BranchPathInfo",
+    "ConversationTreeGraph",
+    "ConversationTreeHtmlExporter",
+    "ConversationTreeNode",
+    "TreeBookmark",
+    "TreeExportFormat",
+    "TreeFilterCriteria",
+    "TreeNodeKind",
 ]
