@@ -298,7 +298,8 @@ class ScreenUnlockCallback(Protocol):
 
     Awaited when a guarded action finds the screen locked. The host decides whether and how
     to unlock it (or to decline) and returns when done. The guard re-probes the lock state
-    afterwards and trusts only that probe, so a host that merely tries is enough.
+    afterwards and trusts only that probe, so a host that merely tries is enough. The guard
+    sets no deadline of its own: the host must bound its own wait.
     """
 
     async def __call__(self) -> None:

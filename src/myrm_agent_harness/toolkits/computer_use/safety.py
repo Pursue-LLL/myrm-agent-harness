@@ -14,7 +14,7 @@ Safety guardrails for desktop control tools:
 
 [OUTPUT]
 - ScreenLockedInterruptionError, PhysicalSleepInterruptionError, check_screen_lock_safety, ensure_screen_safe
-- SCREEN_LOCKED_REFUSAL, DISPLAY_SLEEPING_REFUSAL (shared model-facing refusal wording)
+- SCREEN_LOCKED_REFUSAL, DISPLAY_SLEEPING_REFUSAL, SNAPSHOT_SCREEN_LOCKED_REFUSAL, SNAPSHOT_DISPLAY_SLEEPING_REFUSAL (model-facing refusal wording for an unusable screen)
 - is_blocked_key_combo, is_dangerous_type_text, is_sensitive_app, check_vision_key_safety
 
 [POS]
@@ -333,12 +333,17 @@ class PhysicalSleepInterruptionError(RuntimeError):
         super().__init__(message)
 
 
-# Model-facing refusals for physical input on an unusable screen; ScreenGuard returns the same
-# bytes, so every desktop entry point refuses with identical wording.
+# Model-facing refusals for an unusable physical screen. The input pair is also what
+# check_screen_lock_safety returns; ScreenGuard returns these exact bytes, so every desktop
+# entry point refuses with identical wording. Snapshots refuse to capture rather than to type.
 SCREEN_LOCKED_REFUSAL = (
     "Safety: Screen is locked. Automated inputs are halted to prevent password leakage and account lockout."
 )
 DISPLAY_SLEEPING_REFUSAL = "Safety: Display is sleeping. Automated inputs are halted to prevent unintended actions."
+SNAPSHOT_SCREEN_LOCKED_REFUSAL = (
+    "Safety: Desktop screen is locked. Snapshot aborted to prevent capturing private lock-screen content."
+)
+SNAPSHOT_DISPLAY_SLEEPING_REFUSAL = "Safety: Display is sleeping. Snapshot aborted."
 
 
 def check_screen_lock_safety(detector: object | None = None) -> str | None:

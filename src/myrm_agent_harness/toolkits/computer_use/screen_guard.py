@@ -2,7 +2,7 @@
 
 [INPUT]
 - backends.protocols::ComputerBackend (POS: is_screen_locked / is_display_asleep probes)
-- safety::SCREEN_LOCKED_REFUSAL, DISPLAY_SLEEPING_REFUSAL (POS: shared model-facing input refusal wording)
+- safety::SCREEN_LOCKED_REFUSAL, DISPLAY_SLEEPING_REFUSAL, SNAPSHOT_SCREEN_LOCKED_REFUSAL, SNAPSHOT_DISPLAY_SLEEPING_REFUSAL (POS: model-facing refusal wording for an unusable screen)
 - types::ScreenUnlockCallback (POS: host-provided on-demand unlock)
 
 [OUTPUT]
@@ -20,17 +20,19 @@ import logging
 from collections.abc import Callable
 
 from myrm_agent_harness.toolkits.computer_use.backends.protocols import ComputerBackend
-from myrm_agent_harness.toolkits.computer_use.safety import DISPLAY_SLEEPING_REFUSAL, SCREEN_LOCKED_REFUSAL
+from myrm_agent_harness.toolkits.computer_use.safety import (
+    DISPLAY_SLEEPING_REFUSAL,
+    SCREEN_LOCKED_REFUSAL,
+    SNAPSHOT_DISPLAY_SLEEPING_REFUSAL,
+    SNAPSHOT_SCREEN_LOCKED_REFUSAL,
+)
 from myrm_agent_harness.toolkits.computer_use.types import ScreenUnlockCallback
 
 logger = logging.getLogger(__name__)
 
 # (locked, sleeping) refusal texts returned to the model by desktop tools.
 _INPUT_REFUSALS = (SCREEN_LOCKED_REFUSAL, DISPLAY_SLEEPING_REFUSAL)
-_SNAPSHOT_REFUSALS = (
-    "Safety: Desktop screen is locked. Snapshot aborted to prevent capturing private lock-screen content.",
-    "Safety: Display is sleeping. Snapshot aborted.",
-)
+_SNAPSHOT_REFUSALS = (SNAPSHOT_SCREEN_LOCKED_REFUSAL, SNAPSHOT_DISPLAY_SLEEPING_REFUSAL)
 
 
 class ScreenGuard:
