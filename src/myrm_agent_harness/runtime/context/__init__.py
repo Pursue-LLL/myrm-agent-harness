@@ -396,6 +396,17 @@ from myrm_agent_harness.runtime.context.tree_state import (
     extract_todo_store_from_payload,
     fold_branch_todo_state,
 )
+from myrm_agent_harness.runtime.context.tripartite_identity_anchor import (
+    SoulDriftDetector,
+    TripartiteIdentityManager,
+)
+from myrm_agent_harness.runtime.context.tripartite_identity_anchor_types import (
+    FactualMemoryEntry,
+    IdentityCompartmentKind,
+    SoulPersonaAnchor,
+    TripartiteContextAssembly,
+    UserProfileContext,
+)
 from myrm_agent_harness.runtime.context.usage_ledger_attempt import (
     AttemptUsageItem,
     AttemptUsageLedger,
@@ -718,4 +729,11 @@ __all__ = [
     "SessionLifecycleSnapshot",
     "SessionLifecycleState",
     "SessionMemoryCrystallizer",
+    "FactualMemoryEntry",
+    "IdentityCompartmentKind",
+    "SoulDriftDetector",
+    "SoulPersonaAnchor",
+    "TripartiteContextAssembly",
+    "TripartiteIdentityManager",
+    "UserProfileContext",
 ]
