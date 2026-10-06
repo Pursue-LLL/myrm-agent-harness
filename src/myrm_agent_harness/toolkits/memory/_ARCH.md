@@ -82,6 +82,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | sovereign_migration/ | Sovereign Asset Package Cross-Machine Migration Protocol & One-Click Restore: portable bundle packaging (.myrmpkg), checksum verification, dynamic path relativization, atomic restoring, and competitor ingestion adapters (Hermes, Claude Code, Codex). |
 | conflict_arbitration/ | Memory Conflict Semantic Arbitration & User-Confirmed Decision Freeze Gate: multi-source factual divergence detection (Merge vs Override vs Contradiction), human arbitration cards, cryptographic immutable freeze locks, and anti-tamper write gates. |
 | openclaw_adapter/ | OpenClaw 2.0 Format Adapter & Crash Recovery Rescue Pipeline: multi-user & Swarm topology tree extraction, new SQLite/Memory schema mapping, read-only WAL isolation, integrity probe, and corrupted page auto-rescue. |
+| dual_track_extraction/ | Dual-Track Memory Extraction Routing & Anti-Silent-Drop Gateway: dual-track classification (declarative facts vs procedural rules), automatic dispatch to ProceduralMemory, and transparent destiny reports defending against silent drop defects. |
 | workspace_living/ | Living Workspace Governance & documentation synchronization toolkit (CausalIssueMerger, KnownIssueEntry, ADRMetadata, idempotent error signature deduplication). |
 
 ## Key Dependencies
