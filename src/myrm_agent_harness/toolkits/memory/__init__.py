@@ -54,6 +54,14 @@ from myrm_agent_harness.toolkits.memory.domain_types import (
     MemoryDomain,
     infer_domain_and_category,
 )
+from myrm_agent_harness.toolkits.memory.dreaming import (
+    DreamDiaryEntry,
+    DreamDiaryStatus,
+    DreamSessionFragment,
+    GroundedDreamingEngine,
+    SurgicalSessionMemoryUnlearner,
+    SurgicalUnlearnReport,
+)
 from myrm_agent_harness.toolkits.memory.governance import (
     AssembledMemoryContext,
     ConflictResolver,
@@ -263,12 +271,18 @@ __all__ = [
     "BoundedSummary",
     "ConflictType",
     "ConflictVerdict",
+    "DreamDiaryEntry",
+    "DreamDiaryStatus",
+    "DreamSessionFragment",
     "EvidenceNode",
     "EvidenceNodeStatus",
     "EvidenceSource",
     "EvidenceTree",
     "FastContradictionDetector",
+    "GroundedDreamingEngine",
     "RevisionRecord",
+    "SurgicalSessionMemoryUnlearner",
+    "SurgicalUnlearnReport",
     "TreeRepairEngine",
     "TreeRepairResult",
     "CONVERSATION_SEARCH_TOOL_NAME",
