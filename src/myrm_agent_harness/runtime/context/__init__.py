@@ -216,6 +216,13 @@ from myrm_agent_harness.runtime.context.multi_dimension_at_resolver import (
     SnapshotDetailLevel,
     UnifiedMultiDimensionAtResolver,
 )
+from myrm_agent_harness.runtime.context.multi_ide_ruleset_bridge import (
+    IdeEcosystemClassifier,
+    IdeEcosystemKind,
+    MigrationReadinessReport,
+    MultiIdeRulesetBridge,
+    UniversalIdeRuleEntry,
+)
 from myrm_agent_harness.runtime.context.offload import (
     cleanup_orphan_context_files,
     cleanup_orphan_context_files_async,
@@ -686,4 +693,9 @@ __all__ = [
     "PristinePayload",
     "PristineTestingSandbox",
     "RawModelPassthroughTransformer",
+    "IdeEcosystemClassifier",
+    "IdeEcosystemKind",
+    "MigrationReadinessReport",
+    "MultiIdeRulesetBridge",
+    "UniversalIdeRuleEntry",
 ]

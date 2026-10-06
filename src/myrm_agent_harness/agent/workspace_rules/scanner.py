@@ -64,6 +64,7 @@ _RULE_FILENAMES: tuple[str, ...] = (
     "claude.md",
     ".goosehints",
     "goosehints",
+    ".traerules",
     ".cursorrules",
     ".clinerules",
     ".windsurfrules",
@@ -71,6 +72,7 @@ _RULE_FILENAMES: tuple[str, ...] = (
 
 _MYRM_RULES_DIR = ".myrm/rules"
 _CURSOR_RULES_DIR = ".cursor/rules"
+_TRAE_RULES_DIR = ".trae/rules"
 _CLAUDE_SUBDIR_FILE = ".claude/CLAUDE.md"
 _COPILOT_INSTRUCTIONS_FILE = ".github/copilot-instructions.md"
 _KNOWN_ISSUES_FILENAMES: tuple[str, ...] = ("KNOWN_ISSUES.md", "known_issues.md")
@@ -290,6 +292,7 @@ def _scan_directory(directory: Path) -> list[RuleFile]:
     # 1. Load specific rule directories (always loaded)
     results.extend(_scan_rules_subdir(directory, _MYRM_RULES_DIR, "*.md", seen_inodes))
     results.extend(_scan_rules_subdir(directory, _CURSOR_RULES_DIR, "*.mdc", seen_inodes))
+    results.extend(_scan_rules_subdir(directory, _TRAE_RULES_DIR, "*.md", seen_inodes))
 
     # 2. Load living architectural decision records (MADR / docs/decisions/*.md)
     from myrm_agent_harness.agent.workspace_rules.adr_scanner import scan_adr_rules
