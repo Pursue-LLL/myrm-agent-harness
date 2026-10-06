@@ -59,14 +59,14 @@ class _FakeAppKitRep:
         self.init_images: list[object] = []
         self.serialize_calls: list[tuple[object, object]] = []
 
-    def alloc(self) -> "_FakeAppKitRep":
+    def alloc(self) -> _FakeAppKitRep:
         return self
 
-    def initWithCGImage_(self, image: object) -> "_FakeAppKitRep":
+    def initWithCGImage_(self, image: object) -> _FakeAppKitRep:  # noqa: N802 - mirrors the ObjC selector
         self.init_images.append(image)
         return self
 
-    def representationUsingType_properties_(
+    def representationUsingType_properties_(  # noqa: N802 - mirrors the ObjC selector
         self, file_type: object, properties: object
     ) -> bytes | None:
         self.serialize_calls.append((file_type, properties))
@@ -78,8 +78,7 @@ class _FakeAppKitRep:
 def _install_appkit(monkeypatch: pytest.MonkeyPatch, rep: _FakeAppKitRep) -> None:
     """Install an AppKit stub exposing the two PNG serialization symbols."""
     module = ModuleType("AppKit")
-    setattr(module, "NSBitmapImageFileTypePNG", 4)
-    setattr(module, "NSBitmapImageRep", rep)
+    vars(module).update(NSBitmapImageFileTypePNG=4, NSBitmapImageRep=rep)
     monkeypatch.setitem(sys.modules, "AppKit", module)
 
 
@@ -127,42 +126,30 @@ class TestLowestOverlayWindowId:
         ]
         assert _lowest_overlay_window_id(_CURTAIN) is None
 
-    def test_missing_window_number_key_defaults_to_zero(
-        self, quartz_stub: MagicMock
-    ) -> None:
+    def test_missing_window_number_key_defaults_to_zero(self, quartz_stub: MagicMock) -> None:
         # Absent kCGWindowNumber yields 0; the caller treats falsy anchors as
         # "no anchor" and degrades to the legacy path.
-        quartz_stub.CGWindowListCopyWindowInfo.return_value = [
-            {"kCGWindowName": "Privacy Curtain"}
-        ]
+        quartz_stub.CGWindowListCopyWindowInfo.return_value = [{"kCGWindowName": "Privacy Curtain"}]
         assert _lowest_overlay_window_id(_CURTAIN) == 0
 
 
 class TestCaptureScreenExcludingTitles:
     """Channel behavior: degrade to None on every failure, bytes on success."""
 
-    def test_no_anchor_returns_none_without_channel_call(
-        self, quartz_stub: MagicMock
-    ) -> None:
+    def test_no_anchor_returns_none_without_channel_call(self, quartz_stub: MagicMock) -> None:
         for anchor in (None, 0):
-            with patch.object(
-                macos_background, "_lowest_overlay_window_id", MagicMock(return_value=anchor)
-            ):
+            with patch.object(macos_background, "_lowest_overlay_window_id", MagicMock(return_value=anchor)):
                 assert _capture_screen_excluding_titles(_CURTAIN) is None
         quartz_stub.CGWindowListCreateImage.assert_not_called()
 
     def test_channel_exception_returns_none(self, quartz_stub: MagicMock) -> None:
         quartz_stub.CGWindowListCreateImage.side_effect = RuntimeError("capture denied")
-        with patch.object(
-            macos_background, "_lowest_overlay_window_id", MagicMock(return_value=77)
-        ):
+        with patch.object(macos_background, "_lowest_overlay_window_id", MagicMock(return_value=77)):
             assert _capture_screen_excluding_titles(_CURTAIN) is None
 
     def test_empty_image_returns_none(self, quartz_stub: MagicMock) -> None:
         quartz_stub.CGWindowListCreateImage.return_value = None
-        with patch.object(
-            macos_background, "_lowest_overlay_window_id", MagicMock(return_value=77)
-        ):
+        with patch.object(macos_background, "_lowest_overlay_window_id", MagicMock(return_value=77)):
             assert _capture_screen_excluding_titles(_CURTAIN) is None
 
     def test_success_serializes_png_and_passes_channel_args(
@@ -173,9 +160,7 @@ class TestCaptureScreenExcludingTitles:
         rep = _FakeAppKitRep(payload=b"\x89PNG-fake")
         _install_appkit(monkeypatch, rep)
 
-        with patch.object(
-            macos_background, "_lowest_overlay_window_id", MagicMock(return_value=77)
-        ):
+        with patch.object(macos_background, "_lowest_overlay_window_id", MagicMock(return_value=77)):
             result = _capture_screen_excluding_titles(_CURTAIN)
 
         assert result == b"\x89PNG-fake"
@@ -187,23 +172,17 @@ class TestCaptureScreenExcludingTitles:
         assert rep.init_images == [image]
         assert rep.serialize_calls == [(4, None)]
 
-    def test_png_none_returns_none(
-        self, quartz_stub: MagicMock, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_png_none_returns_none(self, quartz_stub: MagicMock, monkeypatch: pytest.MonkeyPatch) -> None:
         quartz_stub.CGWindowListCreateImage.return_value = object()
         _install_appkit(monkeypatch, _FakeAppKitRep(payload=None))
-        with patch.object(
-            macos_background, "_lowest_overlay_window_id", MagicMock(return_value=77)
-        ):
+        with patch.object(macos_background, "_lowest_overlay_window_id", MagicMock(return_value=77)):
             assert _capture_screen_excluding_titles(_CURTAIN) is None
 
     def test_appkit_unavailable_returns_none(self, quartz_stub: MagicMock) -> None:
         quartz_stub.CGWindowListCreateImage.return_value = object()
         with (
             patch.dict("sys.modules", {"AppKit": None}),
-            patch.object(
-                macos_background, "_lowest_overlay_window_id", MagicMock(return_value=77)
-            ),
+            patch.object(macos_background, "_lowest_overlay_window_id", MagicMock(return_value=77)),
         ):
             assert _capture_screen_excluding_titles(_CURTAIN) is None
 
@@ -215,9 +194,7 @@ class TestCaptureScreenExcludingTitles:
             monkeypatch,
             _FakeAppKitRep(payload=b"x", serialize_error=RuntimeError("boom")),
         )
-        with patch.object(
-            macos_background, "_lowest_overlay_window_id", MagicMock(return_value=77)
-        ):
+        with patch.object(macos_background, "_lowest_overlay_window_id", MagicMock(return_value=77)):
             assert _capture_screen_excluding_titles(_CURTAIN) is None
 
 
@@ -242,9 +219,7 @@ class TestMacOSBackendExclusionRouting:
 
         exec_mock = AsyncMock(return_value=_fake_screencapture_proc())
         with (
-            patch.object(
-                macos_mod, "_capture_screen_excluding_titles", MagicMock(return_value=None)
-            ),
+            patch.object(macos_mod, "_capture_screen_excluding_titles", MagicMock(return_value=None)),
             patch("asyncio.create_subprocess_exec", exec_mock),
             patch("pathlib.Path.read_bytes", MagicMock(return_value=b"LEGACY")),
             patch("pathlib.Path.unlink"),
@@ -263,13 +238,9 @@ class TestMacOSBackendExclusionRouting:
 
         channel = MagicMock(return_value=b"EXCLUDED")
         window_png = AsyncMock(return_value=b"WINDOW")
-        target = macos_background._WindowTarget(
-            pid=200, window_id=42, bounds=(0, 0, 800, 600)
-        )
+        target = macos_background._WindowTarget(pid=200, window_id=42, bounds=(0, 0, 800, 600))
         with (
-            patch.object(
-                macos_mod, "_resolve_target_window", MagicMock(return_value=target)
-            ),
+            patch.object(macos_mod, "_resolve_target_window", MagicMock(return_value=target)),
             patch.object(macos_mod, "_capture_window_png", window_png),
             patch.object(macos_mod, "_capture_screen_excluding_titles", channel),
         ):
@@ -285,13 +256,11 @@ class TestMacOSBackendExclusionRouting:
 
         channel = MagicMock(return_value=b"EXCLUDED")
         with (
-            patch.object(
-                macos_mod, "_resolve_target_window", MagicMock(return_value=None)
-            ),
+            patch.object(macos_mod, "_resolve_target_window", MagicMock(return_value=None)),
             patch.object(macos_mod, "_capture_screen_excluding_titles", channel),
+            pytest.raises(RuntimeError, match="no on-screen window"),
         ):
-            with pytest.raises(RuntimeError, match="no on-screen window"):
-                asyncio.run(backend.screenshot(app_name="Ghost"))
+            asyncio.run(backend.screenshot(app_name="Ghost"))
 
         channel.assert_not_called()
 
@@ -321,11 +290,9 @@ class TestMacOSBackendExclusionRouting:
         proc.communicate = AsyncMock(return_value=(b"", b"nope"))
         proc.returncode = 1
         with (
-            patch.object(
-                macos_mod, "_capture_screen_excluding_titles", MagicMock(return_value=None)
-            ),
+            patch.object(macos_mod, "_capture_screen_excluding_titles", MagicMock(return_value=None)),
             patch("asyncio.create_subprocess_exec", AsyncMock(return_value=proc)),
             patch("pathlib.Path.unlink"),
+            pytest.raises(RuntimeError, match="screencapture failed"),
         ):
-            with pytest.raises(RuntimeError, match="screencapture failed"):
-                asyncio.run(backend.screenshot())
+            asyncio.run(backend.screenshot())
