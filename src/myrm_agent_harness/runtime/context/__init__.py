@@ -78,6 +78,12 @@ from myrm_agent_harness.runtime.context.transcripts import (
     ToolOutputCompactor,
     TranscriptParseResult,
 )
+from myrm_agent_harness.runtime.context.transient_sub_inquiry import (
+    TransientInquiryRequest,
+    TransientInquiryResponse,
+    build_transient_context_messages,
+    execute_transient_sub_inquiry,
+)
 from myrm_agent_harness.runtime.context.transparent_reader import (
     TransparentFileReader,
     read_context_file_async,
@@ -152,4 +158,8 @@ __all__ = [
     "PlanModeBoundaryLocker",
     "filter_tools_for_mode",
     "is_read_only_tool",
+    "TransientInquiryRequest",
+    "TransientInquiryResponse",
+    "build_transient_context_messages",
+    "execute_transient_sub_inquiry",
 ]
