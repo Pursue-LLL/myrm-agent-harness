@@ -165,6 +165,17 @@ from myrm_agent_harness.runtime.context.file_io_checkpoint_tracker import (
     DeterministicFileIOSummary,
     extract_deterministic_file_io,
 )
+from myrm_agent_harness.runtime.context.full_spectrum_lifecycle_hub import (
+    FullSpectrumLifecycleHub,
+    LifecycleInterceptorCallable,
+)
+from myrm_agent_harness.runtime.context.full_spectrum_lifecycle_types import (
+    InterceptorAction,
+    InterceptorDecision,
+    LifecycleEventKind,
+    LifecycleHubMetrics,
+    LifecyclePayload,
+)
 from myrm_agent_harness.runtime.context.git_session_tree import (
     GitLikeSessionTreeEngine,
 )
@@ -836,4 +847,11 @@ __all__ = [
     "EnvironmentStateDigest",
     "MutationActor",
     "RehydrationInjectionPayload",
+    "FullSpectrumLifecycleHub",
+    "LifecycleInterceptorCallable",
+    "InterceptorAction",
+    "InterceptorDecision",
+    "LifecycleEventKind",
+    "LifecycleHubMetrics",
+    "LifecyclePayload",
 ]
