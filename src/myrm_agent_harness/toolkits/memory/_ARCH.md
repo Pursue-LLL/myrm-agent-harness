@@ -77,6 +77,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | wiki_memory/ | Markdown-as-SSOT Wiki Memory Engine with Git Audit and Obsidian Interoperability: Markdown pages as single source of truth, global and agent-scoped physical directory hierarchy, thread-safe Git audit commits and rollback, and derived SQLite FTS5 full-text and Obsidian backlink graph indexing. |
 | zero_llm/ | Zero-LLM Local Memory Capture & Rule-Based FTS Graph Retrieval Engine: deterministic 6-category fact extraction (preferences, config, tool outcomes, decisions, dependencies, entities), SQLite FTS5 lexical matching, 1-hop [[Wikilink]] graph topology traversal, and progressive enhancement gate with fail-open fallback. |
 | privacy_gate/ | Typed Memory Privacy Boundary & Allowlist Security Gate: static regex secret scanning (API keys, private keys, connection URIs, JWTs), .myrmignore exclusion and allowlist matching, safe semantic redaction, and hard veto enforcement. |
+| drift_defense/ | Ground Truth Priority & Code Drift Stale Memory Defense: zero-LLM reference extraction, sub-5ms physical presence & symbol AST validation, prompt-level stale warning decoration, and confidence decay. |
 | workspace_living/ | Living Workspace Governance & documentation synchronization toolkit (CausalIssueMerger, KnownIssueEntry, ADRMetadata, idempotent error signature deduplication). |
 
 ## Key Dependencies
