@@ -56,6 +56,7 @@ from myrm_agent_harness.toolkits.code_execution.security.workspace_snapshot impo
 from myrm_agent_harness.toolkits.computer_use.screen_detector import (
     ScreenDetector,
     get_default_screen_detector,
+    hid_idle_seconds,
 )
 from myrm_agent_harness.toolkits.computer_use.types import ScreenLockState
 from myrm_agent_harness.toolkits.ssh_remote import ReadOnlySSHValidator
@@ -92,6 +93,7 @@ __all__ = [
     "get_process_managed_approval_revision",
     "get_taint_tracker",
     "get_task_airbag_diff",
+    "hid_idle_seconds",
     "load_managed_approval_policy_from_env",
     "register_blocked_hostnames",
     "rollback_task_airbag",

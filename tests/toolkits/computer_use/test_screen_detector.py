@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import sys
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -18,6 +19,7 @@ from myrm_agent_harness.toolkits.computer_use.safety import (
 )
 from myrm_agent_harness.toolkits.computer_use.screen_detector import (
     ScreenDetector,
+    hid_idle_seconds,
 )
 from myrm_agent_harness.toolkits.computer_use.session import ComputerSession
 from myrm_agent_harness.toolkits.computer_use.types import (
@@ -128,6 +130,46 @@ class TestProbeFailureReporting:
         detector = ScreenDetector()
         with patch.object(sys, "platform", "darwin"), patch.dict(sys.modules, {"Quartz": None}):
             assert detector._probe_native_state() == ScreenLockState.UNKNOWN
+
+
+class TestHidIdleSeconds:
+    """Human-presence primitive: only a proven idle time may be reported, everything else is None."""
+
+    @pytest.mark.skipif(sys.platform != "darwin", reason="HID idle probe is macOS-only")
+    def test_live_probe_reports_a_non_negative_reading(self) -> None:
+        idle = hid_idle_seconds()
+        assert idle is not None
+        assert idle >= 0.0
+
+    @pytest.mark.skipif(sys.platform != "darwin", reason="HID idle probe is macOS-only")
+    def test_reads_hardware_state_for_any_input_event(self) -> None:
+        """Presence must come from hardware sources: the combined session state also counts synthetic events."""
+        import Quartz
+
+        with patch("Quartz.CGEventSourceSecondsSinceLastEventType", return_value=3.5) as probe:
+            assert hid_idle_seconds() == 3.5
+        probe.assert_called_once_with(Quartz.kCGEventSourceStateHIDSystemState, Quartz.kCGAnyInputEventType)
+
+    @pytest.mark.skipif(sys.platform != "darwin", reason="HID idle probe is macOS-only")
+    @pytest.mark.parametrize("reading", [math.nan, math.inf, -1.0])
+    def test_unusable_reading_is_unknown(self, reading: float) -> None:
+        """NaN would compare below no threshold and look like absence: it must surface as unknown instead."""
+        with patch("Quartz.CGEventSourceSecondsSinceLastEventType", return_value=reading):
+            assert hid_idle_seconds() is None
+
+    @pytest.mark.skipif(sys.platform != "darwin", reason="HID idle probe is macOS-only")
+    def test_probe_error_is_unknown(self) -> None:
+        with patch("Quartz.CGEventSourceSecondsSinceLastEventType", side_effect=RuntimeError("probe broke")):
+            assert hid_idle_seconds() is None
+
+    def test_missing_quartz_is_unknown_not_idle(self) -> None:
+        with patch.object(sys, "platform", "darwin"), patch.dict(sys.modules, {"Quartz": None}):
+            assert hid_idle_seconds() is None
+
+    @pytest.mark.parametrize("platform", ["win32", "linux"])
+    def test_platforms_without_a_probe_are_unknown(self, platform: str) -> None:
+        with patch.object(sys, "platform", platform):
+            assert hid_idle_seconds() is None
 
 
 class TestSafetyGuards:

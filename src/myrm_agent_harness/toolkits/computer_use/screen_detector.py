@@ -10,6 +10,7 @@ Zero external heavy dependencies, zero extra daemon processes.
 [OUTPUT]
 - ScreenDetector: cross-platform detector with TTL cache
 - get_default_screen_detector: singleton accessor
+- hid_idle_seconds: seconds since the last hardware input event (human-presence primitive)
 
 [POS]
 Desktop lock-screen and physical sleep detection gate. Provides native OS state detection and throttling cache for Computer Use safety.
@@ -19,6 +20,7 @@ from __future__ import annotations
 
 import ctypes
 import logging
+import math
 import os
 import subprocess
 import sys
@@ -116,6 +118,8 @@ class ScreenDetector:
 
     def _probe_windows(self) -> ScreenLockState:
         """Probe Windows Input Desktop accessibility via user32.dll."""
+        if sys.platform != "win32":
+            return ScreenLockState.UNKNOWN
         try:
             user32 = ctypes.windll.user32
             # DESKTOP_SWITCHDESKTOP = 0x0100
@@ -155,3 +159,32 @@ def get_default_screen_detector() -> ScreenDetector:
     if _GLOBAL_SCREEN_DETECTOR is None:
         _GLOBAL_SCREEN_DETECTOR = ScreenDetector()
     return _GLOBAL_SCREEN_DETECTOR
+
+
+def hid_idle_seconds() -> float | None:
+    """Seconds since the last hardware keyboard / mouse / trackpad event, or ``None`` when unknown.
+
+    Human-presence primitive: an idle time below a caller-chosen threshold means someone is
+    touching the machine right now. The value is read from the HID system state (hardware
+    sources), needs no permission, is deliberately never cached, and costs well under a
+    millisecond, so callers can poll it on every decision.
+
+    Only macOS has a probe today. ``None`` covers every case where idleness cannot be proven
+    (other platforms, Quartz unavailable, a non-finite reading); callers must decide explicitly
+    what "unknown" means for them instead of reading it as "idle".
+    """
+    if not sys.platform.startswith("darwin"):
+        return None
+    try:
+        from Quartz import (
+            CGEventSourceSecondsSinceLastEventType,
+            kCGAnyInputEventType,
+            kCGEventSourceStateHIDSystemState,
+        )
+
+        idle = float(CGEventSourceSecondsSinceLastEventType(kCGEventSourceStateHIDSystemState, kCGAnyInputEventType))
+    except Exception as exc:
+        # A failed probe means "unknown", never "idle".
+        logger.debug("[SCREEN_GUARD] HID idle probe error: %s", exc)
+        return None
+    return idle if math.isfinite(idle) and idle >= 0.0 else None

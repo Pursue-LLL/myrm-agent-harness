@@ -34,6 +34,7 @@ from myrm_agent_harness.toolkits.computer_use.safety import (
 from myrm_agent_harness.toolkits.computer_use.screen_detector import (
     ScreenDetector,
     get_default_screen_detector,
+    hid_idle_seconds,
 )
 from myrm_agent_harness.toolkits.computer_use.session import (
     ComputerSession,
@@ -61,6 +62,7 @@ __all__ = [
     "ensure_screen_safe",
     "get_default_screen_detector",
     "get_request_desktop_session",
+    "hid_idle_seconds",
     "register_desktop_mcp_tools",
     "reset_request_desktop_session",
     "set_request_desktop_session",

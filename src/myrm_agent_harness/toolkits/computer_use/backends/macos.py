@@ -14,6 +14,8 @@ arm64 (Apple Silicon) due to a missing `objc_msgSendSuper_stret` symbol
 
 [POS]
 macOS-specific screen I/O. Only loaded when detect_platform().os_type == "macos".
+While an injected overlay window (see set_excluded_capture_window_titles) is on screen,
+pointer actions on the global HID path are refused: they would hit the overlay, not the target.
 """
 
 from __future__ import annotations
@@ -29,6 +31,7 @@ from myrm_agent_harness.toolkits.computer_use.backends.macos_background import (
     _capture_screen_excluding_titles,
     _capture_window_png,
     _check_post_event_access,
+    _lowest_overlay_window_id,
     _resolve_target_window,
 )
 from myrm_agent_harness.toolkits.computer_use.types import (
@@ -49,6 +52,12 @@ _MODIFIER_TO_QUARTZ_KEY: dict[ModifierKey, str] = {
     "meta": "command",
 }
 
+_POINTER_OCCLUDED_ERROR = (
+    "Safety: A screen overlay is covering the desktop, so coordinate-based pointer input "
+    "would land on the overlay instead of the target app.\n"
+    "[REMEDY_HINT: Use desktop_interact_tool with an @dref element, or keyboard actions, instead.]"
+)
+
 
 class MacOSBackend:
     """macOS screen I/O via screencapture + Quartz CGEvent."""
@@ -63,6 +72,19 @@ class MacOSBackend:
         通用能力：不携带任何调用方业务语义，帷幕识别契约由注入方持有。
         """
         self._excluded_capture_titles = frozenset(titles)
+
+    def _pointer_occluded(self) -> ActionResult | None:
+        """遮罩窗在屏时拒绝全局 HID 指针投递；放行（含无遮罩/定向投递）返回 None。
+
+        全局投递的事件命中最上层窗口，即遮罩窗本身：遮罩（如隐私帷幕）若把指针输入视作
+        路过者操作并回锁屏幕，放行就是 AI 自己的点击锁死自己的会话，且点击也到不了目标应用。
+        定向投递（pid）不经 HID 命中测试，键盘事件走焦点应用（遮罩不抢焦点），均不受影响。
+        """
+        if not self._excluded_capture_titles or macos_input.has_input_target():
+            return None
+        if _lowest_overlay_window_id(self._excluded_capture_titles) is None:
+            return None
+        return ActionResult(success=False, error=_POINTER_OCCLUDED_ERROR)
 
     async def resolve_window_target(self, app_name: str, window_index: int = 0) -> tuple[int, int, int, int] | None:
         target = _resolve_target_window(app_name, window_index)
@@ -112,6 +134,8 @@ class MacOSBackend:
         clicks: int = 1,
         modifiers: list[ModifierKey] | None = None,
     ) -> ActionResult:
+        if (occluded := self._pointer_occluded()) is not None:
+            return occluded
         modifier_keys = [_MODIFIER_TO_QUARTZ_KEY[m] for m in modifiers] if modifiers else []
         try:
             for key in modifier_keys:
@@ -192,6 +216,8 @@ class MacOSBackend:
             return ActionResult(success=False, error=str(e))
 
     async def mouse_move(self, x: int, y: int) -> ActionResult:
+        if (occluded := self._pointer_occluded()) is not None:
+            return occluded
         try:
             await asyncio.to_thread(macos_input.move_to, x, y)
             return ActionResult(success=True)
@@ -206,6 +232,8 @@ class MacOSBackend:
         amount: int = 3,
         modifiers: list[ModifierKey] | None = None,
     ) -> ActionResult:
+        if (occluded := self._pointer_occluded()) is not None:
+            return occluded
         modifier_keys = [_MODIFIER_TO_QUARTZ_KEY[m] for m in modifiers] if modifiers else []
         try:
             await asyncio.to_thread(macos_input.move_to, x, y)
@@ -233,6 +261,8 @@ class MacOSBackend:
         end_y: int,
         modifiers: list[ModifierKey] | None = None,
     ) -> ActionResult:
+        if (occluded := self._pointer_occluded()) is not None:
+            return occluded
         modifier_keys = [_MODIFIER_TO_QUARTZ_KEY[m] for m in modifiers] if modifiers else []
         try:
             for key in modifier_keys:

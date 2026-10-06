@@ -11,7 +11,7 @@
 [OUTPUT]
 - 键鼠模拟原语：key_down/key_up/press/hotkey/write/click/move_to/scroll/hscroll/drag
 - 状态读取原语：size/position
-- 后台路由：set_input_target/clear_input_target（目标进程定向投递）
+- 后台路由：set_input_target/clear_input_target（目标进程定向投递）、has_input_target（当前是否定向）
 
 [POS]
 macOS 输入原语。仅被 backends/macos.py 引用，随 computer-use extra 安装。
@@ -197,6 +197,11 @@ def set_input_target(pid: int | None) -> None:
 def clear_input_target() -> None:
     """清除定向目标，恢复全局 HID 投递。"""
     _input_target_pid.set(None)
+
+
+def has_input_target() -> bool:
+    """当前任务是否处于定向投递（事件直达目标进程，不经全局 HID 命中最上层窗口）。"""
+    return _input_target_pid.get() is not None
 
 
 def _post_event(event: object) -> None:
