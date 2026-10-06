@@ -73,6 +73,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | compaction/ | Token-Budget-Aware Codebase Semantic Memory Compaction Engine: AST-based and regex fallback code skeleton extractor (L1 signatures, L2 control flow, L3 full source), and dynamic budget-aware compactor with multi-tier adaptive downgrade. |
 | decay/ | Ebbinghaus Temporal Decay & Tiered Storage Lifecycle Engine: dynamic exponential decay scoring S(t) = I * exp(-lambda*dt) * (1 + alpha*ln(1+f)), RFM frequency boost, hot-warm-cold three-tier storage transitions, decay-aware blended retrieval reranking, and cold archive export/revival. |
 | evolution/ | Order-Invariant Memory Evolution & Causal Experience Gene Ledger: temporal order-invariance validation gates, asymptotic confidence decay and Darwinian gene reinforcement (proof_count), causal trial-error gene extraction (CausalGeneExtractor), and planning-stage mutation advice (ExperienceGeneLedger). |
+| auto_recall/ | Targeted Experience Auto-Recall Trigger with Multi-Turn Dedup and Fail-Open Reranking Engine: 5 sensitive lifecycle triggers (task_start, skill_load, subagent_start, write_preflight, cron_start), 5-turn sliding window deduplication to prevent context fatigue, and SLA-bounded fail-open neural reranker fallback. |
 | workspace_living/ | Living Workspace Governance & documentation synchronization toolkit (CausalIssueMerger, KnownIssueEntry, ADRMetadata, idempotent error signature deduplication). |
 
 ## Key Dependencies
