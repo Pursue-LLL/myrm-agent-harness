@@ -62,11 +62,16 @@ def _pairing_violations(messages: list[BaseMessage]) -> list[str]:
 class TestSummaryPrefixPairing:
     def test_every_head_trimmed_window_is_strictly_paired(self) -> None:
         history = _history()
+        broken_windows = 0
 
         for start in range(len(history)):
-            invocation = _build_summary_invocation_messages("summarize", history[start:])
+            window = history[start:]
+            invocation = _build_summary_invocation_messages("summarize", window)
 
             assert _pairing_violations(invocation) == [], f"window starting at message {start}"
+            broken_windows += bool(_pairing_violations(window))
+
+        assert broken_windows, "no head-trimmed window breaks pairing, so the assertions above prove nothing"
 
     def test_prefix_trimmed_by_the_aux_guard_is_strictly_paired(self) -> None:
         history = [
@@ -81,6 +86,7 @@ class TestSummaryPrefixPairing:
         invocation = _build_summary_invocation_messages("summarize", guarded)
 
         assert len(guarded) < len(history)
+        assert _pairing_violations(guarded), "the guard must orphan a tool result, or this case proves nothing"
         assert _pairing_violations(invocation) == []
         assert invocation[-1].content == "summarize"
 

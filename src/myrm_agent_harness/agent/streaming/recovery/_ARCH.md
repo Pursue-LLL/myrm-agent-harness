@@ -36,4 +36,5 @@ Streaming error-recovery strategies. **`stream_recovery.py`** composes the four 
 
 - `agent._internals.agent_recovery`
 - `agent.errors.fault_side`
+- `agent.config.llm_safety` (grace call re-pairs its history through `normalize_messages`)
 - `toolkits.llms.errors.classifier`

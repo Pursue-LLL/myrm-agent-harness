@@ -2,7 +2,7 @@
 
 子模块：
 - llm: LLM 与 Agent 配置（LLMConfig, AgentConfig, StorageConfig）
-- llm_safety: Provider Safety 消息规范化（normalize_messages）
+- llm_safety: 出站消息的工具调用/结果配对规范化，与中间件链同源（normalize_messages）
 - parsers: LiteLLM模型名解析和转换（to_litellm_model, parse_litellm_model）
 - file_io: 文件 I/O 资源限制与正则安全配置（FileIOConfig）
 - validator: 配置健康检查（ConfigIssue, check_config_health）

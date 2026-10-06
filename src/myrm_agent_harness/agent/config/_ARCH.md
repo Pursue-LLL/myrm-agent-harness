@@ -21,6 +21,7 @@ Agent configuration package — unified export of all config types and utilities
 ## Key Dependencies
 
 - `core.config` (CustomModelDef, LLMConfig — Single Source of Truth)
+- `agent.middlewares.tooling` (`llm_safety` loads the production tool-pairing functions lazily: the middleware package imports this package's consumers, so a module-level import would be circular)
 - `backends`
 - `toolkits`
 - `utils`

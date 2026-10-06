@@ -25,4 +25,5 @@ LLM-based structured summarization strategy with quality gate, circuit breaker, 
 
 - `...infra.schemas` (ContextConfig, StructuredSummary)
 - `...tracking.artifact_tracker`
+- `agent.config.llm_safety` (summary invocation re-pairs its prefix through `normalize_messages`)
 - `security.detection.leak_detector`

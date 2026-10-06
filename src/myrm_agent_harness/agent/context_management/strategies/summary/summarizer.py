@@ -9,6 +9,7 @@
 - security.detection.leak_detector::redact_leaks (POS: credential leak redaction, output-side + history-side defense)
 - security.detection.pii_redactor::redact_pii (POS: PII redaction for phone/email/SSN/ID/address in summary fields)
 - toolkits.llms.utils.model_utils::get_model_context_limit (POS: best-effort model context window extraction)
+- agent.config.llm_safety::normalize_messages (POS: provider safety normalization for direct LLM calls; re-pairs tool calls with their results)
 - langchain_core.messages::BaseMessage (POS: LangChain message base class)
 - langchain_core.language_models::BaseChatModel (POS: LangChain LLM base class)
 
@@ -18,7 +19,6 @@
 
 [POS]
 Context summarizer. Pure in-memory summarization strategy using structured summary schema (StructuredSummary + Handoff fields), streaming progress tracking for timeout-aware invocation, cache-safe message-prefix invocation, and aux-model context guard (_guard_aux_context: auto-trims messages when summarizer LLM has a smaller context window; the trimmed prefix is re-paired so orphaned tool results never reach strict providers).
-
 """
 
 from __future__ import annotations

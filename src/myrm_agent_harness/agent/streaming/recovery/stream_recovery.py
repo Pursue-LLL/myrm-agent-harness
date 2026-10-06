@@ -11,6 +11,7 @@
 - agent.streaming.recovery.stream_recovery_truncation (POS: length truncation recovery)
 - agent.streaming.escalation_scrubber::EscalationScrubber (POS: 流式层升级标记检测)
 - utils.chat_utils::extract_answer_text (POS: 兼容 reasoning 模型 content 空回退的答案提取)
+- agent.config.llm_safety::normalize_messages (POS: provider safety normalization for direct LLM calls; re-pairs tool calls with their results)
 
 [OUTPUT]
 - StreamRecoveryMixin: used by StreamExecutor via multiple inheritance
@@ -691,8 +692,7 @@ class StreamRecoveryMixin(
         tail = repaired_messages[-20:]
         while tail and getattr(tail[0], "type", None) == "tool":
             tail = tail[1:]
-        summary_messages: list[BaseMessage] = tail
-        summary_messages.append(grace_prompt)
+        summary_messages = [*tail, grace_prompt]
 
         try:
             response: AIMessage = await llm.ainvoke(summary_messages)
