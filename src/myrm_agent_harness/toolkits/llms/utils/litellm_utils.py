@@ -17,7 +17,7 @@
 LiteLLM utility functions. Provides JSON processing tools for handling LLM-generated malformed JSON.
 Fixes invalid escapes, extracts pure JSON content, and performs schema-aware fault-tolerant parsing.
 Model-parameter sanitization (`clean_model_kwargs`) lives in ``model_kwargs.py``.
-As the utility layer, depended on by adapters.converters and adapters.tool_call_parsers.
+As the utility layer, depended on by adapters.converters and adapters.tool_recovery.
 """
 
 from __future__ import annotations

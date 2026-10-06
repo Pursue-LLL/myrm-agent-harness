@@ -47,6 +47,14 @@ dispatcher  handlers      events         recovery*
 | `stream_compactor.py` | 高频流式文本片段合并缓冲（容量/时间/事件类型变更/显式 flush，后台看门狗防幽灵延迟） |
 | `stream_buffer.py` | SSE 断线重连回复缓冲：内存滑动窗口 + GlobalStreamRegistry（Last-Event-ID 短断连复连，无磁盘持久化） |
 
+### 被扣留的工具调用与断流
+
+适配层不会执行参数被截断或无法解析的工具调用，只把它记录在最终 AIMessage 的 `additional_kwargs["tool_call_recovery"]`（该消息没有 `tool_calls`，LangGraph 会据此结束整轮）。因此：
+
+- `event_handlers.process_updates_chunk` 保留只记录被扣留调用的消息，恢复处理器才能看到它；
+- `recovery/stream_recovery_truncation.py` 最多重试 1 次：丢弃该消息，在原请求后追加一条提示（提示缓存前缀不变），并一次性放大输出预算（有上限，不会低于已配置预算）；仍失败，或当前是 resume 轮（无法重放输入），则上报 `tool_call_truncated`；
+- 流在收到最终元数据块之前断开时，`finish_reason` 记为 `__stream_dropped__`，`map_to_completion_status` 将其映射为 `truncated`，并禁止“补全 JSON”式修复。
+
 ---
 
 ## 清洗与纪律

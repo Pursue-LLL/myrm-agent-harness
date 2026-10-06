@@ -39,7 +39,7 @@ def test_parse_glm_xml_normal_pairs_in_document_order():
 
 def test_parse_glm_xml_nested_json_value_preserved_verbatim():
     # The inner JSON is opaque payload; document-order scanning must keep it
-    # attached to its own key instead of re-interpreting nested braces.
+    # attached to its own key; nested braces are not re-interpreted.
     xml = """<tool_call>t
 <arg_key>opts</arg_key>
 <arg_value>{"nested": {"k": 1}, "list": [1, 2]}</arg_value>
@@ -210,8 +210,8 @@ def test_scan_elements_element_swallows_tags_nested_in_its_payload():
     assert _scan_elements(text, _TOOL_CALL_ELEMENT) == [("tool_call", "a<tool_call>b")]
 
 
-def test_scan_elements_matches_the_lazy_regex_it_replaces():
-    """The scanner is a drop-in for the DOTALL ``findall`` regexes: same elements on arbitrary tag soup."""
+def test_scan_elements_is_equivalent_to_the_lazy_dotall_regexes():
+    """The scanner yields the same elements as the DOTALL ``findall`` regexes on arbitrary tag soup."""
     rng = random.Random(20261007)
     arg_regex = re.compile(r"<arg_(key|value)>(.*?)</arg_\1>", re.DOTALL)
     call_regex = re.compile(r"<tool_call>(.*?)</tool_call>", re.DOTALL)

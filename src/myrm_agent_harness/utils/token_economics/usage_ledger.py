@@ -32,7 +32,7 @@ DROPPED_STREAM_FINISH_REASON = "__stream_dropped__"
 Distinguishes a dropped/broken connection (no ``finish_reason`` ever delivered)
 from abnormal-but-explicit endings such as ``length`` or a safety refusal, and
 from a normal turn end. Never produced by a provider; it is a pure telemetry
-sentinel so dropped streams stay countable instead of collapsing into ``""``.
+sentinel that makes dropped streams countable as their own finish_reason value.
 """
 
 

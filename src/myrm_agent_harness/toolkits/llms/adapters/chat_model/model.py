@@ -1,6 +1,5 @@
 """LangChain LiteLLM Adapter
 
-
 [INPUT]
 - langchain_core.language_models.chat_models::BaseChatModel (POS: LangChain chat model base class)
 - langchain_core.messages (POS: LangChain message types)
@@ -13,6 +12,7 @@
 - adapters.safety_termination_detector (POS: Safety termination detector for truncated tool call suppression)
 - toolkits.llms.ephemeral_output_tokens (POS: ephemeral max-output-tokens ContextVar for truncation recovery)
 - toolkits.llms.utils.proxy::normalize_proxy_url (POS: Egress proxy URL normalization)
+- toolkits.llms.utils.model_kwargs::clean_model_kwargs, should_skip_response_format (POS: Model-parameter compatibility helpers)
 - core.context_vars::prompt_routing_key_var (POS: Session-scoped routing key for OpenAI prompt cache affinity)
 
 [OUTPUT]

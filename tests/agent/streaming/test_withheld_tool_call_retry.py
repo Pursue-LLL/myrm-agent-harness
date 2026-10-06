@@ -3,8 +3,8 @@
 Argument text that is cut off or unparseable is never executed: the adapter records it
 in ``additional_kwargs["tool_call_recovery"]`` and emits no ``tool_calls``. LangGraph
 ends a turn whose last AI message has no tool calls, so these tests drive the real
-``create_agent`` loop through ``StreamExecutor.execute()`` to prove recovery still sees
-that message, retries once with a larger output budget, and stays bounded.
+``create_agent`` loop through ``StreamExecutor.execute()`` to prove recovery sees that
+message, retries once with a larger output budget, and stays bounded.
 """
 
 import asyncio

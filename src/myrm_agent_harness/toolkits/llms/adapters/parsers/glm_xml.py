@@ -199,8 +199,8 @@ def _parse_arg_pairs(xml: str) -> tuple[list[tuple[str, str]], list[str]]:
     Input is expected to have passed ``_normalize_arg_tags``. Each value binds to
     the *immediately preceding* key, so pairing cannot shift a later value onto the
     wrong key. A key left without a value, or a value without a key, is reported as
-    an anomaly (a truncated or malformed stream) instead of silently collapsing the
-    argument map.
+    an anomaly (a truncated or malformed stream); the argument map is never collapsed
+    silently.
     """
     pairs: list[tuple[str, str]] = []
     anomalies: list[str] = []

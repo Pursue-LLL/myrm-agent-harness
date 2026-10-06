@@ -11,7 +11,7 @@
 - is_stream_complete(): Map a provider finish_reason to the arg-recovery completeness signal
 - has_withheld_tool_calls(): Whether a message records tool calls withheld as unsafe (never executable)
 - recover_tool_call_payloads(): Parse and recover tool call arguments with fallback strategies (HTML-entity decoding is opt-in)
-- build_final_tool_call_chunk(): Build a final ChatGenerationChunk containing all recovered tool calls
+- build_final_tool_call_chunk(): Build the final ChatGenerationChunk carrying all safely recovered tool calls; calls withheld as unsafe are recorded in `additional_kwargs["tool_call_recovery"]` on a metadata-only chunk
 
 [POS]
 Tool call recovery module. Handles cross-provider argument parsing with multiple
@@ -43,14 +43,14 @@ from myrm_agent_harness.utils.token_economics.usage_ledger import (
 def is_stream_complete(finish_reason: str | None) -> bool:
     """Map a finish reason to the arg-recovery completeness signal.
 
-    ``True`` only when the model ended the turn normally with tool calls (the
-    argument stream is complete). ``False`` when generation stopped abnormally —
-    an empty/missing finish reason (the stream was dropped before the final
-    metadata chunk), a length cut (``length``/``max_tokens``), or a provider
-    safety termination — so argument text is known to be incomplete and must not
-    be closed into a valid-looking object. Note: well-formed arguments never
-    reach the repair gate (they return via the ``standard_json`` fast path), so
-    an abnormal-end signal only ever withholds arguments that already need a
+    ``True`` when the model ended the turn normally (``tool_calls``, ``stop``, ...):
+    the argument stream is complete. ``False`` when generation stopped abnormally —
+    a missing finish reason, the dropped-stream sentinel (the stream ended before
+    the final metadata chunk), a length cut (``length``/``max_tokens``), or a
+    provider safety termination — so argument text is known to be incomplete and
+    must not be closed into a valid-looking object. Well-formed arguments never
+    reach the repair gate (they return via the ``standard_json`` fast path), so an
+    abnormal-end signal only ever withholds arguments that already need a
     non-standard repair.
     """
     if not finish_reason:
@@ -88,7 +88,7 @@ def recover_tool_call_payloads(
     Calls that failed every repair, or whose arguments are known to be truncated
     (``stream_complete is False``), are excluded from dispatch and reported in
     ``recovery_metadata`` with ``safe=False`` plus a diagnosis, so callers can
-    surface them as invalid calls instead of executing wrong/empty arguments.
+    surface them as invalid calls; wrong/empty arguments are never executed.
 
     Args:
         raw_tool_calls: OpenAI-format tool call dicts.

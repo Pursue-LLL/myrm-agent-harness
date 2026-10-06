@@ -10,7 +10,7 @@
 - lc_tool_call_to_openai_tool_call(): convert LangChain ToolCall to OpenAI format
 - convert_lc_messages_to_litellm(): convert LangChain messages to LiteLLM format while preserving explicit message names
 - convert_litellm_response_to_lc_message(): convert LiteLLM response to LangChain message
-- convert_dict_to_message(): convert DictFormat message to LangChain BaseMessage (preserves reasoning_content for reasoning models; routes unsafe/truncated tool args to invalid_tool_calls instead of dispatchable tool_calls; HTML-decodes tool args only when asked, for xAI Grok)
+- convert_dict_to_message(): convert DictFormat message to LangChain BaseMessage (preserves reasoning_content for reasoning models; routes unsafe/truncated tool args to invalid_tool_calls, never to dispatchable tool_calls; HTML-decodes tool args only when asked, for xAI Grok)
 - _extract_citations(): extract unified citation format from provider annotations
 
 [POS]
@@ -191,8 +191,8 @@ def _convert_raw_tool_call_to_langchain(
     Returns ``(tool_call, recovery_metadata)``. ``tool_call`` is ``None`` when the
     call cannot be safely executed — either its args failed every repair strategy
     or the args are known to be truncated mid-stream. The caller must route such
-    calls to ``invalid_tool_calls`` (with the diagnosis) instead of dispatching
-    them, so a missing/partial argument never becomes a silently-wrong execution.
+    calls to ``invalid_tool_calls`` (with the diagnosis) and never dispatch them,
+    so a missing/partial argument never becomes a silently-wrong execution.
 
     Args:
         tc: OpenAI-format tool call dict.
@@ -253,7 +253,7 @@ def _convert_raw_tool_call_to_langchain(
         if not recovery.safe:
             # Hard gate: an unsafe parse must never become an executable tool call.
             # Return no ToolCall so the caller exposes it as an invalid call the
-            # model can see and retry, instead of dispatching wrong/empty args.
+            # model can see and retry; wrong/empty args are never dispatched.
             # The internal strategy name stays in structured metadata (below) and
             # out of the model-facing error text.
             metadata["error"] = (
@@ -289,7 +289,7 @@ def _build_invalid_tool_call(
 
     The raw argument text is preserved so the dangling-call repair pipeline can
     quarantine it (never replaying malformed text) and so the model receives a
-    structured diagnosis instead of an executed wrong/empty call.
+    structured diagnosis; a wrong/empty call is never executed.
     """
     function_obj = tc.get("function") or {}
     raw_args = function_obj.get("arguments", "")
@@ -382,8 +382,8 @@ def convert_dict_to_message(
         tool_schemas: Tool schemas keyed by name, for schema-aware arg recovery.
         stream_complete: Whether the producing stream ended normally. ``False``
             (provider stopped mid-generation) marks truncated args unsafe, and
-            the affected calls are surfaced as ``invalid_tool_calls`` instead of
-            being dispatched with silently-incomplete arguments.
+            the affected calls are surfaced as ``invalid_tool_calls`` and never
+            dispatched with silently-incomplete arguments.
         decode_html_entities: Whether to HTML-decode tool-call argument strings
             (xAI Grok escapes them; every other model's arguments are data).
     """
@@ -419,8 +419,8 @@ def convert_dict_to_message(
                     tool_calls.append(tool_call)
                 elif metadata:
                     # Unsafe parse: keep the call as an invalid declaration so the
-                    # model sees the failure and retries, instead of executing
-                    # wrong/empty arguments.
+                    # model sees the failure and retries; wrong/empty arguments
+                    # are never executed.
                     invalid_tool_calls.append(_build_invalid_tool_call(tc, metadata))
                 if metadata and (
                     metadata["strategy"] != "standard_json" or metadata["degraded"] or not metadata["safe"]

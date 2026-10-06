@@ -277,7 +277,7 @@ class TestRecoveryMetricsRecording:
 class TestNonStreamingTruncationGate:
     """Non-streaming parity: when finish_reason reports an abnormal end
     (length/max_tokens/safety), `stream_complete=False` refuses to close a
-    partial JSON object and the call is surfaced as invalid instead of executed."""
+    partial JSON object and the call is surfaced as invalid and never executed."""
 
     def test_abnormal_end_withholds_truncated_call(self) -> None:
         msg = convert_dict_to_message(

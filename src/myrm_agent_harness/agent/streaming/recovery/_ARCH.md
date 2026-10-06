@@ -12,7 +12,7 @@ Streaming error-recovery strategies. **`stream_recovery.py`** composes the four 
 | stream_recovery.py | Core | StreamRecoveryMixin — composes overflow, LLM failover, safety refusal fallback, escalation, transient retry, iteration-limit, empty-response, truncation, steering, subagent, and goal continuation recovery | ✅ |
 | stream_recovery_continuation.py | Core | StreamContinuationRecoveryMixin — steering injection, subagent completion, goal continuation | ✅ |
 | stream_recovery_oneshot.py | Core | OneshotRecoveryMixin — targeted one-shot recovery (THINKING_SIGNATURE / DUPLICATE_TOOL_USE_ID / IMAGE_TOO_LARGE / MEDIA_REJECTED / ALLOWED_TOOLS_TOOL_CHOICE_REJECTED / LONG_CONTEXT_TIER), with per-image and aggregate historical image eviction fallback | ✅ |
-| stream_recovery_truncation.py | Core | StreamTruncationRecoveryMixin — length/max-token continuation, retry of truncated or withheld tool calls (one retry with a doubled output budget), reasoning-only retry (non-resume) + report-only (resume), `reset_ephemeral_max_output_tokens` | ✅ |
+| stream_recovery_truncation.py | Core | StreamTruncationRecoveryMixin — length/max-token continuation, retry of truncated or withheld tool calls (one retry with a doubled output budget, capped at `MAX_EPHEMERAL_OUTPUT_TOKENS`; a configured budget that already reaches the cap is kept as is), reasoning-only retry (non-resume) + report-only (resume), `reset_ephemeral_max_output_tokens` | ✅ |
 
 ## Invariants
 
@@ -27,9 +27,9 @@ Streaming error-recovery strategies. **`stream_recovery.py`** composes the four 
   `event_handlers` therefore keeps such a message in `collected_messages`, the length-truncation
   handler fires on it whatever `finish_reason` the provider reported, and
   `_has_tool_calls` — the one predicate shared by the truncation and empty-response handlers — counts
-  it, so the turn is retried once or reported (`tool_call_truncated`) instead of ending silently or
-  being mistaken for an empty reply. The retry re-sends the original request plus one appended hint
-  and a one-shot larger `max_tokens`; the prompt prefix is untouched, so the provider cache still hits.
+  it, so the turn is retried once or reported (`tool_call_truncated`); it never ends silently or
+  is mistaken for an empty reply. The retry re-sends the original request plus one appended hint
+  and a one-shot larger `max_tokens`; the prompt prefix is untouched, so the provider cache hits.
 - **Resume turns cannot be retried.** `agent_input` is a `Command` that LangGraph has already
   consumed; replaying one advances no work (verified: it emits zero stream chunks). Recovery
   therefore reports the condition and ends. It must **not** raise the output budget as a

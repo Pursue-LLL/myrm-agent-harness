@@ -116,7 +116,7 @@ class TestRecoverToolCallPayloads:
         assert metadata[0]["safe"] is False
 
     def test_complete_stream_repairs_truncated_args(self) -> None:
-        """When the stream ended normally, the same partial JSON is still repaired."""
+        """When the stream ended normally, the same partial JSON is repaired."""
         raw = [
             {"id": "call_1", "type": "function", "function": {"name": "write", "arguments": '{"path": "/tmp/x"'}},
         ]
