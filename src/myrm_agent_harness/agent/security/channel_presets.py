@@ -338,9 +338,12 @@ def _merge_user_and_agent(user: SecurityConfig | None, agent: SecurityConfig | N
     - capabilities: intersection (Agent restricts, never expands)
     - allowed_roots: union (Agent can grant additional paths)
     - forbidden_paths: always DEFAULT (cannot be overridden)
-    - ruleset: Agent rules merged under Least Privilege Ceiling (can tighten, never escalate)
+    - ruleset: with a user config, agent rules are merged under the Least Privilege
+      Ceiling (can tighten, never escalate). Without a user config the agent config
+      is used as-is, so untrusted (externally supplied) overrides must be restricted
+      by the business layer before they reach this function.
     - timeout: Agent overrides user if explicitly configured (non-default)
-    - yolo_mode: Agent can only be in YOLO mode if user globally enabled YOLO
+    - yolo_mode: either side enabling YOLO enables it (no user-level ceiling applies)
     """
     if agent is None:
         return user
