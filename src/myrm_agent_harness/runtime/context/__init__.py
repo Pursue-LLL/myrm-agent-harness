@@ -64,6 +64,15 @@ from myrm_agent_harness.runtime.context.file_io_checkpoint_tracker import (
     DeterministicFileIOSummary,
     extract_deterministic_file_io,
 )
+from myrm_agent_harness.runtime.context.headless_rpc_gateway import (
+    HeadlessRpcGateway,
+    RpcCommand,
+    RpcCommandType,
+    RpcEventFrame,
+    RpcResponseFrame,
+    RpcUIRequestFrame,
+    RpcUIResponseFrame,
+)
 from myrm_agent_harness.runtime.context.instance_metrics import (
     ContextMetrics,
     get_context_metrics,
@@ -296,4 +305,11 @@ __all__ = [
     "GrepMatchItem",
     "GrepRecallResult",
     "PruneAndSpillRecallEngine",
+    "HeadlessRpcGateway",
+    "RpcCommand",
+    "RpcCommandType",
+    "RpcEventFrame",
+    "RpcResponseFrame",
+    "RpcUIRequestFrame",
+    "RpcUIResponseFrame",
 ]
