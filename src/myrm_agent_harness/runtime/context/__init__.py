@@ -86,6 +86,9 @@ from myrm_agent_harness.runtime.context.compaction_observation_accounting import
     HostOwnedPromptAccountingLedger,
     RetainedFrameDescriptor,
 )
+from myrm_agent_harness.runtime.context.compression_budget_router import (
+    CompressionBudgetRouter,
+)
 from myrm_agent_harness.runtime.context.config import (
     ContextCleanupConfig,
     StorageQuotaConfig,
@@ -557,6 +560,9 @@ from myrm_agent_harness.runtime.context.progressive_cli_manifest_types import (
     DryRunProbeResult,
     ManifestFormatConfig,
 )
+from myrm_agent_harness.runtime.context.protected_patterns_matcher import (
+    ProtectedPatternsMatcher,
+)
 from myrm_agent_harness.runtime.context.prune_and_spill_recall import (
     GrepMatchItem,
     GrepRecallResult,
@@ -710,6 +716,9 @@ from myrm_agent_harness.runtime.context.surface_projection_types import (
     SurfaceOpType,
     SurfaceProjectionAudit,
 )
+from myrm_agent_harness.runtime.context.tiered_context_compression_pipeline import (
+    TieredContextCompressionPipeline,
+)
 from myrm_agent_harness.runtime.context.tiered_token_compression_governor import (
     TieredTokenCompressionGovernor,
 )
@@ -719,6 +728,16 @@ from myrm_agent_harness.runtime.context.token_estimator import (
     estimate_context_tokens_anchored,
     extract_provider_usage_anchor,
     is_compaction_triggered,
+)
+from myrm_agent_harness.runtime.context.tokenomics_compression_types import (
+    CompressionBudgetDecision,
+    CompressionTierKind,
+    ContextTaxonomyKind,
+    FourDimensionalMetrics,
+    ProtectedPatternKind,
+    ProtectedPatternsConfig,
+    TaskRiskLevel,
+    TieredCompressionResult,
 )
 from myrm_agent_harness.runtime.context.tool_loop_tracker import (
     ToolLoopTracker,
@@ -1342,4 +1361,16 @@ __all__ = [
     "TriStateTag",
     "WorktreeAllocation",
     "WorktreeReconcileResult",
+    "CompressionBudgetDecision",
+    "CompressionBudgetRouter",
+    "CompressionTierKind",
+    "ContextTaxonomyKind",
+    "FourDimensionalMetrics",
+    "ProtectedPatternKind",
+    "ProtectedPatternsConfig",
+    "ProtectedPatternsMatcher",
+    "TaskRiskLevel",
+    "TieredCompressionResult",
+    "TieredContextCompressionPipeline",
 ]
+
