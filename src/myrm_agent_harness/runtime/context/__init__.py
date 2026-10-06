@@ -32,6 +32,14 @@ from myrm_agent_harness.runtime.context.cut_point_selector import (
     repair_tool_pairing_invariants,
     validate_tool_pairing_invariants,
 )
+from myrm_agent_harness.runtime.context.durable_tri_queue import (
+    AbortOutcome,
+    DurableTriQueueManager,
+    ProvisionedQueueItem,
+    QueueCoalesceMode,
+    QueueRecordType,
+    QueueType,
+)
 from myrm_agent_harness.runtime.context.file_access_tracker import (
     FileAccessTracker,
     get_file_access_tracker,
@@ -182,4 +190,10 @@ __all__ = [
     "HostOwnedBreakdown",
     "HostOwnedPromptAccountingLedger",
     "RetainedFrameDescriptor",
+    "AbortOutcome",
+    "DurableTriQueueManager",
+    "ProvisionedQueueItem",
+    "QueueCoalesceMode",
+    "QueueRecordType",
+    "QueueType",
 ]
