@@ -201,8 +201,17 @@ def test_stream_retry_disabled(chat_model, messages):
     assert chat_model.client.completion.call_count == 1
 
 
-def test_stream_end_to_end_tool_call_recovery(chat_model, messages):
-    """Streamed tool-call chunks are recovered into the final AIMessage."""
+@pytest.mark.parametrize(
+    ("model_id", "expected_command"),
+    [
+        ("xai/grok-4", 'echo "hi" && ls'),
+        ("gpt-3.5-turbo", 'echo "hi" &amp;&amp; ls'),
+    ],
+    ids=["grok-entities-decoded", "other-model-entities-verbatim"],
+)
+def test_stream_end_to_end_tool_call_recovery(chat_model, messages, model_id, expected_command):
+    """Streamed tool-call chunks are recovered into the final AIMessage; only Grok's entities are decoded."""
+    chat_model.model = model_id
 
     schema = {
         "type": "function",
@@ -270,7 +279,7 @@ def test_stream_end_to_end_tool_call_recovery(chat_model, messages):
     assert len(result.generations) == 1
     ai_message = result.generations[0].message
     assert ai_message.tool_calls[0]["name"] == "bash_code_execute_tool"
-    assert ai_message.tool_calls[0]["args"]["command"] == 'echo "hi" && ls'
+    assert ai_message.tool_calls[0]["args"]["command"] == expected_command
     assert ai_message.additional_kwargs.get("tool_call_recovery", []) == []
 
 

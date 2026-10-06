@@ -17,7 +17,7 @@ Provider-specific tool-call format parsers. Each module owns one wire format; al
 | deepseek_dsml.py | Core | DeepSeek DSML-prefixed tool call parsing (the special-token wrapper around DSML tool calls). | ✅ |
 | leaked_json.py | Core | Leaked raw JSON tool calls emitted as plain text (Gemini / Llama style). | ✅ |
 | json_scanner.py | Core | Code-block and JSON boundary scanning helpers shared by the JSON-based parsers. | ✅ |
-| text_utils.py | Core | XML tag cleaning and HTML entity decoding for tool-call text. | ✅ |
+| text_utils.py | Core | XML tag cleaning and single-pass HTML entity decoding for tool-call text (one level: `&amp;lt;` → `&lt;`). Callers apply the decoder only to models known to escape (xAI Grok). | ✅ |
 
 ## POS
 Format-conversion detail layer. The stable import surface is `tool_call_parsers`; no module outside this package imports the parsers directly.

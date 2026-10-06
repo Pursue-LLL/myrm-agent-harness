@@ -146,6 +146,7 @@ class TestStreamFinalizationRecovery:
         final_chunk, corrected_tool_calls, recovery_metadata = model._build_final_tool_call_chunk(
             raw_tool_calls,
             {"bash_code_execute_tool": schema},
+            decode_html_entities=True,
         )
 
         assert final_chunk is not None

@@ -61,7 +61,7 @@ class TestRecoverToolCallPayloads:
                 "function": {"name": "bash", "arguments": json.dumps({"cmd": "echo &amp; hello"})},
             },
         ]
-        recovered, _metadata = recover_tool_call_payloads(raw)
+        recovered, _metadata = recover_tool_call_payloads(raw, decode_html_entities=True)
         assert len(recovered) == 1
         args = json.loads(recovered[0]["function"]["arguments"])
         assert "& hello" in args["cmd"]

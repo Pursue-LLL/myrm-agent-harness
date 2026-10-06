@@ -3,6 +3,7 @@
 [INPUT]
 - adapters.streaming (POS: streaming response processing)
 - adapters.tool_recovery (POS: Tool call recovery module)
+- adapters.model_capability (POS: Model capability detection; xAI Grok tool-argument decoding gate)
 - adapters.safety_termination_detector (POS: Safety termination detector for truncated tool call suppression)
 - utils.cost_engine::compute_cost_by_tokens (POS: token-count-based cost calculation for streaming mode)
 - utils.token_tracker (POS: Token tracking API)
@@ -29,6 +30,7 @@ from typing import Any
 from langchain_core.messages import BaseMessageChunk
 from langchain_core.outputs import ChatGenerationChunk
 
+from myrm_agent_harness.toolkits.llms.adapters.model_capability import ModelCapabilityDetector
 from myrm_agent_harness.toolkits.llms.adapters.safety_termination_detector import (
     detect_safety_termination,
     suppress_tool_calls_for_safety,
@@ -48,6 +50,8 @@ from myrm_agent_harness.toolkits.llms.adapters.tool_recovery import (
 )
 
 logger = logging.getLogger(__name__)
+
+_capability_detector = ModelCapabilityDetector()
 
 
 class XmlStreamBuffer:
@@ -290,7 +294,7 @@ def finalize_stream(
     Args:
         agg: The stream aggregator with accumulated data
         tool_schemas: Tool schemas for recovery
-        model_name: Resolved model name for attribution
+        model_name: Resolved model name for attribution; also selects xAI Grok argument decoding
         is_async: Whether this is an async stream (affects reasoning parser)
         record_usage_fn: Callable to record token usage/cost/latency
         available_tools: Tool names for hallucination filtering in streaming mode
@@ -354,7 +358,9 @@ def finalize_stream(
 
     tool_call_source = parsed_tool_calls if parsed_tool_calls else valid_tool_calls
     final_tool_chunk, corrected_tool_calls, recovery_metadata = build_final_tool_call_chunk(
-        tool_call_source, tool_schemas
+        tool_call_source,
+        tool_schemas,
+        decode_html_entities=_capability_detector.is_xai_model(model_name),
     )
     if corrected_tool_calls:
         aggregated_message["tool_calls"] = corrected_tool_calls

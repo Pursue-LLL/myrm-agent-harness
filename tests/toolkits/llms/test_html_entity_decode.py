@@ -7,6 +7,7 @@ the JSON structure itself is never affected.
 """
 
 import json
+from typing import Any
 
 import pytest
 
@@ -44,6 +45,15 @@ class TestDecodeHtmlEntitiesStr:
     def test_mixed(self) -> None:
         result = decode_html_entities_str("echo &quot;ok&quot; &amp;&amp; cat &lt;f&gt;")
         assert result == 'echo "ok" && cat <f>'
+
+    def test_decodes_one_level_only(self) -> None:
+        # ``&amp;lt;`` is the literal text "&lt;"; a second decoding pass would turn it into "<".
+        assert decode_html_entities_str("&amp;lt;div&amp;gt;") == "&lt;div&gt;"
+        assert decode_html_entities_str("&amp;amp;") == "&amp;"
+        assert decode_html_entities_str("&amp;#39;") == "&#39;"
+
+    def test_unlisted_numeric_entities_stay(self) -> None:
+        assert decode_html_entities_str("&#x2F; &#123;") == "&#x2F; &#123;"
 
 
 # ── decode_html_entities_in_args (recursive) ─────────────────────────
@@ -101,19 +111,22 @@ class TestHtmlEntityRegex:
         assert HTML_ENTITY_RE.search(text) is None
 
 
-# ── Integration with _parse_tool_call_args ───────────────────────────
+# ── Integration with _parse_tool_call_args_result ────────────────────
 
 
 class TestParseToolCallArgsIntegration:
-    """End-to-end: JSON string → parsed dict with entities decoded."""
+    """End-to-end: JSON string → parsed dict with entities decoded (the opt-in path used for Grok)."""
 
     @pytest.fixture(autouse=True)
     def _import_parser(self) -> None:
         from myrm_agent_harness.toolkits.llms.adapters.converters import (
-            _parse_tool_call_args,
+            _parse_tool_call_args_result,
         )
 
-        self.parse = _parse_tool_call_args
+        def parse(args: str | dict[str, Any], tool_name: str) -> dict[str, Any]:
+            return _parse_tool_call_args_result(args, tool_name, decode_html_entities=True)[0]
+
+        self.parse = parse
 
     def test_xai_bash_command(self) -> None:
         raw = json.dumps({"command": "source .env &amp;&amp; psql", "timeout": 30})

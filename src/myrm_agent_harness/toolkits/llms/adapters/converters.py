@@ -10,7 +10,7 @@
 - lc_tool_call_to_openai_tool_call(): convert LangChain ToolCall to OpenAI format
 - convert_lc_messages_to_litellm(): convert LangChain messages to LiteLLM format while preserving explicit message names
 - convert_litellm_response_to_lc_message(): convert LiteLLM response to LangChain message
-- convert_dict_to_message(): convert DictFormat message to LangChain BaseMessage (preserves reasoning_content for reasoning models)
+- convert_dict_to_message(): convert DictFormat message to LangChain BaseMessage (preserves reasoning_content for reasoning models; HTML-decodes tool args only when asked, for xAI Grok)
 - _extract_citations(): extract unified citation format from provider annotations
 
 [POS]
@@ -42,7 +42,6 @@ from langchain_core.messages import (
 from langchain_core.messages.ai import UsageMetadata
 
 from myrm_agent_harness.toolkits.llms.adapters.tool_call_parsers import (
-    HTML_ENTITY_RE,
     ToolCallDict,
     clean_xml_tool_tags,
     decode_html_entities_in_args,
@@ -165,19 +164,13 @@ def _parse_tool_call_args_result(
     args: str | dict[str, Any],
     tool_name: str,
     tool_schema: Mapping[str, Any] | None = None,
+    *,
+    decode_html_entities: bool = False,
 ) -> tuple[dict[str, Any], ToolArgumentRecoveryResult]:
-    has_entities = False
     recovery = parse_tool_call_arguments_with_recovery(args, tool_name, tool_schema)
     parsed: dict[str, Any] = recovery.args if recovery.safe else {}
 
-    if isinstance(args, dict):
-        has_entities = True
-    elif isinstance(args, str):
-        has_entities = bool(HTML_ENTITY_RE.search(args))
-    else:
-        has_entities = True
-
-    if has_entities and parsed:
+    if decode_html_entities and parsed:
         decoded = decode_html_entities_in_args(parsed)
         if isinstance(decoded, dict):
             parsed = decoded
@@ -188,11 +181,16 @@ def _parse_tool_call_args_result(
 def _convert_raw_tool_call_to_langchain(
     tc: ToolCallDict,
     tool_schemas: Mapping[str, Mapping[str, Any]] | None = None,
+    *,
+    decode_html_entities: bool = False,
 ) -> tuple[ToolCall | None, dict[str, Any] | None]:
     """Convert an OpenAI-format tool call to a LangChain ToolCall object.
 
     Args:
         tc: OpenAI-format tool call dict
+        tool_schemas: Tool schemas keyed by name, for schema-aware recovery
+        decode_html_entities: Whether to HTML-decode argument strings. xAI Grok
+            escapes them; every other model's arguments are data.
 
     Returns:
         LangChain ToolCall object; returns None on parsing failure
@@ -219,7 +217,10 @@ def _convert_raw_tool_call_to_langchain(
 
         # ParseParameter JSON
         parsed_args, recovery = _parse_tool_call_args_result(
-            args, tool_name, _resolve_tool_schema(raw_tool_name, tool_schemas)
+            args,
+            tool_name,
+            _resolve_tool_schema(raw_tool_name, tool_schemas),
+            decode_html_entities=decode_html_entities,
         )
 
         metadata = {
@@ -269,16 +270,15 @@ def _parse_tool_call_args(
 ) -> dict[str, Any]:
     """Parse tool call parameters.
 
-    xAI/Grok models encode HTML entities in tool call argument values
-    (e.g. ``&&`` → ``&amp;&amp;``). After JSON parsing, all string values are
-    recursively decoded to restore the original content.
+    HTML entities stay verbatim: decoding is opt-in per model through
+    ``_parse_tool_call_args_result(..., decode_html_entities=True)``.
 
     Args:
         args: Parameter string or dict
         tool_name: Tool name (for logging)
 
     Returns:
-        Parsed parameter dict (HTML entities already decoded)
+        Parsed parameter dict
     """
     parsed, recovery = _parse_tool_call_args_result(args, tool_name, tool_schema)
 
@@ -327,8 +327,18 @@ def convert_dict_to_message(
     _dict: Mapping[str, Any],
     available_tools: list[str] | None = None,
     tool_schemas: Mapping[str, Mapping[str, Any]] | None = None,
+    *,
+    decode_html_entities: bool = False,
 ) -> BaseMessage:
-    """Convert a dict-format message to a LangChain BaseMessage."""
+    """Convert a dict-format message to a LangChain BaseMessage.
+
+    Args:
+        _dict: Provider message dict (OpenAI/LiteLLM shape).
+        available_tools: Names used to filter hallucinated tool calls.
+        tool_schemas: Tool schemas keyed by name, for schema-aware arg recovery.
+        decode_html_entities: Whether to HTML-decode tool-call argument strings
+            (xAI Grok escapes them; every other model's arguments are data).
+    """
     role = _dict["role"]
     if role == "user":
         return HumanMessage(content=_dict["content"], name=_dict.get("name"))
@@ -353,7 +363,9 @@ def convert_dict_to_message(
         if raw_tool_calls:
             content = clean_xml_tool_tags(content)
             for tc in raw_tool_calls:
-                tool_call, metadata = _convert_raw_tool_call_to_langchain(tc, tool_schemas)
+                tool_call, metadata = _convert_raw_tool_call_to_langchain(
+                    tc, tool_schemas, decode_html_entities=decode_html_entities
+                )
                 if tool_call:
                     tool_calls.append(tool_call)
                 if metadata and (

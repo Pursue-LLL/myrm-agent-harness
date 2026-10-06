@@ -2,7 +2,7 @@
 
 [INPUT]
 - adapters.converters (POS: message and tool call converters)
-- adapters.model_capability (POS: reasoning_content echo requirements)
+- adapters.model_capability (POS: reasoning_content echo requirements; xAI Grok tool-argument decoding gate)
 - adapters.safety_termination_detector (POS: safety termination on truncated tool_calls)
 - adapters.chat_model.exceptions (POS: role patterns and EmptyChoicesError)
 
@@ -129,8 +129,10 @@ class ChatLiteLLMMessageMixin:
         self,
         raw_tool_calls: Sequence[Mapping[str, Any]],
         tool_schemas: Mapping[str, Mapping[str, Any]] | None = None,
+        *,
+        decode_html_entities: bool = False,
     ) -> tuple[ChatGenerationChunk | None, list[dict[str, Any]], list[dict[str, Any]]]:
-        return _build_final_tool_call_chunk_fn(raw_tool_calls, tool_schemas)
+        return _build_final_tool_call_chunk_fn(raw_tool_calls, tool_schemas, decode_html_entities=decode_html_entities)
 
     @staticmethod
     def _stringify_message_content(content: object) -> str:
@@ -351,7 +353,12 @@ class ChatLiteLLMMessageMixin:
                 suppress_tool_calls_for_safety(choice["message"], finish_reason)
 
             try:
-                message = convert_dict_to_message(choice["message"], available_tools, tool_schemas)
+                message = convert_dict_to_message(
+                    choice["message"],
+                    available_tools,
+                    tool_schemas,
+                    decode_html_entities=_capability_detector.is_xai_model(self.model_name or self.model),
+                )
             except Exception as e:
                 logger.error(f" Failed to convert message: {type(e).__name__} - {e!s}")
                 raise

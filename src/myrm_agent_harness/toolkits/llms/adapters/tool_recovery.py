@@ -6,7 +6,7 @@
 - observability.metrics.registry::metrics_registry (POS: Global metrics registry)
 
 [OUTPUT]
-- recover_tool_call_payloads(): Parse and recover tool call arguments with fallback strategies
+- recover_tool_call_payloads(): Parse and recover tool call arguments with fallback strategies (HTML-entity decoding is opt-in)
 - build_final_tool_call_chunk(): Build a final ChatGenerationChunk containing all recovered tool calls
 
 [POS]
@@ -24,10 +24,7 @@ from typing import Any
 from langchain_core.messages import AIMessageChunk, ToolCallChunk
 from langchain_core.outputs import ChatGenerationChunk
 
-from myrm_agent_harness.toolkits.llms.adapters.tool_call_parsers import (
-    HTML_ENTITY_RE,
-    decode_html_entities_in_args,
-)
+from myrm_agent_harness.toolkits.llms.adapters.tool_call_parsers import decode_html_entities_in_args
 from myrm_agent_harness.toolkits.llms.utils.litellm_utils import (
     parse_tool_call_arguments_with_recovery,
 )
@@ -36,8 +33,16 @@ from myrm_agent_harness.toolkits.llms.utils.litellm_utils import (
 def recover_tool_call_payloads(
     raw_tool_calls: Sequence[Mapping[str, Any]],
     tool_schemas: Mapping[str, Mapping[str, Any]] | None = None,
+    *,
+    decode_html_entities: bool = False,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Parse raw tool calls with recovery strategies and return normalized payloads.
+
+    Args:
+        raw_tool_calls: OpenAI-format tool call dicts.
+        tool_schemas: Tool schemas keyed by name, for schema-aware recovery.
+        decode_html_entities: Whether to HTML-decode argument strings. xAI Grok
+            escapes them; every other model's arguments are data.
 
     Returns:
         (recovered_tool_calls, recovery_metadata) where each tool call has normalized
@@ -67,11 +72,7 @@ def recover_tool_call_payloads(
             tool_schema,
         )
         parsed_args: dict[str, Any] = recovery.args if recovery.safe else {}
-        raw_arguments = function_obj.get("arguments", "")
-        has_entities = isinstance(raw_arguments, dict) or (
-            isinstance(raw_arguments, str) and bool(HTML_ENTITY_RE.search(raw_arguments))
-        )
-        if has_entities and parsed_args:
+        if decode_html_entities and parsed_args:
             decoded = decode_html_entities_in_args(parsed_args)
             if isinstance(decoded, dict):
                 parsed_args = decoded
@@ -117,13 +118,22 @@ def recover_tool_call_payloads(
 def build_final_tool_call_chunk(
     raw_tool_calls: Sequence[Mapping[str, Any]],
     tool_schemas: Mapping[str, Mapping[str, Any]] | None = None,
+    *,
+    decode_html_entities: bool = False,
 ) -> tuple[ChatGenerationChunk | None, list[dict[str, Any]], list[dict[str, Any]]]:
     """Build a final ChatGenerationChunk with all recovered tool calls.
+
+    Args:
+        raw_tool_calls: OpenAI-format tool call dicts.
+        tool_schemas: Tool schemas keyed by name, for schema-aware recovery.
+        decode_html_entities: Whether to HTML-decode argument strings (xAI Grok).
 
     Returns:
         (chunk_or_none, recovered_tool_calls, recovery_metadata)
     """
-    recovered_tool_calls, recovery_metadata = recover_tool_call_payloads(raw_tool_calls, tool_schemas)
+    recovered_tool_calls, recovery_metadata = recover_tool_call_payloads(
+        raw_tool_calls, tool_schemas, decode_html_entities=decode_html_entities
+    )
     if not recovered_tool_calls:
         return None, recovered_tool_calls, recovery_metadata
 

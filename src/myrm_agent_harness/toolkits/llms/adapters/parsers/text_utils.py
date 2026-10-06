@@ -35,6 +35,7 @@ _LEAKED_JSON_TOOL_CALLS_PATTERN = re.compile(
     re.IGNORECASE,
 )
 HTML_ENTITY_RE = re.compile(r"&(?:amp|lt|gt|quot|apos|#39|#x[0-9a-fA-F]+|#\d+);")
+_HTML_ENTITY_CHARS = {"&amp;": "&", "&quot;": '"', "&#39;": "'", "&apos;": "'", "&lt;": "<", "&gt;": ">"}
 
 
 def clean_xml_tool_tags(text: str) -> str:
@@ -56,15 +57,12 @@ def clean_xml_tool_tags(text: str) -> str:
 
 
 def decode_html_entities_str(value: str) -> str:
-    """Decode HTML entities in a single string value."""
-    return (
-        value.replace("&amp;", "&")
-        .replace("&quot;", '"')
-        .replace("&#39;", "'")
-        .replace("&apos;", "'")
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-    )
+    """Decode HTML entities in a single string value, one level only.
+
+    ``&amp;lt;`` is the literal text ``&lt;`` and must not be decoded a second time into ``<``.
+    Numeric entities outside the table are left as they are.
+    """
+    return HTML_ENTITY_RE.sub(lambda m: _HTML_ENTITY_CHARS.get(m.group(0), m.group(0)), value)
 
 
 def decode_html_entities_in_args(
@@ -77,7 +75,8 @@ def decode_html_entities_in_args(
     and other string values. This function recursively walks the parsed args
     and decodes all string values containing HTML entities.
 
-    Safe for non-xAI models: strings without entities pass through unchanged.
+    Apply it only to models known to escape (``ModelCapabilityDetector.is_xai_model``): entity
+    text from any other model is data, and decoding it would corrupt it.
     """
     if isinstance(obj, str):
         return decode_html_entities_str(obj) if HTML_ENTITY_RE.search(obj) else obj

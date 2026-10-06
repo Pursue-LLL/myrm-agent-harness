@@ -1,9 +1,12 @@
-"""Model capability detection for reasoning_content handling.
+"""Model capability detection for reasoning_content handling and tool-argument escaping.
 
 Detects models that require special reasoning_content handling:
 - MiMo: requires complete reasoning_content echo-back
 - DeepSeek: requires reasoning_content on tool-call messages
 - Kimi/Moonshot: requires reasoning_content on tool-call messages
+
+and models whose tool-call arguments arrive escaped:
+- xAI Grok: HTML-escapes characters inside tool-call argument strings
 
 [INPUT]
 - (none)
@@ -12,7 +15,7 @@ Detects models that require special reasoning_content handling:
 - ModelCapabilityDetector: class — Model capability detection
 
 [POS]
-Provides ModelCapabilityDetector for reasoning_content handling.
+Provides ModelCapabilityDetector for reasoning_content handling, tool-argument escaping and local transport.
 """
 
 from __future__ import annotations
@@ -27,6 +30,8 @@ logger = get_agent_logger(__name__)
 _MIMO_PREFIXES = ("xiaomi_mimo/", "mimo")
 _DEEPSEEK_PREFIXES = ("deepseek/",)
 _KIMI_PREFIXES = ("moonshot/", "kimi/")
+_XAI_PREFIXES = ("xai/",)
+_GROK_ID_PREFIX = "grok-"
 
 # Base URL hosts for detection
 _DEEPSEEK_HOSTS = ("api.deepseek.com",)
@@ -284,6 +289,25 @@ class ModelCapabilityDetector:
             or _matches_prefix(model, _KIMI_PREFIXES)
             or model_lower.startswith(("kimi", "moonshot"))
             or _matches_host(base_url, _KIMI_HOSTS)
+        )
+
+    def is_xai_model(self, model: str = "") -> bool:
+        """Return True for xAI Grok models, which HTML-escape characters in tool-call arguments.
+
+        Grok emits ``&&`` as ``&amp;&amp;`` inside argument strings, so they must be decoded after
+        parsing; every other model's arguments are byte-exact data and must never be decoded. The
+        model id alone is the evidence — the LiteLLM ``xai/`` route or a Grok id, including one
+        served through a gateway — so no provider or host is consulted.
+
+        Args:
+            model: Model name (e.g., "xai/grok-4", "x-ai/grok-4-fast")
+
+        Returns:
+            True if the model is xAI Grok
+        """
+        model_lower = (model or "").lower()
+        return model_lower.startswith(_XAI_PREFIXES) or model_lower.rsplit("/", maxsplit=1)[-1].startswith(
+            _GROK_ID_PREFIX
         )
 
     def is_local_endpoint(

@@ -709,7 +709,7 @@ class TestFinalizeStreamContentParsedToolCalls:
         record_fn = MagicMock()
         fake_tc = {"function": {"name": "search", "arguments": "{}"}, "id": "pc1", "type": "function"}
 
-        def _build_side_effect(tool_calls, schemas):
+        def _build_side_effect(tool_calls, schemas, **kwargs):
             if tool_calls:
                 return (MagicMock(spec=ChatGenerationChunk), [fake_tc], [])
             return (MagicMock(spec=ChatGenerationChunk), [], [])
