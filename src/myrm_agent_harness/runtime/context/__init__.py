@@ -129,6 +129,14 @@ from myrm_agent_harness.runtime.context.durable_tri_queue import (
     QueueRecordType,
     QueueType,
 )
+from myrm_agent_harness.runtime.context.extreme_streaming_governor import (
+    CursorExpiredError,
+    ExtremeStreamingGovernor,
+    OffloadStatus,
+    StreamChunkItem,
+    StreamGovernorStats,
+    StreamResumeCursor,
+)
 from myrm_agent_harness.runtime.context.file_access_tracker import (
     FileAccessTracker,
     get_file_access_tracker,
@@ -640,4 +648,10 @@ __all__ = [
     "InstructionRuleEntry",
     "InstructionTierKind",
     "InvisibleUnicodeSanitizer",
+    "CursorExpiredError",
+    "ExtremeStreamingGovernor",
+    "OffloadStatus",
+    "StreamChunkItem",
+    "StreamGovernorStats",
+    "StreamResumeCursor",
 ]
