@@ -73,6 +73,15 @@ from myrm_agent_harness.toolkits.memory.cube import (
     unwrap_envelope,
     wrap_into_envelope,
 )
+from myrm_agent_harness.toolkits.memory.dialectic import (
+    DialecticCadenceConfig,
+    DialecticCadenceGovernor,
+    DialecticEphemeralMind,
+    DialecticReasoningEngine,
+    DialecticReasoningResult,
+    SessionHeatState,
+    UserBaseProfile,
+)
 from myrm_agent_harness.toolkits.memory.domain_types import (
     DomainCategory,
     MemoryDomain,
@@ -408,6 +417,11 @@ __all__ = [
     "ConsolidationConfig",
     "ColdMemoryRecord",
     "DecisionVetoSeverity",
+    "DialecticCadenceConfig",
+    "DialecticCadenceGovernor",
+    "DialecticEphemeralMind",
+    "DialecticReasoningEngine",
+    "DialecticReasoningResult",
     "ClientPartitionConfig",
     "ClientWorkspaceDescriptor",
     "ClientWorkspaceResolver",
@@ -552,6 +566,7 @@ __all__ = [
     "ScrollAnchorResult",
     "ScrollMessageItem",
     "SessionScrollNavigator",
+    "SessionHeatState",
     "SharedMemoryConcurrencyPool",
     "SearchMetrics",
     "SearchSnapshot",
@@ -566,6 +581,7 @@ __all__ = [
     "ToolGuidanceSummary",
     "synthesize_tool_guidance",
     "filter_guidance_items",
+    "UserBaseProfile",
     "VectorStoreProtocol",
     "create_consolidation_cleanup_task",
     "create_conversation_search_tool",
