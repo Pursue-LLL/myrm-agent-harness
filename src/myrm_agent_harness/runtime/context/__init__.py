@@ -52,6 +52,15 @@ from myrm_agent_harness.runtime.context.big_at_context_bridge import (
     DistilledSessionContext,
     ZeroExplanationContextExtractor,
 )
+from myrm_agent_harness.runtime.context.caveman_output_throttle import (
+    AdaptiveThrottleDecisionEngine,
+    CavemanOutputPostProcessor,
+    CavemanPromptPreamble,
+    CavemanThrottleMode,
+    ConversationIntentKind,
+    SanitizedOutputResult,
+    ThrottleDecision,
+)
 from myrm_agent_harness.runtime.context.cleanup import (
     cleanup_context_files_async,
     cleanup_context_files_local,
@@ -566,4 +575,11 @@ __all__ = [
     "ResolvedContextAnchor",
     "SocialCollaborationGraph",
     "WorkAssetKind",
+    "AdaptiveThrottleDecisionEngine",
+    "CavemanOutputPostProcessor",
+    "CavemanPromptPreamble",
+    "CavemanThrottleMode",
+    "ConversationIntentKind",
+    "SanitizedOutputResult",
+    "ThrottleDecision",
 ]
