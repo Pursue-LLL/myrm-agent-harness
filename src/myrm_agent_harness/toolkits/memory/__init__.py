@@ -16,6 +16,14 @@ from myrm_agent_harness.toolkits.memory.cards import (
     AMemCard,
     AMemZettelkastenNetwork,
 )
+from myrm_agent_harness.toolkits.memory.client_partition import (
+    ClientPartitionConfig,
+    ClientWorkspaceDescriptor,
+    ClientWorkspaceResolver,
+    CrossClientLeakGuard,
+    CrossClientLeakViolation,
+    PartitionInspectionReport,
+)
 from myrm_agent_harness.toolkits.memory.config import (
     AgentMemoryPolicy,
     ConsolidationConfig,
@@ -355,6 +363,12 @@ __all__ = [
     "BaseMemory",
     "ConsolidationConfig",
     "ColdMemoryRecord",
+    "ClientPartitionConfig",
+    "ClientWorkspaceDescriptor",
+    "ClientWorkspaceResolver",
+    "CrossClientLeakGuard",
+    "CrossClientLeakViolation",
+    "PartitionInspectionReport",
     "ConversationSearchHit",
     "ConversationSearchProtocol",
     "ConversationSearchRequest",

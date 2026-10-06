@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 _SCOPE_ORDER: tuple[MemoryScopeLevel, ...] = (
     MemoryScopeLevel.GLOBAL,
+    MemoryScopeLevel.CLIENT,
     MemoryScopeLevel.AGENT,
     MemoryScopeLevel.CHANNEL,
     MemoryScopeLevel.CONVERSATION,
@@ -61,12 +62,19 @@ def validate_namespaces(namespaces: list[str]) -> list[str]:
 
 
 def _candidate_namespaces(
-    *, agent_id: str | None, channel_id: str | None, conversation_id: str | None, task_id: str | None
+    *,
+    client_id: str | None = None,
+    agent_id: str | None,
+    channel_id: str | None,
+    conversation_id: str | None,
+    task_id: str | None,
 ) -> dict[MemoryScopeLevel, str]:
     candidates: dict[MemoryScopeLevel, str] = {
         MemoryScopeLevel.GLOBAL: "global",
         MemoryScopeLevel.AGENT: f"agent:{agent_id or 'default'}",
     }
+    if client_id:
+        candidates[MemoryScopeLevel.CLIENT] = f"client:{client_id}"
     if channel_id:
         candidates[MemoryScopeLevel.CHANNEL] = f"channel:{channel_id}"
     if conversation_id:
@@ -78,15 +86,17 @@ def _candidate_namespaces(
 
 def _resolve_scope_identifiers(
     *,
+    client_id: str | None = None,
     agent_id: str | None,
     channel_id: str | None,
     conversation_id: str | None,
     task_id: str | None,
     memory_policy: AgentMemoryPolicy | None,
-) -> tuple[str | None, str | None, str | None, str | None]:
+) -> tuple[str | None, str | None, str | None, str | None, str | None]:
     if memory_policy is None:
-        return agent_id, channel_id, conversation_id, task_id
+        return client_id, agent_id, channel_id, conversation_id, task_id
     return (
+        memory_policy.client_id if memory_policy.client_id is not None else client_id,
         memory_policy.agent_id if memory_policy.agent_id is not None else agent_id,
         memory_policy.channel_id if memory_policy.channel_id is not None else channel_id,
         memory_policy.conversation_id if memory_policy.conversation_id is not None else conversation_id,
@@ -97,6 +107,7 @@ def _resolve_scope_identifiers(
 def derive_namespaces(
     *,
     namespaces: list[str] | None,
+    client_id: str | None = None,
     agent_id: str | None,
     channel_id: str | None,
     conversation_id: str | None,
@@ -106,7 +117,14 @@ def derive_namespaces(
     if namespaces:
         return validate_namespaces(namespaces)
 
-    resolved_agent_id, resolved_channel_id, resolved_conversation_id, resolved_task_id = _resolve_scope_identifiers(
+    (
+        resolved_client_id,
+        resolved_agent_id,
+        resolved_channel_id,
+        resolved_conversation_id,
+        resolved_task_id,
+    ) = _resolve_scope_identifiers(
+        client_id=client_id,
         agent_id=agent_id,
         channel_id=channel_id,
         conversation_id=conversation_id,
@@ -114,6 +132,7 @@ def derive_namespaces(
         memory_policy=memory_policy,
     )
     candidates = _candidate_namespaces(
+        client_id=resolved_client_id,
         agent_id=resolved_agent_id,
         channel_id=resolved_channel_id,
         conversation_id=resolved_conversation_id,
@@ -141,13 +160,21 @@ def derive_namespaces(
 def build_scope(
     *,
     namespaces: list[str],
+    client_id: str | None = None,
     agent_id: str | None,
     channel_id: str | None,
     conversation_id: str | None,
     task_id: str | None,
     memory_policy: AgentMemoryPolicy | None = None,
 ) -> MemoryScope:
-    resolved_agent_id, resolved_channel_id, resolved_conversation_id, resolved_task_id = _resolve_scope_identifiers(
+    (
+        resolved_client_id,
+        resolved_agent_id,
+        resolved_channel_id,
+        resolved_conversation_id,
+        resolved_task_id,
+    ) = _resolve_scope_identifiers(
+        client_id=client_id,
         agent_id=agent_id,
         channel_id=channel_id,
         conversation_id=conversation_id,
@@ -157,6 +184,7 @@ def build_scope(
     scope_namespaces = list(namespaces)
     if memory_policy is not None and memory_policy.write_policy != MemoryWritePolicy.INHERIT:
         candidates = _candidate_namespaces(
+            client_id=resolved_client_id,
             agent_id=resolved_agent_id,
             channel_id=resolved_channel_id,
             conversation_id=resolved_conversation_id,
@@ -172,6 +200,7 @@ def build_scope(
     return MemoryScope(
         primary_namespace=primary_namespace,
         namespaces=scope_namespaces,
+        client_id=resolved_client_id,
         agent_id=resolved_agent_id,
         channel_id=resolved_channel_id,
         conversation_id=resolved_conversation_id,
@@ -189,14 +218,17 @@ def resolve_primary_namespace(namespaces: list[str]) -> str:
     scoped to the broadest durable namespace the reader can still reach, which is
     what makes them survive across sessions.
 
-    Preference order: the ``agent:*`` scope, then ``global``, then the narrowest
-    non-shared candidate. ``shared:*`` namespaces are excluded because they are a
-    broadcast target rather than an ownership scope.
+    Preference order: ``project:*``, then ``client:*``, then the ``agent:*`` scope,
+    then ``global``, then the narrowest non-shared candidate. ``shared:*`` namespaces
+    are excluded because they are a broadcast target rather than an ownership scope.
     """
     if not namespaces:
         raise ValueError("Cannot resolve a primary namespace from an empty namespace chain")
     for namespace in namespaces:
         if namespace.startswith("project:"):
+            return namespace
+    for namespace in namespaces:
+        if namespace.startswith("client:"):
             return namespace
     for namespace in namespaces:
         if namespace.startswith(_AGENT_NAMESPACE_PREFIX):

@@ -225,6 +225,7 @@ class MemoryScope(BaseModel):
 
     primary_namespace: str = ""
     namespaces: list[str] = Field(default_factory=list)
+    client_id: str | None = None
     agent_id: str | None = None
     channel_id: str | None = None
     conversation_id: str | None = None

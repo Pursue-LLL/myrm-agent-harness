@@ -105,6 +105,7 @@ class MemoryScopeLevel(StrEnum):
     """Typed namespace levels for agent memory policy."""
 
     GLOBAL = "global"
+    CLIENT = "client"
     AGENT = "agent"
     CHANNEL = "channel"
     CONVERSATION = "conversation"
@@ -116,6 +117,7 @@ class MemoryWritePolicy(StrEnum):
 
     INHERIT = "inherit"
     GLOBAL = "global"
+    CLIENT = "client"
     AGENT = "agent"
     CHANNEL = "channel"
     CONVERSATION = "conversation"
@@ -135,6 +137,7 @@ class AgentMemoryPolicy:
     - ``auto_cleanup`` controls whether ephemeral session/task state is cleaned up upon task end.
     """
 
+    client_id: str | None = None
     agent_id: str | None = None
     channel_id: str | None = None
     conversation_id: str | None = None
