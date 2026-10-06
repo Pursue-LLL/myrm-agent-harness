@@ -172,6 +172,16 @@ from myrm_agent_harness.runtime.context.instance_metrics import (
     get_context_metrics,
     set_context_metrics,
 )
+from myrm_agent_harness.runtime.context.multi_dimension_at_resolver import (
+    AtContextIngestionResult,
+    AtReferenceKind,
+    MultiDimensionAtSyntaxParser,
+    ParsedAtReference,
+    ResolvedAtResource,
+    SnapshotCompressor,
+    SnapshotDetailLevel,
+    UnifiedMultiDimensionAtResolver,
+)
 from myrm_agent_harness.runtime.context.offload import (
     cleanup_orphan_context_files,
     cleanup_orphan_context_files_async,
@@ -582,4 +592,12 @@ __all__ = [
     "ConversationIntentKind",
     "SanitizedOutputResult",
     "ThrottleDecision",
+    "AtContextIngestionResult",
+    "AtReferenceKind",
+    "MultiDimensionAtSyntaxParser",
+    "ParsedAtReference",
+    "ResolvedAtResource",
+    "SnapshotCompressor",
+    "SnapshotDetailLevel",
+    "UnifiedMultiDimensionAtResolver",
 ]
