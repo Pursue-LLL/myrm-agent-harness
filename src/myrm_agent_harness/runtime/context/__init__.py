@@ -92,6 +92,9 @@ from myrm_agent_harness.runtime.context.content_density_ladder_types import (
     DensityReadingRequest,
     DensityReadingResult,
 )
+from myrm_agent_harness.runtime.context.context_overflow_detector import (
+    ContextOverflowDetector,
+)
 from myrm_agent_harness.runtime.context.conversation_tree_graph import (
     ConversationTreeGraph,
 )
@@ -416,6 +419,21 @@ from myrm_agent_harness.runtime.context.persona_conflict_resolver_types import (
     PersonaSnippet,
     PersonaSourceTier,
     PolarityDimension,
+)
+from myrm_agent_harness.runtime.context.pi_compaction_types import (
+    CompactionTriggerKind,
+    CumulativeFileRecord,
+    CutPointResult,
+    OverflowDetectionResult,
+    PiCompactionConfig,
+    PiCompactionResult,
+    RollingStructuredSummary,
+)
+from myrm_agent_harness.runtime.context.pi_progressive_compactor import (
+    CumulativeFileTracker,
+    PiProgressiveCompactor,
+    estimate_message_tokens,
+    find_pi_protocol_safe_cut_point,
 )
 from myrm_agent_harness.runtime.context.plan_mode_boundary_locker import (
     ExecutionMode,
@@ -1090,4 +1108,16 @@ __all__ = [
     "PrunedToolSet",
     "ToolSchemaEntry",
     "tokenize_lexical",
+    "CompactionTriggerKind",
+    "ContextOverflowDetector",
+    "CumulativeFileRecord",
+    "CumulativeFileTracker",
+    "CutPointResult",
+    "OverflowDetectionResult",
+    "PiCompactionConfig",
+    "PiCompactionResult",
+    "PiProgressiveCompactor",
+    "RollingStructuredSummary",
+    "estimate_message_tokens",
+    "find_pi_protocol_safe_cut_point",
 ]
