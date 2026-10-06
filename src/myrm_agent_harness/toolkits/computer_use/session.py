@@ -7,7 +7,8 @@ single cohesive API surface. Agent tools interact exclusively with this class.
 - backends.protocol::ComputerBackend (POS: platform-specific I/O)
 - screenshot_processor::ScreenshotProcessor (POS: image preprocessing)
 - coordinate_scaler::CoordinateScaler (POS: coordinate transformation)
-- types::ComputerAction, ComputerUseConfig, ActionResult, PermissionStatus, ExecutionMode, ForegroundPermissionCallback, ForegroundPermissionScope (POS: shared types)
+- screen_guard::ScreenGuard (POS: lock / sleep gate with host-provided on-demand unlock)
+- types::ComputerAction, ComputerUseConfig, ActionResult, PermissionStatus, ExecutionMode, ForegroundPermissionCallback, ForegroundPermissionScope, ScreenUnlockCallback (POS: shared types)
 
 [OUTPUT]
 - ComputerSession: high-level session manager
@@ -24,6 +25,7 @@ import logging
 
 from myrm_agent_harness.toolkits.computer_use.backends.protocols import ComputerBackend
 from myrm_agent_harness.toolkits.computer_use.coordinate_scaler import CoordinateScaler
+from myrm_agent_harness.toolkits.computer_use.screen_guard import ScreenGuard
 from myrm_agent_harness.toolkits.computer_use.screenshot_processor import (
     ScreenshotProcessor,
 )
@@ -37,6 +39,7 @@ from myrm_agent_harness.toolkits.computer_use.types import (
     PermissionStatus,
     ScreenContext,
     ScreenInfo,
+    ScreenUnlockCallback,
 )
 
 logger = logging.getLogger(__name__)
@@ -61,6 +64,7 @@ class ComputerSession:
         self._last_screenshot_bytes: bytes | None = None
         self._screen_info: ScreenInfo | None = None
         self._permission_callback = permission_callback
+        self._screen_guard = ScreenGuard(backend, self.reanchor_visual_state)
         self._session_permission_granted: bool = False
         self._always_permission_granted: bool = False
         self._operation_foreground_waived: bool = False
@@ -120,21 +124,9 @@ class ComputerSession:
                     timeout_seconds=effective_timeout,
                 ) from exc
 
-    def _is_backend_locked(self) -> bool:
-        fn = getattr(self._backend, "is_screen_locked", None)
-        if callable(fn):
-            val = fn()
-            if isinstance(val, bool):
-                return val
-        return False
-
-    def _is_backend_sleeping(self) -> bool:
-        fn = getattr(self._backend, "is_display_asleep", None)
-        if callable(fn):
-            val = fn()
-            if isinstance(val, bool):
-                return val
-        return False
+    def set_screen_unlock_callback(self, callback: ScreenUnlockCallback | None) -> None:
+        """Let the host unlock the screen on demand when a guarded action finds it locked."""
+        self._screen_guard.unlock_callback = callback
 
     async def _ensure_screen_safe(self) -> None:
         """Ensure host physical display is unlocked and awake before simulating input.
@@ -142,7 +134,7 @@ class ComputerSession:
         Raises ScreenLockedInterruptionError or PhysicalSleepInterruptionError if the
         machine display is locked or sleeping.
         """
-        if self._is_backend_locked():
+        if await self._screen_guard.still_locked():
             logger.warning("[SAFETY_GUARD] Physical input blocked: host screen is locked")
             from myrm_agent_harness.toolkits.computer_use.safety import (
                 ScreenLockedInterruptionError,
@@ -150,7 +142,7 @@ class ComputerSession:
 
             raise ScreenLockedInterruptionError()
 
-        if self._is_backend_sleeping():
+        if self._screen_guard.is_sleeping():
             logger.warning("[SAFETY_GUARD] Physical input blocked: host display is sleeping")
             from myrm_agent_harness.toolkits.computer_use.safety import (
                 PhysicalSleepInterruptionError,

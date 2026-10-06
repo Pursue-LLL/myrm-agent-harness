@@ -4,7 +4,7 @@
 - (none)
 
 [OUTPUT]
-- ComputerAction, DesktopInteractAction, DesktopVisionAction, ScrollDirection, ModifierKey, ScreenInfo, ScreenContext, ScreenLockState, ActionResult, WindowTextResult, ImageConstraints, PermissionStatus, ExecutionMode, ForegroundPermissionScope, ForegroundPermissionResult, ForegroundPermissionCallback, ComputerUseConfig
+- ComputerAction, DesktopInteractAction, DesktopVisionAction, ScrollDirection, ModifierKey, ScreenInfo, ScreenContext, ScreenLockState, ActionResult, WindowTextResult, ImageConstraints, PermissionStatus, ExecutionMode, ForegroundPermissionScope, ForegroundPermissionResult, ForegroundPermissionCallback, ScreenUnlockCallback, ComputerUseConfig
 
 [POS]
 Shared type definitions consumed by all computer_use submodules.
@@ -290,6 +290,19 @@ class ForegroundPermissionCallback(Protocol):
             app_id: Stable platform identifier (bundle ID / process exe) for trust keys.
             require_app_approval: When False, only foreground/coordinate approval is requested.
         """
+        ...
+
+
+class ScreenUnlockCallback(Protocol):
+    """Host-provided recovery for a locked screen; the harness never unlocks one itself.
+
+    Awaited when a guarded action finds the screen locked. The host decides whether and how
+    to unlock it (or to decline) and returns when done. The guard re-probes the lock state
+    afterwards and trusts only that probe, so a host that merely tries is enough.
+    """
+
+    async def __call__(self) -> None:
+        """Try to unlock the screen; return normally once finished or declined."""
         ...
 
 

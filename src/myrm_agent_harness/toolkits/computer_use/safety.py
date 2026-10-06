@@ -14,6 +14,7 @@ Safety guardrails for desktop control tools:
 
 [OUTPUT]
 - ScreenLockedInterruptionError, PhysicalSleepInterruptionError, check_screen_lock_safety, ensure_screen_safe
+- SCREEN_LOCKED_REFUSAL, DISPLAY_SLEEPING_REFUSAL (shared model-facing refusal wording)
 - is_blocked_key_combo, is_dangerous_type_text, is_sensitive_app, check_vision_key_safety
 
 [POS]
@@ -332,6 +333,14 @@ class PhysicalSleepInterruptionError(RuntimeError):
         super().__init__(message)
 
 
+# Model-facing refusals for physical input on an unusable screen; ScreenGuard returns the same
+# bytes, so every desktop entry point refuses with identical wording.
+SCREEN_LOCKED_REFUSAL = (
+    "Safety: Screen is locked. Automated inputs are halted to prevent password leakage and account lockout."
+)
+DISPLAY_SLEEPING_REFUSAL = "Safety: Display is sleeping. Automated inputs are halted to prevent unintended actions."
+
+
 def check_screen_lock_safety(detector: object | None = None) -> str | None:
     """Check if the physical screen is safe for automated input.
 
@@ -346,9 +355,9 @@ def check_screen_lock_safety(detector: object | None = None) -> str | None:
     det: ScreenDetector = detector if isinstance(detector, ScreenDetector) else get_default_screen_detector()
     state = det.get_state()
     if state == ScreenLockState.LOCKED:
-        return "Safety: Screen is locked. Automated inputs are halted to prevent password leakage and account lockout."
+        return SCREEN_LOCKED_REFUSAL
     if state == ScreenLockState.SLEEPING:
-        return "Safety: Display is sleeping. Automated inputs are halted to prevent unintended actions."
+        return DISPLAY_SLEEPING_REFUSAL
     return None
 
 

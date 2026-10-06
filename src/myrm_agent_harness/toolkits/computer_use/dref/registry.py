@@ -56,6 +56,14 @@ class DRefRegistry:
         self._meta = meta
         self._generation += 1
 
+    def clear(self) -> None:
+        """Forget every ref and snapshot so each previously issued @dref resolves as stale."""
+        self._refs = {}
+        self._meta = None
+        self._previous_refs = {}
+        self._previous_meta = None
+        self._generation += 1
+
     def get(self, ref_id: str) -> ElementRef:
         normalized = ref_id.strip()
         if normalized.startswith("@"):

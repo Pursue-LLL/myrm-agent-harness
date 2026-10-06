@@ -191,10 +191,8 @@ class DesktopSession(ComputerSession):
             effective_delay = min(max(float(wait_seconds), 0.0), 10.0)
             await asyncio.sleep(effective_delay)
 
-        if self._is_backend_locked():
-            return "Safety: Desktop screen is locked. Snapshot aborted to prevent capturing private lock-screen content."
-        if self._is_backend_sleeping():
-            return "Safety: Display is sleeping. Snapshot aborted."
+        if (refusal := await self._screen_guard.refusal(snapshot=True)) is not None:
+            return refusal
 
         try:
             meta, refs = capture_snapshot(self._backend, scope, app_name=app_name, query=query, role=role)
@@ -280,10 +278,8 @@ class DesktopSession(ComputerSession):
         wait_seconds: float = 0.0,
     ) -> str | list[object]:
         await self._ensure_not_user_takeover()
-        if self._is_backend_locked():
-            return "Safety: Screen is locked. Automated inputs are halted to prevent password leakage and account lockout."
-        if self._is_backend_sleeping():
-            return "Safety: Display is sleeping. Automated inputs are halted to prevent unintended actions."
+        if (refusal := await self._screen_guard.refusal()) is not None:
+            return refusal
         async with self._action_lock:
             meta = self._refs.meta
             app_name = meta.app_name if meta else ""
@@ -444,10 +440,8 @@ class DesktopSession(ComputerSession):
         modifiers: list[ModifierKey] | None = None,
     ) -> str | list[object]:
         await self._ensure_not_user_takeover()
-        if self._is_backend_locked():
-            return "Safety: Screen is locked. Automated inputs are halted to prevent password leakage and account lockout."
-        if self._is_backend_sleeping():
-            return "Safety: Display is sleeping. Automated inputs are halted to prevent unintended actions."
+        if (refusal := await self._screen_guard.refusal()) is not None:
+            return refusal
         async with self._action_lock:
             from myrm_agent_harness.toolkits.computer_use import safety
 
