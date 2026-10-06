@@ -71,6 +71,10 @@ from myrm_agent_harness.runtime.context.cleanup import (
 from myrm_agent_harness.runtime.context.cleanup_task import (
     ContextCleanupScheduler,
 )
+from myrm_agent_harness.runtime.context.cli_dry_run_protocol import (
+    BestSourceSelector,
+    CliDryRunDiscoveryProtocol,
+)
 from myrm_agent_harness.runtime.context.compaction_observation_accounting import (
     CompactionDecision,
     CompactionHysteresisBufferController,
@@ -490,6 +494,18 @@ from myrm_agent_harness.runtime.context.pristine_passthrough_sandbox import (
     PristinePayload,
     PristineTestingSandbox,
     RawModelPassthroughTransformer,
+)
+from myrm_agent_harness.runtime.context.progressive_cli_manifest_generator import (
+    ProgressiveCliManifestGenerator,
+)
+from myrm_agent_harness.runtime.context.progressive_cli_manifest_types import (
+    CliCapabilityCategory,
+    CliCapabilityEntry,
+    CliToolSource,
+    CliToolSourceKind,
+    DryRunProbeRequest,
+    DryRunProbeResult,
+    ManifestFormatConfig,
 )
 from myrm_agent_harness.runtime.context.prune_and_spill_recall import (
     GrepMatchItem,
@@ -1218,4 +1234,14 @@ __all__ = [
     "RuleTelemetryLedger",
     "RuleTelemetryRecord",
     "RuleTaskPhase",
+    "BestSourceSelector",
+    "CliCapabilityCategory",
+    "CliCapabilityEntry",
+    "CliDryRunDiscoveryProtocol",
+    "CliToolSource",
+    "CliToolSourceKind",
+    "DryRunProbeRequest",
+    "DryRunProbeResult",
+    "ManifestFormatConfig",
+    "ProgressiveCliManifestGenerator",
 ]
