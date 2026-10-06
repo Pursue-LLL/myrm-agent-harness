@@ -159,6 +159,12 @@ from myrm_agent_harness.runtime.context.prune_and_spill_recall import (
     PruneAndSpillResult,
     SpillMetadata,
 )
+from myrm_agent_harness.runtime.context.rejection_reason_guard import (
+    AvoidanceConstraint,
+    HumanRejectionEvent,
+    HumanRejectionGuard,
+    RejectionCategory,
+)
 from myrm_agent_harness.runtime.context.session.event_sourcing_store import (
     EventSourcingLoadResult,
     EventSourcingSessionStore,
@@ -412,4 +418,8 @@ __all__ = [
     "MetadataPrefixKind",
     "ParsedUserQuery",
     "UserQueryDisambiguationGuard",
+    "AvoidanceConstraint",
+    "HumanRejectionEvent",
+    "HumanRejectionGuard",
+    "RejectionCategory",
 ]
