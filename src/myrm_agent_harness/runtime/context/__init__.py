@@ -230,6 +230,13 @@ from myrm_agent_harness.runtime.context.usage_ledger_attempt import (
     SessionUsageRollup,
     UsageCause,
 )
+from myrm_agent_harness.runtime.context.user_query_disambiguation_guard import (
+    CompactionPromptFallbackContract,
+    ContentCategory,
+    MetadataPrefixKind,
+    ParsedUserQuery,
+    UserQueryDisambiguationGuard,
+)
 
 __all__ = [
     "ContextCleanupConfig",
@@ -400,4 +407,9 @@ __all__ = [
     "HiddenGoalRubricPreamble",
     "PreambleInjectionPolicy",
     "RubricSource",
+    "CompactionPromptFallbackContract",
+    "ContentCategory",
+    "MetadataPrefixKind",
+    "ParsedUserQuery",
+    "UserQueryDisambiguationGuard",
 ]
