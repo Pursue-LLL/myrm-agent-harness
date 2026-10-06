@@ -1,5 +1,14 @@
 """Context lifecycle management — cleanup, config, metrics, tracking, reading, offload."""
 
+from myrm_agent_harness.runtime.context.append_only_kv_cache_guard import (
+    AppendOnlyContextTailInvariantGuard,
+    CompactionBypassToken,
+    DeferredWriteBuffer,
+    DeferredWriteItem,
+    DeferredWriteType,
+    KVCacheTailInvariantViolationError,
+    ViolationType,
+)
 from myrm_agent_harness.runtime.context.cleanup import (
     cleanup_context_files_async,
     cleanup_context_files_local,
@@ -196,4 +205,11 @@ __all__ = [
     "QueueCoalesceMode",
     "QueueRecordType",
     "QueueType",
+    "AppendOnlyContextTailInvariantGuard",
+    "CompactionBypassToken",
+    "DeferredWriteBuffer",
+    "DeferredWriteItem",
+    "DeferredWriteType",
+    "KVCacheTailInvariantViolationError",
+    "ViolationType",
 ]
