@@ -413,6 +413,17 @@ from myrm_agent_harness.runtime.context.prune_and_spill_recall import (
     PruneAndSpillResult,
     SpillMetadata,
 )
+from myrm_agent_harness.runtime.context.reasoning_anchor_extractor import (
+    ReasoningAnchorExtractor,
+)
+from myrm_agent_harness.runtime.context.reasoning_compactor_types import (
+    CompactionTier,
+    GovernanceCompactionResult,
+    ReasoningChainAnchor,
+    ReasoningPreservationMode,
+    TieredTokenBudget,
+    UnifiedCompactedTurn,
+)
 from myrm_agent_harness.runtime.context.rejection_reason_guard import (
     AvoidanceConstraint,
     HumanRejectionEvent,
@@ -512,6 +523,9 @@ from myrm_agent_harness.runtime.context.structured_checkpoint_generator import (
     compute_summary_max_output_tokens,
     create_checkpoint_from_messages,
     parse_checkpoint_contract,
+)
+from myrm_agent_harness.runtime.context.tiered_token_compression_governor import (
+    TieredTokenCompressionGovernor,
 )
 from myrm_agent_harness.runtime.context.token_estimator import (
     CompactionBudgetSettings,
@@ -992,4 +1006,12 @@ __all__ = [
     "FileMoveEvent",
     "FileTrackResolution",
     "PersistentFileMoveTrackingSessionStore",
+    "CompactionTier",
+    "GovernanceCompactionResult",
+    "ReasoningAnchorExtractor",
+    "ReasoningChainAnchor",
+    "ReasoningPreservationMode",
+    "TieredTokenBudget",
+    "TieredTokenCompressionGovernor",
+    "UnifiedCompactedTurn",
 ]
