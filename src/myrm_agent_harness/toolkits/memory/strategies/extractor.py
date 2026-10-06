@@ -31,6 +31,9 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from myrm_agent_harness.toolkits.llms.adapters.thinking_adapter import (
+    ThinkingModelReasoningAdapter,
+)
 from myrm_agent_harness.toolkits.memory.types import (
     EpisodicMemory,
     EvidenceReference,
@@ -796,7 +799,12 @@ class MemoryExtractor:
 
 
 def _parse_response(raw: str) -> list[ExtractedMemory]:
-    data = parse_llm_json_list(raw)
+    cleaned = ThinkingModelReasoningAdapter.scrub_thinking_tags(raw)
+    data = parse_llm_json_list(cleaned)
+    if data is None:
+        extracted_block = ThinkingModelReasoningAdapter.extract_json_block(cleaned)
+        if extracted_block:
+            data = parse_llm_json_list(extracted_block)
     if data is None:
         logger.warning("Failed to parse extraction response as JSON array")
         return []

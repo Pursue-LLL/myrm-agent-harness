@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from .adapters.thinking_adapter import ThinkingModelReasoningAdapter
     from .core.credential_pool import CredentialPoolStrategy
     from .core.llm import ChatLiteLLM, create_litellm_model
     from .core.manager import LLMManager, llm_manager
@@ -18,6 +19,7 @@ if TYPE_CHECKING:
         ProviderBalanceResult,
         ProviderBalanceStatus,
     )
+    from .utils.no_proxy_bypass import LanEndpointNoProxyManager
 
 __all__ = [
     "ChatLiteLLM",
@@ -25,11 +27,13 @@ __all__ = [
     "ErrorKind",
     "FallbackModel",
     "LLMManager",
+    "LanEndpointNoProxyManager",
     "ManagedLLM",
     "ProviderBalanceProbeProtocol",
     "ProviderBalanceResult",
     "ProviderBalanceStatus",
     "ScenarioType",
+    "ThinkingModelReasoningAdapter",
     "classify_error",
     "create_litellm_model",
     "extract_retry_after",
@@ -91,6 +95,14 @@ _LAZY_IMPORTS = {
     "is_payload_overflow": (
         "myrm_agent_harness.toolkits.llms.errors.classifier",
         "is_payload_overflow",
+    ),
+    "LanEndpointNoProxyManager": (
+        "myrm_agent_harness.toolkits.llms.utils.no_proxy_bypass",
+        "LanEndpointNoProxyManager",
+    ),
+    "ThinkingModelReasoningAdapter": (
+        "myrm_agent_harness.toolkits.llms.adapters.thinking_adapter",
+        "ThinkingModelReasoningAdapter",
     ),
     "resilient_llm_call": (
         "myrm_agent_harness.toolkits.llms.errors.resilient",
