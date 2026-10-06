@@ -71,6 +71,7 @@ def set_command_hook_approver(approver: HookCommandApprover | None) -> None:
 # Static gate
 # ---------------------------------------------------------------------------
 
+
 def gate_hook_command(command: str, *, strict: bool) -> str | None:
     """Return the refusal reason when a command trips the static safety gate.
 

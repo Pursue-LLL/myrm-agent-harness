@@ -47,6 +47,7 @@ class HookEvent(StrEnum):
 # Hook Governance (priority & provenance)
 # ---------------------------------------------------------------------------
 
+
 class HookSource(StrEnum):
     """Provenance of a hook registration — drives governance and audit."""
 
