@@ -11,6 +11,16 @@ from myrm_agent_harness.runtime.context.config import (
     ContextCleanupConfig,
     StorageQuotaConfig,
 )
+from myrm_agent_harness.runtime.context.cut_point_selector import (
+    CutPointAlignmentStrategy,
+    ToolPairingValidationResult,
+    ToolPairingViolation,
+    ToolPairingViolationType,
+    find_protocol_safe_cut_point,
+    is_permitted_cut_point,
+    repair_tool_pairing_invariants,
+    validate_tool_pairing_invariants,
+)
 from myrm_agent_harness.runtime.context.file_access_tracker import (
     FileAccessTracker,
     get_file_access_tracker,
@@ -92,4 +102,12 @@ __all__ = [
     "estimate_context_tokens_anchored",
     "extract_provider_usage_anchor",
     "is_compaction_triggered",
+    "CutPointAlignmentStrategy",
+    "ToolPairingValidationResult",
+    "ToolPairingViolation",
+    "ToolPairingViolationType",
+    "find_protocol_safe_cut_point",
+    "is_permitted_cut_point",
+    "repair_tool_pairing_invariants",
+    "validate_tool_pairing_invariants",
 ]
