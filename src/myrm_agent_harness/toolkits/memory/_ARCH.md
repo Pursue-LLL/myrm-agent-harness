@@ -85,6 +85,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | dual_track_extraction/ | Dual-Track Memory Extraction Routing & Anti-Silent-Drop Gateway: dual-track classification (declarative facts vs procedural rules), automatic dispatch to ProceduralMemory, and transparent destiny reports defending against silent drop defects. |
 | universal_mcp_bridge/ | Universal MCP Memory Bridge & External Client Config Generator: stdio/SSE dual-mode MCP server integration, plug-and-play client configuration generator (Claude Code, Cursor, VSCode/Cline, CodeBuddy, Hermes), unified user_id lease anchor, and instant bidirectional memory convergence. |
 | vector_preflight/ | Vector Store Preflight Dimension Integrity & IPv4 Loopback Sanitizer: IPv4 loopback sanitization eliminating IPv6 ::1 container traps, preflight dynamic embedding dimension sampling, and rigid schema mismatch prevention. |
+| self_verification/ | Memory Self-Verification Diagnostic Suite & Fact Update Benchmark: in-place fact mutation & contradiction elimination probe, zero-lexical-overlap semantic recall verification, procedural anti-silent-drop testing, and isolated sandbox execution with guaranteed rollback cleanup. |
 | workspace_living/ | Living Workspace Governance & documentation synchronization toolkit (CausalIssueMerger, KnownIssueEntry, ADRMetadata, idempotent error signature deduplication). |
 
 ## Key Dependencies
