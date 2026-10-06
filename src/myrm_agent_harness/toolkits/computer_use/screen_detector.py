@@ -95,26 +95,23 @@ class ScreenDetector:
         return ScreenLockState.UNLOCKED
 
     def _probe_macos(self) -> ScreenLockState:
-        """Query macOS Quartz C-API for screen lock dictionary and display sleep."""
-        try:
-            from Quartz import CGSessionCopyCurrentDictionary
+        """Query the Quartz session dictionary for screen lock and display sleep.
 
-            session_dict = CGSessionCopyCurrentDictionary()
-            if session_dict is not None:
-                # CGSSessionScreenIsLocked key indicates session lock
-                if session_dict.get("CGSSessionScreenIsLocked", 0) == 1:
-                    return ScreenLockState.LOCKED
-                # OnDisplayShutdown indicates display sleep/power-off
-                if session_dict.get("CGSSessionOnDisplayShutdown", 0) == 1:
-                    return ScreenLockState.SLEEPING
-        except ImportError:
-            # Fallback using ctypes to CoreGraphics directly without pyobjc
-            cg = ctypes.cdll.LoadLibrary("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")
-            cg.CGSessionCopyCurrentDictionary.restype = ctypes.c_void_p
-            dict_ref = cg.CGSessionCopyCurrentDictionary()
-            if dict_ref:
-                # If pointer exists, we could inspect with CoreFoundation, but PyObjC is standard in env
-                pass
+        pyobjc-framework-Quartz is a hard darwin dependency; if the import still
+        fails the error propagates so the caller reports UNKNOWN instead of a
+        fabricated UNLOCKED.
+        """
+        from Quartz import CGSessionCopyCurrentDictionary
+
+        session_dict = CGSessionCopyCurrentDictionary()
+        if session_dict is None:
+            return ScreenLockState.UNLOCKED
+        # CGSSessionScreenIsLocked is present (and 1) only while the session is locked.
+        if session_dict.get("CGSSessionScreenIsLocked", 0) == 1:
+            return ScreenLockState.LOCKED
+        # OnDisplayShutdown indicates display sleep/power-off.
+        if session_dict.get("CGSSessionOnDisplayShutdown", 0) == 1:
+            return ScreenLockState.SLEEPING
         return ScreenLockState.UNLOCKED
 
     def _probe_windows(self) -> ScreenLockState:

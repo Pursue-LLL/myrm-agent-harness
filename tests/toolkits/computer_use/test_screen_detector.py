@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sys
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -87,6 +89,45 @@ class TestScreenDetector:
         with patch.dict("os.environ", {"MYRM_HEADLESS": "1"}, clear=True):
             assert detector.is_headless is True
             assert detector.get_state() == ScreenLockState.UNLOCKED
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Quartz session dictionary is macOS-only")
+class TestMacOSProbe:
+    """Quartz session-dictionary mapping; the live probe runs against the real OS."""
+
+    def test_locked_session(self) -> None:
+        with patch("Quartz.CGSessionCopyCurrentDictionary", return_value={"CGSSessionScreenIsLocked": 1}):
+            assert ScreenDetector()._probe_macos() == ScreenLockState.LOCKED
+
+    def test_display_shutdown_is_sleeping(self) -> None:
+        with patch("Quartz.CGSessionCopyCurrentDictionary", return_value={"CGSSessionOnDisplayShutdown": 1}):
+            assert ScreenDetector()._probe_macos() == ScreenLockState.SLEEPING
+
+    def test_lock_wins_over_display_shutdown(self) -> None:
+        session = {"CGSSessionScreenIsLocked": 1, "CGSSessionOnDisplayShutdown": 1}
+        with patch("Quartz.CGSessionCopyCurrentDictionary", return_value=session):
+            assert ScreenDetector()._probe_macos() == ScreenLockState.LOCKED
+
+    @pytest.mark.parametrize("session", [{}, {"CGSSessionScreenIsLocked": 0}, None])
+    def test_plain_or_missing_session_is_unlocked(self, session: dict[str, int] | None) -> None:
+        with patch("Quartz.CGSessionCopyCurrentDictionary", return_value=session):
+            assert ScreenDetector()._probe_macos() == ScreenLockState.UNLOCKED
+
+    def test_live_probe_is_fast_and_definite(self) -> None:
+        detector = ScreenDetector()
+        started = time.perf_counter()
+        state = detector._probe_macos()
+        elapsed = time.perf_counter() - started
+        assert state in (ScreenLockState.UNLOCKED, ScreenLockState.LOCKED, ScreenLockState.SLEEPING)
+        # The native call replaces a ~300 ms osascript spawn; stay far below that.
+        assert elapsed < 0.1
+
+
+class TestProbeFailureReporting:
+    def test_missing_quartz_reports_unknown_not_unlocked(self) -> None:
+        detector = ScreenDetector()
+        with patch.object(sys, "platform", "darwin"), patch.dict(sys.modules, {"Quartz": None}):
+            assert detector._probe_native_state() == ScreenLockState.UNKNOWN
 
 
 class TestSafetyGuards:
