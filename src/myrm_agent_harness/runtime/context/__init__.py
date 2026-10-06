@@ -25,6 +25,10 @@ from myrm_agent_harness.runtime.context.file_access_tracker import (
     FileAccessTracker,
     get_file_access_tracker,
 )
+from myrm_agent_harness.runtime.context.file_io_checkpoint_tracker import (
+    DeterministicFileIOSummary,
+    extract_deterministic_file_io,
+)
 from myrm_agent_harness.runtime.context.instance_metrics import (
     ContextMetrics,
     get_context_metrics,
@@ -35,6 +39,13 @@ from myrm_agent_harness.runtime.context.offload import (
     cleanup_orphan_context_files_async,
     cleanup_session_context_files,
     create_compress_offload_callback,
+)
+from myrm_agent_harness.runtime.context.structured_checkpoint_generator import (
+    StructuredCheckpointContract,
+    build_checkpoint_prompt,
+    compute_summary_max_output_tokens,
+    create_checkpoint_from_messages,
+    parse_checkpoint_contract,
 )
 from myrm_agent_harness.runtime.context.token_estimator import (
     CompactionBudgetSettings,
@@ -110,4 +121,11 @@ __all__ = [
     "is_permitted_cut_point",
     "repair_tool_pairing_invariants",
     "validate_tool_pairing_invariants",
+    "DeterministicFileIOSummary",
+    "extract_deterministic_file_io",
+    "StructuredCheckpointContract",
+    "build_checkpoint_prompt",
+    "compute_summary_max_output_tokens",
+    "create_checkpoint_from_messages",
+    "parse_checkpoint_contract",
 ]
