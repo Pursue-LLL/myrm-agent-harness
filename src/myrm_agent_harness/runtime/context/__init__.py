@@ -162,6 +162,15 @@ from myrm_agent_harness.runtime.context.hidden_goal_rubric_preamble import (
     PreambleInjectionPolicy,
     RubricSource,
 )
+from myrm_agent_harness.runtime.context.hierarchical_instruction_hub import (
+    HierarchicalInstructionBlock,
+    HierarchicalInstructionHub,
+    HierarchicalInstructionResolver,
+    InheritanceResolutionStrategy,
+    InstructionRuleEntry,
+    InstructionTierKind,
+    InvisibleUnicodeSanitizer,
+)
 from myrm_agent_harness.runtime.context.hierarchical_project_matrix import (
     AgentDynamicBindingGate,
     AgentProjectBindingRecord,
@@ -624,4 +633,11 @@ __all__ = [
     "DocSessionBindingInfo",
     "DocSessionContinuityContext",
     "PathStableDocSessionHub",
+    "HierarchicalInstructionBlock",
+    "HierarchicalInstructionHub",
+    "HierarchicalInstructionResolver",
+    "InheritanceResolutionStrategy",
+    "InstructionRuleEntry",
+    "InstructionTierKind",
+    "InvisibleUnicodeSanitizer",
 ]

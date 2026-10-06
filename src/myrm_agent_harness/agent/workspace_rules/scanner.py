@@ -62,6 +62,8 @@ _RULE_FILENAMES: tuple[str, ...] = (
     "agents.md",
     "CLAUDE.md",
     "claude.md",
+    ".goosehints",
+    "goosehints",
     ".cursorrules",
     ".clinerules",
     ".windsurfrules",
