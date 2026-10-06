@@ -100,6 +100,18 @@ from myrm_agent_harness.toolkits.memory.protocols import (
     RelationalStoreProtocol,
     VectorStoreProtocol,
 )
+from myrm_agent_harness.toolkits.memory.reembedding import (
+    AdaptiveBatcher,
+    CheckpointState,
+    DualVersionCollectionState,
+    ReembeddingBatch,
+    ReembeddingCheckpointManager,
+    ReembeddingJobConfig,
+    ReembeddingProgress,
+    ReembeddingRecord,
+    ReembeddingStatus,
+    ZeroDowntimeReembeddingEngine,
+)
 from myrm_agent_harness.toolkits.memory.reliability import (
     MemoryArchiveDryRunResult,
     MemoryArchiveManifest,
@@ -217,6 +229,16 @@ from myrm_agent_harness.toolkits.memory.working_tree import (
 )
 
 __all__ = [
+    "AdaptiveBatcher",
+    "CheckpointState",
+    "DualVersionCollectionState",
+    "ReembeddingBatch",
+    "ReembeddingCheckpointManager",
+    "ReembeddingJobConfig",
+    "ReembeddingProgress",
+    "ReembeddingRecord",
+    "ReembeddingStatus",
+    "ZeroDowntimeReembeddingEngine",
     "HighSignalBriefing",
     "HighSignalSocialFeedCurator",
     "InformationGainScorer",
