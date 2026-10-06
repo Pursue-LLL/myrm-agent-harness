@@ -99,6 +99,9 @@ from myrm_agent_harness.runtime.context.cow_session_branch import (
     ProjectedSessionView,
     SessionBranchDescriptor,
 )
+from myrm_agent_harness.runtime.context.cross_file_diff_applier import (
+    CrossFileDiffAtomicApplier,
+)
 from myrm_agent_harness.runtime.context.cut_point_selector import (
     CutPointAlignmentStrategy,
     ToolPairingValidationResult,
@@ -184,6 +187,27 @@ from myrm_agent_harness.runtime.context.file_access_tracker import (
 from myrm_agent_harness.runtime.context.file_io_checkpoint_tracker import (
     DeterministicFileIOSummary,
     extract_deterministic_file_io,
+)
+from myrm_agent_harness.runtime.context.full_repo_ast_packer import (
+    FullRepoAstPacker,
+)
+from myrm_agent_harness.runtime.context.full_repo_attention_anchor import (
+    AstDriftToleranceAligner,
+    AttentionAnchorInjector,
+)
+from myrm_agent_harness.runtime.context.full_repo_refactor_pipeline import (
+    NativeMillionTokenFullRepoRefactorPipeline,
+)
+from myrm_agent_harness.runtime.context.full_repo_refactor_types import (
+    FileAtomicDiff,
+    PackedRepoContext,
+    RefactorApplyResult,
+    RefactorPlanBundle,
+    RepoAstSymbol,
+    RepoAstTopology,
+    RepoFileNode,
+    RepoSymbolKind,
+    SemanticAnchor,
 )
 from myrm_agent_harness.runtime.context.full_spectrum_lifecycle_hub import (
     FullSpectrumLifecycleHub,
@@ -914,4 +938,18 @@ __all__ = [
     "ModelFreeDeterministicToolResultPruner",
     "ModelFreePrunerConfig",
     "PruningAuditItem",
+    "AstDriftToleranceAligner",
+    "AttentionAnchorInjector",
+    "CrossFileDiffAtomicApplier",
+    "FileAtomicDiff",
+    "FullRepoAstPacker",
+    "NativeMillionTokenFullRepoRefactorPipeline",
+    "PackedRepoContext",
+    "RefactorApplyResult",
+    "RefactorPlanBundle",
+    "RepoAstSymbol",
+    "RepoAstTopology",
+    "RepoFileNode",
+    "RepoSymbolKind",
+    "SemanticAnchor",
 ]
