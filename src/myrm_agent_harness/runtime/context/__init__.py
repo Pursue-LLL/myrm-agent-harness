@@ -395,6 +395,16 @@ from myrm_agent_harness.runtime.context.lazy_subdirectory_rules_types import (
     DynamicToolInjectionEnvelope,
     SubdirectoryRuleDiscoveryMode,
 )
+from myrm_agent_harness.runtime.context.lean_tail_compression_engine import (
+    LeanTailCompressionEngine,
+)
+from myrm_agent_harness.runtime.context.lean_tail_compression_types import (
+    LeanTailCompactionPlan,
+    LeanTailConfig,
+    LeanTailWindowBudget,
+    ReasoningTagKind,
+    StrippedMessageResult,
+)
 from myrm_agent_harness.runtime.context.model_free_tool_pruner import (
     ModelFreeDeterministicToolResultPruner,
 )
@@ -529,6 +539,9 @@ from myrm_agent_harness.runtime.context.reasoning_compactor_types import (
     ReasoningPreservationMode,
     TieredTokenBudget,
     UnifiedCompactedTurn,
+)
+from myrm_agent_harness.runtime.context.reasoning_trace_stripper import (
+    ReasoningTraceStripper,
 )
 from myrm_agent_harness.runtime.context.rejection_reason_guard import (
     AvoidanceConstraint,
@@ -1244,4 +1257,11 @@ __all__ = [
     "DryRunProbeResult",
     "ManifestFormatConfig",
     "ProgressiveCliManifestGenerator",
+    "LeanTailCompactionPlan",
+    "LeanTailCompressionEngine",
+    "LeanTailConfig",
+    "LeanTailWindowBudget",
+    "ReasoningTagKind",
+    "ReasoningTraceStripper",
+    "StrippedMessageResult",
 ]
