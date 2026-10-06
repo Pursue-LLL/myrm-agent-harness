@@ -68,6 +68,14 @@ from myrm_agent_harness.runtime.context.offload import (
     cleanup_session_context_files,
     create_compress_offload_callback,
 )
+from myrm_agent_harness.runtime.context.overflow_compaction_guard import (
+    OverflowClassification,
+    OverflowCompactionExhaustedGiveUpError,
+    OverflowCompactionOnePerInputGuard,
+    OverflowRecoveryDecision,
+    classify_response_overflow,
+    is_recoverable_length,
+)
 from myrm_agent_harness.runtime.context.plan_mode_boundary_locker import (
     ExecutionMode,
     ImplementationPlanContract,
@@ -212,4 +220,10 @@ __all__ = [
     "DeferredWriteType",
     "KVCacheTailInvariantViolationError",
     "ViolationType",
+    "OverflowClassification",
+    "OverflowCompactionExhaustedGiveUpError",
+    "OverflowCompactionOnePerInputGuard",
+    "OverflowRecoveryDecision",
+    "classify_response_overflow",
+    "is_recoverable_length",
 ]
