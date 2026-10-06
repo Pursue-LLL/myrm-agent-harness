@@ -7,6 +7,17 @@ from myrm_agent_harness.runtime.context.cleanup import (
 from myrm_agent_harness.runtime.context.cleanup_task import (
     ContextCleanupScheduler,
 )
+from myrm_agent_harness.runtime.context.compaction_observation_accounting import (
+    CompactionDecision,
+    CompactionHysteresisBufferController,
+    CompactionObservationCollector,
+    CompactionObservationPayload,
+    CompactionTriggerMode,
+    FrameCategory,
+    HostOwnedBreakdown,
+    HostOwnedPromptAccountingLedger,
+    RetainedFrameDescriptor,
+)
 from myrm_agent_harness.runtime.context.config import (
     ContextCleanupConfig,
     StorageQuotaConfig,
@@ -162,4 +173,13 @@ __all__ = [
     "TransientInquiryResponse",
     "build_transient_context_messages",
     "execute_transient_sub_inquiry",
+    "CompactionDecision",
+    "CompactionHysteresisBufferController",
+    "CompactionObservationCollector",
+    "CompactionObservationPayload",
+    "CompactionTriggerMode",
+    "FrameCategory",
+    "HostOwnedBreakdown",
+    "HostOwnedPromptAccountingLedger",
+    "RetainedFrameDescriptor",
 ]
