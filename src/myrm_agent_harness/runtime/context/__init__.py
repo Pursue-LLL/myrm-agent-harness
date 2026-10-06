@@ -9,6 +9,18 @@ from myrm_agent_harness.runtime.context.append_only_kv_cache_guard import (
     KVCacheTailInvariantViolationError,
     ViolationType,
 )
+from myrm_agent_harness.runtime.context.artifact_centric_loop import (
+    ActorRole,
+    ArtifactLifecycleState,
+    ArtifactType,
+    DynamicIntentTracker,
+    IntentDeltaKind,
+    IntentDeltaRecord,
+    LivingArtifactSnapshot,
+    LivingArtifactStateMachine,
+    WorkingSceneHydrationPayload,
+    WorkingSceneHydrator,
+)
 from myrm_agent_harness.runtime.context.cleanup import (
     cleanup_context_files_async,
     cleanup_context_files_local,
@@ -350,4 +362,14 @@ __all__ = [
     "find_hard_anchor_matches",
     "parse_diff_operations",
     "score_soft_context",
+    "ActorRole",
+    "ArtifactLifecycleState",
+    "ArtifactType",
+    "DynamicIntentTracker",
+    "IntentDeltaKind",
+    "IntentDeltaRecord",
+    "LivingArtifactSnapshot",
+    "LivingArtifactStateMachine",
+    "WorkingSceneHydrationPayload",
+    "WorkingSceneHydrator",
 ]
