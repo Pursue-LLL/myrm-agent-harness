@@ -20,6 +20,7 @@ Provides ModelCapabilityDetector for reasoning_content handling, tool-argument e
 
 from __future__ import annotations
 
+import re
 from urllib.parse import urlsplit
 
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
@@ -31,7 +32,8 @@ _MIMO_PREFIXES = ("xiaomi_mimo/", "mimo")
 _DEEPSEEK_PREFIXES = ("deepseek/",)
 _KIMI_PREFIXES = ("moonshot/", "kimi/")
 _XAI_PREFIXES = ("xai/",)
-_GROK_ID_PREFIX = "grok-"
+# A standalone ``grok`` token (``grok-4``, ``xai-grok-4``, ``my-grok``); ``grokking`` and ``groq`` do not match.
+_GROK_TOKEN = re.compile(r"(?<![a-z0-9])grok(?![a-z])")
 
 # Base URL hosts for detection
 _DEEPSEEK_HOSTS = ("api.deepseek.com",)
@@ -296,8 +298,9 @@ class ModelCapabilityDetector:
 
         Grok emits ``&&`` as ``&amp;&amp;`` inside argument strings, so they must be decoded after
         parsing; every other model's arguments are byte-exact data and must never be decoded. The
-        model id alone is the evidence — the LiteLLM ``xai/`` route or a Grok id, including one
-        served through a gateway — so no provider or host is consulted.
+        model id alone is the evidence — the LiteLLM ``xai/`` route or a standalone ``grok`` token,
+        including a Grok served through a gateway or named by a gateway alias — so no provider or
+        host is consulted.
 
         Args:
             model: Model name (e.g., "xai/grok-4", "x-ai/grok-4-fast")
@@ -306,9 +309,7 @@ class ModelCapabilityDetector:
             True if the model is xAI Grok
         """
         model_lower = (model or "").lower()
-        return model_lower.startswith(_XAI_PREFIXES) or model_lower.rsplit("/", maxsplit=1)[-1].startswith(
-            _GROK_ID_PREFIX
-        )
+        return model_lower.startswith(_XAI_PREFIXES) or _GROK_TOKEN.search(model_lower) is not None
 
     def is_local_endpoint(
         self,

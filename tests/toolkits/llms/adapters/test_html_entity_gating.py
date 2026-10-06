@@ -8,7 +8,6 @@ text such as the HTML source a file tool is asked to write.
 from __future__ import annotations
 
 import json
-from typing import Any
 
 import pytest
 from langchain_core.messages import AIMessage, AIMessageChunk, BaseMessage
@@ -31,7 +30,7 @@ DECODED_COMMAND = 'echo "hi" && ls'
 HTML_SOURCE = "<p>Tom &amp; Jerry &lt;3</p>"
 
 
-def _tool_call(arguments: dict[str, Any], name: str = "bash_code_execute_tool") -> dict[str, Any]:
+def _tool_call(arguments: dict[str, object], name: str = "bash_code_execute_tool") -> dict[str, object]:
     return {"id": "call_1", "type": "function", "function": {"name": name, "arguments": json.dumps(arguments)}}
 
 
@@ -50,6 +49,9 @@ class TestIsXaiModel:
             "x-ai/grok-4-fast",
             "openrouter/x-ai/grok-code-fast-1",
             "openai/grok-3-mini",
+            "openai/xai-grok-4",
+            "custom/grok4",
+            "openai/my-grok",
             "xai/a-future-model-name",
         ],
     )
@@ -65,6 +67,8 @@ class TestIsXaiModel:
             "groq/llama-3.3-70b",
             "deepseek/deepseek-v4-flash",
             "grokking-7b",
+            "acme/grokgpt",
+            "acme/ngrok-chat",
             "acme/xaiphone-1",
         ],
     )
@@ -114,7 +118,7 @@ class TestModelIdDrivesDecoding:
     """The non-streaming seam derives the opt-in from the configured model id."""
 
     @staticmethod
-    def _response(arguments: dict[str, Any], name: str) -> dict[str, Any]:
+    def _response(arguments: dict[str, object], name: str) -> dict[str, object]:
         message = {"role": "assistant", "content": "", "tool_calls": [_tool_call(arguments, name)]}
         return {"choices": [{"message": message, "finish_reason": "tool_calls"}], "usage": {}}
 

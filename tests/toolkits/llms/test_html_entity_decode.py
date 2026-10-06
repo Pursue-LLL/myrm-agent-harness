@@ -7,7 +7,6 @@ the JSON structure itself is never affected.
 """
 
 import json
-from typing import Any
 
 import pytest
 
@@ -123,7 +122,7 @@ class TestParseToolCallArgsIntegration:
             _parse_tool_call_args_result,
         )
 
-        def parse(args: str | dict[str, Any], tool_name: str) -> dict[str, Any]:
+        def parse(args: str | dict[str, object], tool_name: str) -> dict[str, object]:
             return _parse_tool_call_args_result(args, tool_name, decode_html_entities=True)[0]
 
         self.parse = parse
