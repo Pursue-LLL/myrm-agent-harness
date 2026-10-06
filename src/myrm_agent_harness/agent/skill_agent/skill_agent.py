@@ -452,8 +452,13 @@ class SkillAgent(
         query: str | list[dict[str, object]],
     ) -> None:
         """Initialize HookExecutor from Skill hooks and framework-level defaults."""
-        from myrm_agent_harness.agent.hooks import (
+        from myrm_agent_harness.agent.hooks.session_access import (
             bootstrap_hook_registry,
+            has_callable_hook,
+        )
+        from myrm_agent_harness.agent.hooks.types import (
+            CallableHookDefinition,
+            HookEvent,
         )
         from myrm_agent_harness.agent.middlewares._session_context import (
             get_event_logger,
@@ -469,7 +474,7 @@ class SkillAgent(
                 registry.register(event, hook_def)
 
         # Only register broadcaster if it's not already registered
-        if not any(h.fn.__name__ == "on_pre_tool_use" for h in registry._hooks.get("pre_tool_use", [])):
+        if not has_callable_hook(registry, HookEvent.PRE_TOOL_USE, "on_pre_tool_use"):
             register_to_hook_registry(registry, get_event_logger())
 
         # Register evolution sliding window hooks if integration is active
@@ -482,18 +487,11 @@ class SkillAgent(
             evo.register_hooks(registry)
 
         # Register HITL correction learning hook (converts approval edits/rejects into memory)
-        from myrm_agent_harness.agent.hooks.types import (
-            CallableHookDefinition,
-            HookEvent,
-        )
         from myrm_agent_harness.agent.middlewares.approval.correction_learning import (
             CorrectionLearningHook,
         )
 
-        if not any(
-            getattr(h, "fn", None) and getattr(h.fn, "__name__", "") == "on_approval_correction"
-            for h in registry._hooks.get(HookEvent.APPROVAL_CORRECTION, [])
-        ):
+        if not has_callable_hook(registry, HookEvent.APPROVAL_CORRECTION, "on_approval_correction"):
             correction_hook = CorrectionLearningHook()
             registry.register(
                 HookEvent.APPROVAL_CORRECTION,

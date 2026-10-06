@@ -13,6 +13,7 @@ helpers. ``executor.py`` re-exports these names, so both import paths
 - fire_hook: fire a hook event on the current session's executor
 - payload_from_dataclass: frozen-dataclass payload → dict conversion
 - bootstrap_hook_registry: get-or-create the session-scoped registry
+- has_callable_hook: whether a registry already holds a named callable hook for an event
 
 [POS]
 Session-scoped hook access layer. Holds the ContextVar singleton for the
@@ -26,7 +27,12 @@ from contextvars import ContextVar
 from dataclasses import asdict, is_dataclass
 from typing import TYPE_CHECKING, cast
 
-from myrm_agent_harness.agent.hooks.types import EMPTY_RESULT, AggregatedHookResult
+from myrm_agent_harness.agent.hooks.types import (
+    EMPTY_RESULT,
+    AggregatedHookResult,
+    CallableHookDefinition,
+    HookEvent,
+)
 
 if TYPE_CHECKING:
     from myrm_agent_harness.agent.hooks.executor import HookExecutor, HookRegistry
@@ -78,3 +84,12 @@ def bootstrap_hook_registry() -> HookRegistry:
     registry = HookRegistry()
     set_hook_executor(HookExecutor(registry))
     return registry
+
+
+def has_callable_hook(registry: HookRegistry, event: HookEvent, fn_name: str) -> bool:
+    """Whether *registry* already holds a callable hook named *fn_name* for *event*.
+
+    Skill-declared command/http hooks share the event's list and carry no ``fn``,
+    so only callable definitions can match.
+    """
+    return any(isinstance(h, CallableHookDefinition) and h.fn.__name__ == fn_name for h in registry.get(event))

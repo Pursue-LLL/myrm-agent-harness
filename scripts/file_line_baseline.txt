@@ -33,7 +33,7 @@ myrm_agent_harness/agent/middlewares/context_pipeline/context_pipeline_middlewar
 myrm_agent_harness/agent/middlewares/tooling/_tool_guards.py	773
 myrm_agent_harness/agent/middlewares/tooling/_tool_helpers.py	599
 myrm_agent_harness/agent/security/guards/loop_guard/detectors.py	571
-myrm_agent_harness/agent/skill_agent/skill_agent.py	520
+myrm_agent_harness/agent/skill_agent/skill_agent.py	518
 myrm_agent_harness/agent/skills/evolution/core/engine.py	758
 myrm_agent_harness/agent/skills/evolution/core/types.py	639
 myrm_agent_harness/agent/skills/evolution/db/store.py	720
