@@ -206,6 +206,15 @@ from myrm_agent_harness.runtime.context.instance_metrics import (
     get_context_metrics,
     set_context_metrics,
 )
+from myrm_agent_harness.runtime.context.lazy_subdirectory_rules import (
+    DynamicToolInjectionHub,
+    LazySubdirectoryRulesProbe,
+)
+from myrm_agent_harness.runtime.context.lazy_subdirectory_rules_types import (
+    DiscoveredSubdirectoryRule,
+    DynamicToolInjectionEnvelope,
+    SubdirectoryRuleDiscoveryMode,
+)
 from myrm_agent_harness.runtime.context.multi_dimension_at_resolver import (
     AtContextIngestionResult,
     AtReferenceKind,
@@ -756,4 +765,9 @@ __all__ = [
     "PersonaSourceTier",
     "PolarityDimension",
     "PolarityPatternRegistry",
+    "DiscoveredSubdirectoryRule",
+    "DynamicToolInjectionEnvelope",
+    "DynamicToolInjectionHub",
+    "LazySubdirectoryRulesProbe",
+    "SubdirectoryRuleDiscoveryMode",
 ]
