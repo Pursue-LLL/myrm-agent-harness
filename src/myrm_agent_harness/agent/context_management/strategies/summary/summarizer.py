@@ -103,7 +103,7 @@ class _FallbackSummaryModel(BaseModel):
 
 def _get_structured_llm_or_parser(
     llm: BaseChatModel,
-) -> tuple[object | None, PydanticOutputParser | None]:
+) -> tuple[object | None, PydanticOutputParser[_FallbackSummaryModel] | None]:
     try:
         structured_llm = llm.with_structured_output(StructuredSummary)
         return structured_llm, None
@@ -162,7 +162,7 @@ def _coerce_to_structured_summary(response: object, context_dump_path: str = "")
 async def _invoke_summary(
     llm: BaseChatModel,
     structured_llm: object | None,
-    parser: PydanticOutputParser | None,
+    parser: PydanticOutputParser[_FallbackSummaryModel] | None,
     prompt: str,
     dump_path: str,
     cache_prefix_messages: list[BaseMessage] | None = None,
@@ -205,7 +205,7 @@ async def _stream_with_progress(
             raise NotImplementedError("astream did not return an async iterator")
         chunks: list[str] = []
         async for chunk in stream:
-            token = chunk.content if hasattr(chunk, "content") else str(chunk)
+            token = chunk.text if isinstance(chunk, BaseMessage) else str(chunk)
             if token:
                 chunks.append(token)
                 tracker.touch()
@@ -552,7 +552,7 @@ async def generate_structured_summary(
     # Preserved context is embedded in summary HumanMessage (not SystemMessage)
     # to protect the system prompt prefix cache from invalidation.
     summary_message = create_summary_message(summary, chat_id, preserved_context=combined_preserved)
-    middle_messages = [summary_message]
+    middle_messages: list[BaseMessage] = [summary_message]
     if pre_compact_message is not None:
         middle_messages = [pre_compact_message, summary_message]
 

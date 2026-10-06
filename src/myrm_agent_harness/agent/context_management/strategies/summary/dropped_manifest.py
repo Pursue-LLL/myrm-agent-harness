@@ -24,6 +24,8 @@ payloads nor leaks pipeline internals into the model.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from myrm_agent_harness.agent.security.detection.leak_detector import redact_leaks
 from myrm_agent_harness.agent.security.detection.pii_redactor import redact_pii
 
@@ -127,7 +129,7 @@ def _role_of(message: object) -> str:
 
 
 def build_dropped_manifest(
-    messages: list[object],
+    messages: Sequence[object],
     protected_ids: set[int],
     recent_ids: set[int],
 ) -> list[str]:
