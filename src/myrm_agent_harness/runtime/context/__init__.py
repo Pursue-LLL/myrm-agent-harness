@@ -102,6 +102,19 @@ from myrm_agent_harness.runtime.context.cow_session_branch import (
 from myrm_agent_harness.runtime.context.cross_file_diff_applier import (
     CrossFileDiffAtomicApplier,
 )
+from myrm_agent_harness.runtime.context.cross_session_handoff_ledger import (
+    CrossSessionHandoffLedger,
+)
+from myrm_agent_harness.runtime.context.cross_session_handoff_types import (
+    CrossSessionHandoffContract,
+    HandoffConsumptionReceipt,
+    HandoffDecisionItem,
+    HandoffPitfallItem,
+    HandoffStatus,
+    HandoffTodoItem,
+    SessionLifecyclePhase,
+    SynthesisMode,
+)
 from myrm_agent_harness.runtime.context.cut_point_selector import (
     CutPointAlignmentStrategy,
     ToolPairingValidationResult,
@@ -396,6 +409,9 @@ from myrm_agent_harness.runtime.context.rejection_reason_guard import (
     HumanRejectionEvent,
     HumanRejectionGuard,
     RejectionCategory,
+)
+from myrm_agent_harness.runtime.context.rule_based_session_synthesizer import (
+    RuleBasedSessionSynthesizer,
 )
 from myrm_agent_harness.runtime.context.session.event_sourcing_store import (
     EventSourcingLoadResult,
@@ -952,4 +968,14 @@ __all__ = [
     "RepoFileNode",
     "RepoSymbolKind",
     "SemanticAnchor",
+    "CrossSessionHandoffContract",
+    "CrossSessionHandoffLedger",
+    "HandoffConsumptionReceipt",
+    "HandoffDecisionItem",
+    "HandoffPitfallItem",
+    "HandoffStatus",
+    "HandoffTodoItem",
+    "RuleBasedSessionSynthesizer",
+    "SessionLifecyclePhase",
+    "SynthesisMode",
 ]
