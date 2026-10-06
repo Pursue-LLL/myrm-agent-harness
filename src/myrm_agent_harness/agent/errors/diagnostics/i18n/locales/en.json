@@ -80,7 +80,7 @@
     "Simplify the question to reduce reasoning depth",
     "Break complex questions into smaller sub-questions"
   ],
-  "tool_call_truncated_user_message": "Tool arguments may be incomplete due to output length limit",
+  "tool_call_truncated_user_message": "Tool arguments may be incomplete",
   "tool_call_truncated_resolution_steps": [
     "Use chunked writes for large files instead of writing all at once",
     "Break the task into smaller steps",

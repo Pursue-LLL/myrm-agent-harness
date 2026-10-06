@@ -79,7 +79,7 @@
     "Vereinfachen Sie die Frage, um die Schlussfolgerungstiefe zu verringern",
     "Teilen Sie komplexe Fragen in mehrere Teilfragen auf"
   ],
-  "tool_call_truncated_user_message": "Werkzeugparameter sind möglicherweise aufgrund der Ausgabelängenbegrenzung unvollständig",
+  "tool_call_truncated_user_message": "Werkzeugparameter sind möglicherweise unvollständig",
   "tool_call_truncated_resolution_steps": [
     "Verwenden Sie für große Dateien Chunk-Schreibvorgänge statt einmaliger Vollschreibung",
     "Teilen Sie die Aufgabe in kleinere Schritte auf",
