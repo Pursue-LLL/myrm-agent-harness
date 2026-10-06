@@ -79,11 +79,11 @@
     "Vereinfachen Sie die Frage, um die Schlussfolgerungstiefe zu verringern",
     "Teilen Sie komplexe Fragen in mehrere Teilfragen auf"
   ],
-  "tool_call_truncated_user_message": "Werkzeugparameter sind möglicherweise unvollständig",
+  "tool_call_truncated_user_message": "Werkzeugaufruf unterbrochen und nicht ausgeführt",
   "tool_call_truncated_resolution_steps": [
     "Verwenden Sie für große Dateien Chunk-Schreibvorgänge statt einmaliger Vollschreibung",
     "Teilen Sie die Aufgabe in kleinere Schritte auf",
-    "Überprüfen Sie die Vollständigkeit der Ausgabedatei"
+    "Senden Sie die Anfrage erneut"
   ],
   "tool_call_retry_user_message": "Werkzeugaufruf unterbrochen — Wiederholung läuft",
   "tool_call_retry_resolution_steps": [],

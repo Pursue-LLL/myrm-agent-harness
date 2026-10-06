@@ -79,11 +79,11 @@
     "質問を簡略化して推論の深さを減らしてください",
     "複雑な質問を複数の小さな質問に分割してください"
   ],
-  "tool_call_truncated_user_message": "ツールのパラメータが不完全な可能性があります",
+  "tool_call_truncated_user_message": "ツール呼び出しが途切れたため、実行されませんでした",
   "tool_call_truncated_resolution_steps": [
     "大きなファイルは一度に書き込まず、分割して書き込んでください",
     "タスクを小さなステップに分割してください",
-    "出力ファイルの完全性を確認してください"
+    "リクエストをもう一度送信してください"
   ],
   "tool_call_retry_user_message": "ツール呼び出しが途切れたため、再試行中",
   "tool_call_retry_resolution_steps": [],

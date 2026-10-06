@@ -80,11 +80,11 @@
     "简化问题以减少推理深度",
     "将复杂问题拆分为多个子问题"
   ],
-  "tool_call_truncated_user_message": "工具参数可能不完整",
+  "tool_call_truncated_user_message": "工具调用被截断，未执行",
   "tool_call_truncated_resolution_steps": [
     "对大文件使用分块写入，而非一次性写入",
     "将任务拆分为更小的步骤",
-    "检查输出文件的完整性"
+    "重新发送该请求"
   ],
   "tool_call_retry_user_message": "工具调用被截断，正在重试",
   "tool_call_retry_resolution_steps": [],

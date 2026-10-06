@@ -80,11 +80,11 @@
     "Simplify the question to reduce reasoning depth",
     "Break complex questions into smaller sub-questions"
   ],
-  "tool_call_truncated_user_message": "Tool arguments may be incomplete",
+  "tool_call_truncated_user_message": "Tool call was cut off and not run",
   "tool_call_truncated_resolution_steps": [
     "Use chunked writes for large files instead of writing all at once",
     "Break the task into smaller steps",
-    "Check the output file for completeness"
+    "Send the request again"
   ],
   "tool_call_retry_user_message": "Tool call was cut off — retrying",
   "tool_call_retry_resolution_steps": [],
