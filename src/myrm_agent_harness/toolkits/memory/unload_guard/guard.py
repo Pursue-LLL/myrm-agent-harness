@@ -79,17 +79,23 @@ class UnloadGracefulFlushGuard:
             handoff_id=fin_result.handoff_id,
         )
 
+        md_path_str = fin_result.persisted_path
+        if self._engine.store.storage_dir:
+            md_file = self._engine.store.storage_dir / f"{fin_result.handoff_id}.md"
+            md_file.write_text(markdown_body, encoding="utf-8")
+            md_path_str = str(md_file)
+
         logger.warning(
             "Emergency flush completed for session %s into handoff [%s] at '%s'",
             request.session_id,
             fin_result.handoff_id,
-            fin_result.persisted_path,
+            md_path_str,
         )
 
         return EmergencyFlushResult(
             handoff_id=fin_result.handoff_id,
             session_id=request.session_id,
-            persisted_path=fin_result.persisted_path,
+            persisted_path=md_path_str,
             is_zero_llm=True,
             summary_markdown=markdown_body,
             created_at=now,

@@ -45,6 +45,12 @@ class EmergencyFlushRequest(BaseModel):
     next_actions: list[str] = Field(
         default_factory=list, description="Planned next actions left uncompleted"
     )
+    unsaved_notes: list[str] = Field(
+        default_factory=list, description="Transient notes or scratchpad text from frontend state"
+    )
+    target_handoff_agent: str | None = Field(
+        default=None, description="Designated target agent to resume session"
+    )
     source_profile_id: str = Field(default="user-desktop-agent", description="Profile ID of the active agent")
 
 

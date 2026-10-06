@@ -28,6 +28,12 @@ class ZeroLlmEmergencySnapshotBuilder:
         if request.last_tool_call:
             lines.append(f"- **Last Tool Call:** `{request.last_tool_call}`")
 
+        # 0. Unsaved notes section
+        if request.unsaved_notes:
+            lines.extend(["", "### Unsaved Notes / Scratchpad"])
+            for note in request.unsaved_notes:
+                lines.append(f"- {note}")
+
         # 1. Modified files section
         if request.modified_files:
             lines.extend(["", "### Files Modified in Flight"])
