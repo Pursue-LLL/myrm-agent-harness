@@ -7,6 +7,7 @@
 - adapters.safety_termination_detector (POS: Safety termination detector for truncated tool call suppression)
 - utils.cost_engine::compute_cost_by_tokens (POS: token-count-based cost calculation for streaming mode)
 - utils.token_tracker (POS: Token tracking API)
+- utils.token_economics.usage_ledger::DROPPED_STREAM_FINISH_REASON (POS: finish_reason sentinel for streams closed without a final chunk)
 
 [OUTPUT]
 - StreamAggregator: Mutable accumulator for stream chunks (content, tool calls, reasoning, timing)
@@ -47,6 +48,10 @@ from myrm_agent_harness.toolkits.llms.adapters.tool_call_parsers import (
 )
 from myrm_agent_harness.toolkits.llms.adapters.tool_recovery import (
     build_final_tool_call_chunk,
+    is_stream_complete,
+)
+from myrm_agent_harness.utils.token_economics.usage_ledger import (
+    DROPPED_STREAM_FINISH_REASON,
 )
 
 logger = logging.getLogger(__name__)
@@ -319,12 +324,18 @@ def finalize_stream(
 
     resolved_model = agg.last_model or model_name
 
+    # A stream that closed without ever delivering a final metadata chunk yields
+    # an empty finish_reason. Recording it verbatim would make a dropped stream
+    # indistinguishable from a normal turn in usage/cost/status telemetry, so
+    # tag it with an explicit sentinel. Providers never emit this value.
+    reported_finish_reason = agg.finish_reason or DROPPED_STREAM_FINISH_REASON
+
     record_usage_fn(
         agg.last_usage,
         model_name=resolved_model,
         duration_ms=agg.duration_ms,
         ttft_ms=agg.ttft_ms,
-        finish_reason=agg.finish_reason or "",
+        finish_reason=reported_finish_reason,
     )
 
     if agg.reasoning:
@@ -360,6 +371,7 @@ def finalize_stream(
     final_tool_chunk, corrected_tool_calls, recovery_metadata = build_final_tool_call_chunk(
         tool_call_source,
         tool_schemas,
+        stream_complete=is_stream_complete(agg.finish_reason),
         decode_html_entities=_capability_detector.is_xai_model(model_name),
     )
     if corrected_tool_calls:
@@ -373,11 +385,12 @@ def finalize_stream(
 
     # Safety termination: suppress truncated tool_calls when provider stopped
     # generation for safety reasons, preventing corrupt half-formed arguments
-    # from being dispatched.
+    # from being dispatched. Withheld calls recorded by the truncation gate
+    # (tool_call_recovery) are also covered, so the model is not asked to retry
+    # a call that the provider deliberately cut off.
     safety_reason = agg.finish_reason if agg.finish_reason and detect_safety_termination(agg.finish_reason) else None
-    if safety_reason and aggregated_message.get("tool_calls"):
+    if safety_reason and (aggregated_message.get("tool_calls") or aggregated_message.get("tool_call_recovery")):
         suppress_tool_calls_for_safety(aggregated_message, safety_reason)
-        aggregated_message.pop("tool_call_recovery", None)
         final_tool_chunk = None
 
     aggregated_response: dict[str, Any] = {
@@ -385,19 +398,18 @@ def finalize_stream(
         "choices": [
             {
                 "message": aggregated_message,
-                "finish_reason": agg.finish_reason or "stop",
+                "finish_reason": reported_finish_reason,
             }
         ],
         "usage": normalize_usage(agg.last_usage) if agg.last_usage else {},
     }
     log_llm_response(aggregated_response)
 
-    if agg.finish_reason:
-        from myrm_agent_harness.utils.token_economics.tracker import (
-            record_finish_reason,
-        )
+    from myrm_agent_harness.utils.token_economics.tracker import (
+        record_finish_reason,
+    )
 
-        record_finish_reason(agg.finish_reason)
+    record_finish_reason(reported_finish_reason)
 
     reasoning_items = aggregated_message.get("responses_reasoning_items")
     if isinstance(reasoning_items, list) and reasoning_items:

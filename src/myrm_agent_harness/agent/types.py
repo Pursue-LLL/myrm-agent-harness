@@ -3,13 +3,14 @@
 1. 本文件的 INPUT/OUTPUT/POS 注释
 
 [INPUT]
+- utils.token_economics.usage_ledger::DROPPED_STREAM_FINISH_REASON (POS: 断流 finish_reason 遥测哨兵)
 - utils.token_tracker::TokenUsage (POS: Token 使用追踪类型，记录 prompt/completion/total tokens)
 - agent.security.types::SecurityConfig (POS: 工具执行安全配置)
 - streaming.types::ContextBudgetSnapshot (POS: 上下文预算快照)
 
 [OUTPUT]
 - CompletionStatus: LLM 回复完成状态枚举（COMPLETE, TRUNCATED, CONTENT_FILTERED）
-- map_to_completion_status(): 将 LLM 提供商原始 finish_reason 映射为领域枚举
+- map_to_completion_status(): 将 LLM 提供商原始 finish_reason（含断流哨兵）映射为领域枚举
 - AgentRunStatistics: Agent 执行统计数据类（duration, tool_call_count, token_usage, completion_status 等）
 - QuoteAttachment: 划词引用附件（source_message_id, quoted_text），通过 HumanMessage.additional_kwargs 传递给 inject_ephemeral_quote()
 - WorkspaceBinding: Agent 运行工作区绑定配置（mode, root_path, chat_id, task_id）
@@ -28,6 +29,9 @@ from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.utils.token_economics.tracker import TokenUsage
+from myrm_agent_harness.utils.token_economics.usage_ledger import (
+    DROPPED_STREAM_FINISH_REASON,
+)
 
 if TYPE_CHECKING:
     from myrm_agent_harness.agent.security.types import SecurityConfig
@@ -64,8 +68,12 @@ def map_to_completion_status(raw_finish_reason: str | None) -> CompletionStatus:
     OpenAI/DeepSeek/Moonshot: stop → COMPLETE, length → TRUNCATED, content_filter → CONTENT_FILTERED
     Anthropic:  end_turn → COMPLETE, max_tokens → TRUNCATED, refusal → CONTENT_FILTERED
     Gemini:     STOP → COMPLETE, MAX_TOKENS → TRUNCATED, SAFETY/BLOCKLIST/... → CONTENT_FILTERED
+
+    A stream that ended without the provider's final chunk carries the
+    ``DROPPED_STREAM_FINISH_REASON`` sentinel; the cut-off answer may be missing
+    its tail, so it maps to TRUNCATED rather than being reported as COMPLETE.
     """
-    if raw_finish_reason in _TRUNCATED_REASONS:
+    if raw_finish_reason in _TRUNCATED_REASONS or raw_finish_reason == DROPPED_STREAM_FINISH_REASON:
         return CompletionStatus.TRUNCATED
     if raw_finish_reason in _FILTERED_REASONS:
         return CompletionStatus.CONTENT_FILTERED

@@ -7,8 +7,25 @@ from unittest.mock import patch
 
 from myrm_agent_harness.toolkits.llms.adapters.tool_recovery import (
     build_final_tool_call_chunk,
+    is_stream_complete,
     recover_tool_call_payloads,
 )
+
+
+class TestIsStreamComplete:
+    """Fail-safe mapping: only a normal tool-call completion is treated as complete."""
+
+    def test_normal_tool_calls_complete(self) -> None:
+        assert is_stream_complete("tool_calls") is True
+
+    def test_abnormal_ends_incomplete(self) -> None:
+        for reason in (None, "", "length", "max_tokens", "content_filter", "SAFETY", "refusal"):
+            assert is_stream_complete(reason) is False
+
+    def test_stop_defaults_safe(self) -> None:
+        # "stop" without parsed tool calls: args would be malformed if any, so
+        # repairing them is not a false positive (a complete parse short-circuits).
+        assert is_stream_complete("stop") is True
 
 
 def _build_tool_schema(
@@ -71,9 +88,42 @@ class TestRecoverToolCallPayloads:
             {"id": "call_1", "type": "function", "function": {"name": "t", "arguments": "invalid json garbage"}},
         ]
         with patch("myrm_agent_harness.observability.metrics.registry.metrics_registry") as mock_reg:
-            recovered, _metadata = recover_tool_call_payloads(raw)
-        assert len(recovered) == 1
+            recovered, metadata = recover_tool_call_payloads(raw)
+        # Unrecoverable arguments are withheld (not dispatched) and reported unsafe.
+        assert recovered == []
+        assert metadata[0]["safe"] is False
+        assert metadata[0]["strategy"] == "failed"
         mock_reg.record_tool_arg_recovery.assert_called_once()
+
+    def test_truncated_stream_withholds_repairable_args(self) -> None:
+        """A truncated stream must not close a partial JSON into a valid object."""
+        raw = [
+            {"id": "call_1", "type": "function", "function": {"name": "write", "arguments": '{"path": "/tmp/x"'}},
+        ]
+        recovered, metadata = recover_tool_call_payloads(raw, stream_complete=False)
+        assert recovered == []
+        assert metadata[0]["safe"] is False
+        assert metadata[0]["strategy"] == "truncated_stream_unverified"
+        assert metadata[0]["raw_arguments"] == '{"path": "/tmp/x"'
+
+    def test_empty_finish_reason_withholds_partial_args(self) -> None:
+        """A dropped stream leaves an empty finish_reason; partial args must be withheld."""
+        raw = [
+            {"id": "call_1", "type": "function", "function": {"name": "write", "arguments": '{"path": "/tmp/x"'}},
+        ]
+        recovered, metadata = recover_tool_call_payloads(raw, stream_complete=is_stream_complete(""))
+        assert recovered == []
+        assert metadata[0]["safe"] is False
+
+    def test_complete_stream_repairs_truncated_args(self) -> None:
+        """When the stream ended normally, the same partial JSON is still repaired."""
+        raw = [
+            {"id": "call_1", "type": "function", "function": {"name": "write", "arguments": '{"path": "/tmp/x"'}},
+        ]
+        recovered, metadata = recover_tool_call_payloads(raw, stream_complete=True)
+        assert len(recovered) == 1
+        assert metadata[0]["safe"] is True
+        assert json.loads(recovered[0]["function"]["arguments"]) == {"path": "/tmp/x"}
 
     def test_multiple_tool_calls(self) -> None:
         raw = [

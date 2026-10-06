@@ -86,6 +86,8 @@
     "将任务拆分为更小的步骤",
     "检查输出文件的完整性"
   ],
+  "tool_call_retry_user_message": "工具调用被截断，正在重试",
+  "tool_call_retry_resolution_steps": [],
   "text_continuation_user_message": "回复被截断——正在自动续写",
   "text_continuation_resolution_steps": [],
   "text_continuation_exhausted_user_message": "经过 3 次续写仍未完成回复",

@@ -4,6 +4,7 @@
 - pathlib::Path (POS: Python 标准库)
 
 [OUTPUT]
+- DROPPED_STREAM_FINISH_REASON: 流在收到最终元数据块之前断开时记录的 finish_reason 遥测哨兵
 - UsageRecord: 单次 LLM 调用的完整元数据记录
 - UsageLedger: 追加写入的 JSONL 审计日志
 
@@ -24,6 +25,15 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 _LEDGER_FILENAME = "usage_ledger.jsonl"
+
+DROPPED_STREAM_FINISH_REASON = "__stream_dropped__"
+"""Finish reason recorded when a stream closed without a final metadata chunk.
+
+Distinguishes a dropped/broken connection (no ``finish_reason`` ever delivered)
+from abnormal-but-explicit endings such as ``length`` or a safety refusal, and
+from a normal turn end. Never produced by a provider; it is a pure telemetry
+sentinel so dropped streams stay countable instead of collapsing into ``""``.
+"""
 
 
 @dataclass

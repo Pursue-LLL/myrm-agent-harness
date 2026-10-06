@@ -5,6 +5,7 @@
 - dataclasses::dataclass (POS: recovery result data structure)
 - json::json (POS: Python JSON library)
 - re::re (POS: Python regex library)
+- utils.truncated_json::close_truncated_json, ends_inside_string (POS: cut-off JSON completion primitives)
 
 [OUTPUT]
 - ToolArgumentRecoveryResult: tool argument recovery result
@@ -15,6 +16,7 @@
 [POS]
 LiteLLM utility functions. Provides JSON processing tools for handling LLM-generated malformed JSON.
 Fixes invalid escapes, extracts pure JSON content, and performs schema-aware fault-tolerant parsing.
+Model-parameter sanitization (`clean_model_kwargs`) lives in ``model_kwargs.py``.
 As the utility layer, depended on by adapters.converters and adapters.tool_call_parsers.
 """
 
@@ -25,7 +27,9 @@ import logging
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
+
+from myrm_agent_harness.toolkits.llms.utils.truncated_json import close_truncated_json, ends_inside_string
 
 logger = logging.getLogger(__name__)
 
@@ -175,70 +179,7 @@ def _repair_string_field_value(text: str, field_name: str) -> str | None:
     return f"{text[:start]}{''.join(repaired)}{text[end_index:]}"
 
 
-_LITERAL_PREFIXES: dict[str, str] = {
-    "t": "true",
-    "tr": "true",
-    "tru": "true",
-    "f": "false",
-    "fa": "false",
-    "fal": "false",
-    "fals": "false",
-    "n": "null",
-    "nu": "null",
-    "nul": "null",
-}
-_LITERAL_TAIL_RE = re.compile(r"[{,:\[]\s*(t(?:r(?:u)?)?|f(?:a(?:l(?:s)?)?)?|n(?:u(?:l)?)?)\s*$")
-_DANGLING_KEY_RE = re.compile(r'"\s*:\s*$')
 _NONE_OUTSIDE_STRINGS = re.compile(r'("(?:\\.?|[^"\\])*(?:"|\Z))|\bNone\b', re.DOTALL)
-
-
-def _close_truncated_json(text: str) -> str:
-    candidate = text.rstrip()
-    if not candidate:
-        return candidate
-
-    in_string = False
-    escape_next = False
-    # Stack tracks nesting order so closers are emitted in correct sequence
-    stack: list[str] = []
-
-    for char in candidate:
-        if escape_next:
-            escape_next = False
-            continue
-        if char == "\\":
-            escape_next = True
-            continue
-        if char == '"':
-            in_string = not in_string
-            continue
-        if in_string:
-            continue
-        if char in ("{", "["):
-            stack.append(char)
-        elif char in ("}", "]") and stack:
-            stack.pop()
-
-    if in_string:
-        # Odd trailing backslashes would escape the closing quote — strip the last one
-        trailing = len(candidate) - len(candidate.rstrip("\\"))
-        if trailing % 2 == 1:
-            candidate = candidate[:-1]
-        candidate += '"'
-
-    candidate = re.sub(r",\s*$", "", candidate)
-    # Fix truncated numeric fragments: sci-notation, trailing dot, bare minus
-    candidate = re.sub(r"(\d[eE][+-]?)$", r"\g<1>0", candidate)
-    candidate = re.sub(r"(\d)\.$", r"\g<1>.0", candidate)
-    candidate = re.sub(r"([:,\[]\s*)-\s*$", r"\g<1>0", candidate)
-    literal_match = _LITERAL_TAIL_RE.search(candidate)
-    if literal_match:
-        candidate = candidate[: literal_match.start(1)] + _LITERAL_PREFIXES[literal_match.group(1)]
-    if _DANGLING_KEY_RE.search(candidate):
-        candidate += " null"
-    for opener in reversed(stack):
-        candidate += "}" if opener == "{" else "]"
-    return candidate
 
 
 def _decode_string_value(raw_value: str) -> str:
@@ -344,10 +285,24 @@ def _is_safe_degraded_result(
     return all(field in recovered_args for field in required)
 
 
+def _refuse_cut_off_value(tool_name: str) -> ToolArgumentRecoveryResult:
+    """Refuse to close a string value that was cut open.
+
+    A closed prefix of a path, command or file body parses as a valid, shorter value
+    that is indistinguishable from the intended one — and a provider can report a
+    normal finish for a stream it cut short, so ``stream_complete`` alone cannot be
+    trusted to catch it.
+    """
+    logger.warning(" Tool args cut off inside a string value for %s — refusing repair", tool_name)
+    return ToolArgumentRecoveryResult(args={}, strategy="truncated_mid_value", degraded=True, safe=False)
+
+
 def parse_tool_call_arguments_with_recovery(
     args: str | dict[str, object],
     tool_name: str,
     tool_schema: Mapping[str, Any] | None = None,
+    *,
+    stream_complete: bool | None = None,
 ) -> ToolArgumentRecoveryResult:
     """Recover malformed tool-call argument JSON using a strict staged pipeline.
 
@@ -356,10 +311,24 @@ def parse_tool_call_arguments_with_recovery(
     2. Python None → JSON null (bare tokens only; "None" inside a string is data)
     3. Invalid escape sequence fixing
     4. Long text field repair (schema-aware)
-    5. Truncated JSON completion
+    5. Truncated JSON completion (refused as unsafe when the text ends inside a
+       string value: a cut-open string cannot be told apart from a finished one)
     6. Malformed JSON extraction
     7. Excess closing delimiter removal (Weak model outputs excess} or ])
     8. Regex fallback (marked as unsafe)
+
+    Args:
+        args: Raw argument payload (JSON string or already-decoded dict).
+        tool_name: Tool name, for logging and schema resolution.
+        tool_schema: Optional OpenAI tool schema used by schema-aware repairs.
+        stream_complete: Whether the producing stream ended normally. ``False``
+            means the provider stopped mid-generation (missing ``finish_reason``
+            or ``length``/``max_tokens``) and the argument text is known to be
+            incomplete; in that case every repair that would *close* the partial
+            JSON is refused, because a closed prefix parses as a valid object
+            that silently lacks every field not yet streamed. ``None`` means the
+            caller cannot tell (non-streaming, direct invocation) and the staged
+            pipeline runs unchanged.
     """
     if isinstance(args, dict):
         return ToolArgumentRecoveryResult(args=args, strategy="dict_input")
@@ -377,6 +346,18 @@ def parse_tool_call_arguments_with_recovery(
         if parsed is not None:
             return ToolArgumentRecoveryResult(args=parsed, strategy="python_none_to_null", degraded=True)
         normalized = python_to_json
+
+    if stream_complete is False:
+        # A truncated stream cannot be safely repaired: closing the partial JSON
+        # fabricates a syntactically valid object missing every field that had
+        # not streamed yet. Refuse rather than execute a silently-wrong call.
+        logger.warning(" Tool args stream truncated for %s — refusing repair", tool_name)
+        return ToolArgumentRecoveryResult(
+            args={},
+            strategy="truncated_stream_unverified",
+            degraded=True,
+            safe=False,
+        )
 
     escaped = fix_invalid_json_escapes(normalized)
     if escaped != normalized:
@@ -396,18 +377,22 @@ def parse_tool_call_arguments_with_recovery(
                 strategy=f"long_text_field_repair:{field_name}",
             )
 
-        truncated_repaired = _close_truncated_json(repaired)
+        truncated_repaired = close_truncated_json(repaired)
         parsed = _load_json_object(truncated_repaired)
         if parsed is not None:
+            if ends_inside_string(repaired):
+                return _refuse_cut_off_value(tool_name)
             return ToolArgumentRecoveryResult(
                 args=parsed,
                 strategy=f"long_text_then_truncated_completion:{field_name}",
             )
 
-    truncated = _close_truncated_json(escaped)
+    truncated = close_truncated_json(escaped)
     if truncated != escaped:
         parsed = _load_json_object(truncated)
         if parsed is not None:
+            if ends_inside_string(escaped):
+                return _refuse_cut_off_value(tool_name)
             return ToolArgumentRecoveryResult(args=parsed, strategy="truncated_completion")
 
     try:
@@ -502,41 +487,4 @@ def extract_json_from_malformed_response(args_str: str) -> dict[str, object]:
         if end_pos > 0:
             args_str = args_str[:end_pos]
 
-    return json.loads(args_str)
-
-
-def get_unsupported_models() -> list[str]:
-    return ["qwen-plus"]
-
-
-def should_skip_response_format(model: str) -> bool:
-    unsupported_models = get_unsupported_models()
-    return any(unsupported in (model or "") for unsupported in unsupported_models)
-
-
-_KIMI_TOOL_CALL_MIN_TEMP = 1.0
-_KIMI_PREFIXES = ("moonshot/", "kimi/")
-
-
-def _needs_temperature_floor(model: str) -> bool:
-    """Kimi K2.5 requires temperature >= 1.0 when using function calling."""
-    lower = (model or "").lower()
-    return any(lower.startswith(p) for p in _KIMI_PREFIXES)
-
-
-def clean_model_kwargs(kwargs: dict, model: str, additional_remove_keys: list[str] | None = None) -> dict:
-    if additional_remove_keys is None:
-        additional_remove_keys = []
-    remove_keys = ["_in_fallback", "_json_mode_fallback", *additional_remove_keys]
-    if should_skip_response_format(model):
-        remove_keys.append("response_format")
-    cleaned = {k: v for k, v in kwargs.items() if k not in remove_keys}
-    if "model_kwargs" in cleaned and isinstance(cleaned["model_kwargs"], dict):
-        cleaned["model_kwargs"] = {k: v for k, v in cleaned["model_kwargs"].items() if k not in remove_keys}
-
-    if _needs_temperature_floor(model):
-        temp = cleaned.get("temperature")
-        if isinstance(temp, (int, float)) and temp < _KIMI_TOOL_CALL_MIN_TEMP:
-            cleaned["temperature"] = _KIMI_TOOL_CALL_MIN_TEMP
-
-    return cleaned
+    return cast("dict[str, object]", json.loads(args_str))

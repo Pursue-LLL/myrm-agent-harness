@@ -86,6 +86,8 @@
     "작업을 더 작은 단계로 나누세요",
     "출력 파일의 완전성을 확인하세요"
   ],
+  "tool_call_retry_user_message": "도구 호출이 중단되어 재시도 중",
+  "tool_call_retry_resolution_steps": [],
   "text_continuation_user_message": "응답이 잘려서 자동으로 이어서 생성하고 있습니다",
   "text_continuation_resolution_steps": [],
   "text_continuation_exhausted_user_message": "3회 연속 시도 후에도 응답이 계속 잘렸습니다",

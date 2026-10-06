@@ -4,6 +4,7 @@
 - adapters.converters (POS: message and tool call converters)
 - adapters.model_capability (POS: reasoning_content echo requirements; xAI Grok tool-argument decoding gate)
 - adapters.safety_termination_detector (POS: safety termination on truncated tool_calls)
+- adapters.tool_recovery (POS: tool call argument recovery + stream-completeness signal)
 - adapters.chat_model.exceptions (POS: role patterns and EmptyChoicesError)
 
 [OUTPUT]
@@ -40,6 +41,9 @@ from myrm_agent_harness.toolkits.llms.adapters.safety_termination_detector impor
 )
 from myrm_agent_harness.toolkits.llms.adapters.tool_recovery import (
     build_final_tool_call_chunk as _build_final_tool_call_chunk_fn,
+)
+from myrm_agent_harness.toolkits.llms.adapters.tool_recovery import (
+    is_stream_complete,
 )
 
 logger = logging.getLogger(__name__)
@@ -130,9 +134,12 @@ class ChatLiteLLMMessageMixin:
         raw_tool_calls: Sequence[Mapping[str, Any]],
         tool_schemas: Mapping[str, Mapping[str, Any]] | None = None,
         *,
+        stream_complete: bool | None = None,
         decode_html_entities: bool = False,
     ) -> tuple[ChatGenerationChunk | None, list[dict[str, Any]], list[dict[str, Any]]]:
-        return _build_final_tool_call_chunk_fn(raw_tool_calls, tool_schemas, decode_html_entities=decode_html_entities)
+        return _build_final_tool_call_chunk_fn(
+            raw_tool_calls, tool_schemas, stream_complete=stream_complete, decode_html_entities=decode_html_entities
+        )
 
     @staticmethod
     def _stringify_message_content(content: object) -> str:
@@ -357,6 +364,7 @@ class ChatLiteLLMMessageMixin:
                     choice["message"],
                     available_tools,
                     tool_schemas,
+                    stream_complete=is_stream_complete(finish_reason),
                     decode_html_entities=_capability_detector.is_xai_model(self.model_name or self.model),
                 )
             except Exception as e:

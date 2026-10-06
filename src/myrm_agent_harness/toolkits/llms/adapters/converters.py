@@ -10,7 +10,7 @@
 - lc_tool_call_to_openai_tool_call(): convert LangChain ToolCall to OpenAI format
 - convert_lc_messages_to_litellm(): convert LangChain messages to LiteLLM format while preserving explicit message names
 - convert_litellm_response_to_lc_message(): convert LiteLLM response to LangChain message
-- convert_dict_to_message(): convert DictFormat message to LangChain BaseMessage (preserves reasoning_content for reasoning models; HTML-decodes tool args only when asked, for xAI Grok)
+- convert_dict_to_message(): convert DictFormat message to LangChain BaseMessage (preserves reasoning_content for reasoning models; routes unsafe/truncated tool args to invalid_tool_calls instead of dispatchable tool_calls; HTML-decodes tool args only when asked, for xAI Grok)
 - _extract_citations(): extract unified citation format from provider annotations
 
 [POS]
@@ -165,9 +165,10 @@ def _parse_tool_call_args_result(
     tool_name: str,
     tool_schema: Mapping[str, Any] | None = None,
     *,
+    stream_complete: bool | None = None,
     decode_html_entities: bool = False,
 ) -> tuple[dict[str, Any], ToolArgumentRecoveryResult]:
-    recovery = parse_tool_call_arguments_with_recovery(args, tool_name, tool_schema)
+    recovery = parse_tool_call_arguments_with_recovery(args, tool_name, tool_schema, stream_complete=stream_complete)
     parsed: dict[str, Any] = recovery.args if recovery.safe else {}
 
     if decode_html_entities and parsed:
@@ -182,18 +183,25 @@ def _convert_raw_tool_call_to_langchain(
     tc: ToolCallDict,
     tool_schemas: Mapping[str, Mapping[str, Any]] | None = None,
     *,
+    stream_complete: bool | None = None,
     decode_html_entities: bool = False,
 ) -> tuple[ToolCall | None, dict[str, Any] | None]:
     """Convert an OpenAI-format tool call to a LangChain ToolCall object.
 
+    Returns ``(tool_call, recovery_metadata)``. ``tool_call`` is ``None`` when the
+    call cannot be safely executed — either its args failed every repair strategy
+    or the args are known to be truncated mid-stream. The caller must route such
+    calls to ``invalid_tool_calls`` (with the diagnosis) instead of dispatching
+    them, so a missing/partial argument never becomes a silently-wrong execution.
+
     Args:
-        tc: OpenAI-format tool call dict
-        tool_schemas: Tool schemas keyed by name, for schema-aware recovery
+        tc: OpenAI-format tool call dict.
+        tool_schemas: Tool schemas keyed by name, for schema-aware recovery.
+        stream_complete: Whether the producing stream ended normally. ``False``
+            marks truncated args as unsafe even when a close-the-JSON repair
+            would otherwise succeed.
         decode_html_entities: Whether to HTML-decode argument strings. xAI Grok
             escapes them; every other model's arguments are data.
-
-    Returns:
-        LangChain ToolCall object; returns None on parsing failure
     """
     try:
         args = tc["function"]["arguments"]
@@ -220,6 +228,7 @@ def _convert_raw_tool_call_to_langchain(
             args,
             tool_name,
             _resolve_tool_schema(raw_tool_name, tool_schemas),
+            stream_complete=stream_complete,
             decode_html_entities=decode_html_entities,
         )
 
@@ -242,12 +251,21 @@ def _convert_raw_tool_call_to_langchain(
                 safe=recovery.safe,
             )
         if not recovery.safe:
+            # Hard gate: an unsafe parse must never become an executable tool call.
+            # Return no ToolCall so the caller exposes it as an invalid call the
+            # model can see and retry, instead of dispatching wrong/empty args.
+            # The internal strategy name stays in structured metadata (below) and
+            # out of the model-facing error text.
+            metadata["error"] = (
+                f"Tool call arguments for '{tool_name}' could not be safely parsed; the call was NOT executed."
+            )
             logger.warning(
-                " Unsafe recovered tool_call args dropped for %s via %s",
+                " Unsafe tool_call args withheld from execution for %s via %s",
                 tool_name,
                 recovery.strategy,
             )
-        elif recovery.strategy != "standard_json" or recovery.degraded:
+            return None, metadata
+        if recovery.strategy != "standard_json" or recovery.degraded:
             logger.warning(" Recovered tool_call args for %s via %s", tool_name, recovery.strategy)
 
         return (
@@ -263,12 +281,37 @@ def _convert_raw_tool_call_to_langchain(
         return None, None
 
 
+def _build_invalid_tool_call(
+    tc: ToolCallDict,
+    metadata: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Build an ``invalid_tool_call`` declaration for a call that failed safe parsing.
+
+    The raw argument text is preserved so the dangling-call repair pipeline can
+    quarantine it (never replaying malformed text) and so the model receives a
+    structured diagnosis instead of an executed wrong/empty call.
+    """
+    function_obj = tc.get("function") or {}
+    raw_args = function_obj.get("arguments", "")
+    if isinstance(raw_args, dict):
+        raw_args = json.dumps(raw_args, sort_keys=True)
+    elif not isinstance(raw_args, str):
+        raw_args = "" if raw_args is None else str(raw_args)
+    return {
+        "type": "invalid_tool_call",
+        "id": str(metadata.get("tool_call_id") or tc.get("id", "")),
+        "name": str(metadata.get("tool_name") or function_obj.get("name", "")),
+        "args": raw_args,
+        "error": str(metadata.get("error") or "Unsafe tool call arguments"),
+    }
+
+
 def _parse_tool_call_args(
     args: str | dict[str, Any],
     tool_name: str,
     tool_schema: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Parse tool call parameters.
+    """Parse tool call parameters, returning ``{}`` when no safe parse exists.
 
     HTML entities stay verbatim: decoding is opt-in per model through
     ``_parse_tool_call_args_result(..., decode_html_entities=True)``.
@@ -328,6 +371,7 @@ def convert_dict_to_message(
     available_tools: list[str] | None = None,
     tool_schemas: Mapping[str, Mapping[str, Any]] | None = None,
     *,
+    stream_complete: bool | None = None,
     decode_html_entities: bool = False,
 ) -> BaseMessage:
     """Convert a dict-format message to a LangChain BaseMessage.
@@ -336,6 +380,10 @@ def convert_dict_to_message(
         _dict: Provider message dict (OpenAI/LiteLLM shape).
         available_tools: Names used to filter hallucinated tool calls.
         tool_schemas: Tool schemas keyed by name, for schema-aware arg recovery.
+        stream_complete: Whether the producing stream ended normally. ``False``
+            (provider stopped mid-generation) marks truncated args unsafe, and
+            the affected calls are surfaced as ``invalid_tool_calls`` instead of
+            being dispatched with silently-incomplete arguments.
         decode_html_entities: Whether to HTML-decode tool-call argument strings
             (xAI Grok escapes them; every other model's arguments are data).
     """
@@ -346,6 +394,7 @@ def convert_dict_to_message(
         content = _dict.get("content", "") or ""
         additional_kwargs: dict[str, Any] = {}
         tool_calls: list[ToolCall] = []
+        invalid_tool_calls: list[dict[str, Any]] = []
 
         # Non-streaming path reasoning fallback: reasoning_content, reasoning, thinking, thoughts, etc.
         from myrm_agent_harness.toolkits.llms.adapters.streaming import extract_reasoning_payload
@@ -364,10 +413,15 @@ def convert_dict_to_message(
             content = clean_xml_tool_tags(content)
             for tc in raw_tool_calls:
                 tool_call, metadata = _convert_raw_tool_call_to_langchain(
-                    tc, tool_schemas, decode_html_entities=decode_html_entities
+                    tc, tool_schemas, stream_complete=stream_complete, decode_html_entities=decode_html_entities
                 )
                 if tool_call:
                     tool_calls.append(tool_call)
+                elif metadata:
+                    # Unsafe parse: keep the call as an invalid declaration so the
+                    # model sees the failure and retries, instead of executing
+                    # wrong/empty arguments.
+                    invalid_tool_calls.append(_build_invalid_tool_call(tc, metadata))
                 if metadata and (
                     metadata["strategy"] != "standard_json" or metadata["degraded"] or not metadata["safe"]
                 ):
@@ -375,6 +429,8 @@ def convert_dict_to_message(
             additional_kwargs["tool_calls"] = raw_tool_calls
         if recovery_metadata:
             additional_kwargs["tool_call_recovery"] = recovery_metadata
+        if invalid_tool_calls:
+            additional_kwargs["invalid_tool_calls"] = invalid_tool_calls
 
         reasoning_items = _dict.get("responses_reasoning_items")
         if isinstance(reasoning_items, list) and reasoning_items:
@@ -388,6 +444,7 @@ def convert_dict_to_message(
             content=content,
             additional_kwargs=additional_kwargs,
             tool_calls=tool_calls,
+            invalid_tool_calls=invalid_tool_calls,
             name=_dict.get("name"),
         )
     elif role == "system":

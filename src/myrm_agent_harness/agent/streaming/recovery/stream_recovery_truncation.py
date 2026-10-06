@@ -5,16 +5,17 @@
 - agent.streaming.types::AgentEventType (POS: streaming event type constants)
 - agent.errors.diagnostics::LLMErrorDiagnostic (POS: LLM truncation diagnostic builder)
 - toolkits.llms.token_economics.tracker::get_token_tracker (POS: token finish-reason tracker)
+- toolkits.llms.adapters.tool_recovery::has_withheld_tool_calls (POS: detects tool calls withheld as unsafe)
 
 [OUTPUT]
-- StreamTruncationRecoveryMixin: handles length/max-token continuation, truncated tool-call retry, and truncation warnings.
+- StreamTruncationRecoveryMixin: handles length/max-token continuation, truncated or withheld tool-call retry, and truncation warnings.
 - ephemeral_max_output_tokens: ContextVar for per-request output token override.
 - get_ephemeral_max_output_tokens / set_ephemeral_max_output_tokens / reset_ephemeral_max_output_tokens: accessors.
 
 [POS]
 Streaming truncation recovery layer. Detects length-truncated responses, injects safe
 continuation prompts with progressive output budget boosting, auto-retries truncated
-tool calls, and emits structured truncation warnings.
+or withheld (unsafe-argument) tool calls, and emits structured truncation warnings.
 """
 
 from __future__ import annotations
@@ -22,11 +23,12 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, cast
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.types import Command
 
 from myrm_agent_harness.agent.streaming.types import AgentEventType
 from myrm_agent_harness.core.events import THINKING_TAG_NAMES
+from myrm_agent_harness.toolkits.llms.adapters.tool_recovery import has_withheld_tool_calls
 from myrm_agent_harness.toolkits.llms.ephemeral_output_tokens import (
     MAX_EPHEMERAL_OUTPUT_TOKENS,
     ephemeral_max_output_tokens,
@@ -61,13 +63,7 @@ class StreamTruncationRecoveryMixin:
         retries: int = 0,
     ) -> bool:
         """Detect length truncation and either auto-continue or emit warnings."""
-        from langchain_core.messages import AIMessage
-
         from myrm_agent_harness.utils.token_economics.tracker import get_token_tracker
-
-        tracker = get_token_tracker()
-        if not tracker or tracker.last_finish_reason not in ("length", "max_tokens"):
-            return False
 
         last_ai_msg: AIMessage | None = None
         for msg in reversed(collected_messages):
@@ -78,7 +74,14 @@ class StreamTruncationRecoveryMixin:
         if last_ai_msg is None:
             return False
 
-        has_tool_calls = bool(last_ai_msg.tool_calls)
+        # A tool call withheld as unsafe (arguments cut off or unparseable) ends the
+        # turn as surely as a length cut, whatever finish_reason the provider reported.
+        tracker = get_token_tracker()
+        length_cut = tracker is not None and tracker.last_finish_reason in ("length", "max_tokens")
+        if not length_cut and not has_withheld_tool_calls(last_ai_msg.additional_kwargs):
+            return False
+
+        has_tool_calls = self._has_tool_calls(last_ai_msg)
         # Tag-wrapped reasoning must be classified before the plain-content probe:
         # providers that inline ``<think>`` into ``content`` (MiniMax) otherwise
         # look like they produced user-visible text.
@@ -235,12 +238,10 @@ class StreamTruncationRecoveryMixin:
         collected_messages: list[BaseMessage],
         locale: str,
     ) -> bool:
-        """Discard the truncated AI message, boost output budget, and signal retry.
+        """Discard the failed tool-call message, boost output budget, and signal retry.
 
         Only retries once to avoid infinite loops.
         """
-        from langchain_core.messages import AIMessage
-
         ctx = self._ctx
         if isinstance(ctx.agent_input, Command):
             logger.warning(" Resume mode — tool-call truncation retry not supported")
@@ -260,8 +261,9 @@ class StreamTruncationRecoveryMixin:
 
         self._tool_truncation_retries = tool_truncation_retries + 1
 
-        # Drop the truncated AI message so LangGraph won't try to execute
-        # incomplete tool_calls (which would fail JSON parsing).
+        # Drop the final AI message: its tool calls are truncated or withheld as unsafe,
+        # so nothing in it is executable and the retry must not carry its empty-args
+        # re-declaration.
         cleaned: list[BaseMessage] = []
         for msg in collected_messages:
             if isinstance(msg, AIMessage) and msg is collected_messages[-1]:
@@ -275,9 +277,10 @@ class StreamTruncationRecoveryMixin:
 
         retry_hint = HumanMessage(
             content=(
-                "[System: Your previous tool call was truncated by the output length "
-                "limit. Please retry the operation. If the output is very large, "
-                "consider splitting it into smaller parts.]"
+                "[System: Your previous tool call was not executed because its arguments were "
+                "incomplete or invalid (for example cut off by the output length limit). "
+                "Please retry the operation. If the output is very large, consider splitting "
+                "it into smaller parts.]"
             )
         )
         messages.append(retry_hint)
@@ -402,6 +405,11 @@ class StreamTruncationRecoveryMixin:
             event["diagnostic_result"] = diagnostic_dict
 
         await self._compactor.put(event)
+
+    @staticmethod
+    def _has_tool_calls(msg: AIMessage) -> bool:
+        """Whether the message carries executable tool calls or calls withheld as unsafe."""
+        return bool(msg.tool_calls) or has_withheld_tool_calls(msg.additional_kwargs)
 
     @staticmethod
     def _has_non_reasoning_content(msg: object) -> bool:

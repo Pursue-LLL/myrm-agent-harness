@@ -731,13 +731,13 @@ class StreamRecoveryMixin(
         if last_ai_msg is None:
             return False
 
-        has_tool_calls = bool(last_ai_msg.tool_calls)
+        has_tool_calls = self._has_tool_calls(last_ai_msg)
         # Tag-wrapped reasoning (MiniMax inlines ``<think>`` into ``content``) is not
         # user-visible content, so it must not exempt the turn from recovery.
         has_tagged_reasoning = self._has_inline_reasoning(last_ai_msg)
         has_content = False if has_tagged_reasoning else self._has_non_reasoning_content(last_ai_msg)
 
-        # If it has tool calls or any user-visible content, it's not an empty response.
+        # Tool calls (executable or withheld as unsafe) or user-visible content: not an empty response.
         # Note: We do NOT exempt reasoning-only responses (e.g. <thinking> blocks without actual output).
         # A reasoning-only response is still an empty response from the user's perspective and must be retried.
         if has_tool_calls or has_content:

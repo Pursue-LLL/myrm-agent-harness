@@ -265,6 +265,40 @@ class TestFinalizeStream:
         assert result.aggregated_response["choices"][0]["finish_reason"] == "stop"
         record_fn.assert_called_once()
 
+    def test_dropped_stream_reports_sentinel_finish_reason(self) -> None:
+        """A stream closed without a final chunk must not look like a normal turn."""
+        from myrm_agent_harness.utils.token_economics.usage_ledger import (
+            DROPPED_STREAM_FINISH_REASON,
+        )
+
+        agg = StreamAggregator(AIMessageChunk)
+        agg.content = ["partial output"]
+        agg.last_model = "gpt-4o"
+        assert agg.finish_reason == ""  # connection died before any metadata chunk
+
+        record_fn = MagicMock()
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.llms.adapters.stream_aggregator.build_final_tool_call_chunk",
+                return_value=(None, [], []),
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.llms.adapters.stream_aggregator.parse_tool_calls_from_reasoning",
+                return_value=([], []),
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.llms.adapters.stream_aggregator.normalize_usage",
+                return_value={},
+            ),
+            patch("myrm_agent_harness.toolkits.llms.utils.logger.log_llm_response"),
+            patch("myrm_agent_harness.utils.token_economics.tracker.record_finish_reason") as record_fr,
+        ):
+            result = finalize_stream(agg, None, "gpt-4o", is_async=False, record_usage_fn=record_fn)
+
+        assert result.aggregated_response["choices"][0]["finish_reason"] == DROPPED_STREAM_FINISH_REASON
+        assert record_fn.call_args.kwargs["finish_reason"] == DROPPED_STREAM_FINISH_REASON
+        record_fr.assert_called_once_with(DROPPED_STREAM_FINISH_REASON)
+
     def test_finalization_with_reasoning(self) -> None:
         agg = StreamAggregator(AIMessageChunk)
         agg.content = ["answer"]

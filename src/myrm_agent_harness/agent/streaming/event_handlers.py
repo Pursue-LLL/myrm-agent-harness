@@ -6,9 +6,10 @@
 - agent.streaming.source_tracker::SourceTracker (POS: Source reference forwarding capability for BaseAgent.)
 - agent.types::AgentRunStatistics (POS: Agent core runtime type definitions.)
 - agent.streaming.types::AgentEventType (POS: Streaming module core type definitions.)
+- toolkits.llms.adapters.tool_recovery::has_withheld_tool_calls (POS: Detects messages that only record withheld tool calls.)
 
 [OUTPUT]
-- process_updates_chunk(): 处理 LangGraph updates 流 → 业务事件（含自动 sources 转发，空 AIMessage 过滤）
+- process_updates_chunk(): 处理 LangGraph updates 流 → 业务事件（含自动 sources 转发，空 AIMessage 过滤；仅记录被扣留工具调用的消息不算空消息）
 - process_messages_chunk(): 处理 LangGraph messages 流 → 消息块事件（含 message/reasoning 统一清洗、工具调用文本抑制）
 
 [POS]
@@ -35,6 +36,7 @@ from myrm_agent_harness.agent.streaming.types import AgentEventType
 from myrm_agent_harness.toolkits.code_execution.executors.models import (
     scrub_sensitive_info,
 )
+from myrm_agent_harness.toolkits.llms.adapters.tool_recovery import has_withheld_tool_calls
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.text_sanitizer import sanitize_llm_output
 
@@ -114,7 +116,14 @@ async def process_updates_chunk(
         messages = cast(list[object], node_output["messages"])
         for msg in messages:
             if collected_messages is not None and isinstance(msg, BaseMessage):
-                if isinstance(msg, AIMessage) and not msg.content and not msg.tool_calls:
+                # A message that only records withheld tool calls is not empty: recovery
+                # needs it to see that the turn ended on a failed tool call.
+                if (
+                    isinstance(msg, AIMessage)
+                    and not msg.content
+                    and not msg.tool_calls
+                    and not has_withheld_tool_calls(msg.additional_kwargs)
+                ):
                     logger.debug("Skipping empty AIMessage from collected_messages")
                 else:
                     collected_messages.append(msg)
@@ -279,7 +288,8 @@ def _extract_tool_metadata(msg: ToolMessage) -> dict[str, object]:
         try:
             parsed = json.loads(msg.content)
             if isinstance(parsed, dict):
-                return parsed.get("metadata", {})
+                metadata: object = parsed.get("metadata", {})
+                return metadata if isinstance(metadata, dict) else {}
         except json.JSONDecodeError:
             pass
 

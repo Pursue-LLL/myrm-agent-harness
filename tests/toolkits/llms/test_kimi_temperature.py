@@ -1,6 +1,6 @@
 """Tests for Kimi/Moonshot temperature floor in clean_model_kwargs."""
 
-from myrm_agent_harness.toolkits.llms.utils.litellm_utils import clean_model_kwargs
+from myrm_agent_harness.toolkits.llms.utils.model_kwargs import clean_model_kwargs
 
 
 def test_kimi_temperature_floor():

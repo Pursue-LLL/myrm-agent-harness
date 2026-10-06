@@ -86,6 +86,8 @@
     "Break the task into smaller steps",
     "Check the output file for completeness"
   ],
+  "tool_call_retry_user_message": "Tool call was cut off — retrying",
+  "tool_call_retry_resolution_steps": [],
   "text_continuation_user_message": "Response was truncated — automatically continuing",
   "text_continuation_resolution_steps": [],
   "text_continuation_exhausted_user_message": "Response remained truncated after 3 continuation attempts",

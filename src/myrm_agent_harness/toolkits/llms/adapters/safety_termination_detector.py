@@ -58,23 +58,39 @@ def suppress_tool_calls_for_safety(
     aggregated_message: dict[str, object],
     finish_reason: str,
 ) -> int:
-    """Strip tool_calls from aggregated message and append safety explanation.
+    """Strip tool calls from aggregated message and append safety explanation.
 
-    Returns the number of suppressed tool calls for audit logging.
+    Covers both executable ``tool_calls`` and calls that the truncation gate
+    already withheld into ``tool_call_recovery`` (``safe=False``): in either case
+    the provider stopped mid-generation, so the model must not be asked to retry
+    and the user must see why. Returns the number of suppressed calls for audit
+    logging.
     """
     tool_calls = aggregated_message.get("tool_calls")
-    if not tool_calls:
+    withheld = aggregated_message.get("tool_call_recovery")
+    if not isinstance(tool_calls, list) and not isinstance(withheld, list):
         return 0
 
-    suppressed_count = len(tool_calls)
-    suppressed_names = [tc.get("function", {}).get("name", "unknown") for tc in tool_calls]
+    if isinstance(tool_calls, list) and tool_calls:
+        suppressed_count = len(tool_calls)
+        suppressed_names = [
+            tc.get("function", {}).get("name", "unknown") if isinstance(tc, dict) else "unknown" for tc in tool_calls
+        ]
+    else:
+        withheld_items = withheld if isinstance(withheld, list) else []
+        suppressed_count = len(withheld_items)
+        suppressed_names = [
+            item.get("tool_name", "unknown") if isinstance(item, dict) else "unknown" for item in withheld_items
+        ]
 
-    del aggregated_message["tool_calls"]
+    aggregated_message.pop("tool_calls", None)
+    aggregated_message.pop("tool_call_recovery", None)
 
     # Also clear raw provider payloads that some adapters preserve
-    additional_kwargs = aggregated_message.get("additional_kwargs", {})
-    additional_kwargs.pop("tool_calls", None)
-    additional_kwargs.pop("function_call", None)
+    additional_kwargs = aggregated_message.get("additional_kwargs")
+    if isinstance(additional_kwargs, dict):
+        additional_kwargs.pop("tool_calls", None)
+        additional_kwargs.pop("function_call", None)
 
     explanation = _USER_FACING_MESSAGE.format(reason=finish_reason)
     existing_content = aggregated_message.get("content", "")

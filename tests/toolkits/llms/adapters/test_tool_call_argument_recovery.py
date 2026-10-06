@@ -10,7 +10,11 @@ from myrm_agent_harness.toolkits.llms.adapters.converters import (
     _parse_tool_call_args,
     convert_dict_to_message,
 )
-from myrm_agent_harness.toolkits.llms.adapters.tool_recovery import recover_tool_call_payloads
+from myrm_agent_harness.toolkits.llms.adapters.tool_recovery import (
+    build_final_tool_call_chunk,
+    has_withheld_tool_calls,
+    recover_tool_call_payloads,
+)
 from myrm_agent_harness.toolkits.llms.utils.litellm_utils import (
     _NONE_OUTSIDE_STRINGS,
     parse_tool_call_arguments_with_recovery,
@@ -61,13 +65,72 @@ class TestToolArgumentRecovery:
             },
             required=["path", "content"],
         )
-        raw = '{"path":"demo.py","content":"print(1)'
+        raw = '{"path":"demo.py","content":"print(1)"'
 
         result = parse_tool_call_arguments_with_recovery(raw, "file_write_tool", schema)
 
         assert result.safe is True
         assert "truncated" in result.strategy
         assert result.args == {"path": "demo.py", "content": "print(1)"}
+
+    @pytest.mark.parametrize(
+        "raw",
+        [
+            '{"path":"demo.py","content":"print(1)',
+            '{"command":"rm -rf /tmp/cache/old_',
+            '{"items":["a","b',
+            '{"outer":{"inner":"te',
+            '{"content":"ends with a backslash\\',
+        ],
+    )
+    def test_value_cut_off_inside_a_string_is_refused(self, raw: str) -> None:
+        """A closed prefix of a path/command/body is a valid but shorter value — never executable."""
+        result = parse_tool_call_arguments_with_recovery(raw, "file_write_tool")
+
+        assert result.safe is False
+        assert result.strategy == "truncated_mid_value"
+        assert result.args == {}
+
+    @pytest.mark.parametrize("stream_complete", [None, True])
+    def test_provider_reporting_a_normal_finish_cannot_smuggle_a_cut_string(self, stream_complete: bool | None) -> None:
+        raw = '{"path":"/etc/pas'
+
+        result = parse_tool_call_arguments_with_recovery(raw, "file_write_tool", stream_complete=stream_complete)
+
+        assert result.safe is False
+
+    @pytest.mark.parametrize(
+        "raw, expected",
+        [
+            ('{"path":"a.py"', {"path": "a.py"}),
+            ('{"a":"x",', {"a": "x"}),
+            ('{"items":[1,2', {"items": [1, 2]}),
+            ('{"flag":tr', {"flag": True}),
+            ('{"ratio":0.', {"ratio": 0.0}),
+            ('{"mode":', {"mode": None}),
+        ],
+    )
+    def test_value_cut_at_a_boundary_is_still_completed(self, raw: str, expected: dict[str, object]) -> None:
+        result = parse_tool_call_arguments_with_recovery(raw, "file_write_tool")
+
+        assert result.safe is True
+        assert result.args == expected
+
+    def test_long_text_repair_does_not_close_a_later_cut_string(self) -> None:
+        schema = _build_tool_schema(
+            "file_write_tool",
+            {"path": {"type": "string"}, "content": {"type": "string"}},
+            required=["path", "content"],
+        )
+        cut = '{"content":"complete body","path":"/tmp/x'
+
+        refused = parse_tool_call_arguments_with_recovery(cut, "file_write_tool", schema)
+        completed = parse_tool_call_arguments_with_recovery(cut + '"', "file_write_tool", schema)
+
+        assert refused.safe is False
+        assert refused.strategy == "truncated_mid_value"
+        assert completed.safe is True
+        assert completed.args == {"content": "complete body", "path": "/tmp/x"}
 
     def test_regex_fallback_is_marked_unsafe_without_schema(self) -> None:
         raw = 'oops "command": "rm -rf /tmp/demo" trailing'
@@ -228,12 +291,13 @@ class TestPythonNoneLiteralRecovery:
 
         assert result.args == {"content": 'say "None" now', "mode": None}
 
-    def test_none_inside_a_truncated_string_is_preserved(self) -> None:
-        raw = '{"path": "a.py", "content": "return None'
+    def test_none_inside_a_completed_string_is_preserved(self) -> None:
+        raw = '{"path": "a.py", "content": "return None"'
 
         result = parse_tool_call_arguments_with_recovery(raw, "file_write_tool")
 
-        assert result.strategy == "truncated_completion"
+        assert result.safe is True
+        assert "truncated_completion" in result.strategy
         assert result.args == {"path": "a.py", "content": "return None"}
 
     @pytest.mark.parametrize("pipeline", ["non_stream", "stream"])
@@ -269,3 +333,49 @@ class TestPythonNoneLiteralRecovery:
         _NONE_OUTSIDE_STRINGS.findall(payload)
 
         assert time.perf_counter() - started < 1.0
+
+
+def _raw_write_call(arguments: str) -> list[dict[str, object]]:
+    return [{"id": "call_1", "type": "function", "function": {"name": "file_write_tool", "arguments": arguments}}]
+
+
+class TestHasWithheldToolCalls:
+    """The predicate recovery layers use to tell "the turn ended on a failed tool call" from "empty reply"."""
+
+    @pytest.mark.parametrize(
+        "additional_kwargs",
+        [None, {}, {"tool_call_recovery": []}, {"tool_call_recovery": "not-a-list"}],
+    )
+    def test_absent_or_empty_metadata_is_not_withheld(self, additional_kwargs: dict[str, object] | None) -> None:
+        assert has_withheld_tool_calls(additional_kwargs) is False
+
+    def test_repaired_calls_are_not_withheld(self) -> None:
+        items = [{"tool_call_id": "call_1", "strategy": "truncated_completion", "degraded": True, "safe": True}]
+
+        assert has_withheld_tool_calls({"tool_call_recovery": items}) is False
+
+    def test_malformed_items_are_ignored(self) -> None:
+        items = ["safe=False", None, {"safe": None}, {}]
+
+        assert has_withheld_tool_calls({"tool_call_recovery": items}) is False
+
+    def test_one_unsafe_item_among_repaired_ones_is_withheld(self) -> None:
+        assert has_withheld_tool_calls({"tool_call_recovery": [{"safe": True}, {"safe": False}]}) is True
+
+    def test_detects_exactly_what_the_producer_records_for_a_cut_off_call(self) -> None:
+        raw = _raw_write_call('{"path": "a.md", "content": "Revenue grew by 1')
+
+        chunk, _, _ = build_final_tool_call_chunk(raw, stream_complete=False)
+
+        assert chunk is not None
+        assert chunk.message.tool_calls == []
+        assert has_withheld_tool_calls(chunk.message.additional_kwargs) is True
+
+    def test_does_not_flag_a_complete_call(self) -> None:
+        raw = _raw_write_call('{"path": "a.md", "content": "done"}')
+
+        chunk, _, _ = build_final_tool_call_chunk(raw, stream_complete=True)
+
+        assert chunk is not None
+        assert [call["name"] for call in chunk.message.tool_calls] == ["file_write_tool"]
+        assert has_withheld_tool_calls(chunk.message.additional_kwargs) is False

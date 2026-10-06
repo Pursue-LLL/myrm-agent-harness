@@ -89,10 +89,10 @@ from myrm_agent_harness.toolkits.llms.adapters.chat_model.sync_mixin import (
 )
 from myrm_agent_harness.toolkits.llms.adapters.metrics import EmptyRetryMetrics
 from myrm_agent_harness.toolkits.llms.adapters.schema import normalize_tool_schema
-from myrm_agent_harness.toolkits.llms.utils.litellm_utils import (
+from myrm_agent_harness.toolkits.llms.utils.model_kwargs import (
     clean_model_kwargs as utils_clean_model_kwargs,
 )
-from myrm_agent_harness.toolkits.llms.utils.litellm_utils import (
+from myrm_agent_harness.toolkits.llms.utils.model_kwargs import (
     should_skip_response_format,
 )
 from myrm_agent_harness.toolkits.llms.utils.proxy import normalize_proxy_url
@@ -140,7 +140,7 @@ class ChatLiteLLM(ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyn
     max_tokens: int | None = None
     reasoning_effort: str | None = Field(
         default=None,
-        description="Reasoning effort level (e.g. 'low', 'medium', 'high', 'max')",
+        description="Reasoning effort level (e.g. low, medium, high, max)",
     )
     streaming: bool = False
     egress_proxy: str | None = Field(
@@ -179,10 +179,6 @@ class ChatLiteLLM(ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyn
     wire_protocol: WireProtocol = Field(
         default=DEFAULT_WIRE_PROTOCOL,
         description="HTTP wire transport: chat_completions, responses, or anthropic_messages",
-    )
-    reasoning_effort: str | None = Field(
-        default=None,
-        description="Reasoning effort level (e.g. low, medium, high, max)",
     )
 
     # Private attribute for metrics (Pydantic v2 PrivateAttr)

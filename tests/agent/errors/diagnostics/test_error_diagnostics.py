@@ -1,5 +1,7 @@
 """测试LLM错误智能诊断系统"""
 
+import pytest
+
 from myrm_agent_harness.agent.errors.diagnostics import LLMErrorDiagnostic
 
 
@@ -257,6 +259,27 @@ def test_diagnose_truncation_tool_call_zh():
     assert result.error_type == "tool_call_truncated"
     assert "工具" in result.user_message or "不完整" in result.user_message
     assert result.locale == "zh-CN"
+
+
+@pytest.mark.parametrize("locale", ["en", "zh-CN", "ja", "ko", "de"])
+@pytest.mark.parametrize("truncation_type", ["tool_call_retry", "tool_call_truncated"])
+def test_tool_call_truncation_diagnostics_are_translated_in_every_locale(truncation_type: str, locale: str):
+    """Retry and give-up diagnostics reach the user through the status event; a missing key would leak a placeholder."""
+    result = LLMErrorDiagnostic.diagnose_truncation(truncation_type, locale=locale)
+
+    assert result.error_type == truncation_type
+    assert result.locale == locale
+    assert result.user_message
+    assert "Missing translation" not in result.user_message
+    assert isinstance(result.resolution_steps, list)
+
+
+def test_diagnose_truncation_tool_call_retry_has_no_resolution_steps():
+    """A retry is informational (the system acts on its own), so it carries no manual steps."""
+    result = LLMErrorDiagnostic.diagnose_truncation("tool_call_retry", locale="en")
+
+    assert result.user_message == "Tool call was cut off — retrying"
+    assert result.resolution_steps == []
 
 
 def test_status_code_boundary_no_false_positive():

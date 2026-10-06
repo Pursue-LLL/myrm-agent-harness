@@ -853,7 +853,9 @@ async def test_tool_call_retry_drops_truncated_ai_message(mock_context):
     assert len(messages) == 2
     assert messages[0] is human_msg
     assert isinstance(messages[1], HumanMessage)
-    assert "truncated" in messages[1].content.lower()
+    hint = messages[1].content.lower()
+    assert "not executed" in hint
+    assert "retry" in hint
     assert executor._tool_truncation_retries == 1
 
 

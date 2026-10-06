@@ -85,6 +85,8 @@
     "Teilen Sie die Aufgabe in kleinere Schritte auf",
     "Überprüfen Sie die Vollständigkeit der Ausgabedatei"
   ],
+  "tool_call_retry_user_message": "Werkzeugaufruf unterbrochen — Wiederholung läuft",
+  "tool_call_retry_resolution_steps": [],
   "text_continuation_user_message": "Die Antwort wurde abgeschnitten — Fortsetzung wird automatisch erzeugt",
   "text_continuation_resolution_steps": [],
   "text_continuation_exhausted_user_message": "Die Antwort blieb nach 3 Fortsetzungsversuchen abgeschnitten",

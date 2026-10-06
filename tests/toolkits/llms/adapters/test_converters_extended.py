@@ -34,6 +34,13 @@ class OddMessage(BaseMessage):
     type: Literal["odd"] = "odd"
 
 
+_TRUNCATED_TOOL_CALL = {
+    "type": "function",
+    "id": "call_truncated",
+    "function": {"name": "write_file", "arguments": '{"path": "/tmp/x"'},
+}
+
+
 class TestLcToolCallFormat:
     def test_lc_tool_call_to_openai_sorts_keys(self) -> None:
         tc = ToolCall(name="fn", args={"b": 2, "a": 1}, id="call_x")
@@ -265,3 +272,32 @@ class TestRecoveryMetricsRecording:
             )
         assert isinstance(msg, AIMessage)
         mock_registry.record_tool_arg_recovery.assert_called()
+
+
+class TestNonStreamingTruncationGate:
+    """Non-streaming parity: when finish_reason reports an abnormal end
+    (length/max_tokens/safety), `stream_complete=False` refuses to close a
+    partial JSON object and the call is surfaced as invalid instead of executed."""
+
+    def test_abnormal_end_withholds_truncated_call(self) -> None:
+        msg = convert_dict_to_message(
+            {"role": "assistant", "content": "", "tool_calls": [_TRUNCATED_TOOL_CALL]},
+            tool_schemas=None,
+            stream_complete=False,
+        )
+        assert isinstance(msg, AIMessage)
+        assert msg.tool_calls == []
+        assert [itc["id"] for itc in msg.invalid_tool_calls] == ["call_truncated"]
+        assert msg.invalid_tool_calls[0]["args"] == '{"path": "/tmp/x"'
+        assert "could not be safely parsed" in msg.invalid_tool_calls[0]["error"]
+
+    def test_complete_end_repairs_truncated_call(self) -> None:
+        msg = convert_dict_to_message(
+            {"role": "assistant", "content": "", "tool_calls": [_TRUNCATED_TOOL_CALL]},
+            tool_schemas=None,
+            stream_complete=True,
+        )
+        assert isinstance(msg, AIMessage)
+        assert [tc["id"] for tc in msg.tool_calls] == ["call_truncated"]
+        assert msg.tool_calls[0]["args"] == {"path": "/tmp/x"}
+        assert msg.invalid_tool_calls == []

@@ -85,6 +85,8 @@
     "タスクを小さなステップに分割してください",
     "出力ファイルの完全性を確認してください"
   ],
+  "tool_call_retry_user_message": "ツール呼び出しが途切れたため、再試行中",
+  "tool_call_retry_resolution_steps": [],
   "text_continuation_user_message": "応答が途中で切断されました——自動的に続行中",
   "text_continuation_resolution_steps": [],
   "text_continuation_exhausted_user_message": "3回の続行試行後も応答が完了しませんでした",
