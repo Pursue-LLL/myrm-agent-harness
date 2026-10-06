@@ -26,6 +26,13 @@ from myrm_agent_harness.runtime.context.offload import (
     cleanup_session_context_files,
     create_compress_offload_callback,
 )
+from myrm_agent_harness.runtime.context.token_estimator import (
+    CompactionBudgetSettings,
+    ProviderUsageAnchor,
+    estimate_context_tokens_anchored,
+    extract_provider_usage_anchor,
+    is_compaction_triggered,
+)
 from myrm_agent_harness.runtime.context.transcripts import (
     CanonicalToolCall,
     CanonicalTranscriptTurn,
@@ -80,4 +87,9 @@ __all__ = [
     "create_compaction_todo_anchor",
     "extract_todo_store_from_payload",
     "fold_branch_todo_state",
+    "CompactionBudgetSettings",
+    "ProviderUsageAnchor",
+    "estimate_context_tokens_anchored",
+    "extract_provider_usage_anchor",
+    "is_compaction_triggered",
 ]

@@ -134,14 +134,33 @@ def estimate_context_tokens(
     *,
     bound_tool_overhead_tokens: int = 0,
     last_provider_prompt_tokens: int | None = None,
+    use_anchor: bool = False,
 ) -> int:
     """Estimate full request context for compress/budget decisions.
 
     Tool schemas are not part of ``messages`` but are billed on every LLM call.
+    When ``use_anchor=True``, leverages latest AIMessage provider usage as baseline
+    and only incrementally counts tail messages, achieving O(1) performance.
     When provider-reported ``prompt_tokens`` is available, use max(estimate, API)
     so compress decisions stay aligned with the UI context ring.
     """
+    if use_anchor:
+        from myrm_agent_harness.runtime.context.token_estimator import (
+            estimate_context_tokens_anchored,
+        )
+
+        anchored_val, is_anchored = estimate_context_tokens_anchored(
+            messages,
+            bound_tool_overhead_tokens=bound_tool_overhead_tokens,
+            fallback_on_no_anchor=False,
+        )
+        if is_anchored:
+            if last_provider_prompt_tokens is not None and last_provider_prompt_tokens > 0:
+                return max(anchored_val, last_provider_prompt_tokens)
+            return anchored_val
+
     estimated = estimate_messages_tokens(messages) + max(0, bound_tool_overhead_tokens)
     if last_provider_prompt_tokens is not None and last_provider_prompt_tokens > 0:
         return max(estimated, last_provider_prompt_tokens)
     return estimated
+
