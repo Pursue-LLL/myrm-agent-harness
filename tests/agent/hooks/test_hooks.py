@@ -571,12 +571,6 @@ class TestInjectArguments:
         assert '"key"' in result
         assert '"val"' in result
 
-    def test_shell_escape(self):
-        from myrm_agent_harness.agent.hooks.executor import _inject_arguments
-
-        result = _inject_arguments("echo $ARGUMENTS", {"a": "b"}, shell_escape=True)
-        assert "'" in result or '"' in result
-
 
 class TestMatchesHook:
     def test_no_matcher_matches_all(self):
@@ -1614,11 +1608,11 @@ class TestHookGovernance:
     # -- command gate --
 
     @pytest.mark.asyncio
-    async def test_command_gate_blocks_destructive_command(self):
+    async def test_command_gate_blocks_dangerous_command(self):
         registry = HookRegistry()
         registry.register(
             HookEvent.SESSION_START,
-            CommandHookDefinition(command="rm -rf /", source=HookSource.SKILL),
+            CommandHookDefinition(command="history -c", source=HookSource.SKILL),
         )
         result = await HookExecutor(registry).execute(HookEvent.SESSION_START, {})
         assert result.results[0].success is False
@@ -1684,7 +1678,7 @@ class TestHookGovernance:
         registry = HookRegistry()
         registry.register(
             HookEvent.SESSION_START,
-            CommandHookDefinition(command="rm -rf /", source=HookSource.SKILL, block_on_failure=True),
+            CommandHookDefinition(command="history -c", source=HookSource.SKILL, block_on_failure=True),
         )
         result = await HookExecutor(registry).execute(HookEvent.SESSION_START, {})
         assert result.blocked is True  # fail-closed hook: refusal blocks the flow

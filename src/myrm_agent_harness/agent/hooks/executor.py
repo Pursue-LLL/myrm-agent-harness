@@ -2,7 +2,7 @@
 
 [INPUT]
 - agent.hooks.types (POS: Hook 类型定义)
-- agent.hooks.command_gate (POS: 命令钩子安全网关+审批注入点)
+- agent.hooks.command_gate (POS: 命令钩子安全网关(判模板、不判载荷)+载荷环境变量绑定+审批注入点)
 - agent.hooks.session_access (POS: 会话级 ContextVar 访问 API，本文件头部 re-export)
 - core.security.http.secure_fetch::secure_request (POS: SSRF-protected outbound HTTP)
 - utils.chat_utils::extract_answer_text (POS: LLM 响应文本提取)
@@ -26,13 +26,18 @@ import asyncio
 import fnmatch
 import json
 import os
-import shlex
 import time
 from collections import defaultdict
 from dataclasses import replace
 
 from myrm_agent_harness.agent.hooks.command_gate import (
+    PAYLOAD_ENV_VAR,
+)
+from myrm_agent_harness.agent.hooks.command_gate import (
     approve_hook_command as _approve_hook_command,
+)
+from myrm_agent_harness.agent.hooks.command_gate import (
+    bind_payload_reference as _bind_payload_reference,
 )
 from myrm_agent_harness.agent.hooks.command_gate import (
     gate_hook_command as _gate_hook_command,
@@ -236,12 +241,11 @@ class HookExecutor:
             build_isolated_child_env,
         )
 
-        command = _inject_arguments(hook.command, payload, shell_escape=True)
-        refusal = _gate_hook_command(command, strict=_is_strict_source(hook))
+        refusal = _gate_hook_command(hook.command, strict=_is_strict_source(hook))
         if refusal is not None:
             # The gate judges the hook, not the event: a refused command never
             # blocks the main flow unless the hook itself opted into fail-closed.
-            if await _approve_hook_command(hook, event, command):
+            if await _approve_hook_command(hook, event, hook.command):
                 logger.info("hooks: command hook approved via approver [event=%s source=%s]", event, hook.source.value)
             else:
                 logger.warning(
@@ -258,9 +262,11 @@ class HookExecutor:
                     metadata={"gate_blocked": True},
                 )
 
+        # Event data reaches the command only through this env var (see bind_payload_reference).
+        command = _bind_payload_reference(hook.command)
         extra_env = {
             "HOOK_EVENT": event,
-            "HOOK_PAYLOAD": json.dumps(payload, default=str, ensure_ascii=True),
+            PAYLOAD_ENV_VAR: json.dumps(payload, default=str, ensure_ascii=True),
         }
         env = build_isolated_child_env(
             base_env=None,
@@ -465,11 +471,8 @@ def _matches_hook(hook: HookDefinition, payload: dict[str, object]) -> bool:
     return fnmatch.fnmatch(subject, hook.matcher)
 
 
-def _inject_arguments(template: str, payload: dict[str, object], *, shell_escape: bool = False) -> str:
-    serialized = json.dumps(payload, default=str, ensure_ascii=True)
-    if shell_escape:
-        serialized = shlex.quote(serialized)
-    return template.replace("$ARGUMENTS", serialized)
+def _inject_arguments(template: str, payload: dict[str, object]) -> str:
+    return template.replace("$ARGUMENTS", json.dumps(payload, default=str, ensure_ascii=True))
 
 
 def _parse_hook_json(text: str) -> dict[str, object]:

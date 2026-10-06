@@ -98,7 +98,12 @@ class CallableHookDefinition(_HookBase):
 
 
 class CommandHookDefinition(_HookBase):
-    """Shell command hook. Supports $ARGUMENTS template injection."""
+    """Shell command hook.
+
+    ``$ARGUMENTS`` expands to the JSON event payload as a single word. It is
+    bound through the ``$HOOK_PAYLOAD`` environment variable, never pasted into
+    the command text, so event data cannot be parsed as shell code.
+    """
 
     type: Literal["command"] = "command"
     command: str

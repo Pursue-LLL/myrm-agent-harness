@@ -40,7 +40,7 @@ class TestCommandGateRefusals:
         registry = HookRegistry()
         registry.register(
             HookEvent.SESSION_START,
-            CommandHookDefinition(command="echo a; echo b", source=HookSource.BUILTIN),
+            CommandHookDefinition(command="history -c", source=HookSource.BUILTIN),
         )
         result = await HookExecutor(registry).execute(HookEvent.SESSION_START, {})
         assert result.results[0].success is False

@@ -1,15 +1,24 @@
-"""Command hook safety gate and approval injection point.
+"""Command hook safety gate, payload binding and approval injection point.
 
 Shell-command hooks spawn a subprocess that the code_execution safety
 family does not cover. This gate reuses the same static command analyzer
-(``analyze_command`` / ``is_destructive_command``) so command hooks are
-judged by the same rules as agent bash commands:
+(``analyze_command``) so command hooks are judged by the same rules as
+agent bash commands, with one deliberate difference: shell *syntax*
+(``;``, ``$()``, ``${}``, backticks, redirects) is ordinary in a hook a
+person wrote, so only the categories describing what a command *does*
+apply:
 
-- BLOCK-level threats are refused unconditionally.
+- BLOCK-level threats (dangerous commands, obfuscation, control
+  characters) are refused unconditionally.
 - ESCALATE-level threats are refused in ``strict`` mode — used for hooks
   from third-party provenance (skill/plugin/user config), because hooks
   fire silently and unreviewed commands only get the narrowest path.
   Built-in framework hooks keep the wider path.
+- The gate judges the authored command template, never the event payload,
+  so a hook gets the same verdict for every event.
+- Event data reaches the command only as a ``$HOOK_PAYLOAD`` reference
+  (``bind_payload_reference``), never as pasted text, so it cannot be
+  parsed as code.
 - A product-layer approver (server approval card) can be injected via
   ``set_command_hook_approver`` to override a refusal at runtime.
 
@@ -20,20 +29,22 @@ judged by the same rules as agent bash commands:
 
 [OUTPUT]
 - HookCommandApprover, get/set_command_hook_approver: approval injection point
-- gate_hook_command: static gate check (BLOCK always; ESCALATE in strict mode)
+- gate_hook_command: static gate check on the command template (BLOCK always; ESCALATE in strict mode)
+- bind_payload_reference, PAYLOAD_ENV_VAR: rewrite $ARGUMENTS into an inert $HOOK_PAYLOAD reference
 - approve_hook_command: ask the injected approver to override a refusal
 - merged_governance_metadata: attach source/priority provenance to results
 
 [POS]
 Command hook safety gate. Runs command-type hooks through the code_execution
-static analyzer before spawn, with a product-layer approval injection point;
-absent approver means the gate verdict stands (fail-closed for third-party
-hooks).
+static analyzer before spawn, keeps event data out of the command text, with a
+product-layer approval injection point; absent approver means the gate verdict
+stands (fail-closed for third-party hooks).
 """
 
 from __future__ import annotations
 
 import asyncio
+import re
 from collections.abc import Awaitable, Callable
 from contextvars import ContextVar
 
@@ -71,26 +82,32 @@ def set_command_hook_approver(approver: HookCommandApprover | None) -> None:
 # Static gate
 # ---------------------------------------------------------------------------
 
+# Shell-syntax vectors (``$()``, backticks, ``${}``, ``;``, process substitution)
+# police LLM-generated one-liners. In a hook a person wrote or reviewed they are
+# ordinary shell, and refusing them rejects most real hooks. Control-character
+# smuggling is categorised separately by the analyzer and is never waived.
+_WAIVED_BLOCK_CATEGORIES = frozenset({"injection"})
+
 
 def gate_hook_command(command: str, *, strict: bool) -> str | None:
-    """Return the refusal reason when a command trips the static safety gate.
+    """Return the refusal reason when a hook command template trips the static gate.
 
-    Reuses the code_execution command analyzer (same rules as agent bash).
-    BLOCK-level threats are refused unconditionally; in ``strict`` mode —
-    used for third-party hooks (skill/plugin/user config) — ESCALATE-level
-    threats are refused too: hooks fire silently, so unreviewed commands
-    only get the narrowest path. Returns None when the command is allowed.
+    Reuses the code_execution command analyzer (same rules as agent bash),
+    minus the shell-syntax style policy. BLOCK-level threats are refused
+    unconditionally; in ``strict`` mode — used for third-party hooks
+    (skill/plugin/user config) — ESCALATE-level threats are refused too:
+    hooks fire silently, so unreviewed commands only get the narrowest path.
+    Returns None when the command is allowed.
     """
     from myrm_agent_harness.toolkits.code_execution.security.shell_command_analyzer import (
         ThreatLevel,
         analyze_command,
-        is_destructive_command,
     )
 
-    if is_destructive_command(command):
-        return "destructive command"
     for threat in analyze_command(command):
         if threat.level == ThreatLevel.BLOCK:
+            if threat.category in _WAIVED_BLOCK_CATEGORIES:
+                continue
             return f"blocked pattern: {threat.detail}"
         if strict and threat.level == ThreatLevel.ESCALATE:
             return f"unreviewed hook escalation: {threat.detail}"
@@ -100,6 +117,63 @@ def gate_hook_command(command: str, *, strict: bool) -> str | None:
 def is_strict_source(hook: HookDefinition) -> bool:
     """Third-party provenance gets the strict (narrower) gate path."""
     return hook.source is not HookSource.BUILTIN
+
+
+# ---------------------------------------------------------------------------
+# Payload binding (event data never becomes command text)
+# ---------------------------------------------------------------------------
+
+PAYLOAD_ENV_VAR = "HOOK_PAYLOAD"
+"""Environment variable carrying the JSON event payload to the hook command."""
+
+_PAYLOAD_PLACEHOLDER = re.compile(r"\$ARGUMENTS(?![A-Za-z0-9_])")
+_UNQUOTED_REFERENCE = f'"${PAYLOAD_ENV_VAR}"'
+_QUOTED_REFERENCE = f"${PAYLOAD_ENV_VAR}"
+_QUOTES = "'\""
+
+
+def bind_payload_reference(command: str) -> str:
+    """Rewrite each ``$ARGUMENTS`` into a reference to the payload env var.
+
+    The payload carries event data (tool output, user text) an attacker can
+    shape. Pasting it into the command text — however shell-escaped — lets
+    that data be parsed as code in some quoting contexts (``"$ARGUMENTS"``
+    closes the escaping quotes). A variable reference is expanded by the
+    shell without being re-parsed, so the data stays inert in every context.
+
+    The reference follows the quoting context so the hook always receives
+    the JSON as one word:
+
+    - unquoted:       ``$ARGUMENTS``      -> ``"$HOOK_PAYLOAD"``
+    - double-quoted:  ``"a=$ARGUMENTS"``  -> ``"a=$HOOK_PAYLOAD"``
+    - single-quoted or backslash-escaped placeholders stay literal: the shell
+      never expands them, and an inner ``sh -c '...'`` must not re-parse data.
+    """
+    out: list[str] = []
+    quote = ""
+    i = 0
+    while i < len(command):
+        char = command[i]
+        if char == "\\" and quote != "'":
+            out.append(command[i : i + 2])
+            i += 2
+            continue
+        if char == "$" and quote != "'":
+            placeholder = _PAYLOAD_PLACEHOLDER.match(command, i)
+            if placeholder:
+                out.append(_QUOTED_REFERENCE if quote else _UNQUOTED_REFERENCE)
+                i = placeholder.end()
+                continue
+        if char in _QUOTES and quote in ("", char):
+            quote = "" if quote else char
+        out.append(char)
+        i += 1
+    return "".join(out)
+
+
+# ---------------------------------------------------------------------------
+# Approval + provenance
+# ---------------------------------------------------------------------------
 
 
 async def approve_hook_command(hook: CommandHookDefinition, event: str, command: str) -> bool:
