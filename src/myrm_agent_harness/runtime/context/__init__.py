@@ -322,6 +322,18 @@ from myrm_agent_harness.runtime.context.session_tree_navigator import (
     SessionTreeNode,
     SessionTreeNodeEntry,
 )
+from myrm_agent_harness.runtime.context.sliding_window_session_lifecycle import (
+    InactivitySlidingWindowSessionManager,
+    PrefixKvCacheStabilityKeeper,
+    SessionMemoryCrystallizer,
+)
+from myrm_agent_harness.runtime.context.sliding_window_session_lifecycle_types import (
+    CrystallizedSessionMemory,
+    InactivityWindowConfig,
+    PrefixCacheFingerprint,
+    SessionLifecycleSnapshot,
+    SessionLifecycleState,
+)
 from myrm_agent_harness.runtime.context.social_work_context_graph import (
     CrossAppChronologicalResolver,
     CrossAppWorkAsset,
@@ -698,4 +710,12 @@ __all__ = [
     "MigrationReadinessReport",
     "MultiIdeRulesetBridge",
     "UniversalIdeRuleEntry",
+    "CrystallizedSessionMemory",
+    "InactivitySlidingWindowSessionManager",
+    "InactivityWindowConfig",
+    "PrefixCacheFingerprint",
+    "PrefixKvCacheStabilityKeeper",
+    "SessionLifecycleSnapshot",
+    "SessionLifecycleState",
+    "SessionMemoryCrystallizer",
 ]
