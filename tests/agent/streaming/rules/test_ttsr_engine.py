@@ -300,5 +300,96 @@ def test_ttsr_comprehensive_edge_cases_and_coverage() -> None:
     assert coordinator.interrupt_requested is False
 
 
+def test_same_turn_retry_keeps_triggered_rules_active_and_enforces_breaker() -> None:
+    """Verify that same-turn retries do NOT get suppressed by repeat_gap cooldown,
+
+    ensuring secondary violations are strictly intercepted and max_retries limit is enforced.
+    """
+    rule = StreamRule(
+        rule_id="ban_catastrophic_rm",
+        name="Ban Rm",
+        pattern=re.compile(r"rm\s+-rf\s+/"),
+        target="assistant",
+        repeat_gap=10,  # 10 turns cooldown across different turns
+        action="abort_and_retry",
+    )
+    coordinator = TtsrCoordinator(rules=[rule], max_retries=2)
+
+    # Turn 1, Attempt 1: First violation
+    m1 = coordinator.inspect_chunk("assistant", "rm -rf /", current_turn=1)
+    assert m1 is not None
+    assert m1.rule.rule_id == "ban_catastrophic_rm"
+    assert coordinator.interrupt_requested is True
+
+    # System handles retry: records retry #1 and resets interruption flag
+    can_retry_1 = coordinator.record_retry()
+    assert can_retry_1 is True
+    assert coordinator.retries_this_turn == 1
+    coordinator.reset_interruption()
+    assert coordinator.interrupt_requested is False
+
+    # Turn 1, Attempt 2: Model stubbornly repeats same violation on retry!
+    # MUST be strictly intercepted rather than silenced by repeat_gap
+    m2 = coordinator.inspect_chunk("assistant", "rm -rf /", current_turn=1)
+    assert m2 is not None, "Secondary violation must NOT be bypassed on same-turn retry!"
+    assert m2.rule.rule_id == "ban_catastrophic_rm"
+    assert coordinator.interrupt_requested is True
+
+    # System handles retry #2
+    can_retry_2 = coordinator.record_retry()
+    assert can_retry_2 is True
+    assert coordinator.retries_this_turn == 2
+    coordinator.reset_interruption()
+
+    # System reaches breaker limit (max_retries=2)
+    can_retry_3 = coordinator.record_retry()
+    assert can_retry_3 is False, "Circuit breaker must trip when exceeding max_retries=2"
+    assert coordinator.retries_this_turn == 3
+
+
+def test_multi_channel_isolation_and_all_target_broadcast() -> None:
+    """Verify channel buffers are isolated without cross-contamination,
+
+    and broadcast target='all' safely feeds each channel and matches channel-specific rules.
+    """
+    rule_thinking = StreamRule(
+        rule_id="guard_thinking",
+        name="Thinking Guard",
+        pattern=re.compile(r"FORBIDDEN_CHAIN"),
+        target="thinking",
+    )
+    rule_tool = StreamRule(
+        rule_id="guard_tool",
+        name="Tool Guard",
+        pattern=re.compile(r"SECRET_ARG"),
+        target="tool_args",
+    )
+    rule_general = StreamRule(
+        rule_id="guard_all",
+        name="General Guard",
+        pattern=re.compile(r"DANGEROUS_CMD"),
+        target="all",
+    )
+    matcher = TtsrMatcher(window_size=64)
+
+    # Feeding thinking does NOT contaminate tool_args
+    res_think = matcher.feed_and_match([rule_thinking, rule_tool], "thinking", "FORBIDDEN_CHAIN", turn=1)
+    assert res_think is not None
+    assert res_think.rule.rule_id == "guard_thinking"
+
+    # Feeding broadcast 'all' evaluates and triggers channel-specific rules
+    matcher.reset()
+    res_broadcast_tool = matcher.feed_and_match([rule_tool], "all", "SECRET_ARG", turn=1)
+    assert res_broadcast_tool is not None
+    assert res_broadcast_tool.rule.rule_id == "guard_tool"
+
+    # Feeding broadcast 'all' triggers general rule
+    matcher.reset()
+    res_broadcast_gen = matcher.feed_and_match([rule_general], "all", "DANGEROUS_CMD", turn=1)
+    assert res_broadcast_gen is not None
+    assert res_broadcast_gen.rule.rule_id == "guard_all"
+
+
+
 
 

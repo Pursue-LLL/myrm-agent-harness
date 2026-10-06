@@ -80,12 +80,19 @@ class TtsrCoordinator:
         if not chunk or not self._rules or self._interrupt_requested:
             return None
 
-        # Filter out rules currently undergoing quiet cooldown
-        active_rules = [
-            rule
-            for rule in self._rules
-            if current_turn - self._rule_last_triggered_turn.get(rule.rule_id, -9999) >= rule.repeat_gap
-        ]
+        # Filter out rules currently undergoing cross-turn quiet cooldown.
+        # Rules triggered in the current turn MUST remain active during same-turn retries
+        # to guarantee bounded retry enforcement and eliminate secondary violation bypass.
+        active_rules: list[StreamRule] = []
+        for rule in self._rules:
+            last_turn = self._rule_last_triggered_turn.get(rule.rule_id)
+            if last_turn is not None and last_turn == current_turn:
+                # Same-turn retry: rule was triggered earlier in this turn, keep active
+                active_rules.append(rule)
+            elif last_turn is None or (current_turn - last_turn >= rule.repeat_gap):
+                # New trigger or cross-turn cooldown elapsed
+                active_rules.append(rule)
+
         if not active_rules:
             return None
 

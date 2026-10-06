@@ -105,22 +105,35 @@ class TtsrMatcher:
         if not chunk or not rules:
             return None
 
-        effective_target_key = "assistant" if target == "all" else target
-        processed_chunk = chunk
-        if effective_target_key == "tool_args":
-            processed_chunk = self._unescaper.unescape_chunk(chunk)
+        target_keys: list[str] = (
+            ["assistant", "thinking", "tool_args"]
+            if target == "all"
+            else [target]
+        )
 
-        previous_buffer = self._buffers.get(effective_target_key, "")
-        combined_text = previous_buffer + processed_chunk
-
-        # Retain trailing window slice for continuous boundary matching
-        self._buffers[effective_target_key] = combined_text[-self._window_size :]
+        for key in target_keys:
+            processed = (
+                self._unescaper.unescape_chunk(chunk)
+                if key == "tool_args"
+                else chunk
+            )
+            prev = self._buffers.get(key, "")
+            combined = prev + processed
+            self._buffers[key] = combined[-self._window_size :]
 
         for rule in rules:
-            if rule.target != "all" and rule.target != target:
+            if target != "all" and rule.target != "all" and rule.target != target:
                 continue
 
-            match = rule.pattern.search(combined_text)
+            # If a specific target channel was fed, search that channel's buffer.
+            # If broadcast 'all' was fed, search the rule's specific channel (or default to assistant).
+            if target != "all":
+                search_key = target
+            else:
+                search_key = "assistant" if rule.target == "all" else rule.target
+
+            target_text = self._buffers.get(search_key, "")
+            match = rule.pattern.search(target_text)
             if match is not None:
                 return TtsrMatchResult(
                     rule=rule,
