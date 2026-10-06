@@ -146,6 +146,18 @@ from myrm_agent_harness.runtime.context.hidden_goal_rubric_preamble import (
     PreambleInjectionPolicy,
     RubricSource,
 )
+from myrm_agent_harness.runtime.context.hierarchical_project_matrix import (
+    AgentDynamicBindingGate,
+    AgentProjectBindingRecord,
+    GlobalAgentTier,
+    HierarchicalContextMatrix,
+    HierarchicalContextMatrixComposer,
+    ProjectWorkspaceTier,
+    SessionGoalTier,
+    WorkspaceHealthAndOrphanDetector,
+    WorkspaceHealthReport,
+    WorkspaceSessionRef,
+)
 from myrm_agent_harness.runtime.context.instance_metrics import (
     ContextMetrics,
     get_context_metrics,
@@ -522,4 +534,14 @@ __all__ = [
     "MilestoneCheckpointPayload",
     "SessionSaturationGovernor",
     "SessionSaturationProbeReport",
+    "AgentDynamicBindingGate",
+    "AgentProjectBindingRecord",
+    "GlobalAgentTier",
+    "HierarchicalContextMatrix",
+    "HierarchicalContextMatrixComposer",
+    "ProjectWorkspaceTier",
+    "SessionGoalTier",
+    "WorkspaceHealthAndOrphanDetector",
+    "WorkspaceHealthReport",
+    "WorkspaceSessionRef",
 ]
