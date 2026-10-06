@@ -34,6 +34,8 @@ from myrm_agent_harness.toolkits.memory.consolidation import (
 )
 from myrm_agent_harness.toolkits.memory.conversation_search import (
     CONVERSATION_SEARCH_TOOL_NAME,
+    ContextHighlight,
+    ConversationExactSearchMatcher,
     ConversationSearchHit,
     ConversationSearchRequest,
     ConversationSearchResponse,
@@ -286,6 +288,8 @@ __all__ = [
     "TreeRepairEngine",
     "TreeRepairResult",
     "CONVERSATION_SEARCH_TOOL_NAME",
+    "ContextHighlight",
+    "ConversationExactSearchMatcher",
     "DynamicPreferenceFitter",
     "DynamicPreferenceVector",
     "AgentMemoryPolicy",

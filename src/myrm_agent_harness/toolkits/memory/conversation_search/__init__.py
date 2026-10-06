@@ -1,5 +1,7 @@
-"""Conversation recall toolkit."""
-
+from myrm_agent_harness.toolkits.memory.conversation_search.matcher import (
+    ContextHighlight,
+    ConversationExactSearchMatcher,
+)
 from myrm_agent_harness.toolkits.memory.conversation_search.memory_provider import (
     MemoryConversationSearchProvider,
 )
@@ -17,6 +19,8 @@ from myrm_agent_harness.toolkits.memory.conversation_search.types import (
 
 __all__ = [
     "CONVERSATION_SEARCH_TOOL_NAME",
+    "ContextHighlight",
+    "ConversationExactSearchMatcher",
     "ConversationIndexCoverage",
     "ConversationSearchHit",
     "ConversationSearchInput",
