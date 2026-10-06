@@ -149,6 +149,17 @@ from myrm_agent_harness.runtime.context.environment_changelog_types import (
     MutationActor,
     RehydrationInjectionPayload,
 )
+from myrm_agent_harness.runtime.context.evidence_grounding_gate import (
+    EvidenceFetcherCallable,
+    EvidenceGroundingProtocolHub,
+)
+from myrm_agent_harness.runtime.context.evidence_grounding_types import (
+    GroundingAuditResult,
+    LocatorKind,
+    SearchCandidateHit,
+    StructuredLocator,
+    VerifiedEvidence,
+)
 from myrm_agent_harness.runtime.context.extreme_streaming_governor import (
     CursorExpiredError,
     ExtremeStreamingGovernor,
@@ -854,4 +865,11 @@ __all__ = [
     "LifecycleEventKind",
     "LifecycleHubMetrics",
     "LifecyclePayload",
+    "EvidenceGroundingProtocolHub",
+    "EvidenceFetcherCallable",
+    "GroundingAuditResult",
+    "LocatorKind",
+    "SearchCandidateHit",
+    "StructuredLocator",
+    "VerifiedEvidence",
 ]
