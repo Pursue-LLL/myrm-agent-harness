@@ -14,6 +14,7 @@ Keeping them in one module prevents the three copies from drifting apart
 -- is_valid_plugin_name / ascii_slug / plugin_identity: plugin name predicate and
    ASCII package identity derivation (display names never collapse).
 -- is_excluded_path: archive paths that are never packaged or parsed.
+-- AGENT_STRUCTURAL_KEYS: agent frontmatter keys owned by the format (everything else is client data).
 -- MAX_*: capacity ceilings shared by import, export and persistence.
 
 [POS]
@@ -43,6 +44,29 @@ MAX_TEMPLATE_FILE_BYTES = 1 * 1024 * 1024
 MAX_TOTAL_TEMPLATE_BYTES = 5 * 1024 * 1024
 
 _EXCLUDED_SEGMENTS = frozenset({".git", ".venv", "__pycache__", "node_modules", ".DS_Store", "__MACOSX"})
+
+# Agent frontmatter keys the format itself reads (they map onto ``PluginAgent``
+# fields, including the aliases the parser accepts). Every other key is client
+# data: the writer refuses to let client metadata shadow these, and a consumer
+# can tell which declarations of a package it does not understand.
+AGENT_STRUCTURAL_KEYS = frozenset(
+    {
+        "name",
+        "description",
+        "max_iterations",
+        "max_iters",
+        "skills",
+        "skill_names",
+        "tools",
+        "tool_names",
+        "mcps",
+        "mcp_names",
+        "subagents",
+        "subagent_names",
+        "is_subagent",
+        "slug",
+    }
+)
 
 # Longest ASCII prefix kept in a hashed identity (leaves room for "-" + 8 hex).
 _IDENTITY_PREFIX_MAX = 40

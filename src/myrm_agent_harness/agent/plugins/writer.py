@@ -39,6 +39,7 @@ import yaml
 from .manifest import MCP_SCHEMA, PLUGIN_SCHEMA
 from .models import PluginAgent, PluginMcpServer
 from .rules import (
+    AGENT_STRUCTURAL_KEYS,
     MAX_PLUGIN_ZIP_BYTES,
     MAX_TEMPLATE_FILE_BYTES,
     MAX_TOTAL_TEMPLATE_BYTES,
@@ -56,26 +57,6 @@ SKILL_MD = "SKILL.md"
 _ZIP_EPOCH = (1980, 1, 1, 0, 0, 0)
 _FILE_MODE = 0o100644 << 16
 _UNIX = 3
-
-# Frontmatter keys owned by PluginAgent fields; ``metadata`` may not shadow them.
-_AGENT_RESERVED_KEYS = frozenset(
-    {
-        "name",
-        "description",
-        "max_iterations",
-        "max_iters",
-        "skills",
-        "skill_names",
-        "tools",
-        "tool_names",
-        "mcps",
-        "mcp_names",
-        "subagents",
-        "subagent_names",
-        "is_subagent",
-        "slug",
-    }
-)
 
 
 class PluginBundleError(ValueError):
@@ -241,7 +222,7 @@ def _render_agent_markdown(agent: PluginAgent) -> bytes:
             header[key] = list(values)
     if agent.is_subagent:
         header["is_subagent"] = True
-    header.update({key: value for key, value in agent.metadata.items() if key not in _AGENT_RESERVED_KEYS})
+    header.update({key: value for key, value in agent.metadata.items() if key not in AGENT_STRUCTURAL_KEYS})
 
     try:
         frontmatter = yaml.safe_dump(header, allow_unicode=True, sort_keys=False, width=1_000_000).rstrip("\n")

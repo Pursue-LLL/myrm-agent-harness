@@ -9,6 +9,7 @@ import zipfile
 import pytest
 
 from myrm_agent_harness.agent.plugins import (
+    AGENT_STRUCTURAL_KEYS,
     MYRM_NAMESPACE,
     AgentPluginParser,
     PluginAgent,
@@ -205,6 +206,23 @@ class TestStrictness:
         result = build_plugin_bundle(PluginBundleSpec(name="ok", agents=(agent,)))
         assert not result.success
         assert "non-serializable" in (result.error or "")
+
+    def test_client_metadata_cannot_shadow_structural_keys(self) -> None:
+        agent = PluginAgent(name="Real", skill_names=("a",), metadata={key: "forged" for key in AGENT_STRUCTURAL_KEYS})
+        result = build_plugin_bundle(PluginBundleSpec(name="ok", skills={"a": {"SKILL.md": SKILL_MD}}, agents=(agent,)))
+        assert result.success, result.error
+        assert result.zip_content is not None
+        only = AgentPluginParser().parse_zip(result.zip_content).agents[0]
+        assert only.name == "Real"
+        assert only.skill_names == ("a",)
+        assert only.is_subagent is False
+
+    def test_every_key_the_parser_reads_is_structural(self) -> None:
+        read_by_parser = {
+            "name", "description", "max_iterations", "max_iters", "skills", "skill_names", "tools",
+            "tool_names", "mcps", "mcp_names", "subagents", "subagent_names", "is_subagent", "slug",
+        }  # fmt: skip
+        assert read_by_parser <= AGENT_STRUCTURAL_KEYS
 
 
 def _zip(entries: dict[str, bytes]) -> bytes:

@@ -14,7 +14,7 @@ Persistence is owned by the business layer, keeping the harness reusable.
 - PluginBundleSpec / build_plugin_bundle: 插件包写出端（确定性 ZIP + 回读自检）
 - AgentPluginManifestMeta: 清单元数据
 - decode_manifest_json() / decode_mcp_json(): 清单与 MCP 配置解码
-- plugin_identity() / is_valid_plugin_name() / is_excluded_path(): 打包规则 SSOT
+- plugin_identity() / is_valid_plugin_name() / is_excluded_path() / AGENT_STRUCTURAL_KEYS: 打包规则 SSOT
 """
 
 from .exporter import AgentPluginPacker
@@ -38,6 +38,7 @@ from .models import (
 )
 from .parser import AgentPluginParser
 from .rules import (
+    AGENT_STRUCTURAL_KEYS,
     MAX_PLUGIN_ZIP_BYTES,
     MAX_TEMPLATE_FILE_BYTES,
     MAX_TOTAL_TEMPLATE_BYTES,
@@ -49,6 +50,7 @@ from .rules import (
 from .writer import PluginBundleError, PluginBundleSpec, PluginPackageResult, build_plugin_bundle
 
 __all__ = [
+    "AGENT_STRUCTURAL_KEYS",
     "MAX_PLUGIN_ZIP_BYTES",
     "MAX_TEMPLATE_FILE_BYTES",
     "MAX_TOTAL_TEMPLATE_BYTES",
