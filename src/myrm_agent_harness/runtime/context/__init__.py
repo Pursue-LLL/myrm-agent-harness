@@ -595,6 +595,14 @@ from myrm_agent_harness.runtime.context.rejection_reason_guard import (
     HumanRejectionGuard,
     RejectionCategory,
 )
+from myrm_agent_harness.runtime.context.rtk_tool_compressor_types import (
+    ExtractedDiagnosis,
+    RTKCompressorConfig,
+    ToolCommandType,
+)
+from myrm_agent_harness.runtime.context.rtk_tool_output_compressor import (
+    RTKCommandAwareToolOutputCompressor,
+)
 from myrm_agent_harness.runtime.context.rule_based_session_synthesizer import (
     RuleBasedSessionSynthesizer,
 )
@@ -1372,5 +1380,10 @@ __all__ = [
     "TaskRiskLevel",
     "TieredCompressionResult",
     "TieredContextCompressionPipeline",
+    "ExtractedDiagnosis",
+    "RTKCommandAwareToolOutputCompressor",
+    "RTKCompressorConfig",
+    "ToolCommandType",
 ]
+
 
