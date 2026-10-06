@@ -83,6 +83,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | conflict_arbitration/ | Memory Conflict Semantic Arbitration & User-Confirmed Decision Freeze Gate: multi-source factual divergence detection (Merge vs Override vs Contradiction), human arbitration cards, cryptographic immutable freeze locks, and anti-tamper write gates. |
 | openclaw_adapter/ | OpenClaw 2.0 Format Adapter & Crash Recovery Rescue Pipeline: multi-user & Swarm topology tree extraction, new SQLite/Memory schema mapping, read-only WAL isolation, integrity probe, and corrupted page auto-rescue. |
 | dual_track_extraction/ | Dual-Track Memory Extraction Routing & Anti-Silent-Drop Gateway: dual-track classification (declarative facts vs procedural rules), automatic dispatch to ProceduralMemory, and transparent destiny reports defending against silent drop defects. |
+| universal_mcp_bridge/ | Universal MCP Memory Bridge & External Client Config Generator: stdio/SSE dual-mode MCP server integration, plug-and-play client configuration generator (Claude Code, Cursor, VSCode/Cline, CodeBuddy, Hermes), unified user_id lease anchor, and instant bidirectional memory convergence. |
 | workspace_living/ | Living Workspace Governance & documentation synchronization toolkit (CausalIssueMerger, KnownIssueEntry, ADRMetadata, idempotent error signature deduplication). |
 
 ## Key Dependencies
