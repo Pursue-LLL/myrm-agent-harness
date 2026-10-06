@@ -41,6 +41,20 @@ from myrm_agent_harness.runtime.context.cut_point_selector import (
     repair_tool_pairing_invariants,
     validate_tool_pairing_invariants,
 )
+from myrm_agent_harness.runtime.context.diff_protocol_scorer import (
+    DiffApplyResult,
+    DiffHunk,
+    DiffLine,
+    DiffLineKind,
+    DiffOperation,
+    DiffProtocolError,
+    PatchDriftFinding,
+    apply_diff_operation,
+    apply_diff_patch,
+    find_hard_anchor_matches,
+    parse_diff_operations,
+    score_soft_context,
+)
 from myrm_agent_harness.runtime.context.durable_deferred_write_manager import (
     AbortDeferredApplyResult,
     DeferredFactKind,
@@ -324,4 +338,16 @@ __all__ = [
     "MissingSessionCwdError",
     "SessionCwdHealthGuard",
     "SessionCwdIssue",
+    "DiffApplyResult",
+    "DiffHunk",
+    "DiffLine",
+    "DiffLineKind",
+    "DiffOperation",
+    "DiffProtocolError",
+    "PatchDriftFinding",
+    "apply_diff_operation",
+    "apply_diff_patch",
+    "find_hard_anchor_matches",
+    "parse_diff_operations",
+    "score_soft_context",
 ]
