@@ -102,6 +102,16 @@ from myrm_agent_harness.toolkits.memory.observability import (
     MemoryTraceStep,
     ScalarValue,
 )
+from myrm_agent_harness.toolkits.memory.prompt_cache_guard import (
+    AtomicReplacePayload,
+    CapacityLimitConfig,
+    CapacityOverflowError,
+    FrozenMemorySnapshot,
+    FrozenMemorySnapshotProvider,
+    ReadFreeMemoryToolSuite,
+    SecurityThreatBlockedError,
+    ZeroWidthAndCredentialLeakScanner,
+)
 from myrm_agent_harness.toolkits.memory.protocols import (
     ConversationSearchProtocol,
     EmbeddingCacheProtocol,
@@ -240,6 +250,14 @@ from myrm_agent_harness.toolkits.memory.working_tree import (
 
 __all__ = [
     "AdaptiveBatcher",
+    "AtomicReplacePayload",
+    "CapacityLimitConfig",
+    "CapacityOverflowError",
+    "FrozenMemorySnapshot",
+    "FrozenMemorySnapshotProvider",
+    "ReadFreeMemoryToolSuite",
+    "SecurityThreatBlockedError",
+    "ZeroWidthAndCredentialLeakScanner",
     "CheckpointState",
     "DualVersionCollectionState",
     "ReembeddingBatch",
