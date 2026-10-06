@@ -83,6 +83,15 @@ from myrm_agent_harness.runtime.context.config import (
     ContextCleanupConfig,
     StorageQuotaConfig,
 )
+from myrm_agent_harness.runtime.context.content_density_ladder import (
+    ContentDensityLadderThrottler,
+)
+from myrm_agent_harness.runtime.context.content_density_ladder_types import (
+    DensityLevel,
+    DensityOutlineNode,
+    DensityReadingRequest,
+    DensityReadingResult,
+)
 from myrm_agent_harness.runtime.context.cow_session_branch import (
     BranchMessageEntry,
     CoWArtifactRecord,
@@ -872,4 +881,9 @@ __all__ = [
     "SearchCandidateHit",
     "StructuredLocator",
     "VerifiedEvidence",
+    "ContentDensityLadderThrottler",
+    "DensityLevel",
+    "DensityOutlineNode",
+    "DensityReadingRequest",
+    "DensityReadingResult",
 ]
