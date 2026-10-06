@@ -201,6 +201,15 @@ from myrm_agent_harness.runtime.context.file_io_checkpoint_tracker import (
     DeterministicFileIOSummary,
     extract_deterministic_file_io,
 )
+from myrm_agent_harness.runtime.context.file_move_tracking_session_store import (
+    PersistentFileMoveTrackingSessionStore,
+)
+from myrm_agent_harness.runtime.context.file_move_tracking_store_types import (
+    ChatMessageEntry,
+    ChatMetaSnapshot,
+    FileMoveEvent,
+    FileTrackResolution,
+)
 from myrm_agent_harness.runtime.context.full_repo_ast_packer import (
     FullRepoAstPacker,
 )
@@ -978,4 +987,9 @@ __all__ = [
     "RuleBasedSessionSynthesizer",
     "SessionLifecyclePhase",
     "SynthesisMode",
+    "ChatMessageEntry",
+    "ChatMetaSnapshot",
+    "FileMoveEvent",
+    "FileTrackResolution",
+    "PersistentFileMoveTrackingSessionStore",
 ]
