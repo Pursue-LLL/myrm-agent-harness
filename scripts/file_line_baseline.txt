@@ -86,7 +86,6 @@ myrm_agent_harness/toolkits/code_execution/executors/base.py	539
 myrm_agent_harness/toolkits/code_execution/executors/common/wrapper_script.py	596
 myrm_agent_harness/toolkits/code_execution/executors/local/executor.py	762
 myrm_agent_harness/toolkits/code_execution/security/safe_command_configs/git.py	556
-myrm_agent_harness/toolkits/code_execution/security/shell_command_analyzer.py	564
 myrm_agent_harness/toolkits/code_execution/security/validator.py	538
 myrm_agent_harness/toolkits/code_execution/session/persistent_session.py	579
 myrm_agent_harness/toolkits/computer_use/backends/macos.py	655
