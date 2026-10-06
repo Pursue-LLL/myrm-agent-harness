@@ -93,11 +93,7 @@ class TestManifest:
         assert any(entry["field"] == "extensionCustomField" for entry in reported)
 
     def test_non_object_extensions_reported_ignored(self) -> None:
-        raw = json.loads(
-            json.dumps(
-                {"$schema": PLUGIN_SCHEMA, "name": "my-plugin", "extensions": "oops"}
-            )
-        )
+        raw = json.loads(json.dumps({"$schema": PLUGIN_SCHEMA, "name": "my-plugin", "extensions": "oops"}))
         meta, reported = parse_manifest(raw)
         assert meta.name == "my-plugin"
         assert any(entry["field"] == "extensions" for entry in reported)
@@ -131,9 +127,7 @@ class TestManifest:
             parse_manifest(raw)
 
     def test_keywords_must_be_string_list(self) -> None:
-        raw = json.loads(
-            json.dumps({"$schema": PLUGIN_SCHEMA, "name": "ok", "keywords": [1, 2]})
-        )
+        raw = json.loads(json.dumps({"$schema": PLUGIN_SCHEMA, "name": "ok", "keywords": [1, 2]}))
         with pytest.raises(ManifestSchemaValidationError):
             parse_manifest(raw)
 
@@ -159,9 +153,7 @@ class TestMcpConfig:
         validate_mcp_top_level(raw, plugin_schema=PLUGIN_SCHEMA)
 
     def test_validate_rejects_unknown_field(self) -> None:
-        raw = json.loads(
-            json.dumps({"$schema": MCP_SCHEMA, "mcpServers": {}, "extra": 1})
-        )
+        raw = json.loads(json.dumps({"$schema": MCP_SCHEMA, "mcpServers": {}, "extra": 1}))
         with pytest.raises(McpConfigError):
             validate_mcp_top_level(raw, plugin_schema=PLUGIN_SCHEMA)
 
@@ -172,9 +164,7 @@ class TestMcpConfig:
 
     def test_validate_rejects_version_mismatch(self) -> None:
         raw = json.loads(json.dumps({"$schema": MCP_SCHEMA, "mcpServers": {}}))
-        other_plugin_schema = (
-            "https://agent-plugins.org/schemas/0.9.0/plugin.schema.json"
-        )
+        other_plugin_schema = "https://agent-plugins.org/schemas/0.9.0/plugin.schema.json"
         with pytest.raises(McpConfigError) as exc:
             validate_mcp_top_level(raw, plugin_schema=other_plugin_schema)
         assert exc.value.code == "mcp_version_mismatch"
@@ -425,12 +415,34 @@ class TestAgentPluginParser:
         assert result.meta.name == "demo-plugin"
         assert len(result.skills) == 1
         assert result.skills[0].name == "summarize"
-        assert (
-            result.skills[0].files["SKILL.md"]
-            == result.skills[0].skill_md_content.encode()
-        )
+        assert result.skills[0].files["SKILL.md"] == result.skills[0].skill_md_content.encode()
         assert len(result.servers) == 1
         assert result.servers[0].name == "pdf"
+        assert result.diagnostics == []
+
+    def test_flat_archive_keeps_every_component(self) -> None:
+        # An archive made inside the plugin directory has no wrapper directory to drop.
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("plugin.json", default_plugin_json())
+            zf.writestr("skills/summarize/SKILL.md", "---\nname: summarize\ndescription: Do summaries\n---\nWork.")
+            zf.writestr("skills/summarize/scripts/run.sh", "#!/bin/sh\necho hi")
+            zf.writestr(
+                "mcp.json",
+                json.dumps(
+                    {
+                        "$schema": MCP_SCHEMA,
+                        "mcpServers": {"docs": {"type": "streamable-http", "url": "https://docs.example.com/mcp"}},
+                    }
+                ),
+            )
+
+        result = AgentPluginParser().parse_zip(buf.getvalue())
+
+        assert [skill.name for skill in result.skills] == ["summarize"]
+        assert set(result.skills[0].files) == {"SKILL.md", "scripts/run.sh"}
+        assert [server.name for server in result.servers] == ["docs"]
+        assert sorted(result.files) == ["mcp.json", "plugin.json"]
         assert result.diagnostics == []
 
     def test_skill_files_are_scoped_to_skill_dir(self) -> None:
@@ -552,9 +564,7 @@ class TestAgentPluginParser:
         )
         result = AgentPluginParser().parse_zip(zip_bytes)
         assert [s.name for s in result.servers] == ["good"]
-        mcp_diagnostics = [
-            d for d in result.diagnostics if d.component.startswith("mcp:")
-        ]
+        mcp_diagnostics = [d for d in result.diagnostics if d.component.startswith("mcp:")]
         assert len(mcp_diagnostics) == 2
         assert all(d.level == PluginDiagnosticLevel.WARNING for d in mcp_diagnostics)
 
@@ -571,9 +581,7 @@ class TestAgentPluginParser:
                 }
             )
         )
-        other_plugin_schema = (
-            "https://agent-plugins.org/schemas/0.9.0/plugin.schema.json"
-        )
+        other_plugin_schema = "https://agent-plugins.org/schemas/0.9.0/plugin.schema.json"
         with pytest.raises(McpConfigError) as exc:
             validate_mcp_top_level(raw, plugin_schema=other_plugin_schema)
         assert exc.value.code == "mcp_version_mismatch"
@@ -625,9 +633,7 @@ class TestParseResultFiles:
                 "mcp.json": json.dumps(
                     {
                         "$schema": MCP_SCHEMA,
-                        "mcpServers": {
-                            "pdf": {"type": "stdio", "command": "./bin/pdf"}
-                        },
+                        "mcpServers": {"pdf": {"type": "stdio", "command": "./bin/pdf"}},
                     }
                 ),
                 "bin/pdf": "#!/bin/sh\necho ok",
@@ -882,6 +888,3 @@ class TestPluginPackagingIntegrityGuard:
         server_map = {s.name: s for s in result.servers}
         assert PluginCapabilityTier.NETWORK in server_map["remote-mcp"].capabilities
         assert PluginCapabilityTier.SHELL_EXEC in server_map["stdio-mcp"].capabilities
-
-
-

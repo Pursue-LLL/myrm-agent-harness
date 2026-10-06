@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any
 
 import yaml
 
@@ -23,7 +22,7 @@ logger = logging.getLogger(__name__)
 _FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
 
-def split_frontmatter(text: str) -> tuple[dict[str, Any], str, str]:
+def split_frontmatter(text: str) -> tuple[dict[str, object], str, str]:
     """Split ``---`` delimited YAML frontmatter from the body.
 
     Returns ``(metadata, description, pure_content)``. A missing or unparsable

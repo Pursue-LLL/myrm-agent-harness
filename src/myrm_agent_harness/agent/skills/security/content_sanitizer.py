@@ -281,10 +281,14 @@ class ContentSanitizer:
 
             sanitized_lines.append(modified_line)
 
+        sanitized_content = "\n".join(sanitized_lines)
+        if content.endswith("\n"):
+            # splitlines() drops the final line break; a redacted file keeps the one it had.
+            sanitized_content += "\n"
         return SanitizationResult(
             is_safe=len(redactions) == 0,
             redactions=redactions,
-            sanitized_content="\n".join(sanitized_lines),
+            sanitized_content=sanitized_content,
         )
 
     def sanitize(

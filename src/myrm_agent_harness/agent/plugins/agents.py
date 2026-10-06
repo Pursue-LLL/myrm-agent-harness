@@ -24,7 +24,6 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import replace
-from typing import Any
 
 from .frontmatter import split_frontmatter
 from .models import PluginAgent
@@ -37,8 +36,8 @@ _COMMUNITY_WORKSPACE_DIRS = ("workspace", "template_files")
 def discover_agents(
     all_files: Mapping[str, bytes],
     *,
-    extensions: Mapping[str, Mapping[str, Any]],
-    raw_manifest: Mapping[str, Any],
+    extensions: Mapping[str, Mapping[str, object]],
+    raw_manifest: Mapping[str, object],
 ) -> list[PluginAgent]:
     """Discover agent profiles; the first one becomes the entry when none is declared."""
     agent_files = _collect_agent_files(all_files, MYRM_AGENTS_DIR) or _collect_agent_files(
@@ -84,7 +83,7 @@ def _collect_agent_files(all_files: Mapping[str, bytes], directory: str) -> list
     return collected
 
 
-def _entry_agent_hint(extensions: Mapping[str, Mapping[str, Any]], raw_manifest: Mapping[str, Any]) -> str | None:
+def _entry_agent_hint(extensions: Mapping[str, Mapping[str, object]], raw_manifest: Mapping[str, object]) -> str | None:
     namespaced = extensions.get(MYRM_NAMESPACE, {}).get("entryAgent")
     for candidate in (namespaced, raw_manifest.get("entry_agent"), raw_manifest.get("main_agent")):
         if isinstance(candidate, str) and candidate.strip():
@@ -115,6 +114,6 @@ def _build_agent(slug: str, content: bytes, entry_hint: str | None) -> PluginAge
     )
 
 
-def _names(metadata: Mapping[str, Any], *keys: str) -> tuple[str, ...]:
+def _names(metadata: Mapping[str, object], *keys: str) -> tuple[str, ...]:
     raw = next((metadata[key] for key in keys if metadata.get(key)), ())
     return tuple(str(item) for item in raw) if isinstance(raw, (list, tuple)) else ()

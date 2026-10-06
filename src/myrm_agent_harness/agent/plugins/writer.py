@@ -32,7 +32,6 @@ import logging
 import zipfile
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any
 
 import yaml
 
@@ -92,7 +91,7 @@ class PluginBundleSpec:
     mcp_servers: tuple[PluginMcpServer, ...] = ()
     agents: tuple[PluginAgent, ...] = ()
     workspace_files: Mapping[str, bytes] = field(default_factory=dict)
-    extensions: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
+    extensions: Mapping[str, Mapping[str, object]] = field(default_factory=dict)
 
 
 def agent_slugs(agents: tuple[PluginAgent, ...]) -> list[str]:
@@ -160,7 +159,7 @@ def build_plugin_bundle(spec: PluginBundleSpec, *, verify: bool = True) -> Plugi
 
 
 def _render_manifest(spec: PluginBundleSpec, entry_slug: str | None) -> bytes:
-    manifest: dict[str, Any] = {
+    manifest: dict[str, object] = {
         "$schema": PLUGIN_SCHEMA,
         "name": spec.name,
         "version": spec.version or "1.0.0",
@@ -180,7 +179,7 @@ def _render_manifest(spec: PluginBundleSpec, entry_slug: str | None) -> bytes:
 
 
 def _render_mcp_json(servers: tuple[PluginMcpServer, ...]) -> bytes:
-    entries: dict[str, dict[str, Any]] = {}
+    entries: dict[str, dict[str, object]] = {}
     for server in servers:
         if server.name in entries:
             raise PluginBundleError(f"Duplicate MCP server name: {server.name!r}")
@@ -188,9 +187,9 @@ def _render_mcp_json(servers: tuple[PluginMcpServer, ...]) -> bytes:
     return _json_bytes({"$schema": MCP_SCHEMA, "mcpServers": entries})
 
 
-def _mcp_entry(server: PluginMcpServer) -> dict[str, Any]:
+def _mcp_entry(server: PluginMcpServer) -> dict[str, object]:
     if server.server_type == "stdio":
-        entry: dict[str, Any] = {"type": "stdio", "command": server.command}
+        entry: dict[str, object] = {"type": "stdio", "command": server.command}
         if server.args:
             entry["args"] = list(server.args)
         env = {key: server.raw_env.get(key, "") for key in dict.fromkeys([*server.env_key_names, *server.raw_env])}
@@ -207,7 +206,7 @@ def _mcp_entry(server: PluginMcpServer) -> dict[str, Any]:
 
 
 def _render_agent_markdown(agent: PluginAgent) -> bytes:
-    header: dict[str, Any] = {"name": agent.name}
+    header: dict[str, object] = {"name": agent.name}
     if agent.description:
         header["description"] = agent.description
     if agent.max_iterations is not None:
@@ -274,5 +273,5 @@ def _zip_files(plugin_name: str, files: Mapping[str, bytes]) -> bytes:
     return buffer.getvalue()
 
 
-def _json_bytes(payload: Mapping[str, Any]) -> bytes:
+def _json_bytes(payload: Mapping[str, object]) -> bytes:
     return json.dumps(payload, indent=2, ensure_ascii=False).encode("utf-8")

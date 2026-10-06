@@ -225,6 +225,23 @@ class TestIgnoredIndices:
         assert result.is_safe
 
 
+class TestRedactedFileKeepsItsShape:
+    """Redaction replaces the secret and nothing else around it."""
+
+    def test_final_line_break_survives(self):
+        content = "export GITHUB_TOKEN=ghp_XxxYyyZzz1234567890abcdef12345678\necho done\n"
+        result = content_sanitizer.sanitize(content, "run.sh")
+        assert not result.is_safe
+        assert result.sanitized_content.startswith("export GITHUB_TOKEN=<REDACTED")
+        assert result.sanitized_content.endswith("\necho done\n")
+
+    def test_missing_final_line_break_is_not_invented(self):
+        content = "echo start\nexport GITHUB_TOKEN=ghp_XxxYyyZzz1234567890abcdef12345678"
+        result = content_sanitizer.sanitize(content, "run.sh")
+        assert not result.is_safe
+        assert not result.sanitized_content.endswith("\n")
+
+
 class TestBytesInput:
     """Test bytes input handling."""
 

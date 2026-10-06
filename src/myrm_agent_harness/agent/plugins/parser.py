@@ -28,7 +28,9 @@ persistence owned by the business layer).
 
 from __future__ import annotations
 
+import io
 import logging
+import zipfile
 from dataclasses import replace
 from typing import Any
 
@@ -77,8 +79,9 @@ class AgentPluginParser:
             return False
 
         # safe_extract_zip enforces Zip Bomb / symlink / traversal / executable defenses.
-        # strip_top_dir=True -> the plugin root becomes the archive's top-level directory.
-        all_files = safe_extract_zip(zip_bytes, strip_top_dir=True, forbidden_check=_skip_excluded)
+        all_files = safe_extract_zip(
+            zip_bytes, strip_top_dir=not _has_root_manifest(zip_bytes), forbidden_check=_skip_excluded
+        )
         result = self._parse_files(all_files)
         _report_ignored_files(result, ignored)
         return result
@@ -242,6 +245,17 @@ class AgentPluginParser:
         if result.meta and result.meta.declared_capabilities:
             diff_diags = verify_plugin_capability_diff(result.meta.declared_capabilities, result.servers)
             result.diagnostics.extend(diff_diags)
+
+
+def _has_root_manifest(zip_bytes: bytes) -> bool:
+    """Whether ``plugin.json`` sits at the archive root (a flat archive).
+
+    Archives made inside the plugin directory are flat; archives made around it wrap the
+    plugin in one directory that must be dropped. Dropping the first path segment of a flat
+    archive would silently turn ``skills/`` into the plugin root and lose every skill.
+    """
+    with zipfile.ZipFile(io.BytesIO(zip_bytes)) as archive:
+        return "plugin.json" in archive.namelist()
 
 
 def _report_ignored_files(result: PluginParseResult, ignored: list[str]) -> None:
