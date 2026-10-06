@@ -97,6 +97,14 @@ from myrm_agent_harness.runtime.context.session.event_sourcing_store import (
     fork_session_by_stream_copy,
     load_session_events_with_auto_repair,
 )
+from myrm_agent_harness.runtime.context.session_tree_navigator import (
+    BranchSummaryPayload,
+    NavigateTreeResult,
+    SessionEntryType,
+    SessionTreeNavigator,
+    SessionTreeNode,
+    SessionTreeNodeEntry,
+)
 from myrm_agent_harness.runtime.context.structured_checkpoint_generator import (
     StructuredCheckpointContract,
     build_checkpoint_prompt,
@@ -250,4 +258,10 @@ __all__ = [
     "EffectiveEntryCost",
     "SessionUsageRollup",
     "UsageCause",
+    "BranchSummaryPayload",
+    "NavigateTreeResult",
+    "SessionEntryType",
+    "SessionTreeNode",
+    "SessionTreeNodeEntry",
+    "SessionTreeNavigator",
 ]
