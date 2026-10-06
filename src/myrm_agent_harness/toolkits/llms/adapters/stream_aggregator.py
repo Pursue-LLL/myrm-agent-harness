@@ -285,6 +285,16 @@ def attach_responses_reasoning_items_to_final_chunk(
     )
 
 
+def _reported_finish_reason(agg: StreamAggregator) -> str:
+    """Finish reason as reported to usage, response and status telemetry.
+
+    A stream that closed without ever delivering a final metadata chunk has an empty
+    finish_reason; recorded verbatim it would be indistinguishable from a normal turn,
+    so it is tagged with an explicit sentinel. Providers never emit this value.
+    """
+    return agg.finish_reason or DROPPED_STREAM_FINISH_REASON
+
+
 def finalize_stream(
     agg: StreamAggregator,
     tool_schemas: Mapping[str, Mapping[str, Any]] | None,
@@ -324,18 +334,12 @@ def finalize_stream(
 
     resolved_model = agg.last_model or model_name
 
-    # A stream that closed without ever delivering a final metadata chunk yields
-    # an empty finish_reason. Recording it verbatim would make a dropped stream
-    # indistinguishable from a normal turn in usage/cost/status telemetry, so
-    # tag it with an explicit sentinel. Providers never emit this value.
-    reported_finish_reason = agg.finish_reason or DROPPED_STREAM_FINISH_REASON
-
     record_usage_fn(
         agg.last_usage,
         model_name=resolved_model,
         duration_ms=agg.duration_ms,
         ttft_ms=agg.ttft_ms,
-        finish_reason=reported_finish_reason,
+        finish_reason=_reported_finish_reason(agg),
     )
 
     if agg.reasoning:
@@ -393,12 +397,13 @@ def finalize_stream(
         suppress_tool_calls_for_safety(aggregated_message, safety_reason)
         final_tool_chunk = None
 
+    final_finish_reason = _reported_finish_reason(agg)
     aggregated_response: dict[str, Any] = {
         "model": resolved_model,
         "choices": [
             {
                 "message": aggregated_message,
-                "finish_reason": reported_finish_reason,
+                "finish_reason": final_finish_reason,
             }
         ],
         "usage": normalize_usage(agg.last_usage) if agg.last_usage else {},
@@ -409,7 +414,7 @@ def finalize_stream(
         record_finish_reason,
     )
 
-    record_finish_reason(reported_finish_reason)
+    record_finish_reason(final_finish_reason)
 
     reasoning_items = aggregated_message.get("responses_reasoning_items")
     if isinstance(reasoning_items, list) and reasoning_items:

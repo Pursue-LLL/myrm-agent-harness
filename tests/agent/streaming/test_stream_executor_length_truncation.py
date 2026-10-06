@@ -532,7 +532,7 @@ def test_contextvar_get_set_reset():
 
 
 def test_contextvar_set_caps_at_max():
-    """set_ephemeral_max_output_tokens caps at _MAX_EPHEMERAL_OUTPUT_TOKENS (32768)."""
+    """set_ephemeral_max_output_tokens caps at _MAX_EPHEMERAL_OUTPUT_TOKENS."""
     from myrm_agent_harness.agent.streaming.recovery.stream_recovery_truncation import (
         _MAX_EPHEMERAL_OUTPUT_TOKENS,
         get_ephemeral_max_output_tokens,
@@ -934,6 +934,32 @@ def test_boost_caps_at_65536():
     val = get_ephemeral_max_output_tokens()
     assert val == 65536
     reset_ephemeral_max_output_tokens()
+
+
+@pytest.mark.parametrize(
+    ("configured", "expected_override"),
+    [
+        (40_000, 65536),
+        (65536, None),
+        (100_000, None),
+    ],
+)
+def test_boost_never_lowers_a_configured_budget(
+    mock_context: StreamContext, configured: int, expected_override: int | None
+):
+    """The override only raises the output budget; a budget that already reaches the cap is left as configured."""
+    from myrm_agent_harness.agent.streaming.recovery.stream_recovery_truncation import (
+        get_ephemeral_max_output_tokens,
+        reset_ephemeral_max_output_tokens,
+    )
+
+    mock_context.llm = _llm_with_max_tokens(configured)
+    executor = _make_executor(mock_context)
+    try:
+        executor._boost_output_tokens(0)
+        assert get_ephemeral_max_output_tokens() == expected_override
+    finally:
+        reset_ephemeral_max_output_tokens()
 
 
 # ---------------------------------------------------------------------------

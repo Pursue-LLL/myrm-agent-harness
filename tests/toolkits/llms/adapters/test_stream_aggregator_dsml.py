@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from langchain_core.messages import AIMessageChunk
 from langchain_core.outputs import ChatGenerationChunk
 
@@ -79,6 +81,33 @@ def test_finalize_stream_dsml_clean_reasoning():
     # Reasoning text should be cleaned of DSML tags
     assert "<｜DSML｜tool_calls>" not in response_msg["reasoning_content"]
     assert "Deep thought..." in response_msg["reasoning_content"]
+
+
+def test_finalize_stream_reports_tool_calls_when_tags_carry_the_calls():
+    """A provider ``stop`` becomes ``tool_calls`` once tool calls were parsed from tag text."""
+    agg = StreamAggregator(AIMessageChunk)
+    tagged = AIMessageChunk(
+        content=(
+            '<｜DSML｜tool_calls>\n<｜DSML｜invoke name="search_web">\n'
+            '<｜DSML｜parameter name="query" string="true">test</｜DSML｜parameter>\n'
+            "</｜DSML｜invoke>\n</｜DSML｜tool_calls>"
+        )
+    )
+    agg.on_generation_chunk(ChatGenerationChunk(message=tagged), AIMessageChunk)
+    agg.finish_reason = "stop"
+
+    with patch("myrm_agent_harness.utils.token_economics.tracker.record_finish_reason") as record_finish_reason:
+        res = finalize_stream(
+            agg=agg,
+            tool_schemas=None,
+            model_name="deepseek-v4",
+            is_async=False,
+            record_usage_fn=lambda *args, **kwargs: None,
+            available_tools=["search_web"],
+        )
+
+    assert res.aggregated_response["choices"][0]["finish_reason"] == "tool_calls"
+    record_finish_reason.assert_called_once_with("tool_calls")
 
 
 def test_aggregator_ingest_and_dict():

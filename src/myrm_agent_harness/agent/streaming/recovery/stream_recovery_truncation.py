@@ -4,7 +4,7 @@
 - toolkits.llms.ephemeral_output_tokens (POS: ephemeral max-output-tokens ContextVar)
 - agent.streaming.types::AgentEventType (POS: streaming event type constants)
 - agent.errors.diagnostics::LLMErrorDiagnostic (POS: LLM truncation diagnostic builder)
-- toolkits.llms.token_economics.tracker::get_token_tracker (POS: token finish-reason tracker)
+- utils.token_economics.tracker::get_token_tracker (POS: token finish-reason tracker)
 - toolkits.llms.adapters.tool_recovery::has_withheld_tool_calls (POS: detects tool calls withheld as unsafe)
 
 [OUTPUT]
@@ -301,7 +301,7 @@ class StreamTruncationRecoveryMixin:
         """Set ephemeral output token override with progressive scaling.
 
         retries=0 → 2x base, retries=1 → 3x base, retries>=2 → 4x base.
-        Capped at MAX_EPHEMERAL_OUTPUT_TOKENS (65536).
+        Capped at MAX_EPHEMERAL_OUTPUT_TOKENS (65536); a base already at the cap is left as configured.
 
         When no output budget is configured, the provider default applies and its size
         is unknown. For a known thinking model the headroom floor is a safe base (it is
@@ -318,12 +318,15 @@ class StreamTruncationRecoveryMixin:
             return
 
         multiplier = min(retries + 2, 4)
-        boosted = base * multiplier
+        boosted = min(base * multiplier, MAX_EPHEMERAL_OUTPUT_TOKENS)
+        if boosted <= base:
+            logger.warning(" Output token boost skipped: configured budget %d already reaches the cap", base)
+            return
         set_ephemeral_max_output_tokens(boosted)
         logger.info(
             " Output token boost: %d → %d (×%d, cap %d)",
             base,
-            min(boosted, MAX_EPHEMERAL_OUTPUT_TOKENS),
+            boosted,
             multiplier,
             MAX_EPHEMERAL_OUTPUT_TOKENS,
         )
