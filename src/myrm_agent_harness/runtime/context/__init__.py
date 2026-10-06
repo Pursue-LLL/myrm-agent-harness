@@ -212,6 +212,13 @@ from myrm_agent_harness.runtime.context.overflow_compaction_guard import (
     classify_response_overflow,
     is_recoverable_length,
 )
+from myrm_agent_harness.runtime.context.path_stable_doc_session import (
+    DocChunkCacheEntry,
+    DocDiffProposalEntry,
+    DocSessionBindingInfo,
+    DocSessionContinuityContext,
+    PathStableDocSessionHub,
+)
 from myrm_agent_harness.runtime.context.plan_mode_boundary_locker import (
     ExecutionMode,
     ImplementationPlanContract,
@@ -612,4 +619,9 @@ __all__ = [
     "CoWSessionBranchManager",
     "ProjectedSessionView",
     "SessionBranchDescriptor",
+    "DocChunkCacheEntry",
+    "DocDiffProposalEntry",
+    "DocSessionBindingInfo",
+    "DocSessionContinuityContext",
+    "PathStableDocSessionHub",
 ]
