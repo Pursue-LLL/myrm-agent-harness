@@ -253,6 +253,18 @@ from myrm_agent_harness.runtime.context.path_stable_doc_session import (
     DocSessionContinuityContext,
     PathStableDocSessionHub,
 )
+from myrm_agent_harness.runtime.context.persona_conflict_resolver import (
+    PersonaMutualExclusionResolver,
+    PersonaSemanticConflictProbe,
+    PolarityPatternRegistry,
+)
+from myrm_agent_harness.runtime.context.persona_conflict_resolver_types import (
+    ArbitratedPersonaResult,
+    PersonaConflictFinding,
+    PersonaSnippet,
+    PersonaSourceTier,
+    PolarityDimension,
+)
 from myrm_agent_harness.runtime.context.plan_mode_boundary_locker import (
     ExecutionMode,
     ImplementationPlanContract,
@@ -736,4 +748,12 @@ __all__ = [
     "TripartiteContextAssembly",
     "TripartiteIdentityManager",
     "UserProfileContext",
+    "ArbitratedPersonaResult",
+    "PersonaConflictFinding",
+    "PersonaMutualExclusionResolver",
+    "PersonaSnippet",
+    "PersonaSemanticConflictProbe",
+    "PersonaSourceTier",
+    "PolarityDimension",
+    "PolarityPatternRegistry",
 ]
