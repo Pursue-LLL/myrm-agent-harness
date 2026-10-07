@@ -98,9 +98,9 @@ Tag `v*` (e.g. `v0.1.0rc1`, aligned with `project.version`) in **myrm-agent-harn
 
 Alpine/musl deployments: use `compiled-core-musl` extra (or `install.sh` `reinstall_harness_musl_core()` after `uv sync`). PEP 508 cannot distinguish glibc vs musl on Linux; do not install both linux extras on the same host.
 
-Until musl core wheels are indexed on PyPI for the current `project.version`, `uv lock` cannot resolve `[compiled-core-musl]`; maintainers may regenerate `uv.lock` with that extra omitted and restore `pyproject.toml` afterward (lock `provides-extras` may omit `compiled-core-musl` until wheels exist).
+`[tool.uv] exclude-dependencies` (uv >= 0.9.8) in `pyproject.toml` lists the eight `myrm-agent-harness-core-*` packages, so `uv lock` / `uv sync` never resolve `compiled-core` or `compiled-core-musl`: their pins name versions that exist on PyPI only after the release is published. The published wheel metadata keeps the pins. A platform added to `harness_packaging/platforms.py` (`PUBLISH_PLATFORMS`) must be added to that list too, otherwise `uv lock` fails on the unsatisfiable pin.
 
-CI build jobs use `uv sync --only-group build --frozen` and `uv run --no-project` so the editable project is not installed before wheels exist on PyPI. CI test jobs follow the same rule: `uv sync` / `uv run` resolve every extra, including `compiled-core*`, whose pins name versions that exist only after a release is published, so `test.yml` installs `uv pip install -e ".[all]" --group dev` into a fresh venv and runs `uv run --no-sync`.
+CI build jobs use `uv sync --only-group build --frozen` and `uv run --no-project` so the editable project is not installed before wheels exist on PyPI. CI test jobs (`test.yml`, `performance.yml`) install the project with `uv sync --python 3.13 --locked --extra all` (`test.yml` adds `--group dev` and runs `uv run --no-sync`). `--locked` fails on a stale lock, so run `uv lock` and commit `uv.lock` after every `pyproject.toml` change, including the `project.version` bump of a release.
 
 Each PyPI project needs a GitHub publisher: Owner `Pursue-LLL`, repository `myrm-agent-harness`, workflow `publish-pypi.yml`, environment `pypi`.
 
@@ -113,7 +113,7 @@ One-time bootstrap for new core project names (OIDC cannot create projects): `sc
 | `publish-pypi.yml` | Tag release → PyPI (OIDC upload for release + 8 core wheels; verify 6 + indexed musl); matrix from `.github/core-platform-matrix.json` |
 | `build-core-wheels.yml` | Dev/matrix core wheel artifacts (same shared matrix; optional `platform` input) |
 | `boundary-check.yml` | Architecture + distribution tests (dual-wheel COMPILED e2e, manifest drift gate, wheel artifact zip scan via `validate_pypi_wheels.py`) |
-| `test.yml` | Unit suite (`-n 2`) and serial browser integration on push to `main` and PRs; source tree only (`[all]` + `dev` group, no `compiled-core*`) |
+| `test.yml` | Unit suite (`-n 2`) and serial browser integration on push to `main` and PRs; locked source tree (`uv sync --locked`: `[all]` + `dev` group; `compiled-core*` excluded via `[tool.uv]`) |
 
 ## References
 

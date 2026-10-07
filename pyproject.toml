@@ -29,7 +29,7 @@ dependencies = [
   "litellm>=1.104.0", # 统一 LLM API 代理 (100+ 供应商)
   # --- 数据验证与序列化 ---
   "pydantic>=2.13.5", # 数据模型验证
-  "PyYAML>=6.0.3",    # YAML 配置解析
+  "PyYAML>=6.0.2",    # YAML 配置解析（下限 6.0.2：pdf-ocr 的 paddlex 固定 PyYAML==6.0.2）
   "json_repair>=0.63.5", # LLM 脏 JSON 修复兜底 (chat_utils 解析链末层)
   # --- HTTP 与异步 I/O ---
   "httpx>=0.28.1",        # 异步 HTTP 客户端（统一网络栈；SOCKS 由 server/渠道层按需安装）
@@ -107,7 +107,7 @@ file-parsers = [
 ]
 # toolkits/file_parsers/ocr.py - 扫描 PDF / 图片 OCR 兜底（PaddleOCR，CJK 原生支持）
 pdf-ocr = [
-  "paddleocr>=3.7.0",   # PaddleOCR 引擎（含检测+识别模型）
+  "paddleocr>=3.2.0",   # PaddleOCR 引擎（含检测+识别模型）；3.7+ 的 paddlex 限制 numpy<2.4，与 retrieval 的 numpy>=2.5 冲突
   "paddlepaddle>=3.3.1", # PaddlePaddle 深度学习框架
 ]
 # infra/security/signature.py - FastAPI webhook signature verification
@@ -143,8 +143,21 @@ all = [
 ]
 
 [tool.uv]
-# Universal lock: skip Python 3.15+ splits where compiled-core platform wheels are not published.
+# Universal lock for the Python 3.13 interpreter used by development and CI.
 environments = ["python_full_version >= '3.13' and python_full_version < '3.14'"]
+# Platform core wheels (the compiled-core* extras above) exist on PyPI only after a release is
+# published, so the dev lock never resolves them; the published wheel metadata keeps the pins.
+# One entry per platform in harness_packaging/platforms.py (PUBLISH_PLATFORMS): a platform missing here makes `uv lock` fail.
+exclude-dependencies = [
+  "myrm-agent-harness-core-darwin-arm64",
+  "myrm-agent-harness-core-darwin-x64",
+  "myrm-agent-harness-core-linux-x64",
+  "myrm-agent-harness-core-linux-arm64",
+  "myrm-agent-harness-core-linux-x64-musl",
+  "myrm-agent-harness-core-linux-arm64-musl",
+  "myrm-agent-harness-core-win32-x64",
+  "myrm-agent-harness-core-win32-arm64",
+]
 override-dependencies = [
   "click>=8.5.0",
   "patchright>=1.59.1",
@@ -392,7 +405,7 @@ dev = [
   "pytest>=9.1.1",                   # 测试框架
   "pytest-asyncio>=1.4.0",           # 异步测试支持
   "pytest-cov>=7.1.0",               # 覆盖率报告
-  "pytest-benchmark>=5.2.3",         # 性能基准测试
+  "pytest-benchmark>=5.3.0",         # 性能基准测试（5.2.3 在 pytest -n 2 + filterwarnings=error 下 INTERNALERROR）
   "pytest-xdist>=3.8.0",             # 并行测试执行
   "pytest-timeout>=2.4.0",           # 测试超时保护
   "ruff>=0.15.18",                   # Linter + Formatter

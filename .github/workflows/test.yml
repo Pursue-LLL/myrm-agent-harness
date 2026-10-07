@@ -20,13 +20,16 @@ on:
       - 'pyproject.toml'
       - 'uv.lock'
 
+permissions:
+  contents: read
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   unit:
     name: Unit tests (memory-safe profile)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
@@ -41,19 +44,16 @@ jobs:
       - name: Set up Python
         run: uv python install 3.13
 
-      # `uv sync` / `uv run` resolve every extra, including `compiled-core*`, whose pins name
-      # versions that exist only after a release is published. Install into the venv directly.
+      # Installs exactly what uv.lock pins; a stale lock fails here (run `uv lock` after editing pyproject.toml).
       - name: Install dependencies
-        run: |
-          uv venv --python 3.13
-          uv pip install -e ".[all]" --group dev
+        run: uv sync --python 3.13 --locked --extra all --group dev
 
       - name: Run unit tests
         run: uv run --no-sync pytest -n 2 --dist=loadscope -q --tb=short tests/
 
   browser-integration:
     name: Browser integration (serial Chromium)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
@@ -68,12 +68,10 @@ jobs:
       - name: Set up Python
         run: uv python install 3.13
 
-      # Same install as the unit job (see there). The `integration or e2e` selection collects
-      # suites from every extra, so `[browser]` alone fails at collection.
+      # The `integration or e2e` selection collects suites from every extra, so `[browser]` alone
+      # fails at collection.
       - name: Install dependencies (all extras)
-        run: |
-          uv venv --python 3.13
-          uv pip install -e ".[all]" --group dev
+        run: uv sync --python 3.13 --locked --extra all --group dev
 
       - name: Install Patchright Chromium
         run: uv run --no-sync patchright install --with-deps chromium

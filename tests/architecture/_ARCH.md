@@ -53,7 +53,7 @@ CI 架构门禁：层边界、分形文档、PyPI wheel 打包不变量、tool r
 | `test_validate_arch_inventory.py` | Gate | `_ARCH.md` 文件表 vs 同级 `.py` 一致性（table-only 解析）；含 agent/ 与全 harness subprocess gate、单测与跨仓 server md-refs gate | — |
 | `test_md_ref_inline_links.py` | Gate | md 反引号 span 与内联链接统一解析回归（链接提取·anchor 剥离、裸文件名链接、`{placeholder}` 符号行跳过、导入规格表首列源文件锚定、TS/JS 扩展名探测、拒绝截断父级标记、非 UTF-8 跳过） | — |
 | `test_readme_claims.py` | Gate | README 声明与实际代码/性能基准一致性校验 | — |
-| `test_core_dependencies.py` | Gate | core vs optional/dev 分层：4 项 optional-only 包不得回 core；uv.lock core 与 pyproject 对齐 | — |
+| `test_core_dependencies.py` | Gate | core vs optional/dev 分层：4 项 optional-only 包不得回 core；uv.lock core 与 pyproject 严格对齐（失配时运行 `uv lock`） | — |
 | `test_orchestration_registry_parity.py` | Gate | `tool_registry_config` 与 orchestration SSOT 对齐（hook / signal 命名回归） | — |
 | `test_ruff_security_rules.py` | Gate | ruff S（security/bandit）规则保持激活，误报抑制不回归 | — |
 | `test_skill_analyze_tool_removed.py` | Gate | `skill_analyze` Agent tool 包不得存在（Curator GUI 为 SSOT） | — |

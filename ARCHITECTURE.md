@@ -154,7 +154,7 @@ Myrm Agent Harness 是一个**GUI-first 通用 AI 工作助手运行时框架**�
 | **存储**     | aiofiles                          | 本地文件系统存储              |
 | **文件解析** | pdfplumber（core）                | PDF 文本+表格提取（默认安装） |
 
-可选 extras 中的检索/监控/ACP 依赖见下节（`[retrieval]`、`[observability]`、`[acp]`）。Core runtime 依赖 **23** 项（`tests/architecture/test_core_dependencies.py` 锁定）。
+可选 extras 中的检索/监控/ACP 依赖见下节（`[retrieval]`、`[observability]`、`[acp]`）。Core runtime 依赖 **24** 项（`tests/architecture/test_core_dependencies.py` 锁定）。
 
 ### 可选依赖（extras）
 
@@ -553,7 +553,7 @@ class UserService:
 3. **接口契约**：OUTPUT 声明对外能力，形成清晰的接口契约
 4. **影响分析**：通过 INPUT/POS 链接快速定位变更影响范围
 5. **变更影响分析**：借助 INPUT/POS 链接定位依赖面，配合评审与测试降低回归风险
-6. **自动化门禁**：`check_fractal_docs.py` + `boundary_check.py` + `validate_arch_inventory.py`（`_ARCH.md` 文件表 vs 磁盘 `.py`）+ `check_file_line_limit.py`（单文件行数 + `file_line_baseline.txt` grandfather）+ `test_core_dependencies.py`（core 23 项与 uv.lock 对齐）在 pre-commit 与 CI 阻断文档/层边界/依赖分层回归；inventory scope 为 `src/myrm_agent_harness/` 全包；wheel 打包慢测在 `distribution-packaging-slow` job（`-m "architecture and slow"`）
+6. **自动化门禁**：`check_fractal_docs.py` + `boundary_check.py` + `validate_arch_inventory.py`（`_ARCH.md` 文件表 vs 磁盘 `.py`）+ `check_file_line_limit.py`（单文件行数 + `file_line_baseline.txt` grandfather）+ `test_core_dependencies.py`（core 24 项与 uv.lock 严格对齐）在 pre-commit 与 CI 阻断文档/层边界/依赖分层回归；inventory scope 为 `src/myrm_agent_harness/` 全包；wheel 打包慢测在 `distribution-packaging-slow` job（`-m "architecture and slow"`）
 
 **File line grandfather（`scripts/file_line_baseline.txt`）**：
 
