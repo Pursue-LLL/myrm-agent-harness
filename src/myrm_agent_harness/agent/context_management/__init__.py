@@ -517,6 +517,15 @@ from .prompt_cache_clock import (
     TieredAssemblyResult,
     ToolChoiceMode,
 )
+from .fallback_buffer_notebook import (
+    BufferWatermarkSnapshot,
+    BufferWatermarkState,
+    CompactionConsequenceAlert,
+    FallbackBufferConfig,
+    FallbackBufferNotebookEngine,
+    TeamNotebookEntry,
+    TeamNotebookSnapshot,
+)
 
 __all__ = [
     # active_compression
@@ -794,6 +803,14 @@ __all__ = [
     "PromptCacheTierBlock",
     "TieredAssemblyResult",
     "ToolChoiceMode",
+    # fallback_buffer_notebook
+    "BufferWatermarkSnapshot",
+    "BufferWatermarkState",
+    "CompactionConsequenceAlert",
+    "FallbackBufferConfig",
+    "FallbackBufferNotebookEngine",
+    "TeamNotebookEntry",
+    "TeamNotebookSnapshot",
     # session_roaming
     "CollaborationRole",
     "DeviceAgnosticSessionRoamingEngine",
