@@ -127,6 +127,18 @@ from .ambiguity_probe import (
     ClarificationQuestion,
     EntityGraphMatch,
 )
+from .canvas_deeplink import (
+    CanvasAssetRegistry,
+    CanvasDeepLinkParser,
+    CanvasDeepLinkUri,
+    CanvasDesignAsset,
+    CanvasDesignTokens,
+    CanvasLayerKind,
+    CanvasLayerNode,
+    CanvasTunnelingEngine,
+    ProStudioPlatform,
+    ProStudioSyncPayload,
+)
 from .clean_pod_archival import (
     CleanPodArchivalConfig,
     CleanPodArchivalEngine,
@@ -325,6 +337,17 @@ __all__ = [
     "ClarificationProbeResult",
     "ClarificationQuestion",
     "EntityGraphMatch",
+    # canvas_deeplink
+    "CanvasAssetRegistry",
+    "CanvasDeepLinkParser",
+    "CanvasDeepLinkUri",
+    "CanvasDesignAsset",
+    "CanvasDesignTokens",
+    "CanvasLayerKind",
+    "CanvasLayerNode",
+    "CanvasTunnelingEngine",
+    "ProStudioPlatform",
+    "ProStudioSyncPayload",
     # clean_pod_archival
     "CleanPodArchivalConfig",
     "CleanPodArchivalEngine",
