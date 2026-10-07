@@ -373,6 +373,13 @@ from .turn_truncation import (
     TurnExecutionState,
     TurnStateTruncationEngine,
 )
+from .revocation_eviction import (
+    RevocationDirective,
+    RevocationEvictionEngine,
+    RevocationScopeKind,
+    SanitizationOutcome,
+    TaintedContentBlock,
+)
 
 __all__ = [
     # active_compression
@@ -602,6 +609,12 @@ __all__ = [
     "TruncationPolicy",
     "TurnExecutionState",
     "TurnStateTruncationEngine",
+    # revocation_eviction
+    "RevocationDirective",
+    "RevocationEvictionEngine",
+    "RevocationScopeKind",
+    "SanitizationOutcome",
+    "TaintedContentBlock",
     # schemas
     "BUILTIN_PROTECTED_TOOLS",
     "COMPACT_RULES",
