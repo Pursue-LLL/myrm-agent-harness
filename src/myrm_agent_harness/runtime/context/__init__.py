@@ -822,6 +822,16 @@ from myrm_agent_harness.runtime.context.pluggable_context_pipeline_types import 
 from myrm_agent_harness.runtime.context.pluggable_context_projection_pipeline import (
     PluggableContextProjectionPipeline,
 )
+from myrm_agent_harness.runtime.context.prefix_anchor_compaction_types import (
+    AnchorLockTier,
+    AnchoredMessageDescriptor,
+    CompactionPlan,
+    MessageRoleKind,
+    PrefixAnchorCompactionResult,
+)
+from myrm_agent_harness.runtime.context.prefix_anchor_compactor import (
+    PrefixAnchorPreservingCompactor,
+)
 from myrm_agent_harness.runtime.context.prefix_integrity_barrier_types import (
     BarrierInterceptionMode,
     BaselinePrefixFingerprint,
@@ -1378,6 +1388,12 @@ from myrm_agent_harness.runtime.context.working_set_rules_types import (
 )
 
 __all__ = [
+    "AnchorLockTier",
+    "AnchoredMessageDescriptor",
+    "CompactionPlan",
+    "MessageRoleKind",
+    "PrefixAnchorCompactionResult",
+    "PrefixAnchorPreservingCompactor",
     "BarrierInterceptionVerdict",
     "BarrierRoutingAction",
     "CompactCrossModelHandshake",
