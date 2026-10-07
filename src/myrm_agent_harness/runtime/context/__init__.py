@@ -37,6 +37,16 @@ from myrm_agent_harness.runtime.context.agent_state_capsule import (
     SkillCapsuleEntry,
     UniversalAgentCapsule,
 )
+from myrm_agent_harness.runtime.context.append_only_compaction_ledger_engine import (
+    AppendOnlyCompactionLedgerEngine,
+)
+from myrm_agent_harness.runtime.context.append_only_compaction_types import (
+    CompactedContextAssembly,
+    CompactionEntry,
+    ContextEntryRole,
+    ContextLogEntry,
+    CutPointResolution,
+)
 from myrm_agent_harness.runtime.context.append_only_context_pipeline import (
     AppendOnlyContextPipeline,
 )
@@ -66,6 +76,9 @@ from myrm_agent_harness.runtime.context.artifact_heuristic_rule_engine import (
 )
 from myrm_agent_harness.runtime.context.ast_symbol_stub_extractor import (
     AstSymbolStubExtractor,
+)
+from myrm_agent_harness.runtime.context.atomic_tool_pair_cut_point_resolver import (
+    AtomicToolPairCutPointResolver,
 )
 from myrm_agent_harness.runtime.context.bidi_agent_channel_gateway import (
     BidiAgentChannelGateway,
@@ -1816,6 +1829,13 @@ __all__ = [
     "SelectiveTrustDecision",
     "SCOPETelemetryStats",
     "SelectiveContextTrustGate",
+    "ContextEntryRole",
+    "ContextLogEntry",
+    "CompactionEntry",
+    "CutPointResolution",
+    "CompactedContextAssembly",
+    "AtomicToolPairCutPointResolver",
+    "AppendOnlyCompactionLedgerEngine",
 ]
 
 
