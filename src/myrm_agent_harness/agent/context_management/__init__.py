@@ -135,6 +135,15 @@ from .dual_branching import (
     TreeNodeMessage,
     VersionNavigationInfo,
 )
+from .million_token_ceiling import (
+    CompactionTierAction,
+    CompactionTrackType,
+    ContextBudgetForecast,
+    MillionTokenCeilingConfig,
+    MillionTokenCompactionResult,
+    MillionTokenCeilingGovernor,
+    OffloadedToolArtifact,
+)
 from .multibot_governor import (
     BotTurnEvent,
     CognitiveValueEvaluation,
@@ -195,6 +204,14 @@ __all__ = [
     "ForkCloneResult",
     "TreeNodeMessage",
     "VersionNavigationInfo",
+    # million_token_ceiling
+    "CompactionTierAction",
+    "CompactionTrackType",
+    "ContextBudgetForecast",
+    "MillionTokenCeilingConfig",
+    "MillionTokenCompactionResult",
+    "MillionTokenCeilingGovernor",
+    "OffloadedToolArtifact",
     # multibot_governor
     "BotTurnEvent",
     "CognitiveValueEvaluation",
