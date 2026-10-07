@@ -356,6 +356,16 @@ from myrm_agent_harness.toolkits.memory.ltra import (
     SpeakerIdentityResolver,
 )
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
+from myrm_agent_harness.toolkits.memory.markdown_curator import (
+    CuratedMemoryCategory,
+    CuratedMemoryEntry,
+    CuratedMemoryStatus,
+    CuratorStudioSummary,
+    MarkdownBidiSyncEngine,
+    MarkdownMemorySerializer,
+    MarkdownSyncDelta,
+    MemoryCuratorStudio,
+)
 from myrm_agent_harness.toolkits.memory.metrics import SearchMetrics, SearchSnapshot, get_search_metrics
 from myrm_agent_harness.toolkits.memory.migration import (
     CompetitorAssetScanner,
@@ -1354,4 +1364,12 @@ __all__ = [
     "MicroActivityFolder",
     "MicroActivitySlice",
     "RawActivityEvent",
+    "CuratedMemoryCategory",
+    "CuratedMemoryEntry",
+    "CuratedMemoryStatus",
+    "CuratorStudioSummary",
+    "MarkdownBidiSyncEngine",
+    "MarkdownMemorySerializer",
+    "MarkdownSyncDelta",
+    "MemoryCuratorStudio",
 ]
