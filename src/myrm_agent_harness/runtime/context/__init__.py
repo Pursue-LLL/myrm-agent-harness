@@ -310,6 +310,10 @@ from myrm_agent_harness.runtime.context.diff_protocol_scorer import (
     parse_diff_operations,
     score_soft_context,
 )
+from myrm_agent_harness.runtime.context.disambiguated_overflow_guard import (
+    ConversationalRecoveryGuard,
+    LengthOverflowDisambiguator,
+)
 from myrm_agent_harness.runtime.context.dual_tier_compactor_engine import (
     DualTierAdaptiveCompactor,
     SteerQueue,
@@ -1056,6 +1060,16 @@ from myrm_agent_harness.runtime.context.surface_projection_types import (
     SurfaceOp,
     SurfaceOpType,
     SurfaceProjectionAudit,
+)
+from myrm_agent_harness.runtime.context.tail_deferred_overflow_types import (
+    DeferredMessageEntry,
+    DeferredWritePriority,
+    DisambiguationMetrics,
+    RecoveryVerdict,
+    StopReasonVerdict,
+)
+from myrm_agent_harness.runtime.context.tail_deferred_write_queue import (
+    TailDeferredWriteQueue,
 )
 from myrm_agent_harness.runtime.context.tiered_context_compression_pipeline import (
     TieredContextCompressionPipeline,
@@ -1952,6 +1966,14 @@ __all__ = [
     "SessionBlockFingerprint",
     "SessionDedupConfig",
     "SessionDedupSavingsReport",
+    "TailDeferredWriteQueue",
+    "DeferredMessageEntry",
+    "DeferredWritePriority",
+    "StopReasonVerdict",
+    "DisambiguationMetrics",
+    "RecoveryVerdict",
+    "LengthOverflowDisambiguator",
+    "ConversationalRecoveryGuard",
 ]
 
 
