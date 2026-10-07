@@ -95,6 +95,18 @@ from myrm_agent_harness.runtime.context.big_at_context_bridge import (
     DistilledSessionContext,
     ZeroExplanationContextExtractor,
 )
+from myrm_agent_harness.runtime.context.batch_task_cost_scheduler import (
+    PeakOffPeakCostScheduler,
+)
+from myrm_agent_harness.runtime.context.batch_task_cost_scheduler_types import (
+    BatchTaskDescriptor,
+    CostTimeWindowKind,
+    ProviderTimeWindowRule,
+    SchedulerDispatchDecision,
+    SchedulerQueueMetrics,
+    TaskCostUrgencyPolicy,
+    TaskPayloadKind,
+)
 from myrm_agent_harness.runtime.context.bounded_hydration_types import (
     BoundedInitialPageHeader,
     HeavyToolBlobReference,
@@ -1355,6 +1367,14 @@ from myrm_agent_harness.runtime.context.working_set_rules_types import (
 )
 
 __all__ = [
+    "BatchTaskDescriptor",
+    "CostTimeWindowKind",
+    "PeakOffPeakCostScheduler",
+    "ProviderTimeWindowRule",
+    "SchedulerDispatchDecision",
+    "SchedulerQueueMetrics",
+    "TaskCostUrgencyPolicy",
+    "TaskPayloadKind",
     "ContextCleanupConfig",
     "ContextCleanupScheduler",
     "ContextMetrics",
