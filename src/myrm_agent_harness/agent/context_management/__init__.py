@@ -537,6 +537,17 @@ from .migratable_session import (
     SessionShareGrant,
     WorkspaceHotSeedSpec,
 )
+from .session_antidote import (
+    AntidoteReceipt,
+    ConfigDriftDetail,
+    ConfigMutationProposal,
+    FlagScope,
+    GenesisConfigSnapshot,
+    PoisonDiagnosisReport,
+    PoisonSeverity,
+    SessionAntiPoisoningEngine,
+    SessionAntidoteConfig,
+)
 
 __all__ = [
     # active_compression
@@ -832,6 +843,16 @@ __all__ = [
     "SessionLocationKind",
     "SessionShareGrant",
     "WorkspaceHotSeedSpec",
+    # session_antidote
+    "AntidoteReceipt",
+    "ConfigDriftDetail",
+    "ConfigMutationProposal",
+    "FlagScope",
+    "GenesisConfigSnapshot",
+    "PoisonDiagnosisReport",
+    "PoisonSeverity",
+    "SessionAntiPoisoningEngine",
+    "SessionAntidoteConfig",
     # session_roaming
     "CollaborationRole",
     "DeviceAgnosticSessionRoamingEngine",
