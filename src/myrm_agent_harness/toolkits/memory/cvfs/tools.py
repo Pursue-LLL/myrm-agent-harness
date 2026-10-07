@@ -3,7 +3,7 @@
 [OUTPUT]: ContextVFSExploreTools providing agent-facing meta-tool definitions for deterministic exploration.
 """
 
-from .models import VFSNodeInfo, VFSReadResult, VFSTreeResult
+from .models import VFSNodeInfo, VFSReadResult, VFSSubtreeStats, VFSTreeResult
 from .vfs import ContextVirtualFileSystem
 
 
@@ -37,3 +37,8 @@ class ContextVFSExploreTools:
     def ctx_find(self, keyword: str, prefix_uri: str = "ctx://") -> list[VFSNodeInfo]:
         """Find context nodes matching keyword within target URI prefix."""
         return self.vfs.find(keyword=keyword, prefix_uri=prefix_uri)
+
+    def ctx_stat(self, uri: str = "ctx://") -> VFSSubtreeStats:
+        """Calculate volume statistics and storage sizing for target Context Virtual File System path."""
+        return self.vfs.stat_subtree(uri=uri)
+

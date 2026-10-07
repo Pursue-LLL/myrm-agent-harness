@@ -9,7 +9,7 @@ import sqlite3
 import time
 from pathlib import Path
 
-from .models import VFSNodeInfo, VFSNodeType
+from .models import VFSNodeInfo, VFSNodeType, VFSSubtreeStats
 
 
 class CVFSRegistryStore:
@@ -160,24 +160,31 @@ class CVFSRegistryStore:
         conn.commit()
         return cursor.rowcount > 0
 
-    def find_nodes(self, keyword: str, prefix_uri: str = "ctx://") -> list[VFSNodeInfo]:
-        """Search nodes matching keyword in name or content within prefix URI."""
+    def find_nodes(
+        self,
+        keyword: str,
+        prefix_uri: str = "ctx://",
+        node_type: VFSNodeType | None = None,
+    ) -> list[VFSNodeInfo]:
+        """Search nodes matching keyword in name or content within prefix URI, optionally filtered by node type."""
         conn = self._get_connection()
         like_keyword = f"%{keyword}%"
         prefix_pattern = f"{prefix_uri}%"
 
-        cursor = conn.execute(
-            """
+        query = """
             SELECT uri, parent_uri, name, node_type, size_bytes,
                    metadata_json, created_at_epoch, updated_at_epoch
             FROM myrm_cvfs_nodes
             WHERE (uri LIKE ? OR uri = ?)
-              AND (name LIKE ? OR content LIKE ?)
-            ORDER BY uri ASC
-            LIMIT 100;
-            """,
-            (prefix_pattern, prefix_uri, like_keyword, like_keyword),
-        )
+              AND (uri LIKE ? OR name LIKE ? OR content LIKE ?)
+        """
+        params: list[str] = [prefix_pattern, prefix_uri, like_keyword, like_keyword, like_keyword]
+        if node_type is not None:
+            query += " AND node_type = ?"
+            params.append(node_type.value)
+
+        query += " ORDER BY uri ASC LIMIT 100;"
+        cursor = conn.execute(query, tuple(params))
         rows = cursor.fetchall()
         result: list[VFSNodeInfo] = []
         for r in rows:
@@ -196,9 +203,43 @@ class CVFSRegistryStore:
             )
         return result
 
+    def get_subtree_stats(self, prefix_uri: str) -> VFSSubtreeStats:
+        """Calculate aggregated node counts and storage byte size for a given URI prefix."""
+        conn = self._get_connection()
+        prefix_pattern = f"{prefix_uri}/%"
+        cursor = conn.execute(
+            """
+            SELECT
+                COUNT(*) as total_nodes,
+                SUM(CASE WHEN node_type = 'file' THEN 1 ELSE 0 END) as file_count,
+                SUM(CASE WHEN node_type = 'directory' THEN 1 ELSE 0 END) as dir_count,
+                SUM(size_bytes) as total_bytes
+            FROM myrm_cvfs_nodes
+            WHERE uri = ? OR uri LIKE ?;
+            """,
+            (prefix_uri, prefix_pattern),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return VFSSubtreeStats(root_uri=prefix_uri)
+
+        total_nodes = int(row["total_nodes"] or 0)
+        file_count = int(row["file_count"] or 0)
+        dir_count = int(row["dir_count"] or 0)
+        total_bytes = int(row["total_bytes"] or 0)
+
+        return VFSSubtreeStats(
+            root_uri=prefix_uri,
+            total_nodes=total_nodes,
+            file_count=file_count,
+            directory_count=dir_count,
+            total_bytes=total_bytes,
+        )
+
     def close(self) -> None:
         """Close SQLite database connection if open."""
         if self._conn is not None:
             with contextlib.suppress(sqlite3.DatabaseError):
                 self._conn.close()
             self._conn = None
+

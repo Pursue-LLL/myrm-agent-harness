@@ -4,13 +4,21 @@
 """
 
 from .models import (
+    VFSMountInfo,
+    VFSNamespaceKind,
     VFSNodeInfo,
     VFSNodeType,
     VFSReadResult,
+    VFSSubtreeStats,
     VFSTreeNode,
     VFSTreeResult,
 )
 from .protocol import (
+    ALLOWED_SCHEMES,
+    ALLOWED_TOP_NAMESPACES,
+    COMPAT_SCHEME,
+    PRIMARY_SCHEME,
+    SCHEME_PREFIX,
     CVFSProtocol,
     CVFSProtocolError,
 )
@@ -19,14 +27,22 @@ from .tools import ContextVFSExploreTools
 from .vfs import ContextVirtualFileSystem
 
 __all__ = [
+    "ALLOWED_SCHEMES",
+    "ALLOWED_TOP_NAMESPACES",
+    "COMPAT_SCHEME",
+    "PRIMARY_SCHEME",
+    "SCHEME_PREFIX",
     "CVFSProtocol",
     "CVFSProtocolError",
     "CVFSRegistryStore",
     "ContextVFSExploreTools",
     "ContextVirtualFileSystem",
+    "VFSMountInfo",
+    "VFSNamespaceKind",
     "VFSNodeInfo",
     "VFSNodeType",
     "VFSReadResult",
+    "VFSSubtreeStats",
     "VFSTreeNode",
     "VFSTreeResult",
 ]
