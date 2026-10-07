@@ -599,6 +599,21 @@ from myrm_agent_harness.runtime.context.progressive_cli_manifest_types import (
     DryRunProbeResult,
     ManifestFormatConfig,
 )
+from myrm_agent_harness.runtime.context.project_hierarchy_session_index import (
+    ProjectHierarchySessionIndex,
+)
+from myrm_agent_harness.runtime.context.project_hierarchy_session_types import (
+    ArchivedMessageEntry,
+    ArchivedSessionNode,
+    HierarchyGroupMatch,
+    HierarchyHitKind,
+    HierarchySearchHit,
+    HierarchySearchResult,
+    ProjectNode,
+    ResurrectionContextBundle,
+    ResurrectionStatus,
+    TaskNode,
+)
 from myrm_agent_harness.runtime.context.prompt_cache_lifecycle_types import (
     CacheMutationRiskLevel,
     CachePrefixFingerprint,
@@ -692,6 +707,9 @@ from myrm_agent_harness.runtime.context.session_epoch_splitter import (
     MilestoneCheckpointPayload,
     SessionSaturationGovernor,
     SessionSaturationProbeReport,
+)
+from myrm_agent_harness.runtime.context.session_keyword_resurrection_engine import (
+    SessionKeywordResurrectionEngine,
 )
 from myrm_agent_harness.runtime.context.session_resume_integrity_validator import (
     AnomalyKind,
@@ -1520,6 +1538,18 @@ __all__ = [
     "AstSymbolStubExtractor",
     "CodeContextPager",
     "VirtualPageSwapManager",
+    "HierarchyHitKind",
+    "ResurrectionStatus",
+    "ProjectNode",
+    "TaskNode",
+    "ArchivedMessageEntry",
+    "ArchivedSessionNode",
+    "HierarchySearchHit",
+    "HierarchyGroupMatch",
+    "HierarchySearchResult",
+    "ResurrectionContextBundle",
+    "ProjectHierarchySessionIndex",
+    "SessionKeywordResurrectionEngine",
 ]
 
 
