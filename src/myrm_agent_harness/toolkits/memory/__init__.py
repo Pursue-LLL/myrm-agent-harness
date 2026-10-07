@@ -110,6 +110,18 @@ from myrm_agent_harness.toolkits.memory.ltra import (
     SensitiveAudioFactGuard,
     SpeakerIdentityResolver,
 )
+from myrm_agent_harness.toolkits.memory.onboarding import (
+    FirstEncounterReport,
+    InsightExtractedFact,
+    LocalSecretRedactor,
+    MultiSourceOnboardingSampler,
+    OnboardingConversationWindow,
+    OnboardingInsightDistiller,
+    OnboardingSampleOptions,
+    OnboardingSourceRegistry,
+    SampledTurnMessage,
+    ShannonEntropyInspector,
+)
 from myrm_agent_harness.toolkits.memory.external_providers import (
     BenchmarkReport,
     DerivedObservationRecord,
@@ -619,4 +631,14 @@ __all__ = [
     "SpeakerIdentityResolver",
     "SensitiveAudioFactGuard",
     "AudioFactDistillationWorker",
+    "FirstEncounterReport",
+    "InsightExtractedFact",
+    "LocalSecretRedactor",
+    "MultiSourceOnboardingSampler",
+    "OnboardingConversationWindow",
+    "OnboardingInsightDistiller",
+    "OnboardingSampleOptions",
+    "OnboardingSourceRegistry",
+    "SampledTurnMessage",
+    "ShannonEntropyInspector",
 ]
