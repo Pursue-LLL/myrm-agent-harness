@@ -96,14 +96,18 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | budget_curator/ | 双轨冻结快照记忆预算仪表盘、原子批量腾挪策展操作符与长程会话回溯锚点套件。 See [budget_curator/_ARCH.md](budget_curator/_ARCH.md). |
 | diagnostic/ | Automated Memory Diagnostic and Root Cause Inspector. See [diagnostic/_ARCH.md](diagnostic/_ARCH.md). |
 | dialectic/ | 辩证推理深度用户表征与自适应会话步调动态节流套件。 See [dialectic/_ARCH.md](dialectic/_ARCH.md). |
+| dreaming/ | Grounded dreaming (idle-time cross-session fact consolidation into the Dream Diary) and surgical session memory unlearning. See [dreaming/_ARCH.md](dreaming/_ARCH.md). |
 | dual_tier/ | Dual-tier memory block engine package. See [dual_tier/_ARCH.md](dual_tier/_ARCH.md). |
 | dual_track/ | Dual-Track Fact Decision and Verbatim Evidence Tracer Engine. See [dual_track/_ARCH.md](dual_track/_ARCH.md). |
+| external_bridge/ | Bi-directional memory integration and safe prompt/skill file management for third-party developer agents (Cursor, Claude Code, Codex, Hermes, OpenClaw). See [external_bridge/_ARCH.md](external_bridge/_ARCH.md). |
 | fact_editing/ | Hebbian Fact Injection and Linear Memory Editing package. See [fact_editing/_ARCH.md](fact_editing/_ARCH.md). |
 | fast_ingest/ | Sub-5% Latency One-Pass Fast Ingestion and Async Deep Distillation Engine. See [fast_ingest/_ARCH.md](fast_ingest/_ARCH.md). |
 | governor/ | Anti-Semantic-Aliasing memory governor and capacity management package. See [governor/_ARCH.md](governor/_ARCH.md). |
 | graph_arbitration/ | Automated fact conflict arbitration state machine with causal lineage tracking. Dynamic edge weight decay and frequency reinforcement operator. See [graph_arbitration/_ARCH.md](graph_arbitration/_ARCH.md). |
 | graph_rrf/ | Knowledge Graph and Vector Reciprocal Rank Fusion Memory Engine package. See [graph_rrf/_ARCH.md](graph_rrf/_ARCH.md). |
+| ltra/ | Listen-Translate-Remember-Act pipeline: quadruple fact distillation from diarized conversations with verbatim anchors, speaker alias resolution and confidentiality guards. See [ltra/_ARCH.md](ltra/_ARCH.md). |
 | memops/ | MemOps 4-tuple standard semantic engine and zero-context benchmark package. See [memops/_ARCH.md](memops/_ARCH.md). |
+| onboarding/ | Onboarding insight sampling and first-encounter reporting for users migrating from other agent tools (sliding-window sampling, local redaction, fact distillation). See [onboarding/_ARCH.md](onboarding/_ARCH.md). |
 | paging/ | Agent-Driven Memory Paging with Hard Boundary Governance. See [paging/_ARCH.md](paging/_ARCH.md). |
 | procedural/ | Procedural Memory and Engineering Workflow Governance Engine. See [procedural/_ARCH.md](procedural/_ARCH.md). |
 | reembedding/ | ZeroDowntimeCrossDimensionReembeddingEngine package. See [reembedding/_ARCH.md](reembedding/_ARCH.md). |
@@ -111,6 +115,9 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | social_curator/ | HighSignalSocialFeedCurator package. See [social_curator/_ARCH.md](social_curator/_ARCH.md). |
 | task_state/ | Structured Task State Machine and Compaction Preservation Engine. See [task_state/_ARCH.md](task_state/_ARCH.md). |
 | temporal/ | Temporal Validity and Fact Expiration Governance Engine. See [temporal/_ARCH.md](temporal/_ARCH.md). |
+| tool_guidance/ | Deterministic, cache-stable synthesis of procedural tool memory (traps, edicts) into bounded, zero-LLM tool guidance. See [tool_guidance/_ARCH.md](tool_guidance/_ARCH.md). |
+| world_model/ | L3 world model: four-dimension macro project entities (rules, environment, contract, domain knowledge) with versioned records and compact macro-context rendering. See [world_model/_ARCH.md](world_model/_ARCH.md). |
+| zero_hallucination/ | Fault-transparent retrieval protocol and anti-fabrication prompt guard for memory queries. See [zero_hallucination/_ARCH.md](zero_hallucination/_ARCH.md). |
 
 ## Key Dependencies
 
