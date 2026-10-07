@@ -842,6 +842,16 @@ from myrm_agent_harness.runtime.context.context_cognitive_gauge_types import (
     ContextCognitiveSnapshot,
     ContextUrgencyLevel,
 )
+from myrm_agent_harness.runtime.context.session_handoff_continuation_engine import (
+    SessionHandoffContinuationEngine,
+)
+from myrm_agent_harness.runtime.context.session_handoff_continuation_types import (
+    CleanWindowContinuationBundle,
+    HandoffPhaseKind,
+    HandoffTriggerReason,
+    RejectedAlternativeRecord,
+    StructuredHandoffMemo,
+)
 from myrm_agent_harness.runtime.context.prefix_integrity_barrier_types import (
     BarrierInterceptionMode,
     BaselinePrefixFingerprint,
@@ -2288,6 +2298,12 @@ __all__ = [
     "ContextCognitiveSnapshot",
     "ContextCognitiveGauge",
     "create_inspect_context_tool",
+    "HandoffPhaseKind",
+    "HandoffTriggerReason",
+    "RejectedAlternativeRecord",
+    "StructuredHandoffMemo",
+    "CleanWindowContinuationBundle",
+    "SessionHandoffContinuationEngine",
 ]
 
 
