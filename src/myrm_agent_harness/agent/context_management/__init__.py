@@ -463,6 +463,13 @@ from .ipc_clamping import (
     IpcMessageClampingAndSpilloverEngine,
     SpilloverArtifactSpec,
 )
+from .dual_file_decoupling import (
+    DualFileContextEnvelope,
+    DualFileDecouplingConfig,
+    DualFileProjectContextDecouplingEngine,
+    DynamicOverviewSections,
+    ProjectRuleInvariantSpec,
+)
 
 __all__ = [
     # active_compression
@@ -692,6 +699,12 @@ __all__ = [
     "IpcClampingOutcome",
     "IpcMessageClampingAndSpilloverEngine",
     "SpilloverArtifactSpec",
+    # dual_file_decoupling
+    "DualFileContextEnvelope",
+    "DualFileDecouplingConfig",
+    "DualFileProjectContextDecouplingEngine",
+    "DynamicOverviewSections",
+    "ProjectRuleInvariantSpec",
     # session_roaming
     "CollaborationRole",
     "DeviceAgnosticSessionRoamingEngine",
