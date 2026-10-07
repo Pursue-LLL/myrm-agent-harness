@@ -369,6 +369,14 @@ from myrm_agent_harness.toolkits.memory.working_tree import (
     TreeRepairEngine,
     TreeRepairResult,
 )
+from myrm_agent_harness.toolkits.memory.zero_hallucination import (
+    MemoryFactItem,
+    MemoryRetrievalState,
+    MemoryStateAssertionEvaluator,
+    RetrievalErrorSeverity,
+    ZeroHallucinationPromptGuard,
+    ZeroHallucinationRetrievalResult,
+)
 
 __all__ = [
     "ActiveRecallController",
@@ -677,4 +685,10 @@ __all__ = [
     "SkillUninstallResult",
     "START_MARKER",
     "END_MARKER",
+    "MemoryFactItem",
+    "MemoryRetrievalState",
+    "MemoryStateAssertionEvaluator",
+    "RetrievalErrorSeverity",
+    "ZeroHallucinationPromptGuard",
+    "ZeroHallucinationRetrievalResult",
 ]
