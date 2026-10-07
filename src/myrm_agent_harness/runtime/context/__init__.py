@@ -23,6 +23,9 @@ from myrm_agent_harness.runtime.context.agent_relay_handshake import (
     HandshakeResult,
     RelayStatePayload,
 )
+from myrm_agent_harness.runtime.context.agent_session_kernel import (
+    AgentSessionKernel,
+)
 from myrm_agent_harness.runtime.context.agent_state_capsule import (
     AgentProfileCapsule,
     CapsuleEnvironmentDiagnostic,
@@ -630,6 +633,11 @@ from myrm_agent_harness.runtime.context.multi_ide_ruleset_bridge import (
     MultiIdeRulesetBridge,
     UniversalIdeRuleEntry,
 )
+from myrm_agent_harness.runtime.context.multi_transport_adapters import (
+    AsyncAckRpcTransportGateway,
+    InteractiveTransportAdapter,
+    PrintBatchTransportAdapter,
+)
 from myrm_agent_harness.runtime.context.next_action_predictor_types import (
     ActionIntentType,
     NextActionPredictionReport,
@@ -959,6 +967,15 @@ from myrm_agent_harness.runtime.context.session_tree_navigator import (
     SessionTreeNavigator,
     SessionTreeNode,
     SessionTreeNodeEntry,
+)
+from myrm_agent_harness.runtime.context.single_kernel_transport_types import (
+    AsyncAckFrame,
+    KernelCommandRequest,
+    KernelEventFrame,
+    KernelEventType,
+    KernelLifecycleState,
+    ReattachResumeRequest,
+    TransportModeKind,
 )
 from myrm_agent_harness.runtime.context.sliding_window_session_lifecycle import (
     InactivitySlidingWindowSessionManager,
@@ -1884,6 +1901,17 @@ __all__ = [
     "find_lowest_common_ancestor",
     "collect_abandoned_path",
     "LCABranchExplorationSummaryEngine",
+    "AgentSessionKernel",
+    "InteractiveTransportAdapter",
+    "PrintBatchTransportAdapter",
+    "AsyncAckRpcTransportGateway",
+    "TransportModeKind",
+    "KernelLifecycleState",
+    "KernelEventType",
+    "KernelEventFrame",
+    "AsyncAckFrame",
+    "KernelCommandRequest",
+    "ReattachResumeRequest",
 ]
 
 
