@@ -620,8 +620,28 @@ from myrm_agent_harness.toolkits.memory.private_notebook import (
     NoteSearchResult,
     PrivateNotebookToolKit,
 )
+from myrm_agent_harness.toolkits.memory.job_compounding import (
+    ApprovalBoundarySpec,
+    CompoundedRule,
+    CompoundingMaturityReport,
+    CompoundingMaturityTracker,
+    JobDescriptionBuilder,
+    JobDescriptionSpec,
+    MaturityTier,
+    PreferenceCompoundingEngine,
+    RuleType,
+)
 
 __all__ = [
+    "ApprovalBoundarySpec",
+    "CompoundedRule",
+    "CompoundingMaturityReport",
+    "CompoundingMaturityTracker",
+    "JobDescriptionBuilder",
+    "JobDescriptionSpec",
+    "MaturityTier",
+    "PreferenceCompoundingEngine",
+    "RuleType",
     "HistoryContextItem",
     "HistoryContextManager",
     "HistoryEntryItem",
