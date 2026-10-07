@@ -439,6 +439,15 @@ from .skill_immunity import (
     SkillImmunityConfig,
     SkillImmunityScope,
 )
+from .mvp_distiller import (
+    ComplexProjectMvpDistillerEngine,
+    DistillationOutcome,
+    ModuleSpec,
+    MvpDistillerConfig,
+    MvpPhaseLifecycleState,
+    PhaseScopePlan,
+    ProjectComplexityLevel,
+)
 
 __all__ = [
     # active_compression
@@ -647,6 +656,14 @@ __all__ = [
     "ReAnchorOutcome",
     "SkillImmunityConfig",
     "SkillImmunityScope",
+    # mvp_distiller
+    "ComplexProjectMvpDistillerEngine",
+    "DistillationOutcome",
+    "ModuleSpec",
+    "MvpDistillerConfig",
+    "MvpPhaseLifecycleState",
+    "PhaseScopePlan",
+    "ProjectComplexityLevel",
     # session_roaming
     "CollaborationRole",
     "DeviceAgnosticSessionRoamingEngine",
