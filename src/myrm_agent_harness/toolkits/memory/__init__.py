@@ -501,6 +501,17 @@ from myrm_agent_harness.toolkits.memory.git_okf import (
     OKFValidationReport,
     OKFVerified,
 )
+from myrm_agent_harness.toolkits.memory.hybrid_engine import (
+    DenseVectorProvider,
+    DualDriveHybridMemoryEngine,
+    HybridEngineStats,
+    HybridMemoryItem,
+    HybridSearchResult,
+    OfflineSynonymExpander,
+    RetrievalMode,
+    SqliteFts5Engine,
+    SynonymRule,
+)
 from myrm_agent_harness.toolkits.memory.temporal_graph import (
     FactConflictResolutionResult,
     SqliteTemporalGraphStore,
@@ -671,6 +682,15 @@ from myrm_agent_harness.toolkits.memory.zero_hallucination import (
 )
 
 __all__ = [
+    "DenseVectorProvider",
+    "DualDriveHybridMemoryEngine",
+    "HybridEngineStats",
+    "HybridMemoryItem",
+    "HybridSearchResult",
+    "OfflineSynonymExpander",
+    "RetrievalMode",
+    "SqliteFts5Engine",
+    "SynonymRule",
     "ConceptStatus",
     "ConceptSummaryItem",
     "GovernanceLevel",
