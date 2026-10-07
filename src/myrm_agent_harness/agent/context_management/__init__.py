@@ -750,8 +750,25 @@ from .smart_idle_compactor import (
     SmartIdleCachePreservingAutoCompactorSuite,
     ZeroWaitWakeupEvent,
 )
+from .topic_drift_fork import (
+    DriftSignalKind,
+    ForkExecutionResult,
+    SessionForkManager,
+    SessionForkSuggestion,
+    TopicDriftDemarcationAndAutoRenamedSessionForkSuite,
+    TopicDriftDetector,
+    TopicDriftEvaluation,
+)
 
 __all__ = [
+    # topic_drift_fork
+    "DriftSignalKind",
+    "ForkExecutionResult",
+    "SessionForkManager",
+    "SessionForkSuggestion",
+    "TopicDriftDemarcationAndAutoRenamedSessionForkSuite",
+    "TopicDriftDetector",
+    "TopicDriftEvaluation",
     # custom_compaction_directives
     "CompactionDirectivesInjector",
     "CompactionIntegrityReport",
