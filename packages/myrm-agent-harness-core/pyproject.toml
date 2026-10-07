@@ -4,11 +4,11 @@ version = "0.1.0"
 description = "Platform-specific compiled core extensions for myrm-agent-harness"
 authors = [{ name = "Myrm Agent Harness Contributors" }]
 requires-python = ">=3.13"
-license = { text = "Proprietary" }
+license = { text = "MIT" }
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
-  "License :: Other/Proprietary License",
+  "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.13",
 ]
