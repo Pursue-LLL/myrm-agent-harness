@@ -452,6 +452,14 @@ from myrm_agent_harness.toolkits.memory.proactive_care import (
     VitalityAndFatigueEvaluator,
     VitalityAssessmentReport,
 )
+from myrm_agent_harness.toolkits.memory.procedure_experience import (
+    DualNodeFixedCountRetriever,
+    DualNodeRetrievalQuery,
+    DualNodeRetrievalResult,
+    ProcedureMemoryEntry,
+    ProcedureProtocolEngine,
+    RetrievalNodeKind,
+)
 from myrm_agent_harness.toolkits.memory.prompt_cache_guard import (
     AtomicReplacePayload,
     CapacityLimitConfig,
@@ -1388,4 +1396,10 @@ __all__ = [
     "FactSupersessionChainEngine",
     "TemporalFactRecord",
     "TemporalFactStatus",
+    "DualNodeFixedCountRetriever",
+    "DualNodeRetrievalQuery",
+    "DualNodeRetrievalResult",
+    "ProcedureMemoryEntry",
+    "ProcedureProtocolEngine",
+    "RetrievalNodeKind",
 ]
