@@ -139,6 +139,14 @@ from .multibot_governor import (
     MultiBotGovernorConfig,
     MutexAcquireResult,
 )
+from .owner_fencing import (
+    AdmissionDecision,
+    AdmissionStatus,
+    DurableSessionOwnerFencer,
+    FencingConfig,
+    SessionOwnerLease,
+    SessionQuiesceState,
+)
 from .worktree_isolation import (
     SessionWorktreeBinding,
     WorktreeDescriptor,
@@ -183,6 +191,13 @@ __all__ = [
     "MultiBotChatterGovernor",
     "MultiBotGovernorConfig",
     "MutexAcquireResult",
+    # owner_fencing
+    "AdmissionDecision",
+    "AdmissionStatus",
+    "DurableSessionOwnerFencer",
+    "FencingConfig",
+    "SessionOwnerLease",
+    "SessionQuiesceState",
     # worktree_isolation
     "SessionWorktreeBinding",
     "WorktreeDescriptor",
@@ -190,7 +205,6 @@ __all__ = [
     "WorktreeHygieneStatus",
     "WorktreeRemovalPolicy",
     "WorktreeRemovalResult",
-    "WorktreeSessionIsolationEngine",
     # schemas
     "BUILTIN_PROTECTED_TOOLS",
     "COMPACT_RULES",
