@@ -3,6 +3,18 @@
 from myrm_agent_harness.runtime.context.aci_tool_contract_linter import (
     ACIToolContractLinter,
 )
+from myrm_agent_harness.runtime.context.agent_mention_dual_mode_router import (
+    AgentMentionDualModeRouter,
+    MessageFetchProvider,
+)
+from myrm_agent_harness.runtime.context.agent_mention_types import (
+    AgentMentionMode,
+    BidiChannelLink,
+    MentionProcessingAudit,
+    NormalizedAgentMention,
+    PeerMessageFrame,
+    ReadOnlySnapshotBundle,
+)
 from myrm_agent_harness.runtime.context.agent_relay_handshake import (
     AgentProfileDescriptor,
     AgentRelayHandshakeBridge,
@@ -48,6 +60,9 @@ from myrm_agent_harness.runtime.context.artifact_centric_loop import (
 )
 from myrm_agent_harness.runtime.context.ast_symbol_stub_extractor import (
     AstSymbolStubExtractor,
+)
+from myrm_agent_harness.runtime.context.bidi_agent_channel_gateway import (
+    BidiAgentChannelGateway,
 )
 from myrm_agent_harness.runtime.context.big_at_context_bridge import (
     BigAtReference,
@@ -646,6 +661,9 @@ from myrm_agent_harness.runtime.context.quiet_command_spill_types import (
 )
 from myrm_agent_harness.runtime.context.react_trap_remediator import (
     ReActTrapRemediator,
+)
+from myrm_agent_harness.runtime.context.read_only_snapshot_capturer import (
+    ReadOnlySnapshotCapturer,
 )
 from myrm_agent_harness.runtime.context.reasoning_anchor_extractor import (
     ReasoningAnchorExtractor,
@@ -1550,6 +1568,16 @@ __all__ = [
     "ResurrectionContextBundle",
     "ProjectHierarchySessionIndex",
     "SessionKeywordResurrectionEngine",
+    "AgentMentionMode",
+    "NormalizedAgentMention",
+    "ReadOnlySnapshotBundle",
+    "BidiChannelLink",
+    "PeerMessageFrame",
+    "MentionProcessingAudit",
+    "ReadOnlySnapshotCapturer",
+    "BidiAgentChannelGateway",
+    "AgentMentionDualModeRouter",
+    "MessageFetchProvider",
 ]
 
 
