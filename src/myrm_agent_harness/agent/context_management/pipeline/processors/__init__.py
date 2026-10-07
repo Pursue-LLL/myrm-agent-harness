@@ -13,6 +13,13 @@ from .cache_optimizer import ExplicitCacheProcessor
 from .cache_ttl_prune_processor import CacheTtlPruneProcessor
 from .compress_processor import CompressProcessor
 from .filter_processor import FilterProcessor
+from .gcf_tabular_codec import GcfTabularCodec
+from .gcf_tabular_compress_processor import GcfTabularCompressProcessor
+from .gcf_tabular_types import (
+    GcfColumnarTable,
+    GcfCompressionGuardConfig,
+    GcfCompressionResult,
+)
 from .media_budget_governor import (
     CumulativeImageBudgetGovernor,
     MediaBudgetGovernorProcessor,
@@ -37,6 +44,11 @@ __all__ = [
     "CumulativeImageBudgetGovernor",
     "ExplicitCacheProcessor",
     "FilterProcessor",
+    "GcfColumnarTable",
+    "GcfCompressionGuardConfig",
+    "GcfCompressionResult",
+    "GcfTabularCodec",
+    "GcfTabularCompressProcessor",
     "MediaBudgetGovernorProcessor",
     "MediaFilterProcessor",
     "MediaResolverProcessor",
@@ -54,3 +66,4 @@ __all__ = [
     "prune_tool_results_deterministic",
     "replace_tool_message_content",
 ]
+

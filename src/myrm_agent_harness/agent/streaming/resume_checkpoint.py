@@ -15,10 +15,12 @@ prefix) deduplication, and continuation instruction assembly so an interrupted s
 resume without duplicating or dropping text the user already saw.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class StreamBreakpoint:
     """Represents a validated safe text breakpoint from an interrupted stream."""
 
