@@ -536,6 +536,16 @@ from myrm_agent_harness.toolkits.memory.authoritative_conclusions import (
     ConclusionToolAction,
     memory_conclude_tool,
 )
+from myrm_agent_harness.toolkits.memory.two_layer_dialectic import (
+    BaseContextPayload,
+    DialecticConflictCandidate,
+    DialecticPassKind,
+    DialecticReconciliationConfig,
+    DialecticReconciliationResult,
+    MultiPassDialecticReconciler,
+    TwoLayerContextInjectionResult,
+    TwoLayerContextInjector,
+)
 from myrm_agent_harness.toolkits.memory.prompt_cache_guard import (
     AtomicReplacePayload,
     CapacityLimitConfig,
@@ -1540,6 +1550,14 @@ __all__ = [
     "ConclusionStatus",
     "ConclusionToolAction",
     "memory_conclude_tool",
+    "BaseContextPayload",
+    "DialecticConflictCandidate",
+    "DialecticPassKind",
+    "DialecticReconciliationConfig",
+    "DialecticReconciliationResult",
+    "MultiPassDialecticReconciler",
+    "TwoLayerContextInjectionResult",
+    "TwoLayerContextInjector",
 ]
 
 
