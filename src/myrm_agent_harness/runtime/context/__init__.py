@@ -852,6 +852,19 @@ from myrm_agent_harness.runtime.context.session_handoff_continuation_types impor
     RejectedAlternativeRecord,
     StructuredHandoffMemo,
 )
+from myrm_agent_harness.runtime.context.session_archive_search_engine import (
+    InMemorySessionArchiveStore,
+    SessionArchiveRepositoryProtocol,
+    SessionArchiveSearchEngine,
+    create_search_session_archive_tool,
+)
+from myrm_agent_harness.runtime.context.session_archive_search_types import (
+    ArchiveMessageRoleKind,
+    ArchiveSearchFilter,
+    ArchiveSearchResponse,
+    ArchiveSearchResultItem,
+    ArchivedMessageRecord,
+)
 from myrm_agent_harness.runtime.context.prefix_integrity_barrier_types import (
     BarrierInterceptionMode,
     BaselinePrefixFingerprint,
@@ -2304,6 +2317,15 @@ __all__ = [
     "StructuredHandoffMemo",
     "CleanWindowContinuationBundle",
     "SessionHandoffContinuationEngine",
+    "ArchiveMessageRoleKind",
+    "ArchivedMessageRecord",
+    "ArchiveSearchFilter",
+    "ArchiveSearchResultItem",
+    "ArchiveSearchResponse",
+    "SessionArchiveRepositoryProtocol",
+    "InMemorySessionArchiveStore",
+    "SessionArchiveSearchEngine",
+    "create_search_session_archive_tool",
 ]
 
 
