@@ -6,10 +6,11 @@ External consumers import here instead of reaching into ``agent.security``.
 - agent.security.managed_approval_policy::ManagedApprovalPolicy / get_process_managed_approval_policy (POS: 进程级托管审批策略)
 - agent.resilience.task_airbag::arm_task_airbag (POS: 挂机安全气囊武装与快照捕捉)
 - toolkits.computer_use.screen_detector::ScreenDetector / get_default_screen_detector / hid_idle_seconds (POS: 桌面锁屏探针与硬件输入空闲读数)
+- toolkits.computer_use.capture_exclusion::exclude_capture_windows (POS: 宿主遮罩窗的截图排除注入)
 - toolkits.computer_use.types::ScreenLockState (POS: 锁屏状态共享类型)
 
 [OUTPUT]
-- myrm_agent_harness.api.security → server 统一安全策略、挂机安全气囊与锁屏/在场探针导出接口
+- myrm_agent_harness.api.security → server 统一安全策略、挂机安全气囊、锁屏/在场探针与遮罩窗截图排除导出接口
 """
 
 from __future__ import annotations
@@ -55,6 +56,7 @@ from myrm_agent_harness.toolkits.code_execution.security.workspace_snapshot impo
     create_workspace_snapshot,
     rollback_workspace_snapshot,
 )
+from myrm_agent_harness.toolkits.computer_use.capture_exclusion import exclude_capture_windows
 from myrm_agent_harness.toolkits.computer_use.screen_detector import (
     ScreenDetector,
     get_default_screen_detector,
@@ -90,6 +92,7 @@ __all__ = [
     "configure_process_managed_approval_policy",
     "create_workspace_snapshot",
     "detect_suspicious",
+    "exclude_capture_windows",
     "get_default_screen_detector",
     "get_process_managed_approval_policy",
     "get_process_managed_approval_revision",

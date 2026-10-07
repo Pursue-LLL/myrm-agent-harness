@@ -4,8 +4,10 @@ Public API:
 - create_desktop_tools: factory for LangChain tools
 - create_desktop_session: session factory
 - DesktopSession: semantic desktop session with @dref registry
+- exclude_capture_windows: keep a host's overlay windows out of a session's screenshots
 """
 
+from myrm_agent_harness.toolkits.computer_use.capture_exclusion import exclude_capture_windows
 from myrm_agent_harness.toolkits.computer_use.desktop_agent_tools import create_desktop_tools
 from myrm_agent_harness.toolkits.computer_use.desktop_session import (
     DesktopSession,
@@ -60,6 +62,7 @@ __all__ = [
     "create_desktop_session",
     "create_desktop_tools",
     "ensure_screen_safe",
+    "exclude_capture_windows",
     "get_default_screen_detector",
     "get_request_desktop_session",
     "hid_idle_seconds",
