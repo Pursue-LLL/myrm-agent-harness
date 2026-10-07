@@ -48,9 +48,9 @@ Real Chromium tests under `tests/toolkits/browser/` must carry `integration` or 
 | Local default (harness-only) | `pytest` (addopts apply filter automatically) | Serial; ~300–500MB typical peak (darwin arm64, 2026-06) |
 | Full suite | `pytest -m ""` | All markers including integration/e2e/performance |
 | Browser integration | `pytest -m "integration or e2e" --timeout=600` | Real Chromium; run separately |
-| CI unit | `.github/workflows/test.yml` job `unit` | `-n 2` with default marker filter; no `--ignore` workarounds |
+| CI unit | `.github/workflows/test.yml` job `unit` | `uv pip install -e ".[all]" --group dev`, then `uv run --no-sync pytest -n 2` with default marker filter; no `--ignore` workarounds (why no `uv sync`: `harness_packaging/DISTRIBUTION_SYSTEM.md` § CI) |
 | CI performance | `.github/workflows/performance.yml` | `tests/performance/ -m performance -n0` |
-| CI browser | `.github/workflows/test.yml` job `browser-integration` | `-n0`, Patchright Chromium |
+| CI browser | `.github/workflows/test.yml` job `browser-integration` | Same install; `-n0`, `-m "integration or e2e"`, Patchright Chromium (`--with-deps`) |
 
 ## Browser integration pitfalls（实测经验，2026-08）
 

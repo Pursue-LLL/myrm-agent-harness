@@ -19,7 +19,6 @@ from langchain_core.messages import (
 from langchain_core.messages.base import BaseMessage
 
 from myrm_agent_harness.toolkits.llms.adapters.converters import (
-    _parse_tool_call_args,
     convert_dict_to_message,
     convert_message_to_dict,
     create_usage_metadata,
@@ -224,15 +223,6 @@ class TestConvertDictToMessage:
 
         anthropic_dict = convert_message_to_dict(msg, wire_protocol="anthropic_messages")
         assert "responses_reasoning_items" not in anthropic_dict
-
-
-class TestParseToolCallArgsHooks:
-    def test_parse_tool_call_args_logs_when_unsafe(self) -> None:
-        raw = 'oops "command": "rm -rf /tmp/demo" trailing'
-        with patch("myrm_agent_harness.toolkits.llms.adapters.converters.logger.warning") as mock_warn:
-            out = _parse_tool_call_args(raw, "bash_code_execute_tool")
-            assert out == {}
-            assert mock_warn.called
 
 
 class TestCreateUsageMetadata:

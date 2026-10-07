@@ -6,10 +6,7 @@ import time
 import pytest
 
 from myrm_agent_harness.toolkits.llms.adapters.chat_model import ChatLiteLLM
-from myrm_agent_harness.toolkits.llms.adapters.converters import (
-    _parse_tool_call_args,
-    convert_dict_to_message,
-)
+from myrm_agent_harness.toolkits.llms.adapters.converters import convert_dict_to_message
 from myrm_agent_harness.toolkits.llms.adapters.tool_recovery import (
     build_final_tool_call_chunk,
     has_withheld_tool_calls,
@@ -141,13 +138,6 @@ class TestToolArgumentRecovery:
         assert result.strategy == "regex_fallback"
         assert result.safe is False
         assert result.args["command"] == "rm -rf /tmp/demo"
-
-    def test_parse_tool_call_args_drops_unsafe_partial_result(self) -> None:
-        raw = 'oops "command": "rm -rf /tmp/demo" trailing'
-
-        parsed = _parse_tool_call_args(raw, "bash_code_execute_tool")
-
-        assert parsed == {}
 
 
 class TestConvertDictToMessageRecovery:

@@ -306,33 +306,6 @@ def _build_invalid_tool_call(
     }
 
 
-def _parse_tool_call_args(
-    args: str | dict[str, Any],
-    tool_name: str,
-    tool_schema: Mapping[str, Any] | None = None,
-) -> dict[str, Any]:
-    """Parse tool call parameters, returning ``{}`` when no safe parse exists.
-
-    HTML entities stay verbatim: decoding is opt-in per model through
-    ``_parse_tool_call_args_result(..., decode_html_entities=True)``.
-
-    Args:
-        args: Parameter string or dict
-        tool_name: Tool name (for logging)
-
-    Returns:
-        Parsed parameter dict
-    """
-    parsed, recovery = _parse_tool_call_args_result(args, tool_name, tool_schema)
-
-    if not recovery.safe:
-        logger.warning(" Dropped unsafe tool_call args for %s via %s", tool_name, recovery.strategy)
-        return {}
-    if recovery.strategy != "standard_json" or recovery.degraded:
-        logger.warning(" Recovered tool_call args for %s via %s", tool_name, recovery.strategy)
-    return parsed
-
-
 def _extract_citations(
     message_dict: Mapping[str, Any],
 ) -> list[dict[str, str | int]] | None:

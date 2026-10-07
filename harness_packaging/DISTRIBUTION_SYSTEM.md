@@ -100,7 +100,7 @@ Alpine/musl deployments: use `compiled-core-musl` extra (or `install.sh` `reinst
 
 Until musl core wheels are indexed on PyPI for the current `project.version`, `uv lock` cannot resolve `[compiled-core-musl]`; maintainers may regenerate `uv.lock` with that extra omitted and restore `pyproject.toml` afterward (lock `provides-extras` may omit `compiled-core-musl` until wheels exist).
 
-CI build jobs use `uv sync --only-group build --frozen` and `uv run --no-project` so the editable project is not installed before wheels exist on PyPI.
+CI build jobs use `uv sync --only-group build --frozen` and `uv run --no-project` so the editable project is not installed before wheels exist on PyPI. CI test jobs follow the same rule: `uv sync` / `uv run` resolve every extra, including `compiled-core*`, whose pins name versions that exist only after a release is published, so `test.yml` installs `uv pip install -e ".[all]" --group dev` into a fresh venv and runs `uv run --no-sync`.
 
 Each PyPI project needs a GitHub publisher: Owner `Pursue-LLL`, repository `myrm-agent-harness`, workflow `publish-pypi.yml`, environment `pypi`.
 
@@ -113,6 +113,7 @@ One-time bootstrap for new core project names (OIDC cannot create projects): `sc
 | `publish-pypi.yml` | Tag release → PyPI (OIDC upload for release + 8 core wheels; verify 6 + indexed musl); matrix from `.github/core-platform-matrix.json` |
 | `build-core-wheels.yml` | Dev/matrix core wheel artifacts (same shared matrix; optional `platform` input) |
 | `boundary-check.yml` | Architecture + distribution tests (dual-wheel COMPILED e2e, manifest drift gate, wheel artifact zip scan via `validate_pypi_wheels.py`) |
+| `test.yml` | Unit suite (`-n 2`) and serial browser integration on push to `main` and PRs; source tree only (`[all]` + `dev` group, no `compiled-core*`) |
 
 ## References
 
