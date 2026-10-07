@@ -59,6 +59,22 @@ from myrm_agent_harness.runtime.context.deterministic_prefix_cache_types import 
     PrefixCacheZoneKind,
     PrefixHashFingerprint,
 )
+from myrm_agent_harness.runtime.context.session_data_sanitizer import (
+    SessionDataSanitizer,
+)
+from myrm_agent_harness.runtime.context.session_lifecycle_log_archiver import (
+    SessionLifecycleLogArchiverAndOfflineBundleExportEngine,
+)
+from myrm_agent_harness.runtime.context.session_lifecycle_log_archiver_types import (
+    ArtifactSnapshotEntry,
+    ImportReplayResult,
+    SanitizationPolicy,
+    SessionExecutionTurn,
+    SessionLogArchiveBundle,
+    TokenCostBillingSnapshot,
+    ToolExecutionLogEntry,
+    ToolExecutionStatus,
+)
 
 from myrm_agent_harness.runtime.context.artifact_centric_loop import (
     ActorRole,
@@ -1749,6 +1765,16 @@ __all__ = [
     "DeterministicPrefixCacheGuard",
     "PrefixCacheBreachError",
     "AppendOnlyContextPipeline",
+    "ToolExecutionStatus",
+    "ToolExecutionLogEntry",
+    "TokenCostBillingSnapshot",
+    "ArtifactSnapshotEntry",
+    "SessionExecutionTurn",
+    "SanitizationPolicy",
+    "SessionLogArchiveBundle",
+    "ImportReplayResult",
+    "SessionDataSanitizer",
+    "SessionLifecycleLogArchiverAndOfflineBundleExportEngine",
 ]
 
 
