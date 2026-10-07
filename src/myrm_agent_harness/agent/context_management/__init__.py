@@ -412,6 +412,16 @@ from .proactive_recall import (
     ProactiveRecallNudgeConfig,
     ProactiveRecallProbeResult,
 )
+from .session_bridge import (
+    BridgeMessageItem,
+    ExportBridgeResult,
+    ExternalHarnessFormat,
+    FullStateHandoffBundle,
+    SessionWorkspaceState,
+    ToolExecutionTrace,
+    UniversalSessionBridgeEngine,
+    UniversalSessionDescriptor,
+)
 
 __all__ = [
     # active_compression
@@ -596,6 +606,15 @@ __all__ = [
     "SessionDomPatchOp",
     "SessionDomTree",
     "UniversalEventSourcedSessionDomEngine",
+    # session_bridge
+    "BridgeMessageItem",
+    "ExportBridgeResult",
+    "ExternalHarnessFormat",
+    "FullStateHandoffBundle",
+    "SessionWorkspaceState",
+    "ToolExecutionTrace",
+    "UniversalSessionBridgeEngine",
+    "UniversalSessionDescriptor",
     # session_roaming
     "CollaborationRole",
     "DeviceAgnosticSessionRoamingEngine",
