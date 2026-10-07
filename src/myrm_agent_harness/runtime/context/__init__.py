@@ -143,6 +143,17 @@ from myrm_agent_harness.runtime.context.cleanup import (
 from myrm_agent_harness.runtime.context.cleanup_task import (
     ContextCleanupScheduler,
 )
+from myrm_agent_harness.runtime.context.canonical_section_registry import (
+    CanonicalSystemSectionRegistry,
+)
+from myrm_agent_harness.runtime.context.canonical_section_types import (
+    CanonicalPromptAssemblyResult,
+    CanonicalSectionSpec,
+    CrossAgentPrefixComparisonResult,
+    SectionTier,
+    VolatileContentDetectionResult,
+    VolatilePollutionError,
+)
 from myrm_agent_harness.runtime.context.cli_dry_run_protocol import (
     BestSourceSelector,
     CliDryRunDiscoveryProtocol,
@@ -1353,6 +1364,13 @@ __all__ = [
     "CanonicalTurnRole",
     "CanonicalToolCall",
     "CanonicalTranscriptTurn",
+    "CanonicalPromptAssemblyResult",
+    "CanonicalSectionSpec",
+    "CanonicalSystemSectionRegistry",
+    "CrossAgentPrefixComparisonResult",
+    "SectionTier",
+    "VolatileContentDetectionResult",
+    "VolatilePollutionError",
     "TranscriptParseResult",
     "SandboxPathRemapper",
     "ToolOutputCompactor",
