@@ -486,6 +486,21 @@ from myrm_agent_harness.toolkits.memory.reconciliation import (
     WriteGateCheckResult,
     WriteGatePolicy,
 )
+from myrm_agent_harness.toolkits.memory.git_okf import (
+    ConceptStatus,
+    ConceptSummaryItem,
+    GovernanceLevel,
+    InMemoryBM25Searcher,
+    OKFBundleLoader,
+    OKFConcept,
+    OKFConceptValidator,
+    OKFDisclosureSummary,
+    OKFGenerated,
+    OKFSearchResult,
+    OKFSource,
+    OKFValidationReport,
+    OKFVerified,
+)
 from myrm_agent_harness.toolkits.memory.temporal_graph import (
     FactConflictResolutionResult,
     SqliteTemporalGraphStore,
@@ -656,6 +671,19 @@ from myrm_agent_harness.toolkits.memory.zero_hallucination import (
 )
 
 __all__ = [
+    "ConceptStatus",
+    "ConceptSummaryItem",
+    "GovernanceLevel",
+    "InMemoryBM25Searcher",
+    "OKFBundleLoader",
+    "OKFConcept",
+    "OKFConceptValidator",
+    "OKFDisclosureSummary",
+    "OKFGenerated",
+    "OKFSearchResult",
+    "OKFSource",
+    "OKFValidationReport",
+    "OKFVerified",
     "DiskMemoryFileMeta",
     "DiskMemoryFtsReconciler",
     "FtsReconciledHit",
