@@ -56,6 +56,17 @@ from .registry import (
 # Types
 from .types import ArtifactInfo, infer_artifact_type, infer_language
 
+# Work Notes Syncer
+from .work_notes_syncer import WorkspaceWorkNotesSyncer
+from .work_notes_syncer_types import (
+    HumanInterventionDiff,
+    ProgressStep,
+    StepExecutionStatus,
+    SyncDirection,
+    SyncResult,
+    WorkNotesSnapshot,
+)
+
 __all__ = [
     "ACTIVE_CONTENT_MIME_TYPES",
     "EXTENSION_TO_ARTIFACT_TYPE",
@@ -101,4 +112,12 @@ __all__ = [
     # Filters
     "should_filter_skill_resource",
     "should_ignore_artifact",
+    # Work Notes Syncer
+    "WorkspaceWorkNotesSyncer",
+    "WorkNotesSnapshot",
+    "ProgressStep",
+    "StepExecutionStatus",
+    "SyncDirection",
+    "HumanInterventionDiff",
+    "SyncResult",
 ]
