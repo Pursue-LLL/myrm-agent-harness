@@ -110,6 +110,18 @@ from .tracking.task_metrics import (
     get_task_metrics,
     record_archive_refetch_for_path,
 )
+from .multibot_governor import (
+    BotTurnEvent,
+    CognitiveValueEvaluation,
+    GovernorAction,
+    GovernorDecision,
+    GroupTurnArbitrator,
+    IncrementalCognitiveValueEvaluator,
+    MessageSenderRole,
+    MultiBotChatterGovernor,
+    MultiBotGovernorConfig,
+    MutexAcquireResult,
+)
 from .working_memory import (
     LocalWorkingMemoryBlock,
     LocalWorkingState,
@@ -119,6 +131,17 @@ from .working_memory import (
 )
 
 __all__ = [
+    # multibot_governor
+    "BotTurnEvent",
+    "CognitiveValueEvaluation",
+    "GovernorAction",
+    "GovernorDecision",
+    "GroupTurnArbitrator",
+    "IncrementalCognitiveValueEvaluator",
+    "MessageSenderRole",
+    "MultiBotChatterGovernor",
+    "MultiBotGovernorConfig",
+    "MutexAcquireResult",
     # schemas
     "BUILTIN_PROTECTED_TOOLS",
     "COMPACT_RULES",
