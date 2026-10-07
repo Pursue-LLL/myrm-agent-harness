@@ -64,7 +64,10 @@ Context lifecycle management — cleanup, config, metrics, tracking, reading, of
 | cross_session_handoff_types.py | Types | Type definitions for cross-session handoff contracts and continuity ledger. | ✅ |
 | cumulative_file_tracker.py | Core | Cumulative file footprint tracker across multi-turn sessions, compactions, and branches. | ✅ |
 | cut_point_selector.py | Core | Enforces tool call <-> tool result pairing invariants preventing provider API 400 (Invalid Parameter) failures during context compaction. | ✅ |
+| cwd_deferred_assembly_guard.py | Core | Guard enforcing outside-in assembly order and deferred CWD service binding. | ✅ |
+| cwd_deferred_assembly_types.py | Types | Type contracts for CWD deferred workspace service binding and session resume order. | ✅ |
 | default_lossless_lean_tail_compactor.py | Core | Default lossless lean-tail conversation compaction engine. | ✅ |
+| deferred_session_runtime_factory.py | Core | Deferred session runtime factory orchestrating outside-in assembly. | ✅ |
 | deterministic_prefix_cache_guard.py | Core | Deterministic hash-pinned prefix cache guard. | ✅ |
 | deterministic_prefix_cache_types.py | Types | Types and data models for deterministic hash-pinned prefix cache guard and append-only pipeline. | ✅ |
 | diff_protocol_scorer.py | Core | Robust content-addressed diff application engine. | ✅ |
@@ -189,6 +192,8 @@ Context lifecycle management — cleanup, config, metrics, tracking, reading, of
 | session_checkpoint_types.py | Types | Domain models and data contracts for Session State Checkpoint and Atomic Resume. | ✅ |
 | session_cwd_guard.py | Core | Protects agent toolkits and bash execution sandboxes from working directory drift across machines, branches, and folder moves. | ✅ |
 | session_data_sanitizer.py | Core | Session data sanitization engine for confidential information masking. | ✅ |
+| session_dedup_processor.py | Core | Session-Dedup processor providing cross-turn content addressing and retrieve marker replacement. | ✅ |
+| session_dedup_types.py | Types | Type contracts for Session-Dedup cross-turn content addressing and retrieve marker engine. | ✅ |
 | session_epoch_splitter.py | Core | Auto-Forking Milestone Checkpoint Archiver & Long-Session Epoch Splitter. | ✅ |
 | session_epoch_splitter_types.py | Types | Data contracts and models for Long Session Epoch Splitter and Milestone Archiver. | ✅ |
 | session_keyword_resurrection_engine.py | Core | Session keyword resurrection engine for seamless historical agent revival. | ✅ |
