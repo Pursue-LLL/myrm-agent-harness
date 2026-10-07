@@ -574,6 +574,15 @@ from .tool_paging import (
     ToolPagingConfig,
     ToolSchemaDefinition,
 )
+from .token_efficiency import (
+    NegativeRouteDecision,
+    NegativeRouteRule,
+    ProviderUsageAnchor,
+    ReasoningSealBlock,
+    TokenEfficiencyConfig,
+    TokenEfficiencyGovernorEngine,
+    TokenEfficiencyLedger,
+)
 
 __all__ = [
     # active_compression
@@ -902,6 +911,14 @@ __all__ = [
     "ToolOutputStub",
     "ToolPagingConfig",
     "ToolSchemaDefinition",
+    # token_efficiency
+    "NegativeRouteDecision",
+    "NegativeRouteRule",
+    "ProviderUsageAnchor",
+    "ReasoningSealBlock",
+    "TokenEfficiencyConfig",
+    "TokenEfficiencyGovernorEngine",
+    "TokenEfficiencyLedger",
     # session_roaming
     "CollaborationRole",
     "DeviceAgnosticSessionRoamingEngine",
