@@ -211,6 +211,14 @@ from .owner_fencing import (
     SessionOwnerLease,
     SessionQuiesceState,
 )
+from .privacy_mode import (
+    ConversationPrivacyGateEngine,
+    PrivacyBoundToolSet,
+    PrivacyModeLevel,
+    PrivacyModeSessionConfig,
+    ToolCallInterceptRecord,
+    ToolHardGateAction,
+)
 from .project_container import (
     DragDropIngestionEvent,
     ProjectAssetItem,
@@ -357,6 +365,13 @@ __all__ = [
     "FencingConfig",
     "SessionOwnerLease",
     "SessionQuiesceState",
+    # privacy_mode
+    "ConversationPrivacyGateEngine",
+    "PrivacyBoundToolSet",
+    "PrivacyModeLevel",
+    "PrivacyModeSessionConfig",
+    "ToolCallInterceptRecord",
+    "ToolHardGateAction",
     # project_container
     "DragDropIngestionEvent",
     "ProjectAssetItem",
