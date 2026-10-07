@@ -159,6 +159,17 @@ from myrm_agent_harness.runtime.context.context_engineering_types import (
     StructuredNote,
     TrapType,
 )
+from myrm_agent_harness.runtime.context.context_lifecycle_visualizer import (
+    ContextLifecycleUiPayload,
+    ContextLifecycleVisualizer,
+    SectionUiItem,
+)
+from myrm_agent_harness.runtime.context.context_lifecycle_visualizer_types import (
+    ContextLifecycleSectionReport,
+    ContextSectionKind,
+    ContextSectionSlice,
+    LeanTailBoundaryConfig,
+)
 from myrm_agent_harness.runtime.context.context_overflow_detector import (
     ContextOverflowDetector,
 )
@@ -447,6 +458,9 @@ from myrm_agent_harness.runtime.context.lazy_subdirectory_rules_types import (
     DiscoveredSubdirectoryRule,
     DynamicToolInjectionEnvelope,
     SubdirectoryRuleDiscoveryMode,
+)
+from myrm_agent_harness.runtime.context.lean_tail_boundary_compactor import (
+    LeanTailBoundaryCompactor,
 )
 from myrm_agent_harness.runtime.context.lean_tail_compression_engine import (
     LeanTailCompressionEngine,
@@ -1602,6 +1616,14 @@ __all__ = [
     "PredictionContextInput",
     "NextActionPredictionReport",
     "NextActionPredictorConfig",
+    "ContextSectionKind",
+    "ContextSectionSlice",
+    "ContextLifecycleSectionReport",
+    "LeanTailBoundaryConfig",
+    "LeanTailBoundaryCompactor",
+    "ContextLifecycleVisualizer",
+    "ContextLifecycleUiPayload",
+    "SectionUiItem",
 ]
 
 
