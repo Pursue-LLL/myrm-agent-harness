@@ -498,6 +498,15 @@ from .token_governor import (
     TokenUsageRecord,
     ToolLeanMode,
 )
+from .sandbox_reduction import (
+    ActionKind,
+    ActionLedgerEntry,
+    InSandboxDataReductionEngine,
+    LedgerQueryResult,
+    ReducedOutputEnvelope,
+    ReductionKind,
+    SandboxReductionConfig,
+)
 
 __all__ = [
     # active_compression
@@ -758,6 +767,14 @@ __all__ = [
     "TokenGovernorConfig",
     "TokenUsageRecord",
     "ToolLeanMode",
+    # sandbox_reduction
+    "ActionKind",
+    "ActionLedgerEntry",
+    "InSandboxDataReductionEngine",
+    "LedgerQueryResult",
+    "ReducedOutputEnvelope",
+    "ReductionKind",
+    "SandboxReductionConfig",
     # session_roaming
     "CollaborationRole",
     "DeviceAgnosticSessionRoamingEngine",
