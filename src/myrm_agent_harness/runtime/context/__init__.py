@@ -776,6 +776,18 @@ from myrm_agent_harness.runtime.context.pluggable_context_pipeline_types import 
 from myrm_agent_harness.runtime.context.pluggable_context_projection_pipeline import (
     PluggableContextProjectionPipeline,
 )
+from myrm_agent_harness.runtime.context.prefix_integrity_barrier_types import (
+    BarrierInterceptionMode,
+    BaselinePrefixFingerprint,
+    FrozenModelPayload,
+    FrozenToolDescriptor,
+    PrefixDriftKind,
+    PrefixIntegrityViolationError,
+    PreFlightInspectionResult,
+)
+from myrm_agent_harness.runtime.context.prefix_integrity_freeze_barrier import (
+    PreFlightPrefixIntegrityBarrier,
+)
 from myrm_agent_harness.runtime.context.prefix_preserving_canonicalizer import (
     PrefixPreservingCanonicalizer,
 )
@@ -2126,6 +2138,14 @@ __all__ = [
     "SessionStateDeltaPackage",
     "StateDeltaAuditRecord",
     "SessionStateDeltaEngine",
+    "BarrierInterceptionMode",
+    "BaselinePrefixFingerprint",
+    "FrozenModelPayload",
+    "FrozenToolDescriptor",
+    "PreFlightInspectionResult",
+    "PrefixDriftKind",
+    "PrefixIntegrityViolationError",
+    "PreFlightPrefixIntegrityBarrier",
 ]
 
 
