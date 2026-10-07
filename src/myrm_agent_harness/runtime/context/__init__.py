@@ -811,6 +811,18 @@ from myrm_agent_harness.runtime.context.rule_telemetry_ledger import (
 from myrm_agent_harness.runtime.context.scoped_rules_importer import (
     ScopedRulesImporter,
 )
+from myrm_agent_harness.runtime.context.selective_context_trust_gate import (
+    SelectiveContextTrustGate,
+)
+from myrm_agent_harness.runtime.context.selective_context_trust_types import (
+    ConflictAssessmentResult,
+    ContextConditionKind,
+    ContextEvidenceSignal,
+    PriorFactAssertion,
+    SCOPETelemetryStats,
+    SelectiveTrustDecision,
+    TrustDecisionKind,
+)
 from myrm_agent_harness.runtime.context.session.event_sourcing_store import (
     EventSourcingLoadResult,
     EventSourcingSessionStore,
@@ -1796,6 +1808,14 @@ __all__ = [
     "MediaPointerLifecycleManager",
     "CrossPlatformChannelHandoffCoordinator",
     "HuggingFaceAgentTraceExporter",
+    "ContextConditionKind",
+    "TrustDecisionKind",
+    "ContextEvidenceSignal",
+    "PriorFactAssertion",
+    "ConflictAssessmentResult",
+    "SelectiveTrustDecision",
+    "SCOPETelemetryStats",
+    "SelectiveContextTrustGate",
 ]
 
 
