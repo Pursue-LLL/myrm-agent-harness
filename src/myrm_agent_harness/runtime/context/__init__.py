@@ -37,6 +37,9 @@ from myrm_agent_harness.runtime.context.agent_state_capsule import (
     SkillCapsuleEntry,
     UniversalAgentCapsule,
 )
+from myrm_agent_harness.runtime.context.append_only_context_pipeline import (
+    AppendOnlyContextPipeline,
+)
 from myrm_agent_harness.runtime.context.append_only_kv_cache_guard import (
     AppendOnlyContextTailInvariantGuard,
     CompactionBypassToken,
@@ -46,6 +49,17 @@ from myrm_agent_harness.runtime.context.append_only_kv_cache_guard import (
     KVCacheTailInvariantViolationError,
     ViolationType,
 )
+from myrm_agent_harness.runtime.context.deterministic_prefix_cache_guard import (
+    DeterministicPrefixCacheGuard,
+    PrefixCacheBreachError,
+)
+from myrm_agent_harness.runtime.context.deterministic_prefix_cache_types import (
+    DeterministicSummaryBlock,
+    PrefixCacheHitReport,
+    PrefixCacheZoneKind,
+    PrefixHashFingerprint,
+)
+
 from myrm_agent_harness.runtime.context.artifact_centric_loop import (
     ActorRole,
     ArtifactLifecycleState,
@@ -1728,7 +1742,15 @@ __all__ = [
     "UpwardPageSlice",
     "HeavyToolPayloadBlobStore",
     "BoundedInitialPageHydrationEngine",
+    "PrefixCacheZoneKind",
+    "PrefixHashFingerprint",
+    "PrefixCacheHitReport",
+    "DeterministicSummaryBlock",
+    "DeterministicPrefixCacheGuard",
+    "PrefixCacheBreachError",
+    "AppendOnlyContextPipeline",
 ]
+
 
 
 
