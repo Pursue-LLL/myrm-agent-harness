@@ -452,6 +452,16 @@ from myrm_agent_harness.toolkits.memory.proactive_care import (
     VitalityAndFatigueEvaluator,
     VitalityAssessmentReport,
 )
+from myrm_agent_harness.toolkits.memory.experience_injection import (
+    ExperienceCallSite,
+    ExperienceInjectionConfig,
+    ExperienceInjectionEngine,
+    ExperienceInjectionResult,
+    InjectionStatus,
+    PreWriteInterceptor,
+    SkillLoadExperienceHook,
+    SubagentSpawnExperienceEnricher,
+)
 from myrm_agent_harness.toolkits.memory.procedure_experience import (
     DualNodeFixedCountRetriever,
     DualNodeRetrievalQuery,
@@ -1402,4 +1412,13 @@ __all__ = [
     "ProcedureMemoryEntry",
     "ProcedureProtocolEngine",
     "RetrievalNodeKind",
+    "ExperienceCallSite",
+    "ExperienceInjectionConfig",
+    "ExperienceInjectionEngine",
+    "ExperienceInjectionResult",
+    "InjectionStatus",
+    "PreWriteInterceptor",
+    "SkillLoadExperienceHook",
+    "SubagentSpawnExperienceEnricher",
 ]
+
