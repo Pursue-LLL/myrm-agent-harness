@@ -779,8 +779,33 @@ from .checked_stream_reader import (
     StreamReaderMetrics,
     StreamReaderState,
 )
+from .multimodal_budget import (
+    GuardianReviewResult,
+    GuardianVerdictKind,
+    ImageArtifactDescriptor,
+    ImageBudgetAction,
+    ImageBudgetAllocation,
+    ImageDetailMode,
+    ImageResolution,
+    ImageTokenBudgetCalculator,
+    MultiModalBudgetReport,
+    MultiModalFileImageContextBudgetAndGuardianReviewSuite,
+    MultiModalGuardianReviewer,
+)
 
 __all__ = [
+    # multimodal_budget
+    "GuardianReviewResult",
+    "GuardianVerdictKind",
+    "ImageArtifactDescriptor",
+    "ImageBudgetAction",
+    "ImageBudgetAllocation",
+    "ImageDetailMode",
+    "ImageResolution",
+    "ImageTokenBudgetCalculator",
+    "MultiModalBudgetReport",
+    "MultiModalFileImageContextBudgetAndGuardianReviewSuite",
+    "MultiModalGuardianReviewer",
     # checked_stream_reader
     "AntiSlopFilter",
     "AntiSlopFilterResult",
