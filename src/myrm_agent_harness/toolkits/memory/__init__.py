@@ -100,6 +100,16 @@ from myrm_agent_harness.toolkits.memory.dreaming import (
     SurgicalSessionMemoryUnlearner,
     SurgicalUnlearnReport,
 )
+from myrm_agent_harness.toolkits.memory.ltra import (
+    AudioFactDistillationWorker,
+    AudioTimestampAnchor,
+    CognitiveFactQuadruple,
+    DiarizedTranscriptSegment,
+    FollowupTaskDraft,
+    FollowupTaskDraftBuilder,
+    SensitiveAudioFactGuard,
+    SpeakerIdentityResolver,
+)
 from myrm_agent_harness.toolkits.memory.external_providers import (
     BenchmarkReport,
     DerivedObservationRecord,
@@ -601,4 +611,12 @@ __all__ = [
     "get_scan_metrics",
     "get_search_metrics",
     "summarize_recall_benchmark",
+    "DiarizedTranscriptSegment",
+    "AudioTimestampAnchor",
+    "CognitiveFactQuadruple",
+    "FollowupTaskDraft",
+    "FollowupTaskDraftBuilder",
+    "SpeakerIdentityResolver",
+    "SensitiveAudioFactGuard",
+    "AudioFactDistillationWorker",
 ]
