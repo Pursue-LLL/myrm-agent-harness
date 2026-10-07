@@ -2,6 +2,54 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-07-007 · 连接在工具调用中途被干净关闭时，LiteLLM 合成的 `stop` 让半截参数被补全并当作完整调用执行
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-07 |
+| **修复时间** | 2026-10-07 |
+| **症状** | 真实 LiteLLM 1.98.0 加适配器，用回环假提供方端到端复现：工具调用参数流在两个字段之间被切断（`{"path": "/tmp/report.md", "content": "Dear Alice.", ` 之后连接关闭，提供方从未发出结束标记），适配器照常补全，把 `{"content": "Dear Alice.", "path": "/tmp/report.md"}` 当作完整调用交给执行，原本要带上的 `overwrite: true` 悄悄丢失；OpenAI 对话线路与 Anthropic（内容块未关闭、已关闭两种切法）三种情形全部复现；停在字符串值内部的切断本来就被拒绝（`truncated_mid_value`），不受影响 |
+| **关联产品** | myrm-agent-harness `toolkits/llms/adapters` |
+| **根因** | LiteLLM 流包装器在流结束而提供方没发过结束原因时，用合成的 `stop` 收尾（见到工具增量则升级为 `tool_calls`），块层与正常结束完全相同；`finalize_stream` 只看这个 `finish_reason` 判断流是否完整，于是把被切断的参数当作完整输出补全 |
+| **修复** | 包装器自己记录提供方真正发送的结束原因（`received_finish_reason` / `intermittent_finish_reason`）；`StreamAggregator.track` 记住正在消费的提供方流，`provider_reported_finish` 在流耗尽后读取这两个标记，都为空即判定提供方没有结束这条流，`is_stream_complete(finish_reason, provider_finish)` 随之返回 False，沿用既有的“扣留—重试一次”协议；没有这两个标记的流（Responses 线路的迭代器）返回 None，仍只看 `finish_reason`；`finish_reason` 的记录、遥测与完成状态口径不变；`async_mixin.py`、`sync_mixin.py` 各改 1 行，行数不变。取舍：从不发送 `finish_reason` 的网关，其格式错误且需要补全的工具参数现在会被扣留并重试一次，而不是补全后执行（格式正确的参数走快速路径，不受影响） |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | 初版用例把切口放在字符串值内部，修复前后都通过（该情形早有闸门拦截），证明不了修复；切口必须落在两个值之间才暴露补全；判断依据用包装器真实记录的两个标记，而不是去猜“合成的 stop”；LiteLLM 改名这两个属性时，切断用例会变红而不是悄悄放行，起金丝雀作用；不把该信号写进 `finish_reason` 遥测，避免对从不发 `finish_reason` 的网关把每个回合都标成截断 |
+| **回归** | `tests/toolkits/llms/core/test_stream_cut_wire.py`（OpenAI 对话与 Anthropic 的值间切断被扣留、值内切断仍被扣留、完整调用照常执行、被切断的文本回答原样保留）· `tests/toolkits/llms/adapters/test_stream_aggregator.py::TestFinalizeStreamProviderFinish` · `tests/toolkits/llms/adapters/test_streaming_and_parser_edges.py::TestProviderReportedFinish` · `tests/toolkits/llms/adapters/test_tool_recovery.py::TestIsStreamComplete` |
+| **代码位置** | `toolkits/llms/adapters/streaming.py::provider_reported_finish` · `toolkits/llms/adapters/stream_aggregator.py::StreamAggregator.track/provider_finish` · `toolkits/llms/adapters/tool_recovery.py::is_stream_complete` · `toolkits/llms/adapters/chat_model/async_mixin.py` · `toolkits/llms/adapters/chat_model/sync_mixin.py` |
+
+### BUG-HARNESS-2026-10-07-006 · 原生 Anthropic 调用带着 Messages API 不接受的字段：每次调用多发 1–2 个被拒请求且用量记录为空，设置推理强度或额外参数时请求永久失败
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-07 |
+| **修复时间** | 2026-10-07 |
+| **症状** | 用严格回环假提供方（对多余顶层字段回 400 `<key>: Extra inputs are not permitted`，字段集合取自 Messages API 的请求字段）实测，修复前：普通流式调用发 2 个请求（首个因 `stream_options` 被拒）、token 用量记录为 `(None, None)`；带工具的调用发 3 个请求；设置 `reasoning_effort`（产品的 lite/降级模型一律带 `low`）或任何额外参数（`top_p`、`top_k`、`thinking`、`metadata` 等）时只发 1 个请求并以 400 `extra_body: Extra inputs are not permitted` 永久失败。修复后四种情形均只发 1 个请求并成功，用量记录为 `(3, 9)`，`reasoning_effort=low` 被 LiteLLM 翻译为 `thinking`。真实 Anthropic 接口未用密钥验证，结论以该假提供方（按文档化的拒绝行为实现）与普通 LiteLLM 的请求体为准 |
+| **关联产品** | myrm-agent-harness `toolkits/llms/core` · `toolkits/llms/adapters/chat_model` · `toolkits/llms/adapters/wire` |
+| **根因** | 两处：① `_inject_allowed_params` 向每次调用注入 `allowed_openai_params`，LiteLLM 因此把调用里的每个键（`stream_options`、`reasoning_effort`、`parallel_tool_calls`、`response_format`、`stop`、`user`、字面 `extra_body` 等）原样转发，叠加在它自己的 Messages 翻译之上；② `llm.py` 把 `reasoning_effort` 与额外 kwargs 复制进 `extra_body`，LiteLLM 对 Anthropic 不会平铺它而是原样发送一个 `extra_body` 字段。被拒的 `extra_body` 不在网关归一化器可剥离的参数清单内，请求直接失败；`stream_options` 被剥离重试后，LiteLLM 不再产出 Anthropic 的用量事件，用量记录为空 |
+| **修复** | 新增 `adapters/wire/native_anthropic.py::is_native_anthropic_wire`，用 LiteLLM 的提供方解析判断是否第一方 Anthropic 接口（OpenRouter、Bedrock、Vertex AI、`openai/` 自定义网关和无法分类的模型都不算，行为不变）；`allowed_params.py::inject_allowed_params` 从 `model.py` 拆出，对原生 Anthropic 调用不再注入白名单；`llm.py` 对原生 Anthropic 不再向 `extra_body` 复制 `reasoning_effort` 与额外 kwargs；`stream_options` 仍留在调用参数中（LiteLLM 靠它产出用量事件，并自行从线上请求体里去掉）；`model.py` 行数净减少 |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | 只剥离已知被拒参数的反应式重试，既多发请求又会丢失依赖这些参数的副作用（用量事件），而且对不在清单里的字段无能为力，必须在发送前就不放进请求；只拦截三个已知字段的拒绝清单方案实测仍会泄漏 `response_format`、`stop`、`user`、`web_search_options`，整体不注入白名单才让多余字段为零；断言构造参数发现不了问题，必须用真实 LiteLLM 加严格回环假提供方断言线上请求体与请求数 |
+| **回归** | `tests/toolkits/llms/core/test_native_anthropic_wire.py`（线上请求数与字段集合、用量到账、推理强度翻译为 `thinking`、带工具调用保留并行选择、`stop`/`user` 被翻译而非重复、额外参数不再变成字面 `extra_body`、短调用保护 `max_tokens=30` 且无 `thinking`、OpenAI 线路仍保留 `stream_options`/推理强度/镜像）· `tests/toolkits/llms/adapters/wire/test_native_anthropic.py`（判定真值表）· `tests/toolkits/llms/adapters/test_allowed_params.py` · `tests/toolkits/llms/core/test_merge_model_kwargs.py` |
+| **代码位置** | `toolkits/llms/adapters/wire/native_anthropic.py` · `toolkits/llms/adapters/chat_model/allowed_params.py` · `toolkits/llms/adapters/chat_model/model.py::ChatLiteLLM._inject_allowed_params` · `toolkits/llms/core/llm.py::create_litellm_model` |
+
+### BUG-HARNESS-2026-10-07-005 · 额外参数镜像把调整前的输出上限和调用方的 `extra_body` 写进请求体，思考模型的输出预算与截断重试在 OpenAI 兼容网关上不生效，传入 `extra_body` 时请求直接失败
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-07 |
+| **修复时间** | 2026-10-07 |
+| **症状** | 用户把最大输出长度配得低于思考模型的预留下限（如 1024），经 OpenAI 兼容网关调用思考模型时，请求体里的 `max_tokens` 仍是用户配置的 1024，而不是抬升后的值：真实 MiniMax 网关实测 `finish=length`、答案为空；长度截断后的“预算翻倍重试”同样不到线上，重试照旧被截断；调用方经 kwargs 传入 `extra_body` 时，请求在序列化阶段以 `Circular reference detected` 失败（LiteLLM `InternalServerError`，用回环假提供方端到端复现） |
+| **关联产品** | myrm-agent-harness `toolkits/llms/core` · `toolkits/llms/utils` · `agent/streaming/recovery`；myrm-agent-server 三处短回复调用 |
+| **根因** | `llm.py` 把全部额外 kwargs 同时复制进 `extra_body`，其中包含 `max_tokens`、`extra_body` 自身和仅供工厂使用的 `supports_reasoning`；OpenAI SDK 在发送时把 `extra_body` 平铺覆盖到类型字段之上，于是线上 `max_tokens` 永远等于调整之前的值，抬升与重试覆盖都被它盖掉；`extra_body` 被复制进自己，形成自引用字典 |
+| **修复** | 镜像排除 `max_tokens`、`extra_body`、`supports_reasoning`，复制而不原地修改，调用方已有的键优先；抬升后的输出预算真正到达提供方，因此新增上限夹取：配置值被抬升到思考下限、以及截断重试放大预算时，都不超过 LiteLLM 价目表记录的该模型单次输出上限；价目表低于已被提供方接受的预算时视为过期条目，不会把预算压低，无配置值时仍使用完整下限；预算计算从截断恢复混入类拆出为 `StreamOutputBudgetMixin`；服务端的伴宠回应（30）、Advisor（256）、标题（1024）三处刻意很短的调用声明 `supports_reasoning=False`，不被抬升到思考下限；设置页“最大输出长度”说明文案改为说明推理模型会自动获得更大的上限（6 种语言） |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | 把同一个值同时放进类型字段和 `extra_body` 的镜像，在 SDK 的合并顺序下 `extra_body` 总是赢，凡是后续逻辑会调整的值都不能镜像；断言构造参数发现不了问题，必须用真实 LiteLLM 加回环假提供方断言线上请求体；价目表的远端副本与内置副本内容不同，依赖它的测试必须固定上限查找，否则随网络状况翻转；价目表条目可能过期偏低，夹取必须以“提供方已接受的预算”为下界 |
+| **回归** | `tests/toolkits/llms/core/test_output_budget_wire.py`（线上请求体：低于下限的配置值抬升到下限、非思考模型的配置值原样保留、高于下限不被压低、短调用保护、重试覆盖值到达线上、调用方 `extra_body` 只发送一次）· `tests/toolkits/llms/core/test_merge_model_kwargs.py`（镜像排除项、复制不修改、调用方键优先）· `tests/toolkits/llms/core/test_thinking_headroom.py::TestOutputCeilingClamp` · `tests/toolkits/llms/utils/test_model_utils.py` · `tests/agent/streaming/test_stream_executor_length_truncation.py`（重试预算夹取）· 服务端 `tests/api/companion/test_companion_react.py` · `tests/services/copilot/test_advisor_service.py` · `tests/services/chat/test_chat_title.py` |
+| **代码位置** | `toolkits/llms/core/llm.py::_NEVER_MIRRORED/_merge_model_kwargs_to_extra_body` · `toolkits/llms/core/reasoning_profile.py::apply_thinking_headroom` · `toolkits/llms/utils/model_utils.py::get_model_output_ceiling/clamp_budget_to_model_ceiling` · `agent/streaming/recovery/stream_recovery_budget.py` · 服务端 `app/api/companion/router.py` · `app/services/copilot/advisor_service.py` · `app/services/chat/chat_title.py` |
+
 ### BUG-HARNESS-2026-10-07-004 · GLM XML 工具调用丢一个 `<arg_value>` 标签时参数绑定到错误的键，病态输入下解析耗时二次方
 
 | 字段 | 内容 |
@@ -28,7 +76,7 @@
 | **症状** | 输出在工具调用参数中途被长度上限截断，或参数是无法解析的文本时，真实智能体循环（`create_agent` + `StreamExecutor.execute()` 的脚本化回放）出现两种结果：截断落在字符串值内时，闭合后的前缀可解析，被截断的文件正文被当作完整调用写盘（命令、路径同理）；调用被扣留（不可执行）后整轮没有任何提示地结束，用户看到一个空回合；预期的“重试一次并上报”从未发生 |
 | **关联产品** | myrm-agent-harness `agent/streaming` · `toolkits/llms/adapters` · `toolkits/llms/utils` · `agent/errors/diagnostics` |
 | **根因** | 三处叠加：（1）被扣留的调用只记录在最终 AIMessage 的 `additional_kwargs["tool_call_recovery"]`，该消息没有 `tool_calls`，LangGraph 据此结束整轮；`process_updates_chunk` 又把“无内容、无 tool_calls”的 AIMessage 当空消息丢弃，恢复处理器永远看不到它，`_try_tool_call_retry` 在真实循环里从未触发；（2）长度截断处理器只在 `finish_reason` 为 `length`/`max_tokens` 时触发且只数 `tool_calls`，空响应处理器同样只数 `tool_calls`，会把扣留消息当空回复叠加恢复并最终抛 `MyrmLLMError`；（3）截断落在字符串值内时 `close_truncated_json` 闭合出的前缀可解析，被当成可安全执行的修复，而路径、命令、文件正文都是“更短但合法”的值；此外 `tool_call_retry` 诊断文案在 5 种语言里缺失，状态事件会泄漏 `[Missing translation: …]` |
-| **修复** | 单一谓词 `has_withheld_tool_calls`（`tool_recovery.py`）识别扣留记录；`event_handlers` 保留这类消息；`_handle_length_truncation` 在“长度截断”或“存在扣留调用”任一成立时触发，`_has_tool_calls`（截断与空响应处理器共用）把扣留调用计入工具调用；重试仍最多 1 次、输出预算翻倍（以 `MAX_EPHEMERAL_OUTPUT_TOKENS` 为上限；配置预算已达上限时保持原值，覆盖值不再低于配置预算）、请求前缀只追加一条提示（提示缓存前缀不变），重试失败上报 `tool_call_truncated`（用户可见文案说明该调用未执行，处理建议为重新发送请求，不再提示检查输出文件）；新增 `truncated_json.py::ends_inside_string` 与 `litellm_utils` 的闸门：截断落在字符串值内一律拒绝修复（`truncated_mid_value`，不可执行），数字、字面量、键、容器边界处的截断仍可补全；重试提示改为与成因一致（参数不完整或无效）；补齐 5 种语言的 `tool_call_retry` 文案；流在收到最终元数据块之前断开时，`finish_reason` 记为哨兵 `__stream_dropped__`：用量账本的 finish_reason 桶由空串改为该值，`completion_status` 由 `complete` 改为 `truncated`，并禁止“补全 JSON”式修复；统计截断率的报表需按原始 `finish_reason` 把 `length`/`max_tokens` 与 `__stream_dropped__` 分开，并以 2026-10-07 作为口径分界；上游干净关闭时 LiteLLM 会合成 `stop`，这类流不会落入该哨兵（实测，LiteLLM 1.98.0） |
+| **修复** | 单一谓词 `has_withheld_tool_calls`（`tool_recovery.py`）识别扣留记录；`event_handlers` 保留这类消息；`_handle_length_truncation` 在“长度截断”或“存在扣留调用”任一成立时触发，`_has_tool_calls`（截断与空响应处理器共用）把扣留调用计入工具调用；重试仍最多 1 次、输出预算翻倍（以 `MAX_EPHEMERAL_OUTPUT_TOKENS` 为上限；配置预算已达上限时保持原值，覆盖值不再低于配置预算）、请求前缀只追加一条提示（提示缓存前缀不变），重试失败上报 `tool_call_truncated`（用户可见文案说明该调用未执行，处理建议为重新发送请求，不再提示检查输出文件）；新增 `truncated_json.py::ends_inside_string` 与 `litellm_utils` 的闸门：截断落在字符串值内一律拒绝修复（`truncated_mid_value`，不可执行），数字、字面量、键、容器边界处的截断仍可补全；重试提示改为与成因一致（参数不完整或无效）；补齐 5 种语言的 `tool_call_retry` 文案；流在收到最终元数据块之前断开时，`finish_reason` 记为哨兵 `__stream_dropped__`：用量账本的 finish_reason 桶由空串改为该值，`completion_status` 由 `complete` 改为 `truncated`，并禁止“补全 JSON”式修复；统计截断率的报表需按原始 `finish_reason` 把 `length`/`max_tokens` 与 `__stream_dropped__` 分开，并以 2026-10-07 作为口径分界；上游干净关闭时 LiteLLM 会合成 `stop`，这类流不会落入该哨兵（实测，LiteLLM 1.98.0），其工具参数由 BUG-HARNESS-2026-10-07-007 处理 |
 | **反复次数** | 第 1 次发现 |
 | **踩坑** | “不执行”不等于“已处理”：不可执行的调用若不产生下游信号，整轮会静默结束；多个恢复处理器判断“这一轮是否以失败的工具调用结束”必须共用同一个谓词，否则一个放行、另一个把同一条消息当空回复；“过滤空消息”这类清理要检查被过滤对象是否承载恢复所需的元数据；不能只信提供方上报的 `finish_reason`；字符串内部的截断无法靠工具 schema 发现，必须在参数层拒绝；边界处（数字、字面量）的截断在信息上无法与完整值区分，由工具 schema 校验兜底；用户提示要说明后果（“未执行”），而不是内部状态（“参数可能不完整”）；“放大输出预算”的覆盖值必须与配置预算比较，单看上限夹取会把已超过上限的配置预算反而调低 |
 | **回归** | `tests/agent/streaming/test_withheld_tool_call_retry.py`（真实智能体循环：成功路径不变、如实长度截断重试一次且预算翻倍、重试请求等于首次请求加一条提示、提供方谎报正常结束、垃圾 JSON、无望场景有界上报、并行调用中一条被扣留；处理器单测与更新流保留规则）· `tests/toolkits/llms/adapters/test_tool_call_argument_recovery.py`（字符串内截断拒绝、边界截断仍补全、谓词与生产者一致）· `tests/toolkits/llms/utils/test_close_truncated_json.py` · `tests/agent/errors/diagnostics/test_error_diagnostics.py`（5 种语言文案齐全）· `tests/toolkits/llms/adapters/test_stream_aggregator.py` 与 `tests/agent/test_completion_status_mapping.py`（断流哨兵进入响应、账本、tracker，并映射为 `truncated`）· `tests/toolkits/llms/adapters/test_stream_aggregator_dsml.py`（标签解析出工具调用后，响应与 tracker 记录 `tool_calls`）· `tests/agent/streaming/test_stream_executor_length_truncation.py`（配置预算低于、等于、高于上限时重试覆盖值从不低于配置预算） |
