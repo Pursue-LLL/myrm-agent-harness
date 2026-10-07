@@ -46,7 +46,7 @@ class MemoryConversationSearchProvider:
             query,
             memory_types=[MemoryType.CONVERSATION],
             limit=request.limit,
-            include_raw=False,
+            include_raw=True,
             since=request.since,
             until=request.until,
         )

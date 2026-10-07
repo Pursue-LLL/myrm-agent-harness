@@ -5,6 +5,7 @@ import json
 import pytest
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
+from myrm_agent_harness.agent.streaming.message_builder import build_messages
 from myrm_agent_harness.utils.chat_utils import (
     convert_chat_history_simple,
     extract_answer_text,
@@ -80,9 +81,41 @@ class TestExtractTextContent:
     def test_non_string_non_list_coerced_to_str(self) -> None:
         assert extract_text_content(99) == "99"  # type: ignore[arg-type]
 
-    def test_empty_text_list_falls_back_to_str_of_list(self) -> None:
-        only_image = [{"type": "image", "url": "u"}]
-        assert extract_text_content(only_image) == str(only_image)
+    @pytest.mark.parametrize(
+        "media_only",
+        [
+            [],
+            [{"type": "image", "url": "u"}],
+            [{"type": "image_url", "image_url": {"url": "data:image/png;base64," + "A" * 4096}}],
+            [{"type": "input_audio", "input_audio": {"data": "B" * 4096}}],
+        ],
+    )
+    def test_list_without_text_blocks_is_empty_never_a_repr(self, media_only: list[dict[str, object]]) -> None:
+        assert extract_text_content(media_only) == ""
+
+    def test_text_beside_image_keeps_only_the_text(self) -> None:
+        data_url = "data:image/png;base64," + "A" * 4096
+        items = [
+            {"type": "text", "text": "I am allergic to penicillin"},
+            {"type": "image_url", "image_url": {"url": data_url}},
+        ]
+        assert extract_text_content(items) == "I am allergic to penicillin"
+
+    def test_tuple_form_image_only_turn_keeps_its_slot_with_empty_text(self) -> None:
+        """History entries stay index-aligned with the request, so an image-only turn is kept, not dropped."""
+        history = [
+            ["human", [{"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}}]],
+            ["assistant", "It is a prescription."],
+        ]
+        out = convert_chat_history_simple(history)
+        assert [m.content for m in out] == ["", "It is a prescription."]
+
+    def test_base_message_history_keeps_image_blocks_for_the_vision_model(self) -> None:
+        """Main-run history must stay lossless: only background text consumers project to text."""
+        image_block = {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}}
+        history = [HumanMessage(content=[{"type": "text", "text": "look"}, image_block]), AIMessage(content="ok")]
+        assert convert_chat_history_simple(history) is history
+        assert build_messages("next", list(history))[0].content == [{"type": "text", "text": "look"}, image_block]
 
 
 class _FakeResponse:

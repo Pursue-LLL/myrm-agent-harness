@@ -3,6 +3,7 @@
 [INPUT]
 - skills.evolution.review (POS: Skill review evaluator, pruner, reviewer)
 - skill_agent.context (POS: Background task tracking)
+- utils.chat_utils::extract_text_content (POS: multimodal query → plain text for the wiki archive)
 
 [OUTPUT]
 - SkillAgentReviewMixin: Mixin providing session-end review methods for SkillAgent
@@ -17,6 +18,7 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.utils.chat_utils import extract_text_content
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from .context import track_background_task
@@ -90,7 +92,9 @@ class SkillAgentReviewMixin:
         if len(reply) < 500:
             return
 
-        query_text = query if isinstance(query, str) else str(query)
+        # Archive the user's words only: a multimodal query's repr would write the
+        # attachments' base64 into the wiki, and a HITL resume has no words to archive.
+        query_text = extract_text_content(query) if isinstance(query, (str, list)) else ""
         archive_content = f"# Query\n\n{query_text}\n\n# Response\n\n{reply}"
         config = getattr(self, "config", None)
 

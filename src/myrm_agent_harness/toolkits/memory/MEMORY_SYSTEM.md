@@ -242,10 +242,13 @@ vectors_config = {
 1. **Compressed Track**（始终运行）：
    - LLM提取SemanticMemory/EpisodicMemory
    - Context compression + efficiency
+   - 提取输入仅为**文本**：多模态消息只取 text 块，图片/音频块（含 base64）不进入提示词；无文本的回合（纯图片消息、HITL 恢复）整条省略，不注入占位文本
 2. **Verbatim Track**（`enable_verbatim=True` 显式开启，**默认关闭**）：
    - 无LLM处理；每轮只存储**当前一轮**的 exchange pair（`User Q + AI A`），更早的轮次已由各自回合存储
    - 直接写入会话索引，绕过待审批队列（`_bypass_approval=True`），仍经过内容安全扫描
-   - 100% lossless preservation
+   - 100% lossless preservation；用户消息无文本的回合不构成 exchange，不存储
+   - 失败隔离：该轨道抛错只上报 `write` 阶段 ERROR 事件，不影响 Compressed Track
+   - 召回：`MemoryConversationSearchProvider` 以 `include_raw=True` 检索，命中的 `snippet` 为 verbatim exchange（`recent` 模式走 `list_memories`，只返回摘要）
    - 默认关闭的原因：每轮 2 次 embedding 并新增 1 个向量点，而压缩轨道已保留值得记忆的内容
    - 实现：`agent/_internals/memory_verbatim.py::capture_current_exchange`
 

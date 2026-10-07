@@ -16,6 +16,8 @@ from myrm_agent_harness.agent._internals.memory_extraction import (
     persist_extracted_memories,
 )
 
+_DATA_URL = "data:image/png;base64," + "A" * 200_000
+
 
 class TestBuildExtractionMessages:
     def test_basic_conversation(self) -> None:
@@ -30,13 +32,44 @@ class TestBuildExtractionMessages:
         assert messages[1]["role"] == "assistant"
         assert messages[1]["content"] == "Python is a language."
 
-    def test_multimodal_query(self) -> None:
+    def test_image_only_query_is_omitted_not_replaced_by_a_placeholder(self) -> None:
         messages = build_extraction_messages(
             query=[{"type": "image", "url": "x.png"}],
             chat_history=None,
             assistant_reply="I see an image.",
         )
-        assert messages[0]["content"] == "[multimodal]"
+        assert messages == [{"role": "assistant", "content": "I see an image."}]
+
+    def test_hitl_resume_with_empty_query_adds_no_user_turn(self) -> None:
+        messages = build_extraction_messages(query=[], chat_history=None, assistant_reply="Done.")
+        assert messages == [{"role": "assistant", "content": "Done."}]
+
+    def test_text_beside_screenshot_keeps_the_user_words_and_drops_the_payload(self) -> None:
+        screenshot = {"type": "image_url", "image_url": {"url": _DATA_URL}}
+        messages = build_extraction_messages(
+            query=[{"type": "text", "text": "I am allergic to penicillin"}, screenshot],
+            chat_history=None,
+            assistant_reply="Noted.",
+        )
+        assert [m["content"] for m in messages] == ["I am allergic to penicillin", "Noted."]
+
+    def test_base_message_history_with_a_screenshot_never_ships_its_payload(self) -> None:
+        screenshot = {"type": "image_url", "image_url": {"url": _DATA_URL}}
+        history = [
+            HumanMessage(content=[{"type": "text", "text": "check this prescription"}, screenshot]),
+            AIMessage(content="It lists amoxicillin."),
+            HumanMessage(content=[screenshot]),
+            AIMessage(content="Same document again."),
+        ]
+        messages = build_extraction_messages(query="thanks", chat_history=history, assistant_reply="Welcome.")
+        assert [m["content"] for m in messages] == [
+            "check this prescription",
+            "It lists amoxicillin.",
+            "Same document again.",
+            "thanks",
+            "Welcome.",
+        ]
+        assert all(len(m["content"]) < 100 for m in messages)
 
     def test_empty_reply_omitted(self) -> None:
         messages = build_extraction_messages(query="hello", chat_history=None, assistant_reply="")
@@ -157,6 +190,43 @@ class TestAutoExtractMemories:
 
         assert config_calls
         assert config_calls[0].get("wiki_boundary_enabled") is True
+
+    @pytest.mark.asyncio
+    async def test_screenshot_session_prompts_the_llm_with_text_only_on_every_turn(self) -> None:
+        """A screenshot kept in history must not be re-sent as prompt text each later turn."""
+        screenshot = {"type": "image_url", "image_url": {"url": _DATA_URL}}
+        mock_llm = AsyncMock()
+        mock_llm.ainvoke.return_value = MagicMock(content="[]")
+        mock_manager = MagicMock()
+        mock_manager.last_cited_memory_ids = []
+
+        for turn, (query, history) in enumerate(
+            [
+                (
+                    [{"type": "text", "text": "I am allergic to penicillin, check this prescription"}, screenshot],
+                    [],
+                ),
+                (
+                    "Can I take amoxicillin instead?",
+                    [
+                        HumanMessage(content=[{"type": "text", "text": "I am allergic to penicillin"}, screenshot]),
+                        AIMessage(content="The prescription lists amoxicillin."),
+                    ],
+                ),
+            ]
+        ):
+            mock_llm.ainvoke.reset_mock()
+            await auto_extract_memories(
+                query=query,
+                chat_history=history,
+                memory_manager=mock_manager,
+                llm=mock_llm,
+                assistant_reply="Amoxicillin is a penicillin-class antibiotic, so avoid it. " * 3,
+            )
+            prompts = [str(call.args[0][-1].content) for call in mock_llm.ainvoke.call_args_list]
+            assert prompts, f"turn {turn}: extraction LLM was not called"
+            assert all(len(p) < 5_000 for p in prompts), f"turn {turn}: image payload leaked into the prompt"
+            assert all("allergic to penicillin" in p for p in prompts), f"turn {turn}: user words missing"
 
     @pytest.mark.asyncio
     async def test_extracts_and_persists(self) -> None:

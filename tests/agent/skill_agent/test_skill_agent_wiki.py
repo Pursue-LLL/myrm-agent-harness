@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from langgraph.types import Command
 
 from myrm_agent_harness.agent.skill_agent import SkillAgent
 
@@ -158,6 +159,45 @@ class TestMaybeArchiveToWiki:
     async def _run_list_query(self, agent: SkillAgent, query: list[dict[str, object]], reply: str) -> None:
         agent._maybe_archive_to_wiki(query, [reply])
         await asyncio.sleep(0.1)
+
+    @pytest.mark.parametrize(
+        ("query", "expected_words"),
+        [
+            (
+                [
+                    {"type": "text", "text": "What does this chart show?"},
+                    {"type": "image_url", "image_url": {"url": "data:image/png;base64," + "A" * 50_000}},
+                ],
+                "What does this chart show?",
+            ),
+            (Command(resume="approved"), None),
+        ],
+        ids=["screenshot-query", "hitl-resume"],
+    )
+    def test_archives_only_the_users_words(
+        self, mock_llm: AsyncMock, wiki_dir: Path, query: object, expected_words: str | None
+    ) -> None:
+        agent = _make_agent(mock_llm, wiki_base_dir=wiki_dir)
+        agent._create_wiki_tools()
+        agent._wiki_compiler = MagicMock()
+
+        content = asyncio.run(self._archive_and_read(agent, query))
+
+        assert "# Response" in content
+        assert "base64" not in content
+        assert "Command(" not in content
+        assert len(content) < 5_000
+        if expected_words:
+            assert expected_words in content
+
+    async def _archive_and_read(self, agent: SkillAgent, query: object) -> str:
+        agent._maybe_archive_to_wiki(query, ["This is a detailed response. " * 30])  # type: ignore[arg-type]
+        await asyncio.sleep(0.2)
+
+        assert agent._wiki_structure is not None
+        turn_files = list(agent._wiki_structure.raw_dir.glob("turn_*.md"))
+        assert len(turn_files) == 1
+        return turn_files[0].read_text(encoding="utf-8")
 
     def test_uses_unknown_when_chat_id_missing(self, mock_llm: AsyncMock, wiki_dir: Path) -> None:
         """When config has no chat_id, filename uses 'unknown'."""

@@ -24,6 +24,8 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
 import myrm_agent_harness.toolkits.memory.setup as memory_setup
 from myrm_agent_harness.agent._internals.memory_extraction import auto_extract_memories
+from myrm_agent_harness.toolkits.memory.conversation_search.memory_provider import MemoryConversationSearchProvider
+from myrm_agent_harness.toolkits.memory.conversation_search.types import ConversationSearchRequest
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.setup import create_local_memory_manager
 from myrm_agent_harness.toolkits.memory.types import ConversationMemory, MemoryType
@@ -151,6 +153,37 @@ async def test_opt_in_capture_is_searchable(stack: _Stack) -> None:
     assert hits[0].memory.content == _TURNS[1]
 
 
+async def test_opt_in_capture_is_recalled_with_the_verbatim_exchange(stack: _Stack) -> None:
+    """The recall provider must hand back the stored words, not just the summary."""
+    await stack.run_turns(len(_TURNS), enable_verbatim=True)
+
+    response = await MemoryConversationSearchProvider(stack.manager).search(
+        ConversationSearchRequest(query=_TURNS[2], current_conversation_id="other-chat")
+    )
+
+    assert response.hits
+    top = response.hits[0]
+    assert top.summary == _TURNS[2]
+    assert _TURNS[2] in top.snippet
+    assert _REPLY in top.snippet
+
+
+async def test_turn_without_user_text_stores_no_verbatim_exchange(stack: _Stack) -> None:
+    """An image-only message has no user words, so the assistant reply alone is not an exchange."""
+    await auto_extract_memories(
+        [{"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}}],
+        [HumanMessage(content=_TURNS[0]), AIMessage(content=_REPLY)],
+        stack.manager,
+        cast(BaseChatModel, stack.llm),
+        source_chat_id="chat-1",
+        assistant_reply=_REPLY,
+        enable_verbatim=True,
+    )
+
+    assert await stack.manager.count_memories(MemoryType.CONVERSATION) == 0
+    assert stack.embedding.texts == 0
+
+
 async def _extract_without_cards(manager: MagicMock, **options: object) -> None:
     """Run one extraction turn whose compressed track yields no memory cards."""
     with patch(
@@ -212,3 +245,33 @@ async def test_verbatim_capture_reports_write_phase(stored: int, expected: str) 
     await _extract_without_cards(manager, enable_verbatim=True, lifecycle_observer=observer)
 
     assert ("write", expected) in calls
+
+
+async def test_verbatim_failure_does_not_discard_the_compressed_track() -> None:
+    manager = MagicMock()
+    manager.last_cited_memory_ids = []
+    manager.store_batch = AsyncMock(side_effect=RuntimeError("vector store down"))
+    calls: list[tuple[str, str]] = []
+
+    async def observer(phase: str, status: object, **kwargs: object) -> None:
+        calls.append((phase, getattr(status, "value", str(status))))
+
+    with patch(
+        "myrm_agent_harness.toolkits.memory.strategies.extractor.extract_memories_from_conversation",
+        new_callable=AsyncMock,
+        return_value=MagicMock(memories=[], extraction_time_ms=0.0),
+    ) as compressed_track:
+        await auto_extract_memories(
+            query="Tell me about Python's history and design philosophy in detail",
+            chat_history=[],
+            memory_manager=manager,
+            llm=AsyncMock(),
+            assistant_reply="A" * 200,
+            enable_verbatim=True,
+            lifecycle_observer=observer,
+        )
+
+    compressed_track.assert_awaited_once()
+    assert ("write", "error") in calls
+    assert ("extract", "success") in calls
+    assert ("extract", "error") not in calls

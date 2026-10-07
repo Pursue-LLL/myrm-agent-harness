@@ -72,9 +72,13 @@ async def capture_current_exchange(
     """Store the trailing user/assistant exchange of ``messages`` verbatim.
 
     Returns the number of chunks actually stored (a chunk rejected by the
-    content-safety scan is not counted).
+    content-safety scan is not counted). A turn whose user message carried no
+    text (image-only message, HITL resume) is not an exchange and stores nothing.
     """
-    memories = create_conversation_memories(messages[-_EXCHANGE_MESSAGES:], source_chat_id=source_chat_id)
+    exchange = messages[-_EXCHANGE_MESSAGES:]
+    if [m["role"] for m in exchange] != ["user", "assistant"]:
+        return 0
+    memories = create_conversation_memories(exchange, source_chat_id=source_chat_id)
     if not memories:
         return 0
     stored = await memory_manager.store_batch(memories, _bypass_approval=True)

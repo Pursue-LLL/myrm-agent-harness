@@ -77,7 +77,8 @@ def extract_text_content(content: ContentItem) -> str:
     处理三种格式：
     - 普通字符串 → 直接返回
     - __agent_history JSON 字符串 → 提取 content 字段
-    - 多媒体内容列表 → 提取 text 类型项
+    - 多媒体内容列表 → 提取 text 类型项；无文本项（纯图片/空列表）返回空串，
+      绝不回退到列表 repr（其中的 base64 会把整张图当文本灌进下游 LLM 提示词）
     """
     if isinstance(content, str):
         if content.startswith('{"__agent_history"'):
@@ -97,7 +98,7 @@ def extract_text_content(content: ContentItem) -> str:
                 text_parts.append(str(raw_text) if raw_text is not None else "")
             elif not isinstance(item, dict):
                 text_parts.append(str(item))
-        return " ".join(text_parts).strip() or str(content)
+        return " ".join(text_parts).strip()
 
     return str(content)
 
@@ -128,14 +129,7 @@ def _extract_answer_core(content: object, reasoning: object) -> str:
     但提取语义一致：content 为空/纯 think 时回退 reasoning；文本块列表不
     泄漏 repr；返回前统一 strip。
     """
-    if content is None or (isinstance(content, list) and not content):
-        text = ""
-    else:
-        text = extract_text_content(cast("ContentItem", content))
-        if isinstance(content, list) and text == str(content):
-            # extract_text_content 在无文本块时回退到列表 repr，
-            # 这里清空以触发 reasoning_content 回退。
-            text = ""
+    text = "" if content is None else extract_text_content(cast("ContentItem", content))
     if text:
         clean_text, _ = extract_and_strip_think_blocks(text)
         if clean_text:

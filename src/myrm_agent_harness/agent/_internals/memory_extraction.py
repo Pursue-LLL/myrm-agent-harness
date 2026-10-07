@@ -7,6 +7,7 @@
 - agent.security.detection.deep_pii_detector::pseudonymize_deep_pii (POS: LLM deep PII detection)
 - langchain_core::BaseChatModel (POS: LLM for extraction)
 - utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
+- utils.chat_utils::extract_text_content (POS: 多模态内容 → 纯文本，媒体块不进入提取提示词)
 
 [OUTPUT]
 - build_extraction_messages(): Construct messages for extraction
@@ -54,7 +55,7 @@ skipped to save LLM calls, unless correction signals are detected.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, Literal, Protocol
+from typing import TYPE_CHECKING, Literal, Protocol, cast
 
 from langchain_core.language_models import BaseChatModel
 
@@ -111,7 +112,9 @@ from myrm_agent_harness.toolkits.memory.types import (  # noqa: E402 — deferre
 )
 from myrm_agent_harness.utils.chat_utils import (  # noqa: E402 — deferred import to avoid circular dependency
     ChatHistoryReq,
+    ContentItem,
     extract_answer_text,
+    extract_text_content,
 )
 
 logger = get_agent_logger(__name__)
@@ -124,26 +127,26 @@ def build_extraction_messages(
     chat_history: ChatHistoryReq | list[BaseMessage] | None,
     assistant_reply: str,
 ) -> list[dict[str, str]]:
-    """Construct messages for memory extraction (dict format)."""
+    """Construct messages for memory extraction (dict format).
+
+    The extraction LLM reads text only: media blocks (a screenshot's base64 payload
+    would otherwise be shipped as prompt text on every later turn) contribute
+    nothing, and a turn without any text (image-only message, HITL resume) is
+    omitted rather than replaced by a placeholder the model could mistake for
+    something the user said.
+    """
     from myrm_agent_harness.utils.chat_utils import convert_chat_history_simple
 
     base_messages = convert_chat_history_simple(chat_history) if chat_history else []
 
-    messages = [
-        {
-            "role": "assistant" if msg.type == "ai" else "user",
-            "content": str(msg.content),
-        }
+    turns = [
+        ("assistant" if msg.type == "ai" else "user", extract_text_content(cast("ContentItem", msg.content)))
         for msg in base_messages
     ]
+    turns.append(("user", extract_text_content(query)))
+    turns.append(("assistant", assistant_reply))
 
-    query_text = query if isinstance(query, str) else "[multimodal]"
-    messages.append({"role": "user", "content": query_text})
-
-    if assistant_reply:
-        messages.append({"role": "assistant", "content": assistant_reply})
-
-    return messages
+    return [{"role": role, "content": text} for role, text in turns if text]
 
 
 def create_extraction_llm_func(
@@ -376,18 +379,31 @@ async def auto_extract_memories(
         verbatim_stored_count = 0
 
         if enable_verbatim:
-            verbatim_stored_count = await capture_current_exchange(
-                memory_manager, messages, source_chat_id=source_chat_id
-            )
-            logger.info("Stored %d verbatim conversation chunks", verbatim_stored_count)
-            await _notify_extraction_lifecycle(
-                lifecycle_observer,
-                "write",
-                MemoryOperationStatus.SUCCESS if verbatim_stored_count else MemoryOperationStatus.SKIPPED,
-                chat_id=source_chat_id,
-                summary=f"Stored {verbatim_stored_count} verbatim chunks",
-                metadata={"stored_count": verbatim_stored_count},
-            )
+            # Optional track: its failure must not discard the compressed track below.
+            try:
+                verbatim_stored_count = await capture_current_exchange(
+                    memory_manager, messages, source_chat_id=source_chat_id
+                )
+            except Exception as exc:
+                logger.warning("Verbatim capture failed (non-fatal): %s", exc, exc_info=True)
+                await _notify_extraction_lifecycle(
+                    lifecycle_observer,
+                    "write",
+                    MemoryOperationStatus.ERROR,
+                    chat_id=source_chat_id,
+                    summary="Verbatim capture failed",
+                    metadata={"error": type(exc).__name__},
+                )
+            else:
+                logger.info("Stored %d verbatim conversation chunks", verbatim_stored_count)
+                await _notify_extraction_lifecycle(
+                    lifecycle_observer,
+                    "write",
+                    MemoryOperationStatus.SUCCESS if verbatim_stored_count else MemoryOperationStatus.SKIPPED,
+                    chat_id=source_chat_id,
+                    summary=f"Stored {verbatim_stored_count} verbatim chunks",
+                    metadata={"stored_count": verbatim_stored_count},
+                )
 
         llm_for_extraction = extraction_llm or llm
         llm_func = create_extraction_llm_func(llm_for_extraction)

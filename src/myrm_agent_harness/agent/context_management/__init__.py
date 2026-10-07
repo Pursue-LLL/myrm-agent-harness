@@ -354,6 +354,16 @@ from .visual_pruner import (
     VisualPruningMode,
     VisualPruningResult,
 )
+from .desktop_repl import (
+    DesktopApiSdk,
+    DesktopElementMock,
+    DesktopReplSessionSnapshot,
+    PersistentDesktopReplEngine,
+    ReplExecutionResult,
+    ReplExecutionStatus,
+    ReplRuntimeKind,
+    ReplScriptCommand,
+)
 
 __all__ = [
     # active_compression
@@ -566,6 +576,15 @@ __all__ = [
     "VisualPruningConfig",
     "VisualPruningMode",
     "VisualPruningResult",
+    # desktop_repl
+    "DesktopApiSdk",
+    "DesktopElementMock",
+    "DesktopReplSessionSnapshot",
+    "PersistentDesktopReplEngine",
+    "ReplExecutionResult",
+    "ReplExecutionStatus",
+    "ReplRuntimeKind",
+    "ReplScriptCommand",
     # schemas
     "BUILTIN_PROTECTED_TOOLS",
     "COMPACT_RULES",

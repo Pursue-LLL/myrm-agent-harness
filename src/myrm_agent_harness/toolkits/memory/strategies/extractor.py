@@ -136,53 +136,6 @@ def detect_correction_signals(messages: Sequence[dict[str, str]]) -> bool:
     return detect_feedback_signals(messages) == FeedbackSignal.NEGATIVE
 
 
-_HEAD_MESSAGE_COUNT = 2
-
-
-def _truncate_messages_head_tail(
-    messages: Sequence[dict[str, str]], max_chars: int
-) -> tuple[list[dict[str, str]], int]:
-    """Truncate message list using head-tail preservation.
-
-    Keeps the first _HEAD_MESSAGE_COUNT messages (original intent) and fills
-    remaining budget from the end (most recent results/corrections).
-    Returns (truncated_messages, dropped_count).
-    """
-    total = sum(len(m.get("content", "")) for m in messages)
-    if total <= max_chars or len(messages) <= _HEAD_MESSAGE_COUNT:
-        return list(messages), 0
-
-    head = list(messages[:_HEAD_MESSAGE_COUNT])
-    head_chars = sum(len(m.get("content", "")) for m in head)
-    remaining_budget = max_chars - head_chars
-
-    tail: list[dict[str, str]] = []
-    tail_chars = 0
-    for msg in reversed(messages[_HEAD_MESSAGE_COUNT:]):
-        msg_len = len(msg.get("content", ""))
-        if tail_chars + msg_len > remaining_budget:
-            break
-        tail.append(msg)
-        tail_chars += msg_len
-    tail.reverse()
-
-    dropped = len(messages) - len(head) - len(tail)
-    if dropped == 0:
-        return list(messages), 0
-
-    marker = {
-        "role": "system",
-        "content": f"[... {dropped} messages omitted due to context limit ...]",
-    }
-    logger.warning(
-        "Input truncated for extraction: %d chars → %d chars, %d messages omitted",
-        total,
-        head_chars + tail_chars,
-        dropped,
-    )
-    return [*head, marker, *tail], dropped
-
-
 @dataclass
 class ExtractionConfig:
     extract_profile: bool = True

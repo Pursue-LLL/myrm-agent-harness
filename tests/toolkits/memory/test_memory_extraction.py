@@ -14,7 +14,6 @@ from myrm_agent_harness.toolkits.memory.strategies.extractor import (
     FeedbackSignal,
     MemoryExtractor,
     _parse_response,
-    _truncate_messages_head_tail,
     detect_correction_signals,
     detect_feedback_signals,
 )
@@ -1652,77 +1651,6 @@ class TestExtractionCorrectionMetrics:
         result = ExtractionResult()
         assert result.correction_signal_detected is False
         assert result.correction_count == 0
-
-
-# ============================================================================
-# Truncation Tests
-# ============================================================================
-
-
-class TestTruncateMessagesHeadTail:
-    """Tests for _truncate_messages_head_tail."""
-
-    def test_short_conversation_no_truncation(self):
-        msgs = [
-            {"role": "user", "content": "hi"},
-            {"role": "assistant", "content": "hello"},
-        ]
-        result, dropped = _truncate_messages_head_tail(msgs, max_chars=1000)
-        assert result == msgs
-        assert dropped == 0
-
-    def test_truncation_preserves_head_and_tail(self):
-        head = [
-            {"role": "user", "content": "A" * 100},
-            {"role": "assistant", "content": "B" * 100},
-        ]
-        mid = [{"role": "user", "content": "M" * 200} for _ in range(5)]
-        tail = [{"role": "user", "content": "Z" * 100}]
-        msgs = head + mid + tail
-        result, dropped = _truncate_messages_head_tail(msgs, max_chars=400)
-        assert result[0]["content"] == "A" * 100
-        assert result[1]["content"] == "B" * 100
-        assert result[-1]["content"] == "Z" * 100
-        assert dropped > 0
-        assert any("omitted" in m.get("content", "") for m in result)
-
-    def test_truncation_marker_contains_count(self):
-        msgs = [{"role": "user", "content": "X" * 50} for _ in range(10)]
-        result, dropped = _truncate_messages_head_tail(msgs, max_chars=200)
-        marker = [m for m in result if "omitted" in m.get("content", "")]
-        assert len(marker) == 1
-        assert str(dropped) in marker[0]["content"]
-
-    def test_exactly_at_limit_no_truncation(self):
-        msgs = [
-            {"role": "user", "content": "A" * 50},
-            {"role": "assistant", "content": "B" * 50},
-        ]
-        result, dropped = _truncate_messages_head_tail(msgs, max_chars=100)
-        assert dropped == 0
-        assert len(result) == 2
-
-    def test_single_message_no_crash(self):
-        msgs = [{"role": "user", "content": "X" * 200}]
-        result, dropped = _truncate_messages_head_tail(msgs, max_chars=100)
-        assert result[0]["content"] == "X" * 200
-        assert dropped == 0
-
-    def test_head_exceeds_limit_with_extra_messages(self):
-        """When the first 2 messages already exceed max_chars, tail is empty but
-        middle messages are still marked as dropped."""
-        head = [
-            {"role": "user", "content": "A" * 500},
-            {"role": "assistant", "content": "B" * 500},
-        ]
-        extra = [{"role": "user", "content": "C" * 100} for _ in range(3)]
-        msgs = head + extra
-        result, dropped = _truncate_messages_head_tail(msgs, max_chars=200)
-        assert dropped == 3
-        assert result[0]["content"] == "A" * 500
-        assert result[1]["content"] == "B" * 500
-        assert any("omitted" in m.get("content", "") for m in result)
-        assert len(result) == 3  # head(2) + marker(1)
 
 
 class TestExtractTruncation:
