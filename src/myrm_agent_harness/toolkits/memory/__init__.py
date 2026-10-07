@@ -12,6 +12,18 @@ from myrm_agent_harness.toolkits.memory._internal.storage import (
     MemoryNotFoundError,
     MemoryProtectedError,
 )
+from myrm_agent_harness.toolkits.memory.activity_compactor import (
+    ActivityActionType,
+    CompactorPipelineConfig,
+    CompactorPipelineTelemetry,
+    DailyPreferenceArchive,
+    HierarchicalActivityCompactorPipeline,
+    MacroMilestoneDistiller,
+    MacroMilestoneFold,
+    MicroActivityFolder,
+    MicroActivitySlice,
+    RawActivityEvent,
+)
 from myrm_agent_harness.toolkits.memory.budget_curator import (
     AtomicBatchResult,
     AtomicOperationsCurator,
@@ -552,6 +564,18 @@ from myrm_agent_harness.toolkits.memory.world_model import (
     ProjectEnvironmentSnapshot,
     RuntimeEnvironmentInfo,
 )
+from myrm_agent_harness.toolkits.memory.activity_compactor import (
+    ActivityActionType,
+    CompactorPipelineConfig,
+    CompactorPipelineTelemetry,
+    DailyPreferenceArchive,
+    HierarchicalActivityCompactorPipeline,
+    MacroMilestoneDistiller,
+    MacroMilestoneFold,
+    MicroActivityFolder,
+    MicroActivitySlice,
+    RawActivityEvent,
+)
 from myrm_agent_harness.toolkits.memory.triad_trajectory import (
     AntiLoopPromptInjector,
     AntiLoopPromptSnapshot,
@@ -573,6 +597,16 @@ from myrm_agent_harness.toolkits.memory.zero_hallucination import (
 )
 
 __all__ = [
+    "ActivityActionType",
+    "CompactorPipelineConfig",
+    "CompactorPipelineTelemetry",
+    "DailyPreferenceArchive",
+    "HierarchicalActivityCompactorPipeline",
+    "MacroMilestoneDistiller",
+    "MacroMilestoneFold",
+    "MicroActivityFolder",
+    "MicroActivitySlice",
+    "RawActivityEvent",
     "AntiLoopPromptInjector",
     "AntiLoopPromptSnapshot",
     "TaskTriadBlackboxTrajectory",
@@ -1047,4 +1081,14 @@ __all__ = [
     "ScreenObservationSafetyResult",
     "ScreenSafetyAuditRecord",
     "UntrustedObservationEvidenceBoundary",
+    "ActivityActionType",
+    "CompactorPipelineConfig",
+    "CompactorPipelineTelemetry",
+    "DailyPreferenceArchive",
+    "HierarchicalActivityCompactorPipeline",
+    "MacroMilestoneDistiller",
+    "MacroMilestoneFold",
+    "MicroActivityFolder",
+    "MicroActivitySlice",
+    "RawActivityEvent",
 ]
