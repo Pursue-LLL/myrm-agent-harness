@@ -300,6 +300,16 @@ from myrm_agent_harness.runtime.context.cow_session_branch import (
     ProjectedSessionView,
     SessionBranchDescriptor,
 )
+from myrm_agent_harness.runtime.context.cross_agent_communication_graph_engine import (
+    CrossAgentCommunicationGraphEngine,
+)
+from myrm_agent_harness.runtime.context.cross_agent_communication_graph_types import (
+    AgentCommunicationEdge,
+    CausalPhaseSummary,
+    CommunicationInteractionKind,
+    MessageDurability,
+    PrunedContextResult,
+)
 from myrm_agent_harness.runtime.context.cross_file_diff_applier import (
     CrossFileDiffAtomicApplier,
 )
@@ -2442,6 +2452,12 @@ __all__ = [
     "RewindMode",
     "RewindSessionResult",
     "SessionBranchingEngine",
+    "CommunicationInteractionKind",
+    "MessageDurability",
+    "AgentCommunicationEdge",
+    "CausalPhaseSummary",
+    "PrunedContextResult",
+    "CrossAgentCommunicationGraphEngine",
 ]
 
 
