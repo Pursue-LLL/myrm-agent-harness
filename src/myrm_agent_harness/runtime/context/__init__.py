@@ -55,6 +55,9 @@ from myrm_agent_harness.runtime.context.big_at_context_bridge import (
     DistilledSessionContext,
     ZeroExplanationContextExtractor,
 )
+from myrm_agent_harness.runtime.context.cache_aware_session_lifecycle_router import (
+    CacheAwareSessionLifecycleRouter,
+)
 from myrm_agent_harness.runtime.context.caveman_output_throttle import (
     AdaptiveThrottleDecisionEngine,
     CavemanOutputPostProcessor,
@@ -564,6 +567,9 @@ from myrm_agent_harness.runtime.context.plan_mode_boundary_locker import (
     filter_tools_for_mode,
     is_read_only_tool,
 )
+from myrm_agent_harness.runtime.context.prefix_preserving_canonicalizer import (
+    PrefixPreservingCanonicalizer,
+)
 from myrm_agent_harness.runtime.context.pristine_passthrough_sandbox import (
     DualRunExperimentReport,
     PristineExecutionConfig,
@@ -583,6 +589,14 @@ from myrm_agent_harness.runtime.context.progressive_cli_manifest_types import (
     DryRunProbeRequest,
     DryRunProbeResult,
     ManifestFormatConfig,
+)
+from myrm_agent_harness.runtime.context.prompt_cache_lifecycle_types import (
+    CacheMutationRiskLevel,
+    CachePrefixFingerprint,
+    CompactionTimingUrgency,
+    InSessionMutationRiskReport,
+    PreIdleCompactionPlan,
+    RewindPruneReceipt,
 )
 from myrm_agent_harness.runtime.context.protected_patterns_matcher import (
     ProtectedPatternsMatcher,
@@ -1450,6 +1464,14 @@ __all__ = [
     "UniversalThinPromptGenerator",
     "TransientToolOutputGCEngine",
     "TokenTaxGovernor",
+    "CacheMutationRiskLevel",
+    "CompactionTimingUrgency",
+    "CachePrefixFingerprint",
+    "InSessionMutationRiskReport",
+    "RewindPruneReceipt",
+    "PreIdleCompactionPlan",
+    "PrefixPreservingCanonicalizer",
+    "CacheAwareSessionLifecycleRouter",
 ]
 
 
