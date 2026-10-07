@@ -893,6 +893,17 @@ from myrm_agent_harness.runtime.context.prompt_cache_lifecycle_types import (
     PreIdleCompactionPlan,
     RewindPruneReceipt,
 )
+from myrm_agent_harness.runtime.context.prompt_variable_contract_types import (
+    PromptContractSchemaInspectionReport,
+    PromptTemplateRenderResult,
+    PromptVariableDefinition,
+    PromptVariableMissingError,
+    PromptVariableValidationError,
+    VariableDataType,
+)
+from myrm_agent_harness.runtime.context.prompt_variable_contract_validator import (
+    PromptVariableContractSchemaValidator,
+)
 from myrm_agent_harness.runtime.context.protected_patterns_matcher import (
     ProtectedPatternsMatcher,
 )
@@ -1937,6 +1948,13 @@ __all__ = [
     "InSessionMutationRiskReport",
     "RewindPruneReceipt",
     "PreIdleCompactionPlan",
+    "PromptContractSchemaInspectionReport",
+    "PromptTemplateRenderResult",
+    "PromptVariableDefinition",
+    "PromptVariableMissingError",
+    "PromptVariableValidationError",
+    "VariableDataType",
+    "PromptVariableContractSchemaValidator",
     "PrefixPreservingCanonicalizer",
     "CacheAwareSessionLifecycleRouter",
     "CommandCategory",
