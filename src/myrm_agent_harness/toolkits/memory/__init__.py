@@ -476,6 +476,15 @@ from myrm_agent_harness.toolkits.memory.revocable_provenance import (
     ProvenanceQualifiedMemory,
     RevocableForgetEngine,
 )
+from myrm_agent_harness.toolkits.memory.temporal_graph import (
+    FactConflictResolutionResult,
+    SqliteTemporalGraphStore,
+    TemporalDecayScorer,
+    TemporalEntityNode,
+    TemporalFactConflictReconciler,
+    TemporalFactEdge,
+    TemporalFactHit,
+)
 from myrm_agent_harness.toolkits.memory.ripplemem import (
     ActiveRecallController,
     DualEdgeSparseGraphStore,
@@ -637,6 +646,13 @@ from myrm_agent_harness.toolkits.memory.zero_hallucination import (
 )
 
 __all__ = [
+    "FactConflictResolutionResult",
+    "SqliteTemporalGraphStore",
+    "TemporalDecayScorer",
+    "TemporalEntityNode",
+    "TemporalFactConflictReconciler",
+    "TemporalFactEdge",
+    "TemporalFactHit",
     "DreamCompactionReport",
     "FourTierDreamCompactor",
     "FourTierMemoryItem",
