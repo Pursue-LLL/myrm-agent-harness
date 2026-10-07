@@ -241,6 +241,14 @@ from .session_commit import (
     TwoPhaseSessionCommitEngine,
     UserPreferenceItem,
 )
+from .shareable_fork import (
+    InteractiveShareableForkEngine,
+    LosslessForkResult,
+    ShareAccessPermission,
+    ShareTokenPayload,
+    ShareableForkConfig,
+    SharedSessionPerspective,
+)
 from .worktree_isolation import (
     SessionWorktreeBinding,
     WorktreeDescriptor,
@@ -376,6 +384,13 @@ __all__ = [
     "TriDimensionalDistillationResult",
     "TwoPhaseSessionCommitEngine",
     "UserPreferenceItem",
+    # shareable_fork
+    "InteractiveShareableForkEngine",
+    "LosslessForkResult",
+    "ShareAccessPermission",
+    "ShareTokenPayload",
+    "ShareableForkConfig",
+    "SharedSessionPerspective",
     # worktree_isolation
     "SessionWorktreeBinding",
     "WorktreeDescriptor",
