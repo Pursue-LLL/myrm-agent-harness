@@ -3,6 +3,20 @@
 Defines schemas for three-level block chunking (System Prompt, Message Turns, Tool Payloads),
 block-level fingerprint addressing, retrieve marker placeholders, and dedup savings telemetry.
 Strictly adheres to 0 Any and typed dataclasses.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- BlockChunkLevel: Three-level logical boundary content chunking classification.
+- SessionBlockFingerprint: Content-addressed fingerprint of a logical block in the conversation.
+- SessionDedupConfig: Configuration governing cross-turn deduplication thresholds and chunking behavior.
+- SessionDedupSavingsReport: Comprehensive telemetry report measuring token reduction across conversation
+  turns.
+- DedupedMessagePackage: Result of transforming a sequence of turn entries through the dedup processor.
+
+[POS]
+Type contracts for Session-Dedup cross-turn content addressing and retrieve marker engine.
 """
 
 from __future__ import annotations

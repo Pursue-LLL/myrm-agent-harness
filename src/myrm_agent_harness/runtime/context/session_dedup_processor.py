@@ -6,6 +6,22 @@ Implements the first layer of the Tokenomics 12-engine compression stack:
 3. Lightweight [RetrieveMarker: ...] placeholder injection for repeated heavy outputs.
 4. On-demand CCR retrieval marker hydration (lossless recovery).
 Strict 0 Any, thread-safe, single file <400 lines.
+
+[INPUT]
+- runtime.context.content_addressed_dedup_store::ContentAddressedDedupStore (POS: Content-addressed chunk
+  storage and session turn deduplication store.)
+- runtime.context.content_addressed_dedup_types::DedupContentType (POS: Strongly typed data contracts for
+  Content-Addressed Session Dedup and CCR Context Archival.)
+- runtime.context.session_dedup_types::BlockChunkLevel, DedupedMessagePackage, SessionBlockFingerprint,
+  SessionDedupConfig, SessionDedupSavingsReport (POS: Type contracts for Session-Dedup cross-turn content
+  addressing and retrieve marker engine.)
+
+[OUTPUT]
+- SessionDedupProcessor: Processor orchestrating three-level content addressing and cross-turn
+  deduplication.
+
+[POS]
+Session-Dedup processor providing cross-turn content addressing and retrieve marker replacement.
 """
 
 from __future__ import annotations
