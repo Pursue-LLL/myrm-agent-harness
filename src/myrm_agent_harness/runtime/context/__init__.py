@@ -658,6 +658,20 @@ from myrm_agent_harness.runtime.context.project_hierarchy_session_types import (
     ResurrectionStatus,
     TaskNode,
 )
+from myrm_agent_harness.runtime.context.incremental_material_hydration_engine import (
+    IncrementalMaterialHydrationEngine,
+)
+from myrm_agent_harness.runtime.context.project_milestone_tracker import (
+    ProjectMilestoneTracker,
+)
+from myrm_agent_harness.runtime.context.project_milestone_types import (
+    IncrementalMaterialUpdate,
+    MilestoneDecisionRecord,
+    MilestonePhaseKind,
+    ProjectMilestoneCheckpoint,
+    ProjectResumptionPackage,
+    ProjectTodoItem,
+)
 from myrm_agent_harness.runtime.context.prompt_cache_lifecycle_types import (
     CacheMutationRiskLevel,
     CachePrefixFingerprint,
@@ -1646,6 +1660,14 @@ __all__ = [
     "SessionCheckpointConfig",
     "SessionCheckpointStorage",
     "SessionStateAtomicResumeEngine",
+    "MilestonePhaseKind",
+    "MilestoneDecisionRecord",
+    "ProjectTodoItem",
+    "IncrementalMaterialUpdate",
+    "ProjectMilestoneCheckpoint",
+    "ProjectResumptionPackage",
+    "ProjectMilestoneTracker",
+    "IncrementalMaterialHydrationEngine",
 ]
 
 
