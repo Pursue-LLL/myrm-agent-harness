@@ -122,8 +122,8 @@ class DummyPreCompactHook:
 
 
 @pytest.mark.asyncio
-async def test_native_compaction_coordinator_lifecycle():
-    coordinator = NativeCompactionCoordinator()
+async def test_native_compaction_coordinator_lifecycle(tmp_path: Path):
+    coordinator = NativeCompactionCoordinator(sidecar_store=NativeCompactionSidecarStore(base_dir=tmp_path))
     session_id = "sess_coord_01"
 
     # Clamping margin
@@ -184,4 +184,3 @@ async def test_native_compaction_edge_cases_and_multi_sessions(tmp_path: Path):
     # 5. Delete checkpoint on session reset
     store.delete_checkpoint("sess_fn")
     assert store.load_checkpoint("sess_fn") is None
-

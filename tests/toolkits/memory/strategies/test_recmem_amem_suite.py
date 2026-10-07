@@ -327,6 +327,9 @@ class TestAMemZettelkastenNetwork:
 
 
 class TestLongMemEvalBenchmarkProtocol:
+    def teardown_method(self) -> None:
+        LocalWorkingMemoryBlock.reset()
+
     def test_dimension_1_recall_accuracy(self) -> None:
         """Dim 1: Recall Accuracy >= 95% on structured memory network."""
         net = AMemZettelkastenNetwork()
