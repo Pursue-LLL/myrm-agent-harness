@@ -583,6 +583,16 @@ from .token_efficiency import (
     TokenEfficiencyGovernorEngine,
     TokenEfficiencyLedger,
 )
+from .hysteresis_compression import (
+    CooldownStatus,
+    HysteresisCompressionEngine,
+    HysteresisConfig,
+    HysteresisEvaluation,
+    HysteresisExecutionReport,
+    SanctuaryBlock,
+    SanctuaryCategory,
+    WatermarkTier,
+)
 
 __all__ = [
     # active_compression
@@ -693,6 +703,15 @@ __all__ = [
     "ResourceLoadBundle",
     "ToolDescriptor",
     "ToolExposurePolicy",
+    # hysteresis_compression
+    "CooldownStatus",
+    "HysteresisCompressionEngine",
+    "HysteresisConfig",
+    "HysteresisEvaluation",
+    "HysteresisExecutionReport",
+    "SanctuaryBlock",
+    "SanctuaryCategory",
+    "WatermarkTier",
     # inbound_shield
     "InboundMessageOverflowShield",
     "InboundMountedDocument",
