@@ -49,33 +49,6 @@ from myrm_agent_harness.runtime.context.append_only_kv_cache_guard import (
     KVCacheTailInvariantViolationError,
     ViolationType,
 )
-from myrm_agent_harness.runtime.context.deterministic_prefix_cache_guard import (
-    DeterministicPrefixCacheGuard,
-    PrefixCacheBreachError,
-)
-from myrm_agent_harness.runtime.context.deterministic_prefix_cache_types import (
-    DeterministicSummaryBlock,
-    PrefixCacheHitReport,
-    PrefixCacheZoneKind,
-    PrefixHashFingerprint,
-)
-from myrm_agent_harness.runtime.context.session_data_sanitizer import (
-    SessionDataSanitizer,
-)
-from myrm_agent_harness.runtime.context.session_lifecycle_log_archiver import (
-    SessionLifecycleLogArchiverAndOfflineBundleExportEngine,
-)
-from myrm_agent_harness.runtime.context.session_lifecycle_log_archiver_types import (
-    ArtifactSnapshotEntry,
-    ImportReplayResult,
-    SanitizationPolicy,
-    SessionExecutionTurn,
-    SessionLogArchiveBundle,
-    TokenCostBillingSnapshot,
-    ToolExecutionLogEntry,
-    ToolExecutionStatus,
-)
-
 from myrm_agent_harness.runtime.context.artifact_centric_loop import (
     ActorRole,
     ArtifactLifecycleState,
@@ -120,10 +93,6 @@ from myrm_agent_harness.runtime.context.bounded_initial_page_hydration_engine im
 from myrm_agent_harness.runtime.context.cache_aware_session_lifecycle_router import (
     CacheAwareSessionLifecycleRouter,
 )
-from myrm_agent_harness.runtime.context.heavy_tool_payload_blob_store import (
-    HeavyToolPayloadBlobStore,
-)
-
 from myrm_agent_harness.runtime.context.caveman_output_throttle import (
     AdaptiveThrottleDecisionEngine,
     CavemanOutputPostProcessor,
@@ -135,6 +104,18 @@ from myrm_agent_harness.runtime.context.caveman_output_throttle import (
 )
 from myrm_agent_harness.runtime.context.ccr_context_archival_transformer import (
     CCRContextArchivalTransformer,
+)
+from myrm_agent_harness.runtime.context.channel_handoff_and_hf_trace_engine import (
+    CrossPlatformChannelHandoffCoordinator,
+    HuggingFaceAgentTraceExporter,
+)
+from myrm_agent_harness.runtime.context.channel_handoff_and_hf_trace_types import (
+    ChannelThreadAnchorDescriptor,
+    ChannelThreadKind,
+    HandoffSessionEnvelope,
+    HFTraceStepRecord,
+    MediaPointerReference,
+    TargetChannelType,
 )
 from myrm_agent_harness.runtime.context.cleanup import (
     cleanup_context_files_async,
@@ -270,6 +251,16 @@ from myrm_agent_harness.runtime.context.cut_point_selector import (
 )
 from myrm_agent_harness.runtime.context.default_lossless_lean_tail_compactor import (
     DefaultLosslessLeanTailCompactor,
+)
+from myrm_agent_harness.runtime.context.deterministic_prefix_cache_guard import (
+    DeterministicPrefixCacheGuard,
+    PrefixCacheBreachError,
+)
+from myrm_agent_harness.runtime.context.deterministic_prefix_cache_types import (
+    DeterministicSummaryBlock,
+    PrefixCacheHitReport,
+    PrefixCacheZoneKind,
+    PrefixHashFingerprint,
 )
 from myrm_agent_harness.runtime.context.diff_protocol_scorer import (
     DiffApplyResult,
@@ -436,6 +427,9 @@ from myrm_agent_harness.runtime.context.headroom_adaptive_budget_compressor impo
     ProgressiveSlidingWindowCompactor,
     TaskPhase,
 )
+from myrm_agent_harness.runtime.context.heavy_tool_payload_blob_store import (
+    HeavyToolPayloadBlobStore,
+)
 from myrm_agent_harness.runtime.context.hidden_goal_rubric_preamble import (
     GoalRubricContext,
     GoalStatus,
@@ -479,6 +473,9 @@ from myrm_agent_harness.runtime.context.in_process_bm25_types import (
     PrunedToolSet,
     ToolSchemaEntry,
 )
+from myrm_agent_harness.runtime.context.incremental_material_hydration_engine import (
+    IncrementalMaterialHydrationEngine,
+)
 from myrm_agent_harness.runtime.context.instance_metrics import (
     ContextMetrics,
     get_context_metrics,
@@ -517,6 +514,12 @@ from myrm_agent_harness.runtime.context.lean_tail_compression_types import (
     ReasoningTagKind,
     StrippedMessageResult,
 )
+from myrm_agent_harness.runtime.context.live_thread_compaction_types import (
+    CompactionSyncStatus,
+    LiveThreadCompactionResult,
+    LiveThreadCompactionSignal,
+    RemoteThreadSnapshot,
+)
 from myrm_agent_harness.runtime.context.lossless_lean_tail_types import (
     ClassifiedMessage,
     ConstraintAnchor,
@@ -524,8 +527,23 @@ from myrm_agent_harness.runtime.context.lossless_lean_tail_types import (
     LosslessCompactorConfig,
     MessageImportanceTier,
 )
+from myrm_agent_harness.runtime.context.media_pointer_lifecycle_manager import (
+    MediaPointerLifecycleManager,
+)
+from myrm_agent_harness.runtime.context.memory_reinforce_emphasis_gate import (
+    MemoryReinforceEmphasisGate,
+)
+from myrm_agent_harness.runtime.context.memory_reinforce_skill_attach_types import (
+    DynamicSkillAttachment,
+    PromptEmphasisInjectionPayload,
+    ReinforcedMemoryRule,
+    ReinforcementPriorityKind,
+)
 from myrm_agent_harness.runtime.context.message_importance_classifier import (
     MessageImportanceClassifier,
+)
+from myrm_agent_harness.runtime.context.mid_session_skill_attachment_registry import (
+    MidSessionSkillAttachmentRegistry,
 )
 from myrm_agent_harness.runtime.context.model_free_tool_pruner import (
     ModelFreeDeterministicToolResultPruner,
@@ -703,28 +721,6 @@ from myrm_agent_harness.runtime.context.project_hierarchy_session_types import (
     ResurrectionStatus,
     TaskNode,
 )
-from myrm_agent_harness.runtime.context.incremental_material_hydration_engine import (
-    IncrementalMaterialHydrationEngine,
-)
-from myrm_agent_harness.runtime.context.live_thread_compaction_types import (
-    CompactionSyncStatus,
-    LiveThreadCompactionResult,
-    LiveThreadCompactionSignal,
-    RemoteThreadSnapshot,
-)
-from myrm_agent_harness.runtime.context.memory_reinforce_emphasis_gate import (
-    MemoryReinforceEmphasisGate,
-)
-from myrm_agent_harness.runtime.context.memory_reinforce_skill_attach_types import (
-    DynamicSkillAttachment,
-    PromptEmphasisInjectionPayload,
-    ReinforcedMemoryRule,
-    ReinforcementPriorityKind,
-)
-from myrm_agent_harness.runtime.context.mid_session_skill_attachment_registry import (
-    MidSessionSkillAttachmentRegistry,
-)
-
 from myrm_agent_harness.runtime.context.project_milestone_tracker import (
     ProjectMilestoneTracker,
 )
@@ -735,12 +731,6 @@ from myrm_agent_harness.runtime.context.project_milestone_types import (
     ProjectMilestoneCheckpoint,
     ProjectResumptionPackage,
     ProjectTodoItem,
-)
-from myrm_agent_harness.runtime.context.remote_live_thread_compaction_coordinator import (
-    RemoteLiveThreadCompactionCoordinator,
-)
-from myrm_agent_harness.runtime.context.remote_thread_actor_endpoint import (
-    RemoteThreadActorEndpoint,
 )
 from myrm_agent_harness.runtime.context.prompt_cache_lifecycle_types import (
     CacheMutationRiskLevel,
@@ -798,6 +788,12 @@ from myrm_agent_harness.runtime.context.rejection_reason_guard import (
     HumanRejectionGuard,
     RejectionCategory,
 )
+from myrm_agent_harness.runtime.context.remote_live_thread_compaction_coordinator import (
+    RemoteLiveThreadCompactionCoordinator,
+)
+from myrm_agent_harness.runtime.context.remote_thread_actor_endpoint import (
+    RemoteThreadActorEndpoint,
+)
 from myrm_agent_harness.runtime.context.rtk_tool_compressor_types import (
     ExtractedDiagnosis,
     RTKCompressorConfig,
@@ -840,6 +836,9 @@ from myrm_agent_harness.runtime.context.session_cwd_guard import (
     SessionCwdHealthGuard,
     SessionCwdIssue,
 )
+from myrm_agent_harness.runtime.context.session_data_sanitizer import (
+    SessionDataSanitizer,
+)
 from myrm_agent_harness.runtime.context.session_epoch_splitter import (
     EpochSplitUrgency,
     ForkedEpochSessionDescriptor,
@@ -852,6 +851,19 @@ from myrm_agent_harness.runtime.context.session_epoch_splitter import (
 )
 from myrm_agent_harness.runtime.context.session_keyword_resurrection_engine import (
     SessionKeywordResurrectionEngine,
+)
+from myrm_agent_harness.runtime.context.session_lifecycle_log_archiver import (
+    SessionLifecycleLogArchiverAndOfflineBundleExportEngine,
+)
+from myrm_agent_harness.runtime.context.session_lifecycle_log_archiver_types import (
+    ArtifactSnapshotEntry,
+    ImportReplayResult,
+    SanitizationPolicy,
+    SessionExecutionTurn,
+    SessionLogArchiveBundle,
+    TokenCostBillingSnapshot,
+    ToolExecutionLogEntry,
+    ToolExecutionStatus,
 )
 from myrm_agent_harness.runtime.context.session_resume_integrity_validator import (
     AnomalyKind,
@@ -1775,6 +1787,15 @@ __all__ = [
     "ImportReplayResult",
     "SessionDataSanitizer",
     "SessionLifecycleLogArchiverAndOfflineBundleExportEngine",
+    "TargetChannelType",
+    "ChannelThreadKind",
+    "ChannelThreadAnchorDescriptor",
+    "HandoffSessionEnvelope",
+    "MediaPointerReference",
+    "HFTraceStepRecord",
+    "MediaPointerLifecycleManager",
+    "CrossPlatformChannelHandoffCoordinator",
+    "HuggingFaceAgentTraceExporter",
 ]
 
 
