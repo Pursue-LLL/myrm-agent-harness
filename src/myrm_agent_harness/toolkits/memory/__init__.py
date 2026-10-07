@@ -369,6 +369,14 @@ from myrm_agent_harness.toolkits.memory.working_tree import (
     TreeRepairEngine,
     TreeRepairResult,
 )
+from myrm_agent_harness.toolkits.memory.world_model import (
+    L3WorldModelEngine,
+    L3WorldModelField,
+    L3WorldModelRecord,
+    MacroContextPayload,
+    ProjectEnvironmentSnapshot,
+    RuntimeEnvironmentInfo,
+)
 from myrm_agent_harness.toolkits.memory.zero_hallucination import (
     MemoryFactItem,
     MemoryRetrievalState,
@@ -379,6 +387,12 @@ from myrm_agent_harness.toolkits.memory.zero_hallucination import (
 )
 
 __all__ = [
+    "L3WorldModelEngine",
+    "L3WorldModelField",
+    "L3WorldModelRecord",
+    "MacroContextPayload",
+    "ProjectEnvironmentSnapshot",
+    "RuntimeEnvironmentInfo",
     "ActiveRecallController",
     "AdaptiveBatcher",
     "AtomicReplacePayload",
