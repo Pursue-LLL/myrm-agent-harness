@@ -173,6 +173,15 @@ from .dual_branching import (
     TreeNodeMessage,
     VersionNavigationInfo,
 )
+from .dual_loop_steering import (
+    DualLoopQueueSnapshot,
+    DualLoopSessionQueueLedger,
+    InnerLoopSteeringInterceptor,
+    KeyStrokeIntent,
+    LoopSteeringKind,
+    SteeringDirective,
+    SteeringDirectiveStatus,
+)
 from .emergent_attention import (
     ActionTraceEvent,
     EmergentAttentionDossier,
@@ -386,6 +395,14 @@ __all__ = [
     "ForkCloneResult",
     "TreeNodeMessage",
     "VersionNavigationInfo",
+    # dual_loop_steering
+    "DualLoopQueueSnapshot",
+    "DualLoopSessionQueueLedger",
+    "InnerLoopSteeringInterceptor",
+    "KeyStrokeIntent",
+    "LoopSteeringKind",
+    "SteeringDirective",
+    "SteeringDirectiveStatus",
     # emergent_attention
     "ActionTraceEvent",
     "EmergentAttentionDossier",
