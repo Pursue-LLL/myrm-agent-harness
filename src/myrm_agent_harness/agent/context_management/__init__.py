@@ -320,6 +320,14 @@ from .workspace_guard import (
     WorkspaceExplorationGuardEngine,
     WorkspaceGuardConfig,
 )
+from .subagent_scratchpad import (
+    EphemeralSubagentDossier,
+    FactCategory,
+    MultiAgentSharedScratchpadEngine,
+    ScratchpadQueryFilter,
+    SharedScratchpadFact,
+    SubagentLifecycleStatus,
+)
 
 __all__ = [
     # active_compression
@@ -502,6 +510,13 @@ __all__ = [
     "WorkspaceAccessPolicy",
     "WorkspaceExplorationGuardEngine",
     "WorkspaceGuardConfig",
+    # subagent_scratchpad
+    "EphemeralSubagentDossier",
+    "FactCategory",
+    "MultiAgentSharedScratchpadEngine",
+    "ScratchpadQueryFilter",
+    "SharedScratchpadFact",
+    "SubagentLifecycleStatus",
     # schemas
     "BUILTIN_PROTECTED_TOOLS",
     "COMPACT_RULES",
