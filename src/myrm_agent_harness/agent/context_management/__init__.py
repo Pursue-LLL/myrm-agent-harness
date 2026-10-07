@@ -685,8 +685,25 @@ from .mention_hydration import (
     compute_content_hash,
     parse_mentions_from_prompt,
 )
+from .cache_shield import (
+    CacheBreakEvaluation,
+    CacheBreakPreventionShieldEngine,
+    CacheParameterKind,
+    CachePreservingForkResult,
+    CacheRewindResult,
+    CacheRiskLevel,
+    evaluate_parameter_mutation,
+)
 
 __all__ = [
+    # cache_shield
+    "CacheBreakEvaluation",
+    "CacheBreakPreventionShieldEngine",
+    "CacheParameterKind",
+    "CachePreservingForkResult",
+    "CacheRewindResult",
+    "CacheRiskLevel",
+    "evaluate_parameter_mutation",
     # mention_hydration
     "HydratedTurnPayload",
     "MentionHydrationConfig",
