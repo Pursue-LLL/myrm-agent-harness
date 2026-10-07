@@ -5,7 +5,8 @@ tests run against a real SQLite + embedded Qdrant memory stack in which only the
 embedding model and the extraction LLM are fakes: everything between
 ``auto_extract_memories`` and the stores is production code, including the BM25
 sparse-mirror wrapper that ``create_local_memory_manager`` puts around the vector
-store — the wrapper is what used to break the conversation (named-vector) path.
+store. The wrapper has no named-vector support, so conversation storage and
+search work only because both address the backend beneath it.
 """
 
 from __future__ import annotations

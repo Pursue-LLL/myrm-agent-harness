@@ -12,10 +12,10 @@
 [POS]
 Verbatim track of post-turn memory auto-extraction, enabled per call with
 ``auto_extract_memories(enable_verbatim=True)``. Extraction runs once per turn over
-the whole history, so only the trailing exchange is stored — earlier exchanges were
-stored by their own turns. Writes bypass the approval queue (approval governs
-inferred memories; a verbatim exchange is the user's own words) and still pass the
-content-safety scan.
+the whole history, so only the trailing exchange is stored; earlier exchanges are
+stored by their own turns. A verbatim exchange (user message plus assistant reply)
+is a literal record rather than an inference, so it bypasses the approval queue
+that gates inferred memories; it still passes the content-safety scan.
 """
 
 from __future__ import annotations
@@ -35,8 +35,6 @@ _EXCHANGE_MESSAGES = 2
 def create_conversation_memories(
     messages: list[dict[str, str]],
     source_chat_id: str | None = None,
-    project_id: str | None = None,
-    topic_id: str | None = None,
 ) -> list[ConversationMemory]:
     """Create verbatim ConversationMemory chunks from messages.
 
@@ -45,8 +43,6 @@ def create_conversation_memories(
     Args:
         messages: List of dicts with 'role' and 'content' keys
         source_chat_id: Source chat/session identifier
-        project_id: Project/wing hierarchy (optional)
-        topic_id: Topic/room hierarchy (optional)
 
     Returns:
         List of ConversationMemory objects
@@ -60,8 +56,6 @@ def create_conversation_memories(
             content=chunk.user_turn,
             timestamp=chunk.timestamp,
             source_chat_id=source_chat_id,
-            project_id=project_id,
-            topic_id=topic_id,
             language=("zh" if any(ord(c) > 0x4E00 for c in chunk.user_turn[:50]) else "en"),
         )
         conversation_memories.append(memory)
