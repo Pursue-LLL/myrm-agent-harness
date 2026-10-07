@@ -877,6 +877,14 @@ from myrm_agent_harness.runtime.context.dialogue_state_machine_types import (
     TopicDriftAssessment,
     TurnStateAnnotation,
 )
+from myrm_agent_harness.runtime.context.negative_decision_ledger import (
+    NegativeDecisionLedger,
+)
+from myrm_agent_harness.runtime.context.negative_decision_ledger_types import (
+    AntiRegressionInterceptionResult,
+    FailureRootCauseKind,
+    NegativeDecisionEntry,
+)
 from myrm_agent_harness.runtime.context.prefix_integrity_barrier_types import (
     BarrierInterceptionMode,
     BaselinePrefixFingerprint,
@@ -2346,6 +2354,10 @@ __all__ = [
     "OptimizedDialogueContextResult",
     "DialogueStateMachine",
     "AdaptiveContextOptimizer",
+    "FailureRootCauseKind",
+    "NegativeDecisionEntry",
+    "AntiRegressionInterceptionResult",
+    "NegativeDecisionLedger",
 ]
 
 
