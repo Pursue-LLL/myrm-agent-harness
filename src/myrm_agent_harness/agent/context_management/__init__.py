@@ -202,6 +202,15 @@ from .owner_fencing import (
     SessionOwnerLease,
     SessionQuiesceState,
 )
+from .project_container import (
+    DragDropIngestionEvent,
+    ProjectAssetItem,
+    ProjectAssetKind,
+    ProjectContainerWorkspace,
+    SessionVisibilityStatus,
+    SilentArchivingResult,
+    UnifiedProjectContainerEngine,
+)
 from .session_commit import (
     CommitJobStatus,
     CommitTriggerReason,
@@ -314,6 +323,14 @@ __all__ = [
     "FencingConfig",
     "SessionOwnerLease",
     "SessionQuiesceState",
+    # project_container
+    "DragDropIngestionEvent",
+    "ProjectAssetItem",
+    "ProjectAssetKind",
+    "ProjectContainerWorkspace",
+    "SessionVisibilityStatus",
+    "SilentArchivingResult",
+    "UnifiedProjectContainerEngine",
     # session_commit
     "CommitJobStatus",
     "CommitTriggerReason",
