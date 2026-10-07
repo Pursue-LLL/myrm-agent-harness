@@ -620,6 +620,14 @@ from .barge_in_steering import (
     MidRunBargeInSteeringEngine,
     SteeringPointGateResult,
 )
+from .clean_markdown_extractor import (
+    CleanMarkdownExtractorConfig,
+    CleanMarkdownExtractorEngine,
+    DOMPruneRule,
+    ExtractedCleanContent,
+    ExtractionDensityLevel,
+    SparsityPruneResult,
+)
 
 __all__ = [
     # active_compression
@@ -664,6 +672,13 @@ __all__ = [
     "SnapshotStorageDriver",
     "VolumeSnapshotDescriptor",
     "WarmSandboxDescriptor",
+    # clean_markdown_extractor
+    "CleanMarkdownExtractorConfig",
+    "CleanMarkdownExtractorEngine",
+    "DOMPruneRule",
+    "ExtractedCleanContent",
+    "ExtractionDensityLevel",
+    "SparsityPruneResult",
     # clean_pod_archival
     "CleanPodArchivalConfig",
     "CleanPodArchivalEngine",
