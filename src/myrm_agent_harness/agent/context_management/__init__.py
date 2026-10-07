@@ -135,6 +135,19 @@ from .dual_branching import (
     TreeNodeMessage,
     VersionNavigationInfo,
 )
+from .emergent_attention import (
+    ActionTraceEvent,
+    EmergentAttentionDossier,
+    EmergentAttentionEngine,
+    EmergentAttentionItem,
+    InboundNotification,
+    IntentionActionDiffItem,
+    IntentionActionDiffReport,
+    NotificationSieveResult,
+    SieveDecision,
+    StatedIntention,
+    UserActionTraceKind,
+)
 from .million_token_ceiling import (
     CompactionTierAction,
     CompactionTrackType,
@@ -204,6 +217,18 @@ __all__ = [
     "ForkCloneResult",
     "TreeNodeMessage",
     "VersionNavigationInfo",
+    # emergent_attention
+    "ActionTraceEvent",
+    "EmergentAttentionDossier",
+    "EmergentAttentionEngine",
+    "EmergentAttentionItem",
+    "InboundNotification",
+    "IntentionActionDiffItem",
+    "IntentionActionDiffReport",
+    "NotificationSieveResult",
+    "SieveDecision",
+    "StatedIntention",
+    "UserActionTraceKind",
     # million_token_ceiling
     "CompactionTierAction",
     "CompactionTrackType",
