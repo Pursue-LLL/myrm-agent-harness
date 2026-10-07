@@ -100,27 +100,24 @@ from myrm_agent_harness.toolkits.memory.dreaming import (
     SurgicalSessionMemoryUnlearner,
     SurgicalUnlearnReport,
 )
-from myrm_agent_harness.toolkits.memory.ltra import (
-    AudioFactDistillationWorker,
-    AudioTimestampAnchor,
-    CognitiveFactQuadruple,
-    DiarizedTranscriptSegment,
-    FollowupTaskDraft,
-    FollowupTaskDraftBuilder,
-    SensitiveAudioFactGuard,
-    SpeakerIdentityResolver,
-)
-from myrm_agent_harness.toolkits.memory.onboarding import (
-    FirstEncounterReport,
-    InsightExtractedFact,
-    LocalSecretRedactor,
-    MultiSourceOnboardingSampler,
-    OnboardingConversationWindow,
-    OnboardingInsightDistiller,
-    OnboardingSampleOptions,
-    OnboardingSourceRegistry,
-    SampledTurnMessage,
-    ShannonEntropyInspector,
+from myrm_agent_harness.toolkits.memory.external_bridge import (
+    END_MARKER,
+    START_MARKER,
+    BaseExternalAgentTarget,
+    ClaudeCodeBridgeTarget,
+    CodexBridgeTarget,
+    CursorBridgeTarget,
+    ExternalAgentSkillWriter,
+    ExternalAgentTargetRegistry,
+    ExternalAgentType,
+    HermesBridgeTarget,
+    MemoryConflictReport,
+    MemoryPluginConflictDetector,
+    OpenClawBridgeTarget,
+    SkillBridgeAction,
+    SkillInstallConfig,
+    SkillInstallResult,
+    SkillUninstallResult,
 )
 from myrm_agent_harness.toolkits.memory.external_providers import (
     BenchmarkReport,
@@ -155,6 +152,16 @@ from myrm_agent_harness.toolkits.memory.hermes_bridge import (
     parse_hermes_json,
     parse_hermes_markdown,
 )
+from myrm_agent_harness.toolkits.memory.ltra import (
+    AudioFactDistillationWorker,
+    AudioTimestampAnchor,
+    CognitiveFactQuadruple,
+    DiarizedTranscriptSegment,
+    FollowupTaskDraft,
+    FollowupTaskDraftBuilder,
+    SensitiveAudioFactGuard,
+    SpeakerIdentityResolver,
+)
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.metrics import SearchMetrics, SearchSnapshot, get_search_metrics
 from myrm_agent_harness.toolkits.memory.mirror import (
@@ -173,6 +180,18 @@ from myrm_agent_harness.toolkits.memory.observability import (
     MemorySpaceKind,
     MemoryTraceStep,
     ScalarValue,
+)
+from myrm_agent_harness.toolkits.memory.onboarding import (
+    FirstEncounterReport,
+    InsightExtractedFact,
+    LocalSecretRedactor,
+    MultiSourceOnboardingSampler,
+    OnboardingConversationWindow,
+    OnboardingInsightDistiller,
+    OnboardingSampleOptions,
+    OnboardingSourceRegistry,
+    SampledTurnMessage,
+    ShannonEntropyInspector,
 )
 from myrm_agent_harness.toolkits.memory.prompt_cache_guard import (
     AtomicReplacePayload,
@@ -641,4 +660,21 @@ __all__ = [
     "OnboardingSourceRegistry",
     "SampledTurnMessage",
     "ShannonEntropyInspector",
+    "BaseExternalAgentTarget",
+    "ClaudeCodeBridgeTarget",
+    "CodexBridgeTarget",
+    "CursorBridgeTarget",
+    "ExternalAgentSkillWriter",
+    "ExternalAgentTargetRegistry",
+    "ExternalAgentType",
+    "HermesBridgeTarget",
+    "MemoryConflictReport",
+    "MemoryPluginConflictDetector",
+    "OpenClawBridgeTarget",
+    "SkillBridgeAction",
+    "SkillInstallConfig",
+    "SkillInstallResult",
+    "SkillUninstallResult",
+    "START_MARKER",
+    "END_MARKER",
 ]
