@@ -40,6 +40,11 @@ Optional memory strategies: forgetting, extraction, deduplication, consolidation
 | staleness_review.py | Core | LLM-driven staleness review. Identifies memories past their per-fact TTL (expected_valid_days) and submits for LLM semantic judgment (KEEP/EXTEND/REMOVE). Conservative: protects pinned, recently-accessed, and correction-chain memories. Parses the decision array via `parse_llm_json_list` (robust against fences, prose, trailing commas). | ✅ |
 | subsumption.py | Core | Cognitive consolidation engine. Identifies and safely soft-deletes old semantic memories. Skips user-protected memories before LLM judgment and soft-deletes with `allow_protected=False`; user-initiated rollback keeps `allow_protected=True`. | ✅ |
 
+| Submodule | Description |
+|-----------|-------------|
+| four_layer_promotion/ | Harness memory strategy implementing Hermes-grade four-layer progressive memory, two-step Map-Reduce consolidation, and tri-channel anti-poisoning governance. See [four_layer_promotion/_ARCH.md](four_layer_promotion/_ARCH.md). |
+| hindsight/ | Hindsight Experience Replay and Retrospective Reflection Buffer package. See [hindsight/_ARCH.md](hindsight/_ARCH.md). |
+
 ## Key Dependencies
 
 - `infra`

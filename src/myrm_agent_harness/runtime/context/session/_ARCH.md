@@ -11,6 +11,7 @@ Session-level context lifecycle domain: active-session detection for runtime con
 | session_activity.py | Core | Active-session ID loading for session-aware context cleanup | ✅ |
 | session_context_pins.py | Core | Volume-backed pinned file registry (pinned_context_files.json per session) | ✅ |
 | session_continuity.py | Core | Checkpoint/message SSOT for rewind/truncate/edit-resend flows | ✅ |
+| event_sourcing_store.py | Core | Runtime context session event-sourcing persistence layer. | ✅ |
 
 ## Module Dependencies
 

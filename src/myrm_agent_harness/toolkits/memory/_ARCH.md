@@ -91,6 +91,26 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | client_partition/ | Client-Isolated Workspace & Memory Namespace Partition Suite: memory scope level CLIENT derivation, zero-trust cross-client leakage firewall (CrossClientLeakGuard) screening retrieval candidates, and canonical containment workspace directory resolver (ClientWorkspaceResolver) preventing cross-client credential leaks and path traversal. |
 | provenance_batch/ | Skill Memory Extraction Provenance Trace Link & Batch Learn Namespace Isolator: anchors extracted procedural rules to physical tool execution traces (ToolExecutionTrace) and turn snippets, and partitions batch learning IDs deterministically ({namespace}::{scope}::{raw_id}) eliminating cross-scope memory leakage and concurrent collision. |
 | workspace_living/ | Living Workspace Governance & documentation synchronization toolkit (CausalIssueMerger, KnownIssueEntry, ADRMetadata, idempotent error signature deduplication). |
+| action_impact/ | Future Action Impact Filtering Gate for Memory Extraction. See [action_impact/_ARCH.md](action_impact/_ARCH.md). |
+| attribution/ | Full-Lifecycle Memory Attribution and Explainable Traceability Matrix. See [attribution/_ARCH.md](attribution/_ARCH.md). |
+| budget_curator/ | 双轨冻结快照记忆预算仪表盘、原子批量腾挪策展操作符与长程会话回溯锚点套件。 See [budget_curator/_ARCH.md](budget_curator/_ARCH.md). |
+| diagnostic/ | Automated Memory Diagnostic and Root Cause Inspector. See [diagnostic/_ARCH.md](diagnostic/_ARCH.md). |
+| dialectic/ | 辩证推理深度用户表征与自适应会话步调动态节流套件。 See [dialectic/_ARCH.md](dialectic/_ARCH.md). |
+| dual_tier/ | Dual-tier memory block engine package. See [dual_tier/_ARCH.md](dual_tier/_ARCH.md). |
+| dual_track/ | Dual-Track Fact Decision and Verbatim Evidence Tracer Engine. See [dual_track/_ARCH.md](dual_track/_ARCH.md). |
+| fact_editing/ | Hebbian Fact Injection and Linear Memory Editing package. See [fact_editing/_ARCH.md](fact_editing/_ARCH.md). |
+| fast_ingest/ | Sub-5% Latency One-Pass Fast Ingestion and Async Deep Distillation Engine. See [fast_ingest/_ARCH.md](fast_ingest/_ARCH.md). |
+| governor/ | Anti-Semantic-Aliasing memory governor and capacity management package. See [governor/_ARCH.md](governor/_ARCH.md). |
+| graph_arbitration/ | Automated fact conflict arbitration state machine with causal lineage tracking. Dynamic edge weight decay and frequency reinforcement operator. See [graph_arbitration/_ARCH.md](graph_arbitration/_ARCH.md). |
+| graph_rrf/ | Knowledge Graph and Vector Reciprocal Rank Fusion Memory Engine package. See [graph_rrf/_ARCH.md](graph_rrf/_ARCH.md). |
+| memops/ | MemOps 4-tuple standard semantic engine and zero-context benchmark package. See [memops/_ARCH.md](memops/_ARCH.md). |
+| paging/ | Agent-Driven Memory Paging with Hard Boundary Governance. See [paging/_ARCH.md](paging/_ARCH.md). |
+| procedural/ | Procedural Memory and Engineering Workflow Governance Engine. See [procedural/_ARCH.md](procedural/_ARCH.md). |
+| reembedding/ | ZeroDowntimeCrossDimensionReembeddingEngine package. See [reembedding/_ARCH.md](reembedding/_ARCH.md). |
+| shared_bus/ | 跨 Agent 共享记忆总线、并发连接池与方案否决账本模块。 See [shared_bus/_ARCH.md](shared_bus/_ARCH.md). |
+| social_curator/ | HighSignalSocialFeedCurator package. See [social_curator/_ARCH.md](social_curator/_ARCH.md). |
+| task_state/ | Structured Task State Machine and Compaction Preservation Engine. See [task_state/_ARCH.md](task_state/_ARCH.md). |
+| temporal/ | Temporal Validity and Fact Expiration Governance Engine. See [temporal/_ARCH.md](temporal/_ARCH.md). |
 
 ## Key Dependencies
 

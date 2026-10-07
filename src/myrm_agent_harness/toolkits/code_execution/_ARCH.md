@@ -30,4 +30,5 @@ Detailed design: [EXECUTION_SYSTEM.md](EXECUTION_SYSTEM.md)
 | session/ | Persistent Session Module (with Auto-Tee, OOM & Disk Quota protection) |
 | tool_discovery/ | CLI tool auto-discovery module entry point. Provides get_cli_tools_context() one-stop API to detect |
 | utils/ | Code execution utilities. |
+| vfs/ | VFS and sandbox boundary enforcer package. See [vfs/_ARCH.md](vfs/_ARCH.md). |
 | workspace/ | Session workspaces rooted at explicit host-provided aggregate directory (`merged_context[\"workspaces_storage_root\"]` consumed by Harness `WorkspaceService`). |
