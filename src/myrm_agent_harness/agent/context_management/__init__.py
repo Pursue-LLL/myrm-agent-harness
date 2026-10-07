@@ -192,6 +192,15 @@ from .dual_loop_steering import (
     SteeringDirective,
     SteeringDirectiveStatus,
 )
+from .dual_track_interjection import (
+    DualTrackInterventionConfig,
+    DualTrackInterventionCoordinator,
+    InterventionStatus,
+    InterventionTrack,
+    PreemptionQueueSnapshot,
+    StepBoundaryInjectionResult,
+    UserInterventionDirective,
+)
 from .emergent_attention import (
     ActionTraceEvent,
     EmergentAttentionDossier,
@@ -504,6 +513,14 @@ __all__ = [
     "LoopSteeringKind",
     "SteeringDirective",
     "SteeringDirectiveStatus",
+    # dual_track_interjection
+    "DualTrackInterventionConfig",
+    "DualTrackInterventionCoordinator",
+    "InterventionStatus",
+    "InterventionTrack",
+    "PreemptionQueueSnapshot",
+    "StepBoundaryInjectionResult",
+    "UserInterventionDirective",
     # emergent_attention
     "ActionTraceEvent",
     "EmergentAttentionDossier",
