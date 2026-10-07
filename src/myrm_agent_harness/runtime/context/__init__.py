@@ -76,9 +76,24 @@ from myrm_agent_harness.runtime.context.big_at_context_bridge import (
     DistilledSessionContext,
     ZeroExplanationContextExtractor,
 )
+from myrm_agent_harness.runtime.context.bounded_hydration_types import (
+    BoundedInitialPageHeader,
+    HeavyToolBlobReference,
+    HydratedMessageItem,
+    LightweightMessageStub,
+    MessageHydrationState,
+    UpwardPageSlice,
+)
+from myrm_agent_harness.runtime.context.bounded_initial_page_hydration_engine import (
+    BoundedInitialPageHydrationEngine,
+)
 from myrm_agent_harness.runtime.context.cache_aware_session_lifecycle_router import (
     CacheAwareSessionLifecycleRouter,
 )
+from myrm_agent_harness.runtime.context.heavy_tool_payload_blob_store import (
+    HeavyToolPayloadBlobStore,
+)
+
 from myrm_agent_harness.runtime.context.caveman_output_throttle import (
     AdaptiveThrottleDecisionEngine,
     CavemanOutputPostProcessor,
@@ -1705,7 +1720,16 @@ __all__ = [
     "PromptEmphasisInjectionPayload",
     "MemoryReinforceEmphasisGate",
     "MidSessionSkillAttachmentRegistry",
+    "MessageHydrationState",
+    "HeavyToolBlobReference",
+    "HydratedMessageItem",
+    "LightweightMessageStub",
+    "BoundedInitialPageHeader",
+    "UpwardPageSlice",
+    "HeavyToolPayloadBlobStore",
+    "BoundedInitialPageHydrationEngine",
 ]
+
 
 
 
