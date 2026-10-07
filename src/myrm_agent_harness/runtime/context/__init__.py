@@ -865,6 +865,18 @@ from myrm_agent_harness.runtime.context.session_archive_search_types import (
     ArchiveSearchResultItem,
     ArchivedMessageRecord,
 )
+from myrm_agent_harness.runtime.context.dialogue_state_machine_engine import (
+    AdaptiveContextOptimizer,
+    DialogueStateMachine,
+)
+from myrm_agent_harness.runtime.context.dialogue_state_machine_types import (
+    AdaptiveDialogueOptimizationConfig,
+    DialogueStateKind,
+    OptimizedDialogueContextResult,
+    TokenGovernanceThresholdTier,
+    TopicDriftAssessment,
+    TurnStateAnnotation,
+)
 from myrm_agent_harness.runtime.context.prefix_integrity_barrier_types import (
     BarrierInterceptionMode,
     BaselinePrefixFingerprint,
@@ -2326,6 +2338,14 @@ __all__ = [
     "InMemorySessionArchiveStore",
     "SessionArchiveSearchEngine",
     "create_search_session_archive_tool",
+    "DialogueStateKind",
+    "TokenGovernanceThresholdTier",
+    "TopicDriftAssessment",
+    "TurnStateAnnotation",
+    "AdaptiveDialogueOptimizationConfig",
+    "OptimizedDialogueContextResult",
+    "DialogueStateMachine",
+    "AdaptiveContextOptimizer",
 ]
 
 
