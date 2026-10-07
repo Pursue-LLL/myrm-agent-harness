@@ -552,6 +552,17 @@ from myrm_agent_harness.toolkits.memory.world_model import (
     ProjectEnvironmentSnapshot,
     RuntimeEnvironmentInfo,
 )
+from myrm_agent_harness.toolkits.memory.triad_trajectory import (
+    AntiLoopPromptInjector,
+    AntiLoopPromptSnapshot,
+    TaskTriadBlackboxTrajectory,
+    TaskTriadTrajectoryManager,
+    TrajectoryTaskStatus,
+    TriadFailedAttempt,
+    TriadMilestone,
+    TriadStateLedger,
+    TriadUserSteering,
+)
 from myrm_agent_harness.toolkits.memory.zero_hallucination import (
     MemoryFactItem,
     MemoryRetrievalState,
@@ -562,6 +573,15 @@ from myrm_agent_harness.toolkits.memory.zero_hallucination import (
 )
 
 __all__ = [
+    "AntiLoopPromptInjector",
+    "AntiLoopPromptSnapshot",
+    "TaskTriadBlackboxTrajectory",
+    "TaskTriadTrajectoryManager",
+    "TrajectoryTaskStatus",
+    "TriadFailedAttempt",
+    "TriadMilestone",
+    "TriadStateLedger",
+    "TriadUserSteering",
     "L3WorldModelEngine",
     "L3WorldModelField",
     "L3WorldModelRecord",
