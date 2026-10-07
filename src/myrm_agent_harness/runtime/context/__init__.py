@@ -852,6 +852,16 @@ from myrm_agent_harness.runtime.context.project_milestone_types import (
     ProjectResumptionPackage,
     ProjectTodoItem,
 )
+from myrm_agent_harness.runtime.context.prompt_cache_economics_engine import (
+    PromptCacheEconomicsEngine,
+)
+from myrm_agent_harness.runtime.context.prompt_cache_economics_types import (
+    CrossDeploymentHudPayload,
+    HealthTrafficLight,
+    ModelPricingTier,
+    SessionCacheEconomicsSummary,
+    TurnCacheEconomicsRecord,
+)
 from myrm_agent_harness.runtime.context.prompt_cache_lifecycle_types import (
     CacheMutationRiskLevel,
     CachePrefixFingerprint,
@@ -2146,6 +2156,12 @@ __all__ = [
     "PrefixDriftKind",
     "PrefixIntegrityViolationError",
     "PreFlightPrefixIntegrityBarrier",
+    "HealthTrafficLight",
+    "ModelPricingTier",
+    "TurnCacheEconomicsRecord",
+    "SessionCacheEconomicsSummary",
+    "CrossDeploymentHudPayload",
+    "PromptCacheEconomicsEngine",
 ]
 
 
