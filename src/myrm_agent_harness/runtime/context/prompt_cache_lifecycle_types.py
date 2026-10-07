@@ -2,6 +2,20 @@
 
 Defines cache prefix fingerprints, in-session mutation risks, rewind pruning
 receipts, and pre-idle compaction schedules for Prompt Cache optimization.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- CacheMutationRiskLevel: Risk severity of in-session mutations on Prompt Cache invalidation.
+- CompactionTimingUrgency: Urgency level for scheduling pre-idle cache-preserving compaction.
+- CachePrefixFingerprint: Deterministic cryptographic fingerprint representing the immutable prefix chain.
+- InSessionMutationRiskReport: Audit report assessing the economic impact of parameter or model changes.
+- RewindPruneReceipt: Receipt tracking tail message trimming without destroying prefix cache.
+- PreIdleCompactionPlan: Execution plan for compacting session before cloud cache TTL expires.
+
+[POS]
+Prompt-cache aware session lifecycle and prefix preserving router types.
 """
 
 from __future__ import annotations

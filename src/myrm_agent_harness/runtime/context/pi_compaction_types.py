@@ -3,6 +3,23 @@ branch summarization, and cumulative file tracker engine.
 
 Reference: Mario Zechner Pi Agent (@earendil-works/pi-agent-core & packages/coding-agent/src/core/compaction).
 Strict 0 Any, immutable frozen structures, protocol-safe cut points.
+
+[INPUT]
+- runtime.context.surface_projection_types::ProjectedMessage (POS: Type definitions for Immutable Event Log
+  SSOT and Surface Projection Engine.)
+
+[OUTPUT]
+- CompactionTriggerKind: Enumeration of triggers initiating context compaction.
+- CutPointResult: Protocol-safe cut point selection result.
+- CumulativeFileRecord: Cumulative set of files read and modified across all compaction cycles.
+- RollingStructuredSummary: Structured rolling summary sections preserving causality.
+- OverflowDetectionResult: Detailed result of provider context overflow detection.
+- PiCompactionConfig: Configuration governing Pi-style progressive compaction.
+- PiCompactionResult: Outcome of progressive compaction.
+
+[POS]
+Type definitions for Pi Agent-style progressive context compaction, branch summarization, and cumulative
+file tracker engine.
 """
 
 from __future__ import annotations

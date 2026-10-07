@@ -3,6 +3,18 @@
 Captures sanitized transcript summaries and workspace references from peer sessions
 with zero side effects: the target agent is neither alerted nor interrupted, and
 the referencing agent receives strict read-only boundary constraints.
+
+[INPUT]
+- runtime.context.agent_mention_types::ReadOnlySnapshotBundle (POS: Agent mention dual-mode interaction
+  types and communication contracts.)
+- runtime.context.project_hierarchy_session_types::ArchivedMessageEntry (POS: Project hierarchy session
+  archive and keyword resurrection types.)
+
+[OUTPUT]
+- ReadOnlySnapshotCapturer: Safely extracts read-only context snapshots from target sessions.
+
+[POS]
+Read-only context snapshot capturer for non-intrusive peer agent inspection.
 """
 
 from __future__ import annotations

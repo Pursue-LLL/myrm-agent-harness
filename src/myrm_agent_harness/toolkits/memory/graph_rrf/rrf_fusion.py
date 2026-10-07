@@ -1,8 +1,15 @@
-# [POS] toolkits/memory/graph_rrf/rrf_fusion.py
-# [INPUT] VectorHit, GraphHit, FusedMemoryHit, RRFConfig
-# [OUTPUT] ReciprocalRankFusionEngine
+"""Reciprocal Rank Fusion (RRF) Engine for multi-channel memory score unification.
 
-"""Reciprocal Rank Fusion (RRF) Engine for multi-channel memory score unification."""
+[INPUT]
+- toolkits.memory.graph_rrf.types::FusedMemoryHit, GraphHit, RRFConfig, VectorHit (POS: Data models and
+  contract types for Knowledge Graph and Vector RRF Fusion Memory Engine.)
+
+[OUTPUT]
+- ReciprocalRankFusionEngine: Combines heterogeneous ranked lists using Reciprocal Rank Fusion.
+
+[POS]
+Reciprocal Rank Fusion (RRF) Engine for multi-channel memory score unification.
+"""
 
 from __future__ import annotations
 

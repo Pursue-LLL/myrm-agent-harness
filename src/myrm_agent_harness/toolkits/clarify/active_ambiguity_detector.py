@@ -2,6 +2,17 @@
 
 Analyzes raw user instructions against destructive boundaries, missing parameters,
 and architectural divergence, generating proactive ClarifyTool invocation blueprints.
+
+[INPUT]
+- toolkits.clarify.clarify_tool_types::AmbiguityCategory, AmbiguityDetectionReport, ClarifyOptionItem,
+  ClarifyToolParams, ImpactLevelKind (POS: Data types and schemas for framework-bound clarify tool and
+  ambiguity resolver.)
+
+[OUTPUT]
+- ActiveAmbiguityDetector: Proactively detects instructional ambiguities before model execution.
+
+[POS]
+Active ambiguity detector identifying under-specified, multi-path, or risky instructions.
 """
 
 from __future__ import annotations

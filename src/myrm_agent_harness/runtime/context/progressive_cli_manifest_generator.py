@@ -2,6 +2,17 @@
 
 Produces compact, progressive hierarchical listings of hundreds of CLI tools
 to allow LLMs to discover available sandbox commands with minimal token footprint.
+
+[INPUT]
+- runtime.context.progressive_cli_manifest_types::CliCapabilityCategory, CliCapabilityEntry,
+  ManifestFormatConfig (POS: Data types and schemas for progressive CLI capability manifests and dry-run
+  discovery.)
+
+[OUTPUT]
+- ProgressiveCliManifestGenerator: Generates tiered and progressive capability manifests for CLI toolkits.
+
+[POS]
+Progressive CLI Capability Manifest Generator conforming to llms.txt standard.
 """
 
 from __future__ import annotations

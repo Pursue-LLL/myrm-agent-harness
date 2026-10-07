@@ -3,6 +3,20 @@
 Parses rich @ notation references (@file, @session, @agent, @doc, @artifact),
 extracts L0/L1 adaptive compressed snapshots to prevent context explosion,
 and synthesizes structured XML context injection blocks with UI citation metadata.
+
+[INPUT]
+- runtime.context.multi_dimension_at_resolver_types::AtContextIngestionResult, AtReferenceKind,
+  ParsedAtReference, ResolvedAtResource, SnapshotDetailLevel (POS: Data contracts and models for Unified
+  Multi-Dimension At-Symbol Context Resolver.)
+
+[OUTPUT]
+- MultiDimensionAtSyntaxParser: Parses @ references spanning file, session, agent, doc, and artifact
+  dimensions.
+- SnapshotCompressor: Compresses resource payloads into L0 skeleton or L1 structured summaries.
+- UnifiedMultiDimensionAtResolver: Orchestrates multi-dimensional @ resolution and prompt XML hydration.
+
+[POS]
+Unified Multi-Dimension At-Symbol Context Resolver and Snapshot Ingestion Hub.
 """
 
 from __future__ import annotations

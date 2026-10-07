@@ -1,8 +1,20 @@
-# [POS] myrm_agent_harness/toolkits/memory/shared_bus/types.py
-# [INPUT] None (纯领域类型与数据结构模型定义)
-# [OUTPUT] NegativeDecisionEntry, ConcurrencyPoolConfig, BackpressureStatus, ReinforcedDecayConfig 等类型
+"""跨 Agent 共享记忆总线、并发连接池、背压守卫与方案否决账本的核心类型定义。
 
-"""跨 Agent 共享记忆总线、并发连接池、背压守卫与方案否决账本的核心类型定义。"""
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- DecisionVetoSeverity: 否决严重度。
+- NegativeDecisionEntry: 方案否决/禁忌决策专属账本条目。
+- NegativeDecisionCheckResult: 否决决策前置冲突拦截筛查结果。
+- ConcurrencyPoolConfig: 多 Agent 并发连接池与背压守卫配置。
+- BackpressureStatus: 当前并发连接池与内存背压健康状态。
+- ReinforcedDecayConfig: 命中频次强化与半衰期衰减评分配置。
+- ScoredMemoryItem: 经过自学习强化与衰减计算后的记忆条目。
+
+[POS]
+跨 Agent 共享记忆总线、并发连接池、背压守卫与方案否决账本的核心类型定义。
+"""
 
 from __future__ import annotations
 

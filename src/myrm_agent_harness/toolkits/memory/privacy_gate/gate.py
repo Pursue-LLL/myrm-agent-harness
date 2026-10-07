@@ -1,11 +1,23 @@
-# [POS]: myrm_agent_harness/toolkits/memory/privacy_gate/gate.py
-# [INPUT]: pathlib.Path, types, rule_matcher, secret_detector
-# [OUTPUT]: MemoryPrivacyBoundaryGate
 """Memory privacy boundary gate enforcing exclusion rules, secret detection, and safe redaction.
 
 Serves as the mandatory checkpoint before any observation, facts, or notes are persisted
 into permanent memory storage or version-controlled Markdown Wikis.
 Strict typing applied: No `Any` types allowed.
+
+[INPUT]
+- toolkits.memory.privacy_gate.rule_matcher::PathAndExclusionMatcher (POS: Path and content rule matcher for
+  memory privacy boundaries.)
+- toolkits.memory.privacy_gate.secret_detector::DeterministicSecretDetector (POS: Deterministic
+  pattern-based detector for high-risk secrets and credentials.)
+- toolkits.memory.privacy_gate.types::MemoryPrivacyConfig, PrivacyBoundaryViolationError,
+  PrivacyCheckResult, PrivacySensitivityLevel, PrivacyViolationType, SecretFinding (POS: Type definitions
+  and contracts for memory privacy boundary and allowlist gate.)
+
+[OUTPUT]
+- MemoryPrivacyBoundaryGate: Pre-commit security boundary gate for agent memory persistence.
+
+[POS]
+Memory privacy boundary gate enforcing exclusion rules, secret detection, and safe redaction.
 """
 
 from __future__ import annotations

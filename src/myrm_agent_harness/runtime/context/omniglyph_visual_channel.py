@@ -3,6 +3,21 @@
 Compiles ultra-long, low-risk textual context into high-density rasterized glyphs
 for visual language models, bypassing heavy text token consumption while enforcing
 strict fail-closed opt-in gates on code, auth, and financial workloads.
+
+[INPUT]
+- runtime.context.omniglyph_types::BypassReason, OmniGlyphConfig, RenderedGlyphPayload, TaskRiskLevel,
+  VisualChannelRoutingResult (POS: OmniGlyph multimodal visual context channel and Ultra token governor
+  types.)
+- runtime.context.ultra_heuristic_filter::UltraHeuristicPreFilter (POS: Ultra heuristic pre-filter for
+  low-cost token pruning.)
+- External: PIL
+
+[OUTPUT]
+- OmniGlyphVisualRenderer: Renders formatted text streams into compact, high-density visual glyphs.
+- OmniGlyphGovernor: Arbitrates visual context channel routing with fail-closed risk gating.
+
+[POS]
+OmniGlyph visual context channel renderer and arbitration governor.
 """
 
 from __future__ import annotations

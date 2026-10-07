@@ -1,8 +1,15 @@
-# [POS] myrm_agent_harness/agent/context_management/project_state/living_fact_ledger.py
-# [INPUT] LivingFact, ProjectFactType, FactPromotionStage
-# [OUTPUT] ProjectStateLivingFactLedger
+"""长期项目动态事实状态账本管理器，统一纳管已决议方案、被否决路径与硬性物理约束。
 
-"""长期项目动态事实状态账本管理器，统一纳管已决议方案、被否决路径与硬性物理约束。"""
+[INPUT]
+- agent.context_management.project_state.types::FactPromotionStage, LivingFact, ProjectFactType (POS:
+  面向长期项目的动态事实状态账本与上下文投影核心类型定义。)
+
+[OUTPUT]
+- ProjectStateLivingFactLedger: 长期项目动态事实状态账本核心管理器。
+
+[POS]
+长期项目动态事实状态账本管理器，统一纳管已决议方案、被否决路径与硬性物理约束。
+"""
 
 from __future__ import annotations
 

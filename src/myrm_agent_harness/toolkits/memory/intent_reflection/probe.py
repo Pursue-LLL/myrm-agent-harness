@@ -1,6 +1,19 @@
-# [POS] src/myrm_agent_harness/toolkits/memory/intent_reflection/probe.py
-# [INPUT] collections.abc.Sequence, typing, .types, .classifier, myrm_agent_harness.toolkits.memory.types.ProceduralMemory
-# [OUTPUT] PlaybookActivationProbe
+"""Activation probe that selectively awakens relevant playbooks based on intent tier.
+
+[INPUT]
+- toolkits.memory.intent_reflection.classifier::IntentLevelClassifier (POS: Fast-path tiered intent
+  classifier for procedural memory and reflection gating.)
+- toolkits.memory.intent_reflection.types::IntentTier, PlaybookActivationDecision (POS: Typed data contracts
+  for the intent reflection subsystem.)
+- toolkits.memory.types::ProceduralMemory (POS: Memory type system foundation.)
+
+[OUTPUT]
+- PlaybookActivationProbe: Activation probe that selectively awakens relevant playbooks based on intent
+  tier.
+
+[POS]
+Activation probe that selectively awakens relevant playbooks based on intent tier.
+"""
 
 from collections.abc import Sequence
 

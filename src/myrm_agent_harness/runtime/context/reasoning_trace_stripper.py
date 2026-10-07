@@ -3,6 +3,16 @@
 Guarantees that:
 1. Reasoning traces (<think>, <thought>, <reasoning>) never reach the summarizer prompt.
 2. Traces emitted by the summarizer model are stripped before storing in cumulative summaries.
+
+[INPUT]
+- runtime.context.lean_tail_compression_types::ReasoningTagKind, StrippedMessageResult (POS: Data types and
+  schemas for Lean-Tail compression and reasoning trace stripping.)
+
+[OUTPUT]
+- ReasoningTraceStripper: Robust regex-based recursive stripper for reasoning and CoT markup.
+
+[POS]
+Reasoning trace stripper for removing chain-of-thought blocks from context and summaries.
 """
 
 from __future__ import annotations

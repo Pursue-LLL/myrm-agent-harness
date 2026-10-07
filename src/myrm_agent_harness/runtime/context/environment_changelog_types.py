@@ -2,6 +2,19 @@
 
 Defines mutation kinds, structured changelog entries, consolidated environment state digests,
 and anti-amnesia context rehydration payloads.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- EnvironmentMutationKind: Classification of environment and sandbox mutations.
+- MutationActor: Originator of the environment modification.
+- EnvironmentChangelogEntry: Atomic structured ledger entry recording an environmental state mutation.
+- EnvironmentStateDigest: Consolidated state snapshot of the environment deduced from changelog history.
+- RehydrationInjectionPayload: Prompt-ready context payload for cross-session anti-amnesia rehydration.
+
+[POS]
+Type definitions for dual-readable environment changelog and anti-amnesia recovery ledger.
 """
 
 from __future__ import annotations

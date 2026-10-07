@@ -1,8 +1,17 @@
-# [INPUT] Raw retrieval candidates with base similarity scores, and TieredStorageLifecycleManager.
-# [OUTPUT] DecayAwareReranker ranking candidates with blended similarity and decay retention scores.
-# [POS] myrm_agent_harness.toolkits.memory.decay.reranker
+"""Decay-aware reranker blending vector similarity with Ebbinghaus retention weights.
 
-"""Decay-aware reranker blending vector similarity with Ebbinghaus retention weights."""
+[INPUT]
+- toolkits.memory.decay.lifecycle_manager::TieredStorageLifecycleManager (POS: Lifecycle manager governing
+  tiered storage migration and archival.)
+- toolkits.memory.decay.types::DecayRerankItem, StorageTier (POS: Domain models and type definitions for
+  Ebbinghaus decay and tiered storage lifecycle.)
+
+[OUTPUT]
+- DecayAwareReranker: Reranks memory search results by fusing semantic relevance with temporal freshness.
+
+[POS]
+Decay-aware reranker blending vector similarity with Ebbinghaus retention weights.
+"""
 
 from myrm_agent_harness.toolkits.memory.decay.lifecycle_manager import (
     TieredStorageLifecycleManager,

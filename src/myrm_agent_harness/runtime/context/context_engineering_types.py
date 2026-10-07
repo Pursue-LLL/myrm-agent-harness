@@ -2,6 +2,26 @@
 
 Strictly typed data structures without Any, supporting Goldilocks Zone principles,
 CoALA structured note taking, and ReAct trap mitigation.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- TrapType: Four canonical ReAct context trap failure modes.
+- NoteType: CoALA four-quadrant structured note types.
+- ScenarioType: Context engineering profiles for diverse business domains.
+- ACISeverity: Severity levels for ACI tool design linting.
+- StructuredNote: A persistent structured note offloaded from active context.
+- ACIToolParam: Parameter definition for an ACI tool.
+- ACIToolContract: Declarative contract for Agent-Computer Interface (ACI) tools.
+- ACILintIssue: Lint diagnostic issue for tool contract or prompt structure.
+- ACILintReport: Aggregated lint inspection result.
+- ContextRemediationConfig: Thresholds and configurations for context engineering remediation.
+- ScenarioProfile: Adaptive context configuration tailored to specific domains.
+- RemediationResult: Output metrics and transformed messages from remediation pipeline.
+
+[POS]
+Context engineering types and data protocols for ReAct trap remediation and ACI design.
 """
 
 from __future__ import annotations

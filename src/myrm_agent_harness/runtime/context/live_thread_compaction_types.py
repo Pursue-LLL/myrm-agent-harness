@@ -2,6 +2,18 @@
 
 Defines wire formats, synchronization signals, acknowledgments, and
 drift telemetry for host-to-remote sandbox live thread compaction.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- CompactionSyncStatus: Synchronization outcome status between host and remote live thread.
+- LiveThreadCompactionSignal: Outbound compaction signal dispatched from host to remote live thread.
+- LiveThreadCompactionResult: Inbound acknowledgment and telemetry received from remote live thread.
+- RemoteThreadSnapshot: Physical state snapshot of a live remote sandbox thread.
+
+[POS]
+Data types and protocol models for remote sandbox live thread physical compaction.
 """
 
 from __future__ import annotations

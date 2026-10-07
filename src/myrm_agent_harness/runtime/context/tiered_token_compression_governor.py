@@ -2,6 +2,20 @@
 
 Coordinates multi-dimensional budget governance across text, reasoning chains,
 multimodal images, and tool executions inspired by OpenAI Codex Harness.
+
+[INPUT]
+- runtime.context.reasoning_anchor_extractor::ReasoningAnchorExtractor (POS: Extractor for condensing raw
+  reasoning streams into structured logic anchors.)
+- runtime.context.reasoning_compactor_types::CompactionTier, GovernanceCompactionResult,
+  ReasoningChainAnchor, TieredTokenBudget, UnifiedCompactedTurn (POS: Type definitions for
+  reasoning-preserving context compactor and token compression governor.)
+
+[OUTPUT]
+- TieredTokenCompressionGovernor: Orchestrates tiered context compaction while preserving critical reasoning
+  chains.
+
+[POS]
+Tiered token compression governor with reasoning preservation and budget enforcement.
 """
 
 import re

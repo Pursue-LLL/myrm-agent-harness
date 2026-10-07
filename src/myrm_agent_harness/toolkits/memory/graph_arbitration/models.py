@@ -1,3 +1,23 @@
+"""Typed entity-graph contracts for graph arbitration: fact status, conflict resolution actions, entity nodes and weighted relation edges.
+
+[INPUT]
+- External: pydantic
+
+[OUTPUT]
+- FactStatus: Enum members: ACTIVE, SUPERSEDED, CONFLICTING, ARCHIVED
+- ConflictResolutionAction: Enum members: SUPERSEDE_OLD, REINFORCE_EXISTING, COEXIST
+- EntityNode: Data model (fields: node_id, canonical_name, aliases, entity_type, description,
+  created_at_epoch_s, last_accessed_epoch_s)
+- EntityRelationEdge: Data model (fields: edge_id, source_node_id, target_node_id, predicate, fact_value,
+  base_weight, dynamic_weight, status...)
+- ArbitrationResult: Data model (fields: action, active_edge_id, superseded_edge_ids, explanation,
+  confidence)
+
+[POS]
+Typed entity-graph contracts for graph arbitration: fact status, conflict resolution actions, entity nodes
+and weighted relation edges.
+"""
+
 from __future__ import annotations
 
 from enum import StrEnum

@@ -2,6 +2,23 @@
 
 Orchestrates freshness classification, tier-specific TTL caching, and
 single-flight deduplication to prevent stampedes even under realtime bypass.
+
+[INPUT]
+- toolkits.web_search.coalescing.freshness_intent_types::FreshnessDetectionResult, FreshnessGovernorConfig
+  (POS: Data models and intent types for Dynamic Query Freshness and Cache Governance.)
+- toolkits.web_search.coalescing.query_freshness_detector::QueryFreshnessDetector (POS: Query freshness
+  detector for web search and request caching.)
+- toolkits.web_search.coalescing.search_coalescing::bucket_search_limit, build_search_cache_key,
+  has_cacheable_search_results, slice_search_results (POS: Web search coalescing layer.)
+- toolkits.web_search.core.common::SearchResult (POS: Shared data models for web search results, used across
+  the search toolkit.)
+
+[OUTPUT]
+- GovernedSearchReceipt: Audit metadata emitted alongside search results.
+- SearchCacheGovernor: Governor managing dynamic TTL expiration and protected single-flight execution.
+
+[POS]
+Dynamic query freshness and search cache governor.
 """
 
 from __future__ import annotations

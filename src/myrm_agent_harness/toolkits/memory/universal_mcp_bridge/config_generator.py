@@ -1,6 +1,15 @@
-# [POS] src/myrm_agent_harness/toolkits/memory/universal_mcp_bridge/config_generator.py
-# [INPUT] json, .types (ExternalClientKind, McpTransportKind, ClientConfigSnippet, UniversalMemoryBridgeOptions)
-# [OUTPUT] ExternalClientConfigGenerator
+"""Generates plug-and-play MCP configuration snippets for external AI tools.
+
+[INPUT]
+- toolkits.memory.universal_mcp_bridge.types::ClientConfigSnippet, ExternalClientKind, McpTransportKind,
+  UniversalMemoryBridgeOptions (POS: Typed data contracts for the universal mcp bridge subsystem.)
+
+[OUTPUT]
+- ExternalClientConfigGenerator: Generates plug-and-play MCP configuration snippets for external AI tools.
+
+[POS]
+Generates plug-and-play MCP configuration snippets for external AI tools.
+"""
 
 import json
 from pathlib import Path

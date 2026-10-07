@@ -3,6 +3,17 @@
 Enforces deterministic precedence:
     Corrections (100) > VOICE (80) > CONTEXT (60) > AGENTS (40) > SOUL (20)
 Resolves semantic conflicts and prunes ephemeral clutter from long-term memory.
+
+[INPUT]
+- runtime.context.multi_gateway_trust_types::FiveLayerRuleMatrix, RuleConflictResolution, RuleEntry,
+  RuleLayerKind (POS: Strongly typed data contracts for Model-Harness orthogonal decoupling and
+  multi-gateway trust.)
+
+[OUTPUT]
+- FiveLayerRuleArbiter: Arbitrates rule collisions across the 5 layers and performs anti-bloat pruning.
+
+[POS]
+Five-layer rule hierarchy topology arbiter and anti-bloat garbage collector.
 """
 
 from __future__ import annotations

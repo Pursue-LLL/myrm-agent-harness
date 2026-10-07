@@ -2,6 +2,16 @@
 
 Ensures zero-overlap tool designs, well-scoped parameter contracts, and
 strict adherence to XML partitioned Goldilocks Zone system prompt principles.
+
+[INPUT]
+- runtime.context.context_engineering_types::ACILintIssue, ACILintReport, ACISeverity, ACIToolContract (POS:
+  Context engineering types and data protocols for ReAct trap remediation and ACI design.)
+
+[OUTPUT]
+- ACIToolContractLinter: Static analyzer for ACI tool contracts and Goldilocks Zone prompts.
+
+[POS]
+ACI (Agent-Computer Interface) tool contract and Goldilocks Zone prompt linter.
 """
 
 from __future__ import annotations

@@ -2,6 +2,18 @@
 
 Defines configuration options, audit line items, and compaction report metrics
 for zero-LLM-cost deterministic context token pressure mitigation.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ModelFreePrunerConfig: Configuration governing model-free deterministic tool output compaction.
+- PruningAuditItem: Audit record of a single tool message evaluated during deterministic pruning.
+- ModelFreeCompactionReport: Overall execution report and token savings metrics from deterministic
+  compaction.
+
+[POS]
+Type definitions for model-free deterministic tool result pruner and zero-cost context compactor.
 """
 
 from __future__ import annotations

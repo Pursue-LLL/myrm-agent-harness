@@ -1,11 +1,17 @@
-# [POS] myrm_agent_harness/agent/context_management/compression_flush/flush_protocol.py
-# [INPUT] FlushItem, FlushResult, FlushTriggerReason from .types
-# [OUTPUT] PreCompressionMemoryFlushHook (上下文压缩前置强制内存落盘门禁)
-
 """上下文压缩前置强制内存落盘协议与门禁实现。
 
 在滑动窗口丢弃或 LLM 摘要压缩执行前，强制执行未持久化记忆的落盘写入，
 从物理上杜绝长会话压缩导致的不可逆失忆。
+
+[INPUT]
+- agent.context_management.compression_flush.types::FlushItem, FlushResult, FlushTriggerReason (POS:
+  多智能体与长会话上下文压缩即时持久化刷盘协议核心类型。)
+
+[OUTPUT]
+- PreCompressionMemoryFlushHook: 上下文压缩前置内存强制刷盘门禁控制器。
+
+[POS]
+上下文压缩前置强制内存落盘协议与门禁实现。
 """
 
 from __future__ import annotations

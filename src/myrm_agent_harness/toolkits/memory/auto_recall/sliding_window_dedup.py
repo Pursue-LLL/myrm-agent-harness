@@ -1,8 +1,15 @@
-# [POS] toolkits/memory/auto_recall/sliding_window_dedup.py
-# [INPUT] types.RecallCandidate
-# [OUTPUT] SlidingWindowDedupGate
+"""Sliding window deduplication gate to suppress redundant memory injection across turns.
 
-"""Sliding window deduplication gate to suppress redundant memory injection across turns."""
+[INPUT]
+- toolkits.memory.auto_recall.types::RecallCandidate (POS: Type definitions and contracts for Targeted
+  Experience Auto-Recall Engine.)
+
+[OUTPUT]
+- SlidingWindowDedupGate: Maintains a rolling window of recent turns to suppress duplicate memory recalls.
+
+[POS]
+Sliding window deduplication gate to suppress redundant memory injection across turns.
+"""
 
 from __future__ import annotations
 

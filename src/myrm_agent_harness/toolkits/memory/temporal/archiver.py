@@ -1,4 +1,15 @@
-"""Fact Expiration Archiver for periodic pruning and cold-tier archiving."""
+"""Fact Expiration Archiver for periodic pruning and cold-tier archiving.
+
+[INPUT]
+- toolkits.memory.temporal.models::ExpirationScanResult, FactTemporalState, TemporalFactRecord (POS: Data
+  models for Temporal Validity and Fact Expiration Governance Engine.)
+
+[OUTPUT]
+- FactExpirationArchiver: Scans and quarantines expired facts from active working memory to cold storage.
+
+[POS]
+Fact Expiration Archiver for periodic pruning and cold-tier archiving.
+"""
 
 from collections.abc import Sequence
 from datetime import UTC, datetime

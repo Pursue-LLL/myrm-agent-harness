@@ -2,6 +2,16 @@
 
 Inspects prompt directives and temporal domain terms to classify incoming
 queries into realtime bypass, short TTL, or standard cached tiers.
+
+[INPUT]
+- toolkits.web_search.coalescing.freshness_intent_types::FreshnessDetectionResult, FreshnessGovernorConfig,
+  QueryFreshnessTier (POS: Data models and intent types for Dynamic Query Freshness and Cache Governance.)
+
+[OUTPUT]
+- QueryFreshnessDetector: High-speed heuristic detector for query temporal sensitivity.
+
+[POS]
+Query freshness detector for web search and request caching.
 """
 
 from __future__ import annotations

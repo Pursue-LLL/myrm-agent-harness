@@ -2,6 +2,18 @@
 
 Defines three-tier segment slices (head protected, middle compacted, tail protected),
 metrics, configurations, and transparent lifecycle inspection reports.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ContextSectionKind: Categorized lifecycle segment in a three-tier protected context.
+- ContextSectionSlice: Individual segment representation with token counts and compression status.
+- ContextLifecycleSectionReport: Comprehensive three-tier context lifecycle audit payload.
+- LeanTailBoundaryConfig: Configuration governing protect-first-n, protect-last-n and thresholds.
+
+[POS]
+Data contracts and schemas for Lean-Tail Context Lifecycle and Visualizer.
 """
 
 from __future__ import annotations

@@ -1,4 +1,16 @@
-"""Lineage snapshot and rollback engine for evolving memory rules."""
+"""Lineage snapshot and rollback engine for evolving memory rules.
+
+[INPUT]
+- toolkits.memory.evolution.models::EvolvingMemoryRule, MemorySnapshot (POS: Data models for Order-Invariant
+  Memory Evolution and Decay Engine.)
+
+[OUTPUT]
+- MemoryLineageSnapshotEngine: Provides point-in-time snapshotting, cryptographic checksumming, and atomic
+  rollback.
+
+[POS]
+Lineage snapshot and rollback engine for evolving memory rules.
+"""
 
 import hashlib
 import json

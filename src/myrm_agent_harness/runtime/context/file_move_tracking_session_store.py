@@ -2,6 +2,17 @@
 
 Inspired by HermesOffice project-store. Maintains stable ChatIds across
 file renames, moves, and directory reorganizations with append-only JSONL logs.
+
+[INPUT]
+- runtime.context.file_move_tracking_store_types::ChatMessageEntry, ChatMetaSnapshot, FileTrackResolution
+  (POS: Type definitions for file-move tracking session store.)
+
+[OUTPUT]
+- PersistentFileMoveTrackingSessionStore: Session store binding conversation history to files with
+  rename/move tracking.
+
+[POS]
+Persistent file-move tracking session store with stable ChatId invariants.
 """
 
 import contextlib

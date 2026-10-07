@@ -2,6 +2,20 @@
 
 Enables instant session opening (<100ms) on ultra-long conversations via bounded
 latest-turn hydration, demand-driven upward pagination, and sliding window stubbing.
+
+[INPUT]
+- runtime.context.bounded_hydration_types::BoundedInitialPageHeader, HeavyToolBlobReference,
+  HydratedMessageItem, LightweightMessageStub, MessageHydrationState, UpwardPageSlice (POS: Types and data
+  models for bounded initial page loading and upward cursor hydration.)
+- runtime.context.heavy_tool_payload_blob_store::HeavyToolPayloadBlobStore (POS: Heavy tool payload blob
+  store and detachment manager.)
+
+[OUTPUT]
+- BoundedInitialPageHydrationEngine: Manages bounded initial hydration, lazy upward cursor paging, and
+  sliding window eviction.
+
+[POS]
+Bounded initial page hydration engine with lazy upward cursor paging and memory eviction.
 """
 
 from __future__ import annotations

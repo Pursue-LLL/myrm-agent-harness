@@ -1,8 +1,18 @@
-# [INPUT] Domain models for memory decay, RFM parameters, and tiered lifecycle storage.
-# [OUTPUT] Typed models for storage tiers, decay profiles, rerank items, and migration reports.
-# [POS] myrm_agent_harness.toolkits.memory.decay.types
+"""Domain models and type definitions for Ebbinghaus decay and tiered storage lifecycle.
 
-"""Domain models and type definitions for Ebbinghaus decay and tiered storage lifecycle."""
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- StorageTier: Tiered storage classification for memory records based on decay strength.
+- DecayScorerConfig: Configurable hyperparameters for the Ebbinghaus exponential decay function.
+- MemoryDecayProfile: Lifecycle and decay tracking state attached to an individual memory item.
+- DecayRerankItem: Scored memory retrieval candidate with blended similarity and decay weights.
+- TierMigrationReport: Audit report generated following periodic evaluation and tiered migration.
+
+[POS]
+Domain models and type definitions for Ebbinghaus decay and tiered storage lifecycle.
+"""
 
 from dataclasses import dataclass, field
 from enum import StrEnum

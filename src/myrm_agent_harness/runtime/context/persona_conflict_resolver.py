@@ -1,4 +1,21 @@
-"""Persona semantic conflict probe and mutual exclusion resolver."""
+"""Persona semantic conflict probe and mutual exclusion resolver.
+
+[INPUT]
+- runtime.context.persona_conflict_resolver_types::ArbitratedPersonaResult, PersonaConflictFinding,
+  PersonaSnippet, PersonaSourceTier, PolarityDimension (POS: Data contracts and types for persona semantic
+  conflict probe and mutual exclusion resolver.)
+
+[OUTPUT]
+- PolarityPatternRegistry: Registry of antagonistic keywords and phrases across semantic polarity
+  dimensions.
+- PersonaSemanticConflictProbe: Scans persona snippets to detect semantic clashes and mutually exclusive
+  directives.
+- PersonaMutualExclusionResolver: Arbitrates detected persona conflicts by enforcing hard custom/session
+  overrides.
+
+[POS]
+Persona semantic conflict probe and mutual exclusion resolver.
+"""
 
 from __future__ import annotations
 

@@ -1,4 +1,17 @@
-"""Data models for Dual-Track Fact Decision and Verbatim Evidence Tracer Engine."""
+"""Data models for Dual-Track Fact Decision and Verbatim Evidence Tracer Engine.
+
+[INPUT]
+- External: pydantic
+
+[OUTPUT]
+- VerbatimEvidenceSlice: Immutable verbatim conversational evidence slice anchoring factual decisions.
+- FactDecisionEntry: High-privilege compact structured fact KV with bidirectional evidence pointers.
+- DualTrackAssembly: Assembled dual-track prompt injection containing compact facts and lazy handles.
+- EvidenceExpansionReport: Detailed retrospective report unrolling verbatim evidence for a specific fact.
+
+[POS]
+Data models for Dual-Track Fact Decision and Verbatim Evidence Tracer Engine.
+"""
 
 from datetime import datetime
 

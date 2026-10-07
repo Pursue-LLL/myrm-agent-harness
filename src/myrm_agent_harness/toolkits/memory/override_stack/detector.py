@@ -1,6 +1,17 @@
-# [POS] src/myrm_agent_harness/toolkits/memory/override_stack/detector.py
-# [INPUT] re, typing, .types.EphemeralBypassRecord, myrm_agent_harness.toolkits.memory.types.ProceduralMemory
-# [OUTPUT] PlaybookConflictDetector
+"""Detects acute semantic contradictions between user turn instructions and crystallized playbooks.
+
+[INPUT]
+- toolkits.memory.override_stack.types::EphemeralBypassRecord (POS: Typed data contracts for the override
+  stack subsystem.)
+- toolkits.memory.types::ProceduralMemory (POS: Memory type system foundation.)
+
+[OUTPUT]
+- PlaybookConflictDetector: Detects acute semantic contradictions between user turn instructions and
+  crystallized playbooks.
+
+[POS]
+Detects acute semantic contradictions between user turn instructions and crystallized playbooks.
+"""
 
 import re
 

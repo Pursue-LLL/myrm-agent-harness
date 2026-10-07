@@ -4,6 +4,18 @@ Implements LLM OS virtual memory paging (RAM vs Disk) and CoALA quadrant coordin
 - Working Memory (Context RAM): Directly rendered in current LLM prompt
 - External Memory (Disk / Paged Out): Swapped out to prevent context bloat,
   and swapped in just-in-time (JIT) based on keyword or note type relevance.
+
+[INPUT]
+- runtime.context.context_engineering_types::ContextRemediationConfig, NoteType, ScenarioProfile,
+  ScenarioType, StructuredNote (POS: Context engineering types and data protocols for ReAct trap remediation
+  and ACI design.)
+
+[OUTPUT]
+- ContextVirtualMemoryManager: Manages virtual memory paging and 4-quadrant structured notes for
+  long-running agents.
+
+[POS]
+Context Virtual Memory Manager and CoALA 4-Quadrant Structured Note-Taking Engine.
 """
 
 from __future__ import annotations

@@ -2,6 +2,19 @@
 
 Defines schemas for multi-tier instruction scoping (global, workspace, subpackage),
 inheritance resolution strategies, and invisible Unicode security metrics.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- InstructionTierKind: Hierarchical tier level for instruction scoping.
+- InheritanceResolutionStrategy: Strategy for resolving conflicts between ancestor and descendant
+  instruction rules.
+- InstructionRuleEntry: A single loaded instruction rule scoped to a specific hierarchy tier.
+- HierarchicalInstructionBlock: Aggregated, sanitized, and structured prompt instruction package.
+
+[POS]
+Type definitions for Project-Specific Goosehints and Hierarchical Instruction Hub.
 """
 
 from __future__ import annotations

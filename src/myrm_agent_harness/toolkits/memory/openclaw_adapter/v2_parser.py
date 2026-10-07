@@ -1,6 +1,18 @@
-# [POS] src/myrm_agent_harness/toolkits/memory/openclaw_adapter/v2_parser.py
-# [INPUT] json, logging, pathlib.Path, .types, .crash_rescuer
-# [OUTPUT] OpenClawV2Parser
+"""Parser and format adapter for OpenClaw 2.0 multi-user, Swarm topology, and structured memories.
+
+[INPUT]
+- toolkits.memory.openclaw_adapter.crash_rescuer::OpenClawCrashRescuer (POS: Crash recovery engine for
+  corrupted OpenClaw SQLite databases.)
+- toolkits.memory.openclaw_adapter.types::OpenClawMemoryEntryV2, OpenClawParsedBundle, OpenClawSessionNode,
+  OpenClawVersion, RescueReport (POS: Typed data contracts for the openclaw adapter subsystem.)
+
+[OUTPUT]
+- OpenClawV2Parser: Parser and format adapter for OpenClaw 2.0 multi-user, Swarm topology, and structured
+  memories.
+
+[POS]
+Parser and format adapter for OpenClaw 2.0 multi-user, Swarm topology, and structured memories.
+"""
 
 import json
 import logging

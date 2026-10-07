@@ -1,8 +1,20 @@
-# [INPUT] Domain enums, dataclasses, and type definitions for CodeGraph memory asset and impact analysis.
-# [OUTPUT] Typed models for code symbols, dependency edges, risk levels, and blast radius reports.
-# [POS] myrm_agent_harness.toolkits.memory.codegraph.types
+"""Domain models and type definitions for CodeGraph memory assets and impact analysis.
 
-"""Domain models and type definitions for CodeGraph memory assets and impact analysis."""
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- SymbolKind: Categorization of code symbols discovered in the workspace.
+- EdgeKind: Categorization of structural dependencies between symbols.
+- ImpactRiskLevel: Assessment of risk level when modifying a specific symbol.
+- CodeSymbol: Represents an atomic semantic code symbol in the workspace.
+- DependencyEdge: Directed dependency relation from one symbol/file to another.
+- ImpactAnalysisReport: Pre-modification impact analysis result evaluated by the CodeGraph engine.
+- CodeGraphAsset: Persistent project-level CodeGraph memory asset snapshot.
+
+[POS]
+Domain models and type definitions for CodeGraph memory assets and impact analysis.
+"""
 
 from dataclasses import dataclass, field
 from enum import StrEnum

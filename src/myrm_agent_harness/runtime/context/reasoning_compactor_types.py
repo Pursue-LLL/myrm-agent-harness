@@ -2,6 +2,21 @@
 
 Inspired by OpenAI Codex Harness ARC-AGI-3 core mechanisms.
 Provides data models for reasoning retention anchors, tiered budgets, and compaction results.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ReasoningPreservationMode: Modes for preserving cross-turn reasoning streams.
+- CompactionTier: Compaction hierarchy tiers applied adaptively based on token budget.
+- TieredTokenBudget: Multi-dimensional token budget configuration for text, reasoning, and multimodal
+  content.
+- ReasoningChainAnchor: Condensed architectural and logical deduction anchor preserved across turns.
+- UnifiedCompactedTurn: A sanitized turn post-governance compaction.
+- GovernanceCompactionResult: Comprehensive diagnostic result from the tiered token compression governor.
+
+[POS]
+Type definitions for reasoning-preserving context compactor and token compression governor.
 """
 
 from dataclasses import dataclass, field

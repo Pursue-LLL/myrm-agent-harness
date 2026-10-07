@@ -1,4 +1,16 @@
-"""Future Action Impact Evaluator quantifying memory utility for downstream decisions."""
+"""Future Action Impact Evaluator quantifying memory utility for downstream decisions.
+
+[INPUT]
+- toolkits.memory.action_impact.models::ActionImpactAssessment, ActionImpactCategory, ActionImpactTier (POS:
+  Data models for Future Action Impact Filtering Gate.)
+
+[OUTPUT]
+- FutureActionImpactEvaluator: Evaluates whether an extracted fact will substantively alter future agent
+  decisions.
+
+[POS]
+Future Action Impact Evaluator quantifying memory utility for downstream decisions.
+"""
 
 import re
 from typing import ClassVar

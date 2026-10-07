@@ -2,6 +2,17 @@
 
 First-class built-in tool empowering agents to proactively ask clarifying questions,
 resolve ambiguities, and eliminate hazardous blind guessing during execution.
+
+[INPUT]
+- toolkits.clarify.clarify_tool_types::ClarifyResolutionResult, ClarifyToolParams (POS: Data types and
+  schemas for framework-bound clarify tool and ambiguity resolver.)
+
+[OUTPUT]
+- FrameworkBoundClarifyTool: Standardized framework-bound tool for interactive clarification and
+  disambiguation.
+
+[POS]
+Framework-bound standardized ClarifyTool implementation.
 """
 
 from __future__ import annotations

@@ -3,6 +3,16 @@
 Isolates high-noise exploratory and diagnostic tasks (log analysis, broad searches)
 to ephemeral subagents running on lightweight models, preventing thousands of
 intermediate lines from polluting the primary agent's context.
+
+[INPUT]
+- runtime.context.quiet_command_spill_types::SubagentFirewallConfig, SubagentFirewallResult (POS: Quiet
+  command rewriter, output spill, and Subagent context firewall types.)
+
+[OUTPUT]
+- SubagentContextFirewall: Firewall isolating noisy background tasks and enforcing model downgrades.
+
+[POS]
+Subagent context firewall and model downgrade governor.
 """
 
 from __future__ import annotations

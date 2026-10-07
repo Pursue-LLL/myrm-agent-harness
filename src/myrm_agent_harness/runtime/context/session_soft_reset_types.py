@@ -1,4 +1,19 @@
-"""Data contracts and types for session state soft-reset and instant memory consolidation."""
+"""Data contracts and types for session state soft-reset and instant memory consolidation.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ResetTriggerKind: The source or channel that initiated the session soft-reset.
+- VaultedMemoryItem: An individual distilled memory item extracted prior to context window clearing.
+- VaultedConsolidatedMemory: Vaulted memory package holding all consolidated facts from the pre-reset
+  conversation.
+- SoftResetExecutionResult: Outcome of soft-reset: Short-term window cleared while baseline & memories
+  seamlessly reloaded.
+
+[POS]
+Data contracts and types for session state soft-reset and instant memory consolidation.
+"""
 
 from __future__ import annotations
 

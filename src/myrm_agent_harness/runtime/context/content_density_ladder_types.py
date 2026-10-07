@@ -2,6 +2,18 @@
 
 Defines the 4-tier content density ladder (peek, skim, range, full), reading requests,
 outline nodes, and token-throttled reading results with lazy object safeguard.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- DensityLevel: Four-tier content density hierarchy.
+- DensityReadingRequest: Configurable request specifying reading density level and parameters.
+- DensityOutlineNode: Structural outline symbol node captured from source text.
+- DensityReadingResult: Outcome of token-throttled progressive content reading.
+
+[POS]
+Type definitions for progressive content density ladder and peek/skim token throttler.
 """
 
 from __future__ import annotations

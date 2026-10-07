@@ -2,6 +2,23 @@
 
 Provides structured models for repo AST topology, attention anchors,
 cross-file atomic diffs, and verification results.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- RepoSymbolKind: Kinds of top-level code symbols extracted for AST topology.
+- RepoAstSymbol: A top-level symbol extracted from source AST.
+- RepoFileNode: Metadata and extracted AST symbols for a single file in the repository.
+- RepoAstTopology: Global AST topology skeleton of the entire codebase.
+- SemanticAnchor: Lost-in-the-middle attention anchor injected across the 1M context.
+- PackedRepoContext: Complete 1M-token wide-context serialization for global refactoring.
+- FileAtomicDiff: Atomic replacement specification for a single file.
+- RefactorPlanBundle: Bundle of coordinated cross-file atomic diffs for a refactor turn.
+- RefactorApplyResult: Result of attempting an atomic cross-file refactor transaction.
+
+[POS]
+Type definitions for native 1M long-context full-repo refactoring pipeline.
 """
 
 from dataclasses import dataclass, field

@@ -1,4 +1,16 @@
-"""Dual-Track Decision Tracer engine decoupling high-privilege state facts and verbatim evidence."""
+"""Dual-Track Decision Tracer engine decoupling high-privilege state facts and verbatim evidence.
+
+[INPUT]
+- toolkits.memory.dual_track.models::DualTrackAssembly, EvidenceExpansionReport, FactDecisionEntry,
+  VerbatimEvidenceSlice (POS: Data models for Dual-Track Fact Decision and Verbatim Evidence Tracer Engine.)
+
+[OUTPUT]
+- DualTrackDecisionTracer: Manages high-privilege state facts for instant decisions while retaining lazy
+  verbatim evidence handles.
+
+[POS]
+Dual-Track Decision Tracer engine decoupling high-privilege state facts and verbatim evidence.
+"""
 
 import uuid
 from collections.abc import Sequence

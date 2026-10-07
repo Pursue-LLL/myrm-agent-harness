@@ -1,11 +1,17 @@
-# [POS]: myrm_agent_harness/toolkits/memory/privacy_gate/rule_matcher.py
-# [INPUT]: fnmatch, pathlib.Path, re
-# [OUTPUT]: PathAndExclusionMatcher
 """Path and content rule matcher for memory privacy boundaries.
 
 Evaluates source file paths, .myrmignore rules, and exclusion patterns
 to prevent private credentials or configuration files from entering memory.
 Strict typing applied: No `Any` types allowed.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- PathAndExclusionMatcher: Evaluates whether paths or content are prohibited by exclusion policies.
+
+[POS]
+Path and content rule matcher for memory privacy boundaries.
 """
 
 from __future__ import annotations

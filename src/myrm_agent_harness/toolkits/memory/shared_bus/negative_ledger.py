@@ -1,8 +1,15 @@
-# [POS] myrm_agent_harness/toolkits/memory/shared_bus/negative_ledger.py
-# [INPUT] NegativeDecisionEntry, NegativeDecisionCheckResult, DecisionVetoSeverity from .types
-# [OUTPUT] NegativeDecisionLedger (方案否决历史专属账本管理器)
+"""方案否决与禁忌决策专属账本，前置拦截已被废弃的方案，彻底杜绝 AI 重复踩坑。
 
-"""方案否决与禁忌决策专属账本，前置拦截已被废弃的方案，彻底杜绝 AI 重复踩坑。"""
+[INPUT]
+- toolkits.memory.shared_bus.types::DecisionVetoSeverity, NegativeDecisionCheckResult, NegativeDecisionEntry
+  (POS: 跨 Agent 共享记忆总线、并发连接池、背压守卫与方案否决账本的核心类型定义。)
+
+[OUTPUT]
+- NegativeDecisionLedger: 方案否决专属账本管理器。
+
+[POS]
+方案否决与禁忌决策专属账本，前置拦截已被废弃的方案，彻底杜绝 AI 重复踩坑。
+"""
 
 from __future__ import annotations
 

@@ -2,6 +2,19 @@
 
 Defines spill policies, spill audit records, processed tool output wrappers,
 and on-demand range slice request/result contracts.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- SpillPolicy: Configurable thresholds and preview limits governing tool output spill.
+- SpillRecord: Audit metadata tracking a spilled tool output artifact.
+- SpillProcessResult: Outcome of processing tool output against spill policy.
+- SpillSliceRequest: Request contract for retrieving an on-demand line range slice from a spilled artifact.
+- SpillSliceResult: Retrieved slice of spilled content with navigation metadata.
+
+[POS]
+Type definitions for session-scoped tool output spill store and bounded preview locator.
 """
 
 from __future__ import annotations

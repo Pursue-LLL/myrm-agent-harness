@@ -1,8 +1,18 @@
-# [POS] myrm_agent_harness/toolkits/memory/dialectic/types.py
-# [INPUT] None (纯领域类型与数据结构模型定义)
-# [OUTPUT] UserBaseProfile, DialecticEphemeralMind, DialecticCadenceConfig, DialecticReasoningResult, SessionHeatState
+"""辩证推理深度用户表征与自适应会话步调动态节流核心类型。
 
-"""辩证推理深度用户表征与自适应会话步调动态节流核心类型。"""
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- SessionHeatState: 会话冷热活跃状态。
+- UserBaseProfile: 长期相对稳定的用户基础画像 (低频刷新，捍卫前缀缓存)。
+- DialecticEphemeralMind: 即时认知心智状态与瞬间关切 (放置于 Volatile 层末端，300~500 字符内)。
+- DialecticCadenceConfig: 自适应会话步调与节流配置。
+- DialecticReasoningResult: 辩证推理与步调调度执行结果。
+
+[POS]
+辩证推理深度用户表征与自适应会话步调动态节流核心类型。
+"""
 
 from __future__ import annotations
 

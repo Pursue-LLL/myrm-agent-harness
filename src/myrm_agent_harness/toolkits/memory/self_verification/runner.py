@@ -1,6 +1,16 @@
-# [POS] src/myrm_agent_harness/toolkits/memory/self_verification/runner.py
-# [INPUT] collections.abc, dataclasses, re, time, uuid, math, types
-# [OUTPUT] MemorySelfVerificationRunner
+"""Automated benchmark runner for in-place mutation and semantic verification.
+
+[INPUT]
+- toolkits.memory.self_verification.types::FactMutationProbeResult, MemoryVerificationReport,
+  ProceduralAntiDropProbeResult, VerificationHealthGrade, ZeroLexicalOverlapProbeResult (POS: Typed data
+  contracts for the self verification subsystem.)
+
+[OUTPUT]
+- MemorySelfVerificationRunner: Automated benchmark runner for in-place mutation and semantic verification.
+
+[POS]
+Automated benchmark runner for in-place mutation and semantic verification.
+"""
 
 import math
 import re

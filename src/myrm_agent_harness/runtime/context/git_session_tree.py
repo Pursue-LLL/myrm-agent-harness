@@ -1,4 +1,17 @@
-"""Git-like non-linear session tree and parent-id branching engine."""
+"""Git-like non-linear session tree and parent-id branching engine.
+
+[INPUT]
+- runtime.context.git_session_tree_types::GitSessionBranchDescriptor, GitSessionTreeNode,
+  SessionTreeEntryKind, SessionTreeTopology (POS: Data contracts and types for Git-like non-linear session
+  tree and branching engine.)
+
+[OUTPUT]
+- GitLikeSessionTreeEngine: Manages an append-only non-linear tree of conversation turns supporting
+  branching and rewind.
+
+[POS]
+Git-like non-linear session tree and parent-id branching engine.
+"""
 
 from __future__ import annotations
 

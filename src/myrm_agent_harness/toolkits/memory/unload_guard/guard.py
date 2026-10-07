@@ -1,11 +1,23 @@
-# [POS]: myrm_agent_harness/toolkits/memory/unload_guard/guard.py
-# [INPUT]: pathlib.Path, time, types, snapshot_builder, myrm_agent_harness.agent.context_management.handoff
-# [OUTPUT]: UnloadGracefulFlushGuard
 """Atomic emergency graceful flush guard and session recovery manager.
 
 Ensures working memory and in-flight modifications are zero-LLM flushed to disk
 upon browser unload or desktop window close events.
 Strict typing applied: No `Any` types allowed.
+
+[INPUT]
+- agent.context_management.handoff::AgentHandoffEngine, AgentHandoffSpec, FailedApproachRecord,
+  FinalizeSessionRequest, FinalizeSessionResult (POS: Public interface for agent handoff management and
+  session finalization.)
+- toolkits.memory.unload_guard.snapshot_builder::ZeroLlmEmergencySnapshotBuilder (POS: Zero-LLM emergency
+  snapshot generator for graceful unload and crash fallback.)
+- toolkits.memory.unload_guard.types::EmergencyFlushRequest, EmergencyFlushResult, UnfinalizedSessionSummary
+  (POS: Type definitions for desktop/WebUI unload and graceful flush finalize guard.)
+
+[OUTPUT]
+- UnloadGracefulFlushGuard: Manages sub-millisecond atomic emergency flushes and startup resumption.
+
+[POS]
+Atomic emergency graceful flush guard and session recovery manager.
 """
 
 from __future__ import annotations

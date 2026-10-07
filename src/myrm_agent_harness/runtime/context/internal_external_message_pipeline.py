@@ -2,6 +2,18 @@
 
 Implements transformContext() middleware for progressive compression and
 convertToLlm() protocol adapter to enforce zero internal metadata leakage to external LLMs.
+
+[INPUT]
+- runtime.context.internal_external_message_pipeline_types::AgentMessage, AgentMessageKind, LlmMessage,
+  LlmToolCall, TransformPipelineMetrics, TransformPipelineOptions (POS: Type definitions for
+  internal/external message separation and context transformation pipeline.)
+
+[OUTPUT]
+- InternalExternalMessagePipeline: Orchestrates message separation, progressive compression, and LLM
+  protocol conversion.
+
+[POS]
+Internal/external message separation and context transformation pipeline.
 """
 
 from __future__ import annotations

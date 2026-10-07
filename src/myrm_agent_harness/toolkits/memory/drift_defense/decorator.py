@@ -1,11 +1,18 @@
-# [POS]: myrm_agent_harness/toolkits/memory/drift_defense/decorator.py
-# [INPUT]: types
-# [OUTPUT]: StaleMemoryDecorator
 """Prompt decorator and confidence decay applier for stale memories.
 
 Applies warning banners and confidence adjustments to ensure LLMs treat drifted
 memories as weak historical references rather than absolute ground truth.
 Strict typing applied: No `Any` types allowed.
+
+[INPUT]
+- toolkits.memory.drift_defense.types::DriftCheckResult, DriftDefenseConfig (POS: Type definitions for
+  ground truth priority and memory drift stale defense.)
+
+[OUTPUT]
+- StaleMemoryDecorator: Decorates drifted memories with prompt warnings and computes decayed confidence.
+
+[POS]
+Prompt decorator and confidence decay applier for stale memories.
 """
 
 from __future__ import annotations

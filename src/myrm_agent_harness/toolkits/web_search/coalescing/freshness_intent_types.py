@@ -2,6 +2,17 @@
 
 Provides freshness classification tiers, detection results, and governor
 configuration settings for web search caching and single-flight coalescing.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- QueryFreshnessTier: Classification tier of query freshness requirements.
+- FreshnessDetectionResult: Result payload evaluating a query's temporal freshness requirement.
+- FreshnessGovernorConfig: Settings controlling TTL thresholds and freshness keyword definitions.
+
+[POS]
+Data models and intent types for Dynamic Query Freshness and Cache Governance.
 """
 
 from __future__ import annotations

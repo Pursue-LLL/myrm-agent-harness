@@ -3,6 +3,17 @@
 Intercepts high-volume terminal commands (pytest, npm test, cargo test, git status)
 and injects quiet/concise flags before execution, preventing thousands of verbose
 lines from flooding the active conversation window while respecting explicit user verbosity.
+
+[INPUT]
+- runtime.context.quiet_command_spill_types::CommandCategory, CommandRewriteResult (POS: Quiet command
+  rewriter, output spill, and Subagent context firewall types.)
+
+[OUTPUT]
+- QuietCommandRewriterHook: Pre-execution hook that transparently adds quiet flags to noisy developer
+  commands.
+
+[POS]
+Quiet command rewriter hook.
 """
 
 from __future__ import annotations

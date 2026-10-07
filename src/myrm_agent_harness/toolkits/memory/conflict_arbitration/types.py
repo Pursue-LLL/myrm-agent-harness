@@ -1,6 +1,22 @@
-# [POS] src/myrm_agent_harness/toolkits/memory/conflict_arbitration/types.py
-# [INPUT] standard library typing, enum, dataclasses, datetime, hashlib
-# [OUTPUT] ConflictResolutionKind, ConflictSeverity, SemanticConflictRecord, UserConfirmedFreezeLock, ArbitrationAssessment, HumanArbitrationDecision, UserConfirmedFreezeViolationError
+"""Typed data contracts for the conflict arbitration subsystem.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ConflictResolutionKind: Resolution kind determined by semantic arbitration or human judgment.
+- ConflictSeverity: Severity level of semantic divergence.
+- UserConfirmedFreezeViolationError: Raised when an automated process attempts to overwrite or alter a
+  user-confirmed frozen memory.
+- UserConfirmedFreezeLock: Represents an immutable freeze lock placed upon user-confirmed facts.
+- SemanticConflictRecord: Detailed record of a detected conflict between existing memory and incoming
+  candidate fact.
+- ArbitrationAssessment: Assessment produced by the semantic arbitrator.
+- HumanArbitrationDecision: Decision submitted by human operator to finalize a conflict.
+
+[POS]
+Typed data contracts for the conflict arbitration subsystem.
+"""
 
 import hashlib
 from dataclasses import dataclass, field

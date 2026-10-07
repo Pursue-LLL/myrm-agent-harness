@@ -2,6 +2,20 @@
 
 Defines project phases, milestone decision registries, dependent TODO topologies,
 incremental material delta packages, and continuous resumption bundles.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- MilestonePhaseKind: Lifecycle phase of a long-horizon engineering or business project.
+- MilestoneDecisionRecord: Immutable architectural or business decision committed during a milestone.
+- ProjectTodoItem: Executable action item with explicit dependency graph links.
+- IncrementalMaterialUpdate: Extracted semantic diff when new documents or modified specs are injected.
+- ProjectMilestoneCheckpoint: Project-level persistent checkpoint snapshot surviving multi-week pauses.
+- ProjectResumptionPackage: Resumption artifact containing project panorama and agent injection prompt.
+
+[POS]
+Data contracts for long-horizon project milestone checkpoints and resumption.
 """
 
 from __future__ import annotations

@@ -2,6 +2,17 @@
 
 Aggregates developer identity, active project matrices, technical stacks,
 and negative bias filters from long-term memory into a compact profile.
+
+[INPUT]
+- toolkits.memory.social_curator.models::UserAffinityProfile (POS: Data models for
+  HighSignalSocialFeedCurator.)
+
+[OUTPUT]
+- UserAffinityProfileBuilder: Compiles unstructured memory entries and explicit attributes into
+  UserAffinityProfile.
+
+[POS]
+Persona and venture affinity profile builder.
 """
 
 from collections.abc import Mapping

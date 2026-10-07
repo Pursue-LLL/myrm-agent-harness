@@ -1,8 +1,16 @@
-# [POS] toolkits/memory/strategies/hindsight/counterfactual_extractor.py
-# [INPUT] uuid, FailureTurn, FailureTrajectory, HindsightRule
-# [OUTPUT] CounterfactualRuleExtractor
+"""Counterfactual rule extractor deriving actionable hindsight lessons from failure trajectories.
 
-"""Counterfactual rule extractor deriving actionable hindsight lessons from failure trajectories."""
+[INPUT]
+- toolkits.memory.strategies.hindsight.types::FailureTrajectory, FailureTurn, HindsightRule (POS: Type
+  definitions and contracts for Hindsight Experience Replay and Reflection Buffer.)
+
+[OUTPUT]
+- CounterfactualRuleExtractor: Performs counterfactual reasoning to extract mistake signatures and proactive
+  corrections.
+
+[POS]
+Counterfactual rule extractor deriving actionable hindsight lessons from failure trajectories.
+"""
 
 from __future__ import annotations
 

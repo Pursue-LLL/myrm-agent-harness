@@ -2,6 +2,19 @@
 
 Strictly typed, 0 Any. Implements message importance classification,
 lossless tool reduction, and constraint anchor preservation.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- MessageImportanceTier: Categorical importance level for conversation messages.
+- ClassifiedMessage: A message tagged with importance tier and character weight.
+- ConstraintAnchor: Immutable user intent or business constraint anchored across compaction.
+- LosslessCompactorConfig: Configuration for lossless lean-tail compaction.
+- LeanReductionStats: Metrics and statistics for lossless lean-tail reduction.
+
+[POS]
+Data types and schemas for default lossless lean-tail conversation compaction.
 """
 
 from __future__ import annotations

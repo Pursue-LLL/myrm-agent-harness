@@ -3,6 +3,18 @@
 Manages ring-buffered incremental chunks for massive token streams,
 performs automatic threshold-based artifact offloading (>32KB) to protect DOM memory,
 and supports idempotent reconnect resume based on sequence IDs and byte offsets.
+
+[INPUT]
+- runtime.context.extreme_streaming_governor_types::OffloadStatus, StreamChunkItem, StreamGovernorStats,
+  StreamResumeCursor (POS: Type definitions for 384K Extreme Long Output Streaming and Chunk Memory
+  Governor.)
+
+[OUTPUT]
+- CursorExpiredError: Raised when the requested resume cursor has fallen outside the ring buffer window.
+- ExtremeStreamingGovernor: Controls high-volume streaming throughput with bounded memory and offloading.
+
+[POS]
+384K Extreme Long Output Streaming and Chunk Memory Governor.
 """
 
 from __future__ import annotations

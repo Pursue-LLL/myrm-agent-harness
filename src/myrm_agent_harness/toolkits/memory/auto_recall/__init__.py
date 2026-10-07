@@ -1,8 +1,26 @@
-# [POS] toolkits/memory/auto_recall/__init__.py
-# [INPUT] types, trigger_classifier, sliding_window_dedup, fail_open_reranker, recall_gate
-# [OUTPUT] Public exports for auto_recall package
+"""Targeted Experience Auto-Recall Trigger with Multi-Turn Dedup and Fail-Open Reranking.
 
-"""Targeted Experience Auto-Recall Trigger with Multi-Turn Dedup and Fail-Open Reranking."""
+[INPUT]
+- toolkits.memory.auto_recall.fail_open_reranker::FailOpenReranker (POS: Fail-open reranker wrapper
+  guaranteeing non-blocking fallback on missing keys or timeouts.)
+- toolkits.memory.auto_recall.recall_gate::ExperienceRecallGate (POS: Facade orchestrator coordinating
+  trigger classification, dedup, and fail-open reranking.)
+- toolkits.memory.auto_recall.sliding_window_dedup::SlidingWindowDedupGate (POS: Sliding window
+  deduplication gate to suppress redundant memory injection across turns.)
+- toolkits.memory.auto_recall.trigger_classifier::ExperienceRecallTriggerClassifier (POS: Deterministic and
+  lightweight classifier for 5 high-risk recall trigger scenarios.)
+- toolkits.memory.auto_recall.types::AutoRecallDecision, RecallCandidate, RecallGateConfig,
+  RecallTriggerType, RerankerStatus (POS: Type definitions and contracts for Targeted Experience Auto-Recall
+  Engine.)
+
+[OUTPUT]
+- Package facade re-exporting 9 public names: AutoRecallDecision, ExperienceRecallGate,
+  ExperienceRecallTriggerClassifier, FailOpenReranker, RecallCandidate, RecallGateConfig, RecallTriggerType,
+  RerankerStatus, SlidingWindowDedupGate
+
+[POS]
+Targeted Experience Auto-Recall Trigger with Multi-Turn Dedup and Fail-Open Reranking.
+"""
 
 from __future__ import annotations
 

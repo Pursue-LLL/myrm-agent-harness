@@ -3,6 +3,19 @@
 Segregates developer sessions into DEV_TRACK (code indexing, execution, full workspace)
 and THINKING_QA_TRACK (isolated, lightweight, low-cost reasoning).
 Automatically throttles unintentional workspace context injection during general chat.
+
+[INPUT]
+- runtime.context.dual_track_session_guard_types::BurnGuardAction, BurnGuardDecision,
+  DualTrackContextAssembly, IntentCategory, SessionScenarioTrack (POS: Type definitions for Dual-Track
+  Session Scenario Context Isolator and Token Burn Guard.)
+
+[OUTPUT]
+- DualTrackSessionGuardHub: Coordinates system prompt assembly respecting track boundaries and burn guards.
+- TokenBurnGuard: Safeguards user token quota from unintentional workspace tree attachment.
+- UserIntentClassifier: Classifies user prompts into engineering development vs general chat/QA.
+
+[POS]
+Dual-Track Session Scenario Context Isolator and Token Burn Guard.
 """
 
 from __future__ import annotations

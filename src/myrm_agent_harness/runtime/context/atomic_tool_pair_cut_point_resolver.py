@@ -3,6 +3,17 @@
 Guarantees the Atomic Tool-Pair Invariant: prevents severed tool_call and
 tool_result pairs, eradicates orphaned Tool Result 400 API errors, and handles
 split-turn scenarios for ultra-large turns.
+
+[INPUT]
+- runtime.context.append_only_compaction_types::ContextEntryRole, ContextLogEntry, CutPointResolution (POS:
+  Types for append-only compaction ledger and atomic tool-pair cut-point engine.)
+
+[OUTPUT]
+- AtomicToolPairCutPointResolver: Calculates safe compaction cut points respecting tool-pair atomic
+  boundaries.
+
+[POS]
+Atomic tool-pair cut-point resolver for context compaction.
 """
 
 from .append_only_compaction_types import (

@@ -1,6 +1,18 @@
-# [POS] src/myrm_agent_harness/toolkits/memory/dual_track_extraction/types.py
-# [INPUT] dataclasses, enum.StrEnum, datetime, typing
-# [OUTPUT] ExtractionTrackKind, ExtractionDestiny, ExtractedProceduralRule, ExtractedUserFact, ExtractionDestinyReport
+"""Typed data contracts for the dual track extraction subsystem.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ExtractionTrackKind: Semantic track category identified from input utterance.
+- ExtractionDestiny: Deterministic routing destination for the extraction output.
+- ExtractedProceduralRule: Actionable operational rule or troubleshooting guideline (When/If X, Do Y).
+- ExtractedUserFact: Declarative static fact, preference, or identity profile.
+- ExtractionDestinyReport: Transparent routing report eliminating silent drop ambiguity.
+
+[POS]
+Typed data contracts for the dual track extraction subsystem.
+"""
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime

@@ -1,11 +1,28 @@
-# [POS]: myrm_agent_harness/agent/context_management/handoff/state_machine.py
-# [INPUT]: AgentHandoffStore, HandoffStatus, AgentHandoffSpec, HandoffClaimReceipt
-# [OUTPUT]: ExactlyOnceHandoffMachine, handoff error classes
 """State machine governing exactly-once claim and state transitions for agent handoffs.
 
 Enforces mutual exclusion during handoff claiming, guaranteeing that multiple
 concurrent successor agents cannot race to claim the same memorandum.
 Strict typing applied: No `Any` types allowed.
+
+[INPUT]
+- agent.context_management.handoff.handoff_store::AgentHandoffStore (POS: Persistent storage backend for
+  agent handoff packets.)
+- agent.context_management.handoff.types::AgentHandoffSpec, HandoffClaimReceipt, HandoffStatus (POS: Type
+  definitions for cross-agent/cross-session typed handoff protocol.)
+
+[OUTPUT]
+- HandoffError: Base exception for handoff protocol violations.
+- HandoffNotFoundError: Raised when the requested handoff ID is not registered.
+- HandoffAlreadyClaimedError: Raised when attempting to claim an already claimed or locked handoff.
+- HandoffAlreadyCompletedError: Raised when an operation is attempted on an already finalized/completed
+  handoff.
+- HandoffTargetMismatchError: Raised when the claiming profile is not the targeted profile specified in
+  contract.
+- HandoffInvalidTransitionError: Raised when an invalid state transition is attempted.
+- ExactlyOnceHandoffMachine: Atomic state machine guaranteeing exactly-once claim and linear transitions.
+
+[POS]
+State machine governing exactly-once claim and state transitions for agent handoffs.
 """
 
 from __future__ import annotations

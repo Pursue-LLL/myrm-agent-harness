@@ -1,10 +1,20 @@
-# [POS]: myrm_agent_harness/toolkits/memory/drift_defense/types.py
-# [INPUT]: pydantic, enum
-# [OUTPUT]: DriftType, MemoryDriftFinding, DriftCheckRequest, DriftCheckResult, DriftDefenseConfig
 """Type definitions for ground truth priority and memory drift stale defense.
 
 Models drift classifications, inspection results, and prompt decoration metadata.
 Strict typing applied: No `Any` types allowed.
+
+[INPUT]
+- External: pydantic
+
+[OUTPUT]
+- DriftType: Classification of drift detected between memory statement and ground truth.
+- MemoryDriftFinding: Detailed finding of an individual drift discrepancy.
+- DriftCheckRequest: Request payload to evaluate candidate memory for physical world drift.
+- DriftCheckResult: Result of ground truth drift evaluation.
+- DriftDefenseConfig: Configuration for ground truth drift defense.
+
+[POS]
+Type definitions for ground truth priority and memory drift stale defense.
 """
 
 from __future__ import annotations

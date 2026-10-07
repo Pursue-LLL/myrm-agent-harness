@@ -6,6 +6,22 @@ Implements:
 2. Full-compact: Seamless escalation to deep semantic compaction when micro-compact is insufficient.
 3. SteerQueue: Thread-safe mid-task user instruction queuing and dynamic prompt injection.
 Strict 0 Any, type-hinted, thread-safe.
+
+[INPUT]
+- runtime.context.dual_tier_compactor_types::CompactorTierKind, DualTierCompactorDecision, MicroFoldedItem,
+  SteerInstruction (POS: Type definitions for Dual-Tier Micro/Full Adaptive Compactor, Mid-Task Steering,
+  and Tool Loop Tracker Watchdog.)
+- runtime.context.pi_progressive_compactor::PiProgressiveCompactor (POS: Pi Agent-style progressive context
+  compaction and branch summarization engine.)
+- runtime.context.surface_projection_types::MessageRole, ProjectedMessage (POS: Type definitions for
+  Immutable Event Log SSOT and Surface Projection Engine.)
+
+[OUTPUT]
+- SteerQueue: Thread-safe mid-task user steering instruction queue.
+- DualTierAdaptiveCompactor: Dual-tier progressive compactor with micro/full adaptive escalation.
+
+[POS]
+Dual-Tier Micro/Full Adaptive Compactor and Mid-Task Steering Engine.
 """
 
 from __future__ import annotations

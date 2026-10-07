@@ -4,6 +4,22 @@ Coordinates:
 - ReAct Trap Remediation (Observation folding, Rule re-anchoring, Error pruning, Thought decay)
 - Virtual Memory & CoALA 4-Quadrant Note integration
 - ACI Tool and Goldilocks Zone static auditing
+
+[INPUT]
+- runtime.context.aci_tool_contract_linter::ACIToolContractLinter (POS: ACI (Agent-Computer Interface) tool
+  contract and Goldilocks Zone prompt linter.)
+- runtime.context.context_engineering_types::ACILintReport, ACIToolContract, RemediationResult, ScenarioType
+  (POS: Context engineering types and data protocols for ReAct trap remediation and ACI design.)
+- runtime.context.context_virtual_memory::ContextVirtualMemoryManager (POS: Context Virtual Memory Manager
+  and CoALA 4-Quadrant Structured Note-Taking Engine.)
+- runtime.context.react_trap_remediator::ReActTrapRemediator (POS: ReAct trap remediation engine for
+  production LLM Agent contexts.)
+
+[OUTPUT]
+- ContextEngineeringPipeline: Orchestrator providing holistic context engineering for LLM Agent runs.
+
+[POS]
+Unified Context Engineering Pipeline orchestrating ReAct remediation, ACI linting, and virtual memory.
 """
 
 from __future__ import annotations

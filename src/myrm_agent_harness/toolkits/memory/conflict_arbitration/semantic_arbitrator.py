@@ -1,6 +1,16 @@
-# [POS] src/myrm_agent_harness/toolkits/memory/conflict_arbitration/semantic_arbitrator.py
-# [INPUT] .types (ArbitrationAssessment, ConflictResolutionKind, ConflictSeverity, SemanticConflictRecord)
-# [OUTPUT] MemorySemanticArbitrator
+"""Semantic arbitrator for memory conflicts and divergence analysis.
+
+[INPUT]
+- toolkits.memory.conflict_arbitration.types::ArbitrationAssessment, ConflictResolutionKind,
+  ConflictSeverity, SemanticConflictRecord (POS: Typed data contracts for the conflict arbitration
+  subsystem.)
+
+[OUTPUT]
+- MemorySemanticArbitrator: Semantic arbitrator for memory conflicts and divergence analysis.
+
+[POS]
+Semantic arbitrator for memory conflicts and divergence analysis.
+"""
 
 import logging
 import re

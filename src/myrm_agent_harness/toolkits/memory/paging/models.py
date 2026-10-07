@@ -1,4 +1,22 @@
-"""Data models for Agent-Driven Memory Paging and Hard Boundary Governance Engine."""
+"""Data models for Agent-Driven Memory Paging and Hard Boundary Governance Engine.
+
+[INPUT]
+- External: pydantic
+
+[OUTPUT]
+- AccessViolationError: Raised when an agent attempts to access memory outside its authorized hard scope.
+- PagingBudgetExceededError: Raised when an agent exceeds the maximum paging count or token allowance per
+  session.
+- HardScopeContext: Immutable physical boundary context injected at the application layer.
+- MemoryPageRecord: Structured memory entry stored within a defined physical scope boundary.
+- MemoryPageQuery: Agent-initiated cursor pagination request for memory exploration.
+- MemoryPageResult: Cursor-paginated response payload returned to agent tool calls.
+- PagingBudgetPolicy: Sliding-window quota guarding against runaway paging loops.
+- AccessViolationAudit: Security audit entry documenting intercepted out-of-boundary access attempts.
+
+[POS]
+Data models for Agent-Driven Memory Paging and Hard Boundary Governance Engine.
+"""
 
 from datetime import datetime
 

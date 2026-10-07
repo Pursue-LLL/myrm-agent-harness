@@ -2,6 +2,17 @@
 
 Provides structured auditing for sandbox mutations (packages, MCP tools, env vars),
 and generates consolidated state digests for zero-delay cross-session context rehydration.
+
+[INPUT]
+- runtime.context.environment_changelog_types::EnvironmentChangelogEntry, EnvironmentMutationKind,
+  EnvironmentStateDigest, MutationActor, RehydrationInjectionPayload (POS: Type definitions for
+  dual-readable environment changelog and anti-amnesia recovery ledger.)
+
+[OUTPUT]
+- EnvironmentChangelogLedger: Audits environment mutations and synthesizes anti-amnesia context digests.
+
+[POS]
+Dual-readable environment changelog and anti-amnesia recovery ledger.
 """
 
 from __future__ import annotations

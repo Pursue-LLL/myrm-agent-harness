@@ -2,6 +2,17 @@
 
 Extracts deterministic facts (touched files, executed commands, decisions,
 todos, pitfalls) directly from session conversation turns without LLM hallucination.
+
+[INPUT]
+- runtime.context.cross_session_handoff_types::CrossSessionHandoffContract, HandoffDecisionItem,
+  HandoffPitfallItem, HandoffStatus, HandoffTodoItem (POS: Type definitions for cross-session handoff
+  contracts and continuity ledger.)
+
+[OUTPUT]
+- RuleBasedSessionSynthesizer: Extracts deterministic facts and constructs structured handoff contracts.
+
+[POS]
+Rule-based session synthesizer for cross-session handoff generation.
 """
 
 import re

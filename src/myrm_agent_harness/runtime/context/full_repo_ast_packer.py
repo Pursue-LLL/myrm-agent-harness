@@ -2,6 +2,16 @@
 
 Extracts repo-wide AST symbols, establishes cross-file dependency maps,
 and packs the codebase into an optimized wide-context stream.
+
+[INPUT]
+- runtime.context.full_repo_refactor_types::RepoAstSymbol, RepoAstTopology, RepoFileNode, RepoSymbolKind
+  (POS: Type definitions for native 1M long-context full-repo refactoring pipeline.)
+
+[OUTPUT]
+- FullRepoAstPacker: Extracts codebase topology and packages source files for 1M context windows.
+
+[POS]
+AST-augmented packer for 1M long-context full-repo refactoring.
 """
 
 import ast

@@ -2,6 +2,32 @@
 
 Provides temporal order-invariance validation gates, confidence half-life decay,
 dual-blind conflict arbitration, and lineage tree snapshots with atomic rollback.
+
+[INPUT]
+- toolkits.memory.evolution.causal_extractor::CausalGeneExtractor, ExecutionStepSnapshot, MultiTurnTaskTrace
+  (POS: Causal Experience Gene Extractor for multi-turn execution trajectories.)
+- toolkits.memory.evolution.evaluator::OrderInvarianceEvaluator (POS: Order Invariance Evaluator for
+  validating robustness against sequential bias.)
+- toolkits.memory.evolution.gene_ledger::ExperienceGeneLedger (POS: Confidence Evolution Ledger and
+  retrieval matcher for Experience Genes.)
+- toolkits.memory.evolution.gene_models::ExperienceGene, GeneMatchQuery, GeneMutationAdvice, GenePolarity
+  (POS: Data models for Causal Experience Genes and Evolution Ledger.)
+- toolkits.memory.evolution.governor::ConfidenceDecayGovernor (POS: Confidence Decay Governor and Dual-Blind
+  Conflict Arbitration Engine.)
+- toolkits.memory.evolution.models::ArbitrationAction, ConflictArbitrationReport, EvidenceContext,
+  EvolvingMemoryRule, MemorySnapshot, PermutationEvaluationResult, RuleStatus (POS: Data models for
+  Order-Invariant Memory Evolution and Decay Engine.)
+- toolkits.memory.evolution.snapshot::MemoryLineageSnapshotEngine (POS: Lineage snapshot and rollback engine
+  for evolving memory rules.)
+
+[OUTPUT]
+- Package facade re-exporting 18 public names: ArbitrationAction, CausalGeneExtractor,
+  ConflictArbitrationReport, ConfidenceDecayGovernor, EvidenceContext, ExecutionStepSnapshot,
+  ExperienceGene, ExperienceGeneLedger, EvolvingMemoryRule, GeneMatchQuery, GeneMutationAdvice,
+  GenePolarity, MemoryLineageSnapshotEngine, MemorySnapshot (+4 more)
+
+[POS]
+Order-Invariant Memory Evolution and Decay Engine.
 """
 
 from .causal_extractor import (

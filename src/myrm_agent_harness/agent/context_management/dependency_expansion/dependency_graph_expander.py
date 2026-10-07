@@ -1,8 +1,16 @@
-# [POS] myrm_agent_harness/agent/context_management/dependency_expansion/dependency_graph_expander.py
-# [INPUT] ArchitectureNode, ArchitectureNodeType, DependencyEdge, DependencyEdgeType, DependencyGraphExpansionResult
-# [OUTPUT] ArchitecturalDependencyGraphExpander
+"""全链路跨栈架构依赖展开图谱引擎，级联追踪 UI 组件到底层模型与历史架构决议。
 
-"""全链路跨栈架构依赖展开图谱引擎，级联追踪 UI 组件到底层模型与历史架构决议。"""
+[INPUT]
+- agent.context_management.dependency_expansion.types::ArchitectureNode, ArchitectureNodeType,
+  DependencyEdge, DependencyEdgeType, DependencyGraphExpansionResult (POS:
+  全链路跨栈架构依赖展开与任务复杂度自适应双轨调度核心类型定义。)
+
+[OUTPUT]
+- ArchitecturalDependencyGraphExpander: 跨栈全链路架构依赖展开拓扑图引擎。
+
+[POS]
+全链路跨栈架构依赖展开图谱引擎，级联追踪 UI 组件到底层模型与历史架构决议。
+"""
 
 from __future__ import annotations
 

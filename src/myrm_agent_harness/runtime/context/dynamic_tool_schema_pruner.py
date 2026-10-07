@@ -3,6 +3,19 @@
 References ratel-ai context engineering (~80% token saving by pruning 5000+ token tool sets down to 200-500 tokens).
 Indexes tool specifications via InProcessBM25Retriever and dynamically activates Core + Top-K tools per turn.
 Strict 0 Any, type-hinted, thread-safe.
+
+[INPUT]
+- runtime.context.in_process_bm25_retriever::InProcessBM25Retriever (POS: In-process sub-millisecond BM25
+  lexical retriever for AI agent context engineering.)
+- runtime.context.in_process_bm25_types::ProgressiveDisclosureConfig, PrunedToolSet, ToolSchemaEntry (POS:
+  Type definitions for In-Process BM25 Lexical Retriever and Dynamic Tool Schema Pruner.)
+
+[OUTPUT]
+- DynamicToolSchemaPruner: Orchestrates dynamic tool schema pruning and progressive disclosure via
+  in-process BM25.
+
+[POS]
+Dynamic Tool Schema Pruner with Progressive Disclosure.
 """
 
 from __future__ import annotations

@@ -3,6 +3,17 @@
 Enables O(1) instantaneous session branching from any conversational turn,
 avoiding full history deep-copying while providing transparent virtual
 projected views across immutable ancestor lineages and delta mutations.
+
+[INPUT]
+- runtime.context.cow_session_branch_types::BranchMessageEntry, CoWArtifactRecord, ProjectedSessionView,
+  SessionBranchDescriptor (POS: Type definitions for Instant Session Forking and Copy-on-Write (CoW) State
+  Branching.)
+
+[OUTPUT]
+- CoWSessionBranchManager: Manages session fork trees with copy-on-write message and artifact stores.
+
+[POS]
+Instant Session Forking and Copy-on-Write (CoW) State Branching Engine.
 """
 
 from __future__ import annotations

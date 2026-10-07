@@ -1,11 +1,26 @@
-# [POS]: myrm_agent_harness/toolkits/memory/agent_surface/mcp/server_factory.py
-# [INPUT]: mcp.server.mcpserver.MCPServer, AiMemoryWireAdapter, McpServerInfo
-# [OUTPUT]: create_interop_memory_mcp_server
 """Server factory creating standard MCP server with ai-memory wire parity.
 
 Exposes standard MCP tools allowing external IDEs (Claude Code, Cursor, Codex)
 to interact seamlessly with Myrm's underlying memory and handoff infrastructure.
 Strict typing applied: No `Any` types allowed.
+
+[INPUT]
+- agent.context_management.handoff::AgentHandoffEngine (POS: Public interface for agent handoff management
+  and session finalization.)
+- toolkits.memory.agent_surface.mcp.ai_memory_wire_adapter::AiMemoryWireAdapter (POS: Wire-format adapter
+  emulating the 5.3k Star ai-memory MCP tool protocol.)
+- toolkits.memory.agent_surface.mcp.types::McpServerInfo (POS: Data models for ai-memory wire format
+  interoperability and cross-tool MCP gateway.)
+- toolkits.memory.privacy_gate::MemoryPrivacyBoundaryGate (POS: Public entry point for memory privacy
+  boundary and allowlist gate.)
+- External: mcp
+
+[OUTPUT]
+- create_interop_memory_mcp_server: Create and configure an MCP server with full ai-memory wire protocol
+  parity.
+
+[POS]
+Server factory creating standard MCP server with ai-memory wire parity.
 """
 
 from __future__ import annotations

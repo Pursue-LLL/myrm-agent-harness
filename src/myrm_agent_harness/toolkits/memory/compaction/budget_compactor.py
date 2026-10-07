@@ -1,8 +1,17 @@
-# [POS] toolkits/memory/compaction/budget_compactor.py
-# [INPUT] CodeAbstractionLevel, CodeBlockItem, CompactedBlock, CompactionConfig, CompactionResult, CodeSkeletonExtractor
-# [OUTPUT] CodeMemoryBudgetCompactor
+"""Token-budget-aware dynamic compaction engine for codebase semantic memories.
 
-"""Token-budget-aware dynamic compaction engine for codebase semantic memories."""
+[INPUT]
+- toolkits.memory.compaction.ast_skeleton::CodeSkeletonExtractor (POS: AST-based and regex-fallback code
+  skeleton extractor for multi-tier compression.)
+- toolkits.memory.compaction.types::CodeAbstractionLevel, CodeBlockItem, CompactedBlock, CompactionConfig,
+  CompactionResult (POS: Type definitions and contracts for Token-Budget-Aware Code Memory Compaction.)
+
+[OUTPUT]
+- CodeMemoryBudgetCompactor: Dynamic multi-tier code memory compactor guided by available token budgets.
+
+[POS]
+Token-budget-aware dynamic compaction engine for codebase semantic memories.
+"""
 
 from __future__ import annotations
 

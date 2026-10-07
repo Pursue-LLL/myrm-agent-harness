@@ -2,6 +2,21 @@
 
 Eliminates boilerplate pleasantries, intros, apologies, and closing noise,
 reducing LLM output token consumption by ~65% in execution loops and pipelines.
+
+[INPUT]
+- runtime.context.caveman_output_throttle_types::CavemanThrottleMode, ConversationIntentKind,
+  SanitizedOutputResult, ThrottleDecision (POS: Data contracts for Caveman Ultra-Compact Output Mode and
+  Output Token Throttle.)
+
+[OUTPUT]
+- AdaptiveThrottleDecisionEngine: Evaluates throttling policy based on configured mode and current turn
+  intent.
+- CavemanOutputPostProcessor: Strips conversational pleasantries and boilerplate intros/outros
+  post-generation.
+- CavemanPromptPreamble: Concise, high-impact instruction prompt for zero-pleasantry output generation.
+
+[POS]
+Caveman Ultra-Compact Output Mode & Output Token Throttle Engine.
 """
 
 from __future__ import annotations

@@ -1,11 +1,20 @@
-# [POS]: myrm_agent_harness/toolkits/memory/drift_defense/detector.py
-# [INPUT]: pathlib.Path, time, types, reference_extractor
-# [OUTPUT]: GroundTruthDriftDetector
 """High-performance pre-injection ground truth drift detector.
 
 Performs sub-5ms physical presence and symbol verification against the active
 workspace to intercept obsolete memories and prevent hallucinations.
 Strict typing applied: No `Any` types allowed.
+
+[INPUT]
+- toolkits.memory.drift_defense.reference_extractor::GroundTruthReferenceExtractor (POS: Zero-LLM fast
+  regular expression extractor for file paths and code symbols.)
+- toolkits.memory.drift_defense.types::DriftCheckRequest, DriftCheckResult, DriftDefenseConfig, DriftType,
+  MemoryDriftFinding (POS: Type definitions for ground truth priority and memory drift stale defense.)
+
+[OUTPUT]
+- GroundTruthDriftDetector: Detects physical file, configuration, and symbol drift before memory injection.
+
+[POS]
+High-performance pre-injection ground truth drift detector.
 """
 
 from __future__ import annotations

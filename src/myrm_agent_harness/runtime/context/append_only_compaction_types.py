@@ -2,6 +2,19 @@
 
 Defines schemas for immutable log entries, compaction markers, atomic cut-point
 resolutions, and assembled LLM context views.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ContextEntryRole: Role classification for immutable context log entries.
+- ContextLogEntry: Immutable entry in the sequential context log.
+- CompactionEntry: Immutable compaction marker appended to the log stream.
+- CutPointResolution: Resolution details of an atomic cut-point calculation.
+- CompactedContextAssembly: Complete context package prepared for model inference.
+
+[POS]
+Types for append-only compaction ledger and atomic tool-pair cut-point engine.
 """
 
 from dataclasses import dataclass, field

@@ -2,6 +2,22 @@
 
 Inspired by ai-memory handoff mechanisms. Provides structured contracts for
 deterministic session handoffs, unconsumed workstream relay, and lifecycles.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- HandoffStatus: Lifecycle status of a session handoff contract.
+- SessionLifecyclePhase: Lifecycle phase of an agent session.
+- SynthesisMode: Mode for synthesizing session handoff data.
+- HandoffDecisionItem: Architectural or implementation decision captured in a session.
+- HandoffTodoItem: Pending or completed action item passed to future sessions.
+- HandoffPitfallItem: Pitfall, anti-pattern, or constraint discovered during execution.
+- CrossSessionHandoffContract: Structured immutable handoff contract between sessions and agents.
+- HandoffConsumptionReceipt: Receipt proving safe atomic consumption of a handoff contract.
+
+[POS]
+Type definitions for cross-session handoff contracts and continuity ledger.
 """
 
 from dataclasses import dataclass, field

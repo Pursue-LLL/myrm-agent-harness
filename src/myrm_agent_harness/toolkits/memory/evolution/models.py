@@ -1,4 +1,20 @@
-"""Data models for Order-Invariant Memory Evolution and Decay Engine."""
+"""Data models for Order-Invariant Memory Evolution and Decay Engine.
+
+[INPUT]
+- External: pydantic
+
+[OUTPUT]
+- RuleStatus: Lifecycle status of an evolving memory rule.
+- ArbitrationAction: Outcome of conflict arbitration between competing rules.
+- EvidenceContext: A contextual evidence unit supporting a candidate rule.
+- EvolvingMemoryRule: An evolving rule derived from agent interaction contexts.
+- PermutationEvaluationResult: Evaluation result of order-invariance permutation testing.
+- ConflictArbitrationReport: Report detailing arbitration when two rules express incompatible facts.
+- MemorySnapshot: Point-in-time immutable snapshot of active and evolving memory rules.
+
+[POS]
+Data models for Order-Invariant Memory Evolution and Decay Engine.
+"""
 
 from datetime import datetime
 from enum import StrEnum

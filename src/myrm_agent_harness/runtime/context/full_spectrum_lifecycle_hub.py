@@ -3,6 +3,20 @@
 Coordinates zero-serialization, high-performance in-process event interception across
 input gates, dynamic turn preambles, streaming tool inspection, bash environment injection,
 context pruning, and compaction overrides.
+
+[INPUT]
+- runtime.context.full_spectrum_lifecycle_types::InterceptorAction, InterceptorDecision, LifecycleEventKind,
+  LifecycleHubMetrics, LifecyclePayload (POS: Type definitions for full-spectrum in-process lifecycle
+  interceptor and context pruning hub.)
+- runtime.context.internal_external_message_pipeline_types::AgentMessage (POS: Type definitions for
+  internal/external message separation and context transformation pipeline.)
+
+[OUTPUT]
+- FullSpectrumLifecycleHub: Central in-process event bus and interceptor orchestrator for runtime lifecycle
+  governance.
+
+[POS]
+Full-spectrum in-process lifecycle interceptor and dynamic context pruning hub.
 """
 
 from __future__ import annotations

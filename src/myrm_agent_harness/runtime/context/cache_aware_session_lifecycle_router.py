@@ -2,6 +2,20 @@
 
 Guards against cache-destructive parameter/model mutations, provides cache-friendly
 tail rewinds without invalidating earlier prefix blocks, and schedules pre-idle compactions.
+
+[INPUT]
+- runtime.context.prefix_preserving_canonicalizer::PrefixPreservingCanonicalizer (POS: Prefix preserving
+  canonicalizer for Prompt Cache optimization.)
+- runtime.context.prompt_cache_lifecycle_types::CacheMutationRiskLevel, CompactionTimingUrgency,
+  InSessionMutationRiskReport, PreIdleCompactionPlan, RewindPruneReceipt (POS: Prompt-cache aware session
+  lifecycle and prefix preserving router types.)
+
+[OUTPUT]
+- CacheAwareSessionLifecycleRouter: Manages session lifecycle routing optimizing Prompt Cache hit-rates and
+  economics.
+
+[POS]
+Cache-aware session lifecycle router and mutation defense governor.
 """
 
 from __future__ import annotations

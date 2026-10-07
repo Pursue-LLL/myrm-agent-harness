@@ -1,6 +1,16 @@
-# [POS] src/myrm_agent_harness/toolkits/memory/dual_track_extraction/classifier.py
-# [INPUT] re, logging, .types (ExtractionTrackKind)
-# [OUTPUT] DualTrackSemanticClassifier
+"""Classifies incoming text into Fact, Procedural Rule, Dual-Track, or No-Signal.
+
+[INPUT]
+- toolkits.memory.dual_track_extraction.types::ExtractionTrackKind (POS: Typed data contracts for the dual
+  track extraction subsystem.)
+
+[OUTPUT]
+- DualTrackSemanticClassifier: Classifies incoming text into Fact, Procedural Rule, Dual-Track, or
+  No-Signal.
+
+[POS]
+Classifies incoming text into Fact, Procedural Rule, Dual-Track, or No-Signal.
+"""
 
 import logging
 import re

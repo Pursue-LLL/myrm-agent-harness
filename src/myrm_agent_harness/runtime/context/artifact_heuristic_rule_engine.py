@@ -2,6 +2,18 @@
 
 Evaluates observed code modifications, test execution results, errors,
 and conversation intent patterns to derive high-confidence actionable chips.
+
+[INPUT]
+- runtime.context.next_action_predictor_types::ActionIntentType, PredictedActionChip,
+  PredictionContextInput, TurnExecutionArtifact (POS: Types and data contracts for In-Context Next Action
+  and Question Predictor.)
+
+[OUTPUT]
+- ArtifactHeuristicRuleEngine: Deterministic heuristic generator deriving actionable chips from execution
+  facts.
+
+[POS]
+Artifact-aware heuristic rule engine for next action prediction.
 """
 
 from __future__ import annotations

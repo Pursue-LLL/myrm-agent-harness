@@ -1,6 +1,18 @@
-# [POS] src/myrm_agent_harness/toolkits/memory/crystallization/types.py
-# [INPUT] enum, dataclasses
-# [OUTPUT] CrystallizationLifecycleStage, RuleLifecycleState, ImportanceScoreResult, RuleFeedbackRecord, CrystallizedRuleMetrics
+"""Typed data contracts for the crystallization subsystem.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- CrystallizationLifecycleStage: Lifecycle stages for procedural judgment crystallization.
+- RuleLifecycleState: Operational lifecycle state of a crystallized behavioral rule.
+- ImportanceScoreResult: Outcome of formation-stage two-factor importance evaluation.
+- RuleFeedbackRecord: Feedback telemetry emitted from execution outcomes.
+- CrystallizedRuleMetrics: Mutable telemetry tracking rule success, win rate, and lifecycle transitions.
+
+[POS]
+Typed data contracts for the crystallization subsystem.
+"""
 
 from dataclasses import dataclass, field
 from enum import StrEnum

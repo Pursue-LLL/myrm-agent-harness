@@ -2,6 +2,18 @@
 
 Defines schemas for incremental stream chunks, ring-buffer sliding retention,
 automatic artifact offloading thresholds, and idempotent resume cursors.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- StreamChunkItem: A discrete incremental chunk emitted during long-running stream generation.
+- StreamResumeCursor: Client resume cursor used for idempotent reconnect and gapless replay.
+- OffloadStatus: State tracking for automatic large-text artifact offloading.
+- StreamGovernorStats: Operational telemetry for extreme streaming buffers.
+
+[POS]
+Type definitions for 384K Extreme Long Output Streaming and Chunk Memory Governor.
 """
 
 from __future__ import annotations

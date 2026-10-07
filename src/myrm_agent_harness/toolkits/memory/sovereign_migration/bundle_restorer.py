@@ -1,11 +1,21 @@
-# [POS]: myrm_agent_harness/toolkits/memory/sovereign_migration/bundle_restorer.py
-# [INPUT]: hashlib, json, logging, os, pathlib.Path, shutil, tarfile, tempfile, types, path_relativizer
-# [OUTPUT]: SovereignBundleRestorer
 """Atomic unpacker, integrity validator, and path-remapping restorer for sovereign asset bundles.
 
 Unpacks `.myrmpkg` packages, verifies SHA-256 checksums from MANIFEST.json,
 dynamically remaps hardcoded paths using PathRelativizer, and restores digital assets.
 Strict typing applied: No `Any` types allowed.
+
+[INPUT]
+- toolkits.memory.sovereign_migration.path_relativizer::PathRelativizer (POS: Dynamic path relativization
+  and cross-machine absolute path remapping engine.)
+- toolkits.memory.sovereign_migration.types::RestoreBundleRequest, RestoreBundleResult,
+  SovereignAssetManifest (POS: Type definitions for sovereign asset bundle migration and cross-machine
+  restore protocol.)
+
+[OUTPUT]
+- SovereignBundleRestorer: Restores sovereign asset packages with checksum integrity and path remapping.
+
+[POS]
+Atomic unpacker, integrity validator, and path-remapping restorer for sovereign asset bundles.
 """
 
 from __future__ import annotations

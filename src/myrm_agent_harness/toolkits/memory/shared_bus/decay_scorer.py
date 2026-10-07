@@ -1,8 +1,15 @@
-# [POS] myrm_agent_harness/toolkits/memory/shared_bus/decay_scorer.py
-# [INPUT] ReinforcedDecayConfig, ScoredMemoryItem from .types
-# [OUTPUT] ReinforcedDecayScorer (命中频次正向强化与时间半衰期衰减联合打分器)
+"""命中频次正向强化与时间半衰期衰减联合打分器，实现常用常新、长期未用平滑遗忘。
 
-"""命中频次正向强化与时间半衰期衰减联合打分器，实现常用常新、长期未用平滑遗忘。"""
+[INPUT]
+- toolkits.memory.shared_bus.types::ReinforcedDecayConfig, ScoredMemoryItem (POS: 跨 Agent
+  共享记忆总线、并发连接池、背压守卫与方案否决账本的核心类型定义。)
+
+[OUTPUT]
+- ReinforcedDecayScorer: 记忆命中强化与时间半衰期衰减自学习评分器。
+
+[POS]
+命中频次正向强化与时间半衰期衰减联合打分器，实现常用常新、长期未用平滑遗忘。
+"""
 
 from __future__ import annotations
 

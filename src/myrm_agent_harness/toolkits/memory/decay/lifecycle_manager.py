@@ -1,8 +1,18 @@
-# [INPUT] Memory registration, access events, and periodic evaluation timestamps.
-# [OUTPUT] TieredStorageLifecycleManager maintaining hot/warm/cold buckets and migration reports.
-# [POS] myrm_agent_harness.toolkits.memory.decay.lifecycle_manager
+"""Lifecycle manager governing tiered storage migration and archival.
 
-"""Lifecycle manager governing tiered storage migration and archival."""
+[INPUT]
+- toolkits.memory.decay.scorer::EbbinghausDecayScorer (POS: Ebbinghaus exponential decay and RFM frequency
+  reinforcement scoring function.)
+- toolkits.memory.decay.types::DecayScorerConfig, MemoryDecayProfile, StorageTier, TierMigrationReport (POS:
+  Domain models and type definitions for Ebbinghaus decay and tiered storage lifecycle.)
+
+[OUTPUT]
+- TieredStorageLifecycleManager: Orchestrates hot/warm/cold tier transitions based on dynamic decay
+  evaluations.
+
+[POS]
+Lifecycle manager governing tiered storage migration and archival.
+"""
 
 import time
 from collections import defaultdict

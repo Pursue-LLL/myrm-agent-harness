@@ -2,6 +2,19 @@
 
 Defines page lifecycle states, AST symbol stubs, virtual code page contracts,
 page-fault events, and context stability metrics for OS-inspired code paging.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- PageLifecycleState: Lifecycle state of a virtual code page within tiered memory.
+- CodeSymbolStub: Lightweight persistent signature stub for classes and functions.
+- VirtualCodePage: A standard 2KB~4KB virtual code page holding AST blocks and symbol metadata.
+- PageFaultEvent: Event triggered when referencing a symbol present in an archived page.
+- PageSwapAudit: Diagnostic audit verifying context token stability across multi-file edits.
+
+[POS]
+Virtual paged code context tiering and swap engine types.
 """
 
 from __future__ import annotations

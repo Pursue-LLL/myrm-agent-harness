@@ -2,6 +2,17 @@
 
 Extracts core hypotheses, critical counter-arguments, and finalized decisions
 from lengthy thoughts to preserve intelligence across long conversations.
+
+[INPUT]
+- runtime.context.reasoning_compactor_types::ReasoningChainAnchor (POS: Type definitions for
+  reasoning-preserving context compactor and token compression governor.)
+
+[OUTPUT]
+- ReasoningAnchorExtractor: Condenses lengthy thinking blocks into structured, high-density reasoning
+  anchors.
+
+[POS]
+Extractor for condensing raw reasoning streams into structured logic anchors.
 """
 
 import re

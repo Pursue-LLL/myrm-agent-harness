@@ -1,4 +1,17 @@
-"""Asynchronous Deep Distillation Worker executing in idle cycles without user blocking."""
+"""Asynchronous Deep Distillation Worker executing in idle cycles without user blocking.
+
+[INPUT]
+- toolkits.memory.fast_ingest.models::DistillationBatch, DistillationReport (POS: Data models for Sub-5%
+  Latency One-Pass Fast Ingestion and Deep Distillation Engine.)
+- toolkits.memory.fast_ingest.pipeline::FastMemoryCommitPipeline (POS: One-Pass Fast Memory Commit Pipeline
+  with sub-5% latency overhead guarantee.)
+
+[OUTPUT]
+- AsyncDeepDistillationWorker: Consolidates fast-committed facts asynchronously during system idle cycles.
+
+[POS]
+Asynchronous Deep Distillation Worker executing in idle cycles without user blocking.
+"""
 
 import time
 import uuid

@@ -1,8 +1,15 @@
-# [POS] myrm_agent_harness/agent/context_management/dependency_expansion/adaptive_complexity_governor.py
-# [INPUT] TaskComplexityTrack, ComplexityClassification
-# [OUTPUT] AdaptiveComplexityGovernor
+"""任务复杂度动态自适应双轨调度器，轻任务极简直通车与长周期项目全量工作台自适应分流。
 
-"""任务复杂度动态自适应双轨调度器，轻任务极简直通车与长周期项目全量工作台自适应分流。"""
+[INPUT]
+- agent.context_management.dependency_expansion.types::ComplexityClassification, TaskComplexityTrack (POS:
+  全链路跨栈架构依赖展开与任务复杂度自适应双轨调度核心类型定义。)
+
+[OUTPUT]
+- AdaptiveComplexityGovernor: 任务复杂度动态感知双轨调度器。
+
+[POS]
+任务复杂度动态自适应双轨调度器，轻任务极简直通车与长周期项目全量工作台自适应分流。
+"""
 
 from __future__ import annotations
 

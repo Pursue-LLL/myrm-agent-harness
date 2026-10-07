@@ -1,4 +1,20 @@
-"""Session state soft-reset and instant memory consolidation engine."""
+"""Session state soft-reset and instant memory consolidation engine.
+
+[INPUT]
+- runtime.context.session_soft_reset_types::ResetTriggerKind, SoftResetExecutionResult,
+  VaultedConsolidatedMemory, VaultedMemoryItem (POS: Data contracts and types for session state soft-reset
+  and instant memory consolidation.)
+
+[OUTPUT]
+- ResetIntentDetector: Detects whether a user input or trigger event signals a session soft-reset request.
+- InstantMemoryVault: Extracts and vaults key facts, user preferences, and lessons prior to clearing
+  context.
+- SessionSoftResetEngine: Coordinates soft-reset lifecycle: vaulting memories, wiping message window, and
+  reloading baseline.
+
+[POS]
+Session state soft-reset and instant memory consolidation engine.
+"""
 
 from __future__ import annotations
 

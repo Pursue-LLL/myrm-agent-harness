@@ -3,6 +3,16 @@
 Classifies context into KEEP, COMPRESS, and DISCARD to prevent context bloating
 during structured handoffs. Mandates verification against the physical workspace
 (files, git state) instead of blindly accepting handoff summaries.
+
+[INPUT]
+- runtime.context.multi_gateway_trust_types::PrunedContextItem, RealityCheckReceipt, TriStateTag (POS:
+  Strongly typed data contracts for Model-Harness orthogonal decoupling and multi-gateway trust.)
+
+[OUTPUT]
+- TriStateHandoffEngine: Manages tri-state context decomposition and conducts reality cross-checks.
+
+[POS]
+Tri-state context pruning and Reality Cross-Check engine.
 """
 
 from __future__ import annotations

@@ -2,6 +2,17 @@
 
 Maintains committed architectural decisions, dependent TODO topologies,
 and incremental material delta histories across long-horizon sessions.
+
+[INPUT]
+- runtime.context.project_milestone_types::IncrementalMaterialUpdate, MilestoneDecisionRecord,
+  MilestonePhaseKind, ProjectMilestoneCheckpoint, ProjectTodoItem (POS: Data contracts for long-horizon
+  project milestone checkpoints and resumption.)
+
+[OUTPUT]
+- ProjectMilestoneTracker: State machine governing project-level milestones and continuous state.
+
+[POS]
+Project milestone tracker managing multi-phase project checkpoints.
 """
 
 from __future__ import annotations

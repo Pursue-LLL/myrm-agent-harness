@@ -1,6 +1,20 @@
 """Data types and schemas for framework-bound clarify tool and ambiguity resolver.
 
 Defines typed options, impact levels, structured cards, and ambiguity detection reports.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ImpactLevelKind: Potential impact or risk level of the decision requiring clarification.
+- AmbiguityCategory: Categorical reason why user instruction requires proactive clarification.
+- ClarifyOptionItem: A concrete selectable choice presented to the user on the clarify card.
+- ClarifyToolParams: Invocation arguments supplied to framework-bound clarify_tool.
+- ClarifyResolutionResult: User choice or automated test resolution returned to the agent.
+- AmbiguityDetectionReport: Diagnostic report produced by active ambiguity detector on raw instructions.
+
+[POS]
+Data types and schemas for framework-bound clarify tool and ambiguity resolver.
 """
 
 from __future__ import annotations

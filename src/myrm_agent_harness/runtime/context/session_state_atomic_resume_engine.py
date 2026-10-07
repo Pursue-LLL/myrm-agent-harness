@@ -2,6 +2,19 @@
 
 Coordinates step-level lifecycle checkpoints, detects crash interruptions,
 performs idempotency checks for interrupted tool calls, and generates atomic resume plans.
+
+[INPUT]
+- runtime.context.session_checkpoint_storage::SessionCheckpointStorage (POS: Storage layer for Session Step
+  Checkpoints supporting atomic persistence.)
+- runtime.context.session_checkpoint_types::AtomicResumeDecision, CheckpointStepStatus,
+  SessionCheckpointConfig, SessionStepCheckpoint, ToolActionRecoveryKind, ToolExecutionSnapshot (POS: Domain
+  models and data contracts for Session State Checkpoint and Atomic Resume.)
+
+[OUTPUT]
+- SessionStateAtomicResumeEngine: Engine managing step-level checkpoint transitions and seamless recovery.
+
+[POS]
+Session state atomic checkpoint manager and resume protocol engine.
 """
 
 from __future__ import annotations

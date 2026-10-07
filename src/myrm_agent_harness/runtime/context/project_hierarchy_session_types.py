@@ -2,6 +2,25 @@
 
 Defines the Project-Task-Session tree hierarchy, full-text search match models,
 and seamless breakpoint resurrection bundles for long-horizon agent state recovery.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- HierarchyHitKind: Discriminant kind for hierarchy search hits.
+- ResurrectionStatus: Lifecycle status of resurrected agent session.
+- ProjectNode: Project-level anchor node bound to workspace and repo.
+- TaskNode: Task-level intermediate grouping node under a project.
+- ArchivedMessageEntry: Archived conversation message turn with keyword searchable fields.
+- ArchivedSessionNode: Session-level node belonging to a task within a project.
+- HierarchySearchHit: Detailed hit record matching a search query.
+- HierarchyGroupMatch: Aggregated search group organizing matches by project and task.
+- HierarchySearchResult: Global multi-dimensional search result across project hierarchies.
+- ResurrectionContextBundle: Complete restored working state allowing seamless continuation of a historical
+  agent.
+
+[POS]
+Project hierarchy session archive and keyword resurrection types.
 """
 
 from __future__ import annotations

@@ -2,6 +2,16 @@
 
 Shields immutable engineering facts (file paths, line numbers, error codes,
 terminal commands, and fenced code blocks) from aggressive semantic reduction.
+
+[INPUT]
+- runtime.context.tokenomics_compression_types::ProtectedPatternsConfig (POS: Strongly typed data contracts
+  for the Four-Tier Tokenomics context compression engine.)
+
+[OUTPUT]
+- ProtectedPatternsMatcher: Detects, masks, and restores non-negotiable engineering facts.
+
+[POS]
+Protected patterns matcher and syntax safety shield.
 """
 
 from __future__ import annotations

@@ -1,4 +1,16 @@
-"""Order Invariance Evaluator for validating robustness against sequential bias."""
+"""Order Invariance Evaluator for validating robustness against sequential bias.
+
+[INPUT]
+- toolkits.memory.evolution.models::EvidenceContext, EvolvingMemoryRule, PermutationEvaluationResult,
+  RuleStatus (POS: Data models for Order-Invariant Memory Evolution and Decay Engine.)
+
+[OUTPUT]
+- OrderInvarianceEvaluator: Evaluates candidate evolving memory rules against out-of-order task
+  permutations.
+
+[POS]
+Order Invariance Evaluator for validating robustness against sequential bias.
+"""
 
 import itertools
 import math

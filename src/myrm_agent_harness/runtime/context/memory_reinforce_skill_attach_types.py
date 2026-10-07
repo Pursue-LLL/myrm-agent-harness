@@ -2,6 +2,18 @@
 
 Provides models for high-priority directive tagging, attention decay suppression,
 and runtime non-blocking skill and tool definitions hot-attachment.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ReinforcementPriorityKind: Priority level for memory rule reinforcement in model attention space.
+- ReinforcedMemoryRule: Memory or system rule with attention boost metadata and decay counters.
+- DynamicSkillAttachment: Skill definition and exported tool schemas attached during a live session.
+- PromptEmphasisInjectionPayload: Synthesized context injection payload for next turn inference.
+
+[POS]
+Types and data models for memory rule reinforcement emphasis gate and mid-session skill attachment.
 """
 
 from __future__ import annotations

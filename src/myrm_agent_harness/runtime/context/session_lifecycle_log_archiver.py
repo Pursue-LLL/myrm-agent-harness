@@ -2,6 +2,21 @@
 
 Provides structured archiving, sensitive credential sanitization, self-contained
 offline HTML and JSON bundle exports, and 1-click import replay verification.
+
+[INPUT]
+- runtime.context.session_data_sanitizer::SessionDataSanitizer (POS: Session data sanitization engine for
+  confidential information masking.)
+- runtime.context.session_lifecycle_log_archiver_types::ArtifactSnapshotEntry, ImportReplayResult,
+  SanitizationPolicy, SessionExecutionTurn, SessionLogArchiveBundle, TokenCostBillingSnapshot,
+  ToolExecutionLogEntry, ToolExecutionStatus (POS: Session lifecycle log archive and offline bundle export
+  types.)
+
+[OUTPUT]
+- SessionLifecycleLogArchiverAndOfflineBundleExportEngine: Engine for archiving execution logs, exporting
+  offline bundles, and importing sessions.
+
+[POS]
+Session lifecycle log archiver and offline bundle export engine.
 """
 
 import hashlib

@@ -1,3 +1,17 @@
+"""Dynamic edge weight decay and frequency reinforcement operator.
+
+[INPUT]
+- toolkits.memory.graph_arbitration.models::EntityRelationEdge, FactStatus (POS: Typed entity-graph
+  contracts for graph arbitration: fact status, conflict resolution actions, entity nodes and weighted
+  relation edges.)
+
+[OUTPUT]
+- TemporalEdgeDecayCalculator: Dynamic edge weight decay and frequency reinforcement operator.
+
+[POS]
+Dynamic edge weight decay and frequency reinforcement operator.
+"""
+
 from __future__ import annotations
 
 import math

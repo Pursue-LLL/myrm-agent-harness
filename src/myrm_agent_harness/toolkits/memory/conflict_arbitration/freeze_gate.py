@@ -1,6 +1,16 @@
-# [POS] src/myrm_agent_harness/toolkits/memory/conflict_arbitration/freeze_gate.py
-# [INPUT] .types (UserConfirmedFreezeLock, UserConfirmedFreezeViolationError)
-# [OUTPUT] UserConfirmedFreezeGate
+"""Gatekeeper enforcing immutable freeze locks on facts confirmed by human operators.
+
+[INPUT]
+- toolkits.memory.conflict_arbitration.types::UserConfirmedFreezeLock, UserConfirmedFreezeViolationError
+  (POS: Typed data contracts for the conflict arbitration subsystem.)
+
+[OUTPUT]
+- UserConfirmedFreezeGate: Gatekeeper enforcing immutable freeze locks on facts confirmed by human
+  operators.
+
+[POS]
+Gatekeeper enforcing immutable freeze locks on facts confirmed by human operators.
+"""
 
 import logging
 from threading import RLock

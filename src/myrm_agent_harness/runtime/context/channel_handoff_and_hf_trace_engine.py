@@ -3,6 +3,22 @@
 Provides native thread anchoring across Telegram, Discord, Slack, Feishu, and WeChat;
 implements cryptographically verifiable session resumption; and exports standardized,
 redacted HuggingFace Agent Trace Viewer JSONL streams.
+
+[INPUT]
+- runtime.context.channel_handoff_and_hf_trace_types::ChannelThreadAnchorDescriptor, ChannelThreadKind,
+  HFTraceStepRecord, HandoffSessionEnvelope, TargetChannelType (POS: Types for cross-platform channel
+  handoff, HF trace export, and media pointers.)
+- runtime.context.session_lifecycle_log_archiver_types::SessionExecutionTurn (POS: Session lifecycle log
+  archive and offline bundle export types.)
+
+[OUTPUT]
+- CrossPlatformChannelHandoffCoordinator: Coordinates seamless session handoff across heterogeneous chat
+  platforms.
+- HuggingFaceAgentTraceExporter: Exports session execution transcripts to HuggingFace Agent Trace Viewer
+  format.
+
+[POS]
+Cross-platform channel handoff coordinator and HuggingFace Trace exporter engine.
 """
 
 import hashlib

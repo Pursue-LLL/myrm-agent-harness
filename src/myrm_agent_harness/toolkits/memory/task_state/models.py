@@ -1,4 +1,19 @@
-"""Data models for Structured Task State Machine and Compaction Preservation."""
+"""Data models for Structured Task State Machine and Compaction Preservation.
+
+[INPUT]
+- External: pydantic
+
+[OUTPUT]
+- TaskStepStatus: Execution status of an individual task workflow step.
+- TaskStepItem: Discrete step within a multi-turn task workflow.
+- TaskTodoItem: Pending or resolved work item tracking open commitments.
+- StructuredTaskState: High-privilege structured task container anchored against context compaction loss.
+- CompactionAnchorPayload: Compound context payload guaranteeing structured task state retention through
+  compaction.
+
+[POS]
+Data models for Structured Task State Machine and Compaction Preservation.
+"""
 
 from datetime import datetime
 from enum import StrEnum

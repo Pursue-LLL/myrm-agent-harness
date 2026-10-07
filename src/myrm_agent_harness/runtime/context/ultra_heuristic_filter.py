@@ -2,6 +2,16 @@
 
 Performs deterministic, lightweight paragraph-level scoring and redundancy
 filtering before transmitting long background documents to LLM or visual channels.
+
+[INPUT]
+- runtime.context.omniglyph_types::UltraFilterScore (POS: OmniGlyph multimodal visual context channel and
+  Ultra token governor types.)
+
+[OUTPUT]
+- UltraHeuristicPreFilter: Pre-filters high-volume background text using deterministic heuristics.
+
+[POS]
+Ultra heuristic pre-filter for low-cost token pruning.
 """
 
 from __future__ import annotations

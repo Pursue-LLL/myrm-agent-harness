@@ -1,8 +1,20 @@
-# [POS] myrm_agent_harness/agent/context_management/compression_flush/types.py
-# [INPUT] None (纯领域类型与数据模型定义)
-# [OUTPUT] FlushTriggerReason, FlushItem, FlushResult, MemoryIsolationScope, EphemeralMemoryOverlaySpec, SubagentMemoryPolicy, StatelessCronSpec
+"""多智能体与长会话上下文压缩即时持久化刷盘协议核心类型。
 
-"""多智能体与长会话上下文压缩即时持久化刷盘协议核心类型。"""
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- FlushTriggerReason: 触发前置内存落盘的原因枚举。
+- MemoryIsolationScope: 内存隔离沙箱级别。
+- FlushItem: 待落盘的临时易变记忆或原子决策项。
+- FlushResult: 前置内存落盘执行结果。
+- EphemeralMemoryOverlaySpec: 子智能体临时内存覆盖卷规格。
+- SubagentMemoryPolicy: 子智能体内存沙箱安全策略。
+- StatelessCronSpec: 定时任务无状态执行规格。
+
+[POS]
+多智能体与长会话上下文压缩即时持久化刷盘协议核心类型。
+"""
 
 from __future__ import annotations
 

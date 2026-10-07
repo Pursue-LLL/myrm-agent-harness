@@ -1,12 +1,18 @@
-# [POS]: myrm_agent_harness/toolkits/memory/sovereign_migration/path_relativizer.py
-# [INPUT]: pathlib.Path, re
-# [OUTPUT]: PathRelativizer
 """Dynamic path relativization and cross-machine absolute path remapping engine.
 
 Unbinds host-specific absolute file paths during asset export by translating them into
 portable `${MYRM_WORKSPACE}` placeholders, and dynamically binds them to current host paths
 during restoration to completely eliminate FileNotFoundError crashes.
 Strict typing applied: No `Any` types allowed.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- PathRelativizer: Pure heuristic path relativization and cross-machine remapping engine.
+
+[POS]
+Dynamic path relativization and cross-machine absolute path remapping engine.
 """
 
 from __future__ import annotations

@@ -2,6 +2,19 @@
 
 Transforms bulky context blocks into lightweight retrieve markers and deduplicates
 repeated files and tool outputs across conversational turns.
+
+[INPUT]
+- runtime.context.content_addressed_dedup_store::ContentAddressedDedupStore (POS: Content-addressed chunk
+  storage and session turn deduplication store.)
+- runtime.context.content_addressed_dedup_types::CCRTransformResult, DedupConfig, DedupContentType (POS:
+  Strongly typed data contracts for Content-Addressed Session Dedup and CCR Context Archival.)
+
+[OUTPUT]
+- CCRContextArchivalTransformer: Transforms raw context payloads into token-efficient references and CCR
+  markers.
+
+[POS]
+CCR (Chunk-Cache Retrieval) Context Archival Transformer.
 """
 
 from __future__ import annotations

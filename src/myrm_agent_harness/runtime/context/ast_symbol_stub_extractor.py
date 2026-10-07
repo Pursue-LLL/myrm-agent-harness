@@ -3,6 +3,16 @@
 Extracts top-level class and function signatures, decorators, and docstring
 summaries from source code, constructing persistent lightweight symbol stubs
 that remain resident in active context even when source bodies are paged out.
+
+[INPUT]
+- runtime.context.virtual_paged_code_types::CodeSymbolStub (POS: Virtual paged code context tiering and swap
+  engine types.)
+
+[OUTPUT]
+- AstSymbolStubExtractor: Extracts compact symbol signatures and doc summaries from source code.
+
+[POS]
+AST symbol stub extractor for lightweight code signature harvesting.
 """
 
 from __future__ import annotations

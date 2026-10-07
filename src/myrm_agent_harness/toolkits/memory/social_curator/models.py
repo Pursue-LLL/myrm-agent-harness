@@ -2,6 +2,19 @@
 
 Provides strongly typed domain structures for user affinity profiling,
 raw social posts, multi-dimensional scoring, and high-signal briefing delivery.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- SocialInsightCategory: Categorization for high-signal curated social media insights.
+- UserAffinityProfile: Compact contextual user profile aggregated from long-term memory.
+- RawSocialPost: Unprocessed incoming post from social media platforms (e.g. X/Twitter).
+- ScoredSocialInsight: Evaluated social insight with multidimensional signal ratings.
+- HighSignalBriefing: Top-tier curated briefing summarizing high-value missed intelligence.
+
+[POS]
+Data models for HighSignalSocialFeedCurator.
 """
 
 from dataclasses import dataclass, field

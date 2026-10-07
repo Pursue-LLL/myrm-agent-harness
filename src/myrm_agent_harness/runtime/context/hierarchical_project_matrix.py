@@ -3,6 +3,21 @@
 Provides 3-tier prompt composition (Global Persona -> Project Rules -> Session Goals)
 optimized for prefix KV-Cache preservation, dynamic multi-agent to project binding,
 and workspace session health and orphan garbage detection.
+
+[INPUT]
+- runtime.context.hierarchical_project_matrix_types::AgentProjectBindingRecord, GlobalAgentTier,
+  HierarchicalContextMatrix, ProjectWorkspaceTier, SessionGoalTier, WorkspaceHealthReport,
+  WorkspaceSessionRef (POS: Data contracts for Hierarchical Project Context Matrix and Dynamic Binding
+  Gate.)
+
+[OUTPUT]
+- AgentDynamicBindingGate: Manages many-to-many dynamic associations between agents and workspace projects.
+- HierarchicalContextMatrixComposer: Composes layered 3-tier prompt context preserving KV-Cache affinity.
+- WorkspaceHealthAndOrphanDetector: Scans workspace projects for detached orphan sessions and stagnant
+  residues.
+
+[POS]
+Hierarchical Project Context Matrix and Agent Dynamic Binding Gate.
 """
 
 from __future__ import annotations

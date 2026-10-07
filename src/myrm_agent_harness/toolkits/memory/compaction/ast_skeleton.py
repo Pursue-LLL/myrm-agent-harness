@@ -1,8 +1,16 @@
-# [POS] toolkits/memory/compaction/ast_skeleton.py
-# [INPUT] CodeAbstractionLevel, CompactionConfig
-# [OUTPUT] CodeSkeletonExtractor
+"""AST-based and regex-fallback code skeleton extractor for multi-tier compression.
 
-"""AST-based and regex-fallback code skeleton extractor for multi-tier compression."""
+[INPUT]
+- toolkits.memory.compaction.types::CodeAbstractionLevel (POS: Type definitions and contracts for
+  Token-Budget-Aware Code Memory Compaction.)
+
+[OUTPUT]
+- CodeSkeletonExtractor: Extracts structural signatures (L1) and control-flow skeletons (L2) from source
+  code.
+
+[POS]
+AST-based and regex-fallback code skeleton extractor for multi-tier compression.
+"""
 
 from __future__ import annotations
 

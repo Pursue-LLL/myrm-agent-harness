@@ -1,6 +1,16 @@
-# [POS] src/myrm_agent_harness/toolkits/memory/persona_router/gate.py
-# [INPUT] re, typing, .types.TaskIntentCategory
-# [OUTPUT] StyleSuppressionGate
+"""Gatekeeper inspecting user turn intent to strictly suppress persona tokens in technical tasks.
+
+[INPUT]
+- toolkits.memory.persona_router.types::TaskIntentCategory (POS: Typed data contracts for the persona router
+  subsystem.)
+
+[OUTPUT]
+- StyleSuppressionGate: Gatekeeper inspecting user turn intent to strictly suppress persona tokens in
+  technical tasks.
+
+[POS]
+Gatekeeper inspecting user turn intent to strictly suppress persona tokens in technical tasks.
+"""
 
 import re
 

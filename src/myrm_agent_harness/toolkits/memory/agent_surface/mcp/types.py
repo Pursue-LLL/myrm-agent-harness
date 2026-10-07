@@ -1,12 +1,24 @@
-# [POS]: myrm_agent_harness/toolkits/memory/agent_surface/mcp/types.py
-# [INPUT]: pydantic
-# [OUTPUT]: AiMemoryQueryRequest, AiMemoryQueryResult, AiMemoryFinalizeRequest, AiMemoryFinalizeResult, AiMemoryRememberRequest, AiMemoryRememberResult, McpServerInfo
 """Data models for ai-memory wire format interoperability and cross-tool MCP gateway.
 
 Defines schemas mirroring the 5.3k Star ai-memory MCP tool signatures
 (query_memory, get_handoff, finalize_session, remember) to enable zero-friction
 drop-in replacement for external agents (Claude Code, Cursor, Codex).
 Strict typing applied: No `Any` types allowed.
+
+[INPUT]
+- External: pydantic
+
+[OUTPUT]
+- AiMemoryQueryRequest: Query request matching ai-memory query_memory tool signature.
+- AiMemoryQueryResult: Formatted markdown search result mirroring ai-memory wire output.
+- AiMemoryFinalizeRequest: Request matching ai-memory finalize-session tool signature.
+- AiMemoryFinalizeResult: Confirmation output mirroring ai-memory finalize response.
+- AiMemoryRememberRequest: Request matching ai-memory remember/save_fact tool signature.
+- AiMemoryRememberResult: Result confirming durable memory ingestion under privacy gate review.
+- McpServerInfo: Metadata describing the active interoperability memory MCP server.
+
+[POS]
+Data models for ai-memory wire format interoperability and cross-tool MCP gateway.
 """
 
 from __future__ import annotations

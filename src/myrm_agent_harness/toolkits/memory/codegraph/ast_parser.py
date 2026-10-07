@@ -1,8 +1,15 @@
-# [INPUT] Source code strings or file paths to extract AST symbols and call dependencies.
-# [OUTPUT] Extracted CodeSymbol entities and DependencyEdge relations for the module.
-# [POS] myrm_agent_harness.toolkits.memory.codegraph.ast_parser
+"""AST-based code symbol and topology dependency extractor.
 
-"""AST-based code symbol and topology dependency extractor."""
+[INPUT]
+- toolkits.memory.codegraph.types::CodeSymbol, DependencyEdge, EdgeKind, SymbolKind (POS: Domain models and
+  type definitions for CodeGraph memory assets and impact analysis.)
+
+[OUTPUT]
+- AstTopologyExtractor: Extracts semantic symbols and intra-file call relations from Python AST.
+
+[POS]
+AST-based code symbol and topology dependency extractor.
+"""
 
 import ast
 from pathlib import Path

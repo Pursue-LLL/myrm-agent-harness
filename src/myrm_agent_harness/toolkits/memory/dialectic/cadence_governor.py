@@ -1,8 +1,15 @@
-# [POS] myrm_agent_harness/toolkits/memory/dialectic/cadence_governor.py
-# [INPUT] DialecticCadenceConfig, SessionHeatState from .types
-# [OUTPUT] DialecticCadenceGovernor (自适应会话步调动态节流控制器与冷热状态机)
+"""自适应会话步调动态节流控制器与冷热状态机，严厉抑制冗余推理与 Token 消耗。
 
-"""自适应会话步调动态节流控制器与冷热状态机，严厉抑制冗余推理与 Token 消耗。"""
+[INPUT]
+- toolkits.memory.dialectic.types::DialecticCadenceConfig, SessionHeatState (POS:
+  辩证推理深度用户表征与自适应会话步调动态节流核心类型。)
+
+[OUTPUT]
+- DialecticCadenceGovernor: 会话步调与冷热活跃度调度治理器。
+
+[POS]
+自适应会话步调动态节流控制器与冷热状态机，严厉抑制冗余推理与 Token 消耗。
+"""
 
 from __future__ import annotations
 

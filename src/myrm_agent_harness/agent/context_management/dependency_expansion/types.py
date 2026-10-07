@@ -1,8 +1,20 @@
-# [POS] myrm_agent_harness/agent/context_management/dependency_expansion/types.py
-# [INPUT] None (纯领域类型与数据模型定义)
-# [OUTPUT] ArchitectureNodeType, DependencyEdgeType, ArchitectureNode, DependencyEdge, DependencyGraphExpansionResult, TaskComplexityTrack, ComplexityClassification
+"""全链路跨栈架构依赖展开与任务复杂度自适应双轨调度核心类型定义。
 
-"""全链路跨栈架构依赖展开与任务复杂度自适应双轨调度核心类型定义。"""
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ArchitectureNodeType: 跨栈架构实体节点类型。
+- DependencyEdgeType: 架构拓扑实体间的级联依赖边类型。
+- ArchitectureNode: 跨栈架构拓扑实体节点。
+- DependencyEdge: 架构拓扑关联依赖边。
+- DependencyGraphExpansionResult: 架构依赖级联展开与影响面计算结果切片。
+- TaskComplexityTrack: 任务复杂度动态感知调度轨道枚举。
+- ComplexityClassification: 任务复杂度分类判定与分流决策结果。
+
+[POS]
+全链路跨栈架构依赖展开与任务复杂度自适应双轨调度核心类型定义。
+"""
 
 from __future__ import annotations
 

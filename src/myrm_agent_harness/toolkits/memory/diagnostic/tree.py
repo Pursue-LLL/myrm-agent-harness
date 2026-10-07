@@ -1,4 +1,17 @@
-"""5-Step Diagnostic Decision Tree executing standardized root cause analysis."""
+"""5-Step Diagnostic Decision Tree executing standardized root cause analysis.
+
+[INPUT]
+- toolkits.memory.diagnostic.models::DiagnosticStepKind, DiagnosticStepResult, MemoryDiagnosticProbeContext,
+  MemoryDiagnosticReport, MemoryRootCauseKind (POS: Data models for 5-Step Memory Diagnostic Decision Tree
+  and Root Cause Inspector.)
+
+[OUTPUT]
+- FiveStepDiagnosticDecisionTree: Executes sequential 5-step elimination tree to identify why memory failed
+  to manifest.
+
+[POS]
+5-Step Diagnostic Decision Tree executing standardized root cause analysis.
+"""
 
 import uuid
 from datetime import UTC, datetime

@@ -1,11 +1,24 @@
-# [POS]: myrm_agent_harness/agent/context_management/handoff/engine.py
-# [INPUT]: AgentHandoffStore, ExactlyOnceHandoffMachine, SessionFinalizer, types
-# [OUTPUT]: AgentHandoffEngine
 """Unified facade for agent handoff management, exactly-once claim, and session finalization.
 
 Provides high-level APIs for finalizing sessions, claiming handoffs under strict
 mutual exclusion, tracking state transitions, and querying durable handoff memoranda.
 Strict typing applied: No `Any` types allowed.
+
+[INPUT]
+- agent.context_management.handoff.finalizer::SessionFinalizer (POS: Session finalizer responsible for
+  extracting and persisting durable handoffs upon session close.)
+- agent.context_management.handoff.handoff_store::AgentHandoffStore (POS: Persistent storage backend for
+  agent handoff packets.)
+- agent.context_management.handoff.state_machine::ExactlyOnceHandoffMachine (POS: State machine governing
+  exactly-once claim and state transitions for agent handoffs.)
+- agent.context_management.handoff.types::AgentHandoffSpec, FinalizeSessionRequest, FinalizeSessionResult,
+  HandoffClaimReceipt (POS: Type definitions for cross-agent/cross-session typed handoff protocol.)
+
+[OUTPUT]
+- AgentHandoffEngine: Unified engine encapsulating storage, state machine, and session finalizer.
+
+[POS]
+Unified facade for agent handoff management, exactly-once claim, and session finalization.
 """
 
 from __future__ import annotations

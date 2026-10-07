@@ -1,4 +1,18 @@
-"""Lazy-loaded subdirectory rules discovery probe and dynamic tool injection hub."""
+"""Lazy-loaded subdirectory rules discovery probe and dynamic tool injection hub.
+
+[INPUT]
+- runtime.context.lazy_subdirectory_rules_types::DiscoveredSubdirectoryRule, DynamicToolInjectionEnvelope,
+  SubdirectoryRuleDiscoveryMode (POS: Data contracts and types for lazy-loaded subdirectory rules discovery
+  and dynamic tool injection.)
+
+[OUTPUT]
+- LazySubdirectoryRulesProbe: Discovers localized rules in subdirectories on-demand when files or paths are
+  accessed.
+- DynamicToolInjectionHub: Intercepts tool output and injects on-demand discovered subdirectory rules.
+
+[POS]
+Lazy-loaded subdirectory rules discovery probe and dynamic tool injection hub.
+"""
 
 from __future__ import annotations
 

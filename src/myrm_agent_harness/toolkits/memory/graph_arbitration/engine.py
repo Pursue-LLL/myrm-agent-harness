@@ -1,3 +1,24 @@
+"""Unified engine for dynamic edge weighting, entity disambiguation, and conflict arbitration.
+
+[INPUT]
+- toolkits.memory.graph_arbitration.arbitrator::FactConflictArbitrator (POS: Automated fact conflict
+  arbitration state machine with causal lineage tracking.)
+- toolkits.memory.graph_arbitration.decay::DEFAULT_HALF_LIFE_DAYS, TemporalEdgeDecayCalculator (POS: Dynamic
+  edge weight decay and frequency reinforcement operator.)
+- toolkits.memory.graph_arbitration.disambiguation::EntityDisambiguator (POS: Semantic entity normalization
+  and cross-session alias resolution operator.)
+- toolkits.memory.graph_arbitration.models::ArbitrationResult, EntityNode, EntityRelationEdge, FactStatus
+  (POS: Typed entity-graph contracts for graph arbitration: fact status, conflict resolution actions, entity
+  nodes and weighted relation edges.)
+
+[OUTPUT]
+- HierarchicalEntityGraphEngine: Unified engine for dynamic edge weighting, entity disambiguation, and
+  conflict arbitration.
+
+[POS]
+Unified engine for dynamic edge weighting, entity disambiguation, and conflict arbitration.
+"""
+
 from __future__ import annotations
 
 import time

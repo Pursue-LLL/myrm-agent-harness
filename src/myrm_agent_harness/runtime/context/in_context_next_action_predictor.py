@@ -2,6 +2,20 @@
 
 Coordinates artifact-aware heuristic derivation and optional lightweight
 model inference to proactively surface clickable next actions to the user.
+
+[INPUT]
+- runtime.context.artifact_heuristic_rule_engine::ArtifactHeuristicRuleEngine (POS: Artifact-aware heuristic
+  rule engine for next action prediction.)
+- runtime.context.next_action_predictor_types::ActionIntentType, NextActionPredictionReport,
+  NextActionPredictorConfig, PredictedActionChip, PredictionContextInput (POS: Types and data contracts for
+  In-Context Next Action and Question Predictor.)
+
+[OUTPUT]
+- InContextNextActionPredictor: Predictor orchestrating heuristic evaluation and optional model-assisted
+  chips.
+
+[POS]
+In-Context Next Action and Question Predictor.
 """
 
 from __future__ import annotations

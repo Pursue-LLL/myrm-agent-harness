@@ -2,6 +2,20 @@
 
 Defines schemas for channel handoffs, thread anchors, HuggingFace agent trace
 records, and turn-scoped media pointer lifecycles.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- TargetChannelType: Supported interactive client channels.
+- ChannelThreadKind: Specific platform thread anchoring strategy.
+- ChannelThreadAnchorDescriptor: Descriptor of platform-native thread anchor.
+- HandoffSessionEnvelope: Cryptographically anchored session handoff envelope.
+- MediaPointerReference: Turn-scoped lightweight media pointer replacing raw large payloads.
+- HFTraceStepRecord: Single step conforming to HuggingFace Agent Trace Viewer specification.
+
+[POS]
+Types for cross-platform channel handoff, HF trace export, and media pointers.
 """
 
 from dataclasses import dataclass, field

@@ -2,6 +2,20 @@
 
 Provides domain models, structured action chip definitions, turn execution
 artifact representations, and configuration models for proactive suggestions.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ActionIntentType: Categorized intent of a predicted proactive action.
+- PredictedActionChip: Action chip suggested for user click-to-run.
+- TurnExecutionArtifact: Execution artifacts observed during the most recent agent turn.
+- PredictionContextInput: Aggregated context consumed by the action predictor.
+- NextActionPredictionReport: Result payload delivered by the prediction engine.
+- NextActionPredictorConfig: Operational settings controlling prediction limits and heuristics.
+
+[POS]
+Types and data contracts for In-Context Next Action and Question Predictor.
 """
 
 from __future__ import annotations

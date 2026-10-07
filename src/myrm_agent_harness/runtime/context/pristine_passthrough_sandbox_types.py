@@ -2,6 +2,19 @@
 
 Defines schemas for zero-injection passthrough execution, pristine payload isolation,
 and side-by-side dual-track experiment telemetry.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- PristinePassthroughMode: Operational mode determining whether agent scaffolding is injected.
+- PristineExecutionConfig: Configuration governing framework prompt and tool stripping.
+- PristinePayload: Prepared payload delivered directly to the underlying model provider.
+- DualRunExperimentReport: Side-by-side comparative telemetry comparing raw baseline vs agent-augmented
+  output.
+
+[POS]
+Type definitions for Raw Model Direct Passthrough and Pristine Testing Sandbox.
 """
 
 from __future__ import annotations

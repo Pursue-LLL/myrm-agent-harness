@@ -2,6 +2,18 @@
 
 Ensures that multi-file refactoring diffs apply cleanly across all targets
 or roll back completely to maintain repository consistency.
+
+[INPUT]
+- runtime.context.full_repo_attention_anchor::AstDriftToleranceAligner (POS: Attention anchor injection and
+  AST drift tolerance aligner for 1M context.)
+- runtime.context.full_repo_refactor_types::RefactorApplyResult, RefactorPlanBundle (POS: Type definitions
+  for native 1M long-context full-repo refactoring pipeline.)
+
+[OUTPUT]
+- CrossFileDiffAtomicApplier: Applies multi-file refactoring diffs atomically with strict verification.
+
+[POS]
+Atomic cross-file diff applier with two-phase verification and rollback.
 """
 
 import hashlib

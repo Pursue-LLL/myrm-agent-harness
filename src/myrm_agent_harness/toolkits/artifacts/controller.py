@@ -1,3 +1,20 @@
+"""Progressive layer-wise streaming render controller with generation invalidation.
+
+[INPUT]
+- toolkits.artifacts.models::BoundingBox2D, CADLayer, LODLevel, ProgressiveRenderChunk, VectorPrimitive,
+  VectorPrimitiveType (POS: Typed CAD vector-geometry contracts (2D points, bounding boxes, vector
+  primitives, LOD levels, layers, progressive render chunks) for the artifacts toolkit.)
+- toolkits.artifacts.simplifier::DouglasPeuckerSimplifier, EdgeSharpener (POS: High-performance 2D geometric
+  simplification operator.)
+
+[OUTPUT]
+- ProgressiveLayerRenderController: Progressive layer-wise streaming render controller with generation
+  invalidation.
+
+[POS]
+Progressive layer-wise streaming render controller with generation invalidation.
+"""
+
 from __future__ import annotations
 
 import uuid

@@ -3,6 +3,19 @@
 Proactively monitors session message volume and token saturation, synthesizes structured
 milestone capsules (goals, pending tasks, decisions, artifacts), and cleanly forks subsequent
 epochs with zero-information-loss context handoff.
+
+[INPUT]
+- runtime.context.session_epoch_splitter_types::EpochSplitUrgency, ForkedEpochSessionDescriptor,
+  MilestoneArtifactRef, MilestoneCheckpointPayload, SessionSaturationProbeReport (POS: Data contracts and
+  models for Long Session Epoch Splitter and Milestone Archiver.)
+
+[OUTPUT]
+- LongSessionEpochSplitter: Executes atomic epoch splits, creating next-generation sessions.
+- MilestoneCheckpointArchiver: Synthesizes structured milestone capsules and formats prompt preambles.
+- SessionSaturationGovernor: Monitors token usage and message counts to detect saturation boundaries.
+
+[POS]
+Auto-Forking Milestone Checkpoint Archiver & Long-Session Epoch Splitter.
 """
 
 from __future__ import annotations

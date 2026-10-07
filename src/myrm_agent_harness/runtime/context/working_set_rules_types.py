@@ -2,6 +2,22 @@
 
 Strictly typed, 0 Any. Defines path scoping, task phase routing,
 rule telemetry, and entropy audit reports.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- RuleTaskPhase: Lifecycle phases of an agent task for rule scoping.
+- RuleSeverity: Urgency and precedence level of a rule.
+- PathScope: Glob patterns defining when a rule applies.
+- RuleItem: A scoped rule with targeting criteria and content.
+- ActiveWorkingSet: Current focus of agent execution.
+- RuleTelemetryRecord: Invocation and matching telemetry for a rule.
+- EntropyConflictItem: Identified conflict between two or more rules.
+- EntropyAuditReport: Result of architecture entropy draining sweep.
+
+[POS]
+Data types and schemas for dynamic working-set rules and architecture entropy draining.
 """
 
 from __future__ import annotations

@@ -1,11 +1,17 @@
-# [POS] myrm_agent_harness/agent/context_management/compression_flush/subagent_memory_isolation.py
-# [INPUT] EphemeralMemoryOverlaySpec, FlushItem, MemoryIsolationScope, SubagentMemoryPolicy from .types
-# [OUTPUT] SubagentMemoryIsolationController (子智能体内存沙箱隔离控制器与临时覆盖卷)
-
 """子智能体轻量内存沙箱隔离控制器与临时覆盖卷管理。
 
 提供父级只读记忆快照、子 Agent 运行期独立 Ephemeral 临时写入卷，
 以及任务完成后的核心成果选择性合流与无痕销毁机制，彻底杜绝跨上下文记忆污染。
+
+[INPUT]
+- agent.context_management.compression_flush.types::EphemeralMemoryOverlaySpec, FlushItem,
+  MemoryIsolationScope, SubagentMemoryPolicy (POS: 多智能体与长会话上下文压缩即时持久化刷盘协议核心类型。)
+
+[OUTPUT]
+- SubagentMemoryIsolationController: 子智能体轻量内存沙箱与临时覆盖卷生命周期控制器。
+
+[POS]
+子智能体轻量内存沙箱隔离控制器与临时覆盖卷管理。
 """
 
 from __future__ import annotations

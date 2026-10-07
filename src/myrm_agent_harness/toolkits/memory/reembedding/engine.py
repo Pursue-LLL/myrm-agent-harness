@@ -2,6 +2,21 @@
 
 Coordinates blue-green collection transitions, adaptive batching execution,
 breakpoint cursor persistence, and atomic hot-cutover routing.
+
+[INPUT]
+- toolkits.memory.reembedding.batcher::AdaptiveBatcher (POS: Text-length adaptive batching operator for
+  re-embedding pipelines.)
+- toolkits.memory.reembedding.checkpoint::ReembeddingCheckpointManager (POS: Persistent checkpoint and
+  breakpoint resume coordinator for re-embedding jobs.)
+- toolkits.memory.reembedding.models::DualVersionCollectionState, ReembeddingJobConfig, ReembeddingProgress,
+  ReembeddingRecord, ReembeddingStatus (POS: Data models for ZeroDowntimeCrossDimensionReembeddingEngine.)
+
+[OUTPUT]
+- ZeroDowntimeReembeddingEngine: Orchestrates zero-downtime re-embedding with adaptive batching and
+  breakpoint recovery.
+
+[POS]
+Zero-downtime cross-dimension re-embedding orchestrator engine.
 """
 
 import time

@@ -1,4 +1,16 @@
-"""Structured Task State Machine Tracker preserving task goals, steps, and todos."""
+"""Structured Task State Machine Tracker preserving task goals, steps, and todos.
+
+[INPUT]
+- toolkits.memory.task_state.models::StructuredTaskState, TaskStepItem, TaskStepStatus, TaskTodoItem (POS:
+  Data models for Structured Task State Machine and Compaction Preservation.)
+
+[OUTPUT]
+- StructuredTaskStateTracker: Manages the lifecycle of high-privilege task states across long-running
+  multi-turn workflows.
+
+[POS]
+Structured Task State Machine Tracker preserving task goals, steps, and todos.
+"""
 
 import uuid
 from collections.abc import Sequence

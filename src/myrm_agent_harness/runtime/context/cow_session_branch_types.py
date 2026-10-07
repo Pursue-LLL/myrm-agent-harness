@@ -2,6 +2,18 @@
 
 Defines data contracts for immutable ancestor sharing, delta message stores,
 CoW artifact resolution, and hierarchical exploration lineages.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- BranchMessageEntry: Represents a single conversational turn message inside a session branch.
+- CoWArtifactRecord: Represents an artifact state record either inherited or overridden in a branch.
+- SessionBranchDescriptor: Metadata describing a session branch and its lineage connection.
+- ProjectedSessionView: Virtual projected composite view combining inherited history with local deltas.
+
+[POS]
+Type definitions for Instant Session Forking and Copy-on-Write (CoW) State Branching.
 """
 
 from __future__ import annotations

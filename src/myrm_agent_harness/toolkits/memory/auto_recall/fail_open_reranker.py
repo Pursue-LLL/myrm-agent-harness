@@ -1,8 +1,15 @@
-# [POS] toolkits/memory/auto_recall/fail_open_reranker.py
-# [INPUT] types.RecallCandidate, types.RerankerStatus, types.RecallGateConfig
-# [OUTPUT] FailOpenReranker
+"""Fail-open reranker wrapper guaranteeing non-blocking fallback on missing keys or timeouts.
 
-"""Fail-open reranker wrapper guaranteeing non-blocking fallback on missing keys or timeouts."""
+[INPUT]
+- toolkits.memory.auto_recall.types::RecallCandidate, RecallGateConfig, RerankerStatus (POS: Type
+  definitions and contracts for Targeted Experience Auto-Recall Engine.)
+
+[OUTPUT]
+- FailOpenReranker: Wraps external neural rerankers with fail-open grace and latency circuit-breaking.
+
+[POS]
+Fail-open reranker wrapper guaranteeing non-blocking fallback on missing keys or timeouts.
+"""
 
 from __future__ import annotations
 

@@ -3,6 +3,19 @@
 Maintains immutable context logs, enforces tool-pair atomic invariants during compaction,
 synthesizes double-segment split-turn summaries, and dynamically assembles pristine
 LLM context views devoid of orphaned tool results.
+
+[INPUT]
+- runtime.context.append_only_compaction_types::CompactedContextAssembly, CompactionEntry, ContextEntryRole,
+  ContextLogEntry (POS: Types for append-only compaction ledger and atomic tool-pair cut-point engine.)
+- runtime.context.atomic_tool_pair_cut_point_resolver::AtomicToolPairCutPointResolver (POS: Atomic tool-pair
+  cut-point resolver for context compaction.)
+
+[OUTPUT]
+- AppendOnlyCompactionLedgerEngine: Engine managing an immutable append-only context log and atomic
+  compactions.
+
+[POS]
+Append-only compaction ledger engine with atomic tool-pair cut points and split-turn fusion.
 """
 
 import re

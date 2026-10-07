@@ -1,4 +1,17 @@
-"""Data contracts and types for Git-like non-linear session tree and branching engine."""
+"""Data contracts and types for Git-like non-linear session tree and branching engine.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- SessionTreeEntryKind: The polymorphic kind of an entry residing within the session tree.
+- GitSessionTreeNode: An immutable node in the non-linear session exploration tree.
+- GitSessionBranchDescriptor: Descriptor defining a named exploration branch within the session tree.
+- SessionTreeTopology: Exported topological overview of the non-linear session tree.
+
+[POS]
+Data contracts and types for Git-like non-linear session tree and branching engine.
+"""
 
 from __future__ import annotations
 

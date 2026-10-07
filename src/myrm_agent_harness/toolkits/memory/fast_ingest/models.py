@@ -1,4 +1,19 @@
-"""Data models for Sub-5% Latency One-Pass Fast Ingestion and Deep Distillation Engine."""
+"""Data models for Sub-5% Latency One-Pass Fast Ingestion and Deep Distillation Engine.
+
+[INPUT]
+- External: pydantic
+
+[OUTPUT]
+- IngestStatus: Lifecycle state of ingested fast memory records.
+- RawIngestTurn: Contextual representation of an individual conversational turn.
+- FastCommittedRecord: Memory record committed online with zero secondary LLM call overhead.
+- IngestionMetrics: Performance telemetry tracking commit latency versus forward latency.
+- DistillationBatch: A batch of committed records queued for idle-time distillation.
+- DistillationReport: Outcome report of asynchronous background distillation.
+
+[POS]
+Data models for Sub-5% Latency One-Pass Fast Ingestion and Deep Distillation Engine.
+"""
 
 from datetime import datetime
 from enum import StrEnum

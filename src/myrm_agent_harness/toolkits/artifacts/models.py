@@ -1,3 +1,29 @@
+"""Typed CAD vector-geometry contracts (2D points, bounding boxes, vector primitives, LOD levels, layers, progressive render chunks) for the artifacts toolkit.
+
+[INPUT]
+- External: pydantic
+
+[OUTPUT]
+- Point2D: Data model (fields: x, y)
+- BoundingBox2D: Data model (fields: min_x, min_y, max_x, max_y)
+- VectorPrimitiveType: Enum members: POLYLINE, POLYGON, ARC, VIA, PAD
+- VectorPrimitive: Data model (fields: id, primitive_type, points, layer_name, stroke_width, fill_color,
+  properties)
+- LODLevel: Enum members: LOD0_ORIGINAL, LOD1_SIMPLIFIED, LOD2_OVERVIEW
+- CADLayer: Data model (fields: layer_id, display_name, z_index, is_critical_core, color_hex, opacity)
+- ProgressiveRenderChunk: Data model (fields: chunk_id, generation_id, layer_id, lod_level, primitives,
+  is_final_chunk, total_points_count)
+- DeviceProtocolType: Enum members: UART_SERIAL, I2C, SPI, GPIO, BLE, VIRTUAL_BUS
+- DeviceStateSnapshot: Data model (fields: snapshot_id, device_id, protocol, registers, pin_states,
+  timestamp_ns, is_authoritative)
+- DeviceCommandEntry: Data model (fields: command_id, device_id, protocol, opcode, payload_hex,
+  expected_response_hex, actual_response_hex, timestamp_ns...)
+
+[POS]
+Typed CAD vector-geometry contracts (2D points, bounding boxes, vector primitives, LOD levels, layers,
+progressive render chunks) for the artifacts toolkit.
+"""
+
 from __future__ import annotations
 
 import math

@@ -2,6 +2,19 @@
 
 Defines structured locators (line ranges, primary keys, offsets), search candidates,
 verified source evidence, and grounding audit results.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- LocatorKind: Specification of locator coordinate semantics.
+- StructuredLocator: High-precision coordinate pointer for source artifact grounding.
+- SearchCandidateHit: Provisional candidate hit returned from retrieval or search.
+- VerifiedEvidence: Authentic, verified evidence re-read from the canonical source object.
+- GroundingAuditResult: Outcome of the anti-hallucination grounding verification gate.
+
+[POS]
+Type definitions for evidence-based locator grounding protocol and anti-hallucination gate.
 """
 
 from __future__ import annotations

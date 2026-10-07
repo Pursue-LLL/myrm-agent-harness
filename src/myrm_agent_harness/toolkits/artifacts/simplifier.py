@@ -1,3 +1,18 @@
+"""High-performance 2D geometric simplification operator.
+
+[INPUT]
+- toolkits.artifacts.models::BoundingBox2D, LODLevel, Point2D (POS: Typed CAD vector-geometry contracts (2D
+  points, bounding boxes, vector primitives, LOD levels, layers, progressive render chunks) for the
+  artifacts toolkit.)
+
+[OUTPUT]
+- DouglasPeuckerSimplifier: High-performance 2D geometric simplification operator.
+- EdgeSharpener: Feature angle detector and corner preservation anchor.
+
+[POS]
+High-performance 2D geometric simplification operator.
+"""
+
 from __future__ import annotations
 
 import math

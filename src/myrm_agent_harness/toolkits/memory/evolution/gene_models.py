@@ -1,8 +1,18 @@
-# [POS] toolkits/memory/evolution/gene_models.py
-# [INPUT] None
-# [OUTPUT] GenePolarity, ExperienceGene, GeneMatchQuery, GeneMutationAdvice
+"""Data models for Causal Experience Genes and Evolution Ledger.
 
-"""Data models for Causal Experience Genes and Evolution Ledger."""
+[INPUT]
+- External: pydantic
+
+[OUTPUT]
+- GenePolarity: Polarity of the causal experience gene.
+- ExperienceGene: A persistent causal experience gene capturing signals, refuted hypotheses, and proven
+  resolution.
+- GeneMatchQuery: Query parameters to match applicable genes against active task signals.
+- GeneMutationAdvice: Synthesized guidance for planning stage and workflow mutation.
+
+[POS]
+Data models for Causal Experience Genes and Evolution Ledger.
+"""
 
 from __future__ import annotations
 

@@ -2,6 +2,19 @@
 
 Extracts semantic diffs (new requirements, modified constraints, deprecations)
 from newly injected documents, and synthesizes continuous resumption packages.
+
+[INPUT]
+- runtime.context.project_milestone_tracker::ProjectMilestoneTracker (POS: Project milestone tracker
+  managing multi-phase project checkpoints.)
+- runtime.context.project_milestone_types::IncrementalMaterialUpdate, ProjectResumptionPackage (POS: Data
+  contracts for long-horizon project milestone checkpoints and resumption.)
+
+[OUTPUT]
+- IncrementalMaterialHydrationEngine: Engine extracting material deltas and synthesizing long-horizon
+  resumption context.
+
+[POS]
+Incremental material hydration and project resumption engine.
 """
 
 from __future__ import annotations

@@ -2,6 +2,24 @@
 
 Reference: DeepSeek Harness (@deepseek-ai/dsh) SessionSurface & arXiv:2608.24569.
 Strict 0 Any, immutable frozen dataclasses for deterministic context derivation.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- SessionEventType: Enumeration of event types recorded in the immutable event log.
+- MessageRole: Role associated with a projected model message.
+- SurfaceOpType: Operation type for surface folding and compaction.
+- SessionEvent: Immutable event stored in the event log (SSOT).
+- ProjectedMessage: Immutable model-visible message derived from surface nodes.
+- SurfaceNode: Single node in the projected surface sequence.
+- SurfaceOp: Operation applied during surface folding (e.g., compaction or tool pruning).
+- HandoffConstraints: Four core constraint dimensions required by arXiv:2608.24569 to prevent constraint
+  weakening.
+- SurfaceProjectionAudit: Audit report for surface projection and folding verification.
+
+[POS]
+Type definitions for Immutable Event Log SSOT and Surface Projection Engine.
 """
 
 from __future__ import annotations

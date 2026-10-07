@@ -2,6 +2,19 @@
 
 Strictly typed, 0 Any. Defines fixed-interval tail bounds, reasoning strip kinds,
 and sub-512k threshold floor rules.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ReasoningTagKind: Known reasoning and chain-of-thought XML tags.
+- LeanTailConfig: Configuration for Lean-Tail compaction with fixed tail preservation.
+- LeanTailWindowBudget: Computed context budget and tail allocation.
+- StrippedMessageResult: Outcome of reasoning trace stripping on a message.
+- LeanTailCompactionPlan: Computed plan for lean-tail compaction.
+
+[POS]
+Data types and schemas for Lean-Tail compression and reasoning trace stripping.
 """
 
 from __future__ import annotations

@@ -3,6 +3,16 @@
 Model responsibilities: Understanding, reasoning, generation, action selection.
 Harness responsibilities: Context assembly, tool exposure, state preservation,
 permission enforcement, telemetry audit, retry self-healing, session management.
+
+[INPUT]
+- runtime.context.multi_gateway_trust_types::CostRoutingDecision, ModelCostProfile, TaskComplexity (POS:
+  Strongly typed data contracts for Model-Harness orthogonal decoupling and multi-gateway trust.)
+
+[OUTPUT]
+- ModelHarnessCostRouter: Evaluates the true Total Cost-to-Outcome (TCO) for a given task complexity.
+
+[POS]
+Model and Harness orthogonal decoupling with Total Cost-to-Outcome routing.
 """
 
 from __future__ import annotations

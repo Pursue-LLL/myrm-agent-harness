@@ -2,6 +2,17 @@
 
 Dynamically partitions incoming memory records into adaptive slices
 respecting character limits (to prevent GPU/vLLM OOM) and target batch limits.
+
+[INPUT]
+- toolkits.memory.reembedding.models::ReembeddingBatch, ReembeddingJobConfig, ReembeddingRecord (POS: Data
+  models for ZeroDowntimeCrossDimensionReembeddingEngine.)
+
+[OUTPUT]
+- AdaptiveBatcher: Partitions memory records into adaptive batches based on character volume and record
+  count.
+
+[POS]
+Text-length adaptive batching operator for re-embedding pipelines.
 """
 
 from collections.abc import Sequence

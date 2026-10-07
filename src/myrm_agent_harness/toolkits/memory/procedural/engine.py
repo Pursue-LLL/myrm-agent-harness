@@ -2,6 +2,21 @@
 
 Manages versioned engineering rules, context-driven progressive disclosure,
 deterministic preflight gate assertions, and automated parameter remediation.
+
+[INPUT]
+- toolkits.memory.procedural.evaluator::EngineeringRuleCompilerAndEvaluator (POS: Engineering Rule Compiler
+  and Deterministic Preflight Evaluator.)
+- toolkits.memory.procedural.models::EngineeringProceduralRule, PreflightCheckReport (POS: Data models for
+  User Intervention to Procedural Memory Distillation Engine.)
+
+[OUTPUT]
+- EngineeringPreflightViolationError: Raised when design parameters violate blocking engineering constraints
+  during preflight checks.
+- DomainEngineeringProceduralEngine: Orchestrates procedural engineering specifications, rule versioning,
+  and validation gates.
+
+[POS]
+Domain Engineering Procedural Memory and Skill Workflow Engine.
 """
 
 from collections.abc import Sequence

@@ -3,6 +3,17 @@
 Implements four-condition evaluation (Clean, Correct, Irrelevant, Misleading)
 and selective trust arbitration to prevent Straightforwardly-Correct-to-Wrong
 (SC2W) conclusion reversals caused by noisy or adversarial external tool outputs.
+
+[INPUT]
+- runtime.context.selective_context_trust_types::ConflictAssessmentResult, ContextConditionKind,
+  ContextEvidenceSignal, PriorFactAssertion, SCOPETelemetryStats, SelectiveTrustDecision, TrustDecisionKind
+  (POS: Types for selective context preference optimization and misleading signal gate (SCOPE).)
+
+[OUTPUT]
+- SelectiveContextTrustGate: Arbiter evaluating external evidence against internal priors to optimize trust.
+
+[POS]
+Selective context trust gate and misleading signal arbiter (SCOPE).
 """
 
 import re

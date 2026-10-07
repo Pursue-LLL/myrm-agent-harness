@@ -1,4 +1,17 @@
-"""Data models for Future Action Impact Filtering Gate."""
+"""Data models for Future Action Impact Filtering Gate.
+
+[INPUT]
+- External: pydantic
+
+[OUTPUT]
+- ActionImpactCategory: Categorical classification of candidate memory information value.
+- ActionImpactTier: Storage routing tier derived from quantitative action impact score.
+- ActionImpactAssessment: Evaluation assessment detailing whether a fact will alter future agent actions.
+- BatchFilteringSummary: Aggregated outcome of batch extraction admission filtering.
+
+[POS]
+Data models for Future Action Impact Filtering Gate.
+"""
 
 from enum import StrEnum
 

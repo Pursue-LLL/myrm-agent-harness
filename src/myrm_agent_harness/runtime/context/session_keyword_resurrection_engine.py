@@ -2,6 +2,20 @@
 
 Restores complete working context, project workspace anchors, conversation transcripts,
 and pending task goals from archived sessions, generating breakpoint prompts for seamless continuation.
+
+[INPUT]
+- runtime.context.project_hierarchy_session_index::ProjectHierarchySessionIndex (POS: Full-text keyword
+  indexing and search engine for hierarchical project sessions.)
+- runtime.context.project_hierarchy_session_types::ArchivedSessionNode, HierarchyHitKind, ProjectNode,
+  ResurrectionContextBundle, ResurrectionStatus, TaskNode (POS: Project hierarchy session archive and
+  keyword resurrection types.)
+
+[OUTPUT]
+- SessionKeywordResurrectionEngine: Orchestrates seamless context restoration and agent resurrection from
+  archived sessions.
+
+[POS]
+Session keyword resurrection engine for seamless historical agent revival.
 """
 
 from __future__ import annotations

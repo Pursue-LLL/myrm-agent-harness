@@ -3,6 +3,17 @@
 Identifies obsolete intermediate diagnostic, grep, and exploratory logs from
 earlier conversation turns and dehydrates them into compact single-line receipts,
 eliminating compound Token Tax while preserving causal execution provenance.
+
+[INPUT]
+- runtime.context.universal_thin_harness_types::TransientToolOutputGCReceipt (POS: Universal agent thin
+  harness adaptive contract and Token Tax governor types.)
+
+[OUTPUT]
+- TransientToolOutputGCEngine: Collects and dehydrates transient intermediate tool outputs in multi-turn
+  contexts.
+
+[POS]
+Transient tool output garbage collection engine.
 """
 
 from __future__ import annotations

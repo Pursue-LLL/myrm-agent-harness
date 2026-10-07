@@ -2,6 +2,16 @@
 
 Evaluates negative spam filtering, domain affinity, engineering substance,
 and knowledge novelty to calculate an objective composite signal score.
+
+[INPUT]
+- toolkits.memory.social_curator.models::RawSocialPost, ScoredSocialInsight, SocialInsightCategory,
+  UserAffinityProfile (POS: Data models for HighSignalSocialFeedCurator.)
+
+[OUTPUT]
+- InformationGainScorer: Multi-dimensional information gain and technical substance evaluation operator.
+
+[POS]
+Information gain and aha-moment scoring operator for social feed items.
 """
 
 import re

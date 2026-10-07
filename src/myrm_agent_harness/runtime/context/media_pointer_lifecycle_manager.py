@@ -3,6 +3,17 @@
 Transforms heavy raw multimodal bytes (Base64 data URLs) into persistent local
 pointers and semantic descriptions after the initial introduction turn,
 preventing context window explosion in multi-turn conversations.
+
+[INPUT]
+- runtime.context.channel_handoff_and_hf_trace_types::MediaPointerReference (POS: Types for cross-platform
+  channel handoff, HF trace export, and media pointers.)
+
+[OUTPUT]
+- MediaPointerLifecycleManager: Manages lifecycle transitions of multimodal artifacts across conversation
+  turns.
+
+[POS]
+Media pointer lifecycle manager for turn-scoped multimodal payload governance.
 """
 
 import hashlib

@@ -3,6 +3,17 @@
 Routes context compression tiers based on task risk and remaining token budget.
 Monitors four-dimensional balance metrics to ensure compression never degrades
 task success rate or error recovery.
+
+[INPUT]
+- runtime.context.tokenomics_compression_types::CompressionBudgetDecision, CompressionTierKind,
+  ContextTaxonomyKind, FourDimensionalMetrics, TaskRiskLevel (POS: Strongly typed data contracts for the
+  Four-Tier Tokenomics context compression engine.)
+
+[OUTPUT]
+- CompressionBudgetRouter: Adapts compression intensity to runtime token headroom and task risk.
+
+[POS]
+Dynamic budget router and four-dimensional quality evaluation engine.
 """
 
 from __future__ import annotations

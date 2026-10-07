@@ -2,6 +2,16 @@
 
 Isolates oversized tool outputs (Shell logs, huge JSON payloads, file diffs)
 into dedicated lazy blob references, eliminating serialization bottlenecks.
+
+[INPUT]
+- runtime.context.bounded_hydration_types::HeavyToolBlobReference (POS: Types and data models for bounded
+  initial page loading and upward cursor hydration.)
+
+[OUTPUT]
+- HeavyToolPayloadBlobStore: Stores detached heavy tool outputs and serves on-demand lazy hydration.
+
+[POS]
+Heavy tool payload blob store and detachment manager.
 """
 
 from __future__ import annotations

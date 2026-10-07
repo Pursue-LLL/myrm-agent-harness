@@ -1,6 +1,18 @@
-# [POS] src/myrm_agent_harness/toolkits/memory/universal_mcp_bridge/types.py
-# [INPUT] enum, dataclasses
-# [OUTPUT] ExternalClientKind, McpTransportKind, ClientConfigSnippet, UniversalMemoryBridgeOptions
+"""Typed data contracts for the universal mcp bridge subsystem.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ExternalClientKind: External AI coding agent or companion client types.
+- McpTransportKind: Supported MCP communication transport kinds.
+- ClientConfigSnippet: Standardized configuration snippet for an external AI assistant client.
+- UniversalMemoryBridgeOptions: Options for generating external client MCP configuration and bridge
+  execution.
+
+[POS]
+Typed data contracts for the universal mcp bridge subsystem.
+"""
 
 from dataclasses import dataclass, field
 from enum import StrEnum

@@ -3,6 +3,18 @@
 Provides inverted token indexing, multi-field weighted scoring, and hierarchical
 grouping across Project-Task-Session-Message graphs, empowering developers to
 locate historical diagnostic context and past agent resolutions within milliseconds.
+
+[INPUT]
+- runtime.context.project_hierarchy_session_types::ArchivedMessageEntry, ArchivedSessionNode,
+  HierarchyGroupMatch, HierarchyHitKind, HierarchySearchHit, HierarchySearchResult, ProjectNode, TaskNode
+  (POS: Project hierarchy session archive and keyword resurrection types.)
+
+[OUTPUT]
+- ProjectHierarchySessionIndex: In-memory full-text search and hierarchy manager for project session
+  archives.
+
+[POS]
+Full-text keyword indexing and search engine for hierarchical project sessions.
 """
 
 from __future__ import annotations

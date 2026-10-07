@@ -2,6 +2,20 @@
 
 Defines Step-Level Checkpoint snapshots, pending tool call state tracking,
 workspace integrity hashing, and idempotent resumption decisions.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- CheckpointStepStatus: Lifecycle status of an execution step checkpoint.
+- ToolActionRecoveryKind: Action recommendation for an interrupted tool invocation.
+- ToolExecutionSnapshot: Snapshot of a tool invocation before/after execution.
+- SessionStepCheckpoint: Atomic snapshot capturing state at a discrete step boundary.
+- AtomicResumeDecision: Directive determining whether and how to resume an interrupted session.
+- SessionCheckpointConfig: Operational settings controlling checkpoint persistence and retention.
+
+[POS]
+Domain models and data contracts for Session State Checkpoint and Atomic Resume.
 """
 
 from __future__ import annotations

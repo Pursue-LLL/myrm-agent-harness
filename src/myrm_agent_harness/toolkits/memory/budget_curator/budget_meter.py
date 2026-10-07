@@ -1,8 +1,15 @@
-# [POS] myrm_agent_harness/toolkits/memory/budget_curator/budget_meter.py
-# [INPUT] ManagedMemoryItem, MemoryBudgetSpec, MemoryBudgetStatus from .types
-# [OUTPUT] MemoryBudgetMeter (声明式记忆预算计量器与标头渲染器)
+"""声明式记忆上下文预算计量器，渲染可视化预算仪表盘标头并监控容量水位。
 
-"""声明式记忆上下文预算计量器，渲染可视化预算仪表盘标头并监控容量水位。"""
+[INPUT]
+- toolkits.memory.budget_curator.types::ManagedMemoryItem, MemoryBudgetSpec, MemoryBudgetStatus (POS:
+  双轨冻结快照记忆预算仪表盘、原子批量腾挪策展操作符与长程会话回溯锚点核心类型。)
+
+[OUTPUT]
+- MemoryBudgetMeter: 记忆字符/Token 与槽位预算计量器。
+
+[POS]
+声明式记忆上下文预算计量器，渲染可视化预算仪表盘标头并监控容量水位。
+"""
 
 from __future__ import annotations
 

@@ -1,8 +1,24 @@
-# [POS] toolkits/memory/graph_rrf/__init__.py
-# [INPUT] None
-# [OUTPUT] EntityNode, RelationEdge, GraphTraversalPath, GraphTraversalResult, VectorHit, GraphHit, FusedMemoryHit, RRFConfig, SQLiteGraphMemoryStore, ReciprocalRankFusionEngine, DualChannelRRFRetriever
+"""Knowledge Graph and Vector Reciprocal Rank Fusion Memory Engine package.
 
-"""Knowledge Graph and Vector Reciprocal Rank Fusion Memory Engine package."""
+[INPUT]
+- toolkits.memory.graph_rrf.dual_channel_retriever::DualChannelRRFRetriever, VectorSearchFn (POS:
+  Dual-Channel Knowledge Graph and Vector Retriever using Reciprocal Rank Fusion.)
+- toolkits.memory.graph_rrf.graph_store::SQLiteGraphMemoryStore (POS: Lightweight SQLite-backed Knowledge
+  Graph Store for relational long-term memory.)
+- toolkits.memory.graph_rrf.rrf_fusion::ReciprocalRankFusionEngine (POS: Reciprocal Rank Fusion (RRF) Engine
+  for multi-channel memory score unification.)
+- toolkits.memory.graph_rrf.types::EntityNode, FusedMemoryHit, GraphHit, GraphTraversalPath,
+  GraphTraversalResult, RRFConfig, RelationEdge, VectorHit (POS: Data models and contract types for
+  Knowledge Graph and Vector RRF Fusion Memory Engine.)
+
+[OUTPUT]
+- Package facade re-exporting 12 public names: DualChannelRRFRetriever, EntityNode, FusedMemoryHit,
+  GraphHit, GraphTraversalPath, GraphTraversalResult, RRFConfig, ReciprocalRankFusionEngine, RelationEdge,
+  SQLiteGraphMemoryStore, VectorHit, VectorSearchFn
+
+[POS]
+Knowledge Graph and Vector Reciprocal Rank Fusion Memory Engine package.
+"""
 
 from __future__ import annotations
 

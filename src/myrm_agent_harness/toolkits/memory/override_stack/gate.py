@@ -1,6 +1,21 @@
-# [POS] src/myrm_agent_harness/toolkits/memory/override_stack/gate.py
-# [INPUT] collections.abc.Sequence, typing, .types, .detector, myrm_agent_harness.toolkits.memory.types.ProceduralMemory
-# [OUTPUT] EphemeralBypassGate, DynamicUserOverrideStack
+"""Evaluates turn prompt against procedural playbooks and temporarily bypasses conflicting rules.
+
+[INPUT]
+- toolkits.memory.override_stack.detector::PlaybookConflictDetector (POS: Detects acute semantic
+  contradictions between user turn instructions and crystallized playbooks.)
+- toolkits.memory.override_stack.types::EphemeralBypassRecord, PlaybookOverrideEvaluation (POS: Typed data
+  contracts for the override stack subsystem.)
+- toolkits.memory.types::ProceduralMemory (POS: Memory type system foundation.)
+
+[OUTPUT]
+- EphemeralBypassGate: Evaluates turn prompt against procedural playbooks and temporarily bypasses
+  conflicting rules.
+- DynamicUserOverrideStack: Orchestrates the immutable three-tier priority hierarchy: Turn Prompt > Session
+  Decision > Procedural Playbook.
+
+[POS]
+Evaluates turn prompt against procedural playbooks and temporarily bypasses conflicting rules.
+"""
 
 from collections.abc import Sequence
 

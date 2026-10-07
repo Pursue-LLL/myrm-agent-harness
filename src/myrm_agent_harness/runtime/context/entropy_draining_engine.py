@@ -2,6 +2,21 @@
 
 Orchestrates path-scoped matching, rule conflict resolution, and stale
 rule archive pruning to prevent context poisoning and rule bloat.
+
+[INPUT]
+- runtime.context.path_scoped_rule_matcher::PathScopedRuleMatcher (POS: Path-scoped and task-phase rule
+  matching router for dynamic working set slicing.)
+- runtime.context.rule_telemetry_ledger::RuleTelemetryLedger (POS: Telemetry and usage ledger for dynamic
+  rules.)
+- runtime.context.working_set_rules_types::ActiveWorkingSet, EntropyAuditReport, EntropyConflictItem,
+  RuleItem, RuleSeverity (POS: Data types and schemas for dynamic working-set rules and architecture entropy
+  draining.)
+
+[OUTPUT]
+- EntropyDrainingEngine: Manages dynamic working set rules pruning and architectural entropy drainage.
+
+[POS]
+Architecture entropy draining engine and dynamic working set rules pruner.
 """
 
 from __future__ import annotations

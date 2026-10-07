@@ -1,4 +1,18 @@
-"""Types and data contracts for sliding window session lifecycle and KV cache keeper."""
+"""Types and data contracts for sliding window session lifecycle and KV cache keeper.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- SessionLifecycleState: Lifecycle states of a session governed by sliding inactivity window.
+- InactivityWindowConfig: Configuration for inactivity sliding window and KV cache retention.
+- PrefixCacheFingerprint: Stable fingerprint of system prompt and static tools context for KV cache.
+- CrystallizedSessionMemory: Crystallized long-term memory payload generated upon session archival.
+- SessionLifecycleSnapshot: Immutable snapshot of the session state, activity timeline, and cache status.
+
+[POS]
+Types and data contracts for sliding window session lifecycle and KV cache keeper.
+"""
 
 from __future__ import annotations
 

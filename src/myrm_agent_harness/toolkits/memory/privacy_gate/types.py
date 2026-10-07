@@ -1,11 +1,24 @@
-# [POS]: myrm_agent_harness/toolkits/memory/privacy_gate/types.py
-# [INPUT]: enum, pydantic
-# [OUTPUT]: PrivacySensitivityLevel, PrivacyViolationType, SecretFinding, PrivacyCheckResult, MemoryPrivacyConfig, exceptions
 """Type definitions and contracts for memory privacy boundary and allowlist gate.
 
 Defines sensitivity classifications, violation taxonomies, detection findings,
 and configuration constraints.
 Strict typing applied: No `Any` types allowed.
+
+[INPUT]
+- External: pydantic
+
+[OUTPUT]
+- PrivacySensitivityLevel: Graded sensitivity level of memory contents.
+- PrivacyViolationType: Taxonomy of detected sensitive data violations.
+- SecretFinding: Atomic finding of a sensitive secret or prohibited pattern.
+- PrivacyCheckResult: Comprehensive evaluation result from privacy boundary gate inspection.
+- MemoryPrivacyConfig: Configuration options for memory privacy boundary gate.
+- MemoryPrivacyError: Base exception for memory privacy violations.
+- PrivacyBoundaryViolationError: Raised when critical secrets or prohibited paths violate boundary policies.
+- InvalidPrivacyConfigError: Raised when memory privacy configuration parameters are invalid.
+
+[POS]
+Type definitions and contracts for memory privacy boundary and allowlist gate.
 """
 
 from __future__ import annotations

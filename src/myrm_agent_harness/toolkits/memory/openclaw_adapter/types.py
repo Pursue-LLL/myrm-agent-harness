@@ -1,6 +1,19 @@
-# [POS] src/myrm_agent_harness/toolkits/memory/openclaw_adapter/types.py
-# [INPUT] dataclasses, enum.StrEnum, datetime, typing
-# [OUTPUT] OpenClawVersion, OpenClawSessionNode, OpenClawMemoryEntryV2, RescueReport, OpenClawParsedBundle
+"""Typed data contracts for the openclaw adapter subsystem.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- OpenClawVersion: Supported OpenClaw data schema versions.
+- OpenClawSessionNode: Represents a session node in OpenClaw 2.0 multi-user & Swarm topology tree.
+- OpenClawMemoryEntryV2: Represents a structured memory entry in OpenClaw 2.0.
+- RescueReport: Diagnostics and telemetry generated during crash recovery extraction.
+- OpenClawParsedBundle: Unified bundle containing parsed OpenClaw sessions, memories, and rescue
+  diagnostics.
+
+[POS]
+Typed data contracts for the openclaw adapter subsystem.
+"""
 
 from dataclasses import dataclass, field
 from enum import StrEnum

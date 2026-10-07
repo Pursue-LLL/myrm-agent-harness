@@ -2,6 +2,19 @@
 
 Defines command quiet-rewrite contracts, output disk spill receipts,
 and Subagent firewall model downgrade and isolation results.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- CommandCategory: Categorization of shell commands for targeted quiet optimization.
+- CommandRewriteResult: Artifact of quiet command rewrite check.
+- OutputSpillReceipt: Receipt tracking large tool output persisted to disk with compact context snippet.
+- SubagentFirewallConfig: Configuration for isolating noisy background tasks to downgraded Subagents.
+- SubagentFirewallResult: Outcome of running a noisy sub-task behind the context firewall.
+
+[POS]
+Quiet command rewriter, output spill, and Subagent context firewall types.
 """
 
 from __future__ import annotations

@@ -1,8 +1,15 @@
-# [POS] toolkits/memory/graph_rrf/graph_store.py
-# [INPUT] sqlite3, json, EntityNode, RelationEdge, GraphTraversalPath, GraphTraversalResult
-# [OUTPUT] SQLiteGraphMemoryStore
+"""Lightweight SQLite-backed Knowledge Graph Store for relational long-term memory.
 
-"""Lightweight SQLite-backed Knowledge Graph Store for relational long-term memory."""
+[INPUT]
+- toolkits.memory.graph_rrf.types::EntityNode, GraphTraversalPath, GraphTraversalResult, RelationEdge (POS:
+  Data models and contract types for Knowledge Graph and Vector RRF Fusion Memory Engine.)
+
+[OUTPUT]
+- SQLiteGraphMemoryStore: Manages knowledge graph entities, relations, and memory associations in SQLite.
+
+[POS]
+Lightweight SQLite-backed Knowledge Graph Store for relational long-term memory.
+"""
 
 from __future__ import annotations
 

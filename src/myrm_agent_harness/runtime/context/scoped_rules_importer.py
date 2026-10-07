@@ -2,6 +2,16 @@
 
 Parses external rule manifests (e.g. .hermes/ configs or raw markdown bundles)
 and translates them into the native Myrm FiveLayerRuleMatrix.
+
+[INPUT]
+- runtime.context.multi_gateway_trust_types::FiveLayerRuleMatrix, RuleEntry, RuleLayerKind (POS: Strongly
+  typed data contracts for Model-Harness orthogonal decoupling and multi-gateway trust.)
+
+[OUTPUT]
+- ScopedRulesImporter: Seamless migration adapter for Hermes and OpenClaw agent rule definitions.
+
+[POS]
+Hermes and OpenClaw scoped rules asset importer.
 """
 
 from __future__ import annotations

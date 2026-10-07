@@ -1,11 +1,21 @@
-# [POS]: myrm_agent_harness/agent/context_management/handoff/finalizer.py
-# [INPUT]: AgentHandoffStore, FinalizeSessionRequest, FinalizeSessionResult, AgentHandoffSpec
-# [OUTPUT]: SessionFinalizer
 """Session finalizer responsible for extracting and persisting durable handoffs upon session close.
 
 Ensures no execution state, rejected hypotheses, or latent constraints are lost
 when an agent finishes its work or prepares to hand off execution.
 Strict typing applied: No `Any` types allowed.
+
+[INPUT]
+- agent.context_management.handoff.handoff_store::AgentHandoffStore (POS: Persistent storage backend for
+  agent handoff packets.)
+- agent.context_management.handoff.types::AgentHandoffSpec, FinalizeSessionRequest, FinalizeSessionResult,
+  HandoffStatus (POS: Type definitions for cross-agent/cross-session typed handoff protocol.)
+
+[OUTPUT]
+- SessionFinalizationError: Raised when session finalization fails validation or persistence.
+- SessionFinalizer: Finalizes an agent session, converting working memory into a durable handoff packet.
+
+[POS]
+Session finalizer responsible for extracting and persisting durable handoffs upon session close.
 """
 
 from __future__ import annotations

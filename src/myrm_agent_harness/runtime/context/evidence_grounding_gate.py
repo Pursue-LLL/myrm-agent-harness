@@ -3,6 +3,18 @@
 Implements MFS Search->Locate->Browse paradigm: search returns candidate hits with
 structured locators, mandatory evidence re-reading verifies ground truth, and the
 grounding gate validates that generated answers are strictly anchored in authentic evidence.
+
+[INPUT]
+- runtime.context.evidence_grounding_types::GroundingAuditResult, SearchCandidateHit, StructuredLocator,
+  VerifiedEvidence (POS: Type definitions for evidence-based locator grounding protocol and
+  anti-hallucination gate.)
+
+[OUTPUT]
+- EvidenceGroundingProtocolHub: Orchestrates candidate registration, mandatory evidence re-reading, and
+  anti-hallucination grounding audits.
+
+[POS]
+Evidence-based locator grounding protocol and anti-hallucination gate.
 """
 
 from __future__ import annotations

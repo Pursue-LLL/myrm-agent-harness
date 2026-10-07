@@ -2,6 +2,18 @@
 
 Enforces three-zone context partitioning (static system frozen, immutable append-only
 history stream, active working tail) and produces seed-pinned idempotent summaries.
+
+[INPUT]
+- runtime.context.deterministic_prefix_cache_guard::DeterministicPrefixCacheGuard (POS: Deterministic
+  hash-pinned prefix cache guard.)
+- runtime.context.deterministic_prefix_cache_types::DeterministicSummaryBlock, PrefixHashFingerprint (POS:
+  Types and data models for deterministic hash-pinned prefix cache guard and append-only pipeline.)
+
+[OUTPUT]
+- AppendOnlyContextPipeline: Manages append-only prompt sequences and deterministic summarization.
+
+[POS]
+Append-only context pipeline and deterministic summarization engine.
 """
 
 from __future__ import annotations

@@ -1,4 +1,15 @@
-"""Procedural rule injector for prompt safety boundaries and tool call preflight enforcement."""
+"""Procedural rule injector for prompt safety boundaries and tool call preflight enforcement.
+
+[INPUT]
+- toolkits.memory.procedural.models::ProceduralRule, RuleInjectionContext, RuleScope (POS: Data models for
+  User Intervention to Procedural Memory Distillation Engine.)
+
+[OUTPUT]
+- ProceduralRuleInjector: Matches scoped procedural rules and injects non-negotiable safety guards.
+
+[POS]
+Procedural rule injector for prompt safety boundaries and tool call preflight enforcement.
+"""
 
 import re
 from collections.abc import Sequence

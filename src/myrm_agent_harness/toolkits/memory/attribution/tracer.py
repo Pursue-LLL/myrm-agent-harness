@@ -1,4 +1,17 @@
-"""Memory Lifecycle Tracer documenting single-trace attribution flows."""
+"""Memory Lifecycle Tracer documenting single-trace attribution flows.
+
+[INPUT]
+- toolkits.memory.attribution.models::AttributionGraphEdge, AttributionGraphNode, AttributionGraphPayload,
+  CandidateRecallItem, DiscardedRecallItem, InjectedContextItem, MemoryAttributionTrace, ModelCitationItem
+  (POS: Data models for Full-Lifecycle Memory Attribution and Explainable Traceability Matrix.)
+
+[OUTPUT]
+- MemoryLifecycleTracer: Tracks and records full-lifecycle memory flows from initial query to final
+  citation.
+
+[POS]
+Memory Lifecycle Tracer documenting single-trace attribution flows.
+"""
 
 import uuid
 from collections.abc import Sequence

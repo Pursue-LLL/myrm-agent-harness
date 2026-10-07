@@ -2,6 +2,17 @@
 
 Persists step snapshots with atomic write-and-rename guarantees on disk,
 while providing memory-fallback when no physical storage path is configured.
+
+[INPUT]
+- runtime.context.session_checkpoint_types::CheckpointStepStatus, SessionCheckpointConfig,
+  SessionStepCheckpoint, ToolExecutionSnapshot (POS: Domain models and data contracts for Session State
+  Checkpoint and Atomic Resume.)
+
+[OUTPUT]
+- SessionCheckpointStorage: Atomic storage provider for step-level execution checkpoints.
+
+[POS]
+Storage layer for Session Step Checkpoints supporting atomic persistence.
 """
 
 from __future__ import annotations

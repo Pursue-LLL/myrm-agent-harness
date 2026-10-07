@@ -1,3 +1,17 @@
+"""Automated fact conflict arbitration state machine with causal lineage tracking.
+
+[INPUT]
+- toolkits.memory.graph_arbitration.models::ArbitrationResult, ConflictResolutionAction, EntityRelationEdge,
+  FactStatus (POS: Typed entity-graph contracts for graph arbitration: fact status, conflict resolution
+  actions, entity nodes and weighted relation edges.)
+
+[OUTPUT]
+- FactConflictArbitrator: Automated fact conflict arbitration state machine with causal lineage tracking.
+
+[POS]
+Automated fact conflict arbitration state machine with causal lineage tracking.
+"""
+
 from __future__ import annotations
 
 from myrm_agent_harness.toolkits.memory.graph_arbitration.models import (

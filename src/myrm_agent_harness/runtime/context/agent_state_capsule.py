@@ -3,6 +3,18 @@
 Provides atomic encapsulation of agent profile, custom skills, hierarchical memories,
 and session checkpoints into a portable, integrity-verified capsule (.myrmagent)
 with deterministic conflict resolution and environment validation.
+
+[INPUT]
+- runtime.context.agent_state_capsule_types::AgentProfileCapsule, CapsuleEnvironmentDiagnostic,
+  CapsuleHeader, CapsuleIntegrityError, CapsuleMergeStrategy, MemoryCapsuleEntry, ResolvedMigrationBundle,
+  SessionCheckpointCapsuleEntry, +2 more (POS: Data contracts and models for Universal Agent State Capsule.)
+
+[OUTPUT]
+- CapsuleMigrationResolver: Pre-flight diagnostics and multi-strategy migration resolution.
+- CapsuleSerializationEngine: Serializes, deserializes, and verifies portable agent state capsules.
+
+[POS]
+Universal Agent State Capsule & Cross-Device Migration Bundle Engine.
 """
 
 from __future__ import annotations

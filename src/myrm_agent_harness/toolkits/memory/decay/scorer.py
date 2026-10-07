@@ -1,8 +1,16 @@
-# [INPUT] MemoryDecayProfile and current epoch timestamp.
-# [OUTPUT] Evaluated decay retention score in [0.0, 1.0] and suggested StorageTier.
-# [POS] myrm_agent_harness.toolkits.memory.decay.scorer
+"""Ebbinghaus exponential decay and RFM frequency reinforcement scoring function.
 
-"""Ebbinghaus exponential decay and RFM frequency reinforcement scoring function."""
+[INPUT]
+- toolkits.memory.decay.types::DecayScorerConfig, MemoryDecayProfile, StorageTier (POS: Domain models and
+  type definitions for Ebbinghaus decay and tiered storage lifecycle.)
+
+[OUTPUT]
+- EbbinghausDecayScorer: Calculates active memory retention using Ebbinghaus decay curve and RFM frequency
+  boost.
+
+[POS]
+Ebbinghaus exponential decay and RFM frequency reinforcement scoring function.
+"""
 
 import math
 import time

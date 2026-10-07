@@ -1,8 +1,17 @@
-# [INPUT] Target symbol name and optional file scope for modification pre-check.
-# [OUTPUT] Structured impact analysis dictionary with risk level, callers, and safety precautions.
-# [POS] myrm_agent_harness.toolkits.memory.codegraph.tool
+"""Agent-facing meta tool for evaluating code modification impact.
 
-"""Agent-facing meta tool for evaluating code modification impact."""
+[INPUT]
+- toolkits.memory.codegraph.impact_analyzer::CodeImpactAnalyzer (POS: Impact analysis engine evaluating
+  modification blast radius and risk levels.)
+- toolkits.memory.codegraph.store::CodeGraphMemoryStore (POS: CodeGraph memory store maintaining symbol
+  topology and caller inversions.)
+
+[OUTPUT]
+- CodeImpactAnalysisTool: Tool exposed to agents to inspect caller blast radius before code edits.
+
+[POS]
+Agent-facing meta tool for evaluating code modification impact.
+"""
 
 from myrm_agent_harness.toolkits.memory.codegraph.impact_analyzer import (
     CodeImpactAnalyzer,

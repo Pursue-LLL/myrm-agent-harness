@@ -1,6 +1,20 @@
-# [POS] src/myrm_agent_harness/toolkits/memory/universal_mcp_bridge/__init__.py
-# [INPUT] .types, .config_generator, .bridge_runner
-# [OUTPUT] ExternalClientKind, McpTransportKind, ClientConfigSnippet, UniversalMemoryBridgeOptions, ExternalClientConfigGenerator, UniversalMcpMemoryBridge
+"""Public facade of the universal mcp bridge subsystem.
+
+[INPUT]
+- toolkits.memory.universal_mcp_bridge.bridge_runner::UniversalMcpMemoryBridge (POS: Core bridge coordinator
+  providing standard memory tool definitions and execution dispatch for external clients.)
+- toolkits.memory.universal_mcp_bridge.config_generator::ExternalClientConfigGenerator (POS: Generates
+  plug-and-play MCP configuration snippets for external AI tools.)
+- toolkits.memory.universal_mcp_bridge.types::ClientConfigSnippet, ExternalClientKind, McpTransportKind,
+  UniversalMemoryBridgeOptions (POS: Typed data contracts for the universal mcp bridge subsystem.)
+
+[OUTPUT]
+- Package facade re-exporting 6 public names: ClientConfigSnippet, ExternalClientConfigGenerator,
+  ExternalClientKind, McpTransportKind, UniversalMcpMemoryBridge, UniversalMemoryBridgeOptions
+
+[POS]
+Public facade of the universal mcp bridge subsystem.
+"""
 
 from .bridge_runner import UniversalMcpMemoryBridge
 from .config_generator import ExternalClientConfigGenerator

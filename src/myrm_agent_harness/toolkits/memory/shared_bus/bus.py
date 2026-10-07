@@ -1,8 +1,22 @@
-# [POS] myrm_agent_harness/toolkits/memory/shared_bus/bus.py
-# [INPUT] NegativeDecisionLedger, SharedMemoryConcurrencyPool, ReinforcedDecayScorer
-# [OUTPUT] MultiAgentSharedMemoryBus (跨 Agent 共享记忆协调总线中枢)
+"""跨 Agent 共享记忆总线中枢，集成方案否决账本、并发连接池、背压守卫与强化衰减打分器。
 
-"""跨 Agent 共享记忆总线中枢，集成方案否决账本、并发连接池、背压守卫与强化衰减打分器。"""
+[INPUT]
+- toolkits.memory.shared_bus.concurrency_pool::SharedMemoryConcurrencyPool (POS: 多 Agent
+  共享并发连接池与内存背压守卫，保障高并发读写不锁死、内存不击穿。)
+- toolkits.memory.shared_bus.decay_scorer::ReinforcedDecayScorer (POS:
+  命中频次正向强化与时间半衰期衰减联合打分器，实现常用常新、长期未用平滑遗忘。)
+- toolkits.memory.shared_bus.negative_ledger::NegativeDecisionLedger (POS:
+  方案否决与禁忌决策专属账本，前置拦截已被废弃的方案，彻底杜绝 AI 重复踩坑。)
+- toolkits.memory.shared_bus.types::BackpressureStatus, ConcurrencyPoolConfig, NegativeDecisionCheckResult,
+  NegativeDecisionEntry, ReinforcedDecayConfig, ScoredMemoryItem (POS: 跨 Agent
+  共享记忆总线、并发连接池、背压守卫与方案否决账本的核心类型定义。)
+
+[OUTPUT]
+- MultiAgentSharedMemoryBus: 跨 Agent 共享记忆协同总线。
+
+[POS]
+跨 Agent 共享记忆总线中枢，集成方案否决账本、并发连接池、背压守卫与强化衰减打分器。
+"""
 
 from __future__ import annotations
 

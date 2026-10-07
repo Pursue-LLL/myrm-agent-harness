@@ -1,4 +1,17 @@
-"""Intervention memory extractor translating human interrupts into structured procedural rules."""
+"""Intervention memory extractor translating human interrupts into structured procedural rules.
+
+[INPUT]
+- toolkits.memory.procedural.models::HumanInterventionEvent, InterventionType, ProceduralRule,
+  RuleDistillationResult, RuleScope (POS: Data models for User Intervention to Procedural Memory
+  Distillation Engine.)
+
+[OUTPUT]
+- InterventionMemoryExtractor: Extracts and consolidates procedural environment rules from runtime human
+  interrupts.
+
+[POS]
+Intervention memory extractor translating human interrupts into structured procedural rules.
+"""
 
 import re
 import uuid

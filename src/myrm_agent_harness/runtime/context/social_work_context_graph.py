@@ -2,6 +2,20 @@
 
 Resolves human collaboration roles, decision chains, multi-modal cross-app work assets,
 temporal-semantic fuzzy inquiries, and transparent privacy boundaries.
+
+[INPUT]
+- runtime.context.social_work_context_graph_types::CrossAppWorkAsset, FuzzyQueryIntent, PersonEntity,
+  PersonRoleKind, PrivacyAuditRecord, ResolvedContextAnchor, WorkAssetKind (POS: Data contracts for Social
+  Collaboration Graph and Cross-Application Work Context.)
+
+[OUTPUT]
+- CrossAppChronologicalResolver: Performs multi-dimensional temporal and semantic fuzzy resolution across
+  apps.
+- PrivacyAuditSentinel: Enforces directory/source authorization boundaries with complete audit logging.
+- SocialCollaborationGraph: Maintains team social structure, aliases, decision roles, and delegation chains.
+
+[POS]
+Social Collaboration Graph and Cross-Application Work Context Engine.
 """
 
 from __future__ import annotations

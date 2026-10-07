@@ -1,4 +1,15 @@
-"""Confidence Decay Governor and Dual-Blind Conflict Arbitration Engine."""
+"""Confidence Decay Governor and Dual-Blind Conflict Arbitration Engine.
+
+[INPUT]
+- toolkits.memory.evolution.models::ArbitrationAction, ConflictArbitrationReport, EvolvingMemoryRule,
+  RuleStatus (POS: Data models for Order-Invariant Memory Evolution and Decay Engine.)
+
+[OUTPUT]
+- ConfidenceDecayGovernor: Manages temporal confidence half-life decay and conflict arbitration.
+
+[POS]
+Confidence Decay Governor and Dual-Blind Conflict Arbitration Engine.
+"""
 
 import math
 import re

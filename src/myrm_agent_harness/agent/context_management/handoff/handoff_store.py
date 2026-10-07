@@ -3,6 +3,16 @@
 Guarantees durable on-disk persistence (JSON format) and synchronized in-memory caching.
 Protects concurrent read/write operations with reentrant mutexes.
 Strict typing applied: No `Any` types allowed.
+
+[INPUT]
+- agent.context_management.handoff.types::AgentHandoffSpec, HandoffStatus (POS: Type definitions for
+  cross-agent/cross-session typed handoff protocol.)
+
+[OUTPUT]
+- AgentHandoffStore: Thread-safe and durable store for agent handoffs.
+
+[POS]
+Persistent storage backend for agent handoff packets.
 """
 
 from __future__ import annotations

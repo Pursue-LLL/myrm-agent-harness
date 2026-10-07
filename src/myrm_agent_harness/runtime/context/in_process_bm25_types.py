@@ -2,6 +2,19 @@
 
 Reference: ratel-ai Context Engineering for AI Agents (~80% fewer tokens).
 Strict 0 Any, immutable frozen dataclasses for progressive tool disclosure.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- BM25Document: Document indexed by the in-process BM25 lexical engine.
+- BM25SearchResult: Search hit returned by BM25 scoring.
+- ToolSchemaEntry: Registered tool specification eligible for dynamic progressive disclosure.
+- PrunedToolSet: Result of progressive tool schema pruning for a given turn.
+- ProgressiveDisclosureConfig: Configuration governing dynamic tool schema pruning.
+
+[POS]
+Type definitions for In-Process BM25 Lexical Retriever and Dynamic Tool Schema Pruner.
 """
 
 from __future__ import annotations

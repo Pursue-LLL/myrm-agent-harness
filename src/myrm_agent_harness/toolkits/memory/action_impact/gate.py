@@ -1,4 +1,17 @@
-"""Action Impact Filtering Gate executing 3-tier admission routing."""
+"""Action Impact Filtering Gate executing 3-tier admission routing.
+
+[INPUT]
+- toolkits.memory.action_impact.evaluator::FutureActionImpactEvaluator (POS: Future Action Impact Evaluator
+  quantifying memory utility for downstream decisions.)
+- toolkits.memory.action_impact.models::ActionImpactAssessment, ActionImpactTier, BatchFilteringSummary
+  (POS: Data models for Future Action Impact Filtering Gate.)
+
+[OUTPUT]
+- ActionImpactFilteringGate: Pre-admission gate intercepting extracted memory candidates before persistence.
+
+[POS]
+Action Impact Filtering Gate executing 3-tier admission routing.
+"""
 
 from collections.abc import Sequence
 

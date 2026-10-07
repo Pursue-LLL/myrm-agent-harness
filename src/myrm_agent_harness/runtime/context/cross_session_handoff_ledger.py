@@ -2,6 +2,17 @@
 
 Ensures deterministic handoff persistence, atomic single-consumer state machine,
 and structured context prompt hydration across agent sessions.
+
+[INPUT]
+- runtime.context.cross_session_handoff_types::CrossSessionHandoffContract, HandoffConsumptionReceipt,
+  HandoffDecisionItem, HandoffPitfallItem, HandoffStatus, HandoffTodoItem, SessionLifecyclePhase (POS: Type
+  definitions for cross-session handoff contracts and continuity ledger.)
+
+[OUTPUT]
+- CrossSessionHandoffLedger: In-memory and file-backed continuity ledger for session handoffs.
+
+[POS]
+Continuity ledger for managing cross-session handoff contracts and lifecycle.
 """
 
 import json

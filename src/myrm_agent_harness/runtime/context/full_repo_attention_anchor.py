@@ -2,6 +2,17 @@
 
 Mitigates Lost-in-the-Middle attention decay and resolves line drift
 discrepancies during full-repo multi-file refactoring.
+
+[INPUT]
+- runtime.context.full_repo_refactor_types::RepoAstTopology, SemanticAnchor (POS: Type definitions for
+  native 1M long-context full-repo refactoring pipeline.)
+
+[OUTPUT]
+- AttentionAnchorInjector: Injects high-fan-in semantic anchors to prevent Lost-in-the-Middle decay.
+- AstDriftToleranceAligner: Resolves code drift and whitespace fluctuations when applying refactor diffs.
+
+[POS]
+Attention anchor injection and AST drift tolerance aligner for 1M context.
 """
 
 import re

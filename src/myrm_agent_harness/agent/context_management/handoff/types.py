@@ -3,6 +3,21 @@
 Defines data contracts for active goal progression, failed approach registries,
 implicit constraints, errors & fixes, pending tasks, and exactly-once claim receipts.
 Strict typing applied: No `Any` types allowed.
+
+[INPUT]
+- External: pydantic
+
+[OUTPUT]
+- HandoffStatus: Lifecycle states of an agent handoff memorandum.
+- FailedApproachRecord: Record of a rejected hypothesis or failed solution route with evidence.
+- ImplicitConstraintRecord: Record of non-obvious environmental, architectural, or user constraints.
+- AgentHandoffSpec: Strongly typed multi-agent relay handoff memorandum.
+- HandoffClaimReceipt: Cryptographic-style receipt proving successful exactly-once claim of handoff.
+- FinalizeSessionRequest: Payload to finalize an agent session and write durable handoff memorandum.
+- FinalizeSessionResult: Result confirmation of durable session finalization and handoff creation.
+
+[POS]
+Type definitions for cross-agent/cross-session typed handoff protocol.
 """
 
 from __future__ import annotations

@@ -1,11 +1,18 @@
-# [POS]: myrm_agent_harness/toolkits/memory/sovereign_migration/competitor_adapter.py
-# [INPUT]: logging, os, pathlib.Path, shutil, types
-# [OUTPUT]: CompetitorIngestionAdapter
 """Universal competitor ingestion and translation adapter (Hermes, Claude Code, Codex).
 
 Probes host environment for third-party agent configurations, memories, and skills,
 translating them losslessly into Myrm native wiki memories and agent playbooks.
 Strict typing applied: No `Any` types allowed.
+
+[INPUT]
+- toolkits.memory.sovereign_migration.types::CompetitorDetectResult, CompetitorImportResult, CompetitorType
+  (POS: Type definitions for sovereign asset bundle migration and cross-machine restore protocol.)
+
+[OUTPUT]
+- CompetitorIngestionAdapter: Detects and imports digital assets from competitor setups without loss.
+
+[POS]
+Universal competitor ingestion and translation adapter (Hermes, Claude Code, Codex).
 """
 
 from __future__ import annotations

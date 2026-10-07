@@ -2,6 +2,16 @@
 
 Filters hundreds of system rules down to the exact relevant subset
 based on file globs and current execution lifecycle phase.
+
+[INPUT]
+- runtime.context.working_set_rules_types::ActiveWorkingSet, RuleItem (POS: Data types and schemas for
+  dynamic working-set rules and architecture entropy draining.)
+
+[OUTPUT]
+- PathScopedRuleMatcher: Matches rules against active working paths and current task phase.
+
+[POS]
+Path-scoped and task-phase rule matching router for dynamic working set slicing.
 """
 
 from __future__ import annotations

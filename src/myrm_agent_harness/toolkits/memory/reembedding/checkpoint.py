@@ -2,6 +2,17 @@
 
 Tracks processed cursor offsets, completed record IDs, and error queues
 to guarantee zero duplicate operations upon resumption.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- CheckpointState: Internal mutable snapshot of re-embedding execution progress.
+- ReembeddingCheckpointManager: Manages persistent checkpoint states to guarantee zero-loss breakpoint
+  resumption.
+
+[POS]
+Persistent checkpoint and breakpoint resume coordinator for re-embedding jobs.
 """
 
 from collections.abc import Sequence

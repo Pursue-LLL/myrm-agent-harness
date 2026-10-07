@@ -1,6 +1,16 @@
-# [POS] src/myrm_agent_harness/toolkits/memory/vector_preflight/probe.py
-# [INPUT] collections.abc.Callable, logging, .types (DimensionIntegrityReport, PreflightHealthStatus)
-# [OUTPUT] DimensionIntegrityProbe
+"""Rigidly evaluates and asserts vector dimension consistency before store operations.
+
+[INPUT]
+- toolkits.memory.vector_preflight.types::DimensionIntegrityReport, PreflightHealthStatus (POS: Typed data
+  contracts for the vector preflight subsystem.)
+
+[OUTPUT]
+- DimensionIntegrityProbe: Rigidly evaluates and asserts vector dimension consistency before store
+  operations.
+
+[POS]
+Rigidly evaluates and asserts vector dimension consistency before store operations.
+"""
 
 import logging
 from collections.abc import Callable

@@ -1,4 +1,20 @@
-"""Data contracts for Social Collaboration Graph and Cross-Application Work Context."""
+"""Data contracts for Social Collaboration Graph and Cross-Application Work Context.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- PersonRoleKind: Organizational collaboration and decision role classifications.
+- WorkAssetKind: Categorization of work artifacts spanning multiple applications.
+- PersonEntity: Team collaborator persona with aliases, role authority, and department.
+- CrossAppWorkAsset: Work artifact spanning local files, chat threads, PRs, and wiki docs.
+- FuzzyQueryIntent: Parsed intention for fuzzy multi-source asset and decision retrieval.
+- ResolvedContextAnchor: Multi-dimensional contextual anchor linking person, temporal span, and assets.
+- PrivacyAuditRecord: Transparent audit log entry for privacy boundary and access enforcement.
+
+[POS]
+Data contracts for Social Collaboration Graph and Cross-Application Work Context.
+"""
 
 from __future__ import annotations
 

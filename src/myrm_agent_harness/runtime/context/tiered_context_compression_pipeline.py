@@ -5,6 +5,19 @@ Implements Tokenomics-inspired multi-stage compression:
 - Tier 2: Structural dedup (Session-Dedup content hashing, CCR markers)
 - Tier 3: Semantic pruning (Caveman prose stripping, shielded by protected patterns)
 - Tier 4: Extreme compaction (Ultra aggressive atomic pruning)
+
+[INPUT]
+- runtime.context.protected_patterns_matcher::ProtectedPatternsMatcher (POS: Protected patterns matcher and
+  syntax safety shield.)
+- runtime.context.tokenomics_compression_types::CompressionTierKind, TieredCompressionResult (POS: Strongly
+  typed data contracts for the Four-Tier Tokenomics context compression engine.)
+
+[OUTPUT]
+- TieredContextCompressionPipeline: Orchestrates progressive context compression across the four Tokenomics
+  tiers.
+
+[POS]
+Four-Tier Progressive Context Compression Pipeline.
 """
 
 from __future__ import annotations

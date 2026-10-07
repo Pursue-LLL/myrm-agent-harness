@@ -3,6 +3,17 @@
 Enforces protect_first_n (e.g. system instructions, persona, core constraints)
 and protect_last_n (e.g. recent task execution, active tool outputs) while
 intelligently summarizing intermediate historical messages.
+
+[INPUT]
+- runtime.context.context_lifecycle_visualizer_types::ContextLifecycleSectionReport, ContextSectionKind,
+  ContextSectionSlice, LeanTailBoundaryConfig (POS: Data contracts and schemas for Lean-Tail Context
+  Lifecycle and Visualizer.)
+
+[OUTPUT]
+- LeanTailBoundaryCompactor: Compactor enforcing verbatim head/tail protection and middle summarization.
+
+[POS]
+Lean-Tail Boundary Compactor implementing strict head/tail preservation.
 """
 
 from __future__ import annotations

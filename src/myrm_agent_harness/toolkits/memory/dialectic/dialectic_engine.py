@@ -1,8 +1,17 @@
-# [POS] myrm_agent_harness/toolkits/memory/dialectic/dialectic_engine.py
-# [INPUT] DialecticCadenceConfig, DialecticEphemeralMind, DialecticReasoningResult, SessionHeatState, UserBaseProfile from .types, DialecticCadenceGovernor from .cadence_governor
-# [OUTPUT] DialecticReasoningEngine (辩证推理深度用户表征与即时心智提炼引擎)
+"""辩证推理深度用户表征引擎，从对话深层推断潜意识偏好与抗拒点，生成前缀缓存友好的认知切片。
 
-"""辩证推理深度用户表征引擎，从对话深层推断潜意识偏好与抗拒点，生成前缀缓存友好的认知切片。"""
+[INPUT]
+- toolkits.memory.dialectic.cadence_governor::DialecticCadenceGovernor (POS:
+  自适应会话步调动态节流控制器与冷热状态机，严厉抑制冗余推理与 Token 消耗。)
+- toolkits.memory.dialectic.types::DialecticCadenceConfig, DialecticEphemeralMind, DialecticReasoningResult,
+  SessionHeatState (POS: 辩证推理深度用户表征与自适应会话步调动态节流核心类型。)
+
+[OUTPUT]
+- DialecticReasoningEngine: 辩证推理提炼引擎，纯本地开箱即用并支持会话步调节流。
+
+[POS]
+辩证推理深度用户表征引擎，从对话深层推断潜意识偏好与抗拒点，生成前缀缓存友好的认知切片。
+"""
 
 from __future__ import annotations
 

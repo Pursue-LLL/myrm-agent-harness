@@ -2,6 +2,16 @@
 
 Provides SHA-256 hash-indexed archival for large output chunks and tracks
 verbatim content repetition across conversational turns.
+
+[INPUT]
+- runtime.context.content_addressed_dedup_types::ArchivedChunkMetadata, ContentRefAnchor, DedupContentType
+  (POS: Strongly typed data contracts for Content-Addressed Session Dedup and CCR Context Archival.)
+
+[OUTPUT]
+- ContentAddressedDedupStore: In-memory content-addressed storage and cross-turn content tracker.
+
+[POS]
+Content-addressed chunk storage and session turn deduplication store.
 """
 
 from __future__ import annotations

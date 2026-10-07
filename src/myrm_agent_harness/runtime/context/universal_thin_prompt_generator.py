@@ -3,6 +3,17 @@
 Constructs minimal, high-signal system prompt skeletons tailored to model
 capability tiers and operational discipline modes (Pure, Lean, Audit),
 eliminating CoT phase interference and preserving user persona fidelity.
+
+[INPUT]
+- runtime.context.universal_thin_harness_types::ModelCapabilityTier, OperatingDisciplineMode,
+  ThinPromptContract (POS: Universal agent thin harness adaptive contract and Token Tax governor types.)
+
+[OUTPUT]
+- UniversalThinPromptGenerator: Generates ultra-thin system prompts adapting to model tiers and operational
+  modes.
+
+[POS]
+Universal thin prompt generator for adaptive agent harnesses.
 """
 
 from __future__ import annotations

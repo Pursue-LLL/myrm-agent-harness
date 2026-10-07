@@ -1,6 +1,15 @@
-# [POS] src/myrm_agent_harness/toolkits/memory/openclaw_adapter/crash_rescuer.py
-# [INPUT] sqlite3, pathlib.Path, logging, .types (RescueReport)
-# [OUTPUT] OpenClawCrashRescuer
+"""Crash recovery engine for corrupted OpenClaw SQLite databases.
+
+[INPUT]
+- toolkits.memory.openclaw_adapter.types::RescueReport (POS: Typed data contracts for the openclaw adapter
+  subsystem.)
+
+[OUTPUT]
+- OpenClawCrashRescuer: Crash recovery engine for corrupted OpenClaw SQLite databases.
+
+[POS]
+Crash recovery engine for corrupted OpenClaw SQLite databases.
+"""
 
 import logging
 import sqlite3

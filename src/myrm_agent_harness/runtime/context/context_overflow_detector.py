@@ -3,6 +3,17 @@
 Reference: Mario Zechner Pi Agent (packages/ai/src/utils/overflow.ts) and post-sora_biz reconciliation.
 Detects explicit errors, silent overflows, MiMo zero-output truncation, and Ollama context truncation.
 Strict 0 Any, type-hinted, thread-safe.
+
+[INPUT]
+- runtime.context.pi_compaction_types::OverflowDetectionResult (POS: Type definitions for Pi Agent-style
+  progressive context compaction, branch summarization, and cumulative file tracker engine.)
+
+[OUTPUT]
+- ContextOverflowDetector: Detects explicit error strings, silent token overflow, and cross-tier token
+  truncation.
+
+[POS]
+Context overflow detector with 30+ vendor regex patterns and reconciliation auditing.
 """
 
 from __future__ import annotations

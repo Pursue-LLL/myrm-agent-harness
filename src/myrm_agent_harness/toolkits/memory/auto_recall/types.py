@@ -1,8 +1,18 @@
-# [POS] toolkits/memory/auto_recall/types.py
-# [INPUT] None
-# [OUTPUT] RecallTriggerType, RerankerStatus, RecallCandidate, AutoRecallDecision, RecallGateConfig
+"""Type definitions and contracts for Targeted Experience Auto-Recall Engine.
 
-"""Type definitions and contracts for Targeted Experience Auto-Recall Engine."""
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- RecallTriggerType: High-risk sensitive lifecycle triggers that activate experience recall.
+- RerankerStatus: Execution status and fail-open state of the reranking stage.
+- RecallCandidate: An experience or memory candidate retrieved from the rough storage tier.
+- AutoRecallDecision: The aggregate audit decision produced by ExperienceRecallGate.
+- RecallGateConfig: Configuration governing auto-recall triggers, dedup windows, and fail-open behavior.
+
+[POS]
+Type definitions and contracts for Targeted Experience Auto-Recall Engine.
+"""
 
 from __future__ import annotations
 

@@ -2,6 +2,20 @@
 
 Defines job configurations, progress trackers, dual-version collection states,
 and adaptive batch payloads with strict type safety.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ReembeddingStatus: Execution status for cross-dimension re-embedding jobs.
+- ReembeddingJobConfig: Configuration for cross-dimension re-embedding migration.
+- ReembeddingRecord: Single raw memory text payload to be re-embedded.
+- ReembeddingBatch: Adaptive batch slice tailored to character budget.
+- DualVersionCollectionState: State descriptor for zero-downtime blue-green dual-version collections.
+- ReembeddingProgress: Real-time observability snapshot for re-embedding progression.
+
+[POS]
+Data models for ZeroDowntimeCrossDimensionReembeddingEngine.
 """
 
 from collections.abc import Mapping

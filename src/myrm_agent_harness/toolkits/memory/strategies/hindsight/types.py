@@ -1,8 +1,18 @@
-# [POS] toolkits/memory/strategies/hindsight/types.py
-# [INPUT] None
-# [OUTPUT] FailureTurn, FailureTrajectory, HindsightRule, PreExecutionWarning, ReflectionBufferConfig
+"""Type definitions and contracts for Hindsight Experience Replay and Reflection Buffer.
 
-"""Type definitions and contracts for Hindsight Experience Replay and Reflection Buffer."""
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- FailureTurn: Represents a single step in a failed task trajectory.
+- FailureTrajectory: Ordered sequence of execution turns culminating in task failure.
+- HindsightRule: Actionable counterfactual rule extracted from a failed trajectory.
+- PreExecutionWarning: Proactive cautionary directive to inject prior to task execution.
+- ReflectionBufferConfig: Operational limits and thresholds for retrospective reflection buffer.
+
+[POS]
+Type definitions and contracts for Hindsight Experience Replay and Reflection Buffer.
+"""
 
 from __future__ import annotations
 

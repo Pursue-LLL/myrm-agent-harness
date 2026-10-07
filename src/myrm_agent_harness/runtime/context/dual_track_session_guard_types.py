@@ -2,6 +2,19 @@
 
 Defines schemas for track segregation (Dev vs Thinking/Q&A), intent classifications,
 unintentional context burn guard decisions, and advisory telemetry.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- SessionScenarioTrack: Execution track specifying depth of workspace and tooling attachment.
+- IntentCategory: Categorization of user input intent.
+- BurnGuardAction: Enforcement action determined by TokenBurnGuard.
+- BurnGuardDecision: Decision outcome containing throttling actions and cost-saving metrics.
+- DualTrackContextAssembly: Composite context output tailored for the active track and guard policy.
+
+[POS]
+Type definitions for Dual-Track Session Scenario Context Isolator and Token Burn Guard.
 """
 
 from __future__ import annotations

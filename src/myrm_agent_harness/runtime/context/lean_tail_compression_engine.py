@@ -5,6 +5,18 @@ Implements Hermes Agent v0.20.6 lean-tail architecture:
 2. Sub-512K context window 75% threshold floor.
 3. Prompt-level soft token target guidance without wire-level max_tokens deadlocks.
 4. Seamless integration with ReasoningTraceStripper.
+
+[INPUT]
+- runtime.context.lean_tail_compression_types::LeanTailCompactionPlan, LeanTailConfig, LeanTailWindowBudget
+  (POS: Data types and schemas for Lean-Tail compression and reasoning trace stripping.)
+- runtime.context.reasoning_trace_stripper::ReasoningTraceStripper (POS: Reasoning trace stripper for
+  removing chain-of-thought blocks from context and summaries.)
+
+[OUTPUT]
+- LeanTailCompressionEngine: Orchestrates lean-tail history compaction with reasoning trace sanitization.
+
+[POS]
+Lean-Tail compaction engine with fixed-interval tail bounds and soft token budgeting.
 """
 
 from __future__ import annotations

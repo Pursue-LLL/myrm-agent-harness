@@ -1,4 +1,18 @@
-"""Tripartite context identity separation and immutable soul anchor engine."""
+"""Tripartite context identity separation and immutable soul anchor engine.
+
+[INPUT]
+- runtime.context.tripartite_identity_anchor_types::FactualMemoryEntry, SoulPersonaAnchor,
+  TripartiteContextAssembly, UserProfileContext (POS: Data contracts and types for tripartite context
+  identity separation and immutable soul anchor.)
+
+[OUTPUT]
+- SoulDriftDetector: Detects persona tampering, drift attempts, or prompt injection targeting agent soul.
+- TripartiteIdentityManager: Manages the strict physical and lifecycle separation of Soul, Memory, and User
+  Profile.
+
+[POS]
+Tripartite context identity separation and immutable soul anchor engine.
+"""
 
 from __future__ import annotations
 

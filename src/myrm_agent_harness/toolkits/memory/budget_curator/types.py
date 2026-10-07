@@ -1,8 +1,22 @@
-# [POS] myrm_agent_harness/toolkits/memory/budget_curator/types.py
-# [INPUT] None (纯领域类型与数据结构模型定义)
-# [OUTPUT] MemoryOperationType, MemoryBatchOperation, MemoryBudgetSpec, MemoryBudgetStatus, AtomicBatchResult, ScrollAnchorRequest, ScrollAnchorResult
+"""双轨冻结快照记忆预算仪表盘、原子批量腾挪策展操作符与长程会话回溯锚点核心类型。
 
-"""双轨冻结快照记忆预算仪表盘、原子批量腾挪策展操作符与长程会话回溯锚点核心类型。"""
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- MemoryOperationType: 原子记忆批量操作类型。
+- MemoryBatchOperation: 原子批量事务中的单项操作符。
+- MemoryBudgetSpec: 声明式记忆上下文预算规约。
+- MemoryBudgetStatus: 实时记忆字符/Token 与槽位预算状态仪表盘。
+- ManagedMemoryItem: 策展中受管辖的单条记忆原子项。
+- AtomicBatchResult: 原子批量腾挪事务执行结果。
+- ScrollMessageItem: 会话历史穿透翻页中的消息条目。
+- ScrollAnchorRequest: 围绕指定消息锚点的双向滑动翻页请求。
+- ScrollAnchorResult: 围绕消息锚点的滑动翻页穿透结果。
+
+[POS]
+双轨冻结快照记忆预算仪表盘、原子批量腾挪策展操作符与长程会话回溯锚点核心类型。
+"""
 
 from __future__ import annotations
 

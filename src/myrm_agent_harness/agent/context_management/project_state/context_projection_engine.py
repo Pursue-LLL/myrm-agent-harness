@@ -1,8 +1,17 @@
-# [POS] myrm_agent_harness/agent/context_management/project_state/context_projection_engine.py
-# [INPUT] ProjectionQuery, ProjectedContextSlice, LivingFact, ProjectFactType, ProjectStateLivingFactLedger
-# [OUTPUT] FourTierContextProjectionEngine
+"""面向长期项目的四层级联动态上下文投影流水线引擎。
 
-"""面向长期项目的四层级联动态上下文投影流水线引擎。"""
+[INPUT]
+- agent.context_management.project_state.living_fact_ledger::ProjectStateLivingFactLedger (POS:
+  长期项目动态事实状态账本管理器，统一纳管已决议方案、被否决路径与硬性物理约束。)
+- agent.context_management.project_state.types::LivingFact, ProjectFactType, ProjectedContextSlice,
+  ProjectionQuery (POS: 面向长期项目的动态事实状态账本与上下文投影核心类型定义。)
+
+[OUTPUT]
+- FourTierContextProjectionEngine: 四层级联上下文投影流水线引擎。
+
+[POS]
+面向长期项目的四层级联动态上下文投影流水线引擎。
+"""
 
 from __future__ import annotations
 

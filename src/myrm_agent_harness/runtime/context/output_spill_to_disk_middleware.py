@@ -3,6 +3,17 @@
 Caps terminal command outputs at a deterministic threshold (default 30k chars),
 writes oversized outputs to durable disk storage, and returns an informative
 head-tail diagnostic summary, preventing single commands from exhausting the context window.
+
+[INPUT]
+- runtime.context.quiet_command_spill_types::OutputSpillReceipt (POS: Quiet command rewriter, output spill,
+  and Subagent context firewall types.)
+
+[OUTPUT]
+- OutputSpillToDiskMiddleware: Middleware that intercepts command outputs and offloads oversized payloads to
+  disk.
+
+[POS]
+Output spill to disk middleware.
 """
 
 from __future__ import annotations

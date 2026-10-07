@@ -1,4 +1,26 @@
-"""Data models for User Intervention to Procedural Memory Distillation Engine."""
+"""Data models for User Intervention to Procedural Memory Distillation Engine.
+
+[INPUT]
+- External: pydantic
+
+[OUTPUT]
+- InterventionType: Classification of human runtime intervention.
+- RuleScope: Hierarchical operational scope of the distilled procedural rule.
+- HumanInterventionEvent: Captured runtime human intervention event triggering memory distillation.
+- ProceduralRule: Synthesized procedural rule distilled from human runtime interventions.
+- RuleDistillationResult: Summary result of distilling intervention events into procedural rules.
+- RuleInjectionContext: Assembled procedural rules packaged for agent prompt assembly and preflight gates.
+- EngineeringRuleSeverity: Severity classification for engineering procedural rule violations.
+- ConstraintBoundary: Quantitative or categorical boundary defining engineering manufacturing limits.
+- EngineeringProceduralRule: Immutable domain engineering procedural specification governing agent workflow
+  execution.
+- RuleEvaluationResult: Diagnostic outcome of evaluating an engineering design parameter against a
+  procedural rule.
+- PreflightCheckReport: Comprehensive DRC/engineering preflight gate evaluation report.
+
+[POS]
+Data models for User Intervention to Procedural Memory Distillation Engine.
+"""
 
 from datetime import datetime
 from enum import StrEnum

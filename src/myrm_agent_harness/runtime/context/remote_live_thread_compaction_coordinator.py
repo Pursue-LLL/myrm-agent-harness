@@ -2,6 +2,20 @@
 
 Dispatches physical compaction signals, validates sequence progression,
 and verifies bidirectional telemetry and token drift guarantees.
+
+[INPUT]
+- runtime.context.live_thread_compaction_types::CompactionSyncStatus, LiveThreadCompactionResult,
+  LiveThreadCompactionSignal (POS: Data types and protocol models for remote sandbox live thread physical
+  compaction.)
+- runtime.context.remote_thread_actor_endpoint::RemoteThreadActorEndpoint (POS: Remote sandbox live thread
+  actor endpoint.)
+
+[OUTPUT]
+- RemoteLiveThreadCompactionCoordinator: Orchestrates physical compaction synchronization against live
+  sandbox threads.
+
+[POS]
+Coordinator managing host-to-remote sandbox physical thread compaction synchronization.
 """
 
 from __future__ import annotations

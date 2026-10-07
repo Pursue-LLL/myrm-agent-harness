@@ -2,6 +2,20 @@
 
 Defines wire formats, lightweight stubs, heavy tool payload references,
 and sliding window in-memory eviction structures.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- MessageHydrationState: Hydration state of a message item within the client/runtime memory window.
+- HeavyToolBlobReference: Metadata pointer referencing a detached heavy tool output stored in blob store.
+- HydratedMessageItem: A message item inside the active hydration window with optional detached payloads.
+- LightweightMessageStub: Evicted lightweight stub retaining only structural identification and preview.
+- BoundedInitialPageHeader: Initial fast-load page payload for instant session opening (<100ms).
+- UpwardPageSlice: Paginated upward historical slice loaded on demand during upward scrolling.
+
+[POS]
+Types and data models for bounded initial page loading and upward cursor hydration.
 """
 
 from __future__ import annotations

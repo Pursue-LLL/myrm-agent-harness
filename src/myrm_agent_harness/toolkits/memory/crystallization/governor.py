@@ -1,6 +1,15 @@
-# [POS] src/myrm_agent_harness/toolkits/memory/crystallization/governor.py
-# [INPUT] collections.defaultdict, typing, types
-# [OUTPUT] ProceduralCrystallizationGovernor
+"""Three-stage lifecycle governor for procedural judgment rules.
+
+[INPUT]
+- toolkits.memory.crystallization.types::CrystallizedRuleMetrics, ImportanceScoreResult, RuleLifecycleState
+  (POS: Typed data contracts for the crystallization subsystem.)
+
+[OUTPUT]
+- ProceduralCrystallizationGovernor: Three-stage lifecycle governor for procedural judgment rules.
+
+[POS]
+Three-stage lifecycle governor for procedural judgment rules.
+"""
 
 from collections import defaultdict
 

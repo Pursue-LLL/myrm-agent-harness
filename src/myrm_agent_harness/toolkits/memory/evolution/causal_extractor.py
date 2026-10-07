@@ -1,8 +1,17 @@
-# [POS] toolkits/memory/evolution/causal_extractor.py
-# [INPUT] gene_models.ExperienceGene, gene_models.GenePolarity
-# [OUTPUT] CausalGeneExtractor
+"""Causal Experience Gene Extractor for multi-turn execution trajectories.
 
-"""Causal Experience Gene Extractor for multi-turn execution trajectories."""
+[INPUT]
+- toolkits.memory.evolution.gene_models::ExperienceGene, GenePolarity (POS: Data models for Causal
+  Experience Genes and Evolution Ledger.)
+
+[OUTPUT]
+- ExecutionStepSnapshot: Snapshot of a single execution step within a multi-turn task.
+- MultiTurnTaskTrace: Multi-turn execution trace of a trial-error-resolution task session.
+- CausalGeneExtractor: Extracts causal experience genes from multi-turn trial-error-success trajectories.
+
+[POS]
+Causal Experience Gene Extractor for multi-turn execution trajectories.
+"""
 
 from __future__ import annotations
 

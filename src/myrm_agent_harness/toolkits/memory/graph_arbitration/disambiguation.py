@@ -1,3 +1,17 @@
+"""Semantic entity normalization and cross-session alias resolution operator.
+
+[INPUT]
+- toolkits.memory.graph_arbitration.models::EntityNode, EntityRelationEdge (POS: Typed entity-graph
+  contracts for graph arbitration: fact status, conflict resolution actions, entity nodes and weighted
+  relation edges.)
+
+[OUTPUT]
+- EntityDisambiguator: Semantic entity normalization and cross-session alias resolution operator.
+
+[POS]
+Semantic entity normalization and cross-session alias resolution operator.
+"""
+
 from __future__ import annotations
 
 import re

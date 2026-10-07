@@ -1,11 +1,18 @@
-# [POS]: myrm_agent_harness/toolkits/memory/unload_guard/snapshot_builder.py
-# [INPUT]: types
-# [OUTPUT]: ZeroLlmEmergencySnapshotBuilder
 """Zero-LLM emergency snapshot generator for graceful unload and crash fallback.
 
 Synthesizes structured handoff memorandums in sub-millisecond execution
 without waiting for LLM API roundtrips.
 Strict typing applied: No `Any` types allowed.
+
+[INPUT]
+- toolkits.memory.unload_guard.types::EmergencyFlushRequest (POS: Type definitions for desktop/WebUI unload
+  and graceful flush finalize guard.)
+
+[OUTPUT]
+- ZeroLlmEmergencySnapshotBuilder: Pure heuristic template builder creating emergency handoff markdown.
+
+[POS]
+Zero-LLM emergency snapshot generator for graceful unload and crash fallback.
 """
 
 from __future__ import annotations

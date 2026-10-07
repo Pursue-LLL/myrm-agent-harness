@@ -2,6 +2,21 @@
 
 Defines taxonomy for four-condition context evaluation (Clean, Correct, Irrelevant, Misleading),
 selective trust arbitration decisions, conflict assessments, and SC2W defense telemetry.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ContextConditionKind: Four-condition context taxonomy from SCOPE benchmark.
+- TrustDecisionKind: Selective trust arbitration outcome.
+- ContextEvidenceSignal: External retrieved context snippet or tool execution output.
+- PriorFactAssertion: Established internal prior fact or system invariant.
+- ConflictAssessmentResult: Detailed conflict analysis between external evidence and established priors.
+- SelectiveTrustDecision: Arbitration verdict indicating whether and how to incorporate external context.
+- SCOPETelemetryStats: Telemetry counters monitoring selective trust accuracy and SC2W defense.
+
+[POS]
+Types for selective context preference optimization and misleading signal gate (SCOPE).
 """
 
 from dataclasses import dataclass, field

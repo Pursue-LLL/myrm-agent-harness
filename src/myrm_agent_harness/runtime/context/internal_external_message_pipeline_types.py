@@ -2,6 +2,20 @@
 
 Defines the rich 7-kind domain AgentMessage union, external LlmMessage protocol,
 transformation configuration options, and pipeline execution metrics.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- AgentMessageKind: Rich domain classification for internal agent events.
+- AgentMessage: Internal rich-metadata domain event message.
+- LlmToolCall: Standard tool call payload in external LLM protocol.
+- LlmMessage: External standardized protocol message targeting LLM endpoints.
+- TransformPipelineOptions: Configurable options for the context transformation and conversion pipeline.
+- TransformPipelineMetrics: Execution metrics and audit statistics of context transformation.
+
+[POS]
+Type definitions for internal/external message separation and context transformation pipeline.
 """
 
 from __future__ import annotations

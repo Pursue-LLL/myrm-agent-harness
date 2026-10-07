@@ -1,8 +1,23 @@
-# [POS] toolkits/memory/auto_recall/recall_gate.py
-# [INPUT] types.RecallCandidate, types.AutoRecallDecision, types.RecallGateConfig, types.RecallTriggerType, trigger_classifier.ExperienceRecallTriggerClassifier, sliding_window_dedup.SlidingWindowDedupGate, fail_open_reranker.FailOpenReranker
-# [OUTPUT] ExperienceRecallGate
+"""Facade orchestrator coordinating trigger classification, dedup, and fail-open reranking.
 
-"""Facade orchestrator coordinating trigger classification, dedup, and fail-open reranking."""
+[INPUT]
+- toolkits.memory.auto_recall.fail_open_reranker::FailOpenReranker (POS: Fail-open reranker wrapper
+  guaranteeing non-blocking fallback on missing keys or timeouts.)
+- toolkits.memory.auto_recall.sliding_window_dedup::SlidingWindowDedupGate (POS: Sliding window
+  deduplication gate to suppress redundant memory injection across turns.)
+- toolkits.memory.auto_recall.trigger_classifier::ExperienceRecallTriggerClassifier (POS: Deterministic and
+  lightweight classifier for 5 high-risk recall trigger scenarios.)
+- toolkits.memory.auto_recall.types::AutoRecallDecision, RecallCandidate, RecallGateConfig,
+  RecallTriggerType, RerankerStatus (POS: Type definitions and contracts for Targeted Experience Auto-Recall
+  Engine.)
+
+[OUTPUT]
+- ExperienceRecallGate: Unified gate coordinating 5-scenario trigger filtering, 5-turn sliding dedup, and
+  fail-open rerank.
+
+[POS]
+Facade orchestrator coordinating trigger classification, dedup, and fail-open reranking.
+"""
 
 from __future__ import annotations
 

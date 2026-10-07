@@ -2,6 +2,18 @@
 
 Monitors SHA-256 stability of frozen system prompts and append-only history streams,
 preventing devastating KV-cache invalidation across multi-turn agent sessions.
+
+[INPUT]
+- runtime.context.deterministic_prefix_cache_types::PrefixCacheHitReport, PrefixHashFingerprint (POS: Types
+  and data models for deterministic hash-pinned prefix cache guard and append-only pipeline.)
+
+[OUTPUT]
+- PrefixCacheBreachError: Raised when an immutable prefix or frozen system prompt was mutated in place.
+- DeterministicPrefixCacheGuard: Cryptographic watchdog ensuring prefix immutability and tracking KV-cache
+  hit ratios.
+
+[POS]
+Deterministic hash-pinned prefix cache guard.
 """
 
 from __future__ import annotations

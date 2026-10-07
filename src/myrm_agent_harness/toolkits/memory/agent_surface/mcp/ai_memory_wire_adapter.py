@@ -1,11 +1,23 @@
-# [POS]: myrm_agent_harness/toolkits/memory/agent_surface/mcp/ai_memory_wire_adapter.py
-# [INPUT]: myrm_agent_harness.agent.context_management.handoff, myrm_agent_harness.toolkits.memory.privacy_gate, types
-# [OUTPUT]: AiMemoryWireAdapter
 """Wire-format adapter emulating the 5.3k Star ai-memory MCP tool protocol.
 
 Provides drop-in wire compatibility for external agents (Claude Code, Cursor, Codex)
 while internally routing into Myrm's typed AgentHandoffEngine and MemoryPrivacyBoundaryGate.
 Strict typing applied: No `Any` types allowed.
+
+[INPUT]
+- agent.context_management.handoff::AgentHandoffEngine, FailedApproachRecord, FinalizeSessionRequest (POS:
+  Public interface for agent handoff management and session finalization.)
+- toolkits.memory.agent_surface.mcp.types::AiMemoryFinalizeRequest, AiMemoryQueryRequest,
+  AiMemoryRememberRequest (POS: Data models for ai-memory wire format interoperability and cross-tool MCP
+  gateway.)
+- toolkits.memory.privacy_gate::MemoryPrivacyBoundaryGate, PrivacyCheckResult (POS: Public entry point for
+  memory privacy boundary and allowlist gate.)
+
+[OUTPUT]
+- AiMemoryWireAdapter: Wire adapter providing full signature and format parity with ai-memory.
+
+[POS]
+Wire-format adapter emulating the 5.3k Star ai-memory MCP tool protocol.
 """
 
 from __future__ import annotations

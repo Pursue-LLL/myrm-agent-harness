@@ -1,4 +1,16 @@
-"""Temporal Validity Governor enforcing explicit fact lifetimes and conflict suppression."""
+"""Temporal Validity Governor enforcing explicit fact lifetimes and conflict suppression.
+
+[INPUT]
+- toolkits.memory.temporal.models::ConflictSuppressionReport, FactTemporalState, TemporalFactRecord (POS:
+  Data models for Temporal Validity and Fact Expiration Governance Engine.)
+
+[OUTPUT]
+- TemporalValidityGovernor: Evaluates fact time intervals, performs temporal decay, and suppresses obsolete
+  conflicting facts.
+
+[POS]
+Temporal Validity Governor enforcing explicit fact lifetimes and conflict suppression.
+"""
 
 import math
 from collections.abc import Sequence

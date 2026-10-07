@@ -1,8 +1,15 @@
-# [POS] myrm_agent_harness/toolkits/memory/budget_curator/scroll_navigator.py
-# [INPUT] ScrollAnchorRequest, ScrollAnchorResult, ScrollMessageItem from .types
-# [OUTPUT] SessionScrollNavigator (长程会话回溯锚点与双向滑动翻页导航器)
+"""长程会话回溯锚点协议，围绕指定消息 ID 穿透拉取前后连续上下文窗口。
 
-"""长程会话回溯锚点协议，围绕指定消息 ID 穿透拉取前后连续上下文窗口。"""
+[INPUT]
+- toolkits.memory.budget_curator.types::ScrollAnchorRequest, ScrollAnchorResult, ScrollMessageItem (POS:
+  双轨冻结快照记忆预算仪表盘、原子批量腾挪策展操作符与长程会话回溯锚点核心类型。)
+
+[OUTPUT]
+- SessionScrollNavigator: 会话历史双向滑动窗口回溯导航器。
+
+[POS]
+长程会话回溯锚点协议，围绕指定消息 ID 穿透拉取前后连续上下文窗口。
+"""
 
 from __future__ import annotations
 

@@ -2,6 +2,18 @@
 
 Executes deterministic static assertion checks on design parameter sets against
 engineering manufacturing specifications (DRC, clearance, tolerances) without LLM hallucinations.
+
+[INPUT]
+- toolkits.memory.procedural.models::EngineeringProceduralRule, EngineeringRuleSeverity,
+  PreflightCheckReport, RuleEvaluationResult (POS: Data models for User Intervention to Procedural Memory
+  Distillation Engine.)
+
+[OUTPUT]
+- EngineeringRuleCompilerAndEvaluator: Evaluates design and workflow parameter configurations against
+  procedural engineering constraints.
+
+[POS]
+Engineering Rule Compiler and Deterministic Preflight Evaluator.
 """
 
 from collections.abc import Sequence

@@ -1,3 +1,17 @@
+"""Multi-protocol hardware device state snapshot and command sequence memory.
+
+[INPUT]
+- toolkits.artifacts.models::DeviceCommandEntry, DeviceStateSnapshot (POS: Typed CAD vector-geometry
+  contracts (2D points, bounding boxes, vector primitives, LOD levels, layers, progressive render chunks)
+  for the artifacts toolkit.)
+
+[OUTPUT]
+- DeviceStateCommandMemory: Multi-protocol hardware device state snapshot and command sequence memory.
+
+[POS]
+Multi-protocol hardware device state snapshot and command sequence memory.
+"""
+
 from __future__ import annotations
 
 from typing import Final

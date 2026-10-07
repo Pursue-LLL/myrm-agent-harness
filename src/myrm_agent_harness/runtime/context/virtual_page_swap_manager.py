@@ -3,6 +3,20 @@
 Enforces a constant token budget (e.g., ≤4000 tokens) across multi-file operations
 using OS-inspired virtual paging: active pages reside in core memory, while inactive
 pages are swapped out to archival cache with symbol stubs retained for page-fault resolution.
+
+[INPUT]
+- runtime.context.ast_symbol_stub_extractor::AstSymbolStubExtractor (POS: AST symbol stub extractor for
+  lightweight code signature harvesting.)
+- runtime.context.code_context_pager::CodeContextPager (POS: Code context pager for segmenting source files
+  into virtual memory pages.)
+- runtime.context.virtual_paged_code_types::CodeSymbolStub, PageFaultEvent, PageLifecycleState,
+  PageSwapAudit, VirtualCodePage (POS: Virtual paged code context tiering and swap engine types.)
+
+[OUTPUT]
+- VirtualPageSwapManager: Manages virtual code pages with LRU page-out and symbol-driven page-in.
+
+[POS]
+Virtual page swap manager for managing tiered code context memory.
 """
 
 from __future__ import annotations

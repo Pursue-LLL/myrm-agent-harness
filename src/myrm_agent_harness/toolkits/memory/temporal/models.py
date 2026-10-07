@@ -1,4 +1,17 @@
-"""Data models for Temporal Validity and Fact Expiration Governance Engine."""
+"""Data models for Temporal Validity and Fact Expiration Governance Engine.
+
+[INPUT]
+- External: pydantic
+
+[OUTPUT]
+- FactTemporalState: Lifecycle state of a temporal fact assertion.
+- TemporalFactRecord: Structured semantic fact with explicit validity interval and evolution state.
+- ConflictSuppressionReport: Detailed report generated when an evolved fact suppresses obsolete competitors.
+- ExpirationScanResult: Summary of periodic fact expiration audit and archiving.
+
+[POS]
+Data models for Temporal Validity and Fact Expiration Governance Engine.
+"""
 
 from datetime import datetime
 from enum import StrEnum

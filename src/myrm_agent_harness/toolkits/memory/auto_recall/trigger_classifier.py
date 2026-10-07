@@ -1,8 +1,16 @@
-# [POS] toolkits/memory/auto_recall/trigger_classifier.py
-# [INPUT] types.RecallTriggerType
-# [OUTPUT] ExperienceRecallTriggerClassifier
+"""Deterministic and lightweight classifier for 5 high-risk recall trigger scenarios.
 
-"""Deterministic and lightweight classifier for 5 high-risk recall trigger scenarios."""
+[INPUT]
+- toolkits.memory.auto_recall.types::RecallTriggerType (POS: Type definitions and contracts for Targeted
+  Experience Auto-Recall Engine.)
+
+[OUTPUT]
+- ExperienceRecallTriggerClassifier: Classifies incoming agent turns into 5 high-risk recall scenarios or
+  suppresses recall.
+
+[POS]
+Deterministic and lightweight classifier for 5 high-risk recall trigger scenarios.
+"""
 
 from __future__ import annotations
 

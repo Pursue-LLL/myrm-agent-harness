@@ -2,6 +2,15 @@
 
 Automatically detects localhost, RFC 1918 private subnets, and local domain suffixes,
 ensuring local Ollama/vLLM embedding endpoints bypass HTTP_PROXY hijackings.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- LanEndpointNoProxyManager: Manages automatic proxy bypass for local and private LAN endpoints.
+
+[POS]
+Local and LAN endpoint proxy bypass manager.
 """
 
 from __future__ import annotations

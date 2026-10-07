@@ -1,4 +1,17 @@
-"""Data contracts for Caveman Ultra-Compact Output Mode and Output Token Throttle."""
+"""Data contracts for Caveman Ultra-Compact Output Mode and Output Token Throttle.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- CavemanThrottleMode: Operational mode for ultra-compact token throttling.
+- ConversationIntentKind: Intent classification of current execution cycle.
+- ThrottleDecision: Policy decision determining whether to inject compact prompt and strip pleasantries.
+- SanitizedOutputResult: Result of post-generation verbosity stripping and token savings accounting.
+
+[POS]
+Data contracts for Caveman Ultra-Compact Output Mode and Output Token Throttle.
+"""
 
 from __future__ import annotations
 

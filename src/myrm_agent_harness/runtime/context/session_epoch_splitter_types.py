@@ -1,4 +1,18 @@
-"""Data contracts and models for Long Session Epoch Splitter and Milestone Archiver."""
+"""Data contracts and models for Long Session Epoch Splitter and Milestone Archiver.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- EpochSplitUrgency: Urgency level indicating whether a session should be split into a new epoch.
+- SessionSaturationProbeReport: Proactive probe diagnostic for message count and context saturation.
+- MilestoneArtifactRef: Active file or artifact reference retained across session epochs.
+- MilestoneCheckpointPayload: Structured milestone snapshot capturing completed goals and pending work.
+- ForkedEpochSessionDescriptor: Descriptor for the smoothly forked next-epoch session with inherited state.
+
+[POS]
+Data contracts and models for Long Session Epoch Splitter and Milestone Archiver.
+"""
 
 from __future__ import annotations
 

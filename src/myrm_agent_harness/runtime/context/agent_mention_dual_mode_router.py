@@ -3,6 +3,23 @@
 Parses and normalizes @ agent mentions, arbitrates collaborative intents,
 injects read-only context snapshots without disturbing target agents,
 and establishes live bidirectional peer-to-peer communication channels.
+
+[INPUT]
+- runtime.context.agent_mention_types::AgentMentionMode, MentionProcessingAudit, NormalizedAgentMention
+  (POS: Agent mention dual-mode interaction types and communication contracts.)
+- runtime.context.bidi_agent_channel_gateway::BidiAgentChannelGateway (POS: Bi-directional agent channel
+  gateway for active peer-to-peer collaboration.)
+- runtime.context.project_hierarchy_session_types::ArchivedMessageEntry (POS: Project hierarchy session
+  archive and keyword resurrection types.)
+- runtime.context.read_only_snapshot_capturer::ReadOnlySnapshotCapturer (POS: Read-only context snapshot
+  capturer for non-intrusive peer agent inspection.)
+
+[OUTPUT]
+- AgentMentionDualModeRouter: Orchestrates dual-mode mention parsing, routing, snapshot injection, and
+  channel establishment.
+
+[POS]
+Agent mention dual-mode router coordinating read-only snapshots and bidi channels.
 """
 
 from __future__ import annotations

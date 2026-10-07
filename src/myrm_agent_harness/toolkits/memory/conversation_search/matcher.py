@@ -2,6 +2,16 @@
 
 Supports exact quoted phrases, multi-token boolean combinations, and context window
 slicing for smooth anchor scroll and pulse glow animation targeting.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ContextHighlight: Highlighted snippet slice with character boundary offsets.
+- ConversationExactSearchMatcher: Exact phrase and keyword matcher with context window extraction.
+
+[POS]
+Exact phrase matcher and anchor context highlight extractor for conversation search.
 """
 
 from __future__ import annotations

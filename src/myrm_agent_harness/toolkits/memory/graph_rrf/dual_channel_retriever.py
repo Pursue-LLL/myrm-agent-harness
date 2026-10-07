@@ -1,8 +1,19 @@
-# [POS] toolkits/memory/graph_rrf/dual_channel_retriever.py
-# [INPUT] Callable, SQLiteGraphMemoryStore, ReciprocalRankFusionEngine, VectorHit, GraphHit, FusedMemoryHit, RRFConfig
-# [OUTPUT] DualChannelRRFRetriever
+"""Dual-Channel Knowledge Graph and Vector Retriever using Reciprocal Rank Fusion.
 
-"""Dual-Channel Knowledge Graph and Vector Retriever using Reciprocal Rank Fusion."""
+[INPUT]
+- toolkits.memory.graph_rrf.graph_store::SQLiteGraphMemoryStore (POS: Lightweight SQLite-backed Knowledge
+  Graph Store for relational long-term memory.)
+- toolkits.memory.graph_rrf.rrf_fusion::ReciprocalRankFusionEngine (POS: Reciprocal Rank Fusion (RRF) Engine
+  for multi-channel memory score unification.)
+- toolkits.memory.graph_rrf.types::FusedMemoryHit, GraphHit, RRFConfig, VectorHit (POS: Data models and
+  contract types for Knowledge Graph and Vector RRF Fusion Memory Engine.)
+
+[OUTPUT]
+- DualChannelRRFRetriever: Orchestrates dual-channel vector + graph search and fuses ranks via RRF.
+
+[POS]
+Dual-Channel Knowledge Graph and Vector Retriever using Reciprocal Rank Fusion.
+"""
 
 from __future__ import annotations
 

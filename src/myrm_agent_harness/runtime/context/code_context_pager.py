@@ -2,6 +2,18 @@
 
 Splits multi-thousand-line source code into discrete 2KB~4KB virtual code pages,
 attaching extracted AST symbol stubs and token estimations to each page.
+
+[INPUT]
+- runtime.context.ast_symbol_stub_extractor::AstSymbolStubExtractor (POS: AST symbol stub extractor for
+  lightweight code signature harvesting.)
+- runtime.context.virtual_paged_code_types::CodeSymbolStub, PageLifecycleState, VirtualCodePage (POS:
+  Virtual paged code context tiering and swap engine types.)
+
+[OUTPUT]
+- CodeContextPager: Partitions source files into standard-sized virtual code pages.
+
+[POS]
+Code context pager for segmenting source files into virtual memory pages.
 """
 
 from __future__ import annotations

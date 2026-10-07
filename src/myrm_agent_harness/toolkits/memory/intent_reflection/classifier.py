@@ -1,6 +1,15 @@
-# [POS] src/myrm_agent_harness/toolkits/memory/intent_reflection/classifier.py
-# [INPUT] re, typing, .types
-# [OUTPUT] IntentLevelClassifier
+"""Fast-path tiered intent classifier for procedural memory and reflection gating.
+
+[INPUT]
+- toolkits.memory.intent_reflection.types::IntentClassificationResult, IntentTier, ReflectionProbeProtocol
+  (POS: Typed data contracts for the intent reflection subsystem.)
+
+[OUTPUT]
+- IntentLevelClassifier: Fast-path tiered intent classifier for procedural memory and reflection gating.
+
+[POS]
+Fast-path tiered intent classifier for procedural memory and reflection gating.
+"""
 
 import re
 

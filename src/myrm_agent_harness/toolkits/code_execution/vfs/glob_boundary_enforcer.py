@@ -3,6 +3,19 @@
 Prevents directory traversal escapes, recursive deadlocks, symlink loops, and
 context blowup in sandbox and virtual filesystems while delineating directory hits
 with explicit trailing slash markers aligned with the VikingFS protocol.
+
+[INPUT]
+- toolkits.code_execution.vfs.trailing_slash_delineator::TrailingSlashDelineator (POS: Trailing slash
+  directory delineator for unambiguous filesystem path contracts.)
+- toolkits.code_execution.vfs.vfs_boundary_types::GlobBoundaryViolationError, GlobSafetyAudit,
+  GlobSafetyConfig, VFSGlobHit, VFSPathKind (POS: VFS boundary types, contracts, and safety audit models.)
+
+[OUTPUT]
+- GlobBoundaryEnforcer: Enforces safety gates, depth thresholds, and explicit directory trailing slashes on
+  glob ops.
+
+[POS]
+Glob boundary enforcer for safe, cycle-free, and depth-governed filesystem traversal.
 """
 
 from __future__ import annotations

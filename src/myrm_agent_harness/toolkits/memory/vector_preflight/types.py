@@ -1,6 +1,16 @@
-# [POS] src/myrm_agent_harness/toolkits/memory/vector_preflight/types.py
-# [INPUT] enum, dataclasses
-# [OUTPUT] PreflightHealthStatus, SanitizedEndpointResult, DimensionIntegrityReport
+"""Typed data contracts for the vector preflight subsystem.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- PreflightHealthStatus: Health evaluation status for vector store preflight checks.
+- SanitizedEndpointResult: Result of endpoint and host loopback sanitization.
+- DimensionIntegrityReport: Rigid preflight dimension verification outcome.
+
+[POS]
+Typed data contracts for the vector preflight subsystem.
+"""
 
 from dataclasses import dataclass
 from enum import StrEnum

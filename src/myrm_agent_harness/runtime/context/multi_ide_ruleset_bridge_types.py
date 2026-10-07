@@ -2,6 +2,17 @@
 
 Defines schemas for IDE ecosystem classification, unified rule representation,
 multi-source deduplication, and migration readiness reporting.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- IdeEcosystemKind: Supported AI IDE or agent assistant specification ecosystem.
+- UniversalIdeRuleEntry: A normalized rule specification ingested from any IDE ecosystem.
+- MigrationReadinessReport: Telemetry report assessing cross-IDE rule ingestion and migration health.
+
+[POS]
+Type definitions for Multi-IDE Universal Ruleset Parser and Trae Rules Compatibility Bridge.
 """
 
 from __future__ import annotations

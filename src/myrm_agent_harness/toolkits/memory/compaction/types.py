@@ -1,8 +1,18 @@
-# [POS] toolkits/memory/compaction/types.py
-# [INPUT] None
-# [OUTPUT] CodeAbstractionLevel, CodeBlockItem, CompactedBlock, CompactionConfig, CompactionResult
+"""Type definitions and contracts for Token-Budget-Aware Code Memory Compaction.
 
-"""Type definitions and contracts for Token-Budget-Aware Code Memory Compaction."""
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- CodeAbstractionLevel: Hierarchical abstraction tiers for source code memory compression.
+- CodeBlockItem: Input representation of a code file or snippet to be compacted.
+- CompactedBlock: Compacted representation of a single code block.
+- CompactionConfig: Configuration options for the Token-Budget-Aware Code Compaction Engine.
+- CompactionResult: Outcome of budget-guided code memory compaction across multiple files.
+
+[POS]
+Type definitions and contracts for Token-Budget-Aware Code Memory Compaction.
+"""
 
 from __future__ import annotations
 

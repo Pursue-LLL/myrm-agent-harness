@@ -3,6 +3,17 @@
 Zero-dependency, zero GPU, purely in-memory inverted index and Okapi BM25 scoring.
 Target latency < 0.5ms for tool schema and context segment retrieval.
 Strict 0 Any, type-hinted, thread-safe.
+
+[INPUT]
+- runtime.context.in_process_bm25_types::BM25Document, BM25SearchResult (POS: Type definitions for
+  In-Process BM25 Lexical Retriever and Dynamic Tool Schema Pruner.)
+
+[OUTPUT]
+- tokenize_lexical: Fast lexical tokenizer splitting code identifiers, snake_case, and natural language.
+- InProcessBM25Retriever: Sub-millisecond in-process Okapi BM25 engine with inverted indexing.
+
+[POS]
+In-process sub-millisecond BM25 lexical retriever for AI agent context engineering.
 """
 
 from __future__ import annotations

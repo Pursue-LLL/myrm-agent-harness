@@ -2,6 +2,18 @@
 
 Defines contracts for deterministic session derivation, cross-turn diff proposals,
 cached parsed document slices, and multi-document isolation barriers.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- DocSessionBindingInfo: Metadata describing a deterministic document session binding.
+- DocDiffProposalEntry: Represents a patch or diff proposal suggested for a document turn.
+- DocChunkCacheEntry: Represents a cached parsed chunk or slice of a document.
+- DocSessionContinuityContext: Aggregated continuity context synthesized for cross-turn ReAct loops.
+
+[POS]
+Type definitions for File-Path SHA-256 Stable Document Session Binding Hub.
 """
 
 from __future__ import annotations

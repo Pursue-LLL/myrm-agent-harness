@@ -1,6 +1,16 @@
-# [POS] src/myrm_agent_harness/toolkits/memory/vector_preflight/sanitizer.py
-# [INPUT] urllib.parse, re, logging, .types (SanitizedEndpointResult)
-# [OUTPUT] IPv4LoopbackSanitizer
+"""Sanitizes connection endpoints to eliminate IPv6 ::1 localhost resolution traps in container environments.
+
+[INPUT]
+- toolkits.memory.vector_preflight.types::SanitizedEndpointResult (POS: Typed data contracts for the vector
+  preflight subsystem.)
+
+[OUTPUT]
+- IPv4LoopbackSanitizer: Sanitizes connection endpoints to eliminate IPv6 ::1 localhost resolution traps in
+  container environments.
+
+[POS]
+Sanitizes connection endpoints to eliminate IPv6 ::1 localhost resolution traps in container environments.
+"""
 
 import logging
 import re

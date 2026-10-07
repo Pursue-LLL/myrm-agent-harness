@@ -1,4 +1,23 @@
-"""Data models for Full-Lifecycle Memory Attribution and Explainable Traceability Matrix."""
+"""Data models for Full-Lifecycle Memory Attribution and Explainable Traceability Matrix.
+
+[INPUT]
+- External: pydantic
+
+[OUTPUT]
+- FilterDiscardReason: Categorical rationale explaining why candidate memory was discarded.
+- CandidateRecallItem: Memory entry initially retrieved from stores before post-filtering.
+- DiscardedRecallItem: Memory candidate rejected during deduplication, scope filtering, or budgeting.
+- InjectedContextItem: Surviving memory formatted and injected into prompt context.
+- ModelCitationItem: Memory explicitly referenced or relied upon in the model output.
+- AttributionGraphNode: Visual graph node representing an entity in the memory lifecycle.
+- AttributionGraphEdge: Directed relationship link between lifecycle nodes.
+- AttributionGraphPayload: Graph structure formatted for frontend observability visualization.
+- MemoryAttributionTrace: Single-trace end-to-end memory lifecycle record penetrating query to citation.
+- FourDimensionHealthReport: Production health evaluation matrix across four governance dimensions.
+
+[POS]
+Data models for Full-Lifecycle Memory Attribution and Explainable Traceability Matrix.
+"""
 
 from datetime import datetime
 from enum import StrEnum

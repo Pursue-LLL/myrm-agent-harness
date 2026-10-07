@@ -1,11 +1,18 @@
-# [POS]: myrm_agent_harness/toolkits/memory/drift_defense/reference_extractor.py
-# [INPUT]: re, types
-# [OUTPUT]: GroundTruthReferenceExtractor, ExtractedReference
 """Zero-LLM fast regular expression extractor for file paths and code symbols.
 
 Extracts potential ground-truth targets (file paths, configurations, symbols)
 from memory text in sub-millisecond execution.
 Strict typing applied: No `Any` types allowed.
+
+[INPUT]
+- External: pydantic
+
+[OUTPUT]
+- ExtractedReference: Reference target discovered within memory text.
+- GroundTruthReferenceExtractor: High-performance regex extractor for references without LLM overhead.
+
+[POS]
+Zero-LLM fast regular expression extractor for file paths and code symbols.
 """
 
 from __future__ import annotations

@@ -2,6 +2,17 @@
 
 Enforces byte-level deterministic serialization and ordering of tool definitions,
 system prompts, and persona anchors, preventing accidental prefix invalidation.
+
+[INPUT]
+- runtime.context.prompt_cache_lifecycle_types::CachePrefixFingerprint (POS: Prompt-cache aware session
+  lifecycle and prefix preserving router types.)
+
+[OUTPUT]
+- PrefixPreservingCanonicalizer: Canonicalizes request skeletons to ensure byte-stable prefix cache
+  alignment.
+
+[POS]
+Prefix preserving canonicalizer for Prompt Cache optimization.
 """
 
 from __future__ import annotations

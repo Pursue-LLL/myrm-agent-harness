@@ -3,6 +3,19 @@
 Provides zero-injection direct passthrough execution that bypasses framework system prompts
 and tool declarations, enabling faithful evaluation of native model personalities,
 as well as side-by-side comparative experiments against agent-augmented execution.
+
+[INPUT]
+- runtime.context.pristine_passthrough_sandbox_types::DualRunExperimentReport, PristineExecutionConfig,
+  PristinePassthroughMode, PristinePayload (POS: Type definitions for Raw Model Direct Passthrough and
+  Pristine Testing Sandbox.)
+
+[OUTPUT]
+- PristineTestingSandbox: Orchestrates side-by-side dual-track comparison experiments.
+- RawModelPassthroughTransformer: Transforms conversational payloads to enforce zero-injection pristine
+  execution.
+
+[POS]
+Raw Model Direct Passthrough and Pristine Testing Sandbox.
 """
 
 from __future__ import annotations

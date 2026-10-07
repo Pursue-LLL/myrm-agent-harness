@@ -1,11 +1,26 @@
-# [POS]: myrm_agent_harness/toolkits/memory/sovereign_migration/types.py
-# [INPUT]: pydantic, enum, time
-# [OUTPUT]: AssetCategory, AssetEntry, SovereignAssetManifest, ExportBundleRequest, ExportBundleResult, RestoreBundleRequest, RestoreBundleResult, CompetitorType, CompetitorDetectResult, CompetitorImportResult
 """Type definitions for sovereign asset bundle migration and cross-machine restore protocol.
 
 Defines schemas for portable asset packaging, path relativization, checksum verification,
 and competitor ingestion (Hermes, Claude Code, Codex).
 Strict typing applied: No `Any` types allowed.
+
+[INPUT]
+- External: pydantic
+
+[OUTPUT]
+- AssetCategory: Categorization of sovereign assets included in the portable bundle.
+- AssetEntry: Metadata describing a specific file or asset stored within the bundle.
+- SovereignAssetManifest: Manifest header containing metadata and checksums of the sovereign package.
+- ExportBundleRequest: Configuration requested to produce a portable sovereign asset bundle.
+- ExportBundleResult: Summary outcome following completion of bundle creation.
+- RestoreBundleRequest: Parameters provided to unpack and restore assets onto the target host.
+- RestoreBundleResult: Outcome report following bundle verification and extraction.
+- CompetitorType: Supported third-party competitor platforms for zero-friction migration.
+- CompetitorDetectResult: Result of probing local environment for competitor data stores.
+- CompetitorImportResult: Outcome summary after ingesting rules and memories from competitor setups.
+
+[POS]
+Type definitions for sovereign asset bundle migration and cross-machine restore protocol.
 """
 
 from __future__ import annotations

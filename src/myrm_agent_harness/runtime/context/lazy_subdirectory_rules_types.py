@@ -1,4 +1,18 @@
-"""Data contracts and types for lazy-loaded subdirectory rules discovery and dynamic tool injection."""
+"""Data contracts and types for lazy-loaded subdirectory rules discovery and dynamic tool injection.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- SubdirectoryRuleDiscoveryMode: Injection mode defining when subdirectory rules should be appended to tool
+  output.
+- DiscoveredSubdirectoryRule: An on-demand discovered rule file located in a subdirectory.
+- DynamicToolInjectionEnvelope: Envelope containing the augmented tool execution result with localized
+  rules.
+
+[POS]
+Data contracts and types for lazy-loaded subdirectory rules discovery and dynamic tool injection.
+"""
 
 from __future__ import annotations
 

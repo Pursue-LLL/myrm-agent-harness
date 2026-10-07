@@ -2,6 +2,17 @@
 
 Provides DAG-based branching, in-place node checkout/replay, multi-dimensional
 message filtering, and bookmark management inspired by Pi Agent Tree History.
+
+[INPUT]
+- runtime.context.conversation_tree_types::BranchPathInfo, ConversationTreeNode, TreeBookmark,
+  TreeFilterCriteria, TreeNodeKind (POS: Type definitions for tree-structured conversation graph and branch
+  replay engine.)
+
+[OUTPUT]
+- ConversationTreeGraph: Manages an in-session DAG conversation tree with branching and projection.
+
+[POS]
+In-session tree-structured conversation graph and branch navigation engine.
 """
 
 import time

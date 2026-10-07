@@ -2,6 +2,17 @@
 
 Applies configurable rules to redact API keys, private internal IP addresses,
 local user home paths, emails, and custom patterns before archiving or export.
+
+[INPUT]
+- runtime.context.session_lifecycle_log_archiver_types::ArtifactSnapshotEntry, SanitizationPolicy,
+  SessionExecutionTurn, ToolExecutionLogEntry (POS: Session lifecycle log archive and offline bundle export
+  types.)
+
+[OUTPUT]
+- SessionDataSanitizer: Sanitizer engine to scrub sensitive credentials and PII.
+
+[POS]
+Session data sanitization engine for confidential information masking.
 """
 
 import re

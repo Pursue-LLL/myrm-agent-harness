@@ -2,6 +2,16 @@
 
 Handles Qwen3.5, DeepSeek-R1, and Ollama thinking models where responses place
 reasoning traces in reasoning_content while leaving root content blank.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ThinkingModelReasoningAdapter: Adapts reasoning model responses, unpacks empty content, and scrubs CoT
+  tokens.
+
+[POS]
+Thinking model reasoning content unpacking and scrubbing adapter.
 """
 
 from __future__ import annotations

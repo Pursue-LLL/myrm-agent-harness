@@ -1,8 +1,16 @@
-# [POS] myrm_agent_harness/toolkits/memory/shared_bus/concurrency_pool.py
-# [INPUT] ConcurrencyPoolConfig, BackpressureStatus from .types
-# [OUTPUT] MemoryBackpressureGuard, SharedMemoryConcurrencyPool (多 Agent 并发连接池与背压守卫)
+"""多 Agent 共享并发连接池与内存背压守卫，保障高并发读写不锁死、内存不击穿。
 
-"""多 Agent 共享并发连接池与内存背压守卫，保障高并发读写不锁死、内存不击穿。"""
+[INPUT]
+- toolkits.memory.shared_bus.types::BackpressureStatus, ConcurrencyPoolConfig (POS: 跨 Agent
+  共享记忆总线、并发连接池、背压守卫与方案否决账本的核心类型定义。)
+
+[OUTPUT]
+- MemoryBackpressureGuard: 轻量内存背压监控守卫，实时探针当前进程 RSS 水位。
+- SharedMemoryConcurrencyPool: 多 Agent 共享并发读写连接池与背压协调器。
+
+[POS]
+多 Agent 共享并发连接池与内存背压守卫，保障高并发读写不锁死、内存不击穿。
+"""
 
 from __future__ import annotations
 

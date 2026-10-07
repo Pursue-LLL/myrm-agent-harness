@@ -1,8 +1,21 @@
-# [POS] toolkits/memory/graph_rrf/types.py
-# [INPUT] None
-# [OUTPUT] EntityNode, RelationEdge, GraphTraversalPath, GraphTraversalResult, VectorHit, GraphHit, FusedMemoryHit, RRFConfig
+"""Data models and contract types for Knowledge Graph and Vector RRF Fusion Memory Engine.
 
-"""Data models and contract types for Knowledge Graph and Vector RRF Fusion Memory Engine."""
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- EntityNode: Represents a named entity in the memory knowledge graph.
+- RelationEdge: Represents a directional relationship between two entities.
+- GraphTraversalPath: Represents an edge traversed during graph expansion.
+- GraphTraversalResult: Result of breadth-first traversal starting from seed entities.
+- VectorHit: Ranked hit from semantic vector search channel.
+- GraphHit: Ranked hit from knowledge graph traversal channel.
+- FusedMemoryHit: Memory item ranked and unified by Reciprocal Rank Fusion.
+- RRFConfig: Hyperparameters and operational limits for dual-channel RRF.
+
+[POS]
+Data models and contract types for Knowledge Graph and Vector RRF Fusion Memory Engine.
+"""
 
 from __future__ import annotations
 

@@ -1,8 +1,17 @@
-# [INPUT] CodeGraphMemoryStore, target symbol identifier or name, and optional file scope.
-# [OUTPUT] Evaluated ImpactAnalysisReport with direct/indirect callers, blast radius, and risk level.
-# [POS] myrm_agent_harness.toolkits.memory.codegraph.impact_analyzer
+"""Impact analysis engine evaluating modification blast radius and risk levels.
 
-"""Impact analysis engine evaluating modification blast radius and risk levels."""
+[INPUT]
+- toolkits.memory.codegraph.store::CodeGraphMemoryStore (POS: CodeGraph memory store maintaining symbol
+  topology and caller inversions.)
+- toolkits.memory.codegraph.types::ImpactAnalysisReport, ImpactRiskLevel (POS: Domain models and type
+  definitions for CodeGraph memory assets and impact analysis.)
+
+[OUTPUT]
+- CodeImpactAnalyzer: Evaluates the ripple effect and blast radius before modifying any symbol.
+
+[POS]
+Impact analysis engine evaluating modification blast radius and risk levels.
+"""
 
 from collections import deque
 

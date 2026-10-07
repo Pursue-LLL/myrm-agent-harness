@@ -2,6 +2,17 @@
 
 Manages physical in-memory conversation state on remote sandbox execution
 environments, handling physical thread replacements upon compaction signals.
+
+[INPUT]
+- runtime.context.live_thread_compaction_types::CompactionSyncStatus, LiveThreadCompactionResult,
+  LiveThreadCompactionSignal, RemoteThreadSnapshot (POS: Data types and protocol models for remote sandbox
+  live thread physical compaction.)
+
+[OUTPUT]
+- RemoteThreadActorEndpoint: Actor endpoint maintaining the physical live thread inside a remote sandbox.
+
+[POS]
+Remote sandbox live thread actor endpoint.
 """
 
 from __future__ import annotations

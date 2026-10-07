@@ -3,6 +3,18 @@
 Implements DeepSeek-style spill capability family: automatically detects oversized
 tool output, persists full artifacts to session-scoped storage, injects bounded previews
 with canonical locator URIs, and supports on-demand range slicing.
+
+[INPUT]
+- runtime.context.session_spill_store_types::SpillPolicy, SpillProcessResult, SpillRecord,
+  SpillSliceRequest, SpillSliceResult (POS: Type definitions for session-scoped tool output spill store and
+  bounded preview locator.)
+
+[OUTPUT]
+- SessionScopedToolOutputSpillStore: Manages session-level tool output persistence, bounded preview
+  generation, and on-demand retrieval.
+
+[POS]
+Session-scoped tool output spill store and bounded preview locator harness.
 """
 
 from __future__ import annotations

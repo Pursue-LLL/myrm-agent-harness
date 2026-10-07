@@ -2,6 +2,16 @@
 
 Implements lossless-first compression for test failures, compiler errors,
 git patch conflicts, and code searches with bounded diagnostic windows.
+
+[INPUT]
+- runtime.context.rtk_tool_compressor_types::ExtractedDiagnosis, RTKCompressorConfig, ToolCommandType (POS:
+  Strongly typed data contracts for RTK Command-Aware Tool Output Lossless Compressor.)
+
+[OUTPUT]
+- RTKCommandAwareToolOutputCompressor: Zero-LLM structure-preserving tool result extractor and compressor.
+
+[POS]
+RTK Command-Aware Tool Output Lossless Compressor.
 """
 
 from __future__ import annotations

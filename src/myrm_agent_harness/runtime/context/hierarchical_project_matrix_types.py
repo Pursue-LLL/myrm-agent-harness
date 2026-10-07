@@ -1,4 +1,20 @@
-"""Data contracts for Hierarchical Project Context Matrix and Dynamic Binding Gate."""
+"""Data contracts for Hierarchical Project Context Matrix and Dynamic Binding Gate.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- GlobalAgentTier: Tier 1: Global Agent Persona and innate capabilities.
+- ProjectWorkspaceTier: Tier 2: Workspace Project instructions, directory boundary, and shared rules.
+- SessionGoalTier: Tier 3: Transient session intent, prompt constraints, and immediate objective.
+- HierarchicalContextMatrix: Composed 3-tier prompt context matrix optimized for KV-Cache prefix stability.
+- AgentProjectBindingRecord: Dynamic binding entry associating an agent with a project workspace.
+- WorkspaceSessionRef: Lightweight session reference used for workspace health and orphan analysis.
+- WorkspaceHealthReport: Diagnostic health assessment of project sessions and orphan residue.
+
+[POS]
+Data contracts for Hierarchical Project Context Matrix and Dynamic Binding Gate.
+"""
 
 from __future__ import annotations
 

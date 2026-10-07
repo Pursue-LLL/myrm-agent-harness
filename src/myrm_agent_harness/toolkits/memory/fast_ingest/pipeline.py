@@ -1,4 +1,15 @@
-"""One-Pass Fast Memory Commit Pipeline with sub-5% latency overhead guarantee."""
+"""One-Pass Fast Memory Commit Pipeline with sub-5% latency overhead guarantee.
+
+[INPUT]
+- toolkits.memory.fast_ingest.models::FastCommittedRecord, IngestStatus, IngestionMetrics, RawIngestTurn
+  (POS: Data models for Sub-5% Latency One-Pass Fast Ingestion and Deep Distillation Engine.)
+
+[OUTPUT]
+- FastMemoryCommitPipeline: Zero-LLM one-pass memory commit pipeline executing in under 5% forward latency.
+
+[POS]
+One-Pass Fast Memory Commit Pipeline with sub-5% latency overhead guarantee.
+"""
 
 import re
 import time

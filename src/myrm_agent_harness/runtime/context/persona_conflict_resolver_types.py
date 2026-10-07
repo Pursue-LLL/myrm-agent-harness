@@ -1,4 +1,19 @@
-"""Data contracts and types for persona semantic conflict probe and mutual exclusion resolver."""
+"""Data contracts and types for persona semantic conflict probe and mutual exclusion resolver.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- PersonaSourceTier: Source tier of persona configuration indicating inheritance precedence.
+- PolarityDimension: Semantic polarity dimensions where personalities can clash.
+- PersonaSnippet: An individual persona snippet or directive extracted from system or user prompt.
+- PersonaConflictFinding: A detected semantic conflict between two antagonistic persona directives.
+- ArbitratedPersonaResult: Result of mutual exclusion resolution yielding an unified, non-conflicting
+  persona.
+
+[POS]
+Data contracts and types for persona semantic conflict probe and mutual exclusion resolver.
+"""
 
 from __future__ import annotations
 

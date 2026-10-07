@@ -1,4 +1,16 @@
-"""Hard Boundary Scope Gateway enforcing physical multi-tenant and project isolation."""
+"""Hard Boundary Scope Gateway enforcing physical multi-tenant and project isolation.
+
+[INPUT]
+- toolkits.memory.paging.models::AccessViolationAudit, AccessViolationError, HardScopeContext,
+  MemoryPageQuery (POS: Data models for Agent-Driven Memory Paging and Hard Boundary Governance Engine.)
+
+[OUTPUT]
+- HardBoundaryScopeGateway: Application-layer security gateway preventing cross-tenant or cross-project
+  memory probing.
+
+[POS]
+Hard Boundary Scope Gateway enforcing physical multi-tenant and project isolation.
+"""
 
 import uuid
 from datetime import UTC, datetime

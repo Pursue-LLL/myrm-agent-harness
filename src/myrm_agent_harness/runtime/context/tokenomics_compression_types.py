@@ -2,6 +2,22 @@
 
 Provides enums, protected pattern models, budget decisions, and four-dimensional
 evaluation metrics with zero Any.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- CompressionTierKind: The four progressive tiers of Tokenomics context compression.
+- ContextTaxonomyKind: Classification of context messages for selective compression.
+- TaskRiskLevel: Risk tier of the current task affecting compression aggressiveness.
+- ProtectedPatternKind: Categories of engineering facts shielded from semantic mutation.
+- ProtectedPatternsConfig: Configuration for protecting non-negotiable engineering facts.
+- CompressionBudgetDecision: Outcome of dynamic budget routing based on task risk and remaining tokens.
+- FourDimensionalMetrics: Four-dimensional quality and balance evaluation metric.
+- TieredCompressionResult: Detailed outcome of executing the compression pipeline.
+
+[POS]
+Strongly typed data contracts for the Four-Tier Tokenomics context compression engine.
 """
 
 from __future__ import annotations

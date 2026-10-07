@@ -1,8 +1,18 @@
-# [POS] myrm_agent_harness/toolkits/memory/budget_curator/atomic_curator.py
-# [INPUT] AtomicBatchResult, ManagedMemoryItem, MemoryBatchOperation, MemoryBudgetSpec, MemoryOperationType from .types, MemoryBudgetMeter from .budget_meter
-# [OUTPUT] AtomicOperationsCurator (原子批量腾挪策展操作符与防混淆事务门禁)
+"""原子批量腾挪策展操作符与防混淆事务门禁，杜绝半成功坏账与子串匹配误删。
 
-"""原子批量腾挪策展操作符与防混淆事务门禁，杜绝半成功坏账与子串匹配误删。"""
+[INPUT]
+- toolkits.memory.budget_curator.budget_meter::MemoryBudgetMeter (POS:
+  声明式记忆上下文预算计量器，渲染可视化预算仪表盘标头并监控容量水位。)
+- toolkits.memory.budget_curator.types::AtomicBatchResult, ManagedMemoryItem, MemoryBatchOperation,
+  MemoryBudgetSpec, MemoryOperationType (POS:
+  双轨冻结快照记忆预算仪表盘、原子批量腾挪策展操作符与长程会话回溯锚点核心类型。)
+
+[OUTPUT]
+- AtomicOperationsCurator: 原子批量记忆策展操作器，全成或全败事务保证。
+
+[POS]
+原子批量腾挪策展操作符与防混淆事务门禁，杜绝半成功坏账与子串匹配误删。
+"""
 
 from __future__ import annotations
 

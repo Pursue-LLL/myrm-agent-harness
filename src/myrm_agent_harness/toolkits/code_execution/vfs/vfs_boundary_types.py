@@ -2,6 +2,19 @@
 
 Defines path classification kinds, glob safety configurations, hit records
 with explicit trailing slash indicators, and traversal safety audits.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- VFSPathKind: Filesystem path item classification.
+- GlobBoundaryViolationError: Raised when glob pattern or path traversal breaches security boundaries.
+- GlobSafetyConfig: Configuration governing recursive glob boundaries and traversal safety.
+- VFSGlobHit: Standardized result entry from a boundary-enforced glob traversal.
+- GlobSafetyAudit: Security and performance diagnostic audit for a glob execution run.
+
+[POS]
+VFS boundary types, contracts, and safety audit models.
 """
 
 from __future__ import annotations

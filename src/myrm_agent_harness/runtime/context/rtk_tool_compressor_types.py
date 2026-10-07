@@ -1,6 +1,17 @@
 """Strongly typed data contracts for RTK Command-Aware Tool Output Lossless Compressor.
 
 Provides enums, configuration classes, and extracted diagnosis payload models with zero Any.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ToolCommandType: Categorization of tool execution command types for lossless filtering.
+- RTKCompressorConfig: Configuration for command-aware output filtering and bounded diagnostic windows.
+- ExtractedDiagnosis: Structured extraction of critical diagnosis without losing precision.
+
+[POS]
+Strongly typed data contracts for RTK Command-Aware Tool Output Lossless Compressor.
 """
 
 from __future__ import annotations

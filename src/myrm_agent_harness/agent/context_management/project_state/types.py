@@ -1,8 +1,20 @@
-# [POS] myrm_agent_harness/agent/context_management/project_state/types.py
-# [INPUT] None (纯领域类型与数据模型定义)
-# [OUTPUT] ProjectFactType, FactPromotionStage, LivingFact, ProjectionQuery, ProjectedContextSlice, ValidationAuditInput, ValidationAuditResult
+"""面向长期项目的动态事实状态账本与上下文投影核心类型定义。
 
-"""面向长期项目的动态事实状态账本与上下文投影核心类型定义。"""
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ProjectFactType: 项目事实类型枚举。
+- FactPromotionStage: 信息晋升阶梯阶段枚举。
+- LivingFact: 长期项目生命周期中的动态结构化事实条目。
+- ProjectionQuery: 四层级联上下文投影查询请求参数。
+- ProjectedContextSlice: 四层级联投影流水线萃取生成的动态上下文切片。
+- ValidationAuditInput: 验证结果准入审计输入参数。
+- ValidationAuditResult: 验证结果准入审计与状态晋升结果。
+
+[POS]
+面向长期项目的动态事实状态账本与上下文投影核心类型定义。
+"""
 
 from __future__ import annotations
 

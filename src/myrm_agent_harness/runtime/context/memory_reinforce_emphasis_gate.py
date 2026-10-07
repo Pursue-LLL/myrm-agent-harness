@@ -2,6 +2,16 @@
 
 Manages high-priority rule tagging, attention decay tracking and suppression,
 and dynamic top-of-prompt directive synthesis across multi-turn sessions.
+
+[INPUT]
+- runtime.context.memory_reinforce_skill_attach_types::ReinforcedMemoryRule, ReinforcementPriorityKind (POS:
+  Types and data models for memory rule reinforcement emphasis gate and mid-session skill attachment.)
+
+[OUTPUT]
+- MemoryReinforceEmphasisGate: Gatekeeper regulating reinforced memory rules and prompt attention weighting.
+
+[POS]
+Memory rule reinforcement emphasis gate.
 """
 
 from __future__ import annotations

@@ -6,6 +6,17 @@ Detects:
 2. Ping-pong alternating tool oscillations (e.g., A -> B -> A -> B -> A -> B).
 3. Persistent consecutive execution failures.
 Strict 0 Any, type-hinted, thread-safe.
+
+[INPUT]
+- runtime.context.dual_tier_compactor_types::ToolCallSignature, ToolLoopCircuitState (POS: Type definitions
+  for Dual-Tier Micro/Full Adaptive Compactor, Mid-Task Steering, and Tool Loop Tracker Watchdog.)
+
+[OUTPUT]
+- compute_canonical_args_hash: Compute deterministic SHA-256 hash for tool arguments.
+- ToolLoopTracker: Watchdog circuit breaker preventing infinite loops and oscillatory tool usage.
+
+[POS]
+ToolLoopTracker: Watchdog detecting tool call oscillation and infinite loops.
 """
 
 from __future__ import annotations

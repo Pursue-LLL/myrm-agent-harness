@@ -1,6 +1,16 @@
-# [POS] src/myrm_agent_harness/toolkits/memory/persona_router/types.py
-# [INPUT] enum, dataclasses, typing
-# [OUTPUT] TaskIntentCategory, PersonaFacet, PersonaRoutingDecision
+"""Typed data contracts for the persona router subsystem.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- TaskIntentCategory: Categorized operational intent for contextual persona gating.
+- PersonaFacet: Decoupled user identity and style preference facet acting as an on-demand skill.
+- PersonaRoutingDecision: Outcome of intent-aware persona style suppression and selective injection routing.
+
+[POS]
+Typed data contracts for the persona router subsystem.
+"""
 
 from dataclasses import dataclass, field
 from enum import StrEnum

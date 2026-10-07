@@ -5,6 +5,19 @@ Implements lossless lean reduction by:
 2. Protecting HIGH priority recent interaction tail.
 3. Collapsing bulky VOLATILE tool results in older turns into deterministic structural summaries.
 4. Anchoring core constraints across extended multi-turn runs.
+
+[INPUT]
+- runtime.context.lossless_lean_tail_types::ConstraintAnchor, LeanReductionStats, LosslessCompactorConfig,
+  MessageImportanceTier (POS: Data types and schemas for default lossless lean-tail conversation
+  compaction.)
+- runtime.context.message_importance_classifier::MessageImportanceClassifier (POS: Message importance
+  classifier for categorizing conversation turns by criticality.)
+
+[OUTPUT]
+- DefaultLosslessLeanTailCompactor: Zero-LLM overhead deterministic lean-tail conversation compactor.
+
+[POS]
+Default lossless lean-tail conversation compaction engine.
 """
 
 from __future__ import annotations

@@ -1,6 +1,17 @@
-# [POS] src/myrm_agent_harness/toolkits/memory/universal_mcp_bridge/bridge_runner.py
-# [INPUT] sys, logging, .types (ExternalClientKind, McpTransportKind, UniversalMemoryBridgeOptions)
-# [OUTPUT] UniversalMcpMemoryBridge
+"""Core bridge coordinator providing standard memory tool definitions and execution dispatch for external clients.
+
+[INPUT]
+- toolkits.memory.universal_mcp_bridge.types::ExternalClientKind, McpTransportKind,
+  UniversalMemoryBridgeOptions (POS: Typed data contracts for the universal mcp bridge subsystem.)
+
+[OUTPUT]
+- UniversalMcpMemoryBridge: Core bridge coordinator providing standard memory tool definitions and execution
+  dispatch for external clients.
+
+[POS]
+Core bridge coordinator providing standard memory tool definitions and execution dispatch for external
+clients.
+"""
 
 import logging
 import sys

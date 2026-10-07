@@ -1,4 +1,19 @@
-"""Agent-Driven Memory Paging Engine with cursor pagination and token budget guards."""
+"""Agent-Driven Memory Paging Engine with cursor pagination and token budget guards.
+
+[INPUT]
+- toolkits.memory.paging.gateway::HardBoundaryScopeGateway (POS: Hard Boundary Scope Gateway enforcing
+  physical multi-tenant and project isolation.)
+- toolkits.memory.paging.models::HardScopeContext, MemoryPageQuery, MemoryPageRecord, MemoryPageResult,
+  PagingBudgetExceededError, PagingBudgetPolicy (POS: Data models for Agent-Driven Memory Paging and Hard
+  Boundary Governance Engine.)
+
+[OUTPUT]
+- AgentMemoryPagingEngine: Provides cursor-based active pagination over memory with hard boundary and budget
+  guards.
+
+[POS]
+Agent-Driven Memory Paging Engine with cursor pagination and token budget guards.
+"""
 
 import base64
 import json

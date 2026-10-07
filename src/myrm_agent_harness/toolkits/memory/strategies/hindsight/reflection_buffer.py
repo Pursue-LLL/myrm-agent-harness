@@ -1,8 +1,15 @@
-# [POS] toolkits/memory/strategies/hindsight/reflection_buffer.py
-# [INPUT] HindsightRule, PreExecutionWarning, ReflectionBufferConfig
-# [OUTPUT] HindsightReflectionBuffer
+"""Retrospective reflection buffer storing rules and injecting proactive pre-execution warnings.
 
-"""Retrospective reflection buffer storing rules and injecting proactive pre-execution warnings."""
+[INPUT]
+- toolkits.memory.strategies.hindsight.types::HindsightRule, PreExecutionWarning, ReflectionBufferConfig
+  (POS: Type definitions and contracts for Hindsight Experience Replay and Reflection Buffer.)
+
+[OUTPUT]
+- HindsightReflectionBuffer: In-memory managed buffer of actionable counterfactual failure rules.
+
+[POS]
+Retrospective reflection buffer storing rules and injecting proactive pre-execution warnings.
+"""
 
 from __future__ import annotations
 

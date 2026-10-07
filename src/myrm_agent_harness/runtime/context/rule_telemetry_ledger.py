@@ -2,6 +2,16 @@
 
 Tracks rule activations, hit counts, path footprints, and dilution indices
 to identify stale rules and guide architecture entropy draining.
+
+[INPUT]
+- runtime.context.working_set_rules_types::RuleItem, RuleTelemetryRecord, TaskPhase (POS: Data types and
+  schemas for dynamic working-set rules and architecture entropy draining.)
+
+[OUTPUT]
+- RuleTelemetryLedger: In-memory telemetry ledger tracking usage of rules across sessions.
+
+[POS]
+Telemetry and usage ledger for dynamic rules.
 """
 
 from __future__ import annotations

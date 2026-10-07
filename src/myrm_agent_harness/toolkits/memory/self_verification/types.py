@@ -1,6 +1,18 @@
-# [POS] src/myrm_agent_harness/toolkits/memory/self_verification/types.py
-# [INPUT] enum, dataclasses
-# [OUTPUT] VerificationHealthGrade, FactMutationProbeResult, ZeroLexicalOverlapProbeResult, ProceduralAntiDropProbeResult, MemoryVerificationReport
+"""Typed data contracts for the self verification subsystem.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- VerificationHealthGrade: Health grade for memory verification diagnostics.
+- FactMutationProbeResult: Outcome of in-place fact mutation & contradiction elimination probe.
+- ZeroLexicalOverlapProbeResult: Outcome of pure semantic recall probe with zero lexical overlap.
+- ProceduralAntiDropProbeResult: Outcome of procedural rule routing & anti-silent drop probe.
+- MemoryVerificationReport: Comprehensive diagnostic benchmark report with sandbox rollback confirmation.
+
+[POS]
+Typed data contracts for the self verification subsystem.
+"""
 
 from dataclasses import dataclass
 from enum import StrEnum

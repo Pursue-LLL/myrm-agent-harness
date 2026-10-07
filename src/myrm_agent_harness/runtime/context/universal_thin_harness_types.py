@@ -2,6 +2,19 @@
 
 Defines operating modes (Pure, Lean, Audit), model capability tiers, thin
 system prompt contracts, transient tool GC receipts, and Token Tax audit snapshots.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- OperatingDisciplineMode: Execution discipline modes balancing agility, engineering rigor, and compliance.
+- ModelCapabilityTier: Capability tier of the underlying foundation model.
+- ThinPromptContract: Adaptive thin prompt bundle ensuring persona fidelity and zero harness bloat.
+- TransientToolOutputGCReceipt: Receipt tracking dehydration of intermediate diagnostic logs.
+- TokenTaxAuditSnapshot: Transparency audit metrics exposing context composition and Token Tax ratio.
+
+[POS]
+Universal agent thin harness adaptive contract and Token Tax governor types.
 """
 
 from __future__ import annotations

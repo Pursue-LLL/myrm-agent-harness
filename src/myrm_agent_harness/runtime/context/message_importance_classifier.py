@@ -2,6 +2,17 @@
 
 Tags messages into CRITICAL, HIGH, MEDIUM, and VOLATILE tiers to guide
 lossless compression and prevent forgetting user requirements.
+
+[INPUT]
+- runtime.context.lossless_lean_tail_types::ClassifiedMessage, ConstraintAnchor, LosslessCompactorConfig,
+  MessageImportanceTier (POS: Data types and schemas for default lossless lean-tail conversation
+  compaction.)
+
+[OUTPUT]
+- MessageImportanceClassifier: Classifies conversation messages by structural and semantic importance.
+
+[POS]
+Message importance classifier for categorizing conversation turns by criticality.
 """
 
 from __future__ import annotations

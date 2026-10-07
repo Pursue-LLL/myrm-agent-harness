@@ -2,6 +2,20 @@
 
 Defines fine-grained lifecycle event kinds, execution payloads, interceptor decisions,
 and audit statistics for in-process agent lifecycle governance.
+
+[INPUT]
+- runtime.context.internal_external_message_pipeline_types::AgentMessage (POS: Type definitions for
+  internal/external message separation and context transformation pipeline.)
+
+[OUTPUT]
+- LifecycleEventKind: Fine-grained classification of in-process agent runtime events.
+- InterceptorAction: Decision made by an interceptor during event evaluation.
+- LifecyclePayload: Immutable data transfer envelope for lifecycle events.
+- InterceptorDecision: Outcome and audit record of an interceptor's evaluation.
+- LifecycleHubMetrics: Execution counts and performance metrics of the interceptor hub.
+
+[POS]
+Type definitions for full-spectrum in-process lifecycle interceptor and context pruning hub.
 """
 
 from __future__ import annotations

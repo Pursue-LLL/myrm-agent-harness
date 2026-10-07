@@ -1,10 +1,19 @@
-# [POS]: myrm_agent_harness/toolkits/memory/unload_guard/types.py
-# [INPUT]: pydantic, enum
-# [OUTPUT]: EmergencySnapshotReason, EmergencyFlushRequest, EmergencyFlushResult, UnfinalizedSessionSummary
 """Type definitions for desktop/WebUI unload and graceful flush finalize guard.
 
 Defines schemas for zero-LLM crash-proof emergency snapshot creation and recovery.
 Strict typing applied: No `Any` types allowed.
+
+[INPUT]
+- External: pydantic
+
+[OUTPUT]
+- EmergencySnapshotReason: Reason triggering emergency graceful flush and session finalization.
+- EmergencyFlushRequest: Payload submitted when browser page unloads or desktop window closes.
+- EmergencyFlushResult: Confirmation output of atomic zero-LLM emergency flush.
+- UnfinalizedSessionSummary: Metadata describing an unfinalized session available for startup restoration.
+
+[POS]
+Type definitions for desktop/WebUI unload and graceful flush finalize guard.
 """
 
 from __future__ import annotations

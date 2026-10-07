@@ -1,4 +1,16 @@
-"""Attribution Health Matrix Evaluator computing production governance metrics."""
+"""Attribution Health Matrix Evaluator computing production governance metrics.
+
+[INPUT]
+- toolkits.memory.attribution.models::FilterDiscardReason, FourDimensionHealthReport, MemoryAttributionTrace
+  (POS: Data models for Full-Lifecycle Memory Attribution and Explainable Traceability Matrix.)
+
+[OUTPUT]
+- AttributionHealthMatrixEvaluator: Evaluates batches of memory attribution traces across four production
+  dimensions.
+
+[POS]
+Attribution Health Matrix Evaluator computing production governance metrics.
+"""
 
 from collections.abc import Sequence
 

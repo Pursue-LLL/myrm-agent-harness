@@ -2,6 +2,20 @@
 
 Defines strict type hints, risk classifications, configuration contracts,
 and receipts for rasterized text-to-visual channels and heuristic pruning.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- TaskRiskLevel: Risk sensitivity levels for task execution.
+- BypassReason: Explicit justification when visual routing is bypassed.
+- OmniGlyphConfig: Operational settings for the OmniGlyph visual context channel.
+- RenderedGlyphPayload: Artifact of a text page rendered into a high-density visual glyph.
+- UltraFilterScore: Scoring and pruning receipt for a segmented text chunk.
+- VisualChannelRoutingResult: Final arbitration result of context channel routing.
+
+[POS]
+OmniGlyph multimodal visual context channel and Ultra token governor types.
 """
 
 from __future__ import annotations

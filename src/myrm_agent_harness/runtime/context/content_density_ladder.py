@@ -2,6 +2,18 @@
 
 Implements MFS 4-tier content density ladder (peek, skim, range, full),
 AST/regex structural outline extraction, and lazy object safeguards against token blowups.
+
+[INPUT]
+- runtime.context.content_density_ladder_types::DensityLevel, DensityOutlineNode, DensityReadingRequest,
+  DensityReadingResult (POS: Type definitions for progressive content density ladder and peek/skim token
+  throttler.)
+
+[OUTPUT]
+- ContentDensityLadderThrottler: Throttles and compresses file content according to the 4-tier density
+  ladder.
+
+[POS]
+Progressive content density ladder and peek/skim token throttler.
 """
 
 from __future__ import annotations

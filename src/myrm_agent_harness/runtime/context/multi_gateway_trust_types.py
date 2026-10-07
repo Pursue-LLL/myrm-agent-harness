@@ -2,6 +2,30 @@
 
 Provides enums, rule matrix definitions, handoff cards, reality check receipts,
 and cost routing structures with zero Any.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- GatewayTrustTier: Trust tier of the client gateway accessing the agent.
+- HighRiskActionKind: High risk action categories requiring elevated trust.
+- HandoffCardStatus: Lifecycle status of a handoff card.
+- HandoffCard: Tamper-evident handoff card for transferring degraded tasks across gateways.
+- RuleLayerKind: Hierarchical layer of rule files with deterministic topological priority.
+- RuleEntry: Individual rule statement with metadata.
+- RuleConflictResolution: Outcome of resolving a conflict between overlapping rules.
+- FiveLayerRuleMatrix: Matrix containing rules partitioned across all five hierarchical layers.
+- TriStateTag: Tri-state classification for structured task context handoff.
+- PrunedContextItem: Single context item classified under the tri-state convention.
+- RealityCheckReceipt: Receipt resulting from cross-checking handoff claims against ground truth.
+- TaskComplexity: Categorization of task complexity for cost-to-outcome routing.
+- ModelCostProfile: Token pricing and historical empirical reliability of an LLM.
+- CostRoutingDecision: Decision output detailing the cost-to-outcome model selection.
+- WorktreeAllocation: Subagent workspace isolation assignment.
+- WorktreeReconcileResult: Result of reconciling multiple subagents' workspace modifications.
+
+[POS]
+Strongly typed data contracts for Model-Harness orthogonal decoupling and multi-gateway trust.
 """
 
 from __future__ import annotations

@@ -1,4 +1,18 @@
-"""Compaction State Preservation Guard enforcing zero-loss task state retention."""
+"""Compaction State Preservation Guard enforcing zero-loss task state retention.
+
+[INPUT]
+- toolkits.memory.task_state.models::CompactionAnchorPayload (POS: Data models for Structured Task State
+  Machine and Compaction Preservation.)
+- toolkits.memory.task_state.tracker::StructuredTaskStateTracker (POS: Structured Task State Machine Tracker
+  preserving task goals, steps, and todos.)
+
+[OUTPUT]
+- CompactionStatePreservationGuard: Interception guard ensuring structured task states survive rolling
+  context summarization.
+
+[POS]
+Compaction State Preservation Guard enforcing zero-loss task state retention.
+"""
 
 from .models import CompactionAnchorPayload
 from .tracker import StructuredTaskStateTracker

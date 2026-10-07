@@ -1,11 +1,22 @@
-# [POS]: myrm_agent_harness/toolkits/memory/sovereign_migration/bundle_archiver.py
-# [INPUT]: hashlib, json, os, pathlib.Path, shutil, sys, tarfile, tempfile, uuid, types, path_relativizer
-# [OUTPUT]: SovereignBundleArchiver
 """Consistent atomic packaging and checksum-verified sovereign asset archiver.
 
 Packages SQLite databases, markdown wiki pages, handoff memorandums, and custom skills
 into an encrypted/verifiable portable `.myrmpkg` archive with SHA-256 integrity manifest.
 Strict typing applied: No `Any` types allowed.
+
+[INPUT]
+- toolkits.memory.sovereign_migration.path_relativizer::PathRelativizer (POS: Dynamic path relativization
+  and cross-machine absolute path remapping engine.)
+- toolkits.memory.sovereign_migration.types::AssetCategory, AssetEntry, ExportBundleRequest,
+  ExportBundleResult, SovereignAssetManifest (POS: Type definitions for sovereign asset bundle migration and
+  cross-machine restore protocol.)
+
+[OUTPUT]
+- SovereignBundleArchiver: Produces atomic verified sovereign asset bundles (.myrmpkg) for migration.
+- time_tag: Format short human timestamp for package identifier.
+
+[POS]
+Consistent atomic packaging and checksum-verified sovereign asset archiver.
 """
 
 from __future__ import annotations

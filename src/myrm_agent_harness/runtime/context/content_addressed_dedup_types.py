@@ -1,6 +1,19 @@
 """Strongly typed data contracts for Content-Addressed Session Dedup and CCR Context Archival.
 
 Provides enums, chunk metadata, reference anchors, and transform results with zero Any.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- DedupContentType: Classification of content suitable for content-addressed dedup or CCR archival.
+- DedupConfig: Threshold settings for session deduplication and CCR archival.
+- ArchivedChunkMetadata: Metadata describing an archived large content chunk in the dedup vault.
+- ContentRefAnchor: Deterministic reference pointer for identical content repeated across turns.
+- CCRTransformResult: Outcome of scanning and transforming a context payload.
+
+[POS]
+Strongly typed data contracts for Content-Addressed Session Dedup and CCR Context Archival.
 """
 
 from __future__ import annotations

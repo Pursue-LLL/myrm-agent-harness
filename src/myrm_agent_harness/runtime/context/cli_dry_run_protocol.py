@@ -2,6 +2,20 @@
 
 Implements non-executing metadata probing (--dry-run / --manifest-info)
 and automatic source selection mirroring x-cmd best-source racing.
+
+[INPUT]
+- runtime.context.progressive_cli_manifest_generator::ProgressiveCliManifestGenerator (POS: Progressive CLI
+  Capability Manifest Generator conforming to llms.txt standard.)
+- runtime.context.progressive_cli_manifest_types::CliToolSource, CliToolSourceKind, DryRunProbeRequest,
+  DryRunProbeResult (POS: Data types and schemas for progressive CLI capability manifests and dry-run
+  discovery.)
+
+[OUTPUT]
+- BestSourceSelector: Selects the highest efficiency execution source for a CLI tool.
+- CliDryRunDiscoveryProtocol: Handles non-executing CLI capability discovery requests.
+
+[POS]
+Dry-run discovery protocol and best source selector for CLI tools.
 """
 
 from __future__ import annotations

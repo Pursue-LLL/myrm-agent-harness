@@ -5,6 +5,16 @@ Resolves the four canonical ReAct context degradation traps:
 2. Rule Drift (Recency-effect dynamic rule re-anchoring)
 3. Error Contamination (Failed retry trajectory pruning)
 4. Thought Accumulation (Older thought chain decay)
+
+[INPUT]
+- runtime.context.context_engineering_types::ContextRemediationConfig, RemediationResult, TrapType (POS:
+  Context engineering types and data protocols for ReAct trap remediation and ACI design.)
+
+[OUTPUT]
+- ReActTrapRemediator: Deterministic processor addressing the 4 ReAct context traps.
+
+[POS]
+ReAct trap remediation engine for production LLM Agent contexts.
 """
 
 from __future__ import annotations

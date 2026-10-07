@@ -3,6 +3,18 @@
 Provides deterministic session derivation based on canonical file paths,
 manages cross-turn incremental diff proposals and parsed chunk caches,
 and ensures strict isolation across disparate document workflows.
+
+[INPUT]
+- runtime.context.path_stable_doc_session_types::DocChunkCacheEntry, DocDiffProposalEntry,
+  DocSessionBindingInfo, DocSessionContinuityContext (POS: Type definitions for File-Path SHA-256 Stable
+  Document Session Binding Hub.)
+
+[OUTPUT]
+- PathStableDocSessionHub: Coordinates stable document session derivation, diff continuity, and cache
+  retention.
+
+[POS]
+File-Path SHA-256 Stable Document Session Binding Hub.
 """
 
 from __future__ import annotations

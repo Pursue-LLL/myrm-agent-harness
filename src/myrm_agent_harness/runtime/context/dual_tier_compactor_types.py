@@ -3,6 +3,21 @@ and Tool Loop Tracker Watchdog.
 
 Reference: Alibaba Qianwen App Office Mode (query2() loop, ToolLoopTracker, steer queue).
 Strict 0 Any, immutable frozen dataclasses for deterministic execution.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- CompactorTierKind: Enumeration of compaction tiers.
+- MicroFoldedItem: Record of an individual folded tool result.
+- DualTierCompactorDecision: Outcome report of dual-tier adaptive compaction.
+- SteerInstruction: User mid-task steering instruction safely queued for the next step.
+- ToolCallSignature: Fingerprint of a tool call used to detect repetition and oscillation.
+- ToolLoopCircuitState: Status emitted by the ToolLoopTracker circuit breaker.
+
+[POS]
+Type definitions for Dual-Tier Micro/Full Adaptive Compactor, Mid-Task Steering, and Tool Loop Tracker
+Watchdog.
 """
 
 from __future__ import annotations

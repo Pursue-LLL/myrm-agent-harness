@@ -1,4 +1,18 @@
-"""Data contracts and types for tripartite context identity separation and immutable soul anchor."""
+"""Data contracts and types for tripartite context identity separation and immutable soul anchor.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- IdentityCompartmentKind: The three physically separated identity compartments.
+- SoulPersonaAnchor: Immutable anchor defining agent identity, personality, tone, and core principles.
+- FactualMemoryEntry: Mutable factual entry strictly capturing domain facts, conventions, and learnings.
+- UserProfileContext: Profile context defining user preferences and working habits.
+- TripartiteContextAssembly: Rendered context assembly with immutable soul pinned at the top priority.
+
+[POS]
+Data contracts and types for tripartite context identity separation and immutable soul anchor.
+"""
 
 from __future__ import annotations
 

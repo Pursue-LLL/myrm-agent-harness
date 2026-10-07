@@ -2,6 +2,20 @@
 
 Inspired by Pi Agent Tree History architecture. Provides data models for
 in-session DAG nodes, branching paths, bookmarks, and export formats.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- TreeNodeKind: Semantic kind of a conversation node in the tree.
+- TreeExportFormat: Format options for exporting the conversation graph.
+- TreeBookmark: Bookmark metadata pinning an important architectural or decision node.
+- ConversationTreeNode: An immutable node in the in-session DAG conversation tree.
+- BranchPathInfo: Summary of a specific branch path in the conversation graph.
+- TreeFilterCriteria: Criteria for filtering conversation tree nodes.
+
+[POS]
+Type definitions for tree-structured conversation graph and branch replay engine.
 """
 
 from dataclasses import dataclass, field

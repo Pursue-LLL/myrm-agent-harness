@@ -2,6 +2,17 @@
 
 Provides self-contained interactive tree visualization and branch replay viewer
 inspired by Pi Agent /export and /share capabilities without external dependencies.
+
+[INPUT]
+- runtime.context.conversation_tree_graph::ConversationTreeGraph (POS: In-session tree-structured
+  conversation graph and branch navigation engine.)
+
+[OUTPUT]
+- ConversationTreeHtmlExporter: Exports conversation DAG trees into interactive self-contained HTML
+  documents.
+
+[POS]
+Interactive HTML and Markdown exporter for tree-structured conversation graphs.
 """
 
 import html

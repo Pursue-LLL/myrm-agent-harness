@@ -1,8 +1,18 @@
-# [INPUT] CodeSymbol definitions, DependencyEdge connections, and workspace file metadata.
-# [OUTPUT] In-memory indexed and persistent CodeGraphMemoryStore with incremental sync capabilities.
-# [POS] myrm_agent_harness.toolkits.memory.codegraph.store
+"""CodeGraph memory store maintaining symbol topology and caller inversions.
 
-"""CodeGraph memory store maintaining symbol topology and caller inversions."""
+[INPUT]
+- toolkits.memory.codegraph.ast_parser::AstTopologyExtractor (POS: AST-based code symbol and topology
+  dependency extractor.)
+- toolkits.memory.codegraph.types::CodeGraphAsset, CodeSymbol, DependencyEdge, EdgeKind (POS: Domain models
+  and type definitions for CodeGraph memory assets and impact analysis.)
+
+[OUTPUT]
+- CodeGraphMemoryStore: Stores code symbols, dependencies, and caller indexes with incremental
+  synchronization.
+
+[POS]
+CodeGraph memory store maintaining symbol topology and caller inversions.
+"""
 
 import hashlib
 import time

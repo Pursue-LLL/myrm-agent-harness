@@ -2,6 +2,20 @@
 
 Defines the dual-mode mention semantics: read-only isolated context snapshots
 vs. active peer-to-peer bidirectional communication channels.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- AgentMentionMode: Collaborative intent mode when mentioning a peer agent session.
+- NormalizedAgentMention: Normalized @ mention token extracted from user prompt or UI picker.
+- ReadOnlySnapshotBundle: Read-only context snapshot captured from a historical or parallel session.
+- BidiChannelLink: Active bi-directional communication channel link between two peer sessions.
+- PeerMessageFrame: Message frame exchanged over a bi-directional agent channel.
+- MentionProcessingAudit: Diagnostic audit reporting outcomes of dual-mode mention processing.
+
+[POS]
+Agent mention dual-mode interaction types and communication contracts.
 """
 
 from __future__ import annotations

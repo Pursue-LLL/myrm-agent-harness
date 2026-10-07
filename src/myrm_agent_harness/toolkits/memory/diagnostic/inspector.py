@@ -1,4 +1,18 @@
-"""Automated Memory Diagnostic and Root Cause Inspector Coordinator."""
+"""Automated Memory Diagnostic and Root Cause Inspector Coordinator.
+
+[INPUT]
+- toolkits.memory.diagnostic.models::MemoryDiagnosticProbeContext, MemoryDiagnosticReport (POS: Data models
+  for 5-Step Memory Diagnostic Decision Tree and Root Cause Inspector.)
+- toolkits.memory.diagnostic.tree::FiveStepDiagnosticDecisionTree (POS: 5-Step Diagnostic Decision Tree
+  executing standardized root cause analysis.)
+
+[OUTPUT]
+- AutomatedMemoryDiagnosticInspector: Orchestrates 5-step diagnostic probes and generates standardized
+  health certificates.
+
+[POS]
+Automated Memory Diagnostic and Root Cause Inspector Coordinator.
+"""
 
 from .models import (
     MemoryDiagnosticProbeContext,

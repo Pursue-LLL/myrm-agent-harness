@@ -1,11 +1,17 @@
-# [POS] myrm_agent_harness/agent/context_management/compression_flush/stateless_cron_guard.py
-# [INPUT] StatelessCronSpec from .types
-# [OUTPUT] StatelessCronContextGuard (定时自动化任务无状态记忆隔离与自包含防护网关)
-
 """定时自动化任务无状态记忆隔离与自包含防护网关。
 
 针对 Cron 定时任务与系统级派生自动化，强制跳过全量 User Profile 易变层注入，
 剥离主会话上下文污染切片，确保提示词自包含与严格无状态执行。
+
+[INPUT]
+- agent.context_management.compression_flush.types::StatelessCronSpec (POS:
+  多智能体与长会话上下文压缩即时持久化刷盘协议核心类型。)
+
+[OUTPUT]
+- StatelessCronContextGuard: 自动化 Cron 定时任务无状态记忆隔离防护器。
+
+[POS]
+定时自动化任务无状态记忆隔离与自包含防护网关。
 """
 
 from __future__ import annotations

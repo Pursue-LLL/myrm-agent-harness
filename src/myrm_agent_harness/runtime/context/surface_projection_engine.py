@@ -3,6 +3,23 @@
 Implements pure-function message derivation, surface folding with atomic replace,
 and arXiv:2608.24569 constraint preservation gate against handoff weakening.
 Strict 0 Any, immutable frozen structures, and thread-safe operations.
+
+[INPUT]
+- runtime.context.surface_projection_types::HandoffConstraints, MessageRole, ProjectedMessage, SessionEvent,
+  SessionEventType, SurfaceNode, SurfaceOp, SurfaceOpType, +1 more (POS: Type definitions for Immutable
+  Event Log SSOT and Surface Projection Engine.)
+
+[OUTPUT]
+- derive_messages: Pure deterministic function deriving model-visible messages from surface nodes.
+- HandoffConstraintPreservationGate: Gatekeeper enforcing non-weakened constraints across handoffs and
+  compactions (arXiv:2608.24569).
+- fold_surface: Fold an immutable event stream into a final surface node sequence and audit log.
+- ImmutableEventLog: Thread-safe append-only immutable event log serving as the SSOT.
+- SurfaceProjectionEngine: Façade orchestrating immutable event logging, cached surface projection, and
+  constraint preservation.
+
+[POS]
+Immutable Event Log SSOT and Surface Projection Engine.
 """
 
 from __future__ import annotations

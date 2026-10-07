@@ -1,4 +1,18 @@
-"""Data models for 5-Step Memory Diagnostic Decision Tree and Root Cause Inspector."""
+"""Data models for 5-Step Memory Diagnostic Decision Tree and Root Cause Inspector.
+
+[INPUT]
+- External: pydantic
+
+[OUTPUT]
+- DiagnosticStepKind: Categorical stage along the 5-step diagnostic decision tree.
+- MemoryRootCauseKind: Standardized root causes explaining why memory was not recalled or utilized.
+- DiagnosticStepResult: Evaluation outcome for an individual stage in the 5-step decision tree.
+- MemoryDiagnosticProbeContext: Context input payload driving an automated memory diagnostic inspection.
+- MemoryDiagnosticReport: Comprehensive diagnostic certificate with root cause and actionable remediation.
+
+[POS]
+Data models for 5-Step Memory Diagnostic Decision Tree and Root Cause Inspector.
+"""
 
 from datetime import datetime
 from enum import StrEnum

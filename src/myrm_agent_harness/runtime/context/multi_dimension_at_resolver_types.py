@@ -1,4 +1,18 @@
-"""Data contracts and models for Unified Multi-Dimension At-Symbol Context Resolver."""
+"""Data contracts and models for Unified Multi-Dimension At-Symbol Context Resolver.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- AtReferenceKind: Supported multi-dimensional resource categories referenced via @ notation.
+- SnapshotDetailLevel: Compression granularity of referenced contextual snapshots.
+- ParsedAtReference: Raw parsed symbol reference extracted from user prompt text.
+- ResolvedAtResource: Hydrated and compressed resource ready for prompt injection and UI citation.
+- AtContextIngestionResult: Consolidated outcome of @-reference extraction, compression, and XML assembly.
+
+[POS]
+Data contracts and models for Unified Multi-Dimension At-Symbol Context Resolver.
+"""
 
 from __future__ import annotations
 

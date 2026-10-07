@@ -2,6 +2,19 @@
 
 Defines cache partition zones, SHA-256 prefix fingerprints, cache hit telemetry,
 and deterministic summarization blocks.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- PrefixCacheZoneKind: Partition zone within the model's physical prefix-cached prompt sequence.
+- PrefixHashFingerprint: SHA-256 anchored cryptographic fingerprint for prompt prefix stability.
+- PrefixCacheHitReport: Telemetry report recording model-reported KV-cache hit statistics and breach
+  diagnostics.
+- DeterministicSummaryBlock: Immutable, deterministic summary block with pinned seed and cryptographic hash.
+
+[POS]
+Types and data models for deterministic hash-pinned prefix cache guard and append-only pipeline.
 """
 
 from __future__ import annotations

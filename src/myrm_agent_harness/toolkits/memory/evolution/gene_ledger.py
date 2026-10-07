@@ -1,8 +1,16 @@
-# [POS] toolkits/memory/evolution/gene_ledger.py
-# [INPUT] gene_models.ExperienceGene, gene_models.GeneMatchQuery, gene_models.GeneMutationAdvice, gene_models.GenePolarity
-# [OUTPUT] ExperienceGeneLedger
+"""Confidence Evolution Ledger and retrieval matcher for Experience Genes.
 
-"""Confidence Evolution Ledger and retrieval matcher for Experience Genes."""
+[INPUT]
+- toolkits.memory.evolution.gene_models::ExperienceGene, GeneMatchQuery, GeneMutationAdvice (POS: Data
+  models for Causal Experience Genes and Evolution Ledger.)
+
+[OUTPUT]
+- ExperienceGeneLedger: In-memory and persistent evolution ledger governing experience genes and confidence
+  scoring.
+
+[POS]
+Confidence Evolution Ledger and retrieval matcher for Experience Genes.
+"""
 
 from __future__ import annotations
 

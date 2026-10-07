@@ -2,6 +2,17 @@
 
 Manages bidirectional communication channels between collaborating agents with
 TTL window expiration, message frames queuing, delivery receipts, and protocol prompts.
+
+[INPUT]
+- runtime.context.agent_mention_types::BidiChannelLink, PeerMessageFrame (POS: Agent mention dual-mode
+  interaction types and communication contracts.)
+
+[OUTPUT]
+- BidiAgentChannelGateway: Gateway orchestrating bidirectional peer-to-peer message exchanges across agent
+  sessions.
+
+[POS]
+Bi-directional agent channel gateway for active peer-to-peer collaboration.
 """
 
 from __future__ import annotations

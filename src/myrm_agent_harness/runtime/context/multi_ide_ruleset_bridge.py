@@ -3,6 +3,20 @@
 Scans and normalizes project rule files across diverse AI IDE ecosystems
 (.trae/rules, .cursor/rules, .goosehints, CLAUDE.md, .github/copilot-instructions.md),
 performs priority-based semantic deduplication, and generates migration readiness reports.
+
+[INPUT]
+- runtime.context.multi_ide_ruleset_bridge_types::IdeEcosystemKind, MigrationReadinessReport,
+  UniversalIdeRuleEntry (POS: Type definitions for Multi-IDE Universal Ruleset Parser and Trae Rules
+  Compatibility Bridge.)
+
+[OUTPUT]
+- IdeEcosystemClassifier: Classifies specification files into recognized AI assistant ecosystems and assigns
+  priorities.
+- MultiIdeRulesetBridge: Coordinates multi-IDE specification ingestion, deduplication, and migration
+  readiness reporting.
+
+[POS]
+Multi-IDE Universal Ruleset Parser and Trae Rules Compatibility Bridge.
 """
 
 from __future__ import annotations

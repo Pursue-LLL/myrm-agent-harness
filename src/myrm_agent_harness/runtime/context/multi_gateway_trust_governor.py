@@ -2,6 +2,17 @@
 
 Prevents unauthorized execution on restricted gateways (e.g. mobile/voice) by generating
 tamper-evident Handoff Cards for seamless resumption on trusted gateways (CLI/Desktop).
+
+[INPUT]
+- runtime.context.multi_gateway_trust_types::GatewayTrustTier, HandoffCard, HandoffCardStatus,
+  HighRiskActionKind (POS: Strongly typed data contracts for Model-Harness orthogonal decoupling and
+  multi-gateway trust.)
+
+[OUTPUT]
+- MultiGatewayTrustGovernor: Enforces trust tier boundaries across heterogeneous client gateways.
+
+[POS]
+Multi-Gateway trust tiering, high-risk action interception, and signed Handoff Cards.
 """
 
 from __future__ import annotations

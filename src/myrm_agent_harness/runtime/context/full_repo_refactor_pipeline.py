@@ -2,6 +2,23 @@
 
 Coordinates full-repo AST packing, Lost-in-the-Middle attention anchoring,
 and atomic two-phase cross-file refactor transaction execution.
+
+[INPUT]
+- runtime.context.cross_file_diff_applier::CrossFileDiffAtomicApplier (POS: Atomic cross-file diff applier
+  with two-phase verification and rollback.)
+- runtime.context.full_repo_ast_packer::FullRepoAstPacker (POS: AST-augmented packer for 1M long-context
+  full-repo refactoring.)
+- runtime.context.full_repo_attention_anchor::AttentionAnchorInjector (POS: Attention anchor injection and
+  AST drift tolerance aligner for 1M context.)
+- runtime.context.full_repo_refactor_types::PackedRepoContext, RefactorApplyResult, RefactorPlanBundle,
+  SemanticAnchor (POS: Type definitions for native 1M long-context full-repo refactoring pipeline.)
+
+[OUTPUT]
+- NativeMillionTokenFullRepoRefactorPipeline: End-to-end pipeline for 1M-token codebase packing and atomic
+  refactoring.
+
+[POS]
+Native 1M long-context full-repo refactoring pipeline facade.
 """
 
 import os

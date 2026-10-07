@@ -2,6 +2,22 @@
 
 Defines schemas for execution logs, token billing snapshots, artifact entries,
 sanitization policies, and offline export bundles.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ToolExecutionStatus: Execution status for a tool call entry.
+- ToolExecutionLogEntry: Detailed log record of a single tool invocation.
+- TokenCostBillingSnapshot: Token consumption and cost accounting snapshot.
+- ArtifactSnapshotEntry: Snapshot of a generated workspace or session artifact.
+- SessionExecutionTurn: Structured record of one full interaction turn.
+- SanitizationPolicy: Configuration for sensitive credentials and private data masking.
+- SessionLogArchiveBundle: Immutable self-contained bundle for offline migration and audit.
+- ImportReplayResult: Result of importing and verifying an archived session bundle.
+
+[POS]
+Session lifecycle log archive and offline bundle export types.
 """
 
 from dataclasses import dataclass, field

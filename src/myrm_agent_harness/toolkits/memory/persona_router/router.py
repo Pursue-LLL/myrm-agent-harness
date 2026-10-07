@@ -1,6 +1,18 @@
-# [POS] src/myrm_agent_harness/toolkits/memory/persona_router/router.py
-# [INPUT] collections.abc.Sequence, typing, .types, .gate
-# [OUTPUT] AntiPollutionContextRouter
+"""Dynamic context router injecting persona facets strictly on demand and suppressing context pollution.
+
+[INPUT]
+- toolkits.memory.persona_router.gate::StyleSuppressionGate (POS: Gatekeeper inspecting user turn intent to
+  strictly suppress persona tokens in technical tasks.)
+- toolkits.memory.persona_router.types::PersonaFacet, PersonaRoutingDecision, TaskIntentCategory (POS: Typed
+  data contracts for the persona router subsystem.)
+
+[OUTPUT]
+- AntiPollutionContextRouter: Dynamic context router injecting persona facets strictly on demand and
+  suppressing context pollution.
+
+[POS]
+Dynamic context router injecting persona facets strictly on demand and suppressing context pollution.
+"""
 
 import re
 from collections.abc import Sequence

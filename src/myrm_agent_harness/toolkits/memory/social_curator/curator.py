@@ -2,6 +2,18 @@
 
 Processes batch social posts against user affinity profile,
 eliminates promotional and low-signal noise, and distills Top-10 golden insights.
+
+[INPUT]
+- toolkits.memory.social_curator.models::HighSignalBriefing, RawSocialPost, ScoredSocialInsight,
+  UserAffinityProfile (POS: Data models for HighSignalSocialFeedCurator.)
+- toolkits.memory.social_curator.scorer::InformationGainScorer (POS: Information gain and aha-moment scoring
+  operator for social feed items.)
+
+[OUTPUT]
+- HighSignalSocialFeedCurator: Orchestrates ingestion, scoring, and curation of social intelligence streams.
+
+[POS]
+High-signal social feed curator engine.
 """
 
 from collections.abc import Sequence

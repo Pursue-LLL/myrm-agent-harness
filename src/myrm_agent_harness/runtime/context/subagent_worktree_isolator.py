@@ -2,6 +2,16 @@
 
 Provides isolated workspace branches for parallel subagents to eliminate
 file modification collisions, with automated conflict detection during merge.
+
+[INPUT]
+- runtime.context.multi_gateway_trust_types::WorktreeAllocation, WorktreeReconcileResult (POS: Strongly
+  typed data contracts for Model-Harness orthogonal decoupling and multi-gateway trust.)
+
+[OUTPUT]
+- SubagentWorktreeIsolator: Allocates isolated workspace paths for subagents and reconciles file changes.
+
+[POS]
+Subagent Git Worktree write isolation and merge reconciliation.
 """
 
 from __future__ import annotations

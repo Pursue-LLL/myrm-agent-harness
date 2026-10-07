@@ -1,8 +1,15 @@
-# [POS] toolkits/memory/strategies/hindsight/trajectory_scrubber.py
-# [INPUT] FailureTurn, FailureTrajectory
-# [OUTPUT] FailureTrajectoryScrubber
+"""Scrubber for failed task trajectories, extracting critical turns and error turning points.
 
-"""Scrubber for failed task trajectories, extracting critical turns and error turning points."""
+[INPUT]
+- toolkits.memory.strategies.hindsight.types::FailureTrajectory, FailureTurn (POS: Type definitions and
+  contracts for Hindsight Experience Replay and Reflection Buffer.)
+
+[OUTPUT]
+- FailureTrajectoryScrubber: Cleans raw execution history and isolates the pivotal error turning point.
+
+[POS]
+Scrubber for failed task trajectories, extracting critical turns and error turning points.
+"""
 
 from __future__ import annotations
 

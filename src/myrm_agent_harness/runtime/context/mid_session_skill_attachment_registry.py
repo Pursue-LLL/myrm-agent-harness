@@ -2,6 +2,19 @@
 
 Enables non-blocking hot-attachment and detachment of skills and tools
 during live agent session turns without restarting the workflow.
+
+[INPUT]
+- runtime.context.memory_reinforce_emphasis_gate::MemoryReinforceEmphasisGate (POS: Memory rule
+  reinforcement emphasis gate.)
+- runtime.context.memory_reinforce_skill_attach_types::DynamicSkillAttachment,
+  PromptEmphasisInjectionPayload (POS: Types and data models for memory rule reinforcement emphasis gate and
+  mid-session skill attachment.)
+
+[OUTPUT]
+- MidSessionSkillAttachmentRegistry: Registry maintaining dynamically attached skills and runtime tools.
+
+[POS]
+Mid-session dynamic skill and tool attachment registry.
 """
 
 from __future__ import annotations

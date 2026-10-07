@@ -1,11 +1,18 @@
-# [POS]: myrm_agent_harness/toolkits/memory/privacy_gate/secret_detector.py
-# [INPUT]: re, myrm_agent_harness/toolkits/memory/privacy_gate/types.py
-# [OUTPUT]: DeterministicSecretDetector
 """Deterministic pattern-based detector for high-risk secrets and credentials.
 
 Scans memory candidates for API tokens, private keys, database connection strings,
 JWTs, and password fields with zero LLM API cost.
 Strict typing applied: No `Any` types allowed.
+
+[INPUT]
+- toolkits.memory.privacy_gate.types::PrivacyViolationType, SecretFinding (POS: Type definitions and
+  contracts for memory privacy boundary and allowlist gate.)
+
+[OUTPUT]
+- DeterministicSecretDetector: Zero-cost regex scanner for deterministic credential detection and redaction.
+
+[POS]
+Deterministic pattern-based detector for high-risk secrets and credentials.
 """
 
 from __future__ import annotations

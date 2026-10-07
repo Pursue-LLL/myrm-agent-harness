@@ -2,6 +2,18 @@
 
 Provides data structures for path-bound stable ChatIds, move event logs,
 session message entries, and lightweight metadata snapshots.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ChatMessageEntry: An immutable conversation message appended to session JSONL.
+- ChatMetaSnapshot: Lightweight metadata snapshot for fast session indexing without full log parsing.
+- FileMoveEvent: Event representing a file or directory rename/move.
+- FileTrackResolution: Result of resolving a file path to its stable ChatId.
+
+[POS]
+Type definitions for file-move tracking session store.
 """
 
 from dataclasses import dataclass, field

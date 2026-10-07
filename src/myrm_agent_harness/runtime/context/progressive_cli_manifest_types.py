@@ -1,6 +1,21 @@
 """Data types and schemas for progressive CLI capability manifests and dry-run discovery.
 
 Strictly typed, 0 Any. Implements llms.txt standard and non-executing metadata probing.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- CliCapabilityCategory: Categorical grouping for CLI tools.
+- CliToolSourceKind: Execution backend / provisioning source for a CLI tool.
+- CliToolSource: An install or execution source for a tool.
+- CliCapabilityEntry: A single registered CLI tool entry in the capability catalog.
+- DryRunProbeRequest: Query to dry-run inspect a tool without executing it.
+- DryRunProbeResult: Result of a non-executing dry-run probe.
+- ManifestFormatConfig: Configuration for rendering the progressive capability manifest.
+
+[POS]
+Data types and schemas for progressive CLI capability manifests and dry-run discovery.
 """
 
 from __future__ import annotations

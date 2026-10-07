@@ -2,6 +2,21 @@
 
 Quantifies the Token Tax imposed by harness overhead and intermediate tool outputs,
 ensuring custom persona fidelity and transparent compound cost reduction.
+
+[INPUT]
+- runtime.context.transient_tool_output_gc::TransientToolOutputGCEngine (POS: Transient tool output garbage
+  collection engine.)
+- runtime.context.universal_thin_harness_types::ModelCapabilityTier, OperatingDisciplineMode,
+  ThinPromptContract, TokenTaxAuditSnapshot (POS: Universal agent thin harness adaptive contract and Token
+  Tax governor types.)
+- runtime.context.universal_thin_prompt_generator::UniversalThinPromptGenerator (POS: Universal thin prompt
+  generator for adaptive agent harnesses.)
+
+[OUTPUT]
+- TokenTaxGovernor: Manages adaptive harness prompt contracts, tool output GC, and Token Tax audits.
+
+[POS]
+Token Tax governor unifying thin prompt contracts, GC, and context auditing.
 """
 
 from __future__ import annotations

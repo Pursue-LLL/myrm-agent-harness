@@ -2,6 +2,18 @@
 
 Transforms ContextLifecycleSectionReport payloads into UI-ready structured representations
 and human-readable diagnostic status bars for frontend ContextUsageIndicator components.
+
+[INPUT]
+- runtime.context.context_lifecycle_visualizer_types::ContextLifecycleSectionReport, ContextSectionKind
+  (POS: Data contracts and schemas for Lean-Tail Context Lifecycle and Visualizer.)
+
+[OUTPUT]
+- SectionUiItem: Structured segment metadata consumable by WebUI/Desktop charts.
+- ContextLifecycleUiPayload: Complete serialized payload for frontend context health components.
+- ContextLifecycleVisualizer: Renderer and formatter for three-tier context lifecycle inspections.
+
+[POS]
+Context lifecycle visualizer rendering three-tier compression dashboards.
 """
 
 from __future__ import annotations

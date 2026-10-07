@@ -1,4 +1,21 @@
-"""Adaptive inactivity sliding window session lifecycle manager and KV cache keeper."""
+"""Adaptive inactivity sliding window session lifecycle manager and KV cache keeper.
+
+[INPUT]
+- runtime.context.sliding_window_session_lifecycle_types::CrystallizedSessionMemory, InactivityWindowConfig,
+  PrefixCacheFingerprint, SessionLifecycleSnapshot, SessionLifecycleState (POS: Types and data contracts for
+  sliding window session lifecycle and KV cache keeper.)
+
+[OUTPUT]
+- PrefixKvCacheStabilityKeeper: Monitors and preserves prefix prompt stability to maximize LLM KV cache hit
+  rate.
+- SessionMemoryCrystallizer: Extracts distilled facts and key decisions upon session expiration and
+  archival.
+- InactivitySlidingWindowSessionManager: Governs session lifecycle via adaptive sliding inactivity window
+  and atomic archival.
+
+[POS]
+Adaptive inactivity sliding window session lifecycle manager and KV cache keeper.
+"""
 
 from __future__ import annotations
 

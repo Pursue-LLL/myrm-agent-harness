@@ -1,8 +1,17 @@
-# [POS] myrm_agent_harness/agent/context_management/project_state/validation_gate.py
-# [INPUT] ValidationAuditInput, ValidationAuditResult, LivingFact, FactPromotionStage, ProjectStateLivingFactLedger
-# [OUTPUT] ValidationGatedPromotionGate
+"""基于确定性验证结果的经验准入审计网关与状态晋升飞轮。
 
-"""基于确定性验证结果的经验准入审计网关与状态晋升飞轮。"""
+[INPUT]
+- agent.context_management.project_state.living_fact_ledger::ProjectStateLivingFactLedger (POS:
+  长期项目动态事实状态账本管理器，统一纳管已决议方案、被否决路径与硬性物理约束。)
+- agent.context_management.project_state.types::FactPromotionStage, LivingFact, ValidationAuditInput,
+  ValidationAuditResult (POS: 面向长期项目的动态事实状态账本与上下文投影核心类型定义。)
+
+[OUTPUT]
+- ValidationGatedPromotionGate: 验证结果准入审计网关，将确定性测试成果转化为高置信度知识沉淀。
+
+[POS]
+基于确定性验证结果的经验准入审计网关与状态晋升飞轮。
+"""
 
 from __future__ import annotations
 

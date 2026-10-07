@@ -3,6 +3,20 @@
 Implements DeepSeek-style compaction-tool-result-pruner: executes pure algorithmic,
 zero-LLM-cost pruning on historical read-only tool results, preserves critical error signals,
 and maintains recent turn immunity.
+
+[INPUT]
+- runtime.context.internal_external_message_pipeline_types::AgentMessage, AgentMessageKind (POS: Type
+  definitions for internal/external message separation and context transformation pipeline.)
+- runtime.context.model_free_tool_pruner_types::ModelFreeCompactionReport, ModelFreePrunerConfig,
+  PruningAuditItem (POS: Type definitions for model-free deterministic tool result pruner and zero-cost
+  context compactor.)
+
+[OUTPUT]
+- ModelFreeDeterministicToolResultPruner: Performs deterministic zero-cost historical tool output folding
+  and token mitigation.
+
+[POS]
+Model-free deterministic tool result pruner and zero-cost context compactor.
 """
 
 from __future__ import annotations

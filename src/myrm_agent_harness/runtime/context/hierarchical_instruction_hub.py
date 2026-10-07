@@ -3,6 +3,22 @@
 Coordinates multi-tier project hints (.goosehints, AGENT.md, SOUL.md, .cursorrules),
 performs deep invisible Unicode sanitization to neutralize prompt injection,
 and orchestrates scoping inheritance across global, workspace, and subpackage tiers.
+
+[INPUT]
+- runtime.context.hierarchical_instruction_hub_types::HierarchicalInstructionBlock,
+  InheritanceResolutionStrategy, InstructionRuleEntry, InstructionTierKind (POS: Type definitions for
+  Project-Specific Goosehints and Hierarchical Instruction Hub.)
+
+[OUTPUT]
+- HierarchicalInstructionHub: Aggregates and formats multi-tier instruction rules into KV-cache friendly
+  prompt blocks.
+- HierarchicalInstructionResolver: Resolves hierarchical instructions according to scoping and inheritance
+  strategies.
+- InvisibleUnicodeSanitizer: Detects and strips deceptive invisible Unicode and bidirectional override
+  characters.
+
+[POS]
+Project-Specific Goosehints and Hierarchical Instruction Hub.
 """
 
 from __future__ import annotations

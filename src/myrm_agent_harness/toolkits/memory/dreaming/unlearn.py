@@ -3,6 +3,17 @@
 Enables precision unlearning of long-term semantic memories derived from
 a specific session, cleanly evicting vector indices and relational facts
 while preserving the original conversational chat history 100% intact.
+
+[INPUT]
+- toolkits.memory.dreaming.models::SurgicalUnlearnReport (POS:
+  做梦认知日记与溯源数据契约核心。定义跨会话认知洞察实体、审核与锁定状态枚举、
+  不可篡改的双向溯源锚点集，以及外科手术式遗忘审计报告。)
+
+[OUTPUT]
+- SurgicalSessionMemoryUnlearner: Executes surgical precision unlearning on session-derived memories.
+
+[POS]
+Surgical Session Memory Unlearning Operator.
 """
 
 from __future__ import annotations

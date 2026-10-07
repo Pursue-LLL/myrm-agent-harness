@@ -3,6 +3,16 @@
 Injects explicit trailing slash ('/') delimiters on directory matches in virtual
 and sandbox filesystems, ensuring downstream agents and LLM tools never confuse
 directories with regular files or attempt invalid text read operations.
+
+[INPUT]
+- toolkits.code_execution.vfs.vfs_boundary_types::VFSPathKind (POS: VFS boundary types, contracts, and
+  safety audit models.)
+
+[OUTPUT]
+- TrailingSlashDelineator: Provides path normalization and explicit trailing slash directory delineation.
+
+[POS]
+Trailing slash directory delineator for unambiguous filesystem path contracts.
 """
 
 from __future__ import annotations

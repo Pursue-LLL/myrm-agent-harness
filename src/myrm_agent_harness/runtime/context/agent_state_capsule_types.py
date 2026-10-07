@@ -1,4 +1,23 @@
-"""Data contracts and models for Universal Agent State Capsule."""
+"""Data contracts and models for Universal Agent State Capsule.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- CapsuleMergeStrategy: Conflict resolution strategy when migrating an agent capsule.
+- CapsuleIntegrityError: Raised when an agent state capsule payload fails integrity verification.
+- CapsuleHeader: Metadata and tamper-evidence checksum header of the state capsule.
+- AgentProfileCapsule: Portable identity and model configuration specification.
+- SkillCapsuleEntry: Custom skill and external tool declaration bundled with the agent.
+- MemoryCapsuleEntry: Episodic, semantic, procedural or working memory unit.
+- SessionCheckpointCapsuleEntry: Structured epoch summary and milestone checkpoint.
+- UniversalAgentCapsule: Fully articulated, portable state capsule payload.
+- CapsuleEnvironmentDiagnostic: Pre-flight diagnostic report for target runtime readiness.
+- ResolvedMigrationBundle: Output state bundle resolved according to the selected merge strategy.
+
+[POS]
+Data contracts and models for Universal Agent State Capsule.
+"""
 
 from __future__ import annotations
 
