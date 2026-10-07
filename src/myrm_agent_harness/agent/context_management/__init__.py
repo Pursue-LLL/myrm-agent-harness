@@ -488,6 +488,16 @@ from .live_steering import (
     SteerSeverity,
     ToolSeamAnchor,
 )
+from .token_governor import (
+    BurnRateTelemetry,
+    BurnRateZone,
+    LeanToolPruningDecision,
+    RateLimitBackoffDecision,
+    TokenBurnRateGovernorEngine,
+    TokenGovernorConfig,
+    TokenUsageRecord,
+    ToolLeanMode,
+)
 
 __all__ = [
     # active_compression
@@ -739,6 +749,15 @@ __all__ = [
     "SteerChannelMode",
     "SteerSeverity",
     "ToolSeamAnchor",
+    # token_governor
+    "BurnRateTelemetry",
+    "BurnRateZone",
+    "LeanToolPruningDecision",
+    "RateLimitBackoffDecision",
+    "TokenBurnRateGovernorEngine",
+    "TokenGovernorConfig",
+    "TokenUsageRecord",
+    "ToolLeanMode",
     # session_roaming
     "CollaborationRole",
     "DeviceAgnosticSessionRoamingEngine",
