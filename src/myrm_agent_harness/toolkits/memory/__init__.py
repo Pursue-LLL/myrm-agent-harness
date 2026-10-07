@@ -470,6 +470,18 @@ from myrm_agent_harness.toolkits.memory.procedure_experience import (
     ProcedureProtocolEngine,
     RetrievalNodeKind,
 )
+from myrm_agent_harness.toolkits.memory.session_commit import (
+    CommitBoundaryKind,
+    CommitPhase,
+    CommitTaskStatus,
+    MemoryDiffAudit,
+    MemoryDiffChangeKind,
+    MemoryDiffItem,
+    MemoryDiffStats,
+    SessionArchiveMessage,
+    SessionCommitResult,
+    SessionCommitTwoPhaseEngine,
+)
 from myrm_agent_harness.toolkits.memory.prompt_cache_guard import (
     AtomicReplacePayload,
     CapacityLimitConfig,
@@ -1420,5 +1432,16 @@ __all__ = [
     "PreWriteInterceptor",
     "SkillLoadExperienceHook",
     "SubagentSpawnExperienceEnricher",
+    "CommitBoundaryKind",
+    "CommitPhase",
+    "CommitTaskStatus",
+    "MemoryDiffAudit",
+    "MemoryDiffChangeKind",
+    "MemoryDiffItem",
+    "MemoryDiffStats",
+    "SessionArchiveMessage",
+    "SessionCommitResult",
+    "SessionCommitTwoPhaseEngine",
 ]
+
 
