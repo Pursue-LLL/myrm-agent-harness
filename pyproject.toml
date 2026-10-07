@@ -56,7 +56,7 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/myrm-agent/myrm-agent-harness"
+Repository = "https://github.com/Pursue-LLL/myrm-agent-harness"
 
 [project.scripts]
 verify-harness-distribution = "myrm_agent_harness.runtime.install_guard.verify:main"
