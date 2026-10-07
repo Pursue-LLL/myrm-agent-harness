@@ -26,6 +26,19 @@ from myrm_agent_harness.toolkits.memory.budget_curator import (
     ScrollMessageItem,
     SessionScrollNavigator,
 )
+from myrm_agent_harness.toolkits.memory.capacity_hitl import (
+    CandidateActionKind,
+    CandidateResolutionAction,
+    CapacityAlertKind,
+    CapacityHitlMetaTools,
+    CapacityHitlService,
+    CapacityStatusReport,
+    CapacityThresholdDetector,
+    HitlCandidateProposal,
+    HitlCandidateStatus,
+    MemoryEntryRef,
+    MergeArchiveCandidateProposer,
+)
 from myrm_agent_harness.toolkits.memory.cards import (
     AMemCard,
     AMemZettelkastenNetwork,
@@ -217,6 +230,14 @@ from myrm_agent_harness.toolkits.memory.ingestion_gateway import (
     UniversalContextIngestionGateway,
     VoiceContextDistiller,
     VoiceTranscriptSegment,
+)
+from myrm_agent_harness.toolkits.memory.integration_purge import (
+    IntegrationRetainedContextManager,
+    IntegrationRetainedContextSummary,
+    ProvenanceRevocationRecord,
+    PurgeExecutionMode,
+    PurgeExecutionResult,
+    create_integration_context_purge_tool,
 )
 from myrm_agent_harness.toolkits.memory.ltra import (
     AudioFactDistillationWorker,
@@ -895,4 +916,21 @@ __all__ = [
     "ScheduleTaskItem",
     "VitalityAndFatigueEvaluator",
     "VitalityAssessmentReport",
+    "CandidateActionKind",
+    "CandidateResolutionAction",
+    "HitlCandidateStatus",
+    "CapacityAlertKind",
+    "CapacityHitlMetaTools",
+    "CapacityHitlService",
+    "CapacityStatusReport",
+    "CapacityThresholdDetector",
+    "HitlCandidateProposal",
+    "MemoryEntryRef",
+    "MergeArchiveCandidateProposer",
+    "IntegrationRetainedContextManager",
+    "IntegrationRetainedContextSummary",
+    "ProvenanceRevocationRecord",
+    "PurgeExecutionMode",
+    "PurgeExecutionResult",
+    "create_integration_context_purge_tool",
 ]
