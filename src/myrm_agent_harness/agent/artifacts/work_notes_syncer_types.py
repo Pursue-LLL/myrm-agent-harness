@@ -1,3 +1,21 @@
+"""Types and models for workspace work notes and progress file synchronization.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- StepExecutionStatus: Execution status for a single plan/progress step.
+- ProgressStep: Single step in the task progress lifecycle.
+- WorkNotesSnapshot: In-memory or serialized state of agent work notes and execution progress.
+- SyncDirection: Direction of the notes/progress synchronization.
+- HumanInterventionDiff: Represents differences detected when human edits WORK_NOTES.md or PROGRESS.md
+  externally.
+- SyncResult: Outcome of a synchronization operation.
+
+[POS]
+Types and models for workspace work notes and progress file synchronization.
+"""
+
 from __future__ import annotations
 
 from enum import StrEnum

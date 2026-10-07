@@ -1,3 +1,19 @@
+"""Bi-directional synchronizer between agent in-memory work notes and the workspace WORK_NOTES.md / PROGRESS.md files.
+
+[INPUT]
+- agent.artifacts.work_notes_syncer_types::HumanInterventionDiff, ProgressStep, StepExecutionStatus,
+  SyncDirection, SyncResult, WorkNotesSnapshot (POS: Types and models for workspace work notes and progress
+  file synchronization.)
+
+[OUTPUT]
+- WorkspaceWorkNotesSyncer: Bi-directional synchronizer between agent in-memory notes and workspace markdown
+  files.
+
+[POS]
+Bi-directional synchronizer between agent in-memory work notes and the workspace WORK_NOTES.md / PROGRESS.md
+files.
+"""
+
 from __future__ import annotations
 
 import hashlib
@@ -117,7 +133,9 @@ class WorkspaceWorkNotesSyncer:
             steps=parsed_steps if parsed_steps else base_steps,
             key_findings=list(dict.fromkeys(parsed_findings + base_findings)),
             disqualified_approaches=list(
-                dict.fromkeys(parsed_disqualified + (current_snapshot.disqualified_approaches if current_snapshot else []))
+                dict.fromkeys(
+                    parsed_disqualified + (current_snapshot.disqualified_approaches if current_snapshot else [])
+                )
             ),
             todos=parsed_todos if parsed_todos else base_todos,
             last_synced_hash=self.compute_composite_hash(),
