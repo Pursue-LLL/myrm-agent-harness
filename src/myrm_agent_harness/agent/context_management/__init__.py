@@ -612,6 +612,14 @@ from .sandbox_interceptor import (
     SearchResultSnippet,
     ToolOutputStub,
 )
+from .barge_in_steering import (
+    BargeInMessage,
+    BargeInSteeringConfig,
+    InterventionMode,
+    InterventionStatus,
+    MidRunBargeInSteeringEngine,
+    SteeringPointGateResult,
+)
 
 __all__ = [
     # active_compression
@@ -629,6 +637,13 @@ __all__ = [
     "ClarificationProbeResult",
     "ClarificationQuestion",
     "EntityGraphMatch",
+    # barge_in_steering
+    "BargeInMessage",
+    "BargeInSteeringConfig",
+    "InterventionMode",
+    "InterventionStatus",
+    "MidRunBargeInSteeringEngine",
+    "SteeringPointGateResult",
     # canvas_deeplink
     "CanvasAssetRegistry",
     "CanvasDeepLinkParser",
