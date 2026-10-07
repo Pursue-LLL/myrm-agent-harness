@@ -2,6 +2,21 @@
 
 Defines schemas for kernel states, lifecycle event frames, async acknowledgments,
 and transport mode specifications. Strictly adheres to 0 Any and typed dataclasses.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- TransportModeKind: Transport presentation mode (One Kernel, Three Faces).
+- KernelLifecycleState: Operational lifecycle state of the AgentSession kernel.
+- KernelEventType: Event classifications emitted by the kernel event stream.
+- KernelEventFrame: Immutable sequence-numbered event emitted to the independent event stream.
+- AsyncAckFrame: Immediate handshake acknowledgment returned before long-running task execution.
+- KernelCommandRequest: Standardized prompt or steering request submitted into the kernel.
+- ReattachResumeRequest: Client reconnection request to replay missed stream events.
+
+[POS]
+Type contracts for single-kernel multi-transport decoupling and async-ack RPC protocol.
 """
 
 from __future__ import annotations

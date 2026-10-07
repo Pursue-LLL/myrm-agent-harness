@@ -4,6 +4,17 @@ Provides the single authoritative kernel governing lifecycle states,
 asynchronous acknowledgment handshakes, monotonic sequence event broadcasting,
 and stream event replay for client resume/reattach.
 Strict 0 Any, thread-safe, single file <400 lines.
+
+[INPUT]
+- runtime.context.single_kernel_transport_types::AsyncAckFrame, KernelCommandRequest, KernelEventFrame,
+  KernelEventType, KernelLifecycleState (POS: Type contracts for single-kernel multi-transport decoupling
+  and async-ack RPC protocol.)
+
+[OUTPUT]
+- AgentSessionKernel: Thread-safe core engine decoupled from transport presentation layers.
+
+[POS]
+Unified AgentSession Kernel implementation.
 """
 
 from __future__ import annotations

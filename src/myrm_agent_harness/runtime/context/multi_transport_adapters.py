@@ -6,6 +6,23 @@ Implements the "One Kernel, Three Faces" architecture:
 3. AsyncAckRpcTransportGateway: Asynchronous handshake RPC protocol with instant
    Async-Ack frame response, independent event streaming, and reattach/resume replay.
 Strict 0 Any, thread-safe, single file <400 lines.
+
+[INPUT]
+- runtime.context.agent_session_kernel::AgentSessionKernel (POS: Unified AgentSession Kernel
+  implementation.)
+- runtime.context.single_kernel_transport_types::AsyncAckFrame, KernelCommandRequest, KernelEventFrame,
+  KernelEventType, TransportModeKind (POS: Type contracts for single-kernel multi-transport decoupling and
+  async-ack RPC protocol.)
+
+[OUTPUT]
+- InteractiveTransportAdapter: Real-time streaming adapter for interactive UI and desktop sessions.
+- PrintBatchTransportAdapter: Non-interactive batch executor returning final synthesized output and exit
+  codes.
+- AsyncAckRpcTransportGateway: Asynchronous Ack RPC protocol gateway decoupling network connections from
+  task execution.
+
+[POS]
+Multi-transport adapters for the unified AgentSession kernel.
 """
 
 from __future__ import annotations
