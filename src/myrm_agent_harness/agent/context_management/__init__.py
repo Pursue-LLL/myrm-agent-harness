@@ -131,6 +131,15 @@ from .multibot_governor import (
     MultiBotGovernorConfig,
     MutexAcquireResult,
 )
+from .worktree_isolation import (
+    SessionWorktreeBinding,
+    WorktreeDescriptor,
+    WorktreeHygieneReport,
+    WorktreeHygieneStatus,
+    WorktreeRemovalPolicy,
+    WorktreeRemovalResult,
+    WorktreeSessionIsolationEngine,
+)
 from .working_memory import (
     LocalWorkingMemoryBlock,
     LocalWorkingState,
@@ -159,6 +168,14 @@ __all__ = [
     "MultiBotChatterGovernor",
     "MultiBotGovernorConfig",
     "MutexAcquireResult",
+    # worktree_isolation
+    "SessionWorktreeBinding",
+    "WorktreeDescriptor",
+    "WorktreeHygieneReport",
+    "WorktreeHygieneStatus",
+    "WorktreeRemovalPolicy",
+    "WorktreeRemovalResult",
+    "WorktreeSessionIsolationEngine",
     # schemas
     "BUILTIN_PROTECTED_TOOLS",
     "COMPACT_RULES",
