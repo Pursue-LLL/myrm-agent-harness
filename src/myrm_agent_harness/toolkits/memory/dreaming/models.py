@@ -185,3 +185,56 @@ class SurgicalUnlearnReport:
             "preserved_chat_turns": self.preserved_chat_turns,
             "execution_time_ms": self.execution_time_ms,
         }
+
+
+class PruningDecisionKind(StrEnum):
+    """Classification of memory pruning actions during dreaming consolidation."""
+
+    REDUNDANT_ABSORBED = "redundant_absorbed"
+    CONTRADICTION_SUPERSEDED = "contradiction_superseded"
+    STALE_DECAYED = "stale_decayed"
+    PRESERVED = "preserved"
+
+
+@dataclass(frozen=True)
+class PrunedMemoryRecord:
+    """Detailed record of a memory pruned or superseded during autonomous dreaming."""
+
+    memory_id: str
+    decision: PruningDecisionKind
+    reason: str
+    superseded_by_statement: str | None = None
+    pruned_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "memory_id": self.memory_id,
+            "decision": self.decision.value,
+            "reason": self.reason,
+            "superseded_by_statement": self.superseded_by_statement,
+            "pruned_at": self.pruned_at.isoformat(),
+        }
+
+
+@dataclass(frozen=True)
+class DreamingSynthesisReport:
+    """Consolidated report produced by an autonomous Dreaming & Pruning execution."""
+
+    run_id: str
+    timestamp: datetime
+    duration_ms: float
+    candidate_count: int
+    synthesized_insights: list[DreamDiaryEntry]
+    pruned_records: list[PrunedMemoryRecord]
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "run_id": self.run_id,
+            "timestamp": self.timestamp.isoformat(),
+            "duration_ms": self.duration_ms,
+            "candidate_count": self.candidate_count,
+            "synthesized_count": len(self.synthesized_insights),
+            "pruned_count": len(self.pruned_records),
+            "synthesized_insights": [e.to_dict() for e in self.synthesized_insights],
+            "pruned_records": [p.to_dict() for p in self.pruned_records],
+        }

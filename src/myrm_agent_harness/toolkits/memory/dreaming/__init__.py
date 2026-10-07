@@ -34,7 +34,10 @@ from myrm_agent_harness.toolkits.memory.dreaming.engine import (
 from myrm_agent_harness.toolkits.memory.dreaming.models import (
     DreamDiaryEntry,
     DreamDiaryStatus,
+    DreamingSynthesisReport,
     DreamSessionFragment,
+    PrunedMemoryRecord,
+    PruningDecisionKind,
     SurgicalUnlearnReport,
 )
 from myrm_agent_harness.toolkits.memory.dreaming.provenance import (
@@ -42,23 +45,38 @@ from myrm_agent_harness.toolkits.memory.dreaming.provenance import (
     ProjectScopeIsolationGuard,
     SensitiveProvenanceGuard,
 )
+from myrm_agent_harness.toolkits.memory.dreaming.pruner import (
+    MemoryPruningEngine,
+)
 from myrm_agent_harness.toolkits.memory.dreaming.scheduler import (
     DreamingTriggerReason,
     GroundedDreamingScheduler,
+)
+from myrm_agent_harness.toolkits.memory.dreaming.synthesizer import (
+    AutonomousDreamingSynthesizer,
+)
+from myrm_agent_harness.toolkits.memory.dreaming.tools import (
+    DreamingMetaTools,
 )
 from myrm_agent_harness.toolkits.memory.dreaming.unlearn import (
     SurgicalSessionMemoryUnlearner,
 )
 
 __all__ = [
+    "AutonomousDreamingSynthesizer",
     "DreamDiaryEntry",
     "DreamDiaryStatus",
     "DreamSessionFragment",
+    "DreamingMetaTools",
+    "DreamingSynthesisReport",
     "DreamingTriggerReason",
     "GroundedDreamingEngine",
     "GroundedDreamingScheduler",
     "MemoryProvenanceAnchor",
+    "MemoryPruningEngine",
     "ProjectScopeIsolationGuard",
+    "PrunedMemoryRecord",
+    "PruningDecisionKind",
     "SensitiveProvenanceGuard",
     "SurgicalSessionMemoryUnlearner",
     "SurgicalUnlearnReport",
