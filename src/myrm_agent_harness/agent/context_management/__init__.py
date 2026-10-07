@@ -759,8 +759,25 @@ from .topic_drift_fork import (
     TopicDriftDetector,
     TopicDriftEvaluation,
 )
+from .portable_export import (
+    AgentOwnershipPortableExportAndNoLockInSuite,
+    ContextArtifactKind,
+    ExportIntegrityReceipt,
+    ExportScope,
+    PortableBundleBuilder,
+    PortableContextBundle,
+    PortableContextItem,
+)
 
 __all__ = [
+    # portable_export
+    "AgentOwnershipPortableExportAndNoLockInSuite",
+    "ContextArtifactKind",
+    "ExportIntegrityReceipt",
+    "ExportScope",
+    "PortableBundleBuilder",
+    "PortableContextBundle",
+    "PortableContextItem",
     # topic_drift_fork
     "DriftSignalKind",
     "ForkExecutionResult",
