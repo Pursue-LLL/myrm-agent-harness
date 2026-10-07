@@ -431,6 +431,14 @@ from .session_bridge import (
     UniversalSessionBridgeEngine,
     UniversalSessionDescriptor,
 )
+from .skill_immunity import (
+    ActiveSkillImmunityEngine,
+    ActiveSkillSpec,
+    ReAnchorAnchorPosition,
+    ReAnchorOutcome,
+    SkillImmunityConfig,
+    SkillImmunityScope,
+)
 
 __all__ = [
     # active_compression
@@ -632,6 +640,13 @@ __all__ = [
     "ToolExecutionTrace",
     "UniversalSessionBridgeEngine",
     "UniversalSessionDescriptor",
+    # skill_immunity
+    "ActiveSkillImmunityEngine",
+    "ActiveSkillSpec",
+    "ReAnchorAnchorPosition",
+    "ReAnchorOutcome",
+    "SkillImmunityConfig",
+    "SkillImmunityScope",
     # session_roaming
     "CollaborationRole",
     "DeviceAgnosticSessionRoamingEngine",
