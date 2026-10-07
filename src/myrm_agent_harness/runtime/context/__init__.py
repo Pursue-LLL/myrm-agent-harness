@@ -882,6 +882,20 @@ from myrm_agent_harness.runtime.context.rule_based_session_synthesizer import (
 from myrm_agent_harness.runtime.context.rule_telemetry_ledger import (
     RuleTelemetryLedger,
 )
+from myrm_agent_harness.runtime.context.sandbox_cache_bridge_types import (
+    FileChangeKind,
+    IncrementalPatchBundle,
+    InvalidationScope,
+    SandboxFileChangeEvent,
+    StaticPrefixSnapshot,
+    StitchedContextAssembly,
+)
+from myrm_agent_harness.runtime.context.sandbox_context_cache_bridge import (
+    SandboxContextCacheBridge,
+)
+from myrm_agent_harness.runtime.context.sandbox_fs_event_probe import (
+    SandboxFsEventProbe,
+)
 from myrm_agent_harness.runtime.context.scoped_rules_importer import (
     ScopedRulesImporter,
 )
@@ -1992,6 +2006,14 @@ __all__ = [
     "TreeProjection",
     "TreeSessionStorage",
     "BranchNavigationAndSummaryEngine",
+    "FileChangeKind",
+    "InvalidationScope",
+    "SandboxFileChangeEvent",
+    "StaticPrefixSnapshot",
+    "IncrementalPatchBundle",
+    "StitchedContextAssembly",
+    "SandboxFsEventProbe",
+    "SandboxContextCacheBridge",
 ]
 
 
