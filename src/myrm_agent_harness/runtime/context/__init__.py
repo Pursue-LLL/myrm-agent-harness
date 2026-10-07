@@ -40,6 +40,15 @@ from myrm_agent_harness.runtime.context.agent_state_capsule import (
     SkillCapsuleEntry,
     UniversalAgentCapsule,
 )
+from myrm_agent_harness.runtime.context.already_told_sentinel import (
+    AlreadyToldIntentSentinel,
+)
+from myrm_agent_harness.runtime.context.already_told_sentinel_types import (
+    HistoricalTurnInput,
+    InstructionRecallResult,
+    ProvenanceCardPayload,
+    RecallStatus,
+)
 from myrm_agent_harness.runtime.context.append_only_compaction_ledger_engine import (
     AppendOnlyCompactionLedgerEngine,
 )
@@ -83,18 +92,6 @@ from myrm_agent_harness.runtime.context.ast_symbol_stub_extractor import (
 from myrm_agent_harness.runtime.context.atomic_tool_pair_cut_point_resolver import (
     AtomicToolPairCutPointResolver,
 )
-from myrm_agent_harness.runtime.context.bidi_agent_channel_gateway import (
-    BidiAgentChannelGateway,
-)
-from myrm_agent_harness.runtime.context.big_at_context_bridge import (
-    BigAtReference,
-    BigAtSyntaxParser,
-    BigAtTargetKind,
-    ContextBorrowingBridge,
-    ContextBorrowingConfig,
-    DistilledSessionContext,
-    ZeroExplanationContextExtractor,
-)
 from myrm_agent_harness.runtime.context.batch_task_cost_scheduler import (
     PeakOffPeakCostScheduler,
 )
@@ -106,6 +103,18 @@ from myrm_agent_harness.runtime.context.batch_task_cost_scheduler_types import (
     SchedulerQueueMetrics,
     TaskCostUrgencyPolicy,
     TaskPayloadKind,
+)
+from myrm_agent_harness.runtime.context.bidi_agent_channel_gateway import (
+    BidiAgentChannelGateway,
+)
+from myrm_agent_harness.runtime.context.big_at_context_bridge import (
+    BigAtReference,
+    BigAtSyntaxParser,
+    BigAtTargetKind,
+    ContextBorrowingBridge,
+    ContextBorrowingConfig,
+    DistilledSessionContext,
+    ZeroExplanationContextExtractor,
 )
 from myrm_agent_harness.runtime.context.bounded_hydration_types import (
     BoundedInitialPageHeader,
@@ -123,6 +132,17 @@ from myrm_agent_harness.runtime.context.branch_navigation_and_summary_engine imp
 )
 from myrm_agent_harness.runtime.context.cache_aware_session_lifecycle_router import (
     CacheAwareSessionLifecycleRouter,
+)
+from myrm_agent_harness.runtime.context.canonical_section_registry import (
+    CanonicalSystemSectionRegistry,
+)
+from myrm_agent_harness.runtime.context.canonical_section_types import (
+    CanonicalPromptAssemblyResult,
+    CanonicalSectionSpec,
+    CrossAgentPrefixComparisonResult,
+    SectionTier,
+    VolatileContentDetectionResult,
+    VolatilePollutionError,
 )
 from myrm_agent_harness.runtime.context.caveman_output_throttle import (
     AdaptiveThrottleDecisionEngine,
@@ -154,17 +174,6 @@ from myrm_agent_harness.runtime.context.cleanup import (
 )
 from myrm_agent_harness.runtime.context.cleanup_task import (
     ContextCleanupScheduler,
-)
-from myrm_agent_harness.runtime.context.canonical_section_registry import (
-    CanonicalSystemSectionRegistry,
-)
-from myrm_agent_harness.runtime.context.canonical_section_types import (
-    CanonicalPromptAssemblyResult,
-    CanonicalSectionSpec,
-    CrossAgentPrefixComparisonResult,
-    SectionTier,
-    VolatileContentDetectionResult,
-    VolatilePollutionError,
 )
 from myrm_agent_harness.runtime.context.cli_dry_run_protocol import (
     BestSourceSelector,
@@ -225,6 +234,16 @@ from myrm_agent_harness.runtime.context.content_density_ladder_types import (
     DensityOutlineNode,
     DensityReadingRequest,
     DensityReadingResult,
+)
+from myrm_agent_harness.runtime.context.context_cognitive_gauge import (
+    ContextCognitiveGauge,
+    create_inspect_context_tool,
+)
+from myrm_agent_harness.runtime.context.context_cognitive_gauge_types import (
+    CognitiveActionGuidance,
+    CognitiveGaugeConfig,
+    ContextCognitiveSnapshot,
+    ContextUrgencyLevel,
 )
 from myrm_agent_harness.runtime.context.context_engineering_pipeline import (
     ContextEngineeringPipeline,
@@ -337,6 +356,18 @@ from myrm_agent_harness.runtime.context.deterministic_prefix_cache_types import 
     PrefixCacheHitReport,
     PrefixCacheZoneKind,
     PrefixHashFingerprint,
+)
+from myrm_agent_harness.runtime.context.dialogue_state_machine_engine import (
+    AdaptiveContextOptimizer,
+    DialogueStateMachine,
+)
+from myrm_agent_harness.runtime.context.dialogue_state_machine_types import (
+    AdaptiveDialogueOptimizationConfig,
+    DialogueStateKind,
+    OptimizedDialogueContextResult,
+    TokenGovernanceThresholdTier,
+    TopicDriftAssessment,
+    TurnStateAnnotation,
 )
 from myrm_agent_harness.runtime.context.diff_protocol_scorer import (
     DiffApplyResult,
@@ -548,6 +579,14 @@ from myrm_agent_harness.runtime.context.hierarchical_project_matrix import (
     WorkspaceHealthReport,
     WorkspaceSessionRef,
 )
+from myrm_agent_harness.runtime.context.historical_retrieval_trigger import (
+    HistoricalRetrievalHeuristicTrigger,
+)
+from myrm_agent_harness.runtime.context.historical_retrieval_trigger_types import (
+    HeuristicAnomalyKind,
+    HeuristicTriggerResult,
+    ToolExecutionFeedback,
+)
 from myrm_agent_harness.runtime.context.in_context_next_action_predictor import (
     InContextNextActionPredictor,
     LlmActionPredictorCallable,
@@ -725,6 +764,14 @@ from myrm_agent_harness.runtime.context.multi_transport_adapters import (
     InteractiveTransportAdapter,
     PrintBatchTransportAdapter,
 )
+from myrm_agent_harness.runtime.context.negative_decision_ledger import (
+    NegativeDecisionLedger,
+)
+from myrm_agent_harness.runtime.context.negative_decision_ledger_types import (
+    AntiRegressionInterceptionResult,
+    FailureRootCauseKind,
+    NegativeDecisionEntry,
+)
 from myrm_agent_harness.runtime.context.next_action_predictor_types import (
     ActionIntentType,
     NextActionPredictionReport,
@@ -823,109 +870,14 @@ from myrm_agent_harness.runtime.context.pluggable_context_projection_pipeline im
     PluggableContextProjectionPipeline,
 )
 from myrm_agent_harness.runtime.context.prefix_anchor_compaction_types import (
-    AnchorLockTier,
     AnchoredMessageDescriptor,
+    AnchorLockTier,
     CompactionPlan,
     MessageRoleKind,
     PrefixAnchorCompactionResult,
 )
 from myrm_agent_harness.runtime.context.prefix_anchor_compactor import (
     PrefixAnchorPreservingCompactor,
-)
-from myrm_agent_harness.runtime.context.context_cognitive_gauge import (
-    ContextCognitiveGauge,
-    create_inspect_context_tool,
-)
-from myrm_agent_harness.runtime.context.context_cognitive_gauge_types import (
-    CognitiveActionGuidance,
-    CognitiveGaugeConfig,
-    ContextCognitiveSnapshot,
-    ContextUrgencyLevel,
-)
-from myrm_agent_harness.runtime.context.session_handoff_continuation_engine import (
-    SessionHandoffContinuationEngine,
-)
-from myrm_agent_harness.runtime.context.session_handoff_continuation_types import (
-    CleanWindowContinuationBundle,
-    HandoffPhaseKind,
-    HandoffTriggerReason,
-    RejectedAlternativeRecord,
-    StructuredHandoffMemo,
-)
-from myrm_agent_harness.runtime.context.session_archive_search_engine import (
-    InMemorySessionArchiveStore,
-    SessionArchiveRepositoryProtocol,
-    SessionArchiveSearchEngine,
-    create_search_session_archive_tool,
-)
-from myrm_agent_harness.runtime.context.session_archive_search_types import (
-    ArchiveMessageRoleKind,
-    ArchiveSearchFilter,
-    ArchiveSearchResponse,
-    ArchiveSearchResultItem,
-    ArchivedMessageRecord,
-)
-from myrm_agent_harness.runtime.context.dialogue_state_machine_engine import (
-    AdaptiveContextOptimizer,
-    DialogueStateMachine,
-)
-from myrm_agent_harness.runtime.context.dialogue_state_machine_types import (
-    AdaptiveDialogueOptimizationConfig,
-    DialogueStateKind,
-    OptimizedDialogueContextResult,
-    TokenGovernanceThresholdTier,
-    TopicDriftAssessment,
-    TurnStateAnnotation,
-)
-from myrm_agent_harness.runtime.context.negative_decision_ledger import (
-    NegativeDecisionLedger,
-)
-from myrm_agent_harness.runtime.context.negative_decision_ledger_types import (
-    AntiRegressionInterceptionResult,
-    FailureRootCauseKind,
-    NegativeDecisionEntry,
-)
-from myrm_agent_harness.runtime.context.already_told_sentinel import (
-    AlreadyToldIntentSentinel,
-)
-from myrm_agent_harness.runtime.context.already_told_sentinel_types import (
-    HistoricalTurnInput,
-    InstructionRecallResult,
-    ProvenanceCardPayload,
-    RecallStatus,
-)
-from myrm_agent_harness.runtime.context.historical_retrieval_trigger import (
-    HistoricalRetrievalHeuristicTrigger,
-)
-from myrm_agent_harness.runtime.context.historical_retrieval_trigger_types import (
-    HeuristicAnomalyKind,
-    HeuristicTriggerResult,
-    ToolExecutionFeedback,
-)
-from myrm_agent_harness.runtime.context.three_tier_memory_funnel_aggregator import (
-    ThreeTierMemoryFunnelAggregator,
-)
-from myrm_agent_harness.runtime.context.three_tier_memory_funnel_types import (
-    ActiveWorkbenchStatus,
-    SearchableArchiveStatus,
-    StageNotesAndLedgerStatus,
-    ThreeTierMemoryFunnelSnapshot,
-)
-from myrm_agent_harness.runtime.context.skill_state_types import (
-    AuditLogEventRecord,
-    ConstantPromptTuple,
-    PrebuiltStateSchemaKind,
-    RetroactiveProbeQuery,
-    RetroactiveProbeResult,
-    StateMergePatch,
-    get_default_schema_state,
-)
-from myrm_agent_harness.runtime.context.skill_state_patch_governor import (
-    JsonMergePatchGovernor,
-    apply_rfc7386_merge_patch,
-)
-from myrm_agent_harness.runtime.context.skill_state_constant_prompt_engine import (
-    SkillStateConstantPromptEngine,
 )
 from myrm_agent_harness.runtime.context.prefix_integrity_barrier_types import (
     BarrierInterceptionMode,
@@ -1136,6 +1088,30 @@ from myrm_agent_harness.runtime.context.session.event_sourcing_store import (
     fork_session_by_stream_copy,
     load_session_events_with_auto_repair,
 )
+from myrm_agent_harness.runtime.context.session_archive_search_engine import (
+    InMemorySessionArchiveStore,
+    SessionArchiveRepositoryProtocol,
+    SessionArchiveSearchEngine,
+    create_search_session_archive_tool,
+)
+from myrm_agent_harness.runtime.context.session_archive_search_types import (
+    ArchivedMessageRecord,
+    ArchiveMessageRoleKind,
+    ArchiveSearchFilter,
+    ArchiveSearchResponse,
+    ArchiveSearchResultItem,
+)
+from myrm_agent_harness.runtime.context.session_branching_engine import (
+    SessionBranchingEngine,
+)
+from myrm_agent_harness.runtime.context.session_branching_types import (
+    BranchDescriptor,
+    BranchHistoricalTurn,
+    BranchNavigatorView,
+    ForkSessionResult,
+    RewindMode,
+    RewindSessionResult,
+)
 from myrm_agent_harness.runtime.context.session_checkpoint_storage import (
     SessionCheckpointStorage,
 )
@@ -1186,6 +1162,16 @@ from myrm_agent_harness.runtime.context.session_fork_steer_types import (
     ForkSessionState,
     InFlightSteerInstruction,
     PipeBackPayload,
+)
+from myrm_agent_harness.runtime.context.session_handoff_continuation_engine import (
+    SessionHandoffContinuationEngine,
+)
+from myrm_agent_harness.runtime.context.session_handoff_continuation_types import (
+    CleanWindowContinuationBundle,
+    HandoffPhaseKind,
+    HandoffTriggerReason,
+    RejectedAlternativeRecord,
+    StructuredHandoffMemo,
 )
 from myrm_agent_harness.runtime.context.session_keyword_resurrection_engine import (
     SessionKeywordResurrectionEngine,
@@ -1261,6 +1247,22 @@ from myrm_agent_harness.runtime.context.single_kernel_transport_types import (
     ReattachResumeRequest,
     TransportModeKind,
 )
+from myrm_agent_harness.runtime.context.skill_state_constant_prompt_engine import (
+    SkillStateConstantPromptEngine,
+)
+from myrm_agent_harness.runtime.context.skill_state_patch_governor import (
+    JsonMergePatchGovernor,
+    apply_rfc7386_merge_patch,
+)
+from myrm_agent_harness.runtime.context.skill_state_types import (
+    AuditLogEventRecord,
+    ConstantPromptTuple,
+    PrebuiltStateSchemaKind,
+    RetroactiveProbeQuery,
+    RetroactiveProbeResult,
+    StateMergePatch,
+    get_default_schema_state,
+)
 from myrm_agent_harness.runtime.context.sliding_window_session_lifecycle import (
     InactivitySlidingWindowSessionManager,
     PrefixKvCacheStabilityKeeper,
@@ -1328,6 +1330,15 @@ from myrm_agent_harness.runtime.context.tail_deferred_write_queue import (
 )
 from myrm_agent_harness.runtime.context.theme_palette_synthesizer import (
     ThemePaletteSynthesizer,
+)
+from myrm_agent_harness.runtime.context.three_tier_memory_funnel_aggregator import (
+    ThreeTierMemoryFunnelAggregator,
+)
+from myrm_agent_harness.runtime.context.three_tier_memory_funnel_types import (
+    ActiveWorkbenchStatus,
+    SearchableArchiveStatus,
+    StageNotesAndLedgerStatus,
+    ThreeTierMemoryFunnelSnapshot,
 )
 from myrm_agent_harness.runtime.context.tiered_context_compression_pipeline import (
     TieredContextCompressionPipeline,
@@ -2424,6 +2435,13 @@ __all__ = [
     "apply_rfc7386_merge_patch",
     "JsonMergePatchGovernor",
     "SkillStateConstantPromptEngine",
+    "BranchDescriptor",
+    "BranchHistoricalTurn",
+    "BranchNavigatorView",
+    "ForkSessionResult",
+    "RewindMode",
+    "RewindSessionResult",
+    "SessionBranchingEngine",
 ]
 
 
