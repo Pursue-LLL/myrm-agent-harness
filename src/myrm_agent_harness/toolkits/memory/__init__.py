@@ -24,20 +24,6 @@ from myrm_agent_harness.toolkits.memory.activity_compactor import (
     MicroActivitySlice,
     RawActivityEvent,
 )
-from myrm_agent_harness.toolkits.memory.budget_curator import (
-    AtomicBatchResult,
-    AtomicOperationsCurator,
-    ManagedMemoryItem,
-    MemoryBatchOperation,
-    MemoryBudgetMeter,
-    MemoryBudgetSpec,
-    MemoryBudgetStatus,
-    MemoryOperationType,
-    ScrollAnchorRequest,
-    ScrollAnchorResult,
-    ScrollMessageItem,
-    SessionScrollNavigator,
-)
 from myrm_agent_harness.toolkits.memory.batch_learn import (
     BatchLearnExecutionReport,
     BatchMemoryLearningMetaTools,
@@ -54,6 +40,20 @@ from myrm_agent_harness.toolkits.memory.batch_learn import (
     ResilientChunkRetryExecutor,
     TransientMemoryProcessingError,
     is_transient_error,
+)
+from myrm_agent_harness.toolkits.memory.budget_curator import (
+    AtomicBatchResult,
+    AtomicOperationsCurator,
+    ManagedMemoryItem,
+    MemoryBatchOperation,
+    MemoryBudgetMeter,
+    MemoryBudgetSpec,
+    MemoryBudgetStatus,
+    MemoryOperationType,
+    ScrollAnchorRequest,
+    ScrollAnchorResult,
+    ScrollMessageItem,
+    SessionScrollNavigator,
 )
 from myrm_agent_harness.toolkits.memory.capacity_hitl import (
     CandidateActionKind,
@@ -268,6 +268,17 @@ from myrm_agent_harness.toolkits.memory.integration_purge import (
     PurgeExecutionResult,
     create_integration_context_purge_tool,
 )
+from myrm_agent_harness.toolkits.memory.job_compounding import (
+    ApprovalBoundarySpec,
+    CompoundedRule,
+    CompoundingMaturityReport,
+    CompoundingMaturityTracker,
+    JobDescriptionBuilder,
+    JobDescriptionSpec,
+    MaturityTier,
+    PreferenceCompoundingEngine,
+    RuleType,
+)
 from myrm_agent_harness.toolkits.memory.ltra import (
     AudioFactDistillationWorker,
     AudioTimestampAnchor,
@@ -294,6 +305,19 @@ from myrm_agent_harness.toolkits.memory.mirror import (
     ColdMemoryRecord,
     HotColdMirrorEngine,
 )
+from myrm_agent_harness.toolkits.memory.noise_free_extractor import (
+    ConversationTurn,
+    ExtractedFactCandidate,
+    NoiseFreeAsyncMemoryExtractor,
+    NoiseFreeConfig,
+    PIISafetyGateway,
+    PIIViolationDetail,
+    PurgeEpochStatus,
+    PurgeGenerationEpochManager,
+    SanitizedExtractionResult,
+    ToolNoiseFilter,
+    ToolStrippedMessage,
+)
 from myrm_agent_harness.toolkits.memory.observability import (
     MemoryInfluenceRef,
     MemoryOperationEvent,
@@ -318,6 +342,18 @@ from myrm_agent_harness.toolkits.memory.onboarding import (
     OnboardingSourceRegistry,
     SampledTurnMessage,
     ShannonEntropyInspector,
+)
+from myrm_agent_harness.toolkits.memory.private_notebook import (
+    HistoryContextItem,
+    HistoryContextManager,
+    HistoryEntryItem,
+    LocalInspectableNoteStorage,
+    ModelPrivateNotebookManager,
+    NewContextResult,
+    NoteEntry,
+    NoteMetadata,
+    NoteSearchResult,
+    PrivateNotebookToolKit,
 )
 from myrm_agent_harness.toolkits.memory.proactive_care import (
     CareNotification,
@@ -424,6 +460,15 @@ from myrm_agent_harness.toolkits.memory.repair import (
     StalePrunePolicy,
 )
 from myrm_agent_harness.toolkits.memory.retriever import MemoryRetriever
+from myrm_agent_harness.toolkits.memory.revocable_provenance import (
+    DreamDiaryRecorder,
+    ForgetResult,
+    ProvenanceDreamDiaryEntry,
+    ProvenanceMemoryStore,
+    ProvenanceMetadata,
+    ProvenanceQualifiedMemory,
+    RevocableForgetEngine,
+)
 from myrm_agent_harness.toolkits.memory.ripplemem import (
     ActiveRecallController,
     DualEdgeSparseGraphStore,
@@ -433,6 +478,20 @@ from myrm_agent_harness.toolkits.memory.ripplemem import (
     RippleSpreadBudget,
 )
 from myrm_agent_harness.toolkits.memory.scheduler import MultiTierMemoryScheduler
+from myrm_agent_harness.toolkits.memory.screen_observation import (
+    AntiOverpromotionGate,
+    DescriptiveFactCandidate,
+    DescriptiveFactValidator,
+    ObservationPayload,
+    ObservationSourceType,
+    OverpromotionGateResult,
+    PromotionStatus,
+    SanitizedObservationEvidence,
+    ScreenObservationMemoryManager,
+    ScreenObservationSafetyResult,
+    ScreenSafetyAuditRecord,
+    UntrustedObservationEvidenceBoundary,
+)
 from myrm_agent_harness.toolkits.memory.session import MemorySession
 from myrm_agent_harness.toolkits.memory.setup import (
     create_local_memory_manager,
@@ -481,6 +540,16 @@ from myrm_agent_harness.toolkits.memory.strategies import (
     compute_gravity_decay,
     extract_memories_from_conversation,
 )
+from myrm_agent_harness.toolkits.memory.tombstone import (
+    ContradictionPair,
+    MemoryTombstoneCurationService,
+    MemoryTombstoneMetaTools,
+    PreferenceContradictionDetector,
+    TombstoneAuditRecord,
+    TombstoneCandidateItem,
+    TombstoneCurationReport,
+    TombstoneState,
+)
 from myrm_agent_harness.toolkits.memory.tool_backup import (
     DurableToolUseStore,
     ToolUseBackupRecorder,
@@ -498,29 +567,16 @@ from myrm_agent_harness.toolkits.memory.tool_guidance import (
     filter_guidance_items,
     synthesize_tool_guidance,
 )
-from myrm_agent_harness.toolkits.memory.screen_observation import (
-    AntiOverpromotionGate,
-    DescriptiveFactCandidate,
-    DescriptiveFactValidator,
-    ObservationPayload,
-    ObservationSourceType,
-    OverpromotionGateResult,
-    PromotionStatus,
-    SanitizedObservationEvidence,
-    ScreenObservationMemoryManager,
-    ScreenObservationSafetyResult,
-    ScreenSafetyAuditRecord,
-    UntrustedObservationEvidenceBoundary,
-)
-from myrm_agent_harness.toolkits.memory.tombstone import (
-    ContradictionPair,
-    MemoryTombstoneCurationService,
-    MemoryTombstoneMetaTools,
-    PreferenceContradictionDetector,
-    TombstoneAuditRecord,
-    TombstoneCandidateItem,
-    TombstoneCurationReport,
-    TombstoneState,
+from myrm_agent_harness.toolkits.memory.triad_trajectory import (
+    AntiLoopPromptInjector,
+    AntiLoopPromptSnapshot,
+    TaskTriadBlackboxTrajectory,
+    TaskTriadTrajectoryManager,
+    TrajectoryTaskStatus,
+    TriadFailedAttempt,
+    TriadMilestone,
+    TriadStateLedger,
+    TriadUserSteering,
 )
 from myrm_agent_harness.toolkits.memory.types import (
     AnyMemory,
@@ -564,29 +620,6 @@ from myrm_agent_harness.toolkits.memory.world_model import (
     ProjectEnvironmentSnapshot,
     RuntimeEnvironmentInfo,
 )
-from myrm_agent_harness.toolkits.memory.activity_compactor import (
-    ActivityActionType,
-    CompactorPipelineConfig,
-    CompactorPipelineTelemetry,
-    DailyPreferenceArchive,
-    HierarchicalActivityCompactorPipeline,
-    MacroMilestoneDistiller,
-    MacroMilestoneFold,
-    MicroActivityFolder,
-    MicroActivitySlice,
-    RawActivityEvent,
-)
-from myrm_agent_harness.toolkits.memory.triad_trajectory import (
-    AntiLoopPromptInjector,
-    AntiLoopPromptSnapshot,
-    TaskTriadBlackboxTrajectory,
-    TaskTriadTrajectoryManager,
-    TrajectoryTaskStatus,
-    TriadFailedAttempt,
-    TriadMilestone,
-    TriadStateLedger,
-    TriadUserSteering,
-)
 from myrm_agent_harness.toolkits.memory.zero_hallucination import (
     MemoryFactItem,
     MemoryRetrievalState,
@@ -595,44 +628,15 @@ from myrm_agent_harness.toolkits.memory.zero_hallucination import (
     ZeroHallucinationPromptGuard,
     ZeroHallucinationRetrievalResult,
 )
-from myrm_agent_harness.toolkits.memory.noise_free_extractor import (
-    ConversationTurn,
-    ExtractedFactCandidate,
-    NoiseFreeAsyncMemoryExtractor,
-    NoiseFreeConfig,
-    PIISafetyGateway,
-    PIIViolationDetail,
-    PurgeEpochStatus,
-    PurgeGenerationEpochManager,
-    SanitizedExtractionResult,
-    ToolNoiseFilter,
-    ToolStrippedMessage,
-)
-from myrm_agent_harness.toolkits.memory.private_notebook import (
-    HistoryContextItem,
-    HistoryContextManager,
-    HistoryEntryItem,
-    LocalInspectableNoteStorage,
-    ModelPrivateNotebookManager,
-    NewContextResult,
-    NoteEntry,
-    NoteMetadata,
-    NoteSearchResult,
-    PrivateNotebookToolKit,
-)
-from myrm_agent_harness.toolkits.memory.job_compounding import (
-    ApprovalBoundarySpec,
-    CompoundedRule,
-    CompoundingMaturityReport,
-    CompoundingMaturityTracker,
-    JobDescriptionBuilder,
-    JobDescriptionSpec,
-    MaturityTier,
-    PreferenceCompoundingEngine,
-    RuleType,
-)
 
 __all__ = [
+    "DreamDiaryRecorder",
+    "ForgetResult",
+    "ProvenanceDreamDiaryEntry",
+    "ProvenanceMemoryStore",
+    "ProvenanceMetadata",
+    "ProvenanceQualifiedMemory",
+    "RevocableForgetEngine",
     "ApprovalBoundarySpec",
     "CompoundedRule",
     "CompoundingMaturityReport",
