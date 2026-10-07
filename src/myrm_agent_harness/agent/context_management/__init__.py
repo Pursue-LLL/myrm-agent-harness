@@ -638,8 +638,33 @@ from .sandplay_simulation import (
     SandplaySimulationResult,
     SolidifiedSkillPackage,
 )
+from .branch_projection import (
+    BranchSummary,
+    DualTrackBranchProjectionEngine,
+    EntryKind,
+    OperationStatus,
+    ProjectedContext,
+    SessionEntry,
+    SessionOperation,
+    TokenUsage,
+    collect_departed_entries,
+    find_lca,
+    synthesize_branch_delta_summary,
+)
 
 __all__ = [
+    # branch_projection
+    "BranchSummary",
+    "DualTrackBranchProjectionEngine",
+    "EntryKind",
+    "OperationStatus",
+    "ProjectedContext",
+    "SessionEntry",
+    "SessionOperation",
+    "TokenUsage",
+    "collect_departed_entries",
+    "find_lca",
+    "synthesize_branch_delta_summary",
     # active_compression
     "ActiveCompressionConfig",
     "ActiveCompressionResult",
