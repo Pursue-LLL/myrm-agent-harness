@@ -5,6 +5,10 @@ and orchestration logic. Concrete storage backends are provided by the
 application layer via dependency injection.
 """
 
+from myrm_agent_harness.agent.middlewares.memory_context.ephemeral_delta import (
+    DeltaCategory,
+    EphemeralDeltaRegistry,
+)
 from myrm_agent_harness.toolkits.memory._internal.embedding_cache import EmbeddingCache
 from myrm_agent_harness.toolkits.memory._internal.memory_scanner import ScanMetricsSnapshot, get_scan_metrics
 from myrm_agent_harness.toolkits.memory._internal.storage import (
@@ -547,6 +551,19 @@ from myrm_agent_harness.toolkits.memory.ripplemem import (
     NormalizedEventUnit,
     RippleRecallResult,
     RippleSpreadBudget,
+)
+from myrm_agent_harness.toolkits.memory.rule_cascade import (
+    CascadedRuleSet,
+    DeterministicRuleCascadeLoader,
+    DeterministicRuleEntry,
+    EvidencePermissionLevel,
+    EvidenceScopeKind,
+    EvidenceSourceKind,
+    FiveDimEvidenceMetadata,
+    FiveDimFilterSpec,
+    FiveDimPreFilterEngine,
+    PreFilteredEvidenceResult,
+    TimeDecayCalculator,
 )
 from myrm_agent_harness.toolkits.memory.scheduler import MultiTierMemoryScheduler
 from myrm_agent_harness.toolkits.memory.screen_observation import (
@@ -1097,12 +1114,25 @@ __all__ = [
     "run_lineage_defense_pipeline",
     "create_local_memory_manager",
     "DeltaActionKind",
+    "DeltaCategory",
     "EphemeralDeltaBufferSnapshot",
     "EphemeralDeltaItem",
     "EphemeralDeltaReconciler",
+    "EphemeralDeltaRegistry",
     "EphemeralDeltaStore",
     "HumanTailDeltaInjector",
     "ReconciliationBatchReport",
+    "CascadedRuleSet",
+    "DeterministicRuleCascadeLoader",
+    "DeterministicRuleEntry",
+    "EvidencePermissionLevel",
+    "EvidenceScopeKind",
+    "EvidenceSourceKind",
+    "FiveDimEvidenceMetadata",
+    "FiveDimFilterSpec",
+    "FiveDimPreFilterEngine",
+    "PreFilteredEvidenceResult",
+    "TimeDecayCalculator",
     "setup_local_file_memory_sync",
     "extract_memories_from_conversation",
     "get_scan_metrics",
