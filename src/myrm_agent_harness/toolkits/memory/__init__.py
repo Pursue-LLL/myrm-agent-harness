@@ -482,6 +482,18 @@ from myrm_agent_harness.toolkits.memory.session_commit import (
     SessionCommitResult,
     SessionCommitTwoPhaseEngine,
 )
+from myrm_agent_harness.toolkits.memory.business_templates import (
+    BusinessExperienceTemplate,
+    BusinessExperienceTemplateRegistry,
+    BusinessTemplateEngine,
+    ChecklistStep,
+    EscalationAction,
+    EscalationBoundaryGate,
+    EscalationDecision,
+    EscalationEvaluationContext,
+    EscalationReason,
+    TemplateCategory,
+)
 from myrm_agent_harness.toolkits.memory.prompt_cache_guard import (
     AtomicReplacePayload,
     CapacityLimitConfig,
@@ -1442,6 +1454,16 @@ __all__ = [
     "SessionArchiveMessage",
     "SessionCommitResult",
     "SessionCommitTwoPhaseEngine",
+    "BusinessExperienceTemplate",
+    "BusinessExperienceTemplateRegistry",
+    "BusinessTemplateEngine",
+    "ChecklistStep",
+    "EscalationAction",
+    "EscalationBoundaryGate",
+    "EscalationDecision",
+    "EscalationEvaluationContext",
+    "EscalationReason",
+    "TemplateCategory",
 ]
 
 
