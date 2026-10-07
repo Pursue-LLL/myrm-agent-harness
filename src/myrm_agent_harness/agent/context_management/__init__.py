@@ -694,8 +694,33 @@ from .cache_shield import (
     CacheRiskLevel,
     evaluate_parameter_mutation,
 )
+from .command_quiet_rewriter import (
+    CommandQuietRewriterAndLogSinkSuite,
+    LogSinkConclusionCard,
+    LogSinkStatus,
+    LogSinkTaskSpec,
+    LogSinkTaskType,
+    PreflightCommandRewriter,
+    QuietRewriteRule,
+    RewriteResult,
+    RewriteStatus,
+    SubagentLogSinkEngine,
+    SubagentLogSinkExecutionRecord,
+)
 
 __all__ = [
+    # command_quiet_rewriter
+    "CommandQuietRewriterAndLogSinkSuite",
+    "LogSinkConclusionCard",
+    "LogSinkStatus",
+    "LogSinkTaskSpec",
+    "LogSinkTaskType",
+    "PreflightCommandRewriter",
+    "QuietRewriteRule",
+    "RewriteResult",
+    "RewriteStatus",
+    "SubagentLogSinkEngine",
+    "SubagentLogSinkExecutionRecord",
     # cache_shield
     "CacheBreakEvaluation",
     "CacheBreakPreventionShieldEngine",
