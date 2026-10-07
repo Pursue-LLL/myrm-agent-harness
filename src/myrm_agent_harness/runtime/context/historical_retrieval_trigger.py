@@ -1,3 +1,18 @@
+"""Monitors tool execution failures and actively suggests searching session archives when blind retries are detected.
+
+[INPUT]
+- runtime.context.historical_retrieval_trigger_types::HeuristicAnomalyKind, HeuristicTriggerResult,
+  ToolExecutionFeedback
+
+[OUTPUT]
+- HistoricalRetrievalHeuristicTrigger: Monitors tool execution failures and actively suggests searching
+  session archives when blind retries are detected.
+
+[POS]
+Monitors tool execution failures and actively suggests searching session archives when blind retries are
+detected.
+"""
+
 from __future__ import annotations
 
 import re
@@ -58,9 +73,9 @@ class HistoricalRetrievalHeuristicTrigger:
         suggested_terms = self._extract_suggested_terms(feedback.tool_name, feedback.error_message)
 
         # Trigger if failures reached threshold or specific missing-configuration anomaly occurred
-        should_trigger = (
-            self._consecutive_failures >= self.failure_threshold
-            or anomaly in (HeuristicAnomalyKind.AUTH_CREDENTIAL_MISSING, HeuristicAnomalyKind.CONFIG_NOT_FOUND)
+        should_trigger = self._consecutive_failures >= self.failure_threshold or anomaly in (
+            HeuristicAnomalyKind.AUTH_CREDENTIAL_MISSING,
+            HeuristicAnomalyKind.CONFIG_NOT_FOUND,
         )
 
         if not should_trigger:

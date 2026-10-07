@@ -123,6 +123,8 @@ Context lifecycle management — cleanup, config, metrics, tracking, reading, of
 | hierarchical_instruction_hub_types.py | Types | Type definitions for Project-Specific Goosehints and Hierarchical Instruction Hub. | ✅ |
 | hierarchical_project_matrix.py | Core | Hierarchical Project Context Matrix and Agent Dynamic Binding Gate. | ✅ |
 | hierarchical_project_matrix_types.py | Types | Data contracts for Hierarchical Project Context Matrix and Dynamic Binding Gate. | ✅ |
+| historical_retrieval_trigger.py | Core | Monitors tool execution failures and actively suggests searching session archives when blind retries are detected. | ✅ |
+| historical_retrieval_trigger_types.py | Types | Types and models for historical retrieval trigger. | ✅ |
 | in_context_next_action_predictor.py | Core | In-Context Next Action and Question Predictor. | ✅ |
 | in_flight_steer_controller.py | Core | In-flight steering controller for active session redirection. | ✅ |
 | in_process_bm25_retriever.py | Core | In-process sub-millisecond BM25 lexical retriever for AI agent context engineering. | ✅ |

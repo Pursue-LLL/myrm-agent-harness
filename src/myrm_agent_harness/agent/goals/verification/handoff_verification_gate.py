@@ -1,3 +1,19 @@
+"""Adversarial verification gate that validates StructuredHandoffMemo against baseline user constraints.
+
+[INPUT]
+- agent.goals.verification.handoff_verification_types::HandoffVerificationIssue, HandoffVerificationResult,
+  VerificationSeverity
+- runtime.context.session_handoff_continuation_types::RejectedAlternativeRecord, StructuredHandoffMemo (POS:
+  Types and models for Session Handoff and Clean Window Continuation.)
+
+[OUTPUT]
+- HandoffVerificationGate: Adversarial verification gate that validates StructuredHandoffMemo against
+  baseline user constraints.
+
+[POS]
+Adversarial verification gate that validates StructuredHandoffMemo against baseline user constraints.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -39,10 +55,9 @@ class HandoffVerificationGate:
         for required_c in user_critical_constraints:
             req_clean = required_c.lower().strip()
             # Check if required constraint is reflected in memo's critical constraints or objective
-            found = any(
-                req_clean in ec or ec in req_clean
-                for ec in existing_memo_constraints
-            ) or (req_clean in memo.current_objective.lower())
+            found = any(req_clean in ec or ec in req_clean for ec in existing_memo_constraints) or (
+                req_clean in memo.current_objective.lower()
+            )
 
             if not found:
                 missing_constraints.append(required_c)
@@ -58,10 +73,7 @@ class HandoffVerificationGate:
         # 2. Verify disqualified approaches / anti-regression negative decisions
         for disq in disqualified_list:
             disq_clean = disq.lower().strip()
-            found_rejected = any(
-                disq_clean in er or er in disq_clean
-                for er in existing_memo_rejected
-            )
+            found_rejected = any(disq_clean in er or er in disq_clean for er in existing_memo_rejected)
             if not found_rejected:
                 missing_negatives.append(disq)
                 issues.append(

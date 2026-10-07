@@ -1,3 +1,17 @@
+"""Types and models for historical retrieval trigger.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- HeuristicAnomalyKind: Categorization of execution anomalies that trigger historical retrieval heuristics.
+- ToolExecutionFeedback: Execution outcome feedback from a tool call used by the heuristic trigger.
+- HeuristicTriggerResult: Output produced when evaluating tool failure state against retrieval heuristics.
+
+[POS]
+Types and models for historical retrieval trigger.
+"""
+
 from __future__ import annotations
 
 from enum import StrEnum
