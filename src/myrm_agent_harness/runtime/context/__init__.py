@@ -513,6 +513,9 @@ from myrm_agent_harness.runtime.context.in_context_next_action_predictor import 
     InContextNextActionPredictor,
     LlmActionPredictorCallable,
 )
+from myrm_agent_harness.runtime.context.in_flight_steer_controller import (
+    InFlightSteerController,
+)
 from myrm_agent_harness.runtime.context.in_process_bm25_retriever import (
     InProcessBM25Retriever,
     tokenize_lexical,
@@ -958,6 +961,16 @@ from myrm_agent_harness.runtime.context.session_epoch_splitter import (
     MilestoneCheckpointPayload,
     SessionSaturationGovernor,
     SessionSaturationProbeReport,
+)
+from myrm_agent_harness.runtime.context.session_fork_manager import (
+    SessionForkManager,
+)
+from myrm_agent_harness.runtime.context.session_fork_steer_types import (
+    BackgroundForkDescriptor,
+    ForkCommandKind,
+    ForkSessionState,
+    InFlightSteerInstruction,
+    PipeBackPayload,
 )
 from myrm_agent_harness.runtime.context.session_keyword_resurrection_engine import (
     SessionKeywordResurrectionEngine,
@@ -2014,6 +2027,13 @@ __all__ = [
     "StitchedContextAssembly",
     "SandboxFsEventProbe",
     "SandboxContextCacheBridge",
+    "ForkCommandKind",
+    "ForkSessionState",
+    "BackgroundForkDescriptor",
+    "InFlightSteerInstruction",
+    "PipeBackPayload",
+    "SessionForkManager",
+    "InFlightSteerController",
 ]
 
 
