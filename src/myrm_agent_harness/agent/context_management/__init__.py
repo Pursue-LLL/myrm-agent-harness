@@ -119,6 +119,14 @@ from .active_compression import (
     TokenPressureLevel,
     TokenPressureSnapshot,
 )
+from .dual_branching import (
+    BranchDescriptor,
+    BranchingPosture,
+    DualBranchingSessionEngine,
+    ForkCloneResult,
+    TreeNodeMessage,
+    VersionNavigationInfo,
+)
 from .multibot_governor import (
     BotTurnEvent,
     CognitiveValueEvaluation,
@@ -157,6 +165,13 @@ __all__ = [
     "TokenPressureGauge",
     "TokenPressureLevel",
     "TokenPressureSnapshot",
+    # dual_branching
+    "BranchDescriptor",
+    "BranchingPosture",
+    "DualBranchingSessionEngine",
+    "ForkCloneResult",
+    "TreeNodeMessage",
+    "VersionNavigationInfo",
     # multibot_governor
     "BotTurnEvent",
     "CognitiveValueEvaluation",
