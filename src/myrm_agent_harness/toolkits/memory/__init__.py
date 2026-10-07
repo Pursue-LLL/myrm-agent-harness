@@ -123,6 +123,18 @@ from myrm_agent_harness.toolkits.memory.ingestion_gateway import (
     VoiceContextDistiller,
     VoiceTranscriptSegment,
 )
+from myrm_agent_harness.toolkits.memory.decontamination import (
+    DecontaminationGuard,
+    DecontaminationReport,
+    DecontaminationStatus,
+    MemoryProvenanceAttestation,
+    MemoryProvenanceDecontaminationService,
+    MemorySnapshotRecord,
+    MemorySnapshotRollbackEngine,
+    ProvenanceAttestationManager,
+    ProvenanceSourceKind,
+    RollbackReport,
+)
 from myrm_agent_harness.toolkits.memory.dialectic import (
     DialecticCadenceConfig,
     DialecticCadenceGovernor,
@@ -797,4 +809,14 @@ __all__ = [
     "UniversalContextIngestionGateway",
     "VoiceContextDistiller",
     "VoiceTranscriptSegment",
+    "DecontaminationGuard",
+    "DecontaminationReport",
+    "DecontaminationStatus",
+    "MemoryProvenanceAttestation",
+    "MemoryProvenanceDecontaminationService",
+    "MemorySnapshotRecord",
+    "MemorySnapshotRollbackEngine",
+    "ProvenanceAttestationManager",
+    "ProvenanceSourceKind",
+    "RollbackReport",
 ]
