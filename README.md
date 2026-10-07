@@ -588,12 +588,11 @@ result = await executor.execute(code, context)
 # 克隆和设置
 git clone <repo-url>
 cd myrm-agent-harness
-uv venv --python 3.13
+uv sync --python 3.13 --locked --extra all --group dev
 source .venv/bin/activate
-uv pip install -e ".[all]" --group dev
 
-# 勿用 `uv sync` / 裸 `uv run`：二者会解析全部 extras（含 compiled-core*），其引脚要求对应版本的
-# 平台 wheel 已发布，未发布时解析失败；源码开发直接用 `.venv/bin/python` / `pytest`
+# 与 CI 相同：严格按 uv.lock 安装。修改 pyproject.toml（依赖、extras、version）后运行 `uv lock` 并提交 uv.lock，
+# 否则 `--locked` 会失败。compiled-core* 平台包发版前不在 PyPI 上，开发锁通过 [tool.uv] exclude-dependencies（需 uv ≥ 0.9.8）排除它们。
 
 # ⚠️ 重要：安装 pre-commit（自动化边界检测）
 pip install pre-commit
