@@ -1,8 +1,8 @@
-# Proprietary Distribution System
+# Distribution System
 
 ## Design Goal
 
-Ship `myrm-agent-harness` as a **closed-source Python package** that third-party frameworks can import and extend, while hiding core IP — mirroring Claude Code's npm shell + native binary pattern.
+Ship `myrm-agent-harness` as an **MIT open-source Python package** that third-party frameworks can import and extend, with an optional Nuitka-compiled core for accelerated hot paths — mirroring Claude Code's npm shell + native binary pattern.
 
 ## Architecture
 
@@ -49,7 +49,7 @@ uv sync --group build
 verify-harness-distribution
 ```
 
-**Not PyArmor/obfuscation.** Core IP in `core_manifest.yaml` is compiled with **Nuitka** to native `.so` / `.pyd`.
+**Not PyArmor/obfuscation.** The compiled core in `core_manifest.yaml` is compiled with **Nuitka** to native `.so` / `.pyd` for hot-path acceleration; the source itself is open on GitHub and in sdist.
 
 ## Consumer Install (PyPI)
 
