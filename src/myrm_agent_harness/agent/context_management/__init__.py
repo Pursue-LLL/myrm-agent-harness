@@ -456,6 +456,13 @@ from .cron_mirroring import (
     CronMirrorRoleMode,
     CronMirroringOutcome,
 )
+from .ipc_clamping import (
+    IpcClampingAction,
+    IpcClampingConfig,
+    IpcClampingOutcome,
+    IpcMessageClampingAndSpilloverEngine,
+    SpilloverArtifactSpec,
+)
 
 __all__ = [
     # active_compression
@@ -679,6 +686,12 @@ __all__ = [
     "CronMirrorConfig",
     "CronMirrorRoleMode",
     "CronMirroringOutcome",
+    # ipc_clamping
+    "IpcClampingAction",
+    "IpcClampingConfig",
+    "IpcClampingOutcome",
+    "IpcMessageClampingAndSpilloverEngine",
+    "SpilloverArtifactSpec",
     # session_roaming
     "CollaborationRole",
     "DeviceAgnosticSessionRoamingEngine",
