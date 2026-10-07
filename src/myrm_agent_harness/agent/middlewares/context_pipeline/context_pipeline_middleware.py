@@ -39,22 +39,26 @@ Usage:
 Provides create_context_pipeline_middleware.
 """
 
+from __future__ import annotations
+
 import asyncio
 import time
 from collections.abc import Awaitable, Callable
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from langchain.agents.middleware import AgentMiddleware, ModelRequest, ModelResponse
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AnyMessage, BaseMessage
 
-from myrm_agent_harness.agent.context_management.archive_checkpoint import (
-    ArchiveCheckpointStore,
-    ArchiveSummaryService,
-)
-from myrm_agent_harness.agent.context_management.archive_checkpoint.summary_service import (
-    ArchiveCheckpointNotifier,
-)
+if TYPE_CHECKING:
+    from myrm_agent_harness.agent.context_management.archive_checkpoint.store import (
+        ArchiveCheckpointStore,
+    )
+    from myrm_agent_harness.agent.context_management.archive_checkpoint.summary_service import (
+        ArchiveCheckpointNotifier,
+        ArchiveSummaryService,
+    )
+
 from myrm_agent_harness.agent.context_management.context import (
     extract_context_from_request,
 )
@@ -204,6 +208,10 @@ def create_context_pipeline_middleware(
             )
             archive_summary_service: ArchiveSummaryService | None = None
             if archive_checkpoint_store is not None:
+                from myrm_agent_harness.agent.context_management.archive_checkpoint.summary_service import (
+                    ArchiveSummaryService,
+                )
+
                 archive_summary_service = ArchiveSummaryService(
                     config=cache_policy.config,
                     store=archive_checkpoint_store,

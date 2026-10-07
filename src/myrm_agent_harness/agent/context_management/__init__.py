@@ -404,6 +404,14 @@ from .context_pivot import (
     LosslessContextPivotEngine,
     PivotTriggerKind,
 )
+from .proactive_recall import (
+    ContextGapAutoProbeEngine,
+    ContextGapDetection,
+    EntityType,
+    PrunedEntityRecord,
+    ProactiveRecallNudgeConfig,
+    ProactiveRecallProbeResult,
+)
 
 __all__ = [
     # active_compression
@@ -545,6 +553,13 @@ __all__ = [
     "PrivacyModeSessionConfig",
     "ToolCallInterceptRecord",
     "ToolHardGateAction",
+    # proactive_recall
+    "ContextGapAutoProbeEngine",
+    "ContextGapDetection",
+    "EntityType",
+    "PrunedEntityRecord",
+    "ProactiveRecallNudgeConfig",
+    "ProactiveRecallProbeResult",
     # project_container
     "DragDropIngestionEvent",
     "ProjectAssetItem",

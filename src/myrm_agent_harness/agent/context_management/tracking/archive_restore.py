@@ -15,13 +15,16 @@
 Archive restore DTO layer. Defines stable budget, decision, and restore-map-aware flat guidance contracts for archived context reads.
 """
 
-from dataclasses import dataclass, field
-from typing import Literal
+from __future__ import annotations
 
-from myrm_agent_harness.runtime.context.restore_map_structures import (
-    RestoreContentFeature,
-    RestoreRangeHint,
-)
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.runtime.context.restore_map_structures import (
+        RestoreContentFeature,
+        RestoreRangeHint,
+    )
 
 MAX_ARCHIVE_REFETCHES_PER_PATH = 2
 MAX_ARCHIVE_REFETCH_TOKENS = 16_000
@@ -142,6 +145,8 @@ def build_archive_restore_guidance(
 
 
 def _fallback_range_hints(ranges: tuple[str, ...]) -> tuple[RestoreRangeHint, ...]:
+    from myrm_agent_harness.runtime.context.restore_map_structures import RestoreRangeHint
+
     hints: list[RestoreRangeHint] = []
     for restore_range in ranges:
         _, _, line_span = restore_range.rpartition(":")
