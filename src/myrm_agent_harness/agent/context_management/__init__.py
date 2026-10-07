@@ -257,6 +257,16 @@ from .session_commit import (
     TwoPhaseSessionCommitEngine,
     UserPreferenceItem,
 )
+from .session_dom import (
+    RewindLifecycleAction,
+    RewindLifecycleWorklist,
+    SessionDomNode,
+    SessionDomNodeKind,
+    SessionDomPatch,
+    SessionDomPatchOp,
+    SessionDomTree,
+    UniversalEventSourcedSessionDomEngine,
+)
 from .session_roaming import (
     CollaborationRole,
     DeviceAgnosticSessionRoamingEngine,
@@ -431,6 +441,15 @@ __all__ = [
     "TriDimensionalDistillationResult",
     "TwoPhaseSessionCommitEngine",
     "UserPreferenceItem",
+    # session_dom
+    "RewindLifecycleAction",
+    "RewindLifecycleWorklist",
+    "SessionDomNode",
+    "SessionDomNodeKind",
+    "SessionDomPatch",
+    "SessionDomPatchOp",
+    "SessionDomTree",
+    "UniversalEventSourcedSessionDomEngine",
     # session_roaming
     "CollaborationRole",
     "DeviceAgnosticSessionRoamingEngine",
