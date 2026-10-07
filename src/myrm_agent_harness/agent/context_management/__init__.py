@@ -548,6 +548,14 @@ from .session_antidote import (
     SessionAntiPoisoningEngine,
     SessionAntidoteConfig,
 )
+from .reasoning_collapse import (
+    ReasoningCollapseConfig,
+    ReasoningCollapseReport,
+    ReasoningStreamCollapseEngine,
+    ReasoningVendorType,
+    ThinkingCollapseMode,
+    UnifiedReasoningBlock,
+)
 
 __all__ = [
     # active_compression
@@ -853,6 +861,13 @@ __all__ = [
     "PoisonSeverity",
     "SessionAntiPoisoningEngine",
     "SessionAntidoteConfig",
+    # reasoning_collapse
+    "ReasoningCollapseConfig",
+    "ReasoningCollapseReport",
+    "ReasoningStreamCollapseEngine",
+    "ReasoningVendorType",
+    "ThinkingCollapseMode",
+    "UnifiedReasoningBlock",
     # session_roaming
     "CollaborationRole",
     "DeviceAgnosticSessionRoamingEngine",
