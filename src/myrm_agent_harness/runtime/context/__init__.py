@@ -885,6 +885,15 @@ from myrm_agent_harness.runtime.context.negative_decision_ledger_types import (
     FailureRootCauseKind,
     NegativeDecisionEntry,
 )
+from myrm_agent_harness.runtime.context.already_told_sentinel import (
+    AlreadyToldIntentSentinel,
+)
+from myrm_agent_harness.runtime.context.already_told_sentinel_types import (
+    HistoricalTurnInput,
+    InstructionRecallResult,
+    ProvenanceCardPayload,
+    RecallStatus,
+)
 from myrm_agent_harness.runtime.context.prefix_integrity_barrier_types import (
     BarrierInterceptionMode,
     BaselinePrefixFingerprint,
@@ -2358,6 +2367,11 @@ __all__ = [
     "NegativeDecisionEntry",
     "AntiRegressionInterceptionResult",
     "NegativeDecisionLedger",
+    "RecallStatus",
+    "HistoricalTurnInput",
+    "ProvenanceCardPayload",
+    "InstructionRecallResult",
+    "AlreadyToldIntentSentinel",
 ]
 
 
