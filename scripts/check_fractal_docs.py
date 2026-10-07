@@ -10,6 +10,9 @@ Run (from myrm-agent-harness root)::
     uv run python scripts/check_fractal_docs.py
     uv run python scripts/check_fractal_docs.py --strict-headers
 
+Repair what this gate (and ``validate_arch_inventory.py``) reports with
+``scripts/fix_fractal_docs.py`` (dry-run by default).
+
 Exit codes:
     0  No missing _ARCH.md (and no strict header violations when enabled).
     1  Strict header check found violations.
@@ -44,6 +47,7 @@ _HEADER_PATTERN = re.compile(
 )
 _STUB_MARKERS = ("待补", "（见目录）", "见源码")
 _NO_STUB_PREFIXES = ("api/",)
+FIX_HINT = "Fix: python scripts/fix_fractal_docs.py --write <paths>  (omit --write for a dry-run)"
 
 
 def _is_pruned_dir(path: Path) -> bool:
@@ -72,7 +76,7 @@ def _iter_package_dirs(package_root: Path) -> Iterable[Path]:
         yield path
 
 
-def _missing_arch_dirs(package_root: Path) -> list[Path]:
+def missing_arch_dirs(package_root: Path) -> list[Path]:
     missing: list[Path] = []
     for directory in _iter_package_dirs(package_root):
         arch = directory / "_ARCH.md"
@@ -85,7 +89,7 @@ def _should_skip_header_scan(rel: Path, content_len: int) -> bool:
     return rel.name in _HEADER_SKIP_NAMES and content_len <= 512
 
 
-def _load_header_baseline(path: Path) -> frozenset[str]:
+def load_header_baseline(path: Path) -> frozenset[str]:
     if not path.is_file():
         raise FileNotFoundError(f"Header baseline not found: {path}")
     entries: set[str] = set()
@@ -97,7 +101,7 @@ def _load_header_baseline(path: Path) -> frozenset[str]:
     return frozenset(entries)
 
 
-def _rel_package_path(package_root: Path, py_file: Path) -> str:
+def rel_package_path(package_root: Path, py_file: Path) -> str:
     return str(py_file.resolve().relative_to(package_root.resolve().parent)).replace("\\", "/")
 
 
@@ -121,7 +125,7 @@ def _stub_arch_files(package_root: Path) -> list[Path]:
     return bad
 
 
-def _missing_io_headers(package_root: Path) -> list[Path]:
+def missing_io_headers(package_root: Path) -> list[Path]:
     bad: list[Path] = []
     for py in sorted(package_root.rglob("*.py")):
         if any(part in _PRUNE_DIR_NAMES for part in py.parts) or "node_modules" in py.parts:
@@ -164,13 +168,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     package_root: Path = args.package_root.resolve()
-    missing_arch = _missing_arch_dirs(package_root)
+    missing_arch = missing_arch_dirs(package_root)
     bad_headers: list[Path] = []
     if args.strict_headers:
-        all_bad = _missing_io_headers(package_root)
+        all_bad = missing_io_headers(package_root)
         if args.header_baseline is not None:
-            baseline = _load_header_baseline(args.header_baseline.resolve())
-            bad_headers = [file for file in all_bad if _rel_package_path(package_root, file) not in baseline]
+            baseline = load_header_baseline(args.header_baseline.resolve())
+            bad_headers = [file for file in all_bad if rel_package_path(package_root, file) not in baseline]
         else:
             bad_headers = all_bad
 
@@ -192,6 +196,9 @@ def main(argv: list[str] | None = None) -> int:
         print("ERROR: _ARCH.md stub markers in guarded paths (api/):", file=sys.stderr)
         for arch in stub_arch:
             print(f"  - {arch.relative_to(package_root.parent.parent)}", file=sys.stderr)
+
+    if missing_arch or bad_headers:
+        print(FIX_HINT, file=sys.stderr)
 
     if not missing_arch and not bad_headers and not stub_arch:
         scope = "directory _ARCH.md"

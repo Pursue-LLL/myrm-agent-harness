@@ -24,11 +24,11 @@ from scripts.md_ref_validator import (
 )
 from scripts.validate_arch_inventory import (
     DirReport,
-    _first_table_cell,
     _format_reports,
-    _is_inventory_file_cell,
     _listed_py_in_arch,
     _rel_to_repo,
+    first_table_cell,
+    is_inventory_file_cell,
     scan_directory,
     scan_tree,
 )
@@ -86,10 +86,10 @@ def test_listed_py_ignores_multi_file_comparison_cells(tmp_path: Path) -> None:
 
 @pytest.mark.architecture
 def test_is_inventory_file_cell_rejects_prose_lists() -> None:
-    assert not _is_inventory_file_cell("_ARCH.md`, `SECURITY_WRAPPER_GUIDE.md`, `__init__.py")
-    assert _is_inventory_file_cell("dialog_manager.py")
-    assert _is_inventory_file_cell("__init__.py")
-    assert not _is_inventory_file_cell("api/hooks.py")
+    assert not is_inventory_file_cell("_ARCH.md`, `SECURITY_WRAPPER_GUIDE.md`, `__init__.py")
+    assert is_inventory_file_cell("dialog_manager.py")
+    assert is_inventory_file_cell("__init__.py")
+    assert not is_inventory_file_cell("api/hooks.py")
 
 
 @pytest.mark.architecture
@@ -468,8 +468,8 @@ def test_scan_md_refs_resolves_server_shortcuts(tmp_path: Path) -> None:
 
 def test_first_table_cell_requires_closed_cell_pair() -> None:
     """A pipe-only fragment must not be treated as a table row."""
-    assert _first_table_cell("|dangling") is None
-    assert _first_table_cell("not a table row") is None
+    assert first_table_cell("|dangling") is None
+    assert first_table_cell("not a table row") is None
 
 
 def test_top_level_module_dirs_excludes_cache_dirs(tmp_path: Path) -> None:

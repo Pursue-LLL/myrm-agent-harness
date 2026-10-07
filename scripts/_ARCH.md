@@ -27,7 +27,10 @@ Harness 仓维护脚本：框架-业务边界 enforcement、PyPI 发布校验、
 | `validate_tool_registry.py` | 辅助 | Tool registry CI 校验（注册一致性 + 治理覆盖门禁：遍历注册内置全集 / 权限类型矩阵 / EXPLICIT_MCP_FALLBACK 第三态 / DYNAMICALLY_RESOLVED_TOOL_NAMES SSOT 消费 / BUILTIN↔注册双向一致性 / RULESET_COVERAGE_WHITELIST 双向一致性（stale+orphan）/ EXTERNAL server-managed 标注 / safety / canonical 参数 / forbidden legacy terms（bindmode、catalog_invoke、delegate_to_agent_tool、profile seed 内 delegate_agent 权限键）；`--json` 输出覆盖矩阵，矩阵含 `whitelist_orphan` 标注使 orphan 声明对审计报表可见） | ✅ |
 | `validate_arch_inventory.py` | 辅助 | `_ARCH.md` 文件清单表格 vs 同级 `.py` 一致性校验（仅解析表格行）+ `--md-refs` 全仓 markdown 路径引用真实性校验（反引号 span 与内联链接 `[label](path)` 统一管道；显式相对路径 / 跨仓 alias / harness 模块快捷三态解析，渐退剥离 symbol 后缀；`--root` 仓根或 server 仓等跨仓扫描仅跑 md-refs，不跑表格） | ✅ |
 | `md_ref_validator.py` | 辅助 | md 引用校验核心：`scan_md_refs` / `_extract_md_refs` / `_resolve_md_ref` / 反引号 span 与内联链接统一解析（内联链接额外校验带扩展名的裸文件名如 `[x](other.md)`，反引号保留 `/` 门槛以免误判 prose）/ 渐退 symbol 剥离（拒绝截断到 `../..` 等父级标记）/ 源码根自动发现（harness `src/myrm_agent_harness`，server `app/`，跨仓快捷引用按被扫描仓识别）/ 无扩展名引用探测 TS·JS 源扩展名 / 导入规格表按首列源文件目录锚定 / `{placeholder}` 符号行跳过 / 非 UTF-8 文档跳过 / 白名单（`SKILL_SYSTEM.md` 竞品规划表、`eval/_ARCH.md` 候选决策表、`prebuilt_skills/` 运行时产物），被 `validate_arch_inventory.py` 复用 | ✅ |
-| `check_fractal_docs.py` | 辅助 | 分形 `_ARCH.md` 目录覆盖 + IOP 头 baseline 门禁（`fractal_header_baseline.txt`） | ✅ |
+| `check_fractal_docs.py` | 辅助 | 分形 `_ARCH.md` 目录覆盖 + IOP 头 baseline 门禁（`fractal_header_baseline.txt`）；缺失项末尾提示 `fix_fractal_docs.py` | ✅ |
+| `fix_fractal_docs.py` | 辅助 | 分形文档门禁自助修复 CLI：默认 dry-run，`--write` 须显式 PATH 或 `--all`（共享工作树只改自己的文件）；补 `[INPUT]/[OUTPUT]/[POS]` 头、`_ARCH.md` 文件行与缺失的 `_ARCH.md`（同时在父级登记子包行），清理已删文件的陈旧行；每个文件写前重读（期间被改则跳过）+ 原子替换 + AST 指纹校验（仅模块 docstring 可变）；产物为机械草稿，须人工润色 | ✅ |
+| `fractal_header_engine.py` | 辅助 | 头合成引擎：由 AST 取模块 / 公开符号 docstring 摘要、内部 import（解析为带目标 `[POS]` 摘要的 `module::names`）与公开符号（尊重 `__all__`，超 15 项折叠）生成 `[INPUT]/[OUTPUT]/[POS]`，就地并入模块 docstring（保留原文；无 docstring 时插入文件首部） | ✅ |
+| `fractal_arch_engine.py` | 辅助 | `_ARCH.md` 文本引擎：按表头推断列语义，向文件表插入 / 删除行并保持原表的排序、反引号风格与列数；无表时追加文件索引；新建 `_ARCH.md` 模板与父级子包行 | ✅ |
 | `check_file_line_limit.py` | 辅助 | 单文件行数 baseline 门禁（>500 行须登记且不可增长）；`--incremental` 仅扫描 git 变更文件（pre-commit），无 git 时回退全量 | ✅ |
 | `check_test_source_assertions.py` | 辅助 | 测试源码文本断言门禁：以 `ast` 识别「读 `.py` 源码 + 断言字符串包含」写法，强制改用语法树断言，使断言不受格式化换行影响；`--incremental` 供 pre-commit 使用 | ✅ |
 | `check_module_coverage.py` | 辅助 | 每模块覆盖率下限门禁：读取 `.coverage` 数据，对 `COVERAGE_FLOORS` 登记的模块逐个校验执行率，不嵌套执行 pytest | ✅ |
@@ -46,6 +49,8 @@ python scripts/boundary_check.py --incremental  # pre-commit 增量
 python scripts/boundary_check.py --fix          # 自动注释违规 import
 python scripts/check_fractal_docs.py            # 目录 _ARCH 覆盖
 python scripts/check_fractal_docs.py --strict-headers --header-baseline scripts/fractal_header_baseline.txt --no-stub
+python scripts/fix_fractal_docs.py                     # 上面两条门禁变红：dry-run 列出将补的头 / _ARCH 行（退出码 1 = 有待修）
+python scripts/fix_fractal_docs.py --write PATH [...]  # 只修自己改过的文件或目录（共享工作树勿用 --all）
 python scripts/check_file_line_limit.py --baseline scripts/file_line_baseline.txt
 python scripts/check_file_line_limit.py --incremental  # pre-commit: changed files only
 python scripts/validate_arch_inventory.py --root src/myrm_agent_harness

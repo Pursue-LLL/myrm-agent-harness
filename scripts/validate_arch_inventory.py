@@ -43,6 +43,7 @@ from md_ref_validator import PRUNE_DIR_NAMES, MdRefReport, scan_md_refs
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _MONOREPO_ROOT = Path(__file__).resolve().parent.parent.parent
 _TABLE_HEADER_CELLS = frozenset({"File", "Module", "Submodule", "文件"})
+_FAIL_LINE = "FAIL - fix _ARCH.md file tables (python scripts/fix_fractal_docs.py --write <paths>)"
 
 
 @dataclass(frozen=True)
@@ -56,14 +57,10 @@ class DirReport:
 
 
 def _collect_py_files(directory: Path) -> list[str]:
-    return sorted(
-        p.name
-        for p in directory.iterdir()
-        if p.is_file() and p.suffix == ".py"
-    )
+    return sorted(p.name for p in directory.iterdir() if p.is_file() and p.suffix == ".py")
 
 
-def _first_table_cell(line: str) -> str | None:
+def first_table_cell(line: str) -> str | None:
     stripped = line.strip()
     if not stripped.startswith("|"):
         return None
@@ -73,7 +70,7 @@ def _first_table_cell(line: str) -> str | None:
     return cells[1].strip("`").strip()
 
 
-def _is_inventory_file_cell(first: str) -> bool:
+def is_inventory_file_cell(first: str) -> bool:
     """Return True when the first table cell names a single sibling .py file."""
     if first == "__init__.py":
         return True
@@ -91,14 +88,14 @@ def _is_inventory_file_cell(first: str) -> bool:
 def _listed_py_in_arch(arch_path: Path) -> set[str]:
     listed: set[str] = set()
     for line in arch_path.read_text(encoding="utf-8").splitlines():
-        first = _first_table_cell(line)
+        first = first_table_cell(line)
         if first is None:
             continue
         if first in _TABLE_HEADER_CELLS:
             continue
         if first.startswith("---") or first.startswith("—"):
             continue
-        if _is_inventory_file_cell(first):
+        if is_inventory_file_cell(first):
             listed.add(first)
     return listed
 
@@ -155,7 +152,7 @@ def _format_reports(reports: list[DirReport], *, root_label: str) -> str:
         else:
             lines.append(f"OK   {rel} ({len(report.py_files)} py files)")
     lines.append("")
-    lines.append("PASS" if not failed else "FAIL - fix _ARCH.md file tables")
+    lines.append("PASS" if not failed else _FAIL_LINE)
     return "\n".join(lines)
 
 

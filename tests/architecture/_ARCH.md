@@ -42,6 +42,9 @@ CI 架构门禁：层边界、分形文档、PyPI wheel 打包不变量、tool r
 | `test_verify_pypi_publish.py` | Gate | PyPI 发布后索引校验 | — |
 | `test_validate_pypi_wheels.py` | Gate | wheel 产物数量/版本 + zip 内容 artifact 校验 | — |
 | `test_check_fractal_docs.py` | Gate | 分形 `_ARCH.md` + strict IOP 头（`fractal_header_baseline.txt`）+ api/ 无 stub | — |
+| `test_fractal_header_engine.py` | Gate | 头合成引擎：摘要来源优先级、`[INPUT]` 内部 import 解析、`[OUTPUT]` 公开符号（`__all__` / 折叠上限）、docstring 就地并入与原文保留、AST 指纹护栏、文本清洗（反斜杠 / 三引号） | — |
+| `test_fractal_arch_engine.py` | Gate | `_ARCH.md` 文本引擎：列语义推断、行插入（有序 / 追加）与陈旧行删除、无表时追加索引、新建 `_ARCH.md` 模板与父级子包行 | — |
+| `test_fix_fractal_docs.py` | Gate | 自助修复 CLI 端到端：dry-run 不落盘；`--write --all` 后真实门禁全绿且幂等；PATH 范围与参数错误（退出码 2）；baseline 豁免；写前并发保护；不可解析文件跳过；权限位保留；门禁失败提示 | — |
 | `test_file_line_limit.py` | Gate | 单文件行数 baseline grandfather（新文件≤500；legacy 登记只许瘦） | — |
 | `test_mixin_mro.py` | Gate | BrowserSession / ChatLiteLLM / OptimizationScheduler / SubagentExecutor / BashExecutor mixin MRO 顺序锁 | — |
 | `test_executor_reexport.py` | Gate | `sub_agents/executor.py` `__all__` 聚合 re-export 完整性 | — |
@@ -75,5 +78,6 @@ pytest tests/architecture/ -m "architecture and not slow"
 pytest tests/architecture/test_distribution_packaging.py -m "architecture and slow"
 uv run python scripts/check_fractal_docs.py
 uv run python scripts/validate_arch_inventory.py --root src/myrm_agent_harness
+uv run python scripts/fix_fractal_docs.py            # 上面两条变红时：dry-run 修复计划
 uv run python scripts/check_file_line_limit.py
 ```
