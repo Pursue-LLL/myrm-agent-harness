@@ -792,8 +792,25 @@ from .multimodal_budget import (
     MultiModalFileImageContextBudgetAndGuardianReviewSuite,
     MultiModalGuardianReviewer,
 )
+from .resumed_usage_meter import (
+    NetRunUsage,
+    NetRunUsageMeter,
+    RawTurnUsage,
+    ResumedSessionHistoryTokenExclusionAndNetRunUsageMeterSuite,
+    ResumptionBaseline,
+    SessionUsageSummary,
+    UsageBillingLedgerRecord,
+)
 
 __all__ = [
+    # resumed_usage_meter
+    "NetRunUsage",
+    "NetRunUsageMeter",
+    "RawTurnUsage",
+    "ResumedSessionHistoryTokenExclusionAndNetRunUsageMeterSuite",
+    "ResumptionBaseline",
+    "SessionUsageSummary",
+    "UsageBillingLedgerRecord",
     # multimodal_budget
     "GuardianReviewResult",
     "GuardianVerdictKind",
