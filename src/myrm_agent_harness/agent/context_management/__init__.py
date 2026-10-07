@@ -707,6 +707,17 @@ from .command_quiet_rewriter import (
     SubagentLogSinkEngine,
     SubagentLogSinkExecutionRecord,
 )
+from .cold_start_profiler import (
+    ColdStartContextProfile,
+    ColdStartContextProfilerAndOnDemandMcpMountSuite,
+    ColdStartContextProfilerEngine,
+    ContextComponentKind,
+    ContextComponentProfile,
+    McpMountMutationResult,
+    McpServerDescriptor,
+    McpServerMountState,
+    OnDemandMcpMountManager,
+)
 from .smart_idle_compactor import (
     CacheWindowStatus,
     CompactedCheckpointArchive,
@@ -721,6 +732,16 @@ from .smart_idle_compactor import (
 )
 
 __all__ = [
+    # cold_start_profiler
+    "ColdStartContextProfile",
+    "ColdStartContextProfilerAndOnDemandMcpMountSuite",
+    "ColdStartContextProfilerEngine",
+    "ContextComponentKind",
+    "ContextComponentProfile",
+    "McpMountMutationResult",
+    "McpServerDescriptor",
+    "McpServerMountState",
+    "OnDemandMcpMountManager",
     # smart_idle_compactor
     "CacheWindowStatus",
     "CompactedCheckpointArchive",
