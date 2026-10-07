@@ -768,8 +768,29 @@ from .portable_export import (
     PortableContextBundle,
     PortableContextItem,
 )
+from .checked_stream_reader import (
+    AntiSlopFilter,
+    AntiSlopFilterResult,
+    AntiSlopViolationKind,
+    CheckedSessionReplyStreamReader,
+    CheckedSessionReplyStreamReadersAndAntiSlopGovernanceSuite,
+    StreamChunkFrame,
+    StreamChunkKind,
+    StreamReaderMetrics,
+    StreamReaderState,
+)
 
 __all__ = [
+    # checked_stream_reader
+    "AntiSlopFilter",
+    "AntiSlopFilterResult",
+    "AntiSlopViolationKind",
+    "CheckedSessionReplyStreamReader",
+    "CheckedSessionReplyStreamReadersAndAntiSlopGovernanceSuite",
+    "StreamChunkFrame",
+    "StreamChunkKind",
+    "StreamReaderMetrics",
+    "StreamReaderState",
     # portable_export
     "AgentOwnershipPortableExportAndNoLockInSuite",
     "ContextArtifactKind",
