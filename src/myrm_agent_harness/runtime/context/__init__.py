@@ -492,6 +492,17 @@ from myrm_agent_harness.runtime.context.offload import (
     cleanup_session_context_files,
     create_compress_offload_callback,
 )
+from myrm_agent_harness.runtime.context.omniglyph_types import (
+    BypassReason,
+    OmniGlyphConfig,
+    RenderedGlyphPayload,
+    UltraFilterScore,
+    VisualChannelRoutingResult,
+)
+from myrm_agent_harness.runtime.context.omniglyph_visual_channel import (
+    OmniGlyphGovernor,
+    OmniGlyphVisualRenderer,
+)
 from myrm_agent_harness.runtime.context.orphaned_tool_healing_transform import (
     CanonicalMessageRole,
     CanonicalMessageTurn,
@@ -813,6 +824,9 @@ from myrm_agent_harness.runtime.context.tripartite_identity_anchor_types import 
     SoulPersonaAnchor,
     TripartiteContextAssembly,
     UserProfileContext,
+)
+from myrm_agent_harness.runtime.context.ultra_heuristic_filter import (
+    UltraHeuristicPreFilter,
 )
 from myrm_agent_harness.runtime.context.usage_ledger_attempt import (
     AttemptUsageItem,
@@ -1404,6 +1418,14 @@ __all__ = [
     "ContentRefAnchor",
     "DedupConfig",
     "DedupContentType",
+    "BypassReason",
+    "OmniGlyphConfig",
+    "RenderedGlyphPayload",
+    "UltraFilterScore",
+    "VisualChannelRoutingResult",
+    "OmniGlyphGovernor",
+    "OmniGlyphVisualRenderer",
+    "UltraHeuristicPreFilter",
 ]
 
 
