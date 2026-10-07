@@ -1230,6 +1230,19 @@ from myrm_agent_harness.runtime.context.virtual_paged_code_types import (
     PageSwapAudit,
     VirtualCodePage,
 )
+from myrm_agent_harness.runtime.context.voice_spec_extractor_types import (
+    SpecExtractionResult,
+    SpecModuleDefinition,
+    StructuredPlanSpec,
+    VoiceConsultantPhase,
+    VoiceTranscriptTurn,
+)
+from myrm_agent_harness.runtime.context.voice_transcript_buffer import (
+    VoiceTranscriptBuffer,
+)
+from myrm_agent_harness.runtime.context.voice_transcript_to_spec_extractor import (
+    VoiceTranscriptToSpecExtractor,
+)
 from myrm_agent_harness.runtime.context.working_set_rules_types import (
     ActiveWorkingSet,
     EntropyAuditReport,
@@ -2034,6 +2047,13 @@ __all__ = [
     "PipeBackPayload",
     "SessionForkManager",
     "InFlightSteerController",
+    "VoiceConsultantPhase",
+    "VoiceTranscriptTurn",
+    "SpecModuleDefinition",
+    "StructuredPlanSpec",
+    "SpecExtractionResult",
+    "VoiceTranscriptBuffer",
+    "VoiceTranscriptToSpecExtractor",
 ]
 
 
