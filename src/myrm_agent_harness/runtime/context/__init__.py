@@ -268,8 +268,23 @@ from myrm_agent_harness.runtime.context.cut_point_selector import (
     repair_tool_pairing_invariants,
     validate_tool_pairing_invariants,
 )
+from myrm_agent_harness.runtime.context.cwd_deferred_assembly_guard import (
+    CwdDeferredAssemblyGuard,
+)
+from myrm_agent_harness.runtime.context.cwd_deferred_assembly_types import (
+    AssemblyOrderViolationError,
+    AssemblyStageKind,
+    SessionMetadataHeader,
+    SessionResumeVerificationResult,
+    WorkspaceServiceDescriptor,
+)
 from myrm_agent_harness.runtime.context.default_lossless_lean_tail_compactor import (
     DefaultLosslessLeanTailCompactor,
+)
+from myrm_agent_harness.runtime.context.deferred_session_runtime_factory import (
+    AssembledRuntimeContainer,
+    DeferredSessionRuntimeFactory,
+    MockWorkspaceService,
 )
 from myrm_agent_harness.runtime.context.deterministic_prefix_cache_guard import (
     DeterministicPrefixCacheGuard,
@@ -1912,6 +1927,15 @@ __all__ = [
     "AsyncAckFrame",
     "KernelCommandRequest",
     "ReattachResumeRequest",
+    "CwdDeferredAssemblyGuard",
+    "AssemblyOrderViolationError",
+    "AssemblyStageKind",
+    "SessionMetadataHeader",
+    "SessionResumeVerificationResult",
+    "WorkspaceServiceDescriptor",
+    "AssembledRuntimeContainer",
+    "DeferredSessionRuntimeFactory",
+    "MockWorkspaceService",
 ]
 
 
