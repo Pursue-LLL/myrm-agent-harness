@@ -1,3 +1,18 @@
+"""Types and models for the already-told intent sentinel and instruction recall.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- RecallStatus: Status of the historical instruction recall attempt.
+- HistoricalTurnInput: Represents a single historical turn for instruction recall lookup.
+- ProvenanceCardPayload: Payload destined for UI provenance cards (WebUI / Desktop).
+- InstructionRecallResult: Complete diagnostic and injection result produced by AlreadyToldIntentSentinel.
+
+[POS]
+Types and models for the already-told intent sentinel and instruction recall.
+"""
+
 from __future__ import annotations
 
 from enum import StrEnum

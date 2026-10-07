@@ -2,6 +2,19 @@
 
 Part of Item 127: FullArchiveSearchableHistoryMetaTool.
 Provides models for archived historical conversation turns, search filters, and relevance results.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ArchiveMessageRoleKind: Origin role for an archived message in history.
+- ArchivedMessageRecord: Immutable record of an archived message turn.
+- ArchiveSearchFilter: Criteria to restrict historical dialogue search queries.
+- ArchiveSearchResultItem: Ranked search result item containing the archived record and match context.
+- ArchiveSearchResponse: Consolidated response delivered to the inquiring agent.
+
+[POS]
+Types and models for Full Archive Searchable History Meta-Tool.
 """
 
 from __future__ import annotations

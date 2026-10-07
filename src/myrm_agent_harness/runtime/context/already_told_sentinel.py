@@ -1,3 +1,19 @@
+"""Already-told intent sentinel: detects retrospective instruction references and recalls the original user instruction.
+
+[INPUT]
+- runtime.context.already_told_sentinel_types::HistoricalTurnInput, InstructionRecallResult,
+  ProvenanceCardPayload, RecallStatus (POS: Types and models for the already-told intent sentinel and
+  instruction recall.)
+
+[OUTPUT]
+- AlreadyToldIntentSentinel: Sentinel for detecting 'already told' retrospective intents and recalling
+  original user instructions.
+
+[POS]
+Already-told intent sentinel: detects retrospective instruction references and recalls the original user
+instruction.
+"""
+
 from __future__ import annotations
 
 import re
@@ -16,7 +32,9 @@ class AlreadyToldIntentSentinel:
     """Sentinel for detecting 'already told' retrospective intents and recalling original user instructions."""
 
     CHINESE_PATTERNS: ClassVar[list[re.Pattern[str]]] = [
-        re.compile(r"(我|你)?(刚才|刚|前面|之前|先前)(不是)?(都)?(已经)?(说过|讲过|交代过|提过|规定过|说了|讲了|交代了)"),
+        re.compile(
+            r"(我|你)?(刚才|刚|前面|之前|先前)(不是)?(都)?(已经)?(说过|讲过|交代过|提过|规定过|说了|讲了|交代了)"
+        ),
         re.compile(r"我(刚才|前面|之前)(不是)?(有|提|说|讲|交代)"),
         re.compile(r"(看|参考)(一下)?前(面)?(的)?(要求|约定|规定|内容)"),
         re.compile(r"按(照)?(原先|之前|前面)(说的)?办"),
@@ -40,12 +58,45 @@ class AlreadyToldIntentSentinel:
     ]
 
     CONSTRAINT_KEYWORDS: ClassVar[list[str]] = [
-        "不要", "别", "严禁", "禁止", "必须", "只能", "切勿", "don't", "must", "never", "only",
+        "不要",
+        "别",
+        "严禁",
+        "禁止",
+        "必须",
+        "只能",
+        "切勿",
+        "don't",
+        "must",
+        "never",
+        "only",
     ]
 
     STOP_WORDS: ClassVar[set[str]] = {
-        "the", "a", "an", "is", "are", "to", "in", "on", "of", "and", "or", "for", "with", "this", "that",
-        "as", "i", "you", "my", "your", "use", "using", "please", "we", "our",
+        "the",
+        "a",
+        "an",
+        "is",
+        "are",
+        "to",
+        "in",
+        "on",
+        "of",
+        "and",
+        "or",
+        "for",
+        "with",
+        "this",
+        "that",
+        "as",
+        "i",
+        "you",
+        "my",
+        "your",
+        "use",
+        "using",
+        "please",
+        "we",
+        "our",
     }
 
     def __init__(self, confidence_threshold: float = 0.5) -> None:

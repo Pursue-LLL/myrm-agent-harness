@@ -3,6 +3,17 @@
 Part of Item 129: NegativeDecisionAndRejectionReasonLedger.
 Provides immutable tracking of disqualified approaches, persistent failure rationale,
 protected uncompressible prompt constraints, and pre-flight plan interception.
+
+[INPUT]
+- runtime.context.negative_decision_ledger_types::AntiRegressionInterceptionResult, FailureRootCauseKind,
+  NegativeDecisionEntry (POS: Types and models for Negative Decision Ledger and Anti-Regression Protection.)
+
+[OUTPUT]
+- NegativeDecisionLedger: Thread-safe append-only ledger managing rejected solutions and anti-regression
+  guards.
+
+[POS]
+Engine for Negative Decision Ledger and Anti-Regression Protection.
 """
 
 from __future__ import annotations

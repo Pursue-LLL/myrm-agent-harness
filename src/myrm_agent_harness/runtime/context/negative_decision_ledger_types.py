@@ -3,6 +3,17 @@
 Part of Item 129: NegativeDecisionAndRejectionReasonLedger.
 Provides models for recording failed/rejected attempts, structural rejection rationale,
 and pre-flight anti-regression plan interception.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- FailureRootCauseKind: Categorization of why a proposed approach failed or was disqualified.
+- NegativeDecisionEntry: Immutable entry recording a failed or rejected solution attempt.
+- AntiRegressionInterceptionResult: Result of pre-flight plan check against negative decisions ledger.
+
+[POS]
+Types and models for Negative Decision Ledger and Anti-Regression Protection.
 """
 
 from __future__ import annotations

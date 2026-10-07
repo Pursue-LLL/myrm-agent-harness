@@ -3,6 +3,20 @@
 Part of Item 128: DialogueStateMachineAndPerStateAdaptiveContextOptimizationEngine.
 Provides models for 6-state dialogue classification, topic drift detection,
 two-stage token threshold tiers, and temporal relevance weighting.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- DialogueStateKind: Six canonical dialogue interaction states.
+- TokenGovernanceThresholdTier: Two-stage token budget governance tiers.
+- TopicDriftAssessment: Evaluation of semantic continuity vs topic drifting.
+- TurnStateAnnotation: Annotated state metadata for a single dialogue turn.
+- AdaptiveDialogueOptimizationConfig: Configuration for state-aware adaptive dialogue context optimization.
+- OptimizedDialogueContextResult: Result payload containing state annotations and optimized context.
+
+[POS]
+Types and models for Dialogue State Machine and Adaptive Context Optimization.
 """
 
 from __future__ import annotations

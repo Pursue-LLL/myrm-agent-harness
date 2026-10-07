@@ -3,6 +3,23 @@
 Part of Item 127: FullArchiveSearchableHistoryMetaTool.
 Provides immutable historical dialogue recording, semantic and keyword recall,
 and the callable search_session_archive meta-tool for retrieving historical dialogue.
+
+[INPUT]
+- runtime.context.session_archive_search_types::ArchiveMessageRoleKind, ArchiveSearchFilter,
+  ArchiveSearchResponse, ArchiveSearchResultItem, ArchivedMessageRecord (POS: Types and models for Full
+  Archive Searchable History Meta-Tool.)
+- utils.locale::is_chinese (POS: Shared locale utilities consumed by channel i18n, error diagnostics, and
+  component text fallbacks. Single source of truth for locale string handling.)
+
+[OUTPUT]
+- SessionArchiveRepositoryProtocol: Protocol for persisting and querying archived message records.
+- InMemorySessionArchiveStore: Thread-safe append-only in-memory archive store for session dialogues.
+- SessionArchiveSearchEngine: Core search engine indexing and ranking archived dialogue messages.
+- create_search_session_archive_tool(): Factory creating the callable search_session_archive Meta-Tool for
+  agents.
+
+[POS]
+Engine and Meta-Tool Factory for Session Archive Search.
 """
 
 from __future__ import annotations
@@ -122,7 +139,7 @@ class SessionArchiveSearchEngine:
                 if pos != -1:
                     break
         if pos == -1:
-            return text[:context_window * 2].strip() + ("..." if len(text) > context_window * 2 else "")
+            return text[: context_window * 2].strip() + ("..." if len(text) > context_window * 2 else "")
 
         start = max(0, pos - context_window)
         end = min(len(text), pos + len(query) + context_window)
@@ -188,9 +205,7 @@ def create_search_session_archive_tool(
     locale: str = "en",
 ) -> BaseTool:
     """Factory creating the callable search_session_archive Meta-Tool for agents."""
-    description = (
-        SEARCH_SESSION_ARCHIVE_DESC_ZH if is_chinese(locale) else SEARCH_SESSION_ARCHIVE_DESC_EN
-    )
+    description = SEARCH_SESSION_ARCHIVE_DESC_ZH if is_chinese(locale) else SEARCH_SESSION_ARCHIVE_DESC_EN
 
     @tool("search_session_archive", description=description)
     def search_session_archive(

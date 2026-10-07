@@ -2,6 +2,19 @@
 
 Part of Item 126: SessionHandoffCleanWindowContinuationEngine.
 Provides models for 8-part structured handoff memos, phase states, and clean-window continuation bundles.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- HandoffPhaseKind: Lifecycle phase of a session handoff process.
+- HandoffTriggerReason: Reason triggering the clean-window continuation handoff.
+- RejectedAlternativeRecord: Record of an approach that failed or was disqualified, preventing re-attempts.
+- StructuredHandoffMemo: Eight-part structured handoff memorandum passed to a fresh context window.
+- CleanWindowContinuationBundle: Immutable bundle ready to prime a clean successor context window.
+
+[POS]
+Types and models for Session Handoff and Clean Window Continuation.
 """
 
 from __future__ import annotations
@@ -52,7 +65,9 @@ class StructuredHandoffMemo(BaseModel):
     trigger_reason: HandoffTriggerReason = Field(description="Why this handoff was initiated")
     current_objective: str = Field(description="Primary task objective remaining to be completed")
     completed_milestones: list[str] = Field(default_factory=list, description="Milestones successfully concluded")
-    active_hypotheses: list[str] = Field(default_factory=list, description="Currently active assumptions and hypotheses")
+    active_hypotheses: list[str] = Field(
+        default_factory=list, description="Currently active assumptions and hypotheses"
+    )
     rejected_alternatives: list[RejectedAlternativeRecord] = Field(
         default_factory=list,
         description="Approaches attempted that failed or were rejected; must NOT be re-attempted",

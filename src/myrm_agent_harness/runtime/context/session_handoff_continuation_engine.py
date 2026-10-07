@@ -3,6 +3,21 @@
 Part of Item 126: SessionHandoffCleanWindowContinuationEngine.
 Coordinates handoff state machines, compiles 8-part structured handoff memos into
 clean-window priming bundles, and prevents historical regression / secondary pitfall falls.
+
+[INPUT]
+- runtime.context.session_handoff_continuation_types::CleanWindowContinuationBundle, HandoffPhaseKind,
+  HandoffTriggerReason, StructuredHandoffMemo (POS: Types and models for Session Handoff and Clean Window
+  Continuation.)
+- utils.token_estimation::estimate_content_tokens (POS: Token estimation infrastructure. Covers
+  message-level tokens and bind-tools overhead for context budget / compress / summarize decisions. Aligns
+  with measure_turn1_token_inventory planning SSOT.)
+
+[OUTPUT]
+- SessionHandoffContinuationEngine: Stateful coordinator governing session handoffs and fresh-window
+  bootstrap bundles.
+
+[POS]
+Engine for Session Handoff and Clean Window Continuation.
 """
 
 from __future__ import annotations
@@ -88,20 +103,24 @@ class SessionHandoffContinuationEngine:
         else:
             lines.append("- *(None recorded)*")
 
-        lines.extend([
-            "",
-            "## 3. Active Hypotheses & State",
-        ])
+        lines.extend(
+            [
+                "",
+                "## 3. Active Hypotheses & State",
+            ]
+        )
         if memo.active_hypotheses:
             for hyp in memo.active_hypotheses:
                 lines.append(f"- {hyp}")
         else:
             lines.append("- *(No unresolved hypotheses)*")
 
-        lines.extend([
-            "",
-            "## 4. Rejected Alternatives & Disqualifications (DO NOT RE-ATTEMPT)",
-        ])
+        lines.extend(
+            [
+                "",
+                "## 4. Rejected Alternatives & Disqualifications (DO NOT RE-ATTEMPT)",
+            ]
+        )
         if memo.rejected_alternatives:
             for alt in memo.rejected_alternatives:
                 lines.append(
@@ -112,53 +131,63 @@ class SessionHandoffContinuationEngine:
         else:
             lines.append("- *(No approaches marked as disqualified)*")
 
-        lines.extend([
-            "",
-            "## 5. Critical Constraints & Principles",
-        ])
+        lines.extend(
+            [
+                "",
+                "## 5. Critical Constraints & Principles",
+            ]
+        )
         if memo.critical_constraints:
             for constraint in memo.critical_constraints:
                 lines.append(f"- 🛑 {constraint}")
         else:
             lines.append("- *(Standard system constraints apply)*")
 
-        lines.extend([
-            "",
-            "## 6. Actionable Next Steps",
-        ])
+        lines.extend(
+            [
+                "",
+                "## 6. Actionable Next Steps",
+            ]
+        )
         if memo.next_action_plan:
             for idx, step in enumerate(memo.next_action_plan, 1):
                 lines.append(f"{idx}. {step}")
         else:
             lines.append("1. Await explicit user prompt.")
 
-        lines.extend([
-            "",
-            "## 7. Modified Files & Artifacts",
-        ])
+        lines.extend(
+            [
+                "",
+                "## 7. Modified Files & Artifacts",
+            ]
+        )
         if memo.modified_files_and_artifacts:
             for path in memo.modified_files_and_artifacts:
                 lines.append(f"- `{path}`")
         else:
             lines.append("- *(No persistent files recorded)*")
 
-        lines.extend([
-            "",
-            "## 8. External State Anchors",
-        ])
+        lines.extend(
+            [
+                "",
+                "## 8. External State Anchors",
+            ]
+        )
         if memo.external_state_anchors:
             for k, v in memo.external_state_anchors.items():
                 lines.append(f"- `{k}`: {v}")
         else:
             lines.append("- *(None)*")
 
-        lines.extend([
-            "",
-            "</session_handoff_context>",
-            "You are resuming work from a clean context window. "
-            "Adopt the objective above, strictly respect the rejected alternatives, "
-            "and execute the next action plan immediately.",
-        ])
+        lines.extend(
+            [
+                "",
+                "</session_handoff_context>",
+                "You are resuming work from a clean context window. "
+                "Adopt the objective above, strictly respect the rejected alternatives, "
+                "and execute the next action plan immediately.",
+            ]
+        )
 
         return "\n".join(lines)
 
@@ -172,9 +201,7 @@ class SessionHandoffContinuationEngine:
         with self._lock:
             phase = self._phases.get(handoff_id)
             if phase != HandoffPhaseKind.READY_FOR_SHIFT:
-                raise ValueError(
-                    f"Cannot generate bundle in phase '{phase}'; memo must be submitted first."
-                )
+                raise ValueError(f"Cannot generate bundle in phase '{phase}'; memo must be submitted first.")
             memo = self._memos[handoff_id]
 
         prompt = self.compile_bootstrap_prompt(memo)

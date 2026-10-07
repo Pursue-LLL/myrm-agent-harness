@@ -2,6 +2,18 @@
 
 Part of Item 125: InspectContextCognitiveGaugeMetaTool.
 Provides strong typed cognitive budget snapshots, urgency tiers, and action guidance.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ContextUrgencyLevel: Urgency tier reflecting remaining context capacity.
+- CognitiveActionGuidance: Recommended behavioral guidance based on cognitive headroom.
+- CognitiveGaugeConfig: Configuration thresholds for context cognitive gauge evaluation.
+- ContextCognitiveSnapshot: Immutable real-time cognitive capacity snapshot of the agent.
+
+[POS]
+Types and models for Context Cognitive Gauge and Agent Context Self-Awareness.
 """
 
 from __future__ import annotations

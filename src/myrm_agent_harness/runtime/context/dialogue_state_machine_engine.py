@@ -3,6 +3,21 @@
 Part of Item 128: DialogueStateMachineAndPerStateAdaptiveContextOptimizationEngine.
 Implements 6-state dialogue classification, topic drift detection, two-tier token pruning,
 and temporal relevance decay.
+
+[INPUT]
+- runtime.context.dialogue_state_machine_types::AdaptiveDialogueOptimizationConfig, DialogueStateKind,
+  OptimizedDialogueContextResult, TokenGovernanceThresholdTier, TopicDriftAssessment, TurnStateAnnotation
+  (POS: Types and models for Dialogue State Machine and Adaptive Context Optimization.)
+- utils.token_estimation::estimate_context_tokens (POS: Token estimation infrastructure. Covers
+  message-level tokens and bind-tools overhead for context budget / compress / summarize decisions. Aligns
+  with measure_turn1_token_inventory planning SSOT.)
+
+[OUTPUT]
+- DialogueStateMachine: Classifies conversation state and assesses topic continuity.
+- AdaptiveContextOptimizer: Coordinates two-stage token thresholds and state-aware context optimization.
+
+[POS]
+Engine for Dialogue State Machine and Per-State Adaptive Context Optimization.
 """
 
 from __future__ import annotations
@@ -28,29 +43,109 @@ from myrm_agent_harness.utils.token_estimation import estimate_context_tokens
 logger = logging.getLogger(__name__)
 
 STOP_WORDS: Final[set[str]] = {
-    "a", "an", "the", "in", "on", "at", "for", "to", "of", "and", "or",
-    "is", "are", "was", "were", "be", "been", "with", "as", "by", "from",
-    "的", "了", "和", "是", "就", "在", "也", "有", "我", "你", "他", "她", "它",
+    "a",
+    "an",
+    "the",
+    "in",
+    "on",
+    "at",
+    "for",
+    "to",
+    "of",
+    "and",
+    "or",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "been",
+    "with",
+    "as",
+    "by",
+    "from",
+    "的",
+    "了",
+    "和",
+    "是",
+    "就",
+    "在",
+    "也",
+    "有",
+    "我",
+    "你",
+    "他",
+    "她",
+    "它",
 }
 
 PRONOUN_ANCHORS: Final[set[str]] = {
-    "it", "this", "that", "these", "those", "they", "them",
-    "这", "这个", "这款", "它", "它们", "该", "这些", "那些", "上述",
+    "it",
+    "this",
+    "that",
+    "these",
+    "those",
+    "they",
+    "them",
+    "这",
+    "这个",
+    "这款",
+    "它",
+    "它们",
+    "该",
+    "这些",
+    "那些",
+    "上述",
 }
 
 TERMINAL_SIGNALS: Final[set[str]] = {
-    "bye", "goodbye", "done", "finished", "all set", "thanks, that's all",
-    "再见", "完成", "搞定", "谢谢完成", "就这样", "结束", "任务完成",
+    "bye",
+    "goodbye",
+    "done",
+    "finished",
+    "all set",
+    "thanks, that's all",
+    "再见",
+    "完成",
+    "搞定",
+    "谢谢完成",
+    "就这样",
+    "结束",
+    "任务完成",
 }
 
 SUPPLEMENT_SIGNALS: Final[set[str]] = {
-    "also", "additionally", "furthermore", "besides", "one more thing",
-    "另外", "补充", "还有", "还要", "额外要求", "再加一个",
+    "also",
+    "additionally",
+    "furthermore",
+    "besides",
+    "one more thing",
+    "另外",
+    "补充",
+    "还有",
+    "还要",
+    "额外要求",
+    "再加一个",
 }
 
 CHATTER_PATTERNS: Final[set[str]] = {
-    "hi", "hello", "hey", "ok", "okay", "thanks", "thank you", "got it", "cool",
-    "你好", "您好", "哈喽", "收到", "好的", "明白", "多谢", "谢谢",
+    "hi",
+    "hello",
+    "hey",
+    "ok",
+    "okay",
+    "thanks",
+    "thank you",
+    "got it",
+    "cool",
+    "你好",
+    "您好",
+    "哈喽",
+    "收到",
+    "好的",
+    "明白",
+    "多谢",
+    "谢谢",
 }
 
 
@@ -178,9 +273,11 @@ class DialogueStateMachine:
         # 3. Clarification disambiguation check
         # If previous message from assistant ended with a question, user turn is replying to clarification
         last_msg = messages[-1] if messages else None
-        is_clarification = (
-            isinstance(last_msg, AIMessage)
-            and ("?" in str(last_msg.content) or "？" in str(last_msg.content) or "请问" in str(last_msg.content) or "确认" in str(last_msg.content))
+        is_clarification = isinstance(last_msg, AIMessage) and (
+            "?" in str(last_msg.content)
+            or "？" in str(last_msg.content)
+            or "请问" in str(last_msg.content)
+            or "确认" in str(last_msg.content)
         )
         if is_clarification:
             return TurnStateAnnotation(

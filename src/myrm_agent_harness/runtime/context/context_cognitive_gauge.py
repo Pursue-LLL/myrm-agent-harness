@@ -3,6 +3,23 @@
 Part of Item 125: InspectContextCognitiveGaugeMetaTool.
 Provides real-time cognitive capacity inspection, dynamic headroom estimation,
 and the callable inspect_context meta-tool for autonomous agent regulation.
+
+[INPUT]
+- runtime.context.context_cognitive_gauge_types::CognitiveActionGuidance, CognitiveGaugeConfig,
+  ContextCognitiveSnapshot, ContextUrgencyLevel (POS: Types and models for Context Cognitive Gauge and Agent
+  Context Self-Awareness.)
+- utils.locale::is_chinese (POS: Shared locale utilities consumed by channel i18n, error diagnostics, and
+  component text fallbacks. Single source of truth for locale string handling.)
+- utils.token_estimation::estimate_context_tokens (POS: Token estimation infrastructure. Covers
+  message-level tokens and bind-tools overhead for context budget / compress / summarize decisions. Aligns
+  with measure_turn1_token_inventory planning SSOT.)
+
+[OUTPUT]
+- ContextCognitiveGauge: Core engine evaluating agent cognitive headroom and context burn rate.
+- create_inspect_context_tool(): Factory creating the inspect_context Meta-Tool for agent integration.
+
+[POS]
+Engine and Meta-Tool Factory for Context Cognitive Gauge and Agent Self-Awareness.
 """
 
 from __future__ import annotations
