@@ -396,6 +396,14 @@ from .session_search import (
     SessionSearchResult,
     SessionSearchScope,
 )
+from .context_pivot import (
+    ArchivedContextSnapshot,
+    ContextPivotConfig,
+    ContextPivotResult,
+    HandoffScratchpad,
+    LosslessContextPivotEngine,
+    PivotTriggerKind,
+)
 
 __all__ = [
     # active_compression
@@ -439,6 +447,13 @@ __all__ = [
     "ContextDietConfig",
     "ContextDietEngine",
     "DistilledSkillCard",
+    # context_pivot
+    "ArchivedContextSnapshot",
+    "ContextPivotConfig",
+    "ContextPivotResult",
+    "HandoffScratchpad",
+    "LosslessContextPivotEngine",
+    "PivotTriggerKind",
     # demand_hydration
     "DemandHydrationConfig",
     "HydratedContextEnvelope",
