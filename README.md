@@ -588,12 +588,12 @@ result = await executor.execute(code, context)
 # 克隆和设置
 git clone <repo-url>
 cd myrm-agent-harness
-python3.13 -m venv .venv
+uv venv --python 3.13
 source .venv/bin/activate
-uv sync --all-extras
+uv pip install -e ".[all]" --group dev
 
-# 源码开发请用 `.venv/bin/python` / `pytest`（勿裸 `uv run`：默认 extras 含 compiled-core，
-# 本地未发布平台 wheel 时 `uv run` 会解析失败）
+# 勿用 `uv sync` / 裸 `uv run`：二者会解析全部 extras（含 compiled-core*），其引脚要求对应版本的
+# 平台 wheel 已发布，未发布时解析失败；源码开发直接用 `.venv/bin/python` / `pytest`
 
 # ⚠️ 重要：安装 pre-commit（自动化边界检测）
 pip install pre-commit

@@ -43,7 +43,7 @@ Real Chromium tests under `tests/toolkits/browser/` must carry `integration` or 
 
 | Profile | Command | Notes |
 |---------|---------|-------|
-| Monorepo default | `./myrm test -n0 <path>`（open-perplexity 根） | 禁止 `uv run pytest`；harness gate 自愈 editable |
+| Monorepo default | `./myrm test -n0 <path>`（open-perplexity 根） | 禁止裸 `uv run pytest`（会解析 `compiled-core*`；CI 用 `uv run --no-sync`）；harness gate 自愈 editable |
 | Monorepo integration | `./myrm test -m integration <path>` | 默认 addopts 排除 integration |
 | Local default (harness-only) | `pytest` (addopts apply filter automatically) | Serial; ~300–500MB typical peak (darwin arm64, 2026-06) |
 | Full suite | `pytest -m ""` | All markers including integration/e2e/performance |
