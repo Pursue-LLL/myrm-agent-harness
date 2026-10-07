@@ -231,6 +231,14 @@ from myrm_agent_harness.toolkits.memory.external_providers import (
     SupersedesLineageManager,
     SupersedesRecord,
 )
+from myrm_agent_harness.toolkits.memory.four_tier_fts import (
+    DreamCompactionReport,
+    FourTierDreamCompactor,
+    FourTierMemoryItem,
+    FtsSearchResult,
+    MemoryScope,
+    SqliteFts5MemoryEngine,
+)
 from myrm_agent_harness.toolkits.memory.governance import (
     AssembledMemoryContext,
     ConflictResolver,
@@ -459,7 +467,6 @@ from myrm_agent_harness.toolkits.memory.repair import (
     StaleEntryPruner,
     StalePrunePolicy,
 )
-from myrm_agent_harness.toolkits.memory.retriever import MemoryRetriever
 from myrm_agent_harness.toolkits.memory.revocable_provenance import (
     DreamDiaryRecorder,
     ForgetResult,
@@ -630,6 +637,12 @@ from myrm_agent_harness.toolkits.memory.zero_hallucination import (
 )
 
 __all__ = [
+    "DreamCompactionReport",
+    "FourTierDreamCompactor",
+    "FourTierMemoryItem",
+    "FtsSearchResult",
+    "MemoryScope",
+    "SqliteFts5MemoryEngine",
     "DreamDiaryRecorder",
     "ForgetResult",
     "ProvenanceDreamDiaryEntry",
