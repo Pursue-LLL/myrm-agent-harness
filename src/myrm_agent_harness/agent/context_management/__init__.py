@@ -177,6 +177,18 @@ from .owner_fencing import (
     SessionOwnerLease,
     SessionQuiesceState,
 )
+from .session_commit import (
+    CommitJobStatus,
+    CommitTriggerReason,
+    ExperienceLearningItem,
+    Phase1SnapshotResult,
+    ProjectGuidelineItem,
+    SessionCommitJob,
+    SessionCommitPolicyConfig,
+    TriDimensionalDistillationResult,
+    TwoPhaseSessionCommitEngine,
+    UserPreferenceItem,
+)
 from .worktree_isolation import (
     SessionWorktreeBinding,
     WorktreeDescriptor,
@@ -255,6 +267,17 @@ __all__ = [
     "FencingConfig",
     "SessionOwnerLease",
     "SessionQuiesceState",
+    # session_commit
+    "CommitJobStatus",
+    "CommitTriggerReason",
+    "ExperienceLearningItem",
+    "Phase1SnapshotResult",
+    "ProjectGuidelineItem",
+    "SessionCommitJob",
+    "SessionCommitPolicyConfig",
+    "TriDimensionalDistillationResult",
+    "TwoPhaseSessionCommitEngine",
+    "UserPreferenceItem",
     # worktree_isolation
     "SessionWorktreeBinding",
     "WorktreeDescriptor",
