@@ -555,6 +555,14 @@ from myrm_agent_harness.toolkits.memory.peer_gateway import (
     PeerBoundaryCheckResult,
     ResolvedPeerIdentity,
 )
+from myrm_agent_harness.toolkits.memory.tiered_consensus import (
+    ConsensusAuditLog,
+    ConsensusScopeTier,
+    ProposalStatus,
+    TieredConsensusManager,
+    TieredMemoryRecord,
+    compute_content_fingerprint,
+)
 from myrm_agent_harness.toolkits.memory.prompt_cache_guard import (
     AtomicReplacePayload,
     CapacityLimitConfig,
@@ -1574,6 +1582,12 @@ __all__ = [
     "HashEscalationEngine",
     "PeerBoundaryCheckResult",
     "ResolvedPeerIdentity",
+    "ConsensusAuditLog",
+    "ConsensusScopeTier",
+    "ProposalStatus",
+    "TieredConsensusManager",
+    "TieredMemoryRecord",
+    "compute_content_fingerprint",
 ]
 
 
