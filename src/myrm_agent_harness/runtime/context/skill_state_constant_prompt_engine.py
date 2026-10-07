@@ -1,3 +1,18 @@
+"""Constant prompt engine maintaining explicit state table instead of growing history.
+
+[INPUT]
+- runtime.context.skill_state_patch_governor::JsonMergePatchGovernor
+- runtime.context.skill_state_types::AuditLogEventRecord, ConstantPromptTuple, PrebuiltStateSchemaKind,
+  RetroactiveProbeQuery, RetroactiveProbeResult, clone_state, get_default_schema_state
+
+[OUTPUT]
+- SkillStateConstantPromptEngine: Constant prompt engine maintaining explicit state table instead of growing
+  history.
+
+[POS]
+Constant prompt engine maintaining explicit state table instead of growing history.
+"""
+
 from __future__ import annotations
 
 import datetime

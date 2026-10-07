@@ -1,3 +1,27 @@
+"""Aggregates Active Workbench (Layer 1), Session Notes & Ledger (Layer 2), and Archive Vault (Layer 3).
+
+[INPUT]
+- agent.artifacts.work_notes_syncer_types::WorkNotesSnapshot (POS: Types and models for workspace work notes
+  and progress file synchronization.)
+- runtime.context.context_cognitive_gauge_types::ContextCognitiveSnapshot (POS: Types and models for Context
+  Cognitive Gauge and Agent Context Self-Awareness.)
+- runtime.context.negative_decision_ledger::NegativeDecisionLedger (POS: Engine for Negative Decision Ledger
+  and Anti-Regression Protection.)
+- runtime.context.session_archive_search_engine::SessionArchiveRepositoryProtocol (POS: Engine and Meta-Tool
+  Factory for Session Archive Search.)
+- runtime.context.session_archive_search_types::ArchiveSearchFilter (POS: Types and models for Full Archive
+  Searchable History Meta-Tool.)
+- runtime.context.three_tier_memory_funnel_types::ActiveWorkbenchStatus, SearchableArchiveStatus,
+  StageNotesAndLedgerStatus, ThreeTierMemoryFunnelSnapshot
+
+[OUTPUT]
+- ThreeTierMemoryFunnelAggregator: Aggregates Active Workbench (Layer 1), Session Notes & Ledger (Layer 2),
+  and Archive Vault (Layer 3).
+
+[POS]
+Aggregates Active Workbench (Layer 1), Session Notes & Ledger (Layer 2), and Archive Vault (Layer 3).
+"""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

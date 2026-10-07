@@ -1,3 +1,20 @@
+"""Types and models for three tier memory funnel.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ActiveWorkbenchStatus: Layer 1: Real-time active workbench capacity and cognitive gauge status.
+- StageNotesAndLedgerStatus: Layer 2: Stage session notes, progress milestones, and negative anti-regression
+  ledger.
+- SearchableArchiveStatus: Layer 3: Immutable searchable historical conversation archive vault.
+- ThreeTierMemoryFunnelSnapshot: Unified Three-Tier Cognitive Memory Funnel snapshot combining Workbench,
+  Notes, and Archive.
+
+[POS]
+Types and models for three tier memory funnel.
+"""
+
 from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -12,7 +29,9 @@ class ActiveWorkbenchStatus(BaseModel):
     current_tokens: int = Field(default=0, ge=0, description="Tokens currently consumed")
     token_limit: int = Field(default=128_000, gt=0, description="Maximum token headroom limit")
     capacity_percentage: float = Field(default=0.0, ge=0.0, le=100.0, description="Token consumption percentage")
-    urgency_level: str = Field(default="nominal", description="Cognitive gauge urgency (nominal, converging, critical, exhausted)")
+    urgency_level: str = Field(
+        default="nominal", description="Cognitive gauge urgency (nominal, converging, critical, exhausted)"
+    )
     guidance: str = Field(default="EXPLORE_FREELY", description="Action guidance based on headroom")
 
 

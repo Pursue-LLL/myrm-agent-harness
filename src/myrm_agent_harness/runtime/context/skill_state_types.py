@@ -1,3 +1,22 @@
+"""Types and models for skill state.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- PrebuiltStateSchemaKind: Five standard industrial-grade pre-built state schemas.
+- ConstantPromptTuple: Core constant prompt tuple (P + Sigma_t + O_t) for SKILL.state runtime.
+- StateMergePatch: RFC 7386 JSON Merge Patch payload with optional schema target and rationale.
+- AuditLogEventRecord: Immutable audit record stored in background append-only log.
+- RetroactiveProbeQuery: Query parameter for retroactive observation retrieval probe.
+- RetroactiveProbeResult: Result returned by the retroactive audit probe.
+- get_default_schema_state(): Factory creating initial state tables for the 5 industrial standard schemas.
+- clone_state(): Create a deep copy of a state table dictionary.
+
+[POS]
+Types and models for skill state.
+"""
+
 from __future__ import annotations
 
 import copy
@@ -32,9 +51,7 @@ class ConstantPromptTuple:
             f"<skill_state_table>\n{state_json}\n</skill_state_table>",
         ]
         if self.latest_observation is not None:
-            parts.append(
-                f"<latest_observation>\n{self.latest_observation.strip()}\n</latest_observation>"
-            )
+            parts.append(f"<latest_observation>\n{self.latest_observation.strip()}\n</latest_observation>")
         return "\n\n".join(parts)
 
 

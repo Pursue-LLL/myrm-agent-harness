@@ -252,6 +252,9 @@ Context lifecycle management — cleanup, config, metrics, tracking, reading, of
 | session_state_delta_types.py | Types | Types and schemas for session state diff delta protocol and explicit invalidation. | ✅ |
 | session_tree_navigator.py | Core | Delivers audit-grade conversation branching, time travel navigation, and branch summary reconciliation. | ✅ |
 | single_kernel_transport_types.py | Types | Type contracts for single-kernel multi-transport decoupling and async-ack RPC protocol. | ✅ |
+| skill_state_constant_prompt_engine.py | Core | Constant prompt engine maintaining explicit state table instead of growing history. | ✅ |
+| skill_state_patch_governor.py | Core | Pure RFC 7386 JSON Merge Patch implementation. | ✅ |
+| skill_state_types.py | Types | Types and models for skill state. | ✅ |
 | sliding_window_session_lifecycle.py | Core | Adaptive inactivity sliding window session lifecycle manager and KV cache keeper. | ✅ |
 | sliding_window_session_lifecycle_types.py | Types | Types and data contracts for sliding window session lifecycle and KV cache keeper. | ✅ |
 | social_work_context_graph.py | Core | Social Collaboration Graph and Cross-Application Work Context Engine. | ✅ |
@@ -264,6 +267,8 @@ Context lifecycle management — cleanup, config, metrics, tracking, reading, of
 | tail_deferred_overflow_types.py | Types | Tail-only context append and disambiguated overflow types. | ✅ |
 | tail_deferred_write_queue.py | Core | Tail-only context append and deferred write queue. | ✅ |
 | theme_palette_synthesizer.py | Core | Core palette synthesis engine supporting WCAG contrast safety and XSS protection. | ✅ |
+| three_tier_memory_funnel_aggregator.py | Core | Aggregates Active Workbench (Layer 1), Session Notes & Ledger (Layer 2), and Archive Vault (Layer 3). | ✅ |
+| three_tier_memory_funnel_types.py | Types | Types and models for three tier memory funnel. | ✅ |
 | tiered_context_compression_pipeline.py | Core | Four-Tier Progressive Context Compression Pipeline. | ✅ |
 | tiered_token_compression_governor.py | Core | Tiered token compression governor with reasoning preservation and budget enforcement. | ✅ |
 | token_estimator.py | Core | Provides high-throughput, drift-free token estimation anchored on provider billing data for context management decisions. | ✅ |

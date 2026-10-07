@@ -1,3 +1,16 @@
+"""Pure RFC 7386 JSON Merge Patch implementation.
+
+[INPUT]
+- runtime.context.skill_state_types::PrebuiltStateSchemaKind, clone_state
+
+[OUTPUT]
+- apply_rfc7386_merge_patch(): Pure RFC 7386 JSON Merge Patch implementation.
+- JsonMergePatchGovernor: Governor and validation gate for deterministic state patches.
+
+[POS]
+Pure RFC 7386 JSON Merge Patch implementation.
+"""
+
 from __future__ import annotations
 
 import copy
@@ -93,7 +106,9 @@ class JsonMergePatchGovernor:
                 return False, "cart_items must be a list or None"
 
         elif active_schema == PrebuiltStateSchemaKind.CODING_BUGFIX_LOOP:
-            if "reproducing_test_passed" in patch and not isinstance(patch["reproducing_test_passed"], (bool, type(None))):
+            if "reproducing_test_passed" in patch and not isinstance(
+                patch["reproducing_test_passed"], (bool, type(None))
+            ):
                 return False, "reproducing_test_passed must be a boolean or None"
 
         return True, None
