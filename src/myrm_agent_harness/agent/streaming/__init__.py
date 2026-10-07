@@ -1,4 +1,4 @@
-"""Streaming and checkpoint utilities for Myrm Agent Harness."""
+"""Streaming utilities for Myrm Agent Harness."""
 
 from .graceful_interruption_types import (
     GracefulInterruptionReport,
@@ -8,12 +8,6 @@ from .graceful_interruption_types import (
 )
 from .graceful_turn_interrupter import GracefulTurnInterrupter
 from .partial_artifact_flush_pipeline import PartialArtifactFlushPipeline
-from .resume_checkpoint import (
-    StreamBreakpoint,
-    build_stream_continuation_instruction,
-    capture_stream_breakpoint,
-    clean_duplicate_prefix,
-)
 from .turn_outline import (
     TurnOutlineExtractor,
     TurnOutlineItem,
@@ -21,10 +15,6 @@ from .turn_outline import (
 )
 
 __all__ = [
-    "StreamBreakpoint",
-    "capture_stream_breakpoint",
-    "clean_duplicate_prefix",
-    "build_stream_continuation_instruction",
     "TurnOutlineItem",
     "TurnOutlineProjection",
     "TurnOutlineExtractor",

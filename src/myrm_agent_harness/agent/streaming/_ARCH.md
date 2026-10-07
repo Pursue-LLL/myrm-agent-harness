@@ -18,7 +18,6 @@
 | `model_discipline.py` | 核心 | 模型执行纪律与模型家族行为调优提示词体系（层级化 Tool 引导与反幻觉） |
 | `reasoning_scrubber.py` | 核心 | 模型思考推理标签（`<think>`等）状态机清洗与独立事件重定向 |
 | `repetition_scrubber.py` | 核心 | 模型退化重复循环实时检测与流式熔断保护 |
-| `resume_checkpoint.py` | 核心 | 流式安全断点抓取、字符级去重清洗、Prompt 缓存无损续传引导词生成 |
 | `rules/` | 核心 | 时间旅行流规则与零 Token 税引擎（TTSR：强类型规则定义、128 字符滑动窗口正则匹配、PartialJson 流式解转义与有界熔断调度） |
 | `run_digest.py` | 核心 | 智能体实时执行快照 DTO 与步骤信息归纳聚合器 |
 | `source_tracker.py` | 核心 | 会话级引用信息源追踪、全局去重编号与增量分发 |
