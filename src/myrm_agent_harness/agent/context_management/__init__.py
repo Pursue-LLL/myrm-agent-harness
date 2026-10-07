@@ -380,6 +380,14 @@ from .revocation_eviction import (
     SanitizationOutcome,
     TaintedContentBlock,
 )
+from .midflight_steering import (
+    MidFlightDirective,
+    MidFlightSteeringCoordinator,
+    SteeringDirectiveStatus,
+    SteeringExecutionTelemetry,
+    SteeringInjectionEnvelope,
+    SteeringIntentKind,
+)
 
 __all__ = [
     # active_compression
@@ -615,6 +623,13 @@ __all__ = [
     "RevocationScopeKind",
     "SanitizationOutcome",
     "TaintedContentBlock",
+    # midflight_steering
+    "MidFlightDirective",
+    "MidFlightSteeringCoordinator",
+    "SteeringDirectiveStatus",
+    "SteeringExecutionTelemetry",
+    "SteeringInjectionEnvelope",
+    "SteeringIntentKind",
     # schemas
     "BUILTIN_PROTECTED_TOOLS",
     "COMPACT_RULES",
