@@ -147,6 +147,22 @@ from myrm_agent_harness.runtime.context.cli_dry_run_protocol import (
     BestSourceSelector,
     CliDryRunDiscoveryProtocol,
 )
+from myrm_agent_harness.runtime.context.client_theme_injection_engine import (
+    AgentSelfReflectiveThemeEngine,
+)
+from myrm_agent_harness.runtime.context.client_theme_injection_types import (
+    ClientPlatformKind,
+    ClientThemeSurfaceCapabilities,
+    SynthesizedThemePalette,
+    ThemeFontId,
+    ThemeInjectionRecord,
+    ThemeLayoutId,
+    ThemeMediaKind,
+    ThemeMutationStatus,
+    ThemePosterArtConfig,
+    ThemePreinitSnapshotPayload,
+    ThemeRecipeDescriptor,
+)
 from myrm_agent_harness.runtime.context.code_context_pager import (
     CodeContextPager,
 )
@@ -1101,6 +1117,9 @@ from myrm_agent_harness.runtime.context.tail_deferred_overflow_types import (
 from myrm_agent_harness.runtime.context.tail_deferred_write_queue import (
     TailDeferredWriteQueue,
 )
+from myrm_agent_harness.runtime.context.theme_palette_synthesizer import (
+    ThemePaletteSynthesizer,
+)
 from myrm_agent_harness.runtime.context.tiered_context_compression_pipeline import (
     TieredContextCompressionPipeline,
 )
@@ -2054,6 +2073,19 @@ __all__ = [
     "SpecExtractionResult",
     "VoiceTranscriptBuffer",
     "VoiceTranscriptToSpecExtractor",
+    "ClientPlatformKind",
+    "ClientThemeSurfaceCapabilities",
+    "SynthesizedThemePalette",
+    "ThemeFontId",
+    "ThemeInjectionRecord",
+    "ThemeLayoutId",
+    "ThemeMediaKind",
+    "ThemeMutationStatus",
+    "ThemePosterArtConfig",
+    "ThemePreinitSnapshotPayload",
+    "ThemeRecipeDescriptor",
+    "ThemePaletteSynthesizer",
+    "AgentSelfReflectiveThemeEngine",
 ]
 
 
