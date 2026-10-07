@@ -476,6 +476,16 @@ from myrm_agent_harness.toolkits.memory.revocable_provenance import (
     ProvenanceQualifiedMemory,
     RevocableForgetEngine,
 )
+from myrm_agent_harness.toolkits.memory.reconciliation import (
+    DiskMemoryFileMeta,
+    DiskMemoryFtsReconciler,
+    FtsReconciledHit,
+    MemoryWriteBlockedError,
+    MemoryWriteGate,
+    ReconciliationReport,
+    WriteGateCheckResult,
+    WriteGatePolicy,
+)
 from myrm_agent_harness.toolkits.memory.temporal_graph import (
     FactConflictResolutionResult,
     SqliteTemporalGraphStore,
@@ -646,6 +656,14 @@ from myrm_agent_harness.toolkits.memory.zero_hallucination import (
 )
 
 __all__ = [
+    "DiskMemoryFileMeta",
+    "DiskMemoryFtsReconciler",
+    "FtsReconciledHit",
+    "MemoryWriteBlockedError",
+    "MemoryWriteGate",
+    "ReconciliationReport",
+    "WriteGateCheckResult",
+    "WriteGatePolicy",
     "FactConflictResolutionResult",
     "SqliteTemporalGraphStore",
     "TemporalDecayScorer",
