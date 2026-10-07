@@ -119,6 +119,14 @@ from .active_compression import (
     TokenPressureLevel,
     TokenPressureSnapshot,
 )
+from .ambiguity_probe import (
+    AmbiguityClarificationProbe,
+    AmbiguityLevel,
+    BacktrackedContextDossier,
+    ClarificationProbeResult,
+    ClarificationQuestion,
+    EntityGraphMatch,
+)
 from .dual_branching import (
     BranchDescriptor,
     BranchingPosture,
@@ -173,6 +181,13 @@ __all__ = [
     "TokenPressureGauge",
     "TokenPressureLevel",
     "TokenPressureSnapshot",
+    # ambiguity_probe
+    "AmbiguityClarificationProbe",
+    "AmbiguityLevel",
+    "BacktrackedContextDossier",
+    "ClarificationProbeResult",
+    "ClarificationQuestion",
+    "EntityGraphMatch",
     # dual_branching
     "BranchDescriptor",
     "BranchingPosture",
