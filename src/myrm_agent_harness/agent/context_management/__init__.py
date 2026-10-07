@@ -651,8 +651,31 @@ from .branch_projection import (
     find_lca,
     synthesize_branch_delta_summary,
 )
+from .browser_batch_script import (
+    ArtifactFormatKind,
+    BatchExecutionResult,
+    BatchExtractionIntent,
+    BatchFieldSpec,
+    BrowserBatchProcessingEngine,
+    DashboardMetricCard,
+    InteractiveDashboardSpec,
+    PaginationStrategy,
+    SynthesizedBrowserScript,
+    synthesize_batch_crawling_script,
+)
 
 __all__ = [
+    # browser_batch_script
+    "ArtifactFormatKind",
+    "BatchExecutionResult",
+    "BatchExtractionIntent",
+    "BatchFieldSpec",
+    "BrowserBatchProcessingEngine",
+    "DashboardMetricCard",
+    "InteractiveDashboardSpec",
+    "PaginationStrategy",
+    "SynthesizedBrowserScript",
+    "synthesize_batch_crawling_script",
     # branch_projection
     "BranchSummary",
     "DualTrackBranchProjectionEngine",
