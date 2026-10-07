@@ -211,6 +211,15 @@ from .project_container import (
     SilentArchivingResult,
     UnifiedProjectContainerEngine,
 )
+from .rule_lifecycle import (
+    AgentRuleLifecycleAuditor,
+    RuleAuditItem,
+    RuleConflictPair,
+    RuleConflictType,
+    RuleLifecycleConfig,
+    RuleLifecycleReport,
+    RuleLifecycleState,
+)
 from .session_commit import (
     CommitJobStatus,
     CommitTriggerReason,
@@ -331,6 +340,14 @@ __all__ = [
     "SessionVisibilityStatus",
     "SilentArchivingResult",
     "UnifiedProjectContainerEngine",
+    # rule_lifecycle
+    "AgentRuleLifecycleAuditor",
+    "RuleAuditItem",
+    "RuleConflictPair",
+    "RuleConflictType",
+    "RuleLifecycleConfig",
+    "RuleLifecycleReport",
+    "RuleLifecycleState",
     # session_commit
     "CommitJobStatus",
     "CommitTriggerReason",
