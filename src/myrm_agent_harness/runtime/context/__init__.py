@@ -252,6 +252,9 @@ from myrm_agent_harness.runtime.context.cross_session_handoff_types import (
     SessionLifecyclePhase,
     SynthesisMode,
 )
+from myrm_agent_harness.runtime.context.cumulative_file_tracker import (
+    CumulativeFileTracker,
+)
 from myrm_agent_harness.runtime.context.cut_point_selector import (
     CutPointAlignmentStrategy,
     ToolPairingValidationResult,
@@ -524,6 +527,16 @@ from myrm_agent_harness.runtime.context.lazy_subdirectory_rules_types import (
     DynamicToolInjectionEnvelope,
     SubdirectoryRuleDiscoveryMode,
 )
+from myrm_agent_harness.runtime.context.lca_branch_exploration_summary_engine import (
+    LCABranchExplorationSummaryEngine,
+    collect_abandoned_path,
+    find_lowest_common_ancestor,
+)
+from myrm_agent_harness.runtime.context.lca_branch_summary_types import (
+    BranchExplorationSummary,
+    BranchHandoffResult,
+    CumulativeFileFootprint,
+)
 from myrm_agent_harness.runtime.context.lean_tail_boundary_compactor import (
     LeanTailBoundaryCompactor,
 )
@@ -694,7 +707,6 @@ from myrm_agent_harness.runtime.context.pi_compaction_types import (
     RollingStructuredSummary,
 )
 from myrm_agent_harness.runtime.context.pi_progressive_compactor import (
-    CumulativeFileTracker,
     PiProgressiveCompactor,
     estimate_message_tokens,
     find_pi_protocol_safe_cut_point,
@@ -1866,6 +1878,12 @@ __all__ = [
     "WorkspaceTouchedFilesProjector",
     "TestCoverageDeltaProjector",
     "PluggableContextProjectionPipeline",
+    "CumulativeFileFootprint",
+    "BranchExplorationSummary",
+    "BranchHandoffResult",
+    "find_lowest_common_ancestor",
+    "collect_abandoned_path",
+    "LCABranchExplorationSummaryEngine",
 ]
 
 

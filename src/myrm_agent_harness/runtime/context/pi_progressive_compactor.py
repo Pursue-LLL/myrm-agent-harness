@@ -12,11 +12,10 @@ Strict 0 Any, type-hinted, thread-safe.
 
 from __future__ import annotations
 
-import json
 import math
-import re
 from collections.abc import Sequence
 
+from .cumulative_file_tracker import CumulativeFileTracker
 from .pi_compaction_types import (
     CumulativeFileRecord,
     CutPointResult,
@@ -44,61 +43,6 @@ def estimate_message_tokens(message: ProjectedMessage) -> int:
     if message.tool_calls:
         total_chars += sum(len(tc) for tc in message.tool_calls)
     return max(1, math.ceil(total_chars / 4))
-
-
-class CumulativeFileTracker:
-    """Tracks files read and modified across all compaction cycles, rendering XML tags."""
-
-    @classmethod
-    def extract_from_messages(
-        cls,
-        messages: Sequence[ProjectedMessage],
-        prev_record: CumulativeFileRecord | None = None,
-    ) -> CumulativeFileRecord:
-        """Extract read and modified file paths from tool invocations and merge cumulatively."""
-        read_set: set[str] = set(prev_record.read_files) if prev_record else set()
-        modified_set: set[str] = set(prev_record.modified_files) if prev_record else set()
-
-        for msg in messages:
-            # Check tool call metadata or content pattern
-            if msg.role == MessageRole.TOOL:
-                tool_name = (msg.name or "").lower()
-                content = msg.content or ""
-                path_match = re.search(r"['\"]?([a-zA-Z0-9_\-\.\/]+\.[a-zA-Z0-9]+)['\"]?", content)
-                if path_match:
-                    found_path = path_match.group(1).strip()
-                    if tool_name in _READ_TOOL_NAMES or "read" in tool_name:
-                        read_set.add(found_path)
-                    elif tool_name in _WRITE_TOOL_NAMES or "write" in tool_name or "edit" in tool_name:
-                        modified_set.add(found_path)
-
-            if msg.tool_calls:
-                for tc_str in msg.tool_calls:
-                    try:
-                        data = json.loads(tc_str) if tc_str.startswith("{") else {}
-                        fn_name = data.get("name", "").lower()
-                        args = data.get("arguments", {})
-                        if isinstance(args, str):
-                            args = json.loads(args) if args.startswith("{") else {}
-                        path_arg = (
-                            args.get("path")
-                            or args.get("file_path")
-                            or args.get("TargetFile")
-                            or args.get("AbsolutePath")
-                        )
-                        if path_arg and isinstance(path_arg, str):
-                            p = path_arg.strip()
-                            if fn_name in _READ_TOOL_NAMES or "read" in fn_name:
-                                read_set.add(p)
-                            elif fn_name in _WRITE_TOOL_NAMES or "write" in fn_name or "replace" in fn_name:
-                                modified_set.add(p)
-                    except Exception:
-                        continue
-
-        return CumulativeFileRecord(
-            read_files=tuple(sorted(read_set)),
-            modified_files=tuple(sorted(modified_set)),
-        )
 
 
 def find_protocol_safe_cut_point(
