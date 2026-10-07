@@ -38,6 +38,17 @@ from myrm_agent_harness.toolkits.memory.client_partition import (
     CrossClientLeakViolation,
     PartitionInspectionReport,
 )
+from myrm_agent_harness.toolkits.memory.cognitive_box import (
+    CognitiveBoxMetaTools,
+    CognitiveBoxSnapshot,
+    CognitiveLayerKind,
+    CognitiveMemoryBoxService,
+    CognitiveMemoryEntry,
+    FourLayerCognitiveMemoryBox,
+    IntakeDecisionKind,
+    IntakeEvaluationReport,
+    StrictMemoryIntakeFilter,
+)
 from myrm_agent_harness.toolkits.memory.config import (
     AgentMemoryPolicy,
     ConsolidationConfig,
@@ -73,6 +84,18 @@ from myrm_agent_harness.toolkits.memory.cube import (
     unwrap_envelope,
     wrap_into_envelope,
 )
+from myrm_agent_harness.toolkits.memory.cvfs import (
+    ContextVFSExploreTools,
+    ContextVirtualFileSystem,
+    CVFSProtocol,
+    CVFSProtocolError,
+    CVFSRegistryStore,
+    VFSNodeInfo,
+    VFSNodeType,
+    VFSReadResult,
+    VFSTreeNode,
+    VFSTreeResult,
+)
 from myrm_agent_harness.toolkits.memory.decisions import (
     CandidateStatus,
     DecisionDatabase,
@@ -88,41 +111,6 @@ from myrm_agent_harness.toolkits.memory.decisions import (
     RecordArchitectureDecisionTool,
     StructuredPriorityReranker,
 )
-from myrm_agent_harness.toolkits.memory.repair import (
-    CachePreservingCompactionBarrier,
-    DatabaseAutoHealer,
-    DatabaseIntegrityDetector,
-    HealthMetric,
-    IntegrityCheckReport,
-    IntegrityStatus,
-    MemoryRecordItem,
-    MemoryRepairService,
-    PruneSummary,
-    RepairActionStatus,
-    RepairReport,
-    StaleEntryPruner,
-    StalePrunePolicy,
-)
-from myrm_agent_harness.toolkits.memory.tool_backup import (
-    DurableToolUseStore,
-    ToolUseBackupRecorder,
-    ToolUseBackupService,
-    ToolUseDatabase,
-    ToolUseQueryFilter,
-    ToolUseRecord,
-    ToolUseStats,
-    ToolUseStatus,
-)
-from myrm_agent_harness.toolkits.memory.ingestion_gateway import (
-    ContextIngestionPayload,
-    IngestionDigestResult,
-    IngestionIdempotencyGuard,
-    IngestionSourceType,
-    TranscriptUniversalParser,
-    UniversalContextIngestionGateway,
-    VoiceContextDistiller,
-    VoiceTranscriptSegment,
-)
 from myrm_agent_harness.toolkits.memory.decontamination import (
     DecontaminationGuard,
     DecontaminationReport,
@@ -134,29 +122,6 @@ from myrm_agent_harness.toolkits.memory.decontamination import (
     ProvenanceAttestationManager,
     ProvenanceSourceKind,
     RollbackReport,
-)
-from myrm_agent_harness.toolkits.memory.cvfs import (
-    CVFSProtocol,
-    CVFSProtocolError,
-    CVFSRegistryStore,
-    ContextVFSExploreTools,
-    ContextVirtualFileSystem,
-    VFSNodeInfo,
-    VFSNodeType,
-    VFSReadResult,
-    VFSTreeNode,
-    VFSTreeResult,
-)
-from myrm_agent_harness.toolkits.memory.cognitive_box import (
-    CognitiveBoxMetaTools,
-    CognitiveBoxSnapshot,
-    CognitiveLayerKind,
-    CognitiveMemoryBoxService,
-    CognitiveMemoryEntry,
-    FourLayerCognitiveMemoryBox,
-    IntakeDecisionKind,
-    IntakeEvaluationReport,
-    StrictMemoryIntakeFilter,
 )
 from myrm_agent_harness.toolkits.memory.dialectic import (
     DialecticCadenceConfig,
@@ -243,6 +208,16 @@ from myrm_agent_harness.toolkits.memory.hermes_bridge import (
     parse_hermes_json,
     parse_hermes_markdown,
 )
+from myrm_agent_harness.toolkits.memory.ingestion_gateway import (
+    ContextIngestionPayload,
+    IngestionDigestResult,
+    IngestionIdempotencyGuard,
+    IngestionSourceType,
+    TranscriptUniversalParser,
+    UniversalContextIngestionGateway,
+    VoiceContextDistiller,
+    VoiceTranscriptSegment,
+)
 from myrm_agent_harness.toolkits.memory.ltra import (
     AudioFactDistillationWorker,
     AudioTimestampAnchor,
@@ -283,6 +258,18 @@ from myrm_agent_harness.toolkits.memory.onboarding import (
     OnboardingSourceRegistry,
     SampledTurnMessage,
     ShannonEntropyInspector,
+)
+from myrm_agent_harness.toolkits.memory.proactive_care import (
+    CareNotification,
+    FatigueLevelKind,
+    HealthMetricsRecord,
+    ProactiveCareMetaTools,
+    ProactiveCareRebalancingService,
+    ProactiveScheduleRebalancer,
+    ScheduleRebalancePlan,
+    ScheduleTaskItem,
+    VitalityAndFatigueEvaluator,
+    VitalityAssessmentReport,
 )
 from myrm_agent_harness.toolkits.memory.prompt_cache_guard import (
     AtomicReplacePayload,
@@ -361,6 +348,21 @@ from myrm_agent_harness.toolkits.memory.reliability import (
     MemoryRepairRiskLevel,
     summarize_recall_benchmark,
 )
+from myrm_agent_harness.toolkits.memory.repair import (
+    CachePreservingCompactionBarrier,
+    DatabaseAutoHealer,
+    DatabaseIntegrityDetector,
+    HealthMetric,
+    IntegrityCheckReport,
+    IntegrityStatus,
+    MemoryRecordItem,
+    MemoryRepairService,
+    PruneSummary,
+    RepairActionStatus,
+    RepairReport,
+    StaleEntryPruner,
+    StalePrunePolicy,
+)
 from myrm_agent_harness.toolkits.memory.retriever import MemoryRetriever
 from myrm_agent_harness.toolkits.memory.ripplemem import (
     ActiveRecallController,
@@ -418,6 +420,16 @@ from myrm_agent_harness.toolkits.memory.strategies import (
     RetentionScore,
     compute_gravity_decay,
     extract_memories_from_conversation,
+)
+from myrm_agent_harness.toolkits.memory.tool_backup import (
+    DurableToolUseStore,
+    ToolUseBackupRecorder,
+    ToolUseBackupService,
+    ToolUseDatabase,
+    ToolUseQueryFilter,
+    ToolUseRecord,
+    ToolUseStats,
+    ToolUseStatus,
 )
 from myrm_agent_harness.toolkits.memory.tool_capture import ToolMemoryCaptureHook
 from myrm_agent_harness.toolkits.memory.tool_guidance import (
@@ -873,4 +885,14 @@ __all__ = [
     "MemoryPruningEngine",
     "PrunedMemoryRecord",
     "PruningDecisionKind",
+    "CareNotification",
+    "FatigueLevelKind",
+    "HealthMetricsRecord",
+    "ProactiveCareMetaTools",
+    "ProactiveCareRebalancingService",
+    "ProactiveScheduleRebalancer",
+    "ScheduleRebalancePlan",
+    "ScheduleTaskItem",
+    "VitalityAndFatigueEvaluator",
+    "VitalityAssessmentReport",
 ]
