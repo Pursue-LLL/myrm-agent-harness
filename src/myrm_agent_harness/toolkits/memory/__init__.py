@@ -28,6 +28,17 @@ from myrm_agent_harness.toolkits.memory.activity_compactor import (
     MicroActivitySlice,
     RawActivityEvent,
 )
+from myrm_agent_harness.toolkits.memory.authoritative_conclusions import (
+    AuthoritativeConclusion,
+    AuthoritativeConclusionStore,
+    AuthoritativeConclusionToolSuite,
+    ConclusionAnchorProjection,
+    ConclusionAuditRecord,
+    ConclusionContextAnchor,
+    ConclusionStatus,
+    ConclusionToolAction,
+    memory_conclude_tool,
+)
 from myrm_agent_harness.toolkits.memory.batch_learn import (
     BatchLearnExecutionReport,
     BatchMemoryLearningMetaTools,
@@ -58,6 +69,18 @@ from myrm_agent_harness.toolkits.memory.budget_curator import (
     ScrollAnchorResult,
     ScrollMessageItem,
     SessionScrollNavigator,
+)
+from myrm_agent_harness.toolkits.memory.business_templates import (
+    BusinessExperienceTemplate,
+    BusinessExperienceTemplateRegistry,
+    BusinessTemplateEngine,
+    ChecklistStep,
+    EscalationAction,
+    EscalationBoundaryGate,
+    EscalationDecision,
+    EscalationEvaluationContext,
+    EscalationReason,
+    TemplateCategory,
 )
 from myrm_agent_harness.toolkits.memory.capacity_hitl import (
     CandidateActionKind,
@@ -217,6 +240,27 @@ from myrm_agent_harness.toolkits.memory.ephemeral_delta import (
     HumanTailDeltaInjector,
     ReconciliationBatchReport,
 )
+from myrm_agent_harness.toolkits.memory.experience_injection import (
+    ExperienceCallSite,
+    ExperienceInjectionConfig,
+    ExperienceInjectionEngine,
+    ExperienceInjectionResult,
+    InjectionStatus,
+    PreWriteInterceptor,
+    SkillLoadExperienceHook,
+    SubagentSpawnExperienceEnricher,
+)
+from myrm_agent_harness.toolkits.memory.experience_observability import (
+    ExperienceEffectStatus,
+    ExperienceObservabilityMetric,
+    ExperienceObservabilityTracker,
+    HostAccessChannel,
+    HostPluginConfig,
+    LifecycleEventKind,
+    LifecycleEventPayload,
+    SessionTraceEvidence,
+    ZeroRefactorHostPlugin,
+)
 from myrm_agent_harness.toolkits.memory.external_bridge import (
     END_MARKER,
     START_MARKER,
@@ -258,6 +302,16 @@ from myrm_agent_harness.toolkits.memory.fact_supersession import (
     FactSupersessionChainEngine,
     TemporalFactRecord,
     TemporalFactStatus,
+)
+from myrm_agent_harness.toolkits.memory.failure_retrieval import (
+    ErrorFingerprint,
+    ErrorFingerprintExtractor,
+    FailureHistoricalSessionSearchEngine,
+    FailureOutcomeType,
+    FailureRetrievalResult,
+    FailureTriggerConfig,
+    FailureTriggerInterceptor,
+    HistoricalResolutionEntry,
 )
 from myrm_agent_harness.toolkits.memory.four_tier_fts import (
     DreamCompactionReport,
@@ -428,6 +482,25 @@ from myrm_agent_harness.toolkits.memory.onboarding import (
     SampledTurnMessage,
     ShannonEntropyInspector,
 )
+from myrm_agent_harness.toolkits.memory.peer_cognition import (
+    PeerCognitionGraphStore,
+    PeerCognitionProjection,
+    PeerIdentity,
+    PeerPersonaCard,
+    PeerPersonaCardEngine,
+    PeerRelationEdge,
+    PeerRelationKind,
+    PeerType,
+)
+from myrm_agent_harness.toolkits.memory.peer_gateway import (
+    AntiCrossContaminationGateway,
+    ChannelType,
+    DeterministicPeerResolver,
+    GatewayPeerAliasConfig,
+    HashEscalationEngine,
+    PeerBoundaryCheckResult,
+    ResolvedPeerIdentity,
+)
 from myrm_agent_harness.toolkits.memory.private_notebook import (
     HistoryContextItem,
     HistoryContextManager,
@@ -452,27 +525,6 @@ from myrm_agent_harness.toolkits.memory.proactive_care import (
     VitalityAndFatigueEvaluator,
     VitalityAssessmentReport,
 )
-from myrm_agent_harness.toolkits.memory.experience_injection import (
-    ExperienceCallSite,
-    ExperienceInjectionConfig,
-    ExperienceInjectionEngine,
-    ExperienceInjectionResult,
-    InjectionStatus,
-    PreWriteInterceptor,
-    SkillLoadExperienceHook,
-    SubagentSpawnExperienceEnricher,
-)
-from myrm_agent_harness.toolkits.memory.experience_observability import (
-    ExperienceEffectStatus,
-    ExperienceObservabilityMetric,
-    ExperienceObservabilityTracker,
-    HostAccessChannel,
-    HostPluginConfig,
-    LifecycleEventKind,
-    LifecycleEventPayload,
-    SessionTraceEvidence,
-    ZeroRefactorHostPlugin,
-)
 from myrm_agent_harness.toolkits.memory.procedure_experience import (
     DualNodeFixedCountRetriever,
     DualNodeRetrievalQuery,
@@ -480,88 +532,6 @@ from myrm_agent_harness.toolkits.memory.procedure_experience import (
     ProcedureMemoryEntry,
     ProcedureProtocolEngine,
     RetrievalNodeKind,
-)
-from myrm_agent_harness.toolkits.memory.session_commit import (
-    CommitBoundaryKind,
-    CommitPhase,
-    CommitTaskStatus,
-    MemoryDiffAudit,
-    MemoryDiffChangeKind,
-    MemoryDiffItem,
-    MemoryDiffStats,
-    SessionArchiveMessage,
-    SessionCommitResult,
-    SessionCommitTwoPhaseEngine,
-)
-from myrm_agent_harness.toolkits.memory.business_templates import (
-    BusinessExperienceTemplate,
-    BusinessExperienceTemplateRegistry,
-    BusinessTemplateEngine,
-    ChecklistStep,
-    EscalationAction,
-    EscalationBoundaryGate,
-    EscalationDecision,
-    EscalationEvaluationContext,
-    EscalationReason,
-    TemplateCategory,
-)
-from myrm_agent_harness.toolkits.memory.failure_retrieval import (
-    ErrorFingerprint,
-    ErrorFingerprintExtractor,
-    FailureHistoricalSessionSearchEngine,
-    FailureOutcomeType,
-    FailureRetrievalResult,
-    FailureTriggerConfig,
-    FailureTriggerInterceptor,
-    HistoricalResolutionEntry,
-)
-from myrm_agent_harness.toolkits.memory.peer_cognition import (
-    PeerCognitionGraphStore,
-    PeerCognitionProjection,
-    PeerIdentity,
-    PeerPersonaCard,
-    PeerPersonaCardEngine,
-    PeerRelationEdge,
-    PeerRelationKind,
-    PeerType,
-)
-from myrm_agent_harness.toolkits.memory.authoritative_conclusions import (
-    AuthoritativeConclusion,
-    AuthoritativeConclusionStore,
-    AuthoritativeConclusionToolSuite,
-    ConclusionAnchorProjection,
-    ConclusionAuditRecord,
-    ConclusionContextAnchor,
-    ConclusionStatus,
-    ConclusionToolAction,
-    memory_conclude_tool,
-)
-from myrm_agent_harness.toolkits.memory.two_layer_dialectic import (
-    BaseContextPayload,
-    DialecticConflictCandidate,
-    DialecticPassKind,
-    DialecticReconciliationConfig,
-    DialecticReconciliationResult,
-    MultiPassDialecticReconciler,
-    TwoLayerContextInjectionResult,
-    TwoLayerContextInjector,
-)
-from myrm_agent_harness.toolkits.memory.peer_gateway import (
-    AntiCrossContaminationGateway,
-    ChannelType,
-    DeterministicPeerResolver,
-    GatewayPeerAliasConfig,
-    HashEscalationEngine,
-    PeerBoundaryCheckResult,
-    ResolvedPeerIdentity,
-)
-from myrm_agent_harness.toolkits.memory.tiered_consensus import (
-    ConsensusAuditLog,
-    ConsensusScopeTier,
-    ProposalStatus,
-    TieredConsensusManager,
-    TieredMemoryRecord,
-    compute_content_fingerprint,
 )
 from myrm_agent_harness.toolkits.memory.prompt_cache_guard import (
     AtomicReplacePayload,
@@ -721,6 +691,18 @@ from myrm_agent_harness.toolkits.memory.screen_observation import (
     UntrustedObservationEvidenceBoundary,
 )
 from myrm_agent_harness.toolkits.memory.session import MemorySession
+from myrm_agent_harness.toolkits.memory.session_commit import (
+    CommitBoundaryKind,
+    CommitPhase,
+    CommitTaskStatus,
+    MemoryDiffAudit,
+    MemoryDiffChangeKind,
+    MemoryDiffItem,
+    MemoryDiffStats,
+    SessionArchiveMessage,
+    SessionCommitResult,
+    SessionCommitTwoPhaseEngine,
+)
 from myrm_agent_harness.toolkits.memory.setup import (
     create_local_memory_manager,
     setup_local_file_memory_sync,
@@ -777,6 +759,19 @@ from myrm_agent_harness.toolkits.memory.temporal_graph import (
     TemporalFactEdge,
     TemporalFactHit,
 )
+from myrm_agent_harness.toolkits.memory.thinking_sanitizer import (
+    SanitizationResult,
+    ThinkingBlockSanitizer,
+    ThinkingSanitizerConfig,
+)
+from myrm_agent_harness.toolkits.memory.tiered_consensus import (
+    ConsensusAuditLog,
+    ConsensusScopeTier,
+    ProposalStatus,
+    TieredConsensusManager,
+    TieredMemoryRecord,
+    compute_content_fingerprint,
+)
 from myrm_agent_harness.toolkits.memory.tombstone import (
     ContradictionPair,
     MemoryTombstoneCurationService,
@@ -814,6 +809,16 @@ from myrm_agent_harness.toolkits.memory.triad_trajectory import (
     TriadMilestone,
     TriadStateLedger,
     TriadUserSteering,
+)
+from myrm_agent_harness.toolkits.memory.two_layer_dialectic import (
+    BaseContextPayload,
+    DialecticConflictCandidate,
+    DialecticPassKind,
+    DialecticReconciliationConfig,
+    DialecticReconciliationResult,
+    MultiPassDialecticReconciler,
+    TwoLayerContextInjectionResult,
+    TwoLayerContextInjector,
 )
 from myrm_agent_harness.toolkits.memory.types import (
     AnyMemory,
@@ -1588,6 +1593,9 @@ __all__ = [
     "TieredConsensusManager",
     "TieredMemoryRecord",
     "compute_content_fingerprint",
+    "SanitizationResult",
+    "ThinkingBlockSanitizer",
+    "ThinkingSanitizerConfig",
 ]
 
 
