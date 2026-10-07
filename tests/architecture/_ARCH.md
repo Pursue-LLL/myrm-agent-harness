@@ -18,7 +18,7 @@ CI 架构门禁：层边界、分形文档、PyPI wheel 打包不变量、tool r
 | `test_artifact_vault_path_boundary.py` | Gate | harness `src/` 禁止 `.myrm/vault` 等品牌 vault 路径字面量 | — |
 | `test_harness_boundary.py` | Gate | harness 禁止 import 业务层（server/control-plane） | — |
 | `test_wheel_browser_assets.py` | Gate | wheel 须含 `browser/assets/ad_domains.txt`（≥3500 域） | — |
-| `test_package_root_flat_layout.py` | Gate | 包根禁止平铺实现模块；`runtime/install_guard/` 子包 layout 与 legacy 文件名回归 |
+| `test_package_root_flat_layout.py` | Gate | 包根禁止平铺实现模块；`tests/` 根禁止散落测试模块；`runtime/install_guard/` 子包 layout 与 legacy 文件名回归 |
 | `test_distribution_packaging.py` | Gate | 分发打包管线不变量（wheel build/install；`slow` 标记项在 CI `distribution-packaging-slow` job） | — |
 | `test_distribution_wheel_artifact.py` | Gate | release/core wheel zip + `finalize_stripped_release_wheel` strip+verify | — |
 | `distribution_wheel_helpers.py` | 辅助 | architecture 测试用最小合法 wheel zip 构造 | — |

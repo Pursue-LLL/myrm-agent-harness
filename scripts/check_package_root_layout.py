@@ -8,9 +8,14 @@ Package roots may only contain:
 
 Any other ``.py`` at the package root is a violation.
 
+The ``tests/`` root follows the same rule: only ``__init__.py`` and the shared
+``conftest.py`` may sit there. Every test module lives in the ``tests/<src-domain>/``
+directory that mirrors the code it covers, so its ownership is visible at a glance.
+
 Usage:
     python scripts/check_package_root_layout.py
     python scripts/check_package_root_layout.py --root src/myrm_agent_harness
+    python scripts/check_package_root_layout.py --tests-root tests
     python scripts/check_package_root_layout.py --json
 
 Exit codes:
@@ -29,8 +34,10 @@ from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _DEFAULT_ROOT = _REPO_ROOT / "src" / "myrm_agent_harness"
+_DEFAULT_TESTS_ROOT = _REPO_ROOT / "tests"
 
 _ALLOWED_ROOT_PY = frozenset({"__init__.py", "client.py", "py.typed"})
+_ALLOWED_TESTS_ROOT_PY = frozenset({"__init__.py", "conftest.py"})
 
 _FORBIDDEN_LEGACY_FLAT = (
     "_distribution.py",
@@ -50,15 +57,20 @@ def _is_package_root(directory: Path) -> bool:
     return (directory / "__init__.py").is_file()
 
 
-def scan_package_root(package_root: Path) -> RootViolation | None:
+def scan_package_root(package_root: Path, allowed: frozenset[str] = _ALLOWED_ROOT_PY) -> RootViolation | None:
     forbidden = sorted(
-        p.name
-        for p in package_root.iterdir()
-        if p.is_file() and p.suffix == ".py" and p.name not in _ALLOWED_ROOT_PY
+        p.name for p in package_root.iterdir() if p.is_file() and p.suffix == ".py" and p.name not in allowed
     )
     if not forbidden:
         return None
     return RootViolation(package_root=package_root, forbidden_files=tuple(forbidden))
+
+
+def scan_tests_root(tests_root: Path) -> RootViolation | None:
+    """Return the loose test modules sitting directly under ``tests/`` (if any)."""
+    if not tests_root.is_dir():
+        return None
+    return scan_package_root(tests_root, _ALLOWED_TESTS_ROOT_PY)
 
 
 def scan_tree(root: Path) -> list[RootViolation]:
@@ -83,14 +95,18 @@ def scan_legacy_flat(package_root: Path) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description="Check Python package root flat-layout rules."
-    )
+    parser = argparse.ArgumentParser(description="Check Python package root flat-layout rules.")
     parser.add_argument(
         "--root",
         type=Path,
         default=_DEFAULT_ROOT,
         help="Top-level package directory to scan (default: src/myrm_agent_harness)",
+    )
+    parser.add_argument(
+        "--tests-root",
+        type=Path,
+        default=_DEFAULT_TESTS_ROOT,
+        help="Tests directory that must not host loose test modules (default: tests)",
     )
     parser.add_argument("--json", action="store_true", help="Emit JSON report")
     args = parser.parse_args(argv)
@@ -98,6 +114,8 @@ def main(argv: list[str] | None = None) -> int:
     root = args.root.resolve()
     violations = scan_tree(root)
     legacy = scan_legacy_flat(root)
+    tests_violation = scan_tests_root(args.tests_root.resolve())
+    failed = bool(violations or legacy or tests_violation)
 
     if args.json:
         payload = {
@@ -110,9 +128,10 @@ def main(argv: list[str] | None = None) -> int:
                 for v in violations
             ],
             "legacy_flat_files": legacy,
+            "tests_root_forbidden_files": (list(tests_violation.forbidden_files) if tests_violation else []),
         }
         print(json.dumps(payload, indent=2))
-        return 1 if violations or legacy else 0
+        return 1 if failed else 0
 
     if legacy:
         for name in legacy:
@@ -123,6 +142,12 @@ def main(argv: list[str] | None = None) -> int:
             f"PACKAGE_ROOT_FLAT: {rel} has forbidden .py: {', '.join(v.forbidden_files)}",
             file=sys.stderr,
         )
+    if tests_violation is not None:
+        print(
+            f"TESTS_ROOT_FLAT: {args.tests_root.name}/ has loose test modules: "
+            f"{', '.join(tests_violation.forbidden_files)}",
+            file=sys.stderr,
+        )
 
     if violations or legacy:
         print(
@@ -131,8 +156,15 @@ def main(argv: list[str] | None = None) -> int:
             "keep only __init__.py and client.py at package roots.",
             file=sys.stderr,
         )
-        return 1
-    return 0
+    if tests_violation is not None:
+        print(
+            "Tests root layout violations detected. "
+            "Move each test module into the tests/<src-domain>/ directory that "
+            "mirrors the code it covers; keep only __init__.py and conftest.py "
+            "at the tests root.",
+            file=sys.stderr,
+        )
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

@@ -35,7 +35,7 @@ Harness test suite: unit, integration, architecture gates, and performance bench
 
 ## Test file placement
 
-The `tests/` root holds only `__init__.py`, `conftest.py` and `_ARCH.md`. Every test file lives in the subtree that mirrors the `src/myrm_agent_harness/` module it covers (for example `agent/context_management/`, `toolkits/memory/`, `agent/tool_management/`); never add `test_*.py` directly under `tests/`. One test module covers one source domain: split a module that spans two (for example working memory and memory consolidation) instead of naming it `test_<a>_and_<b>.py`.
+The `tests/` root holds only `__init__.py`, `conftest.py` and `_ARCH.md`. Every test file lives in the subtree that mirrors the `src/myrm_agent_harness/` module it covers (for example `agent/context_management/`, `toolkits/memory/`, `agent/tool_management/`); never add `test_*.py` directly under `tests/`. One test module covers one source domain: split a module that spans two (for example working memory and memory consolidation) instead of naming it `test_<a>_and_<b>.py`. The root rule is enforced by `scripts/check_package_root_layout.py` (CI boundary job) and `tests/architecture/test_package_root_flat_layout.py`.
 
 ## Test file naming
 

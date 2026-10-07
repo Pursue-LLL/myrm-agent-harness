@@ -1,4 +1,4 @@
-# [POS] tests/test_dependency_expansion_and_dual_track.py
+# [POS] tests/agent/context_management/test_dependency_expansion.py
 # [INPUT] ArchitecturalDependencyGraphExpander, AdaptiveComplexityGovernor, ArchitectureNode, ArchitectureNodeType, DependencyEdge, DependencyEdgeType, TaskComplexityTrack
 # [OUTPUT] pytest test suite for architectural dependency expansion and dual-track scheduler
 
