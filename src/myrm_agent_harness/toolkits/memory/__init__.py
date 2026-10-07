@@ -103,6 +103,16 @@ from myrm_agent_harness.toolkits.memory.repair import (
     StaleEntryPruner,
     StalePrunePolicy,
 )
+from myrm_agent_harness.toolkits.memory.tool_backup import (
+    DurableToolUseStore,
+    ToolUseBackupRecorder,
+    ToolUseBackupService,
+    ToolUseDatabase,
+    ToolUseQueryFilter,
+    ToolUseRecord,
+    ToolUseStats,
+    ToolUseStatus,
+)
 from myrm_agent_harness.toolkits.memory.dialectic import (
     DialecticCadenceConfig,
     DialecticCadenceGovernor,
@@ -761,4 +771,12 @@ __all__ = [
     "RepairReport",
     "StaleEntryPruner",
     "StalePrunePolicy",
+    "DurableToolUseStore",
+    "ToolUseBackupRecorder",
+    "ToolUseBackupService",
+    "ToolUseDatabase",
+    "ToolUseQueryFilter",
+    "ToolUseRecord",
+    "ToolUseStats",
+    "ToolUseStatus",
 ]
