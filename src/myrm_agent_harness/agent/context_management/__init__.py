@@ -148,6 +148,15 @@ from .emergent_attention import (
     StatedIntention,
     UserActionTraceKind,
 )
+from .harness_tax import (
+    CompactWorkingMemoryProjector,
+    CompactWorkingMemoryView,
+    HarnessTaxAuditReport,
+    HarnessTaxConfig,
+    ResourceLoadBundle,
+    ToolDescriptor,
+    ToolExposurePolicy,
+)
 from .million_token_ceiling import (
     CompactionTierAction,
     CompactionTrackType,
@@ -241,6 +250,14 @@ __all__ = [
     "SieveDecision",
     "StatedIntention",
     "UserActionTraceKind",
+    # harness_tax
+    "CompactWorkingMemoryProjector",
+    "CompactWorkingMemoryView",
+    "HarnessTaxAuditReport",
+    "HarnessTaxConfig",
+    "ResourceLoadBundle",
+    "ToolDescriptor",
+    "ToolExposurePolicy",
     # million_token_ceiling
     "CompactionTierAction",
     "CompactionTrackType",
