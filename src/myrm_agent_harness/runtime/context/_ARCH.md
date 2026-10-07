@@ -31,6 +31,8 @@ Context lifecycle management — cleanup, config, metrics, tracking, reading, of
 | bounded_initial_page_hydration_engine.py | Core | Bounded initial page hydration engine with lazy upward cursor paging and memory eviction. | ✅ |
 | branch_navigation_and_summary_engine.py | Core | Non-destructive branch navigation and exploration summary engine. | ✅ |
 | cache_aware_session_lifecycle_router.py | Core | Cache-aware session lifecycle router and mutation defense governor. | ✅ |
+| canonical_section_registry.py | Core | Item 120 in topic_06 roadmap: guarantees byte-identical prefix sharing across agent fleets. | ✅ |
+| canonical_section_types.py | Types | Item 120 in topic_06 roadmap: enforces stable top-section ordering for 99% KV cache hit rate. | ✅ |
 | caveman_output_throttle.py | Core | Caveman Ultra-Compact Output Mode & Output Token Throttle Engine. | ✅ |
 | caveman_output_throttle_types.py | Types | Data contracts for Caveman Ultra-Compact Output Mode and Output Token Throttle. | ✅ |
 | ccr_context_archival_transformer.py | Core | CCR (Chunk-Cache Retrieval) Context Archival Transformer. | ✅ |
@@ -119,6 +121,8 @@ Context lifecycle management — cleanup, config, metrics, tracking, reading, of
 | in_process_bm25_types.py | Types | Type definitions for In-Process BM25 Lexical Retriever and Dynamic Tool Schema Pruner. | ✅ |
 | incremental_material_hydration_engine.py | Core | Incremental material hydration and project resumption engine. | ✅ |
 | instance_metrics.py | Core | Context operation metrics for monitoring and observability. | ✅ |
+| interactive_survey_engine.py | Core | Eliminates tedious multi-paragraph typing and accelerates requirement gathering 5x. | ✅ |
+| interactive_survey_types.py | Types | Types and schemas for interactive mini-survey cards and rich deliverable document streamout. | ✅ |
 | internal_external_message_pipeline.py | Core | Internal/external message separation and context transformation pipeline. | ✅ |
 | internal_external_message_pipeline_types.py | Types | Type definitions for internal/external message separation and context transformation pipeline. | ✅ |
 | lazy_subdirectory_rules.py | Core | Lazy-loaded subdirectory rules discovery probe and dynamic tool injection hub. | ✅ |
@@ -179,6 +183,8 @@ Context lifecycle management — cleanup, config, metrics, tracking, reading, of
 | prompt_cache_economics_engine.py | Core | Prompt cache economics engine and cross-deployment HUD generator. | ✅ |
 | prompt_cache_economics_types.py | Types | Types and schemas for cross-deployment prompt cache economics and anti-drift HUD. | ✅ |
 | prompt_cache_lifecycle_types.py | Types | Prompt-cache aware session lifecycle and prefix preserving router types. | ✅ |
+| prompt_variable_contract_types.py | Types | Item 121 in topic_06 roadmap: pre-flight assertion against variable-induced prefix cache jitter. | ✅ |
+| prompt_variable_contract_validator.py | Core | Item 121 in topic_06 roadmap: pre-flight assertion against variable-induced prefix cache jitter. | ✅ |
 | protected_patterns_matcher.py | Core | Protected patterns matcher and syntax safety shield. | ✅ |
 | prune_and_spill_recall.py | Core | Guarantees 100% recoverability of large tool outputs while shrinking inline context by 70%+ to protect prompt cache prefixes. | ✅ |
 | quiet_command_rewriter_hook.py | Core | Quiet command rewriter hook. | ✅ |
