@@ -2,7 +2,7 @@
 
 **生产级 Agent 框架** - 基于 LangChain 构建，提供高级技能系统、MCP 集成和生产就绪的沙箱执行。
 
-> **许可**: Proprietary（见 [LICENSE](LICENSE) 与 `pyproject.toml`）。框架层不与业务逻辑耦合，类似 LangChain 定位，供 `myrm-agent-server` 等业务项目引用。  
+> **许可**: MIT 开源（见 [LICENSE](LICENSE) 与 `pyproject.toml`）。框架层不与业务逻辑耦合，类似 LangChain 定位，供 `myrm-agent-server` 等业务项目引用。  
 > **定位**: GUI-first 通用 AI 工作助手运行时框架（对标 LangChain / LangGraph），面向 WebUI / 桌面端 / 云沙箱嵌入；**不是** CLI 产品或专业编码 IDE。技能系统、MCP、沙箱、记忆与工件等能力按模块可选启用。  
 > **版本**: 以 `pyproject.toml` 中 `version` 为准。  
 > **验证**: 运行 `pytest tests/` 查看当前测试状态；性能结论以可复现实验（如 `tests/performance`）为准，本文档不承诺固定加速比。
@@ -312,7 +312,7 @@ myrm-agent-harness/          # 本仓库根（示意）
 │       └── utils/                   # 通用工具函数
 │
 ├── tests/                           # 测试套件（单元 / 集成 / 架构门禁 / 性能）
-├── harness_packaging/               # 闭源分发构建（Nuitka core + release wheel）
+├── harness_packaging/               # 分发构建（Nuitka compiled-core + release wheel）
 └── scripts/                         # 边界检测、构建与发布脚本
 ```
 
@@ -580,7 +580,7 @@ result = await executor.execute(code, context)
 
 ## 🤝 贡献指南
 
-本仓库为 **Proprietary** 项目，贡献面向内部授权开发者。请参考 [ARCHITECTURE.md](ARCHITECTURE.md) 了解分形自文档系统和架构约束。
+本仓库为 **MIT 开源** 项目，欢迎社区贡献。请参考 [ARCHITECTURE.md](ARCHITECTURE.md) 了解分形自文档系统和架构约束。
 
 ### 贡献者快速开始
 
@@ -588,12 +588,12 @@ result = await executor.execute(code, context)
 # 克隆和设置
 git clone <repo-url>
 cd myrm-agent-harness
-python3.13 -m venv .venv
+uv venv --python 3.13
 source .venv/bin/activate
-uv sync --all-extras
+uv pip install -e ".[all]" --group dev
 
-# 源码开发请用 `.venv/bin/python` / `pytest`（勿裸 `uv run`：默认 extras 含 compiled-core，
-# 本地未发布平台 wheel 时 `uv run` 会解析失败）
+# 勿用 `uv sync` / 裸 `uv run`：二者会解析全部 extras（含 compiled-core*），其引脚要求对应版本的
+# 平台 wheel 已发布，未发布时解析失败；源码开发直接用 `.venv/bin/python` / `pytest`
 
 # ⚠️ 重要：安装 pre-commit（自动化边界检测）
 pip install pre-commit
@@ -645,7 +645,7 @@ mypy src/myrm_agent_harness
 
 ## 📄 许可证
 
-当前为 **Proprietary** 许可（详见 [LICENSE](LICENSE) 与 `pyproject.toml`）。未经授权不得复制、分发或商用。
+当前为 **MIT 开源**许可（详见 [LICENSE](LICENSE) 与 `pyproject.toml`）。可自由使用、修改与分发，需保留版权与许可声明。
 
 ---
 
