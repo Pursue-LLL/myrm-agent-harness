@@ -58,6 +58,9 @@ from myrm_agent_harness.runtime.context.artifact_centric_loop import (
     WorkingSceneHydrationPayload,
     WorkingSceneHydrator,
 )
+from myrm_agent_harness.runtime.context.artifact_heuristic_rule_engine import (
+    ArtifactHeuristicRuleEngine,
+)
 from myrm_agent_harness.runtime.context.ast_symbol_stub_extractor import (
     AstSymbolStubExtractor,
 )
@@ -405,6 +408,10 @@ from myrm_agent_harness.runtime.context.hierarchical_project_matrix import (
     WorkspaceHealthReport,
     WorkspaceSessionRef,
 )
+from myrm_agent_harness.runtime.context.in_context_next_action_predictor import (
+    InContextNextActionPredictor,
+    LlmActionPredictorCallable,
+)
 from myrm_agent_harness.runtime.context.in_process_bm25_retriever import (
     InProcessBM25Retriever,
     tokenize_lexical,
@@ -509,6 +516,14 @@ from myrm_agent_harness.runtime.context.multi_ide_ruleset_bridge import (
     MigrationReadinessReport,
     MultiIdeRulesetBridge,
     UniversalIdeRuleEntry,
+)
+from myrm_agent_harness.runtime.context.next_action_predictor_types import (
+    ActionIntentType,
+    NextActionPredictionReport,
+    NextActionPredictorConfig,
+    PredictedActionChip,
+    PredictionContextInput,
+    TurnExecutionArtifact,
 )
 from myrm_agent_harness.runtime.context.offload import (
     cleanup_orphan_context_files,
@@ -1578,6 +1593,15 @@ __all__ = [
     "BidiAgentChannelGateway",
     "AgentMentionDualModeRouter",
     "MessageFetchProvider",
+    "ArtifactHeuristicRuleEngine",
+    "InContextNextActionPredictor",
+    "LlmActionPredictorCallable",
+    "ActionIntentType",
+    "PredictedActionChip",
+    "TurnExecutionArtifact",
+    "PredictionContextInput",
+    "NextActionPredictionReport",
+    "NextActionPredictorConfig",
 ]
 
 
