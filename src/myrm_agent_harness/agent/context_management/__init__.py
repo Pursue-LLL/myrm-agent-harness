@@ -565,6 +565,15 @@ from .progressive_disclosure import (
     ProgressiveDisclosureConfig,
     ProgressiveDisclosureEngine,
 )
+from .tool_paging import (
+    ModelNativeToolPagingEngine,
+    ModelTier,
+    PageInSlice,
+    ToolBlobRecord,
+    ToolOutputStub,
+    ToolPagingConfig,
+    ToolSchemaDefinition,
+)
 
 __all__ = [
     # active_compression
@@ -885,6 +894,14 @@ __all__ = [
     "EvidenceCitation",
     "ProgressiveDisclosureConfig",
     "ProgressiveDisclosureEngine",
+    # tool_paging
+    "ModelNativeToolPagingEngine",
+    "ModelTier",
+    "PageInSlice",
+    "ToolBlobRecord",
+    "ToolOutputStub",
+    "ToolPagingConfig",
+    "ToolSchemaDefinition",
     # session_roaming
     "CollaborationRole",
     "DeviceAgnosticSessionRoamingEngine",
