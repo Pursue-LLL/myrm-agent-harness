@@ -628,6 +628,16 @@ from .clean_markdown_extractor import (
     ExtractionDensityLevel,
     SparsityPruneResult,
 )
+from .sandplay_simulation import (
+    CausalityEdge,
+    CausalityNode,
+    CausalityTier,
+    FinancialSandplaySimulationEngine,
+    ImpactDirection,
+    IndustryChainGraph,
+    SandplaySimulationResult,
+    SolidifiedSkillPackage,
+)
 
 __all__ = [
     # active_compression
@@ -936,6 +946,15 @@ __all__ = [
     "ReducedOutputEnvelope",
     "ReductionKind",
     "SandboxReductionConfig",
+    # sandplay_simulation
+    "CausalityEdge",
+    "CausalityNode",
+    "CausalityTier",
+    "FinancialSandplaySimulationEngine",
+    "ImpactDirection",
+    "IndustryChainGraph",
+    "SandplaySimulationResult",
+    "SolidifiedSkillPackage",
     # prompt_cache_clock
     "CacheTierKind",
     "ClockBucketResolution",
