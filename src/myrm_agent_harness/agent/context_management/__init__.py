@@ -347,6 +347,13 @@ from .subagent_scratchpad import (
     SharedScratchpadFact,
     SubagentLifecycleStatus,
 )
+from .visual_pruner import (
+    PrunedFrameFootprint,
+    VisualFramePruningEngine,
+    VisualPruningConfig,
+    VisualPruningMode,
+    VisualPruningResult,
+)
 
 __all__ = [
     # active_compression
@@ -553,6 +560,12 @@ __all__ = [
     "ScratchpadQueryFilter",
     "SharedScratchpadFact",
     "SubagentLifecycleStatus",
+    # visual_pruner
+    "PrunedFrameFootprint",
+    "VisualFramePruningEngine",
+    "VisualPruningConfig",
+    "VisualPruningMode",
+    "VisualPruningResult",
     # schemas
     "BUILTIN_PROTECTED_TOOLS",
     "COMPACT_RULES",
