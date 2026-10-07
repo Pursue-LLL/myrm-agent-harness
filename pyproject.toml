@@ -5,11 +5,11 @@ description = "Myrm Agent Harness: Professional Agent framework built on LangCha
 authors = [{ name = "Myrm Agent Harness Contributors" }]
 requires-python = ">=3.13"
 readme = "README.md"
-license = { text = "Proprietary" }
+license = { text = "MIT" }
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
-  "License :: Other/Proprietary License",
+  "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.13",
   "Topic :: Software Development :: Libraries :: Application Frameworks",
@@ -19,21 +19,21 @@ classifiers = [
 
 dependencies = [
   # --- LangChain 生态 (Agent 框架基础) ---
-  "langchain>=1.3.18",                  # Agent 编排核心
-  "langchain-core>=1.6.1",              # LangChain 基础抽象
-  "langgraph>=1.2.11",                  # 图状态机 Agent 运行时
+  "langchain>=1.4.3",                  # Agent 编排核心
+  "langchain-core>=1.6.6",              # LangChain 基础抽象
+  "langgraph>=1.2.13",                  # 图状态机 Agent 运行时
   "langgraph-checkpoint-sqlite>=3.1.1", # SQLite 状态持久化 (checkpoint factory)
   "aiosqlite>=0.22.1",                  # async SQLite (memory stores + checkpointer)
   "dill>=0.4.1",                        # checkpoint serde (ChatLiteLLM / complex objects)
   # --- LLM 多供应商适配 ---
-  "litellm>=1.98.0", # 统一 LLM API 代理 (100+ 供应商)
+  "litellm>=1.104.0", # 统一 LLM API 代理 (100+ 供应商)
   # --- 数据验证与序列化 ---
   "pydantic>=2.13.5", # 数据模型验证
   "PyYAML>=6.0.3",    # YAML 配置解析
-  "json_repair>=0.63.4", # LLM 脏 JSON 修复兜底 (chat_utils 解析链末层)
+  "json_repair>=0.63.5", # LLM 脏 JSON 修复兜底 (chat_utils 解析链末层)
   # --- HTTP 与异步 I/O ---
   "httpx>=0.28.1",        # 异步 HTTP 客户端（统一网络栈；SOCKS 由 server/渠道层按需安装）
-  "httpx2>=2.12.0",        # MCP SDK v2 传输层 HTTP 客户端（TLS/mTLS、auth headers）
+  "httpx2>=2.13.1",        # MCP SDK v2 传输层 HTTP 客户端（TLS/mTLS、auth headers）
   "aiofiles>=25.1.0",     # 异步文件 I/O
   # --- 图片处理 (7 模块跨 4 层使用) ---
   "Pillow>=12.3.0",       # 图片读写/resize/压缩 (image_reader + image_compressor + browser/diff + file_parsers + computer_use)
@@ -42,15 +42,15 @@ dependencies = [
   # --- 系统监控 (健康诊断核心依赖) ---
   "psutil>=7.2.2", # 进程与系统监控 (CPU/Memory health probes)
   # --- 监控与可观测性 (仅保留轻量级 API，SDK 移至 optional) ---
-  "opentelemetry-api>=1.44.0",
+  "opentelemetry-api>=1.45.0",
   # --- Cron 定时任务 ---
   "croniter>=6.2.4", # Cron 表达式解析与计算
   # --- 网页爬取与内容提取（基础） ---
   "beautifulsoup4>=4.15.0", # HTML DOM 解析与清洗（ContentPruningFilter）
-  "lxml>=6.1.2",            # bs4 lxml parser (content_pruning + tree_truncator)
+  "lxml>=6.1.3",            # bs4 lxml parser (content_pruning + tree_truncator)
   # --- Agent 协议与基础设施 ---
-  "filelock>=3.32.4",  # 跨进程文件锁 (Skill 并发控制)
-  "mcp>=2.1.1",        # MCP 协议 SDK 2.x (2026-07-28 spec: stateless HTTP, Client API)
+  "filelock>=4.0.12",  # 跨进程文件锁 (Skill 并发控制)
+  "mcp>=2.3.0",        # MCP 协议 SDK 2.x (2026-07-28 spec: stateless HTTP, Client API)
   "watchdog>=6.0.0",   # 文件系统变更监控 (backends/skills/watcher.py)
   "pdfplumber>=0.11.10", # PDF 文本+表格提取 (file_read_tool CORE; pypdfium2 由 pdfplumber 传递依赖)
 ]
@@ -64,18 +64,18 @@ verify-harness-distribution = "myrm_agent_harness.runtime.install_guard.verify:m
 [project.optional-dependencies]
 # toolkits/browser/ - 浏览器自动化（需要 Patchright）
 browser = [
-  "patchright>=1.62.2",   # CDP 泄露修补浏览器引擎
-  "camoufox>=0.5.5", # Firefox stealth fallback (auto-upgrade ladder)
+  "patchright>=1.63.0",   # CDP 泄露修补浏览器引擎
+  "camoufox>=0.5.7", # Firefox stealth fallback (auto-upgrade ladder)
   "orjson>=3.12.0",       # session vault / persistence JSON (browser toolkit only)
 ]
 # toolkits/vector/ - 向量存储（Qdrant 嵌入式/远程）
 qdrant = [
-  "qdrant-client>=1.19.0", # Qdrant SDK (embedded + remote)
+  "qdrant-client>=1.19.1", # Qdrant SDK (embedded + remote)
 ]
 # toolkits/retriever/ - 高级检索功能（中文分词、向量检索、稀疏检索）
 retrieval = [
-  "langchain-text-splitters>=1.1.2", # 代码感知文本分块 (retriever/splitter/code_utils.py)
-  "numpy>=2.5.2",     # embedding 序列化 + BM25 数值计算
+  "langchain-text-splitters>=1.1.3", # 代码感知文本分块 (retriever/splitter/code_utils.py)
+  "numpy>=2.5.3",     # embedding 序列化 + BM25 数值计算
   "tenacity>=9.1.4",  # cloud embedding retries
   "jieba>=0.42.1",    # 中文分词 (BM25 tokenizer)
   "rank-bm25>=0.2.2", # BM25 稀疏检索算法
@@ -112,15 +112,15 @@ pdf-ocr = [
 ]
 # infra/security/signature.py - FastAPI webhook signature verification
 fastapi = [
-  "fastapi>=0.141.1",
+  "fastapi>=0.142.2",
 ]
 
 # 全链路追踪与指标 (SaaS 级监控)
 observability = [
   "prometheus-client>=0.26.0",
-  "opentelemetry-sdk>=1.44.0",
-  "opentelemetry-exporter-otlp-proto-grpc>=1.44.0",
-  "openinference-instrumentation-langchain>=0.1.73",
+  "opentelemetry-sdk>=1.45.0",
+  "opentelemetry-exporter-otlp-proto-grpc>=1.45.0",
+  "openinference-instrumentation-langchain>=0.1.78",
 ]
 compiled-core = [
 # BEGIN compiled-core (generated — do not edit)
@@ -148,7 +148,7 @@ environments = ["python_full_version >= '3.13' and python_full_version < '3.14'"
 override-dependencies = [
   "click>=8.5.0",
   "patchright>=1.59.1",
-  "openai>=3.6.0",
+  "openai>=3.24.0",
   "opentelemetry-semantic-conventions>=0.61b0",
   "mcp>=2.0.0",                   # MCP SDK 2.x
 ]

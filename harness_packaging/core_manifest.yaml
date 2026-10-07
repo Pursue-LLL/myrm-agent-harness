@@ -1,4 +1,4 @@
-# Core IP modules compiled to native extensions in release wheels.
+# Core modules compiled to native extensions in release wheels.
 #
 # Paths are relative to src/myrm_agent_harness/ (without .py suffix).
 # Development installs keep these as readable .py source.

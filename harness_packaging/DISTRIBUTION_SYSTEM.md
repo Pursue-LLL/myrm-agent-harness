@@ -2,7 +2,7 @@
 
 ## Design Goal
 
-Ship `myrm-agent-harness` as an **MIT open-source Python package** that third-party frameworks can import and extend, with an optional Nuitka-compiled core for accelerated hot paths — mirroring Claude Code's npm shell + native binary pattern.
+Publish `myrm-agent-harness` to PyPI as a **dual-wheel package** that third-party frameworks can import and extend: a release wheel (public API readable, manifest-declared modules stripped) plus per-platform core wheels carrying the Nuitka-compiled modules — mirroring Claude Code's npm shell + native binary pattern. The complete source is MIT-licensed and published in the GitHub repository.
 
 ## Architecture
 
@@ -49,7 +49,7 @@ uv sync --group build
 verify-harness-distribution
 ```
 
-**Not PyArmor/obfuscation.** The compiled core in `core_manifest.yaml` is compiled with **Nuitka** to native `.so` / `.pyd` for hot-path acceleration; the source itself is open on GitHub and in sdist.
+**Not PyArmor/obfuscation.** The modules declared in `core_manifest.yaml` are compiled with **Nuitka** to native `.so` / `.pyd`; the complete source is published in the GitHub repository (MIT).
 
 ## Consumer Install (PyPI)
 

@@ -1,13 +1,13 @@
 # harness_packaging/
 
 ## Overview
-Build and release tooling for proprietary distribution: core IP manifest, platform detection, Nuitka compilation, and release wheel source stripping.
+Build and release tooling for package distribution: compiled-core manifest, platform detection, Nuitka compilation, and release wheel source stripping.
 
 ## File Index
 
 | File | Role | Description |
 |------|------|-------------|
-| core_manifest.yaml | Core | Core IP directories + explicit modules (SSOT) |
+| core_manifest.yaml | Core | Compiled-core directories + explicit modules (SSOT) |
 | manifest.py | Core | Manifest loader: explicit modules + directory expansion |
 | codegen.py | Core | Codegen `runtime/install_guard/_generated/core_ip_manifest.py`, `platform.py` + compiled-core version pins |
 | platforms.py | Core | Platform keys + PEP508 markers; build-time detection via `platform_key` |
