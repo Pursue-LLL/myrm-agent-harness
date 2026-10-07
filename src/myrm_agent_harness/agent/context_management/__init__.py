@@ -110,6 +110,15 @@ from .tracking.task_metrics import (
     get_task_metrics,
     record_archive_refetch_for_path,
 )
+from .active_compression import (
+    ActiveCompressionConfig,
+    ActiveCompressionResult,
+    ActiveContextCompressionEngine,
+    CompressTriggerKind,
+    TokenPressureGauge,
+    TokenPressureLevel,
+    TokenPressureSnapshot,
+)
 from .multibot_governor import (
     BotTurnEvent,
     CognitiveValueEvaluation,
@@ -131,6 +140,14 @@ from .working_memory import (
 )
 
 __all__ = [
+    # active_compression
+    "ActiveCompressionConfig",
+    "ActiveCompressionResult",
+    "ActiveContextCompressionEngine",
+    "CompressTriggerKind",
+    "TokenPressureGauge",
+    "TokenPressureLevel",
+    "TokenPressureSnapshot",
     # multibot_governor
     "BotTurnEvent",
     "CognitiveValueEvaluation",
