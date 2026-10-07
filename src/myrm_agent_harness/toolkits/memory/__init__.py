@@ -525,6 +525,17 @@ from myrm_agent_harness.toolkits.memory.peer_cognition import (
     PeerRelationKind,
     PeerType,
 )
+from myrm_agent_harness.toolkits.memory.authoritative_conclusions import (
+    AuthoritativeConclusion,
+    AuthoritativeConclusionStore,
+    AuthoritativeConclusionToolSuite,
+    ConclusionAnchorProjection,
+    ConclusionAuditRecord,
+    ConclusionContextAnchor,
+    ConclusionStatus,
+    ConclusionToolAction,
+    memory_conclude_tool,
+)
 from myrm_agent_harness.toolkits.memory.prompt_cache_guard import (
     AtomicReplacePayload,
     CapacityLimitConfig,
@@ -1520,6 +1531,15 @@ __all__ = [
     "PeerRelationEdge",
     "PeerRelationKind",
     "PeerType",
+    "AuthoritativeConclusion",
+    "AuthoritativeConclusionStore",
+    "AuthoritativeConclusionToolSuite",
+    "ConclusionAnchorProjection",
+    "ConclusionAuditRecord",
+    "ConclusionContextAnchor",
+    "ConclusionStatus",
+    "ConclusionToolAction",
+    "memory_conclude_tool",
 ]
 
 
