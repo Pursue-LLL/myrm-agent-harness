@@ -332,6 +332,16 @@ from myrm_agent_harness.runtime.context.dynamic_tool_schema_pruner import (
 from myrm_agent_harness.runtime.context.entropy_draining_engine import (
     EntropyDrainingEngine,
 )
+from myrm_agent_harness.runtime.context.entry_projectors import (
+    BaseEntryProjector,
+    TestCoverageDeltaProjector,
+    WorkspaceTouchedFilesProjector,
+)
+from myrm_agent_harness.runtime.context.entry_transforms import (
+    BaseEntryTransform,
+    DuplicateWarningDeduplicatorTransform,
+    LongExecutionLogPrunerTransform,
+)
 from myrm_agent_harness.runtime.context.environment_changelog import (
     EnvironmentChangelogLedger,
 )
@@ -695,6 +705,15 @@ from myrm_agent_harness.runtime.context.plan_mode_boundary_locker import (
     PlanModeBoundaryLocker,
     filter_tools_for_mode,
     is_read_only_tool,
+)
+from myrm_agent_harness.runtime.context.pluggable_context_pipeline_types import (
+    ContextPipelineExecutionReport,
+    CustomContextEntry,
+    PipelineStageAuditRecord,
+    TransformStageKind,
+)
+from myrm_agent_harness.runtime.context.pluggable_context_projection_pipeline import (
+    PluggableContextProjectionPipeline,
 )
 from myrm_agent_harness.runtime.context.prefix_preserving_canonicalizer import (
     PrefixPreservingCanonicalizer,
@@ -1836,6 +1855,17 @@ __all__ = [
     "CompactedContextAssembly",
     "AtomicToolPairCutPointResolver",
     "AppendOnlyCompactionLedgerEngine",
+    "TransformStageKind",
+    "CustomContextEntry",
+    "PipelineStageAuditRecord",
+    "ContextPipelineExecutionReport",
+    "BaseEntryTransform",
+    "LongExecutionLogPrunerTransform",
+    "DuplicateWarningDeduplicatorTransform",
+    "BaseEntryProjector",
+    "WorkspaceTouchedFilesProjector",
+    "TestCoverageDeltaProjector",
+    "PluggableContextProjectionPipeline",
 ]
 
 
