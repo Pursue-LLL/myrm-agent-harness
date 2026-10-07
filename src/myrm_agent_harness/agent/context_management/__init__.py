@@ -136,6 +136,14 @@ from .clean_pod_archival import (
     PodLifecycleState,
     TaskDeliverableContract,
 )
+from .context_diet import (
+    ComponentTokenAuditItem,
+    ContextComponentKind,
+    ContextDietBudgetBill,
+    ContextDietConfig,
+    ContextDietEngine,
+    DistilledSkillCard,
+)
 from .demand_hydration import (
     DemandHydrationConfig,
     HydratedContextEnvelope,
@@ -298,6 +306,13 @@ __all__ = [
     "NightlyArchivalStatus",
     "PodLifecycleState",
     "TaskDeliverableContract",
+    # context_diet
+    "ComponentTokenAuditItem",
+    "ContextComponentKind",
+    "ContextDietBudgetBill",
+    "ContextDietConfig",
+    "ContextDietEngine",
+    "DistilledSkillCard",
     # demand_hydration
     "DemandHydrationConfig",
     "HydratedContextEnvelope",
