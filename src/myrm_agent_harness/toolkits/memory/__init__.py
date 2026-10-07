@@ -250,6 +250,15 @@ from myrm_agent_harness.toolkits.memory.external_providers import (
     SupersedesLineageManager,
     SupersedesRecord,
 )
+from myrm_agent_harness.toolkits.memory.fact_supersession import (
+    ContradictionQuarantineGate,
+    ContradictionQuarantineItem,
+    DialecticRecallProjection,
+    DialecticRecallProjector,
+    FactSupersessionChainEngine,
+    TemporalFactRecord,
+    TemporalFactStatus,
+)
 from myrm_agent_harness.toolkits.memory.four_tier_fts import (
     DreamCompactionReport,
     FourTierDreamCompactor,
@@ -1372,4 +1381,11 @@ __all__ = [
     "MarkdownMemorySerializer",
     "MarkdownSyncDelta",
     "MemoryCuratorStudio",
+    "ContradictionQuarantineGate",
+    "ContradictionQuarantineItem",
+    "DialecticRecallProjection",
+    "DialecticRecallProjector",
+    "FactSupersessionChainEngine",
+    "TemporalFactRecord",
+    "TemporalFactStatus",
 ]
