@@ -546,6 +546,15 @@ from myrm_agent_harness.toolkits.memory.two_layer_dialectic import (
     TwoLayerContextInjectionResult,
     TwoLayerContextInjector,
 )
+from myrm_agent_harness.toolkits.memory.peer_gateway import (
+    AntiCrossContaminationGateway,
+    ChannelType,
+    DeterministicPeerResolver,
+    GatewayPeerAliasConfig,
+    HashEscalationEngine,
+    PeerBoundaryCheckResult,
+    ResolvedPeerIdentity,
+)
 from myrm_agent_harness.toolkits.memory.prompt_cache_guard import (
     AtomicReplacePayload,
     CapacityLimitConfig,
@@ -1558,6 +1567,13 @@ __all__ = [
     "MultiPassDialecticReconciler",
     "TwoLayerContextInjectionResult",
     "TwoLayerContextInjector",
+    "AntiCrossContaminationGateway",
+    "ChannelType",
+    "DeterministicPeerResolver",
+    "GatewayPeerAliasConfig",
+    "HashEscalationEngine",
+    "PeerBoundaryCheckResult",
+    "ResolvedPeerIdentity",
 ]
 
 
