@@ -388,6 +388,14 @@ from .midflight_steering import (
     SteeringInjectionEnvelope,
     SteeringIntentKind,
 )
+from .session_search import (
+    SearchRoleFilter,
+    SessionHistoryFTS5SearchEngine,
+    SessionSearchHit,
+    SessionSearchQuery,
+    SessionSearchResult,
+    SessionSearchScope,
+)
 
 __all__ = [
     # active_compression
@@ -630,6 +638,13 @@ __all__ = [
     "SteeringExecutionTelemetry",
     "SteeringInjectionEnvelope",
     "SteeringIntentKind",
+    # session_search
+    "SearchRoleFilter",
+    "SessionHistoryFTS5SearchEngine",
+    "SessionSearchHit",
+    "SessionSearchQuery",
+    "SessionSearchResult",
+    "SessionSearchScope",
     # schemas
     "BUILTIN_PROTECTED_TOOLS",
     "COMPACT_RULES",
