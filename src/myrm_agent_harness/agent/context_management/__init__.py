@@ -718,6 +718,16 @@ from .cold_start_profiler import (
     McpServerMountState,
     OnDemandMcpMountManager,
 )
+from .custom_compaction_directives import (
+    CompactionDirectivesInjector,
+    CompactionIntegrityReport,
+    CustomCompactionConfig,
+    CustomCompactionDirectivesAndPreservationWhitelistSuite,
+    DirectiveAuditResult,
+    PreservationDirective,
+    PreservationDirectiveKind,
+    PreservationWhitelistAuditor,
+)
 from .zero_thinking_route import (
     DeterministicTaskDetection,
     DeterministicTaskDetector,
@@ -742,6 +752,15 @@ from .smart_idle_compactor import (
 )
 
 __all__ = [
+    # custom_compaction_directives
+    "CompactionDirectivesInjector",
+    "CompactionIntegrityReport",
+    "CustomCompactionConfig",
+    "CustomCompactionDirectivesAndPreservationWhitelistSuite",
+    "DirectiveAuditResult",
+    "PreservationDirective",
+    "PreservationDirectiveKind",
+    "PreservationWhitelistAuditor",
     # zero_thinking_route
     "DeterministicTaskDetection",
     "DeterministicTaskDetector",
