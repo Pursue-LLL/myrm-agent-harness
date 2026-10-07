@@ -38,6 +38,7 @@ _FORBIDDEN_LEGACY_FLAT_FILES = (
 
 @pytest.mark.architecture
 def test_package_root_layout_gate() -> None:
+    """Run the CI layout gate end to end: package roots plus the tests/ root."""
     result = subprocess.run(
         [sys.executable, str(_CHECK_SCRIPT), "--root", str(_PACKAGE_ROOT)],
         cwd=_REPO_ROOT,

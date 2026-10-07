@@ -144,7 +144,7 @@ def main(argv: list[str] | None = None) -> int:
         )
     if tests_violation is not None:
         print(
-            f"TESTS_ROOT_FLAT: {args.tests_root.name}/ has loose test modules: "
+            f"TESTS_ROOT_FLAT: {tests_violation.package_root.name}/ has loose test modules: "
             f"{', '.join(tests_violation.forbidden_files)}",
             file=sys.stderr,
         )
