@@ -5,7 +5,7 @@ Protects concurrent read/write operations with reentrant mutexes.
 Strict typing applied: No `Any` types allowed.
 
 [INPUT]
-- agent.context_management.handoff.types::AgentHandoffSpec, HandoffStatus (POS: Type definitions for
+- toolkits.memory.handoff.types::AgentHandoffSpec, HandoffStatus (POS: Type definitions for
   cross-agent/cross-session typed handoff protocol.)
 
 [OUTPUT]
@@ -23,7 +23,7 @@ import threading
 import time
 from pathlib import Path
 
-from myrm_agent_harness.agent.context_management.handoff.types import (
+from myrm_agent_harness.toolkits.memory.handoff.types import (
     AgentHandoffSpec,
     HandoffStatus,
 )
@@ -82,7 +82,11 @@ class AgentHandoffStore:
                 if spec.status != HandoffStatus.PENDING:
                     continue
                 # Target profile match: None matches any; otherwise exact match or unassigned
-                if target_profile_id is None or spec.target_profile_id is None or spec.target_profile_id == target_profile_id:
+                if (
+                    target_profile_id is None
+                    or spec.target_profile_id is None
+                    or spec.target_profile_id == target_profile_id
+                ):
                     results.append(spec)
             # Sort chronologically descending
             results.sort(key=lambda s: s.created_at, reverse=True)
@@ -92,9 +96,7 @@ class AgentHandoffStore:
         """List all handoffs initiated by or claimed by a specific session."""
         with self._lock:
             results = [
-                s
-                for s in self._cache.values()
-                if s.session_id == session_id or s.claimed_by_session_id == session_id
+                s for s in self._cache.values() if s.session_id == session_id or s.claimed_by_session_id == session_id
             ]
             results.sort(key=lambda s: s.created_at, reverse=True)
             return results

@@ -105,6 +105,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | governor/ | Anti-Semantic-Aliasing memory governor and capacity management package. See [governor/_ARCH.md](governor/_ARCH.md). |
 | graph_arbitration/ | Automated fact conflict arbitration state machine with causal lineage tracking. Dynamic edge weight decay and frequency reinforcement operator. See [graph_arbitration/_ARCH.md](graph_arbitration/_ARCH.md). |
 | graph_rrf/ | Knowledge Graph and Vector Reciprocal Rank Fusion Memory Engine package. See [graph_rrf/_ARCH.md](graph_rrf/_ARCH.md). |
+| handoff/ | Strongly typed cross-agent/cross-session handoff protocol with atomic exactly-once claim and durable session finalizer. See [handoff/_ARCH.md](handoff/_ARCH.md). |
 | ltra/ | Listen-Translate-Remember-Act pipeline: quadruple fact distillation from diarized conversations with verbatim anchors, speaker alias resolution and confidentiality guards. See [ltra/_ARCH.md](ltra/_ARCH.md). |
 | memops/ | MemOps 4-tuple standard semantic engine and zero-context benchmark package. See [memops/_ARCH.md](memops/_ARCH.md). |
 | onboarding/ | Onboarding insight sampling and first-encounter reporting for users migrating from other agent tools (sliding-window sampling, local redaction, fact distillation). See [onboarding/_ARCH.md](onboarding/_ARCH.md). |

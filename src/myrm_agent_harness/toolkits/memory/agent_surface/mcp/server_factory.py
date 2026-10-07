@@ -29,11 +29,11 @@ import logging
 
 from mcp.server.mcpserver import MCPServer
 
-from myrm_agent_harness.agent.context_management.handoff import AgentHandoffEngine
 from myrm_agent_harness.toolkits.memory.agent_surface.mcp.ai_memory_wire_adapter import (
     AiMemoryWireAdapter,
 )
 from myrm_agent_harness.toolkits.memory.agent_surface.mcp.types import McpServerInfo
+from myrm_agent_harness.toolkits.memory.handoff import AgentHandoffEngine
 from myrm_agent_harness.toolkits.memory.privacy_gate import MemoryPrivacyBoundaryGate
 
 logger = logging.getLogger(__name__)

@@ -26,7 +26,7 @@ import logging
 import time
 from pathlib import Path
 
-from myrm_agent_harness.agent.context_management.handoff import (
+from myrm_agent_harness.toolkits.memory.handoff import (
     AgentHandoffEngine,
     AgentHandoffSpec,
     FailedApproachRecord,

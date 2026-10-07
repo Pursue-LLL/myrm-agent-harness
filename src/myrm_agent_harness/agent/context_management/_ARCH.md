@@ -24,7 +24,6 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | compression_flush/ | 多智能体与长会话上下文压缩即时持久化刷盘协议与内存沙箱套件。 See [compression_flush/_ARCH.md](compression_flush/_ARCH.md). |
 | dependency_expansion/ | 全链路跨栈架构依赖展开图谱与任务复杂度自适应双轨调度套件。 See [dependency_expansion/_ARCH.md](dependency_expansion/_ARCH.md). |
 | downshift/ | Context threshold model downshift governor and deterministic handover memo protocol (token % and WU dual triggers, zero-API SessionNotes extraction, Fallback-Up circuit breaker). |
-| handoff/ | Strongly typed cross-agent/cross-session handoff protocol with atomic exactly-once claim and durable session finalizer. |
 | infra/ | Context management infrastructure: shared types, token estimation, budget management, session locks, archive references, cache policy. |
 | pipeline/ | Ordered context processors for filtering, active per-step tool-result pruning, cache-TTL pruning, pre-compaction recall, compression, session notes, summarization, post-compaction refetch guard, normalization, and explicit cache markers. Filter and Compress consume compression_intent via retention_helpers. |
 | project_state/ | 面向长期项目的动态事实状态账本与上下文投影流水线套件。 See [project_state/_ARCH.md](project_state/_ARCH.md). |

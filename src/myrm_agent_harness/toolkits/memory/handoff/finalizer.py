@@ -5,9 +5,9 @@ when an agent finishes its work or prepares to hand off execution.
 Strict typing applied: No `Any` types allowed.
 
 [INPUT]
-- agent.context_management.handoff.handoff_store::AgentHandoffStore (POS: Persistent storage backend for
+- toolkits.memory.handoff.handoff_store::AgentHandoffStore (POS: Persistent storage backend for
   agent handoff packets.)
-- agent.context_management.handoff.types::AgentHandoffSpec, FinalizeSessionRequest, FinalizeSessionResult,
+- toolkits.memory.handoff.types::AgentHandoffSpec, FinalizeSessionRequest, FinalizeSessionResult,
   HandoffStatus (POS: Type definitions for cross-agent/cross-session typed handoff protocol.)
 
 [OUTPUT]
@@ -23,8 +23,8 @@ from __future__ import annotations
 import logging
 import time
 
-from myrm_agent_harness.agent.context_management.handoff.handoff_store import AgentHandoffStore
-from myrm_agent_harness.agent.context_management.handoff.types import (
+from myrm_agent_harness.toolkits.memory.handoff.handoff_store import AgentHandoffStore
+from myrm_agent_harness.toolkits.memory.handoff.types import (
     AgentHandoffSpec,
     FinalizeSessionRequest,
     FinalizeSessionResult,
