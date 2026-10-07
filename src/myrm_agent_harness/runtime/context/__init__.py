@@ -551,6 +551,18 @@ from myrm_agent_harness.runtime.context.instance_metrics import (
     get_context_metrics,
     set_context_metrics,
 )
+from myrm_agent_harness.runtime.context.interactive_survey_engine import (
+    InteractiveSurveyEngine,
+)
+from myrm_agent_harness.runtime.context.interactive_survey_types import (
+    InteractiveSurveyCardPayload,
+    RichDeliverableDocument,
+    SurveyFieldOption,
+    SurveyFieldSpec,
+    SurveyResponseSubmission,
+    SurveyValidationResult,
+    SurveyValidationStatus,
+)
 from myrm_agent_harness.runtime.context.internal_external_message_pipeline import (
     InternalExternalMessagePipeline,
 )
@@ -2162,6 +2174,14 @@ __all__ = [
     "SessionCacheEconomicsSummary",
     "CrossDeploymentHudPayload",
     "PromptCacheEconomicsEngine",
+    "InteractiveSurveyEngine",
+    "InteractiveSurveyCardPayload",
+    "RichDeliverableDocument",
+    "SurveyFieldOption",
+    "SurveyFieldSpec",
+    "SurveyResponseSubmission",
+    "SurveyValidationResult",
+    "SurveyValidationStatus",
 ]
 
 
