@@ -135,6 +135,18 @@ from myrm_agent_harness.toolkits.memory.decontamination import (
     ProvenanceSourceKind,
     RollbackReport,
 )
+from myrm_agent_harness.toolkits.memory.cvfs import (
+    CVFSProtocol,
+    CVFSProtocolError,
+    CVFSRegistryStore,
+    ContextVFSExploreTools,
+    ContextVirtualFileSystem,
+    VFSNodeInfo,
+    VFSNodeType,
+    VFSReadResult,
+    VFSTreeNode,
+    VFSTreeResult,
+)
 from myrm_agent_harness.toolkits.memory.dialectic import (
     DialecticCadenceConfig,
     DialecticCadenceGovernor,
@@ -819,4 +831,14 @@ __all__ = [
     "ProvenanceAttestationManager",
     "ProvenanceSourceKind",
     "RollbackReport",
+    "CVFSProtocol",
+    "CVFSProtocolError",
+    "CVFSRegistryStore",
+    "ContextVFSExploreTools",
+    "ContextVirtualFileSystem",
+    "VFSNodeInfo",
+    "VFSNodeType",
+    "VFSReadResult",
+    "VFSTreeNode",
+    "VFSTreeResult",
 ]
