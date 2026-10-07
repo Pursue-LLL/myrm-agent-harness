@@ -4,7 +4,6 @@
 # Tighten caps with: check_file_line_limit.py --ratchet
 # Remove entries after splitting below 500 lines.
 myrm_agent_harness/agent/_internals/agent_runtime.py	960
-myrm_agent_harness/agent/_internals/memory_extraction.py	465
 myrm_agent_harness/agent/_internals/run_lifecycle.py	749
 myrm_agent_harness/agent/base_agent.py	644
 myrm_agent_harness/agent/context_management/infra/schemas.py	715
@@ -122,7 +121,7 @@ myrm_agent_harness/toolkits/memory/ephemeral.py	521
 myrm_agent_harness/toolkits/memory/metrics.py	652
 myrm_agent_harness/toolkits/memory/relational/sqlite_store.py	1002
 myrm_agent_harness/toolkits/memory/strategies/deduplicator.py	781
-myrm_agent_harness/toolkits/memory/strategies/extractor.py	1085
+myrm_agent_harness/toolkits/memory/strategies/extractor.py	1046
 myrm_agent_harness/toolkits/memory/strategies/pattern_discovery.py	510
 myrm_agent_harness/toolkits/memory/types.py	930
 myrm_agent_harness/toolkits/retriever/engine.py	583

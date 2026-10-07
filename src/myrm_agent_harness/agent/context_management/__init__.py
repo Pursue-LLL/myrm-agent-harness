@@ -364,6 +364,15 @@ from .desktop_repl import (
     ReplRuntimeKind,
     ReplScriptCommand,
 )
+from .turn_truncation import (
+    CanonicalTurnCommit,
+    IntermediateTrialKind,
+    PrefixCacheStabilityReport,
+    TrialStepRecord,
+    TruncationPolicy,
+    TurnExecutionState,
+    TurnStateTruncationEngine,
+)
 
 __all__ = [
     # active_compression
@@ -585,6 +594,14 @@ __all__ = [
     "ReplExecutionStatus",
     "ReplRuntimeKind",
     "ReplScriptCommand",
+    # turn_truncation
+    "CanonicalTurnCommit",
+    "IntermediateTrialKind",
+    "PrefixCacheStabilityReport",
+    "TrialStepRecord",
+    "TruncationPolicy",
+    "TurnExecutionState",
+    "TurnStateTruncationEngine",
     # schemas
     "BUILTIN_PROTECTED_TOOLS",
     "COMPACT_RULES",
