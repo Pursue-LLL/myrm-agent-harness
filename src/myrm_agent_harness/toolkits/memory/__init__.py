@@ -147,6 +147,17 @@ from myrm_agent_harness.toolkits.memory.cvfs import (
     VFSTreeNode,
     VFSTreeResult,
 )
+from myrm_agent_harness.toolkits.memory.cognitive_box import (
+    CognitiveBoxMetaTools,
+    CognitiveBoxSnapshot,
+    CognitiveLayerKind,
+    CognitiveMemoryBoxService,
+    CognitiveMemoryEntry,
+    FourLayerCognitiveMemoryBox,
+    IntakeDecisionKind,
+    IntakeEvaluationReport,
+    StrictMemoryIntakeFilter,
+)
 from myrm_agent_harness.toolkits.memory.dialectic import (
     DialecticCadenceConfig,
     DialecticCadenceGovernor,
@@ -841,4 +852,13 @@ __all__ = [
     "VFSReadResult",
     "VFSTreeNode",
     "VFSTreeResult",
+    "CognitiveBoxMetaTools",
+    "CognitiveBoxSnapshot",
+    "CognitiveLayerKind",
+    "CognitiveMemoryBoxService",
+    "CognitiveMemoryEntry",
+    "FourLayerCognitiveMemoryBox",
+    "IntakeDecisionKind",
+    "IntakeEvaluationReport",
+    "StrictMemoryIntakeFilter",
 ]
