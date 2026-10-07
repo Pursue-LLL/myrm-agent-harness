@@ -56,6 +56,19 @@ if TYPE_CHECKING:
         dir_depth,
     )
     from myrm_agent_harness.toolkits.retriever.qdrant_retrieval import QdrantRetriever
+    from myrm_agent_harness.toolkits.retriever.relaxed_arm_fusion_engine import (
+        ArmNoiseDetector,
+        RelaxedArmFusionEngine,
+    )
+    from myrm_agent_harness.toolkits.retriever.relaxed_arm_fusion_types import (
+        AdaptiveFusionResult,
+        AdaptiveReturnConfig,
+        ArmCandidate,
+        ArmKind,
+        ArmTelemetryProfile,
+        FusedArmHit,
+        RetrievalArm,
+    )
     from myrm_agent_harness.toolkits.retriever.reranker import RerankerConfig, RerankerService, get_reranker_service
     from myrm_agent_harness.toolkits.retriever.splitter import TextChunker
     from myrm_agent_harness.toolkits.retriever.vector_search import (
@@ -118,9 +131,28 @@ __all__ = [
     "RecallDebug",
     "SourceRank",
     "SourceDebugStats",
+    # Relaxed-Arm Fusion & Adaptive Return
+    "ArmKind",
+    "ArmCandidate",
+    "RetrievalArm",
+    "ArmTelemetryProfile",
+    "AdaptiveReturnConfig",
+    "FusedArmHit",
+    "AdaptiveFusionResult",
+    "ArmNoiseDetector",
+    "RelaxedArmFusionEngine",
 ]
 
 _LAZY_IMPORTS = {
+    "ArmKind": ("myrm_agent_harness.toolkits.retriever.relaxed_arm_fusion_types", "ArmKind"),
+    "ArmCandidate": ("myrm_agent_harness.toolkits.retriever.relaxed_arm_fusion_types", "ArmCandidate"),
+    "RetrievalArm": ("myrm_agent_harness.toolkits.retriever.relaxed_arm_fusion_types", "RetrievalArm"),
+    "ArmTelemetryProfile": ("myrm_agent_harness.toolkits.retriever.relaxed_arm_fusion_types", "ArmTelemetryProfile"),
+    "AdaptiveReturnConfig": ("myrm_agent_harness.toolkits.retriever.relaxed_arm_fusion_types", "AdaptiveReturnConfig"),
+    "FusedArmHit": ("myrm_agent_harness.toolkits.retriever.relaxed_arm_fusion_types", "FusedArmHit"),
+    "AdaptiveFusionResult": ("myrm_agent_harness.toolkits.retriever.relaxed_arm_fusion_types", "AdaptiveFusionResult"),
+    "ArmNoiseDetector": ("myrm_agent_harness.toolkits.retriever.relaxed_arm_fusion_engine", "ArmNoiseDetector"),
+    "RelaxedArmFusionEngine": ("myrm_agent_harness.toolkits.retriever.relaxed_arm_fusion_engine", "RelaxedArmFusionEngine"),
     "fuse_rrf_deterministic": ("myrm_agent_harness.toolkits.retriever.fusion_strategies", "fuse_rrf_deterministic"),
     "RankedList": ("myrm_agent_harness.toolkits.retriever.fusion_strategies", "RankedList"),
     "FusedHit": ("myrm_agent_harness.toolkits.retriever.fusion_strategies", "FusedHit"),
