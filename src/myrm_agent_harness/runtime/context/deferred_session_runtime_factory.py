@@ -4,6 +4,22 @@ Ensures working directory (CWD) is authoritative and calibrated before
 instantiating workspace-bound services (Git, Linters, FileWatchers),
 eliminating directory drift during historical session resume and cross-project switching.
 Strict 0 Any, thread-safe, single file <400 lines.
+
+[INPUT]
+- runtime.context.cwd_deferred_assembly_guard::CwdDeferredAssemblyGuard (POS: Guard enforcing outside-in
+  assembly order and deferred CWD service binding.)
+- runtime.context.cwd_deferred_assembly_types::AssemblyOrderViolationError, AssemblyStageKind,
+  SessionMetadataHeader, SessionResumeVerificationResult (POS: Type contracts for CWD deferred workspace
+  service binding and session resume order.)
+
+[OUTPUT]
+- AssembledRuntimeContainer: Container holding the fully initialized runtime and its bound services.
+- DeferredSessionRuntimeFactory: Factory executing strict outside-in assembly order for session execution
+  and resume.
+- MockWorkspaceService: Mock workspace-bound service for verification and testing.
+
+[POS]
+Deferred session runtime factory orchestrating outside-in assembly.
 """
 
 from __future__ import annotations

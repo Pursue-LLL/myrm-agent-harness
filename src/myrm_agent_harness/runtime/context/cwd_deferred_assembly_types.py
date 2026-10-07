@@ -3,6 +3,21 @@
 Defines schemas for outside-in assembly stages, session metadata headers,
 bound workspace service descriptors, and order verification receipts.
 Strictly adheres to 0 Any and typed dataclasses.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- AssemblyStageKind: Strict outside-in assembly stages for session initialization and resume.
+- AssemblyOrderViolationError: Raised when workspace services or runtime are instantiated out of strict
+  outside-in order.
+- SessionMetadataHeader: Header metadata for historical session selection and CWD calibration.
+- WorkspaceServiceDescriptor: Descriptor for a workspace service strictly bound to the calibrated CWD.
+- SessionResumeVerificationResult: Comprehensive receipt verifying correct outside-in assembly and CWD
+  binding.
+
+[POS]
+Type contracts for CWD deferred workspace service binding and session resume order.
 """
 
 from __future__ import annotations

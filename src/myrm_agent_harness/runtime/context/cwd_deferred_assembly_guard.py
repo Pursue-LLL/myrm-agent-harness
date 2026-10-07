@@ -3,6 +3,18 @@
 Prevents premature workspace service instantiation before session selection
 and CWD resolution, eliminating directory drift and out-of-bounds file watching.
 Strict 0 Any, thread-safe, single file <400 lines.
+
+[INPUT]
+- runtime.context.cwd_deferred_assembly_types::AssemblyOrderViolationError, AssemblyStageKind,
+  WorkspaceServiceDescriptor (POS: Type contracts for CWD deferred workspace service binding and session
+  resume order.)
+
+[OUTPUT]
+- CwdDeferredAssemblyGuard: Enforces strict outside-in assembly stages for session initialization and
+  resume.
+
+[POS]
+Guard enforcing outside-in assembly order and deferred CWD service binding.
 """
 
 from __future__ import annotations
