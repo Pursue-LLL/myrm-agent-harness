@@ -918,6 +918,16 @@ from myrm_agent_harness.runtime.context.session_cwd_guard import (
 from myrm_agent_harness.runtime.context.session_data_sanitizer import (
     SessionDataSanitizer,
 )
+from myrm_agent_harness.runtime.context.session_dedup_processor import (
+    SessionDedupProcessor,
+)
+from myrm_agent_harness.runtime.context.session_dedup_types import (
+    BlockChunkLevel,
+    DedupedMessagePackage,
+    SessionBlockFingerprint,
+    SessionDedupConfig,
+    SessionDedupSavingsReport,
+)
 from myrm_agent_harness.runtime.context.session_epoch_splitter import (
     EpochSplitUrgency,
     ForkedEpochSessionDescriptor,
@@ -1936,6 +1946,12 @@ __all__ = [
     "AssembledRuntimeContainer",
     "DeferredSessionRuntimeFactory",
     "MockWorkspaceService",
+    "SessionDedupProcessor",
+    "BlockChunkLevel",
+    "DedupedMessagePackage",
+    "SessionBlockFingerprint",
+    "SessionDedupConfig",
+    "SessionDedupSavingsReport",
 ]
 
 
