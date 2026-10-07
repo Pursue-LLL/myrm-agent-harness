@@ -1050,6 +1050,16 @@ from myrm_agent_harness.runtime.context.session_spill_store_types import (
 from myrm_agent_harness.runtime.context.session_state_atomic_resume_engine import (
     SessionStateAtomicResumeEngine,
 )
+from myrm_agent_harness.runtime.context.session_state_delta_engine import (
+    SessionStateDeltaEngine,
+)
+from myrm_agent_harness.runtime.context.session_state_delta_types import (
+    SessionStateDeltaPackage,
+    SessionStateSnapshot,
+    StateDeltaAuditRecord,
+    StateDeltaItem,
+    StateMutationKind,
+)
 from myrm_agent_harness.runtime.context.session_tree_navigator import (
     BranchSummaryPayload,
     NavigateTreeResult,
@@ -2110,6 +2120,12 @@ __all__ = [
     "ConvergenceAuditSnapshot",
     "ProactiveSlotTracker",
     "ProactiveClarificationStateMachine",
+    "StateMutationKind",
+    "StateDeltaItem",
+    "SessionStateSnapshot",
+    "SessionStateDeltaPackage",
+    "StateDeltaAuditRecord",
+    "SessionStateDeltaEngine",
 ]
 
 
