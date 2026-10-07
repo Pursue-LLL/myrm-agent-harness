@@ -515,6 +515,16 @@ from myrm_agent_harness.toolkits.memory.failure_retrieval import (
     FailureTriggerInterceptor,
     HistoricalResolutionEntry,
 )
+from myrm_agent_harness.toolkits.memory.peer_cognition import (
+    PeerCognitionGraphStore,
+    PeerCognitionProjection,
+    PeerIdentity,
+    PeerPersonaCard,
+    PeerPersonaCardEngine,
+    PeerRelationEdge,
+    PeerRelationKind,
+    PeerType,
+)
 from myrm_agent_harness.toolkits.memory.prompt_cache_guard import (
     AtomicReplacePayload,
     CapacityLimitConfig,
@@ -1502,6 +1512,14 @@ __all__ = [
     "FailureTriggerConfig",
     "FailureTriggerInterceptor",
     "HistoricalResolutionEntry",
+    "PeerCognitionGraphStore",
+    "PeerCognitionProjection",
+    "PeerIdentity",
+    "PeerPersonaCard",
+    "PeerPersonaCardEngine",
+    "PeerRelationEdge",
+    "PeerRelationKind",
+    "PeerType",
 ]
 
 
