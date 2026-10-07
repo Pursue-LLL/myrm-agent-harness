@@ -718,6 +718,16 @@ from .cold_start_profiler import (
     McpServerMountState,
     OnDemandMcpMountManager,
 )
+from .zero_thinking_route import (
+    DeterministicTaskDetection,
+    DeterministicTaskDetector,
+    ModelProviderKind,
+    ProviderThinkingPayload,
+    ThinkingBudgetMode,
+    ThinkingParameterNormalizer,
+    ZeroThinkingBudgetDirectRouteSuite,
+    ZeroThinkingSavingsRecord,
+)
 from .smart_idle_compactor import (
     CacheWindowStatus,
     CompactedCheckpointArchive,
@@ -732,6 +742,15 @@ from .smart_idle_compactor import (
 )
 
 __all__ = [
+    # zero_thinking_route
+    "DeterministicTaskDetection",
+    "DeterministicTaskDetector",
+    "ModelProviderKind",
+    "ProviderThinkingPayload",
+    "ThinkingBudgetMode",
+    "ThinkingParameterNormalizer",
+    "ZeroThinkingBudgetDirectRouteSuite",
+    "ZeroThinkingSavingsRecord",
     # cold_start_profiler
     "ColdStartContextProfile",
     "ColdStartContextProfilerAndOnDemandMcpMountSuite",
