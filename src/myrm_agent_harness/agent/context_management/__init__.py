@@ -507,6 +507,16 @@ from .sandbox_reduction import (
     ReductionKind,
     SandboxReductionConfig,
 )
+from .prompt_cache_clock import (
+    CacheTierKind,
+    ClockBucketResolution,
+    ContextClockSpec,
+    PromptCacheClockConfig,
+    PromptCacheClockGovernorEngine,
+    PromptCacheTierBlock,
+    TieredAssemblyResult,
+    ToolChoiceMode,
+)
 
 __all__ = [
     # active_compression
@@ -775,6 +785,15 @@ __all__ = [
     "ReducedOutputEnvelope",
     "ReductionKind",
     "SandboxReductionConfig",
+    # prompt_cache_clock
+    "CacheTierKind",
+    "ClockBucketResolution",
+    "ContextClockSpec",
+    "PromptCacheClockConfig",
+    "PromptCacheClockGovernorEngine",
+    "PromptCacheTierBlock",
+    "TieredAssemblyResult",
+    "ToolChoiceMode",
     # session_roaming
     "CollaborationRole",
     "DeviceAgnosticSessionRoamingEngine",
