@@ -207,6 +207,15 @@ from myrm_agent_harness.toolkits.memory.dialectic import (
     SessionHeatState,
     UserBaseProfile,
 )
+from myrm_agent_harness.toolkits.memory.dialectic_guard import (
+    DialecticExecutionSlot,
+    DialecticLivenessAuditLog,
+    DialecticLivenessConfig,
+    DialecticLivenessStateMachine,
+    DialecticPendingResult,
+    ExecutionSlotState,
+    LivenessTelemetry,
+)
 from myrm_agent_harness.toolkits.memory.domain_types import (
     DomainCategory,
     MemoryDomain,
@@ -1596,6 +1605,13 @@ __all__ = [
     "SanitizationResult",
     "ThinkingBlockSanitizer",
     "ThinkingSanitizerConfig",
+    "DialecticExecutionSlot",
+    "DialecticLivenessAuditLog",
+    "DialecticLivenessConfig",
+    "DialecticLivenessStateMachine",
+    "DialecticPendingResult",
+    "ExecutionSlotState",
+    "LivenessTelemetry",
 ]
 
 
