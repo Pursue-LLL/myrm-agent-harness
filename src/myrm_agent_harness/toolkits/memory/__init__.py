@@ -204,6 +204,15 @@ from myrm_agent_harness.toolkits.memory.dreaming import (
     SurgicalSessionMemoryUnlearner,
     SurgicalUnlearnReport,
 )
+from myrm_agent_harness.toolkits.memory.ephemeral_delta import (
+    DeltaActionKind,
+    EphemeralDeltaBufferSnapshot,
+    EphemeralDeltaItem,
+    EphemeralDeltaReconciler,
+    EphemeralDeltaStore,
+    HumanTailDeltaInjector,
+    ReconciliationBatchReport,
+)
 from myrm_agent_harness.toolkits.memory.external_bridge import (
     END_MARKER,
     START_MARKER,
@@ -1087,6 +1096,13 @@ __all__ = [
     "SourceDemotionPolicy",
     "run_lineage_defense_pipeline",
     "create_local_memory_manager",
+    "DeltaActionKind",
+    "EphemeralDeltaBufferSnapshot",
+    "EphemeralDeltaItem",
+    "EphemeralDeltaReconciler",
+    "EphemeralDeltaStore",
+    "HumanTailDeltaInjector",
+    "ReconciliationBatchReport",
     "setup_local_file_memory_sync",
     "extract_memories_from_conversation",
     "get_scan_metrics",
