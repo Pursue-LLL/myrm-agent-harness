@@ -33,6 +33,10 @@ Harness test suite: unit, integration, architecture gates, and performance bench
 | `agent/meta_tools/skill_search/test_engine_mcp_index.py` | 单元 | MCP skill BM25 index enrichment（>3 tools） |
 | `agent/skills/evolution/` | 单元 | Skill evolution pipeline tests (incl. trace analyzer takeover, variant generator) |
 
+## Test file placement
+
+The `tests/` root holds only `__init__.py`, `conftest.py` and `_ARCH.md`. Every test file lives in the subtree that mirrors the `src/myrm_agent_harness/` module it covers (for example `agent/context_management/`, `toolkits/memory/`, `agent/tool_management/`); never add `test_*.py` directly under `tests/`. One test module covers one source domain: split a module that spans two (for example working memory and memory consolidation) instead of naming it `test_<a>_and_<b>.py`.
+
 ## Test file naming
 
 Duplicate basenames such as `test_engine.py` under different `tests/agent/**` subtrees can trigger pytest `import file mismatch` during collection. Use domain-specific names (e.g. `test_curator_engine.py`).

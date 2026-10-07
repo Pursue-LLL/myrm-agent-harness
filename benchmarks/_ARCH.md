@@ -13,10 +13,6 @@ Standalone benchmark probes for validating runtime and agent performance charact
 | context_archive_benchmark.py | Diagnostic | Context archive hash, gzip, atomic write, schema-v2 restore-map costs | No |
 | baseline_boundary.json | Baseline | Saved boundary-detection baseline for `--check-regression` | Yes |
 
-## Archive
-
-One-off optimization and skill-search evaluation scripts are in `archive/`. See [archive/_ARCH.md](archive/_ARCH.md).
-
 ## Key Dependencies
 
 - `myrm_agent_harness.infra`

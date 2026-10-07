@@ -661,6 +661,12 @@ from myrm_agent_harness.runtime.context.project_hierarchy_session_types import (
 from myrm_agent_harness.runtime.context.incremental_material_hydration_engine import (
     IncrementalMaterialHydrationEngine,
 )
+from myrm_agent_harness.runtime.context.live_thread_compaction_types import (
+    CompactionSyncStatus,
+    LiveThreadCompactionResult,
+    LiveThreadCompactionSignal,
+    RemoteThreadSnapshot,
+)
 from myrm_agent_harness.runtime.context.project_milestone_tracker import (
     ProjectMilestoneTracker,
 )
@@ -671,6 +677,12 @@ from myrm_agent_harness.runtime.context.project_milestone_types import (
     ProjectMilestoneCheckpoint,
     ProjectResumptionPackage,
     ProjectTodoItem,
+)
+from myrm_agent_harness.runtime.context.remote_live_thread_compaction_coordinator import (
+    RemoteLiveThreadCompactionCoordinator,
+)
+from myrm_agent_harness.runtime.context.remote_thread_actor_endpoint import (
+    RemoteThreadActorEndpoint,
 )
 from myrm_agent_harness.runtime.context.prompt_cache_lifecycle_types import (
     CacheMutationRiskLevel,
@@ -1668,6 +1680,12 @@ __all__ = [
     "ProjectResumptionPackage",
     "ProjectMilestoneTracker",
     "IncrementalMaterialHydrationEngine",
+    "CompactionSyncStatus",
+    "LiveThreadCompactionSignal",
+    "LiveThreadCompactionResult",
+    "RemoteThreadSnapshot",
+    "RemoteThreadActorEndpoint",
+    "RemoteLiveThreadCompactionCoordinator",
 ]
 
 
