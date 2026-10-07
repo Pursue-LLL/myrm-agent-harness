@@ -251,6 +251,16 @@ from myrm_agent_harness.toolkits.memory.ltra import (
 )
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.metrics import SearchMetrics, SearchSnapshot, get_search_metrics
+from myrm_agent_harness.toolkits.memory.migration import (
+    CompetitorAssetScanner,
+    CompetitorMigrationMetaTools,
+    CompetitorMigrationService,
+    CompetitorSourceKind,
+    DetectedCompetitorArtifact,
+    MigrationExecutionReport,
+    NormalizedMemoryPayload,
+    UniversalMemoryTranslator,
+)
 from myrm_agent_harness.toolkits.memory.mirror import (
     ColdMemoryRecord,
     HotColdMirrorEngine,
@@ -933,4 +943,12 @@ __all__ = [
     "PurgeExecutionMode",
     "PurgeExecutionResult",
     "create_integration_context_purge_tool",
+    "CompetitorAssetScanner",
+    "CompetitorMigrationMetaTools",
+    "CompetitorMigrationService",
+    "CompetitorSourceKind",
+    "DetectedCompetitorArtifact",
+    "MigrationExecutionReport",
+    "NormalizedMemoryPayload",
+    "UniversalMemoryTranslator",
 ]
