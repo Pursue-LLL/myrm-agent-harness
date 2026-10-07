@@ -801,8 +801,27 @@ from .resumed_usage_meter import (
     SessionUsageSummary,
     UsageBillingLedgerRecord,
 )
+from .devflow_lifecycle import (
+    ContextAdmissionDecision,
+    ContextGateEvaluator,
+    DevFlowContextLifecycleAndProgressiveLoadingSuite,
+    DevFlowPhase,
+    ExplorationHandoffEngine,
+    GateQuestionnaireEvaluation,
+    PhaseLifecycleState,
+    StructuredExplorationHandoff,
+)
 
 __all__ = [
+    # devflow_lifecycle
+    "ContextAdmissionDecision",
+    "ContextGateEvaluator",
+    "DevFlowContextLifecycleAndProgressiveLoadingSuite",
+    "DevFlowPhase",
+    "ExplorationHandoffEngine",
+    "GateQuestionnaireEvaluation",
+    "PhaseLifecycleState",
+    "StructuredExplorationHandoff",
     # resumed_usage_meter
     "NetRunUsage",
     "NetRunUsageMeter",
