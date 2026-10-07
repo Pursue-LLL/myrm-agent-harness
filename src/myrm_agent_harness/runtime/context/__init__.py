@@ -671,6 +671,17 @@ from myrm_agent_harness.runtime.context.model_free_tool_pruner_types import (
 from myrm_agent_harness.runtime.context.model_harness_cost_router import (
     ModelHarnessCostRouter,
 )
+from myrm_agent_harness.runtime.context.model_switch_barrier import (
+    ModelSwitchSubagentPartitioningBarrier,
+)
+from myrm_agent_harness.runtime.context.model_switch_barrier_types import (
+    BarrierInterceptionVerdict,
+    BarrierRoutingAction,
+    CompactCrossModelHandshake,
+    OffloadReason,
+    PrimarySessionModelLock,
+    SubagentDispatchContract,
+)
 from myrm_agent_harness.runtime.context.multi_dimension_at_resolver import (
     AtContextIngestionResult,
     AtReferenceKind,
@@ -1367,6 +1378,13 @@ from myrm_agent_harness.runtime.context.working_set_rules_types import (
 )
 
 __all__ = [
+    "BarrierInterceptionVerdict",
+    "BarrierRoutingAction",
+    "CompactCrossModelHandshake",
+    "ModelSwitchSubagentPartitioningBarrier",
+    "OffloadReason",
+    "PrimarySessionModelLock",
+    "SubagentDispatchContract",
     "BatchTaskDescriptor",
     "CostTimeWindowKind",
     "PeakOffPeakCostScheduler",
