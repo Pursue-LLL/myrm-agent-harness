@@ -911,6 +911,22 @@ from myrm_agent_harness.runtime.context.three_tier_memory_funnel_types import (
     StageNotesAndLedgerStatus,
     ThreeTierMemoryFunnelSnapshot,
 )
+from myrm_agent_harness.runtime.context.skill_state_types import (
+    AuditLogEventRecord,
+    ConstantPromptTuple,
+    PrebuiltStateSchemaKind,
+    RetroactiveProbeQuery,
+    RetroactiveProbeResult,
+    StateMergePatch,
+    get_default_schema_state,
+)
+from myrm_agent_harness.runtime.context.skill_state_patch_governor import (
+    JsonMergePatchGovernor,
+    apply_rfc7386_merge_patch,
+)
+from myrm_agent_harness.runtime.context.skill_state_constant_prompt_engine import (
+    SkillStateConstantPromptEngine,
+)
 from myrm_agent_harness.runtime.context.prefix_integrity_barrier_types import (
     BarrierInterceptionMode,
     BaselinePrefixFingerprint,
@@ -2398,6 +2414,16 @@ __all__ = [
     "SearchableArchiveStatus",
     "ThreeTierMemoryFunnelSnapshot",
     "ThreeTierMemoryFunnelAggregator",
+    "PrebuiltStateSchemaKind",
+    "ConstantPromptTuple",
+    "StateMergePatch",
+    "AuditLogEventRecord",
+    "RetroactiveProbeQuery",
+    "RetroactiveProbeResult",
+    "get_default_schema_state",
+    "apply_rfc7386_merge_patch",
+    "JsonMergePatchGovernor",
+    "SkillStateConstantPromptEngine",
 ]
 
 
