@@ -761,6 +761,9 @@ from myrm_agent_harness.runtime.context.token_estimator import (
     extract_provider_usage_anchor,
     is_compaction_triggered,
 )
+from myrm_agent_harness.runtime.context.token_tax_governor import (
+    TokenTaxGovernor,
+)
 from myrm_agent_harness.runtime.context.tokenomics_compression_types import (
     CompressionBudgetDecision,
     CompressionTierKind,
@@ -799,6 +802,9 @@ from myrm_agent_harness.runtime.context.transient_sub_inquiry import (
     build_transient_context_messages,
     execute_transient_sub_inquiry,
 )
+from myrm_agent_harness.runtime.context.transient_tool_output_gc import (
+    TransientToolOutputGCEngine,
+)
 from myrm_agent_harness.runtime.context.transparent_reader import (
     TransparentFileReader,
     read_context_file_async,
@@ -827,6 +833,16 @@ from myrm_agent_harness.runtime.context.tripartite_identity_anchor_types import 
 )
 from myrm_agent_harness.runtime.context.ultra_heuristic_filter import (
     UltraHeuristicPreFilter,
+)
+from myrm_agent_harness.runtime.context.universal_thin_harness_types import (
+    ModelCapabilityTier,
+    OperatingDisciplineMode,
+    ThinPromptContract,
+    TokenTaxAuditSnapshot,
+    TransientToolOutputGCReceipt,
+)
+from myrm_agent_harness.runtime.context.universal_thin_prompt_generator import (
+    UniversalThinPromptGenerator,
 )
 from myrm_agent_harness.runtime.context.usage_ledger_attempt import (
     AttemptUsageItem,
@@ -1426,6 +1442,14 @@ __all__ = [
     "OmniGlyphGovernor",
     "OmniGlyphVisualRenderer",
     "UltraHeuristicPreFilter",
+    "OperatingDisciplineMode",
+    "ModelCapabilityTier",
+    "ThinPromptContract",
+    "TransientToolOutputGCReceipt",
+    "TokenTaxAuditSnapshot",
+    "UniversalThinPromptGenerator",
+    "TransientToolOutputGCEngine",
+    "TokenTaxGovernor",
 ]
 
 
