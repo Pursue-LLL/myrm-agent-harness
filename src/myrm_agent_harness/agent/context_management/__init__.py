@@ -663,8 +663,31 @@ from .browser_batch_script import (
     SynthesizedBrowserScript,
     synthesize_batch_crawling_script,
 )
+from .tool_safe_compaction import (
+    CutPointEvaluation,
+    CutPointSafetyKind,
+    FileManifests,
+    MessageRole,
+    SafeCompactionResult,
+    ToolSafeCompactionEngine,
+    evaluate_cut_point,
+    extract_file_manifests,
+    find_valid_cut_points,
+    select_optimal_safe_cut_point,
+)
 
 __all__ = [
+    # tool_safe_compaction
+    "CutPointEvaluation",
+    "CutPointSafetyKind",
+    "FileManifests",
+    "MessageRole",
+    "SafeCompactionResult",
+    "ToolSafeCompactionEngine",
+    "evaluate_cut_point",
+    "extract_file_manifests",
+    "find_valid_cut_points",
+    "select_optimal_safe_cut_point",
     # browser_batch_script
     "ArtifactFormatKind",
     "BatchExecutionResult",
