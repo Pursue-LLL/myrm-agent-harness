@@ -3,6 +3,18 @@
 Defines immutable data models for cumulative read/write footprints,
 structured branch exploration handoff summaries, and LCA handoff results.
 Strictly adheres to 0 Any and typed dataclasses.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- CumulativeFileFootprint: Immutable record of cumulative files read and modified across cycles and
+  branches.
+- BranchExplorationSummary: Structured synthesis of discarded branch exploration experiences.
+- BranchHandoffResult: Result of an LCA branch handoff computation and summary mounting.
+
+[POS]
+Type contracts for LCA branch exploration summary and cumulative file tracking.
 """
 
 from __future__ import annotations

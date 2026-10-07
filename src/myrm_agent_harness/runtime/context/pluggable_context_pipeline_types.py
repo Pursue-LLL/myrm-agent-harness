@@ -2,6 +2,20 @@
 
 Defines schemas for custom context entries, semantic projections, transform stage
 audits, and complete pipeline execution reports for visual inspection.
+
+[INPUT]
+- runtime.context.append_only_compaction_types::ContextLogEntry (POS: Types for append-only compaction
+  ledger and atomic tool-pair cut-point engine.)
+
+[OUTPUT]
+- TransformStageKind: Pipeline progression stages.
+- CustomContextEntry: Arbitrary domain entity recorded by skills or extensions.
+- PipelineStageAuditRecord: Detailed visual debugger audit snapshot for a single transform stage.
+- ContextPipelineExecutionReport: Full pipeline execution artifact consumable by models and WebUI visual
+  inspectors.
+
+[POS]
+Types for pluggable context projection and entry transform pipeline.
 """
 
 from dataclasses import dataclass, field

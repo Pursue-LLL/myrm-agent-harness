@@ -3,6 +3,18 @@
 Extracts file read and modification operations from tool calls, logs, and summaries,
 maintaining an exact mathematical union footprint to eliminate file amnesia.
 Strict 0 Any, immutable records, typed methods.
+
+[INPUT]
+- runtime.context.lca_branch_summary_types::CumulativeFileFootprint (POS: Type contracts for LCA branch
+  exploration summary and cumulative file tracking.)
+- runtime.context.pi_compaction_types::CumulativeFileRecord (POS: Type definitions for Pi Agent-style
+  progressive context compaction, branch summarization, and cumulative file tracker engine.)
+
+[OUTPUT]
+- CumulativeFileTracker: Thread-safe engine for tracking and union-aggregating file operations.
+
+[POS]
+Cumulative file footprint tracker across multi-turn sessions, compactions, and branches.
 """
 
 from __future__ import annotations

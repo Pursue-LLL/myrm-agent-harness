@@ -4,6 +4,25 @@ Computes Lowest Common Ancestor (LCA) across session tree branches, extracts str
 exploration lessons from abandoned paths, and performs cumulative union aggregation
 of file operations across branches and compactions.
 Strict 0 Any, immutable contracts, single file <400 lines.
+
+[INPUT]
+- runtime.context.cumulative_file_tracker::CumulativeFileTracker (POS: Cumulative file footprint tracker
+  across multi-turn sessions, compactions, and branches.)
+- runtime.context.lca_branch_summary_types::BranchExplorationSummary, BranchHandoffResult,
+  CumulativeFileFootprint (POS: Type contracts for LCA branch exploration summary and cumulative file
+  tracking.)
+- runtime.context.session_tree_navigator::SessionEntryType, SessionTreeNodeEntry (POS: Harness runtime
+  context layer.)
+
+[OUTPUT]
+- find_lowest_common_ancestor: Compute the Lowest Common Ancestor (LCA) of two nodes in an append-only tree.
+- collect_abandoned_path: Collect entries along the abandoned path from source_leaf_id up to (exclusive)
+  lca_id.
+- LCABranchExplorationSummaryEngine: Coordinates LCA calculation, branch exploration synthesis, and
+  cumulative file tracking.
+
+[POS]
+LCA branch exploration summary inheritance and cumulative file footprint engine.
 """
 
 from __future__ import annotations

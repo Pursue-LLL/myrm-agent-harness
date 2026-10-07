@@ -2,6 +2,26 @@
 
 Coordinates chained post-compaction entry transformations, custom domain entry
 semantic projections, and emits stage-by-stage visual debugger audit records.
+
+[INPUT]
+- runtime.context.append_only_compaction_types::ContextLogEntry (POS: Types for append-only compaction
+  ledger and atomic tool-pair cut-point engine.)
+- runtime.context.entry_projectors::BaseEntryProjector, TestCoverageDeltaProjector,
+  WorkspaceTouchedFilesProjector (POS: Entry projector plugins for translating custom entries into LLM
+  context messages.)
+- runtime.context.entry_transforms::BaseEntryTransform, DuplicateWarningDeduplicatorTransform,
+  LongExecutionLogPrunerTransform (POS: Entry transform plugins for post-compaction context pruning and
+  deduplication.)
+- runtime.context.pluggable_context_pipeline_types::ContextPipelineExecutionReport, CustomContextEntry,
+  PipelineStageAuditRecord, TransformStageKind (POS: Types for pluggable context projection and entry
+  transform pipeline.)
+
+[OUTPUT]
+- PluggableContextProjectionPipeline: Extensible pipeline orchestrating entry transforms and custom
+  projections.
+
+[POS]
+Pluggable context projection and entry transform pipeline engine.
 """
 
 import time

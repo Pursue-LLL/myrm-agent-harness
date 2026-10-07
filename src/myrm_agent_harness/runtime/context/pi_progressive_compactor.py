@@ -8,6 +8,25 @@ Features:
 - Split-turn handling for oversized single turns.
 - LCA branch exploration summary stitching.
 Strict 0 Any, type-hinted, thread-safe.
+
+[INPUT]
+- runtime.context.cumulative_file_tracker::CumulativeFileTracker (POS: Cumulative file footprint tracker
+  across multi-turn sessions, compactions, and branches.)
+- runtime.context.pi_compaction_types::CumulativeFileRecord, CutPointResult, PiCompactionConfig,
+  PiCompactionResult, RollingStructuredSummary (POS: Type definitions for Pi Agent-style progressive context
+  compaction, branch summarization, and cumulative file tracker engine.)
+- runtime.context.surface_projection_types::MessageRole, ProjectedMessage (POS: Type definitions for
+  Immutable Event Log SSOT and Surface Projection Engine.)
+
+[OUTPUT]
+- estimate_message_tokens: Heuristic token estimator (chars // 4) ensuring protocol safety margins.
+- find_protocol_safe_cut_point: Find a protocol-safe cut point accumulating approximately keep_recent_tokens
+  backwards.
+- PiProgressiveCompactor: Orchestrates Pi-style progressive compaction, cumulative tracking, and branch
+  preservation.
+
+[POS]
+Pi Agent-style progressive context compaction and branch summarization engine.
 """
 
 from __future__ import annotations

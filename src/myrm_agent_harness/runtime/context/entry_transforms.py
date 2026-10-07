@@ -2,6 +2,19 @@
 
 Provides extensible transformations applied to retained context entries,
 including execution log folding and duplicate warning suppression.
+
+[INPUT]
+- runtime.context.append_only_compaction_types::ContextEntryRole, ContextLogEntry (POS: Types for
+  append-only compaction ledger and atomic tool-pair cut-point engine.)
+
+[OUTPUT]
+- BaseEntryTransform: Abstract base class for entry post-processing transformers.
+- LongExecutionLogPrunerTransform: Folds overly long execution or build logs into compact semantic stubs.
+- DuplicateWarningDeduplicatorTransform: Suppresses consecutive duplicate warnings or stderr output across
+  tool results.
+
+[POS]
+Entry transform plugins for post-compaction context pruning and deduplication.
 """
 
 from abc import ABC, abstractmethod

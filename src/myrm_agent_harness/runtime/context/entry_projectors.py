@@ -2,6 +2,20 @@
 
 Allows extensions and tools to inject domain-specific state (e.g. workspace touched
 files, test coverage deltas) into the model's active context window safely.
+
+[INPUT]
+- runtime.context.append_only_compaction_types::ContextEntryRole, ContextLogEntry (POS: Types for
+  append-only compaction ledger and atomic tool-pair cut-point engine.)
+- runtime.context.pluggable_context_pipeline_types::CustomContextEntry (POS: Types for pluggable context
+  projection and entry transform pipeline.)
+
+[OUTPUT]
+- BaseEntryProjector: Abstract base class for custom entry semantic projectors.
+- WorkspaceTouchedFilesProjector: Projects workspace file mutation history into a concise system directive.
+- TestCoverageDeltaProjector: Projects test suite execution coverage metrics into LLM guidance.
+
+[POS]
+Entry projector plugins for translating custom entries into LLM context messages.
 """
 
 from abc import ABC, abstractmethod
