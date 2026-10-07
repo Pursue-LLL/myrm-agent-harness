@@ -486,6 +486,20 @@ from myrm_agent_harness.toolkits.memory.tool_guidance import (
     filter_guidance_items,
     synthesize_tool_guidance,
 )
+from myrm_agent_harness.toolkits.memory.screen_observation import (
+    AntiOverpromotionGate,
+    DescriptiveFactCandidate,
+    DescriptiveFactValidator,
+    ObservationPayload,
+    ObservationSourceType,
+    OverpromotionGateResult,
+    PromotionStatus,
+    SanitizedObservationEvidence,
+    ScreenObservationMemoryManager,
+    ScreenObservationSafetyResult,
+    ScreenSafetyAuditRecord,
+    UntrustedObservationEvidenceBoundary,
+)
 from myrm_agent_harness.toolkits.memory.tombstone import (
     ContradictionPair,
     MemoryTombstoneCurationService,
@@ -1001,4 +1015,16 @@ __all__ = [
     "TombstoneCandidateItem",
     "TombstoneCurationReport",
     "TombstoneState",
+    "AntiOverpromotionGate",
+    "DescriptiveFactCandidate",
+    "DescriptiveFactValidator",
+    "ObservationPayload",
+    "ObservationSourceType",
+    "OverpromotionGateResult",
+    "PromotionStatus",
+    "SanitizedObservationEvidence",
+    "ScreenObservationMemoryManager",
+    "ScreenObservationSafetyResult",
+    "ScreenSafetyAuditRecord",
+    "UntrustedObservationEvidenceBoundary",
 ]
