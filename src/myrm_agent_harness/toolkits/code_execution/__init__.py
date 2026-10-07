@@ -71,6 +71,15 @@ from myrm_agent_harness.toolkits.code_execution.sandbox_snapshot import (
     format_bootstrap_snapshot_xml,
     generate_sandbox_bootstrap_snapshot,
 )
+from myrm_agent_harness.toolkits.code_execution.vfs import (
+    GlobBoundaryEnforcer,
+    GlobBoundaryViolationError,
+    GlobSafetyAudit,
+    GlobSafetyConfig,
+    TrailingSlashDelineator,
+    VFSGlobHit,
+    VFSPathKind,
+)
 from myrm_agent_harness.toolkits.code_execution.workspace import (
     Workspace,
     WorkspaceService,
@@ -117,5 +126,16 @@ __all__ = [
     "generate_sandbox_bootstrap_snapshot",
     "format_bootstrap_snapshot_xml",
     # Remote SSH Operations
+    "RemoteSSHConfig",
+    "RemoteSSHExecutor",
+    "RemoteSSHResult",
     "execute_remote_ssh_command",
+    # VFS and Glob Boundary Safety
+    "GlobBoundaryEnforcer",
+    "GlobBoundaryViolationError",
+    "GlobSafetyAudit",
+    "GlobSafetyConfig",
+    "TrailingSlashDelineator",
+    "VFSGlobHit",
+    "VFSPathKind",
 ]
