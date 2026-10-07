@@ -106,6 +106,9 @@ from myrm_agent_harness.runtime.context.bounded_hydration_types import (
 from myrm_agent_harness.runtime.context.bounded_initial_page_hydration_engine import (
     BoundedInitialPageHydrationEngine,
 )
+from myrm_agent_harness.runtime.context.branch_navigation_and_summary_engine import (
+    BranchNavigationAndSummaryEngine,
+)
 from myrm_agent_harness.runtime.context.cache_aware_session_lifecycle_router import (
     CacheAwareSessionLifecycleRouter,
 )
@@ -1133,6 +1136,15 @@ from myrm_agent_harness.runtime.context.transparent_reader import (
     read_context_file_async,
     read_context_file_sync,
 )
+from myrm_agent_harness.runtime.context.tree_session_storage import (
+    TreeSessionStorage,
+)
+from myrm_agent_harness.runtime.context.tree_session_storage_types import (
+    BranchSummaryRecord,
+    TreeEntry,
+    TreeEntryKind,
+    TreeProjection,
+)
 from myrm_agent_harness.runtime.context.tree_state import (
     COMPACTION_TODO_ANCHOR_KEY,
     TOOL_DETAILS_KEY,
@@ -1974,6 +1986,12 @@ __all__ = [
     "RecoveryVerdict",
     "LengthOverflowDisambiguator",
     "ConversationalRecoveryGuard",
+    "TreeEntry",
+    "TreeEntryKind",
+    "BranchSummaryRecord",
+    "TreeProjection",
+    "TreeSessionStorage",
+    "BranchNavigationAndSummaryEngine",
 ]
 
 
