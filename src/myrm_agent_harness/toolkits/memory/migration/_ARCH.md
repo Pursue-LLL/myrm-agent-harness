@@ -24,3 +24,14 @@ flowchart TD
     Deduplicator -->|Duplicates| Skip[Increment Skipped Counter]
     Ledger --> Report[MigrationExecutionReport]
 ```
+
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| `__init__.py` | Package | Package facade for migration. | ✅ |
+| `detector.py` | Core | Safe local filesystem scanner detecting external competitor memory archives. | ✅ |
+| `models.py` | Types | Types and models for migration. | ✅ |
+| `service.py` | Core | Thread-safe SQLite migration service driving asset discovery, schema normalization, and deduplicated ingestion. | ✅ |
+| `tools.py` | Core | Agent meta tools for discovering and importing competitor memory assets. | ✅ |
+| `translators.py` | Core | Multi-source cognitive schema normalizer converting competitor data into canonical memory units. | ✅ |

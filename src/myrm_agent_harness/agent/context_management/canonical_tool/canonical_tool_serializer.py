@@ -1,3 +1,19 @@
+"""Canonicalizer ensuring byte-level deterministic stability for tool prefixes.
+
+[INPUT]
+- agent.context_management.canonical_tool.canonical_tool_types::CanonicalToolDefinition,
+  FrozenToolPrefixBundle, PrefixDriftDiagnosis, ToolDefinitionInput (POS: Types and models for canonical
+  tool.)
+
+[OUTPUT]
+- rfc8785_canonicalize_json(): Canonicalize Python data structure strictly according to RFC 8785 (JCS).
+- DeterministicToolSchemaCanonicalizer: Canonicalizer ensuring byte-level deterministic stability for tool
+  prefixes.
+
+[POS]
+Canonicalizer ensuring byte-level deterministic stability for tool prefixes.
+"""
+
 # ============================================================================
 # Deterministic Tool Schema Canonicalizer & Prefix Hasher Engine (Item 167)
 # Strict RFC 8785 JSON canonicalization, deterministic alphabetical tool sorting,

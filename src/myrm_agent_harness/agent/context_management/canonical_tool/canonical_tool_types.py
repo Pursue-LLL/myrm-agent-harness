@@ -1,3 +1,18 @@
+"""Types and models for canonical tool.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ToolDefinitionInput: Raw input representation of an agent tool definition before canonicalization.
+- CanonicalToolDefinition: Normalized tool specification with RFC 8785 canonical JSON schema.
+- FrozenToolPrefixBundle: Byte-frozen tool prefix payload guaranteed byte-for-byte identical across runs.
+- PrefixDriftDiagnosis: Diagnostic report on prefix hash drift between two consecutive tool sets.
+
+[POS]
+Types and models for canonical tool.
+"""
+
 # ============================================================================
 # Deterministic Tool Schema Canonicalizer & Prefix Hasher Contracts (Item 167)
 # Strong typing contracts for RFC 8785 JSON canonicalization, deterministic tool

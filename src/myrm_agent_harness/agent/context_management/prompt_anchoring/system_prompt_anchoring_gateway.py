@@ -1,3 +1,18 @@
+"""Gateway orchestrating dual-layer system prompt assembly and tail redirection.
+
+[INPUT]
+- agent.context_management.prompt_anchoring.prompt_anchoring_types::AnchoredPromptBundle,
+  EphemeralRuntimeMetadata, PrefixCacheDriftVerification, StaticAnchorBlueprint (POS: Types and models for
+  prompt anchoring.)
+- Third-party: langchain_core
+
+[OUTPUT]
+- SystemPromptAnchoringGateway: Gateway orchestrating dual-layer system prompt assembly and tail redirection.
+
+[POS]
+Gateway orchestrating dual-layer system prompt assembly and tail redirection.
+"""
+
 # ============================================================================
 # System Prompt Static Prefix Anchoring & Tail Redirector Gateway (Item 168)
 # Strict dual-layer system prompt decoupling: Immutable Static Anchor Layer A at

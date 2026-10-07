@@ -25,3 +25,14 @@ flowchart TD
     Resolver -->|CAS Passed| Apply[Soft Archive / Atomic Merge]
     Resolver -->|CAS Hash Mismatch| Expire[Mark EXPIRED]
 ```
+
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| `__init__.py` | Package | Package facade for capacity hitl. | ✅ |
+| `detector.py` | Core | Detects memory capacity utilization levels against configured threshold ladders. | ✅ |
+| `models.py` | Types | Types and models for capacity hitl. | ✅ |
+| `proposer.py` | Core | Read-only candidate proposer formulating merge and archive recommendations without mutating data. | ✅ |
+| `service.py` | Core | Thread-safe SQLite service for human-in-the-loop near-capacity candidate management. | ✅ |
+| `tools.py` | Core | Agent meta tools for monitoring memory capacity and proposing HITL candidates. | ✅ |

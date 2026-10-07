@@ -1,3 +1,20 @@
+"""Types and models for file watch.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- FileMutationKind: Classification of external workspace file mutation event.
+- DocumentFreshnessStatus: Freshness status of workspace document bound inside session context.
+- FileFingerprint: Deterministic hash fingerprint and metadata of a workspace file.
+- SessionDocumentBinding: Document cache entry bound to a specific chat session.
+- ContextInvalidationNudge: Lightweight ambient notification indicating external file edit occurred.
+- AutoIngressResult: Report generated upon incremental re-ingestion of a stale document.
+
+[POS]
+Types and models for file watch.
+"""
+
 # ============================================================================
 # Workspace File Watch Context Invalidation & Auto-Ingress Contracts (Item 165)
 # Strong typing contracts for local workspace file watch, session document cache

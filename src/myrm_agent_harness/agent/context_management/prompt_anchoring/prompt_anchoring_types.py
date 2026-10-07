@@ -1,3 +1,19 @@
+"""Types and models for prompt anchoring.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- PromptLayerKind: Classification of prompt layer for prefix cache stability.
+- StaticAnchorBlueprint: Immutable Layer A specification: permanent static system guidelines.
+- EphemeralRuntimeMetadata: Dynamic Layer B variables: timestamps, IDs, dynamic path and environment.
+- AnchoredPromptBundle: Assembled dual-layer prompt bundle separating static prefix and ephemeral tail.
+- PrefixCacheDriftVerification: Verification report proving static prefix invariance across execution turns.
+
+[POS]
+Types and models for prompt anchoring.
+"""
+
 # ============================================================================
 # System Prompt Static Prefix Anchoring & Tail Redirector Contracts (Item 168)
 # Strong typing contracts for dual-layer system prompt decoupling (Layer A static

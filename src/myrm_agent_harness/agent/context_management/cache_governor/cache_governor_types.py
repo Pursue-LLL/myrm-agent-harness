@@ -1,3 +1,20 @@
+"""Types and models for cache governor.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- TaskReuseKind: Predicted interaction lifecycle kind for task reuse estimation.
+- CacheRoiStatus: Categorization of expected cache economic ROI.
+- ModelPricingTier: Pricing multipliers and baseline token cost for a model provider.
+- BreakevenAnalysis: Mathematical breakeven analysis based on Tokenomics Foundation rules.
+- CircuitBreakerDecision: Pre-flight decision on whether to inject explicit cache breakpoints.
+- SessionNetRoiLedgerEntry: Accumulated financial and token audit entry for session net cache ROI.
+
+[POS]
+Types and models for cache governor.
+"""
+
 # ============================================================================
 # Dynamic Prompt Cache Breakeven Governor & Negative ROI Contracts (Item 166)
 # Strong typing contracts for task reuse forecasting, breakeven ratio computation,

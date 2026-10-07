@@ -1,3 +1,18 @@
+"""Gateway orchestrating workspace file mutation events and session context invalidation.
+
+[INPUT]
+- agent.context_management.file_watch.file_watch_types::AutoIngressResult, ContextInvalidationNudge,
+  DocumentFreshnessStatus, FileFingerprint, FileMutationKind, SessionDocumentBinding (POS: Types and models
+  for file watch.)
+
+[OUTPUT]
+- WorkspaceFileWatchContextGateway: Gateway orchestrating workspace file mutation events and session context
+  invalidation.
+
+[POS]
+Gateway orchestrating workspace file mutation events and session context invalidation.
+"""
+
 # ============================================================================
 # Workspace File Watch Context Invalidation & Auto-Ingress Gateway (Item 165)
 # Real-time synchronization between external file system mutations and in-session

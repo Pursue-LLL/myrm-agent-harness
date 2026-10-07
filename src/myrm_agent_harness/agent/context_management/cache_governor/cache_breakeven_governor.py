@@ -1,3 +1,18 @@
+"""Pre-flight economic governor guarding against negative ROI cache write premiums.
+
+[INPUT]
+- agent.context_management.cache_governor.cache_governor_types::BreakevenAnalysis, CacheRoiStatus,
+  CircuitBreakerDecision, ModelPricingTier, SessionNetRoiLedgerEntry, TaskReuseKind (POS: Types and models for
+  cache governor.)
+
+[OUTPUT]
+- DynamicPromptCacheBreakevenGovernor: Pre-flight economic governor guarding against negative ROI cache write
+  premiums.
+
+[POS]
+Pre-flight economic governor guarding against negative ROI cache write premiums.
+"""
+
 # ============================================================================
 # Dynamic Prompt Cache Breakeven Governor & Negative ROI Circuit Breaker (Item 166)
 # Pre-flight economic gating against negative ROI from cache write penalties,

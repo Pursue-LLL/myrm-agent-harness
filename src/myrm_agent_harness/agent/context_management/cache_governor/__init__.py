@@ -1,3 +1,20 @@
+"""Package facade for cache governor.
+
+[INPUT]
+- agent.context_management.cache_governor.cache_breakeven_governor::DynamicPromptCacheBreakevenGovernor (POS:
+  Pre-flight economic governor guarding against negative ROI cache write premiums.)
+- agent.context_management.cache_governor.cache_governor_types::BreakevenAnalysis, CacheRoiStatus,
+  CircuitBreakerDecision, ModelPricingTier, SessionNetRoiLedgerEntry, TaskReuseKind (POS: Types and models for
+  cache governor.)
+
+[OUTPUT]
+- Re-exports: BreakevenAnalysis, CacheRoiStatus, CircuitBreakerDecision, DynamicPromptCacheBreakevenGovernor,
+  ModelPricingTier, SessionNetRoiLedgerEntry, TaskReuseKind
+
+[POS]
+Package facade for cache governor.
+"""
+
 # ============================================================================
 # Dynamic Prompt Cache Breakeven Governor & Circuit Breaker Package (Item 166)
 # ============================================================================

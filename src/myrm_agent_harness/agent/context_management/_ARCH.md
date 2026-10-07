@@ -22,11 +22,14 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 |-----------|-------------|
 | archive_checkpoint/ | Lite-LLM archive summary checkpoints: Protocol store, EpisodicMemory persistence, bounded async `ArchiveSummaryService`. |
 | branching/ | Distills trial-and-error lessons from abandoned branches to roam into new forks. See [branching/_ARCH.md](branching/_ARCH.md). |
+| cache_governor/ | Pre-flight economic governor guarding against negative ROI cache write premiums. See [cache_governor/_ARCH.md](cache_governor/_ARCH.md). |
+| canonical_tool/ | Canonicalizer ensuring byte-level deterministic stability for tool prefixes. See [canonical_tool/_ARCH.md](canonical_tool/_ARCH.md). |
 | collaboration/ | Manages shared cloud session snapshots, security gates, and team steering. See [collaboration/_ARCH.md](collaboration/_ARCH.md). |
 | compression_flush/ | 多智能体与长会话上下文压缩即时持久化刷盘协议与内存沙箱套件。 See [compression_flush/_ARCH.md](compression_flush/_ARCH.md). |
 | dependency_expansion/ | 全链路跨栈架构依赖展开图谱与任务复杂度自适应双轨调度套件。 See [dependency_expansion/_ARCH.md](dependency_expansion/_ARCH.md). |
 | downshift/ | Context threshold model downshift governor and deterministic handover memo protocol (token % and WU dual triggers, zero-API SessionNotes extraction, Fallback-Up circuit breaker). |
 | epoch/ | Compiles and orders tool definitions deterministically for Prompt Cache. See [epoch/_ARCH.md](epoch/_ARCH.md). |
+| file_watch/ | Gateway orchestrating workspace file mutation events and session context invalidation. See [file_watch/_ARCH.md](file_watch/_ARCH.md). |
 | handover/ | Central bus orchestrating cross-device session handover and terminal attachment. See [handover/_ARCH.md](handover/_ARCH.md). |
 | infra/ | Context management infrastructure: shared types, token estimation, budget management, session locks, archive references, cache policy. |
 | instructions/ | Recursively resolves project instructions upward along directory tree and claims legacy skills. See [instructions/_ARCH.md](instructions/_ARCH.md). |
@@ -39,6 +42,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | pinning/ | Guarantees zero-pruning preservation of pinned contexts and constructs inspector cards. See [pinning/_ARCH.md](pinning/_ARCH.md). |
 | pipeline/ | Ordered context processors for filtering, active per-step tool-result pruning, cache-TTL pruning, pre-compaction recall, compression, session notes, summarization, post-compaction refetch guard, normalization, and explicit cache markers. Filter and Compress consume compression_intent via retention_helpers. |
 | project_state/ | 面向长期项目的动态事实状态账本与上下文投影流水线套件。 See [project_state/_ARCH.md](project_state/_ARCH.md). |
+| prompt_anchoring/ | Gateway orchestrating dual-layer system prompt assembly and tail redirection. See [prompt_anchoring/_ARCH.md](prompt_anchoring/_ARCH.md). |
 | rotation/ | Orchestrates three-tier runtime parameter assembly and MCP connection caching. See [rotation/_ARCH.md](rotation/_ARCH.md). |
 | session_tree/ | Manages session timeline branching, message cloning, and in-place rewind. See [session_tree/_ARCH.md](session_tree/_ARCH.md). |
 | steering/ | Manages serialized in-flight human steering messages for a specific session. See [steering/_ARCH.md](steering/_ARCH.md). |
