@@ -515,6 +515,9 @@ from myrm_agent_harness.runtime.context.orphaned_tool_healing_transform import (
     heal_orphaned_tool_calls_canonical,
     heal_orphaned_tool_calls_langchain,
 )
+from myrm_agent_harness.runtime.context.output_spill_to_disk_middleware import (
+    OutputSpillToDiskMiddleware,
+)
 from myrm_agent_harness.runtime.context.overflow_compaction_guard import (
     OverflowClassification,
     OverflowCompactionExhaustedGiveUpError,
@@ -609,6 +612,16 @@ from myrm_agent_harness.runtime.context.prune_and_spill_recall import (
     PruneAndSpillRecallEngine,
     PruneAndSpillResult,
     SpillMetadata,
+)
+from myrm_agent_harness.runtime.context.quiet_command_rewriter_hook import (
+    QuietCommandRewriterHook,
+)
+from myrm_agent_harness.runtime.context.quiet_command_spill_types import (
+    CommandCategory,
+    CommandRewriteResult,
+    OutputSpillReceipt,
+    SubagentFirewallConfig,
+    SubagentFirewallResult,
 )
 from myrm_agent_harness.runtime.context.react_trap_remediator import (
     ReActTrapRemediator,
@@ -740,6 +753,9 @@ from myrm_agent_harness.runtime.context.structured_checkpoint_generator import (
     compute_summary_max_output_tokens,
     create_checkpoint_from_messages,
     parse_checkpoint_contract,
+)
+from myrm_agent_harness.runtime.context.subagent_context_firewall import (
+    SubagentContextFirewall,
 )
 from myrm_agent_harness.runtime.context.subagent_worktree_isolator import (
     SubagentWorktreeIsolator,
@@ -1472,6 +1488,14 @@ __all__ = [
     "PreIdleCompactionPlan",
     "PrefixPreservingCanonicalizer",
     "CacheAwareSessionLifecycleRouter",
+    "CommandCategory",
+    "CommandRewriteResult",
+    "OutputSpillReceipt",
+    "SubagentFirewallConfig",
+    "SubagentFirewallResult",
+    "QuietCommandRewriterHook",
+    "OutputSpillToDiskMiddleware",
+    "SubagentContextFirewall",
 ]
 
 
