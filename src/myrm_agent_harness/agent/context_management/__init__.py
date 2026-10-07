@@ -165,6 +165,16 @@ from .demand_hydration import (
     ProfileCardCategory,
     UserMemoryCard,
 )
+from .branch_summary import (
+    BranchFileOperations,
+    BranchFileOperationsTracker,
+    BranchMergeConflictWarning,
+    BranchSelectiveMergeEngine,
+    BranchSummaryResult,
+    FileActionKind,
+    SelectiveMergePolicy,
+    TrackedFileOperation,
+)
 from .dual_branching import (
     BranchDescriptor,
     BranchingPosture,
@@ -388,6 +398,15 @@ __all__ = [
     "OnDemandContextHydrator",
     "ProfileCardCategory",
     "UserMemoryCard",
+    # branch_summary
+    "BranchFileOperations",
+    "BranchFileOperationsTracker",
+    "BranchMergeConflictWarning",
+    "BranchSelectiveMergeEngine",
+    "BranchSummaryResult",
+    "FileActionKind",
+    "SelectiveMergePolicy",
+    "TrackedFileOperation",
     # dual_branching
     "BranchDescriptor",
     "BranchingPosture",
