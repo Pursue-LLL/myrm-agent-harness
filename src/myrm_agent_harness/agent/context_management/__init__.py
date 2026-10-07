@@ -166,6 +166,13 @@ from .harness_tax import (
     ToolDescriptor,
     ToolExposurePolicy,
 )
+from .inbound_shield import (
+    InboundMessageOverflowShield,
+    InboundMountedDocument,
+    InboundPayloadClassification,
+    InboundShieldConfig,
+    InboundShieldResult,
+)
 from .million_token_ceiling import (
     CompactionTierAction,
     CompactionTrackType,
@@ -275,6 +282,12 @@ __all__ = [
     "ResourceLoadBundle",
     "ToolDescriptor",
     "ToolExposurePolicy",
+    # inbound_shield
+    "InboundMessageOverflowShield",
+    "InboundMountedDocument",
+    "InboundPayloadClassification",
+    "InboundShieldConfig",
+    "InboundShieldResult",
     # million_token_ceiling
     "CompactionTierAction",
     "CompactionTrackType",
