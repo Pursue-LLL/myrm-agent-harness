@@ -1,3 +1,21 @@
+"""Types and models for relaxed arm fusion.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ArmKind: Categorical kind of retrieval arm.
+- ArmCandidate: Candidate item retrieved from a single retrieval arm.
+- RetrievalArm: A single retrieval source arm containing ranked candidate items.
+- ArmTelemetryProfile: Detailed signal-to-noise ratio and demotion telemetry per arm.
+- AdaptiveReturnConfig: Control plane configuration for adaptive relaxed-arm fusion.
+- FusedArmHit: Result hit produced by adaptive relaxed-arm fusion.
+- AdaptiveFusionResult: Full fusion outcome containing hits and observability telemetry.
+
+[POS]
+Types and models for relaxed arm fusion.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

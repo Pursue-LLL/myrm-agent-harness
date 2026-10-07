@@ -19,6 +19,8 @@ Detailed design: [RETRIEVER_SYSTEM.md](RETRIEVER_SYSTEM.md)
 | `hybrid_retriever.py` | Core | Stable public facade re-exporting the hybrid coordinator | ✅ |
 | `performance_monitor.py` | Core | `PerformanceMonitor` and `get_performance_monitor` hooks | ✅ |
 | `qdrant_retrieval.py` | Core | Qdrant-backed vector retriever with automatic text handling | ✅ |
+| relaxed_arm_fusion_engine.py | Core | Evaluates peak sharpness, entropy variance, and signal-to-noise ratio per retrieval arm. | ✅ |
+| relaxed_arm_fusion_types.py | Types | Types and models for relaxed arm fusion. | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|

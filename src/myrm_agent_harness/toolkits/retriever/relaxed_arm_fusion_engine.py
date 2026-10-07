@@ -1,3 +1,18 @@
+"""Evaluates peak sharpness, entropy variance, and signal-to-noise ratio per retrieval arm.
+
+[INPUT]
+- toolkits.retriever.relaxed_arm_fusion_types::AdaptiveFusionResult, AdaptiveReturnConfig,
+  ArmTelemetryProfile, FusedArmHit, RetrievalArm
+
+[OUTPUT]
+- ArmNoiseDetector: Evaluates peak sharpness, entropy variance, and signal-to-noise ratio per retrieval arm.
+- RelaxedArmFusionEngine: Adaptive multi-arm retriever fusion engine with dynamic demotion and volunteer
+  activation.
+
+[POS]
+Evaluates peak sharpness, entropy variance, and signal-to-noise ratio per retrieval arm.
+"""
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -135,9 +150,7 @@ class RelaxedArmFusionEngine[T]:
                 demoted_arms=demoted_arm_names,
             )
 
-        max_possible_rrf = sum(
-            effective_weights.get(a.name, 1.0) / (k + 1) for a in non_empty_active_arms
-        )
+        max_possible_rrf = sum(effective_weights.get(a.name, 1.0) / (k + 1) for a in non_empty_active_arms)
         if max_possible_rrf <= 0.0:
             max_possible_rrf = 1.0 / (k + 1)
 
