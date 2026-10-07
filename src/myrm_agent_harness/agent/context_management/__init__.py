@@ -281,6 +281,14 @@ from .working_memory import (
     SubtaskStatus,
     TrapRecord,
 )
+from .workspace_guard import (
+    ExplorationDecisionStatus,
+    ExplorationGuardDecision,
+    PromptCrawlSuppressionFilter,
+    WorkspaceAccessPolicy,
+    WorkspaceExplorationGuardEngine,
+    WorkspaceGuardConfig,
+)
 
 __all__ = [
     # active_compression
@@ -428,6 +436,13 @@ __all__ = [
     "WorktreeHygieneStatus",
     "WorktreeRemovalPolicy",
     "WorktreeRemovalResult",
+    # workspace_guard
+    "ExplorationDecisionStatus",
+    "ExplorationGuardDecision",
+    "PromptCrawlSuppressionFilter",
+    "WorkspaceAccessPolicy",
+    "WorkspaceExplorationGuardEngine",
+    "WorkspaceGuardConfig",
     # schemas
     "BUILTIN_PROTECTED_TOOLS",
     "COMPACT_RULES",
