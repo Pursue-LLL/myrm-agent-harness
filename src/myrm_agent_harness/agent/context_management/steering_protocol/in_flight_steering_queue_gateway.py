@@ -2,6 +2,18 @@
 
 Manages thread-safe pending steering queues, turn-boundary atomic drain pipelines,
 single vs batch consumption modes, and compaction-safe secondary pickups.
+
+[INPUT]
+- agent.context_management.steering_protocol.steering_protocol_types::DrainResult, SteeredTurnContext,
+  SteeringConsumptionMode, SteeringKind, SteeringMessage (POS: Type definitions for In-Flight Steering and
+  Follow-Up Queue Injection Protocol.)
+
+[OUTPUT]
+- InFlightSteeringQueueGateway: Industrial gateway governing live in-flight agent steering and follow-up
+  injections.
+
+[POS]
+Core implementation of In-Flight Steering and Follow-Up Queue Injection Protocol Gateway.
 """
 
 from __future__ import annotations

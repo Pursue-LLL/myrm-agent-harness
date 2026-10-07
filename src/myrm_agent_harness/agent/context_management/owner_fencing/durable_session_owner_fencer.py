@@ -2,6 +2,17 @@
 
 Provides monotonic epoch leases, admission validation gates, quiesce states,
 and double-write prevention fencing across multi-client reconnects.
+
+[INPUT]
+- agent.context_management.owner_fencing.owner_fencing_types::AdmissionDecision, AdmissionStatus,
+  FencingConfig, SessionOwnerLease, SessionQuiesceState (POS: Type definitions for Durable Session Owner
+  Fencing and Admission Control Suite.)
+
+[OUTPUT]
+- DurableSessionOwnerFencer: Coordinates durable session ownership epochs and turn admission gates.
+
+[POS]
+Core implementation of Durable Session Owner Fencing and Admission Control Engine.
 """
 
 from __future__ import annotations

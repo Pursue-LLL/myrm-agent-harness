@@ -1,3 +1,24 @@
+"""Types and models for git okf.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- GovernanceLevel: Governance level determining agent authority over code modifications.
+- ConceptStatus: Lifecycle status of an OKF concept.
+- OKFGenerated: Provenance tracking who authored the concept and when.
+- OKFVerified: Provenance tracking human or machine verification events.
+- OKFSource: Provenance source for factual claims.
+- OKFConcept: Represents one concept markdown file in an OKF v0.2 knowledge bundle.
+- OKFValidationReport: Diagnostics and conformance report for an OKF knowledge bundle.
+- OKFSearchResult: Scored match result from in-memory BM25 lexical search.
+- ConceptSummaryItem: Lightweight concept summary for two-phase progressive disclosure.
+- OKFDisclosureSummary: First-phase progressive disclosure summary card (<300 tokens footprint).
+
+[POS]
+Types and models for git okf.
+"""
+
 # [POS]: myrm_agent_harness/toolkits/memory/git_okf/models.py
 # [INPUT]: Concept metadata, governance rules, validation parameters, search queries
 # [OUTPUT]: Strongly-typed Pydantic dataclasses/models for Google OKF v0.2 knowledge bundle

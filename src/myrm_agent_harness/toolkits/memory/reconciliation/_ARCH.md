@@ -20,3 +20,12 @@ Inspired by Xiaomi MiMo Code (`reconcile.ts` & `write-gate.ts`), it eliminates g
 ## 3. Boundary & Non-Goals
 - Single-machine, local-first SQLite WAL storage.
 - Zero `Any` types across all interfaces.
+
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| `__init__.py` | Package | Package facade for reconciliation. | ✅ |
+| `disk_reconciler.py` | Core | Bi-directional reconciliation engine synchronizing disk Markdown files with SQLite FTS5. | ✅ |
+| `models.py` | Types | Types and models for reconciliation. | ✅ |
+| `write_gate.py` | Core | Explicit gate decoupler enforcing read-always-open vs write-permission-checked policies. | ✅ |

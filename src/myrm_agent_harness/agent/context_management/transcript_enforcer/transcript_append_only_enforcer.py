@@ -1,3 +1,19 @@
+"""Hard gate enforcing append-only invariant on conversation message transcripts.
+
+[INPUT]
+- agent.context_management.transcript_enforcer.transcript_enforcer_types::AppendOnlyEnforcementResult,
+  DeltaCorrectionNote, MessageFingerprint, TurnTranscriptSnapshot, ViolationKind, ViolationRecord (POS: Types
+  and models for transcript enforcer.)
+- Third-party: langchain_core
+
+[OUTPUT]
+- TranscriptAppendOnlyInvariantEnforcer: Hard gate enforcing append-only invariant on conversation message
+  transcripts.
+
+[POS]
+Hard gate enforcing append-only invariant on conversation message transcripts.
+"""
+
 # ============================================================================
 # Transcript Append-Only Invariant Enforcer Engine (Item 169)
 # Strict verification of historical message immutability, zero in-place mutation,

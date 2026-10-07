@@ -3,6 +3,18 @@
 Enforces discussion-first advisory mode on high-complexity requirements, suppresses
 destructive write tools prior to user consent, produces multi-option trade-off matrices,
 and governs transition into execution-locked mode upon blueprint approval.
+
+[INPUT]
+- agent.context_management.architecture_gate.architecture_gate_types::ArchitectureMode, ExecutionBlueprint,
+  ExecutionBlueprintStep, GateEvaluationResult, TechnologyOption, TradeoffMatrix (POS: Type definitions for
+  Architecture Planning Discussion-First and Intent Convergence Gate.)
+
+[OUTPUT]
+- ArchitectureIntentConvergenceGate: Industrial gateway governing architecture planning and intent convergence
+  gates.
+
+[POS]
+Core implementation of Architecture Planning Discussion-First and Intent Convergence Gate.
 """
 
 from __future__ import annotations

@@ -1,3 +1,22 @@
+"""Git-native loader for Google OKF v0.2 knowledge bundles.
+
+[INPUT]
+- toolkits.memory.git_okf.in_memory_bm25::InMemoryBM25Searcher (POS: High-performance in-memory BM25 lexical
+  searcher for OKF concept bundles.)
+- toolkits.memory.git_okf.models::ConceptStatus, ConceptSummaryItem, GovernanceLevel, OKFConcept,
+  OKFDisclosureSummary, OKFGenerated, OKFSearchResult, OKFSource, OKFValidationReport, OKFVerified (POS: Types
+  and models for git okf.)
+- toolkits.memory.git_okf.validator::OKFConceptValidator (POS: Strict validator implementing Google OKF v0.2
+  conformance checks,.)
+- Third-party: yaml
+
+[OUTPUT]
+- OKFBundleLoader: Git-native loader for Google OKF v0.2 knowledge bundles.
+
+[POS]
+Git-native loader for Google OKF v0.2 knowledge bundles.
+"""
+
 # [POS]: myrm_agent_harness/toolkits/memory/git_okf/bundle_loader.py
 # [INPUT]: Project root or bundle directory path containing OKF .md files
 # [OUTPUT]: Loaded concept repository, in-memory BM25 index, progressive disclosure summary

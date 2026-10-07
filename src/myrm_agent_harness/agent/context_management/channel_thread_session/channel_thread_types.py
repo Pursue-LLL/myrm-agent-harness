@@ -2,6 +2,18 @@
 
 Provides immutable data contracts for thread-aware channel routing keys, isolated
 child session branching, concurrency policy, and thread archive handoff summaries.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ThreadBindingKey: Canonical identifier uniquely binding a channel, chat, and thread tuple.
+- ThreadIsolationPolicy: Governing policy for channel thread session branching and lifecycle.
+- ThreadSessionBranch: An isolated conversation branch dedicated to a specific channel thread.
+- ThreadRoutingDecision: Routing outcome determining target isolated session and outbound thread bindings.
+
+[POS]
+Type definitions for Channel Thread to Session Dynamic Binding and Isolated Branching.
 """
 
 from __future__ import annotations

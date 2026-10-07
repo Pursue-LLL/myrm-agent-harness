@@ -1,3 +1,20 @@
+"""Types and models for transcript enforcer.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ViolationKind: Classification of append-only invariant violation.
+- MessageFingerprint: Cryptographic hash fingerprint of an individual message in turn history.
+- ViolationRecord: Record describing a specific breach of transcript immutability.
+- TurnTranscriptSnapshot: Immutable checkpoint of committed message sequence for a turn.
+- AppendOnlyEnforcementResult: Outcome of validating incoming message sequence against historical snapshot.
+- DeltaCorrectionNote: Structured delta evolution message appended to tail without touching history.
+
+[POS]
+Types and models for transcript enforcer.
+"""
+
 # ============================================================================
 # Transcript Append-Only Invariant Enforcer Data Contracts (Item 169)
 # Strong typing contracts for historical transcript byte-level immutability,

@@ -2,6 +2,18 @@
 
 Provides multi-level prompt ambiguity detection, missing constraint inquiry formulation,
 private knowledge graph reverse-backtracking, and confirmable outline synthesis.
+
+[INPUT]
+- agent.context_management.ambiguity_probe.ambiguity_probe_types::AmbiguityLevel, BacktrackedContextDossier,
+  ClarificationProbeResult, ClarificationQuestion, EntityGraphMatch (POS: Type definitions for Ambiguity
+  Clarification Probe and Private Entity Graph Backtracking Suite.)
+
+[OUTPUT]
+- AmbiguityClarificationProbe: Pre-flight intent ambiguity analyzer with two-tier clarification and private
+  entity backtracking.
+
+[POS]
+Core implementation of Ambiguity Clarification Probe and Private Entity Graph Backtracking Engine.
 """
 
 from __future__ import annotations

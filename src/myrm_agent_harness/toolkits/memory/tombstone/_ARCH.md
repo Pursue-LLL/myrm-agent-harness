@@ -13,3 +13,13 @@ The `tombstone` module in `myrm-agent-harness` provides proactive memory curatio
 - `detector.py`: Heuristic and antithetical matrix contradiction detector with temporal adjudication.
 - `service.py`: SQLite-backed orchestration service for curation, filtering, revival, and eviction.
 - `tools.py`: Agent-callable meta-tools for proactive curation and memory lifecycle operations.
+
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| `__init__.py` | Package | Package facade for tombstone. | ✅ |
+| `detector.py` | Core | Scans memory entries for mutual exclusions, negative polarity reversals, and outdated directives. | ✅ |
+| `models.py` | Types | Types and models for tombstone. | ✅ |
+| `service.py` | Core | Orchestrates memory contradiction detection, tombstone isolation, revival, and eviction. | ✅ |
+| `tools.py` | Core | Agent meta-tools for proactive directive curation, tombstone masking, and memory revival. | ✅ |

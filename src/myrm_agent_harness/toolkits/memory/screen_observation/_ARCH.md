@@ -14,3 +14,14 @@ The `screen_observation` module in `myrm-agent-harness` provides desktop/screen 
 - `validator.py`: Grammar checker and converter for descriptive-only memory facts (`DescriptiveFactValidator`).
 - `gate.py`: Multi-session frequency and overpromotion prevention gatekeeper (`AntiOverpromotionGate`).
 - `manager.py`: Integrated facade pipeline orchestrating sanitization, validation, and promotion (`ScreenObservationMemoryManager`).
+
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| `__init__.py` | Package | Screen observation memory anti-injection boundary and descriptive-only fact validation toolkit. | ✅ |
+| `boundary.py` | Core | Untrusted observation evidence boundary and prompt injection shield. | ✅ |
+| `gate.py` | Core | Anti-overpromotion gate preventing single-occurrence observations from becoming stable preferences. | ✅ |
+| `manager.py` | Core | Integrated manager for screen observation memory safety, anti-injection, and gatekeeping. | ✅ |
+| `types.py` | Types | Type definitions for screen and desktop observation memory safety gate. | ✅ |
+| `validator.py` | Core | Descriptive-only fact grammar validator and imperative instruction rewriter. | ✅ |

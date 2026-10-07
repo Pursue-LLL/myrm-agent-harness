@@ -2,6 +2,19 @@
 
 Provides deep session-to-worktree CWD binding, adaptive worktree context restoration,
 project-root hierarchy aggregation, and safe removal guards protecting dirty files.
+
+[INPUT]
+- agent.context_management.worktree_isolation.worktree_isolation_types::SessionWorktreeBinding,
+  WorktreeDescriptor, WorktreeHygieneReport, WorktreeHygieneStatus, WorktreeRemovalPolicy,
+  WorktreeRemovalResult (POS: Type definitions for Git Worktree Multi-Branch Parallel Session Isolation and
+  State Matrix.)
+
+[OUTPUT]
+- WorktreeSessionIsolationEngine: Manages multi-branch parallel worktree session bindings and safe lifecycle
+  teardown.
+
+[POS]
+Core implementation of Git Worktree Multi-Branch Parallel Session Isolation Engine.
 """
 
 from __future__ import annotations

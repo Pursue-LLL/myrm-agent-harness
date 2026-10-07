@@ -2,6 +2,18 @@
 
 Provides immutable data contracts for active skill lifecycle tracking, single skill (5k)
 and total combined (25k) token budgets, and post-compaction SOP reattachment.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ActiveSkillRecord: Immutable record of an activated skill within a conversation session.
+- SkillBudgetPolicy: Token budget constraints modeled after production-grade skill compaction practices.
+- ReattachedSkillBlock: Rendered skill SOP block re-attached after compaction.
+- ReattachmentResult: Result of post-compaction skill re-attachment governance.
+
+[POS]
+Type definitions for Active Skill Compaction Survival Sentinel and Reattachment Governor.
 """
 
 from __future__ import annotations

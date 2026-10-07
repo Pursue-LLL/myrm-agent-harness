@@ -3,6 +3,18 @@
 Preserves active skill execution integrity across long conversations and deep context
 compactions by enforcing fingerprint anchoring, 5k single skill caps, 25k total budgets,
 and most-recent-first SOP reattachment.
+
+[INPUT]
+- agent.context_management.skill_sentinel.skill_sentinel_types::ActiveSkillRecord, ReattachedSkillBlock,
+  ReattachmentResult, SkillBudgetPolicy (POS: Type definitions for Active Skill Compaction Survival Sentinel
+  and Reattachment Governor.)
+
+[OUTPUT]
+- ActiveSkillReattachmentGovernor: Industrial governor guaranteeing active skill survival across context
+  compactions.
+
+[POS]
+Core implementation of Active Skill Compaction Survival Sentinel and Reattachment Governor.
 """
 
 from __future__ import annotations

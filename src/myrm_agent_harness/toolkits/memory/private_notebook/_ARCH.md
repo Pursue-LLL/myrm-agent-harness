@@ -19,3 +19,14 @@ In long-horizon agent execution (multi-hour coding, system debugging, complex re
 - `history_manager.py`: `HistoryContextManager` indexes multi-window past conversations and tool outputs for cross-window search.
 - `tools.py`: `PrivateNotebookToolKit` packages the 10 autonomous tools (History 4 + Notes 5 + NewContext 1) with standardized schemas.
 - `manager.py`: `ModelPrivateNotebookManager` ties together storage, history, active context ID, and `new_context` handover.
+
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| `__init__.py` | Package | Package facade for private notebook. | ✅ |
+| `history_manager.py` | Core | Thread-safe catalog indexing multi-window historical agent interactions and tool invocations. | ✅ |
+| `manager.py` | Core | Unified orchestrator for local inspectable private notes, cross-context recall, and seamless rotation. | ✅ |
+| `models.py` | Types | Types and models for private notebook. | ✅ |
+| `storage.py` | Core | Thread-safe, human-inspectable filesystem storage for model private notes in Markdown. | ✅ |
+| `tools.py` | Core | Encapsulates the 10 autonomous tools for model private notes, history recall, and context handover. | ✅ |

@@ -22,3 +22,13 @@ Inspired by `Graphiti` and `OpenViking`, it solves the core challenge where user
 ## 3. Boundary & Non-Goals
 - **Non-Goals**: No distributed multi-tenant storage, no heavy external graph database dependencies (e.g. Neo4j).
 - **Zero Any**: All interfaces use concrete type annotations.
+
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| `__init__.py` | Package | Package facade for temporal graph. | ✅ |
+| `conflict_reconciler.py` | Core | Detects and resolves fact contradictions by marking superseded edges in temporal memory. | ✅ |
+| `decay_scorer.py` | Core | Calculates exponential half-life decay and access reinforcement for temporal graph edges. | ✅ |
+| `models.py` | Types | Types and models for temporal graph. | ✅ |
+| `sqlite_store.py` | Core | Thread-safe SQLite storage for temporal knowledge graph entities and edges. | ✅ |

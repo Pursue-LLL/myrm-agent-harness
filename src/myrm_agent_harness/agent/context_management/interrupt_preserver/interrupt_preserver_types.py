@@ -2,6 +2,19 @@
 
 Provides immutable data contracts for context state freezing, zero-pruning
 verification, and in-flight queued message salvage into editable drafts.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- InterruptReason: Enumeration of trigger reasons for turn interruption.
+- PreservedTurnState: Snapshot of preserved conversation context at the moment of interruption.
+- QueuedTurnMessage: In-flight user message currently waiting in the turn execution queue.
+- SalvagedDraft: Salvaged message content returned to the client UI as an editable draft.
+- InterruptPreservationResult: Complete result contract emitted upon turn interruption.
+
+[POS]
+Type definitions for Graceful Turn Interrupt and Queued Message Draft Preserver.
 """
 
 from __future__ import annotations

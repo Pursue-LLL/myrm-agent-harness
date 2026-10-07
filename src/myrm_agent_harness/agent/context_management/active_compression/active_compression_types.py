@@ -2,6 +2,19 @@
 
 Provides immutable data contracts for token pressure gauging, trigger origins,
 lossless anchor preservation, and active compression results.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- TokenPressureLevel: Categorical classification of session context token pressure.
+- CompressTriggerKind: Origin trigger source of active compression.
+- TokenPressureSnapshot: Real-time microsecond token pressure measurement for HUD and decision gates.
+- ActiveCompressionConfig: Configuration governing active turn context compaction thresholds.
+- ActiveCompressionResult: Immutable result emitted upon completing active turn compression.
+
+[POS]
+Type definitions for Active-Turn Live Context Compression and Token Pressure Dashboard.
 """
 
 from __future__ import annotations

@@ -1,3 +1,17 @@
+"""Gateway orchestrating structured handoff briefs and cross-session state continuity.
+
+[INPUT]
+- agent.context_management.handoff_brief.handoff_brief_types::DecisionItem, DelegationRoleKind, HandoffBrief,
+  HandoffIngressResult (POS: Types and models for handoff brief.)
+
+[OUTPUT]
+- StandardizedAgentHandoffBridge: Gateway orchestrating structured handoff briefs and cross-session state
+  continuity.
+
+[POS]
+Gateway orchestrating structured handoff briefs and cross-session state continuity.
+"""
+
 # ============================================================================
 # Standardized Agent Handoff Brief & State Continuity Bridge Engine (Item 170)
 # Orchestrates structured cross-session and cross-agent handoff briefs, preserving

@@ -2,6 +2,18 @@
 
 Guarantees zero-pruning context freezing upon user interruption and atomically
 salvages in-flight unconsumed messages back to the client as editable drafts.
+
+[INPUT]
+- agent.context_management.interrupt_preserver.interrupt_preserver_types::InterruptPreservationResult,
+  InterruptReason, PreservedTurnState, QueuedTurnMessage, SalvagedDraft (POS: Type definitions for Graceful
+  Turn Interrupt and Queued Message Draft Preserver.)
+
+[OUTPUT]
+- GracefulTurnInterruptPreserver: Thread-safe engine for interrupt-time context freezing and queued draft
+  recovery.
+
+[POS]
+Core implementation of Graceful Turn Interrupt and Queued Message Draft Preserver.
 """
 
 from __future__ import annotations

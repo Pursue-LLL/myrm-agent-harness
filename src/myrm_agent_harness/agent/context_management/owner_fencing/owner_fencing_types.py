@@ -2,6 +2,19 @@
 
 Provides immutable data contracts for monotonic epoch leases, admission decisions,
 quiesce states, and split-brain double-write prevention gates.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- AdmissionStatus: Categorical status emitted by the durable session admission gate.
+- SessionQuiesceState: Lifecycle quiesce state of a durable session.
+- FencingConfig: Configuration governing session owner fencing and lease validation.
+- SessionOwnerLease: Represents an active, epoch-stamped lease locking ownership of a durable session.
+- AdmissionDecision: Outcome of attempting to admit a turn or action into a durable session.
+
+[POS]
+Type definitions for Durable Session Owner Fencing and Admission Control Suite.
 """
 
 from __future__ import annotations

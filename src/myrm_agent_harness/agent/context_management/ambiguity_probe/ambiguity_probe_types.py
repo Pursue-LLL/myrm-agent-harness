@@ -2,6 +2,19 @@
 
 Provides immutable data contracts for ambiguity detection levels, clarification inquiries,
 entity graph matches, and synthesized outline dossiers.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- AmbiguityLevel: Classification of prompt ambiguity severity.
+- ClarificationQuestion: Structured inquiry posing critical missing constraints to the user.
+- EntityGraphMatch: Discovered private asset entity matched through graph backtracking.
+- ClarificationProbeResult: Outcome of pre-flight ambiguity inspection on incoming user prompt.
+- BacktrackedContextDossier: Comprehensive factual dossier retrieved from private knowledge assets.
+
+[POS]
+Type definitions for Ambiguity Clarification Probe and Private Entity Graph Backtracking Suite.
 """
 
 from __future__ import annotations

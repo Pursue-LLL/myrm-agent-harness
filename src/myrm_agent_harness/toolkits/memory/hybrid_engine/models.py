@@ -1,3 +1,19 @@
+"""Types and models for hybrid engine.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- RetrievalMode: Operational mode for dual-drive hybrid memory retrieval.
+- HybridMemoryItem: Persistent memory unit stored in local SQLite FTS5 table.
+- HybridSearchResult: Ranked hit produced by FTS5, dense vector, or RRF hybrid fusion.
+- SynonymRule: Synonym cluster mapping primary keyword to related semantic expressions.
+- HybridEngineStats: Operational telemetry and status snapshot of the hybrid engine.
+
+[POS]
+Types and models for hybrid engine.
+"""
+
 # [POS]: myrm_agent_harness/toolkits/memory/hybrid_engine/models.py
 # [INPUT]: Memory payload, search parameters, synonym rules
 # [OUTPUT]: Strongly-typed models for zero-config dual-drive hybrid memory and graceful degradation

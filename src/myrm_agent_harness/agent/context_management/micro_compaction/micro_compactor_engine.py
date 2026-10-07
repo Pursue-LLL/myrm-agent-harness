@@ -3,6 +3,17 @@
 Implements incremental per-turn exchange folding into a single running summary,
 strict user prompt verbatim preservation, three-zone boundary protection,
 and tokenomics-aware defrag and 3-strike failure skip governors.
+
+[INPUT]
+- agent.context_management.micro_compaction.micro_compaction_types::ExchangeBlock, MicroCompactionConfig,
+  MicroCompactionResult, RunningSummaryState (POS: Type definitions for Micro-Compaction and Amortized Turn
+  Context Reclamation.)
+
+[OUTPUT]
+- MicroCompactorEngine: Industrial engine for smooth, amortized turn context reclamation.
+
+[POS]
+Core implementation of Micro-Compaction and Amortized Turn Context Reclamation Engine.
 """
 
 from __future__ import annotations

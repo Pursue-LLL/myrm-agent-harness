@@ -2,6 +2,18 @@
 
 Provides immutable data contracts for three-zone keyframe partitioning (head/middle/tail),
 target token budgets, and structured middle trajectory compression results.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- TrajectoryCompressionConfig: Configuration governing sandwich trajectory compression budgets and protection
+  zones.
+- SandwichPartition: Keyframe partition splitting context into head, middle, and tail regions.
+- CompressionResult: Result emitted after evaluating and executing sandwich trajectory compression.
+
+[POS]
+Type definitions for Sandwich Trajectory Compression and Middle Turn Summarization.
 """
 
 from __future__ import annotations

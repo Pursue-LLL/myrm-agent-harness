@@ -2,6 +2,18 @@
 
 Enforces two-end anchor guards (protecting initial intent head and recent error/action tail),
 while elastically compressing middle-turn exploration into structured progress summaries.
+
+[INPUT]
+- agent.context_management.sandwich_trajectory.sandwich_trajectory_types::CompressionResult,
+  SandwichPartition, TrajectoryCompressionConfig (POS: Type definitions for Sandwich Trajectory Compression
+  and Middle Turn Summarization.)
+
+[OUTPUT]
+- SandwichTrajectoryCompressor: Industrial compressor delivering two-end anchor guards and middle trajectory
+  summarization.
+
+[POS]
+Core implementation of Sandwich Trajectory Compression and Middle Turn Summarization Engine.
 """
 
 from __future__ import annotations

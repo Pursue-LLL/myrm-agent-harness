@@ -2,6 +2,21 @@
 
 Provides microsecond token pressure gauging, slash command /compress detection,
 lossless anchor preservation, and structured middle trajectory folding.
+
+[INPUT]
+- agent.context_management.active_compression.active_compression_types::ActiveCompressionConfig,
+  ActiveCompressionResult, CompressTriggerKind, TokenPressureLevel, TokenPressureSnapshot (POS: Type
+  definitions for Active-Turn Live Context Compression and Token Pressure Dashboard.)
+
+[OUTPUT]
+- approximate_tokens_for_message(): Rough token estimation (~4 chars per token) without external heavy deps.
+- approximate_tokens_for_messages(): Sum approximate tokens across all message envelopes.
+- TokenPressureGauge: High-performance token pressure evaluator providing real-time HUD telemetry.
+- ActiveContextCompressionEngine: Executes high-fidelity active context compression preserving system anchors
+  and memory.
+
+[POS]
+Core implementation of Active-Turn Live Context Compression Engine.
 """
 
 from __future__ import annotations

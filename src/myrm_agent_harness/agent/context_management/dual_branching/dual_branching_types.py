@@ -2,6 +2,19 @@
 
 Provides immutable data contracts for tree-structured message DAG nodes,
 branch metadata, version navigation telemetry, and fork clone outcomes.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- BranchingPosture: The two orthogonal branching postures inspired by Pi Web.
+- TreeNodeMessage: Represents a discrete message node within the session DAG tree.
+- BranchDescriptor: Descriptor capturing a version branch within the session.
+- VersionNavigationInfo: Version pagination capsule for frontend rendering (e.g., Version 1/3 ◀ ▶).
+- ForkCloneResult: Result emitted when forking a new independent session from an earlier turn.
+
+[POS]
+Type definitions for Dual-Branching Session Fork and In-Place Turn Rewind Suite.
 """
 
 from __future__ import annotations

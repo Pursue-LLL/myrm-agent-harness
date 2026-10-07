@@ -3,6 +3,18 @@
 Provides immutable configurations, exchange structures, and running summary states
 implementing amortized instalments, zero-compaction user message preservation, and
 three-zone context protection.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- MicroCompactionConfig: Configuration governing micro-compaction cadence, thresholds, and protections.
+- ExchangeBlock: An exchange representing assistant narrative and subsequent tool outputs in a turn.
+- RunningSummaryState: Immutable state tracking the single running summary across amortized instalments.
+- MicroCompactionResult: Result emitted after evaluating or executing an amortized micro-compaction cycle.
+
+[POS]
+Type definitions for Micro-Compaction and Amortized Turn Context Reclamation.
 """
 
 from __future__ import annotations

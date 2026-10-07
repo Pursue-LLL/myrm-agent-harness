@@ -17,3 +17,12 @@
 
 3. **`dream_compactor.py` (`FourTierDreamCompactor`)**
    - 实现 `/dream` 周期性（如 7 天）与按需触发的压缩提纯算法：自动扫描并合并同标题同作用域的零散碎片，剔除过期的临时进度条目，提炼项目长效知识资产。
+
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| `__init__.py` | Package | Package facade for four tier fts. | ✅ |
+| `dream_compactor.py` | Core | Orchestrates /dream maintenance cycles to compact duplicate fragments and purge ephemeral progress. | ✅ |
+| `fts_engine.py` | Core | Manages project-isolated SQLite databases with FTS5 virtual tables for millisecond full-text recall. | ✅ |
+| `models.py` | Types | Types and models for four tier fts. | ✅ |

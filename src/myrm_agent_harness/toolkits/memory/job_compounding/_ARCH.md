@@ -19,3 +19,13 @@ Across current AI agent ecosystems, creating an agent often degrades to an empty
 - **Compounding Maturity Progression (`maturity_tracker.py`)**:
   - Evaluates rule volume, diversity, and adoption hits into a 0~100 maturity score.
   - Categorizes agents into developmental stages: Rookie ➔ Practitioner ➔ Specialist ➔ Partner.
+
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| `__init__.py` | Package | Package facade for job compounding. | ✅ |
+| `compounding_engine.py` | Core | Extracts, deduplicates, and persists domain lessons and preferences into agent MEMORY.md. | ✅ |
+| `job_builder.py` | Core | Builds, validates, and evaluates domain-specific job description specifications. | ✅ |
+| `maturity_tracker.py` | Core | Evaluates the maturity progression, rule coverage, and operational compounding tier of an agent. | ✅ |
+| `models.py` | Types | Types and models for job compounding. | ✅ |

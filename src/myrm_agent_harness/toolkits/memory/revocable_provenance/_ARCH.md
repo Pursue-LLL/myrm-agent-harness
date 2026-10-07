@@ -18,3 +18,13 @@
 
 4. **`dream_diary_recorder.py` (`DreamDiaryRecorder`)**
    - 透明记录大模型后台梦境整合周期事件（扫描轮次、提升事实数、剪枝合并数、耗时与状态），消除暗箱操作疑虑。
+
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| `__init__.py` | Package | Package facade for revocable provenance. | ✅ |
+| `dream_diary_recorder.py` | Core | Records and presents background dreaming memory consolidation cycles for transparent inspection. | ✅ |
+| `models.py` | Types | Types and models for revocable provenance. | ✅ |
+| `provenance_store.py` | Core | Stores and indexes long-term memories with bidirectional traceability to source transcripts. | ✅ |
+| `revocable_forget_engine.py` | Core | Performs atomic point memory revocation and maintains tombstone exclusion fingerprints. | ✅ |

@@ -1,3 +1,15 @@
+"""Zero-dependency, offline semantic synonym expansion engine.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- OfflineSynonymExpander: Zero-dependency, offline semantic synonym expansion engine.
+
+[POS]
+Zero-dependency, offline semantic synonym expansion engine.
+"""
+
 # [POS]: myrm_agent_harness/toolkits/memory/hybrid_engine/synonym_expander.py
 # [INPUT]: Raw search terms, user registered synonyms
 # [OUTPUT]: Offline synonym graph manager and safe FTS5 query expansion

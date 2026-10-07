@@ -2,6 +2,21 @@
 
 Provides continuous bot turn watchdog enforcement, pre-flight incremental cognitive value
 introspection, turn mutex arbitration, and group emergency stop protection.
+
+[INPUT]
+- agent.context_management.multibot_governor.multibot_governor_types::BotTurnEvent, CognitiveValueEvaluation,
+  GovernorAction, GovernorDecision, MessageSenderRole, MultiBotGovernorConfig, MutexAcquireResult (POS: Type
+  definitions for Multi-Bot Shared Group Chatter Governor.)
+
+[OUTPUT]
+- IncrementalCognitiveValueEvaluator: Introspective gate evaluating whether a bot has substantive cognitive
+  value to speak.
+- GroupTurnArbitrator: Thread-safe turn mutex arbitrator preventing multiple bots from collision-answering.
+- MultiBotChatterGovernor: Primary governor coordinating continuous bot watchdog, value gate, and emergency
+  brake.
+
+[POS]
+Core implementation of Multi-Bot Shared Group Chatter Governor.
 """
 
 from __future__ import annotations

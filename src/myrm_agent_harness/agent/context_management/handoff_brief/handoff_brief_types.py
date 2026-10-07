@@ -1,3 +1,18 @@
+"""Types and models for handoff brief.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- DelegationRoleKind: Specialized target agent profile for role-scoped handoff delegation.
+- DecisionItem: Explicit technical or business decision captured with rationale.
+- HandoffBrief: Standardized cross-session handoff brief preserving state and decisions.
+- HandoffIngressResult: Result of importing a handoff brief into a target session context.
+
+[POS]
+Types and models for handoff brief.
+"""
+
 # ============================================================================
 # Standardized Agent Handoff Brief & Continuity Bridge Contracts (Item 170)
 # Strong typing contracts for cross-session/cross-agent handoff briefs, structured

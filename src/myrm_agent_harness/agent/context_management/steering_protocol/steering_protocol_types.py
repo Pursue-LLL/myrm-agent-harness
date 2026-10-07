@@ -2,6 +2,19 @@
 
 Provides immutable data contracts for hierarchical inbox message models (steer/followUp/nextRun),
 atomic turn-boundary drain pipelines, and compaction-safe secondary pickup.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- SteeringKind: Hierarchical classification of pending in-flight messages.
+- SteeringConsumptionMode: Consumption strategy for steering queues.
+- SteeringMessage: An immutable in-flight steering message submitted during execution.
+- DrainResult: Atomic drain event capturing extracted steering messages at a turn boundary.
+- SteeredTurnContext: Context modification descriptor after injecting steering messages.
+
+[POS]
+Type definitions for In-Flight Steering and Follow-Up Queue Injection Protocol.
 """
 
 from __future__ import annotations

@@ -1,3 +1,15 @@
+"""High-performance in-memory BM25 lexical searcher for OKF concept bundles.
+
+[INPUT]
+- toolkits.memory.git_okf.models::OKFConcept, OKFSearchResult (POS: Types and models for git okf.)
+
+[OUTPUT]
+- InMemoryBM25Searcher: High-performance in-memory BM25 lexical searcher for OKF concept bundles.
+
+[POS]
+High-performance in-memory BM25 lexical searcher for OKF concept bundles.
+"""
+
 # [POS]: myrm_agent_harness/toolkits/memory/git_okf/in_memory_bm25.py
 # [INPUT]: Concept corpus and user queries
 # [OUTPUT]: In-memory BM25 lexical scorer with sub-millisecond ranking

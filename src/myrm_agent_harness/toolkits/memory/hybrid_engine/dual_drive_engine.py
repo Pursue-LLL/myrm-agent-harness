@@ -1,3 +1,20 @@
+"""Orchestrates zero-config SQLite FTS5, offline synonym expansion,.
+
+[INPUT]
+- toolkits.memory.hybrid_engine.models::HybridEngineStats, HybridMemoryItem, HybridSearchResult, RetrievalMode
+  (POS: Types and models for hybrid engine.)
+- toolkits.memory.hybrid_engine.sqlite_fts5_store::SqliteFts5Engine (POS: Embedded SQLite FTS5 storage and
+  retrieval engine.)
+- toolkits.memory.hybrid_engine.synonym_expander::OfflineSynonymExpander (POS: Zero-dependency, offline
+  semantic synonym expansion engine.)
+
+[OUTPUT]
+- DualDriveHybridMemoryEngine: Orchestrates zero-config SQLite FTS5, offline synonym expansion,.
+
+[POS]
+Orchestrates zero-config SQLite FTS5, offline synonym expansion,.
+"""
+
 # [POS]: myrm_agent_harness/toolkits/memory/hybrid_engine/dual_drive_engine.py
 # [INPUT]: SqliteFts5Engine, OfflineSynonymExpander, optional DenseVectorProvider callback
 # [OUTPUT]: DualDriveHybridMemoryEngine facade with RRF fusion and graceful degradation

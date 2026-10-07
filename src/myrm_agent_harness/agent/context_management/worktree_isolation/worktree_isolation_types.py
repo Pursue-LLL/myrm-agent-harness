@@ -2,6 +2,20 @@
 
 Provides immutable data contracts for worktree inventory, branch-to-session bindings,
 working tree hygiene inspection, and safe removal policies.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- WorktreeHygieneStatus: Hygiene status of a git worktree directory.
+- WorktreeRemovalPolicy: Policy governing worktree deletion safety.
+- WorktreeDescriptor: Represents an isolated git worktree branch working directory.
+- WorktreeHygieneReport: Hygiene inspection outcome reporting uncommitted or untracked changes.
+- SessionWorktreeBinding: Immutable binding locking an agent session to a specific worktree directory.
+- WorktreeRemovalResult: Result emitted after evaluating or executing worktree teardown.
+
+[POS]
+Type definitions for Git Worktree Multi-Branch Parallel Session Isolation and State Matrix.
 """
 
 from __future__ import annotations

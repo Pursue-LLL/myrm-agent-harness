@@ -2,6 +2,21 @@
 
 Provides immutable data contracts for continuous bot turn tracking,
 incremental cognitive value evaluation, turn mutex tokens, and circuit-breaker decisions.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- GovernorAction: Action dictated by the multi-bot chatter governor.
+- MessageSenderRole: Role classification of message senders in a group chat.
+- MultiBotGovernorConfig: Configuration governing multi-bot shared group chat interaction safety.
+- BotTurnEvent: Represents a discrete turn event submitted to the governor.
+- CognitiveValueEvaluation: Result of pre-flight incremental cognitive value introspection.
+- MutexAcquireResult: Result of attempting to acquire the group turn mutex token.
+- GovernorDecision: Comprehensive decision emitted before a bot attempts to speak.
+
+[POS]
+Type definitions for Multi-Bot Shared Group Chatter Governor.
 """
 
 from __future__ import annotations

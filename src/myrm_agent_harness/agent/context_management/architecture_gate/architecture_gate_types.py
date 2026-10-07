@@ -2,6 +2,20 @@
 
 Provides immutable data contracts for adaptive discussion modes, technology trade-off
 matrices, execution blueprint step sequences, and intent convergence gates.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ArchitectureMode: Lifecycle mode governing tool suppression and advisory gates.
+- TechnologyOption: A viable architectural or technology option with trade-off dimensions.
+- TradeoffMatrix: Multi-option trade-off decision matrix comparing architectural routes.
+- ExecutionBlueprintStep: A discrete, verifiable implementation step within an approved blueprint.
+- ExecutionBlueprint: Structured implementation blueprint ready for user convergence and locking.
+- GateEvaluationResult: Snapshot of current session architecture mode, tool gates, and active artifacts.
+
+[POS]
+Type definitions for Architecture Planning Discussion-First and Intent Convergence Gate.
 """
 
 from __future__ import annotations

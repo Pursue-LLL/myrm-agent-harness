@@ -119,6 +119,8 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | tool_guidance/ | Deterministic, cache-stable synthesis of procedural tool memory (traps, edicts) into bounded, zero-LLM tool guidance. See [tool_guidance/_ARCH.md](tool_guidance/_ARCH.md). |
 | world_model/ | L3 world model: four-dimension macro project entities (rules, environment, contract, domain knowledge) with versioned records and compact macro-context rendering. See [world_model/_ARCH.md](world_model/_ARCH.md). |
 | zero_hallucination/ | Fault-transparent retrieval protocol and anti-fabrication prompt guard for memory queries. See [zero_hallucination/_ARCH.md](zero_hallucination/_ARCH.md). |
+| git_okf/ | Git-native loader for Google OKF v0.2 knowledge bundles. See [git_okf/_ARCH.md](git_okf/_ARCH.md). |
+| hybrid_engine/ | Orchestrates zero-config SQLite FTS5, offline synonym expansion,. See [hybrid_engine/_ARCH.md](hybrid_engine/_ARCH.md). |
 
 ## Key Dependencies
 

@@ -2,6 +2,17 @@
 
 Resolves multi-channel thread ingress into strictly isolated child session branches,
 guarantees per-thread zero-lock-contention execution, and manages lifecycle archives.
+
+[INPUT]
+- agent.context_management.channel_thread_session.channel_thread_types::ThreadBindingKey,
+  ThreadIsolationPolicy, ThreadRoutingDecision, ThreadSessionBranch (POS: Type definitions for Channel Thread
+  to Session Dynamic Binding and Isolated Branching.)
+
+[OUTPUT]
+- ChannelThreadSessionEngine: Industrial engine routing IM channel threads to isolated session branches.
+
+[POS]
+Core implementation of Channel Thread to Session Dynamic Binding and Isolated Branching Engine.
 """
 
 from __future__ import annotations

@@ -15,3 +15,13 @@ The `activity_compactor` module in `myrm-agent-harness` provides desktop activit
 - `macro_distiller.py`: 6-hour milestone aggregator and tag classifier (`MacroMilestoneDistiller`).
 - `pipeline.py`: End-to-end pipeline coordinator and telemetry reporter (`HierarchicalActivityCompactorPipeline`).
 - `__init__.py`: Clean exports for the toolkit.
+
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| `__init__.py` | Package | Hierarchical time-window activity compactor and telemetry pipeline toolkit. | ✅ |
+| `macro_distiller.py` | Core | Macro milestone distiller consolidating micro activity slices into 6-hour business folds. | ✅ |
+| `micro_folder.py` | Core | Micro-window activity folder implementing algorithmic deduplication and debouncing. | ✅ |
+| `models.py` | Types | Strongly-typed schemas for Hierarchical Time-Window Activity Compactor pipeline. | ✅ |
+| `pipeline.py` | Core | Hierarchical activity compactor pipeline orchestrating 10min/6h/24h compaction tiers. | ✅ |

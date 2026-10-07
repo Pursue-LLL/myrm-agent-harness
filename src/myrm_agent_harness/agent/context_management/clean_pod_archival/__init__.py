@@ -8,6 +8,20 @@
 - NightlyArchivalStatus: 夜间自动化资产沉淀状态枚举
 - PodLifecycleState: 瞬态隔离舱生命周期状态枚举
 - TaskDeliverableContract: 瞬态任务结构化交付物契约
+
+[INPUT]
+- agent.context_management.clean_pod_archival.clean_pod_archival_engine::CleanPodArchivalEngine (POS:
+  核心引擎实现：单任务瞬态上下文防污染隔离、最终产物干净汇流与夜间定时无损资产沉淀。)
+- agent.context_management.clean_pod_archival.clean_pod_archival_types::CleanPodArchivalConfig,
+  EphemeralCleanPodDescriptor, NightlyArchivalJob, NightlyArchivalStatus, PodLifecycleState,
+  TaskDeliverableContract (POS: 强类型契约定义：单任务瞬态上下文防污染隔离、最终产物干净汇流与夜间定时无损资产沉淀套件。)
+
+[OUTPUT]
+- Re-exports: CleanPodArchivalConfig, CleanPodArchivalEngine, EphemeralCleanPodDescriptor, NightlyArchivalJob,
+  NightlyArchivalStatus, PodLifecycleState, TaskDeliverableContract
+
+[POS]
+单任务瞬态上下文防污染隔离、最终产物干净汇流与夜间定时无损资产沉淀套件。
 """
 
 from .clean_pod_archival_engine import CleanPodArchivalEngine
