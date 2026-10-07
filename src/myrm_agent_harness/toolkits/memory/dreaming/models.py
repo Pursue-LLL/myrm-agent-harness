@@ -1,7 +1,20 @@
-"""Data models for Grounded Dreaming and Surgical Memory Unlearning.
+"""Data models for Grounded Dreaming, Provenance Anchors, and Surgical Memory Unlearning.
 
-Defines schemas for cross-session consolidation candidates, human-readable
-dream diary entries, and audit reports for surgical session memory erasure.
+[POS]
+做梦认知日记与溯源数据契约核心。定义跨会话认知洞察实体、审核与锁定状态枚举、
+不可篡改的双向溯源锚点集，以及外科手术式遗忘审计报告。
+
+[INPUT]
+- cognitive_statement: 提炼出的长程认知事实
+- source_session_ids: 关联来源会话列表
+- provenance_anchors: 双向溯源锚点集合
+- project_id: 可选的项目隔离范围
+
+[OUTPUT]
+- DreamDiaryStatus: 认知日记审核与治理状态枚举
+- DreamDiaryEntry: 具备消息级溯源与可撤回锁定的梦境日记条目实体
+- DreamSessionFragment: 单会话提取碎片契约
+- SurgicalUnlearnReport: 外科手术式拔除审计报告
 """
 
 from __future__ import annotations
@@ -12,6 +25,10 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
 
+from myrm_agent_harness.toolkits.memory.dreaming.provenance import (
+    MemoryProvenanceAnchor,
+)
+
 
 class DreamDiaryStatus(StrEnum):
     """Lifecycle status of an AI cognitive insight in the dream diary."""
@@ -19,6 +36,8 @@ class DreamDiaryStatus(StrEnum):
     PENDING = "pending"
     ACCEPTED = "accepted"
     REJECTED = "rejected"
+    LOCKED = "locked"
+    REVOKED = "revoked"
 
 
 @dataclass(frozen=True)
@@ -30,6 +49,7 @@ class DreamSessionFragment:
     topic_keywords: list[str] = field(default_factory=list)
     chat_turn_count: int = 0
     extracted_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    project_id: str | None = None
 
 
 @dataclass
@@ -44,6 +64,10 @@ class DreamDiaryEntry:
     status: DreamDiaryStatus = DreamDiaryStatus.PENDING
     rejection_reason: str | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    provenance_anchors: list[MemoryProvenanceAnchor] = field(default_factory=list)
+    project_id: str | None = None
+    is_locked: bool = False
+    amended_statement: str | None = None
 
     @classmethod
     def create(
@@ -52,6 +76,8 @@ class DreamDiaryEntry:
         source_session_ids: list[str],
         evidence_snippets: list[str],
         confidence_delta: float = 0.2,
+        provenance_anchors: list[MemoryProvenanceAnchor] | None = None,
+        project_id: str | None = None,
     ) -> DreamDiaryEntry:
         """Factory method generating a unique entry identifier."""
         return cls(
@@ -61,6 +87,10 @@ class DreamDiaryEntry:
             evidence_snippets=list(evidence_snippets),
             confidence_delta=confidence_delta,
             status=DreamDiaryStatus.PENDING,
+            provenance_anchors=list(provenance_anchors) if provenance_anchors else [],
+            project_id=project_id,
+            is_locked=False,
+            amended_statement=None,
         )
 
     def to_dict(self) -> dict[str, object]:
@@ -74,6 +104,10 @@ class DreamDiaryEntry:
             "status": self.status.value,
             "rejection_reason": self.rejection_reason,
             "created_at": self.created_at.isoformat(),
+            "provenance_anchors": [a.to_dict() for a in self.provenance_anchors],
+            "project_id": self.project_id,
+            "is_locked": self.is_locked,
+            "amended_statement": self.amended_statement,
         }
 
     @classmethod
@@ -86,7 +120,11 @@ class DreamDiaryEntry:
             else datetime.now(UTC)
         )
         status_val = str(data.get("status", "pending"))
-        status_enum = DreamDiaryStatus(status_val) if status_val in DreamDiaryStatus._value2member_map_ else DreamDiaryStatus.PENDING
+        status_enum = (
+            DreamDiaryStatus(status_val)
+            if status_val in DreamDiaryStatus._value2member_map_
+            else DreamDiaryStatus.PENDING
+        )
 
         raw_sessions = data.get("source_session_ids")
         sessions = [str(s) for s in raw_sessions] if isinstance(raw_sessions, list) else []
@@ -97,6 +135,19 @@ class DreamDiaryEntry:
         rejection = data.get("rejection_reason")
         rejection_str = str(rejection) if rejection is not None else None
 
+        raw_anchors = data.get("provenance_anchors")
+        anchors: list[MemoryProvenanceAnchor] = []
+        if isinstance(raw_anchors, list):
+            for item in raw_anchors:
+                if isinstance(item, dict):
+                    anchors.append(MemoryProvenanceAnchor.from_dict(item))
+
+        raw_proj = data.get("project_id")
+        proj_str = str(raw_proj) if raw_proj is not None else None
+
+        raw_amended = data.get("amended_statement")
+        amended_str = str(raw_amended) if raw_amended is not None else None
+
         return cls(
             entry_id=str(data.get("entry_id", f"dream_{uuid.uuid4().hex[:12]}")),
             cognitive_statement=str(data.get("cognitive_statement", "")),
@@ -106,6 +157,10 @@ class DreamDiaryEntry:
             status=status_enum,
             rejection_reason=rejection_str,
             created_at=created_dt,
+            provenance_anchors=anchors,
+            project_id=proj_str,
+            is_locked=bool(data.get("is_locked", False)),
+            amended_statement=amended_str,
         )
 
 
