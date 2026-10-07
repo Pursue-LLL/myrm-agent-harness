@@ -556,6 +556,15 @@ from .reasoning_collapse import (
     ThinkingCollapseMode,
     UnifiedReasoningBlock,
 )
+from .progressive_disclosure import (
+    AttributionValidationResult,
+    CognitiveMilestoneFact,
+    DisclosureStage,
+    EvidenceAttributionType,
+    EvidenceCitation,
+    ProgressiveDisclosureConfig,
+    ProgressiveDisclosureEngine,
+)
 
 __all__ = [
     # active_compression
@@ -868,6 +877,14 @@ __all__ = [
     "ReasoningVendorType",
     "ThinkingCollapseMode",
     "UnifiedReasoningBlock",
+    # progressive_disclosure
+    "AttributionValidationResult",
+    "CognitiveMilestoneFact",
+    "DisclosureStage",
+    "EvidenceAttributionType",
+    "EvidenceCitation",
+    "ProgressiveDisclosureConfig",
+    "ProgressiveDisclosureEngine",
     # session_roaming
     "CollaborationRole",
     "DeviceAgnosticSessionRoamingEngine",
