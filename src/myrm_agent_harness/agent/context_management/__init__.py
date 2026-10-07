@@ -127,6 +127,15 @@ from .ambiguity_probe import (
     ClarificationQuestion,
     EntityGraphMatch,
 )
+from .clean_pod_archival import (
+    CleanPodArchivalConfig,
+    CleanPodArchivalEngine,
+    EphemeralCleanPodDescriptor,
+    NightlyArchivalJob,
+    NightlyArchivalStatus,
+    PodLifecycleState,
+    TaskDeliverableContract,
+)
 from .demand_hydration import (
     DemandHydrationConfig,
     HydratedContextEnvelope,
@@ -265,6 +274,14 @@ __all__ = [
     "ClarificationProbeResult",
     "ClarificationQuestion",
     "EntityGraphMatch",
+    # clean_pod_archival
+    "CleanPodArchivalConfig",
+    "CleanPodArchivalEngine",
+    "EphemeralCleanPodDescriptor",
+    "NightlyArchivalJob",
+    "NightlyArchivalStatus",
+    "PodLifecycleState",
+    "TaskDeliverableContract",
     # demand_hydration
     "DemandHydrationConfig",
     "HydratedContextEnvelope",
