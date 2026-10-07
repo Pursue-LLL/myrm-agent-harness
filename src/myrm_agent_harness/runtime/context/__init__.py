@@ -46,6 +46,9 @@ from myrm_agent_harness.runtime.context.artifact_centric_loop import (
     WorkingSceneHydrationPayload,
     WorkingSceneHydrator,
 )
+from myrm_agent_harness.runtime.context.ast_symbol_stub_extractor import (
+    AstSymbolStubExtractor,
+)
 from myrm_agent_harness.runtime.context.big_at_context_bridge import (
     BigAtReference,
     BigAtSyntaxParser,
@@ -80,6 +83,9 @@ from myrm_agent_harness.runtime.context.cleanup_task import (
 from myrm_agent_harness.runtime.context.cli_dry_run_protocol import (
     BestSourceSelector,
     CliDryRunDiscoveryProtocol,
+)
+from myrm_agent_harness.runtime.context.code_context_pager import (
+    CodeContextPager,
 )
 from myrm_agent_harness.runtime.context.compaction_observation_accounting import (
     CompactionDecision,
@@ -888,6 +894,16 @@ from myrm_agent_harness.runtime.context.user_query_disambiguation_guard import (
     ParsedUserQuery,
     UserQueryDisambiguationGuard,
 )
+from myrm_agent_harness.runtime.context.virtual_page_swap_manager import (
+    VirtualPageSwapManager,
+)
+from myrm_agent_harness.runtime.context.virtual_paged_code_types import (
+    CodeSymbolStub,
+    PageFaultEvent,
+    PageLifecycleState,
+    PageSwapAudit,
+    VirtualCodePage,
+)
 from myrm_agent_harness.runtime.context.working_set_rules_types import (
     ActiveWorkingSet,
     EntropyAuditReport,
@@ -1496,6 +1512,14 @@ __all__ = [
     "QuietCommandRewriterHook",
     "OutputSpillToDiskMiddleware",
     "SubagentContextFirewall",
+    "PageLifecycleState",
+    "CodeSymbolStub",
+    "VirtualCodePage",
+    "PageFaultEvent",
+    "PageSwapAudit",
+    "AstSymbolStubExtractor",
+    "CodeContextPager",
+    "VirtualPageSwapManager",
 ]
 
 
