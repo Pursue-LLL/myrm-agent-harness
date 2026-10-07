@@ -477,6 +477,17 @@ from .project_handoff import (
     ProjectWorkspaceDossier,
     TenSecondProjectHandoffEngine,
 )
+from .live_steering import (
+    LiveResponseSteeringEngine,
+    LiveSteerStatus,
+    LiveSteeringConfig,
+    LiveSteeringInjectionResult,
+    LiveSteeringInstruction,
+    LiveSteeringReconciledHistory,
+    SteerChannelMode,
+    SteerSeverity,
+    ToolSeamAnchor,
+)
 
 __all__ = [
     # active_compression
@@ -718,6 +729,16 @@ __all__ = [
     "ProjectHandoffStatus",
     "ProjectWorkspaceDossier",
     "TenSecondProjectHandoffEngine",
+    # live_steering
+    "LiveResponseSteeringEngine",
+    "LiveSteerStatus",
+    "LiveSteeringConfig",
+    "LiveSteeringInjectionResult",
+    "LiveSteeringInstruction",
+    "LiveSteeringReconciledHistory",
+    "SteerChannelMode",
+    "SteerSeverity",
+    "ToolSeamAnchor",
     # session_roaming
     "CollaborationRole",
     "DeviceAgnosticSessionRoamingEngine",
