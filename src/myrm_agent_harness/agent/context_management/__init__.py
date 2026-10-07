@@ -448,6 +448,14 @@ from .mvp_distiller import (
     PhaseScopePlan,
     ProjectComplexityLevel,
 )
+from .cron_mirroring import (
+    ContinuableCronSessionMirrorEngine,
+    ContinuableJobSpec,
+    CronDeliveryRecord,
+    CronMirrorConfig,
+    CronMirrorRoleMode,
+    CronMirroringOutcome,
+)
 
 __all__ = [
     # active_compression
@@ -664,6 +672,13 @@ __all__ = [
     "MvpPhaseLifecycleState",
     "PhaseScopePlan",
     "ProjectComplexityLevel",
+    # cron_mirroring
+    "ContinuableCronSessionMirrorEngine",
+    "ContinuableJobSpec",
+    "CronDeliveryRecord",
+    "CronMirrorConfig",
+    "CronMirrorRoleMode",
+    "CronMirroringOutcome",
     # session_roaming
     "CollaborationRole",
     "DeviceAgnosticSessionRoamingEngine",
