@@ -486,6 +486,16 @@ from myrm_agent_harness.toolkits.memory.tool_guidance import (
     filter_guidance_items,
     synthesize_tool_guidance,
 )
+from myrm_agent_harness.toolkits.memory.tombstone import (
+    ContradictionPair,
+    MemoryTombstoneCurationService,
+    MemoryTombstoneMetaTools,
+    PreferenceContradictionDetector,
+    TombstoneAuditRecord,
+    TombstoneCandidateItem,
+    TombstoneCurationReport,
+    TombstoneState,
+)
 from myrm_agent_harness.toolkits.memory.types import (
     AnyMemory,
     BaseMemory,
@@ -983,4 +993,12 @@ __all__ = [
     "ResilientChunkRetryExecutor",
     "TransientMemoryProcessingError",
     "is_transient_error",
+    "ContradictionPair",
+    "MemoryTombstoneCurationService",
+    "MemoryTombstoneMetaTools",
+    "PreferenceContradictionDetector",
+    "TombstoneAuditRecord",
+    "TombstoneCandidateItem",
+    "TombstoneCurationReport",
+    "TombstoneState",
 ]
