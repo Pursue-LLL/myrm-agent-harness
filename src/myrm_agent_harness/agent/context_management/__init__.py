@@ -526,6 +526,17 @@ from .fallback_buffer_notebook import (
     TeamNotebookEntry,
     TeamNotebookSnapshot,
 )
+from .migratable_session import (
+    DecoupledMigratableSessionEngine,
+    MigratableSessionBundle,
+    MigratableSessionConfig,
+    SessionAccessRole,
+    SessionForkOutcome,
+    SessionLiveStatus,
+    SessionLocationKind,
+    SessionShareGrant,
+    WorkspaceHotSeedSpec,
+)
 
 __all__ = [
     # active_compression
@@ -811,6 +822,16 @@ __all__ = [
     "FallbackBufferNotebookEngine",
     "TeamNotebookEntry",
     "TeamNotebookSnapshot",
+    # migratable_session
+    "DecoupledMigratableSessionEngine",
+    "MigratableSessionBundle",
+    "MigratableSessionConfig",
+    "SessionAccessRole",
+    "SessionForkOutcome",
+    "SessionLiveStatus",
+    "SessionLocationKind",
+    "SessionShareGrant",
+    "WorkspaceHotSeedSpec",
     # session_roaming
     "CollaborationRole",
     "DeviceAgnosticSessionRoamingEngine",
