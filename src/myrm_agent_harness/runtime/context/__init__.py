@@ -787,6 +787,21 @@ from myrm_agent_harness.runtime.context.pristine_passthrough_sandbox import (
     PristineTestingSandbox,
     RawModelPassthroughTransformer,
 )
+from myrm_agent_harness.runtime.context.proactive_clarification_state_machine import (
+    ProactiveClarificationStateMachine,
+)
+from myrm_agent_harness.runtime.context.proactive_clarification_types import (
+    ClarificationActionChip,
+    ClarificationRequestPayload,
+    ConvergenceAuditSnapshot,
+    ConvergenceVerdict,
+    IntentSlotSpec,
+    SlotStateKind,
+    SlotValueRecord,
+)
+from myrm_agent_harness.runtime.context.proactive_slot_tracker import (
+    ProactiveSlotTracker,
+)
 from myrm_agent_harness.runtime.context.progressive_cli_manifest_generator import (
     ProgressiveCliManifestGenerator,
 )
@@ -2086,6 +2101,15 @@ __all__ = [
     "ThemeRecipeDescriptor",
     "ThemePaletteSynthesizer",
     "AgentSelfReflectiveThemeEngine",
+    "SlotStateKind",
+    "ConvergenceVerdict",
+    "IntentSlotSpec",
+    "SlotValueRecord",
+    "ClarificationActionChip",
+    "ClarificationRequestPayload",
+    "ConvergenceAuditSnapshot",
+    "ProactiveSlotTracker",
+    "ProactiveClarificationStateMachine",
 ]
 
 
