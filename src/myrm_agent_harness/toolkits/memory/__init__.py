@@ -117,6 +117,12 @@ from myrm_agent_harness.toolkits.memory.conversation_search import (
     MemoryConversationSearchProvider,
     create_conversation_search_tool,
 )
+from myrm_agent_harness.toolkits.memory.conversation_search.lineage_defense import (
+    ConversationSourceKind,
+    LineageNode,
+    SourceDemotionPolicy,
+    run_lineage_defense_pipeline,
+)
 from myrm_agent_harness.toolkits.memory.cube import (
     LifecycleTier,
     MemCubeEnvelope,
@@ -239,6 +245,21 @@ from myrm_agent_harness.toolkits.memory.four_tier_fts import (
     MemoryScope,
     SqliteFts5MemoryEngine,
 )
+from myrm_agent_harness.toolkits.memory.git_okf import (
+    ConceptStatus,
+    ConceptSummaryItem,
+    GovernanceLevel,
+    InMemoryBM25Searcher,
+    OKFBundleLoader,
+    OKFConcept,
+    OKFConceptValidator,
+    OKFDisclosureSummary,
+    OKFGenerated,
+    OKFSearchResult,
+    OKFSource,
+    OKFValidationReport,
+    OKFVerified,
+)
 from myrm_agent_harness.toolkits.memory.governance import (
     AssembledMemoryContext,
     ConflictResolver,
@@ -257,6 +278,17 @@ from myrm_agent_harness.toolkits.memory.hermes_bridge import (
     import_hermes_bundle,
     parse_hermes_json,
     parse_hermes_markdown,
+)
+from myrm_agent_harness.toolkits.memory.hybrid_engine import (
+    DenseVectorProvider,
+    DualDriveHybridMemoryEngine,
+    HybridEngineStats,
+    HybridMemoryItem,
+    HybridSearchResult,
+    OfflineSynonymExpander,
+    RetrievalMode,
+    SqliteFts5Engine,
+    SynonymRule,
 )
 from myrm_agent_harness.toolkits.memory.ingestion_gateway import (
     ContextIngestionPayload,
@@ -286,6 +318,19 @@ from myrm_agent_harness.toolkits.memory.job_compounding import (
     MaturityTier,
     PreferenceCompoundingEngine,
     RuleType,
+)
+from myrm_agent_harness.toolkits.memory.lineage_search import (
+    AdaptiveWindowHydrator,
+    ConversationMessage,
+    HydratedSessionHit,
+    LineageDeduplicator,
+    LineageSearchEngine,
+    LineageSearchOptions,
+    LineageSearchStats,
+    RawSearchHit,
+    SessionMeta,
+    SessionSourceKind,
+    SourceDemoterAndFilter,
 )
 from myrm_agent_harness.toolkits.memory.ltra import (
     AudioFactDistillationWorker,
@@ -402,6 +447,16 @@ from myrm_agent_harness.toolkits.memory.provenance_batch import (
     SkillProvenanceLinker,
     ToolExecutionTrace,
 )
+from myrm_agent_harness.toolkits.memory.reconciliation import (
+    DiskMemoryFileMeta,
+    DiskMemoryFtsReconciler,
+    FtsReconciledHit,
+    MemoryWriteBlockedError,
+    MemoryWriteGate,
+    ReconciliationReport,
+    WriteGateCheckResult,
+    WriteGatePolicy,
+)
 from myrm_agent_harness.toolkits.memory.reembedding import (
     AdaptiveBatcher,
     CheckpointState,
@@ -476,51 +531,6 @@ from myrm_agent_harness.toolkits.memory.revocable_provenance import (
     ProvenanceQualifiedMemory,
     RevocableForgetEngine,
 )
-from myrm_agent_harness.toolkits.memory.reconciliation import (
-    DiskMemoryFileMeta,
-    DiskMemoryFtsReconciler,
-    FtsReconciledHit,
-    MemoryWriteBlockedError,
-    MemoryWriteGate,
-    ReconciliationReport,
-    WriteGateCheckResult,
-    WriteGatePolicy,
-)
-from myrm_agent_harness.toolkits.memory.git_okf import (
-    ConceptStatus,
-    ConceptSummaryItem,
-    GovernanceLevel,
-    InMemoryBM25Searcher,
-    OKFBundleLoader,
-    OKFConcept,
-    OKFConceptValidator,
-    OKFDisclosureSummary,
-    OKFGenerated,
-    OKFSearchResult,
-    OKFSource,
-    OKFValidationReport,
-    OKFVerified,
-)
-from myrm_agent_harness.toolkits.memory.hybrid_engine import (
-    DenseVectorProvider,
-    DualDriveHybridMemoryEngine,
-    HybridEngineStats,
-    HybridMemoryItem,
-    HybridSearchResult,
-    OfflineSynonymExpander,
-    RetrievalMode,
-    SqliteFts5Engine,
-    SynonymRule,
-)
-from myrm_agent_harness.toolkits.memory.temporal_graph import (
-    FactConflictResolutionResult,
-    SqliteTemporalGraphStore,
-    TemporalDecayScorer,
-    TemporalEntityNode,
-    TemporalFactConflictReconciler,
-    TemporalFactEdge,
-    TemporalFactHit,
-)
 from myrm_agent_harness.toolkits.memory.ripplemem import (
     ActiveRecallController,
     DualEdgeSparseGraphStore,
@@ -591,6 +601,15 @@ from myrm_agent_harness.toolkits.memory.strategies import (
     RetentionScore,
     compute_gravity_decay,
     extract_memories_from_conversation,
+)
+from myrm_agent_harness.toolkits.memory.temporal_graph import (
+    FactConflictResolutionResult,
+    SqliteTemporalGraphStore,
+    TemporalDecayScorer,
+    TemporalEntityNode,
+    TemporalFactConflictReconciler,
+    TemporalFactEdge,
+    TemporalFactHit,
 )
 from myrm_agent_harness.toolkits.memory.tombstone import (
     ContradictionPair,
@@ -682,6 +701,17 @@ from myrm_agent_harness.toolkits.memory.zero_hallucination import (
 )
 
 __all__ = [
+    "AdaptiveWindowHydrator",
+    "ConversationMessage",
+    "HydratedSessionHit",
+    "LineageDeduplicator",
+    "LineageSearchEngine",
+    "LineageSearchOptions",
+    "LineageSearchStats",
+    "RawSearchHit",
+    "SessionMeta",
+    "SessionSourceKind",
+    "SourceDemoterAndFilter",
     "DenseVectorProvider",
     "DualDriveHybridMemoryEngine",
     "HybridEngineStats",
@@ -1052,6 +1082,10 @@ __all__ = [
     "VectorStoreProtocol",
     "create_consolidation_cleanup_task",
     "create_conversation_search_tool",
+    "ConversationSourceKind",
+    "LineageNode",
+    "SourceDemotionPolicy",
+    "run_lineage_defense_pipeline",
     "create_local_memory_manager",
     "setup_local_file_memory_sync",
     "extract_memories_from_conversation",
