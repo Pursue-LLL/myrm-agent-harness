@@ -675,8 +675,27 @@ from .tool_safe_compaction import (
     find_valid_cut_points,
     select_optimal_safe_cut_point,
 )
+from .mention_hydration import (
+    HydratedTurnPayload,
+    MentionHydrationConfig,
+    MentionHydrationEngine,
+    MentionKind,
+    ParsedMention,
+    PreHydratedAttachment,
+    compute_content_hash,
+    parse_mentions_from_prompt,
+)
 
 __all__ = [
+    # mention_hydration
+    "HydratedTurnPayload",
+    "MentionHydrationConfig",
+    "MentionHydrationEngine",
+    "MentionKind",
+    "ParsedMention",
+    "PreHydratedAttachment",
+    "compute_content_hash",
+    "parse_mentions_from_prompt",
     # tool_safe_compaction
     "CutPointEvaluation",
     "CutPointSafetyKind",
