@@ -2,6 +2,20 @@
 
 Prevents provider KV cache thrashing caused by in-sandbox file mutations by anchoring
 static core prefixes and stitching file system delta patches strictly at the context tail.
+
+[INPUT]
+- runtime.context.sandbox_cache_bridge_types::IncrementalPatchBundle, InvalidationScope,
+  StaticPrefixSnapshot, StitchedContextAssembly (POS: Sandbox state-aware context cache bridge types and
+  data models.)
+- runtime.context.sandbox_fs_event_probe::SandboxFsEventProbe (POS: Sandbox filesystem event probe and patch
+  compiler.)
+
+[OUTPUT]
+- SandboxContextCacheBridge: Bridges sandbox filesystem state with LLM context assembly to preserve KV
+  caching.
+
+[POS]
+Sandbox state-aware context cache bridge and incremental patch stitching engine.
 """
 
 from __future__ import annotations
@@ -27,9 +41,7 @@ class SandboxContextCacheBridge:
         system_prompt: str = "",
         workspace_skeleton: str = "",
     ) -> None:
-        self._prefix_snapshot: StaticPrefixSnapshot = (
-            self._build_prefix_snapshot(system_prompt, workspace_skeleton)
-        )
+        self._prefix_snapshot: StaticPrefixSnapshot = self._build_prefix_snapshot(system_prompt, workspace_skeleton)
         self._total_stitches_count: int = 0
         self._cache_preserved_count: int = 0
 
@@ -44,9 +56,7 @@ class SandboxContextCacheBridge:
         workspace_skeleton: str,
     ) -> StaticPrefixSnapshot:
         """Force a controlled refresh of the static prefix."""
-        self._prefix_snapshot = self._build_prefix_snapshot(
-            system_prompt, workspace_skeleton
-        )
+        self._prefix_snapshot = self._build_prefix_snapshot(system_prompt, workspace_skeleton)
         return self._prefix_snapshot
 
     def stitch_context(
@@ -68,18 +78,14 @@ class SandboxContextCacheBridge:
         if patch.invalidation_scope == InvalidationScope.FULL_PREFIX_INVALIDATION:
             # Controlled prefix invalidation due to critical config/schema change
             sys_prompt = (
-                updated_system_prompt
-                if updated_system_prompt is not None
-                else self._prefix_snapshot.system_prompt
+                updated_system_prompt if updated_system_prompt is not None else self._prefix_snapshot.system_prompt
             )
             ws_skeleton = (
                 updated_workspace_skeleton
                 if updated_workspace_skeleton is not None
                 else self._prefix_snapshot.frozen_workspace_skeleton
             )
-            self._prefix_snapshot = self._build_prefix_snapshot(
-                sys_prompt, ws_skeleton
-            )
+            self._prefix_snapshot = self._build_prefix_snapshot(sys_prompt, ws_skeleton)
             hit_ratio = 0.0
         else:
             self._cache_preserved_count += 1
@@ -109,11 +115,7 @@ class SandboxContextCacheBridge:
 
     def cache_preservation_stats(self) -> dict[str, float]:
         """Export metrics on cache preservation frequency."""
-        ratio = (
-            (self._cache_preserved_count / self._total_stitches_count)
-            if self._total_stitches_count > 0
-            else 1.0
-        )
+        ratio = (self._cache_preserved_count / self._total_stitches_count) if self._total_stitches_count > 0 else 1.0
         return {
             "total_stitches": float(self._total_stitches_count),
             "preserved_stitches": float(self._cache_preserved_count),

@@ -1,11 +1,22 @@
-# [POS] src/myrm_agent_harness/toolkits/memory/external_bridge/targets.py
-# [INPUT] models.py (ExternalAgentType, SkillInstallConfig), abc, pathlib.Path
-# [OUTPUT] BaseExternalAgentTarget, CursorBridgeTarget, ClaudeCodeBridgeTarget, CodexBridgeTarget, HermesBridgeTarget, OpenClawBridgeTarget
-
 """Target definitions and template generators for external agent memory bridges.
 
 Defines target-specific installation paths and memory integration directives for
 Cursor, Claude Code, Codex, Hermes, and OpenClaw.
+
+[INPUT]
+- toolkits.memory.external_bridge.models::ExternalAgentType, SkillInstallConfig (POS: Data models and type
+  definitions for external agent memory bridge and skill writing.)
+
+[OUTPUT]
+- BaseExternalAgentTarget: Abstract base class for external agent bridge target specifications.
+- CursorBridgeTarget: Bridge target for Cursor (.cursorrules or .cursor/rules/myrm-memory.mdc).
+- ClaudeCodeBridgeTarget: Bridge target for Anthropic Claude Code (CLAUDE.md).
+- CodexBridgeTarget: Bridge target for Codex CLI / Environment (CODEX.md).
+- HermesBridgeTarget: Bridge target for Hermes Agent (HERMES.md).
+- OpenClawBridgeTarget: Bridge target for OpenClaw Autonomous System (OPENCLAW.md).
+
+[POS]
+Target definitions and template generators for external agent memory bridges.
 """
 
 from __future__ import annotations
@@ -29,9 +40,7 @@ class BaseExternalAgentTarget(ABC):
         ...
 
     @abstractmethod
-    def get_default_target_path(
-        self, workspace_root: Path | None, global_config: bool = False
-    ) -> Path:
+    def get_default_target_path(self, workspace_root: Path | None, global_config: bool = False) -> Path:
         """Resolve default instruction file path for this target agent."""
         ...
 
@@ -44,9 +53,7 @@ class BaseExternalAgentTarget(ABC):
         """Render concise instructions for querying and contributing memory."""
         base_url = config.api_base_url.rstrip("/")
         read_only_note = (
-            "<!-- Memory bridge is configured in READ-ONLY mode. Do not write. -->\n"
-            if config.read_only
-            else ""
+            "<!-- Memory bridge is configured in READ-ONLY mode. Do not write. -->\n" if config.read_only else ""
         )
         contribute_section = (
             f"""
@@ -85,9 +92,7 @@ class CursorBridgeTarget(BaseExternalAgentTarget):
     def agent_type(self) -> ExternalAgentType:
         return ExternalAgentType.CURSOR
 
-    def get_default_target_path(
-        self, workspace_root: Path | None, global_config: bool = False
-    ) -> Path:
+    def get_default_target_path(self, workspace_root: Path | None, global_config: bool = False) -> Path:
         if global_config:
             return Path.home() / ".cursor" / "rules" / "myrm-memory.mdc"
         root = workspace_root or Path.cwd()
@@ -108,9 +113,7 @@ class ClaudeCodeBridgeTarget(BaseExternalAgentTarget):
     def agent_type(self) -> ExternalAgentType:
         return ExternalAgentType.CLAUDE_CODE
 
-    def get_default_target_path(
-        self, workspace_root: Path | None, global_config: bool = False
-    ) -> Path:
+    def get_default_target_path(self, workspace_root: Path | None, global_config: bool = False) -> Path:
         if global_config:
             return Path.home() / ".claude" / "CLAUDE.md"
         root = workspace_root or Path.cwd()
@@ -128,9 +131,7 @@ class CodexBridgeTarget(BaseExternalAgentTarget):
     def agent_type(self) -> ExternalAgentType:
         return ExternalAgentType.CODEX
 
-    def get_default_target_path(
-        self, workspace_root: Path | None, global_config: bool = False
-    ) -> Path:
+    def get_default_target_path(self, workspace_root: Path | None, global_config: bool = False) -> Path:
         if global_config:
             return Path.home() / ".codex" / "instructions.md"
         root = workspace_root or Path.cwd()
@@ -148,9 +149,7 @@ class HermesBridgeTarget(BaseExternalAgentTarget):
     def agent_type(self) -> ExternalAgentType:
         return ExternalAgentType.HERMES
 
-    def get_default_target_path(
-        self, workspace_root: Path | None, global_config: bool = False
-    ) -> Path:
+    def get_default_target_path(self, workspace_root: Path | None, global_config: bool = False) -> Path:
         if global_config:
             return Path.home() / ".hermes" / "instructions.md"
         root = workspace_root or Path.cwd()
@@ -168,9 +167,7 @@ class OpenClawBridgeTarget(BaseExternalAgentTarget):
     def agent_type(self) -> ExternalAgentType:
         return ExternalAgentType.OPENCLAW
 
-    def get_default_target_path(
-        self, workspace_root: Path | None, global_config: bool = False
-    ) -> Path:
+    def get_default_target_path(self, workspace_root: Path | None, global_config: bool = False) -> Path:
         if global_config:
             return Path.home() / ".openclaw" / "rules.md"
         root = workspace_root or Path.cwd()

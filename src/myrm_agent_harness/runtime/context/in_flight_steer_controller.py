@@ -2,6 +2,16 @@
 
 Allows users to submit preemptive steering guidance during long-running agent
 executions and injects high-priority interventions at the next step checkpoint.
+
+[INPUT]
+- runtime.context.session_fork_steer_types::InFlightSteerInstruction (POS: Session fork and in-flight steer
+  control types.)
+
+[OUTPUT]
+- InFlightSteerController: Controls in-flight human steering interventions intercepted at step checkpoints.
+
+[POS]
+In-flight steering controller for active session redirection.
 """
 
 from __future__ import annotations

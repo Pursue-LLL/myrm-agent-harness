@@ -1,11 +1,20 @@
-# [POS] src/myrm_agent_harness/toolkits/memory/external_bridge/registry.py
-# [INPUT] models.py (ExternalAgentType), targets.py (BaseExternalAgentTarget)
-# [OUTPUT] ExternalAgentTargetRegistry
-
 """Registry for external agent bridge targets.
 
 Allows pluggable registration and resolution of bridge target adapters for
 Cursor, Claude Code, Codex, Hermes, OpenClaw, and custom extensions.
+
+[INPUT]
+- toolkits.memory.external_bridge.models::ExternalAgentType (POS: Data models and type definitions for
+  external agent memory bridge and skill writing.)
+- toolkits.memory.external_bridge.targets::BaseExternalAgentTarget, ClaudeCodeBridgeTarget,
+  CodexBridgeTarget, CursorBridgeTarget, HermesBridgeTarget, OpenClawBridgeTarget (POS: Target definitions
+  and template generators for external agent memory bridges.)
+
+[OUTPUT]
+- ExternalAgentTargetRegistry: Registry mapping agent types to their corresponding target adapter instances.
+
+[POS]
+Registry for external agent bridge targets.
 """
 
 from __future__ import annotations

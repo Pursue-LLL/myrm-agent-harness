@@ -3,6 +3,17 @@
 Differentiates between benign max_output_tokens exhaustion and genuine context
 window overflows, while enforcing a strict one-recovery-per-conversational-input bound
 to permanently eliminate infinite compaction loops.
+
+[INPUT]
+- runtime.context.tail_deferred_overflow_types::DisambiguationMetrics, RecoveryVerdict, StopReasonVerdict
+  (POS: Tail-only context append and disambiguated overflow types.)
+
+[OUTPUT]
+- LengthOverflowDisambiguator: Disambiguates model stop/finish reasons using token budget telemetry.
+- ConversationalRecoveryGuard: Enforces the 'One recovery per conversational input' safety invariant.
+
+[POS]
+Disambiguated length overflow detector and single-recovery conversational guard.
 """
 
 from __future__ import annotations
@@ -40,17 +51,12 @@ class LengthOverflowDisambiguator:
             # Remaining headroom inside the model's physical window
             physical_window_headroom = metrics.model_context_limit - total_tokens
             # Gap between requested generation budget and actual generated tokens
-            output_budget_gap = (
-                metrics.max_output_tokens_budget - metrics.actual_output_tokens
-            )
+            output_budget_gap = metrics.max_output_tokens_budget - metrics.actual_output_tokens
 
             # Case A: Actual output is at or within tolerance of max output budget,
             # and there was sufficient physical window remaining.
             # -> This is purely a configured output cap hit. Do NOT compact context!
-            if (
-                output_budget_gap <= metrics.output_token_tolerance
-                and physical_window_headroom > 0
-            ):
+            if output_budget_gap <= metrics.output_token_tolerance and physical_window_headroom > 0:
                 return StopReasonVerdict.MAX_OUTPUT_TOKENS_REACHED
 
             # Case B: Physical context limit was breached or output was cut short

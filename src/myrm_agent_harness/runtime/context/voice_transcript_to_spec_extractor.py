@@ -2,6 +2,20 @@
 
 Extracts formal software specifications, module boundaries, explicit non-goals,
 and actionable Kanban task breakdowns from messy multi-turn voice transcripts.
+
+[INPUT]
+- runtime.context.voice_spec_extractor_types::SpecExtractionResult, SpecModuleDefinition,
+  StructuredPlanSpec, VoiceConsultantPhase (POS: Full-duplex voice requirement discovery and structured spec
+  extractor types.)
+- runtime.context.voice_transcript_buffer::VoiceTranscriptBuffer (POS: Voice transcript buffer and
+  conversation flow state tracker.)
+
+[OUTPUT]
+- VoiceTranscriptToSpecExtractor: Distills raw spoken consultation transcripts into engineering-grade plan
+  specs.
+
+[POS]
+Voice transcript to structured technical plan/spec distillation engine.
 """
 
 from __future__ import annotations
@@ -104,9 +118,7 @@ class VoiceTranscriptToSpecExtractor:
             "No backward compatibility compromises for deprecated legacy schemas.",
         ]
         if "不要" in all_user_text or "skip" in all_user_text or "no " in all_user_text:
-            non_goals.append(
-                "Explicitly excluded peripheral features identified during spoken trade-off analysis."
-            )
+            non_goals.append("Explicitly excluded peripheral features identified during spoken trade-off analysis.")
 
         # 4. Synthesize Kanban Tasks
         kanban_tasks: list[str] = [

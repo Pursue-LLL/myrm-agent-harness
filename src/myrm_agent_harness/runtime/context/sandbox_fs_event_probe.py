@@ -2,6 +2,16 @@
 
 Captures fine-grained inotify/FSEvents-style file mutations within an agent execution sandbox,
 classifies critical configuration changes, and compiles tail-only diff bundles.
+
+[INPUT]
+- runtime.context.sandbox_cache_bridge_types::FileChangeKind, IncrementalPatchBundle, InvalidationScope,
+  SandboxFileChangeEvent (POS: Sandbox state-aware context cache bridge types and data models.)
+
+[OUTPUT]
+- SandboxFsEventProbe: Probes and buffers fine-grained filesystem events from the sandbox.
+
+[POS]
+Sandbox filesystem event probe and patch compiler.
 """
 
 from __future__ import annotations
@@ -39,11 +49,7 @@ class SandboxFsEventProbe:
         self,
         critical_patterns: Sequence[str] | None = None,
     ) -> None:
-        patterns = (
-            set(critical_patterns)
-            if critical_patterns is not None
-            else set(DEFAULT_CRITICAL_CONFIG_PATTERNS)
-        )
+        patterns = set(critical_patterns) if critical_patterns is not None else set(DEFAULT_CRITICAL_CONFIG_PATTERNS)
         self._critical_patterns: frozenset[str] = frozenset(patterns)
         self._events: list[SandboxFileChangeEvent] = []
         self._counter: int = 0
@@ -101,15 +107,9 @@ class SandboxFsEventProbe:
 
         events_tuple = tuple(self._events)
         has_critical = any(ev.is_critical_config for ev in events_tuple)
-        scope = (
-            InvalidationScope.FULL_PREFIX_INVALIDATION
-            if has_critical
-            else InvalidationScope.TAIL_PATCH_ONLY
-        )
+        scope = InvalidationScope.FULL_PREFIX_INVALIDATION if has_critical else InvalidationScope.TAIL_PATCH_ONLY
 
-        formatted_lines: list[str] = [
-            f"=== Sandbox Filesystem Delta ({len(events_tuple)} files) ==="
-        ]
+        formatted_lines: list[str] = [f"=== Sandbox Filesystem Delta ({len(events_tuple)} files) ==="]
         for ev in events_tuple:
             header = f"- [{ev.kind.value.upper()}] {ev.file_path}"
             if ev.is_critical_config:

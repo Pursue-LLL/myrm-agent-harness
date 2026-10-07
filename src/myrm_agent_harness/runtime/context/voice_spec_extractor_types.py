@@ -2,6 +2,19 @@
 
 Defines schemas for voice consultant phases, raw speech transcript turns,
 module definitions, and structured technical plan/spec artifacts.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- VoiceConsultantPhase: Lifecycle phase of the voice requirement consultation session.
+- VoiceTranscriptTurn: An individual spoken turn recorded in the full-duplex session.
+- SpecModuleDefinition: Formal definition of a functional module derived from voice discussion.
+- StructuredPlanSpec: Rigorous engineering specification distilled from voice requirement discussions.
+- SpecExtractionResult: Result of distilling a voice transcript buffer into a formal spec.
+
+[POS]
+Full-duplex voice requirement discovery and structured spec extractor types.
 """
 
 from __future__ import annotations

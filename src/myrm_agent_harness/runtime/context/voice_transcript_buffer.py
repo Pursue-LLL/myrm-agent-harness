@@ -2,6 +2,16 @@
 
 Buffers spoken dialogue turns in real-time, captures barge-in interruptions,
 tracks consultation phases, and detects user alignment and approval signals.
+
+[INPUT]
+- runtime.context.voice_spec_extractor_types::VoiceConsultantPhase, VoiceTranscriptTurn (POS: Full-duplex
+  voice requirement discovery and structured spec extractor types.)
+
+[OUTPUT]
+- VoiceTranscriptBuffer: Manages full-duplex voice consultation transcripts and phase transitions.
+
+[POS]
+Voice transcript buffer and conversation flow state tracker.
 """
 
 from __future__ import annotations

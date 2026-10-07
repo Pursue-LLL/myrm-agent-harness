@@ -3,6 +3,16 @@
 Provides parentId topological storage, ancestor chain projection,
 Lowest Common Ancestor (LCA) resolution, and branch divergence extraction
 for non-destructive navigation.
+
+[INPUT]
+- runtime.context.tree_session_storage_types::TreeEntry (POS: Immutable tree-structured session types and
+  navigation models.)
+
+[OUTPUT]
+- TreeSessionStorage: Storage for an append-only, immutable conversation tree.
+
+[POS]
+Append-only immutable conversation tree storage.
 """
 
 from __future__ import annotations
@@ -28,9 +38,7 @@ class TreeSessionStorage:
             ValueError: If parent_id is specified but does not exist in the tree.
         """
         if entry.entry_id in self._entries:
-            raise KeyError(
-                f"Entry '{entry.entry_id}' already exists. Conversation tree is strictly append-only."
-            )
+            raise KeyError(f"Entry '{entry.entry_id}' already exists. Conversation tree is strictly append-only.")
 
         if entry.parent_id is not None:
             if entry.parent_id not in self._entries:

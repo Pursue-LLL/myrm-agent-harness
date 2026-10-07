@@ -1,7 +1,7 @@
 """Unit tests for explicit state error contracts and zero-hallucination memory prompt guards.
 
 [POS]
-tests/test_zero_hallucination_protocol.py
+tests/toolkits/memory/zero_hallucination/test_zero_hallucination_protocol.py
 Tests tri-state retrieval assertions, negative prompt guard generation, and storage fault evaluation.
 
 [INPUT]

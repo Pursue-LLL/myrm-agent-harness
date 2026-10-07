@@ -15,9 +15,13 @@ The `external_bridge` toolkit module provides bi-directional memory integration 
 4. **Third-Party Memory Conflict Detection**:
    Inspects target instruction files to identify competing memory plugins (e.g., legacy mem0/zep/sqlite rules) to prevent conflicting tool invocations and memory drift.
 
-## Modules
-- `models.py`: Strongly-typed dataclasses and enums (`ExternalAgentType`, `SkillInstallConfig`, `SkillInstallResult`, `SkillUninstallResult`, `MemoryConflictReport`).
-- `targets.py`: Abstract target base class and concrete target adapters (`CursorBridgeTarget`, `ClaudeCodeBridgeTarget`, etc.).
-- `registry.py`: Central target registry supporting dynamic extension.
-- `conflict_detector.py`: Heuristic scanner detecting incompatible legacy memory directives.
-- `skill_writer.py`: File synchronization and marker-delimited lifecycle manager.
+## File Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| `__init__.py` | Entry | Package facade re-exporting the bridge models, targets, registry, conflict detector and skill writer. | ✅ |
+| `models.py` | Types | Strongly-typed dataclasses and enums (`ExternalAgentType`, `SkillInstallConfig`, `SkillInstallResult`, `SkillUninstallResult`, `MemoryConflictReport`). | ✅ |
+| `targets.py` | Core | Abstract target base class and concrete target adapters (`CursorBridgeTarget`, `ClaudeCodeBridgeTarget`, etc.). | ✅ |
+| `registry.py` | Core | Central target registry supporting dynamic extension. | ✅ |
+| `conflict_detector.py` | Core | Heuristic scanner detecting incompatible legacy memory directives. | ✅ |
+| `skill_writer.py` | Core | File synchronization and marker-delimited lifecycle manager. | ✅ |

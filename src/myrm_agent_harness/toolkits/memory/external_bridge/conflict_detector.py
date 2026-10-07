@@ -1,11 +1,17 @@
-# [POS] src/myrm_agent_harness/toolkits/memory/external_bridge/conflict_detector.py
-# [INPUT] models.py (MemoryConflictReport), pathlib.Path, re
-# [OUTPUT] MemoryPluginConflictDetector
-
 """Detector for conflicting third-party memory extensions and incompatible instructions.
 
 Scans workspace or target instructions to warn if existing legacy memory tools
 or duplicated memory instructions might cause hallucination or competing recall loops.
+
+[INPUT]
+- toolkits.memory.external_bridge.models::MemoryConflictReport (POS: Data models and type definitions for
+  external agent memory bridge and skill writing.)
+
+[OUTPUT]
+- MemoryPluginConflictDetector: Detects competing memory tools or conflicting prompt rules in targets.
+
+[POS]
+Detector for conflicting third-party memory extensions and incompatible instructions.
 """
 
 from __future__ import annotations

@@ -2,6 +2,20 @@
 
 Defines schemas for fine-grained sandbox filesystem change events, static prefix snapshots,
 incremental patch bundles, and stitched context assemblies to preserve provider KV prefix cache.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- FileChangeKind: Classification of sandbox filesystem mutation.
+- InvalidationScope: Scope of context invalidation necessitated by filesystem changes.
+- SandboxFileChangeEvent: Fine-grained record of an individual file mutation captured inside the sandbox.
+- StaticPrefixSnapshot: Immutable snapshot of the core prompt prefix kept stable for provider KV caching.
+- IncrementalPatchBundle: Compilation of captured sandbox mutations ready for tail-only stitching.
+- StitchedContextAssembly: Final context payload prepared for model invocation.
+
+[POS]
+Sandbox state-aware context cache bridge types and data models.
 """
 
 from __future__ import annotations

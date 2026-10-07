@@ -3,6 +3,19 @@
 Manages leaf pointers over immutable conversation trees, generates structured
 summaries for abandoned exploratory branches, and provides zero-copy projections
 without truncating historical trajectory.
+
+[INPUT]
+- runtime.context.tree_session_storage::TreeSessionStorage (POS: Append-only immutable conversation tree
+  storage.)
+- runtime.context.tree_session_storage_types::BranchSummaryRecord, TreeEntry, TreeEntryKind, TreeProjection
+  (POS: Immutable tree-structured session types and navigation models.)
+
+[OUTPUT]
+- BranchNavigationAndSummaryEngine: Engine orchestrating leaf pointer navigation and branch summary
+  generation.
+
+[POS]
+Non-destructive branch navigation and exploration summary engine.
 """
 
 from __future__ import annotations
@@ -87,16 +100,8 @@ class BranchNavigationAndSummaryEngine:
 
         summary_record: BranchSummaryRecord | None = None
 
-        if (
-            auto_summarize_abandoned
-            and self._current_leaf_id is not None
-            and self._current_leaf_id != target_entry_id
-        ):
-            divergent_nodes = list(
-                self._storage.get_branch_divergence(
-                    self._current_leaf_id, target_entry_id
-                )
-            )
+        if auto_summarize_abandoned and self._current_leaf_id is not None and self._current_leaf_id != target_entry_id:
+            divergent_nodes = list(self._storage.get_branch_divergence(self._current_leaf_id, target_entry_id))
             if divergent_nodes:
                 lca = self._storage.find_lca(self._current_leaf_id, target_entry_id)
                 fork_id = lca.entry_id if lca else target_entry_id

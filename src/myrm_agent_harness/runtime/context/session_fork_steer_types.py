@@ -3,6 +3,19 @@
 Defines schemas for non-blocking background forks (/bg), context snapshot
 explorations (/btw), in-flight steering interventions (/steer), and asynchronous
 pipe-back payloads.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ForkCommandKind: Classification of background session fork command.
+- ForkSessionState: Lifecycle state of a background forked session.
+- BackgroundForkDescriptor: Descriptor of an asynchronous background session derived from a main session.
+- InFlightSteerInstruction: Human steering guidance injected in-flight before the next decision checkpoint.
+- PipeBackPayload: Completed result payload piped back from a background session to the main session.
+
+[POS]
+Session fork and in-flight steer control types.
 """
 
 from __future__ import annotations

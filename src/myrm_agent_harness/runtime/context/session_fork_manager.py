@@ -2,6 +2,16 @@
 
 Orchestrates non-blocking background sessions (/bg) and context snapshot forks (/btw),
 safely piping asynchronously produced results back to the parent session.
+
+[INPUT]
+- runtime.context.session_fork_steer_types::BackgroundForkDescriptor, ForkCommandKind, ForkSessionState,
+  PipeBackPayload (POS: Session fork and in-flight steer control types.)
+
+[OUTPUT]
+- SessionForkManager: Manages background session life cycles and pipes completed outputs back.
+
+[POS]
+Session fork manager and background pipe-back pipeline.
 """
 
 from __future__ import annotations

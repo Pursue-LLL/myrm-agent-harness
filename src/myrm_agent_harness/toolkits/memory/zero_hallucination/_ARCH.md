@@ -16,7 +16,11 @@ The `zero_hallucination` module establishes a fault-transparent retrieval protoc
 3. **Graceful Degradation Notice**:
    When storage services are offline (`SERVICE_UNAVAILABLE`), transparently alerts the user and guides the model to proceed with conversation reasoning without assuming unretrieved historical rules.
 
-## Modules
-- `models.py`: Strongly-typed dataclasses and enumerations (`MemoryRetrievalState`, `RetrievalErrorSeverity`, `MemoryFactItem`, `ZeroHallucinationRetrievalResult`).
-- `guard.py`: Prompt context wrapper and anti-fabrication directive builder (`ZeroHallucinationPromptGuard`).
-- `evaluator.py`: Deterministic state evaluator converting raw store returns and exceptions into defensive assertions (`MemoryStateAssertionEvaluator`).
+## File Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| `__init__.py` | Entry | Package facade re-exporting the retrieval state models, prompt guard and state evaluator. | ✅ |
+| `models.py` | Types | Strongly-typed dataclasses and enumerations (`MemoryRetrievalState`, `RetrievalErrorSeverity`, `MemoryFactItem`, `ZeroHallucinationRetrievalResult`). | ✅ |
+| `guard.py` | Core | Prompt context wrapper and anti-fabrication directive builder (`ZeroHallucinationPromptGuard`). | ✅ |
+| `evaluator.py` | Core | Deterministic state evaluator converting raw store returns and exceptions into defensive assertions (`MemoryStateAssertionEvaluator`). | ✅ |

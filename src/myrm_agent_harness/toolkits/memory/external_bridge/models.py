@@ -1,11 +1,22 @@
-# [POS] src/myrm_agent_harness/toolkits/memory/external_bridge/models.py
-# [INPUT] typing (Enum, dataclass, Path, Optional, List, Dict)
-# [OUTPUT] ExternalAgentType, SkillBridgeAction, SkillInstallConfig, SkillInstallResult, SkillUninstallResult, MemoryConflictReport
-
 """Data models and type definitions for external agent memory bridge and skill writing.
 
 Provides standardized configuration contracts, execution results, and conflict detection
 reports for external agent environments (Cursor, Claude Code, Codex, Hermes, OpenClaw).
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ExternalAgentType: Supported external agent coding assistants and runtimes.
+- SkillBridgeAction: Action outcome from a skill installation or update.
+- SkillInstallConfig: Configuration options for installing or updating memory bridge skill files.
+- SkillInstallResult: Outcome of attempting to write or update an external agent bridge configuration.
+- SkillUninstallResult: Outcome of attempting to remove an external agent bridge configuration.
+- MemoryConflictReport: Diagnostic report detailing conflicts with existing memory tools or prompt
+  instructions.
+
+[POS]
+Data models and type definitions for external agent memory bridge and skill writing.
 """
 
 from __future__ import annotations

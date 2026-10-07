@@ -1,11 +1,25 @@
-# [POS] src/myrm_agent_harness/toolkits/memory/external_bridge/skill_writer.py
-# [INPUT] models.py, targets.py, registry.py, conflict_detector.py, pathlib.Path
-# [OUTPUT] ExternalAgentSkillWriter
-
 """Safe skill installer and uninstaller with marker isolation for external agents.
 
 Ensures zero damage to pre-existing user configurations by encapsulating all
 generated memory instructions inside explicit safe delimiter markers.
+
+[INPUT]
+- toolkits.memory.external_bridge.conflict_detector::MemoryPluginConflictDetector (POS: Detector for
+  conflicting third-party memory extensions and incompatible instructions.)
+- toolkits.memory.external_bridge.models::SkillBridgeAction, SkillInstallConfig, SkillInstallResult,
+  SkillUninstallResult (POS: Data models and type definitions for external agent memory bridge and skill
+  writing.)
+- toolkits.memory.external_bridge.registry::ExternalAgentTargetRegistry (POS: Registry for external agent
+  bridge targets.)
+
+[OUTPUT]
+- START_MARKER
+- END_MARKER
+- ExternalAgentSkillWriter: Installs and uninstalls memory bridge skills with zero configuration
+  destruction.
+
+[POS]
+Safe skill installer and uninstaller with marker isolation for external agents.
 """
 
 from __future__ import annotations

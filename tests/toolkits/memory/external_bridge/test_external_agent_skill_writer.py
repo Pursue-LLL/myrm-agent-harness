@@ -1,4 +1,4 @@
-# [POS] tests/test_external_agent_skill_writer.py
+# [POS] tests/toolkits/memory/external_bridge/test_external_agent_skill_writer.py
 # [INPUT] myrm_agent_harness.toolkits.memory.external_bridge, pytest, tmp_path
 # [OUTPUT] TestExternalAgentSkillWriterSuite
 

@@ -3,6 +3,18 @@
 Defines schemas for parentId-linked append-only conversation trees,
 non-destructive branch pointer navigation, divergence extraction,
 and branch exploration summary records.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- TreeEntryKind: Categorized kind of entry inside the immutable conversation tree.
+- TreeEntry: An immutable entry in the append-only conversation tree linked via parent_id.
+- BranchSummaryRecord: Exploration insights and outcomes extracted from an abandoned branch.
+- TreeProjection: Linearized context projection along the ancestry chain from root to active leaf.
+
+[POS]
+Immutable tree-structured session types and navigation models.
 """
 
 from __future__ import annotations

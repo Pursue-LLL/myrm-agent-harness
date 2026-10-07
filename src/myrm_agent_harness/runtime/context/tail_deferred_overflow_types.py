@@ -3,6 +3,19 @@
 Defines immutable data models and enums for preserving provider prefix cache,
 deferred writing at checkpoints, finish reason disambiguation, and single-shot
 conversational recovery bounds.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- DeferredWritePriority: Priority level for messages queued during step execution.
+- StopReasonVerdict: Categorized verdict for model finish or stop reason.
+- DeferredMessageEntry: Represents a message staged during an in-flight step execution.
+- DisambiguationMetrics: Metrics used to reliably distinguish maxTokens exhaustion from window overflow.
+- RecoveryVerdict: Decision outcome of whether context compaction recovery is permissible.
+
+[POS]
+Tail-only context append and disambiguated overflow types.
 """
 
 from __future__ import annotations

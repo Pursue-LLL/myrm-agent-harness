@@ -3,6 +3,18 @@
 Ensures that provider context grows strictly at the tail across sequential requests,
 staging asynchronous or external messages in a FIFO queue until step checkpoints,
 thereby guaranteeing prefix KV cache stability and causal consistency.
+
+[INPUT]
+- runtime.context.append_only_compaction_types::ContextEntryRole, ContextLogEntry (POS: Types for
+  append-only compaction ledger and atomic tool-pair cut-point engine.)
+- runtime.context.tail_deferred_overflow_types::DeferredMessageEntry, DeferredWritePriority (POS: Tail-only
+  context append and disambiguated overflow types.)
+
+[OUTPUT]
+- TailDeferredWriteQueue: Queue for buffering external messages and appending them at checkpoints.
+
+[POS]
+Tail-only context append and deferred write queue.
 """
 
 from __future__ import annotations
