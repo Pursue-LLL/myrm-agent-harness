@@ -603,6 +603,15 @@ from .cloud_snapshot import (
     VolumeSnapshotDescriptor,
     WarmSandboxDescriptor,
 )
+from .sandbox_interceptor import (
+    ContextHookStage,
+    InterceptedToolOutput,
+    LifecycleHookRecord,
+    SandboxInterceptorConfig,
+    SandboxOutputInterceptorEngine,
+    SearchResultSnippet,
+    ToolOutputStub,
+)
 
 __all__ = [
     # active_compression
@@ -881,6 +890,14 @@ __all__ = [
     "TokenGovernorConfig",
     "TokenUsageRecord",
     "ToolLeanMode",
+    # sandbox_interceptor
+    "ContextHookStage",
+    "InterceptedToolOutput",
+    "LifecycleHookRecord",
+    "SandboxInterceptorConfig",
+    "SandboxOutputInterceptorEngine",
+    "SearchResultSnippet",
+    "ToolOutputStub",
     # sandbox_reduction
     "ActionKind",
     "ActionLedgerEntry",
