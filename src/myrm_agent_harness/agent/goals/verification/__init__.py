@@ -30,6 +30,14 @@ from myrm_agent_harness.agent.goals.verification.fault_attribution import (
 from myrm_agent_harness.agent.goals.verification.gatekeeper import (
     VerificationGatekeeper,
 )
+from myrm_agent_harness.agent.goals.verification.handoff_verification_gate import (
+    HandoffVerificationGate,
+)
+from myrm_agent_harness.agent.goals.verification.handoff_verification_types import (
+    HandoffVerificationIssue,
+    HandoffVerificationResult,
+    VerificationSeverity as HandoffVerificationSeverity,
+)
 from myrm_agent_harness.agent.goals.verification.security import (
     SecurityScanCriterion,
 )
@@ -40,6 +48,10 @@ __all__ = [
     "FaultCategory",
     "FaultClassificationResult",
     "FaultKind",
+    "HandoffVerificationGate",
+    "HandoffVerificationIssue",
+    "HandoffVerificationResult",
+    "HandoffVerificationSeverity",
     "ReviewComment",
     "ReviewSeverity",
     "SecurityScanCriterion",

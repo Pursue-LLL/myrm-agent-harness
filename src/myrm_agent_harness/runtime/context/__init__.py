@@ -894,6 +894,14 @@ from myrm_agent_harness.runtime.context.already_told_sentinel_types import (
     ProvenanceCardPayload,
     RecallStatus,
 )
+from myrm_agent_harness.runtime.context.historical_retrieval_trigger import (
+    HistoricalRetrievalHeuristicTrigger,
+)
+from myrm_agent_harness.runtime.context.historical_retrieval_trigger_types import (
+    HeuristicAnomalyKind,
+    HeuristicTriggerResult,
+    ToolExecutionFeedback,
+)
 from myrm_agent_harness.runtime.context.prefix_integrity_barrier_types import (
     BarrierInterceptionMode,
     BaselinePrefixFingerprint,
@@ -2372,6 +2380,10 @@ __all__ = [
     "ProvenanceCardPayload",
     "InstructionRecallResult",
     "AlreadyToldIntentSentinel",
+    "HeuristicAnomalyKind",
+    "ToolExecutionFeedback",
+    "HeuristicTriggerResult",
+    "HistoricalRetrievalHeuristicTrigger",
 ]
 
 
