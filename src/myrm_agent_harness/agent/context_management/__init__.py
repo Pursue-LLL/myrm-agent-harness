@@ -127,6 +127,15 @@ from .ambiguity_probe import (
     ClarificationQuestion,
     EntityGraphMatch,
 )
+from .demand_hydration import (
+    DemandHydrationConfig,
+    HydratedContextEnvelope,
+    HydrationDecision,
+    HydrationTriggerMode,
+    OnDemandContextHydrator,
+    ProfileCardCategory,
+    UserMemoryCard,
+)
 from .dual_branching import (
     BranchDescriptor,
     BranchingPosture,
@@ -231,6 +240,14 @@ __all__ = [
     "ClarificationProbeResult",
     "ClarificationQuestion",
     "EntityGraphMatch",
+    # demand_hydration
+    "DemandHydrationConfig",
+    "HydratedContextEnvelope",
+    "HydrationDecision",
+    "HydrationTriggerMode",
+    "OnDemandContextHydrator",
+    "ProfileCardCategory",
+    "UserMemoryCard",
     # dual_branching
     "BranchDescriptor",
     "BranchingPosture",
