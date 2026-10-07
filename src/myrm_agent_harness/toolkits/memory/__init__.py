@@ -482,6 +482,16 @@ from myrm_agent_harness.toolkits.memory.reembedding import (
     ReembeddingStatus,
     ZeroDowntimeReembeddingEngine,
 )
+from myrm_agent_harness.toolkits.memory.relational_backtrack import (
+    ActionSynonymNormalizer,
+    CrossSessionBacktrackEngine,
+    EntityTypeKind,
+    RelationalBacktrackHit,
+    RelationalBacktrackQuery,
+    RelationalBacktrackResult,
+    TemporalRelationTriplet,
+    TemporalTripletStore,
+)
 from myrm_agent_harness.toolkits.memory.reliability import (
     MemoryArchiveDryRunResult,
     MemoryArchiveManifest,
@@ -1133,6 +1143,14 @@ __all__ = [
     "FiveDimPreFilterEngine",
     "PreFilteredEvidenceResult",
     "TimeDecayCalculator",
+    "ActionSynonymNormalizer",
+    "CrossSessionBacktrackEngine",
+    "EntityTypeKind",
+    "RelationalBacktrackHit",
+    "RelationalBacktrackQuery",
+    "RelationalBacktrackResult",
+    "TemporalRelationTriplet",
+    "TemporalTripletStore",
     "setup_local_file_memory_sync",
     "extract_memories_from_conversation",
     "get_scan_metrics",
