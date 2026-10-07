@@ -593,6 +593,16 @@ from .hysteresis_compression import (
     SanctuaryCategory,
     WatermarkTier,
 )
+from .cloud_snapshot import (
+    CloudSnapshotConfig,
+    IncrementalPatchBundle,
+    InstantCloudSnapshotRestoreEngine,
+    SandboxPoolState,
+    SnapshotRestoreResult,
+    SnapshotStorageDriver,
+    VolumeSnapshotDescriptor,
+    WarmSandboxDescriptor,
+)
 
 __all__ = [
     # active_compression
@@ -621,6 +631,15 @@ __all__ = [
     "CanvasTunnelingEngine",
     "ProStudioPlatform",
     "ProStudioSyncPayload",
+    # cloud_snapshot
+    "CloudSnapshotConfig",
+    "IncrementalPatchBundle",
+    "InstantCloudSnapshotRestoreEngine",
+    "SandboxPoolState",
+    "SnapshotRestoreResult",
+    "SnapshotStorageDriver",
+    "VolumeSnapshotDescriptor",
+    "WarmSandboxDescriptor",
     # clean_pod_archival
     "CleanPodArchivalConfig",
     "CleanPodArchivalEngine",
