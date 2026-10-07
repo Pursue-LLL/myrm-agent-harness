@@ -902,6 +902,15 @@ from myrm_agent_harness.runtime.context.historical_retrieval_trigger_types impor
     HeuristicTriggerResult,
     ToolExecutionFeedback,
 )
+from myrm_agent_harness.runtime.context.three_tier_memory_funnel_aggregator import (
+    ThreeTierMemoryFunnelAggregator,
+)
+from myrm_agent_harness.runtime.context.three_tier_memory_funnel_types import (
+    ActiveWorkbenchStatus,
+    SearchableArchiveStatus,
+    StageNotesAndLedgerStatus,
+    ThreeTierMemoryFunnelSnapshot,
+)
 from myrm_agent_harness.runtime.context.prefix_integrity_barrier_types import (
     BarrierInterceptionMode,
     BaselinePrefixFingerprint,
@@ -2384,6 +2393,11 @@ __all__ = [
     "ToolExecutionFeedback",
     "HeuristicTriggerResult",
     "HistoricalRetrievalHeuristicTrigger",
+    "ActiveWorkbenchStatus",
+    "StageNotesAndLedgerStatus",
+    "SearchableArchiveStatus",
+    "ThreeTierMemoryFunnelSnapshot",
+    "ThreeTierMemoryFunnelAggregator",
 ]
 
 
