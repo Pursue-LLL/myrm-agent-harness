@@ -738,6 +738,17 @@ from myrm_agent_harness.runtime.context.session.event_sourcing_store import (
     fork_session_by_stream_copy,
     load_session_events_with_auto_repair,
 )
+from myrm_agent_harness.runtime.context.session_checkpoint_storage import (
+    SessionCheckpointStorage,
+)
+from myrm_agent_harness.runtime.context.session_checkpoint_types import (
+    AtomicResumeDecision,
+    CheckpointStepStatus,
+    SessionCheckpointConfig,
+    SessionStepCheckpoint,
+    ToolActionRecoveryKind,
+    ToolExecutionSnapshot,
+)
 from myrm_agent_harness.runtime.context.session_cwd_guard import (
     CwdHealthCheckResult,
     CwdRelocationStrategy,
@@ -785,6 +796,9 @@ from myrm_agent_harness.runtime.context.session_spill_store_types import (
     SpillRecord,
     SpillSliceRequest,
     SpillSliceResult,
+)
+from myrm_agent_harness.runtime.context.session_state_atomic_resume_engine import (
+    SessionStateAtomicResumeEngine,
 )
 from myrm_agent_harness.runtime.context.session_tree_navigator import (
     BranchSummaryPayload,
@@ -1624,6 +1638,14 @@ __all__ = [
     "ContextLifecycleVisualizer",
     "ContextLifecycleUiPayload",
     "SectionUiItem",
+    "CheckpointStepStatus",
+    "ToolActionRecoveryKind",
+    "ToolExecutionSnapshot",
+    "SessionStepCheckpoint",
+    "AtomicResumeDecision",
+    "SessionCheckpointConfig",
+    "SessionCheckpointStorage",
+    "SessionStateAtomicResumeEngine",
 ]
 
 
