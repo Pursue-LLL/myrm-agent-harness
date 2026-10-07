@@ -707,8 +707,31 @@ from .command_quiet_rewriter import (
     SubagentLogSinkEngine,
     SubagentLogSinkExecutionRecord,
 )
+from .smart_idle_compactor import (
+    CacheWindowStatus,
+    CompactedCheckpointArchive,
+    IdleCompactionAction,
+    IdleCompactionEvaluation,
+    IdleCompactorConfig,
+    IdleEligibilityEvaluator,
+    OpportunisticCompactorEngine,
+    OpportunisticCompactionResult,
+    SmartIdleCachePreservingAutoCompactorSuite,
+    ZeroWaitWakeupEvent,
+)
 
 __all__ = [
+    # smart_idle_compactor
+    "CacheWindowStatus",
+    "CompactedCheckpointArchive",
+    "IdleCompactionAction",
+    "IdleCompactionEvaluation",
+    "IdleCompactorConfig",
+    "IdleEligibilityEvaluator",
+    "OpportunisticCompactorEngine",
+    "OpportunisticCompactionResult",
+    "SmartIdleCachePreservingAutoCompactorSuite",
+    "ZeroWaitWakeupEvent",
     # command_quiet_rewriter
     "CommandQuietRewriterAndLogSinkSuite",
     "LogSinkConclusionCard",
