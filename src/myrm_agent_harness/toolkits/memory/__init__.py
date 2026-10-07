@@ -113,6 +113,16 @@ from myrm_agent_harness.toolkits.memory.tool_backup import (
     ToolUseStats,
     ToolUseStatus,
 )
+from myrm_agent_harness.toolkits.memory.ingestion_gateway import (
+    ContextIngestionPayload,
+    IngestionDigestResult,
+    IngestionIdempotencyGuard,
+    IngestionSourceType,
+    TranscriptUniversalParser,
+    UniversalContextIngestionGateway,
+    VoiceContextDistiller,
+    VoiceTranscriptSegment,
+)
 from myrm_agent_harness.toolkits.memory.dialectic import (
     DialecticCadenceConfig,
     DialecticCadenceGovernor,
@@ -779,4 +789,12 @@ __all__ = [
     "ToolUseRecord",
     "ToolUseStats",
     "ToolUseStatus",
+    "ContextIngestionPayload",
+    "IngestionDigestResult",
+    "IngestionIdempotencyGuard",
+    "IngestionSourceType",
+    "TranscriptUniversalParser",
+    "UniversalContextIngestionGateway",
+    "VoiceContextDistiller",
+    "VoiceTranscriptSegment",
 ]
