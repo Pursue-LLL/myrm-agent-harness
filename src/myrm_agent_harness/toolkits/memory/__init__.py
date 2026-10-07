@@ -462,6 +462,17 @@ from myrm_agent_harness.toolkits.memory.experience_injection import (
     SkillLoadExperienceHook,
     SubagentSpawnExperienceEnricher,
 )
+from myrm_agent_harness.toolkits.memory.experience_observability import (
+    ExperienceEffectStatus,
+    ExperienceObservabilityMetric,
+    ExperienceObservabilityTracker,
+    HostAccessChannel,
+    HostPluginConfig,
+    LifecycleEventKind,
+    LifecycleEventPayload,
+    SessionTraceEvidence,
+    ZeroRefactorHostPlugin,
+)
 from myrm_agent_harness.toolkits.memory.procedure_experience import (
     DualNodeFixedCountRetriever,
     DualNodeRetrievalQuery,
@@ -493,6 +504,16 @@ from myrm_agent_harness.toolkits.memory.business_templates import (
     EscalationEvaluationContext,
     EscalationReason,
     TemplateCategory,
+)
+from myrm_agent_harness.toolkits.memory.failure_retrieval import (
+    ErrorFingerprint,
+    ErrorFingerprintExtractor,
+    FailureHistoricalSessionSearchEngine,
+    FailureOutcomeType,
+    FailureRetrievalResult,
+    FailureTriggerConfig,
+    FailureTriggerInterceptor,
+    HistoricalResolutionEntry,
 )
 from myrm_agent_harness.toolkits.memory.prompt_cache_guard import (
     AtomicReplacePayload,
@@ -1464,6 +1485,23 @@ __all__ = [
     "EscalationEvaluationContext",
     "EscalationReason",
     "TemplateCategory",
+    "HostAccessChannel",
+    "LifecycleEventKind",
+    "ExperienceEffectStatus",
+    "LifecycleEventPayload",
+    "SessionTraceEvidence",
+    "ExperienceObservabilityMetric",
+    "HostPluginConfig",
+    "ExperienceObservabilityTracker",
+    "ZeroRefactorHostPlugin",
+    "ErrorFingerprint",
+    "ErrorFingerprintExtractor",
+    "FailureHistoricalSessionSearchEngine",
+    "FailureOutcomeType",
+    "FailureRetrievalResult",
+    "FailureTriggerConfig",
+    "FailureTriggerInterceptor",
+    "HistoricalResolutionEntry",
 ]
 
 
