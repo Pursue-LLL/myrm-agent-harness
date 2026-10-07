@@ -667,6 +667,19 @@ from myrm_agent_harness.runtime.context.live_thread_compaction_types import (
     LiveThreadCompactionSignal,
     RemoteThreadSnapshot,
 )
+from myrm_agent_harness.runtime.context.memory_reinforce_emphasis_gate import (
+    MemoryReinforceEmphasisGate,
+)
+from myrm_agent_harness.runtime.context.memory_reinforce_skill_attach_types import (
+    DynamicSkillAttachment,
+    PromptEmphasisInjectionPayload,
+    ReinforcedMemoryRule,
+    ReinforcementPriorityKind,
+)
+from myrm_agent_harness.runtime.context.mid_session_skill_attachment_registry import (
+    MidSessionSkillAttachmentRegistry,
+)
+
 from myrm_agent_harness.runtime.context.project_milestone_tracker import (
     ProjectMilestoneTracker,
 )
@@ -1686,7 +1699,14 @@ __all__ = [
     "RemoteThreadSnapshot",
     "RemoteThreadActorEndpoint",
     "RemoteLiveThreadCompactionCoordinator",
+    "ReinforcementPriorityKind",
+    "ReinforcedMemoryRule",
+    "DynamicSkillAttachment",
+    "PromptEmphasisInjectionPayload",
+    "MemoryReinforceEmphasisGate",
+    "MidSessionSkillAttachmentRegistry",
 ]
+
 
 
 
