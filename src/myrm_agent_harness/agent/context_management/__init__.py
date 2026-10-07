@@ -470,6 +470,13 @@ from .dual_file_decoupling import (
     DynamicOverviewSections,
     ProjectRuleInvariantSpec,
 )
+from .project_handoff import (
+    HandoffHandshakeResponse,
+    ProjectHandoffConfig,
+    ProjectHandoffStatus,
+    ProjectWorkspaceDossier,
+    TenSecondProjectHandoffEngine,
+)
 
 __all__ = [
     # active_compression
@@ -705,6 +712,12 @@ __all__ = [
     "DualFileProjectContextDecouplingEngine",
     "DynamicOverviewSections",
     "ProjectRuleInvariantSpec",
+    # project_handoff
+    "HandoffHandshakeResponse",
+    "ProjectHandoffConfig",
+    "ProjectHandoffStatus",
+    "ProjectWorkspaceDossier",
+    "TenSecondProjectHandoffEngine",
     # session_roaming
     "CollaborationRole",
     "DeviceAgnosticSessionRoamingEngine",
