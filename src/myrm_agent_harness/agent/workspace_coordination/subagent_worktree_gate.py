@@ -1,3 +1,18 @@
+"""Manages subagent worktree lifecycle, diff inspection, and review merge gates.
+
+[INPUT]
+- agent.workspace_coordination.worktree_types::MergePrecheckResult, MergeStrategy, SubagentReviewSummary,
+  SubagentWorktreeMeta, WorktreeFileChange, WorktreeIsolationConfig, WorktreeMergeResult (POS: Types and
+  models for worktree.)
+
+[OUTPUT]
+- SubagentWorktreeReviewMergeGate: Manages subagent worktree lifecycle, diff inspection, and review merge
+  gates.
+
+[POS]
+Manages subagent worktree lifecycle, diff inspection, and review merge gates.
+"""
+
 # ============================================================================
 # SubagentWorktreeReviewMergeGate (Item 151)
 # Production-grade git worktree physical isolation manager, structured review

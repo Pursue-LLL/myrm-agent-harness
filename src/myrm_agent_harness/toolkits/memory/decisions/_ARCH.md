@@ -14,6 +14,7 @@ This package implements the `EngineeringDecisionLineageStateMachineAndStructured
 | `db.py` | `DecisionDatabase`: SQLite WAL storage, DDL, busy timeouts, and serialized transactions | < 350 |
 | `store.py` | `EngineeringDecisionStore`: High-level operational facade coordinating validation, staging, and recall | < 300 |
 | `tool.py` | `RecordArchitectureDecisionTool`: Model meta-tool interface exposing decision staging and confirmation gate | < 180 |
+| `__init__.py` | Package facade for decisions. | — |
 
 ## Design Principles
 - **Decisions as State**: Decisions hold explicit lifecycle status with parent-child supersession lineage (`supersedes_id`, `superseded_by`).

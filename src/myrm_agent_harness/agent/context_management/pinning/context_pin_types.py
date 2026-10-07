@@ -1,3 +1,17 @@
+"""Types and models for context pin.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- PinnedItemType: Categorization for pinned context artifacts.
+- PinnedContextItem: Represents a user-pinned context item protected with zero-pruning guarantee.
+- CompactionInspectorCardData: Data contract for the transparent compaction inspector card rendered in UI.
+
+[POS]
+Types and models for context pin.
+"""
+
 # ============================================================================
 # # Context Pinning & Transparent Compaction Inspector Types (Item 146)
 # # Strict typed contracts for user context pins, zero-pruning guarantees,

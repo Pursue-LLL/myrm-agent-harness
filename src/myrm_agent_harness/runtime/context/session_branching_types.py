@@ -1,3 +1,20 @@
+"""Types and models for session branching.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- RewindMode: Execution mode for timeline rewind.
+- BranchHistoricalTurn: Historical conversation turn entry for branch replay.
+- BranchDescriptor: Descriptor defining a session branch and its topological lineage.
+- ForkSessionResult: Outcome of forking a session from a specific history checkpoint.
+- RewindSessionResult: Outcome of rewinding a session timeline to a target message.
+- BranchNavigatorView: Data payload for frontend multi-branch visual switcher (e.g., Branch 1/3).
+
+[POS]
+Types and models for session branching.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

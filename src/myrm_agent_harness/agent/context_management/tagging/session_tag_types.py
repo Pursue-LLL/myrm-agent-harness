@@ -1,3 +1,22 @@
+"""Types and models for session tag.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- TagCategory: Categorical classification of session tags.
+- TagColor: Visual palette color codes for tag pills in UI.
+- TagMatchMode: Boolean aggregation logic when filtering across multiple tags.
+- SessionTag: Strongly-typed metadata tag attached to conversation sessions.
+- SessionFilterQuery: Multi-dimensional search query across tags, projects, dates, and keywords.
+- TaggedSessionItem: Session representation with attached tags for metadata filtering.
+- AutoTagSuggestion: Autonomous tag recommendation derived from conversation transcript semantics.
+- TagDistribution: Aggregate analytics on tag popularity across all workspace sessions.
+
+[POS]
+Types and models for session tag.
+"""
+
 # ============================================================================
 # Session Hierarchical Tagging & Metadata Filter Types (Item 156)
 # Strict typed contracts for session tags, multi-dimensional queries,

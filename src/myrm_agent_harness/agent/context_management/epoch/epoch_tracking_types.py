@@ -1,3 +1,21 @@
+"""Types and models for epoch tracking.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- EpochPhaseKind: Generational lifecycle phase for request epoch tracking.
+- FirstDiffAreaKind: Categorization for prompt cache break root-cause attribution.
+- ProjectionChangeKind: Dynamic context projection delta decision.
+- OrderedToolSchema: Normalized and deterministically ordered tool specification.
+- ProjectedContextDelta: Result of dynamic runtime context projection.
+- EpochHeaderRecord: Immutable generational epoch header snapshot.
+- CacheAttributionTelemetry: Telemetry diagnostic record for prompt cache observation.
+
+[POS]
+Types and models for epoch tracking.
+"""
+
 # ============================================================================
 # Epoch Tracking & Request Compiler Data Contracts (Item 157)
 # Pure typed contracts for DSH request compilation, generational EpochHeader,

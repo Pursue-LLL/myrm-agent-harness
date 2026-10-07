@@ -1,3 +1,19 @@
+"""Orchestrates three-tier runtime parameter assembly and MCP connection caching.
+
+[INPUT]
+- agent.context_management.rotation.assembly_types::ApprovalMode, AssembledRuntimeContext, LiveSecurityConfig,
+  McpPoolReconcileResult, McpServerConfig, SoftBudgetConfig, StrictPrefixConfig, ThinkingLevel (POS: Types and
+  models for assembly.)
+
+[OUTPUT]
+- RuntimeAssemblyError: Raised when runtime assembly encounters corrupted configuration (Fail-Loud).
+- ContextRotationRuntimeAssembler: Orchestrates three-tier runtime parameter assembly and MCP connection
+  caching.
+
+[POS]
+Orchestrates three-tier runtime parameter assembly and MCP connection caching.
+"""
+
 # ============================================================================
 # ContextRotationRuntimeAssembler (Item 155)
 # Production-grade 3-tier runtime configuration assembler and config-hashed

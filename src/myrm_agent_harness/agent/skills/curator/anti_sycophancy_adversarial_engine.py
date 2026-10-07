@@ -1,3 +1,17 @@
+"""Detects sycophantic alignment traps and generates adversarial critique exemplars.
+
+[INPUT]
+- agent.skills.curator.anti_sycophancy_types::AdversarialCriticRole, AdversarialReviewResult (POS: Types and
+  models for anti sycophancy.)
+
+[OUTPUT]
+- AntiSycophancyAdversarialEngine: Detects sycophantic alignment traps and generates adversarial critique
+  exemplars.
+
+[POS]
+Detects sycophantic alignment traps and generates adversarial critique exemplars.
+"""
+
 # ============================================================================
 # # AntiSycophancyAdversarialEngine - Adversarial Critic & RL Exemplars (Item 149)
 # # Detects pathological sycophancy, breaks subservient probability distributions,

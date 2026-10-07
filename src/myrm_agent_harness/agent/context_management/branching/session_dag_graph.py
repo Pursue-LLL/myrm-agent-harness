@@ -1,3 +1,16 @@
+"""Manages conversational messages structured as a Directed Acyclic Graph (DAG).
+
+[INPUT]
+- agent.context_management.branching.session_dag_types::BranchNavigatorMeta, SessionDagNode,
+  StandaloneForkResult (POS: Types and models for session dag.)
+
+[OUTPUT]
+- SessionDagGraph: Manages conversational messages structured as a Directed Acyclic Graph (DAG).
+
+[POS]
+Manages conversational messages structured as a Directed Acyclic Graph (DAG).
+"""
+
 # ============================================================================
 # # SessionDagGraph - Conversation Tree DAG & Branching Engine (Item 144)
 # # Provides in-session Edit-From-Here branching, standalone session forks,

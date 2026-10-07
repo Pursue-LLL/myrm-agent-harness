@@ -1,3 +1,21 @@
+"""Types and models for anti sycophancy.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- AdversarialCriticRole: Specialized critic persona to shatter sycophantic alignment traps.
+- CuratedAction: Lifecycle actions determined by the self-dismantling curator.
+- AdversarialReviewResult: Outcome of adversarial review to eliminate sycophancy and highlight blindspots.
+- CuratorEvaluationMetric: Quantitative scoring for a memory or skill artifact.
+- CuratedItemVerdict: Curator verdict for an individual memory or skill item.
+- CuratorCustomRules: User-customizable curation rules powering transparent governance.
+- CuratorDismantlingReport: Full execution report of a self-dismantling curation sweep.
+
+[POS]
+Types and models for anti sycophancy.
+"""
+
 # ============================================================================
 # # Anti-Sycophancy & Self-Dismantling Curator Types (Item 149)
 # # Strict typed contracts for adversarial review, critic personas,

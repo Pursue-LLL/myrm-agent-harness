@@ -1,3 +1,20 @@
+"""Compiles and orders tool definitions deterministically for Prompt Cache.
+
+[INPUT]
+- agent.context_management.epoch.epoch_tracking_types::CacheAttributionTelemetry, EpochHeaderRecord,
+  EpochPhaseKind, FirstDiffAreaKind, OrderedToolSchema, ProjectedContextDelta, ProjectionChangeKind (POS:
+  Types and models for epoch tracking.)
+
+[OUTPUT]
+- DeterministicToolCompiler: Compiles and orders tool definitions deterministically for Prompt Cache.
+- RuntimeContextProjection: Applies delta projection contract for dynamic runtime contexts.
+- EpochHeaderTracker: State machine maintaining generational EpochHeader across turns.
+- PrefixDigestTelemetricEngine: Diagnoses and attributes prompt cache hits vs breaks.
+
+[POS]
+Compiles and orders tool definitions deterministically for Prompt Cache.
+"""
+
 # ============================================================================
 # Epoch Request Compiler & Generational Tracking Engine (Item 157)
 # Deterministic tool compiler, EpochHeader state machine, incremental

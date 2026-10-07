@@ -1,3 +1,17 @@
+"""Manages serialized in-flight human steering messages for a specific session.
+
+[INPUT]
+- agent.context_management.steering.steering_types::InFlightSteeringMessage, SteeringInjectionPayload,
+  SteeringPriorityKind, SteeringQueueSnapshot, SteeringStatusKind (POS: Types and models for steering.)
+
+[OUTPUT]
+- InFlightSteeringQueue: Manages serialized in-flight human steering messages for a specific session.
+- CoSteeringSessionManager: Multi-session coordinator for in-flight human co-steering queues.
+
+[POS]
+Manages serialized in-flight human steering messages for a specific session.
+"""
+
 # ============================================================================
 # In-Flight Mid-Turn Steering Queue & Human Co-Steering Engine (Item 161)
 # Non-blocking human directive queuing during tool execution, atomic inter-step

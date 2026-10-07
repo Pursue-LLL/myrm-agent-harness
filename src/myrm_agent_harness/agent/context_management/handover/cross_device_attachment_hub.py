@@ -1,3 +1,18 @@
+"""Central bus orchestrating cross-device session handover and terminal attachment.
+
+[INPUT]
+- agent.context_management.handover.handover_types::AttachmentCatchupSnapshot, AttachmentMode, DeviceInfo,
+  DeviceKind, HandoverSessionHandle, SessionExecutionState, TerminalOutputChunk (POS: Types and models for
+  handover.)
+
+[OUTPUT]
+- TerminalOutputRingBuffer: Fixed-capacity ring buffer capturing latest terminal stdout/stderr chunks.
+- ActiveSessionAttachmentHub: Central bus orchestrating cross-device session handover and terminal attachment.
+
+[POS]
+Central bus orchestrating cross-device session handover and terminal attachment.
+"""
+
 # ============================================================================
 # Active Session Attachment Hub & Cross-Device Handover Engine (Item 159)
 # Manages cross-device session registration, terminal PTY output ring buffer,

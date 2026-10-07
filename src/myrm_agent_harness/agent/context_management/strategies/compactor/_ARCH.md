@@ -16,6 +16,8 @@ Priority-aware message compression: four-level strategy (deduplicate → skip-co
 | `smart_fallback.py` | Fallback | Last-resort budget-aware degradation when essential content alone exceeds token budget. |
 | `selective_eviction.py` | Engine | Mark-driven selective eviction and content folding respecting Tool Pair Invariant, whitelist immunity, and mathematical idempotency. |
 | `tool_stats.py` | Utility | `extract_tool_stats` — extracts structural stats from tool outputs. |
+| `one_click_compaction_types.py` | Types | Data contracts and schemas for one-click context compaction and HUD economy. |
+| `one_click_context_compactor.py` | Core | One-click context compaction and fidelity-preserving purifier engine. |
 
 ## Key Dependencies
 

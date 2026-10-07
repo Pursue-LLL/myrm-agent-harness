@@ -1,3 +1,17 @@
+"""Manages tag catalog, session associations, queries, and auto-classification.
+
+[INPUT]
+- agent.context_management.tagging.session_tag_types::AutoTagSuggestion, SessionFilterQuery, SessionTag,
+  TagCategory, TagColor, TagDistribution, TaggedSessionItem, TagMatchMode (POS: Types and models for session
+  tag.)
+
+[OUTPUT]
+- SessionTagFilterEngine: Manages tag catalog, session associations, queries, and auto-classification.
+
+[POS]
+Manages tag catalog, session associations, queries, and auto-classification.
+"""
+
 # ============================================================================
 # SessionTagFilterEngine (Item 156)
 # Production-grade session tagging registry, multi-dimensional metadata filter,

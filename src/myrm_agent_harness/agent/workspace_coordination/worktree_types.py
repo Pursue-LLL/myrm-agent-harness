@@ -1,3 +1,21 @@
+"""Types and models for worktree.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- MergeStrategy: Supported branch merge strategies for subagent workspaces.
+- WorktreeIsolationConfig: Configuration governing subagent worktree provisioning and pruning.
+- SubagentWorktreeMeta: Strongly-typed metadata tracking an allocated subagent git worktree.
+- WorktreeFileChange: Detailed file-level mutation metadata within an isolated worktree.
+- SubagentReviewSummary: Structured inspection report of subagent mutations ready for review.
+- MergePrecheckResult: Result of dry-run pre-flight merge validation.
+- WorktreeMergeResult: Execution outcome of a worktree branch review and merge gate.
+
+[POS]
+Types and models for worktree.
+"""
+
 # ============================================================================
 # Git Worktree Multi-Subagent Isolation & Review-Merge Types (Item 151)
 # Strict typed contracts for zero-collision workspace isolation, structured

@@ -1,3 +1,18 @@
+"""Types and models for graceful interruption.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- InterruptionSignalKind: Categorical kind of turn interruption signal.
+- InterruptedArtifactSnapshot: A partial artifact or intermediate code piece flushed safely at interruption.
+- GracefulInterruptionReport: Full post-interruption diagnostic and state report.
+- SeamlessStitchedPromptBlock: Context prompt block stitched together to resume next turn smoothly.
+
+[POS]
+Types and models for graceful interruption.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

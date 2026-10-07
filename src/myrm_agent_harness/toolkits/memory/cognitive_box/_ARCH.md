@@ -18,3 +18,14 @@ Candidate statements pass through `StrictMemoryIntakeFilter`:
 ## Storage
 - `FourLayerCognitiveMemoryBox` provides partitioned SQLite persistence with WAL mode and B-Tree indexing.
 - Prompt injection helper `render_prompt_context()` assembles active layers into high-priority system context blocks.
+
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| `__init__.py` | Package | Package facade for cognitive box. | ✅ |
+| `box.py` | Core | Manages segregated persistence and retrieval across the four cognitive layers. | ✅ |
+| `intake_filter.py` | Core | Evaluates candidate memories against strict durable admission criteria. | ✅ |
+| `models.py` | Types | Types and models for cognitive box. | ✅ |
+| `service.py` | Core | Unified service orchestrating intake filtering and partitioned cognitive persistence. | ✅ |
+| `tools.py` | Core | Agent-facing meta-tools to inspect cognitive layers and distill durable lessons. | ✅ |

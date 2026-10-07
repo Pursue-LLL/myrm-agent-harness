@@ -1,3 +1,17 @@
+"""Guards context against cross-project data bleed and asserts task alignment.
+
+[INPUT]
+- agent.context_management.isolation.project_isolation_types::CrossProjectCheckResult,
+  ObjectiveRecapAssertion, ObjectiveRecapStatus, ProjectBoundary (POS: Types and models for project
+  isolation.)
+
+[OUTPUT]
+- ProjectContextIsolationFilter: Guards context against cross-project data bleed and asserts task alignment.
+
+[POS]
+Guards context against cross-project data bleed and asserts task alignment.
+"""
+
 # ============================================================================
 # # ProjectContextIsolationFilter - Cross-Project Shield & Objective Recap (Item 145)
 # # Enforces project-scoped session physical boundaries, strips alien file references,

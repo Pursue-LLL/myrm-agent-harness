@@ -1,3 +1,23 @@
+"""Types and models for assembly.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ThinkingLevel: Reasoning effort budget governing the model's internal thinking.
+- ApprovalMode: Live interactive approval mode evaluated dynamically per tool execution.
+- McpConnectionStatus: Lifecycle status of a managed MCP server connection across rotation.
+- StrictPrefixConfig: Strict tier: Frozen request prefix guaranteeing 100% Provider Prompt Cache hits.
+- SoftBudgetConfig: Soft tier: Dynamic reasoning budget with cache disruption warning gates.
+- LiveSecurityConfig: Live tier: Instant security policy and per-action tool approval permissions.
+- McpServerConfig: Configuration descriptor for an external MCP server connection.
+- McpPoolReconcileResult: Outcome of reconciling MCP connection pool against updated server configs.
+- AssembledRuntimeContext: Complete per-context runtime artifact assembled at rotation boundaries.
+
+[POS]
+Types and models for assembly.
+"""
+
 # ============================================================================
 # Three-Tier Context Assembly & MCP Reuse Types (Item 155)
 # Strict typed contracts for per-context three-tier runtime parameters

@@ -16,6 +16,8 @@ Observation and tracking: artifact tracking, task metrics, cache-TTL pruning sav
 | task_metrics_model.py | Core | TaskMetrics domain model. Owns per-task token/compression/refetch counters, archive write/reuse aggregates, separated deferral aggregates, restore-result cost-adjusted net savings, adaptive pruning backoff aggregates, compression elapsed-time derived properties (avg/last), derived health inputs, and serializable metric summaries. | ✅ |
 | task_metrics_restore.py | Core | Archive restore metrics mixin. Owns restore requested/allowed/blocked outcome counters, blocked-ratio calculation, per-path restore budgets, and restore-block detail recording. | ✅ |
 | task_metrics_registry.py | Core | Process-local TaskMetrics registry with expiry cleanup and thread-safe lookup. | ✅ |
+| tokenomics_savings_tracker.py | Core | Real-time Tokenomics savings tracker and live cost diagnostic engine. | ✅ |
+| tokenomics_types.py | Types | Data types and contracts for Tokenomics Savings Tracker and Live Cost HUD. | ✅ |
 
 ## Key Dependencies
 

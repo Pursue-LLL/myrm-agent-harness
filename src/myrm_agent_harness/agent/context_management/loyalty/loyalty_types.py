@@ -1,3 +1,19 @@
+"""Types and models for loyalty.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ModelVendorFamily: Categorization of underlying foundation model families.
+- UserLoyaltyPreference: Explicit user alignment preferences overriding arbitrary vendor agendas.
+- InContextRLExemplar: Test-time reinforcement learning exemplar capturing rewarded behavior.
+- UserLoyaltyStackConfig: Configuration governing loyalty injection and cross-model neutralization.
+- ModelNeutralizedPrompt: Model-agnostic neutralized prompt ready for cross-model inference.
+
+[POS]
+Types and models for loyalty.
+"""
+
 # ============================================================================
 # # In-Context Loyalty Stack & Test-Time RL Types (Item 150)
 # # Strict typed contracts for user-centric alignment, vendor bias neutralization,

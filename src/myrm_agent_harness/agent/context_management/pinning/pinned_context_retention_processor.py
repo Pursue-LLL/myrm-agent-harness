@@ -1,3 +1,19 @@
+"""Guarantees zero-pruning preservation of pinned contexts and constructs inspector cards.
+
+[INPUT]
+- agent.context_management.pipeline.base::BaseProcessor, ProcessorContext (POS: Pipeline 处理器基类.)
+- agent.context_management.pinning.context_pin_types::CompactionInspectorCardData, PinnedContextItem,
+  PinnedItemType (POS: Types and models for context pin.)
+- Third-party: langchain_core
+
+[OUTPUT]
+- PinnedContextRetentionProcessor: Guarantees zero-pruning preservation of pinned contexts and constructs
+  inspector cards.
+
+[POS]
+Guarantees zero-pruning preservation of pinned contexts and constructs inspector cards.
+"""
+
 # ============================================================================
 # # PinnedContextRetentionProcessor - Zero-Pruning Pins & Inspector Card (Item 146)
 # # Protects user-pinned messages and architectural decisions across compactions,

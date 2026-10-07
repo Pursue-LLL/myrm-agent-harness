@@ -1,3 +1,21 @@
+"""Distills trial-and-error lessons from abandoned branches to roam into new forks.
+
+[INPUT]
+- agent.context_management.branching.branch_carrier_types::AbandonedBranchLessonsSummary,
+  BranchCarrierForkRequest, BranchCarrierForkResponse, TreeNodeView (POS: Types and models for branch
+  carrier.)
+- agent.context_management.branching.session_dag_graph::SessionDagGraph (POS: Manages conversational messages
+  structured as a Directed Acyclic Graph (DAG).)
+- agent.context_management.branching.session_dag_types::SessionDagNode (POS: Types and models for session
+  dag.)
+
+[OUTPUT]
+- BranchSummaryCarrierEngine: Distills trial-and-error lessons from abandoned branches to roam into new forks.
+
+[POS]
+Distills trial-and-error lessons from abandoned branches to roam into new forks.
+"""
+
 # ============================================================================
 # # BranchSummaryCarrierEngine - Abandoned Branch Lessons Distiller (Item 147)
 # # Extracts lessons, constraints, and failures from abandoned exploration branches,

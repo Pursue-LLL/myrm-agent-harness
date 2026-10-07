@@ -1,3 +1,17 @@
+"""Types and models for gcf tabular.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- GcfColumnarTable: Columnar representation (Grid-Column Format) of tabular records.
+- GcfCompressionGuardConfig: Config and defensive thresholds for GCF columnar compression.
+- GcfCompressionResult: Diagnostic outcome of GCF compression execution.
+
+[POS]
+Types and models for gcf tabular.
+"""
+
 from __future__ import annotations
 
 import json

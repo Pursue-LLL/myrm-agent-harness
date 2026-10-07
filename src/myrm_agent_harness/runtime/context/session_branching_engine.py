@@ -1,3 +1,17 @@
+"""Core engine for arbitrary checkpoint session forking, timeline rewinding, and lineage tracking.
+
+[INPUT]
+- runtime.context.session_branching_types::BranchDescriptor, BranchHistoricalTurn, BranchNavigatorView,
+  ForkSessionResult, RewindMode, RewindSessionResult (POS: Types and models for session branching.)
+
+[OUTPUT]
+- SessionBranchingEngine: Core engine for arbitrary checkpoint session forking, timeline rewinding, and
+  lineage tracking.
+
+[POS]
+Core engine for arbitrary checkpoint session forking, timeline rewinding, and lineage tracking.
+"""
+
 from __future__ import annotations
 
 import time

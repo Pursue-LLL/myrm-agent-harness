@@ -1,3 +1,17 @@
+"""Pure algorithmic lossless GCF (Grid-Column Format) codec with flattening and bridge support.
+
+[INPUT]
+- agent.context_management.pipeline.processors.gcf_tabular_types::GcfColumnarTable, GcfCompressionGuardConfig,
+  GcfCompressionResult (POS: Types and models for gcf tabular.)
+
+[OUTPUT]
+- GcfTabularCodec: Pure algorithmic lossless GCF (Grid-Column Format) codec with flattening and bridge
+  support.
+
+[POS]
+Pure algorithmic lossless GCF (Grid-Column Format) codec with flattening and bridge support.
+"""
+
 from __future__ import annotations
 
 import csv

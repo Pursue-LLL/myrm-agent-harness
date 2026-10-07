@@ -1,3 +1,17 @@
+"""Manages shared cloud session snapshots, security gates, and team steering.
+
+[INPUT]
+- agent.context_management.collaboration.collaboration_types::ArtifactInlineAnnotation, SanitizedMessage,
+  ShareAccessLevel, SharedSessionSnapshot, SharedSessionToken, SteeringDirective (POS: Types and models for
+  collaboration.)
+
+[OUTPUT]
+- SharedCloudSessionHub: Manages shared cloud session snapshots, security gates, and team steering.
+
+[POS]
+Manages shared cloud session snapshots, security gates, and team steering.
+"""
+
 # ============================================================================
 # SharedCloudSessionHub (Item 153)
 # Production-grade collaborative shared session engine: token issuing,

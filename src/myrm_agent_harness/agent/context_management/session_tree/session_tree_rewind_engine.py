@@ -1,3 +1,17 @@
+"""Manages session timeline branching, message cloning, and in-place rewind.
+
+[INPUT]
+- agent.context_management.session_tree.session_tree_types::ForkModeKind, ForkResult, RewindModeKind,
+  RewindResult, SessionBranchNode, SessionMessageItem, SessionTreeTopology (POS: Types and models for session
+  tree.)
+
+[OUTPUT]
+- SessionTreeRewindEngine: Manages session timeline branching, message cloning, and in-place rewind.
+
+[POS]
+Manages session timeline branching, message cloning, and in-place rewind.
+"""
+
 # ============================================================================
 # Session Tree Fork & In-Place Message Rewind Engine (Item 162)
 # Arbitrary timeline node branching, antecedent message slice cloning,

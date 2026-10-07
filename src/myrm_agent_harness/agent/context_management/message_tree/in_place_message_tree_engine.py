@@ -1,3 +1,16 @@
+"""Manages in-place branching, sibling version switching, and path resolution.
+
+[INPUT]
+- agent.context_management.message_tree.message_tree_types::MessageTreeGraph, SiblingVersionItem,
+  TreeMessageNode, TreeNodeRole, VersionSwitchResult (POS: Types and models for message tree.)
+
+[OUTPUT]
+- InPlaceMessageTreeEngine: Manages in-place branching, sibling version switching, and path resolution.
+
+[POS]
+Manages in-place branching, sibling version switching, and path resolution.
+"""
+
 # ============================================================================
 # In-Place Message Tree Branching & Version Navigator Engine (Item 164)
 # True tree-structured message DAG, sibling version navigation (< 1/3 >),

@@ -1,3 +1,19 @@
+"""Serializes, packs, and validates portable workspace state capsules.
+
+[INPUT]
+- agent.context_management.mobility.mobility_types::FileChangeKind, MergeConflictItem, OffloadTargetKind,
+  OffloadTransferReceipt, SyncMergeReport, WorkspaceCapsule, WorkspaceFileEntry (POS: Types and models for
+  mobility.)
+
+[OUTPUT]
+- WorkspaceCapsulePacker: Serializes, packs, and validates portable workspace state capsules.
+- CloudWorkerOffloadGateway: Dispatches session capsules to remote cloud workers or paired devices.
+- BidirectionalMergeGuard: Three-way merge guard protecting local workspace from remote overwrites.
+
+[POS]
+Serializes, packs, and validates portable workspace state capsules.
+"""
+
 # ============================================================================
 # Session Workspace State Mobility & Cloud Worker Offload Engine (Item 163)
 # Portable workspace capsule serialization, integrity verification, cloud

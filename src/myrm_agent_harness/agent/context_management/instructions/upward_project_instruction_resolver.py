@@ -1,3 +1,18 @@
+"""Recursively resolves project instructions upward along directory tree and claims legacy skills.
+
+[INPUT]
+- agent.context_management.instructions.upward_instruction_types::EcosystemPriority, InstructionEcosystem,
+  LegacySkillsDirectory, ScannedInstructionFile, UpwardResolutionResult (POS: Types and models for upward
+  instruction.)
+
+[OUTPUT]
+- UpwardProjectInstructionResolver: Recursively resolves project instructions upward along directory tree and
+  claims legacy skills.
+
+[POS]
+Recursively resolves project instructions upward along directory tree and claims legacy skills.
+"""
+
 # ============================================================================
 # # UpwardProjectInstructionResolver - Recursive Discovery & Migration Gate (Item 148)
 # # Discovers instructions upward from deep subdirectories to repo root boundary,

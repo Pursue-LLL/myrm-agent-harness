@@ -1,3 +1,16 @@
+"""Manages immutable run-level forks, policy snapshot inheritance, and artifact diffs.
+
+[INPUT]
+- runtime.fork.branch_run_types::ArtifactDiffItem, BranchArtifactComparison, BranchRun, IntentSnapshot,
+  PolicySnapshot, RunAttempt, RunStatus (POS: Types and models for branch run.)
+
+[OUTPUT]
+- BranchRunSnapshotEngine: Manages immutable run-level forks, policy snapshot inheritance, and artifact diffs.
+
+[POS]
+Manages immutable run-level forks, policy snapshot inheritance, and artifact diffs.
+"""
+
 # ============================================================================
 # BranchRunSnapshotEngine (Item 152)
 # Production-grade dual-branching Run snapshot engine: immutable policy inheritance,

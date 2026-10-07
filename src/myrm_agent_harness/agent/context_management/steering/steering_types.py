@@ -1,3 +1,19 @@
+"""Types and models for steering.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- SteeringStatusKind: Lifecycle state of an in-flight steering message.
+- SteeringPriorityKind: Priority level for human co-steering directives.
+- InFlightSteeringMessage: Immutable representation of a human steering message queued during execution.
+- SteeringInjectionPayload: Structured context block atomically synthesized for next LLM turn prompt.
+- SteeringQueueSnapshot: Status dashboard of the session steering queue.
+
+[POS]
+Types and models for steering.
+"""
+
 # ============================================================================
 # In-Flight Steering & Human Co-Steering Data Contracts (Item 161)
 # Strong typing contracts for mid-turn steering message queue, inter-step atomic

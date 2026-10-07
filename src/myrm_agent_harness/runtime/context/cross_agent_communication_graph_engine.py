@@ -1,3 +1,18 @@
+"""Runtime engine for cross-agent communication causal DAG tracing and phase-end ephemeral pruning.
+
+[INPUT]
+- runtime.context.cross_agent_communication_graph_types::AgentCommunicationEdge, CausalPhaseSummary,
+  CommunicationInteractionKind, MessageDurability, PrunedContextResult (POS: Types and models for cross agent
+  communication graph.)
+
+[OUTPUT]
+- CrossAgentCommunicationGraphEngine: Runtime engine for cross-agent communication causal DAG tracing and
+  phase-end ephemeral pruning.
+
+[POS]
+Runtime engine for cross-agent communication causal DAG tracing and phase-end ephemeral pruning.
+"""
+
 from __future__ import annotations
 
 import time

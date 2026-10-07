@@ -1,3 +1,21 @@
+"""Package facade for rotation.
+
+[INPUT]
+- agent.context_management.rotation.assembly_types::ApprovalMode, AssembledRuntimeContext, LiveSecurityConfig,
+  McpConnectionStatus, McpPoolReconcileResult, McpServerConfig, SoftBudgetConfig, StrictPrefixConfig,
+  ThinkingLevel (POS: Types and models for assembly.)
+- agent.context_management.rotation.context_rotation_runtime_assembler::ContextRotationRuntimeAssembler,
+  RuntimeAssemblyError (POS: Orchestrates three-tier runtime parameter assembly and MCP connection caching.)
+
+[OUTPUT]
+- Re-exports: ApprovalMode, AssembledRuntimeContext, ContextRotationRuntimeAssembler, LiveSecurityConfig,
+  McpConnectionStatus, McpPoolReconcileResult, McpServerConfig, RuntimeAssemblyError, SoftBudgetConfig,
+  StrictPrefixConfig, ThinkingLevel
+
+[POS]
+Package facade for rotation.
+"""
+
 # ============================================================================
 # Context Rotation & Three-Tier Runtime Assembly Subpackage (Item 155)
 # ============================================================================

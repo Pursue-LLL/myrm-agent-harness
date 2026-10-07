@@ -1,3 +1,21 @@
+"""Types and models for compaction.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- CompactionStage: Execution stages of the hierarchical compaction pipeline.
+- MessageRole: Semantic role of conversation messages.
+- HierarchicalCompactionConfig: Config governing four-stage budget allocation and invariants.
+- PipelineMessage: Message entity moving through the compaction pipeline.
+- TrimmedToolResult: Audit entry recording a trimmed tool execution output.
+- CompactionMetrics: Telemetry metrics tracking compression ratio and applied stages.
+- DerivedContextView: Memory-only derived context view feedable to LLM without touching disk storage.
+
+[POS]
+Types and models for compaction.
+"""
+
 # ============================================================================
 # Hierarchical Four-Stage Context Compaction Types (Item 154)
 # Strict typed contracts for 4-stage context compaction: tool result trimming,

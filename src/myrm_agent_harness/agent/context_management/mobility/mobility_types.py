@@ -1,3 +1,21 @@
+"""Types and models for mobility.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- FileChangeKind: File status transition kind within workspace delta.
+- OffloadTargetKind: Target destination platform for session worker offloading.
+- WorkspaceFileEntry: Single file artifact or source modification encapsulated in workspace.
+- WorkspaceCapsule: Portable, self-contained workspace capsule package for session mobility.
+- OffloadTransferReceipt: Acknowledgement receipt for session offload dispatched to remote worker.
+- MergeConflictItem: Detected conflict item during bidirectional workspace synchronization.
+- SyncMergeReport: Outcome report of applying remote changes back to local workspace.
+
+[POS]
+Types and models for mobility.
+"""
+
 # ============================================================================
 # Session Workspace Mobility & Cloud Worker Offload Data Contracts (Item 163)
 # Strong typing contracts for workspace capsule serialization, cloud worker

@@ -1,3 +1,19 @@
+"""Types and models for upward instruction.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- InstructionEcosystem: Supported ecosystem formats for project instructions.
+- EcosystemPriority: Numerical priority rank across ecosystems (higher takes precedence).
+- ScannedInstructionFile: Represents a discovered instruction file along the upward directory path.
+- LegacySkillsDirectory: Discovered zero-migration skills directory from foreign ecosystem.
+- UpwardResolutionResult: Comprehensive aggregation result of upward instruction discovery.
+
+[POS]
+Types and models for upward instruction.
+"""
+
 # ============================================================================
 # # Upward Instruction Resolver & Legacy Ecosystem Migration Types (Item 148)
 # # Strict typed contracts for recursive directory tree instruction discovery,

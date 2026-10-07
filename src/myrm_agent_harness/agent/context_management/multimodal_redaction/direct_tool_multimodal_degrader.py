@@ -1,3 +1,21 @@
+"""Unified pipeline for direct-tool scrubbing and multimodal attachment degradation.
+
+[INPUT]
+- agent.context_management.multimodal_redaction.redaction_types::DegradationReport, DirectToolPolicyKind,
+  HistoryMessageView, MediaAttachment, MediaAttachmentKind, RedactedToolResult (POS: Types and models for
+  redaction.)
+
+[OUTPUT]
+- DirectToolHistoryPlaceholderFilter: Filters historical direct-return tool results to prevent payload echoes.
+- QuestionAwareSidecarCaptioner: Generates focused semantic descriptions conditioned on user questions.
+- MultimodalAttachmentDegrader: Strips historical media raw bytes and produces structured text degradation.
+- DirectToolMultimodalDegradationEngine: Unified pipeline for direct-tool scrubbing and multimodal attachment
+  degradation.
+
+[POS]
+Unified pipeline for direct-tool scrubbing and multimodal attachment degradation.
+"""
+
 # ============================================================================
 # Direct-Tool History Redaction & Multimodal Degradation Engine (Item 158)
 # Scrub direct-to-user tool outputs from historical turns to stop bloat,

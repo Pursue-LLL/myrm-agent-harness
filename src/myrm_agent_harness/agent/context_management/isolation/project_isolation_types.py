@@ -1,3 +1,18 @@
+"""Types and models for project isolation.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ObjectiveRecapStatus: Execution status for objective recap alignment check.
+- ProjectBoundary: Defines the physical project isolation boundary for a session.
+- CrossProjectCheckResult: Outcome of file reference validation and cross-project leak prevention.
+- ObjectiveRecapAssertion: Assertion contract returned before executing tasks under potential project drift.
+
+[POS]
+Types and models for project isolation.
+"""
+
 # ============================================================================
 # # Project Context Isolation & Objective Recap Types (Item 145)
 # # Strict typed contracts for project namespace boundaries, cross-project

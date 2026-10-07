@@ -1,3 +1,21 @@
+"""Types and models for branch run.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- RunStatus: Execution status lifecycle of a durable BranchRun.
+- PolicySnapshot: Immutable execution policy snapshot captured at fork time.
+- IntentSnapshot: Immutable user intent and objective snapshot captured at fork time.
+- RunAttempt: Individual execution attempt preserving complete audit trial and telemetry.
+- BranchRun: Independent first-class Run entity derived from a session DAG fork point.
+- ArtifactDiffItem: Single artifact mutation comparison between two branch runs.
+- BranchArtifactComparison: Comprehensive cross-branch artifact inspection report.
+
+[POS]
+Types and models for branch run.
+"""
+
 # ============================================================================
 # BranchRun & Immutable Policy Snapshot Types (Item 152)
 # Strict typed contracts for dual-branching session forks, immutable policy

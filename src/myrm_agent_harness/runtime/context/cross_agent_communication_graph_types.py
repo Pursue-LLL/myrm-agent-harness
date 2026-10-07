@@ -1,3 +1,19 @@
+"""Types and models for cross agent communication graph.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- CommunicationInteractionKind: Categorical kind of cross-agent communication interaction.
+- MessageDurability: Lifecycle durability classification for agent messages.
+- AgentCommunicationEdge: An active directed communication edge in the runtime graph.
+- CausalPhaseSummary: Consolidated causal summary synthesized upon phase conclusion.
+- PrunedContextResult: Outcome report of phase-end communication context pruning.
+
+[POS]
+Types and models for cross agent communication graph.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

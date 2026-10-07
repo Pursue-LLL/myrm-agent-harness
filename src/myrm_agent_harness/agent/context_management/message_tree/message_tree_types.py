@@ -1,3 +1,19 @@
+"""Types and models for message tree.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- TreeNodeRole: Message role within in-place message tree hierarchy.
+- TreeMessageNode: Immutable tree node representing an individual message turn.
+- SiblingVersionItem: Summary of a sibling version candidate for in-place UI navigator.
+- VersionSwitchResult: Outcome of switching sibling version on an in-place message node.
+- MessageTreeGraph: Complete in-memory DAG message tree for a session.
+
+[POS]
+Types and models for message tree.
+"""
+
 # ============================================================================
 # In-Place Message Tree Branching & Version Navigator Data Contracts (Item 164)
 # Strong typing contracts for message-node level tree hierarchy, sibling version

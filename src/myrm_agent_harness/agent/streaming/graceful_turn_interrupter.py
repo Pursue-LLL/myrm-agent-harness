@@ -1,3 +1,16 @@
+"""Thread-safe graceful turn interruption sentinel and clean breakpoint detector.
+
+[INPUT]
+- agent.streaming.graceful_interruption_types::GracefulInterruptionReport, InterruptedArtifactSnapshot,
+  InterruptionSignalKind (POS: Types and models for graceful interruption.)
+
+[OUTPUT]
+- GracefulTurnInterrupter: Thread-safe graceful turn interruption sentinel and clean breakpoint detector.
+
+[POS]
+Thread-safe graceful turn interruption sentinel and clean breakpoint detector.
+"""
+
 from __future__ import annotations
 
 import datetime

@@ -1,3 +1,20 @@
+"""Types and models for collaboration.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ShareAccessLevel: Permission levels for shared cloud session links.
+- SharedSessionToken: Cryptographically signed share token governing external participant access.
+- SanitizedMessage: Safe, sanitized transcript message free of credentials and private host paths.
+- ArtifactInlineAnnotation: Collaborative annotation pinned to specific artifact lines by team reviewers.
+- SteeringDirective: Mid-flight steering input injected by authorized collaborative team members.
+- SharedSessionSnapshot: Publicly viewable or steerable sanitized session representation.
+
+[POS]
+Types and models for collaboration.
+"""
+
 # ============================================================================
 # Shared Cloud Session & Collaborative Workspace Types (Item 153)
 # Strict typed contracts for shareable session snapshots, access tokens,

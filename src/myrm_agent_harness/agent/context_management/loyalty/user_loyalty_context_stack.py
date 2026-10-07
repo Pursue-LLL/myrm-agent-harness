@@ -1,3 +1,16 @@
+"""Manages user-centric loyalty layers and cross-model test-time RL alignment.
+
+[INPUT]
+- agent.context_management.loyalty.loyalty_types::InContextRLExemplar, ModelNeutralizedPrompt,
+  ModelVendorFamily, UserLoyaltyPreference, UserLoyaltyStackConfig (POS: Types and models for loyalty.)
+
+[OUTPUT]
+- UserLoyaltyContextStack: Manages user-centric loyalty layers and cross-model test-time RL alignment.
+
+[POS]
+Manages user-centric loyalty layers and cross-model test-time RL alignment.
+"""
+
 # ============================================================================
 # # UserLoyaltyContextStack - User Alignment & Cross-Model Invariance (Item 150)
 # # Transfers alignment from foundation model vendors to the user,

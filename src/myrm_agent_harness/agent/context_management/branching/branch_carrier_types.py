@@ -1,3 +1,19 @@
+"""Types and models for branch carrier.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- AbandonedBranchLessonsSummary: Structured distillation of an abandoned branch's failures, constraints, and
+  learnings.
+- BranchCarrierForkRequest: Request payload to fork a new branch while carrying forward abandoned lessons.
+- BranchCarrierForkResponse: Result payload after forking a branch with summary carrier injected.
+- TreeNodeView: Visualization-ready node for Git DAG style tree drawers in WebUI / Desktop.
+
+[POS]
+Types and models for branch carrier.
+"""
+
 # ============================================================================
 # # Branch Summary Carrier & DAG Tree Explorer Types (Item 147)
 # # Strict typed contracts for extracting abandoned branch lessons,

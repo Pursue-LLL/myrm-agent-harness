@@ -1,3 +1,17 @@
+"""Orchestrates four-stage hierarchical context compaction.
+
+[INPUT]
+- agent.context_management.pipeline.hierarchical_compaction.compaction_types::CompactionMetrics,
+  CompactionStage, DerivedContextView, HierarchicalCompactionConfig, MessageRole, PipelineMessage,
+  TrimmedToolResult (POS: Types and models for compaction.)
+
+[OUTPUT]
+- HierarchicalFourStageCompactor: Orchestrates four-stage hierarchical context compaction.
+
+[POS]
+Orchestrates four-stage hierarchical context compaction.
+"""
+
 # ============================================================================
 # HierarchicalFourStageCompactor (Item 154)
 # Production-grade 4-stage context compaction pipeline:

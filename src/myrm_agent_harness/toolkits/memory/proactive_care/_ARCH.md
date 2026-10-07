@@ -26,3 +26,14 @@ flowchart TD
     Notif --> Gate[Care Cooldown Gate]
     Gate -->|Passed| Out[Delivered Care Notification]
 ```
+
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| `__init__.py` | Package | Package facade for proactive care. | ✅ |
+| `evaluator.py` | Core | Multi-modal vitality assessor fusing hardware telemetry and conversational cues. | ✅ |
+| `models.py` | Types | Types and models for proactive care. | ✅ |
+| `rebalancer.py` | Core | Acts-Before-You-Ask dynamic schedule scaler and high-empathy care generator. | ✅ |
+| `service.py` | Core | Thread-safe SQLite service orchestrating multi-modal vitality evaluation and schedule rebalancing. | ✅ |
+| `tools.py` | Core | Agent meta tools for evaluating human physical state and initiating proactive care. | ✅ |

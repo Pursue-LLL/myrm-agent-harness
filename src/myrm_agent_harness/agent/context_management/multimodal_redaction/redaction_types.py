@@ -1,3 +1,20 @@
+"""Types and models for redaction.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- MediaAttachmentKind: Supported multimodal media categories.
+- DirectToolPolicyKind: Tool execution result delivery classification.
+- MediaAttachment: Multimodal media attachment payload.
+- RedactedToolResult: Scrubbed tool output representation for historical turns.
+- HistoryMessageView: In-memory projected message representation for LLM context assembly.
+- DegradationReport: Summary metrics of context degradation and payload scrubbing.
+
+[POS]
+Types and models for redaction.
+"""
+
 # ============================================================================
 # Direct-Tool Redaction & Multimodal Degradation Data Contracts (Item 158)
 # Strong typing contracts for direct-to-user tool payload scrubbing,

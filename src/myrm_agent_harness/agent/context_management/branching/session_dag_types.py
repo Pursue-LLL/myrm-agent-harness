@@ -1,3 +1,18 @@
+"""Types and models for session dag.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- BranchForkMode: Operation modes for conversation DAG branching.
+- SessionDagNode: Represents an immutable message node inside the Conversation DAG.
+- BranchNavigatorMeta: Metadata payload powering the UI branch selector (< current/total >).
+- StandaloneForkResult: Summary of a New-Session-From-Here independent fork operation.
+
+[POS]
+Types and models for session dag.
+"""
+
 # ============================================================================
 # # DualBranchingSessionDagAndEditFromHereEngine Types (Item 144)
 # # Strict typed contracts for DAG branching, in-session branch switching,

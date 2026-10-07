@@ -1,3 +1,21 @@
+"""Types and models for handover.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- DeviceKind: Client device platform classification.
+- AttachmentMode: Device attachment permission mode.
+- SessionExecutionState: Lifecycle state of an active session in runtime.
+- DeviceInfo: Connected client device identity and metadata.
+- TerminalOutputChunk: Incremental chunk of terminal output stream (stdout/stderr).
+- HandoverSessionHandle: Descriptor for an active session available for cross-device handover.
+- AttachmentCatchupSnapshot: Instantaneous snapshot replayed to new device upon attach.
+
+[POS]
+Types and models for handover.
+"""
+
 # ============================================================================
 # Cross-Device Session Handover & Attachment Data Contracts (Item 159)
 # Strong typing contracts for bidirectional cross-device session attachment,

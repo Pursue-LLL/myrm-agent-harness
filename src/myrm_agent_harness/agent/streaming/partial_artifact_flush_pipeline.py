@@ -1,3 +1,17 @@
+"""Pipelines safely flushing partial in-progress artifacts and seamlessly stitching subsequent context.
+
+[INPUT]
+- agent.streaming.graceful_interruption_types::GracefulInterruptionReport, InterruptedArtifactSnapshot,
+  SeamlessStitchedPromptBlock (POS: Types and models for graceful interruption.)
+
+[OUTPUT]
+- PartialArtifactFlushPipeline: Pipelines safely flushing partial in-progress artifacts and seamlessly
+  stitching subsequent context.
+
+[POS]
+Pipelines safely flushing partial in-progress artifacts and seamlessly stitching subsequent context.
+"""
+
 from __future__ import annotations
 
 import uuid

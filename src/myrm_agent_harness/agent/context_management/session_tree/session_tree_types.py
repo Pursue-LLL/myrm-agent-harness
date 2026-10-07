@@ -1,3 +1,21 @@
+"""Types and models for session tree.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ForkModeKind: Cloning strategy when forking a session from a timeline node.
+- RewindModeKind: Archival behavior when rewinding to a previous message node.
+- SessionMessageItem: Immutable session message entry in timeline history.
+- SessionBranchNode: Descriptor of a session tree branch in the multi-version graph.
+- ForkResult: Result of forking a session at a specific timeline message anchor.
+- RewindResult: Result of rewinding timeline in-place to edit & re-generate.
+- SessionTreeTopology: Complete branch graph topology for a session lineage.
+
+[POS]
+Types and models for session tree.
+"""
+
 # ============================================================================
 # Session Tree Fork & Message Rewind Data Contracts (Item 162)
 # Strong typing contracts for timeline forking, tree topology branching,

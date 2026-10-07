@@ -1,3 +1,16 @@
+"""Performs self-distillation sweeps over memory and skill artifacts.
+
+[INPUT]
+- agent.skills.curator.anti_sycophancy_types::CuratedAction, CuratedItemVerdict, CuratorCustomRules,
+  CuratorDismantlingReport, CuratorEvaluationMetric (POS: Types and models for anti sycophancy.)
+
+[OUTPUT]
+- SelfDismantlingCuratorEngine: Performs self-distillation sweeps over memory and skill artifacts.
+
+[POS]
+Performs self-distillation sweeps over memory and skill artifacts.
+"""
+
 # ============================================================================
 # # SelfDismantlingCuratorEngine - Memory & Skill Distillation Engine (Item 149)
 # # Automatically evaluates, distills, and prunes stale/redundant memories & skills

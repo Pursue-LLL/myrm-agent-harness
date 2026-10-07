@@ -1,3 +1,21 @@
+"""Types and models for pairing.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- PasskeyAlgorithmKind: Supported cryptographic signature algorithms for Passkey credentials.
+- DeviceTrustState: Lifecycle trust status for registered client devices.
+- PairingTicket: One-time dynamic pairing ticket rendered into QR code.
+- PasskeyCredential: Registered hardware or secure-enclave client passkey credential.
+- AuthChallenge: One-time server-issued challenge nonce for zero-password login.
+- ChallengeResponse: Client hardware signature payload submitted in response to challenge.
+- DiscoveredServiceBeacon: Local network mDNS/Bonjour service beacon advertisement.
+
+[POS]
+Types and models for pairing.
+"""
+
 # ============================================================================
 # Cross-Device Fast Pairing & Passkey Data Contracts (Item 160)
 # Strong typing contracts for QR bootstrap, Passkey/WebAuthn hardware credentials,

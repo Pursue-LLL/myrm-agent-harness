@@ -10,3 +10,14 @@ This package implements the Context Virtual File System Protocol and Determinist
 - `vfs.py`: `ContextVirtualFileSystem` core facade orchestrating directory creation, file reads/writes, ASCII tree rendering, and keyword search.
 - `tools.py`: `ContextVFSExploreTools` providing agent-facing meta-tool definitions (`ctx_ls`, `ctx_tree`, `ctx_read`, `ctx_find`, `ctx_write`).
 - `__init__.py`: Public package exports conforming to harness conventions.
+
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| `__init__.py` | Package | Package facade for cvfs. | ✅ |
+| `models.py` | Types | Types and models for cvfs. | ✅ |
+| `protocol.py` | Core | Protocol helper for canonical ctx:// URI parsing and validation. | ✅ |
+| `store.py` | Core | SQLite-backed metadata and content registry for Context Virtual File System. | ✅ |
+| `tools.py` | Core | Agent meta-tools exposing deterministic exploration across Context Virtual File System. | ✅ |
+| `vfs.py` | Core | Unified Context Virtual File System delivering deterministic exploration and asset access. | ✅ |

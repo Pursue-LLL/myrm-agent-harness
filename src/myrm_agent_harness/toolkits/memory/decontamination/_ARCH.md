@@ -10,3 +10,14 @@ This package implements the Memory Provenance Attestation, Active Decontaminatio
 - `rollback.py`: `MemorySnapshotRollbackEngine` creating memory checkpoints, rolling back across versions, and purging corrupted sessions.
 - `service.py`: `MemoryProvenanceDecontaminationService` unified facade integrating attestation, quarantine, and rollback engines.
 - `__init__.py`: Public package exports conforming to harness conventions.
+
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| `__init__.py` | Package | Package facade for decontamination. | ✅ |
+| `attestation.py` | Core | Manages generation, signature verification, and indexing of memory provenance attestations. | ✅ |
+| `detector.py` | Core | Active detector and quarantine gate preventing poisoned memories from polluting context. | ✅ |
+| `models.py` | Types | Types and models for decontamination. | ✅ |
+| `rollback.py` | Core | Manages memory snapshots, version time travel, and session-scoped decontamination rollbacks. | ✅ |
+| `service.py` | Core | Unified service coordinating memory provenance certification, quarantine, and rollbacks. | ✅ |

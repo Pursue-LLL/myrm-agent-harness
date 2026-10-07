@@ -13,6 +13,7 @@ Pipeline module.
 
 | Submodule | Description |
 |-----------|-------------|
+| hierarchical_compaction/ | Orchestrates four-stage hierarchical context compaction. See [hierarchical_compaction/_ARCH.md](hierarchical_compaction/_ARCH.md). |
 | processors/ | Pipeline processors for filtering, active per-step tool-result pruning, cache-TTL pruning, mark-driven selective eviction, pre-compaction recall, compression, session notes, summarization, normalization, and explicit cache-control markers. |
 
 ## Key Dependencies
