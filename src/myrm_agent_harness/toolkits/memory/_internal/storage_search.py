@@ -2,6 +2,7 @@
 
 [INPUT]
 - storage_converters::{doc_to_semantic, doc_to_episodic, doc_to_conversation, _user_filter}
+- bm25_sparse_index::{BM25SparseIndexStore, unwrap_sparse_mirror}
 - memory.protocols.vector::VectorStoreProtocol
 - memory.types::{MemorySearchResult, MemoryType, SemanticMemory}
 
@@ -24,6 +25,7 @@ from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.memory._internal.bm25_sparse_index import (
     BM25SparseIndexStore,
+    unwrap_sparse_mirror,
 )
 from myrm_agent_harness.toolkits.memory._internal.storage_converters import (
     _user_filter,
@@ -297,9 +299,12 @@ async def search_conversation(
 
     Supports both single-channel (summary only) and dual-channel (raw + summary) modes.
     When query_raw is None, uses summary embedding only for ~50% cost savings.
+    The BM25 mirror wrapper is unwrapped first: the conversation collection is
+    not mirrored and is queried through named vectors.
     """
     from myrm_agent_harness.toolkits.vector.base import VectorStore
 
+    vector = unwrap_sparse_mirror(vector)
     collection = config.conversation_collection
     filters = _user_filter(namespaces=namespaces, since=since, until=until)
 

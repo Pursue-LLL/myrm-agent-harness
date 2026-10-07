@@ -23,8 +23,9 @@ Processing tiers:
 - set_pii_pseudonymizer(): register the context-local regex PII closure applied before persistence
 
 [POS]
-Memory write-path security scanner. Scans content, raw_exchange (ConversationMemory),
-and trigger/action (ProceduralMemory) fields. Reuses prompt_guard (9-class injection detection),
+Memory write-path security scanner. Scans content, raw_exchange (ConversationMemory,
+scanned without its own role labels), and trigger/action (ProceduralMemory) fields.
+Reuses prompt_guard (9-class injection detection),
 leak_detector (25+ credential patterns + smart masking + password-like heuristic),
 instruction_shape (6-class bilingual instruction-shape detection),
 content_boundary (zero-width character stripping), and the context-local PII
@@ -40,7 +41,7 @@ import threading
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 
 from myrm_agent_harness.core.security.persistence.content_scan import (
@@ -218,6 +219,34 @@ def _handle_blocked_verdict(result: ScanResult, content: str) -> ScanResult:
     raise MemoryTaintedError(result.injection_score, result.injection_patterns)
 
 
+def _scan_field(text: str, block_threshold: float) -> ScanResult:
+    """Scan one text field; a BLOCKED verdict is resolved (approval or rejection) before returning."""
+    result = scan_memory_content(text, block_threshold=block_threshold)
+    return _handle_blocked_verdict(result, text) if result.verdict == ScanVerdict.BLOCKED else result
+
+
+_USER_LABEL = "User: "  # role labels the chunker writes into ConversationMemory.raw_exchange
+_ASSISTANT_LABEL = "\nAssistant: "
+
+
+def _scan_exchange(raw_exchange: str, user_turn: str, user_result: ScanResult, block_threshold: float) -> ScanResult:
+    """Scan a verbatim ``raw_exchange`` without tripping on its own role labels.
+
+    Scanned whole, the chunker's structural ``Assistant:`` line matches the fake-role-line
+    injection heuristic on every exchange. For the exact ``User: <turn>\\nAssistant: <reply>``
+    layout only the reply is scanned (the turn reuses ``user_result``) and both cleaned bodies
+    are re-attached to the original labels; any other layout is scanned whole.
+    """
+    head = f"{_USER_LABEL}{user_turn}{_ASSISTANT_LABEL}"
+    if not raw_exchange.startswith(head):
+        return _scan_field(raw_exchange, block_threshold)
+
+    reply_result = _scan_field(raw_exchange[len(head) :], block_threshold)
+    worst = max(user_result, reply_result, key=lambda r: _VERDICT_SEVERITY[r.verdict])
+    cleaned = f"{_USER_LABEL}{user_result.cleaned_text}{_ASSISTANT_LABEL}{reply_result.cleaned_text}"
+    return replace(worst, cleaned_text=cleaned)
+
+
 def scan_and_clean_memory(memory: object, *, block_threshold: float = 0.8) -> ScanResult:
     """Scan all text fields of a memory object and clean in-place.
 
@@ -228,10 +257,7 @@ def scan_and_clean_memory(memory: object, *, block_threshold: float = 0.8) -> Sc
     from myrm_agent_harness.toolkits.memory.types import ConversationMemory, ProceduralMemory
 
     content = getattr(memory, "content", "")
-    result = scan_memory_content(content, block_threshold=block_threshold)
-
-    if result.verdict == ScanVerdict.BLOCKED:
-        result = _handle_blocked_verdict(result, content)
+    result = _scan_field(content, block_threshold)
 
     if result.cleaned_text != content:
         memory.content = result.cleaned_text  # type: ignore[attr-defined]
@@ -241,11 +267,9 @@ def scan_and_clean_memory(memory: object, *, block_threshold: float = 0.8) -> Sc
     if isinstance(memory, ConversationMemory):
         raw_exchange = getattr(memory, "raw_exchange", "")
         if raw_exchange:
-            raw_result = scan_memory_content(raw_exchange, block_threshold=block_threshold)
-            if raw_result.verdict == ScanVerdict.BLOCKED:
-                raw_result = _handle_blocked_verdict(raw_result, raw_exchange)
+            raw_result = _scan_exchange(raw_exchange, content, result, block_threshold)
             if raw_result.cleaned_text != raw_exchange:
-                memory.raw_exchange = raw_result.cleaned_text  # type: ignore[attr-defined]
+                memory.raw_exchange = raw_result.cleaned_text
             if _VERDICT_SEVERITY[raw_result.verdict] > _VERDICT_SEVERITY[worst.verdict]:
                 worst = raw_result
 
@@ -254,9 +278,7 @@ def scan_and_clean_memory(memory: object, *, block_threshold: float = 0.8) -> Sc
             field_val = getattr(memory, field_name, "")
             if not field_val:
                 continue
-            field_result = scan_memory_content(field_val, block_threshold=block_threshold)
-            if field_result.verdict == ScanVerdict.BLOCKED:
-                field_result = _handle_blocked_verdict(field_result, field_val)
+            field_result = _scan_field(field_val, block_threshold)
             if field_result.cleaned_text != field_val:
                 setattr(memory, field_name, field_result.cleaned_text)
             if _VERDICT_SEVERITY[field_result.verdict] > _VERDICT_SEVERITY[worst.verdict]:

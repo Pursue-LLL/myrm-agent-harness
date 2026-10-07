@@ -88,12 +88,15 @@ async def search_conversation_two_pass(
     Returns:
         Boosted and sorted search results
     """
+    from myrm_agent_harness.toolkits.memory._internal.bm25_sparse_index import unwrap_sparse_mirror
     from myrm_agent_harness.toolkits.memory._internal.storage import doc_to_conversation
     from myrm_agent_harness.toolkits.memory.metrics import get_search_metrics
     from myrm_agent_harness.toolkits.vector.base import VectorStore
 
     start_ns = time.perf_counter_ns()
 
+    # The conversation collection is not BM25-mirrored and is queried by named vector.
+    vector = unwrap_sparse_mirror(vector)
     collection = config.conversation_collection
     filters: dict[str, str | bool | list[str] | dict[str, list[str] | str]] = {
         "archived": False,

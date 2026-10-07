@@ -3,6 +3,7 @@
 [INPUT]
 - storage::{embed_batch} (POS: embedding generation with cache)
 - storage_converters::{_lifecycle_payload, _scope_payload} (POS: metadata serialization)
+- bm25_sparse_index::unwrap_sparse_mirror (POS: backend beneath the BM25 mirror wrapper)
 - memory.types::{ConversationMemory, MemoryType} (POS: memory data models)
 
 [OUTPUT]
@@ -18,6 +19,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.toolkits.memory._internal.bm25_sparse_index import unwrap_sparse_mirror
 from myrm_agent_harness.toolkits.memory.types import ConversationMemory, MemoryType
 
 if TYPE_CHECKING:
@@ -39,7 +41,9 @@ async def store_conversations_batch(
     """Store conversation memories with dual-embeddings (raw + summary).
 
     Uses Qdrant named vectors to store both raw_embedding and summary_embedding
-    in a single point. For non-Qdrant backends, fallback to summary_embedding only.
+    in a single point; the BM25 mirror wrapper is unwrapped first because the
+    conversation collection is not mirrored. Other backends raise
+    ``NotImplementedError``.
     """
     from myrm_agent_harness.toolkits.memory._internal.storage import embed_batch
     from myrm_agent_harness.toolkits.memory._internal.storage_converters import (
@@ -50,6 +54,7 @@ async def store_conversations_batch(
     )
     from myrm_agent_harness.toolkits.vector.base import VectorStore
 
+    vector = unwrap_sparse_mirror(vector)
     raw_texts = [m.raw_exchange for m in memories if m.raw_embedding is None]
     summary_texts = [m.content for m in memories if m.summary_embedding is None]
 
@@ -143,8 +148,8 @@ async def store_conversations_batch(
                 )
                 points.append(point)
 
-            await vector._with_retry(  # type: ignore[attr-defined]
-                vector._client.upsert,  # type: ignore[attr-defined]
+            await vector._with_retry(
+                vector._client.upsert,
                 collection_name=collection,
                 points=points,
             )

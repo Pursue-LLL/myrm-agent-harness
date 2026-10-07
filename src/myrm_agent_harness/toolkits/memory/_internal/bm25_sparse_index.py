@@ -14,6 +14,8 @@
   collection and serves BM25 queries from it
 - wrap_with_bm25_sparse_index: factory deciding capability at assembly time;
   legacy backends stay unwrapped on the corpus-scroll fallback path
+- unwrap_sparse_mirror: backend beneath the wrapper, for the named-vector
+  conversation collection the mirror does not cover
 
 [POS]
 Replaces the per-query full-corpus scroll + BM25Okapi rebuild (24x build/query
@@ -154,6 +156,7 @@ class BM25SparseIndexStore:
         self._backfill_scheduled = True
         task = asyncio.get_running_loop().create_task(self._backfill_task(config))
         task.add_done_callback(_log_task_failure)
+
     # ── Write interception (fail-open sparse sync) ──────────────────────
 
     def _log_sync_failure(self, op: str, collection: str, exc: Exception) -> None:
@@ -396,3 +399,14 @@ def wrap_with_bm25_sparse_index(
     if isinstance(vector, QdrantSparseMixin):
         return BM25SparseIndexStore(vector)
     return vector
+
+
+def unwrap_sparse_mirror(vector: VectorStoreProtocol) -> VectorStoreProtocol:
+    """Return the backend beneath the BM25 mirror (a bare store passes through).
+
+    The mirror covers the semantic and episodic collections only. The
+    conversation collection holds named vectors (raw/summary), which the
+    wrapper's single-vector pass-through can neither write nor query, so its
+    reads and writes address the backend directly.
+    """
+    return vector._inner if isinstance(vector, BM25SparseIndexStore) else vector

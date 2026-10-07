@@ -3,30 +3,31 @@
 [INPUT]
 - toolkits.memory.manager::MemoryManager (POS: memory lifecycle manager)
 - toolkits.memory.strategies.extractor::MemoryExtractor (POS: LLM-based memory extraction)
-- toolkits.memory.types::ConversationMemory (POS: verbatim conversation type definition)
-- toolkits.memory.chunking::chunk_conversation (POS: exchange-pair chunking strategy)
+- agent._internals.memory_verbatim::capture_current_exchange (POS: opt-in verbatim exchange capture)
 - agent.security.detection.deep_pii_detector::pseudonymize_deep_pii (POS: LLM deep PII detection)
 - langchain_core::BaseChatModel (POS: LLM for extraction)
 - utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
 
 [OUTPUT]
 - build_extraction_messages(): Construct messages for extraction
-- auto_extract_memories(): Dual-track extraction (verbatim + LLM, fire-and-forget)
+- auto_extract_memories(): Post-turn extraction (LLM compressed track, opt-in verbatim track; fire-and-forget)
 - persist_extracted_memories(): Store LLM-extracted memories via MemoryManager
-- create_conversation_memories(): Create verbatim ConversationMemory chunks
 - create_extraction_llm_func(): LLM wrapper for MemoryExtractor
 
 [POS]
-Memory auto-extraction utilities. Implements dual-track extraction strategy:
+Memory auto-extraction utilities. Implements the post-turn extraction strategy:
 
-**Dual-track extraction (MemPalace verbatim storage strategy):**
-1. **Verbatim Track** (enable_verbatim=True, default): Raw exchange pairs stored
-   as ConversationMemory (NO LLM processing, lossless preservation). Writes go
-   directly to the conversation index — not the inferred-memory pending queue.
-2. **Compressed Track**: LLM-extracted SemanticMemory/EpisodicMemory. Writes
-   default to the pending queue (``force_pending=True``) for GUI review unless
-   the caller opts out (API compat). Explicit ``memory_save_tool`` writes bypass
-   pending via ``_bypass_approval=True``.
+**Compressed Track (always runs):** LLM-extracted SemanticMemory/EpisodicMemory.
+Writes default to the pending queue (``force_pending=True``) for GUI review unless
+the caller opts out (API compat). Explicit ``memory_save_tool`` writes bypass
+pending via ``_bypass_approval=True``.
+
+**Verbatim Track (opt-in, ``enable_verbatim=True``; MemPalace verbatim storage
+strategy):** the newest user/assistant exchange is stored as a ConversationMemory
+(NO LLM processing, lossless) directly in the conversation index, bypassing the
+pending queue — see ``memory_verbatim``. Off by default: every turn then costs
+two embeddings and adds one point to the vector store, while the compressed track
+already preserves what is worth remembering.
 
 **Deep PII protection** (when PrivacyPolicy.deep_scan=True):
 After extraction, non-structured PII (medical conditions, political views, etc.)
@@ -57,6 +58,7 @@ from typing import TYPE_CHECKING, Literal, Protocol
 
 from langchain_core.language_models import BaseChatModel
 
+from myrm_agent_harness.agent._internals.memory_verbatim import capture_current_exchange
 from myrm_agent_harness.toolkits.memory.observability import MemoryOperationStatus
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
@@ -106,7 +108,6 @@ async def _notify_extraction_lifecycle(
 
 from myrm_agent_harness.toolkits.memory.types import (  # noqa: E402 — deferred import to avoid circular dependency
     AnyMemory,
-    ConversationMemory,
 )
 from myrm_agent_harness.utils.chat_utils import (  # noqa: E402 — deferred import to avoid circular dependency
     ChatHistoryReq,
@@ -159,46 +160,6 @@ def create_extraction_llm_func(
         return extract_answer_text(resp)
 
     return llm_func
-
-
-def create_conversation_memories(
-    messages: list[dict[str, str]],
-    source_chat_id: str | None = None,
-    project_id: str | None = None,
-    topic_id: str | None = None,
-) -> list[ConversationMemory]:
-    """Create verbatim ConversationMemory chunks from messages.
-
-    Uses exchange-pair chunking (MemPalace strategy) to preserve completeness.
-
-    Args:
-        messages: List of dicts with 'role' and 'content' keys
-        source_chat_id: Source chat/session identifier
-        project_id: Project/wing hierarchy (optional)
-        topic_id: Topic/room hierarchy (optional)
-
-    Returns:
-        List of ConversationMemory objects
-    """
-    from myrm_agent_harness.toolkits.memory.chunking import chunk_conversation
-    from myrm_agent_harness.toolkits.memory.types import ConversationMemory
-
-    chunks = chunk_conversation(messages)
-    conversation_memories: list[ConversationMemory] = []
-
-    for chunk in chunks:
-        memory = ConversationMemory(
-            raw_exchange=chunk.raw_text,
-            content=chunk.user_turn,
-            timestamp=chunk.timestamp,
-            source_chat_id=source_chat_id,
-            project_id=project_id,
-            topic_id=topic_id,
-            language=("zh" if any(ord(c) > 0x4E00 for c in chunk.user_turn[:50]) else "en"),
-        )
-        conversation_memories.append(memory)
-
-    return conversation_memories
 
 
 async def persist_extracted_memories(
@@ -344,7 +305,7 @@ async def auto_extract_memories(
     extraction_llm: BaseChatModel | None = None,
     source_chat_id: str | None = None,
     assistant_reply: str = "",
-    enable_verbatim: bool = True,
+    enable_verbatim: bool = False,
     *,
     deep_scan: bool = False,
     wiki_boundary_enabled: bool = False,
@@ -415,39 +376,17 @@ async def auto_extract_memories(
         verbatim_stored_count = 0
 
         if enable_verbatim:
-            conversation_memories = create_conversation_memories(messages, source_chat_id=source_chat_id)
-            if conversation_memories:
-                stored_verbatim = await memory_manager.store_batch(conversation_memories)
-                verbatim_stored_count = len(stored_verbatim)
-                logger.info(
-                    "Stored %d verbatim conversation chunks",
-                    verbatim_stored_count,
-                )
-                await _notify_extraction_lifecycle(
-                    lifecycle_observer,
-                    "write",
-                    MemoryOperationStatus.SUCCESS,
-                    chat_id=source_chat_id,
-                    summary=f"Stored {verbatim_stored_count} verbatim chunks",
-                    metadata={"stored_count": verbatim_stored_count},
-                )
-            else:
-                await _notify_extraction_lifecycle(
-                    lifecycle_observer,
-                    "write",
-                    MemoryOperationStatus.SKIPPED,
-                    chat_id=source_chat_id,
-                    summary="No verbatim chunks to store",
-                    metadata={"reason": "empty"},
-                )
-        else:
+            verbatim_stored_count = await capture_current_exchange(
+                memory_manager, messages, source_chat_id=source_chat_id
+            )
+            logger.info("Stored %d verbatim conversation chunks", verbatim_stored_count)
             await _notify_extraction_lifecycle(
                 lifecycle_observer,
                 "write",
-                MemoryOperationStatus.SKIPPED,
+                MemoryOperationStatus.SUCCESS if verbatim_stored_count else MemoryOperationStatus.SKIPPED,
                 chat_id=source_chat_id,
-                summary="Verbatim write disabled",
-                metadata={"reason": "verbatim_disabled"},
+                summary=f"Stored {verbatim_stored_count} verbatim chunks",
+                metadata={"stored_count": verbatim_stored_count},
             )
 
         llm_for_extraction = extraction_llm or llm
@@ -478,7 +417,7 @@ async def auto_extract_memories(
                 "extract",
                 MemoryOperationStatus.SUCCESS,
                 chat_id=source_chat_id,
-                summary="Verbatim only — no compressed cards",
+                summary="Verbatim only — no compressed cards" if verbatim_stored_count else "No memory cards extracted",
                 metadata={
                     "verbatim_count": verbatim_stored_count,
                     "compressed_count": 0,

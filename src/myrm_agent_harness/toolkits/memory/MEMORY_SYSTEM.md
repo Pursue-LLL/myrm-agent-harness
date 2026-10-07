@@ -239,13 +239,15 @@ vectors_config = {
 
 **Dual-track extraction（双轨提取）：**
 
-1. **Verbatim Track**（`enable_verbatim=True`，默认开启）：
-   - 无LLM处理，直接存储raw exchange pairs
-   - Exchange-pair chunking：`[(User Q1 + AI A1), (User Q2 + AI A2), ...]`
-   - 100% lossless preservation
-2. **Compressed Track**：
+1. **Compressed Track**（始终运行）：
    - LLM提取SemanticMemory/EpisodicMemory
    - Context compression + efficiency
+2. **Verbatim Track**（`enable_verbatim=True` 显式开启，**默认关闭**）：
+   - 无LLM处理；每轮只存储**当前一轮**的 exchange pair（`User Q + AI A`），更早的轮次已由各自回合存储
+   - 直接写入会话索引，绕过待审批队列（`_bypass_approval=True`），仍经过内容安全扫描
+   - 100% lossless preservation
+   - 默认关闭的原因：每轮 2 次 embedding 并新增 1 个向量点，而压缩轨道已保留值得记忆的内容
+   - 实现：`agent/_internals/memory_verbatim.py::capture_current_exchange`
 
 ### 4.3 Adaptive Dual-channel Retrieval
 
@@ -379,7 +381,7 @@ _decision_latency.record(latency_ms, {"use_dual": use_dual})
 
 | 维度               | MemPalace（参考对标） | MyrmAgent                         | 说明 |
 | ------------------ | --------------------- | --------------------------------- | ---- |
-| Verbatim 存储       | ✅                    | ✅                                | —    |
+| Verbatim 存储       | ✅                    | ✅（显式开启，默认关闭）            | —    |
 | Adaptive 查询      | ❌（文档视角）          | ✅（三路信号 + 阈值工程）           | Myrm Agent 可调节 |
 | Hybrid BM25+Vector | ❌                    | ✅（RRF）                         | 混合召回 |
 | 多语言 tokenization | ✅                   | ✅（统一 Unicode-aware 正则等）      | —    |
@@ -447,13 +449,13 @@ def scan_and_clean_memory(memory: object, *, block_threshold: float = 0.8) -> Sc
 | 字段           | 扫描覆盖 | 说明                                      |
 | -------------- | -------- | ----------------------------------------- |
 | content        | ✅       | 所有记忆类型的主要内容字段                |
-| raw_exchange   | ✅       | ConversationMemory的verbatim原始对话      |
+| raw_exchange   | ✅       | ConversationMemory的verbatim原始对话；`User:`/`Assistant:` 结构标签不参与注入检测，正文分段扫描 |
 | trigger/action | ✅       | ProceduralMemory的行为规则字段            |
 
 **测试覆盖：**
 
-- `test_memory_scanner.py`：29个单元测试，覆盖所有verdict路径
-- 包含 `test_conversation_memory_raw_exchange_*` 测试用例验证raw_exchange扫描
+- `test_memory_scanner.py`：覆盖所有verdict路径，含 `test_conversation_memory_raw_exchange_*` 验证raw_exchange扫描
+- `test_memory_scanner_exchange.py`：`TestConversationExchangeScan` 验证分块器布局的 exchange（结构标签不误报、回复内真实伪造角色行仍告警、凭证脱敏保持布局）
 
 ---
 
@@ -933,7 +935,7 @@ Human: 用户第一轮输入 …
 | 机制                       | 触发时机                      | 行为                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | -------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **集成数据自动播种**       | Integration 数据同步结束时    | **Automated Knowledge Seeding**：在服务端监听集成数据同步事件，拦截最新的一小批结构化数据（含类型和标题，限制在 200 条内以优化 Token），通过 `asyncio.create_task` 在后台异步调用 `MemoryExtractor` 的 No-Op Default 机制，静默提取高价值偏好特征并写入全局 Profile。                                                                                                                                                           |
-| **自动提取（Dual-track）** | `SkillAgent.run()` 结束时     | **Verbatim Track**（`enable_verbatim=True`，默认）：Raw exchange pairs存储为ConversationMemory（无LLM，lossless）；**Compressed Track**：LLM提取Semantic/EpisodicMemory（压缩）。需开启 `enable_memory_auto_extraction=True`（**默认True**，frontend UI toggle可配置）。可选：Task Digest（`enable_task_digest=True`），独立模型降本（`extraction_llm`）。Quality filter：跳过trivial conversations（<=3 messages且reply<100 chars），除非检测到correction signals |
+| **自动提取（Dual-track）** | `SkillAgent.run()` 结束时     | **Compressed Track**：LLM提取Semantic/EpisodicMemory（压缩）；**Verbatim Track**（`enable_verbatim=True` 显式开启，**默认关闭**）：当前一轮 exchange pair 存储为ConversationMemory（无LLM，lossless，绕过待审批队列）。需开启 `enable_memory_auto_extraction=True`（**默认True**，frontend UI toggle可配置）。可选：Task Digest（`enable_task_digest=True`），独立模型降本（`extraction_llm`）。Quality filter：跳过trivial conversations（<=3 messages且reply<100 chars），除非检测到correction signals |
 | **三层智能去重**           | `store_batch()`               | Hash（完全相同）→ Vector（相似度分段）→ 早期锁保护 → LLM（语义关系判断），支持 DUPLICATE/UPDATE_REPLACE/UPDATE_MERGE/NEW 决策，避免冗余 LLM 调用（需传递 `dedup_llm`）                                                                                                                                                                                                                                                                                              |
 | **循环触发巩固**           | `_cleanup_session()` 会话结束时 | 后台异步：将会话摘要 embedding 存入专用 recurrence buffer collection；若同话题出现 ≥k 次（cosine≥0.7），触发 LLM 精炼生成高质量长期记忆。重要性旁路：健康/安全/凭证类信息立即巩固。配置：`RecurrenceConfig`（`similarity_threshold`、`recurrence_k`、`buffer_capacity`、`importance_preemption`） |
 | **定期遗忘**               | 每 N 次 `end_session()`       | 扫描低保留分数记忆并删除；`relation_count` 通过向量邻居数（sim>0.8）近似计算，仅对 Semantic 集合，零额外写入                                                                                                                                                                                                                                                                                                                                                        |

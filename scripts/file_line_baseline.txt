@@ -4,7 +4,7 @@
 # Tighten caps with: check_file_line_limit.py --ratchet
 # Remove entries after splitting below 500 lines.
 myrm_agent_harness/agent/_internals/agent_runtime.py	960
-myrm_agent_harness/agent/_internals/memory_extraction.py	526
+myrm_agent_harness/agent/_internals/memory_extraction.py	465
 myrm_agent_harness/agent/_internals/run_lifecycle.py	749
 myrm_agent_harness/agent/base_agent.py	644
 myrm_agent_harness/agent/context_management/infra/schemas.py	715
