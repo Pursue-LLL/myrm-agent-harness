@@ -257,6 +257,15 @@ from .session_commit import (
     TwoPhaseSessionCommitEngine,
     UserPreferenceItem,
 )
+from .session_roaming import (
+    CollaborationRole,
+    DeviceAgnosticSessionRoamingEngine,
+    DevicePlatform,
+    ExecutableTeamShareBundle,
+    ForkAndContinueResult,
+    SandboxWarmMirrorSpec,
+    SessionRoamingBreakpoint,
+)
 from .shareable_fork import (
     InteractiveShareableForkEngine,
     LosslessForkResult,
@@ -422,6 +431,14 @@ __all__ = [
     "TriDimensionalDistillationResult",
     "TwoPhaseSessionCommitEngine",
     "UserPreferenceItem",
+    # session_roaming
+    "CollaborationRole",
+    "DeviceAgnosticSessionRoamingEngine",
+    "DevicePlatform",
+    "ExecutableTeamShareBundle",
+    "ForkAndContinueResult",
+    "SandboxWarmMirrorSpec",
+    "SessionRoamingBreakpoint",
     # shareable_fork
     "InteractiveShareableForkEngine",
     "LosslessForkResult",
