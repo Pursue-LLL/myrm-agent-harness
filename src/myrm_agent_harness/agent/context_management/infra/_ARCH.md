@@ -20,7 +20,7 @@ Context management infrastructure: shared types, budget management, session lock
 | schemas.py | Config | Context management shared data structures. Defines CacheUsageFeedback, ContextOffloadResult, compact format types, summary schemas, cache-TTL emergency prune ratio, restore-cost backoff thresholds, large-payload fast guard threshold, ContextConfig (including user-configurable compress_start_ratio for per-agent threshold tuning), and config | ✅ |
 | schemas_pre_compact.py | Config | PreCompactDecision (Cancel/Replace/Passthrough) + PreCompactInjection + ContextPreCompactCallback types | ✅ |
 | session_lock.py | Core | Session-level lock manager. Provides reentrant per-session async locks for serialized context mutations while preserving cross-session parallelism. | ✅ |
-| retention_helpers.py | Core | Shared retention helpers: compression_intent extraction (failed/focus/goal), group-aware focus matching via tool_call_id index, keep_recent prune cutoff, deterministic retain trim formatting | ✅ |
+| retention_helpers.py | Core | Shared retention helpers: compression_intent extraction (failed/focus/goal), group-aware focus matching via tool_call_id index, keep_recent prune cutoff, deterministic retain trim formatting (the "full output saved to" pointer is emitted only when a saved copy exists) | ✅ |
 | tool_result_trimming.py | Core | Deterministic trimming for oversized tool outputs. Uses structure-aware JSON compaction under the fast-guard threshold and bounded head/tail text trim above it. | ✅ |
 | evicted/ | Submodule | UECD subpackage — see [evicted/_ARCH.md](evicted/_ARCH.md) (`content` · `reader` · `persister` · `markers`) | ✅ |
 

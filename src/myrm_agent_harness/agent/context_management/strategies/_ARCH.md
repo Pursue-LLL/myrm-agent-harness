@@ -8,7 +8,7 @@ Three-tier context reduction strategies: Filter, Compress, Summarize.
 | File | Role | Description |
 |------|------|-------------|
 | `__init__.py` | Package | Namespace package. |
-| `filter.py` | Facade | Tool result filter facade. Truncates large tool outputs and generates smart previews via structural extraction. |
+| `filter.py` | Facade | Tool result filter facade. Truncates large tool outputs and generates smart previews via structural extraction. The truncation message only points `file_read_tool` at a saved path when a copy was actually persisted (a chat scope exists); otherwise it says no copy was saved and asks for a narrower re-run. |
 | `tool_call_groups.py` | Shared | Cross-domain utility: `ToolCallGroup`, `build_tool_call_groups`. Used by compactor, filters, and infra. |
 | `priority_signals.py` | Shared | Cross-domain utility: group-level focus/goal signal matchers. Used by compactor and retention_helpers. |
 
