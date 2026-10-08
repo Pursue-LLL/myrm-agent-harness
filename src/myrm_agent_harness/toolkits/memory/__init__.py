@@ -576,6 +576,18 @@ from myrm_agent_harness.toolkits.memory.mirror import (
     ColdMemoryRecord,
     HotColdMirrorEngine,
 )
+from myrm_agent_harness.toolkits.memory.multimodal import (
+    ArtifactKind,
+    AssetModality,
+    CrossModalRetriever,
+    MultimodalFeatureExtractor,
+    MultimodalIngestRequest,
+    MultimodalMemoryItem,
+    MultimodalMemoryOrchestrator,
+    MultimodalMemoryStore,
+    MultimodalSearchHit,
+    MultimodalSearchQuery,
+)
 from myrm_agent_harness.toolkits.memory.noise_free_extractor import (
     ConversationTurn,
     ExtractedFactCandidate,
@@ -1912,6 +1924,16 @@ __all__ = [
     "MutationSinkProtocol",
     "NaturalLanguageCorrectionDetector",
     "TargetNodeCandidate",
+    "ArtifactKind",
+    "AssetModality",
+    "CrossModalRetriever",
+    "MultimodalFeatureExtractor",
+    "MultimodalIngestRequest",
+    "MultimodalMemoryItem",
+    "MultimodalMemoryOrchestrator",
+    "MultimodalMemoryStore",
+    "MultimodalSearchHit",
+    "MultimodalSearchQuery",
 ]
 
 
