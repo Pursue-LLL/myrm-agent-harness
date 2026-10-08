@@ -188,6 +188,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | workspace_guard/ | 显式工作区探索守卫与自主扫盘抑制核心引擎。 See [workspace_guard/_ARCH.md](workspace_guard/_ARCH.md). |
 | worktree_isolation/ | Core implementation of Git Worktree Multi-Branch Parallel Session Isolation Engine. See [worktree_isolation/_ARCH.md](worktree_isolation/_ARCH.md). |
 | zero_thinking_route/ | Deterministic Task Detector identifying mechanical, non-reasoning prompts. See [zero_thinking_route/_ARCH.md](zero_thinking_route/_ARCH.md). |
+| zero_lockin_portability/ | Zero-Lockin universal context portability and cross-platform memory hydration suite (Item 322). See [zero_lockin_portability/_ARCH.md](zero_lockin_portability/_ARCH.md). |
 
 ## Key Dependencies
 

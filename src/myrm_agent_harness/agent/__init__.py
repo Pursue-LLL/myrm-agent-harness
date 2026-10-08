@@ -163,21 +163,46 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.agent.context_management",
         "SessionStateASTEngine",
     ),
+    "BilateralSovereigntyArchiveHub": (
+        "myrm_agent_harness.agent.context_management",
+        "BilateralSovereigntyArchiveHub",
+    ),
+    "ZeroLockinUniversalContextPortabilitySuite": (
+        "myrm_agent_harness.agent.context_management",
+        "ZeroLockinUniversalContextPortabilitySuite",
+    ),
+    "UniversalArchiveSpecEngine": (
+        "myrm_agent_harness.agent.context_management",
+        "UniversalArchiveSpecEngine",
+    ),
+    "CrossPlatformTranscriptNormalizer": (
+        "myrm_agent_harness.agent.context_management",
+        "CrossPlatformTranscriptNormalizer",
+    ),
+    "OfflineMemoryProfileHydrationEngine": (
+        "myrm_agent_harness.agent.context_management",
+        "OfflineMemoryProfileHydrationEngine",
+    ),
 }
 
 __all__ = [
     "ArtifactContinuityGateway",
+    "BilateralSovereigntyArchiveHub",
     "CanonicalAgentWorkspaceScaffoldingAndZeroFrictionHandoverSuite",
     "CanonicalScaffoldingSuite",
     "CrossHarnessContextStateASTAndLosslessRehydrationSuite",
     "CrossHarnessSuite",
+    "CrossPlatformTranscriptNormalizer",
     "HeartbeatManifestParser",
     "HeterogeneousContextHydrationBridge",
     "HeterogeneousWorkspaceSnifferAndWizard",
+    "OfflineMemoryProfileHydrationEngine",
     "OpportunitySensingEngine",
     "ProactiveAgentKernelContractAndInstinctiveProactivityLoopSuite",
     "ProactiveAgentKernelSuite",
     "SandboxedSafeWorkspaceEncapsulator",
+    "UniversalArchiveSpecEngine",
+    "ZeroLockinUniversalContextPortabilitySuite",
     "SessionStateASTEngine",
     "TopologyValidator",
     "SUBAGENT_CONFIGS",

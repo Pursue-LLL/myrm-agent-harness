@@ -1383,6 +1383,26 @@ from .cross_harness_ast import (
     SessionStateAST,
     SessionStateASTEngine,
 )
+from .zero_lockin_portability import (
+    ARCHIVE_SPEC_VERSION,
+    ArchivedSessionNode,
+    ArchivedSessionTree,
+    BilateralSovereigntyArchiveHub,
+    CrossPlatformTranscriptNormalizer,
+    ExportPlatformType,
+    ExtractedEntityFact,
+    HydratedUserProfile,
+    IngestionResultReport,
+    MemoryFactCategory,
+    NodeRole,
+    OfflineMemoryProfileHydrationEngine,
+    PortabilityHealthBadge,
+    SovereigntyRating,
+    UniversalArchivePayload,
+    UniversalArchiveSpecEngine,
+    ZeroLockinArchiveManifest,
+    ZeroLockinUniversalContextPortabilitySuite,
+)
 from .local_prefill_guard import (
     AdaptivePruningDecision,
     LatencyWarningLevel,
@@ -2726,6 +2746,25 @@ __all__ = [
     "HeterogeneousContextHydrationBridge",
     "SessionStateAST",
     "SessionStateASTEngine",
+    # zero_lockin_portability
+    "ARCHIVE_SPEC_VERSION",
+    "ArchivedSessionNode",
+    "ArchivedSessionTree",
+    "BilateralSovereigntyArchiveHub",
+    "CrossPlatformTranscriptNormalizer",
+    "ExportPlatformType",
+    "ExtractedEntityFact",
+    "HydratedUserProfile",
+    "IngestionResultReport",
+    "MemoryFactCategory",
+    "NodeRole",
+    "OfflineMemoryProfileHydrationEngine",
+    "PortabilityHealthBadge",
+    "SovereigntyRating",
+    "UniversalArchivePayload",
+    "UniversalArchiveSpecEngine",
+    "ZeroLockinArchiveManifest",
+    "ZeroLockinUniversalContextPortabilitySuite",
 ]
 
 
