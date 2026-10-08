@@ -119,6 +119,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | session_search/ | Core engine for Agent Session History FTS5 Search Toolkit. See [session_search/_ARCH.md](session_search/_ARCH.md). |
 | session_tree/ | Manages session timeline branching, message cloning, and in-place rewind. See [session_tree/_ARCH.md](session_tree/_ARCH.md). |
 | session_tree_dag/ | Main orchestration suite managing immutable session tree DAG and branching exploration. See [session_tree_dag/_ARCH.md](session_tree_dag/_ARCH.md). |
+| session_tree_gc/ | Engine executing topological dead branch prune and physical storage compaction. See [session_tree_gc/_ARCH.md](session_tree_gc/_ARCH.md). |
 | shareable_fork/ | 核心引擎实现：具备交互式运行时状态的会话免密分享链接、多端只读/协作穿透与一键无损分叉。 See [shareable_fork/_ARCH.md](shareable_fork/_ARCH.md). |
 | single_tier_override/ | Suite orchestrating single-tier rule override resolution, dynamic reloading, and audit explanations. See [single_tier_override/_ARCH.md](single_tier_override/_ARCH.md). |
 | skill_immunity/ | Active Skill Context Compaction Immunity and Re-Anchor Engine (Item 213). See [skill_immunity/_ARCH.md](skill_immunity/_ARCH.md). |

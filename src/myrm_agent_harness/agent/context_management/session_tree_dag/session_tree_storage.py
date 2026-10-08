@@ -102,3 +102,41 @@ class SessionTreeStorage:
     def get_raw_jsonl_lines(self) -> List[str]:
         """Return raw appended JSONL lines."""
         return list(self._append_log_lines)
+
+    @property
+    def persistence_file_path(self) -> Optional[str]:
+        """Return persistence file path if configured."""
+        return self._file_path
+
+    def squash_and_rewrite(self, retained_entries: List[SessionTreeEntry]) -> None:
+        """Atomically compact and rewrite in-memory entries and on-disk JSONL log."""
+        self._entries_by_id = {e.entry_id: e for e in retained_entries}
+        self._children_by_parent = {}
+        for entry in retained_entries:
+            parent_key = entry.parent_id or "ROOT"
+            if parent_key not in self._children_by_parent:
+                self._children_by_parent[parent_key] = []
+            self._children_by_parent[parent_key].append(entry.entry_id)
+
+        self._append_log_lines = []
+        for entry in retained_entries:
+            row_dict = {
+                "entry_id": entry.entry_id,
+                "parent_id": entry.parent_id,
+                "kind": entry.kind.value,
+                "session_id": entry.session_id,
+                "branch_name": entry.branch_name,
+                "created_at_iso": entry.created_at_iso,
+                "payload": entry.payload,
+                "entry_hash": entry.entry_hash,
+            }
+            self._append_log_lines.append(json.dumps(row_dict, ensure_ascii=False))
+
+        if self._file_path:
+            p = Path(self._file_path)
+            tmp_p = p.with_name(f".{p.name}.gctmp")
+            p.parent.mkdir(parents=True, exist_ok=True)
+            with open(tmp_p, "w", encoding="utf-8") as f:
+                for line in self._append_log_lines:
+                    f.write(line + "\n")
+            tmp_p.replace(p)

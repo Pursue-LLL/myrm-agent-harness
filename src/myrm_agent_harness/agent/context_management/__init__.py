@@ -939,8 +939,21 @@ from .transparent_gauge import (
     WatermarkAlertLevel,
     WatermarkState,
 )
+from .session_tree_gc import (
+    GcSafetyRule,
+    PrunedBranchReport,
+    SessionTreeBranchPruneAndStorageGCSuite,
+    SessionTreeGcEngine,
+    StorageGcReceipt,
+)
 
 __all__ = [
+    # session_tree_gc
+    "GcSafetyRule",
+    "PrunedBranchReport",
+    "SessionTreeBranchPruneAndStorageGCSuite",
+    "SessionTreeGcEngine",
+    "StorageGcReceipt",
     # transparent_gauge
     "BudgetAnalyzer",
     "BudgetSegmentBreakdown",

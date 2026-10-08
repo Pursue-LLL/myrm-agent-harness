@@ -7,6 +7,23 @@
 Benchmarked against FrankHu-HK/mnemosyne knapsack algorithm:
 Defines candidate records, dual-track token budget constraints,
 marginal utility metrics, and packing outcome reports.
+
+[INPUT]
+- Third-party: pydantic
+
+[OUTPUT]
+- PackingDecisionReason: Reason why a memory candidate was packed or dropped.
+- PackingItemTier: Fidelity tier of an item packed into the budgeted prompt context.
+- RecallCandidate: Raw candidate memory record retrieved from vector or keyword storage.
+- BilledTokenBudget: Token budget constraints and heuristic tuning parameters.
+- MarginalValueMetrics: Marginal value evaluation breakdown for a candidate.
+- PackedCandidateItem: Candidate memory record selected and packed into the budget.
+- DroppedCandidateItem: Candidate memory record rejected from the budget.
+- TokenAccountingReport: Dual-track token accounting and cost efficiency metrics.
+- PackedRecallResult: Complete outcome of greedy marginal value recall packing.
+
+[POS]
+Domain models for Budget Greedy Marginal Value Recall Packing Suite (Item 122 P2).
 """
 
 from __future__ import annotations
@@ -46,6 +63,7 @@ class RecallCandidate(BaseModel):
     billed_tokens: int = Field(default=50, ge=1, description="Estimated billed tokens consumed in prompt context")
     storage_tokens: int = Field(default=80, ge=1, description="Physical storage token weight")
     domain_tags: tuple[str, ...] = Field(default_factory=tuple, description="Domain or category tags")
+    source_session_id: str | None = Field(default=None, description="Originating session identifier")
     summary_l1: str | None = Field(default=None, description="Optional concise L1 overview")
     metadata: dict[str, str] = Field(default_factory=dict, description="Arbitrary metadata attributes")
 
