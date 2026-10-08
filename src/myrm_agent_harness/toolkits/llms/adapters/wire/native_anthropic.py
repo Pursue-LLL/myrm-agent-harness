@@ -13,12 +13,9 @@ Anthropic models behind a gateway (OpenRouter, Bedrock, Vertex AI, ``openai/`` e
 
 from __future__ import annotations
 
-from functools import lru_cache
-
 _NATIVE_PROVIDER = "anthropic"
 
 
-@lru_cache(maxsize=512)
 def is_native_anthropic_wire(
     model: str,
     api_base: str | None = None,

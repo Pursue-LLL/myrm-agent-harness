@@ -14,8 +14,6 @@ Stateless utilities for inspecting LLM model properties.
 
 from __future__ import annotations
 
-from functools import lru_cache
-
 from langchain_core.language_models import BaseChatModel
 
 
@@ -53,7 +51,6 @@ def get_model_context_limit(llm: BaseChatModel) -> int | None:
         return None
 
 
-@lru_cache(maxsize=512)
 def get_model_output_ceiling(model_name: str) -> int | None:
     """Documented per-response output ceiling of *model_name*, or None when LiteLLM does not know it.
 

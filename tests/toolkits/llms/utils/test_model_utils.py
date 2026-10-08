@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
 from unittest.mock import MagicMock, patch
 
 import litellm
@@ -91,14 +90,6 @@ class TestGetModelContextLimit:
         assert get_model_context_limit(llm) == 16384
 
 
-@pytest.fixture
-def fresh_ceiling_cache() -> Iterator[None]:
-    get_model_output_ceiling.cache_clear()
-    yield
-    get_model_output_ceiling.cache_clear()
-
-
-@pytest.mark.usefixtures("fresh_ceiling_cache")
 class TestGetModelOutputCeiling:
     def test_reads_max_output_tokens_not_the_legacy_max_tokens_field(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """For part of the table ``max_tokens`` holds the context window, which is not an output limit."""
@@ -125,18 +116,6 @@ class TestGetModelOutputCeiling:
 
         monkeypatch.setattr(litellm, "get_model_info", _unexpected)
         assert get_model_output_ceiling("") is None
-
-    def test_lookup_is_cached_per_model(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        calls: list[str] = []
-
-        def _table(model: str) -> dict[str, int]:
-            calls.append(model)
-            return {"max_output_tokens": 8192}
-
-        monkeypatch.setattr(litellm, "get_model_info", _table)
-        assert get_model_output_ceiling("vendor/cached-model") == 8192
-        assert get_model_output_ceiling("vendor/cached-model") == 8192
-        assert calls == ["vendor/cached-model"]
 
 
 class TestClampBudgetToModelCeiling:
