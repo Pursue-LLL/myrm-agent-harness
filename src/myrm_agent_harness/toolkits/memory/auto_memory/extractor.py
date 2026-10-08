@@ -11,6 +11,16 @@ Converts conversation turns into organized memory slices across:
 4. reusable_knowledge
 5. failure_lessons
 6. tool_habits
+
+[INPUT]
+- toolkits.memory.auto_memory.models::SixDimensionalMemorySlice (POS: Domain models for Idle and Budget Gated
+  Auto-Memory Engine Suite (Item 123 P1).)
+
+[OUTPUT]
+- SixDimensionalExtractor: Extracts organized six-dimensional memory artifacts from message streams.
+
+[POS]
+Six-dimensional structured artifact extractor for session memory.
 """
 
 from __future__ import annotations

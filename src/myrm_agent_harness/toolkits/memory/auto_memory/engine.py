@@ -6,6 +6,22 @@
 
 Coordinates inactivity timing, turn thresholds, token budget checks,
 and 6-dimensional structured memory artifact extraction.
+
+[INPUT]
+- toolkits.memory.auto_memory.extractor::SixDimensionalExtractor (POS: Six-dimensional structured artifact
+  extractor for session memory.)
+- toolkits.memory.auto_memory.gate::AutoMemoryGate (POS: Dual-gate evaluation engine enforcing turn count and
+  token budget thresholds.)
+- toolkits.memory.auto_memory.models::AutoMemoryBudgetPolicy, AutoMemoryExtractionResult,
+  AutoMemoryGatingDecision, SessionActivitySnapshot, SixDimensionalMemorySlice (POS: Domain models for Idle
+  and Budget Gated Auto-Memory Engine Suite (Item 123 P1).)
+
+[OUTPUT]
+- IdleAndBudgetGatedAutoMemoryEngine: Orchestrates idle detection, dual-gating, and six-dimensional memory
+  extraction.
+
+[POS]
+Unified coordination engine for idle and budget-gated auto-memory consolidation.
 """
 
 from __future__ import annotations

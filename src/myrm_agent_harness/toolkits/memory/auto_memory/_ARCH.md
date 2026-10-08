@@ -21,3 +21,13 @@
 - Deterministic heuristic and prompt extraction in `extractor.py`.
 - Unified state machine and entrypoint in `engine.py`.
 - Strict typing, zero `Any`, frozen domain models in `models.py`.
+
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| `__init__.py` | Package | Idle and Budget Gated Auto-Memory Engine Suite (Item 123 P1). | ✅ |
+| `engine.py` | Core | Unified coordination engine for idle and budget-gated auto-memory consolidation. | ✅ |
+| `extractor.py` | Core | Six-dimensional structured artifact extractor for session memory. | ✅ |
+| `gate.py` | Core | Dual-gate evaluation engine enforcing turn count and token budget thresholds. | ✅ |
+| `models.py` | Types | Domain models for Idle and Budget Gated Auto-Memory Engine Suite (Item 123 P1). | ✅ |

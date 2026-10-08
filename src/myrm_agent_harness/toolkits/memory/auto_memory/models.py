@@ -6,6 +6,19 @@
 
 Defines gating decisions, session activity snapshots, budget protection policies,
 and the six-dimensional structured memory artifact model.
+
+[INPUT]
+- Third-party: pydantic
+
+[OUTPUT]
+- AutoMemoryGatingDecision: Gating decision outcomes for automated session memory consolidation.
+- SessionActivitySnapshot: Point-in-time activity and workload snapshot of an interactive session.
+- AutoMemoryBudgetPolicy: Dual-gate threshold constraints and token safety limits.
+- SixDimensionalMemorySlice: Six-dimensional structured artifact organizing durable session insights.
+- AutoMemoryExtractionResult: Aggregated outcome of auto-memory gating evaluation and extraction.
+
+[POS]
+Domain models for Idle and Budget Gated Auto-Memory Engine Suite (Item 123 P1).
 """
 
 from __future__ import annotations

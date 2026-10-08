@@ -6,6 +6,17 @@
 
 Prevents trivial conversation debris from polluting the memory store and protects
 user token budgets from autonomous background consumption.
+
+[INPUT]
+- toolkits.memory.auto_memory.models::AutoMemoryBudgetPolicy, AutoMemoryGatingDecision,
+  SessionActivitySnapshot (POS: Domain models for Idle and Budget Gated Auto-Memory Engine Suite (Item 123
+  P1).)
+
+[OUTPUT]
+- AutoMemoryGate: Stateless evaluator enforcing idle timeouts and dual-gate criteria.
+
+[POS]
+Dual-gate evaluation engine enforcing turn count and token budget thresholds.
 """
 
 from __future__ import annotations
