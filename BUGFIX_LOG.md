@@ -2,6 +2,54 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-08-004 · 健康探活与连通性测试的“5 秒超时、1 个 token”从未生效：写在 `config` 里的限制到不了提供方，挂起的端点最多占住调用方 300 秒
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-08 |
+| **修复时间** | 2026-10-08 |
+| **症状** | 假客户端加真实适配器实测：`llm.ainvoke(messages, config={"max_tokens": 1, "timeout": 5.0})` 到达提供方调用的参数是 `max_tokens=4096`、`force_timeout=300.0`，两个限制都没有生效。受影响的调用点共三处：`lightweight_health_check`（故障转移对冷却候选的探活，以及服务端 `/check-reachability`）、设置页「测试本地模型」`POST /config/test-local-model`、每日回顾生成 `daily_wrap`。端点挂起时调用方最多等 300 秒；设置页在 15 秒后中止请求，只能显示不带原因的“连接失败”。文档与注释还写着“1-token 探活”，与行为不符；`lightweight_health_check_with_retry` 全仓库没有调用方 |
+| **关联产品** | myrm-agent-harness `toolkits/llms/fallback/health_check.py`；myrm-agent-server `app/api/config/router.py`、`app/api/statistics/daily_wrap.py`、`app/api/integrations/llms.py`（文档） |
+| **根因** | `ainvoke` 的 `config` 是 LangChain 的 RunnableConfig（回调、标签、元数据），不是模型调用参数，其中的 `max_tokens`、`timeout` 不会被转给提供方；真正的超时要么来自模型自己的 `request_timeout`（默认 300 秒），要么必须由调用方用 `asyncio.wait_for` 强制 |
+| **修复** | `lightweight_health_check` 改为 `asyncio.wait_for(llm.ainvoke(...), timeout_s)`，到期即取消并返回 False；不强制 `max_tokens`（推理模型会拒绝低于其思考预留的预算，探活成本由截止时间约束）；删除无调用方的 `lightweight_health_check_with_retry` 及其导出。服务端：`/test-local-model` 设 12 秒截止（低于设置页的 15 秒中止，失败以分类消息返回）；`daily_wrap` 设 60 秒截止，到期转为 408 `timeout_error`，因为裸 `TimeoutError` 会被 `internal_error()` 报成 `Database operation timeout`（去掉转换的变异实测：500 `Get daily wrap failed: Database operation timeout`）；各处“1-token”文档与注释改为真实行为 |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | 把 `config=` 当作单次调用参数是同一个误读，harness `src`、服务端 `app`、控制平面 `src` 中该写法已清零（逐目录搜索无剩余）。要给模型调用加时间上限，只能用模型构造参数或 `asyncio.wait_for`。12 秒与 60 秒是按设置页 15 秒中止和端点现有行为取的设计值，没有时延分布数据；服务端依赖已发布的 harness 版本，`/check-reachability` 的真实截止时间要等 harness 升版后才随发布生效 |
+| **回归** | harness：`tests/toolkits/llms/fallback/test_health_check.py`（7 个，含到期取消与不转发 config）；服务端：`tests/api/config/test_local_model_endpoint.py`（3 个）、`tests/api/statistics/test_daily_wrap.py` 与 `test_daily_wrap_integration.py` 各 1 个；去掉截止时间的变异使 3 个超时用例全部失败 |
+| **代码位置** | `toolkits/llms/fallback/health_check.py::lightweight_health_check` · 服务端 `app/api/config/router.py::test_local_model/_LOCAL_MODEL_TEST_TIMEOUT_S` · `app/api/statistics/daily_wrap.py::_generate_wrap_via_llm/_WRAP_LLM_TIMEOUT_S` |
+
+### BUG-HARNESS-2026-10-08-003 · 提供方拒绝 `max_tokens` 时整轮失败或误触发破坏性压缩，流式重试还会把已发出的内容再发一遍
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-08 |
+| **修复时间** | 2026-10-08 |
+| **症状** | 真实 litellm `BadRequestError` 逐条实测（修复前 `c61149b4^`）：DashScope、DeepSeek、Azure/OpenAI（`supports at most N completion tokens`）、Anthropic（`max_tokens: X > N, which is the maximum allowed number of output tokens`）、网关（`exceeds model's maximum output tokens (N)`）、火山方舟（`expected a value <= N`）、Groq（`must be less than or equal to N`）七类“超出模型输出上限”的 400 全部分类为 `FORMAT_ERROR`，`is_context_overflow` 为 False；旧解析只认出 DashScope（8192），其余六类解析为空，没有任何恢复，整轮失败。压力闸门 `is_presumed_overflow`（`FORMAT_ERROR` + HTTP 400 + 占用 ≥ 0.85）还会把这类 400 当成上下文溢出，触发破坏性压缩。另一条路径：流式调用先流出 `Hello` 再报窗口溢出（Anthropic 措辞），旧代码重启请求，调用方收到 `['Hello', 'Hello', ' world']`，即 `HelloHello world`（真实重放 `c61149b4^`） |
+| **关联产品** | myrm-agent-harness `toolkits/llms/errors` · `toolkits/llms/adapters/chat_model` · `agent/streaming/recovery` |
+| **根因** | 三处叠加：（1）旧解析器只覆盖 5 种措辞（Anthropic `available_tokens`、OpenRouter 分解、LM Studio 字符数、vLLM、DashScope 范围），模型上限类只有 DashScope 能解析，且只作为单次覆盖使用，不会被记住，每个新请求都再被拒一次；（2）四个调用循环（异步/同步 × 流式/非流式）各自复制一份恢复代码，“尚未向调用方发出任何内容”的保护只存在于其中一块；（3）压力闸门用“FORMAT_ERROR + 400 + 高占用”推断溢出，无法区分模型上限拒绝。推理模型的输出预留下限（16384）还会把请求预算抬高，增加触顶机会 |
+| **修复** | 新增 `errors/output_limit.py`：`parse_output_limit` 返回类型化的 `OutputLimit(tokens, model_cap)`，覆盖七类模型上限与窗口余量措辞；新增 `adapters/chat_model/output_cap_recovery.py`：四个循环共用同一恢复步骤，重试之间只改 `max_tokens`（提示前缀缓存照常命中）；模型上限按声明值采用，并按（模型、base_url）记入有界（256 条、先进先出）、带过期（3600 秒）的内存表，只会在截断放大覆盖之后向下收紧；窗口余量留 64 个 token 余量且不记忆；采用值低于 500、不小于原请求、不高于思考预算，或拒绝状态码不在 400/413/422 时拒绝恢复。网关参数、payload 与输出上限三处恢复统一加“尚未发出任何内容”保护，内容已流出后的错误原样抛给调用方；压力闸门遇到明确的模型上限措辞不再判为溢出 |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | 全部改动被另一会话使用共享索引的提交带走，落在 `c61149b4`（提交说明写的是别的特性，历史不能改写）。七类措辞取自提供方 issue、文档与网关测试集，没有做真实提供方调用；被拒的 400 是否计费未核实；3600 秒过期、500 下限、64 余量是设计取值，没有频率或时延数据 |
+| **回归** | `tests/toolkits/llms/test_output_limit.py`（49 个）· `tests/toolkits/llms/adapters/test_output_cap_recovery.py`（44 个，含流式“内容已发出后不重启”、重试只改 `max_tokens`、记忆表有界先进先出与过期）· `tests/agent/streaming/test_context_pressure_gate.py`（+1 个）；去掉“尚未发出内容”保护的变异使 6 个流式用例失败，“首块之前仍恢复”的用例保持通过 |
+| **代码位置** | `toolkits/llms/errors/output_limit.py` · `toolkits/llms/adapters/chat_model/output_cap_recovery.py` · `adapters/chat_model/async_mixin.py` / `sync_mixin.py` / `model.py` · `agent/streaming/recovery/context_pressure_gate.py::is_presumed_overflow` |
+
+### BUG-HARNESS-2026-10-08-002 · `litellm` 下限被抬到 1.104 后依赖集无解：`uv lock` 与 `uv sync --locked` 失败，发布的 wheel 也装不上
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-08 |
+| **修复时间** | 2026-10-08 |
+| **症状** | `pyproject.toml` 核心依赖同时要求 `litellm>=1.104.0` 与 `filelock>=4.0.12`；`litellm` 1.104 起的基础依赖要求 `filelock<4`，二者互斥，`uv lock` 与 `uv sync --locked` 无解，按该元数据发布的 wheel 同样无法安装 |
+| **关联产品** | myrm-agent-harness `pyproject.toml`（核心依赖）· `uv.lock` |
+| **根因** | `777f32ab` 把 `litellm` 下限抬到 1.104.0，没有考虑它对 `filelock` 的传递性上限与项目自己的 `filelock>=4.0.12` 冲突；这类冲突只有依赖解析器会报 |
+| **修复** | 下限回到 `litellm>=1.98.0`，依赖行注释写明“`litellm>=1.104` 要求 `filelock<4`，下限不可越过 1.103.x”；`uv.lock` 保持 litellm 1.103.3，只刷新说明符行，锁定版本没有变化 |
+| **反复次数** | 第 1 次发现；与 `BUG-HARNESS-2026-10-07-007` 同属“核心依赖下限与其他依赖的传递性约束互斥”一类 |
+| **踩坑** | 抬升核心依赖下限必须同时重新解析（`uv lock`）。本机 uv 配置了清华镜像，在仓库内重新生成锁文件会把全部 registry 地址改写成镜像地址，提交前必须确认 `uv.lock` 的差异不含镜像 URL |
+| **回归** | `tests/architecture/test_core_dependencies.py::test_uv_lock_core_matches_pyproject`；`.github/workflows/test.yml` 的 `uv sync --locked` |
+| **代码位置** | `pyproject.toml`（`litellm` 依赖行） |
+
 ### BUG-HARNESS-2026-10-08-001 · 技能与专家导出的脱敏把密钥原样留在包里、把无害设置改成占位符，且审阅面板的类型标签是英文原文
 
 | 字段 | 内容 |
