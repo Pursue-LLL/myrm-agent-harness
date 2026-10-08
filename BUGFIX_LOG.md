@@ -2,6 +2,38 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-08-006 · Linux 上后台 PTY 任务的输出在子进程退出后被丢弃：主端读取抛 `OSError: [Errno 5]`，尚未被取走的行全部丢失且没有任何提示
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-08 |
+| **修复时间** | 2026-10-08 |
+| **症状** | Linux 上以 PTY 方式启动的后台任务，子进程退出后对 `process.stdout.readline()` 的读取抛 `OSError: [Errno 5] Input/output error`：任务打印几行就退出时，除消费方已经取走的行之外全部丢失；`agent/meta_tools/bash/_background/consume.py` 把 `OSError` 当作“流结束”吞掉（`except (ConnectionError, OSError, asyncio.CancelledError): return`），所以不会有任何错误提示，只是读到一份被截短的输出。macOS 读到的是 EOF，本地从未复现；由 PR 的 Linux CI 暴露：`test_spawn_full_duplex_communication`、`test_spawn_stderr_capture` 失败 |
+| **关联产品** | myrm-agent-harness `toolkits/code_execution/executors/local` · `agent/meta_tools/bash/_background` |
+| **根因** | PTY 从端关闭后，Linux 让主端的下一次读取失败并返回 EIO（macOS 返回 EOF）。PTY 后台启动把主端接到普通的 asyncio `StreamReaderProtocol` 上，asyncio 把 EIO 转成 `StreamReader.set_exception()`；此后每次 `readline()` 都先检查该异常再看缓冲区（CPython 3.13：`unix_events._fatal_error → connection_lost(exc)`，`streams.readuntil` 先检查 `_exception`），缓冲区里已经收到的行因此被丢弃 |
+| **修复** | `_background_pty_spawn.py` 新增 `_PtyReaderProtocol`：`connection_lost` 收到 EIO 时按干净的流结束处理（先交付缓冲区里的行，随后返回 `b""`），其余读取错误原样透传。CPython 3.13 实测：标准协议在 `connection_lost(EIO)` 之后、缓冲区有 3 行时，首次 `readline()` 即抛 `OSError(5)`；换用新协议后依次读到 line1、line2、line3、`b""` |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | PTY 挂断语义在 macOS 与 Linux 上不同，只在 macOS 上开发永远看不到；上层为容错把 `OSError` 一律当作流结束，等于把数据丢失伪装成正常结束，因此只能靠 Linux 上的测试暴露。修复放在协议层把 EIO 归一为 EOF，而不是放宽上层对 `OSError` 的吞掉 |
+| **回归** | `tests/toolkits/code_execution/executors/local/test_background_pty_spawn.py`：`test_pty_reader_protocol_keeps_buffered_lines_when_linux_reports_eio`、`test_pty_reader_protocol_still_surfaces_other_read_errors`（协议级，所有平台运行）与 `test_spawned_pty_output_survives_child_exit`（真实 PTY，子进程打印三行后退出，退出后再读取）；相关套件（`executors/local` 与 `agent/meta_tools/bash` 的后台/spawn）207 passed |
+| **代码位置** | `toolkits/code_execution/executors/local/_background_pty_spawn.py::_PtyReaderProtocol` |
+
+### BUG-HARNESS-2026-10-08-005 · 干净检出的 `origin/main` 导入 `agent.middlewares` 即抛 `ImportError`：三方授权委托包的定义从未提交，CI 单测与浏览器作业大面积变红
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-08 |
+| **修复时间** | 2026-10-08 |
+| **症状** | 在 `git archive origin/main src` 解出的纯净源码树上执行 `import myrm_agent_harness.agent.middlewares`，抛 `ImportError: cannot import name 'get_delegation_token' from 'myrm_agent_harness.agent.middlewares._session_context'`，导入该包的模块全部加载失败。`origin/main`（`61c328b7`）的 CI 因此单测作业 629 个失败 + 170 个错误（共 799 条异常行，其中 685 条出自这条导入链），浏览器作业的 116 个收集错误全部出自它；开发者本地树里这些文件存在，本机看不到任何异常 |
+| **关联产品** | myrm-agent-harness `agent/security/delegation` · `agent/middlewares/_session_context.py` · `agent/middlewares/__init__.py` |
+| **根因** | `agent/middlewares/__init__.py` 重新导出 `get_delegation_token`，而它的定义（`_session_context.py` 中的 `set_delegation_token`/`get_delegation_token`，以及整个 `agent/security/delegation/` 包）只存在于本地树，从未提交。仓库里没有任何一步在“只含已提交文件”的树上导入包，缺失只能由 CI 的干净检出暴露；该包此前也没有任何测试引用（`tests/` 下零处） |
+| **修复** | 补交 `agent/security/delegation/{__init__,models,guard}.py` 与 `_ARCH.md`（`agent/security/_ARCH.md` 增加索引行），并在 `_session_context.py` 增加 `set_delegation_token`/`get_delegation_token`（用上下文变量承载当前令牌）；只补已提交导出所需的定义。同一 PR 的单测作业失败数：修复前 `origin/main` 为 629 个失败 + 170 个错误，修复后首轮为 66 个失败，同一分支继续收敛到 4 个失败（`a7d8f69e`；66 到 4 的下降来自同一分支里与平台、测试隔离相关的修复，与本条无关） |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | 本地树完整不等于仓库完整：导出点与被导出的定义分属不同提交时，开发机上一切正常，唯一的信号是在只含已提交文件的树上导入包。最便宜的复核：`git archive HEAD src \| tar -x -C <dir>` 后以 `PYTHONPATH=<dir>/src` 导入 `myrm_agent_harness.agent.middlewares` |
+| **回归** | `tests/agent/security/delegation/test_triad_delegation.py`：首个导入即 `from myrm_agent_harness.agent.middlewares import get_delegation_token`（定义缺失时在收集阶段失败）；其余用例覆盖有效权限 = 请求者与执行智能体的交集、审批人只能补充智能体已有的权限、通配符、过期令牌、子智能体收窄、守卫缺令牌时失败即关闭、`SubjectIdentity` 往返、会话访问器；`.github/workflows/test.yml` 在干净检出上运行全部单测 |
+| **代码位置** | `agent/security/delegation/{models,guard}.py` · `agent/middlewares/_session_context.py::set_delegation_token/get_delegation_token` |
+
 ### BUG-HARNESS-2026-10-07-007 · 安装 `myrm-agent-harness[pdf-ocr]` 依赖无解：核心要求 `PyYAML>=6.0.3`，而 PaddleOCR 链固定 `PyYAML==6.0.2`，与 `retrieval` 同装时又被 numpy 上限卡死
 
 | 字段 | 内容 |
