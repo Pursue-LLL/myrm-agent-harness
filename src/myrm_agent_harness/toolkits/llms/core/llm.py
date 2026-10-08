@@ -1,6 +1,6 @@
 """LLM Core — LiteLLM wrapper
 
-agent/context_management/PROMPT_CACHE_PRACTICE.md §6.1-6.2 whenever this file changes.
+Review agent/context_management/PROMPT_CACHE_PRACTICE.md §6.1-6.2 whenever this file changes.
 
 [INPUT]
 - adapters.chat_model::ChatLiteLLM, clean_model_kwargs (POS: LangChain adapter)

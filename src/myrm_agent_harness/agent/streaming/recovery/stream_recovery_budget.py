@@ -52,7 +52,7 @@ class StreamOutputBudgetMixin:
         if base is None:
             base = self._default_output_tokens()
         if base is None:
-            logger.warning(" Output token boost skipped: no configured max_tokens and model ceiling unknown")
+            logger.warning("Output token boost skipped: no configured max_tokens and model ceiling unknown")
             return
 
         multiplier = min(retries + 2, 4)
@@ -62,11 +62,11 @@ class StreamOutputBudgetMixin:
             accepted=base,
         )
         if boosted <= base:
-            logger.warning(" Output token boost skipped: configured budget %d already reaches the cap or ceiling", base)
+            logger.warning("Output token boost skipped: configured budget %d already reaches the cap or ceiling", base)
             return
         set_ephemeral_max_output_tokens(boosted)
         logger.info(
-            " Output token boost: %d → %d (×%d, cap %d)",
+            "Output token boost: %d → %d (×%d, cap %d)",
             base,
             boosted,
             multiplier,
@@ -100,8 +100,8 @@ class StreamOutputBudgetMixin:
         """Read the configured max_tokens from the LLM instance.
 
         Checks ``llm.max_tokens`` first (direct Pydantic field), then falls
-        back to ``llm.model_kwargs["max_tokens"]`` which is where the value
-        lands when users set it via the frontend ModelKwargsEditor.
+        back to ``llm.model_kwargs["max_tokens"]``, where a value supplied as
+        a per-model kwarg lands.
         """
         ctx = self._ctx
         llm = ctx.llm

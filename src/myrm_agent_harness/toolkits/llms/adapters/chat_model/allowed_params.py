@@ -8,11 +8,8 @@
 - inject_allowed_params(): white-list a call's own parameters against LiteLLM's provider filter
 
 [POS]
-Parameter-protection step of every ChatLiteLLM call, bound as ``ChatLiteLLM._inject_allowed_params``.
-``allowed_openai_params`` makes LiteLLM forward each listed key as given, in addition to its own
-provider translation. That is the intent for OpenAI-compatible gateways with incomplete capability
-declarations; on the first-party Anthropic Messages API the same raw OpenAI-shaped fields are
-rejected ("Extra inputs are not permitted"), so those calls are left to LiteLLM's translation.
+Per-call parameter-protection step of ChatLiteLLM, bound as ``ChatLiteLLM._inject_allowed_params``.
+First-party Anthropic Messages API calls are skipped because that API rejects the raw OpenAI-shaped copies.
 """
 
 from __future__ import annotations

@@ -291,6 +291,8 @@ filterwarnings = [
     "error",
     "ignore:The default value of `allowed_objects` will change:langchain_core._api.deprecation.LangChainPendingDeprecationWarning",
     "ignore::DeprecationWarning:litellm",
+    # LiteLLM >= 1.103 types use typing_extensions.ReadOnly in a TypedDict; pydantic warns when it builds the schema.
+    "ignore:Item .* on TypedDict class .* is using the .ReadOnly. qualifier:UserWarning:pydantic",
     "ignore::DeprecationWarning:pydantic",
     "ignore::DeprecationWarning:google",
     "ignore::DeprecationWarning:pkg_resources",
