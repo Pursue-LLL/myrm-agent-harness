@@ -7,7 +7,7 @@ from collections.abc import Iterator
 
 import pytest
 
-# ``agent.middlewares`` re-exports the accessor; importing it is what a clean checkout once failed on.
+# ``agent.middlewares`` re-exports the accessor; this import fails at collection if the definition is missing.
 from myrm_agent_harness.agent.middlewares import get_delegation_token
 from myrm_agent_harness.agent.middlewares._session_context import set_delegation_token
 from myrm_agent_harness.agent.security.delegation.guard import (
