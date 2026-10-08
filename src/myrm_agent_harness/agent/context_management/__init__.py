@@ -1403,6 +1403,22 @@ from .zero_lockin_portability import (
     ZeroLockinArchiveManifest,
     ZeroLockinUniversalContextPortabilitySuite,
 )
+from .decoupled_dreaming import (
+    ALIAS_CANONICAL_MAPPINGS,
+    ConsolidatedEntityConcept,
+    DecoupledMemoryConsolidationDreamingEngineAndServerlessStateSyncSuite,
+    DecoupledMemoryConsolidationSuite,
+    DirectMemoryDriveChannel,
+    DreamingConsolidationReport,
+    GoldenMemorySnapshot,
+    LockFreeSnapshotBroadcaster,
+    MemoryDriveSpec,
+    MemoryEntryRole,
+    MemoryLogEntry,
+    NightlyDreamingPipeline,
+    SnapshotBroadcastNotification,
+    StorageEngineType,
+)
 from .local_prefill_guard import (
     AdaptivePruningDecision,
     LatencyWarningLevel,
@@ -2765,6 +2781,21 @@ __all__ = [
     "UniversalArchiveSpecEngine",
     "ZeroLockinArchiveManifest",
     "ZeroLockinUniversalContextPortabilitySuite",
+    # decoupled_dreaming
+    "ALIAS_CANONICAL_MAPPINGS",
+    "ConsolidatedEntityConcept",
+    "DecoupledMemoryConsolidationDreamingEngineAndServerlessStateSyncSuite",
+    "DecoupledMemoryConsolidationSuite",
+    "DirectMemoryDriveChannel",
+    "DreamingConsolidationReport",
+    "GoldenMemorySnapshot",
+    "LockFreeSnapshotBroadcaster",
+    "MemoryDriveSpec",
+    "MemoryEntryRole",
+    "MemoryLogEntry",
+    "NightlyDreamingPipeline",
+    "SnapshotBroadcastNotification",
+    "StorageEngineType",
 ]
 
 

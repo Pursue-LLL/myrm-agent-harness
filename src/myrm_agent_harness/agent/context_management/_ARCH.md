@@ -58,6 +58,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | cross_session_mention/ | Cross-session mention parsing, immutable read-only snapshot distillation, token budget enforcement, and proof badge referencing suite (DeepSeek Harness inspired). See [cross_session_mention/_ARCH.md](cross_session_mention/_ARCH.md). |
 | custom_compaction_directives/ | Compaction Directives Injector compiling user directives into summarizer prompts. See [custom_compaction_directives/_ARCH.md](custom_compaction_directives/_ARCH.md). |
 | dag_context/ | Hierarchical DAG context engine, assertion reconciliation, and exact page recall suite (Item 312). See [dag_context/_ARCH.md](dag_context/_ARCH.md). |
+| decoupled_dreaming/ | Decoupled memory consolidation, nightly dreaming engine, and serverless state sync suite (Item 323). See [decoupled_dreaming/_ARCH.md](decoupled_dreaming/_ARCH.md). |
 | demand_hydration/ | 个人画像与专业偏好全域按需水合、动态即时召回与大模型原生创造力保鲜引擎。 See [demand_hydration/_ARCH.md](demand_hydration/_ARCH.md). |
 | dependency_expansion/ | 全链路跨栈架构依赖展开图谱与任务复杂度自适应双轨调度套件。 See [dependency_expansion/_ARCH.md](dependency_expansion/_ARCH.md). |
 | desktop_repl/ | Core engine for Persistent Scriptable REPL Desktop Session. See [desktop_repl/_ARCH.md](desktop_repl/_ARCH.md). |

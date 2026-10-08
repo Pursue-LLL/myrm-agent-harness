@@ -183,6 +183,26 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.agent.context_management",
         "OfflineMemoryProfileHydrationEngine",
     ),
+    "DecoupledMemoryConsolidationSuite": (
+        "myrm_agent_harness.agent.context_management",
+        "DecoupledMemoryConsolidationSuite",
+    ),
+    "DecoupledMemoryConsolidationDreamingEngineAndServerlessStateSyncSuite": (
+        "myrm_agent_harness.agent.context_management",
+        "DecoupledMemoryConsolidationDreamingEngineAndServerlessStateSyncSuite",
+    ),
+    "DirectMemoryDriveChannel": (
+        "myrm_agent_harness.agent.context_management",
+        "DirectMemoryDriveChannel",
+    ),
+    "NightlyDreamingPipeline": (
+        "myrm_agent_harness.agent.context_management",
+        "NightlyDreamingPipeline",
+    ),
+    "LockFreeSnapshotBroadcaster": (
+        "myrm_agent_harness.agent.context_management",
+        "LockFreeSnapshotBroadcaster",
+    ),
 }
 
 __all__ = [
@@ -193,9 +213,14 @@ __all__ = [
     "CrossHarnessContextStateASTAndLosslessRehydrationSuite",
     "CrossHarnessSuite",
     "CrossPlatformTranscriptNormalizer",
+    "DecoupledMemoryConsolidationDreamingEngineAndServerlessStateSyncSuite",
+    "DecoupledMemoryConsolidationSuite",
+    "DirectMemoryDriveChannel",
     "HeartbeatManifestParser",
     "HeterogeneousContextHydrationBridge",
     "HeterogeneousWorkspaceSnifferAndWizard",
+    "LockFreeSnapshotBroadcaster",
+    "NightlyDreamingPipeline",
     "OfflineMemoryProfileHydrationEngine",
     "OpportunitySensingEngine",
     "ProactiveAgentKernelContractAndInstinctiveProactivityLoopSuite",
