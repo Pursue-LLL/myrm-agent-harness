@@ -19,6 +19,7 @@ import pytest
 
 from myrm_agent_harness.toolkits.memory._internal.maintenance import run_forgetting
 from myrm_agent_harness.toolkits.memory.config import MemoryConfig
+from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.protocols.vector import VectorDocument
 from myrm_agent_harness.toolkits.memory.strategies.forgetting import (
     ForgettingConfig,
@@ -333,7 +334,8 @@ class TestPurgePagesThroughAllArchivedEntries:
         # Semantic collection pages twice; episodic has a single page.
         manager = self._manager(
             {
-                config.semantic_collection: [(first_page, "cursor-1"), (second_page, None)],                config.episodic_collection: [([_archived_doc("e1", {"archive_expires_at": past})], None)],
+                config.semantic_collection: [(first_page, "cursor-1"), (second_page, None)],
+                config.episodic_collection: [([_archived_doc("e1", {"archive_expires_at": past})], None)],
             }
         )
 
@@ -426,9 +428,7 @@ class TestPurgeScansEveryArchivableCollection:
         config = Cfg(embedding_model="test")
         vector = AsyncMock()
         vector.scroll.return_value = ([], None)
-        manager = MemoryManager(
-            config, user_id="test_user", namespaces=["global"], vector=vector, auto_warmup=False
-        )
+        manager = MemoryManager(config, user_id="test_user", namespaces=["global"], vector=vector, auto_warmup=False)
 
         await manager.purge_expired_archived_memories()  # type: ignore[attr-defined]
 
@@ -453,9 +453,7 @@ class TestPurgeScansEveryArchivableCollection:
         vector.scroll.side_effect = lambda collection, **_kw: (
             ([doc], None) if collection == config.conversation_collection else ([], None)
         )
-        manager = MemoryManager(
-            config, user_id="test_user", namespaces=["global"], vector=vector, auto_warmup=False
-        )
+        manager = MemoryManager(config, user_id="test_user", namespaces=["global"], vector=vector, auto_warmup=False)
         manager.delete_memory = AsyncMock(side_effect=lambda _coll, ids: len(ids))  # type: ignore[method-assign]
 
         purged = await manager.purge_expired_archived_memories()  # type: ignore[attr-defined]
@@ -489,7 +487,9 @@ class TestPurgeFailureHandling:
         from myrm_agent_harness.toolkits.memory.config import MemoryConfig as Cfg
         from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 
-        manager = MemoryManager(Cfg(embedding_model="test"), user_id="test_user", namespaces=["global"], auto_warmup=False)
+        manager = MemoryManager(
+            Cfg(embedding_model="test"), user_id="test_user", namespaces=["global"], auto_warmup=False
+        )
 
         assert await manager.purge_expired_archived_memories() == 0  # type: ignore[attr-defined]
 
@@ -541,7 +541,6 @@ class TestPurgeFailureHandling:
 
         assert purged == 0  # all rules are active, so none are reclaimed
         assert relational.list_rules.await_count == _MAX_PURGE_RULE_PAGES
-
 
     @pytest.mark.asyncio
     async def test_memory_page_cap_stops_scanning(self) -> None:
@@ -615,9 +614,7 @@ class TestArchiveFieldsSurviveRoundTrip:
             ("episodic", "episodic_to_doc", "doc_to_episodic"),
         ],
     )
-    def test_archive_metadata_survives_round_trip(
-        self, memory: str, to_doc_name: str, to_model_name: str
-    ) -> None:
+    def test_archive_metadata_survives_round_trip(self, memory: str, to_doc_name: str, to_model_name: str) -> None:
         from myrm_agent_harness.toolkits.memory._internal import storage_converters
 
         to_doc = getattr(storage_converters, to_doc_name)
@@ -753,3 +750,58 @@ class TestArchiveWritePathsAreEnumerated:
             assert "archive_retention_stamps" in source, f"{writer.name} does not use the shared generator"
             assert 'metadata["archived_at"]' not in source, f"{writer.name} hand-writes archived_at"
             assert 'metadata["archive_expires_at"]' not in source, f"{writer.name} hand-writes archive_expires_at"
+
+
+class TestUpdateMemoryArchiveIsIdempotent:
+    """Archiving twice must not push back the purge deadline of forgotten data."""
+
+    @staticmethod
+    def _manager() -> MemoryManager:
+        return MemoryManager(
+            MemoryConfig(embedding_model="test"),
+            user_id="test_user",
+            namespaces=["global"],
+            vector=AsyncMock(),
+            auto_warmup=False,
+        )
+
+    @pytest.mark.asyncio
+    async def test_first_archive_stamps_retention_and_cleans_graph(self) -> None:
+        manager = self._manager()
+        manager.get_memory = AsyncMock(return_value=SemanticMemory(id="m1", content="fact"))  # type: ignore[method-assign]
+        manager._cascade_clean_derived_graph_nodes = AsyncMock()  # type: ignore[method-assign]
+
+        with patch(
+            "myrm_agent_harness.toolkits.memory._manager.mutations.update_vector_memory",
+            new=AsyncMock(side_effect=lambda memory, *_args: memory),
+        ):
+            archived = await manager.update_memory("m1", status=MemoryStatus.ARCHIVED)
+
+        assert archived.metadata["archive_reason"] == "user_deleted"
+        assert "archive_expires_at" in archived.metadata
+        manager._cascade_clean_derived_graph_nodes.assert_awaited_once_with("m1")  # type: ignore[attr-defined]
+
+    @pytest.mark.asyncio
+    async def test_repeated_archive_keeps_original_deadline(self) -> None:
+        original = archive_retention_stamps(datetime.now(UTC) - timedelta(days=5))
+        manager = self._manager()
+        manager.get_memory = AsyncMock(  # type: ignore[method-assign]
+            return_value=SemanticMemory(
+                id="m1",
+                content="fact",
+                status=MemoryStatus.ARCHIVED,
+                metadata={**original, "archive_reason": "user_deleted"},
+            )
+        )
+        manager._cascade_clean_derived_graph_nodes = AsyncMock()  # type: ignore[method-assign]
+
+        with patch(
+            "myrm_agent_harness.toolkits.memory._manager.mutations.update_vector_memory",
+            new=AsyncMock(side_effect=lambda memory, *_args: memory),
+        ):
+            archived = await manager.update_memory("m1", status=MemoryStatus.ARCHIVED)
+
+        assert archived.status == MemoryStatus.ARCHIVED
+        assert archived.metadata["archived_at"] == original["archived_at"]
+        assert archived.metadata["archive_expires_at"] == original["archive_expires_at"]
+        manager._cascade_clean_derived_graph_nodes.assert_not_awaited()  # type: ignore[attr-defined]

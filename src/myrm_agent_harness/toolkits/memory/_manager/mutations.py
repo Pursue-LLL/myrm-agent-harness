@@ -295,15 +295,18 @@ class MemoryManagerMutationsMixin:
         if status is not None:
             updated.status = status
             if status == MemoryStatus.ARCHIVED:
-                now = datetime.now(UTC)
-                updated.metadata = {
-                    **updated.metadata,
-                    **archive_retention_stamps(now),
-                    "archive_reason": "user_deleted",
-                }
-                await self._cascade_clean_derived_graph_nodes(memory_id)
-                if self._cache is not None and updated.content and hasattr(self._cache, "evict"):
-                    await self._cache.evict(updated.content)
+                # Archiving an already-archived memory is a no-op so repeated deletes
+                # cannot push the purge deadline of data the user asked to forget.
+                if existing.status != MemoryStatus.ARCHIVED:
+                    now = datetime.now(UTC)
+                    updated.metadata = {
+                        **updated.metadata,
+                        **archive_retention_stamps(now),
+                        "archive_reason": "user_deleted",
+                    }
+                    await self._cascade_clean_derived_graph_nodes(memory_id)
+                    if self._cache is not None and updated.content and hasattr(self._cache, "evict"):
+                        await self._cache.evict(updated.content)
             elif existing.status == MemoryStatus.ARCHIVED and status == MemoryStatus.ACTIVE:
                 updated.metadata.pop("archived_at", None)
                 updated.metadata.pop("archive_expires_at", None)
