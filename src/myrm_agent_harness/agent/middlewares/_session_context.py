@@ -33,6 +33,7 @@ from __future__ import annotations
 from contextvars import ContextVar, Token
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.agent.security.delegation.models import TriadDelegationToken
 from myrm_agent_harness.agent.security.managed_approval_policy import (
     ManagedApprovalPolicy,
     get_process_managed_approval_policy,
@@ -432,3 +433,18 @@ def set_session_overlay_manager(manager: SessionOverlayManager | None) -> None:
 def get_session_overlay_manager() -> SessionOverlayManager | None:
     """Get the active SessionOverlayManager for the current async session context."""
     return _session_overlay_manager_var.get()
+
+
+_triad_delegation_token_var: ContextVar[TriadDelegationToken | None] = ContextVar(
+    "triad_delegation_token", default=None
+)
+
+
+def set_delegation_token(token: TriadDelegationToken | None) -> None:
+    """Set the active TriadDelegationToken for the current execution context."""
+    _triad_delegation_token_var.set(token)
+
+
+def get_delegation_token() -> TriadDelegationToken | None:
+    """Get the active TriadDelegationToken for the current execution context."""
+    return _triad_delegation_token_var.get()

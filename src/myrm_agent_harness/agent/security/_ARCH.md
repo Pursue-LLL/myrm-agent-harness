@@ -51,6 +51,7 @@ Detailed design: [SECURITY_SYSTEM.md](SECURITY_SYSTEM.md)
 | policy_generator/ | NL → SecurityConfig generation toolkit (prompts, parser, validator, explainer). Framework-level, LLM-agnostic. |
 | profile_audit/ | Agent Profile configuration exposure aggregation audit engine. Deterministic rule-based static risk scoring. |
 | single_use_tickets/ | Single-use authorization ticket manager and DSH 3-token chain content digest verification ([single_use_tickets/_ARCH.md](single_use_tickets/_ARCH.md)). |
+| delegation/ | Triad delegation identity tokens and privilege-intersection guard against privilege amplification ([delegation/_ARCH.md](delegation/_ARCH.md)). |
 
 ## Key Dependencies
 
