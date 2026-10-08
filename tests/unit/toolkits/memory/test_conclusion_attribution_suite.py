@@ -285,3 +285,63 @@ def test_evidence_package_generation_and_metrics() -> None:
     assert metrics.explicit_count == 2
     assert metrics.deductive_count == 0
     assert metrics.average_times_derived == 1.0
+
+
+def test_extreme_diamond_dag_and_depth_cutoff() -> None:
+    """Verify diamond DAG topology and depth cutoff limits."""
+    suite = ConclusionAttributionSuite()
+    # Diamond: R -> (L, R_node) -> B
+    root = suite.create_conclusion(peer_id="u", content="Diamond Root")
+    left = suite.create_conclusion(
+        peer_id="u", content="Left Branch", level=AttributionLevel.DEDUCTIVE, source_ids=[root.id]
+    )
+    right = suite.create_conclusion(
+        peer_id="u", content="Right Branch", level=AttributionLevel.DEDUCTIVE, source_ids=[root.id]
+    )
+    bottom = suite.create_conclusion(
+        peer_id="u",
+        content="Bottom Convergence",
+        level=AttributionLevel.INDUCTIVE,
+        source_ids=[left.id, right.id],
+    )
+
+    # Downward from bottom should visit all 4 nodes without duplicates
+    down_nodes = suite.walk_downward(bottom.id, max_depth=10)
+    down_ids = [n.conclusion.id for n in down_nodes]
+    assert len(down_ids) == 4
+    assert len(set(down_ids)) == 4
+    assert root.id in down_ids
+
+    # Upward from root should visit left, right, and bottom
+    up_nodes = suite.walk_upward(root.id, max_depth=10)
+    up_ids = [n.conclusion.id for n in up_nodes]
+    assert len(up_ids) == 4
+    assert bottom.id in up_ids
+
+    # Depth cutoff test: max_depth=1 should only visit direct premises
+    shallow = suite.walk_downward(bottom.id, max_depth=1)
+    shallow_ids = [n.conclusion.id for n in shallow]
+    assert len(shallow_ids) == 3  # bottom, left, right (root at depth 2 excluded)
+    assert root.id not in shallow_ids
+
+
+def test_boundary_conditions_and_deduplication() -> None:
+    """Verify confidence clamping, message deduplication, and empty query safety."""
+    suite = ConclusionAttributionSuite()
+    # 1. Confidence clamping
+    c_high = suite.create_conclusion(peer_id="u", content="High Conf", confidence=2.5)
+    assert c_high.confidence == 1.0
+    c_low = suite.create_conclusion(peer_id="u", content="Low Conf", confidence=-1.0)
+    assert c_low.confidence == 0.0
+
+    # 2. Message deduplication in evidence collector
+    collector = EvidenceCollector()
+    collector.record_message_reference(message_id="msg_dup", session_id="s1", snippet="duplicate test")
+    collector.record_message_reference(message_id="msg_dup", session_id="s1", snippet="duplicate test")
+    evidence = collector.assemble()
+    assert len(evidence.messages) == 1
+
+    # 3. Empty query search safety
+    results = suite.query_conclusions(query="")
+    assert len(results) >= 2
+
