@@ -13,7 +13,8 @@ surrounding syntax (keys, quotes, flags, URL structure) stays intact.
 - core.security.redact.patterns (POS: Compiled regex patterns and the keyword guard shared with the runtime redactor)
 
 [OUTPUT]
-- Redaction: TypedDict — single redaction finding
+- SecretKind: Literal — closed set of finding kinds; callers render them in their own language
+- Redaction: TypedDict — single redaction finding (``kinds`` instead of display text)
 - SanitizationResult: dataclass — complete scan result
 - ContentSanitizer: class — stateless sanitizer
 - content_sanitizer: singleton instance
@@ -26,7 +27,7 @@ files and provides structured per-line Diff for the frontend preview UI.
 import logging
 import re
 from dataclasses import dataclass
-from typing import NamedTuple, TypedDict
+from typing import Literal, NamedTuple, TypedDict
 
 from myrm_agent_harness.core.security.redact.patterns import (
     _AUTH_HEADER_RE,
@@ -49,18 +50,20 @@ from myrm_agent_harness.core.security.redact.patterns import (
 
 logger = logging.getLogger(__name__)
 
-_TOKEN_PREFIX_REASON = "API Key / Token"
-_ENV_REASON = "Environment Variable"
-_CONFIG_REASON = "Config Secret"
-_JSON_REASON = "JSON Secret Field"
-_DB_REASON = "Database Credential"
-_URL_REASON = "URL Secret Parameter"
-_URL_CREDENTIAL_REASON = "URL Credential"
-_CLI_REASON = "CLI Secret Flag"
-_TELEGRAM_REASON = "Telegram Bot Token"
-_AUTH_REASON = "Authorization Header"
-_PEM_REASON = "Private Key"
-_PATH_REASON = "Absolute Path"
+SecretKind = Literal[
+    "api_token",
+    "environment_variable",
+    "config_secret",
+    "json_secret_field",
+    "database_credential",
+    "url_secret_parameter",
+    "url_credential",
+    "cli_secret_flag",
+    "telegram_bot_token",
+    "authorization_header",
+    "private_key",
+    "absolute_path",
+]
 
 # Absolute paths (macOS/Linux) — supports line-start via (?:^|...) with MULTILINE
 _MACOS_PATH_RE = re.compile(
@@ -100,29 +103,29 @@ class _SecretRule(NamedTuple):
     """
 
     pattern: re.Pattern[str]
-    reason: str
+    kind: SecretKind
     replacement: str
     value_group: int
     name_group: int = 0
 
 
 # Specific detectors come before the generic key=value ones: when several rules match the
-# same secret, the earliest rule supplies the label shown in the review.
+# same secret, the earliest rule supplies the kind shown in the review.
 _SECRET_RULES: tuple[_SecretRule, ...] = (
-    _SecretRule(_PREFIX_RE, _TOKEN_PREFIX_REASON, "<REDACTED_TOKEN>", 1),
-    _SecretRule(_AUTH_HEADER_RE, _AUTH_REASON, "<REDACTED_TOKEN>", 3),
-    _SecretRule(_SECRET_HEADER_RE, _AUTH_REASON, "<REDACTED_TOKEN>", 2),
-    _SecretRule(_URL_QUERY_RE, _URL_REASON, "<REDACTED_PARAM>", 2),
-    _SecretRule(_URL_USERINFO_RE, _URL_CREDENTIAL_REASON, "***", 3),
-    _SecretRule(_URL_BARE_TOKEN_RE, _URL_CREDENTIAL_REASON, "<REDACTED_TOKEN>", 2),
-    _SecretRule(_DB_CONNSTR_RE, _DB_REASON, "***", 2),
-    _SecretRule(_TELEGRAM_BOT_RE, _TELEGRAM_REASON, "<REDACTED_BOT_TOKEN>", 2),
-    _SecretRule(_JSON_FIELD_RE, _JSON_REASON, "<REDACTED_SECRET>", 2),
-    _SecretRule(_CLI_FLAG_RE, _CLI_REASON, "<REDACTED_VALUE>", 2, 1),
-    _SecretRule(_ENV_ASSIGN_RE, _ENV_REASON, "<REDACTED_VALUE>", 2, 1),
-    _SecretRule(_ENV_ASSIGN_LOWER_RE, _ENV_REASON, "<REDACTED_VALUE>", 2, 1),
-    _SecretRule(_YAML_ASSIGN_RE, _CONFIG_REASON, "<REDACTED_VALUE>", 3, 1),
-    _SecretRule(_JWT_RE, _TOKEN_PREFIX_REASON, "<REDACTED_TOKEN>", 0),
+    _SecretRule(_PREFIX_RE, "api_token", "<REDACTED_TOKEN>", 1),
+    _SecretRule(_AUTH_HEADER_RE, "authorization_header", "<REDACTED_TOKEN>", 3),
+    _SecretRule(_SECRET_HEADER_RE, "authorization_header", "<REDACTED_TOKEN>", 2),
+    _SecretRule(_URL_QUERY_RE, "url_secret_parameter", "<REDACTED_PARAM>", 2),
+    _SecretRule(_URL_USERINFO_RE, "url_credential", "***", 3),
+    _SecretRule(_URL_BARE_TOKEN_RE, "url_credential", "<REDACTED_TOKEN>", 2),
+    _SecretRule(_DB_CONNSTR_RE, "database_credential", "***", 2),
+    _SecretRule(_TELEGRAM_BOT_RE, "telegram_bot_token", "<REDACTED_BOT_TOKEN>", 2),
+    _SecretRule(_JSON_FIELD_RE, "json_secret_field", "<REDACTED_SECRET>", 2),
+    _SecretRule(_CLI_FLAG_RE, "cli_secret_flag", "<REDACTED_VALUE>", 2, 1),
+    _SecretRule(_ENV_ASSIGN_RE, "environment_variable", "<REDACTED_VALUE>", 2, 1),
+    _SecretRule(_ENV_ASSIGN_LOWER_RE, "environment_variable", "<REDACTED_VALUE>", 2, 1),
+    _SecretRule(_YAML_ASSIGN_RE, "config_secret", "<REDACTED_VALUE>", 3, 1),
+    _SecretRule(_JWT_RE, "api_token", "<REDACTED_TOKEN>", 0),
 )
 
 
@@ -130,14 +133,16 @@ class _ScanMatch(TypedDict):
     start: int
     end: int
     replacement: str
-    reason: str
+    kind: SecretKind
 
 
 class Redaction(TypedDict):
+    """One finding on one line; ``kinds`` are stable codes the caller renders in its own language."""
+
     line_number: int
     original: str
     redacted: str
-    reason: str
+    kinds: list[SecretKind]
 
 
 @dataclass
@@ -158,7 +163,7 @@ def _secret_span(m: re.Match[str], group: int) -> tuple[int, int]:
 def _merge_overlaps(matches: list[_ScanMatch]) -> list[_ScanMatch]:
     """Union overlapping matches so no part of a secret is left behind; last match first.
 
-    The longest member of each union supplies the replacement and the label. Last-first
+    The longest member of each union supplies the replacement and the kind. Last-first
     order lets replacements be applied in place without shifting the offsets still to come.
     """
     clusters: list[list[_ScanMatch]] = []
@@ -179,7 +184,7 @@ def _merge_overlaps(matches: list[_ScanMatch]) -> list[_ScanMatch]:
                 "start": cluster[0]["start"],
                 "end": max(x["end"] for x in cluster),
                 "replacement": lead["replacement"],
-                "reason": lead["reason"],
+                "kind": lead["kind"],
             }
         )
     return merged
@@ -204,12 +209,12 @@ class ContentSanitizer:
                         or _redact_value(name, m.group(rule.value_group)) is None
                     ):
                         continue
-                matches.append({"start": start, "end": end, "replacement": rule.replacement, "reason": rule.reason})
+                matches.append({"start": start, "end": end, "replacement": rule.replacement, "kind": rule.kind})
 
         for pattern in _PATH_RES:
             for m in pattern.finditer(line):
                 matches.append(
-                    {"start": m.start(), "end": m.end(), "replacement": "<REDACTED_PATH>", "reason": _PATH_REASON}
+                    {"start": m.start(), "end": m.end(), "replacement": "<REDACTED_PATH>", "kind": "absolute_path"}
                 )
 
         return matches
@@ -248,7 +253,7 @@ class ContentSanitizer:
                             line_number=i + 1,
                             original=original_line,
                             redacted=modified_line,
-                            reason=_PEM_REASON,
+                            kinds=["private_key"],
                         )
                     )
                 sanitized_lines.append(modified_line)
@@ -261,22 +266,22 @@ class ContentSanitizer:
                 redaction_index += 1
 
                 if current_index not in ignored_indices:
-                    reasons: list[str] = []
+                    kinds: list[SecretKind] = []
                     for match_info in _merge_overlaps(line_matches):
                         modified_line = (
                             modified_line[: match_info["start"]]
                             + match_info["replacement"]
                             + modified_line[match_info["end"] :]
                         )
-                        if match_info["reason"] not in reasons:
-                            reasons.append(match_info["reason"])
+                        kinds.append(match_info["kind"])
 
                     redactions.append(
                         Redaction(
                             line_number=i + 1,
                             original=original_line,
                             redacted=modified_line,
-                            reason=" / ".join(reasons),
+                            # Replacements run last-first; report kinds in reading order.
+                            kinds=list(dict.fromkeys(reversed(kinds))),
                         )
                     )
 

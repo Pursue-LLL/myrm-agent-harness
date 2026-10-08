@@ -3,6 +3,8 @@
 Covers all pattern categories, edge cases, and the ignored_indices mechanism.
 """
 
+from typing import get_args
+
 import pytest
 
 from myrm_agent_harness.agent.skills.security import (
@@ -10,7 +12,7 @@ from myrm_agent_harness.agent.skills.security import (
     SanitizationResult,
     content_sanitizer,
 )
-from myrm_agent_harness.agent.skills.security.content_sanitizer import _SECRET_RULES, _merge_overlaps
+from myrm_agent_harness.agent.skills.security.content_sanitizer import _SECRET_RULES, SecretKind, _merge_overlaps
 
 
 class TestModuleExports:
@@ -30,7 +32,8 @@ class TestModuleExports:
         assert "line_number" in r
         assert "original" in r
         assert "redacted" in r
-        assert "reason" in r
+        assert r["kinds"] == ["api_token"]
+        assert "reason" not in r
 
 
 class TestTokenPrefixDetection:
@@ -217,7 +220,7 @@ class TestIgnoredIndices:
         content = "/Users/alice/secret\nAuthorization: Bearer mytoken123"
         result = content_sanitizer.sanitize(content, "test.md", ignored_indices=[0])
         assert len(result.redactions) == 1
-        assert result.redactions[0]["reason"] == "Authorization Header"
+        assert result.redactions[0]["kinds"] == ["authorization_header"]
 
     def test_ignore_all(self):
         content = "key = ghp_XxxYyyZzz1234567890abcdef12345678"
@@ -366,33 +369,49 @@ class TestProseIsNotRedacted:
         assert result.sanitized_content == line
 
 
-class TestFindingLabel:
-    """The label names the most specific detector that matched the secret."""
+class TestFindingKinds:
+    """A finding names the most specific detector that matched the secret, as a stable code."""
 
     @pytest.mark.parametrize(
-        ("line", "reason"),
+        ("line", "kinds"),
         [
-            ("curl https://x.io/a?api_key=abc123def456ghi789", "URL Secret Parameter"),
-            ("x-api-key: abc123def456ghi789", "Authorization Header"),
-            ("mycli --password=hunter2hunter2", "CLI Secret Flag"),
-            ("password: hunter2hunter2", "Config Secret"),
-            ("OPENAI_API_KEY=sk-abcdefghijklmnopqrstuvwxyz0123456789", "API Key / Token"),
+            ("curl https://x.io/a?api_key=abc123def456ghi789", ["url_secret_parameter"]),
+            ("x-api-key: abc123def456ghi789", ["authorization_header"]),
+            ("mycli --password=hunter2hunter2", ["cli_secret_flag"]),
+            ("password: hunter2hunter2", ["config_secret"]),
+            ("OPENAI_API_KEY=sk-abcdefghijklmnopqrstuvwxyz0123456789", ["api_token"]),
+            ("DATABASE_URL=postgres://u:pw123456@db/x", ["database_credential"]),
+            ("mycli --password=hunter2hunter2 /Users/alice/notes", ["cli_secret_flag", "absolute_path"]),
         ],
     )
-    def test_reason(self, line, reason):
-        assert content_sanitizer.sanitize(line, "test.md").redactions[0]["reason"] == reason
+    def test_kinds(self, line, kinds):
+        assert content_sanitizer.sanitize(line, "test.md").redactions[0]["kinds"] == kinds
+
+    def test_private_key_body_lines_are_private_key_findings(self):
+        pem = "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA0Z3VS5JJcds3xfn\n-----END RSA PRIVATE KEY-----"
+        assert [r["kinds"] for r in content_sanitizer.sanitize(pem, "key.pem").redactions] == [["private_key"]]
 
 
 class TestRuleTable:
     """The rule table reads the shared regexes by group number; a renumbered group must not go unnoticed."""
 
-    @pytest.mark.parametrize("rule", _SECRET_RULES, ids=lambda rule: rule.reason)
+    @pytest.mark.parametrize("rule", _SECRET_RULES, ids=lambda rule: f"{rule.kind}:{rule.pattern.pattern[:24]}")
     def test_declared_groups_exist_in_the_pattern(self, rule):
         assert rule.pattern.groups >= max(rule.value_group, rule.name_group)
 
-    def test_overlapping_matches_are_unioned_so_no_part_of_a_secret_survives(self):
-        def match(start, end, label):
-            return {"start": start, "end": end, "replacement": f"<{label}>", "reason": label}
+    def test_every_secret_kind_is_reachable(self):
+        """A kind no detector can emit would carry a translation nobody ever sees."""
+        emitted = {rule.kind for rule in _SECRET_RULES} | {"private_key", "absolute_path"}
+        assert emitted == set(get_args(SecretKind))
 
-        merged = _merge_overlaps([match(0, 10, "short"), match(5, 20, "long"), match(30, 35, "apart")])
-        assert [(m["start"], m["end"], m["reason"]) for m in merged] == [(30, 35, "apart"), (0, 20, "long")]
+    def test_overlapping_matches_are_unioned_so_no_part_of_a_secret_survives(self):
+        def match(start, end, kind):
+            return {"start": start, "end": end, "replacement": f"<{kind}>", "kind": kind}
+
+        merged = _merge_overlaps(
+            [match(0, 10, "api_token"), match(5, 20, "config_secret"), match(30, 35, "url_credential")]
+        )
+        assert [(m["start"], m["end"], m["kind"]) for m in merged] == [
+            (30, 35, "url_credential"),
+            (0, 20, "config_secret"),
+        ]
