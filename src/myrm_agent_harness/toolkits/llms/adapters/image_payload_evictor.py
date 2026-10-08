@@ -15,6 +15,7 @@ The agent-side CumulativeImageBudgetGovernor delegates to these functions.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Final
 
 from myrm_agent_harness.utils.image_utils import (
@@ -151,7 +152,7 @@ def emergency_evict_from_message_dicts(
 
 
 def _emergency_evict_indexed(
-    messages: list[object],
+    messages: Sequence[object],
     target_bytes: int = 5 * 1024 * 1024,
     force_shrink: bool = False,
 ) -> int:
@@ -233,7 +234,7 @@ def _emergency_evict_indexed(
 
 
 def emergency_evict(
-    messages: list[object],
+    messages: Sequence[object],
     target_bytes: int = 5 * 1024 * 1024,
     force_shrink: bool = False,
 ) -> int:

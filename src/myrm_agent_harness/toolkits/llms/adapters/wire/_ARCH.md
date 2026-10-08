@@ -12,6 +12,7 @@ OpenCode multi-wire transport for ChatLiteLLM: Responses API (`/v1/responses`) a
 | normalizer.py | Core | Responses payload/events → chat-completions shape; decouple reasoning summary into reasoning_content; preserve `responses_reasoning_items`; failed/error SSE → ResponsesStreamError |
 | params.py | Core | Build litellm.responses kwargs (reasoning, include, api_base endpoint strip) from ChatLiteLLM call params |
 | anthropic_params.py | Core | Anthropic Messages wire overrides for OpenCode Go minimax/qwen |
+| native_anthropic.py | Core | `is_native_anthropic_wire`: whether LiteLLM sends a call to the first-party Anthropic Messages API, which rejects unknown top-level fields; callers keep OpenAI-shaped pass-through parameters off those requests (unclassifiable models count as not native) |
 | zdr_interceptor.py | Core | Zero Data Retention (ZDR) outbound wire interceptor (store=False, compliance headers) |
 | invocation.py | Core | Sync/async invoke + stream adapters; fail-open retry on `invalid_encrypted_content` |
 

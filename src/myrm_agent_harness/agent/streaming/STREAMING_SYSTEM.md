@@ -54,7 +54,7 @@ dispatcher  handlers      events         recovery*
 - `event_handlers.process_updates_chunk` 保留只记录被扣留调用的消息，恢复处理器才能看到它；
 - `recovery/stream_recovery_truncation.py` 最多重试 1 次：丢弃该消息，在原请求后追加一条提示（提示缓存前缀不变），并一次性放大输出预算（有上限，不会低于已配置预算）；仍失败，或当前是 resume 轮（无法重放输入），则上报 `tool_call_truncated`；
 - 流在收到最终元数据块之前断开时，`finish_reason` 记为 `__stream_dropped__`，`map_to_completion_status` 将其映射为 `truncated`，并禁止“补全 JSON”式修复；
-- 上游在没有 `finish_reason` 时干净关闭，LiteLLM 流包装器会合成 `stop`，块层与正常结束完全相同，因此不会被记为断流。这类截断只由参数层兜底：停在字符串内部的参数一律拒绝执行（`litellm_utils.py` 的 `truncated_mid_value`），停在字段边界的参数仍可补全，受工具 schema 校验约束。
+- 上游在没有 `finish_reason` 时干净关闭，LiteLLM 流包装器会合成 `stop`，块层与正常结束完全相同，因此不会被记为断流（`finish_reason` 与遥测口径不变）。适配器改读包装器自己记录的提供方结束标记（`received_finish_reason` / `intermittent_finish_reason`，`StreamAggregator.provider_finish`）：两者都为空说明提供方没有结束这条流，工具参数不再补全，该调用按被扣留处理并走上面的重试；没有这两个标记的流（Responses 线路）仍只看 `finish_reason`。停在字符串内部的参数无论如何都拒绝执行（`litellm_utils.py` 的 `truncated_mid_value`）。
 
 ---
 

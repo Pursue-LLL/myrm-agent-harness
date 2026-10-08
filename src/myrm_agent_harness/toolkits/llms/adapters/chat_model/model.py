@@ -7,6 +7,7 @@
 - adapters.converters (POS: message and tool call converters)
 - adapters.streaming (POS: streaming response processing)
 - adapters.concurrency (POS: concurrency gate for LLM calls)
+- adapters.chat_model.allowed_params::inject_allowed_params (POS: per-call allowed_openai_params injection)
 - adapters.stream_aggregator (POS: stream data aggregation module)
 - adapters.tool_recovery (POS: tool call recovery module)
 - adapters.safety_termination_detector (POS: Safety termination detector for truncated tool call suppression)
@@ -33,7 +34,9 @@ Stream only supports fully empty stream retry (mid-stream interruptions cannot b
 business layer exports via retry_metrics.to_dict() for monitoring integration.
 **Parameter protection**: injects per-call ``allowed_openai_params`` to prevent LiteLLM from
 silently dropping framework params (tools, tool_choice) or user-supplied model_kwargs when
-a provider's capability declaration is incomplete (e.g. ``xiaomi_mimo``).
+a provider's capability declaration is incomplete (e.g. ``xiaomi_mimo``). Calls to the first-party
+Anthropic Messages API are the exception: that API rejects raw OpenAI-shaped fields, so LiteLLM's own
+translation builds the request body there.
 Cross-provider compatible via LiteLLM. As the adapter layer, used by core.llm and business layer,
 bridging LangChain and LiteLLM.
 Provider-aware message normalization keeps providers that reject ``system`` turns
@@ -71,11 +74,11 @@ from langchain_core.utils.pydantic import is_basemodel_subclass
 from pydantic import BaseModel, Field, PrivateAttr, model_validator
 
 from myrm_agent_harness.core.config.wire import DEFAULT_WIRE_PROTOCOL, WireProtocol
+from myrm_agent_harness.toolkits.llms.adapters.chat_model.allowed_params import inject_allowed_params
 from myrm_agent_harness.toolkits.llms.adapters.chat_model.async_mixin import (
     ChatLiteLLMAsyncMixin,
 )
 from myrm_agent_harness.toolkits.llms.adapters.chat_model.exceptions import (
-    _FRAMEWORK_REQUIRED_OPENAI_PARAMS,
     DEVELOPER_ROLE_PATTERN,
     EmptyChoicesError,
     EmptyStreamError,
@@ -279,29 +282,7 @@ class ChatLiteLLM(ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyn
 
         return {**self._default_params, **creds}
 
-    @staticmethod
-    def _inject_allowed_params(params: dict[str, object]) -> None:
-        """Ensure all explicitly-supplied parameters bypass LiteLLM's provider whitelist.
-
-        LiteLLM silently drops parameters not declared in a provider's
-        ``supported_params`` when ``litellm.drop_params=True``.  Some providers
-        (e.g. ``xiaomi_mimo``) have incomplete capability declarations, causing
-        critical params like ``tools`` / ``tool_choice`` — and any user-supplied
-        model_kwargs — to be discarded.
-
-        This injects ``allowed_openai_params`` into *params* so that every key
-        we explicitly passed is white-listed for the current call, while the
-        global ``drop_params`` safety-net remains active for truly unknown params.
-
-        ``tool_choice.type=allowed_tools`` is excluded from forced whitelisting so
-        unsupported gateways can drop it instead of returning HTTP 400.
-        """
-        allowed = set(params.keys())
-        allowed |= _FRAMEWORK_REQUIRED_OPENAI_PARAMS
-        tool_choice = params.get("tool_choice")
-        if isinstance(tool_choice, dict) and tool_choice.get("type") == "allowed_tools":
-            allowed.discard("tool_choice")
-        params["allowed_openai_params"] = sorted(allowed)
+    _inject_allowed_params = staticmethod(inject_allowed_params)
 
     @staticmethod
     def _apply_ephemeral_output_override(params: dict[str, object]) -> None:

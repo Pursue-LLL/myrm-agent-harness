@@ -397,7 +397,7 @@ class ChatLiteLLMSyncMixin:
                     )
                     stream_source = self.client.completion(messages=message_dicts, **call_params)
 
-                for chunk in stream_source:
+                for chunk in agg.track(stream_source):
                     chunk_dict = agg.ingest_raw_chunk(chunk)
                     if chunk_dict is None:
                         continue

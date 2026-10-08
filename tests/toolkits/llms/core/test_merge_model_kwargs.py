@@ -5,6 +5,7 @@ create_litellm_model factory — the key parameter pipeline for reasoning_effort
 and other model_kwargs passthrough.
 """
 
+import json
 from unittest.mock import MagicMock, patch
 
 from myrm_agent_harness.toolkits.llms.core.llm import (
@@ -100,6 +101,37 @@ class TestMergeModelKwargsToExtraBody:
         assert llm_kwargs["extra_body"]["existing_key"] == "value"
         assert llm_kwargs["extra_body"]["reasoning_effort"] == "high"
 
+    def test_output_cap_is_never_mirrored(self) -> None:
+        """A mirrored max_tokens would overwrite the headroom-adjusted typed value on the wire."""
+        llm_kwargs: dict = {"model": "openai/o3", "max_tokens": 1024}
+        _merge_model_kwargs_to_extra_body(llm_kwargs, {"max_tokens": 1024, "top_p": 0.9})
+
+        assert llm_kwargs["extra_body"] == {"top_p": 0.9}
+
+    def test_factory_only_switch_is_never_mirrored(self) -> None:
+        llm_kwargs: dict = {"model": "openai/o3"}
+        _merge_model_kwargs_to_extra_body(llm_kwargs, {"supports_reasoning": False, "seed": 7})
+
+        assert llm_kwargs["extra_body"] == {"seed": 7}
+
+    def test_only_unmirrored_keys_leave_extra_body_absent(self) -> None:
+        llm_kwargs: dict = {"model": "openai/o3"}
+        _merge_model_kwargs_to_extra_body(llm_kwargs, {"max_tokens": 64, "supports_reasoning": False})
+
+        assert "extra_body" not in llm_kwargs
+
+    def test_caller_extra_body_is_copied_not_mutated(self) -> None:
+        """The factory kwargs contain the caller's extra_body; mirroring them must not make it self-referential."""
+        caller_body = {"custom_flag": "on"}
+        kwargs: dict = {"extra_body": caller_body, "top_p": 0.5}
+        llm_kwargs: dict = {"model": "openai/o3", **kwargs}
+        _merge_model_kwargs_to_extra_body(llm_kwargs, kwargs)
+
+        assert llm_kwargs["extra_body"] == {"custom_flag": "on", "top_p": 0.5}
+        assert llm_kwargs["extra_body"] is not caller_body
+        assert caller_body == {"custom_flag": "on"}
+        json.dumps(llm_kwargs["extra_body"])  # a self-reference would raise "Circular reference detected"
+
 
 class TestResolveWebSearchOptions:
     """Tests for _resolve_web_search_options tri-state logic."""
@@ -138,9 +170,7 @@ class TestResolveWebSearchOptions:
         mock_litellm = MagicMock()
         mock_litellm.supports_web_search.return_value = False
         with patch.dict("sys.modules", {"litellm": mock_litellm}):
-            result = _resolve_web_search_options(
-                "anthropic/claude-4-sonnet", None, None
-            )
+            result = _resolve_web_search_options("anthropic/claude-4-sonnet", None, None)
         assert result is None
 
     def test_auto_detect_import_error(self) -> None:
@@ -178,9 +208,41 @@ class TestCreateLitellmModel:
     @patch("myrm_agent_harness.toolkits.llms.core.llm.ChatLiteLLM")
     def test_reasoning_effort_in_extra_body(self, mock_cls: MagicMock) -> None:
         """reasoning_effort kwarg should end up in extra_body."""
-        create_litellm_model("anthropic/claude-4-sonnet", reasoning_effort="high")
+        create_litellm_model("mistral/mistral-large-latest", reasoning_effort="high")
         call_kwargs = mock_cls.call_args[1]
         assert call_kwargs["extra_body"]["reasoning_effort"] == "high"
+
+    @patch("myrm_agent_harness.toolkits.llms.core.llm.ChatLiteLLM")
+    def test_native_anthropic_gets_no_extra_body(self, mock_cls: MagicMock) -> None:
+        """The Messages API rejects an extra_body field; LiteLLM maps reasoning_effort to thinking itself."""
+        create_litellm_model("anthropic/claude-4-sonnet", reasoning_effort="high", top_p=0.5)
+        call_kwargs = mock_cls.call_args[1]
+        assert call_kwargs["reasoning_effort"] == "high"
+        assert "extra_body" not in call_kwargs
+
+    @patch("myrm_agent_harness.toolkits.llms.core.llm.ChatLiteLLM")
+    def test_claude_on_another_provider_keeps_the_extra_body(self, mock_cls: MagicMock) -> None:
+        create_litellm_model("bedrock/anthropic.claude-sonnet-4-20250514-v1:0", reasoning_effort="high", top_p=0.5)
+        call_kwargs = mock_cls.call_args[1]
+        assert call_kwargs["extra_body"] == {"reasoning_effort": "high", "top_p": 0.5}
+
+    @patch("myrm_agent_harness.toolkits.llms.core.llm.ChatLiteLLM")
+    def test_caller_extra_body_is_never_mutated(self, mock_cls: MagicMock) -> None:
+        """A dict the caller passes in (and may reuse for the next model) stays exactly as it was."""
+        caller_body = {"custom_flag": "on"}
+        create_litellm_model("mistral/mistral-large-latest", reasoning_effort="high", extra_body=caller_body, top_p=0.5)
+        call_kwargs = mock_cls.call_args[1]
+
+        assert caller_body == {"custom_flag": "on"}
+        assert call_kwargs["extra_body"] == {"reasoning_effort": "high", "custom_flag": "on", "top_p": 0.5}
+
+    @patch("myrm_agent_harness.toolkits.llms.core.llm.ChatLiteLLM")
+    def test_caller_extra_body_wins_over_reasoning_effort(self, mock_cls: MagicMock) -> None:
+        create_litellm_model(
+            "mistral/mistral-large-latest", reasoning_effort="high", extra_body={"reasoning_effort": "low"}
+        )
+
+        assert mock_cls.call_args[1]["extra_body"]["reasoning_effort"] == "low"
 
     @patch("myrm_agent_harness.toolkits.llms.core.llm.ChatLiteLLM")
     def test_streaming_flag(self, mock_cls: MagicMock) -> None:
@@ -242,4 +304,3 @@ class TestCreateLitellmModel:
         assert call_kwargs["extra_headers"]["HTTP-Referer"] == "https://myrm.ai"
         assert call_kwargs["extra_headers"]["X-Title"] == "Myrm Agent"
         assert call_kwargs["extra_headers"]["User-Agent"] == "Myrm/1.0 (Vercel-AI-Gateway-Client)"
-

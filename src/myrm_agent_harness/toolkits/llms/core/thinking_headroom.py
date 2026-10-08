@@ -16,7 +16,7 @@ Raises max_tokens to a safe floor for thinking models.
 
 from __future__ import annotations
 
-from typing import Mapping
+from collections.abc import Mapping
 
 from myrm_agent_harness.toolkits.llms.core.reasoning_profile import (
     apply_thinking_headroom,
@@ -45,5 +45,9 @@ def thinking_output_floor(
 
 
 def ensure_thinking_headroom(model: str, llm_kwargs: dict[str, object]) -> None:
-    """Raise max_tokens to a safe floor for thinking models."""
+    """Raise max_tokens to a safe floor for thinking models.
+
+    An unset budget gets the floor; a configured cap below it is raised within the model's
+    documented output ceiling. The raised value is the one the provider receives.
+    """
     apply_thinking_headroom(model, llm_kwargs)

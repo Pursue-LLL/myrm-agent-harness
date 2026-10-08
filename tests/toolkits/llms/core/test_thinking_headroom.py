@@ -10,6 +10,7 @@ from myrm_agent_harness.toolkits.llms.core.thinking_headroom import (
     ensure_thinking_headroom,
     thinking_output_floor,
 )
+from myrm_agent_harness.toolkits.llms.utils import model_utils
 
 
 class TestIsThinkingModel:
@@ -196,3 +197,42 @@ class TestEnsureThinkingHeadroom:
         kwargs: dict = {"max_tokens": 100000, "reasoning_effort": "high"}
         ensure_thinking_headroom("o3", kwargs)
         assert kwargs["max_tokens"] == 100000
+
+
+class TestOutputCeilingClamp:
+    """A configured cap is raised to the thinking floor only up to the model's documented ceiling."""
+
+    @staticmethod
+    def _pin_ceiling(monkeypatch: pytest.MonkeyPatch, ceiling: int | None) -> None:
+        monkeypatch.setattr(model_utils, "get_model_output_ceiling", lambda _model: ceiling)
+
+    def test_raise_stops_at_the_documented_ceiling(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self._pin_ceiling(monkeypatch, 64_000)
+        kwargs: dict = {"max_tokens": 4096, "reasoning_effort": "xhigh"}
+        ensure_thinking_headroom("anthropic/claude-opus-5", kwargs)
+        assert kwargs["max_tokens"] == 64_000
+
+    def test_ceiling_between_cap_and_floor_becomes_the_new_cap(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self._pin_ceiling(monkeypatch, 16_000)
+        kwargs: dict = {"max_tokens": 4096, "reasoning_effort": "high"}
+        ensure_thinking_headroom("o3", kwargs)
+        assert kwargs["max_tokens"] == 16_000
+
+    def test_ceiling_above_the_floor_changes_nothing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self._pin_ceiling(monkeypatch, 128_000)
+        kwargs: dict = {"max_tokens": 4096, "reasoning_effort": "xhigh"}
+        ensure_thinking_headroom("o3", kwargs)
+        assert kwargs["max_tokens"] == 65_536
+
+    def test_stale_ceiling_never_lowers_the_configured_cap(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self._pin_ceiling(monkeypatch, 8192)
+        kwargs: dict = {"max_tokens": 12_000, "reasoning_effort": "high"}
+        ensure_thinking_headroom("deepseek-r1", kwargs)
+        assert kwargs["max_tokens"] == 12_000
+
+    def test_unset_cap_still_gets_the_full_floor(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Without a configured cap there is nothing the provider has accepted, so a table entry cannot lower the floor."""
+        self._pin_ceiling(monkeypatch, 8192)
+        kwargs: dict = {"reasoning_effort": "medium"}
+        ensure_thinking_headroom("deepseek-r1", kwargs)
+        assert kwargs["max_tokens"] == 16_384

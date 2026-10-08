@@ -3,6 +3,7 @@
 [INPUT]
 - model identifier (e.g. "minimax/MiniMax-M3.1-Flash-Preview", "openai/o3")
 - optional llm_kwargs / request configuration mapping
+- utils.model_utils::clamp_budget_to_model_ceiling (POS: keeps a raised budget within the model's known output ceiling)
 
 [OUTPUT]
 - get_model_timeout_floor(): Minimum watchdog request/stall timeout (seconds)
@@ -22,7 +23,9 @@ and safe token/timeout bounding.
 from __future__ import annotations
 
 import logging
-from typing import Mapping
+from collections.abc import Mapping
+
+from myrm_agent_harness.toolkits.llms.utils.model_utils import clamp_budget_to_model_ceiling
 
 logger = logging.getLogger(__name__)
 
@@ -41,12 +44,8 @@ _DEFAULT_REASONING_TIMEOUT_FLOOR: float = 450.0
 _HEAVY_REASONING_TIMEOUT_FLOOR: float = 600.0
 
 # Normalized effort values
-_DISABLED_EFFORT_VALUES: frozenset[str] = frozenset(
-    {"off", "none", "disabled", "false", "0"}
-)
-_HEAVY_EFFORT_VALUES: frozenset[str] = frozenset(
-    {"high", "max", "xhigh", "ultra"}
-)
+_DISABLED_EFFORT_VALUES: frozenset[str] = frozenset({"off", "none", "disabled", "false", "0"})
+_HEAVY_EFFORT_VALUES: frozenset[str] = frozenset({"high", "max", "xhigh", "ultra"})
 
 # Authoritative catalog of known reasoning models and their baseline timeout floors (seconds)
 # Ordered by specificity when matching prefixes.
@@ -274,7 +273,11 @@ def get_model_headroom_floor(
 
 
 def apply_thinking_headroom(model: str, llm_kwargs: dict[str, object]) -> None:
-    """Raise max_tokens to a safe floor for thinking models using max() semantics."""
+    """Raise max_tokens to a safe floor for thinking models using max() semantics.
+
+    An unset budget gets the floor as is. A configured cap below the floor is raised, but never
+    past the model's known output ceiling: the cap was accepted by the provider, the floor may not be.
+    """
     floor = get_model_headroom_floor(model, llm_kwargs)
     if floor is None:
         return
@@ -292,12 +295,13 @@ def apply_thinking_headroom(model: str, llm_kwargs: dict[str, object]) -> None:
         )
         return
 
-    if current < floor:
-        llm_kwargs["max_tokens"] = floor
+    raised = clamp_budget_to_model_ceiling(model, floor, accepted=current)
+    if raised > current:
+        llm_kwargs["max_tokens"] = raised
         logger.info(
             "Thinking headroom: raised max_tokens %d -> %d for %s (effort=%s)",
             current,
-            floor,
+            raised,
             model,
             effort or "default",
         )

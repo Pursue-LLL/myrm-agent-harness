@@ -7,10 +7,12 @@
 [OUTPUT]
 - LiteLLMStreamMixin: streaming response processing mixin class
 - safe_get(), extract_chunk_metadata(), build_tool_call_chunks(), and other stream processing utilities
+- provider_reported_finish(): whether the provider (not LiteLLM's stream wrapper) reported how a stream ended
 
 [POS]
 Streaming response processing module. Provides stream response parsing, incremental tool call merging,
-metadata extraction, and malformed chunk protection. Used by adapters.chat_model to enhance streaming capability.
+metadata extraction, provider-finish detection, and malformed chunk protection. Used by adapters.chat_model
+to enhance streaming capability.
 """
 
 from __future__ import annotations
@@ -74,6 +76,25 @@ def extract_chunk_metadata(chunk: Any) -> tuple[Any, str | None, str | None]:
         finish_reason = safe_get(choices[0], "finish_reason")
 
     return usage, model, finish_reason
+
+
+_PROVIDER_FINISH_MARKERS: tuple[str, ...] = ("received_finish_reason", "intermittent_finish_reason")
+_ABSENT = object()
+
+
+def provider_reported_finish(stream: object) -> bool | None:
+    """Whether the provider itself reported how an exhausted *stream* ended.
+
+    LiteLLM's stream wrapper closes a stream on which the provider never sent a finish reason with
+    a synthesized ``stop``, so a connection cut mid tool call reads like a normal turn. The wrapper
+    keeps what the provider actually sent in ``received_finish_reason`` / ``intermittent_finish_reason``;
+    with both unset the final reason was made up. Returns ``None`` for a stream without those markers
+    (Responses-wire iterators), where the finish reason alone has to be trusted.
+    """
+    markers = [getattr(stream, name, _ABSENT) for name in _PROVIDER_FINISH_MARKERS]
+    if any(marker is _ABSENT for marker in markers):
+        return None
+    return any(marker is not None for marker in markers)
 
 
 def build_tool_call_chunks(raw_tool_calls: Any) -> list[ToolCallChunk]:

@@ -7,12 +7,14 @@ usage normalization fallbacks, and parser skip/guard branches.
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 
 from myrm_agent_harness.toolkits.llms.adapters.streaming import (
     _is_complete_json_fragment,
     aggregate_tool_call_chunk,
     build_tool_call_chunks,
     normalize_usage,
+    provider_reported_finish,
     safe_get,
 )
 from myrm_agent_harness.toolkits.llms.adapters.tool_call_parsers import (
@@ -35,6 +37,24 @@ class TestSafeGet:
 
         assert safe_get(_Obj(), "a") == 2
         assert safe_get(_Obj(), "b", 9) == 9
+
+
+class TestProviderReportedFinish:
+    def test_marker_set_by_the_provider(self) -> None:
+        assert provider_reported_finish(SimpleNamespace(received_finish_reason="stop", intermittent_finish_reason=None))
+        assert provider_reported_finish(
+            SimpleNamespace(received_finish_reason=None, intermittent_finish_reason="tool_calls")
+        )
+
+    def test_both_unset_means_the_finish_reason_was_synthesized(self) -> None:
+        stream = SimpleNamespace(received_finish_reason=None, intermittent_finish_reason=None)
+
+        assert provider_reported_finish(stream) is False
+
+    def test_stream_without_the_markers_cannot_tell(self) -> None:
+        assert provider_reported_finish(None) is None
+        assert provider_reported_finish(iter(())) is None
+        assert provider_reported_finish(SimpleNamespace(received_finish_reason="stop")) is None
 
 
 class TestIsCompleteJsonFragment:

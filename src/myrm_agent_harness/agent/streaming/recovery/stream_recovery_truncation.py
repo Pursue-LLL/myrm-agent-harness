@@ -6,6 +6,7 @@
 - agent.errors.diagnostics::LLMErrorDiagnostic (POS: LLM truncation diagnostic builder)
 - utils.token_economics.tracker::get_token_tracker (POS: token finish-reason tracker)
 - toolkits.llms.adapters.tool_recovery::has_withheld_tool_calls (POS: detects tool calls withheld as unsafe)
+- agent.streaming.recovery.stream_recovery_budget::StreamOutputBudgetMixin (POS: output budget scaling of recovery retries)
 
 [OUTPUT]
 - StreamTruncationRecoveryMixin: handles length/max-token continuation, truncated or withheld tool-call retry, and truncation warnings.
@@ -26,6 +27,7 @@ from typing import TYPE_CHECKING, cast
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.types import Command
 
+from myrm_agent_harness.agent.streaming.recovery.stream_recovery_budget import StreamOutputBudgetMixin
 from myrm_agent_harness.agent.streaming.types import AgentEventType
 from myrm_agent_harness.core.events import THINKING_TAG_NAMES
 from myrm_agent_harness.toolkits.llms.adapters.tool_recovery import has_withheld_tool_calls
@@ -49,7 +51,7 @@ logger = get_agent_logger(__name__)
 _MAX_EPHEMERAL_OUTPUT_TOKENS = MAX_EPHEMERAL_OUTPUT_TOKENS
 
 
-class StreamTruncationRecoveryMixin:
+class StreamTruncationRecoveryMixin(StreamOutputBudgetMixin):
     _ctx: StreamContext
     _compactor: StreamCompactor
     streaming_final_answer: bool
@@ -296,76 +298,6 @@ class StreamTruncationRecoveryMixin:
         )
         await self._emit_truncation_warning("tool_call_retry", locale, restart=True)
         return True
-
-    def _boost_output_tokens(self, retries: int) -> None:
-        """Set ephemeral output token override with progressive scaling.
-
-        retries=0 → 2x base, retries=1 → 3x base, retries>=2 → 4x base.
-        Capped at MAX_EPHEMERAL_OUTPUT_TOKENS (65536); a base already at the cap is left as configured.
-
-        When no output budget is configured, the provider default applies and its size
-        is unknown. For a known thinking model the headroom floor is a safe base (it is
-        the same value applied at creation time), so the retry gets real room. For
-        anything else the ceiling is unknown — raising it could exceed the model's
-        limit and turn a truncated answer into a hard error — so the boost stays a
-        no-op rather than guessing.
-        """
-        base = self._get_configured_max_tokens()
-        if base is None:
-            base = self._default_output_tokens()
-        if base is None:
-            logger.warning(" Output token boost skipped: no configured max_tokens and model ceiling unknown")
-            return
-
-        multiplier = min(retries + 2, 4)
-        boosted = min(base * multiplier, MAX_EPHEMERAL_OUTPUT_TOKENS)
-        if boosted <= base:
-            logger.warning(" Output token boost skipped: configured budget %d already reaches the cap", base)
-            return
-        set_ephemeral_max_output_tokens(boosted)
-        logger.info(
-            " Output token boost: %d → %d (×%d, cap %d)",
-            base,
-            boosted,
-            multiplier,
-            MAX_EPHEMERAL_OUTPUT_TOKENS,
-        )
-
-    def _default_output_tokens(self) -> int | None:
-        """Resolve a safe base output budget when none is configured.
-
-        Only thinking models qualify: their headroom floor is a value already known
-        to be accepted by the provider, so scaling it cannot overshoot the ceiling.
-        Returns None for unknown models, keeping the boost a safe no-op.
-        """
-        from myrm_agent_harness.toolkits.llms.core.thinking_headroom import (
-            thinking_output_floor,
-        )
-
-        llm = self._ctx.llm
-        model = getattr(llm, "model_name", None) or getattr(llm, "model", None)
-        if not isinstance(model, str) or not model:
-            return None
-        llm_kwargs = getattr(llm, "model_kwargs", None)
-        return thinking_output_floor(model, llm_kwargs if isinstance(llm_kwargs, dict) else None)
-
-    def _get_configured_max_tokens(self) -> int | None:
-        """Read the configured max_tokens from the LLM instance.
-
-        Checks ``llm.max_tokens`` first (direct Pydantic field), then falls
-        back to ``llm.model_kwargs["max_tokens"]`` which is where the value
-        lands when users set it via the frontend ModelKwargsEditor.
-        """
-        ctx = self._ctx
-        llm = ctx.llm
-        if llm is None:
-            return None
-        max_tokens: int | None = getattr(llm, "max_tokens", None)
-        if not isinstance(max_tokens, int) or max_tokens <= 0:
-            model_kwargs = getattr(llm, "model_kwargs", None) or {}
-            raw = model_kwargs.get("max_tokens")
-            max_tokens = raw if isinstance(raw, int) and raw > 0 else None
-        return max_tokens
 
     async def _emit_truncation_warning(
         self,

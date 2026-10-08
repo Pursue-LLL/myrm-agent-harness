@@ -26,7 +26,7 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, TypeVar
 
 from langchain_core.messages import BaseMessageChunk
 from langchain_core.outputs import ChatGenerationChunk
@@ -42,6 +42,7 @@ from myrm_agent_harness.toolkits.llms.adapters.streaming import (
     extract_chunk_metadata,
     normalize_usage,
     parse_tool_calls_from_reasoning,
+    provider_reported_finish,
 )
 from myrm_agent_harness.toolkits.llms.adapters.tool_call_parsers import (
     clean_xml_tool_tags,
@@ -55,6 +56,8 @@ from myrm_agent_harness.utils.token_economics.usage_ledger import (
 )
 
 logger = logging.getLogger(__name__)
+
+_StreamT = TypeVar("_StreamT")
 
 _capability_detector = ModelCapabilityDetector()
 
@@ -156,6 +159,7 @@ class StreamAggregator:
     """Mutable accumulator that collects stream chunks and produces an aggregated response."""
 
     __slots__ = (
+        "_source",
         "chunk_count",
         "content",
         "default_chunk_class",
@@ -170,6 +174,7 @@ class StreamAggregator:
     )
 
     def __init__(self, default_chunk_class: type[BaseMessageChunk]) -> None:
+        self._source: object | None = None
         self.content: list[str] = []
         self.tool_calls: list[dict[str, Any]] = []
         self.reasoning: list[str] = []
@@ -181,6 +186,16 @@ class StreamAggregator:
         self.first_token_time: float | None = None
         self.stream_start: float = time.monotonic()
         self.default_chunk_class = default_chunk_class
+
+    def track(self, stream: _StreamT) -> _StreamT:
+        """Remember the provider stream being consumed (returned unchanged) so its end can be classified."""
+        self._source = stream
+        return stream
+
+    @property
+    def provider_finish(self) -> bool | None:
+        """Whether the provider itself reported how the tracked stream ended (None when it cannot be told)."""
+        return provider_reported_finish(self._source)
 
     def ingest_raw_chunk(self, chunk: Any) -> dict[str, Any] | None:
         """Extract metadata from a raw chunk and return its dict form (or None to skip)."""
@@ -375,7 +390,7 @@ def finalize_stream(
     final_tool_chunk, corrected_tool_calls, recovery_metadata = build_final_tool_call_chunk(
         tool_call_source,
         tool_schemas,
-        stream_complete=is_stream_complete(agg.finish_reason),
+        stream_complete=is_stream_complete(agg.finish_reason, agg.provider_finish),
         decode_html_entities=_capability_detector.is_xai_model(model_name),
     )
     if corrected_tool_calls:

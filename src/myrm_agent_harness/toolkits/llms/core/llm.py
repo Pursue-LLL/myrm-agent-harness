@@ -6,6 +6,7 @@ agent/context_management/PROMPT_CACHE_PRACTICE.md §6.1-6.2 whenever this file c
 - adapters.chat_model::ChatLiteLLM, clean_model_kwargs (POS: LangChain adapter)
 - providers (POS: custom provider module; import triggers side-effect registration)
 - litellm::supports_web_search (POS: model native search capability detection)
+- adapters.wire.native_anthropic::is_native_anthropic_wire (POS: first-party Anthropic Messages API detection)
 
 [OUTPUT]
 - create_litellm_model(): factory function to create LiteLLM model instances
@@ -14,7 +15,8 @@ agent/context_management/PROMPT_CACHE_PRACTICE.md §6.1-6.2 whenever this file c
 [POS]
 LLM core. LiteLLM wrapper providing a unified multi-model invocation interface
 (OpenAI, Anthropic, Gemini, etc.). Provides a factory function to create LiteLLM instances,
-automatically merging model_kwargs into extra_body. Integrates reasoning_timeout floor,
+automatically merging model_kwargs into extra_body (except for first-party Anthropic Messages calls,
+whose API rejects that field). Integrates reasoning_timeout floor,
 thinking model max_tokens headroom (auto-raise floor to prevent thinking-phase truncation),
 local endpoint stall-detection relaxation (auto-detect localhost/RFC1918 → relax first_event/
 inter_chunk/request timeouts), Ollama-scoped 64k context window (options.num_ctx injected only for
@@ -41,6 +43,7 @@ from myrm_agent_harness.toolkits.llms.adapters.chat_model import (
 from myrm_agent_harness.toolkits.llms.adapters.chat_model import (
     clean_model_kwargs as clean_model_kwargs,
 )
+from myrm_agent_harness.toolkits.llms.adapters.wire.native_anthropic import is_native_anthropic_wire
 from myrm_agent_harness.toolkits.llms.core.deepseek_reasoning import apply_deepseek_reasoning_effort
 from myrm_agent_harness.toolkits.llms.core.openai_reasoning import apply_openai_reasoning_effort
 from myrm_agent_harness.toolkits.llms.core.openrouter_verbosity import apply_openrouter_reasoning_effort
@@ -98,11 +101,20 @@ def _is_ollama_endpoint(url: str | None, model: str | None) -> bool:
         return False
 
 
+# Kwargs the extra_body mirror must never copy:
+# - max_tokens: the OpenAI SDK flattens extra_body over typed fields, so a mirrored cap would overwrite the
+#   headroom-adjusted (and truncation-boosted) value on the wire.
+# - extra_body: copying a dict into itself makes a self-reference that cannot be serialized.
+# - supports_reasoning: factory-only switch that no provider understands.
+_NEVER_MIRRORED = frozenset({"max_tokens", "extra_body", "supports_reasoning"})
+
+
 def _merge_model_kwargs_to_extra_body(llm_kwargs: dict[str, Any], model_kwargs: dict[str, Any] | None) -> None:
-    """Merge all model_kwargs into extra_body for cross-provider compatibility.
+    """Mirror model_kwargs into extra_body for cross-provider compatibility.
 
     LiteLLM may drop non-standard parameters for some providers (e.g. OpenAI-compatible
     endpoints). Duplicating model_kwargs into extra_body ensures they reach the provider.
+    The caller's own ``extra_body`` is copied rather than mutated, and its keys win.
 
     Args:
         llm_kwargs: LLM parameter dict (mutated in place).
@@ -111,15 +123,13 @@ def _merge_model_kwargs_to_extra_body(llm_kwargs: dict[str, Any], model_kwargs: 
     if not model_kwargs:
         return
 
-    extra_body = llm_kwargs.setdefault("extra_body", {})
-    if not isinstance(extra_body, dict):
-        extra_body = {}
-        llm_kwargs["extra_body"] = extra_body
-
-    # Copy model_kwargs into extra_body without overwriting existing keys
+    current = llm_kwargs.get("extra_body")
+    extra_body = dict(current) if isinstance(current, dict) else {}
     for key, value in model_kwargs.items():
-        if key not in extra_body:
-            extra_body[key] = value
+        if key not in _NEVER_MIRRORED:
+            extra_body.setdefault(key, value)
+    if extra_body:
+        llm_kwargs["extra_body"] = extra_body
 
 
 def _resolve_web_search_options(
@@ -195,13 +205,20 @@ def create_litellm_model(
         Configured ChatLiteLLM instance.
     """
     llm_kwargs: dict[str, Any] = {"model": model, "wire_protocol": wire_protocol, **kwargs}
+    custom_provider = llm_kwargs.get("custom_llm_provider")
+    native_anthropic = is_native_anthropic_wire(
+        model, base_url, custom_provider if isinstance(custom_provider, str) else None
+    )
     if egress_proxy is not None:
         llm_kwargs["egress_proxy"] = egress_proxy
     if reasoning_effort is not None:
         llm_kwargs["reasoning_effort"] = reasoning_effort
-        extra_body = llm_kwargs.setdefault("extra_body", {})
-        if isinstance(extra_body, dict) and "reasoning_effort" not in extra_body:
-            extra_body["reasoning_effort"] = reasoning_effort
+        if not native_anthropic:
+            caller_extra_body = llm_kwargs.get("extra_body")
+            llm_kwargs["extra_body"] = {
+                "reasoning_effort": reasoning_effort,
+                **(caller_extra_body if isinstance(caller_extra_body, dict) else {}),
+            }
     if temperature is not None:
         llm_kwargs["temperature"] = temperature
 
@@ -214,8 +231,10 @@ def create_litellm_model(
     if streaming:
         llm_kwargs["streaming"] = streaming
 
-    # Merge kwargs into extra_body for cross-provider compatibility
-    _merge_model_kwargs_to_extra_body(llm_kwargs, kwargs)
+    # Merge kwargs into extra_body for cross-provider compatibility. The Anthropic Messages API rejects an
+    # `extra_body` field, and LiteLLM already sends every kwarg it supports there.
+    if not native_anthropic:
+        _merge_model_kwargs_to_extra_body(llm_kwargs, kwargs)
 
     # DeepSeek: normalize reasoning_effort ('off'|'low'|'high'|'max') & thinking ('enabled'|'disabled')
     apply_deepseek_reasoning_effort(model, llm_kwargs)

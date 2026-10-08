@@ -27,6 +27,16 @@ class TestIsStreamComplete:
         # repairing them is not a false positive (a complete parse short-circuits).
         assert is_stream_complete("stop") is True
 
+    def test_stream_the_provider_never_finished_is_incomplete(self) -> None:
+        # The stream layer synthesizes "stop" when a connection closes mid-call; only the provider's own marker counts.
+        assert is_stream_complete("stop", provider_finish=False) is False
+        assert is_stream_complete("tool_calls", provider_finish=False) is False
+
+    def test_unknown_or_confirmed_provider_finish_changes_nothing(self) -> None:
+        assert is_stream_complete("stop", provider_finish=None) is True
+        assert is_stream_complete("stop", provider_finish=True) is True
+        assert is_stream_complete("length", provider_finish=True) is False
+
 
 def _build_tool_schema(
     name: str, properties: dict[str, object], required: list[str] | None = None

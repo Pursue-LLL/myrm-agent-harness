@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -136,6 +137,17 @@ class TestStreamAggregator:
         ttft = agg.ttft_ms
         assert ttft is not None
         assert abs(ttft - 50.0) < 1.0
+
+    def test_track_returns_the_stream_unchanged_and_exposes_how_it_ended(self) -> None:
+        agg = StreamAggregator(AIMessageChunk)
+        assert agg.provider_finish is None  # nothing tracked yet
+
+        stream = SimpleNamespace(received_finish_reason=None, intermittent_finish_reason=None)
+
+        assert agg.track(stream) is stream
+        assert agg.provider_finish is False
+        stream.received_finish_reason = "stop"
+        assert agg.provider_finish is True
 
 
 class TestStreamTextIntegrity:
@@ -373,6 +385,47 @@ class TestFinalizeStream:
 
         assert result.final_tool_chunk is mock_chunk
         assert result.aggregated_response["choices"][0]["message"]["tool_calls"] == corrected
+
+
+class TestFinalizeStreamProviderFinish:
+    """A closed prefix of tool arguments runs only when the provider itself said the stream was finished."""
+
+    @staticmethod
+    def _finalize(markers: SimpleNamespace | None) -> StreamFinalization:
+        agg = StreamAggregator(AIMessageChunk)
+        agg.tool_calls = [
+            {"function": {"name": "write_file", "arguments": '{"path": "/tmp/a", '}, "id": "call_1", "type": "function"}
+        ]
+        agg.last_model = "gpt-4o"
+        agg.finish_reason = "stop"  # what LiteLLM synthesizes for a stream that just ended
+        if markers is not None:
+            agg.track(markers)
+        with (
+            patch("myrm_agent_harness.toolkits.llms.utils.logger.log_llm_response"),
+            patch("myrm_agent_harness.utils.token_economics.tracker.record_finish_reason"),
+        ):
+            return finalize_stream(agg, None, "gpt-4o", is_async=False, record_usage_fn=MagicMock())
+
+    def test_stream_the_provider_never_finished_withholds_the_call(self) -> None:
+        result = self._finalize(SimpleNamespace(received_finish_reason=None, intermittent_finish_reason=None))
+
+        message = result.aggregated_response["choices"][0]["message"]
+        assert "tool_calls" not in message
+        assert [(item["strategy"], item["safe"]) for item in message["tool_call_recovery"]] == [
+            ("truncated_stream_unverified", False)
+        ]
+
+    def test_provider_finished_stream_still_recovers_the_call(self) -> None:
+        result = self._finalize(SimpleNamespace(received_finish_reason="stop", intermittent_finish_reason=None))
+
+        message = result.aggregated_response["choices"][0]["message"]
+        assert [call["function"]["arguments"] for call in message["tool_calls"]] == ['{"path": "/tmp/a"}']
+
+    def test_untracked_stream_falls_back_to_the_finish_reason(self) -> None:
+        result = self._finalize(None)
+
+        message = result.aggregated_response["choices"][0]["message"]
+        assert [call["function"]["arguments"] for call in message["tool_calls"]] == ['{"path": "/tmp/a"}']
 
 
 class TestFinalizeStreamSafetyTermination:

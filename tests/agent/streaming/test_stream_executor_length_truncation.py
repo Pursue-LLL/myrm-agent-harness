@@ -10,6 +10,13 @@ from myrm_agent_harness.agent.streaming.stream_executor import (
     StreamExecutor,
 )
 from myrm_agent_harness.agent.types import AgentRunStatistics
+from myrm_agent_harness.toolkits.llms.utils import model_utils
+
+
+@pytest.fixture(autouse=True)
+def _unmapped_output_ceilings(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin every model to "ceiling unknown": boost expectations must not depend on LiteLLM's price table."""
+    monkeypatch.setattr(model_utils, "get_model_output_ceiling", lambda _model: None)
 
 
 class DummyCompactor:
@@ -1187,3 +1194,59 @@ async def test_boost_stays_noop_for_unknown_model_without_budget(mock_context):
 
     executor._boost_output_tokens(0)
     assert get_ephemeral_max_output_tokens() is None
+
+
+# ---------------------------------------------------------------------------
+# Boost clamp: a retry never asks for more than the model's documented ceiling
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("configured", "ceiling", "expected_override"),
+    [
+        (16384, 20_000, 20_000),  # ceiling between base and 2x becomes the boost
+        (16384, 128_000, 32768),  # ceiling far above: the plain 2x boost
+        (16384, 8192, None),  # ceiling below the base is a stale entry: base already served, no room to add
+        (16384, 16384, None),  # base already sits on the ceiling
+    ],
+)
+def test_boost_is_limited_to_the_model_ceiling(
+    mock_context: StreamContext,
+    monkeypatch: pytest.MonkeyPatch,
+    configured: int,
+    ceiling: int,
+    expected_override: int | None,
+):
+    from myrm_agent_harness.agent.streaming.recovery.stream_recovery_truncation import (
+        get_ephemeral_max_output_tokens,
+        reset_ephemeral_max_output_tokens,
+    )
+
+    monkeypatch.setattr(model_utils, "get_model_output_ceiling", lambda _model: ceiling)
+    mock_context.llm = _llm_with_max_tokens(configured)
+    executor = _make_executor(mock_context)
+    try:
+        executor._boost_output_tokens(0)
+        assert get_ephemeral_max_output_tokens() == expected_override
+    finally:
+        reset_ephemeral_max_output_tokens()
+
+
+def test_boost_stays_within_the_ceiling_on_later_retries(mock_context: StreamContext, monkeypatch: pytest.MonkeyPatch):
+    """Retry levels scale up until the ceiling and then stay on it instead of overshooting."""
+    from myrm_agent_harness.agent.streaming.recovery.stream_recovery_truncation import (
+        get_ephemeral_max_output_tokens,
+        reset_ephemeral_max_output_tokens,
+    )
+
+    monkeypatch.setattr(model_utils, "get_model_output_ceiling", lambda _model: 40_000)
+    mock_context.llm = _llm_with_max_tokens(16384)
+    executor = _make_executor(mock_context)
+    try:
+        observed = []
+        for retries in (0, 1, 2):
+            executor._boost_output_tokens(retries)
+            observed.append(get_ephemeral_max_output_tokens())
+        assert observed == [32768, 40_000, 40_000]  # 2x fits; 3x and 4x are cut to the ceiling
+    finally:
+        reset_ephemeral_max_output_tokens()

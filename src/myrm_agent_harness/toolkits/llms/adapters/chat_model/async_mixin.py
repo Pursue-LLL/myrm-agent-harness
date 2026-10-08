@@ -417,7 +417,7 @@ class ChatLiteLLMAsyncMixin:
                 try:
                     loop = asyncio.get_running_loop()
                     async with asyncio.timeout(self.first_event_timeout) as stall_tm:
-                        async for chunk in stream:
+                        async for chunk in agg.track(stream):
                             stall_tm.reschedule(loop.time() + self.inter_chunk_timeout)
                             if stall_phase == "first_event":
                                 stall_phase = "inter_chunk"

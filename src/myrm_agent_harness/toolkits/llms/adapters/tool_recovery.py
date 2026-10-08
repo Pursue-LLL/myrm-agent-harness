@@ -8,7 +8,7 @@
 - observability.metrics.registry::metrics_registry (POS: Global metrics registry)
 
 [OUTPUT]
-- is_stream_complete(): Map a provider finish_reason to the arg-recovery completeness signal
+- is_stream_complete(): Map a provider finish_reason (and whether the provider itself reported it) to the arg-recovery completeness signal
 - has_withheld_tool_calls(): Whether a message records tool calls withheld as unsafe (never executable)
 - recover_tool_call_payloads(): Parse and recover tool call arguments with fallback strategies (HTML-entity decoding is opt-in)
 - build_final_tool_call_chunk(): Build the final ChatGenerationChunk carrying all safely recovered tool calls; calls withheld as unsafe are recorded in `additional_kwargs["tool_call_recovery"]` on a metadata-only chunk
@@ -40,20 +40,22 @@ from myrm_agent_harness.utils.token_economics.usage_ledger import (
 )
 
 
-def is_stream_complete(finish_reason: str | None) -> bool:
+def is_stream_complete(finish_reason: str | None, provider_finish: bool | None = None) -> bool:
     """Map a finish reason to the arg-recovery completeness signal.
 
     ``True`` when the model ended the turn normally (``tool_calls``, ``stop``, ...):
     the argument stream is complete. ``False`` when generation stopped abnormally —
     a missing finish reason, the dropped-stream sentinel (the stream ended before
-    the final metadata chunk), a length cut (``length``/``max_tokens``), or a
-    provider safety termination — so argument text is known to be incomplete and
-    must not be closed into a valid-looking object. Well-formed arguments never
+    the final metadata chunk), a length cut (``length``/``max_tokens``), a
+    provider safety termination, or a stream the provider never finished
+    (``provider_finish is False``: the stream layer synthesized the finish reason
+    after a connection closed mid-call) — so argument text is known to be incomplete
+    and must not be closed into a valid-looking object. Well-formed arguments never
     reach the repair gate (they return via the ``standard_json`` fast path), so an
     abnormal-end signal only ever withholds arguments that already need a
     non-standard repair.
     """
-    if not finish_reason:
+    if provider_finish is False or not finish_reason:
         return False
     if finish_reason == DROPPED_STREAM_FINISH_REASON:
         return False

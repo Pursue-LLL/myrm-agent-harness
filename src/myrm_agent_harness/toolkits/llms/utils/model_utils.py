@@ -5,12 +5,16 @@
 
 [OUTPUT]
 - get_model_context_limit(): best-effort extraction of model context window size
+- get_model_output_ceiling(): documented per-response output ceiling of a model, or None when unmapped
+- clamp_budget_to_model_ceiling(): limit an upward output-budget adjustment to the known ceiling
 
 [POS]
 Stateless utilities for inspecting LLM model properties.
 """
 
 from __future__ import annotations
+
+from functools import lru_cache
 
 from langchain_core.language_models import BaseChatModel
 
@@ -47,3 +51,35 @@ def get_model_context_limit(llm: BaseChatModel) -> int | None:
         return info.get("max_input_tokens")
     except Exception:
         return None
+
+
+@lru_cache(maxsize=512)
+def get_model_output_ceiling(model_name: str) -> int | None:
+    """Documented per-response output ceiling of *model_name*, or None when LiteLLM does not know it.
+
+    Only ``max_output_tokens`` is trusted: for part of LiteLLM's table the legacy ``max_tokens``
+    field holds the context window, which would turn a budget clamp into a no-op.
+    """
+    if not model_name:
+        return None
+    try:
+        import litellm
+
+        ceiling = litellm.get_model_info(model_name).get("max_output_tokens")
+    except Exception:
+        return None
+    return ceiling if isinstance(ceiling, int) and ceiling > 0 else None
+
+
+def clamp_budget_to_model_ceiling(model_name: str, requested: int, *, accepted: int) -> int:
+    """Limit an upward output-budget adjustment to the model's known ceiling.
+
+    ``accepted`` is a budget the provider already served: the caller's configured cap, or the
+    base budget of a call that just truncated. A table ceiling below it is a stale entry rather
+    than a limit, so the result never drops below ``accepted``; an unknown ceiling leaves
+    ``requested`` untouched.
+    """
+    ceiling = get_model_output_ceiling(model_name)
+    if ceiling is None:
+        return requested
+    return max(accepted, min(requested, ceiling))
