@@ -811,6 +811,9 @@ async def run_agent_loop(
             fallback_llms=getattr(agent_state, "fallback_llms", None),
         )
 
+        # A host may resume this generator in a fresh task context per step, which drops the executor bound at
+        # the start of the run: bind it again right before the executor task copies the context.
+        set_hook_executor(hook_exec)
         set_tool_progress_sink(create_queue_sink(output_queue, message_id))
         set_cancel_token(cancel_token)
         try:
@@ -831,9 +834,6 @@ async def run_agent_loop(
             error_msg, diagnostic_dict = diagnose_llm_error(e, agent_state.llm, agent_state.config.locale)
             error_type = type(e).__name__
 
-        # A host may resume this generator in a fresh task context per step, which drops the executor bound at
-        # the start of the run: bind it again right before the executor task copies the context.
-        set_hook_executor(hook_exec)
             if not stats.error_message:
                 stats.error_message = f"{error_type}: {error_msg}"
                 logger.error(
