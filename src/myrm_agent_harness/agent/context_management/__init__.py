@@ -1168,6 +1168,17 @@ from .rolling_memory_pipeline import (
     TextChunk,
     TokenBoundedChunkStreamer,
 )
+from .hierarchical_supply import (
+    AdaptiveBranchFoldingSentry,
+    AssembledSupplyContext,
+    DisclosureExpansionResult,
+    HierarchicalContextTreeBuilder,
+    HierarchicalProgressiveDisclosureContextSupplySuite,
+    HierarchyLevel,
+    HierarchyNode,
+    HierarchyTree,
+    ProgressiveDisclosureConfig,
+)
 from .sandbox_pause_resume import (
     AgentkitPauseResumeSessionSandboxSuite,
     PauseResumeActionKind,
@@ -2279,4 +2290,14 @@ __all__ = [
     "RollingWorkingMemoryStateMachine",
     "TextChunk",
     "TokenBoundedChunkStreamer",
+    # hierarchical_supply
+    "AdaptiveBranchFoldingSentry",
+    "AssembledSupplyContext",
+    "DisclosureExpansionResult",
+    "HierarchicalContextTreeBuilder",
+    "HierarchicalProgressiveDisclosureContextSupplySuite",
+    "HierarchyLevel",
+    "HierarchyNode",
+    "HierarchyTree",
+    "ProgressiveDisclosureConfig",
 ]
