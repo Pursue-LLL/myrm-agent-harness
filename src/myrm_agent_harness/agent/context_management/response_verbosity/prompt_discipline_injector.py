@@ -1,7 +1,3 @@
-# [INPUT]: ResponseVerbosityLevel
-# [OUTPUT]: PromptDisciplineInjector
-# [POS]: agent/context_management/response_verbosity/prompt_discipline_injector.py
-
 """Prompt discipline injector enforcing strict information density and conciseness rules.
 
 [INPUT]

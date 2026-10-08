@@ -1,7 +1,3 @@
-# [INPUT]: BatchQueriesCoalescingGate, BatchSearchReceipt, DocumentChunk, DualStrategyRrfRetriever, EphemeralFts5Config, EphemeralSqliteFts5Vault, IndexReceipt, MarkdownCodeBlockChunker, SearchQueryItem, SearchResultChunk
-# [OUTPUT]: EphemeralSessionFts5IndexAndBatchRetrieverSuite
-# [POS]: agent/context_management/ephemeral_fts5/ephemeral_session_fts5_suite.py
-
 """End-to-end facade orchestrating ephemeral session FTS5 vault indexing and batch retrieval.
 
 [INPUT]

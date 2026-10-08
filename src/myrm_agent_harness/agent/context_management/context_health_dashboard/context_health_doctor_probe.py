@@ -1,7 +1,3 @@
-# [INPUT]: ContextHealthConfig, HealthDoctorDiagnosis
-# [OUTPUT]: ContextHealthDoctorProbe
-# [POS]: agent/context_management/context_health_dashboard/context_health_doctor_probe.py
-
 """Context health doctor probe diagnosing SQLite FTS5 capabilities, disk space, and write permissions.
 
 [INPUT]

@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: CrossSessionConfig, CrossSessionMentionReferenceAndSnapshotInjectionSuite, MentionInjectionResult, SessionMentionParser, SessionMentionTag, SessionRecord, SessionSnapshot, SessionSnapshotExtractor
-# [POS]: agent/context_management/cross_session_mention/__init__.py
-
 """Public contracts and facade for cross-session @ mention referencing and read-only snapshot injection.
 
 [INPUT]

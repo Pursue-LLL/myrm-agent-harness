@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: AssembledContextPayload, ContextTierKind, FourTierContextConfig, FourTierContextRoutingAndSynthesisEngineSuite, JitHandle, JitRetrievalProtocol, KnowledgeSynthesisEngine, SynthesisInput, SynthesizedDirective, TriggerDomainKind, TriggeredContextRouter, TriggeredRule
-# [POS]: agent/context_management/four_tier_routing/__init__.py
-
 """Four-Tier Context Engineering Architecture package.
 
 [INPUT]

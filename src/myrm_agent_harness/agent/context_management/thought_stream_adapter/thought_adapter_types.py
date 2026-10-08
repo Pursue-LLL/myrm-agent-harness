@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: ClientReasoningMode, ThoughtActionType, ThoughtStepDescriptor, ThoughtStreamChunk, ThoughtAdapterConfig
-# [POS]: agent/context_management/thought_stream_adapter/thought_adapter_types.py
-
 """Domain models and contracts for agent thought streaming and dual-mode external client adapter.
 
 [INPUT]

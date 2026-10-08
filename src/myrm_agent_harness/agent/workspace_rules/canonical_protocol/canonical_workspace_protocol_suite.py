@@ -1,7 +1,3 @@
-# [INPUT]: AdaptivePersonaPolicy, AdaptivePersonaPolicyEngine, BootstrapLifecycleRunner, BootstrapRitualState, CanonicalFileParser, CanonicalWorkspaceBundle, MergedWorkspaceContext, MultiTierWorkspaceMerger, Path
-# [OUTPUT]: CanonicalAgentWorkspaceProtocolAndLifecycleSuite, CanonicalWorkspaceProtocolSuite
-# [POS]: agent/workspace_rules/canonical_protocol/canonical_workspace_protocol_suite.py
-
 """Comprehensive facade suite for canonical workspace protocols, multi-tier merging, and dynamic policy evolution.
 
 [INPUT]

@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: ChunkBoundedRollingMemoryAgentPipelineSuite, ChunkProcessingStep, ChunkStreamConfig, RollingPipelineResult, RollingWorkingMemory, RollingWorkingMemoryStateMachine, TextChunk, TokenBoundedChunkStreamer
-# [POS]: agent/context_management/rolling_memory_pipeline/__init__.py
-
 """Public contracts and facade for chunk-bounded rolling working memory and long-context comprehension.
 
 [INPUT]

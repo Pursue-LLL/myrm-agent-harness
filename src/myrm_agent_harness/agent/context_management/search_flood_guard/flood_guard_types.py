@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: FloodActionKind, FloodGuardConfig, FloodGuardDecision, FloodGuardStatus, SlidingWindowBucket
-# [POS]: agent/context_management/search_flood_guard/flood_guard_types.py
-
 """Domain models and contracts for multi-agent per-context search flood guard and progressive soft-cap.
 
 [INPUT]

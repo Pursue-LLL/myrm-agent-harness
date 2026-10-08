@@ -1,7 +1,3 @@
-# [INPUT]: ArchiveSearchResult, ExpandedHandoffAnchor, ExpandedHandoffConfig, ExpandedSkeletonAnchorBuilder, HistoricalSessionTurn, SearchableOldSessionArchiveConduit
-# [OUTPUT]: ExpandedHandoffSuite, FullDialogue1200WordAnchorWithSearchableArchiveHandoffSuite
-# [POS]: agent/context_management/expanded_handoff/expanded_handoff_suite.py
-
 """Comprehensive facade suite for 1,200-word expanded dialogue skeleton and searchable archive handoff.
 
 [INPUT]

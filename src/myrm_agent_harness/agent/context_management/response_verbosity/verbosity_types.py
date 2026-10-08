@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: DehydratedSummary, ResponseVerbosityLevel, VerbosityBudgetConfig, VerbosityContextBundle, VerbositySource
-# [POS]: agent/context_management/response_verbosity/verbosity_types.py
-
 """Domain contracts and data models for tri-tier response verbosity and dynamic density tuning.
 
 [INPUT]

@@ -1,7 +1,3 @@
-# [INPUT]: AgentExecutionOutput, AgentRoleTarget, ConsensusDeltaHighlighter, CrossExamArbitrationReport, Sequence
-# [OUTPUT]: SplitCrossExaminationEngine
-# [POS]: agent/sub_agents/cross_examination/split_cross_examination_engine.py
-
 """Engine orchestrating concurrent multi-agent dispatch and cross-examination report generation.
 
 [INPUT]

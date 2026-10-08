@@ -1,7 +1,3 @@
-# [INPUT]: DocumentChunk, EphemeralFts5Config
-# [OUTPUT]: MarkdownCodeBlockChunker
-# [POS]: agent/context_management/ephemeral_fts5/markdown_code_block_chunker.py
-
 """Markdown structure-aware chunker preserving heading paths and code block fence integrity.
 
 [INPUT]

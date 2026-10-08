@@ -1,7 +1,3 @@
-# [INPUT]: CrossSessionConfig, SessionRecord, SessionSnapshot
-# [OUTPUT]: SessionSnapshotExtractor
-# [POS]: agent/context_management/cross_session_mention/session_snapshot_extractor.py
-
 """Extractor of immutable read-only snapshots from historical session records.
 
 [INPUT]

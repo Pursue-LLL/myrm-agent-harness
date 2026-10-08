@@ -1,7 +1,3 @@
-# [INPUT]: ContentAddressedStore, ObservationHandle, ObservationPackConfig, ObservationSendState, TransformDecision
-# [OUTPUT]: ObservationDegradationPipeline
-# [POS]: agent/context_management/observation_pack/observation_degradation_pipeline.py
-
 """Sliding-window degradation pipeline for large observation outputs.
 
 [INPUT]

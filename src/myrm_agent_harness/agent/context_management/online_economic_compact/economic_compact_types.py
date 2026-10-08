@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: CompactionEconomicsConfig, PlanStepStatus, PlanStep, CompactionDecisionResult, EconomicCompactionLedger, ContinuationTurnPayload
-# [POS]: agent/context_management/online_economic_compact/economic_compact_types.py
-
 """Domain models and contracts for subtask boundary online context compaction and economics.
 
 [INPUT]

@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: BatchSearchReceipt, DocumentChunk, EphemeralFts5Config, IndexReceipt, SearchQueryItem, SearchResultChunk
-# [POS]: agent/context_management/ephemeral_fts5/ephemeral_fts5_types.py
-
 """Domain models and contracts for ephemeral session-isolated SQLite FTS5 indexing and batch retrieval.
 
 [INPUT]

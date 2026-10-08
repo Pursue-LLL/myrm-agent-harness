@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: ConflictArbitrationResult, DriftAuditReport, DriftInspectionTarget, ParsedRuleClause, RuleCallerContext, RuleGovernanceConfig, RuleSecretScanResult, ShadowedRuleFinding
-# [POS]: agent/workspace_rules/rule_governance/governance_types.py
-
 """Domain models and contracts for persistent context rule drift auditing and exception-aware governance.
 
 [INPUT]

@@ -1,7 +1,3 @@
-# [INPUT]: DehydratedSummary, DynamicBudgetScaler, PostGenerationDehydrator, PromptDisciplineInjector, ResponseVerbosityLevel, VerbosityBudgetConfig, VerbosityContextBundle, VerbosityPreferenceResolver, VerbositySource
-# [OUTPUT]: ResponseVerbositySuite, TriTierResponseVerbosityControlAndDynamicDensityTunerSuite
-# [POS]: agent/context_management/response_verbosity/response_verbosity_suite.py
-
 """Comprehensive facade suite for tri-tier response verbosity and dynamic density tuning.
 
 [INPUT]

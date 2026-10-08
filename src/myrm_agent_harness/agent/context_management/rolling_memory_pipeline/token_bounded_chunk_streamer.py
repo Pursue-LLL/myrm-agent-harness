@@ -1,7 +1,3 @@
-# [INPUT]: ChunkStreamConfig, TextChunk
-# [OUTPUT]: TokenBoundedChunkStreamer
-# [POS]: agent/context_management/rolling_memory_pipeline/token_bounded_chunk_streamer.py
-
 """Streamer slicing massive documents into token-bounded chunks with paragraph boundary preservation.
 
 [INPUT]

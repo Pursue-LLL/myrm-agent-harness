@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: AdoptionChoice, AdoptionReceipt, AgentExecutionOutput, AgentRoleTarget, ConsensusDeltaHighlighter, CrossExamArbitrationReport, CrossExamConsensus, CrossExamDivergence, IntentCategory, IntentRoutingDecision, OmniAgentDispatcherSuite, OmniAgentUnifiedDispatcherAndSplitCrossExaminationSuite, OneClickArbitrator, SplitCrossExaminationEngine, UnifiedIntentDispatcher
-# [POS]: agent/sub_agents/cross_examination/__init__.py
-
 """Omni-agent unified dispatch and split cross-examination package.
 
 [INPUT]

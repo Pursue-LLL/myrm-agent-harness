@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: ArchiveTier, ColdArchiveRecord, ConversationArchiveShareConfig, ConversationShareableSnapshotAndTieredColdArchiveSuite, SanitizedShareMessage, SanitizedSnapshotExporter, ShareAccessPolicy, ShareVerificationResult, ShareableSnapshotManifest, SignedShareGateway, TieredColdStorageArchiver
-# [POS]: agent/context_management/conversation_archive_share/__init__.py
-
 """Conversation shareable snapshot and tiered cold archive package.
 
 [INPUT]

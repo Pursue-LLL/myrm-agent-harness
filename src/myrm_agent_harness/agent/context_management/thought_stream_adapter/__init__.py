@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: AgentThoughtNormalizer, AgentThoughtStreamAdapterAndExternalClientDualModeEventBridgeSuite, AgentThoughtStreamAdapterSuite, ClientCapabilityNegotiator, ClientReasoningMode, LongReasoningHeartbeatConduit, ThoughtActionType, ThoughtAdapterConfig, ThoughtStepDescriptor, ThoughtStreamChunk
-# [POS]: agent/context_management/thought_stream_adapter/__init__.py
-
 """Agent thought stream adapter and external client dual-mode event bridge package.
 
 [INPUT]

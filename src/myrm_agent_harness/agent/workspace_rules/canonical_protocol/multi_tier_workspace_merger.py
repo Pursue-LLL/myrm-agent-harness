@@ -1,7 +1,3 @@
-# [INPUT]: CanonicalWorkspaceBundle, Path
-# [OUTPUT]: MergedWorkspaceContext, MultiTierWorkspaceMerger
-# [POS]: agent/workspace_rules/canonical_protocol/multi_tier_workspace_merger.py
-
 """Multi-tier workspace rule merger abolishing legacy first-match-wins mutual exclusion.
 
 [INPUT]

@@ -1,7 +1,3 @@
-# [INPUT]: LivingScratchpadConfig, LivingScratchpadDocumentManager, ScratchpadBidirectionalPatcher, ScratchpadConduitInjection, ScratchpadContextConduit, ScratchpadDocument, ScratchpadPatchOp, ScratchpadScope
-# [OUTPUT]: LivingScratchpadWorkingMemoryAndBiDirectionalContextConduitSuite
-# [POS]: agent/context_management/living_scratchpad/living_scratchpad_suite.py
-
 """Unified facade suite for living scratchpad working memory and bidirectional context conduit.
 
 [INPUT]

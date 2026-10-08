@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: ContextTierKind, TriggerDomainKind, TriggeredRule, JitHandle, SynthesisInput, SynthesizedDirective, FourTierContextConfig, AssembledContextPayload
-# [POS]: agent/context_management/four_tier_routing/four_tier_types.py
-
 """Domain types and contracts for the Four-Tier Context Engineering Architecture.
 
 [INPUT]

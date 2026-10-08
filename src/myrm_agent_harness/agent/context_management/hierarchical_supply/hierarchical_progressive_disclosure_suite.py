@@ -1,7 +1,3 @@
-# [INPUT]: AdaptiveBranchFoldingSentry, AssembledSupplyContext, DisclosureExpansionResult, HierarchicalContextTreeBuilder, HierarchyLevel, HierarchyNode, HierarchyTree, ProgressiveDisclosureConfig
-# [OUTPUT]: HierarchicalProgressiveDisclosureContextSupplySuite
-# [POS]: agent/context_management/hierarchical_supply/hierarchical_progressive_disclosure_suite.py
-
 """End-to-end facade orchestrating hierarchical enterprise context abstraction and progressive disclosure supply.
 
 [INPUT]

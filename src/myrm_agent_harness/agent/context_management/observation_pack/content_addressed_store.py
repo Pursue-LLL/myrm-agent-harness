@@ -1,7 +1,3 @@
-# [INPUT]: ObservationHandle, ObservationPackConfig, ObservationPage
-# [OUTPUT]: ContentAddressedStore
-# [POS]: agent/context_management/observation_pack/content_addressed_store.py
-
 """Content-addressed immutable store for large tool observations.
 
 [INPUT]

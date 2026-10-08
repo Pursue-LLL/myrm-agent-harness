@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: AssertionReconcileEngine, AssertionStatus, ContextAssertion, DagContextBudgetConfig, DagContextSuite, DagNodeLevel, ExactPageRecallConduit, HierarchicalDagContextEngineAndAssertionReconcileRecallSuite, HierarchicalDagFolder, HierarchicalDagNode, PageRecallResult, TurnRecord, VramBudgetEvaluation, VramPerformanceBudgetGuard
-# [POS]: agent/context_management/dag_context/__init__.py
-
 """Hierarchical DAG context engine, assertion reconciliation, and exact page recall package.
 
 [INPUT]

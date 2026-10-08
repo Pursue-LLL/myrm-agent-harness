@@ -1,7 +1,3 @@
-# [INPUT]: ArchiveSearchResult, ExpandedHandoffConfig, HistoricalSessionTurn
-# [OUTPUT]: SearchableOldSessionArchiveConduit
-# [POS]: agent/context_management/expanded_handoff/searchable_old_session_archive_conduit.py
-
 """Searchable archive conduit delivering on-demand recall across immutable origin session transcripts.
 
 [INPUT]

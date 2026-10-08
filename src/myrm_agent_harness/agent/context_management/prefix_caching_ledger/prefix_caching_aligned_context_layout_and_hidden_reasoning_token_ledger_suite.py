@@ -1,7 +1,3 @@
-# [INPUT]: ContextBlockDescriptor, HiddenReasoningTokensPenetrationAuditor, MultiDimensionalSessionTokenLedger, PrefixCachingAlignedLayoutEngine, PrefixCachingLayoutConfig, TokenUsageBreakdown, TurnLedgerRecord
-# [OUTPUT]: PrefixCachingAlignedContextLayoutAndHiddenReasoningTokenLedgerSuite
-# [POS]: agent/context_management/prefix_caching_ledger/prefix_caching_aligned_context_layout_and_hidden_reasoning_token_ledger_suite.py
-
 """Unified facade suite orchestrating prefix-caching aligned context layout and hidden reasoning token ledgers.
 
 [INPUT]

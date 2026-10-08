@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: ArchiveSearchResult, ExpandedHandoffAnchor, ExpandedHandoffConfig, HistoricalSessionTurn
-# [POS]: agent/context_management/expanded_handoff/handoff_types.py
-
 """Domain models and contracts for 1,200-word expanded skeleton anchor and searchable archive handoffs.
 
 [INPUT]

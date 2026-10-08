@@ -1,7 +1,3 @@
-# [INPUT]: ActorVoiceMode, RelationshipMaturityStage, RuntimeVibe
-# [OUTPUT]: AdaptivePersonaPolicy, AdaptivePersonaPolicyEngine
-# [POS]: agent/workspace_rules/canonical_protocol/adaptive_persona_policy_engine.py
-
 """Dynamic adaptive persona policy engine evolving relationship maturity and arbitrating real-talk voice.
 
 [INPUT]

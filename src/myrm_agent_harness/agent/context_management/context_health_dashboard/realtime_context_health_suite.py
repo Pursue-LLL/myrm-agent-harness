@@ -1,7 +1,3 @@
-# [INPUT]: ContextHealthConfig, ContextHealthDoctorProbe, ContextSavingsMetrics, ContextUsageSnapshot, EphemeralAutoPurgeSentry, HealthDoctorDiagnosis, HealthWatermarkLevel, PurgeReceipt, RealtimeHealthGauge, ToolExpenditureItem
-# [OUTPUT]: RealtimeContextHealthDashboardAndAutoPurgeSentrySuite
-# [POS]: agent/context_management/context_health_dashboard/realtime_context_health_suite.py
-
 """Unified facade orchestrating realtime context health metering, auto-purge sentry, and doctor probe.
 
 [INPUT]

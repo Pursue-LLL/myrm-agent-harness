@@ -1,7 +1,3 @@
-# [INPUT]: DehydratedSummary
-# [OUTPUT]: PostGenerationDehydrator
-# [POS]: agent/context_management/response_verbosity/post_generation_dehydrator.py
-
 """Post-generation text dehydrator extracting concise TL;DR executive digests from verbose output.
 
 [INPUT]

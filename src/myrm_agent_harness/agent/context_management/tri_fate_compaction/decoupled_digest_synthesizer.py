@@ -1,7 +1,3 @@
-# [INPUT]: TriFateCompactionConfig, TurnEvidence
-# [OUTPUT]: DecoupledDigestSynthesizer
-# [POS]: agent/context_management/tri_fate_compaction/decoupled_digest_synthesizer.py
-
 """Decoupled digest synthesizer for distilling turns tagged with SUMMARIZE fate into structured context.
 
 [INPUT]

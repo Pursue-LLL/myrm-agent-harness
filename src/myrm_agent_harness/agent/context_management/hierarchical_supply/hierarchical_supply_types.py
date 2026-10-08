@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: AssembledSupplyContext, DisclosureExpansionResult, HierarchyLevel, HierarchyNode, HierarchyTree, ProgressiveDisclosureConfig
-# [POS]: agent/context_management/hierarchical_supply/hierarchical_supply_types.py
-
 """Domain models and contracts for hierarchical progressive disclosure enterprise context supply.
 
 [INPUT]

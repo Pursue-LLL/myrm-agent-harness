@@ -1,7 +1,3 @@
-# [INPUT]: HydrationDecision, HydrationMode, JITToolHydrationConfig, ToolSchemaDescriptor, VirtualToolCatalogIndexer
-# [OUTPUT]: JITSchemaHydrationEngine
-# [POS]: agent/context_management/jit_tool_hydration/jit_schema_hydration_engine.py
-
 """Just-in-time tool schema hydration engine matching intents and mounting schemas on demand.
 
 [INPUT]

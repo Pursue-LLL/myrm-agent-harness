@@ -1,7 +1,3 @@
-# [INPUT]: DriftAuditReport, DriftInspectionTarget, RuleGovernanceConfig, RuleSecretScanResult, ShadowedRuleFinding
-# [OUTPUT]: RuleDriftAndSecretProbe
-# [POS]: agent/workspace_rules/rule_governance/rule_drift_and_secret_probe.py
-
 """Probe auditing rule drift against workspace realities, secret leaks, and shadowed sibling files.
 
 [INPUT]

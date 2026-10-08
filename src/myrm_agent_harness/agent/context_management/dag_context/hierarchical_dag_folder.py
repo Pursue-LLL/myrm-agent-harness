@@ -1,7 +1,3 @@
-# [INPUT]: DagContextBudgetConfig, DagNodeLevel, HierarchicalDagNode, TurnRecord
-# [OUTPUT]: HierarchicalDagFolder
-# [POS]: agent/context_management/dag_context/hierarchical_dag_folder.py
-
 """Hierarchical DAG folder orchestrating multi-tier progressive summarization and lineage.
 
 [INPUT]

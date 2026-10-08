@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: ArchiveSearchResult, ExpandedHandoffAnchor, ExpandedHandoffConfig, ExpandedHandoffSuite, ExpandedSkeletonAnchorBuilder, FullDialogue1200WordAnchorWithSearchableArchiveHandoffSuite, HistoricalSessionTurn, SearchableOldSessionArchiveConduit
-# [POS]: agent/context_management/expanded_handoff/__init__.py
-
 """Full dialogue 1,200-word anchor with searchable archive handoff package.
 
 [INPUT]

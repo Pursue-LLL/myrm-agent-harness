@@ -1,7 +1,3 @@
-# [INPUT]: ArchiveTier, ColdArchiveRecord, ConversationArchiveShareConfig
-# [OUTPUT]: TieredColdStorageArchiver
-# [POS]: agent/context_management/conversation_archive_share/tiered_cold_storage_archiver.py
-
 """Tiered cold storage archiver with lossless compression and instant wakeup.
 
 [INPUT]

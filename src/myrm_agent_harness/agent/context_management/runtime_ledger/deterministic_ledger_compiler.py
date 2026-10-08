@@ -1,7 +1,3 @@
-# [INPUT]: QuotaConstraint, RuntimeLedgerConfig, RuntimeStateSnapshot, TodoProgress
-# [OUTPUT]: DeterministicLedgerCompiler
-# [POS]: agent/context_management/runtime_ledger/deterministic_ledger_compiler.py
-
 """Deterministic compiler aggregating runtime tool call counters, quota constraints, and task progression.
 
 [INPUT]

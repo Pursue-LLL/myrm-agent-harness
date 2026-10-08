@@ -1,7 +1,3 @@
-# [INPUT]: CompactionDecisionResult, CompactionEconomicsCalculator, CompactionEconomicsConfig, ContinuationTurnPayload, EconomicCompactionLedger, OnlineCompactContinuationEngine, PlanStep, SubtaskBoundaryHook
-# [OUTPUT]: SubtaskBoundaryOnlineContextCompactAndEconomicBreakevenSuite
-# [POS]: agent/context_management/online_economic_compact/subtask_boundary_economic_compact_suite.py
-
 """Comprehensive facade suite for subtask-boundary online context compaction and economics.
 
 [INPUT]

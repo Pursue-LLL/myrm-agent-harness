@@ -1,7 +1,3 @@
-# [INPUT]: ContentAddressedStore, ObservationDegradationPipeline, ObservationPackConfig, ObservationRecallTool, PackBatchResult, TransformDecision
-# [OUTPUT]: ObservationPackPagedRecallAndLongOutputHandleArchivalSuite
-# [POS]: agent/context_management/observation_pack/observation_pack_suite.py
-
 """Comprehensive facade suite for observation pack archival and paged recall.
 
 [INPUT]

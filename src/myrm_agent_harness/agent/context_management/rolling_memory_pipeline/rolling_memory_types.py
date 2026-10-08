@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: ChunkProcessingStep, ChunkStreamConfig, RollingPipelineResult, RollingWorkingMemory, TextChunk
-# [POS]: agent/context_management/rolling_memory_pipeline/rolling_memory_types.py
-
 """Domain models and contracts for chunk-bounded rolling working memory and long-context comprehension.
 
 [INPUT]

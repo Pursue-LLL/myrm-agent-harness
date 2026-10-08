@@ -1,7 +1,3 @@
-# [INPUT]: HierarchyLevel, HierarchyNode, HierarchyTree
-# [OUTPUT]: HierarchicalContextTreeBuilder
-# [POS]: agent/context_management/hierarchical_supply/hierarchical_context_tree_builder.py
-
 """Builder for compiling multi-tiered enterprise context into an indexed HierarchyTree.
 
 [INPUT]

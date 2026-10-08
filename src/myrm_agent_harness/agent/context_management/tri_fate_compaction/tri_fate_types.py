@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: CompactedTurnPartition, TriFateCompactionConfig, TurnEvidence, TurnFate, TurnFateDecision
-# [POS]: agent/context_management/tri_fate_compaction/tri_fate_types.py
-
 """Domain models and contracts for turn-level tri-fate compaction and decoupled digest synthesis.
 
 [INPUT]

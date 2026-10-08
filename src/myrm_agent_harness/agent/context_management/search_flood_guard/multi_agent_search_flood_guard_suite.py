@@ -1,7 +1,3 @@
-# [INPUT]: FloodActionKind, FloodGuardConfig, FloodGuardDecision, FloodGuardStatus, PerAgentSlidingWindowTracker, ProgressiveSoftCapGate
-# [OUTPUT]: MultiAgentSearchFloodGuardSuite
-# [POS]: agent/context_management/search_flood_guard/multi_agent_search_flood_guard_suite.py
-
 """Unified facade suite for multi-agent per-context search flood guard and progressive soft-cap.
 
 [INPUT]

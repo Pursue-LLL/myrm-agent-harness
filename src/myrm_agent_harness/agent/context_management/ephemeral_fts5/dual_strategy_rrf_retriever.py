@@ -1,7 +1,3 @@
-# [INPUT]: EphemeralFts5Config, EphemeralSqliteFts5Vault, SearchQueryItem, SearchResultChunk
-# [OUTPUT]: DualStrategyRrfRetriever
-# [POS]: agent/context_management/ephemeral_fts5/dual_strategy_rrf_retriever.py
-
 """Dual-strategy Porter and Trigram matcher with Reciprocal Rank Fusion (RRF) ranking.
 
 [INPUT]

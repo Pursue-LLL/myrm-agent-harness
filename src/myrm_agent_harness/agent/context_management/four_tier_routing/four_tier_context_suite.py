@@ -1,7 +1,3 @@
-# [INPUT]: AssembledContextPayload, ContextTierKind, FourTierContextConfig, JitHandle, JitRetrievalProtocol, KnowledgeSynthesisEngine, SynthesisInput, SynthesizedDirective, TriggerDomainKind, TriggeredContextRouter, TriggeredRule
-# [OUTPUT]: FourTierContextRoutingAndSynthesisEngineSuite
-# [POS]: agent/context_management/four_tier_routing/four_tier_context_suite.py
-
 """Comprehensive facade suite for the Four-Tier Context Engineering Architecture.
 
 [INPUT]

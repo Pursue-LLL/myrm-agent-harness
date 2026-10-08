@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: ContentAddressedStore, ObservationDegradationPipeline, ObservationHandle, ObservationPackConfig, ObservationPackPagedRecallAndLongOutputHandleArchivalSuite, ObservationPage, ObservationRecallTool, ObservationSendState, PackBatchResult, TransformDecision
-# [POS]: agent/context_management/observation_pack/__init__.py
-
 """ObservationPack long output archival, sliding-window degradation, and paged recall package.
 
 [INPUT]

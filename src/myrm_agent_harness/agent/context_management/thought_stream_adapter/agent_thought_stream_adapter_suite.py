@@ -1,7 +1,3 @@
-# [INPUT]: ClientCapabilityNegotiator, ClientReasoningMode, LongReasoningHeartbeatConduit, ThoughtActionType, ThoughtAdapterConfig, ThoughtStepDescriptor, ThoughtStreamChunk
-# [OUTPUT]: AgentThoughtStreamAdapterSuite
-# [POS]: agent/context_management/thought_stream_adapter/agent_thought_stream_adapter_suite.py
-
 """Comprehensive facade suite for agent thought streaming and dual-mode external client bridging.
 
 [INPUT]

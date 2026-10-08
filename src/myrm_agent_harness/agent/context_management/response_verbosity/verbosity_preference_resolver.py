@@ -1,7 +1,3 @@
-# [INPUT]: ResponseVerbosityLevel, VerbosityBudgetConfig, VerbositySource
-# [OUTPUT]: VerbosityPreferenceResolver
-# [POS]: agent/context_management/response_verbosity/verbosity_preference_resolver.py
-
 """Cascade resolver determining effective response verbosity across multi-tier preferences.
 
 [INPUT]

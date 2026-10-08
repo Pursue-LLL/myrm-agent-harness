@@ -1,7 +1,3 @@
-# [INPUT]: ClientReasoningMode, ThoughtAdapterConfig
-# [OUTPUT]: ClientCapabilityNegotiator
-# [POS]: agent/context_management/thought_stream_adapter/client_capability_negotiator.py
-
 """Client capability negotiator for adaptive determination of reasoning streaming mode.
 
 [INPUT]

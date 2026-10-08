@@ -1,7 +1,3 @@
-# [INPUT]: ConversationArchiveShareConfig, SanitizedShareMessage, ShareAccessPolicy, ShareableSnapshotManifest
-# [OUTPUT]: SanitizedSnapshotExporter
-# [POS]: agent/context_management/conversation_archive_share/sanitized_snapshot_exporter.py
-
 """Sanitized conversation snapshot exporter redacting credentials and computing signatures.
 
 [INPUT]

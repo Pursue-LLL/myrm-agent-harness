@@ -1,7 +1,3 @@
-# [INPUT]: CompactionDecisionResult, ContinuationTurnPayload, EconomicCompactionLedger, PlanStep
-# [OUTPUT]: OnlineCompactContinuationEngine
-# [POS]: agent/context_management/online_economic_compact/online_compact_continuation_engine.py
-
 """Online compaction continuation engine providing smooth new-turn handoffs.
 
 [INPUT]

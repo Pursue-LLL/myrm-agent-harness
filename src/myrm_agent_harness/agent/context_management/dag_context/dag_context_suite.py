@@ -1,7 +1,3 @@
-# [INPUT]: AssertionReconcileEngine, ContextAssertion, DagContextBudgetConfig, ExactPageRecallConduit, HierarchicalDagFolder, HierarchicalDagNode, PageRecallResult, TurnRecord, VramBudgetEvaluation, VramPerformanceBudgetGuard
-# [OUTPUT]: DagContextSuite, HierarchicalDagContextEngineAndAssertionReconcileRecallSuite
-# [POS]: agent/context_management/dag_context/dag_context_suite.py
-
 """Comprehensive facade suite for hierarchical DAG context, assertion reconciliation, and exact page recall.
 
 [INPUT]

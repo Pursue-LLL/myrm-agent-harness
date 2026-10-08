@@ -1,7 +1,3 @@
-# [INPUT]: JITToolHydrationConfig
-# [OUTPUT]: PostExecutionToolDehydrator
-# [POS]: agent/context_management/jit_tool_hydration/post_execution_tool_dehydrator.py
-
 """Post-execution tool dehydrator and schema garbage collector.
 
 [INPUT]

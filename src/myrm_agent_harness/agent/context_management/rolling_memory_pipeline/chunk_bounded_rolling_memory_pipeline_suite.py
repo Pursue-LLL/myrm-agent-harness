@@ -1,7 +1,3 @@
-# [INPUT]: ChunkProcessingStep, ChunkStreamConfig, RollingPipelineResult, RollingWorkingMemory, TextChunk, RollingWorkingMemoryStateMachine, TokenBoundedChunkStreamer
-# [OUTPUT]: ChunkBoundedRollingMemoryAgentPipelineSuite
-# [POS]: agent/context_management/rolling_memory_pipeline/chunk_bounded_rolling_memory_pipeline_suite.py
-
 """End-to-end facade orchestrating token-bounded document streaming, rolling memory evolution, and artifact generation.
 
 [INPUT]

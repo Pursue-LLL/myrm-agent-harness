@@ -1,7 +1,3 @@
-# [INPUT]: ContextHealthConfig, ContextSavingsMetrics, ContextUsageSnapshot, HealthWatermarkLevel, ToolExpenditureItem
-# [OUTPUT]: RealtimeHealthGauge
-# [POS]: agent/context_management/context_health_dashboard/realtime_health_gauge.py
-
 """Realtime context health gauge calculating window usage, headroom, and savings metrics.
 
 [INPUT]

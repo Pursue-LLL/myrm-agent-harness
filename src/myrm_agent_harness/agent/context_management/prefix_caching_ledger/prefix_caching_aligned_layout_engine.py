@@ -1,7 +1,3 @@
-# [INPUT]: ContextBlockDescriptor, ContextTier, PrefixCachingLayoutConfig
-# [OUTPUT]: PrefixCachingAlignedLayoutEngine
-# [POS]: agent/context_management/prefix_caching_ledger/prefix_caching_aligned_layout_engine.py
-
 """Prefix-caching aligned context layout engine for high-affinity LLM prompt assembly.
 
 [INPUT]

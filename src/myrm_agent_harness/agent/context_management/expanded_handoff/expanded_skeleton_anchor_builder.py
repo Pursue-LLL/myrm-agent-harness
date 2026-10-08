@@ -1,7 +1,3 @@
-# [INPUT]: ExpandedHandoffAnchor, ExpandedHandoffConfig, HistoricalSessionTurn
-# [OUTPUT]: ExpandedSkeletonAnchorBuilder
-# [POS]: agent/context_management/expanded_handoff/expanded_skeleton_anchor_builder.py
-
 """Expanded 1,200-word dialogue skeleton anchor builder for high-fidelity cross-session handoffs.
 
 [INPUT]

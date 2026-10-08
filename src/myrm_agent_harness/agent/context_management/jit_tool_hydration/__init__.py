@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: HydrationDecision, HydrationMode, JITSchemaHydrationEngine, JITToolHydrationConfig, LowContextFriendlyJITToolHydrationAndVirtualCatalogSuite, PostExecutionToolDehydrator, ToolSchemaDescriptor, VirtualCatalogIndex, VirtualToolCatalogIndexer
-# [POS]: agent/context_management/jit_tool_hydration/__init__.py
-
 """Low-context friendly JIT tool hydration and virtual catalog package.
 
 [INPUT]

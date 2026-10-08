@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: ContextBlockDescriptor, ContextTier, PrefixCachingLayoutConfig, TokenUsageBreakdown, TurnLedgerRecord
-# [POS]: agent/context_management/prefix_caching_ledger/prefix_caching_types.py
-
 """Domain models and contracts for prefix caching aligned layout and hidden reasoning token ledger.
 
 [INPUT]

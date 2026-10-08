@@ -1,7 +1,3 @@
-# [INPUT]: ChunkStreamConfig, RollingWorkingMemory, TextChunk
-# [OUTPUT]: RollingWorkingMemoryStateMachine
-# [POS]: agent/context_management/rolling_memory_pipeline/rolling_memory_state_machine.py
-
 """State machine managing rolling working memory progression across sequential document chunks.
 
 [INPUT]

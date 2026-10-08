@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: AdaptiveBranchFoldingSentry, AssembledSupplyContext, DisclosureExpansionResult, HierarchicalContextTreeBuilder, HierarchicalLevel, HierarchicalNode, HierarchicalProgressiveDisclosureContextSupplySuite, HierarchyLevel, HierarchyNode, HierarchyTree, ProgressiveDisclosureConfig
-# [POS]: agent/context_management/hierarchical_supply/__init__.py
-
 """Public contracts and facade for hierarchical progressive disclosure enterprise context supply.
 
 [INPUT]

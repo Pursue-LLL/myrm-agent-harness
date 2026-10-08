@@ -1,7 +1,3 @@
-# [INPUT]: CrossSessionConfig, MentionInjectionResult, SessionMentionTag, SessionRecord, SessionSnapshot, SessionMentionParser, SessionSnapshotExtractor
-# [OUTPUT]: CrossSessionMentionReferenceAndSnapshotInjectionSuite
-# [POS]: agent/context_management/cross_session_mention/cross_session_mention_suite.py
-
 """End-to-end facade orchestrating cross-session @ mention references and read-only snapshot injection.
 
 [INPUT]

@@ -1,7 +1,3 @@
-# [INPUT]: ParsedRuleClause, RuleCallerContext
-# [OUTPUT]: ExceptionAwareRuleParser
-# [POS]: agent/workspace_rules/rule_governance/exception_aware_rule_parser.py
-
 """Parser and evaluator for exception-aware rule schemas in persistent workspace rules.
 
 [INPUT]

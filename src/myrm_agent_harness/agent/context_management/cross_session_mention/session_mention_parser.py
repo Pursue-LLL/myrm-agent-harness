@@ -1,7 +1,3 @@
-# [INPUT]: CrossSessionConfig, SessionMentionTag, SessionRecord
-# [OUTPUT]: SessionMentionParser
-# [POS]: agent/context_management/cross_session_mention/session_mention_parser.py
-
 """Parser and identifier resolver for @Session mentions within user prompt text.
 
 [INPUT]

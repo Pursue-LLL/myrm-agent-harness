@@ -1,7 +1,3 @@
-# [INPUT]: ToolSchemaDescriptor, VirtualCatalogIndex
-# [OUTPUT]: VirtualToolCatalogIndexer
-# [POS]: agent/context_management/jit_tool_hydration/virtual_tool_catalog_indexer.py
-
 """Virtual tool catalog indexer producing ultra-compact prompt-cache friendly tool summaries.
 
 [INPUT]

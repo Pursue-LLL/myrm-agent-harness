@@ -1,7 +1,3 @@
-# [INPUT]: AgentIdentitySpec, CanonicalFileKind, CanonicalWorkspaceBundle, DirectiveStatus, UserDirectiveItem
-# [OUTPUT]: CanonicalFileParser
-# [POS]: agent/workspace_rules/canonical_protocol/canonical_file_parser.py
-
 """Parser extracting structured data from canonical workspace files (SOUL, IDENTITY, USER, BOOTSTRAP, TOOLS).
 
 [INPUT]

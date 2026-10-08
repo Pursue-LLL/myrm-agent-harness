@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: HydrationDecision, HydrationMode, JITToolHydrationConfig, ToolSchemaDescriptor, VirtualCatalogIndex
-# [POS]: agent/context_management/jit_tool_hydration/hydration_types.py
-
 """Domain models and contracts for low-context friendly JIT tool hydration and virtual catalog.
 
 [INPUT]

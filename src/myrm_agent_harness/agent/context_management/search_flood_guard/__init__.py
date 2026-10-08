@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: FloodActionKind, FloodGuardConfig, FloodGuardDecision, FloodGuardStatus, MultiAgentSearchFloodGuardSuite, PerAgentSlidingWindowTracker, ProgressiveSoftCapGate, SlidingWindowBucket
-# [POS]: agent/context_management/search_flood_guard/__init__.py
-
 """Multi-agent search flood guard and progressive soft-cap package.
 
 [INPUT]

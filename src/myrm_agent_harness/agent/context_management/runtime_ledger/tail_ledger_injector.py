@@ -1,7 +1,3 @@
-# [INPUT]: LedgerInjectionResult, LedgerUpdatePolicy, RuntimeLedgerConfig, RuntimeStateSnapshot
-# [OUTPUT]: TailLedgerInjector
-# [POS]: agent/context_management/runtime_ledger/tail_ledger_injector.py
-
 """Tail-positioned status tag serializer and cache-friendly prompt injector for runtime state ledgers.
 
 [INPUT]

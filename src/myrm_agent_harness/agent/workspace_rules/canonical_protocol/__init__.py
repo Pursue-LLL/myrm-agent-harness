@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: ActorVoiceMode, AdaptivePersonaPolicy, AdaptivePersonaPolicyEngine, AgentIdentitySpec, BootstrapLifecycleRunner, BootstrapRitualState, CanonicalAgentWorkspaceProtocolAndLifecycleSuite, CanonicalFileKind, CanonicalFileParser, CanonicalWorkspaceBundle, CanonicalWorkspaceProtocolSuite, DirectiveStatus, MergedWorkspaceContext, MultiTierWorkspaceMerger, RelationshipMaturityStage, RuntimeVibe, UserDirectiveItem
-# [POS]: agent/workspace_rules/canonical_protocol/__init__.py
-
 """Canonical agent workspace protocol and lifecycle package.
 
 [INPUT]

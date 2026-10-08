@@ -1,7 +1,3 @@
-# [INPUT]: HierarchyLevel, HierarchyNode, HierarchyTree, ProgressiveDisclosureConfig
-# [OUTPUT]: AdaptiveBranchFoldingSentry
-# [POS]: agent/context_management/hierarchical_supply/adaptive_branch_folding_sentry.py
-
 """Adaptive branch folding sentry managing active L3 detail ceilings and collapsing completed branches.
 
 [INPUT]

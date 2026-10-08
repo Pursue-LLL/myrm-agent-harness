@@ -1,7 +1,3 @@
-# [INPUT]: AgentRoleTarget, IntentCategory, IntentRoutingDecision
-# [OUTPUT]: UnifiedIntentDispatcher
-# [POS]: agent/sub_agents/cross_examination/unified_intent_dispatcher.py
-
 """Unified single-entry intent dispatcher routing requests and suggesting cross-examination candidates.
 
 [INPUT]

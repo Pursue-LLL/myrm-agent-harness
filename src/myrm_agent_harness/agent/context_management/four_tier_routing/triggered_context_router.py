@@ -1,7 +1,3 @@
-# [INPUT]: FourTierContextConfig, TriggerDomainKind, TriggeredRule
-# [OUTPUT]: TriggeredContextRouter
-# [POS]: agent/context_management/four_tier_routing/triggered_context_router.py
-
 """Tier 2: Triggered Context Router for path and intent-scoped domain rules.
 
 [INPUT]

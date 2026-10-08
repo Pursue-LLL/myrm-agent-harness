@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: LivingScratchpadConfig, ScratchpadConduitInjection, ScratchpadDocument, ScratchpadPatchOp, ScratchpadScope, ScratchpadTodoItem
-# [POS]: agent/context_management/living_scratchpad/scratchpad_types.py
-
 """Domain models and contracts for living scratchpad working memory and bidirectional context conduit.
 
 [INPUT]

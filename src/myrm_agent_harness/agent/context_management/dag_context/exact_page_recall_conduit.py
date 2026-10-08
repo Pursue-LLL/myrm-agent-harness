@@ -1,7 +1,3 @@
-# [INPUT]: HierarchicalDagFolder, HierarchicalDagNode, PageRecallResult, TurnRecord
-# [OUTPUT]: ExactPageRecallConduit
-# [POS]: agent/context_management/dag_context/exact_page_recall_conduit.py
-
 """Exact page recall conduit enabling on-demand agent drill-down inspection of historical pages.
 
 [INPUT]

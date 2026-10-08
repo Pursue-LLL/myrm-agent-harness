@@ -1,7 +1,3 @@
-# [INPUT]: FloodActionKind, FloodGuardConfig, FloodGuardDecision, PerAgentSlidingWindowTracker
-# [OUTPUT]: ProgressiveSoftCapGate
-# [POS]: agent/context_management/search_flood_guard/progressive_soft_cap_gate.py
-
 """Progressive soft-cap gate making flow control decisions and tapering search results.
 
 [INPUT]

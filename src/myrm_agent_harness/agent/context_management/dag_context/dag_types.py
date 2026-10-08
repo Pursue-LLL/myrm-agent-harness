@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: AssertionStatus, ContextAssertion, DagContextBudgetConfig, DagNodeLevel, HierarchicalDagNode, PageRecallResult, TurnRecord
-# [POS]: agent/context_management/dag_context/dag_types.py
-
 """Domain contracts and data models for hierarchical DAG context and assertion reconciliation.
 
 [INPUT]

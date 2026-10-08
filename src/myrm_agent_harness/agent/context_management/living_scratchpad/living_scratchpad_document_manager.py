@@ -1,7 +1,3 @@
-# [INPUT]: LivingScratchpadConfig, ScratchpadDocument, ScratchpadScope, ScratchpadTodoItem
-# [OUTPUT]: LivingScratchpadDocumentManager
-# [POS]: agent/context_management/living_scratchpad/living_scratchpad_document_manager.py
-
 """Living scratchpad document manager storing and parsing markdown session and global pads.
 
 [INPUT]

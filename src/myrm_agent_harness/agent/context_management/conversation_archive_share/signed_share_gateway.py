@@ -1,7 +1,3 @@
-# [INPUT]: SanitizedSnapshotExporter, ShareVerificationResult, ShareableSnapshotManifest
-# [OUTPUT]: SignedShareGateway
-# [POS]: agent/context_management/conversation_archive_share/signed_share_gateway.py
-
 """Signed ephemeral share gateway verifying HMAC signatures and TTL expirations.
 
 [INPUT]

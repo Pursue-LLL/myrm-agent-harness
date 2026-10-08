@@ -1,7 +1,3 @@
-# [INPUT]: FourTierContextConfig, SynthesisInput, SynthesizedDirective
-# [OUTPUT]: KnowledgeSynthesisEngine
-# [POS]: agent/context_management/four_tier_routing/knowledge_synthesis_engine.py
-
 """Tier 4: Multi-source Knowledge Synthesis Engine.
 
 [INPUT]

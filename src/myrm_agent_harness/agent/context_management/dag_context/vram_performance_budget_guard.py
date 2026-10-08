@@ -1,7 +1,3 @@
-# [INPUT]: DagContextBudgetConfig, HierarchicalDagNode, TurnRecord
-# [OUTPUT]: VramBudgetEvaluation, VramPerformanceBudgetGuard
-# [POS]: agent/context_management/dag_context/vram_performance_budget_guard.py
-
 """VRAM hardware-aware performance budget guard locking active prompt to 6K-8K safety watermarks.
 
 [INPUT]

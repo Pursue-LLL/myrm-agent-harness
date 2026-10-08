@@ -1,7 +1,3 @@
-# [INPUT]: TokenUsageBreakdown
-# [OUTPUT]: HiddenReasoningTokensPenetrationAuditor
-# [POS]: agent/context_management/prefix_caching_ledger/hidden_reasoning_tokens_penetration_auditor.py
-
 """Auditor extracting hidden reasoning tokens and prefix cache usage across heterogeneous providers.
 
 [INPUT]

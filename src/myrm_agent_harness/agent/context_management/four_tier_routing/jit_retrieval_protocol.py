@@ -1,7 +1,3 @@
-# [INPUT]: FourTierContextConfig, JitHandle
-# [OUTPUT]: JitRetrievalProtocol
-# [POS]: agent/context_management/four_tier_routing/jit_retrieval_protocol.py
-
 """Tier 3: Just-In-Time (JIT) retrieval protocol and lightweight reference handles.
 
 [INPUT]

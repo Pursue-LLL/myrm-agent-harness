@@ -1,7 +1,3 @@
-# [INPUT]: LivingScratchpadConfig, ScratchpadConduitInjection, ScratchpadDocument
-# [OUTPUT]: ScratchpadContextConduit
-# [POS]: agent/context_management/living_scratchpad/scratchpad_context_conduit.py
-
 """Scratchpad context conduit serializing living working memory into structured prompt tags.
 
 [INPUT]

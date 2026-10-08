@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: ObservationHandle, ObservationPage, ObservationSendState, ObservationPackConfig, TransformDecision, PackBatchResult
-# [POS]: agent/context_management/observation_pack/observation_pack_types.py
-
 """Domain models and contracts for observation pack handle archival and paged recall.
 
 [INPUT]

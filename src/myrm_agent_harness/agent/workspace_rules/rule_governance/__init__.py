@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: ConflictArbitrationResult, DriftAuditReport, DriftInspectionTarget, ExceptionAwareRuleParser, MemoryFileConflictArbiter, ParsedRuleClause, PersistentContextRuleDriftAuditAndExceptionAwareGovernanceSuite, RuleCallerContext, RuleDriftAndSecretProbe, RuleGovernanceConfig, RuleSecretScanResult, ShadowedRuleFinding
-# [POS]: agent/workspace_rules/rule_governance/__init__.py
-
 """Public contracts and facade for persistent context rule governance, exception evaluation, and drift auditing.
 
 [INPUT]

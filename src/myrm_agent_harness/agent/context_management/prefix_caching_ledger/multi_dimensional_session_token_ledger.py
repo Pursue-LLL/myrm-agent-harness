@@ -1,7 +1,3 @@
-# [INPUT]: PrefixCachingLayoutConfig, TokenUsageBreakdown, TurnLedgerRecord
-# [OUTPUT]: MultiDimensionalSessionTokenLedger
-# [POS]: agent/context_management/prefix_caching_ledger/multi_dimensional_session_token_ledger.py
-
 """Multi-dimensional session and task token ledger for cumulative accounting and savings auditing.
 
 [INPUT]

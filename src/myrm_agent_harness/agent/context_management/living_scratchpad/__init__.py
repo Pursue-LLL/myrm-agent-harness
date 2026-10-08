@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: LivingScratchpadConfig, LivingScratchpadDocumentManager, LivingScratchpadWorkingMemoryAndBiDirectionalContextConduitSuite, ScratchpadBidirectionalPatcher, ScratchpadConduitInjection, ScratchpadContextConduit, ScratchpadDocument, ScratchpadPatchOp, ScratchpadScope, ScratchpadTodoItem
-# [POS]: agent/context_management/living_scratchpad/__init__.py
-
 """Living scratchpad working memory and bidirectional context conduit package.
 
 [INPUT]

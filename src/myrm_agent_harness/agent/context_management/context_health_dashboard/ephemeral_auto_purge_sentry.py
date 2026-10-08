@@ -1,7 +1,3 @@
-# [INPUT]: ContextHealthConfig, PurgeReceipt
-# [OUTPUT]: EphemeralAutoPurgeSentry
-# [POS]: agent/context_management/context_health_dashboard/ephemeral_auto_purge_sentry.py
-
 """Ephemeral auto-purge sentry safely reclaiming session-isolated disk files and FTS5 vaults.
 
 [INPUT]

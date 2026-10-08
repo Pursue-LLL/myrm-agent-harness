@@ -1,7 +1,3 @@
-# [INPUT]: ClientReasoningMode, ThoughtAdapterConfig, ThoughtStreamChunk
-# [OUTPUT]: LongReasoningHeartbeatConduit
-# [POS]: agent/context_management/thought_stream_adapter/long_reasoning_heartbeat_conduit.py
-
 """Keep-alive heartbeat conduit for preventing gateway timeouts during long reasoning or tool execution.
 
 [INPUT]

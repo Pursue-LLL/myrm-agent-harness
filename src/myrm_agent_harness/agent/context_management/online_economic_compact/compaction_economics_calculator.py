@@ -1,7 +1,3 @@
-# [INPUT]: CompactionDecisionResult, CompactionEconomicsConfig, PlanStep, PlanStepStatus
-# [OUTPUT]: CompactionEconomicsCalculator
-# [POS]: agent/context_management/online_economic_compact/compaction_economics_calculator.py
-
 """Mathematical economic breakeven calculator for online context compaction.
 
 [INPUT]

@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: DeterministicLedgerCompiler, DeterministicRuntimeStateLedgerInjectionSuite, LedgerInjectionResult, LedgerUpdatePolicy, QuotaConstraint, RuntimeLedgerConfig, RuntimeStateSnapshot, TailLedgerInjector, TodoProgress
-# [POS]: agent/context_management/runtime_ledger/__init__.py
-
 """Public contracts and facade for deterministic runtime state ledger and cache-friendly tail injection.
 
 [INPUT]

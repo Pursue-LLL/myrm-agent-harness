@@ -1,7 +1,3 @@
-# [INPUT]: CanonicalFileKind, Path
-# [OUTPUT]: BootstrapLifecycleRunner, BootstrapRitualState
-# [POS]: agent/workspace_rules/canonical_protocol/bootstrap_lifecycle_runner.py
-
 """Bootstrap lifecycle runner managing birth rituals and auto-pruning upon initialization.
 
 [INPUT]

@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: ActorVoiceMode, AgentIdentitySpec, CanonicalFileKind, CanonicalWorkspaceBundle, DirectiveStatus, RelationshipMaturityStage, RuntimeVibe, UserDirectiveItem
-# [POS]: agent/workspace_rules/canonical_protocol/canonical_types.py
-
 """Domain models and contracts for canonical agent workspace protocol and lifecycle suite.
 
 [INPUT]

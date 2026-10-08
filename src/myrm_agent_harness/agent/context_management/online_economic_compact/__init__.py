@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: CompactionDecisionResult, CompactionEconomicsCalculator, CompactionEconomicsConfig, ContinuationTurnPayload, EconomicCompactionLedger, OnlineCompactContinuationEngine, PlanStep, PlanStepStatus, SubtaskBoundaryHook, SubtaskBoundaryOnlineContextCompactAndEconomicBreakevenSuite
-# [POS]: agent/context_management/online_economic_compact/__init__.py
-
 """Online context compaction at subtask boundaries with economic breakeven models.
 
 [INPUT]

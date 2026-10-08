@@ -1,7 +1,3 @@
-# [INPUT]: DocumentChunk, EphemeralFts5Config, IndexReceipt
-# [OUTPUT]: EphemeralSqliteFts5Vault
-# [POS]: agent/context_management/ephemeral_fts5/ephemeral_sqlite_fts5_vault.py
-
 """Ephemeral SQLite FTS5 session-isolated knowledge vault managing dual virtual tables.
 
 [INPUT]

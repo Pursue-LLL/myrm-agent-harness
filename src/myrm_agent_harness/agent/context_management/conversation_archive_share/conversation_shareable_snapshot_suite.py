@@ -1,7 +1,3 @@
-# [INPUT]: ArchiveTier, ColdArchiveRecord, ConversationArchiveShareConfig, SanitizedShareMessage, SanitizedSnapshotExporter, ShareAccessPolicy, ShareVerificationResult, ShareableSnapshotManifest, SignedShareGateway, TieredColdStorageArchiver
-# [OUTPUT]: ConversationShareableSnapshotAndTieredColdArchiveSuite
-# [POS]: agent/context_management/conversation_archive_share/conversation_shareable_snapshot_suite.py
-
 """Unified facade suite for conversation shareable snapshots and tiered cold archiving.
 
 [INPUT]

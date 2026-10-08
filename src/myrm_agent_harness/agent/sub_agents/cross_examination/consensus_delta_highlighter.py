@@ -1,7 +1,3 @@
-# [INPUT]: AgentExecutionOutput, AgentRoleTarget, CrossExamArbitrationReport, CrossExamConsensus, CrossExamDivergence
-# [OUTPUT]: ConsensusDeltaHighlighter
-# [POS]: agent/sub_agents/cross_examination/consensus_delta_highlighter.py
-
 """Consensus and delta highlighter extracting agreements and contested divergences across agents.
 
 [INPUT]

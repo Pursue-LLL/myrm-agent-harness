@@ -1,7 +1,3 @@
-# [INPUT]: CompactionDecisionResult, CompactionEconomicsCalculator, PlanStep, PlanStepStatus
-# [OUTPUT]: SubtaskBoundaryHook
-# [POS]: agent/context_management/online_economic_compact/subtask_boundary_hook.py
-
 """Subtask boundary lifecycle hook triggering economic context compaction evaluations.
 
 [INPUT]

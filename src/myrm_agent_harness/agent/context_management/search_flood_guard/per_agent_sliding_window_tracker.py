@@ -1,7 +1,3 @@
-# [INPUT]: FloodGuardConfig, SlidingWindowBucket
-# [OUTPUT]: PerAgentSlidingWindowTracker
-# [POS]: agent/context_management/search_flood_guard/per_agent_sliding_window_tracker.py
-
 """Per-agent-context sliding window tracker managing timestamp queues and LRU eviction.
 
 [INPUT]

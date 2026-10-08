@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: CrossSessionConfig, MentionInjectionResult, SessionMentionTag, SessionRecord, SessionSnapshot
-# [POS]: agent/context_management/cross_session_mention/cross_session_types.py
-
 """Domain models and contracts for cross-session @ mention references and snapshot injection.
 
 [INPUT]

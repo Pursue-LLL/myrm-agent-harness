@@ -1,7 +1,3 @@
-# [INPUT]: ContentAddressedStore, ObservationPage
-# [OUTPUT]: ObservationRecallTool
-# [POS]: agent/context_management/observation_pack/observation_recall_tool.py
-
 """On-demand paged recall meta-tool for archived observations.
 
 [INPUT]

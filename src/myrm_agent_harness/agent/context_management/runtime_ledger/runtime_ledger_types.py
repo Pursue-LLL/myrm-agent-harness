@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: LedgerInjectionResult, LedgerUpdatePolicy, QuotaConstraint, RuntimeLedgerConfig, RuntimeStateSnapshot, TodoProgress
-# [POS]: agent/context_management/runtime_ledger/runtime_ledger_types.py
-
 """Domain models and contracts for deterministic runtime state ledger and cache-friendly tail injection.
 
 [INPUT]

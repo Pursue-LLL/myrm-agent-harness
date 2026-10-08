@@ -1,7 +1,3 @@
-# [INPUT]: CompactedTurnPartition, DecoupledDigestSynthesizer, TriFateCompactionConfig, TriFateDecisionMarker, TurnEvidence, TurnFate, TurnFateDecision
-# [OUTPUT]: TurnLevelTriFateCompactor
-# [POS]: agent/context_management/tri_fate_compaction/turn_level_tri_fate_compactor.py
-
 """Turn-level tri-fate compactor orchestrating tripartite partitioning, decoupled synthesis, and assembly.
 
 [INPUT]

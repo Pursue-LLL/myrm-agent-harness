@@ -1,7 +1,3 @@
-# [INPUT]: BatchSearchReceipt, DualStrategyRrfRetriever, EphemeralFts5Config, SearchQueryItem, SearchResultChunk
-# [OUTPUT]: BatchQueriesCoalescingGate
-# [POS]: agent/context_management/ephemeral_fts5/batch_queries_coalescing_gate.py
-
 """Batch queries coalescing gate executing all session lookups in a single round.
 
 [INPUT]

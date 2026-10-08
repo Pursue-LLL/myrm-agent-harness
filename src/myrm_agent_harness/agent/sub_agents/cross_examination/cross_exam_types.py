@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: AdoptionChoice, AdoptionReceipt, AgentExecutionOutput, AgentRoleTarget, CrossExamArbitrationReport, CrossExamConsensus, CrossExamDivergence, IntentCategory, IntentRoutingDecision
-# [POS]: agent/sub_agents/cross_examination/cross_exam_types.py
-
 """Domain contracts and models for omni-agent unified dispatch and split cross-examination suite.
 
 [INPUT]

@@ -1,7 +1,3 @@
-# [INPUT]: LivingScratchpadDocumentManager, ScratchpadDocument, ScratchpadPatchOp
-# [OUTPUT]: ScratchpadBidirectionalPatcher
-# [POS]: agent/context_management/living_scratchpad/scratchpad_bidirectional_patcher.py
-
 """Bidirectional scratchpad patcher executing atomic patch mutations for human and agent co-editing.
 
 [INPUT]

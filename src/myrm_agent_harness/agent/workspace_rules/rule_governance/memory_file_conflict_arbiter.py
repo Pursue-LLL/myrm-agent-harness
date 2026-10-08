@@ -1,7 +1,3 @@
-# [INPUT]: ConflictArbitrationResult, RuleGovernanceConfig
-# [OUTPUT]: MemoryFileConflictArbiter
-# [POS]: agent/workspace_rules/rule_governance/memory_file_conflict_arbiter.py
-
 """Arbiter resolving dual-storage contradictions between memory facts and workspace rule files.
 
 [INPUT]

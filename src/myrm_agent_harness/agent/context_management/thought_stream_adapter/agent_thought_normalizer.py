@@ -1,7 +1,3 @@
-# [INPUT]: ThoughtActionType, ThoughtAdapterConfig, ThoughtStepDescriptor
-# [OUTPUT]: AgentThoughtNormalizer
-# [POS]: agent/context_management/thought_stream_adapter/agent_thought_normalizer.py
-
 """Agent thought and action normalizer for transforming internal cognition and execution into formatted representations.
 
 [INPUT]

@@ -1,7 +1,3 @@
-# [INPUT]: AdoptionChoice, AdoptionReceipt, AgentRoleTarget, CrossExamArbitrationReport
-# [OUTPUT]: OneClickArbitrator
-# [POS]: agent/sub_agents/cross_examination/one_click_arbitrator.py
-
 """One-click arbitrator allowing adoption of specific agent outcomes or synthesized cross-exam consensus.
 
 [INPUT]

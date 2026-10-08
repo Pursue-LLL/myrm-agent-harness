@@ -1,7 +1,3 @@
-# [INPUT]: AssertionStatus, ContextAssertion
-# [OUTPUT]: AssertionReconcileEngine
-# [POS]: agent/context_management/dag_context/assertion_reconcile_engine.py
-
 """Assertion reconciliation engine maintaining decision lifecycle and resolving overrides.
 
 [INPUT]

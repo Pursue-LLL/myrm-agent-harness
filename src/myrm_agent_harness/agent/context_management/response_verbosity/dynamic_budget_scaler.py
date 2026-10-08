@@ -1,7 +1,3 @@
-# [INPUT]: ResponseVerbosityLevel, VerbosityBudgetConfig
-# [OUTPUT]: DynamicBudgetScaler
-# [POS]: agent/context_management/response_verbosity/dynamic_budget_scaler.py
-
 """Dynamic token budget scaler adapting physical generation limits to verbosity requirements.
 
 [INPUT]

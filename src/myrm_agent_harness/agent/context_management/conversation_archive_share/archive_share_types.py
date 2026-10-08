@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: ArchiveTier, ColdArchiveRecord, ConversationArchiveShareConfig, SanitizedShareMessage, ShareAccessPolicy, ShareVerificationResult, ShareableSnapshotManifest
-# [POS]: agent/context_management/conversation_archive_share/archive_share_types.py
-
 """Domain models and contracts for conversation shareable snapshots and tiered cold archiving.
 
 [INPUT]

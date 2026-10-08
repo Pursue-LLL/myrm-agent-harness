@@ -1,7 +1,3 @@
-# [INPUT]: HydrationDecision, HydrationMode, JITSchemaHydrationEngine, JITToolHydrationConfig, PostExecutionToolDehydrator, ToolSchemaDescriptor, VirtualToolCatalogIndexer
-# [OUTPUT]: LowContextFriendlyJITToolHydrationAndVirtualCatalogSuite
-# [POS]: agent/context_management/jit_tool_hydration/low_context_jit_tool_hydration_suite.py
-
 """Unified facade suite for low-context friendly JIT tool hydration and virtual catalog.
 
 [INPUT]

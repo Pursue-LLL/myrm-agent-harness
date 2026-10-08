@@ -1,7 +1,3 @@
-# [INPUT]: TriFateCompactionConfig, TurnEvidence, TurnFate, TurnFateDecision
-# [OUTPUT]: TriFateDecisionMarker
-# [POS]: agent/context_management/tri_fate_compaction/tri_fate_decision_marker.py
-
 """Turn-level tri-fate decision marker arbitrating keep/summarize/drop destinies with safety gating.
 
 [INPUT]

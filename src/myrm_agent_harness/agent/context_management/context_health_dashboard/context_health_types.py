@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: ContextHealthConfig, ContextSavingsMetrics, ContextUsageSnapshot, HealthDoctorDiagnosis, HealthWatermarkLevel, PurgeReceipt, ToolExpenditureItem
-# [POS]: agent/context_management/context_health_dashboard/context_health_types.py
-
 """Domain models and contracts for realtime context health dashboard and ephemeral auto-purge sentry.
 
 [INPUT]
