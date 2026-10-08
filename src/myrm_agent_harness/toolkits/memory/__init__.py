@@ -345,6 +345,18 @@ from myrm_agent_harness.toolkits.memory.experience_injection import (
     SkillLoadExperienceHook,
     SubagentSpawnExperienceEnricher,
 )
+from myrm_agent_harness.toolkits.memory.experience_compounding import (
+    AnnealingReport,
+    CompoundedExperienceItem,
+    CondensationReport,
+    ExperienceCompoundingSuite,
+    ExperienceItemState,
+    FrequencyCompoundingEngine,
+    GoldenRuleItem,
+    KnowledgeCondensationEngine,
+    ObsoleteContextAnnealingGovernor,
+    compute_compounded_weight,
+)
 from myrm_agent_harness.toolkits.memory.experience_observability import (
     ExperienceEffectStatus,
     ExperienceObservabilityMetric,
@@ -2050,6 +2062,16 @@ __all__ = [
     "PitfallTriadRecord",
     "ProactivePitfallAlertEngine",
     "ShadowDecisionIntentRecognizer",
+    "AnnealingReport",
+    "CompoundedExperienceItem",
+    "CondensationReport",
+    "ExperienceCompoundingSuite",
+    "ExperienceItemState",
+    "FrequencyCompoundingEngine",
+    "GoldenRuleItem",
+    "KnowledgeCondensationEngine",
+    "ObsoleteContextAnnealingGovernor",
+    "compute_compounded_weight",
 ]
 
 
