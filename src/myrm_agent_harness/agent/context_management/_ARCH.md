@@ -65,6 +65,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | dual_track_interjection/ | Core coordinator for Long-Running Task Dual-Track Interjection and Preemption Queue Suite (Item 212). See [dual_track_interjection/_ARCH.md](dual_track_interjection/_ARCH.md). |
 | durable_storage/ | Portable durable storage runtime subsystem providing a unified storage contract across Memory, JSONL, and SQLite backends with atomic commit markers and crash reclamation. See [durable_storage/_ARCH.md](durable_storage/_ARCH.md). |
 | emergent_attention/ | 从行为中涌现的注意力清单、海量通知意图过滤器与言行错位智能对照引擎。 See [emergent_attention/_ARCH.md](emergent_attention/_ARCH.md). |
+| ephemeral_fts5/ | Ephemeral session-isolated SQLite FTS5 knowledge vault with dual Porter/Trigram matchers and batch query coalescing suite (Item 299). See [ephemeral_fts5/_ARCH.md](ephemeral_fts5/_ARCH.md). |
 | epoch/ | Compiles and orders tool definitions deterministically for Prompt Cache. See [epoch/_ARCH.md](epoch/_ARCH.md). |
 | event_sourcing_replayer/ | Append-only immutable event log maintaining monotonic sequence numbers and hash chains. See [event_sourcing_replayer/_ARCH.md](event_sourcing_replayer/_ARCH.md). |
 | evidence_disclosure/ | Isomorphic evidence disclosure subsystem providing canonical action details shared between active turns and completed history, deterministic query scope isolation, and real-reading offset pagination. See [evidence_disclosure/_ARCH.md](evidence_disclosure/_ARCH.md). |

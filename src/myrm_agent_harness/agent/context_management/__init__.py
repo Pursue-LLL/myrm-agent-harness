@@ -1190,6 +1190,19 @@ from .runtime_ledger import (
     TailLedgerInjector,
     TodoProgress,
 )
+from .ephemeral_fts5 import (
+    BatchQueriesCoalescingGate,
+    BatchSearchReceipt,
+    DocumentChunk,
+    DualStrategyRrfRetriever,
+    EphemeralFts5Config,
+    EphemeralSessionFts5IndexAndBatchRetrieverSuite,
+    EphemeralSqliteFts5Vault,
+    IndexReceipt,
+    MarkdownCodeBlockChunker,
+    SearchQueryItem,
+    SearchResultChunk,
+)
 from .sandbox_pause_resume import (
     AgentkitPauseResumeSessionSandboxSuite,
     PauseResumeActionKind,
@@ -2321,5 +2334,18 @@ __all__ = [
     "RuntimeStateSnapshot",
     "TailLedgerInjector",
     "TodoProgress",
+    # ephemeral_fts5
+    "BatchQueriesCoalescingGate",
+    "BatchSearchReceipt",
+    "DocumentChunk",
+    "DualStrategyRrfRetriever",
+    "EphemeralFts5Config",
+    "EphemeralSessionFts5IndexAndBatchRetrieverSuite",
+    "EphemeralSqliteFts5Vault",
+    "IndexReceipt",
+    "MarkdownCodeBlockChunker",
+    "SearchQueryItem",
+    "SearchResultChunk",
 ]
+
 
