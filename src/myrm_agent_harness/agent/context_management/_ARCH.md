@@ -34,6 +34,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | browser_batch_script/ | Engine for executing batch browser automation and single-turn context distillation. See [browser_batch_script/_ARCH.md](browser_batch_script/_ARCH.md). |
 | cache_governor/ | Pre-flight economic governor guarding against negative ROI cache write premiums. See [cache_governor/_ARCH.md](cache_governor/_ARCH.md). |
 | cache_shield/ | Evaluator for prompt cache destruction risk when modifying session configuration. See [cache_shield/_ARCH.md](cache_shield/_ARCH.md). |
+| cache_warmth_keepalive/ | Context Cache Warmth Gauge and Heartbeat Keep-Alive Suite (Item 328). See [cache_warmth_keepalive/_ARCH.md](cache_warmth_keepalive/_ARCH.md). |
 | canonical_tool/ | Canonicalizer ensuring byte-level deterministic stability for tool prefixes. See [canonical_tool/_ARCH.md](canonical_tool/_ARCH.md). |
 | canvas_deeplink/ | 跨会话画布深度直链共享、设计资产穿透与专业设计平台桥接核心引擎。 See [canvas_deeplink/_ARCH.md](canvas_deeplink/_ARCH.md). |
 | channel_thread_session/ | Core implementation of Channel Thread to Session Dynamic Binding and Isolated Branching Engine. See [channel_thread_session/_ARCH.md](channel_thread_session/_ARCH.md). |

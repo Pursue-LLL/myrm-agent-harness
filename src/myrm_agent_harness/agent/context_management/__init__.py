@@ -1468,6 +1468,23 @@ from .two_stage_search_extract import (
     TwoStageRankedSnippetAndSelectiveDeepExtractSuite,
     TwoStageSearchConfig,
 )
+from .cache_warmth_keepalive import (
+    CacheProviderType,
+    CacheWarmthGauge,
+    CacheWarmthState,
+    ContextCacheWarmthGaugeAndHeartbeatKeepAliveSuite,
+    HeartbeatExecutionRecord,
+    HeartbeatProbeConfig,
+    HeartbeatProbeDecision,
+    KeepAliveScheduler,
+    ProviderCacheMatrix,
+    ProviderCacheSpec,
+    WarmthCountdownMetrics,
+    calculate_cache_savings,
+    calculate_probe_cost,
+    format_duration_human,
+    get_provider_cache_spec,
+)
 from .local_prefill_guard import (
     AdaptivePruningDecision,
     LatencyWarningLevel,
@@ -2891,6 +2908,22 @@ __all__ = [
     "SnippetTriageResult",
     "TwoStageRankedSnippetAndSelectiveDeepExtractSuite",
     "TwoStageSearchConfig",
+    # cache_warmth_keepalive
+    "CacheProviderType",
+    "CacheWarmthGauge",
+    "CacheWarmthState",
+    "ContextCacheWarmthGaugeAndHeartbeatKeepAliveSuite",
+    "HeartbeatExecutionRecord",
+    "HeartbeatProbeConfig",
+    "HeartbeatProbeDecision",
+    "KeepAliveScheduler",
+    "ProviderCacheMatrix",
+    "ProviderCacheSpec",
+    "WarmthCountdownMetrics",
+    "calculate_cache_savings",
+    "calculate_probe_cost",
+    "format_duration_human",
+    "get_provider_cache_spec",
 ]
 
 

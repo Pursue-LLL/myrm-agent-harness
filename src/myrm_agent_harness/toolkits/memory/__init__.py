@@ -174,6 +174,18 @@ from myrm_agent_harness.toolkits.memory.codebase_diff_fallback import (
     LargeDiffFallbackConfig,
     LargeDiffFallbackPipeline,
 )
+from myrm_agent_harness.toolkits.memory.inode_identity import (
+    DeviceFilesystemKind,
+    DirectoryIdentity,
+    DirectoryIdentityGuard,
+    IdentityMatchKind,
+    InodeIdentityFacade,
+    InodeIdentityResolver,
+    InodeResolutionResult,
+    SyncGuardAction,
+    SyncGuardDecision,
+    get_inode_identity_facade,
+)
 from myrm_agent_harness.toolkits.memory.cognitive_box import (
     CognitiveBoxMetaTools,
     CognitiveBoxSnapshot,
@@ -2226,6 +2238,16 @@ __all__ = [
     "DirectoryAggregate",
     "LargeDiffFallbackConfig",
     "LargeDiffFallbackPipeline",
+    "DeviceFilesystemKind",
+    "DirectoryIdentity",
+    "DirectoryIdentityGuard",
+    "IdentityMatchKind",
+    "InodeIdentityFacade",
+    "InodeIdentityResolver",
+    "InodeResolutionResult",
+    "SyncGuardAction",
+    "SyncGuardDecision",
+    "get_inode_identity_facade",
 ]
 
 

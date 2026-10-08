@@ -239,6 +239,14 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.agent.context_management",
         "TwoStageRankedSnippetAndSelectiveDeepExtractSuite",
     ),
+    "ContextCacheWarmthGaugeAndHeartbeatKeepAliveSuite": (
+        "myrm_agent_harness.agent.context_management",
+        "ContextCacheWarmthGaugeAndHeartbeatKeepAliveSuite",
+    ),
+    "CacheWarmthGauge": (
+        "myrm_agent_harness.agent.context_management",
+        "CacheWarmthGauge",
+    ),
 }
 
 __all__ = [
@@ -246,6 +254,8 @@ __all__ = [
     "BilateralSovereigntyArchiveHub",
     "CanonicalAgentWorkspaceScaffoldingAndZeroFrictionHandoverSuite",
     "CanonicalScaffoldingSuite",
+    "CacheWarmthGauge",
+    "ContextCacheWarmthGaugeAndHeartbeatKeepAliveSuite",
     "CrossHarnessContextStateASTAndLosslessRehydrationSuite",
     "CrossHarnessSuite",
     "CrossPlatformTranscriptNormalizer",
