@@ -145,6 +145,9 @@ all = [
 [tool.uv]
 # Universal lock for the Python 3.13 interpreter used by development and CI.
 environments = ["python_full_version >= '3.13' and python_full_version < '3.14'"]
+# jieba (retrieval extra) ships invalid escape sequences: compiling it at first import emits a SyntaxWarning that
+# pytest's `filterwarnings = ["error"]` escalates to a SyntaxError. Compiling at install time keeps that import clean.
+compile-bytecode = true
 # Platform core wheels (the compiled-core* extras above) exist on PyPI only after a release is
 # published, so the dev lock never resolves them; the published wheel metadata keeps the pins.
 # One entry per platform in harness_packaging/platforms.py (PUBLISH_PLATFORMS): a platform missing here makes `uv lock` fail.
