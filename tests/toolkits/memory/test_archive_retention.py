@@ -805,3 +805,20 @@ class TestUpdateMemoryArchiveIsIdempotent:
         assert archived.metadata["archived_at"] == original["archived_at"]
         assert archived.metadata["archive_expires_at"] == original["archive_expires_at"]
         manager._cascade_clean_derived_graph_nodes.assert_not_awaited()  # type: ignore[attr-defined]
+
+    @pytest.mark.asyncio
+    async def test_unstamped_archive_is_stamped_so_it_can_be_reclaimed(self) -> None:
+        manager = self._manager()
+        manager.get_memory = AsyncMock(  # type: ignore[method-assign]
+            return_value=SemanticMemory(id="m1", content="fact", status=MemoryStatus.ARCHIVED)
+        )
+        manager._cascade_clean_derived_graph_nodes = AsyncMock()  # type: ignore[method-assign]
+
+        with patch(
+            "myrm_agent_harness.toolkits.memory._manager.mutations.update_vector_memory",
+            new=AsyncMock(side_effect=lambda memory, *_args: memory),
+        ):
+            archived = await manager.update_memory("m1", status=MemoryStatus.ARCHIVED)
+
+        assert "archived_at" in archived.metadata
+        assert "archive_expires_at" in archived.metadata

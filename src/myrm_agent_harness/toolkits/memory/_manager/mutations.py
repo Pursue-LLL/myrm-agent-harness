@@ -295,9 +295,14 @@ class MemoryManagerMutationsMixin:
         if status is not None:
             updated.status = status
             if status == MemoryStatus.ARCHIVED:
-                # Archiving an already-archived memory is a no-op so repeated deletes
-                # cannot push the purge deadline of data the user asked to forget.
-                if existing.status != MemoryStatus.ARCHIVED:
+                # Re-archiving keeps the original deadline so repeated deletes cannot push
+                # back the purge of data the user asked to forget. An archive that carries
+                # no retention stamp is still stamped, otherwise the purge scanner could
+                # never reclaim it.
+                already_reclaimable = existing.status == MemoryStatus.ARCHIVED and bool(
+                    existing.metadata.get("archive_expires_at") or existing.metadata.get("archived_at")
+                )
+                if not already_reclaimable:
                     now = datetime.now(UTC)
                     updated.metadata = {
                         **updated.metadata,
