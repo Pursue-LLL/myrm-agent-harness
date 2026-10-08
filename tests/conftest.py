@@ -191,6 +191,21 @@ def _restore_chat_id_var() -> Iterator[None]:
 
 
 @pytest.fixture(autouse=True)
+def _reset_active_tool_publication() -> Iterator[None]:
+    """Isolate the published active tool registry and resolved tools between all tests.
+
+    Building or running an agent publishes both in process-wide session maps. Without a reset the
+    registry of an earlier test shadows the one a later test hands to a middleware directly, so the
+    dynamic tool lookup misses and the tool call arrives unresolved.
+    """
+    from myrm_agent_harness.agent.middlewares._session_context import clear_active_tools_for_tests
+
+    clear_active_tools_for_tests()
+    yield
+    clear_active_tools_for_tests()
+
+
+@pytest.fixture(autouse=True)
 def _isolate_subagent_checkpointer() -> Iterator[None]:
     """Give every test its own subagent checkpointer singleton.
 
