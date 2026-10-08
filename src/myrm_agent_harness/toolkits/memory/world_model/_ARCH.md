@@ -12,3 +12,11 @@
 ## 3. 设计原则
 - **严格零 Any**：所有数据模型均采用不可变 Dataclass 与强类型枚举。
 - **纯粹框架定位**：不包含单租户业务判定与工作区文件解析逻辑（文件解析由 Server 层探针提供），确保跨平台通用。
+
+## 4. File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| `__init__.py` | Package | Package entrypoint exposing the L3 world model domain models and engine. | ✅ |
+| `models.py` | Types | Four-dimension macro entity model (`L3WorldModelField`, `L3WorldModelRecord`) and prompt serialization contracts. | ✅ |
+| `engine.py` | Core | `L3WorldModelEngine`: stores, updates, merges and renders macro world models within budget caps. | ✅ |
