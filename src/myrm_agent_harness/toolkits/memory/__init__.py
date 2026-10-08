@@ -423,6 +423,14 @@ from myrm_agent_harness.toolkits.memory.job_compounding import (
     PreferenceCompoundingEngine,
     RuleType,
 )
+from myrm_agent_harness.toolkits.memory.lifecycle_hotness import (
+    BatchLifecycleClassificationResult,
+    HotnessLifecycleStage,
+    HotnessScoringConfig,
+    MemoryHotnessScorer,
+    MemoryLifecycleItem,
+    compute_hotness_score,
+)
 from myrm_agent_harness.toolkits.memory.lineage_search import (
     AdaptiveWindowHydrator,
     ConversationMessage,
@@ -1666,6 +1674,12 @@ __all__ = [
     "HierarchicalRetrievalStats",
     "HierarchyNodeType",
     "SiblingContextItem",
+    "BatchLifecycleClassificationResult",
+    "HotnessScoringConfig",
+    "MemoryHotnessScorer",
+    "MemoryLifecycleItem",
+    "HotnessLifecycleStage",
+    "compute_hotness_score",
 ]
 
 
