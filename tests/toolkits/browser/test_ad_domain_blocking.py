@@ -16,9 +16,9 @@ import pytest
 
 from myrm_agent_harness.toolkits.browser.domain_filter import (
     DomainAllowlist,
-    _is_ad_domain,
     install_domain_filter,
 )
+from myrm_agent_harness.toolkits.browser.domain_filter.http_filter import _is_ad_domain
 from myrm_agent_harness.toolkits.browser.pool.config import ResourceBlockConfig
 
 # =============================================================================
@@ -477,7 +477,7 @@ class TestAdBlockingEdgeCases:
 
     @pytest.mark.asyncio()
     async def test_hostname_parse_edge_case_no_hostname(self) -> None:
-        """URL with no parseable hostname should not crash."""
+        """URL with no parseable hostname must not crash and is aborted fail-closed (EMPTY_HOSTNAME hop rule)."""
         mock_context = AsyncMock()
         mock_context.route = AsyncMock()
         mock_context.add_init_script = AsyncMock()
@@ -495,5 +495,5 @@ class TestAdBlockingEdgeCases:
         route.request.url = "http:///path/only"
         route.request.resource_type = "document"
         await handler(route)
-        # Empty hostname won't match any ad domain, should continue
-        route.fallback.assert_called_once()
+        route.abort.assert_called_once_with("blockedbyclient")
+        route.fallback.assert_not_called()

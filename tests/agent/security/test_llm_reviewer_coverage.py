@@ -420,8 +420,8 @@ async def test_unknown_decision_defaults_to_uncertain():
 
 
 @pytest.mark.asyncio
-async def test_no_intent_context_omits_section():
-    """When intent_context is None, no User Intent section appears."""
+async def test_no_intent_context_uses_explicit_placeholder():
+    """When intent_context is None, the section carries the fail-closed placeholder the system prompt keys on."""
     response = ClassifierResultSchema(decision="allow", reason="ok")
     mock_llm, chain = _make_mock_llm(response=response)
 
@@ -430,7 +430,8 @@ async def test_no_intent_context_omits_section():
 
     messages = _get_messages_from_chain(chain)
     user_msg = messages[1].content
-    assert "User Intent" not in user_msg
+    assert "## User Intent" in user_msg
+    assert "[no user message visible]" in user_msg
 
 
 @pytest.mark.asyncio
@@ -503,7 +504,7 @@ async def test_minimal_command_only():
     messages = _get_messages_from_chain(chain)
     user_msg = messages[1].content
     assert "echo hello" in user_msg
-    assert "User Intent" not in user_msg
+    assert "[no user message visible]" in user_msg
     assert "Recent Tool Call Sequence" not in user_msg
     assert "Workspace" not in user_msg
     assert "Active Taint Labels" not in user_msg

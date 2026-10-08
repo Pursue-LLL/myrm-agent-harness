@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import FrozenInstanceError
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -15,6 +15,14 @@ from myrm_agent_harness.toolkits.browser.domain_filter import (
     build_init_script,
     install_domain_filter,
 )
+
+_INJECTOR = "myrm_agent_harness.toolkits.browser.enhancers.install_document_script_injection"
+
+
+def _injected_labels(injector: AsyncMock) -> list[str]:
+    """Labels of the document-response scripts registered through the injector."""
+    return [call.kwargs["label"] for call in injector.call_args_list]
+
 
 # =============================================================================
 # DomainAllowlist
@@ -293,10 +301,11 @@ async def test_install_domain_filter_with_patterns() -> None:
 
     allowlist = DomainAllowlist(patterns=("example.com",))
 
-    await install_domain_filter(context, allowlist)
+    with patch(_INJECTOR, new_callable=AsyncMock) as injector:
+        await install_domain_filter(context, allowlist)
 
     context.route.assert_called_once()
-    assert context.add_init_script.call_count == 2
+    assert _injected_labels(injector) == ["domain_csp_meta", "domain_hardening"]
 
     assert context.on.call_count == 1
     call_args = context.on.call_args
@@ -314,10 +323,11 @@ async def test_install_domain_filter_without_cdp_audit() -> None:
 
     allowlist = DomainAllowlist(patterns=("example.com",))
 
-    await install_domain_filter(context, allowlist, enable_cdp_audit=False)
+    with patch(_INJECTOR, new_callable=AsyncMock) as injector:
+        await install_domain_filter(context, allowlist, enable_cdp_audit=False)
 
     context.route.assert_called_once()
-    assert context.add_init_script.call_count == 2
+    assert _injected_labels(injector) == ["domain_csp_meta", "domain_hardening"]
     context.on.assert_not_called()
 
 
@@ -343,10 +353,11 @@ async def test_domain_filter_full_workflow() -> None:
     assert allowlist.is_allowed("api.openai.com")
     assert not allowlist.is_allowed("facebook.com")
 
-    await install_domain_filter(context, allowlist, enable_cdp_audit=True)
+    with patch(_INJECTOR, new_callable=AsyncMock) as injector:
+        await install_domain_filter(context, allowlist, enable_cdp_audit=True)
 
     context.route.assert_called_once()
-    assert context.add_init_script.call_count == 2
+    assert _injected_labels(injector) == ["domain_csp_meta", "domain_hardening"]
     assert context.on.call_count == 1
 
 
@@ -571,12 +582,13 @@ async def test_main_thread_hardening_injects_script() -> None:
     from myrm_agent_harness.toolkits.browser.domain_filter import _install_main_thread_hardening
 
     context = MagicMock()
-    context.add_init_script = AsyncMock()
 
-    await _install_main_thread_hardening(context)
+    with patch(_INJECTOR, new_callable=AsyncMock) as injector:
+        await _install_main_thread_hardening(context)
 
-    context.add_init_script.assert_called_once()
-    script = context.add_init_script.call_args[0][0]
+    injector.assert_called_once()
+    assert injector.call_args.kwargs["label"] == "domain_hardening"
+    script = injector.call_args[0][1]()
     assert "RTCPeerConnection" in script
     assert "serviceWorker" in script
 
