@@ -811,8 +811,33 @@ from .devflow_lifecycle import (
     PhaseLifecycleState,
     StructuredExplorationHandoff,
 )
+from .headless_continuation import (
+    ApprovalDecisionKind,
+    ApprovalRelayReceipt,
+    ClientAttachmentState,
+    HeadlessContinuationSuite,
+    HeadlessExecutionPhase,
+    MobileApprovalDecisionPayload,
+    MobileApprovalRelayCard,
+    MobileApprovalRelayEngine,
+    ReconnectionSyncManifest,
+    RelayChannelKind,
+    RiskLevel,
+)
 
 __all__ = [
+    # headless_continuation
+    "ApprovalDecisionKind",
+    "ApprovalRelayReceipt",
+    "ClientAttachmentState",
+    "HeadlessContinuationSuite",
+    "HeadlessExecutionPhase",
+    "MobileApprovalDecisionPayload",
+    "MobileApprovalRelayCard",
+    "MobileApprovalRelayEngine",
+    "ReconnectionSyncManifest",
+    "RelayChannelKind",
+    "RiskLevel",
     # devflow_lifecycle
     "ContextAdmissionDecision",
     "ContextGateEvaluator",
