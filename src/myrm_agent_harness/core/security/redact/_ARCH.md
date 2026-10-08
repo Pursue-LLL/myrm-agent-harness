@@ -24,7 +24,7 @@ facade exposing the public `core.security.redact` import surface.
 ## Consumers
 
 - `agent/security/redact.py` — thin facade re-exporting public + internal symbols
-- `agent/skills/security/content_sanitizer.py` — imports `patterns.py` regexes for structured content masking
+- `agent/skills/security/content_sanitizer.py` — imports `patterns.py` regexes and the `_redact_value` key guard for structured content masking; its rule table names the capture group of each regex, so a change to a regex's group layout must be mirrored there (`tests/agent/skills/test_content_sanitizer.py` fails when a secret survives)
 - `utils/errors.py`, `toolkits/browser/exceptions.py` — `redact_for_llm`
 - `agent/middlewares/approval/_batch_decisions.py` — `redact_for_display`
 - toolkits across browser / web_fetch / mcp / code_execution / memory — `redact_sensitive_text`

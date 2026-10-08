@@ -10,6 +10,7 @@ from myrm_agent_harness.agent.skills.security import (
     SanitizationResult,
     content_sanitizer,
 )
+from myrm_agent_harness.agent.skills.security.content_sanitizer import _SECRET_RULES, _merge_overlaps
 
 
 class TestModuleExports:
@@ -286,6 +287,7 @@ _SECRET_LINES = [
     ("Authorization: Basic dXNlcjpwYXNzd29yZA==", "dXNlcjpwYXNzd29yZA=="),
     ("Authorization: abcdefghijklmnop12345", "abcdefghijklmnop12345"),
     ("curl -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.abcdefghijklmnopqrstuvwxyz'", "abcdefghijklmnopqrstuvwxyz"),
+    ("password: 123456", "123456"),
     ("x-api-key: abc123def456ghi789", "abc123def456ghi789"),
     ("mycli --api-key abc123def456ghi789", "abc123def456ghi789"),
     ("token = ghp_XxxYyyZzz1234567890abcdef12345678", "XxxYyyZzz1234567890abcdef12345678"),
@@ -341,6 +343,21 @@ class TestProseIsNotRedacted:
             "KEY=os.getenv('OPENAI_API_KEY')",
             'KEY=""',
             "https://example.com:8080/path",
+            # Settings about a secret, not the secret.
+            "max_tokens: 4096",
+            "tokens: 100",
+            "TOKEN_LIMIT=4096",
+            "auth_type: bearer",
+            "secret_name: my-db-secret",
+            "api_key_env: OPENAI_API_KEY",
+            # Values that point at a secret instead of containing one.
+            "export OPENAI_API_KEY=$OPENAI_API_KEY",
+            "API_KEY=${API_KEY}",
+            "password: <your-password>",
+            "Authorization: Bearer <token>",
+            "Authorization: {{secret:Authorization}}",
+            'curl -H "Authorization: Bearer $TOKEN"',
+            "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}",
         ],
     )
     def test_left_untouched(self, line):
@@ -364,3 +381,18 @@ class TestFindingLabel:
     )
     def test_reason(self, line, reason):
         assert content_sanitizer.sanitize(line, "test.md").redactions[0]["reason"] == reason
+
+
+class TestRuleTable:
+    """The rule table reads the shared regexes by group number; a renumbered group must not go unnoticed."""
+
+    @pytest.mark.parametrize("rule", _SECRET_RULES, ids=lambda rule: rule.reason)
+    def test_declared_groups_exist_in_the_pattern(self, rule):
+        assert rule.pattern.groups >= max(rule.value_group, rule.name_group)
+
+    def test_overlapping_matches_are_unioned_so_no_part_of_a_secret_survives(self):
+        def match(start, end, label):
+            return {"start": start, "end": end, "replacement": f"<{label}>", "reason": label}
+
+        merged = _merge_overlaps([match(0, 10, "short"), match(5, 20, "long"), match(30, 35, "apart")])
+        assert [(m["start"], m["end"], m["reason"]) for m in merged] == [(30, 35, "apart"), (0, 20, "long")]

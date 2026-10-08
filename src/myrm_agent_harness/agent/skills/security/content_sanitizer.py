@@ -78,6 +78,17 @@ _WINDOWS_PATH_RE = re.compile(
 )
 _PATH_RES = (_MACOS_PATH_RE, _LINUX_PATH_RE, _WINDOWS_PATH_RE)
 
+# A value that points at a secret instead of containing one: shell / CI variable, template
+# placeholder, angle-bracket stand-in, or an ALL_CAPS variable name.
+_PLACEHOLDER_RE = re.compile(r"\$[{(A-Za-z_]|\{\{|%[^%\s]+%$|<[^<>\s]*>$|[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$")
+
+# A key whose keyword describes a setting about a secret (limits, kinds, pointers), not the secret.
+_NON_SECRET_KEY_RE = re.compile(
+    r"(?:tokens|[_.\-](?:type|name|method|mode|scheme|url|uri|endpoint|file|path|env|var|header|field"
+    r"|limit|count|budget|ttl|expiry|expires?))$",
+    re.IGNORECASE,
+)
+
 
 class _SecretRule(NamedTuple):
     """One detector: the capture group holding the secret decides what gets replaced.
@@ -85,7 +96,7 @@ class _SecretRule(NamedTuple):
     ``name_group`` (0 = none) points at the key / flag capture group; the runtime
     redactor's keyword guard then decides whether that key really names a
     credential, so prose such as ``tokenizer=gpt2`` or ``os.getenv(...)`` lookups
-    stay untouched.
+    stay untouched. Every rule's groups must exist in its pattern.
     """
 
     pattern: re.Pattern[str]
@@ -144,17 +155,34 @@ def _secret_span(m: re.Match[str], group: int) -> tuple[int, int]:
     return start, end
 
 
-def _resolve_overlaps(matches: list[_ScanMatch]) -> list[_ScanMatch]:
-    """Keep the longest of any overlapping matches; result is ordered by start, last first.
+def _merge_overlaps(matches: list[_ScanMatch]) -> list[_ScanMatch]:
+    """Union overlapping matches so no part of a secret is left behind; last match first.
 
-    Last-first order lets replacements be applied in place without shifting the
-    offsets of the matches still to come.
+    The longest member of each union supplies the replacement and the label. Last-first
+    order lets replacements be applied in place without shifting the offsets still to come.
     """
-    kept: list[_ScanMatch] = []
-    for candidate in sorted(matches, key=lambda x: x["start"] - x["end"]):
-        if all(candidate["start"] >= k["end"] or candidate["end"] <= k["start"] for k in kept):
-            kept.append(candidate)
-    return sorted(kept, key=lambda x: x["start"], reverse=True)
+    clusters: list[list[_ScanMatch]] = []
+    cluster_end = 0
+    for match in sorted(matches, key=lambda x: x["start"]):
+        if clusters and match["start"] < cluster_end:
+            clusters[-1].append(match)
+            cluster_end = max(cluster_end, match["end"])
+        else:
+            clusters.append([match])
+            cluster_end = match["end"]
+
+    merged: list[_ScanMatch] = []
+    for cluster in reversed(clusters):
+        lead = max(cluster, key=lambda x: x["end"] - x["start"])
+        merged.append(
+            {
+                "start": cluster[0]["start"],
+                "end": max(x["end"] for x in cluster),
+                "replacement": lead["replacement"],
+                "reason": lead["reason"],
+            }
+        )
+    return merged
 
 
 class ContentSanitizer:
@@ -166,11 +194,17 @@ class ContentSanitizer:
 
         for rule in _SECRET_RULES:
             for m in rule.pattern.finditer(line):
-                if rule.name_group and _redact_value(m.group(rule.name_group), m.group(rule.value_group)) is None:
-                    continue
                 start, end = _secret_span(m, rule.value_group)
-                if start < end:
-                    matches.append({"start": start, "end": end, "replacement": rule.replacement, "reason": rule.reason})
+                if start >= end or _PLACEHOLDER_RE.match(line, start, end):
+                    continue
+                if rule.name_group:
+                    name = m.group(rule.name_group)
+                    if (
+                        _NON_SECRET_KEY_RE.search(name.strip(" \t="))
+                        or _redact_value(name, m.group(rule.value_group)) is None
+                    ):
+                        continue
+                matches.append({"start": start, "end": end, "replacement": rule.replacement, "reason": rule.reason})
 
         for pattern in _PATH_RES:
             for m in pattern.finditer(line):
@@ -228,7 +262,7 @@ class ContentSanitizer:
 
                 if current_index not in ignored_indices:
                     reasons: list[str] = []
-                    for match_info in _resolve_overlaps(line_matches):
+                    for match_info in _merge_overlaps(line_matches):
                         modified_line = (
                             modified_line[: match_info["start"]]
                             + match_info["replacement"]
