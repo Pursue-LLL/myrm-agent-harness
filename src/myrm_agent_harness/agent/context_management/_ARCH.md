@@ -70,6 +70,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | emergent_attention/ | 从行为中涌现的注意力清单、海量通知意图过滤器与言行错位智能对照引擎。 See [emergent_attention/_ARCH.md](emergent_attention/_ARCH.md). |
 | ephemeral_fts5/ | Ephemeral session-isolated SQLite FTS5 knowledge vault with dual Porter/Trigram matchers and batch query coalescing suite (Item 299). See [ephemeral_fts5/_ARCH.md](ephemeral_fts5/_ARCH.md). |
 | epoch/ | Compiles and orders tool definitions deterministically for Prompt Cache. See [epoch/_ARCH.md](epoch/_ARCH.md). |
+| event_cache_preservation/ | Cache-preserving event envelope protocol, sandboxed sleep-wake lifecycle, and sub-500ms cold-start hydration suite (Item 316). See [event_cache_preservation/_ARCH.md](event_cache_preservation/_ARCH.md). |
 | event_sourcing_replayer/ | Append-only immutable event log maintaining monotonic sequence numbers and hash chains. See [event_sourcing_replayer/_ARCH.md](event_sourcing_replayer/_ARCH.md). |
 | evidence_disclosure/ | Isomorphic evidence disclosure subsystem providing canonical action details shared between active turns and completed history, deterministic query scope isolation, and real-reading offset pagination. See [evidence_disclosure/_ARCH.md](evidence_disclosure/_ARCH.md). |
 | expanded_handoff/ | Full dialogue 1,200-word anchor with searchable archive handoff suite (Item 310). See [expanded_handoff/_ARCH.md](expanded_handoff/_ARCH.md). |

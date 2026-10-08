@@ -1336,6 +1336,19 @@ from .dag_context import (
     VramBudgetEvaluation,
     VramPerformanceBudgetGuard,
 )
+from .event_cache_preservation import (
+    CachePartitionedContextBundle,
+    CachePreservingEventEnvelopeAndColdStartHydrationSuite,
+    CachePreservingEventEnvelopeProtocol,
+    CachePreservingEventSuite,
+    DormantSnapshot,
+    EventAuditRecord,
+    EventAuditTrailManager,
+    EventEnvelopePayload,
+    EventSourceTier,
+    HydrationState,
+    SandboxedSleepWakeLifecycleEngine,
+)
 from .sandbox_pause_resume import (
     AgentkitPauseResumeSessionSandboxSuite,
     PauseResumeActionKind,
@@ -2601,6 +2614,18 @@ __all__ = [
     "TurnRecord",
     "VramBudgetEvaluation",
     "VramPerformanceBudgetGuard",
+    # event_cache_preservation
+    "CachePartitionedContextBundle",
+    "CachePreservingEventEnvelopeAndColdStartHydrationSuite",
+    "CachePreservingEventEnvelopeProtocol",
+    "CachePreservingEventSuite",
+    "DormantSnapshot",
+    "EventAuditRecord",
+    "EventAuditTrailManager",
+    "EventEnvelopePayload",
+    "EventSourceTier",
+    "HydrationState",
+    "SandboxedSleepWakeLifecycleEngine",
 ]
 
 
