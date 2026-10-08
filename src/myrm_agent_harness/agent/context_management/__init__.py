@@ -1349,6 +1349,23 @@ from .event_cache_preservation import (
     HydrationState,
     SandboxedSleepWakeLifecycleEngine,
 )
+from .anti_amnesia import (
+    AdaptiveTurnBudgetWatchdog,
+    AntiAmnesiaExecutionReport,
+    AntiAmnesiaSuite,
+    CapacityAssertionResult,
+    ChunkedMapReduceCompactor,
+    ChunkedSummaryNode,
+    CompressionFallbackTier,
+    CompressionLockTimeoutError,
+    CompressionTransparencyAndLockGuard,
+    CompressionTransparencyHudState,
+    ContextCompressionSilentFallbackGuardAndWindowAlignedAntiAmnesiaSuite,
+    InsufficientWindowCapacityError,
+    ModelWindowSpec,
+    TurnBudgetWatchdogState,
+    WindowCapacityAsserter,
+)
 from .local_prefill_guard import (
     AdaptivePruningDecision,
     LatencyWarningLevel,
@@ -2660,6 +2677,22 @@ __all__ = [
     "PrunedResultSummary",
     "PruningPolicyTier",
     "TtftLatencyEstimator",
+    # anti_amnesia
+    "AdaptiveTurnBudgetWatchdog",
+    "AntiAmnesiaExecutionReport",
+    "AntiAmnesiaSuite",
+    "CapacityAssertionResult",
+    "ChunkedMapReduceCompactor",
+    "ChunkedSummaryNode",
+    "CompressionFallbackTier",
+    "CompressionLockTimeoutError",
+    "CompressionTransparencyAndLockGuard",
+    "CompressionTransparencyHudState",
+    "ContextCompressionSilentFallbackGuardAndWindowAlignedAntiAmnesiaSuite",
+    "InsufficientWindowCapacityError",
+    "ModelWindowSpec",
+    "TurnBudgetWatchdogState",
+    "WindowCapacityAsserter",
 ]
 
 

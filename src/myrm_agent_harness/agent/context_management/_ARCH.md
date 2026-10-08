@@ -22,6 +22,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 |-----------|-------------|
 | active_compression/ | Core implementation of Active-Turn Live Context Compression Engine. See [active_compression/_ARCH.md](active_compression/_ARCH.md). |
 | ambiguity_probe/ | Core implementation of Ambiguity Clarification Probe and Private Entity Graph Backtracking Engine. See [ambiguity_probe/_ARCH.md](ambiguity_probe/_ARCH.md). |
+| anti_amnesia/ | Context compression silent fallback guard, window alignment, and anti-amnesia multi-tier resilience suite (Item 318). See [anti_amnesia/_ARCH.md](anti_amnesia/_ARCH.md). |
 | architecture_gate/ | Core implementation of Architecture Planning Discussion-First and Intent Convergence Gate. See [architecture_gate/_ARCH.md](architecture_gate/_ARCH.md). |
 | archive_checkpoint/ | Lite-LLM archive summary checkpoints: Protocol store, EpisodicMemory persistence, bounded async `ArchiveSummaryService`. |
 | ask_only_mode/ | Suite implementing WorkBuddy Ask-Only mode, dynamic tool filtering and token savings. See [ask_only_mode/_ARCH.md](ask_only_mode/_ARCH.md). |
