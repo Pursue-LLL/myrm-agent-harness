@@ -954,8 +954,23 @@ from .table_protection import (
     TablePruningProtector,
     TablePruningReceipt,
 )
+from .session_pins import (
+    PinActionKind,
+    SessionDeeplinkRoute,
+    SessionPinRepository,
+    SessionPinState,
+    SessionPinSyncReceipt,
+    SessionPinsPersistedInSessionsSuite,
+)
 
 __all__ = [
+    # session_pins
+    "PinActionKind",
+    "SessionDeeplinkRoute",
+    "SessionPinRepository",
+    "SessionPinState",
+    "SessionPinSyncReceipt",
+    "SessionPinsPersistedInSessionsSuite",
     # table_protection
     "HistoryAssistantTablePruneAndLastRoundProtectSuite",
     "MarkdownTableBlock",
