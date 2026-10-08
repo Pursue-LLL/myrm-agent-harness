@@ -72,7 +72,7 @@ Myrm Agent Harness 是一个**GUI-first 通用 AI 工作助手运行时框架**�
 | 工具包集合 | `myrm_agent_harness/toolkits/`      | **通用工具模块集，不与 Agent 框架耦合，可独立使用**。含 `tasks/` 异步媒体队列（[TASK_QUEUE_SYSTEM.md](src/myrm_agent_harness/toolkits/tasks/TASK_QUEUE_SYSTEM.md)）、`cron/`、`kanban/` 等。`__init__.py` 为通用能力导出入口，`xx_agent_tools.py` 导出 Agent 工具 |
 | 工具函数库 | `myrm_agent_harness/utils/`         | 提供通用工具函数（错误处理、日志、文本处理、Token 追踪、URL 工具）                                                                                                                                                                 |
 | 测试套件   | `tests/`                            | 单元测试、集成测试、沙箱测试、性能测试；公开 API 冒烟见 `tests/api/`                                                                                                                                               |
-| 性能基准   | `benchmarks/`                       | CI 回归基准（startup、boundary）；`archive/` 存放非门禁历史脚本                                                                                                                                                                    |
+| 性能基准   | `benchmarks/`                       | CI 回归基准（startup、boundary）与诊断基准（batch、context archive）；详见 [benchmarks/_ARCH.md](benchmarks/_ARCH.md)                                                                                                                                                                    |
 | **分发构建** | `harness_packaging/`              | 分发构建：`codegen.py`、`assemble.py`、core manifest（`directories` SSOT）、Nuitka 编译、release wheel 源码剥离。详见 [DISTRIBUTION_SYSTEM.md](harness_packaging/DISTRIBUTION_SYSTEM.md) |
 
 ### 跨层概念映射（一名一义）

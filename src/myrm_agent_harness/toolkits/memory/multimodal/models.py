@@ -12,7 +12,7 @@
 - MultimodalSearchHit: Ranked hit with rich card preview representation.
 
 [POS]
-myrm_agent_harness.toolkits.memory.multimodal.models
+Data contracts of the multimodal memory package; the other modules of the package build on these types.
 """
 
 from __future__ import annotations

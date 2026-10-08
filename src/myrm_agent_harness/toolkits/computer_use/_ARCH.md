@@ -3,6 +3,7 @@
 ## Overview
 Semantic Desktop Control (SDC) toolkit. Enables AI agents to snapshot and interact
 with native desktop applications via accessibility trees (@dref) with coordinate vision fallback.
+Detailed design: [DESKTOP_SYSTEM.md](DESKTOP_SYSTEM.md).
 
 ## File & Submodule Index
 

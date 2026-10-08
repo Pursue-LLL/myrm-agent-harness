@@ -1,13 +1,13 @@
 """Memory store for indexing and retrieving multimodal items and artifacts.
 
 [INPUT]
-- item: MultimodalMemoryItem
+- memory.multimodal.models::{MultimodalMemoryItem, AssetModality} (POS: data contracts of the multimodal memory package)
 
 [OUTPUT]
-- MultimodalMemoryStore: Thread-safe repository managing multimodal memory records
+- MultimodalMemoryStore: In-memory repository of multimodal memory items (add, get, delete, list by session and modality, count, clear); no locking
 
 [POS]
-myrm_agent_harness.toolkits.memory.multimodal.store
+Storage layer of the multimodal memory package; the orchestrator owns one instance and the retriever scans it.
 """
 
 from __future__ import annotations

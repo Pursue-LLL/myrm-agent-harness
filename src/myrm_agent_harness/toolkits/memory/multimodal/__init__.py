@@ -1,13 +1,13 @@
 """Multimodal vision and sandbox artifact memory package.
 
 [INPUT]
-- None (internal submodules)
+- memory.multimodal.{models, extractor, store, retriever, orchestrator} (POS: contracts, extraction, storage, search and facade of multimodal memory)
 
 [OUTPUT]
-- Public contracts and orchestrator for multimodal memory and artifact retrieval.
+- Public contracts, components and orchestrator for multimodal memory and artifact retrieval.
 
 [POS]
-myrm_agent_harness.toolkits.memory.multimodal
+Package facade of the multimodal memory suite; re-exports its contracts, components and orchestrator.
 """
 
 from __future__ import annotations

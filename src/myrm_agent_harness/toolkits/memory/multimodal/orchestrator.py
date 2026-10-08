@@ -1,15 +1,16 @@
 """Orchestrator unifying multimodal asset ingestion, indexing, and cross-modal search.
 
 [INPUT]
-- req: MultimodalIngestRequest
-- query: MultimodalSearchQuery
+- memory.multimodal.models::{MultimodalIngestRequest, MultimodalMemoryItem, MultimodalSearchQuery, MultimodalSearchHit} (POS: data contracts of the multimodal memory package)
+- memory.multimodal.extractor::MultimodalFeatureExtractor (POS: ingest-side feature extraction and UI card previews)
+- memory.multimodal.store::MultimodalMemoryStore (POS: in-memory repository of multimodal memory items)
+- memory.multimodal.retriever::CrossModalRetriever (POS: lexical cross-modal search layer)
 
 [OUTPUT]
-- MultimodalMemoryItem: Ingested asset
-- list[MultimodalSearchHit]: Search hits
+- MultimodalMemoryOrchestrator: Facade with ingest_asset, search_assets, get_asset, get_asset_card and clear
 
 [POS]
-myrm_agent_harness.toolkits.memory.multimodal.orchestrator
+Entry point of the multimodal memory package; composes extractor, store and retriever behind one facade.
 """
 
 from __future__ import annotations

@@ -144,6 +144,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | thinking_sanitizer/ | Sanitizer and egress guard for scrubbing reasoning blocks and drafts. See [thinking_sanitizer/_ARCH.md](thinking_sanitizer/_ARCH.md). |
 | tiered_consensus/ | Manager engine governing tiered memory hierarchy and proposal consensus lifecycle. See [tiered_consensus/_ARCH.md](tiered_consensus/_ARCH.md). |
 | two_layer_dialectic/ | Dual-layer context injection engine preserving LLM Prompt Cache while resolving contradictions. See [two_layer_dialectic/_ARCH.md](two_layer_dialectic/_ARCH.md). |
+| multimodal/ | Multimodal asset memory suite: stores vision assets and sandbox artifacts as long-term memory items and serves natural-language cross-modal search with UI card previews. See [multimodal/_ARCH.md](multimodal/_ARCH.md). |
 
 ## Key Dependencies
 

@@ -1,13 +1,13 @@
 """Feature extractor for multimodal vision assets and sandbox artifacts.
 
 [INPUT]
-- req: MultimodalIngestRequest
+- memory.multimodal.models::{MultimodalIngestRequest, MultimodalMemoryItem, AssetModality, ArtifactKind} (POS: data contracts of the multimodal memory package)
 
 [OUTPUT]
-- MultimodalMemoryItem: Populated domain item with extracted metadata and card representation
+- MultimodalFeatureExtractor: Builds a populated MultimodalMemoryItem from an ingest request (modality, artifact kind and MIME type taken from the file extension when left at defaults, derived tags) and projects an item into a UI card preview
 
 [POS]
-myrm_agent_harness.toolkits.memory.multimodal.extractor
+Ingest-side feature extraction of the multimodal memory package; the orchestrator uses it to create items and the retriever to build hit previews.
 """
 
 from __future__ import annotations
