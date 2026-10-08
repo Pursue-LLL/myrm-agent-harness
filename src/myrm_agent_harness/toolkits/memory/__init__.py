@@ -388,6 +388,19 @@ from myrm_agent_harness.toolkits.memory.context_hook_pipeline import (
     RegisteredHook,
     WeavingOutcome,
 )
+from myrm_agent_harness.toolkits.memory.conclusion_evidence import (
+    AttributedConclusion,
+    AttributionLevel,
+    ChatEvidenceBundle,
+    ChatEvidenceService,
+    ConclusionDerivationGraphEngine,
+    ConclusionEvidenceStats,
+    ConclusionEvidenceSuite,
+    DerivationCycleError,
+    DerivationTraversalView,
+    MessageEvidenceItem,
+    ToolCallEvidenceItem,
+)
 from myrm_agent_harness.toolkits.memory.document_attachment import (
     AttachmentBelongsToDocumentMigrationEngine,
     AttachmentOwnershipItem,
@@ -2184,6 +2197,17 @@ __all__ = [
     "MigrationReport",
     "ReclaimAuditReport",
     "StorageBlobMetadata",
+    "AttributedConclusion",
+    "AttributionLevel",
+    "ChatEvidenceBundle",
+    "ChatEvidenceService",
+    "ConclusionDerivationGraphEngine",
+    "ConclusionEvidenceStats",
+    "ConclusionEvidenceSuite",
+    "DerivationCycleError",
+    "DerivationTraversalView",
+    "MessageEvidenceItem",
+    "ToolCallEvidenceItem",
 ]
 
 
