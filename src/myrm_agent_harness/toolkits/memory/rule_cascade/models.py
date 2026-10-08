@@ -1,3 +1,22 @@
+"""Types and models for rule cascade.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- EvidenceScopeKind: Scope boundaries for memory evidence and deterministic rules.
+- EvidenceSourceKind: Source authority tiers for evidence validation.
+- EvidencePermissionLevel: RBAC security boundary for multi-tenant and workspace memory access.
+- FiveDimEvidenceMetadata: Five-dimensional metadata contract for pre-filtering and deterministic cascade.
+- DeterministicRuleEntry: A deterministic engineering rule or constraint.
+- CascadedRuleSet: Consolidated set of deterministic rules loaded hierarchically along the path tree.
+- FiveDimFilterSpec: Pre-filtering specifications applied BEFORE retrieval to ensure zero leakage.
+- PreFilteredEvidenceResult: Result of evaluating items against the 5-dimensional pre-filter boundary.
+
+[POS]
+Types and models for rule cascade.
+"""
+
 # [POS]: src/myrm_agent_harness/toolkits/memory/rule_cascade/models.py
 # [INPUT]: None (pure domain contracts)
 # [OUTPUT]: EvidenceScopeKind, EvidenceSourceKind, EvidencePermissionLevel, FiveDimEvidenceMetadata, DeterministicRuleEntry, CascadedRuleSet, FiveDimFilterSpec, PreFilteredEvidenceResult

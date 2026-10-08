@@ -2,6 +2,21 @@
 
 Provides machine-consumable schemas, integrity receipts, and selective redaction descriptors
 to prove user ownership of their complete context layer (sessions, memories, skills, goals, automations).
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ContextArtifactKind: Categorization of portable context layer artifacts.
+- ExportScope: Filter criteria governing which context artifacts are included in the portable bundle.
+- PortableContextItem: Normalized context artifact representation consumable across diverse agent runtimes.
+- ExportIntegrityReceipt: Cryptographic tamper-evident receipt proving completeness and fidelity of the
+  export.
+- PortableContextBundle: Standard portable export bundle payload with versioned schema and handoff
+  documentation.
+
+[POS]
+Data types and schemas for agent context ownership portable export and no-lock-in migration.
 """
 
 from __future__ import annotations

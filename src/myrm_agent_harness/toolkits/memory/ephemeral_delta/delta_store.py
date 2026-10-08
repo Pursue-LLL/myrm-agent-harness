@@ -1,3 +1,16 @@
+"""In-memory, session-scoped transient buffer for prompt-cache-preserving deltas.
+
+[INPUT]
+- toolkits.memory.ephemeral_delta.models::DeltaActionKind, EphemeralDeltaBufferSnapshot, EphemeralDeltaItem
+  (POS: Types and models for ephemeral delta.)
+
+[OUTPUT]
+- EphemeralDeltaStore: In-memory, session-scoped transient buffer for prompt-cache-preserving deltas.
+
+[POS]
+In-memory, session-scoped transient buffer for prompt-cache-preserving deltas.
+"""
+
 # [POS]: src/myrm_agent_harness/toolkits/memory/ephemeral_delta/delta_store.py
 # [INPUT]: src/myrm_agent_harness/toolkits/memory/ephemeral_delta/models.py
 # [OUTPUT]: EphemeralDeltaStore

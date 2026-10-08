@@ -7,6 +7,22 @@
 P0 delivery for Item 107 in topic_01 memory roadmap.
 Supports querying pre-seeded templates, continuous feedback evolution, and evaluating
 customer retail escalation gates.
+
+[INPUT]
+- toolkits.memory.business_templates.models::BusinessExperienceTemplate, EscalationAction, EscalationDecision,
+  EscalationEvaluationContext, EscalationReason, TemplateCategory, ValidationRecord (POS: Domain models for
+  business experience templates and escalation checklists.)
+- toolkits.memory.business_templates.seed_templates::SEED_TEMPLATES (POS: Pre-seeded industrial business
+  experience templates.)
+- toolkits.memory.procedure_experience.models::ProcedureMemoryEntry (POS: Types and models for procedure
+  experience.)
+
+[OUTPUT]
+- BusinessTemplateEngine: Manages business experience templates and executes human escalation gate
+  evaluations.
+
+[POS]
+Engine coordinating business experience templates and escalation decision evaluations.
 """
 
 from __future__ import annotations

@@ -2,6 +2,21 @@
 
 Defines the 5-phase engineering lifecycle, the 4-Question context gate questionnaire,
 and structured exploration handoff contracts under strict token constraints.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- DevFlowPhase: Sequential phases of a software development workflow lifecycle.
+- ContextAdmissionDecision: Decision rendered by the 4-Question Gate on whether information enters the primary
+  context.
+- GateQuestionnaireEvaluation: Outcome of evaluating candidate content against the 4-Question Gate.
+- StructuredExplorationHandoff: Rigid, token-bounded (<= 500 chars) structured synthesis from transient
+  exploration phases.
+- PhaseLifecycleState: Current state of active DevFlow phase and associated context manifests.
+
+[POS]
+Data contracts and schemas for DevFlow context lifecycle and progressive loading.
 """
 
 from __future__ import annotations

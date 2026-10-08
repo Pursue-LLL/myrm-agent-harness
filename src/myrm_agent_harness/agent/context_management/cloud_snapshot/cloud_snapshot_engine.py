@@ -2,6 +2,19 @@
 
 Enables sub-second (<800ms) workspace restoration for heavy repositories (e.g. 500MB node_modules)
 using copy-on-write volume overlays, incremental git diff streaming, and pre-warmed container pooling.
+
+[INPUT]
+- agent.context_management.cloud_snapshot.cloud_snapshot_types::CloudSnapshotConfig, IncrementalPatchBundle,
+  SandboxPoolState, SnapshotRestoreResult, SnapshotStorageDriver, VolumeSnapshotDescriptor,
+  WarmSandboxDescriptor (POS: Type contracts and definitions for Instant Cloud Session Snapshot and Zero-Clone
+  Warm Pool.)
+
+[OUTPUT]
+- InstantCloudSnapshotRestoreEngine: Engine managing instant copy-on-write volume snapshots and pre-warmed
+  sandbox pool.
+
+[POS]
+Engine implementation for Instant Cloud Session Snapshot Restore and Zero-Clone Warm Pool.
 """
 
 from __future__ import annotations

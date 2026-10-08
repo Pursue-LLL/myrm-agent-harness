@@ -2,6 +2,19 @@
 
 Defines intervention modes, queuing models, safe steering gate evaluation results,
 and runtime configuration aligned with Alibaba Qoder's barge-in paradigm.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- InterventionMode: Execution disposition when an in-flight intervention arrives.
+- InterventionStatus: Lifecycle status of a queued barge-in intervention.
+- BargeInMessage: An asynchronous user intervention directive submitted while the agent is running.
+- SteeringPointGateResult: Decision emitted by the safe steering gate between tool call or reasoning steps.
+- BargeInSteeringConfig: Configuration governing mid-run barge-in steering and gate checkpoints.
+
+[POS]
+Type contracts and definitions for Mid-Run Barge-In Steering and Non-Destructive Intervention Suite.
 """
 
 from __future__ import annotations

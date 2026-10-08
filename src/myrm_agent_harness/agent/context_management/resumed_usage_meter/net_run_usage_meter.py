@@ -2,6 +2,18 @@
 
 Eliminates repetitive billing over inherited session history upon resumption while
 accurately accounting for prompt cache discounts.
+
+[INPUT]
+- agent.context_management.resumed_usage_meter.resumed_usage_types::NetRunUsage, RawTurnUsage,
+  ResumptionBaseline (POS: Data contracts and schemas for resumed session history token exclusion and net run
+  usage metering.)
+
+[OUTPUT]
+- NetRunUsageMeter: Calculates true delta token usage and cost for turns within resumed or continuous
+  sessions.
+
+[POS]
+Core calculator isolating incremental run token usage from legacy historical context.
 """
 
 from __future__ import annotations

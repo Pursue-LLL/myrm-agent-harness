@@ -2,6 +2,17 @@
 
 Analyzes completed todos, conversation longevity, and prompt semantic distance to identify
 when a session has drifted from its initial scope, preventing unbounded context inflation.
+
+[INPUT]
+- agent.context_management.topic_drift_fork.topic_drift_types::DriftSignalKind, TopicDriftEvaluation (POS:
+  Data contracts and type definitions for topic drift demarcation and auto-renamed session forking.)
+
+[OUTPUT]
+- TopicDriftDetector: Heuristic detector assessing milestone completion and cross-domain semantic topic
+  shifts.
+
+[POS]
+Topic drift detector assessing task milestone closure and cross-task semantic divergence.
 """
 
 from __future__ import annotations

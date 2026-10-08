@@ -1,4 +1,18 @@
-"""Types and models for append-only session event sourcing and deterministic context replaying."""
+"""Types and models for append-only session event sourcing and deterministic context replaying.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- SessionEventKind: Classification of immutable session ledger events.
+- SessionLedgerEvent: Immutable event record strictly appended to session event stream.
+- ProjectedMessageItem: Reconstructed message visible to the model at projection time.
+- ProjectedModelVisibleContext: Pure functional projection of what the model sees at an exact historical step.
+- ContextReplayCertificate: Cryptographic audit certificate verifying deterministic replay outcome.
+
+[POS]
+Types and models for append-only session event sourcing and deterministic context replaying.
+"""
 
 from __future__ import annotations
 

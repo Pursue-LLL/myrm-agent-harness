@@ -3,6 +3,18 @@
 Executes four-tier causality deduction (Macro Policy -> Industry Topology -> Ticker Valuation
 -> Reverse Stress Test), freezes causality chains against context compression loss,
 and solidifies validated simulation pipelines into reusable SKILL.md packages.
+
+[INPUT]
+- agent.context_management.sandplay_simulation.sandplay_simulation_types::CausalityEdge, CausalityNode,
+  CausalityTier, ImpactDirection, IndustryChainGraph, SandplaySimulationResult, SolidifiedSkillPackage (POS:
+  Type contracts and definitions for Financial Sandplay Simulation and Skill Solidification Suite.)
+
+[OUTPUT]
+- FinancialSandplaySimulationEngine: Engine orchestrating multi-tier financial sandplay simulation and skill
+  packaging.
+
+[POS]
+Core engine for Financial Sandplay Simulation, Causality Anchoring, and Skill Solidification.
 """
 
 from __future__ import annotations

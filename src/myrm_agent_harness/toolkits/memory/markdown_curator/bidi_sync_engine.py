@@ -1,3 +1,16 @@
+"""Calculates bi-directional deltas between in-memory stores and Markdown mirrors.
+
+[INPUT]
+- toolkits.memory.markdown_curator.models::CuratedMemoryEntry, CuratedMemoryStatus, MarkdownSyncDelta (POS:
+  Types and models for markdown curator.)
+
+[OUTPUT]
+- MarkdownBidiSyncEngine: Calculates bi-directional deltas between in-memory stores and Markdown mirrors.
+
+[POS]
+Calculates bi-directional deltas between in-memory stores and Markdown mirrors.
+"""
+
 # [POS]: src/myrm_agent_harness/toolkits/memory/markdown_curator/bidi_sync_engine.py
 # [INPUT]: src.myrm_agent_harness.toolkits.memory.markdown_curator.models
 # [OUTPUT]: MarkdownBidiSyncEngine

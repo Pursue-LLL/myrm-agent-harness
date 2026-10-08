@@ -2,6 +2,20 @@
 
 Defines usage anchors, negative routing rules, heterogeneous reasoning seal blocks,
 and token efficiency ledgers.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ProviderUsageAnchor: Authoritative token count baseline reported directly by the LLM provider API.
+- NegativeRouteRule: Skill or tool metadata rule specifying negative triggers where activation is forbidden.
+- NegativeRouteDecision: Evaluation result indicating whether a skill was preemptively blocked.
+- ReasoningSealBlock: Encrypted or proprietary reasoning trace block bound to a specific model provider.
+- TokenEfficiencyLedger: Observability ledger tracking token optimization events and efficiency savings.
+- TokenEfficiencyConfig: Configuration governing provider anchoring and negative routing enforcement.
+
+[POS]
+Types and schemas for Provider usage anchoring and negative routing token efficiency suite.
 """
 
 from dataclasses import dataclass, field

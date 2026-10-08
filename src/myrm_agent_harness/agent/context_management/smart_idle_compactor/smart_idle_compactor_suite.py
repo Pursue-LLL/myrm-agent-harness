@@ -2,6 +2,22 @@
 
 Coordinates OS/Web idle detection, upstream KV prompt cache TTL monitoring,
 and opportunistic background pre-compaction to slash prefill latencies and costs.
+
+[INPUT]
+- agent.context_management.smart_idle_compactor.idle_compactor_types::CompactedCheckpointArchive,
+  IdleCompactionEvaluation, IdleCompactorConfig, OpportunisticCompactionResult, ZeroWaitWakeupEvent (POS: Data
+  contracts and type definitions for smart idle cache auto-compaction.)
+- agent.context_management.smart_idle_compactor.idle_eligibility_evaluator::IdleEligibilityEvaluator (POS:
+  Idle eligibility evaluator for opportunistic prompt cache pre-compaction.)
+- agent.context_management.smart_idle_compactor.opportunistic_compactor_engine::OpportunisticCompactorEngine
+  (POS: Opportunistic Compactor Engine executing silent background pre-compaction.)
+
+[OUTPUT]
+- SmartIdleCachePreservingAutoCompactorSuite: Master suite governing OS-level idle awareness and opportunistic
+  background pre-compaction.
+
+[POS]
+Smart Idle Cache-Preserving Auto-Compactor Suite.
 """
 
 from __future__ import annotations

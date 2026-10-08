@@ -1,3 +1,19 @@
+"""Types and models for markdown curator.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- CuratedMemoryCategory: Categorical dimensions for curated memory items.
+- CuratedMemoryStatus: Lifecycle status for curated memory entries with human gating.
+- CuratedMemoryEntry: Core domain model representing a transparent, human-editable memory unit.
+- MarkdownSyncDelta: Differences computed between in-memory state and workspace Markdown mirror.
+- CuratorStudioSummary: Aggregated metrics and categories distribution for the Curator Studio.
+
+[POS]
+Types and models for markdown curator.
+"""
+
 # [POS]: src/myrm_agent_harness/toolkits/memory/markdown_curator/models.py
 # [INPUT]: None (Domain models for Markdown bidi-sync and Curator Studio)
 # [OUTPUT]: CuratedMemoryCategory, CuratedMemoryStatus, CuratedMemoryEntry, MarkdownSyncDelta, CuratorStudioSummary

@@ -2,6 +2,17 @@
 
 Inspects baseline token footprints across system prompt, built-in core tools,
 external MCP schemas, and memory, generating visual profiling and sleep suggestions.
+
+[INPUT]
+- agent.context_management.cold_start_profiler.cold_start_profiler_types::ColdStartContextProfile,
+  ContextComponentKind, ContextComponentProfile, McpServerDescriptor, McpServerMountState (POS: Data contracts
+  and type definitions for cold start context profiling and on-demand MCP mounting.)
+
+[OUTPUT]
+- ColdStartContextProfilerEngine: Engine analyzing initial context consumption before the first turn begins.
+
+[POS]
+Cold Start Context Profiler Engine providing transparent context breakdown.
 """
 
 from __future__ import annotations

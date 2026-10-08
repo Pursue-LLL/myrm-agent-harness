@@ -2,6 +2,18 @@
 
 Detects milestone completion and semantic topic shifts in prolonged sessions,
 offering intelligent non-intrusive forking with auto-renaming to prevent massive context bloat.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- DriftSignalKind: Signals indicating a topic transition or milestone closure.
+- TopicDriftEvaluation: Diagnostic outcome of topic drift detection across dialogue turns.
+- SessionForkSuggestion: Actionable recommendation presented to users to fork into a fresh clean session.
+- ForkExecutionResult: Result of performing a clean session fork with auto-renaming.
+
+[POS]
+Data contracts and type definitions for topic drift demarcation and auto-renamed session forking.
 """
 
 from __future__ import annotations

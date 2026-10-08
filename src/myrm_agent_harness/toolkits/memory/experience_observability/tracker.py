@@ -6,6 +6,18 @@
 
 P1 delivery for Item 108 in topic_01 memory roadmap.
 Supports experience item distribution stats, outcome attribution, and session traceability.
+
+[INPUT]
+- toolkits.memory.experience_observability.models::ExperienceEffectStatus, ExperienceObservabilityMetric,
+  HostAccessChannel, SessionTraceEvidence (POS: Domain models for zero-refactor host lifecycle plugin and
+  experience observability.)
+
+[OUTPUT]
+- ExperienceObservabilityTracker: Manages telemetry metrics for experience recalls, injections, and execution
+  outcomes.
+
+[POS]
+Telemetry tracker for procedure experience recall, injection, and outcome observability.
 """
 
 from __future__ import annotations

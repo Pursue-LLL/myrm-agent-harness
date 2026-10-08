@@ -7,6 +7,16 @@
 Provides standard cold-start templates for Business Analysis Review procedures
 and Retail Exchange workflows with human escalation gates.
 Aligned with OpenViking evaluation findings (PPT review & tau2 retail bench).
+
+[INPUT]
+- toolkits.memory.business_templates.models::BusinessExperienceTemplate, ChecklistStep, TemplateCategory (POS:
+  Domain models for business experience templates and escalation checklists.)
+
+[OUTPUT]
+- None (no public symbols)
+
+[POS]
+Pre-seeded industrial business experience templates.
 """
 
 from __future__ import annotations

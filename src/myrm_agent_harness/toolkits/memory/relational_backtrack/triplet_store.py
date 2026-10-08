@@ -1,3 +1,16 @@
+"""In-memory structured index for entity-action-temporal triplets.
+
+[INPUT]
+- toolkits.memory.relational_backtrack.models::EntityTypeKind, TemporalRelationTriplet (POS: Types and models
+  for relational backtrack.)
+
+[OUTPUT]
+- TemporalTripletStore: In-memory structured index for entity-action-temporal triplets.
+
+[POS]
+In-memory structured index for entity-action-temporal triplets.
+"""
+
 # [POS]: src/myrm_agent_harness/toolkits/memory/relational_backtrack/triplet_store.py
 # [INPUT]: models.py (TemporalRelationTriplet, EntityTypeKind)
 # [OUTPUT]: TemporalTripletStore

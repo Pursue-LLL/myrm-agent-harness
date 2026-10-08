@@ -1,3 +1,20 @@
+"""Core backtracking engine for cross-session entity and temporal causal recall.
+
+[INPUT]
+- toolkits.memory.relational_backtrack.models::RelationalBacktrackHit, RelationalBacktrackQuery,
+  RelationalBacktrackResult (POS: Types and models for relational backtrack.)
+- toolkits.memory.relational_backtrack.synonym_normalizer::ActionSynonymNormalizer (POS: Action synonym
+  normalization and dialect mapping engine.)
+- toolkits.memory.relational_backtrack.triplet_store::TemporalTripletStore (POS: In-memory structured index
+  for entity-action-temporal triplets.)
+
+[OUTPUT]
+- CrossSessionBacktrackEngine: Core backtracking engine for cross-session entity and temporal causal recall.
+
+[POS]
+Core backtracking engine for cross-session entity and temporal causal recall.
+"""
+
 # [POS]: src/myrm_agent_harness/toolkits/memory/relational_backtrack/backtrack_engine.py
 # [INPUT]: models.py, synonym_normalizer.py, triplet_store.py
 # [OUTPUT]: CrossSessionBacktrackEngine

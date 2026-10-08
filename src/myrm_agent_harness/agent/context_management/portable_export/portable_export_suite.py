@@ -2,6 +2,20 @@
 
 Coordinates cross-engine portable bundle exports, cryptographic integrity audits,
 selective scope parsing, and JSON serialization.
+
+[INPUT]
+- agent.context_management.portable_export.portable_bundle_builder::PortableBundleBuilder (POS: Builder engine
+  for assembling, redacting, and cryptographically signing portable context bundles.)
+- agent.context_management.portable_export.portable_export_types::ContextArtifactKind, ExportIntegrityReceipt,
+  ExportScope, PortableContextBundle, PortableContextItem (POS: Data types and schemas for agent context
+  ownership portable export and no-lock-in migration.)
+
+[OUTPUT]
+- AgentOwnershipPortableExportAndNoLockInSuite: Master suite governing standard context layer export,
+  portability, and anti-vendor-lockin.
+
+[POS]
+Agent Ownership Portable Export and No Lock-in Migration Suite master class.
 """
 
 from __future__ import annotations

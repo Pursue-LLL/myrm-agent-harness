@@ -2,6 +2,21 @@
 
 Defines four-tier causality graphs, valuation sensitivity matrices,
 sandplay simulation results, and solidified skill package specifications.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- CausalityTier: Four-tier hierarchy of financial industrial chain causality deduction.
+- ImpactDirection: Net directional impact of a causality node on valuation or earnings.
+- CausalityNode: An analytical entity or state in the sandplay causality network.
+- CausalityEdge: A directed causal transmission mechanism connecting two nodes.
+- IndustryChainGraph: Topological graph representing the complete four-tier deduction tree.
+- SandplaySimulationResult: Synthesized outcome of continuous sandplay deduction and sandbox valuation.
+- SolidifiedSkillPackage: Ready-to-deploy SKILL.md specification solidified from a successful simulation run.
+
+[POS]
+Type contracts and definitions for Financial Sandplay Simulation and Skill Solidification Suite.
 """
 
 from __future__ import annotations

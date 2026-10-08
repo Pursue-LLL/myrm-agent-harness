@@ -6,6 +6,21 @@
 
 P1 delivery for Item 108 in topic_01 memory roadmap.
 Supports Plugin/MCP/Skill three-way integration and triad observability dashboard.
+
+[INPUT]
+- Third-party: pydantic
+
+[OUTPUT]
+- HostAccessChannel: Integration access channel for memory experience system.
+- LifecycleEventKind: Host lifecycle event kind intercepted by zero-refactor plugin.
+- ExperienceEffectStatus: Evaluation status for observed injected experience impact.
+- LifecycleEventPayload: Event data captured through host lifecycle hooks.
+- SessionTraceEvidence: Traceable evidence linking an experience item to its originating session.
+- ExperienceObservabilityMetric: Observability telemetry metric for a procedure experience item.
+- HostPluginConfig: Configuration for zero-refactor host lifecycle plugin.
+
+[POS]
+Domain models for zero-refactor host lifecycle plugin and experience observability.
 """
 
 from __future__ import annotations

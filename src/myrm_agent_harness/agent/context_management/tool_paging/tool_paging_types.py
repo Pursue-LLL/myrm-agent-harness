@@ -2,6 +2,20 @@
 
 Defines model tiers, tool schemas, blob records for virtual page tables,
 stub references, and on-demand page-in slices.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ModelTier: Target capability tier of the LLM receiving the tool definitions.
+- ToolSchemaDefinition: Definition of an agent tool supporting both full and compact presentations.
+- ToolBlobRecord: Full raw tool output offloaded into the virtual page table blob store.
+- ToolOutputStub: Compact stub card placed into active context in place of massive outputs.
+- PageInSlice: Retrieved window slice from an offloaded blob record.
+- ToolPagingConfig: Configuration governing tool output offloading and paging thresholds.
+
+[POS]
+Types and schemas for Model-Native tool pruning and context paging offload suite.
 """
 
 from dataclasses import dataclass, field

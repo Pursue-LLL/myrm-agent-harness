@@ -2,6 +2,19 @@
 
 Normalizes zero-thinking budget parameters across LLM providers (Anthropic, DeepSeek, OpenAI),
 allowing deterministic tasks to skip deep reasoning, dropping output tokens and TTFT by 80%+.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ThinkingBudgetMode: Reasoning effort and thinking budget allocation mode.
+- ModelProviderKind: Underlying model family for provider-specific API wire translation.
+- ProviderThinkingPayload: Normalized wire payload injected into chat completion API calls.
+- DeterministicTaskDetection: Diagnostic outcome of inspecting prompt for deterministic mechanical workloads.
+- ZeroThinkingSavingsRecord: Telemetry capturing output tokens and latency savings from zero-thinking routing.
+
+[POS]
+Data contracts and type definitions for zero thinking budget direct routing and cost decoupling.
 """
 
 from __future__ import annotations

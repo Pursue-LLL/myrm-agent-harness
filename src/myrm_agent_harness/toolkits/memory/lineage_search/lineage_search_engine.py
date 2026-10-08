@@ -1,3 +1,22 @@
+"""Full-stack session retrieval engine with FTS5 lexical matching,.
+
+[INPUT]
+- toolkits.memory.lineage_search.lineage_deduplicator::LineageDeduplicator (POS: Collapses multi-generation
+  compacted or branched session continuations.)
+- toolkits.memory.lineage_search.models::ConversationMessage, HydratedSessionHit, LineageSearchOptions,
+  LineageSearchStats, RawSearchHit, SessionMeta, SessionSourceKind (POS: Types and models for lineage search.)
+- toolkits.memory.lineage_search.source_demoter::SourceDemoterAndFilter (POS: Implements source-aware
+  filtering and demotion policies inspired by Hermes Agent PR #19434.)
+- toolkits.memory.lineage_search.window_hydrator::AdaptiveWindowHydrator (POS: Hydrates surviving search hits
+  with two-tier adaptive detail:.)
+
+[OUTPUT]
+- LineageSearchEngine: Full-stack session retrieval engine with FTS5 lexical matching,.
+
+[POS]
+Full-stack session retrieval engine with FTS5 lexical matching,.
+"""
+
 # [POS]: myrm_agent_harness/toolkits/memory/lineage_search/lineage_search_engine.py
 # [INPUT]: SQLite database path or in-memory, session metadata, conversation messages
 # [OUTPUT]: LineageSearchEngine orchestrating FTS5 search, source demotion, lineage dedup, and hydration

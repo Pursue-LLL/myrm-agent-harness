@@ -1,4 +1,19 @@
-"""Suite managing paired layered loop lifecycle events, dual-condition termination, and stop hooks."""
+"""Suite managing paired layered loop lifecycle events, dual-condition termination, and stop hooks.
+
+[INPUT]
+- agent.context_management.layered_loop_termination.debt_inbox_manager::DebtInboxManager (POS: Manager for
+  consumable debt inbox and model response debt accounting.)
+- agent.context_management.layered_loop_termination.layered_loop_types::LayeredLoopEvent, LoopHierarchyTier,
+  LoopTerminationDecision, LoopTerminationReason (POS: Types for layered loop termination, paired lifecycle
+  events, and debt inbox.)
+
+[OUTPUT]
+- LayeredLoopTerminationAndDebtInboxSuite: Orchestrates five-tier loop events, pair guarantee, debt
+  accounting, and rechecked termination.
+
+[POS]
+Suite managing paired layered loop lifecycle events, dual-condition termination, and stop hooks.
+"""
 
 from __future__ import annotations
 

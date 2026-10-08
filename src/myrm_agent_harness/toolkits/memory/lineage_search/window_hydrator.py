@@ -1,3 +1,16 @@
+"""Hydrates surviving search hits with two-tier adaptive detail:.
+
+[INPUT]
+- toolkits.memory.lineage_search.models::ConversationMessage, HydratedSessionHit, RawSearchHit, SessionMeta
+  (POS: Types and models for lineage search.)
+
+[OUTPUT]
+- AdaptiveWindowHydrator: Hydrates surviving search hits with two-tier adaptive detail:.
+
+[POS]
+Hydrates surviving search hits with two-tier adaptive detail:.
+"""
+
 # [POS]: myrm_agent_harness/toolkits/memory/lineage_search/window_hydrator.py
 # [INPUT]: Deduplicated hits, conversation message storage, window configuration
 # [OUTPUT]: Adaptive hydration expanding Top 1 full window and Top 2-N compact cards

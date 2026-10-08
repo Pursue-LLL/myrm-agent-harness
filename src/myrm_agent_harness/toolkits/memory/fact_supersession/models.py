@@ -1,3 +1,20 @@
+"""Types and models for fact supersession.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- TemporalFactStatus: Lifecycle status of a temporal fact in the supersession ledger.
+- TemporalFactRecord: Core domain model representing a factual assertion with explicit valid-time interval.
+- ContradictionQuarantineItem: Quarantine entry holding a low-confidence contradictory fact candidate pending
+  human review.
+- DialecticRecallProjection: Explainable recall payload projecting active facts alongside their superseded
+  lineage.
+
+[POS]
+Types and models for fact supersession.
+"""
+
 # [POS]: src/myrm_agent_harness/toolkits/memory/fact_supersession/models.py
 # [INPUT]: None (Domain models for Fact Supersession, Temporal Validity, and Contradiction Quarantine)
 # [OUTPUT]: TemporalFactStatus, TemporalFactRecord, ContradictionQuarantineItem, DialecticRecallProjection

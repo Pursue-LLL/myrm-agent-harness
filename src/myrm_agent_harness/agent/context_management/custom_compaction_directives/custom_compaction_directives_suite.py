@@ -2,6 +2,25 @@
 
 Unifies configuration parsing, prompt slot injection, post-compaction integrity auditing,
 and automatic self-healing patches to guarantee 100% domain fact retention across compactions.
+
+[INPUT]
+-
+  agent.context_management.custom_compaction_directives.compaction_directives_injector::CompactionDirectivesInjector
+  (POS: Compaction Directives Injector compiling user directives into summarizer prompts.)
+-
+  agent.context_management.custom_compaction_directives.compaction_directives_types::CompactionIntegrityReport,
+  CustomCompactionConfig, PreservationDirective (POS: Data contracts and type definitions for custom
+  compaction directives and preservation whitelist.)
+-
+  agent.context_management.custom_compaction_directives.preservation_whitelist_auditor::PreservationWhitelistAuditor
+  (POS: Preservation Whitelist Auditor verifying and auto-healing summaries post-compaction.)
+
+[OUTPUT]
+- CustomCompactionDirectivesAndPreservationWhitelistSuite: Master suite orchestrating user-defined compaction
+  preservation rules and self-healing.
+
+[POS]
+Custom Compaction Directives and Preservation Whitelist Suite master class.
 """
 
 from __future__ import annotations

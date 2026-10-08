@@ -1,4 +1,22 @@
-"""Suite managing append-only session event sourcing, step replaying, and audit certificates."""
+"""Suite managing append-only session event sourcing, step replaying, and audit certificates.
+
+[INPUT]
+- agent.context_management.event_sourcing_replayer.append_only_event_log::AppendOnlyEventLog (POS: Append-only
+  immutable event log maintaining monotonic sequence numbers and hash chains.)
+-
+  agent.context_management.event_sourcing_replayer.deterministic_context_projector::DeterministicContextProjector
+  (POS: Pure functional projector deriving exact model-visible context from event stream slices.)
+- agent.context_management.event_sourcing_replayer.event_sourcing_types::ContextReplayCertificate,
+  ProjectedModelVisibleContext, SessionEventKind, SessionLedgerEvent (POS: Types and models for append-only
+  session event sourcing and deterministic context replaying.)
+
+[OUTPUT]
+- AppendOnlySessionEventSourcingAndContextReplayerSuite: Orchestrates immutable event sourcing, pure
+  functional projections, and step replayer.
+
+[POS]
+Suite managing append-only session event sourcing, step replaying, and audit certificates.
+"""
 
 from __future__ import annotations
 

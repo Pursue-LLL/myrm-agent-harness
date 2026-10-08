@@ -2,6 +2,20 @@
 
 Tracks session resumption watermarks, audits incremental execution costs,
 and maintains an auditable double-entry billing ledger across dialogue turns.
+
+[INPUT]
+- agent.context_management.resumed_usage_meter.net_run_usage_meter::NetRunUsageMeter (POS: Core calculator
+  isolating incremental run token usage from legacy historical context.)
+- agent.context_management.resumed_usage_meter.resumed_usage_types::NetRunUsage, RawTurnUsage,
+  ResumptionBaseline, SessionUsageSummary, UsageBillingLedgerRecord (POS: Data contracts and schemas for
+  resumed session history token exclusion and net run usage metering.)
+
+[OUTPUT]
+- ResumedSessionHistoryTokenExclusionAndNetRunUsageMeterSuite: Master suite orchestrating historical context
+  exclusion and net incremental task metering.
+
+[POS]
+Master suite governing resumed session history token exclusion and net run usage metering.
 """
 
 from __future__ import annotations

@@ -2,6 +2,18 @@
 
 Parses preservation directives from markdown or configs (such as CLAUDE.md)
 and injects structured preservation requirements into the summarizer prompt template.
+
+[INPUT]
+- agent.context_management.custom_compaction_directives.compaction_directives_types::PreservationDirective,
+  PreservationDirectiveKind (POS: Data contracts and type definitions for custom compaction directives and
+  preservation whitelist.)
+
+[OUTPUT]
+- CompactionDirectivesInjector: Compiles and injects custom domain preservation instructions into compaction
+  prompts.
+
+[POS]
+Compaction Directives Injector compiling user directives into summarizer prompts.
 """
 
 from __future__ import annotations

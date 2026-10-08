@@ -1,4 +1,22 @@
-"""Types and data structures for headless task continuation and mobile approval relay."""
+"""Types and data structures for headless task continuation and mobile approval relay.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ClientAttachmentState: Attachment state of the client front-end (Desktop/Web).
+- HeadlessExecutionPhase: Lifecycle phase of asynchronous headless execution in the sandbox.
+- RelayChannelKind: Supported push relay channels for mobile human-in-the-loop.
+- ApprovalDecisionKind: Operator decision for a suspended action.
+- RiskLevel: Risk tier for the pending action requiring confirmation.
+- MobileApprovalRelayCard: Tamper-evident mobile approval card payload dispatched to remote channels.
+- MobileApprovalDecisionPayload: Incoming approval decision callback from mobile device.
+- ApprovalRelayReceipt: Cryptographic audit receipt after decision is validated and applied.
+- ReconnectionSyncManifest: Manifest synchronizing headless task state when desktop client reconnects.
+
+[POS]
+Types and data structures for headless task continuation and mobile approval relay.
+"""
 
 from __future__ import annotations
 

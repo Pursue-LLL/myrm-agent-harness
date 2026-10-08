@@ -3,6 +3,19 @@
 Performs deterministic regex and substring entity auditing on generated summaries.
 If any critical domain directives are omitted by the LLM, seamlessly heals the summary
 by extracting the verified entity facts directly from the raw pre-compaction context.
+
+[INPUT]
+-
+  agent.context_management.custom_compaction_directives.compaction_directives_types::CompactionIntegrityReport,
+  DirectiveAuditResult, PreservationDirective (POS: Data contracts and type definitions for custom compaction
+  directives and preservation whitelist.)
+
+[OUTPUT]
+- PreservationWhitelistAuditor: Audits generated summaries against custom preservation directives and
+  auto-heals missing facts.
+
+[POS]
+Preservation Whitelist Auditor verifying and auto-healing summaries post-compaction.
 """
 
 from __future__ import annotations

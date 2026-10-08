@@ -1,4 +1,21 @@
-"""Suite orchestrating session handoff packaging, readonly sharing, secret gating, and line blame."""
+"""Suite orchestrating session handoff packaging, readonly sharing, secret gating, and line blame.
+
+[INPUT]
+- agent.context_management.session_handoff.secret_gate_scanner::SecretGateScanner (POS: Dual-tier secret gate
+  scanner: storage masking placeholders and pre-publish scan blocking.)
+- agent.context_management.session_handoff.session_blame_indexer::SessionBlameIndexer (POS: Indexer mapping
+  source code lines back to originating session turns and prompt intents.)
+- agent.context_management.session_handoff.session_handoff_types::HandoffMessageTurn, LineBlameEntry,
+  LineBlameLookupResult, ReadonlyShareGrant, SecretGateScanResult, SessionHandoffPackage, ShareAccessStatus
+  (POS: Types for session handoff package, readonly share grant, secret gate, and line blame.)
+
+[OUTPUT]
+- SessionHandoffPackageAndReadonlyShareAndSecretGateAndBlameSuite: End-to-end suite combining portable
+  packaging, secure share grants, secret gates, and blame.
+
+[POS]
+Suite orchestrating session handoff packaging, readonly sharing, secret gating, and line blame.
+"""
 
 from __future__ import annotations
 

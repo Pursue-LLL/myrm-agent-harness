@@ -6,6 +6,20 @@
 
 Layer 1 (Base Context): Low-cadence, deterministic prefix hash to maximize KV Cache hits.
 Layer 2 (Dialectic Reconciliation): High-accuracy conflict resolution injected at user message tail.
+
+[INPUT]
+- toolkits.memory.two_layer_dialectic.models::BaseContextPayload, DialecticReconciliationConfig,
+  DialecticReconciliationResult, TwoLayerContextInjectionResult (POS: Domain models for Two-Layer Context
+  Injection and Multi-Pass Dialectic Reconciliation Suite.)
+- toolkits.memory.two_layer_dialectic.reconciler::MultiPassDialecticReconciler (POS: Multi-pass dialectic
+  reasoning engine for cognitive memory conflict resolution.)
+
+[OUTPUT]
+- TwoLayerContextInjector: Orchestrates cadence-governed dual-layer injection to optimize caching and
+  eliminate memory conflicts.
+
+[POS]
+Dual-layer context injection engine preserving LLM Prompt Cache while resolving contradictions.
 """
 
 from __future__ import annotations

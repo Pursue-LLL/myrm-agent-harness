@@ -2,6 +2,18 @@
 
 Applies strict admission heuristics based on phase necessity, single-use isolation,
 trigger conditions, and external URI indexability.
+
+[INPUT]
+- agent.context_management.devflow_lifecycle.devflow_types::ContextAdmissionDecision, DevFlowPhase,
+  GateQuestionnaireEvaluation (POS: Data contracts and schemas for DevFlow context lifecycle and progressive
+  loading.)
+
+[OUTPUT]
+- ContextGateEvaluator: Evaluates whether prospective content is admitted directly, deferred, isolated, or
+  referenced.
+
+[POS]
+The 4-Question Context Gate Evaluator governing information admission into active memory.
 """
 
 from __future__ import annotations

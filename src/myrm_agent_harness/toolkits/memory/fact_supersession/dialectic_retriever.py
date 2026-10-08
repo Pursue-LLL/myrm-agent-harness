@@ -1,3 +1,19 @@
+"""Projector augmenting recalled facts with their historical supersession lineage for explainability.
+
+[INPUT]
+- toolkits.memory.fact_supersession.models::DialecticRecallProjection, TemporalFactRecord (POS: Types and
+  models for fact supersession.)
+- toolkits.memory.fact_supersession.supersession_chain::FactSupersessionChainEngine (POS: Engine managing fact
+  lifecycle, explicit supersession chains, and valid-time interval queries.)
+
+[OUTPUT]
+- DialecticRecallProjector: Projector augmenting recalled facts with their historical supersession lineage for
+  explainability.
+
+[POS]
+Projector augmenting recalled facts with their historical supersession lineage for explainability.
+"""
+
 # [POS]: src/myrm_agent_harness/toolkits/memory/fact_supersession/dialectic_retriever.py
 # [INPUT]: src.myrm_agent_harness.toolkits.memory.fact_supersession (models, supersession_chain)
 # [OUTPUT]: DialecticRecallProjector

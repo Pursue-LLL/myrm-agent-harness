@@ -7,6 +7,19 @@
 P0 delivery for Item 109 in topic_01 memory roadmap.
 Enables automated retrieval of historical solutions or cautionary failures
 when an agent encounters an execution or tool failure.
+
+[INPUT]
+- Third-party: pydantic
+
+[OUTPUT]
+- FailureOutcomeType: Categorical outcome of a historical session attempt.
+- ErrorFingerprint: Normalized fingerprint of an error extracted from an execution failure.
+- HistoricalResolutionEntry: Indexed solution or cautionary lesson from a past session.
+- FailureRetrievalResult: Dual-track retrieval result returning both solutions and cautionary failures.
+- FailureTriggerConfig: Runtime configuration for failure-triggered historical session retrieval.
+
+[POS]
+Domain models for failure-triggered historical session retrieval.
 """
 
 from __future__ import annotations

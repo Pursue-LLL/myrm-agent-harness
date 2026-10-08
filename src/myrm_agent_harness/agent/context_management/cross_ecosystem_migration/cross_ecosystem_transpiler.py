@@ -1,4 +1,17 @@
-"""Transpiler detecting conflicts and consolidating multi-ecosystem rule files into AGENTS.md."""
+"""Transpiler detecting conflicts and consolidating multi-ecosystem rule files into AGENTS.md.
+
+[INPUT]
+- agent.context_management.cross_ecosystem_migration.cross_ecosystem_types::DiscoveredEcosystemFile,
+  EcosystemConflictItem, RuleSectionCategory (POS: Types for cross-ecosystem agent rule migration and
+  compatibility inspector.)
+
+[OUTPUT]
+- CrossEcosystemTranspiler: Detects semantic rule conflicts and transpiles foreign rules into standardized
+  AGENTS.md.
+
+[POS]
+Transpiler detecting conflicts and consolidating multi-ecosystem rule files into AGENTS.md.
+"""
 
 from __future__ import annotations
 

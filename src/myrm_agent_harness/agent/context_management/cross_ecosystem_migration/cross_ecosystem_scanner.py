@@ -1,4 +1,17 @@
-"""Scanner discovering foreign and standard agent rule files across ecosystems."""
+"""Scanner discovering foreign and standard agent rule files across ecosystems.
+
+[INPUT]
+- agent.context_management.cross_ecosystem_migration.cross_ecosystem_types::DiscoveredEcosystemFile,
+  EcosystemSpecKind, RuleSectionCategory (POS: Types for cross-ecosystem agent rule migration and
+  compatibility inspector.)
+
+[OUTPUT]
+- CrossEcosystemRuleScanner: Discovers foreign and standard rule files from Claude, Cursor, Copilot, Windsurf,
+  and Agentic AI.
+
+[POS]
+Scanner discovering foreign and standard agent rule files across ecosystems.
+"""
 
 from __future__ import annotations
 

@@ -2,6 +2,23 @@
 
 Coordinates image security screening, precision tile token accounting, and adaptive
 downscaling/placeholder compression under context window constraints.
+
+[INPUT]
+- agent.context_management.multimodal_budget.image_token_budget_calculator::ImageTokenBudgetCalculator (POS:
+  Calculates token expenditure for file images based on tile decomposition geometry.)
+- agent.context_management.multimodal_budget.multimodal_budget_types::GuardianReviewResult,
+  GuardianVerdictKind, ImageArtifactDescriptor, ImageBudgetAction, ImageBudgetAllocation, ImageDetailMode,
+  MultiModalBudgetReport (POS: Data contracts and schemas for multi-modal file image context budgeting and
+  Guardian review.)
+- agent.context_management.multimodal_budget.multimodal_guardian_reviewer::MultiModalGuardianReviewer (POS:
+  Multi-modal Guardian screening image payloads for format validity, size caps, and aspect bounds.)
+
+[OUTPUT]
+- MultiModalFileImageContextBudgetAndGuardianReviewSuite: Master suite governing image context budgets and
+  Guardian safety enforcement.
+
+[POS]
+Master suite for Multi-modal File Image Context Budgeting and Guardian Review.
 """
 
 from __future__ import annotations

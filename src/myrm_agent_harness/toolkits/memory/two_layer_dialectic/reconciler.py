@@ -5,6 +5,18 @@
 """Multi-pass dialectic reasoning engine for cognitive memory conflict resolution.
 
 Executes inspection, synthesis, and reconciliation over conflicting memory assertions.
+
+[INPUT]
+- toolkits.memory.two_layer_dialectic.models::DialecticConflictCandidate, DialecticPassKind,
+  DialecticReconciliationConfig, DialecticReconciliationResult (POS: Domain models for Two-Layer Context
+  Injection and Multi-Pass Dialectic Reconciliation Suite.)
+
+[OUTPUT]
+- MultiPassDialecticReconciler: Multi-pass dialectic reasoning coordinator for cognitive contradiction
+  harmonization.
+
+[POS]
+Multi-pass dialectic reasoning engine for cognitive memory conflict resolution.
 """
 
 from __future__ import annotations

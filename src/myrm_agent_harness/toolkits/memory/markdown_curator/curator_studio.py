@@ -1,3 +1,21 @@
+"""Core studio engine managing human-in-the-loop memory curation and Markdown bi-directional sync.
+
+[INPUT]
+- toolkits.memory.markdown_curator.bidi_sync_engine::MarkdownBidiSyncEngine (POS: Calculates bi-directional
+  deltas between in-memory stores and Markdown mirrors.)
+- toolkits.memory.markdown_curator.markdown_serializer::MarkdownMemorySerializer (POS: Serializes memory
+  entries to human-friendly Markdown and parses them back.)
+- toolkits.memory.markdown_curator.models::CuratedMemoryCategory, CuratedMemoryEntry, CuratedMemoryStatus,
+  CuratorStudioSummary, MarkdownSyncDelta (POS: Types and models for markdown curator.)
+
+[OUTPUT]
+- MemoryCuratorStudio: Core studio engine managing human-in-the-loop memory curation and Markdown
+  bi-directional sync.
+
+[POS]
+Core studio engine managing human-in-the-loop memory curation and Markdown bi-directional sync.
+"""
+
 # [POS]: src/myrm_agent_harness/toolkits/memory/markdown_curator/curator_studio.py
 # [INPUT]: src.myrm_agent_harness.toolkits.memory.markdown_curator (models, markdown_serializer, bidi_sync_engine)
 # [OUTPUT]: MemoryCuratorStudio

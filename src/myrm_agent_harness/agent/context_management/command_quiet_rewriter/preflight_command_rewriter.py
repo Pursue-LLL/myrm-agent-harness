@@ -2,6 +2,18 @@
 
 Automatically detects verbose CLI patterns (e.g. pytest, vitest, npm, git log, curl)
 and injects quiet / silent / limit flags to eliminate terminal noise at the source.
+
+[INPUT]
+- agent.context_management.command_quiet_rewriter.quiet_rewriter_types::QuietRewriteRule, RewriteResult,
+  RewriteStatus (POS: Data contracts and type definitions for preflight command rewriting and subagent log
+  sink.)
+
+[OUTPUT]
+- PreflightCommandRewriter: Intelligent pre-execution rewriter for CLI commands to suppress redundant terminal
+  noise.
+
+[POS]
+Preflight Command Rewriter that intercepts CLI commands before sandbox execution.
 """
 
 from __future__ import annotations

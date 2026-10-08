@@ -1,3 +1,18 @@
+"""Types and models for procedure experience.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- RetrievalNodeKind: Lifecycle call sites for memory injection.
+- ProcedureMemoryEntry: Core domain model implementing the 8-field procedure-shaped memory protocol.
+- DualNodeRetrievalQuery: Query payload targeting either first-user intent or pre-write intercept nodes.
+- DualNodeRetrievalResult: Fixed-count retrieval results projected for prompt injection at specified node.
+
+[POS]
+Types and models for procedure experience.
+"""
+
 # [POS]: src/myrm_agent_harness/toolkits/memory/procedure_experience/models.py
 # [INPUT]: None (Domain models for Procedure-Shaped Experience Protocol & Dual-Node Retrieval)
 # [OUTPUT]: RetrievalNodeKind, ProcedureMemoryEntry, DualNodeRetrievalQuery, DualNodeRetrievalResult

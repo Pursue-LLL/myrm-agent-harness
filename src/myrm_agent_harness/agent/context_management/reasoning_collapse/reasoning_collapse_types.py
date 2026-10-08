@@ -2,6 +2,19 @@
 
 Defines multi-vendor reasoning blocks, sliding window collapse modes,
 prompt cache alignment checks, and compression reports.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ReasoningVendorType: Vendor-specific reasoning output format.
+- ThinkingCollapseMode: Strategy for collapsing historical reasoning chains.
+- UnifiedReasoningBlock: Normalized internal representation of a reasoning thought trace.
+- ReasoningCollapseReport: Metrics report detailing token reduction and cache alignment integrity.
+- ReasoningCollapseConfig: Configuration governing sliding window size and digest thresholds.
+
+[POS]
+Types and schemas for deep reasoning stream thinking collapse and prompt cache alignment.
 """
 
 from dataclasses import dataclass, field

@@ -1,3 +1,18 @@
+"""Pre-filtering engine enforcing physical boundary checks before vector/FTS recall.
+
+[INPUT]
+- toolkits.memory.rule_cascade.decay_calculator::TimeDecayCalculator (POS: Calculates exponential half-life
+  decay and dynamic confidence for evidence facts.)
+- toolkits.memory.rule_cascade.models::DeterministicRuleEntry, EvidencePermissionLevel, FiveDimFilterSpec,
+  PreFilteredEvidenceResult (POS: Types and models for rule cascade.)
+
+[OUTPUT]
+- FiveDimPreFilterEngine: Pre-filtering engine enforcing physical boundary checks before vector/FTS recall.
+
+[POS]
+Pre-filtering engine enforcing physical boundary checks before vector/FTS recall.
+"""
+
 # [POS]: src/myrm_agent_harness/toolkits/memory/rule_cascade/pre_filter_engine.py
 # [INPUT]: decay_calculator.py, models.py (DeterministicRuleEntry, FiveDimFilterSpec, PreFilteredEvidenceResult)
 # [OUTPUT]: FiveDimPreFilterEngine

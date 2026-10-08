@@ -1,3 +1,16 @@
+"""Serializes memory entries to human-friendly Markdown and parses them back.
+
+[INPUT]
+- toolkits.memory.markdown_curator.models::CuratedMemoryCategory, CuratedMemoryEntry, CuratedMemoryStatus
+  (POS: Types and models for markdown curator.)
+
+[OUTPUT]
+- MarkdownMemorySerializer: Serializes memory entries to human-friendly Markdown and parses them back.
+
+[POS]
+Serializes memory entries to human-friendly Markdown and parses them back.
+"""
+
 # [POS]: src/myrm_agent_harness/toolkits/memory/markdown_curator/markdown_serializer.py
 # [INPUT]: src.myrm_agent_harness.toolkits.memory.markdown_curator.models
 # [OUTPUT]: MarkdownMemorySerializer

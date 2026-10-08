@@ -1,3 +1,19 @@
+"""Gate evaluating factual contradictions and routing low-confidence candidates into quarantine.
+
+[INPUT]
+- toolkits.memory.fact_supersession.models::ContradictionQuarantineItem, TemporalFactRecord,
+  TemporalFactStatus (POS: Types and models for fact supersession.)
+- toolkits.memory.fact_supersession.supersession_chain::FactSupersessionChainEngine (POS: Engine managing fact
+  lifecycle, explicit supersession chains, and valid-time interval queries.)
+
+[OUTPUT]
+- ContradictionQuarantineGate: Gate evaluating factual contradictions and routing low-confidence candidates
+  into quarantine.
+
+[POS]
+Gate evaluating factual contradictions and routing low-confidence candidates into quarantine.
+"""
+
 # [POS]: src/myrm_agent_harness/toolkits/memory/fact_supersession/contradiction_quarantine.py
 # [INPUT]: src.myrm_agent_harness.toolkits.memory.fact_supersession (models, supersession_chain)
 # [OUTPUT]: ContradictionQuarantineGate

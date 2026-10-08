@@ -2,6 +2,20 @@
 
 Distinguishes physical model throughput from incremental task consumption,
 ensuring fair billing and eliminating duplicate charges upon session resumption.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ResumptionBaseline: Snapshot of prior session scale captured at the moment of resumption.
+- RawTurnUsage: Raw token usage numbers reported by the model inference provider.
+- NetRunUsage: True incremental usage belonging specifically to the active task execution.
+- UsageBillingLedgerRecord: Auditable ledger entry documenting token allocation and billing metrics for a
+  turn.
+- SessionUsageSummary: Consolidated lifetime and incremental usage metrics across the session lifecycle.
+
+[POS]
+Data contracts and schemas for resumed session history token exclusion and net run usage metering.
 """
 
 from __future__ import annotations

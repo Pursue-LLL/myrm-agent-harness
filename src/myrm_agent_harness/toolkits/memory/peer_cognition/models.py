@@ -7,6 +7,20 @@
 P0 delivery for Item 110 in topic_01 memory roadmap.
 Transitions agent memory from isolated, unowned facts to a structured social cognition
 network where every fact, preference, and role is anchored to an evolving Peer identity.
+
+[INPUT]
+- Third-party: pydantic
+
+[OUTPUT]
+- PeerType: Categorical type of social cognition peer entity.
+- PeerRelationKind: Types of semantic and cognitive relations connecting peers and entities.
+- PeerIdentity: Persistent identity representation of a social cognition participant.
+- PeerRelationEdge: Directed social cognition edge associating a peer to another peer or fact entity.
+- PeerPersonaCard: Curated, self-evolving standing persona card for a peer participant.
+- PeerCognitionProjection: Low-token formatted context block ready for LLM prompt injection.
+
+[POS]
+Domain models for peer-centric social cognition entity graph and agent persona cards.
 """
 
 from __future__ import annotations

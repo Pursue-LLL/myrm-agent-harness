@@ -1,3 +1,16 @@
+"""Injects active ephemeral session deltas at the tail of the final HumanMessage.
+
+[INPUT]
+- toolkits.memory.ephemeral_delta.models::EphemeralDeltaItem (POS: Types and models for ephemeral delta.)
+- Third-party: langchain_core
+
+[OUTPUT]
+- HumanTailDeltaInjector: Injects active ephemeral session deltas at the tail of the final HumanMessage.
+
+[POS]
+Injects active ephemeral session deltas at the tail of the final HumanMessage.
+"""
+
 # [POS]: src/myrm_agent_harness/toolkits/memory/ephemeral_delta/tail_injector.py
 # [INPUT]: langchain_core.messages (BaseMessage, HumanMessage), models.py (EphemeralDeltaItem)
 # [OUTPUT]: HumanTailDeltaInjector

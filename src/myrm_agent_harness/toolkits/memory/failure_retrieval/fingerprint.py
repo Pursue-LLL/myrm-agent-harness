@@ -7,6 +7,16 @@
 P0 delivery for Item 109 in topic_01 memory roadmap.
 Scrubs dynamic UUIDs, memory addresses, timestamps, and ephemeral paths
 to generate deterministic normalized error signatures suitable for indexing and lookup.
+
+[INPUT]
+- toolkits.memory.failure_retrieval.models::ErrorFingerprint (POS: Domain models for failure-triggered
+  historical session retrieval.)
+
+[OUTPUT]
+- ErrorFingerprintExtractor: Normalizes runtime errors into deterministic error signatures.
+
+[POS]
+Error fingerprint extractor for failure-triggered session retrieval.
 """
 
 from __future__ import annotations

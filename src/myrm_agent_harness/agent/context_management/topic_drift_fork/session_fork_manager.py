@@ -2,6 +2,17 @@
 
 Transforms the manual /rename + /clear workflow into a seamless GUI-native experience
 with non-intrusive suggestion banners and instant O(1) context clearing.
+
+[INPUT]
+- agent.context_management.topic_drift_fork.topic_drift_types::ForkExecutionResult, SessionForkSuggestion,
+  TopicDriftEvaluation (POS: Data contracts and type definitions for topic drift demarcation and auto-renamed
+  session forking.)
+
+[OUTPUT]
+- SessionForkManager: Manages session forking, intelligent auto-renaming, and carryover context projection.
+
+[POS]
+Session Fork Manager coordinating auto-renaming, carryover summary extraction, and clean session forking.
 """
 
 from __future__ import annotations

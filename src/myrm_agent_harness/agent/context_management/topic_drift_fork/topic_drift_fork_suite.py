@@ -2,6 +2,22 @@
 
 Coordinates intent drift detection, milestone closure analysis, non-intrusive suggestion banners,
 and seamless clean session forking with automatic session renaming.
+
+[INPUT]
+- agent.context_management.topic_drift_fork.session_fork_manager::SessionForkManager (POS: Session Fork
+  Manager coordinating auto-renaming, carryover summary extraction, and clean session forking.)
+- agent.context_management.topic_drift_fork.topic_drift_detector::TopicDriftDetector (POS: Topic drift
+  detector assessing task milestone closure and cross-task semantic divergence.)
+- agent.context_management.topic_drift_fork.topic_drift_types::ForkExecutionResult, SessionForkSuggestion,
+  TopicDriftEvaluation (POS: Data contracts and type definitions for topic drift demarcation and auto-renamed
+  session forking.)
+
+[OUTPUT]
+- TopicDriftDemarcationAndAutoRenamedSessionForkSuite: Master suite governing topic drift demarcation and
+  intelligent auto-renamed session forking.
+
+[POS]
+Topic Drift Demarcation and Auto-Renamed Session Fork Suite master class.
 """
 
 from __future__ import annotations

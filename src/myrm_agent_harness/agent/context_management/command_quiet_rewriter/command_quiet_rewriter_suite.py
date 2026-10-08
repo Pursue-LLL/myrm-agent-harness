@@ -2,6 +2,22 @@
 
 Unified facade combining preflight quiet flag rewriting and isolated subagent
 log sink blackhole quarantine for radical context window noise suppression.
+
+[INPUT]
+- agent.context_management.command_quiet_rewriter.preflight_command_rewriter::PreflightCommandRewriter (POS:
+  Preflight Command Rewriter that intercepts CLI commands before sandbox execution.)
+- agent.context_management.command_quiet_rewriter.quiet_rewriter_types::LogSinkConclusionCard, LogSinkStatus,
+  LogSinkTaskSpec, LogSinkTaskType, QuietRewriteRule, RewriteResult, SubagentLogSinkExecutionRecord (POS: Data
+  contracts and type definitions for preflight command rewriting and subagent log sink.)
+- agent.context_management.command_quiet_rewriter.subagent_log_sink_engine::SubagentLogSinkEngine (POS:
+  Subagent Log Sink Engine that absorbs massive process outputs into isolated contexts.)
+
+[OUTPUT]
+- CommandQuietRewriterAndLogSinkSuite: Master suite coordinating preflight command rewriting and subagent log
+  sinks.
+
+[POS]
+Command Quiet Rewriter and Subagent Log Sink Suite.
 """
 
 from __future__ import annotations

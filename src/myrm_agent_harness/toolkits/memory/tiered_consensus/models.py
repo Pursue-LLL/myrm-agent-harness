@@ -7,6 +7,19 @@
 P1 delivery for Item 114 in topic_01 memory roadmap.
 Enforces physical scoping (Personal vs Project vs Team Consensus) and governance
 workflows (Proposed -> Approved -> Rejected -> Revoked) to prevent hallucination leaks.
+
+[INPUT]
+- Third-party: pydantic
+
+[OUTPUT]
+- ConsensusScopeTier: Semantic boundary tier governing memory lifecycle and visibility.
+- ProposalStatus: Lifecycle governance status of a tiered memory record.
+- compute_content_fingerprint(): Generate deterministic SHA-256 fingerprint for deduplication.
+- TieredMemoryRecord: Scoped memory record governed by consensus lifecycle.
+- ConsensusAuditLog: Immutable audit entry capturing lifecycle transition events.
+
+[POS]
+Domain models for Tiered Memory Hierarchy and Proposed Consensus Flow Suite.
 """
 
 from __future__ import annotations

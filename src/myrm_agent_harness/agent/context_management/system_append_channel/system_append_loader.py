@@ -1,4 +1,15 @@
-"""Loader discovering system append and replace directive files across workspace and user home."""
+"""Loader discovering system append and replace directive files across workspace and user home.
+
+[INPUT]
+- agent.context_management.system_append_channel.system_append_types::AppendPromptSource, PromptChannelKind
+  (POS: Types and models for system prompt strong append channel suite.)
+
+[OUTPUT]
+- SystemPromptAppendLoader: Discovers and parses append-system.md and SYSTEM.md directive files.
+
+[POS]
+Loader discovering system append and replace directive files across workspace and user home.
+"""
 
 from __future__ import annotations
 

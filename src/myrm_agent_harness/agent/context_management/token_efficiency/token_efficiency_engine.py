@@ -2,6 +2,17 @@
 
 Provides authoritative usage anchor synchronization, zero-millisecond negative routing
 interceptions for false-lane skills, and seamless stripping of heterogeneous reasoning seals.
+
+[INPUT]
+- agent.context_management.token_efficiency.token_efficiency_types::NegativeRouteDecision, NegativeRouteRule,
+  ProviderUsageAnchor, TokenEfficiencyConfig, TokenEfficiencyLedger (POS: Types and schemas for Provider usage
+  anchoring and negative routing token efficiency suite.)
+
+[OUTPUT]
+- TokenEfficiencyGovernorEngine: Core governor for token efficiency optimizations and cross-vendor resilience.
+
+[POS]
+Engine for Provider usage anchoring, negative routing, and seal stripping.
 """
 
 import copy

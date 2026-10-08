@@ -1,4 +1,21 @@
-"""Suite inspecting workspace multi-ecosystem rules, detecting conflicts, and transpiling to AGENTS.md."""
+"""Suite inspecting workspace multi-ecosystem rules, detecting conflicts, and transpiling to AGENTS.md.
+
+[INPUT]
+- agent.context_management.cross_ecosystem_migration.cross_ecosystem_scanner::CrossEcosystemRuleScanner (POS:
+  Scanner discovering foreign and standard agent rule files across ecosystems.)
+- agent.context_management.cross_ecosystem_migration.cross_ecosystem_transpiler::CrossEcosystemTranspiler
+  (POS: Transpiler detecting conflicts and consolidating multi-ecosystem rule files into AGENTS.md.)
+- agent.context_management.cross_ecosystem_migration.cross_ecosystem_types::DiscoveredEcosystemFile,
+  EcosystemConflictItem, RuleMigrationReportReceipt (POS: Types for cross-ecosystem agent rule migration and
+  compatibility inspector.)
+
+[OUTPUT]
+- CrossEcosystemRuleMigrationAndCompatibilityInspectorSuite: Orchestrates multi-ecosystem rule discovery,
+  conflict detection, and standardized transpilation.
+
+[POS]
+Suite inspecting workspace multi-ecosystem rules, detecting conflicts, and transpiling to AGENTS.md.
+"""
 
 from __future__ import annotations
 

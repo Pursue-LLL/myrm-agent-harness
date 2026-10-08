@@ -2,6 +2,21 @@
 
 Enables opportunistic background pre-compaction before provider KV cache TTL expires,
 achieving 90% prefill cost savings at 0.1x cache read rates and sub-second wakeup.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- IdleCompactionAction: Action decision for opportunistic idle compaction.
+- CacheWindowStatus: Lifespan state of upstream cloud provider KV Prompt Cache.
+- IdleCompactorConfig: Operational parameters governing opportunistic background compaction.
+- IdleCompactionEvaluation: Diagnostic evaluation of session idle duration and prompt cache lifespan.
+- CompactedCheckpointArchive: Durable snapshot preserving deep conversation history in cold storage.
+- OpportunisticCompactionResult: Execution outcome of opportunistic background pre-compaction.
+- ZeroWaitWakeupEvent: Telemetry recorded when user returns to keyboard and resumes session.
+
+[POS]
+Data contracts and type definitions for smart idle cache auto-compaction.
 """
 
 from __future__ import annotations

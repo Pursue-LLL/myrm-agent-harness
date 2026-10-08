@@ -3,6 +3,18 @@
 Protects sessions against accidental or autonomous feature flag poisoning,
 quarantines ephemeral turn mutations, monitors config drift, and provides
 atomic rollback to clean genesis baseline while preserving conversation history.
+
+[INPUT]
+- agent.context_management.session_antidote.session_antidote_types::AntidoteReceipt, ConfigDriftDetail,
+  ConfigMutationProposal, FlagScope, GenesisConfigSnapshot, PoisonDiagnosisReport, PoisonSeverity,
+  SessionAntidoteConfig (POS: Types and schemas for session anti-poisoning and antidote suite.)
+
+[OUTPUT]
+- SessionAntiPoisoningEngine: Core governor and antidote engine defending sessions against configuration
+  poisoning.
+
+[POS]
+Engine for session anti-poisoning and 1-click antidote.
 """
 
 import copy

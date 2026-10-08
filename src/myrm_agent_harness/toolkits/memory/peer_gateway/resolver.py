@@ -6,6 +6,18 @@
 
 Resolves external channel IDs to canonical system peer IDs using pinned defaults,
 explicit multi-device aliases, and adaptive collision escalation.
+
+[INPUT]
+- toolkits.memory.peer_gateway.escalation::HashEscalationEngine (POS: Adaptive hash collision escalation
+  algorithm for deterministic peer normalization.)
+- toolkits.memory.peer_gateway.models::ChannelType, GatewayPeerAliasConfig, ResolvedPeerIdentity (POS: Domain
+  models for Multi-Channel Peer Alias and Anti-Cross-Contamination Gateway Suite.)
+
+[OUTPUT]
+- DeterministicPeerResolver: Resolves external client identities to deterministic canonical peers.
+
+[POS]
+Deterministic multi-channel peer identity resolution engine.
 """
 
 from __future__ import annotations

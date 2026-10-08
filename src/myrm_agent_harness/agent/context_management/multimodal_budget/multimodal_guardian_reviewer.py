@@ -2,6 +2,17 @@
 
 Prevents decompression bombs, malformed files, and adversarial extreme aspect ratios
 from destabilizing context budgeting and visual reasoning pipelines.
+
+[INPUT]
+- agent.context_management.multimodal_budget.multimodal_budget_types::GuardianReviewResult,
+  GuardianVerdictKind, ImageArtifactDescriptor (POS: Data contracts and schemas for multi-modal file image
+  context budgeting and Guardian review.)
+
+[OUTPUT]
+- MultiModalGuardianReviewer: Pre-flight security and integrity screener for image attachments.
+
+[POS]
+Multi-modal Guardian screening image payloads for format validity, size caps, and aspect bounds.
 """
 
 from __future__ import annotations

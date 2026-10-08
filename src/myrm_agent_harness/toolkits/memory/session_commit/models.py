@@ -1,3 +1,24 @@
+"""Types and models for session commit.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- CommitBoundaryKind: Reliable task boundaries that gate full Phase 2 memory extraction (aligned with
+  OpenViking session concept).
+- CommitPhase: Lifecycle phase of the session commit pipeline.
+- MemoryDiffChangeKind: Categorization of a specific memory modification in the audit ledger.
+- MemoryDiffItem: An individual memory record alteration entry for audit tracking.
+- MemoryDiffStats: Statistical summary of changes within memory_diff.json.
+- MemoryDiffAudit: Full structured memory_diff.json payload recording all memory changes upon commit.
+- SessionArchiveMessage: Structured interaction message recorded into Phase 1 messages.jsonl.
+- CommitTaskStatus: Live state of an asynchronous session commit pipeline task.
+- SessionCommitResult: Immediate return payload upon executing Phase 1 synchronous commit.
+
+[POS]
+Types and models for session commit.
+"""
+
 # [POS]: src/myrm_agent_harness/toolkits/memory/session_commit/models.py
 # [INPUT]: None (Pure domain types for Session Commit Two-Phase Architecture)
 # [OUTPUT]: CommitBoundaryKind, CommitPhase, MemoryDiffChangeKind, MemoryDiffItem, MemoryDiffStats, MemoryDiffAudit, SessionArchiveMessage, CommitTaskStatus, SessionCommitResult

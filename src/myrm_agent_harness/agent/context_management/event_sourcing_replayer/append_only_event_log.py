@@ -1,4 +1,16 @@
-"""Append-only immutable event log maintaining monotonic sequence numbers and hash chains."""
+"""Append-only immutable event log maintaining monotonic sequence numbers and hash chains.
+
+[INPUT]
+- agent.context_management.event_sourcing_replayer.event_sourcing_types::SessionEventKind, SessionLedgerEvent
+  (POS: Types and models for append-only session event sourcing and deterministic context replaying.)
+
+[OUTPUT]
+- AppendOnlyEventLog: Manages append-only immutable event logs with tamper-evident cryptographic hash
+  chaining.
+
+[POS]
+Append-only immutable event log maintaining monotonic sequence numbers and hash chains.
+"""
 
 from __future__ import annotations
 

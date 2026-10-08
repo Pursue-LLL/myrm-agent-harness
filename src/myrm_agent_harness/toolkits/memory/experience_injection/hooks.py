@@ -1,3 +1,22 @@
+"""PostCallHook adapter injecting relevant procedure experiences into skill bodies.
+
+[INPUT]
+- toolkits.memory.experience_injection.injection_engine::ExperienceInjectionEngine (POS: Orchestrates
+  experience injection across skill load, subagent spawn, and pre-write call sites.)
+- toolkits.memory.experience_injection.models::ExperienceInjectionResult, InjectionStatus (POS: Types and
+  models for experience injection.)
+
+[OUTPUT]
+- SkillLoadExperienceHook: PostCallHook adapter injecting relevant procedure experiences into skill bodies.
+- SubagentSpawnExperienceEnricher: Enriches delegated task prompt with verified procedure memories prior to
+  subagent dispatch.
+- PreWriteInterceptor: Evaluates mutating tool calls before execution, enforcing immutable boundaries and
+  one-time rollback.
+
+[POS]
+PostCallHook adapter injecting relevant procedure experiences into skill bodies.
+"""
+
 # [POS]: src/myrm_agent_harness/toolkits/memory/experience_injection/hooks.py
 # [INPUT]: .models, .injection_engine (ExperienceInjectionEngine)
 # [OUTPUT]: SkillLoadExperienceHook, SubagentSpawnExperienceEnricher, PreWriteInterceptor

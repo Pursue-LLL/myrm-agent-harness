@@ -2,6 +2,18 @@
 
 Allows users and heuristic intent detectors to put heavyweight external MCP servers
 to sleep, removing their bulky schemas from the active context window until requested.
+
+[INPUT]
+- agent.context_management.cold_start_profiler.cold_start_profiler_types::McpMountMutationResult,
+  McpServerDescriptor, McpServerMountState (POS: Data contracts and type definitions for cold start context
+  profiling and on-demand MCP mounting.)
+
+[OUTPUT]
+- OnDemandMcpMountManager: Manages MCP server mounting states and performs Just-In-Time re-activation upon
+  prompt intent.
+
+[POS]
+On-demand MCP Mount Manager providing dynamic session-level hibernation and JIT activation.
 """
 
 from __future__ import annotations

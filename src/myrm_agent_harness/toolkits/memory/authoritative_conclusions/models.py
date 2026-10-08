@@ -7,6 +7,19 @@
 P0 delivery for Item 111 in topic_01 memory roadmap.
 Transforms implicit, passive summarization into explicit, first-class authoritative
 decisions that can be declared, listed, audited, and revoked with full accountability.
+
+[INPUT]
+- Third-party: pydantic
+
+[OUTPUT]
+- ConclusionStatus: Lifecycle status of an authoritative decision or conclusion.
+- ConclusionToolAction: Operation action invoked via memory_conclude_tool.
+- AuthoritativeConclusion: First-class durable conclusion object with explicit peer attribution.
+- ConclusionAuditRecord: Audit ledger record capturing mutation history of an authoritative conclusion.
+- ConclusionAnchorProjection: Anti-dilution decision prompt block rendered for system prefix context.
+
+[POS]
+Domain models for Explicit Authoritative Conclusions and Audit Tooling Suite.
 """
 
 from __future__ import annotations

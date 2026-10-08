@@ -2,6 +2,18 @@
 
 Detects repetitive, translation, formatting, or trivial code hygiene tasks
 to recommend zero-thinking budget direct routing, eliminating expensive reasoning decoding.
+
+[INPUT]
+- agent.context_management.zero_thinking_route.zero_thinking_types::DeterministicTaskDetection,
+  ThinkingBudgetMode (POS: Data contracts and type definitions for zero thinking budget direct routing and
+  cost decoupling.)
+
+[OUTPUT]
+- DeterministicTaskDetector: Heuristic detector determining if a prompt is mechanical and warrants zero
+  thinking budget.
+
+[POS]
+Deterministic Task Detector identifying mechanical, non-reasoning prompts.
 """
 
 from __future__ import annotations

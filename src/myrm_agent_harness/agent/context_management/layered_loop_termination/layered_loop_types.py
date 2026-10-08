@@ -1,4 +1,19 @@
-"""Types for layered loop termination, paired lifecycle events, and debt inbox."""
+"""Types for layered loop termination, paired lifecycle events, and debt inbox.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- LoopHierarchyTier: Five-tier hierarchy of agent execution loops.
+- LoopTerminationReason: Reason for terminating a specific execution loop layer.
+- DebtKind: Classification of pending debts blocking loop termination.
+- DebtInboxItem: Actionable consumable item enqueued into the next-step inbox.
+- LayeredLoopEvent: Pair-guaranteed lifecycle event marking loop start or end across tiers.
+- LoopTerminationDecision: Auditable dual-condition decision on whether a loop layer may terminate.
+
+[POS]
+Types for layered loop termination, paired lifecycle events, and debt inbox.
+"""
 
 from __future__ import annotations
 

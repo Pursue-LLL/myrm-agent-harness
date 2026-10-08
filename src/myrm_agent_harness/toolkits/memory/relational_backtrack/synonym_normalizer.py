@@ -1,3 +1,15 @@
+"""Action synonym normalization and dialect mapping engine.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ActionSynonymNormalizer: Action synonym normalization and dialect mapping engine.
+
+[POS]
+Action synonym normalization and dialect mapping engine.
+"""
+
 # [POS]: src/myrm_agent_harness/toolkits/memory/relational_backtrack/synonym_normalizer.py
 # [INPUT]: None (pure normalization logic)
 # [OUTPUT]: ActionSynonymNormalizer

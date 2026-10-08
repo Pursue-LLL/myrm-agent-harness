@@ -1,3 +1,17 @@
+"""Protocol validation, compact anchor synthesis, and multi-intent decomposition engine.
+
+[INPUT]
+- toolkits.memory.procedure_experience.models::ProcedureMemoryEntry (POS: Types and models for procedure
+  experience.)
+
+[OUTPUT]
+- ProcedureProtocolEngine: Protocol validation, compact anchor synthesis, and multi-intent decomposition
+  engine.
+
+[POS]
+Protocol validation, compact anchor synthesis, and multi-intent decomposition engine.
+"""
+
 # [POS]: src/myrm_agent_harness/toolkits/memory/procedure_experience/procedure_protocol.py
 # [INPUT]: src.myrm_agent_harness.toolkits.memory.procedure_experience.models
 # [OUTPUT]: ProcedureProtocolEngine

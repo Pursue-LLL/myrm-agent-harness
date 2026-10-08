@@ -2,6 +2,21 @@
 
 Defines dual-watermark hysteresis levels, cooldown ladder lifecycle states,
 critical memory sanctuary boundaries, and execution reports.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- WatermarkTier: Context utilization tier relative to hysteresis boundaries.
+- SanctuaryCategory: Categorical classification of immutable, non-compressible memory blocks.
+- SanctuaryBlock: An immutable, non-compressible sanctuary block protected from summarization.
+- CooldownStatus: Snapshot of adaptive cooldown ladder status.
+- HysteresisEvaluation: Evaluation result assessing whether context compaction should be triggered.
+- HysteresisConfig: Configuration governing dual-watermark hysteresis and cooldown ladders.
+- HysteresisExecutionReport: Execution telemetry emitted after applying hysteresis-aware compaction.
+
+[POS]
+Type definitions and contracts for Hysteresis Compression and Cooldown Ladder Suite.
 """
 
 from __future__ import annotations

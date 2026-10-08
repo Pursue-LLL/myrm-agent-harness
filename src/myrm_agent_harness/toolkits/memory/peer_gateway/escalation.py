@@ -6,6 +6,15 @@
 
 Generates concise, human-readable peer identifiers with progressive length expansion
 to guarantee collision-free uniqueness across multi-channel environments.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- HashEscalationEngine: Escalates hash suffix length on collision to preserve uniqueness and readability.
+
+[POS]
+Adaptive hash collision escalation algorithm for deterministic peer normalization.
 """
 
 from __future__ import annotations

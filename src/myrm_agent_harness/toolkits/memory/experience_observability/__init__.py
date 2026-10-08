@@ -5,6 +5,23 @@
 """Zero-refactor host lifecycle plugin and experience observability suite.
 
 P1 delivery for Item 108 in topic_01 memory roadmap.
+
+[INPUT]
+- toolkits.memory.experience_observability.models::ExperienceEffectStatus, ExperienceObservabilityMetric,
+  HostAccessChannel, HostPluginConfig, LifecycleEventKind, LifecycleEventPayload, SessionTraceEvidence (POS:
+  Domain models for zero-refactor host lifecycle plugin and experience observability.)
+- toolkits.memory.experience_observability.plugin_adapter::ZeroRefactorHostPlugin (POS: Zero-refactor host
+  lifecycle plugin adapter.)
+- toolkits.memory.experience_observability.tracker::ExperienceObservabilityTracker (POS: Telemetry tracker for
+  procedure experience recall, injection, and outcome observability.)
+
+[OUTPUT]
+- Re-exports: HostAccessChannel, LifecycleEventKind, ExperienceEffectStatus, LifecycleEventPayload,
+  SessionTraceEvidence, ExperienceObservabilityMetric, HostPluginConfig, ExperienceObservabilityTracker,
+  ZeroRefactorHostPlugin
+
+[POS]
+Zero-refactor host lifecycle plugin and experience observability suite.
 """
 
 from __future__ import annotations

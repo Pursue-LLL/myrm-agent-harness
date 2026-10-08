@@ -1,3 +1,16 @@
+"""Hierarchical deterministic rule cascade loader inspired by Claude Code.
+
+[INPUT]
+- toolkits.memory.rule_cascade.models::CascadedRuleSet, DeterministicRuleEntry (POS: Types and models for rule
+  cascade.)
+
+[OUTPUT]
+- DeterministicRuleCascadeLoader: Hierarchical deterministic rule cascade loader inspired by Claude Code.
+
+[POS]
+Hierarchical deterministic rule cascade loader inspired by Claude Code.
+"""
+
 # [POS]: src/myrm_agent_harness/toolkits/memory/rule_cascade/cascade_loader.py
 # [INPUT]: models.py (DeterministicRuleEntry, CascadedRuleSet)
 # [OUTPUT]: DeterministicRuleCascadeLoader

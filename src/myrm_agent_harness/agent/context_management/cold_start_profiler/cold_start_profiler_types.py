@@ -2,6 +2,20 @@
 
 Provides strong-typed abstractions for breaking down baseline prefill tokens across system prompt,
 built-in tools, MCP servers, and long-term memory, enabling dynamic session-level hibernation.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ContextComponentKind: Categorization of initial baseline context payload components.
+- McpServerMountState: Lifecycle mounting state of an MCP server within the session.
+- ContextComponentProfile: Token consumption footprint of an individual context component.
+- McpServerDescriptor: Specification of an external MCP server and its tool schemas.
+- ColdStartContextProfile: Comprehensive breakdown of cold-start prefill tokens before user dialogue.
+- McpMountMutationResult: Outcome of hibernating or re-activating an MCP server.
+
+[POS]
+Data contracts and type definitions for cold start context profiling and on-demand MCP mounting.
 """
 
 from __future__ import annotations

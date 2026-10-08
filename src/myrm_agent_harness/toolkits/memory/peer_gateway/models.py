@@ -7,6 +7,19 @@
 P1 delivery for Item 113 in topic_01 memory roadmap.
 Provides deterministic peer mapping across desktop, web, and external IM channels,
 preventing cognitive fragmentation and unauthorized memory cross-contamination.
+
+[INPUT]
+- Third-party: pydantic
+
+[OUTPUT]
+- ChannelType: Supported external or client access channel platforms.
+- GatewayPeerAliasConfig: Configuration governing deterministic resolution and anti-contamination boundaries.
+- ResolvedPeerIdentity: Resolved canonical peer identity output by deterministic resolver.
+- PeerBoundaryCheckResult: Verification outcome evaluating whether memory access crosses illegal tenant
+  boundaries.
+
+[POS]
+Domain models for Multi-Channel Peer Alias and Anti-Cross-Contamination Gateway Suite.
 """
 
 from __future__ import annotations

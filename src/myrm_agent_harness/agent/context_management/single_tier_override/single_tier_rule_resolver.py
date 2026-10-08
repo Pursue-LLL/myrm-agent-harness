@@ -1,4 +1,16 @@
-"""Resolver scanning workspace directories and enforcing single-tier rule override semantics."""
+"""Resolver scanning workspace directories and enforcing single-tier rule override semantics.
+
+[INPUT]
+- agent.context_management.single_tier_override.single_tier_override_types::OverrideResolutionKind,
+  SingleTierRuleAssemblyReceipt, WorkspaceRuleFileEntry (POS: Types for single-tier workspace rule override
+  interceptor.)
+
+[OUTPUT]
+- SingleTierRuleResolver: Scans and resolves hierarchical workspace rules with single-tier override semantics.
+
+[POS]
+Resolver scanning workspace directories and enforcing single-tier rule override semantics.
+"""
 
 from __future__ import annotations
 

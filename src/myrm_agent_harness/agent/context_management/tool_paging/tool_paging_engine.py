@@ -2,6 +2,18 @@
 
 Provides tier-aware tool schema compacting, automatic large output stubbing
 to virtual page table blob stores, and on-demand line-sliced paging (page-in).
+
+[INPUT]
+- agent.context_management.tool_paging.tool_paging_types::ModelTier, PageInSlice, ToolBlobRecord,
+  ToolOutputStub, ToolPagingConfig, ToolSchemaDefinition (POS: Types and schemas for Model-Native tool pruning
+  and context paging offload suite.)
+
+[OUTPUT]
+- ModelNativeToolPagingEngine: Core engine governing tool pruning and virtual paging for large execution
+  outputs.
+
+[POS]
+Engine for Model-Native dynamic tool pruning and context paging offload.
 """
 
 import logging

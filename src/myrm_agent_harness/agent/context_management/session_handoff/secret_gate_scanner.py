@@ -1,4 +1,15 @@
-"""Dual-tier secret gate scanner: storage masking placeholders and pre-publish scan blocking."""
+"""Dual-tier secret gate scanner: storage masking placeholders and pre-publish scan blocking.
+
+[INPUT]
+- agent.context_management.session_handoff.session_handoff_types::SecretFinding, SecretGateScanResult,
+  SecretSeverity (POS: Types for session handoff package, readonly share grant, secret gate, and line blame.)
+
+[OUTPUT]
+- SecretGateScanner: Provides non-destructive storage placeholder masking and pre-publish gate scanning.
+
+[POS]
+Dual-tier secret gate scanner: storage masking placeholders and pre-publish scan blocking.
+"""
 
 from __future__ import annotations
 

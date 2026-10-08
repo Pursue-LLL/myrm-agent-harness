@@ -1,4 +1,17 @@
-"""Engine generating and validating cross-device mobile approval relay cards."""
+"""Engine generating and validating cross-device mobile approval relay cards.
+
+[INPUT]
+- agent.context_management.headless_continuation.headless_continuation_types::ApprovalDecisionKind,
+  ApprovalRelayReceipt, MobileApprovalDecisionPayload, MobileApprovalRelayCard, RelayChannelKind, RiskLevel
+  (POS: Types and data structures for headless task continuation and mobile approval relay.)
+
+[OUTPUT]
+- MobileApprovalRelayEngine: Manages cryptographic card creation, channel serialization, and callback
+  resolution.
+
+[POS]
+Engine generating and validating cross-device mobile approval relay cards.
+"""
 
 from __future__ import annotations
 

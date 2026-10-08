@@ -2,6 +2,20 @@
 
 Monitors frame continuity, heals sequencing gaps, purges empty or invalid slop chunks,
 and maintains robust streaming state boundaries across client-server pipelines.
+
+[INPUT]
+- agent.context_management.checked_stream_reader.anti_slop_filter::AntiSlopFilter (POS: Anti-Slop governance
+  filter purging raw template tags, excessive blank lines, and malformed slop.)
+- agent.context_management.checked_stream_reader.checked_stream_types::AntiSlopViolationKind,
+  StreamChunkFrame, StreamChunkKind, StreamReaderMetrics, StreamReaderState (POS: Data contracts and schemas
+  for checked session reply stream readers and anti-slop governance.)
+
+[OUTPUT]
+- CheckedSessionReplyStreamReader: Stateful stream reader validating frame sequence continuity and anti-slop
+  hygiene.
+
+[POS]
+Checked Session Reply Stream Reader implementing sequential integrity and resilient state transitions.
 """
 
 from __future__ import annotations

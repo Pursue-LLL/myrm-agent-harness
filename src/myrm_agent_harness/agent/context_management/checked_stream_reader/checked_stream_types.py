@@ -2,6 +2,20 @@
 
 Defines typed stream chunk frames, reader state machine transitions, anti-slop violations,
 and streaming telemetry metrics.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- StreamChunkKind: Semantic category of a streaming response delta chunk.
+- StreamReaderState: Lifecycle status of the checked streaming reader state machine.
+- AntiSlopViolationKind: Types of undesirable noise, raw template bleed-through, or malformed slop in chunks.
+- StreamChunkFrame: Strongly typed atomic stream frame with sequential integrity metadata.
+- AntiSlopFilterResult: Outcome of evaluating and sanitizing a stream chunk against anti-slop rules.
+- StreamReaderMetrics: Cumulative telemetry tracking stream health and anti-slop interventions.
+
+[POS]
+Data contracts and schemas for checked session reply stream readers and anti-slop governance.
 """
 
 from __future__ import annotations

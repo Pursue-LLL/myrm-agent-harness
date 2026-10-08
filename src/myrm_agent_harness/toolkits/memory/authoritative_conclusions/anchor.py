@@ -7,6 +7,16 @@
 P0 delivery for Item 111 in topic_01 memory roadmap.
 Formats active confirmed conclusions into high-salience prompt anchor blocks
 to eliminate decision dilution across long-horizon agent trajectories.
+
+[INPUT]
+- toolkits.memory.authoritative_conclusions.models::AuthoritativeConclusion, ConclusionAnchorProjection,
+  ConclusionStatus (POS: Domain models for Explicit Authoritative Conclusions and Audit Tooling Suite.)
+
+[OUTPUT]
+- ConclusionContextAnchor: Formatter that aggregates confirmed conclusions into anti-dilution prompt blocks.
+
+[POS]
+Context anchor formatter for authoritative conclusions.
 """
 
 from __future__ import annotations

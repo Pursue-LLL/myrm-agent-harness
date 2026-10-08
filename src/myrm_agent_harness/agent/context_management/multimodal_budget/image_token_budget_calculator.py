@@ -2,6 +2,16 @@
 
 Implements industry-standard vision token models (GPT-4o/Codex/Claude style)
 mapping pixel resolutions and aspect ratios to discrete 512x512 tile costs.
+
+[INPUT]
+- agent.context_management.multimodal_budget.multimodal_budget_types::ImageDetailMode, ImageResolution (POS:
+  Data contracts and schemas for multi-modal file image context budgeting and Guardian review.)
+
+[OUTPUT]
+- ImageTokenBudgetCalculator: Computes exact token requirements for image resolutions using tile geometry.
+
+[POS]
+Calculates token expenditure for file images based on tile decomposition geometry.
 """
 
 from __future__ import annotations

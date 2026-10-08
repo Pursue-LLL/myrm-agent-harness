@@ -2,6 +2,21 @@
 
 Defines tool interception stubs, SQLite FTS5 snippet models, five-stage lifecycle hooks,
 and interceptor configuration.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ContextHookStage: Five-stage lifecycle hooks for lossless context continuity (Context Mode aligned).
+- InterceptedToolOutput: Archived raw tool execution output stored safely outside LLM context window.
+- ToolOutputStub: Ultra-compact context stub injected into LLM context instead of raw multi-kilobyte bloat.
+- SearchResultSnippet: Exact, uncompressed textual slice retrieved from local FTS5 database.
+- LifecycleHookRecord: Immutable log entry recorded by the five-stage context lifecycle pipeline.
+- SandboxInterceptorConfig: Configuration governing tool output interception, FTS5 storage, and retrieval
+  limits.
+
+[POS]
+Type contracts and definitions for Sandbox Tool Output Interception and Local FTS5 Retrieval Suite.
 """
 
 from __future__ import annotations

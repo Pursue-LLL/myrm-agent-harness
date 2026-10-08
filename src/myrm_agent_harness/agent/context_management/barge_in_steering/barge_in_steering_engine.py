@@ -2,6 +2,18 @@
 
 Provides non-destructive mid-flight intervention queues, safe steering gate inspections
 between tool call boundaries, and dynamic intent redirection without forcing hard task restarts.
+
+[INPUT]
+- agent.context_management.barge_in_steering.barge_in_steering_types::BargeInMessage, BargeInSteeringConfig,
+  InterventionMode, SteeringPointGateResult (POS: Type contracts and definitions for Mid-Run Barge-In Steering
+  and Non-Destructive Intervention Suite.)
+
+[OUTPUT]
+- MidRunBargeInSteeringEngine: Engine managing asynchronous mid-run steering queues and safe gate
+  interventions.
+
+[POS]
+Core engine for Mid-Run Barge-In Steering and Safe Execution Gap Interventions.
 """
 
 from __future__ import annotations

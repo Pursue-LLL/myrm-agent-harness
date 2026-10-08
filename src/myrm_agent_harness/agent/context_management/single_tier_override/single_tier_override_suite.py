@@ -1,4 +1,18 @@
-"""Suite orchestrating single-tier rule override resolution, dynamic reloading, and audit explanations."""
+"""Suite orchestrating single-tier rule override resolution, dynamic reloading, and audit explanations.
+
+[INPUT]
+- agent.context_management.single_tier_override.single_tier_override_types::OverrideResolutionKind,
+  SingleTierRuleAssemblyReceipt (POS: Types for single-tier workspace rule override interceptor.)
+- agent.context_management.single_tier_override.single_tier_rule_resolver::SingleTierRuleResolver (POS:
+  Resolver scanning workspace directories and enforcing single-tier rule override semantics.)
+
+[OUTPUT]
+- SingleTierWorkspaceRuleOverrideInterceptorSuite: End-to-end suite providing single-tier override
+  interception, reloading, and audit inspection.
+
+[POS]
+Suite orchestrating single-tier rule override resolution, dynamic reloading, and audit explanations.
+"""
 
 from __future__ import annotations
 

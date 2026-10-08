@@ -1,4 +1,22 @@
-"""Types for session handoff package, readonly share grant, secret gate, and line blame."""
+"""Types for session handoff package, readonly share grant, secret gate, and line blame.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ShareAccessStatus: Status of a readonly share grant access attempt.
+- SecretSeverity: Severity tier for identified secret leakage.
+- HandoffMessageTurn: Individual conversational turn within a packaged handoff.
+- SessionHandoffPackage: Self-contained portable session bundle ready for sharing or handoff restoration.
+- ReadonlyShareGrant: Cryptographic grant for browser/remote viewer of a session package.
+- SecretFinding: Detected secret pattern occurrence.
+- SecretGateScanResult: Outcome of pre-publish dual-tier secret gate verification.
+- LineBlameEntry: Line-level mapping linking code line range to generating session turn.
+- LineBlameLookupResult: Result when inspecting source code line provenance.
+
+[POS]
+Types for session handoff package, readonly share grant, secret gate, and line blame.
+"""
 
 from __future__ import annotations
 

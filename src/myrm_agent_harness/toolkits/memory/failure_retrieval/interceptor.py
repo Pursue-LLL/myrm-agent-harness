@@ -7,6 +7,21 @@
 P0 delivery for Item 109 in topic_01 memory roadmap.
 Acts as an automated Skill-style hook: intercepts execution errors, extracts fingerprints,
 and queries historical session solutions to inject direct fixes without requiring user instruction.
+
+[INPUT]
+- toolkits.memory.failure_retrieval.fingerprint::ErrorFingerprintExtractor (POS: Error fingerprint extractor
+  for failure-triggered session retrieval.)
+- toolkits.memory.failure_retrieval.models::FailureRetrievalResult, FailureTriggerConfig (POS: Domain models
+  for failure-triggered historical session retrieval.)
+- toolkits.memory.failure_retrieval.search_engine::FailureHistoricalSessionSearchEngine (POS: Search engine
+  indexing and retrieving historical session solutions and failures.)
+
+[OUTPUT]
+- FailureTriggerInterceptor: Non-invasive error interceptor that automatically triggers historical session
+  resolution searches.
+
+[POS]
+Failure trigger interceptor for AI agent tool invocations.
 """
 
 from __future__ import annotations

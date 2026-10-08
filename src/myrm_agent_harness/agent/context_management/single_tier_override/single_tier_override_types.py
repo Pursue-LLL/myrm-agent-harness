@@ -1,4 +1,17 @@
-"""Types for single-tier workspace rule override interceptor."""
+"""Types for single-tier workspace rule override interceptor.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- RuleLayerKind: Hierarchy tier of a resolved workspace rule.
+- OverrideResolutionKind: Resolution verdict for a directory's rule selection.
+- WorkspaceRuleFileEntry: Represents a discovered workspace rule file.
+- SingleTierRuleAssemblyReceipt: Cryptographic and auditable receipt of the assembled rule hierarchy.
+
+[POS]
+Types for single-tier workspace rule override interceptor.
+"""
 
 from __future__ import annotations
 

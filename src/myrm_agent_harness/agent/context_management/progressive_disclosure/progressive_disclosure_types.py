@@ -2,6 +2,21 @@
 
 Defines the 5-stage cognitive state machine, evidence attribution citations,
 milestone facts, and verification validation results.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- DisclosureStage: Five-stage state machine for progressive disclosure cognitive path.
+- EvidenceAttributionType: Source classification for factual citations.
+- EvidenceCitation: Rigorous factual attribution attached to an architectural claim.
+- CognitiveMilestoneFact: Distilled fact established during a completed disclosure stage.
+- AttributionValidationResult: Outcome of verifying whether an architectural proposal contains required
+  citations.
+- ProgressiveDisclosureConfig: Configuration governing disclosure stages and evidence attribution rules.
+
+[POS]
+Types and schemas for 4-layer progressive disclosure and evidence traceability suite.
 """
 
 from dataclasses import dataclass, field

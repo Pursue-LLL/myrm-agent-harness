@@ -2,6 +2,17 @@
 
 Transforms voluminous transient grep/search logs into dense, actionable architectural summaries
 before purging the transient exploration context.
+
+[INPUT]
+- agent.context_management.devflow_lifecycle.devflow_types::StructuredExplorationHandoff (POS: Data contracts
+  and schemas for DevFlow context lifecycle and progressive loading.)
+
+[OUTPUT]
+- ExplorationHandoffEngine: Consolidates and compresses raw exploratory findings into rigid <= 500-char
+  handoff contracts.
+
+[POS]
+Engine enforcing structured <= 500 char handoff contracts from exploratory subtasks.
 """
 
 from __future__ import annotations

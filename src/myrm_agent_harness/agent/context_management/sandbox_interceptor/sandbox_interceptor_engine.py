@@ -3,6 +3,18 @@
 Saves 98%+ of LLM context tokens by physically intercepting massive tool outputs (Playwright dumps,
 git logs, compiler traces), archiving them into local SQLite with FTS5 indexing, and providing
 exact snippet retrieval via ctx_search alongside five-stage lifecycle hooks.
+
+[INPUT]
+- agent.context_management.sandbox_interceptor.sandbox_interceptor_types::ContextHookStage,
+  InterceptedToolOutput, LifecycleHookRecord, SandboxInterceptorConfig, SearchResultSnippet, ToolOutputStub
+  (POS: Type contracts and definitions for Sandbox Tool Output Interception and Local FTS5 Retrieval Suite.)
+
+[OUTPUT]
+- SandboxOutputInterceptorEngine: Engine intercepting bulky tool results and providing local FTS5 exact
+  search.
+
+[POS]
+Core engine for Sandbox Tool Output Interception, Local SQLite FTS5 Search, and Lifecycle Hooks.
 """
 
 from __future__ import annotations

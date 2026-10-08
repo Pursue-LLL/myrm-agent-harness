@@ -3,6 +3,18 @@
 Implements the blackhole quarantine pattern: voluminous logs and batch test outputs
 stay trapped within disposable subagent execution contexts, while only a concise,
 structured 3-5 line conclusion card is delivered back to the main session.
+
+[INPUT]
+- agent.context_management.command_quiet_rewriter.quiet_rewriter_types::LogSinkConclusionCard, LogSinkStatus,
+  LogSinkTaskSpec, LogSinkTaskType, SubagentLogSinkExecutionRecord (POS: Data contracts and type definitions
+  for preflight command rewriting and subagent log sink.)
+
+[OUTPUT]
+- SubagentLogSinkEngine: Quarantines verbose outputs in disposable subagent sandboxes and distills key
+  signals.
+
+[POS]
+Subagent Log Sink Engine that absorbs massive process outputs into isolated contexts.
 """
 
 from __future__ import annotations

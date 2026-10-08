@@ -2,6 +2,22 @@
 
 Defines resolution geometry, tile token calculations, Guardian safety verdicts,
 and adaptive downscaling/placeholder compression actions.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- ImageDetailMode: Fidelity mode governing visual resolution token calculations.
+- GuardianVerdictKind: Evaluation verdict from multi-modal Guardian pre-flight screening.
+- ImageBudgetAction: Enforcement action applied to an image artifact under context constraints.
+- ImageResolution: Width and height dimensions in pixels.
+- ImageArtifactDescriptor: Descriptor of a file image attached to the conversational context.
+- GuardianReviewResult: Outcome of multi-modal Guardian safety and format screening.
+- ImageBudgetAllocation: Token quota assignment and resulting enforcement action for an image.
+- MultiModalBudgetReport: Consolidated report tracking multi-modal image token spend and Guardian reviews.
+
+[POS]
+Data contracts and schemas for multi-modal file image context budgeting and Guardian review.
 """
 
 from __future__ import annotations

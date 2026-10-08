@@ -2,6 +2,20 @@
 
 Enables user-defined compaction preservation rules (e.g. from CLAUDE.md or project settings),
 prompt slot injection, post-compaction integrity auditing, and automatic self-healing patches.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- PreservationDirectiveKind: Categorization of preservation rules enforced during session compaction.
+- PreservationDirective: Individual custom preservation rule governing context summarization.
+- DirectiveAuditResult: Audit verification outcome for a single preservation directive.
+- CompactionIntegrityReport: Comprehensive integrity score verifying custom directives retention
+  post-compaction.
+- CustomCompactionConfig: Operational settings for user directives injection and auditing.
+
+[POS]
+Data contracts and type definitions for custom compaction directives and preservation whitelist.
 """
 
 from __future__ import annotations

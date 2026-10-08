@@ -2,6 +2,18 @@
 
 Evaluates idle duration, token budgets, and provider cache TTL windows to seize
 the 0.1x cache read discount before upstream eviction occurs.
+
+[INPUT]
+- agent.context_management.smart_idle_compactor.idle_compactor_types::CacheWindowStatus, IdleCompactionAction,
+  IdleCompactionEvaluation, IdleCompactorConfig (POS: Data contracts and type definitions for smart idle cache
+  auto-compaction.)
+
+[OUTPUT]
+- IdleEligibilityEvaluator: Evaluates whether an idle session qualifies for opportunistic background
+  pre-compaction.
+
+[POS]
+Idle eligibility evaluator for opportunistic prompt cache pre-compaction.
 """
 
 from __future__ import annotations

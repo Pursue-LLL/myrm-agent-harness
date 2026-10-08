@@ -1,3 +1,21 @@
+"""Types and models for lineage search.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- SessionSourceKind: Categorical source identifying session provenance and priority.
+- ConversationMessage: Individual message unit within a stored conversation session.
+- SessionMeta: Session metadata recording provenance and compaction lineage roots.
+- RawSearchHit: Unprocessed match output directly from FTS5 lexical matching.
+- HydratedSessionHit: Hydrated discovery entry with adaptive window detail and deep link.
+- LineageSearchOptions: Options governing discovery search, demotion, and hydration bounds.
+- LineageSearchStats: Operational telemetry of lineage search repository.
+
+[POS]
+Types and models for lineage search.
+"""
+
 # [POS]: myrm_agent_harness/toolkits/memory/lineage_search/models.py
 # [INPUT]: Conversation sessions, messages, query options, and hydration configs
 # [OUTPUT]: Strongly-typed models for lineage dedup, source demotion, and adaptive hydration

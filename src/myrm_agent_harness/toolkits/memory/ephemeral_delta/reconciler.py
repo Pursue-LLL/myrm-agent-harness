@@ -1,3 +1,18 @@
+"""Asynchronous reconciliation loop for persisting transient session deltas.
+
+[INPUT]
+- toolkits.memory.ephemeral_delta.delta_store::EphemeralDeltaStore (POS: In-memory, session-scoped transient
+  buffer for prompt-cache-preserving deltas.)
+- toolkits.memory.ephemeral_delta.models::EphemeralDeltaItem, ReconciliationBatchReport (POS: Types and models
+  for ephemeral delta.)
+
+[OUTPUT]
+- EphemeralDeltaReconciler: Asynchronous reconciliation loop for persisting transient session deltas.
+
+[POS]
+Asynchronous reconciliation loop for persisting transient session deltas.
+"""
+
 # [POS]: src/myrm_agent_harness/toolkits/memory/ephemeral_delta/reconciler.py
 # [INPUT]: delta_store.py (EphemeralDeltaStore), models.py (EphemeralDeltaItem, ReconciliationBatchReport)
 # [OUTPUT]: EphemeralDeltaReconciler

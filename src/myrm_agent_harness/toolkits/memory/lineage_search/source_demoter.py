@@ -1,3 +1,17 @@
+"""Implements source-aware filtering and demotion policies inspired by Hermes Agent PR #19434.
+
+[INPUT]
+- toolkits.memory.lineage_search.models::RawSearchHit, SessionMeta, SessionSourceKind (POS: Types and models
+  for lineage search.)
+
+[OUTPUT]
+- SourceDemoterAndFilter: Implements source-aware filtering and demotion policies inspired by Hermes Agent PR
+  #19434.
+
+[POS]
+Implements source-aware filtering and demotion policies inspired by Hermes Agent PR #19434.
+"""
+
 # [POS]: myrm_agent_harness/toolkits/memory/lineage_search/source_demoter.py
 # [INPUT]: Raw search hits, session metadata, filtering and demotion policies
 # [OUTPUT]: Filtered and demoted candidate list preventing recall blindness (PR #19434)

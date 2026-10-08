@@ -1,4 +1,18 @@
-"""Suite managing top-priority system prompt append injection and anti-drift verification."""
+"""Suite managing top-priority system prompt append injection and anti-drift verification.
+
+[INPUT]
+- agent.context_management.system_append_channel.system_append_loader::SystemPromptAppendLoader (POS: Loader
+  discovering system append and replace directive files across workspace and user home.)
+- agent.context_management.system_append_channel.system_append_types::AppendPromptSource, PromptChannelKind,
+  SystemPromptAssemblyReceipt (POS: Types and models for system prompt strong append channel suite.)
+
+[OUTPUT]
+- SystemPromptStrongAppendChannelSuite: Orchestrates top-priority system prompt append channels and anti-drift
+  validation.
+
+[POS]
+Suite managing top-priority system prompt append injection and anti-drift verification.
+"""
 
 from __future__ import annotations
 

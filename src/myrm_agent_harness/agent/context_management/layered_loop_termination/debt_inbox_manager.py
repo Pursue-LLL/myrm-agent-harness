@@ -1,4 +1,15 @@
-"""Manager for consumable debt inbox and model response debt accounting."""
+"""Manager for consumable debt inbox and model response debt accounting.
+
+[INPUT]
+- agent.context_management.layered_loop_termination.layered_loop_types::DebtInboxItem, DebtKind (POS: Types
+  for layered loop termination, paired lifecycle events, and debt inbox.)
+
+[OUTPUT]
+- DebtInboxManager: Tracks both model response debts and queued consumable message debts.
+
+[POS]
+Manager for consumable debt inbox and model response debt accounting.
+"""
 
 from __future__ import annotations
 

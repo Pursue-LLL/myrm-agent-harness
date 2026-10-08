@@ -2,6 +2,18 @@
 
 Supports Anthropic thinking type disabled, DeepSeek chat fallback route,
 and OpenAI reasoning_effort overrides to guarantee zero reasoning token overhead on mechanical tasks.
+
+[INPUT]
+- agent.context_management.zero_thinking_route.zero_thinking_types::ModelProviderKind,
+  ProviderThinkingPayload, ThinkingBudgetMode (POS: Data contracts and type definitions for zero thinking
+  budget direct routing and cost decoupling.)
+
+[OUTPUT]
+- ThinkingParameterNormalizer: Normalizes cross-vendor thinking budget parameters across Anthropic, DeepSeek,
+  and OpenAI.
+
+[POS]
+Thinking parameter normalizer translating unified budget modes into vendor-specific API wire parameters.
 """
 
 from __future__ import annotations

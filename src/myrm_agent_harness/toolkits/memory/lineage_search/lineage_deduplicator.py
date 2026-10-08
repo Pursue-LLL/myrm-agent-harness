@@ -1,3 +1,15 @@
+"""Collapses multi-generation compacted or branched session continuations.
+
+[INPUT]
+- toolkits.memory.lineage_search.models::RawSearchHit, SessionMeta (POS: Types and models for lineage search.)
+
+[OUTPUT]
+- LineageDeduplicator: Collapses multi-generation compacted or branched session continuations.
+
+[POS]
+Collapses multi-generation compacted or branched session continuations.
+"""
+
 # [POS]: myrm_agent_harness/toolkits/memory/lineage_search/lineage_deduplicator.py
 # [INPUT]: Filtered search hits, session lineage metadata
 # [OUTPUT]: Lineage root deduplication collapsing multi-generation compressed slices

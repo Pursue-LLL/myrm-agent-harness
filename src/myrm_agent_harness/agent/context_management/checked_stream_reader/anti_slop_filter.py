@@ -2,6 +2,17 @@
 
 Ensures LLM response chunks streaming into client buffers are clean, compact,
 and free of internal prompting artifacts or redundant filler.
+
+[INPUT]
+- agent.context_management.checked_stream_reader.checked_stream_types::AntiSlopFilterResult,
+  AntiSlopViolationKind, StreamChunkFrame, StreamChunkKind (POS: Data contracts and schemas for checked
+  session reply stream readers and anti-slop governance.)
+
+[OUTPUT]
+- AntiSlopFilter: Evaluates and cleans streaming chunk content against quality and integrity baselines.
+
+[POS]
+Anti-Slop governance filter purging raw template tags, excessive blank lines, and malformed slop.
 """
 
 from __future__ import annotations

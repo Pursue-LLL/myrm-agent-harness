@@ -2,6 +2,22 @@
 
 Defines genesis config snapshots, mutation proposals, poison severity,
 watchdog reports, and antidote receipts.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- PoisonSeverity: Severity classification for session configuration poisoning.
+- FlagScope: Scope defining whether a configuration flag persists or is ephemeral.
+- GenesisConfigSnapshot: Immutable snapshot of the baseline configuration for a session.
+- ConfigMutationProposal: Proposal to mutate or inject configuration flags into a session.
+- ConfigDriftDetail: Detailed observation of a detected configuration drift or injection.
+- PoisonDiagnosisReport: Diagnostic report produced by the poison watchdog.
+- AntidoteReceipt: Receipt generated upon successful execution of 1-Click Antidote.
+- SessionAntidoteConfig: Runtime configuration for anti-poisoning engine and watchdog.
+
+[POS]
+Types and schemas for session anti-poisoning and antidote suite.
 """
 
 from dataclasses import dataclass, field

@@ -1,3 +1,18 @@
+"""Fixed-count dual-node retriever for procedure-shaped experience memories.
+
+[INPUT]
+- toolkits.memory.procedure_experience.models::DualNodeRetrievalQuery, DualNodeRetrievalResult,
+  ProcedureMemoryEntry, RetrievalNodeKind (POS: Types and models for procedure experience.)
+- toolkits.memory.procedure_experience.procedure_protocol::ProcedureProtocolEngine (POS: Protocol validation,
+  compact anchor synthesis, and multi-intent decomposition engine.)
+
+[OUTPUT]
+- DualNodeFixedCountRetriever: Fixed-count dual-node retriever for procedure-shaped experience memories.
+
+[POS]
+Fixed-count dual-node retriever for procedure-shaped experience memories.
+"""
+
 # [POS]: src/myrm_agent_harness/toolkits/memory/procedure_experience/dual_node_retriever.py
 # [INPUT]: src.myrm_agent_harness.toolkits.memory.procedure_experience (models, procedure_protocol)
 # [OUTPUT]: DualNodeFixedCountRetriever

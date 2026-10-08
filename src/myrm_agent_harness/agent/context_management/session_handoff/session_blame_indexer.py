@@ -1,4 +1,15 @@
-"""Indexer mapping source code lines back to originating session turns and prompt intents."""
+"""Indexer mapping source code lines back to originating session turns and prompt intents.
+
+[INPUT]
+- agent.context_management.session_handoff.session_handoff_types::LineBlameEntry, LineBlameLookupResult (POS:
+  Types for session handoff package, readonly share grant, secret gate, and line blame.)
+
+[OUTPUT]
+- SessionBlameIndexer: Maintains reverse provenance mapping from code file lines to agent sessions.
+
+[POS]
+Indexer mapping source code lines back to originating session turns and prompt intents.
+"""
 
 from __future__ import annotations
 

@@ -121,6 +121,29 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | zero_hallucination/ | Fault-transparent retrieval protocol and anti-fabrication prompt guard for memory queries. See [zero_hallucination/_ARCH.md](zero_hallucination/_ARCH.md). |
 | git_okf/ | Git-native loader for Google OKF v0.2 knowledge bundles. See [git_okf/_ARCH.md](git_okf/_ARCH.md). |
 | hybrid_engine/ | Orchestrates zero-config SQLite FTS5, offline synonym expansion,. See [hybrid_engine/_ARCH.md](hybrid_engine/_ARCH.md). |
+| authoritative_conclusions/ | Context anchor formatter for authoritative conclusions. See [authoritative_conclusions/_ARCH.md](authoritative_conclusions/_ARCH.md). |
+| business_templates/ | Pre-seeded industrial business experience templates. See [business_templates/_ARCH.md](business_templates/_ARCH.md). |
+| dialectic_guard/ | State machine governing background dialectic inference liveness and lifecycle. See [dialectic_guard/_ARCH.md](dialectic_guard/_ARCH.md). |
+| directory_dominance/ | Hierarchical retriever leveraging directory dominance ratios and sibling context bundling. See [directory_dominance/_ARCH.md](directory_dominance/_ARCH.md). |
+| ephemeral_delta/ | In-memory, session-scoped transient buffer for prompt-cache-preserving deltas. See [ephemeral_delta/_ARCH.md](ephemeral_delta/_ARCH.md). |
+| experience_injection/ | PostCallHook adapter injecting relevant procedure experiences into skill bodies. See [experience_injection/_ARCH.md](experience_injection/_ARCH.md). |
+| experience_observability/ | Zero-refactor host lifecycle plugin adapter. See [experience_observability/_ARCH.md](experience_observability/_ARCH.md). |
+| fact_supersession/ | Gate evaluating factual contradictions and routing low-confidence candidates into quarantine. See [fact_supersession/_ARCH.md](fact_supersession/_ARCH.md). |
+| failure_retrieval/ | Error fingerprint extractor for failure-triggered session retrieval. See [failure_retrieval/_ARCH.md](failure_retrieval/_ARCH.md). |
+| lifecycle_hotness/ | Compute deterministic 0.0–1.0 hotness score based on access frequency and recency decay. See [lifecycle_hotness/_ARCH.md](lifecycle_hotness/_ARCH.md). |
+| lineage_search/ | Collapses multi-generation compacted or branched session continuations. See [lineage_search/_ARCH.md](lineage_search/_ARCH.md). |
+| markdown_curator/ | Calculates bi-directional deltas between in-memory stores and Markdown mirrors. See [markdown_curator/_ARCH.md](markdown_curator/_ARCH.md). |
+| peer_cognition/ | Self-evolving standing persona card engine and low-token context projector. See [peer_cognition/_ARCH.md](peer_cognition/_ARCH.md). |
+| peer_gateway/ | Adaptive hash collision escalation algorithm for deterministic peer normalization. See [peer_gateway/_ARCH.md](peer_gateway/_ARCH.md). |
+| procedure_experience/ | Fixed-count dual-node retriever for procedure-shaped experience memories. See [procedure_experience/_ARCH.md](procedure_experience/_ARCH.md). |
+| progressive_sidecar/ | Seamless adapter linking Context VFS with L0/L1/L2 progressive sidecar disclosure. See [progressive_sidecar/_ARCH.md](progressive_sidecar/_ARCH.md). |
+| queuefs/ | Asynchronous QueueFS engine managing named semantic tasks across sequential DAG stages. See [queuefs/_ARCH.md](queuefs/_ARCH.md). |
+| relational_backtrack/ | Core backtracking engine for cross-session entity and temporal causal recall. See [relational_backtrack/_ARCH.md](relational_backtrack/_ARCH.md). |
+| rule_cascade/ | Hierarchical deterministic rule cascade loader inspired by Claude Code. See [rule_cascade/_ARCH.md](rule_cascade/_ARCH.md). |
+| session_commit/ | Orchestrates two-phase session archival, reliable boundary gating, and memory_diff auditing. See [session_commit/_ARCH.md](session_commit/_ARCH.md). |
+| thinking_sanitizer/ | Sanitizer and egress guard for scrubbing reasoning blocks and drafts. See [thinking_sanitizer/_ARCH.md](thinking_sanitizer/_ARCH.md). |
+| tiered_consensus/ | Manager engine governing tiered memory hierarchy and proposal consensus lifecycle. See [tiered_consensus/_ARCH.md](tiered_consensus/_ARCH.md). |
+| two_layer_dialectic/ | Dual-layer context injection engine preserving LLM Prompt Cache while resolving contradictions. See [two_layer_dialectic/_ARCH.md](two_layer_dialectic/_ARCH.md). |
 
 ## Key Dependencies
 

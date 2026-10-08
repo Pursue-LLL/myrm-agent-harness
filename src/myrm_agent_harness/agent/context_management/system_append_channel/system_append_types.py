@@ -1,4 +1,16 @@
-"""Types and models for system prompt strong append channel suite."""
+"""Types and models for system prompt strong append channel suite.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- PromptChannelKind: Channel tier for system prompt components.
+- AppendPromptSource: Represents a discovered system prompt append directive file.
+- SystemPromptAssemblyReceipt: Auditable receipt verifying non-diluted system prompt assembly.
+
+[POS]
+Types and models for system prompt strong append channel suite.
+"""
 
 from __future__ import annotations
 

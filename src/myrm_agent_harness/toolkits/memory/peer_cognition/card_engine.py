@@ -7,6 +7,18 @@
 P0 delivery for Item 110 in topic_01 memory roadmap.
 Curates, evolves, and projects compact social cognition cards (<150 words)
 for each active peer to eliminate role ambiguity and unowned memory drift.
+
+[INPUT]
+- toolkits.memory.peer_cognition.graph_engine::PeerCognitionGraphStore (POS: In-memory and indexed graph store
+  for peer-centric social cognition entities.)
+- toolkits.memory.peer_cognition.models::PeerCognitionProjection, PeerIdentity, PeerPersonaCard, PeerType
+  (POS: Domain models for peer-centric social cognition entity graph and agent persona cards.)
+
+[OUTPUT]
+- PeerPersonaCardEngine: Engine managing persona cards, incremental evolution, and prompt projections.
+
+[POS]
+Self-evolving standing persona card engine and low-token context projector.
 """
 
 from __future__ import annotations

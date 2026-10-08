@@ -1,4 +1,20 @@
-"""Suite orchestrating headless sandbox task continuation and mobile approval relay."""
+"""Suite orchestrating headless sandbox task continuation and mobile approval relay.
+
+[INPUT]
+- agent.context_management.headless_continuation.headless_continuation_types::ApprovalDecisionKind,
+  ApprovalRelayReceipt, ClientAttachmentState, HeadlessExecutionPhase, MobileApprovalDecisionPayload,
+  MobileApprovalRelayCard, ReconnectionSyncManifest, RelayChannelKind, RiskLevel (POS: Types and data
+  structures for headless task continuation and mobile approval relay.)
+- agent.context_management.headless_continuation.mobile_approval_relay_engine::MobileApprovalRelayEngine (POS:
+  Engine generating and validating cross-device mobile approval relay cards.)
+
+[OUTPUT]
+- HeadlessContinuationSuite: Orchestrates headless task execution, mobile approvals, and desktop client
+  re-synchronization.
+
+[POS]
+Suite orchestrating headless sandbox task continuation and mobile approval relay.
+"""
 
 from __future__ import annotations
 

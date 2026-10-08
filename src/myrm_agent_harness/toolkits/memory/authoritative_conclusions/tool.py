@@ -7,6 +7,19 @@
 P0 delivery for Item 111 in topic_01 memory roadmap.
 Equips agents with first-class decision declaration, listing, deprecation,
 and physical deletion capabilities (conclude tool protocol).
+
+[INPUT]
+- toolkits.memory.authoritative_conclusions.models::ConclusionStatus, ConclusionToolAction (POS: Domain models
+  for Explicit Authoritative Conclusions and Audit Tooling Suite.)
+- toolkits.memory.authoritative_conclusions.store::AuthoritativeConclusionStore (POS: In-memory and indexed
+  repository for authoritative conclusions and audit trails.)
+
+[OUTPUT]
+- AuthoritativeConclusionToolSuite: Tool suite providing agent-facing memory_conclude_tool execution.
+- memory_conclude_tool(): Callable tool entrypoint exposed to LLM agents.
+
+[POS]
+Callable agent meta-tool for explicit authoritative conclusions and lifecycle audit.
 """
 
 from __future__ import annotations

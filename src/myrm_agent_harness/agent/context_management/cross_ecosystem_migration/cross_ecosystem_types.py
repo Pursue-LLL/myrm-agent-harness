@@ -1,4 +1,18 @@
-"""Types for cross-ecosystem agent rule migration and compatibility inspector."""
+"""Types for cross-ecosystem agent rule migration and compatibility inspector.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- EcosystemSpecKind: Source ecosystem of the imported rule definition.
+- RuleSectionCategory: Semantic category of a rule directive block.
+- DiscoveredEcosystemFile: Discovered foreign or native agent rule file.
+- EcosystemConflictItem: Detected conflict or contradiction between multiple rule definitions.
+- RuleMigrationReportReceipt: Auditable receipt from analyzing and consolidating multi-ecosystem rule files.
+
+[POS]
+Types for cross-ecosystem agent rule migration and compatibility inspector.
+"""
 
 from __future__ import annotations
 

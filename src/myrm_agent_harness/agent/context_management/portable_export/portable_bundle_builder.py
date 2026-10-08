@@ -2,6 +2,17 @@
 
 Implements selective filtering, secret scrubbing, SHA-256 integrity verification, and
 cross-engine handoff documentation generation.
+
+[INPUT]
+- agent.context_management.portable_export.portable_export_types::ContextArtifactKind, ExportIntegrityReceipt,
+  ExportScope, PortableContextBundle, PortableContextItem (POS: Data types and schemas for agent context
+  ownership portable export and no-lock-in migration.)
+
+[OUTPUT]
+- PortableBundleBuilder: Assembles and validates standardized portable export bundles.
+
+[POS]
+Builder engine for assembling, redacting, and cryptographically signing portable context bundles.
 """
 
 from __future__ import annotations

@@ -7,6 +7,19 @@
 P1 delivery for Item 108 in topic_01 memory roadmap.
 Hooks into consumer agent hosts (Claude Code, Cursor, OpenClaw, Hermes) lifecycles
 to automatically capture messages, warm up experience recall, and commit tasks.
+
+[INPUT]
+- toolkits.memory.experience_observability.models::HostAccessChannel, HostPluginConfig, LifecycleEventKind,
+  LifecycleEventPayload (POS: Domain models for zero-refactor host lifecycle plugin and experience
+  observability.)
+- toolkits.memory.experience_observability.tracker::ExperienceObservabilityTracker (POS: Telemetry tracker for
+  procedure experience recall, injection, and outcome observability.)
+
+[OUTPUT]
+- ZeroRefactorHostPlugin: Non-invasive adapter tapping into agent host lifecycle events.
+
+[POS]
+Zero-refactor host lifecycle plugin adapter.
 """
 
 from __future__ import annotations

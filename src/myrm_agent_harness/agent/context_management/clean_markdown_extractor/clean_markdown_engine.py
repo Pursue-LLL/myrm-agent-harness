@@ -2,6 +2,17 @@
 
 Transforms bloated, noisy HTML (containing massive SVG vector dumps, scripts, ads) into dense,
 clean Markdown under <100ms, and applies spatiotemporal sparsity pruning on long documents.
+
+[INPUT]
+- agent.context_management.clean_markdown_extractor.clean_markdown_types::CleanMarkdownExtractorConfig,
+  ExtractedCleanContent, SparsityPruneResult (POS: Type contracts and models for Clean Markdown Extractor and
+  Context Sparsity Pruning Suite.)
+
+[OUTPUT]
+- CleanMarkdownExtractorEngine: High-performance DOM purification and context sparsity pruning engine.
+
+[POS]
+Core engine for High-Density Clean Markdown Extraction and Context Sparsity Pruning.
 """
 
 from __future__ import annotations

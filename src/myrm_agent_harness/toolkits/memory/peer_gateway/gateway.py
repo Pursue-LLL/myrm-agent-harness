@@ -5,6 +5,20 @@
 """Anti-cross-contamination gateway boundary enforcer for multi-tenant and multi-peer memory safety.
 
 Prevents cross-tenant leaks and accidental cross-session contamination across channels.
+
+[INPUT]
+- toolkits.memory.peer_gateway.models::ChannelType, GatewayPeerAliasConfig, PeerBoundaryCheckResult,
+  ResolvedPeerIdentity (POS: Domain models for Multi-Channel Peer Alias and Anti-Cross-Contamination Gateway
+  Suite.)
+- toolkits.memory.peer_gateway.resolver::DeterministicPeerResolver (POS: Deterministic multi-channel peer
+  identity resolution engine.)
+
+[OUTPUT]
+- AntiCrossContaminationGateway: Gateway defense middleware enforcing strict tenant/peer memory boundary
+  isolation.
+
+[POS]
+Anti-cross-contamination gateway boundary enforcer for multi-tenant and multi-peer memory safety.
 """
 
 from __future__ import annotations

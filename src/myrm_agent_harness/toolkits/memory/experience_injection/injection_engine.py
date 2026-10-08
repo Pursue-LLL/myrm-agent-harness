@@ -1,3 +1,21 @@
+"""Orchestrates experience injection across skill load, subagent spawn, and pre-write call sites.
+
+[INPUT]
+- toolkits.memory.experience_injection.models::ExperienceCallSite, ExperienceInjectionConfig,
+  ExperienceInjectionResult, InjectionStatus (POS: Types and models for experience injection.)
+- toolkits.memory.procedure_experience.dual_node_retriever::DualNodeFixedCountRetriever (POS: Fixed-count
+  dual-node retriever for procedure-shaped experience memories.)
+- toolkits.memory.procedure_experience.models::DualNodeRetrievalQuery, ProcedureMemoryEntry, RetrievalNodeKind
+  (POS: Types and models for procedure experience.)
+
+[OUTPUT]
+- ExperienceInjectionEngine: Orchestrates experience injection across skill load, subagent spawn, and
+  pre-write call sites.
+
+[POS]
+Orchestrates experience injection across skill load, subagent spawn, and pre-write call sites.
+"""
+
 # [POS]: src/myrm_agent_harness/toolkits/memory/experience_injection/injection_engine.py
 # [INPUT]: .models (ExperienceCallSite, InjectionStatus, ExperienceInjectionConfig, ExperienceInjectionResult), procedure_experience (DualNodeFixedCountRetriever, DualNodeRetrievalQuery, RetrievalNodeKind, ProcedureMemoryEntry)
 # [OUTPUT]: ExperienceInjectionEngine

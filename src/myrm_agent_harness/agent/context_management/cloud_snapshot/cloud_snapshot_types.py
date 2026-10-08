@@ -2,6 +2,21 @@
 
 Defines copy-on-write volume snapshot descriptors, incremental patch bundles,
 pre-warmed sandbox pool lifecycles, and restoration telemetry.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- SnapshotStorageDriver: Storage backing driver for instant workspace volume instantiation.
+- SandboxPoolState: Lifecycle state of a pre-warmed sandbox worker in the warm pool.
+- VolumeSnapshotDescriptor: Immutable metadata descriptor representing a frozen baseline workspace snapshot.
+- IncrementalPatchBundle: Lightweight incremental git diff payload streamed to avoid full cloning.
+- WarmSandboxDescriptor: Descriptor of a pre-warmed worker container in the reusable warm pool.
+- SnapshotRestoreResult: Telemetry report emitted after instantaneous cloud session restoration.
+- CloudSnapshotConfig: Configuration governing instant volume snapshot restores and warm pool caching.
+
+[POS]
+Type contracts and definitions for Instant Cloud Session Snapshot and Zero-Clone Warm Pool.
 """
 
 from __future__ import annotations

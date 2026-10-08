@@ -2,6 +2,18 @@
 
 Generates durable compact checkpoints in warm cache windows, preserves original
 deep history into cold storage archives, and replaces active context with lightweight checkpoints.
+
+[INPUT]
+- agent.context_management.smart_idle_compactor.idle_compactor_types::CompactedCheckpointArchive,
+  IdleCompactionEvaluation, IdleCompactorConfig, OpportunisticCompactionResult, ZeroWaitWakeupEvent (POS: Data
+  contracts and type definitions for smart idle cache auto-compaction.)
+
+[OUTPUT]
+- OpportunisticCompactorEngine: Executes opportunistic pre-compaction in the background while upstream KV
+  cache is still hot.
+
+[POS]
+Opportunistic Compactor Engine executing silent background pre-compaction.
 """
 
 from __future__ import annotations

@@ -2,6 +2,22 @@
 
 Coordinates the 4-Question context gate, phase transitions, structured exploration handoffs,
 and deferred loading of deliverable templates under strict lifecycle governance.
+
+[INPUT]
+- agent.context_management.devflow_lifecycle.context_gate_evaluator::ContextGateEvaluator (POS: The 4-Question
+  Context Gate Evaluator governing information admission into active memory.)
+- agent.context_management.devflow_lifecycle.devflow_types::ContextAdmissionDecision, DevFlowPhase,
+  GateQuestionnaireEvaluation, PhaseLifecycleState, StructuredExplorationHandoff (POS: Data contracts and
+  schemas for DevFlow context lifecycle and progressive loading.)
+- agent.context_management.devflow_lifecycle.exploration_handoff_engine::ExplorationHandoffEngine (POS: Engine
+  enforcing structured <= 500 char handoff contracts from exploratory subtasks.)
+
+[OUTPUT]
+- DevFlowContextLifecycleAndProgressiveLoadingSuite: Master suite governing phase-driven progressive context
+  loading and transient exploration pruning.
+
+[POS]
+Master suite for DevFlow Context Lifecycle and Progressive Loading.
 """
 
 from __future__ import annotations

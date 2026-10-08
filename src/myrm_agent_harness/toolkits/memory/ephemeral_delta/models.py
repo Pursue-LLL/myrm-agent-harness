@@ -1,3 +1,18 @@
+"""Types and models for ephemeral delta.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- DeltaActionKind: Action type for an ephemeral session delta.
+- EphemeralDeltaItem: A lightweight, turn-scoped ephemeral delta to be attached to the Human tail.
+- EphemeralDeltaBufferSnapshot: Snapshot representation of the active ephemeral delta buffer for a session.
+- ReconciliationBatchReport: Audit report generated when ephemeral deltas are flushed to permanent storage.
+
+[POS]
+Types and models for ephemeral delta.
+"""
+
 # [POS]: src/myrm_agent_harness/toolkits/memory/ephemeral_delta/models.py
 # [INPUT]: None (pure domain contracts)
 # [OUTPUT]: DeltaActionKind, EphemeralDeltaItem, EphemeralDeltaBufferSnapshot, ReconciliationBatchReport

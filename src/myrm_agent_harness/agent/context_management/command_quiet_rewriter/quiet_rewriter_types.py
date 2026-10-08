@@ -2,6 +2,22 @@
 
 Provides strong-typed abstractions for injecting quiet flags before execution
 and absorbing high-noise process outputs in isolated subagent sandboxes.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- RewriteStatus: Execution status of command preflight rewriting.
+- LogSinkTaskType: Categorization of high-noise operations delegated to subagents.
+- LogSinkStatus: High-level completion outcome of a log-sink subagent task.
+- QuietRewriteRule: Specification of a quiet flag injection rule for a CLI tool.
+- RewriteResult: Result of command preflight rewriting.
+- LogSinkTaskSpec: Specification for delegating high-noise tasks to isolated subagents.
+- LogSinkConclusionCard: Structured, low-noise card delivered to the main session.
+- SubagentLogSinkExecutionRecord: Telemetry and execution audit for subagent log absorption.
+
+[POS]
+Data contracts and type definitions for preflight command rewriting and subagent log sink.
 """
 
 from __future__ import annotations

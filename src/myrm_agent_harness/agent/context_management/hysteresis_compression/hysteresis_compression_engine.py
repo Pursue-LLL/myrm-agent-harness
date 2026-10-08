@@ -3,6 +3,18 @@
 Controls context compaction frequency via high/low hysteresis watermarks, enforces
 adaptive cooldown intervals to prevent rapid re-compression thrashing, and shields
 critical memory sanctuary blocks (genesis prompts, active todos, diff anchors).
+
+[INPUT]
+- agent.context_management.hysteresis_compression.hysteresis_compression_types::CooldownStatus,
+  HysteresisConfig, HysteresisEvaluation, HysteresisExecutionReport, SanctuaryBlock, SanctuaryCategory,
+  WatermarkTier (POS: Type definitions and contracts for Hysteresis Compression and Cooldown Ladder Suite.)
+
+[OUTPUT]
+- HysteresisCompressionEngine: Engine orchestrating hysteresis gap compaction and anti-amnesia memory
+  sanctuary.
+
+[POS]
+Core engine for Dual-Watermark Hysteresis Compression and Cooldown Ladder Suite.
 """
 
 from __future__ import annotations

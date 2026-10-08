@@ -1,3 +1,19 @@
+"""Types and models for experience injection.
+
+[INPUT]
+- toolkits.memory.procedure_experience.models::ProcedureMemoryEntry (POS: Types and models for procedure
+  experience.)
+
+[OUTPUT]
+- ExperienceCallSite: Specific precise call sites for experience injection (aligned with OpenViking PR #2007).
+- InjectionStatus: Outcome status of an experience injection evaluation.
+- ExperienceInjectionConfig: Dual-gating and threshold configuration for experience injection.
+- ExperienceInjectionResult: Immutable result payload detailing the outcome of an injection attempt.
+
+[POS]
+Types and models for experience injection.
+"""
+
 # [POS]: src/myrm_agent_harness/toolkits/memory/experience_injection/models.py
 # [INPUT]: myrm_agent_harness.toolkits.memory.procedure_experience.models (ProcedureMemoryEntry)
 # [OUTPUT]: ExperienceCallSite, InjectionStatus, ExperienceInjectionConfig, ExperienceInjectionResult

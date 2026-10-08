@@ -1,3 +1,15 @@
+"""Calculates exponential half-life decay and dynamic confidence for evidence facts.
+
+[INPUT]
+- toolkits.memory.rule_cascade.models::FiveDimEvidenceMetadata (POS: Types and models for rule cascade.)
+
+[OUTPUT]
+- TimeDecayCalculator: Calculates exponential half-life decay and dynamic confidence for evidence facts.
+
+[POS]
+Calculates exponential half-life decay and dynamic confidence for evidence facts.
+"""
+
 # [POS]: src/myrm_agent_harness/toolkits/memory/rule_cascade/decay_calculator.py
 # [INPUT]: models.py (FiveDimEvidenceMetadata)
 # [OUTPUT]: TimeDecayCalculator

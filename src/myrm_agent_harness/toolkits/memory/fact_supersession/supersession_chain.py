@@ -1,3 +1,17 @@
+"""Engine managing fact lifecycle, explicit supersession chains, and valid-time interval queries.
+
+[INPUT]
+- toolkits.memory.fact_supersession.models::TemporalFactRecord, TemporalFactStatus (POS: Types and models for
+  fact supersession.)
+
+[OUTPUT]
+- FactSupersessionChainEngine: Engine managing fact lifecycle, explicit supersession chains, and valid-time
+  interval queries.
+
+[POS]
+Engine managing fact lifecycle, explicit supersession chains, and valid-time interval queries.
+"""
+
 # [POS]: src/myrm_agent_harness/toolkits/memory/fact_supersession/supersession_chain.py
 # [INPUT]: src.myrm_agent_harness.toolkits.memory.fact_supersession.models
 # [OUTPUT]: FactSupersessionChainEngine

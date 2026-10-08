@@ -7,6 +7,16 @@
 P0 delivery for Item 110 in topic_01 memory roadmap.
 Maintains relational topology connecting peers (users, agents, reviewers, projects)
 with directed semantic edges (asserts, approves, collaborates_with, governs).
+
+[INPUT]
+- toolkits.memory.peer_cognition.models::PeerIdentity, PeerRelationEdge, PeerRelationKind, PeerType (POS:
+  Domain models for peer-centric social cognition entity graph and agent persona cards.)
+
+[OUTPUT]
+- PeerCognitionGraphStore: Graph repository maintaining peer identity nodes and relational edges.
+
+[POS]
+In-memory and indexed graph store for peer-centric social cognition entities.
 """
 
 from __future__ import annotations

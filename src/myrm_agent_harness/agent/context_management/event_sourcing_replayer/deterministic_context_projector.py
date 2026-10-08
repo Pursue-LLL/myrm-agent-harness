@@ -1,4 +1,17 @@
-"""Pure functional projector deriving exact model-visible context from event stream slices."""
+"""Pure functional projector deriving exact model-visible context from event stream slices.
+
+[INPUT]
+- agent.context_management.event_sourcing_replayer.event_sourcing_types::ProjectedMessageItem,
+  ProjectedModelVisibleContext, SessionEventKind, SessionLedgerEvent (POS: Types and models for append-only
+  session event sourcing and deterministic context replaying.)
+
+[OUTPUT]
+- DeterministicContextProjector: Pure functional projector converting immutable event slices into historical
+  model-visible contexts.
+
+[POS]
+Pure functional projector deriving exact model-visible context from event stream slices.
+"""
 
 from __future__ import annotations
 

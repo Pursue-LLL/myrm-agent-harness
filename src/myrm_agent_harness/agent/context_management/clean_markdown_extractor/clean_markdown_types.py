@@ -2,6 +2,20 @@
 
 Defines DOM pruning categories, extracted clean content representations,
 and spatiotemporal sparsity pruning result contracts.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- DOMPruneRule: Categorical DOM element classes targeted for preemptive physical excision.
+- ExtractionDensityLevel: Density level governing the output Markdown purity.
+- ExtractedCleanContent: Telemetry and purified textual payload extracted from raw unwashed HTML.
+- SparsityPruneResult: Telemetry report emitted after applying spatiotemporal sparsity pruning on long
+  documents.
+- CleanMarkdownExtractorConfig: Configuration governing DOM purification and context sparsity thresholds.
+
+[POS]
+Type contracts and models for Clean Markdown Extractor and Context Sparsity Pruning Suite.
 """
 
 from __future__ import annotations

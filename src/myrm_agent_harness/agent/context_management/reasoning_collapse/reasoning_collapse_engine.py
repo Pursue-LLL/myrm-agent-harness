@@ -2,6 +2,17 @@
 
 Implements sliding window retention, thought digest summarization,
 multi-vendor reasoning normalization, and prompt cache prefix protection.
+
+[INPUT]
+- agent.context_management.reasoning_collapse.reasoning_collapse_types::ReasoningCollapseConfig,
+  ReasoningCollapseReport, ReasoningVendorType, ThinkingCollapseMode, UnifiedReasoningBlock (POS: Types and
+  schemas for deep reasoning stream thinking collapse and prompt cache alignment.)
+
+[OUTPUT]
+- ReasoningStreamCollapseEngine: Core engine for streaming thought collapse and prompt cache alignment.
+
+[POS]
+Engine for collapsing deep reasoning thought streams and aligning prompt cache.
 """
 
 import copy

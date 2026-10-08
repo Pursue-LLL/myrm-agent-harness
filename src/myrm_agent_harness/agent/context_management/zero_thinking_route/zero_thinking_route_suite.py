@@ -2,6 +2,23 @@
 
 Unifies cross-provider thinking budget parameter normalization, deterministic task detection,
 and cost/latency decoupling telemetry to achieve sub-second TTFT and 80%+ savings.
+
+[INPUT]
+- agent.context_management.zero_thinking_route.deterministic_task_detector::DeterministicTaskDetector (POS:
+  Deterministic Task Detector identifying mechanical, non-reasoning prompts.)
+- agent.context_management.zero_thinking_route.thinking_parameter_normalizer::ThinkingParameterNormalizer
+  (POS: Thinking parameter normalizer translating unified budget modes into vendor-specific API wire
+  parameters.)
+- agent.context_management.zero_thinking_route.zero_thinking_types::DeterministicTaskDetection,
+  ProviderThinkingPayload, ThinkingBudgetMode, ZeroThinkingSavingsRecord (POS: Data contracts and type
+  definitions for zero thinking budget direct routing and cost decoupling.)
+
+[OUTPUT]
+- ZeroThinkingBudgetDirectRouteSuite: Master suite orchestrating zero-thinking budget direct routing and
+  financial decoupling.
+
+[POS]
+Zero Thinking Budget Direct Route and Cost Decoupling Suite master class.
 """
 
 from __future__ import annotations

@@ -7,6 +7,17 @@
 P0 delivery for Item 109 in topic_01 memory roadmap.
 Supports dual-track matching (successful solutions and cautionary failures)
 and direct reading of concrete session solution snippets without guessing.
+
+[INPUT]
+- toolkits.memory.failure_retrieval.models::ErrorFingerprint, FailureOutcomeType, FailureRetrievalResult,
+  HistoricalResolutionEntry (POS: Domain models for failure-triggered historical session retrieval.)
+
+[OUTPUT]
+- FailureHistoricalSessionSearchEngine: Indexes historical session resolutions and provides dual-track
+  similarity search.
+
+[POS]
+Search engine indexing and retrieving historical session solutions and failures.
 """
 
 from __future__ import annotations

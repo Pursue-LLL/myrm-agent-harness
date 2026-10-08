@@ -2,6 +2,22 @@
 
 Coordinates typed stream reader instances, batch frame ingestion pipelines,
 cross-turn gap healing, and global streaming telemetry.
+
+[INPUT]
+- agent.context_management.checked_stream_reader.anti_slop_filter::AntiSlopFilter (POS: Anti-Slop governance
+  filter purging raw template tags, excessive blank lines, and malformed slop.)
+- agent.context_management.checked_stream_reader.checked_reply_reader::CheckedSessionReplyStreamReader (POS:
+  Checked Session Reply Stream Reader implementing sequential integrity and resilient state transitions.)
+- agent.context_management.checked_stream_reader.checked_stream_types::AntiSlopFilterResult,
+  AntiSlopViolationKind, StreamChunkFrame, StreamChunkKind, StreamReaderMetrics, StreamReaderState (POS: Data
+  contracts and schemas for checked session reply stream readers and anti-slop governance.)
+
+[OUTPUT]
+- CheckedSessionReplyStreamReadersAndAntiSlopGovernanceSuite: Master suite governing checked streaming
+  response ingestion and anti-slop quality controls.
+
+[POS]
+Master suite for Checked Session Reply Stream Readers and Anti-Slop Governance.
 """
 
 from __future__ import annotations

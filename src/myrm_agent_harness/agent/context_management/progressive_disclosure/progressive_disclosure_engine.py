@@ -2,6 +2,18 @@
 
 Coordinates the 5-stage architectural discovery state machine, dynamically
 assembles minimal required context per stage, and enforces evidence attribution citations.
+
+[INPUT]
+- agent.context_management.progressive_disclosure.progressive_disclosure_types::AttributionValidationResult,
+  CognitiveMilestoneFact, DisclosureStage, EvidenceCitation, ProgressiveDisclosureConfig (POS: Types and
+  schemas for 4-layer progressive disclosure and evidence traceability suite.)
+
+[OUTPUT]
+- ProgressiveDisclosureEngine: Core engine driving progressive cognitive disclosure and evidence attribution
+  enforcement.
+
+[POS]
+Engine for 4-layer progressive disclosure cognitive path and evidence traceability.
 """
 
 import logging

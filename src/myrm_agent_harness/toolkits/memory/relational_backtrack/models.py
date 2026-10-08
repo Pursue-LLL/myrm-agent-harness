@@ -1,3 +1,20 @@
+"""Types and models for relational backtrack.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- EntityTypeKind: Categorical classification of relational entities.
+- TemporalRelationTriplet: A structured entity-action-temporal triplet linking past events with verbatim
+  evidence.
+- RelationalBacktrackQuery: Query specification for cross-session entity backtracking.
+- RelationalBacktrackHit: A candidate relation match pinpointing the associated entity with score.
+- RelationalBacktrackResult: Consolidated result returned by the cross-session backtrack engine.
+
+[POS]
+Types and models for relational backtrack.
+"""
+
 # [POS]: src/myrm_agent_harness/toolkits/memory/relational_backtrack/models.py
 # [INPUT]: None (pure domain models)
 # [OUTPUT]: EntityTypeKind, TemporalRelationTriplet, RelationalBacktrackQuery, RelationalBacktrackHit, RelationalBacktrackResult
