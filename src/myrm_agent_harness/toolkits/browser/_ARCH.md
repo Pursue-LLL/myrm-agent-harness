@@ -21,6 +21,7 @@ Detailed design: [BROWSER_SYSTEM.md](BROWSER_SYSTEM.md)
 | action_capture/ | DOM action recorder for the server Browser Skill Recording Wizard — captures click/fill/select/press/hover/navigate into ActionStep sequences via injected JS. |
 | captcha/ | CAPTCHA detection and coordination subpackage. Provides Protocol-based pluggable solver architecture, HTML regex detector, asyncio.Event state machine coordinator, and default ManualSolver. Integrated into BrowserSession.navigate(). |
 | checkpoint/ | Task-level checkpoint/resume module for the browser toolkit. Fully reuses LangGraph Checkpointer's p |
+| decision_discipline/ | Next-step decision discipline rulebooks, pre-flight action guards, target selection validators, and single-key text output contracts. See [decision_discipline/_ARCH.md](decision_discipline/_ARCH.md). |
 | diff/ | Screenshot diff utilities — unified comparison system. |
 | doctor/ | Pre-flight diagnostics and health checks. Facade + checks/orphans/report submodules. |
 | domain_filter/ | Deep domain filtering, resource blocking, and ad/tracker domain blocking. Four-layer defense: CSP + route interception + JS hardening + CDP audit. `__init__.py` exposes DomainAllowlist/install_domain_filter; `ad_domains.py` lazily loads the bundled `assets/ad_domains.txt` (~3500 domains). |
