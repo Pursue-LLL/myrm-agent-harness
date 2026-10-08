@@ -319,23 +319,10 @@ def is_foreground_required(action: str) -> bool:
     return action.lower() not in _BACKGROUND_SAFE_ACTIONS
 
 
-class ScreenLockedInterruptionError(RuntimeError):
-    """Raised when an automated input action is attempted while the screen is locked."""
-
-    def __init__(self, message: str = "Action blocked: host desktop screen is locked.") -> None:
-        super().__init__(message)
-
-
-class PhysicalSleepInterruptionError(RuntimeError):
-    """Raised when an automated input action is attempted while the host display/system is sleeping."""
-
-    def __init__(self, message: str = "Action blocked: host desktop display is sleeping.") -> None:
-        super().__init__(message)
-
-
-# Model-facing refusals for an unusable physical screen. The input pair is also what
-# check_screen_lock_safety returns; ScreenGuard returns these exact bytes, so every desktop
-# entry point refuses with identical wording. Snapshots refuse to capture rather than to type.
+# Model-facing refusals for an unusable physical screen. The input pair is what
+# check_screen_lock_safety returns, what ScreenGuard returns and the default message of the
+# interruption errors, so every desktop entry point refuses with identical wording.
+# Snapshots refuse to capture rather than to type.
 SCREEN_LOCKED_REFUSAL = (
     "Safety: Screen is locked. Automated inputs are halted to prevent password leakage and account lockout."
 )
@@ -344,6 +331,20 @@ SNAPSHOT_SCREEN_LOCKED_REFUSAL = (
     "Safety: Desktop screen is locked. Snapshot aborted to prevent capturing private lock-screen content."
 )
 SNAPSHOT_DISPLAY_SLEEPING_REFUSAL = "Safety: Display is sleeping. Snapshot aborted."
+
+
+class ScreenLockedInterruptionError(RuntimeError):
+    """Raised when an automated input action is attempted while the screen is locked."""
+
+    def __init__(self, message: str = SCREEN_LOCKED_REFUSAL) -> None:
+        super().__init__(message)
+
+
+class PhysicalSleepInterruptionError(RuntimeError):
+    """Raised when an automated input action is attempted while the host display/system is sleeping."""
+
+    def __init__(self, message: str = DISPLAY_SLEEPING_REFUSAL) -> None:
+        super().__init__(message)
 
 
 def check_screen_lock_safety(detector: object | None = None) -> str | None:
