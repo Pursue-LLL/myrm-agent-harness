@@ -94,6 +94,7 @@ Agent core module — public API for BaseAgent / SkillAgent runtime.
 | `middlewares/` | Framework middleware stack | [MIDDLEWARE_SYSTEM.md](middlewares/MIDDLEWARE_SYSTEM.md) |
 | `parallel/` | Shared subagent spawn path (batch/swarm semaphore) | [parallel/_ARCH.md](parallel/_ARCH.md) |
 | `plugins/` | Agent Plugins 1.0.0 package parser (client-agnostic) | [plugins/_ARCH.md](plugins/_ARCH.md) |
+| `proactive_kernel/` | Proactive agent micro-kernel, heartbeat loops, and zero-nag etiquette gate suite (Item 319) | [proactive_kernel/_ARCH.md](proactive_kernel/_ARCH.md) |
 | `security/` | Agent security engine (HITL, rate limiter, transcript classifier) | [security/SECURITY_SYSTEM.md](security/SECURITY_SYSTEM.md) |
 | `skill_agent/` | SkillAgent domain — class, mixins, ContextVar session state, factory facade | [skill_agent/_ARCH.md](skill_agent/_ARCH.md) |
 | `skills/` | Skill system (discovery, evolution, optimization, sync) | [skills/SKILL_SYSTEM.md](skills/SKILL_SYSTEM.md) |

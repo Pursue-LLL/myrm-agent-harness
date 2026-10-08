@@ -11,6 +11,7 @@ Validators module.
 | auto_verify.py | Core | Smart Auto-Verify. Infers and runs CLI linters after file edits when Agent does not provide explicit verify_command. Provides soft diagnostic feedback. | ✅ |
 | base.py | Core | Provides Validator. | ✅ |
 | binary_validator.py | Core | Binary file validator | ✅ |
+| client_secret_validator.py | Core | Client-side code secret leak validator blocking hardcoded keys/credentials in frontend files (.tsx, .jsx, .vue, .html, .js). | ✅ |
 | config_protection_validator.py | Core | Config protection validator. Blocks agent modifications to existing linter/formatter config files, forcing code fixes over config weakening. | ✅ |
 | delta_syntax_validator.py | Core | In-memory delta syntax validator. Zero-overhead syntax checking for structural languages. | ✅ |
 | markdown_vault_write_guard.py | Core | Preserves YAML frontmatter on vault `.md` writes; pairs with vault_scope + FormatObserver skip | ✅ |

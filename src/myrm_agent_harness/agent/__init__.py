@@ -103,9 +103,33 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.agent.context_guard",
         "SpilloverPayload",
     ),
+    "ProactiveAgentKernelSuite": (
+        "myrm_agent_harness.agent.proactive_kernel",
+        "ProactiveAgentKernelSuite",
+    ),
+    "ProactiveAgentKernelContractAndInstinctiveProactivityLoopSuite": (
+        "myrm_agent_harness.agent.proactive_kernel",
+        "ProactiveAgentKernelContractAndInstinctiveProactivityLoopSuite",
+    ),
+    "HeartbeatManifestParser": (
+        "myrm_agent_harness.agent.proactive_kernel",
+        "HeartbeatManifestParser",
+    ),
+    "OpportunitySensingEngine": (
+        "myrm_agent_harness.agent.proactive_kernel",
+        "OpportunitySensingEngine",
+    ),
+    "ZeroNagDiscretionGate": (
+        "myrm_agent_harness.agent.proactive_kernel",
+        "ZeroNagDiscretionGate",
+    ),
 }
 
 __all__ = [
+    "HeartbeatManifestParser",
+    "OpportunitySensingEngine",
+    "ProactiveAgentKernelContractAndInstinctiveProactivityLoopSuite",
+    "ProactiveAgentKernelSuite",
     "SUBAGENT_CONFIGS",
     "AgentEventType",
     "AgentRunStatistics",
@@ -136,6 +160,7 @@ __all__ = [
     "SubAgentStatus",
     "SubagentConfig",
     "TokenUsage",
+    "ZeroNagDiscretionGate",
     "auto_register_subagent_configs",
     "create_skill_agent",
     "fire_hook",
