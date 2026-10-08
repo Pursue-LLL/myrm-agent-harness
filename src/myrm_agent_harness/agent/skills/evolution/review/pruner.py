@@ -12,7 +12,7 @@
 遵循 code_quality_guidelines：纯函数设计，无副作用。
 
 [INPUT]
-- (none)
+- utils.chat_utils::extract_text_content (POS: multimodal message content → plain text, so images and reasoning blocks never enter the skeleton)
 
 [OUTPUT]
 - prune_trajectory: Args:
@@ -23,12 +23,15 @@ Provides prune_trajectory.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
+from myrm_agent_harness.utils.chat_utils import extract_text_content
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 if TYPE_CHECKING:
     from langchain_core.messages import BaseMessage
+
+    from myrm_agent_harness.utils.chat_utils import ContentItem
 
 logger = get_agent_logger(__name__)
 
@@ -80,11 +83,11 @@ def prune_trajectory(
         msg_type = getattr(msg, "type", "unknown")
 
         if msg_type == "human":
-            content = _truncate(str(msg.content), max_thought_length)
+            content = _truncate(_text_of(msg), max_thought_length)
             skeleton_parts.append(f"<User>: {content}")
 
         elif msg_type == "ai":
-            content = str(msg.content) if msg.content else ""
+            content = _text_of(msg)
             tool_calls = getattr(msg, "tool_calls", None) or []
 
             if content:
@@ -99,12 +102,17 @@ def prune_trajectory(
                     skeleton_parts.append(f"<Tool-Call>: {tool_name}({args_str})")
 
         elif msg_type == "tool":
-            content = str(msg.content) if msg.content else ""
+            content = _text_of(msg)
             result_summary = _truncate(content, max_tool_result_length)
             tool_name = getattr(msg, "name", "unknown")
             skeleton_parts.append(f"<Tool-Result[{tool_name}]>: {result_summary}")
 
     return "\n".join(skeleton_parts)
+
+
+def _text_of(msg: BaseMessage) -> str:
+    """消息的可见文本；图片与推理块不进入骨架。"""
+    return extract_text_content(cast("ContentItem", msg.content))
 
 
 def _truncate(text: str, max_len: int) -> str:
@@ -114,7 +122,7 @@ def _truncate(text: str, max_len: int) -> str:
     return text[:max_len] + "...(truncated)"
 
 
-def _format_args(args: dict) -> str:
+def _format_args(args: dict[str, object]) -> str:
     """格式化工具调用参数（简化显示）。"""
     if not args:
         return ""

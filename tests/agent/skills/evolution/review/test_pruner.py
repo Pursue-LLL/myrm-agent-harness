@@ -122,6 +122,47 @@ class TestPruneTrajectory:
         assert "<Tool-Call>: read(path='a.py')" in result
 
 
+_IMAGE = {"type": "image_url", "image_url": {"url": "data:image/png;base64," + "iVBORw0KGgo" * 200}}
+
+
+class TestMultimodalContent:
+    """The skeleton is built from words only: media and reasoning blocks never leak in as a list repr."""
+
+    def test_human_message_keeps_its_text_and_drops_the_image(self):
+        history = [HumanMessage(content=[{"type": "text", "text": "Fix this layout"}, _IMAGE])]
+        result = prune_trajectory(history)
+        assert result == "<User>: Fix this layout"
+
+    def test_image_only_human_message_has_no_text(self):
+        result = prune_trajectory([HumanMessage(content=[_IMAGE])])
+        assert result == "<User>: "
+
+    def test_ai_message_thought_is_its_visible_text(self):
+        history = [
+            AIMessage(
+                content=[
+                    {"type": "thinking", "thinking": "private chain of thought"},
+                    {"type": "text", "text": "Checking the logs"},
+                ]
+            )
+        ]
+        assert prune_trajectory(history) == "<AI-Thought>: Checking the logs"
+
+    def test_tool_result_with_screenshot_keeps_only_its_text(self):
+        history = [
+            ToolMessage(
+                content=[{"type": "text", "text": "Page loaded"}, _IMAGE],
+                tool_call_id="c1",
+                name="browser",
+            ),
+            ToolMessage(content=[_IMAGE], tool_call_id="c2", name="screenshot"),
+        ]
+        assert prune_trajectory(history).splitlines() == [
+            "<Tool-Result[browser]>: Page loaded",
+            "<Tool-Result[screenshot]>: ",
+        ]
+
+
 class TestTruncate:
     """Test the _truncate helper."""
 

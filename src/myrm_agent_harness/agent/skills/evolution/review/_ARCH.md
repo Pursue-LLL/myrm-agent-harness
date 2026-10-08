@@ -46,7 +46,7 @@ Additional constraints:
 |------|------|-------------|-------|
 | __init__.py | Package | Background silent review and skill distillation system. Asynchronously reviews conversation history  | ✅ |
 | evaluator.py | Core | Heartbeat evaluator. Scores conversation health based on expression_volume and task_complexity metri | ✅ |
-| pruner.py | Core | Provides prune_trajectory. | ✅ |
+| pruner.py | Core | Provides prune_trajectory: builds the review skeleton from each message's visible text only (images and reasoning blocks are excluded, never rendered as a list repr). | ✅ |
 | reviewer.py | Core | Skill review engine. Calls cheap LLM to extract skills using 10-Dim Rubric. | ✅ |
 
 ## Key Dependencies

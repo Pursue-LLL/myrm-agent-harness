@@ -964,7 +964,7 @@ _GOAL_LEARNINGS_MAX_CHARS = 60_000
 
 
 async def extract_goal_learnings(
-    messages: Sequence[dict[str, object]],
+    messages: Sequence[Mapping[str, object]],
     goal_objective: str,
     llm_func: LLMFunc,
     *,
@@ -992,10 +992,10 @@ async def extract_goal_learnings(
 
     total_chars = sum(len(str(m.get("content") or "")) for m in messages)
     if total_chars <= max_chars:
-        batches: list[Sequence[dict[str, object]]] = [messages]
+        batches: list[Sequence[Mapping[str, object]]] = [messages]
     else:
         chunker = EpisodesChunker(soft_max_chars=max(4_000, max_chars // 2), overlap_turns=1)
-        episodes = chunker.split_into_episodes(list(messages))
+        episodes = chunker.split_into_episodes([dict(m) for m in messages])
         batches = [ep.messages for ep in episodes]
 
     all_learnings: list[ExtractedMemory] = []
