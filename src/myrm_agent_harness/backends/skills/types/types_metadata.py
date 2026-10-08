@@ -61,7 +61,11 @@ class SkillMetadata:
 
     # --- Hook system ---
     hooks: list[tuple[HookEvent, HookDefinition]] = field(default_factory=list)
-    """Hook definitions parsed from SKILL.md frontmatter — (event, definition) pairs"""
+    """Hook definitions parsed from SKILL.md frontmatter — (event, definition) pairs.
+
+    Declaring hooks does not activate them: they register for one run only when the user invokes the skill
+    explicitly (``[use skill]`` or ``run(active_skill=...)``). A skill the model loads on its own never does.
+    """
 
     allowed_tools: list[str] | None = None
     """Allowed tool names for access control (parsed from SKILL.md)"""
