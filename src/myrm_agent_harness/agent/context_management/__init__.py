@@ -909,8 +909,29 @@ from .branch_switch_summarization import (
     BranchSwitchSummarizationAndContextTransferSuite,
     BranchTransferReceipt,
 )
+from .two_stage_pipeline import (
+    AssemblyAdjustmentDirective,
+    LlmProviderProtocolKind,
+    LogicalContextBundle,
+    LogicalToolSpec,
+    LogicalTurn,
+    PipelineStageReceipt,
+    ProviderPayloadResult,
+    ProviderProtocolTranspiler,
+    TwoStageContextPipelineAndProviderProtocolDecouplingSuite,
+)
 
 __all__ = [
+    # two_stage_pipeline
+    "AssemblyAdjustmentDirective",
+    "LlmProviderProtocolKind",
+    "LogicalContextBundle",
+    "LogicalToolSpec",
+    "LogicalTurn",
+    "PipelineStageReceipt",
+    "ProviderPayloadResult",
+    "ProviderProtocolTranspiler",
+    "TwoStageContextPipelineAndProviderProtocolDecouplingSuite",
     # branch_switch_summarization
     "BranchExplorationCard",
     "BranchOutcomeCondenser",
