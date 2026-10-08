@@ -10,7 +10,7 @@ Build and release tooling for package distribution: compiled-core manifest, plat
 | core_manifest.yaml | Core | Compiled-core directories + explicit modules (SSOT) |
 | manifest.py | Core | Manifest loader: explicit modules + directory expansion |
 | codegen.py | Core | Codegen `runtime/install_guard/_generated/core_ip_manifest.py`, `platform.py` + compiled-core version pins |
-| platforms.py | Core | Platform keys + PEP508 markers; build-time detection via `platform_key` |
+| platforms.py | Core | Platform keys + PEP508 markers; build-time detection via `platform_key`; `PUBLISH_PLATFORMS` is mirrored by `pyproject.toml` `[tool.uv] exclude-dependencies` (see [DISTRIBUTION_SYSTEM.md](DISTRIBUTION_SYSTEM.md)) |
 | platform_key.py | Core | Platform key SSOT (codegen source for `runtime/install_guard/platform.py`) |
 | nuitka_compile.py | Core | Map manifest ``.py`` paths to Nuitka ``--module`` inputs |
 | pypi_index.py | Core | PyPI JSON probes (package exists, compiled-core extra) |

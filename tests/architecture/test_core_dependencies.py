@@ -26,7 +26,7 @@ _PKG_NAME_RE = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._-]*)")
 def _normalize_pkg_name(specifier: str) -> str:
     match = _PKG_NAME_RE.match(specifier.strip())
     assert match is not None, f"Could not parse package name from: {specifier!r}"
-    return match.group(1).lower().replace("_", "-")
+    return re.sub(r"[-_.]+", "-", match.group(1)).lower()
 
 
 def _load_pyproject() -> dict[str, object]:
@@ -60,19 +60,16 @@ def _dev_group_names(data: dict[str, object], group: str) -> set[str]:
 
 
 def _lock_core_dependency_names() -> set[str]:
-    text = _UV_LOCK.read_text(encoding="utf-8")
-    block_match = re.search(
-        r'name = "myrm-agent-harness"\nversion = "[^"]+"\nsource = \{ editable = "\." \}\ndependencies = \[(.*?)\]\n\n\[package\.optional-dependencies\]',
-        text,
-        flags=re.DOTALL,
+    packages = tomllib.loads(_UV_LOCK.read_text(encoding="utf-8"))["package"]
+    assert isinstance(packages, list)
+    project = next(
+        (pkg for pkg in packages if isinstance(pkg, dict) and pkg.get("name") == "myrm-agent-harness"),
+        None,
     )
-    assert block_match is not None, "myrm-agent-harness core dependencies block missing in uv.lock"
-    names: set[str] = set()
-    for line in block_match.group(1).splitlines():
-        entry = re.search(r'name = "([^"]+)"', line)
-        if entry is not None:
-            names.add(entry.group(1).lower())
-    return names
+    assert project is not None, "myrm-agent-harness entry missing in uv.lock"
+    deps = project.get("dependencies", [])
+    assert isinstance(deps, list)
+    return {_normalize_pkg_name(str(dep["name"])) for dep in deps if isinstance(dep, dict)}
 
 
 @pytest.mark.architecture
