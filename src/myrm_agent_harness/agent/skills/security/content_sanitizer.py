@@ -5,10 +5,12 @@ credentials, PEM keys, DB connection strings) from skill files before export.
 Two-stage design: scan → return structured Diff → user confirms → apply.
 
 Reuses proven patterns from core/security/redact/patterns.py (runtime redactor) to
-ensure export-time detection parity with runtime masking.
+ensure export-time detection parity with runtime masking. Each rule names the
+capture group that holds the secret, so only the secret is replaced and the
+surrounding syntax (keys, quotes, flags, URL structure) stays intact.
 
 [INPUT]
-- core.security.redact.patterns (POS: Compiled regex patterns for token prefix and context-based detection)
+- core.security.redact.patterns (POS: Compiled regex patterns and the keyword guard shared with the runtime redactor)
 
 [OUTPUT]
 - Redaction: TypedDict — single redaction finding
@@ -24,31 +26,36 @@ files and provides structured per-line Diff for the frontend preview UI.
 import logging
 import re
 from dataclasses import dataclass
-from typing import TypedDict
+from typing import NamedTuple, TypedDict
 
 from myrm_agent_harness.core.security.redact.patterns import (
     _AUTH_HEADER_RE,
     _CLI_FLAG_RE,
     _DB_CONNSTR_RE,
+    _ENV_ASSIGN_LOWER_RE,
     _ENV_ASSIGN_RE,
     _JSON_FIELD_RE,
+    _JWT_RE,
     _PREFIX_RE,
     _PRIVATE_KEY_RE,
+    _SECRET_HEADER_RE,
     _TELEGRAM_BOT_RE,
+    _URL_BARE_TOKEN_RE,
     _URL_QUERY_RE,
+    _URL_USERINFO_RE,
+    _YAML_ASSIGN_RE,
+    _redact_value,
 )
 
 logger = logging.getLogger(__name__)
 
-# ── Pattern categories for structured redaction ──────────────────────────────
-# Each entry: (compiled_pattern, reason_label, replacement_template)
-# For patterns with capture groups, group(0) is the full match unless noted.
-
 _TOKEN_PREFIX_REASON = "API Key / Token"
 _ENV_REASON = "Environment Variable"
+_CONFIG_REASON = "Config Secret"
 _JSON_REASON = "JSON Secret Field"
 _DB_REASON = "Database Credential"
 _URL_REASON = "URL Secret Parameter"
+_URL_CREDENTIAL_REASON = "URL Credential"
 _CLI_REASON = "CLI Secret Flag"
 _TELEGRAM_REASON = "Telegram Bot Token"
 _AUTH_REASON = "Authorization Header"
@@ -68,6 +75,43 @@ _LINUX_PATH_RE = re.compile(
 _WINDOWS_PATH_RE = re.compile(
     r"(?i)(?:(?<=[\s\"'=:(])|(?<=^))[A-Z]:\\(?:Users|Documents and Settings)\\[^\s\"']+",
     re.MULTILINE,
+)
+_PATH_RES = (_MACOS_PATH_RE, _LINUX_PATH_RE, _WINDOWS_PATH_RE)
+
+
+class _SecretRule(NamedTuple):
+    """One detector: the capture group holding the secret decides what gets replaced.
+
+    ``name_group`` (0 = none) points at the key / flag capture group; the runtime
+    redactor's keyword guard then decides whether that key really names a
+    credential, so prose such as ``tokenizer=gpt2`` or ``os.getenv(...)`` lookups
+    stay untouched.
+    """
+
+    pattern: re.Pattern[str]
+    reason: str
+    replacement: str
+    value_group: int
+    name_group: int = 0
+
+
+# Specific detectors come before the generic key=value ones: when several rules match the
+# same secret, the earliest rule supplies the label shown in the review.
+_SECRET_RULES: tuple[_SecretRule, ...] = (
+    _SecretRule(_PREFIX_RE, _TOKEN_PREFIX_REASON, "<REDACTED_TOKEN>", 1),
+    _SecretRule(_AUTH_HEADER_RE, _AUTH_REASON, "<REDACTED_TOKEN>", 3),
+    _SecretRule(_SECRET_HEADER_RE, _AUTH_REASON, "<REDACTED_TOKEN>", 2),
+    _SecretRule(_URL_QUERY_RE, _URL_REASON, "<REDACTED_PARAM>", 2),
+    _SecretRule(_URL_USERINFO_RE, _URL_CREDENTIAL_REASON, "***", 3),
+    _SecretRule(_URL_BARE_TOKEN_RE, _URL_CREDENTIAL_REASON, "<REDACTED_TOKEN>", 2),
+    _SecretRule(_DB_CONNSTR_RE, _DB_REASON, "***", 2),
+    _SecretRule(_TELEGRAM_BOT_RE, _TELEGRAM_REASON, "<REDACTED_BOT_TOKEN>", 2),
+    _SecretRule(_JSON_FIELD_RE, _JSON_REASON, "<REDACTED_SECRET>", 2),
+    _SecretRule(_CLI_FLAG_RE, _CLI_REASON, "<REDACTED_VALUE>", 2, 1),
+    _SecretRule(_ENV_ASSIGN_RE, _ENV_REASON, "<REDACTED_VALUE>", 2, 1),
+    _SecretRule(_ENV_ASSIGN_LOWER_RE, _ENV_REASON, "<REDACTED_VALUE>", 2, 1),
+    _SecretRule(_YAML_ASSIGN_RE, _CONFIG_REASON, "<REDACTED_VALUE>", 3, 1),
+    _SecretRule(_JWT_RE, _TOKEN_PREFIX_REASON, "<REDACTED_TOKEN>", 0),
 )
 
 
@@ -92,6 +136,27 @@ class SanitizationResult:
     sanitized_content: str
 
 
+def _secret_span(m: re.Match[str], group: int) -> tuple[int, int]:
+    """Span of the secret itself; the quotes around a quoted value stay in place."""
+    start, end = m.span(group)
+    if end - start >= 2 and m.string[start] in "\"'" and m.string[end - 1] == m.string[start]:
+        return start + 1, end - 1
+    return start, end
+
+
+def _resolve_overlaps(matches: list[_ScanMatch]) -> list[_ScanMatch]:
+    """Keep the longest of any overlapping matches; result is ordered by start, last first.
+
+    Last-first order lets replacements be applied in place without shifting the
+    offsets of the matches still to come.
+    """
+    kept: list[_ScanMatch] = []
+    for candidate in sorted(matches, key=lambda x: x["start"] - x["end"]):
+        if all(candidate["start"] >= k["end"] or candidate["end"] <= k["start"] for k in kept):
+            kept.append(candidate)
+    return sorted(kept, key=lambda x: x["start"], reverse=True)
+
+
 class ContentSanitizer:
     """Skill content sanitizer for export-time privacy protection."""
 
@@ -99,104 +164,18 @@ class ContentSanitizer:
         """Scan a single line for all sensitive patterns. Returns match info list."""
         matches: list[_ScanMatch] = []
 
-        # 1. Token prefix patterns (28 formats: ghp_, AKIA, sk_live_, etc.)
-        for m in _PREFIX_RE.finditer(line):
-            matches.append(
-                {
-                    "start": m.start(1),
-                    "end": m.end(1),
-                    "replacement": "<REDACTED_TOKEN>",
-                    "reason": _TOKEN_PREFIX_REASON,
-                }
-            )
+        for rule in _SECRET_RULES:
+            for m in rule.pattern.finditer(line):
+                if rule.name_group and _redact_value(m.group(rule.name_group), m.group(rule.value_group)) is None:
+                    continue
+                start, end = _secret_span(m, rule.value_group)
+                if start < end:
+                    matches.append({"start": start, "end": end, "replacement": rule.replacement, "reason": rule.reason})
 
-        # 2. Environment variable assignments (API_KEY=xxx, SECRET=xxx)
-        for m in _ENV_ASSIGN_RE.finditer(line):
-            matches.append(
-                {
-                    "start": m.start(3),
-                    "end": m.end(3),
-                    "replacement": "<REDACTED_VALUE>",
-                    "reason": _ENV_REASON,
-                }
-            )
-
-        # 3. JSON secret fields ("token": "xxx")
-        for m in _JSON_FIELD_RE.finditer(line):
-            matches.append(
-                {
-                    "start": m.start(2),
-                    "end": m.end(2),
-                    "replacement": "<REDACTED_SECRET>",
-                    "reason": _JSON_REASON,
-                }
-            )
-
-        # 4. Database connection strings (postgres://user:PASS@host)
-        for m in _DB_CONNSTR_RE.finditer(line):
-            matches.append(
-                {
-                    "start": m.start(2),
-                    "end": m.end(2),
-                    "replacement": "***",
-                    "reason": _DB_REASON,
-                }
-            )
-
-        # 5. URL query parameters (?api_key=xxx)
-        for m in _URL_QUERY_RE.finditer(line):
-            matches.append(
-                {
-                    "start": m.start(1),
-                    "end": m.end(1),
-                    "replacement": "<REDACTED_PARAM>",
-                    "reason": _URL_REASON,
-                }
-            )
-
-        # 6. CLI flags (--api-key xxx, --token xxx)
-        for m in _CLI_FLAG_RE.finditer(line):
-            matches.append(
-                {
-                    "start": m.start(2),
-                    "end": m.end(2),
-                    "replacement": "<REDACTED_VALUE>",
-                    "reason": _CLI_REASON,
-                }
-            )
-
-        # 7. Telegram bot tokens (bot123456:ABC-xxx)
-        for m in _TELEGRAM_BOT_RE.finditer(line):
-            matches.append(
-                {
-                    "start": m.start(1),
-                    "end": m.end(1),
-                    "replacement": "<REDACTED_BOT_TOKEN>",
-                    "reason": _TELEGRAM_REASON,
-                }
-            )
-
-        # 8. Authorization headers (Bearer token)
-        for m in _AUTH_HEADER_RE.finditer(line):
-            matches.append(
-                {
-                    "start": m.start(2),
-                    "end": m.end(2),
-                    "replacement": "<REDACTED_TOKEN>",
-                    "reason": _AUTH_REASON,
-                }
-            )
-
-        # 9. Absolute paths (macOS, Linux, Windows)
-        for pattern in (_MACOS_PATH_RE, _LINUX_PATH_RE, _WINDOWS_PATH_RE):
+        for pattern in _PATH_RES:
             for m in pattern.finditer(line):
                 matches.append(
-                    {
-                        "start": m.start(),
-                        "end": m.end(),
-                        "replacement": "<REDACTED_PATH>",
-                        "reason": _PATH_REASON,
-                    }
+                    {"start": m.start(), "end": m.end(), "replacement": "<REDACTED_PATH>", "reason": _PATH_REASON}
                 )
 
         return matches
@@ -248,25 +227,13 @@ class ContentSanitizer:
                 redaction_index += 1
 
                 if current_index not in ignored_indices:
-                    # Sort by start position descending to avoid index shift
-                    line_matches.sort(key=lambda x: x["start"], reverse=True)
-
-                    # Deduplicate overlapping matches (keep the longest)
-                    filtered: list[_ScanMatch] = []
-                    for match_info in line_matches:
-                        overlaps = False
-                        for existing in filtered:
-                            if match_info["start"] < existing["end"] and match_info["end"] > existing["start"]:
-                                overlaps = True
-                                break
-                        if not overlaps:
-                            filtered.append(match_info)
-
-                    reasons = []
-                    for match_info in filtered:
-                        start = match_info["start"]
-                        end = match_info["end"]
-                        modified_line = modified_line[:start] + match_info["replacement"] + modified_line[end:]
+                    reasons: list[str] = []
+                    for match_info in _resolve_overlaps(line_matches):
+                        modified_line = (
+                            modified_line[: match_info["start"]]
+                            + match_info["replacement"]
+                            + modified_line[match_info["end"] :]
+                        )
                         if match_info["reason"] not in reasons:
                             reasons.append(match_info["reason"])
 
