@@ -48,6 +48,7 @@ Detailed design: [SUB_AGENT_SYSTEM.md](SUB_AGENT_SYSTEM.md)
 |-----------|-------------|
 | checkpoint/ | Subagent checkpoint utilities package. Includes orphan recovery for automatic resumption after restart. |
 | codebase_slimming/ | Agentic codebase slimming subsystem (dead-code topology scanning, equivalence-guarded refactors, resumable module task ledger). See [codebase_slimming/_ARCH.md](codebase_slimming/_ARCH.md). |
+| cross_examination/ | Omni-agent unified single-entry dispatch and split cross-examination subsystem (Item 314). See [cross_examination/_ARCH.md](cross_examination/_ARCH.md). |
 | dag_plan.py | Core | DAG `Plan`/`PlanStep` schemas, `GraphPatch`/`GraphPatchResult` DTOs, and deterministic Kahn DAG patch compiler gate with OCC revision control. | ✅ |
 
 ## Key Dependencies
