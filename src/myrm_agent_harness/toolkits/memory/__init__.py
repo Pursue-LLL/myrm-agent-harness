@@ -373,6 +373,21 @@ from myrm_agent_harness.toolkits.memory.life_milestones import (
     ValueSystemAlignmentProjector,
     ValueSystemNode,
 )
+from myrm_agent_harness.toolkits.memory.context_hook_pipeline import (
+    ContextEnvelope,
+    ContextHookPipelineSuite,
+    ContextHookStage,
+    DualLayerMemoryPayload,
+    DualLayerMemoryWeaver,
+    HookCallable,
+    HookExecutionPriority,
+    HookExecutionReport,
+    MemoryFragment,
+    MemoryLayerKind,
+    PluggableContextHookPipeline,
+    RegisteredHook,
+    WeavingOutcome,
+)
 from myrm_agent_harness.toolkits.memory.experience_observability import (
     ExperienceEffectStatus,
     ExperienceObservabilityMetric,
@@ -2102,6 +2117,19 @@ __all__ = [
     "PrivacyIntimacyLevel",
     "ValueSystemAlignmentProjector",
     "ValueSystemNode",
+    "ContextEnvelope",
+    "ContextHookPipelineSuite",
+    "ContextHookStage",
+    "DualLayerMemoryPayload",
+    "DualLayerMemoryWeaver",
+    "HookCallable",
+    "HookExecutionPriority",
+    "HookExecutionReport",
+    "MemoryFragment",
+    "MemoryLayerKind",
+    "PluggableContextHookPipeline",
+    "RegisteredHook",
+    "WeavingOutcome",
 ]
 
 
