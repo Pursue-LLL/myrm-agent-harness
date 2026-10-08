@@ -163,6 +163,17 @@ from myrm_agent_harness.toolkits.memory.client_partition import (
     CrossClientLeakViolation,
     PartitionInspectionReport,
 )
+from myrm_agent_harness.toolkits.memory.codebase_diff_fallback import (
+    CodebaseDiffFallbackSuite,
+    DiffCategory,
+    DiffFallbackVerdict,
+    DiffFileEntry,
+    DiffPathClassifier,
+    DiffVolumeTier,
+    DirectoryAggregate,
+    LargeDiffFallbackConfig,
+    LargeDiffFallbackPipeline,
+)
 from myrm_agent_harness.toolkits.memory.cognitive_box import (
     CognitiveBoxMetaTools,
     CognitiveBoxSnapshot,
@@ -2206,6 +2217,15 @@ __all__ = [
     "DerivationTraversalView",
     "MessageEvidenceItem",
     "ToolCallEvidenceItem",
+    "CodebaseDiffFallbackSuite",
+    "DiffCategory",
+    "DiffFallbackVerdict",
+    "DiffFileEntry",
+    "DiffPathClassifier",
+    "DiffVolumeTier",
+    "DirectoryAggregate",
+    "LargeDiffFallbackConfig",
+    "LargeDiffFallbackPipeline",
 ]
 
 
