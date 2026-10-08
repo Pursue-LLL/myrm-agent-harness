@@ -65,6 +65,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | fallback_buffer_notebook/ | Core engine for Auto-Compact Fallback Buffer and Team Notebook Suite (Item 223). See [fallback_buffer_notebook/_ARCH.md](fallback_buffer_notebook/_ARCH.md). |
 | file_watch/ | Gateway orchestrating workspace file mutation events and session context invalidation. See [file_watch/_ARCH.md](file_watch/_ARCH.md). |
 | handoff_brief/ | Gateway orchestrating structured handoff briefs and cross-session state continuity. See [handoff_brief/_ARCH.md](handoff_brief/_ARCH.md). |
+| handoff_checkpoint/ | Compiler and bidirectional markdown serializer for six-dimensional task checkpoints. See [handoff_checkpoint/_ARCH.md](handoff_checkpoint/_ARCH.md). |
 | handover/ | Central bus orchestrating cross-device session handover and terminal attachment. See [handover/_ARCH.md](handover/_ARCH.md). |
 | harness_tax/ | 极紧凑 Working Memory 投影器、显式 Resource Loader 与超低 Harness Tax 控制引擎。 See [harness_tax/_ARCH.md](harness_tax/_ARCH.md). |
 | headless_continuation/ | Suite orchestrating headless sandbox task continuation and mobile approval relay. See [headless_continuation/_ARCH.md](headless_continuation/_ARCH.md). |

@@ -989,8 +989,23 @@ from .ask_only_mode import (
     ToolSideEffectLevel,
     WorkBuddyAskOnlyModeSuite,
 )
+from .handoff_checkpoint import (
+    CheckpointRenderFormat,
+    HandoffCompactStage,
+    HandoffCheckpointCompiler,
+    HandoffThenCompactResult,
+    TaskCheckpoint,
+    WorkBuddyHandoffThenCompactSuite,
+)
 
 __all__ = [
+    # handoff_checkpoint
+    "CheckpointRenderFormat",
+    "HandoffCompactStage",
+    "HandoffCheckpointCompiler",
+    "HandoffThenCompactResult",
+    "TaskCheckpoint",
+    "WorkBuddyHandoffThenCompactSuite",
     # ask_only_mode
     "AskOnlyFilterResult",
     "AskOnlyToolFilter",
