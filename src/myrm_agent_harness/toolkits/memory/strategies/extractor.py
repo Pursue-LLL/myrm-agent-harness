@@ -23,7 +23,7 @@ from __future__ import annotations
 import json
 import logging
 import re
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -818,7 +818,7 @@ def _parse_response(raw: str) -> list[ExtractedMemory]:
 
 
 async def extract_memories_from_conversation(
-    messages: Sequence[dict[str, object]],
+    messages: Sequence[Mapping[str, object]],
     llm_func: LLMFunc,
     config: ExtractionConfig | None = None,
     *,

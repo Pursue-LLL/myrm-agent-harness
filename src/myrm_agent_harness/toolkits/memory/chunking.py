@@ -17,6 +17,7 @@ Provides configurable strategies for splitting conversations into semantic units
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -240,7 +241,7 @@ class EpisodesChunker:
 
 
 def chunk_conversation(
-    messages: list[dict[str, object]], strategy: ChunkingStrategy = ChunkingStrategy.EXCHANGE_PAIR
+    messages: Sequence[Mapping[str, object]], strategy: ChunkingStrategy = ChunkingStrategy.EXCHANGE_PAIR
 ) -> list[ConversationChunk]:
     """Chunk conversation based on strategy.
 
@@ -260,16 +261,17 @@ def chunk_conversation(
     if not messages:
         return []
 
+    rows = [dict(message) for message in messages]
     if strategy == ChunkingStrategy.EXCHANGE_PAIR:
-        return _chunk_by_exchange_pair(messages)
+        return _chunk_by_exchange_pair(rows)
     elif strategy == ChunkingStrategy.USER_ONLY:
-        return _chunk_by_user_turn(messages)
+        return _chunk_by_user_turn(rows)
     elif strategy == ChunkingStrategy.SESSION:
-        return _chunk_by_session(messages)
+        return _chunk_by_session(rows)
     elif strategy == ChunkingStrategy.EPISODES:
-        return _chunk_by_episodes(messages)
+        return _chunk_by_episodes(rows)
     else:
-        return _chunk_by_exchange_pair(messages)
+        return _chunk_by_exchange_pair(rows)
 
 
 def _chunk_by_exchange_pair(messages: list[dict[str, object]]) -> list[ConversationChunk]:
@@ -381,9 +383,7 @@ def _chunk_by_episodes(messages: list[dict[str, object]]) -> list[ConversationCh
             elif r == "assistant":
                 ai_parts.append(c)
 
-        raw = "\n".join(
-            f"[{str(m.get('role') or 'user').upper()}]: {m.get('content', '')}" for m in ep.messages
-        )
+        raw = "\n".join(f"[{str(m.get('role') or 'user').upper()}]: {m.get('content', '')}" for m in ep.messages)
         chunks.append(
             ConversationChunk(
                 raw_text=raw,

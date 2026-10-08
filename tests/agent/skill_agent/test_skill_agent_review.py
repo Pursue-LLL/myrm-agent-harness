@@ -18,6 +18,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
+from langgraph.types import Command
 
 from myrm_agent_harness.agent.skill_agent.review import SkillAgentReviewMixin
 from myrm_agent_harness.agent.types import AgentRunStatistics
@@ -205,6 +206,41 @@ class TestTriggerBackgroundSkillReview:
         call_data = callback.call_args[0][0]
         assert call_data["has_value"] is True
         assert call_data["type"] == "semantic_memory"
+
+
+class TestSkillReviewGoal:
+    """The reviewer is given the user's words as the goal, never a placeholder for attachments."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("query", "expected_goal"),
+        [
+            (
+                [
+                    {"type": "text", "text": "Fix the failing build"},
+                    {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}},
+                ],
+                "Fix the failing build",
+            ),
+            ([{"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}}], ""),
+            (Command(resume="approved"), ""),
+        ],
+        ids=["text-and-screenshot", "screenshot-only", "hitl-resume"],
+    )
+    async def test_original_goal_is_the_users_text(self, query: Any, expected_goal: str) -> None:
+        agent = FakeSkillAgent(llm=MagicMock(), extraction_llm=MagicMock())
+        history = [HumanMessage(content="earlier question"), AIMessage(content="earlier answer")]
+
+        with patch(
+            "myrm_agent_harness.agent.skills.evolution.review.reviewer.review_trajectory_with_llm",
+            new_callable=AsyncMock,
+            return_value=None,
+        ) as reviewer:
+            await agent._trigger_background_skill_review(query, history, ["Done."])
+            await asyncio.sleep(0.1)
+
+        reviewer.assert_awaited_once()
+        assert reviewer.await_args.kwargs["original_goal"] == expected_goal
 
 
 # ---------------------------------------------------------------------------

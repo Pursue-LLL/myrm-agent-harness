@@ -3,7 +3,7 @@
 [INPUT]
 - skills.evolution.review (POS: Skill review evaluator, pruner, reviewer)
 - skill_agent.context (POS: Background task tracking)
-- utils.chat_utils::extract_text_content (POS: multimodal query → plain text for the wiki archive)
+- utils.chat_utils::extract_text_content (POS: multimodal query → plain text for the wiki archive and the skill-review goal)
 
 [OUTPUT]
 - SkillAgentReviewMixin: Mixin providing session-end review methods for SkillAgent
@@ -241,7 +241,9 @@ class SkillAgentReviewMixin:
         agent_instance = getattr(self, "_agent", None)
         config = {"configurable": {"thread_id": session_chat_id}}
         fetched_state = False
-        query_text = query if isinstance(query, str) else "[multimodal]"
+        # The reviewer judges goal drift against the user's own words: attachments add nothing and a
+        # HITL resume carries none, in which case the reviewer is told the goal was not provided.
+        query_text = extract_text_content(query) if isinstance(query, (str, list)) else ""
 
         if agent_instance is not None:
             try:
@@ -253,7 +255,8 @@ class SkillAgentReviewMixin:
                 logger.warning("Failed to fetch full state for skill review: %s", e)
 
         if not fetched_state:
-            messages.append(HumanMessage(content=query_text))
+            if query_text:
+                messages.append(HumanMessage(content=query_text))
 
             assistant_reply = "".join(assistant_chunks)
             if assistant_reply:

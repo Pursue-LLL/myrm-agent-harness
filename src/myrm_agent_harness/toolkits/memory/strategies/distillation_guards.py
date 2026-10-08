@@ -5,7 +5,7 @@ from suffering from self-reinforcing persona drift (echo chamber effect), unconf
 identity attribution errors, and automated bot alert pollution.
 
 [INPUT]
-- Sequence[dict[str, object]] or DistillationCandidate payloads
+- Sequence[Mapping[str, object]] or DistillationCandidate payloads
 
 [OUTPUT]
 - SelfIdentityState: Tri-state identity model (SELF / OTHER / UNCONFIRMED)
@@ -30,7 +30,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from enum import StrEnum
 from typing import TYPE_CHECKING, TypeVar
 
@@ -216,7 +216,7 @@ def assert_distillable(candidate: DistillationCandidate) -> None:
 
 
 def filter_distillable_messages(
-    messages: Sequence[dict[str, object]],
+    messages: Sequence[Mapping[str, object]],
     *,
     default_source_id: str = "",
     allow_other_as_context: bool = False,
