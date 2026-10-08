@@ -1158,6 +1158,16 @@ from .cross_session_mention import (
     SessionSnapshot,
     SessionSnapshotExtractor,
 )
+from .rolling_memory_pipeline import (
+    ChunkBoundedRollingMemoryAgentPipelineSuite,
+    ChunkProcessingStep,
+    ChunkStreamConfig,
+    RollingPipelineResult,
+    RollingWorkingMemory,
+    RollingWorkingMemoryStateMachine,
+    TextChunk,
+    TokenBoundedChunkStreamer,
+)
 from .sandbox_pause_resume import (
     AgentkitPauseResumeSessionSandboxSuite,
     PauseResumeActionKind,
@@ -2260,4 +2270,13 @@ __all__ = [
     "SessionRecord",
     "SessionSnapshot",
     "SessionSnapshotExtractor",
+    # rolling_memory_pipeline
+    "ChunkBoundedRollingMemoryAgentPipelineSuite",
+    "ChunkProcessingStep",
+    "ChunkStreamConfig",
+    "RollingPipelineResult",
+    "RollingWorkingMemory",
+    "RollingWorkingMemoryStateMachine",
+    "TextChunk",
+    "TokenBoundedChunkStreamer",
 ]
