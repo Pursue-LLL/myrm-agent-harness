@@ -469,11 +469,7 @@ async def run_agent_loop(
         # Initialize ToolCallBroadcaster hooks for observability.
         # skill_agent.run() has its own hook init, but the streaming path
         # (agent_runtime → StreamExecutor → astream) bypasses it.
-        from myrm_agent_harness.agent.hooks import (
-            bootstrap_hook_registry,
-            get_hook_executor,
-            set_hook_executor,
-        )
+        from myrm_agent_harness.agent.hooks import bootstrap_hook_registry, get_hook_executor, set_hook_executor
         from myrm_agent_harness.agent.streaming.broadcast.tool_call_broadcaster import (
             register_to_hook_registry as register_broadcaster,
         )
