@@ -7,15 +7,21 @@ Fixes (mechanical first drafts built from the docstrings already in the code; re
 * ``.py`` file missing from its directory's ``_ARCH.md`` table -> row added (rows of deleted files pruned)
 * directory with ``.py`` files but no ``_ARCH.md`` -> ``_ARCH.md`` created and indexed in the parent
 
-Shared worktrees: dry-run is the default and ``--write`` needs explicit PATH arguments (or ``--all``), so a
-session only touches its own files. Each file is re-read right before it is written and skipped when it
-changed since the analysis.
+Shared worktrees: dry-run is the default and ``--write`` needs explicit PATH arguments, ``--all`` or ``--head``.
+Each file is re-read right before it is written and skipped when it changed since the analysis.
+
+``--head`` plans against the committed tree (``git archive HEAD``) and writes only files that are still
+byte-identical to HEAD in the worktree (new ``_ARCH.md`` files only where nothing exists yet), so it never touches
+other sessions' uncommitted work and its output can be committed as is; ``--commit`` does that, scoped to exactly
+the files it wrote. Gaps inside dirty files, and ``_ARCH.md`` rows that would contradict the worktree (a file deleted
+there, a file that so far exists only there), are reported and left to their owners.
 
 Usage (from the harness root)::
 
     python scripts/fix_fractal_docs.py                          # dry-run: what would change
     python scripts/fix_fractal_docs.py --write PATH [PATH ...]  # fix only these files / directories
-    python scripts/fix_fractal_docs.py --write --all            # fix everything the gates report
+    python scripts/fix_fractal_docs.py --head --write --commit  # repair gaps already in HEAD, safe in a shared tree
+    python scripts/fix_fractal_docs.py --write --all            # fix everything the gates report (own checkout only)
 
 Exit codes:
     0  Nothing left to fix (dry-run: nothing to do; --write: everything applied and the gates are satisfied).
@@ -23,12 +29,13 @@ Exit codes:
     2  Usage error.
 
 [INPUT]
-- scripts/check_fractal_docs.py: gate detection (missing headers, missing ``_ARCH.md``) and header baseline
-- scripts/validate_arch_inventory.py: gate detection of missing / stale ``_ARCH.md`` rows
-- scripts/fractal_header_engine.py, scripts/fractal_arch_engine.py: text synthesis
+- scripts/fractal_fix_planner.py: edit planning against both gates and the conflict-checked atomic write
+- scripts/check_fractal_docs.py: header baseline loading
 
 [OUTPUT]
-- main(): CLI entry point; build_plan() / apply_plan(): analysis and guarded write phases
+- main(): CLI entry point (argument validation, scope, report, exit codes)
+- head_plan(): plan against ``git archive HEAD`` and keep only the edits the worktree can take safely
+- commit_edits(): commit exactly the files that were written
 
 [POS]
 Self-service repair for the fractal-doc gates so a red gate costs one command, not a manual audit.
@@ -37,186 +44,103 @@ Self-service repair for the fractal-doc gates so a red gate costs one command, n
 from __future__ import annotations
 
 import argparse
-import os
-import shutil
+import io
+import subprocess
 import sys
+import tarfile
+import tempfile
 from collections.abc import Callable
-from dataclasses import dataclass, field
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import check_fractal_docs as gate
-import validate_arch_inventory as inventory
-from fractal_arch_engine import add_subpackage_row, overview_of, render_new_arch, update_file_table
-from fractal_header_engine import HeaderError, add_header, module_summary
+from fractal_fix_planner import Edit, Plan, apply_plan, build_plan
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _PACKAGE_ROOT = _REPO_ROOT / "src" / "myrm_agent_harness"
 _BASELINE = _REPO_ROOT / "scripts" / "fractal_header_baseline.txt"
+_UNREADABLE = "\0unreadable"
+_PATHSPEC_FROM_STDIN = ("--pathspec-from-file=-", "--pathspec-file-nul")
+_COMMIT_MESSAGE = """docs(arch): add missing IOP headers, _ARCH.md rows and _ARCH.md files at HEAD
+
+Drafted by scripts/fix_fractal_docs.py --head on a snapshot of HEAD and applied only to files whose worktree
+bytes equalled HEAD, so uncommitted work of other sessions is untouched. Descriptions are mechanical drafts
+taken from the code's own docstrings.
+"""
 
 
-@dataclass
-class Edit:
-    path: Path
-    old: str | None  # None: the file must not exist yet
-    new: str
-    notes: list[str] = field(default_factory=list)
+def _git(repo: Path, *args: str, data: bytes | None = None) -> bytes:
+    return subprocess.run(["git", *args], cwd=repo, input=data, capture_output=True, check=True).stdout
 
 
-@dataclass
-class Plan:
-    edits: list[Edit]
-    skipped: list[tuple[Path, str]]
+def _repo_top(path: Path) -> Path:
+    return Path(_git(path, "rev-parse", "--show-toplevel").decode().strip())
 
 
-class ConflictError(Exception):
-    """The file changed between analysis and write."""
+def _read(path: Path) -> str | None:
+    try:
+        return path.read_bytes().decode("utf-8")
+    except FileNotFoundError:
+        return None
+    except (OSError, UnicodeDecodeError):
+        return _UNREADABLE
 
 
-class _Planner:
-    def __init__(self, package_root: Path, baseline: frozenset[str], in_scope: Callable[[Path], bool]) -> None:
-        self.package_root = package_root
-        self.baseline = baseline
-        self.in_scope = in_scope
-        self.edits: dict[Path, Edit] = {}
-        self.skipped: list[tuple[Path, str]] = []
-        self.summaries: dict[Path, str] = {}
+def _skip_reason(old: str | None, current: str | None) -> str:
+    if old is None:
+        return "already exists in the worktree"
+    return "deleted in the worktree" if current is None else "differs from HEAD in the worktree"
 
-    def build(self) -> Plan:
-        self._plan_headers()
-        self._plan_arch()
-        return Plan(list(self.edits.values()), self.skipped)
 
-    # ------------------------------------------------------------------ helpers
+def head_plan(package_root: Path, baseline: frozenset[str]) -> Plan:
+    """Plan against the committed tree and keep only the edits the worktree can take without touching other work.
 
-    def _rel(self, path: Path) -> str:
-        try:
-            return path.relative_to(self.package_root.parent.parent).as_posix()
-        except ValueError:
-            return path.as_posix()
-
-    def _load(self, path: Path) -> str | None:
-        try:
-            text = path.read_bytes().decode("utf-8")
-        except (OSError, UnicodeDecodeError) as exc:
-            self.skipped.append((path, f"unreadable: {exc}"))
-            return None
-        if "\r" in text:
-            self.skipped.append((path, "CR/CRLF line endings are not supported"))
-            return None
-        return text
-
-    def _current(self, path: Path) -> str | None:
-        edit = self.edits.get(path)
-        if edit is not None:
-            return edit.new
-        return self._load(path) if path.is_file() else None
-
-    def _stage(self, path: Path, new: str, note: str) -> None:
-        edit = self.edits.get(path)
-        if edit is not None:
-            edit.new = new
-            edit.notes.append(note)
-            return
-        old = self._load(path) if path.is_file() else None
-        if old is None and path.is_file():
-            return
-        self.edits[path] = Edit(path, old, new, [note])
-
-    def _summary(self, path: Path) -> str:
-        return self.summaries.get(path) or module_summary(path)
-
-    # ------------------------------------------------------------------ headers
-
-    def _plan_headers(self) -> None:
-        for path in gate.missing_io_headers(self.package_root):
-            if gate.rel_package_path(self.package_root, path) in self.baseline or not self.in_scope(path):
-                continue
-            source = self._load(path)
-            if source is None:
-                continue
-            try:
-                result = add_header(source, path, self.package_root)
-            except HeaderError as exc:
-                self.skipped.append((path, str(exc)))
-                continue
-            self.summaries[path] = result.summary
-            self.edits[path] = Edit(path, source, result.source, [f"header  {self._rel(path)}  {result.summary}"])
-
-    # -------------------------------------------------------------------- _ARCH
-
-    def _plan_arch(self) -> None:
-        missing = set(gate.missing_arch_dirs(self.package_root))
-        reports = {report.directory: report for report in inventory.scan_tree(self.package_root)}
-        for directory in sorted(missing | set(reports), key=lambda d: (len(d.parts), d.as_posix())):
-            if directory in missing:
-                self._create_arch(directory)
-            else:
-                self._update_arch(directory, reports[directory])
-
-    def _create_arch(self, directory: Path) -> None:
-        names = sorted(p.name for p in directory.iterdir() if p.is_file() and p.suffix == ".py")
-        if not any(self.in_scope(directory / name) for name in names):
-            return
-        rows = {name: self._summary(directory / name) for name in names}
-        overview = overview_of(rows)
-        arch = directory / "_ARCH.md"
-        self._stage(
-            arch, render_new_arch(directory.name, overview, rows), f"create  {self._rel(arch)}  ({len(rows)} files)"
+    The analysis runs on ``git archive HEAD``. An edit survives when its target is byte-identical to HEAD in the
+    worktree (a new file: absent), which also means the result can be committed without dragging along anybody's
+    uncommitted changes. ``_ARCH.md`` rows never contradict the worktree: none is added for a file deleted there and
+    none is pruned for a file that so far exists only there.
+    """
+    top = _repo_top(package_root)
+    relative = package_root.relative_to(top)
+    archive = _git(top, "archive", "HEAD", "--", relative.as_posix())
+    with tempfile.TemporaryDirectory(prefix="fix_fractal_head_") as tmp:
+        snapshot = Path(tmp)
+        with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
+            tar.extractall(snapshot, filter="data")
+        plan = build_plan(
+            snapshot / relative,
+            baseline,
+            lambda _path: True,
+            lambda path: (top / path.relative_to(snapshot)).exists(),
         )
-        if directory == self.package_root:
-            return
-        parent = directory.parent / "_ARCH.md"
-        parent_text = self._current(parent)
-        updated = add_subpackage_row(parent_text, directory.name, overview) if parent_text is not None else None
-        if updated is not None:
-            self._stage(parent, updated, f"index   {self._rel(parent)}  + {directory.name}/")
-
-    def _update_arch(self, directory: Path, report: inventory.DirReport) -> None:
-        missing = [name for name in report.missing_in_arch if self.in_scope(directory / name)]
-        stale = list(report.extra_in_arch) if missing or self.in_scope(directory) else []
-        if not missing and not stale:
-            return
-        arch = directory / "_ARCH.md"
-        text = self._current(arch)
-        if text is None:
-            return
-        add = {name: self._summary(directory / name) for name in missing}
-        new = update_file_table(text, add, stale)
-        if new != text:
-            changes = ", ".join([*(f"+{name}" for name in missing), *(f"-{name}" for name in stale)])
-            self._stage(arch, new, f"table   {self._rel(arch)}  {changes}")
+        skipped = [(top / path.relative_to(snapshot), reason) for path, reason in plan.skipped]
+        edits: list[Edit] = []
+        for edit in plan.edits:
+            target = top / edit.path.relative_to(snapshot)
+            current = _read(target)
+            if current == edit.old:
+                edits.append(Edit(target, edit.old, edit.new, edit.notes))
+            else:
+                skipped.append((target, _skip_reason(edit.old, current)))
+    return Plan(edits, skipped)
 
 
-def build_plan(package_root: Path, baseline: frozenset[str], in_scope: Callable[[Path], bool]) -> Plan:
-    """Analyse ``package_root`` against both gates and return the edits that would satisfy them."""
-    return _Planner(package_root, baseline, in_scope).build()
-
-
-def _write(edit: Edit) -> None:
-    path = edit.path
-    if edit.old is None:
-        if path.exists():
-            raise ConflictError("created by someone else during the run")
-    elif path.read_bytes().decode("utf-8") != edit.old:
-        raise ConflictError("changed on disk during the run; re-run to pick up the new content")
-    temp = path.with_name(f".{path.name}.fixtmp")
-    temp.write_text(edit.new, encoding="utf-8")
-    if path.exists():
-        shutil.copymode(path, temp)
-    os.replace(temp, path)
-
-
-def apply_plan(plan: Plan) -> list[tuple[Path, str]]:
-    """Write every edit atomically; returns the ``(path, reason)`` of those that could not be written."""
-    failures: list[tuple[Path, str]] = []
-    for edit in plan.edits:
-        try:
-            _write(edit)
-        except (ConflictError, OSError, ValueError) as exc:
-            failures.append((edit.path, str(exc)))
-    return failures
+def commit_edits(top: Path, edits: list[Edit]) -> bool:
+    """Commit exactly the files in ``edits`` and nothing else; False when another session already committed them."""
+    paths = [edit.path.relative_to(top).as_posix() for edit in edits]
+    created = [path for edit, path in zip(edits, paths, strict=True) if edit.old is None]
+    try:
+        if created:
+            _git(top, "add", *_PATHSPEC_FROM_STDIN, data="\0".join(created).encode())
+        _git(
+            top, "commit", "--only", "-q", "-m", _COMMIT_MESSAGE, *_PATHSPEC_FROM_STDIN, data="\0".join(paths).encode()
+        )
+    except subprocess.CalledProcessError:
+        if _git(top, "status", "--porcelain", "--", *paths).strip():
+            raise
+        return False
+    return True
 
 
 def _scope(targets: list[Path]) -> Callable[[Path], bool]:
@@ -235,6 +159,12 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--write", action="store_true", help="apply the edits (default: dry-run)")
     parser.add_argument("--all", action="store_true", help="with --write: fix everything the gates report")
     parser.add_argument(
+        "--head",
+        action="store_true",
+        help="plan against git HEAD and touch only files identical to HEAD (safe in a shared worktree, no PATH needed)",
+    )
+    parser.add_argument("--commit", action="store_true", help="with --head --write: commit exactly the files written")
+    parser.add_argument(
         "--package-root", type=Path, default=_PACKAGE_ROOT, help="harness package (default: src/myrm_agent_harness)"
     )
     parser.add_argument(
@@ -246,6 +176,22 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _check_arguments(
+    parser: argparse.ArgumentParser, args: argparse.Namespace, package_root: Path, targets: list[Path]
+) -> None:
+    outside = [path for path in targets if not path.exists() or not path.is_relative_to(package_root)]
+    if outside:
+        parser.error(f"not inside {package_root}: {', '.join(str(path) for path in outside)}")
+    if (args.head or args.all) and targets:
+        parser.error("PATH arguments cannot be combined with --head or --all")
+    if args.head and args.all:
+        parser.error("--head and --all are mutually exclusive")
+    if args.commit and not (args.head and args.write):
+        parser.error("--commit needs --head --write")
+    if args.write and not (targets or args.all or args.head):
+        parser.error("--write needs PATH arguments, --head or --all (shared worktrees: touch only your own files)")
+
+
 def _report(plan: Plan) -> None:
     for edit in plan.edits:
         for note in edit.notes:
@@ -254,22 +200,35 @@ def _report(plan: Plan) -> None:
         print(f"  skip    {path.as_posix()}  {reason}")
 
 
+def _commit_written(package_root: Path, edits: list[Edit]) -> bool:
+    if not edits:
+        return True
+    try:
+        committed = commit_edits(_repo_top(package_root), edits)
+    except subprocess.CalledProcessError as exc:
+        print(f"  failed  commit  {(exc.stderr or b'').decode().strip()}")
+        print("The files above were written but not committed; commit them yourself (git commit --only -- PATH ...).")
+        return False
+    print(f"Committed {len(edits)} file(s)." if committed else "Already committed by another session.")
+    return True
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _parser()
     args = parser.parse_args(argv)
     package_root = args.package_root.resolve()
     targets = [path.resolve() for path in args.paths]
-    outside = [path for path in targets if not path.exists() or not path.is_relative_to(package_root)]
-    if outside:
-        parser.error(f"not inside {package_root}: {', '.join(str(path) for path in outside)}")
-    if args.write and not targets and not args.all:
-        parser.error("--write needs explicit PATH arguments or --all (shared worktrees: touch only your own files)")
-    if args.all and targets:
-        parser.error("--all cannot be combined with PATH arguments")
+    _check_arguments(parser, args, package_root, targets)
     baseline = gate.load_header_baseline(args.header_baseline.resolve()) if args.header_baseline else frozenset()
     in_scope = _scope(targets)
 
-    plan = build_plan(package_root, baseline, in_scope)
+    if args.head:
+        try:
+            plan = head_plan(package_root, baseline)
+        except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+            parser.error(f"--head needs git and a checkout with at least one commit ({exc})")
+    else:
+        plan = build_plan(package_root, baseline, in_scope)
     _report(plan)
     if not plan.edits and not plan.skipped:
         print("Nothing to fix.")
@@ -281,12 +240,14 @@ def main(argv: list[str] | None = None) -> int:
     failures = apply_plan(plan)
     for path, reason in failures:
         print(f"  failed  {path.as_posix()}  {reason}")
-    remaining = build_plan(package_root, baseline, in_scope)
+    remaining = Plan([], plan.skipped) if args.head else build_plan(package_root, baseline, in_scope)
     print(f"Wrote {len(plan.edits) - len(failures)} file(s); descriptions are mechanical drafts - refine them by hand.")
+    failed = {path for path, _ in failures}
+    committed = not args.commit or _commit_written(package_root, [e for e in plan.edits if e.path not in failed])
     if remaining.edits or remaining.skipped:
         print("Still failing the gates:")
         _report(remaining)
-    return 1 if failures or remaining.edits or remaining.skipped else 0
+    return 1 if failures or remaining.edits or remaining.skipped or not committed else 0
 
 
 if __name__ == "__main__":

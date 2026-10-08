@@ -25,6 +25,7 @@ on:
       - 'scripts/fix_fractal_docs.py'
       - 'scripts/fractal_header_engine.py'
       - 'scripts/fractal_arch_engine.py'
+      - 'scripts/fractal_fix_planner.py'
       - 'scripts/file_line_baseline.txt'
       - 'packages/myrm-agent-harness-core/**'
       - '.pre-commit-config.yaml'
