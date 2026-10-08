@@ -114,6 +114,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | pinning/ | Guarantees zero-pruning preservation of pinned contexts and constructs inspector cards. See [pinning/_ARCH.md](pinning/_ARCH.md). |
 | pipeline/ | Ordered context processors for filtering, active per-step tool-result pruning, cache-TTL pruning, pre-compaction recall, compression, session notes, summarization, post-compaction refetch guard, normalization, and explicit cache markers. Filter and Compress consume compression_intent via retention_helpers. |
 | portable_export/ | Builder engine for assembling, redacting, and cryptographically signing portable context bundles. See [portable_export/_ARCH.md](portable_export/_ARCH.md). |
+| prefix_caching_ledger/ | Prefix caching aligned context layout and hidden reasoning token ledger suite (Item 308). See [prefix_caching_ledger/_ARCH.md](prefix_caching_ledger/_ARCH.md). |
 | privacy_mode/ | 核心引擎实现：会话级隐私模式：卸除全部工具硬门禁与擅自调用拦截。 See [privacy_mode/_ARCH.md](privacy_mode/_ARCH.md). |
 | proactive_recall/ | Core engine for Context Gap Auto Probe and Intent-Driven Proactive Recall Gate (Item 210). See [proactive_recall/_ARCH.md](proactive_recall/_ARCH.md). |
 | progressive_disclosure/ | Engine for 4-layer progressive disclosure cognitive path and evidence traceability. See [progressive_disclosure/_ARCH.md](progressive_disclosure/_ARCH.md). |

@@ -1274,6 +1274,17 @@ from .thought_stream_adapter import (
     ThoughtStepDescriptor,
     ThoughtStreamChunk,
 )
+from .prefix_caching_ledger import (
+    ContextBlockDescriptor,
+    ContextTier,
+    HiddenReasoningTokensPenetrationAuditor,
+    MultiDimensionalSessionTokenLedger,
+    PrefixCachingAlignedContextLayoutAndHiddenReasoningTokenLedgerSuite,
+    PrefixCachingAlignedLayoutEngine,
+    PrefixCachingLayoutConfig,
+    TokenUsageBreakdown,
+    TurnLedgerRecord,
+)
 from .sandbox_pause_resume import (
     AgentkitPauseResumeSessionSandboxSuite,
     PauseResumeActionKind,
@@ -2482,6 +2493,16 @@ __all__ = [
     "ThoughtAdapterConfig",
     "ThoughtStepDescriptor",
     "ThoughtStreamChunk",
+    # prefix_caching_ledger
+    "ContextBlockDescriptor",
+    "ContextTier",
+    "HiddenReasoningTokensPenetrationAuditor",
+    "MultiDimensionalSessionTokenLedger",
+    "PrefixCachingAlignedContextLayoutAndHiddenReasoningTokenLedgerSuite",
+    "PrefixCachingAlignedLayoutEngine",
+    "PrefixCachingLayoutConfig",
+    "TokenUsageBreakdown",
+    "TurnLedgerRecord",
 ]
 
 
