@@ -125,6 +125,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | prompt_anchoring/ | Gateway orchestrating dual-layer system prompt assembly and tail redirection. See [prompt_anchoring/_ARCH.md](prompt_anchoring/_ARCH.md). |
 | prompt_cache_clock/ | Core engine for Tiered Prompt Cache and Hour Clock Governor Suite (Item 222). See [prompt_cache_clock/_ARCH.md](prompt_cache_clock/_ARCH.md). |
 | reasoning_collapse/ | Engine for collapsing deep reasoning thought streams and aligning prompt cache. See [reasoning_collapse/_ARCH.md](reasoning_collapse/_ARCH.md). |
+| response_verbosity/ | Tri-tier response verbosity control and dynamic density tuner suite (Item 311). See [response_verbosity/_ARCH.md](response_verbosity/_ARCH.md). |
 | resumed_usage_meter/ | Core calculator isolating incremental run token usage from legacy historical context. See [resumed_usage_meter/_ARCH.md](resumed_usage_meter/_ARCH.md). |
 | revocation_eviction/ | Core engine for Context Sanitization and Memory Eviction Upon Revocation. See [revocation_eviction/_ARCH.md](revocation_eviction/_ARCH.md). |
 | rolling_memory_pipeline/ | Subsystem reading massive documents in token-bounded chunks and rolling compact structured memory across fresh contexts (Uni-Agent MemAgent inspired). See [rolling_memory_pipeline/_ARCH.md](rolling_memory_pipeline/_ARCH.md). |
