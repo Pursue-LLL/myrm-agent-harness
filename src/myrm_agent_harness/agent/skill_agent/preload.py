@@ -2,26 +2,103 @@
 
 [OUTPUT]
 - SkillAgentPreloadMixin._preload_explicit_skill(): (query, primary_skill, preloaded_skills)
+- SkillAgentPreloadMixin._preload_explicit_skill_in_blocks(): the same for a multimodal query (message with attachments)
+- SkillAgentPreloadMixin._resolve_resumed_turn_skills(): the skills an interrupted turn was invoked with, for a resume that carries no query
 
 [POS]
-Detects [use skill] prefix and pre-injects bundled SOP content before run().
+Detects the leading [use skill] tag (grammar: skill_reference.parse_use_tag) and pre-injects bundled SOP
+content before run().
 """
 
 from __future__ import annotations
 
-import re
+from typing import TYPE_CHECKING, cast
 
+from myrm_agent_harness.agent.skill_agent.skill_reference import parse_use_tag, resolve_skill_reference
 from myrm_agent_harness.backends.skills.types import SkillInstance, SkillMetadata
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from langchain_core.messages import BaseMessage
+
+    from myrm_agent_harness.backends.skills.protocols import SkillBackend
+    from myrm_agent_harness.utils.chat_utils import ChatHistoryReq, ContentItem
 
 logger = get_agent_logger(__name__)
 
 
-class SkillAgentPreloadMixin:
-    _USE_SKILL_PATTERN = re.compile(r"^\[use\s+([\w,\s-]+)\]\s*(.*)", re.DOTALL)
+def _last_human_text(chat_history: ChatHistoryReq | list[BaseMessage] | None) -> str:
+    """Text of the user's most recent message in a chat history ('' when there is none).
 
+    Extension custom messages travel as human messages too; they are not something the user typed.
+    """
+    from langchain_core.messages import HumanMessage
+
+    from myrm_agent_harness.utils.chat_utils import convert_chat_history_simple, extract_text_content
+
+    for message in reversed(convert_chat_history_simple(chat_history)):
+        if isinstance(message, HumanMessage) and not message.additional_kwargs.get("is_custom_message"):
+            return extract_text_content(cast("ContentItem", message.content))
+    return ""
+
+
+class SkillAgentPreloadMixin:
     _TOKEN_BUDGET_MAX = 12000
     """Soft cap (in estimated characters) for combined SOP injection to prevent token explosion."""
+
+    skill_backend: SkillBackend | None
+
+    if TYPE_CHECKING:
+
+        async def _get_cached_skills(self) -> list[SkillMetadata]: ...
+
+    async def _resolve_resumed_turn_skills(
+        self, chat_history: ChatHistoryReq | list[BaseMessage] | None
+    ) -> list[SkillMetadata]:
+        """Skills the interrupted turn was explicitly invoked with, for a HITL resume.
+
+        A resume carries no query, so the ``[use ...]`` tag is no longer in front of the agent. It
+        is still on the user message that opened the interrupted turn: the last human message of
+        the history.
+        """
+        invocation = parse_use_tag(_last_human_text(chat_history))
+        if invocation is None or not self.skill_backend:
+            return []
+        return self._resolve_referenced_skills(invocation.references, await self._get_cached_skills())
+
+    @staticmethod
+    def _resolve_referenced_skills(references: Sequence[str], skills: list[SkillMetadata]) -> list[SkillMetadata]:
+        """Skills the ``[use ...]`` references name, each at most once and in the order typed."""
+        resolved: dict[str, SkillMetadata] = {}
+        for reference in references:
+            skill = resolve_skill_reference(reference, skills)
+            if skill is None:
+                logger.info("Explicit skill '%s' not found in %d skills — skipped", reference, len(skills))
+            else:
+                resolved.setdefault(skill.name, skill)
+        return list(resolved.values())
+
+    async def _preload_explicit_skill_in_blocks(
+        self, blocks: list[dict[str, object]]
+    ) -> tuple[list[dict[str, object]], SkillMetadata | None, list[SkillMetadata]]:
+        """``_preload_explicit_skill`` for a multimodal query (a message with attachments).
+
+        The user's own words are the first block; text that comes from attachments follows it. Only the
+        first block may carry the tag, so the content of an attachment can never invoke a skill. The
+        blocks are never modified in place.
+        """
+        first = blocks[0] if blocks else None
+        if not isinstance(first, dict) or first.get("type") != "text":
+            return blocks, None, []
+        text = first.get("text")
+        if not isinstance(text, str):
+            return blocks, None, []
+        expanded, primary, preloaded = await self._preload_explicit_skill(text)
+        if primary is None:
+            return blocks, None, []
+        return [{**first, "text": expanded}, *blocks[1:]], primary, preloaded
 
     async def _preload_explicit_skill(self, query: str) -> tuple[str, SkillMetadata | None, list[SkillMetadata]]:
         """Detect ``[use skill_name]`` or ``[use s1,s2,s3]`` prefix and pre-inject SOP(s).
@@ -37,32 +114,16 @@ class SkillAgentPreloadMixin:
             (modified_query, primary_skill_meta, preloaded_skills) — on failure the
             query is unchanged and both skill slots are empty.
         """
-        match = self._USE_SKILL_PATTERN.match(query)
-        if not match:
+        invocation = parse_use_tag(query)
+        if invocation is None:
             return query, None, []
-
-        raw_names = match.group(1)
-        user_args = match.group(2).strip()
-
-        skill_names = [n.strip() for n in raw_names.split(",") if n.strip()]
-        if not skill_names:
-            return query, None, []
+        skill_names, user_args = invocation.references, invocation.text
 
         if not self.skill_backend:
             logger.debug("Explicit skill(s) %s requested but no skill_backend", skill_names)
             return query, None, []
 
-        skills = await self._get_cached_skills()
-        skill_map = {s.name: s for s in skills}
-
-        matched: list[SkillMetadata] = []
-        for name in skill_names:
-            meta = skill_map.get(name)
-            if meta:
-                matched.append(meta)
-            else:
-                logger.info("Explicit skill '%s' not found in %d skills — skipped", name, len(skills))
-
+        matched = self._resolve_referenced_skills(skill_names, await self._get_cached_skills())
         if not matched:
             return query, None, []
 

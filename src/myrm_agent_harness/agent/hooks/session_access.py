@@ -6,7 +6,7 @@ helpers. ``executor.py`` re-exports these names, so both import paths
 
 [INPUT]
 - agent.hooks.types (POS: Hook 类型定义)
-- agent.hooks.executor::HookExecutor/HookRegistry (POS: 钩子执行引擎与注册管理器，懒加载避免环)
+- agent.hooks.executor::HookExecutor, agent.hooks.registry::HookRegistry (POS: 钩子执行引擎与注册管理器，懒加载避免环)
 
 [OUTPUT]
 - get/set_hook_executor: ContextVar accessors
@@ -35,7 +35,8 @@ from myrm_agent_harness.agent.hooks.types import (
 )
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.agent.hooks.executor import HookExecutor, HookRegistry
+    from myrm_agent_harness.agent.hooks.executor import HookExecutor
+    from myrm_agent_harness.agent.hooks.registry import HookRegistry
 
 _executor_var: ContextVar[HookExecutor | None] = ContextVar("hook_executor", default=None)
 
@@ -75,7 +76,8 @@ def bootstrap_hook_registry() -> HookRegistry:
     Ensures that the registry is a singleton per session and avoids
     duplicate registration of core framework hooks.
     """
-    from myrm_agent_harness.agent.hooks.executor import HookExecutor, HookRegistry
+    from myrm_agent_harness.agent.hooks.executor import HookExecutor
+    from myrm_agent_harness.agent.hooks.registry import HookRegistry
 
     executor = get_hook_executor()
     if executor is not None:

@@ -6,10 +6,12 @@
 - types::SkillMetadata (POS: 技能元数据类型)
 
 [OUTPUT]
-- CompositeSkillBackend: 混合技能后端（根据前缀路由到不同后端，支持回退）
+- CompositeSkillBackend: 混合技能后端（前缀直达指定后端；其余技能按 list_skills 同一优先级归属解析）
 
 [POS]
-Composite skill backend. Routes requests to different backends based on skill name prefix with default fallback.
+Composite skill backend. A key with a route prefix addresses that route alone; any other key (skill metadata
+carries bare names and storage ids) resolves to the backend that owns the skill, in the priority order
+`list_skills` uses to settle duplicate names.
 
 """
 
@@ -24,7 +26,10 @@ logger = logging.getLogger(__name__)
 class CompositeSkillBackend(SkillBackend):
     """混合技能后端（路由）
 
-    根据技能名称前缀，将请求路由到不同的后端。
+    - 带路由前缀的键（如 ``/user/my_skill``）只发往该前缀对应的后端。
+    - 其余键（``list_skills`` 返回的技能名 / ``storage_skill_id`` 均不带前缀）依次询问各后端，
+      顺序与 ``list_skills`` 的同名去重一致：后注册的路由优先，默认后端最后。
+      因此被列出的技能一定能取回内容与资源。
 
     类似 LangChain 的 CompositeBackend Router：
     https://docs.langchain.com/oss/python/deepagents/backends#compositebackend-router
@@ -38,9 +43,8 @@ class CompositeSkillBackend(SkillBackend):
         ...     default=local_backend,
         ... )
         >>>
-        >>> # 请求 "/user/my_skill" -> 路由到 user_backend
-        >>> # 请求 "/system/tool" -> 路由到 system_backend
-        >>> # 请求 "other" -> 路由到 default backend
+        >>> # 请求 "/user/my_skill" -> 只发往 user_backend
+        >>> # 请求 "my_skill" -> 依次询问 system_backend、user_backend、local_backend
     """
 
     def __init__(
@@ -59,12 +63,15 @@ class CompositeSkillBackend(SkillBackend):
         # 按前缀长度降序排序（最长匹配优先）
         self.sorted_routes = sorted(routes.items(), key=lambda x: len(x[0]), reverse=True)
 
-    def _get_backend(self, skill_name: str) -> SkillBackendProtocol | None:
-        """根据技能名称获取对应的后端"""
+    def _candidate_backends(self, skill_key: str) -> list[SkillBackendProtocol]:
+        """Backends that may serve ``skill_key``, in resolution order."""
         for prefix, backend in self.sorted_routes:
-            if skill_name.startswith(prefix):
-                return backend
-        return self.default
+            if skill_key.startswith(prefix):
+                return [backend]
+        candidates = list(reversed(self.routes.values()))
+        if self.default is not None:
+            candidates.append(self.default)
+        return candidates
 
     async def list_skills(self) -> list[SkillMetadata]:
         """列出所有后端的技能（同名去重，后注册的后端优先）
@@ -132,37 +139,59 @@ class CompositeSkillBackend(SkillBackend):
         return list(skills_by_name.values())
 
     async def get_skill_content(self, skill_name: str) -> str:
-        """获取技能内容（实现 SkillBackend 协议）"""
-        backend = self._get_backend(skill_name)
-        if not backend:
+        """获取技能内容（实现 SkillBackend 协议）
+
+        Args:
+            skill_name: 技能名称或 ``storage_skill_id``
+
+        Raises:
+            ValueError: 未配置任何后端
+            FileNotFoundError: 没有后端拥有该技能
+        """
+        backends = self._candidate_backends(skill_name)
+        if not backends:
             msg = f"No backend found for skill: {skill_name}"
             raise ValueError(msg)
 
-        return await backend.get_skill_content(skill_name)
+        for backend in backends:
+            try:
+                return await backend.get_skill_content(skill_name)
+            except FileNotFoundError:
+                continue
+        msg = f"Skill not found in any backend: {skill_name}"
+        raise FileNotFoundError(msg)
 
     async def get_skill_resources(self, skill_name: str, path: str) -> bytes:
-        """获取技能资源文件（路由到对应后端）
+        """获取技能资源文件（由拥有该技能的后端提供）
 
         Args:
-            skill_name: 技能名称
+            skill_name: 技能名称或 ``storage_skill_id``
             path: 资源文件相对路径
 
         Returns:
             文件内容（字节）
 
         Raises:
-            ValueError: 找不到对应后端
-            FileNotFoundError: 文件不存在
+            ValueError: 未配置任何后端
+            FileNotFoundError: 没有后端拥有该技能的此文件
         """
-        backend = self._get_backend(skill_name)
-        if not backend:
+        backends = self._candidate_backends(skill_name)
+        if not backends:
             msg = f"No backend found for skill: {skill_name}"
             raise ValueError(msg)
 
-        return await backend.get_skill_resources(skill_name, path)
+        for backend in backends:
+            try:
+                return await backend.get_skill_resources(skill_name, path)
+            except FileNotFoundError:
+                continue
+        msg = f"Resource not found in any backend: {path} in skill '{skill_name}'"
+        raise FileNotFoundError(msg)
 
     async def list_skill_resources(self, skill_name: str) -> list[str]:
-        backend = self._get_backend(skill_name)
-        if not backend:
-            return []
-        return await backend.list_skill_resources(skill_name)
+        """列出技能的资源文件（取第一个返回非空列表的后端）"""
+        for backend in self._candidate_backends(skill_name):
+            resources = await backend.list_skill_resources(skill_name)
+            if resources:
+                return resources
+        return []

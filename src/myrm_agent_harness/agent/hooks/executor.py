@@ -1,7 +1,8 @@
-"""Hook registry and execution engine.
+"""Hook execution engine.
 
 [INPUT]
 - agent.hooks.types (POS: Hook 类型定义)
+- agent.hooks.registry::HookRegistry (POS: 钩子存储，按事件分组，支持作用域生命周期)
 - agent.hooks.command_gate (POS: 命令钩子安全网关(判模板、不判载荷)+载荷环境变量绑定+审批注入点)
 - agent.hooks.session_access (POS: 会话级 ContextVar 访问 API，本文件头部 re-export)
 - core.security.http.secure_fetch::secure_request (POS: SSRF-protected outbound HTTP)
@@ -10,13 +11,13 @@
 - utils.logger_utils (POS: 日志工具)
 
 [OUTPUT]
-- HookRegistry: 钩子注册管理器（get() 按 -priority 稳定排序，安全钩子恒定最先）
+- HookRegistry: 从 registry 模块再导出（PEP 484 显式导出标记）
 - HookExecutor: 钩子执行引擎 (4 种执行器, elapsed_ms 计时, 安全决策锁定防 deny→approve 翻转)
 - get_hook_executor, set_hook_executor: ContextVar 访问器
 - _SLOW_HOOK_THRESHOLD_MS: 慢 Hook 日志阈值 (500ms)
 
 [POS]
-Hook execution layer. Manages hook registration and execution with ContextVar-based session isolation.
+Hook execution layer. Dispatches hooks from a registry with ContextVar-based session isolation.
 
 """
 
@@ -27,7 +28,6 @@ import fnmatch
 import json
 import os
 import time
-from collections import defaultdict
 from dataclasses import replace
 
 from myrm_agent_harness.agent.hooks.command_gate import (
@@ -48,6 +48,10 @@ from myrm_agent_harness.agent.hooks.command_gate import (
 from myrm_agent_harness.agent.hooks.command_gate import (
     merged_governance_metadata as _merged_metadata,
 )
+from myrm_agent_harness.agent.hooks.command_gate import (
+    payload_env_value as _payload_env_value,
+)
+from myrm_agent_harness.agent.hooks.registry import HookRegistry
 from myrm_agent_harness.agent.hooks.session_access import (
     bootstrap_hook_registry,
     fire_hook,
@@ -70,9 +74,10 @@ from myrm_agent_harness.utils.chat_utils import extract_answer_text
 from myrm_agent_harness.utils.json_parsing import parse_llm_json_object
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
-# session_access re-exports: PEP 484 explicit-export marker so mypy
-# (implicit_reexport=False) accepts ``from ...hooks.executor import fire_hook``.
+# Re-exports (session_access API, HookRegistry): PEP 484 explicit-export marker so
+# mypy (implicit_reexport=False) accepts ``from ...hooks.executor import fire_hook``.
 __all__ = [
+    "HookRegistry",
     "bootstrap_hook_registry",
     "fire_hook",
     "get_hook_executor",
@@ -83,67 +88,6 @@ __all__ = [
 logger = get_agent_logger(__name__)
 
 _SLOW_HOOK_THRESHOLD_MS = 500.0
-
-
-# ---------------------------------------------------------------------------
-# Registry
-# ---------------------------------------------------------------------------
-
-
-class HookRegistry:
-    """Store hooks grouped by event name.
-
-    Accepts both HookEvent enum values and arbitrary strings for custom events.
-    """
-
-    __slots__ = "_hooks"
-
-    def __init__(self) -> None:
-        self._hooks: dict[str, list[HookDefinition]] = defaultdict(list)
-
-    def register(self, event: str, hook: HookDefinition) -> None:
-        self._hooks[event].append(hook)
-
-    def get(self, event: str) -> list[HookDefinition]:
-        """Return hooks ordered by ``(-priority, registration order)``.
-
-        ``sorted`` is stable, so equal priorities keep the onion-model
-        registration order (first registered sees the event first) while
-        security-priority hooks always run before user-authored hooks.
-        """
-        return sorted(self._hooks.get(event, []), key=lambda h: -h.priority)
-
-    def clear(self) -> None:
-        self._hooks.clear()
-
-    @property
-    def total_count(self) -> int:
-        return sum(len(hooks) for hooks in self._hooks.values())
-
-    def summary(self) -> str:
-        lines: list[str] = []
-        for event, hooks in sorted(self._hooks.items()):
-            if not hooks:
-                continue
-            lines.append(f"{event}:")
-            for hook in hooks:
-                matcher = hook.matcher or "*"
-                detail = _hook_detail(hook)
-                lines.append(f"  - [{hook.type}] matcher={matcher} {detail}")
-        return "\n".join(lines)
-
-
-def _hook_detail(hook: HookDefinition) -> str:
-    if isinstance(hook, CallableHookDefinition):
-        fn_name = getattr(hook.fn, "__name__", repr(hook.fn))
-        return f"fn={fn_name}"
-    if isinstance(hook, CommandHookDefinition):
-        return f"cmd={hook.command[:60]}"
-    if isinstance(hook, HttpHookDefinition):
-        return f"url={hook.url[:60]}"
-    if isinstance(hook, LLMHookDefinition):
-        return f"depth={hook.depth} prompt={hook.prompt[:40]}"
-    return ""
 
 
 # ---------------------------------------------------------------------------
@@ -262,11 +206,13 @@ class HookExecutor:
                     metadata={"gate_blocked": True},
                 )
 
-        # Event data reaches the command only through this env var (see bind_payload_reference).
+        # Event data reaches the command only through the env var (see bind_payload_reference) and
+        # stdin. The env var is clipped to fit one environment string; stdin carries the complete payload.
         command = _bind_payload_reference(hook.command)
+        payload_json = json.dumps(payload, default=str, ensure_ascii=True)
         extra_env = {
             "HOOK_EVENT": event,
-            PAYLOAD_ENV_VAR: json.dumps(payload, default=str, ensure_ascii=True),
+            PAYLOAD_ENV_VAR: _payload_env_value(payload_json),
         }
         env = build_isolated_child_env(
             base_env=None,
@@ -275,11 +221,17 @@ class HookExecutor:
         )
 
         process = await asyncio.create_subprocess_shell(
-            command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=env
+            command,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env=env,
         )
 
         try:
-            stdout_bytes, stderr_bytes = await asyncio.wait_for(process.communicate(), timeout=hook.timeout_seconds)
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                process.communicate(payload_json.encode("utf-8")), timeout=hook.timeout_seconds
+            )
         except TimeoutError:
             process.kill()
             await process.wait()
@@ -468,7 +420,8 @@ def _matches_hook(hook: HookDefinition, payload: dict[str, object]) -> bool:
     if not hook.matcher:
         return True
     subject = str(payload.get("tool_name", ""))
-    return fnmatch.fnmatch(subject, hook.matcher)
+    # ``|`` separates alternative patterns (``bash_*|write_file_tool``); tool names never contain it.
+    return any(fnmatch.fnmatch(subject, pattern) for pattern in hook.matcher.split("|"))
 
 
 def _inject_arguments(template: str, payload: dict[str, object]) -> str:

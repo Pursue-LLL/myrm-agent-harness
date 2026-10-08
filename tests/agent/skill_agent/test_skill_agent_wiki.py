@@ -100,11 +100,7 @@ class TestMaybeArchiveToWiki:
 
         long_reply = "x" * 600
 
-        loop = asyncio.new_event_loop()
-        try:
-            loop.run_until_complete(self._run_archive(agent, long_reply))
-        finally:
-            loop.close()
+        asyncio.run(self._run_archive(agent, long_reply))
 
     async def _run_archive(self, agent: SkillAgent, reply: str) -> None:
         agent._maybe_archive_to_wiki("What is Python?", [reply])
@@ -121,11 +117,7 @@ class TestMaybeArchiveToWiki:
         mock_compiler.enqueue_file = MagicMock()
         agent._wiki_compiler = mock_compiler
 
-        loop = asyncio.new_event_loop()
-        try:
-            loop.run_until_complete(self._run_and_verify(agent, long_reply))
-        finally:
-            loop.close()
+        asyncio.run(self._run_and_verify(agent, long_reply))
 
     async def _run_and_verify(self, agent: SkillAgent, reply: str) -> None:
         agent._maybe_archive_to_wiki("What is Python?", [reply])
@@ -150,11 +142,7 @@ class TestMaybeArchiveToWiki:
         long_reply = "x" * 600
         list_query: list[dict[str, object]] = [{"type": "text", "text": "hello"}]
 
-        loop = asyncio.new_event_loop()
-        try:
-            loop.run_until_complete(self._run_list_query(agent, list_query, long_reply))
-        finally:
-            loop.close()
+        asyncio.run(self._run_list_query(agent, list_query, long_reply))
 
     async def _run_list_query(self, agent: SkillAgent, query: list[dict[str, object]], reply: str) -> None:
         agent._maybe_archive_to_wiki(query, [reply])
@@ -210,11 +198,7 @@ class TestMaybeArchiveToWiki:
 
         long_reply = "x" * 600
 
-        loop = asyncio.new_event_loop()
-        try:
-            loop.run_until_complete(self._run_and_check_unknown(agent, long_reply))
-        finally:
-            loop.close()
+        asyncio.run(self._run_and_check_unknown(agent, long_reply))
 
     async def _run_and_check_unknown(self, agent: SkillAgent, reply: str) -> None:
         agent._maybe_archive_to_wiki("test", [reply])
@@ -238,11 +222,7 @@ class TestMaybeArchiveToWiki:
 
         long_reply = "x" * 600
 
-        loop = asyncio.new_event_loop()
-        try:
-            loop.run_until_complete(self._run_failing_archive(agent, long_reply))
-        finally:
-            loop.close()
+        asyncio.run(self._run_failing_archive(agent, long_reply))
 
     async def _run_failing_archive(self, agent: SkillAgent, reply: str) -> None:
         agent._maybe_archive_to_wiki("test", [reply])
@@ -259,11 +239,7 @@ class TestMaybeArchiveToWiki:
 
         reply_500 = "x" * 500
 
-        loop = asyncio.new_event_loop()
-        try:
-            loop.run_until_complete(self._run_archive(agent, reply_500))
-        finally:
-            loop.close()
+        asyncio.run(self._run_archive(agent, reply_500))
 
     def test_just_below_threshold_499_chars(self, mock_llm: AsyncMock, wiki_dir: Path) -> None:
         """Content at 499 chars should NOT be archived."""

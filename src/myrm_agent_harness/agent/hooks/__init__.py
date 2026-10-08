@@ -19,7 +19,6 @@ from myrm_agent_harness.agent.hooks.command_gate import (
 )
 from myrm_agent_harness.agent.hooks.executor import (
     HookExecutor,
-    HookRegistry,
     bootstrap_hook_registry,
     fire_hook,
     get_hook_executor,
@@ -32,6 +31,7 @@ from myrm_agent_harness.agent.hooks.output_spiller import (
     HookOutputSpiller,
     spill_hook_contexts,
 )
+from myrm_agent_harness.agent.hooks.registry import HookRegistry
 from myrm_agent_harness.agent.hooks.skill_parser import parse_hooks_from_skill_md
 from myrm_agent_harness.agent.hooks.types import (
     EMPTY_RESULT,

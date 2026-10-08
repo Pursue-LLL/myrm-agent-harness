@@ -31,7 +31,9 @@ from myrm_agent_harness.toolkits.storage import storage_config
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 if TYPE_CHECKING:
+    from myrm_agent_harness.agent.tool_management import ToolRegistry
     from myrm_agent_harness.backends.skills.types import SkillInstance
+    from myrm_agent_harness.toolkits.wiki import WikiCompiler, WikiStructure
 
 logger = get_agent_logger(__name__)
 
@@ -47,8 +49,15 @@ class SkillAgentToolsMixin:
     - storage_backend, llm, config
     - _task_workspace_root (chat sandbox path for progress persistence)
     - _wiki_base_dir, _wiki_public_dirs, _wiki_search_fn
-    - _tool_registry, user_tools, user_middlewares
+    - user_tools, user_middlewares
+
+    Declares the attributes it sets on the agent: ``_tool_registry`` (owned by ``BaseAgent``) and the
+    wiki handles, which stay ``None`` until the wiki tools are mounted.
     """
+
+    _tool_registry: ToolRegistry
+    _wiki_compiler: WikiCompiler | None
+    _wiki_structure: WikiStructure | None
 
     async def _build_tools(self) -> list[BaseTool]:
         """Build tool list via ToolRegistry."""
@@ -78,7 +87,7 @@ class SkillAgentToolsMixin:
                         e,
                     )
 
-        registry = self._tool_registry  # type: ignore[attr-defined]
+        registry = self._tool_registry
 
         def _user_has_tool(tool_name: str) -> bool:
             return any(
@@ -161,7 +170,7 @@ class SkillAgentToolsMixin:
             normalize_tool_names(
                 [*self.user_tools, *supplemental_user_tools]  # type: ignore[attr-defined]
             ),
-            source=ToolSource.USER,  # type: ignore[attr-defined]
+            source=ToolSource.USER,
         )
 
         all_middlewares: list[object] = list(self.user_middlewares)  # type: ignore[attr-defined]
@@ -171,14 +180,14 @@ class SkillAgentToolsMixin:
             all_middlewares.extend(mw for mw in cached_mws if id(mw) not in seen_ids)
 
         for middleware in all_middlewares:
-            if hasattr(middleware, "get_tools") and callable(middleware.get_tools):  # type: ignore[attr-defined]
+            if hasattr(middleware, "get_tools") and callable(middleware.get_tools):
                 try:
-                    mw_tools = middleware.get_tools()  # type: ignore[attr-defined]
+                    mw_tools = middleware.get_tools()
                     if mw_tools:
                         for t in mw_tools:
                             is_internal = t.name.startswith("_")
                             bind_mode = ToolBindMode.RUNTIME_ONLY if is_internal else ToolBindMode.TURN1
-                            registry.register(t, source=ToolSource.MIDDLEWARE, bind_mode=bind_mode)  # type: ignore[arg-type]
+                            registry.register(t, source=ToolSource.MIDDLEWARE, bind_mode=bind_mode)
                 except Exception as e:
                     logger.warning(
                         "Failed to load tools from middleware %s: %s",
@@ -201,7 +210,7 @@ class SkillAgentToolsMixin:
             locale=prompt_locale,
         )
 
-        self._tool_registry = registry  # type: ignore[attr-defined]
+        self._tool_registry = registry
         no_builtin = getattr(self.config, "no_builtin_tools", False)  # type: ignore[attr-defined]
         resolved = registry.resolve(no_builtin_tools=no_builtin)
 
@@ -219,8 +228,8 @@ class SkillAgentToolsMixin:
                 filtered.append(t)
             resolved = filtered
 
-        self._runtime_skill_count = len(skills)  # type: ignore[attr-defined]
-        self._runtime_tool_count = len(resolved)  # type: ignore[attr-defined]
+        self._runtime_skill_count = len(skills)
+        self._runtime_tool_count = len(resolved)
 
         logger.warning(
             "SkillAgent._build_tools resolved %d tools, %d skills: %s",
@@ -265,7 +274,7 @@ class SkillAgentToolsMixin:
         live_root = get_workspace_root()
         if live_root:
             return live_root
-        bound_root = getattr(self, "_task_workspace_root", None)  # type: ignore[attr-defined]
+        bound_root = getattr(self, "_task_workspace_root", None)
         if isinstance(bound_root, str) and bound_root.strip():
             return bound_root.strip()
         return None
@@ -331,8 +340,8 @@ class SkillAgentToolsMixin:
             )
             linter = WikiLinter(self.llm, structure, config)  # type: ignore[attr-defined]
 
-            self._wiki_structure = structure  # type: ignore[attr-defined]
-            self._wiki_compiler = compiler  # type: ignore[attr-defined]
+            self._wiki_structure = structure
+            self._wiki_compiler = compiler
 
             tools = create_wiki_tools(
                 compiler,
@@ -356,8 +365,8 @@ class SkillAgentToolsMixin:
 
     @staticmethod
     def _register_large_doc_ingest(
-        structure: WikiStructure,  # noqa: F821
-        compiler: WikiCompiler,  # noqa: F821
+        structure: WikiStructure,
+        compiler: WikiCompiler,
     ) -> None:
         """Register the PDF large-doc auto-ingest callback into wiki knowledge base.
 
@@ -388,7 +397,7 @@ class SkillAgentToolsMixin:
 
     def get_tool_snapshot(self) -> list[ToolSnapshot]:
         """Return a serializable snapshot of the current tool set."""
-        registry = getattr(self, "_tool_registry", None)
+        registry: ToolRegistry | None = getattr(self, "_tool_registry", None)
         if registry is None:
             return []
         return registry.snapshot()

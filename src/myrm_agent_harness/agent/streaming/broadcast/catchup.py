@@ -125,12 +125,12 @@ class CatchupBriefExtractor:
             brief.needs_from_user = "Agent asked a question."
 
         # Deduplicate activity steps (keep last 5)
-        unique_steps = []
-        seen_steps = set()
-        for step in reversed(brief.activity_steps):
-            if step not in seen_steps:
-                unique_steps.append(step)
-                seen_steps.add(step)
+        unique_steps: list[str] = []
+        seen_steps: set[str] = set()
+        for activity in reversed(brief.activity_steps):
+            if activity not in seen_steps:
+                unique_steps.append(activity)
+                seen_steps.add(activity)
             if len(unique_steps) >= 5:
                 break
         brief.activity_steps = list(reversed(unique_steps))

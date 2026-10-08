@@ -15,7 +15,7 @@ In-process **tool-call side-channel** pub-sub. **`ToolBroadcastBus`** singleton 
 |------|------|-------------|-------|
 | __init__.py | Package | Re-exports ToolBroadcastBus, ToolCallBroadcaster, ToolCallEventData | ✅ |
 | event_bus.py | Core | ToolBroadcastBus — async pub-sub with backpressure for tool events | ✅ |
-| tool_call_broadcaster.py | Core | Hook listener publishing PRE/POST tool events | ✅ |
+| tool_call_broadcaster.py | Core | Hook listener publishing PRE/POST tool events. The callbacks resolve the event logger per event (the run installs its logger after the broadcaster is registered on the session registry), so a broadcaster registered once serves every later run of the session. | ✅ |
 | catchup.py | Core | CatchupBriefExtractor for inbox summaries | ✅ |
 | types.py | Config | ToolCallEventData, EventCallback | ✅ |
 

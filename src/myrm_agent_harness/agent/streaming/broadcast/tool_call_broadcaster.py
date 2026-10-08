@@ -52,7 +52,8 @@ class ToolCallBroadcaster:
         """Initialize broadcaster.
 
         Args:
-            event_logger: Optional EventLogger for persistence.
+            event_logger: Fixed EventLogger for persistence. When omitted, each event goes to the
+                logger of the run that executes the tool (see ``_active_event_logger``).
         """
         self._event_logger = event_logger
         self._pending_calls: dict[str, float] = {}  # tool_call_id -> start_time
@@ -63,6 +64,19 @@ class ToolCallBroadcaster:
         if self._event_bus is None:
             self._event_bus = await ToolBroadcastBus.get_instance()
         return self._event_bus
+
+    def _active_event_logger(self) -> EventLogger | None:
+        """Logger that persists the current tool event.
+
+        The broadcaster is registered when the agent is built, before any run exists, and each
+        run creates its own EventLogger. Resolving the logger per event keeps persistence
+        attached to the run that executes the tool.
+        """
+        if self._event_logger is not None:
+            return self._event_logger
+        from myrm_agent_harness.agent.middlewares._session_context import get_event_logger
+
+        return get_event_logger()
 
     async def on_pre_tool_use(self, event_type: str, payload: dict[str, object]) -> HookResult:
         """Handle PRE_TOOL_USE hook (tool execution start).
@@ -80,11 +94,12 @@ class ToolCallBroadcaster:
 
         self._pending_calls[tool_call_id] = start_time
 
+        tool_input = payload.get("tool_input")
         event_data = ToolCallEventData(
             tool_name=tool_name,
             status="started",
             start_time=start_time,
-            args=payload.get("tool_input") if isinstance(payload.get("tool_input"), dict) else None,
+            args=tool_input if isinstance(tool_input, dict) else None,
             session_id=str(payload.get("session_id")) if payload.get("session_id") else None,
             message_id=str(payload.get("message_id")) if payload.get("message_id") else None,
             tool_call_id=tool_call_id if tool_call_id else None,
@@ -94,8 +109,8 @@ class ToolCallBroadcaster:
         bus = await self._ensure_event_bus()
         await bus.publish(event_data)
 
-        if self._event_logger:
-            await self._event_logger.log(AgentEventType.TOOL_START.value, event_data.to_dict())
+        if event_logger := self._active_event_logger():
+            await event_logger.log(AgentEventType.TOOL_START.value, event_data.to_dict())
 
         logger.debug("Tool started: %s (id=%s)", tool_name, tool_call_id)
         return HookResult(hook_type="tool_call_broadcaster", success=True)
@@ -141,8 +156,8 @@ class ToolCallBroadcaster:
         bus = await self._ensure_event_bus()
         await bus.publish(event_data)
 
-        if self._event_logger:
-            await self._event_logger.log(AgentEventType.TOOL_END.value, event_data.to_dict())
+        if event_logger := self._active_event_logger():
+            await event_logger.log(AgentEventType.TOOL_END.value, event_data.to_dict())
 
         logger.debug("Tool completed: %s (id=%s, duration=%dms)", tool_name, tool_call_id, duration_ms)
         return HookResult(hook_type="tool_call_broadcaster", success=True)
@@ -192,8 +207,8 @@ class ToolCallBroadcaster:
         bus = await self._ensure_event_bus()
         await bus.publish(event_data)
 
-        if self._event_logger:
-            await self._event_logger.log(AgentEventType.TOOL_FAILURE.value, event_data.to_dict())
+        if event_logger := self._active_event_logger():
+            await event_logger.log(AgentEventType.TOOL_FAILURE.value, event_data.to_dict())
 
         logger.warning("Tool failed: %s (id=%s, duration=%dms)", tool_name, tool_call_id, duration_ms)
         return HookResult(hook_type="tool_call_broadcaster", success=True)
@@ -233,8 +248,8 @@ class ToolCallBroadcaster:
         bus = await self._ensure_event_bus()
         await bus.publish(event_data)
 
-        if self._event_logger:
-            await self._event_logger.log(AgentEventType.TOOL_CANCELLED.value, event_data.to_dict())
+        if event_logger := self._active_event_logger():
+            await event_logger.log(AgentEventType.TOOL_CANCELLED.value, event_data.to_dict())
 
         logger.warning(
             "Tool cancelled: %s (id=%s, duration=%dms, reason=%s)",
@@ -253,7 +268,8 @@ def register_to_hook_registry(
 
     Args:
         hook_registry: Agent's hook registry.
-        event_logger: Optional event logger for persistence.
+        event_logger: Fixed event logger for persistence. Leave unset so that events are
+            persisted by the logger of the run that executes each tool.
 
     Returns:
         Broadcaster instance.

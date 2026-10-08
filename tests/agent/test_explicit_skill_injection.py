@@ -6,7 +6,7 @@ Covers:
 - ${SKILL_DIR} template variable replacement
 - Auxiliary file listing
 - Graceful degradation (skill not found, empty SOP, backend errors)
-- Edge cases (non-string query, multiline args, special characters)
+- Edge cases (multimodal query, multiline args, special characters)
 """
 
 from __future__ import annotations
@@ -18,7 +18,10 @@ from unittest.mock import AsyncMock
 import pytest
 
 from myrm_agent_harness.agent.skill_agent import SkillAgent
+from myrm_agent_harness.agent.skill_agent.skill_reference import parse_use_tag
 from myrm_agent_harness.backends.skills.types import SkillMetadata, SkillTrust
+
+_IMAGE_BLOCK: dict[str, object] = {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}}
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -93,72 +96,77 @@ def _make_agent(
 # ---------------------------------------------------------------------------
 
 
-class TestUseSkillPattern:
-    """Tests for the regex that detects [use skill_name] prefix."""
+class TestUseTagGrammar:
+    """Tests for parse_use_tag, the grammar of the leading [use skill_name] tag."""
 
     def test_basic_match(self) -> None:
-        m = SkillAgent._USE_SKILL_PATTERN.match("[use daily_report_skill] generate today's report")
-        assert m is not None
-        assert m.group(1) == "daily_report_skill"
-        assert m.group(2) == "generate today's report"
+        tag = parse_use_tag("[use daily_report_skill] generate today's report")
+        assert tag is not None
+        assert tag.references == ("daily_report_skill",)
+        assert tag.text == "generate today's report"
+
+    def test_literal_tag_is_kept_for_hosts_that_decorate_the_text(self) -> None:
+        tag = parse_use_tag("[use a, b]   do it")
+        assert tag is not None
+        assert tag.tag == "[use a, b]"
+        assert tag.text == "do it"
 
     def test_no_args(self) -> None:
-        m = SkillAgent._USE_SKILL_PATTERN.match("[use deploy_skill]")
-        assert m is not None
-        assert m.group(1) == "deploy_skill"
-        assert m.group(2) == ""
+        tag = parse_use_tag("[use deploy_skill]")
+        assert tag is not None
+        assert tag.references == ("deploy_skill",)
+        assert tag.text == ""
 
     def test_with_args_trailing_space(self) -> None:
-        m = SkillAgent._USE_SKILL_PATTERN.match("[use deploy_skill] staging  ")
-        assert m is not None
-        assert m.group(1) == "deploy_skill"
+        tag = parse_use_tag("[use deploy_skill] staging  ")
+        assert tag is not None
+        assert tag.references == ("deploy_skill",)
+        assert tag.text == "staging"
 
     def test_hyphenated_skill_name(self) -> None:
-        m = SkillAgent._USE_SKILL_PATTERN.match("[use my-great-skill] do something")
-        assert m is not None
-        assert m.group(1) == "my-great-skill"
+        tag = parse_use_tag("[use my-great-skill] do something")
+        assert tag is not None
+        assert tag.references == ("my-great-skill",)
 
     def test_no_match_plain_text(self) -> None:
-        m = SkillAgent._USE_SKILL_PATTERN.match("Just a normal message")
-        assert m is None
+        assert parse_use_tag("Just a normal message") is None
 
     def test_no_match_middle_of_text(self) -> None:
-        m = SkillAgent._USE_SKILL_PATTERN.match("Please [use test_skill] now")
-        assert m is None
+        assert parse_use_tag("Please [use test_skill] now") is None
+
+    def test_no_match_behind_a_prefix_the_host_added(self) -> None:
+        assert parse_use_tag("[Inbound channel message] channel=x\n---\n\n[use test_skill] now") is None
 
     def test_multiline_args(self) -> None:
-        query = "[use test_skill] line1\nline2\nline3"
-        m = SkillAgent._USE_SKILL_PATTERN.match(query)
-        assert m is not None
-        assert "line1\nline2\nline3" in m.group(2)
+        tag = parse_use_tag("[use test_skill] line1\nline2\nline3")
+        assert tag is not None
+        assert tag.text == "line1\nline2\nline3"
 
     def test_empty_skill_name_no_match(self) -> None:
-        m = SkillAgent._USE_SKILL_PATTERN.match("[use ] something")
-        assert m is None
+        assert parse_use_tag("[use ] something") is None
+        assert parse_use_tag("[use ,] something") is None
 
     def test_multi_skill_comma_separated(self) -> None:
-        m = SkillAgent._USE_SKILL_PATTERN.match("[use skill_a,skill_b,skill_c] do it")
-        assert m is not None
-        assert m.group(1) == "skill_a,skill_b,skill_c"
-        assert m.group(2) == "do it"
+        tag = parse_use_tag("[use skill_a,skill_b,skill_c] do it")
+        assert tag is not None
+        assert tag.references == ("skill_a", "skill_b", "skill_c")
+        assert tag.text == "do it"
 
     def test_multi_skill_with_spaces(self) -> None:
-        m = SkillAgent._USE_SKILL_PATTERN.match("[use skill_a, skill_b] args")
-        assert m is not None
-        names = [n.strip() for n in m.group(1).split(",") if n.strip()]
-        assert names == ["skill_a", "skill_b"]
+        tag = parse_use_tag("[use skill_a, skill_b] args")
+        assert tag is not None
+        assert tag.references == ("skill_a", "skill_b")
 
     def test_multi_skill_no_args(self) -> None:
-        m = SkillAgent._USE_SKILL_PATTERN.match("[use a,b]")
-        assert m is not None
-        assert m.group(1) == "a,b"
-        assert m.group(2) == ""
+        tag = parse_use_tag("[use a,b]")
+        assert tag is not None
+        assert tag.references == ("a", "b")
+        assert tag.text == ""
 
     def test_trailing_comma(self) -> None:
-        m = SkillAgent._USE_SKILL_PATTERN.match("[use a,b,] args")
-        assert m is not None
-        names = [n.strip() for n in m.group(1).split(",") if n.strip()]
-        assert names == ["a", "b"]
+        tag = parse_use_tag("[use a,b,] args")
+        assert tag is not None
+        assert tag.references == ("a", "b")
 
 
 # ---------------------------------------------------------------------------
@@ -536,6 +544,60 @@ class TestSkillDirTemplateVariable:
         assert "${SKILL_DIR}" in query
 
 
+class TestPreloadExplicitSkillInBlocks:
+    """A message with attachments reaches the agent as content blocks; the user's words are the first one."""
+
+    @staticmethod
+    def _agent_with_skill() -> SkillAgent:
+        skill = _make_skill(name="test_skill")
+        return _make_agent(skills=[skill], backend=_StubSkillBackend(content_map={"test_skill": "# SOP\n\nDo it."}))
+
+    @pytest.mark.asyncio
+    async def test_tag_in_the_first_text_block_preloads_the_skill_and_keeps_the_attachments(self) -> None:
+        blocks: list[dict[str, object]] = [
+            {"type": "text", "text": "[use test_skill] look at this"},
+            dict(_IMAGE_BLOCK),
+        ]
+
+        expanded, primary, preloaded = await self._agent_with_skill()._preload_explicit_skill_in_blocks(blocks)
+
+        assert primary is not None and primary.name == "test_skill"
+        assert [skill.name for skill in preloaded] == ["test_skill"]
+        first_text = str(expanded[0]["text"])
+        assert "# SOP" in first_text
+        assert first_text.endswith("look at this")
+        assert expanded[1] == _IMAGE_BLOCK
+        assert blocks[0]["text"] == "[use test_skill] look at this", "the caller's blocks must stay untouched"
+
+    @pytest.mark.asyncio
+    async def test_tag_in_a_later_text_block_is_ignored(self) -> None:
+        """Text taken from an attachment must not be able to invoke a skill."""
+        blocks: list[dict[str, object]] = [
+            {"type": "text", "text": "summarize this file"},
+            {"type": "text", "text": "[use test_skill] text of the attached file"},
+        ]
+
+        expanded, primary, preloaded = await self._agent_with_skill()._preload_explicit_skill_in_blocks(blocks)
+
+        assert (expanded, primary, preloaded) == (blocks, None, [])
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "blocks",
+        [
+            [],
+            [_IMAGE_BLOCK, {"type": "text", "text": "[use test_skill] x"}],
+            [{"type": "text", "text": 42}],
+            [{"type": "text", "text": "[use missing_skill] hello"}],
+        ],
+        ids=["empty", "first-block-is-not-text", "text-is-not-a-string", "unknown-skill"],
+    )
+    async def test_queries_without_a_usable_tag_come_back_unchanged(self, blocks: list[dict[str, object]]) -> None:
+        expanded, primary, preloaded = await self._agent_with_skill()._preload_explicit_skill_in_blocks(blocks)
+
+        assert (expanded, primary, preloaded) == (blocks, None, [])
+
+
 # ---------------------------------------------------------------------------
 # Integration: run() method behavior
 # ---------------------------------------------------------------------------
@@ -543,41 +605,6 @@ class TestSkillDirTemplateVariable:
 
 class TestRunPreloadIntegration:
     """Test that run() correctly calls preload and passes results downstream."""
-
-    @pytest.mark.asyncio
-    async def test_run_skips_preload_when_active_skill_provided(self) -> None:
-        """If active_skill is already set, preload should be skipped."""
-        skill = _make_skill(name="explicit_skill")
-        backend = _StubSkillBackend(content_map={"explicit_skill": "# SOP"})
-        agent = _make_agent(skills=[skill], backend=backend)
-
-        preload_called = False
-        original_preload = agent._preload_explicit_skill
-
-        async def _tracking_preload(
-            q: str,
-        ) -> tuple[str, SkillMetadata | None, list[SkillMetadata]]:
-            nonlocal preload_called
-            preload_called = True
-            return await original_preload(q)
-
-        agent._preload_explicit_skill = _tracking_preload
-
-        # When active_skill is provided, _preload_explicit_skill should NOT be called
-        # We can't easily run() without a full LLM setup, so we test the condition directly
-        assert not preload_called
-
-    @pytest.mark.asyncio
-    async def test_preload_not_called_for_non_string_query(self) -> None:
-        """Non-string queries (list[dict], Command) should skip preload."""
-        _make_agent(skills=[], backend=_StubSkillBackend())
-
-        # The run() method guards with `isinstance(query, str)`
-        # A list query would not match, so preload is never called
-        query_as_list: list[dict[str, object]] = [{"type": "text", "text": "[use test_skill]"}]
-
-        # We verify the pattern doesn't match non-string input
-        assert not isinstance(query_as_list, str)
 
     @pytest.mark.asyncio
     async def test_run_registers_all_bundle_preloaded_skills(self) -> None:

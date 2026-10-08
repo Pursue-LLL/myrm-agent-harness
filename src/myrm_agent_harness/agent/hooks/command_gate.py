@@ -18,7 +18,8 @@ apply:
   so a hook gets the same verdict for every event.
 - Event data reaches the command only as a ``$HOOK_PAYLOAD`` reference
   (``bind_payload_reference``), never as pasted text, so it cannot be
-  parsed as code.
+  parsed as code. The variable is clipped to what one environment string
+  can carry (``payload_env_value``); the complete payload is piped to stdin.
 - A product-layer approver (server approval card) can be injected via
   ``set_command_hook_approver`` to override a refusal at runtime.
 
@@ -31,6 +32,7 @@ apply:
 - HookCommandApprover, get/set_command_hook_approver: approval injection point
 - gate_hook_command: static gate check on the command template (BLOCK always; ESCALATE in strict mode)
 - bind_payload_reference, PAYLOAD_ENV_VAR: rewrite $ARGUMENTS into an inert $HOOK_PAYLOAD reference
+- payload_env_value, MAX_PAYLOAD_ENV_CHARS: the $HOOK_PAYLOAD value, clipped to fit one environment string
 - approve_hook_command: ask the injected approver to override a refusal
 - merged_governance_metadata: attach source/priority provenance to results
 
@@ -44,6 +46,7 @@ stands (fail-closed for third-party hooks).
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 from collections.abc import Awaitable, Callable
 from contextvars import ContextVar
@@ -169,6 +172,46 @@ def bind_payload_reference(command: str) -> str:
         out.append(char)
         i += 1
     return "".join(out)
+
+
+MAX_PAYLOAD_ENV_CHARS = 96 * 1024
+"""Largest ``$HOOK_PAYLOAD`` value. A single environment string tops out at 128 KiB on Linux
+(``MAX_ARG_STRLEN``) and all arguments plus environment at about 1 MiB on macOS; a larger value
+makes the spawn fail with E2BIG and the hook would never run."""
+
+_CLIP_STEPS = (16_384, 4_096, 1_024, 256, 64)
+"""String lengths tried in turn when clipping an oversized payload, longest first."""
+
+
+def _clip_strings(value: object, limit: int) -> object:
+    """Copy of a decoded JSON value with every string cut to ``limit`` characters."""
+    if isinstance(value, str):
+        return value[:limit]
+    if isinstance(value, dict):
+        return {key: _clip_strings(item, limit) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_clip_strings(item, limit) for item in value]
+    return value
+
+
+def payload_env_value(full_json: str) -> str:
+    """The ``$HOOK_PAYLOAD`` value for an event payload serialized as ASCII JSON.
+
+    A payload that fits in one environment string is passed as is. A larger one (a tool call
+    carrying a whole file, a long tool output) is clipped by shortening its long string values,
+    keeping its structure and adding ``"payload_truncated": true``; the hook still has the
+    complete payload on stdin. A payload that stays too large after clipping (thousands of
+    short values) is reduced to its top-level key names.
+    """
+    if len(full_json) <= MAX_PAYLOAD_ENV_CHARS:
+        return full_json
+    decoded: dict[str, object] = json.loads(full_json)
+    marked = {**decoded, "payload_truncated": True}
+    for limit in _CLIP_STEPS:
+        clipped = json.dumps(_clip_strings(marked, limit), ensure_ascii=True)
+        if len(clipped) <= MAX_PAYLOAD_ENV_CHARS:
+            return clipped
+    return json.dumps({"payload_truncated": True, "keys": sorted(decoded)}, ensure_ascii=True)
 
 
 # ---------------------------------------------------------------------------

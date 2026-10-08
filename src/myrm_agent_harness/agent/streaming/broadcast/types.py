@@ -16,11 +16,15 @@ from __future__ import annotations
 import json
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, overload
 
 from myrm_agent_harness.utils.text_utils import smart_truncate
 
 
+@overload
+def _truncate_for_event(obj: str, max_bytes: int = 1024) -> str: ...
+@overload
+def _truncate_for_event(obj: object, max_bytes: int = 1024) -> object: ...
 def _truncate_for_event(obj: object, max_bytes: int = 1024) -> object:
     """Truncate tool result for event broadcasting.
 

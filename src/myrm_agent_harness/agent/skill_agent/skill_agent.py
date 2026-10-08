@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING, Any
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
+from langgraph.types import Command
 
 from myrm_agent_harness.agent.base_agent import BaseAgent
 from myrm_agent_harness.agent.event_log.protocols import EventLogBackend
@@ -45,6 +46,7 @@ from .context import (
     track_background_task,
     wait_all_background_tasks,
 )
+from .hook_lifecycle import SkillAgentHookLifecycleMixin
 from .preload import SkillAgentPreloadMixin
 from .review import SkillAgentReviewMixin
 from .tools import SkillAgentToolsMixin
@@ -92,6 +94,7 @@ __all__ = ["SkillAgent", "wait_all_background_tasks"]
 
 class SkillAgent(
     SkillAgentPreloadMixin,
+    SkillAgentHookLifecycleMixin,
     SkillAgentToolsMixin,
     SkillAgentReviewMixin,
     SkillAgentContextMixin,
@@ -132,12 +135,12 @@ class SkillAgent(
         safety_fallback_llm: BaseChatModel | None = None,
         escalation_target_llm: BaseChatModel | None = None,
         embedding_config: "EmbeddingConfig | None" = None,
-        checkpointer: "BaseCheckpointSaver | None" = None,
+        checkpointer: "BaseCheckpointSaver[str] | None" = None,
         event_log_backend: EventLogBackend | None = None,
         trusted_skill_ids: list[str] | None = None,
         skill_env_map: dict[str, dict[str, str]] | None = None,
         desired_skill_ids: list[str] | None = None,
-        skill_configs: dict[str, dict] | None = None,
+        skill_configs: dict[str, dict[str, object]] | None = None,
         state_manager: "SkillStateManager | None" = None,
         default_skill_instances: dict[str, str] | None = None,
         global_env: dict[str, str] | None = None,
@@ -345,7 +348,7 @@ class SkillAgent(
 
     async def run(
         self,
-        query: str | list[dict[str, object]] | object,
+        query: str | list[dict[str, object]] | Command[object],
         chat_history: "ChatHistoryReq | list[BaseMessage] | None" = None,
         message_id: str | None = None,
         context: dict[str, object] | None = None,
@@ -356,8 +359,11 @@ class SkillAgent(
     ) -> AsyncGenerator[dict[str, object]]:
         """流式运行 Agent(覆盖 BaseAgent),增加 Hook 生命周期和记忆会话管理."""
         preloaded_skills: list[SkillMetadata] = []
-        if active_skill is None and isinstance(query, str):
-            query, active_skill, preloaded_skills = await self._preload_explicit_skill(query)
+        if active_skill is None:
+            if isinstance(query, str):
+                query, active_skill, preloaded_skills = await self._preload_explicit_skill(query)
+            elif isinstance(query, list):
+                query, active_skill, preloaded_skills = await self._preload_explicit_skill_in_blocks(query)
 
         from myrm_agent_harness.backends.skills.usage_recorder import (
             reset_turn_usage_dedupe,
@@ -390,10 +396,16 @@ class SkillAgent(
                 add_loaded_skill(skill_meta)
         if active_skill and not preloaded_skills and not any(s.name == active_skill.name for s in get_loaded_skills()):
             add_loaded_skill(active_skill)
-        await self._init_hook_lifecycle(active_skill, message_id, query)
+        self._init_hook_lifecycle()
         self._begin_memory_session(context, message_id)
 
         self._inject_action_space_metrics()
+        # Only skills the user invoked explicitly bring their hooks; the run releases them again.
+        # A HITL resume is a new run of the same turn, so it brings the turn's hooks back.
+        turn_skills = preloaded_skills or ([active_skill] if active_skill else [])
+        if not turn_skills and isinstance(query, Command):
+            turn_skills = await self._resolve_resumed_turn_skills(chat_history)
+        skill_hooks = await self._activate_skill_hooks(turn_skills)
 
         assistant_chunks: list[str] = []
         try:
@@ -412,6 +424,7 @@ class SkillAgent(
                         assistant_chunks.append(chunk)
                 yield event
         finally:
+            skill_hooks.release()
             # Capture loaded skills BEFORE resetting context vars
             active_skills_list = [s.name for s in get_loaded_skills()]
             run_chat_id: str | None = None
@@ -444,64 +457,6 @@ class SkillAgent(
                 reset_loaded_skills()
             except Exception as ctx_error:
                 logger.error("Error cleaning up ContextVar: %s", ctx_error, exc_info=True)
-
-    async def _init_hook_lifecycle(
-        self,
-        skill: SkillMetadata | None,
-        message_id: str | None,
-        query: str | list[dict[str, object]],
-    ) -> None:
-        """Initialize HookExecutor from Skill hooks and framework-level defaults."""
-        from myrm_agent_harness.agent.hooks.session_access import (
-            bootstrap_hook_registry,
-            has_callable_hook,
-        )
-        from myrm_agent_harness.agent.hooks.types import (
-            CallableHookDefinition,
-            HookEvent,
-        )
-        from myrm_agent_harness.agent.middlewares._session_context import (
-            get_event_logger,
-        )
-        from myrm_agent_harness.agent.streaming.broadcast.tool_call_broadcaster import (
-            register_to_hook_registry,
-        )
-
-        registry = bootstrap_hook_registry()
-
-        if skill and skill.hooks:
-            for event, hook_def in skill.hooks:
-                registry.register(event, hook_def)
-
-        # Only register broadcaster if it's not already registered
-        if not has_callable_hook(registry, HookEvent.PRE_TOOL_USE, "on_pre_tool_use"):
-            register_to_hook_registry(registry, get_event_logger())
-
-        # Register evolution sliding window hooks if integration is active
-        from myrm_agent_harness.agent.skills.evolution.infra.integration import (
-            get_global_evolution_integration,
-        )
-
-        evo = get_global_evolution_integration()
-        if evo is not None:
-            evo.register_hooks(registry)
-
-        # Register HITL correction learning hook (converts approval edits/rejects into memory)
-        from myrm_agent_harness.agent.middlewares.approval.correction_learning import (
-            CorrectionLearningHook,
-        )
-
-        if not has_callable_hook(registry, HookEvent.APPROVAL_CORRECTION, "on_approval_correction"):
-            correction_hook = CorrectionLearningHook()
-            registry.register(
-                HookEvent.APPROVAL_CORRECTION,
-                CallableHookDefinition(fn=correction_hook.on_approval_correction),
-            )
-
-        if skill and skill.hooks:
-            logger.info("Hooks activated: %s (%d hooks)", skill.name, registry.total_count)
-        else:
-            logger.debug(" Framework-level hooks activated (%d hooks)", registry.total_count)
 
     def _begin_memory_session(self, context: dict[str, object] | None, message_id: str | None) -> None:
         if self.memory_manager is not None:

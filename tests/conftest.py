@@ -5,6 +5,7 @@ import inspect
 import logging
 import os
 import shutil
+import sys
 import tempfile
 from collections.abc import AsyncIterator, Iterator
 from contextlib import contextmanager, suppress
@@ -12,8 +13,6 @@ from pathlib import Path
 
 # Python 3.13 / Pydantic 2.13.x / LiteLLM generic creation workaround
 try:
-    import sys
-
     import pydantic.root_model
 
     sys.modules["pydantic.root_model"] = pydantic.root_model
@@ -68,6 +67,25 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         from myrm_agent_harness.agent.sub_agents.checkpointer import reset_subagent_checkpointer
 
         reset_subagent_checkpointer()
+
+
+def _reset_subagent_checkpointer_if_loaded() -> None:
+    module = sys.modules.get("myrm_agent_harness.agent.sub_agents.checkpointer")
+    if module is not None:
+        module.reset_subagent_checkpointer()
+
+
+@pytest.fixture(autouse=True)
+def _isolate_subagent_checkpointer() -> Iterator[None]:
+    """Give every test its own sub-agent checkpointer.
+
+    The process-wide sqlite saver binds an ``asyncio.Lock`` and an aiosqlite worker thread to the event
+    loop of the test that first used it. Each test runs on a fresh loop, so a survivor makes later tests
+    fail with "bound to a different event loop" or an unhandled "Event loop is closed" thread error.
+    """
+    _reset_subagent_checkpointer_if_loaded()
+    yield
+    _reset_subagent_checkpointer_if_loaded()
 
 
 _BROWSER_TEST_ROOT = Path(__file__).resolve().parent / "toolkits" / "browser"

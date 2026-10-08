@@ -589,28 +589,28 @@ class TestMatchesHook:
 
 class TestHookDetail:
     def test_callable_detail(self):
-        from myrm_agent_harness.agent.hooks.executor import _hook_detail
+        from myrm_agent_harness.agent.hooks.registry import _hook_detail
 
         hook = CallableHookDefinition(fn=lambda e, p: None)
         detail = _hook_detail(hook)
         assert "fn=" in detail
 
     def test_command_detail(self):
-        from myrm_agent_harness.agent.hooks.executor import _hook_detail
+        from myrm_agent_harness.agent.hooks.registry import _hook_detail
 
         hook = CommandHookDefinition(command="echo hello world")
         detail = _hook_detail(hook)
         assert "cmd=echo hello world" in detail
 
     def test_http_detail(self):
-        from myrm_agent_harness.agent.hooks.executor import _hook_detail
+        from myrm_agent_harness.agent.hooks.registry import _hook_detail
 
         hook = HttpHookDefinition(url="https://example.com/hook")
         detail = _hook_detail(hook)
         assert "url=https://example.com/hook" in detail
 
     def test_llm_detail(self):
-        from myrm_agent_harness.agent.hooks.executor import _hook_detail
+        from myrm_agent_harness.agent.hooks.registry import _hook_detail
         from myrm_agent_harness.agent.hooks.types import LLMHookDefinition
 
         hook = LLMHookDefinition(prompt="check this", depth="quick")

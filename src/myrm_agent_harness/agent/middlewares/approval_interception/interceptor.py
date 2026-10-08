@@ -32,7 +32,13 @@ logger = get_agent_logger(__name__)
 
 
 async def check_pending_approval(checkpointer: object, thread_id: str) -> bool:
-    """Check if the agent is currently interrupted (awaiting approval)."""
+    """Check if the agent is currently interrupted (awaiting approval).
+
+    Known limitation: a real checkpointer's ``aget_tuple`` returns a ``CheckpointTuple`` (config, checkpoint,
+    metadata, parent_config, pending_writes) that has no ``tasks``, so with a real saver this probe always
+    reports "not pending" (the ``AttributeError`` is swallowed below). Interrupts are exposed by the compiled
+    graph's ``aget_state()``; the probe also cannot tell approval interrupts from other interrupt kinds.
+    """
     if not checkpointer:
         return False
 
@@ -51,16 +57,16 @@ async def check_pending_approval(checkpointer: object, thread_id: str) -> bool:
 
 
 async def intercept_approval_text(
-    query: str | list[dict[str, object]],
+    query: str | list[dict[str, object]] | Command[object],
     checkpointer: object,
     thread_id: str,
     message_id: str,
-    output_queue: asyncio.Queue[dict[str, object]] | None,
-) -> Command | str | list[dict[str, object]]:
+    output_queue: asyncio.Queue[dict[str, object] | object] | None,
+) -> Command[object] | str | list[dict[str, object]]:
     """Intercept text input if agent is awaiting approval.
 
     If intercepted, returns a Command object to resume execution.
-    If not intercepted, returns the original query.
+    If not intercepted, returns the original query (a ``Command`` query is already a resume).
     Emits an APPROVAL_INTERCEPTED event if intercepted.
     """
     # Only intercept text queries
@@ -71,7 +77,8 @@ async def intercept_approval_text(
     if isinstance(query, str):
         text_content = query
     elif isinstance(query, list):
-        text_content = next((p.get("text", "") for p in query if isinstance(p, dict) and p.get("type") == "text"), "")
+        first_text = next((p.get("text", "") for p in query if isinstance(p, dict) and p.get("type") == "text"), "")
+        text_content = first_text if isinstance(first_text, str) else ""
 
     # Check if we are in a pending approval state
     is_pending = await check_pending_approval(checkpointer, thread_id)
@@ -87,16 +94,16 @@ async def intercept_approval_text(
     intent, feedback = ApprovalIntentRecognizer.recognize(text_content)
 
     # Construct resume payload
-    resume_payload: dict[str, object] = {}
+    decision: str = intent.value
+    resume_payload: dict[str, object] = {"decision": decision}
 
     if intent == ApprovalIntent.FEEDBACK:
-        resume_payload = {"decision": "feedback", "feedback": feedback}
+        resume_payload["feedback"] = feedback
         logger.info("Intercepted approval text as FEEDBACK: %s", text_content[:50])
     else:
-        resume_payload = {"decision": intent.value}
         logger.info("Intercepted approval text as %s: %s", intent.name, text_content[:50])
 
-    event_data = ApprovalInterceptedEventData(decision=resume_payload["decision"], original_text=text_content)
+    event_data = ApprovalInterceptedEventData(decision=decision, original_text=text_content)
 
     # Emit event
     event = {

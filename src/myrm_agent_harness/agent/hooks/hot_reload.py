@@ -2,7 +2,7 @@
 
 [INPUT]
 - agent.hooks.types (POS: Hook 定义类型)
-- agent.hooks.executor (POS: HookRegistry)
+- agent.hooks.registry (POS: HookRegistry)
 
 [OUTPUT]
 - HookReloader: mtime-based 配置热重载器
@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from myrm_agent_harness.agent.hooks.executor import HookRegistry
+from myrm_agent_harness.agent.hooks.registry import HookRegistry
 from myrm_agent_harness.agent.hooks.types import (
     HOOK_PRIORITY_SECURITY,
     CommandHookDefinition,

@@ -43,7 +43,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Sequence
 from contextlib import nullcontext
 from typing import TYPE_CHECKING, Any, cast
 from uuid import uuid4
@@ -112,6 +112,7 @@ if TYPE_CHECKING:
     from langchain_core.messages import BaseMessage
 
     from myrm_agent_harness.agent.base_agent import BaseAgent
+    from myrm_agent_harness.agent.goals.protocols import GoalProvider
     from myrm_agent_harness.backends.skills.types import SkillMetadata
     from myrm_agent_harness.utils.chat_utils import ChatHistoryReq
     from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
@@ -283,7 +284,7 @@ def _sync_skill_search_index_after_catalog_change(
     set_active_resolved_tools(agent_state._cached_tools)
 
 
-def _first_human_content(messages: list[object]) -> object | None:
+def _first_human_content(messages: Sequence[object]) -> object | None:
     from langchain_core.messages import HumanMessage
 
     for message in messages:
@@ -471,6 +472,7 @@ async def run_agent_loop(
         from myrm_agent_harness.agent.hooks import (
             bootstrap_hook_registry,
             get_hook_executor,
+            set_hook_executor,
         )
         from myrm_agent_harness.agent.streaming.broadcast.tool_call_broadcaster import (
             register_to_hook_registry as register_broadcaster,
@@ -481,7 +483,7 @@ async def run_agent_loop(
             hook_registry = existing_executor.registry
         else:
             hook_registry = bootstrap_hook_registry()
-            register_broadcaster(hook_registry, event_logger)
+            register_broadcaster(hook_registry)
 
         stats = AgentRunStatistics()
 
@@ -588,14 +590,12 @@ async def run_agent_loop(
         except Exception as e:
             logger.warning(f"Approval text interception failed: {e}")
 
-        is_resume = isinstance(query, Command)
         agent_input: Command[Any] | AgentState[Any]
 
-        if is_resume:
-            resume_command = cast("Command[Any]", query)
+        if isinstance(query, Command):
             resume_command = await apply_bound_skill_catalog_for_resume(
                 agent_state,
-                resume_command,
+                query,
                 thread_id,
             )
             agent_input = cast("Command[Any] | AgentState[Any]", resume_command)
@@ -679,7 +679,7 @@ async def run_agent_loop(
 
         # Strip non-serializable callbacks before LangGraph checkpoint (passed via StreamContext).
         stripped_callbacks = pop_checkpoint_incompatible_merged_context(merged_context)
-        goal_provider = stripped_callbacks.get("goal_provider")
+        goal_provider = cast("GoalProvider | None", stripped_callbacks.get("goal_provider"))
         on_goal_terminal = stripped_callbacks.get("on_goal_terminal")
         on_loop_restart = stripped_callbacks.get("on_loop_restart")
         file_content_reader = stripped_callbacks.get("file_content_reader")
@@ -690,7 +690,7 @@ async def run_agent_loop(
         set_goal_provider(goal_provider)
 
         # --- Goal Planning Interception ---
-        if goal_provider and not is_resume:
+        if goal_provider and not isinstance(query, Command):
             try:
                 from myrm_agent_harness.agent.goals.goal_interceptor import (
                     intercept_goal_and_plan,
@@ -726,7 +726,7 @@ async def run_agent_loop(
         tracing_config = getattr(agent_state.config, "tracing_config", None)
         if tracing_config and getattr(tracing_config, "enable_local_ui", False):
             try:
-                from openinference.instrumentation.langchain import (
+                from openinference.instrumentation.langchain import (  # type: ignore[import-not-found,unused-ignore]
                     LangChainInstrumentor,
                 )
 
@@ -796,7 +796,7 @@ async def run_agent_loop(
             goal_provider=goal_provider,
             on_goal_terminal=on_goal_terminal,
             on_loop_restart=on_loop_restart,
-            file_content_reader=file_content_reader,  # type: ignore[arg-type]
+            file_content_reader=file_content_reader,
             escalation_target_llm=getattr(agent_state, "escalation_target_llm", None),
             llm=agent_state.llm,
             token_tracker=_run_tracker,
@@ -831,6 +831,9 @@ async def run_agent_loop(
             error_msg, diagnostic_dict = diagnose_llm_error(e, agent_state.llm, agent_state.config.locale)
             error_type = type(e).__name__
 
+        # A host may resume this generator in a fresh task context per step, which drops the executor bound at
+        # the start of the run: bind it again right before the executor task copies the context.
+        set_hook_executor(hook_exec)
             if not stats.error_message:
                 stats.error_message = f"{error_type}: {error_msg}"
                 logger.error(

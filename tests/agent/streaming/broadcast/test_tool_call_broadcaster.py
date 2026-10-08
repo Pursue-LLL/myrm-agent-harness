@@ -8,6 +8,7 @@ Covers:
 - Duration tracking across start/end events
 - Missing tool_call_id graceful handling
 - register_to_hook_registry() wiring
+- Event persistence follows the event logger of the run that executes the tool
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from myrm_agent_harness.agent.middlewares._session_context import set_event_logger
 from myrm_agent_harness.agent.streaming.broadcast.tool_call_broadcaster import (
     ToolCallBroadcaster,
     register_to_hook_registry,
@@ -275,3 +277,74 @@ class TestFullLifecycle:
             _make_payload(tool_call_id="tc_sf", error="crash"),
         )
         assert "tc_sf" not in broadcaster._pending_calls
+
+
+# ===========================================================================
+# Run-scoped event logger
+# ===========================================================================
+
+
+class TestRunScopedEventLogger:
+    """A run installs its event logger after the framework registered the broadcaster."""
+
+    @pytest.fixture
+    def run_broadcaster(self, mock_event_bus):
+        broadcaster = ToolCallBroadcaster()
+        broadcaster._event_bus = mock_event_bus
+        return broadcaster
+
+    @pytest.mark.asyncio
+    async def test_logs_to_the_logger_a_run_installs_after_registration(self, run_broadcaster, mock_event_logger):
+        set_event_logger(mock_event_logger)
+
+        await run_broadcaster.on_pre_tool_use("pre_tool_use", _make_payload())
+        await run_broadcaster.on_post_tool_use("post_tool_use", _make_payload(tool_output="ok"))
+
+        assert [call.args[0] for call in mock_event_logger.log.await_args_list] == ["tool_start", "tool_end"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("handler", "event_type"),
+        [("on_post_tool_use_failure", "tool_failure"), ("on_post_tool_use_cancelled", "tool_cancelled")],
+    )
+    async def test_failure_and_cancellation_reach_the_run_logger(
+        self, run_broadcaster, mock_event_logger, handler, event_type
+    ):
+        set_event_logger(mock_event_logger)
+
+        await getattr(run_broadcaster, handler)(f"hook_{event_type}", _make_payload(error="boom"))
+
+        assert [call.args[0] for call in mock_event_logger.log.await_args_list] == [event_type]
+
+    @pytest.mark.asyncio
+    async def test_follows_each_run_when_the_broadcaster_outlives_a_run(self, run_broadcaster):
+        first_run, second_run = AsyncMock(), AsyncMock()
+
+        set_event_logger(first_run)
+        await run_broadcaster.on_pre_tool_use("pre_tool_use", _make_payload(tool_call_id="tc_a"))
+        set_event_logger(second_run)
+        await run_broadcaster.on_pre_tool_use("pre_tool_use", _make_payload(tool_call_id="tc_b"))
+
+        first_run.log.assert_awaited_once()
+        second_run.log.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_injected_logger_wins_over_the_run_logger(self, mock_event_bus, mock_event_logger):
+        broadcaster = ToolCallBroadcaster(event_logger=mock_event_logger)
+        broadcaster._event_bus = mock_event_bus
+        run_logger = AsyncMock()
+        set_event_logger(run_logger)
+
+        await broadcaster.on_pre_tool_use("pre_tool_use", _make_payload())
+
+        mock_event_logger.log.assert_awaited_once()
+        run_logger.log.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_runs_without_any_logger(self, run_broadcaster, mock_event_bus):
+        set_event_logger(None)
+
+        result = await run_broadcaster.on_pre_tool_use("pre_tool_use", _make_payload())
+
+        assert result.success is True
+        mock_event_bus.publish.assert_awaited_once()

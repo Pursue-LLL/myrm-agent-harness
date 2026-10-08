@@ -39,9 +39,12 @@ _HOOK_EVENT_MAP: dict[str, HookEvent] = {
     "AfterToolUse": HookEvent.POST_TOOL_USE,
     "PostToolUse": HookEvent.POST_TOOL_USE,
     "PostToolUseFailure": HookEvent.POST_TOOL_USE_FAILURE,
-    "PreCompact": HookEvent.PRE_COMPACT,
     "Stop": HookEvent.SESSION_END,
 }
+
+_DEFAULT_TIMEOUT_SECONDS = 10
+_FAIL_CLOSED_MODES = frozenset({"fail_closed", "closed"})
+_FAIL_OPEN_MODES = frozenset({"", "fail_open", "open"})
 
 
 def parse_hooks_from_skill_md(skill_content: str) -> tuple[list[tuple[HookEvent, HookDefinition]], list[str] | None]:
@@ -87,63 +90,96 @@ def _parse_hooks(hooks_data: object) -> list[tuple[HookEvent, HookDefinition]]:
         for config in hook_configs:
             if not isinstance(config, dict):
                 continue
-
-            script = config.get("script", "")
-            url = config.get("url", "")
-
-            if not script and not url:
-                logger.warning("Hook missing script or url: %s", config.get("description", "?"))
+            try:
+                hook = _build_hook(config)
+            except (TypeError, ValueError) as exc:
+                # One malformed entry must neither discard its siblings nor fail skill loading.
+                logger.warning("Skipping invalid %s hook (%s): %s", hook_type_str, config.get("description", "?"), exc)
                 continue
-
-            if script and url:
-                script = ""
-
-            tool_matcher = _build_matcher(config.get("tools"))
-
-            if url:
-                raw_secret = config.get("secret")
-                secret = _resolve_env_or_literal(raw_secret) if raw_secret else None
-                hooks.append(
-                    (
-                        event,
-                        HttpHookDefinition(
-                            url=url,
-                            headers=_build_auth_headers(config.get("auth", "")),
-                            matcher=tool_matcher,
-                            block_on_failure=config.get("failure_mode", "").lower() in ("fail_closed", "closed"),
-                            timeout_seconds=round(float(config.get("timeout", 10))),
-                            secret=secret or None,
-                            fire_and_forget=bool(config.get("fire_and_forget", False)),
-                            source=HookSource.SKILL,
-                        ),
-                    )
-                )
-            else:
-                hooks.append(
-                    (
-                        event,
-                        CommandHookDefinition(
-                            command=script,
-                            matcher=tool_matcher,
-                            block_on_failure=config.get("failure_mode", "").lower() in ("fail_closed", "closed"),
-                            timeout_seconds=round(float(config.get("timeout", 10))),
-                            source=HookSource.SKILL,
-                        ),
-                    )
-                )
+            if hook is not None:
+                hooks.append((event, hook))
 
     return hooks
 
 
-def _build_matcher(tools: list[str] | str | None) -> str:
-    """Convert tool names list to a fnmatch-style matcher pattern."""
-    if not tools:
+def _build_hook(config: dict[object, object]) -> HookDefinition | None:
+    """Build one hook from a frontmatter entry; ``None`` when it declares no action."""
+    script = _optional_text(config.get("script"), "script")
+    url = _optional_text(config.get("url"), "url")
+
+    if not script and not url:
+        logger.warning("Hook missing script or url: %s", config.get("description", "?"))
+        return None
+    if script and url:
+        logger.warning("Hook declares both script and url, using url: %s", config.get("description", "?"))
+
+    matcher = _build_matcher(config.get("tools"))
+    block_on_failure = _blocks_on_failure(config.get("failure_mode"))
+    timeout_seconds = _timeout_seconds(config.get("timeout"))
+
+    if url:
+        raw_secret = config.get("secret")
+        secret = _resolve_env_or_literal(raw_secret) if raw_secret else None
+        return HttpHookDefinition(
+            url=url,
+            headers=_build_auth_headers(config.get("auth", "")),
+            matcher=matcher,
+            block_on_failure=block_on_failure,
+            timeout_seconds=timeout_seconds,
+            secret=secret or None,
+            fire_and_forget=bool(config.get("fire_and_forget", False)),
+            source=HookSource.SKILL,
+        )
+    return CommandHookDefinition(
+        command=script,
+        matcher=matcher,
+        block_on_failure=block_on_failure,
+        timeout_seconds=timeout_seconds,
+        source=HookSource.SKILL,
+    )
+
+
+def _optional_text(value: object, field: str) -> str:
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        raise TypeError(f"'{field}' must be a string, got {type(value).__name__}")
+    return value if value.strip() else ""
+
+
+def _timeout_seconds(raw: object) -> int:
+    if raw is None:
+        return _DEFAULT_TIMEOUT_SECONDS
+    if isinstance(raw, bool) or not isinstance(raw, int | float):
+        raise TypeError(f"'timeout' must be a number of seconds, got {raw!r}")
+    return round(raw)
+
+
+def _blocks_on_failure(raw: object) -> bool:
+    """Whether the hook opts into ``fail_closed``; unknown spellings are reported, never silent."""
+    if raw is None:
+        return False
+    mode = str(raw).strip().lower().replace("-", "_")
+    if mode in _FAIL_CLOSED_MODES:
+        return True
+    if mode not in _FAIL_OPEN_MODES:
+        logger.warning("Unknown failure_mode %r treated as fail_open (use fail_closed to block on failure)", raw)
+    return False
+
+
+def _build_matcher(tools: object) -> str:
+    """Join tool-name patterns into one matcher; ``|`` separates alternatives, empty means every tool."""
+    if tools is None:
         return ""
     if isinstance(tools, str):
-        tools = [t.strip() for t in tools.split(",")]
-    if len(tools) == 1:
-        return tools[0]
-    return ""
+        names = tools.split(",")
+    elif isinstance(tools, list):
+        names = [name for name in tools if isinstance(name, str)]
+        if len(names) != len(tools):
+            raise TypeError("'tools' entries must be strings")
+    else:
+        raise TypeError("'tools' must be a tool name or a list of tool names")
+    return "|".join(name.strip() for name in names if name.strip())
 
 
 def _build_auth_headers(auth_raw: object) -> dict[str, str]:
