@@ -890,15 +890,15 @@ tools = create_memory_tools(manager=manager)
 
 | 方法                                                                              | 功能                                                                              |
 | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `submit_pending(memory, *, resolution_action=STORE, target_memory_id=None)`       | 提交记忆到审批队列（去重），并声明批准后应执行的落库语义                          |
-| `approve(pending_id)`                                                             | 按 `resolution_action` 分派：`STORE` 持久化新记忆 / `CORRECT` 纠正目标记忆 / `DELETE` 删除目标记忆 |
+| `submit_pending(memory, *, resolution_action=STORE, target_memory_id=None, target_content=None)` | 提交记忆到审批队列（去重），并声明批准后应执行的落库语义与待审目标展示内容 |
+| `approve(pending_id, *, edited_content=None)`                                     | 按 `resolution_action` 分派：`STORE` 持久化新记忆 / `CORRECT` 纠正目标记忆 / `DELETE` 归档目标记忆；`edited_content` 为审批者改写后的文本 |
 | `reject(pending_id)`                                                              | 拒绝                                                                              |
 | `list_pending(limit=50)`                                                          | 列出待审批记忆                                                                    |
 | `count_pending()`                                                                 | 统计待审批数量                                                                    |
 | `batch_approve(ids)`                                                              | 批量审批                                                                          |
 | `batch_reject(ids)`                                                               | 批量拒绝                                                                          |
 
-`PendingResolutionAction` 取值：`STORE`（默认，持久化候选记忆本身）、`CORRECT`（以候选内容纠正 `target_memory_id`，触发旧记忆降级并建立纠正链）、`DELETE`（删除 `target_memory_id`）。`CORRECT`/`DELETE` 需携带 `target_memory_id`；删除经 `delete_memory_by_id` 按记忆 id 解析集合后走带所有权校验的删除路径。
+`PendingResolutionAction` 取值：`STORE`（默认，持久化候选记忆本身）、`CORRECT`（以候选内容纠正 `target_memory_id`，触发旧记忆降级并建立纠正链）、`DELETE`（归档 `target_memory_id`）。`CORRECT`/`DELETE` 需携带 `target_memory_id`；`DELETE` 走 `update_memory(status=ARCHIVED)`（软删除：召回即刻排除，保留期内可恢复，到期由归档回收清除），目标已被清除时批准幂等完成。`edited_content` 同时更新 `content` 与 `memory_data["content"]`（`STORE` 据后者重建、`CORRECT` 读前者）；空白文本、`profile`/`DELETE` 提案无可编辑文本，传入编辑抛 `ValueError` 且提案保持待审。若 `CORRECT` 的目标在审批前已被遗忘/清除，批准会退化为 `STORE`（保留用户已确认的纠正内容），而非报错。
 
 ---
 

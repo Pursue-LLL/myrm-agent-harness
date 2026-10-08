@@ -167,7 +167,8 @@ class PendingResolutionAction(StrEnum):
 
     ``STORE`` persists the candidate as a new memory (default, non-destructive).
     ``CORRECT`` demotes the targeted memory and stores the candidate as its linked
-    correction. ``DELETE`` removes the targeted memory that is now factually wrong.
+    correction. ``DELETE`` retires the targeted memory that is now factually wrong
+    by archiving it (restorable until the archive retention purge).
     """
 
     STORE = "store"

@@ -13,6 +13,7 @@ from myrm_agent_harness.toolkits.memory._manager.shared import (
     ConsolidationConfig,
     CueFamily,
     HookRegistryProtocol,
+    MemoryStatus,
     MemoryType,
     PendingRecord,
     PreferenceCandidate,
@@ -37,24 +38,37 @@ class MemoryManagerGovernanceSessionMixin:
         *,
         resolution_action: PendingResolutionAction = PendingResolutionAction.STORE,
         target_memory_id: str | None = None,
+        target_content: str | None = None,
     ) -> str:
         """Submit a memory for approval.
 
-        ``resolution_action``/``target_memory_id`` record what approval should do
-        (persist as new / correct the target / delete the target).
+        ``resolution_action``/``target_memory_id``/``target_content`` record what
+        approval should do (persist as new / correct the target / forget the
+        target) and how to display the reviewed target.
         Returns the pending ID, or '' if an identical candidate is already queued.
         """
         return await self._governance.submit_pending(
-            memory, resolution_action=resolution_action, target_memory_id=target_memory_id
+            memory,
+            resolution_action=resolution_action,
+            target_memory_id=target_memory_id,
+            target_content=target_content,
         )
 
-    async def approve(self, pending_id: str) -> AnyMemory | None:
-        """Approve a pending memory and persist to permanent storage."""
+    async def approve(self, pending_id: str, *, edited_content: str | None = None) -> AnyMemory | None:
+        """Approve a pending memory and persist to permanent storage.
+
+        ``edited_content`` replaces the proposed wording before it is applied.
+        A forget proposal archives its target (restorable until retention purge).
+
+        Raises:
+            ValueError: ``edited_content`` is blank or the proposal has no editable text.
+        """
         return await self._governance.approve(
             pending_id,
             store_func=lambda memory: self.store(memory, _bypass_approval=True),
             correct_func=self.correct_memory,
-            delete_func=self.delete_memory_by_id,
+            forget_func=lambda memory_id: self.update_memory(memory_id, status=MemoryStatus.ARCHIVED),
+            edited_content=edited_content,
         )
 
     async def reject(self, pending_id: str) -> None:

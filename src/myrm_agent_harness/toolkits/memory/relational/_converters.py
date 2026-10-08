@@ -143,11 +143,13 @@ def row_to_procedural(row: tuple[object, ...]) -> ProceduralMemory:
 def row_to_pending(row: tuple[object, ...]) -> PendingRecord:
     """Column order: id, user_id, memory_type, content, memory_data,
     source_chat_id, source_message_id, status, created_at, resolved_at,
-    resolution_action, target_memory_id.
+    resolution_action, target_memory_id, target_content.
     """
     memory_data = json.loads(row[4]) if row[4] else {}  # type: ignore[arg-type]
     try:
-        resolution_action = PendingResolutionAction(str(row[10])) if len(row) > 10 and row[10] else PendingResolutionAction.STORE
+        resolution_action = (
+            PendingResolutionAction(str(row[10])) if len(row) > 10 and row[10] else PendingResolutionAction.STORE
+        )
     except ValueError:
         resolution_action = PendingResolutionAction.STORE
     return PendingRecord(
@@ -163,4 +165,5 @@ def row_to_pending(row: tuple[object, ...]) -> PendingRecord:
         resolved_at=parse_dt(str(row[9])) if row[9] else None,
         resolution_action=resolution_action,
         target_memory_id=str(row[11]) if len(row) > 11 and row[11] else None,
+        target_content=str(row[12]) if len(row) > 12 and row[12] else None,
     )

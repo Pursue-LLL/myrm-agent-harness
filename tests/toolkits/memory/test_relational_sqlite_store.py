@@ -20,6 +20,7 @@ from myrm_agent_harness.toolkits.memory.types import (
     MemoryScope,
     MemoryType,
     PendingRecord,
+    PendingResolutionAction,
     ProceduralMemory,
 )
 
@@ -323,6 +324,30 @@ async def test_submit_and_get_pending(store: SQLiteRelationalStore) -> None:
     assert fetched is not None
     assert fetched.content == "test memory"
     assert fetched.status == "pending"
+
+
+@pytest.mark.asyncio
+async def test_pending_action_metadata_round_trips(store: SQLiteRelationalStore) -> None:
+    """resolution_action / target_memory_id / target_content survive persistence.
+
+    The approval dispatcher and review UI read these fields, so a column/order
+    regression in the pending table must fail loudly here.
+    """
+    record = PendingRecord(
+        memory_type=MemoryType.SEMANTIC,
+        content="User now works at Google",
+        resolution_action=PendingResolutionAction.CORRECT,
+        target_memory_id="mem-old",
+        target_content="User works at ByteDance",
+    )
+
+    pid = await store.submit_pending(record)
+    fetched = await store.get_pending(pid)
+
+    assert fetched is not None
+    assert fetched.resolution_action == PendingResolutionAction.CORRECT
+    assert fetched.target_memory_id == "mem-old"
+    assert fetched.target_content == "User works at ByteDance"
 
 
 @pytest.mark.asyncio

@@ -307,6 +307,8 @@ class SQLiteRelationalStore(RelationalStore):
                 )
             if "target_memory_id" not in pending_columns:
                 await self._connection.execute("ALTER TABLE pending_records ADD COLUMN target_memory_id TEXT")
+            if "target_content" not in pending_columns:
+                await self._connection.execute("ALTER TABLE pending_records ADD COLUMN target_content TEXT")
 
     def _scope_values(
         self, scope: MemoryScope | None
@@ -394,7 +396,8 @@ class SQLiteRelationalStore(RelationalStore):
                     created_at TEXT NOT NULL,
                     resolved_at TEXT,
                     resolution_action TEXT NOT NULL DEFAULT 'store',
-                    target_memory_id TEXT
+                    target_memory_id TEXT,
+                    target_content TEXT
                 )
             """
             )
@@ -786,8 +789,8 @@ class SQLiteRelationalStore(RelationalStore):
         try:
             await conn.execute(
                 """INSERT INTO pending_records
-                   (id, user_id, memory_type, content, memory_data, source_chat_id, source_message_id, status, created_at, resolution_action, target_memory_id)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)""",
+                   (id, user_id, memory_type, content, memory_data, source_chat_id, source_message_id, status, created_at, resolution_action, target_memory_id, target_content)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)""",
                 (
                     record.id,
                     "default",
@@ -799,6 +802,7 @@ class SQLiteRelationalStore(RelationalStore):
                     now,
                     record.resolution_action.value,
                     record.target_memory_id,
+                    record.target_content,
                 ),
             )
             await conn.commit()

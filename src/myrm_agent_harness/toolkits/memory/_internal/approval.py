@@ -7,6 +7,7 @@
 [OUTPUT]
 - memory_to_pending: AnyMemory → PendingRecord serialization
 - pending_to_memory: PendingRecord → AnyMemory deserialization
+- apply_edited_content: reviewer-edited wording applied to a PendingRecord
 
 [POS]
 Approval queue helpers. Handles AnyMemory ↔ PendingRecord conversion for the approval
@@ -32,12 +33,15 @@ def memory_to_pending(
     *,
     resolution_action: PendingResolutionAction = PendingResolutionAction.STORE,
     target_memory_id: str | None = None,
+    target_content: str | None = None,
 ) -> PendingRecord:
     """Serialise an AnyMemory into a PendingRecord for the approval queue.
 
     ``resolution_action``/``target_memory_id`` describe what approving the record
     should do: persist it as-is (``STORE``), replace the targeted memory with it
-    (``CORRECT``), or delete the targeted memory (``DELETE``).
+    (``CORRECT``), or retire the targeted memory (``DELETE``). ``target_content``
+    is the reviewed memory's content, kept so the approval surface can show the
+    user exactly which memory will be replaced or removed.
     """
     data = memory.model_dump(exclude={"embedding"}, mode="json")
     return PendingRecord(
@@ -49,7 +53,29 @@ def memory_to_pending(
         source_message_id=getattr(memory, "source_message_id", None),
         resolution_action=resolution_action,
         target_memory_id=target_memory_id,
+        target_content=target_content,
     )
+
+
+def apply_edited_content(record: PendingRecord, edited_content: str) -> PendingRecord:
+    """Return ``record`` carrying the reviewer's reworded text.
+
+    Both ``content`` (used by ``CORRECT``) and ``memory_data["content"]`` (used to
+    rebuild the memory for ``STORE``) are updated so every approval path persists
+    the same wording. Profile entries and ``DELETE`` proposals persist no free
+    text, so an edit there is an error rather than a silently dropped change.
+
+    Raises:
+        ValueError: the edit is blank or the proposal has no editable text.
+    """
+    content = edited_content.strip()
+    if not content:
+        raise ValueError("Edited content must not be empty")
+    if record.memory_type == MemoryType.PROFILE or record.resolution_action == PendingResolutionAction.DELETE:
+        raise ValueError("This proposal has no editable content")
+    if content == record.content:
+        return record
+    return record.model_copy(update={"content": content, "memory_data": {**record.memory_data, "content": content}})
 
 
 def pending_to_memory(record: PendingRecord) -> AnyMemory:

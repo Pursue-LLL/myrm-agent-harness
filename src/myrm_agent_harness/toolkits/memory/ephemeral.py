@@ -218,7 +218,7 @@ class ReadOnlyMemoryView(MemoryManager):
         self._deny()
         return None
 
-    async def approve(self, pending_id: str) -> AnyMemory | None:
+    async def approve(self, pending_id: str, *, edited_content: str | None = None) -> AnyMemory | None:
         self._deny()
         return None
 
@@ -278,6 +278,7 @@ class ReadOnlyMemoryView(MemoryManager):
         *,
         resolution_action: PendingResolutionAction = PendingResolutionAction.STORE,
         target_memory_id: str | None = None,
+        target_content: str | None = None,
     ) -> str:
         self._deny()
         return ""
