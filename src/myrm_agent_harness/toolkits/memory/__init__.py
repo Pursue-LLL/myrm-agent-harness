@@ -596,6 +596,7 @@ from myrm_agent_harness.toolkits.memory.metrics import SearchMetrics, SearchSnap
 from myrm_agent_harness.toolkits.memory.migration import (
     ChatExportParser,
     ChunkedMemoryArtifact,
+    ClaudeProjectParser,
     CompetitorAssetScanner,
     CompetitorMigrationMetaTools,
     CompetitorMigrationService,
@@ -605,6 +606,7 @@ from myrm_agent_harness.toolkits.memory.migration import (
     ExtractedMemoryUnit,
     HermesParser,
     MarkdownTreeParser,
+    MemOSParser,
     MigrationDeduplicator,
     MigrationExecutionReport,
     MigrationRunReport,
@@ -714,6 +716,19 @@ from myrm_agent_harness.toolkits.memory.proactive_care import (
     ScheduleTaskItem,
     VitalityAndFatigueEvaluator,
     VitalityAssessmentReport,
+)
+from myrm_agent_harness.toolkits.memory.pitfall_alert import (
+    AlertSeverity,
+    DecisionIntent,
+    DecisionIntentLevel,
+    DispatchChannel,
+    PastPitfallRetriever,
+    PitfallAlertCard,
+    PitfallEvaluationReport,
+    PitfallSourceFunc,
+    PitfallTriadRecord,
+    ProactivePitfallAlertEngine,
+    ShadowDecisionIntentRecognizer,
 )
 from myrm_agent_harness.toolkits.memory.procedure_experience import (
     DualNodeFixedCountRetriever,
@@ -1747,10 +1762,12 @@ __all__ = [
     "UniversalMemoryTranslator",
     "ChatExportParser",
     "ChunkedMemoryArtifact",
+    "ClaudeProjectParser",
     "DeduplicationResult",
     "ExtractedMemoryUnit",
     "HermesParser",
     "MarkdownTreeParser",
+    "MemOSParser",
     "MigrationDeduplicator",
     "MigrationRunReport",
     "MigrationSecurityGuard",
@@ -2022,6 +2039,17 @@ __all__ = [
     "IncrementalIndexingPipeline",
     "MarkdownChunk",
     "MarkdownSlidingWindowChunker",
+    "AlertSeverity",
+    "DecisionIntent",
+    "DecisionIntentLevel",
+    "DispatchChannel",
+    "PastPitfallRetriever",
+    "PitfallAlertCard",
+    "PitfallEvaluationReport",
+    "PitfallSourceFunc",
+    "PitfallTriadRecord",
+    "ProactivePitfallAlertEngine",
+    "ShadowDecisionIntentRecognizer",
 ]
 
 
