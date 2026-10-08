@@ -118,6 +118,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | online_economic_compact/ | Subsystem for subtask boundary active online context compaction, economic breakeven mathematical models, carried debt throttling, and new-turn continuity (NVIDIA SoL-Pi inspired). See [online_economic_compact/_ARCH.md](online_economic_compact/_ARCH.md). |
 | owner_fencing/ | Core implementation of Durable Session Owner Fencing and Admission Control Engine. See [owner_fencing/_ARCH.md](owner_fencing/_ARCH.md). |
 | pairing/ | Generates dynamic pairing tickets and formatted QR code bootstrap payloads. See [pairing/_ARCH.md](pairing/_ARCH.md). |
+| persona_drift_audit/ | Deterministic persona memory drift audit, reality reconciliation, and human-confirmed purification suite (Item 324). See [persona_drift_audit/_ARCH.md](persona_drift_audit/_ARCH.md). |
 | pinning/ | Guarantees zero-pruning preservation of pinned contexts and constructs inspector cards. See [pinning/_ARCH.md](pinning/_ARCH.md). |
 | pipeline/ | Ordered context processors for filtering, active per-step tool-result pruning, cache-TTL pruning, pre-compaction recall, compression, session notes, summarization, post-compaction refetch guard, normalization, and explicit cache markers. Filter and Compress consume compression_intent via retention_helpers. |
 | portable_export/ | Builder engine for assembling, redacting, and cryptographically signing portable context bundles. See [portable_export/_ARCH.md](portable_export/_ARCH.md). |

@@ -1419,6 +1419,19 @@ from .decoupled_dreaming import (
     SnapshotBroadcastNotification,
     StorageEngineType,
 )
+from .persona_drift_audit import (
+    AuditLineSmell,
+    BadSmellCategory,
+    CANONICAL_PERSONA_FILE_SPECS,
+    DeterministicPersonaMemoryDriftAuditAndLineByLineReconciliationSuite,
+    DeterministicPersonaMemoryDriftAuditSuite,
+    FileDriftAuditResult,
+    LineByLineRealityReconciler,
+    PersonaFileKind,
+    PurificationDiffEngine,
+    PurificationExecutionResult,
+    ReconciliationDiffPlan,
+)
 from .local_prefill_guard import (
     AdaptivePruningDecision,
     LatencyWarningLevel,
@@ -2796,6 +2809,18 @@ __all__ = [
     "NightlyDreamingPipeline",
     "SnapshotBroadcastNotification",
     "StorageEngineType",
+    # persona_drift_audit
+    "AuditLineSmell",
+    "BadSmellCategory",
+    "CANONICAL_PERSONA_FILE_SPECS",
+    "DeterministicPersonaMemoryDriftAuditAndLineByLineReconciliationSuite",
+    "DeterministicPersonaMemoryDriftAuditSuite",
+    "FileDriftAuditResult",
+    "LineByLineRealityReconciler",
+    "PersonaFileKind",
+    "PurificationDiffEngine",
+    "PurificationExecutionResult",
+    "ReconciliationDiffPlan",
 ]
 
 

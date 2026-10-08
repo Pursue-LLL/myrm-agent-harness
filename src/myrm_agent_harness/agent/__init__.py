@@ -203,6 +203,22 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.agent.context_management",
         "LockFreeSnapshotBroadcaster",
     ),
+    "DeterministicPersonaMemoryDriftAuditSuite": (
+        "myrm_agent_harness.agent.context_management",
+        "DeterministicPersonaMemoryDriftAuditSuite",
+    ),
+    "DeterministicPersonaMemoryDriftAuditAndLineByLineReconciliationSuite": (
+        "myrm_agent_harness.agent.context_management",
+        "DeterministicPersonaMemoryDriftAuditAndLineByLineReconciliationSuite",
+    ),
+    "LineByLineRealityReconciler": (
+        "myrm_agent_harness.agent.context_management",
+        "LineByLineRealityReconciler",
+    ),
+    "PurificationDiffEngine": (
+        "myrm_agent_harness.agent.context_management",
+        "PurificationDiffEngine",
+    ),
 }
 
 __all__ = [
@@ -215,16 +231,20 @@ __all__ = [
     "CrossPlatformTranscriptNormalizer",
     "DecoupledMemoryConsolidationDreamingEngineAndServerlessStateSyncSuite",
     "DecoupledMemoryConsolidationSuite",
+    "DeterministicPersonaMemoryDriftAuditAndLineByLineReconciliationSuite",
+    "DeterministicPersonaMemoryDriftAuditSuite",
     "DirectMemoryDriveChannel",
     "HeartbeatManifestParser",
     "HeterogeneousContextHydrationBridge",
     "HeterogeneousWorkspaceSnifferAndWizard",
+    "LineByLineRealityReconciler",
     "LockFreeSnapshotBroadcaster",
     "NightlyDreamingPipeline",
     "OfflineMemoryProfileHydrationEngine",
     "OpportunitySensingEngine",
     "ProactiveAgentKernelContractAndInstinctiveProactivityLoopSuite",
     "ProactiveAgentKernelSuite",
+    "PurificationDiffEngine",
     "SandboxedSafeWorkspaceEncapsulator",
     "UniversalArchiveSpecEngine",
     "ZeroLockinUniversalContextPortabilitySuite",
