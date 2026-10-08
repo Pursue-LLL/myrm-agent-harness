@@ -123,13 +123,38 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.agent.proactive_kernel",
         "ZeroNagDiscretionGate",
     ),
+    "CanonicalScaffoldingSuite": (
+        "myrm_agent_harness.agent.workspace_rules.canonical_scaffolding",
+        "CanonicalScaffoldingSuite",
+    ),
+    "CanonicalAgentWorkspaceScaffoldingAndZeroFrictionHandoverSuite": (
+        "myrm_agent_harness.agent.workspace_rules.canonical_scaffolding",
+        "CanonicalAgentWorkspaceScaffoldingAndZeroFrictionHandoverSuite",
+    ),
+    "TopologyValidator": (
+        "myrm_agent_harness.agent.workspace_rules.canonical_scaffolding",
+        "TopologyValidator",
+    ),
+    "HeterogeneousWorkspaceSnifferAndWizard": (
+        "myrm_agent_harness.agent.workspace_rules.canonical_scaffolding",
+        "HeterogeneousWorkspaceSnifferAndWizard",
+    ),
+    "SandboxedSafeWorkspaceEncapsulator": (
+        "myrm_agent_harness.agent.workspace_rules.canonical_scaffolding",
+        "SandboxedSafeWorkspaceEncapsulator",
+    ),
 }
 
 __all__ = [
+    "CanonicalAgentWorkspaceScaffoldingAndZeroFrictionHandoverSuite",
+    "CanonicalScaffoldingSuite",
     "HeartbeatManifestParser",
+    "HeterogeneousWorkspaceSnifferAndWizard",
     "OpportunitySensingEngine",
     "ProactiveAgentKernelContractAndInstinctiveProactivityLoopSuite",
     "ProactiveAgentKernelSuite",
+    "SandboxedSafeWorkspaceEncapsulator",
+    "TopologyValidator",
     "SUBAGENT_CONFIGS",
     "AgentEventType",
     "AgentRunStatistics",

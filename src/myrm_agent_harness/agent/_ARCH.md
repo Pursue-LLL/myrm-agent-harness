@@ -102,7 +102,7 @@ Agent core module — public API for BaseAgent / SkillAgent runtime.
 | `sub_agents/` | Sub-agent lifecycle | [SUB_AGENT_SYSTEM.md](sub_agents/SUB_AGENT_SYSTEM.md) |
 | `tool_management/` | Tool registry, layers, dedup | [TOOL_MANAGEMENT_SYSTEM.md](tool_management/TOOL_MANAGEMENT_SYSTEM.md) |
 | `workspace_coordination/` | Parallel write isolation + batch merge | [workspace_coordination/_ARCH.md](workspace_coordination/_ARCH.md) |
-| `workspace_rules/` | Project context file discovery | [workspace_rules/_ARCH.md](workspace_rules/_ARCH.md) |
+| `workspace_rules/` | Project context file discovery, canonical scaffolding & zero-friction handover suite (Item 320) | [workspace_rules/_ARCH.md](workspace_rules/_ARCH.md) |
 
 ## Key Dependencies
 

@@ -17,6 +17,7 @@ Two-layer mechanism:
 | middleware.py | Core | AgentMiddleware for startup injection. Injects discovered rules and lightweight sandbox environment bootstrap snapshot (working dir, entries, runtimes, package managers) as SystemMessage at KV Cache-optimal position (after user_instructions, before memory_context). One-time injection with marker detection. | ✅ |
 | tracker.py | Core | SubdirectoryContextTracker for progressive rule discovery. Session-scoped via ContextVar. Extracts directory paths from tool call arguments, checks for rule files, appends content to tool results (not system prompt). Enforces 16000 char budget with explicit truncation to prevent silent dropping. Integrated via tool_interceptor_middleware POST-CALL stage. | ✅ |
 | canonical_protocol/ | Subpackage | Canonical 5-file workspace protocol, multi-tier coexistence merger, adaptive persona policy engine, and bootstrap birth lifecycle runner suite. | — |
+| canonical_scaffolding/ | Subpackage | Canonical agent workspace scaffolding, heterogeneous ecosystem sniffer, and sandboxed safe encapsulation suite. | — |
 | instruction_precedence/ | Subpackage | Multi-mode project instruction filtering and managed settings precedence suite. | — |
 | reincarnation/ | Subpackage | Agent reincarnation namespace, cross-model heritage inheritance, and crash circuit breaker protocol suite. | — |
 | rule_governance/ | Subpackage | Persistent context rule exception evaluation, SSOT memory-file conflict arbitration, drift auditing, and secret scrubbing suite. | — |
