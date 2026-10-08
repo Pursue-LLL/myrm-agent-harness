@@ -9,6 +9,7 @@ import tempfile
 from collections.abc import AsyncIterator, Iterator
 from contextlib import contextmanager, suppress
 from pathlib import Path
+from unittest.mock import patch
 
 # Python 3.13 / Pydantic 2.13.x / LiteLLM generic creation workaround
 try:
@@ -187,6 +188,20 @@ def _restore_chat_id_var() -> Iterator[None]:
     original = chat_id_var.get()
     yield
     chat_id_var.set(original)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_cli_tool_detection_cache() -> Iterator[None]:
+    """Isolate the process-level CLI tool detection cache between all tests.
+
+    ``detect_all()`` memoizes the host scan. A test that mocks ``shutil.which`` or PATH and triggers a
+    scan (directly, or through ``generate_error_hint``) would otherwise leave an empty catalog behind for
+    every later test of the worker.
+    """
+    from myrm_agent_harness.toolkits.code_execution.tool_discovery import detector
+
+    with patch.object(detector, "_cache", None):
+        yield
 
 
 @pytest.fixture(autouse=True)
