@@ -78,6 +78,11 @@ class TestExtractTextContent:
     def test_list_non_dict_items_as_str(self) -> None:
         assert extract_text_content([42, "x"]) == "42 x"
 
+    def test_tuple_blocks_are_read_like_a_list_never_as_a_repr(self) -> None:
+        data_url = "data:image/png;base64," + "A" * 4096
+        blocks = ({"type": "text", "text": "keep"}, {"type": "image_url", "image_url": {"url": data_url}})
+        assert extract_text_content(blocks) == "keep"
+
     def test_non_string_non_list_coerced_to_str(self) -> None:
         assert extract_text_content(99) == "99"  # type: ignore[arg-type]
 
