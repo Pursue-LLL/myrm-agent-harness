@@ -235,6 +235,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.agent.context_management",
         "PreSealSecretMasker",
     ),
+    "TwoStageRankedSnippetAndSelectiveDeepExtractSuite": (
+        "myrm_agent_harness.agent.context_management",
+        "TwoStageRankedSnippetAndSelectiveDeepExtractSuite",
+    ),
 }
 
 __all__ = [
@@ -266,6 +270,7 @@ __all__ = [
     "PreSealSecretMasker",
     "PurificationDiffEngine",
     "SandboxedSafeWorkspaceEncapsulator",
+    "TwoStageRankedSnippetAndSelectiveDeepExtractSuite",
     "UniversalArchiveSpecEngine",
     "ZeroLockinUniversalContextPortabilitySuite",
     "SessionStateASTEngine",

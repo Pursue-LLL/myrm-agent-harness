@@ -1453,6 +1453,21 @@ from .sealed_decision_handoff import (
     SealedReceipt,
     SecretMaskingError,
 )
+from .two_stage_search_extract import (
+    CacheStats,
+    DeepExtractResult,
+    FetchBudgetExceededError,
+    FetchBudgetGovernor,
+    FetchBudgetStatus,
+    RankedSnippetItem,
+    RankedSnippetTriageEngine,
+    SearchExtractError,
+    SearchFetchSessionCache,
+    SelectiveDeepExtractCleaner,
+    SnippetTriageResult,
+    TwoStageRankedSnippetAndSelectiveDeepExtractSuite,
+    TwoStageSearchConfig,
+)
 from .local_prefill_guard import (
     AdaptivePruningDecision,
     LatencyWarningLevel,
@@ -2862,6 +2877,20 @@ __all__ = [
     "SealedHandoffConfig",
     "SealedReceipt",
     "SecretMaskingError",
+    # two_stage_search_extract
+    "CacheStats",
+    "DeepExtractResult",
+    "FetchBudgetExceededError",
+    "FetchBudgetGovernor",
+    "FetchBudgetStatus",
+    "RankedSnippetItem",
+    "RankedSnippetTriageEngine",
+    "SearchExtractError",
+    "SearchFetchSessionCache",
+    "SelectiveDeepExtractCleaner",
+    "SnippetTriageResult",
+    "TwoStageRankedSnippetAndSelectiveDeepExtractSuite",
+    "TwoStageSearchConfig",
 ]
 
 

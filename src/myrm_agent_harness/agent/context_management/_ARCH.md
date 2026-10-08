@@ -185,6 +185,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | tri_fate_compaction/ | Turn-level tri-fate compaction and decoupled digest synthesizer suite (Item 309). See [tri_fate_compaction/_ARCH.md](tri_fate_compaction/_ARCH.md). |
 | turn_truncation/ | Core engine for In-Flight Turn State Truncation and Prefix Cache Stability Gate. See [turn_truncation/_ARCH.md](turn_truncation/_ARCH.md). |
 | two_stage_pipeline/ | Phase 2: Protocol conversion transpiling high-level logical context to provider-specific payloads. See [two_stage_pipeline/_ARCH.md](two_stage_pipeline/_ARCH.md). |
+| two_stage_search_extract/ | Two-stage ranked snippet triage and selective deep web extract suite (Item 327). See [two_stage_search_extract/_ARCH.md](two_stage_search_extract/_ARCH.md). |
 | visual_pruner/ | Core engine for Visual Frame Context Pruning and Latency Squeezing. See [visual_pruner/_ARCH.md](visual_pruner/_ARCH.md). |
 | working_memory/ | Local Working Memory Block: low-overhead in-memory workbench for goals, subtasks, traps, and turn-tail prompt cache-safe rendering. |
 | workspace_branch_stash/ | Engine managing lightweight shadow stash capture and checkout restoration in workspace sandbox. See [workspace_branch_stash/_ARCH.md](workspace_branch_stash/_ARCH.md). |
