@@ -329,6 +329,17 @@ from myrm_agent_harness.toolkits.memory.graph_reorganization import (
     MultiRelationalDetector,
     ReorganizationReport,
 )
+from myrm_agent_harness.toolkits.memory.quadruple_retrieval import (
+    CandidateMemoryItem,
+    HarmonizedMemoryItem,
+    HarmonizedRecallResult,
+    QuadrupleParallelRetriever,
+    QueryIntentType,
+    ReasonerHarmonizer,
+    RetrievalChannelType,
+    TaskGoal,
+    TaskGoalParser,
+)
 from myrm_agent_harness.toolkits.memory.ephemeral_delta import (
     DeltaActionKind,
     EphemeralDeltaBufferSnapshot,
@@ -1589,6 +1600,15 @@ __all__ = [
     "MemoryNodeStatus",
     "MultiRelationalDetector",
     "ReorganizationReport",
+    "CandidateMemoryItem",
+    "HarmonizedMemoryItem",
+    "HarmonizedRecallResult",
+    "QuadrupleParallelRetriever",
+    "QueryIntentType",
+    "ReasonerHarmonizer",
+    "RetrievalChannelType",
+    "TaskGoal",
+    "TaskGoalParser",
     "CareNotification",
     "FatigueLevelKind",
     "HealthMetricsRecord",
