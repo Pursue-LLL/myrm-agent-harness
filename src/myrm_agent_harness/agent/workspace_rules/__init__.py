@@ -46,6 +46,20 @@ from myrm_agent_harness.agent.workspace_rules.instruction_precedence import (
 from myrm_agent_harness.agent.workspace_rules.middleware import (
     workspace_rules_middleware,
 )
+from myrm_agent_harness.agent.workspace_rules.rule_governance import (
+    ConflictArbitrationResult,
+    DriftAuditReport,
+    DriftInspectionTarget,
+    ExceptionAwareRuleParser,
+    MemoryFileConflictArbiter,
+    ParsedRuleClause,
+    PersistentContextRuleDriftAuditAndExceptionAwareGovernanceSuite,
+    RuleCallerContext,
+    RuleDriftAndSecretProbe,
+    RuleGovernanceConfig,
+    RuleSecretScanResult,
+    ShadowedRuleFinding,
+)
 from myrm_agent_harness.agent.workspace_rules.scanner import (
     RuleFile,
     scan_workspace_rules,
@@ -58,14 +72,26 @@ from myrm_agent_harness.agent.workspace_rules.tracker import (
 
 __all__ = [
     "ClaudeCodeProjectInstructionsPrecedenceSuite",
+    "ConflictArbitrationResult",
+    "DriftAuditReport",
+    "DriftInspectionTarget",
+    "ExceptionAwareRuleParser",
     "InstructionFilterEngine",
     "InstructionMode",
     "InstructionSettings",
     "ManagedPrecedenceResolver",
+    "MemoryFileConflictArbiter",
+    "ParsedRuleClause",
+    "PersistentContextRuleDriftAuditAndExceptionAwareGovernanceSuite",
     "PrecedenceAuditReceipt",
     "ResolvedPrecedence",
+    "RuleCallerContext",
+    "RuleDriftAndSecretProbe",
     "RuleFile",
+    "RuleGovernanceConfig",
+    "RuleSecretScanResult",
     "SettingsScope",
+    "ShadowedRuleFinding",
     "check_and_append_rules",
     "init_subdirectory_tracker",
     "reset_subdirectory_tracker",
