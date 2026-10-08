@@ -95,6 +95,13 @@ def test_presumed_overflow_rejects_explicit_overflow_signal() -> None:
     assert is_presumed_overflow(exc, 999, cfg) is False
 
 
+def test_presumed_overflow_rejects_provider_stated_output_ceiling() -> None:
+    """A model's own max_tokens ceiling has nothing to do with context size; compaction cannot cure it."""
+    cfg = ContextPressureConfig(max_context_tokens=1_000)
+    ceiling: Exception = _Generic400Error("Range of max_tokens should be [1, 8192]")
+    assert is_presumed_overflow(ceiling, 999, cfg) is False
+
+
 async def test_preflight_compact_sheds_without_llm() -> None:
     messages = _messages(6)
     before = estimate_request_tokens(messages)

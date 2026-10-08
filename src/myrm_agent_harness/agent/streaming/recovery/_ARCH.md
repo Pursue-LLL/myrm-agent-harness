@@ -8,7 +8,7 @@ Streaming error-recovery strategies. **`stream_recovery.py`** composes the four 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Re-exports the four recovery mixins | ✅ |
-| context_pressure_gate.py | Gate | Pre-flight context pressure gate, token budget compaction, and presumed-overflow recovery handler | ✅ |
+| context_pressure_gate.py | Gate | Pre-flight context pressure gate, token budget compaction, and presumed-overflow recovery handler (a 400 that states the model's own output ceiling is never presumed to be an overflow) | ✅ |
 | stream_recovery.py | Core | StreamRecoveryMixin — composes overflow, LLM failover, safety refusal fallback, escalation, transient retry, iteration-limit, empty-response, truncation, steering, subagent, and goal continuation recovery | ✅ |
 | stream_recovery_budget.py | Core | StreamOutputBudgetMixin — output-budget half of truncation recovery, inherited by `StreamTruncationRecoveryMixin`: `_boost_output_tokens` sets the one-shot larger budget a retry runs with (2x/3x/4x of the base, capped at `MAX_EPHEMERAL_OUTPUT_TOKENS` and at the model's documented output ceiling; a base that already reaches a cap or ceiling is kept as is), starting from the configured `max_tokens` or, failing that, a thinking model's headroom floor | ✅ |
 | stream_recovery_continuation.py | Core | StreamContinuationRecoveryMixin — steering injection, subagent completion, goal continuation | ✅ |
@@ -31,6 +31,11 @@ Streaming error-recovery strategies. **`stream_recovery.py`** composes the four 
   it, so the turn is retried once or reported (`tool_call_truncated`); it never ends silently or
   is mistaken for an empty reply. The retry re-sends the original request plus one appended hint
   and a one-shot larger `max_tokens`; the prompt prefix is untouched, so the provider cache hits.
+- **An output ceiling is not an overflow.** A 400 stating the model's own `max_tokens` ceiling has
+  nothing to do with context size. The adapter loop (`adapters/chat_model/output_cap_recovery.py`)
+  lowers `max_tokens` and retries; when it declines, `is_presumed_overflow` declines too (it reads the
+  same wording through `errors.output_limit.parse_output_limit`), so a high-occupancy session is not
+  compacted — a destructive step that cannot cure the error — and the original error surfaces.
 - **Resume turns cannot be retried.** `agent_input` is a `Command` that LangGraph has already
   consumed; replaying one advances no work (verified: it emits zero stream chunks). Recovery
   therefore reports the condition and ends. It must **not** raise the output budget as a

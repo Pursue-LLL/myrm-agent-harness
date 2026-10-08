@@ -62,6 +62,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | dual_loop_steering/ | 内外双层循环实时代令引导、键盘意图分流与排队队列核心引擎。 See [dual_loop_steering/_ARCH.md](dual_loop_steering/_ARCH.md). |
 | dual_mode_compaction/ | Main suite orchestrating proactive watermark compaction and reactive provider 400 self-healing. See [dual_mode_compaction/_ARCH.md](dual_mode_compaction/_ARCH.md). |
 | dual_track_interjection/ | Core coordinator for Long-Running Task Dual-Track Interjection and Preemption Queue Suite (Item 212). See [dual_track_interjection/_ARCH.md](dual_track_interjection/_ARCH.md). |
+| durable_storage/ | Portable durable storage runtime subsystem providing a unified storage contract across Memory, JSONL, and SQLite backends with atomic commit markers and crash reclamation. See [durable_storage/_ARCH.md](durable_storage/_ARCH.md). |
 | emergent_attention/ | 从行为中涌现的注意力清单、海量通知意图过滤器与言行错位智能对照引擎。 See [emergent_attention/_ARCH.md](emergent_attention/_ARCH.md). |
 | epoch/ | Compiles and orders tool definitions deterministically for Prompt Cache. See [epoch/_ARCH.md](epoch/_ARCH.md). |
 | event_sourcing_replayer/ | Append-only immutable event log maintaining monotonic sequence numbers and hash chains. See [event_sourcing_replayer/_ARCH.md](event_sourcing_replayer/_ARCH.md). |

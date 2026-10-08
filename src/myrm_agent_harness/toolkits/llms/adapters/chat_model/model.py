@@ -8,6 +8,7 @@
 - adapters.streaming (POS: streaming response processing)
 - adapters.concurrency (POS: concurrency gate for LLM calls)
 - adapters.chat_model.allowed_params::inject_allowed_params (POS: per-call allowed_openai_params injection)
+- adapters.chat_model.output_cap_recovery::ChatLiteLLMOutputCapMixin (POS: provider-stated output-limit recovery and learned model ceilings)
 - adapters.stream_aggregator (POS: stream data aggregation module)
 - adapters.tool_recovery (POS: tool call recovery module)
 - adapters.safety_termination_detector (POS: Safety termination detector for truncated tool call suppression)
@@ -87,6 +88,9 @@ from myrm_agent_harness.toolkits.llms.adapters.chat_model.exceptions import (
 from myrm_agent_harness.toolkits.llms.adapters.chat_model.message_mixin import (
     ChatLiteLLMMessageMixin,
 )
+from myrm_agent_harness.toolkits.llms.adapters.chat_model.output_cap_recovery import (
+    ChatLiteLLMOutputCapMixin,
+)
 from myrm_agent_harness.toolkits.llms.adapters.chat_model.sync_mixin import (
     ChatLiteLLMSyncMixin,
 )
@@ -114,7 +118,13 @@ __all__ = [
 ]
 
 
-class ChatLiteLLM(ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyncMixin, BaseChatModel):
+class ChatLiteLLM(
+    ChatLiteLLMMessageMixin,
+    ChatLiteLLMOutputCapMixin,
+    ChatLiteLLMSyncMixin,
+    ChatLiteLLMAsyncMixin,
+    BaseChatModel,
+):
     """Minimal LangChain ChatModel adapter for litellm.
 
     Implements the subset of features this project uses: non-streaming/streaming
@@ -283,26 +293,6 @@ class ChatLiteLLM(ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyn
         return {**self._default_params, **creds}
 
     _inject_allowed_params = staticmethod(inject_allowed_params)
-
-    @staticmethod
-    def _apply_ephemeral_output_override(params: dict[str, object]) -> None:
-        """Apply and consume the ephemeral max-output-tokens override if set.
-
-        The truncation recovery layer sets this ContextVar to progressively
-        boost the output budget during text continuation or tool-call retry.
-        The override is consumed (reset to None) after a single read so that
-        subsequent normal calls use the configured default.
-        """
-        from myrm_agent_harness.toolkits.llms.ephemeral_output_tokens import (
-            get_ephemeral_max_output_tokens,
-            reset_ephemeral_max_output_tokens,
-        )
-
-        override = get_ephemeral_max_output_tokens()
-        if override is not None:
-            params["max_tokens"] = override
-            reset_ephemeral_max_output_tokens()
-            logger.info(" Ephemeral max_tokens override applied: %d", override)
 
     def _inject_prompt_routing_key(self, params: dict[str, object]) -> None:
         """Inject session-scoped routing keys for KV cache and gateway affinity.

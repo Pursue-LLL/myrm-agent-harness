@@ -75,7 +75,8 @@ class ChatLiteLLMSyncMixin:
         _extract_tool_context_from_kwargs: Callable[..., tuple[list[str] | None, dict[str, dict[str, Any]] | None]]
         _create_message_dicts: Callable[..., tuple[list[dict[str, Any]], dict[str, Any]]]
         _inject_allowed_params: Callable[..., None]
-        _apply_ephemeral_output_override: Callable[..., None]
+        _apply_output_budget: Callable[..., None]
+        _recover_output_cap: Callable[..., bool]
 
     def _generate(
         self,
@@ -106,7 +107,7 @@ class ChatLiteLLMSyncMixin:
 
         params = {**params, **filtered_kwargs}
         self._inject_allowed_params(params)
-        self._apply_ephemeral_output_override(params)
+        self._apply_output_budget(params)
 
         max_attempts = self.empty_retry_max_attempts if self.empty_retry_enabled else 1
         last_error: Exception | None = None
@@ -161,7 +162,6 @@ class ChatLiteLLMSyncMixin:
                 from myrm_agent_harness.toolkits.llms.errors.classifier import (
                     is_context_overflow,
                     is_payload_overflow,
-                    parse_available_output_tokens_from_error,
                 )
 
                 if is_payload_overflow(e) and attempt < max_attempts - 1:
@@ -185,20 +185,12 @@ class ChatLiteLLMSyncMixin:
                         )
                         continue
 
+                if attempt < max_attempts - 1 and self._recover_output_cap(e, params):
+                    continue
+
                 if is_context_overflow(e):
-                    available = parse_available_output_tokens_from_error(e)
-                    if available is not None and available >= 500 and attempt < max_attempts - 1:
-                        safe_tokens = max(1, available - 64)
-                        logger.warning(
-                            f" Context overflow, injecting ephemeral max_tokens={safe_tokens} (attempt {attempt + 1})"
-                        )
-                        params["max_tokens"] = safe_tokens
-                        continue
-                    else:
-                        logger.warning(
-                            f" Context overflow (available={available}), fast-failing to trigger compression."
-                        )
-                        raise e
+                    logger.warning(" Context overflow, fast-failing to trigger compression.")
+                    raise e
 
                 model_name = self.model_name or self.model
                 logger.error(f" LiteLLM call failed: {type(e).__name__} - {e!s} (Model: {model_name})")
@@ -377,12 +369,13 @@ class ChatLiteLLMSyncMixin:
             "stream_options": {"include_usage": True},
         }
         self._inject_allowed_params(params)
-        self._apply_ephemeral_output_override(params)
+        self._apply_output_budget(params)
 
         max_attempts = self.empty_retry_max_attempts if self.empty_retry_enabled else 1
         last_error: Exception | None = None
 
         for attempt in range(max_attempts):
+            agg: StreamAggregator | None = None
             try:
                 agg = StreamAggregator(AIMessageChunk)
                 xml_content_buffer = XmlStreamBuffer()
@@ -500,10 +493,12 @@ class ChatLiteLLMSyncMixin:
                 from myrm_agent_harness.toolkits.llms.errors.classifier import (
                     is_context_overflow,
                     is_payload_overflow,
-                    parse_available_output_tokens_from_error,
                 )
 
-                if is_payload_overflow(e) and attempt < max_attempts - 1:
+                # A retry restarts the stream, so it is only safe while the consumer has received nothing yet.
+                can_retry = attempt < max_attempts - 1 and (agg is None or agg.chunk_count == 0)
+
+                if can_retry and is_payload_overflow(e):
                     evicted = emergency_evict_from_message_dicts(
                         message_dicts, target_bytes=4 * 1024 * 1024, force_shrink=True
                     )
@@ -514,7 +509,7 @@ class ChatLiteLLMSyncMixin:
                         )
                         continue
 
-                if is_gateway_param_rejection(e) and attempt < max_attempts - 1:
+                if can_retry and is_gateway_param_rejection(e):
                     stripped = sanitize_gateway_params_on_400(
                         params, e, model=self.model_name or self.model, base_url=str(self.api_base or "")
                     )
@@ -524,20 +519,12 @@ class ChatLiteLLMSyncMixin:
                         )
                         continue
 
+                if can_retry and self._recover_output_cap(e, params):
+                    continue
+
                 if is_context_overflow(e):
-                    available = parse_available_output_tokens_from_error(e)
-                    if available is not None and available >= 500 and attempt < max_attempts - 1:
-                        safe_tokens = max(1, available - 64)
-                        logger.warning(
-                            f" Context overflow, injecting ephemeral max_tokens={safe_tokens} (attempt {attempt + 1})"
-                        )
-                        params["max_tokens"] = safe_tokens
-                        continue
-                    else:
-                        logger.warning(
-                            f" Context overflow (available={available}), fast-failing to trigger compression."
-                        )
-                        raise e
+                    logger.warning(" Context overflow, fast-failing to trigger compression.")
+                    raise e
 
                 logger.error(
                     f" LiteLLM sync streaming failed: {type(e).__name__} - {e!s} (Model: {self.model_name or self.model})"

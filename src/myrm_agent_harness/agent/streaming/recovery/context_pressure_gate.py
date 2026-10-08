@@ -15,6 +15,7 @@ is high, instead of looping forever or dying immediately.
   (POS: Agent recovery strategies — context overflow, LLM failover, structured error context)
 - toolkits.llms.errors.classifier::classify_failover_reason (POS: LLM error classifier for failover decisions)
 - toolkits.llms.errors.error_types::FailoverReason (POS: Three-layer error classification system)
+- toolkits.llms.errors.output_limit::parse_output_limit (POS: output limit a provider printed in a rejection)
 - toolkits.llms.utils.model_utils::get_model_context_limit (POS: Stateless utilities for inspecting LLM model properties)
 
 [OUTPUT]
@@ -23,7 +24,7 @@ is high, instead of looping forever or dying immediately.
 - estimate_request_tokens: cumulative request size for gate decisions
 - preflight_budget: effective send budget from config
 - run_preflight_compact: deterministic Tier2 -> Tier3 load shedding
-- is_presumed_overflow: high-occupancy generic-400 detector
+- is_presumed_overflow: high-occupancy generic-400 detector (provider-stated output ceilings excluded)
 - CONTEXT_OVERFLOW_TERMINAL_CODE: unified terminal code for UI triage
 
 [POS]
@@ -42,6 +43,7 @@ from myrm_agent_harness.toolkits.llms.errors.classifier import (
     normalize_provider_error,
 )
 from myrm_agent_harness.toolkits.llms.errors.error_types import FailoverReason
+from myrm_agent_harness.toolkits.llms.errors.output_limit import parse_output_limit
 from myrm_agent_harness.toolkits.llms.utils.model_utils import get_model_context_limit
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.token_estimation import estimate_context_tokens
@@ -219,12 +221,17 @@ def is_presumed_overflow(
 
     Only matches when the classifier lands on FORMAT_ERROR with an HTTP 400
     status (i.e. the provider gave no usable overflow signal) *and* the
-    cumulative request already sits above the presumed budget. Anything else
-    keeps the fast-fail behavior to avoid retry loops.
+    cumulative request already sits above the presumed budget. A 400 that
+    states the model's own output ceiling is excluded: it is unrelated to
+    context size, so compaction cannot cure it. Anything else keeps the
+    fast-fail behavior to avoid retry loops.
     """
     if classify_failover_reason(exc) != FailoverReason.FORMAT_ERROR:
         return False
     if normalize_provider_error(exc).status_code != 400:
+        return False
+    limit = parse_output_limit(exc)
+    if limit is not None and limit.model_cap:
         return False
     return request_tokens >= presumed_budget(config)
 
