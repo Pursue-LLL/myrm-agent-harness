@@ -143,17 +143,42 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.agent.workspace_rules.canonical_scaffolding",
         "SandboxedSafeWorkspaceEncapsulator",
     ),
+    "CrossHarnessSuite": (
+        "myrm_agent_harness.agent.context_management",
+        "CrossHarnessSuite",
+    ),
+    "CrossHarnessContextStateASTAndLosslessRehydrationSuite": (
+        "myrm_agent_harness.agent.context_management",
+        "CrossHarnessContextStateASTAndLosslessRehydrationSuite",
+    ),
+    "HeterogeneousContextHydrationBridge": (
+        "myrm_agent_harness.agent.context_management",
+        "HeterogeneousContextHydrationBridge",
+    ),
+    "ArtifactContinuityGateway": (
+        "myrm_agent_harness.agent.context_management",
+        "ArtifactContinuityGateway",
+    ),
+    "SessionStateASTEngine": (
+        "myrm_agent_harness.agent.context_management",
+        "SessionStateASTEngine",
+    ),
 }
 
 __all__ = [
+    "ArtifactContinuityGateway",
     "CanonicalAgentWorkspaceScaffoldingAndZeroFrictionHandoverSuite",
     "CanonicalScaffoldingSuite",
+    "CrossHarnessContextStateASTAndLosslessRehydrationSuite",
+    "CrossHarnessSuite",
     "HeartbeatManifestParser",
+    "HeterogeneousContextHydrationBridge",
     "HeterogeneousWorkspaceSnifferAndWizard",
     "OpportunitySensingEngine",
     "ProactiveAgentKernelContractAndInstinctiveProactivityLoopSuite",
     "ProactiveAgentKernelSuite",
     "SandboxedSafeWorkspaceEncapsulator",
+    "SessionStateASTEngine",
     "TopologyValidator",
     "SUBAGENT_CONFIGS",
     "AgentEventType",

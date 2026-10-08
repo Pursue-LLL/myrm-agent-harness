@@ -54,6 +54,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | context_pivot/ | Core engine for Lossless Context Pivot and Scratchpad Reset Suite. See [context_pivot/_ARCH.md](context_pivot/_ARCH.md). |
 | cron_mirroring/ | Continuable Cron Delivery and Session Mirroring Engine (Item 215). See [cron_mirroring/_ARCH.md](cron_mirroring/_ARCH.md). |
 | cross_ecosystem_migration/ | Scanner discovering foreign and standard agent rule files across ecosystems. See [cross_ecosystem_migration/_ARCH.md](cross_ecosystem_migration/_ARCH.md). |
+| cross_harness_ast/ | Cross-Harness Context State AST, heterogeneous session roaming, and lossless rehydration suite (Item 321). See [cross_harness_ast/_ARCH.md](cross_harness_ast/_ARCH.md). |
 | cross_session_mention/ | Cross-session mention parsing, immutable read-only snapshot distillation, token budget enforcement, and proof badge referencing suite (DeepSeek Harness inspired). See [cross_session_mention/_ARCH.md](cross_session_mention/_ARCH.md). |
 | custom_compaction_directives/ | Compaction Directives Injector compiling user directives into summarizer prompts. See [custom_compaction_directives/_ARCH.md](custom_compaction_directives/_ARCH.md). |
 | dag_context/ | Hierarchical DAG context engine, assertion reconciliation, and exact page recall suite (Item 312). See [dag_context/_ARCH.md](dag_context/_ARCH.md). |

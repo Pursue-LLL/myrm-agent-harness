@@ -1366,6 +1366,23 @@ from .anti_amnesia import (
     TurnBudgetWatchdogState,
     WindowCapacityAsserter,
 )
+from .cross_harness_ast import (
+    ArtifactContinuityGateway,
+    ArtifactContinuityReport,
+    AstArtifactRef,
+    AstContentBlock,
+    AstMessageRole,
+    AstToolInvocation,
+    AstTurn,
+    ContextHealthReport,
+    CrossHarnessContextStateASTAndLosslessRehydrationSuite,
+    CrossHarnessSuite,
+    HarnessHotSwapBadge,
+    HarnessTargetFormat,
+    HeterogeneousContextHydrationBridge,
+    SessionStateAST,
+    SessionStateASTEngine,
+)
 from .local_prefill_guard import (
     AdaptivePruningDecision,
     LatencyWarningLevel,
@@ -2693,6 +2710,22 @@ __all__ = [
     "ModelWindowSpec",
     "TurnBudgetWatchdogState",
     "WindowCapacityAsserter",
+    # cross_harness_ast
+    "ArtifactContinuityGateway",
+    "ArtifactContinuityReport",
+    "AstArtifactRef",
+    "AstContentBlock",
+    "AstMessageRole",
+    "AstToolInvocation",
+    "AstTurn",
+    "ContextHealthReport",
+    "CrossHarnessContextStateASTAndLosslessRehydrationSuite",
+    "CrossHarnessSuite",
+    "HarnessHotSwapBadge",
+    "HarnessTargetFormat",
+    "HeterogeneousContextHydrationBridge",
+    "SessionStateAST",
+    "SessionStateASTEngine",
 ]
 
 
