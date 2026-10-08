@@ -1320,6 +1320,22 @@ from .response_verbosity import (
     VerbosityPreferenceResolver,
     VerbositySource,
 )
+from .dag_context import (
+    AssertionReconcileEngine,
+    AssertionStatus,
+    ContextAssertion,
+    DagContextBudgetConfig,
+    DagContextSuite,
+    DagNodeLevel,
+    ExactPageRecallConduit,
+    HierarchicalDagContextEngineAndAssertionReconcileRecallSuite,
+    HierarchicalDagFolder,
+    HierarchicalDagNode,
+    PageRecallResult,
+    TurnRecord,
+    VramBudgetEvaluation,
+    VramPerformanceBudgetGuard,
+)
 from .sandbox_pause_resume import (
     AgentkitPauseResumeSessionSandboxSuite,
     PauseResumeActionKind,
@@ -2570,6 +2586,21 @@ __all__ = [
     "VerbosityContextBundle",
     "VerbosityPreferenceResolver",
     "VerbositySource",
+    # dag_context
+    "AssertionReconcileEngine",
+    "AssertionStatus",
+    "ContextAssertion",
+    "DagContextBudgetConfig",
+    "DagContextSuite",
+    "DagNodeLevel",
+    "ExactPageRecallConduit",
+    "HierarchicalDagContextEngineAndAssertionReconcileRecallSuite",
+    "HierarchicalDagFolder",
+    "HierarchicalDagNode",
+    "PageRecallResult",
+    "TurnRecord",
+    "VramBudgetEvaluation",
+    "VramPerformanceBudgetGuard",
 ]
 
 
