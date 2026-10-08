@@ -153,7 +153,7 @@ class AgentRuntimeSpec:
     """When True, strips all built-in framework meta tools, leaving only explicit domain tools."""
     tool_groups: list[str] = field(default_factory=list)
     skill_ids: list[str] = field(default_factory=list)
-    skill_configs: dict[str, dict] | None = None
+    skill_configs: dict[str, dict[str, object]] | None = None
     mcp_servers: list[MCPConfig] = field(default_factory=list)
     openapi_services: list[dict[str, object]] = field(default_factory=list)
     mcp_surface_mode: str = "auto"
