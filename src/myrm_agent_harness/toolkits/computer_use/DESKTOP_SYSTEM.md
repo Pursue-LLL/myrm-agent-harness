@@ -149,6 +149,7 @@ Injected via server `DESKTOP_CONTROL_RULES` (`myrm-agent-server/app/ai_agents/pr
 | Native API routing hints | implemented (macOS/Windows/Linux) |
 | Desktop browser E2E host grants | the `chrome_e2e_desktop` nodes probe the *backend host* process (`/webui/desktop/permissions`); a backend running in a background bootstrap context reports denied even when your shell has grants — run it from a GUI-session backend or grant TCC to the host |
 | Background input (macOS) | ✅ implemented (PID-targeted delivery + foreground guard + window capture; minimized windows and Chromium move/scroll stay limited) |
+| Visual approval OS red frame (Tauri) | ✅ macOS only; non-macOS `show_visual_approval_overlay` returns Err + frontend `desktopBridge.isMacOS()` gate (in-app approval card remains fallback) |
 
 ---
 
