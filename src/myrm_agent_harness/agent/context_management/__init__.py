@@ -1122,6 +1122,18 @@ from .observation_pack import (
     PackBatchResult,
     TransformDecision,
 )
+from .online_economic_compact import (
+    CompactionDecisionResult,
+    CompactionEconomicsCalculator,
+    CompactionEconomicsConfig,
+    ContinuationTurnPayload,
+    EconomicCompactionLedger,
+    OnlineCompactContinuationEngine,
+    PlanStep,
+    PlanStepStatus,
+    SubtaskBoundaryHook,
+    SubtaskBoundaryOnlineContextCompactAndEconomicBreakevenSuite,
+)
 from .sandbox_pause_resume import (
     AgentkitPauseResumeSessionSandboxSuite,
     PauseResumeActionKind,
@@ -2191,4 +2203,15 @@ __all__ = [
     "ObservationSendState",
     "PackBatchResult",
     "TransformDecision",
+    # online_economic_compact
+    "CompactionDecisionResult",
+    "CompactionEconomicsCalculator",
+    "CompactionEconomicsConfig",
+    "ContinuationTurnPayload",
+    "EconomicCompactionLedger",
+    "OnlineCompactContinuationEngine",
+    "PlanStep",
+    "PlanStepStatus",
+    "SubtaskBoundaryHook",
+    "SubtaskBoundaryOnlineContextCompactAndEconomicBreakevenSuite",
 ]
