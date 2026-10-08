@@ -357,6 +357,22 @@ from myrm_agent_harness.toolkits.memory.experience_compounding import (
     ObsoleteContextAnnealingGovernor,
     compute_compounded_weight,
 )
+from myrm_agent_harness.toolkits.memory.life_milestones import (
+    ContextProjectionBundle,
+    GateVerificationResult,
+    GrowthDiaryEntry,
+    GrowthRetrospectiveAggregator,
+    LifeMilestone,
+    LifeMilestonesEngine,
+    LifeMilestonesSuite,
+    LifeStageEra,
+    MilestoneCategory,
+    MilestoneSignificanceGate,
+    PersonalRetrospectiveCard,
+    PrivacyIntimacyLevel,
+    ValueSystemAlignmentProjector,
+    ValueSystemNode,
+)
 from myrm_agent_harness.toolkits.memory.experience_observability import (
     ExperienceEffectStatus,
     ExperienceObservabilityMetric,
@@ -2072,6 +2088,20 @@ __all__ = [
     "KnowledgeCondensationEngine",
     "ObsoleteContextAnnealingGovernor",
     "compute_compounded_weight",
+    "ContextProjectionBundle",
+    "GateVerificationResult",
+    "GrowthDiaryEntry",
+    "GrowthRetrospectiveAggregator",
+    "LifeMilestone",
+    "LifeMilestonesEngine",
+    "LifeMilestonesSuite",
+    "LifeStageEra",
+    "MilestoneCategory",
+    "MilestoneSignificanceGate",
+    "PersonalRetrospectiveCard",
+    "PrivacyIntimacyLevel",
+    "ValueSystemAlignmentProjector",
+    "ValueSystemNode",
 ]
 
 
