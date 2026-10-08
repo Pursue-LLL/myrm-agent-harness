@@ -962,8 +962,27 @@ from .session_pins import (
     SessionPinSyncReceipt,
     SessionPinsPersistedInSessionsSuite,
 )
+from .native_thread_history import (
+    FallbackStatus,
+    GuardValidationResult,
+    LargeNativeThreadHistoryPreserveSuite,
+    SortKeyFallbackGuard,
+    SortKeyKind,
+    ThreadEntry,
+    ThreadHistoryPage,
+    ThreadPageRequest,
+)
 
 __all__ = [
+    # native_thread_history
+    "FallbackStatus",
+    "GuardValidationResult",
+    "LargeNativeThreadHistoryPreserveSuite",
+    "SortKeyFallbackGuard",
+    "SortKeyKind",
+    "ThreadEntry",
+    "ThreadHistoryPage",
+    "ThreadPageRequest",
     # session_pins
     "PinActionKind",
     "SessionDeeplinkRoute",
