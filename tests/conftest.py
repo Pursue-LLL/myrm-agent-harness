@@ -191,6 +191,22 @@ def _restore_chat_id_var() -> Iterator[None]:
 
 
 @pytest.fixture(autouse=True)
+def _isolate_subagent_checkpointer() -> Iterator[None]:
+    """Give every test its own subagent checkpointer singleton.
+
+    The shared SQLite saver and the asyncio locks inside it bind to the event loop of the first test that
+    contends on them. A test that ends while holding the saver lock leaves it locked, and every later
+    subagent run of the worker (each on its own loop) then fails with
+    ``<Lock [locked]> is bound to a different event loop``.
+    """
+    from myrm_agent_harness.agent.sub_agents.checkpointer import reset_subagent_checkpointer
+
+    reset_subagent_checkpointer()
+    yield
+    reset_subagent_checkpointer()
+
+
+@pytest.fixture(autouse=True)
 def _isolate_cli_tool_detection_cache() -> Iterator[None]:
     """Isolate the process-level CLI tool detection cache between all tests.
 
