@@ -1285,6 +1285,18 @@ from .prefix_caching_ledger import (
     TokenUsageBreakdown,
     TurnLedgerRecord,
 )
+from .tri_fate_compaction import (
+    CompactedTurnPartition,
+    DecoupledDigestSynthesizer,
+    TriFateCompactionConfig,
+    TriFateDecisionMarker,
+    TurnEvidence,
+    TurnFate,
+    TurnFateDecision,
+    TurnLevelTriFateCompactionAndDecoupledDigestSynthesizerSuite,
+    TurnLevelTriFateCompactionSuite,
+    TurnLevelTriFateCompactor,
+)
 from .sandbox_pause_resume import (
     AgentkitPauseResumeSessionSandboxSuite,
     PauseResumeActionKind,
@@ -2503,6 +2515,17 @@ __all__ = [
     "PrefixCachingLayoutConfig",
     "TokenUsageBreakdown",
     "TurnLedgerRecord",
+    # tri_fate_compaction
+    "CompactedTurnPartition",
+    "DecoupledDigestSynthesizer",
+    "TriFateCompactionConfig",
+    "TriFateDecisionMarker",
+    "TurnEvidence",
+    "TurnFate",
+    "TurnFateDecision",
+    "TurnLevelTriFateCompactionAndDecoupledDigestSynthesizerSuite",
+    "TurnLevelTriFateCompactionSuite",
+    "TurnLevelTriFateCompactor",
 ]
 
 
