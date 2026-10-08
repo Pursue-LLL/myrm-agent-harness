@@ -269,16 +269,11 @@ class MemoryManagerGovernanceSessionMixin:
         if not memory.preference_type:
             return
         try:
-            cue = (
-                CueFamily(memory.preference_type)
-                if memory.preference_type in ("explicit", "implicit")
-                else CueFamily.INFERRED
-            )
             candidate = PreferenceCandidate(
                 key=memory.metadata.get("preference_key", memory.content[:80]),
                 value=memory.content,
                 category=_infer_preference_category(memory),
-                cue=cue,
+                cue=CueFamily(memory.preference_type),
                 strength=memory.preference_strength or 0.5,
                 memory_id=memory.id,
                 content=memory.content,
