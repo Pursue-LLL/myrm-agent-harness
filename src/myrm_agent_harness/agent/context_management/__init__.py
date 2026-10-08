@@ -1014,8 +1014,31 @@ from .stale_query_expire import (
     QueryIntentEntry,
     StaleQueryExpiryEngine,
 )
+from .steer_after_compression import (
+    ActiveWorkerDescriptor,
+    ActiveWorkerSteerResolver,
+    ContextTurnMessage,
+    HermesWebuiSteerAfterCompressionSuite,
+    OOBMessageSanitizer,
+    SanitizedReplayResult,
+    SteerDispatchResult,
+    SteerMessageKind,
+    SteerResolutionStatus,
+    WorkerLifecycleState,
+)
 
 __all__ = [
+    # steer_after_compression
+    "ActiveWorkerDescriptor",
+    "ActiveWorkerSteerResolver",
+    "ContextTurnMessage",
+    "HermesWebuiSteerAfterCompressionSuite",
+    "OOBMessageSanitizer",
+    "SanitizedReplayResult",
+    "SteerDispatchResult",
+    "SteerMessageKind",
+    "SteerResolutionStatus",
+    "WorkerLifecycleState",
     # sandbox_pause_resume
     "AgentkitPauseResumeSessionSandboxSuite",
     "PauseResumeActionKind",
