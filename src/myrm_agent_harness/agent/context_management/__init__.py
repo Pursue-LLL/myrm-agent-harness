@@ -856,8 +856,21 @@ from .single_tier_override import (
     SingleTierWorkspaceRuleOverrideInterceptorSuite,
     WorkspaceRuleFileEntry,
 )
+from .system_append_channel import (
+    AppendPromptSource,
+    PromptChannelKind,
+    SystemPromptAppendLoader,
+    SystemPromptAssemblyReceipt,
+    SystemPromptStrongAppendChannelSuite,
+)
 
 __all__ = [
+    # system_append_channel
+    "AppendPromptSource",
+    "PromptChannelKind",
+    "SystemPromptAppendLoader",
+    "SystemPromptAssemblyReceipt",
+    "SystemPromptStrongAppendChannelSuite",
     # single_tier_override
     "OverrideResolutionKind",
     "RuleLayerKind",
