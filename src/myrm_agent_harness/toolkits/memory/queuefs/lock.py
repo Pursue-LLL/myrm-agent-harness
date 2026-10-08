@@ -4,6 +4,7 @@
 """
 
 import asyncio
+import fnmatch
 import time
 import uuid
 from collections.abc import AsyncGenerator
@@ -17,15 +18,30 @@ class LockAcquisitionConflictError(Exception):
 
 
 def _paths_overlap(path_a: str, path_b: str) -> bool:
-    """Determine whether two virtual paths overlap (exact match or prefix parent/child relationship)."""
+    """Determine whether two virtual paths overlap (exact match, glob wildcard, or prefix hierarchy)."""
     norm_a = path_a.strip().rstrip("/")
     norm_b = path_b.strip().rstrip("/")
 
     if norm_a == norm_b:
         return True
 
-    # Check prefix hierarchy boundary (e.g. context://resources/auth vs context://resources/auth/oauth.py)
-    return norm_a.startswith(norm_b + "/") or norm_b.startswith(norm_a + "/")
+    if "*" in norm_a and fnmatch.fnmatchcase(norm_b, norm_a):
+        return True
+    if "*" in norm_b and fnmatch.fnmatchcase(norm_a, norm_b):
+        return True
+
+    # Strip trailing /* or * for directory hierarchy check
+    prefix_a = norm_a.removesuffix("/*").removesuffix("*").rstrip("/")
+    prefix_b = norm_b.removesuffix("/*").removesuffix("*").rstrip("/")
+
+    if prefix_a == prefix_b:
+        return True
+
+    return norm_a.startswith(norm_b + "/") or norm_b.startswith(norm_a + "/") or (
+        bool(prefix_a and prefix_b) and (
+            prefix_a.startswith(prefix_b + "/") or prefix_b.startswith(prefix_a + "/")
+        )
+    )
 
 
 class PathSemanticLockManager:
