@@ -3,6 +3,7 @@
 
 [INPUT]
 - memory.types::{AnyMemory, SemanticMemory, EpisodicMemory, ProceduralMemory, PendingRecord, MemoryType} (POS: memory data models)
+- memory._internal.storage::InvalidPendingEditError (POS: memory error hierarchy)
 
 [OUTPUT]
 - memory_to_pending: AnyMemory → PendingRecord serialization
@@ -16,6 +17,7 @@ pipeline. Internal only — not part of the public API.
 
 from __future__ import annotations
 
+from myrm_agent_harness.toolkits.memory._internal.storage import InvalidPendingEditError
 from myrm_agent_harness.toolkits.memory.types import (
     AnyMemory,
     ConversationMemory,
@@ -66,13 +68,13 @@ def apply_edited_content(record: PendingRecord, edited_content: str) -> PendingR
     text, so an edit there is an error rather than a silently dropped change.
 
     Raises:
-        ValueError: the edit is blank or the proposal has no editable text.
+        InvalidPendingEditError: the edit is blank or the proposal has no editable text.
     """
     content = edited_content.strip()
     if not content:
-        raise ValueError("Edited content must not be empty")
+        raise InvalidPendingEditError("Edited content must not be empty")
     if record.memory_type == MemoryType.PROFILE or record.resolution_action == PendingResolutionAction.DELETE:
-        raise ValueError("This proposal has no editable content")
+        raise InvalidPendingEditError("This proposal has no editable content")
     if content == record.content:
         return record
     return record.model_copy(update={"content": content, "memory_data": {**record.memory_data, "content": content}})

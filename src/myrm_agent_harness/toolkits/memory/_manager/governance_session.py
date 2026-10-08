@@ -61,7 +61,7 @@ class MemoryManagerGovernanceSessionMixin:
         A forget proposal archives its target (restorable until retention purge).
 
         Raises:
-            ValueError: ``edited_content`` is blank or the proposal has no editable text.
+            InvalidPendingEditError: ``edited_content`` is blank or the proposal has no editable text.
         """
         return await self._governance.approve(
             pending_id,

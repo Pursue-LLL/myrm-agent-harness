@@ -14,6 +14,7 @@ from myrm_agent_harness.toolkits.memory._internal.approval import (
     memory_to_pending,
     pending_to_memory,
 )
+from myrm_agent_harness.toolkits.memory._internal.storage import InvalidPendingEditError
 from myrm_agent_harness.toolkits.memory.types import (
     ConversationMemory,
     EpisodicMemory,
@@ -142,7 +143,7 @@ def test_apply_edited_content_unchanged_text_returns_same_record() -> None:
 def test_apply_edited_content_rejects_blank(blank: str) -> None:
     record = memory_to_pending(SemanticMemory(id="mem-1", content="Original"))
 
-    with pytest.raises(ValueError, match="must not be empty"):
+    with pytest.raises(InvalidPendingEditError, match="must not be empty"):
         apply_edited_content(record, blank)
 
 
@@ -157,5 +158,5 @@ def test_apply_edited_content_rejects_proposals_without_text() -> None:
     )
 
     for record in (forget, profile):
-        with pytest.raises(ValueError, match="no editable content"):
+        with pytest.raises(InvalidPendingEditError, match="no editable content"):
             apply_edited_content(record, "anything")

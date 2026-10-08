@@ -12,6 +12,7 @@ from myrm_agent_harness.agent.middlewares.memory_context.ephemeral_delta import 
 from myrm_agent_harness.toolkits.memory._internal.embedding_cache import EmbeddingCache
 from myrm_agent_harness.toolkits.memory._internal.memory_scanner import ScanMetricsSnapshot, get_scan_metrics
 from myrm_agent_harness.toolkits.memory._internal.storage import (
+    InvalidPendingEditError,
     MemoryError,
     MemoryNotFoundError,
     MemoryProtectedError,
@@ -28,15 +29,16 @@ from myrm_agent_harness.toolkits.memory.activity_compactor import (
     MicroActivitySlice,
     RawActivityEvent,
 )
-from myrm_agent_harness.toolkits.memory.auto_memory import (
-    AutoMemoryBudgetPolicy,
-    AutoMemoryExtractionResult,
-    AutoMemoryGate,
-    AutoMemoryGatingDecision,
-    IdleAndBudgetGatedAutoMemoryEngine,
-    SessionActivitySnapshot,
-    SixDimensionalExtractor,
-    SixDimensionalMemorySlice,
+from myrm_agent_harness.toolkits.memory.authoritative_conclusions import (
+    AuthoritativeConclusion,
+    AuthoritativeConclusionStore,
+    AuthoritativeConclusionToolSuite,
+    ConclusionAnchorProjection,
+    ConclusionAuditRecord,
+    ConclusionContextAnchor,
+    ConclusionStatus,
+    ConclusionToolAction,
+    memory_conclude_tool,
 )
 from myrm_agent_harness.toolkits.memory.auto_consolidation import (
     AutoMemoryConsolidationOrchestrator,
@@ -54,16 +56,15 @@ from myrm_agent_harness.toolkits.memory.auto_consolidation import (
     evaluate_idle_status,
     evaluate_turn_and_info_gain,
 )
-from myrm_agent_harness.toolkits.memory.authoritative_conclusions import (
-    AuthoritativeConclusion,
-    AuthoritativeConclusionStore,
-    AuthoritativeConclusionToolSuite,
-    ConclusionAnchorProjection,
-    ConclusionAuditRecord,
-    ConclusionContextAnchor,
-    ConclusionStatus,
-    ConclusionToolAction,
-    memory_conclude_tool,
+from myrm_agent_harness.toolkits.memory.auto_memory import (
+    AutoMemoryBudgetPolicy,
+    AutoMemoryExtractionResult,
+    AutoMemoryGate,
+    AutoMemoryGatingDecision,
+    IdleAndBudgetGatedAutoMemoryEngine,
+    SessionActivitySnapshot,
+    SixDimensionalExtractor,
+    SixDimensionalMemorySlice,
 )
 from myrm_agent_harness.toolkits.memory.batch_learn import (
     BatchLearnExecutionReport,
@@ -295,13 +296,13 @@ from myrm_agent_harness.toolkits.memory.dreaming import (
     DreamCognitivePipeline,
     DreamDiaryEntry,
     DreamDiaryStatus,
+    DreamingMetaTools,
+    DreamingSynthesisReport,
+    DreamingTriggerReason,
     DreamMotive,
     DreamMotiveType,
     DreamSessionFragment,
     DreamTargetMemoryType,
-    DreamingMetaTools,
-    DreamingSynthesisReport,
-    DreamingTriggerReason,
     GroundedDreamingEngine,
     GroundedDreamingScheduler,
     GrowthDiaryEntry,
@@ -315,6 +316,18 @@ from myrm_agent_harness.toolkits.memory.dreaming import (
     SensitiveProvenanceGuard,
     SurgicalSessionMemoryUnlearner,
     SurgicalUnlearnReport,
+)
+from myrm_agent_harness.toolkits.memory.graph_reorganization import (
+    GraphMemoryReorganizationEngine,
+    GraphRelationType,
+    LineageStep,
+    MemoryGraphEdge,
+    MemoryGraphNode,
+    MemoryLineageTracker,
+    MemoryLineageTrail,
+    MemoryNodeStatus,
+    MultiRelationalDetector,
+    ReorganizationReport,
 )
 from myrm_agent_harness.toolkits.memory.ephemeral_delta import (
     DeltaActionKind,
@@ -522,6 +535,19 @@ from myrm_agent_harness.toolkits.memory.markdown_curator import (
     MarkdownSyncDelta,
     MemoryCuratorStudio,
 )
+from myrm_agent_harness.toolkits.memory.mem_cube import (
+    CubeMemoryRecord,
+    CubeQueryRequest,
+    CubeQueryResult,
+    CubeScopeType,
+    CubeWriteRequest,
+    CubeWriteResult,
+    DynamicMountRouter,
+    MemoryCube,
+    MemoryCubeOrchestrator,
+    MemoryCubeStore,
+    MountPolicy,
+)
 from myrm_agent_harness.toolkits.memory.metrics import SearchMetrics, SearchSnapshot, get_search_metrics
 from myrm_agent_harness.toolkits.memory.migration import (
     CompetitorAssetScanner,
@@ -549,19 +575,6 @@ from myrm_agent_harness.toolkits.memory.noise_free_extractor import (
     SanitizedExtractionResult,
     ToolNoiseFilter,
     ToolStrippedMessage,
-)
-from myrm_agent_harness.toolkits.memory.mem_cube import (
-    CubeMemoryRecord,
-    CubeQueryRequest,
-    CubeQueryResult,
-    CubeScopeType,
-    CubeWriteRequest,
-    CubeWriteResult,
-    DynamicMountRouter,
-    MemoryCube,
-    MemoryCubeOrchestrator,
-    MemoryCubeStore,
-    MountPolicy,
 )
 from myrm_agent_harness.toolkits.memory.observability import (
     MemoryInfluenceRef,
@@ -1287,6 +1300,7 @@ __all__ = [
     "MemoryArchiveSectionStatus",
     "MemoryConfig",
     "MemoryConversationSearchProvider",
+    "InvalidPendingEditError",
     "MemoryError",
     "MemoryExtractor",
     "MemoryImportDryRunResult",
@@ -1565,6 +1579,16 @@ __all__ = [
     "MemoryPruningEngine",
     "PrunedMemoryRecord",
     "PruningDecisionKind",
+    "GraphMemoryReorganizationEngine",
+    "GraphRelationType",
+    "LineageStep",
+    "MemoryGraphEdge",
+    "MemoryGraphNode",
+    "MemoryLineageTracker",
+    "MemoryLineageTrail",
+    "MemoryNodeStatus",
+    "MultiRelationalDetector",
+    "ReorganizationReport",
     "CareNotification",
     "FatigueLevelKind",
     "HealthMetricsRecord",

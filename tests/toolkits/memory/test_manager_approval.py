@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from myrm_agent_harness.toolkits.memory._internal.storage import MemoryNotFoundError
+from myrm_agent_harness.toolkits.memory._internal.storage import InvalidPendingEditError, MemoryNotFoundError
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.types import (
     MemoryStatus,
@@ -176,7 +176,10 @@ class TestApprovalWorkflow:
             memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True
         )
 
-        with patch.object(manager, "update_memory") as update, pytest.raises(ValueError, match="no editable content"):
+        with (
+            patch.object(manager, "update_memory") as update,
+            pytest.raises(InvalidPendingEditError, match="no editable content"),
+        ):
             await manager.approve("pending-del", edited_content="reworded")
 
         update.assert_not_called()
@@ -246,7 +249,7 @@ class TestApprovalWorkflow:
             created_at=datetime.now(UTC),
             status="pending",
         )
-        with pytest.raises(ValueError, match="must not be empty"):
+        with pytest.raises(InvalidPendingEditError, match="must not be empty"):
             await manager.approve("pending-1", edited_content="   ")
 
         mock_relational_store.get_pending.return_value = PendingRecord(
@@ -257,7 +260,7 @@ class TestApprovalWorkflow:
             created_at=datetime.now(UTC),
             status="pending",
         )
-        with pytest.raises(ValueError, match="no editable content"):
+        with pytest.raises(InvalidPendingEditError, match="no editable content"):
             await manager.approve("pending-2", edited_content="timezone: UTC+9")
 
         mock_relational_store.set_profile.assert_not_called()

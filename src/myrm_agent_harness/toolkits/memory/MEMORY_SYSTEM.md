@@ -898,7 +898,7 @@ tools = create_memory_tools(manager=manager)
 | `batch_approve(ids)`                                                              | 批量审批                                                                          |
 | `batch_reject(ids)`                                                               | 批量拒绝                                                                          |
 
-`PendingResolutionAction` 取值：`STORE`（默认，持久化候选记忆本身）、`CORRECT`（以候选内容纠正 `target_memory_id`，触发旧记忆降级并建立纠正链）、`DELETE`（归档 `target_memory_id`）。`CORRECT`/`DELETE` 需携带 `target_memory_id`；`DELETE` 走 `update_memory(status=ARCHIVED)`（软删除：召回即刻排除，保留期内可恢复，到期由归档回收清除），目标已被清除时批准幂等完成。`edited_content` 同时更新 `content` 与 `memory_data["content"]`（`STORE` 据后者重建、`CORRECT` 读前者）；空白文本、`profile`/`DELETE` 提案无可编辑文本，传入编辑抛 `ValueError` 且提案保持待审。若 `CORRECT` 的目标在审批前已被遗忘/清除，批准会退化为 `STORE`（保留用户已确认的纠正内容），而非报错。
+`PendingResolutionAction` 取值：`STORE`（默认，持久化候选记忆本身）、`CORRECT`（以候选内容纠正 `target_memory_id`，触发旧记忆降级并建立纠正链）、`DELETE`（归档 `target_memory_id`）。`CORRECT`/`DELETE` 需携带 `target_memory_id`；`DELETE` 走 `update_memory(status=ARCHIVED)`（软删除：召回即刻排除，保留期内可恢复，到期由归档回收清除），目标已被清除时批准幂等完成。`edited_content` 同时更新 `content` 与 `memory_data["content"]`（`STORE` 据后者重建、`CORRECT` 读前者）；空白文本、`profile`/`DELETE` 提案无可编辑文本，传入编辑抛 `InvalidPendingEditError` 且提案保持待审。若 `CORRECT` 的目标在审批前已被遗忘/清除，批准会退化为 `STORE`（保留用户已确认的纠正内容），而非报错。
 
 ---
 
