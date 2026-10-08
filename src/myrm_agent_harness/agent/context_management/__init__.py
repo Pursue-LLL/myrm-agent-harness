@@ -972,8 +972,23 @@ from .native_thread_history import (
     ThreadHistoryPage,
     ThreadPageRequest,
 )
+from .spawn_reservation import (
+    AdmissionCommitResult,
+    ReservationResult,
+    ReservationState,
+    SpawnNameReservationEngine,
+    SpawnNameReservationUntilAdmissionDurableSuite,
+    SpawnReservationLease,
+)
 
 __all__ = [
+    # spawn_reservation
+    "AdmissionCommitResult",
+    "ReservationResult",
+    "ReservationState",
+    "SpawnNameReservationEngine",
+    "SpawnNameReservationUntilAdmissionDurableSuite",
+    "SpawnReservationLease",
     # native_thread_history
     "FallbackStatus",
     "GuardValidationResult",
