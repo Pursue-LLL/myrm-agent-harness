@@ -40,6 +40,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | clean_markdown_extractor/ | Core engine for High-Density Clean Markdown Extraction and Context Sparsity Pruning. See [clean_markdown_extractor/_ARCH.md](clean_markdown_extractor/_ARCH.md). |
 | clean_pod_archival/ | 核心引擎实现：单任务瞬态上下文防污染隔离、最终产物干净汇流与夜间定时无损资产沉淀。 See [clean_pod_archival/_ARCH.md](clean_pod_archival/_ARCH.md). |
 | cloud_snapshot/ | Engine implementation for Instant Cloud Session Snapshot Restore and Zero-Clone Warm Pool. See [cloud_snapshot/_ARCH.md](cloud_snapshot/_ARCH.md). |
+| collapse_idle_window/ | Stream windowing subsystem enforcing causal collapse-before-cut sequencing to prevent compression distortion and protect tail action history from being evicted by consecutive idle runs. See [collapse_idle_window/_ARCH.md](collapse_idle_window/_ARCH.md). |
 | cold_start_profiler/ | Cold Start Context Profiler Engine providing transparent context breakdown. See [cold_start_profiler/_ARCH.md](cold_start_profiler/_ARCH.md). |
 | collaboration/ | Manages shared cloud session snapshots, security gates, and team steering. See [collaboration/_ARCH.md](collaboration/_ARCH.md). |
 | command_quiet_rewriter/ | Command Quiet Rewriter and Subagent Log Sink Suite. See [command_quiet_rewriter/_ARCH.md](command_quiet_rewriter/_ARCH.md). |

@@ -997,6 +997,18 @@ from .handoff_checkpoint import (
     TaskCheckpoint,
     WorkBuddyHandoffThenCompactSuite,
 )
+from .collapse_idle_window import (
+    CollapseWindowConfig,
+    CollapseWindowCutEngine,
+    CollapseWindowReceipt,
+    HeadlongCollapseIdleBeforeCutSuite,
+    IdleStreamCollapser,
+    StepType,
+    StreamStepItem,
+    collapse_then_cut_stream,
+    format_time_duration,
+    make_stream_step,
+)
 from .evidence_disclosure import (
     ActionDetailDescriptor,
     ActionExecutionFailure,
@@ -1070,6 +1082,17 @@ from .steer_after_compression import (
 )
 
 __all__ = [
+    # collapse_idle_window
+    "CollapseWindowConfig",
+    "CollapseWindowCutEngine",
+    "CollapseWindowReceipt",
+    "HeadlongCollapseIdleBeforeCutSuite",
+    "IdleStreamCollapser",
+    "StepType",
+    "StreamStepItem",
+    "collapse_then_cut_stream",
+    "format_time_duration",
+    "make_stream_step",
     # evidence_disclosure
     "ActionDetailDescriptor",
     "ActionExecutionFailure",
