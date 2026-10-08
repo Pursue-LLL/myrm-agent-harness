@@ -51,6 +51,7 @@ logger = logging.getLogger(__name__)
 
 StoreFunc = Callable[[AnyMemory], Awaitable[AnyMemory]]
 ReadFunc = Callable[[str], Awaitable[AnyMemory | None]]
+ExistsFunc = Callable[[str], Awaitable[bool]]
 
 
 def _drift_reason(record: PendingRecord, target: AnyMemory) -> str | None:
@@ -67,27 +68,34 @@ def _drift_reason(record: PendingRecord, target: AnyMemory) -> str | None:
     return None
 
 
-def _ensure_target_unchanged(record: PendingRecord, target: AnyMemory | None) -> None:
-    """Refuse to apply a proposal to a memory that is no longer what the reviewer was shown.
+async def _ensure_target_reviewable(record: PendingRecord, read_func: ReadFunc, exists_func: ExistsFunc) -> None:
+    """Refuse to apply a proposal to a memory that is not what the reviewer was shown.
 
     A ``CORRECT`` also needs the target to be live and not yet corrected: correcting
-    twice would leave two competing corrections active. A missing target is not drift;
-    the callers already resolve that case.
+    twice would leave two competing corrections active. A target that is truly gone
+    is not refused; the callers already resolve that case. A target that still exists
+    but lies outside the reviewer's namespaces is refused too: reading it as missing
+    would store a duplicate correction or report a forget that never happened.
     """
+    target_id = str(record.target_memory_id)
+    target = await read_func(target_id)
     if target is None:
-        return
-    reason = _drift_reason(record, target)
+        if not await exists_func(target_id):
+            return
+        reason: str | None = "out_of_scope"
+    else:
+        reason = _drift_reason(record, target)
     if reason is None:
         return
     logger.info(
-        "Pending %s proposal %s refused: target %s drifted (%s)",
+        "Pending %s proposal %s refused: target %s is not applicable (%s)",
         record.resolution_action,
         record.id,
-        record.target_memory_id,
+        target_id,
         reason,
     )
     raise PendingTargetChangedError(
-        f"Memory {record.target_memory_id} changed after proposal {record.id} was queued; review it again"
+        f"Memory {target_id} is no longer what proposal {record.id} was queued against ({reason}); review it again"
     )
 
 
@@ -145,14 +153,17 @@ class GovernanceService:
         correct_func: Callable[[str, str], Awaitable[AnyMemory]],
         forget_func: Callable[[str], Awaitable[AnyMemory]],
         read_func: ReadFunc,
+        exists_func: ExistsFunc,
         edited_content: str | None = None,
     ) -> AnyMemory | None:
         """Apply a pending proposal; ``edited_content`` is the reviewer's rewording.
 
         ``forget_func`` retires the targeted memory (archive, not hard delete) so
         a mistaken approval stays restorable during the archive retention window.
-        ``read_func`` loads the target so a proposal is never applied to a memory
-        that changed since the reviewer saw it (``PendingTargetChangedError``).
+        ``read_func`` loads the target within the reviewer's namespaces and
+        ``exists_func`` tells a target that is gone from one the reviewer cannot
+        reach, so a proposal is never applied to a memory that changed since the
+        reviewer saw it or to one this review cannot see (``PendingTargetChangedError``).
         """
         rel = self._rel()
         record = await rel.get_pending(pending_id)
@@ -174,7 +185,7 @@ class GovernanceService:
 
         if record.resolution_action == PendingResolutionAction.DELETE:
             if record.target_memory_id:
-                _ensure_target_unchanged(record, await read_func(record.target_memory_id))
+                await _ensure_target_reviewable(record, read_func, exists_func)
                 try:
                     await forget_func(record.target_memory_id)
                 except MemoryNotFoundError:
@@ -185,7 +196,7 @@ class GovernanceService:
             return None
 
         if record.resolution_action == PendingResolutionAction.CORRECT and record.target_memory_id:
-            _ensure_target_unchanged(record, await read_func(record.target_memory_id))
+            await _ensure_target_reviewable(record, read_func, exists_func)
             try:
                 stored = await correct_func(record.target_memory_id, record.content)
             except MemoryNotFoundError:

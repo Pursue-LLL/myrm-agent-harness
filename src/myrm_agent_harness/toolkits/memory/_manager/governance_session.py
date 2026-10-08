@@ -63,7 +63,8 @@ class MemoryManagerGovernanceSessionMixin:
         Raises:
             InvalidPendingEditError: ``edited_content`` is blank or the proposal has no editable text.
             PendingTargetChangedError: a ``CORRECT``/``DELETE`` target changed after it was queued
-                (content edited, already corrected, or no longer active); the proposal stays pending.
+                (content edited, already corrected, or no longer active) or lives in a namespace
+                this manager cannot read; the proposal stays pending.
         """
         return await self._governance.approve(
             pending_id,
@@ -71,6 +72,7 @@ class MemoryManagerGovernanceSessionMixin:
             correct_func=self.correct_memory,
             forget_func=lambda memory_id: self.update_memory(memory_id, status=MemoryStatus.ARCHIVED),
             read_func=self.get_memory,
+            exists_func=self._memory_exists_in_any_scope,
             edited_content=edited_content,
         )
 

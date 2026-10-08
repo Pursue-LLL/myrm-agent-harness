@@ -12,7 +12,7 @@ Internal implementation details — not part of the public API.
 | bm25_sparse_index.py | Core | Persistent BM25 sparse mirror. Token hashing (crc32 u31), saturated term-frequency vectors, and the `BM25SparseIndexStore` wrapper that fail-open mirrors every upsert/delete into a `{collection}_bm25` sparse collection and serves BM25 queries from it after a one-shot backfill. `wrap_with_bm25_sparse_index` decides capability by exact `isinstance` at assembly time; legacy backends stay unwrapped on the corpus-scroll fallback path. `unwrap_sparse_mirror` returns the backend beneath the wrapper for the named-vector conversation collection, which the mirror does not cover. | ✅ |
 | channel_pruning.py | Core | Channel pruning and sub-graph dispatch coordinator with explicit-scope invariance protection. | ✅ |
 | embedding_cache.py | Core | Two-tier embedding cache. L1 uses in-memory LRU (OrderedDict + access-count eviction), L2 calls the  | ✅ |
-| governance_service.py | Core | Governance-side orchestration. Handles approval flow, profile updates, and content scanning. | ✅ |
+| governance_service.py | Core | Governance-side orchestration. Handles approval flow (including the stale / out-of-scope target guard), profile updates, and content scanning. | ✅ |
 | graph_cascade.py | Internal | Cascade graph cleanup for derived nodes upon memory deletion | ✅ |
 | hash_utils.py | Core | Content hash computation utilities for deduplication. | ✅ |
 | maintenance.py | Core | Stateless background maintenance operations. Handles dedup, forgetting, access tracking, Task Digest evaporation, and Blob GC. Dedup candidates, forgetting, evaporation, and claim compilation are namespace-scoped to never touch other agents' memories. | ✅ |
