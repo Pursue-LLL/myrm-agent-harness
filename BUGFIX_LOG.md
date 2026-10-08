@@ -2,6 +2,22 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-08-001 · 技能与专家导出的脱敏把密钥原样留在包里、把无害设置改成占位符，且审阅面板的类型标签是英文原文
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-08 |
+| **修复时间** | 2026-10-08 |
+| **症状** | 用修复前的脱敏器（`27c02425^`）对单行样本实测：`https://x.io/cb?access_token=abcdef1234567890abcd&a=1` 输出 `https://x.io/cb<REDACTED_PARAM>abcdef1234567890abcd&a=<REDACTED_VALUE>1`，令牌原文仍在、URL 被破坏；`Authorization: Bearer abcdefghijklmnop12345678` 输出 `Authorization: <REDACTED_TOKEN>abcdefghijklmnop12345678`，令牌原文仍在；`OPENAI_API_KEY=sk-…` 输出 `<REDACTED_TOKEN<REDACTED_VALUE>>`（占位符嵌套）。第一轮修复后（`27c02425`）密钥已被替换，但 `max_tokens: 4096`、`auth_type: bearer`、`api_key_env: OPENAI_API_KEY`、`api_key: $OPENAI_API_KEY`、`token: <your-token>` 这类只是描述或指向密钥的设置也被改成 `<REDACTED_VALUE>`，导出的专家包因此被改坏。审阅面板每条发现旁显示的类型是后端英文原文，非中文界面的用户直接看到英文 |
+| **关联产品** | myrm-agent-harness `agent/skills/security/content_sanitizer.py`；消费方：单技能导出、专家导出、Marketplace 发布（共用同一脱敏器） |
+| **根因** | （1）检测按共享正则的捕获组序号读取，组序号与规则漂移后替换的区间是密钥旁边的文字，而不是密钥本身；（2）关键词命中即脱敏，没有区分“密钥本身”和“关于密钥的设置/指向密钥的占位”；（3）重叠命中只保留一个，较短的那条所覆盖的片段会残留；（4）发现项携带的是展示用英文文本，而不是调用方可本地化的稳定码 |
+| **修复** | 脱敏改为规则表：每条规则显式声明密钥所在的捕获组（以及名称组），复用运行期同一份关键词守卫；`_NON_SECRET_KEY_RE` 放过描述密钥的设置名（`max_tokens`、`*_type`、`*_env`、`*_url` 等），`_PLACEHOLDER_RE` 放过 `$VAR`、`{{x}}`、`<your-token>`、全大写变量名；重叠命中取并集，一个密钥不会只被遮住一半；发现项的 `reason` 改为封闭枚举 `SecretKind` 的 `kinds: list[SecretKind]`，server 原样透传，前端按六语言文案渲染，未知码回落到通用文案。取舍：单次脱敏比旧版慢约 1.3–2 倍（4000 行 / 360 KB 实测 266–406 ms 对 190–225 ms；64 KB 封顶时约 50 ms），换来的是上述密钥不再残留 |
+| **反复次数** | 第 2 次发现（同一脱敏器连续两轮修复：先修“替换了错的区间”，再修“误伤设置与占位符”） |
+| **踩坑** | 只改捕获组序号不会暴露问题，因为旧用例只断言“输出里出现占位符”，没有断言“密钥原文不再出现”；占位符 `$VAR`、全大写变量名与真密钥长得很像，必须用真实样本逐条对照；规则的组布局漂移必须由测试拦截，否则下次共享正则改动会悄悄复发 |
+| **回归** | `tests/agent/skills/test_content_sanitizer.py::TestSecretNeverSurvives` · `::TestSurroundingSyntaxIsPreserved` · `::TestProseIsNotRedacted` · `::TestMultipleSecretsPerLine` · `::TestFindingKinds` · `::TestRuleTable`（组布局、每个类型码可达、重叠取并集）；跨层：myrm-agent-server `tests/integration/test_redaction_kinds_i18n_sync.py`（类型码与前端六语言文案一一对应） |
+| **代码位置** | `agent/skills/security/content_sanitizer.py::_SECRET_RULES/_merge_overlaps/_NON_SECRET_KEY_RE/_PLACEHOLDER_RE/Redaction/SecretKind` |
+
 ### BUG-HARNESS-2026-10-07-008 · 连接在工具调用中途被干净关闭时，LiteLLM 合成的 `stop` 让半截参数被补全并当作完整调用执行
 
 | 字段 | 内容 |
