@@ -1237,6 +1237,19 @@ from .jit_tool_hydration import (
     VirtualCatalogIndex,
     VirtualToolCatalogIndexer,
 )
+from .conversation_archive_share import (
+    ArchiveTier,
+    ColdArchiveRecord,
+    ConversationArchiveShareConfig,
+    ConversationShareableSnapshotAndTieredColdArchiveSuite,
+    SanitizedShareMessage,
+    SanitizedSnapshotExporter,
+    ShareAccessPolicy,
+    ShareVerificationResult,
+    ShareableSnapshotManifest,
+    SignedShareGateway,
+    TieredColdStorageArchiver,
+)
 from .sandbox_pause_resume import (
     AgentkitPauseResumeSessionSandboxSuite,
     PauseResumeActionKind,
@@ -2411,6 +2424,18 @@ __all__ = [
     "ToolSchemaDescriptor",
     "VirtualCatalogIndex",
     "VirtualToolCatalogIndexer",
+    # conversation_archive_share
+    "ArchiveTier",
+    "ColdArchiveRecord",
+    "ConversationArchiveShareConfig",
+    "ConversationShareableSnapshotAndTieredColdArchiveSuite",
+    "SanitizedShareMessage",
+    "SanitizedSnapshotExporter",
+    "ShareAccessPolicy",
+    "ShareVerificationResult",
+    "ShareableSnapshotManifest",
+    "SignedShareGateway",
+    "TieredColdStorageArchiver",
 ]
 
 
