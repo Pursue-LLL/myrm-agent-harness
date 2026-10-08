@@ -28,7 +28,8 @@ from datetime import UTC, datetime
 _SENSITIVE_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"(?i)(?:api[_-]?key|apikey|secret[_-]?key)\s*[:=]\s*['\"]?([a-zA-Z0-9_\-]{16,})['\"]?"),
     re.compile(r"(?i)(?:bearer\s+[a-zA-Z0-9_\-\.]{20,})"),
-    re.compile(r"(?i)(?:password|passwd|pwd)\s*[:=]\s*['\"]?([^\s'\"]{6,})['\"]?"),
+    re.compile(r"(?i)(?:password|passwd|pwd)\s*(?:[:=]|\bis\b)\s*['\"]?([^\s'\"]{6,})['\"]?"),
+    re.compile(r"(?i)[a-z0-9_]+://[^:\s]+:[^@\s]+@"),
     re.compile(r"-----BEGIN (?:RSA |EC )?PRIVATE KEY-----"),
     re.compile(r"(?i)(?:ghp|gho|ghu|ghs|ghr)_[a-zA-Z0-9]{36}"),
     re.compile(r"(?i)sk-[a-zA-Z0-9]{20,48}"),

@@ -28,8 +28,25 @@ Grounded Dreaming, Provenance Anchoring, and Surgical Memory Unlearning toolkit.
 
 from __future__ import annotations
 
+from myrm_agent_harness.toolkits.memory.dreaming.cognitive_models import (
+    CognitiveConsolidationReport,
+    DreamCognitiveAction,
+    DreamCognitiveActionType,
+    DreamCognitiveCluster,
+    DreamMotive,
+    DreamMotiveType,
+    DreamTargetMemoryType,
+    GrowthDiaryEntry,
+    HypotheticalDeduction,
+)
+from myrm_agent_harness.toolkits.memory.dreaming.cognitive_pipeline import (
+    DreamCognitivePipeline,
+)
 from myrm_agent_harness.toolkits.memory.dreaming.engine import (
     GroundedDreamingEngine,
+)
+from myrm_agent_harness.toolkits.memory.dreaming.growth_diary import (
+    GrowthDiaryGenerator,
 )
 from myrm_agent_harness.toolkits.memory.dreaming.models import (
     DreamDiaryEntry,
@@ -64,14 +81,25 @@ from myrm_agent_harness.toolkits.memory.dreaming.unlearn import (
 
 __all__ = [
     "AutonomousDreamingSynthesizer",
+    "CognitiveConsolidationReport",
+    "DreamCognitiveAction",
+    "DreamCognitiveActionType",
+    "DreamCognitiveCluster",
+    "DreamCognitivePipeline",
     "DreamDiaryEntry",
     "DreamDiaryStatus",
+    "DreamMotive",
+    "DreamMotiveType",
     "DreamSessionFragment",
+    "DreamTargetMemoryType",
     "DreamingMetaTools",
     "DreamingSynthesisReport",
     "DreamingTriggerReason",
     "GroundedDreamingEngine",
     "GroundedDreamingScheduler",
+    "GrowthDiaryEntry",
+    "GrowthDiaryGenerator",
+    "HypotheticalDeduction",
     "MemoryProvenanceAnchor",
     "MemoryPruningEngine",
     "ProjectScopeIsolationGuard",
@@ -81,3 +109,4 @@ __all__ = [
     "SurgicalSessionMemoryUnlearner",
     "SurgicalUnlearnReport",
 ]
+
