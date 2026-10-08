@@ -1250,6 +1250,18 @@ from .conversation_archive_share import (
     SignedShareGateway,
     TieredColdStorageArchiver,
 )
+from .living_scratchpad import (
+    LivingScratchpadConfig,
+    LivingScratchpadDocumentManager,
+    LivingScratchpadWorkingMemoryAndBiDirectionalContextConduitSuite,
+    ScratchpadBidirectionalPatcher,
+    ScratchpadConduitInjection,
+    ScratchpadContextConduit,
+    ScratchpadDocument,
+    ScratchpadPatchOp,
+    ScratchpadScope,
+    ScratchpadTodoItem,
+)
 from .sandbox_pause_resume import (
     AgentkitPauseResumeSessionSandboxSuite,
     PauseResumeActionKind,
@@ -2436,6 +2448,17 @@ __all__ = [
     "ShareableSnapshotManifest",
     "SignedShareGateway",
     "TieredColdStorageArchiver",
+    # living_scratchpad
+    "LivingScratchpadConfig",
+    "LivingScratchpadDocumentManager",
+    "LivingScratchpadWorkingMemoryAndBiDirectionalContextConduitSuite",
+    "ScratchpadBidirectionalPatcher",
+    "ScratchpadConduitInjection",
+    "ScratchpadContextConduit",
+    "ScratchpadDocument",
+    "ScratchpadPatchOp",
+    "ScratchpadScope",
+    "ScratchpadTodoItem",
 ]
 
 
