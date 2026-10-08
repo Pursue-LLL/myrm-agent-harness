@@ -838,8 +838,27 @@ from .session_handoff import (
     SessionHandoffPackageAndReadonlyShareAndSecretGateAndBlameSuite,
     ShareAccessStatus,
 )
+from .layered_loop_termination import (
+    DebtInboxItem,
+    DebtInboxManager,
+    DebtKind,
+    LayeredLoopEvent,
+    LayeredLoopTerminationAndDebtInboxSuite,
+    LoopHierarchyTier,
+    LoopTerminationDecision,
+    LoopTerminationReason,
+)
 
 __all__ = [
+    # layered_loop_termination
+    "DebtInboxItem",
+    "DebtInboxManager",
+    "DebtKind",
+    "LayeredLoopEvent",
+    "LayeredLoopTerminationAndDebtInboxSuite",
+    "LoopHierarchyTier",
+    "LoopTerminationDecision",
+    "LoopTerminationReason",
     # session_handoff
     "HandoffMessageTurn",
     "LineBlameEntry",
