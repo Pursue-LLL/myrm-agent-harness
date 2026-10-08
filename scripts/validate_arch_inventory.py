@@ -43,10 +43,6 @@ from md_ref_validator import PRUNE_DIR_NAMES, MdRefReport, scan_md_refs
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _MONOREPO_ROOT = Path(__file__).resolve().parent.parent.parent
 _TABLE_HEADER_CELLS = frozenset({"File", "Module", "Submodule", "文件"})
-_FAIL_LINE = (
-    "FAIL - fix _ARCH.md file tables "
-    "(python scripts/fix_fractal_docs.py --write <paths>; gaps already in HEAD: --head --write --commit)"
-)
 
 
 @dataclass(frozen=True)
@@ -155,7 +151,7 @@ def _format_reports(reports: list[DirReport], *, root_label: str) -> str:
         else:
             lines.append(f"OK   {rel} ({len(report.py_files)} py files)")
     lines.append("")
-    lines.append("PASS" if not failed else _FAIL_LINE)
+    lines.append("PASS" if not failed else "FAIL - fix _ARCH.md file tables")
     return "\n".join(lines)
 
 

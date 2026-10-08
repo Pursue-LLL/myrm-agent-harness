@@ -10,9 +10,6 @@ Run (from myrm-agent-harness root)::
     uv run python scripts/check_fractal_docs.py
     uv run python scripts/check_fractal_docs.py --strict-headers
 
-Repair what this gate (and ``validate_arch_inventory.py``) reports with
-``scripts/fix_fractal_docs.py`` (dry-run by default).
-
 Exit codes:
     0  No missing _ARCH.md (and no strict header violations when enabled).
     1  Strict header check found violations.
@@ -47,10 +44,6 @@ _HEADER_PATTERN = re.compile(
 )
 _STUB_MARKERS = ("待补", "（见目录）", "见源码")
 _NO_STUB_PREFIXES = ("api/",)
-FIX_HINT = (
-    "Fix: python scripts/fix_fractal_docs.py --write <paths>  "
-    "(omit --write for a dry-run; gaps already in HEAD: --head --write --commit)"
-)
 
 
 def _is_pruned_dir(path: Path) -> bool:
@@ -199,9 +192,6 @@ def main(argv: list[str] | None = None) -> int:
         print("ERROR: _ARCH.md stub markers in guarded paths (api/):", file=sys.stderr)
         for arch in stub_arch:
             print(f"  - {arch.relative_to(package_root.parent.parent)}", file=sys.stderr)
-
-    if missing_arch or bad_headers:
-        print(FIX_HINT, file=sys.stderr)
 
     if not missing_arch and not bad_headers and not stub_arch:
         scope = "directory _ARCH.md"

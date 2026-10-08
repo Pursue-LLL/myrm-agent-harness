@@ -525,7 +525,6 @@ class UserService:
 - **Semantic network**: INPUT references POS, forming a self-healing dependency graph.
 - **Module docs**: `_ARCH.md` replaces README.md at module level. No module-level README files.
 - **CI gate**: `scripts/check_fractal_docs.py` + `scripts/validate_arch_inventory.py` — fractal `_ARCH.md` coverage and file-table vs disk `.py` consistency (pre-commit + `boundary-check.yml`). Pure data/config directories (JSON/YAML/SQL only) are excluded. Slow wheel packaging tests run in the `distribution-packaging-slow` CI job.
-- **Self-service repair**: when either gate is red, `scripts/fix_fractal_docs.py` drafts the missing `[INPUT]/[OUTPUT]/[POS]` headers, `_ARCH.md` rows and `_ARCH.md` files from the code itself (dry-run by default; `--write PATH` touches only the paths you name; `--head --write --commit` repairs gaps that are already committed by writing and committing only files still byte-identical to HEAD, so it is safe in a shared worktree; AST-guarded so only module docstrings can change). Its output is a mechanical first draft to refine by hand.
 
 ---
 
@@ -554,7 +553,7 @@ class UserService:
 3. **接口契约**：OUTPUT 声明对外能力，形成清晰的接口契约
 4. **影响分析**：通过 INPUT/POS 链接快速定位变更影响范围
 5. **变更影响分析**：借助 INPUT/POS 链接定位依赖面，配合评审与测试降低回归风险
-6. **自动化门禁**：`check_fractal_docs.py` + `boundary_check.py` + `validate_arch_inventory.py`（`_ARCH.md` 文件表 vs 磁盘 `.py`）+ `check_file_line_limit.py`（单文件行数 + `file_line_baseline.txt` grandfather）+ `test_core_dependencies.py`（core 24 项与 uv.lock 严格对齐）在 pre-commit 与 CI 阻断文档/层边界/依赖分层回归；inventory scope 为 `src/myrm_agent_harness/` 全包；wheel 打包慢测在 `distribution-packaging-slow` job（`-m "architecture and slow"`）；前两条门禁变红时用 `fix_fractal_docs.py`（默认 dry-run，`--write PATH` 只改指定路径；`--head --write --commit` 只写并只提交与 HEAD 逐字节一致的文件，共享工作树安全）一键补 IOP 头 / `_ARCH.md` 行，而非人工逐文件补
+6. **自动化门禁**：`check_fractal_docs.py` + `boundary_check.py` + `validate_arch_inventory.py`（`_ARCH.md` 文件表 vs 磁盘 `.py`）+ `check_file_line_limit.py`（单文件行数 + `file_line_baseline.txt` grandfather）+ `test_core_dependencies.py`（core 24 项与 uv.lock 严格对齐）在 pre-commit 与 CI 阻断文档/层边界/依赖分层回归；inventory scope 为 `src/myrm_agent_harness/` 全包；wheel 打包慢测在 `distribution-packaging-slow` job（`-m "architecture and slow"`）
 
 **File line grandfather（`scripts/file_line_baseline.txt`）**：
 
