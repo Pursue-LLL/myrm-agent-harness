@@ -824,8 +824,35 @@ from .headless_continuation import (
     RelayChannelKind,
     RiskLevel,
 )
+from .session_handoff import (
+    HandoffMessageTurn,
+    LineBlameEntry,
+    LineBlameLookupResult,
+    ReadonlyShareGrant,
+    SecretFinding,
+    SecretGateScanResult,
+    SecretGateScanner,
+    SecretSeverity,
+    SessionBlameIndexer,
+    SessionHandoffPackage,
+    SessionHandoffPackageAndReadonlyShareAndSecretGateAndBlameSuite,
+    ShareAccessStatus,
+)
 
 __all__ = [
+    # session_handoff
+    "HandoffMessageTurn",
+    "LineBlameEntry",
+    "LineBlameLookupResult",
+    "ReadonlyShareGrant",
+    "SecretFinding",
+    "SecretGateScanResult",
+    "SecretGateScanner",
+    "SecretSeverity",
+    "SessionBlameIndexer",
+    "SessionHandoffPackage",
+    "SessionHandoffPackageAndReadonlyShareAndSecretGateAndBlameSuite",
+    "ShareAccessStatus",
     # headless_continuation
     "ApprovalDecisionKind",
     "ApprovalRelayReceipt",
