@@ -1,7 +1,7 @@
 """Memory store for indexing and retrieving multimodal items and artifacts.
 
 [INPUT]
-- memory.multimodal.models::{MultimodalMemoryItem, AssetModality} (POS: data contracts of the multimodal memory package)
+- memory.multimodal.models::{MultimodalMemoryItem, AssetModality} (POS: Data contracts of the multimodal memory package)
 
 [OUTPUT]
 - MultimodalMemoryStore: In-memory repository of multimodal memory items (add, get, delete, list by session and modality, count, clear); no locking

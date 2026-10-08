@@ -1,10 +1,10 @@
 """Orchestrator unifying multimodal asset ingestion, indexing, and cross-modal search.
 
 [INPUT]
-- memory.multimodal.models::{MultimodalIngestRequest, MultimodalMemoryItem, MultimodalSearchQuery, MultimodalSearchHit} (POS: data contracts of the multimodal memory package)
-- memory.multimodal.extractor::MultimodalFeatureExtractor (POS: ingest-side feature extraction and UI card previews)
-- memory.multimodal.store::MultimodalMemoryStore (POS: in-memory repository of multimodal memory items)
-- memory.multimodal.retriever::CrossModalRetriever (POS: lexical cross-modal search layer)
+- memory.multimodal.models::{MultimodalIngestRequest, MultimodalMemoryItem, MultimodalSearchQuery, MultimodalSearchHit} (POS: Data contracts of the multimodal memory package)
+- memory.multimodal.extractor::MultimodalFeatureExtractor (POS: Ingest-side feature extraction of the multimodal memory package)
+- memory.multimodal.store::MultimodalMemoryStore (POS: Storage layer of the multimodal memory package)
+- memory.multimodal.retriever::CrossModalRetriever (POS: Search layer of the multimodal memory package)
 
 [OUTPUT]
 - MultimodalMemoryOrchestrator: Facade with ingest_asset, search_assets, get_asset, get_asset_card and clear

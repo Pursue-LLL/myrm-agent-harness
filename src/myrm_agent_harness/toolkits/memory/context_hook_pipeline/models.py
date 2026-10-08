@@ -5,12 +5,12 @@
 
 [OUTPUT]
 - ContextHookStage, HookExecutionPriority: lifecycle stages (before agent start, context transform, after tool call, before LLM request) and priority tiers where a lower number runs earlier
-- MemoryLayerKind, MemoryFragment, DualLayerMemoryPayload: private-agent and shared-global memory fragments bundled with a token budget (default 1500, bounded 100 to 32000)
+- MemoryLayerKind, MemoryFragment, DualLayerMemoryPayload: private-agent and shared-global memory fragments bundled with a token budget
 - ContextEnvelope: mutable per-request state carrying the system prompt, injected memory blocks, metadata and the blocked flag with its reason
 - HookExecutionReport: per-hook telemetry with duration, whether it modified the context and whether it blocked
 
 [POS]
-Data contracts of the context hook pipeline package, shared by the hook chain, the memory weaver and the facade.
+Data contracts of the context hook pipeline package. Shared by the hook chain, the memory weaver and the facade.
 """
 
 from __future__ import annotations

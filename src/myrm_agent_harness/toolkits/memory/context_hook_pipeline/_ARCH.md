@@ -14,13 +14,13 @@
 
 ## 2. 文件清单
 
-| 文件 | 角色 | 职责 | I/O/P |
+| 文件 | 地位 | 职责 | I/O/P |
 | --- | --- | --- | --- |
-| `models.py` | 实体模型 | 生命周期阶段与优先级枚举、记忆片段与双层载荷、可变上下文信封、Hook 执行报告 | ✅ |
-| `pipeline.py` | 钩子链 | `PluggableContextHookPipeline`：按阶段注册 hook（同 id 覆盖），按优先级升序同步执行并返回逐 hook 报告；hook 阻断或抛异常即终止当前阶段 | ✅ |
-| `dual_layer_weaver.py` | 记忆编织 | `DualLayerMemoryWeaver`：过滤他人私有片段，在 token 预算内私有优先、共享补足，生成注入用 Markdown 块 | ✅ |
+| `models.py` | 核心 | 生命周期阶段与优先级枚举、记忆片段与双层载荷、可变上下文信封、Hook 执行报告 | ✅ |
+| `pipeline.py` | 核心 | `PluggableContextHookPipeline`：按阶段注册 hook（同 id 覆盖），按优先级升序同步执行并返回逐 hook 报告；hook 阻断或抛异常即终止当前阶段 | ✅ |
+| `dual_layer_weaver.py` | 核心 | `DualLayerMemoryWeaver`：过滤他人私有片段，在 token 预算内私有优先、共享补足，生成注入用 Markdown 块 | ✅ |
 | `facade.py` | 门面 | `ContextHookPipelineSuite`：hook 注册、阶段执行、记忆编织与注入、完整生命周期编排及按阶段计数 | ✅ |
-| `__init__.py` | 包门面 | 导出门面、钩子链、编织器与数据模型 | ✅ |
+| `__init__.py` | 门面 | 导出门面、钩子链、编织器与数据模型 | ✅ |
 
 ## 3. 依赖关系
 

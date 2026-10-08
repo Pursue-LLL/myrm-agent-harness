@@ -1,9 +1,9 @@
 """Cross-modal semantic retriever for natural language search over vision and artifact memory.
 
 [INPUT]
-- memory.multimodal.models::{MultimodalSearchQuery, MultimodalSearchHit, MultimodalMemoryItem} (POS: data contracts of the multimodal memory package)
-- memory.multimodal.store::MultimodalMemoryStore (POS: in-memory repository of multimodal memory items)
-- memory.multimodal.extractor::MultimodalFeatureExtractor (POS: ingest-side feature extraction and UI card previews)
+- memory.multimodal.models::{MultimodalSearchQuery, MultimodalSearchHit, MultimodalMemoryItem} (POS: Data contracts of the multimodal memory package)
+- memory.multimodal.store::MultimodalMemoryStore (POS: Storage layer of the multimodal memory package)
+- memory.multimodal.extractor::MultimodalFeatureExtractor (POS: Ingest-side feature extraction of the multimodal memory package)
 
 [OUTPUT]
 - CrossModalRetriever: Lexical cross-modal search (exact phrase in title, then summary or description, then weighted token overlap over title, summary, description and tags) returning ranked hits with UI card previews

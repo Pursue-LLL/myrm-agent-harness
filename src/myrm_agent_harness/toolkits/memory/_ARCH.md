@@ -149,6 +149,8 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | chunking/ | Incremental Sliding Window Markdown Chunker Suite: semantic sliding window with 80-token overlap, content-hash incremental diffing, and line-level pointers. See [chunking/_ARCH.md](chunking/_ARCH.md). |
 | pitfall_alert/ | Proactive Past-Pitfall Alert and Decision Assist Suite: deterministic shadow intent recognizer, causal triad retrieval, session mute governance, and non-intrusive alert callouts. See [pitfall_alert/_ARCH.md](pitfall_alert/_ARCH.md). |
 | experience_compounding/ | Experience Compounding and Knowledge Condensation Suite: bounded logarithmic frequency compounding, semantic Golden Rule synthesis with lineage preservation, and obsolete context annealing governor. See [experience_compounding/_ARCH.md](experience_compounding/_ARCH.md). |
+| life_milestones/ | Life milestones and personal timeline suite: significance-gated milestone timeline, evolving value beliefs projected into prompts, and growth diary retrospective cards. See [life_milestones/_ARCH.md](life_milestones/_ARCH.md). |
+| context_hook_pipeline/ | Pluggable context hook pipeline: synchronous lifecycle hook chain plus dual-layer (private and shared) memory weaving within a token budget. See [context_hook_pipeline/_ARCH.md](context_hook_pipeline/_ARCH.md). |
 
 ## Key Dependencies
 

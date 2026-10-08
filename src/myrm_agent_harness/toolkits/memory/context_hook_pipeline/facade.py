@@ -1,15 +1,15 @@
 """Unified Facade for Pluggable Context Hook Pipeline and Dual-Layer Memory Weaving.
 
 [INPUT]
-- memory.context_hook_pipeline.pipeline::{PluggableContextHookPipeline, HookCallable, RegisteredHook} (POS: synchronous hook chain driven per lifecycle stage)
-- memory.context_hook_pipeline.dual_layer_weaver::{DualLayerMemoryWeaver, WeavingOutcome} (POS: budgeted private-first memory selection and formatting)
-- memory.context_hook_pipeline.models::{ContextEnvelope, ContextHookStage, DualLayerMemoryPayload, HookExecutionReport} (POS: data contracts of the context hook pipeline package)
+- memory.context_hook_pipeline.pipeline::{PluggableContextHookPipeline, HookCallable, RegisteredHook} (POS: Synchronous hook chain of the context hook pipeline package)
+- memory.context_hook_pipeline.dual_layer_weaver::{DualLayerMemoryWeaver, WeavingOutcome} (POS: Dual-layer memory weaver of the context hook pipeline package)
+- memory.context_hook_pipeline.models::{ContextEnvelope, ContextHookStage, DualLayerMemoryPayload, HookExecutionReport} (POS: Data contracts of the context hook pipeline package)
 
 [OUTPUT]
-- ContextHookPipelineSuite: registers, unregisters and lists hooks, runs one stage, weaves memories with optional injection into the envelope, counts hooks per stage and runs the standard lifecycle (before-agent-start hooks, weaving, context-transform hooks, before-LLM-request hooks), stopping early once a hook blocks the envelope
+- ContextHookPipelineSuite: registers, unregisters and lists hooks, runs one stage, weaves memories into the envelope, counts hooks per stage and runs the standard lifecycle (start hooks, weaving, transform hooks, pre-LLM hooks), stopping early once a hook blocks the envelope
 
 [POS]
-Single entry point of the context hook pipeline package for hosts that run lifecycle hooks and weave memories.
+Single entry point of the context hook pipeline package. Lets hosts register lifecycle hooks, run stages and weave memories through one object.
 """
 
 from __future__ import annotations

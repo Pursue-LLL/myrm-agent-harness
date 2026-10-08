@@ -1,16 +1,17 @@
 """Pluggable Context Hook Pipeline and Dual-Layer Memory Injection package.
 
 [INPUT]
-- memory.context_hook_pipeline.facade::ContextHookPipelineSuite (POS: single entry point for lifecycle hooks and memory weaving)
-- memory.context_hook_pipeline.pipeline::{PluggableContextHookPipeline, RegisteredHook, HookCallable} (POS: synchronous hook chain)
-- memory.context_hook_pipeline.dual_layer_weaver::{DualLayerMemoryWeaver, WeavingOutcome} (POS: budgeted private-first memory weaver)
-- memory.context_hook_pipeline.models::{ContextEnvelope, ContextHookStage, DualLayerMemoryPayload, HookExecutionPriority, HookExecutionReport, MemoryFragment, MemoryLayerKind} (POS: data contracts of the context hook pipeline package)
+- memory.context_hook_pipeline.facade::ContextHookPipelineSuite (POS: Single entry point of the context hook pipeline package)
+- memory.context_hook_pipeline.pipeline::{PluggableContextHookPipeline, RegisteredHook, HookCallable} (POS: Synchronous hook chain of the context hook pipeline package)
+- memory.context_hook_pipeline.dual_layer_weaver::{DualLayerMemoryWeaver, WeavingOutcome} (POS: Dual-layer memory weaver of the context hook pipeline package)
+- memory.context_hook_pipeline.models::{ContextEnvelope, ContextHookStage, DualLayerMemoryPayload, HookExecutionPriority, HookExecutionReport, MemoryFragment, MemoryLayerKind} (POS: Data contracts of the context hook pipeline package)
 
 [OUTPUT]
-- the facade, hook chain, memory weaver and data model names re-exported through __all__
+- ContextHookPipelineSuite, PluggableContextHookPipeline, DualLayerMemoryWeaver: facade, hook chain and memory weaver
+- ContextEnvelope, ContextHookStage, DualLayerMemoryPayload, HookExecutionPriority, HookExecutionReport, MemoryFragment, MemoryLayerKind, RegisteredHook, HookCallable, WeavingOutcome: data models and hook types of the pipeline
 
 [POS]
-Public entry of the context hook pipeline package, re-exported by the memory toolkit and consumed by the server's context hooks provider.
+Public entry of the context hook pipeline package. Re-exported by the memory toolkit and consumed by the server's context hooks provider.
 """
 
 from __future__ import annotations

@@ -4,14 +4,14 @@ Ensures the Agent understands the user's worldview evolution across decades,
 preventing superficial or conflicting advice during deep life decisions.
 
 [INPUT]
-- memory.life_milestones.models::{ContextProjectionBundle, PrivacyIntimacyLevel, ValueSystemNode} (POS: data contracts of the life milestones package)
-- memory.life_milestones.timeline_engine::LifeMilestonesEngine (POS: chronological milestone store)
+- memory.life_milestones.models::{ContextProjectionBundle, PrivacyIntimacyLevel, ValueSystemNode} (POS: Data contracts of the life milestones package)
+- memory.life_milestones.timeline_engine::LifeMilestonesEngine (POS: Chronological milestone store of the life milestones package)
 
 [OUTPUT]
-- ValueSystemAlignmentProjector: registers value nodes, evolves a belief by archiving the prior node (inactive, weight halved), ranks active values by weight and detects deep-life intent in a query by keyword patterns (career, family, relocation, values, health); renders a prompt block with up to 4 active values plus the last 5 milestones scoring 0.80 or more (the last 3 milestones when none does) within the privacy ceiling, and projects nothing for other queries unless forced
+- ValueSystemAlignmentProjector: registers and evolves value beliefs (the prior stance is archived), detects deep-life queries by keyword patterns and projects active values with key milestones as a prompt block within the privacy ceiling; other queries project nothing unless forced
 
 [POS]
-Prompt projection step of the life milestones package; the retrospective aggregator and the facade build on its value store.
+Value projection step of the life milestones package. Keeps evolving beliefs and renders them with key milestones as prompt context; the retrospective aggregator and the facade build on its value store.
 """
 
 from __future__ import annotations

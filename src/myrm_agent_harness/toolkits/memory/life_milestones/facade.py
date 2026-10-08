@@ -1,17 +1,17 @@
 """Unified facade for Life Milestones and Personal Timeline Suite.
 
 [INPUT]
-- memory.life_milestones.timeline_engine::LifeMilestonesEngine (POS: chronological milestone and era store)
-- memory.life_milestones.significance_gate::MilestoneSignificanceGate (POS: intake filter rejecting industrial trivia)
-- memory.life_milestones.value_alignment_projector::ValueSystemAlignmentProjector (POS: value store and prompt projection)
-- memory.life_milestones.retrospective_aggregator::GrowthRetrospectiveAggregator (POS: diary store and retrospective card synthesis)
-- memory.life_milestones.models::{ContextProjectionBundle, GrowthDiaryEntry, LifeMilestone, LifeStageEra, MilestoneCategory, PersonalRetrospectiveCard, PrivacyIntimacyLevel, ValueSystemNode} (POS: data contracts of the life milestones package)
+- memory.life_milestones.timeline_engine::LifeMilestonesEngine (POS: Chronological milestone store of the life milestones package)
+- memory.life_milestones.significance_gate::MilestoneSignificanceGate (POS: Intake filter of the life milestones package)
+- memory.life_milestones.value_alignment_projector::ValueSystemAlignmentProjector (POS: Value projection step of the life milestones package)
+- memory.life_milestones.retrospective_aggregator::GrowthRetrospectiveAggregator (POS: Retrospective synthesis step of the life milestones package)
+- memory.life_milestones.models::{ContextProjectionBundle, GrowthDiaryEntry, LifeMilestone, LifeStageEra, MilestoneCategory, PersonalRetrospectiveCard, PrivacyIntimacyLevel, ValueSystemNode} (POS: Data contracts of the life milestones package)
 
 [OUTPUT]
-- LifeMilestonesSuite: wires the gate, timeline, projector and aggregator (each injectable) and exposes milestone record, read, delete, list and turning points, era registration and listing, value registration, evolution and listing, diary recording and listing, context projection, retrospective card generation and a four-counter get_stats
+- LifeMilestonesSuite: wires the gate, timeline, projector and aggregator (each injectable) behind milestone, era, value, diary, projection and retrospective operations plus counter statistics
 
 [POS]
-Single entry point of the life milestones package for hosts and the server's life milestones provider.
+Single entry point of the life milestones package. Wires the components for hosts and the server's life milestones provider.
 """
 
 from __future__ import annotations

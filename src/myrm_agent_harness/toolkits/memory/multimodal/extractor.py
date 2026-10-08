@@ -1,7 +1,7 @@
 """Feature extractor for multimodal vision assets and sandbox artifacts.
 
 [INPUT]
-- memory.multimodal.models::{MultimodalIngestRequest, MultimodalMemoryItem, AssetModality, ArtifactKind} (POS: data contracts of the multimodal memory package)
+- memory.multimodal.models::{MultimodalIngestRequest, MultimodalMemoryItem, AssetModality, ArtifactKind} (POS: Data contracts of the multimodal memory package)
 
 [OUTPUT]
 - MultimodalFeatureExtractor: Builds a populated MultimodalMemoryItem from an ingest request (modality, artifact kind and MIME type taken from the file extension when left at defaults, derived tags) and projects an item into a UI card preview

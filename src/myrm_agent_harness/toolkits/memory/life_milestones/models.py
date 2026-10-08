@@ -5,13 +5,13 @@
 
 [OUTPUT]
 - PrivacyIntimacyLevel: three privacy tiers (open overview, intimate personal, confidential restricted)
-- MilestoneCategory, LifeMilestone: lifelong milestone categories and the milestone record (year, narrative, long-term impact, significance, intimacy level)
+- MilestoneCategory, LifeMilestone: lifelong milestone categories and the milestone record
 - ValueSystemNode: belief record with its prior stance, transition catalyst, triggering milestones, active flag and weight
 - GrowthDiaryEntry, LifeStageEra: reflective diary entry and the multi-year era segment
 - PersonalRetrospectiveCard, ContextProjectionBundle: retrospective card for display and the prompt projection payload
 
 [POS]
-Data contracts of the life milestones package, shared by the gate, timeline, projector, aggregator and facade.
+Data contracts of the life milestones package. Shared by the gate, timeline, projector, aggregator and facade.
 """
 
 from __future__ import annotations

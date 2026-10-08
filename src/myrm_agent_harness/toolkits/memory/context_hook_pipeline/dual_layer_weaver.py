@@ -4,14 +4,14 @@ Weaves custom agent private memories with shared global preferences while
 preventing cross-agent leakage and respecting token budget caps.
 
 [INPUT]
-- memory.context_hook_pipeline.models::{DualLayerMemoryPayload, MemoryFragment, MemoryLayerKind} (POS: data contracts of the context hook pipeline package)
+- memory.context_hook_pipeline.models::{DualLayerMemoryPayload, MemoryFragment, MemoryLayerKind} (POS: Data contracts of the context hook pipeline package)
 
 [OUTPUT]
 - WeavingOutcome: the woven Markdown block, how many private and shared fragments it holds and its estimated token cost
-- DualLayerMemoryWeaver: keeps private fragments that are ownerless or belong to the target agent, ranks both layers by weight, admits private fragments first (up to 70% of the budget, beyond it only while the total budget allows) and fills the rest with shared fragments
+- DualLayerMemoryWeaver: keeps private fragments that are ownerless or belong to the target agent, ranks both layers by weight and fills the token budget private-first, then with shared fragments
 
 [POS]
-Memory selection and formatting step of the context hook pipeline package; the facade injects its block into the envelope.
+Dual-layer memory weaver of the context hook pipeline package. Selects private and shared fragments within a token budget and renders the block the facade injects into the envelope.
 """
 
 from __future__ import annotations

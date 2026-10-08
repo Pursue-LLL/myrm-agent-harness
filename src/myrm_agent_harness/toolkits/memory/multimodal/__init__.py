@@ -1,10 +1,15 @@
 """Multimodal vision and sandbox artifact memory package.
 
 [INPUT]
-- memory.multimodal.{models, extractor, store, retriever, orchestrator} (POS: contracts, extraction, storage, search and facade of multimodal memory)
+- memory.multimodal.orchestrator::MultimodalMemoryOrchestrator (POS: Entry point of the multimodal memory package)
+- memory.multimodal.extractor::MultimodalFeatureExtractor (POS: Ingest-side feature extraction of the multimodal memory package)
+- memory.multimodal.store::MultimodalMemoryStore (POS: Storage layer of the multimodal memory package)
+- memory.multimodal.retriever::CrossModalRetriever (POS: Search layer of the multimodal memory package)
+- memory.multimodal.models::{ArtifactKind, AssetModality, MultimodalIngestRequest, MultimodalMemoryItem, MultimodalSearchHit, MultimodalSearchQuery} (POS: Data contracts of the multimodal memory package)
 
 [OUTPUT]
-- Public contracts, components and orchestrator for multimodal memory and artifact retrieval.
+- MultimodalMemoryOrchestrator, MultimodalFeatureExtractor, MultimodalMemoryStore, CrossModalRetriever: facade and the components behind it
+- ArtifactKind, AssetModality, MultimodalIngestRequest, MultimodalMemoryItem, MultimodalSearchHit, MultimodalSearchQuery: data contracts
 
 [POS]
 Package facade of the multimodal memory suite; re-exports its contracts, components and orchestrator.
