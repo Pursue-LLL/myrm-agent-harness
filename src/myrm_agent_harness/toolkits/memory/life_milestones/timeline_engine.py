@@ -1,6 +1,14 @@
 """Macro Life Timeline Engine managing lifelong chronological milestones and era segmentation.
 
-Topic 01 Item 137: LifeMilestonesEngine.
+[INPUT]
+- memory.life_milestones.models::{LifeMilestone, LifeStageEra, MilestoneCategory, PrivacyIntimacyLevel} (POS: data contracts of the life milestones package)
+- memory.life_milestones.significance_gate::MilestoneSignificanceGate (POS: intake filter rejecting industrial trivia)
+
+[OUTPUT]
+- LifeMilestonesEngine: in-memory store that records a milestone only when the gate admits it, lists milestones chronologically with category, year and privacy-ceiling filters, extracts turning points by significance, and registers eras and finds the era of a year
+
+[POS]
+Chronological store of the life milestones package, read by the value projector and the retrospective aggregator.
 """
 
 from __future__ import annotations

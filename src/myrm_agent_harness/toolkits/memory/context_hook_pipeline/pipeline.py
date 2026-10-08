@@ -1,6 +1,16 @@
 """Pluggable Context Hook Pipeline orchestrating interceptors across lifecycle stages.
 
-Topic 01 Item 138: PluggableContextHookPipeline.
+[INPUT]
+- memory.context_hook_pipeline.models::{ContextEnvelope, ContextHookStage, HookExecutionPriority, HookExecutionReport} (POS: data contracts of the context hook pipeline package)
+- pydantic::{BaseModel, ConfigDict, Field} (POS: validated hook registration record)
+
+[OUTPUT]
+- HookCallable: hook signature, receives the envelope and returns whether it modified it
+- RegisteredHook: hook id, stage, priority, handler and description
+- PluggableContextHookPipeline: registers hooks per stage (re-registering an id replaces it), runs a stage's hooks synchronously in ascending priority order and returns one HookExecutionReport per executed hook; a hook that blocks the envelope or raises ends the stage, and an exception blocks the envelope with the failure reason
+
+[POS]
+Synchronous hook chain of the context hook pipeline package, driven stage by stage by the facade.
 """
 
 from __future__ import annotations

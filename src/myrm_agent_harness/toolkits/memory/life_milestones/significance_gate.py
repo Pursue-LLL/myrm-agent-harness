@@ -1,8 +1,18 @@
 """Significance Gate ensuring only genuine life milestones are accepted.
 
-Topic 01 Item 137: MilestoneSignificanceGate.
 Prevents industrial trivia and transient code debug chores from polluting
 decades-long human life timelines.
+
+[INPUT]
+- memory.life_milestones.models::{MilestoneCategory, PrivacyIntimacyLevel} (POS: data contracts of the life milestones package)
+- pydantic::{BaseModel, ConfigDict, Field} (POS: validated verification result)
+
+[OUTPUT]
+- GateVerificationResult: admission flag, significance score and rejection reason
+- MilestoneSignificanceGate: rejects too-short titles and text matching its industrial-trivia patterns (explicit CAREER or PERSONAL_CREATIVE entries with a hint of 0.85 or more pass), adds boosts for landmark keywords and for family, relocation and value-transformation categories, floors explicit input at 0.75 and admits scores at or above the threshold (default 0.70)
+
+[POS]
+Intake filter of the life milestones package; the timeline engine consults it before recording a milestone.
 """
 
 from __future__ import annotations

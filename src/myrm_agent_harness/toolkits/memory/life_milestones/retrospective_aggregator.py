@@ -1,8 +1,18 @@
 """Growth Retrospective Aggregator consolidating personal reflections into life journey cards.
 
-Topic 01 Item 137: GrowthRetrospectiveAggregator.
 Synthesizes non-utilitarian growth reflections, emotional journeys, and landmark milestones
 into evocative retrospective cards for lifelong self-awareness.
+
+[INPUT]
+- memory.life_milestones.models::{GrowthDiaryEntry, PersonalRetrospectiveCard, PrivacyIntimacyLevel} (POS: data contracts of the life milestones package)
+- memory.life_milestones.timeline_engine::LifeMilestonesEngine (POS: chronological milestone store)
+- memory.life_milestones.value_alignment_projector::ValueSystemAlignmentProjector (POS: value store and prompt projection)
+
+[OUTPUT]
+- GrowthRetrospectiveAggregator: stores diary entries, lists them newest first with an era filter and a limit (list_diary_entries is an alias), and builds a retrospective card from the first 6 milestones up to the intimate tier, the top 5 active values and the earliest 5 matching diary entries, with fixed fallback lines for empty sections
+
+[POS]
+Retrospective synthesis step of the life milestones package, reached through the facade.
 """
 
 from __future__ import annotations

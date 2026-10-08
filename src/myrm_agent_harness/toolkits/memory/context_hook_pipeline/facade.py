@@ -1,6 +1,15 @@
 """Unified Facade for Pluggable Context Hook Pipeline and Dual-Layer Memory Weaving.
 
-Topic 01 Item 138: ContextHookPipelineSuite.
+[INPUT]
+- memory.context_hook_pipeline.pipeline::{PluggableContextHookPipeline, HookCallable, RegisteredHook} (POS: synchronous hook chain driven per lifecycle stage)
+- memory.context_hook_pipeline.dual_layer_weaver::{DualLayerMemoryWeaver, WeavingOutcome} (POS: budgeted private-first memory selection and formatting)
+- memory.context_hook_pipeline.models::{ContextEnvelope, ContextHookStage, DualLayerMemoryPayload, HookExecutionReport} (POS: data contracts of the context hook pipeline package)
+
+[OUTPUT]
+- ContextHookPipelineSuite: registers, unregisters and lists hooks, runs one stage, weaves memories with optional injection into the envelope, counts hooks per stage and runs the standard lifecycle (before-agent-start hooks, weaving, context-transform hooks, before-LLM-request hooks), stopping early once a hook blocks the envelope
+
+[POS]
+Single entry point of the context hook pipeline package for hosts that run lifecycle hooks and weave memories.
 """
 
 from __future__ import annotations
