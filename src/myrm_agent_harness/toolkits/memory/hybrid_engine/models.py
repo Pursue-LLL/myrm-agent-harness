@@ -14,10 +14,6 @@
 Types and models for hybrid engine.
 """
 
-# [POS]: myrm_agent_harness/toolkits/memory/hybrid_engine/models.py
-# [INPUT]: Memory payload, search parameters, synonym rules
-# [OUTPUT]: Strongly-typed models for zero-config dual-drive hybrid memory and graceful degradation
-
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum

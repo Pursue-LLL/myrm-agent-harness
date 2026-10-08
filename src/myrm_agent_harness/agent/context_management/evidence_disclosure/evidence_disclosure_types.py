@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: ActionDetailDescriptor, ActionExecutionFailure, EvidenceDisclosureReceipt, EvidenceOutcome, EvidenceRefTarget, EvidenceSourceState, PaginatedEvidencePage, QueryScopeKind, RealReadSlice
-# [POS]: agent/context_management/evidence_disclosure/evidence_disclosure_types.py
-
 """Domain contracts for active and completed isomorphic evidence disclosure.
 
 [INPUT]

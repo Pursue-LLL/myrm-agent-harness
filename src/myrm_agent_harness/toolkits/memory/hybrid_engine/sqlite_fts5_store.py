@@ -11,10 +11,6 @@
 Embedded SQLite FTS5 storage and retrieval engine.
 """
 
-# [POS]: myrm_agent_harness/toolkits/memory/hybrid_engine/sqlite_fts5_store.py
-# [INPUT]: SQLite file path or :memory:, HybridMemoryItem records, FTS5 MATCH queries
-# [OUTPUT]: High-performance SQLite FTS5 persistence, BM25 ranking, and CRUD operations
-
 import datetime
 import json
 import sqlite3

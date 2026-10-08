@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: RuleTierKind, RuleFileDescriptor, RuleMatchResult, AttentionAuditReport, HierarchicalRulesConfig
-# [POS]: agent/context_management/hierarchical_rules/rule_types.py
-
 """Domain contracts and models for hierarchical rule decoupling and glob-scoped matching.
 
 [INPUT]

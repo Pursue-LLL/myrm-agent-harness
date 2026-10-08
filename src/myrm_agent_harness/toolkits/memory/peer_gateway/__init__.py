@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.peer_gateway
-# [INPUT]: .models, .escalation, .resolver, .gateway
-# [OUTPUT]: Multi-Channel Peer Alias & Anti-Cross-Contamination Gateway Suite symbols
-
 """Multi-Channel Peer Alias and Anti-Cross-Contamination Gateway Suite.
 
 P1 delivery for Item 113 in topic_01 memory roadmap.

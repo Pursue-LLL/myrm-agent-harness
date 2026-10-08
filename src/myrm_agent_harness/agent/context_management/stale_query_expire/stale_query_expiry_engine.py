@@ -1,7 +1,3 @@
-# [INPUT]: QueryContextStatus, QueryIntentEntry, ContextEvaluationResult
-# [OUTPUT]: StaleQueryExpiryEngine
-# [POS]: agent/context_management/stale_query_expire/stale_query_expiry_engine.py
-
 """Engine evaluating query context aging through dual turn-distance and TTL criteria.
 
 [INPUT]

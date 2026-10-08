@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.budget_packing.marginal_value_evaluator
-# [INPUT]: RecallCandidate, BilledTokenBudget, MarginalValueMetrics
-# [OUTPUT]: MarginalValueEvaluator
-
 """Marginal value evaluator for recall candidates.
 
 Calculates redundancy against previously accepted candidates using Jaccard and n-gram overlap,

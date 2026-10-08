@@ -1,7 +1,3 @@
-# [INPUT]: ActionDetailDescriptor, PaginatedEvidencePage, RealReadSlice
-# [OUTPUT]: BoundedEvidenceReader
-# [POS]: agent/context_management/evidence_disclosure/evidence_pagination_reader.py
-
 """Pagination reader binding evidence viewing to verified real-reading offsets.
 
 [INPUT]

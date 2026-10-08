@@ -1,7 +1,3 @@
-# [INPUT]: RuleFileDescriptor
-# [OUTPUT]: parse_rule_frontmatter, is_rule_active_for_targets, match_rules_against_targets
-# [POS]: agent/context_management/hierarchical_rules/glob_rule_matcher.py
-
 """Glob-scoped dynamic rule matcher evaluating path activation criteria.
 
 [INPUT]

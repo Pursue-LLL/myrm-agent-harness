@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.two_layer_dialectic.reconciler
-# [INPUT]: DialecticReconciliationConfig, DialecticConflictCandidate, DialecticReconciliationResult, DialecticPassKind
-# [OUTPUT]: MultiPassDialecticReconciler
-
 """Multi-pass dialectic reasoning engine for cognitive memory conflict resolution.
 
 Executes inspection, synthesis, and reconciliation over conflicting memory assertions.

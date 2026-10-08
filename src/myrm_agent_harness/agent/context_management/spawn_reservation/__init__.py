@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: ReservationState, SpawnReservationLease, ReservationResult, AdmissionCommitResult, SpawnNameReservationEngine, SpawnNameReservationUntilAdmissionDurableSuite
-# [POS]: agent/context_management/spawn_reservation/__init__.py
-
 """Spawn name reservation until durable admission package.
 
 [INPUT]

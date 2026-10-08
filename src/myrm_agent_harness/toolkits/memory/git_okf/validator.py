@@ -11,10 +11,6 @@
 Strict validator implementing Google OKF v0.2 conformance checks,.
 """
 
-# [POS]: myrm_agent_harness/toolkits/memory/git_okf/validator.py
-# [INPUT]: OKF concepts, declared bundle version, current date
-# [OUTPUT]: Conformance audit, stale evaluation, human vs agent trust anti-tamper verification
-
 import datetime
 import posixpath
 import re

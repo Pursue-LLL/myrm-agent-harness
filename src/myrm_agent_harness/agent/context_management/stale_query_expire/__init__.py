@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: ContextEvaluationResult, MateclawStaleQueryContextExpireSuite, QueryContextStatus, QueryIntentEntry, StaleQueryExpiryEngine
-# [POS]: agent/context_management/stale_query_expire/__init__.py
-
 """Stale query context expiration package.
 
 [INPUT]

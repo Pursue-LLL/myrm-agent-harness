@@ -1,7 +1,3 @@
-# [INPUT]: RuleFile, InstructionMode, SettingsScope, InstructionSettings, ResolvedPrecedence, PrecedenceAuditReceipt, ManagedPrecedenceResolver, InstructionFilterEngine
-# [OUTPUT]: ClaudeCodeProjectInstructionsPrecedenceSuite
-# [POS]: agent/workspace_rules/instruction_precedence/instruction_precedence_suite.py
-
 """End-to-end suite orchestrating project instruction mode resolution, managed precedence, and filtering.
 
 [INPUT]

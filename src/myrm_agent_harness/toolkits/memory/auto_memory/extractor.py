@@ -1,7 +1,3 @@
-# [POS]: src/myrm_agent_harness/toolkits/memory/auto_memory/extractor.py
-# [INPUT]: Sequence[dict[str, str]], workspace_path, session_id
-# [OUTPUT]: SixDimensionalExtractor, SixDimensionalMemorySlice
-
 """Six-dimensional structured artifact extractor for session memory.
 
 Converts conversation turns into organized memory slices across:

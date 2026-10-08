@@ -1,7 +1,3 @@
-# [INPUT]: CommitWrite, ConversationRecord, DocumentRecord, EntryRecord, StorageBackendKind, TaskRecord
-# [OUTPUT]: DurableStorageProtocol
-# [POS]: agent/context_management/durable_storage/durable_storage_protocol.py
-
 """Unified interface protocol for all durable storage backends.
 
 [INPUT]

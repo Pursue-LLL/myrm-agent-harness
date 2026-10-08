@@ -1,7 +1,3 @@
-# [INPUT]: ThreadPageRequest, SortKeyKind, FallbackStatus
-# [OUTPUT]: SortKeyFallbackGuard, GuardValidationResult
-# [POS]: agent/context_management/native_thread_history/sort_key_fallback_guard.py
-
 """Sort key validation and graceful fallback guard for thread history retrieval.
 
 [INPUT]

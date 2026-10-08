@@ -1,7 +1,3 @@
-# [INPUT]: ClarifyCardPayload, ClarifyCardStatus, ClarifyDispatchReceipt, ClarifyOptionItem, ClarifyResponsePath
-# [OUTPUT]: HermesDesktopClarifyCardsSuite, create_clarify_card
-# [POS]: agent/context_management/clarify_cards/hermes_desktop_clarify_suite.py
-
 """Comprehensive facade suite for Hermes Desktop clarification cards.
 
 [INPUT]

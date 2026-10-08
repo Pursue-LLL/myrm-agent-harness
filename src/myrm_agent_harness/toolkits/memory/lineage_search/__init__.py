@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness/toolkits/memory/lineage_search/__init__.py
-# [INPUT]: None
-# [OUTPUT]: Public exports for LineageDedupRecallBlindnessDefenseAndAutomationDemotionSuite
-
 """LineageDedupRecallBlindnessDefenseAndAutomationDemotionSuite.
 
 Provides lineage root deduplication across multi-generation compacted sessions,

@@ -12,10 +12,6 @@
 Engine managing fact lifecycle, explicit supersession chains, and valid-time interval queries.
 """
 
-# [POS]: src/myrm_agent_harness/toolkits/memory/fact_supersession/supersession_chain.py
-# [INPUT]: src.myrm_agent_harness.toolkits.memory.fact_supersession.models
-# [OUTPUT]: FactSupersessionChainEngine
-
 from __future__ import annotations
 
 from myrm_agent_harness.toolkits.memory.fact_supersession.models import (

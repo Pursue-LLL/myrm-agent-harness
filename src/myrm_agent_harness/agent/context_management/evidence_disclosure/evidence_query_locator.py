@@ -1,7 +1,3 @@
-# [INPUT]: ActionDetailDescriptor, EvidenceRefTarget, QueryScopeKind
-# [OUTPUT]: EvidenceQueryLocator, build_action_leaf_ref, build_collection_ref, parse_evidence_ref
-# [POS]: agent/context_management/evidence_disclosure/evidence_query_locator.py
-
 """Deterministic query locator and scope isolator for active and completed evidence.
 
 [INPUT]

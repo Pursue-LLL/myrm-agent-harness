@@ -18,10 +18,6 @@
 Package facade for fact supersession.
 """
 
-# [POS]: src/myrm_agent_harness/toolkits/memory/fact_supersession/__init__.py
-# [INPUT]: .models, .supersession_chain, .contradiction_quarantine, .dialectic_retriever
-# [OUTPUT]: Public symbols for fact_supersession suite
-
 from __future__ import annotations
 
 from myrm_agent_harness.toolkits.memory.fact_supersession.contradiction_quarantine import (

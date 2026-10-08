@@ -1,7 +1,3 @@
-# [POS]: src/myrm_agent_harness/toolkits/memory/ephemeral_delta/__init__.py
-# [INPUT]: models.py, delta_store.py, tail_injector.py, reconciler.py
-# [OUTPUT]: Public facade for EphemeralDeltaMemorySuite
-
 """Prompt-cache-preserving ephemeral session delta memory suite.
 
 Decouples SystemPrompt frozen snapshot preservation from real-time turn corrections.

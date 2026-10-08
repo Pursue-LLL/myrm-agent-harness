@@ -1,7 +1,3 @@
-# [INPUT]: metadata_name_resolver.py, metadata_rename_types.py, session_metadata_rename_engine.py
-# [OUTPUT]: HapiRenameMetadataNameSuite
-# [POS]: agent/context_management/session_metadata_rename/session_metadata_rename_suite.py
-
 """End-to-end orchestration facade for session metadata display renaming and precedence arbitration.
 
 [INPUT]

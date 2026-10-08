@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness/toolkits/memory/hybrid_engine/__init__.py
-# [INPUT]: None
-# [OUTPUT]: Public exports for ZeroConfigDualDriveHybridMemoryAndGracefulDegradationSuite
-
 """ZeroConfigDualDriveHybridMemoryAndGracefulDegradationSuite.
 
 Provides zero-config local SQLite FTS5 BM25 retrieval, offline semantic synonym

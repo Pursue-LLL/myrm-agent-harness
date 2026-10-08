@@ -17,10 +17,6 @@
 Git-native loader for Google OKF v0.2 knowledge bundles.
 """
 
-# [POS]: myrm_agent_harness/toolkits/memory/git_okf/bundle_loader.py
-# [INPUT]: Project root or bundle directory path containing OKF .md files
-# [OUTPUT]: Loaded concept repository, in-memory BM25 index, progressive disclosure summary
-
 import os
 import posixpath
 import re

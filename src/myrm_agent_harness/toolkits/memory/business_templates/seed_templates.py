@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.business_templates.seed_templates
-# [INPUT]: .models (BusinessExperienceTemplate, ChecklistStep, TemplateCategory)
-# [OUTPUT]: SEED_TEMPLATES (list of default industrial business experience templates)
-
 """Pre-seeded industrial business experience templates.
 
 Provides standard cold-start templates for Business Analysis Review procedures

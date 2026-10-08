@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: ActionDetailDescriptor, ActionExecutionFailure, ActiveEvidenceDisclosureSuite, BoundedEvidenceReader, EvidenceDisclosureReceipt, EvidenceOutcome, EvidenceQueryLocator, EvidenceRefTarget, EvidenceSourceState, PaginatedEvidencePage, QueryScopeKind, RealReadSlice, build_action_leaf_ref, build_collection_ref, disclose_action, parse_evidence_ref, project_action_isomorphic
-# [POS]: agent/context_management/evidence_disclosure/__init__.py
-
 """Evidence disclosure subsystem providing isomorphic action disclosure and query scope isolation.
 
 [INPUT]

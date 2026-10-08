@@ -1,7 +1,3 @@
-# [INPUT]: ClarifyCardPayload, ClarifyCardStatus, ClarifyDispatchReceipt
-# [OUTPUT]: ClarifyCardEngine
-# [POS]: agent/context_management/clarify_cards/clarify_card_engine.py
-
 """Clarification cards lifecycle state machine and registry engine.
 
 [INPUT]

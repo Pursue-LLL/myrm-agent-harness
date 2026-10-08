@@ -1,7 +1,3 @@
-# [INPUT]: ChatHeadPointer, SchemaVersion, VersionGateResult
-# [OUTPUT]: gate_chat_head_version
-# [POS]: agent/context_management/chat_head_sync/chat_head_version_gate.py
-
 """Version gate for chat head reader admission checking.
 
 [INPUT]

@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness/toolkits/memory/git_okf/__init__.py
-# [INPUT]: None
-# [OUTPUT]: Public exports for Git-native OKF v0.2 knowledge bundle suite
-
 """GitNativeProjectKnowledgeBundleAndMemoryRotPreventionSuite.
 
 Implements Google Open Knowledge Format (OKF v0.2) native bundle loading,

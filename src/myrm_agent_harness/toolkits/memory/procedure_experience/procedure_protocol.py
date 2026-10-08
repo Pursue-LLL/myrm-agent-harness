@@ -12,10 +12,6 @@
 Protocol validation, compact anchor synthesis, and multi-intent decomposition engine.
 """
 
-# [POS]: src/myrm_agent_harness/toolkits/memory/procedure_experience/procedure_protocol.py
-# [INPUT]: src.myrm_agent_harness.toolkits.memory.procedure_experience.models
-# [OUTPUT]: ProcedureProtocolEngine
-
 from __future__ import annotations
 
 import re

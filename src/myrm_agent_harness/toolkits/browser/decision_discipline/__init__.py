@@ -1,7 +1,3 @@
-# [INPUT]: decision_discipline_types, next_step_decision_rulebook, text_output_contract, browser_decision_discipline_suite
-# [OUTPUT]: BROWSER_NEXT_ACTION_DISCIPLINE_RULEBOOK, BROWSER_TARGET_SELECTION_DISCIPLINE_RULEBOOK, BROWSER_TEXT_OUTPUT_CONTRACT_PROMPT, BrowserActionKind, BrowserNextStepDecisionRulebookAndTextOutputContractSuite, DecisionEvaluationResult, DisciplineRulebookConfig, ElementState, TextOutputContractResult, parse_and_validate_text_contract, validate_next_step_action, validate_target_element
-# [POS]: toolkits/browser/decision_discipline/__init__.py
-
 """Browser decision discipline rulebook and text output contract package.
 
 [INPUT]

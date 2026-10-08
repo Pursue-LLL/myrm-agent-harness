@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: ClarifyCardEngine, ClarifyCardPayload, ClarifyCardStatus, ClarifyDispatchReceipt, ClarifyOptionItem, ClarifyResponsePath, HermesDesktopClarifyCardsSuite, create_clarify_card
-# [POS]: agent/context_management/clarify_cards/__init__.py
-
 """Clarification cards subsystem for interactive question rendering, answering, expiration, and input interception.
 
 [INPUT]

@@ -1,7 +1,3 @@
-# [INPUT]: session_pause_types.py
-# [OUTPUT]: SandboxPauseResumeEngine
-# [POS]: agent/context_management/sandbox_pause_resume/sandbox_pause_resume_engine.py
-
 """Core execution engine for sandbox session pause, in-place resume, and snapshot branching.
 
 [INPUT]

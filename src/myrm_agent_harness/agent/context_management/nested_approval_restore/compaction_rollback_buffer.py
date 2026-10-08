@@ -1,7 +1,3 @@
-# [INPUT]: CompactionEntry, CompactionRollbackBudget
-# [OUTPUT]: CompactionRollbackBuffer, validate_summary_candidate
-# [POS]: agent/context_management/nested_approval_restore/compaction_rollback_buffer.py
-
 """Compaction buffer implementing validate-before-purge and bounded rollback stash.
 
 [INPUT]

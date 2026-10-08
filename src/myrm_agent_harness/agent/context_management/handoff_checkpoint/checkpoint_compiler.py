@@ -1,7 +1,3 @@
-# [INPUT]: TaskCheckpoint, CheckpointRenderFormat
-# [OUTPUT]: HandoffCheckpointCompiler
-# [POS]: agent/context_management/handoff_checkpoint/checkpoint_compiler.py
-
 """Compiler and bidirectional markdown serializer for six-dimensional task checkpoints.
 
 [INPUT]

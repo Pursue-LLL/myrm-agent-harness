@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.peer_cognition.models
-# [INPUT]: None (Standard library & Pydantic)
-# [OUTPUT]: PeerType, PeerRelationKind, PeerIdentity, PeerRelationEdge, PeerPersonaCard, PeerCognitionProjection
-
 """Domain models for peer-centric social cognition entity graph and agent persona cards.
 
 P0 delivery for Item 110 in topic_01 memory roadmap.

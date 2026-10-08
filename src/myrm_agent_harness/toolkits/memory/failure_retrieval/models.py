@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.failure_retrieval.models
-# [INPUT]: None (Standard library & Pydantic)
-# [OUTPUT]: FailureOutcomeType, ErrorFingerprint, HistoricalResolutionEntry, FailureRetrievalResult, FailureTriggerConfig
-
 """Domain models for failure-triggered historical session retrieval.
 
 P0 delivery for Item 109 in topic_01 memory roadmap.

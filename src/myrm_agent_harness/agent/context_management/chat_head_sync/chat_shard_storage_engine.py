@@ -1,7 +1,3 @@
-# [INPUT]: ShardAddress, ContentShard
-# [OUTPUT]: ChatShardStorageEngine
-# [POS]: agent/context_management/chat_head_sync/chat_shard_storage_engine.py
-
 """Immutable content-addressed shard storage engine with hash-diffing and verification.
 
 [INPUT]

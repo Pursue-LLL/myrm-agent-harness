@@ -1,7 +1,3 @@
-# [INPUT]: sandbox_pause_resume_engine.py, session_pause_types.py
-# [OUTPUT]: AgentkitPauseResumeSessionSandboxSuite
-# [POS]: agent/context_management/sandbox_pause_resume/sandbox_pause_resume_suite.py
-
 """End-to-end orchestration suite for sandbox session pause, resume, and snapshot operations.
 
 [INPUT]

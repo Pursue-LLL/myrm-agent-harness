@@ -11,10 +11,6 @@
 Hydrates surviving search hits with two-tier adaptive detail:.
 """
 
-# [POS]: myrm_agent_harness/toolkits/memory/lineage_search/window_hydrator.py
-# [INPUT]: Deduplicated hits, conversation message storage, window configuration
-# [OUTPUT]: Adaptive hydration expanding Top 1 full window and Top 2-N compact cards
-
 from collections.abc import Sequence
 
 from myrm_agent_harness.toolkits.memory.lineage_search.models import (

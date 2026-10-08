@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.authoritative_conclusions.store
-# [INPUT]: models.py
-# [OUTPUT]: AuthoritativeConclusionStore
-
 """In-memory and indexed repository for authoritative conclusions and audit trails.
 
 P0 delivery for Item 111 in topic_01 memory roadmap.

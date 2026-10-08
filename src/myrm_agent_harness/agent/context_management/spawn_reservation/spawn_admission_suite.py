@@ -1,7 +1,3 @@
-# [INPUT]: SpawnReservationLease, ReservationResult, AdmissionCommitResult, SpawnNameReservationEngine
-# [OUTPUT]: SpawnNameReservationUntilAdmissionDurableSuite
-# [POS]: agent/context_management/spawn_reservation/spawn_admission_suite.py
-
 """End-to-end suite orchestrating spawn name reservation until durable admission.
 
 [INPUT]

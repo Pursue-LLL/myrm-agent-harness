@@ -1,7 +1,3 @@
-# [INPUT]: metadata_rename_types.py
-# [OUTPUT]: normalize_session_display_title, resolve_session_display_title
-# [POS]: agent/context_management/session_metadata_rename/metadata_name_resolver.py
-
 """Precedence resolver and title normalizer for session display naming.
 
 [INPUT]

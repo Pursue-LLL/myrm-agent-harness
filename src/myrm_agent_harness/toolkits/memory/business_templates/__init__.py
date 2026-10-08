@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.business_templates.__init__
-# [INPUT]: .models, .seed_templates, .template_engine
-# [OUTPUT]: Public exports for business_templates package
-
 """Business scenario experience templates and escalation checklist suite.
 
 P0 delivery for Item 107 in topic_01 memory roadmap.

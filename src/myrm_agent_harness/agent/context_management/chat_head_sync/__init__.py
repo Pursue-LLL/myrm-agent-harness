@@ -1,7 +1,3 @@
-# [INPUT]: chat_head_types, chat_head_lineage_resolver, chat_shard_storage_engine, chat_head_version_gate, chat_head_shard_sync_suite
-# [OUTPUT]: ChatHeadShardSyncSuite, ChatShardStorageEngine, ChatHeadPointer, ContentShard, SchemaVersion, ShardAddress, VersionGateResult, CasSyncResult, AssembleResult, gate_chat_head_version, compute_head_sha256, verify_lineage_cas, detect_head_fork
-# [POS]: agent/context_management/chat_head_sync/__init__.py
-
 """Chat head pointer and immutable shard synchronization protocol package.
 
 [INPUT]

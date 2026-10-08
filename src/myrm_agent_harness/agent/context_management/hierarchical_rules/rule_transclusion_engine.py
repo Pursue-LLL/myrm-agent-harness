@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: resolve_rule_transclusions, extract_transclusion_paths
-# [POS]: agent/context_management/hierarchical_rules/rule_transclusion_engine.py
-
 """Rule transclusion engine resolving inline @path references to prevent drift.
 
 [INPUT]

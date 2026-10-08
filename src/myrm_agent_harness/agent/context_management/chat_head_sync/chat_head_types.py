@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: SchemaVersion, ShardAddress, ContentShard, ChatHeadPointer, VersionGateResult, CasSyncResult, AssembleResult
-# [POS]: agent/context_management/chat_head_sync/chat_head_types.py
-
 """Domain contracts and types for chat head pointer and immutable shard synchronization.
 
 [INPUT]

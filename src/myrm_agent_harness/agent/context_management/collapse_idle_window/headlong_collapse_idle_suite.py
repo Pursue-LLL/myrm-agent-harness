@@ -1,7 +1,3 @@
-# [INPUT]: CollapseWindowConfig, CollapseWindowReceipt, StepType, StreamStepItem
-# [OUTPUT]: HeadlongCollapseIdleBeforeCutSuite, collapse_then_cut_stream, make_stream_step
-# [POS]: agent/context_management/collapse_idle_window/headlong_collapse_idle_suite.py
-
 """Comprehensive facade suite for Headlong collapse-idle-before-cut stream windowing.
 
 [INPUT]

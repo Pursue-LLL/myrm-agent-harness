@@ -1,7 +1,3 @@
-# [INPUT]: metadata_name_resolver.py, metadata_rename_types.py
-# [OUTPUT]: SessionMetadataRecord, SessionMetadataRenameEngine
-# [POS]: agent/context_management/session_metadata_rename/session_metadata_rename_engine.py
-
 """Core mutation and storage engine for session display renaming via metadata.name.
 
 [INPUT]

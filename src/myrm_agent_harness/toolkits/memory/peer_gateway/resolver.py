@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.peer_gateway.resolver
-# [INPUT]: ChannelType, GatewayPeerAliasConfig, ResolvedPeerIdentity, HashEscalationEngine
-# [OUTPUT]: DeterministicPeerResolver
-
 """Deterministic multi-channel peer identity resolution engine.
 
 Resolves external channel IDs to canonical system peer IDs using pinned defaults,

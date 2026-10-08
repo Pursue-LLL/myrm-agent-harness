@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.budget_packing.greedy_packer
-# [INPUT]: RecallCandidate, BilledTokenBudget, MarginalValueMetrics, PackedCandidateItem, DroppedCandidateItem, TokenAccountingReport, PackedRecallResult, MarginalValueEvaluator
-# [OUTPUT]: GreedyMarginalValuePacker
-
 """Greedy knapsack packing engine for recall context optimization.
 
 Implements marginal value density greedy packing against strict token budget,

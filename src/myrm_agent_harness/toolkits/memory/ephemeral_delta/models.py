@@ -13,10 +13,6 @@
 Types and models for ephemeral delta.
 """
 
-# [POS]: src/myrm_agent_harness/toolkits/memory/ephemeral_delta/models.py
-# [INPUT]: None (pure domain contracts)
-# [OUTPUT]: DeltaActionKind, EphemeralDeltaItem, EphemeralDeltaBufferSnapshot, ReconciliationBatchReport
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field

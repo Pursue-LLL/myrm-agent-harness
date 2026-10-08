@@ -1,7 +1,3 @@
-# [INPUT]: SessionInteractionMode, ToolDescriptor, ToolSideEffectLevel, AskOnlyFilterResult, ToolExecutionCheckResult
-# [OUTPUT]: AskOnlyToolFilter
-# [POS]: agent/context_management/ask_only_mode/ask_only_tool_filter.py
-
 """Tool filter and execution interceptor enforcing Ask-Only mode boundaries.
 
 [INPUT]

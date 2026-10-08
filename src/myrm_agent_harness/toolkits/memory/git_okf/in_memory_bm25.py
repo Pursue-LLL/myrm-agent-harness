@@ -10,10 +10,6 @@
 High-performance in-memory BM25 lexical searcher for OKF concept bundles.
 """
 
-# [POS]: myrm_agent_harness/toolkits/memory/git_okf/in_memory_bm25.py
-# [INPUT]: Concept corpus and user queries
-# [OUTPUT]: In-memory BM25 lexical scorer with sub-millisecond ranking
-
 import math
 import re
 from collections import Counter

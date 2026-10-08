@@ -1,7 +1,3 @@
-# [POS]: src/myrm_agent_harness/toolkits/memory/rule_cascade/__init__.py
-# [INPUT]: models.py, decay_calculator.py, cascade_loader.py, pre_filter_engine.py
-# [OUTPUT]: Public facade for FiveDimPreFilteredEvidenceMemoryAndDeterministicRuleCascadeSuite
-
 """Five-dimensional pre-filtered evidence memory and deterministic rule cascade suite.
 
 Combines Claude Code's deterministic filesystem tree hierarchy rules cascade with

@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: CopilotKitHITLReplayRestoreSuite, HITLApprovalState, HITLReplayRestoreEngine, PassiveReplayScanner, PendingHITLDescriptor, ReplayActionKind, ReplayRestorationSummary, ToolCallReplayItem, ToolExecutionType, ToolResultReplayItem
-# [POS]: agent/context_management/hitl_replay_restore/__init__.py
-
 """Reconnect passive replay filtering and human-in-the-loop restoration package.
 
 [INPUT]

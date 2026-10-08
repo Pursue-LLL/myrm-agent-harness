@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.experience_observability.plugin_adapter
-# [INPUT]: .models (HostPluginConfig, LifecycleEventKind, LifecycleEventPayload, HostAccessChannel), .tracker (ExperienceObservabilityTracker)
-# [OUTPUT]: ZeroRefactorHostPlugin
-
 """Zero-refactor host lifecycle plugin adapter.
 
 P1 delivery for Item 108 in topic_01 memory roadmap.

@@ -18,10 +18,6 @@
 Package facade for markdown curator.
 """
 
-# [POS]: src/myrm_agent_harness/toolkits/memory/markdown_curator/__init__.py
-# [INPUT]: .models, .markdown_serializer, .bidi_sync_engine, .curator_studio
-# [OUTPUT]: Public symbols for markdown_curator suite
-
 from __future__ import annotations
 
 from myrm_agent_harness.toolkits.memory.markdown_curator.bidi_sync_engine import (

@@ -1,7 +1,3 @@
-# [INPUT]: AttentionAuditReport, HierarchicalRulesConfig, RuleFileDescriptor, RuleMatchResult, RuleTierKind
-# [OUTPUT]: HierarchicalRulesDirectoryAndGlobScopedDynamicRuleMatcherSuite
-# [POS]: agent/context_management/hierarchical_rules/hierarchical_rules_suite.py
-
 """Unified orchestration facade for hierarchical rules and glob-scoped matching.
 
 [INPUT]

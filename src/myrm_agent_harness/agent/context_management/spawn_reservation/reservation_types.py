@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: ReservationState, SpawnReservationLease, ReservationResult, AdmissionCommitResult
-# [POS]: agent/context_management/spawn_reservation/reservation_types.py
-
 """Strongly typed contracts for spawn name reservation and admission durability.
 
 [INPUT]

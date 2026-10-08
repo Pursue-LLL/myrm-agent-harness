@@ -1,7 +1,3 @@
-# [INPUT]: CommitWrite, ConversationRecord, DocumentRecord, DurableStorageProtocol, EntryRecord, StorageBackendKind, StorageWriteKind, TaskRecord
-# [OUTPUT]: SqliteDurableStorage
-# [POS]: agent/context_management/durable_storage/sqlite_durable_storage.py
-
 """SQLite relational durable storage backend with WAL mode and indexed query paths.
 
 [INPUT]

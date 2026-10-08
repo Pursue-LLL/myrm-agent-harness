@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.authoritative_conclusions.tool
-# [INPUT]: models.py, store.py
-# [OUTPUT]: AuthoritativeConclusionToolSuite, memory_conclude_tool
-
 """Callable agent meta-tool for explicit authoritative conclusions and lifecycle audit.
 
 P0 delivery for Item 111 in topic_01 memory roadmap.

@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.authoritative_conclusions.anchor
-# [INPUT]: models.py
-# [OUTPUT]: ConclusionContextAnchor
-
 """Context anchor formatter for authoritative conclusions.
 
 P0 delivery for Item 111 in topic_01 memory roadmap.

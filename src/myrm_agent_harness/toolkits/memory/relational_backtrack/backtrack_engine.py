@@ -15,10 +15,6 @@
 Core backtracking engine for cross-session entity and temporal causal recall.
 """
 
-# [POS]: src/myrm_agent_harness/toolkits/memory/relational_backtrack/backtrack_engine.py
-# [INPUT]: models.py, synonym_normalizer.py, triplet_store.py
-# [OUTPUT]: CrossSessionBacktrackEngine
-
 from __future__ import annotations
 
 import logging

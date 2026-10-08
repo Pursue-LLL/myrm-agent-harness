@@ -16,10 +16,6 @@
 Core studio engine managing human-in-the-loop memory curation and Markdown bi-directional sync.
 """
 
-# [POS]: src/myrm_agent_harness/toolkits/memory/markdown_curator/curator_studio.py
-# [INPUT]: src.myrm_agent_harness.toolkits.memory.markdown_curator (models, markdown_serializer, bidi_sync_engine)
-# [OUTPUT]: MemoryCuratorStudio
-
 from __future__ import annotations
 
 from datetime import UTC, datetime

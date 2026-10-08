@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: ApprovalDecisionKind, ApprovalDecisionRecord, CompactionEntry, CompactionRollbackBudget, DecisionPrecedence, NestedRestoreReceipt
-# [POS]: agent/context_management/nested_approval_restore/nested_approval_types.py
-
 """Domain contracts and types for nested approval restoration and compaction rollback.
 
 [INPUT]

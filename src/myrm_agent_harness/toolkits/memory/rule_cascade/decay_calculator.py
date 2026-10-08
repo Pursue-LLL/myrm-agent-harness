@@ -10,10 +10,6 @@
 Calculates exponential half-life decay and dynamic confidence for evidence facts.
 """
 
-# [POS]: src/myrm_agent_harness/toolkits/memory/rule_cascade/decay_calculator.py
-# [INPUT]: models.py (FiveDimEvidenceMetadata)
-# [OUTPUT]: TimeDecayCalculator
-
 from __future__ import annotations
 
 import math

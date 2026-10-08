@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: AgentkitPauseResumeSessionSandboxSuite, compute_state_checksum, PauseResumeActionKind, PauseResumeReceipt, SandboxPauseResumeEngine, SandboxSessionRecord, SandboxSnapshotManifest, SessionLifecycleState
-# [POS]: agent/context_management/sandbox_pause_resume/__init__.py
-
 """Sandbox session pause, in-place resume, and snapshot branching package.
 
 [INPUT]

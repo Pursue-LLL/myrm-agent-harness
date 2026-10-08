@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: compute_state_checksum, PauseResumeActionKind, PauseResumeReceipt, SandboxSessionRecord, SandboxSnapshotManifest, SessionLifecycleState
-# [POS]: agent/context_management/sandbox_pause_resume/session_pause_types.py
-
 """Strongly typed contracts for sandbox session pause, resume, and snapshot restoration.
 
 [INPUT]

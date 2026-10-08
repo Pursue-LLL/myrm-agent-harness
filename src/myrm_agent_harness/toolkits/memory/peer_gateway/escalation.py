@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.peer_gateway.escalation
-# [INPUT]: None (Standard library)
-# [OUTPUT]: HashEscalationEngine
-
 """Adaptive hash collision escalation algorithm for deterministic peer normalization.
 
 Generates concise, human-readable peer identifiers with progressive length expansion

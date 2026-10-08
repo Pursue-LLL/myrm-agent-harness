@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.budget_packing
-# [INPUT]: models, marginal_value_evaluator, greedy_packer, orchestrator, estimator
-# [OUTPUT]: Public exports for budget greedy marginal value recall packing
-
 """Budget Greedy Marginal Value Recall Packing Suite (Item 122 P2).
 
 Benchmarked against FrankHu-HK/mnemosyne brain.py _budget_recall knapsack algorithm:

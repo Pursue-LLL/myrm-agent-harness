@@ -13,10 +13,6 @@
 Orchestrates two-phase session archival, reliable boundary gating, and memory_diff auditing.
 """
 
-# [POS]: src/myrm_agent_harness/toolkits/memory/session_commit/two_phase_pipeline.py
-# [INPUT]: .models (CommitBoundaryKind, CommitPhase, MemoryDiffAudit, MemoryDiffItem, MemoryDiffStats, SessionArchiveMessage, CommitTaskStatus, SessionCommitResult)
-# [OUTPUT]: SessionCommitTwoPhaseEngine
-
 from __future__ import annotations
 
 import json

@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: ThreadEntry, SortKeyKind, FallbackStatus, ThreadPageRequest, ThreadHistoryPage, SortKeyFallbackGuard, GuardValidationResult, LargeNativeThreadHistoryPreserveSuite
-# [POS]: agent/context_management/native_thread_history/__init__.py
-
 """Native thread history preservation and sort key fallback package.
 
 [INPUT]

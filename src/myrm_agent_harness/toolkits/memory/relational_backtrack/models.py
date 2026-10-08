@@ -15,10 +15,6 @@
 Types and models for relational backtrack.
 """
 
-# [POS]: src/myrm_agent_harness/toolkits/memory/relational_backtrack/models.py
-# [INPUT]: None (pure domain models)
-# [OUTPUT]: EntityTypeKind, TemporalRelationTriplet, RelationalBacktrackQuery, RelationalBacktrackHit, RelationalBacktrackResult
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field

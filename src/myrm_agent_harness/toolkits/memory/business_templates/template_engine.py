@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.business_templates.template_engine
-# [INPUT]: .models (BusinessExperienceTemplate, EscalationDecision, EscalationAction, EscalationReason, EscalationEvaluationContext, ValidationRecord, TemplateCategory), .seed_templates (SEED_TEMPLATES)
-# [OUTPUT]: BusinessTemplateEngine
-
 """Engine coordinating business experience templates and escalation decision evaluations.
 
 P0 delivery for Item 107 in topic_01 memory roadmap.

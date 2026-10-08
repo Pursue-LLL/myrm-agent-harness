@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: RenameSource, SessionRenameReceipt, SessionTitleResolution, TitlePrecedenceLevel
-# [POS]: agent/context_management/session_metadata_rename/metadata_rename_types.py
-
 """Domain contracts for session display rename and metadata-name precedence resolution.
 
 [INPUT]

@@ -1,7 +1,3 @@
-# [INPUT]: ReservationState, SpawnReservationLease, ReservationResult, AdmissionCommitResult
-# [OUTPUT]: SpawnNameReservationEngine
-# [POS]: agent/context_management/spawn_reservation/spawn_name_reservation_engine.py
-
 """Concurrent thread-safe engine managing spawn name reservations until durable admission.
 
 [INPUT]

@@ -1,7 +1,3 @@
-# [POS]: src/myrm_agent_harness/toolkits/memory/auto_memory/engine.py
-# [INPUT]: SessionActivitySnapshot, Sequence[dict[str, str]], AutoMemoryBudgetPolicy, AutoMemoryGate, SixDimensionalExtractor
-# [OUTPUT]: IdleAndBudgetGatedAutoMemoryEngine
-
 """Unified coordination engine for idle and budget-gated auto-memory consolidation.
 
 Coordinates inactivity timing, turn thresholds, token budget checks,

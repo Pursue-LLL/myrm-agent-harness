@@ -1,7 +1,3 @@
-# [INPUT]: ApprovalDecisionKind, ApprovalDecisionRecord, DecisionPrecedence
-# [OUTPUT]: ApprovalPrecedenceResolver
-# [POS]: agent/context_management/nested_approval_restore/approval_precedence_resolver.py
-
 """Precedence resolver enforcing live-decision priority over stale snapshot approvals.
 
 [INPUT]

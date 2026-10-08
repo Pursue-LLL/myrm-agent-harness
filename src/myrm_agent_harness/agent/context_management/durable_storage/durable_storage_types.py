@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: StorageWriteKind, StorageBackendKind, ConversationRecord, EntryRecord, TaskRecord, DocumentRecord, CommitWrite, CommitMarker, BenchmarkMetrics
-# [POS]: agent/context_management/durable_storage/durable_storage_types.py
-
 """Domain contracts and models for portable durable storage runtimes.
 
 [INPUT]

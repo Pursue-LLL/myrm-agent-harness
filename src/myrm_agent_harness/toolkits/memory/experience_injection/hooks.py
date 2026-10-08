@@ -17,10 +17,6 @@
 PostCallHook adapter injecting relevant procedure experiences into skill bodies.
 """
 
-# [POS]: src/myrm_agent_harness/toolkits/memory/experience_injection/hooks.py
-# [INPUT]: .models, .injection_engine (ExperienceInjectionEngine)
-# [OUTPUT]: SkillLoadExperienceHook, SubagentSpawnExperienceEnricher, PreWriteInterceptor
-
 from __future__ import annotations
 
 import logging

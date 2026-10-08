@@ -1,7 +1,3 @@
-# [INPUT]: TextOutputContractResult
-# [OUTPUT]: BROWSER_TEXT_OUTPUT_CONTRACT_PROMPT, parse_and_validate_text_contract
-# [POS]: toolkits/browser/decision_discipline/text_output_contract.py
-
 """Browser text generation output contract enforcing single-key JSON structure.
 
 [INPUT]

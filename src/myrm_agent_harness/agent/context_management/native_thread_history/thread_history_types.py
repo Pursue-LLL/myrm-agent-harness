@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: ThreadEntry, SortKeyKind, FallbackStatus, ThreadPageRequest, ThreadHistoryPage
-# [POS]: agent/context_management/native_thread_history/thread_history_types.py
-
 """Strongly typed contracts for large native thread history and sort key fallback.
 
 [INPUT]

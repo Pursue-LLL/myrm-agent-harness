@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.failure_retrieval.__init__
-# [INPUT]: .models, .fingerprint, .search_engine, .interceptor
-# [OUTPUT]: Public exports for failure_retrieval package
-
 """Failure-triggered historical session retrieval package.
 
 P0 delivery for Item 109 in topic_01 memory roadmap.

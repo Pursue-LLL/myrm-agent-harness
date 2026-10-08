@@ -1,7 +1,3 @@
-# [POS]: src/myrm_agent_harness/toolkits/memory/relational_backtrack/__init__.py
-# [INPUT]: models.py, synonym_normalizer.py, triplet_store.py, backtrack_engine.py
-# [OUTPUT]: Public facade for TemporalRelationalAnchorAndCrossSessionEntityBacktrackingSuite
-
 """Temporal relational anchor and cross-session entity backtracking suite.
 
 Solves the classic causal backtracking blind spot ('eat hotpot' ↔ 'have da-bin-lo with client')

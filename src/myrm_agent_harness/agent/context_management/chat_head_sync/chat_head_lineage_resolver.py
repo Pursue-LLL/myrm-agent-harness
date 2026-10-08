@@ -1,7 +1,3 @@
-# [INPUT]: SchemaVersion, ShardAddress, ChatHeadPointer
-# [OUTPUT]: compute_head_sha256, verify_lineage_cas, detect_head_fork
-# [POS]: agent/context_management/chat_head_sync/chat_head_lineage_resolver.py
-
 """Lineage resolution and CAS identity chaining for chat head pointers.
 
 [INPUT]

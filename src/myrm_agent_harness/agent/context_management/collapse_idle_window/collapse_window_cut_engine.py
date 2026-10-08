@@ -1,7 +1,3 @@
-# [INPUT]: CollapseWindowConfig, CollapseWindowReceipt, IdleStreamCollapser, StepType, StreamStepItem
-# [OUTPUT]: CollapseWindowCutEngine
-# [POS]: agent/context_management/collapse_idle_window/collapse_window_cut_engine.py
-
 """Window cutting engine enforcing collapse-before-cut causal ordering on stream steps.
 
 [INPUT]

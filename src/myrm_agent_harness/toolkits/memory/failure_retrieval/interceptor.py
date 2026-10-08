@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.failure_retrieval.interceptor
-# [INPUT]: models.py, fingerprint.py, search_engine.py
-# [OUTPUT]: FailureTriggerInterceptor
-
 """Failure trigger interceptor for AI agent tool invocations.
 
 P0 delivery for Item 109 in topic_01 memory roadmap.

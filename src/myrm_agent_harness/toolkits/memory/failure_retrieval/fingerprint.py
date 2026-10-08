@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.failure_retrieval.fingerprint
-# [INPUT]: models.py (ErrorFingerprint)
-# [OUTPUT]: ErrorFingerprintExtractor
-
 """Error fingerprint extractor for failure-triggered session retrieval.
 
 P0 delivery for Item 109 in topic_01 memory roadmap.

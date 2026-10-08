@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: SessionInteractionMode, ToolSideEffectLevel, ToolDescriptor, AskOnlyFilterResult, ToolExecutionCheckResult, AskOnlyToolFilter, WorkBuddyAskOnlyModeSuite
-# [POS]: agent/context_management/ask_only_mode/__init__.py
-
 """WorkBuddy Ask-Only mode and dynamic tool pruning package.
 
 [INPUT]

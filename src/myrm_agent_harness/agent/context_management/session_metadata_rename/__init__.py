@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: HapiRenameMetadataNameSuite, RenameSource, SessionMetadataRecord, SessionMetadataRenameEngine, SessionRenameReceipt, SessionTitleResolution, TitlePrecedenceLevel, normalize_session_display_title, resolve_session_display_title
-# [POS]: agent/context_management/session_metadata_rename/__init__.py
-
 """Session display renaming via metadata.name and title precedence arbitration package.
 
 [INPUT]

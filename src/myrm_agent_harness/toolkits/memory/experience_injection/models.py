@@ -14,10 +14,6 @@
 Types and models for experience injection.
 """
 
-# [POS]: src/myrm_agent_harness/toolkits/memory/experience_injection/models.py
-# [INPUT]: myrm_agent_harness.toolkits.memory.procedure_experience.models (ProcedureMemoryEntry)
-# [OUTPUT]: ExperienceCallSite, InjectionStatus, ExperienceInjectionConfig, ExperienceInjectionResult
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field

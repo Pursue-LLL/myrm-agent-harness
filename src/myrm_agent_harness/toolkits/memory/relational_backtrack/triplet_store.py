@@ -11,10 +11,6 @@
 In-memory structured index for entity-action-temporal triplets.
 """
 
-# [POS]: src/myrm_agent_harness/toolkits/memory/relational_backtrack/triplet_store.py
-# [INPUT]: models.py (TemporalRelationTriplet, EntityTypeKind)
-# [OUTPUT]: TemporalTripletStore
-
 from __future__ import annotations
 
 import logging

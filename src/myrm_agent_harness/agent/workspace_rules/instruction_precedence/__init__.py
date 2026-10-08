@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: ClaudeCodeProjectInstructionsPrecedenceSuite, InstructionFilterEngine, InstructionMode, InstructionSettings, ManagedPrecedenceResolver, PrecedenceAuditReceipt, ResolvedPrecedence, SettingsScope
-# [POS]: agent/workspace_rules/instruction_precedence/__init__.py
-
 """Project instructions multi-mode and managed precedence package.
 
 [INPUT]

@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.peer_gateway.models
-# [INPUT]: None (Standard library & Pydantic)
-# [OUTPUT]: ChannelType, GatewayPeerAliasConfig, ResolvedPeerIdentity, PeerBoundaryCheckResult
-
 """Domain models for Multi-Channel Peer Alias and Anti-Cross-Contamination Gateway Suite.
 
 P1 delivery for Item 113 in topic_01 memory roadmap.

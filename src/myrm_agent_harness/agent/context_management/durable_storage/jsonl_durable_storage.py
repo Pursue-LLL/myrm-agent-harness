@@ -1,7 +1,3 @@
-# [INPUT]: CommitMarker, CommitWrite, ConversationRecord, DocumentRecord, DurableStorageProtocol, EntryRecord, StorageBackendKind, StorageWriteKind, TaskRecord
-# [OUTPUT]: JsonlDurableStorage
-# [POS]: agent/context_management/durable_storage/jsonl_durable_storage.py
-
 """JSONL stream durable storage backend with atomic commit markers and crash reclamation.
 
 [INPUT]

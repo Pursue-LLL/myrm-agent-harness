@@ -1,7 +1,3 @@
-# [INPUT]: AttentionAuditReport
-# [OUTPUT]: audit_rule_attention_health, batch_audit_rules
-# [POS]: agent/context_management/hierarchical_rules/attention_dilution_guard.py
-
 """Attention dilution guard inspecting rule line count against the 200-line limit.
 
 [INPUT]

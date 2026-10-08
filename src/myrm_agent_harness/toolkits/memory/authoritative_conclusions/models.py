@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.authoritative_conclusions.models
-# [INPUT]: None (Standard library & Pydantic)
-# [OUTPUT]: ConclusionStatus, ConclusionToolAction, AuthoritativeConclusion, ConclusionAuditRecord, ConclusionAnchorProjection
-
 """Domain models for Explicit Authoritative Conclusions and Audit Tooling Suite.
 
 P0 delivery for Item 111 in topic_01 memory roadmap.

@@ -1,7 +1,3 @@
-# [INPUT]: BenchmarkMetrics, CommitWrite, DurableStorageProtocol, StorageBackendKind, StorageWriteKind
-# [OUTPUT]: PortableDurableStorageSuite
-# [POS]: agent/context_management/durable_storage/durable_storage_suite.py
-
 """Unified orchestration facade and deterministic benchmark runner for durable storage.
 
 [INPUT]

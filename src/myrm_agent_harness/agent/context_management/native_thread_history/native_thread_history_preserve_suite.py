@@ -1,7 +1,3 @@
-# [INPUT]: ThreadEntry, ThreadPageRequest, ThreadHistoryPage, SortKeyFallbackGuard
-# [OUTPUT]: LargeNativeThreadHistoryPreserveSuite
-# [POS]: agent/context_management/native_thread_history/native_thread_history_preserve_suite.py
-
 """Suite implementing large native thread history preservation with sort key fallback guard.
 
 [INPUT]

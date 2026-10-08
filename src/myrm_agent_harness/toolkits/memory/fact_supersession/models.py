@@ -15,10 +15,6 @@
 Types and models for fact supersession.
 """
 
-# [POS]: src/myrm_agent_harness/toolkits/memory/fact_supersession/models.py
-# [INPUT]: None (Domain models for Fact Supersession, Temporal Validity, and Contradiction Quarantine)
-# [OUTPUT]: TemporalFactStatus, TemporalFactRecord, ContradictionQuarantineItem, DialecticRecallProjection
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field

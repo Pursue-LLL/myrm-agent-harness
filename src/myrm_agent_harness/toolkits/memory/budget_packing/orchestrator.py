@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.budget_packing.orchestrator
-# [INPUT]: RecallCandidate, BilledTokenBudget, PackedRecallResult, GreedyMarginalValuePacker, MarginalValueEvaluator
-# [OUTPUT]: BudgetRecallPackingOrchestrator
-
 """Orchestration facade for Budget Greedy Marginal Value Recall Packing Suite.
 
 Provides unified entry points for knapsack packing, legacy limit mode fallback,

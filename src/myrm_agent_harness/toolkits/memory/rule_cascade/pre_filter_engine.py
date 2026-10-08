@@ -13,10 +13,6 @@
 Pre-filtering engine enforcing physical boundary checks before vector/FTS recall.
 """
 
-# [POS]: src/myrm_agent_harness/toolkits/memory/rule_cascade/pre_filter_engine.py
-# [INPUT]: decay_calculator.py, models.py (DeterministicRuleEntry, FiveDimFilterSpec, PreFilteredEvidenceResult)
-# [OUTPUT]: FiveDimPreFilterEngine
-
 from __future__ import annotations
 
 import logging

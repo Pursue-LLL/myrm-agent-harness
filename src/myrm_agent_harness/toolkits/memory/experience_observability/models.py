@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.experience_observability.models
-# [INPUT]: None (Standard library and Pydantic)
-# [OUTPUT]: HostAccessChannel, LifecycleEventKind, ExperienceEffectStatus, LifecycleEventPayload, SessionTraceEvidence, ExperienceObservabilityMetric, HostPluginConfig
-
 """Domain models for zero-refactor host lifecycle plugin and experience observability.
 
 P1 delivery for Item 108 in topic_01 memory roadmap.

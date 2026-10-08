@@ -11,10 +11,6 @@
 Calculates bi-directional deltas between in-memory stores and Markdown mirrors.
 """
 
-# [POS]: src/myrm_agent_harness/toolkits/memory/markdown_curator/bidi_sync_engine.py
-# [INPUT]: src.myrm_agent_harness.toolkits.memory.markdown_curator.models
-# [OUTPUT]: MarkdownBidiSyncEngine
-
 from __future__ import annotations
 
 from datetime import UTC, datetime

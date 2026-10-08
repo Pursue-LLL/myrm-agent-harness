@@ -1,7 +1,3 @@
-# [INPUT]: AssembleResult, CasSyncResult, ChatHeadPointer, ContentShard, SchemaVersion, ShardAddress, VersionGateResult
-# [OUTPUT]: ChatHeadShardSyncSuite
-# [POS]: agent/context_management/chat_head_sync/chat_head_shard_sync_suite.py
-
 """Comprehensive facade suite for chat head pointer and immutable shard synchronization.
 
 [INPUT]

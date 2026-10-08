@@ -11,10 +11,6 @@
 Hierarchical deterministic rule cascade loader inspired by Claude Code.
 """
 
-# [POS]: src/myrm_agent_harness/toolkits/memory/rule_cascade/cascade_loader.py
-# [INPUT]: models.py (DeterministicRuleEntry, CascadedRuleSet)
-# [OUTPUT]: DeterministicRuleCascadeLoader
-
 from __future__ import annotations
 
 import logging

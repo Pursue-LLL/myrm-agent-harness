@@ -19,10 +19,6 @@
 Types and models for git okf.
 """
 
-# [POS]: myrm_agent_harness/toolkits/memory/git_okf/models.py
-# [INPUT]: Concept metadata, governance rules, validation parameters, search queries
-# [OUTPUT]: Strongly-typed Pydantic dataclasses/models for Google OKF v0.2 knowledge bundle
-
 from dataclasses import dataclass, field
 from enum import StrEnum
 

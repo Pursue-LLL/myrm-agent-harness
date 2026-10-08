@@ -1,7 +1,3 @@
-# [POS]: src/myrm_agent_harness/toolkits/memory/auto_memory/gate.py
-# [INPUT]: SessionActivitySnapshot, AutoMemoryBudgetPolicy, now_timestamp
-# [OUTPUT]: AutoMemoryGate, evaluate gating decisions
-
 """Dual-gate evaluation engine enforcing turn count and token budget thresholds.
 
 Prevents trivial conversation debris from polluting the memory store and protects

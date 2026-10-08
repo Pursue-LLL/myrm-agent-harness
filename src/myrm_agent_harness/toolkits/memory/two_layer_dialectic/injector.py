@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.two_layer_dialectic.injector
-# [INPUT]: BaseContextPayload, DialecticReconciliationConfig, TwoLayerContextInjectionResult, MultiPassDialecticReconciler
-# [OUTPUT]: TwoLayerContextInjector
-
 """Dual-layer context injection engine preserving LLM Prompt Cache while resolving contradictions.
 
 Layer 1 (Base Context): Low-cadence, deterministic prefix hash to maximize KV Cache hits.

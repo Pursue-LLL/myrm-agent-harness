@@ -1,7 +1,3 @@
-# [INPUT]: hitl_replay_types.py, passive_replay_scanner.py
-# [OUTPUT]: HITLReplayRestoreEngine
-# [POS]: agent/context_management/hitl_replay_restore/hitl_replay_restore_engine.py
-
 """Engine orchestrating selective passive replay scanning and interactive HITL resolution.
 
 [INPUT]

@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.auto_memory
-# [INPUT]: models, gate, extractor, engine
-# [OUTPUT]: AutoMemoryBudgetPolicy, AutoMemoryExtractionResult, AutoMemoryGate, AutoMemoryGatingDecision, IdleAndBudgetGatedAutoMemoryEngine, SessionActivitySnapshot, SixDimensionalExtractor, SixDimensionalMemorySlice
-
 """Idle and Budget Gated Auto-Memory Engine Suite (Item 123 P1).
 
 Coordinates session idle detection, turn count and token budget gating,

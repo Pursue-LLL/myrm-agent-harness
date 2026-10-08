@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: CheckpointRenderFormat, HandoffCompactStage, HandoffCheckpointCompiler, HandoffThenCompactResult, TaskCheckpoint, WorkBuddyHandoffThenCompactSuite
-# [POS]: agent/context_management/handoff_checkpoint/__init__.py
-
 """Handoff checkpoint then compact package.
 
 [INPUT]

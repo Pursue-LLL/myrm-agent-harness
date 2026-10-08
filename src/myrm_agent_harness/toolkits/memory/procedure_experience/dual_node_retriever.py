@@ -13,10 +13,6 @@
 Fixed-count dual-node retriever for procedure-shaped experience memories.
 """
 
-# [POS]: src/myrm_agent_harness/toolkits/memory/procedure_experience/dual_node_retriever.py
-# [INPUT]: src.myrm_agent_harness.toolkits.memory.procedure_experience (models, procedure_protocol)
-# [OUTPUT]: DualNodeFixedCountRetriever
-
 from __future__ import annotations
 
 import re

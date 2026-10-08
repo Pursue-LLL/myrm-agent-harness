@@ -1,7 +1,3 @@
-# [INPUT]: InstructionMode, SettingsScope, InstructionSettings, ResolvedPrecedence
-# [OUTPUT]: ManagedPrecedenceResolver
-# [POS]: agent/workspace_rules/instruction_precedence/managed_precedence_resolver.py
-
 """Precedence resolver enforcing managed settings supremacy and denying repository authority.
 
 [INPUT]

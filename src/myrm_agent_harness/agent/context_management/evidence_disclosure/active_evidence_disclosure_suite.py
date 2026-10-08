@@ -1,7 +1,3 @@
-# [INPUT]: ActionDetailDescriptor, ActionExecutionFailure, EvidenceDisclosureReceipt, EvidenceOutcome, EvidenceSourceState, PaginatedEvidencePage, QueryScopeKind, RealReadSlice
-# [OUTPUT]: ActiveEvidenceDisclosureSuite, disclose_action, project_action_isomorphic
-# [POS]: agent/context_management/evidence_disclosure/active_evidence_disclosure_suite.py
-
 """Comprehensive facade suite for isomorphic active and completed evidence disclosure.
 
 [INPUT]

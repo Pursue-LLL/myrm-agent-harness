@@ -15,10 +15,6 @@
 Orchestrates zero-config SQLite FTS5, offline synonym expansion,.
 """
 
-# [POS]: myrm_agent_harness/toolkits/memory/hybrid_engine/dual_drive_engine.py
-# [INPUT]: SqliteFts5Engine, OfflineSynonymExpander, optional DenseVectorProvider callback
-# [OUTPUT]: DualDriveHybridMemoryEngine facade with RRF fusion and graceful degradation
-
 import logging
 from collections.abc import Callable
 from pathlib import Path

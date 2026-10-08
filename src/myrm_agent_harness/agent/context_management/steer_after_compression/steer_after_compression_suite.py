@@ -1,7 +1,3 @@
-# [INPUT]: active_worker_steer_resolver.py, oob_message_sanitizer.py, steer_compression_types.py
-# [OUTPUT]: HermesWebuiSteerAfterCompressionSuite
-# [POS]: agent/context_management/steer_after_compression/steer_after_compression_suite.py
-
 """Unified orchestration facade for post-compaction steering and out-of-band context sanitization.
 
 [INPUT]

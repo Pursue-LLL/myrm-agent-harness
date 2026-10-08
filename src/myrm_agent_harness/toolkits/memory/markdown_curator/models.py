@@ -14,10 +14,6 @@
 Types and models for markdown curator.
 """
 
-# [POS]: src/myrm_agent_harness/toolkits/memory/markdown_curator/models.py
-# [INPUT]: None (Domain models for Markdown bidi-sync and Curator Studio)
-# [OUTPUT]: CuratedMemoryCategory, CuratedMemoryStatus, CuratedMemoryEntry, MarkdownSyncDelta, CuratorStudioSummary
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field

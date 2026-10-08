@@ -13,10 +13,6 @@
 Asynchronous reconciliation loop for persisting transient session deltas.
 """
 
-# [POS]: src/myrm_agent_harness/toolkits/memory/ephemeral_delta/reconciler.py
-# [INPUT]: delta_store.py (EphemeralDeltaStore), models.py (EphemeralDeltaItem, ReconciliationBatchReport)
-# [OUTPUT]: EphemeralDeltaReconciler
-
 from __future__ import annotations
 
 import inspect

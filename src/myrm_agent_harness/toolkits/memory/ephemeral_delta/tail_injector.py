@@ -11,10 +11,6 @@
 Injects active ephemeral session deltas at the tail of the final HumanMessage.
 """
 
-# [POS]: src/myrm_agent_harness/toolkits/memory/ephemeral_delta/tail_injector.py
-# [INPUT]: langchain_core.messages (BaseMessage, HumanMessage), models.py (EphemeralDeltaItem)
-# [OUTPUT]: HumanTailDeltaInjector
-
 from __future__ import annotations
 
 import html

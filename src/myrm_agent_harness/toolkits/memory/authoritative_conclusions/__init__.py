@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.authoritative_conclusions.__init__
-# [INPUT]: models.py, store.py, anchor.py, tool.py
-# [OUTPUT]: Public exports for authoritative conclusions package
-
 """Explicit Authoritative Conclusions and Audit Tooling Suite.
 
 P0 delivery for Item 111 in topic_01 memory roadmap.

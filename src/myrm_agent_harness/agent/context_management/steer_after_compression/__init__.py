@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: ActiveWorkerDescriptor, ActiveWorkerSteerResolver, ContextTurnMessage, HermesWebuiSteerAfterCompressionSuite, OOBMessageSanitizer, SanitizedReplayResult, SteerDispatchResult, SteerMessageKind, SteerResolutionStatus, WorkerLifecycleState
-# [POS]: agent/context_management/steer_after_compression/__init__.py
-
 """Post-compaction worker steering and out-of-band message sanitization package.
 
 [INPUT]

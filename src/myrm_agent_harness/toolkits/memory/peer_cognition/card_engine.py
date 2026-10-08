@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.peer_cognition.card_engine
-# [INPUT]: models.py, graph_engine.py
-# [OUTPUT]: PeerPersonaCardEngine
-
 """Self-evolving standing persona card engine and low-token context projector.
 
 P0 delivery for Item 110 in topic_01 memory roadmap.

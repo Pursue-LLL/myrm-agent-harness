@@ -11,10 +11,6 @@
 In-memory, session-scoped transient buffer for prompt-cache-preserving deltas.
 """
 
-# [POS]: src/myrm_agent_harness/toolkits/memory/ephemeral_delta/delta_store.py
-# [INPUT]: src/myrm_agent_harness/toolkits/memory/ephemeral_delta/models.py
-# [OUTPUT]: EphemeralDeltaStore
-
 from __future__ import annotations
 
 import logging

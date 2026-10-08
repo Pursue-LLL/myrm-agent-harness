@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.tiered_consensus.manager
-# [INPUT]: ConsensusScopeTier, ProposalStatus, TieredMemoryRecord, ConsensusAuditLog, compute_content_fingerprint
-# [OUTPUT]: TieredConsensusManager
-
 """Manager engine governing tiered memory hierarchy and proposal consensus lifecycle.
 
 Provides scoping enforcement, idempotent proposal deduplication, anti-self-approval gates,

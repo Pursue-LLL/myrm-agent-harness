@@ -1,7 +1,3 @@
-# [INPUT]: SessionInteractionMode, ToolDescriptor, ToolSideEffectLevel, AskOnlyFilterResult, ToolExecutionCheckResult, AskOnlyToolFilter
-# [OUTPUT]: WorkBuddyAskOnlyModeSuite
-# [POS]: agent/context_management/ask_only_mode/ask_only_mode_suite.py
-
 """Suite implementing WorkBuddy Ask-Only mode, dynamic tool filtering and token savings.
 
 [INPUT]

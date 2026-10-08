@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.peer_gateway.gateway
-# [INPUT]: ChannelType, GatewayPeerAliasConfig, PeerBoundaryCheckResult, ResolvedPeerIdentity, DeterministicPeerResolver
-# [OUTPUT]: AntiCrossContaminationGateway
-
 """Anti-cross-contamination gateway boundary enforcer for multi-tenant and multi-peer memory safety.
 
 Prevents cross-tenant leaks and accidental cross-session contamination across channels.

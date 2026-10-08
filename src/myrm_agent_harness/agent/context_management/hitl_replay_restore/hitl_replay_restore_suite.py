@@ -1,7 +1,3 @@
-# [INPUT]: hitl_replay_restore_engine.py, hitl_replay_types.py, passive_replay_scanner.py
-# [OUTPUT]: CopilotKitHITLReplayRestoreSuite
-# [POS]: agent/context_management/hitl_replay_restore/hitl_replay_restore_suite.py
-
 """Unified orchestration facade for reconnect passive replay filtering and HITL restoration.
 
 [INPUT]

@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.experience_observability.__init__
-# [INPUT]: .models, .tracker, .plugin_adapter
-# [OUTPUT]: Public exports for experience_observability package
-
 """Zero-refactor host lifecycle plugin and experience observability suite.
 
 P1 delivery for Item 108 in topic_01 memory roadmap.

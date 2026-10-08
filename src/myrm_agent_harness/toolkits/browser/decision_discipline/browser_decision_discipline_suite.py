@@ -1,7 +1,3 @@
-# [INPUT]: BrowserActionKind, DecisionEvaluationResult, DisciplineRulebookConfig, ElementState, TextOutputContractResult
-# [OUTPUT]: BrowserNextStepDecisionRulebookAndTextOutputContractSuite
-# [POS]: toolkits/browser/decision_discipline/browser_decision_discipline_suite.py
-
 """Comprehensive facade suite for browser decision discipline rulebooks and text output contracts.
 
 [INPUT]

@@ -1,7 +1,3 @@
-# [INPUT]: QueryContextStatus, QueryIntentEntry, ContextEvaluationResult, StaleQueryExpiryEngine
-# [OUTPUT]: MateclawStaleQueryContextExpireSuite
-# [POS]: agent/context_management/stale_query_expire/stale_query_context_suite.py
-
 """End-to-end suite orchestrating query context expiration in persistent long-running sessions.
 
 [INPUT]

@@ -13,10 +13,6 @@
 Types and models for procedure experience.
 """
 
-# [POS]: src/myrm_agent_harness/toolkits/memory/procedure_experience/models.py
-# [INPUT]: None (Domain models for Procedure-Shaped Experience Protocol & Dual-Node Retrieval)
-# [OUTPUT]: RetrievalNodeKind, ProcedureMemoryEntry, DualNodeRetrievalQuery, DualNodeRetrievalResult
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field

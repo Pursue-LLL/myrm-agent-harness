@@ -17,10 +17,6 @@
 Full-stack session retrieval engine with FTS5 lexical matching,.
 """
 
-# [POS]: myrm_agent_harness/toolkits/memory/lineage_search/lineage_search_engine.py
-# [INPUT]: SQLite database path or in-memory, session metadata, conversation messages
-# [OUTPUT]: LineageSearchEngine orchestrating FTS5 search, source demotion, lineage dedup, and hydration
-
 import datetime
 import sqlite3
 from collections import defaultdict

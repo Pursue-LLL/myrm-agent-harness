@@ -17,10 +17,6 @@
 Types and models for rule cascade.
 """
 
-# [POS]: src/myrm_agent_harness/toolkits/memory/rule_cascade/models.py
-# [INPUT]: None (pure domain contracts)
-# [OUTPUT]: EvidenceScopeKind, EvidenceSourceKind, EvidencePermissionLevel, FiveDimEvidenceMetadata, DeterministicRuleEntry, CascadedRuleSet, FiveDimFilterSpec, PreFilteredEvidenceResult
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field

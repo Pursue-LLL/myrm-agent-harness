@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: QueryContextStatus, QueryIntentEntry, ContextEvaluationResult
-# [POS]: agent/context_management/stale_query_expire/query_context_types.py
-
 """Strongly typed contracts for persistent session query context and staleness tracking.
 
 [INPUT]

@@ -1,7 +1,3 @@
-# [INPUT]: TaskCheckpoint, HandoffCompactStage, HandoffThenCompactResult, HandoffCheckpointCompiler
-# [OUTPUT]: WorkBuddyHandoffThenCompactSuite
-# [POS]: agent/context_management/handoff_checkpoint/handoff_compact_suite.py
-
 """End-to-end suite orchestrating one-click task handoff checkpoint before compaction.
 
 [INPUT]

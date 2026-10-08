@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.experience_observability.tracker
-# [INPUT]: .models (ExperienceObservabilityMetric, ExperienceEffectStatus, HostAccessChannel, SessionTraceEvidence)
-# [OUTPUT]: ExperienceObservabilityTracker
-
 """Telemetry tracker for procedure experience recall, injection, and outcome observability.
 
 P1 delivery for Item 108 in topic_01 memory roadmap.

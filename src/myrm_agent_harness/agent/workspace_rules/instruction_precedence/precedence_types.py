@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: InstructionMode, SettingsScope, InstructionSettings, ResolvedPrecedence, PrecedenceAuditReceipt
-# [POS]: agent/workspace_rules/instruction_precedence/precedence_types.py
-
 """Strongly typed contracts for project instruction modes and managed precedence.
 
 [INPUT]

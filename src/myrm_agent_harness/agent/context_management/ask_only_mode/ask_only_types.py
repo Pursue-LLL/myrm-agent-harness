@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: SessionInteractionMode, ToolSideEffectLevel, ToolDescriptor, AskOnlyFilterResult, ToolExecutionCheckResult
-# [POS]: agent/context_management/ask_only_mode/ask_only_types.py
-
 """Strongly typed contracts for Ask-Only mode tool filtering and execution safety.
 
 [INPUT]

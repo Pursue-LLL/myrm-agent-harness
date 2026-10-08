@@ -19,10 +19,6 @@
 Types and models for session commit.
 """
 
-# [POS]: src/myrm_agent_harness/toolkits/memory/session_commit/models.py
-# [INPUT]: None (Pure domain types for Session Commit Two-Phase Architecture)
-# [OUTPUT]: CommitBoundaryKind, CommitPhase, MemoryDiffChangeKind, MemoryDiffItem, MemoryDiffStats, MemoryDiffAudit, SessionArchiveMessage, CommitTaskStatus, SessionCommitResult
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field

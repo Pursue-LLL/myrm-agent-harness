@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: BrowserActionKind, ElementState, DecisionEvaluationResult, TextOutputContractResult, DisciplineRulebookConfig
-# [POS]: toolkits/browser/decision_discipline/decision_discipline_types.py
-
 """Domain contracts and models for browser next-step decision discipline and text output contracts.
 
 [INPUT]

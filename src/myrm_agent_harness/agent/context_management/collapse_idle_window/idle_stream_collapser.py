@@ -1,7 +1,3 @@
-# [INPUT]: CollapseWindowConfig, StepType, StreamStepItem
-# [OUTPUT]: IdleStreamCollapser, format_time_duration
-# [POS]: agent/context_management/collapse_idle_window/idle_stream_collapser.py
-
 """Stream pruning and consecutive idle/error step collapsing engine.
 
 [INPUT]

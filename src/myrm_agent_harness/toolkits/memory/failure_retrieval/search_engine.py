@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.failure_retrieval.search_engine
-# [INPUT]: models.py (ErrorFingerprint, FailureOutcomeType, HistoricalResolutionEntry, FailureRetrievalResult)
-# [OUTPUT]: FailureHistoricalSessionSearchEngine
-
 """Search engine indexing and retrieving historical session solutions and failures.
 
 P0 delivery for Item 109 in topic_01 memory roadmap.

@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: CollapseWindowConfig, CollapseWindowReceipt, StepType, StreamStepItem
-# [POS]: agent/context_management/collapse_idle_window/collapse_idle_types.py
-
 """Domain contracts and data types for collapse-idle-before-cut stream windowing.
 
 [INPUT]

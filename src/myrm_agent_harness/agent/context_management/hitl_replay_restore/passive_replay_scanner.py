@@ -1,7 +1,3 @@
-# [INPUT]: hitl_replay_types.py
-# [OUTPUT]: PassiveReplayScanner
-# [POS]: agent/context_management/hitl_replay_restore/passive_replay_scanner.py
-
 """Scanner performing selective replay analysis to isolate pending HITL calls from ordinary tools.
 
 [INPUT]

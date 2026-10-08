@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.peer_cognition.graph_engine
-# [INPUT]: models.py
-# [OUTPUT]: PeerCognitionGraphStore
-
 """In-memory and indexed graph store for peer-centric social cognition entities.
 
 P0 delivery for Item 110 in topic_01 memory roadmap.

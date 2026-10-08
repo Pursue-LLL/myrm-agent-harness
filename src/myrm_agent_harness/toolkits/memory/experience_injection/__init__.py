@@ -17,10 +17,6 @@
 Package facade for experience injection.
 """
 
-# [POS]: src/myrm_agent_harness/toolkits/memory/experience_injection/__init__.py
-# [INPUT]: .models, .injection_engine, .hooks
-# [OUTPUT]: Public exports for experience_injection package
-
 from __future__ import annotations
 
 from myrm_agent_harness.toolkits.memory.experience_injection.hooks import (

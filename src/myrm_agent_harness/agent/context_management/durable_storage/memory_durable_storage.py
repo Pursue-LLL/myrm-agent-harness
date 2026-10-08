@@ -1,7 +1,3 @@
-# [INPUT]: CommitWrite, ConversationRecord, DocumentRecord, DurableStorageProtocol, EntryRecord, StorageBackendKind, StorageWriteKind, TaskRecord
-# [OUTPUT]: MemoryDurableStorage
-# [POS]: agent/context_management/durable_storage/memory_durable_storage.py
-
 """In-memory durable storage backend implementation adhering to uniform contract.
 
 [INPUT]

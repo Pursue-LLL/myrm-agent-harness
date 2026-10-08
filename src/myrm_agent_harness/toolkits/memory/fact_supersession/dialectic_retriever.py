@@ -14,10 +14,6 @@
 Projector augmenting recalled facts with their historical supersession lineage for explainability.
 """
 
-# [POS]: src/myrm_agent_harness/toolkits/memory/fact_supersession/dialectic_retriever.py
-# [INPUT]: src.myrm_agent_harness.toolkits.memory.fact_supersession (models, supersession_chain)
-# [OUTPUT]: DialecticRecallProjector
-
 from __future__ import annotations
 
 from myrm_agent_harness.toolkits.memory.fact_supersession.models import (

@@ -11,10 +11,6 @@
 Serializes memory entries to human-friendly Markdown and parses them back.
 """
 
-# [POS]: src/myrm_agent_harness/toolkits/memory/markdown_curator/markdown_serializer.py
-# [INPUT]: src.myrm_agent_harness.toolkits.memory.markdown_curator.models
-# [OUTPUT]: MarkdownMemorySerializer
-
 from __future__ import annotations
 
 import re

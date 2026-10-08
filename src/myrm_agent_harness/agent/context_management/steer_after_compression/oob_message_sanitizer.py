@@ -1,7 +1,3 @@
-# [INPUT]: steer_compression_types.py
-# [OUTPUT]: OOBMessageSanitizer
-# [POS]: agent/context_management/steer_after_compression/oob_message_sanitizer.py
-
 """Sanitization engine filtering out-of-band management messages from replay contexts.
 
 [INPUT]

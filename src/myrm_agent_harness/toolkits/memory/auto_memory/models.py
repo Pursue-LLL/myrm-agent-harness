@@ -1,7 +1,3 @@
-# [POS]: src/myrm_agent_harness/toolkits/memory/auto_memory/models.py
-# [INPUT]: Telemetry metrics, turn counts, token budgets, and structured memory facets
-# [OUTPUT]: Strongly-typed Pydantic domain models for idle and budget-gated auto memory
-
 """Domain models for Idle and Budget Gated Auto-Memory Engine Suite (Item 123 P1).
 
 Defines gating decisions, session activity snapshots, budget protection policies,

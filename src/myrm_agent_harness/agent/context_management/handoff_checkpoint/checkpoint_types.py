@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: HandoffCompactStage, CheckpointRenderFormat, TaskCheckpoint, HandoffThenCompactResult
-# [POS]: agent/context_management/handoff_checkpoint/checkpoint_types.py
-
 """Strongly typed contracts for Handoff-then-Compact checkpoint pipeline.
 
 [INPUT]

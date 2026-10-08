@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.business_templates.models
-# [INPUT]: None (标准库及 Pydantic)
-# [OUTPUT]: TemplateCategory, EscalationReason, EscalationAction, ChecklistStep, EscalationDecision, BusinessExperienceTemplate, EscalationEvaluationContext, ValidationRecord
-
 """Domain models for business experience templates and escalation checklists.
 
 P0 delivery for Item 107 in topic_01 memory roadmap.

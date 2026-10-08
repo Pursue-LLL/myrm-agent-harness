@@ -14,10 +14,6 @@
 Gate evaluating factual contradictions and routing low-confidence candidates into quarantine.
 """
 
-# [POS]: src/myrm_agent_harness/toolkits/memory/fact_supersession/contradiction_quarantine.py
-# [INPUT]: src.myrm_agent_harness.toolkits.memory.fact_supersession (models, supersession_chain)
-# [OUTPUT]: ContradictionQuarantineGate
-
 from __future__ import annotations
 
 import uuid

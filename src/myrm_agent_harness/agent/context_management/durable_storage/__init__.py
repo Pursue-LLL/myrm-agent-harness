@@ -1,7 +1,3 @@
-# [INPUT]: durable_storage_types, durable_storage_protocol, memory_durable_storage, jsonl_durable_storage, sqlite_durable_storage, durable_storage_suite
-# [OUTPUT]: BenchmarkMetrics, CommitMarker, CommitWrite, ConversationRecord, DocumentRecord, DurableStorageProtocol, EntryRecord, JsonlDurableStorage, MemoryDurableStorage, PortableDurableStorageSuite, SqliteDurableStorage, StorageBackendKind, StorageWriteKind, TaskRecord
-# [POS]: agent/context_management/durable_storage/__init__.py
-
 """Portable durable storage runtime package supporting Memory, JSONL, and SQLite backends.
 
 [INPUT]

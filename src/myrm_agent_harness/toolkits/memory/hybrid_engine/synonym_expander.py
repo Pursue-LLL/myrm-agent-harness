@@ -10,10 +10,6 @@
 Zero-dependency, offline semantic synonym expansion engine.
 """
 
-# [POS]: myrm_agent_harness/toolkits/memory/hybrid_engine/synonym_expander.py
-# [INPUT]: Raw search terms, user registered synonyms
-# [OUTPUT]: Offline synonym graph manager and safe FTS5 query expansion
-
 import re
 
 _SAFE_WORD_REGEX = re.compile(r"[\w\u4e00-\u9fff]+", re.UNICODE)

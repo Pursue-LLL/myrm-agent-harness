@@ -1,7 +1,3 @@
-# [INPUT]: rule_types, glob_rule_matcher, rule_transclusion_engine, attention_dilution_guard, hierarchical_rules_suite
-# [OUTPUT]: AttentionAuditReport, HierarchicalRulesConfig, HierarchicalRulesDirectoryAndGlobScopedDynamicRuleMatcherSuite, RuleFileDescriptor, RuleMatchResult, RuleTierKind, audit_rule_attention_health, batch_audit_rules, is_rule_active_for_targets, match_rules_against_targets, parse_rule_frontmatter, resolve_rule_transclusions
-# [POS]: agent/context_management/hierarchical_rules/__init__.py
-
 """Hierarchical rules directory decoupling, glob-scoped matching, and attention defense package.
 
 [INPUT]

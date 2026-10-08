@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: ClarifyCardPayload, ClarifyCardStatus, ClarifyDispatchReceipt, ClarifyOptionItem, ClarifyResponsePath
-# [POS]: agent/context_management/clarify_cards/clarify_card_types.py
-
 """Domain contracts and data types for interactive clarify cards lifecycle.
 
 [INPUT]

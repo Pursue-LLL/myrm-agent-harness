@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: ApprovalDecisionKind, ApprovalDecisionRecord, ApprovalPrecedenceResolver, CompactionEntry, CompactionRollbackBudget, CompactionRollbackBuffer, DecisionPrecedence, NestedApprovalRestoreSuite, NestedRestoreReceipt, make_approval_decision, make_compaction_entry, validate_summary_candidate
-# [POS]: agent/context_management/nested_approval_restore/__init__.py
-
 """Nested approval restoration and bounded compaction rollback subsystem.
 
 [INPUT]

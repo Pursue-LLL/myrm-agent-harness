@@ -1,7 +1,3 @@
-# [INPUT]: RuleFile, InstructionMode, ResolvedPrecedence, PrecedenceAuditReceipt
-# [OUTPUT]: InstructionFilterEngine
-# [POS]: agent/workspace_rules/instruction_precedence/instruction_filter_engine.py
-
 """Engine filtering and synthesizing workspace rules according to resolved instruction mode.
 
 [INPUT]

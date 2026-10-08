@@ -1,7 +1,3 @@
-# [INPUT]: BrowserActionKind, DecisionEvaluationResult, DisciplineRulebookConfig, ElementState
-# [OUTPUT]: BROWSER_NEXT_ACTION_DISCIPLINE_RULEBOOK, BROWSER_TARGET_SELECTION_DISCIPLINE_RULEBOOK, validate_next_step_action, validate_target_element
-# [POS]: toolkits/browser/decision_discipline/next_step_decision_rulebook.py
-
 """Browser next-step decision discipline rulebook and pre-flight validation guards.
 
 [INPUT]

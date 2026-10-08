@@ -1,7 +1,3 @@
-# [INPUT]: ApprovalDecisionKind, ApprovalDecisionRecord, CompactionEntry, CompactionRollbackBudget, DecisionPrecedence, NestedRestoreReceipt
-# [OUTPUT]: NestedApprovalRestoreSuite, make_approval_decision, make_compaction_entry
-# [POS]: agent/context_management/nested_approval_restore/nested_approval_restore_suite.py
-
 """Comprehensive facade suite for nested approval restore and compaction rollback.
 
 [INPUT]

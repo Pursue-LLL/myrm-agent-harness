@@ -1,7 +1,3 @@
-# [INPUT]: steer_compression_types.py
-# [OUTPUT]: ActiveWorkerSteerResolver
-# [POS]: agent/context_management/steer_after_compression/active_worker_steer_resolver.py
-
 """Core resolution and dispatch engine for steering active workers after context compaction.
 
 [INPUT]

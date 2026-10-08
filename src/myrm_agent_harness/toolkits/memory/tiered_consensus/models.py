@@ -1,7 +1,3 @@
-# [POS]: myrm_agent_harness.toolkits.memory.tiered_consensus.models
-# [INPUT]: None (Standard library & Pydantic)
-# [OUTPUT]: ConsensusScopeTier, ProposalStatus, TieredMemoryRecord, ConsensusAuditLog
-
 """Domain models for Tiered Memory Hierarchy and Proposed Consensus Flow Suite.
 
 P1 delivery for Item 114 in topic_01 memory roadmap.

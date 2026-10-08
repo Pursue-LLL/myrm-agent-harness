@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: ActiveWorkerDescriptor, ContextTurnMessage, SanitizedReplayResult, SteerDispatchResult, SteerMessageKind, SteerResolutionStatus, WorkerLifecycleState
-# [POS]: agent/context_management/steer_after_compression/steer_compression_types.py
-
 """Domain contracts for post-compaction steering and out-of-band message sanitization.
 
 [INPUT]

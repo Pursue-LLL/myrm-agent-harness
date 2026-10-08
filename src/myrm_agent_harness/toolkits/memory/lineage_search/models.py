@@ -16,10 +16,6 @@
 Types and models for lineage search.
 """
 
-# [POS]: myrm_agent_harness/toolkits/memory/lineage_search/models.py
-# [INPUT]: Conversation sessions, messages, query options, and hydration configs
-# [OUTPUT]: Strongly-typed models for lineage dedup, source demotion, and adaptive hydration
-
 from dataclasses import dataclass, field
 from enum import StrEnum
 

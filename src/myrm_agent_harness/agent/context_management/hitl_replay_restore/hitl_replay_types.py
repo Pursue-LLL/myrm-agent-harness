@@ -1,7 +1,3 @@
-# [INPUT]: None
-# [OUTPUT]: HITLApprovalState, PendingHITLDescriptor, ReplayActionKind, ReplayRestorationSummary, ToolCallReplayItem, ToolExecutionType, ToolResultReplayItem
-# [POS]: agent/context_management/hitl_replay_restore/hitl_replay_types.py
-
 """Domain contracts for reconnect passive replay and selective HITL restoration.
 
 [INPUT]
