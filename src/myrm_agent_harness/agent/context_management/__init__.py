@@ -997,6 +997,16 @@ from .handoff_checkpoint import (
     TaskCheckpoint,
     WorkBuddyHandoffThenCompactSuite,
 )
+from .clarify_cards import (
+    ClarifyCardEngine,
+    ClarifyCardPayload,
+    ClarifyCardStatus,
+    ClarifyDispatchReceipt,
+    ClarifyOptionItem,
+    ClarifyResponsePath,
+    HermesDesktopClarifyCardsSuite,
+    create_clarify_card,
+)
 from .collapse_idle_window import (
     CollapseWindowConfig,
     CollapseWindowCutEngine,
@@ -1082,6 +1092,15 @@ from .steer_after_compression import (
 )
 
 __all__ = [
+    # clarify_cards
+    "ClarifyCardEngine",
+    "ClarifyCardPayload",
+    "ClarifyCardStatus",
+    "ClarifyDispatchReceipt",
+    "ClarifyOptionItem",
+    "ClarifyResponsePath",
+    "HermesDesktopClarifyCardsSuite",
+    "create_clarify_card",
     # collapse_idle_window
     "CollapseWindowConfig",
     "CollapseWindowCutEngine",
