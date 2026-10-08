@@ -16,6 +16,7 @@ from myrm_agent_harness.toolkits.memory._internal.storage import (
     MemoryError,
     MemoryNotFoundError,
     MemoryProtectedError,
+    PendingTargetChangedError,
 )
 from myrm_agent_harness.toolkits.memory.activity_compactor import (
     ActivityActionType,
@@ -1346,6 +1347,7 @@ __all__ = [
     "MemoryConfig",
     "MemoryConversationSearchProvider",
     "InvalidPendingEditError",
+    "PendingTargetChangedError",
     "MemoryError",
     "MemoryExtractor",
     "MemoryImportDryRunResult",

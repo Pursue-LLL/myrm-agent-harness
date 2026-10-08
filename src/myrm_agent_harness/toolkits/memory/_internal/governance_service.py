@@ -10,7 +10,8 @@
 - GovernanceService: Governance orchestrator (approval flow, profile updates, scanning)
 
 [POS]
-Governance-side orchestration. Handles approval flow, profile updates, and content
+Governance-side orchestration. Handles approval flow (including the stale-target guard
+that refuses proposals whose target changed after queueing), profile updates, and content
 scanning. Not part of the public API.
 """
 
@@ -30,12 +31,17 @@ from myrm_agent_harness.toolkits.memory._internal.memory_scanner import (
     get_scan_metrics,
     scan_memory_content,
 )
-from myrm_agent_harness.toolkits.memory._internal.storage import MemoryError, MemoryNotFoundError
+from myrm_agent_harness.toolkits.memory._internal.storage import (
+    MemoryError,
+    MemoryNotFoundError,
+    PendingTargetChangedError,
+)
 from myrm_agent_harness.toolkits.memory.config import MemoryConfig
 from myrm_agent_harness.toolkits.memory.protocols.relational import RelationalStoreProtocol
 from myrm_agent_harness.toolkits.memory.types import (
     AnyMemory,
     MemoryScope,
+    MemoryStatus,
     MemoryType,
     PendingRecord,
     PendingResolutionAction,
@@ -44,6 +50,32 @@ from myrm_agent_harness.toolkits.memory.types import (
 logger = logging.getLogger(__name__)
 
 StoreFunc = Callable[[AnyMemory], Awaitable[AnyMemory]]
+ReadFunc = Callable[[str], Awaitable[AnyMemory | None]]
+
+
+def _ensure_target_unchanged(record: PendingRecord, target: AnyMemory | None) -> None:
+    """Refuse to apply a proposal to a memory that is no longer what the reviewer was shown.
+
+    A ``CORRECT`` also needs the target to be live and not yet corrected: correcting
+    twice would leave two competing corrections active. A missing target is not drift;
+    the callers already resolve that case.
+    """
+    if target is None:
+        return
+    shown = record.target_content
+    current = getattr(target, "content", None)
+    drifted = shown is not None and current is not None and current != shown
+    if record.resolution_action == PendingResolutionAction.CORRECT:
+        metadata = getattr(target, "metadata", None) or {}
+        drifted = (
+            drifted
+            or getattr(target, "status", MemoryStatus.ACTIVE) != MemoryStatus.ACTIVE
+            or metadata.get("corrected") is True
+        )
+    if drifted:
+        raise PendingTargetChangedError(
+            f"Memory {record.target_memory_id} changed after proposal {record.id} was queued; review it again"
+        )
 
 
 class GovernanceService:
@@ -99,12 +131,15 @@ class GovernanceService:
         store_func: StoreFunc,
         correct_func: Callable[[str, str], Awaitable[AnyMemory]],
         forget_func: Callable[[str], Awaitable[AnyMemory]],
+        read_func: ReadFunc,
         edited_content: str | None = None,
     ) -> AnyMemory | None:
         """Apply a pending proposal; ``edited_content`` is the reviewer's rewording.
 
         ``forget_func`` retires the targeted memory (archive, not hard delete) so
         a mistaken approval stays restorable during the archive retention window.
+        ``read_func`` loads the target so a proposal is never applied to a memory
+        that changed since the reviewer saw it (``PendingTargetChangedError``).
         """
         rel = self._rel()
         record = await rel.get_pending(pending_id)
@@ -126,6 +161,7 @@ class GovernanceService:
 
         if record.resolution_action == PendingResolutionAction.DELETE:
             if record.target_memory_id:
+                _ensure_target_unchanged(record, await read_func(record.target_memory_id))
                 try:
                     await forget_func(record.target_memory_id)
                 except MemoryNotFoundError:
@@ -136,6 +172,7 @@ class GovernanceService:
             return None
 
         if record.resolution_action == PendingResolutionAction.CORRECT and record.target_memory_id:
+            _ensure_target_unchanged(record, await read_func(record.target_memory_id))
             try:
                 stored = await correct_func(record.target_memory_id, record.content)
             except MemoryNotFoundError:

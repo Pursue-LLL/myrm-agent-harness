@@ -5,7 +5,11 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from myrm_agent_harness.toolkits.memory._internal.storage import InvalidPendingEditError, MemoryNotFoundError
+from myrm_agent_harness.toolkits.memory._internal.storage import (
+    InvalidPendingEditError,
+    MemoryNotFoundError,
+    PendingTargetChangedError,
+)
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.types import (
     MemoryStatus,
@@ -336,6 +340,114 @@ class TestApprovalWorkflow:
         assert isinstance(result, SemanticMemory)
         mock_vector_store.upsert.assert_called()
         mock_relational_store.mark_pending.assert_called_once_with("pending-fix", "approved")
+
+    @staticmethod
+    def _target_record(action: PendingResolutionAction, shown: str | None = "Works at Acme") -> PendingRecord:
+        return PendingRecord(
+            id="pending-t",
+            memory_type=MemoryType.SEMANTIC,
+            content="Works at Google",
+            memory_data={"content": "Works at Google"},
+            created_at=datetime.now(UTC),
+            status="pending",
+            resolution_action=action,
+            target_memory_id="mem-old",
+            target_content=shown,
+        )
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "target",
+        [
+            SemanticMemory(content="Works at Initech"),
+            SemanticMemory(content="Works at Acme", metadata={"corrected": True}),
+            SemanticMemory(content="Works at Acme", status=MemoryStatus.ARCHIVED),
+        ],
+        ids=["edited", "already-corrected", "not-active"],
+    )
+    async def test_approve_correct_refuses_changed_target(self, mock_relational_store, memory_config, target):
+        """A second correction (or one over a hand-edited fact) must not silently apply."""
+        mock_relational_store.get_pending.return_value = self._target_record(PendingResolutionAction.CORRECT)
+        manager = MemoryManager(
+            memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True
+        )
+
+        with (
+            patch.object(manager, "get_memory", return_value=target),
+            patch.object(manager, "correct_memory") as correct,
+            pytest.raises(PendingTargetChangedError, match="review it again"),
+        ):
+            await manager.approve("pending-t")
+
+        correct.assert_not_called()
+        mock_relational_store.mark_pending.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_approve_correct_applies_when_target_unchanged(self, mock_relational_store, memory_config):
+        mock_relational_store.get_pending.return_value = self._target_record(PendingResolutionAction.CORRECT)
+        manager = MemoryManager(
+            memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True
+        )
+
+        with (
+            patch.object(manager, "get_memory", return_value=SemanticMemory(content="Works at Acme")),
+            patch.object(manager, "correct_memory", return_value=SemanticMemory(content="x")) as correct,
+        ):
+            await manager.approve("pending-t")
+
+        correct.assert_awaited_once_with("mem-old", "Works at Google")
+        mock_relational_store.mark_pending.assert_called_once_with("pending-t", "approved")
+
+    @pytest.mark.asyncio
+    async def test_approve_correct_without_snapshot_skips_content_check(self, mock_relational_store, memory_config):
+        """Legacy rows carry no snapshot; only liveness/corrected state can be verified."""
+        mock_relational_store.get_pending.return_value = self._target_record(PendingResolutionAction.CORRECT, None)
+        manager = MemoryManager(
+            memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True
+        )
+
+        with (
+            patch.object(manager, "get_memory", return_value=SemanticMemory(content="anything")),
+            patch.object(manager, "correct_memory", return_value=SemanticMemory(content="x")) as correct,
+        ):
+            await manager.approve("pending-t")
+
+        correct.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_approve_delete_refuses_edited_target(self, mock_relational_store, memory_config):
+        """Archiving a fact the user has since rewritten would erase their edit."""
+        mock_relational_store.get_pending.return_value = self._target_record(PendingResolutionAction.DELETE)
+        manager = MemoryManager(
+            memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True
+        )
+
+        with (
+            patch.object(manager, "get_memory", return_value=SemanticMemory(content="Works at Initech")),
+            patch.object(manager, "update_memory") as update,
+            pytest.raises(PendingTargetChangedError),
+        ):
+            await manager.approve("pending-t")
+
+        update.assert_not_called()
+        mock_relational_store.mark_pending.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_approve_delete_of_already_archived_target_is_still_noop(self, mock_relational_store, memory_config):
+        """Unchanged-but-archived targets keep the idempotent behaviour."""
+        mock_relational_store.get_pending.return_value = self._target_record(PendingResolutionAction.DELETE)
+        manager = MemoryManager(
+            memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True
+        )
+
+        archived = SemanticMemory(content="Works at Acme", status=MemoryStatus.ARCHIVED)
+        with (
+            patch.object(manager, "get_memory", return_value=archived),
+            patch.object(manager, "update_memory", return_value=archived),
+        ):
+            await manager.approve("pending-t")
+
+        mock_relational_store.mark_pending.assert_called_once_with("pending-t", "approved")
 
     @pytest.mark.asyncio
     async def test_reject_pending_memory(self, mock_relational_store, memory_config):
