@@ -95,6 +95,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | multimodal_redaction/ | Unified pipeline for direct-tool scrubbing and multimodal attachment degradation. See [multimodal_redaction/_ARCH.md](multimodal_redaction/_ARCH.md). |
 | mvp_distiller/ | Complex Project MVP Scope Distiller and Stepwise Execution Guide Engine (Item 214). See [mvp_distiller/_ARCH.md](mvp_distiller/_ARCH.md). |
 | native_thread_history/ | Suite implementing large native thread history preservation with sort key fallback guard. See [native_thread_history/_ARCH.md](native_thread_history/_ARCH.md). |
+| nested_approval_restore/ | Subsystem ensuring that live approval decisions (especially permanent rejections) take precedence over stale historical snapshots during nested agent restoration, while providing transactional compaction replacement with bounded rollback budgets. See [nested_approval_restore/_ARCH.md](nested_approval_restore/_ARCH.md). |
 | owner_fencing/ | Core implementation of Durable Session Owner Fencing and Admission Control Engine. See [owner_fencing/_ARCH.md](owner_fencing/_ARCH.md). |
 | pairing/ | Generates dynamic pairing tickets and formatted QR code bootstrap payloads. See [pairing/_ARCH.md](pairing/_ARCH.md). |
 | pinning/ | Guarantees zero-pruning preservation of pinned contexts and constructs inspector cards. See [pinning/_ARCH.md](pinning/_ARCH.md). |

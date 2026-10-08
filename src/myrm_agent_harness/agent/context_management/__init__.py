@@ -1050,6 +1050,20 @@ from .hitl_replay_restore import (
     ToolExecutionType,
     ToolResultReplayItem,
 )
+from .nested_approval_restore import (
+    ApprovalDecisionKind,
+    ApprovalDecisionRecord,
+    ApprovalPrecedenceResolver,
+    CompactionEntry,
+    CompactionRollbackBudget,
+    CompactionRollbackBuffer,
+    DecisionPrecedence,
+    NestedApprovalRestoreSuite,
+    NestedRestoreReceipt,
+    make_approval_decision,
+    make_compaction_entry,
+    validate_summary_candidate,
+)
 from .sandbox_pause_resume import (
     AgentkitPauseResumeSessionSandboxSuite,
     PauseResumeActionKind,
@@ -1141,6 +1155,19 @@ __all__ = [
     "ToolCallReplayItem",
     "ToolExecutionType",
     "ToolResultReplayItem",
+    # nested_approval_restore
+    "ApprovalDecisionKind",
+    "ApprovalDecisionRecord",
+    "ApprovalPrecedenceResolver",
+    "CompactionEntry",
+    "CompactionRollbackBudget",
+    "CompactionRollbackBuffer",
+    "DecisionPrecedence",
+    "NestedApprovalRestoreSuite",
+    "NestedRestoreReceipt",
+    "make_approval_decision",
+    "make_compaction_entry",
+    "validate_summary_candidate",
     # session_metadata_rename
     "HapiRenameMetadataNameSuite",
     "RenameSource",
