@@ -24,6 +24,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | ambiguity_probe/ | Core implementation of Ambiguity Clarification Probe and Private Entity Graph Backtracking Engine. See [ambiguity_probe/_ARCH.md](ambiguity_probe/_ARCH.md). |
 | architecture_gate/ | Core implementation of Architecture Planning Discussion-First and Intent Convergence Gate. See [architecture_gate/_ARCH.md](architecture_gate/_ARCH.md). |
 | archive_checkpoint/ | Lite-LLM archive summary checkpoints: Protocol store, EpisodicMemory persistence, bounded async `ArchiveSummaryService`. |
+| ask_only_mode/ | Suite implementing WorkBuddy Ask-Only mode, dynamic tool filtering and token savings. See [ask_only_mode/_ARCH.md](ask_only_mode/_ARCH.md). |
 | barge_in_steering/ | Core engine for Mid-Run Barge-In Steering and Safe Execution Gap Interventions. See [barge_in_steering/_ARCH.md](barge_in_steering/_ARCH.md). |
 | branch_projection/ | Dual-track session tree and dynamic branch projection engine. See [branch_projection/_ARCH.md](branch_projection/_ARCH.md). |
 | branch_summary/ | Core engine for Branch Summarization and Selective Merge-Back. See [branch_summary/_ARCH.md](branch_summary/_ARCH.md). |
