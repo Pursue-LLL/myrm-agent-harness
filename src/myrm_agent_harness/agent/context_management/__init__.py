@@ -946,8 +946,23 @@ from .session_tree_gc import (
     SessionTreeGcEngine,
     StorageGcReceipt,
 )
+from .table_protection import (
+    HistoryAssistantTablePruneAndLastRoundProtectSuite,
+    MarkdownTableBlock,
+    MarkdownTableDetector,
+    TableProtectionMode,
+    TablePruningProtector,
+    TablePruningReceipt,
+)
 
 __all__ = [
+    # table_protection
+    "HistoryAssistantTablePruneAndLastRoundProtectSuite",
+    "MarkdownTableBlock",
+    "MarkdownTableDetector",
+    "TableProtectionMode",
+    "TablePruningProtector",
+    "TablePruningReceipt",
     # session_tree_gc
     "GcSafetyRule",
     "PrunedBranchReport",
