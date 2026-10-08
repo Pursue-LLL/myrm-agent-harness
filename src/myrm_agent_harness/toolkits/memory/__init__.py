@@ -118,6 +118,14 @@ from myrm_agent_harness.toolkits.memory.budget_packing import (
     compute_text_similarity,
     estimate_tokens,
 )
+from myrm_agent_harness.toolkits.memory.chunking import (
+    ChunkSourceHydrator,
+    ChunkingConfig,
+    IncrementalDiffReport,
+    IncrementalIndexingPipeline,
+    MarkdownChunk,
+    MarkdownSlidingWindowChunker,
+)
 from myrm_agent_harness.toolkits.memory.business_templates import (
     BusinessExperienceTemplate,
     BusinessExperienceTemplateRegistry,
@@ -1936,6 +1944,12 @@ __all__ = [
     "MultimodalMemoryStore",
     "MultimodalSearchHit",
     "MultimodalSearchQuery",
+    "ChunkSourceHydrator",
+    "ChunkingConfig",
+    "IncrementalDiffReport",
+    "IncrementalIndexingPipeline",
+    "MarkdownChunk",
+    "MarkdownSlidingWindowChunker",
 ]
 
 
