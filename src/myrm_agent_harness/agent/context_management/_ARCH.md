@@ -62,6 +62,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | emergent_attention/ | 从行为中涌现的注意力清单、海量通知意图过滤器与言行错位智能对照引擎。 See [emergent_attention/_ARCH.md](emergent_attention/_ARCH.md). |
 | epoch/ | Compiles and orders tool definitions deterministically for Prompt Cache. See [epoch/_ARCH.md](epoch/_ARCH.md). |
 | event_sourcing_replayer/ | Append-only immutable event log maintaining monotonic sequence numbers and hash chains. See [event_sourcing_replayer/_ARCH.md](event_sourcing_replayer/_ARCH.md). |
+| evidence_disclosure/ | Isomorphic evidence disclosure subsystem providing canonical action details shared between active turns and completed history, deterministic query scope isolation, and real-reading offset pagination. See [evidence_disclosure/_ARCH.md](evidence_disclosure/_ARCH.md). |
 | fallback_buffer_notebook/ | Core engine for Auto-Compact Fallback Buffer and Team Notebook Suite (Item 223). See [fallback_buffer_notebook/_ARCH.md](fallback_buffer_notebook/_ARCH.md). |
 | file_watch/ | Gateway orchestrating workspace file mutation events and session context invalidation. See [file_watch/_ARCH.md](file_watch/_ARCH.md). |
 | handoff_brief/ | Gateway orchestrating structured handoff briefs and cross-session state continuity. See [handoff_brief/_ARCH.md](handoff_brief/_ARCH.md). |

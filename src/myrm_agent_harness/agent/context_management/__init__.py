@@ -997,6 +997,25 @@ from .handoff_checkpoint import (
     TaskCheckpoint,
     WorkBuddyHandoffThenCompactSuite,
 )
+from .evidence_disclosure import (
+    ActionDetailDescriptor,
+    ActionExecutionFailure,
+    ActiveEvidenceDisclosureSuite,
+    BoundedEvidenceReader,
+    EvidenceDisclosureReceipt,
+    EvidenceOutcome,
+    EvidenceQueryLocator,
+    EvidenceRefTarget,
+    EvidenceSourceState,
+    PaginatedEvidencePage,
+    QueryScopeKind,
+    RealReadSlice,
+    build_action_leaf_ref,
+    build_collection_ref,
+    disclose_action,
+    parse_evidence_ref,
+    project_action_isomorphic,
+)
 from .hitl_replay_restore import (
     CopilotKitHITLReplayRestoreSuite,
     HITLApprovalState,
@@ -1051,6 +1070,24 @@ from .steer_after_compression import (
 )
 
 __all__ = [
+    # evidence_disclosure
+    "ActionDetailDescriptor",
+    "ActionExecutionFailure",
+    "ActiveEvidenceDisclosureSuite",
+    "BoundedEvidenceReader",
+    "EvidenceDisclosureReceipt",
+    "EvidenceOutcome",
+    "EvidenceQueryLocator",
+    "EvidenceRefTarget",
+    "EvidenceSourceState",
+    "PaginatedEvidencePage",
+    "QueryScopeKind",
+    "RealReadSlice",
+    "build_action_leaf_ref",
+    "build_collection_ref",
+    "disclose_action",
+    "parse_evidence_ref",
+    "project_action_isomorphic",
     # hitl_replay_restore
     "CopilotKitHITLReplayRestoreSuite",
     "HITLApprovalState",
