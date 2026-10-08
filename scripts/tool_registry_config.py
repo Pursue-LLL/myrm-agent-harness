@@ -42,7 +42,8 @@ INTERNAL_TOOL_NAMES: frozenset[str] = frozenset(
     }
 )
 
-# JSON schema signals (no @tool AST) — DR orchestrator bind_tools only.
+# Registered names without an AST-visible @tool declaration: the deep-research signal schemas
+# (bind_tools only, must all be listed — see orchestration/signals/catalog.py) plus tools the scan cannot attribute.
 SCHEMA_ONLY_TOOL_NAMES: frozenset[str] = frozenset(
     {
         "dispatch_research",
