@@ -12,7 +12,7 @@ content before run().
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from myrm_agent_harness.agent.skill_agent.skill_reference import parse_use_tag, resolve_skill_reference
 from myrm_agent_harness.backends.skills.types import SkillInstance, SkillMetadata
@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from langchain_core.messages import BaseMessage
 
     from myrm_agent_harness.backends.skills.protocols import SkillBackend
-    from myrm_agent_harness.utils.chat_utils import ChatHistoryReq, ContentItem
+    from myrm_agent_harness.utils.chat_utils import ChatHistoryReq
 
 logger = get_agent_logger(__name__)
 
@@ -40,7 +40,7 @@ def _last_human_text(chat_history: ChatHistoryReq | list[BaseMessage] | None) ->
 
     for message in reversed(convert_chat_history_simple(chat_history)):
         if isinstance(message, HumanMessage) and not message.additional_kwargs.get("is_custom_message"):
-            return extract_text_content(cast("ContentItem", message.content))
+            return extract_text_content(message.content)
     return ""
 
 

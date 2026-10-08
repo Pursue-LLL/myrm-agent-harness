@@ -55,7 +55,7 @@ skipped to save LLM calls, unless correction signals are detected.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, Literal, Protocol, cast
+from typing import TYPE_CHECKING, Literal, Protocol
 
 from langchain_core.language_models import BaseChatModel
 
@@ -112,7 +112,6 @@ from myrm_agent_harness.toolkits.memory.types import (  # noqa: E402 — deferre
 )
 from myrm_agent_harness.utils.chat_utils import (  # noqa: E402 — deferred import to avoid circular dependency
     ChatHistoryReq,
-    ContentItem,
     extract_answer_text,
     extract_text_content,
 )
@@ -139,10 +138,7 @@ def build_extraction_messages(
 
     base_messages = convert_chat_history_simple(chat_history) if chat_history else []
 
-    turns = [
-        ("assistant" if msg.type == "ai" else "user", extract_text_content(cast("ContentItem", msg.content)))
-        for msg in base_messages
-    ]
+    turns = [("assistant" if msg.type == "ai" else "user", extract_text_content(msg.content)) for msg in base_messages]
     turns.append(("user", extract_text_content(query)))
     turns.append(("assistant", assistant_reply))
 

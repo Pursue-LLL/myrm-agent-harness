@@ -20,6 +20,7 @@ Chat utility functions. Provides business-config-independent chat history conver
 
 import json
 import logging
+from collections.abc import Mapping, Sequence
 from typing import Literal, cast
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
@@ -71,7 +72,7 @@ def convert_chat_history_simple(history: object) -> ChatHistory:
     return messages
 
 
-def extract_text_content(content: ContentItem) -> str:
+def extract_text_content(content: str | Sequence[str | Mapping[str, object]]) -> str:
     """从内容中提取纯文本
 
     处理三种格式：
@@ -90,7 +91,7 @@ def extract_text_content(content: ContentItem) -> str:
                 pass
         return content
 
-    if isinstance(content, list):
+    if isinstance(content, list | tuple):
         text_parts: list[str] = []
         for item in content:
             if isinstance(item, dict) and item.get("type") == "text":
