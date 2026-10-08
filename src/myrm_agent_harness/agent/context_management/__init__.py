@@ -1148,6 +1148,16 @@ from .four_tier_routing import (
     TriggeredContextRouter,
     TriggeredRule,
 )
+from .cross_session_mention import (
+    CrossSessionConfig,
+    CrossSessionMentionReferenceAndSnapshotInjectionSuite,
+    MentionInjectionResult,
+    SessionMentionParser,
+    SessionMentionTag,
+    SessionRecord,
+    SessionSnapshot,
+    SessionSnapshotExtractor,
+)
 from .sandbox_pause_resume import (
     AgentkitPauseResumeSessionSandboxSuite,
     PauseResumeActionKind,
@@ -2241,4 +2251,13 @@ __all__ = [
     "TriggerDomainKind",
     "TriggeredContextRouter",
     "TriggeredRule",
+    # cross_session_mention
+    "CrossSessionConfig",
+    "CrossSessionMentionReferenceAndSnapshotInjectionSuite",
+    "MentionInjectionResult",
+    "SessionMentionParser",
+    "SessionMentionTag",
+    "SessionRecord",
+    "SessionSnapshot",
+    "SessionSnapshotExtractor",
 ]
