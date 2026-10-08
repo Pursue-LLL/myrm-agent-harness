@@ -16,7 +16,7 @@ selection without modifying LangGraph agent code.
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -195,7 +195,7 @@ class ManagedLLM(BaseChatModel):
         else:
             logger.info(f"ManagedLLM initialized: main={main_model_name} (no fallback)")
 
-    def _create_call_fn(self, model_key: str):
+    def _create_call_fn(self, model_key: str) -> Callable[[], Awaitable[ChatResult]]:
         """Create a call function for the specified model.
 
         Args:

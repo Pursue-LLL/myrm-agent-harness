@@ -4,6 +4,7 @@
 - langchain_core.messages::HumanMessage (POS: the trivial probe prompt)
 
 [OUTPUT]
+- ProbeTarget: the slice of a chat model the probe relies on (``ainvoke`` with one message list)
 - lightweight_health_check: send one trivial request and report whether the model answered within a hard deadline
 
 [POS]
@@ -17,15 +18,21 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any
+from typing import Protocol
 
 from langchain_core.messages import HumanMessage
 
 logger = logging.getLogger(__name__)
 
 
+class ProbeTarget(Protocol):
+    """The part of a chat model the probe calls; any LangChain chat model satisfies it."""
+
+    async def ainvoke(self, messages: list[HumanMessage], /) -> object: ...
+
+
 async def lightweight_health_check(
-    llm: Any,
+    llm: ProbeTarget,
     timeout_s: float = 5.0,
 ) -> bool:
     """Return True when ``llm`` answers a trivial prompt within ``timeout_s`` seconds.
@@ -34,7 +41,7 @@ async def lightweight_health_check(
     ``timeout_s`` instead of the model's own request timeout.
 
     Args:
-        llm: LLM instance to check
+        llm: Chat model to probe
         timeout_s: Hard deadline in seconds (default: 5s)
 
     Returns:
