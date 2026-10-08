@@ -266,7 +266,7 @@ class TestRunContextCompaction:
             assert result["preheated"] is False
             compact_handler.assert_awaited_once_with("chat_123", "s2")
             published = [c.args[0] for c in event_bus.publish.call_args_list]
-            assert any(e.message == " Optimizing conversation context..." for e in published)
+            assert any(e.message == "正在优化对话上下文..." for e in published)
         finally:
             del _idle_task_handlers["_context_compact_impl"]
 
@@ -355,7 +355,7 @@ class TestRunContextCompaction:
             assert result["compacted"] is True
             assert result["preheated"] is True
             published = [c.args[0] for c in event_bus.publish.call_args_list]
-            assert any(getattr(e, "message", "") == " Warming up cache..." for e in published)
+            assert any(getattr(e, "message", "") == "正在预热上下文缓存..." for e in published)
         finally:
             del _idle_task_handlers["_context_compact_impl"]
 
