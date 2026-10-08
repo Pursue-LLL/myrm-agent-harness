@@ -39,6 +39,7 @@ from myrm_agent_harness.toolkits.memory.domain_types import (
     MemoryDomain,
     infer_domain_and_category,
 )
+from myrm_agent_harness.toolkits.memory.score_honesty.models import ScoreBreakdown
 
 
 class EvidenceReference(BaseModel):
@@ -753,19 +754,19 @@ class RecallDebugTrace(BaseModel):
     hit_sources: list[HitSource] = Field(default_factory=list, description="All sources that retrieved this candidate")
     hit_count: int = Field(default=0, ge=0, description="Total number of distinct streams that hit this candidate")
     fused_score: float = Field(default=0.0, description="Composite score before normalization")
+    raw_score: float | None = Field(default=None, description="Underlying raw retrieval score")
     tie_break_rank: int = Field(
         default=0, ge=0, description="Rank resolved after deterministic three-tier tie-breaking"
     )
 
 
 class MemorySearchResult(BaseModel):
-    """Search result with relevance score.
+    """Search result with dual-track score honesty (raw similarity vs ranking score).
 
-    ``score`` is a normalized relevance in ``[0, 1]``. The bounds are clamped
-    rather than validated so raw backend scores (e.g. Qdrant cosine similarity)
-    cannot discard an entire recall stream over float32 drift such as
-    ``1.0000000045``. Callers that need the raw backend score should read it
-    from the vector hit instead of inferring it from this field.
+    ``score`` is aligned with ``ranking_score`` for compatibility.
+    ``raw_score`` (and its alias ``raw_similarity``) retains the underlying physical
+    retrieval relevance (e.g. cosine similarity or BM25) before pipeline reranking.
+    ``ranking_score`` reflects the multi-stage pipeline ranking outcome.
     """
 
     memory: (
@@ -778,6 +779,18 @@ class MemorySearchResult(BaseModel):
         | TaskDigestMemory
     )
     score: float = Field(default=0.0, description="Normalized relevance score in [0, 1]")
+    raw_score: float | None = Field(
+        default=None, description="Physical cosine/BM25 similarity before multi-stage reranking"
+    )
+    raw_similarity: float | None = Field(
+        default=None, description="Physical cosine/BM25 similarity before multi-stage reranking (alias)"
+    )
+    ranking_score: float | None = Field(
+        default=None, description="Composite ranking score after multi-stage pipeline"
+    )
+    score_breakdown: ScoreBreakdown | None = Field(
+        default=None, description="Detailed white-box attribution trace for composite score"
+    )
     memory_type: MemoryType
     recall_debug: RecallDebugTrace | None = Field(
         default=None, description="Detailed white-box attribution trace for multi-source retrieval"
@@ -793,6 +806,40 @@ class MemorySearchResult(BaseModel):
         if value != value:  # NaN
             return 0.0
         return min(1.0, max(0.0, value))
+
+    @field_validator("raw_score", "raw_similarity", "ranking_score", mode="before")
+    @classmethod
+    def _clamp_optional_score(cls, v: object) -> float | None:
+        if v is None:
+            return None
+        try:
+            value = float(v)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return None
+        if value != value:  # NaN
+            return 0.0
+        return min(1.0, max(0.0, value))
+
+    @model_validator(mode="before")
+    @classmethod
+    def _sync_dual_track_scores(cls, data: object) -> object:
+        if isinstance(data, dict):
+            # Sync raw_score and raw_similarity
+            raw = data.get("raw_score")
+            raw_sim = data.get("raw_similarity")
+            if raw is None and raw_sim is not None:
+                data["raw_score"] = raw_sim
+            elif raw is not None and raw_sim is None:
+                data["raw_similarity"] = raw
+            elif raw is None and raw_sim is None and "score" in data:
+                # Default raw_score to initial input score if not explicitly set
+                data["raw_score"] = data["score"]
+                data["raw_similarity"] = data["score"]
+
+            # Sync score and ranking_score
+            if data.get("ranking_score") is None and "score" in data:
+                data["ranking_score"] = data["score"]
+        return data
 
     @property
     def id(self) -> str:

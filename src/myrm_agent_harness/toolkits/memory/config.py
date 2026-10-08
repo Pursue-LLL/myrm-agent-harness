@@ -299,6 +299,10 @@ class RetrievalConfig:
     Memories below this score are discarded before normalization to prevent
     irrelevant content from being injected into context (anti-hallucination).
     Set to 0.0 to disable. Default 0.35 is conservative for BGE-M3 embeddings."""
+    raw_similarity_threshold: float = 0.0
+    """Admission threshold for underlying physical similarity (e.g. cosine/BM25).
+    Candidates with raw_score below this threshold are filtered out at the admission stage.
+    0.0 = disabled (accept all candidates into the ranking pipeline)."""
     enable_intent_recognition: bool = True
     intent_recognizer: QueryIntentRecognizer | None = None
     enable_temporal_window: bool = True

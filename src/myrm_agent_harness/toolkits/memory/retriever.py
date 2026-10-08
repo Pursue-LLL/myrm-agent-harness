@@ -57,21 +57,36 @@ class MemoryRetriever:
         limit: int = 10,
         query: str = "",
         query_context: object | None = None,
+        similarity_threshold: float | None = None,
     ) -> list[MemorySearchResult]:
         """Apply geometric mean scoring, correction suppression, and MMR diversity."""
         if not results:
             return []
+        sim_threshold = (
+            similarity_threshold
+            if similarity_threshold is not None
+            else self._config.raw_similarity_threshold
+        )
         query_tokens = tokenize(query)
         scores: dict[str, float] = {}
         items: dict[str, MemorySearchResult] = {}
+        max_raw_scores: dict[str, float] = {}
         for r in results:
             mid = r.id
+            r_raw = (
+                r.raw_score
+                if r.raw_score is not None
+                else (r.raw_similarity if r.raw_similarity is not None else r.score)
+            )
+            max_raw_scores[mid] = r_raw
             scores[mid] = self._boost(r.score, r, query_tokens, query_context, raw_query=query)
             items[mid] = r
+        if sim_threshold > 0:
+            self._similarity_cutoff(scores, items, max_raw_scores, sim_threshold)
         self._suppress_corrected(scores, items)
         self._hard_cutoff(scores, items)
         scores, items = self._mmr_select(scores, items, limit)
-        return self._normalise(scores, items, limit)
+        return self._normalise(scores, items, limit, max_raw_scores=max_raw_scores)
 
     def fuse(
         self,
@@ -81,6 +96,7 @@ class MemoryRetriever:
         query: str = "",
         query_context: object | None = None,
         source_names: list[str] | None = None,
+        similarity_threshold: float | None = None,
     ) -> list[MemorySearchResult]:
         """Fuse multiple result lists using RRF, deterministic tie-breaking, and MMR diversity.
 
@@ -97,6 +113,12 @@ class MemoryRetriever:
         scores: dict[str, float] = {}
         items: dict[str, MemorySearchResult] = {}
         hit_attributions: dict[str, list[HitSource]] = {}
+        max_raw_scores: dict[str, float] = {}
+        sim_threshold = (
+            similarity_threshold
+            if similarity_threshold is not None
+            else self._config.raw_similarity_threshold
+        )
         k = self._config.rrf_k
         query_tokens = tokenize(query)
         query_lower = query.lower()
@@ -105,6 +127,14 @@ class MemoryRetriever:
             src_name = source_names[list_idx] if source_names and list_idx < len(source_names) else f"stream_{list_idx}"
             for rank_idx, r in enumerate(results):
                 mid = r.id
+                r_raw = (
+                    r.raw_score
+                    if r.raw_score is not None
+                    else (r.raw_similarity if r.raw_similarity is not None else r.score)
+                )
+                if mid not in max_raw_scores or r_raw > max_raw_scores[mid]:
+                    max_raw_scores[mid] = r_raw
+
                 rrf = 1.0 / (k + rank_idx + 1)
                 type_w = self._config.type_weights.get(r.memory_type, 1.0)
                 boosted = self._boost(rrf * type_w, r, query_tokens, query_context, raw_query=query)
@@ -121,9 +151,31 @@ class MemoryRetriever:
                     hit_attributions[mid] = []
                 hit_attributions[mid].append(HitSource(source=src_name, rank=rank_idx, score=r.score))
 
+        if sim_threshold > 0:
+            self._similarity_cutoff(scores, items, max_raw_scores, sim_threshold)
         self._suppress_corrected(scores, items)
         scores, items = self._mmr_select(scores, items, limit)
-        return self._normalise(scores, items, limit, hit_attributions=hit_attributions)
+        return self._normalise(scores, items, limit, hit_attributions=hit_attributions, max_raw_scores=max_raw_scores)
+
+    def _similarity_cutoff(
+        self,
+        scores: dict[str, float],
+        items: dict[str, MemorySearchResult],
+        max_raw_scores: dict[str, float],
+        threshold: float,
+    ) -> None:
+        """Discard memories whose raw physical similarity falls below threshold."""
+        if threshold <= 0 or not scores:
+            return
+
+        to_remove = [mid for mid in scores if max_raw_scores.get(mid, 0.0) < threshold]
+        if len(to_remove) >= len(scores):
+            best_id = max(scores, key=lambda mid: max_raw_scores.get(mid, 0.0))
+            to_remove = [mid for mid in to_remove if mid != best_id]
+
+        for mid in to_remove:
+            del scores[mid]
+            del items[mid]
 
     def _hard_cutoff(self, scores: dict[str, float], items: dict[str, MemorySearchResult]) -> None:
         """Discard memories below min_relevance_score to prevent noise injection.
@@ -222,6 +274,7 @@ class MemoryRetriever:
         items: dict[str, MemorySearchResult],
         limit: int,
         hit_attributions: dict[str, list[HitSource]] | None = None,
+        max_raw_scores: dict[str, float] | None = None,
     ) -> list[MemorySearchResult]:
         """Normalize scores to [0, 1] range and return top-k results with 3-tier deterministic tie-breaking.
 
@@ -246,6 +299,21 @@ class MemoryRetriever:
         max_score = max(ranked[0][1], 1e-9)
         out: list[MemorySearchResult] = []
         for rank_pos, (mid, score) in enumerate(ranked):
+            item_orig = items[mid]
+            final_raw = (
+                max_raw_scores.get(mid)
+                if max_raw_scores and mid in max_raw_scores
+                else (
+                    item_orig.raw_score
+                    if item_orig.raw_score is not None
+                    else (
+                        item_orig.raw_similarity
+                        if item_orig.raw_similarity is not None
+                        else item_orig.score
+                    )
+                )
+            )
+            normalized_rank = min(score / max_score, 1.0)
             debug_trace: RecallDebugTrace | None = None
             if hit_attributions and mid in hit_attributions:
                 hits = hit_attributions[mid]
@@ -253,14 +321,19 @@ class MemoryRetriever:
                     hit_sources=hits,
                     hit_count=len(hits),
                     fused_score=round(score, 6),
+                    raw_score=final_raw,
                     tie_break_rank=rank_pos,
                 )
             out.append(
                 MemorySearchResult(
-                    memory=items[mid].memory,
-                    score=min(score / max_score, 1.0),
-                    memory_type=items[mid].memory_type,
+                    memory=item_orig.memory,
+                    score=normalized_rank,
+                    raw_score=final_raw,
+                    raw_similarity=final_raw,
+                    ranking_score=normalized_rank,
+                    memory_type=item_orig.memory_type,
                     recall_debug=debug_trace,
+                    score_breakdown=item_orig.score_breakdown,
                 )
             )
         return out

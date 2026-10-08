@@ -118,14 +118,6 @@ from myrm_agent_harness.toolkits.memory.budget_packing import (
     compute_text_similarity,
     estimate_tokens,
 )
-from myrm_agent_harness.toolkits.memory.chunking import (
-    ChunkSourceHydrator,
-    ChunkingConfig,
-    IncrementalDiffReport,
-    IncrementalIndexingPipeline,
-    MarkdownChunk,
-    MarkdownSlidingWindowChunker,
-)
 from myrm_agent_harness.toolkits.memory.business_templates import (
     BusinessExperienceTemplate,
     BusinessExperienceTemplateRegistry,
@@ -155,6 +147,14 @@ from myrm_agent_harness.toolkits.memory.cards import (
     AMemCard,
     AMemZettelkastenNetwork,
 )
+from myrm_agent_harness.toolkits.memory.chunking import (
+    ChunkingConfig,
+    ChunkSourceHydrator,
+    IncrementalDiffReport,
+    IncrementalIndexingPipeline,
+    MarkdownChunk,
+    MarkdownSlidingWindowChunker,
+)
 from myrm_agent_harness.toolkits.memory.client_partition import (
     ClientPartitionConfig,
     ClientWorkspaceDescriptor,
@@ -174,6 +174,19 @@ from myrm_agent_harness.toolkits.memory.cognitive_box import (
     IntakeEvaluationReport,
     StrictMemoryIntakeFilter,
 )
+from myrm_agent_harness.toolkits.memory.conclusion_evidence import (
+    AttributedConclusion,
+    AttributionLevel,
+    ChatEvidenceBundle,
+    ChatEvidenceService,
+    ConclusionDerivationGraphEngine,
+    ConclusionEvidenceStats,
+    ConclusionEvidenceSuite,
+    DerivationCycleError,
+    DerivationTraversalView,
+    MessageEvidenceItem,
+    ToolCallEvidenceItem,
+)
 from myrm_agent_harness.toolkits.memory.config import (
     AgentMemoryPolicy,
     ConsolidationConfig,
@@ -189,6 +202,21 @@ from myrm_agent_harness.toolkits.memory.consolidation import (
     HyperConsolidator,
     WorkingMemorySnapshot,
     create_consolidation_cleanup_task,
+)
+from myrm_agent_harness.toolkits.memory.context_hook_pipeline import (
+    ContextEnvelope,
+    ContextHookPipelineSuite,
+    ContextHookStage,
+    DualLayerMemoryPayload,
+    DualLayerMemoryWeaver,
+    HookCallable,
+    HookExecutionPriority,
+    HookExecutionReport,
+    MemoryFragment,
+    MemoryLayerKind,
+    PluggableContextHookPipeline,
+    RegisteredHook,
+    WeavingOutcome,
 )
 from myrm_agent_harness.toolkits.memory.conversation_search import (
     CONVERSATION_SEARCH_TOOL_NAME,
@@ -291,6 +319,18 @@ from myrm_agent_harness.toolkits.memory.directory_dominance import (
     HierarchyNodeType,
     SiblingContextItem,
 )
+from myrm_agent_harness.toolkits.memory.document_attachment import (
+    AttachmentBelongsToDocumentMigrationEngine,
+    AttachmentOwnershipItem,
+    AttachmentStats,
+    DeterministicReclaimSweeper,
+    DocumentAttachmentOwnershipEngine,
+    DocumentAttachmentSuite,
+    MigrationLegacyEntry,
+    MigrationReport,
+    ReclaimAuditReport,
+    StorageBlobMetadata,
+)
 from myrm_agent_harness.toolkits.memory.domain_types import (
     DomainCategory,
     MemoryDomain,
@@ -326,93 +366,6 @@ from myrm_agent_harness.toolkits.memory.dreaming import (
     SurgicalSessionMemoryUnlearner,
     SurgicalUnlearnReport,
 )
-from myrm_agent_harness.toolkits.memory.ephemeral_delta import (
-    DeltaActionKind,
-    EphemeralDeltaBufferSnapshot,
-    EphemeralDeltaItem,
-    EphemeralDeltaReconciler,
-    EphemeralDeltaStore,
-    HumanTailDeltaInjector,
-    ReconciliationBatchReport,
-)
-from myrm_agent_harness.toolkits.memory.experience_injection import (
-    ExperienceCallSite,
-    ExperienceInjectionConfig,
-    ExperienceInjectionEngine,
-    ExperienceInjectionResult,
-    InjectionStatus,
-    PreWriteInterceptor,
-    SkillLoadExperienceHook,
-    SubagentSpawnExperienceEnricher,
-)
-from myrm_agent_harness.toolkits.memory.experience_compounding import (
-    AnnealingReport,
-    CompoundedExperienceItem,
-    CondensationReport,
-    ExperienceCompoundingSuite,
-    ExperienceItemState,
-    FrequencyCompoundingEngine,
-    GoldenRuleItem,
-    KnowledgeCondensationEngine,
-    ObsoleteContextAnnealingGovernor,
-    compute_compounded_weight,
-)
-from myrm_agent_harness.toolkits.memory.life_milestones import (
-    ContextProjectionBundle,
-    GateVerificationResult,
-    GrowthDiaryEntry,
-    GrowthRetrospectiveAggregator,
-    LifeMilestone,
-    LifeMilestonesEngine,
-    LifeMilestonesSuite,
-    LifeStageEra,
-    MilestoneCategory,
-    MilestoneSignificanceGate,
-    PersonalRetrospectiveCard,
-    PrivacyIntimacyLevel,
-    ValueSystemAlignmentProjector,
-    ValueSystemNode,
-)
-from myrm_agent_harness.toolkits.memory.context_hook_pipeline import (
-    ContextEnvelope,
-    ContextHookPipelineSuite,
-    ContextHookStage,
-    DualLayerMemoryPayload,
-    DualLayerMemoryWeaver,
-    HookCallable,
-    HookExecutionPriority,
-    HookExecutionReport,
-    MemoryFragment,
-    MemoryLayerKind,
-    PluggableContextHookPipeline,
-    RegisteredHook,
-    WeavingOutcome,
-)
-from myrm_agent_harness.toolkits.memory.conclusion_evidence import (
-    AttributedConclusion,
-    AttributionLevel,
-    ChatEvidenceBundle,
-    ChatEvidenceService,
-    ConclusionDerivationGraphEngine,
-    ConclusionEvidenceStats,
-    ConclusionEvidenceSuite,
-    DerivationCycleError,
-    DerivationTraversalView,
-    MessageEvidenceItem,
-    ToolCallEvidenceItem,
-)
-from myrm_agent_harness.toolkits.memory.document_attachment import (
-    AttachmentBelongsToDocumentMigrationEngine,
-    AttachmentOwnershipItem,
-    AttachmentStats,
-    DeterministicReclaimSweeper,
-    DocumentAttachmentOwnershipEngine,
-    DocumentAttachmentSuite,
-    MigrationLegacyEntry,
-    MigrationReport,
-    ReclaimAuditReport,
-    StorageBlobMetadata,
-)
 from myrm_agent_harness.toolkits.memory.durable_revision import (
     ChangeReceipt,
     ChangeReceiptStatus,
@@ -429,6 +382,37 @@ from myrm_agent_harness.toolkits.memory.durable_revision import (
     WritePayload,
     calculate_payload_crc32,
     compute_jitter_backoff,
+)
+from myrm_agent_harness.toolkits.memory.ephemeral_delta import (
+    DeltaActionKind,
+    EphemeralDeltaBufferSnapshot,
+    EphemeralDeltaItem,
+    EphemeralDeltaReconciler,
+    EphemeralDeltaStore,
+    HumanTailDeltaInjector,
+    ReconciliationBatchReport,
+)
+from myrm_agent_harness.toolkits.memory.experience_compounding import (
+    AnnealingReport,
+    CompoundedExperienceItem,
+    CondensationReport,
+    ExperienceCompoundingSuite,
+    ExperienceItemState,
+    FrequencyCompoundingEngine,
+    GoldenRuleItem,
+    KnowledgeCondensationEngine,
+    ObsoleteContextAnnealingGovernor,
+    compute_compounded_weight,
+)
+from myrm_agent_harness.toolkits.memory.experience_injection import (
+    ExperienceCallSite,
+    ExperienceInjectionConfig,
+    ExperienceInjectionEngine,
+    ExperienceInjectionResult,
+    InjectionStatus,
+    PreWriteInterceptor,
+    SkillLoadExperienceHook,
+    SubagentSpawnExperienceEnricher,
 )
 from myrm_agent_harness.toolkits.memory.experience_observability import (
     ExperienceEffectStatus,
@@ -609,6 +593,21 @@ from myrm_agent_harness.toolkits.memory.job_compounding import (
     PreferenceCompoundingEngine,
     RuleType,
 )
+from myrm_agent_harness.toolkits.memory.life_milestones import (
+    ContextProjectionBundle,
+    GateVerificationResult,
+    GrowthRetrospectiveAggregator,
+    LifeMilestone,
+    LifeMilestonesEngine,
+    LifeMilestonesSuite,
+    LifeStageEra,
+    MilestoneCategory,
+    MilestoneSignificanceGate,
+    PersonalRetrospectiveCard,
+    PrivacyIntimacyLevel,
+    ValueSystemAlignmentProjector,
+    ValueSystemNode,
+)
 from myrm_agent_harness.toolkits.memory.lifecycle_hotness import (
     BatchLifecycleClassificationResult,
     HotnessLifecycleStage,
@@ -778,6 +777,19 @@ from myrm_agent_harness.toolkits.memory.peer_gateway import (
     PeerBoundaryCheckResult,
     ResolvedPeerIdentity,
 )
+from myrm_agent_harness.toolkits.memory.pitfall_alert import (
+    AlertSeverity,
+    DecisionIntent,
+    DecisionIntentLevel,
+    DispatchChannel,
+    PastPitfallRetriever,
+    PitfallAlertCard,
+    PitfallEvaluationReport,
+    PitfallSourceFunc,
+    PitfallTriadRecord,
+    ProactivePitfallAlertEngine,
+    ShadowDecisionIntentRecognizer,
+)
 from myrm_agent_harness.toolkits.memory.private_notebook import (
     HistoryContextItem,
     HistoryContextManager,
@@ -801,19 +813,6 @@ from myrm_agent_harness.toolkits.memory.proactive_care import (
     ScheduleTaskItem,
     VitalityAndFatigueEvaluator,
     VitalityAssessmentReport,
-)
-from myrm_agent_harness.toolkits.memory.pitfall_alert import (
-    AlertSeverity,
-    DecisionIntent,
-    DecisionIntentLevel,
-    DispatchChannel,
-    PastPitfallRetriever,
-    PitfallAlertCard,
-    PitfallEvaluationReport,
-    PitfallSourceFunc,
-    PitfallTriadRecord,
-    ProactivePitfallAlertEngine,
-    ShadowDecisionIntentRecognizer,
 )
 from myrm_agent_harness.toolkits.memory.procedure_experience import (
     DualNodeFixedCountRetriever,
@@ -2147,7 +2146,6 @@ __all__ = [
     "compute_compounded_weight",
     "ContextProjectionBundle",
     "GateVerificationResult",
-    "GrowthDiaryEntry",
     "GrowthRetrospectiveAggregator",
     "LifeMilestone",
     "LifeMilestonesEngine",
