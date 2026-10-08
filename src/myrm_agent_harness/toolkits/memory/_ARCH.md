@@ -103,6 +103,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | governor/ | Anti-Semantic-Aliasing memory governor and capacity management package. See [governor/_ARCH.md](governor/_ARCH.md). |
 | graph_arbitration/ | Automated fact conflict arbitration state machine with causal lineage tracking. Dynamic edge weight decay and frequency reinforcement operator. See [graph_arbitration/_ARCH.md](graph_arbitration/_ARCH.md). |
 | graph_rrf/ | Knowledge Graph and Vector Reciprocal Rank Fusion Memory Engine package. See [graph_rrf/_ARCH.md](graph_rrf/_ARCH.md). |
+| handoff/ | Strongly typed cross-agent/cross-session handoff protocol with atomic exactly-once claim and durable session finalizer. See [handoff/_ARCH.md](handoff/_ARCH.md). |
 | memops/ | MemOps 4-tuple standard semantic engine and zero-context benchmark package. See [memops/_ARCH.md](memops/_ARCH.md). |
 | paging/ | Agent-Driven Memory Paging with Hard Boundary Governance. See [paging/_ARCH.md](paging/_ARCH.md). |
 | procedural/ | Procedural Memory and Engineering Workflow Governance Engine. See [procedural/_ARCH.md](procedural/_ARCH.md). |

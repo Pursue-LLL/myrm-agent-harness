@@ -5,7 +5,7 @@ upon browser unload or desktop window close events.
 Strict typing applied: No `Any` types allowed.
 
 [INPUT]
-- agent.context_management.handoff::AgentHandoffEngine, AgentHandoffSpec, FailedApproachRecord,
+- toolkits.memory.handoff::AgentHandoffEngine, AgentHandoffSpec, FailedApproachRecord,
   FinalizeSessionRequest, FinalizeSessionResult (POS: Public interface for agent handoff management and
   session finalization.)
 - toolkits.memory.unload_guard.snapshot_builder::ZeroLlmEmergencySnapshotBuilder (POS: Zero-LLM emergency
@@ -26,7 +26,7 @@ import logging
 import time
 from pathlib import Path
 
-from myrm_agent_harness.agent.context_management.handoff import (
+from myrm_agent_harness.toolkits.memory.handoff import (
     AgentHandoffEngine,
     AgentHandoffSpec,
     FailedApproachRecord,

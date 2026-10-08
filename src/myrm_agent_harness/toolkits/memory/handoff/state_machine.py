@@ -5,9 +5,9 @@ concurrent successor agents cannot race to claim the same memorandum.
 Strict typing applied: No `Any` types allowed.
 
 [INPUT]
-- agent.context_management.handoff.handoff_store::AgentHandoffStore (POS: Persistent storage backend for
+- toolkits.memory.handoff.handoff_store::AgentHandoffStore (POS: Persistent storage backend for
   agent handoff packets.)
-- agent.context_management.handoff.types::AgentHandoffSpec, HandoffClaimReceipt, HandoffStatus (POS: Type
+- toolkits.memory.handoff.types::AgentHandoffSpec, HandoffClaimReceipt, HandoffStatus (POS: Type
   definitions for cross-agent/cross-session typed handoff protocol.)
 
 [OUTPUT]
@@ -31,8 +31,8 @@ import logging
 import threading
 import time
 
-from myrm_agent_harness.agent.context_management.handoff.handoff_store import AgentHandoffStore
-from myrm_agent_harness.agent.context_management.handoff.types import (
+from myrm_agent_harness.toolkits.memory.handoff.handoff_store import AgentHandoffStore
+from myrm_agent_harness.toolkits.memory.handoff.types import (
     AgentHandoffSpec,
     HandoffClaimReceipt,
     HandoffStatus,
@@ -105,19 +105,14 @@ class ExactlyOnceHandoffMachine:
                     f"Handoff '{handoff_id}' is already claimed by {spec.claimed_by_profile_id}."
                 )
             if spec.status == HandoffStatus.COMPLETED:
-                raise HandoffAlreadyCompletedError(
-                    f"Handoff '{handoff_id}' has already been marked completed."
-                )
+                raise HandoffAlreadyCompletedError(f"Handoff '{handoff_id}' has already been marked completed.")
             if spec.status != HandoffStatus.PENDING:
-                raise HandoffInvalidTransitionError(
-                    f"Cannot claim handoff in state '{spec.status.value}'."
-                )
+                raise HandoffInvalidTransitionError(f"Cannot claim handoff in state '{spec.status.value}'.")
 
             # Profile contract enforcement
             if spec.target_profile_id is not None and spec.target_profile_id != claimer_profile_id:
                 raise HandoffTargetMismatchError(
-                    f"Handoff targeted profile '{spec.target_profile_id}', "
-                    f"but claimed by '{claimer_profile_id}'."
+                    f"Handoff targeted profile '{spec.target_profile_id}', but claimed by '{claimer_profile_id}'."
                 )
 
             # CAS: Atomically update status
@@ -178,10 +173,7 @@ class ExactlyOnceHandoffMachine:
                     f"Cannot complete handoff in state '{spec.status.value}', must be CLAIMED."
                 )
 
-            if (
-                spec.claimed_by_session_id is not None
-                and spec.claimed_by_session_id != completing_session_id
-            ):
+            if spec.claimed_by_session_id is not None and spec.claimed_by_session_id != completing_session_id:
                 raise HandoffInvalidTransitionError(
                     f"Session '{completing_session_id}' did not claim handoff '{handoff_id}' "
                     f"(claimed by '{spec.claimed_by_session_id}')."
@@ -211,9 +203,7 @@ class ExactlyOnceHandoffMachine:
                 raise HandoffNotFoundError(f"Handoff packet '{handoff_id}' does not exist.")
 
             if spec.status == HandoffStatus.COMPLETED:
-                raise HandoffAlreadyCompletedError(
-                    f"Cannot cancel completed handoff '{handoff_id}'."
-                )
+                raise HandoffAlreadyCompletedError(f"Cannot cancel completed handoff '{handoff_id}'.")
 
             self._store.update_status(
                 handoff_id=handoff_id,
