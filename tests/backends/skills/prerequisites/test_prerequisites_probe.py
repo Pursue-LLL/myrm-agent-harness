@@ -47,8 +47,9 @@ def test_probe_satisfied_prerequisites() -> None:
     )
 
     probe = HostPrerequisiteProbe()
-    with patch.object(probe, "is_binary_available", return_value=True), patch.object(
-        probe, "is_package_available", return_value=True
+    with (
+        patch.object(probe, "is_binary_available", return_value=True),
+        patch.object(probe, "is_package_available", return_value=True),
     ):
         report = probe.check(prereqs)
         assert report.status == PrerequisiteStatus.READY
@@ -66,9 +67,13 @@ def test_probe_missing_binaries_generates_remedy() -> None:
     )
 
     probe = HostPrerequisiteProbe()
-    with patch.object(probe, "current_os", "macos"), patch.object(
-        probe, "is_binary_available", return_value=False
-    ), patch.object(probe, "is_package_available", return_value=False):
+    # Remedy generation resolves the host OS itself, so pin it too or the command follows the machine running the test.
+    with (
+        patch.object(probe, "current_os", "macos"),
+        patch("myrm_agent_harness.backends.skills.prerequisites.remediation.get_current_os", return_value="macos"),
+        patch.object(probe, "is_binary_available", return_value=False),
+        patch.object(probe, "is_package_available", return_value=False),
+    ):
         report = probe.check(prereqs)
         assert report.status == PrerequisiteStatus.MISSING
         assert report.is_ready is False
@@ -104,4 +109,3 @@ def test_real_system_smoke_detection() -> None:
     probe = HostPrerequisiteProbe()
     assert probe.is_binary_available("python3") is True
     assert probe.is_binary_available("non_existent_binary_xyz123") is False
-
