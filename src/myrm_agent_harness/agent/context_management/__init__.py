@@ -1262,6 +1262,18 @@ from .living_scratchpad import (
     ScratchpadScope,
     ScratchpadTodoItem,
 )
+from .thought_stream_adapter import (
+    AgentThoughtNormalizer,
+    AgentThoughtStreamAdapterAndExternalClientDualModeEventBridgeSuite,
+    AgentThoughtStreamAdapterSuite,
+    ClientCapabilityNegotiator,
+    ClientReasoningMode,
+    LongReasoningHeartbeatConduit,
+    ThoughtActionType,
+    ThoughtAdapterConfig,
+    ThoughtStepDescriptor,
+    ThoughtStreamChunk,
+)
 from .sandbox_pause_resume import (
     AgentkitPauseResumeSessionSandboxSuite,
     PauseResumeActionKind,
@@ -2459,6 +2471,17 @@ __all__ = [
     "ScratchpadPatchOp",
     "ScratchpadScope",
     "ScratchpadTodoItem",
+    # thought_stream_adapter
+    "AgentThoughtNormalizer",
+    "AgentThoughtStreamAdapterAndExternalClientDualModeEventBridgeSuite",
+    "AgentThoughtStreamAdapterSuite",
+    "ClientCapabilityNegotiator",
+    "ClientReasoningMode",
+    "LongReasoningHeartbeatConduit",
+    "ThoughtActionType",
+    "ThoughtAdapterConfig",
+    "ThoughtStepDescriptor",
+    "ThoughtStreamChunk",
 ]
 
 

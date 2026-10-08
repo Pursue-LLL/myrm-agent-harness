@@ -162,6 +162,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | system_append_channel/ | Loader discovering system append and replace directive files across workspace and user home. See [system_append_channel/_ARCH.md](system_append_channel/_ARCH.md). |
 | table_protection/ | Detector and parser identifying markdown tables in message text. See [table_protection/_ARCH.md](table_protection/_ARCH.md). |
 | tagging/ | Manages tag catalog, session associations, queries, and auto-classification. See [tagging/_ARCH.md](tagging/_ARCH.md). |
+| thought_stream_adapter/ | Agent thought stream adapter and external client dual-mode event bridge suite (Item 306). See [thought_stream_adapter/_ARCH.md](thought_stream_adapter/_ARCH.md). |
 | token_efficiency/ | Engine for Provider usage anchoring, negative routing, and seal stripping. See [token_efficiency/_ARCH.md](token_efficiency/_ARCH.md). |
 | token_governor/ | Core engine for Token Burn Rate Governor and Runaway Consumption Shield (Item 220). See [token_governor/_ARCH.md](token_governor/_ARCH.md). |
 | tool_paging/ | Engine for Model-Native dynamic tool pruning and context paging offload. See [tool_paging/_ARCH.md](tool_paging/_ARCH.md). |
