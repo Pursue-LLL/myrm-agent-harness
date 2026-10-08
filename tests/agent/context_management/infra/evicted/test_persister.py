@@ -87,7 +87,7 @@ class TestPersistLargeToolOutput:
 
 class TestFormatFilteredMessageWithSavedPath:
     def test_without_saved_path(self) -> None:
-        """Persist may fail (saved_path=None); header still guides file_read_tool recovery."""
+        """Persist may fail (saved_path=None); the message must not send the agent to a file that does not exist."""
         from myrm_agent_harness.agent.context_management.strategies.filter import (
             FilteredResult,
             format_filtered_message,
@@ -100,11 +100,21 @@ class TestFormatFilteredMessageWithSavedPath:
             estimated_tokens=2500,
             summary="JSON data",
             structure_overview="keys: [a, b, c]",
-            read_suggestions=["re-execute tool"],
+            read_suggestions=['file_read_tool(paths=[""])'],
         )
         msg = format_filtered_message(result)
-        assert "LARGE OUTPUT TRUNCATED - USE file_read_tool TO RECOVER" in msg
-        assert "Full output saved to:" not in msg
+        assert "LARGE OUTPUT TRUNCATED - NO SAVED COPY" in msg
+        assert "No copy of the full output was saved" in msg
+        assert "JSON data" in msg
+        assert "keys: [a, b, c]" in msg
+        for phantom in (
+            "USE file_read_tool TO RECOVER",
+            "TO GET FULL CONTENT",
+            "Full output saved to:",
+            "saved path below",
+        ):
+            assert phantom not in msg
+        assert "file_read_tool(paths" not in msg
         assert ".context/" not in msg
 
     def test_with_saved_path(self) -> None:
@@ -122,9 +132,10 @@ class TestFormatFilteredMessageWithSavedPath:
             structure_overview="keys: [a, b, c]",
             read_suggestions=["re-execute tool"],
         )
-        msg = format_filtered_message(
-            result, saved_path=".context/abc/evicted/tool_123.txt"
-        )
-        assert "Full output saved to:" in msg
-        assert ".context/abc/evicted/tool_123.txt" in msg
+        msg = format_filtered_message(result, saved_path=".context/abc/evicted/tool_123.txt")
+        assert "LARGE OUTPUT TRUNCATED - USE file_read_tool TO RECOVER" in msg
+        assert "TO GET FULL CONTENT" in msg
+        assert "re-execute tool" in msg
+        assert "Full output saved to: .context/abc/evicted/tool_123.txt" in msg
         assert "file_read_tool" in msg
+        assert "NO SAVED COPY" not in msg

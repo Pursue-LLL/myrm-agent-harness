@@ -202,7 +202,7 @@ class FilterProcessor(BaseProcessor):
 
         result = await create_filtered_result(
             content=content,
-            file_path="",
+            file_path=saved_path or "",
             user_query=user_query,
             llm=filter_llm,
         )

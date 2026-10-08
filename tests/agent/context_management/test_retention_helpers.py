@@ -203,6 +203,7 @@ def test_format_retained_tool_trim_message_with_saved_path() -> None:
     )
 
     message = format_retained_tool_trim_message("trimmed", saved_path="/tmp/out.txt")
+    assert "full content preserved on disk" in message
     assert "Full output saved to: /tmp/out.txt" in message
     assert "file_read_tool" in message
 
@@ -214,6 +215,8 @@ def test_format_retained_tool_trim_message_without_saved_path() -> None:
 
     message = format_retained_tool_trim_message("trimmed", saved_path=None)
     assert "trimmed" in message
+    assert "no full copy was saved" in message
+    assert "preserved on disk" not in message
     assert "Full output saved to" not in message
 
 

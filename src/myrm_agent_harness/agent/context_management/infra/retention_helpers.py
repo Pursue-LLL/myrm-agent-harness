@@ -155,14 +155,16 @@ def should_retain_tool_message(
 
 def format_retained_tool_trim_message(trimmed_content: str, *, saved_path: str | None) -> str:
     """Format a deterministic trim preview for retained error/failed tool output."""
-    lines = [
-        "[RETAINED TOOL OUTPUT - deterministic trim; full content preserved on disk]",
-        trimmed_content,
-    ]
-    if saved_path:
-        lines.append(f"Full output saved to: {saved_path}")
-        lines.append("Use file_read_tool to read specific portions of the saved file.")
-    return "\n".join(lines)
+    if not saved_path:
+        return f"[RETAINED TOOL OUTPUT - deterministic trim; no full copy was saved]\n{trimmed_content}"
+    return "\n".join(
+        [
+            "[RETAINED TOOL OUTPUT - deterministic trim; full content preserved on disk]",
+            trimmed_content,
+            f"Full output saved to: {saved_path}",
+            "Use file_read_tool to read specific portions of the saved file.",
+        ]
+    )
 
 
 def find_keep_recent_prune_cutoff(messages: list[BaseMessage], keep_recent_calls: int) -> int:

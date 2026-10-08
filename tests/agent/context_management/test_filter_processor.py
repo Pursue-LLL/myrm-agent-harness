@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -10,10 +13,23 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from myrm_agent_harness.agent.context_management.infra.schemas import ToolProtectionConfig
 from myrm_agent_harness.agent.context_management.pipeline.base import ProcessorContext
 from myrm_agent_harness.agent.context_management.pipeline.processors.filter_processor import FilterProcessor
+from myrm_agent_harness.core.context_vars import chat_id_var, workspace_root_var
 
 
 def _make_context(messages: list, user_query: str = "test", llm: object | None = None, **kwargs) -> ProcessorContext:
     return ProcessorContext(messages=messages, user_query=user_query, llm=llm, **kwargs)
+
+
+@contextmanager
+def _evicted_scope(workspace: str, chat_id: str) -> Iterator[None]:
+    """Bind the ContextVars that decide whether evicted output can be persisted."""
+    workspace_token = workspace_root_var.set(workspace)
+    chat_token = chat_id_var.set(chat_id)
+    try:
+        yield
+    finally:
+        workspace_root_var.reset(workspace_token)
+        chat_id_var.reset(chat_token)
 
 
 class TestFilterProcessor:
@@ -360,3 +376,54 @@ class TestFilterProcessor:
 
         assert result.tokens_saved == 0
         assert result.messages[0].content == "[Filtered]"
+
+
+class TestFilteredOutputRecovery:
+    """The agent is only sent to a saved copy when one exists (real persistence, no mocks)."""
+
+    @staticmethod
+    def _large_tool_context() -> ProcessorContext:
+        return _make_context([ToolMessage(content="word " * 25_000, tool_call_id="t1", name="web_search_tool")])
+
+    @pytest.mark.asyncio
+    async def test_saved_output_points_the_read_suggestions_at_the_saved_file(self, tmp_path: Path) -> None:
+        with _evicted_scope(str(tmp_path), "chat-1"):
+            result = await FilterProcessor().process(self._large_tool_context())
+
+        saved = list((tmp_path / ".context" / "chat-1" / "evicted").glob("*.txt"))
+        assert len(saved) == 1
+        rel_path = f".context/chat-1/evicted/{saved[0].name}"
+        message = str(result.messages[0].content)
+        assert f'file_read_tool(paths=["{rel_path}"])' in message
+        assert f"Full output saved to: {rel_path}" in message
+        assert 'paths=[""' not in message
+
+    @pytest.mark.asyncio
+    async def test_unsaved_output_says_no_copy_exists_instead_of_pointing_at_a_phantom_file(
+        self, tmp_path: Path
+    ) -> None:
+        with _evicted_scope(str(tmp_path), ""):
+            result = await FilterProcessor().process(self._large_tool_context())
+
+        assert not (tmp_path / ".context").exists()
+        message = str(result.messages[0].content)
+        assert "NO SAVED COPY" in message
+        assert "No copy of the full output was saved" in message
+        for phantom in ("TO GET FULL CONTENT", "Full output saved to", "saved path below", "file_read_tool(paths"):
+            assert phantom not in message
+
+    @pytest.mark.asyncio
+    async def test_unsaved_retained_error_output_does_not_claim_a_copy_on_disk(self, tmp_path: Path) -> None:
+        error_body = ("Traceback (most recent call last):\nValueError: boom\n" + "detail line\n") * 800
+        context = _make_context(
+            [ToolMessage(content=error_body, tool_call_id="call_failed", name="web_search_tool")],
+            metadata={"compression_intent": {"failed_tool_call_ids": ["call_failed"]}},
+        )
+        with _evicted_scope(str(tmp_path), ""):
+            result = await FilterProcessor().process(context)
+
+        message = str(result.messages[0].content)
+        assert "RETAINED TOOL OUTPUT" in message
+        assert "ValueError" in message
+        assert "preserved on disk" not in message
+        assert "no full copy was saved" in message

@@ -95,30 +95,37 @@ def format_filtered_message(result: FilteredResult, *, saved_path: str | None = 
 
     Args:
         result: The filtering result with content analysis.
-        saved_path: Relative path where the full output was saved.
-                    When provided, adds a file reference for the agent.
+        saved_path: Relative path where the full output was saved. Without one the message says that
+                    no copy exists instead of sending the agent after a file it cannot read.
     """
-    read_suggestions_text = "\n".join(f" {suggestion}" for suggestion in result.read_suggestions)
-
-    msg = FILTERED_RESULT_MSG.format(
+    head = _FILTERED_HEAD.format(
+        banner=_banner(_TITLE_SAVED if saved_path else _TITLE_NOT_SAVED),
         content_type=result.content_type,
         total_lines=result.total_lines,
         total_chars=result.total_chars,
         estimated_tokens=result.estimated_tokens,
         summary=result.summary,
         structure_overview=result.structure_overview,
-        read_suggestions_text=read_suggestions_text,
     )
+    if not saved_path:
+        return head + _NOT_SAVED_NOTICE
 
-    if saved_path:
-        msg += _SAVED_PATH_HINT.format(saved_path=saved_path)
-
-    return msg
+    read_suggestions_text = "\n".join(f" {suggestion}" for suggestion in result.read_suggestions)
+    return head + _RECOVER_FROM_DISK.format(read_suggestions_text=read_suggestions_text, saved_path=saved_path)
 
 
-FILTERED_RESULT_MSG = """╔══════════════════════════════════════════════════════════════╗
-║   LARGE OUTPUT TRUNCATED - USE file_read_tool TO RECOVER    ║
-╚══════════════════════════════════════════════════════════════╝
+_BANNER_WIDTH = 62
+_TITLE_SAVED = "LARGE OUTPUT TRUNCATED - USE file_read_tool TO RECOVER"
+_TITLE_NOT_SAVED = "LARGE OUTPUT TRUNCATED - NO SAVED COPY"
+_RULE = "━" * 64
+
+
+def _banner(title: str) -> str:
+    border = "═" * _BANNER_WIDTH
+    return f"╔{border}╗\n║{title:^{_BANNER_WIDTH}}║\n╚{border}╝"
+
+
+_FILTERED_HEAD = """{banner}
 
  Content Info:
   Type: {content_type} | Lines: {total_lines} | Chars: {total_chars} | Tokens: ~{estimated_tokens}
@@ -128,16 +135,22 @@ FILTERED_RESULT_MSG = """╔═════════════════�
 
  Structure:
 {structure_overview}
-
- TO GET FULL CONTENT:
-{read_suggestions_text}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Use file_read_tool on the saved path below when a full copy is needed.
-Re-execute the tool only when the output cannot be recovered from disk.
 """
 
-_SAVED_PATH_HINT = """
- Full output saved to: {saved_path}
+_RECOVER_FROM_DISK = f"""
+ TO GET FULL CONTENT:
+{{read_suggestions_text}}
+
+{_RULE}
+Use file_read_tool on the saved path below when a full copy is needed.
+Re-execute the tool only when the output cannot be recovered from disk.
+
+ Full output saved to: {{saved_path}}
    Use file_read_tool to read specific portions of the saved file.
+"""
+
+_NOT_SAVED_NOTICE = f"""
+{_RULE}
+No copy of the full output was saved, so file_read_tool cannot recover it.
+Re-execute the tool with a narrower scope (filters, pagination, a more specific query) to get the omitted part.
 """
