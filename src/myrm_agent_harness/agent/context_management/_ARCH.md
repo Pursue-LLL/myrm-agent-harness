@@ -71,6 +71,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | epoch/ | Compiles and orders tool definitions deterministically for Prompt Cache. See [epoch/_ARCH.md](epoch/_ARCH.md). |
 | event_sourcing_replayer/ | Append-only immutable event log maintaining monotonic sequence numbers and hash chains. See [event_sourcing_replayer/_ARCH.md](event_sourcing_replayer/_ARCH.md). |
 | evidence_disclosure/ | Isomorphic evidence disclosure subsystem providing canonical action details shared between active turns and completed history, deterministic query scope isolation, and real-reading offset pagination. See [evidence_disclosure/_ARCH.md](evidence_disclosure/_ARCH.md). |
+| expanded_handoff/ | Full dialogue 1,200-word anchor with searchable archive handoff suite (Item 310). See [expanded_handoff/_ARCH.md](expanded_handoff/_ARCH.md). |
 | fallback_buffer_notebook/ | Core engine for Auto-Compact Fallback Buffer and Team Notebook Suite (Item 223). See [fallback_buffer_notebook/_ARCH.md](fallback_buffer_notebook/_ARCH.md). |
 | four_tier_routing/ | Four-tier context engineering architecture providing deterministic baseline, triggered domain rule routing, just-in-time reference handles, and multi-source pre-prompt knowledge synthesis (Anthropic inspired). See [four_tier_routing/_ARCH.md](four_tier_routing/_ARCH.md). |
 | file_watch/ | Gateway orchestrating workspace file mutation events and session context invalidation. See [file_watch/_ARCH.md](file_watch/_ARCH.md). |

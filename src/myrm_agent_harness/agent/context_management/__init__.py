@@ -1297,6 +1297,16 @@ from .tri_fate_compaction import (
     TurnLevelTriFateCompactionSuite,
     TurnLevelTriFateCompactor,
 )
+from .expanded_handoff import (
+    ArchiveSearchResult,
+    ExpandedHandoffAnchor,
+    ExpandedHandoffConfig,
+    ExpandedHandoffSuite,
+    ExpandedSkeletonAnchorBuilder,
+    FullDialogue1200WordAnchorWithSearchableArchiveHandoffSuite,
+    HistoricalSessionTurn,
+    SearchableOldSessionArchiveConduit,
+)
 from .sandbox_pause_resume import (
     AgentkitPauseResumeSessionSandboxSuite,
     PauseResumeActionKind,
@@ -2526,6 +2536,15 @@ __all__ = [
     "TurnLevelTriFateCompactionAndDecoupledDigestSynthesizerSuite",
     "TurnLevelTriFateCompactionSuite",
     "TurnLevelTriFateCompactor",
+    # expanded_handoff
+    "ArchiveSearchResult",
+    "ExpandedHandoffAnchor",
+    "ExpandedHandoffConfig",
+    "ExpandedHandoffSuite",
+    "ExpandedSkeletonAnchorBuilder",
+    "FullDialogue1200WordAnchorWithSearchableArchiveHandoffSuite",
+    "HistoricalSessionTurn",
+    "SearchableOldSessionArchiveConduit",
 ]
 
 
