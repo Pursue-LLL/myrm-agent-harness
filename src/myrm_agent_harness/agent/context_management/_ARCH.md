@@ -27,6 +27,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | barge_in_steering/ | Core engine for Mid-Run Barge-In Steering and Safe Execution Gap Interventions. See [barge_in_steering/_ARCH.md](barge_in_steering/_ARCH.md). |
 | branch_projection/ | Dual-track session tree and dynamic branch projection engine. See [branch_projection/_ARCH.md](branch_projection/_ARCH.md). |
 | branch_summary/ | Core engine for Branch Summarization and Selective Merge-Back. See [branch_summary/_ARCH.md](branch_summary/_ARCH.md). |
+| branch_switch_summarization/ | Semantic condensation engine extracting trials, failures, and lessons from exploratory branches. See [branch_switch_summarization/_ARCH.md](branch_switch_summarization/_ARCH.md). |
 | branching/ | Distills trial-and-error lessons from abandoned branches to roam into new forks. See [branching/_ARCH.md](branching/_ARCH.md). |
 | browser_batch_script/ | Engine for executing batch browser automation and single-turn context distillation. See [browser_batch_script/_ARCH.md](browser_batch_script/_ARCH.md). |
 | cache_governor/ | Pre-flight economic governor guarding against negative ROI cache write premiums. See [cache_governor/_ARCH.md](cache_governor/_ARCH.md). |

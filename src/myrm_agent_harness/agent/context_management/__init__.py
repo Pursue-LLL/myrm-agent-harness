@@ -901,8 +901,23 @@ from .dual_mode_compaction import (
     ProviderOverflowKind,
     SelfHealingAuditReceipt,
 )
+from .branch_switch_summarization import (
+    BranchExplorationCard,
+    BranchOutcomeCondenser,
+    BranchOutcomeVerdict,
+    BranchSummaryEntry,
+    BranchSwitchSummarizationAndContextTransferSuite,
+    BranchTransferReceipt,
+)
 
 __all__ = [
+    # branch_switch_summarization
+    "BranchExplorationCard",
+    "BranchOutcomeCondenser",
+    "BranchOutcomeVerdict",
+    "BranchSummaryEntry",
+    "BranchSwitchSummarizationAndContextTransferSuite",
+    "BranchTransferReceipt",
     # dual_mode_compaction
     "CompactableMessage",
     "CompactionExecutionResult",
