@@ -60,7 +60,6 @@ declaration improves transparency and self-documentation.
 - resolve_permission_type(): tool name → permission type (with dynamic sub-action and MCP fallback)
 - compute_canonical_args_hash(): stable hash for tool arguments (core params only)
 - resolve_safety_metadata(): tool name → SafetyMetadata (fail-closed for undeclared tools)
-- clear_ptc_safety_metadata_for_tests(): wipe the dynamic MCP safety registry for test isolation
 
 [POS]
 Pure functions, no side effects, trivially testable.
@@ -576,18 +575,6 @@ def evict_skill_safety_metadata(skill_name: str) -> int:
         for tool_name in skill_tools:
             _PTC_TOOL_FLAT_INDEX.pop(tool_name, None)
         return len(skill_tools)
-
-
-def clear_ptc_safety_metadata_for_tests() -> None:
-    """Drop every dynamically registered MCP safety entry for test isolation.
-
-    The registry is process-wide: a test that connects an MCP server leaves its skill registered
-    (reported as a ghost skill by the compliance audit) and its tool names resolvable through the flat
-    index, so later tests classify unrelated tools with another server's annotations.
-    """
-    with _PTC_LOCK:
-        _PTC_SAFETY_METADATA.clear()
-        _PTC_TOOL_FLAT_INDEX.clear()
 
 
 def _sanitize_url_for_taint(url: str | None) -> str | None:
