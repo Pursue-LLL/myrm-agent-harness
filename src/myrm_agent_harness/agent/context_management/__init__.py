@@ -1349,6 +1349,25 @@ from .event_cache_preservation import (
     HydrationState,
     SandboxedSleepWakeLifecycleEngine,
 )
+from .local_prefill_guard import (
+    AdaptivePruningDecision,
+    LatencyWarningLevel,
+    LocalAdaptivePruningScheduler,
+    LocalEndpointInspector,
+    LocalEndpointKind,
+    LocalEndpointProfile,
+    LocalPrefillGuardResult,
+    LocalPrefillGuardSuite,
+    PrefillLatencyEstimate,
+    PrefillProgressCapsule,
+    PrunedResultSummary,
+    PruningPolicyTier,
+    TtftLatencyEstimator,
+)
+
+# Alias for full roadmap name fidelity
+LocalLlmLongContextPrefillLatencyGuardAndAdaptivePruningScheduler = LocalPrefillGuardSuite
+
 from .sandbox_pause_resume import (
     AgentkitPauseResumeSessionSandboxSuite,
     PauseResumeActionKind,
@@ -2626,6 +2645,21 @@ __all__ = [
     "EventSourceTier",
     "HydrationState",
     "SandboxedSleepWakeLifecycleEngine",
+    # local_prefill_guard
+    "AdaptivePruningDecision",
+    "LatencyWarningLevel",
+    "LocalAdaptivePruningScheduler",
+    "LocalEndpointInspector",
+    "LocalEndpointKind",
+    "LocalEndpointProfile",
+    "LocalLlmLongContextPrefillLatencyGuardAndAdaptivePruningScheduler",
+    "LocalPrefillGuardResult",
+    "LocalPrefillGuardSuite",
+    "PrefillLatencyEstimate",
+    "PrefillProgressCapsule",
+    "PrunedResultSummary",
+    "PruningPolicyTier",
+    "TtftLatencyEstimator",
 ]
 
 

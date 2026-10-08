@@ -96,6 +96,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | layered_loop_termination/ | Manager for consumable debt inbox and model response debt accounting. See [layered_loop_termination/_ARCH.md](layered_loop_termination/_ARCH.md). |
 | live_steering/ | Core engine for Live Response Steering and Mid-Generation Correction Channel (Item 219). See [live_steering/_ARCH.md](live_steering/_ARCH.md). |
 | living_scratchpad/ | Sidebar living scratchpad workspace, bidirectional co-editing patcher, and context conduit suite (Item 305). See [living_scratchpad/_ARCH.md](living_scratchpad/_ARCH.md). |
+| local_prefill_guard/ | Local LLM long-context prefill latency guard, predictive TTFT estimator, and adaptive pruning scheduler suite (Item 317). See [local_prefill_guard/_ARCH.md](local_prefill_guard/_ARCH.md). |
 | loyalty/ | Manages user-centric loyalty layers and cross-model test-time RL alignment. See [loyalty/_ARCH.md](loyalty/_ARCH.md). |
 | mention_hydration/ | Engine for GUI-first @-mention zero-turn context hydration. See [mention_hydration/_ARCH.md](mention_hydration/_ARCH.md). |
 | message_tree/ | Manages in-place branching, sibling version switching, and path resolution. See [message_tree/_ARCH.md](message_tree/_ARCH.md). |
