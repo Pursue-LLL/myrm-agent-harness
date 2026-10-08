@@ -2,6 +2,7 @@
 
 from contextvars import copy_context
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import pytest
 from langchain_core.messages import HumanMessage
@@ -17,6 +18,10 @@ from myrm_agent_harness.agent.streaming.utils import (
     get_datetime_prompt,
     user_timezone_var,
 )
+
+# A naive dt is read as server-local time before conversion, so timezone-labelled cases pass an aware dt
+# to stay independent of the machine's own timezone.
+_SHANGHAI = ZoneInfo("Asia/Shanghai")
 
 
 class TestDatetimeInjection:
@@ -36,7 +41,7 @@ class TestDatetimeInjection:
 
     def test_get_datetime_prompt_with_timezone(self) -> None:
         """验证带时区的时间提示词包含星期几"""
-        test_date = datetime(2026, 4, 13, 17, 13)
+        test_date = datetime(2026, 4, 13, 17, 13, tzinfo=_SHANGHAI)
         prompt = get_datetime_prompt(timezone="Asia/Shanghai", dt=test_date)
 
         assert "Monday" in prompt, f"Expected 'Monday' in prompt, got: {prompt}"
@@ -62,7 +67,7 @@ class TestDatetimeInjection:
 
     def test_get_datetime_prompt_format_structure(self) -> None:
         """验证时间提示词的格式结构"""
-        test_date = datetime(2026, 4, 13, 17, 13)
+        test_date = datetime(2026, 4, 13, 17, 13, tzinfo=_SHANGHAI)
         prompt = get_datetime_prompt(timezone="Asia/Shanghai", dt=test_date)
 
         assert prompt.startswith("<current_datetime>"), "Prompt should start with <current_datetime> tag"
@@ -74,7 +79,7 @@ class TestDatetimeInjection:
 
     def test_weekday_regression_case(self) -> None:
         """回归测试：验证原始bug场景（2026-04-13应该是Monday，不是Sunday）"""
-        bug_date = datetime(2026, 4, 13, 17, 13)
+        bug_date = datetime(2026, 4, 13, 17, 13, tzinfo=_SHANGHAI)
         prompt = get_datetime_prompt(timezone="Asia/Shanghai", dt=bug_date)
 
         assert "Monday" in prompt, (
