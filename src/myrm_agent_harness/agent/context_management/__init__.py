@@ -1095,6 +1095,21 @@ from .durable_storage import (
     StorageWriteKind,
     TaskRecord,
 )
+from .hierarchical_rules import (
+    AttentionAuditReport,
+    HierarchicalRulesConfig,
+    HierarchicalRulesDirectoryAndGlobScopedDynamicRuleMatcherSuite,
+    RuleFileDescriptor,
+    RuleMatchResult,
+    RuleTierKind,
+    audit_rule_attention_health,
+    batch_audit_rules,
+    extract_transclusion_paths,
+    is_rule_active_for_targets,
+    match_rules_against_targets,
+    parse_rule_frontmatter,
+    resolve_rule_transclusions,
+)
 from .sandbox_pause_resume import (
     AgentkitPauseResumeSessionSandboxSuite,
     PauseResumeActionKind,
@@ -1228,6 +1243,20 @@ __all__ = [
     "StorageBackendKind",
     "StorageWriteKind",
     "TaskRecord",
+    # hierarchical_rules
+    "AttentionAuditReport",
+    "HierarchicalRulesConfig",
+    "HierarchicalRulesDirectoryAndGlobScopedDynamicRuleMatcherSuite",
+    "RuleFileDescriptor",
+    "RuleMatchResult",
+    "RuleTierKind",
+    "audit_rule_attention_health",
+    "batch_audit_rules",
+    "extract_transclusion_paths",
+    "is_rule_active_for_targets",
+    "match_rules_against_targets",
+    "parse_rule_frontmatter",
+    "resolve_rule_transclusions",
     # session_metadata_rename
     "HapiRenameMetadataNameSuite",
     "RenameSource",
