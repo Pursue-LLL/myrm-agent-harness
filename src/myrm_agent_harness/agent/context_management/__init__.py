@@ -891,8 +891,27 @@ from .session_tree_dag import (
     SessionTreeEntry,
     SessionTreeStorage,
 )
+from .dual_mode_compaction import (
+    CompactableMessage,
+    CompactionExecutionResult,
+    CompactionTriggerKind,
+    ContextWindowBudgetConfig,
+    DualModeCompactionAndOverflowSelfHealingSuite,
+    ProviderOverflowDetector,
+    ProviderOverflowKind,
+    SelfHealingAuditReceipt,
+)
 
 __all__ = [
+    # dual_mode_compaction
+    "CompactableMessage",
+    "CompactionExecutionResult",
+    "CompactionTriggerKind",
+    "ContextWindowBudgetConfig",
+    "DualModeCompactionAndOverflowSelfHealingSuite",
+    "ProviderOverflowDetector",
+    "ProviderOverflowKind",
+    "SelfHealingAuditReceipt",
     # session_tree_dag
     "DagEntryKind",
     "SessionBranchMeta",

@@ -55,6 +55,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | dual_branching/ | Core implementation of Dual-Branching Session Fork and In-Place Turn Rewind Engine. See [dual_branching/_ARCH.md](dual_branching/_ARCH.md). |
 | dual_file_decoupling/ | Dual-File Decoupled Architecture Engine for AGENTS.md and 00_项目总览.md (Item 217). See [dual_file_decoupling/_ARCH.md](dual_file_decoupling/_ARCH.md). |
 | dual_loop_steering/ | 内外双层循环实时代令引导、键盘意图分流与排队队列核心引擎。 See [dual_loop_steering/_ARCH.md](dual_loop_steering/_ARCH.md). |
+| dual_mode_compaction/ | Main suite orchestrating proactive watermark compaction and reactive provider 400 self-healing. See [dual_mode_compaction/_ARCH.md](dual_mode_compaction/_ARCH.md). |
 | dual_track_interjection/ | Core coordinator for Long-Running Task Dual-Track Interjection and Preemption Queue Suite (Item 212). See [dual_track_interjection/_ARCH.md](dual_track_interjection/_ARCH.md). |
 | emergent_attention/ | 从行为中涌现的注意力清单、海量通知意图过滤器与言行错位智能对照引擎。 See [emergent_attention/_ARCH.md](emergent_attention/_ARCH.md). |
 | epoch/ | Compiles and orders tool definitions deterministically for Prompt Cache. See [epoch/_ARCH.md](epoch/_ARCH.md). |
