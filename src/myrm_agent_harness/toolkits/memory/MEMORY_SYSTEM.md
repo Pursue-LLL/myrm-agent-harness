@@ -892,7 +892,8 @@ tools = create_memory_tools(manager=manager)
 | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
 | `submit_pending(memory, *, resolution_action=STORE, target_memory_id=None, target_content=None)` | 提交记忆到审批队列（去重），并声明批准后应执行的落库语义与待审目标展示内容 |
 | `approve(pending_id, *, edited_content=None)`                                     | 按 `resolution_action` 分派：`STORE` 持久化新记忆 / `CORRECT` 纠正目标记忆 / `DELETE` 归档目标记忆；`edited_content` 为审批者改写后的文本 |
-| `reject(pending_id)`                                                              | 拒绝                                                                              |
+| `reject(pending_id)`                                                              | 拒绝；记录不存在抛 `MemoryNotFoundError`，已处理（非 `pending`）的记录重复拒绝/批准是空操作，不会重复落库或改写已批准状态 |
+| `get_pending(pending_id)`                                                         | 按 id 读取单条待审批记录（含已处理状态），不存在返回 `None`；供业务层在批准/拒绝前取得审计所需元数据 |
 | `list_pending(limit=50)`                                                          | 列出待审批记忆                                                                    |
 | `count_pending()`                                                                 | 统计待审批数量                                                                    |
 | `batch_approve(ids)`                                                              | 批量审批                                                                          |

@@ -74,6 +74,10 @@ class MemoryManagerGovernanceSessionMixin:
     async def reject(self, pending_id: str) -> None:
         await self._governance.reject(pending_id)
 
+    async def get_pending(self, pending_id: str) -> PendingRecord | None:
+        """Return one queued proposal by id (any status), or ``None`` if unknown."""
+        return await self._governance.get_pending(pending_id)
+
     async def list_pending(self, *, limit: int = 50) -> list[PendingRecord]:
         return await self._governance.list_pending(limit=limit)
 

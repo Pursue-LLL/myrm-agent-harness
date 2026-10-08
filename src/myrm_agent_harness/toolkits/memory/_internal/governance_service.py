@@ -110,6 +110,10 @@ class GovernanceService:
         record = await rel.get_pending(pending_id)
         if record is None:
             raise MemoryNotFoundError(f"Pending record {pending_id} not found")
+        if record.status != "pending":
+            # Stale double submit: applying again would duplicate a stored memory or re-run a correction.
+            logger.info("Pending record %s is already %s; approval is a no-op", pending_id, record.status)
+            return None
         if edited_content is not None:
             record = apply_edited_content(record, edited_content)
         if record.memory_type == MemoryType.PROFILE:
@@ -151,7 +155,18 @@ class GovernanceService:
         return stored
 
     async def reject(self, pending_id: str) -> None:
-        await self._rel().mark_pending(pending_id, "rejected")
+        rel = self._rel()
+        record = await rel.get_pending(pending_id)
+        if record is None:
+            raise MemoryNotFoundError(f"Pending record {pending_id} not found")
+        if record.status != "pending":
+            # An approved proposal must not be flipped to rejected after it was applied.
+            logger.info("Pending record %s is already %s; rejection is a no-op", pending_id, record.status)
+            return
+        await rel.mark_pending(pending_id, "rejected")
+
+    async def get_pending(self, pending_id: str) -> PendingRecord | None:
+        return await self._rel().get_pending(pending_id)
 
     async def list_pending(self, *, limit: int) -> list[PendingRecord]:
         return await self._rel().list_pending(limit=limit)

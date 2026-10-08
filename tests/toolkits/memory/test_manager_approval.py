@@ -1,7 +1,7 @@
 """Tests for MemoryManager approval workflow."""
 
 from datetime import UTC, datetime
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -340,6 +340,9 @@ class TestApprovalWorkflow:
     @pytest.mark.asyncio
     async def test_reject_pending_memory(self, mock_relational_store, memory_config):
         """Test rejecting a pending memory."""
+        mock_relational_store.get_pending.return_value = PendingRecord(
+            id="pending-1", memory_type=MemoryType.SEMANTIC, content="Queued fact", memory_data={}
+        )
         manager = MemoryManager(
             memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True
         )
@@ -347,6 +350,39 @@ class TestApprovalWorkflow:
         await manager.reject("pending-1")
 
         mock_relational_store.mark_pending.assert_called_once_with("pending-1", "rejected")
+
+    @pytest.mark.asyncio
+    async def test_reject_unknown_pending_raises_not_found(self, mock_relational_store, memory_config):
+        manager = MemoryManager(
+            memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True
+        )
+
+        with pytest.raises(MemoryNotFoundError):
+            await manager.reject("missing")
+
+        mock_relational_store.mark_pending.assert_not_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("resolved_status", ["approved", "rejected", "resolved"])
+    async def test_resolved_pending_is_not_reapplied(self, mock_relational_store, memory_config, resolved_status):
+        """A stale second approve/reject must neither re-apply the proposal nor rewrite its status."""
+        mock_relational_store.get_pending.return_value = PendingRecord(
+            id="p1",
+            memory_type=MemoryType.SEMANTIC,
+            content="Queued fact",
+            memory_data={},
+            status=resolved_status,
+        )
+        manager = MemoryManager(
+            memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True
+        )
+
+        with patch.object(MemoryManager, "store", new_callable=AsyncMock) as store:
+            assert await manager.approve("p1") is None
+            await manager.reject("p1")
+
+        store.assert_not_called()
+        mock_relational_store.mark_pending.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_list_pending(self, mock_relational_store, memory_config):
@@ -371,6 +407,18 @@ class TestApprovalWorkflow:
 
         assert result == pending_list
         mock_relational_store.list_pending.assert_called_once_with(limit=50)
+
+    @pytest.mark.asyncio
+    async def test_get_pending_returns_record_or_none(self, mock_relational_store, memory_config):
+        record = PendingRecord(id="p1", memory_type=MemoryType.SEMANTIC, content="Queued fact", memory_data={})
+        mock_relational_store.get_pending.side_effect = lambda pending_id: record if pending_id == "p1" else None
+
+        manager = MemoryManager(
+            memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True
+        )
+
+        assert await manager.get_pending("p1") == record
+        assert await manager.get_pending("missing") is None
 
     @pytest.mark.asyncio
     async def test_count_pending(self, mock_relational_store, memory_config):
