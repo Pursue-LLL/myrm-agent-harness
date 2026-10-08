@@ -997,8 +997,21 @@ from .handoff_checkpoint import (
     TaskCheckpoint,
     WorkBuddyHandoffThenCompactSuite,
 )
+from .stale_query_expire import (
+    ContextEvaluationResult,
+    MateclawStaleQueryContextExpireSuite,
+    QueryContextStatus,
+    QueryIntentEntry,
+    StaleQueryExpiryEngine,
+)
 
 __all__ = [
+    # stale_query_expire
+    "ContextEvaluationResult",
+    "MateclawStaleQueryContextExpireSuite",
+    "QueryContextStatus",
+    "QueryIntentEntry",
+    "StaleQueryExpiryEngine",
     # handoff_checkpoint
     "CheckpointRenderFormat",
     "HandoffCompactStage",

@@ -130,6 +130,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | skill_sentinel/ | Core implementation of Active Skill Compaction Survival Sentinel and Reattachment Governor. See [skill_sentinel/_ARCH.md](skill_sentinel/_ARCH.md). |
 | smart_idle_compactor/ | Idle eligibility evaluator for opportunistic prompt cache pre-compaction. See [smart_idle_compactor/_ARCH.md](smart_idle_compactor/_ARCH.md). |
 | spawn_reservation/ | End-to-end suite orchestrating spawn name reservation until durable admission. See [spawn_reservation/_ARCH.md](spawn_reservation/_ARCH.md). |
+| stale_query_expire/ | End-to-end suite orchestrating query context expiration in persistent long-running sessions. See [stale_query_expire/_ARCH.md](stale_query_expire/_ARCH.md). |
 | steering/ | Manages serialized in-flight human steering messages for a specific session. See [steering/_ARCH.md](steering/_ARCH.md). |
 | steering_protocol/ | Core implementation of In-Flight Steering and Follow-Up Queue Injection Protocol Gateway. See [steering_protocol/_ARCH.md](steering_protocol/_ARCH.md). |
 | strategies/ | Three-tier context reduction strategies: Filter, Compress, Summarize. `Summarize` enforces structural validation via `with_structured_output` to eliminate JSON parsing fragility. |
