@@ -1134,6 +1134,20 @@ from .online_economic_compact import (
     SubtaskBoundaryHook,
     SubtaskBoundaryOnlineContextCompactAndEconomicBreakevenSuite,
 )
+from .four_tier_routing import (
+    AssembledContextPayload,
+    ContextTierKind,
+    FourTierContextConfig,
+    FourTierContextRoutingAndSynthesisEngineSuite,
+    JitHandle,
+    JitRetrievalProtocol,
+    KnowledgeSynthesisEngine,
+    SynthesisInput,
+    SynthesizedDirective,
+    TriggerDomainKind,
+    TriggeredContextRouter,
+    TriggeredRule,
+)
 from .sandbox_pause_resume import (
     AgentkitPauseResumeSessionSandboxSuite,
     PauseResumeActionKind,
@@ -2214,4 +2228,17 @@ __all__ = [
     "PlanStepStatus",
     "SubtaskBoundaryHook",
     "SubtaskBoundaryOnlineContextCompactAndEconomicBreakevenSuite",
+    # four_tier_routing
+    "AssembledContextPayload",
+    "ContextTierKind",
+    "FourTierContextConfig",
+    "FourTierContextRoutingAndSynthesisEngineSuite",
+    "JitHandle",
+    "JitRetrievalProtocol",
+    "KnowledgeSynthesisEngine",
+    "SynthesisInput",
+    "SynthesizedDirective",
+    "TriggerDomainKind",
+    "TriggeredContextRouter",
+    "TriggeredRule",
 ]
