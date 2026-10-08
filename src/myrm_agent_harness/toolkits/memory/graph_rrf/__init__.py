@@ -32,6 +32,10 @@ from myrm_agent_harness.toolkits.memory.graph_rrf.graph_store import (
 from myrm_agent_harness.toolkits.memory.graph_rrf.rrf_fusion import (
     ReciprocalRankFusionEngine,
 )
+from myrm_agent_harness.toolkits.memory.graph_rrf.tool import (
+    HybridGraphRRFSearchInput,
+    create_graph_rrf_search_tool,
+)
 from myrm_agent_harness.toolkits.memory.graph_rrf.types import (
     EntityNode,
     FusedMemoryHit,
@@ -50,10 +54,12 @@ __all__ = [
     "GraphHit",
     "GraphTraversalPath",
     "GraphTraversalResult",
+    "HybridGraphRRFSearchInput",
     "RRFConfig",
     "ReciprocalRankFusionEngine",
     "RelationEdge",
     "SQLiteGraphMemoryStore",
     "VectorHit",
     "VectorSearchFn",
+    "create_graph_rrf_search_tool",
 ]

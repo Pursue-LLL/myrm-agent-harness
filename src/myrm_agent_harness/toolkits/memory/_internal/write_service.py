@@ -352,22 +352,26 @@ class MemoryWriter:
         from myrm_agent_harness.toolkits.memory.agent_surface.transient_fact_boundary import (
             filter_transient_business_memories,
         )
+        from myrm_agent_harness.toolkits.memory.profile_notes import filter_intake_garbage
 
-        filtered, dropped = filter_transient_business_memories(list(memories))
+        clean_mems, g_dropped = filter_intake_garbage(memories)
+        if g_dropped:
+            logger.info("Intake garbage filter dropped %d transient memories", g_dropped)
+
+        filtered, dropped = filter_transient_business_memories(clean_mems)
         if dropped:
-            logger.info(
-                "Transient business fact write gate dropped %d memories before persist",
-                dropped,
-            )
+            logger.info("Transient business fact gate dropped %d memories", dropped)
         return filtered
 
     def _require_transient_fact_allowed(self, memory: AnyMemory) -> AnyMemory:
+        from myrm_agent_harness.toolkits.memory.agent_surface.transient_fact_boundary import (
+            transient_fact_save_rejection_message,
+        )
+        from myrm_agent_harness.toolkits.memory.profile_notes import check_memory_not_garbage
+
+        check_memory_not_garbage(memory)
         filtered = self._filter_transient_business_batch([memory])
         if not filtered:
-            from myrm_agent_harness.toolkits.memory.agent_surface.transient_fact_boundary import (
-                transient_fact_save_rejection_message,
-            )
-
             raise MemoryError(transient_fact_save_rejection_message())
         return filtered[0]
 

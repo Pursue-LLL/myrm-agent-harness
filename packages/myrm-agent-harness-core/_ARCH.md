@@ -2,7 +2,7 @@
 
 ## Overview
 
-Platform-specific wheel project for Nuitka-compiled core IP artifacts. Built by `scripts/build_core.py` via static hatch `force-include` (not hatch build hooks).
+Platform-specific wheel project for Nuitka-compiled core artifacts. Built by `scripts/build_core.py` via static hatch `force-include` (not hatch build hooks).
 
 ## File Index
 

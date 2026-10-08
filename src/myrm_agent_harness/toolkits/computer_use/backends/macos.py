@@ -39,6 +39,9 @@ from myrm_agent_harness.toolkits.computer_use.backends.macos_background import (
     _resolve_target_window,
 )
 from myrm_agent_harness.toolkits.computer_use.backends.macos_permissions import _check_macos_permissions
+from myrm_agent_harness.toolkits.computer_use.capture_title_contracts import (
+    SNAPSHOT_ONLY_EXCLUDED_CAPTURE_TITLES,
+)
 from myrm_agent_harness.toolkits.computer_use.types import (
     ActionResult,
     ModifierKey,
@@ -78,6 +81,10 @@ class MacOSBackend:
         """
         self._excluded_capture_titles = frozenset(titles)
 
+    def _fullscreen_screenshot_exclusion_titles(self) -> frozenset[str]:
+        """Pointer-guard titles plus click-through overlays excluded from captures only."""
+        return self._excluded_capture_titles | SNAPSHOT_ONLY_EXCLUDED_CAPTURE_TITLES
+
     def _pointer_occluded(self) -> ActionResult | None:
         """遮罩窗在屏时拒绝全局 HID 指针投递；放行（含无遮罩/定向投递）返回 None。
 
@@ -108,8 +115,9 @@ class MacOSBackend:
                     f"no on-screen window for app '{app_name}' (index {window_index}); refusing fullscreen fallback"
                 )
             return await _capture_window_png(target.window_id)
-        if self._excluded_capture_titles:
-            excluded = _capture_screen_excluding_titles(self._excluded_capture_titles)
+        capture_titles = self._fullscreen_screenshot_exclusion_titles()
+        if capture_titles:
+            excluded = _capture_screen_excluding_titles(capture_titles)
             if excluded is not None:
                 return excluded
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:

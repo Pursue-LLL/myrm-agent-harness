@@ -1,97 +1,172 @@
-# [POS]: myrm_agent_harness.toolkits.memory.two_layer_dialectic.models
-# [INPUT]: None (Standard library & Pydantic)
-# [OUTPUT]: DialecticPassKind, DialecticReconciliationConfig, BaseContextPayload, DialecticConflictCandidate, DialecticReconciliationResult, TwoLayerContextInjectionResult
+"""
+[INPUT]
+None (Fundamental domain models for Item 112).
 
-"""Domain models for Two-Layer Context Injection and Multi-Pass Dialectic Reconciliation Suite.
+[OUTPUT]
+DialecticReasoningLevel, DialecticPassKind, DialecticCadenceConfig, DialecticReconciliationConfig,
+BaseContextBundle, BaseContextPayload, ConflictItem, DialecticConflictCandidate,
+DialecticPassRecord, DialecticReconciliationResult, TwoLayerInvocationPayload, TwoLayerContextInjectionResult.
 
-P0/P1 delivery for Item 112 in topic_01 memory roadmap.
-Decouples base context from dynamic reconciliation:
-- Layer 1 (Base Context): Low-frequency cadence to preserve System Prompt KV Cache.
-- Layer 2 (Dialectic Reconciliation): Multi-pass on-demand cognitive conflict resolution
-  injected at user message tail to prevent cache busting while resolving contradictions.
+[POS]
+Data structures for Two-Layer Context Injection & Multi-Pass Dialectic Reconciliation Suite.
+Strict typing applied: No `Any` types allowed. Single file < 250 lines.
 """
 
-from __future__ import annotations
-
+import hashlib
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
+
+class DialecticReasoningLevel(StrEnum):
+    """Reasoning compute allocation for dialectic synthesis passes."""
+
+    FAST = "fast"
+    STANDARD = "standard"
+    DEEP = "deep"
 
 
 class DialecticPassKind(StrEnum):
-    """Categorical stage in multi-pass dialectic reasoning loop."""
+    """Reasoning pass stages in dialectic loop."""
 
-    INSPECTION = "inspection"          # Pass 0: Detect mutually exclusive subject-predicate pairs
-    SYNTHESIS = "synthesis"            # Pass 1: Evaluate causality, timestamps, and confidence trade-offs
-    RECONCILIATION = "reconciliation"  # Pass 2: Produce unified authoritative resolution and mark supersessions
-
-
-class DialecticReconciliationConfig(BaseModel):
-    """Orthogonal knobs governing cadence, depth, and similarity cutoffs."""
-
-    context_cadence: int = Field(
-        default=5, ge=1, description="Turns between Layer 1 Base Context refreshes (preserves KV cache)"
-    )
-    dialectic_cadence: int = Field(
-        default=3, ge=1, description="Turns between proactive Layer 2 dialectic contradiction checks"
-    )
-    dialectic_depth: int = Field(
-        default=3, ge=1, le=3, description="Dialectic reasoning pass depth: 1 (Inspection), 2 (+Synthesis), 3 (+Reconciliation)"
-    )
-    conflict_similarity_cutoff: float = Field(
-        default=0.65, ge=0.0, le=1.0, description="Minimum keyword/semantic overlap triggering contradiction detection"
-    )
+    INSPECTION = "inspection"
+    SYNTHESIS = "synthesis"
+    RECONCILIATION = "reconciliation"
 
 
-class BaseContextPayload(BaseModel):
-    """Layer 1 static context payload structured to preserve Prompt KV Cache."""
+@dataclass(frozen=True)
+class DialecticCadenceConfig:
+    """Three orthogonal control knobs balancing latency, cost, and reconciliation depth.
 
-    session_summary: str = Field(description="Compact trajectory synopsis of current session")
-    standing_peer_cards: list[str] = Field(
-        default_factory=list, description="Curated standing persona summaries for active peers"
-    )
-    cache_control_hash: str = Field(description="Deterministic SHA-256 fingerprint for KV Cache verification")
-    refreshed_at_turn: int = Field(default=0, description="Turn index when this base context was last compiled")
-    created_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
+    Attributes:
+        context_cadence: Refresh interval in turns for Layer 1 Base Context.
+        dialectic_cadence: Turn interval for automated dialectic conflict checks.
+        dialectic_depth: Number of passes in dialectic reconciliation (1-3).
+        dialectic_reasoning_level: Model reasoning tier to allocate.
+        conflict_similarity_cutoff: Similarity and conflict threshold.
+    """
 
-
-class DialecticConflictCandidate(BaseModel):
-    """Pair of conflicting memory statements identified during inspection."""
-
-    statement_a: str = Field(description="Prior or established historical memory statement")
-    statement_b: str = Field(description="Recent or competing memory statement")
-    subject_domain: str = Field(description="Categorical subject area (e.g. database, framework, infra)")
-    conflict_score: float = Field(default=1.0, ge=0.0, le=1.0, description="Degree of logical mutual exclusivity")
+    context_cadence: int = 5
+    dialectic_cadence: int = 3
+    dialectic_depth: int = 2
+    dialectic_reasoning_level: DialecticReasoningLevel = DialecticReasoningLevel.STANDARD
+    conflict_similarity_cutoff: float = 0.65
 
 
-class DialecticReconciliationResult(BaseModel):
-    """Result of multi-pass dialectic resolution over conflicting memory statements."""
-
-    passes_executed: list[DialecticPassKind] = Field(
-        default_factory=list, description="Reasoning passes completed during reconciliation"
-    )
-    resolved_statement: str = Field(description="Harmonized authoritative decision statement")
-    superseded_statements: list[str] = Field(
-        default_factory=list, description="Outdated or overridden statements retired during resolution"
-    )
-    confidence: float = Field(default=1.0, ge=0.0, le=1.0, description="Resolution confidence score")
-    rationale: str = Field(default="", description="Dialectic synthesis reasoning trace")
+DialecticReconciliationConfig = DialecticCadenceConfig
 
 
-class TwoLayerContextInjectionResult(BaseModel):
-    """Dual-layer injection payload safely decoupled for optimal caching and conflict freedom."""
+@dataclass
+class BaseContextBundle:
+    """Layer 1: Low-frequency immutable base context snapshot.
 
-    layer1_base_context: str = Field(
-        description="Static base context block suitable for prefix injection or low-frequency refresh"
-    )
-    layer2_dialectic_block: str = Field(
-        default="", description="Dynamic dialectic reconciliation block injected at user message tail"
-    )
-    injected_position: str = Field(
-        default="user_message_tail", description="Target placement ensuring System Prompt cache safety"
-    )
-    is_cache_safe: bool = Field(
-        default=True, description="True if System Prompt prefix was left strictly untouched"
-    )
-    token_overhead: int = Field(default=0, description="Estimated total token overhead of injected payload")
+    Injected dynamically at the tail of user message to protect system prompt KV Cache.
+    """
+
+    session_id: str = ""
+    session_summary: str = ""
+    peer_card_summary: str = ""
+    standing_peer_cards: list[str] = field(default_factory=list)
+    cache_control_hash: str = ""
+    refreshed_at_turn: int = 0
+    created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    generation_turn: int = 0
+    cadence_interval: int = 5
+    estimated_tokens: int = 0
+    system_prompt_frozen: bool = True
+    tail_injection_xml: str = ""
+
+    def formatted_user_tail_block(self) -> str:
+        """Format base context block to append to user message."""
+        hash_val = self.cache_control_hash or hashlib.sha256(self.session_summary.encode()).hexdigest()[:16]
+        peers_str = ", ".join(self.standing_peer_cards) if self.standing_peer_cards else self.peer_card_summary
+        return (
+            "\n\n<!-- [BASE_CONTEXT_KV_CACHE_PROTECTED] -->\n"
+            f"<base_context cache_hash=\"{hash_val}\" session=\"{self.session_id}\" turn=\"{self.refreshed_at_turn or self.generation_turn}\">\n"
+            f"  <session_summary>{self.session_summary}</session_summary>\n"
+            f"  <peer_cards>{peers_str}</peer_cards>\n"
+            "</base_context>"
+        )
+
+
+BaseContextPayload = BaseContextBundle
+
+
+@dataclass
+class ConflictItem:
+    """Specific dialectic contradiction identified between memory and current goal."""
+
+    conflict_id: str = ""
+    source_topic: str = ""
+    prior_stance: str = ""
+    current_stance: str = ""
+    severity_score: float = 1.0
+    statement_a: str = ""
+    statement_b: str = ""
+    subject_domain: str = ""
+    conflict_score: float = 1.0
+
+
+DialecticConflictCandidate = ConflictItem
+
+
+@dataclass
+class DialecticPassRecord:
+    """Audit record for a single dialectic pass."""
+
+    pass_number: int  # 0: Inspection/Detection, 1: Synthesis, 2: Reconciliation
+    pass_name: str
+    thought_summary: str
+    output_statement: str
+
+
+@dataclass
+class DialecticReconciliationResult:
+    """Layer 2: Multi-pass dialectic reconciliation directive."""
+
+    session_id: str = ""
+    turn_index: int = 0
+    conflicts_detected: list[ConflictItem] = field(default_factory=list)
+    passes: list[DialecticPassRecord] = field(default_factory=list)
+    reconciled_directive: str = ""
+    dialectic_depth_executed: int = 0
+    token_cost_estimate: int = 0
+    kv_cache_preserved: bool = True
+    passes_executed: list[DialecticPassKind | str] = field(default_factory=list)
+    resolved_statement: str = ""
+    superseded_statements: list[str] = field(default_factory=list)
+    confidence: float = 1.0
+    rationale: str = ""
+
+    def formatted_directive_block(self) -> str:
+        """Format dialectic reconciliation block for execution context."""
+        directive = self.reconciled_directive or self.resolved_statement
+        if not directive:
+            return ""
+        return (
+            f"<dialectic_reconciliation turn=\"{self.turn_index}\" depth=\"{self.dialectic_depth_executed or len(self.passes_executed)}\">\n"
+            f"  <resolution>{directive}</resolution>\n"
+            f"  <rationale>{self.rationale}</rationale>\n"
+            "</dialectic_reconciliation>"
+        )
+
+
+@dataclass
+class TwoLayerInvocationPayload:
+    """End-to-end prepared invocation payload for Agent runtime."""
+
+    session_id: str = ""
+    turn_index: int = 0
+    augmented_user_message: str = ""
+    base_context: BaseContextBundle | None = None
+    dialectic_result: DialecticReconciliationResult | None = None
+    total_token_overhead: int = 0
+    kv_cache_preserved: bool = True
+    layer1_base_context: str = ""
+    layer2_dialectic_block: str = ""
+    injected_position: str = "user_message_tail"
+    is_cache_safe: bool = True
+    token_overhead: int = 0
+
+
+TwoLayerContextInjectionResult = TwoLayerInvocationPayload

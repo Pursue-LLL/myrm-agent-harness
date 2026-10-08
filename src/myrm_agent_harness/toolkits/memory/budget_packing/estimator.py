@@ -6,6 +6,16 @@
 
 Ensures LLM context windows are protected against low-estimation blowouts.
 CJK characters are conservatively weighted at 1.2 tokens each, Latin words at 1.33 tokens.
+
+[INPUT]
+- None (self-contained; standard library only)
+
+[OUTPUT]
+- estimate_tokens(): Conservative bilingual token estimator.
+- calculate_content_overlap(): Calculate character-level bigram Jaccard similarity between two texts.
+
+[POS]
+Conservative bilingual token estimator and overlap calculator.
 """
 
 from __future__ import annotations

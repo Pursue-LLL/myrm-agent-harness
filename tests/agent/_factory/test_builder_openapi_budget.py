@@ -26,8 +26,12 @@ def _heavy_openapi_tool(name: str) -> MagicMock:
 @pytest.mark.asyncio
 async def test_create_skill_agent_raises_when_openapi_exceeds_direct_budget() -> None:
     from myrm_agent_harness.agent._factory.builder import create_skill_agent
+    from myrm_agent_harness.agent._factory.mcp_routing import AGGREGATE_DIRECT_TOKEN_BUDGET, estimate_schema_tokens
 
-    heavy_tools = [_heavy_openapi_tool(f"svc_op_{i}") for i in range(8)]
+    # Size the toolset from the live budget so retuning the threshold cannot silently disarm the guard.
+    tokens_per_tool = estimate_schema_tokens([_heavy_openapi_tool("probe")])
+    tool_count = AGGREGATE_DIRECT_TOKEN_BUDGET // tokens_per_tool + 2
+    heavy_tools = [_heavy_openapi_tool(f"svc_op_{i}") for i in range(tool_count)]
     mock_bridge = MagicMock()
     mock_bridge.get_tools = AsyncMock(return_value=heavy_tools)
 

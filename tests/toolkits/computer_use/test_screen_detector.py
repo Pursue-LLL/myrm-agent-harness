@@ -126,10 +126,17 @@ class TestMacOSProbe:
 
 
 class TestProbeFailureReporting:
+    def test_nil_session_dictionary_reports_unknown(self) -> None:
+        detector = ScreenDetector()
+        with patch.object(detector, "_probe_macos", return_value=ScreenLockState.UNKNOWN):
+            assert detector.get_state(force_refresh=True) == ScreenLockState.UNKNOWN
+            assert detector.is_locked() is True
+
     def test_missing_quartz_reports_unknown_not_unlocked(self) -> None:
         detector = ScreenDetector()
         with patch.object(sys, "platform", "darwin"), patch.dict(sys.modules, {"Quartz": None}):
             assert detector._probe_native_state() == ScreenLockState.UNKNOWN
+            assert detector.is_locked() is True
 
 
 class TestHidIdleSeconds:

@@ -503,6 +503,7 @@ class SafetyMetadata:
     is_read_only: bool = False
     is_concurrent_safe: bool = False
     is_destructive: bool = False
+    is_third_party_visible: bool = False
     is_open_world: bool = False
     is_idempotent: bool = False
     taint_label: str | None = None
@@ -515,6 +516,7 @@ class MCPAnnotations(TypedDict, total=False):
     readOnlyHint: bool
     idempotentHint: bool
     destructiveHint: bool
+    thirdPartyVisibleHint: bool
     openWorldHint: bool
 
 
@@ -749,7 +751,7 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     "browser_ask_human_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=False, is_idempotent=True),
     # explicit mcp_invoke fallback tools — declared for module-load gate transparency
     "browser_execute_script_tool": SafetyMetadata(),
-    "send_teammate_message_tool": SafetyMetadata(),
+    "send_teammate_message_tool": SafetyMetadata(is_third_party_visible=True),
 }
 
 

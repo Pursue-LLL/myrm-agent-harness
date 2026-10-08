@@ -28,6 +28,10 @@ from myrm_agent_harness.toolkits.memory.strategies.hindsight.counterfactual_extr
 from myrm_agent_harness.toolkits.memory.strategies.hindsight.reflection_buffer import (
     HindsightReflectionBuffer,
 )
+from myrm_agent_harness.toolkits.memory.strategies.hindsight.tool import (
+    HindsightWarningInspectInput,
+    create_hindsight_reflection_tool,
+)
 from myrm_agent_harness.toolkits.memory.strategies.hindsight.trajectory_scrubber import (
     FailureTrajectoryScrubber,
 )
@@ -46,6 +50,8 @@ __all__ = [
     "FailureTurn",
     "HindsightReflectionBuffer",
     "HindsightRule",
+    "HindsightWarningInspectInput",
     "PreExecutionWarning",
     "ReflectionBufferConfig",
+    "create_hindsight_reflection_tool",
 ]

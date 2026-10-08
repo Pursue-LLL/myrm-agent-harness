@@ -2,7 +2,7 @@
 
 ## 概述
 
-双 wheel 闭源分发的 **运行时安装门禁**：manifest codegen 目标、源码/编译模式探测、platform key 校验、安装后 verify CLI。
+双 wheel 分发的 **运行时安装门禁**：manifest codegen 目标、源码/编译模式探测、platform key 校验、安装后 verify CLI。
 
 归属 `runtime/` 层 — 与 `doctor.py` 并列，回答「这个环境能否跑 Harness / Agent」。
 

@@ -77,9 +77,18 @@ class ScreenDetector:
         return state
 
     def is_locked(self) -> bool:
-        """Return True if the screen is currently locked or asleep."""
+        """Return True when physical desktop use must not proceed.
+
+        UNKNOWN means the native probe failed or is unavailable: treat it like locked
+        so Computer Use refuses rather than operating blind. Headless/CI keeps UNLOCKED
+        via :meth:`get_state` before any probe runs.
+        """
         state = self.get_state()
-        return state in (ScreenLockState.LOCKED, ScreenLockState.SLEEPING)
+        return state in (
+            ScreenLockState.LOCKED,
+            ScreenLockState.SLEEPING,
+            ScreenLockState.UNKNOWN,
+        )
 
     def _probe_native_state(self) -> ScreenLockState:
         """Probe operating system native APIs for session and display status."""
@@ -107,7 +116,7 @@ class ScreenDetector:
 
         session_dict = CGSessionCopyCurrentDictionary()
         if session_dict is None:
-            return ScreenLockState.UNLOCKED
+            return ScreenLockState.UNKNOWN
         # CGSSessionScreenIsLocked is present (and 1) only while the session is locked.
         if session_dict.get("CGSSessionScreenIsLocked", 0) == 1:
             return ScreenLockState.LOCKED

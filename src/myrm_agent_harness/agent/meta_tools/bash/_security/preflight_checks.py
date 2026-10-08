@@ -419,14 +419,12 @@ def _detect_destructive_tokens(segment: str) -> str | None:
     return None
 
 
-def check_destructive_commands(command: str) -> None:
-    """Block destructive commands that irreversibly wipe workspace state.
+def evaluate_high_impact_command(command: str) -> tuple[bool, str | None, str]:
+    """Evaluate whether a shell command constitutes a high-impact irreversible workspace operation.
 
-    Raises:
-        ToolError: If destructive workspace command is detected.
+    Returns:
+        tuple of (is_high_impact, pattern_label, risk_category)
     """
-    from myrm_agent_harness.utils.errors import ToolError
-
     candidates = [command]
     if payload := extract_shell_c_payload(command):
         candidates.append(payload)
@@ -437,49 +435,50 @@ def check_destructive_commands(command: str) -> None:
         # 1. Fast regex scan
         for pattern, pattern_label in _DESTRUCTIVE_COMMAND_PATTERNS:
             if pattern.search(sanitized):
-                logger.warning(
-                    "Destructive workspace command blocked (regex): %s in %s",
-                    pattern_label,
-                    command[:100],
-                )
-                raise ToolError(
-                    f"Command blocked (destructive workspace command): Detected '{pattern_label}' in command '{command.strip()}'. "
-                    "Destructive commands that permanently discard uncommitted changes or wipe workspace files are prohibited. "
-                    "If the user explicitly requested resetting the workspace, please ask the user for confirmation.",
-                    user_hint=(
-                        f"Destructive command '{pattern_label}' is prohibited to protect uncommitted changes. "
-                        "Inspect errors and resolve issues without wiping the workspace. "
-                        "If you need to discard changes in a specific file, use git checkout -- <file> or target the specific file."
-                    ),
-                    diagnostic_info={
-                        "destructive_command_prohibited": True,
-                        "command_label": pattern_label,
-                    },
-                )
+                category = "WORKSPACE_PURGE" if "rm -rf" in pattern_label else "UNCOMMITTED_RESET"
+                return True, pattern_label, category
 
         # 2. Token-based semantic scan for displaced flags and permutations
         segments = re.split(r"[;&|\n]+", sanitized)
         for segment in segments:
             if detected := _detect_destructive_tokens(segment):
-                logger.warning(
-                    "Destructive workspace command blocked (semantic): %s in %s",
-                    detected,
-                    command[:100],
-                )
-                raise ToolError(
-                    f"Command blocked (destructive workspace command): Detected '{detected}' in command '{command.strip()}'. "
-                    "Destructive commands that permanently discard uncommitted changes or wipe workspace files are prohibited. "
-                    "If the user explicitly requested resetting the workspace, please ask the user for confirmation.",
-                    user_hint=(
-                        f"Destructive command '{detected}' is prohibited to protect uncommitted changes. "
-                        "Inspect errors and resolve issues without wiping the workspace. "
-                        "If you need to discard changes in a specific file, use git checkout -- <file> or target the specific file."
-                    ),
-                    diagnostic_info={
-                        "destructive_command_prohibited": True,
-                        "command_label": detected,
-                    },
-                )
+                category = "WORKSPACE_PURGE" if "rm -rf" in detected else "UNCOMMITTED_RESET"
+                return True, detected, category
+
+    return False, None, "SAFE"
+
+
+def check_destructive_commands(command: str) -> None:
+    """Block destructive commands that irreversibly wipe workspace state.
+
+    Raises:
+        ToolError: If destructive workspace command is detected.
+    """
+    from myrm_agent_harness.utils.errors import ToolError
+
+    is_high_impact, detected_label, category = evaluate_high_impact_command(command)
+    if is_high_impact and detected_label:
+        logger.warning(
+            "Destructive workspace command blocked (%s): %s in %s",
+            category,
+            detected_label,
+            command[:100],
+        )
+        raise ToolError(
+            f"Command blocked (destructive workspace command): Detected '{detected_label}' in command '{command.strip()}'. "
+            "Destructive commands that permanently discard uncommitted changes or wipe workspace files are prohibited. "
+            "If the user explicitly requested resetting the workspace, please ask the user for confirmation.",
+            user_hint=(
+                f"Destructive command '{detected_label}' is prohibited to protect uncommitted changes. "
+                "Inspect errors and resolve issues without wiping the workspace. "
+                "If you need to discard changes in a specific file, use git checkout -- <file> or target the specific file."
+            ),
+            diagnostic_info={
+                "destructive_command_prohibited": True,
+                "command_label": detected_label,
+                "risk_category": category,
+            },
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -20,7 +20,7 @@ def test_completed_response_maps_tool_calls() -> None:
                 "type": "function_call",
                 "call_id": "call_abc",
                 "name": "web_search",
-                "arguments": "{\"q\":\"ai\"}",
+                "arguments": '{"q":"ai"}',
             }
         ]
     }
@@ -76,13 +76,13 @@ def test_function_call_arguments_delta_chunk() -> None:
         {
             "type": "response.function_call_arguments.delta",
             "call_id": "call_abc",
-            "delta": "{\"q\":",
+            "delta": '{"q":',
         }
     )
     assert chunk is not None
     tool_calls = chunk["choices"][0]["delta"]["tool_calls"]
     assert tool_calls[0]["id"] == "call_abc"
-    assert tool_calls[0]["function"]["arguments"] == "{\"q\":"
+    assert tool_calls[0]["function"]["arguments"] == '{"q":'
 
 
 def test_response_completed_with_tool_calls() -> None:
@@ -336,4 +336,3 @@ def test_reasoning_summary_delta_event_maps_to_delta_reasoning_content() -> None
     )
     assert chunk is not None
     assert chunk["choices"][0]["delta"]["reasoning_content"] == "thought chunk "
-

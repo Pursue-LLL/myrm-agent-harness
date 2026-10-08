@@ -91,12 +91,15 @@ class _McpSession:
             EnvInheritPolicy,
             build_isolated_child_env,
         )
+        from myrm_agent_harness.toolkits.computer_use.backends.cua_driver_spawn import (
+            mcp_stdio_args,
+        )
 
         stack = AsyncExitStack()
         isolated_env = build_isolated_child_env(inherit_policy=EnvInheritPolicy.CORE)
         params = StdioServerParameters(
             command=_CUA_DRIVER_CMD,
-            args=["mcp"],
+            args=mcp_stdio_args(_CUA_DRIVER_CMD),
             env=isolated_env,
         )
         read, write = await stack.enter_async_context(stdio_client(params))

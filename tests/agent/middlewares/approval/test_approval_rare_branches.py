@@ -1118,7 +1118,7 @@ async def test_irreversible_social_action_blocks_allowlist_bypass() -> None:
             id="tc_push_1",
         )
     ]
-    auto_approved, auto_denied, pending_approval = await evaluate_tool_batch(
+    auto_approved, _auto_denied, pending_approval = await evaluate_tool_batch(
         tool_calls=tcs,
         config=config,
         is_cron=False,

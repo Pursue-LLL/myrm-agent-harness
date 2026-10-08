@@ -63,7 +63,10 @@ class SqliteFts5Engine:
         """Insert or replace an item in the FTS5 virtual table."""
         created_at = item.created_at or datetime.datetime.now(datetime.UTC).isoformat()
         tags_str = " ".join(item.tags)
-        meta_str = json.dumps(item.metadata, ensure_ascii=False)
+        meta_dict = dict(item.metadata)
+        meta_dict["_importance"] = item.importance
+        meta_dict["_timestamp"] = item.timestamp
+        meta_str = json.dumps(meta_dict, ensure_ascii=False)
 
         with self._conn:
             # Delete any existing row with the same item_id first to maintain uniqueness
@@ -115,6 +118,9 @@ class SqliteFts5Engine:
         except Exception:
             pass
 
+        importance = float(parsed_meta.pop("_importance", 0.5))
+        timestamp = float(parsed_meta.pop("_timestamp", 0.0))
+
         return HybridMemoryItem(
             item_id=str(row["item_id"]),
             title=str(row["title"]),
@@ -122,6 +128,8 @@ class SqliteFts5Engine:
             tags=tags,
             metadata=parsed_meta,
             created_at=str(row["created_at"]),
+            importance=importance,
+            timestamp=timestamp,
         )
 
     def search_fts(self, match_clause: str, limit: int = 10) -> list[HybridSearchResult]:
@@ -134,7 +142,7 @@ class SqliteFts5Engine:
             # Smaller bm25() score indicates better match in SQLite FTS5 (negative ranking)
             cur = self._conn.execute(
                 """
-                SELECT item_id, title, content, bm25(hybrid_memory_fts, 5.0, 1.0, 2.0) AS score
+                SELECT item_id, title, content, metadata_json, bm25(hybrid_memory_fts, 5.0, 1.0, 2.0) AS score
                 FROM hybrid_memory_fts
                 WHERE hybrid_memory_fts MATCH ?
                 ORDER BY score ASC
@@ -148,6 +156,16 @@ class SqliteFts5Engine:
                 raw_score = float(row["score"])
                 # Invert negative FTS5 BM25 score into positive normalized score
                 normalized_score = round(abs(raw_score) + 1.0, 4)
+                parsed_meta: dict[str, str | int | float | bool] = {}
+                try:
+                    meta_val = json.loads(str(row["metadata_json"]))
+                    if isinstance(meta_val, dict):
+                        parsed_meta = meta_val
+                except Exception:
+                    pass
+                imp = float(parsed_meta.get("_importance", 0.5))
+                ts = float(parsed_meta.get("_timestamp", 0.0))
+
                 results.append(
                     HybridSearchResult(
                         item_id=str(row["item_id"]),
@@ -157,6 +175,8 @@ class SqliteFts5Engine:
                         source_channel="fts",
                         rank=rank,
                         matched_terms=[],
+                        importance=imp,
+                        timestamp=ts,
                     )
                 )
             return results

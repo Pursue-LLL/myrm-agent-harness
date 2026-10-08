@@ -55,6 +55,11 @@ if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.config import ConsolidationConfig
     from myrm_agent_harness.toolkits.memory.manager import MemoryManager
     from myrm_agent_harness.toolkits.memory.protocols.vector import FilterDict
+    from myrm_agent_harness.toolkits.memory.strategies.four_layer_promotion import (
+        CapabilityMethod,
+        PromotionDecision,
+        TriChannelPromotionGate,
+    )
     from myrm_agent_harness.toolkits.memory.types import AnyMemory
 
 logger = logging.getLogger(__name__)
@@ -334,6 +339,29 @@ async def _persist_insights(manager: MemoryManager, insights: list[str]) -> None
         logger.info("Persisted %d consolidation insights as implicit preferences", stored)
 
 
+def consolidate_session_events_four_layer(
+    session_id: str,
+    events: list[dict[str, str | bool]],
+    *,
+    exposure_source_untrusted: bool = False,
+    gate: TriChannelPromotionGate | None = None,
+) -> tuple[list[CapabilityMethod], list[PromotionDecision]]:
+    """Execute four-layer Map-Reduce consolidation and tri-channel code assertion promotion.
+
+    Bridges Agent session event streams with Hermes-grade four-layer progressive memory,
+    strictly screening external untrusted sources and requiring hard evidence.
+    """
+    from myrm_agent_harness.toolkits.memory.strategies.four_layer_promotion import (
+        ExposureSource,
+        TwoStepMapReduceConsolidationEngine,
+    )
+
+    source = ExposureSource.EXTERNAL_UNTRUSTED if exposure_source_untrusted else ExposureSource.INTERNAL_CHAT
+    engine = TwoStepMapReduceConsolidationEngine(gate=gate)
+    candidates = engine.map_session(session_id, events, exposure_source=source)
+    return engine.reduce_cross_session(candidates)
+
+
 __all__ = [
     "ConflictCallback",
     "ConflictContext",
@@ -351,6 +379,7 @@ __all__ = [
     "_build_user_prompt",
     "_execute_operations",
     "_record_consolidation_event",
+    "consolidate_session_events_four_layer",
     "execute_operations",
     "filter_and_guard_operations",
     "get_last_consolidated_at",

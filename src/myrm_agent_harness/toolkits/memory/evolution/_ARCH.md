@@ -15,7 +15,10 @@ Order-Invariant Memory Evolution & Causal Experience Gene Ledger: temporal order
 | `governor.py` | Core | Confidence Decay Governor and Dual-Blind Conflict Arbitration Engine. | ✅ |
 | `models.py` | Types | Data models for Order-Invariant Memory Evolution and Decay Engine. | ✅ |
 | `snapshot.py` | Core | Lineage snapshot and rollback engine for evolving memory rules. | ✅ |
+| `tool.py` | Tool | Agent-facing LangChain tool for querying causal experience gene advice and dead-end avoidance. | ✅ |
 
 ## Key Dependencies
 
-- External libraries: `pydantic`
+- `langchain_core`: BaseTool and tool decorators
+- `pydantic`: Schema validation
+

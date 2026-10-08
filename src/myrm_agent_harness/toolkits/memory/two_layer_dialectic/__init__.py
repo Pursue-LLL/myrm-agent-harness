@@ -1,34 +1,59 @@
-# [POS]: myrm_agent_harness.toolkits.memory.two_layer_dialectic
-# [INPUT]: .models, .reconciler, .injector
-# [OUTPUT]: Two-Layer Context Injection & Multi-Pass Dialectic Reconciliation Suite symbols
+"""
+[INPUT]
+models.py, base_context_engine.py, dialectic_engine.py, orchestrator.py
 
-"""Two-Layer Context Injection and Multi-Pass Dialectic Reconciliation Suite.
+[OUTPUT]
+Unified public exports for TwoLayerContextInjectionAndMultiPassDialecticReconciliationSuite.
 
-P0/P1 delivery for Item 112 in topic_01 memory roadmap.
+[POS]
+Package facade for Item 112 in Harness framework.
+Strict typing applied: No `Any` types allowed. Single file < 90 lines.
 """
 
-from myrm_agent_harness.toolkits.memory.two_layer_dialectic.injector import (
-    TwoLayerContextInjector,
+from myrm_agent_harness.toolkits.memory.two_layer_dialectic.base_context_engine import (
+    BaseContextEngine,
+)
+from myrm_agent_harness.toolkits.memory.two_layer_dialectic.dialectic_engine import (
+    DialecticReconciliationEngine,
 )
 from myrm_agent_harness.toolkits.memory.two_layer_dialectic.models import (
-    BaseContextPayload,
-    DialecticConflictCandidate,
-    DialecticPassKind,
-    DialecticReconciliationConfig,
+    BaseContextBundle,
+    ConflictItem,
+    DialecticCadenceConfig,
+    DialecticPassRecord,
+    DialecticReasoningLevel,
     DialecticReconciliationResult,
-    TwoLayerContextInjectionResult,
 )
-from myrm_agent_harness.toolkits.memory.two_layer_dialectic.reconciler import (
-    MultiPassDialecticReconciler,
+from myrm_agent_harness.toolkits.memory.two_layer_dialectic.orchestrator import (
+    TwoLayerDialecticOrchestrator,
+    TwoLayerInvocationPayload,
 )
 
+# Standard alias bindings for canonical alignment
+BaseContextPayload = BaseContextBundle
+DialecticConflictCandidate = ConflictItem
+DialecticPassKind = DialecticReasoningLevel
+DialecticReconciliationConfig = DialecticCadenceConfig
+MultiPassDialecticReconciler = DialecticReconciliationEngine
+TwoLayerContextInjectionResult = TwoLayerInvocationPayload
+TwoLayerContextInjector = TwoLayerDialecticOrchestrator
+
 __all__ = [
+    "BaseContextBundle",
+    "BaseContextEngine",
     "BaseContextPayload",
+    "ConflictItem",
+    "DialecticCadenceConfig",
     "DialecticConflictCandidate",
     "DialecticPassKind",
+    "DialecticPassRecord",
+    "DialecticReasoningLevel",
     "DialecticReconciliationConfig",
+    "DialecticReconciliationEngine",
     "DialecticReconciliationResult",
     "MultiPassDialecticReconciler",
     "TwoLayerContextInjectionResult",
     "TwoLayerContextInjector",
+    "TwoLayerDialecticOrchestrator",
+    "TwoLayerInvocationPayload",
 ]

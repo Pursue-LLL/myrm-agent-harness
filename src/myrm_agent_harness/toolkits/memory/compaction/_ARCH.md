@@ -10,8 +10,11 @@ Token-Budget-Aware Codebase Semantic Memory Compaction Engine: AST-based and reg
 | `__init__.py` | Package | Token-Budget-Aware Codebase Semantic Memory Compaction Engine. | ✅ |
 | `ast_skeleton.py` | Core | AST-based and regex-fallback code skeleton extractor for multi-tier compression. | ✅ |
 | `budget_compactor.py` | Core | Token-budget-aware dynamic compaction engine for codebase semantic memories. | ✅ |
+| `tool.py` | Tool | Agent-facing LangChain tool for token-budget-aware code memory compaction. | ✅ |
 | `types.py` | Types | Type definitions and contracts for Token-Budget-Aware Code Memory Compaction. | ✅ |
 
 ## Key Dependencies
 
-- None (self-contained within the package and the standard library)
+- `langchain_core`: BaseTool and tool decorators
+- `pydantic`: Schema validation
+

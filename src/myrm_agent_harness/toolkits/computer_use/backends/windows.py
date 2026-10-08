@@ -14,6 +14,13 @@ import asyncio
 import ctypes
 import logging
 
+from myrm_agent_harness.toolkits.computer_use.backends.windows_background import (
+    _capture_screen_excluding_titles,
+    _lowest_overlay_hwnd,
+)
+from myrm_agent_harness.toolkits.computer_use.capture_title_contracts import (
+    SNAPSHOT_ONLY_EXCLUDED_CAPTURE_TITLES,
+)
 from myrm_agent_harness.toolkits.computer_use.types import (
     ActionResult,
     ModifierKey,
@@ -24,6 +31,12 @@ from myrm_agent_harness.toolkits.computer_use.types import (
 )
 
 logger = logging.getLogger(__name__)
+
+_POINTER_OCCLUDED_ERROR = (
+    "Safety: A screen overlay is covering the desktop, so coordinate-based pointer input "
+    "would land on the overlay instead of the target app.\n"
+    "[REMEDY_HINT: Use desktop_interact_tool with an @dref element, or keyboard actions, instead.]"
+)
 
 _MODIFIER_TO_PYAUTOGUI: dict[ModifierKey, str] = {
     "ctrl": "ctrl",
@@ -38,11 +51,37 @@ class WindowsBackend:
 
     def __init__(self) -> None:
         self._screen_info: ScreenInfo | None = None
+        self._excluded_capture_titles: frozenset[str] = frozenset()
+
+    def set_excluded_capture_window_titles(self, titles: list[str]) -> None:
+        """Inject top-level window titles for privacy curtain pointer guard + capture routing."""
+        self._excluded_capture_titles = frozenset(titles)
+
+    def _fullscreen_screenshot_exclusion_titles(self) -> frozenset[str]:
+        return self._excluded_capture_titles | SNAPSHOT_ONLY_EXCLUDED_CAPTURE_TITLES
+
+    def _pointer_occluded(self) -> ActionResult | None:
+        if not self._excluded_capture_titles:
+            return None
+        if _lowest_overlay_hwnd(self._excluded_capture_titles) is None:
+            return None
+        return ActionResult(success=False, error=_POINTER_OCCLUDED_ERROR)
 
     async def screenshot(self, app_name: str | None = None, window_index: int = 0) -> bytes:
         """Capture primary monitor as PNG bytes using mss."""
         if app_name:
             raise RuntimeError("window-targeted capture is not supported on Windows; use scope='foreground'")
+
+        capture_titles = self._fullscreen_screenshot_exclusion_titles()
+        if capture_titles:
+
+            def _maybe_excluded() -> bytes | None:
+                return _capture_screen_excluding_titles(capture_titles)
+
+            excluded = await asyncio.to_thread(_maybe_excluded)
+            if excluded is not None:
+                return excluded
+
         import mss
         import mss.tools
 
@@ -62,6 +101,8 @@ class WindowsBackend:
         clicks: int = 1,
         modifiers: list[ModifierKey] | None = None,
     ) -> ActionResult:
+        if (occluded := self._pointer_occluded()) is not None:
+            return occluded
         import pyautogui
 
         pyautogui_keys = [_MODIFIER_TO_PYAUTOGUI[m] for m in modifiers] if modifiers else []
@@ -152,6 +193,8 @@ class WindowsBackend:
             return ActionResult(success=False, error=str(e))
 
     async def mouse_move(self, x: int, y: int) -> ActionResult:
+        if (occluded := self._pointer_occluded()) is not None:
+            return occluded
         import pyautogui
 
         try:
@@ -168,6 +211,8 @@ class WindowsBackend:
         amount: int = 3,
         modifiers: list[ModifierKey] | None = None,
     ) -> ActionResult:
+        if (occluded := self._pointer_occluded()) is not None:
+            return occluded
         import pyautogui
 
         pyautogui_keys = [_MODIFIER_TO_PYAUTOGUI[m] for m in modifiers] if modifiers else []
@@ -197,6 +242,8 @@ class WindowsBackend:
         end_y: int,
         modifiers: list[ModifierKey] | None = None,
     ) -> ActionResult:
+        if (occluded := self._pointer_occluded()) is not None:
+            return occluded
         import pyautogui
 
         pyautogui_keys = [_MODIFIER_TO_PYAUTOGUI[m] for m in modifiers] if modifiers else []

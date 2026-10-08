@@ -11,6 +11,7 @@ Hindsight Experience Replay and Retrospective Reflection Buffer package.
 | `counterfactual_extractor.py` | Core | Counterfactual rule extractor deriving actionable hindsight lessons from failure trajectories. | ✅ |
 | `reflection_buffer.py` | Core | Retrospective reflection buffer storing rules and injecting proactive pre-execution warnings. | ✅ |
 | `trajectory_scrubber.py` | Core | Scrubber for failed task trajectories, extracting critical turns and error turning points. | ✅ |
+| `tool.py` | Agent Tool | Agent-facing LangChain tool for inspecting hindsight failure lessons and pre-execution warnings. | ✅ |
 | `types.py` | Types | Type definitions and contracts for Hindsight Experience Replay and Reflection Buffer. | ✅ |
 
 ## Key Dependencies

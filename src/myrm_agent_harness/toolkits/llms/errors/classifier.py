@@ -16,6 +16,7 @@ identify specific local/remote edge cases.
 - normalize_provider_error: function — normalize_provider_error
 - classify_error: Classify an LLM exception into an ``ErrorKind`` using mul...
 - classify_failover_reason: Classify an LLM exception into a ``FailoverReason`` using...
+- is_quota_exhausted: Detect irreversible quota/credit exhaustion errors for instant failover...
 
 [POS]
 LLM error classifier for failover decisions.
@@ -432,14 +433,35 @@ def normalize_provider_error(error: Exception) -> NormalizedError:
     status_code = _extract_status_code(error)
     body = _extract_error_body(error)
 
-    # Extract deeply nested message
+    # Extract deeply nested message, structured error codes, and types
     _raw_msg = str(error).lower()
     _body_msg = ""
+    _codes: list[str] = []
+    _types: list[str] = []
     _metadata_msg = ""
+
+    # Direct exception attributes from client SDKs (OpenAI, Anthropic, LiteLLM)
+    direct_code = getattr(error, "code", None)
+    if direct_code is not None and not callable(direct_code):
+        _codes.append(str(direct_code).lower())
+    direct_type = getattr(error, "type", None)
+    if direct_type is not None and not callable(direct_type):
+        _types.append(str(direct_type).lower())
+
     if isinstance(body, dict):
+        if "code" in body and body["code"]:
+            _codes.append(str(body["code"]).lower())
+        if "type" in body and body["type"]:
+            _types.append(str(body["type"]).lower())
+
         _err_obj = body.get("error", {})
         if isinstance(_err_obj, dict):
             _body_msg = str(_err_obj.get("message") or "").lower()
+            if "code" in _err_obj and _err_obj["code"]:
+                _codes.append(str(_err_obj["code"]).lower())
+            if "type" in _err_obj and _err_obj["type"]:
+                _types.append(str(_err_obj["type"]).lower())
+
             _metadata = _err_obj.get("metadata", {})
             if isinstance(_metadata, dict):
                 _raw_json = _metadata.get("raw") or ""
@@ -450,6 +472,10 @@ def normalize_provider_error(error: Exception) -> NormalizedError:
                             _inner_err = _inner.get("error", {})
                             if isinstance(_inner_err, dict):
                                 _metadata_msg = str(_inner_err.get("message") or "").lower()
+                                if "code" in _inner_err and _inner_err["code"]:
+                                    _codes.append(str(_inner_err["code"]).lower())
+                                if "type" in _inner_err and _inner_err["type"]:
+                                    _types.append(str(_inner_err["type"]).lower())
                     except (json.JSONDecodeError, TypeError):
                         pass
 
@@ -465,7 +491,11 @@ def normalize_provider_error(error: Exception) -> NormalizedError:
             if isinstance(content_attr, (bytes, bytearray)):
                 _resp_text = content_attr[:2000].decode("utf-8", errors="ignore").lower()
 
-    combined_message = f"{_raw_msg} | {_body_msg} | {_metadata_msg} | {_resp_text}"
+    _codes_str = " ".join(_codes)
+    _types_str = " ".join(_types)
+    combined_message = (
+        f"{_raw_msg} | {_body_msg} | {_codes_str} | {_types_str} | {_metadata_msg} | {_resp_text}"
+    )
     return NormalizedError(status_code=status_code, message=combined_message, body=body)
 
 
@@ -518,8 +548,8 @@ def classify_failover_reason(exc: Exception) -> FailoverReason:
     if normalized.status_code == 429 and _LONG_CONTEXT_TIER_RE.search(msg):
         return FailoverReason.LONG_CONTEXT_TIER
 
-    # 1. Billing (highest priority to avoid retry loops)
-    if _BILLING_RE.search(msg):
+    # 1. Billing & Quota Exhaustion (highest priority to avoid retry loops)
+    if _BILLING_RE.search(msg) or _QUOTA_EXHAUSTED_RE.search(msg):
         return FailoverReason.BILLING
 
     # 2. Rate Limit
@@ -634,6 +664,37 @@ def is_payload_overflow(exc: Exception) -> bool:
         return True
     reason = classify_failover_reason(exc)
     return reason == FailoverReason.IMAGE_TOO_LARGE
+
+
+_QUOTA_EXHAUSTED_RE = re.compile(
+    r"insufficient_quota"
+    r"|quota_exceeded"
+    r"|exceeded your current quota"
+    r"|exceeded your quota"
+    r"|check your plan and billing details"
+    r"|free tier limit exceeded"
+    r"|daily limit exceeded"
+    r"|per-day limit"
+    r"|requests per day.*exhausted"
+    r"|usage limit reached"
+    r"|额度用尽|额度耗尽|账户欠费|超出每日限额",
+    re.IGNORECASE,
+)
+
+
+def is_quota_exhausted(exc: Exception) -> bool:
+    """Return ``True`` if *exc* signals non-transient quota exhaustion or zero balance.
+
+    Unlike momentary rate limits (e.g. RPM/TPM bursts that recover within seconds),
+    quota exhaustion (daily quota, prepaid credit depleted, plan limits) cannot be
+    resolved by short-interval transient retries.
+    """
+    normalized = normalize_provider_error(exc)
+    msg = normalized.message
+    if _QUOTA_EXHAUSTED_RE.search(msg):
+        return True
+    reason = classify_failover_reason(exc)
+    return reason == FailoverReason.BILLING
 
 
 def extract_retry_after(exc: Exception) -> float | None:

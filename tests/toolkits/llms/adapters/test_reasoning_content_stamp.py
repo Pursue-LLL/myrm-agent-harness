@@ -233,4 +233,3 @@ class TestOutboundWireReasoningGate:
         message_dicts, _ = model._create_message_dicts(messages, stop=None)
         assistant_dict = next(m for m in message_dicts if m["role"] == "assistant")
         assert assistant_dict.get("responses_reasoning_items") == reasoning_blob
-

@@ -68,7 +68,7 @@ Agent core module — public API for BaseAgent / SkillAgent runtime.
 |------|------|-------------|-------|
 | `__init__.py` | Package | Agent core module — public API. | — |
 | `base_agent.py` | Core | Base Agent — streaming, token tracking, artifacts. | ✅ |
-| `types.py` | Config | AgentRuntimeSpec, EngineParams, run statistics. | ✅ |
+| `types.py` | Config | AgentRuntimeSpec, EngineParams, run statistics; `map_to_completion_status` maps raw finish reasons (plus the dropped-stream sentinel) to `CompletionStatus`. | ✅ |
 
 | Submodule | Description | L2 Doc |
 |-----------|-------------|--------|

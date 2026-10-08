@@ -635,7 +635,12 @@ async def run_agent_loop(
 
             restore_notice = drain_restore_notifications()
             if restore_notice:
-                messages.append(HumanMessage(content=restore_notice))
+                messages.append(
+                    HumanMessage(
+                        content=restore_notice,
+                        additional_kwargs={"is_system_synthetic": True},
+                    )
+                )
                 logger.info(
                     " Injected file-restore notification (%d chars)",
                     len(restore_notice),
@@ -643,7 +648,12 @@ async def run_agent_loop(
 
             stale_notifications = agent_state._subagent_manager.drain_notifications()
             if stale_notifications:
-                messages.append(HumanMessage(content=stale_notifications))
+                messages.append(
+                    HumanMessage(
+                        content=stale_notifications,
+                        additional_kwargs={"is_system_synthetic": True},
+                    )
+                )
                 logger.info(
                     " Injected %d char of stale subagent notification(s)",
                     len(stale_notifications),
@@ -651,7 +661,12 @@ async def run_agent_loop(
 
             active_ctx = format_active_subagent_context(agent_state._subagent_manager.list_children())
             if active_ctx:
-                messages.append(HumanMessage(content=active_ctx))
+                messages.append(
+                    HumanMessage(
+                        content=active_ctx,
+                        additional_kwargs={"is_system_synthetic": True},
+                    )
+                )
                 logger.info(
                     " Injected active subagent context (%d chars)",
                     len(active_ctx),
@@ -664,7 +679,12 @@ async def run_agent_loop(
 
             wb_text = LocalWorkingMemoryBlock.format_turn_tail_markdown()
             if wb_text:
-                messages.append(HumanMessage(content=wb_text))
+                messages.append(
+                    HumanMessage(
+                        content=wb_text,
+                        additional_kwargs={"is_system_synthetic": True},
+                    )
+                )
                 LocalWorkingMemoryBlock.advance_turn()
                 logger.info(" Injected working memory board at turn tail (%d chars)", len(wb_text))
 

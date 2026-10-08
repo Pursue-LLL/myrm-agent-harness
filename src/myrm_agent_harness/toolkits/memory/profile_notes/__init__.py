@@ -17,6 +17,11 @@ from __future__ import annotations
 from myrm_agent_harness.toolkits.memory.profile_notes.garbage_filter import (
     MemoryIntakeGarbageFilter,
 )
+from myrm_agent_harness.toolkits.memory.profile_notes.intake_gate import (
+    check_memory_not_garbage,
+    filter_intake_garbage,
+    format_profile_notes_prompt_section,
+)
 from myrm_agent_harness.toolkits.memory.profile_notes.types import (
     GarbageCategory,
     IntakeDecision,
@@ -40,4 +45,7 @@ __all__ = [
     "MemoryLayerType",
     "WatermarkLevel",
     "WatermarkStatus",
+    "check_memory_not_garbage",
+    "filter_intake_garbage",
+    "format_profile_notes_prompt_section",
 ]

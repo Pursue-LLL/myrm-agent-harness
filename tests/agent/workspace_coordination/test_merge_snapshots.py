@@ -87,7 +87,18 @@ def test_build_merge_snapshot_context_prefers_parent_chat_id() -> None:
 
 
 def test_build_merge_snapshot_context_missing_message_returns_none() -> None:
-    assert build_merge_snapshot_context(session_id="chat_x") is None
+    import contextvars
+
+    from myrm_agent_harness.agent.meta_tools.file_ops.observers.snapshot_observer import _current_message_id
+    from myrm_agent_harness.agent.middlewares._session_context import _active_message_id_var
+
+    def resolve_without_bound_message() -> MergeSnapshotContext | None:
+        # Isolated context: whatever earlier tests bound in this process cannot supply a message id.
+        _current_message_id.set(None)
+        _active_message_id_var.set(None)
+        return build_merge_snapshot_context(session_id="chat_x")
+
+    assert contextvars.copy_context().run(resolve_without_bound_message) is None
 
 
 @pytest.mark.asyncio

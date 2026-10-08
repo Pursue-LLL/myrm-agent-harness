@@ -31,6 +31,12 @@ from enum import StrEnum
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
+from myrm_agent_harness.core.security.vnc_hardening import (
+    VncBindMode,
+    VncLaunchConfig,
+    VncLoopbackBindAndRfbauthHardeningFacade,
+)
+
 logger = logging.getLogger(__name__)
 
 _VNC_PORT = 5900
@@ -226,22 +232,14 @@ class VncServer:
             raise RuntimeError("Failed to create VNC password file")
 
     async def _start_x11vnc(self) -> None:
-        cmd = [
-            "x11vnc",
-            "-display",
-            f":{self._display_num}",
-            "-rfbport",
-            str(self.vnc_port),
-            "-rfbauth",
-            str(self._passwd_file),
-            "-shared",
-            "-forever",
-            "-noxdamage",
-            "-cursor",
-            "arrow",
-            "-nopw",
-            "-quiet",
-        ]
+        config = VncLaunchConfig(
+            display_num=self._display_num,
+            vnc_port=self.vnc_port,
+            passwd_file=str(self._passwd_file),
+            bind_mode=VncBindMode.LOOPBACK,
+        )
+        spec = VncLoopbackBindAndRfbauthHardeningFacade().sanitize_launch_config(config)
+        cmd = spec.command_args
         self._x11vnc_proc = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.DEVNULL,

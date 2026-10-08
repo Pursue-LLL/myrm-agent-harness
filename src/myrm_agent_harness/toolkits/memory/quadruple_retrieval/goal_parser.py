@@ -215,6 +215,7 @@ class TaskGoalParser:
         stopwords = {
             "关于", "讨论", "上周", "昨天", "一下", "请问", "我们", "你们",
             "这个", "那个", "怎么", "什么", "因为", "所以", "如果", "查一下", "帮我",
+            "检索", "查询", "相关", "的", "与", "和", "及", "在", "中",
             "the", "and", "about", "what", "with", "from", "that", "this",
         }
         return word.strip().lower() in stopwords

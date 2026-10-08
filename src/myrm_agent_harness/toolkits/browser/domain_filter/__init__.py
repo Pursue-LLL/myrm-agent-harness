@@ -54,9 +54,16 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 if TYPE_CHECKING:
-    from patchright.async_api import BrowserContext, Page, Route
+    from patchright.async_api import BrowserContext, Page
 
     from myrm_agent_harness.toolkits.browser.pool.config import ResourceBlockConfig
+
+from myrm_agent_harness.toolkits.browser.domain_filter.http_filter import (
+    _RESOURCE_TYPE_MAP,
+)
+from myrm_agent_harness.toolkits.browser.domain_filter.http_filter import (
+    install_http_filter as _install_http_filter,
+)
 
 # Strong references to fire-and-forget CDP audit tasks. Without a reference the
 # task can be garbage-collected mid-flight (e.g. when the event loop closes
@@ -368,109 +375,6 @@ async def _install_csp_policy(context: BrowserContext, allowlist: DomainAllowlis
 # Layer 1: Protocol interception
 # ---------------------------------------------------------------------------
 
-
-_RESOURCE_TYPE_MAP: dict[str, str] = {
-    "image": "block_images",
-    "stylesheet": "block_stylesheets",
-    "script": "block_scripts",
-    "font": "block_fonts",
-    "media": "block_media",
-}
-
-
-async def _continue_route_safely(route: Route) -> None:
-    """Continue route; ignore duplicate handling when page+context handlers overlap.
-
-    Uses ``route.fallback()`` instead of ``route.continue_()`` so the request
-    flows through any subsequent route handlers. patchright installs an inject
-    route (via ``add_init_script``) that must see document requests to inject
-    init scripts (DOM enhancer, localStorage restore, stealth). ``continue_()``
-    would terminate the chain and silently disable all init scripts.
-    """
-    try:
-        await route.fallback()
-    except Exception as exc:
-        if "Route is already handled" in str(exc):
-            return
-        raise
-
-
-async def _abort_route_safely(route: Route, *, error_code: str = "blockedbyclient") -> None:
-    try:
-        await route.abort(error_code)
-    except Exception as exc:
-        if "Route is already handled" in str(exc):
-            return
-        raise
-
-
-def _is_ad_domain(hostname: str, blocklist: frozenset[str]) -> bool:
-    """Check if hostname matches any blocked ad domain via suffix walking.
-
-    Walks up the hostname's suffix chain with O(1) frozenset lookups per level:
-    e.g. "tracker.ads.doubleclick.net" checks "tracker.ads.doubleclick.net",
-    then "ads.doubleclick.net", then "doubleclick.net".
-    """
-    if hostname in blocklist:
-        return True
-    idx = hostname.find(".")
-    while idx != -1:
-        suffix = hostname[idx + 1 :]
-        if "." in suffix and suffix in blocklist:
-            return True
-        idx = hostname.find(".", idx + 1)
-    return False
-
-
-async def _install_http_filter(
-    context: BrowserContext,
-    allowlist: DomainAllowlist,
-    resource_block: ResourceBlockConfig | None = None,
-    ad_blocklist: frozenset[str] | None = None,
-    domain_blocklist: DomainBlocklist | None = None,
-) -> None:
-    """Block HTTP/HTTPS requests to non-allowed domains, ad domains, and unwanted resource types via context.route.
-
-    Filtering order (security-first):
-    1. Ad/tracker domain blocklist (performance + anti-fingerprinting)
-    2. Domain allowlist validation (security)
-    3. Resource type filtering (performance optimization)
-    """
-
-    async def _handler(route: Route) -> None:
-        url = route.request.url
-        resource_type: str = route.request.resource_type
-
-        if not url.startswith(("http://", "https://")):
-            if resource_type == "document":
-                await _abort_route_safely(route)
-            else:
-                await _continue_route_safely(route)
-            return
-
-        hostname = urlparse(url).hostname or ""
-
-        if ad_blocklist and _is_ad_domain(hostname, ad_blocklist):
-            await _abort_route_safely(route)
-            return
-
-        if domain_blocklist and not domain_blocklist.is_empty and domain_blocklist.is_blocked(hostname):
-            await _abort_route_safely(route)
-            return
-
-        if not allowlist.is_empty and not allowlist.is_allowed(hostname):
-            await _abort_route_safely(route)
-            return
-
-        if resource_block:
-            attr_name = _RESOURCE_TYPE_MAP.get(resource_type)
-            if attr_name and getattr(resource_block, attr_name):
-                await _abort_route_safely(route)
-                return
-
-        await _continue_route_safely(route)
-
-    await context.route("**/*", _handler)
 
 
 # ---------------------------------------------------------------------------

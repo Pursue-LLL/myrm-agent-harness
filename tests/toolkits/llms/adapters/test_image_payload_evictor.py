@@ -150,9 +150,7 @@ class TestDictFastPath:
     def test_force_shrink_below_budget_still_compacts(self) -> None:
         part = _openai_image_part(_noise_data_url())
         messages = [{"role": "user", "content": [part]}]
-        modified = emergency_evict_from_message_dicts(
-            messages, target_bytes=10 * 1024 * 1024, force_shrink=True
-        )
+        modified = emergency_evict_from_message_dicts(messages, target_bytes=10 * 1024 * 1024, force_shrink=True)
         assert modified >= 1
 
 
@@ -190,8 +188,6 @@ class TestHelpers:
         img.save(buf, format="PNG")
         url = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
         assert _downsample_base64_image(url) is not None
-
-
 
     def test_replace_rejects_unknown_shape(self) -> None:
         from myrm_agent_harness.toolkits.llms.adapters.image_payload_evictor import (

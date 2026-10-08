@@ -59,6 +59,8 @@ class BwrapProvider:
             # Zero-Trust Mounts: don't map the entire host /
             "--dir",
             "/",
+            "--remount-ro",
+            "/",
             "--ro-bind",
             "/bin",
             "/bin",

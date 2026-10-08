@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 
 class MigrationSourceType(StrEnum):
@@ -57,24 +57,34 @@ class MigrationSecurityPolicy(BaseModel):
 class ExtractedMemoryUnit(BaseModel):
     """A canonical extracted memory fact or entry categorized into cognitive layers."""
 
-    source_type: MigrationSourceType = Field(description="Origin platform ecosystem")
+    source_type: MigrationSourceType = Field(
+        validation_alias=AliasChoices("source_type", "source_kind"),
+        description="Origin platform ecosystem",
+    )
     source_id: str = Field(description="Unique entry or line pointer identifier in origin file")
-    raw_snippet: str = Field(description="Raw source text before cleansing")
-    normalized_text: str = Field(description="Cleansed, readable memory fact text")
+    raw_snippet: str = Field(
+        default="",
+        validation_alias=AliasChoices("raw_snippet", "raw_content"),
+        description="Raw source text before cleansing",
+    )
+    normalized_text: str = Field(
+        validation_alias=AliasChoices("normalized_text", "normalized_content"),
+        description="Cleansed, readable memory fact text",
+    )
     layer: str = Field(
         default="semantic",
+        validation_alias=AliasChoices("layer", "layer_recommendation"),
         description="Assigned cognitive layer: profile, semantic, procedural, or episodic",
     )
     tags: list[str] = Field(default_factory=list, description="Extracted category or topic tags")
     content_hash: str = Field(description="Deterministic SHA-256 fingerprint for deduplication")
     provenance: dict[str, str] = Field(
-        default_factory=dict, description="Audit provenance key-value pairs"
+        default_factory=dict,
+        validation_alias=AliasChoices("provenance", "provenance_meta"),
+        description="Audit provenance key-value pairs",
     )
 
-
-# Alias for existing code consuming NormalizedMemoryPayload
-class NormalizedMemoryPayload(ExtractedMemoryUnit):
-    """Backward compatible alias exposing source_kind and layer_recommendation."""
+    model_config = {"populate_by_name": True}
 
     @property
     def source_kind(self) -> MigrationSourceType:
@@ -97,6 +107,10 @@ class NormalizedMemoryPayload(ExtractedMemoryUnit):
         return self.provenance
 
 
+# Alias for existing code consuming NormalizedMemoryPayload
+NormalizedMemoryPayload = ExtractedMemoryUnit
+
+
 class ChunkedMemoryArtifact(BaseModel):
     """Memory unit paired with sliding-window chunk representations."""
 
@@ -114,26 +128,41 @@ class MigrationRunReport(BaseModel):
     """Comprehensive telemetry report produced following a migration run."""
 
     migration_id: str = Field(description="Unique execution run identifier")
-    source_type: MigrationSourceType = Field(description="Migrated external platform")
+    source_type: MigrationSourceType = Field(
+        validation_alias=AliasChoices("source_type", "source_kind"),
+        description="Migrated external platform",
+    )
     source_path: str = Field(description="Origin filesystem path or archive label")
     total_scanned: int = Field(ge=0, description="Total raw entries detected and scanned")
-    total_admitted: int = Field(ge=0, description="Net new distinct entries admitted")
+    total_admitted: int = Field(
+        default=0,
+        ge=0,
+        validation_alias=AliasChoices("total_admitted", "total_imported"),
+        description="Net new distinct entries admitted",
+    )
     total_skipped_duplicates: int = Field(
-        ge=0, description="Redundant entries filtered by fingerprint deduplication"
+        default=0,
+        ge=0,
+        description="Redundant entries filtered by fingerprint deduplication",
     )
     total_chunks_generated: int = Field(
-        ge=0, description="Total sliding window semantic chunks created"
+        default=0,
+        ge=0,
+        description="Total sliding window semantic chunks created",
     )
     vector_ingestion_status: str = Field(
         default="success", description="Status: success, skipped_no_provider, fallback_fts_only"
     )
-    latency_ms: float = Field(ge=0.0, description="Total wall-clock duration in milliseconds")
+    imported_entries: list[ExtractedMemoryUnit] = Field(
+        default_factory=list,
+        description="List of admitted memory units",
+    )
+    latency_ms: float = Field(
+        default=0.0, ge=0.0, description="Total wall-clock duration in milliseconds"
+    )
     timestamp: float = Field(description="Epoch timestamp when migration completed")
 
-
-# Alias for existing code consuming MigrationExecutionReport
-class MigrationExecutionReport(MigrationRunReport):
-    """Backward compatible report exposing total_imported."""
+    model_config = {"populate_by_name": True}
 
     @property
     def total_imported(self) -> int:
@@ -142,6 +171,10 @@ class MigrationExecutionReport(MigrationRunReport):
     @property
     def source_kind(self) -> MigrationSourceType:
         return self.source_type
+
+
+# Backward compatibility alias
+MigrationExecutionReport = MigrationRunReport
 
 
 class DetectedCompetitorArtifact(BaseModel):

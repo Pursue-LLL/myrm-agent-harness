@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -145,3 +146,23 @@ def test_jieba_import_failure_uses_fallback() -> None:
         with patch("builtins.__import__", side_effect=ImportError("no jieba")):
             service._init_jieba_sync()
     assert service._jieba is None
+
+
+def test_jieba_syntax_error_uses_fallback() -> None:
+    """Import-time SyntaxError from jieba must degrade to the bigram fallback.
+
+    jieba 0.42.1 ships invalid regex escape sequences that Python >= 3.13
+    escalates to SyntaxError at import time; the fallback must absorb it.
+    """
+    service = TokenizerService()
+    saved = sys.modules.pop("jieba", None)
+    try:
+        with patch("builtins.__import__", side_effect=SyntaxError("invalid escape sequence")):
+            service._jieba = None
+            service._initialized = False
+            service._init_jieba_sync()
+    finally:
+        if saved is not None:
+            sys.modules["jieba"] = saved
+    assert service._jieba is None
+    assert service.backend == "bigram_fallback"

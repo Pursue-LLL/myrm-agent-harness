@@ -24,6 +24,7 @@ class SnapshotTrigger(StrEnum):
     TOOL_COMPLETED = "tool_completed"
     SESSION_ENDED = "session_ended"
     CHECKPOINT_SYNC = "checkpoint_sync"
+    HIGH_IMPACT_QUARANTINE = "high_impact_quarantine"
 
 
 SnapshotId = str

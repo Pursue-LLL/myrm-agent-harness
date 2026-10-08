@@ -27,6 +27,11 @@ from __future__ import annotations
 from .fail_open_reranker import FailOpenReranker
 from .recall_gate import ExperienceRecallGate
 from .sliding_window_dedup import SlidingWindowDedupGate
+from .tool import (
+    AutoRecallCandidateInput,
+    AutoRecallTriggerInput,
+    create_auto_recall_evaluator_tool,
+)
 from .trigger_classifier import ExperienceRecallTriggerClassifier
 from .types import (
     AutoRecallDecision,
@@ -37,7 +42,9 @@ from .types import (
 )
 
 __all__ = [
+    "AutoRecallCandidateInput",
     "AutoRecallDecision",
+    "AutoRecallTriggerInput",
     "ExperienceRecallGate",
     "ExperienceRecallTriggerClassifier",
     "FailOpenReranker",
@@ -46,4 +53,6 @@ __all__ = [
     "RecallTriggerType",
     "RerankerStatus",
     "SlidingWindowDedupGate",
+    "create_auto_recall_evaluator_tool",
 ]
+

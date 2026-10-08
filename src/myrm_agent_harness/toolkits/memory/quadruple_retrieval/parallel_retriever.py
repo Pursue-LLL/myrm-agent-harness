@@ -13,6 +13,7 @@ Quadruple parallel recall executor with multi-channel fusion and deduplication.
 from __future__ import annotations
 
 import math
+import re
 from typing import ClassVar, Protocol
 
 from myrm_agent_harness.toolkits.memory.quadruple_retrieval.models import (
@@ -120,17 +121,18 @@ class QuadrupleParallelRetriever:
     ) -> list[ChannelRecallHit]:
         """Recall via dense semantic similarity."""
         hits: list[ChannelRecallHit] = []
-        query_words = set(goal.original_query.lower().split())
+        query_words = set(re.findall(r"[A-Za-z0-9_]{2,}|[\u4e00-\u9fa5]{2,}", goal.original_query.lower()))
 
         for item in items:
-            content_words = set(item.content.lower().split())
+            combined_text = f"{item.subject} {item.content} {item.object_value}".lower()
+            content_words = set(re.findall(r"[A-Za-z0-9_]{2,}|[\u4e00-\u9fa5]{2,}", combined_text))
             if not query_words or not content_words:
                 continue
             intersection = query_words & content_words
             jaccard = len(intersection) / len(query_words | content_words)
-            if jaccard > 0.05:
+            if jaccard > 0.04:
                 # Scale semantic score
-                semantic_score = min(1.0, jaccard * 2.0)
+                semantic_score = min(1.0, jaccard * 2.2)
                 hits.append(
                     ChannelRecallHit(
                         memory_id=item.memory_id,
@@ -152,8 +154,8 @@ class QuadrupleParallelRetriever:
         keywords_lower = [k.lower() for k in goal.extracted_keywords]
 
         for item in items:
-            content_lower = item.content.lower()
-            matched = sum(1 for kw in keywords_lower if kw in content_lower)
+            combined_text = f"{item.subject} {item.content} {item.object_value}".lower()
+            matched = sum(1 for kw in keywords_lower if kw in combined_text)
             if matched > 0 and keywords_lower:
                 score = min(1.0, matched / len(keywords_lower))
                 hits.append(

@@ -60,6 +60,7 @@ def estimate_content_tokens(content: str | Sequence[object]) -> int:
 
 
 estimate_tokens = estimate_content_tokens
+estimate_text_tokens = estimate_content_tokens
 
 
 def estimate_message_tokens(msg: BaseMessage) -> int:

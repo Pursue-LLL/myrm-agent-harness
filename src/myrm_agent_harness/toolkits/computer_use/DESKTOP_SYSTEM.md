@@ -144,12 +144,14 @@ Injected via server `DESKTOP_CONTROL_RULES` (`myrm-agent-server/app/ai_agents/pr
 | Linux AT-SPI invoke | ✅ implemented (pyatspi doAction/EditableText/grabFocus) |
 | Skill recording capture granularity | ⏳ `DesktopCaptureDriver` diffs foreground AX snapshots, so it observes interactions that change the tree: new elements (click), value changes on interactive roles (type on text entry, click on checkbox/radio/switch/slider), and app switches. Pointer gestures that leave no tree trace (drag, scroll, repeated clicks on an unchanged element) and modifier-key shortcuts (`Cmd+S`) are not captured. Event-driven capture via OS input taps (macOS CGEventTap / Windows SetWindowsHookEx / Linux XRecord) is the upgrade path |
 | Desktop control gate (server) | ✅ `DesktopControlGate` + SSE approval card. Local monorepo: `./myrm ready` (editable harness; no PyPI). Release/CI: harness tag → `./myrm harness sync-lock` → commit `uv.lock` before `--frozen` |
-| Stream E2E tests | ⏳ `test_desktop_control_approval_chrome_e2e.py` + `tests/e2e/desktop_approval/` — `@pytest.mark.chrome_e2e_desktop`；allow_once / allow_session / allow_always→Settings revoke；**3/3 绿前勿改 ✅** |
+| Unattended desktop (Locked Use + Privacy Curtain) | ✅ server `locked_use/` unlock 三态 + Tauri `curtain_capture_exclusion_ready`（Windows：`RtlGetVersion` build 探测，≥19041）+ 设置 fail-closed；单测 `tests/services/locked_use/`（169，`./myrm test myrm-agent/myrm-agent-server/tests/services/locked_use/`） |
+| Stream E2E tests | ⏳ `test_desktop_control_approval_chrome_e2e.py` + `tests/e2e/desktop_approval/` — `@pytest.mark.chrome_e2e_desktop`；allow_once / allow_session / allow_always→Settings revoke；**需 macOS + `./myrm ready --chrome` + 后端宿主 Accessibility**（`runner.py` 启动时 `desktop_permissions()`，缺失即 `pytest.fail`；Screen Recording 缺失仅 progress 软告警）；单测 lane：`tests/unit/desktop_approval/`（121，`./myrm test myrm-agent/myrm-agent-server/tests/unit/desktop_approval/`） |
 | Onboarding hint when computer_use enabled | implemented (toggle + tooltip + empty state) |
 | Native API routing hints | implemented (macOS/Windows/Linux) |
 | Desktop browser E2E host grants | the `chrome_e2e_desktop` nodes probe the *backend host* process (`/webui/desktop/permissions`); a backend running in a background bootstrap context reports denied even when your shell has grants — run it from a GUI-session backend or grant TCC to the host |
 | Background input (macOS) | ✅ implemented (PID-targeted delivery + foreground guard + window capture; minimized windows and Chromium move/scroll stay limited) |
 | Visual approval OS red frame (Tauri) | ✅ macOS only; non-macOS `show_visual_approval_overlay` returns Err + frontend `desktopBridge.isMacOS()` gate (in-app approval card remains fallback) |
+| Cloud-hosted sandbox (control plane) | Locked Use / Privacy Curtain / OS overlay require the user’s **local Tauri shell** on macOS. Cloud VMs have no user lock screen or Myrm desktop IPC — fail-closed; use in-app approval and browser/desktop inside the sandbox only. |
 
 ---
 

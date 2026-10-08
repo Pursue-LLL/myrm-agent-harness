@@ -145,6 +145,12 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | tiered_consensus/ | Manager engine governing tiered memory hierarchy and proposal consensus lifecycle. See [tiered_consensus/_ARCH.md](tiered_consensus/_ARCH.md). |
 | two_layer_dialectic/ | Dual-layer context injection engine preserving LLM Prompt Cache while resolving contradictions. See [two_layer_dialectic/_ARCH.md](two_layer_dialectic/_ARCH.md). |
 | multimodal/ | Multimodal asset memory suite: stores vision assets and sandbox artifacts as long-term memory items and serves natural-language cross-modal search with UI card previews. See [multimodal/_ARCH.md](multimodal/_ARCH.md). |
+| graph_reorganization/ | Graph Memory Reorganization and Lineage Traceability Suite: synthesizes multi-relational edges and maintains immutable lineage DAG preventing amnesia. See [graph_reorganization/_ARCH.md](graph_reorganization/_ARCH.md). |
+| quadruple_retrieval/ | Goal-Driven Quadruple Parallel Retrieval and Reasoner Suite: deconstructs task goals, recalls via Graph/Vector/Lexical/Metadata channels, and reranks via Reasoner. See [quadruple_retrieval/_ARCH.md](quadruple_retrieval/_ARCH.md). |
+| live_correction/ | Natural Language Memory Feedback and Live Correction Suite: detects conversational corrections, localizes conflicts, executes atomic mutations, and generates receipts. See [live_correction/_ARCH.md](live_correction/_ARCH.md). |
+| chunking/ | Incremental Sliding Window Markdown Chunker Suite: semantic sliding window with 80-token overlap, content-hash incremental diffing, and line-level pointers. See [chunking/_ARCH.md](chunking/_ARCH.md). |
+| pitfall_alert/ | Proactive Past-Pitfall Alert and Decision Assist Suite: deterministic shadow intent recognizer, causal triad retrieval, session mute governance, and non-intrusive alert callouts. See [pitfall_alert/_ARCH.md](pitfall_alert/_ARCH.md). |
+| experience_compounding/ | Experience Compounding and Knowledge Condensation Suite: bounded logarithmic frequency compounding, semantic Golden Rule synthesis with lineage preservation, and obsolete context annealing governor. See [experience_compounding/_ARCH.md](experience_compounding/_ARCH.md). |
 
 ## Key Dependencies
 

@@ -210,6 +210,15 @@ class TestSnapshotStore:
 
 
 class TestContextVars:
+    @pytest.fixture(autouse=True)
+    def _isolated_message_id(self):
+        """Restore the observer's message-id ContextVar so ids set here never reach later tests."""
+        from myrm_agent_harness.agent.meta_tools.file_ops.observers.snapshot_observer import _current_message_id
+
+        token = _current_message_id.set(None)
+        yield
+        _current_message_id.reset(token)
+
     def test_set_and_get_message_id(self):
         set_current_message_id("test-msg-123")
         assert get_current_message_id() == "test-msg-123"

@@ -9,7 +9,7 @@
 | 文件 | 地位 | 职责 | I/O/P |
 | --- | --- | --- | --- |
 | `__init__.py` | 门面 | 自动生成包入口声明 | — |
-| `core_ip_manifest.py` | 核心 | 自动生成的 Core IP 闭源模块清单与 import 路径 SSOT | — |
+| `core_ip_manifest.py` | 核心 | 自动生成的 compiled-core 模块清单与 import 路径 SSOT | — |
 
 ## 依赖
 

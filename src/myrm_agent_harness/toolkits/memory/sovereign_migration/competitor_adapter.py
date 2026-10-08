@@ -104,17 +104,17 @@ class CompetitorIngestionAdapter:
         details: list[str] = []
 
         if competitor == CompetitorType.HERMES:
-            # Hermes: copies memories/ into wiki_memory_data/, skills/ into skills/
+            # Hermes: copies memories/ into memories/, skills/ into skills/
             mem_src = src / "memories"
             if mem_src.exists() and mem_src.is_dir():
-                target_mem = target_dir / "wiki_memory_data"
+                target_mem = target_dir / "memories"
                 target_mem.mkdir(parents=True, exist_ok=True)
                 for root, _, files in os.walk(mem_src):
                     for f in files:
                         file_p = Path(root) / f
                         shutil.copy2(file_p, target_mem / f)
                         imported_memories += 1
-                details.append(f"Ingested {imported_memories} memory files from Hermes")
+                details.append(f"Ingested {imported_memories} memory files from Hermes into memories/")
 
             skill_src = src / "skills"
             if skill_src.exists() and skill_src.is_dir():

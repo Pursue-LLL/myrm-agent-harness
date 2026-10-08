@@ -284,6 +284,30 @@ async def test_failover_unconfigured_emits_status(ctx):
 
 
 @pytest.mark.asyncio
+async def test_failover_quota_exhausted_unconfigured_emits_status(ctx):
+    """Quota exhausted error (even if classified as RATE_LIMIT) emits model_failover_unconfigured."""
+    executor = _make_executor(ctx)
+
+    from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
+
+    # Classified as RATE_LIMIT, but error message has quota exhausted signature
+    with patch(
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
+        return_value=ErrorKind.RATE_LIMIT,
+    ):
+        result = await executor._handle_failover(
+            RuntimeError("429 insufficient_quota: You exceeded your current quota")
+        )
+
+    assert result is False
+    events = executor._compactor.events
+    unconfigured = [e for e in events if isinstance(e, dict) and e.get("step_key") == "model_failover_unconfigured"]
+    assert len(unconfigured) == 1
+    assert unconfigured[0]["error_kind"] == ErrorKind.RATE_LIMIT.value
+
+
+
+@pytest.mark.asyncio
 async def test_safety_fallback_unconfigured_emits_status(ctx):
     """Safety block without safety_fallback_llm emits safety_fallback_unconfigured STATUS."""
     executor = _make_executor(ctx)

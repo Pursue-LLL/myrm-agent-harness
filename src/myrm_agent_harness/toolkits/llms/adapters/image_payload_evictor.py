@@ -24,8 +24,6 @@ from myrm_agent_harness.utils.image_utils import (
 )
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.media.base64_downsampler import (
-    DEFAULT_DOWNSAMPLE_MAX_DIM as _DOWNSAMPLE_MAX_DIM,
-    DEFAULT_DOWNSAMPLE_QUALITY as _DOWNSAMPLE_QUALITY,
     downsample_base64_image as _downsample_base64_image,
 )
 

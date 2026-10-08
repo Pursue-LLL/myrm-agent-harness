@@ -19,15 +19,9 @@ from __future__ import annotations
 import copy
 from typing import Final
 
-_OPENAI_VENDORS: Final[frozenset[str]] = frozenset(
-    {"openai", "azure", "azure_ai", "openai-compatible"}
-)
-_ANTHROPIC_VENDORS: Final[frozenset[str]] = frozenset(
-    {"anthropic", "claude"}
-)
-_BEDROCK_VENDORS: Final[frozenset[str]] = frozenset(
-    {"bedrock", "aws-bedrock", "amazon-bedrock"}
-)
+_OPENAI_VENDORS: Final[frozenset[str]] = frozenset({"openai", "azure", "azure_ai", "openai-compatible"})
+_ANTHROPIC_VENDORS: Final[frozenset[str]] = frozenset({"anthropic", "claude"})
+_BEDROCK_VENDORS: Final[frozenset[str]] = frozenset({"bedrock", "aws-bedrock", "amazon-bedrock"})
 
 
 def is_zdr_eligible_provider(provider_or_model: str) -> bool:
@@ -77,10 +71,8 @@ def apply_zdr_outbound_params(
 
     enriched = copy.copy(params)
     inferred_provider = (
-        provider
-        or str(enriched.get("custom_llm_provider") or "")
-        or str(enriched.get("model") or "")
-    ).strip().lower()
+        (provider or str(enriched.get("custom_llm_provider") or "") or str(enriched.get("model") or "")).strip().lower()
+    )
 
     # 1. Base ZDR field for OpenAI / Azure / OpenAI-compatible Responses & Chat
     # Top-level 'store: False' instructs the vendor not to retain completions.

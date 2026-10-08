@@ -114,6 +114,11 @@ class CubeQueryResult(BaseModel):
         description="Cubes examined during this query.",
     )
 
+    @property
+    def queried_cube_ids(self) -> list[str]:
+        """Alias for audited_cube_ids."""
+        return self.audited_cube_ids
+
 
 class CubeWriteRequest(BaseModel):
     """Targeted write request to deposit memory into an authorized cube."""

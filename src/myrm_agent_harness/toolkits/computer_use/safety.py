@@ -69,7 +69,8 @@ _DANGEROUS_TYPE_PATTERNS: tuple[re.Pattern[str], ...] = (
 
 
 def canonicalize_key_combo(keys: str) -> frozenset[str]:
-    parts = [p.strip().lower() for p in re.split(r"\s*\+\s*", keys) if p.strip()]
+    # Split on "+" and "-" (cua-driver accepts hyphenated combos; a bare "-" token must not bypass blocks).
+    parts = [p.strip().lower() for p in re.split(r"\s*[+\-]\s*", keys) if p.strip()]
     return frozenset(_KEY_ALIASES.get(part, part) for part in parts)
 
 

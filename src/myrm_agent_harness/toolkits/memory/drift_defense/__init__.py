@@ -31,6 +31,11 @@ from myrm_agent_harness.toolkits.memory.drift_defense.reference_extractor import
     ExtractedReference,
     GroundTruthReferenceExtractor,
 )
+from myrm_agent_harness.toolkits.memory.drift_defense.tool import (
+    BatchCheckMemoryDriftInput,
+    CheckMemoryDriftInput,
+    create_ground_truth_drift_check_tool,
+)
 from myrm_agent_harness.toolkits.memory.drift_defense.types import (
     DriftCheckRequest,
     DriftCheckResult,
@@ -40,6 +45,8 @@ from myrm_agent_harness.toolkits.memory.drift_defense.types import (
 )
 
 __all__ = [
+    "BatchCheckMemoryDriftInput",
+    "CheckMemoryDriftInput",
     "DriftCheckRequest",
     "DriftCheckResult",
     "DriftDefenseConfig",
@@ -49,4 +56,5 @@ __all__ = [
     "GroundTruthReferenceExtractor",
     "MemoryDriftFinding",
     "StaleMemoryDecorator",
+    "create_ground_truth_drift_check_tool",
 ]

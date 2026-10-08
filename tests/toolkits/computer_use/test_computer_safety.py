@@ -84,6 +84,9 @@ class TestIsBlockedKeyCombo:
         result = is_blocked_key_combo("cmd+ctrl+q")
         assert result is not None
 
+    def test_hyphenated_cmd_ctrl_q_blocked(self) -> None:
+        assert is_blocked_key_combo("cmd-ctrl-q") is not None
+
     def test_cmd_shift_q_blocked(self) -> None:
         result = is_blocked_key_combo("cmd+shift+q")
         assert result is not None

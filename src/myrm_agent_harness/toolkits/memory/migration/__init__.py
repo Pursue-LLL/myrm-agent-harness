@@ -40,8 +40,10 @@ from myrm_agent_harness.toolkits.memory.migration.models import (
 )
 from myrm_agent_harness.toolkits.memory.migration.parsers import (
     ChatExportParser,
+    ClaudeProjectParser,
     HermesParser,
     MarkdownTreeParser,
+    MemOSParser,
     MultiPlatformParserMatrix,
     OpenClawParser,
 )
@@ -62,6 +64,7 @@ from myrm_agent_harness.toolkits.memory.migration.translators import (
 __all__ = [
     "ChatExportParser",
     "ChunkedMemoryArtifact",
+    "ClaudeProjectParser",
     "CompetitorAssetScanner",
     "CompetitorMigrationMetaTools",
     "CompetitorMigrationService",
@@ -71,6 +74,7 @@ __all__ = [
     "ExtractedMemoryUnit",
     "HermesParser",
     "MarkdownTreeParser",
+    "MemOSParser",
     "MigrationDeduplicator",
     "MigrationExecutionReport",
     "MigrationRunReport",

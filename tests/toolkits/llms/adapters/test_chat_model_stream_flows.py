@@ -433,7 +433,9 @@ class TestResponsesWireAgenerateStreaming:
             {"choices": [], "usage": {"prompt_tokens": 3, "completion_tokens": 2, "total_tokens": 5}},
         ]
 
-        async def _mock_stream_responses_async(client: Any, message_dicts: Any, params: Any) -> AsyncIterator[dict[str, Any]]:
+        async def _mock_stream_responses_async(
+            client: Any, message_dicts: Any, params: Any
+        ) -> AsyncIterator[dict[str, Any]]:
             for chunk in stream_chunks:
                 yield chunk
 

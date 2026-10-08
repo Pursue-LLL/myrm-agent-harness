@@ -87,4 +87,3 @@ def test_sanitize_image_urls_strips_auto_detail() -> None:
     image_block = next(b for b in content if isinstance(b, dict) and b.get("type") == "image_url")
     assert "detail" not in image_block["image_url"]
     assert image_block["image_url"]["url"] == "https://example.com/test.jpg"
-

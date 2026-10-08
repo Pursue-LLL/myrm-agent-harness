@@ -116,16 +116,12 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
             for idx, tc in enumerate(last_ai_msg.tool_calls)
         }
 
-        # Extract recent human messages for intent context (Reasoning-Blind: only user text)
-        from langchain_core.messages import HumanMessage
+        # Extract user intent ledger (Reasoning-Blind: authentic user directives, anchored & un-truncated latest)
+        from myrm_agent_harness.agent.middlewares.approval.intent_ledger import (
+            extract_user_intent_ledger,
+        )
 
-        recent_human_msgs = [
-            msg.content for msg in messages[-10:] if isinstance(msg, HumanMessage) and isinstance(msg.content, str)
-        ]
-        intent_context = "\n".join(recent_human_msgs) if recent_human_msgs else None
-
-        if intent_context and len(intent_context) > 2000:
-            intent_context = intent_context[:2000] + "\n... (truncated for length)"
+        intent_context = extract_user_intent_ledger(messages, max_chars=2500)
 
         # Extract recent tool call sequence for cross-tool context (Reasoning-Blind)
         window_size = config.transcript_window_size

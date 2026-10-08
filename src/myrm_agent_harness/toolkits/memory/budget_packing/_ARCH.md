@@ -27,6 +27,7 @@
 | `greedy_packer.py` | 装箱核心 | 贪心背包装箱算法实现，执行动态排序、容量判定、回填优化与双轨计量 | ✅ |
 | `orchestrator.py` | 调度门面 | 装箱门面调度器，支持贪心装箱模式与传统 limit 模式对比及单步诊断 | ✅ |
 | `__init__.py` | 包门面 | 统一导出核心类、数据模型与工具函数 | — |
+| `estimator.py` | — | Conservative bilingual token estimator and overlap calculator. | ✅ |
 
 ## 依赖关系
 

@@ -14,6 +14,7 @@ from myrm_agent_harness.toolkits.llms.errors.classifier import (
     classify_error,
     classify_failover_reason,
     is_context_overflow,
+    is_quota_exhausted,
 )
 from myrm_agent_harness.toolkits.llms.errors.error_types import FailoverReason
 
@@ -105,6 +106,11 @@ def test_classify_overloaded(msg: str) -> None:
         "insufficient credits",
         "exceeded plan limit",
         "credit balance is zero",
+        "429 Too Many Requests: insufficient_quota",
+        "HTTP 429: You exceeded your current quota, please check your plan and billing details.",
+        "429 free tier limit exceeded for model deepseek-chat",
+        "429 daily limit exceeded",
+        "429: 账户欠费已停止服务",
     ],
 )
 def test_classify_billing(msg: str) -> None:
@@ -761,4 +767,106 @@ def test_classify_provider_policy_blocked(msg: str) -> None:
     exc = Exception(msg)
     reason = classify_failover_reason(exc)
     assert reason == FailoverReason.PROVIDER_POLICY_BLOCKED
+
+
+# ============================================================================
+# is_quota_exhausted tests
+# ============================================================================
+
+
+@pytest.mark.parametrize(
+    "msg",
+    [
+        "insufficient_quota",
+        "You exceeded your current quota, please check your plan and billing details.",
+        "quota_exceeded",
+        "exceeded your quota",
+        "free tier limit exceeded",
+        "daily limit exceeded for model",
+        "per-day limit reached",
+        "requests per day are exhausted",
+        "usage limit reached",
+        "账户欠费已停止服务",
+        "超出每日限额",
+    ],
+)
+def test_is_quota_exhausted_positive(msg: str) -> None:
+    from myrm_agent_harness.toolkits.llms.errors.classifier import is_quota_exhausted
+
+    exc = Exception(msg)
+    assert is_quota_exhausted(exc) is True
+
+
+@pytest.mark.parametrize(
+    "msg",
+    [
+        "Rate limit reached for requests per minute: 15 RPM",
+        "429 Too Many Requests: Please try again in 2s",
+        "overloaded_error: High demand, please wait",
+        "internal server error 500",
+        "connection timed out",
+    ],
+)
+def test_is_quota_exhausted_negative(msg: str) -> None:
+    from myrm_agent_harness.toolkits.llms.errors.classifier import is_quota_exhausted
+
+    exc = Exception(msg)
+    assert is_quota_exhausted(exc) is False
+
+
+class TestNormalizeProviderErrorCodeAndType:
+    """Test structured code and type extraction from diverse proxy and SDK errors."""
+
+    def test_structured_error_code_in_body(self) -> None:
+        """When message is generic but body['error']['code'] indicates quota exhaustion."""
+        exc = Exception("Request failed with status code 429")
+        setattr(
+            exc,
+            "body",
+            {"error": {"code": "insufficient_quota", "message": "Upstream error 429"}},
+        )
+        assert is_quota_exhausted(exc) is True
+        assert classify_failover_reason(exc) == FailoverReason.BILLING
+        assert classify_error(exc) == ErrorKind.BILLING
+
+    def test_top_level_code_in_body(self) -> None:
+        """When proxy returns top-level code instead of nested error object."""
+        exc = Exception("API error 429")
+        setattr(exc, "body", {"code": "insufficient_quota", "message": "Account balance zero"})
+        assert is_quota_exhausted(exc) is True
+        assert classify_failover_reason(exc) == FailoverReason.BILLING
+
+    def test_direct_exception_code_attribute(self) -> None:
+        """When SDK attaches code directly on exception object."""
+        exc = Exception("Error processing completion")
+        setattr(exc, "code", "insufficient_quota")
+        assert is_quota_exhausted(exc) is True
+        assert classify_failover_reason(exc) == FailoverReason.BILLING
+
+    def test_nested_openrouter_raw_metadata_code(self) -> None:
+        """When OpenRouter forwards upstream code inside metadata.raw JSON string."""
+        import json
+
+        inner_raw = json.dumps({"error": {"code": "insufficient_quota", "message": "Failed"}})
+        exc = Exception("OpenRouter API error")
+        setattr(
+            exc,
+            "body",
+            {"error": {"message": "Provider returned error", "metadata": {"raw": inner_raw}}},
+        )
+        assert is_quota_exhausted(exc) is True
+        assert classify_failover_reason(exc) == FailoverReason.BILLING
+
+    def test_structured_rate_limit_not_confused_with_billing(self) -> None:
+        """Standard rate limits in code field should stay RATE_LIMIT."""
+        exc = Exception("Rate limit reached")
+        setattr(
+            exc,
+            "body",
+            {"error": {"code": "rate_limit_exceeded", "message": "15 RPM limit reached"}},
+        )
+        assert is_quota_exhausted(exc) is False
+        assert classify_failover_reason(exc) == FailoverReason.RATE_LIMIT
+
+
 

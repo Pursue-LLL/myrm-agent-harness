@@ -161,7 +161,7 @@ async def test_shell_escalation_interactive_smart_denied() -> None:
     assert len(denied) == 0
     assert len(pending) == 1
 
-    idx, tc, perm_type, reason, extra_ctx = pending[0]
+    _idx, _tc, _perm_type, reason, extra_ctx = pending[0]
     assert extra_ctx.get("smart_denied") is True
     assert "Exfiltration attempt" in extra_ctx.get("reviewer_reason", "")
     assert "recommends denial" in reason
@@ -220,7 +220,7 @@ async def test_auto_mode_suspended_propagates_to_review_config() -> None:
         "myrm_agent_harness.agent.middlewares.approval.batch_processor.is_threshold_breached",
         return_value=ThresholdBreach.CONSECUTIVE,
     ):
-        approved, denied, pending = await evaluate_tool_batch(
+        _approved, _denied, pending = await evaluate_tool_batch(
             [tool_call],
             config,
             is_cron=False,
@@ -236,7 +236,7 @@ async def test_auto_mode_suspended_propagates_to_review_config() -> None:
     assert extra_ctx.get("high_risk") is True
 
     # Test payload generation
-    payload, indices = build_interrupt_payload(
+    payload, _indices = build_interrupt_payload(
         pending_approval=pending,
         session_key="s5",
         approval_timeout_seconds=120,
@@ -282,7 +282,7 @@ async def test_yolo_mode_destructive_irreversible_gate() -> None:
     assert len(approved) == 0
     assert len(denied) == 0
     assert len(pending) == 1
-    idx, tc, perm_type, reason, extra_ctx = pending[0]
+    idx, tc, _perm_type, reason, extra_ctx = pending[0]
     assert idx == 0
     assert tc["id"] == "tc_rm"
     assert extra_ctx.get("irreversible_destructive") is True

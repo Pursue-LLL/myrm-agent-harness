@@ -87,6 +87,12 @@ class TestReadOnlyMemoryViewWriteDenied:
             await view.delete_memory("collection", ["id-1"])
 
     @pytest.mark.asyncio
+    async def test_delete_memory_by_id_denied(self):
+        view = self._make_view()
+        with pytest.raises(PermissionError, match="READ_ONLY_GLOBAL"):
+            await view.delete_memory_by_id("id-1")
+
+    @pytest.mark.asyncio
     async def test_delete_rule_denied(self):
         view = self._make_view()
         with pytest.raises(PermissionError, match="READ_ONLY_GLOBAL"):
@@ -548,6 +554,20 @@ class TestEphemeralMemoryManager:
         result = await eph.delete_memory("any", [mem.id])
         assert result == 1
         assert mem.id not in eph._ephemeral_store
+
+    @pytest.mark.asyncio
+    async def test_delete_memory_by_id_removes_ephemeral(self):
+        eph, _ = self._make_ephemeral()
+        mem = await eph.add_knowledge("to delete by id")
+        assert await eph.delete_memory_by_id(mem.id) == 1
+        assert mem.id not in eph._ephemeral_store
+
+    @pytest.mark.asyncio
+    async def test_delete_memory_by_id_delegates_persistent_to_parent(self):
+        eph, parent = self._make_ephemeral()
+        parent.delete_memory_by_id = AsyncMock(return_value=1)
+        assert await eph.delete_memory_by_id("persistent-id") == 1
+        parent.delete_memory_by_id.assert_awaited_once_with("persistent-id")
 
     @pytest.mark.asyncio
     async def test_get_profile_attribute_delegates(self):

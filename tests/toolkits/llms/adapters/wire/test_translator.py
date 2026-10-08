@@ -30,7 +30,7 @@ def test_assistant_tool_calls_become_function_call_items() -> None:
                 {
                     "id": "call_123",
                     "type": "function",
-                    "function": {"name": "web_search", "arguments": "{\"q\":\"ai\"}"},
+                    "function": {"name": "web_search", "arguments": '{"q":"ai"}'},
                 }
             ],
         }

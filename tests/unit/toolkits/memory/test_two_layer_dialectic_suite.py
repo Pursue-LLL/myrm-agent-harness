@@ -1,152 +1,148 @@
-# [POS]: tests.unit.toolkits.memory.test_two_layer_dialectic_suite
-# [INPUT]: myrm_agent_harness.toolkits.memory (two_layer_dialectic models & engines)
-# [OUTPUT]: Pytest test cases validating dual-layer injection and multi-pass dialectic reconciliation
+"""
+[INPUT]
+myrm_agent_harness.toolkits.memory.two_layer_dialectic (Models, Engines, Orchestrator)
 
-"""Unit tests for Two-Layer Context Injection and Multi-Pass Dialectic Reconciliation Suite.
+[OUTPUT]
+Unit test suite verifying Two-Layer Context Injection & Multi-Pass Dialectic Reconciliation Suite.
 
-Validates cadence control, Prompt Cache preservation, and contradiction harmonization.
+[POS]
+Harness framework unit tests for Item 112.
+Strict typing applied: No `Any` types allowed. Single file < 200 lines.
 """
 
-from __future__ import annotations
-
-from myrm_agent_harness.toolkits.memory import (
-    DialecticPassKind,
-    DialecticReconciliationConfig,
-    MultiPassDialecticReconciler,
-    TwoLayerContextInjector,
+from myrm_agent_harness.toolkits.memory.two_layer_dialectic import (
+    BaseContextEngine,
+    DialecticCadenceConfig,
+    DialecticReasoningLevel,
+    DialecticReconciliationEngine,
+    TwoLayerDialecticOrchestrator,
 )
 
 
-def test_reconciler_conflict_inspection_and_multi_pass():
-    """Verify inspection and 3-pass dialectic resolution over mutually exclusive statements."""
-    config = DialecticReconciliationConfig(dialectic_depth=3, conflict_similarity_cutoff=0.4)
-    reconciler = MultiPassDialecticReconciler(config)
+def test_base_context_cadence_and_kv_cache_protection() -> None:
+    """Verify Layer 1 caches base context across turns and appends to user tail without touching system prompt."""
+    config = DialecticCadenceConfig(context_cadence=4)
+    engine = BaseContextEngine(config=config)
 
-    statements = [
-        "Project uses PostgreSQL for persistent relational storage.",
-        "Project switched from PostgreSQL to SQLite for local embedded storage.",
+    # Turn 1: Initial generation
+    bundle1 = engine.get_or_generate_bundle(
+        session_id="sess_101",
+        current_turn=1,
+        session_summary="已规划三层架构与强类型规范",
+        peer_card_summary="Alice Liu (前端负责人, 严格无Any)",
+    )
+    assert bundle1.generation_turn == 1
+    assert bundle1.system_prompt_frozen is True
+    assert bundle1.estimated_tokens > 0
+
+    # Turn 2 & 3: Should reuse cached bundle within cadence window (cadence=4)
+    assert not engine.should_refresh_base_context("sess_101", current_turn=2)
+    bundle2 = engine.get_or_generate_bundle(
+        session_id="sess_101",
+        current_turn=2,
+        session_summary="已更新部分内容但未到刷新轮次",
+        peer_card_summary="Alice Liu",
+    )
+    assert bundle2.generation_turn == 1  # Unchanged, cached!
+
+    # Turn 5: Exceeded cadence (5 - 1 = 4 >= 4), must refresh
+    assert engine.should_refresh_base_context("sess_101", current_turn=5)
+    bundle5 = engine.get_or_generate_bundle(
+        session_id="sess_101",
+        current_turn=5,
+        session_summary="更新为完成服务端落地与API集成",
+        peer_card_summary="Alice Liu",
+    )
+    assert bundle5.generation_turn == 5
+
+    # Verify user message tail injection
+    user_msg = "请帮我实现两层调和前端控制面板。"
+    injected_msg = engine.inject_into_user_message(user_msg, bundle5)
+    assert injected_msg.startswith(user_msg)
+    assert "<!-- [BASE_CONTEXT_KV_CACHE_PROTECTED] -->" in injected_msg
+    assert "<base_context" in injected_msg
+
+
+def test_dialectic_conflict_detection_and_multi_pass_synthesis() -> None:
+    """Verify Layer 2 detects contradictions and executes 1-3 pass dialectic loop."""
+    dialectic_engine = DialecticReconciliationEngine(
+        default_reasoning_level=DialecticReasoningLevel.DEEP
+    )
+
+    history = [
+        "团队以往统一使用 SQLite 作为单机轻量数据源",
+        "禁止向后兼容，全面进行纯净重构",
     ]
+    current_prompt = "在本次生产环境中，我们需要切换至 Postgres 架构以支持分布式扩展"
 
-    conflicts = reconciler.inspect_conflicts(statements)
+    conflicts = dialectic_engine.detect_conflicts(history, current_prompt)
     assert len(conflicts) >= 1
-    candidate = conflicts[0]
-    assert "postgresql" in candidate.statement_a.lower()
-    assert "sqlite" in candidate.statement_b.lower()
+    c = conflicts[0]
+    assert "数据库" in c.source_topic or "sqlite" in c.prior_stance.lower()
+    assert c.severity_score >= 0.8
 
-    # Pass 1: Depth 1 Inspection only
-    res_depth_1 = reconciler.reconcile_conflict(candidate, depth=1)
-    assert len(res_depth_1.passes_executed) == 1
-    assert res_depth_1.passes_executed[0] == DialecticPassKind.INSPECTION
-    assert res_depth_1.confidence == 0.5
+    # Run full 3-pass dialectic reconciliation
+    result = dialectic_engine.reconcile(
+        session_id="sess_101",
+        turn_index=3,
+        conflicts=conflicts,
+        depth=3,
+    )
 
-    # Pass 2: Depth 2 Synthesis
-    res_depth_2 = reconciler.reconcile_conflict(candidate, depth=2)
-    assert len(res_depth_2.passes_executed) == 2
-    assert res_depth_2.passes_executed[1] == DialecticPassKind.SYNTHESIS
-    assert res_depth_2.confidence == 0.8
-
-    # Pass 3: Depth 3 Full Reconciliation
-    res_depth_3 = reconciler.reconcile_conflict(candidate, depth=3)
-    assert len(res_depth_3.passes_executed) == 3
-    assert res_depth_3.passes_executed[2] == DialecticPassKind.RECONCILIATION
-    assert res_depth_3.confidence >= 0.9
-    assert "sqlite" in res_depth_3.resolved_statement.lower()
-    assert len(res_depth_3.superseded_statements) == 1
-    assert "postgresql" in res_depth_3.superseded_statements[0].lower()
+    assert result.dialectic_depth_executed == 3
+    assert len(result.passes) == 3
+    assert "Pass 0" in result.passes[0].pass_name
+    assert "Pass 1" in result.passes[1].pass_name
+    assert "Pass 2" in result.passes[2].pass_name
+    assert result.kv_cache_preserved is True
+    assert "辩证调和共识" in result.reconciled_directive
 
 
-def test_reconciler_no_conflict_scenario():
-    """Verify reconciler cleanly ignores non-overlapping statements."""
-    reconciler = MultiPassDialecticReconciler()
-    statements = [
-        "User prefers dark mode UI theme.",
-        "Backend server runs on port 8000.",
-    ]
-    conflicts = reconciler.inspect_conflicts(statements)
+def test_clean_state_zero_conflicts_dialectic() -> None:
+    """Verify clean state when no contradictions exist produces minimal overhead."""
+    dialectic_engine = DialecticReconciliationEngine()
+    history = ["采用 TypeScript strict 模式", "单文件严格小于400行"]
+    current_prompt = "请添加一个新的图表组件，遵守400行规范"
+
+    conflicts = dialectic_engine.detect_conflicts(history, current_prompt)
     assert len(conflicts) == 0
 
-    results = reconciler.reconcile_all(statements)
-    assert len(results) == 0
-
-
-def test_injector_layer1_cadence_and_cache_hash():
-    """Verify Layer 1 cadence preserves hash stability across turns."""
-    config = DialecticReconciliationConfig(context_cadence=5)
-    injector = TwoLayerContextInjector(config)
-    session_id = "session-cadence-001"
-
-    summary_v1 = "Initial user goal: build web app."
-    peers = ["PeerAlice (Researcher)", "PeerBob (Coder)"]
-
-    # Turn 0: initial build
-    payload_0, refreshed_0 = injector.build_base_context(
-        session_id=session_id, turn=0, session_summary=summary_v1, peer_cards=peers
+    result = dialectic_engine.reconcile(
+        session_id="sess_102",
+        turn_index=2,
+        conflicts=conflicts,
+        depth=2,
     )
-    assert refreshed_0 is True
-    initial_hash = payload_0.cache_control_hash
-    assert len(initial_hash) == 16
-    assert payload_0.refreshed_at_turn == 0
+    assert result.dialectic_depth_executed == 0
+    assert result.token_cost_estimate < 20
+    assert "DIALECTIC_CLEAN" in result.reconciled_directive
 
-    # Turn 2 (< cadence=5): should hit cache without refresh
-    payload_2, refreshed_2 = injector.build_base_context(
-        session_id=session_id, turn=2, session_summary="Updated goal with slight drift", peer_cards=peers
+
+def test_end_to_end_orchestrator_turn_preparation() -> None:
+    """Verify TwoLayerDialecticOrchestrator coordinates Layer 1 & 2 seamlessly."""
+    config = DialecticCadenceConfig(
+        context_cadence=3,
+        dialectic_cadence=2,
+        dialectic_depth=2,
+        dialectic_reasoning_level=DialecticReasoningLevel.STANDARD,
     )
-    assert refreshed_2 is False
-    assert payload_2.cache_control_hash == initial_hash
-    assert payload_2.refreshed_at_turn == 0
+    orchestrator = TwoLayerDialecticOrchestrator(config=config)
 
-    # Turn 5 (>= cadence=5): should refresh with new content
-    payload_5, refreshed_5 = injector.build_base_context(
-        session_id=session_id, turn=5, session_summary="New major milestone achieved", peer_cards=peers
+    # Turn 2: Matches dialectic cadence (2 % 2 == 0)
+    payload = orchestrator.prepare_turn(
+        session_id="sess_200",
+        turn_index=2,
+        raw_user_message="我们现在要进行架构升级，打破以往做法",
+        session_summary="已完成阶段1",
+        peer_card_summary="DevBot",
+        historical_assertions=["保持旧版兼容模式"],
     )
-    assert refreshed_5 is True
-    assert payload_5.refreshed_at_turn == 5
-    assert payload_5.cache_control_hash != initial_hash
 
-
-def test_injector_layer2_dialectic_cadence_and_assembly():
-    """Verify Layer 2 is conditionally synthesized and placed at user_message_tail."""
-    config = DialecticReconciliationConfig(context_cadence=5, dialectic_cadence=3)
-    injector = TwoLayerContextInjector(config)
-    session_id = "session-dialectic-002"
-
-    candidate_memories = [
-        "Deployment target is AWS ECS Fargate.",
-        "Deployment target migrated from AWS ECS to Cloudflare Workers.",
-    ]
-
-    # Turn 0: Dialectic cadence triggers resolution
-    res_0 = injector.assemble_injection(
-        session_id=session_id,
-        turn=0,
-        session_summary="Deploying service",
-        candidate_memories=candidate_memories,
-    )
-    assert "<base_context cache_hash=" in res_0.layer1_base_context
-    assert "<dialectic_reconciliation>" in res_0.layer2_dialectic_block
-    assert res_0.injected_position == "user_message_tail"
-    assert res_0.is_cache_safe is True
-    assert res_0.token_overhead > 0
-
-    # Turn 1 (< dialectic_cadence=3): Dialectic block should be omitted to save tokens
-    res_1 = injector.assemble_injection(
-        session_id=session_id,
-        turn=1,
-        session_summary="Deploying service",
-        candidate_memories=candidate_memories,
-    )
-    assert res_1.layer2_dialectic_block == ""
-
-    # Force dialectic: overrides cadence
-    res_forced = injector.assemble_injection(
-        session_id=session_id,
-        turn=1,
-        session_summary="Deploying service",
-        candidate_memories=candidate_memories,
-        force_dialectic=True,
-    )
-    assert "<dialectic_reconciliation>" in res_forced.layer2_dialectic_block
-
-    # Reset session evicts cache
-    injector.reset_session(session_id)
-    assert injector.get_cached_base_context(session_id) is None
+    assert payload.session_id == "sess_200"
+    assert payload.turn_index == 2
+    assert payload.kv_cache_preserved is True
+    assert payload.base_context.generation_turn == 2
+    assert payload.dialectic_result is not None
+    assert payload.total_token_overhead > 0
+    assert "BASE_CONTEXT_KV_CACHE_PROTECTED" in payload.augmented_user_message
+    assert "DIALECTIC_RECONCILIATION_DIRECTIVE" in payload.augmented_user_message

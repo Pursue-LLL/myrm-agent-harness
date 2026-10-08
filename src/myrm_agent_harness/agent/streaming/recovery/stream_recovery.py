@@ -19,7 +19,7 @@
 - _is_escalation_marker_message: module-level helper function
 
 [POS]
-StreamRecoveryMixin composes overflow, deferred failover (429 never failover; 529 after 3 consecutive; emits `model_failover_unconfigured` when failoverable but no fallback LLM), safety refusal fallback (HTTP 200 refusal/content_filter → safety_fallback_llm), escalation, transient retry, iteration-limit (with grace-call summary), empty-response, truncation, steering, subagent, and goal continuation recovery strategies.
+StreamRecoveryMixin composes overflow, deferred failover (429 never failover unless quota exhausted; 529 after 3 consecutive; emits `model_failover_unconfigured` when failoverable but no fallback LLM), safety refusal fallback (HTTP 200 refusal/content_filter → safety_fallback_llm), escalation, transient retry (short-circuits on is_quota_exhausted), iteration-limit (with grace-call summary), empty-response, truncation, steering, subagent, and goal continuation recovery strategies.
 
 """
 
@@ -45,6 +45,7 @@ from myrm_agent_harness.toolkits.llms.errors.classifier import (
     ErrorKind,
     classify_error,
     is_context_overflow,
+    is_quota_exhausted,
 )
 from myrm_agent_harness.utils.chat_utils import extract_answer_text
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
@@ -280,7 +281,7 @@ class StreamRecoveryMixin(
             return False
 
         if target_fallback_llm is None:
-            if self._should_hint_missing_fallback(error_kind):
+            if self._should_hint_missing_fallback(error_kind, exc):
                 await self._emit_failover_unconfigured_hint(error_kind)
             return False
 
@@ -377,8 +378,10 @@ class StreamRecoveryMixin(
         await self._emit_recovery_event(step_key, error_kind=error_kind.value)
 
     @staticmethod
-    def _should_hint_missing_fallback(error_kind: ErrorKind) -> bool:
-        """Hint only when missing fallback is the blocker (not deferred-retry kinds)."""
+    def _should_hint_missing_fallback(error_kind: ErrorKind, exc: Exception | None = None) -> bool:
+        """Hint only when missing fallback is the blocker (not deferred-retry kinds, unless quota is exhausted)."""
+        if exc is not None and is_quota_exhausted(exc):
+            return True
         return error_kind not in (ErrorKind.RATE_LIMIT, ErrorKind.OVERLOADED)
 
     async def _handle_safety_refusal_fallback(self) -> bool:
@@ -533,6 +536,11 @@ class StreamRecoveryMixin(
             ErrorKind.TIMEOUT,
         }
         if error_kind not in transient_kinds:
+            return False
+
+        # Permanent / non-transient quota exhaustion cannot recover via transient backoff
+        if is_quota_exhausted(exc):
+            logger.warning(" Non-transient quota exhausted; bypassing transient retry loop: %s", str(exc)[:100])
             return False
 
         max_transient_retries = 15

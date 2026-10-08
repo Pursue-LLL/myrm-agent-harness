@@ -14,7 +14,7 @@ This module provides model-specific timeout floors that override the default 300
 
 from __future__ import annotations
 
-from typing import Mapping
+from collections.abc import Mapping
 
 from myrm_agent_harness.toolkits.llms.core.reasoning_profile import (
     get_model_timeout_floor,

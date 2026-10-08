@@ -36,6 +36,11 @@ Foundational security primitives used across all layers. Zero dependency on agen
 | ephemeral_credentials/ | Session-isolated ephemeral credential store and single-use zero-disk injection primitives with memory wipe ([ephemeral_credentials/_ARCH.md](ephemeral_credentials/_ARCH.md)). |
 | ocap/ | Object-Capability (OCap) zero-trust delegation mesh primitives: signed handles, one-way attenuation, and cascading revocation ([ocap/_ARCH.md](ocap/_ARCH.md)). |
 | autonomy/ | Data-driven autonomy level escalation (L1-L5), sliding-window promotion gate, and exception circuit breaker governance suite. |
+| dir_trust_gate/ | Directory trust gate preventing remote URL/token credential exfiltration in untrusted workspaces. |
+| admin_auth_surface/ | Unified admin authentication surface governance and anti-lockout safety validation engine. |
+| asr_privacy_tradeoff/ | ASR voice transcription privacy controller balancing transcript lifecycle and speaker embeddings tradeoff. |
+| on_demand_masking/ | On-demand credential resolution, conflict detection, and multi-encoding secret masking suite. |
+| commerce_dispute_escrow/ | Agent commerce dispute escrow manager and transaction circuit breaker evaluator. |
 
 ## Key Dependencies
 

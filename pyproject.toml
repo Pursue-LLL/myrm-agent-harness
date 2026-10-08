@@ -26,7 +26,7 @@ dependencies = [
   "aiosqlite>=0.22.1",                  # async SQLite (memory stores + checkpointer)
   "dill>=0.4.1",                        # checkpoint serde (ChatLiteLLM / complex objects)
   # --- LLM 多供应商适配 ---
-  "litellm>=1.98.0", # 统一 LLM API 代理 (100+ 供应商)；litellm>=1.104 要求 filelock<4，与下方 filelock>=4 互斥，下限不可越过 1.103.x
+  "litellm>=1.98.0", # 统一 LLM API 代理 (100+ 供应商)
   # --- 数据验证与序列化 ---
   "pydantic>=2.13.5", # 数据模型验证
   "PyYAML>=6.0.2",    # YAML 配置解析（下限 6.0.2：pdf-ocr 的 paddlex 固定 PyYAML==6.0.2）
@@ -49,7 +49,6 @@ dependencies = [
   "beautifulsoup4>=4.15.0", # HTML DOM 解析与清洗（ContentPruningFilter）
   "lxml>=6.1.3",            # bs4 lxml parser (content_pruning + tree_truncator)
   # --- Agent 协议与基础设施 ---
-  "filelock>=4.0.12",  # 跨进程文件锁 (Skill 并发控制)
   "mcp>=2.3.0",        # MCP 协议 SDK 2.x (2026-07-28 spec: stateless HTTP, Client API)
   "watchdog>=6.0.0",   # 文件系统变更监控 (backends/skills/watcher.py)
   "pdfplumber>=0.11.10", # PDF 文本+表格提取 (file_read_tool CORE; pypdfium2 由 pdfplumber 传递依赖)
@@ -244,6 +243,11 @@ files = ["src/myrm_agent_harness"]
 [[tool.mypy.overrides]]
 # pyobjc Quartz 无类型 stubs（官方包未带 py.typed）；仅在 backends/macos_input.py 惰性导入。
 module = "Quartz"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# jieba 无类型 stubs（上游停更，未带 py.typed）；仅在 bm25/tokenizer.py 惰性导入。
+module = "jieba"
 ignore_missing_imports = true
 
 [tool.pyright]

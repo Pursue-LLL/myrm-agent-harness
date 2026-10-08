@@ -2,7 +2,7 @@
 
 ## 架构概述
 
-闭源分发辅助子项目根目录。当前仅含平台 core wheel 工程；构建逻辑见 [harness_packaging/_ARCH.md](../harness_packaging/_ARCH.md) 与 [DISTRIBUTION_SYSTEM.md](../harness_packaging/DISTRIBUTION_SYSTEM.md)。
+分发构建辅助子项目根目录。当前仅含平台 core wheel 工程；构建逻辑见 [harness_packaging/_ARCH.md](../harness_packaging/_ARCH.md) 与 [DISTRIBUTION_SYSTEM.md](../harness_packaging/DISTRIBUTION_SYSTEM.md)。
 
 ## 目录清单
 

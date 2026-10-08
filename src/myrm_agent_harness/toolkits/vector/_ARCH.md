@@ -17,3 +17,5 @@ Vector Store Toolkit — unified async vector storage and retrieval.
 | Submodule | Description |
 |-----------|-------------|
 | qdrant/ | Qdrant Vector Store — built-in implementation. |
+| sqlite_vec/ | SQLite-Vec Embedded Vector Store — single-file zero-daemon embedded implementation with temporal decay. |
+| space_guard/ | Vector Space Consistency Guard — pre-flight validation gate ensuring embedding model dimension, base coordinate space, and metric integrity. |

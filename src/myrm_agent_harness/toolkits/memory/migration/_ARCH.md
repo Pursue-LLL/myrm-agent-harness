@@ -30,11 +30,14 @@ flowchart TD
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | `__init__.py` | Package | Package facade for migration. | ✅ |
+| `chat_parsers.py` | Parsers | Specialized parsers for ChatGPT conversations and Claude Project exports. | ✅ |
 | `deduplicator.py` | Core | Multi-tier fingerprint ledger preventing duplicate ingestion. | ✅ |
 | `detector.py` | Core | Safe local filesystem scanner detecting external competitor memory archives. | ✅ |
 | `engine.py` | Core | MultiPlatformMigrationEngine coordinating parsing, safety, chunking, and dual ingestion. | ✅ |
+| `graph_parsers.py` | Parsers | Specialized parser for MemOS graph entities and relational triples. | ✅ |
 | `models.py` | Types | Types and models for migration. | ✅ |
-| `parsers.py` | Core | MultiPlatformParserMatrix supporting OpenClaw, Hermes, ChatExport, and MarkdownTree. | ✅ |
+| `note_parsers.py` | Parsers | Specialized parsers for OpenClaw, Hermes, and generic Markdown note trees. | ✅ |
+| `parsers.py` | Core | MultiPlatformParserMatrix facade supporting all external memory formats. | ✅ |
 | `security_guard.py` | Core | Safety guardrails enforcing file size limits and prompt injection sanitization. | ✅ |
 | `service.py` | Core | Thread-safe SQLite migration service driving asset discovery, schema normalization, and deduplicated ingestion. | ✅ |
 | `tools.py` | Core | Agent meta tools for discovering and importing competitor memory assets. | ✅ |

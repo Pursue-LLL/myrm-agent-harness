@@ -258,8 +258,9 @@ def create_litellm_model(
             llm_kwargs["ssl_verify"] = verify
 
     # Capture user-explicit timeout keys before internal processing
-    _TIMEOUT_KEYS = ("request_timeout", "first_event_timeout", "inter_chunk_timeout")
-    user_explicit_timeouts = frozenset(k for k in _TIMEOUT_KEYS if k in llm_kwargs)
+    user_explicit_timeouts = frozenset(
+        k for k in ("request_timeout", "first_event_timeout", "inter_chunk_timeout") if k in llm_kwargs
+    )
 
     # Apply reasoning model timeout floor (e.g. o3 needs 600s for thinking phase)
     reasoning_floor = get_reasoning_timeout_floor(model, llm_kwargs)

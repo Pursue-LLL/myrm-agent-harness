@@ -29,6 +29,9 @@ from myrm_agent_harness.toolkits.computer_use.backends.macos_background import (
     _capture_screen_excluding_titles,
     _lowest_overlay_window_id,
 )
+from myrm_agent_harness.toolkits.computer_use.capture_title_contracts import (
+    SNAPSHOT_ONLY_EXCLUDED_CAPTURE_TITLES,
+)
 
 _CURTAIN = frozenset({"Privacy Curtain"})
 
@@ -211,7 +214,18 @@ class TestMacOSBackendExclusionRouting:
             result = asyncio.run(backend.screenshot())
 
         assert result == b"EXCLUDED"
-        channel.assert_called_once_with(frozenset({"Privacy Curtain"}))
+        channel.assert_called_once_with(
+            frozenset({"Privacy Curtain"}) | SNAPSHOT_ONLY_EXCLUDED_CAPTURE_TITLES
+        )
+
+    def test_snapshot_only_titles_merge_without_curtain_injection(self) -> None:
+        backend = macos_mod.MacOSBackend()
+        channel = MagicMock(return_value=b"EXCLUDED")
+        with patch.object(macos_mod, "_capture_screen_excluding_titles", channel):
+            result = asyncio.run(backend.screenshot())
+
+        assert result == b"EXCLUDED"
+        channel.assert_called_once_with(SNAPSHOT_ONLY_EXCLUDED_CAPTURE_TITLES)
 
     def test_channel_none_falls_back_to_legacy_screencapture(self) -> None:
         backend = macos_mod.MacOSBackend()
@@ -264,12 +278,12 @@ class TestMacOSBackendExclusionRouting:
 
         channel.assert_not_called()
 
-    def test_empty_titles_go_straight_to_legacy_path(self) -> None:
+    def test_empty_curtain_titles_still_try_snapshot_only_channel(self) -> None:
         backend = macos_mod.MacOSBackend()
         backend.set_excluded_capture_window_titles([])
         assert backend._excluded_capture_titles == frozenset()
 
-        channel = MagicMock(return_value=b"EXCLUDED")
+        channel = MagicMock(return_value=None)
         exec_mock = AsyncMock(return_value=_fake_screencapture_proc())
         with (
             patch.object(macos_mod, "_capture_screen_excluding_titles", channel),
@@ -280,7 +294,7 @@ class TestMacOSBackendExclusionRouting:
             result = asyncio.run(backend.screenshot())
 
         assert result == b"LEGACY"
-        channel.assert_not_called()
+        channel.assert_called_once_with(SNAPSHOT_ONLY_EXCLUDED_CAPTURE_TITLES)
 
     def test_legacy_screencapture_failure_raises(self) -> None:
         backend = macos_mod.MacOSBackend()

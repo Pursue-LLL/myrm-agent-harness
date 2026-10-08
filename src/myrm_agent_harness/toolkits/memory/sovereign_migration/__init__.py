@@ -41,6 +41,10 @@ from myrm_agent_harness.toolkits.memory.sovereign_migration.competitor_adapter i
 from myrm_agent_harness.toolkits.memory.sovereign_migration.path_relativizer import (
     PathRelativizer,
 )
+from myrm_agent_harness.toolkits.memory.sovereign_migration.tool import (
+    SovereignAssetActionInput,
+    create_sovereign_migration_tool,
+)
 from myrm_agent_harness.toolkits.memory.sovereign_migration.types import (
     AssetCategory,
     AssetEntry,
@@ -66,7 +70,9 @@ __all__ = [
     "PathRelativizer",
     "RestoreBundleRequest",
     "RestoreBundleResult",
+    "SovereignAssetActionInput",
     "SovereignAssetManifest",
     "SovereignBundleArchiver",
     "SovereignBundleRestorer",
+    "create_sovereign_migration_tool",
 ]

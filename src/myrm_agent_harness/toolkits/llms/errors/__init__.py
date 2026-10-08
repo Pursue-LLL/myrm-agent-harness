@@ -7,6 +7,7 @@ from myrm_agent_harness.toolkits.llms.errors.classifier import (
     extract_retry_after,
     is_context_overflow,
     is_payload_overflow,
+    is_quota_exhausted,
 )
 from myrm_agent_harness.toolkits.llms.errors.error_types import (
     FailoverReason,
@@ -36,6 +37,7 @@ __all__ = [
     "get_probe_policy",
     "is_context_overflow",
     "is_payload_overflow",
+    "is_quota_exhausted",
     # Resilient
     "resilient_llm_call",
     "should_allow_probe",

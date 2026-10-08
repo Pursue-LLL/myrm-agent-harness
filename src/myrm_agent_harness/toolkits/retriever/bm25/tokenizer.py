@@ -70,8 +70,10 @@ class TokenizerService:
             jieba.initialize()
             self._jieba = jieba
             logger.info("jieba tokenizer initialized")
-        except (ImportError, TypeError):
-            logger.warning("jieba not installed, using CJK bigram fallback")
+        except (ImportError, SyntaxError, TypeError) as exc:
+            # SyntaxError: jieba 0.42.1 ships invalid regex escape sequences that
+            # Python >= 3.13 rejects at import time — degrade, never crash.
+            logger.warning("jieba unavailable (%s), using CJK bigram fallback", exc)
             self._jieba = None
 
     @property
@@ -128,7 +130,7 @@ class TokenizerService:
             await self._async_initialize()
             logger.info("jieba preloaded successfully")
         except Exception as e:
-            logger.error(f"Tokenizer preload failed: {e}")
+            logger.error("Tokenizer preload failed: %s", e)
             raise
 
 

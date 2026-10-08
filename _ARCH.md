@@ -2,7 +2,7 @@
 
 ## 架构概述
 
-闭源 Agent 执行引擎（PyPI 包 `myrm-agent-harness`）。**GUI-first 通用 AI 工作助手 harness**（WebUI / Tauri / 云沙箱），框架层与业务解耦，供 `myrm-agent-server` 通过 `uv.lock` 消费。整体架构、模块导航与依赖关系见 **[ARCHITECTURE.md](ARCHITECTURE.md)**；框架设计原则见 **[FRAMEWORK_DESIGN_PRINCIPLES.md](FRAMEWORK_DESIGN_PRINCIPLES.md)**。
+MIT 开源 Agent 执行引擎（PyPI 包 `myrm-agent-harness`）。**GUI-first 通用 AI 工作助手 harness**（WebUI / Tauri / 云沙箱），框架层与业务解耦，供 `myrm-agent-server` 通过 `uv.lock` 消费。整体架构、模块导航与依赖关系见 **[ARCHITECTURE.md](ARCHITECTURE.md)**；框架设计原则见 **[FRAMEWORK_DESIGN_PRINCIPLES.md](FRAMEWORK_DESIGN_PRINCIPLES.md)**。
 
 ## 根目录文件
 
@@ -11,7 +11,7 @@
 | `ARCHITECTURE.md` | L1：整体架构、模块导航、文档索引 |
 | `FRAMEWORK_DESIGN_PRINCIPLES.md` | 框架设计原则与边界约束 |
 | `pyproject.toml` / `uv.lock` | 包元数据与依赖锁 |
-| `LICENSE` | Proprietary 许可 |
+| `LICENSE` | MIT 开源许可 |
 | `README.md` | PyPI / GitHub 入口（安装与快速开始） |
 | `_ARCH.md` | 本文件：子目录职责表 |
 
@@ -20,7 +20,7 @@
 | 目录 | 地位 | 职责 |
 |------|------|------|
 | `src/myrm_agent_harness/` | 核心 | 框架源码（agent、toolkits、runtime、api 等）· [\_ARCH.md](src/myrm_agent_harness/_ARCH.md) |
-| `harness_packaging/` | 核心 | 闭源分发：Nuitka 编译、wheel 组装 · [\_ARCH.md](harness_packaging/_ARCH.md) |
+| `harness_packaging/` | 核心 | 分发构建：Nuitka 编译、wheel 组装 · [\_ARCH.md](harness_packaging/_ARCH.md) |
 | `tests/` | 辅助 | 单元 / 集成 / API 冒烟 · [\_ARCH.md](tests/_ARCH.md) |
 | `benchmarks/` | 辅助 | CI 性能回归；`archive/` 存历史脚本 · [\_ARCH.md](benchmarks/_ARCH.md) |
 | `scripts/` | 辅助 | 边界检测、PyPI 发布、tool registry、分形 `_ARCH` 门禁 · [\_ARCH.md](scripts/_ARCH.md) |

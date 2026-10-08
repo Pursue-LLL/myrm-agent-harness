@@ -393,6 +393,37 @@ class TestHandleTransientRetry:
             result = await executor._handle_transient_retry(RuntimeError("overloaded"), 0)
         assert result is True
 
+    @pytest.mark.asyncio
+    async def test_transient_quota_exhausted_bypasses_retry(self, ctx):
+        """Quota exhausted error (insufficient_quota) must bypass transient retry immediately."""
+        executor = _make_executor(ctx)
+
+        from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
+
+        # Even if classify_error might classify it as RATE_LIMIT or OVERLOADED,
+        # is_quota_exhausted short-circuits it and returns False.
+        with (
+            patch(
+                "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
+                return_value=ErrorKind.RATE_LIMIT,
+            ),
+            patch(
+                "myrm_agent_harness.agent.streaming.recovery.stream_recovery.asyncio.sleep",
+                new_callable=AsyncMock,
+            ) as mock_sleep,
+        ):
+            result = await executor._handle_transient_retry(
+                RuntimeError("insufficient_quota: You exceeded your current quota"), 0
+            )
+
+        assert result is False
+        mock_sleep.assert_not_called()
+        # Verify no transient_retry events were emitted
+        events = executor._compactor.events
+        retry_events = [e for e in events if isinstance(e, dict) and e.get("step_key") == "transient_retry"]
+        assert len(retry_events) == 0
+
+
 
 # ─── _handle_iteration_limit ─────────────────────────────────────────────────
 

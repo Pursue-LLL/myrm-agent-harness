@@ -12,8 +12,11 @@ Targeted Experience Auto-Recall Trigger with Multi-Turn Dedup and Fail-Open Rera
 | `recall_gate.py` | Core | Facade orchestrator coordinating trigger classification, dedup, and fail-open reranking. | ✅ |
 | `sliding_window_dedup.py` | Core | Sliding window deduplication gate to suppress redundant memory injection across turns. | ✅ |
 | `trigger_classifier.py` | Core | Deterministic and lightweight classifier for 5 high-risk recall trigger scenarios. | ✅ |
+| `tool.py` | Tool | Agent-facing LangChain tool for targeted experience auto-recall evaluation. | ✅ |
 | `types.py` | Types | Type definitions and contracts for Targeted Experience Auto-Recall Engine. | ✅ |
 
 ## Key Dependencies
 
-- None (self-contained within the package and the standard library)
+- `langchain_core`: BaseTool and tool decorators
+- `pydantic`: Schema validation
+

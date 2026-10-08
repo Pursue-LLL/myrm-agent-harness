@@ -232,6 +232,34 @@ async def evaluate_tool_batch(
                     )
                 )
                 continue
+
+            from myrm_agent_harness.core.security.readonly_research_sandbox import (
+                get_readonly_research_sandbox_facade,
+            )
+
+            ro_facade = get_readonly_research_sandbox_facade()
+            ro_allowed, ro_reason = ro_facade.evaluate_tool(session_key, tool_name)
+            if not ro_allowed:
+                logger.warning(
+                    "[READONLY_RESEARCH_LEASE] Tool %s DENIED under YOLO (session: %s): %s",
+                    tool_name,
+                    session_key,
+                    ro_reason,
+                )
+                record_decision(tool_name, "READONLY_RESEARCH_LEASE_BLOCKED", ro_reason)
+                from myrm_agent_harness.agent.middlewares.approval.denial_diagnostic_bridge import (
+                    build_auto_review_denial_message,
+                )
+
+                denial_msg = build_auto_review_denial_message(
+                    tool_name=tool_name,
+                    args=tool_input if isinstance(tool_input, dict) else None,
+                    reason=ro_reason,
+                    session_key=session_key,
+                )
+                auto_denied.append((idx, tool_call, denial_msg))
+                continue
+
             permission_type = resolve_permission_type(tool_name, tool_input)
             action, reason = evaluate_tool_call(
                 permission_type,
@@ -248,11 +276,21 @@ async def evaluate_tool_batch(
                     session_key,
                 )
                 record_decision(tool_name, "YOLO_DENY_OVERRIDE", reason)
+                from myrm_agent_harness.agent.middlewares.approval.denial_diagnostic_bridge import (
+                    build_auto_review_denial_message,
+                )
+
+                denial_msg = build_auto_review_denial_message(
+                    tool_name=tool_name,
+                    args=tool_input if isinstance(tool_input, dict) else None,
+                    reason=reason,
+                    session_key=session_key,
+                )
                 auto_denied.append(
                     (
                         idx,
                         tool_call,
-                        f"Tool execution denied by security policy: {reason}",
+                        denial_msg,
                     )
                 )
             elif is_financial_or_spend_tool(tool_name, tool_input):
@@ -394,6 +432,35 @@ async def evaluate_tool_batch(
                     f"Untrusted ingress fence: tool '{tool_name}' stripped for external tasks",
                 )
             )
+            continue
+
+        from myrm_agent_harness.core.security.readonly_research_sandbox import (
+            get_readonly_research_sandbox_facade,
+        )
+
+        ro_facade = get_readonly_research_sandbox_facade()
+        ro_allowed, ro_reason = ro_facade.evaluate_tool(session_key, tool_name)
+        if not ro_allowed:
+            logger.warning(
+                "[READONLY_RESEARCH_LEASE] Tool %s DENIED (session: %s): %s",
+                tool_name,
+                session_key,
+                ro_reason,
+            )
+            record_decision(tool_name, "READONLY_RESEARCH_LEASE_BLOCKED", ro_reason)
+            hint = record_denial(tool_name, session_key)
+            from myrm_agent_harness.agent.middlewares.approval.denial_diagnostic_bridge import (
+                build_auto_review_denial_message,
+            )
+
+            denial_msg = build_auto_review_denial_message(
+                tool_name=tool_name,
+                args=tool_input if isinstance(tool_input, dict) else None,
+                reason=ro_reason,
+                session_key=session_key,
+                hint=hint,
+            )
+            auto_denied.append((idx, tool_call, denial_msg))
             continue
 
         permission_type = resolve_permission_type(tool_name, tool_input)
@@ -840,11 +907,22 @@ async def evaluate_tool_batch(
                                     reason = f"AI Security Reviewer recommends denial: {review_result.reason}"
                                     pending_approval.append((idx, tool_call, permission_type, reason, extra_ctx))
                                 else:
+                                    from myrm_agent_harness.agent.middlewares.approval.denial_diagnostic_bridge import (
+                                        build_auto_review_denial_message,
+                                    )
+
+                                    denial_msg = build_auto_review_denial_message(
+                                        tool_name=tool_name,
+                                        args=tool_input if isinstance(tool_input, dict) else None,
+                                        reason=f"Denied by auto-mode shell escalation: {review_result.reason}",
+                                        session_key=session_key,
+                                        hint=hint,
+                                    )
                                     auto_denied.append(
                                         (
                                             idx,
                                             tool_call,
-                                            f"Denied by auto-mode shell escalation: {review_result.reason}{hint}",
+                                            denial_msg,
                                         )
                                     )
                                 continue
@@ -891,11 +969,22 @@ async def evaluate_tool_batch(
             logger.warning("[SECURITY] Tool %s DENIED: %s", tool_name, reason)
             record_decision(tool_name, "DENY", reason)
             hint = record_denial(tool_name, session_key)
+            from myrm_agent_harness.agent.middlewares.approval.denial_diagnostic_bridge import (
+                build_auto_review_denial_message,
+            )
+
+            denial_msg = build_auto_review_denial_message(
+                tool_name=tool_name,
+                args=tool_input if isinstance(tool_input, dict) else None,
+                reason=reason,
+                session_key=session_key,
+                hint=hint,
+            )
             auto_denied.append(
                 (
                     idx,
                     tool_call,
-                    f"Tool execution denied by security policy: {reason}{hint}",
+                    denial_msg,
                 )
             )
             continue
@@ -1076,11 +1165,22 @@ async def evaluate_tool_batch(
                             pending_approval.append((idx, tool_call, permission_type, reason, extra_ctx))
                         else:
                             hint = record_denial(tool_name, session_key)
+                            from myrm_agent_harness.agent.middlewares.approval.denial_diagnostic_bridge import (
+                                build_auto_review_denial_message,
+                            )
+
+                            denial_msg = build_auto_review_denial_message(
+                                tool_name=tool_name,
+                                args=tool_input if isinstance(tool_input, dict) else None,
+                                reason=f"Denied by security review: {review_result.reason}",
+                                session_key=session_key,
+                                hint=hint,
+                            )
                             auto_denied.append(
                                 (
                                     idx,
                                     tool_call,
-                                    f"Denied by security review: {review_result.reason}{hint}",
+                                    denial_msg,
                                 )
                             )
                         continue

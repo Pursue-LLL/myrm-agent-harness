@@ -30,8 +30,9 @@ def exclude_capture_windows(session: ComputerSession, titles: Iterable[str]) -> 
     a window with one of these titles is on screen, because that window would take the click.
     So only a window that captures clicks belongs here; a click-through overlay must stay out.
 
-    Returns False when no backend in the session's chain supports it (every platform but
-    macOS). Targeted window captures are never affected and a title with no window on screen
+    Returns False when no backend in the session's chain supports it (e.g. Linux). macOS and
+    Windows native backends implement the setter. Targeted window captures are never affected
+    and a title with no window on screen
     changes nothing, so calling this unconditionally is safe.
     """
     title_list = list(titles)

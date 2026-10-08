@@ -54,6 +54,10 @@ from .models import (
     RuleStatus,
 )
 from .snapshot import MemoryLineageSnapshotEngine
+from .tool import (
+    InspectExperienceGeneAdviceInput,
+    create_experience_gene_advice_tool,
+)
 
 __all__ = [
     "ArbitrationAction",
@@ -68,10 +72,13 @@ __all__ = [
     "GeneMatchQuery",
     "GeneMutationAdvice",
     "GenePolarity",
+    "InspectExperienceGeneAdviceInput",
     "MemoryLineageSnapshotEngine",
     "MemorySnapshot",
     "MultiTurnTaskTrace",
     "OrderInvarianceEvaluator",
     "PermutationEvaluationResult",
     "RuleStatus",
+    "create_experience_gene_advice_tool",
 ]
+

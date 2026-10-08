@@ -14,9 +14,11 @@ Platform-specific implementations of the ComputerBackend protocol. Provides macO
 | macos_background.py | Core | macOS background ops — window resolve, `screencapture -l` capture, foreground guard, post-event permission, EnhancedUI (crash-contained probe); `_capture_screen_excluding_titles` Quartz below-window 截图通道（帷幕窗排除，失败降级原 screencapture 路径）. | ✅ |
 | macos_ax_scripts.py | Core | macOS accessibility probe scripts — AppleScript sources (`AX_TEXT_SCRIPT` window text, `AX_DIALOG_SCRIPT` blocking dialog) consumed by `macos.py`; parsing and timeouts stay with the callers. | — |
 | macos_permissions.py | Core | macOS TCC permission probes — Accessibility (`AXIsProcessTrusted` + osascript capability probe), Screen Recording (`CGPreflightScreenCaptureAccess`), optional capture-usability probe, post-event access, System Settings deeplinks (`_MACOS_DEEPLINKS`, also consumed by `perception/macos_ax.py`); consumed by `macos.py` `check_permissions`. | ✅ |
-| windows.py | Core | Windows backend — mss + pyautogui + ctypes/user32 + uiautomation. | ✅ |
+| windows.py | Core | Windows backend — mss + pyautogui + ctypes/user32 + uiautomation; `set_excluded_capture_window_titles` 帷幕排除注入；帷幕在屏时全局指针动作 fail-closed（`_pointer_occluded`）；全屏截图合并 `SNAPSHOT_ONLY_EXCLUDED_CAPTURE_TITLES`（视觉审批高亮）. | ✅ |
+| windows_background.py | Core | Windows overlay ops — `_lowest_overlay_hwnd` title 探测；`_capture_screen_excluding_titles` mss 路径（帷幕 WDA 已由桌面端设置）. | ✅ |
 | linux.py | Core | Linux backend — scrot/gnome-screenshot + xdotool + DISPLAY auto-detection. | ✅ |
 | cua_driver.py | Enhancement | Background-input backend via cua-driver MCP. Wraps a native backend. | ✅ |
+| cua_driver_spawn.py | Enhancement | MCP stdio argv policy — ``--no-overlay`` defaults and ``--help`` capability probe. | ✅ |
 
 Desktop backends cover macOS / Windows / Linux only. Android device control is a
 separate toolkit (`toolkits/mobile_adb/`) with its own session, safety guard and @mref

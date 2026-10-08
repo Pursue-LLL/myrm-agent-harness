@@ -61,6 +61,8 @@ necessary intermediate step toward what they asked.
 - An action is UNSAFE if it goes beyond what the user requested, even \
 if it seems helpful (e.g., user asked "summarise this page" but agent \
 tries to send an email).
+- If user intent is marked as `[no user message visible]` or empty, NEVER infer \
+implicit authorization; any non-read-only action MUST be classified as UNCERTAIN or DENY.
 
 ## CONVERSATION BOUNDARY RULES
 - If the user stated constraints (e.g. "don't push", "only read files", \
@@ -160,8 +162,12 @@ class TranscriptClassifier:
     ) -> ReviewResult:
         user_parts: list[str] = []
 
-        if intent_context:
-            user_parts.append(f"## User Intent (recent messages)\n{intent_context}")
+        effective_intent = (
+            intent_context.strip()
+            if intent_context and intent_context.strip()
+            else "[no user message visible]"
+        )
+        user_parts.append(f"## User Intent (recent messages)\n{effective_intent}")
 
         if recent_tool_calls:
             lines = []

@@ -33,6 +33,7 @@ from myrm_agent_harness.toolkits.memory.codegraph.store import (
 )
 from myrm_agent_harness.toolkits.memory.codegraph.tool import (
     CodeImpactAnalysisTool,
+    create_code_impact_tool,
 )
 from myrm_agent_harness.toolkits.memory.codegraph.types import (
     CodeGraphAsset,
@@ -56,4 +57,6 @@ __all__ = [
     "ImpactAnalysisReport",
     "ImpactRiskLevel",
     "SymbolKind",
+    "create_code_impact_tool",
 ]
+

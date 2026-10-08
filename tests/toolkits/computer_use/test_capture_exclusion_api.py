@@ -15,6 +15,7 @@ from unittest.mock import MagicMock
 from myrm_agent_harness.api import security as security_facade
 from myrm_agent_harness.toolkits.computer_use import exclude_capture_windows
 from myrm_agent_harness.toolkits.computer_use.backends import macos as macos_mod
+from myrm_agent_harness.toolkits.computer_use.backends import windows as windows_mod
 from myrm_agent_harness.toolkits.computer_use.backends.cua_driver import CuaDriverBackend
 from myrm_agent_harness.toolkits.computer_use.backends.protocols import ComputerBackend
 from myrm_agent_harness.toolkits.computer_use.desktop_session import DesktopSession
@@ -55,8 +56,16 @@ def test_a_later_call_replaces_the_set_and_any_iterable_is_accepted() -> None:
     assert backend._excluded_capture_titles == frozenset({_CURTAIN})
 
 
+def test_titles_reach_windows_native_backend() -> None:
+    backend = windows_mod.WindowsBackend()
+    session = ComputerSession(backend=backend)
+
+    assert exclude_capture_windows(session, [_CURTAIN]) is True
+    assert backend._excluded_capture_titles == frozenset({_CURTAIN})
+
+
 def test_a_chain_without_a_capable_backend_reports_false() -> None:
-    """Every platform but macOS: nothing to inject into, and that is not an error."""
+    """Linux and other backends without a setter: nothing to inject into, and that is not an error."""
     plain = MagicMock(spec=ComputerBackend)
 
     assert exclude_capture_windows(ComputerSession(backend=plain), [_CURTAIN]) is False

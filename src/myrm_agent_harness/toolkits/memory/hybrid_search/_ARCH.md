@@ -16,3 +16,14 @@
 - `circuit_breaker.py`：纯内存三态状态机，自动跟踪连续故障并在冷却期后通过试探调用自愈；
 - `ranker.py`：词法清洗与防崩溃、BM25 单调归一化、时间半衰期衰减、MMR 多样性与 Token 截断；
 - `engine.py`：双路并行编排引擎，集成硬超时强杀、自适应降级阈值与诊断遥测。
+
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| `__init__.py` | Package | Public exports for dual engine hybrid search. | ✅ |
+| `circuit_breaker.py` | Core | Pure in-memory tri-state adaptive circuit breaker. | ✅ |
+| `engine.py` | Core | Dual-engine hybrid search orchestrator. | ✅ |
+| `models.py` | Types | Data contracts and report models for hybrid search. | ✅ |
+| `ranker.py` | Core | Lexical sanitization, recency decay, and MMR reranker. | ✅ |
+

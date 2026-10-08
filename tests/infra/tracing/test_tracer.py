@@ -227,6 +227,9 @@ def test_active_posture_from_args_without_env_vars(monkeypatch):
 
 def test_degraded_console_posture_when_exporters_fail(monkeypatch):
     """Test that posture accurately flags degraded_console when remote exporters cannot initialize."""
+    import sys
+    from unittest.mock import MagicMock
+
     from myrm_agent_harness.infra.tracing import (
         get_telemetry_posture,
         setup_tracing,
@@ -235,6 +238,24 @@ def test_degraded_console_posture_when_exporters_fail(monkeypatch):
 
     monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
     shutdown_tracing()
+
+    # otel >= 1.45 exporters connect lazily, so an unreachable endpoint no
+    # longer fails setup. Simulate the real degradation path instead: exporter
+    # construction itself raises, for both the HTTP and gRPC candidates.
+    mock_http_module = MagicMock()
+    mock_http_module.OTLPSpanExporter.side_effect = RuntimeError("http exporter init failed")
+    mock_grpc_module = MagicMock()
+    mock_grpc_module.OTLPSpanExporter.side_effect = RuntimeError("grpc exporter init failed")
+    monkeypatch.setitem(
+        sys.modules,
+        "opentelemetry.exporter.otlp.proto.http.trace_exporter",
+        mock_http_module,
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "opentelemetry.exporter.otlp.proto.grpc.trace_exporter",
+        mock_grpc_module,
+    )
 
     setup_tracing(
         service_name="test-degraded-svc",

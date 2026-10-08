@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 from myrm_agent_harness.agent.config import DEFAULT_FILE_IO_CONFIG, FileIOConfig
 
 from .binary_validator import BinaryValidator
+from .client_secret_validator import ClientSecretWriteValidator
 from .config_protection_validator import ConfigProtectionValidator
 from .evidence_readonly_validator import EvidenceReadOnlyValidator
 from .invariant_validator import InvariantValidator
@@ -61,13 +62,16 @@ class ValidatorChain:
         # 3. 证据链只读保护（物理阻止对 evidence/、user_inputs/ 原始素材的覆写）
         # 4. 敏感文件检测（credentials、keys 等）
         # 5. 配置文件保护（防止 Agent 削弱 linter/formatter 规则）
-        # 6. 二进制数据检测（防止写入乱码）
-        # 7. 文件大小验证
-        # 8. 权限验证（文件存在性、操作合法性）
+        # 6. 前端代码硬编码密钥泄露检测（防止 Agent 在客户端组件中硬编码 API Key）
+        # 7. 二进制数据检测（防止写入乱码）
+        # 8. 文件大小验证
+        # 9. 权限验证（文件存在性、操作合法性）
         self.chain = PathValidator(allowed_base_paths, config)
         self.chain.set_next(InvariantValidator()).set_next(EvidenceReadOnlyValidator()).set_next(
             SensitiveFileValidator(config, block_sensitive_reads)
-        ).set_next(ConfigProtectionValidator()).set_next(BinaryValidator()).set_next(SizeValidator(strategy)).set_next(
+        ).set_next(ConfigProtectionValidator()).set_next(ClientSecretWriteValidator()).set_next(
+            BinaryValidator()
+        ).set_next(SizeValidator(strategy)).set_next(
             PermissionValidator(strategy)
         )
 

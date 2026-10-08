@@ -13,12 +13,29 @@
 Agent-facing meta tool for evaluating code modification impact.
 """
 
+import json
+
+from langchain_core.tools import BaseTool, tool
+from pydantic import BaseModel, Field
+
 from myrm_agent_harness.toolkits.memory.codegraph.impact_analyzer import (
     CodeImpactAnalyzer,
 )
 from myrm_agent_harness.toolkits.memory.codegraph.store import (
     CodeGraphMemoryStore,
 )
+
+
+class AnalyzeCodeImpactInput(BaseModel):
+    """Input schema for code impact evaluation."""
+
+    symbol_name: str = Field(
+        description="Name of the function, class, or method to evaluate before modifying"
+    )
+    file_path: str = Field(
+        default="",
+        description="Optional file path containing the symbol to avoid ambiguity",
+    )
 
 
 class CodeImpactAnalysisTool:
@@ -48,3 +65,31 @@ class CodeImpactAnalysisTool:
             "affected_files": report.affected_files,
             "safety_recommendations": report.safety_recommendations,
         }
+
+
+def create_code_impact_tool(store: CodeGraphMemoryStore) -> BaseTool:
+    """Create a LangChain standard tool for agents to inspect blast radius before code edits."""
+    analyzer = CodeImpactAnalyzer(store=store)
+
+    @tool("analyze_code_impact", args_schema=AnalyzeCodeImpactInput)
+    def analyze_code_impact(symbol_name: str, file_path: str = "") -> str:
+        """Evaluate ripple effect, blast radius, upstream callers, and risk level before modifying a code symbol."""
+        report = analyzer.analyze_symbol_impact(
+            symbol_name=symbol_name,
+            file_path=file_path,
+        )
+        data = {
+            "target_symbol_id": report.target_symbol_id,
+            "target_symbol_name": report.target_symbol_name,
+            "file_path": report.file_path,
+            "blast_radius": report.blast_radius,
+            "risk_level": report.risk_level.value,
+            "direct_callers": report.direct_callers,
+            "indirect_callers": report.indirect_callers,
+            "affected_files": report.affected_files,
+            "safety_recommendations": report.safety_recommendations,
+        }
+        return json.dumps(data, ensure_ascii=False)
+
+    return analyze_code_impact
+
