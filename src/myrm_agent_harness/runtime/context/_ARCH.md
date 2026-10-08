@@ -171,7 +171,6 @@ Context lifecycle management — cleanup, config, metrics, tracking, reading, of
 | omniglyph_visual_channel.py | Core | OmniGlyph visual context channel renderer and arbitration governor. | ✅ |
 | orphaned_tool_healing_transform.py | Core | Sits between session tree/history projection and provider request transport. | ✅ |
 | output_spill_to_disk_middleware.py | Core | Output spill to disk middleware. | ✅ |
-| overflow_compaction_guard.py | Core | Bounds the compact-and-retry loop at one attempt per user action, preventing infinite compaction token burn. | ✅ |
 | path_scoped_rule_matcher.py | Core | Path-scoped and task-phase rule matching router for dynamic working set slicing. | ✅ |
 | path_stable_doc_session.py | Core | File-Path SHA-256 Stable Document Session Binding Hub. | ✅ |
 | path_stable_doc_session_types.py | Types | Type definitions for File-Path SHA-256 Stable Document Session Binding Hub. | ✅ |

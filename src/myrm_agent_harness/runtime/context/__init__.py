@@ -819,14 +819,6 @@ from myrm_agent_harness.runtime.context.orphaned_tool_healing_transform import (
 from myrm_agent_harness.runtime.context.output_spill_to_disk_middleware import (
     OutputSpillToDiskMiddleware,
 )
-from myrm_agent_harness.runtime.context.overflow_compaction_guard import (
-    OverflowClassification,
-    OverflowCompactionExhaustedGiveUpError,
-    OverflowCompactionOnePerInputGuard,
-    OverflowRecoveryDecision,
-    classify_response_overflow,
-    is_recoverable_length,
-)
 from myrm_agent_harness.runtime.context.path_scoped_rule_matcher import (
     PathScopedRuleMatcher,
 )
@@ -1618,12 +1610,6 @@ __all__ = [
     "DeferredWriteType",
     "KVCacheTailInvariantViolationError",
     "ViolationType",
-    "OverflowClassification",
-    "OverflowCompactionExhaustedGiveUpError",
-    "OverflowCompactionOnePerInputGuard",
-    "OverflowRecoveryDecision",
-    "classify_response_overflow",
-    "is_recoverable_length",
     "AbortDeferredApplyResult",
     "DeferredFactKind",
     "DeferredWriteRecordType",
@@ -2459,9 +2445,3 @@ __all__ = [
     "PrunedContextResult",
     "CrossAgentCommunicationGraphEngine",
 ]
-
-
-
-
-
-
