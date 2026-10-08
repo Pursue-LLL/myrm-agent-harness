@@ -920,8 +920,25 @@ from .two_stage_pipeline import (
     ProviderProtocolTranspiler,
     TwoStageContextPipelineAndProviderProtocolDecouplingSuite,
 )
+from .workspace_branch_stash import (
+    BranchSwitchWorkspaceStashAndArtifactIntegritySuite,
+    BranchWorkspaceSnapshot,
+    FileStashKind,
+    ShadowStashEngine,
+    ShadowStashFileRecord,
+    WorkspaceStashConflictWarning,
+    WorkspaceStashReceipt,
+)
 
 __all__ = [
+    # workspace_branch_stash
+    "BranchSwitchWorkspaceStashAndArtifactIntegritySuite",
+    "BranchWorkspaceSnapshot",
+    "FileStashKind",
+    "ShadowStashEngine",
+    "ShadowStashFileRecord",
+    "WorkspaceStashConflictWarning",
+    "WorkspaceStashReceipt",
     # two_stage_pipeline
     "AssemblyAdjustmentDirective",
     "LlmProviderProtocolKind",

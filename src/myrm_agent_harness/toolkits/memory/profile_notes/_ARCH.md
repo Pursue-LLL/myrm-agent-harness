@@ -9,6 +9,7 @@ Dual-Layer Profile & Working Notes Memory Budget & Garbage Purge Guard: determin
 |------|------|-------------|-------|
 | `__init__.py` | Package | Harness toolkit memory subpackage providing Hermes-grade dual-layer memory organization (USER <= 1375c, MEMORY <= 2200c) with deterministic garbage filtering. | ✅ |
 | `garbage_filter.py` | Core | Intake gatekeeper implementing Hermes memory guidelines, preventing task progress, ephemeral issue numbers. | ✅ |
+| `intake_gate.py` | Core | Intake gatekeeper and prompt formatter for Dual-Layer Profile & Working Notes. | ✅ |
 | `types.py` | Types | Foundational types for DualLayerProfileMemoryBudgetAndGarbagePurgeGuard, enforcing Hermes-grade memory purity, strict capacity budgets. | ✅ |
 | `watermark_governor.py` | Core | Capacity governor enforcing Hermes memory character limits (USER <= 1375, MEMORY <= 2200). | ✅ |
 

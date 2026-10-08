@@ -141,6 +141,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | two_stage_pipeline/ | Phase 2: Protocol conversion transpiling high-level logical context to provider-specific payloads. See [two_stage_pipeline/_ARCH.md](two_stage_pipeline/_ARCH.md). |
 | visual_pruner/ | Core engine for Visual Frame Context Pruning and Latency Squeezing. See [visual_pruner/_ARCH.md](visual_pruner/_ARCH.md). |
 | working_memory/ | Local Working Memory Block: low-overhead in-memory workbench for goals, subtasks, traps, and turn-tail prompt cache-safe rendering. |
+| workspace_branch_stash/ | Engine managing lightweight shadow stash capture and checkout restoration in workspace sandbox. See [workspace_branch_stash/_ARCH.md](workspace_branch_stash/_ARCH.md). |
 | workspace_guard/ | 显式工作区探索守卫与自主扫盘抑制核心引擎。 See [workspace_guard/_ARCH.md](workspace_guard/_ARCH.md). |
 | worktree_isolation/ | Core implementation of Git Worktree Multi-Branch Parallel Session Isolation Engine. See [worktree_isolation/_ARCH.md](worktree_isolation/_ARCH.md). |
 | zero_thinking_route/ | Deterministic Task Detector identifying mechanical, non-reasoning prompts. See [zero_thinking_route/_ARCH.md](zero_thinking_route/_ARCH.md). |
