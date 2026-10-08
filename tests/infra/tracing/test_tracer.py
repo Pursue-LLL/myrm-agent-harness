@@ -227,6 +227,8 @@ def test_active_posture_from_args_without_env_vars(monkeypatch):
 
 def test_degraded_console_posture_when_exporters_fail(monkeypatch):
     """Test that posture accurately flags degraded_console when remote exporters cannot initialize."""
+    import sys
+
     from myrm_agent_harness.infra.tracing import (
         get_telemetry_posture,
         setup_tracing,
@@ -234,6 +236,13 @@ def test_degraded_console_posture_when_exporters_fail(monkeypatch):
     )
 
     monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
+    # A None entry makes the import raise ImportError, so the failure does not depend on which
+    # exporter packages are installed (constructing an exporter never contacts the collector).
+    for exporter_module in (
+        "opentelemetry.exporter.otlp.proto.http.trace_exporter",
+        "opentelemetry.exporter.otlp.proto.grpc.trace_exporter",
+    ):
+        monkeypatch.setitem(sys.modules, exporter_module, None)
     shutdown_tracing()
 
     setup_tracing(
@@ -291,5 +300,3 @@ def test_force_flush_tracing_bounded():
     setup_tracing(service_name="test-flush-tracing", console_export=False)
     assert force_flush_tracing(timeout_ms=1000.0) is True
     shutdown_tracing()
-
-
