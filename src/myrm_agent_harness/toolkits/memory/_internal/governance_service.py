@@ -53,6 +53,20 @@ StoreFunc = Callable[[AnyMemory], Awaitable[AnyMemory]]
 ReadFunc = Callable[[str], Awaitable[AnyMemory | None]]
 
 
+def _drift_reason(record: PendingRecord, target: AnyMemory) -> str | None:
+    """Why ``target`` is no longer what the reviewer was shown, or ``None`` when it still is."""
+    shown = record.target_content
+    current = getattr(target, "content", None)
+    if shown is not None and current is not None and current != shown:
+        return "content_changed"
+    if record.resolution_action == PendingResolutionAction.CORRECT:
+        if getattr(target, "status", MemoryStatus.ACTIVE) != MemoryStatus.ACTIVE:
+            return "not_active"
+        if (getattr(target, "metadata", None) or {}).get("corrected") is True:
+            return "already_corrected"
+    return None
+
+
 def _ensure_target_unchanged(record: PendingRecord, target: AnyMemory | None) -> None:
     """Refuse to apply a proposal to a memory that is no longer what the reviewer was shown.
 
@@ -62,20 +76,19 @@ def _ensure_target_unchanged(record: PendingRecord, target: AnyMemory | None) ->
     """
     if target is None:
         return
-    shown = record.target_content
-    current = getattr(target, "content", None)
-    drifted = shown is not None and current is not None and current != shown
-    if record.resolution_action == PendingResolutionAction.CORRECT:
-        metadata = getattr(target, "metadata", None) or {}
-        drifted = (
-            drifted
-            or getattr(target, "status", MemoryStatus.ACTIVE) != MemoryStatus.ACTIVE
-            or metadata.get("corrected") is True
-        )
-    if drifted:
-        raise PendingTargetChangedError(
-            f"Memory {record.target_memory_id} changed after proposal {record.id} was queued; review it again"
-        )
+    reason = _drift_reason(record, target)
+    if reason is None:
+        return
+    logger.info(
+        "Pending %s proposal %s refused: target %s drifted (%s)",
+        record.resolution_action,
+        record.id,
+        record.target_memory_id,
+        reason,
+    )
+    raise PendingTargetChangedError(
+        f"Memory {record.target_memory_id} changed after proposal {record.id} was queued; review it again"
+    )
 
 
 class GovernanceService:
