@@ -179,6 +179,16 @@ from myrm_agent_harness.toolkits.memory.cvfs import (
     VFSTreeNode,
     VFSTreeResult,
 )
+from myrm_agent_harness.toolkits.memory.progressive_sidecar import (
+    ContextTier,
+    OKFFrontmatter,
+    ProgressiveContextBundle,
+    ProgressiveContextVFSAdapter,
+    ProgressiveReadRequest,
+    ProgressiveReadResult,
+    ProgressiveSidecarEngine,
+    SidecarDescriptor,
+)
 from myrm_agent_harness.toolkits.memory.decisions import (
     CandidateStatus,
     DecisionDatabase,
@@ -1418,6 +1428,14 @@ __all__ = [
     "VFSSubtreeStats",
     "VFSTreeNode",
     "VFSTreeResult",
+    "ContextTier",
+    "OKFFrontmatter",
+    "ProgressiveContextBundle",
+    "ProgressiveContextVFSAdapter",
+    "ProgressiveReadRequest",
+    "ProgressiveReadResult",
+    "ProgressiveSidecarEngine",
+    "SidecarDescriptor",
     "CognitiveBoxMetaTools",
     "CognitiveBoxSnapshot",
     "CognitiveLayerKind",
