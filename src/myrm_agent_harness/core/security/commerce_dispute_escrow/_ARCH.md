@@ -9,8 +9,8 @@ Agent commerce dispute escrow manager and transaction circuit breaker evaluator.
 |------|------|-------------|-------|
 | `__init__.py` | Package | Public exports for CommerceEscrowManager, CommerceCircuitBreakerEvaluator, and types. | — |
 | `types.py` | Types | Domain models for escrow agreements, disputes, task types, and circuit breakers. | ✅ |
-| `evaluator.py` | Core | Circuit breaker policy evaluator assessing maximum exposure and loss thresholds. | ✅ |
-| `manager.py` | Core | Escrow lifecycle manager handling commitments, disputes, and releases. | ✅ |
+| `circuit_breaker.py` | Core | `CommerceCircuitBreakerEvaluator`: quantitative gate that freezes capital operations when loss / position / exposure telemetry crosses `TradingCircuitBreakers` thresholds. | ✅ |
+| `engine.py` | Core | Deterministic escrow protocol engine: escrow creation, deliverable submission, dispute raising, arbitrator vote commitments and fund distribution. | ✅ |
 
 ## Dependencies
 - Standard library: `dataclasses`, `enum`, `time`

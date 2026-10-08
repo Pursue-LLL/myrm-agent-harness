@@ -12,6 +12,8 @@ Execution security — shell command analysis, blacklists, validators, and C-lev
 | ast_parser.py | Core | Lightweight Bash AST semantic parser and capability boundary classifier. | ✅ |
 | audit_sandbox.py | Core | PEP 578 Audit Hook. Provides C-level interception of dangerous operations (network, fs, process, memory) to prevent LLM code escapes, readonly_workspace filesystem protection, adaptive socket address resolution, zero-dependency source code generation, and sensitive credential shields. | ✅ |
 | blacklist.py | Core | Security blacklists for code execution. | ✅ |
+| bff_refactor.py | Core | BFF auto-refactor for client secret leaks: moves raw credentials into sandbox `.env`, generates a server-side proxy route (Next.js / Node.js) and rewrites the client component to call the relative proxy. | ✅ |
+| client_secret_scanner.py | Core | Detects hardcoded secrets, API tokens and DB connection strings in browser-facing code (React/Next.js/Vue/HTML/Svelte/JS/TS); yields `SecretFinding`. | ✅ |
 | env_isolation.py | Core | Child process environment variable isolation, sensitive token stripping, and safe inheritance SSOT. | ✅ |
 | risk_classifier.py | Core | Command risk classifier for shell_exec auto-allow decisions. | ✅ |
 | command_explainer/ | Core | Shell pipeline span extraction + per-segment risk levels for approval UI highlighting. | ✅ |

@@ -30,4 +30,7 @@ Composable `MemoryManager` implementation. External code imports `MemoryManager`
 | `reindex.py` | Mixin | Orphan collection detection and re-embedding after model switch | ✅ |
 | `helpers.py` | Internal | `_memory_ref`, `_infer_preference_category` | — |
 | `__init__.py` | Facade | Composes `MemoryManager` | ✅ |
+| `cross_agent.py` | Mixin | Cross-agent composable context projection (4-layer virtual references), deterministic 3-tier divergence arbitration and sealed task handoffs | ✅ |
+| `integration_purge.py` | Mixin | Connector-scoped retained-context auditing, selective purge and provenance revocation | ✅ |
+| `kg_screening.py` | Mixin | Knowledge-graph pre-extraction content screening: prompt-injection scan, hidden-HTML stripping, screening audit trail | ✅ |
 
