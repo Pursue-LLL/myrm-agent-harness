@@ -1226,6 +1226,17 @@ from .search_flood_guard import (
     ProgressiveSoftCapGate,
     SlidingWindowBucket,
 )
+from .jit_tool_hydration import (
+    HydrationDecision,
+    HydrationMode,
+    JITSchemaHydrationEngine,
+    JITToolHydrationConfig,
+    LowContextFriendlyJITToolHydrationAndVirtualCatalogSuite,
+    PostExecutionToolDehydrator,
+    ToolSchemaDescriptor,
+    VirtualCatalogIndex,
+    VirtualToolCatalogIndexer,
+)
 from .sandbox_pause_resume import (
     AgentkitPauseResumeSessionSandboxSuite,
     PauseResumeActionKind,
@@ -2390,6 +2401,16 @@ __all__ = [
     "PerAgentSlidingWindowTracker",
     "ProgressiveSoftCapGate",
     "SlidingWindowBucket",
+    # jit_tool_hydration
+    "HydrationDecision",
+    "HydrationMode",
+    "JITSchemaHydrationEngine",
+    "JITToolHydrationConfig",
+    "LowContextFriendlyJITToolHydrationAndVirtualCatalogSuite",
+    "PostExecutionToolDehydrator",
+    "ToolSchemaDescriptor",
+    "VirtualCatalogIndex",
+    "VirtualToolCatalogIndexer",
 ]
 
 

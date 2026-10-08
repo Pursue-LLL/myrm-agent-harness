@@ -87,6 +87,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | instructions/ | Recursively resolves project instructions upward along directory tree and claims legacy skills. See [instructions/_ARCH.md](instructions/_ARCH.md). |
 | interrupt_preserver/ | Core implementation of Graceful Turn Interrupt and Queued Message Draft Preserver. See [interrupt_preserver/_ARCH.md](interrupt_preserver/_ARCH.md). |
 | ipc_clamping/ | IPC Message Clamping and Large Artifact Spillover Engine (Item 216). See [ipc_clamping/_ARCH.md](ipc_clamping/_ARCH.md). |
+| jit_tool_hydration/ | Low-context friendly virtual tool catalog, JIT intent hydration, and post-execution dehydration suite (Item 302). See [jit_tool_hydration/_ARCH.md](jit_tool_hydration/_ARCH.md). |
 | isolation/ | Guards context against cross-project data bleed and asserts task alignment. See [isolation/_ARCH.md](isolation/_ARCH.md). |
 | layered_loop_termination/ | Manager for consumable debt inbox and model response debt accounting. See [layered_loop_termination/_ARCH.md](layered_loop_termination/_ARCH.md). |
 | live_steering/ | Core engine for Live Response Steering and Mid-Generation Correction Channel (Item 219). See [live_steering/_ARCH.md](live_steering/_ARCH.md). |
