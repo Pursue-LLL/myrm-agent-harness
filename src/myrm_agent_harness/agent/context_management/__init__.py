@@ -997,6 +997,16 @@ from .handoff_checkpoint import (
     TaskCheckpoint,
     WorkBuddyHandoffThenCompactSuite,
 )
+from .sandbox_pause_resume import (
+    AgentkitPauseResumeSessionSandboxSuite,
+    PauseResumeActionKind,
+    PauseResumeReceipt,
+    SandboxPauseResumeEngine,
+    SandboxSessionRecord,
+    SandboxSnapshotManifest,
+    SessionLifecycleState,
+    compute_state_checksum,
+)
 from .stale_query_expire import (
     ContextEvaluationResult,
     MateclawStaleQueryContextExpireSuite,
@@ -1006,6 +1016,15 @@ from .stale_query_expire import (
 )
 
 __all__ = [
+    # sandbox_pause_resume
+    "AgentkitPauseResumeSessionSandboxSuite",
+    "PauseResumeActionKind",
+    "PauseResumeReceipt",
+    "SandboxPauseResumeEngine",
+    "SandboxSessionRecord",
+    "SandboxSnapshotManifest",
+    "SessionLifecycleState",
+    "compute_state_checksum",
     # stale_query_expire
     "ContextEvaluationResult",
     "MateclawStaleQueryContextExpireSuite",

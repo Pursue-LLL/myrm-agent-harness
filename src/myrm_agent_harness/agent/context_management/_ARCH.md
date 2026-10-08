@@ -110,6 +110,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | rotation/ | Orchestrates three-tier runtime parameter assembly and MCP connection caching. See [rotation/_ARCH.md](rotation/_ARCH.md). |
 | rule_lifecycle/ | 核心引擎实现：智能体长期规则生命周期审计、过时失效嗅探与瘦身清洗中枢。 See [rule_lifecycle/_ARCH.md](rule_lifecycle/_ARCH.md). |
 | sandbox_interceptor/ | Core engine for Sandbox Tool Output Interception, Local SQLite FTS5 Search, and Lifecycle Hooks. See [sandbox_interceptor/_ARCH.md](sandbox_interceptor/_ARCH.md). |
+| sandbox_pause_resume/ | End-to-end suite orchestrating sandbox session pause, in-place resume, and snapshot branching. See [sandbox_pause_resume/_ARCH.md](sandbox_pause_resume/_ARCH.md). |
 | sandbox_reduction/ | Core engine for In-Sandbox Data Reduction and Session Action Ledger (Item 221). See [sandbox_reduction/_ARCH.md](sandbox_reduction/_ARCH.md). |
 | sandplay_simulation/ | Core engine for Financial Sandplay Simulation, Causality Anchoring, and Skill Solidification. See [sandplay_simulation/_ARCH.md](sandplay_simulation/_ARCH.md). |
 | sandwich_trajectory/ | Core implementation of Sandwich Trajectory Compression and Middle Turn Summarization Engine. See [sandwich_trajectory/_ARCH.md](sandwich_trajectory/_ARCH.md). |
