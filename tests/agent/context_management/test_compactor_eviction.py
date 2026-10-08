@@ -138,3 +138,129 @@ async def test_compress_messages_async_no_eviction_if_small(monkeypatch):
 
     # Eviction callback should NOT be called because tokens < 500
     mock_eviction_cb.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_eviction_original_content_never_carries_image_bytes(monkeypatch):
+    """A screenshot returned by a tool must reach the eviction callback as its text only."""
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.context_management.strategies.compactor.compactor.get_token_count", lambda x: 600
+    )
+
+    async def mock_compress_fn(tool_msg, ai_msg, **kwargs):
+        tool_msg.content = "COMPACTED: browser summary"
+        return 100
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.context_management.strategies.compactor.compactor.compress_tool_message_async",
+        mock_compress_fn,
+    )
+
+    base64_payload = "iVBORw0KGgo" * 20_000
+    ai_msg = AIMessage(content="ai1", tool_calls=[{"id": "1", "name": "screenshot", "args": {}}])
+    tool_msg = ToolMessage(
+        content=[
+            {"type": "text", "text": "Page title: Settings"},
+            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_payload}"}},
+        ],
+        tool_call_id="1",
+        name="screenshot",
+    )
+
+    captured: list[EvictedToolCall] = []
+
+    async def capture_cb(evicted_pairs: list[EvictedToolCall], user_goal_hint: str) -> None:
+        captured.extend(evicted_pairs)
+
+    await compress_messages_async(
+        messages=[ai_msg, tool_msg],
+        dynamic_min_save=0,
+        config=ContextConfig(max_context_tokens=128000, keep_recent_calls=0),
+        on_compress_offload=None,
+        on_compress_eviction=capture_cb,
+        user_goal_hint="test",
+        chat_id="chat1",
+        user_id="user1",
+    )
+
+    assert len(captured) == 1
+    assert "Page title: Settings" in captured[0].original_content
+    assert "base64" not in captured[0].original_content
+    assert len(captured[0].original_content) < 1_000
+
+
+def _tool_pair(call_id: str, content: str) -> tuple[AIMessage, ToolMessage]:
+    ai_msg = AIMessage(content="ai", tool_calls=[{"id": call_id, "name": "tool1", "args": {}}])
+    return ai_msg, ToolMessage(content=content, tool_call_id=call_id, name="tool1")
+
+
+_CONFIG = ContextConfig(max_context_tokens=128000, keep_recent_calls=0)
+
+
+@pytest.mark.asyncio
+async def test_failing_eviction_callback_never_breaks_compression(monkeypatch):
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.context_management.strategies.compactor.compactor.get_token_count", lambda x: 600
+    )
+    ai_msg, tool_msg = _tool_pair("1", "long tool output")
+
+    async def failing_cb(evicted_pairs: list[EvictedToolCall], user_goal_hint: str) -> None:
+        raise RuntimeError("extractor down")
+
+    await compress_messages_async(
+        messages=[ai_msg, tool_msg],
+        dynamic_min_save=0,
+        config=_CONFIG,
+        on_compress_offload=None,
+        on_compress_eviction=failing_cb,
+        user_goal_hint="test",
+        chat_id="chat1",
+        user_id="user1",
+    )
+
+    assert tool_msg.content.startswith("COMPACTED:")
+
+
+@pytest.mark.asyncio
+async def test_already_compressed_tool_output_is_not_evicted_again(monkeypatch):
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.context_management.strategies.compactor.compactor.get_token_count", lambda x: 600
+    )
+    ai_msg, tool_msg = _tool_pair("1", "COMPACTED: tool1 already summarised")
+    eviction_cb = AsyncMock()
+
+    await compress_messages_async(
+        messages=[ai_msg, tool_msg],
+        dynamic_min_save=0,
+        config=_CONFIG,
+        on_compress_offload=None,
+        on_compress_eviction=eviction_cb,
+        user_goal_hint="test",
+        chat_id="chat1",
+        user_id="user1",
+    )
+
+    eviction_cb.assert_not_called()
+    assert tool_msg.content == "COMPACTED: tool1 already summarised"
+
+
+@pytest.mark.asyncio
+async def test_recent_tool_calls_are_kept_untouched(monkeypatch):
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.context_management.strategies.compactor.compactor.get_token_count", lambda x: 600
+    )
+    ai_msg, tool_msg = _tool_pair("1", "long tool output")
+
+    _messages, saved = await compress_messages_async(
+        messages=[ai_msg, tool_msg],
+        dynamic_min_save=0,
+        config=ContextConfig(max_context_tokens=128000, keep_recent_calls=3),
+        on_compress_offload=None,
+        on_compress_eviction=None,
+        user_goal_hint="test",
+        chat_id="chat1",
+        user_id="user1",
+    )
+
+    assert saved == 0
+    assert tool_msg.content == "long tool output"

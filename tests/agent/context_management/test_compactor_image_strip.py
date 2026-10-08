@@ -4,10 +4,13 @@ Verifies that base64 image content in ToolMessage is correctly stripped
 and flattened to plain text before compression, preventing token waste.
 """
 
+import json
+
 import pytest
 from langchain_core.messages import AIMessage, ToolMessage
 
 from myrm_agent_harness.agent.context_management.strategies.compactor.compactor import (
+    _tool_content_text,
     compress_tool_message_async,
 )
 
@@ -137,3 +140,31 @@ async def test_flatten_preserves_all_text_parts() -> None:
     assert "Step 1" in text_parts[0]
     assert "removed" in text_parts[1].lower()
     assert "Step 2" in text_parts[2]
+
+
+class TestToolContentText:
+    """`_tool_content_text` is the one text view eviction, offload and token accounting read."""
+
+    def test_plain_string_is_returned_untouched(self) -> None:
+        assert _tool_content_text("plain") == "plain"
+
+    def test_text_only_blocks_are_serialised_as_json(self) -> None:
+        blocks: list[str | dict[str, object]] = [{"type": "text", "text": "a"}, {"type": "tool_use", "id": "t1"}]
+        assert _tool_content_text(blocks) == json.dumps(blocks)
+
+    def test_images_become_placeholders_beside_the_text(self) -> None:
+        blocks: list[str | dict[str, object]] = [
+            {"type": "text", "text": "Page title: Settings"},
+            {"type": "image_url", "image_url": {"url": "data:image/png;base64," + "A" * 5000}},
+        ]
+        text = _tool_content_text(blocks)
+        assert text == "Page title: Settings\n[Image removed during context compression]"
+
+    def test_images_beside_non_text_blocks_never_survive_serialisation(self) -> None:
+        blocks: list[str | dict[str, object]] = [
+            {"type": "tool_use", "id": "t1"},
+            {"type": "image", "base64": "A" * 5000, "mime_type": "image/png"},
+        ]
+        text = _tool_content_text(blocks)
+        assert "A" * 100 not in text
+        assert "tool_use" in text

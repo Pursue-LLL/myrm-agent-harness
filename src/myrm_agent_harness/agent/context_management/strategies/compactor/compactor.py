@@ -63,6 +63,26 @@ _file_tracking_tasks: set[asyncio.Task[None]] = set()
 OFFLOAD_THRESHOLD_TOKENS = 5000
 
 
+def _tool_content_text(content: str | list[str | dict[str, object]]) -> str:
+    """Text view of a tool result: image blocks become placeholders, never raw base64.
+
+    Eviction extraction, offload and token accounting all read this view, so a screenshot
+    returned by a tool can never flood them with its encoded bytes.
+    """
+    if isinstance(content, str):
+        return content
+
+    from myrm_agent_harness.utils.image_utils import content_has_images, strip_images_from_content
+
+    items = cast(list[object], content)
+    if content_has_images(items):
+        items = cast(list[object], strip_images_from_content(items))
+        texts = [str(part.get("text", "")) for part in items if isinstance(part, dict) and part.get("type") == "text"]
+        if len(texts) == len(items):
+            return "\n".join(texts)
+    return json.dumps(items)
+
+
 def _detect_last_iteration(messages: list[BaseMessage]) -> dict[int, bool]:
     """Detect which messages belong to the last iteration.
 
@@ -206,8 +226,7 @@ async def compress_messages_async(
         tool_msg = group.tool_message
         if _is_already_compressed(tool_msg):
             continue
-        content = tool_msg.content if isinstance(tool_msg.content, str) else json.dumps(tool_msg.content)
-        potential_saved += get_token_count(content)
+        potential_saved += get_token_count(_tool_content_text(tool_msg.content))
 
     # 使用动态阈值(如果提供),否则使用配置的静态阈值
     min_save_threshold = dynamic_min_save if dynamic_min_save is not None else cfg.compress_min_save
@@ -228,7 +247,7 @@ async def compress_messages_async(
         ai_msg = group.ai_message
 
         if not _is_already_compressed(tool_msg):
-            original_content = tool_msg.content if isinstance(tool_msg.content, str) else json.dumps(tool_msg.content)
+            original_content = _tool_content_text(tool_msg.content)
             original_tokens = get_token_count(original_content)
             if original_tokens >= 500 and ai_msg:
                 evicted_pairs.append(
@@ -344,27 +363,7 @@ async def compress_tool_message_async(
     if _is_already_compressed(tool_msg):
         return 0
 
-    # Strip base64 images from multimodal content before compression.
-    # Without this, json.dumps(base64) would treat huge image data as text tokens.
-    if isinstance(tool_msg.content, list):
-        from myrm_agent_harness.utils.image_utils import content_has_images, strip_images_from_content
-
-        content_items = cast(list[object], tool_msg.content)
-        if content_has_images(content_items):
-            stripped = strip_images_from_content(content_items)
-            if isinstance(stripped, list):
-                text_parts: list[str] = []
-                all_text = True
-                for part in stripped:
-                    if isinstance(part, dict) and part.get("type") == "text":
-                        text_parts.append(str(part.get("text", "")))
-                    else:
-                        all_text = False
-                        break
-                if all_text:
-                    tool_msg.content = "\n".join(text_parts)
-
-    original_content = tool_msg.content if isinstance(tool_msg.content, str) else json.dumps(tool_msg.content)
+    original_content = _tool_content_text(tool_msg.content)
     original_tokens = get_token_count(original_content)
 
     rule = COMPACT_RULES.get(tool_name)
