@@ -47,7 +47,10 @@ _HEADER_PATTERN = re.compile(
 )
 _STUB_MARKERS = ("待补", "（见目录）", "见源码")
 _NO_STUB_PREFIXES = ("api/",)
-FIX_HINT = "Fix: python scripts/fix_fractal_docs.py --write <paths>  (omit --write for a dry-run)"
+FIX_HINT = (
+    "Fix: python scripts/fix_fractal_docs.py --write <paths>  "
+    "(omit --write for a dry-run; gaps already in HEAD: --head --write --commit)"
+)
 
 
 def _is_pruned_dir(path: Path) -> bool:
