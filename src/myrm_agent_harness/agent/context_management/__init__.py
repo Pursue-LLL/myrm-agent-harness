@@ -1007,6 +1007,17 @@ from .sandbox_pause_resume import (
     SessionLifecycleState,
     compute_state_checksum,
 )
+from .session_metadata_rename import (
+    HapiRenameMetadataNameSuite,
+    RenameSource,
+    SessionMetadataRecord,
+    SessionMetadataRenameEngine,
+    SessionRenameReceipt,
+    SessionTitleResolution,
+    TitlePrecedenceLevel,
+    normalize_session_display_title,
+    resolve_session_display_title,
+)
 from .stale_query_expire import (
     ContextEvaluationResult,
     MateclawStaleQueryContextExpireSuite,
@@ -1028,6 +1039,16 @@ from .steer_after_compression import (
 )
 
 __all__ = [
+    # session_metadata_rename
+    "HapiRenameMetadataNameSuite",
+    "RenameSource",
+    "SessionMetadataRecord",
+    "SessionMetadataRenameEngine",
+    "SessionRenameReceipt",
+    "SessionTitleResolution",
+    "TitlePrecedenceLevel",
+    "normalize_session_display_title",
+    "resolve_session_display_title",
     # steer_after_compression
     "ActiveWorkerDescriptor",
     "ActiveWorkerSteerResolver",

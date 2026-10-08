@@ -119,6 +119,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | session_commit/ | 双阶段崩溃自愈会话自动提交与三维经验沉淀引擎。 See [session_commit/_ARCH.md](session_commit/_ARCH.md). |
 | session_dom/ | 通用事件溯源会话 DOM、声明式生命周期与真回滚引擎核心实现。 See [session_dom/_ARCH.md](session_dom/_ARCH.md). |
 | session_handoff/ | Dual-tier secret gate scanner: storage masking placeholders and pre-publish scan blocking. See [session_handoff/_ARCH.md](session_handoff/_ARCH.md). |
+| session_metadata_rename/ | End-to-end suite orchestrating authoritative session display rename mutations via metadata.name and deterministic precedence arbitration. See [session_metadata_rename/_ARCH.md](session_metadata_rename/_ARCH.md). |
 | session_pins/ | Repository managing persistent session pin records, ordering, and synchronization. See [session_pins/_ARCH.md](session_pins/_ARCH.md). |
 | session_roaming/ | 跨设备会话实时漫游、团队协作接力与沙箱热镜像核心引擎。 See [session_roaming/_ARCH.md](session_roaming/_ARCH.md). |
 | session_search/ | Core engine for Agent Session History FTS5 Search Toolkit. See [session_search/_ARCH.md](session_search/_ARCH.md). |
