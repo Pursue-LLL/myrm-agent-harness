@@ -16,6 +16,7 @@ from scripts.tool_registry_config import (
     ORPHAN_FACTORY_WHITELIST,
     PTC_RUNTIME_TOOL_NAMES,
     SCHEMA_ONLY_TOOL_NAMES,
+    SERVER_BOUND_SCHEMA_TOOL_NAMES,
 )
 
 
@@ -59,6 +60,7 @@ class ScanReport:
             - self.declared_names
             - INTERNAL_TOOL_NAMES
             - SCHEMA_ONLY_TOOL_NAMES
+            - SERVER_BOUND_SCHEMA_TOOL_NAMES
         )
 
     def ghost_registry_metadata_keys(self, metadata_keys: set[str]) -> set[str]:
@@ -68,6 +70,7 @@ class ScanReport:
             | self.registered_names
             | INTERNAL_TOOL_NAMES
             | SCHEMA_ONLY_TOOL_NAMES
+            | SERVER_BOUND_SCHEMA_TOOL_NAMES
         )
         return metadata_keys - allowed
 

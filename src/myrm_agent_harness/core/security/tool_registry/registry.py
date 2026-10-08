@@ -217,6 +217,8 @@ EXPLICIT_MCP_FALLBACK_TOOLS: frozenset[str] = frozenset(
     {
         "browser_execute_script_tool",  # arbitrary JS execution — keep ASK (plus in-tool HITL for privileged APIs)
         "send_teammate_message_tool",  # cross-agent message dispatch — external side effect, keep ASK
+        "refetch_historical_turn",  # selectively wired history reader; keeps its current ASK baseline until promoted
+        "send_user_message_async",  # agent-to-user push (rate-limited 3/turn); keeps its current ASK baseline until promoted
     }
 )
 
@@ -752,6 +754,10 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     # explicit mcp_invoke fallback tools — declared for module-load gate transparency
     "browser_execute_script_tool": SafetyMetadata(),
     "send_teammate_message_tool": SafetyMetadata(is_third_party_visible=True),
+    # pure read over the in-memory message history
+    "refetch_historical_turn": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    # stateful per-turn rate limiter + SSE push: not idempotent, not concurrency-safe
+    "send_user_message_async": SafetyMetadata(),
 }
 
 

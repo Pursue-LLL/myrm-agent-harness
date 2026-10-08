@@ -46,13 +46,11 @@ SCHEMA_ONLY_TOOL_NAMES: frozenset[str] = frozenset(
         "dispatch_research",
         "finalize_report",
         "think",
-        "request_answer_user_tool",
-        "skill_search_tool",
-        "memory_manage_tool",
-        "memory_save_tool",
-        "memory_search_tool",
     }
 )
+
+# Built-in tools whose JSON schema is bound by the server (no @tool AST in harness).
+SERVER_BOUND_SCHEMA_TOOL_NAMES: frozenset[str] = frozenset({"request_answer_user_tool"})
 
 CROSS_MODULE_CONSTANTS: dict[str, str] = {
     "CONVERSATION_SEARCH_TOOL_NAME": "conversation_search_tool",
@@ -64,6 +62,21 @@ LAYER_EXEMPT_TOOL_NAMES: frozenset[str] = frozenset(
         "conversation_search_tool",
         "wiki_compile_tool",
         "wiki_maintain_tool",
+        # Memory-governance / context meta-tools that ship with unit tests but have
+        # no Turn1 mount: not in the Action Tool SSOT until a profile wires them.
+        "analyze_code_impact",
+        "arbitrate_cross_agent_memory_conflict",
+        "check_memory_ground_truth_drift",
+        "compact_code_memory",
+        "evaluate_auto_recall_trigger",
+        "inspect_context",
+        "inspect_experience_gene_advice",
+        "inspect_hindsight_warnings",
+        "manage_integration_retained_context",
+        "manage_sovereign_memory_assets",
+        "screen_kg_extraction_content",
+        "search_hybrid_knowledge_graph",
+        "search_session_archive",
     }
 )
 
@@ -85,6 +98,19 @@ ORPHAN_FACTORY_WHITELIST: frozenset[str] = frozenset(
         # Landed selectively-wired: exposed via public api for callers that
         # supply a live message accessor; not part of the Turn1 meta-tool set.
         "create_refetch_historical_turn_tool",
+        # Memory-governance factories: implemented and unit-tested under
+        # toolkits/memory/*, deliberately not mounted on any agent profile yet.
+        "create_auto_recall_evaluator_tool",
+        "create_code_impact_tool",
+        "create_code_memory_compaction_tool",
+        "create_cross_agent_arbitration_tool",
+        "create_experience_gene_advice_tool",
+        "create_graph_rrf_search_tool",
+        "create_ground_truth_drift_check_tool",
+        "create_hindsight_reflection_tool",
+        "create_integration_context_purge_tool",
+        "create_kg_content_screening_tool",
+        "create_sovereign_migration_tool",
     }
 )
 
