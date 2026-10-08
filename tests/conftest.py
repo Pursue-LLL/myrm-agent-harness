@@ -191,6 +191,21 @@ def _restore_chat_id_var() -> Iterator[None]:
 
 
 @pytest.fixture(autouse=True)
+def _reset_taint_tracker() -> Iterator[None]:
+    """Isolate the context-local taint tracker between all tests.
+
+    ``get_taint_tracker()`` creates one tracker lazily and every later test (sync, or async on a copied
+    context) shares that object, so a test that records a taint label leaves every later test of the
+    worker tainted; code that propagates child taint to a parent then runs with a label nobody set.
+    """
+    from myrm_agent_harness.agent.security.guards.taint_tracker import reset_taint_tracker
+
+    reset_taint_tracker()
+    yield
+    reset_taint_tracker()
+
+
+@pytest.fixture(autouse=True)
 def _reset_active_tool_publication() -> Iterator[None]:
     """Isolate the published active tool registry and resolved tools between all tests.
 
