@@ -179,16 +179,6 @@ from myrm_agent_harness.toolkits.memory.cvfs import (
     VFSTreeNode,
     VFSTreeResult,
 )
-from myrm_agent_harness.toolkits.memory.progressive_sidecar import (
-    ContextTier,
-    OKFFrontmatter,
-    ProgressiveContextBundle,
-    ProgressiveContextVFSAdapter,
-    ProgressiveReadRequest,
-    ProgressiveReadResult,
-    ProgressiveSidecarEngine,
-    SidecarDescriptor,
-)
 from myrm_agent_harness.toolkits.memory.decisions import (
     CandidateStatus,
     DecisionDatabase,
@@ -233,6 +223,17 @@ from myrm_agent_harness.toolkits.memory.dialectic_guard import (
     DialecticPendingResult,
     ExecutionSlotState,
     LivenessTelemetry,
+)
+from myrm_agent_harness.toolkits.memory.directory_dominance import (
+    DirectoryDominanceConfig,
+    DominanceDecisionKind,
+    HierarchicalDirectoryDominanceRetriever,
+    HierarchicalNode,
+    HierarchicalRetrievalHit,
+    HierarchicalRetrievalResult,
+    HierarchicalRetrievalStats,
+    HierarchyNodeType,
+    SiblingContextItem,
 )
 from myrm_agent_harness.toolkits.memory.domain_types import (
     DomainCategory,
@@ -559,6 +560,16 @@ from myrm_agent_harness.toolkits.memory.procedure_experience import (
     ProcedureMemoryEntry,
     ProcedureProtocolEngine,
     RetrievalNodeKind,
+)
+from myrm_agent_harness.toolkits.memory.progressive_sidecar import (
+    ContextTier,
+    OKFFrontmatter,
+    ProgressiveContextBundle,
+    ProgressiveContextVFSAdapter,
+    ProgressiveReadRequest,
+    ProgressiveReadResult,
+    ProgressiveSidecarEngine,
+    SidecarDescriptor,
 )
 from myrm_agent_harness.toolkits.memory.prompt_cache_guard import (
     AtomicReplacePayload,
@@ -1410,6 +1421,7 @@ __all__ = [
     "MemorySnapshotRollbackEngine",
     "ProvenanceAttestationManager",
     "ProvenanceSourceKind",
+    "RollbackReport",
     "ALLOWED_SCHEMES",
     "ALLOWED_TOP_NAMESPACES",
     "COMPAT_SCHEME",
@@ -1645,6 +1657,15 @@ __all__ = [
     "DialecticPendingResult",
     "ExecutionSlotState",
     "LivenessTelemetry",
+    "DirectoryDominanceConfig",
+    "DominanceDecisionKind",
+    "HierarchicalDirectoryDominanceRetriever",
+    "HierarchicalNode",
+    "HierarchicalRetrievalHit",
+    "HierarchicalRetrievalResult",
+    "HierarchicalRetrievalStats",
+    "HierarchyNodeType",
+    "SiblingContextItem",
 ]
 
 
