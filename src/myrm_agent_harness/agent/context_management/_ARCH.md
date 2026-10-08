@@ -37,6 +37,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | canvas_deeplink/ | 跨会话画布深度直链共享、设计资产穿透与专业设计平台桥接核心引擎。 See [canvas_deeplink/_ARCH.md](canvas_deeplink/_ARCH.md). |
 | channel_thread_session/ | Core implementation of Channel Thread to Session Dynamic Binding and Isolated Branching Engine. See [channel_thread_session/_ARCH.md](channel_thread_session/_ARCH.md). |
 | checked_stream_reader/ | Anti-Slop governance filter purging raw template tags, excessive blank lines, and malformed slop. See [checked_stream_reader/_ARCH.md](checked_stream_reader/_ARCH.md). |
+| chat_head_sync/ | Chat head pointer and immutable shard synchronization protocol subsystem with CAS lineage verification, hash-diff storage, and reader version gating. See [chat_head_sync/_ARCH.md](chat_head_sync/_ARCH.md). |
 | clarify_cards/ | Interactive clarification cards subsystem managing questions, options, user answers, expiration timeouts, and automatic connection-change invalidation. See [clarify_cards/_ARCH.md](clarify_cards/_ARCH.md). |
 | clean_markdown_extractor/ | Core engine for High-Density Clean Markdown Extraction and Context Sparsity Pruning. See [clean_markdown_extractor/_ARCH.md](clean_markdown_extractor/_ARCH.md). |
 | clean_pod_archival/ | 核心引擎实现：单任务瞬态上下文防污染隔离、最终产物干净汇流与夜间定时无损资产沉淀。 See [clean_pod_archival/_ARCH.md](clean_pod_archival/_ARCH.md). |

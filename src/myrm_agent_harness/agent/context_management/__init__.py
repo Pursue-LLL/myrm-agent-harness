@@ -1064,6 +1064,21 @@ from .nested_approval_restore import (
     make_compaction_entry,
     validate_summary_candidate,
 )
+from .chat_head_sync import (
+    AssembleResult,
+    CasSyncResult,
+    ChatHeadPointer,
+    ChatHeadShardSyncSuite,
+    ChatShardStorageEngine,
+    ContentShard,
+    SchemaVersion,
+    ShardAddress,
+    VersionGateResult,
+    compute_head_sha256,
+    detect_head_fork,
+    gate_chat_head_version,
+    verify_lineage_cas,
+)
 from .sandbox_pause_resume import (
     AgentkitPauseResumeSessionSandboxSuite,
     PauseResumeActionKind,
@@ -1168,6 +1183,20 @@ __all__ = [
     "make_approval_decision",
     "make_compaction_entry",
     "validate_summary_candidate",
+    # chat_head_sync
+    "AssembleResult",
+    "CasSyncResult",
+    "ChatHeadPointer",
+    "ChatHeadShardSyncSuite",
+    "ChatShardStorageEngine",
+    "ContentShard",
+    "SchemaVersion",
+    "ShardAddress",
+    "VersionGateResult",
+    "compute_head_sha256",
+    "detect_head_fork",
+    "gate_chat_head_version",
+    "verify_lineage_cas",
     # session_metadata_rename
     "HapiRenameMetadataNameSuite",
     "RenameSource",
