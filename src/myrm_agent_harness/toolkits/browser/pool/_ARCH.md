@@ -23,7 +23,7 @@ Global browser resource pool. Manages Browser/Context/Page three-layer resources
 | memory_guard.py | Core | Memory monitoring module. Checks system memory usage at configured intervals; rejects new Page on th | ✅ |
 | page_pool.py | Core | Page object pool. Zero-copy reset for managed browsers; session-preserving reset for external CDP Chrome (no global cookie wipe). | ✅ |
 | proxy.py | Core | Manages proxy rotation across Browser Pool and FetchEngine. Supports: round-robin rotation, sticky sessions (TTL), exponential backoff quarantine, ProxyConfig.from_url()/from_csv() factories. Server layer injects via `MYRM_PROXIES` env or GUI config. | ✅ |
-| singleton.py | Core | GlobalBrowserPool singleton lifecycle (atexit/SIGTERM hooks); pool startup sweeps orphan automation via `find_orphan_automation_processes` | ✅ |
+| singleton.py | Core | GlobalBrowserPool singleton lifecycle (atexit/SIGTERM hooks; exit shutdown runs on a daemon thread bounded by a 20 s deadline so a wedged pool never blocks interpreter exit); pool startup sweeps orphan automation via `cleanup_orphan_processes` | ✅ |
 | `stealth.py` | Core | Stealth anti-detection script loader (`get_stealth_script`); delivered via `enhancers.inject_route` document-response injection (plus harmless init-script fallback registration). | ✅ |
 | throttle.py | Core | Throttle strategy module. Defines the throttle protocol and two implementations, supports domain-lev | ✅ |
 | engine_affinity.py | Core | Domain-level engine affinity memory. Remembers which BrowserEngine succeeded for a domain (e.g. after Chromium→CAMOUFOX upgrade) so subsequent sessions skip the probe-and-upgrade cycle. Module-level singleton via `get_engine_affinity_store()`. In-memory LRU + JSON file persistence with TTL. | ✅ |

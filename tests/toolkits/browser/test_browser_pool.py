@@ -537,6 +537,66 @@ def test_cleanup_global_pool_no_running_loop() -> None:
             mock_run.assert_called_once()
 
 
+def test_cleanup_global_pool_closes_a_healthy_pool_on_its_own_loop() -> None:
+    """A pool that can shut down is closed for real, before the exit hook returns."""
+    import myrm_agent_harness.toolkits.browser.pool.singleton as pool_module
+
+    pool = GlobalBrowserPool(max_browsers=1)
+    pool.shutdown = AsyncMock()  # type: ignore[method-assign]
+
+    with patch.object(pool_module, "_global_pool", pool):
+        pool_module._cleanup_global_pool()
+
+    pool.shutdown.assert_awaited_once()
+
+
+def test_cleanup_global_pool_does_not_block_exit_when_the_browser_connection_belongs_to_a_closed_loop(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Closing a context waits on futures of the loop that launched the browser; that loop is closed.
+
+    Mirrors patchright's ``Channel._inner_send``: the wait can never be answered, and its cancel path
+    (``Connection._abort``) waits on the same futures again, so no timeout can free it. The exit hook
+    must give up at its deadline instead of hanging the interpreter. The abandoned worker is a daemon
+    thread; it dies with the test process.
+    """
+    import time
+
+    import myrm_agent_harness.toolkits.browser.pool.singleton as pool_module
+
+    connection_loop = asyncio.new_event_loop()
+    unanswered = connection_loop.create_future()
+    connection_loop.close()
+
+    class _ContextOnClosedConnection:
+        async def close(self) -> None:
+            try:
+                await asyncio.wait({unanswered})
+            except asyncio.CancelledError:
+                await asyncio.wait({unanswered})
+                raise
+
+    pool = GlobalBrowserPool(max_browsers=1)
+    pool._browsers.append(
+        BrowserInstance(
+            browser=MagicMock(),
+            contexts={"crawl": _ContextOnClosedConnection()},  # type: ignore[dict-item]
+            is_managed=False,
+        ),
+    )
+
+    started = time.monotonic()
+    with (
+        patch.object(pool_module, "_global_pool", pool),
+        patch.object(pool_module, "_EXIT_SHUTDOWN_DEADLINE_SECONDS", 0.5),
+        caplog.at_level("WARNING", logger=pool_module.logger.name),
+    ):
+        pool_module._cleanup_global_pool()
+
+    assert time.monotonic() - started < 10
+    assert "did not finish within" in caplog.text
+
+
 def test_sigterm_handler_calls_cleanup() -> None:
     """Test SIGTERM handler calls _cleanup_global_pool."""
     from myrm_agent_harness.toolkits.browser.pool.singleton import _sigterm_handler

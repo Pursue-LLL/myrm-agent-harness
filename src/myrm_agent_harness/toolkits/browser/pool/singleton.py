@@ -20,11 +20,14 @@ import asyncio
 import atexit
 import logging
 import signal
+import threading
 from typing import TYPE_CHECKING
 
 from .browser_pool import GlobalBrowserPool
 
 if TYPE_CHECKING:
+    from types import FrameType
+
     from .config import BrowserPoolConfig
     from .extension_bridge import ExtensionBridge
     from .proxy import ProxyPool
@@ -33,13 +36,46 @@ logger = logging.getLogger(__name__)
 
 _global_pool: GlobalBrowserPool | None = None
 
+# Longest an exit hook waits for the pool to close. Closing a healthy pool takes a few seconds
+# (each browser gets 5 s to close gracefully before it is force-killed).
+_EXIT_SHUTDOWN_DEADLINE_SECONDS = 20.0
+
+
+def _shutdown_within_deadline(pool: GlobalBrowserPool) -> None:
+    """Close the pool on a private event loop without letting a wedged shutdown block process exit.
+
+    Closing a context or browser is an RPC that waits on futures owned by the loop that launched the
+    browser. Once that loop is closed (pytest gives every test its own) those futures never resolve, and
+    patchright's cancel path waits on them again, so neither a timeout nor a cancellation frees the
+    waiter. The work therefore runs on a daemon thread that interpreter exit does not join, and is
+    abandoned at the deadline. Browser processes die with their parent; any survivor is swept by the
+    orphan cleanup at next start.
+    """
+
+    def _run() -> None:
+        try:
+            asyncio.run(pool.shutdown())
+        except Exception:
+            logger.warning("GlobalBrowserPool shutdown failed during exit cleanup", exc_info=True)
+
+    worker = threading.Thread(target=_run, name="browser-pool-exit-shutdown", daemon=True)
+    worker.start()
+    worker.join(_EXIT_SHUTDOWN_DEADLINE_SECONDS)
+    if worker.is_alive():
+        logger.warning(
+            "GlobalBrowserPool shutdown did not finish within %.0fs; abandoning it so the process can exit",
+            _EXIT_SHUTDOWN_DEADLINE_SECONDS,
+        )
+
 
 def _cleanup_global_pool() -> None:
     """Graceful shutdown hook for browser pool cleanup.
 
-    Ensures browsers are properly closed on process exit (normal exit, Ctrl+C, SIGTERM).
+    Ensures browsers are properly closed on process exit (normal exit, Ctrl+C, SIGTERM) and never
+    blocks the exit for longer than ``_EXIT_SHUTDOWN_DEADLINE_SECONDS``.
     """
-    if _global_pool is None:
+    pool = _global_pool
+    if pool is None:
         return
 
     try:
@@ -48,9 +84,9 @@ def _cleanup_global_pool() -> None:
         loop = None
 
     if loop and loop.is_running():
-        loop.create_task(_global_pool.shutdown())
+        loop.create_task(pool.shutdown())
     else:
-        asyncio.run(_global_pool.shutdown())
+        _shutdown_within_deadline(pool)
 
 
 atexit.register(_cleanup_global_pool)
@@ -58,9 +94,10 @@ atexit.register(_cleanup_global_pool)
 try:
     _original_sigterm = signal.getsignal(signal.SIGTERM)
 
-    def _sigterm_handler(signum: int, frame: object) -> None:
+    def _sigterm_handler(signum: int, frame: FrameType | None) -> None:
         _cleanup_global_pool()
-        if callable(_original_sigterm) and _original_sigterm not in (signal.SIG_DFL, signal.SIG_IGN):
+        # SIG_DFL / SIG_IGN are not callable, so only a real previously installed handler is chained.
+        if callable(_original_sigterm):
             _original_sigterm(signum, frame)
 
     signal.signal(signal.SIGTERM, _sigterm_handler)
@@ -124,14 +161,10 @@ async def reset_global_browser_pool_for_tests() -> None:
 def _cleanup_orphan_automation() -> None:
     """Auto-cleanup orphan automation processes left by a previous abnormal exit."""
     try:
-        from ..doctor import cleanup_orphan_processes, find_orphan_automation_processes
+        from ..doctor import cleanup_orphan_processes
 
-        orphans = find_orphan_automation_processes()
-        if not orphans:
-            return
-
-        result = cleanup_orphan_processes([o["pid"] for o in orphans], force=True)
-        killed = result.get("killed", 0)
-        logger.warning("Cleaned up %d orphan automation process(es) from previous session", killed)
+        killed = cleanup_orphan_processes(force=True).get("killed", 0)
+        if killed:
+            logger.warning("Cleaned up %s orphan automation process(es) from previous session", killed)
     except Exception:
         logger.debug("Orphan cleanup skipped (psutil unavailable or scan failed)", exc_info=True)
