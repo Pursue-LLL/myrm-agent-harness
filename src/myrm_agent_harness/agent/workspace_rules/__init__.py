@@ -33,6 +33,16 @@ Workspace rules module. Two-layer context file support: startup injection
 via middleware and progressive subdirectory discovery via tool interception.
 """
 
+from myrm_agent_harness.agent.workspace_rules.instruction_precedence import (
+    ClaudeCodeProjectInstructionsPrecedenceSuite,
+    InstructionFilterEngine,
+    InstructionMode,
+    InstructionSettings,
+    ManagedPrecedenceResolver,
+    PrecedenceAuditReceipt,
+    ResolvedPrecedence,
+    SettingsScope,
+)
 from myrm_agent_harness.agent.workspace_rules.middleware import (
     workspace_rules_middleware,
 )
@@ -47,7 +57,15 @@ from myrm_agent_harness.agent.workspace_rules.tracker import (
 )
 
 __all__ = [
+    "ClaudeCodeProjectInstructionsPrecedenceSuite",
+    "InstructionFilterEngine",
+    "InstructionMode",
+    "InstructionSettings",
+    "ManagedPrecedenceResolver",
+    "PrecedenceAuditReceipt",
+    "ResolvedPrecedence",
     "RuleFile",
+    "SettingsScope",
     "check_and_append_rules",
     "init_subdirectory_tracker",
     "reset_subdirectory_tracker",
