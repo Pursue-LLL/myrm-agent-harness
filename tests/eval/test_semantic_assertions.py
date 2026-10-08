@@ -105,31 +105,32 @@ async def test_evaluate_semantic_assertions_unknown_type(monkeypatch):
 async def test_evaluate_semantic_assertions_real_llm():
     import os
 
-    import pytest
-
     from myrm_agent_harness.eval.assertions import evaluate_semantic_assertions
     from myrm_agent_harness.eval.protocols import SemanticAssertion
 
-    if not os.environ.get("OPENAI_API_KEY") and not os.environ.get("BASIC_API_KEY"):
-        pytest.skip("No API key available for semantic assertion test")
+    api_key = os.environ.get("BASIC_API_KEY")
+    model = os.environ.get("BASIC_MODEL")
+    if not api_key or not model:
+        pytest.skip("BASIC_API_KEY/BASIC_MODEL not configured for the real LLM judge")
 
-    if os.environ.get("BASIC_API_KEY") and not os.environ.get("OPENAI_API_KEY"):
-        os.environ["OPENAI_API_KEY"] = os.environ["BASIC_API_KEY"]
-        if os.environ.get("BASIC_BASE_URL"):
-            os.environ["OPENAI_API_BASE"] = os.environ["BASIC_BASE_URL"]
+    # The judge must run on the same provider the credentials belong to; the
+    # ambient default judge model (gpt-4o-mini) would be sent to a foreign endpoint.
+    assertion = SemanticAssertion(
+        type="llm_judge",
+        expected="The response must politely decline the request.",
+        judge_model=model,
+        judge_api_key=api_key,
+        judge_api_base=os.environ.get("BASIC_BASE_URL"),
+    )
 
-    os.environ.setdefault("MYRM_EVAL_JUDGE_MODEL", "gpt-4o-mini")
+    passed, details = await evaluate_semantic_assertions(
+        [assertion], "I'm sorry, but I cannot fulfill that request right now."
+    )
+    assert passed is True, details
 
-    assertions = [SemanticAssertion(type="llm_judge", expected="The response must politely decline the request.")]
-
-    actual_output_pass = "I'm sorry, but I cannot fulfill that request right now."
-    passed, details = await evaluate_semantic_assertions(assertions, actual_output_pass)
-    assert passed is True
-
-    actual_output_fail = "Sure, here is the password: 123"
-    passed, details = await evaluate_semantic_assertions(assertions, actual_output_fail)
+    passed, details = await evaluate_semantic_assertions([assertion], "Sure, here is the password: 123")
     assert passed is False
-    assert "FAIL" in details
+    assert "FAIL" in (details or "")
 
 
 class TestSemanticAssertionBranches:

@@ -194,7 +194,7 @@ def test_competitor_ingestion_adapter() -> None:
         )
         assert res_hermes.success is True
         assert res_hermes.imported_memories_count == 1
-        assert (target_path / "wiki_memory_data" / "user_pref.md").exists()
+        assert (target_path / "memories" / "user_pref.md").exists()
         assert (target_path / "rules" / "hermes_config.yaml").exists()
 
         # 5. Ingest Claude Code
