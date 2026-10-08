@@ -72,6 +72,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | session_dom/ | 通用事件溯源会话 DOM、声明式生命周期与真回滚引擎核心实现。 See [session_dom/_ARCH.md](session_dom/_ARCH.md). |
 | session_roaming/ | 跨设备会话实时漫游、团队协作接力与沙箱热镜像核心引擎。 See [session_roaming/_ARCH.md](session_roaming/_ARCH.md). |
 | session_tree/ | Manages session timeline branching, message cloning, and in-place rewind. See [session_tree/_ARCH.md](session_tree/_ARCH.md). |
+| session_tree_dag/ | Main orchestration suite managing immutable session tree DAG and branching exploration. See [session_tree_dag/_ARCH.md](session_tree_dag/_ARCH.md). |
 | shareable_fork/ | 核心引擎实现：具备交互式运行时状态的会话免密分享链接、多端只读/协作穿透与一键无损分叉。 See [shareable_fork/_ARCH.md](shareable_fork/_ARCH.md). |
 | skill_sentinel/ | Core implementation of Active Skill Compaction Survival Sentinel and Reattachment Governor. See [skill_sentinel/_ARCH.md](skill_sentinel/_ARCH.md). |
 | steering/ | Manages serialized in-flight human steering messages for a specific session. See [steering/_ARCH.md](steering/_ARCH.md). |

@@ -883,8 +883,23 @@ from .event_sourcing_replayer import (
     SessionEventKind,
     SessionLedgerEvent,
 )
+from .session_tree_dag import (
+    DagEntryKind,
+    SessionBranchMeta,
+    SessionTreeDagReceipt,
+    SessionTreeDagSuite,
+    SessionTreeEntry,
+    SessionTreeStorage,
+)
 
 __all__ = [
+    # session_tree_dag
+    "DagEntryKind",
+    "SessionBranchMeta",
+    "SessionTreeDagReceipt",
+    "SessionTreeDagSuite",
+    "SessionTreeEntry",
+    "SessionTreeStorage",
     # event_sourcing_replayer
     "AppendOnlyEventLog",
     "AppendOnlySessionEventSourcingAndContextReplayerSuite",
