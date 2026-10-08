@@ -44,7 +44,7 @@ class RegisteredHook(BaseModel):
 
 
 class PluggableContextHookPipeline:
-    """Orchestrates onion-style context modification across lifecycle stages."""
+    """Orchestrates priority-ordered context modification across lifecycle stages."""
 
     def __init__(self) -> None:
         self._hooks: dict[ContextHookStage, list[RegisteredHook]] = {
