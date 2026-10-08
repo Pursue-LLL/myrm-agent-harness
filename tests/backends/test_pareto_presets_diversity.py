@@ -5,6 +5,7 @@ from __future__ import annotations
 import glob
 import os
 
+import pytest
 import yaml
 
 from myrm_agent_harness.backends.profiles.diversity_lint import (
@@ -12,12 +13,13 @@ from myrm_agent_harness.backends.profiles.diversity_lint import (
     validate_provider_diversity,
 )
 
-PREBUILT_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "../../../myrm-agent/myrm-agent-server/assets/prebuilt_agents")
-)
+SERVER_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../myrm-agent/myrm-agent-server"))
+PREBUILT_DIR = os.path.join(SERVER_ROOT, "assets", "prebuilt_agents")
 
 
 def test_pareto_presets_yaml_provider_diversity() -> None:
+    if not os.path.isdir(SERVER_ROOT):
+        pytest.skip("myrm-agent-server not checked out next to harness")
     yaml_files = glob.glob(os.path.join(PREBUILT_DIR, "*.yaml"))
     assert len(yaml_files) > 0, f"No yaml files found in {PREBUILT_DIR}"
 
