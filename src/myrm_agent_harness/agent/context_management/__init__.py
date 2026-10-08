@@ -873,8 +873,27 @@ from .cross_ecosystem_migration import (
     RuleMigrationReportReceipt,
     RuleSectionCategory,
 )
+from .event_sourcing_replayer import (
+    AppendOnlyEventLog,
+    AppendOnlySessionEventSourcingAndContextReplayerSuite,
+    ContextReplayCertificate,
+    DeterministicContextProjector,
+    ProjectedMessageItem,
+    ProjectedModelVisibleContext,
+    SessionEventKind,
+    SessionLedgerEvent,
+)
 
 __all__ = [
+    # event_sourcing_replayer
+    "AppendOnlyEventLog",
+    "AppendOnlySessionEventSourcingAndContextReplayerSuite",
+    "ContextReplayCertificate",
+    "DeterministicContextProjector",
+    "ProjectedMessageItem",
+    "ProjectedModelVisibleContext",
+    "SessionEventKind",
+    "SessionLedgerEvent",
     # cross_ecosystem_migration
     "CrossEcosystemRuleMigrationAndCompatibilityInspectorSuite",
     "CrossEcosystemRuleScanner",
