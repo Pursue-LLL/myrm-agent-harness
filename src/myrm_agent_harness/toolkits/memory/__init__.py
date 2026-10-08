@@ -539,6 +539,19 @@ from myrm_agent_harness.toolkits.memory.noise_free_extractor import (
     ToolNoiseFilter,
     ToolStrippedMessage,
 )
+from myrm_agent_harness.toolkits.memory.mem_cube import (
+    CubeMemoryRecord,
+    CubeQueryRequest,
+    CubeQueryResult,
+    CubeScopeType,
+    CubeWriteRequest,
+    CubeWriteResult,
+    DynamicMountRouter,
+    MemoryCube,
+    MemoryCubeOrchestrator,
+    MemoryCubeStore,
+    MountPolicy,
+)
 from myrm_agent_harness.toolkits.memory.observability import (
     MemoryInfluenceRef,
     MemoryOperationEvent,
@@ -1790,6 +1803,17 @@ __all__ = [
     "evaluate_composite_gating",
     "evaluate_idle_status",
     "evaluate_turn_and_info_gain",
+    "CubeMemoryRecord",
+    "CubeQueryRequest",
+    "CubeQueryResult",
+    "CubeScopeType",
+    "CubeWriteRequest",
+    "CubeWriteResult",
+    "DynamicMountRouter",
+    "MemoryCube",
+    "MemoryCubeOrchestrator",
+    "MemoryCubeStore",
+    "MountPolicy",
 ]
 
 
