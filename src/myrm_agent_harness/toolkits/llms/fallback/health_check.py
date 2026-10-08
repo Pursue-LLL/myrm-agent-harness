@@ -1,20 +1,25 @@
-"""Lightweight health check for model probing.
-
-Provides minimal-cost health checks using 1-token requests.
+"""Liveness probe for failover candidates and reachability checks.
 
 [INPUT]
+- langchain_core.messages::HumanMessage (POS: the trivial probe prompt)
 
 [OUTPUT]
-- lightweight_health_check: Lightweight health check function
+- lightweight_health_check: send one trivial request and report whether the model answered within a hard deadline
 
 [POS]
-Lightweight health check. Uses 1-token test to minimize probing cost.
+Cheap liveness probe. The deadline is enforced here with ``asyncio.wait_for`` because a model instance's own
+request timeout is minutes long and would otherwise hold the caller on a hung endpoint. The request itself is
+the model's normal one: capping its output tokens is not safe (reasoning models reject a budget below their
+thinking allowance), so the deadline is what bounds the probe's cost.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
+
+from langchain_core.messages import HumanMessage
 
 logger = logging.getLogger(__name__)
 
@@ -23,61 +28,24 @@ async def lightweight_health_check(
     llm: Any,
     timeout_s: float = 5.0,
 ) -> bool:
-    """Perform lightweight health check on LLM.
+    """Return True when ``llm`` answers a trivial prompt within ``timeout_s`` seconds.
 
-    Uses minimal prompt (1-2 tokens) and max_tokens=1 to minimize cost.
+    A call still pending at the deadline is cancelled, so a hung endpoint costs the caller at most
+    ``timeout_s`` instead of the model's own request timeout.
 
     Args:
         llm: LLM instance to check
-        timeout_s: Timeout in seconds (default: 5s)
+        timeout_s: Hard deadline in seconds (default: 5s)
 
     Returns:
-        True if model is healthy, False otherwise
+        True if the model answered in time, False on timeout or any provider error
     """
     try:
-        # Import here to avoid circular dependency
-        from langchain_core.messages import HumanMessage
-
-        # Use minimal prompt (1-2 tokens)
-        messages = [HumanMessage(content="Hi")]
-
-        # Call with minimal token limit
-        response = await llm.ainvoke(
-            messages,
-            config={"max_tokens": 1, "timeout": timeout_s},
-        )
-
-        # Any response means model is healthy
-        return bool(response)
-
+        response = await asyncio.wait_for(llm.ainvoke([HumanMessage(content="Hi")]), timeout=timeout_s)
     except TimeoutError:
-        logger.debug("Health check timed out")
+        logger.debug("Health check timed out (deadline %.1fs)", timeout_s)
         return False
     except Exception as e:
-        logger.debug(f"Health check failed: {type(e).__name__}: {e}")
+        logger.debug("Health check failed: %s: %s", type(e).__name__, e)
         return False
-
-
-async def lightweight_health_check_with_retry(
-    llm: Any,
-    max_attempts: int = 2,
-    timeout_s: float = 5.0,
-) -> bool:
-    """Perform lightweight health check with retry.
-
-    Args:
-        llm: LLM instance to check
-        max_attempts: Maximum number of attempts (default: 2)
-        timeout_s: Timeout per attempt in seconds (default: 5s)
-
-    Returns:
-        True if model is healthy, False otherwise
-    """
-    for attempt in range(max_attempts):
-        if await lightweight_health_check(llm, timeout_s):
-            return True
-
-        if attempt < max_attempts - 1:
-            logger.debug(f"Health check attempt {attempt + 1} failed, retrying...")
-
-    return False
+    return bool(response)

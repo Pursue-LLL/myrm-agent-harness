@@ -31,7 +31,7 @@ from .context import (
     with_failover_emitter,
 )
 from .events import FailoverCallback, FailoverEvent, RecoveryCallback, RecoveryEvent
-from .health_check import lightweight_health_check, lightweight_health_check_with_retry
+from .health_check import lightweight_health_check
 from .logger import log_fallback_attempt, log_fallback_decision
 from .managed_llm import FallbackModel, ManagedLLM
 from .manager import ModelCandidate, ModelFallbackManager
@@ -81,7 +81,6 @@ __all__ = [
     "get_preset_strategy",
     "get_primary_recommendation",
     "lightweight_health_check",
-    "lightweight_health_check_with_retry",
     "log_fallback_attempt",
     "log_fallback_decision",
     "recommend_fallback",
