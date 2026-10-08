@@ -863,8 +863,27 @@ from .system_append_channel import (
     SystemPromptAssemblyReceipt,
     SystemPromptStrongAppendChannelSuite,
 )
+from .cross_ecosystem_migration import (
+    CrossEcosystemRuleMigrationAndCompatibilityInspectorSuite,
+    CrossEcosystemRuleScanner,
+    CrossEcosystemTranspiler,
+    DiscoveredEcosystemFile,
+    EcosystemConflictItem,
+    EcosystemSpecKind,
+    RuleMigrationReportReceipt,
+    RuleSectionCategory,
+)
 
 __all__ = [
+    # cross_ecosystem_migration
+    "CrossEcosystemRuleMigrationAndCompatibilityInspectorSuite",
+    "CrossEcosystemRuleScanner",
+    "CrossEcosystemTranspiler",
+    "DiscoveredEcosystemFile",
+    "EcosystemConflictItem",
+    "EcosystemSpecKind",
+    "RuleMigrationReportReceipt",
+    "RuleSectionCategory",
     # system_append_channel
     "AppendPromptSource",
     "PromptChannelKind",
