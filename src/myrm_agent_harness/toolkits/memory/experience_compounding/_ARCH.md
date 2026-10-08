@@ -17,3 +17,15 @@ The `ExperienceCompoundingAndKnowledgeCondensationSuite` establishes a self-evol
 - **Non-Destructive Lineage**: Condensation archives original fragments (`CONDENSED_ARCHIVED`) and records `source_fragment_ids` on the Golden Rule. Physical destruction is forbidden.
 - **Active Lease Protection**: Contexts marked as `in_progress`, `pinned`, or `active_task` are strictly exempt from annealing decay.
 - **Type Safety & Decoupling**: Pure typed abstractions without `Any`. Zero private/deep imports into external application layers.
+
+## 3. 文件清单 (File Index)
+
+| 文件 | 角色 | 职责 | I/O/P |
+|------|------|------|-------|
+| `__init__.py` | 门面 | 导出经验复合模型、退火管理器、浓缩引擎与统一套件 | ✅ |
+| `models.py` | 类型 | 复合权重、浓缩规则、退火状态与生命周期枚举 | ✅ |
+| `compounding_engine.py` | 核心 | 对数有界频率复合增长引擎与验证记忆增强器 | ✅ |
+| `condensation_engine.py` | 核心 | 语义碎片聚类与黄金规则浓缩引擎 | ✅ |
+| `annealing_governor.py` | 核心 | 过时上下文平滑退火与活跃租期保护调度器 | ✅ |
+| `facade.py` | 门面 | 经验复合与知识浓缩统一套件门面 | ✅ |
+

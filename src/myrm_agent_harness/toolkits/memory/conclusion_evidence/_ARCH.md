@@ -27,3 +27,13 @@
   提供纯单机高吞吐的推导图引擎、环检测、证据打包与统一门面 `ConclusionEvidenceSuite`，无多租户包袱；
 - **业务层 (`myrm_agent_server.services.memory.conclusion_evidence`)**：
   严格通过 Harness 顶级门面导入（100% 守住 0 deep import 门禁），暴露 REST API 路由。
+
+## 4. 文件清单 (File Index)
+
+| 文件 | 角色 | 职责 | I/O/P |
+|------|------|------|-------|
+| `__init__.py` | 门面 | 导出归因模型、推导图引擎、证据服务与统一套件 | ✅ |
+| `models.py` | 类型 | 显式归因类型、派生计数器、证据绑定与评估模型 | ✅ |
+| `derivation_graph.py` | 核心 | 因果推导有向无环图引擎、循环检测与级联失效分析 | ✅ |
+| `evidence_service.py` | 核心 | 会话证据提取、按需打包与高保真追溯服务 | ✅ |
+| `facade.py` | 门面 | 结论归因与证据链统一套件门面 | ✅ |

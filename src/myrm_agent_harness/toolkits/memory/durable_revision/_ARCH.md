@@ -19,3 +19,14 @@
    - 严格枚举：`APPLIED`, `RETRYABLE_CONTENTION`, `VALIDATION_FAILED`, `QUARANTINED`, `SUPERSEDED`, `REVERTED`, `FAILED_DURABLE`，附带错误上下文。
 5. **统一门面协调器（DurableRevisionSuite）**：
    - 对外提供标准化的 `write()`, `read_snapshot()`, `rollback()`, `get_receipt()`, `get_stats()` 统一接口。
+
+## 3. 文件清单 (File Index)
+
+| 文件 | 角色 | 职责 | I/O/P |
+|------|------|------|-------|
+| `__init__.py` | 门面 | 导出修订状态、锁管理器、MVCC 引擎、WAL 与统一套件 | ✅ |
+| `models.py` | 类型 | 变更收据、快照视图、修订记录与状态枚举 | ✅ |
+| `lock_manager.py` | 核心 | 键级细粒度锁隔离与全抖动指数退避竞争管理器 | ✅ |
+| `revision_engine.py` | 核心 | 单调权威版本推进、MVCC 快照读与不可变回滚引擎 | ✅ |
+| `wal_recovery.py` | 核心 | 两阶段意图预写日志、CRC32 校验与崩溃自愈恢复器 | ✅ |
+| `facade.py` | 门面 | 并发持久写与安全修订协调统一套件门面 | ✅ |

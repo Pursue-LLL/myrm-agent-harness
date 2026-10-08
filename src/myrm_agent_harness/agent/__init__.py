@@ -219,6 +219,22 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.agent.context_management",
         "PurificationDiffEngine",
     ),
+    "EndToEndSealedDecisionHandoffSuite": (
+        "myrm_agent_harness.agent.context_management",
+        "EndToEndSealedDecisionHandoffSuite",
+    ),
+    "DecisionSealPacker": (
+        "myrm_agent_harness.agent.context_management",
+        "DecisionSealPacker",
+    ),
+    "DecisionInvalidationGraph": (
+        "myrm_agent_harness.agent.context_management",
+        "DecisionInvalidationGraph",
+    ),
+    "PreSealSecretMasker": (
+        "myrm_agent_harness.agent.context_management",
+        "PreSealSecretMasker",
+    ),
 }
 
 __all__ = [
@@ -231,9 +247,12 @@ __all__ = [
     "CrossPlatformTranscriptNormalizer",
     "DecoupledMemoryConsolidationDreamingEngineAndServerlessStateSyncSuite",
     "DecoupledMemoryConsolidationSuite",
+    "DecisionInvalidationGraph",
+    "DecisionSealPacker",
     "DeterministicPersonaMemoryDriftAuditAndLineByLineReconciliationSuite",
     "DeterministicPersonaMemoryDriftAuditSuite",
     "DirectMemoryDriveChannel",
+    "EndToEndSealedDecisionHandoffSuite",
     "HeartbeatManifestParser",
     "HeterogeneousContextHydrationBridge",
     "HeterogeneousWorkspaceSnifferAndWizard",
@@ -244,6 +263,7 @@ __all__ = [
     "OpportunitySensingEngine",
     "ProactiveAgentKernelContractAndInstinctiveProactivityLoopSuite",
     "ProactiveAgentKernelSuite",
+    "PreSealSecretMasker",
     "PurificationDiffEngine",
     "SandboxedSafeWorkspaceEncapsulator",
     "UniversalArchiveSpecEngine",

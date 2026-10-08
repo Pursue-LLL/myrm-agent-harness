@@ -144,6 +144,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | sandbox_reduction/ | Core engine for In-Sandbox Data Reduction and Session Action Ledger (Item 221). See [sandbox_reduction/_ARCH.md](sandbox_reduction/_ARCH.md). |
 | sandplay_simulation/ | Core engine for Financial Sandplay Simulation, Causality Anchoring, and Skill Solidification. See [sandplay_simulation/_ARCH.md](sandplay_simulation/_ARCH.md). |
 | sandwich_trajectory/ | Core implementation of Sandwich Trajectory Compression and Middle Turn Summarization Engine. See [sandwich_trajectory/_ARCH.md](sandwich_trajectory/_ARCH.md). |
+| sealed_decision_handoff/ | End-to-end cryptographic sealed decision handoff, secret masking, invalidation graph, and sovereign storage persistence suite (Item 325). See [sealed_decision_handoff/_ARCH.md](sealed_decision_handoff/_ARCH.md). |
 | search_flood_guard/ | Multi-agent search flood guard, isolated per-agent sliding windows, progressive soft-cap, and cooldown circuit breaker suite (Item 301). See [search_flood_guard/_ARCH.md](search_flood_guard/_ARCH.md). |
 | session_antidote/ | Engine for session anti-poisoning and 1-click antidote. See [session_antidote/_ARCH.md](session_antidote/_ARCH.md). |
 | session_bridge/ | Universal Harness Session Handoff and Full-State Bridge Engine (Item 211). See [session_bridge/_ARCH.md](session_bridge/_ARCH.md). |

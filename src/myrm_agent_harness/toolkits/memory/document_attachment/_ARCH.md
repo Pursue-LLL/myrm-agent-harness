@@ -30,3 +30,14 @@
   提供纯单机高吞吐的属主引擎、引用计数器、物理 Sweeper 与平铺迁移器，暴露统一门面 `DocumentAttachmentSuite`。框架层无多租户，无外部网络依赖。
 - **Server 业务层 (`myrm_agent_server.services.memory.document_attachment`)**：
   提供 REST API 路由与业务依赖注入，严格通过 Harness 顶层门面交互，严守 0 deep import。
+
+## 4. 文件清单 (File Index)
+
+| 文件 | 角色 | 职责 | I/O/P |
+|------|------|------|-------|
+| `__init__.py` | 门面 | 导出附件模型、属主引擎、回收扫描器与统一套件 | ✅ |
+| `models.py` | 类型 | 附件元数据、属主绑定、清理候选与统计模型 | ✅ |
+| `ownership_engine.py` | 核心 | 文档属主绑定引擎、引用计数追踪与元数据管理 | ✅ |
+| `reclaim_sweep.py` | 核心 | 确定性零引用物理文件垃圾回收与防泄漏清理扫描器 | ✅ |
+| `migration_engine.py` | 核心 | 历史多对多附件向属主模型平铺迁移与孤儿数据清理器 | ✅ |
+| `facade.py` | 门面 | 文档附件生命周期与所有权治理统一套件门面 | ✅ |
