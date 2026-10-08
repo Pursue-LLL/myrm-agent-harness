@@ -1203,6 +1203,19 @@ from .ephemeral_fts5 import (
     SearchQueryItem,
     SearchResultChunk,
 )
+from .context_health_dashboard import (
+    ContextHealthConfig,
+    ContextHealthDoctorProbe,
+    ContextSavingsMetrics,
+    ContextUsageSnapshot,
+    EphemeralAutoPurgeSentry,
+    HealthDoctorDiagnosis,
+    HealthWatermarkLevel,
+    PurgeReceipt,
+    RealtimeContextHealthDashboardAndAutoPurgeSentrySuite,
+    RealtimeHealthGauge,
+    ToolExpenditureItem,
+)
 from .sandbox_pause_resume import (
     AgentkitPauseResumeSessionSandboxSuite,
     PauseResumeActionKind,
@@ -2346,6 +2359,19 @@ __all__ = [
     "MarkdownCodeBlockChunker",
     "SearchQueryItem",
     "SearchResultChunk",
+    # context_health_dashboard
+    "ContextHealthConfig",
+    "ContextHealthDoctorProbe",
+    "ContextSavingsMetrics",
+    "ContextUsageSnapshot",
+    "EphemeralAutoPurgeSentry",
+    "HealthDoctorDiagnosis",
+    "HealthWatermarkLevel",
+    "PurgeReceipt",
+    "RealtimeContextHealthDashboardAndAutoPurgeSentrySuite",
+    "RealtimeHealthGauge",
+    "ToolExpenditureItem",
 ]
+
 
 

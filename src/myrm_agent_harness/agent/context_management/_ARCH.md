@@ -48,6 +48,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | command_quiet_rewriter/ | Command Quiet Rewriter and Subagent Log Sink Suite. See [command_quiet_rewriter/_ARCH.md](command_quiet_rewriter/_ARCH.md). |
 | compression_flush/ | 多智能体与长会话上下文压缩即时持久化刷盘协议与内存沙箱套件。 See [compression_flush/_ARCH.md](compression_flush/_ARCH.md). |
 | context_diet/ | 静态 Persona 蒸馏、开局底噪透视与纯净创造力节食核心引擎。 See [context_diet/_ARCH.md](context_diet/_ARCH.md). |
+| context_health_dashboard/ | Realtime context capacity saturation dashboard, savings metrics, ephemeral disk auto-purge sentry, and environment doctor suite (Item 300). See [context_health_dashboard/_ARCH.md](context_health_dashboard/_ARCH.md). |
 | context_pivot/ | Core engine for Lossless Context Pivot and Scratchpad Reset Suite. See [context_pivot/_ARCH.md](context_pivot/_ARCH.md). |
 | cron_mirroring/ | Continuable Cron Delivery and Session Mirroring Engine (Item 215). See [cron_mirroring/_ARCH.md](cron_mirroring/_ARCH.md). |
 | cross_ecosystem_migration/ | Scanner discovering foreign and standard agent rule files across ecosystems. See [cross_ecosystem_migration/_ARCH.md](cross_ecosystem_migration/_ARCH.md). |
