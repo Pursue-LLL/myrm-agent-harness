@@ -69,6 +69,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | handover/ | Central bus orchestrating cross-device session handover and terminal attachment. See [handover/_ARCH.md](handover/_ARCH.md). |
 | harness_tax/ | 极紧凑 Working Memory 投影器、显式 Resource Loader 与超低 Harness Tax 控制引擎。 See [harness_tax/_ARCH.md](harness_tax/_ARCH.md). |
 | headless_continuation/ | Suite orchestrating headless sandbox task continuation and mobile approval relay. See [headless_continuation/_ARCH.md](headless_continuation/_ARCH.md). |
+| hitl_replay_restore/ | End-to-end suite orchestrating selective reconnect passive replay analysis, ordinary tool side-effect suppression, and pending human-in-the-loop restoration. See [hitl_replay_restore/_ARCH.md](hitl_replay_restore/_ARCH.md). |
 | hysteresis_compression/ | Core engine for Dual-Watermark Hysteresis Compression and Cooldown Ladder Suite. See [hysteresis_compression/_ARCH.md](hysteresis_compression/_ARCH.md). |
 | inbound_shield/ | 核心引擎实现：长文本入站防御性分页挂载、大消息防爆 Working Memory 与智能摘要网关。 See [inbound_shield/_ARCH.md](inbound_shield/_ARCH.md). |
 | infra/ | Context management infrastructure: shared types, token estimation, budget management, session locks, archive references, cache policy. |

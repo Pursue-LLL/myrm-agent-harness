@@ -997,6 +997,18 @@ from .handoff_checkpoint import (
     TaskCheckpoint,
     WorkBuddyHandoffThenCompactSuite,
 )
+from .hitl_replay_restore import (
+    CopilotKitHITLReplayRestoreSuite,
+    HITLApprovalState,
+    HITLReplayRestoreEngine,
+    PassiveReplayScanner,
+    PendingHITLDescriptor,
+    ReplayActionKind,
+    ReplayRestorationSummary,
+    ToolCallReplayItem,
+    ToolExecutionType,
+    ToolResultReplayItem,
+)
 from .sandbox_pause_resume import (
     AgentkitPauseResumeSessionSandboxSuite,
     PauseResumeActionKind,
@@ -1039,6 +1051,17 @@ from .steer_after_compression import (
 )
 
 __all__ = [
+    # hitl_replay_restore
+    "CopilotKitHITLReplayRestoreSuite",
+    "HITLApprovalState",
+    "HITLReplayRestoreEngine",
+    "PassiveReplayScanner",
+    "PendingHITLDescriptor",
+    "ReplayActionKind",
+    "ReplayRestorationSummary",
+    "ToolCallReplayItem",
+    "ToolExecutionType",
+    "ToolResultReplayItem",
     # session_metadata_rename
     "HapiRenameMetadataNameSuite",
     "RenameSource",
