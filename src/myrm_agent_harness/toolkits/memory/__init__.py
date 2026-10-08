@@ -388,6 +388,18 @@ from myrm_agent_harness.toolkits.memory.context_hook_pipeline import (
     RegisteredHook,
     WeavingOutcome,
 )
+from myrm_agent_harness.toolkits.memory.document_attachment import (
+    AttachmentBelongsToDocumentMigrationEngine,
+    AttachmentOwnershipItem,
+    AttachmentStats,
+    DeterministicReclaimSweeper,
+    DocumentAttachmentOwnershipEngine,
+    DocumentAttachmentSuite,
+    MigrationLegacyEntry,
+    MigrationReport,
+    ReclaimAuditReport,
+    StorageBlobMetadata,
+)
 from myrm_agent_harness.toolkits.memory.durable_revision import (
     ChangeReceipt,
     ChangeReceiptStatus,
@@ -2162,6 +2174,16 @@ __all__ = [
     "WritePayload",
     "calculate_payload_crc32",
     "compute_jitter_backoff",
+    "AttachmentBelongsToDocumentMigrationEngine",
+    "AttachmentOwnershipItem",
+    "AttachmentStats",
+    "DeterministicReclaimSweeper",
+    "DocumentAttachmentOwnershipEngine",
+    "DocumentAttachmentSuite",
+    "MigrationLegacyEntry",
+    "MigrationReport",
+    "ReclaimAuditReport",
+    "StorageBlobMetadata",
 ]
 
 
