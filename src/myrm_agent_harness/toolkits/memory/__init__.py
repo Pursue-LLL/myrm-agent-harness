@@ -388,6 +388,23 @@ from myrm_agent_harness.toolkits.memory.context_hook_pipeline import (
     RegisteredHook,
     WeavingOutcome,
 )
+from myrm_agent_harness.toolkits.memory.durable_revision import (
+    ChangeReceipt,
+    ChangeReceiptStatus,
+    DurableRevisionSuite,
+    KeyLockManager,
+    LockContentionTimeoutError,
+    MVCCRevisionEngine,
+    RecoveryAuditReport,
+    RevisionContentionError,
+    RevisionIntent,
+    RevisionNotFoundError,
+    SnapshotReadView,
+    TwoPhaseIntentWAL,
+    WritePayload,
+    calculate_payload_crc32,
+    compute_jitter_backoff,
+)
 from myrm_agent_harness.toolkits.memory.experience_observability import (
     ExperienceEffectStatus,
     ExperienceObservabilityMetric,
@@ -2130,6 +2147,21 @@ __all__ = [
     "PluggableContextHookPipeline",
     "RegisteredHook",
     "WeavingOutcome",
+    "ChangeReceipt",
+    "ChangeReceiptStatus",
+    "DurableRevisionSuite",
+    "KeyLockManager",
+    "LockContentionTimeoutError",
+    "MVCCRevisionEngine",
+    "RecoveryAuditReport",
+    "RevisionContentionError",
+    "RevisionIntent",
+    "RevisionNotFoundError",
+    "SnapshotReadView",
+    "TwoPhaseIntentWAL",
+    "WritePayload",
+    "calculate_payload_crc32",
+    "compute_jitter_backoff",
 ]
 
 
