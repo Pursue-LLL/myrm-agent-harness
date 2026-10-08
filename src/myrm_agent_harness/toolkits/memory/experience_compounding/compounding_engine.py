@@ -81,6 +81,25 @@ class FrequencyCompoundingEngine:
             max_multiplier=self._max_multiplier,
         )
         item.compounded_weight = new_weight
+        if new_weight > item.peak_weight:
+            item.peak_weight = new_weight
+        return new_weight
+
+    def penalize_contradiction(
+        self,
+        item: CompoundedExperienceItem,
+        severity: float = 0.5,
+        timestamp: float | None = None,
+    ) -> float:
+        """Penalize contradicted or rejected memory item to prevent upward blindness."""
+        now = timestamp if timestamp is not None else time.time()
+        decayed_adoption = max(0, int(item.adoption_count * (1.0 - severity)))
+        item.adoption_count = decayed_adoption
+        item.last_adopted_at = now
+        new_weight = round(max(0.05, item.compounded_weight * (1.0 - severity)), 4)
+        item.compounded_weight = new_weight
+        item.peak_weight = new_weight
+        item.half_life_days = max(1.0, item.half_life_days * 0.5)
         return new_weight
 
     def evaluate_weight(self, item: CompoundedExperienceItem) -> float:

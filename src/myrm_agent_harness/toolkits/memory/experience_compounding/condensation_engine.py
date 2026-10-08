@@ -59,6 +59,35 @@ def _compute_similarity(set_a: set[str], set_b: set[str]) -> float:
     return (2.0 * intersection) / float(total) if total > 0 else 0.0
 
 
+def _synthesize_canonical_statement(
+    topic: str,
+    cluster: list[CompoundedExperienceItem],
+) -> str:
+    """Synthesize high-density canonical statement with sub-phrase subsumption and deduplication."""
+    sorted_items = sorted(cluster, key=lambda it: it.compounded_weight, reverse=True)
+    cleaned_phrases: list[str] = []
+
+    for it in sorted_items:
+        raw = it.content.strip().strip("；;，。,.")
+        cleaned = re.sub(r"^\[.*?\]|^【.*?】", "", raw).strip()
+        if not cleaned:
+            continue
+
+        norm_cleaned = re.sub(r"[\s,;，。；：\-_/]+", "", cleaned.lower())
+        is_subsumed = False
+        for existing in cleaned_phrases:
+            norm_existing = re.sub(r"[\s,;，。；：\-_/]+", "", existing.lower())
+            if norm_cleaned in norm_existing:
+                is_subsumed = True
+                break
+
+        if not is_subsumed:
+            cleaned_phrases.append(cleaned)
+
+    canonical_body = "；".join(cleaned_phrases) if cleaned_phrases else "核心规范定义"
+    return f"[{topic.upper()}核心准则] {canonical_body}"
+
+
 class KnowledgeCondensationEngine:
     """Clusters scattered experience fragments into structured Golden Rules."""
 
@@ -114,9 +143,8 @@ class KnowledgeCondensationEngine:
                 rule_id = f"rule-{uuid.uuid4().hex[:8]}"
                 source_ids = [it.item_id for it in cluster]
 
-                # Synthesize combined statement and rationale
-                combined_content = "；".join(it.content.strip() for it in cluster)
-                rule_stmt = f"[{topic.upper()}核心准则] {combined_content}"
+                # Synthesize high-density canonical statement with deduplication
+                rule_stmt = _synthesize_canonical_statement(topic=topic, cluster=cluster)
                 avg_confidence = min(
                     1.0,
                     sum(it.compounded_weight for it in cluster) / float(len(cluster) * 2.0),

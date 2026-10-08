@@ -90,6 +90,13 @@ class ExperienceCompoundingSuite:
             raise KeyError(f"Item not found: {item_id}")
         return self._compounding.reinforce(item, adopted=adopted)
 
+    def penalize(self, item_id: str, severity: float = 0.5) -> float:
+        """Penalize contradicted item compounding weight to prevent upward blindness."""
+        item = self._items.get(item_id)
+        if item is None:
+            raise KeyError(f"Item not found: {item_id}")
+        return self._compounding.penalize_contradiction(item, severity=severity)
+
     def condense(self) -> tuple[list[GoldenRuleItem], CondensationReport]:
         """Trigger semantic condensation of active fragments into Golden Rules."""
         active_list = [it for it in self._items.values() if it.is_active()]

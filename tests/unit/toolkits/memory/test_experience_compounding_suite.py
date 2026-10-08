@@ -220,3 +220,68 @@ def test_facade_suite_end_to_end() -> None:
     assert stats["total_items"] == 3
     assert stats["condensed_items"] == 2
     assert stats["golden_rules_count"] == 1
+
+    # 5. Penalize contradiction
+    penalized_w = suite.penalize(it1.item_id, severity=0.5)
+    assert penalized_w < new_w
+    assert it1.compounded_weight == penalized_w
+
+
+def test_annealing_idempotency_guarantee() -> None:
+    """Verify that multiple consecutive annealing invocations are strictly idempotent."""
+    governor = ObsoleteContextAnnealingGovernor(cold_tier_threshold=0.20)
+    now = time.time()
+    past_14_days = now - 14 * 86400.0  # 1 half life elapsed
+
+    item = CompoundedExperienceItem(
+        item_id="exp-idempotency",
+        content="测试幂等性衰减计算",
+        topic="test",
+        base_weight=1.0,
+        compounded_weight=2.0,
+        peak_weight=2.0,
+        half_life_days=14.0,
+        last_adopted_at=past_14_days,
+    )
+
+    # First invocation should decay from 2.0 to ~1.0 (0.5 factor)
+    governor.apply_annealing([item], current_time=now)
+    weight_after_first = item.compounded_weight
+    assert round(weight_after_first, 2) == 1.0
+
+    # Second invocation immediately after should yield identical weight (no compounding decay)
+    governor.apply_annealing([item], current_time=now + 1.0)
+    assert item.compounded_weight == weight_after_first
+
+    # Third invocation 10 seconds later should also yield identical weight
+    governor.apply_annealing([item], current_time=now + 10.0)
+    assert item.compounded_weight == weight_after_first
+    assert item.state == ExperienceItemState.ACTIVE
+
+
+def test_canonical_statement_subsumption_and_deduplication() -> None:
+    """Verify that redundant sub-phrases are subsumed into high-density canonical statement."""
+    condensation = KnowledgeCondensationEngine(min_cluster_size=2, similarity_threshold=0.20)
+    fragments = [
+        CompoundedExperienceItem(
+            item_id="frag-sub-1",
+            content="Python 代码严禁使用 Any 类型，需使用具体 Type Hints",
+            topic="coding_style",
+            compounded_weight=1.5,
+        ),
+        CompoundedExperienceItem(
+            item_id="frag-sub-2",
+            content="严禁在 Python 代码中使用 Any 类型，需使用具体的 Type Hints 规范",
+            topic="coding_style",
+            compounded_weight=1.6,
+        ),
+    ]
+
+    rules, _ = condensation.condense(fragments)
+    assert len(rules) == 1
+    stmt = rules[0].rule_statement
+    # Redundant second sentence should be subsumed, avoiding crude concatenation
+    assert "严禁在 Python 代码中使用 Any 类型" in stmt
+    # Semicolon should not repeat identical clauses
+    assert "；严禁在 Python 代码中使用 Any 类型" not in stmt
+

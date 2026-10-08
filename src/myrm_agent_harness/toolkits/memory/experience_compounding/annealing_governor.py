@@ -75,7 +75,7 @@ class ObsoleteContextAnnealingGovernor:
             elapsed_days = elapsed_seconds / 86400.0
             decay_factor = math.pow(0.5, elapsed_days / max(0.1, half_life))
 
-            new_weight = round(it.compounded_weight * decay_factor, 4)
+            new_weight = round(it.peak_weight * decay_factor, 4)
             it.compounded_weight = new_weight
 
             # 4. Cold tier demotion when weight drops below critical threshold
@@ -105,4 +105,5 @@ class ObsoleteContextAnnealingGovernor:
         item.state = ExperienceItemState.ACTIVE
         item.base_weight = reset_weight
         item.compounded_weight = reset_weight
+        item.peak_weight = reset_weight
         item.last_adopted_at = now

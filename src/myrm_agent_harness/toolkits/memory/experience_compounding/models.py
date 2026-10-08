@@ -37,6 +37,7 @@ class CompoundedExperienceItem:
     topic: str
     base_weight: float = 1.0
     compounded_weight: float = 1.0
+    peak_weight: float = 1.0
     hit_count: int = 0
     adoption_count: int = 0
     last_adopted_at: float = field(default_factory=time.time)
