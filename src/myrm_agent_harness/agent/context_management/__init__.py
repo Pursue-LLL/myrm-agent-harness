@@ -929,8 +929,27 @@ from .workspace_branch_stash import (
     WorkspaceStashConflictWarning,
     WorkspaceStashReceipt,
 )
+from .transparent_gauge import (
+    BudgetAnalyzer,
+    BudgetSegmentBreakdown,
+    BudgetSegmentKind,
+    CompactionAdjustmentIntervention,
+    ContextWindowTransparentGaugeAndBudgetBreakdownSuite,
+    TransparentGaugeReceipt,
+    WatermarkAlertLevel,
+    WatermarkState,
+)
 
 __all__ = [
+    # transparent_gauge
+    "BudgetAnalyzer",
+    "BudgetSegmentBreakdown",
+    "BudgetSegmentKind",
+    "CompactionAdjustmentIntervention",
+    "ContextWindowTransparentGaugeAndBudgetBreakdownSuite",
+    "TransparentGaugeReceipt",
+    "WatermarkAlertLevel",
+    "WatermarkState",
     # workspace_branch_stash
     "BranchSwitchWorkspaceStashAndArtifactIntegritySuite",
     "BranchWorkspaceSnapshot",
