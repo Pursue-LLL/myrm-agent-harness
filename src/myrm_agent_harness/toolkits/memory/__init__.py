@@ -606,6 +606,19 @@ from myrm_agent_harness.toolkits.memory.provenance_batch import (
     SkillProvenanceLinker,
     ToolExecutionTrace,
 )
+from myrm_agent_harness.toolkits.memory.queuefs import (
+    LockAcquisitionConflictError,
+    PathSemanticLockManager,
+    QueueFSConfig,
+    QueueFSDAGEngine,
+    QueueFSStats,
+    SemanticDAGStage,
+    SemanticDAGTask,
+    SemanticLockLease,
+    SemanticLockMode,
+    SemanticTaskStatus,
+    TaskNotFoundError,
+)
 from myrm_agent_harness.toolkits.memory.reconciliation import (
     DiskMemoryFileMeta,
     DiskMemoryFtsReconciler,
@@ -1680,6 +1693,17 @@ __all__ = [
     "MemoryLifecycleItem",
     "HotnessLifecycleStage",
     "compute_hotness_score",
+    "LockAcquisitionConflictError",
+    "PathSemanticLockManager",
+    "QueueFSConfig",
+    "QueueFSDAGEngine",
+    "QueueFSStats",
+    "SemanticDAGStage",
+    "SemanticDAGTask",
+    "SemanticLockLease",
+    "SemanticLockMode",
+    "SemanticTaskStatus",
+    "TaskNotFoundError",
 ]
 
 
