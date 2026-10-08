@@ -9,7 +9,7 @@ Harness test suite: unit, integration, architecture gates, and performance bench
 | Path | Role | Description |
 |------|------|-------------|
 | `__init__.py` | 核心 | tests 包标记（pytest 收集根） |
-| `conftest.py` | 核心 | 全局 pytest 配置：隔离 `MYRM_DATA_DIR`、blocking_io gate、benchmark→performance 标记、浏览器 xdist 串行组、`pytest_collection_finish` warmup/acquire_page 漏标门禁、integration/e2e 路径 `reset_global_browser_pool_for_tests()`；sessionfinish 浏览器进程树 cleanup（`tests/support/browser_process_cleanup`） |
+| `conftest.py` | 核心 | 全局 pytest 配置：隔离 `MYRM_DATA_DIR`、`outside_tmp_path` 夹具（`/var/tmp` 下的临时目录，供"未加白名单即被拦截"类断言使用，因为校验器恒放行 `/tmp` 而 Linux 的 `tmp_path` 位于其下）、blocking_io gate、benchmark→performance 标记、浏览器 xdist 串行组、`pytest_collection_finish` warmup/acquire_page 漏标门禁、integration/e2e 路径 `reset_global_browser_pool_for_tests()`；sessionfinish 浏览器进程树 cleanup（`tests/support/browser_process_cleanup`） |
 | `fixtures/` | 辅助 | 预留 harness-only 夹具目录 · [fixtures/_ARCH.md](fixtures/_ARCH.md) |
 | `examples/` | 辅助 | 非 shipping 参考实现 · [examples/_ARCH.md](examples/_ARCH.md) |
 | `mocks/` | 辅助 | 共享 in-memory backend mock · [mocks/_ARCH.md](mocks/_ARCH.md) |

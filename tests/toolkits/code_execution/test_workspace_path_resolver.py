@@ -44,7 +44,12 @@ class TestWorkspacePathResolver:
 
     def test_resolve_fallback_to_cwd(self, tmp_path):
         """Test: Fallback to current working directory."""
-        with patch("pathlib.Path.cwd", return_value=tmp_path), patch.dict(os.environ, {}, clear=True):
+        # Marker detection walks up through every ancestor of cwd (/tmp on Linux), so pin it to "no marker".
+        with (
+            patch("pathlib.Path.cwd", return_value=tmp_path),
+            patch.dict(os.environ, {}, clear=True),
+            patch.object(WorkspacePathResolver, "_detect_project_root", return_value=None),
+        ):
             result = WorkspacePathResolver.resolve_workspace_root()
             assert result == tmp_path
 
@@ -86,7 +91,10 @@ class TestWorkspacePathResolver:
 
     def test_caching_workspace_root(self, tmp_path):
         """Test: Workspace root is cached after first resolution."""
-        with patch("pathlib.Path.cwd", return_value=tmp_path):
+        with (
+            patch("pathlib.Path.cwd", return_value=tmp_path),
+            patch.object(WorkspacePathResolver, "_detect_project_root", return_value=None),
+        ):
             result1 = WorkspacePathResolver.resolve_workspace_root()
             result2 = WorkspacePathResolver.resolve_workspace_root()
 

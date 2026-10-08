@@ -211,6 +211,18 @@ async def _reset_global_browser_pool_singleton(request: pytest.FixtureRequest) -
         pass
 
 
+@pytest.fixture
+def outside_tmp_path() -> Iterator[Path]:
+    """Scratch directory outside ``/tmp``.
+
+    The command and path validators always allow ``/tmp``, and pytest's ``tmp_path`` lives there on
+    Linux (not on macOS). Tests that assert a location is blocked unless it is whitelisted need a
+    directory the validators do not already allow, on every platform.
+    """
+    with tempfile.TemporaryDirectory(prefix="myrm_test_", dir="/var/tmp") as root:
+        yield Path(root).resolve()
+
+
 # ---------------------------------------------------------------------------
 # Blocking-IO runtime detection (blockbuster)
 #
