@@ -317,29 +317,6 @@ from myrm_agent_harness.toolkits.memory.dreaming import (
     SurgicalSessionMemoryUnlearner,
     SurgicalUnlearnReport,
 )
-from myrm_agent_harness.toolkits.memory.graph_reorganization import (
-    GraphMemoryReorganizationEngine,
-    GraphRelationType,
-    LineageStep,
-    MemoryGraphEdge,
-    MemoryGraphNode,
-    MemoryLineageTracker,
-    MemoryLineageTrail,
-    MemoryNodeStatus,
-    MultiRelationalDetector,
-    ReorganizationReport,
-)
-from myrm_agent_harness.toolkits.memory.quadruple_retrieval import (
-    CandidateMemoryItem,
-    HarmonizedMemoryItem,
-    HarmonizedRecallResult,
-    QuadrupleParallelRetriever,
-    QueryIntentType,
-    ReasonerHarmonizer,
-    RetrievalChannelType,
-    TaskGoal,
-    TaskGoalParser,
-)
 from myrm_agent_harness.toolkits.memory.ephemeral_delta import (
     DeltaActionKind,
     EphemeralDeltaBufferSnapshot,
@@ -458,6 +435,18 @@ from myrm_agent_harness.toolkits.memory.governance import (
     ReconciliationAction,
     ReconciliationDecision,
 )
+from myrm_agent_harness.toolkits.memory.graph_reorganization import (
+    GraphMemoryReorganizationEngine,
+    GraphRelationType,
+    LineageStep,
+    MemoryGraphEdge,
+    MemoryGraphNode,
+    MemoryLineageTracker,
+    MemoryLineageTrail,
+    MemoryNodeStatus,
+    MultiRelationalDetector,
+    ReorganizationReport,
+)
 from myrm_agent_harness.toolkits.memory.health import HealthScore, MaintenanceReport, MemorySnapshot, NeglectedMemory
 from myrm_agent_harness.toolkits.memory.hermes_bridge import (
     import_hermes_bundle,
@@ -524,6 +513,19 @@ from myrm_agent_harness.toolkits.memory.lineage_search import (
     SessionMeta,
     SessionSourceKind,
     SourceDemoterAndFilter,
+)
+from myrm_agent_harness.toolkits.memory.live_correction import (
+    AtomicMemoryMutator,
+    CorrectionAckReceipt,
+    CorrectionIntentKind,
+    CorrectionSlot,
+    CorrectionTargetLocalizer,
+    LiveCorrectionMutationResult,
+    LiveCorrectionOrchestrator,
+    MutationAction,
+    MutationSinkProtocol,
+    NaturalLanguageCorrectionDetector,
+    TargetNodeCandidate,
 )
 from myrm_agent_harness.toolkits.memory.ltra import (
     AudioFactDistillationWorker,
@@ -699,6 +701,26 @@ from myrm_agent_harness.toolkits.memory.provenance_batch import (
     NamespacedMemoryRef,
     SkillProvenanceLinker,
     ToolExecutionTrace,
+)
+from myrm_agent_harness.toolkits.memory.quadruple_retrieval import (
+    CandidateMemoryItem,
+    ChannelRecallHit,
+    HarmonizedMemoryItem,
+    HarmonizedRecallResult,
+    ParsedTaskGoal,
+    QuadrupleParallelRetriever,
+    QuadrupleRetrievalOrchestrator,
+    QuadrupleRetrievalReport,
+    QueryIntentType,
+    ReasonerDecisionKind,
+    ReasonerHarmonizer,
+    ReasonerReranker,
+    RerankedMemoryHit,
+    RetrievalChannelKind,
+    RetrievalChannelType,
+    TaskGoal,
+    TaskGoalParser,
+    UnifiedCandidateHit,
 )
 from myrm_agent_harness.toolkits.memory.queuefs import (
     LockAcquisitionConflictError,
@@ -1679,16 +1701,6 @@ __all__ = [
     "ScreenObservationSafetyResult",
     "ScreenSafetyAuditRecord",
     "UntrustedObservationEvidenceBoundary",
-    "ActivityActionType",
-    "CompactorPipelineConfig",
-    "CompactorPipelineTelemetry",
-    "DailyPreferenceArchive",
-    "HierarchicalActivityCompactorPipeline",
-    "MacroMilestoneDistiller",
-    "MacroMilestoneFold",
-    "MicroActivityFolder",
-    "MicroActivitySlice",
-    "RawActivityEvent",
     "CuratedMemoryCategory",
     "CuratedMemoryEntry",
     "CuratedMemoryStatus",
@@ -1880,6 +1892,26 @@ __all__ = [
     "MemoryCubeOrchestrator",
     "MemoryCubeStore",
     "MountPolicy",
+    "ChannelRecallHit",
+    "ParsedTaskGoal",
+    "QuadrupleRetrievalOrchestrator",
+    "QuadrupleRetrievalReport",
+    "ReasonerDecisionKind",
+    "ReasonerReranker",
+    "RerankedMemoryHit",
+    "RetrievalChannelKind",
+    "UnifiedCandidateHit",
+    "AtomicMemoryMutator",
+    "CorrectionAckReceipt",
+    "CorrectionIntentKind",
+    "CorrectionSlot",
+    "CorrectionTargetLocalizer",
+    "LiveCorrectionMutationResult",
+    "LiveCorrectionOrchestrator",
+    "MutationAction",
+    "MutationSinkProtocol",
+    "NaturalLanguageCorrectionDetector",
+    "TargetNodeCandidate",
 ]
 
 
