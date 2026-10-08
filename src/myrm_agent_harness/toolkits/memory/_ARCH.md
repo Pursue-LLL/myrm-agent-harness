@@ -20,7 +20,6 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | _assistant_retrieval.py  | Internal | Two-Pass Assistant Retrieval for assistant-reference queries (MemPalace enhancement).                         | ✅    |
 | adaptive.py              | Core     | Adaptive dual-channel selection logic. Analyzes query characteristics (token count,                           | ✅    |
 | backup.py                | Core     | Provides BackupMetadata, BackupResult, RestoreResult.                                                         | ✅    |
-| chunking.py              | Core     | Chunking utilities for ConversationMemory and extraction pipelines. Provides configurable strategies (fixed, turn, message, semantic, and episodes chunking via EpisodesChunker with idle-time gap detection and causal sliding overlap). | ✅    |
 | cards.py                 | Core     | A-MEM card-box (Zettelkasten) network. Evidence-conclusion decoupling with EvidenceReference binding, bidirectional graph indexing (incoming_links), immutable evolution chain with lineage tracing, and knowledge subgraph traversal. | ✅    |
 | compression.py           | Core     | Transparent payload compression and external BLOB storage for ConversationMemory raw_exchange fields.         | ✅    |
 | consolidation.py         | Core     | Hyper Consolidation Memory Block: 会话终态将工作记忆提取为 ProceduralMemory（自愈避坑规程，内置纯净性守卫过滤先验与未解决假说）与镜像为 EpisodicMemory 的 TaskDigest 资产并持久落盘。 | ✅    |
@@ -45,7 +44,6 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | signals.py               | Core     | Context signal calculator for memory retrieval scoring. Provides normalized [0,1] factors                     | ✅    |
 | text_utils.py            | Core     | Unified multi-language tokenization for memory retrieval. Uses re.UNICODE                                     | ✅    |
 | tool_capture.py          | Core     | Tool-scoped memory capture hook. Detects user edicts and repeated tool failures, auto-creates procedural rules. | ✅    |
-| tool_guidance.py         | Facade   | Facade re-exporting types and synthesis engine from `tool_guidance` domain subpackage.                         | ✅    |
 | memory_search_policy.py   | Facade   | Facade re-exporting memory_search_policy from agent_surface for harness surface.                               | —    |
 
 | Submodule   | Description                                                                       |
