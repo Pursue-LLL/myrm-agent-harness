@@ -1216,6 +1216,16 @@ from .context_health_dashboard import (
     RealtimeHealthGauge,
     ToolExpenditureItem,
 )
+from .search_flood_guard import (
+    FloodActionKind,
+    FloodGuardConfig,
+    FloodGuardDecision,
+    FloodGuardStatus,
+    MultiAgentSearchFloodGuardSuite,
+    PerAgentSlidingWindowTracker,
+    ProgressiveSoftCapGate,
+    SlidingWindowBucket,
+)
 from .sandbox_pause_resume import (
     AgentkitPauseResumeSessionSandboxSuite,
     PauseResumeActionKind,
@@ -2371,6 +2381,15 @@ __all__ = [
     "RealtimeContextHealthDashboardAndAutoPurgeSentrySuite",
     "RealtimeHealthGauge",
     "ToolExpenditureItem",
+    # search_flood_guard
+    "FloodActionKind",
+    "FloodGuardConfig",
+    "FloodGuardDecision",
+    "FloodGuardStatus",
+    "MultiAgentSearchFloodGuardSuite",
+    "PerAgentSlidingWindowTracker",
+    "ProgressiveSoftCapGate",
+    "SlidingWindowBucket",
 ]
 
 
