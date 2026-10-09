@@ -14,7 +14,7 @@ Every hook carries two governance fields (defined on `_HookBase`):
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Re-exports all hook types and payloads. | ✅ |
-| types.py | Core | HookEvent (StrEnum, 17 events), HookDefinition (Union of 4 variants, each with `priority`/`source` governance fields), HookResult/AggregatedHookResult (dataclasses with elapsed_ms timing), HookSource enum + HOOK_PRIORITY_SECURITY constant, event payload dataclasses, HookRegistryProtocol (runtime_checkable Protocol for cross-layer DI). | ✅ |
+| types.py | Core | HookEvent (StrEnum, 13 events), HookDefinition (Union of 4 variants, each with `priority`/`source` governance fields), HookResult/AggregatedHookResult (dataclasses with elapsed_ms timing), HookSource enum + HOOK_PRIORITY_SECURITY constant, event payload dataclasses, HookRegistryProtocol (runtime_checkable Protocol for cross-layer DI). | ✅ |
 
 ## Key Dependencies
 

@@ -45,16 +45,10 @@ from myrm_agent_harness.core.hooks.types import (
     LLMHookDefinition as LLMHookDefinition,
 )
 from myrm_agent_harness.core.hooks.types import (
-    MemoryArchivedPayload as MemoryArchivedPayload,
-)
-from myrm_agent_harness.core.hooks.types import (
     PostToolUseFailurePayload as PostToolUseFailurePayload,
 )
 from myrm_agent_harness.core.hooks.types import (
     PostToolUsePayload as PostToolUsePayload,
-)
-from myrm_agent_harness.core.hooks.types import (
-    PreCompactPayload as PreCompactPayload,
 )
 from myrm_agent_harness.core.hooks.types import (
     PreToolUsePayload as PreToolUsePayload,

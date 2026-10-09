@@ -13,10 +13,8 @@ from myrm_agent_harness.core.hooks import (
     HookResult,
     HttpHookDefinition,
     LLMHookDefinition,
-    MemoryArchivedPayload,
     PostToolUseFailurePayload,
     PostToolUsePayload,
-    PreCompactPayload,
     PreToolUsePayload,
     SessionEndPayload,
     SessionStartPayload,
@@ -202,14 +200,6 @@ class TestPayloads:
     def test_session_end(self) -> None:
         p = SessionEndPayload(session_id="s1", total_tokens=1000)
         assert p.total_tokens == 1000
-
-    def test_pre_compact(self) -> None:
-        p = PreCompactPayload(session_id="s1", message_count=10, total_tokens=5000)
-        assert p.total_tokens == 5000
-
-    def test_memory_archived(self) -> None:
-        p = MemoryArchivedPayload(session_id="s1", agent_id="a1", archived_count=5, duration_ms=100.0)
-        assert p.archived_count == 5
 
     def test_subagent_start(self) -> None:
         p = SubagentStartPayload(task_id="t1", agent_type="research", task_description="task")

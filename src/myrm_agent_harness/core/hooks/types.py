@@ -32,14 +32,10 @@ class HookEvent(StrEnum):
     SESSION_END = "session_end"
     SUBAGENT_START = "subagent_start"
     SUBAGENT_STOP = "subagent_stop"
-    SUBAGENT_CANCEL_REQUEST = "subagent_cancel_request"
     SUBAGENT_CANCEL_START = "subagent_cancel_start"
     SUBAGENT_CANCEL_COMPLETE = "subagent_cancel_complete"
-    PRE_COMPACT = "pre_compact"
-    MEMORY_ARCHIVED = "memory_archived"
     USER_TURN = "user_turn"
     TRACE_SLICE_READY = "trace_slice_ready"
-    SKILL_LEARNED = "skill_learned"
     APPROVAL_CORRECTION = "approval_correction"
 
 
@@ -253,14 +249,6 @@ class SessionEndPayload:
 
 
 @dataclass(frozen=True, slots=True)
-class MemoryArchivedPayload:
-    session_id: str
-    agent_id: str
-    archived_count: int
-    duration_ms: float
-
-
-@dataclass(frozen=True, slots=True)
 class SubagentStartPayload:
     task_id: str
     agent_type: str
@@ -287,27 +275,11 @@ class SubagentMergeConflictPayload:
 
 
 @dataclass(frozen=True, slots=True)
-class PreCompactPayload:
-    session_id: str
-    message_count: int = 0
-    total_tokens: int = 0
-
-
-@dataclass(frozen=True, slots=True)
 class TraceSliceReadyPayload:
     session_id: str
     tool_call_ids: list[str]
     agent_id: str | None = None
     agent_type: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class SkillLearnedPayload:
-    session_id: str
-    skill_name: str
-    skill_description: str
-    agent_id: str | None = None
-    is_global: bool = False
 
 
 @dataclass(frozen=True, slots=True)
