@@ -185,6 +185,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | topic_drift_fork/ | Session Fork Manager coordinating auto-renaming, carryover summary extraction, and clean session forking. See [topic_drift_fork/_ARCH.md](topic_drift_fork/_ARCH.md). |
 | tracking/ | Observation and tracking: artifact tracking, task metrics, archive refetch cost, restore-block events, and archive read budgets. |
 | transcript_enforcer/ | Hard gate enforcing append-only invariant on conversation message transcripts. See [transcript_enforcer/_ARCH.md](transcript_enforcer/_ARCH.md). |
+| transcript_resilience/ | Two-tier transcript offloading, single-flight token refresh mutex, delayed slot allocation, and dynamic CLI vault credential engine (Item 333). See [transcript_resilience/_ARCH.md](transcript_resilience/_ARCH.md). |
 | transparent_gauge/ | Calculation engine for context window 5-segment budget breakdown and watermark detection. See [transparent_gauge/_ARCH.md](transparent_gauge/_ARCH.md). |
 | tri_fate_compaction/ | Turn-level tri-fate compaction and decoupled digest synthesizer suite (Item 309). See [tri_fate_compaction/_ARCH.md](tri_fate_compaction/_ARCH.md). |
 | turn_truncation/ | Core engine for In-Flight Turn State Truncation and Prefix Cache Stability Gate. See [turn_truncation/_ARCH.md](turn_truncation/_ARCH.md). |

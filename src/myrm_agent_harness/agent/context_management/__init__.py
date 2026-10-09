@@ -1541,6 +1541,23 @@ from .meta_session_orchestration import (
     format_dual_track_prompt_block,
     format_meta_progress_hud,
 )
+from .transcript_resilience import (
+    DEFAULT_MAX_CONCURRENCY_SLOTS,
+    DEFAULT_MAX_VIEWPORT_MESSAGES,
+    DEFAULT_REFRESH_TIMEOUT_SECONDS,
+    DelayedSessionSlot,
+    DelayedSlotAllocator,
+    DynamicCliCredentialEngine,
+    DynamicCredentialSpec,
+    HydratedTranscriptMessage,
+    SingleFlightRefreshGate,
+    SingleFlightTokenState,
+    TieredTranscriptOffloadingAndSessionLifecycleResilienceSuite,
+    TranscriptResilienceConfig,
+    TranscriptStubRecord,
+    compute_payload_hash,
+    format_active_slot_hud,
+)
 from .local_prefill_guard import (
     AdaptivePruningDecision,
     LatencyWarningLevel,
@@ -3033,6 +3050,22 @@ __all__ = [
     "compute_envelope_hash",
     "format_dual_track_prompt_block",
     "format_meta_progress_hud",
+    # transcript_resilience
+    "DEFAULT_MAX_CONCURRENCY_SLOTS",
+    "DEFAULT_MAX_VIEWPORT_MESSAGES",
+    "DEFAULT_REFRESH_TIMEOUT_SECONDS",
+    "DelayedSessionSlot",
+    "DelayedSlotAllocator",
+    "DynamicCliCredentialEngine",
+    "DynamicCredentialSpec",
+    "HydratedTranscriptMessage",
+    "SingleFlightRefreshGate",
+    "SingleFlightTokenState",
+    "TieredTranscriptOffloadingAndSessionLifecycleResilienceSuite",
+    "TranscriptResilienceConfig",
+    "TranscriptStubRecord",
+    "compute_payload_hash",
+    "format_active_slot_hud",
 ]
 
 
