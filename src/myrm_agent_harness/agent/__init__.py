@@ -255,6 +255,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.agent.context_management",
         "DynamicRollForwardEngine",
     ),
+    "PostCompactionToolLoopGuardSuite": (
+        "myrm_agent_harness.agent.context_management",
+        "PostCompactionToolLoopGuardSuite",
+    ),
 }
 
 __all__ = [
@@ -266,6 +270,7 @@ __all__ = [
     "ContextCacheWarmthGaugeAndHeartbeatKeepAliveSuite",
     "DynamicRollForwardEngine",
     "PromptCacheDynamicRollForwardAndHeadless3DSandboxSuite",
+    "PostCompactionToolLoopGuardSuite",
     "CrossHarnessContextStateASTAndLosslessRehydrationSuite",
     "CrossHarnessSuite",
     "CrossPlatformTranscriptNormalizer",

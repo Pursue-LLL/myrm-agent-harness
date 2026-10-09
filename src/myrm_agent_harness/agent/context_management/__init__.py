@@ -1505,6 +1505,21 @@ from .prompt_cache_roll_forward import (
     RollForwardStrategy,
     validate_3d_script_safety,
 )
+from .post_compaction_loop_guard import (
+    CompactionBoundaryLedger,
+    CompactionToolLedgerExtractor,
+    DEFAULT_HARD_TRIP_LIMIT,
+    DEFAULT_MAX_SIGNATURES,
+    LoopDetectionAction,
+    LoopGuardDecision,
+    PostCompactionGuardConfig,
+    PostCompactionToolLoopGuardSuite,
+    ReexecutionDetector,
+    RepeatedToolLoopError,
+    ToolCallSignature,
+    compute_arguments_hash,
+    format_boundary_ledger_prompt,
+)
 from .local_prefill_guard import (
     AdaptivePruningDecision,
     LatencyWarningLevel,
@@ -2963,6 +2978,20 @@ __all__ = [
     "PromptCacheDynamicRollForwardAndHeadless3DSandboxSuite",
     "RollForwardStrategy",
     "validate_3d_script_safety",
+    # post_compaction_loop_guard
+    "CompactionBoundaryLedger",
+    "CompactionToolLedgerExtractor",
+    "DEFAULT_HARD_TRIP_LIMIT",
+    "DEFAULT_MAX_SIGNATURES",
+    "LoopDetectionAction",
+    "LoopGuardDecision",
+    "PostCompactionGuardConfig",
+    "PostCompactionToolLoopGuardSuite",
+    "ReexecutionDetector",
+    "RepeatedToolLoopError",
+    "ToolCallSignature",
+    "compute_arguments_hash",
+    "format_boundary_ledger_prompt",
 ]
 
 
