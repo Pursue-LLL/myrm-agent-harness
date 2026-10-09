@@ -149,8 +149,8 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | chunking/ | Incremental Sliding Window Markdown Chunker Suite: semantic sliding window with 80-token overlap, content-hash incremental diffing, and line-level pointers. See [chunking/_ARCH.md](chunking/_ARCH.md). |
 | pitfall_alert/ | Proactive Past-Pitfall Alert and Decision Assist Suite: deterministic shadow intent recognizer, causal triad retrieval, session mute governance, and non-intrusive alert callouts. See [pitfall_alert/_ARCH.md](pitfall_alert/_ARCH.md). |
 | experience_compounding/ | Experience Compounding and Knowledge Condensation Suite: bounded logarithmic frequency compounding, semantic Golden Rule synthesis with lineage preservation, and obsolete context annealing governor. See [experience_compounding/_ARCH.md](experience_compounding/_ARCH.md). |
-| life_milestones/ | Life milestones and personal timeline suite: significance-gated milestone timeline, evolving value beliefs projected into prompts, and growth diary retrospective cards. See [life_milestones/_ARCH.md](life_milestones/_ARCH.md). |
-| context_hook_pipeline/ | Pluggable context hook pipeline: synchronous lifecycle hook chain plus dual-layer (private and shared) memory weaving within a token budget. See [context_hook_pipeline/_ARCH.md](context_hook_pipeline/_ARCH.md). |
+| skill_triad/ | Memory Skill Triad and Physical Scope Isolation Suite: API manual, machine CLI JSON envelope, integration pipeline double-seam verification, length-prefixed isolated scopes, and visible degraded state. See [skill_triad/_ARCH.md](skill_triad/_ARCH.md). |
+| bitemporal_truth_maintenance/ | Bitemporal Truth Maintenance and Causal Inference Filter Suite: valid_at/known_at explicit half-open intervals, SupportDependency DAG, non-destructive retraction, and recursive active support filtering. See [bitemporal_truth_maintenance/_ARCH.md](bitemporal_truth_maintenance/_ARCH.md). |
 
 ## Key Dependencies
 
