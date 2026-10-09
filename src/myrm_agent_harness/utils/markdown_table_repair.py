@@ -91,6 +91,16 @@ def _split_row_cells(raw_line: str) -> list[str]:
     return [c.strip() for c in raw_cells]
 
 
+def _is_open_row(raw_line: str) -> bool:
+    """A row that opens with a pipe but never closes it continues on the next line.
+
+    Rows written without any outer pipes are complete as they stand, so the prose
+    that follows them is not a continuation of their last cell.
+    """
+    normalized = _FULLWIDTH_PIPE_RE.sub("|", raw_line.strip())
+    return normalized.startswith("|") and not normalized.endswith("|")
+
+
 def _format_row(cells: list[str]) -> str:
     """Format a list of cells into a standard GFM table row."""
     # Ensure inner pipes are escaped if not inside code
@@ -275,7 +285,7 @@ def repair_markdown_tables(
                     and not curr.strip().startswith("```")
                     and curr.strip() != ""
                     and not _is_divider_row(_split_row_cells(candidate_block[-1]))
-                    and not _FULLWIDTH_PIPE_RE.sub("|", candidate_block[-1].strip()).endswith("|")
+                    and _is_open_row(candidate_block[-1])
                 ):
                     # Multi-line cell broken across lines: merge with previous line
                     candidate_block[-1] = candidate_block[-1].rstrip(" |") + "<br>" + curr.strip()
