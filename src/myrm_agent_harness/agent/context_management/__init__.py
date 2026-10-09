@@ -1681,6 +1681,16 @@ from .test_report_compressor import (
     TestReportFormatKind,
     parse_test_report_payload,
 )
+from .title_recovery import (
+    InvalidGeneratedTitleRecoverySuite,
+    InvalidTitleReason,
+    InvalidTitleTaxonomy,
+    ProvisionalTitleRetryGate,
+    TitleRecoveryConfig,
+    TitleRecoveryState,
+    TitleRecoveryVerdict,
+    TitleValidationResult,
+)
 from .local_prefill_guard import (
     AdaptivePruningDecision,
     LatencyWarningLevel,
@@ -3303,6 +3313,15 @@ __all__ = [
     "TestReportFormatDetector",
     "TestReportFormatKind",
     "parse_test_report_payload",
+    # title_recovery
+    "InvalidGeneratedTitleRecoverySuite",
+    "InvalidTitleReason",
+    "InvalidTitleTaxonomy",
+    "ProvisionalTitleRetryGate",
+    "TitleRecoveryConfig",
+    "TitleRecoveryState",
+    "TitleRecoveryVerdict",
+    "TitleValidationResult",
 ]
 
 

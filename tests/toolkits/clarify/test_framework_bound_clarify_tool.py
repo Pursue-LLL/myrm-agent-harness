@@ -1,7 +1,7 @@
 """Unit tests for framework-bound ClarifyTool and active ambiguity detector.
 
 Validates proactive detection of destructive risks, missing parameter blueprints,
-standardized JSON Schema declarations, A2UI card generation, and interactive resolution formatting.
+standardized JSON Schema declarations, clarification card generation, and interactive resolution formatting.
 """
 
 from __future__ import annotations
@@ -77,8 +77,8 @@ async def test_active_ambiguity_detector_clear_instruction() -> None:
 
 
 @pytest.mark.asyncio
-async def test_framework_bound_clarify_tool_declaration_and_a2ui_card() -> None:
-    """Validate standard tool schema declaration and A2UI interactive card formatting."""
+async def test_framework_bound_clarify_tool_declaration_and_clarify_card() -> None:
+    """Validate standard tool schema declaration and interactive clarification card formatting."""
     tool = FrameworkBoundClarifyTool()
 
     # Check declaration
@@ -109,7 +109,7 @@ async def test_framework_bound_clarify_tool_declaration_and_a2ui_card() -> None:
         category=AmbiguityCategory.MULTIPLE_APPROACHES,
     )
 
-    card = tool.format_a2ui_card(params)
+    card = tool.format_clarify_card(params)
     assert card["component"] == "ClarifyQuestionCard"
     assert card["impactLevel"] == "medium"
     assert card["category"] == "multiple_approaches"

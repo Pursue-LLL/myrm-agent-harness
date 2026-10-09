@@ -76,8 +76,8 @@ class FrameworkBoundClarifyTool:
             },
         }
 
-    def format_a2ui_card(self, params: ClarifyToolParams) -> dict[str, object]:
-        """Format parameters into a standardized A2UI interactive clarification card payload."""
+    def format_clarify_card(self, params: ClarifyToolParams) -> dict[str, object]:
+        """Format parameters into a standardized interactive clarification card payload."""
         options_payload = [
             {
                 "optionId": opt.option_id,
@@ -109,13 +109,13 @@ class FrameworkBoundClarifyTool:
 
         If a resolution handler is provided (e.g. from UI response or test mock),
         formats the confirmed selection back to the model as deterministic tool output.
-        Otherwise returns the serialized A2UI card awaiting user input.
+        Otherwise returns the serialized clarification card awaiting user input.
         """
         if resolution_handler is not None:
             resolution = resolution_handler(params)
             return self.format_tool_result(params, resolution)
 
-        card_payload = self.format_a2ui_card(params)
+        card_payload = self.format_clarify_card(params)
         return json.dumps(card_payload, ensure_ascii=False)
 
     def format_tool_result(
