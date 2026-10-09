@@ -1485,6 +1485,26 @@ from .cache_warmth_keepalive import (
     format_duration_human,
     get_provider_cache_spec,
 )
+from .prompt_cache_roll_forward import (
+    AnomalyGuardStatus,
+    COLD_MISS_TOKEN_THRESHOLD,
+    CacheBreakpointInfo,
+    CacheMissAnomalyGuard,
+    CacheMissAnomalyReport,
+    DynamicRollForwardEngine,
+    DynamicRollForwardResult,
+    Headless3DEngineType,
+    Headless3DExecutionResult,
+    Headless3DSandboxAdapter,
+    Headless3DScriptRequest,
+    LongTaskIterationSnapshot,
+    LongTaskTelemetryTracker,
+    MAX_CACHE_BREAKPOINTS,
+    MAX_CONSECUTIVE_COLD_MISSES,
+    PromptCacheDynamicRollForwardAndHeadless3DSandboxSuite,
+    RollForwardStrategy,
+    validate_3d_script_safety,
+)
 from .local_prefill_guard import (
     AdaptivePruningDecision,
     LatencyWarningLevel,
@@ -2924,6 +2944,25 @@ __all__ = [
     "calculate_probe_cost",
     "format_duration_human",
     "get_provider_cache_spec",
+    # prompt_cache_roll_forward
+    "AnomalyGuardStatus",
+    "COLD_MISS_TOKEN_THRESHOLD",
+    "CacheBreakpointInfo",
+    "CacheMissAnomalyGuard",
+    "CacheMissAnomalyReport",
+    "DynamicRollForwardEngine",
+    "DynamicRollForwardResult",
+    "Headless3DEngineType",
+    "Headless3DExecutionResult",
+    "Headless3DSandboxAdapter",
+    "Headless3DScriptRequest",
+    "LongTaskIterationSnapshot",
+    "LongTaskTelemetryTracker",
+    "MAX_CACHE_BREAKPOINTS",
+    "MAX_CONSECUTIVE_COLD_MISSES",
+    "PromptCacheDynamicRollForwardAndHeadless3DSandboxSuite",
+    "RollForwardStrategy",
+    "validate_3d_script_safety",
 ]
 
 

@@ -247,6 +247,14 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.agent.context_management",
         "CacheWarmthGauge",
     ),
+    "PromptCacheDynamicRollForwardAndHeadless3DSandboxSuite": (
+        "myrm_agent_harness.agent.context_management",
+        "PromptCacheDynamicRollForwardAndHeadless3DSandboxSuite",
+    ),
+    "DynamicRollForwardEngine": (
+        "myrm_agent_harness.agent.context_management",
+        "DynamicRollForwardEngine",
+    ),
 }
 
 __all__ = [
@@ -256,6 +264,8 @@ __all__ = [
     "CanonicalScaffoldingSuite",
     "CacheWarmthGauge",
     "ContextCacheWarmthGaugeAndHeartbeatKeepAliveSuite",
+    "DynamicRollForwardEngine",
+    "PromptCacheDynamicRollForwardAndHeadless3DSandboxSuite",
     "CrossHarnessContextStateASTAndLosslessRehydrationSuite",
     "CrossHarnessSuite",
     "CrossPlatformTranscriptNormalizer",

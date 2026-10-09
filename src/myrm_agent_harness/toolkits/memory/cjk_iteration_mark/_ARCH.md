@@ -19,3 +19,13 @@
 - `resolver.py`: 链式前驱汉字解析器与三维 Bigram 生成器；
 - `matcher.py`: 双向多路相关度评分匹配器；
 - `facade.py`: 对外统一门面与全局单例导出。
+
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| `__init__.py` | Package | CJK Iteration Mark Recall Disambiguation exports. | ✅ |
+| `facade.py` | Facade | Unified stateless facade and singleton injection for CJK Iteration Mark. | ✅ |
+| `matcher.py` | Matcher | Bidirectional multi-path relevance score matcher. | ✅ |
+| `models.py` | Models | Strongly-typed domain models and contracts for CJK Iteration Mark. | ✅ |
+| `resolver.py` | Resolver | Chained antecedent Han resolver and tri-token anchor generator. | ✅ |
