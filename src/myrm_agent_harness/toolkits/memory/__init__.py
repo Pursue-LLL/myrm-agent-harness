@@ -155,6 +155,16 @@ from myrm_agent_harness.toolkits.memory.chunking import (
     MarkdownChunk,
     MarkdownSlidingWindowChunker,
 )
+from myrm_agent_harness.toolkits.memory.cjk_iteration_mark import (
+    CjkIterationMarkFacade,
+    CjkIterationRecallMatcher,
+    CjkRecallMatchScore,
+    DisambiguatedCjkTokens,
+    IterationExpansionResult,
+    IterationMarkResolver,
+    IterationMarkRun,
+    get_cjk_iteration_mark_facade,
+)
 from myrm_agent_harness.toolkits.memory.client_partition import (
     ClientPartitionConfig,
     ClientWorkspaceDescriptor,
@@ -2248,6 +2258,14 @@ __all__ = [
     "SyncGuardAction",
     "SyncGuardDecision",
     "get_inode_identity_facade",
+    "CjkIterationMarkFacade",
+    "CjkIterationRecallMatcher",
+    "CjkRecallMatchScore",
+    "DisambiguatedCjkTokens",
+    "IterationExpansionResult",
+    "IterationMarkResolver",
+    "IterationMarkRun",
+    "get_cjk_iteration_mark_facade",
 ]
 
 
