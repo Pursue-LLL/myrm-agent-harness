@@ -1632,6 +1632,18 @@ from .multi_session_workspace import (
     WorkspaceDeckState,
     WorkspaceSlot,
 )
+from .silent_end_reconcile import (
+    ReconcileOutcome,
+    ReconcileVerdict,
+    ServerRunReservation,
+    ServerRuntimeVerifier,
+    SilentEndReconcileConfig,
+    SilentEndTicket,
+    StreamRunStatus,
+    StreamTerminalWatchdog,
+    TerminalEventKind,
+    TerminalMissingSilentEndServerReconcileSuite,
+)
 from .local_prefill_guard import (
     AdaptivePruningDecision,
     LatencyWarningLevel,
@@ -3209,6 +3221,17 @@ __all__ = [
     "SlotRoleTag",
     "WorkspaceDeckState",
     "WorkspaceSlot",
+    # silent_end_reconcile
+    "ReconcileOutcome",
+    "ReconcileVerdict",
+    "ServerRunReservation",
+    "ServerRuntimeVerifier",
+    "SilentEndReconcileConfig",
+    "SilentEndTicket",
+    "StreamRunStatus",
+    "StreamTerminalWatchdog",
+    "TerminalEventKind",
+    "TerminalMissingSilentEndServerReconcileSuite",
 ]
 
 

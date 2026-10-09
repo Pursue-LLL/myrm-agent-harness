@@ -291,6 +291,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.agent.context_management",
         "MultiSessionParallelWorkspaceAndRootDiscoverySuite",
     ),
+    "TerminalMissingSilentEndServerReconcileSuite": (
+        "myrm_agent_harness.agent.context_management",
+        "TerminalMissingSilentEndServerReconcileSuite",
+    ),
 }
 
 __all__ = [
@@ -311,6 +315,7 @@ __all__ = [
     "UserProfilePromptLayeredAuthoringGuideAndNarrativeStylePresetSuite",
     "CorruptSessionStorageGracefulDegradationAndAutoHealingSuite",
     "MultiSessionParallelWorkspaceAndRootDiscoverySuite",
+    "TerminalMissingSilentEndServerReconcileSuite",
     "CrossHarnessContextStateASTAndLosslessRehydrationSuite",
     "CrossHarnessSuite",
     "CrossPlatformTranscriptNormalizer",
