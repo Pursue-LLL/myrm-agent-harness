@@ -5,7 +5,7 @@ while internally routing into Myrm's typed AgentHandoffEngine and MemoryPrivacyB
 Strict typing applied: No `Any` types allowed.
 
 [INPUT]
-- agent.context_management.handoff::AgentHandoffEngine, FailedApproachRecord, FinalizeSessionRequest (POS:
+- toolkits.memory.handoff::AgentHandoffEngine, FailedApproachRecord, FinalizeSessionRequest (POS:
   Public interface for agent handoff management and session finalization.)
 - toolkits.memory.agent_surface.mcp.types::AiMemoryFinalizeRequest, AiMemoryQueryRequest,
   AiMemoryRememberRequest (POS: Data models for ai-memory wire format interoperability and cross-tool MCP
@@ -25,15 +25,15 @@ from __future__ import annotations
 import logging
 import time
 
-from myrm_agent_harness.agent.context_management.handoff import (
-    AgentHandoffEngine,
-    FailedApproachRecord,
-    FinalizeSessionRequest,
-)
 from myrm_agent_harness.toolkits.memory.agent_surface.mcp.types import (
     AiMemoryFinalizeRequest,
     AiMemoryQueryRequest,
     AiMemoryRememberRequest,
+)
+from myrm_agent_harness.toolkits.memory.handoff import (
+    AgentHandoffEngine,
+    FailedApproachRecord,
+    FinalizeSessionRequest,
 )
 from myrm_agent_harness.toolkits.memory.privacy_gate import (
     MemoryPrivacyBoundaryGate,
@@ -71,11 +71,11 @@ class AiMemoryWireAdapter:
                         matched_lines.append(f"- **[{topic}]** {note}")
 
         if not matched_lines:
-            return f"### Memory Search: \"{req.query}\"\n\nNo matching memories found."
+            return f'### Memory Search: "{req.query}"\n\nNo matching memories found.'
 
         selected = matched_lines[: req.limit]
         body = "\n".join(selected)
-        return f"### Memory Search: \"{req.query}\" ({len(selected)} results)\n\n{body}"
+        return f'### Memory Search: "{req.query}" ({len(selected)} results)\n\n{body}'
 
     def get_handoff(self, target_profile_id: str | None = None) -> str:
         """Fetch active pending handoff memorandum formatted as human-readable markdown."""
@@ -93,7 +93,7 @@ class AiMemoryWireAdapter:
             "### Immediate Next Actions",
         ]
         if spec.next_actions:
-            lines.extend(f"{idx+1}. {act}" for idx, act in enumerate(spec.next_actions))
+            lines.extend(f"{idx + 1}. {act}" for idx, act in enumerate(spec.next_actions))
         else:
             lines.append("No explicit next actions defined.")
 

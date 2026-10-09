@@ -23,6 +23,8 @@ ContextVars so they are not owned by any single middleware.
 - set_is_shadow_agent / reset_is_shadow_agent / get_is_shadow_agent: Background shadow-agent bulkhead flag.
 - set_turn_allowed_tool_names / get_turn_allowed_tool_names: Per-turn merged tool allowlist for execution-layer enforcement.
 - set_active_negative_constraints / get_active_negative_constraints: Context-local active negative constraints (VETO rules) for pre-call enforcement.
+- set_active_tool_registry / get_active_tool_registry / set_active_resolved_tools / get_active_resolved_tools: Tools published for the current agent run (ContextVar with a session-key fallback for LangGraph's copied contexts).
+- clear_active_tools_for_tests: Wipe every published registry and tool list for test isolation.
 
 [POS]
 Middleware session context — shared ContextVars for the middleware chain.
@@ -328,6 +330,19 @@ def get_active_resolved_tools() -> list[BaseTool] | None:
     if tools is not None:
         return tools
     return _session_resolved_tools.get(_active_tools_session_key())
+
+
+def clear_active_tools_for_tests() -> None:
+    """Drop every published tool registry and resolved-tool list for test isolation.
+
+    The session maps are process-wide, so a registry published by one test (any test that builds an
+    agent) stays visible to every later test of the process and takes priority over the registry a
+    middleware was constructed with.
+    """
+    _active_tool_registry_var.set(None)
+    _active_resolved_tools_var.set(None)
+    _session_tool_registries.clear()
+    _session_resolved_tools.clear()
 
 
 def set_is_subagent(is_subagent: bool) -> None:

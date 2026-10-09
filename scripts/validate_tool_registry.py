@@ -13,7 +13,7 @@ Usage:
     python scripts/validate_tool_registry.py --json          # Machine-readable output
 
 Exit codes:
-    0: No violations
+    0: No violations, or skipped because the server tree is absent (standalone harness clone)
     1: Inconsistency or orphan detected
     2: Internal error
 """
@@ -27,8 +27,8 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-_repo_root = Path(__file__).resolve().parent.parent.parent
-_harness_root = _repo_root / "myrm-agent-harness"
+_harness_root = Path(__file__).resolve().parent.parent
+_repo_root = _harness_root.parent
 sys.path.insert(0, str(_harness_root))
 
 from scripts.tool_registry_config import (  # noqa: E402
@@ -36,6 +36,7 @@ from scripts.tool_registry_config import (  # noqa: E402
     SCAN_ROOTS,
     SERVER_ROOT,
     SERVER_SRC,
+    SERVER_TREE_AVAILABLE,
 )
 from scripts.tool_registry_engine import (  # noqa: E402
     ScanReport,
@@ -967,4 +968,13 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    if not SERVER_TREE_AVAILABLE:
+        # Server-declared tools and call sites are part of the scan: without them every verdict, and the
+        # --generate-docs counts, would be wrong.
+        print(
+            "SKIP: myrm-agent-server is not checked out next to the harness; "
+            "the tool-registry gate needs the monorepo layout.",
+            file=sys.stderr,
+        )
+        sys.exit(0)
     sys.exit(main())

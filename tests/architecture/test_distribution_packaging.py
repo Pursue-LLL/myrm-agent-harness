@@ -15,6 +15,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
 
 from harness_packaging.assemble import (
+    ProductionWheels,
     assemble_production_wheels,
     install_production_wheels,
     run_post_install_verify,
@@ -43,6 +44,12 @@ _SKIP_WITHOUT_NUITKA = pytest.mark.skipif(
 )
 
 _SLOW_ARCHITECTURE = pytest.mark.slow
+
+
+@pytest.fixture(scope="module")
+def production_wheels() -> ProductionWheels:
+    """Compile the core manifest once; every slow wheel test inspects the same build."""
+    return assemble_production_wheels()
 
 
 def _rustc_version_tuple() -> tuple[int, ...]:
@@ -156,23 +163,12 @@ def test_strip_manifest_in_place_preserves_pep427_name(tmp_path: Path) -> None:
 @_SKIP_UNDER_XDIST
 @_SKIP_WITHOUT_NUITKA
 @_SLOW_ARCHITECTURE
-def test_core_wheel_contains_compiled_artifacts() -> None:
+def test_core_wheel_contains_compiled_artifacts(production_wheels: ProductionWheels) -> None:
     """Platform core wheel must ship Nuitka .so/.pyd for manifest modules."""
-    subprocess.run(
-        [sys.executable, str(_REPO_ROOT / "scripts" / "build_core.py"), "--wheel"],
-        check=True,
-        cwd=_REPO_ROOT,
-        capture_output=True,
-        text=True,
-    )
-    plat = get_current_platform()
-    wheel_dir = _REPO_ROOT / "build" / "core" / "wheels" / plat.key
-    wheels = sorted(wheel_dir.glob("*.whl"))
-    assert wheels, f"No core wheel in {wheel_dir}"
+    core_wheel = production_wheels.core_wheel
+    verify_distribution_wheel_artifact(core_wheel, role=DistributionWheelRole.CORE)
 
-    verify_distribution_wheel_artifact(wheels[-1], role=DistributionWheelRole.CORE)
-
-    with zipfile.ZipFile(wheels[-1], "r") as zf:
+    with zipfile.ZipFile(core_wheel, "r") as zf:
         names = zf.namelist()
     compiled = [n for n in names if n.startswith("myrm_agent_harness/") and (n.endswith(".so") or n.endswith(".pyd"))]
     assert len(compiled) == len(manifest_source_paths()), compiled
@@ -219,9 +215,9 @@ def test_release_wheel_is_uv_installable(tmp_path: Path) -> None:
 @_SKIP_UNDER_XDIST
 @_SKIP_WITHOUT_NUITKA
 @_SLOW_ARCHITECTURE
-def test_dual_wheel_compiled_mode_e2e(tmp_path: Path) -> None:
+def test_dual_wheel_compiled_mode_e2e(tmp_path: Path, production_wheels: ProductionWheels) -> None:
     """Release + platform core wheels must install together and enter COMPILED mode."""
-    wheels = assemble_production_wheels()
+    wheels = production_wheels
 
     consumer = tmp_path / "consumer"
     consumer.mkdir()

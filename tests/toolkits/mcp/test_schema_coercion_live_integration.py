@@ -344,4 +344,7 @@ async def test_huge_digit_string_stays_string_rejected_readably(_probe_actor: ob
     """A 5000-digit literal stays a string (int_max_str_digits guard) and the
     server rejects it with a readable error — no crash, no silent corruption."""
     result = await _lookup(_probe_actor, id="1" + "0" * 5000, score="1", active=True, tags=["x"])
-    assert "MCP tool error" in result and "Exceeds the limit" in result
+    assert "MCP tool error" in result
+    # input_type=str: the literal reached the server uncoerced. int_parsing_size is pydantic's
+    # error code for digit strings beyond the integer-conversion limit (stable across wordings).
+    assert "int_parsing_size" in result and "input_type=str" in result

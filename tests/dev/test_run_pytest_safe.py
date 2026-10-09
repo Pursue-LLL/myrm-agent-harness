@@ -6,8 +6,15 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _SCRIPT = _REPO_ROOT / "scripts" / "dev" / "run_pytest_safe.py"
+
+# The wrapper lives in the maintainer monorepo, not in the standalone harness checkout.
+pytestmark = pytest.mark.skipif(
+    not _SCRIPT.is_file(), reason="monorepo maintainer script run_pytest_safe.py not present"
+)
 
 
 def test_run_pytest_safe_true_exits_zero() -> None:

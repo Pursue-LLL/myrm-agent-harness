@@ -4,7 +4,8 @@
 Baseline-listed files may exceed ``max_lines`` but must never grow past their
 recorded cap, and a recorded cap is a ceiling that only ratchets down: once a file
 shrinks, the baseline must be tightened to its new size so the reclaimed headroom
-cannot be silently re-filled. Unlisted files must stay at or below ``max_lines``.
+cannot be silently re-filled. Unlisted files must stay at or below ``max_lines``. Files under a
+``_generated/`` directory are skipped.
 
 Entries that no longer match the tree (a file was renamed or removed, or a cap is
 looser than the current size) are reported as drift, so a stale baseline can never
@@ -35,6 +36,8 @@ from scripts.boundary_engine import get_changed_harness_files  # noqa: E402
 
 _DEFAULT_MAX_LINES = 500
 _PRUNE = frozenset({"__pycache__", ".mypy_cache", ".pytest_cache", ".ruff_cache"})
+# Machine-written modules (one entry per line by construction) are not hand-maintained code.
+_GENERATED_DIR = "_generated"
 
 
 def _count_lines(path: Path) -> int:
@@ -181,7 +184,7 @@ def check(
     targets = files if files is not None else _iter_py_files(package_root)
 
     for py_file in targets:
-        if not py_file.exists():
+        if not py_file.exists() or _GENERATED_DIR in py_file.parts:
             continue
         rel = str(py_file.relative_to(src_parent))
         line_count = _count_lines(py_file)

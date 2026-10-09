@@ -15,13 +15,13 @@ from pathlib import Path
 
 import pytest
 
-from myrm_agent_harness.agent.context_management.handoff import (
-    AgentHandoffEngine,
-)
 from myrm_agent_harness.toolkits.memory.agent_surface.mcp import (
     AiMemoryWireAdapter,
     McpServerInfo,
     create_interop_memory_mcp_server,
+)
+from myrm_agent_harness.toolkits.memory.handoff import (
+    AgentHandoffEngine,
 )
 from myrm_agent_harness.toolkits.memory.privacy_gate import (
     MemoryPrivacyBoundaryGate,
@@ -67,7 +67,7 @@ def test_remember_and_query_memory(wire_adapter: AiMemoryWireAdapter) -> None:
 
     # 3. Query matching memory
     search_res = wire_adapter.query_memory("FastAPI", limit=5)
-    assert "### Memory Search: \"FastAPI\" (1 results)" in search_res
+    assert '### Memory Search: "FastAPI" (1 results)' in search_res
     assert "[Architecture]" in search_res
     assert "Harness for Agent loop" in search_res
 

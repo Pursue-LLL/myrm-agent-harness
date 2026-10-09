@@ -9,6 +9,7 @@ import tempfile
 from collections.abc import AsyncIterator, Iterator
 from contextlib import contextmanager, suppress
 from pathlib import Path
+from unittest.mock import patch
 
 # Python 3.13 / Pydantic 2.13.x / LiteLLM generic creation workaround
 try:
@@ -190,6 +191,90 @@ def _restore_chat_id_var() -> Iterator[None]:
 
 
 @pytest.fixture(autouse=True)
+def _reset_ptc_safety_registry() -> Iterator[None]:
+    """Isolate the dynamic MCP safety registry between all tests.
+
+    Connecting an MCP server registers per-skill and per-tool safety metadata in process-wide
+    registries. Left behind, they make the compliance audit report a ghost skill and let an unrelated
+    tool with the same name resolve to another server's read-only annotations, which skips approval.
+    """
+    from myrm_agent_harness.core.security.tool_registry.registry import (
+        _PTC_LOCK,
+        _PTC_SAFETY_METADATA,
+        _PTC_TOOL_FLAT_INDEX,
+    )
+
+    def clear() -> None:
+        with _PTC_LOCK:
+            _PTC_SAFETY_METADATA.clear()
+            _PTC_TOOL_FLAT_INDEX.clear()
+
+    clear()
+    yield
+    clear()
+
+
+@pytest.fixture(autouse=True)
+def _reset_taint_tracker() -> Iterator[None]:
+    """Isolate the context-local taint tracker between all tests.
+
+    ``get_taint_tracker()`` creates one tracker lazily and every later test (sync, or async on a copied
+    context) shares that object, so a test that records a taint label leaves every later test of the
+    worker tainted; code that propagates child taint to a parent then runs with a label nobody set.
+    """
+    from myrm_agent_harness.agent.security.guards.taint_tracker import reset_taint_tracker
+
+    reset_taint_tracker()
+    yield
+    reset_taint_tracker()
+
+
+@pytest.fixture(autouse=True)
+def _reset_active_tool_publication() -> Iterator[None]:
+    """Isolate the published active tool registry and resolved tools between all tests.
+
+    Building or running an agent publishes both in process-wide session maps. Without a reset the
+    registry of an earlier test shadows the one a later test hands to a middleware directly, so the
+    dynamic tool lookup misses and the tool call arrives unresolved.
+    """
+    from myrm_agent_harness.agent.middlewares._session_context import clear_active_tools_for_tests
+
+    clear_active_tools_for_tests()
+    yield
+    clear_active_tools_for_tests()
+
+
+@pytest.fixture(autouse=True)
+def _isolate_subagent_checkpointer() -> Iterator[None]:
+    """Give every test its own subagent checkpointer singleton.
+
+    The shared SQLite saver and the asyncio locks inside it bind to the event loop of the first test that
+    contends on them. A test that ends while holding the saver lock leaves it locked, and every later
+    subagent run of the worker (each on its own loop) then fails with
+    ``<Lock [locked]> is bound to a different event loop``.
+    """
+    from myrm_agent_harness.agent.sub_agents.checkpointer import reset_subagent_checkpointer
+
+    reset_subagent_checkpointer()
+    yield
+    reset_subagent_checkpointer()
+
+
+@pytest.fixture(autouse=True)
+def _isolate_cli_tool_detection_cache() -> Iterator[None]:
+    """Isolate the process-level CLI tool detection cache between all tests.
+
+    ``detect_all()`` memoizes the host scan. A test that mocks ``shutil.which`` or PATH and triggers a
+    scan (directly, or through ``generate_error_hint``) would otherwise leave an empty catalog behind for
+    every later test of the worker.
+    """
+    from myrm_agent_harness.toolkits.code_execution.tool_discovery import detector
+
+    with patch.object(detector, "_cache", None):
+        yield
+
+
+@pytest.fixture(autouse=True)
 async def _reset_global_browser_pool_singleton(request: pytest.FixtureRequest) -> AsyncIterator[None]:
     """Shut down GlobalBrowserPool singleton after browser-related tests.
 
@@ -209,6 +294,18 @@ async def _reset_global_browser_pool_singleton(request: pytest.FixtureRequest) -
             await reset_global_browser_pool_for_tests()
     except ImportError:
         pass
+
+
+@pytest.fixture
+def outside_tmp_path() -> Iterator[Path]:
+    """Scratch directory outside ``/tmp``.
+
+    The command and path validators always allow ``/tmp``, and pytest's ``tmp_path`` lives there on
+    Linux (not on macOS). Tests that assert a location is blocked unless it is whitelisted need a
+    directory the validators do not already allow, on every platform.
+    """
+    with tempfile.TemporaryDirectory(prefix="myrm_test_", dir="/var/tmp") as root:
+        yield Path(root).resolve()
 
 
 # ---------------------------------------------------------------------------

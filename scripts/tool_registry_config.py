@@ -16,6 +16,8 @@ HARNESS_ROOT = REPO_ROOT
 HARNESS_SRC = HARNESS_ROOT / "src" / "myrm_agent_harness"
 SERVER_ROOT = REPO_ROOT.parent / "myrm-agent" / "myrm-agent-server"
 SERVER_SRC = SERVER_ROOT / "app"
+# The server tree exists only in the monorepo layout; gates that cross-reference it skip in a standalone harness clone.
+SERVER_TREE_AVAILABLE = SERVER_SRC.is_dir()
 
 SCAN_ROOTS: tuple[Path, ...] = (HARNESS_SRC, SERVER_SRC)
 
@@ -40,7 +42,8 @@ INTERNAL_TOOL_NAMES: frozenset[str] = frozenset(
     }
 )
 
-# JSON schema signals (no @tool AST) — DR orchestrator bind_tools only.
+# Registered names without an AST-visible @tool declaration: the deep-research signal schemas
+# (bind_tools only, must all be listed — see orchestration/signals/catalog.py) plus tools the scan cannot attribute.
 SCHEMA_ONLY_TOOL_NAMES: frozenset[str] = frozenset(
     {
         "dispatch_research",

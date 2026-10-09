@@ -267,36 +267,67 @@ def test_build_init_script_no_domain_logic() -> None:
 # =============================================================================
 
 
+def _make_context() -> MagicMock:
+    """BrowserContext stand-in with a closed attribute set.
+
+    A bare MagicMock fabricates the document injector's registry flags, so the injector would
+    believe its route handler is already installed and never register it.
+    """
+    context = MagicMock(spec=["route", "on"])
+    context.route = AsyncMock()
+    context.on = MagicMock()
+    return context
+
+
+async def _render_injected_document(context: MagicMock) -> str:
+    """Serve an HTML document through the context's first route handler and return the delivered HTML.
+
+    ``install_domain_filter`` registers the document injector (CSP meta + main-thread hardening)
+    before the HTTP filter, so the first registered route is the injector.
+    """
+    handler = context.route.call_args_list[0].args[1]
+    response = MagicMock()
+    response.headers = {"content-type": "text/html"}
+    response.body = AsyncMock(return_value=b"<html><head></head><body></body></html>")
+    route = MagicMock()
+    route.request.resource_type = "document"
+    route.fetch = AsyncMock(return_value=response)
+    route.fulfill = AsyncMock()
+    route.fallback = AsyncMock()
+
+    await handler(route)
+
+    route.fallback.assert_not_called()
+    return route.fulfill.await_args.kwargs["body"].decode()
+
+
 @pytest.mark.asyncio
 async def test_install_domain_filter_empty_allowlist() -> None:
     """Test install_domain_filter skips for empty allowlist."""
-    context = MagicMock()
-    context.route = AsyncMock()
-    context.add_init_script = AsyncMock()
-    context.on = MagicMock()
+    context = _make_context()
 
     allowlist = DomainAllowlist(patterns=())
 
     await install_domain_filter(context, allowlist)
 
     context.route.assert_not_called()
-    context.add_init_script.assert_not_called()
+    context.on.assert_not_called()
 
 
 @pytest.mark.asyncio
 async def test_install_domain_filter_with_patterns() -> None:
     """Test install_domain_filter installs all four layers."""
-    context = MagicMock()
-    context.route = AsyncMock()
-    context.add_init_script = AsyncMock()
-    context.on = MagicMock()
+    context = _make_context()
 
     allowlist = DomainAllowlist(patterns=("example.com",))
 
     await install_domain_filter(context, allowlist)
 
-    context.route.assert_called_once()
-    assert context.add_init_script.call_count == 2
+    # Document injector (CSP meta + main-thread hardening share one handler) and the HTTP filter.
+    assert context.route.call_count == 2
+    document = await _render_injected_document(context)
+    assert "Content-Security-Policy" in document
+    assert "RTCPeerConnection" in document
 
     assert context.on.call_count == 1
     call_args = context.on.call_args
@@ -307,17 +338,16 @@ async def test_install_domain_filter_with_patterns() -> None:
 @pytest.mark.asyncio
 async def test_install_domain_filter_without_cdp_audit() -> None:
     """Test install_domain_filter with CDP audit disabled."""
-    context = MagicMock()
-    context.route = AsyncMock()
-    context.add_init_script = AsyncMock()
-    context.on = MagicMock()
+    context = _make_context()
 
     allowlist = DomainAllowlist(patterns=("example.com",))
 
     await install_domain_filter(context, allowlist, enable_cdp_audit=False)
 
-    context.route.assert_called_once()
-    assert context.add_init_script.call_count == 2
+    assert context.route.call_count == 2
+    document = await _render_injected_document(context)
+    assert "Content-Security-Policy" in document
+    assert "RTCPeerConnection" in document
     context.on.assert_not_called()
 
 
@@ -329,10 +359,7 @@ async def test_install_domain_filter_without_cdp_audit() -> None:
 @pytest.mark.asyncio
 async def test_domain_filter_full_workflow() -> None:
     """Test complete domain filtering workflow."""
-    context = MagicMock()
-    context.route = AsyncMock()
-    context.add_init_script = AsyncMock()
-    context.on = MagicMock()
+    context = _make_context()
 
     patterns = ["example.com", "*.github.com", "api.openai.com"]
     allowlist = DomainAllowlist.from_strings(patterns)
@@ -345,8 +372,10 @@ async def test_domain_filter_full_workflow() -> None:
 
     await install_domain_filter(context, allowlist, enable_cdp_audit=True)
 
-    context.route.assert_called_once()
-    assert context.add_init_script.call_count == 2
+    assert context.route.call_count == 2
+    document = await _render_injected_document(context)
+    for pattern in patterns:
+        assert pattern in document
     assert context.on.call_count == 1
 
 
@@ -567,18 +596,17 @@ async def test_http_filter_non_http_non_document_allowed() -> None:
 
 @pytest.mark.asyncio
 async def test_main_thread_hardening_injects_script() -> None:
-    """Test main thread hardening injects init script."""
+    """Test main thread hardening is delivered in the document response."""
     from myrm_agent_harness.toolkits.browser.domain_filter import _install_main_thread_hardening
 
-    context = MagicMock()
-    context.add_init_script = AsyncMock()
+    context = _make_context()
 
     await _install_main_thread_hardening(context)
 
-    context.add_init_script.assert_called_once()
-    script = context.add_init_script.call_args[0][0]
-    assert "RTCPeerConnection" in script
-    assert "serviceWorker" in script
+    context.route.assert_called_once()
+    document = await _render_injected_document(context)
+    assert "RTCPeerConnection" in document
+    assert "serviceWorker" in document
 
 
 # =============================================================================

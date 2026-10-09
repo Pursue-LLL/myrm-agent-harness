@@ -293,7 +293,7 @@ class Interactor(
         try:
             # Check if locator is attached. If DOM mutated significantly, this will timeout quickly.
             await locator.wait_for(state="attached", timeout=800)
-        except Exception:
+        except Exception as detach_err:
             # Check if URL changed since snapshot, indicating page navigated or submitted
             current_url = getattr(self._page, "url", "")
             if current_url and self._last_snapshot_url:
@@ -306,7 +306,7 @@ class Interactor(
                         context_refs=[],
                         last_snapshot_url=self._last_snapshot_url,
                         context={"action": action, "text": text, "page_url": current_url},
-                    )
+                    ) from detach_err
 
             # Attempt spatial-fingerprint self-healing
             from myrm_agent_harness.toolkits.browser.snapshot.self_healer import (

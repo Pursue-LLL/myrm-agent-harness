@@ -795,7 +795,10 @@ async def test_wiki_ingest_local_txt_with_folder(
     )
 
     assert "Successfully ingested" in result
-    assert (wiki_structure.raw_dir / "Research" / "Notes" / "notes.md").exists()
+    # folder_path is normalized by WikiStructure._sanitize_path (lowercased); spell the
+    # expected path the same way so the check also holds on case-sensitive filesystems.
+    ingested = wiki_structure.raw_dir / "research" / "notes" / "notes.md"
+    assert ingested.read_text(encoding="utf-8") == "Plain notes"
 
 
 @pytest.mark.asyncio

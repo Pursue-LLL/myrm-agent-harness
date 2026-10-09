@@ -66,7 +66,11 @@ class TestScreenDetector:
 
     def test_ttl_caching(self) -> None:
         detector = ScreenDetector(cache_ttl_sec=0.5)
-        with patch.object(detector, "_probe_native_state", return_value=ScreenLockState.UNLOCKED) as probe:
+        # CI sets CI=true, which makes the detector report UNLOCKED before it ever probes the OS.
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch.object(detector, "_probe_native_state", return_value=ScreenLockState.UNLOCKED) as probe,
+        ):
             # First call probes native
             s1 = detector.get_state()
             assert s1 == ScreenLockState.UNLOCKED
@@ -279,6 +283,7 @@ class TestDesktopSessionInterruption:
         assert backend.click.call_count == 0
 
 
+@pytest.mark.skipif(sys.platform != "darwin", reason="macos_input drives Quartz CGEvent")
 def test_macos_input_write_interrupted_when_locked() -> None:
     from myrm_agent_harness.toolkits.computer_use.backends import macos_input
     from myrm_agent_harness.toolkits.computer_use.screen_detector import get_default_screen_detector

@@ -10,8 +10,11 @@ Covers two bug classes found in wait/_impl.py:
 
 from __future__ import annotations
 
+import subprocess
+import sys
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from patchright.async_api import TimeoutError as PlaywrightTimeoutError
 
 from myrm_agent_harness.toolkits.browser.wait import (
@@ -19,7 +22,7 @@ from myrm_agent_harness.toolkits.browser.wait import (
     wait_for_page_ready,
 )
 from myrm_agent_harness.toolkits.browser.wait._impl import (
-    _TIMEOUT_ERRORS,
+    _timeout_errors,
     wait_dom_stable_only,
     wait_networkidle_only,
     wait_spa_stable,
@@ -27,9 +30,21 @@ from myrm_agent_harness.toolkits.browser.wait._impl import (
 
 
 def test_timeout_errors_tuple_covers_both_types() -> None:
-    """_TIMEOUT_ERRORS must recognize builtins and Patchright timeouts."""
-    assert TimeoutError in _TIMEOUT_ERRORS
-    assert PlaywrightTimeoutError in _TIMEOUT_ERRORS
+    """_timeout_errors() must recognize builtins and Patchright timeouts."""
+    assert TimeoutError in _timeout_errors()
+    assert PlaywrightTimeoutError in _timeout_errors()
+
+
+@pytest.mark.parametrize("heavy_module", ["patchright", "langchain_core", "langgraph"])
+def test_importing_the_browser_toolkit_does_not_load_heavy_frameworks(heavy_module: str) -> None:
+    """Browser, LLM and agent frameworks load on first use, never on a bare import."""
+    probe = (
+        "import sys; "
+        "from myrm_agent_harness.toolkits.browser import BrowserSession; "
+        f"assert {heavy_module!r} not in sys.modules"
+    )
+    result = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True, check=False)
+    assert result.returncode == 0, result.stderr
 
 
 async def test_spa_stable_evaluate_receives_no_timeout_kwarg() -> None:
