@@ -17,6 +17,8 @@ Unit tests for `scripts/` maintenance tooling (tool registry engine/models/confi
 | `test_boundary_engine.py` | Unit | `scripts/boundary_engine.py` core detection (git-change discovery, static/dynamic import collection, banned/priority classification, fix) |
 | `test_check_test_source_assertions.py` | Unit | `scripts/check_test_source_assertions.py` AST scanners (source-text assertion detection, non-Python and structural reads ignored, unparsable input) |
 | `test_check_module_coverage.py` | Unit | `scripts/check_module_coverage.py` floor CLI (below/at floor, unmeasured module, missing data file) |
+| `test_module_reachability_engine.py` | Unit | `scripts/module_reachability_engine.py` evidence rules on synthetic packages (facade re-exports/aliases not uses, hub bindings and lazy tables, name collisions ignored, dead-unit chains, roots: `__main__`/entry points/server tree/public surface) |
+| `test_check_module_reachability.py` | Unit | `scripts/check_module_reachability.py` CLI (exit codes 0/1/2/3, empty scan fails, missing server tree reported as not evaluated, `--incremental`, `--json`, entry-point discovery) |
 
 ## Key Dependencies
 

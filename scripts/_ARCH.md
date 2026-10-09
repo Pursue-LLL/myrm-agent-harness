@@ -31,6 +31,8 @@ Harness 仓维护脚本：框架-业务边界 enforcement、PyPI 发布校验、
 | `check_file_line_limit.py` | 辅助 | 单文件行数 baseline 门禁（>500 行须登记且不可增长）；`--incremental` 仅扫描 git 变更文件（pre-commit），无 git 时回退全量 | ✅ |
 | `check_test_source_assertions.py` | 辅助 | 测试源码文本断言门禁：以 `ast` 识别「读 `.py` 源码 + 断言字符串包含」写法，强制改用语法树断言，使断言不受格式化换行影响；`--incremental` 供 pre-commit 使用 | ✅ |
 | `check_module_coverage.py` | 辅助 | 每模块覆盖率下限门禁：读取 `.coverage` 数据，对 `COVERAGE_FLOORS` 登记的模块逐个校验执行率，不嵌套执行 pytest | ✅ |
+| `check_module_reachability.py` | Gate | 模块可达性门禁 CLI：`agent/`、`runtime/`、`core/` 下每个引擎单元必须有生产消费者（本包或 server 树）；无白名单、无 baseline；server 树缺失时显式输出 `NOT EVALUATED`（`--require-server` 则失败）；`--incremental` 仅在 harness 源码变更时运行（pre-commit） | ✅ |
+| `module_reachability_engine.py` | Gate | 可达性静态引擎：以全限定点路径引用建模证据（导入路径、导入后加载的名字、模块属性链、点路径字符串、`module:attr`），经 hub 再导出绑定（含 lazy 表）解析到单元并做闭包；hub 内再导出/别名不算使用，`api/` 与包根 `__init__.py` 为公开面，server 树、`__main__.py`、`[project.scripts]` 为根 | ✅ |
 | `file_line_baseline.txt` | 辅助 | legacy 大文件 grandfather 清单：允许 >500 行但不得超过登记行数；拆分至 ≤500 后移除 | — |
 | `fractal_header_baseline.txt` | 辅助 | 允许暂缺 IOP 头的 legacy 路径清单（相对 `src/`）；新文件不得加入 | — |
 | `detect_blocking_io.py` | 辅助 | 阻塞 I/O 检测 | ✅ |
@@ -54,6 +56,9 @@ python scripts/validate_arch_inventory.py --root ../myrm-agent/myrm-agent-server
 python scripts/check_test_source_assertions.py            # 全量扫描 tests/
 python scripts/check_test_source_assertions.py --incremental  # pre-commit: changed tests only
 python scripts/check_module_coverage.py --data .coverage  # 需先以 --cov 产出覆盖率数据
+python scripts/check_module_reachability.py               # 全量：每个引擎单元须有生产消费者
+python scripts/check_module_reachability.py --incremental  # pre-commit：仅 harness 源码变更时运行
+python scripts/check_module_reachability.py --json        # 机器可读（死单元 / 仅 server 消费单元）
 ```
 
 Pre-commit runs `validate_arch_inventory.py` via hook `harness-arch-inventory-check` and `check_file_line_limit.py` via hook `harness-line-limit-check`, and `check_test_source_assertions.py` via hook `harness-test-source-assertion-check` (see `.pre-commit-config.yaml`).
