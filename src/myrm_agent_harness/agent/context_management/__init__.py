@@ -1691,6 +1691,17 @@ from .title_recovery import (
     TitleRecoveryVerdict,
     TitleValidationResult,
 )
+from .auto_archive import (
+    AccountWideIdleChatAutoArchivePolicySuite,
+    ArchiveEligibilityVerdict,
+    ArchiveEvaluationResult,
+    ArchiveExemptionReason,
+    ArchivePolicyEvaluator,
+    ArchiveSweepCoordinator,
+    ArchiveSweepSummary,
+    AutoArchivePolicyConfig,
+    ChatSessionMetadata,
+)
 from .local_prefill_guard import (
     AdaptivePruningDecision,
     LatencyWarningLevel,
@@ -3322,6 +3333,16 @@ __all__ = [
     "TitleRecoveryState",
     "TitleRecoveryVerdict",
     "TitleValidationResult",
+    # auto_archive
+    "AccountWideIdleChatAutoArchivePolicySuite",
+    "ArchiveEligibilityVerdict",
+    "ArchiveEvaluationResult",
+    "ArchiveExemptionReason",
+    "ArchivePolicyEvaluator",
+    "ArchiveSweepCoordinator",
+    "ArchiveSweepSummary",
+    "AutoArchivePolicyConfig",
+    "ChatSessionMetadata",
 ]
 
 

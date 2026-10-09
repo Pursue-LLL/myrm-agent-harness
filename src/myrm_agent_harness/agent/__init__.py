@@ -311,9 +311,14 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.agent.context_management",
         "InvalidGeneratedTitleRecoverySuite",
     ),
+    "AccountWideIdleChatAutoArchivePolicySuite": (
+        "myrm_agent_harness.agent.context_management",
+        "AccountWideIdleChatAutoArchivePolicySuite",
+    ),
 }
 
 __all__ = [
+    "AccountWideIdleChatAutoArchivePolicySuite",
     "ArtifactContinuityGateway",
     "BilateralSovereigntyArchiveHub",
     "CanonicalAgentWorkspaceScaffoldingAndZeroFrictionHandoverSuite",
