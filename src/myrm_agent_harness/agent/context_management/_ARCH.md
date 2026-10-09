@@ -103,6 +103,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | local_prefill_guard/ | Local LLM long-context prefill latency guard, predictive TTFT estimator, and adaptive pruning scheduler suite (Item 317). See [local_prefill_guard/_ARCH.md](local_prefill_guard/_ARCH.md). |
 | loyalty/ | Manages user-centric loyalty layers and cross-model test-time RL alignment. See [loyalty/_ARCH.md](loyalty/_ARCH.md). |
 | mention_hydration/ | Engine for GUI-first @-mention zero-turn context hydration. See [mention_hydration/_ARCH.md](mention_hydration/_ARCH.md). |
+| meta_session_orchestration/ | Cascading meta-session dispatching, Chat-Cowork dual-track memory fusion, and sub-session crash isolation (Item 332). See [meta_session_orchestration/_ARCH.md](meta_session_orchestration/_ARCH.md). |
 | message_tree/ | Manages in-place branching, sibling version switching, and path resolution. See [message_tree/_ARCH.md](message_tree/_ARCH.md). |
 | micro_compaction/ | Core implementation of Micro-Compaction and Amortized Turn Context Reclamation Engine. See [micro_compaction/_ARCH.md](micro_compaction/_ARCH.md). |
 | midflight_steering/ | Core engine for Mid-Flight Steering and Interactive Execution Intervention. See [midflight_steering/_ARCH.md](midflight_steering/_ARCH.md). |

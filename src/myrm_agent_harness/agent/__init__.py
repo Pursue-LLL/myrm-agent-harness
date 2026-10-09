@@ -259,6 +259,14 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.agent.context_management",
         "PostCompactionToolLoopGuardSuite",
     ),
+    "MetaSessionOrchestrationAndChatCoworkDualTrackFusionSuite": (
+        "myrm_agent_harness.agent.context_management",
+        "MetaSessionOrchestrationAndChatCoworkDualTrackFusionSuite",
+    ),
+    "HierarchicalMetaSessionOrchestrator": (
+        "myrm_agent_harness.agent.context_management",
+        "HierarchicalMetaSessionOrchestrator",
+    ),
 }
 
 __all__ = [
@@ -271,6 +279,8 @@ __all__ = [
     "DynamicRollForwardEngine",
     "PromptCacheDynamicRollForwardAndHeadless3DSandboxSuite",
     "PostCompactionToolLoopGuardSuite",
+    "HierarchicalMetaSessionOrchestrator",
+    "MetaSessionOrchestrationAndChatCoworkDualTrackFusionSuite",
     "CrossHarnessContextStateASTAndLosslessRehydrationSuite",
     "CrossHarnessSuite",
     "CrossPlatformTranscriptNormalizer",
