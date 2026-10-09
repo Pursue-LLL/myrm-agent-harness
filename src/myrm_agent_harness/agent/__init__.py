@@ -299,6 +299,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.agent.context_management",
         "PromptCacheLookbackPositionAlignedPruneFloorSuite",
     ),
+    "SummaryCallOverflowTailClipRetrySuite": (
+        "myrm_agent_harness.agent.context_management",
+        "SummaryCallOverflowTailClipRetrySuite",
+    ),
 }
 
 __all__ = [
@@ -321,6 +325,7 @@ __all__ = [
     "MultiSessionParallelWorkspaceAndRootDiscoverySuite",
     "TerminalMissingSilentEndServerReconcileSuite",
     "PromptCacheLookbackPositionAlignedPruneFloorSuite",
+    "SummaryCallOverflowTailClipRetrySuite",
     "CrossHarnessContextStateASTAndLosslessRehydrationSuite",
     "CrossHarnessSuite",
     "CrossPlatformTranscriptNormalizer",

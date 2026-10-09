@@ -1656,6 +1656,16 @@ from .lookback_aligned_prune import (
     ProviderBlockProjector,
     ProviderCacheKind,
 )
+from .summary_overflow_clip import (
+    ClipStrategyKind,
+    OverflowClipAction,
+    OverflowClipOutcome,
+    OverflowRetryGuard,
+    SummaryCallOverflowTailClipRetrySuite,
+    SummaryOverflowClipConfig,
+    SummaryRetryVerdict,
+    TailMessageClipper,
+)
 from .local_prefill_guard import (
     AdaptivePruningDecision,
     LatencyWarningLevel,
@@ -3255,6 +3265,15 @@ __all__ = [
     "PromptCacheLookbackPositionAlignedPruneFloorSuite",
     "ProviderBlockProjector",
     "ProviderCacheKind",
+    # summary_overflow_clip
+    "ClipStrategyKind",
+    "OverflowClipAction",
+    "OverflowClipOutcome",
+    "OverflowRetryGuard",
+    "SummaryCallOverflowTailClipRetrySuite",
+    "SummaryOverflowClipConfig",
+    "SummaryRetryVerdict",
+    "TailMessageClipper",
 ]
 
 
