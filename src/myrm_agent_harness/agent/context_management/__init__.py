@@ -1702,6 +1702,16 @@ from .auto_archive import (
     AutoArchivePolicyConfig,
     ChatSessionMetadata,
 )
+from .compact_chip import (
+    CompactActionPreference,
+    CompactBeforeSendConfig,
+    CompactBeforeSendTokenChipSuite,
+    CompactChipVerdict,
+    CompactPreflightCalculator,
+    CompactPreflightEstimate,
+    SendActionLabelRenderer,
+    SendButtonDisplaySpec,
+)
 from .local_prefill_guard import (
     AdaptivePruningDecision,
     LatencyWarningLevel,
@@ -3343,6 +3353,15 @@ __all__ = [
     "ArchiveSweepSummary",
     "AutoArchivePolicyConfig",
     "ChatSessionMetadata",
+    # compact_chip
+    "CompactActionPreference",
+    "CompactBeforeSendConfig",
+    "CompactBeforeSendTokenChipSuite",
+    "CompactChipVerdict",
+    "CompactPreflightCalculator",
+    "CompactPreflightEstimate",
+    "SendActionLabelRenderer",
+    "SendButtonDisplaySpec",
 ]
 
 
