@@ -114,7 +114,7 @@ class EventLogger:
         if event_type not in persistent:
             return
 
-        self._update_counters(event_type, data)
+        self._update_counters(event_type)
 
         sanitized = self._sanitize(data)
         capped = _cap_data_size(sanitized)
@@ -271,17 +271,10 @@ class EventLogger:
         except Exception as e:
             logger.warning(f"Event log cleanup failed: {e}")
 
-    def _update_counters(self, event_type: str, data: dict[str, object]) -> None:
+    def _update_counters(self, event_type: str) -> None:
         attr = _COUNTER_TYPES.get(event_type)
         if attr:
             setattr(self._summary, attr, getattr(self._summary, attr) + 1)
-
-        if event_type == "status":
-            kind = data.get("kind")
-            if kind == "compaction":
-                self._summary.compaction_count += 1
-            elif kind == "model_failover":
-                self._summary.failover_count += 1
 
     def set_action_space_metrics(self, runtime_skills: int, runtime_tools: int) -> None:
         """Record the runtime action space size for SESSION SUMMARY observability."""

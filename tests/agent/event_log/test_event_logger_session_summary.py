@@ -252,6 +252,8 @@ async def test_event_logger_close_persists_runtime_metrics():
         events = await backend.get_events(session_id)
         session_end = next(event for event in events if event.event_type == "session_end")
         persisted = session_end.data["summary"]
+        assert persisted["compactions"] == 1
+        assert "failovers" not in persisted
 
         token_econ = persisted["token_economics"]
         assert token_econ["usage"]["prompt_tokens"] == 1200

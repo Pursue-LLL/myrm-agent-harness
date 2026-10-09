@@ -137,7 +137,6 @@ class SessionSummary:
     error_count: int = 0
     approval_count: int = 0
     compaction_count: int = 0
-    failover_count: int = 0
     security_decision_count: int = 0
     dropped_event_count: int = 0
     duration_ms: int = 0
@@ -159,7 +158,6 @@ class SessionSummary:
             "errors": self.error_count,
             "approvals": self.approval_count,
             "compactions": self.compaction_count,
-            "failovers": self.failover_count,
             "security_decisions": self.security_decision_count,
             "duration_ms": self.duration_ms,
             "message_count": self.message_count,

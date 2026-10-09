@@ -95,7 +95,6 @@ async def test_get_global_activity_patterns_basic(temp_event_log):
                     "errors": 0,
                     "approvals": 0,
                     "compactions": 0,
-                    "failovers": 0,
                     "security_decisions": 0,
                     "duration_ms": 7200000,
                 }
@@ -125,7 +124,6 @@ async def test_get_global_activity_patterns_basic(temp_event_log):
                     "errors": 0,
                     "approvals": 0,
                     "compactions": 0,
-                    "failovers": 0,
                     "security_decisions": 0,
                     "duration_ms": 3600000,
                 }
@@ -156,7 +154,6 @@ async def test_get_global_activity_patterns_basic(temp_event_log):
                     "errors": 0,
                     "approvals": 0,
                     "compactions": 0,
-                    "failovers": 0,
                     "security_decisions": 0,
                     "duration_ms": 3600000,
                 }
@@ -215,7 +212,6 @@ async def test_get_global_activity_patterns_consecutive_streak(temp_event_log):
                             "errors": 0,
                             "approvals": 0,
                             "compactions": 0,
-                            "failovers": 0,
                             "security_decisions": 0,
                             "duration_ms": 3600000,
                         }
@@ -257,7 +253,6 @@ async def test_get_global_activity_patterns_non_consecutive_streak(temp_event_lo
                     "errors": 0,
                     "approvals": 0,
                     "compactions": 0,
-                    "failovers": 0,
                     "security_decisions": 0,
                     "duration_ms": 3600000,
                 }
@@ -283,7 +278,6 @@ async def test_get_global_activity_patterns_non_consecutive_streak(temp_event_lo
                     "errors": 0,
                     "approvals": 0,
                     "compactions": 0,
-                    "failovers": 0,
                     "security_decisions": 0,
                     "duration_ms": 3600000,
                 }
@@ -309,7 +303,6 @@ async def test_get_global_activity_patterns_non_consecutive_streak(temp_event_lo
                     "errors": 0,
                     "approvals": 0,
                     "compactions": 0,
-                    "failovers": 0,
                     "security_decisions": 0,
                     "duration_ms": 3600000,
                 }
@@ -336,7 +329,6 @@ async def test_get_global_activity_patterns_non_consecutive_streak(temp_event_lo
                     "errors": 0,
                     "approvals": 0,
                     "compactions": 0,
-                    "failovers": 0,
                     "security_decisions": 0,
                     "duration_ms": 3600000,
                 }
@@ -362,7 +354,6 @@ async def test_get_global_activity_patterns_non_consecutive_streak(temp_event_lo
                     "errors": 0,
                     "approvals": 0,
                     "compactions": 0,
-                    "failovers": 0,
                     "security_decisions": 0,
                     "duration_ms": 3600000,
                 }
@@ -407,7 +398,6 @@ async def test_get_global_activity_patterns_time_range(temp_event_log):
                     "errors": 0,
                     "approvals": 0,
                     "compactions": 0,
-                    "failovers": 0,
                     "security_decisions": 0,
                     "duration_ms": 3600000,
                 }
@@ -433,7 +423,6 @@ async def test_get_global_activity_patterns_time_range(temp_event_log):
                     "errors": 0,
                     "approvals": 0,
                     "compactions": 0,
-                    "failovers": 0,
                     "security_decisions": 0,
                     "duration_ms": 3600000,
                 }
@@ -455,7 +444,6 @@ async def test_get_global_activity_patterns_time_range(temp_event_log):
                     "errors": 0,
                     "approvals": 0,
                     "compactions": 0,
-                    "failovers": 0,
                     "security_decisions": 0,
                     "duration_ms": 3600000,
                 }

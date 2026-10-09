@@ -264,33 +264,6 @@ class TestEventLogger:
         assert seqs == sorted(seqs)
         assert len(set(seqs)) == len(seqs)
 
-    @pytest.mark.asyncio
-    async def test_compaction_counter(self, mock_backend: AsyncMock) -> None:
-        el = EventLogger(mock_backend, "sess-test")
-        await el.start()
-        await el.log("status", {"kind": "compaction"})
-        await el.close()
-
-        calls = mock_backend.append.call_args_list
-        all_events = [e for call in calls for e in call[0][0]]
-        end_events = [e for e in all_events if e.event_type == "session_end"]
-        summary = end_events[0].data["summary"]
-        assert summary["compactions"] == 1
-
-    @pytest.mark.asyncio
-    async def test_failover_counter(self, mock_backend: AsyncMock) -> None:
-        el = EventLogger(mock_backend, "sess-test")
-        await el.start()
-        await el.log("status", {"kind": "model_failover"})
-        await el.close()
-
-        calls = mock_backend.append.call_args_list
-        all_events = [e for call in calls for e in call[0][0]]
-        end_events = [e for e in all_events if e.event_type == "session_end"]
-        summary = end_events[0].data["summary"]
-        assert summary["failovers"] == 1
-
-
 # ============================================================================
 # FileEventLogBackend
 # ============================================================================
@@ -477,7 +450,7 @@ class TestEventLogIntegration:
         await el.log("tool_start", {"tool": "read"})
         await el.log("error", {"msg": "test error"})
         await el.log("message", {"text": "should be filtered"})
-        await el.log("status", {"kind": "compaction"})
+        await el.log("status", {"step_key": "model_failover"})
         await el.close()
 
         events = await backend.get_events("integ-1")
@@ -494,5 +467,5 @@ class TestEventLogIntegration:
         summary = end_event.data["summary"]
         assert summary["tool_calls"] == 2
         assert summary["errors"] == 1
-        assert summary["compactions"] == 1
+        assert summary["compactions"] == 0
         assert summary["duration_ms"] >= 0
