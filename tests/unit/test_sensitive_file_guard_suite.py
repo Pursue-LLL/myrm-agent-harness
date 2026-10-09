@@ -31,6 +31,7 @@ def test_deny_rules_matching() -> None:
     # 3. Password managers & vault files
     assert rules.match_path("~/.config/bitwarden/data.json").category == SensitiveFileCategory.PASSWORD_VAULT
     assert rules.match_path(".myrm/vault.db").category == SensitiveFileCategory.PASSWORD_VAULT
+    assert rules.match_path("~/.app/vault/secrets.enc").category == SensitiveFileCategory.PASSWORD_VAULT
     assert rules.match_path("passwords.kdbx").category == SensitiveFileCategory.PASSWORD_VAULT
 
     # 4. Cloud and CLI credentials

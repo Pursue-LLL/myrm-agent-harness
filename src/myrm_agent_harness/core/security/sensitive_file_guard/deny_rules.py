@@ -67,10 +67,10 @@ _CANONICAL_RULES: list[SensitivePathRule] = [
         description="KeePass password databases",
     ),
     SensitivePathRule(
-        rule_id="myrm_vault_db",
-        pattern="*.myrm/vault*",
+        rule_id="vault_directory",
+        pattern="*/vault/*",
         category=SensitiveFileCategory.PASSWORD_VAULT,
-        description="Myrm host vault database and encrypted stores",
+        description="Encrypted vault directories and stores",
     ),
     SensitivePathRule(
         rule_id="vault_sqlite",

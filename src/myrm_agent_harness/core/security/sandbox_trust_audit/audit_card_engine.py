@@ -19,7 +19,7 @@ _STANDARD_DENIED_PATHS: list[str] = [
     "~/.ssh",
     "~/.aws",
     "/var/run/docker.sock",
-    ".myrm/vault.db",
+    "*vault*.db",
 ]
 
 _DEFAULT_ACTIVE_GUARDS: list[str] = [
