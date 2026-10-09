@@ -18,7 +18,7 @@
 | **回归** | `tests/toolkits/code_execution/executors/local/test_background_pty_spawn.py`：`test_pty_reader_protocol_keeps_buffered_lines_when_linux_reports_eio`、`test_pty_reader_protocol_still_surfaces_other_read_errors`（协议级，所有平台运行）与 `test_spawned_pty_output_survives_child_exit`（真实 PTY，子进程打印三行后退出，退出后再读取）；相关套件（`executors/local` 与 `agent/meta_tools/bash` 的后台/spawn）207 passed |
 | **代码位置** | `toolkits/code_execution/executors/local/_background_pty_spawn.py::_PtyReaderProtocol` |
 
-### BUG-HARNESS-2026-10-08-005 · 干净检出的 `origin/main` 导入 `agent.middlewares` 即抛 `ImportError`：三方授权委托包的定义从未提交，CI 单测与浏览器作业大面积变红
+### BUG-HARNESS-2026-10-08-005 · 干净检出的 `origin/main` 导入 `agent.middlewares` 即抛 `ImportError`：`agent.middlewares` 重新导出了一个从未提交定义的委托令牌访问器，CI 单测与浏览器作业大面积变红
 
 | 字段 | 内容 |
 | --- | --- |
@@ -26,13 +26,13 @@
 | **发现时间** | 2026-10-08 |
 | **修复时间** | 2026-10-08 |
 | **症状** | 在 `git archive origin/main src` 解出的纯净源码树上执行 `import myrm_agent_harness.agent.middlewares`，抛 `ImportError: cannot import name 'get_delegation_token' from 'myrm_agent_harness.agent.middlewares._session_context'`，导入该包的模块全部加载失败。`origin/main`（`61c328b7`）的 CI 因此单测作业 629 个失败 + 170 个错误（共 799 条异常行，其中 685 条出自这条导入链），浏览器作业的 116 个收集错误全部出自它；开发者本地树里这些文件存在，本机看不到任何异常 |
-| **关联产品** | myrm-agent-harness `agent/security/delegation` · `agent/middlewares/_session_context.py` · `agent/middlewares/__init__.py` |
+| **关联产品** | myrm-agent-harness `agent/middlewares/_session_context.py` · `agent/middlewares/__init__.py` |
 | **根因** | `agent/middlewares/__init__.py` 重新导出 `get_delegation_token`，而它的定义（`_session_context.py` 中的 `set_delegation_token`/`get_delegation_token`，以及整个 `agent/security/delegation/` 包）只存在于本地树，从未提交。仓库里没有任何一步在“只含已提交文件”的树上导入包，缺失只能由 CI 的干净检出暴露；该包此前也没有任何测试引用（`tests/` 下零处） |
-| **修复** | 补交 `agent/security/delegation/{__init__,models,guard}.py` 与 `_ARCH.md`（`agent/security/_ARCH.md` 增加索引行），并在 `_session_context.py` 增加 `set_delegation_token`/`get_delegation_token`（用上下文变量承载当前令牌）；只补已提交导出所需的定义。同一 PR 的单测作业失败数：修复前 `origin/main` 为 629 个失败 + 170 个错误，修复后首轮为 66 个失败，同一分支继续收敛到 4 个失败（`a7d8f69e`；66 到 4 的下降来自同一分支里与平台、测试隔离相关的修复，与本条无关） |
+| **修复** | 删除该导出及其定义（`_session_context.py` 的令牌上下文变量与 `set/get_delegation_token`、整个 `agent/security/delegation/` 包及其 `_ARCH.md` 索引行）。依据：全仓库（harness、myrm-agent、control-plane）没有生产代码调用 `set_delegation_token`，唯一消费者 server 的 `app/services/ssh_bridge` 自身也没有任何导入方，该功能链不可达；按“要么接上产品，要么删”处理，而不是补交一个无人使用的包。同一 PR 的单测作业失败数：修复前 `origin/main` 为 629 个失败 + 170 个错误，修复后首轮为 66 个失败，同一分支继续收敛到 4 个失败（`a7d8f69e`；66 到 4 的下降来自同一分支里与平台、测试隔离相关的修复，与本条无关） |
 | **反复次数** | 第 1 次发现 |
 | **踩坑** | 本地树完整不等于仓库完整：导出点与被导出的定义分属不同提交时，开发机上一切正常，唯一的信号是在只含已提交文件的树上导入包。最便宜的复核：`git archive HEAD src \| tar -x -C <dir>` 后以 `PYTHONPATH=<dir>/src` 导入 `myrm_agent_harness.agent.middlewares` |
-| **回归** | `tests/agent/security/delegation/test_triad_delegation.py`：首个导入即 `from myrm_agent_harness.agent.middlewares import get_delegation_token`（定义缺失时在收集阶段失败）；其余用例覆盖有效权限 = 请求者与执行智能体的交集、审批人只能补充智能体已有的权限、通配符、过期令牌、子智能体收窄、守卫缺令牌时失败即关闭、`SubjectIdentity` 往返、会话访问器；`.github/workflows/test.yml` 在干净检出上运行全部单测 |
-| **代码位置** | `agent/security/delegation/{models,guard}.py` · `agent/middlewares/_session_context.py::set_delegation_token/get_delegation_token` |
+| **回归** | `tests/agent/middlewares/test_public_exports.py`：`agent.middlewares.__all__` 中的每个名字都必须能解析，导出与定义分离时在收集或断言阶段失败；`.github/workflows/test.yml` 在干净检出上运行全部单测 |
+| **代码位置** | `agent/middlewares/__init__.py` · `agent/middlewares/_session_context.py` |
 
 ### BUG-HARNESS-2026-10-07-007 · 安装 `myrm-agent-harness[pdf-ocr]` 依赖无解：核心要求 `PyYAML>=6.0.3`，而 PaddleOCR 链固定 `PyYAML==6.0.2`，与 `retrieval` 同装时又被 numpy 上限卡死
 
