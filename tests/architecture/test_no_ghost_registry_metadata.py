@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 import pytest
 
 from myrm_agent_harness.core.security.tool_registry import (
@@ -10,6 +13,10 @@ from myrm_agent_harness.core.security.tool_registry import (
     TOOL_PERMISSION_MAP,
     TOOL_SAFETY_METADATA,
 )
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_REPO_ROOT))
+
 from scripts.tool_registry_engine import scan
 
 
