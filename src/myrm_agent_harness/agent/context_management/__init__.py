@@ -1593,6 +1593,19 @@ from .project_bound_launcher import (
     SessionLaunchRequest,
     WorkspaceMetadataInspector,
 )
+from .prompt_layered_authoring import (
+    AssembledPromptResult,
+    CorruptionSeverity,
+    LayeredAuthoringConfig,
+    LayeredPromptAssembler,
+    LayeredPromptDraft,
+    NarrativeStylePreset,
+    NarrativeStylePresetRegistry,
+    PromptCorruptionDetector,
+    PromptCorruptionIssue,
+    PromptLayerType,
+    UserProfilePromptLayeredAuthoringGuideAndNarrativeStylePresetSuite,
+)
 from .local_prefill_guard import (
     AdaptivePruningDecision,
     LatencyWarningLevel,
@@ -3134,6 +3147,18 @@ __all__ = [
     "SessionLaunchMode",
     "SessionLaunchRequest",
     "WorkspaceMetadataInspector",
+    # prompt_layered_authoring
+    "AssembledPromptResult",
+    "CorruptionSeverity",
+    "LayeredAuthoringConfig",
+    "LayeredPromptAssembler",
+    "LayeredPromptDraft",
+    "NarrativeStylePreset",
+    "NarrativeStylePresetRegistry",
+    "PromptCorruptionDetector",
+    "PromptCorruptionIssue",
+    "PromptLayerType",
+    "UserProfilePromptLayeredAuthoringGuideAndNarrativeStylePresetSuite",
 ]
 
 
