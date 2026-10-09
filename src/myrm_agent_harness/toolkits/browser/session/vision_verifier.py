@@ -23,10 +23,6 @@ import contextlib
 import logging
 from typing import TYPE_CHECKING
 
-from langchain_core.messages import HumanMessage
-
-from myrm_agent_harness.utils.chat_utils import extract_answer_text
-
 from ..diff.fast_comparator import FastComparator
 
 if TYPE_CHECKING:
@@ -105,6 +101,8 @@ class VisionVerifier:
                 f"REASON: <one sentence explanation>"
             )
 
+            from langchain_core.messages import HumanMessage
+
             message = HumanMessage(
                 content=[
                     {"type": "text", "text": prompt},
@@ -117,6 +115,8 @@ class VisionVerifier:
 
             response = await self._llm.ainvoke([message])
             # Compatible with Anthropic content blocks / reasoning models returning empty content
+            # Deferred: chat_utils imports langchain_core, which a bare browser import must not load.
+            from myrm_agent_harness.utils.chat_utils import extract_answer_text
             content = extract_answer_text(response)
 
             # Parse SCORE and REASON

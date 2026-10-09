@@ -14,6 +14,10 @@ import subprocess
 import sys
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
+import pytest
+
 from patchright.async_api import TimeoutError as PlaywrightTimeoutError
 
 from myrm_agent_harness.toolkits.browser.wait import (
@@ -34,12 +38,13 @@ def test_timeout_errors_tuple_covers_both_types() -> None:
     assert PlaywrightTimeoutError in _timeout_errors()
 
 
-def test_importing_the_browser_toolkit_does_not_load_patchright() -> None:
-    """Patchright is an optional extra and heavy; it must load on first browser use only."""
+@pytest.mark.parametrize("heavy_module", ["patchright", "langchain_core", "langgraph"])
+def test_importing_the_browser_toolkit_does_not_load_heavy_frameworks(heavy_module: str) -> None:
+    """Browser, LLM and agent frameworks load on first use, never on a bare import."""
     probe = (
         "import sys; "
         "from myrm_agent_harness.toolkits.browser import BrowserSession; "
-        "assert 'patchright' not in sys.modules"
+        f"assert {heavy_module!r} not in sys.modules"
     )
     result = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True, check=False)
     assert result.returncode == 0, result.stderr

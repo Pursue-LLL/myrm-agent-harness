@@ -18,7 +18,6 @@ import logging
 from typing import TYPE_CHECKING, Literal, Protocol, runtime_checkable
 
 from myrm_agent_harness.toolkits.browser.diff import ComparisonResult
-from myrm_agent_harness.utils.chat_utils import extract_answer_text
 
 if TYPE_CHECKING:
     from .extractor import Extractor
@@ -158,6 +157,8 @@ class BrowserSessionExtractionMixin:
             )
             response = await self._vision_llm.ainvoke([message])  # type: ignore[union-attr]
             # Compatible with Anthropic content blocks / reasoning models returning empty content
+            # Deferred: chat_utils imports langchain_core, which a bare browser import must not load.
+            from myrm_agent_harness.utils.chat_utils import extract_answer_text
             content = extract_answer_text(response).strip()
             if content:
                 logger.info("BrowserSession: Vision fallback extracted %d chars", len(content))
@@ -201,6 +202,8 @@ class BrowserSessionExtractionMixin:
             )
             response = await self._vision_llm.ainvoke([message])  # type: ignore[union-attr]
             # Compatible with Anthropic content blocks / reasoning models returning empty content
+            # Deferred: chat_utils imports langchain_core, which a bare browser import must not load.
+            from myrm_agent_harness.utils.chat_utils import extract_answer_text
             content = extract_answer_text(response).strip()
 
             if content.startswith("```"):
