@@ -15,9 +15,6 @@ import sys
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
-import pytest
-
 from patchright.async_api import TimeoutError as PlaywrightTimeoutError
 
 from myrm_agent_harness.toolkits.browser.wait import (

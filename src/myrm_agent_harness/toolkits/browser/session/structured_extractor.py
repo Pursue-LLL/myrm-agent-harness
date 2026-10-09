@@ -139,6 +139,7 @@ class StructuredExtractor:
             # Compatible with reasoning models returning empty content (Qwen3/DeepSeek-R1 etc.)
             # Deferred: chat_utils imports langchain_core, which a bare browser import must not load.
             from myrm_agent_harness.utils.chat_utils import extract_answer_text
+
             content = extract_answer_text(raw_response)
             parsed = _extract_json_from_text(content, expect_array=is_array_schema)
             if parsed is not None:

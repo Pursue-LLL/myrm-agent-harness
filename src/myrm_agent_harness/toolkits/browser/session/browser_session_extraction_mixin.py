@@ -159,6 +159,7 @@ class BrowserSessionExtractionMixin:
             # Compatible with Anthropic content blocks / reasoning models returning empty content
             # Deferred: chat_utils imports langchain_core, which a bare browser import must not load.
             from myrm_agent_harness.utils.chat_utils import extract_answer_text
+
             content = extract_answer_text(response).strip()
             if content:
                 logger.info("BrowserSession: Vision fallback extracted %d chars", len(content))
@@ -204,6 +205,7 @@ class BrowserSessionExtractionMixin:
             # Compatible with Anthropic content blocks / reasoning models returning empty content
             # Deferred: chat_utils imports langchain_core, which a bare browser import must not load.
             from myrm_agent_harness.utils.chat_utils import extract_answer_text
+
             content = extract_answer_text(response).strip()
 
             if content.startswith("```"):

@@ -14,6 +14,7 @@ import argparse
 import json
 import sys
 import time
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -89,16 +90,22 @@ def bench_import_matching() -> dict[str, float]:
     }
 
 
+def _per_file_ms(full_scan: Mapping[str, float | int]) -> float:
+    """Scan cost per file in milliseconds."""
+    return float(full_scan["elapsed_sec"]) * 1000 / max(int(full_scan["files_scanned"]), 1)
+
+
 def check_regression(baseline_path: Path, current: dict[str, dict[str, float | int]]) -> bool:
     """Compare current results against a baseline file.
 
     Returns True if no regression detected, False otherwise.
     """
     baseline_data: dict[str, Any] = json.loads(baseline_path.read_text())
-    baseline_scan: float = baseline_data["full_scan"]["elapsed_sec"]
     baseline_micro: float = baseline_data["import_matching"]["avg_time_us"]
 
-    current_scan: float = current["full_scan"]["elapsed_sec"]
+    # Per-file cost, so growth of the scanned tree is not mistaken for a slowdown.
+    baseline_scan = _per_file_ms(baseline_data["full_scan"])
+    current_scan = _per_file_ms(current["full_scan"])
     current_micro: float = current["import_matching"]["avg_time_us"]
 
     passed = True
@@ -106,12 +113,12 @@ def check_regression(baseline_path: Path, current: dict[str, dict[str, float | i
     scan_ratio = current_scan / baseline_scan if baseline_scan > 0 else 1.0
     if scan_ratio > (1.0 + REGRESSION_TOLERANCE):
         print(
-            f"❌ Full scan regression: {baseline_scan:.3f}s → {current_scan:.3f}s "
+            f"❌ Full scan regression: {baseline_scan:.3f}ms/file → {current_scan:.3f}ms/file "
             f"(+{(scan_ratio - 1) * 100:.0f}%, threshold: +{REGRESSION_TOLERANCE * 100:.0f}%)"
         )
         passed = False
     else:
-        print(f"✅ Full scan: {current_scan:.3f}s (baseline: {baseline_scan:.3f}s)")
+        print(f"✅ Full scan: {current_scan:.3f}ms/file (baseline: {baseline_scan:.3f}ms/file)")
 
     micro_ratio = current_micro / baseline_micro if baseline_micro > 0 else 1.0
     if micro_ratio > (1.0 + REGRESSION_TOLERANCE):

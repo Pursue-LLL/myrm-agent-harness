@@ -143,12 +143,8 @@ def _is_table_row_candidate(line: str) -> bool:
     if norm.startswith("|"):
         return True
 
-    pipe_count = len(re.findall(r"(?<!\\)\|", norm))
-    if pipe_count >= 1:
-        # e.g. "Name | Age | Role"
-        return True
-
-    return False
+    # e.g. "Name | Age | Role"
+    return re.search(r"(?<!\\)\|", norm) is not None
 
 
 def _repair_table_block(
