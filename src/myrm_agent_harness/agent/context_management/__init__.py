@@ -1606,6 +1606,17 @@ from .prompt_layered_authoring import (
     PromptLayerType,
     UserProfilePromptLayeredAuthoringGuideAndNarrativeStylePresetSuite,
 )
+from .corrupt_session_healing import (
+    CorruptRecordArchive,
+    CorruptRecordSandbox,
+    CorruptSessionStorageGracefulDegradationAndAutoHealingSuite,
+    FreshSessionAutoHealer,
+    HealingSuiteConfig,
+    PartialTranscriptSalvager,
+    RestorationOutcome,
+    RestorationStatus,
+    SalvagedMessageItem,
+)
 from .local_prefill_guard import (
     AdaptivePruningDecision,
     LatencyWarningLevel,
@@ -3159,6 +3170,16 @@ __all__ = [
     "PromptCorruptionIssue",
     "PromptLayerType",
     "UserProfilePromptLayeredAuthoringGuideAndNarrativeStylePresetSuite",
+    # corrupt_session_healing
+    "CorruptRecordArchive",
+    "CorruptRecordSandbox",
+    "CorruptSessionStorageGracefulDegradationAndAutoHealingSuite",
+    "FreshSessionAutoHealer",
+    "HealingSuiteConfig",
+    "PartialTranscriptSalvager",
+    "RestorationOutcome",
+    "RestorationStatus",
+    "SalvagedMessageItem",
 ]
 
 

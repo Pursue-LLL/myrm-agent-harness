@@ -283,6 +283,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.agent.context_management",
         "UserProfilePromptLayeredAuthoringGuideAndNarrativeStylePresetSuite",
     ),
+    "CorruptSessionStorageGracefulDegradationAndAutoHealingSuite": (
+        "myrm_agent_harness.agent.context_management",
+        "CorruptSessionStorageGracefulDegradationAndAutoHealingSuite",
+    ),
 }
 
 __all__ = [
@@ -301,6 +305,7 @@ __all__ = [
     "WorkWithChatUnifiedWorkspaceDeckAndMultiModelCostArbitrageSuite",
     "ProjectBoundSessionLauncherSuite",
     "UserProfilePromptLayeredAuthoringGuideAndNarrativeStylePresetSuite",
+    "CorruptSessionStorageGracefulDegradationAndAutoHealingSuite",
     "CrossHarnessContextStateASTAndLosslessRehydrationSuite",
     "CrossHarnessSuite",
     "CrossPlatformTranscriptNormalizer",
