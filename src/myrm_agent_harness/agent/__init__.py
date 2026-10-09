@@ -319,11 +319,16 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.agent.context_management",
         "CompactBeforeSendTokenChipSuite",
     ),
+    "SandboxZeroCopyBranchLabSuite": (
+        "myrm_agent_harness.agent.file_snapshot",
+        "SandboxZeroCopyBranchLabSuite",
+    ),
 }
 
 __all__ = [
     "AccountWideIdleChatAutoArchivePolicySuite",
     "CompactBeforeSendTokenChipSuite",
+    "SandboxZeroCopyBranchLabSuite",
     "ArtifactContinuityGateway",
     "BilateralSovereigntyArchiveHub",
     "CanonicalAgentWorkspaceScaffoldingAndZeroFrictionHandoverSuite",

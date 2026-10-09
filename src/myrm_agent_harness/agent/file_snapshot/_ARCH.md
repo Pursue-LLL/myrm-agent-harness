@@ -18,6 +18,7 @@ Workspace file versioning and rollback subsystem. Provides transparent file-leve
 | sealed_io.py | Core I/O | Atomic write (temp+fsync+replace), SHA-256 integrity sealing, and .corrupted/ quarantine isolation. | ✅ |
 | external_effect_detector.py | Detector | Pure-function regex detector for irreversible external effects (database/container/network mutations). | ✅ |
 | snapshot_driver.py | Core | Low-level snapshot drivers implementing SnapshotDriverProtocol (APFS clonefile, Linux reflink/copy_file_range, ShadowGit fallback). | ✅ |
+| branch_lab/ | Submodule | Sandbox zero-copy branch lab, copy-on-write sparse overlays, CAS deduplication, and rollout promotion suite. | ✅ |
 
 ## Key Dependencies
 
