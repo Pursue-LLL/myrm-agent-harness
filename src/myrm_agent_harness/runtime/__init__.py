@@ -30,11 +30,9 @@ from myrm_agent_harness.runtime.cognitive_clock import (
     get_global_pause_signal,
 )
 from myrm_agent_harness.runtime.context import (
-    ContextCleanupConfig,
     ContextCleanupScheduler,
     ContextMetrics,
     FileAccessTracker,
-    StorageQuotaConfig,
     TransparentFileReader,
     cleanup_context_files_async,
     cleanup_context_files_local,
@@ -105,7 +103,6 @@ __all__ = [
     "CognitiveClockTaskSpec",
     "CognitiveClockTickEvent",
     "CooperativePauseSignal",
-    "ContextCleanupConfig",
     "ContextCleanupScheduler",
     "ContextMetrics",
     "DeviceLoadSensor",
@@ -127,7 +124,6 @@ __all__ = [
     "SaaSLoadSensor",
     "SimpleStorageQuotaManager",
     "StorageQuotaChecker",
-    "StorageQuotaConfig",
     "SystemLoadLevel",
     "SystemLoadSnapshot",
     "TransparentFileReader",

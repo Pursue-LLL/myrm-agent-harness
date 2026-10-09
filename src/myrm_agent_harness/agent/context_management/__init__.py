@@ -1666,6 +1666,21 @@ from .summary_overflow_clip import (
     SummaryRetryVerdict,
     TailMessageClipper,
 )
+from .test_report_compressor import (
+    FailureFirstSummaryRenderer,
+    JestJsonParser,
+    JUnitXmlParser,
+    NormalizedTestReport,
+    PytestJsonParser,
+    StackFrameTrimmer,
+    StructuredTestReportPayloadCompressorSuite,
+    TestFailureItem,
+    TestReportCompressionOutcome,
+    TestReportCompressorConfig,
+    TestReportFormatDetector,
+    TestReportFormatKind,
+    parse_test_report_payload,
+)
 from .local_prefill_guard import (
     AdaptivePruningDecision,
     LatencyWarningLevel,
@@ -3274,6 +3289,20 @@ __all__ = [
     "SummaryOverflowClipConfig",
     "SummaryRetryVerdict",
     "TailMessageClipper",
+    # test_report_compressor
+    "FailureFirstSummaryRenderer",
+    "JestJsonParser",
+    "JUnitXmlParser",
+    "NormalizedTestReport",
+    "PytestJsonParser",
+    "StackFrameTrimmer",
+    "StructuredTestReportPayloadCompressorSuite",
+    "TestFailureItem",
+    "TestReportCompressionOutcome",
+    "TestReportCompressorConfig",
+    "TestReportFormatDetector",
+    "TestReportFormatKind",
+    "parse_test_report_payload",
 ]
 
 

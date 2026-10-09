@@ -10,7 +10,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from myrm_agent_harness.runtime.context.cleanup import cleanup_context_files_async
-from myrm_agent_harness.runtime.context.config import StorageQuotaConfig
 from myrm_agent_harness.runtime.context.file_access_tracker import FileAccessTracker, reset_tracker
 
 
@@ -206,29 +205,6 @@ async def test_cleanup_timeout(
     )
 
     assert removed <= 10
-
-
-def test_quota_config_valid() -> None:
-    """Test valid quota configuration."""
-    config = StorageQuotaConfig(
-        per_session_limit_mb=500,
-        auto_cleanup_threshold=0.8,
-    )
-
-    assert config.per_session_limit_mb == 500
-    assert config.auto_cleanup_threshold == 0.8
-
-
-def test_quota_config_invalid_limit() -> None:
-    """Test invalid quota limit raises ValueError."""
-    with pytest.raises(ValueError, match="per_session_limit_mb must be positive"):
-        StorageQuotaConfig(per_session_limit_mb=-1)
-
-
-def test_quota_config_invalid_threshold() -> None:
-    """Test invalid cleanup threshold raises ValueError."""
-    with pytest.raises(ValueError, match="auto_cleanup_threshold must be in"):
-        StorageQuotaConfig(auto_cleanup_threshold=1.5)
 
 
 def _create_old_file(path: Path, age_seconds: float = 100) -> None:

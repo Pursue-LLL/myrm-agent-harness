@@ -303,6 +303,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.agent.context_management",
         "SummaryCallOverflowTailClipRetrySuite",
     ),
+    "StructuredTestReportPayloadCompressorSuite": (
+        "myrm_agent_harness.agent.context_management",
+        "StructuredTestReportPayloadCompressorSuite",
+    ),
 }
 
 __all__ = [
@@ -326,6 +330,7 @@ __all__ = [
     "TerminalMissingSilentEndServerReconcileSuite",
     "PromptCacheLookbackPositionAlignedPruneFloorSuite",
     "SummaryCallOverflowTailClipRetrySuite",
+    "StructuredTestReportPayloadCompressorSuite",
     "CrossHarnessContextStateASTAndLosslessRehydrationSuite",
     "CrossHarnessSuite",
     "CrossPlatformTranscriptNormalizer",
