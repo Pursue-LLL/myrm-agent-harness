@@ -1580,6 +1580,19 @@ from .workspace_arbitrage import (
     WorkWithChatUnifiedWorkspaceDeckAndMultiModelCostArbitrageSuite,
     WorkspaceArbitrageConfig,
 )
+from .project_bound_launcher import (
+    BoundSessionLaunchResult,
+    ContextInheritanceAssembler,
+    InheritedContextFrame,
+    InheritanceStatus,
+    LauncherSuiteConfig,
+    ProjectBoundSessionLauncher,
+    ProjectBoundSessionLauncherSuite,
+    ProjectMetadataSnapshot,
+    SessionLaunchMode,
+    SessionLaunchRequest,
+    WorkspaceMetadataInspector,
+)
 from .local_prefill_guard import (
     AdaptivePruningDecision,
     LatencyWarningLevel,
@@ -3109,6 +3122,18 @@ __all__ = [
     "RoutingDecision",
     "WorkWithChatUnifiedWorkspaceDeckAndMultiModelCostArbitrageSuite",
     "WorkspaceArbitrageConfig",
+    # project_bound_launcher
+    "BoundSessionLaunchResult",
+    "ContextInheritanceAssembler",
+    "InheritedContextFrame",
+    "InheritanceStatus",
+    "LauncherSuiteConfig",
+    "ProjectBoundSessionLauncher",
+    "ProjectBoundSessionLauncherSuite",
+    "ProjectMetadataSnapshot",
+    "SessionLaunchMode",
+    "SessionLaunchRequest",
+    "WorkspaceMetadataInspector",
 ]
 
 
