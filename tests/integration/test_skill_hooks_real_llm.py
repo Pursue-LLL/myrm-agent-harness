@@ -24,6 +24,8 @@ from pathlib import Path
 import pytest
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool, tool
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.types import Command
 
 from myrm_agent_harness.agent.hooks import HookEvent, HookExecutor, HookSource, parse_hooks_from_skill_md
 from myrm_agent_harness.agent.hooks.types import CommandHookDefinition, HookResult
@@ -170,50 +172,69 @@ Use the {_TOOL_NAME} tool when asked.
 """
 
 
-def _security_config(workspace: Path) -> SecurityConfig:
-    """Workspace profile plus an explicit allow for the probe tool.
+def _security_config(workspace: Path, *, allow_probe: bool = True) -> SecurityConfig:
+    """Workspace profile, plus an explicit allow for the probe tool unless ``allow_probe`` is off.
 
     Tools unknown to the framework resolve to ``mcp_invoke`` (approval required), so a
-    per-tool rule is the declarative way to let the probe run without bypassing approval.
+    per-tool rule is the declarative way to let the probe run without bypassing approval;
+    leaving it out parks every probe call behind the approval card.
     """
     base = SecurityConfig.workspace(allowed_roots=(str(workspace),))
+    if not allow_probe:
+        return base
     return replace(base, ruleset=(*base.ruleset, PermissionRule(_TOOL_NAME, "*", PermissionAction.ALLOW)))
 
 
-async def _run_probe_agent(
-    basic_llm: BaseChatModel, workspace: Path, out: Path, query: str, receipts: list[str]
-) -> str:
-    """Run one turn of the probe agent against the probe skill and return its answer."""
+def _probe_agent(
+    basic_llm: BaseChatModel,
+    workspace: Path,
+    out: Path,
+    receipts: list[str],
+    *,
+    checkpointer: MemorySaver | None = None,
+    allow_probe: bool = True,
+) -> SkillAgent:
+    """The probe agent: one skill with command hooks and one probe tool."""
     content = _skill_md(out)
     hooks, _ = parse_hooks_from_skill_md(content)
     skill = SkillMetadata(name=_SKILL_NAME, description="Probe skill", hooks=hooks, storage_skill_id=_SKILL_NAME)
-    agent = SkillAgent(
+    return SkillAgent(
         llm=basic_llm,
         skill_backend=_StubSkillBackend(skill, content),
         tools=[_record_note_tool(receipts)],
         enable_memory_auto_extraction=False,
         enable_shell_tools=False,
         file_access_mode=FileAccessMode.NONE,
-        config=AgentRuntimeConfig(security_config=_security_config(workspace)),
+        checkpointer=checkpointer,
+        config=AgentRuntimeConfig(security_config=_security_config(workspace, allow_probe=allow_probe)),
     )
 
+
+def _run_context(workspace: Path) -> dict[str, str]:
+    return {
+        "chat_id": "hook-probe-chat",
+        "session_id": "chat_hook_probe",
+        "workspaces_storage_root": str(workspace / "workspaces-root"),
+    }
+
+
+def _answer_of(events: list[dict[str, object]]) -> str:
+    return "".join(str(e["data"]) for e in events if e.get("type") == "message" and isinstance(e.get("data"), str))
+
+
+async def _run_probe_agent(
+    basic_llm: BaseChatModel, workspace: Path, out: Path, query: str, receipts: list[str]
+) -> str:
+    """Run one turn of the probe agent against the probe skill and return its answer."""
+    agent = _probe_agent(basic_llm, workspace, out, receipts)
     try:
         events = [
-            event
-            async for event in agent.run(
-                query,
-                message_id=_HOSTILE_MESSAGE_ID,
-                context={
-                    "chat_id": "hook-probe-chat",
-                    "session_id": "chat_hook_probe",
-                    "workspaces_storage_root": str(workspace / "workspaces-root"),
-                },
-            )
+            event async for event in agent.run(query, message_id=_HOSTILE_MESSAGE_ID, context=_run_context(workspace))
         ]
     finally:
         await agent.close()
 
-    answer = "".join(str(e["data"]) for e in events if e.get("type") == "message" and isinstance(e.get("data"), str))
+    answer = _answer_of(events)
     print(f"\nQUERY: {query}")
     print(f"STREAM EVENT TYPES: {sorted({str(e.get('type')) for e in events})}")
     print(f"FINAL ANSWER: {answer.strip()[:200]!r}")
@@ -293,3 +314,52 @@ async def test_a_skill_the_model_loads_itself_registers_no_hooks(
     # ...yet nobody invoked the skill, so none of its hooks ran: third-party hooks need explicit consent.
     assert hook_runs == []
     assert list(out.iterdir()) == []
+
+
+@pytest.mark.asyncio
+async def test_an_approved_tool_call_resumes_under_the_hooks_of_its_turn(
+    basic_llm: BaseChatModel, hook_runs: list[tuple[CommandHookDefinition, HookResult]], tmp_path: Path
+) -> None:
+    """A probe call parked behind the approval card runs, once approved, in a resume with the same hooks."""
+    out = tmp_path / "hook-out"
+    out.mkdir()
+    receipts: list[str] = []
+    query = (
+        f"[use {_SKILL_NAME}] Call the {_TOOL_NAME} tool exactly once with note set to 'approval probe'. "
+        f"Then reply with exactly: {_FINAL_ANSWER}"
+    )
+    agent = _probe_agent(basic_llm, tmp_path, out, receipts, checkpointer=MemorySaver(), allow_probe=False)
+    context = _run_context(tmp_path)
+
+    try:
+        parked = [event async for event in agent.run(query, message_id="msg-parked", context=context)]
+        print(f"\nPARKED EVENT TYPES: {sorted({str(e.get('type')) for e in parked})}")
+        parked_payload = json.loads((out / "session_payload.json").read_text(encoding="utf-8"))
+        parked_hook_runs = len(hook_runs)
+        assert receipts == []
+
+        resumed = [
+            event
+            async for event in agent.run(
+                Command(resume={"decision": "approve"}),
+                message_id="msg-resumed",
+                chat_history=[["human", query]],
+                context=context,
+            )
+        ]
+    finally:
+        await agent.close()
+
+    print(f"RESUMED EVENT TYPES: {sorted({str(e.get('type')) for e in resumed})}")
+    print(f"RESUMED ANSWER: {_answer_of(resumed).strip()[:200]!r}")
+    print(f"HOOK RUNS parked={parked_hook_runs} total={len(hook_runs)}")
+
+    assert parked_payload["is_resume"] is False
+    assert len(receipts) == 1
+    assert _FINAL_ANSWER.lower() in _answer_of(resumed).lower()
+    resumed_payload = json.loads((out / "session_payload.json").read_text(encoding="utf-8"))
+    assert resumed_payload["is_resume"] is True
+    tool_payload = json.loads((out / "tool_payload.json").read_text(encoding="utf-8"))
+    assert tool_payload["tool_name"] == _TOOL_NAME
+    assert not (out / "escalated.marker").exists()
+    assert (out / "session_end.marker").read_text(encoding="utf-8").strip() == "ended"
