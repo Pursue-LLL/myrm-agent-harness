@@ -68,8 +68,12 @@ class TruthMaintenanceGraph:
             return False
 
         current_known = record.bitemporal.known_interval
-        if current_known.end is not None and current_known.end <= retracted_at:
-            # Already retracted earlier or at same time
+        if current_known.end is not None:
+            # Already retracted earlier; retraction is immutable and idempotent
+            return False
+
+        if retracted_at < current_known.start:
+            # Cannot retract prior to system cognition start timestamp
             return False
 
         new_known = TimeInterval(start=current_known.start, end=retracted_at)
