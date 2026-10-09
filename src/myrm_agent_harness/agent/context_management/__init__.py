@@ -1644,6 +1644,18 @@ from .silent_end_reconcile import (
     TerminalEventKind,
     TerminalMissingSilentEndServerReconcileSuite,
 )
+from .lookback_aligned_prune import (
+    ContentBlockKind,
+    LookbackAlignedPruneConfig,
+    LookbackAlignedPruner,
+    LookbackFloorCalculator,
+    LookbackFloorResult,
+    LookbackPruneDecision,
+    ProjectedContentBlock,
+    PromptCacheLookbackPositionAlignedPruneFloorSuite,
+    ProviderBlockProjector,
+    ProviderCacheKind,
+)
 from .local_prefill_guard import (
     AdaptivePruningDecision,
     LatencyWarningLevel,
@@ -3232,6 +3244,17 @@ __all__ = [
     "StreamTerminalWatchdog",
     "TerminalEventKind",
     "TerminalMissingSilentEndServerReconcileSuite",
+    # lookback_aligned_prune
+    "ContentBlockKind",
+    "LookbackAlignedPruneConfig",
+    "LookbackAlignedPruner",
+    "LookbackFloorCalculator",
+    "LookbackFloorResult",
+    "LookbackPruneDecision",
+    "ProjectedContentBlock",
+    "PromptCacheLookbackPositionAlignedPruneFloorSuite",
+    "ProviderBlockProjector",
+    "ProviderCacheKind",
 ]
 
 
