@@ -271,6 +271,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.agent.context_management",
         "TieredTranscriptOffloadingAndSessionLifecycleResilienceSuite",
     ),
+    "WorkWithChatUnifiedWorkspaceDeckAndMultiModelCostArbitrageSuite": (
+        "myrm_agent_harness.agent.context_management",
+        "WorkWithChatUnifiedWorkspaceDeckAndMultiModelCostArbitrageSuite",
+    ),
 }
 
 __all__ = [
@@ -286,6 +290,7 @@ __all__ = [
     "HierarchicalMetaSessionOrchestrator",
     "MetaSessionOrchestrationAndChatCoworkDualTrackFusionSuite",
     "TieredTranscriptOffloadingAndSessionLifecycleResilienceSuite",
+    "WorkWithChatUnifiedWorkspaceDeckAndMultiModelCostArbitrageSuite",
     "CrossHarnessContextStateASTAndLosslessRehydrationSuite",
     "CrossHarnessSuite",
     "CrossPlatformTranscriptNormalizer",
