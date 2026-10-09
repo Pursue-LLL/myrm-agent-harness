@@ -18,7 +18,6 @@ preserving the flat-module import surface for all consumers.
 """
 
 from .registry import (
-    _FAIL_CLOSED_DEFAULTS,
     _PTC_SAFETY_METADATA,
     _PTC_TOOL_FLAT_INDEX,
     AUTO_APPROVE_REASONS,
@@ -31,12 +30,9 @@ from .registry import (
     TOOL_GROUP_MAP,
     TOOL_GROUP_NAMES,
     TOOL_PERMISSION_MAP,
-    TOOL_SAFETY_METADATA,
     TOOL_TO_GROUP,
     MCPAnnotations,
-    SafetyMetadata,
     _check_safety_coverage,
-    _sanitize_url_for_taint,
     compute_canonical_args_hash,
     evict_skill_safety_metadata,
     get_ptc_safety_metadata,
@@ -46,6 +42,12 @@ from .registry import (
     unregister_ptc_safety_metadata,
 )
 from .safety import check_safety_coverage
+from .safety_table import (
+    _FAIL_CLOSED_DEFAULTS,
+    TOOL_SAFETY_METADATA,
+    SafetyMetadata,
+    _sanitize_url_for_taint,
+)
 
 __all__ = [
     "AUTO_APPROVED_BUILTIN_TOOLS",

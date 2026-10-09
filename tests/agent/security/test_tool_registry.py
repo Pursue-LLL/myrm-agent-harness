@@ -471,14 +471,14 @@ class TestSanitizeUrlForTaint:
 
 class TestTaintUrlFromArgs:
     def test_extracts_str_url(self) -> None:
-        from myrm_agent_harness.core.security.tool_registry.registry import (
+        from myrm_agent_harness.core.security.tool_registry.safety_table import (
             _taint_url_from_args,
         )
 
         assert _taint_url_from_args({"url": "https://example.com/a?token=secret#frag"}) == "https://example.com/a"
 
     def test_drops_non_str_and_missing_url(self) -> None:
-        from myrm_agent_harness.core.security.tool_registry.registry import (
+        from myrm_agent_harness.core.security.tool_registry.safety_table import (
             _taint_url_from_args,
         )
 

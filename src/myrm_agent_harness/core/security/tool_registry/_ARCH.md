@@ -4,8 +4,8 @@
 
 Tool metadata registry domain — the SSOT for built-in tool names, permission-type
 mapping, canonical params, safety metadata, and canonical tool-group mapping.
-Two files by concern: `registry.py` holds the tool safety SSOT and PTC dynamic
-registration; `safety.py` is the module-load coverage gate warning when built-in
+Three files by concern: `registry.py` holds permission/group/governance SSOTs and PTC dynamic
+registration; `safety_table.py` holds the `SafetyMetadata` model, taint extractors and `TOOL_SAFETY_METADATA`; `safety.py` is the module-load coverage gate warning when built-in
 tools lack explicit safety declarations. `__init__.py` is the aggregation facade
 preserving the flat-module import surface for all consumers.
 
@@ -14,7 +14,8 @@ preserving the flat-module import surface for all consumers.
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Aggregation facade — re-exports registry + safety public/internal symbols. | ✅ |
-| registry.py | Core | Tool safety SSOT — TOOL_PERMISSION_MAP, BUILTIN_TOOL_NAMES, TOOL_GROUP_MAP/TOOL_TO_GROUP/TOOL_GROUP_NAMES, TOOL_CANONICAL_PARAMS, TOOL_SAFETY_METADATA, AUTO_APPROVED_BUILTIN_TOOLS/AUTO_APPROVE_REASONS/RULESET_COVERAGE_WHITELIST/EXPLICIT_MCP_FALLBACK_TOOLS/DYNAMICALLY_RESOLVED_TOOL_NAMES (governance audit declarations), SafetyMetadata, MCPAnnotations, resolve_safety_metadata/resolve_permission_type/compute_canonical_args_hash, PTC dynamic registration & thread-safe eviction (`unregister_ptc_safety_metadata` / `evict_skill_safety_metadata`), module-load safety gate. | ✅ |
+| registry.py | Core | Tool safety SSOT — TOOL_PERMISSION_MAP, BUILTIN_TOOL_NAMES, TOOL_GROUP_MAP/TOOL_TO_GROUP/TOOL_GROUP_NAMES, TOOL_CANONICAL_PARAMS, AUTO_APPROVED_BUILTIN_TOOLS/AUTO_APPROVE_REASONS/RULESET_COVERAGE_WHITELIST/EXPLICIT_MCP_FALLBACK_TOOLS/DYNAMICALLY_RESOLVED_TOOL_NAMES (governance audit declarations), MCPAnnotations, resolve_safety_metadata/resolve_permission_type/compute_canonical_args_hash, PTC dynamic registration & thread-safe eviction (`unregister_ptc_safety_metadata` / `evict_skill_safety_metadata`), module-load safety gate. | ✅ |
+| safety_table.py | Core | `SafetyMetadata` dataclass, taint extractors (`_taint_*_from_args`, `_sanitize_url_for_taint`), `_FAIL_CLOSED_DEFAULTS` and the `TOOL_SAFETY_METADATA` opt-in whitelist (re-exported by `registry.py`). | ✅ |
 | safety.py | Core | `check_safety_coverage()` — module-load warning when built-in tools (BUILTIN_TOOL_NAMES ∪ EXPLICIT_MCP_FALLBACK_TOOLS) lack TOOL_SAFETY_METADATA entries. Scope mirrors the CI governance gate. | ✅ |
 
 ## Governance Coverage Declarations

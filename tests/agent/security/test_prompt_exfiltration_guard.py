@@ -22,7 +22,7 @@ from myrm_agent_harness.agent.security.guards.taint_tracker import (
 from myrm_agent_harness.backends.skills.scanning.patterns import (
     PROMPT_SECRET_EXFILTRATION_PATTERNS,
 )
-from myrm_agent_harness.core.security.tool_registry.registry import (
+from myrm_agent_harness.core.security.tool_registry.safety_table import (
     _taint_secret_command_from_args,
     _taint_secret_file_from_args,
 )
