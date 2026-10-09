@@ -1617,6 +1617,21 @@ from .corrupt_session_healing import (
     RestorationStatus,
     SalvagedMessageItem,
 )
+from .multi_session_workspace import (
+    CrossSessionArtifactItem,
+    CrossSessionReferenceBundle,
+    CrossSessionReferenceBus,
+    DiscoveredRootResult,
+    GridLayoutType,
+    MultiSessionParallelWorkspaceAndRootDiscoverySuite,
+    MultiSessionWorkspaceConfig,
+    ParallelWorkspaceDeck,
+    ProjectRootSniffer,
+    RootIndicatorKind,
+    SlotRoleTag,
+    WorkspaceDeckState,
+    WorkspaceSlot,
+)
 from .local_prefill_guard import (
     AdaptivePruningDecision,
     LatencyWarningLevel,
@@ -3180,6 +3195,20 @@ __all__ = [
     "RestorationOutcome",
     "RestorationStatus",
     "SalvagedMessageItem",
+    # multi_session_workspace
+    "CrossSessionArtifactItem",
+    "CrossSessionReferenceBundle",
+    "CrossSessionReferenceBus",
+    "DiscoveredRootResult",
+    "GridLayoutType",
+    "MultiSessionParallelWorkspaceAndRootDiscoverySuite",
+    "MultiSessionWorkspaceConfig",
+    "ParallelWorkspaceDeck",
+    "ProjectRootSniffer",
+    "RootIndicatorKind",
+    "SlotRoleTag",
+    "WorkspaceDeckState",
+    "WorkspaceSlot",
 ]
 
 
