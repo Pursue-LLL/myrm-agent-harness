@@ -55,8 +55,30 @@ class BugExperienceAndADRExtractor:
         experiences: list[EngineeringExperience] = []
         today_str = datetime.now(UTC).strftime("%Y-%m-%d")
 
-        # Split into candidate paragraphs or bullet lines
-        paragraphs = [p.strip() for p in narrative.split("\n\n") if p.strip()]
+        # Split into candidate paragraphs or lines declaring distinct modules/items
+        paragraphs: list[str] = []
+        for chunk in narrative.split("\n\n"):
+            chunk_stripped = chunk.strip()
+            if not chunk_stripped:
+                continue
+            lines = chunk_stripped.splitlines()
+            current_group: list[str] = []
+            for line in lines:
+                stripped_line = line.strip()
+                if not stripped_line:
+                    continue
+                if current_group and re.match(
+                    r"^(?:模块|组件|实体|目标|Entity|Module|Table|API|ADR)[:：\s]|^- \[[a-zA-Z0-9_-]+\]",
+                    stripped_line,
+                    re.IGNORECASE,
+                ):
+                    paragraphs.append("\n".join(current_group).strip())
+                    current_group = [line]
+                else:
+                    current_group.append(line)
+            if current_group:
+                paragraphs.append("\n".join(current_group).strip())
+
         if not paragraphs:
             paragraphs = [narrative.strip()]
 
