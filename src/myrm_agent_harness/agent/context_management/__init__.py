@@ -1721,6 +1721,16 @@ from .voice_bypass import (
     VoiceCommandMatcher,
     VoiceIntentTier,
 )
+from .voice_visual import (
+    InjectedVoiceVisualTurn,
+    VisualIntentCategory,
+    VisualIntentDecision,
+    VoiceScreenshotContext,
+    VoiceScreenshotContextAwarenessSuite,
+    VoiceVisualConfig,
+    VoiceVisualContextInjector,
+    VoiceVisualIntentDetector,
+)
 from .local_prefill_guard import (
     AdaptivePruningDecision,
     LatencyWarningLevel,
@@ -3379,6 +3389,15 @@ __all__ = [
     "VoiceCommandMatchResult",
     "VoiceCommandMatcher",
     "VoiceIntentTier",
+    # voice_visual
+    "InjectedVoiceVisualTurn",
+    "VisualIntentCategory",
+    "VisualIntentDecision",
+    "VoiceScreenshotContext",
+    "VoiceScreenshotContextAwarenessSuite",
+    "VoiceVisualConfig",
+    "VoiceVisualContextInjector",
+    "VoiceVisualIntentDetector",
 ]
 
 

@@ -327,6 +327,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.agent.context_management",
         "VoiceCommandLocalBypassAndTieredIntentRoutingSuite",
     ),
+    "VoiceScreenshotContextAwarenessSuite": (
+        "myrm_agent_harness.agent.context_management",
+        "VoiceScreenshotContextAwarenessSuite",
+    ),
 }
 
 __all__ = [
@@ -334,6 +338,7 @@ __all__ = [
     "CompactBeforeSendTokenChipSuite",
     "SandboxZeroCopyBranchLabSuite",
     "VoiceCommandLocalBypassAndTieredIntentRoutingSuite",
+    "VoiceScreenshotContextAwarenessSuite",
     "ArtifactContinuityGateway",
     "BilateralSovereigntyArchiveHub",
     "CanonicalAgentWorkspaceScaffoldingAndZeroFrictionHandoverSuite",
