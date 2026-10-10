@@ -17,25 +17,30 @@ from myrm_agent_harness.agent.context_management.pinning import (
 from myrm_agent_harness.agent.context_management.pipeline.base import ProcessorContext
 
 
-def test_processor_should_process_decision() -> None:
+import pytest
+
+
+@pytest.mark.asyncio
+async def test_processor_should_process_decision() -> None:
     """Verifies should_process triggers on pins or compaction events."""
     proc = PinnedContextRetentionProcessor()
 
     # Plain context -> False
     ctx_plain = ProcessorContext(messages=[HumanMessage(content="Hello")], user_query="Hello")
-    assert not proc.should_process(ctx_plain)
+    assert not await proc.should_process(ctx_plain)
 
     # Context with is_pinned message -> True
     msg_pinned = HumanMessage(content="Always use Type Hints", additional_kwargs={"is_pinned": True})
     ctx_with_pin = ProcessorContext(messages=[msg_pinned], user_query="Task")
-    assert proc.should_process(ctx_with_pin)
+    assert await proc.should_process(ctx_with_pin)
 
     # Context with saved tokens -> True
     ctx_compacted = ProcessorContext(messages=[HumanMessage(content="Query")], user_query="Task", tokens_saved=2500)
-    assert proc.should_process(ctx_compacted)
+    assert await proc.should_process(ctx_compacted)
 
 
-def test_zero_pruning_guarantee_and_restoration() -> None:
+@pytest.mark.asyncio
+async def test_zero_pruning_guarantee_and_restoration() -> None:
     """Tests that evicted pinned messages are automatically restored and protected."""
     proc = PinnedContextRetentionProcessor()
 
@@ -72,7 +77,7 @@ def test_zero_pruning_guarantee_and_restoration() -> None:
         },
     )
 
-    result_ctx = proc.process(ctx)
+    result_ctx = await proc.process(ctx)
 
     # All 3 pins must exist in messages
     all_contents = [str(m.content) for m in result_ctx.messages]
@@ -87,7 +92,8 @@ def test_zero_pruning_guarantee_and_restoration() -> None:
     assert any("pinned_context_retention" in op for op in result_ctx.operations)
 
 
-def test_transparent_compaction_inspector_card_generation() -> None:
+@pytest.mark.asyncio
+async def test_transparent_compaction_inspector_card_generation() -> None:
     """Verifies structured inspection card metadata emitted for UI inspection."""
     proc = PinnedContextRetentionProcessor()
 
@@ -121,7 +127,7 @@ def test_transparent_compaction_inspector_card_generation() -> None:
 
     ctx.structured_summary = DummySummary()  # type: ignore[assignment]
 
-    result_ctx = proc.process(ctx)
+    result_ctx = await proc.process(ctx)
     card_dict = result_ctx.metadata.get("compaction_inspector_card")
     assert isinstance(card_dict, dict)
 
@@ -163,3 +169,59 @@ def test_card_data_serialization_and_defaults() -> None:
     idict = item.to_dict()
     assert idict["pin_id"] == "pi-1"
     assert idict["item_type"] == "message"
+
+
+import pytest
+
+from myrm_agent_harness.agent.context_management.pipeline import ContextPipeline, build_default_processors
+
+
+@pytest.mark.asyncio
+async def test_pipeline_e2e_pinned_context_retention_and_compaction_card() -> None:
+    """Verifies that ContextPipeline with default processors guarantees zero-pruning of pinned items
+
+    and attaches transparent compaction inspector card to context metadata.
+    """
+    pipeline = ContextPipeline(build_default_processors(max_context_tokens=2048))
+
+    # Pinned architectural decision
+    pinned_msg = HumanMessage(
+        content="CRITICAL ARCH CONTRACT: All services must use UUIDv7 IDs.",
+        additional_kwargs={"is_pinned": True, "message_id": "pin-arch-contract"},
+    )
+
+    ctx = ProcessorContext(
+        messages=[
+            SystemMessage(content="You are a principal engineer."),
+            pinned_msg,
+            HumanMessage(content="First exploratory question"),
+            AIMessage(content="First response..."),
+        ],
+        user_query="Please proceed with database setup",
+        chat_id="chat-e2e-pinning-1",
+        tokens_saved=3500,
+    )
+
+    result_ctx = await pipeline.process(ctx)
+
+    # 1. Zero-pruning guarantee: pinned message survives
+    all_contents = [str(m.content) for m in result_ctx.messages]
+    assert "CRITICAL ARCH CONTRACT: All services must use UUIDv7 IDs." in all_contents
+
+    # 2. Pinned message is flagged as protected
+    found_protected = False
+    for m in result_ctx.messages:
+        if "CRITICAL ARCH CONTRACT" in str(m.content):
+            if getattr(m, "additional_kwargs", {}).get("protected_by_pin") is True:
+                found_protected = True
+    assert found_protected is True
+
+    # 3. Transparent compaction inspector card was generated in metadata
+    card = result_ctx.metadata.get("compaction_inspector_card")
+    assert card is not None
+    assert isinstance(card, dict)
+    assert card["chat_id"] == "chat-e2e-pinning-1"
+    assert card["saved_tokens"] == 3500
+    assert card["preserved_pinned_count"] >= 1
+    assert any("CRITICAL ARCH CONTRACT" in preview for preview in card["pinned_items_preview"])
+

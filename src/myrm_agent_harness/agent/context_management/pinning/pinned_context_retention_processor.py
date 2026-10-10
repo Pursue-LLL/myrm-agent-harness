@@ -46,8 +46,11 @@ class PinnedContextRetentionProcessor(BaseProcessor):
     def name(self) -> str:
         return "pinned_context_retention_processor"
 
-    def should_process(self, context: ProcessorContext) -> bool:
+    async def should_process(self, context: ProcessorContext) -> bool:
         """Determines if context contains pins or requires compaction inspector formatting."""
+        return self._should_process_internal(context)
+
+    def _should_process_internal(self, context: ProcessorContext) -> bool:
         has_pins = (
             "pinned_items" in context.metadata
             or "pinned_message_ids" in context.metadata
@@ -59,8 +62,12 @@ class PinnedContextRetentionProcessor(BaseProcessor):
         has_compaction_event = context.tokens_saved > 0 or context.structured_summary is not None
         return has_pins or has_compaction_event
 
-    def process(self, context: ProcessorContext) -> ProcessorContext:
+    async def process(self, context: ProcessorContext) -> ProcessorContext:
         """Executes zero-pruning verification and attaches compaction transparency card."""
+        return self.process_sync(context)
+
+    def process_sync(self, context: ProcessorContext) -> ProcessorContext:
+        """Synchronous implementation of zero-pruning verification and card attachment."""
         pinned_items = self._extract_pinned_items(context)
 
         # 1. Zero-Pruning Verification & Restoration
