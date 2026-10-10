@@ -1712,6 +1712,15 @@ from .compact_chip import (
     SendActionLabelRenderer,
     SendButtonDisplaySpec,
 )
+from .voice_bypass import (
+    VoiceActionCategory,
+    VoiceBypassAction,
+    VoiceBypassConfig,
+    VoiceCommandLocalBypassAndTieredIntentRoutingSuite,
+    VoiceCommandMatchResult,
+    VoiceCommandMatcher,
+    VoiceIntentTier,
+)
 from .local_prefill_guard import (
     AdaptivePruningDecision,
     LatencyWarningLevel,
@@ -3362,6 +3371,14 @@ __all__ = [
     "CompactPreflightEstimate",
     "SendActionLabelRenderer",
     "SendButtonDisplaySpec",
+    # voice_bypass
+    "VoiceActionCategory",
+    "VoiceBypassAction",
+    "VoiceBypassConfig",
+    "VoiceCommandLocalBypassAndTieredIntentRoutingSuite",
+    "VoiceCommandMatchResult",
+    "VoiceCommandMatcher",
+    "VoiceIntentTier",
 ]
 
 
