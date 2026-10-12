@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
 import types
@@ -148,9 +149,23 @@ class TestRequireCamoufoxReady:
             require_camoufox_ready()
         assert isinstance(exc_info.value, BrowserLaunchError)
 
-    def test_install_fix_documents_both_install_paths(self) -> None:
-        assert "camoufox fetch" in CAMOUFOX_INSTALL_FIX
+    def test_install_fix_covers_missing_package_and_missing_build(self) -> None:
+        """The ``camoufox`` command only exists once the package is installed, so the package step comes first."""
+        assert "myrm-agent-harness[browser]" in CAMOUFOX_INSTALL_FIX
+        assert CAMOUFOX_INSTALL_FIX.index("myrm-agent-harness[browser]") < CAMOUFOX_INSTALL_FIX.index("camoufox fetch")
         assert "CAMOUFOX_EXECUTABLE_PATH" in CAMOUFOX_INSTALL_FIX
+
+    def test_warning_log_for_missing_package_tells_how_to_install_it(self, caplog: pytest.LogCaptureFixture) -> None:
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.browser.pool.camoufox_availability.camoufox_unavailable_reason",
+                return_value="camoufox package is not installed",
+            ),
+            caplog.at_level(logging.WARNING),
+            pytest.raises(EngineUnavailableError),
+        ):
+            require_camoufox_ready()
+        assert "myrm-agent-harness[browser]" in caplog.text
 
 
 class TestLauncherCamoufoxFailure:

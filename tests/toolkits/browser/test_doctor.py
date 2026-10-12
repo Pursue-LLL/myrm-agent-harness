@@ -75,6 +75,8 @@ def test_check_camoufox_warns_when_package_missing() -> None:
         result = _check_camoufox()
     assert result.status == CheckStatus.WARNING
     assert "camoufox package is not installed" in result.message
+    assert result.fix is not None
+    assert "myrm-agent-harness[browser]" in result.fix
 
 
 def test_format_report_includes_camoufox() -> None:

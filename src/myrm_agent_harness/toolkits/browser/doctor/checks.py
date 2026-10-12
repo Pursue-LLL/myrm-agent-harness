@@ -5,7 +5,7 @@ before actual operations, providing clear fix suggestions for each failure.
 
 [INPUT]
 - patchright (optional extra [browser]) / camoufox (stealth ladder fallback)
-- ..pool.camoufox_availability::camoufox_unavailable_reason (POS: non-downloading Camoufox readiness probe)
+- ..pool.camoufox_availability::camoufox_unavailable_reason/CAMOUFOX_INSTALL_FIX (POS: non-downloading Camoufox readiness probe and its operator-facing install instructions)
 - psutil (memory/disk checks)
 - ..utils::is_timeout_error (POS: builtin/patchright timeout detection)
 - infra/tls_compat::create_httpx_client (POS: unified async HTTP client, used by the extension relay probe)

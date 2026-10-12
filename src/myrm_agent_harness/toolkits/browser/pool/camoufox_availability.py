@@ -16,7 +16,7 @@ unavailable rather than raised.
 - ..exceptions::EngineUnavailableError (POS: engine refused before any state change)
 
 [OUTPUT]
-- CAMOUFOX_INSTALL_FIX: operator-facing install instructions (Doctor ``fix``)
+- CAMOUFOX_INSTALL_FIX: operator-facing install instructions covering a missing package and a missing build (Doctor ``fix`` and the unavailable-engine warning log)
 - camoufox_unavailable_reason: ``None`` when a usable build is installed, else a short reason
 - require_camoufox_ready: raise ``EngineUnavailableError`` unless a usable build is installed
 
@@ -38,7 +38,8 @@ logger = logging.getLogger(__name__)
 _EXECUTABLE_ENV = "CAMOUFOX_EXECUTABLE_PATH"
 
 CAMOUFOX_INSTALL_FIX = (
-    "Run 'camoufox fetch' once (about 1.2 GB download), or point "
+    "Install the browser extra if the camoufox package is missing (uv add 'myrm-agent-harness[browser]'), "
+    "then run 'camoufox fetch' once (about 1.2 GB download), or point "
     f"{_EXECUTABLE_ENV} at an existing Camoufox build for offline or sandboxed hosts"
 )
 
