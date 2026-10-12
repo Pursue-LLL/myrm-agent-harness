@@ -298,7 +298,7 @@ Level 3: 资源（Resources）
 
 ### 4.4 缓存策略
 
-SKILL.md 由 `skill_document_loader.get_skill_document()` 按次从 backend 读取，没有加载器层缓存；读取失败返回错误提示文档，不生成降级文档。Known Pitfalls 以尾部追加方式注入，已加载内容的前缀字节不变，**无需修改**。
+SKILL.md 由 `skill_document_loader.get_skill_document()` 按次从 backend 读取，backend 读取抛错时返回带错误提示的文档。Known Pitfalls 以尾部追加方式注入，已加载内容的前缀字节不变，**无需修改**。
 
 ---
 

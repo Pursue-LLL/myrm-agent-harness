@@ -1,7 +1,7 @@
 """Known-pitfalls tail injection for loaded SKILL.md documents.
 
 [INPUT]
-- 业务层注册的 trap 查找回调（本模块不依赖 evolution，由 EvolutionIntegration 在启用进化时注册）
+- agent.skills.evolution.infra.integration::EvolutionIntegration (POS: Integration helpers for skill evolution system.) — 启用进化时经 set_trap_lookup 注册 trap 查找回调；本模块不 import evolution
 
 [OUTPUT]
 - TrapLookup: 按技能名返回已记录 trap 的回调类型

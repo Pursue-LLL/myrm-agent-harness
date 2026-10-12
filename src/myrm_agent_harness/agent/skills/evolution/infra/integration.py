@@ -15,6 +15,7 @@ Framework provides the hooks, business layer decides when to use them.
 - agent.context_management.pipeline::ContextPipeline (POS: Message filter pipeline for composing multiple filters.)
 - toolkits.code_execution::CodeExecutor (POS: Code execution toolkit entry point. Aggregates execution configuration, executor implementations, workspace management, and factory functions for the Agent-in-Sandbox architecture.)
 - agent.skills.evolution::EvolutionIntegration (POS: Skill evolution engine - Core of self-evolution system.)
+- agent.skills.runtime.trap_injection::set_trap_lookup (POS: Known Pitfalls tail injection for loaded SKILL.md documents.)
 - toolkits.web_search::SearchServiceConfig (POS: Web search toolkit entry point. Aggregates and re-exports search tools, result types, metrics, and error hierarchy for unified import.)
 - agent.middlewares._session_context::get_approval_session (POS: Middleware session context — shared ContextVars for the middleware chain.)
 - agent.hooks.executor::fire_hook (POS: Hook execution layer. Manages hook registration and execution with ContextVar-based session isolation.)
@@ -412,7 +413,7 @@ class EvolutionIntegration:
                     detect_frustration,
                 )
 
-                signal = detect_frustration(messages)  # type: ignore[arg-type]
+                signal = detect_frustration(messages)
                 if signal and self.queue:
                     logger.info(
                         "Frustration detected [%s]: '%s' — triggering DERIVED evolution",

@@ -27,8 +27,9 @@ if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
     from langgraph.checkpoint.base import BaseCheckpointSaver
 
+    from myrm_agent_harness.agent._internals.memory_extraction import ExtractionLifecycleObserver
     from myrm_agent_harness.agent.base_agent import BaseAgent
-    from myrm_agent_harness.agent.config import LLMConfig
+    from myrm_agent_harness.agent.config.llm import LLMConfig
     from myrm_agent_harness.agent.event_log.protocols import EventLogBackend
     from myrm_agent_harness.agent.security.types import PrivacyRoutingConfig
     from myrm_agent_harness.agent.skill_agent import SkillAgent
@@ -49,6 +50,7 @@ if TYPE_CHECKING:
     from myrm_agent_harness.backends.skills.state_manager import SkillStateManager
     from myrm_agent_harness.toolkits.code_execution.executors.base import CodeExecutor
     from myrm_agent_harness.toolkits.memory.manager import MemoryManager
+    from myrm_agent_harness.toolkits.retriever.embedding.factory import EmbeddingConfig
     from myrm_agent_harness.toolkits.storage.base import StorageProvider
     from myrm_agent_harness.toolkits.wiki import SemanticSearchFn
 
@@ -79,8 +81,8 @@ async def create_skill_agent(
     fallback_llms: list[BaseChatModel] | None = None,
     safety_fallback_llm: BaseChatModel | None = None,
     escalation_target_llm: BaseChatModel | None = None,
-    embedding_config=None,
-    checkpointer: BaseCheckpointSaver | bool | None = True,
+    embedding_config: EmbeddingConfig | None = None,
+    checkpointer: BaseCheckpointSaver[str] | bool | None = True,
     privacy_routing_config: PrivacyRoutingConfig | None = None,
     event_log_backend: EventLogBackend | None = None,
     trusted_skill_ids: list[str] | None = None,
@@ -98,7 +100,7 @@ async def create_skill_agent(
     similarity_checker: SkillSimilarityChecker | None = None,
     on_session_cleanup: (Callable[[Sequence[dict[str, str]], str | None], Awaitable[None]] | None) = None,
     on_loaded_skills_persist: (Callable[[list[str], str | None], Awaitable[None]] | None) = None,
-    extraction_lifecycle_observer: Callable[..., Awaitable[None]] | None = None,
+    extraction_lifecycle_observer: ExtractionLifecycleObserver | None = None,
     file_access_mode: FileAccessMode = FileAccessMode.FULL,
     enable_shell_tools: bool = True,
     enable_answer_tool: bool = False,
@@ -124,7 +126,7 @@ async def create_skill_agent(
 
         from myrm_agent_harness.toolkits.llms import create_litellm_model
 
-        kwargs = {
+        kwargs: dict[str, Any] = {
             "model": llm_config.model,
             "api_key": llm_config.api_key,
             "base_url": llm_config.base_url,
@@ -309,7 +311,9 @@ async def create_skill_agent(
         from dataclasses import fields as dataclass_fields
 
         known_fields = {field.name for field in dataclass_fields(EngineParams)}
-        filtered_params = {key: value for key, value in engine_params_dict.items() if key in known_fields}
+        filtered_params: dict[str, Any] = {
+            key: value for key, value in engine_params_dict.items() if key in known_fields
+        }
         engine_params = EngineParams(**filtered_params) if filtered_params else EngineParams()
     else:
         engine_params = EngineParams()
@@ -329,7 +333,7 @@ async def create_skill_agent(
         engine_params=engine_params,
     )
 
-    final_checkpointer: BaseCheckpointSaver | None = None
+    final_checkpointer: BaseCheckpointSaver[str] | None = None
     if checkpointer is True:
         from langgraph.checkpoint.memory import MemorySaver
 
@@ -342,7 +346,7 @@ async def create_skill_agent(
         final_checkpointer = checkpointer
         logger.info(f" 使用自定义 checkpointer: {type(checkpointer).__name__}")
 
-    final_middlewares: list[AgentMiddleware[object, object]] | None = middlewares
+    final_middlewares: list[AgentMiddleware[Any, Any]] | None = middlewares
     if final_middlewares is None:
         from myrm_agent_harness.agent.middlewares import (
             create_context_pipeline_middleware,
