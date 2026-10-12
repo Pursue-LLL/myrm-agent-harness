@@ -179,12 +179,12 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                             )
                         )
 
-                        result = await deriver.run_derivation(session_id, chat_id, messages)
-                        event_data = result
+                        derivation = await deriver.run_derivation(session_id, chat_id, messages)
+                        event_data = derivation
 
-                        extracted_count = result.get("extracted_count", 0)
-                        has_disruptive_change = result.get("has_disruptive_change", False)
-                        if extracted_count > 0:
+                        extracted_count = derivation.get("extracted_count", 0)
+                        has_disruptive_change = derivation.get("has_disruptive_change", False)
+                        if isinstance(extracted_count, int) and extracted_count > 0:
                             urgency = "notify" if has_disruptive_change else "silent"
                             ui_message = "认知已更新：已牢记您最新指示的沟通偏好。" if has_disruptive_change else ""
 
@@ -238,7 +238,7 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                             subsumed_ids = await find_subsumed_memories(
                                 manager=memory_manager,
                                 new_knowledge=new_knowledge,
-                                llm_func=llm_func,
+                                llm=llm_func,
                                 max_candidates=5,
                             )
 
@@ -310,11 +310,7 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                                 trajectory = "\n".join([f"[{e.event_type}] {e.data}" for e in events])
 
                                 memory_manager = get_memory_manager()
-                                llm = (
-                                    memory_manager._consolidation_llm.keywords.get("llm")
-                                    if memory_manager and hasattr(memory_manager, "_consolidation_llm")
-                                    else None
-                                )
+                                llm = memory_manager._consolidation_llm if memory_manager else None
 
                                 if llm is None:
                                     logger.warning(
@@ -377,7 +373,8 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                         }
                 elif task.task_type == "context_compaction":
                     event_data = await _run_context_compaction(session_id, task, event_bus)
-                    cost = event_data.get("preheat_cost", 0.0)
+                    preheat_cost = event_data.get("preheat_cost")
+                    cost = float(preheat_cost) if isinstance(preheat_cost, int | float) else 0.0
                 else:
                     logger.warning(f"Unknown task type or no handler registered for: {task.task_type}")
                     await asyncio.sleep(1)

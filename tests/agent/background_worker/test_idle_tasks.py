@@ -2,6 +2,7 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from langchain_core.language_models import BaseChatModel
 
 from myrm_agent_harness.agent.background_worker.idle_tasks import (
     _idle_task_handlers,
@@ -400,7 +401,7 @@ class TestSessionEvidenceExtractionCaptured:
         mock_proposal.proposed_content = "# Skill content\nAlways check return values"
         mock_proposal.score = 0.85
 
-        mock_llm = MagicMock()
+        mock_llm = MagicMock(spec=BaseChatModel)
 
         with (
             patch("myrm_agent_harness.agent.background_worker.idle_tasks.get_maintenance_scheduler") as mock_sched,
@@ -421,8 +422,7 @@ class TestSessionEvidenceExtractionCaptured:
             mock_bus.return_value = MagicMock()
 
             mm = MagicMock()
-            mm._consolidation_llm = MagicMock()
-            mm._consolidation_llm.keywords = {"llm": mock_llm}
+            mm._consolidation_llm = mock_llm
             mock_mm.return_value = mm
 
             backend = AsyncMock()
@@ -538,8 +538,7 @@ class TestSessionEvidenceExtractionCaptured:
             mock_bus.return_value = MagicMock()
 
             mm = MagicMock()
-            mm._consolidation_llm = MagicMock()
-            mm._consolidation_llm.keywords = {"llm": None}
+            mm._consolidation_llm = None
             mock_mm.return_value = mm
 
             backend = AsyncMock()
@@ -566,3 +565,45 @@ class TestSessionEvidenceExtractionCaptured:
 
         assert SkillStore is not None
         assert SkillEvolutionEngine is not None
+
+
+@pytest.mark.asyncio
+async def test_cognitive_subsumption_passes_consolidation_llm_by_signature() -> None:
+    """The idle handler must call find_subsumed_memories with its real ``llm`` parameter."""
+    registry = AsyncMock(spec=IdleTaskRegistry)
+    registry.acquire_next.return_value = IdleTaskRecord(
+        id=30,
+        session_id="global",
+        task_type="cognitive_subsumption",
+        payload={"new_knowledge": "evolved skill body", "skill_id": "skill_1"},
+        status="running",
+        created_at=0.0,
+    )
+    consolidation_llm = MagicMock(spec=BaseChatModel)
+
+    with (
+        patch("myrm_agent_harness.agent.background_worker.idle_tasks.get_maintenance_scheduler") as mock_sched,
+        patch("myrm_agent_harness.agent.background_worker.idle_tasks.get_event_bus") as mock_bus,
+        patch("myrm_agent_harness.agent.background_worker.idle_tasks.get_memory_manager") as mock_mm,
+        patch(
+            "myrm_agent_harness.toolkits.memory.strategies.subsumption.find_subsumed_memories",
+            autospec=True,
+            return_value=[],
+        ) as mock_find,
+        patch("asyncio.sleep", new_callable=AsyncMock),
+    ):
+        scheduler = AsyncMock()
+        scheduler.report_outcome = MagicMock()
+        scheduler.request_capacity.return_value = CapacityTicket(ticket_id="t_sub", task_type="cognitive_subsumption")
+        mock_sched.return_value = scheduler
+        mock_bus.return_value = MagicMock()
+        manager = MagicMock()
+        manager._consolidation_llm = consolidation_llm
+        mock_mm.return_value = manager
+
+        await default_idle_callback("global", registry)
+
+    mock_find.assert_awaited_once()
+    assert mock_find.await_args.kwargs["llm"] is consolidation_llm
+    registry.mark_completed.assert_awaited_once()
+    registry.mark_error.assert_not_awaited()

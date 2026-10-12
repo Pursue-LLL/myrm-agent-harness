@@ -42,6 +42,8 @@ from myrm_agent_harness.toolkits.code_execution.executors.base import (
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
+    from myrm_agent_harness.toolkits.code_execution.executors.base import CodeExecutor
+
 logger = logging.getLogger(__name__)
 
 __all__ = [
@@ -174,7 +176,7 @@ async def restricted_shadow_context(
     """
     _ensure_silent_filter()
 
-    executor_token: Token | None = None
+    executor_token: Token[CodeExecutor | None] | None = None
     silent_token: Token[bool] | None = None
     shadow_token: Token[bool] | None = None
 

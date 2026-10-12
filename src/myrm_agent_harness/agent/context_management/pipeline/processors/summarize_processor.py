@@ -29,6 +29,7 @@ Design:
 - agent.context_management.infra.schemas::DEFAULT_CONTEXT_CONFIG (POS: Planner Schema Definitions)
 - agent.context_management.infra.schemas::CANCEL_COMPACTION_METADATA_KEY, PRE_COMPACT_REPLACEMENT_SUMMARY_METADATA_KEY (POS: 预压缩三态短路与外部摘要直充契约)
 - agent.context_management.infra.compactor_guard::CompactorPreflightFence (POS: Compactor preflight guard fence preventing ContextLengthExceeded)
+- utils.chat_utils::extract_text_content (POS: 多模态消息可见文本提取，图片块不进入文本降级摘要)
 
 [OUTPUT]
 - SummarizeProcessor: class — 结构化会话摘要处理器(支持LLM生成/外部直充/确定性降级)
