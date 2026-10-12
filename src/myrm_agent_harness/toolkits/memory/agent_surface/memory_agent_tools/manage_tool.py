@@ -1,7 +1,9 @@
 """memory_manage_tool: update / delete / correct / rate / discard existing memories.
 
 [INPUT]
+- toolkits.memory.agent_surface.memory_agent_tools.common::CATEGORY_TO_TYPE (POS: Stateless helpers for memory_search/save/manage tool arguments)
 - toolkits.memory.manager::MemoryManager (POS: memory lifecycle manager; protected memories are never touched by the agent)
+- toolkits.memory.types::MemoryType (POS: memory type enum)
 - toolkits.memory.agent_surface.write_failure_feedback (POS: LLM-readable write failure messages)
 
 [OUTPUT]

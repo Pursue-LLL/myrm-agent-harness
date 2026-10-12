@@ -1,8 +1,8 @@
 """Agent memory tools: search, save, manage.
 
 [INPUT]
-- factory (POS: assembles the three tools)
-- common (POS: category mapping shared with the search and manage tools)
+- toolkits.memory.agent_surface.memory_agent_tools.factory::create_memory_tools (POS: Agent memory tools factory)
+- toolkits.memory.agent_surface.memory_agent_tools.common::CATEGORY_TO_TYPE (POS: Stateless helpers for memory_search/save/manage tool arguments)
 
 [OUTPUT]
 - create_memory_tools: Create memory_search_tool, memory_save_tool, memory_manage_tool.

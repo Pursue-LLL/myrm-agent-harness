@@ -1,8 +1,8 @@
 """Memory MCP Server Adapter.
 
 [INPUT]
-- server (POS: MemoryMCPServer and its factory)
-- request_context (POS: per-request manager / wiki boundary scoping)
+- toolkits.memory.agent_surface.mcp_server.server::{MemoryMCPServer, create_memory_mcp_server} (POS: MCP server adapter that lets external AI agents access the memory system via the standard MCP protocol)
+- toolkits.memory.agent_surface.mcp_server.request_context (POS: ContextVar bindings for per-request manager and wiki boundary scoping)
 
 [OUTPUT]
 - MemoryMCPServer: MCP server adapter exposing memory tools
@@ -11,8 +11,8 @@
 - set_request_wiki_boundary_enabled / reset_request_wiki_boundary_enabled / get_request_wiki_boundary_enabled: Per-request wiki guard flag
 
 [POS]
-Facade of the memory MCP adapter package: wraps MemoryManager as an MCP server exposing
-memory_recall, memory_list, memory_store and memory_manage to external agents.
+MCP server adapter that lets external AI agents access the memory system via the standard MCP protocol;
+facade of the package exposing memory_recall, memory_list, memory_store and memory_manage.
 """
 
 from myrm_agent_harness.toolkits.memory.agent_surface.mcp_server.request_context import (

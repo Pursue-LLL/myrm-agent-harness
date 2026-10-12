@@ -1,9 +1,10 @@
 """memory_recall MCP tool: semantic search with category / time / profile filters.
 
 [INPUT]
+- toolkits.memory.agent_surface.mcp_server.common::{CATEGORY_TO_TYPE, ManagerResolver, parse_string_list} (POS: Stateless helpers for the recall/list/store/manage tool handlers)
+- toolkits.memory.types::{MemorySearchResult, MemoryType, ClaimMemory, SemanticMemory} (POS: memory data models)
 - toolkits.memory.agent_surface.memory_recall_formatting (POS: recall sanitize / label / footer SSOT)
 - toolkits.memory.agent_surface.memory_recall_budget (POS: recall output budget guardrails)
-- toolkits.memory.types::MemorySearchResult (POS: ranked search hit)
 
 [OUTPUT]
 - register_recall_tool: register memory_recall on an MCPServer

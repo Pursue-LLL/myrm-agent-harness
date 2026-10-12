@@ -2,11 +2,9 @@
 
 ## Overview
 
-LangChain tools the agent uses to read and write memory: `memory_search_tool` (unified read plane
-over memory / wiki / sessions), `memory_save_tool` and `memory_manage_tool`. Each tool is built by
-a `build_*` function bound to one `MemoryManager`; `create_memory_tools` assembles them.
-
-Parent index: [../_ARCH.md](../_ARCH.md). System design: [../../MEMORY_SYSTEM.md](../../MEMORY_SYSTEM.md).
+LangChain tools the agent uses to read and write memory: `memory_search_tool` (memory / wiki / sessions),
+`memory_save_tool` and `memory_manage_tool`, each built by a `build_*` function bound to one `MemoryManager`.
+`create_memory_tools` assembles them. Detailed design: [MEMORY_SYSTEM.md](../../MEMORY_SYSTEM.md).
 
 ## File Index
 

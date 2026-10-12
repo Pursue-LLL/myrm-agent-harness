@@ -1,10 +1,14 @@
 """memory_store MCP tool: persist knowledge / event / preference / rule / instruction memories.
 
 [INPUT]
+- toolkits.memory.agent_surface.mcp_server.common::{ManagerResolver, parse_string_list} (POS: Stateless helpers for the recall/list/store/manage tool handlers)
+- toolkits.memory.agent_surface.mcp_server.request_context::get_request_wiki_boundary_enabled (POS: ContextVar bindings for per-request scoping)
+- toolkits.memory.manager::MemoryManager (POS: memory lifecycle manager; routes writes through the approval queue when approval_required)
+- toolkits.memory._internal.scope::MemoryWriteTarget (POS: bound / shared write target)
+- toolkits.memory.types::RuleSource (POS: rule provenance enum)
+- toolkits.memory.agent_surface.memory_recall_formatting::format_preference_save_ack (POS: recall sanitize and save-ack SSOT)
 - toolkits.memory.agent_surface.wiki_memory_boundary (POS: wiki-memory write boundary heuristics)
 - toolkits.memory.agent_surface.write_failure_feedback (POS: LLM-readable write failure messages)
-- toolkits.memory.agent_surface.mcp_server.request_context (POS: per-request wiki boundary flag)
-- toolkits.memory.manager::MemoryManager (POS: memory lifecycle manager; routes writes through the approval queue when approval_required)
 
 [OUTPUT]
 - register_store_tool: register memory_store on an MCPServer
@@ -15,10 +19,11 @@ Write plane (create) of the MCP adapter; external agents write straight to the m
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 from mcp.server.mcpserver import MCPServer
 
+from myrm_agent_harness.toolkits.memory._internal.scope import MemoryWriteTarget
 from myrm_agent_harness.toolkits.memory.agent_surface.mcp_server.common import ManagerResolver, parse_string_list
 from myrm_agent_harness.toolkits.memory.agent_surface.mcp_server.request_context import (
     get_request_wiki_boundary_enabled,
@@ -35,12 +40,10 @@ from myrm_agent_harness.toolkits.memory.types import RuleSource
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 
-type WriteTarget = Literal["bound", "shared"]
-
 _VALID_CATEGORIES = ("knowledge", "event", "preference", "rule", "instruction")
 
 
-def _parse_write_target(value: str) -> WriteTarget | None:
+def _parse_write_target(value: str) -> MemoryWriteTarget | None:
     if value == "bound":
         return "bound"
     if value == "shared":
@@ -58,7 +61,7 @@ async def _store_knowledge(
     *,
     importance: float,
     tags: list[str],
-    write_target: WriteTarget,
+    write_target: MemoryWriteTarget,
     pending: bool,
 ) -> str:
     if not mgr.has_vector:
@@ -67,7 +70,7 @@ async def _store_knowledge(
     return f"Knowledge {_outcome(pending)} (ID: {mem.id})"
 
 
-async def _store_event(mgr: MemoryManager, content: str, *, write_target: WriteTarget, pending: bool) -> str:
+async def _store_event(mgr: MemoryManager, content: str, *, write_target: MemoryWriteTarget, pending: bool) -> str:
     if not mgr.has_vector:
         return "Event memory is not enabled."
     mem = await mgr.add_event(content, event_type="agent_observation", write_target=write_target)
@@ -179,6 +182,8 @@ def register_store_tool(mcp: MCPServer, resolve: ManagerResolver, *, description
                     keywords=parsed_keywords,
                     pending=pending,
                 )
-            return await _store_instruction(mgr, content, priority=rule_priority, pending=pending)
+            if category == "instruction":
+                return await _store_instruction(mgr, content, priority=rule_priority, pending=pending)
+            return f"Unknown category: {category}"
         except Exception as e:
             return write_failure_feedback("MCP memory_store", e, fallback="Failed to store memory")

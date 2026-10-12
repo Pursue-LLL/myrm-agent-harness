@@ -107,6 +107,4 @@ class McpServerInfo(BaseModel):
         default_factory=lambda: ["ai-memory-v1", "claude-code", "cursor-ide"],
         description="List of compatible tool and client protocols",
     )
-    tools_exposed: list[str] = Field(
-        default_factory=list, description="List of registered MCP tool names"
-    )
+    tools_exposed: list[str] = Field(default_factory=list, description="List of registered MCP tool names")

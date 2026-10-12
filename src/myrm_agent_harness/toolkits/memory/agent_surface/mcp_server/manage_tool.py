@@ -1,8 +1,10 @@
 """memory_manage MCP tool: update / delete / correct / rate existing memories.
 
 [INPUT]
+- toolkits.memory.agent_surface.mcp_server.common::{CATEGORY_TO_TYPE, ManagerResolver} (POS: Stateless helpers for the recall/list/store/manage tool handlers)
+- toolkits.memory.manager::MemoryManager (POS: memory lifecycle manager; protected memories are never touched by external agents)
+- toolkits.memory.types::MemoryType (POS: memory type enum)
 - toolkits.memory.agent_surface.write_failure_feedback (POS: LLM-readable write failure messages)
-- toolkits.memory.manager::MemoryManager (POS: memory lifecycle manager; protected memories are never touched by external agents, TYPE_CHECKING only)
 
 [OUTPUT]
 - register_manage_tool: register memory_manage on an MCPServer
@@ -60,15 +62,18 @@ async def _delete(mgr: MemoryManager, mem_type: MemoryType, category: str, memor
     if mem_type == MemoryType.PROFILE:
         return "Profile attributes cannot be deleted via memory_manage."
 
-    if not mgr.has_relational:
-        return "Procedural memory is not enabled."
-    if await mgr.delete_rule(memory_id, allow_protected=False):
-        return f"Rule deleted (ID: {memory_id})"
-    return (
-        f"Cannot delete rule (ID: {memory_id}): "
-        "it may be user-protected or not found. Rules the user explicitly "
-        "locked cannot be deleted by the agent."
-    )
+    if mem_type == MemoryType.PROCEDURAL:
+        if not mgr.has_relational:
+            return "Procedural memory is not enabled."
+        if await mgr.delete_rule(memory_id, allow_protected=False):
+            return f"Rule deleted (ID: {memory_id})"
+        return (
+            f"Cannot delete rule (ID: {memory_id}): "
+            "it may be user-protected or not found. Rules the user explicitly "
+            "locked cannot be deleted by the agent."
+        )
+
+    return "Unknown action: delete"
 
 
 async def _update(mgr: MemoryManager, memory_id: str, new_content: str | None, new_importance: float | None) -> str:
@@ -131,7 +136,9 @@ def register_manage_tool(mcp: MCPServer, resolve: ManagerResolver, *, descriptio
                 return await _delete(mgr, mem_type, category, memory_id)
             if action == "update":
                 return await _update(mgr, memory_id, new_content, new_importance)
-            return await _correct(mgr, mem_type, memory_id, new_content)
+            if action == "correct":
+                return await _correct(mgr, mem_type, memory_id, new_content)
+            return f"Unknown action: {action}"
         except Exception as e:
             return write_failure_feedback(
                 "MCP memory_manage", e, fallback="Failed to manage memory", memory_id=memory_id

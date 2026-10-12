@@ -1,18 +1,21 @@
 """Memory MCP server adapter.
 
 [INPUT]
-- toolkits.memory.manager::MemoryManager (POS: unified memory manager)
+- toolkits.memory.agent_surface.mcp_server.recall_tool::register_recall_tool (POS: Read plane of the MCP adapter)
+- toolkits.memory.agent_surface.mcp_server.list_tool::register_list_tool (POS: Browsing counterpart of memory_recall for auditing and cleanup)
+- toolkits.memory.agent_surface.mcp_server.store_tool::register_store_tool (POS: Write plane (create) of the MCP adapter)
+- toolkits.memory.agent_surface.mcp_server.manage_tool::register_manage_tool (POS: Write plane (modify / remove) of the MCP adapter)
+- toolkits.memory.agent_surface.mcp_server.request_context::get_request_memory_manager (POS: ContextVar bindings for per-request scoping)
 - toolkits.memory.agent_surface._memory_agent_tool_descriptions (POS: LLM-visible memory tool description SSOT)
-- toolkits.memory.agent_surface.mcp_server.{recall,list,store,manage}_tool (POS: per-tool registration)
-- toolkits.memory.agent_surface.mcp_server.request_context (POS: per-request manager scoping)
+- toolkits.memory.manager::MemoryManager (POS: memory lifecycle manager)
 
 [OUTPUT]
 - MemoryMCPServer: MCP server adapter exposing memory tools
 - create_memory_mcp_server: Factory function
 
 [POS]
-Wraps MemoryManager as an MCP server so external agents (Claude Code, Cursor, Codex) reach the
-memory system over the standard MCP protocol. Four tools: recall (semantic search with
+MCP server adapter that lets external AI agents (Claude Code, Cursor, Codex) access the memory system
+via the standard MCP protocol by wrapping MemoryManager. Four tools: recall (semantic search with
 categories/time/profile), list (enumeration and audit), store (5 categories) and manage
 (update/delete/correct/rate). `memory_store` and `memory_manage` descriptions come from the
 `_memory_agent_tool_descriptions` SSOT with `surface="mcp"`; recall/list descriptions are MCP-specific.

@@ -1,9 +1,11 @@
 """memory_list MCP tool: query-free enumeration and audit of stored memories.
 
 [INPUT]
+- toolkits.memory.agent_surface.mcp_server.common::{CATEGORY_TO_TYPE, ManagerResolver} (POS: Stateless helpers for the recall/list/store/manage tool handlers)
+- toolkits.memory.manager::MemoryManager (POS: memory lifecycle manager)
+- toolkits.memory.types::MemoryType (POS: memory type enum)
 - toolkits.memory.agent_surface.memory_recall_formatting (POS: recall sanitize / age label / footer SSOT)
 - toolkits.memory.agent_surface.memory_recall_budget (POS: recall output budget guardrails)
-- toolkits.memory.manager::MemoryManager (POS: memory lifecycle manager, TYPE_CHECKING only)
 
 [OUTPUT]
 - register_list_tool: register memory_list on an MCPServer

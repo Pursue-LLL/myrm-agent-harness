@@ -1,6 +1,9 @@
 """Factory assembling the three agent memory tools.
 
 [INPUT]
+- toolkits.memory.agent_surface.memory_agent_tools.search_tool::build_memory_search_tool (POS: Read plane of the agent memory tools)
+- toolkits.memory.agent_surface.memory_agent_tools.save_tool::build_memory_save_tool (POS: Write plane (create) of the agent memory tools)
+- toolkits.memory.agent_surface.memory_agent_tools.manage_tool::build_memory_manage_tool (POS: Write plane (modify / remove) of the agent memory tools)
 - toolkits.memory.manager::MemoryManager (POS: memory lifecycle manager)
 - toolkits.memory.config::RecallMode (POS: tool visibility mode)
 - toolkits.memory.agent_surface._memory_agent_tool_descriptions (POS: LLM-visible memory tool description SSOT)
@@ -10,8 +13,8 @@
 - create_memory_tools: Create memory_search_tool, memory_save_tool, memory_manage_tool.
 
 [POS]
-Framework-level: depends only on MemoryManager (protocol-based); the server binds wiki and
-conversation providers through MemorySearchBackends.
+Agent memory tools factory. Framework-level: depends only on MemoryManager (protocol-based); the server
+binds wiki and conversation providers through MemorySearchBackends.
 """
 
 from __future__ import annotations

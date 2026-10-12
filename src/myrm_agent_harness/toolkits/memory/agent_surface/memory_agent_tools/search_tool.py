@@ -1,6 +1,7 @@
 """memory_search_tool: unified read plane over memory / wiki / sessions.
 
 [INPUT]
+- toolkits.memory.agent_surface.memory_agent_tools.common::{CATEGORY_TO_TYPE, parse_string_list} (POS: Stateless helpers for memory_search/save/manage tool arguments)
 - toolkits.memory.manager::MemoryManager (POS: memory lifecycle manager)
 - toolkits.memory.agent_surface.memory_search_policy (POS: corpus ACL and optional wiki/sessions backends)
 - toolkits.memory.agent_surface.memory_search_execution (POS: memory/wiki/sessions search execution helpers)
@@ -11,7 +12,7 @@
 - build_memory_search_tool: bind memory_search_tool to a manager, corpus policy and backends
 
 [POS]
-Read plane of the agent memory tools; write plane lives in save_tool / manage_tool.
+Read plane of the agent memory tools: unified search over memory, wiki and sessions; the write plane lives in save_tool / manage_tool.
 """
 
 from __future__ import annotations
@@ -51,6 +52,13 @@ from myrm_agent_harness.toolkits.memory.agent_surface.tool_result_sources import
     unpack_corpus_tool_result,
 )
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
+
+# A single-corpus search returns its section without the corpus heading.
+_SECTION_HEADINGS: dict[MemorySearchCorpus, str] = {
+    "memory": "## Memory\n",
+    "wiki": "## Wiki\n",
+    "sessions": "## Sessions\n",
+}
 
 
 def build_memory_search_tool(
@@ -126,7 +134,7 @@ def build_memory_search_tool(
                     detail_level=detail_level,
                     domain=domain,
                 )
-                sections.append(f"## Memory\n{memory_text}")
+                sections.append(f"{_SECTION_HEADINGS['memory']}{memory_text}")
             elif target == "wiki":
                 wiki_result = await search_wiki_corpus(
                     backends,
@@ -135,7 +143,7 @@ def build_memory_search_tool(
                 )
                 wiki_text, wiki_sources = unpack_corpus_tool_result(wiki_result)
                 aggregated_sources.extend(wiki_sources)
-                sections.append(f"## Wiki\n{wiki_text}")
+                sections.append(f"{_SECTION_HEADINGS['wiki']}{wiki_text}")
             elif target == "sessions":
                 if expand_message_id and not expand_conversation_id:
                     return "expand_message_id requires expand_conversation_id when corpus=sessions."
@@ -152,20 +160,10 @@ def build_memory_search_tool(
                 )
                 session_text, session_sources = unpack_corpus_tool_result(session_result)
                 aggregated_sources.extend(session_sources)
-                sections.append(f"## Sessions\n{session_text}")
+                sections.append(f"{_SECTION_HEADINGS['sessions']}{session_text}")
 
         if len(sections) == 1 and corpus != "all":
-            single = sections[0]
-            _prefix_map: dict[MemorySearchCorpus, str] = {
-                "memory": "## Memory\n",
-                "wiki": "## Wiki\n",
-                "sessions": "## Sessions\n",
-            }
-            prefix = _prefix_map.get(corpus, "")
-            if prefix and single.startswith(prefix):
-                content = single[len(prefix) :]
-            else:
-                content = single
+            content = sections[0].removeprefix(_SECTION_HEADINGS.get(corpus, ""))
         else:
             content = "\n\n".join(sections)
         if aggregated_sources:

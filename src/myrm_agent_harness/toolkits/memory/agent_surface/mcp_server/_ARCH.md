@@ -2,13 +2,9 @@
 
 ## Overview
 
-MCP adapter that exposes `MemoryManager` to external agents (Claude Code, Cursor, Codex) as four
-tools: `memory_recall`, `memory_list`, `memory_store`, `memory_manage`. `MemoryMCPServer` registers
-one tool per module; the manager is resolved per request (ContextVar binding → optional resolver →
-default manager). Recalled bodies are sanitized and followed by a static untrusted advisory.
-
-Distinct from [../mcp/](../mcp/_ARCH.md) (ai-memory wire-format interoperability gateway).
-Parent index: [../_ARCH.md](../_ARCH.md). System design: [../../MEMORY_SYSTEM.md](../../MEMORY_SYSTEM.md).
+MCP adapter exposing `MemoryManager` to external agents as `memory_recall`, `memory_list`, `memory_store` and
+`memory_manage`; the manager is resolved per request (ContextVar → resolver → default). Not the ai-memory
+wire gateway in [../mcp/](../mcp/_ARCH.md). Detailed design: [MEMORY_SYSTEM.md](../../MEMORY_SYSTEM.md).
 
 ## File Index
 

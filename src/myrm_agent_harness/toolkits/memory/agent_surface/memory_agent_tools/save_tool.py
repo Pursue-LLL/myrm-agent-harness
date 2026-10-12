@@ -1,9 +1,13 @@
 """memory_save_tool: persist knowledge / event / preference / rule / instruction memories.
 
 [INPUT]
+- toolkits.memory.agent_surface.memory_agent_tools.common::parse_string_list (POS: Stateless helpers for memory_search/save/manage tool arguments)
 - toolkits.memory.manager::MemoryManager (POS: memory lifecycle manager; routes writes through the approval queue when approval_required)
 - toolkits.memory.session::MemorySession (POS: per-conversation write buffer flushed at session end)
+- toolkits.memory._internal.scope::MemoryWriteTarget (POS: bound / shared write target)
+- toolkits.memory.types::RuleSource (POS: rule provenance enum)
 - toolkits.memory.agent_surface.memory_search_policy::MemorySearchPolicy (POS: wiki / shared-write ACL)
+- toolkits.memory.agent_surface.memory_recall_formatting::format_preference_save_ack (POS: recall sanitize and save-ack SSOT)
 - toolkits.memory.agent_surface.wiki_memory_boundary / transient_fact_boundary (POS: pre-write rejection heuristics)
 - toolkits.memory.agent_surface.write_failure_feedback (POS: LLM-readable write failure messages)
 
@@ -23,6 +27,7 @@ from typing import Literal
 from langchain_core.tools import BaseTool, tool
 from pydantic import BaseModel, Field
 
+from myrm_agent_harness.toolkits.memory._internal.scope import MemoryWriteTarget
 from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools.common import parse_string_list
 from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting import format_preference_save_ack
 from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import MemorySearchPolicy
@@ -41,8 +46,6 @@ from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.session import MemorySession
 from myrm_agent_harness.toolkits.memory.types import RuleSource
 
-WriteTarget = Literal["bound", "shared"]
-
 
 class MemorySaveInput(BaseModel):
     content: str = Field(description="Declarative fact text; concise and standalone.")
@@ -58,7 +61,7 @@ class MemorySaveInput(BaseModel):
         default=None,
         description='Filter labels; knowledge category only (e.g. ["python", "auth"]).',
     )
-    write_target: WriteTarget = Field(
+    write_target: MemoryWriteTarget = Field(
         default="bound",
         description="bound (default) or shared cross-agent facts — use shared sparingly.",
     )
@@ -88,7 +91,7 @@ class _SaveContext:
     session: MemorySession | None
     pending: bool
     content: str
-    write_target: WriteTarget
+    write_target: MemoryWriteTarget
 
     @property
     def outcome(self) -> str:
@@ -209,7 +212,7 @@ def build_memory_save_tool(
         category: Literal["knowledge", "event", "preference", "rule", "instruction"] = "knowledge",
         importance: float = 0.5,
         tags: list[str] | str | None = None,
-        write_target: WriteTarget = "bound",
+        write_target: MemoryWriteTarget = "bound",
         preference_key: str | None = None,
         rule_trigger: str | None = None,
         rule_priority: int = 0,
@@ -227,7 +230,7 @@ def build_memory_save_tool(
             record_transient_fact_rejection()
             return transient_fact_save_rejection_message()
 
-        effective_write_target: WriteTarget = write_target
+        effective_write_target: MemoryWriteTarget = write_target
         if not policy.allow_shared_write and write_target == "shared":
             effective_write_target = "bound"
 
