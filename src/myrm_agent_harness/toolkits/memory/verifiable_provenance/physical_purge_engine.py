@@ -32,15 +32,11 @@ class PhysicalPurgeDestructionEngine:
         file_path: Path,
         context: TenantSandboxContext,
     ) -> DestructionReceipt:
-        """Physically overwrite and destroy target storage file, generating an immutable receipt."""
+        """Physically overwrite and destroy target storage file or directory, generating an immutable receipt."""
         resolved = file_path.resolve()
-        if not resolved.exists():
-            raise FileNotFoundError(f"Cannot purge non-existent target: {resolved}")
-
-        file_size = resolved.stat().st_size
         receipt_id = f"rcpt-{uuid.uuid4().hex[:12]}"
 
-        # Helper to execute multi-pass overwrite and unlink on a single target
+        # Helper to execute multi-pass overwrite and unlink on a single target file
         def _purge_single_file(target: Path) -> int:
             if not target.exists() or not target.is_file():
                 return 0
@@ -79,7 +75,56 @@ class PhysicalPurgeDestructionEngine:
                 pass
             return written
 
-        # 1. Overwrite primary target file
+        # Idempotent guard: if target already destroyed, return compliant verified receipt
+        if not resolved.exists():
+            return DestructionReceipt(
+                receipt_id=receipt_id,
+                tenant_id=context.tenant_id,
+                sandbox_id=context.sandbox_id,
+                volume_id=context.volume_id,
+                purged_storage_path=str(resolved),
+                bytes_overwritten=0,
+                overwrite_passes=self._overwrite_passes,
+                status=PurgeVerificationStatus.VERIFIED_DESTROYED,
+                destruction_digest="already_purged_idempotent",
+            )
+
+        # Handle directory-level recursive purge (e.g. Qdrant vector index storage directories)
+        if resolved.is_dir():
+            bytes_written = 0
+            for root_dir, dirs, files in os.walk(resolved, topdown=False):
+                for f_name in files:
+                    file_item = Path(root_dir) / f_name
+                    bytes_written += _purge_single_file(file_item)
+                for d_name in dirs:
+                    sub_dir = Path(root_dir) / d_name
+                    try:
+                        sub_dir.rmdir()
+                    except OSError:
+                        pass
+            try:
+                resolved.rmdir()
+                status = PurgeVerificationStatus.VERIFIED_DESTROYED
+            except OSError:
+                status = PurgeVerificationStatus.REWRITE_FAILED
+
+            digest_input = f"dir_purged_{receipt_id}_{bytes_written}".encode()
+            destruction_digest = hashlib.sha256(digest_input).hexdigest()
+
+            return DestructionReceipt(
+                receipt_id=receipt_id,
+                tenant_id=context.tenant_id,
+                sandbox_id=context.sandbox_id,
+                volume_id=context.volume_id,
+                purged_storage_path=str(resolved),
+                bytes_overwritten=bytes_written,
+                overwrite_passes=self._overwrite_passes,
+                status=status,
+                destruction_digest=destruction_digest,
+            )
+
+        # Handle single primary target file
+        file_size = resolved.stat().st_size
         bytes_written = 0
         with resolved.open("r+b") as target_file:
             for p in range(self._overwrite_passes):
@@ -115,7 +160,7 @@ class PhysicalPurgeDestructionEngine:
         except OSError:
             status = PurgeVerificationStatus.REWRITE_FAILED
 
-        # 2. Cascaded purge of SQLite auxiliary companion files (-wal, -shm, -journal)
+        # Cascaded purge of SQLite auxiliary companion files (-wal, -shm, -journal)
         for suffix in ("-wal", "-shm", "-journal"):
             companion = resolved.parent / f"{resolved.name}{suffix}"
             bytes_written += _purge_single_file(companion)

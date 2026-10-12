@@ -250,3 +250,56 @@ def test_fail_closed_guard_symlink_escape_confinement(
             manager.verify_and_prove_residency(symlink_inside, ctx)
         assert "escapes sandbox volume boundary" in str(exc_info.value)
 
+
+def test_physical_purge_directory_recursive_shredding(
+    manager: VerifiableProvenanceManager,
+    temp_volume_root: Path,
+) -> None:
+    """Verify that a multi-level vector storage directory is recursively overwritten and destroyed."""
+    vector_dir = temp_volume_root / "qdrant_vector_store"
+    sub_dir = vector_dir / "segments" / "segment_001"
+    sub_dir.mkdir(parents=True, exist_ok=True)
+
+    bin_file = sub_dir / "vectors.bin"
+    payload_file = sub_dir / "payload.json"
+    bin_file.write_bytes(b"\x01\x02\x03\x04" * 128)
+    payload_file.write_text('{"user_id": "test_user", "memory": "confidential_vector_payload"}')
+
+    valid_token = manager.guard.generate_token("tenant-dir", "sb-dir-1", "vol-dir-1")
+    ctx = TenantSandboxContext(
+        tenant_id="tenant-dir",
+        sandbox_id="sb-dir-1",
+        volume_id="vol-dir-1",
+        environment_token=valid_token,
+    )
+
+    receipt = manager.verify_and_purge_storage(vector_dir, ctx)
+    assert receipt.status == PurgeVerificationStatus.VERIFIED_DESTROYED
+    assert receipt.bytes_overwritten > 0
+    assert not vector_dir.exists()
+    assert not sub_dir.exists()
+    assert not bin_file.exists()
+    assert not payload_file.exists()
+
+
+def test_physical_purge_idempotent_nonexistent_target(
+    manager: VerifiableProvenanceManager,
+    temp_volume_root: Path,
+) -> None:
+    """Verify that purging an already deleted or non-existent target returns a valid receipt idempotently."""
+    ghost_path = temp_volume_root / "already_destroyed_target.db"
+
+    valid_token = manager.guard.generate_token("tenant-idem", "sb-idem-1", "vol-idem-1")
+    ctx = TenantSandboxContext(
+        tenant_id="tenant-idem",
+        sandbox_id="sb-idem-1",
+        volume_id="vol-idem-1",
+        environment_token=valid_token,
+    )
+
+    receipt = manager.verify_and_purge_storage(ghost_path, ctx)
+    assert receipt.status == PurgeVerificationStatus.VERIFIED_DESTROYED
+    assert receipt.bytes_overwritten == 0
+    assert receipt.destruction_digest == "already_purged_idempotent"
+
+
