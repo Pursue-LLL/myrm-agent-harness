@@ -20,7 +20,6 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | _assistant_retrieval.py  | Internal | Two-Pass Assistant Retrieval for assistant-reference queries (MemPalace enhancement).                         | ✅    |
 | adaptive.py              | Core     | Adaptive dual-channel selection logic. Analyzes query characteristics (token count,                           | ✅    |
 | backup.py                | Core     | Provides BackupMetadata, BackupResult, RestoreResult.                                                         | ✅    |
-| cards.py                 | Core     | A-MEM card-box (Zettelkasten) network. Evidence-conclusion decoupling with EvidenceReference binding, bidirectional graph indexing (incoming_links), immutable evolution chain with lineage tracing, and knowledge subgraph traversal. | ✅    |
 | compression.py           | Core     | Transparent payload compression and external BLOB storage for ConversationMemory raw_exchange fields.         | ✅    |
 | consolidation.py         | Core     | Hyper Consolidation Memory Block: 会话终态将工作记忆提取为 ProceduralMemory（自愈避坑规程，内置纯净性守卫过滤先验与未解决假说）与镜像为 EpisodicMemory 的 TaskDigest 资产并持久落盘。 | ✅    |
 | cube.py                  | Core     | 统一异构记忆 MemCubeEnvelope 泛型容器、LifecycleTier 与 StoragePolicy 定义，提供 SHA256 验签防篡改与活跃度保真能力。 | ✅    |
@@ -31,7 +30,6 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | hermes_bridge.py         | Core     | Hermes & OpenViking zero-friction memory migration parser and bridge for Markdown/JSON imports.              | ✅    |
 | intent_recognizers.py    | Core     | Query intent recognition and deterministic sub-graph router (5 query intents, ReDoS safety, zero-token cost). | ✅    |
 | metrics.py               | Core     | Memory search quality metrics — lightweight, thread-safe counters.                                            | ✅    |
-| mirror.py                | Core     | In-process dual-tier Hot/Cold memory cache with debounced asynchronous cold SQLite mirroring, starvation-proof hard timeout, failure rollback retry, and single-direction isolation. | ✅    |
 | observability.py         | Core     | Business-neutral memory operation, influence, retrieval trace (with typed stream warning codes), memory-space DTOs, and MemoryOperationSink protocol for app-layer dashboards and logs. | ✅    |
 | query_analyzer.py        | Core     | Bilingual (EN/CN) query pattern recognition for temporal markers, person names, quoted phrases, preference queries, and assistant reference detection. Integrated into main retrieval path via search_service. | ✅    |
 | query_sanitizer.py       | Core     | Agent Memory query preprocessing layer.                                                                       | ✅    |
@@ -61,7 +59,6 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | strategies/ | Optional memory strategies: forgetting, extraction, deduplication, consolidation, preference stability, recurrence-triggered consolidation, staleness review, and `four_layer_promotion` (Map-Reduce consolidation, tri-channel code assertions, and E->M->B anti-poisoning audit). |
 | proactive/ | Proactive follow-up track — LLM implicit commitment extraction, `CommitmentStore` protocol, heartbeat delivery. See [COMMITMENT_SYSTEM.md](proactive/COMMITMENT_SYSTEM.md). |
 | working_tree/ | ReTree topological self-correcting tree working memory engine, evidence DAG container, two-stage contradiction detector, and cascading backtracking repair engine. See [working_tree/_ARCH.md](working_tree/_ARCH.md). |
-| governance/ | Unified four-dimensional memory governance engine (ProfileSlots, EventTimeline, DynamicFacts with 4-state reconciliation & TTL, bounded 2-hop SQLite CTE entity graph). See [governance/_ARCH.md](governance/_ARCH.md). |
 | file_sync/ | Local-First Markdown File-as-Memory sync subsystem (LenientMarkdownParser, FileMemoryStore, MemoryAnchorFormatter, FileMemorySyncEngine). |
 | external_providers/ | Pluggable external memory provider lifecycle & supersedes lineage pack: unified 5-stage contract (prefetch/inject/sync/extract/mirror), single active provider scheduling, 300ms circuit breaking, supersedes version chains, scope isolation, and 3D benchmark suite. See [external_providers/_ARCH.md](external_providers/_ARCH.md). |
 | profile_notes/ | Dual-Layer Profile & Working Notes Memory Budget & Garbage Purge Guard: deterministic intake noise filtering (task progress, ephemeral numbers, error traces), dual-layer routing (USER <= 1375c, MEMORY <= 2200c), and multi-tier capacity watermark governance. |
@@ -107,9 +104,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | ephemeral_delta/ | In-memory, session-scoped transient buffer for prompt-cache-preserving deltas. See [ephemeral_delta/_ARCH.md](ephemeral_delta/_ARCH.md). |
 | experience_injection/ | PostCallHook adapter injecting relevant procedure experiences into skill bodies. See [experience_injection/_ARCH.md](experience_injection/_ARCH.md). |
 | experience_observability/ | Zero-refactor host lifecycle plugin adapter. See [experience_observability/_ARCH.md](experience_observability/_ARCH.md). |
-| fact_supersession/ | Gate evaluating factual contradictions and routing low-confidence candidates into quarantine. See [fact_supersession/_ARCH.md](fact_supersession/_ARCH.md). |
 | failure_retrieval/ | Error fingerprint extractor for failure-triggered session retrieval. See [failure_retrieval/_ARCH.md](failure_retrieval/_ARCH.md). |
-| lifecycle_hotness/ | Compute deterministic 0.0–1.0 hotness score based on access frequency and recency decay. See [lifecycle_hotness/_ARCH.md](lifecycle_hotness/_ARCH.md). |
 | lineage_search/ | Collapses multi-generation compacted or branched session continuations. See [lineage_search/_ARCH.md](lineage_search/_ARCH.md). |
 | markdown_curator/ | Calculates bi-directional deltas between in-memory stores and Markdown mirrors. See [markdown_curator/_ARCH.md](markdown_curator/_ARCH.md). |
 | peer_cognition/ | Self-evolving standing persona card engine and low-token context projector. See [peer_cognition/_ARCH.md](peer_cognition/_ARCH.md). |
@@ -119,7 +114,6 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | queuefs/ | Asynchronous QueueFS engine managing named semantic tasks across sequential DAG stages. See [queuefs/_ARCH.md](queuefs/_ARCH.md). |
 | relational_backtrack/ | Core backtracking engine for cross-session entity and temporal causal recall. See [relational_backtrack/_ARCH.md](relational_backtrack/_ARCH.md). |
 | rule_cascade/ | Hierarchical deterministic rule cascade loader inspired by Claude Code. See [rule_cascade/_ARCH.md](rule_cascade/_ARCH.md). |
-| session_commit/ | Orchestrates two-phase session archival, reliable boundary gating, and memory_diff auditing. See [session_commit/_ARCH.md](session_commit/_ARCH.md). |
 | thinking_sanitizer/ | Sanitizer and egress guard for scrubbing reasoning blocks and drafts. See [thinking_sanitizer/_ARCH.md](thinking_sanitizer/_ARCH.md). |
 | tiered_consensus/ | Manager engine governing tiered memory hierarchy and proposal consensus lifecycle. See [tiered_consensus/_ARCH.md](tiered_consensus/_ARCH.md). |
 | two_layer_dialectic/ | Dual-layer context injection engine preserving LLM Prompt Cache while resolving contradictions. See [two_layer_dialectic/_ARCH.md](two_layer_dialectic/_ARCH.md). |
@@ -132,6 +126,8 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | experience_compounding/ | Experience Compounding and Knowledge Condensation Suite: bounded logarithmic frequency compounding, semantic Golden Rule synthesis with lineage preservation, and obsolete context annealing governor. See [experience_compounding/_ARCH.md](experience_compounding/_ARCH.md). |
 | skill_triad/ | Memory Skill Triad and Physical Scope Isolation Suite: API manual, machine CLI JSON envelope, integration pipeline double-seam verification, length-prefixed isolated scopes, and visible degraded state. See [skill_triad/_ARCH.md](skill_triad/_ARCH.md). |
 | bitemporal_truth_maintenance/ | Bitemporal Truth Maintenance and Causal Inference Filter Suite: valid_at/known_at explicit half-open intervals, SupportDependency DAG, non-destructive retraction, and recursive active support filtering. See [bitemporal_truth_maintenance/_ARCH.md](bitemporal_truth_maintenance/_ARCH.md). |
+| zk_vault_watermark/ | Zero-Knowledge Memory Vault, KEK/DEK envelope crypto, invisible provenance watermarking, and anti-cloning gate suite. See [zk_vault_watermark/_ARCH.md](zk_vault_watermark/_ARCH.md). |
+| verifiable_provenance/ | Verifiable memory physical storage residency proof, strict fail-closed boundary enforcement, and right-to-be-forgotten purge suite. See [verifiable_provenance/_ARCH.md](verifiable_provenance/_ARCH.md). |
 
 ## Key Dependencies
 
