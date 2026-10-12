@@ -147,10 +147,9 @@ class BrowserLaunchError(BrowserPoolError):
 class EngineUnavailableError(BrowserLaunchError):
     """Requested browser engine cannot be used; nothing was launched or closed.
 
-    Raised by pre-flight checks before any session state changes: the optional
-    engine is not installed, or the active browser is an attached real browser
-    that cannot be swapped. Unlike a plain ``BrowserLaunchError`` the session
-    is guaranteed untouched, so the caller can keep working on it.
+    Raised by pre-flight checks (the optional engine is not installed, or the active
+    browser is an attached real browser that cannot be swapped), so unlike a plain
+    ``BrowserLaunchError`` the session is guaranteed untouched.
     """
 
 
@@ -383,7 +382,8 @@ class RefNotFoundError(BrowserToolError):
             else "  (none)"
         )
 
-        current_url = context.get("page_url") if context else None
+        page_url = context.get("page_url") if context else None
+        current_url = page_url if isinstance(page_url, str) else None
         suggestion = self._generate_suggestion(current_url, last_snapshot_url)
 
         message = (

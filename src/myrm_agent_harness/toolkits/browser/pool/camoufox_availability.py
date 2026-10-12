@@ -3,9 +3,11 @@
 Camoufox is an optional Firefox-based escalation engine. The Python package
 alone is not enough: the ~1.2 GB browser build must also be present, and the
 library's default resolver downloads it silently when missing. This module
-answers "can the engine launch right now?" without ever downloading, so the
-launcher, session restart and Doctor all share one verdict and a missing build
-fails fast instead of stalling a request on an implicit install.
+answers "is a usable build installed right now?" without ever downloading, so
+the launcher, session restart and Doctor all share one verdict and a missing
+build fails fast instead of stalling a request on an implicit install. A build
+that is installed but cannot start (for example missing system libraries) is
+not detected here; the launch itself fails and the session rolls back.
 
 [INPUT]
 - camoufox (optional extra [browser]; imported lazily)
@@ -13,8 +15,8 @@ fails fast instead of stalling a request on an implicit install.
 
 [OUTPUT]
 - CAMOUFOX_INSTALL_FIX: operator-facing install instructions (Doctor ``fix``)
-- camoufox_unavailable_reason: ``None`` when launchable, else a short reason
-- require_camoufox_ready: raise ``EngineUnavailableError`` unless launchable
+- camoufox_unavailable_reason: ``None`` when a usable build is installed, else a short reason
+- require_camoufox_ready: raise ``EngineUnavailableError`` unless a usable build is installed
 
 [POS]
 Non-downloading readiness probe for the optional Camoufox engine. Reasons are
@@ -41,7 +43,7 @@ CAMOUFOX_INSTALL_FIX = (
 
 
 def camoufox_unavailable_reason() -> str | None:
-    """Return why Camoufox cannot launch right now, or ``None`` when it can.
+    """Return why no usable Camoufox build is installed, or ``None`` when there is one.
 
     Mirrors the launch-time resolution (``CAMOUFOX_EXECUTABLE_PATH`` first, then
     the installed build) but never triggers a download. Never raises.
@@ -71,7 +73,7 @@ def camoufox_unavailable_reason() -> str | None:
 
 
 def require_camoufox_ready() -> None:
-    """Raise ``EngineUnavailableError`` unless Camoufox can launch right now."""
+    """Raise ``EngineUnavailableError`` unless a usable Camoufox build is installed."""
     reason = camoufox_unavailable_reason()
     if reason is not None:
         logger.warning("Camoufox stealth engine unavailable: %s. %s", reason, CAMOUFOX_INSTALL_FIX)

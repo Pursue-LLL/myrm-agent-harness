@@ -4,13 +4,17 @@
 - navigation::Navigator, snapshot_manager, interactor, extractor (POS: per-tab components)
 - session_persistence::SessionPersistence (POS: auto-save on close)
 - network_logger / network_intelligence (POS: attach on init)
+- ..pool.camoufox_availability::require_camoufox_ready (POS: non-downloading Camoufox readiness gate)
+- ..exceptions::EngineUnavailableError (POS: engine switch refused before any state change)
 
 [OUTPUT]
-- BrowserSessionLifecycleMixin: restart, close, _initialize_components, _require_* helpers
+- BrowserSessionLifecycleMixin: restart (pre-flighted engine switch with rollback), close, _initialize_components, _require_* helpers
 
 [POS]
 Session lifecycle and lazy component wiring for BrowserSession. Navigation mixin
 depends on _initialize_components defined here; keep Lifecycle after Navigation in MRO.
+An engine switch is transactional: refused up front when it cannot apply, and rolled
+back onto the previous engine when the new one fails to launch.
 """
 
 from __future__ import annotations

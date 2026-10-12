@@ -21,7 +21,7 @@ Dedicated to browser instance launching, including:
 5. Auto mode: DevToolsActivePort discovery → probe → connect → fallback to launch
 6. Smart retry strategy (3 retries + exponential backoff)
 7. Zero-config auto-install: detects missing Chromium and installs via patchright with CDN mirror fallback
-8. Camoufox fingerprint persistence: generates full config via launch_options(), saves/reloads via from_options, self-heals corrupted JSON
+8. Camoufox: fingerprint persistence (launch_options(), from_options reload, corrupted-JSON self-heal) and a readiness gate that refuses to start without the browser build, so no implicit ~1.2 GB download runs inside a request
 """
 
 from __future__ import annotations

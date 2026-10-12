@@ -50,3 +50,4 @@ Browser session components.
 ## Key Dependencies
 
 - `core`
+- `toolkits/browser/pool` (`BrowserEngine`, engine affinity store, `camoufox_availability` readiness gate for engine switches)

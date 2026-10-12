@@ -5,13 +5,17 @@
 - captcha protocols and coordinator (POS: blocking CAPTCHA detection/handling)
 - web_fetch site experience store (POS: post-navigation experience injection)
 - domain_skills::DomainSkillStore (POS: executable-layer domain skill registry)
+- exceptions::BrowserLaunchError, EngineUnavailableError (POS: launch failure vs. engine switch refused before any state change)
+- pool.engine_affinity::get_engine_affinity_store (POS: per-domain engine hint store)
 
 [OUTPUT]
-- BrowserSessionNavigationMixin: new_tab, navigate, tab switch/close, CAPTCHA helpers
+- BrowserSessionNavigationMixin: new_tab, navigate, tab switch/close, CAPTCHA helpers, Stealth Ladder upgrade
 
 [POS]
 Navigation and tab-management APIs for BrowserSession. Calls lifecycle mixin for
 component initialization; must appear before BrowserSessionLifecycleMixin in MRO.
+Escalates Patchright to the optional Camoufox engine on unresolved blocks and falls back
+to human takeover when that engine is unavailable.
 """
 
 from __future__ import annotations
@@ -19,6 +23,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from typing import NoReturn
+from urllib.parse import urlparse
 
 from myrm_agent_harness.core.security.redact import redact_sensitive_text
 from myrm_agent_harness.toolkits.browser.captcha.protocols import CaptchaHandleResult
@@ -36,8 +41,6 @@ _CAMOUFOX_UNAVAILABLE_HINT = (
 
 
 def _domain_from_url(url: str) -> str:
-    from urllib.parse import urlparse
-
     return urlparse(url).netloc
 
 
@@ -73,8 +76,6 @@ class BrowserSessionNavigationMixin:
         if hasattr(self, "_ensure_not_user_takeover"):
             await self._ensure_not_user_takeover()
         if url:
-            from urllib.parse import urlparse
-
             parsed = urlparse(url)
             origin = f"{parsed.scheme}://{parsed.netloc}"
 
@@ -105,8 +106,6 @@ class BrowserSessionNavigationMixin:
         blocklist = getattr(self, "_domain_blocklist", None)
         if blocklist is None or blocklist.is_empty:
             return None
-        from urllib.parse import urlparse
-
         hostname = (urlparse(url).hostname or "").lower()
         if hostname and blocklist.is_blocked(hostname):
             return hostname
@@ -153,8 +152,6 @@ class BrowserSessionNavigationMixin:
             )
 
         # Fast-fail: skip 240s timeout if domain is already known as terminal challenge
-        from urllib.parse import urlparse
-
         _nav_domain = urlparse(url).netloc
         if _nav_domain and _nav_domain in self._terminal_challenges:
             import time as _time
@@ -332,7 +329,6 @@ class BrowserSessionNavigationMixin:
                     # After all attempts, if CAPTCHA still unresolved → terminal challenge
                     if captcha_result is not None and not captcha_result.success:
                         import time as _time
-                        from urllib.parse import urlparse
 
                         domain = urlparse(url).netloc
                         _clear_engine_affinity_for_url(url)
@@ -397,8 +393,6 @@ class BrowserSessionNavigationMixin:
         Called when a private URL is detected and extension_bridge is available.
         Raises a descriptive ToolError when capability or connectivity is missing.
         """
-        from urllib.parse import urlparse
-
         from myrm_agent_harness.toolkits.browser.pool.extension_bridge import (
             ExtensionBridgeNotAvailableError,
         )
@@ -557,8 +551,6 @@ class BrowserSessionNavigationMixin:
         parts: list[str] = []
 
         try:
-            from urllib.parse import urlparse
-
             from ...web_fetch.router import (
                 get_global_domain_metrics_manager,
                 get_global_site_experience_store,

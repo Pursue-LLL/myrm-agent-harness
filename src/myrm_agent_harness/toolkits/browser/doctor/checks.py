@@ -64,7 +64,7 @@ def _check_patchright() -> DoctorCheckResult:
 
 
 def _check_camoufox() -> DoctorCheckResult:
-    """Check that the Camoufox stealth engine (ladder fallback) can launch, not just import."""
+    """Check that the Camoufox browser build is installed (ladder fallback), not just the Python package."""
     from ..pool.camoufox_availability import CAMOUFOX_INSTALL_FIX, camoufox_unavailable_reason
 
     reason = camoufox_unavailable_reason()
@@ -221,7 +221,7 @@ async def _probe_browser_launch(
     """
     playwright = await async_playwright().start()
     try:
-        browser = await playwright.chromium.launch(**launch_opts)  # type: ignore[arg-type]
+        browser = await playwright.chromium.launch(**launch_opts)
         try:
             context = await browser.new_context()
             try:
