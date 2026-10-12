@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib.metadata
+import inspect
 import logging
 import tempfile
 from collections.abc import Awaitable, Mapping
@@ -236,6 +237,27 @@ def _check_proxy(proxy: str = "") -> DoctorCheckResult:
     )
 
 
+async def _run_extra_check(name: str, check: Awaitable[DoctorCheckResult]) -> DoctorCheckResult:
+    """Await a host-supplied check; a crash becomes one warning row instead of sinking the whole report."""
+    try:
+        return await check
+    except Exception as exc:
+        logger.warning("Doctor extra check %s raised", name, exc_info=True)
+        return DoctorCheckResult(
+            name=name,
+            status=CheckStatus.WARNING,
+            message=f"Check could not run: {exc}",
+            fix="Check the application logs for the failure details",
+        )
+
+
+def _discard_unawaited(checks: Mapping[str, Awaitable[DoctorCheckResult]]) -> None:
+    """Close rejected checks that will never be awaited so they leave no "never awaited" warning."""
+    for check in checks.values():
+        if inspect.iscoroutine(check):
+            check.close()
+
+
 async def run_doctor(
     *,
     include_launch_test: bool = True,
@@ -253,8 +275,8 @@ async def run_doctor(
         browser_proxy: Comma-separated proxy URLs to report in the proxy check
         extra_checks: Host-specific checks keyed by report name. They run concurrently with the
             built-in I/O-bound checks and count in the summary like any other check. A name that
-            collides with a built-in check raises ``ValueError``. ``format_report`` renders only the
-            built-in sections.
+            collides with a built-in check raises ``ValueError``; a check that raises is reported as a
+            warning row. ``format_report`` renders only the built-in sections.
 
     Returns:
         DoctorReport with all check results and recommendations
@@ -269,6 +291,7 @@ async def run_doctor(
 
     extra = dict(extra_checks or {})
     if shadowed := sorted(extra.keys() & {*checks, _ORPHAN_CHECK, _LAUNCH_CHECK}):
+        _discard_unawaited(extra)
         raise ValueError(f"extra_checks may not reuse built-in check names: {', '.join(shadowed)}")
 
     # I/O-bound checks run concurrently; the orphan scan is offloaded to a worker
@@ -276,7 +299,7 @@ async def run_doctor(
     pending: dict[str, Awaitable[DoctorCheckResult]] = {}
     if include_orphan_check:
         pending[_ORPHAN_CHECK] = asyncio.to_thread(check_orphan_processes)
-    pending.update(extra)
+    pending.update({name: _run_extra_check(name, check) for name, check in extra.items()})
     if include_launch_test:
         pending[_LAUNCH_CHECK] = check_browser_launch(launch_options)
 

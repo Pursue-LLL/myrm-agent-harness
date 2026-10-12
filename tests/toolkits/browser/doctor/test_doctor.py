@@ -1,6 +1,7 @@
 """Unit tests for the browser doctor orchestrator and report rendering."""
 
 import asyncio
+import inspect
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -229,7 +230,30 @@ async def test_run_doctor_rejects_extra_check_that_shadows_a_builtin() -> None:
     probe = shadowing_check()
     with pytest.raises(ValueError, match="memory"):
         await run_doctor(include_launch_test=False, include_orphan_check=False, extra_checks={"memory": probe})
-    probe.close()
+    # The rejected check was handed over, so the orchestrator must not leave it dangling.
+    assert inspect.getcoroutinestate(probe) == inspect.CORO_CLOSED
+
+
+@pytest.mark.asyncio
+async def test_run_doctor_isolates_a_crashing_extra_check() -> None:
+    """A host check that raises degrades to one warning row; the rest of the report survives."""
+
+    async def exploding_check() -> DoctorCheckResult:
+        raise RuntimeError("relay exploded")
+
+    report = await run_doctor(
+        include_launch_test=False,
+        include_orphan_check=False,
+        extra_checks={"host_probe": exploding_check()},
+    )
+
+    crashed = report.checks["host_probe"]
+    assert crashed.status == CheckStatus.WARNING
+    assert "relay exploded" in crashed.message
+    assert crashed.fix
+    assert {"patchright", "memory", "disk", "proxy"} <= report.checks.keys()
+    assert f"/{len(report.checks)} checks passed" in report.summary
+    assert "warning" in report.summary
 
 
 @pytest.mark.asyncio
