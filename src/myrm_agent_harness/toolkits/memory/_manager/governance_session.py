@@ -67,7 +67,7 @@ class MemoryManagerGovernanceSessionMixin:
         """
         return await self._governance.approve(
             pending_id,
-            store_func=lambda memory: self.store(memory, _bypass_approval=True),
+            store_func=lambda memory: self.store(memory, _bypass_approval=True, _scope_prevalidated=True),
             correct_func=self.correct_memory,
             forget_func=lambda memory_id: self.update_memory(memory_id, status=MemoryStatus.ARCHIVED),
             read_func=self.get_memory,

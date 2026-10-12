@@ -42,11 +42,13 @@ class MemoryManagerRetrievalWriteMixin:
             self._maybe_consolidate()
         await self._submit_preference_candidate(result)
         return result
+        _scope_prevalidated: bool = False,
 
     async def store_batch(
         self,
         memories: Sequence[AnyMemory],
         *,
+            scope_prevalidated=_scope_prevalidated,
         _bypass_approval: bool = False,
         _force_pending: bool = False,
     ) -> list[AnyMemory]:

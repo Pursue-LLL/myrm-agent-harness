@@ -6,7 +6,14 @@ from unittest.mock import patch
 
 import pytest
 
-from myrm_agent_harness.toolkits.memory._internal.storage import PendingTargetChangedError, get_from_vector
+from myrm_agent_harness.toolkits.memory._internal.approval import memory_to_pending
+from myrm_agent_harness.toolkits.memory._internal.storage import (
+    MemoryError as MemoryStoreError,
+)
+from myrm_agent_harness.toolkits.memory._internal.storage import (
+    PendingTargetChangedError,
+    get_from_vector,
+)
 from myrm_agent_harness.toolkits.memory._internal.storage_converters import semantic_to_doc
 from myrm_agent_harness.toolkits.memory._internal.storage_search import search_semantic
 from myrm_agent_harness.toolkits.memory.config import AgentMemoryPolicy, MemoryScopeLevel
@@ -151,6 +158,40 @@ class TestApprovalScope:
 
         assert docs == {}
         mock_relational_store.mark_pending.assert_called_once_with("pending-s", "approved")
+
+
+class TestCrossAgentApproval:
+    """The settings inbox (default reviewer) approves proposals queued by other agents' conversations."""
+
+    @staticmethod
+    def _proposal_from_agent(make_manager):
+        proposer = make_manager(agent_id="agent-x", channel_id="web_chat", conversation_id="chat-1")
+        return proposer, proposer._bind_scope(SemanticMemory(content="Works at Google"))
+
+    @pytest.mark.asyncio
+    async def test_default_reviewer_persists_the_proposal_in_the_proposers_scope(
+        self, docs, make_manager, mock_relational_store
+    ):
+        _proposer, proposal = self._proposal_from_agent(make_manager)
+        record = memory_to_pending(proposal)
+        mock_relational_store.get_pending.side_effect = lambda _pid: record
+
+        stored = await make_manager().approve(record.id)
+
+        assert stored is not None and stored.content == "Works at Google"
+        (doc,) = docs.values()
+        assert "agent:agent-x" in doc.metadata["namespaces"]
+        mock_relational_store.mark_pending.assert_called_once_with(record.id, "approved")
+
+    @pytest.mark.asyncio
+    async def test_direct_write_into_another_agents_scope_is_still_refused(self, docs, make_manager):
+        """Only a queued proposal skips the fence; an ordinary write by the reviewer does not."""
+        _proposer, proposal = self._proposal_from_agent(make_manager)
+
+        with pytest.raises(MemoryStoreError, match="exceeds allowed scope"):
+            await make_manager().store(proposal)
+
+        assert docs == {}
 
 
 class TestSnapshotContract:

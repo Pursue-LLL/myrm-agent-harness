@@ -150,11 +150,20 @@ class MemoryWriter:
         *,
         bypass_approval: bool = False,
         force_pending: bool = False,
+        scope_prevalidated: bool = False,
     ) -> AnyMemory:
+        """Persist one memory.
+
+        ``scope_prevalidated`` is for replaying a queued proposal: the write-scope fence
+        already ran when the proposal was submitted by the originating writer, and the
+        reviewing manager (e.g. the global settings inbox) holds a different grant than
+        the proposing agent, so re-checking it here would reject every cross-agent approval.
+        """
         self._validate_supported_memory(memory)
         self._attach_current_trace_id(memory)
         bound_memory = self._bind_owner(self._bind_scope(memory))
-        self._validate_write_scope(bound_memory)
+        if not scope_prevalidated:
+            self._validate_write_scope(bound_memory)
         if self._config.security_scan_enabled:
             scan_and_clean_memory(bound_memory, block_threshold=self._config.injection_block_threshold)
 
