@@ -179,17 +179,7 @@ class GovernanceService:
             data = record.memory_data
             scope_data = data.get("scope")
             scope = MemoryScope.model_validate(scope_data) if isinstance(scope_data, dict) else self._scope
-            profile_key = str(data.get("key", ""))
-            profile_value = str(data.get("value", ""))
-            await rel.set_profile(profile_key, profile_value, scope=scope)
-            from myrm_agent_harness.toolkits.memory.ephemeral_delta.notify import (
-                record_ephemeral_memory_delta,
-            )
-
-            record_ephemeral_memory_delta(
-                key=f"profile:{profile_key}",
-                value=profile_value,
-            )
+            await rel.set_profile(str(data.get("key", "")), str(data.get("value", "")), scope=scope)
             await rel.mark_pending(pending_id, "approved")
             return None
 
@@ -303,11 +293,6 @@ class GovernanceService:
             return await rel.submit_pending(record)
 
         await rel.set_profile(key, value, scope=profile_scope)
-        from myrm_agent_harness.toolkits.memory.ephemeral_delta.notify import (
-            record_ephemeral_memory_delta,
-        )
-
-        record_ephemeral_memory_delta(key=f"profile:{key}", value=value)
         return None
 
     async def get_profile_attribute(self, key: str) -> str | None:

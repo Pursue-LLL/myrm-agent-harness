@@ -394,7 +394,7 @@ class MemoryManagerMutationsMixin:
             e: EmbeddingProtocol | None = None
             if content_changed:
                 _, e = self._vec()
-            result = await update_vector_memory(
+            return await update_vector_memory(
                 self._bind_scope(updated),
                 content_changed,
                 self._vector,
@@ -402,9 +402,6 @@ class MemoryManagerMutationsMixin:
                 e,
                 self._cache,
             )
-            if content_changed:
-                self._record_ephemeral_delta_for_memory(result)
-            return result
         if isinstance(updated, ProceduralMemory):
             return await self._rel().update_rule(memory_id, updated)
         raise ValueError(f"Cannot update memory type: {type(updated).__name__}")

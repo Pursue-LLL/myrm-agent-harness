@@ -23,19 +23,6 @@ _pending_tasks: set[asyncio.Task[object]] = set()
 
 
 class MemoryManagerRetrievalWriteMixin:
-    @staticmethod
-    def _record_ephemeral_delta_for_memory(memory: AnyMemory) -> None:
-        from myrm_agent_harness.toolkits.memory.ephemeral_delta.notify import (
-            record_ephemeral_memory_delta,
-        )
-
-        content = getattr(memory, "content", None)
-        if not isinstance(content, str) or not content.strip():
-            return
-        memory_id = getattr(memory, "id", None)
-        key = f"memory:{memory_id}" if isinstance(memory_id, str) and memory_id.strip() else "memory:latest"
-        record_ephemeral_memory_delta(key=key, value=content)
-
     async def store(
         self,
         memory: AnyMemory,

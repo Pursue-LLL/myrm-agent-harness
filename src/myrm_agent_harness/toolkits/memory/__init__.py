@@ -5,6 +5,10 @@ and orchestration logic. Concrete storage backends are provided by the
 application layer via dependency injection.
 """
 
+from myrm_agent_harness.agent.middlewares.memory_context.ephemeral_delta import (
+    DeltaCategory,
+    EphemeralDeltaRegistry,
+)
 from myrm_agent_harness.toolkits.memory._internal.embedding_cache import EmbeddingCache
 from myrm_agent_harness.toolkits.memory._internal.memory_scanner import ScanMetricsSnapshot, get_scan_metrics
 from myrm_agent_harness.toolkits.memory._internal.storage import (
@@ -380,9 +384,6 @@ from myrm_agent_harness.toolkits.memory.ephemeral_delta import (
     EphemeralDeltaStore,
     HumanTailDeltaInjector,
     ReconciliationBatchReport,
-    clear_ephemeral_deltas_for_session,
-    get_shared_ephemeral_delta_store,
-    record_ephemeral_memory_delta,
 )
 from myrm_agent_harness.toolkits.memory.experience_compounding import (
     AnnealingReport,
@@ -1486,15 +1487,14 @@ __all__ = [
     "run_lineage_defense_pipeline",
     "create_local_memory_manager",
     "DeltaActionKind",
+    "DeltaCategory",
     "EphemeralDeltaBufferSnapshot",
     "EphemeralDeltaItem",
     "EphemeralDeltaReconciler",
+    "EphemeralDeltaRegistry",
     "EphemeralDeltaStore",
     "HumanTailDeltaInjector",
     "ReconciliationBatchReport",
-    "clear_ephemeral_deltas_for_session",
-    "get_shared_ephemeral_delta_store",
-    "record_ephemeral_memory_delta",
     "CascadedRuleSet",
     "DeterministicRuleCascadeLoader",
     "DeterministicRuleEntry",
