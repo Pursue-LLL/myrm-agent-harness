@@ -120,12 +120,12 @@ def _check_content_safety(content: str, filepath: str) -> tuple[bool, list[str]]
     )
 
     guard_result = scan_input(content)
-    if not guard_result.safe and guard_result.max_score >= 0.8:
+    if guard_result.block_score >= 0.8:
         logger.warning(
             "Workspace rule file blocked (injection detected): %s patterns=%s score=%.2f",
             filepath,
             ",".join(guard_result.patterns),
-            guard_result.max_score,
+            guard_result.block_score,
         )
         return False, guard_result.patterns
 
@@ -188,10 +188,7 @@ def _truncate_with_markdown_repair(
     if len(_CODE_FENCE_PATTERN.findall(tail)) % 2 != 0:
         tail = f"```\n{tail}"
 
-    return (
-        f"{head}\n\n[...truncated {filename}: "
-        f"kept {len(head)}+{len(tail)} of {len(content)} chars]\n\n{tail}"
-    )
+    return f"{head}\n\n[...truncated {filename}: kept {len(head)}+{len(tail)} of {len(content)} chars]\n\n{tail}"
 
 
 def _load_rule_file(filepath: Path, source: str) -> RuleFile | None:

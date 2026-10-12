@@ -53,9 +53,9 @@ def test_benign_controls_not_flagged(case: PoisoningCase) -> None:
 
 
 def test_scanner_covers_majority_of_attack_categories() -> None:
-    """Guard against silent regression: scanner must catch >= 16 of 18 EN attacks."""
+    """Guard against silent regression: scanner must catch >= 16 of the EN attacks."""
     caught = sum(1 for case in ATTACKS_EN if scan_memory_content(case.text).verdict != ScanVerdict.CLEAN)
-    assert caught >= 16, f"scanner coverage dropped too low: {caught}/18"
+    assert caught >= 16, f"scanner coverage dropped too low: {caught}/{len(ATTACKS_EN)}"
 
 
 def test_password_like_redacts_even_when_instruction_shape_present() -> None:

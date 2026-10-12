@@ -429,7 +429,7 @@ def scan_and_clean_memory(memory: object, *, block_threshold: float = 0.8) -> Sc
 
 **扫描策略：**
 
-1. **Prompt Injection Detection**：7+2类注入攻击检测（`prompt_guard.py`）
+1. **Prompt Injection Detection**：14类（EN 10 + ZH 4）注入攻击检测（`prompt_guard.py`；写入门槛读取 `max_score`，含歧义命中——持久化内容跨会话生效；被否定的凭证类动词如“不要泄露系统密钥”不计入）
    - HIGH score (≥0.8) → BLOCKED verdict → 直接拒写（没有批准放行路径）：计入 `ScanMetrics.blocked`、审计 `DENY`、抛 `MemoryTaintedError`（`MemoryError` 子类，`str()` 为用户可读原因，不含分数与规则名）。有害心理状态同样走拒写。
    - 各入口一致呈现：`memory_save` / `memory_manage` 与 MCP `memory_store` / `memory_manage` 返回明确的 "Not saved" 结果并说明如何改写（`agent_surface/write_failure_feedback.py`）；`MemorySession.add_*` 在入缓冲前用只读预检（`reject_if_blocked`，不脱敏、不计入已接受写入）同规则拒绝，使拒绝即时可见、`end_session()` 的批量落库不丢干净记忆；`store_batch` / 导入只丢弃被拒条目；Server 层全局映射为 HTTP 400
    - LOW score (<0.8) → WARN verdict → 记录日志并存储
