@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from myrm_agent_harness.toolkits.code_execution.executors.base import CodeExecutor
+from myrm_agent_harness.toolkits.code_execution.executors.models import ExecutionContext, ExecutionResult
 from myrm_agent_harness.toolkits.code_execution.executors.shell_file_transfer import CHUNK_BYTES
 from tests.toolkits.code_execution._executor_stub import InProcessExecutor
 
@@ -128,3 +129,42 @@ async def test_missing_file_raises_and_failed_write_is_reported(executor: CodeEx
     (tmp_path / "blocker").write_text("not a directory")
     with pytest.raises(OSError, match="Cannot write"):
         await executor.write_file("blocker/child.txt", "data")
+
+
+class _FailingAppendExecutor(InProcessExecutor):
+    """Fails every append chunk, i.e. any write larger than one chunk fails after its first chunk landed."""
+
+    async def execute_bash(self, context: ExecutionContext) -> ExecutionResult:
+        if ">>" in context.code:
+            return ExecutionResult(success=False, stderr="disk full")
+        return await super().execute_bash(context)
+
+
+class _GarbageReadExecutor(InProcessExecutor):
+    async def execute_bash(self, context: ExecutionContext) -> ExecutionResult:
+        return ExecutionResult(success=True, stdout="not-hex")
+
+
+@pytest.mark.asyncio
+async def test_failed_atomic_write_keeps_target_and_leaves_no_temp_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    ex = _FailingAppendExecutor()
+    ex.bind_workspace(str(tmp_path))
+    (tmp_path / "target.bin").write_bytes(b"original")
+
+    with pytest.raises(OSError, match="Cannot write"):
+        await ex.write_file_bytes_atomic("target.bin", os.urandom(2 * CHUNK_BYTES))
+
+    assert (tmp_path / "target.bin").read_bytes() == b"original"
+    assert [p.name for p in tmp_path.iterdir()] == ["target.bin"]
+
+
+@pytest.mark.asyncio
+async def test_malformed_read_output_raises_oserror(tmp_path: Path) -> None:
+    ex = _GarbageReadExecutor()
+    ex.bind_workspace(str(tmp_path))
+
+    with pytest.raises(OSError, match="malformed output"):
+        await ex.read_file_bytes("anything.bin")

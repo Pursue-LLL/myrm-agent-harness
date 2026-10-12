@@ -7,6 +7,7 @@ Lifecycle: bind_workspace(path) -> execute()/execute_bash()/read_file()/... -> c
 
 [INPUT]
 - toolkits.code_execution.config::ExecutionConfig (POS: Code execution configuration layer. Defines execution modes, network policies, and runtime settings for the Agent-in-Sandbox architecture.)
+- toolkits.code_execution.executors.shell_file_transfer::read_bytes_via_shell (POS: Lossless file transfer primitives for ``CodeExecutor`` shell-based default file operations.)
 
 [OUTPUT]
 - CodeExecutor: Abstract base class for code executors with async close lifecycle.
@@ -206,13 +207,17 @@ class CodeExecutor(ABC):
         tmp_relative = str(Path(path).parent / tmp_name)
         if tmp_relative.startswith("./"):
             tmp_relative = tmp_relative[2:]
-
-        if isinstance(content, bytes):
-            await self.write_file_bytes(tmp_relative, content)
-        else:
-            await self.write_file(tmp_relative, content)
-
         tmp_path = await self.resolve_path(tmp_relative)
+
+        try:
+            if isinstance(content, bytes):
+                await self.write_file_bytes(tmp_relative, content)
+            else:
+                await self.write_file(tmp_relative, content)
+        except OSError:
+            await self._exec_bash(f"rm -f {shlex.quote(tmp_path)}")
+            raise
+
         result = await self._exec_bash(
             f"mkdir -p {shlex.quote(str(target_path.parent))} && mv -f {shlex.quote(tmp_path)} {shlex.quote(target)}"
         )

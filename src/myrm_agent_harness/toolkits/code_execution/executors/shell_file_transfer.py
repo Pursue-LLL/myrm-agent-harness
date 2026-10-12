@@ -6,7 +6,7 @@ are never read as raw text: they are read as hex, which the scrubber cannot alte
 base64 on the command line, so each command stays far below the per-argument limit (128 KB on Linux).
 
 [INPUT]
-- toolkits.code_execution.executors.models::ExecutionResult (POS: Result of one shell command.)
+- toolkits.code_execution.executors.models::ExecutionResult (POS: Data models for code execution.)
 
 [OUTPUT]
 - read_bytes_via_shell: Read a whole file as exact bytes through chunked ``dd`` + ``od`` commands.
@@ -62,7 +62,10 @@ async def _read_chunk(exec_bash: ExecBash, safe_path: str, index: int, display_p
     if not result.success:
         error = f"Cannot read '{display_path}': {result.error or result.stderr}"
         raise FileNotFoundError(error) if index == 0 else OSError(error)
-    return bytes.fromhex(result.stdout)
+    try:
+        return bytes.fromhex(result.stdout)
+    except ValueError as exc:
+        raise OSError(f"Cannot read '{display_path}': executor returned malformed output") from exc
 
 
 async def write_bytes_via_shell(
