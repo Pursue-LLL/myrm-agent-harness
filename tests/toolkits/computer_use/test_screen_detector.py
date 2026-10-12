@@ -114,10 +114,15 @@ class TestMacOSProbe:
         with patch("Quartz.CGSessionCopyCurrentDictionary", return_value=session):
             assert ScreenDetector()._probe_macos() == ScreenLockState.LOCKED
 
-    @pytest.mark.parametrize("session", [{}, {"CGSSessionScreenIsLocked": 0}, None])
-    def test_plain_or_missing_session_is_unlocked(self, session: dict[str, int] | None) -> None:
+    @pytest.mark.parametrize("session", [{}, {"CGSSessionScreenIsLocked": 0}])
+    def test_plain_session_is_unlocked(self, session: dict[str, int]) -> None:
         with patch("Quartz.CGSessionCopyCurrentDictionary", return_value=session):
             assert ScreenDetector()._probe_macos() == ScreenLockState.UNLOCKED
+
+    def test_missing_session_is_unknown(self) -> None:
+        """No session dictionary (e.g. no GUI session) fails closed instead of reporting UNLOCKED."""
+        with patch("Quartz.CGSessionCopyCurrentDictionary", return_value=None):
+            assert ScreenDetector()._probe_macos() == ScreenLockState.UNKNOWN
 
     def test_live_probe_is_fast_and_definite(self) -> None:
         detector = ScreenDetector()
