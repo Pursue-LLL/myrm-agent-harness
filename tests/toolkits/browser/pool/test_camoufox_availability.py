@@ -26,6 +26,13 @@ from myrm_agent_harness.toolkits.browser.pool.config import BrowserEngine, Launc
 _PKGMAN = "camoufox.pkgman"
 
 
+class _UnloadableModule(types.ModuleType):
+    """A camoufox module whose bundled data file cannot be read when it is imported."""
+
+    def __getattr__(self, name: str) -> object:
+        raise FileNotFoundError(2, "No such file or directory", "/bundle/camoufox/warnings.yml")
+
+
 @pytest.fixture(autouse=True)
 def _no_executable_override(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("CAMOUFOX_EXECUTABLE_PATH", raising=False)
@@ -113,6 +120,13 @@ class TestCamoufoxUnavailableReason:
     def test_missing_python_package_is_not_ready(self) -> None:
         with patch.dict(sys.modules, {"camoufox": None, "camoufox.exceptions": None, "camoufox.pkgman": None}):
             assert camoufox_unavailable_reason() == "camoufox package is not installed"
+
+    def test_package_that_fails_to_load_is_not_ready_instead_of_raising(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Importing camoufox reads bundled data files, so a damaged or partial install fails with OSError, not ImportError."""
+        monkeypatch.setitem(sys.modules, "camoufox.pkgman", _UnloadableModule("camoufox.pkgman"))
+        reason = camoufox_unavailable_reason()
+        assert reason == "camoufox package could not be loaded (FileNotFoundError)"
+        assert "/bundle" not in reason
 
 
 class TestRequireCamoufoxReady:

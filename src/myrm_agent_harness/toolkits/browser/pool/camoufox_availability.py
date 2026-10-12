@@ -7,7 +7,9 @@ answers "is a usable build installed right now?" without ever downloading, so
 the launcher, session restart and Doctor all share one verdict and a missing
 build fails fast instead of stalling a request on an implicit install. A build
 that is installed but cannot start (for example missing system libraries) is
-not detected here; the launch itself fails and the session rolls back.
+not detected here; the launch itself fails and the session rolls back. A package
+that cannot even be imported (its import reads bundled data files) is reported as
+unavailable rather than raised.
 
 [INPUT]
 - camoufox (optional extra [browser]; imported lazily)
@@ -52,6 +54,9 @@ def camoufox_unavailable_reason() -> str | None:
         from camoufox.pkgman import camoufox_path, launch_path
     except ImportError:
         return "camoufox package is not installed"
+    except Exception as exc:
+        logger.debug("Camoufox package failed to load", exc_info=True)
+        return f"camoufox package could not be loaded ({type(exc).__name__})"
 
     override = os.environ.get(_EXECUTABLE_ENV, "").strip()
     if override:
