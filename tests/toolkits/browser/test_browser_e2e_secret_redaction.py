@@ -22,10 +22,18 @@ import time
 import urllib.request
 
 import pytest
+from langchain_core.tools import BaseTool
 
 from myrm_agent_harness.toolkits.browser.pool import ContextType, GlobalBrowserPool
 from myrm_agent_harness.toolkits.browser.session import BrowserSession
 from myrm_agent_harness.toolkits.browser.tools import create_browser_tools
+
+
+async def _invoke(tool: BaseTool, args: dict[str, object]) -> str:
+    """Run a browser tool and return its text; page-derived output arrives in a ``{"content", ...}`` envelope."""
+    result = await tool.ainvoke(args)
+    return str(result["content"]) if isinstance(result, dict) else str(result)
+
 
 # fmt: off
 SECRETS_PAGE = """<!DOCTYPE html>
@@ -104,7 +112,7 @@ async def test_e2e_snapshot_redacts_page_secrets(
     """browser_snapshot output must redact page-displayed credentials."""
     tools = create_browser_tools(browser_session)
     tool_dict = {tool.name: tool for tool in tools}
-    result = await tool_dict["browser_snapshot_tool"].ainvoke({"scope": "content"})
+    result = await _invoke(tool_dict["browser_snapshot_tool"], {"scope": "content"})
     _assert_secrets_redacted(result)
 
 
@@ -116,7 +124,7 @@ async def test_e2e_extract_redacts_page_secrets(
     """browser_extract (text) output must redact page-displayed credentials."""
     tools = create_browser_tools(browser_session)
     tool_dict = {tool.name: tool for tool in tools}
-    result = await tool_dict["browser_extract_tool"].ainvoke({"mode": "text"})
+    result = await _invoke(tool_dict["browser_extract_tool"], {"mode": "text"})
     _assert_secrets_redacted(result)
 
 
@@ -128,8 +136,8 @@ async def test_e2e_manage_evaluate_redacts_page_secrets(
     """browser_manage evaluate returning page text must redact credentials."""
     tools = create_browser_tools(browser_session)
     tool_dict = {tool.name: tool for tool in tools}
-    result = await tool_dict["browser_manage_tool"].ainvoke(
-        {"action": "evaluate", "value": "document.getElementById('secret').innerText"}
+    result = await _invoke(
+        tool_dict["browser_manage_tool"], {"action": "evaluate", "value": "document.getElementById('secret').innerText"}
     )
     _assert_secrets_redacted(result)
 
@@ -146,7 +154,7 @@ async def test_e2e_inspect_redacts_page_secrets(
     """
     tools = create_browser_tools(browser_session)
     tool_dict = {tool.name: tool for tool in tools}
-    result = await tool_dict["browser_inspect_tool"].ainvoke({})
+    result = await _invoke(tool_dict["browser_inspect_tool"], {})
     for secret in _PLAINTEXT_SECRETS:
         assert secret not in result, f"leaked plaintext secret: {secret}"
 
@@ -166,8 +174,8 @@ async def test_e2e_navigate_redacts_oauth_code_query(
         pytest.skip("external network unavailable — cannot navigate to example.com")
     tools = create_browser_tools(browser_session)
     tool_dict = {tool.name: tool for tool in tools}
-    result = await tool_dict["browser_navigate_tool"].ainvoke(
-        {"url": f"https://example.com/?code={_OAUTH_CODE}&state=xyz"}
+    result = await _invoke(
+        tool_dict["browser_navigate_tool"], {"url": f"https://example.com/?code={_OAUTH_CODE}&state=xyz"}
     )
     assert _OAUTH_CODE not in result, "OAuth code leaked in navigate output"
     assert "code=" in result, "query key must survive (only value is masked)"
@@ -190,7 +198,7 @@ async def test_e2e_manage_console_log_redacts_page_secrets(
     assert console, "console capture never received the secret log line"
     tools = create_browser_tools(browser_session)
     tool_dict = {tool.name: tool for tool in tools}
-    result = await tool_dict["browser_manage_tool"].ainvoke({"action": "console_log", "value": ""})
+    result = await _invoke(tool_dict["browser_manage_tool"], {"action": "console_log", "value": ""})
     assert "sk-proj-abcdefghijklmnop1234567890" not in result
 
 
@@ -218,6 +226,6 @@ async def test_e2e_execute_script_redacts_page_secrets(
     tools = create_browser_tools(browser_session)
     tool_dict = {tool.name: tool for tool in tools}
     script = "text = await session.extract_text()\nprint(text)"
-    result = await tool_dict["browser_execute_script_tool"].ainvoke({"script": script})
+    result = await _invoke(tool_dict["browser_execute_script_tool"], {"script": script})
     assert "sk-proj-abcdefghijklmnop1234567890" not in result
     assert "sk-pro" in result
