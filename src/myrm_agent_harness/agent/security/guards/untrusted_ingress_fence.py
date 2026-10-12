@@ -21,7 +21,8 @@ and agent scopes; memory_manage_tool applies delete/update directly without a pe
 [POS]
 Layer 2 runtime security guard. Sits between Inbound Task Ingress and Agent Tool Registry.
 Enforces physical least-privilege tool stripping to prevent prompt-injection attacks
-from executing arbitrary system commands or destroying user workspace source code.
+from executing arbitrary system commands, destroying user workspace source code, or
+rewriting the owner's long-term memory.
 """
 
 from __future__ import annotations
