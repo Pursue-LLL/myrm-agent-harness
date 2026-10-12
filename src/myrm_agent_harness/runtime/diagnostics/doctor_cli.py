@@ -3,10 +3,10 @@
 Separates diagnostic logic from UI presentation.
 
 [INPUT]
-- toolkits.browser.doctor::CheckStatus, DoctorReport (POS: Browser toolkit diagnostics module. Validates dependencies, configuration, environment, and browser launchability before actual operations. Provides clear fix suggestions for each failure. Includes precise orphan process detection (matches patchright/playwright cache paths) with safety mechanisms (dry-run default, force flag required for cleanup).)
+- toolkits.browser.doctor::CheckStatus, DoctorReport (POS: Doctor subpackage public facade. Single import point aggregating the doctor submodules for the harness CLI and server health endpoints.)
 
 [OUTPUT]
-- format_styled_report: function — format_styled_report
+- format_styled_report: grouped, colorized CLI rendering of a DoctorReport (environment / system / security / llm / browser sections)
 
 [POS]
 CLI Formatter for Myrm Doctor.

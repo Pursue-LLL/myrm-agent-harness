@@ -9,7 +9,7 @@ from myrm_agent_harness.toolkits.browser.doctor import CheckStatus, run_doctor
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 
-async def test_run_doctor_with_browser_launch_test():
+async def test_run_doctor_with_browser_launch_test() -> None:
     """Should successfully launch browser and report OK status."""
     report = await run_doctor(include_launch_test=True, include_orphan_check=False)
 
@@ -19,7 +19,7 @@ async def test_run_doctor_with_browser_launch_test():
     assert "successful" in launch_check.message.lower()
 
 
-async def test_run_doctor_with_custom_launch_options():
+async def test_run_doctor_with_custom_launch_options() -> None:
     """Should accept custom launch options and report OK."""
     report = await run_doctor(
         include_launch_test=True,
