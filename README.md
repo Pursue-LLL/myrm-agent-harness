@@ -365,20 +365,16 @@ myrm-agent-harness/          # 本仓库根（示意）
 
 ### 1. CodeExecutor（必需）
 
-在执行环境中执行代码：
+在执行环境中执行 Python 与 Bash（`execute` 与 `execute_bash` 均为抽象方法，需同时实现）：
 
 ```python
-from myrm_agent_harness.toolkits.code_execution import CodeExecutor, ExecutionResult
+from myrm_agent_harness.toolkits.code_execution import CodeExecutor, ExecutionContext, ExecutionResult
 
 class MyCodeExecutor(CodeExecutor):
-    async def execute(
-        self,
-        command: str,
-        *,
-        workspace_path: str,
-        skill_paths: list[str] | None = None,
-        timeout_seconds: int = 300,
-    ) -> ExecutionResult:
+    async def execute(self, context: ExecutionContext) -> ExecutionResult:
+        ...
+
+    async def execute_bash(self, context: ExecutionContext) -> ExecutionResult:
         ...
 ```
 
@@ -591,8 +587,11 @@ cd myrm-agent-harness
 uv sync --python 3.13 --locked --extra all --group dev
 source .venv/bin/activate
 
-# 与 CI 相同：严格按 uv.lock 安装。修改 pyproject.toml（依赖、extras、version）后运行 `uv lock` 并提交 uv.lock，
-# 否则 `--locked` 会失败。compiled-core* 平台包发版前不在 PyPI 上，开发锁通过 [tool.uv] exclude-dependencies（需 uv ≥ 0.9.8）排除它们。
+# 与 CI 相同：严格按 uv.lock 安装。修改 pyproject.toml（依赖、extras、version）后运行
+# `UV_DEFAULT_INDEX=https://pypi.org/simple uv lock` 并提交 uv.lock，否则 `--locked` 会失败。
+# 不要在镜像源下直接 `uv lock`：它会把所有包的 registry 与下载 URL 改写成镜像地址，
+# `tests/architecture/test_core_dependencies.py` 会拦截这种 lock。
+# compiled-core* 平台包发版前不在 PyPI 上，开发锁通过 [tool.uv] exclude-dependencies（需 uv ≥ 0.9.8）排除它们。
 
 # ⚠️ 重要：安装 pre-commit（自动化边界检测）
 pip install pre-commit

@@ -14,6 +14,6 @@ Cross-tool memory MCP interop gateway & wire adapter (ai-memory parity).
 
 ## Key Dependencies
 
-- `agent.context_management.handoff`
+- `toolkits.memory.handoff`
 - `toolkits.memory.privacy_gate`
 - External libraries: `mcp`, `pydantic`

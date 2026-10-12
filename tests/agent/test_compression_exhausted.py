@@ -1,5 +1,4 @@
-from myrm_agent_harness.agent.streaming.escalation_scrubber import EscalationScrubber
-from myrm_agent_harness.agent.streaming.reasoning_scrubber import ReasoningScrubber
+from myrm_agent_harness.agent.streaming.stream_executor import StreamContext, StreamExecutor
 from myrm_agent_harness.agent.streaming.types import AgentEventType
 from myrm_agent_harness.agent.types import AgentRunStatistics
 from myrm_agent_harness.toolkits.llms.errors import MyrmLLMError
@@ -43,8 +42,6 @@ class TestHandleOverflowExhaustion:
 
     @pytest.fixture
     def mock_executor(self):
-        from myrm_agent_harness.agent.streaming.stream_executor import StreamContext, StreamExecutor
-
         stats = AgentRunStatistics()
         ctx = MagicMock(spec=StreamContext)
         ctx.stats = stats
@@ -125,14 +122,23 @@ class TestHandleOverflowExhaustion:
         assert stats.was_cancelled is True
 
 
+def _build_executor(ctx: MagicMock, compactor: AsyncMock) -> "StreamExecutor":
+    """Build through the real constructor so state added to ``StreamExecutor.__init__`` never drifts from this test."""
+    ctx.output_queue = AsyncMock()
+    ctx.escalation_target_llm = None
+    ctx.cancel_token = None
+    ctx.memory_manager = None
+    executor = StreamExecutor(ctx, rebuild_agent_fn=lambda _agent: None)
+    executor._compactor = compactor
+    return executor
+
+
 class TestErrorEventCompressionExhausted:
     """ERROR event includes compression_exhausted when set."""
 
     @pytest.mark.asyncio
     async def test_error_event_includes_flag(self):
         """When compression_exhausted=True, ERROR event should contain the flag."""
-        from myrm_agent_harness.agent.streaming.stream_executor import StreamContext, StreamExecutor
-
         stats = AgentRunStatistics()
         stats.compression_exhausted = True
 
@@ -153,17 +159,7 @@ class TestErrorEventCompressionExhausted:
         compactor.put = capture_put
         compactor.flush = AsyncMock()
 
-        executor = object.__new__(StreamExecutor)
-        executor._ctx = ctx
-        executor._compactor = compactor
-        executor._fallback_llm = None
-        executor.failover_used = False
-        executor.streaming_final_answer = False
-        executor._rebuild_agent_fn = lambda x: None
-        executor._slice_tool_call_ids = []
-        executor._escalation_scrubber = EscalationScrubber()
-        executor._reasoning_scrubber = ReasoningScrubber()
-        executor._pseudonym_restorer = None
+        executor = _build_executor(ctx, compactor)
 
         ctx.agent = MagicMock()
         ctx.agent.astream = MagicMock(side_effect=Exception("context_length_exceeded"))
@@ -187,8 +183,6 @@ class TestErrorEventCompressionExhausted:
     @pytest.mark.asyncio
     async def test_error_event_without_flag(self):
         """When compression_exhausted=False, ERROR event should NOT contain the flag."""
-        from myrm_agent_harness.agent.streaming.stream_executor import StreamContext, StreamExecutor
-
         stats = AgentRunStatistics()
 
         ctx = MagicMock(spec=StreamContext)
@@ -208,17 +202,7 @@ class TestErrorEventCompressionExhausted:
         compactor.put = capture_put
         compactor.flush = AsyncMock()
 
-        executor = object.__new__(StreamExecutor)
-        executor._ctx = ctx
-        executor._compactor = compactor
-        executor._fallback_llm = None
-        executor.failover_used = False
-        executor.streaming_final_answer = False
-        executor._rebuild_agent_fn = lambda x: None
-        executor._slice_tool_call_ids = []
-        executor._escalation_scrubber = EscalationScrubber()
-        executor._reasoning_scrubber = ReasoningScrubber()
-        executor._pseudonym_restorer = None
+        executor = _build_executor(ctx, compactor)
 
         ctx.agent = MagicMock()
         ctx.agent.astream = MagicMock(side_effect=Exception("some random error"))

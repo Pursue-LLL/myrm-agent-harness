@@ -6,7 +6,6 @@ Implements SkillMarketBackend protocol.
 [INPUT]
 - backends.skills.market_protocols::SkillInstallResult, (POS: SkillBackend SkillBackend SkillMarketBackend)
 - backends.skills.scanning::ScanFinding, (POS: Scan result cache layer. Stores scan results in Volume (~/.myrm/skill_scans/) to avoid redundant scanning. Critical for performance: 20x speedup for repeat scans. Cache key: SHA256 hash of skill content Cache location: ~/.myrm/skill_scans/{content_hash}.json Expiration: 60 days TTL (auto-cleanup on get))
-- backends.skills.scanning.archive_security::format_archive_security_user_message (POS: Canonical archive-security contract for typed/untyped ZIP guard errors.)
 
 [OUTPUT]
 - EnrichedSearchResult: Search result enriched with local installation info.
@@ -20,7 +19,6 @@ Skill market service.
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import logging
 import shutil
 import tempfile
@@ -42,10 +40,6 @@ from myrm_agent_harness.backends.skills.scanning import (
     ScanFinding,
     compute_scan_summary,
 )
-from myrm_agent_harness.backends.skills.scanning.archive_security import (
-    classify_archive_security_issue,
-    format_archive_security_user_message,
-)
 from myrm_agent_harness.backends.skills.scanning.package_audit import (
     check_lifecycle_scripts,
 )
@@ -63,8 +57,10 @@ from .helpers import (
     SOURCE_PRIORITY,
     deduplicate,
     fetch_lobehub_as_skill,
+    is_safe_skill_dir_name,
     rank_results,
     read_origin,
+    resolve_install_error,
     scan_all_text_files,
     write_origin,
 )
@@ -95,43 +91,6 @@ LOCAL_INSTALL_DIR = Path("~/.myrm/skills").expanduser()
 SEARCH_TIMEOUT = 20.0
 CACHE_MAX_ENTRIES = 100
 CACHE_TTL_SECONDS = 300
-
-
-def _is_safe_skill_dir_name(name: str) -> bool:
-    """Skill install directory names must be a single relative path segment.
-
-    The name comes from publisher-controlled frontmatter, so anything that
-    could escape the install root (separators, dot segments, absolute paths)
-    must be rejected before it reaches filesystem operations.
-    """
-    if not name or name in {".", ".."}:
-        return False
-    if "/" in name or "\\" in name:
-        return False
-    return not Path(name).is_absolute()
-
-
-def _resolve_install_error(error: Exception) -> tuple[str, str]:
-    from myrm_agent_harness.backends.skills.scanning.path_security import (
-        CategoryBucketCollisionError,
-        PathRedirectSecurityError,
-    )
-
-    if isinstance(error, CategoryBucketCollisionError):
-        return (
-            str(error),
-            "CATEGORY_BUCKET_COLLISION",
-        )
-    if isinstance(error, PathRedirectSecurityError):
-        return (
-            str(error),
-            "PATH_REDIRECT_ATTACK",
-        )
-
-    violation = classify_archive_security_issue(error)
-    if violation is None:
-        return str(error), ""
-    return format_archive_security_user_message(violation), violation.code.value
 
 
 @dataclass(frozen=True)
@@ -376,7 +335,7 @@ class BaseSkillMarketService:
             try:
                 files = await fetch_lobehub_as_skill(detail)
             except ValueError as e:
-                resolved_error, error_code = _resolve_install_error(e)
+                resolved_error, error_code = resolve_install_error(e)
                 _emit("failed", resolved_error)
                 return SkillInstallResult(success=False, error=resolved_error, error_code=error_code)
             return await self.install_files(
@@ -401,7 +360,7 @@ class BaseSkillMarketService:
                     error=f"Unsupported install method: {detail.install_method}",
                 )
         except ValueError as e:
-            resolved_error, error_code = _resolve_install_error(e)
+            resolved_error, error_code = resolve_install_error(e)
             _emit("failed", resolved_error)
             return SkillInstallResult(success=False, error=resolved_error, error_code=error_code)
 
@@ -442,7 +401,7 @@ class BaseSkillMarketService:
         try:
             skill_files = await self._git_installer.download(ref.clone_url, subdirectory=ref.subdirectory, ref=ref.ref)
         except ValueError as e:
-            resolved_error, error_code = _resolve_install_error(e)
+            resolved_error, error_code = resolve_install_error(e)
             _emit("failed", resolved_error)
             return SkillInstallResult(success=False, error=resolved_error, error_code=error_code)
 
@@ -600,7 +559,7 @@ class BaseSkillMarketService:
 
         # 0. 安装目录名必须是单个相对路径段：frontmatter 的 name 完全由
         # 技能发布方控制，未经校验会拼出目录穿越或让 mkdtemp 直接崩溃
-        if not _is_safe_skill_dir_name(name):
+        if not is_safe_skill_dir_name(name):
             reason = f"Invalid skill name for install directory: {name!r}"
             logger.warning("Skill install rejected: %s", reason)
             _emit("rejected", reason)
@@ -818,7 +777,7 @@ class BaseSkillMarketService:
         except (CategoryBucketCollisionError, PathRedirectSecurityError) as exc:
             # 安装目标是符号链接/分类桶等不安全路径：属于可预期的安全拒绝，
             # 转成结构化失败结果，避免调用方收到不透明的 500
-            resolved_error, error_code = _resolve_install_error(exc)
+            resolved_error, error_code = resolve_install_error(exc)
             logger.warning("Skill '%s' install target rejected: %s", name, resolved_error)
             _emit("rejected", resolved_error)
             return SkillInstallResult(
@@ -830,29 +789,3 @@ class BaseSkillMarketService:
         finally:
             if quarantine_dir.exists():
                 shutil.rmtree(quarantine_dir, ignore_errors=True)
-
-
-def _atomic_replace(src: Path, dst: Path) -> None:
-    if dst.exists() and dst.is_dir():
-        for p in dst.glob("**/*"):
-            if p.is_file() and p.suffix == ".bak":
-                with contextlib.suppress(OSError):
-                    p.unlink()
-    backup = dst.parent / (dst.name + ".bak")
-    had_backup = False
-
-    try:
-        if dst.exists():
-            if backup.exists():
-                shutil.rmtree(backup, ignore_errors=True)
-            dst.rename(backup)
-            had_backup = True
-
-        shutil.move(str(src), str(dst))
-
-        if had_backup:
-            shutil.rmtree(backup, ignore_errors=True)
-    except Exception:
-        if had_backup and backup.exists() and not dst.exists():
-            backup.rename(dst)
-        raise

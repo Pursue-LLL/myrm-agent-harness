@@ -17,6 +17,3 @@ from myrm_agent_harness.core.security.tool_registry import (
 from myrm_agent_harness.core.security.tool_registry import (
     _check_safety_coverage as _check_safety_coverage,
 )
-from myrm_agent_harness.core.security.tool_registry import (
-    _sanitize_url_for_taint as _sanitize_url_for_taint,
-)

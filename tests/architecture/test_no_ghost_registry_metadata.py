@@ -10,6 +10,7 @@ from myrm_agent_harness.core.security.tool_registry import (
     TOOL_PERMISSION_MAP,
     TOOL_SAFETY_METADATA,
 )
+from scripts.tool_registry_config import SERVER_TREE_AVAILABLE
 from scripts.tool_registry_engine import scan
 
 
@@ -23,6 +24,7 @@ def _metadata_keys() -> set[str]:
 
 
 @pytest.mark.architecture
+@pytest.mark.skipif(not SERVER_TREE_AVAILABLE, reason="myrm-agent-server not checked out next to harness")
 def test_tool_registry_metadata_has_no_ghost_tool_names() -> None:
     report = scan()
     ghosts = report.ghost_registry_metadata_keys(_metadata_keys())

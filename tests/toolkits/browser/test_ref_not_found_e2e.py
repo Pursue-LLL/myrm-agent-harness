@@ -48,7 +48,7 @@ async def test_ref_not_found_error_propagation(browser_session: BrowserSession) 
     """
 
     await browser_session.new_tab("about:blank")
-    await browser_session.evaluate(f"document.body.innerHTML = `{html}`")
+    await browser_session.get_active_page().set_content(html)
     await browser_session.snapshot()
 
     with pytest.raises(RefNotFoundError) as exc_info:
@@ -72,7 +72,7 @@ async def test_metrics_collection_real_session(browser_session: BrowserSession) 
     """
 
     await browser_session.new_tab("about:blank")
-    await browser_session.evaluate(f"document.body.innerHTML = `{html}`")
+    await browser_session.get_active_page().set_content(html)
     await browser_session.snapshot()
 
     initial_stats = browser_session.stats
@@ -99,7 +99,7 @@ async def test_ref_not_found_context_refs_real_page(browser_session: BrowserSess
     """
 
     await browser_session.new_tab("about:blank")
-    await browser_session.evaluate(f"document.body.innerHTML = `{html}`")
+    await browser_session.get_active_page().set_content(html)
     await browser_session.snapshot()
 
     with pytest.raises(RefNotFoundError) as exc_info:

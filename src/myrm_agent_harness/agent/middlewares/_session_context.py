@@ -23,6 +23,8 @@ ContextVars so they are not owned by any single middleware.
 - set_is_shadow_agent / reset_is_shadow_agent / get_is_shadow_agent: Background shadow-agent bulkhead flag.
 - set_turn_allowed_tool_names / get_turn_allowed_tool_names: Per-turn merged tool allowlist for execution-layer enforcement.
 - set_active_negative_constraints / get_active_negative_constraints: Context-local active negative constraints (VETO rules) for pre-call enforcement.
+- set_active_tool_registry / get_active_tool_registry / set_active_resolved_tools / get_active_resolved_tools: Tools published for the current agent run (ContextVar with a session-key fallback for LangGraph's copied contexts).
+- clear_active_tools_for_tests: Wipe every published registry and tool list for test isolation.
 
 [POS]
 Middleware session context — shared ContextVars for the middleware chain.
@@ -33,6 +35,7 @@ from __future__ import annotations
 from contextvars import ContextVar, Token
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.agent.security.delegation.models import TriadDelegationToken
 from myrm_agent_harness.agent.security.managed_approval_policy import (
     ManagedApprovalPolicy,
     get_process_managed_approval_policy,
@@ -330,6 +333,19 @@ def get_active_resolved_tools() -> list[BaseTool] | None:
     return _session_resolved_tools.get(_active_tools_session_key())
 
 
+def clear_active_tools_for_tests() -> None:
+    """Drop every published tool registry and resolved-tool list for test isolation.
+
+    The session maps are process-wide, so a registry published by one test (any test that builds an
+    agent) stays visible to every later test of the process and takes priority over the registry a
+    middleware was constructed with.
+    """
+    _active_tool_registry_var.set(None)
+    _active_resolved_tools_var.set(None)
+    _session_tool_registries.clear()
+    _session_resolved_tools.clear()
+
+
 def set_is_subagent(is_subagent: bool) -> None:
     """Mark the current execution context as a subagent.
 
@@ -432,3 +448,18 @@ def set_session_overlay_manager(manager: SessionOverlayManager | None) -> None:
 def get_session_overlay_manager() -> SessionOverlayManager | None:
     """Get the active SessionOverlayManager for the current async session context."""
     return _session_overlay_manager_var.get()
+
+
+_triad_delegation_token_var: ContextVar[TriadDelegationToken | None] = ContextVar(
+    "triad_delegation_token", default=None
+)
+
+
+def set_delegation_token(token: TriadDelegationToken | None) -> None:
+    """Set the active TriadDelegationToken for the current execution context."""
+    _triad_delegation_token_var.set(token)
+
+
+def get_delegation_token() -> TriadDelegationToken | None:
+    """Get the active TriadDelegationToken for the current execution context."""
+    return _triad_delegation_token_var.get()

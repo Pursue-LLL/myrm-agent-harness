@@ -48,7 +48,7 @@ async def test_demo_structured_error_output(browser_session: BrowserSession) -> 
     """
 
     await browser_session.new_tab("about:blank")
-    await browser_session.evaluate(f"document.body.innerHTML = `{html}`")
+    await browser_session.get_active_page().set_content(html)
     await browser_session.snapshot()
 
     try:
@@ -86,7 +86,7 @@ async def test_demo_metrics_collection(browser_session: BrowserSession) -> None:
     """
 
     await browser_session.new_tab("about:blank")
-    await browser_session.evaluate(f"document.body.innerHTML = `{html}`")
+    await browser_session.get_active_page().set_content(html)
     await browser_session.snapshot()
 
     print("\n" + "=" * 70)

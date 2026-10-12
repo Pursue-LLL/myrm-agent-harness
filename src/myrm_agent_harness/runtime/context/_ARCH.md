@@ -25,6 +25,8 @@ Context lifecycle management — cleanup, config, metrics, tracking, reading, of
 | artifact_heuristic_rule_engine.py | Core | Artifact-aware heuristic rule engine for next action prediction. | ✅ |
 | ast_symbol_stub_extractor.py | Core | AST symbol stub extractor for lightweight code signature harvesting. | ✅ |
 | atomic_tool_pair_cut_point_resolver.py | Core | Atomic tool-pair cut-point resolver for context compaction. | ✅ |
+| batch_task_cost_scheduler.py | Core | Cost-aware batch task scheduler for peak/off-peak economic arbitrage. | ✅ |
+| batch_task_cost_scheduler_types.py | Types | Types and schemas for peak/off-peak cost-aware batch task scheduling. | ✅ |
 | bidi_agent_channel_gateway.py | Core | Bi-directional agent channel gateway for active peer-to-peer collaboration. | ✅ |
 | big_at_context_bridge.py | Core | Bridges cross-discipline sessions via 'Big @' syntax, eliminating manual translation friction without context window bloat. | ✅ |
 | bounded_hydration_types.py | Types | Types and data models for bounded initial page loading and upward cursor hydration. | ✅ |
@@ -142,6 +144,8 @@ Context lifecycle management — cleanup, config, metrics, tracking, reading, of
 | model_free_tool_pruner.py | Core | Model-free deterministic tool result pruner and zero-cost context compactor. | ✅ |
 | model_free_tool_pruner_types.py | Types | Type definitions for model-free deterministic tool result pruner and zero-cost context compactor. | ✅ |
 | model_harness_cost_router.py | Core | Model and Harness orthogonal decoupling with Total Cost-to-Outcome routing. | ✅ |
+| model_switch_barrier.py | Core | Model switch subagent partitioning barrier and KV cache preservation engine. | ✅ |
+| model_switch_barrier_types.py | Types | Types and schemas for model switch subagent partitioning barrier and prefix protection. | ✅ |
 | multi_dimension_at_resolver.py | Core | Unified Multi-Dimension At-Symbol Context Resolver and Snapshot Ingestion Hub. | ✅ |
 | multi_dimension_at_resolver_types.py | Types | Data contracts and models for Unified Multi-Dimension At-Symbol Context Resolver. | ✅ |
 | multi_gateway_trust_governor.py | Core | Multi-Gateway trust tiering, high-risk action interception, and signed Handoff Cards. | ✅ |

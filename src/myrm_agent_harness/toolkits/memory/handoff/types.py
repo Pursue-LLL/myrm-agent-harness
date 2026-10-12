@@ -71,7 +71,9 @@ class AgentHandoffSpec(BaseModel):
     )
     session_id: str = Field(..., min_length=1, description="Source conversation session identifier")
     source_profile_id: str = Field(..., min_length=1, description="Departing agent profile identifier")
-    target_profile_id: str | None = Field(default=None, description="Designated recipient agent profile, or None for any")
+    target_profile_id: str | None = Field(
+        default=None, description="Designated recipient agent profile, or None for any"
+    )
     active_goal: str = Field(..., min_length=1, description="Primary mission and currently active milestone")
     failed_approaches: list[FailedApproachRecord] = Field(
         default_factory=list, description="Discarded implementation avenues to prevent looping"
@@ -118,7 +120,9 @@ class FinalizeSessionRequest(BaseModel):
     target_profile_id: str | None = Field(default=None, description="Intended successor agent profile")
     active_goal: str = Field(..., min_length=1, description="Active working goal summary")
     failed_approaches: list[FailedApproachRecord] = Field(default_factory=list, description="Discarded approaches")
-    implicit_constraints: list[ImplicitConstraintRecord] = Field(default_factory=list, description="Discovered constraints")
+    implicit_constraints: list[ImplicitConstraintRecord] = Field(
+        default_factory=list, description="Discovered constraints"
+    )
     errors_and_fixes: list[str] = Field(default_factory=list, description="Known errors and remedies")
     pending_asks: list[str] = Field(default_factory=list, description="Blockers or pending questions")
     next_actions: list[str] = Field(default_factory=list, description="Next actionable steps")

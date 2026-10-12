@@ -1,4 +1,4 @@
-"""Integration proof: real stdio MCP with 50+ tools routes to PTC/Skill path."""
+"""Integration proof: a real stdio MCP server whose schemas exceed the direct threshold routes to PTC/Skill."""
 
 from __future__ import annotations
 
@@ -15,7 +15,8 @@ from myrm_agent_harness.agent.skills.runtime.registry import skill_registry
 from myrm_agent_harness.toolkits.mcp.config import MCPConfig
 from myrm_agent_harness.toolkits.mcp.connection_manager import MCPConnectionManager
 
-_MEGA_TOOL_COUNT = 55
+# Each probe tool costs ~96 schema tokens: 160 tools are ~15.4K, above the 11,250-token per-server threshold.
+_MEGA_TOOL_COUNT = 160
 
 
 def _write_mega_mcp_server(script_path: Path, tool_count: int = _MEGA_TOOL_COUNT) -> None:
@@ -63,7 +64,7 @@ async def test_route_mcp_servers_real_stdio_mega_server_ptc_path(
     tmp_path: Path,
     _reset_manager: object,
 ) -> None:
-    """Real MCPServer stdio server with 55 tools must demote to PTC/Skill (no mocks)."""
+    """Real MCPServer stdio server with 160 tools must demote to PTC/Skill (no mocks)."""
     script = tmp_path / "mega_routing_probe.py"
     _write_mega_mcp_server(script)
 
@@ -81,7 +82,7 @@ async def test_route_mcp_servers_real_stdio_mega_server_ptc_path(
     try:
         conn = await manager.get_connection([cfg])
         server_tools = conn.tools_by_server.get(cfg.name) or []
-        assert len(server_tools) >= 50, f"expected >=50 tools, got {len(server_tools)}"
+        assert len(server_tools) == _MEGA_TOOL_COUNT, f"expected {_MEGA_TOOL_COUNT} tools, got {len(server_tools)}"
 
         result = await route_mcp_servers([cfg])
 
@@ -93,6 +94,6 @@ async def test_route_mcp_servers_real_stdio_mega_server_ptc_path(
         skill = result.skills[0]
         assert skill.mcp is not None
         assert skill.mcp.server == "mega-routing-probe"
-        assert len(skill.mcp.tools) >= 50
+        assert len(skill.mcp.tools) == _MEGA_TOOL_COUNT
     finally:
         await manager.stop()

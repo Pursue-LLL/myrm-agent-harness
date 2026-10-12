@@ -16,11 +16,12 @@ high-performance async I/O. Full CRUD for Profile, Procedural, and Pending memor
 """
 
 import asyncio
-import hashlib
+import contextlib
 import json
 import logging
 from datetime import datetime
 from pathlib import Path
+from typing import NoReturn
 from uuid import uuid4
 
 import aiosqlite
@@ -29,6 +30,7 @@ from myrm_agent_harness.toolkits.memory.relational._converters import (
     PROCEDURAL_COLUMNS,
     now_iso,
     parse_dt,
+    profile_revision,
     row_to_pending,
     row_to_procedural,
     row_to_profile,
@@ -103,31 +105,16 @@ class SQLiteRelationalStore(RelationalStore):
                         self._connection = await aiosqlite.connect(str(self._db_path))
                         await self._init_connection_settings()
                         await self._init_tables()
-                        # Fast quick_check on connection establishment
-                        async with self._connection.execute("PRAGMA quick_check(1)") as cursor:
-                            rows = list(await cursor.fetchall())
-                        if not rows or len(rows) != 1 or str(rows[0][0]).lower() != "ok":
-                            await self._connection.close()
-                            self._connection = None
-                            raise CorruptedMemoryIndexError(
-                                f"SQLite store {self._db_path} failed initial quick_check: {rows}",
-                                db_path=str(self._db_path),
-                                index_type="sqlite_relational",
-                                repair_suggestion="Restore from sqlite_backup snapshot or reset memory store.",
-                            )
-                    except CorruptedMemoryIndexError:
-                        self._connection = None
-                        raise
+                        await self._verify_quick_check(self._connection, "initial quick_check")
                     except Exception as e:
-                        err_str = str(e).lower()
-                        if any(k in err_str for k in ("malformed", "corrupt", "not a database", "disk i/o error")):
-                            self._connection = None
-                            raise CorruptedMemoryIndexError(
-                                f"Corrupted SQLite store {self._db_path}: {e}",
-                                db_path=str(self._db_path),
-                                index_type="sqlite_relational",
-                                repair_suggestion="Restore from sqlite_backup snapshot or reset memory store.",
-                            ) from e
+                        # A half-initialised connection must never be reused: it may lack the schema.
+                        await self._discard_connection()
+                        if isinstance(e, CorruptedMemoryIndexError):
+                            raise
+                        if any(
+                            k in str(e).lower() for k in ("malformed", "corrupt", "not a database", "disk i/o error")
+                        ):
+                            raise self._corruption_error(f"Corrupted SQLite store {self._db_path}: {e}") from e
                         raise RelationalConnectionError(f"Failed to connect: {e}") from e
         return self._connection
 
@@ -139,6 +126,24 @@ class SQLiteRelationalStore(RelationalStore):
         await harden_connection_async(self._connection, DURABLE, db_path=self._db_path)
         await self._connection.commit()
 
+    def _corruption_error(
+        self,
+        message: str,
+        repair_suggestion: str = "Restore from sqlite_backup snapshot or reset memory store.",
+    ) -> CorruptedMemoryIndexError:
+        return CorruptedMemoryIndexError(
+            message,
+            db_path=str(self._db_path),
+            index_type="sqlite_relational",
+            repair_suggestion=repair_suggestion,
+        )
+
+    async def _verify_quick_check(self, conn: aiosqlite.Connection, stage: str) -> None:
+        async with conn.execute("PRAGMA quick_check(1)") as cursor:
+            rows = list(await cursor.fetchall())
+        if not rows or len(rows) != 1 or str(rows[0][0]).lower() != "ok":
+            raise self._corruption_error(f"SQLite store {self._db_path} failed {stage}: {rows}")
+
     async def assert_store_integrity(self) -> None:
         """Fast pre-command integrity check using PRAGMA quick_check(1).
 
@@ -146,40 +151,32 @@ class SQLiteRelationalStore(RelationalStore):
         """
         conn = await self._get_connection()
         try:
-            async with conn.execute("PRAGMA quick_check(1)") as cursor:
-                rows = list(await cursor.fetchall())
-            if not rows or len(rows) != 1 or str(rows[0][0]).lower() != "ok":
-                raise CorruptedMemoryIndexError(
-                    f"SQLite store {self._db_path} failed quick_check: {rows}",
-                    db_path=str(self._db_path),
-                    index_type="sqlite_relational",
-                    repair_suggestion="Restore from sqlite_backup snapshot or reset memory store.",
-                )
+            await self._verify_quick_check(conn, "quick_check")
         except CorruptedMemoryIndexError:
             raise
         except Exception as e:
             err_str = str(e).lower()
             if any(k in err_str for k in ("malformed", "corrupt", "not a database", "disk i/o")):
-                raise CorruptedMemoryIndexError(
+                raise self._corruption_error(
                     f"SQLite store {self._db_path} integrity check query error: {e}",
-                    db_path=str(self._db_path),
-                    index_type="sqlite_relational",
-                    repair_suggestion="Check file permissions or restore database from backup.",
+                    "Check file permissions or restore database from backup.",
                 ) from e
             raise RelationalQueryError(f"SQLite store {self._db_path} integrity check query failed: {e}") from e
 
-    def _handle_query_error(self, op: str, e: Exception) -> None:
+    async def _discard_connection(self) -> None:
+        """Close and forget the current connection so the next call reconnects and re-checks the schema."""
+        failed, self._connection = self._connection, None
+        self._initialized = False
+        if failed is not None:
+            with contextlib.suppress(Exception):
+                await failed.close()
+
+    async def _handle_query_error(self, op: str, e: Exception) -> NoReturn:
         if isinstance(e, (CorruptedMemoryIndexError, RelationalStoreError)):
             raise e
-        err_str = str(e).lower()
-        if any(k in err_str for k in ("malformed", "corrupt", "not a database", "disk i/o")):
-            self._connection = None
-            raise CorruptedMemoryIndexError(
-                f"SQLite store {self._db_path} corrupted during {op}: {e}",
-                db_path=str(self._db_path),
-                index_type="sqlite_relational",
-                repair_suggestion="Restore from sqlite_backup snapshot or reset memory store.",
-            ) from e
+        if any(k in str(e).lower() for k in ("malformed", "corrupt", "not a database", "disk i/o")):
+            await self._discard_connection()
+            raise self._corruption_error(f"SQLite store {self._db_path} corrupted during {op}: {e}") from e
         raise RelationalQueryError(f"{op} failed: {e}") from e
 
     async def _ensure_integrity_before_write(self) -> None:
@@ -431,7 +428,7 @@ class SQLiteRelationalStore(RelationalStore):
                 row = await cursor.fetchone()
             return row[0] if row else None
         except Exception as e:
-            raise RelationalQueryError(f"get_profile failed: {e}") from e
+            await self._handle_query_error("get_profile", e)
 
     async def get_profile_snapshot(self, key: str, *, namespaces: list[str] | None = None) -> ProfileAttributeSnapshot:
         conn = await self._get_connection()
@@ -450,7 +447,7 @@ class SQLiteRelationalStore(RelationalStore):
                 return ProfileAttributeSnapshot(key=key, exists=False, revision=f"missing:{key}")
             value = str(row[1])
             updated_at = parse_dt(str(row[2]))
-            revision = _profile_revision(str(row[0]), value, updated_at.isoformat())
+            revision = profile_revision(str(row[0]), value, updated_at.isoformat())
             return ProfileAttributeSnapshot(
                 key=str(row[0]),
                 value=value,
@@ -459,7 +456,7 @@ class SQLiteRelationalStore(RelationalStore):
                 updated_at=updated_at,
             )
         except Exception as e:
-            raise RelationalQueryError(f"get_profile_snapshot failed: {e}") from e
+            await self._handle_query_error("get_profile_snapshot", e)
 
     async def set_profile(self, key: str, value: str, *, scope: MemoryScope | None = None) -> None:
         await self._ensure_integrity_before_write()
@@ -505,7 +502,7 @@ class SQLiteRelationalStore(RelationalStore):
             )
             await conn.commit()
         except Exception as e:
-            self._handle_query_error("set_profile", e)
+            await self._handle_query_error("set_profile", e)
 
     async def delete_profile(self, key: str, *, namespaces: list[str] | None = None) -> bool:
         await self._ensure_integrity_before_write()
@@ -519,8 +516,7 @@ class SQLiteRelationalStore(RelationalStore):
             await conn.commit()
             return cursor.rowcount > 0
         except Exception as e:
-            self._handle_query_error("delete_profile", e)
-            return False
+            await self._handle_query_error("delete_profile", e)
 
     async def list_profiles(
         self, *, limit: int = 1000, offset: int = 0, namespaces: list[str] | None = None
@@ -541,7 +537,7 @@ class SQLiteRelationalStore(RelationalStore):
                 rows = list(await cursor.fetchall())
             return [row_to_profile(tuple(r)) for r in rows]
         except Exception as e:
-            raise RelationalQueryError(f"list_profiles failed: {e}") from e
+            await self._handle_query_error("list_profiles", e)
 
     async def count_profiles(self, *, namespaces: list[str] | None = None) -> int:
         conn = await self._get_connection()
@@ -554,7 +550,7 @@ class SQLiteRelationalStore(RelationalStore):
                 row = await cursor.fetchone()
             return row[0] if row else 0
         except Exception as e:
-            raise RelationalQueryError(f"count_profiles failed: {e}") from e
+            await self._handle_query_error("count_profiles", e)
 
     # ── Procedural rules ─────────────────────────────────────────────
 
@@ -619,8 +615,7 @@ class SQLiteRelationalStore(RelationalStore):
             rule.id = rule_id
             return rule
         except Exception as e:
-            self._handle_query_error("create_rule", e)
-            return rule
+            await self._handle_query_error("create_rule", e)
 
     async def get_rule(self, rule_id: str, *, namespaces: list[str] | None = None) -> ProceduralMemory | None:
         conn = await self._get_connection()
@@ -633,8 +628,7 @@ class SQLiteRelationalStore(RelationalStore):
                 row = await cursor.fetchone()
             return row_to_procedural(tuple(row)) if row else None
         except Exception as e:
-            self._handle_query_error("get_rule", e)
-            return None
+            await self._handle_query_error("get_rule", e)
 
     async def search_rules(
         self, query: str, *, limit: int = 10, namespaces: list[str] | None = None
@@ -655,7 +649,7 @@ class SQLiteRelationalStore(RelationalStore):
                 rows = list(await cursor.fetchall())
             return [row_to_procedural(tuple(r)) for r in rows]
         except Exception as e:
-            raise RelationalQueryError(f"search_rules failed: {e}") from e
+            await self._handle_query_error("search_rules", e)
 
     async def list_rules(
         self,
@@ -686,7 +680,7 @@ class SQLiteRelationalStore(RelationalStore):
                 rows = list(await cursor.fetchall())
             return [row_to_procedural(tuple(r)) for r in rows]
         except Exception as e:
-            raise RelationalQueryError(f"list_rules failed: {e}") from e
+            await self._handle_query_error("list_rules", e)
 
     async def count_rules(self, *, active_only: bool = True, namespaces: list[str] | None = None) -> int:
         conn = await self._get_connection()
@@ -701,7 +695,7 @@ class SQLiteRelationalStore(RelationalStore):
                 row = await cursor.fetchone()
             return row[0] if row else 0
         except Exception as e:
-            raise RelationalQueryError(f"count_rules failed: {e}") from e
+            await self._handle_query_error("count_rules", e)
 
     async def update_rule(self, rule_id: str, rule: ProceduralMemory) -> ProceduralMemory:
         await self._ensure_integrity_before_write()
@@ -750,8 +744,7 @@ class SQLiteRelationalStore(RelationalStore):
         except RelationalNotFoundError:
             raise
         except Exception as e:
-            self._handle_query_error("update_rule", e)
-            return rule
+            await self._handle_query_error("update_rule", e)
 
     async def delete_rule(self, rule_id: str) -> bool:
         await self._ensure_integrity_before_write()
@@ -761,8 +754,7 @@ class SQLiteRelationalStore(RelationalStore):
             await conn.commit()
             return cursor.rowcount > 0
         except Exception as e:
-            self._handle_query_error("delete_rule", e)
-            return False
+            await self._handle_query_error("delete_rule", e)
 
     async def delete_all(self) -> int:
         await self._ensure_integrity_before_write()
@@ -774,8 +766,7 @@ class SQLiteRelationalStore(RelationalStore):
             await conn.commit()
             return (c1.rowcount or 0) + (c2.rowcount or 0) + (c3.rowcount or 0)
         except Exception as e:
-            self._handle_query_error("delete_all", e)
-            return 0
+            await self._handle_query_error("delete_all", e)
 
     # ── Pending (approval queue) ─────────────────────────────────────
 
@@ -804,8 +795,7 @@ class SQLiteRelationalStore(RelationalStore):
             await conn.commit()
             return record.id
         except Exception as e:
-            self._handle_query_error("submit_pending", e)
-            return record.id
+            await self._handle_query_error("submit_pending", e)
 
     async def get_pending(self, pending_id: str) -> PendingRecord | None:
         conn = await self._get_connection()
@@ -814,8 +804,7 @@ class SQLiteRelationalStore(RelationalStore):
                 row = await cursor.fetchone()
             return row_to_pending(tuple(row)) if row else None
         except Exception as e:
-            self._handle_query_error("get_pending", e)
-            return None
+            await self._handle_query_error("get_pending", e)
 
     async def pending_exists(self, memory_type: str, content: str) -> bool:
         conn = await self._get_connection()
@@ -826,8 +815,7 @@ class SQLiteRelationalStore(RelationalStore):
             ) as cursor:
                 return await cursor.fetchone() is not None
         except Exception as e:
-            self._handle_query_error("pending_exists", e)
-            return False
+            await self._handle_query_error("pending_exists", e)
 
     async def mark_pending(self, pending_id: str, status: str) -> None:
         await self._ensure_integrity_before_write()
@@ -840,7 +828,7 @@ class SQLiteRelationalStore(RelationalStore):
             )
             await conn.commit()
         except Exception as e:
-            self._handle_query_error("mark_pending", e)
+            await self._handle_query_error("mark_pending", e)
 
     async def list_pending(self, *, limit: int = 50) -> list[PendingRecord]:
         conn = await self._get_connection()
@@ -852,7 +840,7 @@ class SQLiteRelationalStore(RelationalStore):
                 rows = list(await cursor.fetchall())
             return [row_to_pending(tuple(r)) for r in rows]
         except Exception as e:
-            raise RelationalQueryError(f"list_pending failed: {e}") from e
+            await self._handle_query_error("list_pending", e)
 
     async def count_pending(self) -> int:
         conn = await self._get_connection()
@@ -861,7 +849,7 @@ class SQLiteRelationalStore(RelationalStore):
                 row = await cursor.fetchone()
             return row[0] if row else 0
         except Exception as e:
-            raise RelationalQueryError(f"count_pending failed: {e}") from e
+            await self._handle_query_error("count_pending", e)
 
     async def batch_mark_pending(self, pending_ids: list[str], status: str) -> int:
         if not pending_ids:
@@ -878,8 +866,7 @@ class SQLiteRelationalStore(RelationalStore):
             await conn.commit()
             return cursor.rowcount or 0
         except Exception as e:
-            self._handle_query_error("batch_mark_pending", e)
-            return 0
+            await self._handle_query_error("batch_mark_pending", e)
 
     async def delete_pending_by_source_chat_id(self, source_chat_id: str) -> int:
         await self._ensure_integrity_before_write()
@@ -892,8 +879,7 @@ class SQLiteRelationalStore(RelationalStore):
             await conn.commit()
             return cursor.rowcount or 0
         except Exception as e:
-            self._handle_query_error("delete_pending_by_source_chat_id", e)
-            return 0
+            await self._handle_query_error("delete_pending_by_source_chat_id", e)
 
     async def count_pending_by_source_chat_id(self, source_chat_id: str) -> int:
         conn = await self._get_connection()
@@ -905,7 +891,7 @@ class SQLiteRelationalStore(RelationalStore):
                 row = await cursor.fetchone()
             return row[0] if row else 0
         except Exception as e:
-            raise RelationalQueryError(f"count_pending_by_source_chat_id failed: {e}") from e
+            await self._handle_query_error("count_pending_by_source_chat_id", e)
 
     # ── Diagnostics & Integrity ──────────────────────────────────────
 
@@ -952,7 +938,7 @@ class SQLiteRelationalStore(RelationalStore):
             )
             await conn.commit()
         except Exception as e:
-            self._handle_query_error("record_exact_fact", e)
+            await self._handle_query_error("record_exact_fact", e)
 
     async def search_fts5(
         self,
@@ -980,8 +966,7 @@ class SQLiteRelationalStore(RelationalStore):
                 fts5_supported=self._fts5_supported,
             )
         except Exception as e:
-            self._handle_query_error("search_fts5", e)
-            return []
+            await self._handle_query_error("search_fts5", e)
 
     async def delete_exact_fact(self, memory_id: str) -> None:
         """Remove exact fact records and FTS5 virtual table document."""
@@ -995,7 +980,7 @@ class SQLiteRelationalStore(RelationalStore):
             )
             await conn.commit()
         except Exception as e:
-            self._handle_query_error("delete_exact_fact", e)
+            await self._handle_query_error("delete_exact_fact", e)
 
     # ── Lifecycle ────────────────────────────────────────────────────
 
@@ -1008,8 +993,3 @@ class SQLiteRelationalStore(RelationalStore):
             await self._connection.close()
             self._connection = None
             logger.info("SQLiteRelationalStore closed")
-
-
-def _profile_revision(key: str, value: str, updated_at: str) -> str:
-    payload = "\x00".join((key, value, updated_at))
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()

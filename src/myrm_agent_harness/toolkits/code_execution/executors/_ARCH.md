@@ -11,6 +11,7 @@ Executors module for Agent-in-Sandbox mode.
 | base.py | Core | Code executor base classes, including default file I/O and atomic replace file-write contract. | ✅ |
 | models.py | Core | Data models for code execution. | ✅ |
 | readonly_proxy.py | Core | Read-only executor proxy for zero-copy isolation with OS-level fallback security. | ✅ |
+| shell_file_transfer.py | Core | Chunked byte-exact file read (hex via `dd` + `od`) and write (base64) for shell-only executors, immune to stdout truncation and scrubbing. | ✅ |
 | test_executor.py | Core | Subprocess-based test execution for skill evolution TDE. | ✅ |
 
 | Submodule | Description |

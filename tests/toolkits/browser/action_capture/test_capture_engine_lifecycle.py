@@ -41,7 +41,8 @@ class _FakePage:
     async def add_init_script(self, js: str) -> None:
         self.init_scripts.append(js)
 
-    async def evaluate(self, expr: str) -> None:
+    async def evaluate(self, expr: str, *, isolated_context: bool = True) -> None:
+        assert isolated_context is False, "the capture bridge is only reachable from the main world"
         self.evaluated.append(expr)
 
     def on(self, event: str, cb: object) -> None:

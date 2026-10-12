@@ -59,6 +59,19 @@ def test_check_incremental_catches_only_scoped_violation(scratch: Path) -> None:
     assert "big.py" in errors[0]
 
 
+def test_check_skips_generated_modules(scratch: Path) -> None:
+    from scripts.check_file_line_limit import check
+
+    pkg = scratch / "src" / _REPO
+    generated = pkg / "sub" / "_generated"
+    generated.mkdir()
+    (generated / "table.py").write_text("a = 1\n" * 600, encoding="utf-8")
+    baseline = scratch / "file_line_baseline.txt"
+    errors = check(pkg, baseline, max_lines=500)
+    assert [e for e in errors if "table.py" in e] == []
+    assert check(pkg, baseline, max_lines=500, files=[generated / "table.py"]) == []
+
+
 def test_check_ignores_missing_files(scratch: Path) -> None:
     from scripts.check_file_line_limit import check
 

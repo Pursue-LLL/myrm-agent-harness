@@ -2,6 +2,102 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-12-004 · `SQLiteRelationalStore` 连接阶段失败后复用无表结构的半初始化连接；库损坏后丢弃的连接未关闭，工作线程与文件句柄泄漏
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-12 |
+| **修复时间** | 2026-10-12 |
+| **症状** | （1）首次连接时 `_init_tables` 等步骤抛错后，下一次调用直接拿到同一个连接，随后 `set_profile` 报 `no such table: profiles`；（2）读写路径遇到 `malformed` / `disk I/O` 等损坏错误时，旧连接只被置空而未关闭，aiosqlite 的非守护工作线程一直存活（实测 `thread.is_alive()` 为 True，`close()` 之后仍为 True），损坏库文件的句柄无法释放，恢复流程（还原备份）受阻；（3）`get_profile`、`list_profiles`、`count_profiles`、`search_rules`、`list_rules`、`count_rules`、`list_pending`、`count_pending` 等 10 个读方法不做损坏分类，调用方拿到的是普通 `RelationalQueryError`，连接也不会重建 |
+| **关联产品** | myrm-agent-harness `toolkits/memory/relational/sqlite_store.py`（仓内与 `myrm-agent-server` 均无调用方捕获 `RelationalQueryError`） |
+| **根因** | `_get_connection` 的失败分支只清空 `_connection` 而不关闭，且成功建立的连接在 `_initialized` 之前就已对外可见；`_handle_query_error` 是同步函数，无法 `await` 关闭连接，且 `_initialized` 在重连后仍为 True，换成新库文件后不会重建表结构；读方法各自 `raise RelationalQueryError`，绕过了统一的错误处理 |
+| **修复** | 新增 `_discard_connection`（关闭连接并重置 `_initialized`），连接失败与损坏错误共用；`_handle_query_error` 改为 `async` 且返回 `NoReturn`，所有读写方法统一经它抛错（消息格式不变：`<op> failed: …`），同时去掉各调用点为通过类型检查而写的不可达 `return`；初始 `quick_check` 与 `assert_store_integrity` 共用 `_verify_quick_check` |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | 在 `except` 里只把引用置空等于泄漏：aiosqlite 0.22 的连接自带非守护线程；`_initialized` 这类“已建表”标记必须随连接一起失效；读路径与写路径的错误处理必须同源，否则损坏只在写时才被识别 |
+| **回归** | `tests/toolkits/memory/test_relational_sqlite_store_corruption.py`（连接阶段三类失败后连接已关闭且可重试；21 个操作 x 2 种错误：普通错误保持连接，损坏错误释放连接并在下一次调用恢复；`_handle_query_error` 三种分支）与 `test_relational_sqlite_store_migration.py`（旧库升级保留行、默认值、幂等）；回退验证：连接阶段 4 个用例在旧实现上失败（`no such table: profiles`、`_connection is not None`），旧实现下 `/tmp/r142_leak.py` 显示孤儿线程存活，修复后为 False |
+| **代码位置** | `sqlite_store.py::_get_connection`、`_discard_connection`、`_handle_query_error`、`_verify_quick_check` |
+
+### BUG-HARNESS-2026-10-12-003 · `CodeExecutor` 的 shell 默认文件操作不是字节无损的：名字含单引号的文件读写失败或可注入命令，读取经 stdout 被脱敏/截断，大文件读写失败
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-12 |
+| **修复时间** | 2026-10-12 |
+| **症状** | 只实现 `execute` / `execute_bash` 的自定义执行器上：（1）`read_file("it's.txt")` 报 `unexpected EOF while looking for matching '`，文件名 `x'; touch PWNED; echo '` 会让读取执行 `touch PWNED`，`list_files(".", "*'; touch PWNED2; echo '")` 同样执行注入命令；（2）文件内容 `api_key=sk-…`、`password=…`、绝对路径经 `cat` 读回后被 `ExecutionResult` 脱敏成占位符，读改写会把占位符写回磁盘；（3）超过 200K 字符的文本被静默截断并插入 `[Truncated: …]` 标记；（4）约 300 KB 的二进制读取报 base64 非法，写入 2 MB 报 `OSError: Argument list too long` |
+| **关联产品** | myrm-agent-harness `toolkits/code_execution/executors`（仓内生产执行器 `LocalExecutor` 全量原生覆盖这些方法，不受影响；受影响面仅为继承默认实现的第三方执行器与测试桩） |
+| **根因** | （1）路径与模式用 `'{safe}'` 手工拼接单引号，`resolve_path` 只校验工作区边界、不转义引号；（2）（3）所有 shell 结果都经 `ExecutionResult.__post_init__` 的 `truncate_output` + `scrub_sensitive_info`，把文件内容当文本从 stdout 读取天然有损；（4）整个文件的 base64 内联在一条命令里，超过单参数上限（Linux 128 KB）；base64 输出同样被脱敏器处理，实测 64 KB 随机数据的 base64 文本约 13%–20% 的分片被改写（`/tmp/`、`/var/` 等路径片段命中），因此不能用 base64 读取 |
+| **修复** | 所有路径与模式统一经 `shlex.quote`；新增 `executors/shell_file_transfer.py`：读取按 32 KiB 分片用 `dd` + `od` 输出十六进制（不含 `/`，脱敏器不会改写），小于一个分片的文件只需一条命令，大文件先取 `wc -c` 再逐片读取并校验总长；写入按 32 KiB 分片经 `printf %s '<base64>' \| base64 -d`，首片截断写、其余追加，每条命令远低于参数上限，任一分片失败抛 `OSError`（此前写入失败被静默忽略）；`read_file` / `read_file_bytes` / `write_file` / `write_file_bytes` / `append_file` 共用这两个原语；`base64` 读取不再使用（BSD/macOS 不接受位置参数） |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | 经 shell 取回文件内容必须假设 stdout 会被改写：脱敏与截断是整个执行结果层的统一行为，换编码要实测才能确认不被命中（base64 实测约 13%–20% 的 64 KB 分片被改写，hex 在 60 个 32 KiB 分片上 0 次）；管道的退出码只反映最后一级，`test -f F && dd … \| od …` 才能让缺失文件使整条命令失败；BSD 与 GNU 的 `base64` 参数约定不同；`echo` 对以 `-` 开头的内容行为不一，写入用 `printf %s` |
+| **回归** | `tests/toolkits/code_execution/executors/test_base_executor_shell_file_ops.py`（带引号文件名与注入模式；含密钥与绝对路径的文本读回原样；0 / 1 / 分片边界 ±1 / 5 分片+7 字节的随机字节往返；约 232 KB 文本不截断；截断写与跨分片追加；`.gz` 解压；缺失文件抛 `FileNotFoundError`、写入失败抛 `OSError`；命令数随文件大小有界；尺寸探测失败、后续分片失败、短读均抛 `OSError`）与 `test_base_executor_contract.py`（`base.py` 的生命周期默认值、路径解析与越界、原子替换失败清理、中间件委托、执行器注册表）；回退验证：恢复旧实现后脱敏、大随机字节、大文本、写入失败 4 个用例失败 |
+| **代码位置** | `executors/shell_file_transfer.py`（`read_bytes_via_shell`、`write_bytes_via_shell`）· `executors/base.py::CodeExecutor`（文件操作默认实现） |
+
+### BUG-HARNESS-2026-10-12-002 · 没有 doctype 的页面被判为“被模态遮罩阻塞”：html/body 因覆盖视口 50% 以上被当成遮罩，带 label 的输入框被标 `[blocked]` 且拿不到 ref
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-12 |
+| **修复时间** | 2026-10-12 |
+| **症状** | quirks 模式页面（无 doctype）上快照把整页标为 blocked，表单字段没有可用 ref，Agent 无法点击或填写；模态框内仅靠 `label`、`placeholder`、`title` 命名的字段在遮罩说明里也缺失 |
+| **关联产品** | myrm-agent-harness `toolkits/browser/snapshot` |
+| **根因** | `MODAL_BLOCKING_SCRIPT` 把覆盖视口 ≥50% 的任意元素视为遮罩，quirks 模式下 `html`/`body` 恒占满视口；模态内可操作元素的名称只取 `innerText` 与 `aria-label`，与无障碍树的命名来源不一致 |
+| **修复** | 遮罩候选排除 `document.documentElement` 与 `document.body`（仍可凭 modal 属性或 dialog 角色成为候选）；模态内元素名称追加 `label`、`placeholder`、`title` |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | quirks 模式下 html/body 恒占满视口，必然触发；标准模式取决于页面内容高度，缺陷表现随页面而变，不易稳定复现 |
+| **回归** | `tests/toolkits/browser/snapshot/test_modal_detection_integration.py`（quirks 模式页面不是模态；dialog 列出 Username、Submit、Email 字段）；回退验证：去掉根元素排除时 quirks 页面被判为 `{'role': 'region', 'coverage': 1, ...}`；去掉 label/placeholder/title 命名时 dialog 只列出 `{'Submit'}` |
+| **代码位置** | `observer_scripts.py::MODAL_BLOCKING_SCRIPT` |
+
+### BUG-HARNESS-2026-10-12-001 · 浏览器动作录制从不产生步骤：捕获脚本被注入到 patchright 的隔离世界，`expose_function` 桥在那里是丢弃调用的空桩
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-12 |
+| **修复时间** | 2026-10-12 |
+| **症状** | 录制会话开启后点击、输入等页面事件不会进入 Python 回调，录制得到空步骤；没有任何错误日志（注入异常被 `logger.debug` 吞掉） |
+| **关联产品** | myrm-agent-harness `toolkits/browser/action_capture` |
+| **根因** | patchright 的 `page.evaluate` 默认在隔离世界执行（`isolated_context=True`），而 `expose_function` 绑定只在主世界才会把调用送达 Python；隔离世界里的 `__myrmCaptureCallback` 是丢弃调用的空桩 |
+| **修复** | `ActionCaptureEngine._inject_capture` 的两次 `page.evaluate` 都显式传 `isolated_context=False`，监听器与 `__myrmCaptureActive` 开关位于同一个主世界 |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | 主世界注入意味着页面自己的脚本也能调用 `window.__myrmCaptureCallback(...)` 伪造步骤；该信任边界来自 `expose_function` 的设计本身，修复前后都存在，未在本条处理 |
+| **回归** | `tests/toolkits/browser/action_capture/test_capture_engine_lifecycle.py` 的替身 `evaluate` 断言 `isolated_context is False`；`test_capture_engine_navigation_integration.py::test_capture_survives_navigation_and_restart` 在真实 Chromium 中验证：把两处 `isolated_context=False` 改回默认值时失败（`baseline click not captured: []`），修复后通过 |
+| **代码位置** | `capture_engine.py::ActionCaptureEngine._inject_capture` |
+
+### BUG-HARNESS-2026-10-08-006 · Linux 上后台 PTY 任务的输出在子进程退出后被丢弃：主端读取抛 `OSError: [Errno 5]`，尚未被取走的行全部丢失且没有任何提示
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-08 |
+| **修复时间** | 2026-10-08 |
+| **症状** | Linux 上以 PTY 方式启动的后台任务，子进程退出后对 `process.stdout.readline()` 的读取抛 `OSError: [Errno 5] Input/output error`：任务打印几行就退出时，除消费方已经取走的行之外全部丢失；`agent/meta_tools/bash/_background/consume.py` 把 `OSError` 当作“流结束”吞掉（`except (ConnectionError, OSError, asyncio.CancelledError): return`），所以不会有任何错误提示，只是读到一份被截短的输出。macOS 读到的是 EOF，本地从未复现；由 PR 的 Linux CI 暴露：`test_spawn_full_duplex_communication`、`test_spawn_stderr_capture` 失败 |
+| **关联产品** | myrm-agent-harness `toolkits/code_execution/executors/local` · `agent/meta_tools/bash/_background` |
+| **根因** | PTY 从端关闭后，Linux 让主端的下一次读取失败并返回 EIO（macOS 返回 EOF）。PTY 后台启动把主端接到普通的 asyncio `StreamReaderProtocol` 上，asyncio 把 EIO 转成 `StreamReader.set_exception()`；此后每次 `readline()` 都先检查该异常再看缓冲区（CPython 3.13：`unix_events._fatal_error → connection_lost(exc)`，`streams.readuntil` 先检查 `_exception`），缓冲区里已经收到的行因此被丢弃 |
+| **修复** | `_background_pty_spawn.py` 新增 `_PtyReaderProtocol`：`connection_lost` 收到 EIO 时按干净的流结束处理（先交付缓冲区里的行，随后返回 `b""`），其余读取错误原样透传。CPython 3.13 实测：标准协议在 `connection_lost(EIO)` 之后、缓冲区有 3 行时，首次 `readline()` 即抛 `OSError(5)`；换用新协议后依次读到 line1、line2、line3、`b""` |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | PTY 挂断语义在 macOS 与 Linux 上不同，只在 macOS 上开发永远看不到；上层为容错把 `OSError` 一律当作流结束，等于把数据丢失伪装成正常结束，因此只能靠 Linux 上的测试暴露。修复放在协议层把 EIO 归一为 EOF，而不是放宽上层对 `OSError` 的吞掉 |
+| **回归** | `tests/toolkits/code_execution/executors/local/test_background_pty_spawn.py`：`test_pty_reader_protocol_keeps_buffered_lines_when_linux_reports_eio`、`test_pty_reader_protocol_still_surfaces_other_read_errors`（协议级，所有平台运行）与 `test_spawned_pty_output_survives_child_exit`（真实 PTY，子进程打印三行后退出，退出后再读取）；相关套件（`executors/local` 与 `agent/meta_tools/bash` 的后台/spawn）207 passed |
+| **代码位置** | `toolkits/code_execution/executors/local/_background_pty_spawn.py::_PtyReaderProtocol` |
+
+### BUG-HARNESS-2026-10-08-005 · 干净检出的 `origin/main` 导入 `agent.middlewares` 即抛 `ImportError`：三方授权委托包的定义从未提交，CI 单测与浏览器作业大面积变红
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-08 |
+| **修复时间** | 2026-10-08 |
+| **症状** | 在 `git archive origin/main src` 解出的纯净源码树上执行 `import myrm_agent_harness.agent.middlewares`，抛 `ImportError: cannot import name 'get_delegation_token' from 'myrm_agent_harness.agent.middlewares._session_context'`，导入该包的模块全部加载失败。`origin/main`（`61c328b7`）的 CI 因此单测作业 629 个失败 + 170 个错误（共 799 条异常行，其中 685 条出自这条导入链），浏览器作业的 116 个收集错误全部出自它；开发者本地树里这些文件存在，本机看不到任何异常 |
+| **关联产品** | myrm-agent-harness `agent/security/delegation` · `agent/middlewares/_session_context.py` · `agent/middlewares/__init__.py` |
+| **根因** | `agent/middlewares/__init__.py` 重新导出 `get_delegation_token`，而它的定义（`_session_context.py` 中的 `set_delegation_token`/`get_delegation_token`，以及整个 `agent/security/delegation/` 包）只存在于本地树，从未提交。仓库里没有任何一步在“只含已提交文件”的树上导入包，缺失只能由 CI 的干净检出暴露；该包此前也没有任何测试引用（`tests/` 下零处） |
+| **修复** | 补交 `agent/security/delegation/{__init__,models,guard}.py` 与 `_ARCH.md`（`agent/security/_ARCH.md` 增加索引行），并在 `_session_context.py` 增加 `set_delegation_token`/`get_delegation_token`（用上下文变量承载当前令牌）；只补已提交导出所需的定义。同一 PR 的单测作业失败数：修复前 `origin/main` 为 629 个失败 + 170 个错误，修复后首轮为 66 个失败，同一分支继续收敛到 4 个失败（`a7d8f69e`；66 到 4 的下降来自同一分支里与平台、测试隔离相关的修复，与本条无关） |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | 本地树完整不等于仓库完整：导出点与被导出的定义分属不同提交时，开发机上一切正常，唯一的信号是在只含已提交文件的树上导入包。最便宜的复核：`git archive HEAD src \| tar -x -C <dir>` 后以 `PYTHONPATH=<dir>/src` 导入 `myrm_agent_harness.agent.middlewares` |
+| **回归** | `tests/agent/security/delegation/test_triad_delegation.py`：首个导入即 `from myrm_agent_harness.agent.middlewares import get_delegation_token`（定义缺失时在收集阶段失败）；其余用例覆盖有效权限 = 请求者与执行智能体的交集、审批人只能补充智能体已有的权限、通配符、过期令牌、子智能体收窄、守卫缺令牌时失败即关闭、`SubjectIdentity` 往返、会话访问器；`.github/workflows/test.yml` 在干净检出上运行全部单测 |
+| **代码位置** | `agent/security/delegation/{models,guard}.py` · `agent/middlewares/_session_context.py::set_delegation_token/get_delegation_token` |
+
 ### BUG-HARNESS-2026-10-07-007 · 安装 `myrm-agent-harness[pdf-ocr]` 依赖无解：核心要求 `PyYAML>=6.0.3`，而 PaddleOCR 链固定 `PyYAML==6.0.2`，与 `retrieval` 同装时又被 numpy 上限卡死
 
 | 字段 | 内容 |

@@ -5,17 +5,15 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import pytest
+
 
 def test_harness_and_server_cleanup_modules_share_markers() -> None:
     harness_path = Path(__file__).resolve().parent / "browser_process_cleanup.py"
-    server_path = (
-        Path(__file__).resolve().parents[3]
-        / "myrm-agent"
-        / "myrm-agent-server"
-        / "tests"
-        / "support"
-        / "browser_process_cleanup.py"
-    )
+    server_root = Path(__file__).resolve().parents[3] / "myrm-agent" / "myrm-agent-server"
+    if not server_root.is_dir():
+        pytest.skip("myrm-agent-server not checked out next to harness")
+    server_path = server_root / "tests" / "support" / "browser_process_cleanup.py"
     assert server_path.is_file(), f"Missing server mirror: {server_path}"
 
     harness_markers = _automation_markers_from_file(harness_path)

@@ -31,6 +31,7 @@ from langchain.tools import tool
 from pydantic import BaseModel, Field
 
 from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
+    BatchDelegateInput,
     TaskRequest,
     execute_batch_delegation,
     execute_parallel_delegation,
@@ -608,10 +609,6 @@ async def update_delegate_task_description(
     dynamic_desc = await _build_dynamic_description(catalog, allowed_types)
     delegate_tool.description = dynamic_desc
 
-
-from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (  # noqa: E402
-    BatchDelegateInput,
-)
 
 __all__ = [
     "BatchDelegateInput",

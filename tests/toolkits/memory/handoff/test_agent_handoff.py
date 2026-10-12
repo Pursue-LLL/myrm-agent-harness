@@ -1,4 +1,4 @@
-# [POS]: tests/agent/context_management/test_agent_handoff.py
+# [POS]: tests/toolkits/memory/handoff/test_agent_handoff.py
 # [INPUT]: AgentHandoffEngine, types, state machine, store
 # [OUTPUT]: Unit test suite for cross-agent typed handoff and exactly-once claim
 """Unit tests for typed cross-agent handoff protocol, CAS exactly-once claim, and finalization."""
@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from myrm_agent_harness.agent.context_management.handoff import (
+from myrm_agent_harness.toolkits.memory.handoff import (
     AgentHandoffEngine,
     AgentHandoffStore,
     FailedApproachRecord,

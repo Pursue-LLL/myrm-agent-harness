@@ -235,16 +235,6 @@ class RetrievalConfig:
         quoted_phrase_boost_weight: Quoted phrase boost weight (multiplicative factor)
         enable_preference_boost: Enable preference boost for preference-tagged memories (MemPalace enhancement)
         preference_boost_weight: Preference boost weight (multiplicative factor, applied to preference_strength)
-        source_diversity_weight: Source diversity penalty weight for MMR session diversification
-        min_relevance_score: Absolute minimum RRF score threshold (anti-hallucination hard cutoff)
-        enable_temporal_window: Derive since/until hard-filter bounds from past-facing temporal
-            markers ("上个月", "last spring") when the caller passes neither bound; pure local regex
-        enable_cross_rerank: Rerank the fused candidate head with a cross-encoder after graph
-            enrichment (effective only when a RerankerService is injected at construction)
-        cross_rerank_top_n: Maximum head candidates reranked per query (cost ceiling)
-        cross_rerank_min_candidates: Skip reranking at or below this candidate count
-        cross_rerank_batch_size: Query-document pairs per rerank call (provider batch limit)
-        cross_rerank_timeout: Wall-clock ceiling (seconds) for the whole rerank gate
         timeout_seconds: Wall-clock ceiling for one retrieval pipeline. When a backing
             store (remote embedding/vector) hangs, the collect stage returns whatever
             completed first and the whole pipeline is cut at this budget, failing open
@@ -324,10 +314,6 @@ class RetrievalConfig:
     gravity_power: float = 1.8
     gravity_time_scale_hours: float = 24.0
     dynamic_signal_weights: dict[str, float] | None = None
-    """Wall-clock ceiling (seconds) for the full retrieval pipeline and its
-    candidate-collect stage. Aligned with CoPaw's 10s memory fallback; remote
-    embedding/vector providers that hang past this budget are cut with partial
-    results retained and the search marked as degraded (fail-open)."""
 
 
 @dataclass(frozen=True, slots=True)

@@ -5,6 +5,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import pytest
+
 from myrm_agent_harness.agent.tool_management.tool_layers import _TOOL_LAYERS, ToolLayer
 
 _HARNESS_ROOT = Path(__file__).resolve().parents[2]
@@ -45,6 +47,8 @@ def test_harness_static_layers_exclude_external() -> None:
 
 
 def test_server_vendor_layers_are_external() -> None:
+    if not _SERVER_BOOTSTRAP.is_file():
+        pytest.skip("myrm-agent-server not checked out next to harness")
     server_layers = _load_server_tool_layers()
     assert server_layers, "server bootstrap must declare vendor tool layers"
     for name, layer in server_layers.items():

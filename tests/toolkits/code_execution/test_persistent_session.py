@@ -1442,12 +1442,19 @@ class TestLifecycleSafety:
 
     @pytest.mark.asyncio
     async def test_trailing_backslash_no_hang(self) -> None:
-        """A trailing backslash continuation must not hang or crash the shell."""
+        """A trailing backslash continuation must not hang the shell and must leave the session usable.
+
+        The continuation swallows the exit-code line of the wrapper, so the output boundary is corrupted
+        and the shell is terminated on purpose; the contract is that the next command still runs.
+        ``is_alive`` is not asserted because it flips only once the killed process has been reaped.
+        """
         session = LocalPersistentSession(_make_config())
         await session.start()
         try:
             _ = await asyncio.wait_for(session.execute("echo a \\", timeout=5), timeout=6)
-            assert session.is_alive
+            follow_up = await asyncio.wait_for(session.execute("echo still_usable", timeout=5), timeout=6)
+            assert follow_up.success
+            assert "still_usable" in follow_up.stdout
         finally:
             await session.close()
 

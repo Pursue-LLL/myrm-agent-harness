@@ -14,5 +14,5 @@ Desktop & WebUI Unload Graceful Flush Finalize Guard: zero-LLM crash-proof emerg
 
 ## Key Dependencies
 
-- `agent.context_management.handoff`
+- `toolkits.memory.handoff`
 - External libraries: `pydantic`

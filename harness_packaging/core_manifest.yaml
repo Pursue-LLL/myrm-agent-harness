@@ -13,5 +13,49 @@ directories:
   - toolkits/memory/proactive
   - toolkits/memory/file_sync
   - toolkits/memory/tool_guidance
+  - agent/context_management/compression_flush
+  - agent/context_management/dependency_expansion
+  - agent/context_management/project_state
+  - toolkits/memory/action_impact
+  - toolkits/memory/attribution
+  - toolkits/memory/auto_recall
+  - toolkits/memory/budget_curator
+  - toolkits/memory/codegraph
+  - toolkits/memory/compaction
+  - toolkits/memory/conflict_arbitration
+  - toolkits/memory/crystallization
+  - toolkits/memory/decay
+  - toolkits/memory/diagnostic
+  - toolkits/memory/dialectic
+  - toolkits/memory/dreaming
+  - toolkits/memory/drift_defense
+  - toolkits/memory/dual_tier
+  - toolkits/memory/dual_track
+  - toolkits/memory/dual_track_extraction
+  - toolkits/memory/evolution
+  - toolkits/memory/fact_editing
+  - toolkits/memory/fast_ingest
+  - toolkits/memory/governor
+  - toolkits/memory/graph_arbitration
+  - toolkits/memory/graph_rrf
+  - toolkits/memory/intent_reflection
+  - toolkits/memory/ltra
+  - toolkits/memory/memops
+  - toolkits/memory/override_stack
+  - toolkits/memory/paging
+  - toolkits/memory/persona_router
+  - toolkits/memory/privacy_gate
+  - toolkits/memory/procedural
+  - toolkits/memory/profile_notes
+  - toolkits/memory/prompt_cache_guard
+  - toolkits/memory/provenance_batch
+  - toolkits/memory/ripplemem
+  - toolkits/memory/self_verification
+  - toolkits/memory/social_curator
+  - toolkits/memory/task_state
+  - toolkits/memory/temporal
+  - toolkits/memory/workspace_living
+  - toolkits/memory/world_model
+  - toolkits/memory/zero_hallucination
 
 modules: []

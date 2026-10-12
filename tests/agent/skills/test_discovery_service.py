@@ -12,7 +12,6 @@ from myrm_agent_harness.agent.skills.market.service import (
     BaseSkillMarketService,
     EnrichedSearchResult,
     SkillPreviewResult,
-    _atomic_replace,
 )
 from myrm_agent_harness.agent.skills.market.sources.github import GitHubRef
 from myrm_agent_harness.backends.skills.market_protocols import (
@@ -283,55 +282,6 @@ class TestEnrichedSearchResult:
             upgrade_available=True,
         )
         assert r.upgrade_available is True
-
-
-class TestAtomicReplace:
-    def test_atomic_replace_new_target(self, tmp_path) -> None:
-        src = tmp_path / "src_dir"
-        src.mkdir()
-        (src / "file.txt").write_text("hello")
-
-        dst = tmp_path / "dst_dir"
-        _atomic_replace(src, dst)
-
-        assert dst.exists()
-        assert (dst / "file.txt").read_text() == "hello"
-        assert not src.exists()
-
-    def test_atomic_replace_existing_target(self, tmp_path) -> None:
-        src = tmp_path / "src_dir"
-        src.mkdir()
-        (src / "new.txt").write_text("new")
-
-        dst = tmp_path / "dst_dir"
-        dst.mkdir()
-        (dst / "old.txt").write_text("old")
-
-        _atomic_replace(src, dst)
-
-        assert dst.exists()
-        assert (dst / "new.txt").read_text() == "new"
-        assert not (dst / "old.txt").exists()
-
-    def test_atomic_replace_cleans_stale_backup(self, tmp_path) -> None:
-        src = tmp_path / "src_dir"
-        src.mkdir()
-        (src / "new.txt").write_text("new")
-
-        dst = tmp_path / "dst_dir"
-        dst.mkdir()
-        (dst / "old.txt").write_text("old")
-
-        # A stale .bak from a previous interrupted replace must be cleaned up.
-        stale_bak = tmp_path / "dst_dir.bak"
-        stale_bak.mkdir()
-        (stale_bak / "stale.txt").write_text("stale")
-
-        _atomic_replace(src, dst)
-
-        assert dst.exists()
-        assert (dst / "new.txt").read_text() == "new"
-        assert not stale_bak.exists()
 
 
 class TestUninstall:
@@ -887,26 +837,6 @@ class TestQuarantineReject:
 
         assert result.success is True
         assert result.scan_summary == "Uses subprocess"
-
-
-class TestAtomicReplaceRollback:
-    def test_rollback_on_move_failure(self, tmp_path) -> None:
-        src = tmp_path / "src_dir"
-        src.mkdir()
-        (src / "file.txt").write_text("new")
-
-        dst = tmp_path / "dst_dir"
-        dst.mkdir()
-        (dst / "old.txt").write_text("old")
-
-        with (
-            patch("shutil.move", side_effect=OSError("disk full")),
-            pytest.raises(OSError, match="disk full"),
-        ):
-            _atomic_replace(src, dst)
-
-        assert dst.exists()
-        assert (dst / "old.txt").read_text() == "old"
 
 
 class TestSearchTimeout:

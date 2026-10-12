@@ -221,8 +221,8 @@ myrm_agent_harness/
 
 ```python
 class ConversationMemory(BaseMemory):
-    raw_exchange: str           # User Q + AI A verbatim（永不修改）
-    content: str                # LLM extracted summary（压缩版）
+    raw_exchange: str  # User Q + AI A verbatim（永不修改）
+    content: str  # LLM extracted summary（压缩版）
     raw_embedding: list[float]  # raw_exchange的向量
     summary_embedding: list[float]  # content的向量
 ```
@@ -288,6 +288,7 @@ class HistoryBasedAdaptiveStrategy(AdaptiveChannelStrategy):
     def should_use_dual_channel(self, query: str) -> bool:
         # 基于用户历史行为决策
         ...
+
 
 config = RetrievalConfig(adaptive_strategy=HistoryBasedAdaptiveStrategy())
 ```
@@ -470,11 +471,11 @@ from myrm_agent_harness.toolkits.memory import MemoryManager, MemoryConfig
 
 manager = MemoryManager(
     config=config,
-    relational=relational,     # RelationalStoreProtocol
-    vector=vector_store,       # VectorStoreProtocol
-    embedding=embed_adapter,   # EmbeddingProtocol
-    graph=graph,               # GraphStoreProtocol (可选)
-    approval_required=True,    # 启用审批（使用 RelationalStore 的 pending 方法）
+    relational=relational,  # RelationalStoreProtocol
+    vector=vector_store,  # VectorStoreProtocol
+    embedding=embed_adapter,  # EmbeddingProtocol
+    graph=graph,  # GraphStoreProtocol (可选)
+    approval_required=True,  # 启用审批（使用 RelationalStore 的 pending 方法）
 )
 
 results = await manager.search("用户的健身偏好", limit=10)

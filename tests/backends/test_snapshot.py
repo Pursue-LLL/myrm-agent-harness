@@ -2,6 +2,11 @@ from pathlib import Path
 
 import pytest
 
+from myrm_agent_harness.agent.security.workspace_trust.context import (
+    clear_workspace_trust_context,
+    set_workspace_trust_level,
+)
+from myrm_agent_harness.agent.security.workspace_trust.types import WorkspaceTrustLevel
 from myrm_agent_harness.backends.skills.local import (
     LocalSkillBackend,
     scan_workspace_skills,
@@ -41,8 +46,28 @@ Content 2
     return tmp_path
 
 
+@pytest.fixture
+def trusted_workspace():
+    """Workspace skill scans are gated on workspace trust; unknown trust counts as restricted."""
+    set_workspace_trust_level(WorkspaceTrustLevel.TRUSTED)
+    yield
+    clear_workspace_trust_context()
+
+
 @pytest.mark.asyncio
-async def test_snapshot_lifecycle(temp_skills_dir):
+async def test_workspace_scan_stays_off_until_the_workspace_is_trusted(temp_skills_dir):
+    assert scan_workspace_skills(temp_skills_dir, use_snapshot=False) == []
+
+    set_workspace_trust_level(WorkspaceTrustLevel.RESTRICTED)
+    try:
+        assert scan_workspace_skills(temp_skills_dir, use_snapshot=False) == []
+        assert len(scan_workspace_skills(temp_skills_dir, use_snapshot=False, disclosure_only=True)) == 2
+    finally:
+        clear_workspace_trust_context()
+
+
+@pytest.mark.asyncio
+async def test_snapshot_lifecycle(temp_skills_dir, trusted_workspace):
     # Test building local snapshot
     await rebuild_local_dir_snapshot(temp_skills_dir)
     snapshot_path = temp_skills_dir / ".skills_snapshot.sqlite"
@@ -182,7 +207,7 @@ Content 3
 
 
 @pytest.mark.asyncio
-async def test_snapshot_update_snapshot(temp_skills_dir):
+async def test_snapshot_update_snapshot(temp_skills_dir, trusted_workspace):
     # Test update_snapshot method (batch update)
     from myrm_agent_harness.backends.skills.local import scan_workspace_skills
 

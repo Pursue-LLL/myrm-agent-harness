@@ -55,7 +55,11 @@ class TestWindowTargetResolution:
 class TestInputPrimitiveErrorPaths:
     @pytest.mark.asyncio()
     async def test_click_error_is_reported(self, backend: MacOSBackend) -> None:
-        with patch.object(macos_mod.macos_input, "click", MagicMock(side_effect=RuntimeError("no accessibility"))):
+        with (
+            patch.object(macos_mod.macos_input, "key_down"),
+            patch.object(macos_mod.macos_input, "key_up"),
+            patch.object(macos_mod.macos_input, "click", MagicMock(side_effect=RuntimeError("no accessibility"))),
+        ):
             result = await backend.click(1, 2, modifiers=["ctrl"])
         assert result.success is False
         assert "no accessibility" in (result.error or "")

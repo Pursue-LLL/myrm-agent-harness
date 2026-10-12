@@ -19,6 +19,7 @@ _repo_root = Path(__file__).resolve().parent.parent.parent
 if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
+from scripts.tool_registry_config import SERVER_TREE_AVAILABLE
 from scripts.tool_registry_engine import scan
 
 
@@ -55,6 +56,7 @@ def test_no_ghost_registrations(report) -> None:
 
 
 @pytest.mark.architecture
+@pytest.mark.skipif(not SERVER_TREE_AVAILABLE, reason="myrm-agent-server not checked out next to harness")
 def test_no_orphan_factories(report) -> None:
     """Every `create_*_tool(s)` factory must be invoked from at least one
     startup path or appear in `ORPHAN_FACTORY_WHITELIST` with justification."""

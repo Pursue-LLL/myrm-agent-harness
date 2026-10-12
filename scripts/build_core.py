@@ -14,18 +14,22 @@ Usage::
     .venv/bin/python scripts/build_core.py --wheel          # compile + build platform wheel
     .venv/bin/python scripts/build_core.py --list           # show manifest modules
 
-Requires ``nuitka`` in the active environment (``uv sync --group build``).
+Requires ``nuitka`` in the active environment (``uv sync --group build``). Modules compile in
+parallel (at most 4 workers; override with ``MYRM_NUITKA_JOBS``).
 """
 
 from __future__ import annotations
 
 import argparse
 import importlib.util
+import os
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -62,6 +66,14 @@ def _module_import_name(module_file: Path) -> str:
     return ".".join(parts)
 
 
+def _compile_jobs() -> int:
+    """Parallel ``nuitka --module`` workers; override with ``MYRM_NUITKA_JOBS``."""
+    configured = os.environ.get("MYRM_NUITKA_JOBS")
+    if configured is not None:
+        return max(1, int(configured))
+    return max(1, min(os.cpu_count() or 1, 4))
+
+
 def _compile_module(
     module_file: Path,
     compile_root: Path,
@@ -89,8 +101,10 @@ def _compile_module(
     if not native and platform.nuitka_target is not None:
         cmd.append(f"--target={platform.nuitka_target}")
 
-    print(f"Compiling {import_name} ...")
+    print(f"Compiling {import_name} ...", flush=True)
+    started = time.monotonic()
     subprocess.run(cmd, check=True, cwd=_REPO_ROOT)
+    print(f"Compiled {import_name} in {time.monotonic() - started:.1f}s", flush=True)
 
     stem = nuitka_artifact_stem(module_file)
     candidates = sorted(output_dir.glob(f"{stem}*.so")) + sorted(output_dir.glob(f"{stem}*.pyd"))
@@ -127,10 +141,16 @@ def compile_core(platform: PlatformSpec | None = None) -> Path:
     current = get_current_platform()
     native = plat.key == current.key
 
-    compiled: list[tuple[Path, Path]] = []
-    for module_file in manifest.module_paths:
-        artifact = _compile_module(module_file, compile_dir, plat, native=native)
-        compiled.append((module_file, artifact))
+    modules = list(manifest.module_paths)
+
+    def compile_one(module_file: Path) -> tuple[Path, Path]:
+        return module_file, _compile_module(module_file, compile_dir, plat, native=native)
+
+    # Each module is an independent ``nuitka --module`` process. The first one runs alone so the
+    # one-time toolchain/dependency downloads are not raced by parallel workers.
+    compiled: list[tuple[Path, Path]] = [compile_one(modules[0])] if modules else []
+    with ThreadPoolExecutor(max_workers=_compile_jobs()) as pool:
+        compiled.extend(pool.map(compile_one, modules[1:]))
 
     _stage_artifacts(compiled, _STAGING_ROOT)
     print(f"Compiled {len(compiled)} core modules for {plat.key}")

@@ -13,10 +13,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-_BUILTIN_DIR = (
-    Path(__file__).resolve().parents[4]
-    / "src/myrm_agent_harness/toolkits/browser/domain_skills/builtin"
-)
+_BUILTIN_DIR = Path(__file__).resolve().parents[4] / "src/myrm_agent_harness/toolkits/browser/domain_skills/builtin"
 
 
 def _load_tool(skill_id: str, tool_file: str, callable_name: str) -> Callable[..., Any]:
@@ -52,9 +49,13 @@ async def test_bilibili_extracts_videos_from_semantic_refs() -> None:
 
     refs = MappingProxyType(
         {
-            "e1": _MockRefInfo(role="link", name="【4K】超燃混剪！全网最强视觉盛宴 UP主 播放", url="/video/BV1xx411c7mD"),
+            "e1": _MockRefInfo(
+                role="link", name="【4K】超燃混剪！全网最强视觉盛宴 UP主 播放", url="/video/BV1xx411c7mD"
+            ),
             "e2": _MockRefInfo(role="link", name="首页导航", url="/"),
-            "e3": _MockRefInfo(role="link", name="Python AI Agent 全栈架构设计教程 UP主 弹幕", url="/video/BV2yy411c8kE"),
+            "e3": _MockRefInfo(
+                role="link", name="Python AI Agent 全栈架构设计教程 UP主 弹幕", url="/video/BV2yy411c8kE"
+            ),
         }
     )
     session = MagicMock()
@@ -133,10 +134,7 @@ async def test_xiaohongshu_respects_max_notes() -> None:
     get_explore_notes = _load_tool("xiaohongshu", "get_explore_notes.py", "get_explore_notes")
 
     refs = MappingProxyType(
-        {
-            f"n{i}": _MockRefInfo(role="link", name=f"小红书笔记标题 #{i}", url=f"/explore/note_{i}")
-            for i in range(10)
-        }
+        {f"n{i}": _MockRefInfo(role="link", name=f"小红书笔记标题 #{i}", url=f"/explore/note_{i}") for i in range(10)}
     )
     session = MagicMock()
     session.url = "https://www.xiaohongshu.com/explore"
@@ -149,51 +147,98 @@ async def test_xiaohongshu_respects_max_notes() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Douyin: get_user_videos
+# Douyin: get_video_feed
 # ---------------------------------------------------------------------------
+
+_DOUYIN_VIDEO_ID = "7391234567890123456"
+_DOUYIN_OTHER_VIDEO_ID = "7391234567890123457"
+
+
+def _douyin_session(refs: MappingProxyType[str, _MockRefInfo], page_text: str = "") -> MagicMock:
+    session = MagicMock()
+    session.url = "https://www.douyin.com"
+    session.get_all_refs.return_value = refs
+    session.snapshot = AsyncMock(return_value=MagicMock())
+    session.extract_text = AsyncMock(return_value=page_text)
+    return session
 
 
 @pytest.mark.asyncio
 async def test_douyin_extracts_videos_from_semantic_refs() -> None:
-    get_user_videos = _load_tool("douyin", "get_user_videos.py", "get_user_videos")
+    get_video_feed = _load_tool("douyin", "get_video_feed.py", "get_video_feed")
 
     refs = MappingProxyType(
         {
-            "v1": _MockRefInfo(role="link", name="周末自驾露营vlog，看日出云海", url="/video/7391234567890123456"),
-            "v2": _MockRefInfo(role="link", name="摄影师老张的主页", url="/user/MS4wLjABAAA..."),
-            "v3": _MockRefInfo(role="button", name="关注创作者", url=""),
+            "v1": _MockRefInfo(role="link", name=f"周末自驾露营vlog，看日出云海 @摄影师老张 8.6w赞 {_DOUYIN_VIDEO_ID}"),
+            "v2": _MockRefInfo(role="button", name="关注"),
+            "v3": _MockRefInfo(role="link", name=f"海边日落延时摄影合集 {_DOUYIN_OTHER_VIDEO_ID}"),
         }
     )
-    session = MagicMock()
-    session.url = "https://www.douyin.com"
-    session.get_all_refs.return_value = refs
-    session.interact = AsyncMock(return_value="ok")
 
-    result = await get_user_videos(session, {"max_videos": 10})
-    videos = json.loads(result)
+    videos = json.loads(await get_video_feed(_douyin_session(refs), {"max_items": 10}))
 
-    assert len(videos) == 2
-    assert videos[0]["ref"] == "v1"
+    assert [v["video_id"] for v in videos] == [_DOUYIN_VIDEO_ID, _DOUYIN_OTHER_VIDEO_ID]
     assert "露营vlog" in videos[0]["title"]
-    assert videos[0]["url"] == "https://www.douyin.com/video/7391234567890123456"
-    session.interact.assert_awaited_once_with(action="scroll", text="350")
+    assert videos[0]["author"] == "摄影师老张"
+    assert videos[0]["likes"] == "8.6w赞"
+    assert videos[0]["url"] == f"https://www.douyin.com/video/{_DOUYIN_VIDEO_ID}"
+
+
+@pytest.mark.asyncio
+async def test_douyin_stops_at_max_items_without_reading_the_page_text() -> None:
+    get_video_feed = _load_tool("douyin", "get_video_feed.py", "get_video_feed")
+
+    refs = MappingProxyType(
+        {
+            "v1": _MockRefInfo(role="link", name=f"周末自驾露营vlog，看日出云海 {_DOUYIN_VIDEO_ID}"),
+            "v2": _MockRefInfo(role="link", name=f"海边日落延时摄影合集 {_DOUYIN_OTHER_VIDEO_ID}"),
+        }
+    )
+    session = _douyin_session(refs)
+
+    videos = json.loads(await get_video_feed(session, {"max_items": 1}))
+
+    assert [v["video_id"] for v in videos] == [_DOUYIN_VIDEO_ID]
+    session.extract_text.assert_not_awaited()
 
 
 @pytest.mark.asyncio
 async def test_douyin_fallback_text_extraction() -> None:
-    get_user_videos = _load_tool("douyin", "get_user_videos.py", "get_user_videos")
+    get_video_feed = _load_tool("douyin", "get_video_feed.py", "get_video_feed")
 
-    session = MagicMock()
-    session.url = "https://www.douyin.com"
-    session.get_all_refs.return_value = MappingProxyType({})
-    session.snapshot = AsyncMock(return_value=MagicMock())
-    session.interact = AsyncMock(return_value="ok")
-    session.extract_text = AsyncMock(
-        return_value="2026最新短视频制作技巧\n15.2w 赞 · 1.8w 评论\n\nAI自动化办公实操案例\n8.6w 获赞 · 9200 转发"
+    page_text = (
+        f"2026最新短视频制作技巧\n/video/{_DOUYIN_VIDEO_ID}\n\nAI自动化办公实操案例\n/video/{_DOUYIN_OTHER_VIDEO_ID}"
     )
+    session = _douyin_session(MappingProxyType({}), page_text)
 
-    result = await get_user_videos(session, {"max_videos": 5})
-    videos = json.loads(result)
+    videos = json.loads(await get_video_feed(session, {"max_items": 5}))
 
-    assert len(videos) >= 1
-    assert any("短视频制作技巧" in v.get("title", "") for v in videos)
+    session.snapshot.assert_awaited_once()
+    assert [v["video_id"] for v in videos] == [_DOUYIN_VIDEO_ID, _DOUYIN_OTHER_VIDEO_ID]
+    assert videos[0]["title"] == "2026最新短视频制作技巧"
+    assert videos[1]["title"] == "AI自动化办公实操案例"
+    assert videos[1]["url"] == f"https://www.douyin.com/video/{_DOUYIN_OTHER_VIDEO_ID}"
+
+
+@pytest.mark.asyncio
+async def test_douyin_reports_a_login_wall_instead_of_an_empty_feed() -> None:
+    get_video_feed = _load_tool("douyin", "get_video_feed.py", "get_video_feed")
+
+    session = _douyin_session(MappingProxyType({}), "扫码登录\n登录后查看更多精彩视频")
+
+    result = json.loads(await get_video_feed(session, {}))
+
+    assert result["status"] == "login_required"
+    assert "browser_ask_human_tool" in result["message"]
+
+
+@pytest.mark.asyncio
+async def test_douyin_csv_export_is_excel_ready() -> None:
+    get_video_feed = _load_tool("douyin", "get_video_feed.py", "get_video_feed")
+
+    refs = MappingProxyType({"v1": _MockRefInfo(role="link", name=f"周末自驾露营vlog，看日出云海 {_DOUYIN_VIDEO_ID}")})
+
+    result = await get_video_feed(_douyin_session(refs), {"export_format": "csv"})
+
+    assert result.startswith("\ufeffvideo_id,title,author,likes,url\r\n")
+    assert _DOUYIN_VIDEO_ID in result

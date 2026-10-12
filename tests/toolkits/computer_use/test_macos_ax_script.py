@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import shutil
 import subprocess
+
+import pytest
 
 from myrm_agent_harness.toolkits.computer_use.perception.macos_ax import (
     _AX_INVOKE_SCRIPT,
@@ -10,7 +13,10 @@ from myrm_agent_harness.toolkits.computer_use.perception.macos_ax import (
     _build_ax_snapshot_script,
 )
 
+requires_osascript = pytest.mark.skipif(shutil.which("osascript") is None, reason="osascript is macOS-only")
 
+
+@requires_osascript
 def test_ax_snapshot_script_compiles() -> None:
     result = subprocess.run(
         ["osascript", "-e", _AX_SNAPSHOT_SCRIPT],
@@ -26,6 +32,7 @@ def test_ax_snapshot_script_regenerates_consistently() -> None:
     assert _build_ax_snapshot_script() == _AX_SNAPSHOT_SCRIPT
 
 
+@requires_osascript
 def test_ax_invoke_escape_script_compiles() -> None:
     result = subprocess.run(
         ["osascript", "-e", _AX_INVOKE_SCRIPT, "click", "1", ""],
