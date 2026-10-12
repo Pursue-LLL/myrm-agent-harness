@@ -1,7 +1,9 @@
 """Unit tests for browser doctor diagnostics."""
 
 import asyncio
+import importlib.metadata
 import os
+import types
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -17,15 +19,44 @@ from myrm_agent_harness.toolkits.browser.doctor import (
 )
 
 
-def test_check_patchright_installed() -> None:
-    """Test patchright check when installed."""
-    mock_patchright = MagicMock()
-    mock_patchright.__version__ = "1.50.0"
+def _versionless_module(name: str) -> types.ModuleType:
+    """A module shaped like the real patchright package, which exposes no ``__version__``."""
+    return types.ModuleType(name)
 
-    with patch.dict("sys.modules", {"patchright": mock_patchright}):
+
+def test_check_patchright_reports_distribution_metadata_version() -> None:
+    """The version must come from distribution metadata because the package has no __version__."""
+    with (
+        patch.dict("sys.modules", {"patchright": _versionless_module("patchright")}),
+        patch("importlib.metadata.version", return_value="1.50.0") as dist_version,
+    ):
         result = _check_patchright()
-        assert result.status == CheckStatus.OK
-        assert "1.50.0" in result.message
+    dist_version.assert_called_once_with("patchright")
+    assert result.status == CheckStatus.OK
+    assert result.message == "patchright 1.50.0 installed"
+    assert result.details == {"version": "1.50.0"}
+
+
+def test_check_patchright_falls_back_to_unknown_without_distribution_metadata() -> None:
+    """An importable package whose metadata is unavailable is still reported as installed."""
+    with (
+        patch.dict("sys.modules", {"patchright": _versionless_module("patchright")}),
+        patch("importlib.metadata.version", side_effect=importlib.metadata.PackageNotFoundError("patchright")),
+    ):
+        result = _check_patchright()
+    assert result.status == CheckStatus.OK
+    assert result.message == "patchright unknown installed"
+    assert result.details == {"version": "unknown"}
+
+
+def test_check_patchright_matches_installed_distribution_version() -> None:
+    """Anchor against the real package so a stand-in module cannot hide a wrong version source."""
+    pytest.importorskip("patchright")
+    try:
+        expected = importlib.metadata.version("patchright")
+    except importlib.metadata.PackageNotFoundError:
+        pytest.skip("patchright distribution metadata is unavailable")
+    assert _check_patchright().details == {"version": expected}
 
 
 def test_check_patchright_missing() -> None:
@@ -47,8 +78,6 @@ _CAMOUFOX_REASON_PROBE = "myrm_agent_harness.toolkits.browser.pool.camoufox_avai
 
 def test_check_camoufox_ready_reports_installed_package_version() -> None:
     """Version comes from package metadata, not from the camoufox.__version__ submodule object."""
-    import importlib.metadata
-
     pytest.importorskip("camoufox")
     with patch(_CAMOUFOX_REASON_PROBE, return_value=None):
         result = _check_camoufox()

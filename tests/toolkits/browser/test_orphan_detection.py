@@ -600,9 +600,15 @@ def test_check_orphan_processes_previews_only_first_pids():
     """Should preview only the first three pids when many orphans exist."""
     orphans = [{"pid": pid, "name": "chrome", "ppid": 1, "user_data_dir": "/tmp/x"} for pid in (1111, 2222, 3333, 4444)]
 
-    with patch(
-        "myrm_agent_harness.toolkits.browser.doctor.orphans.find_orphan_automation_processes",
-        return_value=orphans,
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.browser.doctor.orphans.find_orphan_automation_processes",
+            return_value=orphans,
+        ),
+        patch(
+            "myrm_agent_harness.toolkits.browser.doctor.orphans.cleanup_stale_automation_sandboxes",
+            return_value={"pruned": 0, "reclaimed_bytes": 0},
+        ),
     ):
         result = check_orphan_processes()
 
@@ -656,6 +662,7 @@ def test_cleanup_stale_automation_sandboxes_dry_run(tmp_path):
             if args and args[0] == "/private/var/folders":
                 return mock_path_instance
             from pathlib import Path as RealPath
+
             return RealPath(*args, **kwargs)
 
         mock_path_cls.side_effect = path_side_effect
@@ -705,10 +712,12 @@ def test_cleanup_stale_automation_sandboxes_post_assertion_failure(tmp_path):
         patch("myrm_agent_harness.toolkits.browser.doctor.orphans.Path") as mock_path_cls,
         patch("shutil.rmtree") as mock_rmtree,
     ):
+
         def path_side_effect(*args, **kwargs):
             if args and args[0] == "/private/var/folders":
                 return mock_path_instance
             from pathlib import Path as RealPath
+
             return RealPath(*args, **kwargs)
 
         mock_path_cls.side_effect = path_side_effect
@@ -735,10 +744,12 @@ def test_cleanup_stale_automation_sandboxes_glob_wildcard(tmp_path):
     mock_path_instance.glob.return_value = [chrome_clone, chromium_clone]
 
     with patch("myrm_agent_harness.toolkits.browser.doctor.orphans.Path") as mock_path_cls:
+
         def path_side_effect(*args, **kwargs):
             if args and args[0] == "/private/var/folders":
                 return mock_path_instance
             from pathlib import Path as RealPath
+
             return RealPath(*args, **kwargs)
 
         mock_path_cls.side_effect = path_side_effect
@@ -763,10 +774,12 @@ def test_cleanup_stale_automation_sandboxes_dry_run_sampling(tmp_path):
     mock_path_instance.glob.return_value = sandboxes
 
     with patch("myrm_agent_harness.toolkits.browser.doctor.orphans.Path") as mock_path_cls:
+
         def path_side_effect(*args, **kwargs):
             if args and args[0] == "/private/var/folders":
                 return mock_path_instance
             from pathlib import Path as RealPath
+
             return RealPath(*args, **kwargs)
 
         mock_path_cls.side_effect = path_side_effect
@@ -841,10 +854,12 @@ def test_cleanup_stale_automation_sandboxes_versioned_sub_clones(tmp_path):
     mock_path_instance.glob.return_value = [parent_dir]
 
     with patch("myrm_agent_harness.toolkits.browser.doctor.orphans.Path") as mock_path_cls:
+
         def path_side_effect(*args, **kwargs):
             if args and args[0] == "/private/var/folders":
                 return mock_path_instance
             from pathlib import Path as RealPath
+
             return RealPath(*args, **kwargs)
 
         mock_path_cls.side_effect = path_side_effect
@@ -884,6 +899,7 @@ def test_cleanup_stale_automation_sandboxes_skips_active_locked_sandbox(tmp_path
             if args and args[0] == "/private/var/folders":
                 return mock_path_instance
             from pathlib import Path as RealPath
+
             return RealPath(*args, **kwargs)
 
         mock_path_cls.side_effect = path_side_effect
@@ -893,6 +909,3 @@ def test_cleanup_stale_automation_sandboxes_skips_active_locked_sandbox(tmp_path
         assert result["pruned"] == 0
         assert result["reclaimed_bytes"] == 0
         mock_subproc.assert_called_once()
-
-
-

@@ -12,7 +12,7 @@ with clear fix suggestions per failure. Includes precise orphan process detectio
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | `__init__.py` | Package | Public facade. Re-exports all symbols from `checks`/`orphans`/`report` so `toolkits.browser.doctor` remains a single import point (incl. private symbols for backward-compatible imports) | ✅ |
-| `checks.py` | Core | Environment and dependency checks: patchright/camoufox/memory/disk/proxy/launch/extension relay + `run_doctor` orchestrator. The camoufox check reports whether the browser build is installed (package + build via `pool/camoufox_availability`, no launch attempted), not mere importability | ✅ |
+| `checks.py` | Core | Environment and dependency checks: patchright/camoufox/memory/disk/proxy/launch/extension relay + `run_doctor` orchestrator. The camoufox check reports whether the browser build is installed (package + build via `pool/camoufox_availability`, no launch attempted), not mere importability. Engine versions come from distribution metadata, because neither package exposes a usable `__version__` | ✅ |
 | `orphans.py` | Core | Orphan automation process detection (chromium/driver), safe process escalation cleanup, stale automation sandbox cleanup, atexit emergency reaper lifecycle hooks, and `check_orphan_processes` | ✅ |
 | `report.py` | Core | Report data model (`CheckStatus`/`DoctorCheckResult`/`DoctorReport`) and colored CLI rendering (`format_report`) | ✅ |
 

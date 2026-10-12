@@ -45,15 +45,7 @@ logger = logging.getLogger(__name__)
 def _check_patchright() -> DoctorCheckResult:
     """Check if patchright is installed and get version."""
     try:
-        import patchright
-
-        version = getattr(patchright, "__version__", "unknown")
-        return DoctorCheckResult(
-            name="patchright",
-            status=CheckStatus.OK,
-            message=f"patchright {version} installed",
-            details={"version": version},
-        )
+        importlib.import_module("patchright")
     except (ImportError, TypeError):
         return DoctorCheckResult(
             name="patchright",
@@ -61,6 +53,19 @@ def _check_patchright() -> DoctorCheckResult:
             message="patchright not installed",
             fix="uv add patchright",
         )
+    # The package has no ``__version__``, so the version comes from distribution metadata. Keep the
+    # distribution name a literal here and in the camoufox check: PyInstaller's static scan only
+    # bundles metadata for literal names, and the desktop backend is a frozen build.
+    try:
+        version = importlib.metadata.version("patchright")
+    except importlib.metadata.PackageNotFoundError:
+        version = "unknown"
+    return DoctorCheckResult(
+        name="patchright",
+        status=CheckStatus.OK,
+        message=f"patchright {version} installed",
+        details={"version": version},
+    )
 
 
 def _check_camoufox() -> DoctorCheckResult:
