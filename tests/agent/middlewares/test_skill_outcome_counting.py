@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
-from myrm_agent_harness.agent.middlewares.tooling._skill_failure_tracking import (
-    track_skill_execution as _track_skill_execution,
-)
+from myrm_agent_harness.agent.middlewares.tooling._skill_failure_tracking import track_skill_execution
 from myrm_agent_harness.agent.skill_agent.context import add_loaded_skill, reset_loaded_skills
 from myrm_agent_harness.backends.skills.types import SkillMetadata
 from myrm_agent_harness.runtime.events import SkillFailureEvent
@@ -39,13 +39,11 @@ def _install_ledger(monkeypatch) -> list[dict[str, object]]:
 @pytest.mark.asyncio
 async def test_failure_is_counted_for_the_single_loaded_skill(monkeypatch) -> None:
     """A failing tool call with one loaded storage skill is counted as that skill's failed execution."""
-    import asyncio
-
     recorded = _install_ledger(monkeypatch)
     reset_loaded_skills()
     add_loaded_skill(SkillMetadata(name="a", description="a", storage_skill_id="skill-1"))
     try:
-        _track_skill_execution(
+        track_skill_execution(
             "bash_code_execute_tool",
             tool_call_id="call-fail",
             tool_args={},
@@ -62,13 +60,11 @@ async def test_failure_is_counted_for_the_single_loaded_skill(monkeypatch) -> No
 @pytest.mark.asyncio
 async def test_guard_blocked_call_is_not_counted_as_skill_failure(monkeypatch) -> None:
     """Policy blocks (e-stop, hooks, ...) say nothing about the skill, so they are not counted."""
-    import asyncio
-
     recorded = _install_ledger(monkeypatch)
     reset_loaded_skills()
     add_loaded_skill(SkillMetadata(name="a", description="a", storage_skill_id="skill-1"))
     try:
-        _track_skill_execution(
+        track_skill_execution(
             "bash_code_execute_tool",
             tool_call_id="call-blocked",
             tool_args={},
@@ -86,14 +82,12 @@ async def test_guard_blocked_call_is_not_counted_as_skill_failure(monkeypatch) -
 @pytest.mark.asyncio
 async def test_failure_with_several_loaded_skills_is_not_counted(monkeypatch) -> None:
     """With several storage skills loaded the failing owner is ambiguous, so nothing is counted."""
-    import asyncio
-
     recorded = _install_ledger(monkeypatch)
     reset_loaded_skills()
     add_loaded_skill(SkillMetadata(name="a", description="a", storage_skill_id="s1"))
     add_loaded_skill(SkillMetadata(name="b", description="b", storage_skill_id="s2"))
     try:
-        _track_skill_execution(
+        track_skill_execution(
             "bash_code_execute_tool",
             tool_call_id="call-ambiguous",
             tool_args={},
@@ -122,7 +116,7 @@ def test_failure_event_is_published_even_when_the_ledger_is_unavailable(monkeypa
     reset_loaded_skills()
     add_loaded_skill(SkillMetadata(name="a", description="a", storage_skill_id="skill-1"))
     try:
-        _track_skill_execution("tool", tool_call_id="c", tool_args={}, success=False, error_message="boom")
+        track_skill_execution("tool", tool_call_id="c", tool_args={}, success=False, error_message="boom")
     finally:
         reset_loaded_skills()
 

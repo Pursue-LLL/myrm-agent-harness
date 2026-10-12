@@ -1,4 +1,4 @@
-"""SkillStore on a database whose skills table still carries a ``traps`` column."""
+"""SkillStore on an existing database whose skills table has an extra ``traps`` column the store does not model."""
 
 import sqlite3
 from contextlib import closing
