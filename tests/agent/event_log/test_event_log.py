@@ -146,11 +146,7 @@ class TestSanitize:
         assert "sk-test-abcdefghijklmnopqrstuvwxyz" not in str(sanitized)
 
     def test_nested_dict_string_redacted(self) -> None:
-        data = {
-            "tool_start": {
-                "args": {"secret": "sk-test-abcdefghijklmnopqrstuvwxyz1234567890abcdef"}
-            }
-        }
+        data = {"tool_start": {"args": {"secret": "sk-test-abcdefghijklmnopqrstuvwxyz1234567890abcdef"}}}
         sanitized = EventLogger._sanitize(data)
         assert "sk-test-abcdefghijklmnopqrstuvwxyz" not in str(sanitized)
 
@@ -271,6 +267,7 @@ class TestEventLogger:
         seqs = [e.sequence for e in all_events]
         assert seqs == sorted(seqs)
         assert len(set(seqs)) == len(seqs)
+
 
 # ============================================================================
 # FileEventLogBackend

@@ -29,7 +29,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ._common import _EVENT_META_KEYS, _str_or_none
+from ._common import _EVENT_META_KEYS, _output_data, _str_or_none
 from ._context_doctor import analyze_context_breakdown
 from ._llm import _handle_llm_request, _handle_token_usage, _PendingLLMRequest
 from ._pairing import (
@@ -258,7 +258,8 @@ def _find_first_irrecoverable(
         default=None,
     )
     if last_success_end is None:
-        return 0, float(errors[0].get("timestamp", 0) or 0)
+        first_ts = errors[0].get("timestamp")
+        return 0, float(first_ts) if isinstance(first_ts, (int, float)) else 0.0
 
     for idx, err in enumerate(errors):
         ts = err.get("timestamp")
@@ -329,7 +330,7 @@ def _process_event(
                     duration_ms=duration,
                     success=True,
                     output_summary=_str_or_none(data.get("output_summary")),
-                    output_data=data.get("output") or data.get("result"),
+                    output_data=_output_data(data.get("output"), data.get("result")),
                 )
             elif pt is not None:
                 trace.tool_calls.append(
@@ -344,7 +345,7 @@ def _process_event(
                         message_id=pt.message_id,
                         input_data=pt.input_data,
                         output_summary=_str_or_none(data.get("output_summary")),
-                        output_data=data.get("output") or data.get("result"),
+                        output_data=_output_data(data.get("output"), data.get("result")),
                     )
                 )
 

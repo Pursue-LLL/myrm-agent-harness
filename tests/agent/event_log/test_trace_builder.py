@@ -33,15 +33,11 @@ class InMemoryBackend:
         for e in events:
             self._events.setdefault(e.session_id, []).append(e)
 
-    async def get_events(
-        self, session_id: str, event_filter: EventFilter | None = None
-    ) -> list[StructuredEvent]:
+    async def get_events(self, session_id: str, event_filter: EventFilter | None = None) -> list[StructuredEvent]:
         events = self._events.get(session_id, [])
         if event_filter:
             if event_filter.start_sequence is not None:
-                events = [
-                    e for e in events if e.sequence >= event_filter.start_sequence
-                ]
+                events = [e for e in events if e.sequence >= event_filter.start_sequence]
             if event_filter.start_time is not None:
                 events = [e for e in events if e.timestamp >= event_filter.start_time]
             if event_filter.end_time is not None:
@@ -159,9 +155,7 @@ class TestBuildTrace:
             _event(3, "tool_end", tool_name="file_read", duration_ms=100.0),
             _event(4, "tool_start", tool_name="bash"),
             _event(5, "tool_end", tool_name="bash", duration_ms=500.0),
-            _event(
-                6, "session_end", summary={"input_tokens": 100, "output_tokens": 50}
-            ),
+            _event(6, "session_end", summary={"input_tokens": 100, "output_tokens": 50}),
         ]
         backend = InMemoryBackend({"sess-1": events})
         trace = await build_trace(backend, "sess-1")
@@ -500,15 +494,11 @@ class TestEdgeCases:
         backend = InMemoryBackend(
             {
                 "sess-1": [
-                    _event(
-                        1, "session_start", session_id="sess-1", _task_type="coding"
-                    ),
+                    _event(1, "session_start", session_id="sess-1", _task_type="coding"),
                     _event(2, "session_end", session_id="sess-1"),
                 ],
                 "sess-2": [
-                    _event(
-                        1, "session_start", session_id="sess-2", _task_type="search"
-                    ),
+                    _event(1, "session_start", session_id="sess-2", _task_type="search"),
                     _event(2, "session_end", session_id="sess-2"),
                 ],
             }
@@ -707,6 +697,19 @@ class TestEdgeCases:
         assert d["tool_calls"][0]["input_data"] == {"command": "echo hi"}
         assert d["tool_calls"][0]["output_data"] == "hi\n"
 
+    @pytest.mark.asyncio
+    async def test_tool_end_output_data_falls_back_to_result_and_stringifies_scalars(self) -> None:
+        events = [
+            _event(1, "session_start"),
+            _event(2, "tool_start", tool_name="calc", tool_call_id="c1"),
+            _event(3, "tool_end", tool_name="calc", tool_call_id="c1", output="", result=42),
+            _event(4, "tool_start", tool_name="noop", tool_call_id="c2"),
+            _event(5, "tool_end", tool_name="noop", tool_call_id="c2", output=None),
+        ]
+        trace = await build_trace(InMemoryBackend({"sess-1": events}), "sess-1")
+
+        assert [tc.output_data for tc in trace.tool_calls] == ["42", None]
+
 
 # ---------------------------------------------------------------------------
 # Instruction lineage: tool_call_id / message_id attribution
@@ -805,9 +808,7 @@ class TestLineageAttribution:
                 tool_call_id="call-1",
                 message_id="msg-1",
             ),
-            _event(
-                3, "tool_end", tool_name="bash", tool_call_id="call-1", duration_ms=50.0
-            ),
+            _event(3, "tool_end", tool_name="bash", tool_call_id="call-1", duration_ms=50.0),
             _event(4, "session_end"),
         ]
         backend = InMemoryBackend({"sess-1": events})
@@ -1293,9 +1294,7 @@ class TestFaultSideAttribution:
                 error_type="MyrmLLMError",
                 error_kind="rate_limit",
                 fault_side="env",
-                recovery_actions=[
-                    {"id": "retry", "label": "Retry", "url": "command://retry"}
-                ],
+                recovery_actions=[{"id": "retry", "label": "Retry", "url": "command://retry"}],
             ),
             _event(3, "session_end"),
         ]
@@ -1306,9 +1305,7 @@ class TestFaultSideAttribution:
         err = trace.errors[0]
         assert err["fault_side"] == "env"
         assert err["error_kind"] == "rate_limit"
-        assert err["recovery_actions"] == [
-            {"id": "retry", "label": "Retry", "url": "command://retry"}
-        ]
+        assert err["recovery_actions"] == [{"id": "retry", "label": "Retry", "url": "command://retry"}]
 
         d = trace.to_dict()
         assert d["errors"][0]["fault_side"] == "env"
@@ -1364,10 +1361,7 @@ class TestFaultSideAttribution:
         }
 
         d = trace.to_dict()
-        assert (
-            d["errors"][0]["diagnostic_result"]["resolution_steps"][0]
-            == "Top up your account"
-        )
+        assert d["errors"][0]["diagnostic_result"]["resolution_steps"][0] == "Top up your account"
 
     @pytest.mark.asyncio
     async def test_error_without_diagnostic_omits_field(self) -> None:
@@ -1522,17 +1516,11 @@ class TestTraceRetryAndAnomalies:
         events = [
             _event(1, "session_start"),
             _event(2, "tool_start", tool_name="code_search", input_data={"q": "foo"}),
-            _event(
-                3, "tool_end", tool_name="code_search", success=False, error="timeout"
-            ),
+            _event(3, "tool_end", tool_name="code_search", success=False, error="timeout"),
             _event(4, "tool_start", tool_name="code_search", input_data={"q": "foo"}),
-            _event(
-                5, "tool_end", tool_name="code_search", success=False, error="timeout"
-            ),
+            _event(5, "tool_end", tool_name="code_search", success=False, error="timeout"),
             _event(6, "tool_start", tool_name="code_search", input_data={"q": "foo"}),
-            _event(
-                7, "tool_end", tool_name="code_search", success=False, error="timeout"
-            ),
+            _event(7, "tool_end", tool_name="code_search", success=False, error="timeout"),
             _event(8, "session_end"),
         ]
         backend = InMemoryBackend({"sess-loop": events})
@@ -1570,8 +1558,6 @@ class TestTraceRetryAndAnomalies:
         backend = InMemoryBackend({"sess-surge": events})
         trace = await build_trace(backend, "sess-surge")
 
-        surge_anomalies = [
-            a for a in trace.anomalies if a.anomaly_type == "token_surge"
-        ]
+        surge_anomalies = [a for a in trace.anomalies if a.anomaly_type == "token_surge"]
         assert len(surge_anomalies) == 1
         assert surge_anomalies[0].severity == "warning"

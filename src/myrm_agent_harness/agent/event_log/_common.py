@@ -6,6 +6,7 @@
 [OUTPUT]
 - _EVENT_META_KEYS: frozenset of metadata keys to strip
 - _strip_meta_keys: helper to sanitize payload dictionaries
+- _output_data: normalize a tool output payload to the shape ToolCallRecord stores
 
 [POS]
 Low-level trace payload metadata stripping helpers shared across event log aggregators.
@@ -50,6 +51,15 @@ _EVENT_META_KEYS: frozenset[str] = frozenset(
 def _str_or_none(value: object) -> str | None:
     """Safely extract a string or return None."""
     return str(value) if isinstance(value, str) else None
+
+
+def _output_data(*candidates: object) -> str | dict[str, object] | list[object] | None:
+    """Return the first truthy candidate in a shape ``ToolCallRecord.output_data`` can carry."""
+    for value in candidates:
+        if not value:
+            continue
+        return value if isinstance(value, (str, dict, list)) else str(value)
+    return None
 
 
 def _int_or_zero(value: object) -> int:
