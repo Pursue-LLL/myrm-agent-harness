@@ -108,7 +108,9 @@ def test_appcontainer_provider_cleanup_sync_safety() -> None:
     provider._container_sid = "S-1-15-2-12345"
     provider._acl_paths = [("/tmp/nonexistent_path_for_test", "")]
 
-    with patch("myrm_agent_harness.toolkits.code_execution.sandbox.providers.appcontainer._remove_acl_sync") as mock_remove:
+    with patch(
+        "myrm_agent_harness.toolkits.code_execution.sandbox.providers.appcontainer._remove_acl_sync"
+    ) as mock_remove:
         with patch("os.path.exists", return_value=True):
             provider.cleanup()
         mock_remove.assert_called_once_with("/tmp/nonexistent_path_for_test", "S-1-15-2-12345")

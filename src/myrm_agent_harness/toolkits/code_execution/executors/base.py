@@ -205,8 +205,6 @@ class CodeExecutor(ABC):
         target_path = Path(target)
         tmp_name = f".atomic_{uuid.uuid4().hex}_{target_path.name}"
         tmp_relative = str(Path(path).parent / tmp_name)
-        if tmp_relative.startswith("./"):
-            tmp_relative = tmp_relative[2:]
         tmp_path = await self.resolve_path(tmp_relative)
 
         try:
@@ -301,13 +299,6 @@ class CodeExecutor(ABC):
         """Internal bash execution helper for default file operations."""
         ctx = ExecutionContext(code=command, work_dir=self.workspace_path)
         return await self.execute_bash(ctx)
-
-    def _extract_python_code_from_bash(self, command: str) -> str | None:
-        from myrm_agent_harness.toolkits.code_execution.python_extractor import (
-            extract_python_from_bash,
-        )
-
-        return extract_python_from_bash(command)
 
 
 class CodeExecutorMiddleware(CodeExecutor):

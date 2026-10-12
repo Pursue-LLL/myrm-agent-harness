@@ -25,15 +25,12 @@ async def test_local_executor_bash_shell_bleed_warning():
     )
 
     mock_session = MagicMock()
-    mock_session.execute = AsyncMock(
-        return_value=MagicMock(success=True, stdout="output\n", stderr="", exit_code=0)
-    )
+    mock_session.execute = AsyncMock(return_value=MagicMock(success=True, stdout="output\n", stderr="", exit_code=0))
 
-    with patch(
-        "myrm_agent_harness.toolkits.code_execution.executors.local.executor.logger.warning"
-    ) as mock_warning, patch.object(
-        executor, "_get_or_create_bash_session", new_callable=AsyncMock
-    ) as mock_get_session:
+    with (
+        patch("myrm_agent_harness.toolkits.code_execution.executors.local.executor.logger.warning") as mock_warning,
+        patch.object(executor, "_get_or_create_bash_session", new_callable=AsyncMock) as mock_get_session,
+    ):
         mock_get_session.return_value = mock_session
 
         result = await executor.execute_bash(context)
@@ -55,11 +52,10 @@ async def test_local_executor_python_env_leak_warning():
         timeout=10,
     )
 
-    with patch(
-        "myrm_agent_harness.toolkits.code_execution.executors.local.executor.logger.warning"
-    ) as mock_warning, patch.object(
-        executor, "_run_subprocess", new_callable=AsyncMock
-    ) as mock_subproc:
+    with (
+        patch("myrm_agent_harness.toolkits.code_execution.executors.local.executor.logger.warning") as mock_warning,
+        patch.object(executor, "_run_subprocess", new_callable=AsyncMock) as mock_subproc,
+    ):
         mock_subproc.return_value = ExecutionResult(
             success=True,
             stdout="",

@@ -15,7 +15,7 @@
 | **修复** | 所有路径与模式统一经 `shlex.quote`；新增 `executors/shell_file_transfer.py`：读取按 32 KiB 分片用 `dd` + `od` 输出十六进制（不含 `/`，脱敏器不会改写），小于一个分片的文件只需一条命令，大文件先取 `wc -c` 再逐片读取并校验总长；写入按 32 KiB 分片经 `printf %s '<base64>' \| base64 -d`，首片截断写、其余追加，每条命令远低于参数上限，任一分片失败抛 `OSError`（此前写入失败被静默忽略）；`read_file` / `read_file_bytes` / `write_file` / `write_file_bytes` / `append_file` 共用这两个原语；`base64` 读取不再使用（BSD/macOS 不接受位置参数） |
 | **反复次数** | 第 1 次发现 |
 | **踩坑** | 经 shell 取回文件内容必须假设 stdout 会被改写：脱敏与截断是整个执行结果层的统一行为，换编码要实测才能确认不被命中（base64 实测约 13%–20% 的 64 KB 分片被改写，hex 在 60 个 32 KiB 分片上 0 次）；管道的退出码只反映最后一级，`test -f F && dd … \| od …` 才能让缺失文件使整条命令失败；BSD 与 GNU 的 `base64` 参数约定不同；`echo` 对以 `-` 开头的内容行为不一，写入用 `printf %s` |
-| **回归** | `tests/toolkits/code_execution/executors/test_base_executor_shell_quoting.py`（带引号文件名与注入模式；含密钥与绝对路径的文本读回原样；0 / 1 / 分片边界 ±1 / 5 分片+7 字节的随机字节往返；约 620 KB 文本不截断；截断写与跨分片追加；`.gz` 解压；缺失文件抛 `FileNotFoundError`、写入失败抛 `OSError`）；回退验证：恢复旧实现后脱敏、大随机字节、大文本、写入失败 4 个用例失败 |
+| **回归** | `tests/toolkits/code_execution/executors/test_base_executor_shell_file_ops.py`（带引号文件名与注入模式；含密钥与绝对路径的文本读回原样；0 / 1 / 分片边界 ±1 / 5 分片+7 字节的随机字节往返；约 232 KB 文本不截断；截断写与跨分片追加；`.gz` 解压；缺失文件抛 `FileNotFoundError`、写入失败抛 `OSError`；命令数随文件大小有界；尺寸探测失败、后续分片失败、短读均抛 `OSError`）与 `test_base_executor_contract.py`（`base.py` 的生命周期默认值、路径解析与越界、原子替换失败清理、中间件委托、执行器注册表）；回退验证：恢复旧实现后脱敏、大随机字节、大文本、写入失败 4 个用例失败 |
 | **代码位置** | `executors/shell_file_transfer.py`（`read_bytes_via_shell`、`write_bytes_via_shell`）· `executors/base.py::CodeExecutor`（文件操作默认实现） |
 
 ### BUG-HARNESS-2026-10-12-002 · 没有 doctype 的页面被判为“被模态遮罩阻塞”：html/body 因覆盖视口 50% 以上被当成遮罩，带 label 的输入框被标 `[blocked]` 且拿不到 ref

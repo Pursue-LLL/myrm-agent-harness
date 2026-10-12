@@ -95,7 +95,7 @@ async def test_bytes_roundtrip_across_chunk_boundaries(executor: CodeExecutor, t
 
 @pytest.mark.asyncio
 async def test_large_text_over_stdout_cap_is_not_truncated(executor: CodeExecutor) -> None:
-    content = "line with some text 0123456789\n" * 20_000  # ~620 KB, above the 200K-char stdout cap
+    content = "line with some text 0123456789\n" * 7_500  # ~232 KB, above the 200K-char stdout cap
     await executor.write_file("big.txt", content)
 
     assert await executor.read_file("big.txt") == content
@@ -168,3 +168,77 @@ async def test_malformed_read_output_raises_oserror(tmp_path: Path) -> None:
 
     with pytest.raises(OSError, match="malformed output"):
         await ex.read_file_bytes("anything.bin")
+
+
+class _RecordingExecutor(InProcessExecutor):
+    """Records every shell command; ``overrides`` force the result of commands starting with a given prefix."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.commands: list[str] = []
+        self.overrides: dict[str, ExecutionResult] = {}
+        self.fail_on_call: int | None = None
+
+    async def execute_bash(self, context: ExecutionContext) -> ExecutionResult:
+        self.commands.append(context.code)
+        if len(self.commands) == self.fail_on_call:
+            return ExecutionResult(success=False, stderr="io error")
+        for prefix, forced in self.overrides.items():
+            if context.code.startswith(prefix):
+                return forced
+        return await super().execute_bash(context)
+
+
+@pytest.fixture
+def recorder(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _RecordingExecutor:
+    monkeypatch.chdir(tmp_path)
+    ex = _RecordingExecutor()
+    ex.bind_workspace(str(tmp_path))
+    return ex
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("size", "write_commands", "read_commands"),
+    [(0, 1, 1), (CHUNK_BYTES - 1, 1, 1), (CHUNK_BYTES, 1, 2), (3 * CHUNK_BYTES, 3, 4), (3 * CHUNK_BYTES + 1, 4, 5)],
+)
+async def test_command_count_is_bounded_by_chunking(
+    recorder: _RecordingExecutor, size: int, write_commands: int, read_commands: int
+) -> None:
+    """Small files cost one command; larger ones cost ceil(size / chunk) plus one size probe on read."""
+    payload = os.urandom(size)
+
+    await recorder.write_file_bytes("blob.bin", payload)
+    assert len(recorder.commands) == write_commands
+
+    recorder.commands.clear()
+    assert await recorder.read_file_bytes("blob.bin") == payload
+    assert len(recorder.commands) == read_commands
+
+
+@pytest.mark.asyncio
+async def test_size_probe_failure_is_oserror(recorder: _RecordingExecutor, tmp_path: Path) -> None:
+    (tmp_path / "blob.bin").write_bytes(os.urandom(2 * CHUNK_BYTES))
+    recorder.overrides["wc -c"] = ExecutionResult(success=False, stderr="wc broke")
+
+    with pytest.raises(OSError, match="wc broke") as probe_error:
+        await recorder.read_file_bytes("blob.bin")
+    assert not isinstance(probe_error.value, FileNotFoundError)
+
+
+@pytest.mark.asyncio
+async def test_short_read_is_detected(recorder: _RecordingExecutor, tmp_path: Path) -> None:
+    (tmp_path / "blob.bin").write_bytes(os.urandom(2 * CHUNK_BYTES))
+    recorder.overrides["wc -c"] = ExecutionResult(success=True, stdout=str(2 * CHUNK_BYTES + 5))
+
+    with pytest.raises(OSError, match="Short read"):
+        await recorder.read_file_bytes("blob.bin")
+
+
+@pytest.mark.asyncio
+async def test_failure_after_first_chunk_is_oserror(recorder: _RecordingExecutor, tmp_path: Path) -> None:
+    (tmp_path / "blob.bin").write_bytes(os.urandom(2 * CHUNK_BYTES))
+    recorder.fail_on_call = 3  # first chunk, size probe, then the second chunk fails
+    with pytest.raises(OSError, match="io error") as chunk_error:
+        await recorder.read_file_bytes("blob.bin")
+    assert not isinstance(chunk_error.value, FileNotFoundError)
