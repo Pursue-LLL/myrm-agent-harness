@@ -48,6 +48,8 @@ _skill_store_provider: SkillStoreProvider | None = None
 # Environment outages and user-input faults say nothing about how the agent should work.
 _NON_SKILL_FAULT_SIDES = frozenset({FaultSide.ENV.value, FaultSide.OWNER.value})
 _MAX_ERROR_CHARS = 400
+# Bounds the LLM input when a long burst of turns accumulates many failures (worst case ~20K characters).
+_MAX_TRAJECTORY_LINES = 40
 
 
 def register_skill_store_provider(provider: SkillStoreProvider | None) -> None:
@@ -80,7 +82,13 @@ async def run_session_evidence_extraction(task: IdleTaskRecord, session_id: str)
         )
         proposal = await _capture_skill_proposal(task, session_id, event_logger, _format_trajectory(trace.tool_calls))
 
-    logger.info("Session evidence extraction completed for %s", session_id)
+    # Total calls are logged so a log-shape drift (tool calls no longer recognised) shows up as a persistent zero.
+    logger.info(
+        "Session evidence extraction completed for %s (%d tool calls, %d relevant failures)",
+        session_id,
+        len(trace.tool_calls),
+        len(failures),
+    )
     return {"failed_tool_calls": len(failures), "proposal": proposal}
 
 
@@ -112,6 +120,11 @@ def _format_trajectory(calls: list[ToolCallRecord]) -> str:
         lines.append(f"{i + 1}. {_format_call(call)}")
     if collapsed:
         lines.append(f"... {collapsed} successful tool calls ...")
+    if len(lines) > _MAX_TRAJECTORY_LINES:
+        lines = [
+            f"... {len(lines) - _MAX_TRAJECTORY_LINES} earlier entries omitted ...",
+            *lines[-_MAX_TRAJECTORY_LINES:],
+        ]
     return "Tool calls in order:\n" + "\n".join(lines)
 
 

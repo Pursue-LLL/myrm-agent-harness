@@ -338,3 +338,14 @@ def test_trajectory_truncates_long_errors_and_names_unattributed_failures() -> N
 
     assert "FAILED (unattributed): " + "x" * 400 in trajectory
     assert "x" * 401 not in trajectory
+
+
+def test_trajectory_keeps_only_the_most_recent_entries_when_failures_pile_up() -> None:
+    calls = [_call(i, ok=False, fault_side="harness_tool", error=f"boom {i}") for i in range(1, 101)]
+
+    lines = _format_trajectory(calls).splitlines()
+
+    assert lines[1] == "... 60 earlier entries omitted ..."
+    assert lines[2] == "61. tool_61 -> FAILED (harness_tool): boom 61"
+    assert lines[-1] == "100. tool_100 -> FAILED (harness_tool): boom 100"
+    assert len(lines) == 42
