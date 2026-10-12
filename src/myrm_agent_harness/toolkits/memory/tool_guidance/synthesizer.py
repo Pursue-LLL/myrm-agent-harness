@@ -1,6 +1,6 @@
 """Pure-functional synthesizer for tool guidance evolution.
 
-Consolidates procedural memory entries, traps, and edicts into a
+Consolidates procedural memory entries and traps into a
 deterministic, cache-stable golden guidance set for active tools.
 Strictly zero-LLM cost, sub-millisecond execution, and bounded output.
 

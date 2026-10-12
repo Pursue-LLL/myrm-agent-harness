@@ -44,7 +44,7 @@ class ToolGuidanceItem:
     is_pinned: bool = False
     env_fingerprint: str | None = None
     agent_id: str | None = None
-    source: Literal["self_healing", "edict", "manual"] = "self_healing"
+    source: Literal["self_healing", "manual"] = "self_healing"
     hit_count: int = 1
     created_at: str = field(default_factory=_utc_now_iso)
     updated_at: str = field(default_factory=_utc_now_iso)

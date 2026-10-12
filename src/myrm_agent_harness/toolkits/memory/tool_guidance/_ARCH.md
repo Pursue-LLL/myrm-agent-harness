@@ -4,7 +4,7 @@ Tool memory procedural contract and deterministic synthesis domain layer.
 
 ## Module Role
 
-This subpackage consolidates procedural memory entries, traps, and edicts into a deterministic, cache-stable golden guidance set for active tools. It operates strictly zero-LLM cost, sub-millisecond execution, and bounded output.
+This subpackage consolidates procedural memory entries and traps into a deterministic, cache-stable golden guidance set for active tools. It operates strictly zero-LLM cost, sub-millisecond execution, and bounded output.
 
 ## File Manifest
 

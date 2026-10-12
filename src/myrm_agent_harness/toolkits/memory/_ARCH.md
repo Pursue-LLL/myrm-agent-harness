@@ -91,7 +91,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | ltra/ | Listen-Translate-Remember-Act pipeline: quadruple fact distillation from diarized conversations with verbatim anchors, speaker alias resolution and confidentiality guards. See [ltra/_ARCH.md](ltra/_ARCH.md). |
 | onboarding/ | Onboarding insight sampling and first-encounter reporting for users migrating from other agent tools (sliding-window sampling, local redaction, fact distillation). See [onboarding/_ARCH.md](onboarding/_ARCH.md). |
 | shared_bus/ | 跨 Agent 共享记忆总线、并发连接池与方案否决账本模块。 See [shared_bus/_ARCH.md](shared_bus/_ARCH.md). |
-| tool_guidance/ | Deterministic, cache-stable synthesis of procedural tool memory (traps, edicts) into bounded, zero-LLM tool guidance. See [tool_guidance/_ARCH.md](tool_guidance/_ARCH.md). |
+| tool_guidance/ | Deterministic, cache-stable synthesis of procedural tool memory (traps) into bounded, zero-LLM tool guidance. See [tool_guidance/_ARCH.md](tool_guidance/_ARCH.md). |
 | world_model/ | L3 world model: four-dimension macro project entities (rules, environment, contract, domain knowledge) with versioned records and compact macro-context rendering. See [world_model/_ARCH.md](world_model/_ARCH.md). |
 | zero_hallucination/ | Fault-transparent retrieval protocol and anti-fabrication prompt guard for memory queries. See [zero_hallucination/_ARCH.md](zero_hallucination/_ARCH.md). |
 | git_okf/ | Git-native loader for Google OKF v0.2 knowledge bundles. See [git_okf/_ARCH.md](git_okf/_ARCH.md). |

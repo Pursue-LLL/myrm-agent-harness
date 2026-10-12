@@ -864,7 +864,7 @@ class TestConcreteMemoryConversion:
                 confidence=1.0,
                 importance=1.0,
                 trigger="using sudo",
-                action="Respect user directive: using sudo",
+                action="Do not run sudo",
                 tool_name="bash_code_execute_tool",
                 tool_rule_priority="critical",
             )
