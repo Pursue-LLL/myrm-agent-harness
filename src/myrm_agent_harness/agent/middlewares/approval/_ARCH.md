@@ -18,7 +18,6 @@ Tool approval subsystem — Human-in-the-Loop approval flow with correction lear
 | middleware.py | Core | Bridges the Permission Engine with the LangGraph tool pipeline. Computes `is_interactive` (not cron, not shadow) and passes to `evaluate_tool_batch`. Auto-denies approval for shadow agents (no UI channel). Fires APPROVAL_CORRECTION hook for user edits only (rejections stay in the audit trail). | ✅ |
 | rate_limiter.py | Core | Approval rate limiter. Independent from core approval logic for easy testing and configuration. | ✅ |
 | scheduler.py | Core | HITL timeout scheduler — auto-resumes agents when approval or Web clarification requests expire. Approval uses the global decision format; clarification uses `resume_value_override` (empty dict → no_answer). Idempotent `resolve_if_first` prevents race conditions between timeout auto-resume and manual user resume. | ✅ |
-| tiered_risk_evaluator.py | Core | Three-tier operation risk adaptive evaluator (READ / WRITE / HIGH_RISK) with dynamic brake and NEED_CONFIRMATION token generation (Item 29). | ✅ |
 
 ## Key Dependencies
 
