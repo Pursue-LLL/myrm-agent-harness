@@ -22,17 +22,16 @@ from typing import NoReturn
 
 from myrm_agent_harness.core.security.redact import redact_sensitive_text
 from myrm_agent_harness.toolkits.browser.captcha.protocols import CaptchaHandleResult
-from myrm_agent_harness.toolkits.browser.exceptions import BrowserLaunchError
+from myrm_agent_harness.toolkits.browser.exceptions import BrowserLaunchError, EngineUnavailableError
 
 logger = logging.getLogger(__name__)
 
 _NAVIGATE_INTERACTIVE_SUMMARY_MAX_TOKENS = 1500
 _NAVIGATE_INTERACTIVE_SUMMARY_MAX_LINES = 100
 
-_CAMOUFOX_INSTALL_HINT = (
-    "Camoufox stealth engine is unavailable. "
-    "Install the browser stack: pip install 'myrm-agent-harness[browser]' "
-    "(includes camoufox>=0.4.11). Retry navigation after install."
+_CAMOUFOX_UNAVAILABLE_HINT = (
+    "Enhanced anti-bot mode is unavailable here. Ask the user to complete the verification with "
+    "browser_ask_human_tool (reopen the page first if it is blank), or use another source."
 )
 
 
@@ -57,16 +56,18 @@ def _camoufox_launch_tool_error(exc: BrowserLaunchError) -> NoReturn:
 
     raise ToolError(
         message=f"Camoufox stealth engine unavailable: {exc}",
-        user_hint=_CAMOUFOX_INSTALL_HINT,
+        user_hint=_CAMOUFOX_UNAVAILABLE_HINT,
         error_code="BROWSER_CAMOUFOX_UNAVAILABLE",
         recovery_suggestions=[
-            "Install myrm-agent-harness[browser] and retry",
+            "Ask the user to complete the verification with browser_ask_human_tool",
             "Report the access issue to the user and suggest alternatives",
         ],
     ) from exc
 
 
 class BrowserSessionNavigationMixin:
+    _TERMINAL_CHALLENGE_TTL_S = 600.0
+
     async def new_tab(self, url: str | None = None) -> str:
         """Create new Tab or reuse existing same-origin Tab, return Tab ID."""
         if hasattr(self, "_ensure_not_user_takeover"):
@@ -189,8 +190,6 @@ class BrowserSessionNavigationMixin:
 
         # Engine affinity: use remembered engine for this domain if available
         if self._engine_preference is None:
-            from urllib.parse import urlparse
-
             from myrm_agent_harness.toolkits.browser.pool.config import BrowserEngine
             from myrm_agent_harness.toolkits.browser.pool.engine_affinity import (
                 get_engine_affinity_store,
@@ -201,9 +200,11 @@ class BrowserSessionNavigationMixin:
                 remembered = get_engine_affinity_store().get(domain)
                 if remembered is not None:
                     logger.info("Engine affinity hit for %s → %s", domain, remembered.value)
-                    self._engine_preference = remembered
                     try:
                         await self.restart(engine=remembered.value, restore_url=False)
+                    except EngineUnavailableError as exc:
+                        # The hint came from another session; this one just keeps its engine.
+                        logger.info("Engine affinity for %s not applied: %s", domain, exc)
                     except BrowserLaunchError as exc:
                         get_engine_affinity_store().clear(domain)
                         if remembered == BrowserEngine.FIREFOX_CAMOUFOX:
@@ -317,14 +318,12 @@ class BrowserSessionNavigationMixin:
                         captcha_result = await self._handle_captcha_if_detected()
                         if captcha_result is None or captcha_result.success:
                             # CAMOUFOX succeeded — record affinity for this domain
-                            from urllib.parse import urlparse
-
                             from myrm_agent_harness.toolkits.browser.pool.engine_affinity import (
                                 get_engine_affinity_store,
                             )
 
                             upgrade_domain = urlparse(url).netloc
-                            if upgrade_domain:
+                            if upgrade_domain and not is_blocked_response(status_code):
                                 get_engine_affinity_store().record(upgrade_domain, BrowserEngine.FIREFOX_CAMOUFOX)
                         else:
                             title = await self._tab_controller.get_active_page().title()

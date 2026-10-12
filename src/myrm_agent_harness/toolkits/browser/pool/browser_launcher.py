@@ -6,6 +6,7 @@
 - patchright.async_api::Browser (POS: Patchright browser instance)
 - .config::LaunchMode, _DEFAULT_CDP_ENDPOINT (POS: launch method enum and default CDP endpoint)
 - .chrome_discovery::discover_chrome_cdp_endpoint (POS: DevToolsActivePort-based browser discovery)
+- .camoufox_availability::require_camoufox_ready (POS: non-downloading Camoufox readiness gate)
 
 [OUTPUT]
 - BrowserLauncher: browser instance launcher (supports launch/connect/auto modes)
@@ -37,6 +38,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ..exceptions import BrowserLaunchError
+from .camoufox_availability import require_camoufox_ready
 from .config import _DEFAULT_CDP_ENDPOINT, BrowserEngine, LaunchMode
 
 if TYPE_CHECKING:
@@ -93,7 +95,7 @@ def _get_install_env() -> dict[str, str]:
     import urllib.request
 
     try:
-        req = urllib.request.Request(_CDN_PROBE_URL, method="HEAD")  # noqa: S310
+        req = urllib.request.Request(_CDN_PROBE_URL, method="HEAD")
         urllib.request.urlopen(req, timeout=_CDN_PROBE_TIMEOUT_S_INSTALL)  # noqa: S310
     except urllib.error.HTTPError:
         pass  # HTTP 4xx/5xx means server is reachable
@@ -402,18 +404,16 @@ class BrowserLauncher:
         # must be recognized so launch timeouts get the retry-with-backoff path.
         from ..utils import is_timeout_error
 
+        if self._engine == BrowserEngine.FIREFOX_CAMOUFOX:
+            # Outside the retry loop: a missing build is not transient, and the
+            # library would otherwise download it implicitly mid-request.
+            require_camoufox_ready()
+
         for attempt in range(3):
             try:
                 if self._engine == BrowserEngine.FIREFOX_CAMOUFOX:
-                    try:
-                        from camoufox.async_api import AsyncCamoufox
-                        from camoufox.utils import launch_options as build_camoufox_options
-                    except ImportError as e:
-                        raise BrowserLaunchError(
-                            "camoufox is not installed. "
-                            "Install the browser extra: pip install 'myrm-agent-harness[browser]' "
-                            "(includes camoufox>=0.4.11)"
-                        ) from e
+                    from camoufox.async_api import AsyncCamoufox
+                    from camoufox.utils import launch_options as build_camoufox_options
 
                     fp_file = self._fingerprint_dir / "camoufox_fingerprint.json" if self._fingerprint_dir else None
                     camoufox_config: dict[str, object] | None = None
@@ -527,13 +527,10 @@ class BrowserLauncher:
                     await asyncio.sleep(2**attempt)
 
         error_msg = f"Failed to create Browser after 3 attempts: {last_exc}"
-        if last_exc and _is_executable_missing(last_exc):
+        if self._engine == BrowserEngine.FIREFOX_CAMOUFOX:
+            error_msg = f"Camoufox stealth engine failed to launch after 3 attempts: {last_exc}"
+        elif last_exc and _is_executable_missing(last_exc):
             error_msg = _build_install_failure_message(last_exc)
-        elif self._engine == BrowserEngine.FIREFOX_CAMOUFOX:
-            error_msg = (
-                f"Camoufox stealth engine failed to launch after 3 attempts: {last_exc}. "
-                "Ensure camoufox is installed: pip install 'myrm-agent-harness[browser]'"
-            )
         logger.error(error_msg)
         raise BrowserLaunchError(error_msg) from last_exc
 

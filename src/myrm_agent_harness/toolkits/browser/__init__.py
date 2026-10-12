@@ -71,6 +71,7 @@ from .exceptions import (
     BrowserPoolError,
     BrowserSessionError,
     BrowserToolError,
+    EngineUnavailableError,
     RefNotFoundError,
 )
 from .pool import EmulationConfig
@@ -161,6 +162,7 @@ __all__ = [
     "ElementState",
     "EmulationConfig",
     "EncryptionError",
+    "EngineUnavailableError",
     "FileVaultBackend",
     "HarnessTaskSpaceManager",
     "IncrementalSessionCheckpointer",

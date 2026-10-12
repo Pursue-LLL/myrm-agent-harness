@@ -11,7 +11,7 @@ Detailed design: [BROWSER_SYSTEM.md](BROWSER_SYSTEM.md)
 |------|------|-------------|-------|
 | __init__.py | Package | Browser toolkit public entry point. Aggregates and exports the module's core API | ✅ |
 | __main__.py | Internal | CLI entry point for browser toolkit diagnostics. | ✅ |
-| exceptions.py | Core | Exception hierarchy definition. RefNotFoundError provides structured diagnostic info, including URL change suggestions; message + format_for_llm output are redacted at construction to keep query-string credentials out of LLM tool errors. | ✅ |
+| exceptions.py | Core | Exception hierarchy definition. `EngineUnavailableError` (a `BrowserLaunchError`) marks an engine switch refused before any session state changed. RefNotFoundError provides structured diagnostic info, including URL change suggestions; message + format_for_llm output are redacted at construction to keep query-string credentials out of LLM tool errors. | ✅ |
 | observability.py | Core | Observability module for the browser toolkit. Provides video recording, progress notifications, checkpoint monitoring, BrowserRunTelemetry active compute and data transfer metrics, and 3-minute runaway watchdog. | ✅ |
 | recording_manager.py | Core | Unified browser recording manager. Provides lifecycle management and file management | ✅ |
 | url_routing.py | Core | URL routing for hybrid private/public network navigation. Detects private URLs for Extension Bridge fallback in sandbox mode. | ✅ |
@@ -41,4 +41,4 @@ Detailed design: [BROWSER_SYSTEM.md](BROWSER_SYSTEM.md)
 
 - `core/security/credential_vault` — `fill_credential` resolves password/TOTP by label (secrets never in LLM context)
 - `core/security/guards/ssrf`, `core/security/audit`, `core/security/detection/content_boundary`
-- Optional extra `[browser]`: `patchright`, `camoufox>=0.4.11`, `orjson` (`session_vault/__init__.py`, `session/session_persistence.py`)
+- Optional extra `[browser]`: `patchright`, `camoufox` (version floor pinned in `pyproject.toml`; the ~1.2 GB browser build is a separate manual install, see `pool/camoufox_availability.py`), `orjson` (`session_vault/__init__.py`, `session/session_persistence.py`)

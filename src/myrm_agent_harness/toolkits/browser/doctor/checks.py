@@ -5,6 +5,7 @@ before actual operations, providing clear fix suggestions for each failure.
 
 [INPUT]
 - patchright (optional extra [browser]) / camoufox (stealth ladder fallback)
+- ..pool.camoufox_availability::camoufox_unavailable_reason (POS: non-downloading Camoufox readiness probe)
 - psutil (memory/disk checks)
 - ..utils::is_timeout_error (POS: builtin/patchright timeout detection)
 - infra/tls_compat::create_httpx_client (POS: unified async HTTP client, used by the extension relay probe)
@@ -25,6 +26,7 @@ are merged back into the ordered report.
 from __future__ import annotations
 
 import asyncio
+import importlib.metadata
 import logging
 import os
 import sys
@@ -62,24 +64,27 @@ def _check_patchright() -> DoctorCheckResult:
 
 
 def _check_camoufox() -> DoctorCheckResult:
-    """Check if camoufox is installed (stealth ladder fallback)."""
-    try:
-        import camoufox
+    """Check that the Camoufox stealth engine (ladder fallback) can launch, not just import."""
+    from ..pool.camoufox_availability import CAMOUFOX_INSTALL_FIX, camoufox_unavailable_reason
 
-        version = getattr(camoufox, "__version__", "unknown")
-        return DoctorCheckResult(
-            name="camoufox",
-            status=CheckStatus.OK,
-            message=f"camoufox {version} installed",
-            details={"version": version},
-        )
-    except (ImportError, TypeError):
+    reason = camoufox_unavailable_reason()
+    if reason is not None:
         return DoctorCheckResult(
             name="camoufox",
             status=CheckStatus.WARNING,
-            message="camoufox not installed (stealth auto-upgrade unavailable)",
-            fix="uv add 'camoufox>=0.4.11' or pip install 'myrm-agent-harness[browser]'",
+            message=f"camoufox not ready: {reason} (stealth auto-upgrade unavailable)",
+            fix=CAMOUFOX_INSTALL_FIX,
         )
+    try:
+        version = importlib.metadata.version("camoufox")
+    except importlib.metadata.PackageNotFoundError:
+        version = "unknown"
+    return DoctorCheckResult(
+        name="camoufox",
+        status=CheckStatus.OK,
+        message=f"camoufox {version} installed",
+        details={"version": version},
+    )
 
 
 def _check_memory() -> DoctorCheckResult:

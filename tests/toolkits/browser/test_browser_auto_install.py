@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-import sys
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from myrm_agent_harness.toolkits.browser.exceptions import BrowserLaunchError
+from myrm_agent_harness.toolkits.browser.exceptions import BrowserLaunchError, EngineUnavailableError
 from myrm_agent_harness.toolkits.browser.pool.browser_launcher import (
     BrowserLauncher,
     _auto_install_chromium,
@@ -291,18 +290,27 @@ class TestLaunchNewBrowserAutoInstall:
         assert call_count == 2  # First failed, second succeeded after install
 
     @pytest.mark.asyncio
-    async def test_no_auto_install_for_camoufox(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        # A None entry makes the import raise ImportError whether or not the browser extra is installed;
-        # with camoufox present the launcher would download addons and start a real browser.
-        monkeypatch.setitem(sys.modules, "camoufox.async_api", None)
+    async def test_no_auto_install_for_camoufox(self) -> None:
+        """A not-ready Camoufox build fails fast: no Chromium install, no retry backoff."""
         launcher = BrowserLauncher(
             launch_options={"headless": True},
             launch_mode=LaunchMode.LAUNCH,
             engine=BrowserEngine.FIREFOX_CAMOUFOX,
         )
 
-        with pytest.raises(BrowserLaunchError, match="camoufox is not installed"):
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.browser.pool.camoufox_availability.camoufox_unavailable_reason",
+                return_value="Camoufox browser build is not installed",
+            ),
+            patch("asyncio.sleep", new_callable=AsyncMock) as sleep,
+            patch("asyncio.create_subprocess_exec") as spawn,
+            pytest.raises(EngineUnavailableError, match="not installed"),
+        ):
             await launcher._launch_new_browser()
+
+        sleep.assert_not_awaited()
+        spawn.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_friendly_error_on_install_failure(self) -> None:

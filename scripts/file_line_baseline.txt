@@ -72,11 +72,11 @@ myrm_agent_harness/observability/diagnostics/probes.py	616
 myrm_agent_harness/runtime/context/instance_metrics.py	717
 myrm_agent_harness/runtime/paths/execution_paths.py	573
 myrm_agent_harness/toolkits/browser/checkpoint/orchestrator.py	509
-myrm_agent_harness/toolkits/browser/pool/browser_launcher.py	582
+myrm_agent_harness/toolkits/browser/pool/browser_launcher.py	579
 myrm_agent_harness/toolkits/browser/pool/browser_pool.py	763
 myrm_agent_harness/toolkits/browser/pool/config.py	603
 myrm_agent_harness/toolkits/browser/session/browser_session.py	688
-myrm_agent_harness/toolkits/browser/session/browser_session_navigation_mixin.py	596
+myrm_agent_harness/toolkits/browser/session/browser_session_navigation_mixin.py	595
 myrm_agent_harness/toolkits/browser/session/extractor.py	582
 myrm_agent_harness/toolkits/browser/session_vault/__init__.py	511
 myrm_agent_harness/toolkits/code_execution/executors/base.py	491

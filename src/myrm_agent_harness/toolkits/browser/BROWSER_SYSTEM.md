@@ -107,7 +107,8 @@ Extension Bridge 与 SessionVault 覆盖竞品（orca/holaboss）cookie 导入�
 - **智能重试**：3次指数退避重试（2s/4s/8s），处理启动失败和网络异常
 - **并发安全销毁**：支持 `destroy_context` 显式回收资源，并具备严格的并发安全断言，防止销毁正在使用的页面。
 - **僵尸进程清理**：在底层浏览器卡死时，通过 `force_kill` (SIGKILL) 强制回收操作系统级别的进程资源。
-- **双引擎热切换**：支持在 Chromium (Patchright) 和 Firefox (Camoufox) 之间无缝热切换，用于突破高强度反爬。
+- **双引擎热切换**：Camoufox 是可选的隐身引擎（需单独安装浏览器构建，约 1.2 GB）。已安装且当前为托管浏览器时，可在 Chromium (Patchright) 与 Firefox (Camoufox) 之间热切换，可能缓解指纹类拦截（不承诺绕过）。`BrowserSession.restart(engine=Camoufox)` 先做零副作用预检：构建未就绪、或当前是接入的真实浏览器（CDP/扩展）时抛 `EngineUnavailableError`，会话原样保留；预检通过后若启动失败，会话自动回滚到原引擎（Cookie/localStorage 随新上下文迁移，页面不重载）并重抛原始错误，不会留下无法使用的空会话。
+- **Camoufox 就绪探针**：`pool/camoufox_availability.py` 复用启动期的解析规则（先 `CAMOUFOX_EXECUTABLE_PATH`，再库内已安装构建），以 `download_if_missing=False` 判断“现在能否启动”，绝不触发库默认的静默下载；启动器、`restart()` 预检与 Doctor 共用同一结论。手动安装：`camoufox fetch`（约 1.2 GB），离线/沙箱环境用 `CAMOUFOX_EXECUTABLE_PATH` 指向现成构建。
 - **Camoufox 指纹持久化**：通过 `camoufox.utils.launch_options()` 生成完整指纹配置（含 `executable_path`、环境变量中的指纹种子、WebGL 参数等），首次启动时保存到 `_fingerprint_dir/camoufox_fingerprint.json`，后续启动通过 `from_options` 加载，确保同一 Agent 在多次会话中保持一致的设备身份。内置自愈机制：损坏的 JSON 配置文件（如断电导致写入中断）会被自动检测、删除并重新生成，避免永久启动失败。
 
 **核心 API**：
@@ -145,7 +146,7 @@ BrowserSession (聚合根)
 - 20+ 个公开方法覆盖导航、交互、提取、会话管理
 - Tab 管理：LRU 驱逐策略（上限 10 个 Tab）+ Origin-based 智能路由（同源 URL 自动复用已有 Tab，避免重复创建）
 - 会话管理：AES-256-GCM 加密，30 天 TTL 自动过期
-- **无感自动降级/升级**：在导航遇到无法解决的 CAPTCHA (如 Cloudflare) 时，自动从 Chromium 热切换至 Camoufox 并重试，对 Agent 完全透明。通过精细的 `restore_url=False` 控制，避免切换引擎时产生双重导航（Double Navigation）的性能损耗和二次封杀风险。同时支持**状态无缝迁移 (Stateful Seamless Hot-Switching)**，在引擎切换或代理轮换瞬间，自动提取并重新注入 Cookie 和 `localStorage`，确保登录态和会话上下文 100% 不丢失。
+- **自动升级（可选引擎已安装时）**：在导航遇到无法解决的 CAPTCHA (如 Cloudflare) 时，自动从 Chromium 热切换至 Camoufox 并重试，对 Agent 透明；未安装（或当前为接入的真实浏览器）时不升级，返回 `BROWSER_CAMOUFOX_UNAVAILABLE`，引导 Agent 使用 `browser_ask_human_tool` 或换源。通过精细的 `restore_url=False` 控制，避免切换引擎时产生双重导航（Double Navigation）的性能损耗和二次封杀风险。同时支持**状态无缝迁移 (Stateful Seamless Hot-Switching)**，在引擎切换或代理轮换瞬间，自动提取并重新注入 Cookie 和 `localStorage`，确保登录态和会话上下文 100% 不丢失。
 - **代理智能轮换与防封自愈**：在底层集成 `is_proxy_error` 与 `is_blocked_response` 检测。遇阻瞬间触发：隔离坏代理至小黑屋 -> `restart()` 无损热替换上下文获取新 IP -> 重新导航。全程对 LLM 透明，0 额外 Token 成本。
 
 ---
@@ -550,9 +551,10 @@ Object.defineProperty(window, 'RTCPeerConnection', {
 1. 默认 Patchright 导航
 2. HTTP 403/429：代理重试耗尽后 fallthrough 至 CAPTCHA 检测（页面已加载）
 3. 可解 CAPTCHA（Cloudflare/reCAPTCHA/hCaptcha）→ CaptchaSolver 尝试解决
-4. 行为式 WAF（DataDome/Kasada/Akamai/Imperva/PerimeterX）→ 即时 fast-fail（<1ms），跳过 solver 和 takeover UI，透明升级 Camoufox
-5. 其他 CAPTCHA/反爬检测失败 → 自动升级 Camoufox + Progress SSE（`notify_category=browser`）
+4. 行为式 WAF（DataDome/Kasada/Akamai/Imperva/PerimeterX）→ 即时 fast-fail（<1ms），跳过 solver 和 takeover UI，升级 Camoufox（需已安装）
+5. 其他 CAPTCHA/反爬检测失败 → 升级 Camoufox（需已安装）+ Progress SSE（`notify_category=browser`）
 6. 仍失败 → Terminal Challenge（10min TTL，0ms 快速失败，防 LLM 反复重试）
+7. Camoufox 未安装 / 接入真实浏览器 / 启动失败 → `BROWSER_CAMOUFOX_UNAVAILABLE`（会话保持可用，不进入 Terminal Challenge 缓存）；升级后的重试页若仍是 403/429，不记录域名引擎亲和
 
 **生产验证域名**：
 - 微信公众号 (mp.weixin.qq.com)
@@ -866,8 +868,8 @@ class CaptchaSolver(Protocol):
 
 **状态机**：`NONE → DETECTED → SOLVING → RESOLVED | TIMEOUT`
 
-**无感自动降级/升级**：
-如果检测到高强度拦截（如 Cloudflare）且 `CaptchaCoordinator` 返回 `TIMEOUT` 或无法解决，且当前引擎为 `Chromium`，`BrowserSession.navigate` 会自动在底层触发 `restart(engine=CAMOUFOX, restore_url=False)`，热切换至深度隐身引擎并重新发起单次导航，成功后将结果返回给 Agent。这一过程对大模型完全透明，节省了大量推理 Token，且彻底规避了引擎切换过程中的双重导航（Double Navigation）死角。
+**自动升级（可选引擎已安装时）**：
+如果检测到高强度拦截（如 Cloudflare）且 `CaptchaCoordinator` 返回 `TIMEOUT` 或无法解决，且当前引擎为 `Chromium`，`BrowserSession.navigate` 会自动在底层触发 `restart(engine=CAMOUFOX, restore_url=False)`，切换至 Camoufox 并重新发起单次导航，成功后将结果返回给 Agent。这一过程对大模型透明，节省推理 Token，且规避了引擎切换过程中的双重导航（Double Navigation）死角。Camoufox 未安装、或当前是接入的真实浏览器时，`restart()` 在关闭任何东西之前就拒绝（`EngineUnavailableError`），`navigate` 转为 `BROWSER_CAMOUFOX_UNAVAILABLE` 并引导 Agent 调用 `browser_ask_human_tool` 或换源；预检通过但启动失败时，会话回滚到原引擎后返回同一错误。
 
 **终端挑战硬停机 (Terminal Challenge Hard-Halt)**：
 
@@ -1121,7 +1123,8 @@ browser/
 │   └── common.py — 工具共享工具函数
 ├── pool/
 │   ├── browser_pool.py (716 行) — GlobalBrowserPool（全局调度中枢）
-│   ├── browser_launcher.py (~525 行) — BrowserLauncher（Chromium + Camoufox 启动前 sanitize_env + Zero-config Chromium 自动安装 with CDN mirror fallback + Camoufox 指纹持久化 + 损坏自愈）
+│   ├── browser_launcher.py (~580 行) — BrowserLauncher（Chromium + Camoufox 启动前 sanitize_env + Zero-config Chromium 自动安装 with CDN mirror fallback + Camoufox 指纹持久化 + 损坏自愈 + Camoufox 启动前就绪闸门）
+│   ├── camoufox_availability.py — Camoufox 就绪探针（不下载；启动器 / restart 预检 / Doctor 共用）
 │   ├── context_factory.py (156 行) — ContextFactory（Context 工厂）
 │   ├── emulation.py — 浏览器环境仿真配置（含移动设备五维字段）
 │   ├── device_profiles.py — 精选移动设备 profile 注册表（含 landscape 横屏视口）

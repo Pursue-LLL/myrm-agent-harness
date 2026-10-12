@@ -7,6 +7,7 @@ Architecture:
     BrowserError (root)
     ├── BrowserPoolError
     │   └── BrowserLaunchError
+    │       └── EngineUnavailableError
     ├── BrowserSessionError
     │   └── BrowserNavigationError
     ├── BrowserToolError
@@ -30,6 +31,8 @@ Usage:
 [OUTPUT]
 - BrowserError: Root exception for all browser operations
 - BrowserPoolError: Pool management errors
+- BrowserLaunchError: Browser launch failures
+- EngineUnavailableError: Requested engine refused before any session state changed
 - BrowserSessionError: Session operation errors
 - BrowserToolError: Tool execution errors
 - RefNotFoundError: ref failure exception (structured diagnosis + URL change classification + smart suggestion generation + context refs sampling)
@@ -138,6 +141,16 @@ class BrowserLaunchError(BrowserPoolError):
     Raised when Playwright/Patchright fails to launch a browser process,
     typically due to missing binaries, insufficient resources, or
     conflicting processes.
+    """
+
+
+class EngineUnavailableError(BrowserLaunchError):
+    """Requested browser engine cannot be used; nothing was launched or closed.
+
+    Raised by pre-flight checks before any session state changes: the optional
+    engine is not installed, or the active browser is an attached real browser
+    that cannot be swapped. Unlike a plain ``BrowserLaunchError`` the session
+    is guaranteed untouched, so the caller can keep working on it.
     """
 
 

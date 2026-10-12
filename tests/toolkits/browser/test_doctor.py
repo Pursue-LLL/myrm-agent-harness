@@ -42,44 +42,39 @@ def test_check_patchright_missing() -> None:
         assert result.fix == "uv add patchright"
 
 
-def test_check_camoufox_installed() -> None:
-    """Test camoufox check when installed."""
-    mock_camoufox = MagicMock()
-    mock_camoufox.__version__ = "0.4.11"
+_CAMOUFOX_REASON_PROBE = "myrm_agent_harness.toolkits.browser.pool.camoufox_availability.camoufox_unavailable_reason"
 
-    with patch.dict("sys.modules", {"camoufox": mock_camoufox}):
+
+def test_check_camoufox_ready_reports_installed_package_version() -> None:
+    """Version comes from package metadata, not from the camoufox.__version__ submodule object."""
+    import importlib.metadata
+
+    pytest.importorskip("camoufox")
+    with patch(_CAMOUFOX_REASON_PROBE, return_value=None):
         result = _check_camoufox()
-        assert result.status == CheckStatus.OK
-        assert "0.4.11" in result.message
+    version = importlib.metadata.version("camoufox")
+    assert result.status == CheckStatus.OK
+    assert result.message == f"camoufox {version} installed"
+    assert result.details == {"version": version}
 
 
-def test_check_camoufox_missing() -> None:
-    """Test camoufox check when not installed."""
-    with patch.dict("sys.modules", {"camoufox": None}):
-        import importlib
-
-        import myrm_agent_harness.toolkits.browser.doctor as doctor_module
-
-        importlib.reload(doctor_module)
-
-        result = doctor_module._check_camoufox()
-        assert result.status == CheckStatus.WARNING
-        assert "stealth auto-upgrade unavailable" in result.message
-        assert result.fix is not None
-        assert "camoufox>=0.4.11" in result.fix
+def test_check_camoufox_warns_when_browser_build_missing() -> None:
+    """An importable package without its browser build must not be reported as OK."""
+    with patch(_CAMOUFOX_REASON_PROBE, return_value="Camoufox browser build is not installed"):
+        result = _check_camoufox()
+    assert result.status == CheckStatus.WARNING
+    assert "browser build is not installed" in result.message
+    assert "stealth auto-upgrade unavailable" in result.message
+    assert result.fix is not None
+    assert "camoufox fetch" in result.fix
+    assert "CAMOUFOX_EXECUTABLE_PATH" in result.fix
 
 
-def test_check_camoufox_missing_fix_string() -> None:
-    """Install hint must match production dependency (no invalid [async] extra)."""
-    with patch.dict("sys.modules", {"camoufox": None}):
-        import importlib
-
-        import myrm_agent_harness.toolkits.browser.doctor as doctor_module
-
-        importlib.reload(doctor_module)
-
-        result = doctor_module._check_camoufox()
-        assert "camoufox[async]" not in (result.fix or "")
+def test_check_camoufox_warns_when_package_missing() -> None:
+    with patch.dict("sys.modules", {"camoufox": None, "camoufox.exceptions": None, "camoufox.pkgman": None}):
+        result = _check_camoufox()
+    assert result.status == CheckStatus.WARNING
+    assert "camoufox package is not installed" in result.message
 
 
 def test_format_report_includes_camoufox() -> None:

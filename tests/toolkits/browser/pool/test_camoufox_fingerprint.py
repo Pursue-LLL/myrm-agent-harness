@@ -11,7 +11,7 @@ import json
 import sys
 import types
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -66,6 +66,16 @@ def _reset_mocks():
     _mock_async_camoufox_cls.reset_mock()
     _mock_launch_options.reset_mock()
     _mock_launch_options.return_value = FAKE_CONFIG.copy()
+
+
+@pytest.fixture(autouse=True)
+def _engine_ready():
+    """The faked camoufox modules carry no browser build; the readiness gate is covered separately."""
+    with patch(
+        "myrm_agent_harness.toolkits.browser.pool.camoufox_availability.camoufox_unavailable_reason",
+        return_value=None,
+    ):
+        yield
 
 
 @pytest.fixture()

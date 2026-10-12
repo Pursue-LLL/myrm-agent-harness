@@ -42,7 +42,33 @@ class BrowserSessionLifecycleMixin:
 
         Returns:
             Status message indicating successful restart.
+
+        Raises:
+            EngineUnavailableError: Switching to Camoufox was refused up front (engine not
+                installed, or an attached real browser is active); the session is untouched.
+            BrowserLaunchError: The switch failed after teardown. The session is rolled back
+                onto its previous engine with cookies/localStorage migrated (the page is not
+                reloaded), then the original error is re-raised.
         """
+        from myrm_agent_harness.toolkits.browser.exceptions import EngineUnavailableError
+        from myrm_agent_harness.toolkits.browser.pool.camoufox_availability import require_camoufox_ready
+        from myrm_agent_harness.toolkits.browser.pool.config import BrowserEngine
+
+        target_engine: BrowserEngine | None = None
+        if engine:
+            try:
+                target_engine = BrowserEngine(engine)
+            except ValueError:
+                logger.warning(f"Invalid engine '{engine}', keeping current engine preference.")
+
+        # Pre-flight before anything is closed: a refused switch must leave the session untouched.
+        if target_engine == BrowserEngine.FIREFOX_CAMOUFOX:
+            if not self.is_browser_managed():
+                raise EngineUnavailableError("engine switch does not apply to an attached real browser")
+            require_camoufox_ready()
+
+        previous_preference = self._engine_preference
+
         # Save current state before closing
         current_url = None
         current_storage_state = None
@@ -118,19 +144,27 @@ class BrowserSessionLifecycleMixin:
             pass
 
         # Update session's engine preference
-        if engine:
-            from myrm_agent_harness.toolkits.browser.pool.config import BrowserEngine
-
-            try:
-                self._engine_preference = BrowserEngine(engine)
-                logger.info(f"Session engine preference updated to {self._engine_preference}")
-            except ValueError:
-                logger.warning(f"Invalid engine '{engine}', keeping current engine preference.")
+        if target_engine is not None:
+            self._engine_preference = target_engine
+            logger.info(f"Session engine preference updated to {self._engine_preference}")
 
         # Re-initialize the session by requesting a new page from the pool
         # This will trigger the pool to use the updated config and engine
         # We use new_tab to bootstrap the first page
-        await self.new_tab()
+        switch_error: Exception | None = None
+        try:
+            await self.new_tab()
+        except Exception as exc:
+            if self._engine_preference == previous_preference:
+                raise
+            # The old browser is already gone: reopen on the previous engine so the
+            # session stays usable, migrate state as usual, then surface the failure.
+            logger.warning(
+                f"Engine switch to {self._engine_preference} failed ({exc}); restoring {previous_preference}"
+            )
+            self._engine_preference = previous_preference
+            switch_error = exc
+            await self.new_tab()
 
         # Migrate storage state to the new context
         if current_storage_state:
@@ -173,6 +207,9 @@ class BrowserSessionLifecycleMixin:
                         injected_count += len(local_storage)
 
                     logger.info(f"Successfully migrated {injected_count} localStorage items to new engine.")
+
+        if switch_error is not None:
+            raise switch_error
 
         # Restore state if possible
         if restore_url and current_url and current_url != "about:blank":
