@@ -14,7 +14,6 @@ Framework provides the hooks, business layer decides when to use them.
 - toolkits.retriever.embedding.cache::EmbeddingCache (POS: Embedding cache layer. Provides a two-tier caching mechanism (memory + SQLite) that sits between callers and the remote embedding API to avoid redundant calls.)
 - agent.context_management.pipeline::ContextPipeline (POS: Message filter pipeline for composing multiple filters.)
 - toolkits.code_execution::CodeExecutor (POS: Code execution toolkit entry point. Aggregates execution configuration, executor implementations, workspace management, and factory functions for the Agent-in-Sandbox architecture.)
-- agent.skills.evolution::EvolutionIntegration (POS: Skill evolution engine - Core of self-evolution system.)
 - agent.skills.runtime.trap_injection::set_trap_lookup (POS: Known Pitfalls tail injection for loaded SKILL.md documents.)
 - toolkits.web_search::SearchServiceConfig (POS: Web search toolkit entry point. Aggregates and re-exports search tools, result types, metrics, and error hierarchy for unified import.)
 - agent.middlewares._session_context::get_approval_session (POS: Middleware session context — shared ContextVars for the middleware chain.)
