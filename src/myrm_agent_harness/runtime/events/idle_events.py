@@ -21,7 +21,9 @@ class IdleTaskProgressEvent(BaseEvent):
     """Emitted when an idle background task updates its progress or status.
 
     This is meant to be intercepted by the Server layer and pushed to the
-    frontend (e.g., via SSE) to drive the "breathing light" UI.
+    frontend (e.g., via SSE) to drive the "breathing light" UI. The event carries
+    structure only (``task_name``, ``status``, ``progress_pct``, ``data``); user-facing
+    text is the UI layer's responsibility so it can be localized.
     """
 
     session_id: str
@@ -29,5 +31,4 @@ class IdleTaskProgressEvent(BaseEvent):
     user_id: str | None = None
     task_name: str | None = None
     progress_pct: int | None = None
-    message: str | None = None
     data: dict[str, Any] | None = None

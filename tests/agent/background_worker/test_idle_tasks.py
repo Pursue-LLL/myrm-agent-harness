@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import ExitStack
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -137,6 +138,9 @@ async def test_default_idle_callback_success(mock_consolidator_class, mock_get_m
 
         assert published_events[3].status == "idle"
 
+        # Presentation text belongs to the UI layer; events carry structure only.
+        assert not any(hasattr(e, "message") for e in published_events)
+
 
 @pytest.mark.asyncio
 @patch("myrm_agent_harness.agent.background_worker.idle_tasks.get_maintenance_scheduler")
@@ -263,11 +267,10 @@ class TestRunContextCompaction:
         _idle_task_handlers["_context_compact_impl"] = compact_handler
         try:
             result = await _run_context_compaction("s2", task, event_bus)
-            assert result["compacted"] is True
-            assert result["preheated"] is False
+            assert result == {"compacted": True, "chat_id": "chat_123"}
             compact_handler.assert_awaited_once_with("chat_123", "s2")
             published = [c.args[0] for c in event_bus.publish.call_args_list]
-            assert any(e.message == "正在优化对话上下文..." for e in published)
+            assert [(e.status, e.task_name) for e in published] == [("working", "context_compaction")]
         finally:
             del _idle_task_handlers["_context_compact_impl"]
 
@@ -292,8 +295,7 @@ class TestRunContextCompaction:
         _idle_task_handlers["_context_compact_impl"] = compact_handler
         try:
             result = await _run_context_compaction("s3", task, event_bus)
-            assert result["compacted"] is False
-            assert result["preheated"] is False
+            assert result == {"compacted": False, "chat_id": "chat_short"}
         finally:
             del _idle_task_handlers["_context_compact_impl"]
 
@@ -329,7 +331,8 @@ class TestRunContextCompaction:
         finally:
             del _idle_task_handlers["_context_compact_impl"]
 
-    async def test_preheat_triggered_when_llm_provided(self) -> None:
+    async def test_compaction_never_preheats_prefix_cache(self) -> None:
+        """Idle compaction runs minutes after the provider cache TTL, so it must not re-warm it."""
         event_bus = MagicMock()
         task = IdleTaskRecord(
             id=15,
@@ -339,24 +342,23 @@ class TestRunContextCompaction:
             status="running",
             created_at=0.0,
         )
-        mock_llm = AsyncMock()
-        mock_llm.ainvoke.return_value = MagicMock()
-        mock_messages = [MagicMock()]
         compact_handler = AsyncMock(
             return_value={
                 "compacted": True,
-                "llm": mock_llm,
-                "messages": mock_messages,
+                "llm": AsyncMock(),
+                "messages": [MagicMock()],
                 "model_name": "anthropic/claude-3",
             }
         )
         _idle_task_handlers["_context_compact_impl"] = compact_handler
         try:
-            result = await _run_context_compaction("s6", task, event_bus)
-            assert result["compacted"] is True
-            assert result["preheated"] is True
-            published = [c.args[0] for c in event_bus.publish.call_args_list]
-            assert any(getattr(e, "message", "") == "正在预热上下文缓存..." for e in published)
+            with patch(
+                "myrm_agent_harness.agent.context_management.preheat.preheat_prefix_cache",
+                new_callable=AsyncMock,
+            ) as mock_preheat:
+                result = await _run_context_compaction("s6", task, event_bus)
+            assert result == {"compacted": True, "chat_id": "chat_preheat"}
+            mock_preheat.assert_not_awaited()
         finally:
             del _idle_task_handlers["_context_compact_impl"]
 
@@ -607,3 +609,105 @@ async def test_cognitive_subsumption_passes_consolidation_llm_by_signature() -> 
     assert mock_find.await_args.kwargs["llm"] is consolidation_llm
     registry.mark_completed.assert_awaited_once()
     registry.mark_error.assert_not_awaited()
+
+
+async def _run_task_collecting_events(
+    task: IdleTaskRecord,
+    manager: MagicMock,
+    extra_patches: tuple[object, ...] = (),
+) -> list[IdleTaskProgressEvent]:
+    """Run one idle task through ``default_idle_callback`` and return every published event."""
+    registry = AsyncMock(spec=IdleTaskRegistry)
+    registry.acquire_next.return_value = task
+    scheduler = AsyncMock()
+    scheduler.report_outcome = MagicMock()
+    scheduler.request_capacity.return_value = CapacityTicket(ticket_id="t", task_type=task.task_type)
+    event_bus = MagicMock()
+
+    with (
+        patch(
+            "myrm_agent_harness.agent.background_worker.idle_tasks.get_maintenance_scheduler", return_value=scheduler
+        ),
+        patch("myrm_agent_harness.agent.background_worker.idle_tasks.get_event_bus", return_value=event_bus),
+        patch("myrm_agent_harness.agent.background_worker.idle_tasks.get_memory_manager", return_value=manager),
+        patch("asyncio.sleep", new_callable=AsyncMock),
+        ExitStack() as stack,
+    ):
+        for extra in extra_patches:
+            stack.enter_context(extra)
+        await default_idle_callback(task.session_id, registry)
+
+    return [c.args[0] for c in event_bus.publish.call_args_list]
+
+
+@pytest.mark.asyncio
+async def test_cognitive_subsumption_notification_carries_count_not_text() -> None:
+    task = IdleTaskRecord(
+        id=31,
+        session_id="global",
+        task_type="cognitive_subsumption",
+        payload={"new_knowledge": "evolved skill body"},
+        status="running",
+        created_at=0.0,
+    )
+    manager = MagicMock()
+    manager._consolidation_llm = MagicMock(spec=BaseChatModel)
+
+    events = await _run_task_collecting_events(
+        task,
+        manager,
+        (
+            patch(
+                "myrm_agent_harness.toolkits.memory.strategies.subsumption.find_subsumed_memories",
+                autospec=True,
+                return_value=["m1", "m2"],
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.memory.strategies.subsumption.apply_subsumption",
+                autospec=True,
+                return_value=2,
+            ),
+        ),
+    )
+
+    notification = next(e for e in events if e.status == "notification")
+    assert notification.task_name == "cognitive_subsumption"
+    assert notification.data is not None
+    assert notification.data["count"] == 2
+    assert not any(hasattr(e, "message") for e in events)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("disruptive", "expected_status", "expected_urgency"),
+    [(True, "notification", "notify"), (False, "completed", "silent")],
+)
+async def test_cognitive_derivation_event_status_follows_disruptive_change(
+    disruptive: bool, expected_status: str, expected_urgency: str
+) -> None:
+    task = IdleTaskRecord(
+        id=32,
+        session_id="sess1",
+        task_type="cognitive_derivation",
+        payload={"chat_id": "c1", "messages": [{"role": "user", "content": "test"}]},
+        status="running",
+        created_at=0.0,
+    )
+    deriver = AsyncMock()
+    deriver.run_derivation.return_value = {
+        "success": True,
+        "extracted_count": 1,
+        "has_disruptive_change": disruptive,
+    }
+
+    events = await _run_task_collecting_events(
+        task,
+        MagicMock(),
+        (patch("myrm_agent_harness.toolkits.memory.cognitive.deriver.CognitiveDeriver", return_value=deriver),),
+    )
+
+    derivation_event = next(e for e in events if e.data and e.data.get("type") == "cognitive_derivation")
+    assert derivation_event.status == expected_status
+    assert derivation_event.data is not None
+    assert derivation_event.data["urgency"] == expected_urgency
+    assert not any(hasattr(e, "message") for e in events)
