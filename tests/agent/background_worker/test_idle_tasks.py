@@ -635,7 +635,7 @@ async def _run_task_collecting_events(
 
 
 @pytest.mark.asyncio
-async def test_cognitive_subsumption_notification_carries_count_not_text() -> None:
+async def test_cognitive_subsumption_notification_carries_count_and_ids_not_text() -> None:
     task = IdleTaskRecord(
         id=31,
         session_id="global",
@@ -668,6 +668,7 @@ async def test_cognitive_subsumption_notification_carries_count_not_text() -> No
     assert notification.task_name == "cognitive_subsumption"
     assert notification.data is not None
     assert notification.data["count"] == 2
+    assert notification.data["subsumed_ids"] == ["m1", "m2"]
     assert not any(hasattr(e, "message") for e in events)
 
 

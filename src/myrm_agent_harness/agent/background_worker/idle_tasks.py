@@ -252,7 +252,7 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                                         status="notification",
                                         task_name=task.task_type,
                                         progress_pct=100,
-                                        data={"count": deleted_count},
+                                        data={"count": deleted_count, "subsumed_ids": subsumed_ids},
                                     )
                                 )
                     else:
