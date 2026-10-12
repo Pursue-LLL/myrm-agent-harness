@@ -752,9 +752,7 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     # explicit mcp_invoke fallback tools — declared for module-load gate transparency
     "browser_execute_script_tool": SafetyMetadata(),
     "send_teammate_message_tool": SafetyMetadata(),
-    # pure read over the in-memory message history
     "refetch_historical_turn": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
-    # stateful per-turn rate limiter + SSE push: not idempotent, not concurrency-safe
     "send_user_message_async": SafetyMetadata(),
 }
 
