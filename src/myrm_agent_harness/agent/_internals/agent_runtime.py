@@ -448,6 +448,8 @@ async def run_agent_loop(
                 session_id,
                 agent_id=str(merged_context.get("agent_id", "")) or None,
                 task_type=str(merged_context.get("task_type", "")) or None,
+                # The host keys the per-chat backend by chat id, not by the runtime session id.
+                storage_key=str(merged_context.get("chat_id", "")) or None,
             )
             await event_logger.start()
 
@@ -976,9 +978,4 @@ async def run_agent_loop(
             cost_info,
         )
 
-        from myrm_agent_harness.agent.skill_agent import SkillAgent
-
-        schedule_post_run_idle_tasks(
-            merged_context,
-            derive_memories=isinstance(agent_state, SkillAgent) and agent_state.allows_background_memory_extraction(),
-        )
+        schedule_post_run_idle_tasks(merged_context)

@@ -4,6 +4,7 @@
 - (none)
 
 [OUTPUT]
+- GLOBAL_SESSION_ID: Session key of tasks that are not tied to a chat; any session's idle window may run them.
 - IdleTaskRecord: Represents a pending or running background idle task.
 - IdleTaskRegistry: SQLite-backed task registry with atomic locking for idle ...
 - get_idle_task_registry: Get or create the singleton registry bound to the workspa...
@@ -28,6 +29,8 @@ try:
     from myrm_agent_harness.utils.db.sqlite import connect_async
 except (ImportError, TypeError):
     aiosqlite = None  # type: ignore[assignment]
+
+GLOBAL_SESSION_ID = "global"
 
 
 @dataclass
@@ -76,8 +79,13 @@ class IdleTaskRegistry:
                 )
                 # Create an index for faster lookups
                 await db.execute("CREATE INDEX IF NOT EXISTS idx_idle_tasks_status ON idle_tasks(status, session_id)")
+                # The registry is owned by the single process serving this workspace, so a row still
+                # 'running' at startup was orphaned by a crash and would otherwise block its task type
+                # from being enqueued again.
+                await db.execute("UPDATE idle_tasks SET status='pending' WHERE status='running'")
                 await db.commit()
                 self._initialized = True
+            await self.cleanup_old_tasks()
 
     async def enqueue(self, session_id: str, task_type: str, payload: dict[str, Any]) -> None:
         """Enqueue a new idle task if not already pending."""
@@ -103,7 +111,7 @@ class IdleTaskRegistry:
             await db.commit()
 
     async def acquire_next(self, session_id: str) -> IdleTaskRecord | None:
-        """Atomically lock and acquire the next pending task for the session.
+        """Atomically lock and acquire the oldest pending task for the session or the global queue.
 
         Uses SQLite's RETURNING clause for row-level locking, ensuring that
         even with multiple Uvicorn workers, only one process acquires the task.
@@ -123,13 +131,13 @@ class IdleTaskRegistry:
                 SET status = 'running'
                 WHERE id = (
                     SELECT id FROM idle_tasks
-                    WHERE status = 'pending' AND session_id = ?
+                    WHERE status = 'pending' AND session_id IN (?, ?)
                     ORDER BY created_at ASC
                     LIMIT 1
                 )
                 RETURNING *
                 """,
-                (session_id,),
+                (session_id, GLOBAL_SESSION_ID),
             )
             row = await cursor.fetchone()
             await db.commit()
@@ -150,7 +158,7 @@ class IdleTaskRegistry:
         if aiosqlite is None:
             return
         async with connect_async(self.db_path) as db:
-            await db.execute("UPDATE idle_tasks SET status='completed' WHERE id=?", (task_id))
+            await db.execute("UPDATE idle_tasks SET status='completed' WHERE id=?", (task_id,))
             await db.commit()
 
     async def mark_error(self, task_id: int) -> None:
@@ -158,7 +166,7 @@ class IdleTaskRegistry:
         if aiosqlite is None:
             return
         async with connect_async(self.db_path) as db:
-            await db.execute("UPDATE idle_tasks SET status='error' WHERE id=?", (task_id))
+            await db.execute("UPDATE idle_tasks SET status='error' WHERE id=?", (task_id,))
             await db.commit()
 
     async def cleanup_old_tasks(self, days_old: int = 7) -> int:
@@ -168,7 +176,7 @@ class IdleTaskRegistry:
         cutoff = time.time() - (days_old * 86400)
         async with connect_async(self.db_path) as db:
             cursor = await db.execute(
-                "DELETE FROM idle_tasks WHERE status IN ('completed', 'error') AND created_at < ?", (cutoff)
+                "DELETE FROM idle_tasks WHERE status IN ('completed', 'error') AND created_at < ?", (cutoff,)
             )
             deleted = cursor.rowcount
             await db.commit()

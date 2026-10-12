@@ -3,6 +3,7 @@
 [INPUT]
 - agent.background_worker.registry::IdleTaskRegistry (POS: Idle Task Registry for crash-resilient persistence and concurrency control.)
 - agent.background_worker.shadow_context (POS: Execution-layer bulkhead isolation for background shadow workloads.)
+- agent.background_worker.session_evidence_task::run_session_evidence_extraction (POS: Built-in handler that mines the session event log for skill-evolution evidence.)
 - agent.skill_agent.context::get_memory_manager (POS: Module-level ContextVar management and background task utilities.)
 - runtime.maintenance.scheduler::get_maintenance_scheduler (POS: Global adaptive maintenance scheduler.)
 - toolkits.memory.cognitive.consolidator::CognitiveConsolidator (POS: Memory toolkit's cognitive consolidation adapter. Forwards consolidation, forgetting, and health checks to the single maintenance core so the system keeps exactly one maintenance path.)
@@ -13,7 +14,8 @@
 - ContextCompactionHandler: 上下文压缩处理器协议（chat_id, session_id → 结果字典）
 - register_idle_task_handler: 注册自定义 idle task 处理器（按 task_type 键控的 DI 入口）
 - register_context_compaction_handler: 注册业务层的上下文压缩实现（单槽 DI 入口）
-- default_idle_callback: 会话空闲时执行的默认回调，分派并驱动全部内置 idle 任务类型
+- default_idle_callback: 执行至多一个待处理 idle 任务（会话自身队列或全局队列），返回是否处理了任务
+- run_pending_idle_tasks: 会话空闲窗口的调度入口，持续执行直到队列清空
 
 [POS]
 空闲维护内置任务层。承载认知巩固、会话证据提炼与上下文压缩等无用户交互期的后台任务，被 idle_worker 调度执行。
@@ -26,6 +28,7 @@ import logging
 from typing import TYPE_CHECKING, Protocol
 
 from myrm_agent_harness.agent.background_worker.registry import IdleTaskRegistry
+from myrm_agent_harness.agent.background_worker.session_evidence_task import run_session_evidence_extraction
 from myrm_agent_harness.agent.background_worker.shadow_context import (
     restricted_shadow_context,
 )
@@ -79,13 +82,26 @@ def register_context_compaction_handler(handler: ContextCompactionHandler) -> No
     _context_compaction_handler = handler
 
 
-async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> None:
-    """Default idle task to run when the session is inactive.
+# Bounds one idle window so a deep queue cannot monopolise the maintenance scheduler.
+_MAX_TASKS_PER_IDLE_WINDOW = 8
 
-    Checks the IdleTaskRegistry for pending tasks using atomic lock.
-    If a task is acquired, requests CapacityTicket from GlobalAdaptiveScheduler.
-    If successful, runs memory consolidation or pending background tasks,
-    and emits progress events to the Harness EventBus.
+
+async def run_pending_idle_tasks(session_id: str, registry: IdleTaskRegistry) -> None:
+    """Drain the session's pending idle tasks, stopping on the first deferral or an empty queue."""
+    for _ in range(_MAX_TASKS_PER_IDLE_WINDOW):
+        if not await default_idle_callback(session_id, registry):
+            return
+
+
+async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> bool:
+    """Run at most one pending idle task for the session (or the global queue).
+
+    Acquires a task from the IdleTaskRegistry under its atomic lock, requests a CapacityTicket from the
+    GlobalAdaptiveScheduler, runs the handler and emits progress events to the Harness EventBus.
+
+    Returns:
+        True when a task was executed (successfully or not), False when nothing ran: paused, queue empty,
+        or capacity unavailable (the task is returned to ``pending`` for a later window).
     """
     pause_signal = get_global_pause_signal()
     if pause_signal.is_pause_requested:
@@ -94,12 +110,12 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
             session_id,
             pause_signal.pause_reason,
         )
-        return
+        return False
 
     task = await registry.acquire_next(session_id)
     if not task:
         logger.debug("No pending idle tasks for session %s.", session_id)
-        return
+        return False
 
     scheduler = get_maintenance_scheduler()
     if not scheduler:
@@ -107,8 +123,8 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
             "No MaintenanceScheduler initialized. Skipping idle tasks for session %s.",
             session_id,
         )
-        await registry.mark_error(task.id)
-        return
+        await _revert_task_to_pending(registry, task.id)
+        return False
 
     # 1. Request capacity
     ticket_or_denial = await scheduler.request_capacity(task_type=MaintenanceTaskType.CONTEXT_COMPACTION)
@@ -121,7 +137,7 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
         )
         # Revert task status so it can be picked up later
         await _revert_task_to_pending(registry, task.id)
-        return
+        return False
 
     ticket = ticket_or_denial
     event_bus = get_event_bus()
@@ -177,31 +193,6 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                         logger.warning("MemoryManager not available. Simulating idle task.")
                         await asyncio.sleep(5)
                         event_data = {"simulated": True}
-                elif task.task_type == "cognitive_derivation":
-                    memory_manager = get_memory_manager()
-                    chat_id = task.payload.get("chat_id", "")
-                    messages = task.payload.get("messages", [])
-                    if memory_manager and chat_id and messages:
-                        from myrm_agent_harness.toolkits.memory.cognitive.deriver import (
-                            CognitiveDeriver,
-                        )
-
-                        deriver = CognitiveDeriver(memory_manager)
-                        event_bus.publish(
-                            IdleTaskProgressEvent(
-                                session_id=session_id,
-                                status="working",
-                                task_name=task.task_type,
-                                progress_pct=40,
-                            )
-                        )
-
-                        event_data = await deriver.run_derivation(session_id, chat_id, messages)
-                    else:
-                        event_data = {
-                            "skipped": True,
-                            "reason": "Missing MemoryManager, chat_id, or messages",
-                        }
                 elif task.task_type == "cognitive_subsumption":
                     # Knowledge subsumption (erasing redundant text memories when a Skill is learned)
                     memory_manager = get_memory_manager()
@@ -261,104 +252,7 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                             "reason": "No MemoryManager or empty new_knowledge",
                         }
                 elif task.task_type == "session_evidence_extraction":
-                    from myrm_agent_harness.agent.middlewares.approval import (
-                        get_event_logger,
-                    )
-
-                    event_logger = get_event_logger()
-                    if event_logger and event_logger._backend:
-                        from myrm_agent_harness.agent.event_log.evidence_extractor import (
-                            SessionEvidenceExtractor,
-                        )
-
-                        extractor = SessionEvidenceExtractor(event_logger._backend)
-                        digest = await extractor.extract_digest(session_id)
-                        proposal_dict = None
-                        if digest and digest.anti_patterns:
-                            # Trigger CAPTURED evolution if there are anti-patterns (failures/corrections)
-                            logger.info(
-                                "Found %d anti-patterns in session %s, triggering CAPTURED evolution",
-                                len(digest.anti_patterns),
-                                session_id,
-                            )
-                            try:
-                                from pathlib import Path
-
-                                from myrm_agent_harness.agent.middlewares._session_context import (
-                                    get_workspace_root,
-                                )
-                                from myrm_agent_harness.agent.skills.evolution.core.engine import (
-                                    SkillEvolutionEngine,
-                                )
-                                from myrm_agent_harness.agent.skills.evolution.db.store import (
-                                    SkillStore,
-                                )
-
-                                events = await event_logger._backend.get_events(session_id)
-                                trajectory = "\n".join([f"[{e.event_type}] {e.data}" for e in events])
-
-                                memory_manager = get_memory_manager()
-                                llm = memory_manager._consolidation_llm if memory_manager else None
-
-                                if llm is None:
-                                    logger.warning(
-                                        "No LLM found for CAPTURED evolution in session %s",
-                                        session_id,
-                                    )
-                                else:
-                                    workspace_root = Path(get_workspace_root())
-                                    store = SkillStore(db_path=workspace_root / ".myrm" / "skills.db")
-                                    try:
-                                        engine = SkillEvolutionEngine(
-                                            store=store,
-                                            llm=llm,
-                                            event_log_backend=event_logger._backend,
-                                        )
-
-                                        agent_id = task.payload.get("agent_id", "default")
-                                        chat_id = task.payload.get("chat_id")
-
-                                        proposal = await engine.capture_skill_from_trajectory(
-                                            trajectory=trajectory,
-                                            session_id=session_id,
-                                        )
-
-                                        if proposal:
-                                            logger.info(
-                                                "Successfully extracted skill proposal '%s' from session %s",
-                                                proposal.skill_id,
-                                                session_id,
-                                            )
-                                            proposal_dict = {
-                                                "skill_id": proposal.skill_id,
-                                                "reasoning": proposal.reasoning,
-                                                "proposed_content": proposal.proposed_content,
-                                                "score": float(proposal.score),
-                                                "agent_id": agent_id,
-                                                "chat_id": chat_id,
-                                            }
-                                    finally:
-                                        store.close()
-
-                            except Exception as e:
-                                logger.error(
-                                    "Failed to trigger CAPTURED evolution for session %s: %s",
-                                    session_id,
-                                    e,
-                                    exc_info=True,
-                                )
-
-                        event_data = {
-                            "extracted": bool(digest),
-                            "anti_patterns_count": (len(digest.anti_patterns) if digest else 0),
-                            "proposal": proposal_dict,
-                        }
-                        logger.info("Session evidence extraction completed for %s", session_id)
-                    else:
-                        event_data = {
-                            "skipped": True,
-                            "reason": "No EventLogger configured",
-                        }
+                    event_data = await run_session_evidence_extraction(task, session_id)
                 elif task.task_type == "context_compaction":
                     event_data = await _run_context_compaction(session_id, task, event_bus)
                 else:
@@ -388,6 +282,10 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
         )
         logger.info("Idle task %s completed successfully for session %s", task.id, session_id)
 
+    except asyncio.CancelledError:
+        # A newer turn replaced this idle window; keep the unfinished task for the next one.
+        await _revert_task_to_pending(registry, task.id)
+        raise
     except Exception as e:
         logger.error(
             "Error in idle task %s for session %s: %s",
@@ -404,6 +302,7 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
         # Small delay before resetting to idle to let the terminal status linger briefly
         await asyncio.sleep(2)
         event_bus.publish(IdleTaskProgressEvent(session_id=session_id, status="idle"))
+    return True
 
 
 async def _run_context_compaction(

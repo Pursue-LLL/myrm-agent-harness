@@ -361,21 +361,21 @@ class TestSchedulePostRunIdleTasks:
             schedule_post_run_idle_tasks,
         )
 
-        schedule_post_run_idle_tasks({"workspace_root": "/tmp"}, derive_memories=True)
+        schedule_post_run_idle_tasks({"workspace_root": "/tmp"})
 
     def test_missing_workspace_root_is_noop(self):
         from myrm_agent_harness.agent._internals.agent_runtime import (
             schedule_post_run_idle_tasks,
         )
 
-        schedule_post_run_idle_tasks({"session_id": "abc"}, derive_memories=True)
+        schedule_post_run_idle_tasks({"session_id": "abc"})
 
     def test_empty_context_is_noop(self):
         from myrm_agent_harness.agent._internals.agent_runtime import (
             schedule_post_run_idle_tasks,
         )
 
-        schedule_post_run_idle_tasks({}, derive_memories=True)
+        schedule_post_run_idle_tasks({})
 
 
 class TestApplyBoundSkillCatalogForStream:

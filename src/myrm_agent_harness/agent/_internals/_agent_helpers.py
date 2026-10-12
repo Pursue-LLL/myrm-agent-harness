@@ -8,7 +8,6 @@ usage ledger initialization.
 - agent.security (POS: security guard reset functions)
 - agent.background_worker (POS: idle task scheduling)
 - utils.token_economics (POS: UsageLedger)
-- utils.chat_utils (POS: extract_text_content — multimodal content → visible text for idle LLM tasks)
 
 [OUTPUT]
 - reset_all_guards: Reset all per-request guard state before a new agent run.
@@ -25,14 +24,9 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Coroutine
-from typing import TYPE_CHECKING, cast
 
-from myrm_agent_harness.utils.chat_utils import extract_text_content
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.token_economics.tracker import set_usage_ledger
-
-if TYPE_CHECKING:
-    from myrm_agent_harness.utils.chat_utils import ContentItem
 
 logger = get_agent_logger(__name__)
 
@@ -138,19 +132,8 @@ def extract_query_text(query: object) -> str:
     return str(query)
 
 
-def _visible_text(content: object) -> str:
-    """Visible text of a message body; image blocks never reach the text-only idle LLM."""
-    if isinstance(content, (str, list)):
-        return extract_text_content(cast("ContentItem", content))
-    return str(content)
-
-
-def schedule_post_run_idle_tasks(merged_context: dict[str, object], *, derive_memories: bool) -> None:
-    """Enqueue background idle tasks after a successful agent run.
-
-    ``derive_memories`` gates ``cognitive_derivation``, the only idle task that writes new
-    memories from the conversation; it must follow the same switches as post-turn extraction.
-    """
+def schedule_post_run_idle_tasks(merged_context: dict[str, object]) -> None:
+    """Enqueue background idle tasks after a successful agent run."""
     session_id = str(merged_context.get("session_id", ""))
     workspace_root = str(merged_context.get("workspace_root", ""))
 
@@ -158,7 +141,7 @@ def schedule_post_run_idle_tasks(merged_context: dict[str, object], *, derive_me
         return
 
     from myrm_agent_harness.agent.background_worker.idle_tasks import (
-        default_idle_callback,
+        run_pending_idle_tasks,
     )
     from myrm_agent_harness.agent.background_worker.idle_worker import (
         schedule_idle_task,
@@ -171,63 +154,14 @@ def schedule_post_run_idle_tasks(merged_context: dict[str, object], *, derive_me
     try:
         chat_id = str(merged_context.get("chat_id", ""))
 
-        # Serialize recent messages for cognitive_derivation with Token-Aware Window
-        raw_messages = merged_context.get("messages", [])
-        serialized_msgs: list[dict[str, str]] = []
-        if isinstance(raw_messages, list):
-            from langchain_core.messages import BaseMessage
-
-            # Simple length-based safety valve (approx 4 chars per token)
-            # Limit to ~4000 tokens => 16000 chars total
-            MAX_CHARS = 16000  # noqa: N806  # module-level constant semantics
-            current_chars = 0
-
-            for m in reversed(raw_messages):
-                role = ""
-                content = ""
-                if isinstance(m, BaseMessage):
-                    role = m.type
-                    content = _visible_text(m.content)
-                elif isinstance(m, dict):
-                    role = m.get("role", "")
-                    content = _visible_text(m.get("content", ""))
-
-                if not content:
-                    continue
-
-                msg_len = len(content)
-                if current_chars + msg_len > MAX_CHARS:
-                    # Truncate to fit the remaining budget safely
-                    remaining = MAX_CHARS - current_chars
-                    if remaining > 200:
-                        truncated_content = content[:remaining] + "...[TRUNCATED]"
-                        serialized_msgs.insert(0, {"role": role, "content": truncated_content})
-                        current_chars += len(truncated_content)
-                    break
-
-                serialized_msgs.insert(0, {"role": role, "content": content})
-                current_chars += msg_len
-
         _fire_and_forget(registry.enqueue(session_id, "cognitive_consolidation", {}))
-        if chat_id and serialized_msgs:
-            if derive_memories:
-                _fire_and_forget(
-                    registry.enqueue(
-                        session_id,
-                        "cognitive_derivation",
-                        {
-                            "chat_id": chat_id,
-                            "messages": serialized_msgs[-20:],  # Only need recent context
-                        },
-                    )
-                )
-            # Add trace analysis for skill extraction (CAPTURED evolution)
+        if chat_id:
+            # Trace analysis for skill extraction (CAPTURED evolution) needs the session's event log.
             from myrm_agent_harness.agent.middlewares._session_context import (
                 get_event_logger,
             )
 
-            event_logger = get_event_logger()
-            if event_logger and event_logger._backend:
+            if get_event_logger() is not None:
                 _fire_and_forget(
                     registry.enqueue(
                         session_id,
@@ -238,12 +172,10 @@ def schedule_post_run_idle_tasks(merged_context: dict[str, object], *, derive_me
                         },
                     )
                 )
-
-        if chat_id:
             _fire_and_forget(registry.enqueue(session_id, "context_compaction", {"chat_id": chat_id}))
         schedule_idle_task(
             session_id,
-            lambda: default_idle_callback(session_id, registry),
+            lambda: run_pending_idle_tasks(session_id, registry),
             delay_seconds=60,
         )
     except Exception as exc:

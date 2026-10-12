@@ -8,7 +8,7 @@ import pytest
 
 from myrm_agent_harness.toolkits.memory.config import ConsolidationConfig
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
-from myrm_agent_harness.toolkits.memory.strategies.preference_stability import CueFamily, PreferenceFacet
+from myrm_agent_harness.toolkits.memory.strategies.preference_stability import CueFamily
 from myrm_agent_harness.toolkits.memory.types import ProceduralMemory, SemanticMemory
 
 _SESSION = "myrm_agent_harness.toolkits.memory._manager.governance_session"
@@ -33,17 +33,17 @@ def manager(memory_config, mock_vector_store, mock_relational_store, mock_embedd
 
 class TestEndSession:
     @pytest.mark.asyncio
-    async def test_newly_active_core_preferences_are_promoted_to_the_profile(self, manager):
+    async def test_preference_rebuild_never_writes_the_profile_without_approval(self, manager):
         strategy = AsyncMock()
-        strategy.get_active_preferences.return_value = []
         strategy.micro_rebuild.return_value = 2
         manager._preference_strategy = strategy
-        manager._promote_core_preferences_to_profile = AsyncMock()
+        manager.set_system_profile_attribute = AsyncMock()
         manager.begin_session("chat-1")
 
         await manager.end_session()
 
-        manager._promote_core_preferences_to_profile.assert_awaited_once_with(set())
+        strategy.micro_rebuild.assert_awaited_once()
+        manager.set_system_profile_attribute.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_a_failing_preference_rebuild_never_breaks_the_session_end(self, manager):
@@ -110,47 +110,6 @@ class TestRecurrence:
         await manager._check_recurrence_and_store("topic summary")
 
         assert manager._recurrence_detector is None
-
-
-class TestCoreProfilePromotion:
-    @staticmethod
-    def _facet(key: str, value: str) -> PreferenceFacet:
-        return PreferenceFacet(key=key, value=value)
-
-    @pytest.mark.asyncio
-    async def test_only_new_core_keys_reach_the_profile(self, manager):
-        strategy = AsyncMock()
-        strategy.get_active_preferences.return_value = [
-            self._facet("reply_style", "concise"),
-            self._facet("proactivity", "high"),
-            self._facet("favorite_color", "blue"),
-        ]
-        manager._preference_strategy = strategy
-        manager.set_system_profile_attribute = AsyncMock()
-
-        await manager._promote_core_preferences_to_profile({"proactivity"})
-
-        manager.set_system_profile_attribute.assert_awaited_once_with("reply_style", "concise")
-
-    @pytest.mark.asyncio
-    async def test_a_failing_profile_write_is_contained(self, manager):
-        strategy = AsyncMock()
-        strategy.get_active_preferences.return_value = [self._facet("reply_style", "concise")]
-        manager._preference_strategy = strategy
-        manager.set_system_profile_attribute = AsyncMock(side_effect=RuntimeError("profile locked"))
-
-        await manager._promote_core_preferences_to_profile(set())
-
-        manager.set_system_profile_attribute.assert_awaited_once()
-
-    @pytest.mark.asyncio
-    async def test_promotion_needs_a_preference_strategy(self, manager):
-        manager._preference_strategy = None
-        manager.set_system_profile_attribute = AsyncMock()
-
-        await manager._promote_core_preferences_to_profile(set())
-
-        manager.set_system_profile_attribute.assert_not_called()
 
 
 class TestPreferenceCandidates:
