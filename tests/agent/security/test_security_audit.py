@@ -210,6 +210,7 @@ class TestDecisionKindCompleteness:
             "FREQUENCY_BREAK",
             "TURN_BUDGET_BREAK",
             "SANDBOX_BOUNDARY_ESCALATE",
+            "PII_BLOCKED_REDACTED",
         ]
         for kind in used_kinds:
             assert kind in valid_kinds, f"{kind} missing from DecisionKind"

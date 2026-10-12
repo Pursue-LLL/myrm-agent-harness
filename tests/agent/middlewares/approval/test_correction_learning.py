@@ -166,6 +166,23 @@ class TestDeduplication:
         assert result2.output is None or result2.output == ""
 
     @pytest.mark.asyncio
+    async def test_different_corrected_value_not_deduped(self, hook: CorrectionLearningHook) -> None:
+        """A later, different correction of the same argument is new information."""
+
+        def payload(corrected: str) -> dict[str, object]:
+            return {"corrections": (_edit("write_file", {"path": "/tmp/a.txt"}, {"path": corrected}),)}
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=None,
+        ):
+            result1 = await hook.on_approval_correction("approval_correction", payload("/work/a.txt"))
+            result2 = await hook.on_approval_correction("approval_correction", payload("/work/b.txt"))
+
+        assert "/work/a.txt" in (result1.output or "")
+        assert "/work/b.txt" in (result2.output or "")
+
+    @pytest.mark.asyncio
     async def test_different_tools_not_deduped(self, hook: CorrectionLearningHook) -> None:
         payload1 = {
             "session_id": "test-session",

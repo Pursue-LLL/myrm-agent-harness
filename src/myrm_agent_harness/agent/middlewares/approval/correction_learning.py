@@ -113,7 +113,9 @@ class CorrectionLearningHook:
 
         summaries: list[str] = []
         for signal in signals:
-            fingerprint = f"{signal.tool_name}:{signal.arg_key}:{signal.signal_class}"
+            fingerprint = (
+                f"{signal.tool_name}:{signal.arg_key}:{signal.signal_class}:{_format_value(signal.corrected_value)}"
+            )
 
             if fingerprint in self._recent_fingerprints:
                 continue

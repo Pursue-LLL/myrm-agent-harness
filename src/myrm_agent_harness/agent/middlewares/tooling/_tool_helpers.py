@@ -294,7 +294,7 @@ def apply_validation_result(result: ToolMessage, validation: ValidationResult, t
     warning_text = f"\n\n{prefix}: {validation.reason}"
 
     original = result.content
-    new_content: str | list[object]
+    new_content: str | list[str | dict[str, object]]
     if isinstance(original, list):
         new_content = [*original, {"type": "text", "text": warning_text}]
     else:
@@ -358,12 +358,12 @@ def check_trust_attenuation(tool_name: str) -> str | None:
     )
 
 
-def extract_text_content(content: str | list[dict[str, str]]) -> str:
-    """Extract plain text from ToolMessage content (str or list of dicts)."""
+def extract_text_content(content: str | list[str | dict[str, object]]) -> str:
+    """Extract plain text from ToolMessage content (str or list of content blocks)."""
     if isinstance(content, str):
         return content
     return "".join(
-        block.get("text", "") for block in content if isinstance(block, dict) and block.get("type") == "text"
+        str(block.get("text") or "") for block in content if isinstance(block, dict) and block.get("type") == "text"
     )
 
 
@@ -457,13 +457,13 @@ def check_tool_result_pii(result: ToolMessage, result_text: str, tool_name: str)
         redacted_text, count = redact_pii(result_text)
         if count > 0:
             record_decision(tool_name, "PII_BLOCKED_REDACTED", f"count={count}")
+        result_text = redacted_text if count > 0 else "[BLOCKED]"
         result = ToolMessage(
-            content=redacted_text if count > 0 else "[BLOCKED]",
+            content=result_text,
             name=tool_name,
             tool_call_id=result.tool_call_id,
             status=result.status,
         )
-        result_text = result.content
     elif processed != result_text:
         result = ToolMessage(
             content=processed,

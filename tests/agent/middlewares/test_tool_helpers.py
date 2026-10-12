@@ -267,6 +267,15 @@ class TestExtractTextContent:
         ]
         assert extract_text_content(content) == "hello world"
 
+    def test_non_block_items_and_empty_text_are_skipped(self) -> None:
+        content: list[str | dict[str, object]] = [
+            "bare string",
+            {"type": "text", "text": None},
+            {"type": "text", "text": "kept"},
+            {"type": "text"},
+        ]
+        assert extract_text_content(content) == "kept"
+
 
 class TestCheckTrustAttenuation:
     @patch(

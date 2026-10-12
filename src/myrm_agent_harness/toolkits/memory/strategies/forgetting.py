@@ -169,12 +169,12 @@ class ForgettingStrategy:
             reason=reason,
         )
 
-    def select_candidates(
-        self, memories: Sequence[ForgettableMemory], relation_counts: dict[str, int] | None = None
-    ) -> list[tuple[ForgettableMemory, RetentionScore]]:
+    def select_candidates[M: ForgettableMemory](
+        self, memories: Sequence[M], relation_counts: dict[str, int] | None = None
+    ) -> list[tuple[M, RetentionScore]]:
         """Score all memories and return those below the retention threshold."""
         rel_counts = relation_counts or {}
-        candidates: list[tuple[ForgettableMemory, RetentionScore]] = []
+        candidates: list[tuple[M, RetentionScore]] = []
         for mem in memories:
             score = self.calculate_retention_score(mem, rel_counts.get(mem.id, 0))
             if score.should_forget:
@@ -183,11 +183,11 @@ class ForgettingStrategy:
         return candidates[: self.config.max_forget_per_run]
 
 
-def ttl_expired(
-    memories: Sequence[ForgettableMemory],
+def ttl_expired[M: ForgettableMemory](
+    memories: Sequence[M],
     *,
     now: datetime | None = None,
-) -> list[ForgettableMemory]:
+) -> list[M]:
     """Return memories whose ``created_at + expected_valid_days`` has passed.
 
     TTL expiration bypasses retention-score thresholding: a memory that outlives
@@ -195,7 +195,7 @@ def ttl_expired(
     at the threshold and would otherwise never be forgotten.
     """
     current = now or datetime.now(UTC)
-    expired: list[ForgettableMemory] = []
+    expired: list[M] = []
     for mem in memories:
         evd = getattr(mem, "expected_valid_days", None)
         if not isinstance(evd, int) or evd <= 0:
