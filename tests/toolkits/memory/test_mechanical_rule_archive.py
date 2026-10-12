@@ -1,8 +1,9 @@
 """Archiving of mechanically generated procedural rules.
 
-Rules built from a regex fragment of user text, a hook edict or a system approval
-timeout carry CRITICAL / USER_EXPLICIT trust yet never expire, so maintenance has
-to retire them explicitly. Real SQLite store, no mocks.
+Rules built from a regex fragment of user text, a hook edict or a rejection whose
+feedback is only a client/system template never expire, so maintenance has to retire
+them explicitly. A rejection rule that carries the user's own words is kept.
+Real SQLite store, no mocks.
 """
 
 from __future__ import annotations
@@ -26,6 +27,14 @@ from myrm_agent_harness.toolkits.memory.types import ProceduralMemory, RuleSourc
 _REGEX_DIRECTIVE = "Respect user directive: vision/snapshot"
 _REGEX_EDICT = "Strictly follow user edict: sudo this time"
 _TIMEOUT_FEEDBACK = "Consider alternative approach. User feedback: Auto-rejected: approval timeout (300s)"
+_REJECTION_PREFIX = "Consider alternative approach. User feedback: "
+_REJECTION_TEMPLATES = (
+    "User does not want this action",
+    "User rejected this action.",
+    "Batch rejected by user",
+    "Denied via telegram channel command",
+    "Denied via slack channel batch command",
+)
 _GENUINE_ACTION = "Never fabricate @dref values; take them from the latest desktop snapshot"
 
 
@@ -88,6 +97,32 @@ async def test_mechanically_generated_rules_are_archived(store: SQLiteRelational
         assert archived.is_active is False
         assert archived.metadata["archive_reason"] == "mechanically_generated_rule"
         assert "archive_expires_at" in archived.metadata
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("template", _REJECTION_TEMPLATES)
+async def test_template_rejection_rules_are_archived(store: SQLiteRelationalStore, template: str) -> None:
+    rule = await store.create_rule(
+        _rule(_REJECTION_PREFIX + template, source=RuleSource.USER_EXPLICIT, priority=ToolRulePriority.NORMAL)
+    )
+
+    result = await _run(store)
+
+    archived = await store.get_rule(rule.id)
+    assert archived is not None
+    assert archived.is_active is False
+    assert result.archived_count == 1
+
+
+@pytest.mark.asyncio
+async def test_rejection_rule_with_the_users_own_reason_is_kept(store: SQLiteRelationalStore) -> None:
+    own_reason = _REJECTION_PREFIX + "Never run this against the production database"
+    await store.create_rule(_rule(own_reason, source=RuleSource.USER_EXPLICIT, priority=ToolRulePriority.NORMAL))
+
+    result = await _run(store)
+
+    assert result.archived_count == 0
+    assert await _active_actions(store) == [own_reason]
 
 
 @pytest.mark.asyncio

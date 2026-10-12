@@ -604,13 +604,7 @@ def test_format_empty_learned_no_sections():
 
 
 def test_format_veto_negative_constraints():
-    """VETO negative constraints should be formatted into Priority 0 section and registered to context."""
-    from myrm_agent_harness.agent.middlewares._session_context import (
-        get_active_negative_constraints,
-        set_active_negative_constraints,
-    )
-
-    set_active_negative_constraints(None)
+    """VETO negative constraints are rendered into their own Priority 0 section."""
     ctx = {
         "rules": [
             {
@@ -645,14 +639,26 @@ def test_format_veto_negative_constraints():
     # Normal rule stays in Behavioral Rules
     assert "## Behavioral Rules" in stable
     assert "When: code commit → Do: run linter" in stable
+    assert "[NEVER] run linter" not in stable
 
-    # ContextVar registration verification
-    active = get_active_negative_constraints()
-    assert active is not None
-    assert len(active) == 2
-    rule_ids = [r.rule_id for r in active]
-    assert "rule-veto-1" in rule_ids
-    assert "rule-veto-2" in rule_ids
+
+def test_veto_section_lines_are_byte_stable_and_ordered():
+    """Veto lines keep an exact wording and a (priority desc, id asc) order: they sit in the cached prompt prefix."""
+    ctx = {
+        "rules": [
+            {"id": "b-low", "action": "never push to main", "reasoning": "protected branch"},
+            {"id": "a-low", "action": "do not touch .env", "tool_name": "write_file", "priority": 0},
+            {"id": "z-high", "action": "Never use sudo", "priority": 7},
+        ]
+    }
+    stable, _untrusted, _accepted = _format_memory_context(ctx, {})
+    assert stable is not None
+    veto_lines = [line for line in stable.splitlines() if line.lstrip("- ").startswith("[NEVER]")]
+    assert [line.lstrip("- ") for line in veto_lines] == [
+        "[NEVER] Never use sudo (Scope: *)",
+        "[NEVER] do not touch .env (Scope: write_file)",
+        "[NEVER] never push to main (Scope: *) — Reason: protected branch",
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -1462,9 +1468,7 @@ class TestInjectMemoryContext:
         """Truncated rules must be reported, not silently counted as injected."""
         handler = AsyncMock()
         req = _make_request()
-        rules = [
-            {"trigger": f"trigger-{i}", "action": "a" * 900, "priority": 0} for i in range(12)
-        ]
+        rules = [{"trigger": f"trigger-{i}", "action": "a" * 900, "priority": 0} for i in range(12)]
         mock_manager = MagicMock()
         mock_manager._config = MagicMock()
         mock_manager._config.max_learned_context_chars = 100
@@ -1472,9 +1476,7 @@ class TestInjectMemoryContext:
         mock_manager.user_id = "u123"
         mock_manager.recall_mode = RecallMode.HYBRID
         mock_manager.get_context = AsyncMock(return_value={"rules": rules})
-        mock_manager.get_learned_context = AsyncMock(
-            return_value={"learned_rules": [], "learned_preferences": []}
-        )
+        mock_manager.get_learned_context = AsyncMock(return_value={"learned_rules": [], "learned_preferences": []})
 
         with patch(
             "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
@@ -1499,12 +1501,8 @@ class TestInjectMemoryContext:
         mock_manager._config.model_context_tokens = None
         mock_manager.user_id = "u123"
         mock_manager.recall_mode = RecallMode.HYBRID
-        mock_manager.get_context = AsyncMock(
-            return_value={"rules": [{"trigger": "t1", "action": "a1", "priority": 0}]}
-        )
-        mock_manager.get_learned_context = AsyncMock(
-            return_value={"learned_rules": [], "learned_preferences": []}
-        )
+        mock_manager.get_context = AsyncMock(return_value={"rules": [{"trigger": "t1", "action": "a1", "priority": 0}]})
+        mock_manager.get_learned_context = AsyncMock(return_value={"learned_rules": [], "learned_preferences": []})
 
         with patch(
             "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
@@ -1617,9 +1615,7 @@ class TestMemoryLoadTimeout:
 
         mock_manager = MagicMock()
         mock_manager.recall_mode = RecallMode.HYBRID
-        mock_manager.get_context = AsyncMock(
-            return_value=RuntimeError("static retrieval exploded")
-        )
+        mock_manager.get_context = AsyncMock(return_value=RuntimeError("static retrieval exploded"))
 
         with patch(
             "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
@@ -1678,11 +1674,7 @@ class TestMemoryLoadTimeout:
 
         req.override.assert_called_once()
         injected = req.override.call_args[1]["messages"]
-        stable_msgs = [
-            m
-            for m in injected
-            if isinstance(m, SystemMessage) and MEMORY_CONTEXT_MARKER in str(m.content)
-        ]
+        stable_msgs = [m for m in injected if isinstance(m, SystemMessage) and MEMORY_CONTEXT_MARKER in str(m.content)]
         assert len(stable_msgs) == 1
         assert "User Profile" in str(stable_msgs[0].content)
 
@@ -1710,9 +1702,7 @@ class TestMemoryLoadTimeout:
         mock_manager.user_id = "u123"
         mock_manager.recall_mode = RecallMode.HYBRID
         mock_manager.get_context = AsyncMock(return_value={"global_profile": {"name": "X"}})
-        mock_manager.get_learned_context = AsyncMock(
-            return_value={"learned_rules": [], "learned_preferences": []}
-        )
+        mock_manager.get_learned_context = AsyncMock(return_value={"learned_rules": [], "learned_preferences": []})
 
         with patch(
             "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
@@ -1776,7 +1766,6 @@ class TestFormatCoverageBranches:
         assert "Do: notify the owner" in untrusted
         assert "Why: owner approves rollouts" in untrusted
         assert "How: before any push" in untrusted
-
 
     def test_proactive_knowledge_pack_snippet_injection(self):
         """Verify proactive knowledge pack snippets are injected in untrusted envelope, protecting System Prompt cache."""
@@ -1857,9 +1846,15 @@ class TestFormatCoverageBranches:
         _stable, untrusted, _accepted = _format_memory_context({}, learned)
         assert untrusted is not None
         assert "Failed Attempts & Negative Traps (Do not repeat)" in untrusted
-        assert "[FETCH] Tried curl without timeout | Cause: Connection hung indefinitely — AVOID: Always specify --max-time" in untrusted
+        assert (
+            "[FETCH] Tried curl without timeout | Cause: Connection hung indefinitely — AVOID: Always specify --max-time"
+            in untrusted
+        )
         assert "Cross-Task Background Context (Weak/Shadow - Do not execute)" in untrusted
-        assert "[BACKGROUND CONTEXT - Reference only, do not execute as automated SOP] Weak cluster correlation data" in untrusted
+        assert (
+            "[BACKGROUND CONTEXT - Reference only, do not execute as automated SOP] Weak cluster correlation data"
+            in untrusted
+        )
         assert "Subtask Phase Memories" in untrusted
         assert "[DEPLOY] Step 2 completed successfully" in untrusted
         assert "General episode without phase" in untrusted
@@ -1874,7 +1869,9 @@ class TestFormatCoverageBranches:
                 }
             ]
         }
-        _stable, untrusted, _accepted = _format_memory_context({"proactive_knowledge_pack": proactive_pack}, _EMPTY_LEARNED)
+        _stable, untrusted, _accepted = _format_memory_context(
+            {"proactive_knowledge_pack": proactive_pack}, _EMPTY_LEARNED
+        )
         assert untrusted is not None
         assert "[Knowledge Base | StandaloneDoc]" in untrusted
         assert "Direct snippet content without kb_name" in untrusted

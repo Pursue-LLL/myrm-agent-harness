@@ -1,8 +1,8 @@
 """Unit tests for HITL correction learning hook.
 
 Tests cover:
-- Signal extraction from approval corrections (edit, reject)
-- Signal classification (path_preference, command_rule, arg_preference, tool_rejection)
+- Signal extraction from approval edits
+- Signal classification (path_preference, command_rule, arg_preference)
 - Memory creation (SemanticMemory for preferences, ProceduralMemory for rules)
 - Deduplication within a session
 - Summary generation for frontend feedback
@@ -33,128 +33,81 @@ def hook() -> CorrectionLearningHook:
     return CorrectionLearningHook()
 
 
+def _edit(tool_name: str, original: dict[str, object], edited: dict[str, object]) -> dict[str, object]:
+    return {"tool_name": tool_name, "original_args": original, "edited_args": edited}
+
+
 class TestSignalExtraction:
     """Tests for _extract_signals classification logic."""
 
     def test_edit_path_preference(self, hook: CorrectionLearningHook) -> None:
-        corrections = [
-            {
-                "tool_name": "write_file",
-                "decision_type": "edit",
-                "original_args": {"path": "/tmp/test.py", "content": "x=1"},
-                "edited_args": {"path": "/home/user/test.py", "content": "x=1"},
-                "feedback": "Use home directory",
-            }
-        ]
-        signals = hook._extract_signals(corrections)
+        signals = hook._extract_signals(
+            [
+                _edit(
+                    "write_file",
+                    {"path": "/tmp/test.py", "content": "x=1"},
+                    {"path": "/home/user/test.py", "content": "x=1"},
+                )
+            ]
+        )
         assert len(signals) == 1
         assert signals[0].signal_class == "path_preference"
         assert signals[0].tool_name == "write_file"
         assert signals[0].arg_key == "path"
         assert signals[0].original_value == "/tmp/test.py"
         assert signals[0].corrected_value == "/home/user/test.py"
-        assert signals[0].feedback == "Use home directory"
 
     def test_edit_command_rule(self, hook: CorrectionLearningHook) -> None:
-        corrections = [
-            {
-                "tool_name": "shell",
-                "decision_type": "edit",
-                "original_args": {"command": "rm -rf /tmp/old"},
-                "edited_args": {"command": "rm -r /tmp/old"},
-                "feedback": "",
-            }
-        ]
-        signals = hook._extract_signals(corrections)
+        signals = hook._extract_signals([_edit("shell", {"command": "rm -rf /tmp/old"}, {"command": "rm -r /tmp/old"})])
         assert len(signals) == 1
         assert signals[0].signal_class == "command_rule"
         assert signals[0].arg_key == "command"
 
     def test_edit_arg_preference(self, hook: CorrectionLearningHook) -> None:
-        corrections = [
-            {
-                "tool_name": "web_search",
-                "decision_type": "edit",
-                "original_args": {"query": "python tutorial", "max_results": 5},
-                "edited_args": {"query": "python tutorial", "max_results": 10},
-                "feedback": "",
-            }
-        ]
-        signals = hook._extract_signals(corrections)
+        signals = hook._extract_signals(
+            [
+                _edit(
+                    "web_search",
+                    {"query": "python tutorial", "max_results": 5},
+                    {"query": "python tutorial", "max_results": 10},
+                )
+            ]
+        )
         assert len(signals) == 1
         assert signals[0].signal_class == "arg_preference"
         assert signals[0].arg_key == "max_results"
         assert signals[0].original_value == 5
         assert signals[0].corrected_value == 10
 
-    def test_reject_tool_rejection(self, hook: CorrectionLearningHook) -> None:
-        corrections = [
-            {
-                "tool_name": "browser_navigate",
-                "decision_type": "reject",
-                "original_args": {"url": "https://malicious.com"},
-                "edited_args": None,
-                "feedback": "Don't visit this site",
-            }
-        ]
-        signals = hook._extract_signals(corrections)
-        assert len(signals) == 1
-        assert signals[0].signal_class == "tool_rejection"
-        assert signals[0].tool_name == "browser_navigate"
-        assert signals[0].feedback == "Don't visit this site"
-        assert signals[0].arg_key is None
-
     def test_multiple_arg_changes_in_single_correction(self, hook: CorrectionLearningHook) -> None:
-        corrections = [
-            {
-                "tool_name": "write_file",
-                "decision_type": "edit",
-                "original_args": {"path": "/tmp/a.txt", "content": "old"},
-                "edited_args": {"path": "/home/user/a.txt", "content": "new"},
-                "feedback": "",
-            }
-        ]
-        signals = hook._extract_signals(corrections)
+        signals = hook._extract_signals(
+            [
+                _edit(
+                    "write_file",
+                    {"path": "/tmp/a.txt", "content": "old"},
+                    {"path": "/home/user/a.txt", "content": "new"},
+                )
+            ]
+        )
         assert len(signals) == 2
         classes = {s.signal_class for s in signals}
         assert "path_preference" in classes
         assert "arg_preference" in classes
 
     def test_unchanged_args_ignored(self, hook: CorrectionLearningHook) -> None:
-        corrections = [
-            {
-                "tool_name": "write_file",
-                "decision_type": "edit",
-                "original_args": {"path": "/home/user/a.txt", "content": "same"},
-                "edited_args": {"path": "/home/user/a.txt", "content": "same"},
-                "feedback": "",
-            }
-        ]
-        signals = hook._extract_signals(corrections)
-        assert len(signals) == 0
+        same = {"path": "/home/user/a.txt", "content": "same"}
+        assert hook._extract_signals([_edit("write_file", same, dict(same))]) == []
 
     def test_malformed_correction_skipped(self, hook: CorrectionLearningHook) -> None:
         corrections = [
-            {"tool_name": "", "decision_type": "edit"},
-            {"decision_type": "edit"},
+            {"tool_name": "", "original_args": {"a": 1}, "edited_args": {"a": 2}},
+            {"original_args": {"a": 1}, "edited_args": {"a": 2}},
+            {"tool_name": "x", "original_args": None, "edited_args": {"a": 2}},
+            {"tool_name": "x", "original_args": {"a": 1}, "edited_args": None},
             "not a dict",
             None,
-            {"tool_name": "x", "decision_type": "unknown"},
         ]
-        signals = hook._extract_signals(corrections)
-        assert len(signals) == 0
-
-    def test_reject_without_feedback_uses_default(self, hook: CorrectionLearningHook) -> None:
-        corrections = [
-            {
-                "tool_name": "dangerous_tool",
-                "decision_type": "reject",
-                "original_args": {},
-                "edited_args": None,
-            }
-        ]
-        signals = hook._extract_signals(corrections)
-        assert signals[0].feedback == "User rejected this tool call"
+        assert hook._extract_signals(corrections) == []
 
 
 class TestMemoryCreation:
@@ -163,12 +116,10 @@ class TestMemoryCreation:
     def test_path_preference_creates_semantic_memory(self, hook: CorrectionLearningHook) -> None:
         signal = CorrectionSignal(
             tool_name="write_file",
-            decision_type="edit",
             arg_key="path",
             original_value="/tmp/test.py",
             corrected_value="/home/user/test.py",
             signal_class="path_preference",
-            feedback="",
         )
         memory = hook._create_memory(signal)
         assert isinstance(memory, SemanticMemory)
@@ -182,33 +133,15 @@ class TestMemoryCreation:
     def test_command_rule_creates_procedural_memory(self, hook: CorrectionLearningHook) -> None:
         signal = CorrectionSignal(
             tool_name="shell",
-            decision_type="edit",
             arg_key="command",
             original_value="rm -rf /",
             corrected_value="rm -r /tmp/old",
             signal_class="command_rule",
-            feedback="",
         )
         memory = hook._create_memory(signal)
         assert isinstance(memory, ProceduralMemory)
         assert "rm -r /tmp/old" in memory.content
         assert memory.tool_name == "shell"
-        assert memory.tool_rule_priority == ToolRulePriority.NORMAL
-
-    def test_tool_rejection_creates_procedural_memory(self, hook: CorrectionLearningHook) -> None:
-        signal = CorrectionSignal(
-            tool_name="browser_navigate",
-            decision_type="reject",
-            arg_key=None,
-            original_value=None,
-            corrected_value=None,
-            signal_class="tool_rejection",
-            feedback="Never visit this domain",
-        )
-        memory = hook._create_memory(signal)
-        assert isinstance(memory, ProceduralMemory)
-        assert "Avoid using browser_navigate" in memory.content
-        assert "Never visit this domain" in memory.content
         assert memory.tool_rule_priority == ToolRulePriority.NORMAL
 
 
@@ -219,15 +152,7 @@ class TestDeduplication:
     async def test_same_correction_deduped_in_session(self, hook: CorrectionLearningHook) -> None:
         payload = {
             "session_id": "test-session",
-            "corrections": (
-                {
-                    "tool_name": "write_file",
-                    "decision_type": "edit",
-                    "original_args": {"path": "/tmp/a.txt"},
-                    "edited_args": {"path": "/home/user/a.txt"},
-                    "feedback": "",
-                },
-            ),
+            "corrections": (_edit("write_file", {"path": "/tmp/a.txt"}, {"path": "/home/user/a.txt"}),),
         }
 
         with patch(
@@ -244,27 +169,11 @@ class TestDeduplication:
     async def test_different_tools_not_deduped(self, hook: CorrectionLearningHook) -> None:
         payload1 = {
             "session_id": "test-session",
-            "corrections": (
-                {
-                    "tool_name": "write_file",
-                    "decision_type": "edit",
-                    "original_args": {"path": "/tmp/a.txt"},
-                    "edited_args": {"path": "/home/user/a.txt"},
-                    "feedback": "",
-                },
-            ),
+            "corrections": (_edit("write_file", {"path": "/tmp/a.txt"}, {"path": "/home/user/a.txt"}),),
         }
         payload2 = {
             "session_id": "test-session",
-            "corrections": (
-                {
-                    "tool_name": "read_file",
-                    "decision_type": "edit",
-                    "original_args": {"path": "/tmp/b.txt"},
-                    "edited_args": {"path": "/home/user/b.txt"},
-                    "feedback": "",
-                },
-            ),
+            "corrections": (_edit("read_file", {"path": "/tmp/b.txt"}, {"path": "/home/user/b.txt"}),),
         }
 
         with patch(
@@ -290,20 +199,8 @@ class TestPersistence:
         payload = {
             "session_id": "s1",
             "corrections": (
-                {
-                    "tool_name": "write_file",
-                    "decision_type": "edit",
-                    "original_args": {"path": "/tmp/x"},
-                    "edited_args": {"path": "/home/user/x"},
-                    "feedback": "",
-                },
-                {
-                    "tool_name": "dangerous_tool",
-                    "decision_type": "reject",
-                    "original_args": {},
-                    "edited_args": None,
-                    "feedback": "Don't use this",
-                },
+                _edit("write_file", {"path": "/tmp/x"}, {"path": "/home/user/x"}),
+                _edit("shell", {"command": "rm -rf build"}, {"command": "rm -r build"}),
             ),
         }
 
@@ -319,18 +216,7 @@ class TestPersistence:
 
     @pytest.mark.asyncio
     async def test_graceful_when_no_manager(self, hook: CorrectionLearningHook) -> None:
-        payload = {
-            "session_id": "s1",
-            "corrections": (
-                {
-                    "tool_name": "write_file",
-                    "decision_type": "edit",
-                    "original_args": {"path": "/a"},
-                    "edited_args": {"path": "/b"},
-                    "feedback": "",
-                },
-            ),
-        }
+        payload = {"session_id": "s1", "corrections": (_edit("write_file", {"path": "/a"}, {"path": "/b"}),)}
 
         with patch(
             "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
@@ -347,18 +233,7 @@ class TestPersistence:
         mock_manager._store_semantic = AsyncMock(side_effect=RuntimeError("DB error"))
         mock_manager._store_procedural = AsyncMock()
 
-        payload = {
-            "session_id": "s1",
-            "corrections": (
-                {
-                    "tool_name": "write_file",
-                    "decision_type": "edit",
-                    "original_args": {"path": "/a"},
-                    "edited_args": {"path": "/b"},
-                    "feedback": "",
-                },
-            ),
-        }
+        payload = {"session_id": "s1", "corrections": (_edit("write_file", {"path": "/a"}, {"path": "/b"}),)}
 
         with patch(
             "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
@@ -376,41 +251,23 @@ class TestSummaryGeneration:
     def test_path_preference_summary(self, hook: CorrectionLearningHook) -> None:
         signal = CorrectionSignal(
             tool_name="write_file",
-            decision_type="edit",
             arg_key="path",
             original_value="/tmp/x",
             corrected_value="/home/user/x",
             signal_class="path_preference",
-            feedback="",
         )
         summary = hook._build_summary(signal, "preference")
         assert "Remembered" in summary
         assert "/home/user/x" in summary
         assert "write_file" in summary
 
-    def test_rejection_summary(self, hook: CorrectionLearningHook) -> None:
-        signal = CorrectionSignal(
-            tool_name="dangerous_tool",
-            decision_type="reject",
-            arg_key=None,
-            original_value=None,
-            corrected_value=None,
-            signal_class="tool_rejection",
-            feedback="",
-        )
-        summary = hook._build_summary(signal, "rule")
-        assert "avoid" in summary.lower()
-        assert "dangerous_tool" in summary
-
     def test_command_rule_summary(self, hook: CorrectionLearningHook) -> None:
         signal = CorrectionSignal(
             tool_name="shell",
-            decision_type="edit",
             arg_key="command",
             original_value="bad",
             corrected_value="good",
             signal_class="command_rule",
-            feedback="",
         )
         summary = hook._build_summary(signal, "rule")
         assert "Learned rule" in summary
@@ -451,12 +308,10 @@ class TestEdgeCases:
     def test_correction_signal_frozen(self) -> None:
         signal = CorrectionSignal(
             tool_name="test",
-            decision_type="edit",
             arg_key="key",
             original_value="a",
             corrected_value="b",
             signal_class="arg_preference",
-            feedback="",
         )
         with pytest.raises(FrozenInstanceError):
             signal.tool_name = "other"  # type: ignore[misc]

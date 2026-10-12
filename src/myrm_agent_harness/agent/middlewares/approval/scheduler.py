@@ -15,7 +15,6 @@ run agent stream, persist results).
 
 [OUTPUT]
 - Auto-resume callback execution on timeout
-- SYSTEM_DECISION_ORIGIN: `origin` value tagging approval decisions made by the system, not a person
 - Idempotent resolution via `resolve_if_first` (prevents race between timeout and manual resume)
 
 [POS]
@@ -33,10 +32,6 @@ from collections.abc import Awaitable, Callable
 logger = logging.getLogger(__name__)
 
 ResumeCallback = Callable[[dict[str, object]], Awaitable[None]]
-
-# Marks an approval decision made by the system instead of a person (timeout,
-# fail-closed rejection). Correction learning skips such decisions.
-SYSTEM_DECISION_ORIGIN = "system"
 
 
 class ApprovalTimeoutScheduler:
@@ -136,6 +131,7 @@ class ApprovalTimeoutScheduler:
             if not self.resolve_if_first(key):
                 logger.info("Approval timeout lost race (already resolved): key=%s", key)
                 return
+            resume_value: dict[str, object]
             if resume_value_override is not None:
                 resume_value = resume_value_override
                 logger.warning(
@@ -149,7 +145,6 @@ class ApprovalTimeoutScheduler:
                 resume_value = {
                     "decision": decision,
                     "feedback": f"Auto-{'approved' if approved else 'rejected'}: approval timeout ({timeout:.0f}s)",
-                    "origin": SYSTEM_DECISION_ORIGIN,
                 }
                 logger.warning("Approval timeout fired: key=%s, auto-%s after %ss", key, decision, timeout)
                 _record_timeout_audit(key, decision, timeout)

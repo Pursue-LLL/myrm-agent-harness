@@ -668,7 +668,7 @@ retention = 0.35 × time_score + 0.25 × access_score + 0.15 × importance_score
 
 **Procedural 规则归档**（`_internal/maintenance_rule_forgetting.py`）：
 
-- **机械生成规则**：动作文本带固定签名前缀的未锁定规则（当前任何写入路径都不会产生它们，存量库中出现即为过期数据；前缀：`Respect user directive:` / `Strictly follow user edict:` / 审批超时记录的 `Auto-rejected: approval timeout`），每次遗忘运行时先全量扫描并按当前 `ForgettingMode` 处理（默认 ARCHIVE，`archive_reason=mechanically_generated_rule`，保留期内可恢复）；这些规则带 CRITICAL / USER_EXPLICIT 信任却永不过期，仅靠评分无法淘汰
+- **机械生成规则**：动作文本带固定签名前缀的未锁定规则（当前任何写入路径都不会产生它们，存量库中出现即为过期数据；前缀：`Respect user directive:` / `Strictly follow user edict:` / 以 `Consider alternative approach. User feedback: ` 开头且反馈只是固定模板的拒绝规则，模板为 `Auto-rejected: approval timeout`、`User does not want this action`、`User rejected this action.`、`Batch rejected by user`、`Denied via `），每次遗忘运行时先全量扫描并按当前 `ForgettingMode` 处理（默认 ARCHIVE，`archive_reason=mechanically_generated_rule`，保留期内由运维从数据库恢复，产品不提供回收站入口）；这些规则不含用户自己的信息却永不过期（CRITICAL / USER_EXPLICIT 信任，无 TTL），仅靠评分无法淘汰；反馈里带用户自己原话的拒绝规则不匹配签名，原样保留
 - `expected_valid_days` 已过期的规则**直接归档**，绕过 retention 评分阈值——过期即失效，无需等待衰减
 - 过期判断：`created_at + expected_valid_days` ≤ 当前时间；无 `expected_valid_days` 的规则以及 CRITICAL 规则不参与 TTL 归档，继续走 retention 评分
 - `is_user_locked` 规则跳过 TTL 归档（用户手动保留）
@@ -759,9 +759,11 @@ result = await extractor.extract(messages=messages)
 程序性规则只有两类写入入口，**不存在从原始用户文本直接生成规则的正则路径**：
 
 1. **模型判断**：会话结束的 LLM 抽取（`strategies/extractor.py`，受 No-Op Default 门控）与 Agent 调用 `memory_save_tool`；
-2. **人的明确选择**：用户手动创建并锁定的规则，以及审批中人工 `edit` / `reject` 触发的纠正学习（`agent/middlewares/approval/correction_learning.py`）。系统自动判定（审批超时、批量校验失败）带 `origin="system"`，不作为用户反馈学习。
+2. **人的明确选择**：用户手动创建并锁定的规则，以及审批中人工 `edit` 触发的纠正学习（`agent/middlewares/approval/correction_learning.py`）：被改写的路径 / 参数 / 命令带着「原值 → 修正值」，信息完整才落库。`reject` 不学习：拒绝不携带修正值，客户端与系统填入的反馈只是固定模板，由它生成的规则是无上下文的永久模板；需要长期放行或拒绝，走审批的 `allowAlways` / `allowDomain` / `grantDirectory` 选项与安全策略的 `command_denylist`。
 
 > 正则只能看到用户措辞的一个片段，无法区分「长期偏好」与「仅当前任务的指令」，也保留不了否定极性，因此不作为规则来源。`ToolRulePriority` 只决定遗忘/归档的耐久度，不决定注入位置：规则统一进入 stable 层的 `Behavioral Rules` 段（`priority=3`），items 按「用户背书（`is_user_locked`）优先」排序，契合 `PromptBudgetGuard` 从后截断的行为，使背书规则最后被丢。
+
+> 动作文本含 `never` / `forbidden` / `do not` / `禁止` / `严禁` / `不得` 等否定词（或显式标记 `is_veto`）的规则，渲染进优先级 0 的 `Mandatory Negative Constraints (VETO Rules)` 段，行格式 `[NEVER] {name} (Scope: {tool_name 或 *}) — Reason: {reason}`，按（`priority` 降序，`id` 升序）排序以保持前缀缓存的字节稳定。该段只是**提示词层约束**，不对工具调用做拦截：记忆规则的措辞是自然语言，无法可靠地还原成可匹配的参数模式，且规则渲染发生在模型调用节点，拦截发生在工具节点，ContextVar 不跨 LangGraph 节点传递。需要硬拦截的约束走安全引擎（`core/security/types.py` 的 `SecurityConfig` 求值顺序：`command_denylist`、路径策略、权限规则）。
 
 | 级别 | 来源 | 生命周期 |
 |------|------|---------|

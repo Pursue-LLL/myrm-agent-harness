@@ -1,8 +1,12 @@
-"""HITL correction learning — converts approval edits/rejects into persistent memory.
+"""HITL correction learning — converts approval edits into persistent memory.
 
-Listens for APPROVAL_CORRECTION hook events and persists high-value signals as:
-- SemanticMemory (preference_type="explicit") for argument value corrections
-- ProceduralMemory (tool-scoped rules) for tool rejections and command corrections
+Listens for APPROVAL_CORRECTION hook events and persists the corrected values as:
+- SemanticMemory (preference_type="explicit") for path and argument value corrections
+- ProceduralMemory (tool-scoped rules) for command corrections
+
+A rejection is deliberately not learned: it carries no corrected value, so any rule
+built from it would be a context-free template. Durable allow/deny decisions belong
+to the explicit approval options and the security policy.
 
 Zero LLM cost: classification uses deterministic dict-diff and pattern matching.
 
@@ -16,13 +20,14 @@ Zero LLM cost: classification uses deterministic dict-diff and pattern matching.
 
 [POS]
 Bridges the HITL approval flow with the memory system. Converts user
-corrections (edits/rejects) into durable preferences and rules that
-the agent automatically applies in future interactions.
+edits into durable preferences and rules that the agent automatically
+applies in future interactions.
 """
 
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal
 
@@ -48,15 +53,13 @@ _PREFERENCE_STRENGTH = 0.8
 
 @dataclass(frozen=True, slots=True)
 class CorrectionSignal:
-    """A classified correction signal extracted from an approval decision."""
+    """A classified argument correction extracted from an approval edit."""
 
     tool_name: str
-    decision_type: Literal["edit", "reject"]
-    arg_key: str | None
+    arg_key: str
     original_value: object
     corrected_value: object
-    signal_class: Literal["path_preference", "command_rule", "arg_preference", "tool_rejection"]
-    feedback: str
+    signal_class: Literal["path_preference", "command_rule", "arg_preference"]
 
 
 class CorrectionLearningHook:
@@ -117,9 +120,6 @@ class CorrectionLearningHook:
             self._recent_fingerprints.add(fingerprint)
 
             memory = self._create_memory(signal)
-            if memory is None:
-                continue
-
             if isinstance(memory, SemanticMemory):
                 self._pending_preferences.append(memory)
                 summaries.append(self._build_summary(signal, "preference"))
@@ -132,11 +132,11 @@ class CorrectionLearningHook:
         return HookResult(
             hook_type="correction_learning",
             success=True,
-            output="; ".join(summaries) if summaries else None,
+            output="; ".join(summaries),
         )
 
-    def _extract_signals(self, corrections: list | tuple) -> list[CorrectionSignal]:
-        """Extract typed correction signals from raw correction dicts."""
+    def _extract_signals(self, corrections: Sequence[object]) -> list[CorrectionSignal]:
+        """Extract typed correction signals from raw edit dicts."""
         signals: list[CorrectionSignal] = []
 
         for correction in corrections:
@@ -144,28 +144,9 @@ class CorrectionLearningHook:
                 continue
 
             tool_name = str(correction.get("tool_name", ""))
-            decision_type = str(correction.get("decision_type", ""))
-            if not tool_name or decision_type not in ("edit", "reject"):
-                continue
-
-            if decision_type == "reject":
-                feedback = str(correction.get("feedback", "User rejected this tool call"))
-                signals.append(
-                    CorrectionSignal(
-                        tool_name=tool_name,
-                        decision_type="reject",
-                        arg_key=None,
-                        original_value=None,
-                        corrected_value=None,
-                        signal_class="tool_rejection",
-                        feedback=feedback,
-                    )
-                )
-                continue
-
             original_args = correction.get("original_args")
             edited_args = correction.get("edited_args")
-            if not isinstance(original_args, dict) or not isinstance(edited_args, dict):
+            if not tool_name or not isinstance(original_args, dict) or not isinstance(edited_args, dict):
                 continue
 
             for key in edited_args:
@@ -174,17 +155,13 @@ class CorrectionLearningHook:
                 if original_val == edited_val:
                     continue
 
-                signal_class = self._classify_arg_change(key)
-                feedback = str(correction.get("feedback", ""))
                 signals.append(
                     CorrectionSignal(
                         tool_name=tool_name,
-                        decision_type="edit",
                         arg_key=key,
                         original_value=original_val,
                         corrected_value=edited_val,
-                        signal_class=signal_class,
-                        feedback=feedback,
+                        signal_class=self._classify_arg_change(key),
                     )
                 )
 
@@ -198,10 +175,8 @@ class CorrectionLearningHook:
             return "command_rule"
         return "arg_preference"
 
-    def _create_memory(self, signal: CorrectionSignal) -> SemanticMemory | ProceduralMemory | None:
+    def _create_memory(self, signal: CorrectionSignal) -> SemanticMemory | ProceduralMemory:
         """Create the appropriate memory type from a correction signal."""
-        if signal.signal_class == "tool_rejection":
-            return self._create_rejection_rule(signal)
         if signal.signal_class == "command_rule":
             return self._create_command_rule(signal)
         return self._create_preference(signal)
@@ -239,25 +214,10 @@ class CorrectionLearningHook:
             language="en",
         )
 
-    def _create_rejection_rule(self, signal: CorrectionSignal) -> ProceduralMemory:
-        """Create a ProceduralMemory rule from tool rejection."""
-        feedback = signal.feedback or "User does not want this action"
-        return ProceduralMemory(
-            content=f"Avoid using {signal.tool_name} in this context: {feedback}",
-            trigger=f"Agent attempts to use {signal.tool_name}",
-            action=f"Consider alternative approach. User feedback: {feedback}",
-            tool_name=signal.tool_name,
-            tool_rule_priority=ToolRulePriority.NORMAL,
-            source=RuleSource.USER_EXPLICIT,
-            language="en",
-        )
-
     def _build_summary(self, signal: CorrectionSignal, memory_type: str) -> str:
         """Build a human-readable learning summary for frontend feedback."""
         if signal.signal_class == "path_preference":
             return f"Remembered: will use {_format_value(signal.corrected_value)} for {signal.tool_name}"
-        if signal.signal_class == "tool_rejection":
-            return f"Remembered: avoid {signal.tool_name} in this context"
         if signal.signal_class == "command_rule":
             return f"Learned rule: use '{_format_value(signal.corrected_value)}' for {signal.tool_name}"
         return f"Learned {memory_type}: {signal.tool_name}.{signal.arg_key} preference updated"

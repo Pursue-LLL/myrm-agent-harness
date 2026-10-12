@@ -689,7 +689,7 @@ class TestMiddlewareRareBranches:
     async def test_correction_hook_sse_dispatch(self, monkeypatch) -> None:
         monkeypatch.setattr(
             "myrm_agent_harness.agent.middlewares.approval.middleware.interrupt",
-            lambda payload: {"decisions": [{"type": "reject", "feedback": "no"}]},
+            lambda payload: {"decisions": [{"type": "edit", "args": {"command": "echo done"}}]},
         )
         monkeypatch.setattr(
             "myrm_agent_harness.agent.middlewares.approval.middleware.get_is_subagent",
@@ -755,7 +755,7 @@ class TestMiddlewareRareBranches:
         """fire_hook raising → middleware still returns result."""
         monkeypatch.setattr(
             "myrm_agent_harness.agent.middlewares.approval.middleware.interrupt",
-            lambda payload: {"decisions": [{"type": "reject", "feedback": "no"}]},
+            lambda payload: {"decisions": [{"type": "edit", "args": {"command": "echo done"}}]},
         )
         monkeypatch.setattr(
             "myrm_agent_harness.agent.middlewares.approval.middleware.get_is_subagent",
@@ -815,8 +815,8 @@ class TestMiddlewareRareBranches:
             "myrm_agent_harness.agent.middlewares.approval.middleware.interrupt",
             lambda payload: {
                 "decisions": [
-                    {"type": "reject", "feedback": "no"},
-                    {"type": "reject", "feedback": "extra"},
+                    {"type": "edit", "args": {"command": "echo done"}},
+                    {"type": "edit", "args": {"command": "echo extra"}},
                 ]
             },
         )
@@ -879,19 +879,18 @@ class TestMiddlewareRareBranches:
         )
         pending = [(0, tc, "shell_exec", "needs approval", None)]
         decisions: list[dict[str, object]] = [
-            {"type": "reject", "feedback": "no"},
-            {"type": "reject", "feedback": "extra"},
+            {"type": "edit", "args": {"command": "echo done"}},
+            {"type": "edit", "args": {"command": "echo extra"}},
         ]
-        with (
-            patch(
-                "myrm_agent_harness.agent.hooks.fire_hook",
-                new_callable=AsyncMock,
-                return_value=SimpleNamespace(results=[]),
-            ),
-        ):
-            await ToolApprovalMiddleware._fire_correction_hook(
-                decisions, pending, "session-1"
-            )
+        with patch(
+            "myrm_agent_harness.agent.hooks.fire_hook",
+            new_callable=AsyncMock,
+            return_value=SimpleNamespace(results=[]),
+        ) as fire_hook:
+            await ToolApprovalMiddleware._fire_correction_hook(decisions, pending, "session-1")
+
+        (_event, payload) = fire_hook.await_args.args
+        assert [c["tool_name"] for c in payload["corrections"]] == ["bash_code_execute_tool"]
 
     @pytest.mark.asyncio
     async def test_correction_hook_sse_dispatch_failure_silent(
@@ -900,7 +899,7 @@ class TestMiddlewareRareBranches:
         """dispatch_custom_event raising → swallowed, result still returned."""
         monkeypatch.setattr(
             "myrm_agent_harness.agent.middlewares.approval.middleware.interrupt",
-            lambda payload: {"decisions": [{"type": "reject", "feedback": "no"}]},
+            lambda payload: {"decisions": [{"type": "edit", "args": {"command": "echo done"}}]},
         )
         monkeypatch.setattr(
             "myrm_agent_harness.agent.middlewares.approval.middleware.get_is_subagent",

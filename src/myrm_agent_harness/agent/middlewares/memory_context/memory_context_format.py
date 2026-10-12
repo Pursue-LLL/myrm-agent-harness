@@ -6,26 +6,17 @@ Pure formatting helpers for MemoryContextMiddleware prompt injection.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
-from myrm_agent_harness.agent.middlewares._session_context import (
-    set_active_negative_constraints,
-)
 from myrm_agent_harness.agent.security.detection.content_boundary import sanitize, wrap_untrusted
-from myrm_agent_harness.agent.security.guards.negative_constraint_guard import (
-    NegativeConstraint,
-)
 from myrm_agent_harness.agent.security.guards.prompt_budget import (
     BudgetedSection,
 )
 
 from .memory_context_budget import (
     COLD_START_CONTEXT as _COLD_START_CONTEXT,
-)
-from .memory_context_budget import (
-    anchor_canonical_security_tokens as _anchor_canonical_security_tokens,
 )
 from .memory_context_budget import (
     build_cold_start_context as _build_cold_start_context,
@@ -79,12 +70,17 @@ def _has_memory_context(messages: Sequence[BaseMessage]) -> bool:
     return False
 
 
+def _as_str_keyed_dict(value: object) -> dict[str, object]:
+    """Copy a profile mapping; anything that is not a mapping is an empty profile."""
+    return {str(k): v for k, v in value.items()} if isinstance(value, Mapping) else {}
+
+
 def _format_memory_context(
     ctx: dict[str, object],
     learned: dict[str, list[dict[str, str]]],
     *,
     memory_search_enabled: bool = True,
-) -> tuple[str | None, str | None]:
+) -> tuple[str | None, str | None, dict[str, int]]:
     stable_sections: list[BudgetedSection] = []
     untrusted_sections: list[BudgetedSection] = []
 
@@ -94,13 +90,13 @@ def _format_memory_context(
         stable_sections.append(BudgetedSection("Active Working Context", [working_state], priority=0))
 
     # ── Stable Layer (High Privilege): user-configured, rarely changes ──
-    global_profile = dict(ctx.get("global_profile", {}))
+    global_profile = _as_str_keyed_dict(ctx.get("global_profile"))
     if global_profile:
         items = [f"{k}: {v}" for k, v in global_profile.items()]
         if items:
             stable_sections.append(BudgetedSection("Global User Profile", items, priority=1))
 
-    peer_profile = dict(ctx.get("peer_profile", {}))
+    peer_profile = _as_str_keyed_dict(ctx.get("peer_profile"))
     peer_items = [f"{k}: {v}" for k, v in peer_profile.items()] if peer_profile else []
 
     if peer_items:
@@ -113,7 +109,7 @@ def _format_memory_context(
             stable_sections.append(BudgetedSection("Your Self-Instructions", items, priority=2))
 
     rules = ctx.get("rules", [])
-    veto_constraints: list[NegativeConstraint] = []
+    veto_entries: list[tuple[int, str, str]] = []  # (priority, rule_id, rendered line)
     normal_rules: list[dict[str, object]] = []
 
     if rules and isinstance(rules, list):
@@ -134,48 +130,20 @@ def _format_memory_context(
                     is_veto = True
 
             if is_veto:
-                rule_id = str(r.get("id", "") or f"veto_{len(veto_constraints)}")
+                rule_id = str(r.get("id", "") or f"veto_{len(veto_entries)}")
                 name = str(r.get("name", "") or action_str or trigger_str or rule_id)
-                pattern = str(
-                    r.get("veto_pattern", "")
-                    or r.get("error_fingerprint", "")
-                    or _anchor_canonical_security_tokens(action_str, trigger_str)
-                )
                 tool_scope = str(r.get("tool_name", "") or r.get("veto_scope", "") or "*")
                 reason = str(r.get("reasoning", "") or r.get("reason", "") or content_str)
-                remediation = str(
-                    r.get("application", "")
-                    or r.get("remediation_advice", "")
-                    or "Strictly comply with this constraint and find an alternative approach."
-                )
-                priority_val = int(r.get("priority", 0))
-
-                veto_constraints.append(
-                    NegativeConstraint(
-                        rule_id=rule_id,
-                        name=name,
-                        pattern=pattern,
-                        tool_scope=tool_scope,
-                        reason=reason,
-                        remediation_advice=remediation,
-                        priority=priority_val,
-                    )
-                )
+                line = f"[NEVER] {name} (Scope: {tool_scope})"
+                if reason:
+                    line = f"{line} — Reason: {reason}"
+                veto_entries.append((int(r.get("priority", 0)), rule_id, line))
             else:
                 normal_rules.append(r)
 
-    # Register active negative constraints into session context for pre-call execution guards
-    set_active_negative_constraints(veto_constraints if veto_constraints else None)
-
     # Sort deterministically by (priority DESC, rule_id ASC) to guarantee Byte-level Prompt Cache stability
-    if veto_constraints:
-        sorted_vetos = sorted(veto_constraints, key=lambda c: (-c.priority, c.rule_id))
-        veto_items = [
-            f"[NEVER] {c.name or c.pattern} (Scope: {c.tool_scope}) — Reason: {c.reason}"
-            if c.reason
-            else f"[NEVER] {c.name or c.pattern} (Scope: {c.tool_scope})"
-            for c in sorted_vetos
-        ]
+    if veto_entries:
+        veto_items = [line for _, _, line in sorted(veto_entries, key=lambda e: (-e[0], e[1]))]
         stable_sections.append(BudgetedSection(MANDATORY_VETO_TITLE, veto_items, priority=0))
 
     if normal_rules:

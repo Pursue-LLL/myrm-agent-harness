@@ -29,7 +29,7 @@ myrm_agent_harness/agent/middlewares/approval/_batch_decisions.py	697
 myrm_agent_harness/agent/middlewares/approval/batch_processor.py	1225
 myrm_agent_harness/agent/middlewares/completion/completion_guard.py	514
 myrm_agent_harness/agent/middlewares/context_pipeline/context_pipeline_middleware.py	533
-myrm_agent_harness/agent/middlewares/tooling/_tool_guards.py	773
+myrm_agent_harness/agent/middlewares/tooling/_tool_guards.py	704
 myrm_agent_harness/agent/middlewares/tooling/_tool_helpers.py	599
 myrm_agent_harness/agent/security/guards/loop_guard/detectors.py	571
 myrm_agent_harness/agent/skills/evolution/core/engine.py	758

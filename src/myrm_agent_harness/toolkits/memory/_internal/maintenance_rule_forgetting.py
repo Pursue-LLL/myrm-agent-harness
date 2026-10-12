@@ -40,13 +40,24 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Action-text prefixes of mechanically generated rules (no write path produces them):
-# a regex fragment of the user message, a hook-captured edict, and an approval timeout
-# recorded as user feedback. They carry CRITICAL / USER_EXPLICIT trust yet never expire,
-# so retention scoring alone would keep them forever.
+# a regex fragment of the user message, a hook-captured edict, and a rejection recorded
+# as a rule whose feedback is only the text a client or the system fills in when the
+# user gave no reason. They carry no user-authored information, yet never expire
+# (USER_EXPLICIT trust, no TTL), so retention scoring alone would keep them forever.
+_REJECTION_RULE_PREFIX = "Consider alternative approach. User feedback: "
 _MECHANICAL_ACTION_PREFIXES = (
     "Respect user directive: ",
     "Strictly follow user edict: ",
-    "Consider alternative approach. User feedback: Auto-rejected: approval timeout",
+    *(
+        _REJECTION_RULE_PREFIX + feedback
+        for feedback in (
+            "Auto-rejected: approval timeout",
+            "User does not want this action",
+            "User rejected this action.",
+            "Batch rejected by user",
+            "Denied via ",
+        )
+    ),
 )
 _MECHANICAL_ARCHIVE_REASON = "mechanically_generated_rule"
 _SCAN_PAGE_SIZE = 2000
