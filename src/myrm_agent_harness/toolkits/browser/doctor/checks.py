@@ -55,10 +55,11 @@ def _check_patchright() -> DoctorCheckResult:
         )
     # The package has no ``__version__``, so the version comes from distribution metadata. Keep the
     # distribution name a literal here and in the camoufox check: PyInstaller's static scan only
-    # bundles metadata for literal names, and the desktop backend is a frozen build.
+    # bundles metadata for literal names, and the desktop backend is a frozen build. A damaged
+    # dist-info yields None or raises; the report must still be produced, so both mean "unknown".
     try:
-        version = importlib.metadata.version("patchright")
-    except importlib.metadata.PackageNotFoundError:
+        version = importlib.metadata.version("patchright") or "unknown"
+    except Exception:
         version = "unknown"
     return DoctorCheckResult(
         name="patchright",
@@ -81,8 +82,8 @@ def _check_camoufox() -> DoctorCheckResult:
             fix=CAMOUFOX_INSTALL_FIX,
         )
     try:
-        version = importlib.metadata.version("camoufox")
-    except importlib.metadata.PackageNotFoundError:
+        version = importlib.metadata.version("camoufox") or "unknown"
+    except Exception:
         version = "unknown"
     return DoctorCheckResult(
         name="camoufox",

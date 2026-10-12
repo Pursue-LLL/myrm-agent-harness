@@ -37,11 +37,28 @@ def test_check_patchright_reports_distribution_metadata_version() -> None:
     assert result.details == {"version": "1.50.0"}
 
 
-def test_check_patchright_falls_back_to_unknown_without_distribution_metadata() -> None:
-    """An importable package whose metadata is unavailable is still reported as installed."""
+# A damaged install (interrupted uninstall, corrupt dist-info) must still produce a report: the
+# metadata lookup either returns None or raises, and the doctor exists to diagnose such machines.
+_UNUSABLE_DISTRIBUTION_METADATA = pytest.mark.parametrize(
+    "metadata_lookup",
+    [
+        pytest.param({"side_effect": importlib.metadata.PackageNotFoundError("dist")}, id="no-distribution"),
+        pytest.param({"return_value": None}, id="metadata-without-version"),
+        pytest.param(
+            {"side_effect": UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte")}, id="undecodable"
+        ),
+    ],
+)
+
+
+@_UNUSABLE_DISTRIBUTION_METADATA
+def test_check_patchright_reports_unknown_when_distribution_metadata_is_unusable(
+    metadata_lookup: dict[str, object],
+) -> None:
+    """An importable package whose metadata is unusable is still reported as installed."""
     with (
         patch.dict("sys.modules", {"patchright": _versionless_module("patchright")}),
-        patch("importlib.metadata.version", side_effect=importlib.metadata.PackageNotFoundError("patchright")),
+        patch("importlib.metadata.version", **metadata_lookup),
     ):
         result = _check_patchright()
     assert result.status == CheckStatus.OK
@@ -85,6 +102,21 @@ def test_check_camoufox_ready_reports_installed_package_version() -> None:
     assert result.status == CheckStatus.OK
     assert result.message == f"camoufox {version} installed"
     assert result.details == {"version": version}
+
+
+@_UNUSABLE_DISTRIBUTION_METADATA
+def test_check_camoufox_reports_unknown_when_distribution_metadata_is_unusable(
+    metadata_lookup: dict[str, object],
+) -> None:
+    """A ready browser build is reported as installed even when the package metadata cannot be read."""
+    with (
+        patch(_CAMOUFOX_REASON_PROBE, return_value=None),
+        patch("importlib.metadata.version", **metadata_lookup),
+    ):
+        result = _check_camoufox()
+    assert result.status == CheckStatus.OK
+    assert result.message == "camoufox unknown installed"
+    assert result.details == {"version": "unknown"}
 
 
 def test_check_camoufox_warns_when_browser_build_missing() -> None:
