@@ -668,7 +668,7 @@ retention = 0.35 × time_score + 0.25 × access_score + 0.15 × importance_score
 
 **Procedural 规则归档**（`_internal/maintenance_rule_forgetting.py`）：
 
-- **遗留生成规则**：动作文本带已移除生成器签名的未锁定规则（`Respect user directive:` / `Strictly follow user edict:` / 审批超时记录的 `Auto-rejected: approval timeout`），每次遗忘运行时先全量扫描并按当前 `ForgettingMode` 处理（默认 ARCHIVE，`archive_reason=legacy_generated_rule`，保留期内可恢复）；这些规则带 CRITICAL / USER_EXPLICIT 信任却永不过期，仅靠评分无法淘汰
+- **机械生成规则**：动作文本带固定签名前缀的未锁定规则（当前任何写入路径都不会产生它们，存量库中出现即为过期数据；前缀：`Respect user directive:` / `Strictly follow user edict:` / 审批超时记录的 `Auto-rejected: approval timeout`），每次遗忘运行时先全量扫描并按当前 `ForgettingMode` 处理（默认 ARCHIVE，`archive_reason=mechanically_generated_rule`，保留期内可恢复）；这些规则带 CRITICAL / USER_EXPLICIT 信任却永不过期，仅靠评分无法淘汰
 - `expected_valid_days` 已过期的规则**直接归档**，绕过 retention 评分阈值——过期即失效，无需等待衰减
 - 过期判断：`created_at + expected_valid_days` ≤ 当前时间；无 `expected_valid_days` 的规则以及 CRITICAL 规则不参与 TTL 归档，继续走 retention 评分
 - `is_user_locked` 规则跳过 TTL 归档（用户手动保留）
@@ -761,7 +761,7 @@ result = await extractor.extract(messages=messages)
 1. **模型判断**：会话结束的 LLM 抽取（`strategies/extractor.py`，受 No-Op Default 门控）与 Agent 调用 `memory_save_tool`；
 2. **人的明确选择**：用户手动创建并锁定的规则，以及审批中人工 `edit` / `reject` 触发的纠正学习（`agent/middlewares/approval/correction_learning.py`）。系统自动判定（审批超时、批量校验失败）带 `origin="system"`，不作为用户反馈学习。
 
-> 正则只能看到用户措辞的一个片段，无法区分「长期偏好」与「仅当前任务的指令」，也保留不了否定极性，因此不再作为规则来源。`ToolRulePriority` 只决定遗忘/归档的耐久度，不决定注入位置：规则统一进入 stable 层的 `Behavioral Rules` 段（`priority=3`），items 按「用户背书（`is_user_locked`）优先」排序，契合 `PromptBudgetGuard` 从后截断的行为，使背书规则最后被丢。
+> 正则只能看到用户措辞的一个片段，无法区分「长期偏好」与「仅当前任务的指令」，也保留不了否定极性，因此不作为规则来源。`ToolRulePriority` 只决定遗忘/归档的耐久度，不决定注入位置：规则统一进入 stable 层的 `Behavioral Rules` 段（`priority=3`），items 按「用户背书（`is_user_locked`）优先」排序，契合 `PromptBudgetGuard` 从后截断的行为，使背书规则最后被丢。
 
 | 级别 | 来源 | 生命周期 |
 |------|------|---------|

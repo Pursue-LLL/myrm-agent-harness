@@ -29,6 +29,7 @@ Every decision is recorded via security.audit.record_decision() for post-hoc aud
 - middlewares._session_context::get_security_config, (POS: Middleware session context — shared ContextVars for the middleware chain.)
 - agent.security.tool_registry::compute_canonical_args_hash (POS: Pure functions, no side effects, trivially testable. Browser tools use dynamic resolution: browser_interact's permission varies by ``action`` parameter (fill→browser_fill, upload_file→browser_upload, etc.). MCP tools (``mcp__`` prefixed) and unknown tools both map to ``mcp_invoke``. Canonical parameter hashing ensures same functional operation produces same hash, regardless of LLM's wording variations in auxiliary fields. Safety metadata declares all built-in tools with four categories: read-only concurrent-safe, concurrent-safe with side effects, destructive, and stateful. Undeclared tools (e.g. MCP) get fail-closed defaults. Used by safety_dispatcher middleware for concurrency control.)
 - langgraph.types::interrupt (POS: Provides ArtifactInfo, infer_language, infer_artifact_type.)
+- approval.scheduler::SYSTEM_DECISION_ORIGIN (POS: Stateless in-memory approval-timeout scheduler; owns the `origin` tag of system-made decisions)
 
 [OUTPUT]
 - ToolApprovalMiddleware: after_model middleware orchestrating batch approval flow

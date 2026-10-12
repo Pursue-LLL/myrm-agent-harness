@@ -15,6 +15,7 @@ run agent stream, persist results).
 
 [OUTPUT]
 - Auto-resume callback execution on timeout
+- SYSTEM_DECISION_ORIGIN: `origin` value tagging approval decisions made by the system, not a person
 - Idempotent resolution via `resolve_if_first` (prevents race between timeout and manual resume)
 
 [POS]

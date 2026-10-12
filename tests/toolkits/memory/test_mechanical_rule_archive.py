@@ -1,8 +1,8 @@
-"""Archiving of procedural rules written by generators that no longer exist.
+"""Archiving of mechanically generated procedural rules.
 
-Rules built from a regex fragment of user text or from a system approval timeout
-carry CRITICAL / USER_EXPLICIT trust yet never expire, so maintenance has to
-retire them explicitly. Real SQLite store, no mocks.
+Rules built from a regex fragment of user text, a hook edict or a system approval
+timeout carry CRITICAL / USER_EXPLICIT trust yet never expire, so maintenance has
+to retire them explicitly. Real SQLite store, no mocks.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 
+from myrm_agent_harness.toolkits.memory._internal import maintenance_rule_forgetting as rule_forgetting
 from myrm_agent_harness.toolkits.memory._internal.maintenance_rule_forgetting import forget_procedural_rules
 from myrm_agent_harness.toolkits.memory.relational import SQLiteRelationalStore
 from myrm_agent_harness.toolkits.memory.strategies.forgetting import (
@@ -69,7 +70,7 @@ async def _active_actions(store: SQLiteRelationalStore) -> list[str]:
 
 
 @pytest.mark.asyncio
-async def test_rules_from_removed_generators_are_archived(store: SQLiteRelationalStore) -> None:
+async def test_mechanically_generated_rules_are_archived(store: SQLiteRelationalStore) -> None:
     created = [
         await store.create_rule(_rule(_REGEX_DIRECTIVE)),
         await store.create_rule(_rule(_REGEX_EDICT, source=RuleSource.USER_EXPLICIT)),
@@ -85,7 +86,7 @@ async def test_rules_from_removed_generators_are_archived(store: SQLiteRelationa
         archived = await store.get_rule(rule.id)
         assert archived is not None
         assert archived.is_active is False
-        assert archived.metadata["archive_reason"] == "legacy_generated_rule"
+        assert archived.metadata["archive_reason"] == "mechanically_generated_rule"
         assert "archive_expires_at" in archived.metadata
 
 
@@ -112,8 +113,11 @@ async def test_archive_is_idempotent(store: SQLiteRelationalStore) -> None:
 
 
 @pytest.mark.asyncio
-async def test_scans_beyond_the_forgetting_window(store: SQLiteRelationalStore) -> None:
-    """A store flooded with generated rules is cleaned in full, not just the first window."""
+async def test_scans_every_page_beyond_the_forgetting_window(
+    store: SQLiteRelationalStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A store flooded with generated rules is cleaned in full: across scan pages and past the per-run cap."""
+    monkeypatch.setattr(rule_forgetting, "_SCAN_PAGE_SIZE", 100)
     for i in range(250):
         await store.create_rule(_rule(f"{_REGEX_DIRECTIVE} {i}"))
     await store.create_rule(_rule(_GENUINE_ACTION, priority=ToolRulePriority.NORMAL))
