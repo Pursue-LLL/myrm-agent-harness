@@ -24,7 +24,8 @@ Processing tiers:
 
 [POS]
 Memory write-path security scanner. Scans content, raw_exchange (ConversationMemory,
-scanned without its own role labels), and trigger/action (ProceduralMemory) fields.
+scanned without its own role labels), trigger/action (ProceduralMemory) and the
+summary_l0/overview_l1 gists (re-derived from the cleaned content when they are its prefixes).
 Reuses prompt_guard (9-class injection detection),
 leak_detector (25+ credential patterns + smart masking + password-like heuristic),
 instruction_shape (6-class bilingual instruction-shape detection),
@@ -247,12 +248,35 @@ def _scan_exchange(raw_exchange: str, user_turn: str, user_result: ScanResult, b
     return replace(worst, cleaned_text=cleaned)
 
 
+# Content-gist fields of every memory with their length contracts (types.py summary_l0 / overview_l1).
+_GIST_LIMITS = (("summary_l0", 120), ("overview_l1", 400))
+
+
+def _sync_gists(memory: object, raw: str, cleaned: str) -> list[str]:
+    """Re-derive the gists that are plain prefixes of ``raw`` from the scanned ``cleaned`` text.
+
+    A prefix cut from the raw text can keep a fragment of a token that the cut split in two,
+    which no credential pattern matches, so it follows the cleaned content instead of being
+    scanned. Returns the names of gists the writer authored independently, which need a scan.
+    """
+    authored: list[str] = []
+    for name, limit in _GIST_LIMITS:
+        gist = getattr(memory, name, "")
+        if gist == raw.strip()[:limit].strip():
+            setattr(memory, name, cleaned.strip()[:limit].strip())
+        elif gist:
+            authored.append(name)
+    return authored
+
+
 def scan_and_clean_memory(memory: object, *, block_threshold: float = 0.8) -> ScanResult:
     """Scan all text fields of a memory object and clean in-place.
 
     Scans ``content`` (all memory types), ``raw_exchange`` (ConversationMemory),
-    and ``trigger``/``action`` (ProceduralMemory). Returns the worst-case ScanResult
-    across fields. Raises MemoryTaintedError if any field triggers BLOCKED verdict and is denied.
+    ``trigger``/``action`` (ProceduralMemory) and the ``summary_l0``/``overview_l1`` gists
+    (re-derived from the cleaned content, or scanned when authored independently). Returns the
+    worst-case ScanResult across fields. Raises MemoryTaintedError if any field triggers BLOCKED
+    verdict and is denied.
     """
     from myrm_agent_harness.toolkits.memory.types import ConversationMemory, ProceduralMemory
 
@@ -263,6 +287,7 @@ def scan_and_clean_memory(memory: object, *, block_threshold: float = 0.8) -> Sc
         memory.content = result.cleaned_text  # type: ignore[attr-defined]
 
     worst = result
+    authored_gists = _sync_gists(memory, content, result.cleaned_text)
 
     if isinstance(memory, ConversationMemory):
         raw_exchange = getattr(memory, "raw_exchange", "")
@@ -273,18 +298,19 @@ def scan_and_clean_memory(memory: object, *, block_threshold: float = 0.8) -> Sc
             if _VERDICT_SEVERITY[raw_result.verdict] > _VERDICT_SEVERITY[worst.verdict]:
                 worst = raw_result
 
-    if isinstance(memory, ProceduralMemory):
-        for field_name in ("trigger", "action"):
-            field_val = getattr(memory, field_name, "")
-            if not field_val:
-                continue
-            field_result = _scan_field(field_val, block_threshold)
-            if field_result.cleaned_text != field_val:
-                setattr(memory, field_name, field_result.cleaned_text)
-            if _VERDICT_SEVERITY[field_result.verdict] > _VERDICT_SEVERITY[worst.verdict]:
-                worst = field_result
+    rule_fields = ("trigger", "action") if isinstance(memory, ProceduralMemory) else ()
+    for field_name in (*rule_fields, *authored_gists):
+        field_val = getattr(memory, field_name, "")
+        if not field_val:
+            continue
+        field_result = _scan_field(field_val, block_threshold)
+        if field_result.cleaned_text != field_val:
+            setattr(memory, field_name, field_result.cleaned_text)
+        if _VERDICT_SEVERITY[field_result.verdict] > _VERDICT_SEVERITY[worst.verdict]:
+            worst = field_result
 
-    _log_scan_result(worst, content)
+    # Log the cleaned text: a raw snippet would copy the very secret the scan just redacted.
+    _log_scan_result(worst, getattr(memory, "content", ""))
     return worst
 
 

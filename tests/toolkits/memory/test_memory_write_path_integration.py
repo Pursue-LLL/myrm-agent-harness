@@ -213,3 +213,67 @@ async def test_update_memory_transient_content_blocked(
     with pytest.raises(MemoryError, match="real-time transient business state"):
         await manager.update_memory("mem-update-transient", content=_TRANSIENT_LOGISTICS)
     mock_vector_store.upsert.assert_not_awaited()
+
+
+_TOKEN_BODY = "abcdefghijklmnopqrstuvwxyz123456"
+
+
+def _persisted_text(mock_vector_store) -> str:
+    return repr(mock_vector_store.upsert.await_args_list)
+
+
+@pytest.mark.asyncio
+async def test_credential_redacted_in_derived_gist_and_persisted_payload(
+    memory_config, mock_vector_store, mock_embedding, mock_relational_store
+) -> None:
+    manager = _make_manager(memory_config, mock_vector_store, mock_embedding, mock_relational_store)
+    stored = await manager.store(SemanticMemory(content=_CREDENTIAL))
+    assert _TOKEN_BODY not in stored.summary_l0
+    assert "[REDACTED:" in stored.summary_l0
+    assert _TOKEN_BODY not in _persisted_text(mock_vector_store)
+
+
+@pytest.mark.asyncio
+async def test_secret_split_by_gist_truncation_does_not_survive(
+    memory_config, mock_vector_store, mock_embedding, mock_relational_store
+) -> None:
+    # The L0 cut lands inside the token: the surviving fragment is too short for any
+    # credential pattern, so the gist must follow the cleaned content instead.
+    content = f"{'a' * 95} sk-ant-{_TOKEN_BODY}"
+    assert _TOKEN_BODY[:17] in content[:120]
+    manager = _make_manager(memory_config, mock_vector_store, mock_embedding, mock_relational_store)
+    stored = await manager.store(SemanticMemory(content=content))
+    assert _TOKEN_BODY[:10] not in stored.summary_l0
+    assert _TOKEN_BODY[:10] not in stored.overview_l1
+
+
+@pytest.mark.asyncio
+async def test_authored_gist_with_credential_is_redacted(
+    memory_config, mock_vector_store, mock_embedding, mock_relational_store
+) -> None:
+    manager = _make_manager(memory_config, mock_vector_store, mock_embedding, mock_relational_store)
+    stored = await manager.store(SemanticMemory(content=_CLEAN, summary_l0=_CREDENTIAL, overview_l1=_CREDENTIAL))
+    assert stored.content == _CLEAN
+    assert _TOKEN_BODY not in stored.summary_l0 + stored.overview_l1
+    assert _TOKEN_BODY not in _persisted_text(mock_vector_store)
+
+
+@pytest.mark.asyncio
+async def test_clean_memory_keeps_its_derived_gist(
+    memory_config, mock_vector_store, mock_embedding, mock_relational_store
+) -> None:
+    manager = _make_manager(memory_config, mock_vector_store, mock_embedding, mock_relational_store)
+    stored = await manager.store(SemanticMemory(content=_CLEAN))
+    assert stored.summary_l0 == _CLEAN
+
+
+@pytest.mark.asyncio
+async def test_scan_log_never_carries_the_raw_secret(
+    memory_config, mock_vector_store, mock_embedding, mock_relational_store, caplog: pytest.LogCaptureFixture
+) -> None:
+    manager = _make_manager(memory_config, mock_vector_store, mock_embedding, mock_relational_store)
+    with caplog.at_level("WARNING"):
+        await manager.store(SemanticMemory(content=_CREDENTIAL))
+    scan_lines = [r.getMessage() for r in caplog.records if "[MEMORY_SCAN]" in r.getMessage()]
+    assert scan_lines
+    assert all(_TOKEN_BODY not in line for line in scan_lines)
