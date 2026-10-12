@@ -124,8 +124,6 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | experience_compounding/ | Experience Compounding and Knowledge Condensation Suite: bounded logarithmic frequency compounding, semantic Golden Rule synthesis with lineage preservation, and obsolete context annealing governor. See [experience_compounding/_ARCH.md](experience_compounding/_ARCH.md). |
 | skill_triad/ | Memory Skill Triad and Physical Scope Isolation Suite: API manual, machine CLI JSON envelope, integration pipeline double-seam verification, length-prefixed isolated scopes, and visible degraded state. See [skill_triad/_ARCH.md](skill_triad/_ARCH.md). |
 | bitemporal_truth_maintenance/ | Bitemporal Truth Maintenance and Causal Inference Filter Suite: valid_at/known_at explicit half-open intervals, SupportDependency DAG, non-destructive retraction, and recursive active support filtering. See [bitemporal_truth_maintenance/_ARCH.md](bitemporal_truth_maintenance/_ARCH.md). |
-| zk_vault_watermark/ | Zero-Knowledge Memory Vault, KEK/DEK envelope crypto, invisible provenance watermarking, and anti-cloning gate suite. See [zk_vault_watermark/_ARCH.md](zk_vault_watermark/_ARCH.md). |
-| verifiable_provenance/ | Verifiable memory physical storage residency proof, strict fail-closed boundary enforcement, and right-to-be-forgotten purge suite. See [verifiable_provenance/_ARCH.md](verifiable_provenance/_ARCH.md). |
 
 ## Key Dependencies
 
