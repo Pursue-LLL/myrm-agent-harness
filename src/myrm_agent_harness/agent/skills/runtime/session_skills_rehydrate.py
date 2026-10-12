@@ -193,15 +193,13 @@ def _skill_entry_succeeded(tool_content: str, skill_name: str) -> bool:
         return False
 
     stripped = section.lstrip()
-    if (
+    return not (
         stripped.startswith("Error:")
         or "\nError:" in section
         or f"Error: skill '{skill_name}'" in section
         or "Error: failed to load" in section
         or "Error: file '" in section
-    ):
-        return False
-    return True
+    )
 
 
 def _is_skill_select_tool_message(name: str | None) -> bool:
