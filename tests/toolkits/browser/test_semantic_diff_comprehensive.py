@@ -161,8 +161,10 @@ async def test_diff_immune_to_ref_id_changes(browser_session: BrowserSession) ->
     ref_id_2 = result_2.aria_tree.split("[ref=")[1].split("]")[0] if "[ref=" in result_2.aria_tree else None
 
     assert "--- Snapshot diff ---" in result_2.aria_tree
-    assert "Unchanged interactive" in result_2.aria_tree
-    assert ref_id_1 == ref_id_2 or "Stable" in result_2.aria_tree
+    # Re-created identical DOM must read as "no change" (fast path) or as an unchanged interactive list.
+    assert "No DOM changes detected" in result_2.aria_tree or "Unchanged interactive" in result_2.aria_tree
+    assert "New interactive" not in result_2.aria_tree
+    assert "Removed interactive" not in result_2.aria_tree
 
     print(" Test 5: Immune to ref ID changes")
     print(f"Ref IDs: {ref_id_1} → {ref_id_2}")

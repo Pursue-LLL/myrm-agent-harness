@@ -58,7 +58,7 @@ async def test_scenario_page_dynamic_update(browser_session: BrowserSession) -> 
     """
 
     await browser_session.new_tab("about:blank")
-    await browser_session.evaluate(f"document.body.innerHTML = `{initial_html}`")
+    await browser_session.get_active_page().set_content(initial_html)
     snapshot1 = await browser_session.snapshot()
 
     # 获取初始 ref（假设 loader 的 ref）
@@ -79,7 +79,7 @@ async def test_scenario_page_dynamic_update(browser_session: BrowserSession) -> 
     </html>
     """
 
-    await browser_session.evaluate(f"document.body.innerHTML = `{updated_html}`")
+    await browser_session.get_active_page().set_content(updated_html)
     await browser_session.snapshot()
 
     # LLM 尝试使用旧的 ref
@@ -134,7 +134,7 @@ async def test_scenario_similar_buttons(browser_session: BrowserSession) -> None
     """
 
     await browser_session.new_tab("about:blank")
-    await browser_session.evaluate(f"document.body.innerHTML = `{html}`")
+    await browser_session.get_active_page().set_content(html)
     await browser_session.snapshot()
 
     with pytest.raises(RefNotFoundError) as exc_info:
@@ -183,7 +183,7 @@ async def test_scenario_form_submission_navigation(
     """
 
     await browser_session.new_tab("about:blank")
-    await browser_session.evaluate(f"document.body.innerHTML = `{form_html}`")
+    await browser_session.get_active_page().set_content(form_html)
     snapshot1 = await browser_session.snapshot()
 
     # 获取登录按钮的 ref
@@ -206,7 +206,7 @@ async def test_scenario_form_submission_navigation(
     </html>
     """
 
-    await browser_session.evaluate(f"document.body.innerHTML = `{success_html}`")
+    await browser_session.get_active_page().set_content(success_html)
     await browser_session.snapshot()
 
     # LLM 尝试再次点击"Login"按钮（但页面已变）
@@ -251,7 +251,7 @@ async def test_context_refs_information_completeness(
     """
 
     await browser_session.new_tab("about:blank")
-    await browser_session.evaluate(f"document.body.innerHTML = `{html}`")
+    await browser_session.get_active_page().set_content(html)
     await browser_session.snapshot()
 
     with pytest.raises(RefNotFoundError) as exc_info:
@@ -295,7 +295,7 @@ async def test_context_refs_max_total_limit(browser_session: BrowserSession) -> 
     """
 
     await browser_session.new_tab("about:blank")
-    await browser_session.evaluate(f"document.body.innerHTML = `{html}`")
+    await browser_session.get_active_page().set_content(html)
     await browser_session.snapshot()
 
     with pytest.raises(RefNotFoundError) as exc_info:
@@ -329,7 +329,7 @@ async def test_context_refs_empty_page(browser_session: BrowserSession) -> None:
     """
 
     await browser_session.new_tab("about:blank")
-    await browser_session.evaluate(f"document.body.innerHTML = `{html}`")
+    await browser_session.get_active_page().set_content(html)
     await browser_session.snapshot()
 
     with pytest.raises(RefNotFoundError) as exc_info:

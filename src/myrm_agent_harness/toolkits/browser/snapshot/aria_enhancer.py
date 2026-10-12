@@ -257,9 +257,14 @@ def enhance_aria_tree(
 
         # Blocking layer check: if modal is active and this element is outside
         is_blocked = False
-        if modal_active and role in _ROLE_CATEGORY and _ROLE_CATEGORY[role] == "interactive":
-            if name and name not in allowed_inner_names:
-                is_blocked = True
+        if (
+            modal_active
+            and role in _ROLE_CATEGORY
+            and _ROLE_CATEGORY[role] == "interactive"
+            and name
+            and name not in allowed_inner_names
+        ):
+            is_blocked = True
 
         should_assign_ref = _role_in_scope(role, scope)
 

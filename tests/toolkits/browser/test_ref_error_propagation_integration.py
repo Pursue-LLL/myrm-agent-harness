@@ -51,7 +51,7 @@ async def test_error_propagates_through_langchain_tool(browser_session: BrowserS
     """
 
     await browser_session.new_tab("about:blank")
-    await browser_session.evaluate(f"document.body.innerHTML = `{html}`")
+    await browser_session.get_active_page().set_content(html)
     await browser_session.snapshot()
 
     with pytest.raises(RefNotFoundError) as exc_info:
@@ -73,7 +73,7 @@ async def test_metrics_available_via_session_stats(browser_session: BrowserSessi
     html = """<button>Click Me</button>"""
 
     await browser_session.new_tab("about:blank")
-    await browser_session.evaluate(f"document.body.innerHTML = `{html}`")
+    await browser_session.get_active_page().set_content(html)
     await browser_session.snapshot()
 
     initial_total = browser_session.stats["ref_failures"]["total_failures"]
@@ -102,7 +102,7 @@ async def test_context_refs_provide_multi_role_diversity(browser_session: Browse
     """
 
     await browser_session.new_tab("about:blank")
-    await browser_session.evaluate(f"document.body.innerHTML = `{html}`")
+    await browser_session.get_active_page().set_content(html)
     await browser_session.snapshot()
 
     with pytest.raises(RefNotFoundError) as exc_info:

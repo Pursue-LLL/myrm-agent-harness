@@ -14,9 +14,8 @@ from contextlib import asynccontextmanager, contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
-from patchright._impl._errors import Error as PatchrightError
 
-from myrm_agent_harness.toolkits.browser import BrowserSession, DomainAllowlist
+from myrm_agent_harness.toolkits.browser import BrowserNavigationError, BrowserSession, DomainAllowlist
 from myrm_agent_harness.toolkits.browser.pool import ContextType, GlobalBrowserPool
 
 _PAGE_HTML = b"<!DOCTYPE html><html><body><h1>ok</h1></body></html>"
@@ -75,10 +74,8 @@ async def test_domain_allowlist_blocks_navigation() -> None:
     try:
         with _local_server() as url:
             async with _session_with_allowlist(pool, DomainAllowlist.from_strings(["example.com"])) as session:
-                await session.navigate(url)
-                pytest.fail("Expected navigation to be blocked")
-    except PatchrightError as e:
-        assert "net::ERR_BLOCKED_BY_CLIENT" in str(e)
+                with pytest.raises(BrowserNavigationError, match="net::ERR_BLOCKED_BY_CLIENT"):
+                    await session.navigate(url)
     finally:
         await pool.shutdown()
 
@@ -123,10 +120,8 @@ async def test_domain_allowlist_wildcard_patterns() -> None:
                 DomainAllowlist.from_strings(["*.example.com", "*.test.org"]),
             ) as session:
                 # Loopback host is not covered by the wildcard patterns → blocked.
-                await session.navigate(url)
-                pytest.fail("Expected navigation to be blocked")
-    except PatchrightError as e:
-        assert "ERR_BLOCKED_BY_CLIENT" in str(e) or "ERR_CONNECTION_CLOSED" in str(e)
+                with pytest.raises(BrowserNavigationError, match=r"ERR_BLOCKED_BY_CLIENT|ERR_CONNECTION_CLOSED"):
+                    await session.navigate(url)
     finally:
         await pool.shutdown()
 
