@@ -284,10 +284,10 @@ class TraceSliceReadyPayload:
 
 @dataclass(frozen=True, slots=True)
 class ApprovalCorrectionPayload:
-    """Payload emitted when user edits/rejects tool calls in the approval flow.
+    """Payload emitted when a user edits tool-call arguments in the approval flow.
 
-    Each correction carries the tool name, decision type, original args,
-    and revised args (for edits) so downstream hooks can learn from the signal.
+    Each correction is a dict with ``tool_name``, ``original_args`` and ``edited_args``.
+    Rejections carry no corrected value and are not emitted.
     """
 
     session_id: str

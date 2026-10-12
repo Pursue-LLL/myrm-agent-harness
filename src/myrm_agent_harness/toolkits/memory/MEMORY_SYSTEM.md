@@ -759,7 +759,7 @@ result = await extractor.extract(messages=messages)
 程序性规则只有两类写入入口，**不存在从原始用户文本直接生成规则的正则路径**：
 
 1. **模型判断**：会话结束的 LLM 抽取（`strategies/extractor.py`，受 No-Op Default 门控）与 Agent 调用 `memory_save_tool`；
-2. **人的明确选择**：用户手动创建并锁定的规则，以及审批中人工 `edit` 触发的纠正学习（`agent/middlewares/approval/correction_learning.py`）：被改写的路径 / 参数 / 命令带着「原值 → 修正值」，信息完整才落库。`reject` 不学习：拒绝不携带修正值，客户端与系统填入的反馈只是固定模板，由它生成的规则是无上下文的永久模板；需要长期放行或拒绝，走审批的 `allowAlways` / `allowDomain` / `grantDirectory` 选项与安全策略的 `command_denylist`。
+2. **人的明确选择**：用户手动创建并锁定的规则。审批决定不会自动写成规则或记忆：`reject` 不携带修正值，客户端与系统填入的反馈只是固定模板，由它生成的规则是无上下文的永久模板；`edit` 的改写通过 `APPROVAL_CORRECTION` 钩子事件交给用户自定义钩子，框架不内置学习器。需要长期放行或拒绝，走审批的 `allowAlways` / `allowDomain` / `grantDirectory` 选项与安全策略的 `command_denylist`。
 
 > 正则只能看到用户措辞的一个片段，无法区分「长期偏好」与「仅当前任务的指令」，也保留不了否定极性，因此不作为规则来源。`ToolRulePriority` 只决定遗忘/归档的耐久度，不决定注入位置：规则统一进入 stable 层的 `Behavioral Rules` 段（`priority=3`），items 按「用户背书（`is_user_locked`）优先」排序，契合 `PromptBudgetGuard` 从后截断的行为，使背书规则最后被丢。
 

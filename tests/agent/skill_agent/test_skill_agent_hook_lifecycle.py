@@ -98,7 +98,7 @@ async def test_framework_hooks_register_once_per_session(agent: SkillAgent) -> N
     agent._init_hook_lifecycle()
 
     assert _callable_names(HookEvent.PRE_TOOL_USE) == ["on_pre_tool_use"]
-    assert _callable_names(HookEvent.APPROVAL_CORRECTION) == ["on_approval_correction"]
+    assert _callable_names(HookEvent.APPROVAL_CORRECTION) == []
 
 
 @pytest.mark.asyncio

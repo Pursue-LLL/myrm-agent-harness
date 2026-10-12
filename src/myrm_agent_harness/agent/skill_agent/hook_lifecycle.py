@@ -56,10 +56,7 @@ class SkillAgentHookLifecycleMixin:
             bootstrap_hook_registry,
             has_callable_hook,
         )
-        from myrm_agent_harness.agent.hooks.types import (
-            CallableHookDefinition,
-            HookEvent,
-        )
+        from myrm_agent_harness.agent.hooks.types import HookEvent
         from myrm_agent_harness.agent.streaming.broadcast.tool_call_broadcaster import (
             register_to_hook_registry,
         )
@@ -79,18 +76,6 @@ class SkillAgentHookLifecycleMixin:
         evo = get_global_evolution_integration()
         if evo is not None:
             evo.register_hooks(registry)
-
-        # Register HITL correction learning hook (converts approval edits/rejects into memory)
-        from myrm_agent_harness.agent.middlewares.approval.correction_learning import (
-            CorrectionLearningHook,
-        )
-
-        if not has_callable_hook(registry, HookEvent.APPROVAL_CORRECTION, "on_approval_correction"):
-            correction_hook = CorrectionLearningHook()
-            registry.register(
-                HookEvent.APPROVAL_CORRECTION,
-                CallableHookDefinition(fn=correction_hook.on_approval_correction),
-            )
 
         logger.debug(" Framework-level hooks activated (%d hooks)", registry.total_count)
 

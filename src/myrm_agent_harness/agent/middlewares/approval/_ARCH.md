@@ -1,7 +1,7 @@
 # approval/
 
 ## Overview
-Tool approval subsystem — Human-in-the-Loop approval flow with correction learning.
+Tool approval subsystem — Human-in-the-Loop approval flow.
 
 ## File & Submodule Index
 
@@ -13,9 +13,8 @@ Tool approval subsystem — Human-in-the-Loop approval flow with correction lear
 | _batch_review.py | Internal | LLM-based security review, runtime domain tracking, and skill hook evaluation. | ✅ |
 | denial_diagnostic_bridge.py | Core | Denial diagnostic bridge connecting security auto-review denials to Dots-style 4-way adaptive resolution. | ✅ |
 | intent_ledger.py | Core | User intent ledger preserving task anchors and directives for reasoning-blind approval classification. | ✅ |
-| correction_learning.py | Core | HITL correction learning — converts approval **edits** into persistent SemanticMemory preferences (path / argument corrections) and ProceduralMemory command rules. Zero LLM cost (deterministic dict-diff classification). Fires on APPROVAL_CORRECTION hook. A rejection is never learned: it carries no corrected value, so durable allow/deny stays with the explicit approval options and the security policy. | ✅ |
 | helpers.py | Core | Denial tracking, **allow-always four scopes** (permission/tool/exact/pattern via `derive_command_pattern`), time-bound auto-revocation (`ttl_seconds` → `expires_at`), session-scoped in-memory isolation, allowlist persistence. | ✅ |
-| middleware.py | Core | Bridges the Permission Engine with the LangGraph tool pipeline. Computes `is_interactive` (not cron, not shadow) and passes to `evaluate_tool_batch`. Auto-denies approval for shadow agents (no UI channel). Fires APPROVAL_CORRECTION hook for user edits only (rejections stay in the audit trail). | ✅ |
+| middleware.py | Core | Bridges the Permission Engine with the LangGraph tool pipeline. Computes `is_interactive` (not cron, not shadow) and passes to `evaluate_tool_batch`. Auto-denies approval for shadow agents (no UI channel). Fires APPROVAL_CORRECTION hook for user edits only (rejections stay in the audit trail); no built-in handler is registered, the event is an extension point for user-defined hooks. | ✅ |
 | rate_limiter.py | Core | Approval rate limiter. Independent from core approval logic for easy testing and configuration. | ✅ |
 | scheduler.py | Core | HITL timeout scheduler — auto-resumes agents when approval or Web clarification requests expire. Approval uses the global decision format; clarification uses `resume_value_override` (empty dict → no_answer). Idempotent `resolve_if_first` prevents race conditions between timeout auto-resume and manual user resume. | ✅ |
 
@@ -23,4 +22,3 @@ Tool approval subsystem — Human-in-the-Loop approval flow with correction lear
 
 - `observability`
 - `core.hooks` (APPROVAL_CORRECTION event)
-- `toolkits.memory` (SemanticMemory, ProceduralMemory persistence)

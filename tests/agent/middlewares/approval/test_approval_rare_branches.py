@@ -5,7 +5,7 @@ managed-policy blocking, edited-shell block reason for non-shell tools,
 directory grant via Path outside allowed zones, blocked shell edit) and
 middleware branches (runtime config fallback, subagent task_id wiring,
 guidance message extension, global decision normalization, correction
-hook SSE dispatch, subagent fallback with metrics registry).
+hook firing, subagent fallback with metrics registry).
 """
 
 from __future__ import annotations
@@ -686,7 +686,7 @@ class TestMiddlewareRareBranches:
         assert messages[-1].additional_kwargs.get("approval_guidance") is True
 
     @pytest.mark.asyncio
-    async def test_correction_hook_sse_dispatch(self, monkeypatch) -> None:
+    async def test_edit_decision_fires_correction_hook(self, monkeypatch) -> None:
         monkeypatch.setattr(
             "myrm_agent_harness.agent.middlewares.approval.middleware.interrupt",
             lambda payload: {"decisions": [{"type": "edit", "args": {"command": "echo done"}}]},
@@ -716,20 +716,11 @@ class TestMiddlewareRareBranches:
         set_approval_session("test-session")
         set_workspace_root("/tmp")
 
-        fire_result = SimpleNamespace(
-            results=[SimpleNamespace(output="learned summary")]
-        )
-        with (
-            patch(
-                "myrm_agent_harness.agent.hooks.fire_hook",
-                new_callable=AsyncMock,
-                return_value=fire_result,
-            ),
-            patch(
-                "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
-                new_callable=AsyncMock,
-            ) as mock_dispatch,
-        ):
+        with patch(
+            "myrm_agent_harness.agent.hooks.fire_hook",
+            new_callable=AsyncMock,
+            return_value=SimpleNamespace(results=[]),
+        ) as fire_hook:
             middleware = ToolApprovalMiddleware()
             state = {
                 "messages": [
@@ -748,7 +739,7 @@ class TestMiddlewareRareBranches:
             }
             result = await middleware.aafter_model(state, _Runtime())
         assert result is not None
-        assert mock_dispatch.await_count == 1
+        assert fire_hook.await_count == 1
 
     @pytest.mark.asyncio
     async def test_correction_hook_failure_silent(self, monkeypatch) -> None:
@@ -891,74 +882,6 @@ class TestMiddlewareRareBranches:
 
         (_event, payload) = fire_hook.await_args.args
         assert [c["tool_name"] for c in payload["corrections"]] == ["bash_code_execute_tool"]
-
-    @pytest.mark.asyncio
-    async def test_correction_hook_sse_dispatch_failure_silent(
-        self, monkeypatch
-    ) -> None:
-        """dispatch_custom_event raising → swallowed, result still returned."""
-        monkeypatch.setattr(
-            "myrm_agent_harness.agent.middlewares.approval.middleware.interrupt",
-            lambda payload: {"decisions": [{"type": "edit", "args": {"command": "echo done"}}]},
-        )
-        monkeypatch.setattr(
-            "myrm_agent_harness.agent.middlewares.approval.middleware.get_is_subagent",
-            lambda: False,
-        )
-        monkeypatch.setattr(
-            "myrm_agent_harness.agent.middlewares.approval.middleware.get_is_shadow_agent",
-            lambda: False,
-        )
-        from myrm_agent_harness.agent.middlewares.approval import (
-            set_approval_session,
-            set_security_config,
-            set_workspace_root,
-        )
-
-        set_security_config(
-            SecurityConfig(
-                ruleset=(
-                    PermissionRule("*", "*", PermissionAction.ALLOW),
-                    PermissionRule("code_interpreter", "*", PermissionAction.ASK),
-                )
-            )
-        )
-        set_approval_session("test-session")
-        set_workspace_root("/tmp")
-
-        fire_result = SimpleNamespace(
-            results=[SimpleNamespace(output="learned summary")]
-        )
-        with (
-            patch(
-                "myrm_agent_harness.agent.hooks.fire_hook",
-                new_callable=AsyncMock,
-                return_value=fire_result,
-            ),
-            patch(
-                "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
-                new_callable=AsyncMock,
-                side_effect=RuntimeError("sse down"),
-            ),
-        ):
-            middleware = ToolApprovalMiddleware()
-            state = {
-                "messages": [
-                    AIMessage(
-                        content="",
-                        tool_calls=[
-                            ToolCall(
-                                type="tool_call",
-                                name="bash_code_execute_tool",
-                                args={"command": "python3 setup.py install"},
-                                id="c1",
-                            )
-                        ],
-                    )
-                ]
-            }
-            result = await middleware.aafter_model(state, _Runtime())
-        assert result is not None
 
     @pytest.mark.asyncio
     async def test_subagent_fallback_deny_metrics_import_failure(

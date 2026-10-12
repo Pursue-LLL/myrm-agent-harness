@@ -150,7 +150,6 @@ class AgentEventType(StrEnum):
     LOCATOR_SELF_HEALED = "locator_self_healed"
     BROWSER_TAKEOVER_REQUESTED = "browser_takeover_requested"
     BROWSER_TAKEOVER_COMPLETED = "browser_takeover_completed"
-    CORRECTION_LEARNED = "correction_learned"
     VERIFICATION_VERDICT = "verification_verdict"
     COUNCIL_PHASE = "council_phase"
     CAPABILITY_GAP = "capability_gap"

@@ -288,7 +288,7 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
             config=config,
         )
 
-        # Fire APPROVAL_CORRECTION hook for edit decisions so memory system can learn
+        # Fire APPROVAL_CORRECTION hook for edit decisions so user-defined hooks can react
         await self._fire_correction_hook(decisions, pending_approval, session_key)
 
         last_ai_msg.tool_calls = revised_tool_calls
@@ -339,8 +339,8 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
         """Fire APPROVAL_CORRECTION hook for decisions where the user edited tool arguments.
 
         A rejection carries no corrected value and is not reported; it stays visible
-        through the audit trail. Also emits a CORRECTION_LEARNED SSE event so the
-        frontend can show feedback.
+        through the audit trail. No built-in handler is registered: the event is an
+        extension point for user-defined hooks.
         """
         corrections: list[dict[str, object]] = []
 
@@ -368,25 +368,10 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
             from myrm_agent_harness.agent.hooks import fire_hook
             from myrm_agent_harness.core.hooks.types import HookEvent
 
-            result = await fire_hook(
+            await fire_hook(
                 HookEvent.APPROVAL_CORRECTION,
                 {"session_id": session_key, "corrections": tuple(corrections)},
             )
-
-            # Emit SSE event with learning summaries for frontend toast
-            summaries = [r.output for r in result.results if r.output] if result.results else []
-            if summaries:
-                try:
-                    from myrm_agent_harness.utils.event_utils import (
-                        dispatch_custom_event,
-                    )
-
-                    await dispatch_custom_event(
-                        "correction_learned",
-                        {"summaries": summaries, "session_id": session_key},
-                    )
-                except Exception:
-                    pass
         except Exception as e:
             logger.warning("[APPROVAL] Failed to fire correction hook: %s", e)
 
