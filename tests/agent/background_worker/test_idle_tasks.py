@@ -409,11 +409,12 @@ async def test_cognitive_subsumption_passes_consolidation_llm_by_signature() -> 
 
 async def _run_task_collecting_events(
     task: IdleTaskRecord,
-    manager: MagicMock,
+    manager: MagicMock | None,
     extra_patches: tuple[object, ...] = (),
+    registry: AsyncMock | None = None,
 ) -> list[IdleTaskProgressEvent]:
     """Run one idle task through ``default_idle_callback`` and return every published event."""
-    registry = AsyncMock(spec=IdleTaskRegistry)
+    registry = registry or AsyncMock(spec=IdleTaskRegistry)
     registry.acquire_next.return_value = task
     scheduler = AsyncMock()
     scheduler.report_outcome = MagicMock()
@@ -472,3 +473,128 @@ async def test_cognitive_subsumption_notification_carries_count_and_ids_not_text
     assert notification.data["count"] == 2
     assert notification.data["subsumed_ids"] == ["m1", "m2"]
     assert not any(hasattr(e, "message") for e in events)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("new_knowledge", [42, ["evolved skill body"], "", None])
+async def test_cognitive_subsumption_skips_unusable_new_knowledge(new_knowledge: object) -> None:
+    task = IdleTaskRecord(
+        id=32,
+        session_id="global",
+        task_type="cognitive_subsumption",
+        payload={"new_knowledge": new_knowledge},
+        status="running",
+        created_at=0.0,
+    )
+    manager = MagicMock()
+    manager._consolidation_llm = MagicMock(spec=BaseChatModel)
+    find_patch = patch(
+        "myrm_agent_harness.toolkits.memory.strategies.subsumption.find_subsumed_memories",
+        autospec=True,
+        return_value=[],
+    )
+
+    with find_patch as mock_find:
+        events = await _run_task_collecting_events(task, manager)
+
+    mock_find.assert_not_awaited()
+    assert not any(e.status == "notification" for e in events)
+
+
+def _record(task_type: str, payload: dict[str, object] | None = None, task_id: int = 50) -> IdleTaskRecord:
+    return IdleTaskRecord(
+        id=task_id,
+        session_id="global",
+        task_type=task_type,
+        payload=payload or {},
+        status="running",
+        created_at=0.0,
+    )
+
+
+@pytest.mark.asyncio
+async def test_unknown_task_type_is_completed_with_an_unhandled_result() -> None:
+    registry = AsyncMock(spec=IdleTaskRegistry)
+
+    events = await _run_task_collecting_events(_record("retired_task", task_id=40), MagicMock(), registry=registry)
+
+    registry.mark_completed.assert_awaited_once_with(40)
+    registry.mark_error.assert_not_awaited()
+    completed = next(e for e in events if e.status == "completed")
+    assert completed.data == {"unhandled": True}
+
+
+@pytest.mark.asyncio
+async def test_context_compaction_task_runs_the_registered_handler(monkeypatch: pytest.MonkeyPatch) -> None:
+    handler = AsyncMock(return_value={"compacted": True})
+    monkeypatch.setattr(idle_tasks, "_context_compaction_handler", handler)
+    registry = AsyncMock(spec=IdleTaskRegistry)
+
+    events = await _run_task_collecting_events(
+        _record("context_compaction", {"chat_id": "chat_9"}, task_id=41), MagicMock(), registry=registry
+    )
+
+    handler.assert_awaited_once_with("chat_9", "global")
+    registry.mark_completed.assert_awaited_once_with(41)
+    completed = next(e for e in events if e.status == "completed")
+    assert completed.data == {"compacted": True, "chat_id": "chat_9"}
+
+
+@pytest.mark.asyncio
+async def test_consolidation_without_memory_manager_is_simulated() -> None:
+    registry = AsyncMock(spec=IdleTaskRegistry)
+
+    events = await _run_task_collecting_events(_record("cognitive_consolidation", task_id=42), None, registry=registry)
+
+    registry.mark_completed.assert_awaited_once_with(42)
+    assert next(e for e in events if e.status == "completed").data == {"simulated": True}
+
+
+@pytest.mark.asyncio
+async def test_consolidation_errors_mark_the_task_failed() -> None:
+    registry = AsyncMock(spec=IdleTaskRegistry)
+    failed_run = MagicMock(errors=["boom"], skipped=False)
+    consolidator = MagicMock()
+    consolidator.run_consolidation = AsyncMock(return_value=failed_run)
+    consolidator_patch = patch(
+        "myrm_agent_harness.agent.background_worker.idle_tasks.CognitiveConsolidator", return_value=consolidator
+    )
+
+    events = await _run_task_collecting_events(
+        _record("cognitive_consolidation", task_id=43), MagicMock(), (consolidator_patch,), registry=registry
+    )
+
+    registry.mark_error.assert_awaited_once_with(43)
+    registry.mark_completed.assert_not_awaited()
+    assert any(e.status == "error" for e in events)
+
+
+@pytest.mark.asyncio
+async def test_cognitive_subsumption_without_consolidation_llm_is_skipped() -> None:
+    registry = AsyncMock(spec=IdleTaskRegistry)
+    manager = MagicMock()
+    manager._consolidation_llm = None
+
+    events = await _run_task_collecting_events(
+        _record("cognitive_subsumption", {"new_knowledge": "evolved skill body"}, task_id=44),
+        manager,
+        registry=registry,
+    )
+
+    registry.mark_completed.assert_awaited_once_with(44)
+    completed = next(e for e in events if e.status == "completed")
+    assert completed.data == {"skipped": True, "reason": "No consolidation_llm configured"}
+
+
+@pytest.mark.asyncio
+async def test_pending_task_is_not_acquired_while_a_cooperative_pause_is_active() -> None:
+    registry = AsyncMock(spec=IdleTaskRegistry)
+    pause_signal = MagicMock(is_pause_requested=True, pause_reason="user typing")
+
+    with patch(
+        "myrm_agent_harness.agent.background_worker.idle_tasks.get_global_pause_signal", return_value=pause_signal
+    ):
+        ran = await default_idle_callback("global", registry)
+
+    assert ran is False
+    registry.acquire_next.assert_not_awaited()
