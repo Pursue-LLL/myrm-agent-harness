@@ -2,6 +2,22 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-12-003 · `CodeExecutor` 的 shell 默认文件操作把文件名与 glob 模式当作 shell 语法：名字含单引号的文件读写失败，构造的名字或模式可执行任意命令
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-12 |
+| **修复时间** | 2026-10-12 |
+| **症状** | 只实现 `execute` / `execute_bash` 的自定义执行器上，`read_file("it's.txt")` 报 `unexpected EOF while looking for matching '`；文件名 `x'; touch PWNED; echo '` 会让读取执行 `touch PWNED`；`list_files(".", "*'; touch PWNED2; echo '")` 同样执行注入命令 |
+| **关联产品** | myrm-agent-harness `toolkits/code_execution/executors/base.py`（仓内生产执行器 `LocalExecutor` 全量覆盖这些方法，不受影响；受影响面仅为继承默认实现的第三方执行器） |
+| **根因** | 路径用 `'{safe}'`、模式用 `'{pattern}'` 手工拼接单引号；`resolve_path` 只校验工作区边界，不转义引号 |
+| **修复** | 所有路径与模式统一经 `shlex.quote`；`base64` 读取改用 stdin 重定向（`base64 < file`），在 GNU 与 BSD 实现上行为一致 |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | `base64 <file>` 位置参数在 BSD/macOS 上不被接受，仅在 Linux 沙箱内可用；不同 `base64` 实现的参数约定不同 |
+| **回归** | `tests/toolkits/code_execution/executors/test_base_executor_shell_quoting.py`（带引号文件名的读写追加删除、`mkdir`/`is_dir`、`list_files` 模式均按数据处理且不产生注入副作用）；回退验证：恢复旧拼接后 4 个用例全部失败 |
+| **代码位置** | `executors/base.py::CodeExecutor`（`read_file`、`read_file_bytes`、`write_file`、`write_file_bytes`、`append_file`、`delete_file`、`file_exists`、`is_file`、`is_dir`、`mkdir`、`list_files`） |
+
 ### BUG-HARNESS-2026-10-12-002 · 没有 doctype 的页面被判为“被模态遮罩阻塞”：html/body 因覆盖视口 50% 以上被当成遮罩，带 label 的输入框被标 `[blocked]` 且拿不到 ref
 
 | 字段 | 内容 |

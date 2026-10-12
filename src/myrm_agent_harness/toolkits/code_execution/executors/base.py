@@ -168,7 +168,7 @@ class CodeExecutor(ABC):
             import gzip
             from base64 import b64decode
 
-            result = await self._exec_bash(f"base64 '{safe}'")
+            result = await self._exec_bash(f"base64 < {shlex.quote(safe)}")
             if not result.success:
                 self._log_context_file_access(safe, success=False)
                 raise FileNotFoundError(f"Cannot read '{path}': {result.error or result.stderr}")
@@ -176,7 +176,7 @@ class CodeExecutor(ABC):
             compressed_data = b64decode(result.stdout.strip())
             return gzip.decompress(compressed_data).decode("utf-8")
 
-        result = await self._exec_bash(f"cat '{safe}'")
+        result = await self._exec_bash(f"cat {shlex.quote(safe)}")
         if not result.success:
             self._log_context_file_access(safe, success=False)
             raise FileNotFoundError(f"Cannot read '{path}': {result.error or result.stderr}")
@@ -185,7 +185,7 @@ class CodeExecutor(ABC):
     async def read_file_bytes(self, path: str) -> bytes:
         """Read a file as bytes."""
         safe = await self.resolve_path(path)
-        result = await self._exec_bash(f"base64 '{safe}'")
+        result = await self._exec_bash(f"base64 < {shlex.quote(safe)}")
         if not result.success:
             raise FileNotFoundError(f"Cannot read '{path}': {result.error or result.stderr}")
         from base64 import b64decode
@@ -199,7 +199,7 @@ class CodeExecutor(ABC):
         safe = await self.resolve_path(path)
         parent = str(Path(safe).parent)
         encoded = b64encode(content.encode()).decode()
-        await self._exec_bash(f"mkdir -p '{parent}' && echo '{encoded}' | base64 -d > '{safe}'")
+        await self._exec_bash(f"mkdir -p {shlex.quote(parent)} && echo '{encoded}' | base64 -d > {shlex.quote(safe)}")
 
     async def write_file_bytes(self, path: str, content: bytes) -> None:
         """Write binary content to a file."""
@@ -208,7 +208,7 @@ class CodeExecutor(ABC):
         safe = await self.resolve_path(path)
         parent = str(Path(safe).parent)
         encoded = b64encode(content).decode()
-        await self._exec_bash(f"mkdir -p '{parent}' && echo '{encoded}' | base64 -d > '{safe}'")
+        await self._exec_bash(f"mkdir -p {shlex.quote(parent)} && echo '{encoded}' | base64 -d > {shlex.quote(safe)}")
 
     async def write_file_atomic(self, path: str, content: str) -> None:
         """Atomically replace a text file through a same-directory temporary file."""
@@ -245,38 +245,38 @@ class CodeExecutor(ABC):
 
         safe = await self.resolve_path(path)
         encoded = b64encode(content.encode()).decode()
-        await self._exec_bash(f"echo '{encoded}' | base64 -d >> '{safe}'")
+        await self._exec_bash(f"echo '{encoded}' | base64 -d >> {shlex.quote(safe)}")
 
     async def delete_file(self, path: str) -> None:
         """Delete a file."""
         safe = await self.resolve_path(path)
-        await self._exec_bash(f"rm -f '{safe}'")
+        await self._exec_bash(f"rm -f {shlex.quote(safe)}")
 
     async def file_exists(self, path: str) -> bool:
         """Check if a file or directory exists."""
         safe = await self.resolve_path(path)
-        result = await self._exec_bash(f"test -e '{safe}' && echo 1 || echo 0")
+        result = await self._exec_bash(f"test -e {shlex.quote(safe)} && echo 1 || echo 0")
         return result.stdout.strip() == "1"
 
     async def is_file(self, path: str) -> bool:
         safe = await self.resolve_path(path)
-        result = await self._exec_bash(f"test -f '{safe}' && echo 1 || echo 0")
+        result = await self._exec_bash(f"test -f {shlex.quote(safe)} && echo 1 || echo 0")
         return result.stdout.strip() == "1"
 
     async def is_dir(self, path: str) -> bool:
         safe = await self.resolve_path(path)
-        result = await self._exec_bash(f"test -d '{safe}' && echo 1 || echo 0")
+        result = await self._exec_bash(f"test -d {shlex.quote(safe)} && echo 1 || echo 0")
         return result.stdout.strip() == "1"
 
     async def mkdir(self, path: str) -> None:
         """Create a directory (including parents)."""
         safe = await self.resolve_path(path)
-        await self._exec_bash(f"mkdir -p '{safe}'")
+        await self._exec_bash(f"mkdir -p {shlex.quote(safe)}")
 
     async def list_files(self, path: str = ".", pattern: str = "*") -> list[str]:
         """List files matching a pattern."""
         safe = await self.resolve_path(path)
-        result = await self._exec_bash(f"find '{safe}' -maxdepth 1 -name '{pattern}' -type f")
+        result = await self._exec_bash(f"find {shlex.quote(safe)} -maxdepth 1 -name {shlex.quote(pattern)} -type f")
         return [line for line in result.stdout.strip().splitlines() if line] if result.success else []
 
     async def resolve_path(self, relative_path: str) -> str:
