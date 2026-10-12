@@ -58,7 +58,7 @@ class VerifiableProvenanceManager:
         extra_metadata: Dict[str, str] | None = None,
     ) -> PhysicalResidencyProof:
         """Validate context under fail-closed contract, then generate physical residency proof."""
-        self._guard.validate_request_context(context, file_path)
+        self._guard.validate_request_context(context, file_path, self._prover.volume_root_boundary)
         assert context is not None  # Guaranteed by validate_request_context
         return self._prover.generate_residency_proof(file_path, context, extra_metadata)
 
@@ -68,7 +68,7 @@ class VerifiableProvenanceManager:
         context: Optional[TenantSandboxContext],
     ) -> DestructionReceipt:
         """Validate context under fail-closed contract, then execute multi-pass physical purge."""
-        self._guard.validate_request_context(context, file_path)
+        self._guard.validate_request_context(context, file_path, self._prover.volume_root_boundary)
         assert context is not None  # Guaranteed by validate_request_context
         return self._purge_engine.purge_storage_file(file_path, context)
 

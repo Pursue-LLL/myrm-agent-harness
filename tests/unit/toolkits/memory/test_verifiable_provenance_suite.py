@@ -162,3 +162,91 @@ def test_clean_memory_text_unaltered(manager: VerifiableProvenanceManager) -> No
     assert result.intercepted is False
     assert result.has_child_privacy_violation is False
     assert result.sanitized_text == normal_text
+
+
+def test_physical_purge_cascaded_sqlite_companion_files(
+    manager: VerifiableProvenanceManager,
+    temp_volume_root: Path,
+) -> None:
+    """Verify that SQLite companion files (-wal, -shm, -journal) are cascadedly overwritten and purged."""
+    main_db = temp_volume_root / "app_memory.db"
+    wal_file = temp_volume_root / "app_memory.db-wal"
+    shm_file = temp_volume_root / "app_memory.db-shm"
+    journal_file = temp_volume_root / "app_memory.db-journal"
+
+    main_db.write_text("sqlite-primary-database-content-12345")
+    wal_file.write_text("uncommitted-wal-log-record-67890")
+    shm_file.write_text("index-shared-memory-cache-abcde")
+    journal_file.write_text("rollback-journal-data-xyz")
+
+    valid_token = manager.guard.generate_token("tenant-cascaded", "sb-wal-1", "vol-wal-1")
+    ctx = TenantSandboxContext(
+        tenant_id="tenant-cascaded",
+        sandbox_id="sb-wal-1",
+        volume_id="vol-wal-1",
+        environment_token=valid_token,
+    )
+
+    receipt = manager.verify_and_purge_storage(main_db, ctx)
+    assert receipt.status == PurgeVerificationStatus.VERIFIED_DESTROYED
+    assert receipt.bytes_overwritten > 0
+
+    assert not main_db.exists()
+    assert not wal_file.exists()
+    assert not shm_file.exists()
+    assert not journal_file.exists()
+
+
+def test_pre_ingest_pii_shield_chinese_patterns(manager: VerifiableProvenanceManager) -> None:
+    """Verify pre-ingest interception of Chinese child identities, residential addresses, and ID cards."""
+    zh_text = (
+        "备忘录：我儿子叫张小明，家住：北京市海淀区中关村南大街1号院3号楼。 "
+        "身份证号码：110108199003072345，银行卡号：6222020200112233。"
+    )
+
+    result = manager.inspect_memory_content(zh_text)
+    assert result.intercepted is True
+    assert result.has_child_privacy_violation is True
+    assert PiiCategory.CHILD_IDENTITY in result.detected_categories
+    assert PiiCategory.PRECISE_RESIDENTIAL_ADDRESS in result.detected_categories
+    assert PiiCategory.FINANCIAL_INSTRUMENT in result.detected_categories
+    assert PiiCategory.GOVERNMENT_ID in result.detected_categories
+
+    assert "[REDACTED_CHILD_IDENTITY]" in result.sanitized_text
+    assert "[REDACTED_RESIDENTIAL_ADDRESS]" in result.sanitized_text
+    assert "[REDACTED_FINANCIAL_INSTRUMENT]" in result.sanitized_text
+    assert "[REDACTED_GOVERNMENT_ID]" in result.sanitized_text
+    assert "张小明" not in result.sanitized_text
+    assert "中关村南大街1号院" not in result.sanitized_text
+    assert "110108199003072345" not in result.sanitized_text
+    assert "6222020200112233" not in result.sanitized_text
+
+
+def test_fail_closed_guard_symlink_escape_confinement(
+    manager: VerifiableProvenanceManager,
+    temp_volume_root: Path,
+) -> None:
+    """Verify that a symlink pointing outside volume boundary is strictly caught and rejected."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as outside_dir:
+        outside_file = Path(outside_dir) / "sensitive_host.conf"
+        outside_file.write_text("super-secret-host-config")
+
+        symlink_inside = temp_volume_root / "link_to_outside.db"
+        try:
+            symlink_inside.symlink_to(outside_file)
+        except OSError:
+            pytest.skip("Symlink creation not permitted on this host environment")
+
+        valid_token = manager.guard.generate_token("tenant-symlink", "sb-sym-1", "vol-sym-1")
+        ctx = TenantSandboxContext(
+            tenant_id="tenant-symlink",
+            sandbox_id="sb-sym-1",
+            volume_id="vol-sym-1",
+            environment_token=valid_token,
+        )
+
+        with pytest.raises(FailClosedSecurityException) as exc_info:
+            manager.verify_and_prove_residency(symlink_inside, ctx)
+        assert "escapes sandbox volume boundary" in str(exc_info.value)
+

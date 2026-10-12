@@ -26,6 +26,7 @@ class FailClosedMemoryGuard:
         self,
         context: Optional[TenantSandboxContext],
         target_path: Path,
+        volume_root_boundary: Optional[Path] = None,
     ) -> None:
         """Validate context against strict boundary rules without falling back to defaults."""
         if context is None:
@@ -66,6 +67,17 @@ class FailClosedMemoryGuard:
                 f"Access denied: Target path '{resolved_path}' contains prohibited shared/default keywords.",
                 context,
             )
+
+        # Kernel-level directory topology confinement against symlink escape
+        if volume_root_boundary is not None:
+            resolved_boundary = volume_root_boundary.resolve()
+            try:
+                resolved_path.relative_to(resolved_boundary)
+            except ValueError:
+                raise FailClosedSecurityException(
+                    f"Access denied: Target path '{resolved_path}' escapes sandbox volume boundary '{resolved_boundary}'.",
+                    context,
+                )
 
     def generate_token(self, tenant_id: str, sandbox_id: str, volume_id: str) -> str:
         """Generate cryptographically tied environment token for dedicated sandbox volume."""

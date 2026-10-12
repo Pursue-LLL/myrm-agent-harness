@@ -20,6 +20,11 @@ class PhysicalStorageResidencyProver:
     def __init__(self, volume_root_boundary: Path) -> None:
         self._volume_root = volume_root_boundary.resolve()
 
+    @property
+    def volume_root_boundary(self) -> Path:
+        """Physical mount root for dedicated unshared sandbox volume."""
+        return self._volume_root
+
     def generate_residency_proof(
         self,
         file_path: Path,

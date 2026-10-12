@@ -40,7 +40,46 @@ class PhysicalPurgeDestructionEngine:
         file_size = resolved.stat().st_size
         receipt_id = f"rcpt-{uuid.uuid4().hex[:12]}"
 
-        # Execute multi-pass overwrite (Pass 1: zeros, Pass 2: ones, Pass 3: random)
+        # Helper to execute multi-pass overwrite and unlink on a single target
+        def _purge_single_file(target: Path) -> int:
+            if not target.exists() or not target.is_file():
+                return 0
+            size = target.stat().st_size
+            if size == 0:
+                try:
+                    target.unlink()
+                except OSError:
+                    pass
+                return 0
+
+            written = 0
+            with target.open("r+b") as f:
+                for p in range(self._overwrite_passes):
+                    f.seek(0)
+                    if p % 3 == 0:
+                        pattern = b"\x00" * 4096
+                    elif p % 3 == 1:
+                        pattern = b"\xff" * 4096
+                    else:
+                        pattern = os.urandom(4096)
+
+                    rem = size
+                    while rem > 0:
+                        chunk_len = min(rem, len(pattern))
+                        f.write(pattern[:chunk_len])
+                        written += chunk_len
+                        rem -= chunk_len
+
+                    f.flush()
+                    os.fsync(f.fileno())
+
+            try:
+                target.unlink()
+            except OSError:
+                pass
+            return written
+
+        # 1. Overwrite primary target file
         bytes_written = 0
         with resolved.open("r+b") as target_file:
             for p in range(self._overwrite_passes):
@@ -69,12 +108,17 @@ class PhysicalPurgeDestructionEngine:
                 post_purge_hasher.update(chunk)
         destruction_digest = post_purge_hasher.hexdigest()
 
-        # Unlink the physical file
+        # Unlink the physical primary file
         try:
             resolved.unlink()
             status = PurgeVerificationStatus.VERIFIED_DESTROYED
         except OSError:
             status = PurgeVerificationStatus.REWRITE_FAILED
+
+        # 2. Cascaded purge of SQLite auxiliary companion files (-wal, -shm, -journal)
+        for suffix in ("-wal", "-shm", "-journal"):
+            companion = resolved.parent / f"{resolved.name}{suffix}"
+            bytes_written += _purge_single_file(companion)
 
         return DestructionReceipt(
             receipt_id=receipt_id,
