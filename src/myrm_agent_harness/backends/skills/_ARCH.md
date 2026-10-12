@@ -8,7 +8,7 @@ Skill backend implementations — read/write/discovery protocols, local/memory/s
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Public re-exports for skill backends, protocols, permissions, and decorators. | ✅ |
-| _runtime.py | Internal | Builds runtime SkillMetadata from frontmatter plus computed fields. | ✅ |
+| _runtime.py | Internal | Builds runtime SkillMetadata from frontmatter plus computed fields; `evaluate_requires` is the single dependency verdict (bins/env/config), counting caller-supplied env alongside the process environment, and is re-exported by `__init__.py`. | ✅ |
 | _utils.py | Internal | SKILL.md frontmatter parsing and shared parsing utilities. | ✅ |
 | composite.py | Core | Routes skill requests across multiple backends. A prefixed key (`/user/x`) goes to its route alone; any other key — the bare names and storage ids that `list_skills` returns — is offered to each backend in listing priority order (later routes first, default last) until one owns it, so every listed skill can be read, with its resources. | ✅ |
 | config_version.py | Core | MYRM_DATA_DIR file-backed skill config version for hot-reload polling (re-exported by server). | ✅ |

@@ -14,6 +14,7 @@ from myrm_agent_harness.backends.skills._runtime import (
     build_skill_metadata,
     check_requirements,
     compute_content_hash,
+    evaluate_requires,
 )
 from myrm_agent_harness.backends.skills._utils import SkillFrontmatter
 from myrm_agent_harness.backends.skills.types import (
@@ -107,6 +108,57 @@ class TestCheckRequirements:
         assert "CLI: missing-bin" in reason
         assert "ENV: MISSING_ENV_VAR_XYZ" in reason
         assert "CONFIG: /no/such/file" in reason
+
+
+class TestEvaluateRequires:
+    """evaluate_requires() — dependency check that also honours caller-supplied env."""
+
+    def test_none_requires_is_available(self) -> None:
+        assert evaluate_requires(None) == (True, None)
+
+    def test_extra_env_satisfies_a_missing_variable(self) -> None:
+        requires = SkillRequires(env=["EVAL_REQUIRES_ONLY_IN_EXTRA"])
+        available, reason = evaluate_requires(requires, {"EVAL_REQUIRES_ONLY_IN_EXTRA": "secret"})
+        assert (available, reason) == (True, None)
+
+    def test_blank_extra_env_does_not_satisfy(self) -> None:
+        requires = SkillRequires(env=["EVAL_REQUIRES_BLANK_IN_EXTRA"])
+        available, reason = evaluate_requires(requires, {"EVAL_REQUIRES_BLANK_IN_EXTRA": "   "})
+        assert available is False
+        assert reason == "Missing: ENV: EVAL_REQUIRES_BLANK_IN_EXTRA"
+
+    def test_extra_env_for_another_variable_does_not_satisfy(self) -> None:
+        requires = SkillRequires(env=["EVAL_REQUIRES_WANTED"])
+        available, reason = evaluate_requires(requires, {"EVAL_REQUIRES_OTHER": "x"})
+        assert available is False
+        assert reason == "Missing: ENV: EVAL_REQUIRES_WANTED"
+
+    @patch.dict("os.environ", {"EVAL_REQUIRES_FROM_PROCESS": "secret"}, clear=False)
+    def test_process_env_still_satisfies_without_extra_env(self) -> None:
+        requires = SkillRequires(env=["EVAL_REQUIRES_FROM_PROCESS"])
+        assert evaluate_requires(requires) == (True, None)
+
+    @patch("shutil.which", return_value=None)
+    def test_extra_env_does_not_hide_missing_bins_or_config(self, mock_which: object) -> None:
+        requires = SkillRequires(
+            bins=["missing-bin"],
+            env=["EVAL_REQUIRES_PRESENT"],
+            config=["/no/such/file"],
+        )
+        available, reason = evaluate_requires(requires, {"EVAL_REQUIRES_PRESENT": "x"})
+        assert available is False
+        assert reason == "Missing: CLI: missing-bin, CONFIG: /no/such/file"
+
+    @patch("shutil.which", return_value=None)
+    def test_reason_matches_check_requirements(self, mock_which: object) -> None:
+        requires = SkillRequires(bins=["a"], env=["EVAL_REQUIRES_MISSING_B"], config=["/c"])
+        fm = _make_frontmatter(requires=requires)
+        assert evaluate_requires(requires) == check_requirements(fm)
+
+    def test_exported_from_backends_skills_facade(self) -> None:
+        from myrm_agent_harness.backends import skills
+
+        assert skills.evaluate_requires is evaluate_requires
 
 
 class TestComputeContentHash:

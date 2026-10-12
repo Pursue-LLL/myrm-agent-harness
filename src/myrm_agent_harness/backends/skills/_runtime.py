@@ -7,7 +7,8 @@
 
 [OUTPUT]
 - build_skill_metadata(): 构建完整 SkillMetadata 的工厂函数（含 token 预算超制钳位）
-- check_requirements(): 检查技能依赖是否满足
+- evaluate_requires(): 按进程环境（可叠加调用方提供的 env）检查声明的依赖是否满足
+- check_requirements(): 基于 frontmatter 对进程环境检查技能依赖
 - compute_content_hash(): 计算内容 SHA-256 哈希
 - scan_skill_content(): 技能内容安全扫描（软检测）
 
@@ -22,6 +23,7 @@ import hashlib
 import logging
 import os
 import shutil
+from collections.abc import Mapping
 from pathlib import Path
 
 from myrm_agent_harness.backends.skills._utils import SkillFrontmatter
@@ -32,6 +34,7 @@ from myrm_agent_harness.backends.skills.scanning import (
 )
 from myrm_agent_harness.backends.skills.types import (
     SkillMetadata,
+    SkillRequires,
     SkillTrust,
 )
 from myrm_agent_harness.utils.text_utils import get_token_count
@@ -39,29 +42,42 @@ from myrm_agent_harness.utils.text_utils import get_token_count
 logger = logging.getLogger(__name__)
 
 
-def check_requirements(frontmatter: SkillFrontmatter) -> tuple[bool, str | None]:
-    """Check if skill dependencies are satisfied.
+def evaluate_requires(
+    requires: SkillRequires | None,
+    extra_env: Mapping[str, str] | None = None,
+) -> tuple[bool, str | None]:
+    """Check whether a skill's declared dependencies are satisfied.
+
+    A required variable counts as set when it is present in the process
+    environment or non-blank in ``extra_env`` (values the host keeps outside
+    the process environment, e.g. keys saved in a settings UI).
 
     Returns:
         (available, unavailable_reason) tuple
     """
-    if frontmatter.requires is None:
+    if requires is None:
         return True, None
 
     missing: list[str] = []
-    for b in frontmatter.requires.bins:
+    for b in requires.bins:
         if not shutil.which(b):
             missing.append(f"CLI: {b}")
-    for env_var in frontmatter.requires.env:
-        if not os.environ.get(env_var):
+    for env_var in requires.env:
+        extra_value = extra_env.get(env_var) if extra_env else None
+        if not os.environ.get(env_var) and not (extra_value and extra_value.strip()):
             missing.append(f"ENV: {env_var}")
-    for cfg in frontmatter.requires.config:
+    for cfg in requires.config:
         if not Path(cfg).exists():
             missing.append(f"CONFIG: {cfg}")
 
     if missing:
         return False, f"Missing: {', '.join(missing)}"
     return True, None
+
+
+def check_requirements(frontmatter: SkillFrontmatter) -> tuple[bool, str | None]:
+    """Check if skill dependencies are satisfied against the process environment."""
+    return evaluate_requires(frontmatter.requires)
 
 
 def compute_content_hash(content: str) -> str:

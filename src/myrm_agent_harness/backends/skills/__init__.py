@@ -10,6 +10,7 @@
 - memory::InMemorySkillBackend (POS: 内存技能后端，用于动态技能)
 - composite::CompositeSkillBackend (POS: 混合技能后端，组合多个后端)
 - factory::SkillBackend (POS: 技能后端工厂类，简化创建)
+- _runtime::evaluate_requires (POS: 技能依赖满足性判定纯函数)
 
 [OUTPUT]
 - SkillBackendProtocol: 技能后端协议（已安装技能的 list/load/content/resources）
@@ -26,12 +27,14 @@
 - InMemorySkillBackend: 内存技能后端（MCP 等动态技能）
 - CompositeSkillBackend: 混合技能后端（路由和回退）
 - SkillBackend: 工厂类（推荐使用）
+- evaluate_requires: 技能依赖判定（进程环境 + 调用方提供的 env）
 
 [POS]
 Skill backend implementations module. Provides multiple backend implementations and three core protocols for loading skills from various sources.
 
 """
 
+from myrm_agent_harness.backends.skills._runtime import evaluate_requires
 from myrm_agent_harness.backends.skills.composite import CompositeSkillBackend
 from myrm_agent_harness.backends.skills.creation_protocols import (
     SkillDeleteResult,
@@ -148,6 +151,7 @@ __all__ = [
     "check_permission_for_tool_call",
     "check_skill_prerequisites",
     "compile_workflow_plan_to_skill_markdown",
+    "evaluate_requires",
     "get_template_permissions",
     "log_permission_usage",
     "map_permission_to_skill_permission",
