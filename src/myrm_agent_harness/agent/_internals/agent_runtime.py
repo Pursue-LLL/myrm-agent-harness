@@ -976,4 +976,9 @@ async def run_agent_loop(
             cost_info,
         )
 
-        schedule_post_run_idle_tasks(merged_context)
+        from myrm_agent_harness.agent.skill_agent import SkillAgent
+
+        schedule_post_run_idle_tasks(
+            merged_context,
+            derive_memories=isinstance(agent_state, SkillAgent) and agent_state.allows_background_memory_extraction(),
+        )

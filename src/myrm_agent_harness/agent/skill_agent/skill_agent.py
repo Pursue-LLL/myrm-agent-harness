@@ -463,6 +463,12 @@ class SkillAgent(
             chat_id = str((context or {}).get("chat_id", message_id or "default"))
             self.memory_manager.begin_session(chat_id)
 
+    def allows_background_memory_extraction(self) -> bool:
+        """Whether background LLM memory extraction may run: the auto-extraction switch AND the memory policy."""
+        from myrm_agent_harness.agent._internals.memory_extraction import allows_background_llm_extraction
+
+        return self._enable_memory_auto_extraction and allows_background_llm_extraction(self.memory_manager)
+
     async def close(self) -> None:
         """Release resources held by this agent."""
         self.memory_manager = None

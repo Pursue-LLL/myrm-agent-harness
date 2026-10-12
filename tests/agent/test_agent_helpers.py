@@ -34,7 +34,7 @@ def test_schedule_post_run_idle_tasks_token_window(mock_schedule, mock_get_regis
         "messages": messages,
     }
 
-    schedule_post_run_idle_tasks(merged_context)
+    schedule_post_run_idle_tasks(merged_context, derive_memories=True)
 
     # Assert registry enqueue was called for cognitive_derivation
     derivation_calls = [call for call in mock_registry.enqueue.call_args_list if call[0][1] == "cognitive_derivation"]
@@ -86,7 +86,7 @@ def test_schedule_post_run_idle_tasks_no_truncation(mock_schedule, mock_get_regi
         "messages": messages,
     }
 
-    schedule_post_run_idle_tasks(merged_context)
+    schedule_post_run_idle_tasks(merged_context, derive_memories=True)
 
     # Assert registry enqueue was called for cognitive_derivation
     derivation_calls = [call for call in mock_registry.enqueue.call_args_list if call[0][1] == "cognitive_derivation"]
@@ -118,7 +118,8 @@ def test_schedule_post_run_idle_tasks_serializes_message_objects(mock_get_regist
             "workspace_root": "/tmp/test",
             "chat_id": "chat_2",
             "messages": messages,
-        }
+        },
+        derive_memories=True,
     )
 
     derivation_calls = [
@@ -139,7 +140,8 @@ def _derivation_messages(messages: list[object]) -> list[dict[str, str]]:
     ):
         mock_get_registry.return_value = _new_registry()
         schedule_post_run_idle_tasks(
-            {"session_id": "sess_3", "workspace_root": "/tmp/test", "chat_id": "chat_3", "messages": messages}
+            {"session_id": "sess_3", "workspace_root": "/tmp/test", "chat_id": "chat_3", "messages": messages},
+            derive_memories=True,
         )
         calls = [
             call
@@ -195,7 +197,8 @@ def test_schedule_post_run_idle_tasks_persists_runnable_tasks_in_real_registry(t
                     "workspace_root": str(tmp_path),
                     "chat_id": "chat_real",
                     "messages": [{"role": "user", "content": "I prefer short answers"}],
-                }
+                },
+                derive_memories=True,
             )
             await asyncio.sleep(0.3)
         registry = get_idle_task_registry(str(tmp_path))
@@ -207,6 +210,30 @@ def test_schedule_post_run_idle_tasks_persists_runnable_tasks_in_real_registry(t
     acquired = asyncio.run(scenario())
 
     assert {"cognitive_consolidation", "cognitive_derivation", "context_compaction"} <= set(acquired)
+
+
+@patch("myrm_agent_harness.agent._internals._agent_helpers._fire_and_forget")
+@patch("myrm_agent_harness.agent.background_worker.registry.get_idle_task_registry")
+@patch("myrm_agent_harness.agent.background_worker.idle_worker.schedule_idle_task")
+def test_schedule_post_run_idle_tasks_skips_derivation_when_not_allowed(mock_schedule, mock_get_registry, mock_fire):
+    """Derivation writes memories from the chat, so it is not enqueued when extraction is disallowed."""
+    mock_registry = _new_registry()
+    mock_get_registry.return_value = mock_registry
+
+    schedule_post_run_idle_tasks(
+        {
+            "session_id": "sess_4",
+            "workspace_root": "/tmp/test",
+            "chat_id": "chat_4",
+            "messages": [{"role": "user", "content": "I do not eat spicy food"}],
+        },
+        derive_memories=False,
+    )
+
+    enqueued = {call[0][1] for call in mock_registry.enqueue.call_args_list}
+    assert "cognitive_derivation" not in enqueued
+    assert {"cognitive_consolidation", "context_compaction"} <= enqueued
+    mock_schedule.assert_called_once()
 
 
 def test_init_usage_ledger_attaches_ledger(tmp_path):

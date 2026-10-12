@@ -11,7 +11,7 @@ Events related to idle background tasks.
 """
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Literal
 
 from .bus import BaseEvent
 
@@ -27,8 +27,8 @@ class IdleTaskProgressEvent(BaseEvent):
     """
 
     session_id: str
-    status: str  # e.g., "started", "working", "completed", "error", "idle"
+    status: Literal["working", "completed", "notification", "error", "idle"]
     user_id: str | None = None
     task_name: str | None = None
     progress_pct: int | None = None
-    data: dict[str, Any] | None = None
+    data: dict[str, object] | None = None

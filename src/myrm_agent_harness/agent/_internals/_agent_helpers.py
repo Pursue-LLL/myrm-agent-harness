@@ -145,8 +145,12 @@ def _visible_text(content: object) -> str:
     return str(content)
 
 
-def schedule_post_run_idle_tasks(merged_context: dict[str, object]) -> None:
-    """Enqueue background idle tasks after a successful agent run."""
+def schedule_post_run_idle_tasks(merged_context: dict[str, object], *, derive_memories: bool) -> None:
+    """Enqueue background idle tasks after a successful agent run.
+
+    ``derive_memories`` gates ``cognitive_derivation``, the only idle task that writes new
+    memories from the conversation; it must follow the same switches as post-turn extraction.
+    """
     session_id = str(merged_context.get("session_id", ""))
     workspace_root = str(merged_context.get("workspace_root", ""))
 
@@ -206,16 +210,17 @@ def schedule_post_run_idle_tasks(merged_context: dict[str, object]) -> None:
 
         _fire_and_forget(registry.enqueue(session_id, "cognitive_consolidation", {}))
         if chat_id and serialized_msgs:
-            _fire_and_forget(
-                registry.enqueue(
-                    session_id,
-                    "cognitive_derivation",
-                    {
-                        "chat_id": chat_id,
-                        "messages": serialized_msgs[-20:],  # Only need recent context
-                    },
+            if derive_memories:
+                _fire_and_forget(
+                    registry.enqueue(
+                        session_id,
+                        "cognitive_derivation",
+                        {
+                            "chat_id": chat_id,
+                            "messages": serialized_msgs[-20:],  # Only need recent context
+                        },
+                    )
                 )
-            )
             # Add trace analysis for skill extraction (CAPTURED evolution)
             from myrm_agent_harness.agent.middlewares._session_context import (
                 get_event_logger,

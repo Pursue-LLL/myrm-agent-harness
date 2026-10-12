@@ -9,7 +9,13 @@ from myrm_agent_harness.toolkits.memory.strategies.subsumption import (
     judge_subsumption,
     undo_subsumption,
 )
-from myrm_agent_harness.toolkits.memory.types import MemorySearchResult, MemoryStatus, MemoryType, SemanticMemory
+from myrm_agent_harness.toolkits.memory.types import (
+    EpisodicMemory,
+    MemorySearchResult,
+    MemoryStatus,
+    MemoryType,
+    SemanticMemory,
+)
 
 
 @pytest.fixture
@@ -123,6 +129,29 @@ async def test_apply_subsumption(mock_manager):
         status=MemoryStatus.DISABLED,
         allow_protected=False,
     )
+
+
+@pytest.mark.asyncio
+async def test_apply_subsumption_skips_unsupported_types_without_deleting(mock_manager):
+    episodic = MagicMock(spec=EpisodicMemory)
+    episodic.id = "ep1"
+    episodic.metadata = {}
+    mock_manager.get_memory.return_value = episodic
+
+    count = await apply_subsumption(mock_manager, ["ep1"])
+
+    assert count == 0
+    assert "status" not in episodic.metadata
+    mock_manager.update_memory.assert_not_called()
+    mock_manager.delete_memory.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_apply_subsumption_skips_missing_memory(mock_manager):
+    mock_manager.get_memory.return_value = None
+
+    assert await apply_subsumption(mock_manager, ["gone"]) == 0
+    mock_manager.update_memory.assert_not_called()
 
 
 @pytest.mark.asyncio

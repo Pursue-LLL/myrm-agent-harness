@@ -10,6 +10,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from myrm_agent_harness.agent._internals.memory_extraction import (
     _apply_deep_pii_scan,
     _get_user_real_name,
+    allows_background_llm_extraction,
     auto_extract_memories,
     build_extraction_messages,
     create_extraction_llm_func,
@@ -17,6 +18,21 @@ from myrm_agent_harness.agent._internals.memory_extraction import (
 )
 
 _DATA_URL = "data:image/png;base64," + "A" * 200_000
+
+
+class TestAllowsBackgroundLlmExtraction:
+    def test_no_manager_imposes_no_restriction(self) -> None:
+        assert allows_background_llm_extraction(None) is True
+
+    def test_manager_without_policy_imposes_no_restriction(self) -> None:
+        manager = MagicMock(spec=[])
+        assert allows_background_llm_extraction(manager) is True
+
+    @pytest.mark.parametrize("allowed", [True, False])
+    def test_follows_policy_flag(self, allowed: bool) -> None:
+        manager = MagicMock()
+        manager.policy.allow_l3_extraction = allowed
+        assert allows_background_llm_extraction(manager) is allowed
 
 
 class TestBuildExtractionMessages:

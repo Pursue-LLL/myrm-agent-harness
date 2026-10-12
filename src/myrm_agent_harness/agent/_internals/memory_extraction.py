@@ -10,6 +10,7 @@
 - utils.chat_utils::extract_text_content (POS: 多模态内容 → 纯文本，媒体块不进入提取提示词)
 
 [OUTPUT]
+- allows_background_llm_extraction(): Policy gate shared by post-turn extraction and idle derivation
 - build_extraction_messages(): Construct messages for extraction
 - auto_extract_memories(): Post-turn extraction (LLM compressed track, opt-in verbatim track; fire-and-forget)
 - persist_extracted_memories(): Store LLM-extracted memories via MemoryManager
@@ -68,6 +69,16 @@ if TYPE_CHECKING:
 
     from myrm_agent_harness.toolkits.memory.manager import MemoryManager
     from myrm_agent_harness.toolkits.memory.strategies.extractor import ExtractedMemory
+
+
+def allows_background_llm_extraction(memory_manager: MemoryManager | None) -> bool:
+    """Whether the agent's ``AgentMemoryPolicy`` permits background LLM memory extraction.
+
+    A missing manager or policy imposes no restriction. Shared by post-turn extraction and
+    idle-time preference derivation so both honor ``allow_l3_extraction``.
+    """
+    policy = getattr(memory_manager, "policy", None)
+    return bool(getattr(policy, "allow_l3_extraction", True))
 
 
 class ExtractionLifecycleObserver(Protocol):

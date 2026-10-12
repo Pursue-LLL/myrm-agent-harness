@@ -132,7 +132,6 @@ class AgentEventType(StrEnum):
     APPROVAL_REQUIRED = "approval_required"
     CLARIFICATION_REQUIRED = "clarification_required"
     DIRECTORY_REQUEST_REQUIRED = "directory_request_required"
-    COGNITIVE_CONSOLIDATION = "cognitive_consolidation"
     GOAL_STATUS = "goal_status"
     ENGINE_LIMIT_REACHED = "engine_limit_reached"
     FILE_DIFF = "file_diff"

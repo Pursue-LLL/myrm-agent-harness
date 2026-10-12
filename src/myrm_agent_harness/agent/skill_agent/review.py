@@ -359,17 +359,18 @@ class SkillAgentReviewMixin:
                 except Exception as e:
                     logger.warning("Memory session flush failed: %s", e)
 
-                policy = getattr(memory_manager, "policy", None)
-                allow_extraction = getattr(policy, "allow_l3_extraction", True) if policy is not None else True
+                from myrm_agent_harness.agent._internals.memory_extraction import (
+                    allows_background_llm_extraction,
+                    auto_extract_memories,
+                )
+
+                allow_extraction = allows_background_llm_extraction(memory_manager)
                 if getattr(self, "_enable_memory_auto_extraction", False):
                     if not allow_extraction:
                         logger.info(
                             "Memory auto-extraction short-circuited by AgentMemoryPolicy(allow_l3_extraction=False)"
                         )
                     else:
-                        from myrm_agent_harness.agent._internals.memory_extraction import (
-                            auto_extract_memories,
-                        )
                         from myrm_agent_harness.agent.middlewares._session_context import (
                             get_privacy_policy,
                         )

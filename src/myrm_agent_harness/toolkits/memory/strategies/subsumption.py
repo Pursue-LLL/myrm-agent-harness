@@ -15,6 +15,7 @@ Protects memories containing unique user preferences from deletion.
 """
 
 import logging
+from typing import cast
 
 from langchain_core.language_models import BaseChatModel
 
@@ -62,7 +63,7 @@ async def judge_subsumption(
             reason: str = Field(..., description="Detailed reasoning for the decision.")
 
         structured_llm = llm.with_structured_output(SubsumptionResult)
-        result: SubsumptionResult = await structured_llm.ainvoke([HumanMessage(content=prompt)])
+        result = cast(SubsumptionResult, await structured_llm.ainvoke([HumanMessage(content=prompt)]))
 
         return result.subsumed, result.reason
     except Exception as e:
@@ -130,35 +131,31 @@ async def find_subsumed_memories(
 
 
 async def apply_subsumption(manager: MemoryManager, memory_ids: list[str]) -> int:
-    """Apply soft-delete to subsumed memories.
+    """Soft-delete subsumed Semantic/Procedural memories so they stay restorable.
 
-    Returns the number of successfully subsumed memories.
+    Other memory types are skipped: they are never subsumption candidates, and a
+    hard delete would not be undoable. Returns the number of memories subsumed.
     """
+    from myrm_agent_harness.toolkits.memory.types import (
+        MemoryStatus,
+        ProceduralMemory,
+        SemanticMemory,
+    )
+
     count = 0
     for mem_id in memory_ids:
         try:
             mem = await manager.get_memory(mem_id)
-            if not mem:
+            if not isinstance(mem, (SemanticMemory, ProceduralMemory)):
                 continue
 
-            # Soft delete by marking status in metadata
             mem.metadata["status"] = "subsumed"
-
-            from myrm_agent_harness.toolkits.memory.types import (
-                MemoryStatus,
-                ProceduralMemory,
-                SemanticMemory,
+            await manager.update_memory(
+                mem.id,
+                metadata=mem.metadata,
+                status=MemoryStatus.DISABLED,
+                allow_protected=False,
             )
-
-            if isinstance(mem, (SemanticMemory, ProceduralMemory)):
-                await manager.update_memory(
-                    mem.id,
-                    metadata=mem.metadata,
-                    status=MemoryStatus.DISABLED,
-                    allow_protected=False,
-                )
-            else:
-                await manager.delete_memory(mem.scope.primary_namespace, [mem.id])
             count += 1
         except Exception as e:
             logger.error("Failed to apply subsumption to memory %s: %s", mem_id, e)

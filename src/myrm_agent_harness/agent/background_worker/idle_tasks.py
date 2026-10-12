@@ -413,9 +413,8 @@ async def _run_context_compaction(
 ) -> dict[str, object]:
     """Compress idle session context through the business-layer handler.
 
-    No prefix-cache preheat follows: idle tasks start ``delay_seconds`` (600s by default)
-    after the last run, long past the provider's prompt-cache TTL, so warming would only
-    pay to rewrite a cache nobody is about to read.
+    The handler returns only a result summary (no ``llm``/``messages`` are exposed to this
+    runner), so no prefix-cache preheat is performed here.
     """
     chat_id = task.payload.get("chat_id", "")
     if not chat_id:

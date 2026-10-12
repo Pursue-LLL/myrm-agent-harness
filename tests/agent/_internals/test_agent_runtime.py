@@ -361,21 +361,21 @@ class TestSchedulePostRunIdleTasks:
             schedule_post_run_idle_tasks,
         )
 
-        schedule_post_run_idle_tasks({"workspace_root": "/tmp"})
+        schedule_post_run_idle_tasks({"workspace_root": "/tmp"}, derive_memories=True)
 
     def test_missing_workspace_root_is_noop(self):
         from myrm_agent_harness.agent._internals.agent_runtime import (
             schedule_post_run_idle_tasks,
         )
 
-        schedule_post_run_idle_tasks({"session_id": "abc"})
+        schedule_post_run_idle_tasks({"session_id": "abc"}, derive_memories=True)
 
     def test_empty_context_is_noop(self):
         from myrm_agent_harness.agent._internals.agent_runtime import (
             schedule_post_run_idle_tasks,
         )
 
-        schedule_post_run_idle_tasks({})
+        schedule_post_run_idle_tasks({}, derive_memories=True)
 
 
 class TestApplyBoundSkillCatalogForStream:
@@ -752,11 +752,7 @@ class TestApplyBoundSkillCatalogForResume:
         source = (
             Path(__file__).resolve().parents[3] / "src/myrm_agent_harness/agent/_internals/agent_runtime.py"
         ).read_text(encoding="utf-8")
-        awaits = {
-            ast.unparse(n.value)
-            for n in ast.walk(ast.parse(source))
-            if isinstance(n, ast.Await)
-        }
+        awaits = {ast.unparse(n.value) for n in ast.walk(ast.parse(source)) if isinstance(n, ast.Await)}
         assert any("apply_bound_skill_catalog_for_resume(" in awaited for awaited in awaits)
 
 
