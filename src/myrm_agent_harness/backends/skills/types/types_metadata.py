@@ -156,7 +156,7 @@ class SkillMetadata:
     """MCP server identifiers required by this skill for preflight checks."""
 
     contract: SkillContract | None = None
-    """Structured contract parsed from frontmatter for cache-safe routing and fallback docs."""
+    """Structured contract parsed from frontmatter and summarised in the skill catalog."""
 
     evolution_locked: bool = False
     """If True, this skill is locked from automatic evolution (parsed from frontmatter)."""

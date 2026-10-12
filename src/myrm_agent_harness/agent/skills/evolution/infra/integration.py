@@ -14,7 +14,6 @@ Framework provides the hooks, business layer decides when to use them.
 - toolkits.retriever.embedding.cache::EmbeddingCache (POS: Embedding cache layer. Provides a two-tier caching mechanism (memory + SQLite) that sits between callers and the remote embedding API to avoid redundant calls.)
 - agent.context_management.pipeline::ContextPipeline (POS: Message filter pipeline for composing multiple filters.)
 - toolkits.code_execution::CodeExecutor (POS: Code execution toolkit entry point. Aggregates execution configuration, executor implementations, workspace management, and factory functions for the Agent-in-Sandbox architecture.)
-- agent.skills.runtime.trap_injection::set_trap_lookup (POS: Known Pitfalls tail injection for loaded SKILL.md documents.)
 - toolkits.web_search::SearchServiceConfig (POS: Web search toolkit entry point. Aggregates and re-exports search tools, result types, metrics, and error hierarchy for unified import.)
 - agent.middlewares._session_context::get_approval_session (POS: Middleware session context — shared ContextVars for the middleware chain.)
 - agent.hooks.executor::fire_hook (POS: Hook execution layer. Manages hook registration and execution with ContextVar-based session isolation.)
@@ -282,9 +281,6 @@ class EvolutionIntegration:
         # Register as global instance so middlewares can access it
         set_global_evolution_integration(self)
 
-        # Inject trap lookup into skill loader for Known Pitfalls injection
-        self._register_trap_lookup()
-
     @property
     def evolution_strategy(self) -> str:
         """Current evolution strategy."""
@@ -297,20 +293,6 @@ class EvolutionIntegration:
         if self.screener is not None:
             self.screener.evolution_strategy = value
         logger.info("Evolution strategy updated to '%s'", value)
-
-    def _register_trap_lookup(self) -> None:
-        """Register the trap lookup callback used to append Known Pitfalls when a skill document loads."""
-        try:
-            from myrm_agent_harness.agent.skills.runtime.trap_injection import set_trap_lookup
-
-            def _lookup_traps(skill_name: str) -> list[dict[str, Any]]:
-                record = self.store.get_skill_by_name_version(skill_name)
-                return record.traps if record else []
-
-            set_trap_lookup(_lookup_traps)
-            logger.debug("Trap lookup registered for skill document loading")
-        except Exception as e:
-            logger.debug("Failed to register trap lookup (non-fatal): %s", e)
 
     SLICE_WINDOW_THRESHOLD: int = 15
 
@@ -536,24 +518,6 @@ class EvolutionIntegration:
             )
             await self.store.deactivate_skill(skill_id)
 
-            # Persist trap from deterministic error (learning feedback loop)
-            if is_deterministic_error:
-                skill_record = self.store.get_skill(skill_id)
-                if skill_record:
-                    error_line = (
-                        error_message.split("\n")[-1].strip() if "\n" in error_message else error_message.strip()
-                    )
-                    trap = {
-                        "description": error_line[:200],
-                        "severity": "high",
-                        "mitigation": f"Quarantined by {quarantine_reason}. Fix the root cause before re-enabling.",
-                    }
-                    if skill_record.add_trap(trap):
-                        try:
-                            await self.store.save_skill(skill_record)
-                        except Exception as e:
-                            logger.debug("Failed to persist trap for %s: %s", skill_id, e)
-
         # Auto-trigger FIX if needed (business layer can override this)
         # CRITICAL: We MUST trigger FIX if the skill was quarantined (even if it's the 1st failure),
         # OR if the standard metrics say so.
@@ -634,11 +598,6 @@ class EvolutionIntegration:
             return await self.engine.fix_skill(skill_id, kwargs.get("reason", "Manual fix"))
         elif evolution_type == EvolutionType.DERIVED:
             return await self.engine.derive_skill_simple(skill_id, kwargs.get("user_feedback", ""))
-        elif evolution_type == EvolutionType.CAPTURED:
-            return await self.engine.capture_skill_simple(
-                kwargs.get("repeated_commands", []),
-                user_confirmed=kwargs.get("user_confirmed", False),
-            )
         elif evolution_type == EvolutionType.SLICE_EXTRACTION:
             return await self.engine.extract_skill_from_slice(
                 session_id=kwargs.get("session_id", ""),

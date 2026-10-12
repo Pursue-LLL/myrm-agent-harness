@@ -282,10 +282,6 @@ class VariantGenerator:
         else:
             sections.append(_FAILURE_ATTRIBUTION)
 
-        traps_section = self._build_traps_section(skill)
-        if traps_section:
-            sections.append(traps_section)
-
         eval_section = self._build_eval_cases_section(skill)
         if eval_section:
             sections.append(eval_section)
@@ -356,10 +352,6 @@ class VariantGenerator:
                 _FAILURE_ATTRIBUTION,
             ]
         )
-
-        traps_section = self._build_traps_section(skill)
-        if traps_section:
-            sections.append(traps_section)
 
         eval_section = self._build_eval_cases_section(skill)
         if eval_section:
@@ -453,15 +445,6 @@ class VariantGenerator:
         except (TypeError, ValueError):
             return ""
         return _EVAL_CASE_COEVOLUTION.format(eval_cases_json=cases_json)
-
-    @staticmethod
-    def _build_traps_section(skill: SkillRecord) -> str:
-        """Inject high-severity traps into the prompt as additional constraints."""
-        traps = skill.get_high_severity_traps(max_count=3)
-        if not traps:
-            return ""
-        lines = [f"- [{t.get('severity', 'medium').upper()}] {t.get('description', '')}" for t in traps]
-        return "## Known Traps (avoid these pitfalls)\n" + "\n".join(lines)
 
     @staticmethod
     def _extract_content(llm_output: str) -> str:

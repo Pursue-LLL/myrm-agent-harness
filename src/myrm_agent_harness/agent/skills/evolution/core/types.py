@@ -380,34 +380,8 @@ class SkillRecord:
     is_active: bool = True
     evolution_locked: bool = False
 
-    traps: list[dict[str, Any]] = field(default_factory=list)
     verification_steps: list[dict[str, Any]] = field(default_factory=list)
     eval_cases: list[dict[str, Any]] = field(default_factory=list)
-
-    def add_trap(self, trap: dict[str, Any]) -> bool:
-        """Add trap with deduplication by description. Returns True if added."""
-        desc = trap.get("description", "")
-        if any(t.get("description") == desc for t in self.traps):
-            for t in self.traps:
-                if t.get("description") == desc:
-                    t["occurrence_count"] = t.get("occurrence_count", 0) + 1
-            return False
-        trap.setdefault("occurrence_count", 1)
-        trap.setdefault("severity", "medium")
-        self.traps.append(trap)
-        return True
-
-    def get_high_severity_traps(self, max_count: int = 5) -> list[dict[str, Any]]:
-        """Get top traps by severity for injection into skill prompt."""
-        severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
-        sorted_traps = sorted(
-            self.traps,
-            key=lambda t: (
-                severity_order.get(t.get("severity", "low"), 4),
-                -t.get("occurrence_count", 0),
-            ),
-        )
-        return sorted_traps[:max_count]
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -432,7 +406,6 @@ class SkillRecord:
             "updated_at": self.updated_at.isoformat(),
             "is_active": self.is_active,
             "evolution_locked": self.evolution_locked,
-            "traps": self.traps,
             "verification_steps": self.verification_steps,
             "eval_cases": self.eval_cases,
         }
@@ -468,7 +441,6 @@ class SkillRecord:
             updated_at=datetime.fromisoformat(data["updated_at"]),
             is_active=data.get("is_active", True),
             evolution_locked=data.get("evolution_locked", False),
-            traps=data.get("traps", []),
             verification_steps=data.get("verification_steps", []),
             eval_cases=data.get("eval_cases", []),
         )

@@ -36,21 +36,19 @@ __all__ = ["SkillVectorSyncMixin"]
 
 def _build_embed_text(record: SkillRecord) -> str:
     """Build text for embedding from a skill record."""
-    text = f"{record.name}\n{record.description}\n{record.content}"
-    if record.traps:
-        text += f"\nTraps: {', '.join(record.traps)}"
-    return text
+    return f"{record.name}\n{record.description}\n{record.content}"
 
 
-def _build_payload(record: SkillRecord) -> dict[str, str | int]:
+def _build_payload(record: SkillRecord) -> dict[str, str | int | float | bool | list[str]]:
     """Build Qdrant payload from a skill record."""
-    payload = {
+    payload: dict[str, str | int | float | bool | list[str]] = {
         "skill_id": record.skill_id,
         "name": record.name,
         "is_active": int(record.is_active),
-        "os_platform": record.environment.os_platform if record.environment else None,
     }
-    return {k: v for k, v in payload.items() if v is not None}
+    if record.environment and record.environment.os_platform is not None:
+        payload["os_platform"] = record.environment.os_platform
+    return payload
 
 
 class SkillVectorSyncMixin:
@@ -62,7 +60,7 @@ class SkillVectorSyncMixin:
     - VECTOR_COLLECTION_NAME: str
     - _ensure_open(): None
     - _reader(): context manager yielding sqlite3.Connection
-    - _row_to_record(dict) -> SkillRecord
+    - _row_to_record(sqlite3.Row) -> SkillRecord
     """
 
     _vector_store: VectorStore | None
@@ -111,7 +109,7 @@ class SkillVectorSyncMixin:
             with self._reader() as conn:  # type: ignore[attr-defined]
                 rows = conn.execute("SELECT * FROM skills WHERE is_active = 1").fetchall()
                 active_records = [
-                    self._row_to_record(dict(row))  # type: ignore[attr-defined]
+                    self._row_to_record(row)  # type: ignore[attr-defined]
                     for row in rows
                 ]
 

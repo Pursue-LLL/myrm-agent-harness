@@ -28,10 +28,6 @@ def mock_skill() -> SkillRecord:
         content="---\nname: test-skill\n---\n# Test\n## Instructions\n1. Do X\n2. Do Y",
         path="/skills/test-skill.md",
         lineage=SkillLineage(evolution_type=EvolutionType.CAPTURED, parent_id=None),
-        traps=[
-            {"description": "Never delete user data", "severity": "critical", "occurrence_count": 3},
-            {"description": "Check file exists first", "severity": "high", "occurrence_count": 2},
-        ],
     )
 
 
@@ -168,11 +164,6 @@ class TestPromptAssembly:
         assert "FAILING SCENARIOS" in prompt
         assert "Permission denied" in prompt
         assert "Deploy to staging" in prompt
-
-    def test_traps_injected_into_prompt(self, generator: VariantGenerator, mock_skill: SkillRecord) -> None:
-        prompt = generator._build_variant_prompt(mock_skill, "error", "trace")
-        assert "Known Traps" in prompt
-        assert "Never delete user data" in prompt
 
     def test_constraints_injected(self, generator: VariantGenerator, mock_skill: SkillRecord) -> None:
         prompt = generator._build_variant_prompt(

@@ -13,7 +13,9 @@ Complex query methods for SkillStore, including Hybrid Retrieval (Semantic Searc
 from __future__ import annotations
 
 import logging
-from typing import Any
+import sqlite3
+from contextlib import AbstractContextManager
+from typing import TYPE_CHECKING, Any
 
 from myrm_agent_harness.agent.skills.evolution.core.types import (
     EnvironmentFingerprint,
@@ -27,6 +29,12 @@ __all__ = ["SkillStoreQueries"]
 
 class SkillStoreQueries:
     """Mixin class for complex SkillStore queries."""
+
+    if TYPE_CHECKING:
+        # Provided by SkillStore, the host class of this mixin.
+        def _ensure_open(self) -> None: ...
+        def _reader(self) -> AbstractContextManager[sqlite3.Connection]: ...
+        def _row_to_record(self, sqlite_row: sqlite3.Row) -> SkillRecord: ...
 
     def get_active_skills(
         self,
@@ -71,7 +79,7 @@ class SkillStoreQueries:
             sql += " ORDER BY updated_at DESC"
 
             rows = conn.execute(sql, tuple(params)).fetchall()
-            return [self._row_to_record(dict(row)) for row in rows]
+            return [self._row_to_record(row) for row in rows]
 
     def get_skills_needing_fix(self, threshold: float = 0.5) -> list[SkillRecord]:
         """Find skills with low success rate or consecutive failures.
@@ -104,7 +112,7 @@ class SkillStoreQueries:
             ).fetchall()
 
             logger.debug(f"Skills needing fix (threshold={threshold}): {len(rows)} found")
-            return [self._row_to_record(dict(row)) for row in rows]
+            return [self._row_to_record(row) for row in rows]
 
     def get_skill_by_name_version(self, name: str, version: int | None = None) -> SkillRecord | None:
         """Load skill by name and optional version.
@@ -136,7 +144,7 @@ class SkillStoreQueries:
 
             if not row:
                 return None
-            return self._row_to_record(dict(row))
+            return self._row_to_record(row)
 
     def get_skill_lineage(self, skill_id: str) -> list[SkillRecord]:
         """Get complete lineage (ancestors) of a skill.
@@ -150,8 +158,8 @@ class SkillStoreQueries:
             defensively instead of looping forever.
         """
         self._ensure_open()
-        lineage = []
-        current_id = skill_id
+        lineage: list[SkillRecord] = []
+        current_id: str | None = skill_id
         seen: set[str] = set()
 
         with self._reader() as conn:
@@ -160,7 +168,7 @@ class SkillStoreQueries:
                 row = conn.execute("SELECT * FROM skills WHERE skill_id = ?", (current_id,)).fetchone()
                 if not row:
                     break
-                record = self._row_to_record(dict(row))
+                record = self._row_to_record(row)
                 lineage.insert(0, record)  # Insert at front (oldest first)
                 current_id = record.lineage.parent_id
 
@@ -178,18 +186,17 @@ class SkillStoreQueries:
         """Synchronous fallback for SQLite LIKE search."""
         self._ensure_open()
         with self._reader() as conn:
-            # Basic text search on name, description, and traps
+            # Basic text search on name and description
             search_pattern = f"%{query}%"
 
             # Base query: active skills with acceptable success rate
             sql = """
                 SELECT * FROM skills
                 WHERE is_active = 1
-                AND (name LIKE ? OR description LIKE ? OR traps LIKE ?)
+                AND (name LIKE ? OR description LIKE ?)
                 AND (CAST(success_count AS REAL) / NULLIF(applied_count, 0) >= ? OR applied_count < 3)
             """
             params: list[Any] = [
-                search_pattern,
                 search_pattern,
                 search_pattern,
                 min_effective_rate,
@@ -224,7 +231,7 @@ class SkillStoreQueries:
             params.append(limit)
 
             rows = conn.execute(sql, tuple(params)).fetchall()
-            return [self._row_to_record(dict(row)) for row in rows]
+            return [self._row_to_record(row) for row in rows]
 
     async def search_skills(
         self,
@@ -305,7 +312,7 @@ class SkillStoreQueries:
                         rows = conn.execute(sql, tuple(params)).fetchall()
 
                     # Convert to records and sort by Qdrant order
-                    records = {row["skill_id"]: self._row_to_record(dict(row)) for row in rows}
+                    records = {row["skill_id"]: self._row_to_record(row) for row in rows}
                     final_results = []
                     for sid in skill_ids:
                         if sid in records:

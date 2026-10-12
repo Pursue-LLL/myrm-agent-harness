@@ -30,7 +30,6 @@ def skill_record():
         path="skills/test_skill.py",
         lineage=SkillLineage(evolution_type=EvolutionType.DERIVED, version=1, parent_id=None, change_summary="init"),
         metrics=SkillMetrics(),
-        traps=[],
         verification_steps=[],
     )
 

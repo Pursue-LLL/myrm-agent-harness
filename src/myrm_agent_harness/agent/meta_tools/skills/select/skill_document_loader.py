@@ -4,10 +4,9 @@
 - backends.skills.protocols::SkillBackend (POS: skill content + resources)
 - backends.skills.types::SkillMetadata, SkillInstance (POS: metadata + instance config)
 - l1_disclosure_footer::build_l1_disclosure_footer (POS: L1 footer append)
-- agent.skills.runtime.trap_injection::inject_traps (POS: Known Pitfalls tail injection for loaded SKILL.md documents.)
 
 [OUTPUT]
-- get_skill_document: processed SOP + Known Pitfalls + L1 footer for context injection
+- get_skill_document: processed SOP + L1 footer for context injection
 - get_skill_file: L2 auxiliary file reader
 - build_reload_summary_with_index: compact reload hint for already-loaded skills
 
@@ -134,9 +133,6 @@ async def get_skill_document(
     from myrm_agent_harness.agent.meta_tools.skills.select.l1_disclosure_footer import (
         build_l1_disclosure_footer,
     )
-    from myrm_agent_harness.agent.skills.runtime.trap_injection import inject_traps
-
-    skill_doc = inject_traps(skill_meta.name, skill_doc)
 
     footer = await build_l1_disclosure_footer(skill_meta, skill_backend, skill_instance)
     if footer:

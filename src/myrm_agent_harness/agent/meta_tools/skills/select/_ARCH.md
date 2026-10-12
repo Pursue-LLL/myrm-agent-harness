@@ -43,7 +43,7 @@ Bound skills → resolve_catalog_display_skills() → get_metadata_summary()
 |------|------|-------------|-------|
 | __init__.py | Package | Skill selection tool module + `get_skill_document` export. | — |
 | skill_select_tool.py | Core | Static-description skill selection meta-tool; invoke handler loads SOP. | ✅ |
-| skill_document_loader.py | Core | SOP load pipeline (Known Pitfalls tail injection via `skills/runtime/trap_injection.py`), L2 file read, reload summaries, L1 footer orchestration. | ✅ |
+| skill_document_loader.py | Core | SOP load pipeline, L2 file read, reload summaries, L1 footer orchestration. | ✅ |
 | l1_disclosure_footer.py | Core | L1 linked-files index + config block footer for `get_skill_document`. | ✅ |
 
 ## Key Dependencies

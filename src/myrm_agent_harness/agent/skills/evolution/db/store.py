@@ -1,7 +1,7 @@
 """SQLite persistence for skill evolution system.
 
 4-table design:
-- skills: Skill records with embedded metrics, lineage, traps, eval_cases
+- skills: Skill records with embedded metrics, lineage, eval_cases
 - execution_analyses: Per-execution error analysis records
 - evolution_rejections: Screener rejection audit trail
 - evolution_constraints: Historical fix constraints for preventing repeated mistakes
@@ -31,9 +31,11 @@ import logging
 import sqlite3
 import threading
 import time
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager, suppress
 from functools import wraps
 from pathlib import Path
+from typing import Self
 
 from myrm_agent_harness.agent.skills.evolution.core.types import (
     SkillLineage,
@@ -59,16 +61,18 @@ logger = logging.getLogger(__name__)
 __all__ = ["SkillStore"]
 
 
-def _db_retry(max_retries: int = 5, initial_delay: float = 0.1, backoff: float = 2.0):
+def _db_retry[**P, R](
+    max_retries: int = 5, initial_delay: float = 0.1, backoff: float = 2.0
+) -> Callable[[Callable[P, R]], Callable[P, R]]:
     """Retry on transient SQLite errors with exponential backoff.
 
     Handles OperationalError (e.g. "database is locked") and DatabaseError.
     Does NOT retry programming errors like InterfaceError.
     """
 
-    def decorator(func):
+    def decorator(func: Callable[P, R]) -> Callable[P, R]:
         @wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
             delay = initial_delay
             for attempt in range(max_retries):
                 try:
@@ -91,6 +95,7 @@ def _db_retry(max_retries: int = 5, initial_delay: float = 0.1, backoff: float =
                     )
                     time.sleep(delay)
                     delay *= backoff
+            raise AssertionError("unreachable: the final attempt re-raises")
 
         return wrapper
 
@@ -120,7 +125,6 @@ CREATE TABLE IF NOT EXISTS skills (
     last_failure_at     TEXT,
     consecutive_failures INTEGER NOT NULL DEFAULT 0,
 
-    traps               TEXT NOT NULL DEFAULT '[]',
     verification_steps  TEXT NOT NULL DEFAULT '[]',
     eval_cases          TEXT NOT NULL DEFAULT '[]',
     environment         TEXT,
@@ -261,7 +265,7 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillDepende
         return conn
 
     @contextmanager
-    def _reader(self):
+    def _reader(self) -> Iterator[sqlite3.Connection]:
         """Open temporary read-only connection for parallel reads.
 
         WAL mode allows concurrent readers without blocking.
@@ -286,14 +290,12 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillDepende
         with self._mu:
             self._conn.executescript(_DDL)
             self._conn.executescript(_DEPENDENCY_TABLE_DDL)
-            self._migrate_add_traps_columns()
+            self._migrate_add_record_columns()
             self._conn.commit()
 
-    def _migrate_add_traps_columns(self) -> None:
-        """Add traps/verification_steps/eval_cases/evolution_locked columns for existing DBs."""
+    def _migrate_add_record_columns(self) -> None:
+        """Add verification_steps/eval_cases/evolution_locked/environment columns for existing DBs."""
         cols = {row[1] for row in self._conn.execute("PRAGMA table_info(skills)").fetchall()}
-        if "traps" not in cols:
-            self._conn.execute("ALTER TABLE skills ADD COLUMN traps TEXT NOT NULL DEFAULT '[]'")
         if "verification_steps" not in cols:
             self._conn.execute("ALTER TABLE skills ADD COLUMN verification_steps TEXT NOT NULL DEFAULT '[]'")
         if "eval_cases" not in cols:
@@ -324,10 +326,10 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillDepende
         with suppress(Exception):
             self.close()
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> Self:
         return self
 
-    async def __aexit__(self, *exc):
+    async def __aexit__(self, *exc: object) -> None:
         self.close()
 
     @property
@@ -431,9 +433,9 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillDepende
                     lineage_created_at, lineage_created_by,
                     total_selections, applied_count, completed_count, success_count,
                     last_success_at, last_failure_at, consecutive_failures,
-                    traps, verification_steps, eval_cases, environment,
+                    verification_steps, eval_cases, environment,
                     created_at, updated_at, is_active, evolution_locked
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     record.skill_id,
@@ -454,7 +456,6 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillDepende
                     (record.metrics.last_success_at.isoformat() if record.metrics.last_success_at else None),
                     (record.metrics.last_failure_at.isoformat() if record.metrics.last_failure_at else None),
                     record.metrics.consecutive_failures,
-                    json.dumps(record.traps, ensure_ascii=False),
                     json.dumps(record.verification_steps, ensure_ascii=False),
                     json.dumps(record.eval_cases, ensure_ascii=False),
                     (json.dumps(record.environment.to_dict(), ensure_ascii=False) if record.environment else None),
@@ -481,9 +482,9 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillDepende
                     lineage_created_at, lineage_created_by,
                     total_selections, applied_count, completed_count, success_count,
                     last_success_at, last_failure_at, consecutive_failures,
-                    traps, verification_steps, eval_cases, environment,
+                    verification_steps, eval_cases, environment,
                     created_at, updated_at, is_active, evolution_locked
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     (
@@ -505,7 +506,6 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillDepende
                         (record.metrics.last_success_at.isoformat() if record.metrics.last_success_at else None),
                         (record.metrics.last_failure_at.isoformat() if record.metrics.last_failure_at else None),
                         record.metrics.consecutive_failures,
-                        json.dumps(record.traps, ensure_ascii=False),
                         json.dumps(record.verification_steps, ensure_ascii=False),
                         json.dumps(record.eval_cases, ensure_ascii=False),
                         (json.dumps(record.environment.to_dict(), ensure_ascii=False) if record.environment else None),
@@ -673,9 +673,9 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillDepende
             row = conn.execute("SELECT * FROM skills WHERE skill_id = ?", (skill_id,)).fetchone()
             if not row:
                 return None
-            return self._row_to_record(dict(row))
+            return self._row_to_record(row)
 
-    def _row_to_record(self, row: dict) -> SkillRecord:
+    def _row_to_record(self, sqlite_row: sqlite3.Row) -> SkillRecord:
         """Convert SQLite row to SkillRecord."""
         from datetime import datetime
 
@@ -684,7 +684,8 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillDepende
             EvolutionType,
         )
 
-        env_dict = json.loads(row.get("environment")) if row.get("environment") else None
+        row = dict(sqlite_row)
+        env_dict = json.loads(row["environment"]) if row.get("environment") else None
 
         return SkillRecord(
             skill_id=row["skill_id"],
@@ -709,7 +710,6 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillDepende
                 last_failure_at=(datetime.fromisoformat(row["last_failure_at"]) if row["last_failure_at"] else None),
                 consecutive_failures=row["consecutive_failures"],
             ),
-            traps=json.loads(row.get("traps", "[]")),
             verification_steps=json.loads(row.get("verification_steps", "[]")),
             eval_cases=json.loads(row.get("eval_cases", "[]")),
             environment=(EnvironmentFingerprint.from_dict(env_dict) if env_dict else None),

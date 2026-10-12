@@ -5,7 +5,6 @@
 - catalog_display: 内联/隐藏技能 SSOT
 - skill_catalog_delivery: strip/reinject catalog on first HumanMessage
 - attenuator: 信任衰减器
-- trap_injection: 技能文档尾部 Known Pitfalls 注入
 - command_paths: 技能命令路径重写与技能脚本检测
 """
 

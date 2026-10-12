@@ -7,7 +7,7 @@
 - SkillContractTrap, SkillContractVerification, SkillContractJudgment, SkillContract
 
 [POS]
-Cache-safe structured contract extracted from skill frontmatter for routing and fallback docs.
+Cache-safe structured contract extracted from skill frontmatter; the skill catalog summarises it.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True, slots=True)
 class SkillContractTrap:
-    """Structured caution that should survive skill content degradation."""
+    """Structured caution declared by the skill author in its frontmatter contract."""
 
     description: str
     mitigation: str

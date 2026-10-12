@@ -576,27 +576,6 @@ class TestEvolutionIntegrationMethods:
         assert result == "derived"
 
     @pytest.mark.asyncio
-    async def test_evolve_skill_captured(self) -> None:
-        """evolve_skill with CAPTURED type should call engine.capture_skill_simple."""
-        from myrm_agent_harness.agent.skills.evolution.infra.integration import (
-            EvolutionIntegration,
-        )
-
-        with patch.object(EvolutionIntegration, "__init__", lambda self, **kwargs: None):
-            integration = EvolutionIntegration.__new__(EvolutionIntegration)
-            integration.engine = AsyncMock()
-            integration.engine.capture_skill_simple = AsyncMock(return_value="captured")
-            integration.screener = None
-
-        result = await integration.evolve_skill(
-            "sk1",
-            EvolutionType.CAPTURED,
-            repeated_commands=["ls", "ls"],
-            user_confirmed=True,
-        )
-        assert result == "captured"
-
-    @pytest.mark.asyncio
     async def test_record_execution_deterministic_error_quarantine(self) -> None:
         """record_execution should trigger 1-strike quarantine for deterministic errors."""
         from myrm_agent_harness.agent.skills.evolution.infra.integration import (

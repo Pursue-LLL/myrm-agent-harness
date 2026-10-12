@@ -66,7 +66,6 @@
 | `SkillWriteBackend` Protocol | `backends/skills/creation_protocols.py` | **保留**，作为技能写入抽象层（save/delete） |
 | `SkillMetadata` 数据类 | `backends/skills/types.py`（aggregate；定义见 `types_metadata.py` 等） | **已实现** trust、requires、tool 条件激活等字段 |
 | `SkillRegistry` | `agent/skills/runtime/registry.py` | **增强**，集成信任模型和状态管理 |
-| `trap_injection` | `agent/skills/runtime/trap_injection.py` | **保留**，技能文档加载时按 trap 记录在尾部追加 Known Pitfalls（保护 prompt 缓存前缀）；SKILL.md 读取走 `meta_tools/skills/select/skill_document_loader.py` |
 | `get_metadata_summary()` | `agent/skills/runtime/registry.py` | **升级**，改为安全 XML 摘要格式 |
 | `LocalSkillBackend` | `backends/skills/local.py` | **保留**，映射为 builtin 层（Trusted） |
 | `StorageSkillBackend` | `backends/skills/storage.py` | **保留**，映射为 workspace 层（Trusted） |
@@ -298,7 +297,7 @@ Level 3: 资源（Resources）
 
 ### 4.4 缓存策略
 
-SKILL.md 由 `skill_document_loader.get_skill_document()` 按次从 backend 读取，backend 读取抛错时返回带错误提示的文档。Known Pitfalls 以尾部追加方式注入，已加载内容的前缀字节不变，**无需修改**。
+SKILL.md 由 `skill_document_loader.get_skill_document()` 按次从 backend 读取，backend 读取抛错时返回带错误提示的文档；已加载内容的前缀字节不变，**无需修改**。
 
 ---
 
@@ -662,7 +661,7 @@ Scanner（编排器）
 系统采用 **Qdrant (语义向量) + SQLite (关系型元数据)** 的混合检索架构，以解决传统纯关键字搜索（LIKE）在自然语言查询下的低召回率问题。
 
 **核心机制**：
-- **同步双写 (Synchronous Dual-Write)**：在 `SkillStore.save_skill` 时，将技能文本（名称+描述+内容+陷阱）向量化后写入 Qdrant，同时将核心元数据（`is_active`, `os_platform`）作为 Payload 写入。
+- **同步双写 (Synchronous Dual-Write)**：在 `SkillStore.save_skill` 时，将技能文本（名称+描述+内容）向量化后写入 Qdrant，同时将核心元数据（`is_active`, `os_platform`）作为 Payload 写入。
 - **Payload 预过滤 (Pre-filtering)**：在 Qdrant 查询阶段，直接利用 Payload 过滤非活跃技能和不匹配当前操作系统的技能，避免向量检索后在 SQLite 中被大量过滤导致召回不足。
 - **SQLite 后置精确过滤 (Post-filtering)**：Qdrant 返回 Top-K 结果后，在 SQLite 中进行最终的精确过滤（如 `min_effective_rate` 成功率阈值），确保返回的技能不仅语义相关，而且质量达标。
 - **优雅降级 (Graceful Fallback)**：如果 Qdrant 服务不可用或向量化失败，系统自动无缝降级到原有的 SQLite `LIKE` 关键字检索，确保核心功能不中断。
@@ -966,7 +965,7 @@ STATIC_SKILL_SLUGS: list[str] = [
 | 存储后端 | `backends/skills/storage.py` | **无需修改** |
 | 组合后端 | `backends/skills/composite.py` | **无需修改** |
 | 技能注册表 | `agent/skills/runtime/registry.py` | 需增强（集成信任模型和状态管理） |
-| 文档加载 | `agent/meta_tools/skills/select/skill_document_loader.py` | **无需修改**（Known Pitfalls 注入见 `agent/skills/runtime/trap_injection.py`） |
+| 文档加载 | `agent/meta_tools/skills/select/skill_document_loader.py` | **无需修改** |
 | 元数据摘要 | `agent/skills/runtime/registry.py::get_metadata_summary` | 需升级为安全 XML 格式 |
 | 信任衰减器 | — | **新增** `agent/skills/security/attenuation.py` |
 | 安全扫描器 | — | **新增** `agent/skills/security/scanner.py` |

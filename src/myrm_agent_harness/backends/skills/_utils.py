@@ -19,6 +19,7 @@ Skill backend parsing utilities. Provides SKILL.md frontmatter parsing functiona
 from __future__ import annotations
 
 import logging
+import math
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -145,7 +146,7 @@ class SkillFrontmatter:
     """
 
     contract: SkillContract | None = None
-    """Structured contract used for cache-safe routing and degraded fallback."""
+    """Structured contract parsed from frontmatter and summarised in the skill catalog."""
 
     scope_agent_id: str | None = None
     """Agent ID that owns this skill (for Multi-Agent scoping)."""
@@ -390,17 +391,16 @@ def _parse_contract_success_criteria(raw_contract: dict[str, object], skill_dir_
 
 
 def _parse_contract_duration(raw_contract: dict[str, object], skill_dir_name: str) -> float | None:
-    import math
-
     raw_value = raw_contract.get("estimated_duration_seconds")
     if raw_value is None:
         return None
+    message = f"Skill '{skill_dir_name}' contract.estimated_duration_seconds must be numeric"
+    if not isinstance(raw_value, int | float | str):
+        raise SkillMetadataError(message)
     try:
         duration = float(raw_value)
-    except (TypeError, ValueError) as exc:
-        raise SkillMetadataError(
-            f"Skill '{skill_dir_name}' contract.estimated_duration_seconds must be numeric"
-        ) from exc
+    except ValueError as exc:
+        raise SkillMetadataError(message) from exc
     if math.isnan(duration) or math.isinf(duration):
         raise SkillMetadataError(f"Skill '{skill_dir_name}' contract.estimated_duration_seconds must be finite")
     if duration < 0:

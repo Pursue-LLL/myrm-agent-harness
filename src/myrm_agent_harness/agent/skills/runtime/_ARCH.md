@@ -2,7 +2,7 @@
 
 ## Overview
 
-Skill execution runtime: registry, trap injection, command path utilities, trust attenuation. **`get_metadata_summary()`** builds XML for HumanMessage `<bound_skills>` blocks (see `skill_catalog_delivery.py` and `meta_tools/skills/select/_ARCH.md`).
+Skill execution runtime: registry, command path utilities, trust attenuation. **`get_metadata_summary()`** builds XML for HumanMessage `<bound_skills>` blocks (see `skill_catalog_delivery.py` and `meta_tools/skills/select/_ARCH.md`).
 
 ## File & Submodule Index
 
@@ -12,7 +12,6 @@ Skill execution runtime: registry, trap injection, command path utilities, trust
 | attenuator.py | Core | Trust attenuator. Three-layer filtering; `allowed_tools` narrows only by names that are registered or bound (names from other skill ecosystems are ignored and warned once per skill; a skill with no recognized name does not narrow). Model-layer restriction via `middlewares/_skill_tool_choice.py` + `SkillAttenuationMiddleware`. Execution fallback: `check_trust_attenuation`. | ✅ |
 | session_skills_rehydrate.py | Core | Rebuild `loaded_skills` from chat history ∪ `context.session_loaded_skill_names` SSOT at `SkillAgent.run()` start. | ✅ |
 | command_paths.py | Core | Skill command path utilities: rewrite `.claude/skills/` paths to relative, detect skill script commands in bash execution. | ✅ |
-| trap_injection.py | Core | Known Pitfalls tail injection for loaded SKILL.md documents. `EvolutionIntegration` registers the trap lookup; `get_skill_document()` appends the section after the SOP (tail append keeps the prompt-cache prefix stable). | ✅ |
 | registry.py | Core | SkillRegistry + get_metadata_summary (XML for HumanMessage catalog with explicit intention-anchored and direct-tool precedence routing rules, not tool schema). | ✅ |
 | catalog_display.py | Core | resolve_catalog_display_skills + should_mount_skill_search_tool SSOT (inline vs hidden; search mount gate). | ✅ |
 | skill_catalog_delivery.py | Core | strip/reinject `<bound_skills hidden_count="N">` on first HumanMessage (stream prep + resume checkpoint refresh via `agent_runtime.apply_bound_skill_catalog_for_*`; catalog changes on either path conditionally rebuild `skill_search_tool` index when hidden_count > 0). | ✅ |
