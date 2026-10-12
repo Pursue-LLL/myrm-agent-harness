@@ -202,7 +202,9 @@ class EnvironmentFingerprint:
 
 @dataclass
 class SkillMetrics:
-    """Quality metrics for skill tracking with 6-indicator system.
+    """Read-side snapshot of a skill's execution counters.
+
+    Counters are incremented only through ``SkillStore.record_execution_outcome`` (one atomic UPDATE).
 
     4 base counters:
     - total_selections: How many times skill was selected (including fallbacks)
@@ -267,32 +269,6 @@ class SkillMetrics:
     def usage_count(self) -> int:
         """Alias of applied_count."""
         return self.applied_count
-
-    # Recording methods
-    def record_applied(self, success: bool) -> None:
-        """Record skill execution (applied and completed).
-
-        Args:
-            success: Whether execution succeeded
-        """
-        self.total_selections += 1  # Increment selections
-        self.applied_count += 1  # Increment applied
-        self.completed_count += 1  # Increment completed
-
-        if success:
-            self.success_count += 1
-            self.consecutive_failures = 0
-            self.last_success_at = datetime.now()
-        else:
-            self.consecutive_failures += 1
-            self.last_failure_at = datetime.now()
-
-    def record_fallback(self) -> None:
-        """Record skill selection that was not applied (fallback).
-
-        Use when skill is selected but execution is skipped (e.g., user cancelled).
-        """
-        self.total_selections += 1  # Increment selections only
 
 
 @dataclass

@@ -183,28 +183,6 @@ class TestSkillMetrics:
         m = SkillMetrics(applied_count=42)
         assert m.usage_count == 42
 
-    def test_record_applied_success(self) -> None:
-        m = SkillMetrics()
-        m.record_applied(success=True)
-        assert m.total_selections == 1
-        assert m.applied_count == 1
-        assert m.completed_count == 1
-        assert m.success_count == 1
-        assert m.consecutive_failures == 0
-        assert m.last_success_at is not None
-
-    def test_record_applied_failure(self) -> None:
-        m = SkillMetrics()
-        m.record_applied(success=False)
-        assert m.consecutive_failures == 1
-        assert m.last_failure_at is not None
-
-    def test_record_fallback(self) -> None:
-        m = SkillMetrics()
-        m.record_fallback()
-        assert m.total_selections == 1
-        assert m.applied_count == 0
-
 
 class TestSkillLineage:
     """Cover to_dict / from_dict roundtrip."""

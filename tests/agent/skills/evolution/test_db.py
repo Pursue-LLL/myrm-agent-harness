@@ -64,15 +64,20 @@ async def test_get_skill_by_name_version(temp_db_path, skill_record):
 
 
 @pytest.mark.asyncio
-async def test_update_metrics(temp_db_path, skill_record):
+async def test_record_execution_outcome_counts_atomically(temp_db_path, skill_record):
     store = SkillStore(db_path=temp_db_path)
     await store.save_skill(skill_record)
 
-    new_metrics = SkillMetrics(success_count=5)
-    await store.update_metrics("test_skill_1", new_metrics)
+    assert await store.record_execution_outcome("test_skill_1", success=False)
+    assert await store.record_execution_outcome("test_skill_1", success=True)
+    assert not await store.record_execution_outcome("missing_skill", success=True)
 
-    retrieved = store.get_skill("test_skill_1")
-    assert retrieved.metrics.success_count == 5
+    metrics = store.get_skill("test_skill_1").metrics
+    assert (metrics.total_selections, metrics.applied_count, metrics.completed_count) == (2, 2, 2)
+    assert metrics.success_count == 1
+    assert metrics.consecutive_failures == 0
+    assert metrics.last_success_at is not None
+    assert metrics.last_failure_at is not None
 
     store.close()
 

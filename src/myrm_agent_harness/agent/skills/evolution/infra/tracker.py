@@ -5,7 +5,6 @@ only: repair decisions are made elsewhere (failure events, trace slices and the
 approval flow's effective-rate signal), never by this ledger.
 
 [INPUT]
-- agent.skills.evolution.core.types::SkillMetrics (POS: Data types for skill evolution system.)
 - agent.skills.evolution.db.store::SkillStore (POS: SQLite persistence for skill evolution system.)
 
 [OUTPUT]
@@ -21,7 +20,6 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from myrm_agent_harness.agent.skills.evolution.core.types import SkillMetrics
 from myrm_agent_harness.agent.skills.evolution.db.store import SkillStore
 
 logger = logging.getLogger(__name__)
@@ -49,38 +47,21 @@ class SkillQualityTracker:
         """
         self._store = store
 
-    async def record_execution(self, result: SkillExecutionResult) -> SkillMetrics:
-        """Record one execution outcome and persist the updated metrics.
+    async def record_execution(self, result: SkillExecutionResult) -> None:
+        """Count one execution outcome.
 
         Args:
             result: Execution result to record
 
-        Returns:
-            Updated SkillMetrics
-
         Raises:
             ValueError: If skill not found
         """
-        skill = self._store.get_skill(result.skill_id)
-        if not skill:
+        if not await self._store.record_execution_outcome(result.skill_id, success=result.success):
             raise ValueError(f"Skill not found: {result.skill_id}")
 
-        skill.metrics.record_applied(success=result.success)
-        if result.success:
-            logger.debug(
-                "Skill %s succeeded (success_rate=%.2f, usage=%d)",
-                result.skill_id,
-                skill.metrics.success_rate,
-                skill.metrics.usage_count,
-            )
-        else:
-            logger.warning(
-                "Skill %s failed (success_rate=%.2f, consecutive_failures=%d): %s",
-                result.skill_id,
-                skill.metrics.success_rate,
-                skill.metrics.consecutive_failures,
-                result.error_message,
-            )
-
-        await self._store.update_metrics(result.skill_id, skill.metrics)
-        return skill.metrics
+        logger.debug(
+            "Skill %s execution recorded (success=%s)%s",
+            result.skill_id,
+            result.success,
+            f": {result.error_message}" if result.error_message else "",
+        )

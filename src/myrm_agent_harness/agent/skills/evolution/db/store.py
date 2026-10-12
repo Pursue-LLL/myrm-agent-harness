@@ -30,6 +30,7 @@ import threading
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, suppress
+from datetime import datetime
 from functools import wraps
 from pathlib import Path
 from typing import Self
@@ -522,43 +523,34 @@ class SkillStore(SkillEvolutionTrackingMixin, SkillDependencyMixin, SkillStoreQu
         await asyncio.to_thread(self._save_skill_sync, record)
 
     @_db_retry()
-    def _update_metrics_sync(self, skill_id: str, metrics: SkillMetrics) -> None:
-        """Synchronous metrics update."""
+    def _record_execution_outcome_sync(self, skill_id: str, *, success: bool) -> bool:
+        """Count one execution in a single UPDATE so concurrent outcomes can never overwrite each other."""
         with self._mu:
-            self._conn.execute(
+            cursor = self._conn.execute(
                 """
                 UPDATE skills SET
-                    total_selections = ?,
-                    applied_count = ?,
-                    completed_count = ?,
-                    success_count = ?,
-                    last_success_at = ?,
-                    last_failure_at = ?,
-                    consecutive_failures = ?
-                WHERE skill_id = ?
+                    total_selections = total_selections + 1,
+                    applied_count = applied_count + 1,
+                    completed_count = completed_count + 1,
+                    success_count = success_count + :ok,
+                    consecutive_failures = CASE WHEN :ok THEN 0 ELSE consecutive_failures + 1 END,
+                    last_success_at = CASE WHEN :ok THEN :now ELSE last_success_at END,
+                    last_failure_at = CASE WHEN :ok THEN last_failure_at ELSE :now END
+                WHERE skill_id = :skill_id
                 """,
-                (
-                    metrics.total_selections,
-                    metrics.applied_count,
-                    metrics.completed_count,
-                    metrics.success_count,
-                    (metrics.last_success_at.isoformat() if metrics.last_success_at else None),
-                    (metrics.last_failure_at.isoformat() if metrics.last_failure_at else None),
-                    metrics.consecutive_failures,
-                    skill_id,
-                ),
+                {"ok": int(success), "now": datetime.now().isoformat(), "skill_id": skill_id},
             )
             self._conn.commit()
+            return cursor.rowcount > 0
 
-    async def update_metrics(self, skill_id: str, metrics: SkillMetrics) -> None:
-        """Update skill quality metrics.
+    async def record_execution_outcome(self, skill_id: str, *, success: bool) -> bool:
+        """Count one execution outcome of a skill (atomic increment).
 
-        Args:
-            skill_id: Skill identifier
-            metrics: Updated metrics
+        Returns:
+            False when no skill with this id exists.
         """
         self._ensure_open()
-        await asyncio.to_thread(self._update_metrics_sync, skill_id, metrics)
+        return await asyncio.to_thread(self._record_execution_outcome_sync, skill_id, success=success)
 
     # Evolution lock operations
     @_db_retry()
@@ -621,8 +613,6 @@ class SkillStore(SkillEvolutionTrackingMixin, SkillDependencyMixin, SkillStoreQu
 
     def _row_to_record(self, sqlite_row: sqlite3.Row) -> SkillRecord:
         """Convert SQLite row to SkillRecord."""
-        from datetime import datetime
-
         from myrm_agent_harness.agent.skills.evolution.core.types import (
             EnvironmentFingerprint,
             EvolutionType,
