@@ -2,6 +2,22 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-12-004 · `SQLiteRelationalStore` 连接阶段失败后复用无表结构的半初始化连接；库损坏后丢弃的连接未关闭，工作线程与文件句柄泄漏
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-12 |
+| **修复时间** | 2026-10-12 |
+| **症状** | （1）首次连接时 `_init_tables` 等步骤抛错后，下一次调用直接拿到同一个连接，随后 `set_profile` 报 `no such table: profiles`；（2）读写路径遇到 `malformed` / `disk I/O` 等损坏错误时，旧连接只被置空而未关闭，aiosqlite 的非守护工作线程一直存活（实测 `thread.is_alive()` 为 True，`close()` 之后仍为 True），损坏库文件的句柄无法释放，恢复流程（还原备份）受阻；（3）`get_profile`、`list_profiles`、`count_profiles`、`search_rules`、`list_rules`、`count_rules`、`list_pending`、`count_pending` 等 10 个读方法不做损坏分类，调用方拿到的是普通 `RelationalQueryError`，连接也不会重建 |
+| **关联产品** | myrm-agent-harness `toolkits/memory/relational/sqlite_store.py`（仓内与 `myrm-agent-server` 均无调用方捕获 `RelationalQueryError`） |
+| **根因** | `_get_connection` 的失败分支只清空 `_connection` 而不关闭，且成功建立的连接在 `_initialized` 之前就已对外可见；`_handle_query_error` 是同步函数，无法 `await` 关闭连接，且 `_initialized` 在重连后仍为 True，换成新库文件后不会重建表结构；读方法各自 `raise RelationalQueryError`，绕过了统一的错误处理 |
+| **修复** | 新增 `_discard_connection`（关闭连接并重置 `_initialized`），连接失败与损坏错误共用；`_handle_query_error` 改为 `async` 且返回 `NoReturn`，所有读写方法统一经它抛错（消息格式不变：`<op> failed: …`），同时去掉各调用点为通过类型检查而写的不可达 `return`；初始 `quick_check` 与 `assert_store_integrity` 共用 `_verify_quick_check` |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | 在 `except` 里只把引用置空等于泄漏：aiosqlite 0.22 的连接自带非守护线程；`_initialized` 这类“已建表”标记必须随连接一起失效；读路径与写路径的错误处理必须同源，否则损坏只在写时才被识别 |
+| **回归** | `tests/toolkits/memory/test_relational_sqlite_store_corruption.py`（连接阶段三类失败后连接已关闭且可重试；21 个操作 x 2 种错误：普通错误保持连接，损坏错误释放连接并在下一次调用恢复；`_handle_query_error` 三种分支）与 `test_relational_sqlite_store_migration.py`（旧库升级保留行、默认值、幂等）；回退验证：连接阶段 4 个用例在旧实现上失败（`no such table: profiles`、`_connection is not None`），旧实现下 `/tmp/r142_leak.py` 显示孤儿线程存活，修复后为 False |
+| **代码位置** | `sqlite_store.py::_get_connection`、`_discard_connection`、`_handle_query_error`、`_verify_quick_check` |
+
 ### BUG-HARNESS-2026-10-12-003 · `CodeExecutor` 的 shell 默认文件操作不是字节无损的：名字含单引号的文件读写失败或可注入命令，读取经 stdout 被脱敏/截断，大文件读写失败
 
 | 字段 | 内容 |

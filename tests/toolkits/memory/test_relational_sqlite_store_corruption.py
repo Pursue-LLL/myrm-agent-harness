@@ -79,12 +79,14 @@ def _track_connection(store: SQLiteRelationalStore, monkeypatch: pytest.MonkeyPa
 
 async def _assert_closed(conn: aiosqlite.Connection) -> None:
     with pytest.raises(ValueError, match="no active connection"):
-        await conn.execute("SELECT 1")
+        # Bypass instance-level execute patches installed by the tests.
+        await type(conn).execute(conn, "SELECT 1")
 
 
 async def _assert_closed(conn: aiosqlite.Connection) -> None:
     with pytest.raises(ValueError, match="no active connection"):
-        await conn.execute("SELECT 1")
+        # Bypass instance-level execute patches installed by the tests.
+        await type(conn).execute(conn, "SELECT 1")
 
 
 # ── connect-time failures ────────────────────────────────────────────
@@ -253,6 +255,7 @@ async def test_assert_store_integrity_wraps_unrelated_errors(store: SQLiteRelati
 # ── _handle_query_error ──────────────────────────────────────────────
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "error",
     [
@@ -262,41 +265,57 @@ async def test_assert_store_integrity_wraps_unrelated_errors(store: SQLiteRelati
     ],
     ids=lambda e: type(e).__name__,
 )
-def test_handle_query_error_reraises_store_errors_unchanged(store: SQLiteRelationalStore, error: Exception) -> None:
+async def test_handle_query_error_reraises_store_errors_unchanged(
+    store: SQLiteRelationalStore, error: Exception
+) -> None:
     with pytest.raises(type(error)) as exc_info:
-        store._handle_query_error("op", error)
+        await store._handle_query_error("op", error)
     assert exc_info.value is error
 
 
 @pytest.mark.asyncio
-async def test_handle_query_error_corruption_drops_connection(store: SQLiteRelationalStore) -> None:
+async def test_handle_query_error_corruption_releases_connection(store: SQLiteRelationalStore) -> None:
     conn = await store._get_connection()
     cause = aiosqlite.DatabaseError("database disk image is malformed")
 
     with pytest.raises(CorruptedMemoryIndexError, match="corrupted during set_profile") as exc_info:
-        store._handle_query_error("set_profile", cause)
+        await store._handle_query_error("set_profile", cause)
 
     assert exc_info.value.repair_suggestion == _DEFAULT_REPAIR
     assert exc_info.value.__cause__ is cause
     assert store._connection is None
-    await conn.close()
+    assert store._initialized is False
+    await _assert_closed(conn)
 
 
-def test_handle_query_error_wraps_other_errors_and_keeps_connection(store: SQLiteRelationalStore) -> None:
+@pytest.mark.asyncio
+async def test_handle_query_error_wraps_other_errors_and_keeps_connection(store: SQLiteRelationalStore) -> None:
+    conn = await store._get_connection()
     with pytest.raises(RelationalQueryError, match="list_rules failed: boom"):
-        store._handle_query_error("list_rules", RuntimeError("boom"))
+        await store._handle_query_error("list_rules", RuntimeError("boom"))
+    assert store._connection is conn
+    await store.close()
 
 
 # ── per-operation error classification ───────────────────────────────
 
 _STORE_OPERATIONS = {
     "set_profile": lambda s: s.set_profile("k", "v"),
+    "get_profile": lambda s: s.get_profile("k"),
+    "get_profile_snapshot": lambda s: s.get_profile_snapshot("k"),
+    "list_profiles": lambda s: s.list_profiles(),
+    "count_profiles": lambda s: s.count_profiles(),
     "delete_profile": lambda s: s.delete_profile("k"),
     "get_rule": lambda s: s.get_rule("missing"),
+    "search_rules": lambda s: s.search_rules("q"),
+    "list_rules": lambda s: s.list_rules(),
+    "count_rules": lambda s: s.count_rules(),
     "count_rules_inactive": lambda s: s.count_rules(active_only=False),
     "delete_rule": lambda s: s.delete_rule("missing"),
     "delete_all": lambda s: s.delete_all(),
     "get_pending": lambda s: s.get_pending("missing"),
+    "list_pending": lambda s: s.list_pending(),
+    "count_pending": lambda s: s.count_pending(),
     "pending_exists": lambda s: s.pending_exists("semantic", "x"),
     "mark_pending": lambda s: s.mark_pending("missing", "approved"),
     "delete_pending_by_source_chat_id": lambda s: s.delete_pending_by_source_chat_id("chat"),
@@ -329,22 +348,20 @@ async def test_operation_failure_is_wrapped_with_operation_name(store: SQLiteRel
     await conn.close()
 
 
-# Read operations that surface every failure as RelationalQueryError without corruption classification.
-_UNCLASSIFIED_READS = frozenset({"count_rules_inactive", "count_pending_by_source_chat_id"})
-
-
 @pytest.mark.asyncio
 @pytest.mark.parametrize("operation", sorted(_STORE_OPERATIONS))
-async def test_operation_corruption_handling(store: SQLiteRelationalStore, operation: str) -> None:
+async def test_operation_corruption_releases_connection_and_store_recovers(
+    store: SQLiteRelationalStore, operation: str
+) -> None:
     conn = await store._get_connection()
     _fail_non_pragma_statements(conn, aiosqlite.DatabaseError("database disk image is malformed"))
 
-    if operation in _UNCLASSIFIED_READS:
-        with pytest.raises(RelationalQueryError, match="malformed"):
-            await _STORE_OPERATIONS[operation](store)
-        assert store._connection is conn
-    else:
-        with pytest.raises(CorruptedMemoryIndexError, match="corrupted during"):
-            await _STORE_OPERATIONS[operation](store)
-        assert store._connection is None
-    await conn.close()
+    with pytest.raises(CorruptedMemoryIndexError, match="corrupted during"):
+        await _STORE_OPERATIONS[operation](store)
+
+    assert store._connection is None
+    await _assert_closed(conn)
+
+    await store.set_profile("after", "recovery")
+    assert await store.get_profile("after") == "recovery"
+    await store.close()
