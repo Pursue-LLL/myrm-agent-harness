@@ -5,7 +5,7 @@ Pure functions and utilities used by SubagentManager to prepare child agents.
 [INPUT]
 - agent.base_agent::BaseAgent (POS: Base Agent — lightweight agent with streaming, token tracking, and artifacts.)
 - utils.token_economics.tracker::TokenTracker (POS: LLM call metadata tracker. ContextVar-based request-level tracking supporting both streaming and non-streaming modes.)
-- agent.types::AgentRuntimeConfig (POS: Provides ArtifactInfo, infer_language, infer_artifact_type.)
+- agent.types::AgentRuntimeConfig (POS: Agent core runtime type definitions. Defines completion status, run statistics, quote attachments, workspace bindings, and runtime specs.)
 - agent.sub_agents.types::DelegationCapabilityManifest (POS: Subagent subsystem core type definitions. Defines all subagent-related data types, enums, and protocols.)
 
 [OUTPUT]
