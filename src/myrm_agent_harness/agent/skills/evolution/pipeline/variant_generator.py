@@ -2,7 +2,7 @@
 
 Concurrently generates multiple candidate variants of a skill using LLM,
 allowing the system to explore different approaches before testing.
-Supports single-error, evidence-based, and description-only generation.
+Supports single-error and description-only generation.
 
 Uses modular prompt assembly: composable prompt modules (editing principles,
 hard constraints, conservative editing, failure attribution, structured output)
@@ -10,11 +10,10 @@ are assembled per EvolutionType for precision and maintainability.
 
 [INPUT]
 - agent.skills.evolution.core.types::SkillRecord (POS: Data types for skill evolution system.)
-- agent.skills.evolution.core.types::SkillEvidenceGroup (POS: Data types for skill evolution system.)
 - utils.chat_utils::extract_answer_text (POS: 兼容 reasoning 模型 content 空回退的答案提取)
 
 [OUTPUT]
-- VariantGenerator: Generates multiple candidate patches for a skill based on error trace or aggregated evidence.
+- VariantGenerator: Generates multiple candidate patches for a skill based on an error trace.
 
 [POS]
 Variant Generator for Skill Evolution.
@@ -32,7 +31,6 @@ from langchain_core.messages import HumanMessage
 
 from myrm_agent_harness.agent.skills.evolution.core.types import (
     GeneEliteRecord,
-    SkillEvidenceGroup,
     SkillRecord,
 )
 from myrm_agent_harness.eval.leakage_guard import (
@@ -175,41 +173,12 @@ class VariantGenerator:
         return variants
 
     # ------------------------------------------------------------------
-    # Public API: Evidence-based variants
-    # ------------------------------------------------------------------
-
-    async def generate_variants_from_evidence(
-        self,
-        skill: SkillRecord,
-        evidence: SkillEvidenceGroup,
-        num_variants: int = 3,
-        constraints: str = "",
-    ) -> list[str]:
-        """Generate variants using aggregated evidence (success + failure cases).
-
-        Presents the LLM with both successful and failing scenarios,
-        enabling smarter fixes that avoid regressions.
-        """
-        if not self._llm:
-            logger.warning("No LLM configured for VariantGenerator")
-            return [skill.content]
-
-        prompt = self._build_evidence_prompt(skill, evidence, constraints)
-        prompt = self._sanitize_and_audit_prompt(prompt, skill)
-        variants = await self._generate_concurrent(prompt, num_variants, "evidence_variant")
-        if not variants:
-            logger.warning("All evidence variant generations failed. Returning original.")
-            return [skill.content]
-        return variants
-
-    # ------------------------------------------------------------------
     # Public API: Description-only variants (OPTIMIZE_DESCRIPTION)
     # ------------------------------------------------------------------
 
     async def generate_description_variants(
         self,
         skill: SkillRecord,
-        evidence: SkillEvidenceGroup | None = None,
         num_variants: int = 3,
     ) -> list[str]:
         """Generate description-only variants for better skill matching.
@@ -221,7 +190,7 @@ class VariantGenerator:
             logger.warning("No LLM configured for VariantGenerator")
             return [skill.description]
 
-        prompt = self._build_description_prompt(skill, evidence)
+        prompt = self._build_description_prompt(skill)
         return await self._generate_concurrent(prompt, num_variants, "desc_variant")
 
     # ------------------------------------------------------------------
@@ -298,92 +267,12 @@ class VariantGenerator:
 
         return "\n\n".join(sections)
 
-    def _build_evidence_prompt(
-        self,
-        skill: SkillRecord,
-        evidence: SkillEvidenceGroup,
-        constraints: str = "",
-    ) -> str:
-        """Build prompt with both success/failure evidence and modular principles."""
-        sections = [
-            "You are an expert AI agent skill optimizer.",
-            f"Skill Name: {skill.name}",
-            f"Evidence Success Rate: {evidence.evidence_success_rate:.1%} "
-            f"({len(evidence.success_cases)} success / {len(evidence.failure_cases)} failure)",
-        ]
-
-        if evidence.success_cases:
-            filtered_success = [
-                c
-                for c in evidence.success_cases
-                if not is_test_case_spec(getattr(c, "metadata", None) or getattr(c, "split", None))
-            ]
-            cases = filtered_success[:5]
-            lines = [f"- Task: {c.task_context or 'N/A'}" for c in cases]
-            sections.append(
-                f"## WORKING SCENARIOS ({len(filtered_success)} total)\n"
-                "These work correctly. Your fix MUST NOT break them:\n" + "\n".join(lines)
-            )
-
-        if evidence.failure_cases:
-            filtered_failures = [
-                c
-                for c in evidence.failure_cases
-                if not is_test_case_spec(getattr(c, "metadata", None) or getattr(c, "split", None))
-            ]
-            cases = filtered_failures[:5]
-            lines = []
-            for c in cases:
-                err = c.error_message[:150] if c.error_message else "N/A"
-                lines.append(f"- Task: {c.task_context or 'N/A'} | Error: {err}")
-            sections.append(
-                f"## FAILING SCENARIOS ({len(filtered_failures)} total)\nThese need fixing:\n" + "\n".join(lines)
-            )
-
-        if evidence.common_error_patterns:
-            lines = [f"- {p}" for p in evidence.common_error_patterns[:5]]
-            sections.append("## COMMON ERROR PATTERNS\n" + "\n".join(lines))
-
-        sections.extend(
-            [
-                _EDITING_PRINCIPLES,
-                _HARD_CONSTRAINTS,
-                _CONSERVATIVE_EDITING,
-                _FAILURE_ATTRIBUTION,
-            ]
-        )
-
-        eval_section = self._build_eval_cases_section(skill)
-        if eval_section:
-            sections.append(eval_section)
-
-        if constraints:
-            sections.append(f"\n## Historical Constraints (MUST obey)\n{constraints}")
-
-        gene_bank_section = self._build_gene_bank_prior_section(getattr(skill, "gene_bank_priors", []))
-        if gene_bank_section:
-            sections.append(gene_bank_section)
-
-        sections.append(f"\nCurrent Skill Content:\n{skill.content[:4000]}")
-        sections.append(_STRUCTURED_OUTPUT)
-
-        return "\n\n".join(sections)
-
-    def _build_description_prompt(self, skill: SkillRecord, evidence: SkillEvidenceGroup | None = None) -> str:
+    def _build_description_prompt(self, skill: SkillRecord) -> str:
         """Build prompt for description-only optimization."""
         sections = [_DESCRIPTION_SYSTEM]
         sections.append(f"Skill Name: {skill.name}")
         sections.append(f"Current Description: {skill.description}")
         sections.append(f"Skill Content (for context):\n{skill.content[:2000]}")
-
-        if evidence:
-            if evidence.success_cases:
-                tasks = [c.task_context or "N/A" for c in evidence.success_cases[:3]]
-                sections.append("Scenarios where this skill works: " + "; ".join(tasks))
-            if evidence.failure_cases:
-                tasks = [c.task_context or "N/A" for c in evidence.failure_cases[:3]]
-                sections.append("Scenarios where this skill was wrongly matched: " + "; ".join(tasks))
-
         return "\n\n".join(sections)
 
     # ------------------------------------------------------------------

@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from myrm_agent_harness.agent.hooks.types import HookEvent
-from myrm_agent_harness.agent.skills.evolution.core.types import EvolutionType
+from myrm_agent_harness.agent.skills.evolution.core.types import EvolutionType, SkillLineage, SkillRecord
 from myrm_agent_harness.agent.skills.evolution.infra.integration import (
     EvolutionIntegration,
     enable_skill_evolution,
@@ -91,74 +91,51 @@ async def test_integration_initialization_with_llm(clean_integration):
 
 
 @pytest.mark.asyncio
-async def test_record_execution_success(clean_integration):
-    from myrm_agent_harness.agent.skills.evolution.infra.tracker import SkillMetrics
-
+async def test_record_execution_forwards_outcome_to_tracker(clean_integration):
     integration = EvolutionIntegration(db_path=":memory:")
     try:
         integration.tracker = MagicMock()
+        integration.tracker.record_execution = AsyncMock()
 
-        mock_metrics = MagicMock(spec=SkillMetrics)
-        mock_metrics.consecutive_failures = 0
-        mock_metrics.should_trigger_fix.return_value = False
-        integration.tracker.record_execution = AsyncMock(return_value=mock_metrics)
+        await integration.record_execution(skill_id="test_skill", success=True)
 
-        integration.store = MagicMock()
-
-        await integration.record_execution(
-            skill_id="test_skill",
-            success=True,
-            error_message="",
-            context={"task": "test"},
-        )
-        integration.tracker.record_execution.assert_called_once()
+        integration.tracker.record_execution.assert_awaited_once()
+        recorded = integration.tracker.record_execution.call_args[0][0]
+        assert (recorded.skill_id, recorded.success, recorded.error_message) == ("test_skill", True, "")
     finally:
         await integration.close()
 
 
 @pytest.mark.asyncio
-async def test_record_execution_quarantine(clean_integration):
-    from myrm_agent_harness.agent.skills.evolution.infra.tracker import SkillMetrics
-
-    integration = EvolutionIntegration(db_path=":memory:", enable_background_queue=True)
+async def test_record_execution_failure_only_counts(clean_integration, tmp_path):
+    """A failure (even a deterministic one, repeated) never deactivates the skill or enqueues a repair."""
+    integration = EvolutionIntegration(db_path=tmp_path / "skills.db", enable_background_queue=True)
     try:
-        integration.tracker = MagicMock()
         integration.queue = MagicMock()
         integration.queue.enqueue = AsyncMock()
         integration.queue.stop = AsyncMock()
         integration.engine = MagicMock()
-
-        mock_metrics = MagicMock(spec=SkillMetrics)
-        mock_metrics.consecutive_failures = 3
-        mock_metrics.should_trigger_fix.return_value = True
-        integration.tracker.record_execution = AsyncMock(return_value=mock_metrics)
-
-        integration.store = MagicMock()
-        integration.store.deactivate_skill = AsyncMock()
-        integration.store.close = MagicMock()
-
-        await integration.record_execution(
-            skill_id="test_skill",
-            success=False,
-            error_message="TypeError: test",
-            context={"task": "test"},
+        integration.engine.fix_skill = AsyncMock()
+        await integration.store.save_skill(
+            SkillRecord(
+                skill_id="test_skill",
+                name="test_skill",
+                description="d",
+                content="c",
+                path="p",
+                lineage=SkillLineage(evolution_type=EvolutionType.CAPTURED, version=1),
+            )
         )
-        integration.store.deactivate_skill.assert_called_once()
-        integration.queue.enqueue.assert_called_once()
-    finally:
-        await integration.close()
 
+        for _ in range(3):
+            await integration.record_execution(skill_id="test_skill", success=False, error_message="TypeError: test")
 
-@pytest.mark.asyncio
-async def test_get_skills_needing_fix(clean_integration):
-    integration = EvolutionIntegration(db_path=":memory:")
-    try:
-        integration.tracker = MagicMock()
-        integration.tracker.get_skills_needing_fix = AsyncMock(return_value=["skill1", "skill2"])
-
-        result = await integration.get_skills_needing_fix()
-        assert result == ["skill1", "skill2"]
-        integration.tracker.get_skills_needing_fix.assert_called_once()
+        skill = integration.store.get_skill("test_skill")
+        assert skill is not None
+        assert skill.is_active is True
+        assert skill.metrics.consecutive_failures == 3
+        integration.queue.enqueue.assert_not_called()
+        integration.engine.fix_skill.assert_not_called()
     finally:
         await integration.close()
 

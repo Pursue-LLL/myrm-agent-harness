@@ -12,7 +12,6 @@ Focus on real-world utility with 54% less code than OpenSpace while maintaining 
 - SkillLineage: Simplified lineage tracking.
 - SkillRecord: Complete skill record with evolution metadata.
 - EvolutionRequest: Request for skill evolution (for concurrent processing). Supports GUI-First force_retry.
-- SkillEvidenceGroup: Aggregated execution evidence for evidence-driven evolution.
 
 [POS]
 Data types for skill evolution system.
@@ -227,10 +226,7 @@ class SkillMetrics:
     # Recency and streak signals
     last_success_at: datetime | None = None
     last_failure_at: datetime | None = None
-    consecutive_failures: int = 0  # For quick FIX triggering
-
-    # User dissatisfaction signal (incremented on force_retry / manual correction)
-    user_correction_count: int = 0
+    consecutive_failures: int = 0  # Failures since the last success
 
     # Derived rates (properties)
     @property
@@ -297,17 +293,6 @@ class SkillMetrics:
         Use when skill is selected but execution is skipped (e.g., user cancelled).
         """
         self.total_selections += 1  # Increment selections only
-
-    def should_trigger_fix(self, threshold: float = 0.5) -> bool:
-        """Check if FIX evolution should be triggered.
-
-        Triggers when:
-        1. effective_rate < threshold AND applied_count >= 3, OR
-        2. consecutive_failures >= 3 (immediate fix needed)
-        """
-        if self.consecutive_failures >= 3:
-            return True
-        return self.effective_rate < threshold and self.applied_count >= 3
 
 
 @dataclass
@@ -389,7 +374,6 @@ class SkillRecord:
                 "last_success_at": (self.metrics.last_success_at.isoformat() if self.metrics.last_success_at else None),
                 "last_failure_at": (self.metrics.last_failure_at.isoformat() if self.metrics.last_failure_at else None),
                 "consecutive_failures": self.metrics.consecutive_failures,
-                "user_correction_count": self.metrics.user_correction_count,
             },
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
@@ -414,7 +398,6 @@ class SkillRecord:
                 datetime.fromisoformat(metrics_data["last_failure_at"]) if metrics_data.get("last_failure_at") else None
             ),
             consecutive_failures=metrics_data.get("consecutive_failures", 0),
-            user_correction_count=metrics_data.get("user_correction_count", 0),
         )
 
         return cls(
@@ -522,79 +505,3 @@ class EvolutionProposal:
             "change_manifest": self.change_manifest,
             "security_scan_summary": self.security_scan_summary,
         }
-
-
-@dataclass
-class ExecutionAnalysis:
-    """Lightweight execution analysis (按需调用).
-
-    Simplified from OpenSpace's complex analysis system.
-    Only triggered when:
-    1. error is None but user reports failure
-    2. success_rate drops significantly
-    3. Manual trigger for investigation
-    """
-
-    skill_id: str
-    task_id: str
-    success: bool
-    error_message: str = ""
-    root_cause: str = ""  # LLM-analyzed root cause
-    suggested_fix: str = ""  # LLM-suggested fix
-    task_context: str = ""  # Intent context of the subagent/task
-    analyzed_at: datetime = field(default_factory=datetime.now)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "skill_id": self.skill_id,
-            "task_id": self.task_id,
-            "success": self.success,
-            "error_message": self.error_message,
-            "root_cause": self.root_cause,
-            "suggested_fix": self.suggested_fix,
-            "task_context": self.task_context,
-            "analyzed_at": self.analyzed_at.isoformat(),
-        }
-
-
-@dataclass
-class SkillEvidenceGroup:
-    """Aggregated execution evidence for a single skill.
-
-    Groups success and failure cases to enable evidence-driven evolution
-    decisions that avoid regressions on working scenarios.
-    """
-
-    skill_id: str
-    skill_name: str
-    success_cases: list[ExecutionAnalysis] = field(default_factory=list)
-    failure_cases: list[ExecutionAnalysis] = field(default_factory=list)
-    metrics_snapshot: SkillMetrics | None = None
-    common_error_patterns: list[str] = field(default_factory=list)
-
-    # Dual-window trend data (30-day lookback for slow-degradation detection)
-    trend_failure_count: int = 0
-
-    # Evidence quality signal (0.0-1.0, higher = more consistent error pattern)
-    confidence: float = 1.0
-
-    @property
-    def total_evidence(self) -> int:
-        return len(self.success_cases) + len(self.failure_cases)
-
-    @property
-    def evidence_success_rate(self) -> float:
-        if self.total_evidence == 0:
-            return 0.0
-        return len(self.success_cases) / self.total_evidence
-
-    def has_sufficient_evidence(self, min_total: int = 3, min_failures: int = 1) -> bool:
-        """Check if there is enough evidence to justify evolution.
-
-        Also considers 30-day trend: if trend shows persistent failures
-        even when the 7-day window is sparse, evidence is sufficient.
-        """
-        if self.total_evidence >= min_total and len(self.failure_cases) >= min_failures:
-            return True
-        # Trend fallback: slow-degrading skills (e.g. 1 fail/week)
-        return bool(self.trend_failure_count >= min_total and self.trend_failure_count >= min_failures)

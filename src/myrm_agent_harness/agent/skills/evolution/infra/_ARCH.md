@@ -10,11 +10,10 @@ Agent Skills Evolution Infra module.
 | __init__.py | Package |   Init   | — |
 | background_task_manager.py | Core | Background evolution task management with observability and graceful shutdown. | ✅ |
 | confirmation.py | Core | Batch LLM confirmation for evolution candidates. Confirmation JSON parsed via `parse_llm_json_object` (robust against fences, prose, bare control chars, trailing commas). | ✅ |
-| integration.py | Core | Integration helpers for skill evolution system: Error-Aware Smart Quarantine (1-Strike/3-Strikes), 15-Call Sliding Window trace slice trigger. | ✅ |
+| integration.py | Core | Integration helpers for skill evolution system: 15-Call Sliding Window trace slice trigger, execution ledger recording, background queue orchestration. | ✅ |
 | metrics.py | Core | Aggregates evolution metrics across all skills for system-level insights. | ✅ |
-| monitor.py | Core | Periodic skill health monitoring and proactive evolution trigger. | ✅ |
 | queue.py | Core | Defers non-critical evolutions to background queue to avoid blocking main flow. | ✅ |
-| tracker.py | Core | Skill quality tracking and FIX evolution triggering. | ✅ |
+| tracker.py | Core | Skill execution ledger: counts execution outcomes into the persisted skill metrics. Counting only; repair is never triggered from it. | ✅ |
 
 ## Key Dependencies
 

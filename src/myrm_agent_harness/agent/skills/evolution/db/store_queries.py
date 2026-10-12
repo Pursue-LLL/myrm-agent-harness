@@ -12,14 +12,11 @@ Complex query methods for SkillStore.
 
 from __future__ import annotations
 
-import logging
 import sqlite3
 from contextlib import AbstractContextManager
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.agent.skills.evolution.core.types import SkillRecord
-
-logger = logging.getLogger(__name__)
 
 __all__ = ["SkillStoreQueries"]
 
@@ -78,39 +75,6 @@ class SkillStoreQueries:
             sql += " ORDER BY updated_at DESC"
 
             rows = conn.execute(sql, tuple(params)).fetchall()
-            return [self._row_to_record(row) for row in rows]
-
-    def get_skills_needing_fix(self, threshold: float = 0.5) -> list[SkillRecord]:
-        """Find skills with low success rate or consecutive failures.
-
-        Args:
-            threshold: Success rate threshold (default 0.5)
-
-        Returns:
-            List of skills needing FIX evolution
-        """
-        self._ensure_open()
-        with self._reader() as conn:
-            # Debug: check all skills first
-            all_skills = conn.execute(
-                "SELECT skill_id, consecutive_failures, applied_count, success_count, is_active FROM skills"
-            ).fetchall()
-            logger.debug(f"All skills in DB: {[dict(row) for row in all_skills]}")
-
-            rows = conn.execute(
-                """
-                SELECT * FROM skills
-                WHERE is_active = 1
-                AND (
-                    (CAST(success_count AS REAL) / NULLIF(applied_count, 0) < ? AND applied_count >= 3)
-                    OR consecutive_failures >= 3
-                )
-                ORDER BY consecutive_failures DESC, CAST(success_count AS REAL) / NULLIF(applied_count, 0) ASC
-                """,
-                (threshold,),
-            ).fetchall()
-
-            logger.debug(f"Skills needing fix (threshold={threshold}): {len(rows)} found")
             return [self._row_to_record(row) for row in rows]
 
     def get_skill_by_name_version(self, name: str, version: int | None = None) -> SkillRecord | None:
@@ -172,69 +136,3 @@ class SkillStoreQueries:
                 current_id = record.lineage.parent_id
 
         return lineage
-
-    def get_recent_analyses_grouped(self, days: int = 7) -> dict[str, list[dict[str, str | bool]]]:
-        """Group recent execution analyses by skill_id.
-
-        Returns a dict mapping skill_id to a list of analysis row dicts
-        (including both success and failure records).
-
-        Args:
-            days: Number of days to look back (default 7)
-
-        Returns:
-            Dict mapping skill_id -> list of analysis row dicts
-        """
-        from collections import defaultdict
-        from datetime import datetime, timedelta
-
-        self._ensure_open()
-        cutoff = (datetime.now() - timedelta(days=days)).isoformat()
-
-        with self._reader() as conn:
-            rows = conn.execute(
-                """
-                SELECT skill_id, task_id, success, error_message,
-                       root_cause, suggested_fix, task_context, analyzed_at
-                FROM execution_analyses
-                WHERE analyzed_at >= ?
-                ORDER BY skill_id, analyzed_at DESC
-                """,
-                (cutoff,),
-            ).fetchall()
-
-        groups: dict[str, list[dict[str, str | bool]]] = defaultdict(list)
-        for row in rows:
-            groups[row["skill_id"]].append(dict(row))
-
-        return dict(groups)
-
-    def get_trend_failure_counts(self, days: int = 30) -> dict[str, int]:
-        """Get failure counts per skill over a longer trend window.
-
-        Used for slow-degradation detection: catches skills that fail
-        infrequently (e.g., 1/week) but consistently over a longer period.
-
-        Args:
-            days: Trend lookback window (default 30)
-
-        Returns:
-            Dict mapping skill_id -> failure count in the trend window
-        """
-        from datetime import datetime, timedelta
-
-        self._ensure_open()
-        cutoff = (datetime.now() - timedelta(days=days)).isoformat()
-
-        with self._reader() as conn:
-            rows = conn.execute(
-                """
-                SELECT skill_id, COUNT(*) as fail_count
-                FROM execution_analyses
-                WHERE analyzed_at >= ? AND success = 0
-                GROUP BY skill_id
-                """,
-                (cutoff,),
-            ).fetchall()
-
-        return {row["skill_id"]: row["fail_count"] for row in rows}

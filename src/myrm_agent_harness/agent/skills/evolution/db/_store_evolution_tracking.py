@@ -1,16 +1,15 @@
 """Evolution tracking persistence for skill evolution system.
 
-Handles CRUD operations for execution analyses, evolution rejections,
-and evolution constraints tables.
+Handles CRUD operations for the evolution rejections and evolution constraints tables.
 
 [INPUT]
-- agent.skills.evolution.core.types::ExecutionAnalysis (POS: Data types for skill evolution system.)
+- (none)
 
 [OUTPUT]
 - SkillEvolutionTrackingMixin: Mixin providing evolution tracking persistence for SkillStore.
 
 [POS]
-Evolution tracking persistence (analyses, rejections, constraints) for skill evolution system.
+Evolution tracking persistence (rejections, constraints) for skill evolution system.
 """
 
 from __future__ import annotations
@@ -20,10 +19,6 @@ import logging
 import sqlite3
 import threading
 from datetime import UTC
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from myrm_agent_harness.agent.skills.evolution.core.types import ExecutionAnalysis
 
 logger = logging.getLogger(__name__)
 
@@ -43,89 +38,6 @@ class SkillEvolutionTrackingMixin:
 
     _mu: threading.Lock
     _conn: sqlite3.Connection
-
-    # --- ExecutionAnalysis operations ---
-
-    def _save_analysis_sync(self, analysis: ExecutionAnalysis) -> None:
-        """Synchronous save - called via asyncio.to_thread()."""
-        with self._mu:
-            self._conn.execute(
-                """
-                INSERT INTO execution_analyses (
-                    skill_id, task_id, success, error_message,
-                    root_cause, suggested_fix, task_context, analyzed_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    analysis.skill_id,
-                    analysis.task_id,
-                    int(analysis.success),
-                    analysis.error_message,
-                    analysis.root_cause,
-                    analysis.suggested_fix,
-                    analysis.task_context,
-                    analysis.analyzed_at.isoformat(),
-                ),
-            )
-            self._conn.commit()
-
-    async def save_analysis(self, analysis: ExecutionAnalysis) -> None:
-        """Save execution analysis.
-
-        Args:
-            analysis: ExecutionAnalysis to persist
-        """
-        self._ensure_open()  # type: ignore[attr-defined]
-        await asyncio.to_thread(self._save_analysis_sync, analysis)
-
-    def _load_analyses_sync(self, skill_id: str, limit: int) -> list[dict[str, object]]:
-        """Synchronous load - called via asyncio.to_thread()."""
-        with self._mu:
-            rows = self._conn.execute(
-                """
-                SELECT skill_id, task_id, success, error_message,
-                       root_cause, suggested_fix, task_context, analyzed_at
-                FROM execution_analyses
-                WHERE skill_id = ?
-                ORDER BY analyzed_at DESC
-                LIMIT ?
-                """,
-                (skill_id, limit),
-            ).fetchall()
-            return [dict(row) for row in rows]
-
-    async def load_analyses(self, skill_id: str, limit: int = 10) -> list[dict[str, object]]:
-        """Load recent execution analyses for a skill.
-
-        Args:
-            skill_id: Skill identifier
-            limit: Max analyses to return (default 10)
-
-        Returns:
-            List of ExecutionAnalysis, newest first
-        """
-        from datetime import datetime
-
-        from myrm_agent_harness.agent.skills.evolution.core.types import (
-            ExecutionAnalysis,
-        )
-
-        self._ensure_open()  # type: ignore[attr-defined]
-        rows = await asyncio.to_thread(self._load_analyses_sync, skill_id, limit)
-
-        return [
-            ExecutionAnalysis(
-                skill_id=row["skill_id"],
-                task_id=row["task_id"],
-                success=bool(row["success"]),
-                error_message=row["error_message"],
-                root_cause=row["root_cause"],
-                suggested_fix=row["suggested_fix"],
-                task_context=row["task_context"],
-                analyzed_at=datetime.fromisoformat(row["analyzed_at"]),
-            )
-            for row in rows
-        ]
 
     # --- Evolution rejection tracking ---
 
@@ -177,7 +89,7 @@ class SkillEvolutionTrackingMixin:
 
         Args:
             skill_id: Skill identifier
-            trigger_type: "tool_degradation", "metric_monitor", etc.
+            trigger_type: Which trigger produced the candidate, e.g. "tool_degradation"
             proposed_type: "FIX", "DERIVED", etc.
             rejection_reason: Why LLM rejected (from confirmation)
             confidence: LLM confidence in rejection decision (0.0-1.0)

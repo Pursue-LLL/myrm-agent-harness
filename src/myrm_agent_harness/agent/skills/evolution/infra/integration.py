@@ -9,7 +9,6 @@ Framework provides the hooks, business layer decides when to use them.
 - agent.skills.evolution.db.store::SkillStore (POS: SQLite persistence for skill evolution system.)
 - toolkits.code_execution.executors.test_executor::SubprocessCodeExecutor (POS: Subprocess-based test execution for skill evolution TDE.)
 - agent.skills.evolution.execution.tool_selector::EvolutionToolConfig (POS: Tool Selector for Evolution System)
-- agent.skills.evolution.pipeline.analyzer::SkillExecutionAnalyzer (POS: Lightweight execution analysis for skill evolution decisions.)
 - agent.skills.evolution.pipeline.screener::EvolutionScreener (POS: myrm_agent_harness/agent/skills/evolution/screener.py ## Architecture Two-phase screening to block "snowball effect" of blind fixes: **Phase 1: Rule-based (Cooldown)** Rejects repeated evolution attempts within cooldown period Checks both skill.updated_at and rejection history Zero LLM cost, instant response **Phase 2: LLM Confirmation (Cheap Model)** Only for FIX evolution type Analyzes real error logs (HTTP status, exception stack) Asks cheap LLM: "Is this really a skill code defect?" Returns YES (proceed) or NO + reason (block) **Prometheus Metrics (Observability)** evolution_screening_total: Counter by phase + result evolution_screening_confidence: Histogram of LLM confidence evolution_screening_duration_seconds: Histogram of screening duration by phase ## Design Principles 1. **Cost Optimization**: Use gpt-4o-mini/claude-haiku for Phase 2 2. **Fail-Safe**: LLM errors → Allow (don't block valid fixes) 3. **Transparency**: Record all rejections for audit 4. **Signal Extraction**: Focus on HTTP status + exception type vs full stack 5. **Observability**: Expose Prometheus metrics for monitoring and tuning)
 - agent.context_management.pipeline::ContextPipeline (POS: Message filter pipeline for composing multiple filters.)
 - toolkits.code_execution::CodeExecutor (POS: Code execution toolkit entry point. Aggregates execution configuration, executor implementations, workspace management, and factory functions for the Agent-in-Sandbox architecture.)
@@ -25,7 +24,7 @@ Framework provides the hooks, business layer decides when to use them.
 
 [POS]
 Integration helpers for skill evolution system. Provides EvolutionIntegration singleton with
-15-Call Sliding Window trigger, Error-Aware Quarantine, and background queue orchestration.
+15-Call Sliding Window trigger, execution ledger recording, and background queue orchestration.
 """
 
 import logging
@@ -39,7 +38,6 @@ from myrm_agent_harness.agent.skills.evolution.core.types import (
     EvolutionProposal,
     EvolutionRequest,
     EvolutionType,
-    SkillRecord,
 )
 from myrm_agent_harness.agent.skills.evolution.db.store import SkillStore
 from myrm_agent_harness.agent.skills.evolution.execution.dependency import (
@@ -57,9 +55,6 @@ from myrm_agent_harness.agent.skills.evolution.infra.queue import (
 from myrm_agent_harness.agent.skills.evolution.infra.tracker import (
     SkillExecutionResult,
     SkillQualityTracker,
-)
-from myrm_agent_harness.agent.skills.evolution.pipeline.analyzer import (
-    SkillExecutionAnalyzer,
 )
 from myrm_agent_harness.agent.skills.evolution.pipeline.screener import (
     EvolutionScreener,
@@ -112,9 +107,6 @@ class EvolutionIntegration:
 
         # Record skill execution result
         await evolution.record_execution(skill_id="test", success=False, error_message="...")
-
-        # Check for skills needing fix
-        needs_fix = await evolution.get_skills_needing_fix()
 
         # Auto-evolve in background
         await evolution.start_background_queue()
@@ -179,7 +171,6 @@ class EvolutionIntegration:
         # Core components
         self.store = SkillStore(self.db_path)
         self.tracker = SkillQualityTracker(self.store)
-        self.analyzer = SkillExecutionAnalyzer()
         self.test_executor: SubprocessCodeExecutor | None = test_executor
         self.screener: EvolutionScreener | None = screener
         self._evolution_strategy = evolution_strategy
@@ -421,119 +412,20 @@ class EvolutionIntegration:
         skill_id: str,
         success: bool,
         error_message: str = "",
-        context: dict[str, str] | None = None,
     ) -> None:
-        """Record skill execution result (framework hook).
+        """Record a skill execution outcome into the quality ledger (framework hook).
 
-        Business layer calls this after skill execution.
+        Business layer calls this after skill execution. Counting only: repair is
+        driven by failure events and trace slices, never by this ledger.
 
         Args:
             skill_id: Executed skill ID
             success: Whether execution succeeded
-            error_message: Error message if failed
-            context: Optional execution context (e.g. {"task_intent": "..."})
+            error_message: Error message if failed (logged, not persisted)
         """
-        # Auto-inject task_intent from ContextVar if not provided explicitly
-        effective_context: dict[str, str] = dict(context) if context else {}
-        if "task_intent" not in effective_context:
-            from myrm_agent_harness.agent.skill_agent.context import get_task_intent
-
-            intent = get_task_intent()
-            if intent:
-                effective_context["task_intent"] = intent
-
-        result = SkillExecutionResult(
-            skill_id=skill_id,
-            success=success,
-            error_message=error_message,
-            context=effective_context,
+        await self.tracker.record_execution(
+            SkillExecutionResult(skill_id=skill_id, success=success, error_message=error_message)
         )
-
-        metrics = await self.tracker.record_execution(result)
-
-        # Error-Aware Smart Darwinian Quarantine & FIX Triggering
-        needs_quarantine = False
-        quarantine_reason = ""
-        is_deterministic_error = False
-
-        if not success and error_message:
-            deterministic_errors = (
-                # Python deterministic errors
-                "SyntaxError",
-                "IndentationError",
-                "NameError",
-                "TypeError",
-                "ValueError",
-                "AttributeError",
-                "ModuleNotFoundError",
-                "ImportError",
-                "KeyError",
-                "IndexError",
-                "ZeroDivisionError",
-                # System/Bash deterministic errors
-                "command not found",
-                "No such file or directory",
-                "Permission denied",
-            )
-            if any(e in error_message for e in deterministic_errors):
-                is_deterministic_error = True
-
-        if not success:
-            if is_deterministic_error:
-                needs_quarantine = True
-                quarantine_reason = "1-Strike (Deterministic Error)"
-            elif metrics.consecutive_failures >= 3:
-                needs_quarantine = True
-                quarantine_reason = f"3-Strikes (Consecutive Failures: {metrics.consecutive_failures})"
-
-        if needs_quarantine:
-            logger.error(
-                "HARD QUARANTINE: Skill %s deactivated. Reason: %s. Error: %s",
-                skill_id,
-                quarantine_reason,
-                (error_message.split("\n")[-1][:100] if "\n" in error_message else error_message[:100]),
-            )
-            await self.store.deactivate_skill(skill_id)
-
-        # Auto-trigger FIX if needed (business layer can override this)
-        # CRITICAL: We MUST trigger FIX if the skill was quarantined (even if it's the 1st failure),
-        # OR if the standard metrics say so.
-        if (needs_quarantine or metrics.should_trigger_fix()) and self.engine:
-            logger.warning(
-                "Skill %s needs FIX: success_rate=%.2f, consecutive_failures=%d, quarantined=%s",
-                skill_id,
-                metrics.success_rate,
-                metrics.consecutive_failures,
-                needs_quarantine,
-            )
-
-            # Enqueue to background or execute immediately
-            if self.queue:
-                priority = (
-                    QueuePriority.CRITICAL
-                    if is_deterministic_error
-                    else (QueuePriority.HIGH if metrics.consecutive_failures < 3 else QueuePriority.CRITICAL)
-                )
-                await self.queue.enqueue(
-                    EvolutionRequest(
-                        evolution_type=EvolutionType.FIX,
-                        skill_id=skill_id,
-                        reason=error_message,
-                    ),
-                    priority=priority,
-                )
-            else:
-                # Immediate fix (blocking)
-                logger.info("Immediate FIX evolution for %s", skill_id)
-                await self.engine.fix_skill(skill_id, error_message)
-
-    async def get_skills_needing_fix(self) -> list[SkillRecord]:
-        """Get skills that need FIX evolution.
-
-        Returns:
-            List of skill records needing fix
-        """
-        return await self.tracker.get_skills_needing_fix()
 
     async def evolve_skill(
         self, skill_id: str, evolution_type: EvolutionType, **kwargs: Any
@@ -583,65 +475,6 @@ class EvolutionIntegration:
             )
 
         return None
-
-    async def run_evidence_evolution(
-        self,
-        on_proposal_callback: Any | None = None,
-        lookback_days: int = 7,
-    ) -> list[EvolutionProposal]:
-        """Run evidence-based evolution for all skills with sufficient evidence.
-
-        Aggregates recent execution data, then evolves each skill that has
-        enough success+failure evidence. Designed to be called as an idle task.
-
-        Args:
-            on_proposal_callback: Optional callback for each generated proposal.
-            lookback_days: Days of execution history to analyze (default 7).
-
-        Returns:
-            List of generated EvolutionProposals.
-        """
-        if not self.engine:
-            logger.error("Evidence evolution: no engine (LLM not configured)")
-            return []
-
-        from myrm_agent_harness.agent.skills.evolution.pipeline.evidence_aggregator import (
-            EvidenceAggregator,
-        )
-
-        aggregator = EvidenceAggregator(self.store, lookback_days=lookback_days)
-        evidence_groups = aggregator.aggregate()
-
-        proposals: list[EvolutionProposal] = []
-        for evidence in evidence_groups:
-            if not evidence.has_sufficient_evidence():
-                continue
-
-            try:
-                proposal = await self.engine.evolve_from_evidence(evidence)
-                if proposal:
-                    proposals.append(proposal)
-                    if on_proposal_callback:
-                        import asyncio as _asyncio
-
-                        if _asyncio.iscoroutinefunction(on_proposal_callback):
-                            await on_proposal_callback(proposal)
-                        else:
-                            on_proposal_callback(proposal)
-            except Exception as e:
-                logger.error(
-                    "Evidence evolution failed for skill '%s': %s",
-                    evidence.skill_name,
-                    e,
-                    exc_info=True,
-                )
-
-        logger.info(
-            "Evidence evolution completed: %d proposals from %d eligible skills",
-            len(proposals),
-            sum(1 for g in evidence_groups if g.has_sufficient_evidence()),
-        )
-        return proposals
 
     async def start_background_queue(self, on_proposal_callback: Any | None = None) -> None:
         """Start background evolution queue.

@@ -1,12 +1,11 @@
 import copy
-from datetime import datetime
+import sqlite3
 from pathlib import Path
 
 import pytest
 
 from myrm_agent_harness.agent.skills.evolution.core.types import (
     EvolutionType,
-    ExecutionAnalysis,
     SkillLineage,
     SkillMetrics,
     SkillRecord,
@@ -65,19 +64,6 @@ async def test_get_skill_by_name_version(temp_db_path, skill_record):
 
 
 @pytest.mark.asyncio
-async def test_deactivate_skill(temp_db_path, skill_record):
-    store = SkillStore(db_path=temp_db_path)
-    await store.save_skill(skill_record)
-
-    await store.deactivate_skill("test_skill_1")
-    retrieved = store.get_skill("test_skill_1")
-    assert retrieved is not None
-    assert retrieved.is_active is False
-
-    store.close()
-
-
-@pytest.mark.asyncio
 async def test_update_metrics(temp_db_path, skill_record):
     store = SkillStore(db_path=temp_db_path)
     await store.save_skill(skill_record)
@@ -96,26 +82,14 @@ async def test_get_active_skills(temp_db_path, skill_record):
     store = SkillStore(db_path=temp_db_path)
     await store.save_skill(skill_record)
 
+    inactive = copy.deepcopy(skill_record)
+    inactive.skill_id = "test_skill_2"
+    inactive.name = "inactive_skill"
+    inactive.is_active = False
+    await store.save_skill(inactive)
+
     active = store.get_active_skills()
-    assert len(active) == 1
-    assert active[0].skill_id == "test_skill_1"
-
-    await store.deactivate_skill("test_skill_1")
-    active2 = store.get_active_skills()
-    assert len(active2) == 0
-    store.close()
-
-
-@pytest.mark.asyncio
-async def test_get_skills_needing_fix(temp_db_path, skill_record):
-    store = SkillStore(db_path=temp_db_path)
-    # Needs 3 consecutive failures to trigger without usage count
-    skill_record.metrics.consecutive_failures = 3
-    await store.save_skill(skill_record)
-
-    needing_fix = store.get_skills_needing_fix()
-    assert len(needing_fix) == 1
-    assert needing_fix[0].skill_id == "test_skill_1"
+    assert [s.skill_id for s in active] == ["test_skill_1"]
     store.close()
 
 
@@ -171,45 +145,33 @@ async def test_get_skill_lineage_terminates_on_cycle(temp_db_path, skill_record)
 
 
 @pytest.mark.asyncio
-async def test_get_recent_analyses_grouped(temp_db_path, skill_record):
+async def test_legacy_execution_analyses_table_is_left_untouched(temp_db_path, skill_record):
+    """Databases created by older versions keep their analyses table; skill deletion still works."""
+    legacy = sqlite3.connect(temp_db_path)
+    legacy.execute("CREATE TABLE execution_analyses (id INTEGER PRIMARY KEY, skill_id TEXT NOT NULL)")
+    legacy.execute("INSERT INTO execution_analyses (skill_id) VALUES ('test_skill_1')")
+    legacy.commit()
+    legacy.close()
+
     store = SkillStore(db_path=temp_db_path)
     await store.save_skill(skill_record)
-
-    analysis = ExecutionAnalysis(
-        skill_id="test_skill_1",
-        task_id="task_1",
-        success=False,
-        error_message="test error",
-        root_cause="test cause",
-        suggested_fix="test fix",
-    )
-    await store.save_analysis(analysis)
-
-    groups = store.get_recent_analyses_grouped(days=1)
-    assert "test_skill_1" in groups
-    assert len(groups["test_skill_1"]) == 1
-    assert groups["test_skill_1"][0]["error_message"] == "test error"
+    await store.delete_skill("test_skill_1")
+    assert store.get_skill("test_skill_1") is None
     store.close()
+
+    check = sqlite3.connect(temp_db_path)
+    assert check.execute("SELECT COUNT(*) FROM execution_analyses").fetchone()[0] == 1
+    check.close()
+
+
+def test_fresh_database_has_no_execution_analyses_table(temp_db_path):
     store = SkillStore(db_path=temp_db_path)
-    await store.save_skill(skill_record)
-
-    analysis = ExecutionAnalysis(
-        skill_id="test_skill_1",
-        task_id="task_1",
-        success=False,
-        error_message="test error",
-        root_cause="bug",
-        suggested_fix="fix it",
-        task_context='{"k":"v"}',
-        analyzed_at=datetime.now(),
-    )
-    await store.save_analysis(analysis)
-
-    logs = await store.load_analyses("test_skill_1")
-    assert len(logs) == 2
-    assert logs[0].root_cause == "bug"
-
     store.close()
+
+    check = sqlite3.connect(temp_db_path)
+    tables = {row[0] for row in check.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    check.close()
+    assert "execution_analyses" not in tables
 
 
 @pytest.mark.asyncio

@@ -1,8 +1,7 @@
 """SQLite persistence for skill evolution system.
 
-4-table design:
+3-table design:
 - skills: Skill records with embedded metrics, lineage, eval_cases
-- execution_analyses: Per-execution error analysis records
 - evolution_rejections: Screener rejection audit trail
 - evolution_constraints: Historical fix constraints for preventing repeated mistakes
 
@@ -133,22 +132,6 @@ CREATE INDEX IF NOT EXISTS idx_skills_version ON skills(skill_id, version);
 CREATE INDEX IF NOT EXISTS idx_skills_active ON skills(is_active);
 CREATE INDEX IF NOT EXISTS idx_skills_updated ON skills(updated_at);
 CREATE INDEX IF NOT EXISTS idx_skills_selections ON skills(total_selections);
-
-CREATE TABLE IF NOT EXISTS execution_analyses (
-    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-    skill_id            TEXT NOT NULL,
-    task_id             TEXT NOT NULL,
-    success             INTEGER NOT NULL,
-    error_message       TEXT NOT NULL DEFAULT '',
-    root_cause          TEXT NOT NULL DEFAULT '',
-    suggested_fix       TEXT NOT NULL DEFAULT '',
-    task_context        TEXT NOT NULL DEFAULT '',
-    analyzed_at         TEXT NOT NULL,
-    FOREIGN KEY(skill_id) REFERENCES skills(skill_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_analyses_skill ON execution_analyses(skill_id);
-CREATE INDEX IF NOT EXISTS idx_analyses_time ON execution_analyses(analyzed_at);
 
 CREATE TABLE IF NOT EXISTS evolution_rejections (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -334,7 +317,6 @@ class SkillStore(SkillEvolutionTrackingMixin, SkillDependencyMixin, SkillStoreQu
         """Synchronous delete - called via asyncio.to_thread()."""
         with self._mu:
             self._conn.execute("DELETE FROM skills WHERE skill_id = ?", (skill_id,))
-            self._conn.execute("DELETE FROM execution_analyses WHERE skill_id = ?", (skill_id,))
             self._conn.execute("DELETE FROM evolution_rejections WHERE skill_id = ?", (skill_id,))
             self._conn.execute("DELETE FROM evolution_constraints WHERE skill_id = ?", (skill_id,))
             self._delete_skill_dependencies_locked(skill_id)
@@ -577,22 +559,6 @@ class SkillStore(SkillEvolutionTrackingMixin, SkillDependencyMixin, SkillStoreQu
         """
         self._ensure_open()
         await asyncio.to_thread(self._update_metrics_sync, skill_id, metrics)
-
-    @_db_retry()
-    def _deactivate_skill_sync(self, skill_id: str) -> None:
-        """Synchronous deactivation."""
-        with self._mu:
-            self._conn.execute("UPDATE skills SET is_active = 0 WHERE skill_id = ?", (skill_id,))
-            self._conn.commit()
-
-    async def deactivate_skill(self, skill_id: str) -> None:
-        """Mark skill as inactive (for FIX evolution when creating new version).
-
-        Args:
-            skill_id: Skill identifier to deactivate
-        """
-        self._ensure_open()
-        await asyncio.to_thread(self._deactivate_skill_sync, skill_id)
 
     # Evolution lock operations
     @_db_retry()

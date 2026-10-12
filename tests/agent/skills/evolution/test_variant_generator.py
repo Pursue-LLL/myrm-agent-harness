@@ -1,6 +1,6 @@
 """Tests for VariantGenerator — concurrent LLM-based skill variant generation.
 
-Covers: prompt assembly (FIX, evidence-based, description-only, preference),
+Covers: prompt assembly (FIX, description-only, preference),
 concurrent generation, fallback behavior, content extraction.
 """
 
@@ -10,7 +10,6 @@ import pytest
 
 from myrm_agent_harness.agent.skills.evolution.core.types import (
     EvolutionType,
-    SkillEvidenceGroup,
     SkillLineage,
     SkillRecord,
 )
@@ -31,21 +30,6 @@ def mock_skill() -> SkillRecord:
     )
 
 
-@pytest.fixture
-def mock_evidence() -> SkillEvidenceGroup:
-    return SkillEvidenceGroup(
-        skill_id="test-001",
-        skill_name="test-skill",
-        success_cases=[
-            MagicMock(task_context="Deploy to staging", error_message=None),
-        ],
-        failure_cases=[
-            MagicMock(task_context="Deploy to prod", error_message="Permission denied: /etc/nginx"),
-        ],
-        common_error_patterns=["Permission denied"],
-    )
-
-
 class TestVariantGeneratorNoLLM:
     """Behavior when no LLM configured."""
 
@@ -53,14 +37,6 @@ class TestVariantGeneratorNoLLM:
     async def test_no_llm_returns_original(self, mock_skill: SkillRecord) -> None:
         gen = VariantGenerator(llm=None)
         results = await gen.generate_variants(mock_skill, "error", "trace")
-        assert results == [mock_skill.content]
-
-    @pytest.mark.asyncio
-    async def test_no_llm_evidence_returns_original(
-        self, mock_skill: SkillRecord, mock_evidence: SkillEvidenceGroup
-    ) -> None:
-        gen = VariantGenerator(llm=None)
-        results = await gen.generate_variants_from_evidence(mock_skill, mock_evidence)
         assert results == [mock_skill.content]
 
     @pytest.mark.asyncio
@@ -87,14 +63,6 @@ class TestVariantGeneratorWithMockLLM:
         results = await gen.generate_variants(mock_skill, "error occurred", "trace data", num_variants=3)
         assert len(results) == 3
         assert all(r.strip() for r in results)
-
-    @pytest.mark.asyncio
-    async def test_evidence_based_generation(
-        self, mock_llm: MagicMock, mock_skill: SkillRecord, mock_evidence: SkillEvidenceGroup
-    ) -> None:
-        gen = VariantGenerator(llm=mock_llm)
-        results = await gen.generate_variants_from_evidence(mock_skill, mock_evidence, num_variants=2)
-        assert len(results) == 2
 
     @pytest.mark.asyncio
     async def test_description_generation(self, mock_llm: MagicMock, mock_skill: SkillRecord) -> None:
@@ -156,14 +124,13 @@ class TestPromptAssembly:
         assert "Failure Attribution" not in prompt
         assert "太啰嗦了" in prompt
 
-    def test_evidence_prompt_includes_cases(
-        self, generator: VariantGenerator, mock_skill: SkillRecord, mock_evidence: SkillEvidenceGroup
+    def test_description_prompt_carries_only_skill_identity(
+        self, generator: VariantGenerator, mock_skill: SkillRecord
     ) -> None:
-        prompt = generator._build_evidence_prompt(mock_skill, mock_evidence)
-        assert "WORKING SCENARIOS" in prompt
-        assert "FAILING SCENARIOS" in prompt
-        assert "Permission denied" in prompt
-        assert "Deploy to staging" in prompt
+        prompt = generator._build_description_prompt(mock_skill)
+        assert f"Skill Name: {mock_skill.name}" in prompt
+        assert f"Current Description: {mock_skill.description}" in prompt
+        assert "Scenarios where this skill" not in prompt
 
     def test_constraints_injected(self, generator: VariantGenerator, mock_skill: SkillRecord) -> None:
         prompt = generator._build_variant_prompt(

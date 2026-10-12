@@ -224,14 +224,6 @@ class EvolutionScreener:
                 "Intent-aware cooldown override triggered by GUI force_retry flag for skill '%s'",
                 request.skill_id,
             )
-            # Increment user_correction_count as a dissatisfaction signal
-            skill_for_correction = self._store.get_skill(request.skill_id)
-            if skill_for_correction and skill_for_correction.metrics:
-                skill_for_correction.metrics.user_correction_count += 1
-                try:
-                    await self._store.update_metrics(request.skill_id, skill_for_correction.metrics)
-                except Exception as e:
-                    logger.debug("Failed to persist user_correction_count: %s", e)
 
         skill = self._store.get_skill(request.skill_id)
         if skill:
@@ -278,7 +270,7 @@ class EvolutionScreener:
                 if rejections:
                     last_rejection = rejections[0]
                     try:
-                        rejected_at = datetime.fromisoformat(last_rejection["rejected_at"])
+                        rejected_at = datetime.fromisoformat(str(last_rejection["rejected_at"]))
                         if rejected_at.tzinfo:
                             now_rej = datetime.now(rejected_at.tzinfo)
                         else:
@@ -543,7 +535,7 @@ class EvolutionScreener:
                 try:
                     approved = bool(data.get("approved", data.get("decision", False)))
                     reason = str(data.get("reason", stripped))
-                    confidence = float(data.get("confidence", 0.8))
+                    confidence = float(str(data.get("confidence", 0.8)))
                     return approved, reason, confidence
                 except (ValueError, TypeError):
                     pass

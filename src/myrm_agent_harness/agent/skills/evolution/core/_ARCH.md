@@ -8,7 +8,7 @@ Agent Skills Evolution Core module.
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package |   Init   | — |
-| engine.py | Core | Skill evolution engine with 4 types (FIX/DERIVED/CAPTURED/OPTIMIZE_DESCRIPTION) + evidence-driven action routing + EvalCase regression gate + Improvement Gate (baseline comparison for DERIVED/evidence paths). | ✅ |
+| engine.py | Core | Skill evolution engine with 4 types (FIX/DERIVED/CAPTURED/OPTIMIZE_DESCRIPTION) + EvalCase regression gate + Improvement Gate (baseline comparison for the DERIVED path). | ✅ |
 | engine_batch_mixin.py | Core | `evolve_multiple_concurrent` batch mixin | ✅ |
 | eval_regression.py | Core | Non-blocking EvalCase regression gate. Runs bound EvalCases against candidate variants before LLM evaluation, applying score penalties for regressions. Exports `evaluate_content_assertions` (deterministic zero-LLM static-assertion pass-rate evaluator reused by the change-manifest prediction loop). | ✅ |
 | proposal_builder.py | Core | Proposal Builder with edit_summary extraction, updated_eval_cases co-evolution sync, and integrated security scanning. Edit-summary JSON parsed via `parse_llm_json_object` (robust against fences, prose, trailing commas). Also builds the falsifiable `change_manifest` (ChangePredictionManifest dict) at proposal finalization: baseline = static-assertion pass rate of original content, target = pass rate of proposed content; None when no eval_cases or for OPTIMIZE_DESCRIPTION. | ✅ |

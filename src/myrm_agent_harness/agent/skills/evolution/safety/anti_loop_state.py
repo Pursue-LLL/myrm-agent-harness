@@ -46,7 +46,7 @@ class AntiLoopState(Protocol):
         """Check if an evolution has already been addressed.
 
         Args:
-            trigger_type: "tool_degradation", "metric_monitor", or "analysis"
+            trigger_type: "tool_degradation" or "analysis"
             key: Trigger-specific key (e.g., tool_key for tool_degradation)
             skill_id: Skill identifier
 
@@ -61,12 +61,11 @@ class AntiLoopState(Protocol):
         """Mark an evolution as addressed.
 
         Args:
-            trigger_type: "tool_degradation", "metric_monitor", or "analysis"
+            trigger_type: "tool_degradation" or "analysis"
             key: Trigger-specific key
             skill_id: Skill identifier
             ttl_seconds: Optional TTL (seconds). After expiry, the skill can be re-evolved.
                 For tool_degradation: 24h default (tool may recover and degrade again)
-                For metric_monitor: no TTL (data-driven via min_selections)
                 For analysis: no TTL (task-specific)
         """
         ...
@@ -78,7 +77,7 @@ class AntiLoopState(Protocol):
         clear its addressed set so future degradations trigger fresh evaluations.
 
         Args:
-            trigger_type: "tool_degradation", "metric_monitor", or "analysis"
+            trigger_type: "tool_degradation" or "analysis"
             key: Trigger-specific key (e.g., tool_key)
         """
         ...
@@ -89,7 +88,7 @@ class AntiLoopState(Protocol):
         Used for recovery detection: compare tracked keys against current problematic list.
 
         Args:
-            trigger_type: "tool_degradation", "metric_monitor", or "analysis"
+            trigger_type: "tool_degradation" or "analysis"
 
         Returns:
             Set of all keys currently tracked

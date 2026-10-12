@@ -21,7 +21,7 @@
 | 8 | 安全扫描框架 | **CORE** | CoPaw 可扩展框架 + ironclaw 内容转义 |
 | 9 | 安装与卸载 | **CORE** | nexu 异步队列 + Deer-Flow 安全提取 |
 | 10 | 状态管理 | **CORE** | nexu JSON 账本 + 目录监听 |
-| 11 | 技能失败事件与可选隔离原语 | **CORE** | `SkillFailureEvent` 交给宿主处置；1-Strike / 3-Strikes 隔离为显式启用的原语 |
+| 11 | 技能失败事件与可选隔离读取 | **CORE** | `SkillFailureEvent` 交给宿主处置；`QuarantineAwareSkillBackend` 仅过滤宿主置为 `is_active=False` 的技能 |
 | 12 | 搜索缓存 | **CORE** | picoclaw Trigram Jaccard |
 | 13 | Marketplace 集成 | ENHANCE | NextClaw API + CoPaw 多源 |
 | 14 | 技能创建与评估 | ENHANCE | Deer-Flow AI 驱动 |
@@ -654,18 +654,13 @@ Scanner（编排器）
 
 ---
 
-## 11. 技能失败事件与可选隔离原语 (Skill Failure Event & Opt-in Quarantine) [CORE]
+## 11. 技能失败事件与可选隔离读取 (Skill Failure Event & Opt-in Quarantine Read) [CORE]
 
 ### 11.1 默认行为：事件上报，不隐藏技能
-技能归因的工具失败由 `_skill_failure_tracking` 中间件发布为 `SkillFailureEvent`（`runtime/events/skill_events.py`），由宿主决定如何处置（记录、触发 FIX 提案等）。中间件自身只以 `success=True` 调用 `EvolutionIntegration.record_execution`，因此默认栈不会把任何技能置为 `is_active=False`，也不会从技能列表中隐藏技能。
+技能归因的工具失败由 `_skill_failure_tracking` 中间件发布为 `SkillFailureEvent`（`runtime/events/skill_events.py`），由宿主决定如何处置（记录、触发 FIX 提案等）。中间件自身只以 `success=True` 调用 `EvolutionIntegration.record_execution`（纯计数，不触发隔离或修复），因此默认栈不会把任何技能置为 `is_active=False`，也不会从技能列表中隐藏技能。
 
-### 11.2 可选隔离原语
-`EvolutionIntegration.record_execution(skill_id, success=False, error=...)` 内置两档策略，供需要「硬隔离」的宿主显式调用：
-- **一击必杀 (1-Strike)**：错误信息包含确定性的代码级错误（如 `SyntaxError`, `ModuleNotFoundError`, `command not found`）时，第一次失败即 `deactivate_skill`（`is_active=False`）。
-- **容错隔离 (3-Strikes)**：网络超时、API 限流等非确定性错误，连续失败 3 次才 `deactivate_skill`。
-
-### 11.3 读取侧
-被置为 `is_active=False` 的技能只有在宿主用 `QuarantineAwareSkillBackend` + `SkillStateReader` 包装后端时才会从列表中过滤；框架不提供默认的 `SkillStateReader` 实现，也不提供解除隔离的入口——恢复路径由宿主自行定义（例如修复提案通过后重新写入 `is_active=True`）。
+### 11.2 读取侧
+被置为 `is_active=False` 的技能只有在宿主用 `QuarantineAwareSkillBackend` + `SkillStateReader` 包装后端时才会从列表中过滤；框架不内置任何自动置位 `is_active=False` 的策略，不提供默认的 `SkillStateReader` 实现，也不提供解除隔离的入口——置位与恢复路径均由宿主自行定义（例如修复提案通过后重新写入 `is_active=True`）。
 
 ---
 

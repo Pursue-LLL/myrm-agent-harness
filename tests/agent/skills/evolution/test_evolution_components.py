@@ -677,57 +677,6 @@ async def test_engine_optimize_description():
 
 
 @pytest.mark.asyncio
-async def test_engine_select_evolution_action():
-    """_select_evolution_action routes to OPTIMIZE_DESCRIPTION on high fallback + high effective."""
-    from myrm_agent_harness.agent.skills.evolution.core.types import (
-        SkillEvidenceGroup,
-        SkillMetrics,
-    )
-
-    skill = SkillRecord(
-        skill_id="s1",
-        name="test",
-        description="desc",
-        content="body",
-        path="",
-        lineage=None,
-    )
-    skill.metrics = SkillMetrics(
-        total_selections=10,
-        applied_count=6,
-        completed_count=6,
-        success_count=5,
-    )
-
-    evidence = SkillEvidenceGroup(
-        skill_id="s1",
-        skill_name="test",
-        metrics_snapshot=SkillMetrics(
-            total_selections=10,
-            applied_count=6,
-            completed_count=6,
-            success_count=5,
-        ),
-    )
-
-    action = SkillEvolutionEngine._select_evolution_action(skill, evidence)
-    assert action == EvolutionType.OPTIMIZE_DESCRIPTION
-
-    evidence_low_fallback = SkillEvidenceGroup(
-        skill_id="s1",
-        skill_name="test",
-        metrics_snapshot=SkillMetrics(
-            total_selections=10,
-            applied_count=10,
-            completed_count=10,
-            success_count=3,
-        ),
-    )
-    action2 = SkillEvolutionEngine._select_evolution_action(skill, evidence_low_fallback)
-    assert action2 == EvolutionType.FIX
-
-
-@pytest.mark.asyncio
 async def test_description_eval_robust_json_parsing():
     """evaluate_description_variants tolerates prose framing + trailing commas in LLM score JSON."""
     mock_llm = MagicMock()
@@ -818,4 +767,3 @@ async def test_extract_skill_from_slice_security_rejection_and_summary():
     assert proposal_safe.security_scan_summary["score"] == 100
     assert proposal_safe.security_scan_summary["trust_recommendation"] == "trusted"
     assert proposal_safe.security_scan_summary["total_findings"] == 0
-

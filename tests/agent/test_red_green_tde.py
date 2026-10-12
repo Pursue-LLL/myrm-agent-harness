@@ -15,7 +15,6 @@ from myrm_agent_harness.agent.skill_agent.context import (
 from myrm_agent_harness.agent.skills.evolution.core.types import (
     EvolutionRequest,
     EvolutionType,
-    ExecutionAnalysis,
     SkillLineage,
     SkillMetrics,
     SkillRecord,
@@ -136,81 +135,6 @@ class TestTaskIntentContextVar:
         assert ctx2.run(get_task_intent) == "task B"
 
 
-class TestRecordExecutionIntentInjection:
-    """Tests for EvolutionIntegration.record_execution auto-injecting task_intent."""
-
-    @pytest.mark.asyncio
-    async def test_auto_inject_task_intent(self) -> None:
-        """record_execution should auto-inject task_intent from ContextVar."""
-        from myrm_agent_harness.agent.skills.evolution.infra.integration import (
-            EvolutionIntegration,
-        )
-        from myrm_agent_harness.agent.skills.evolution.infra.tracker import (
-            SkillExecutionResult,
-        )
-
-        mock_store = MagicMock()
-        mock_store.deactivate_skill = AsyncMock()
-        mock_tracker = MagicMock()
-        mock_metrics = MagicMock()
-        mock_metrics.should_trigger_fix.return_value = False
-        mock_metrics.consecutive_failures = 1
-        mock_tracker.record_execution = AsyncMock(return_value=mock_metrics)
-
-        with patch.object(EvolutionIntegration, "__init__", lambda self, **kwargs: None):
-            integration = EvolutionIntegration.__new__(EvolutionIntegration)
-            integration.store = mock_store
-            integration.tracker = mock_tracker
-            integration.engine = None
-            integration.queue = None
-            integration.monitor = None
-            integration._bg_manager = None
-
-        set_task_intent("Debug login page error")
-
-        await integration.record_execution(skill_id="test_skill_001", success=False, error_message="Login failed")
-
-        call_args = mock_tracker.record_execution.call_args
-        recorded_result: SkillExecutionResult = call_args[0][0]
-        assert recorded_result.context.get("task_intent") == "Debug login page error"
-
-    @pytest.mark.asyncio
-    async def test_explicit_context_not_overridden(self) -> None:
-        """If caller provides task_intent in context, it should not be overridden."""
-        from myrm_agent_harness.agent.skills.evolution.infra.integration import (
-            EvolutionIntegration,
-        )
-        from myrm_agent_harness.agent.skills.evolution.infra.tracker import (
-            SkillExecutionResult,
-        )
-
-        mock_tracker = MagicMock()
-        mock_metrics = MagicMock()
-        mock_metrics.should_trigger_fix.return_value = False
-        mock_tracker.record_execution = AsyncMock(return_value=mock_metrics)
-
-        with patch.object(EvolutionIntegration, "__init__", lambda self, **kwargs: None):
-            integration = EvolutionIntegration.__new__(EvolutionIntegration)
-            integration.store = MagicMock()
-            integration.tracker = mock_tracker
-            integration.engine = None
-            integration.queue = None
-            integration.monitor = None
-            integration._bg_manager = None
-
-        set_task_intent("should be ignored")
-
-        await integration.record_execution(
-            skill_id="test_skill_002",
-            success=True,
-            context={"task_intent": "explicitly provided"},
-        )
-
-        call_args = mock_tracker.record_execution.call_args
-        recorded_result: SkillExecutionResult = call_args[0][0]
-        assert recorded_result.context["task_intent"] == "explicitly provided"
-
-
 # ---------------------------------------------------------------------------
 # Types coverage
 # ---------------------------------------------------------------------------
@@ -280,18 +204,6 @@ class TestSkillMetrics:
         m.record_fallback()
         assert m.total_selections == 1
         assert m.applied_count == 0
-
-    def test_should_trigger_fix_consecutive_failures(self) -> None:
-        m = SkillMetrics(consecutive_failures=3)
-        assert m.should_trigger_fix() is True
-
-    def test_should_trigger_fix_low_effective_rate(self) -> None:
-        m = SkillMetrics(applied_count=5, success_count=1, consecutive_failures=1)
-        assert m.should_trigger_fix(threshold=0.5) is True
-
-    def test_should_not_trigger_fix_good_rate(self) -> None:
-        m = SkillMetrics(applied_count=5, success_count=4, consecutive_failures=0)
-        assert m.should_trigger_fix() is False
 
 
 class TestSkillLineage:
@@ -395,23 +307,6 @@ class TestEvolutionRequest:
         assert d["user_feedback"] == "Make faster"
 
 
-class TestExecutionAnalysisType:
-    """Cover ExecutionAnalysis.to_dict."""
-
-    def test_to_dict(self) -> None:
-        a = ExecutionAnalysis(
-            skill_id="sk1",
-            task_id="t1",
-            success=False,
-            error_message="timeout",
-            root_cause="slow API",
-            task_context="Help debug",
-        )
-        d = a.to_dict()
-        assert d["skill_id"] == "sk1"
-        assert d["root_cause"] == "slow API"
-
-
 # ---------------------------------------------------------------------------
 # SubprocessExecutor additional coverage
 # ---------------------------------------------------------------------------
@@ -496,7 +391,6 @@ class TestEvolutionIntegrationMethods:
         assert integration.db_path == db_path
         assert integration.store is not None
         assert integration.tracker is not None
-        assert integration.analyzer is not None
         assert integration.engine is not None
 
         await integration.close()
@@ -565,96 +459,6 @@ class TestEvolutionIntegrationMethods:
         result = await integration.evolve_skill("sk1", EvolutionType.DERIVED, user_feedback="faster")
         assert result == "derived"
 
-    @pytest.mark.asyncio
-    async def test_record_execution_deterministic_error_quarantine(self) -> None:
-        """record_execution should trigger 1-strike quarantine for deterministic errors."""
-        from myrm_agent_harness.agent.skills.evolution.infra.integration import (
-            EvolutionIntegration,
-        )
-
-        mock_tracker = MagicMock()
-        mock_metrics = MagicMock()
-        mock_metrics.should_trigger_fix.return_value = False
-        mock_metrics.consecutive_failures = 1
-        mock_tracker.record_execution = AsyncMock(return_value=mock_metrics)
-
-        mock_engine = AsyncMock()
-        mock_engine.fix_skill = AsyncMock()
-
-        mock_store = MagicMock()
-        mock_store.deactivate_skill = AsyncMock()
-
-        with patch.object(EvolutionIntegration, "__init__", lambda self, **kwargs: None):
-            integration = EvolutionIntegration.__new__(EvolutionIntegration)
-            integration.store = mock_store
-            integration.tracker = mock_tracker
-            integration.engine = mock_engine
-            integration.queue = None
-
-        await integration.record_execution(
-            skill_id="broken",
-            success=False,
-            error_message="SyntaxError: invalid syntax",
-        )
-
-        mock_store.deactivate_skill.assert_called_once_with("broken")
-        mock_engine.fix_skill.assert_called_once_with("broken", "SyntaxError: invalid syntax")
-
-    @pytest.mark.asyncio
-    async def test_record_execution_triggers_fix_immediate(self) -> None:
-        """record_execution should trigger immediate fix when no queue and should_trigger_fix=True."""
-        from myrm_agent_harness.agent.skills.evolution.infra.integration import (
-            EvolutionIntegration,
-        )
-
-        mock_tracker = MagicMock()
-        mock_metrics = MagicMock()
-        mock_metrics.should_trigger_fix.return_value = True
-        mock_metrics.success_rate = 0.1
-        mock_metrics.consecutive_failures = 5
-        mock_tracker.record_execution = AsyncMock(return_value=mock_metrics)
-
-        mock_engine = AsyncMock()
-        mock_engine.fix_skill = AsyncMock()
-
-        with patch.object(EvolutionIntegration, "__init__", lambda self, **kwargs: None):
-            integration = EvolutionIntegration.__new__(EvolutionIntegration)
-            integration.store = MagicMock()
-            integration.store.deactivate_skill = AsyncMock()
-            integration.tracker = mock_tracker
-            integration.engine = mock_engine
-            integration.queue = None
-
-        await integration.record_execution(skill_id="broken", success=False, error_message="crash")
-        mock_engine.fix_skill.assert_awaited_once_with("broken", "crash")
-
-    @pytest.mark.asyncio
-    async def test_record_execution_enqueues_when_queue_enabled(self) -> None:
-        """record_execution should enqueue when queue is enabled and should_trigger_fix=True."""
-        from myrm_agent_harness.agent.skills.evolution.infra.integration import (
-            EvolutionIntegration,
-        )
-
-        mock_tracker = MagicMock()
-        mock_metrics = MagicMock()
-        mock_metrics.should_trigger_fix.return_value = True
-        mock_metrics.success_rate = 0.2
-        mock_metrics.consecutive_failures = 2
-        mock_tracker.record_execution = AsyncMock(return_value=mock_metrics)
-
-        mock_queue = AsyncMock()
-        mock_queue.enqueue = AsyncMock()
-
-        with patch.object(EvolutionIntegration, "__init__", lambda self, **kwargs: None):
-            integration = EvolutionIntegration.__new__(EvolutionIntegration)
-            integration.store = MagicMock()
-            integration.tracker = mock_tracker
-            integration.engine = MagicMock()
-            integration.queue = mock_queue
-
-        await integration.record_execution(skill_id="flaky", success=False, error_message="fail")
-        mock_queue.enqueue.assert_awaited_once()
-
     def test_get_stats_minimal(self) -> None:
         """get_stats should return metrics even with no queue."""
         from myrm_agent_harness.agent.skills.evolution.infra.integration import (
@@ -718,21 +522,6 @@ class TestEvolutionIntegrationMethods:
 
         await integration.close()
         integration.store.close.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_get_skills_needing_fix(self) -> None:
-        """get_skills_needing_fix should delegate to tracker."""
-        from myrm_agent_harness.agent.skills.evolution.infra.integration import (
-            EvolutionIntegration,
-        )
-
-        with patch.object(EvolutionIntegration, "__init__", lambda self, **kwargs: None):
-            integration = EvolutionIntegration.__new__(EvolutionIntegration)
-            integration.tracker = MagicMock()
-            integration.tracker.get_skills_needing_fix = AsyncMock(return_value=["sk1"])
-
-        result = await integration.get_skills_needing_fix()
-        assert result == ["sk1"]
 
     @pytest.mark.asyncio
     async def test_start_background_queue_no_queue(self) -> None:

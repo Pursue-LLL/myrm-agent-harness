@@ -35,7 +35,6 @@ from .core.types import (
     EvolutionProposal,
     EvolutionRequest,
     EvolutionType,
-    ExecutionAnalysis,
     FailurePathology,
     GeneCellKey,
     GeneEliteRecord,
@@ -55,10 +54,8 @@ from .infra.background_task_manager import BackgroundEvolutionTask, BackgroundEv
 from .infra.confirmation import BatchEvolutionConfirmer, ConfirmationResult
 from .infra.integration import EvolutionIntegration, enable_skill_evolution, get_global_evolution_integration
 from .infra.metrics import EvolutionMetrics, EvolutionMetricsTracker, get_metrics_tracker
-from .infra.monitor import MetricMonitor
 from .infra.queue import EvolutionQueue, QueuePriority, get_evolution_queue
 from .infra.tracker import SkillExecutionResult, SkillQualityTracker
-from .pipeline.analyzer import EvolutionRecommendation, SkillExecutionAnalyzer, analyze_skill_for_evolution
 from .pipeline.patch import PatchType, SkillPatchResult, apply_skill_patch, detect_patch_type, parse_multi_file_full
 from .pipeline.screener import EvolutionScreener, ScreeningResult
 from .pipeline.trace_analyzer import TraceAnalyzer
@@ -84,7 +81,6 @@ __all__ = [
     "EvolutionProposal",
     # Queue
     "EvolutionQueue",
-    "EvolutionRecommendation",
     "EvolutionRequest",
     # Two-phase screener (P0)
     "EvolutionScreener",
@@ -92,7 +88,6 @@ __all__ = [
     # Types
     "EvolutionLayer",
     "EvolutionType",
-    "ExecutionAnalysis",
     "FailurePathology",
     "GeneBankArchive",
     "GeneCellKey",
@@ -102,8 +97,6 @@ __all__ = [
     # Tool System (P1-7: +8-12%成功率, 优化版 9.7/10)
     "ExecutorContextManager",
     "InMemoryAntiLoopState",
-    # Monitoring (P0-4)
-    "MetricMonitor",
     # Patch system
     "PatchType",
     "ProposalBuilder",
@@ -113,7 +106,6 @@ __all__ = [
     "SkillDependencyTracker",
     # Core components
     "SkillEvolutionEngine",
-    "SkillExecutionAnalyzer",
     "SkillExecutionResult",
     "SkillLineage",
     "SkillMetrics",
@@ -125,7 +117,6 @@ __all__ = [
     "TraceAnalyzer",
     "VariantGenerator",
     # Utils
-    "analyze_skill_for_evolution",
     "apply_skill_patch",
     "BudgetCheckResult",
     "BudgetStatus",

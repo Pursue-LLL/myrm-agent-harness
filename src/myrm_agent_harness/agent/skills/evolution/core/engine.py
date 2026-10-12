@@ -1,15 +1,14 @@
 """Skill evolution engine - Core of self-evolution system.
 
-Implements 4 evolution types + evidence-driven evolution as a lightweight orchestrator:
+Implements 4 evolution types as a lightweight orchestrator:
 - FIX: Auto-repair failed skills via trace analysis
 - DERIVED: Optimize based on feedback (with Improvement Gate)
 - CAPTURED: Learn from patterns
 - OPTIMIZE_DESCRIPTION: Refine description for better matching
-- Evidence-driven: Aggregated success+failure analysis with action routing (with Improvement Gate)
 
-Improvement Gate: DERIVED and evidence-driven paths inject the original skill
-as a baseline candidate in evaluation. If no variant scores higher than the
-original, evolution is skipped to prevent quality regression.
+Improvement Gate: the DERIVED path injects the original skill as a baseline
+candidate in evaluation. If no variant scores higher than the original,
+evolution is skipped to prevent quality regression.
 
 Returns standardized EvolutionProposal objects, delegating application
 and persistence to the business layer (Server/GUI).
@@ -19,7 +18,6 @@ and persistence to the business layer (Server/GUI).
 - agent.skills.evolution.execution.evaluator::BatchEvaluator (POS: Batch Evaluator for Skill Evolution.)
 - agent.skills.evolution.pipeline.trace_analyzer::TraceAnalyzer (POS: Trace Analyzer for Skill Evolution.)
 - agent.skills.evolution.pipeline.variant_generator::VariantGenerator (POS: Variant Generator for Skill Evolution.)
-- agent.skills.evolution.core.types::SkillEvidenceGroup (POS: Data types for skill evolution system.)
 - agent.event_log.protocol::EventLogBackend (POS: Protocol contract. Framework provides FileEventLogBackend; business layer may extend with SQLite / PostgreSQL implementations.)
 - agent.skills.evolution.pipeline.structured_extractor::StructuredExtractor (POS: Provides SkillCaptureResult, StructuredExtractor.)
 - agent.skills.evolution.safety.validator::SkillValidator (POS: Skill evolution validation system.)
@@ -48,7 +46,6 @@ from myrm_agent_harness.agent.skills.evolution.core.types import (
     EnvironmentFingerprint,
     EvolutionProposal,
     EvolutionType,
-    SkillEvidenceGroup,
     SkillRecord,
 )
 from myrm_agent_harness.agent.skills.evolution.db.store import SkillStore
@@ -280,151 +277,7 @@ class SkillEvolutionEngine(SkillEvolutionEngineBatchMixin):
 
         return proposal
 
-    async def evolve_from_evidence(
-        self,
-        evidence: SkillEvidenceGroup,
-        min_evidence: int = 3,
-        min_failures: int = 1,
-    ) -> EvolutionProposal | None:
-        """Evidence-driven evolution: Propose repair using aggregated success+failure data.
-
-        Unlike fix_skill() which reacts to a single failure, this method
-        analyzes the full evidence picture to make smarter decisions:
-        - Sees which scenarios work (invariants to protect)
-        - Sees which scenarios fail (targets to fix)
-        - Skips evolution when evidence is insufficient
-
-        Args:
-            evidence: Aggregated evidence group for one skill.
-            min_evidence: Minimum total executions required (default 3).
-            min_failures: Minimum failures required to justify evolution (default 1).
-
-        Returns:
-            EvolutionProposal or None if evidence insufficient or skill not found.
-        """
-        if not evidence.has_sufficient_evidence(min_total=min_evidence, min_failures=min_failures):
-            logger.debug(
-                "Skipping evidence evolution for '%s': insufficient evidence (%d total, %d failures, need %d/%d)",
-                evidence.skill_name,
-                evidence.total_evidence,
-                len(evidence.failure_cases),
-                min_evidence,
-                min_failures,
-            )
-            return None
-
-        # Skip LLM evaluation when evidence confidence is too low (scattered/transient errors)
-        if evidence.confidence < 0.4:
-            logger.info(
-                "Skipping evidence evolution for '%s': low confidence (%.2f < 0.4) — "
-                "errors are likely transient/environmental, not skill defects",
-                evidence.skill_name,
-                evidence.confidence,
-            )
-            return None
-
-        old_skill = self._store.get_skill(evidence.skill_id)
-        if not old_skill:
-            logger.error(f"Evidence evolution: skill not found: {evidence.skill_id}")
-            return None
-
-        if old_skill.evolution_locked:
-            logger.warning(f"Evidence evolution skipped: skill '{old_skill.name}' is locked.")
-            return None
-
-        logger.info(
-            "Evidence evolution started for '%s' (success=%d, failure=%d, rate=%.1f%%)",
-            old_skill.name,
-            len(evidence.success_cases),
-            len(evidence.failure_cases),
-            evidence.evidence_success_rate * 100,
-        )
-
-        # Action routing: decide whether to fix content or optimize description
-        selected_action = self._select_evolution_action(old_skill, evidence)
-        if selected_action == EvolutionType.OPTIMIZE_DESCRIPTION:
-            logger.info(
-                "Action router selected OPTIMIZE_DESCRIPTION for '%s' (fallback_rate=%.1f%%, effective_rate=%.1f%%)",
-                old_skill.name,
-                old_skill.metrics.fallback_rate * 100,
-                old_skill.metrics.effective_rate * 100,
-            )
-            return await self.optimize_description(old_skill.skill_id, evidence)
-
-        constraints = self._store.get_evolution_constraints(evidence.skill_id, limit=5)
-        formatted_constraints = "\n".join([f"- {c}" for c in constraints]) if constraints else ""
-
-        variants = await self._variant_generator.generate_variants_from_evidence(
-            skill=old_skill,
-            evidence=evidence,
-            num_variants=self._num_variants,
-            constraints=formatted_constraints,
-        )
-
-        if not variants:
-            return None
-
-        # EvalCase Regression Gate (non-blocking score penalty)
-        variants, regression_penalties = await filter_variants_by_regression(
-            old_skill,
-            variants,
-            logger,
-        )
-        if not variants:
-            logger.warning("All variants failed EvalCase regression for '%s'", old_skill.name)
-            return None
-
-        feedback_summary = (
-            f"Evidence-driven: {len(evidence.success_cases)} successes, "
-            f"{len(evidence.failure_cases)} failures. "
-            f"Common errors: {'; '.join(evidence.common_error_patterns[:3]) or 'N/A'}"
-        )
-
-        # Improvement Gate: inject original as baseline to prevent quality regression
-        variants_with_baseline = [old_skill.content, *variants]
-
-        best_variant, score, reason, is_general = await self._evaluator.evaluate_variants(
-            original_skill=old_skill,
-            variants=variants_with_baseline,
-            feedback=feedback_summary,
-            trajectory="Evidence-based analysis (aggregated across multiple executions).",
-        )
-
-        if best_variant == old_skill.content:
-            logger.info("Evidence improvement gate: original skill won evaluation for '%s'", old_skill.name)
-            return None
-
-        penalty = regression_penalties.get(best_variant, 0.0)
-        if penalty > 0:
-            score = max(0.0, score - penalty)
-            reason = f"[Regression penalty: -{penalty:.2f}] {reason}"
-
-        proposal = self._proposal_builder.build_proposal(
-            skill=old_skill,
-            evolution_type=EvolutionType.FIX,
-            best_variant=best_variant,
-            score=score,
-            reasoning=f"[Evidence-driven] {reason}",
-            task_context=feedback_summary,
-            trajectory=f"Evidence: {evidence.total_evidence} executions, "
-            f"success_rate={evidence.evidence_success_rate:.1%}",
-            is_general=is_general,
-        )
-
-        if proposal and score >= 0.7:
-            constraint = f"EVIDENCE-FIX succeeded (score={score:.2f}): {feedback_summary[:200]} → {reason[:200]}"
-            try:
-                await self._store.add_evolution_constraint(evidence.skill_id, constraint)
-            except Exception as e:
-                logger.debug("Failed to persist EVIDENCE constraint for %s: %s", evidence.skill_id, e)
-
-        return proposal
-
-    async def optimize_description(
-        self,
-        skill_id: str,
-        evidence: SkillEvidenceGroup | None = None,
-    ) -> EvolutionProposal | None:
+    async def optimize_description(self, skill_id: str) -> EvolutionProposal | None:
         """OPTIMIZE_DESCRIPTION evolution: Rewrite only the skill description.
 
         Used when the skill body is correct but gets matched to wrong tasks.
@@ -444,7 +297,6 @@ class SkillEvolutionEngine(SkillEvolutionEngineBatchMixin):
 
         desc_variants = await self._variant_generator.generate_description_variants(
             skill=old_skill,
-            evidence=evidence,
             num_variants=self._num_variants,
         )
 
@@ -466,19 +318,6 @@ class SkillEvolutionEngine(SkillEvolutionEngineBatchMixin):
             trajectory="",
             is_general=True,
         )
-
-    @staticmethod
-    def _select_evolution_action(skill: SkillRecord, evidence: SkillEvidenceGroup) -> EvolutionType:
-        """Rule-based action routing: decide FIX vs OPTIMIZE_DESCRIPTION.
-
-        Heuristic (zero LLM cost):
-        - High fallback_rate + high effective_rate → description is too broad
-        - Low effective_rate → content has real bugs
-        """
-        metrics = evidence.metrics_snapshot or skill.metrics
-        if metrics.fallback_rate > 0.3 and metrics.effective_rate > 0.7 and metrics.total_selections >= 5:
-            return EvolutionType.OPTIMIZE_DESCRIPTION
-        return EvolutionType.FIX
 
     async def extract_skill_from_slice(
         self,
