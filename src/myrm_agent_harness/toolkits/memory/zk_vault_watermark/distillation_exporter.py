@@ -18,7 +18,7 @@ from .models import DistilledMemoryItem, MemorySensitivityTier
 
 _EMAIL_PATTERN = re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+")
 _IP_PATTERN = re.compile(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b")
-_TOKEN_PATTERN = re.compile(r"(?i)(api[_-]?key|secret|token|password)\s*[:=]\s*['\"]?([a-zA-Z0-9_\-]{8,})['\"]?")
+_TOKEN_PATTERN = re.compile(r"(?i)(api[_-]?key|secret|token|password|key)\s*[:=]\s*['\"]?([a-zA-Z0-9_\-]{8,})['\"]?")
 
 
 class SensitivityDistillationExporter:
