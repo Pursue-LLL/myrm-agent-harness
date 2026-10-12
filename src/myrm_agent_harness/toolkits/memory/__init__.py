@@ -1045,7 +1045,6 @@ from myrm_agent_harness.toolkits.memory.tool_backup import (
     ToolUseStats,
     ToolUseStatus,
 )
-from myrm_agent_harness.toolkits.memory.tool_capture import ToolMemoryCaptureHook
 from myrm_agent_harness.toolkits.memory.tool_guidance import (
     ToolGuidanceItem,
     ToolGuidanceSummary,
@@ -1471,7 +1470,6 @@ __all__ = [
     "SkillProvenanceLinker",
     "TaskDigestMemory",
     "ToolExecutionTrace",
-    "ToolMemoryCaptureHook",
     "ToolRulePriority",
     "ToolGuidanceItem",
     "ToolGuidanceSummary",

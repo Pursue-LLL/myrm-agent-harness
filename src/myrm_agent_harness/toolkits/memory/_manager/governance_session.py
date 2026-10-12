@@ -12,7 +12,6 @@ from myrm_agent_harness.toolkits.memory._manager.shared import (
     AnyMemory,
     ConsolidationConfig,
     CueFamily,
-    HookRegistryProtocol,
     MemoryStatus,
     MemoryType,
     PendingRecord,
@@ -96,19 +95,8 @@ class MemoryManagerGovernanceSessionMixin:
     async def batch_reject(self, pending_ids: list[str]) -> int:
         return await self._governance.batch_reject(pending_ids)
 
-    def begin_session(
-        self,
-        chat_id: str,
-        hook_registry: HookRegistryProtocol | None = None,
-    ) -> MemorySession:
-        from myrm_agent_harness.core.hooks.types import (
-            CallableHookDefinition,
-            HookEvent,
-        )
+    def begin_session(self, chat_id: str) -> MemorySession:
         from myrm_agent_harness.toolkits.memory.session import MemorySession
-        from myrm_agent_harness.toolkits.memory.tool_capture import (
-            ToolMemoryCaptureHook,
-        )
 
         if self._active_session is not None:
             if self._active_session.buffer_size > 0:
@@ -123,31 +111,7 @@ class MemoryManagerGovernanceSessionMixin:
                 self._active_session.discard()
         self._last_cited_memory_ids = []
 
-        hook = ToolMemoryCaptureHook()
-        if hook_registry is not None:
-            if not any(
-                isinstance(h, CallableHookDefinition) and h.fn.__name__ == "on_post_tool_failure"
-                for h in hook_registry._hooks.get(HookEvent.POST_TOOL_USE_FAILURE, [])
-            ):
-                hook_registry.register(
-                    HookEvent.POST_TOOL_USE_FAILURE,
-                    CallableHookDefinition(fn=hook.on_post_tool_failure),
-                )
-            if not any(
-                isinstance(h, CallableHookDefinition) and h.fn.__name__ == "on_post_tool_use"
-                for h in hook_registry._hooks.get(HookEvent.POST_TOOL_USE, [])
-            ):
-                hook_registry.register(
-                    HookEvent.POST_TOOL_USE,
-                    CallableHookDefinition(fn=hook.on_post_tool_use),
-                )
-            if not any(
-                isinstance(h, CallableHookDefinition) and h.fn.__name__ == "on_user_turn"
-                for h in hook_registry._hooks.get(HookEvent.USER_TURN, [])
-            ):
-                hook_registry.register(HookEvent.USER_TURN, CallableHookDefinition(fn=hook.on_user_turn))
-
-        self._active_session = MemorySession(manager=self, chat_id=chat_id, tool_capture_hook=hook)
+        self._active_session = MemorySession(manager=self, chat_id=chat_id)
         return self._active_session
 
     async def end_session(self) -> list[AnyMemory]:

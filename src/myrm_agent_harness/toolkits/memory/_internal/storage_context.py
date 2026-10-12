@@ -2,7 +2,7 @@
 
 [INPUT]
 - memory.protocols.relational::RelationalStoreProtocol (POS: relational persistence)
-- memory.types::{ProfileEntry, ProceduralMemory, RuleSource, TOOL_FAILURE_ORIGIN, ToolRulePriority} (POS: memory data models)
+- memory.types::{ProfileEntry, ProceduralMemory, RuleSource} (POS: memory data models)
 
 [OUTPUT]
 - load_context: Loads profile, rules, and working state for agent prompt
@@ -22,11 +22,9 @@ from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.memory.tool_guidance import ToolGuidanceItem
 from myrm_agent_harness.toolkits.memory.types import (
-    TOOL_FAILURE_ORIGIN,
     ProceduralMemory,
     ProfileEntry,
     RuleSource,
-    ToolRulePriority,
 )
 
 if TYPE_CHECKING:
@@ -125,13 +123,6 @@ async def load_context(
                         )
 
                     if r.source == RuleSource.AGENT_SELF:
-                        origin = r.metadata.get("origin", "")
-                        if (
-                            origin == TOOL_FAILURE_ORIGIN
-                            and r.tool_rule_priority == ToolRulePriority.NORMAL
-                            and not r.is_user_locked
-                        ):
-                            continue
                         agent_instrs.append({"instruction": r.action, "priority": r.priority})
                     else:
                         user_rules.append(

@@ -1,4 +1,4 @@
-"""Session lifecycle side effects: hook wiring, preference promotion, forgetting and consolidation scheduling."""
+"""Session lifecycle side effects: preference promotion, forgetting and consolidation scheduling."""
 
 import asyncio
 from dataclasses import replace
@@ -6,23 +6,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from myrm_agent_harness.core.hooks.types import HookEvent
 from myrm_agent_harness.toolkits.memory.config import ConsolidationConfig
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.strategies.preference_stability import CueFamily, PreferenceFacet
 from myrm_agent_harness.toolkits.memory.types import ProceduralMemory, SemanticMemory
 
 _SESSION = "myrm_agent_harness.toolkits.memory._manager.governance_session"
-
-
-class _Registry:
-    """Smallest object satisfying the hook registry contract."""
-
-    def __init__(self) -> None:
-        self._hooks: dict[str, list] = {}
-
-    def register(self, event, hook) -> None:
-        self._hooks.setdefault(event, []).append(hook)
 
 
 def _build(memory_config, mock_vector_store, mock_relational_store, mock_embedding, **overrides) -> MemoryManager:
@@ -40,17 +29,6 @@ def _build(memory_config, mock_vector_store, mock_relational_store, mock_embeddi
 @pytest.fixture
 def manager(memory_config, mock_vector_store, mock_relational_store, mock_embedding) -> MemoryManager:
     return _build(memory_config, mock_vector_store, mock_relational_store, mock_embedding)
-
-
-class TestBeginSession:
-    def test_tool_capture_hooks_are_registered_once_per_registry(self, manager):
-        registry = _Registry()
-
-        manager.begin_session("chat-1", hook_registry=registry)
-        manager.begin_session("chat-2", hook_registry=registry)
-
-        for event in (HookEvent.POST_TOOL_USE_FAILURE, HookEvent.POST_TOOL_USE, HookEvent.USER_TURN):
-            assert len(registry._hooks[event]) == 1
 
 
 class TestEndSession:

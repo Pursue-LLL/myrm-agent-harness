@@ -6,13 +6,10 @@ import pytest
 
 from myrm_agent_harness.toolkits.memory.config import MemoryConfig
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
-from myrm_agent_harness.toolkits.memory.session import MemorySession
-from myrm_agent_harness.toolkits.memory.tool_capture import ToolMemoryCaptureHook
 from myrm_agent_harness.toolkits.memory.types import (
     EpisodicMemory,
     ProceduralMemory,
     RuleSource,
-    ToolRulePriority,
 )
 
 
@@ -201,73 +198,3 @@ class TestSessionMethods:
 
         session.add_event("Test 2")
         assert session.buffer_size == 2
-
-
-class TestSessionDrainPending:
-    """Integration tests for ToolMemoryCaptureHook drain_pending via session.flush."""
-
-    @staticmethod
-    def _make_mock_manager() -> AsyncMock:
-        """Create a mock manager with store_batch returning its input."""
-        mgr = AsyncMock()
-        mgr.user_id = "test_user"
-        mgr.config.dedup.normalization_level = "standard"
-        mgr.store_batch = AsyncMock(side_effect=lambda batch: batch)
-        return mgr
-
-    @pytest.mark.asyncio
-    async def test_flush_drains_pending_rules(self):
-        """Pending rules from ToolMemoryCaptureHook are included in flush batch."""
-        mgr = self._make_mock_manager()
-
-        hook = ToolMemoryCaptureHook()
-        await hook.on_post_tool_failure("POST_TOOL_USE_FAILURE", {"tool_name": "web_fetch_tool", "error": "timeout"})
-        await hook.on_post_tool_failure("POST_TOOL_USE_FAILURE", {"tool_name": "web_fetch_tool", "error": "timeout"})
-        assert len(hook.pending_rules) == 1
-
-        session = MemorySession(manager=mgr, chat_id="chat-1", tool_capture_hook=hook)
-        session.add_knowledge("Some fact")
-        result = await session.flush()
-
-        assert len(result) == 2
-        tool_rules = [m for m in result if isinstance(m, ProceduralMemory)]
-        assert len(tool_rules) == 1
-        assert tool_rules[0].tool_name == "web_fetch_tool"
-        assert tool_rules[0].tool_rule_priority == ToolRulePriority.NORMAL
-
-    @pytest.mark.asyncio
-    async def test_flush_deduplicates_pending_rules(self):
-        """If buffer already contains a rule with the same content, pending rule is skipped."""
-        mgr = self._make_mock_manager()
-
-        hook = ToolMemoryCaptureHook()
-        await hook.on_post_tool_failure("POST_TOOL_USE_FAILURE", {"tool_name": "web_fetch_tool", "error": "timeout"})
-        await hook.on_post_tool_failure("POST_TOOL_USE_FAILURE", {"tool_name": "web_fetch_tool", "error": "timeout"})
-        pending_content = hook.pending_rules[0].content
-
-        session = MemorySession(manager=mgr, chat_id="chat-1", tool_capture_hook=hook)
-        session.add_knowledge(pending_content)
-        result = await session.flush()
-
-        assert len(result) == 1
-
-    @pytest.mark.asyncio
-    async def test_flush_clears_pending_after_drain(self):
-        """After flush, hook's pending rules are cleared."""
-        mgr = self._make_mock_manager()
-
-        hook = ToolMemoryCaptureHook()
-        await hook.on_post_tool_failure(
-            "POST_TOOL_USE_FAILURE",
-            {"tool_name": "bash_code_execute_tool", "error": "permission denied"},
-        )
-        await hook.on_post_tool_failure(
-            "POST_TOOL_USE_FAILURE",
-            {"tool_name": "bash_code_execute_tool", "error": "permission denied"},
-        )
-
-        session = MemorySession(manager=mgr, chat_id="chat-1", tool_capture_hook=hook)
-        await session.flush()
-
-        assert len(hook.pending_rules) == 0
-        assert hook.drain_pending() == []

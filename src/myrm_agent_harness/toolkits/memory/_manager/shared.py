@@ -27,7 +27,6 @@ from typing import TYPE_CHECKING
 
 from langchain_core.language_models import BaseChatModel
 
-from myrm_agent_harness.core.hooks import HookRegistryProtocol
 from myrm_agent_harness.toolkits.memory._internal.governance_service import (
     GovernanceService,
 )
@@ -174,7 +173,6 @@ __all__ = [
     "GovernanceService",
     "GraphStoreProtocol",
     "HealthScore",
-    "HookRegistryProtocol",
     "MaintenanceConsolidationResult",
     "MaintenanceReport",
     "MaintenanceService",

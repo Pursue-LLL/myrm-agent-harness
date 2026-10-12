@@ -668,8 +668,8 @@ retention = 0.35 × time_score + 0.25 × access_score + 0.15 × importance_score
 
 **Procedural 规则 TTL 归档**（`_internal/maintenance_rule_forgetting.py`）：
 
-- `expected_valid_days` 已过期的规则（如自动生成的 `tool_failure` 失败告警，TTL=1 天）**直接归档**，绕过 retention 评分阈值——过期即失效，无需等待衰减
-- 过期判断：`created_at + expected_valid_days` ≤ 当前时间；无 `expected_valid_days` 的规则（如用户 edicts、CRITICAL 规则）不参与 TTL 归档，继续走 retention 评分
+- `expected_valid_days` 已过期的规则**直接归档**，绕过 retention 评分阈值——过期即失效，无需等待衰减
+- 过期判断：`created_at + expected_valid_days` ≤ 当前时间；无 `expected_valid_days` 的规则以及 CRITICAL 规则不参与 TTL 归档，继续走 retention 评分
 - `is_user_locked` 规则跳过 TTL 归档（用户手动保留）
 
 保护规则（优先级从高到低）：
@@ -753,38 +753,20 @@ result = await extractor.extract(messages=messages)
 # result.memories → [ExtractedMemory(...), ...]
 ```
 
-### 7.4 Tool-Scoped Memory Capture (`tool_capture.py`)
+### 7.4 Procedural Rule Write Paths
 
-`ToolMemoryCaptureHook` 从两条零 LLM 成本路径自动创建工具级行为规则：
+程序性规则只有两类写入入口，**不存在从原始用户文本直接生成规则的正则路径**：
 
-1. **Edict 检测**：正则匹配用户禁令/偏好（中英双语），关联到具体工具后存为 CRITICAL 优先级 `ProceduralMemory`
-2. **重复失败记录**：同一工具在会话中失败 ≥2 次时，创建 NORMAL 优先级规则引导后续工具选择
+1. **模型判断**：会话结束的 LLM 抽取（`strategies/extractor.py`，受 No-Op Default 门控）与 Agent 调用 `memory_save_tool`；
+2. **人的明确选择**：用户手动创建并锁定的规则，以及审批中人工 `edit` / `reject` 触发的纠正学习（`agent/middlewares/approval/correction_learning.py`）。
 
-**数据流**：
-- `extract_memories_from_conversation` 对 user 消息执行正则预扫描，零 LLM 成本捕获 edicts
-- `ToolMemoryCaptureHook.on_post_tool_failure` 跟踪工具失败次数；达到阈值（≥2 次）时生成 NORMAL 规则，并附带 `metadata.origin="tool_failure"` + `expected_valid_days=1`（24 小时警戒期）
-- `MemorySession.flush()` 调用 `hook.drain_pending()` 将待持久化规则纳入批量写入
-- `storage_context.load_context` 对 `source==AGENT_SELF` 且 `metadata.origin=="tool_failure"` 且 `tool_rule_priority==NORMAL` 且 `is_user_locked==False` 的规则**不注入 stable 层**（视为瞬时提醒，仅可通过 `memory_search_tool` 检索）；用户显式保存的 AGENT_SELF 指令、`pattern_discovery` 已确立模式、被提升为 CRITICAL/HIGH 的失败规则，以及用户编辑过（`is_user_locked=True`，视为显式认可）的失败规则不受影响
-- `maintenance_rule_forgetting` 对 `expected_valid_days` 已过期的规则直接归档（绕过 retention 评分阈值，避免瞬时失败规则长期残留）
-
-**优先级层级**（`ToolRulePriority`）：
+> 正则只能看到用户措辞的一个片段，无法区分「长期偏好」与「仅当前任务的指令」，也保留不了否定极性，因此不再作为规则来源。`ToolRulePriority` 只决定遗忘/归档的耐久度，不决定注入位置：规则统一进入 stable 层的 `Behavioral Rules` 段（`priority=3`），items 按「用户背书（`is_user_locked`）优先」排序，契合 `PromptBudgetGuard` 从后截断的行为，使背书规则最后被丢。
 
 | 级别 | 来源 | 生命周期 |
 |------|------|---------|
-| CRITICAL | 用户显式禁令 | 免 TTL 归档；预算存活仍取决于 `is_user_locked` |
+| CRITICAL | 用户显式确立 | 免 TTL 归档；预算存活仍取决于 `is_user_locked` |
 | HIGH | 从重复纠偏中蒸馏 | 与 NORMAL 同等，仅参与 retention 评分 |
-| NORMAL | 自动推断/失败 | 可被遗忘策略回收 |
-
-> `ToolRulePriority` 只决定遗忘/归档的耐久度，不决定注入位置。规则统一进入 stable 层的 `Behavioral Rules` 段（`priority=3`）；stable 段的 items 按「用户背书（`is_user_locked`）优先」排序，契合 `PromptBudgetGuard` 从后截断的行为，使背书规则最后被丢。
-
-```python
-from myrm_agent_harness.toolkits.memory import ToolMemoryCaptureHook, MemorySession
-
-hook = ToolMemoryCaptureHook()
-session = MemorySession(manager=mm, chat_id="...", tool_capture_hook=hook)
-# hook.on_post_tool_failure 注册到 HookRegistry
-# session.flush() 自动 drain pending rules
-```
+| NORMAL | 自动推断 | 可被遗忘策略回收 |
 
 ### 7.5 Pre-Compaction Recall (`agent/context_management/pre_compact_service.py`)
 

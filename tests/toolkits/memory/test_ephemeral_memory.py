@@ -272,7 +272,7 @@ class TestReadOnlyMemoryViewReadDelegation:
     def test_begin_session_delegates(self):
         view, parent = self._make_view()
         result = view.begin_session("chat-1")
-        parent.begin_session.assert_called_once_with("chat-1", hook_registry=None)
+        parent.begin_session.assert_called_once_with("chat-1")
         assert result == "session-ctx"
 
     @pytest.mark.asyncio
@@ -488,7 +488,7 @@ class TestEphemeralMemoryManager:
     def test_begin_session_delegates(self):
         eph, parent = self._make_ephemeral()
         result = eph.begin_session("chat-99")
-        parent.begin_session.assert_called_once_with("chat-99", hook_registry=None)
+        parent.begin_session.assert_called_once_with("chat-99")
         assert result == "session-ctx"
 
     @pytest.mark.asyncio

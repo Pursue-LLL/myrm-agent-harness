@@ -461,11 +461,7 @@ class SkillAgent(
     def _begin_memory_session(self, context: dict[str, object] | None, message_id: str | None) -> None:
         if self.memory_manager is not None:
             chat_id = str((context or {}).get("chat_id", message_id or "default"))
-            from myrm_agent_harness.agent.hooks import get_hook_executor
-
-            executor = get_hook_executor()
-            registry = executor.registry if executor else None
-            self.memory_manager.begin_session(chat_id, hook_registry=registry)
+            self.memory_manager.begin_session(chat_id)
 
     async def close(self) -> None:
         """Release resources held by this agent."""

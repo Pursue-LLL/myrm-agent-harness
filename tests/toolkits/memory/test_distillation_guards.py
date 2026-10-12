@@ -297,16 +297,21 @@ class TestDistillationGuardsAsyncIntegration:
             {"role": "user", "content": "Alert: Database latency high", "name": "AlertBot", "id": "msg_bot_1"},
         ]
 
-        async def dummy_llm(system_prompt: str, user_prompt: str) -> str:
-            return "[]"
+        async def llm(system_prompt: str, user_prompt: str) -> str:
+            assert "Database latency" not in user_prompt
+            return (
+                '[{"memory_type": "procedural", "content": "Never use sudo for package installs",'
+                ' "confidence": 0.9, "importance": 0.8, "trigger": "installing packages",'
+                ' "action": "Do not use sudo"}]'
+            )
 
-        res = await extract_memories_from_conversation(messages, llm_func=dummy_llm)
-        assert len(res.memories) == 2
-        for procedural in res.memories:
-            assert procedural.memory_type == MemoryType.PROCEDURAL
-            assert "sudo" in procedural.content
-            assert len(procedural.evidence) == 1
-            assert procedural.evidence[0].message_id == "msg_edict_1"
+        res = await extract_memories_from_conversation(messages, llm_func=llm)
+        assert len(res.memories) == 1
+        procedural = res.memories[0]
+        assert procedural.memory_type == MemoryType.PROCEDURAL
+        assert "sudo" in procedural.content
+        assert len(procedural.evidence) == 1
+        assert procedural.evidence[0].message_id == "msg_edict_1"
 
     async def test_memory_extractor_direct_extract_guard(self) -> None:
         """MemoryExtractor.extract directly drops assistant and bot turns before invoking LLM."""

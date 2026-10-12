@@ -4,7 +4,6 @@
 [INPUT]
 - memory.types::{ProfileEntry, SemanticMemory, EpisodicMemory, ProceduralMemory, MemoryType, MemoryLifecycle, PreferenceType} (POS: memory data models)
 - memory.chunking::EpisodesChunker (POS: Chunking utilities for ConversationMemory and extraction pipelines)
-- memory.tool_capture::{extract_tool_edicts, associate_tool} (POS: tool-scoped memory capture via regex edicts + failure counting)
 - utils.json_parsing::parse_llm_json_list (POS: robust JSON array extraction from LLM output — fences, prose, bare control chars, trailing commas)
 
 [OUTPUT]
@@ -877,16 +876,11 @@ async def extract_memories_from_conversation(
 ) -> ExtractionResult:
     """Convenience: extract memories from a conversation.
 
-    Runs a zero-LLM-cost regex pre-scan on user messages to detect
-    explicit tool edicts (e.g. "never use sudo") before invoking LLM
-    extraction. Detected edicts become CRITICAL procedural rules.
+    Admits only distillable messages, runs LLM extraction, then keeps the
+    memories that are grounded in the user's own words.
     """
     from myrm_agent_harness.toolkits.memory.strategies.distillation_guards import (
         filter_distillable_messages,
-    )
-    from myrm_agent_harness.toolkits.memory.tool_capture import (
-        associate_tool,
-        extract_tool_edicts,
     )
 
     # 1. Distillation Admission Guard: filter bot/alert/unconfirmed messages
@@ -901,35 +895,6 @@ async def extract_memories_from_conversation(
             len(rejections),
         )
         return ExtractionResult()
-
-    regex_memories: list[ExtractedMemory] = []
-    for msg in filtered_messages:
-        if msg.get("role") != "user" or msg.get("_third_party_context"):
-            continue
-        text = str(msg.get("content") or "")
-        for edict in extract_tool_edicts(text):
-            tool = associate_tool(edict.rule_text, None)
-            msg_id = str(msg.get("id") or msg.get("message_id") or "")
-            regex_memories.append(
-                ExtractedMemory(
-                    memory_type=MemoryType.PROCEDURAL,
-                    content=edict.original_match,
-                    confidence=1.0,
-                    importance=1.0,
-                    trigger=edict.rule_text,
-                    action=f"Respect user directive: {edict.rule_text}",
-                    tool_name=tool,
-                    tool_rule_priority="critical",
-                    source_message=edict.original_match,
-                    evidence=[
-                        EvidenceReference(
-                            source_id="user_edict",
-                            message_id=msg_id if msg_id else None,
-                            quote_snippet=edict.original_match[:160],
-                        )
-                    ],
-                )
-            )
 
     user_corpus = [
         str(m.get("content") or "")
@@ -980,7 +945,7 @@ async def extract_memories_from_conversation(
         )
 
     return ExtractionResult(
-        memories=regex_memories + verified_llm_memories,
+        memories=verified_llm_memories,
         extraction_time_ms=result.extraction_time_ms,
         raw_response=result.raw_response,
     )

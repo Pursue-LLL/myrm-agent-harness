@@ -21,7 +21,6 @@ import asyncio
 import uuid
 from typing import TYPE_CHECKING, Literal
 
-from myrm_agent_harness.core.hooks import HookRegistryProtocol
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.types import (
     ARCHIVE_RETENTION_DAYS,
@@ -93,8 +92,8 @@ class ReadOnlyMemoryView(MemoryManager):
     async def get_memory(self, memory_id: str) -> AnyMemory | None:
         return await self._parent.get_memory(memory_id)
 
-    def begin_session(self, chat_id: str, hook_registry: HookRegistryProtocol | None = None) -> object:
-        return self._parent.begin_session(chat_id, hook_registry=hook_registry)
+    def begin_session(self, chat_id: str) -> object:
+        return self._parent.begin_session(chat_id)
 
     async def end_session(self) -> list[AnyMemory]:
         return []
@@ -484,8 +483,8 @@ class EphemeralMemoryManager(MemoryManager):
             return self._ephemeral_store[memory_id]
         return await self._parent.get_memory(memory_id)
 
-    def begin_session(self, chat_id: str, hook_registry: HookRegistryProtocol | None = None) -> object:
-        return self._parent.begin_session(chat_id, hook_registry=hook_registry)
+    def begin_session(self, chat_id: str) -> object:
+        return self._parent.begin_session(chat_id)
 
     async def end_session(self) -> list[AnyMemory]:
         return await self._parent.end_session()

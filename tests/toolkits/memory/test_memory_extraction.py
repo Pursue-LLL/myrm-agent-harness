@@ -1933,12 +1933,21 @@ class TestAutoExtractFeedbackIntegration:
 # ============================================================================
 
 
-class TestExtractMemoriesFromConversationRegex:
-    """Test regex pre-scan in extract_memories_from_conversation."""
+class TestExtractMemoriesFromConversationLlmOnly:
+    """Memories come only from the LLM: user wording alone never becomes a rule."""
 
     @pytest.mark.asyncio
-    async def test_regex_prescan_captures_edict_with_critical_priority(self):
-        """Regex pre-scan should produce PROCEDURAL memories with tool_rule_priority='critical'."""
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Write the quarterly report, but don't include the appendix.",
+            "Please reply in Chinese from now on and never use emoji.",
+            "Do not use sudo this time.",
+            "不要用表格，用列表就行。",
+            "禁止使用sudo命令。",
+        ],
+    )
+    async def test_prohibition_without_llm_extraction_stores_nothing(self, text):
         from myrm_agent_harness.toolkits.memory.strategies.extractor import (
             extract_memories_from_conversation,
         )
@@ -1947,60 +1956,16 @@ class TestExtractMemoriesFromConversationRegex:
             return "[]"
 
         messages = [
-            {"role": "user", "content": "never use sudo for this project."},
+            {"role": "user", "content": text},
             {"role": "assistant", "content": "Understood."},
         ]
 
         result = await extract_memories_from_conversation(messages, mock_llm)
 
-        procedural = [m for m in result.memories if m.memory_type == MemoryType.PROCEDURAL]
-        assert len(procedural) >= 1
-        edict = procedural[0]
-        assert edict.tool_rule_priority == "critical"
-        assert edict.confidence == 1.0
-        assert edict.importance == 1.0
+        assert result.memories == []
 
     @pytest.mark.asyncio
-    async def test_regex_prescan_associates_tool_name(self):
-        """Regex pre-scan should associate tool_name via keyword matching."""
-        from myrm_agent_harness.toolkits.memory.strategies.extractor import (
-            extract_memories_from_conversation,
-        )
-
-        async def mock_llm(_system: str, _prompt: str) -> str:
-            return "[]"
-
-        messages = [
-            {"role": "user", "content": "禁止使用sudo命令。"},
-        ]
-
-        result = await extract_memories_from_conversation(messages, mock_llm)
-
-        procedural = [m for m in result.memories if m.memory_type == MemoryType.PROCEDURAL]
-        assert len(procedural) >= 1
-        assert procedural[0].tool_name == "bash_code_execute_tool"
-
-    @pytest.mark.asyncio
-    async def test_regex_prescan_skips_non_user_messages(self):
-        """Regex pre-scan should only scan user messages, not assistant."""
-        from myrm_agent_harness.toolkits.memory.strategies.extractor import (
-            extract_memories_from_conversation,
-        )
-
-        async def mock_llm(_system: str, _prompt: str) -> str:
-            return "[]"
-
-        messages = [
-            {"role": "assistant", "content": "never use sudo for this project."},
-        ]
-
-        result = await extract_memories_from_conversation(messages, mock_llm)
-        procedural = [m for m in result.memories if m.memory_type == MemoryType.PROCEDURAL]
-        assert len(procedural) == 0
-
-    @pytest.mark.asyncio
-    async def test_regex_prescan_prepended_before_llm_results(self):
-        """Regex pre-scan results should come before LLM-extracted results."""
+    async def test_only_llm_extracted_memories_are_returned(self):
         from myrm_agent_harness.toolkits.memory.strategies.extractor import (
             extract_memories_from_conversation,
         )
@@ -2013,9 +1978,8 @@ class TestExtractMemoriesFromConversationRegex:
         ]
 
         result = await extract_memories_from_conversation(messages, mock_llm)
-        assert len(result.memories) >= 2
-        assert result.memories[0].memory_type == MemoryType.PROCEDURAL
-        assert result.memories[0].tool_rule_priority == "critical"
+
+        assert [m.memory_type for m in result.memories] == [MemoryType.SEMANTIC]
 
 
 # ============================================================================

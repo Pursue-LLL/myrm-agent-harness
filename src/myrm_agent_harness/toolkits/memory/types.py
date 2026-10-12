@@ -129,12 +129,6 @@ class ToolRulePriority(StrEnum):
     NORMAL = "normal"
 
 
-# Metadata marker for auto-generated transient tool-failure rules. The context
-# loader keeps them out of the stable prompt layer; maintenance archives them
-# after ``TOOL_FAILURE_TTL_DAYS``.
-TOOL_FAILURE_ORIGIN = "tool_failure"
-TOOL_FAILURE_TTL_DAYS = 1
-
 # Archived memories are recoverable for this window before maintenance purges
 # them. Every archival write path must stamp ``archive_expires_at`` from this
 # value so the purge scanner can reclaim them.
