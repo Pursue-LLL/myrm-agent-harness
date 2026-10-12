@@ -22,7 +22,7 @@
 | 9 | 安装与卸载 | **CORE** | nexu 异步队列 + Deer-Flow 安全提取 |
 | 10 | 状态管理 | **CORE** | nexu JSON 账本 + 目录监听 |
 | 11 | 语义+环境混合检索 | **CORE** | Hybrid Search (Qdrant + SQLite) |
-| 12 | 错误感知型智能隔离 | **CORE** | 1-Strike / 3-Strikes 隔离机制 |
+| 12 | 技能失败事件与可选隔离原语 | **CORE** | `SkillFailureEvent` 交给宿主处置；1-Strike / 3-Strikes 隔离为显式启用的原语 |
 | 13 | 搜索缓存 | **CORE** | picoclaw Trigram Jaccard |
 | 14 | Marketplace 集成 | ENHANCE | NextClaw API + CoPaw 多源 |
 | 15 | 技能创建与评估 | ENHANCE | Deer-Flow AI 驱动 |
@@ -674,17 +674,18 @@ Scanner（编排器）
 
 ---
 
-## 12. 错误感知型智能隔离 (Error-Aware Smart Quarantine) [CORE]
+## 12. 技能失败事件与可选隔离原语 (Skill Failure Event & Opt-in Quarantine) [CORE]
 
-### 12.1 核心理念
-解决 Agent 固执调用损坏技能导致的“死循环”问题。摒弃竞品（如 EvoMap, ironclaw）复杂的数学衰减公式，采用极简的字符串匹配和计数器，实现精准打击与零误杀。
+### 12.1 默认行为：事件上报，不隐藏技能
+技能归因的工具失败由 `_skill_failure_tracking` 中间件发布为 `SkillFailureEvent`（`runtime/events/skill_events.py`），由宿主决定如何处置（记录、触发 FIX 提案等）。中间件自身只以 `success=True` 调用 `EvolutionIntegration.record_execution`，因此默认栈不会把任何技能置为 `is_active=False`，也不会从技能列表中隐藏技能。
 
-### 12.2 隔离策略
-- **一击必杀 (1-Strike)**：如果错误信息包含确定性的代码级错误（如 `SyntaxError`, `ModuleNotFoundError`, `command not found`），第一次失败即触发硬隔离（`is_active=False`），避免白白浪费重试 Token。
-- **容错隔离 (3-Strikes)**：如果错误是网络超时、API 限流等非确定性错误，给予网络抖动容错空间，连续失败 3 次才触发硬隔离。
+### 12.2 可选隔离原语
+`EvolutionIntegration.record_execution(skill_id, success=False, error=...)` 内置两档策略，供需要「硬隔离」的宿主显式调用：
+- **一击必杀 (1-Strike)**：错误信息包含确定性的代码级错误（如 `SyntaxError`, `ModuleNotFoundError`, `command not found`）时，第一次失败即 `deactivate_skill`（`is_active=False`）。
+- **容错隔离 (3-Strikes)**：网络超时、API 限流等非确定性错误，连续失败 3 次才 `deactivate_skill`。
 
-### 12.3 效果与自愈
-被硬隔离的技能会瞬间从 Agent 的可用工具列表中消失，迫使 Agent 切换策略。同时，该技能仍会被送入后台 FIX 引擎。修复成功后，新版本将作为活跃技能重新上线，实现系统的自我愈合。
+### 12.3 读取侧
+被置为 `is_active=False` 的技能只有在宿主用 `QuarantineAwareSkillBackend` + `SkillStateReader` 包装后端时才会从列表中过滤；框架不提供默认的 `SkillStateReader` 实现，也不提供解除隔离的入口——恢复路径由宿主自行定义（例如修复提案通过后重新写入 `is_active=True`）。
 
 ---
 
