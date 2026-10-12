@@ -203,8 +203,6 @@ _LEET_MAP: dict[str, str] = {
 
 _WHITESPACE_RE = re.compile(r"\s+")
 
-_BASE64_RE = re.compile(r"[A-Za-z0-9+/]{24,}={0,2}")
-
 
 def _normalize_for_detection(text: str) -> str:
     """Normalize text for obfuscation-resistant pattern detection.
@@ -359,8 +357,7 @@ def scan_input(content: str) -> GuardResult:
 
     Two-pass detection: first on the raw text, then on an
     anti-obfuscation normalized variant (leet speak decoded,
-    invisible Unicode stripped, whitespace collapsed). Also
-    checks for base64-encoded payloads as a low-weight signal.
+    invisible Unicode stripped, whitespace collapsed).
     """
     if not content:
         return GuardResult(safe=True)
@@ -374,10 +371,6 @@ def scan_input(content: str) -> GuardResult:
     normalized = _normalize_for_detection(content)
     if normalized != content.lower():
         _scan_text(normalized, tally)
-
-    # Auxiliary: base64-encoded payload detection (low-weight signal)
-    if _BASE64_RE.search(content):
-        tally.record("obfuscation.base64_like", 0.1, unambiguous=False)
 
     if not tally.patterns:
         return GuardResult(safe=True)
