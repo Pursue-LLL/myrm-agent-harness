@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+from myrm_agent_harness.agent.skills.runtime import attenuator
 from myrm_agent_harness.agent.skills.runtime.attenuator import READ_ONLY_TOOLS, attenuate_tools
 from myrm_agent_harness.agent.tool_management.tool_layers import is_registered_action_tool
 from myrm_agent_harness.backends.skills._runtime import build_skill_metadata
@@ -23,6 +24,12 @@ from myrm_agent_harness.backends.skills.types import SkillMetadata, SkillTrust
 TOOLS = ["file_read_tool", "file_write_tool", "web_search_tool", "bash_code_execute_tool"]
 ATTENUATOR_LOGGER = "myrm_agent_harness.agent.skills.runtime.attenuator"
 IGNORED_WARNING = "allowed-tools"
+
+
+@pytest.fixture(autouse=True)
+def _fresh_warning_registry(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Start every test with an empty once-per-skill warning registry."""
+    monkeypatch.setattr(attenuator, "_reported_ignored_entries", set())
 
 
 def _skill(
