@@ -91,16 +91,15 @@ myrm_agent_harness/
 │   ├── session.py                      # MemorySession（对话级缓冲）
 │   ├── retriever.py                    # MemoryRetriever（RRF + 几何平均评分 + MMR 多样性重排 + source decay 会话源多样化）
 │   ├── signals.py                      # SignalCalculator（上下文信号计算）
-│   ├── memory_agent_tools.py           # 稳定 import 门面 → agent_surface/
 │   ├── agent_surface/                  # Agent 可见 I/O 层（tools / MCP / recall sanitize / citations）
-│   │   ├── memory_agent_tools.py       # Agent 工具工厂（search/save/manage 实现）
+│   │   ├── memory_agent_tools/         # Agent 工具包（factory / search_tool / save_tool / manage_tool / common）
 │   │   ├── _memory_agent_tool_descriptions.py  # LLM 可见描述 SSOT（prompt/cache）
 │   │   ├── memory_recall_formatting.py # Recall sanitize / save ack / source_error SSOT
 │   │   ├── memory_recall_budget.py     # Recall 输出预算
 │   │   ├── memory_search_policy.py     # corpus ACL
 │   │   ├── memory_search_execution.py  # memory/wiki/sessions 执行
 │   │   ├── memory_citations.py         # 记忆 citation refs 与 retrieval trace SSE 桥接
-│   │   ├── mcp_server.py               # MCP HTTP 适配器
+│   │   ├── mcp_server/                 # MCP HTTP 适配器包（server / recall / list / store / manage / request_context）
 │   │   └── wiki_memory_boundary.py     # wiki/memory 写入边界
 │   ├── observability.py                # 业务无关记忆观测 DTO/Protocol（operation / influence / retrieval trace / space / sink）
 │   ├── reliability.py                  # 业务无关记忆可靠性 DTO（probe / repair plan / import plan / recall benchmark summary）
@@ -843,7 +842,7 @@ tools = create_memory_tools(manager=manager)
 | --------------- | --------------------------------------------------------------------- |
 | `memory_search_tool` | HIGH_PRIORITY 层统一读工具：`corpus=memory|wiki|sessions|all`；Server 通过 `MemorySearchPolicy` ACL 绑定 wiki/会话后端 |
 | `memory_save_tool`   | 存储新记忆，支持 knowledge/event/preference/rule/instruction 五种类别；LLM description 由 `build_memory_save_tool_description(policy, approval_required, locale)` 组装（EN/ZH core + 可选 wiki 边界 + 可选审批提示）；参数语义在 `MemorySaveInput` Pydantic schema；当 `MemorySearchPolicy.allow_wiki=True` 时，≥800 字或 ≥3 个 markdown 标题的 knowledge/event 会被硬拒并指向 `wiki_ingest_tool` |
-| `memory_manage_tool` | 更新/删除/纠正/评分已有记忆；LLM description 与 save 对称分流（新事实→save；过时/错误事实→correct preserves history；措辞微调→update；rate→knowledge/event）；instruction 保存后按 `category=rule` 管理；工具返回用户向文案（不含内部 demote 术语）；参数语义在 `MemoryManageInput` Pydantic schema；Memory MCP HTTP（`agent_surface/mcp_server.py`）的 `memory_manage` 同样 import `resolve_memory_manage_tool_description()` SSOT |
+| `memory_manage_tool` | 更新/删除/纠正/评分已有记忆；LLM description 与 save 对称分流（新事实→save；过时/错误事实→correct preserves history；措辞微调→update；rate→knowledge/event）；instruction 保存后按 `category=rule` 管理；工具返回用户向文案（不含内部 demote 术语）；参数语义在 `MemoryManageInput` Pydantic schema；Memory MCP HTTP（`agent_surface/mcp_server/`）的 `memory_manage` 同样 import `resolve_memory_manage_tool_description()` SSOT |
 
 #### Wiki vs Memory 写入边界
 
@@ -854,9 +853,9 @@ tools = create_memory_tools(manager=manager)
 
 `memory_search_tool` 的 `limit` 在 memory corpus 下收敛到 `1..15`；sessions corpus 下收敛到 `1..8`。空查询或 `*` 在 `corpus=sessions` 时表示浏览最近会话。wiki/sessions corpus 由 Server policy 控制，runtime 无法扩 scope。
 
-**检索墙钟超时（fail-open）**：`memory_search_tool` 各 corpus 共用 `RetrievalConfig.timeout_seconds`（默认 10s）作为检索墙钟上限——memory corpus 在 `_internal/search_service.py` 内部分配给 embedding / collection / graph enrichment 三阶段共享 deadline；wiki/sessions corpus 统一经 `agent_surface/memory_search_execution.py::_run_with_timeout` 以 `asyncio.wait_for` 截止。任一 corpus 超时均 fail-open：返回降级提示而非阻塞 Agent turn（测试见 `tests/toolkits/memory/test_search_timeout.py`）。**MCP `memory_recall`** 在空结果 + `last_retrieval_trace.degraded` 时返回同一降级提示（`agent_surface/mcp_server.py`），与 GUI corpus 契约一致（测试见 `tests/toolkits/memory/test_mcp_server.py::TestMemoryRecallTool`）。
+**检索墙钟超时（fail-open）**：`memory_search_tool` 各 corpus 共用 `RetrievalConfig.timeout_seconds`（默认 10s）作为检索墙钟上限——memory corpus 在 `_internal/search_service.py` 内部分配给 embedding / collection / graph enrichment 三阶段共享 deadline；wiki/sessions corpus 统一经 `agent_surface/memory_search_execution.py::_run_with_timeout` 以 `asyncio.wait_for` 截止。任一 corpus 超时均 fail-open：返回降级提示而非阻塞 Agent turn（测试见 `tests/toolkits/memory/test_search_timeout.py`）。**MCP `memory_recall`** 在空结果 + `last_retrieval_trace.degraded` 时返回同一降级提示（`agent_surface/mcp_server/`），与 GUI corpus 契约一致（测试见 `tests/toolkits/memory/test_mcp_server.py::TestMemoryRecallTool`）。
 
-**Memory MCP HTTP**（`agent_surface/mcp_server.py`）：对外暴露 `memory_recall` / `memory_list` / `memory_store` / `memory_manage` 四工具；**`memory_manage` 与 `memory_store` 描述** import `agent_surface/_memory_agent_tool_descriptions` SSOT（`surface=mcp` 工具名映射；store 默认不含 wiki boundary 文案——MCP 面无 wiki 工具、运行时 wiki 拦截由 server 按 agent 经 ContextVar 控制，静态描述不声称 wiki enabled，显式启用场景下 MCP 面也不泄漏 GUI 内部工具名 `wiki_ingest_tool`）；wiki 启用时 `memory_store` 运行时硬拒 document-like 内容（与 GUI `memory_save_tool` 一致，server middleware 传 ContextVar，拒绝消息同样不引用 GUI 内部工具）。recall/list 仍为 MCP 专用 inline 描述。
+**Memory MCP HTTP**（`agent_surface/mcp_server/`）：对外暴露 `memory_recall` / `memory_list` / `memory_store` / `memory_manage` 四工具；**`memory_manage` 与 `memory_store` 描述** import `agent_surface/_memory_agent_tool_descriptions` SSOT（`surface=mcp` 工具名映射；store 默认不含 wiki boundary 文案——MCP 面无 wiki 工具、运行时 wiki 拦截由 server 按 agent 经 ContextVar 控制，静态描述不声称 wiki enabled，显式启用场景下 MCP 面也不泄漏 GUI 内部工具名 `wiki_ingest_tool`）；wiki 启用时 `memory_store` 运行时硬拒 document-like 内容（与 GUI `memory_save_tool` 一致，server middleware 传 ContextVar，拒绝消息同样不引用 GUI 内部工具）。recall/list 仍为 MCP 专用 inline 描述。
 
 `conversation_search/` 模块提供 Protocol、formatter 与 `create_conversation_search_tool` 单元测试工厂；产品路径（GeneralAgent 与 Custom 子 Agent）均通过 `memory_search_tool(corpus=sessions)` + Server `MemorySearchPolicy` ACL。Turn1 不 bind standalone LLM 工具名 `conversation_search_tool`。
 

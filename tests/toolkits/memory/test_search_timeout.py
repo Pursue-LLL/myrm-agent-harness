@@ -347,7 +347,7 @@ class TestMemorySearchToolCorpusBranches:
 
     @pytest.mark.asyncio
     async def test_all_corpora_disabled_returns_no_corpora(self, fast_timeout_config, monkeypatch) -> None:
-        import myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools as tools_mod
+        import myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools.search_tool as tools_mod
 
         monkeypatch.setattr(
             tools_mod,

@@ -267,7 +267,7 @@ class TestMemoryListTool:
             SemanticMemory(id="s1", content="item"),
         ]
         with patch(
-            "myrm_agent_harness.toolkits.memory.agent_surface.mcp_server.MAX_RECALL_OUTPUT_CHARS",
+            "myrm_agent_harness.toolkits.memory.agent_surface.mcp_server.list_tool.MAX_RECALL_OUTPUT_CHARS",
             40,
         ):
             result = await _get_tool_fn(mcp_server, "memory_list")(category="knowledge", page_size=2)
@@ -398,13 +398,11 @@ class TestMemoryRecallTool:
 
     def test_parse_string_list_drops_none_items(self):
         """None/null elements are dropped, never stringified into 'None'."""
-        from myrm_agent_harness.toolkits.memory.agent_surface.mcp_server import (
-            _parse_string_list,
-        )
+        from myrm_agent_harness.toolkits.memory.agent_surface.mcp_server.common import parse_string_list
 
-        assert _parse_string_list(["knowledge", None]) == ["knowledge"]
-        assert _parse_string_list('[null, "knowledge"]') == ["knowledge"]
-        assert _parse_string_list(["knowledge", None, ""]) == ["knowledge"]
+        assert parse_string_list(["knowledge", None]) == ["knowledge"]
+        assert parse_string_list('[null, "knowledge"]') == ["knowledge"]
+        assert parse_string_list(["knowledge", None, ""]) == ["knowledge"]
 
     @pytest.mark.asyncio
     async def test_recall_claim_memory_renders_graph_suffix(self, mcp_server, mock_manager):
@@ -462,7 +460,7 @@ class TestMemoryRecallTool:
         mem = SemanticMemory(id="m1", content="content")
         mock_manager.search.return_value = [MemorySearchResult(memory=mem, score=0.9, memory_type=MemoryType.SEMANTIC)]
         with patch(
-            "myrm_agent_harness.toolkits.memory.agent_surface.mcp_server.MAX_RECALL_OUTPUT_CHARS",
+            "myrm_agent_harness.toolkits.memory.agent_surface.mcp_server.recall_tool.MAX_RECALL_OUTPUT_CHARS",
             40,
         ):
             result = await _get_tool_fn(mcp_server, "memory_recall")(query="test")

@@ -12,7 +12,7 @@ Parent index: [../_ARCH.md](../_ARCH.md). System design: [../MEMORY_SYSTEM.md](.
 | File | Role | Description | I/O/P |
 | --- | --- | --- | --- |
 | `__init__.py` | Package | Agent-facing memory I/O package marker. | — |
-| `memory_agent_tools.py` | Core | Agent tool factory: memory_search/save/manage. | ✅ |
+| `memory_agent_tools/` | Package | Agent tools: memory_search/save/manage (factory, one module per tool, shared category mapping). | ✅ |
 | `_memory_agent_tool_descriptions.py` | Core | LLM-visible tool description SSOT (EN/ZH). | ✅ |
 | `memory_search_policy.py` | Core | Corpus ACL, write bounds, and optional wiki/sessions backends. | ✅ |
 | `memory_search_execution.py` | Core | memory/wiki/sessions search execution with domain-scoped pruning and heuristic fallback. | ✅ |
@@ -20,7 +20,7 @@ Parent index: [../_ARCH.md](../_ARCH.md). System design: [../MEMORY_SYSTEM.md](.
 | `memory_recall_budget.py` | Core | Recall output budget guardrails. | ✅ |
 | `memory_citations.py` | Core | cited_memory_ids SSE bridge (sources via tool metadata → SourceTracker). | ✅ |
 | `tool_result_sources.py` | Core | Pack/unpack metadata.sources for memory_search wiki/sessions results. | ✅ |
-| `mcp_server.py` | Core | MCP adapter (recall/list/store/manage). | ✅ |
+| `mcp_server/` | Package | MCP adapter (recall/list/store/manage), one module per tool plus per-request context. | ✅ |
 | `mcp/` | Package | Cross-tool memory MCP interop gateway & wire adapter (ai-memory parity). | ✅ |
 | `wiki_memory_boundary.py` | Core | Wiki vs memory write boundary heuristics. | ✅ |
 | `transient_fact_boundary.py` | Core | Transient business state memory write boundary heuristics. | ✅ |

@@ -8,6 +8,7 @@ import pytest
 from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import (
     create_memory_tools,
 )
+from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools.common import parse_string_list
 from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting import (
     channel_label as _channel_label,
 )
@@ -888,42 +889,22 @@ class TestMemoryManageTool:
 
 
 class TestParseStringList:
-    """Tests for _parse_string_list helper."""
+    """Tests for parse_string_list helper."""
 
     def test_none_returns_empty(self):
-        from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import (
-            _parse_string_list,
-        )
-
-        assert _parse_string_list(None) == []
+        assert parse_string_list(None) == []
 
     def test_list_passthrough(self):
-        from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import (
-            _parse_string_list,
-        )
-
-        assert _parse_string_list(["a", "b"]) == ["a", "b"]
+        assert parse_string_list(["a", "b"]) == ["a", "b"]
 
     def test_json_string_list(self):
-        from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import (
-            _parse_string_list,
-        )
-
-        assert _parse_string_list('["x", "y"]') == ["x", "y"]
+        assert parse_string_list('["x", "y"]') == ["x", "y"]
 
     def test_comma_separated(self):
-        from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import (
-            _parse_string_list,
-        )
-
-        assert _parse_string_list("foo, bar, baz") == ["foo", "bar", "baz"]
+        assert parse_string_list("foo, bar, baz") == ["foo", "bar", "baz"]
 
     def test_invalid_json_falls_back_to_comma(self):
-        from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import (
-            _parse_string_list,
-        )
-
-        assert _parse_string_list("{not json}") == ["{not json}"]
+        assert parse_string_list("{not json}") == ["{not json}"]
 
 
 class TestSearchDescriptionConditionalization:

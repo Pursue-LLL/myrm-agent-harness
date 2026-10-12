@@ -14,7 +14,9 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from myrm_agent_harness.toolkits.memory._internal.storage import _user_filter
-from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import _parse_time_bound
+from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting import (
+    parse_time_bound as _parse_time_bound,
+)
 from myrm_agent_harness.toolkits.memory.types import MemoryScope, MemorySearchResult, MemoryType, SemanticMemory
 from myrm_agent_harness.toolkits.vector.qdrant.filters import (
     _is_datetime_range,

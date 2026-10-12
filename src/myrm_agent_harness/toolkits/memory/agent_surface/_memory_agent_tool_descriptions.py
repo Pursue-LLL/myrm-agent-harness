@@ -1,6 +1,6 @@
 """LLM-visible descriptions for memory agent tools (prompt/cache SSOT).
 
-Kept separate from ``memory_agent_tools.py`` so static tests can import
+Kept separate from the ``memory_agent_tools`` package so static tests can import
 descriptions without pulling MemoryManager or search execution dependencies.
 
 English and Chinese variants are both first-class LLM-facing strings.
@@ -17,7 +17,7 @@ Default locale is English; callers pass BCP-47 locale strings (e.g. ``zh-CN``).
 - MEMORY_SAVE_CORE_* / MEMORY_*_TOOL_DESCRIPTION_EN / _ZH: locale-specific SSOT constants
 
 [POS]
-Prompt SSOT for memory agent tools. Imported by memory_agent_tools.py, mcp_server.py (memory_manage/memory_store with surface=mcp), and static tests.
+Prompt SSOT for memory agent tools. Imported by memory_agent_tools/, mcp_server/ (memory_manage/memory_store with surface=mcp), and static tests.
 """
 
 from __future__ import annotations

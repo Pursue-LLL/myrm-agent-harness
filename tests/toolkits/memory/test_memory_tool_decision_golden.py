@@ -1,7 +1,7 @@
 """Golden decision guardrails for memory_save_tool vs memory_manage_tool prompts.
 
 These tests do not call an LLM. They lock prompt SSOT fragments that steer
-tool choice for common memory workflows (aligned with memory_agent_tools.py).
+tool choice for common memory workflows (aligned with the memory_agent_tools package).
 """
 
 from __future__ import annotations
