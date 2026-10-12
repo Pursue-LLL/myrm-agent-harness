@@ -6,13 +6,11 @@ Precisely detects orphan patchright/playwright chromium and driver processes
 
 [INPUT]
 - psutil (optional, process iteration)
-- .report::DoctorCheckResult/CheckStatus (POS: doctor data models)
 
 [OUTPUT]
 - find_orphan_chromium_processes / find_orphan_driver_processes / find_orphan_automation_processes: orphan process detection
 - cleanup_orphan_processes: safe cleanup (dry-run by default, SIGTERM/SIGKILL escalation)
 - cleanup_stale_automation_sandboxes: stale automation sandbox cleanup
-- check_orphan_processes: doctor check result for orphan process and stale sandbox scan
 - register_browser_exit_reaper / unregister_browser_exit_reaper: atexit emergency reaper lifecycle hooks
 
 [POS]
@@ -32,8 +30,6 @@ import signal
 import subprocess
 import time
 from pathlib import Path
-
-from .report import CheckStatus, DoctorCheckResult
 
 logger = logging.getLogger(__name__)
 
@@ -415,9 +411,8 @@ def cleanup_stale_automation_sandboxes(
 
                 with contextlib.suppress(Exception):
                     parent = candidate.parent
-                    if parent.name.endswith(".code_sign_clone") and parent.exists():
-                        if not any(parent.iterdir()):
-                            parent.rmdir()
+                    if parent.name.endswith(".code_sign_clone") and parent.exists() and not any(parent.iterdir()):
+                        parent.rmdir()
 
                 logger.info("Pruned stale automation sandbox: %s", candidate)
 
@@ -436,50 +431,6 @@ def cleanup_stale_automation_sandboxes(
         "dry_run": dry_run,
         "failed": failed,
     }
-
-
-def check_orphan_processes() -> DoctorCheckResult:
-    """Check for orphan automation browser processes and stale automation sandboxes."""
-    orphans = find_orphan_automation_processes()
-    sandbox_stat = cleanup_stale_automation_sandboxes(max_age_hours=24.0, dry_run=True)
-    stale_sandboxes = int(sandbox_stat.get("pruned", 0))
-    stale_bytes = int(sandbox_stat.get("reclaimed_bytes", 0))
-
-    if not orphans and stale_sandboxes == 0:
-        return DoctorCheckResult(
-            name="orphan_processes",
-            status=CheckStatus.OK,
-            message="No orphan automation processes or stale sandboxes detected",
-            details={
-                "count": 0,
-                "stale_sandboxes": 0,
-                "stale_sandbox_bytes": 0,
-            },
-        )
-
-    msg_parts: list[str] = []
-    if orphans:
-        pids_preview = [o["pid"] for o in orphans[:3]]
-        if len(orphans) > 3:
-            pids_preview.append("...")
-        msg_parts.append(f"{len(orphans)} orphan automation process(es): {pids_preview}")
-    if stale_sandboxes > 0:
-        reclaimed_mb = round(stale_bytes / (1024 * 1024), 1)
-        msg_parts.append(f"{stale_sandboxes} stale sandbox(es) ({reclaimed_mb} MB)")
-
-    return DoctorCheckResult(
-        name="orphan_processes",
-        status=CheckStatus.WARNING,
-        message=f"Found {', '.join(msg_parts)}",
-        fix="python -m myrm_agent_harness.toolkits.browser --cleanup-orphans --force",
-        details={
-            "count": len(orphans),
-            "pids": [o["pid"] for o in orphans],
-            "paths": [o["user_data_dir"] for o in orphans],
-            "stale_sandboxes": stale_sandboxes,
-            "stale_sandbox_bytes": stale_bytes,
-        },
-    )
 
 
 _exit_reaper_registered: bool = False
@@ -528,4 +479,3 @@ def unregister_browser_exit_reaper() -> bool:
         atexit.unregister(_emergency_cleanup_orphans_on_exit)
     _exit_reaper_registered = False
     return True
-

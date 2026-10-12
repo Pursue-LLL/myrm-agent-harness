@@ -34,7 +34,11 @@ class CheckStatus(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class DoctorCheckResult:
-    """Result of a single diagnostic check."""
+    """Result of a single diagnostic check.
+
+    ``details["optional"] is True`` marks a warning that only reports an optional
+    capability that is not set up; consumers must not present it as a problem.
+    """
 
     name: str
     status: CheckStatus

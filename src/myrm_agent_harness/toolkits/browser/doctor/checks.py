@@ -9,12 +9,13 @@ before actual operations, providing clear fix suggestions for each failure.
 - psutil (memory/disk checks)
 - ..utils::is_timeout_error (POS: builtin/patchright timeout detection)
 - infra/tls_compat::create_httpx_client (POS: unified async HTTP client, used by the extension relay probe)
-- .orphans::check_orphan_processes (POS: orphan process doctor check)
+- .orphan_check::check_orphan_processes (POS: orphan process doctor check)
 - .report::CheckStatus/DoctorCheckResult/DoctorReport (POS: doctor data models)
 
 [OUTPUT]
 - run_doctor: pre-flight browser diagnostics orchestrator (synchronous quick checks + concurrent I/O-bound checks)
-- _check_patchright/_check_camoufox/_check_memory/_check_disk/_check_proxy/_check_browser_launch/_check_extension_relay: individual checks
+- check_memory/check_disk: host resource checks, shared with the runtime doctor
+- _check_patchright/_check_camoufox/_check_proxy/_check_browser_launch/_check_extension_relay: individual checks
 
 [POS]
 Doctor core checks. Quick synchronous checks run first; I/O-bound checks
@@ -30,13 +31,14 @@ import importlib.metadata
 import logging
 import os
 import sys
+import tempfile
 from collections.abc import Awaitable, Callable
 from typing import Any
 
 from myrm_agent_harness.infra.tls_compat import create_httpx_client
 
 from ..utils import is_timeout_error
-from .orphans import check_orphan_processes
+from .orphan_check import check_orphan_processes
 from .report import CheckStatus, DoctorCheckResult, DoctorReport
 
 logger = logging.getLogger(__name__)
@@ -80,6 +82,7 @@ def _check_camoufox() -> DoctorCheckResult:
             status=CheckStatus.WARNING,
             message=f"camoufox not ready: {reason} (stealth auto-upgrade unavailable)",
             fix=CAMOUFOX_INSTALL_FIX,
+            details={"optional": True},
         )
     try:
         version = importlib.metadata.version("camoufox") or "unknown"
@@ -93,7 +96,7 @@ def _check_camoufox() -> DoctorCheckResult:
     )
 
 
-def _check_memory() -> DoctorCheckResult:
+def check_memory() -> DoctorCheckResult:
     """Check system memory availability."""
     try:
         import psutil
@@ -155,8 +158,8 @@ def _check_memory() -> DoctorCheckResult:
     )
 
 
-def _check_disk() -> DoctorCheckResult:
-    """Check disk space availability for temp files and recordings."""
+def check_disk() -> DoctorCheckResult:
+    """Check free space on the volume that holds the browser's temporary files."""
     try:
         import psutil
     except (ImportError, TypeError):
@@ -168,7 +171,8 @@ def _check_disk() -> DoctorCheckResult:
         )
 
     try:
-        usage = psutil.disk_usage("/tmp")
+        # The runtime writes under the platform temp directory; a fixed Unix path does not exist on Windows.
+        usage = psutil.disk_usage(tempfile.gettempdir())
         available_gb = usage.free / (1024**3)
         used_percent = usage.percent
 
@@ -177,7 +181,7 @@ def _check_disk() -> DoctorCheckResult:
                 name="disk",
                 status=CheckStatus.ERROR,
                 message=f"Low disk space: {available_gb:.1f} GB available ({used_percent:.0f}% used)",
-                fix="Clean up /tmp or increase disk space",
+                fix="Free up disk space or clean up temporary files",
                 details={
                     "available_gb": round(available_gb, 2),
                     "used_percent": used_percent,
@@ -189,7 +193,7 @@ def _check_disk() -> DoctorCheckResult:
                 name="disk",
                 status=CheckStatus.WARNING,
                 message=f"Disk space tight: {available_gb:.1f} GB available ({used_percent:.0f}% used)",
-                fix="Consider cleaning up /tmp for better stability",
+                fix="Consider freeing up disk space for better stability",
                 details={
                     "available_gb": round(available_gb, 2),
                     "used_percent": used_percent,
@@ -412,6 +416,7 @@ async def _check_extension_relay(base_url: str = "") -> DoctorCheckResult:
         status=CheckStatus.WARNING,
         message="Browser extension is not connected or CDP relay is not ready",
         fix="Install the MV3 extension, generate a pairing code in WebUI, and connect",
+        details={"optional": True},
     )
 
 
@@ -440,8 +445,8 @@ async def run_doctor(
 
     checks["patchright"] = _check_patchright()
     checks["camoufox"] = _check_camoufox()
-    checks["memory"] = _check_memory()
-    checks["disk"] = _check_disk()
+    checks["memory"] = check_memory()
+    checks["disk"] = check_disk()
     checks["proxy"] = _check_proxy(browser_proxy)
 
     # I/O-bound checks run concurrently; the orphan scan is offloaded to a worker

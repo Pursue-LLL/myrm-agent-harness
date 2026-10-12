@@ -322,9 +322,9 @@ class Doctor:
         )
 
     async def _check_system_resources(self) -> list[DoctorCheckResult]:
-        from myrm_agent_harness.toolkits.browser.doctor import _check_disk, _check_memory
+        from myrm_agent_harness.toolkits.browser.doctor import check_disk, check_memory
 
-        return [_check_memory(), _check_disk()]
+        return [check_memory(), check_disk()]
 
     async def _check_browser_suite(self) -> list[DoctorCheckResult]:
         try:

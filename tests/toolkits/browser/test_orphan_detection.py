@@ -12,9 +12,7 @@ import pytest
 
 from myrm_agent_harness.toolkits.browser.doctor import (
     CheckStatus,
-    _extract_user_data_dir,
-    _is_automation_cache_path,
-    _is_automation_driver_cmdline,
+    check_orphan_processes,
     cleanup_orphan_processes,
     cleanup_stale_automation_sandboxes,
     find_orphan_automation_processes,
@@ -25,8 +23,10 @@ from myrm_agent_harness.toolkits.browser.doctor import (
 )
 from myrm_agent_harness.toolkits.browser.doctor.orphans import (
     _emergency_cleanup_orphans_on_exit,
+    _extract_user_data_dir,
     _has_python_ancestor,
-    check_orphan_processes,
+    _is_automation_cache_path,
+    _is_automation_driver_cmdline,
 )
 
 _PSUTIL_INSTALLED = importlib.util.find_spec("psutil") is not None
@@ -602,11 +602,11 @@ def test_check_orphan_processes_previews_only_first_pids():
 
     with (
         patch(
-            "myrm_agent_harness.toolkits.browser.doctor.orphans.find_orphan_automation_processes",
+            "myrm_agent_harness.toolkits.browser.doctor.orphan_check.find_orphan_automation_processes",
             return_value=orphans,
         ),
         patch(
-            "myrm_agent_harness.toolkits.browser.doctor.orphans.cleanup_stale_automation_sandboxes",
+            "myrm_agent_harness.toolkits.browser.doctor.orphan_check.cleanup_stale_automation_sandboxes",
             return_value={"pruned": 0, "reclaimed_bytes": 0},
         ),
     ):
@@ -628,11 +628,11 @@ def test_check_orphan_processes_reports_stale_sandboxes_when_no_orphans():
     """Should report WARNING when no orphan processes exist but stale sandboxes are detected."""
     with (
         patch(
-            "myrm_agent_harness.toolkits.browser.doctor.orphans.find_orphan_automation_processes",
+            "myrm_agent_harness.toolkits.browser.doctor.orphan_check.find_orphan_automation_processes",
             return_value=[],
         ),
         patch(
-            "myrm_agent_harness.toolkits.browser.doctor.orphans.cleanup_stale_automation_sandboxes",
+            "myrm_agent_harness.toolkits.browser.doctor.orphan_check.cleanup_stale_automation_sandboxes",
             return_value={"pruned": 3, "reclaimed_bytes": 104857600},
         ),
     ):

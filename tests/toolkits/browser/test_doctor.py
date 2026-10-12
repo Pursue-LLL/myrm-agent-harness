@@ -10,12 +10,19 @@ import pytest
 
 from myrm_agent_harness.toolkits.browser.doctor import (
     CheckStatus,
-    _check_camoufox,
-    _check_memory,
-    _check_patchright,
-    _check_proxy,
+    DoctorCheckResult,
+    DoctorReport,
+    check_disk,
+    check_memory,
     format_report,
     run_doctor,
+)
+from myrm_agent_harness.toolkits.browser.doctor.checks import (
+    _check_browser_launch,
+    _check_camoufox,
+    _check_extension_relay,
+    _check_patchright,
+    _check_proxy,
 )
 
 
@@ -79,13 +86,7 @@ def test_check_patchright_matches_installed_distribution_version() -> None:
 def test_check_patchright_missing() -> None:
     """Test patchright check when not installed."""
     with patch.dict("sys.modules", {"patchright": None}):
-        import importlib
-
-        import myrm_agent_harness.toolkits.browser.doctor as doctor_module
-
-        importlib.reload(doctor_module)
-
-        result = doctor_module._check_patchright()
+        result = _check_patchright()
         assert result.status == CheckStatus.ERROR
         assert result.fix == "uv add patchright"
 
@@ -129,6 +130,7 @@ def test_check_camoufox_warns_when_browser_build_missing() -> None:
     assert result.fix is not None
     assert "camoufox fetch" in result.fix
     assert "CAMOUFOX_EXECUTABLE_PATH" in result.fix
+    assert result.details == {"optional": True}
 
 
 def test_check_camoufox_warns_when_package_missing() -> None:
@@ -138,14 +140,11 @@ def test_check_camoufox_warns_when_package_missing() -> None:
     assert "camoufox package is not installed" in result.message
     assert result.fix is not None
     assert "uv add camoufox" in result.fix
+    assert result.details == {"optional": True}
 
 
 def test_format_report_includes_camoufox() -> None:
     """Environment section in CLI report must list camoufox when checked."""
-    from myrm_agent_harness.toolkits.browser.doctor import (
-        DoctorCheckResult,
-        DoctorReport,
-    )
 
     report = DoctorReport(
         checks={
@@ -164,10 +163,6 @@ def test_format_report_includes_camoufox() -> None:
 
 def test_format_report_includes_extension_relay() -> None:
     """Extension Relay section in CLI report must render when checked."""
-    from myrm_agent_harness.toolkits.browser.doctor import (
-        DoctorCheckResult,
-        DoctorReport,
-    )
 
     report = DoctorReport(
         checks={
@@ -190,7 +185,7 @@ def test_format_report_includes_extension_relay() -> None:
 def test_check_memory_psutil_missing() -> None:
     """Test memory check when psutil not installed."""
     with patch.dict("sys.modules", {"psutil": None}):
-        result = _check_memory()
+        result = check_memory()
         assert result.status == CheckStatus.WARNING
         assert "psutil not installed" in result.message
 
@@ -205,13 +200,7 @@ def test_check_memory_low() -> None:
     mock_psutil.virtual_memory.return_value = mock_memory
 
     with patch.dict("sys.modules", {"psutil": mock_psutil}):
-        from importlib import reload
-
-        import myrm_agent_harness.toolkits.browser.doctor as doctor_module
-
-        reload(doctor_module)
-
-        result = doctor_module._check_memory()
+        result = check_memory()
         assert result.status == CheckStatus.ERROR
         assert "Low memory" in result.message
 
@@ -226,13 +215,7 @@ def test_check_memory_ok() -> None:
     mock_psutil.virtual_memory.return_value = mock_memory
 
     with patch.dict("sys.modules", {"psutil": mock_psutil}):
-        from importlib import reload
-
-        import myrm_agent_harness.toolkits.browser.doctor as doctor_module
-
-        reload(doctor_module)
-
-        result = doctor_module._check_memory()
+        result = check_memory()
         assert result.status == CheckStatus.OK
 
 
@@ -242,7 +225,7 @@ def test_check_memory_psutil_raises() -> None:
         "psutil.virtual_memory",
         side_effect=OSError("Cannot read /proc/meminfo"),
     ):
-        result = _check_memory()
+        result = check_memory()
     assert result.status == CheckStatus.WARNING
     assert "Cannot check memory" in result.message
 
@@ -256,13 +239,7 @@ def test_check_disk_ok() -> None:
     mock_psutil.disk_usage.return_value = mock_usage
 
     with patch.dict("sys.modules", {"psutil": mock_psutil}):
-        from importlib import reload
-
-        import myrm_agent_harness.toolkits.browser.doctor as doctor_module
-
-        reload(doctor_module)
-
-        result = doctor_module._check_disk()
+        result = check_disk()
         assert result.status == CheckStatus.OK
 
 
@@ -309,23 +286,50 @@ async def test_run_doctor_with_orphan_check() -> None:
     )
 
 
+def _stub_check(name: str, status: CheckStatus = CheckStatus.OK, fix: str = "") -> DoctorCheckResult:
+    return DoctorCheckResult(name=name, status=status, message=f"{name} stub", fix=fix)
+
+
 @pytest.mark.asyncio
-async def test_run_doctor_with_launch() -> None:
-    """Test run_doctor with launch test."""
-    report = await run_doctor(include_launch_test=True)
+@pytest.mark.parametrize(
+    ("launch_status", "expect_healthy", "expect_recommendations"),
+    [
+        (CheckStatus.OK, True, []),
+        (CheckStatus.ERROR, False, ["fix the launch"]),
+    ],
+)
+async def test_run_doctor_with_launch_reports_launch_outcome(
+    launch_status: CheckStatus,
+    expect_healthy: bool,
+    expect_recommendations: list[str],
+) -> None:
+    """The verdict follows the launch result; host resources are pinned so it cannot depend on the machine."""
+    launch = _stub_check(
+        "browser_launch", launch_status, fix="fix the launch" if launch_status != CheckStatus.OK else ""
+    )
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.browser.doctor.checks._check_patchright",
+            return_value=_stub_check("patchright"),
+        ),
+        patch("myrm_agent_harness.toolkits.browser.doctor.checks.check_memory", return_value=_stub_check("memory")),
+        patch("myrm_agent_harness.toolkits.browser.doctor.checks.check_disk", return_value=_stub_check("disk")),
+        patch(
+            "myrm_agent_harness.toolkits.browser.doctor.checks._check_extension_relay",
+            return_value=_stub_check("extension_relay"),
+        ),
+        patch("myrm_agent_harness.toolkits.browser.doctor.checks._check_browser_launch", return_value=launch),
+    ):
+        report = await run_doctor(include_launch_test=True, include_orphan_check=False)
 
-    assert "browser_launch" in report.checks
-
-    if report.checks["browser_launch"].status == CheckStatus.OK:
-        assert report.overall_healthy or report.checks["browser_launch"].status == CheckStatus.WARNING
+    assert report.checks["browser_launch"] is launch
+    assert report.overall_healthy is expect_healthy
+    assert report.recommendations == expect_recommendations
 
 
 @pytest.mark.asyncio
 async def test_run_doctor_runs_relay_and_launch_concurrently() -> None:
     """Relay, orphan and launch checks must run concurrently and preserve order."""
-    from myrm_agent_harness.toolkits.browser.doctor import (
-        DoctorCheckResult,
-    )
 
     relay = DoctorCheckResult(
         name="extension_relay",
@@ -391,10 +395,6 @@ async def test_run_doctor_runs_relay_and_launch_concurrently() -> None:
 @pytest.mark.asyncio
 async def test_check_browser_launch_timeout_graceful() -> None:
     """A hung launch probe must degrade to a graceful ERROR within the timeout."""
-    from myrm_agent_harness.toolkits.browser.doctor import DoctorCheckResult
-    from myrm_agent_harness.toolkits.browser.doctor.checks import (
-        _check_browser_launch,
-    )
 
     async def never_finishes(
         _launch_opts: dict[str, object],
@@ -423,12 +423,11 @@ async def test_check_browser_launch_timeout_graceful() -> None:
 
 def test_format_report() -> None:
     """Test report formatting."""
-    from myrm_agent_harness.toolkits.browser.doctor import DoctorReport
 
     report = DoctorReport(
         checks={
             "patchright": _check_patchright(),
-            "memory": _check_memory(),
+            "memory": check_memory(),
         },
         summary="2/2 checks passed",
         overall_healthy=True,
@@ -443,11 +442,6 @@ def test_format_report() -> None:
 
 def test_format_report_with_warnings_and_errors() -> None:
     """Test report formatting with WARNING and ERROR statuses."""
-    from myrm_agent_harness.toolkits.browser.doctor import (
-        CheckStatus,
-        DoctorCheckResult,
-        DoctorReport,
-    )
 
     report = DoctorReport(
         checks={
@@ -468,7 +462,7 @@ def test_format_report_with_warnings_and_errors() -> None:
         overall_healthy=False,
         recommendations=[
             "Free up system memory",
-            "Clean up /tmp or increase disk space",
+            "Free up disk space or clean up temporary files",
         ],
     )
 
@@ -483,11 +477,6 @@ def test_format_report_with_warnings_and_errors() -> None:
 async def test_check_extension_relay_requires_access_policy() -> None:
     """Relay ready without domains must not report OK."""
     import json
-
-    from myrm_agent_harness.toolkits.browser.doctor import (
-        CheckStatus,
-        _check_extension_relay,
-    )
 
     payload = json.dumps(
         {
@@ -514,16 +503,12 @@ async def test_check_extension_relay_requires_access_policy() -> None:
     assert result.status == CheckStatus.WARNING
     assert "access policy" in result.message.lower()
     assert result.fix is not None
+    assert not (result.details or {}).get("optional")
 
 
 async def test_check_extension_relay_ok_when_policy_valid() -> None:
     """Relay and access policy both ready should report OK."""
     import json
-
-    from myrm_agent_harness.toolkits.browser.doctor import (
-        CheckStatus,
-        _check_extension_relay,
-    )
 
     payload = json.dumps(
         {
@@ -552,10 +537,6 @@ async def test_check_extension_relay_ok_when_policy_valid() -> None:
 
 async def test_check_extension_relay_non_dict_payload_graceful() -> None:
     """Non-dict JSON (e.g. gateway swallowing the endpoint) must degrade, not crash."""
-    from myrm_agent_harness.toolkits.browser.doctor import (
-        CheckStatus,
-        _check_extension_relay,
-    )
 
     mock_response = MagicMock()
     mock_response.status_code = 200
@@ -579,11 +560,6 @@ async def test_check_extension_relay_non_dict_payload_graceful() -> None:
 async def test_check_extension_relay_uses_custom_base_url() -> None:
     """An explicit base URL must drive the probe target, overriding defaults."""
     import json
-
-    from myrm_agent_harness.toolkits.browser.doctor import (
-        CheckStatus,
-        _check_extension_relay,
-    )
 
     payload = json.dumps(
         {
@@ -614,9 +590,6 @@ async def test_check_extension_relay_uses_custom_base_url() -> None:
 @pytest.mark.asyncio
 async def test_run_doctor_forwards_extension_relay_base_url() -> None:
     """run_doctor must forward the base URL into the relay probe."""
-    from myrm_agent_harness.toolkits.browser.doctor import (
-        DoctorCheckResult,
-    )
 
     async def fake_relay(base_url: str) -> DoctorCheckResult:
         assert base_url == "http://127.0.0.1:18080"
@@ -649,12 +622,7 @@ def test_check_memory_tight_warning() -> None:
     mock_psutil.virtual_memory.return_value = mock_memory
 
     with patch.dict("sys.modules", {"psutil": mock_psutil}):
-        from importlib import reload
-
-        import myrm_agent_harness.toolkits.browser.doctor as doctor_module
-
-        reload(doctor_module)
-        result = doctor_module._check_memory()
+        result = check_memory()
 
     assert result.status == CheckStatus.WARNING
     assert "Memory tight" in result.message
@@ -662,10 +630,9 @@ def test_check_memory_tight_warning() -> None:
 
 def test_check_disk_psutil_missing() -> None:
     """Disk check warns when psutil is unavailable."""
-    from myrm_agent_harness.toolkits.browser.doctor import _check_disk
 
     with patch.dict("sys.modules", {"psutil": None}):
-        result = _check_disk()
+        result = check_disk()
 
     assert result.status == CheckStatus.WARNING
     assert "psutil not installed" in result.message
@@ -679,10 +646,8 @@ def test_check_disk_low_error() -> None:
     mock_usage.percent = 98.0
     mock_psutil.disk_usage.return_value = mock_usage
 
-    from myrm_agent_harness.toolkits.browser.doctor import _check_disk
-
     with patch.dict("sys.modules", {"psutil": mock_psutil}):
-        result = _check_disk()
+        result = check_disk()
 
     assert result.status == CheckStatus.ERROR
     assert "Low disk space" in result.message
@@ -696,10 +661,8 @@ def test_check_disk_tight_warning() -> None:
     mock_usage.percent = 90.0
     mock_psutil.disk_usage.return_value = mock_usage
 
-    from myrm_agent_harness.toolkits.browser.doctor import _check_disk
-
     with patch.dict("sys.modules", {"psutil": mock_psutil}):
-        result = _check_disk()
+        result = check_disk()
 
     assert result.status == CheckStatus.WARNING
     assert "Disk space tight" in result.message
@@ -710,19 +673,31 @@ def test_check_disk_scan_exception() -> None:
     mock_psutil = MagicMock()
     mock_psutil.disk_usage.side_effect = OSError("no such mount")
 
-    from myrm_agent_harness.toolkits.browser.doctor import _check_disk
-
     with patch.dict("sys.modules", {"psutil": mock_psutil}):
-        result = _check_disk()
+        result = check_disk()
 
     assert result.status == CheckStatus.WARNING
     assert "Cannot check disk space" in result.message
 
 
+def test_check_disk_probes_the_runtime_temp_directory() -> None:
+    """The probe must measure the volume the browser really writes to, not a hard-coded Unix path."""
+    mock_psutil = MagicMock()
+    mock_psutil.disk_usage.return_value = MagicMock(free=10 * 1024**3, percent=50.0)
+
+    with (
+        patch.dict("sys.modules", {"psutil": mock_psutil}),
+        patch("tempfile.gettempdir", return_value="/runtime/tmp"),
+    ):
+        result = check_disk()
+
+    mock_psutil.disk_usage.assert_called_once_with("/runtime/tmp")
+    assert result.status == CheckStatus.OK
+
+
 @pytest.mark.asyncio
 async def test_check_browser_launch_patchright_missing() -> None:
     """Launch check reports ERROR when patchright is not installed."""
-    from myrm_agent_harness.toolkits.browser.doctor import _check_browser_launch
 
     with patch.dict(
         "sys.modules",
@@ -737,21 +712,19 @@ async def test_check_browser_launch_patchright_missing() -> None:
 @pytest.mark.asyncio
 async def test_check_extension_relay_non_http_scheme() -> None:
     """Relay probe rejects non-http base URLs from the environment."""
-    from myrm_agent_harness.toolkits.browser.doctor import _check_extension_relay
 
     with patch.dict(os.environ, {"MYRM_SERVER_URL": "ftp://localhost:8080"}):
         result = await _check_extension_relay()
 
     assert result.status == CheckStatus.WARNING
     assert "http(s) scheme" in result.message
+    assert not (result.details or {}).get("optional")
 
 
 @pytest.mark.asyncio
 async def test_check_extension_relay_connection_error() -> None:
     """Relay probe degrades to WARNING when the server is unreachable."""
     import httpx
-
-    from myrm_agent_harness.toolkits.browser.doctor import _check_extension_relay
 
     mock_client = AsyncMock()
     mock_client.__aenter__.return_value = mock_client
@@ -765,12 +738,12 @@ async def test_check_extension_relay_connection_error() -> None:
 
     assert result.status == CheckStatus.WARNING
     assert "Server unreachable" in result.message
+    assert not (result.details or {}).get("optional")
 
 
 @pytest.mark.asyncio
 async def test_check_extension_relay_probe_failure() -> None:
     """Relay probe reports unexpected failures with the exception detail."""
-    from myrm_agent_harness.toolkits.browser.doctor import _check_extension_relay
 
     mock_client = AsyncMock()
     mock_client.__aenter__.return_value = mock_client
@@ -785,14 +758,13 @@ async def test_check_extension_relay_probe_failure() -> None:
     assert result.status == CheckStatus.WARNING
     assert "probe failed" in result.message.lower()
     assert "boom" in result.message
+    assert not (result.details or {}).get("optional")
 
 
 @pytest.mark.asyncio
 async def test_check_extension_relay_auth_token_missing() -> None:
     """Relay probe warns when the server requires an unconfigured auth token."""
     import json
-
-    from myrm_agent_harness.toolkits.browser.doctor import _check_extension_relay
 
     payload = json.dumps(
         {
@@ -818,14 +790,13 @@ async def test_check_extension_relay_auth_token_missing() -> None:
 
     assert result.status == CheckStatus.WARNING
     assert "auth token missing" in result.message
+    assert not (result.details or {}).get("optional")
 
 
 @pytest.mark.asyncio
 async def test_check_extension_relay_not_connected() -> None:
     """Relay probe warns when the extension is not connected at all."""
     import json
-
-    from myrm_agent_harness.toolkits.browser.doctor import _check_extension_relay
 
     payload = json.dumps(
         {
@@ -851,12 +822,12 @@ async def test_check_extension_relay_not_connected() -> None:
 
     assert result.status == CheckStatus.WARNING
     assert "not connected" in result.message
+    assert result.details == {"optional": True}
 
 
 @pytest.mark.asyncio
 async def test_run_doctor_summary_includes_error_and_missing() -> None:
     """Summary counts ERROR and MISSING checks and surfaces their fixes."""
-    from myrm_agent_harness.toolkits.browser.doctor import DoctorCheckResult
 
     async def fake_relay(_base_url: str) -> DoctorCheckResult:
         return DoctorCheckResult(
@@ -904,10 +875,6 @@ async def test_run_doctor_summary_includes_error_and_missing() -> None:
 
 def test_format_report_full_sections() -> None:
     """CLI report renders cleanup and launch sections with fixes."""
-    from myrm_agent_harness.toolkits.browser.doctor import (
-        DoctorCheckResult,
-        DoctorReport,
-    )
 
     report = DoctorReport(
         checks={
@@ -958,10 +925,6 @@ def test_format_report_full_sections() -> None:
 
 def test_format_report_with_colorama() -> None:
     """CLI report applies ANSI colors when colorama is available."""
-    from myrm_agent_harness.toolkits.browser.doctor import (
-        DoctorCheckResult,
-        DoctorReport,
-    )
 
     report = DoctorReport(
         checks={

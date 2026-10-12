@@ -2,22 +2,21 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from myrm_agent_harness.toolkits.browser.doctor import (
-    CheckStatus,
-    _check_browser_launch,
-)
+from myrm_agent_harness.toolkits.browser.doctor import CheckStatus
+from myrm_agent_harness.toolkits.browser.doctor.checks import _check_browser_launch
 
 pytestmark = pytest.mark.asyncio
 
 
-async def test_check_browser_launch_timeout():
+async def test_check_browser_launch_timeout() -> None:
     """Should handle browser launch timeout."""
 
-    async def mock_async_playwright_context():
+    async def mock_async_playwright_context() -> AsyncIterator[AsyncMock]:
         mock_playwright = AsyncMock()
         mock_chromium = AsyncMock()
         mock_chromium.launch = AsyncMock(side_effect=TimeoutError("Launch timeout"))
@@ -40,7 +39,7 @@ async def test_check_browser_launch_timeout():
     assert result.fix is not None
 
 
-async def test_check_browser_launch_patchright_timeout():
+async def test_check_browser_launch_patchright_timeout() -> None:
     """Should handle patchright's TimeoutError (distinct from builtins.TimeoutError)."""
     from patchright.async_api import TimeoutError as PlaywrightTimeoutError
 
@@ -58,7 +57,7 @@ async def test_check_browser_launch_patchright_timeout():
     assert result.fix is not None
 
 
-async def test_check_browser_launch_executable_not_found():
+async def test_check_browser_launch_executable_not_found() -> None:
     """Should handle missing browser executable."""
     mock_async_playwright = AsyncMock()
     mock_async_playwright.return_value.start = AsyncMock(
@@ -73,10 +72,11 @@ async def test_check_browser_launch_executable_not_found():
 
     assert result.status == CheckStatus.ERROR
     assert "not found" in result.message.lower()
+    assert result.fix is not None
     assert "patchright install" in result.fix
 
 
-async def test_check_browser_launch_permission_denied():
+async def test_check_browser_launch_permission_denied() -> None:
     """Should handle permission errors."""
     mock_async_playwright = AsyncMock()
     mock_async_playwright.return_value.start = AsyncMock(side_effect=RuntimeError("Permission denied: /path/to/chrome"))
@@ -89,10 +89,11 @@ async def test_check_browser_launch_permission_denied():
 
     assert result.status == CheckStatus.ERROR
     assert "permission" in result.message.lower()
+    assert result.fix is not None
     assert "permission" in result.fix.lower()
 
 
-async def test_check_browser_launch_generic_error():
+async def test_check_browser_launch_generic_error() -> None:
     """Should handle generic launch errors."""
     mock_async_playwright = AsyncMock()
     mock_async_playwright.return_value.start = AsyncMock(side_effect=RuntimeError("Unknown launch error"))
