@@ -1244,21 +1244,19 @@ rating_new = rating_old + alpha * (normalized - rating_old)
 
 ## 二十二、三域九类认知拓扑与 L0/L1/L2 渐进式披露 (Domain Mesh & Progressive Drill-down)
 
-为解决长上下文大模型全量召回记忆时产生的高昂 Token 浪费、上下文窗口注意力稀释、以及跨系统格式隔阂，构建精细化分层认知与高性能热冷分级存储引擎：
+全量召回长期记忆会浪费 Token 并稀释模型注意力，因此记忆条目带域归属与三层详略，由检索工具按需展开：
 
 - **三域九类强类型认知拓扑（`MemoryDomain` & `DomainCategory`）**：
   - 核心位置：`myrm_agent_harness.toolkits.memory.domain_types`；
-  - 划分三大认知主域：
-    - `SYSTEM`（系统环境认知域）：覆盖架构设计规范（`ARCHITECTURE`）、运行时环境上下文（`ENVIRONMENT`）、安全与隔离边界策略（`SECURITY`）；
-    - `USER`（用户画像与意图域）：覆盖用户基本画像（`IDENTITY`）、工作偏好与技术习惯（`PREFERENCES`）、交互反馈与共识约定（`INTERACTION`）；
-    - `OPERATIONAL`（运行执行操作域）：覆盖历史与当前任务轨迹（`TASKS`）、工具踩坑与报错教训（`ERRORS`）、工具使用指南与编排规程（`TOOLING`）；
-  - 提供确定性校验与分类器，支持与 `MemCubeEnvelope`、`BaseMemory` 强类型元数据无缝映射。
-- **L0/L1/L2 渐进式披露检索契约（Progressive Drill-down）**：
-  - 核心位置：`myrm_agent_harness.toolkits.memory.domain_types`；
-  - **L0 索引总览（`L0Overview`）**：提取各领域条目数、主键 ID、简要标题与关键词标签，Token 占用极小（百 Token 级），适合全局编排与规划；
-  - **L1 摘要描述（`L1Summary`）**：聚焦于 160~300 字高密度核心观点、trigger 触发条件与适用范围，用于候选过滤与快速判断；
-  - **L2 深度上下文（`L2FullContent`）**：按需按 ID 懒加载完整上下文，包括代码段、完整调用栈、上下文快照与附件引用；
-  - 避免一次性拉取海量完整记忆，有效保护大模型注意力聚焦度，节约超 70% 检索提示词 Token。
+  - 三个主域：
+    - `USER`（用户域）：`PROFILE` / `PREFERENCES` / `ENTITIES` / `EVENTS`；
+    - `ASSISTANT`（助手域）：`IDENTITY` / `SOUL`；
+    - `TASK`（任务域）：`EXPERIENCES` / `TRAJECTORIES` / `TRAPS`；
+  - `infer_domain_and_category` 按记忆类型、事件类型与偏好类型启发式归类，`BaseMemory.domain` / `domain_category`（`types.py`）持久化该归属。
+- **L0/L1/L2 渐进式披露**：
+  - 字段位于 `BaseMemory`（`types.py`）：`summary_l0`（L0 语义锚点，缺省取正文前 120 字）、`overview_l1`（L1 结构化概览）、`content`（L2 完整原文）；
+  - 检索工具 `memory_search_tool` 的 `detail_level` 默认为 `overview`：命中项渲染 L1 概览并附按 ID 展开的提示，`detail_level='full'` 按 `memory_id` 取回完整原文（`agent_surface/memory_search_execution.py`）；
+  - 常驻注入（`_manager/retrieval_write.get_learned_context`）按重要度排序并受字符预算截断，不走 L0/L1 分层。
 - **持久化与注入（生产路径）**：`setup.create_local_memory_manager` 使用 `SQLiteRelationalStore` + Qdrant；始终注入预算见 `_manager/retrieval_write.get_learned_context`；画像字符水位见 `profile_notes/watermark_governor`；写入去重与冲突/取代见 `strategies/deduplicator.SmartDeduplicator`（含 `strategies/merger.DeterministicThreeStateMerger`）与向量 metadata `superseded`（检索过滤见 `_internal/search_service`）。
 - **Hermes 异构格式与标准信封适配器（`HermesMemoryBridge`）**：
   - 核心位置：`myrm_agent_harness.toolkits.memory.hermes_bridge`；
@@ -1266,7 +1264,7 @@ rating_new = rating_old + alpha * (normalized - rating_old)
   - 严格剔除 Markdown 代码块内包含的伪标题注释，杜绝解析歧义；
   - 将条目转换为强类型的 `MemCubeEnvelope` 与领域分类，实现跨系统单机与沙箱无依赖平滑迁移。
 - **服务端接口与前端双端自适应可视化闭环**：
-  - Server 端（`app/api/memory/domain_mesh.py`）提供强类型 REST 路由：`GET /overview`（获取三域状态与 L0/L1 统计）、`POST /drill-down`（按需提取 L2 详情）、`POST /import-hermes`（上传外部 Markdown 批量入库）；
+  - Server 端（`app/api/memory/operations/domain_mesh.py`，前缀 `/domain-mesh`）提供强类型 REST 路由：`GET /overview`（三域统计与 L0/L1 预览）、`GET /drill-down/{memory_id}`（按需提取 L2 原文）、`POST /migrate/hermes`（导入 Hermes / OpenViking 记忆包）；
   - 前端面板（`MemoryDomainMeshPanel.tsx`）采用现代响应式卡片看板设计，支持 PC 端多栏布局与移动端单列自适应折叠；零原生 emoji，遵循 Tailwind 色系标准，严密隔离内部工程元数据与用户友好展示文案。
 
 

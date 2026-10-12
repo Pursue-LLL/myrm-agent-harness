@@ -121,7 +121,6 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                 session_id=session_id,
                 status="working",
                 task_name=task.task_type,
-                message="正在为您归纳记忆碎片...",
                 progress_pct=10,
             )
         )
@@ -144,7 +143,6 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                                 session_id=session_id,
                                 status="working",
                                 task_name=task.task_type,
-                                message="正在合并相关记忆网络...",
                                 progress_pct=50,
                             )
                         )
@@ -174,7 +172,6 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                                 session_id=session_id,
                                 status="working",
                                 task_name=task.task_type,
-                                message="正在深度盘点您的隐性沟通偏好...",
                                 progress_pct=40,
                             )
                         )
@@ -186,14 +183,12 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                         has_disruptive_change = derivation.get("has_disruptive_change", False)
                         if isinstance(extracted_count, int) and extracted_count > 0:
                             urgency = "notify" if has_disruptive_change else "silent"
-                            ui_message = "认知已更新：已牢记您最新指示的沟通偏好。" if has_disruptive_change else ""
 
                             event_bus.publish(
                                 IdleTaskProgressEvent(
                                     session_id=session_id,
                                     status=("notification" if has_disruptive_change else "completed"),
                                     task_name=task.task_type,
-                                    message=ui_message,
                                     progress_pct=100,
                                     data={
                                         "type": "cognitive_derivation",
@@ -230,7 +225,6 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                                     session_id=session_id,
                                     status="working",
                                     task_name=task.task_type,
-                                    message="正在为新技能优化认知上下文...",
                                     progress_pct=30,
                                 )
                             )
@@ -258,7 +252,6 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                                         session_id=session_id,
                                         status="notification",
                                         task_name=task.task_type,
-                                        message=f"认知升维完成：已提炼技能并优化了 {deleted_count} 条历史记忆。",
                                         progress_pct=100,
                                         data={
                                             "type": AgentEventType.COGNITIVE_CONSOLIDATION.value,
@@ -373,8 +366,6 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                         }
                 elif task.task_type == "context_compaction":
                     event_data = await _run_context_compaction(session_id, task, event_bus)
-                    preheat_cost = event_data.get("preheat_cost")
-                    cost = float(preheat_cost) if isinstance(preheat_cost, int | float) else 0.0
                 else:
                     logger.warning(f"Unknown task type or no handler registered for: {task.task_type}")
                     await asyncio.sleep(1)
@@ -396,7 +387,6 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                 session_id=session_id,
                 status="completed",
                 task_name=task.task_type,
-                message=("记忆碎片整理完毕" if task.task_type == "cognitive_consolidation" else "任务已完成"),
                 progress_pct=100,
                 data=event_data,
             )
@@ -412,13 +402,13 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
             exc_info=True,
         )
         await registry.mark_error(task.id)
-        event_bus.publish(IdleTaskProgressEvent(session_id=session_id, status="error", message="后台任务执行出错"))
+        event_bus.publish(IdleTaskProgressEvent(session_id=session_id, status="error", task_name=task.task_type))
     finally:
         # 5. Must release capacity and reset UI to purely idle
         await scheduler.release_capacity(ticket)
-        # Small delay before resetting to idle to let the "completed" message linger briefly
+        # Small delay before resetting to idle to let the terminal status linger briefly
         await asyncio.sleep(2)
-        event_bus.publish(IdleTaskProgressEvent(session_id=session_id, status="idle", message="闲置中"))
+        event_bus.publish(IdleTaskProgressEvent(session_id=session_id, status="idle"))
 
 
 async def _run_context_compaction(
@@ -426,7 +416,12 @@ async def _run_context_compaction(
     task: IdleTaskRecord,
     event_bus: EventBus,
 ) -> dict[str, object]:
-    """Compress idle session context and optionally preheat the provider's prefix cache."""
+    """Compress idle session context through the business-layer handler.
+
+    No prefix-cache preheat follows: idle tasks start ``delay_seconds`` (600s by default)
+    after the last run, long past the provider's prompt-cache TTL, so warming would only
+    pay to rewrite a cache nobody is about to read.
+    """
     chat_id = task.payload.get("chat_id", "")
     if not chat_id:
         logger.info("context_compaction skipped: no chat_id in payload (session %s)", session_id)
@@ -437,39 +432,16 @@ async def _run_context_compaction(
             session_id=session_id,
             status="working",
             task_name=task.task_type,
-            message="正在优化对话上下文...",
             progress_pct=20,
         )
     )
 
     compacted = False
-    preheated = False
-
     try:
-        from myrm_agent_harness.agent.context_management.preheat import (
-            preheat_prefix_cache,
-        )
-
         compact_handler = _idle_task_handlers.get("_context_compact_impl")
         if compact_handler:
             compact_result = await compact_handler(chat_id, session_id)
-            compacted = compact_result.get("compacted", False) if isinstance(compact_result, dict) else False
-
-            if compacted:
-                llm = compact_result.get("llm")
-                messages = compact_result.get("messages")
-                model_name = compact_result.get("model_name", "")
-                if llm and messages:
-                    event_bus.publish(
-                        IdleTaskProgressEvent(
-                            session_id=session_id,
-                            status="working",
-                            task_name=task.task_type,
-                            message="正在预热上下文缓存...",
-                            progress_pct=70,
-                        )
-                    )
-                    preheated = await preheat_prefix_cache(llm, messages, model_name)
+            compacted = bool(compact_result.get("compacted", False)) if isinstance(compact_result, dict) else False
         else:
             logger.info(
                 "context_compaction: no _context_compact_impl handler registered. "
@@ -478,12 +450,7 @@ async def _run_context_compaction(
     except Exception as e:
         logger.error("context_compaction error for chat %s: %s", chat_id, e, exc_info=True)
 
-    return {
-        "compacted": compacted,
-        "preheated": preheated,
-        "chat_id": chat_id,
-        "preheat_cost": 0.0,
-    }
+    return {"compacted": compacted, "chat_id": chat_id}
 
 
 async def _revert_task_to_pending(registry: IdleTaskRegistry, task_id: int) -> None:
