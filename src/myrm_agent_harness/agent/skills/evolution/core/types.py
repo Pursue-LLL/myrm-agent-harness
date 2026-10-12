@@ -215,9 +215,7 @@ class SkillMetrics:
     - fallback_rate: (total_selections - applied_count) / total_selections
     - applied_rate: applied_count / total_selections
     - completion_rate: completed_count / applied_count
-    - effective_rate: success_count / applied_count (same as success_rate)
-
-    Compatible with 2-indicator system via properties.
+    - effective_rate: success_count / applied_count (aliased by success_rate)
     """
 
     # Base counters
@@ -226,7 +224,7 @@ class SkillMetrics:
     completed_count: int = 0  # Finished execution (success + failure)
     success_count: int = 0  # Finished successfully
 
-    # Legacy fields for backwards compatibility
+    # Recency and streak signals
     last_success_at: datetime | None = None
     last_failure_at: datetime | None = None
     consecutive_failures: int = 0  # For quick FIX triggering
@@ -263,15 +261,15 @@ class SkillMetrics:
             return 0.0
         return self.success_count / self.applied_count
 
-    # Backwards compatibility properties
+    # Aliases
     @property
     def success_rate(self) -> float:
-        """Legacy: same as effective_rate."""
+        """Alias of effective_rate."""
         return self.effective_rate
 
     @property
     def usage_count(self) -> int:
-        """Legacy: same as applied_count."""
+        """Alias of applied_count."""
         return self.applied_count
 
     # Recording methods
@@ -299,15 +297,6 @@ class SkillMetrics:
         Use when skill is selected but execution is skipped (e.g., user cancelled).
         """
         self.total_selections += 1  # Increment selections only
-
-    # Backwards compatibility methods (deprecated)
-    def record_success(self) -> None:
-        """Deprecated: use record_applied(success=True) instead."""
-        self.record_applied(success=True)
-
-    def record_failure(self) -> None:
-        """Deprecated: use record_applied(success=False) instead."""
-        self.record_applied(success=False)
 
     def should_trigger_fix(self, threshold: float = 0.5) -> bool:
         """Check if FIX evolution should be triggered.

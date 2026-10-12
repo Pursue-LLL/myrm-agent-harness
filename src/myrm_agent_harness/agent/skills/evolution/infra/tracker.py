@@ -84,7 +84,7 @@ class SkillQualityTracker:
 
         # Update metrics
         if result.success:
-            skill.metrics.record_success()
+            skill.metrics.record_applied(success=True)
             logger.debug(
                 "Skill %s succeeded (success_rate=%.2f, usage=%d)",
                 result.skill_id,
@@ -92,7 +92,7 @@ class SkillQualityTracker:
                 skill.metrics.usage_count,
             )
         else:
-            skill.metrics.record_failure()
+            skill.metrics.record_applied(success=False)
             logger.warning(
                 "Skill %s failed (success_rate=%.2f, consecutive_failures=%d): %s",
                 result.skill_id,

@@ -281,16 +281,6 @@ class TestSkillMetrics:
         assert m.total_selections == 1
         assert m.applied_count == 0
 
-    def test_record_success_deprecated(self) -> None:
-        m = SkillMetrics()
-        m.record_success()
-        assert m.success_count == 1
-
-    def test_record_failure_deprecated(self) -> None:
-        m = SkillMetrics()
-        m.record_failure()
-        assert m.consecutive_failures == 1
-
     def test_should_trigger_fix_consecutive_failures(self) -> None:
         m = SkillMetrics(consecutive_failures=3)
         assert m.should_trigger_fix() is True
