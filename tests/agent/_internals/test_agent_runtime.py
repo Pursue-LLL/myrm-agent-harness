@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from langchain_core.tools import tool
@@ -356,19 +356,20 @@ class TestResetAllGuards:
 class TestSchedulePostRunIdleTasks:
     """Tests for schedule_post_run_idle_tasks — enqueues background work."""
 
-    def test_missing_session_id_is_noop(self):
+    @pytest.mark.parametrize(
+        "context",
+        [{"workspaces_storage_root": "/tmp"}, {"session_id": "abc"}],
+        ids=["missing-session-id", "missing-storage-root"],
+    )
+    def test_incomplete_context_never_touches_the_registry(self, context):
         from myrm_agent_harness.agent._internals.agent_runtime import (
             schedule_post_run_idle_tasks,
         )
 
-        schedule_post_run_idle_tasks({"workspace_root": "/tmp"})
+        with patch("myrm_agent_harness.agent.background_worker.registry.get_idle_task_registry") as get_registry:
+            schedule_post_run_idle_tasks(context)
 
-    def test_missing_workspace_root_is_noop(self):
-        from myrm_agent_harness.agent._internals.agent_runtime import (
-            schedule_post_run_idle_tasks,
-        )
-
-        schedule_post_run_idle_tasks({"session_id": "abc"})
+        get_registry.assert_not_called()
 
     def test_empty_context_is_noop(self):
         from myrm_agent_harness.agent._internals.agent_runtime import (

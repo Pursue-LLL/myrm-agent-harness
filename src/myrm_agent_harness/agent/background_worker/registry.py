@@ -7,7 +7,7 @@
 - GLOBAL_SESSION_ID: Session key of tasks that are not tied to a chat; any session's idle window may run them.
 - IdleTaskRecord: Represents a pending or running background idle task.
 - IdleTaskRegistry: SQLite-backed task registry with atomic locking for idle tasks.
-- get_idle_task_registry: Get or create the singleton registry bound to the workspace root.
+- get_idle_task_registry: Get or create the process-wide registry bound to the host storage root.
 
 [POS]
 Idle Task Registry for crash-resilient persistence and concurrency control.
@@ -194,9 +194,20 @@ _registry_instance: IdleTaskRegistry | None = None
 
 
 def get_idle_task_registry(workspace_root: str) -> IdleTaskRegistry:
-    """Get or create the singleton registry bound to the workspace root."""
+    """Get or create the process-wide registry bound to the host storage root.
+
+    Every caller must pass the same root (the host's ``workspaces_storage_root``): the first call
+    fixes the database, and a later call with another root would otherwise enqueue into a database
+    that the idle worker never polls.
+    """
     global _registry_instance
+    db_path = os.path.join(workspace_root, ".context", "system", "idle_tasks.db")
     if _registry_instance is None:
-        db_path = os.path.join(workspace_root, ".context", "system", "idle_tasks.db")
         _registry_instance = IdleTaskRegistry(db_path)
+    elif _registry_instance.db_path != db_path:
+        logger.warning(
+            "Idle task registry already bound to %s; ignoring request for %s",
+            _registry_instance.db_path,
+            db_path,
+        )
     return _registry_instance

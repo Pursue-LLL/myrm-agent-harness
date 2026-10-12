@@ -48,3 +48,20 @@ async def test_every_operation_is_a_noop_when_aiosqlite_is_unavailable(
     await registry.mark_completed(1)
     await registry.mark_error(1)
     assert await registry.cleanup_old_tasks() == 0
+
+
+def test_registry_is_shared_per_process_and_a_different_root_is_rejected_loudly(
+    tmp_path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(registry_module, "_registry_instance", None)
+
+    first = registry_module.get_idle_task_registry(str(tmp_path / "a"))
+    assert registry_module.get_idle_task_registry(str(tmp_path / "a")) is first
+    assert "ignoring request" not in caplog.text
+
+    with caplog.at_level("WARNING", logger=registry_module.logger.name):
+        other = registry_module.get_idle_task_registry(str(tmp_path / "b"))
+
+    assert other is first
+    assert first.db_path == str(tmp_path / "a" / ".context" / "system" / "idle_tasks.db")
+    assert "ignoring request" in caplog.text

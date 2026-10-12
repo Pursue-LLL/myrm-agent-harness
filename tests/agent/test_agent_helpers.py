@@ -15,7 +15,15 @@ from myrm_agent_harness.agent._internals._agent_helpers import (
 from myrm_agent_harness.agent.background_worker import registry as registry_module
 from myrm_agent_harness.agent.background_worker.registry import IdleTaskRegistry, get_idle_task_registry
 
-_CONTEXT = {"session_id": "chat_real", "workspace_root": "/tmp/test", "chat_id": "real", "agent_id": "agent-1"}
+# Shaped like the host's real run context: it carries ``workspaces_storage_root`` and the
+# per-chat ``workspace_path`` and has never carried a ``workspace_root`` key.
+_CONTEXT = {
+    "session_id": "chat_real",
+    "workspaces_storage_root": "/tmp/test",
+    "workspace_path": "/tmp/test/workspaces/chat_real",
+    "chat_id": "real",
+    "agent_id": "agent-1",
+}
 
 
 def _enqueued_types(registry: IdleTaskRegistry) -> set[str]:
@@ -42,9 +50,17 @@ def test_run_with_chat_id_enqueues_consolidation_and_compaction():
 
 
 def test_run_without_chat_id_only_enqueues_consolidation():
-    registry, _ = _schedule_with_mock_registry({"session_id": "s", "workspace_root": "/tmp/test"})
+    registry, _ = _schedule_with_mock_registry({"session_id": "s", "workspaces_storage_root": "/tmp/test"})
 
     assert _enqueued_types(registry) == {"cognitive_consolidation"}
+
+
+def test_a_context_with_only_the_unset_workspace_root_key_schedules_nothing():
+    """Only the host storage root locates the registry; ``workspace_root`` is not a context key."""
+    registry, schedule = _schedule_with_mock_registry({"session_id": "s", "workspace_root": "/tmp/test"})
+
+    registry.enqueue.assert_not_called()
+    schedule.assert_not_called()
 
 
 def test_run_without_session_or_workspace_schedules_nothing():
@@ -60,7 +76,7 @@ def test_schedule_post_run_idle_tasks_persists_runnable_tasks_in_real_registry(t
 
     async def scenario() -> list[str]:
         with patch("myrm_agent_harness.agent.background_worker.idle_worker.schedule_idle_task"):
-            schedule_post_run_idle_tasks({**_CONTEXT, "workspace_root": str(tmp_path)})
+            schedule_post_run_idle_tasks({**_CONTEXT, "workspaces_storage_root": str(tmp_path)})
             await asyncio.gather(*_agent_helpers._background_tasks)
         registry = get_idle_task_registry(str(tmp_path))
         acquired: list[str] = []

@@ -135,9 +135,9 @@ def extract_query_text(query: object) -> str:
 def schedule_post_run_idle_tasks(merged_context: dict[str, object]) -> None:
     """Enqueue background idle tasks after a successful agent run."""
     session_id = str(merged_context.get("session_id", ""))
-    workspace_root = str(merged_context.get("workspace_root", ""))
+    storage_root = str(merged_context.get("workspaces_storage_root", ""))
 
-    if not (session_id and workspace_root):
+    if not (session_id and storage_root):
         return
 
     from myrm_agent_harness.agent.background_worker.idle_tasks import (
@@ -150,7 +150,7 @@ def schedule_post_run_idle_tasks(merged_context: dict[str, object]) -> None:
         get_idle_task_registry,
     )
 
-    registry = get_idle_task_registry(workspace_root)
+    registry = get_idle_task_registry(storage_root)
     try:
         chat_id = str(merged_context.get("chat_id", ""))
 
