@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import logging
 import os
 import sys
@@ -85,10 +86,8 @@ async def _run_unix_socket_server(factory: AgentFactory, socket_path: str) -> No
             await server.serve_forever()
     finally:
         if sock_file.exists():
-            try:
+            with contextlib.suppress(OSError):
                 sock_file.unlink()
-            except OSError:
-                pass
 
 
 def main() -> None:

@@ -1246,18 +1246,6 @@ class TestAcpToolsImport:
         assert callable(run_server)
 
 
-class TestDefaultAgentFactory:
-    """Tests for default_factory.py (currently absent from the public toolkit surface)."""
-
-    def test_factory_instantiable(self) -> None:
-        default_factory = pytest.importorskip(
-            "myrm_agent_harness.toolkits.acp.default_factory",
-            reason="default_factory module is opt-in and not bundled by default",
-        )
-        factory = default_factory.DefaultAgentFactory()
-        assert hasattr(factory, "create_agent")
-
-
 class TestBaseRuntimeStreamTruncation:
     """Tests for BaseRuntime.run_turn streaming truncation (lines 134-151)."""
 

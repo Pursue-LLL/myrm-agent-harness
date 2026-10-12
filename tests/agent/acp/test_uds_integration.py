@@ -12,6 +12,7 @@ from acp.schema import (
     InitializeResponse,
     NewSessionResponse,
 )
+from langchain_core.language_models import FakeListChatModel
 
 from myrm_agent_harness.agent.acp.default_factory import DefaultAgentFactory
 from myrm_agent_harness.toolkits.acp.server.server import MyrmAcpServer
@@ -33,7 +34,7 @@ async def test_acp_uds_server_client_roundtrip() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         sock_path = str(Path(tmpdir) / "test_acp.sock")
 
-        server_instance = MyrmAcpServer(DefaultAgentFactory())
+        server_instance = MyrmAcpServer(DefaultAgentFactory(llm=FakeListChatModel(responses=["OK"])))
 
         async def _handle_server_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
             # reader: client -> server; writer: server -> client
