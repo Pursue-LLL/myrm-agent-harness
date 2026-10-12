@@ -1,8 +1,10 @@
 """Skill failure tracking and telemetry for tool interception.
 
 Publishes structured ``SkillFailureEvent`` when a tool call fails in a
-session that has loaded storage skills.  Also records successful
-executions for skill evolution feedback.
+session that has loaded storage skills.  Also counts the outcome of every
+tool call into the skill execution ledger while exactly one storage skill is
+loaded (the only case where the outcome unambiguously belongs to that skill).
+Counting never deactivates or repairs a skill by itself.
 
 [INPUT]
 - agent.errors.tool_error_category::ToolErrorCategory (POS: Canonical tool error categories for structured error classification.)
@@ -16,8 +18,7 @@ executions for skill evolution feedback.
 - NON_SKILL_FAILURE_CATEGORIES: Categories that should not trigger events
 
 [POS]
-Skill failure telemetry — tracking, analysis, and deactivation of
-underperforming skills based on failure rate thresholds.
+Skill failure telemetry — failure events plus single-skill outcome counting.
 """
 
 from __future__ import annotations
@@ -71,7 +72,7 @@ def track_skill_execution(
     error_category: str | None = None,
     loop_kind: str | None = None,
 ) -> None:
-    """Track storage skill success and publish structured runtime failure events."""
+    """Publish structured failure events and count outcomes for the single loaded storage skill."""
     try:
         candidates = _build_skill_failure_candidates()
         if not candidates:
@@ -91,22 +92,10 @@ def track_skill_execution(
                 candidates=candidates,
                 loop_kind=loop_kind,
             )
+            _count_single_skill_outcome(candidates, success=False, error_message=_sanitize_error_message(error_message))
             return
 
-        from myrm_agent_harness.agent.skills.evolution.infra.integration import (
-            get_global_evolution_integration,
-        )
-
-        if len(candidates) != 1:
-            return
-
-        evolution = get_global_evolution_integration()
-        if not evolution:
-            return
-
-        candidate = candidates[0]
-        tracking_task = asyncio.create_task(evolution.record_execution(skill_id=candidate.skill_id, success=True))
-        tracking_task.add_done_callback(_log_skill_tracking_task_failure)
+        _count_single_skill_outcome(candidates, success=True)
     except Exception as exc:
         logger.debug("Skill execution tracking skipped: %s", exc)
 
@@ -114,6 +103,30 @@ def track_skill_execution(
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+
+def _count_single_skill_outcome(
+    candidates: tuple[SkillFailureCandidate, ...],
+    *,
+    success: bool,
+    error_message: str = "",
+) -> None:
+    """Count one tool-call outcome for the only loaded storage skill (ambiguous owners are skipped)."""
+    if len(candidates) != 1:
+        return
+
+    from myrm_agent_harness.agent.skills.evolution.infra.integration import (
+        get_global_evolution_integration,
+    )
+
+    evolution = get_global_evolution_integration()
+    if not evolution:
+        return
+
+    tracking_task = asyncio.create_task(
+        evolution.record_execution(skill_id=candidates[0].skill_id, success=success, error_message=error_message)
+    )
+    tracking_task.add_done_callback(_log_skill_tracking_task_failure)
 
 
 def _log_skill_tracking_task_failure(task: asyncio.Task[None]) -> None:

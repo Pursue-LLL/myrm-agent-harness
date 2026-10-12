@@ -657,7 +657,9 @@ Scanner（编排器）
 ## 11. 技能失败事件与可选隔离读取 (Skill Failure Event & Opt-in Quarantine Read) [CORE]
 
 ### 11.1 默认行为：事件上报，不隐藏技能
-技能归因的工具失败由 `_skill_failure_tracking` 中间件发布为 `SkillFailureEvent`（`runtime/events/skill_events.py`），由宿主决定如何处置（记录、触发 FIX 提案等）。中间件自身只以 `success=True` 调用 `EvolutionIntegration.record_execution`（纯计数，不触发隔离或修复），因此默认栈不会把任何技能置为 `is_active=False`，也不会从技能列表中隐藏技能。
+技能归因的工具失败由 `_skill_failure_tracking` 中间件发布为 `SkillFailureEvent`（`runtime/events/skill_events.py`），由宿主决定如何处置（记录、触发 FIX 提案等）。中间件自身只调用 `EvolutionIntegration.record_execution` 做纯计数（不触发隔离或修复），因此默认栈不会把任何技能置为 `is_active=False`，也不会从技能列表中隐藏技能。
+
+**计数口径**：仅当会话中恰好加载了一个存储技能时，每次工具调用的结果计入该技能的执行账本（`SkillStore.record_execution_outcome`，单条 UPDATE 原子累加，并发不丢计数）：成功计一次成功；失败（排除 e-stop、hook 拦截、取消等策略性拦截，规则与失败事件一致）计一次失败。加载多个存储技能时归属不明，不计数。因此 `effective_rate` 表示"该技能为唯一已加载技能期间的工具调用成功率"，会被琐碎的成功调用稀释，只能识别明显失败的技能；据此做决策的只有宿主审批流的 `low_effective_rate` 风险信号（applied ≥ 3 且 rate < 50% 时该提案不得自动合并，转人工复核）；其余读取方（优化漏斗 `get_skill_metrics`、沙箱验证的 `success_streak`）只用于展示与验证记录。
 
 ### 11.2 读取侧
 被置为 `is_active=False` 的技能只有在宿主用 `QuarantineAwareSkillBackend` + `SkillStateReader` 包装后端时才会从列表中过滤；框架不内置任何自动置位 `is_active=False` 的策略，不提供默认的 `SkillStateReader` 实现，也不提供解除隔离的入口——置位与恢复路径均由宿主自行定义（例如修复提案通过后重新写入 `is_active=True`）。
