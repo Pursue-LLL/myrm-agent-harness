@@ -75,9 +75,7 @@ async def test_global_integration_setter_getter(clean_integration):
 @pytest.mark.asyncio
 async def test_integration_initialization_with_llm(clean_integration):
     mock_llm = MagicMock()
-    with patch(
-        "myrm_agent_harness.agent.skills.evolution.infra.integration.SkillEvolutionEngine"
-    ):
+    with patch("myrm_agent_harness.agent.skills.evolution.infra.integration.SkillEvolutionEngine"):
         integration = EvolutionIntegration(
             db_path=":memory:",
             llm=mock_llm,
@@ -156,9 +154,7 @@ async def test_get_skills_needing_fix(clean_integration):
     integration = EvolutionIntegration(db_path=":memory:")
     try:
         integration.tracker = MagicMock()
-        integration.tracker.get_skills_needing_fix = AsyncMock(
-            return_value=["skill1", "skill2"]
-        )
+        integration.tracker.get_skills_needing_fix = AsyncMock(return_value=["skill1", "skill2"])
 
         result = await integration.get_skills_needing_fix()
         assert result == ["skill1", "skill2"]
@@ -174,9 +170,7 @@ async def test_evolve_skill(clean_integration):
         integration.engine = MagicMock()
         integration.engine.fix_skill = AsyncMock(return_value=MagicMock())
 
-        result = await integration.evolve_skill(
-            "test_skill", EvolutionType.FIX, reason="error"
-        )
+        result = await integration.evolve_skill("test_skill", EvolutionType.FIX, reason="error")
         assert result is not None
         integration.engine.fix_skill.assert_called_once()
     finally:
@@ -205,40 +199,28 @@ async def test_close(clean_integration):
     integration = EvolutionIntegration(db_path=":memory:", enable_background_queue=True)
     integration.queue = MagicMock()
     integration.queue.stop = AsyncMock()
-    integration.embedding_cache = MagicMock()
-    integration.embedding_cache.close = MagicMock()
     integration.store = MagicMock()
     integration.store.close = MagicMock()
 
     await integration.close()
     integration.queue.stop.assert_called_once()
-    integration.embedding_cache.close.assert_called_once()
     integration.store.close.assert_called_once()
 
 
 @pytest.mark.asyncio
 async def test_get_stats(clean_integration):
-    integration = EvolutionIntegration(
-        db_path=":memory:", enable_background_queue=True, enable_embedding_cache=True
-    )
+    integration = EvolutionIntegration(db_path=":memory:", enable_background_queue=True)
     try:
         integration.metrics_tracker = MagicMock()
-        integration.metrics_tracker.get_report = MagicMock(
-            return_value={"test": "metric"}
-        )
+        integration.metrics_tracker.get_report = MagicMock(return_value={"test": "metric"})
         integration.queue = MagicMock()
         integration.queue.stop = AsyncMock()
         integration.queue.get_stats = MagicMock(return_value={"test": "queue"})
-        integration.embedding_cache = MagicMock()
-        integration.embedding_cache.close = MagicMock()
-        integration.embedding_cache.get_stats = MagicMock(
-            return_value={"test": "cache"}
-        )
 
         stats = integration.get_stats()
         assert stats["metrics"] == {"test": "metric"}
         assert stats["queue"] == {"test": "queue"}
-        assert stats["cache"] == {"test": "cache"}
+        assert "cache" not in stats
     finally:
         await integration.close()
 
@@ -264,12 +246,8 @@ async def test_evolve_skill_screener_blocks(clean_integration):
 
 @pytest.mark.asyncio
 async def test_enable_skill_evolution(clean_integration):
-    with patch(
-        "myrm_agent_harness.agent.skills.evolution.infra.integration.SkillEvolutionEngine"
-    ):
-        integration = enable_skill_evolution(
-            db_path=":memory:", enable_background_queue=True
-        )
+    with patch("myrm_agent_harness.agent.skills.evolution.infra.integration.SkillEvolutionEngine"):
+        integration = enable_skill_evolution(db_path=":memory:", enable_background_queue=True)
         try:
             assert isinstance(integration, EvolutionIntegration)
             assert integration.queue is not None

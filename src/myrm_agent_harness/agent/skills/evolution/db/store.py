@@ -13,14 +13,12 @@ Core properties:
 
 [INPUT]
 - agent.skills.evolution.core.types::SkillLineage, (POS: Data types for skill evolution system.)
-- toolkits.vector.base::VectorStore, (POS: Abstract interface for vector databases.)
-- toolkits.memory.protocols.embedding::EmbeddingProtocol, (POS: Protocol for text embedding models.)
 
 [OUTPUT]
-- SkillStore: Simplified SQLite persistence for skill evolution, with Hybrid Retrieval (Qdrant) sync support.
+- SkillStore: Simplified SQLite persistence for skill evolution.
 
 [POS]
-SQLite persistence for skill evolution system, with Hybrid Retrieval (Qdrant) sync support.
+SQLite persistence for skill evolution system.
 """
 
 from __future__ import annotations
@@ -49,12 +47,7 @@ from myrm_agent_harness.agent.skills.evolution.db._store_dependencies import (
 from myrm_agent_harness.agent.skills.evolution.db._store_evolution_tracking import (
     SkillEvolutionTrackingMixin,
 )
-from myrm_agent_harness.agent.skills.evolution.db._store_vector import (
-    SkillVectorSyncMixin,
-)
 from myrm_agent_harness.agent.skills.evolution.db.store_queries import SkillStoreQueries
-from myrm_agent_harness.toolkits.memory.protocols.embedding import EmbeddingProtocol
-from myrm_agent_harness.toolkits.vector.base import VectorStore
 
 logger = logging.getLogger(__name__)
 
@@ -186,7 +179,7 @@ CREATE INDEX IF NOT EXISTS idx_constraints_time ON evolution_constraints(created
 """
 
 
-class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillDependencyMixin, SkillStoreQueries):
+class SkillStore(SkillEvolutionTrackingMixin, SkillDependencyMixin, SkillStoreQueries):
     """Simplified SQLite persistence for skill evolution.
 
     Architecture:
@@ -205,18 +198,11 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillDepende
             await store.save_skill(record)
     """
 
-    def __init__(
-        self,
-        db_path: Path | None = None,
-        vector_store: VectorStore | None = None,
-        embedding: EmbeddingProtocol | None = None,
-    ) -> None:
+    def __init__(self, db_path: Path | None = None) -> None:
         """Initialize skill store.
 
         Args:
             db_path: Path to SQLite database file. Defaults to .myrm/skills.db
-            vector_store: Optional VectorStore for hybrid retrieval.
-            embedding: Optional EmbeddingProtocol for hybrid retrieval.
         """
         if db_path is None:
             db_dir = Path.cwd() / ".myrm"
@@ -226,9 +212,6 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillDepende
         self._db_path = Path(db_path)
         self._mu = threading.Lock()
         self._closed = False
-        self._vector_store = vector_store
-        self._embedding = embedding
-        self.VECTOR_COLLECTION_NAME = "skills_semantic"
 
         # Crash recovery
         self._cleanup_wal_on_startup()
@@ -365,7 +348,6 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillDepende
         """
         self._ensure_open()
         await asyncio.to_thread(self._delete_skill_sync, skill_id)
-        await self._delete_skill_from_vector(skill_id)
 
     async def delete_skills_by_agent(self, agent_id: str) -> int:
         """Delete all skills owned by a specific agent.
@@ -537,8 +519,6 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillDepende
                 )
         self._ensure_open()
         await asyncio.to_thread(self._save_skills_batch_sync, records)
-        for record in records:
-            await self._sync_skill_to_vector(record)
 
     MAX_SKILL_CONTENT_CHARS = 65_536
 
@@ -558,7 +538,6 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillDepende
             )
         self._ensure_open()
         await asyncio.to_thread(self._save_skill_sync, record)
-        await self._sync_skill_to_vector(record)
 
     @_db_retry()
     def _update_metrics_sync(self, skill_id: str, metrics: SkillMetrics) -> None:
@@ -614,7 +593,6 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillDepende
         """
         self._ensure_open()
         await asyncio.to_thread(self._deactivate_skill_sync, skill_id)
-        await self._delete_skill_from_vector(skill_id)
 
     # Evolution lock operations
     @_db_retry()

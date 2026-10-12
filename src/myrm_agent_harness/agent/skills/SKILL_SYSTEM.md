@@ -21,13 +21,12 @@
 | 8 | 安全扫描框架 | **CORE** | CoPaw 可扩展框架 + ironclaw 内容转义 |
 | 9 | 安装与卸载 | **CORE** | nexu 异步队列 + Deer-Flow 安全提取 |
 | 10 | 状态管理 | **CORE** | nexu JSON 账本 + 目录监听 |
-| 11 | 语义+环境混合检索 | **CORE** | Hybrid Search (Qdrant + SQLite) |
-| 12 | 技能失败事件与可选隔离原语 | **CORE** | `SkillFailureEvent` 交给宿主处置；1-Strike / 3-Strikes 隔离为显式启用的原语 |
-| 13 | 搜索缓存 | **CORE** | picoclaw Trigram Jaccard |
-| 14 | Marketplace 集成 | ENHANCE | NextClaw API + CoPaw 多源 |
-| 15 | 技能创建与评估 | ENHANCE | Deer-Flow AI 驱动 |
-| 16 | Skill Packs 技能集合 | ENHANCE | NanoClaw Flavor + Clawith Template |
-| 17 | Curated Skills 预安装 | ENHANCE | nexu |
+| 11 | 技能失败事件与可选隔离原语 | **CORE** | `SkillFailureEvent` 交给宿主处置；1-Strike / 3-Strikes 隔离为显式启用的原语 |
+| 12 | 搜索缓存 | **CORE** | picoclaw Trigram Jaccard |
+| 13 | Marketplace 集成 | ENHANCE | NextClaw API + CoPaw 多源 |
+| 14 | 技能创建与评估 | ENHANCE | Deer-Flow AI 驱动 |
+| 15 | Skill Packs 技能集合 | ENHANCE | NanoClaw Flavor + Clawith Template |
+| 16 | Curated Skills 预安装 | ENHANCE | nexu |
 
 > **CORE** = 必须实现（竞争力底线），**ENHANCE** = 可选增强。
 
@@ -655,41 +654,22 @@ Scanner（编排器）
 
 ---
 
-## 11. 语义+环境混合检索 (Hybrid Retrieval) [CORE]
+## 11. 技能失败事件与可选隔离原语 (Skill Failure Event & Opt-in Quarantine) [CORE]
 
-### 11.1 架构设计
-系统采用 **Qdrant (语义向量) + SQLite (关系型元数据)** 的混合检索架构，以解决传统纯关键字搜索（LIKE）在自然语言查询下的低召回率问题。
-
-**核心机制**：
-- **同步双写 (Synchronous Dual-Write)**：在 `SkillStore.save_skill` 时，将技能文本（名称+描述+内容）向量化后写入 Qdrant，同时将核心元数据（`is_active`, `os_platform`）作为 Payload 写入。
-- **Payload 预过滤 (Pre-filtering)**：在 Qdrant 查询阶段，直接利用 Payload 过滤非活跃技能和不匹配当前操作系统的技能，避免向量检索后在 SQLite 中被大量过滤导致召回不足。
-- **SQLite 后置精确过滤 (Post-filtering)**：Qdrant 返回 Top-K 结果后，在 SQLite 中进行最终的精确过滤（如 `min_effective_rate` 成功率阈值），确保返回的技能不仅语义相关，而且质量达标。
-- **优雅降级 (Graceful Fallback)**：如果 Qdrant 服务不可用或向量化失败，系统自动无缝降级到原有的 SQLite `LIKE` 关键字检索，确保核心功能不中断。
-
-### 11.2 启动对齐与自愈 (Startup Reconciliation)
-为了解决本地 SQLite 和 Qdrant 之间可能出现的数据不一致（如崩溃、异常关机），系统实现了 `sync_vectors` 启动对齐机制：
-- 在系统启动时，读取 SQLite 中所有活跃的技能。
-- 批量向量化并 Upsert 到 Qdrant 中。
-- 确保向量库始终反映最新的本地技能状态。
-
----
-
-## 12. 技能失败事件与可选隔离原语 (Skill Failure Event & Opt-in Quarantine) [CORE]
-
-### 12.1 默认行为：事件上报，不隐藏技能
+### 11.1 默认行为：事件上报，不隐藏技能
 技能归因的工具失败由 `_skill_failure_tracking` 中间件发布为 `SkillFailureEvent`（`runtime/events/skill_events.py`），由宿主决定如何处置（记录、触发 FIX 提案等）。中间件自身只以 `success=True` 调用 `EvolutionIntegration.record_execution`，因此默认栈不会把任何技能置为 `is_active=False`，也不会从技能列表中隐藏技能。
 
-### 12.2 可选隔离原语
+### 11.2 可选隔离原语
 `EvolutionIntegration.record_execution(skill_id, success=False, error=...)` 内置两档策略，供需要「硬隔离」的宿主显式调用：
 - **一击必杀 (1-Strike)**：错误信息包含确定性的代码级错误（如 `SyntaxError`, `ModuleNotFoundError`, `command not found`）时，第一次失败即 `deactivate_skill`（`is_active=False`）。
 - **容错隔离 (3-Strikes)**：网络超时、API 限流等非确定性错误，连续失败 3 次才 `deactivate_skill`。
 
-### 12.3 读取侧
+### 11.3 读取侧
 被置为 `is_active=False` 的技能只有在宿主用 `QuarantineAwareSkillBackend` + `SkillStateReader` 包装后端时才会从列表中过滤；框架不提供默认的 `SkillStateReader` 实现，也不提供解除隔离的入口——恢复路径由宿主自行定义（例如修复提案通过后重新写入 `is_active=True`）。
 
 ---
 
-## 13. 搜索缓存 [CORE]
+## 12. 搜索缓存 [CORE]
 
 ### 12.1 Trigram Jaccard 相似度缓存（来自 picoclaw）
 
@@ -718,9 +698,9 @@ Scanner（编排器）
 
 ---
 
-## 14. Marketplace 集成 [ENHANCE]
+## 13. Marketplace 集成 [ENHANCE]
 
-### 17.1 多源聚合搜索（来自 CoPaw + picoclaw）
+### 13.1 多源聚合搜索（来自 CoPaw + picoclaw）
 
 支持多个技能源的并发搜索：
 - ClawHub（官方商店）
@@ -734,7 +714,7 @@ Scanner（编排器）
 - 支持部分成功（至少一个源返回结果即可）
 - 结果按评分排序后合并去重
 
-### 12.2 统一 API（来自 NextClaw）
+### 13.2 统一 API（来自 NextClaw）
 
 | 端点 | 方法 | 说明 |
 |------|------|------|
@@ -747,13 +727,13 @@ Scanner（编排器）
 | `/api/skills/{name}/enable` | PUT | 启用/禁用技能 |
 | `/api/skills/queue` | GET | 安装队列状态 |
 
-### 12.3 多语言支持（来自 NextClaw + nexu）
+### 13.3 多语言支持（来自 NextClaw + nexu）
 
 - 技能描述支持 `description`（英文）和 `descriptionZh`（中文）
 - 内置标签翻译表（110+ 标签，来自 nexu）
 - 前端根据用户语言偏好自动选择
 
-### 12.4 GitHub 智能安装（来自 picoclaw + CoPaw）
+### 13.4 GitHub 智能安装（来自 picoclaw + CoPaw）
 
 - 智能 URL 解析：完整 URL、`owner/repo`、`owner/repo/path`、分支/标签/commit 引用
 - 两级下载策略：GitHub Contents API（优先）→ `raw.githubusercontent.com`（降级）
@@ -766,9 +746,9 @@ Scanner（编排器）
 
 ---
 
-## 13. 技能创建与评估 [ENHANCE]
+## 14. 技能创建与评估 [ENHANCE]
 
-### 13.1 自动技能提炼与“无状态目标感知滚动窗口” (Stateless Goal-Aware Tumbling Window)
+### 14.1 自动技能提炼与“无状态目标感知滚动窗口” (Stateless Goal-Aware Tumbling Window)
 
 系统支持**真·自动进化**能力，彻底抛弃了低效的全量人工介入草稿确认流程，并从根本上解决了长会话提炼引发的“提炼幻觉（Context Noise）”问题。
 
@@ -795,14 +775,14 @@ Scanner（编排器）
 - 采用模糊匹配补丁机制（7级匹配策略），精准将 LLM 修改映射回 SKILL.md。
 - 直接持久化到文件系统，部分替代依赖于通知系统的 Draft 草稿审批流，大幅提升真实系统的自动化自愈能力。
 
-### 13.2 错误感知型智能拦截与 GUI-First 强制重试 (Error-Aware Static Interception & GUI-First Force Retry)
+### 14.2 错误感知型智能拦截与 GUI-First 强制重试 (Error-Aware Static Interception & GUI-First Force Retry)
 
 为了防止自动进化陷入“死循环”并优化 LLM 调用成本，系统在进化管线前端实现了轻量级静态拦截与 GUI 驱动的强制重试机制：
 
 - **静态错误拦截 (Static Interception)**：在调用 LLM 确认错误前，通过正则表达式提取异常类型。如果检测到明确的语法或导入错误（如 `SyntaxError`, `ModuleNotFoundError`, `IndentationError`），则直接绕过 LLM 确认，允许进化（0 成本，极速响应）。
 - **GUI-First 强制重试 (GUI-First Force Retry)**：默认情况下，进化失败的技能会进入冷却期（如 1 小时）。摒弃脆弱的多语言正则匹配，系统在前端“技能成长审计 (Evolution Rejection Dashboard)”提供明确的“强制重试”按钮。用户点击后，通过 API 传递结构化的 `force_retry=True` 标志，确定性地打破冷却锁，立即重试进化，实现防雪球与用户意图的完美平衡，且完全符合 GUI-First 原则。
 
-### 17.2 技能进化锁定保护 (File-backed Evolution Lock)
+### 14.3 技能进化锁定保护 (File-backed Evolution Lock)
 
 为了解决真·自动进化机制可能带来的用户体验痛点（如：用户精心手动编辑修复的技能代码被后续基于错误反馈触发的自动进化覆盖），技能系统实现了**文件级双向进化锁定**架构。
 
@@ -815,7 +795,7 @@ Scanner（编排器）
   2. **Phase 0 File Check**：回退检查底层解析的 `SkillMetadata.evolution_locked`，防范文件被本地手动加锁后数据库未同步的情况。
 - **防覆盖保护**：不论是 FIX 还是 DERIVED 进化，锁定状态均作为防御纵深，确保持久化内容绝对不会被修改，将代码控制权完全交还给用户。
 
-### 14.3 语义去重防御 (Semantic Deduplication)
+### 14.4 语义去重防御 (Semantic Deduplication)
 
 随着技能数量增长，功能相似但名称不同的 skill 会不断累积（"Skill 熵增"），导致 Agent 变慢变笨。
 系统实现了三层纵深防御来防止语义级重复：
@@ -839,7 +819,7 @@ Scanner（编排器）
 - 失败时静默降级（try/except + warning log），绝不阻塞正常流程
 - 不阻断创建，只提供信息让 Agent 或人工审核做最终决策
 
-### 13.4 多智能体技能池与按需加载 (Multi-Agent Skill Pool & On-Demand Loading)
+### 14.5 多智能体技能池与按需加载 (Multi-Agent Skill Pool & On-Demand Loading)
 
 在 Agent in Sandbox 架构下，每个用户拥有完全物理隔离的私有沙箱与持久化存储。智能体的技能管理遵循**私有技能池与按需配置**的极简原则。
 
@@ -854,9 +834,9 @@ Scanner（编排器）
 
 ---
 
-## 14. Skill Packs 技能集合 [ENHANCE]
+## 15. Skill Packs 技能集合 [ENHANCE]
 
-### 17.1 定义（来自 NanoClaw Flavor + Clawith Agent Template）
+### 15.1 定义（来自 NanoClaw Flavor + Clawith Agent Template）
 
 Skill Pack 是一组预配置的技能组合，适用于特定场景：
 
@@ -875,7 +855,7 @@ skills:
     enabled: true
 ```
 
-### 17.2 应用场景
+### 15.2 应用场景
 
 | Pack | 包含技能 |
 |------|----------|
@@ -884,7 +864,7 @@ skills:
 | Research | deep-research, web-search, paper-analysis |
 | DevOps | docker, k8s, ci-cd, monitoring |
 
-### 14.3 应用流程
+### 15.3 应用流程
 
 1. 加载 Pack 定义
 2. 检查所有技能是否已安装
@@ -899,9 +879,9 @@ skills:
 
 ---
 
-## 15. Curated Skills 预安装 [ENHANCE]
+## 16. Curated Skills 预安装 [ENHANCE]
 
-### 17.1 设计（来自 nexu）
+### 16.1 设计（来自 nexu）
 
 定义一组推荐技能列表，首次启动时自动安装：
 
@@ -918,7 +898,7 @@ STATIC_SKILL_SLUGS: list[str] = [
 ]
 ```
 
-### 17.2 安装流程
+### 16.2 安装流程
 
 1. 首次启动时检测 `installed/` 目录
 2. `STATIC_SKILL_SLUGS`：从 builtin 复制到 installed（本地操作，无网络）

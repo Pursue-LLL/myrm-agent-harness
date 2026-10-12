@@ -21,12 +21,6 @@ New Features (vs lime):
 总体收益: 9.2/10
 """
 
-from myrm_agent_harness.toolkits.retriever.embedding.cache import (
-    EmbeddingCache,
-    clear_embedding_cache,
-    get_embedding_cache,
-)
-
 from .core.budget_governor import (
     BudgetCheckResult,
     BudgetStatus,
@@ -82,7 +76,6 @@ __all__ = [
     "BatchEvolutionConfirmer",
     "ConfirmationResult",
     # Caching
-    "EmbeddingCache",
     # Integration ( One-line enablement)
     "EvolutionIntegration",
     "EvolutionMetrics",
@@ -136,12 +129,10 @@ __all__ = [
     "apply_skill_patch",
     "BudgetCheckResult",
     "BudgetStatus",
-    "clear_embedding_cache",
     "create_evolution_tools",
     "detect_patch_type",
     "enable_skill_evolution",
     "get_dependency_tracker",
-    "get_embedding_cache",
     "get_evolution_queue",
     "get_global_evolution_integration",
     "get_metrics_tracker",

@@ -11,7 +11,6 @@ Framework provides the hooks, business layer decides when to use them.
 - agent.skills.evolution.execution.tool_selector::EvolutionToolConfig (POS: Tool Selector for Evolution System)
 - agent.skills.evolution.pipeline.analyzer::SkillExecutionAnalyzer (POS: Lightweight execution analysis for skill evolution decisions.)
 - agent.skills.evolution.pipeline.screener::EvolutionScreener (POS: myrm_agent_harness/agent/skills/evolution/screener.py ## Architecture Two-phase screening to block "snowball effect" of blind fixes: **Phase 1: Rule-based (Cooldown)** Rejects repeated evolution attempts within cooldown period Checks both skill.updated_at and rejection history Zero LLM cost, instant response **Phase 2: LLM Confirmation (Cheap Model)** Only for FIX evolution type Analyzes real error logs (HTTP status, exception stack) Asks cheap LLM: "Is this really a skill code defect?" Returns YES (proceed) or NO + reason (block) **Prometheus Metrics (Observability)** evolution_screening_total: Counter by phase + result evolution_screening_confidence: Histogram of LLM confidence evolution_screening_duration_seconds: Histogram of screening duration by phase ## Design Principles 1. **Cost Optimization**: Use gpt-4o-mini/claude-haiku for Phase 2 2. **Fail-Safe**: LLM errors → Allow (don't block valid fixes) 3. **Transparency**: Record all rejections for audit 4. **Signal Extraction**: Focus on HTTP status + exception type vs full stack 5. **Observability**: Expose Prometheus metrics for monitoring and tuning)
-- toolkits.retriever.embedding.cache::EmbeddingCache (POS: Embedding cache layer. Provides a two-tier caching mechanism (memory + SQLite) that sits between callers and the remote embedding API to avoid redundant calls.)
 - agent.context_management.pipeline::ContextPipeline (POS: Message filter pipeline for composing multiple filters.)
 - toolkits.code_execution::CodeExecutor (POS: Code execution toolkit entry point. Aggregates execution configuration, executor implementations, workspace management, and factory functions for the Agent-in-Sandbox architecture.)
 - toolkits.web_search::SearchServiceConfig (POS: Web search toolkit entry point. Aggregates and re-exports search tools, result types, metrics, and error hierarchy for unified import.)
@@ -67,10 +66,6 @@ from myrm_agent_harness.agent.skills.evolution.pipeline.screener import (
 )
 from myrm_agent_harness.toolkits.code_execution.executors.test_executor import (
     SubprocessCodeExecutor,
-)
-from myrm_agent_harness.toolkits.retriever.embedding.cache import (
-    EmbeddingCache,
-    get_embedding_cache,
 )
 
 if TYPE_CHECKING:
@@ -132,7 +127,6 @@ class EvolutionIntegration:
         *,
         llm: BaseChatModel | None = None,
         context_pipeline: "ContextPipeline | None" = None,
-        enable_embedding_cache: bool = True,
         enable_background_queue: bool = False,
         queue_workers: int = 2,
         max_concurrent_evolutions: int = 5,
@@ -150,8 +144,6 @@ class EvolutionIntegration:
         workspace_path: Path | str | None = None,
         search_service_cfg: "SearchServiceConfig | None" = None,
         auto_apply_fs: bool = False,
-        vector_store: Any | None = None,
-        embedding: Any | None = None,
         event_log_backend: Any | None = None,
         evolution_strategy: str = "balanced",
     ):
@@ -161,7 +153,6 @@ class EvolutionIntegration:
             db_path: Path to SQLite database for skill storage
             llm: LLM client for evolution (BaseChatModel, business layer provides)
             context_pipeline: Optional context management pipeline (auto-created if None)
-            enable_embedding_cache: Enable 2-layer embedding cache
             enable_background_queue: Enable background evolution queue
             queue_workers: Number of queue workers (if enabled)
             max_concurrent_evolutions: Max concurrent evolution tasks (default 5, for all deployment modes)
@@ -186,11 +177,7 @@ class EvolutionIntegration:
         self.db_path = Path(db_path)
 
         # Core components
-        self.store = SkillStore(
-            self.db_path,
-            vector_store=vector_store,
-            embedding=embedding,
-        )
+        self.store = SkillStore(self.db_path)
         self.tracker = SkillQualityTracker(self.store)
         self.analyzer = SkillExecutionAnalyzer()
         self.test_executor: SubprocessCodeExecutor | None = test_executor
@@ -253,23 +240,14 @@ class EvolutionIntegration:
         self.dependency_tracker = get_dependency_tracker()
         self.metrics_tracker = get_metrics_tracker()
 
-        self.embedding_cache: EmbeddingCache | None = None
-        if enable_embedding_cache:
-            cache_path = self.db_path.parent / "embeddings.db"
-            self.embedding_cache = get_embedding_cache(cache_path)
-            if embedding and hasattr(embedding, "_cache") and embedding._cache is None:
-                embedding._cache = self.embedding_cache
-                logger.debug("Injected embedding_cache into provided embedding service")
-
         self.queue: EvolutionQueue | None = None
         if enable_background_queue:
             self.queue = get_evolution_queue(worker_count=queue_workers)
 
         logger.info(
-            "Evolution integration initialized: db=%s, llm=%s, cache=%s, queue=%s",
+            "Evolution integration initialized: db=%s, llm=%s, queue=%s",
             self.db_path,
             llm is not None,
-            enable_embedding_cache,
             enable_background_queue,
         )
 
@@ -719,7 +697,7 @@ class EvolutionIntegration:
         """Get evolution statistics.
 
         Returns:
-            Dict with all stats (metrics, queue, cache)
+            Dict with all stats (metrics, queue)
         """
         stats: dict[str, Any] = {
             "metrics": self.metrics_tracker.get_report(),
@@ -728,18 +706,12 @@ class EvolutionIntegration:
         if self.queue:
             stats["queue"] = self.queue.get_stats()
 
-        if self.embedding_cache:
-            stats["cache"] = self.embedding_cache.get_stats()
-
         return stats
 
     async def close(self) -> None:
         """Cleanup resources."""
         if self.queue:
             await self.stop_background_queue()
-
-        if self.embedding_cache:
-            self.embedding_cache.close()
 
         self.store.close()
         logger.info("Evolution integration closed")
@@ -767,7 +739,7 @@ def enable_skill_evolution(
         max_concurrent_evolutions: Max concurrent evolution tasks (default 5)
         event_log_backend: Optional backend for trace extraction.
         evolution_strategy: Controls screener behavior (balanced/innovate/harden/repair-only).
-        **kwargs: Additional options (enable_embedding_cache, screener, etc.)
+        **kwargs: Additional options (screener, enable_background_queue, etc.)
 
     Returns:
         EvolutionIntegration instance

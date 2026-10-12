@@ -61,7 +61,6 @@ class TestEngineLockDefenseInDepth:
         unlocked_skill = _make_skill(locked=False)
         self.store.get_skill.return_value = unlocked_skill
         self.store.get_evolution_constraints.return_value = []
-        self.store.search_skills = AsyncMock(return_value=[])
 
         mock_response = MagicMock()
         mock_response.content = "fixed content"

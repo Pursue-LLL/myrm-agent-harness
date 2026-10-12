@@ -80,7 +80,6 @@ class TestFixSkill:
         skill.content = "old content"
         store.get_skill.return_value = skill
         store.get_evolution_constraints.return_value = []
-        store.search_skills.return_value = []
 
         engine = SkillEvolutionEngine(store)
         engine._variant_generator = MagicMock()

@@ -666,7 +666,7 @@ class TestEvolutionIntegrationMethods:
         mock_queue.enqueue.assert_awaited_once()
 
     def test_get_stats_minimal(self) -> None:
-        """get_stats should return metrics even with no queue or cache."""
+        """get_stats should return metrics even with no queue."""
         from myrm_agent_harness.agent.skills.evolution.infra.integration import (
             EvolutionIntegration,
         )
@@ -676,14 +676,13 @@ class TestEvolutionIntegrationMethods:
             integration.metrics_tracker = MagicMock()
             integration.metrics_tracker.get_report.return_value = {"total": 0}
             integration.queue = None
-            integration.embedding_cache = None
 
         stats = integration.get_stats()
         assert "metrics" in stats
         assert stats["metrics"]["total"] == 0
 
-    def test_get_stats_with_queue_and_cache(self) -> None:
-        """get_stats should include queue and cache stats when enabled."""
+    def test_get_stats_with_queue(self) -> None:
+        """get_stats should include queue stats when the queue is enabled."""
         from myrm_agent_harness.agent.skills.evolution.infra.integration import (
             EvolutionIntegration,
         )
@@ -694,12 +693,10 @@ class TestEvolutionIntegrationMethods:
             integration.metrics_tracker.get_report.return_value = {}
             integration.queue = MagicMock()
             integration.queue.get_stats.return_value = {"pending": 3}
-            integration.embedding_cache = MagicMock()
-            integration.embedding_cache.get_stats.return_value = {"hits": 10}
 
         stats = integration.get_stats()
         assert stats["queue"]["pending"] == 3
-        assert stats["cache"]["hits"] == 10
+        assert "cache" not in stats
 
     @pytest.mark.asyncio
     async def test_close_cleanup(self) -> None:
@@ -711,17 +708,15 @@ class TestEvolutionIntegrationMethods:
         with patch.object(EvolutionIntegration, "__init__", lambda self, **kwargs: None):
             integration = EvolutionIntegration.__new__(EvolutionIntegration)
             integration.queue = AsyncMock()
-            integration.embedding_cache = MagicMock()
             integration.store = MagicMock()
 
         await integration.close()
         integration.queue.stop.assert_awaited_once()
-        integration.embedding_cache.close.assert_called_once()
         integration.store.close.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_close_no_optional_resources(self) -> None:
-        """close should not fail when optional resources are None."""
+    async def test_close_without_queue(self) -> None:
+        """close should not fail when the background queue is disabled."""
         from myrm_agent_harness.agent.skills.evolution.infra.integration import (
             EvolutionIntegration,
         )
@@ -729,7 +724,6 @@ class TestEvolutionIntegrationMethods:
         with patch.object(EvolutionIntegration, "__init__", lambda self, **kwargs: None):
             integration = EvolutionIntegration.__new__(EvolutionIntegration)
             integration.queue = None
-            integration.embedding_cache = None
             integration.store = MagicMock()
 
         await integration.close()

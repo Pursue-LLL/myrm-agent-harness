@@ -1,7 +1,6 @@
 import copy
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import AsyncMock
 
 import pytest
 
@@ -172,30 +171,6 @@ async def test_get_skill_lineage_terminates_on_cycle(temp_db_path, skill_record)
 
 
 @pytest.mark.asyncio
-async def test_search_skills_sync(temp_db_path, skill_record):
-    store = SkillStore(db_path=temp_db_path)
-    await store.save_skill(skill_record)
-
-    res = store._search_skills_sync("test")
-    assert len(res) == 1
-
-    res2 = store._search_skills_sync("not_found")
-    assert len(res2) == 0
-    store.close()
-
-
-@pytest.mark.asyncio
-async def test_search_skills_async(temp_db_path, skill_record):
-    store = SkillStore(db_path=temp_db_path)
-    await store.save_skill(skill_record)
-
-    # This falls back to sqlite sync because we don't configure qdrant in tests usually
-    res = await store.search_skills("test")
-    assert len(res) == 1
-    store.close()
-
-
-@pytest.mark.asyncio
 async def test_get_recent_analyses_grouped(temp_db_path, skill_record):
     store = SkillStore(db_path=temp_db_path)
     await store.save_skill(skill_record)
@@ -268,22 +243,6 @@ async def test_evolution_constraints(temp_db_path, skill_record):
     constraints = store.get_evolution_constraints("test_skill_1")
     assert len(constraints) == 1
     assert constraints[0] == "Must not use os.system"
-
-    store.close()
-
-
-@pytest.mark.asyncio
-async def test_vector_sync(temp_db_path, skill_record):
-    mock_vector = AsyncMock()
-    mock_embedding = AsyncMock()
-    mock_embedding.embed = AsyncMock(return_value=[0.1, 0.2])
-    store = SkillStore(db_path=temp_db_path, vector_store=mock_vector, embedding=mock_embedding)
-
-    await store.save_skill(skill_record)
-    mock_vector.upsert.assert_called_once()
-
-    await store.deactivate_skill("test_skill_1")
-    mock_vector.delete.assert_called_once()
 
     store.close()
 

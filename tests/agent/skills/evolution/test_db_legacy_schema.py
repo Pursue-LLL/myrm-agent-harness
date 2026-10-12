@@ -98,10 +98,12 @@ async def test_save_overwrites_legacy_row_and_inserts_new_rows(legacy_db: Path) 
         store.close()
 
 
-def test_search_matches_name_and_description_only(legacy_db: Path) -> None:
+def test_legacy_column_content_never_reaches_the_record(legacy_db: Path) -> None:
     store = SkillStore(db_path=legacy_db)
     try:
-        assert [r.skill_id for r in store._search_skills_sync("legacy")] == [_LEGACY_ID]
-        assert store._search_skills_sync("old trap") == []
+        record = store.get_skill(_LEGACY_ID)
+        assert record is not None
+        assert not hasattr(record, "traps")
+        assert "old trap" not in repr(record)
     finally:
         store.close()

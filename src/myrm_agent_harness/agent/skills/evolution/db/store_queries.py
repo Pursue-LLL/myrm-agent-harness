@@ -4,10 +4,10 @@
 - agent.skills.evolution.core.types::SkillRecord (POS: Data types for skill evolution system.)
 
 [OUTPUT]
-- SkillStoreQueries: Mixin class for complex SkillStore queries, including Hybrid Retrieval.
+- SkillStoreQueries: Mixin class for complex SkillStore queries.
 
 [POS]
-Complex query methods for SkillStore, including Hybrid Retrieval (Semantic Search).
+Complex query methods for SkillStore.
 """
 
 from __future__ import annotations
@@ -17,10 +17,7 @@ import sqlite3
 from contextlib import AbstractContextManager
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.agent.skills.evolution.core.types import (
-    EnvironmentFingerprint,
-    SkillRecord,
-)
+from myrm_agent_harness.agent.skills.evolution.core.types import SkillRecord
 
 logger = logging.getLogger(__name__)
 
@@ -175,162 +172,6 @@ class SkillStoreQueries:
                 current_id = record.lineage.parent_id
 
         return lineage
-
-    def _search_skills_sync(
-        self,
-        query: str,
-        env_fingerprint: EnvironmentFingerprint | None = None,
-        limit: int = 5,
-        min_effective_rate: float = 0.7,
-        agent_id: str | None = None,
-        mounted_skill_ids: list[str] | None = None,
-    ) -> list[SkillRecord]:
-        """Synchronous fallback for SQLite LIKE search."""
-        self._ensure_open()
-        with self._reader() as conn:
-            # Basic text search on name and description
-            search_pattern = f"%{query}%"
-
-            # Base query: active skills with acceptable success rate
-            sql = """
-                SELECT * FROM skills
-                WHERE is_active = 1
-                AND (name LIKE ? OR description LIKE ?)
-                AND (CAST(success_count AS REAL) / NULLIF(applied_count, 0) >= ? OR applied_count < 3)
-            """
-            params: list[SqlParam] = [
-                search_pattern,
-                search_pattern,
-                min_effective_rate,
-            ]
-
-            if agent_id is not None:
-                scope_clause = """
-                    (
-                        environment IS NULL
-                        OR json_extract(environment, '$.custom_tags.scope_agent_id') IS NULL
-                        OR json_extract(environment, '$.custom_tags.scope_agent_id') = ?
-                    )
-                """
-                params.append(agent_id)
-
-                if mounted_skill_ids:
-                    placeholders = ",".join("?" * len(mounted_skill_ids))
-                    sql += f" AND ({scope_clause} OR skill_id IN ({placeholders}))"
-                    params.extend(mounted_skill_ids)
-                else:
-                    sql += f" AND {scope_clause}"
-
-            # If environment fingerprint is provided, we prefer strict matches on OS
-            # Since environment is stored as JSON, we can use LIKE for a simple check,
-            # or JSON functions if using SQLite 3.38+
-            if env_fingerprint and env_fingerprint.os_platform:
-                # We do a soft match: either environment is NULL, or it matches the OS
-                sql += " AND (environment IS NULL OR environment LIKE ?)"
-                params.append(f'%"{env_fingerprint.os_platform}"%')
-
-            sql += " ORDER BY (CAST(success_count AS REAL) / NULLIF(applied_count, 0)) DESC LIMIT ?"
-            params.append(limit)
-
-            rows = conn.execute(sql, tuple(params)).fetchall()
-            return [self._row_to_record(row) for row in rows]
-
-    async def search_skills(
-        self,
-        query: str,
-        env_fingerprint: EnvironmentFingerprint | None = None,
-        limit: int = 5,
-        min_effective_rate: float = 0.7,
-        agent_id: str | None = None,
-        mounted_skill_ids: list[str] | None = None,
-    ) -> list[SkillRecord]:
-        """Search for skills matching a query and environment fingerprint.
-
-        Uses Vector Semantic Memory layer (Hybrid Retrieval) if configured,
-        falling back to SQLite LIKE search if unavailable or on error.
-        """
-        import asyncio
-
-        vector_store = getattr(self, "_vector_store", None)
-        embedding = getattr(self, "_embedding", None)
-        collection_name = getattr(self, "VECTOR_COLLECTION_NAME", "skills_semantic")
-
-        # Hybrid Search Path
-        if vector_store and embedding:
-            try:
-                # 1. Embed query
-                query_vector = await embedding.embed(query)
-
-                # 2. Build Qdrant filters
-                filters = {"is_active": 1}
-                # We do NOT filter by os_platform in Qdrant because a skill might be cross-platform
-                # (os_platform is None). Qdrant's simple filter builder doesn't support OR conditions easily.
-                # We leave the precise environment filtering to the SQLite post-filtering step.
-
-                # 3. Query Qdrant (fetch more to account for local filtering)
-                fetch_limit = limit * 10
-                results = await vector_store.search(
-                    collection_name,
-                    query_vector,
-                    limit=fetch_limit,
-                    filters=filters,
-                )
-
-                if results:
-                    skill_ids = [r.document.id for r in results]
-
-                    # 4. Fetch from SQLite and filter by metrics and environment
-                    # We need to preserve the Qdrant order
-                    placeholders = ",".join("?" * len(skill_ids))
-                    sql = f"""
-                        SELECT * FROM skills
-                        WHERE skill_id IN ({placeholders})
-                        AND (CAST(success_count AS REAL) / NULLIF(applied_count, 0) >= ? OR applied_count < 3)
-                    """
-                    params: list[SqlParam] = [*skill_ids, min_effective_rate]
-
-                    if agent_id is not None:
-                        scope_clause = """
-                            (
-                                environment IS NULL
-                                OR json_extract(environment, '$.custom_tags.scope_agent_id') IS NULL
-                                OR json_extract(environment, '$.custom_tags.scope_agent_id') = ?
-                            )
-                        """
-                        params.append(agent_id)
-
-                        if mounted_skill_ids:
-                            mounted_placeholders = ",".join("?" * len(mounted_skill_ids))
-                            sql += f" AND ({scope_clause} OR skill_id IN ({mounted_placeholders}))"
-                            params.extend(mounted_skill_ids)
-                        else:
-                            sql += f" AND {scope_clause}"
-
-                    if env_fingerprint and env_fingerprint.os_platform:
-                        sql += " AND (environment IS NULL OR environment LIKE ?)"
-                        params.append(f'%"{env_fingerprint.os_platform}"%')
-
-                    with self._reader() as conn:
-                        rows = conn.execute(sql, tuple(params)).fetchall()
-
-                    # Convert to records and sort by Qdrant order
-                    records = {row["skill_id"]: self._row_to_record(row) for row in rows}
-                    final_results = []
-                    for sid in skill_ids:
-                        if sid in records:
-                            final_results.append(records[sid])
-                            if len(final_results) >= limit:
-                                break
-
-                    return final_results
-            except Exception as e:
-                logger.warning(f"Vector search failed, falling back to SQLite LIKE: {e}")
-                # Fallthrough to SQLite LIKE search
-
-        # Fallback / Original SQLite LIKE search path
-        return await asyncio.to_thread(
-            self._search_skills_sync, query, env_fingerprint, limit, min_effective_rate, agent_id, mounted_skill_ids
-        )
 
     def get_recent_analyses_grouped(self, days: int = 7) -> dict[str, list[dict[str, str | bool]]]:
         """Group recent execution analyses by skill_id.
