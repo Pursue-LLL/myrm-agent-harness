@@ -6,7 +6,10 @@ Implements intelligent cleanup logic that respects:
 - File modification time (fallback strategy)
 
 [INPUT]
-- (none)
+- runtime.artifacts.checkpoint_protocol::CheckpointerProtocol
+- runtime.paths.execution_paths::CONTEXT_ROOT, CONTEXT_SUBDIRS
+- runtime.context.instance_metrics::record_cleanup_phase_duration, record_protection_rule_hit, record_batch_query
+- runtime.context.session.session_activity::load_session_activity, load_session_activity_async
 
 [OUTPUT]
 - cleanup_context_files_async: Clean up expired context files with session-aware strateg...
@@ -30,6 +33,14 @@ if TYPE_CHECKING:
 from myrm_agent_harness.runtime.artifacts.checkpoint_protocol import CheckpointerProtocol
 from myrm_agent_harness.runtime.paths.execution_paths import CONTEXT_ROOT, CONTEXT_SUBDIRS
 
+from .instance_metrics import (
+    record_batch_query,
+    record_cleanup_active_sessions,
+    record_cleanup_duration,
+    record_cleanup_phase_duration,
+    record_protection_rule_hit,
+    record_tracker_statistics,
+)
 from .session.session_activity import load_session_activity, load_session_activity_async
 
 _CLEANABLE_SUBDIRS = list(CONTEXT_SUBDIRS.values())
@@ -81,21 +92,6 @@ async def cleanup_context_files_async(
     if not Path(CONTEXT_ROOT).exists():
         return 0
 
-    # Import metrics functions once (avoid repeated imports)
-    try:
-        from .context_metrics import (
-            record_batch_query,
-            record_cleanup_active_sessions,
-            record_cleanup_duration,
-            record_cleanup_phase_duration,
-            record_protection_rule_hit,
-            record_tracker_statistics,
-        )
-
-        metrics_available = True
-    except (ImportError, TypeError):
-        metrics_available = False
-
     # Get access tracker if not provided
     if access_tracker is None:
         from .file_access_tracker import get_file_access_tracker
@@ -123,15 +119,13 @@ async def cleanup_context_files_async(
     except Exception as exc:
         logger.warning(f"Failed to load session activity, using fallback strategy: {exc}")
     finally:
-        if metrics_available:
-            record_cleanup_phase_duration("session_loading", asyncio.get_running_loop().time() - phase_start)
+        record_cleanup_phase_duration("session_loading", asyncio.get_running_loop().time() - phase_start)
 
     # Phase 2: Collect all session directories
     phase_start = asyncio.get_running_loop().time()
     session_dirs = [d for d in Path(CONTEXT_ROOT).iterdir() if d.is_dir() and d.name != "system"]
     total_sessions = len(session_dirs)
-    if metrics_available:
-        record_cleanup_phase_duration("file_scanning", asyncio.get_running_loop().time() - phase_start)
+    record_cleanup_phase_duration("file_scanning", asyncio.get_running_loop().time() - phase_start)
 
     # Process sessions in batches
     for batch_start in range(0, total_sessions, batch_size):
@@ -175,12 +169,11 @@ async def cleanup_context_files_async(
                     access_threshold=file_access_threshold,
                 )
 
-                if metrics_available:
-                    record_batch_query(
-                        "access_check",
-                        len(all_batch_file_paths),
-                        asyncio.get_running_loop().time() - query_start,
-                    )
+                record_batch_query(
+                    "access_check",
+                    len(all_batch_file_paths),
+                    asyncio.get_running_loop().time() - query_start,
+                )
             except Exception as exc:
                 logger.warning(f"Batch access check failed: {exc}")
 
@@ -196,24 +189,21 @@ async def cleanup_context_files_async(
 
                     # Rule 1: Session protection
                     if is_active_session:
-                        if metrics_available:
-                            record_protection_rule_hit("session_active")
+                        record_protection_rule_hit("session_active")
                         continue
 
                     # Rule 2: Access protection (tracked)
                     if file_path_str in batch_access_times:
                         last_access = batch_access_times[file_path_str]
                         if last_access and last_access >= file_access_threshold:
-                            if metrics_available:
-                                record_protection_rule_hit("access_tracked")
+                            record_protection_rule_hit("access_tracked")
                             continue
 
                     # Rule 3: Fallback protection (mtime)
                     stat = file_path.stat()
                     file_mtime = datetime.fromtimestamp(stat.st_mtime, tz=UTC)
                     if file_mtime >= fallback_threshold:
-                        if metrics_available:
-                            record_protection_rule_hit("mtime_fallback")
+                        record_protection_rule_hit("mtime_fallback")
                         continue
 
                     # No protection - remove file
@@ -222,8 +212,7 @@ async def cleanup_context_files_async(
                 except (OSError, PermissionError):
                     continue
 
-        if metrics_available:
-            record_cleanup_phase_duration("deletion", asyncio.get_running_loop().time() - deletion_start)
+        record_cleanup_phase_duration("deletion", asyncio.get_running_loop().time() - deletion_start)
 
         # Yield control after each batch
         if batch_end < total_sessions:
@@ -239,21 +228,19 @@ async def cleanup_context_files_async(
         except Exception as exc:
             logger.warning(f"Failed to cleanup orphan access records: {exc}")
         finally:
-            if metrics_available:
-                record_cleanup_phase_duration("orphan_cleanup", asyncio.get_running_loop().time() - phase_start)
+            record_cleanup_phase_duration("orphan_cleanup", asyncio.get_running_loop().time() - phase_start)
 
     # Record overall metrics
     total_duration = asyncio.get_running_loop().time() - start_time
-    if metrics_available:
-        try:
-            record_cleanup_duration("context_cleanup", total_duration)
-            record_cleanup_active_sessions(len(active_session_ids))
+    try:
+        record_cleanup_duration("context_cleanup", total_duration)
+        record_cleanup_active_sessions(len(active_session_ids))
 
-            if access_tracker:
-                stats = await access_tracker.get_statistics()
-                record_tracker_statistics(access_tracker_records=stats.get("total_files", 0))
-        except Exception as exc:
-            logger.debug(f"Failed to record cleanup metrics: {exc}")
+        if access_tracker:
+            stats = await access_tracker.get_statistics()
+            record_tracker_statistics(access_tracker_records=stats.get("total_files", 0))
+    except Exception as exc:
+        logger.debug(f"Failed to record cleanup metrics: {exc}")
 
     # Cleanup empty directories
     try:

@@ -1,9 +1,12 @@
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langchain_core.tools import BaseTool
 
 from myrm_agent_harness.agent.skills.evolution.execution.tool_wrapper import ToolWrapper
+from myrm_agent_harness.toolkits.code_execution.config import ExecutionConfig
+from myrm_agent_harness.toolkits.code_execution.executors.local.executor import LocalExecutor
 
 
 class MockTool(BaseTool):
@@ -124,3 +127,19 @@ async def test_find_similar_paths(mock_executor):
     wrapper._path_exists = AsyncMock(return_value=False)
     similar2 = await wrapper._find_similar_paths("test.py")
     assert similar2 == []
+
+
+@pytest.mark.asyncio
+async def test_path_suggestions_read_the_real_executor_filesystem(tmp_path: Path) -> None:
+    workspace = tmp_path / "ws"
+    (workspace / "src").mkdir(parents=True)
+    (workspace / "src" / "README.md").write_text("x")
+    (workspace / "src" / "other.txt").write_text("y")
+    wrapper = ToolWrapper(MockTool(), LocalExecutor(ExecutionConfig(), workspace_path=str(workspace)))
+
+    assert await wrapper._path_exists("src") is True
+    assert await wrapper._path_exists("missing") is False
+    assert sorted(await wrapper._list_dir("src")) == ["README.md", "other.txt"]
+    assert len(await wrapper._list_dir("src", limit=1)) == 1
+    assert await wrapper._list_dir("missing") == []
+    assert await wrapper._find_similar_paths("src/readme") == ["src/README.md"]

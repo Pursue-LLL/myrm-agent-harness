@@ -2,7 +2,7 @@
 
 [INPUT]
 - .protocols.SkillExecutionProvider (POS: execution event provider)
-- .quality_calculator.QualityCalculator (POS: quality score calculator)
+- .quality_calculator.SkillQualityCalculator (POS: quality score calculator)
 - .types.* (POS: core optimization types)
 - .event_emitter.EventEmitter (POS: event emitter)
 - agent.hooks.HookRegistry (POS: hook registry)
@@ -43,7 +43,7 @@ if TYPE_CHECKING:
     from .event_emitter import EventEmitter
     from .optimizer import SkillOptimizer
     from .protocols import SkillExecutionProvider
-    from .quality_calculator import QualityCalculator
+    from .quality_calculator import SkillQualityCalculator
     from .types import SkillQualityScore
 
 logger = logging.getLogger(__name__)
@@ -64,7 +64,7 @@ class OptimizationScheduler(
         self,
         optimizer: SkillOptimizer,
         execution_provider: SkillExecutionProvider,
-        quality_calculator: QualityCalculator,
+        quality_calculator: SkillQualityCalculator,
         config: OptimizationConfig,
         event_emitter: EventEmitter | None = None,
         hook_registry: HookRegistryProtocol | None = None,

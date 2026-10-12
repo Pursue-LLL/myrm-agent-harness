@@ -5,8 +5,6 @@ Enables agent tools to work in Evolution Agent's background_queue mode.
 
 [INPUT]
 - toolkits.code_execution::CodeExecutor (POS: Code execution toolkit entry point. Aggregates execution configuration, executor implementations, workspace management, and factory functions for the Agent-in-Sandbox architecture.)
-- agent.storage::StorageProvider (POS: Planner Storage Adapter)
-
 [OUTPUT]
 - ToolWrapper: Wrapper for agent tools with executor passing and smart e...
 
@@ -216,10 +214,7 @@ class ToolWrapper:
             True if path exists
         """
         try:
-            from myrm_agent_harness.agent.storage import StorageProvider
-
-            storage: StorageProvider = self.executor.storage
-            return await storage.path_exists(path)
+            return await self.executor.file_exists(path)
         except Exception:
             return False
 
@@ -234,10 +229,7 @@ class ToolWrapper:
             List of filenames
         """
         try:
-            from myrm_agent_harness.agent.storage import StorageProvider
-
-            storage: StorageProvider = self.executor.storage
-            files = await storage.list_files(path, recursive=False)
+            files = await self.executor.list_files(path)
             return [Path(f).name for f in files[:limit]]
         except Exception:
             return []

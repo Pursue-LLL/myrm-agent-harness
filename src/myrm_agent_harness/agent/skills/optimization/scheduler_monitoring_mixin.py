@@ -2,7 +2,7 @@
 
 [INPUT]
 - .protocols.SkillExecutionProvider (POS: execution event provider)
-- .quality_calculator.QualityCalculator (POS: quality score calculator)
+- .quality_calculator.SkillQualityCalculator (POS: quality score calculator)
 - .types.SkillQualityScore (POS: optimization quality types)
 
 [OUTPUT]

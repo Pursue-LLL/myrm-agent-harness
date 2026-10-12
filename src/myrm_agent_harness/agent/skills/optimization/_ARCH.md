@@ -35,7 +35,6 @@ Skill Optimization Toolkit
 | protocols.py | Core | Protocols for Skill Optimization Subsystem | ✅ |
 | quality_calculator.py | Core | Quality score calculator. Computes 5-dimension quality scores from raw execution samples. | ✅ |
 | rate_limiter.py | Core | Per-User Rate Limiter for Skill Optimization | ✅ |
-| recommender.py | Core | Skill optimization recommendation engine (framework layer). Intelligently identifies skills worth op | ✅ |
 | result_comparator.py | Core | Shadow test result comparator. Provides accurate result comparison for the observation feedback loop | — |
 | scheduler.py | Core | Optimization scheduler aggregate root; mixin MRO: Monitoring→Batch→Queue→Resilience | ✅ |
 | scheduler_monitoring_mixin.py | Core | Monitoring loop, skill evaluation, trigger_optimization | ✅ |

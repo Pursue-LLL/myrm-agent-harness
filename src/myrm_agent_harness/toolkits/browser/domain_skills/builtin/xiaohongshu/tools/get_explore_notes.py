@@ -9,12 +9,13 @@ Domain skill tool for Xiaohongshu (RED) harvesting.
 
 from __future__ import annotations
 
+import contextlib
 import json
 from typing import TYPE_CHECKING
 from urllib.parse import urljoin
 
 if TYPE_CHECKING:
-    from ...session.browser_session import BrowserSession
+    from myrm_agent_harness.toolkits.browser.session.browser_session import BrowserSession
 
 
 async def get_explore_notes(session: BrowserSession, args: dict[str, str | int]) -> str:
@@ -27,15 +28,11 @@ async def get_explore_notes(session: BrowserSession, args: dict[str, str | int])
     current_url = getattr(session, "url", "https://www.xiaohongshu.com") or "https://www.xiaohongshu.com"
 
     # Step 1: Penetrate unauthenticated mask if present (press Escape then micro-scroll)
-    try:
+    with contextlib.suppress(Exception):
         await session.interact(action="press", text="Escape")
-    except Exception:
-        pass
 
-    try:
+    with contextlib.suppress(Exception):
         await session.interact(action="scroll", text="300")
-    except Exception:
-        pass
 
     refs = session.get_all_refs()
     if not refs:

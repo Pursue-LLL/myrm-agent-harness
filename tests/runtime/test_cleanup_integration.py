@@ -11,6 +11,7 @@ import pytest
 
 from myrm_agent_harness.runtime.context.cleanup import cleanup_context_files_async
 from myrm_agent_harness.runtime.context.file_access_tracker import FileAccessTracker, reset_tracker
+from myrm_agent_harness.runtime.context.instance_metrics import ContextMetrics, set_context_metrics
 
 
 @pytest.fixture
@@ -417,3 +418,37 @@ async def test_cleanup_async_skips_non_file_entries(
         checkpointer=None,
     )
     assert removed == 0
+
+
+@pytest.mark.asyncio
+async def test_cleanup_reports_into_bound_context_metrics(
+    context_root: Path,
+    access_tracker: FileAccessTracker,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Phase timings, protection-rule hits and batch queries land in the ContextMetrics bound to the task."""
+    monkeypatch.setattr("myrm_agent_harness.runtime.context.cleanup.CONTEXT_ROOT", str(context_root))
+    session_dir = context_root / "chat_abc" / "compacted"
+    session_dir.mkdir(parents=True)
+    tracked = session_dir / "tracked.txt"
+    tracked.write_text("a")
+    (session_dir / "stale.txt").write_text("b")
+    await access_tracker.record_access(str(tracked), "chat_abc")
+
+    metrics = ContextMetrics()
+    set_context_metrics(metrics)
+    try:
+        removed = await cleanup_context_files_async(
+            max_age_days=0,
+            session_active_days=0,
+            file_access_days=1,
+            access_tracker=access_tracker,
+        )
+    finally:
+        set_context_metrics(None)
+
+    assert removed == 1
+    assert metrics.protection_rule_hits["access_tracked"] == 1
+    assert {"session_loading", "file_scanning", "deletion"} <= set(metrics.cleanup_phase_durations_ms)
+    assert metrics.batch_query_count["access_check"] == 1
+    assert metrics.cleanup_active_sessions == [0]

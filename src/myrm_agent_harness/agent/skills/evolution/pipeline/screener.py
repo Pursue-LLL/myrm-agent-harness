@@ -63,8 +63,7 @@ if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
 
     from myrm_agent_harness.agent.event_log import EventLogger
-
-    from .store import SkillStore
+    from myrm_agent_harness.agent.skills.evolution.db.store import SkillStore
 
 from myrm_agent_harness.observability.metrics import (
     get_or_create_counter,

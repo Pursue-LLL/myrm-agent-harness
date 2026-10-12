@@ -77,10 +77,9 @@ if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
 
     from myrm_agent_harness.agent.context_management.pipeline import ContextPipeline
+    from myrm_agent_harness.agent.skills.evolution.safety.anti_loop_state import AntiLoopState
     from myrm_agent_harness.toolkits.code_execution import CodeExecutor
     from myrm_agent_harness.toolkits.web_search import SearchServiceConfig
-
-    from .anti_loop_state import AntiLoopState
 
 logger = logging.getLogger(__name__)
 

@@ -191,11 +191,10 @@ class TestSubagentCheckpointStorage:
         cp = _make_checkpoint()
         await storage.save(cp)
 
-        if storage.metrics:
-            assert storage.metrics.save_count == 1
-            assert storage.metrics.save_success_count == 1
-            assert storage.metrics.save_total_ms > 0
-            assert storage.metrics.messages_extracted_count == 1
+        assert storage.metrics.save_count == 1
+        assert storage.metrics.save_success_count == 1
+        assert storage.metrics.save_total_ms > 0
+        assert storage.metrics.messages_extracted_count == 1
 
     @pytest.mark.asyncio
     async def test_metrics_tracking_on_load(self, tmp_path) -> None:
@@ -204,10 +203,9 @@ class TestSubagentCheckpointStorage:
         await storage.save(cp)
         await storage.load("task-1")
 
-        if storage.metrics:
-            assert storage.metrics.resume_count == 1
-            assert storage.metrics.resume_success_count == 1
-            assert storage.metrics.resume_total_ms > 0
+        assert storage.metrics.resume_count == 1
+        assert storage.metrics.resume_success_count == 1
+        assert storage.metrics.resume_total_ms > 0
 
     @pytest.mark.asyncio
     async def test_save_failure_tracks_metric(self, tmp_path) -> None:
@@ -221,8 +219,7 @@ class TestSubagentCheckpointStorage:
         with pytest.raises(IsADirectoryError):
             await storage.save(cp)
 
-        if storage.metrics:
-            assert storage.metrics.save_failure_count == 1
+        assert storage.metrics.save_failure_count == 1
 
     @pytest.mark.asyncio
     async def test_load_corrupt_file_raises(self, tmp_path) -> None:
@@ -242,10 +239,9 @@ class TestSubagentCheckpointStorage:
         with pytest.raises(CheckpointCorruptedError):
             await storage.load("corrupt")
 
-        if storage.metrics:
-            assert storage.metrics.resume_count == 1
-            assert storage.metrics.resume_failure_count == 1
-            assert storage.metrics.resume_success_count == 0
+        assert storage.metrics.resume_count == 1
+        assert storage.metrics.resume_failure_count == 1
+        assert storage.metrics.resume_success_count == 0
 
     @pytest.mark.asyncio
     async def test_cleanup_deletes_corrupt_files(self, tmp_path) -> None:

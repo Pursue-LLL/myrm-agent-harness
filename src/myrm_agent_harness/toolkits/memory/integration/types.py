@@ -116,7 +116,8 @@ class IntegrationSyncResult(BaseModel):
     failed: int = 0
     errors: list[str] = Field(default_factory=list)
     new_items: list[dict[str, str]] = Field(
-        default_factory=list, description="Structured dicts of newly created items for auto-seeding"
+        default_factory=list,
+        description="Structured dicts of the items this sync created, for consumers that mirror them",
     )
     elapsed_seconds: float = 0.0
     finished_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

@@ -9,6 +9,7 @@
 - time (POS: Python标准库，时间戳)
 - typing::Dict, List (POS: Python类型提示)
 - infra.atomic_write::atomic_write (POS: 崩溃一致性文件写入工具，temp file + fsync + atomic rename)
+- agent.sub_agents.checkpoint.metrics::CheckpointMetrics (POS: 检查点保存/恢复指标数据结构)
 - utils.logger_utils::get_agent_logger (POS: Agent 日志工具)
 
 [OUTPUT]
@@ -29,6 +30,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from myrm_agent_harness.agent.sub_agents.checkpoint.metrics import CheckpointMetrics
 from myrm_agent_harness.infra.atomic_write import atomic_write
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
@@ -59,13 +61,6 @@ def _validate_checkpoint_task_id(task_id: object) -> str:
     if not normalized or "/" in normalized or "\\" in normalized or normalized in {".", ".."}:
         raise ValueError(f"invalid checkpoint task_id: {task_id!r}")
     return normalized
-
-
-try:
-    from .checkpoint.metrics import CheckpointMetrics
-except (ImportError, TypeError):
-    # Fallback if circular import (shouldn't happen)
-    CheckpointMetrics = None  # type: ignore
 
 
 @dataclass
@@ -162,11 +157,9 @@ class SubagentCheckpointStorage:
         self._storage_path.mkdir(parents=True, exist_ok=True)
         logger.debug("Checkpoint storage initialized: %s", self._storage_path)
 
-        # Metrics tracking (framework provides, business layer consumes)
-        if CheckpointMetrics is not None:
-            self.metrics = CheckpointMetrics()
-        else:
-            self.metrics = None  # type: ignore
+        # Persistence-level counters (framework provides, business layer consumes);
+        # CheckpointManager keeps its own lifecycle-level metrics.
+        self.metrics = CheckpointMetrics()
 
     async def save(self, checkpoint: SubagentCheckpoint) -> None:
         """Save checkpoint to disk (async wrapper around sync save).
@@ -206,19 +199,14 @@ class SubagentCheckpointStorage:
                 file_path.stat().st_size,
             )
 
-            # Track metrics
-            if self.metrics:
-                elapsed_ms = (time.perf_counter() - start_time) * 1000
-                self.metrics.save_count += 1
-                self.metrics.save_success_count += 1
-                self.metrics.save_total_ms += elapsed_ms
-                if checkpoint.messages:
-                    self.metrics.messages_extracted_count += 1
+            self.metrics.save_count += 1
+            self.metrics.save_success_count += 1
+            self.metrics.save_total_ms += (time.perf_counter() - start_time) * 1000
+            if checkpoint.messages:
+                self.metrics.messages_extracted_count += 1
         except Exception as e:
-            # Track failure
-            if self.metrics:
-                self.metrics.save_count += 1
-                self.metrics.save_failure_count += 1
+            self.metrics.save_count += 1
+            self.metrics.save_failure_count += 1
             logger.error("Failed to save checkpoint %s: %s", checkpoint.task_id, e)
             raise
 
@@ -252,26 +240,18 @@ class SubagentCheckpointStorage:
                 checkpoint.progress * 100,
             )
 
-            # Track metrics
-            if self.metrics:
-                elapsed_ms = (time.perf_counter() - start_time) * 1000
-                self.metrics.resume_count += 1
-                self.metrics.resume_success_count += 1
-                self.metrics.resume_total_ms += elapsed_ms
-
+            self.metrics.resume_count += 1
+            self.metrics.resume_success_count += 1
+            self.metrics.resume_total_ms += (time.perf_counter() - start_time) * 1000
             return checkpoint
         except (json.JSONDecodeError, TypeError, ValueError) as e:
-            # Track failure
-            if self.metrics:
-                self.metrics.resume_count += 1
-                self.metrics.resume_failure_count += 1
+            self.metrics.resume_count += 1
+            self.metrics.resume_failure_count += 1
             logger.error("Checkpoint corrupted %s: %s", task_id, e)
             raise CheckpointCorruptedError(f"checkpoint {task_id} is corrupted and cannot be resumed") from e
         except Exception as e:
-            # Track failure
-            if self.metrics:
-                self.metrics.resume_count += 1
-                self.metrics.resume_failure_count += 1
+            self.metrics.resume_count += 1
+            self.metrics.resume_failure_count += 1
             logger.error("Failed to load checkpoint %s: %s", task_id, e)
             raise
 

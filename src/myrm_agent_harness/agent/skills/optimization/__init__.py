@@ -20,7 +20,6 @@ Provides core optimization engine with Protocol-based design:
 - **EventEmitter**: Event system (observer pattern)  解耦通知机制
 - **HealthCheckProtocol**: Unified health check interface  统一健康检查
 - **InsightsAnalyzer**: Tool usage analytics + activity patterns  深度统计分析
-- **RecommendationEngine**: Multi-dimensional skill recommendation  智能推荐引擎
 - **SkillQualityDataSource Protocol**: Abstract data source interface  依赖倒置
 - **UniversalAggregator**: Universal aggregator (depends on DataSource)  框架独立
 - **InMemoryAggregator**: Default aggregator implementation  开箱即用
@@ -167,11 +166,6 @@ from .protocols import (
     StorageTimeoutError,
 )
 from .rate_limiter import RateLimitExceeded, UserRateLimiter, get_rate_limiter
-from .recommender import (
-    OptimizationRecommendation,
-    RecommendationEngine,
-    RecommendationReason,
-)
 from .result_comparator import ComparisonDetail, ResultComparator, StructuredComparator
 from .scheduler import OptimizationScheduler
 from .security import SkillSecurityValidator
@@ -243,7 +237,6 @@ __all__ = [
     # Config
     "OptimizationConfig",
     "OptimizationError",
-    "OptimizationRecommendation",
     "OptimizationResult",
     "OptimizationScheduler",
     "OptimizationStatus",
@@ -251,9 +244,6 @@ __all__ = [
     "PredictionResult",
     "PredictiveAnalyzer",
     "RateLimitExceeded",
-    # Recommendation (Phase 2.4)
-    "RecommendationEngine",
-    "RecommendationReason",
     # Result Comparator (Shadow Testing)
     "ResultComparator",
     "RootCause",

@@ -41,7 +41,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.agent.skills.evolution.types import SkillMetrics
+    from myrm_agent_harness.agent.skills.evolution.core.types import SkillMetrics
 
 
 class SkillType(StrEnum):
