@@ -3,7 +3,7 @@
 
 [INPUT]
 - retriever.autocut::AutocutConfig (POS: score-discontinuity autocut configuration)
-- retriever_tools::RetrieverManager, RetrieverConfig (POS: retrieval tools providing BM25 / Reranker with index cache)
+- retriever.engine::RetrieverManager, RetrieverConfig (POS: retrieval tools providing BM25 / Reranker with index cache)
 - web_search.core.common::SearchResult (POS: search result type)
 - web_search.processing._explicit_params::normalize_explicit_params, apply_tavily_site_constraint (POS: Agent explicit param normalizer)
 - web_search.processing.search_results_processor::combine_search_results_unified, apply_domain_diversity_sort (POS: search result merger and domain diversity sorting)

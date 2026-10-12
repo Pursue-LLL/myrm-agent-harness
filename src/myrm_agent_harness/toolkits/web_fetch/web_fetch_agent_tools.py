@@ -6,6 +6,7 @@ Contains:
 [INPUT]
 - toolkits.retriever.embedding.factory::EmbeddingConfig
 - toolkits.retriever.reranker.factory::RerankerConfig
+- toolkits.retriever.engine::RetrieverManager (POS: Hybrid retrieval manager with BM25 index cache) [lazy]
 - toolkits.retriever.sufficiency (POS: Retrieval Sufficiency Guard)
 - toolkits.web_fetch.processing.spill::maybe_spill_web_fetch_content
 - toolkits.web_fetch._web_fetch_tool_description::resolve_web_fetch_tool_description
@@ -21,6 +22,7 @@ Web fetch meta-tool for known-URL full read and RAG extract modes.
 
 from __future__ import annotations
 
+import functools
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
@@ -30,6 +32,7 @@ from pydantic import BaseModel, Field
 if TYPE_CHECKING:
     from myrm_agent_harness.core.config.llm import LLMConfig
     from myrm_agent_harness.toolkits.retriever.embedding.factory import EmbeddingConfig
+    from myrm_agent_harness.toolkits.retriever.engine import RetrieverManager
     from myrm_agent_harness.toolkits.retriever.reranker.factory import RerankerConfig
     from myrm_agent_harness.toolkits.retriever.sufficiency import SufficiencyConfig
 
@@ -302,6 +305,14 @@ async def _fetch_full_content(
     }
 
 
+@functools.cache
+def _shared_retriever_manager() -> RetrieverManager:
+    """One manager per process: its BM25 index cache only pays off when calls share it."""
+    from myrm_agent_harness.toolkits.retriever.engine import RetrieverManager
+
+    return RetrieverManager()
+
+
 async def _fetch_and_extract(
     urls: list[str],
     questions: list[str],
@@ -314,7 +325,6 @@ async def _fetch_and_extract(
     from myrm_agent_harness.toolkits.retriever.embedding.factory import (
         get_embedding_service,
     )
-    from myrm_agent_harness.toolkits.retriever.engine import retriever_tools
     from myrm_agent_harness.toolkits.retriever.reranker.factory import (
         get_reranker_service,
     )
@@ -322,7 +332,7 @@ async def _fetch_and_extract(
 
     reranker = get_reranker_service(reranker_config)
     embeddings = get_embedding_service(embedding_config)
-    url_metadata_list, formatted_context, error = await retriever_tools.retrieve_from_urls(
+    url_metadata_list, formatted_context, error = await _shared_retriever_manager().retrieve_from_urls(
         urls=urls,
         questions=questions,
         reranker=reranker,

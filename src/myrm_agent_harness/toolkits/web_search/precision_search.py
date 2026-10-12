@@ -32,8 +32,8 @@ from myrm_agent_harness.toolkits.web_search.core.metrics import web_search_metri
 from myrm_agent_harness.utils.text_utils import get_token_count
 
 if TYPE_CHECKING:
+    from myrm_agent_harness.toolkits.retriever.engine import RetrieverManager
     from myrm_agent_harness.toolkits.retriever.reranker import RerankerService
-    from myrm_agent_harness.toolkits.retriever_tools import RetrieverManager
     from myrm_agent_harness.toolkits.web_search.engine import WebSearchTools
 
 logger = logging.getLogger(__name__)
