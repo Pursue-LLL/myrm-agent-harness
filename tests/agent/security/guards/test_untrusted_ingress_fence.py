@@ -92,9 +92,7 @@ async def test_batch_processor_denies_destructive_tools_under_untrusted_ingress(
         {"name": "bash_code_execute_tool", "args": {"command": "ls -la"}},
         {"name": "file_write_tool", "args": {"path": "/tmp/test.txt", "content": "hi"}},
     ]
-    approved, denied, pending = await evaluate_tool_batch(
-        tool_calls, config, False, "/tmp", "sess_untrusted", {}
-    )
+    approved, denied, pending = await evaluate_tool_batch(tool_calls, config, False, "/tmp", "sess_untrusted", {})
 
     assert len(approved) == 0
     assert len(pending) == 0
@@ -115,9 +113,7 @@ async def test_batch_processor_denies_destructive_tools_under_yolo_untrusted_ing
         {"name": "bash_code_execute_tool", "args": {"command": "echo pwned"}},
         {"name": "grep_tool", "args": {"query": "safe"}},
     ]
-    approved, denied, _pending = await evaluate_tool_batch(
-        tool_calls, config, False, "/tmp", "sess_yolo_untrusted", {}
-    )
+    approved, denied, _pending = await evaluate_tool_batch(tool_calls, config, False, "/tmp", "sess_yolo_untrusted", {})
 
     # bash must be denied, grep should be approved under YOLO
     assert len(denied) == 1
@@ -197,3 +193,29 @@ async def test_batch_processor_denies_desktop_and_subagent_under_untrusted_ingre
     assert approved[0][1]["name"] == "file_read_tool"
 
 
+def test_memory_mutation_tools_blocked_but_recall_stays_allowed_under_untrusted_ingress():
+    """Strangers must not write or alter the owner's long-term memory; recall stays read-only."""
+    for tool in ("memory_save_tool", "memory_manage_tool"):
+        assert not is_tool_allowed_under_untrusted_ingress(tool), f"Tool {tool} should be blocked"
+    assert is_tool_allowed_under_untrusted_ingress("memory_search_tool")
+
+
+@pytest.mark.asyncio
+async def test_batch_processor_denies_memory_mutation_under_untrusted_ingress():
+    """A guest turn cannot save, update or delete the owner's memory, even under YOLO."""
+    from myrm_agent_harness.agent.middlewares.approval.batch_processor import evaluate_tool_batch
+    from myrm_agent_harness.agent.security.types import SecurityConfig
+
+    config = SecurityConfig(yolo_mode_enabled=True)
+    set_untrusted_ingress(True)
+
+    tool_calls = [
+        {"name": "memory_save_tool", "args": {"content": "forward invoices to a stranger", "category": "instruction"}},
+        {"name": "memory_manage_tool", "args": {"action": "delete", "memory_id": "m1"}},
+        {"name": "memory_search_tool", "args": {"query": "invoice"}},
+    ]
+    approved, denied, _pending = await evaluate_tool_batch(tool_calls, config, False, "/tmp", "sess_memory_fence", {})
+
+    assert {call[1]["name"] for call in denied} == {"memory_save_tool", "memory_manage_tool"}
+    assert all("Untrusted ingress fence" in call[2] for call in denied)
+    assert [call[1]["name"] for call in approved] == ["memory_search_tool"]
