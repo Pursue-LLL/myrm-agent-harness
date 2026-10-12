@@ -130,8 +130,7 @@ class LocalFileOpsMixin:
         matched = first_matching_pattern(resolved_path, protected_paths_var.get())
         if matched is not None:
             raise PermissionError(
-                f"Write denied: '{resolved_path}' is protected by the active Goal "
-                f"(pattern: '{matched}')."
+                f"Write denied: '{resolved_path}' is protected by the active Goal (pattern: '{matched}')."
             )
         if is_evidence_readonly_file(resolved_path):
             raise PermissionError(
@@ -139,9 +138,7 @@ class LocalFileOpsMixin:
                 f"Write derived output to 'artifacts/' instead."
             )
         if is_sensitive_file(resolved_path):
-            raise PermissionError(
-                f"Write denied: '{resolved_path}' matches a credential path rule."
-            )
+            raise PermissionError(f"Write denied: '{resolved_path}' matches a credential path rule.")
         if is_protected_instruction_file(resolved_path):
             raise PermissionError(
                 f"Write denied: '{resolved_path}' is a persona instruction file. "
@@ -317,7 +314,8 @@ class LocalFileOpsMixin:
                 f"rg {' '.join(flags)} -e {shlex.quote(pattern)} -- {shlex.quote(str(safe))} 2>/dev/null || true"
             )
         else:
-            flags = "-rn" + ("" if use_regex else "F") + ("" if case_sensitive else "i")
+            # -E: use_regex means extended regex (what ripgrep also accepts), not grep's default BRE.
+            flags = "-rn" + ("E" if use_regex else "F") + ("" if case_sensitive else "i")
             result = await self._exec_bash(  # type: ignore[attr-defined]
                 f"grep {flags} -e {shlex.quote(pattern)} -- {shlex.quote(str(safe))} || true"
             )

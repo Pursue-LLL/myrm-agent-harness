@@ -7,6 +7,7 @@
 4. 性能监控日志
 """
 
+import shutil
 import tempfile
 from pathlib import Path
 
@@ -354,6 +355,8 @@ class TestGrepEdgeCases:
     @pytest.mark.parametrize("has_ripgrep", [True, False])
     async def test_quote_and_dash_patterns_are_literal(self, test_workspace, has_ripgrep):
         """A quote or leading dash in the pattern is data, never shell syntax or an option."""
+        if has_ripgrep and shutil.which("rg") is None:
+            pytest.skip("ripgrep is not installed")
         workspace = Path(test_workspace)
         (workspace / "quoted.txt").write_text("it's -dash here\n")
         marker = workspace / "injected"
