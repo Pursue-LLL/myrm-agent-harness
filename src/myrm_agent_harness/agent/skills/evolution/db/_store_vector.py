@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import sqlite3
+from contextlib import AbstractContextManager
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.vector.base import VectorDocument
@@ -58,14 +60,18 @@ class SkillVectorSyncMixin:
     - _vector_store: VectorStore | None
     - _embedding: EmbeddingProtocol | None
     - VECTOR_COLLECTION_NAME: str
-    - _ensure_open(): None
-    - _reader(): context manager yielding sqlite3.Connection
-    - _row_to_record(sqlite3.Row) -> SkillRecord
+    - _ensure_open(), _reader(), _row_to_record() (declared below)
     """
 
     _vector_store: VectorStore | None
     _embedding: EmbeddingProtocol | None
     VECTOR_COLLECTION_NAME: str
+
+    if TYPE_CHECKING:
+        # Provided by SkillStore, the host class of this mixin.
+        def _ensure_open(self) -> None: ...
+        def _reader(self) -> AbstractContextManager[sqlite3.Connection]: ...
+        def _row_to_record(self, sqlite_row: sqlite3.Row) -> SkillRecord: ...
 
     async def _sync_skill_to_vector(self, record: SkillRecord) -> None:
         """Upsert a single active skill to the vector store."""
@@ -103,15 +109,12 @@ class SkillVectorSyncMixin:
         if not self._vector_store or not self._embedding:
             return
 
-        self._ensure_open()  # type: ignore[attr-defined]
+        self._ensure_open()
 
         try:
-            with self._reader() as conn:  # type: ignore[attr-defined]
+            with self._reader() as conn:
                 rows = conn.execute("SELECT * FROM skills WHERE is_active = 1").fetchall()
-                active_records = [
-                    self._row_to_record(row)  # type: ignore[attr-defined]
-                    for row in rows
-                ]
+                active_records = [self._row_to_record(row) for row in rows]
 
             if not active_records:
                 return

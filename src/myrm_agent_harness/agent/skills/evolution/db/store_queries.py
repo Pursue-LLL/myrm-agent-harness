@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 import sqlite3
 from contextlib import AbstractContextManager
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from myrm_agent_harness.agent.skills.evolution.core.types import (
     EnvironmentFingerprint,
@@ -25,6 +25,8 @@ from myrm_agent_harness.agent.skills.evolution.core.types import (
 logger = logging.getLogger(__name__)
 
 __all__ = ["SkillStoreQueries"]
+
+SqlParam = str | float
 
 
 class SkillStoreQueries:
@@ -55,7 +57,7 @@ class SkillStoreQueries:
         self._ensure_open()
         with self._reader() as conn:
             sql = "SELECT * FROM skills WHERE is_active = 1"
-            params: list[Any] = []
+            params: list[SqlParam] = []
 
             if agent_id is not None:
                 # Build scope isolation logic
@@ -196,7 +198,7 @@ class SkillStoreQueries:
                 AND (name LIKE ? OR description LIKE ?)
                 AND (CAST(success_count AS REAL) / NULLIF(applied_count, 0) >= ? OR applied_count < 3)
             """
-            params: list[Any] = [
+            params: list[SqlParam] = [
                 search_pattern,
                 search_pattern,
                 min_effective_rate,
@@ -285,7 +287,7 @@ class SkillStoreQueries:
                         WHERE skill_id IN ({placeholders})
                         AND (CAST(success_count AS REAL) / NULLIF(applied_count, 0) >= ? OR applied_count < 3)
                     """
-                    params: list[Any] = [*skill_ids, min_effective_rate]
+                    params: list[SqlParam] = [*skill_ids, min_effective_rate]
 
                     if agent_id is not None:
                         scope_clause = """
