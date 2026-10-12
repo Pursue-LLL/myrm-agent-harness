@@ -397,16 +397,6 @@ from myrm_agent_harness.toolkits.memory.experience_compounding import (
     ObsoleteContextAnnealingGovernor,
     compute_compounded_weight,
 )
-from myrm_agent_harness.toolkits.memory.experience_injection import (
-    ExperienceCallSite,
-    ExperienceInjectionConfig,
-    ExperienceInjectionEngine,
-    ExperienceInjectionResult,
-    InjectionStatus,
-    PreWriteInterceptor,
-    SkillLoadExperienceHook,
-    SubagentSpawnExperienceEnricher,
-)
 from myrm_agent_harness.toolkits.memory.experience_observability import (
     ExperienceEffectStatus,
     ExperienceObservabilityMetric,
@@ -1798,14 +1788,6 @@ __all__ = [
     "ProcedureMemoryEntry",
     "ProcedureProtocolEngine",
     "RetrievalNodeKind",
-    "ExperienceCallSite",
-    "ExperienceInjectionConfig",
-    "ExperienceInjectionEngine",
-    "ExperienceInjectionResult",
-    "InjectionStatus",
-    "PreWriteInterceptor",
-    "SkillLoadExperienceHook",
-    "SubagentSpawnExperienceEnricher",
     "BusinessExperienceTemplate",
     "BusinessExperienceTemplateRegistry",
     "BusinessTemplateEngine",

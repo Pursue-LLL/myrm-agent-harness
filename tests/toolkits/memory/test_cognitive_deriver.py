@@ -106,7 +106,6 @@ async def test_cognitive_deriver_success() -> None:
 
     assert result["success"] is True
     assert result["extracted_count"] == 1
-    assert result["has_disruptive_change"] is True
 
     assert len(manager.stored_memories) == 1
     mem = manager.stored_memories[0]
@@ -141,7 +140,6 @@ async def test_cognitive_deriver_degradation() -> None:
 
     assert result["success"] is True
     assert result["extracted_count"] == 1
-    assert result["has_disruptive_change"] is False
 
     assert len(manager.stored_memories) == 1
     mem = manager.stored_memories[0]
@@ -168,7 +166,6 @@ async def test_cognitive_deriver_low_confidence() -> None:
 
     assert result["success"] is True
     assert result["extracted_count"] == 0
-    assert result["has_disruptive_change"] is False
     assert len(manager.stored_memories) == 0
 
 

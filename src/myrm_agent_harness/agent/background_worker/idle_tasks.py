@@ -9,7 +9,10 @@
 - runtime.events.bus::get_event_bus (POS: Event Bus Implementation)
 
 [OUTPUT]
+- IdleTaskHandler: idle task 处理器协议（task, session_id → 结果字典）
+- ContextCompactionHandler: 上下文压缩处理器协议（chat_id, session_id → 结果字典）
 - register_idle_task_handler: 注册自定义 idle task 处理器（按 task_type 键控的 DI 入口）
+- register_context_compaction_handler: 注册业务层的上下文压缩实现（单槽 DI 入口）
 - default_idle_callback: 会话空闲时执行的默认回调，分派并驱动全部内置 idle 任务类型
 
 [POS]
@@ -20,14 +23,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 from myrm_agent_harness.agent.background_worker.registry import IdleTaskRegistry
 from myrm_agent_harness.agent.background_worker.shadow_context import (
     restricted_shadow_context,
 )
 from myrm_agent_harness.agent.skill_agent.context import get_memory_manager
-from myrm_agent_harness.agent.streaming.types import AgentEventType
 from myrm_agent_harness.runtime.cognitive_clock.signals import (
     get_global_pause_signal,
 )
@@ -48,17 +50,33 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Production-grade Dependency Injection for Idle Tasks
-# Keyed by task.task_type (e.g., "cognitive_consolidation", "wiki_maintenance")
-_idle_task_handlers = {}
+
+class IdleTaskHandler(Protocol):
+    """Handler for one idle task type; returns the result payload published with the completion event."""
+
+    async def __call__(self, task: IdleTaskRecord, session_id: str) -> dict[str, object]: ...
 
 
-def register_idle_task_handler(task_type: str, handler) -> None:
-    """Register a custom handler for a specific idle task type.
+class ContextCompactionHandler(Protocol):
+    """Business-layer implementation of idle context compaction for one chat."""
 
-    Handler signature: async def handler(task, session_id: str) -> dict
-    """
+    async def __call__(self, chat_id: str, session_id: str) -> dict[str, object]: ...
+
+
+# Keyed by task.task_type (e.g., "skill_sync")
+_idle_task_handlers: dict[str, IdleTaskHandler] = {}
+_context_compaction_handler: ContextCompactionHandler | None = None
+
+
+def register_idle_task_handler(task_type: str, handler: IdleTaskHandler) -> None:
+    """Register a custom handler for a specific idle task type."""
     _idle_task_handlers[task_type] = handler
+
+
+def register_context_compaction_handler(handler: ContextCompactionHandler) -> None:
+    """Register the business-layer implementation used by the built-in ``context_compaction`` task."""
+    global _context_compaction_handler
+    _context_compaction_handler = handler
 
 
 async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> None:
@@ -127,12 +145,14 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
 
         # 3. Run the actual logic using registered handlers or fallbacks
         cost = 0.0
+        event_data: dict[str, object]
         try:
             async with restricted_shadow_context():
                 if task.task_type in _idle_task_handlers:
                     handler = _idle_task_handlers[task.task_type]
                     event_data = await handler(task, session_id)
-                    cost = event_data.get("cost", 0.0) if isinstance(event_data, dict) else 0.0
+                    raw_cost = event_data.get("cost", 0.0)
+                    cost = float(raw_cost) if isinstance(raw_cost, int | float) else 0.0
                 elif task.task_type == "cognitive_consolidation":
                     pause_signal = get_global_pause_signal()
                     memory_manager = get_memory_manager()
@@ -176,27 +196,7 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                             )
                         )
 
-                        derivation = await deriver.run_derivation(session_id, chat_id, messages)
-                        event_data = derivation
-
-                        extracted_count = derivation.get("extracted_count", 0)
-                        has_disruptive_change = derivation.get("has_disruptive_change", False)
-                        if isinstance(extracted_count, int) and extracted_count > 0:
-                            urgency = "notify" if has_disruptive_change else "silent"
-
-                            event_bus.publish(
-                                IdleTaskProgressEvent(
-                                    session_id=session_id,
-                                    status=("notification" if has_disruptive_change else "completed"),
-                                    task_name=task.task_type,
-                                    progress_pct=100,
-                                    data={
-                                        "type": "cognitive_derivation",
-                                        "extracted_count": extracted_count,
-                                        "urgency": urgency,
-                                    },
-                                )
-                            )
+                        event_data = await deriver.run_derivation(session_id, chat_id, messages)
                     else:
                         event_data = {
                             "skipped": True,
@@ -246,18 +246,13 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                             }
 
                             if deleted_count > 0:
-                                # Emitting special SSE event to Frontend
                                 event_bus.publish(
                                     IdleTaskProgressEvent(
                                         session_id=session_id,
                                         status="notification",
                                         task_name=task.task_type,
                                         progress_pct=100,
-                                        data={
-                                            "type": AgentEventType.COGNITIVE_CONSOLIDATION.value,
-                                            "count": deleted_count,
-                                            "subsumed_ids": subsumed_ids,
-                                        },
+                                        data={"count": deleted_count},
                                     )
                                 )
                     else:
@@ -438,14 +433,13 @@ async def _run_context_compaction(
 
     compacted = False
     try:
-        compact_handler = _idle_task_handlers.get("_context_compact_impl")
-        if compact_handler:
-            compact_result = await compact_handler(chat_id, session_id)
-            compacted = bool(compact_result.get("compacted", False)) if isinstance(compact_result, dict) else False
+        if _context_compaction_handler:
+            compact_result = await _context_compaction_handler(chat_id, session_id)
+            compacted = bool(compact_result.get("compacted", False))
         else:
             logger.info(
-                "context_compaction: no _context_compact_impl handler registered. "
-                "Business layer should register via register_idle_task_handler('_context_compact_impl', handler)."
+                "context_compaction: no handler registered. "
+                "Business layer should register via register_context_compaction_handler()."
             )
     except Exception as e:
         logger.error("context_compaction error for chat %s: %s", chat_id, e, exc_info=True)

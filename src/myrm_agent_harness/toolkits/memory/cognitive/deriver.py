@@ -71,9 +71,7 @@ class CognitiveDeriver:
         self.llm_func: LLMFunc = manager._consolidation_llm
         self.graph = manager._graph
 
-    async def run_derivation(
-        self, session_id: str, chat_id: str, messages: list[dict[str, str]]
-    ) -> dict[str, bool | int | str]:
+    async def run_derivation(self, session_id: str, chat_id: str, messages: list[dict[str, str]]) -> dict[str, object]:
         """Run dialectic reasoning on recent messages and update the vector and graph."""
         if not self.llm_func:
             return {"skipped": True, "reason": "No LLM configured"}
@@ -108,7 +106,6 @@ class CognitiveDeriver:
                 return {"success": False, "error": "Invalid JSON response from LLM"}
 
             extracted_count = 0
-            has_disruptive_change = False
             for item in data:
                 if not isinstance(item, dict):
                     continue
@@ -124,15 +121,12 @@ class CognitiveDeriver:
                 if not pref_claim:
                     continue
 
-                if change_kind in ("contradict", "supersede"):
-                    has_disruptive_change = True
-
                 await self._store_preference_claim(
                     session_id, chat_id, pref_key, pref_claim, confidence, scope, change_kind
                 )
                 extracted_count += 1
 
-            return {"success": True, "extracted_count": extracted_count, "has_disruptive_change": has_disruptive_change}
+            return {"success": True, "extracted_count": extracted_count}
 
         except Exception as e:
             logger.error("Cognitive derivation failed: %s", e)

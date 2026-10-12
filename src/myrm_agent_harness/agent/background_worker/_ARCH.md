@@ -31,7 +31,7 @@ See [../../toolkits/tasks/TASK_QUEUE_SYSTEM.md](../../toolkits/tasks/TASK_QUEUE_
 | cognitive_subsumption | Erase redundant memories when a Skill is learned | Built-in (idle_tasks.py) |
 | cognitive_derivation | Deep analysis of implicit user communication preferences | Built-in (idle_tasks.py) |
 | session_evidence_extraction | Extract anti-patterns and CAPTURED skill proposals from session events | Built-in (idle_tasks.py) |
-| context_compaction | Compress idle session context via the business-layer `_context_compact_impl` handler | Built-in (idle_tasks.py) |
+| context_compaction | Compress idle session context via the business-layer handler registered with `register_context_compaction_handler` | Built-in (idle_tasks.py) |
 
 ## Key Dependencies
 

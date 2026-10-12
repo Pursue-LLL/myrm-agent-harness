@@ -101,7 +101,6 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | dialectic_guard/ | State machine governing background dialectic inference liveness and lifecycle. See [dialectic_guard/_ARCH.md](dialectic_guard/_ARCH.md). |
 | directory_dominance/ | Hierarchical retriever leveraging directory dominance ratios and sibling context bundling. See [directory_dominance/_ARCH.md](directory_dominance/_ARCH.md). |
 | ephemeral_delta/ | In-memory, session-scoped transient buffer for prompt-cache-preserving deltas. See [ephemeral_delta/_ARCH.md](ephemeral_delta/_ARCH.md). |
-| experience_injection/ | PostCallHook adapter injecting relevant procedure experiences into skill bodies. See [experience_injection/_ARCH.md](experience_injection/_ARCH.md). |
 | experience_observability/ | Zero-refactor host lifecycle plugin adapter. See [experience_observability/_ARCH.md](experience_observability/_ARCH.md). |
 | failure_retrieval/ | Error fingerprint extractor for failure-triggered session retrieval. See [failure_retrieval/_ARCH.md](failure_retrieval/_ARCH.md). |
 | lineage_search/ | Collapses multi-generation compacted or branched session continuations. See [lineage_search/_ARCH.md](lineage_search/_ARCH.md). |

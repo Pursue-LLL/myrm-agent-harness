@@ -5,16 +5,23 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from langchain_core.language_models import BaseChatModel
 
+from myrm_agent_harness.agent.background_worker import idle_tasks
 from myrm_agent_harness.agent.background_worker.idle_tasks import (
     _idle_task_handlers,
     _run_context_compaction,
     default_idle_callback,
+    register_context_compaction_handler,
     register_idle_task_handler,
 )
 from myrm_agent_harness.agent.background_worker.idle_worker import _idle_tasks, cancel_idle_task, schedule_idle_task
 from myrm_agent_harness.agent.background_worker.registry import IdleTaskRecord, IdleTaskRegistry
 from myrm_agent_harness.runtime.events.idle_events import IdleTaskProgressEvent
 from myrm_agent_harness.runtime.maintenance.protocols import CapacityDenial, CapacityTicket
+
+
+@pytest.fixture(autouse=True)
+def reset_context_compaction_handler(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(idle_tasks, "_context_compaction_handler", None)
 
 
 @pytest.fixture(autouse=True)
@@ -264,15 +271,12 @@ class TestRunContextCompaction:
                 "reason": "",
             }
         )
-        _idle_task_handlers["_context_compact_impl"] = compact_handler
-        try:
-            result = await _run_context_compaction("s2", task, event_bus)
-            assert result == {"compacted": True, "chat_id": "chat_123"}
-            compact_handler.assert_awaited_once_with("chat_123", "s2")
-            published = [c.args[0] for c in event_bus.publish.call_args_list]
-            assert [(e.status, e.task_name) for e in published] == [("working", "context_compaction")]
-        finally:
-            del _idle_task_handlers["_context_compact_impl"]
+        register_context_compaction_handler(compact_handler)
+        result = await _run_context_compaction("s2", task, event_bus)
+        assert result == {"compacted": True, "chat_id": "chat_123"}
+        compact_handler.assert_awaited_once_with("chat_123", "s2")
+        published = [c.args[0] for c in event_bus.publish.call_args_list]
+        assert [(e.status, e.task_name) for e in published] == [("working", "context_compaction")]
 
     async def test_compaction_not_needed(self) -> None:
         event_bus = MagicMock()
@@ -292,12 +296,9 @@ class TestRunContextCompaction:
                 "reason": "too_few_messages",
             }
         )
-        _idle_task_handlers["_context_compact_impl"] = compact_handler
-        try:
-            result = await _run_context_compaction("s3", task, event_bus)
-            assert result == {"compacted": False, "chat_id": "chat_short"}
-        finally:
-            del _idle_task_handlers["_context_compact_impl"]
+        register_context_compaction_handler(compact_handler)
+        result = await _run_context_compaction("s3", task, event_bus)
+        assert result == {"compacted": False, "chat_id": "chat_short"}
 
     async def test_no_handler_registered(self) -> None:
         event_bus = MagicMock()
@@ -309,7 +310,6 @@ class TestRunContextCompaction:
             status="running",
             created_at=0.0,
         )
-        _idle_task_handlers.pop("_context_compact_impl", None)
         result = await _run_context_compaction("s4", task, event_bus)
         assert result["compacted"] is False
 
@@ -324,12 +324,9 @@ class TestRunContextCompaction:
             created_at=0.0,
         )
         compact_handler = AsyncMock(side_effect=RuntimeError("DB connection lost"))
-        _idle_task_handlers["_context_compact_impl"] = compact_handler
-        try:
-            result = await _run_context_compaction("s5", task, event_bus)
-            assert result["compacted"] is False
-        finally:
-            del _idle_task_handlers["_context_compact_impl"]
+        register_context_compaction_handler(compact_handler)
+        result = await _run_context_compaction("s5", task, event_bus)
+        assert result["compacted"] is False
 
     async def test_compaction_never_preheats_prefix_cache(self) -> None:
         """Idle compaction runs minutes after the provider cache TTL, so it must not re-warm it."""
@@ -350,17 +347,14 @@ class TestRunContextCompaction:
                 "model_name": "anthropic/claude-3",
             }
         )
-        _idle_task_handlers["_context_compact_impl"] = compact_handler
-        try:
-            with patch(
-                "myrm_agent_harness.agent.context_management.preheat.preheat_prefix_cache",
-                new_callable=AsyncMock,
-            ) as mock_preheat:
-                result = await _run_context_compaction("s6", task, event_bus)
-            assert result == {"compacted": True, "chat_id": "chat_preheat"}
-            mock_preheat.assert_not_awaited()
-        finally:
-            del _idle_task_handlers["_context_compact_impl"]
+        register_context_compaction_handler(compact_handler)
+        with patch(
+            "myrm_agent_harness.agent.context_management.preheat.preheat_prefix_cache",
+            new_callable=AsyncMock,
+        ) as mock_preheat:
+            result = await _run_context_compaction("s6", task, event_bus)
+        assert result == {"compacted": True, "chat_id": "chat_preheat"}
+        mock_preheat.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------
@@ -678,13 +672,7 @@ async def test_cognitive_subsumption_notification_carries_count_not_text() -> No
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("disruptive", "expected_status", "expected_urgency"),
-    [(True, "notification", "notify"), (False, "completed", "silent")],
-)
-async def test_cognitive_derivation_event_status_follows_disruptive_change(
-    disruptive: bool, expected_status: str, expected_urgency: str
-) -> None:
+async def test_cognitive_derivation_publishes_progress_then_completion_only() -> None:
     task = IdleTaskRecord(
         id=32,
         session_id="sess1",
@@ -694,11 +682,7 @@ async def test_cognitive_derivation_event_status_follows_disruptive_change(
         created_at=0.0,
     )
     deriver = AsyncMock()
-    deriver.run_derivation.return_value = {
-        "success": True,
-        "extracted_count": 1,
-        "has_disruptive_change": disruptive,
-    }
+    deriver.run_derivation.return_value = {"success": True, "extracted_count": 1}
 
     events = await _run_task_collecting_events(
         task,
@@ -706,8 +690,7 @@ async def test_cognitive_derivation_event_status_follows_disruptive_change(
         (patch("myrm_agent_harness.toolkits.memory.cognitive.deriver.CognitiveDeriver", return_value=deriver),),
     )
 
-    derivation_event = next(e for e in events if e.data and e.data.get("type") == "cognitive_derivation")
-    assert derivation_event.status == expected_status
-    assert derivation_event.data is not None
-    assert derivation_event.data["urgency"] == expected_urgency
+    assert [e.status for e in events] == ["working", "working", "completed", "idle"]
+    completed = events[2]
+    assert completed.data == {"success": True, "extracted_count": 1}
     assert not any(hasattr(e, "message") for e in events)
