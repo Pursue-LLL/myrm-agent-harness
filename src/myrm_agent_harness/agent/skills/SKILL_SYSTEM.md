@@ -147,7 +147,7 @@ max-context-tokens: 8000
 | `tags` | string[] | 可选 | 分类标签（用于搜索、过滤、选择器匹配） | NextClaw + ironclaw |
 | `always` | boolean | 可选 | 是否始终加载到系统 Prompt（默认 `false`） | Nanobot |
 | `hooks` | object[] | 可选 | Hook 定义（事件触发） | 现有架构 |
-| `allowed-tools` | string[] | 可选 | 允许使用的工具白名单 | 现有架构 |
+| `allowed-tools` | string[] | 可选 | 允许使用的工具白名单（仅登记或已绑定的工具名生效，见下） | 现有架构 |
 | `patterns` | string[] | 可选 | 正则模式（精确匹配 URL/路径等格式） | ironclaw |
 | `exclude-keywords` | string[] | 可选 | 排除关键词（防止误触发） | ironclaw |
 | `max-context-tokens` | int | 可选 | 最大上下文 Token 数（默认 8000） | ironclaw |
@@ -164,6 +164,7 @@ max-context-tokens: 8000
 - `requires` 采用 Nanobot 的结构化格式 + ironclaw 的 `config` 扩展，支持自动化检查
 - `exclude-keywords` 和 `max-context-tokens` 来自 ironclaw，用于确定性选择器
 - `always` 来自 Nanobot，支持"始终加载"的特殊技能（如 memory）
+- `allowed-tools` 是独占白名单：技能加载期间只保留所列工具。名称只有已登记（`is_registered_action_tool`）或本轮已绑定（如 MCP 工具）时才参与收窄；其他生态写法（`Bash`、`Read`、`Bash(ls *)` 等）无法对应任何 Myrm 工具，被忽略并在日志中按技能提示一次，声明里没有任何可识别名称的技能等同未声明。信任级别上限不受影响
 
 ---
 

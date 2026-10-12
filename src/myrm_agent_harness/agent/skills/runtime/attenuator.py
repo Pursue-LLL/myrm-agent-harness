@@ -4,10 +4,11 @@
 
 [INPUT]
 - backends.skills.types::SkillMetadata, SkillTrust (POS: 技能元数据和信任枚举)
+- agent.tool_management.tool_layers::is_registered_action_tool (POS: 工具层级注册表，Action Tool 名称 SSOT)
 
 [OUTPUT]
 - AttenuationResult: 工具衰减结果（过滤后工具 + 最低信任 + 解释 + 移除列表）
-- attenuate_tools(): 基于信任级别和 allowed_tools 过滤工具
+- attenuate_tools(): 基于信任级别和 allowed_tools 过滤工具；allowed_tools 只有登记或已绑定的工具名参与收窄
 
 [POS]
 Trust attenuator. Core security defense with three-layer filtering for skill permission management.
@@ -19,9 +20,14 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
+from myrm_agent_harness.agent.tool_management.tool_layers import is_registered_action_tool
 from myrm_agent_harness.backends.skills.types import SkillMetadata, SkillTrust
 
 logger = logging.getLogger(__name__)
+
+# (skill name, ignored allowed-tools entries) pairs already reported, so a skill that
+# stays loaded does not repeat the warning on every attenuation pass.
+_reported_ignored_entries: set[tuple[str, tuple[str, ...]]] = set()
 
 READ_ONLY_TOOLS: frozenset[str] = frozenset(
     {
@@ -83,7 +89,8 @@ def attenuate_tools(tool_names: list[str], active_skills: list[SkillMetadata]) -
     1. Trust attenuation: min(trust) determines the baseline ceiling
     2. Scanner-gated widening: clean INSTALLED skills with allowed_tools
        get (allowed_tools ∩ CEILING) ∪ READ_ONLY instead of just READ_ONLY
-    3. allowed_tools restriction: union of explicitly declared allowed_tools narrows scope
+    3. allowed_tools restriction: union of the declared allowed_tools names that denote
+       Myrm tools narrows scope; names from other skill ecosystems are ignored
 
     Args:
         tool_names: All available tool names
@@ -103,7 +110,8 @@ def attenuate_tools(tool_names: list[str], active_skills: list[SkillMetadata]) -
 
     trust_allowed = _apply_trust_filter(tool_names, min_trust, active_skills)
 
-    final_tools, allowed_removed = _apply_allowed_tools_filter(trust_allowed, active_skills)
+    bound_names = frozenset(tool_names)
+    final_tools, allowed_removed = _apply_allowed_tools_filter(trust_allowed, bound_names, active_skills)
 
     removed = [n for n in tool_names if n not in frozenset(final_tools)]
 
@@ -146,23 +154,28 @@ def _apply_trust_filter(tool_names: list[str], min_trust: SkillTrust, active_ski
     return [n for n in tool_names if n in widened_union]
 
 
-def _apply_allowed_tools_filter(tools: list[str], active_skills: list[SkillMetadata]) -> tuple[list[str], list[str]]:
-    """Further restrict tools by the union of declared allowed_tools.
+def _apply_allowed_tools_filter(
+    tools: list[str], bound_names: frozenset[str], active_skills: list[SkillMetadata]
+) -> tuple[list[str], list[str]]:
+    """Further restrict tools by the union of declared allowed_tools names that denote Myrm tools.
 
-    Only skills that explicitly declare ``allowed_tools`` contribute to the union.
-    Skills without a declaration are treated as unconstrained for this layer and do
-    not disable the filter for other skills.
+    Only recognized names contribute to the union. Skills without a declaration, or whose
+    declaration names no Myrm tool, are treated as unconstrained for this layer and do not
+    disable the filter for other skills.
+
+    Args:
+        tools: Tools that passed the trust filter
+        bound_names: Every tool bound for the current run (before trust filtering)
+        active_skills: Currently active skills
 
     Returns:
         (kept_tools, removed_by_allowed_tools)
     """
-    declaring_skills = [s for s in active_skills if s.allowed_tools]
-    if not declaring_skills:
-        return tools, []
-
     allowed_union: set[str] = set()
-    for skill in declaring_skills:
-        allowed_union.update(skill.allowed_tools)
+    for skill in active_skills:
+        allowed_union |= _recognized_allowed_tools(skill, bound_names)
+    if not allowed_union:
+        return tools, []
 
     kept: list[str] = []
     removed: list[str] = []
@@ -173,6 +186,35 @@ def _apply_allowed_tools_filter(tools: list[str], active_skills: list[SkillMetad
             removed.append(name)
 
     return kept, removed
+
+
+def _recognized_allowed_tools(skill: SkillMetadata, bound_names: frozenset[str]) -> set[str]:
+    """Return the declared allowed_tools names that denote Myrm tools.
+
+    A name is recognized when it is a registered Action Tool or is bound for the current
+    run (e.g. an MCP tool). Skills authored for other ecosystems list names such as
+    ``Bash`` or ``Read``; honoring those as an exclusive whitelist would remove every
+    tool, so they are ignored instead.
+    """
+    declared = skill.allowed_tools or []
+    recognized = {name for name in declared if name in bound_names or is_registered_action_tool(name)}
+    ignored = tuple(name for name in declared if name not in recognized)
+    if ignored:
+        _report_ignored_entries(skill.name, ignored)
+    return recognized
+
+
+def _report_ignored_entries(skill_name: str, ignored: tuple[str, ...]) -> None:
+    """Warn developers once per skill about allowed_tools entries that match no Myrm tool."""
+    key = (skill_name, ignored)
+    if key in _reported_ignored_entries:
+        return
+    _reported_ignored_entries.add(key)
+    logger.warning(
+        "Skill '%s' lists allowed-tools entries that match no Myrm tool and are ignored: %s",
+        skill_name,
+        ", ".join(ignored),
+    )
 
 
 def _build_explanation(

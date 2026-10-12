@@ -9,7 +9,7 @@ Skill execution runtime: registry, loader, command path utilities, trust attenua
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Runtime — skill execution runtime. | — |
-| attenuator.py | Core | Trust attenuator. Three-layer filtering; model-layer restriction via `middlewares/_skill_tool_choice.py` + `SkillAttenuationMiddleware`. Execution fallback: `check_trust_attenuation`. | ✅ |
+| attenuator.py | Core | Trust attenuator. Three-layer filtering; `allowed_tools` narrows only by names that are registered or bound (names from other skill ecosystems are ignored and warned once per skill; a skill with no recognized name does not narrow). Model-layer restriction via `middlewares/_skill_tool_choice.py` + `SkillAttenuationMiddleware`. Execution fallback: `check_trust_attenuation`. | ✅ |
 | session_skills_rehydrate.py | Core | Rebuild `loaded_skills` from chat history ∪ `context.session_loaded_skill_names` SSOT at `SkillAgent.run()` start. | ✅ |
 | command_paths.py | Core | Skill command path utilities: rewrite `.claude/skills/` paths to relative, detect skill script commands in bash execution. | ✅ |
 | loader.py | Core | Skill document loader and trap injection. | ✅ |
@@ -20,4 +20,5 @@ Skill execution runtime: registry, loader, command path utilities, trust attenua
 ## Key Dependencies
 
 - `backends.skills` (SkillMetadata)
+- `agent.tool_management.tool_layers` (`is_registered_action_tool`: Action Tool name SSOT for `allowed_tools` recognition)
 - `skills.mcp` (loader → core_generator for MCP skill metadata)
