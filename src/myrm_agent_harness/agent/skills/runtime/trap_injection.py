@@ -48,7 +48,7 @@ def inject_traps(skill_name: str, content: str) -> str:
         if traps:
             return inject_known_pitfalls(content, traps)
     except Exception as e:
-        logger.debug("Trap lookup failed for %s (non-fatal): %s", skill_name, e)
+        logger.warning("Trap lookup failed for %s (skill still loads without pitfalls): %s", skill_name, e)
     return content
 
 

@@ -151,13 +151,16 @@ class TestInjectTraps:
 
         assert inject_traps("demo", BASE) == BASE
 
-    def test_failing_lookup_never_blocks_loading(self) -> None:
+    def test_failing_lookup_never_blocks_loading_and_is_reported(self, caplog: pytest.LogCaptureFixture) -> None:
         def boom(_name: str) -> list[TrapRecord]:
             raise RuntimeError("db down")
 
         set_trap_lookup(boom)
 
-        assert inject_traps("demo", BASE) == BASE
+        with caplog.at_level("WARNING"):
+            assert inject_traps("demo", BASE) == BASE
+        assert "Trap lookup failed for demo" in caplog.text
+        assert "db down" in caplog.text
 
     def test_clearing_lookup_stops_injection(self) -> None:
         set_trap_lookup(lambda _name: [{"severity": "high", "description": "x"}])
