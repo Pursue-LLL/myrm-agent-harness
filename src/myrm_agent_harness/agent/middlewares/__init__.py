@@ -46,6 +46,9 @@ Agent middleware system exports. Provides the complete middleware stack (context
 
 """
 
+from myrm_agent_harness.agent.middlewares._session_context import (
+    get_delegation_token,
+)
 from myrm_agent_harness.agent.middlewares.advisor_risk_trigger_router import (
     AdvisorRiskTriggerRouter,
     RiskTriggerDecision,
@@ -132,6 +135,7 @@ __all__ = [
     "create_safety_dispatcher",
     "debug_logger_middleware",
     "get_approval_rate_limiter",
+    "get_delegation_token",
     "get_max_consecutive_replan_errors",
     "get_replan_error_summary",
     "get_subagent_semaphore",
