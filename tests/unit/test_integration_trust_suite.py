@@ -84,7 +84,19 @@ def test_disconnect_with_purge_disabled(lifecycle_engine: IntegrationLifecycleEn
     assert not purged_called
     assert receipt.cleared_memory_trees == 0
     assert receipt.cleared_documents == 0
-    assert receipt.revocation_status == RevocationStatus.REVOKED_REMOTE
+
+
+def test_remote_capable_provider_without_revoke_hook_is_not_reported_revoked(
+    lifecycle_engine: IntegrationLifecycleEngine,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level("WARNING"):
+        receipt = lifecycle_engine.execute_atomic_disconnect(provider_id="google_workspace")
+
+    assert receipt.revocation_status == RevocationStatus.REVOCATION_FAILED
+    assert receipt.revocation_receipt is None
+    assert receipt.manual_revoke_url == "https://myaccount.google.com/permissions"
+    assert "https://myaccount.google.com/permissions" in caplog.text
 
 
 def test_disconnect_unsupported_remote_revoke_with_manual_fallback() -> None:

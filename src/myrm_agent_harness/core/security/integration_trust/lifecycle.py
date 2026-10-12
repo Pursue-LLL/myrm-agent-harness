@@ -4,7 +4,9 @@
 - provider_id, purge callbacks, revocation callbacks.
 
 [OUTPUT]
-- DisconnectPurgeReceipt with verifiable proof of memory tree deletion and token revocation.
+- DisconnectPurgeReceipt with verifiable proof of memory tree deletion and token revocation. A remote
+  revocation is reported only when the supplied hook performed it; a remote-capable provider without a
+  hook is REVOCATION_FAILED and carries the manual revoke URL.
 
 [POS]
 - Harness core security engine. Enforces the single atomic disconnect path across all providers,
@@ -109,9 +111,13 @@ class IntegrationLifecycleEngine:
         if remote_revoke_fn is not None:
             revocation_status, revocation_receipt = remote_revoke_fn(provider_id)
         elif revoke_cfg and revoke_cfg.supports_remote_revoke:
-            # Simulated local success if no external HTTP hook provided
-            revocation_status = RevocationStatus.REVOKED_REMOTE
-            revocation_receipt = f"token_revoked_{provider_id}_ok"
+            # The engine owns no HTTP client: without a hook nothing was revoked, so never report that it was.
+            revocation_status = RevocationStatus.REVOCATION_FAILED
+            logger.warning(
+                "No remote_revoke_fn for provider '%s': its token was not revoked remotely; revoke it manually at %s.",
+                provider_id,
+                manual_url or "the provider's account settings",
+            )
         elif revoke_cfg and not revoke_cfg.supports_remote_revoke:
             revocation_status = RevocationStatus.REVOKED_LOCAL_ONLY
             revocation_receipt = "local_credential_deleted"
