@@ -50,6 +50,7 @@ from myrm_agent_harness.observability.metrics.circuit_breaker_metrics import (
     circuit_breaker_failures_total,
     circuit_breaker_state,
 )
+from myrm_agent_harness.utils.chat_utils import extract_text_content
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.token_estimation import estimate_messages_tokens
 
@@ -674,18 +675,15 @@ def _build_deterministic_summary(
 
     for msg in reversed(messages):
         if isinstance(msg, HumanMessage):
-            content = msg.content if isinstance(msg.content, str) else str(msg.content)
+            content = extract_text_content(msg.content)
+            goal = content[:_FALLBACK_GOAL_MAX_CHARS] + ("…" if len(content) > _FALLBACK_GOAL_MAX_CHARS else "")
             if not active_task:
-                active_task = content[:_FALLBACK_GOAL_MAX_CHARS]
-                if len(content) > _FALLBACK_GOAL_MAX_CHARS:
-                    active_task += "…"
+                active_task = goal
             if user_goal == "[Unable to extract goal]":
-                user_goal = content[:_FALLBACK_GOAL_MAX_CHARS]
-                if len(content) > _FALLBACK_GOAL_MAX_CHARS:
-                    user_goal += "…"
+                user_goal = goal
 
         if isinstance(msg, AIMessage) and not last_action:
-            content = msg.content if isinstance(msg.content, str) else str(msg.content)
+            content = extract_text_content(msg.content)
             last_action = content[:_FALLBACK_ACTION_MAX_CHARS]
             if len(content) > _FALLBACK_ACTION_MAX_CHARS:
                 last_action += "…"
@@ -694,8 +692,7 @@ def _build_deterministic_summary(
             break
 
     for msg in messages:
-        content = msg.content if isinstance(msg.content, str) else str(msg.content)
-        for match in _COMPACTED_PATTERN.finditer(content):
+        for match in _COMPACTED_PATTERN.finditer(extract_text_content(msg.content)):
             tool_name, identifier = match.group(1), match.group(2)
             action = f"{tool_name}: {identifier}"
             if action not in completed_actions:

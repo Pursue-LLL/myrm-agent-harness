@@ -8,6 +8,7 @@ usage ledger initialization.
 - agent.security (POS: security guard reset functions)
 - agent.background_worker (POS: idle task scheduling)
 - utils.token_economics (POS: UsageLedger)
+- utils.chat_utils (POS: extract_text_content — multimodal content → visible text for idle LLM tasks)
 
 [OUTPUT]
 - reset_all_guards: Reset all per-request guard state before a new agent run.
@@ -24,9 +25,14 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Coroutine
+from typing import TYPE_CHECKING, cast
 
+from myrm_agent_harness.utils.chat_utils import extract_text_content
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.token_economics.tracker import set_usage_ledger
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.utils.chat_utils import ContentItem
 
 logger = get_agent_logger(__name__)
 
@@ -38,7 +44,7 @@ __all__ = [
     "schedule_post_run_idle_tasks",
 ]
 
-_background_tasks: set[asyncio.Task[None]] = set()
+_background_tasks: set[asyncio.Task[object]] = set()
 
 
 def _fire_and_forget(coro: Coroutine[object, object, object]) -> None:
@@ -132,11 +138,17 @@ def extract_query_text(query: object) -> str:
     return str(query)
 
 
+def _visible_text(content: object) -> str:
+    """Visible text of a message body; image blocks never reach the text-only idle LLM."""
+    if isinstance(content, (str, list)):
+        return extract_text_content(cast("ContentItem", content))
+    return str(content)
+
+
 def schedule_post_run_idle_tasks(merged_context: dict[str, object]) -> None:
     """Enqueue background idle tasks after a successful agent run."""
     session_id = str(merged_context.get("session_id", ""))
     workspace_root = str(merged_context.get("workspace_root", ""))
-    user_id = str(merged_context.get("user_id", "system"))
 
     if not (session_id and workspace_root):
         return
@@ -157,7 +169,7 @@ def schedule_post_run_idle_tasks(merged_context: dict[str, object]) -> None:
 
         # Serialize recent messages for cognitive_derivation with Token-Aware Window
         raw_messages = merged_context.get("messages", [])
-        serialized_msgs = []
+        serialized_msgs: list[dict[str, str]] = []
         if isinstance(raw_messages, list):
             from langchain_core.messages import BaseMessage
 
@@ -171,10 +183,10 @@ def schedule_post_run_idle_tasks(merged_context: dict[str, object]) -> None:
                 content = ""
                 if isinstance(m, BaseMessage):
                     role = m.type
-                    content = str(m.content)
+                    content = _visible_text(m.content)
                 elif isinstance(m, dict):
                     role = m.get("role", "")
-                    content = str(m.get("content", ""))
+                    content = _visible_text(m.get("content", ""))
 
                 if not content:
                     continue
@@ -192,12 +204,11 @@ def schedule_post_run_idle_tasks(merged_context: dict[str, object]) -> None:
                 serialized_msgs.insert(0, {"role": role, "content": content})
                 current_chars += msg_len
 
-        _fire_and_forget(registry.enqueue(session_id, user_id, "cognitive_consolidation", {}))
+        _fire_and_forget(registry.enqueue(session_id, "cognitive_consolidation", {}))
         if chat_id and serialized_msgs:
             _fire_and_forget(
                 registry.enqueue(
                     session_id,
-                    user_id,
                     "cognitive_derivation",
                     {
                         "chat_id": chat_id,
@@ -215,7 +226,6 @@ def schedule_post_run_idle_tasks(merged_context: dict[str, object]) -> None:
                 _fire_and_forget(
                     registry.enqueue(
                         session_id,
-                        user_id,
                         "session_evidence_extraction",
                         {
                             "chat_id": chat_id,
@@ -225,7 +235,7 @@ def schedule_post_run_idle_tasks(merged_context: dict[str, object]) -> None:
                 )
 
         if chat_id:
-            _fire_and_forget(registry.enqueue(session_id, user_id, "context_compaction", {"chat_id": chat_id}))
+            _fire_and_forget(registry.enqueue(session_id, "context_compaction", {"chat_id": chat_id}))
         schedule_idle_task(
             session_id,
             lambda: default_idle_callback(session_id, registry),

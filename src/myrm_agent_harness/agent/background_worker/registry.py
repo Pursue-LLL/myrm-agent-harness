@@ -12,6 +12,7 @@
 Idle Task Registry for crash-resilient persistence and concurrency control.
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -47,6 +48,9 @@ class IdleTaskRegistry:
     def __init__(self, db_path: str) -> None:
         self.db_path = db_path
         self._initialized = False
+        # Fire-and-forget enqueues start concurrently; the first connection must finish
+        # hardening (journal mode switch) and schema creation before the others open.
+        self._init_lock = asyncio.Lock()
 
     async def init_db(self) -> None:
         """Initialize the SQLite database and table."""
@@ -54,25 +58,26 @@ class IdleTaskRegistry:
             logger.warning("aiosqlite not installed. IdleTaskRegistry disabled.")
             return
 
-        if self._initialized:
-            return
+        async with self._init_lock:
+            if self._initialized:
+                return
 
-        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        async with connect_async(self.db_path) as db:
-            await db.execute(
-                """CREATE TABLE IF NOT EXISTS idle_tasks (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    session_id TEXT NOT NULL,
-                    task_type TEXT NOT NULL,
-                    payload TEXT,
-                    status TEXT NOT NULL,
-                    created_at REAL NOT NULL
-                )"""
-            )
-            # Create an index for faster lookups
-            await db.execute("CREATE INDEX IF NOT EXISTS idx_idle_tasks_status ON idle_tasks(status, session_id)")
-            await db.commit()
-            self._initialized = True
+            os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+            async with connect_async(self.db_path) as db:
+                await db.execute(
+                    """CREATE TABLE IF NOT EXISTS idle_tasks (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        session_id TEXT NOT NULL,
+                        task_type TEXT NOT NULL,
+                        payload TEXT,
+                        status TEXT NOT NULL,
+                        created_at REAL NOT NULL
+                    )"""
+                )
+                # Create an index for faster lookups
+                await db.execute("CREATE INDEX IF NOT EXISTS idx_idle_tasks_status ON idle_tasks(status, session_id)")
+                await db.commit()
+                self._initialized = True
 
     async def enqueue(self, session_id: str, task_type: str, payload: dict[str, Any]) -> None:
         """Enqueue a new idle task if not already pending."""
@@ -124,7 +129,7 @@ class IdleTaskRegistry:
                 )
                 RETURNING *
                 """,
-                (session_id),
+                (session_id,),
             )
             row = await cursor.fetchone()
             await db.commit()

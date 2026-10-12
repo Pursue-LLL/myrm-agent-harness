@@ -8,7 +8,7 @@ myrm_agent_harness/agent/_internals/run_lifecycle.py	749
 myrm_agent_harness/agent/base_agent.py	644
 myrm_agent_harness/agent/context_management/infra/schemas.py	715
 myrm_agent_harness/agent/context_management/pipeline/processors/cache_ttl_prune_processor.py	721
-myrm_agent_harness/agent/context_management/pipeline/processors/summarize_processor.py	847
+myrm_agent_harness/agent/context_management/pipeline/processors/summarize_processor.py	844
 myrm_agent_harness/agent/context_management/strategies/summary/summarizer.py	915
 myrm_agent_harness/agent/context_management/tracking/task_metrics_model.py	570
 myrm_agent_harness/agent/durable/storage.py	678
@@ -16,7 +16,7 @@ myrm_agent_harness/agent/dynamic_workflow/__init__.py	692
 myrm_agent_harness/agent/dynamic_workflow/tools.py	790
 myrm_agent_harness/agent/errors/diagnostics/engine.py	547
 myrm_agent_harness/agent/event_log/analytics_queries.py	597
-myrm_agent_harness/agent/event_log/logger.py	521
+myrm_agent_harness/agent/event_log/logger.py	514
 myrm_agent_harness/agent/file_snapshot/shadow_git_store.py	649
 myrm_agent_harness/agent/goals/continuation.py	656
 myrm_agent_harness/agent/meta_tools/bash/_background/registry.py	541

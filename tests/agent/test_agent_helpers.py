@@ -1,6 +1,14 @@
-from unittest.mock import MagicMock, patch
+import asyncio
+from pathlib import Path
+from unittest.mock import create_autospec, patch
 
 from myrm_agent_harness.agent._internals._agent_helpers import schedule_post_run_idle_tasks
+from myrm_agent_harness.agent.background_worker.registry import IdleTaskRegistry, get_idle_task_registry
+
+
+def _new_registry() -> IdleTaskRegistry:
+    """Autospec'd registry: a drifted ``enqueue`` call signature fails instead of being swallowed by a bare mock."""
+    return create_autospec(IdleTaskRegistry, instance=True)
 
 
 @patch("myrm_agent_harness.agent._internals._agent_helpers._fire_and_forget")
@@ -8,7 +16,7 @@ from myrm_agent_harness.agent._internals._agent_helpers import schedule_post_run
 @patch("myrm_agent_harness.agent.background_worker.idle_worker.schedule_idle_task")
 def test_schedule_post_run_idle_tasks_token_window(mock_schedule, mock_get_registry, mock_fire):
     # Mock registry
-    mock_registry = MagicMock()
+    mock_registry = _new_registry()
     mock_get_registry.return_value = mock_registry
 
     # Create messages exceeding the 16000 character limit
@@ -29,11 +37,11 @@ def test_schedule_post_run_idle_tasks_token_window(mock_schedule, mock_get_regis
     schedule_post_run_idle_tasks(merged_context)
 
     # Assert registry enqueue was called for cognitive_derivation
-    derivation_calls = [call for call in mock_registry.enqueue.call_args_list if call[0][2] == "cognitive_derivation"]
+    derivation_calls = [call for call in mock_registry.enqueue.call_args_list if call[0][1] == "cognitive_derivation"]
 
     assert len(derivation_calls) == 1
     call_args = derivation_calls[0][0]
-    payload = call_args[3]
+    payload = call_args[2]
 
     assert "messages" in payload
     serialized_msgs = payload["messages"]
@@ -62,7 +70,7 @@ def test_schedule_post_run_idle_tasks_token_window(mock_schedule, mock_get_regis
 @patch("myrm_agent_harness.agent.background_worker.idle_worker.schedule_idle_task")
 def test_schedule_post_run_idle_tasks_no_truncation(mock_schedule, mock_get_registry, mock_fire):
     # Mock registry
-    mock_registry = MagicMock()
+    mock_registry = _new_registry()
     mock_get_registry.return_value = mock_registry
 
     # Create small messages
@@ -81,11 +89,11 @@ def test_schedule_post_run_idle_tasks_no_truncation(mock_schedule, mock_get_regi
     schedule_post_run_idle_tasks(merged_context)
 
     # Assert registry enqueue was called for cognitive_derivation
-    derivation_calls = [call for call in mock_registry.enqueue.call_args_list if call[0][2] == "cognitive_derivation"]
+    derivation_calls = [call for call in mock_registry.enqueue.call_args_list if call[0][1] == "cognitive_derivation"]
 
     assert len(derivation_calls) == 1
     call_args = derivation_calls[0][0]
-    payload = call_args[3]
+    payload = call_args[2]
 
     assert "messages" in payload
     serialized_msgs = payload["messages"]
@@ -101,7 +109,7 @@ def test_schedule_post_run_idle_tasks_serializes_message_objects(mock_get_regist
     """BaseMessage inputs must serialize to the same role/content shape as dicts."""
     from langchain_core.messages import AIMessage, HumanMessage
 
-    mock_get_registry.return_value = MagicMock()
+    mock_get_registry.return_value = _new_registry()
     messages = [HumanMessage(content="ping"), AIMessage(content="pong")]
 
     schedule_post_run_idle_tasks(
@@ -114,13 +122,91 @@ def test_schedule_post_run_idle_tasks_serializes_message_objects(mock_get_regist
     )
 
     derivation_calls = [
-        call
-        for call in mock_get_registry.return_value.enqueue.call_args_list
-        if call[0][2] == "cognitive_derivation"
+        call for call in mock_get_registry.return_value.enqueue.call_args_list if call[0][1] == "cognitive_derivation"
     ]
     assert len(derivation_calls) == 1
-    serialized = derivation_calls[0][0][3]["messages"]
+    serialized = derivation_calls[0][0][2]["messages"]
     assert [m["content"] for m in serialized] == ["ping", "pong"]
+
+
+_IMAGE_BLOCK = {"type": "image_url", "image_url": {"url": "data:image/png;base64," + "iVBORw0KGgo" * 3000}}
+
+
+def _derivation_messages(messages: list[object]) -> list[dict[str, str]]:
+    with (
+        patch("myrm_agent_harness.agent._internals._agent_helpers._fire_and_forget"),
+        patch("myrm_agent_harness.agent.background_worker.registry.get_idle_task_registry") as mock_get_registry,
+    ):
+        mock_get_registry.return_value = _new_registry()
+        schedule_post_run_idle_tasks(
+            {"session_id": "sess_3", "workspace_root": "/tmp/test", "chat_id": "chat_3", "messages": messages}
+        )
+        calls = [
+            call
+            for call in mock_get_registry.return_value.enqueue.call_args_list
+            if call[0][1] == "cognitive_derivation"
+        ]
+    assert len(calls) == 1
+    return calls[0][0][2]["messages"]
+
+
+def test_schedule_post_run_idle_tasks_drops_image_blocks_and_keeps_history():
+    """An image turn must not flood the derivation window with base64 or evict earlier history."""
+    from langchain_core.messages import AIMessage, HumanMessage
+
+    serialized = _derivation_messages(
+        [
+            HumanMessage(content="I prefer short answers"),
+            AIMessage(content="Noted"),
+            HumanMessage(content=[{"type": "text", "text": "fix this error"}, _IMAGE_BLOCK]),
+            AIMessage(content="Fixed"),
+        ]
+    )
+
+    assert [m["content"] for m in serialized] == ["I prefer short answers", "Noted", "fix this error", "Fixed"]
+    assert all("base64" not in m["content"] for m in serialized)
+
+
+def test_schedule_post_run_idle_tasks_skips_image_only_messages_and_cleans_dict_content():
+    from langchain_core.messages import AIMessage, HumanMessage
+
+    serialized = _derivation_messages(
+        [
+            {"role": "user", "content": [{"type": "text", "text": "see attached"}, _IMAGE_BLOCK]},
+            HumanMessage(content=[_IMAGE_BLOCK]),
+            AIMessage(content="done"),
+        ]
+    )
+
+    assert [m["content"] for m in serialized] == ["see attached", "done"]
+
+
+def test_schedule_post_run_idle_tasks_persists_runnable_tasks_in_real_registry(tmp_path: Path, monkeypatch):
+    """End-to-end against the real SQLite registry: tasks are enqueued and can be acquired by session id."""
+    from myrm_agent_harness.agent.background_worker import registry as registry_module
+
+    monkeypatch.setattr(registry_module, "_registry_instance", None)
+
+    async def scenario() -> list[str]:
+        with patch("myrm_agent_harness.agent.background_worker.idle_worker.schedule_idle_task"):
+            schedule_post_run_idle_tasks(
+                {
+                    "session_id": "sess_real",
+                    "workspace_root": str(tmp_path),
+                    "chat_id": "chat_real",
+                    "messages": [{"role": "user", "content": "I prefer short answers"}],
+                }
+            )
+            await asyncio.sleep(0.3)
+        registry = get_idle_task_registry(str(tmp_path))
+        acquired: list[str] = []
+        while (record := await registry.acquire_next("sess_real")) is not None:
+            acquired.append(record.task_type)
+        return acquired
+
+    acquired = asyncio.run(scenario())
+
+    assert {"cognitive_consolidation", "cognitive_derivation", "context_compaction"} <= set(acquired)
 
 
 def test_init_usage_ledger_attaches_ledger(tmp_path):
