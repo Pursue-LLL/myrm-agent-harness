@@ -275,7 +275,7 @@ class MemoryManagerCore:
         )
 
     @property
-    def user_id(self) -> str | None:
+    def user_id(self) -> str:
         return self._user_id
 
     @property

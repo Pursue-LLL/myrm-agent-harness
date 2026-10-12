@@ -239,18 +239,18 @@ class MemoryWriter:
         if partitioned.episodic:
             partitioned.episodic = await self._deduplicate_episodic_batch(partitioned.episodic)
 
-        tasks: list[asyncio.Task[Sequence[AnyMemory]]] = []
+        stores: list[Awaitable[Sequence[AnyMemory]]] = []
         if partitioned.semantic:
-            tasks.append(asyncio.create_task(self._store_semantics_batch(partitioned.semantic)))
+            stores.append(self._store_semantics_batch(partitioned.semantic))
         if partitioned.episodic:
-            tasks.append(asyncio.create_task(self._store_episodics_batch(partitioned.episodic)))
+            stores.append(self._store_episodics_batch(partitioned.episodic))
         if partitioned.procedural:
-            tasks.append(asyncio.create_task(self._store_procedurals_batch(partitioned.procedural)))
+            stores.append(self._store_procedurals_batch(partitioned.procedural))
         if partitioned.conversation:
-            tasks.append(asyncio.create_task(self._store_conversations_batch(partitioned.conversation)))
+            stores.append(self._store_conversations_batch(partitioned.conversation))
 
-        results = await asyncio.gather(*tasks)
-        return [memory for batch in results for memory in batch]
+        batches = await asyncio.gather(*stores)
+        return [memory for batch in batches for memory in batch]
 
     def build_knowledge(
         self,
