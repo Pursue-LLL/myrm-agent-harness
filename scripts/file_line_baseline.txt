@@ -82,7 +82,7 @@ myrm_agent_harness/toolkits/browser/session/browser_session.py	688
 myrm_agent_harness/toolkits/browser/session/browser_session_navigation_mixin.py	596
 myrm_agent_harness/toolkits/browser/session/extractor.py	582
 myrm_agent_harness/toolkits/browser/session_vault/__init__.py	511
-myrm_agent_harness/toolkits/code_execution/executors/base.py	513
+myrm_agent_harness/toolkits/code_execution/executors/base.py	491
 myrm_agent_harness/toolkits/code_execution/executors/common/wrapper_script.py	596
 myrm_agent_harness/toolkits/code_execution/executors/local/executor.py	762
 myrm_agent_harness/toolkits/code_execution/security/safe_command_configs/git.py	556

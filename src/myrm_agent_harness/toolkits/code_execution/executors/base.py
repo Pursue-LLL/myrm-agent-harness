@@ -23,6 +23,7 @@ Code executor base classes.
 """
 
 import asyncio
+import gzip
 import logging
 import shlex
 import uuid
@@ -39,6 +40,10 @@ from myrm_agent_harness.toolkits.code_execution.executors.models import (
     ExecutionResult,
     MCPCommunicationConfig,
     MCPConfigItem,
+)
+from myrm_agent_harness.toolkits.code_execution.executors.shell_file_transfer import (
+    read_bytes_via_shell,
+    write_bytes_via_shell,
 )
 
 logger = logging.getLogger(__name__)
@@ -163,52 +168,28 @@ class CodeExecutor(ABC):
         """
         safe = await self.resolve_path(path)
         self._log_context_file_access(safe, success=True)
-
-        if safe.endswith(".gz"):
-            import gzip
-            from base64 import b64decode
-
-            result = await self._exec_bash(f"base64 < {shlex.quote(safe)}")
-            if not result.success:
-                self._log_context_file_access(safe, success=False)
-                raise FileNotFoundError(f"Cannot read '{path}': {result.error or result.stderr}")
-
-            compressed_data = b64decode(result.stdout.strip())
-            return gzip.decompress(compressed_data).decode("utf-8")
-
-        result = await self._exec_bash(f"cat {shlex.quote(safe)}")
-        if not result.success:
+        try:
+            data = await read_bytes_via_shell(self._exec_bash, safe, path)
+        except OSError:
             self._log_context_file_access(safe, success=False)
-            raise FileNotFoundError(f"Cannot read '{path}': {result.error or result.stderr}")
-        return result.stdout
+            raise
+        if safe.endswith(".gz"):
+            data = gzip.decompress(data)
+        return data.decode("utf-8")
 
     async def read_file_bytes(self, path: str) -> bytes:
         """Read a file as bytes."""
         safe = await self.resolve_path(path)
-        result = await self._exec_bash(f"base64 < {shlex.quote(safe)}")
-        if not result.success:
-            raise FileNotFoundError(f"Cannot read '{path}': {result.error or result.stderr}")
-        from base64 import b64decode
-
-        return b64decode(result.stdout.strip())
+        return await read_bytes_via_shell(self._exec_bash, safe, path)
 
     async def write_file(self, path: str, content: str) -> None:
         """Write text content to a file."""
-        from base64 import b64encode
-
-        safe = await self.resolve_path(path)
-        parent = str(Path(safe).parent)
-        encoded = b64encode(content.encode()).decode()
-        await self._exec_bash(f"mkdir -p {shlex.quote(parent)} && echo '{encoded}' | base64 -d > {shlex.quote(safe)}")
+        await self.write_file_bytes(path, content.encode())
 
     async def write_file_bytes(self, path: str, content: bytes) -> None:
         """Write binary content to a file."""
-        from base64 import b64encode
-
         safe = await self.resolve_path(path)
-        parent = str(Path(safe).parent)
-        encoded = b64encode(content).decode()
-        await self._exec_bash(f"mkdir -p {shlex.quote(parent)} && echo '{encoded}' | base64 -d > {shlex.quote(safe)}")
+        await write_bytes_via_shell(self._exec_bash, safe, path, content)
 
     async def write_file_atomic(self, path: str, content: str) -> None:
         """Atomically replace a text file through a same-directory temporary file."""
@@ -241,11 +222,8 @@ class CodeExecutor(ABC):
 
     async def append_file(self, path: str, content: str) -> None:
         """Append text content to a file."""
-        from base64 import b64encode
-
         safe = await self.resolve_path(path)
-        encoded = b64encode(content.encode()).decode()
-        await self._exec_bash(f"echo '{encoded}' | base64 -d >> {shlex.quote(safe)}")
+        await write_bytes_via_shell(self._exec_bash, safe, path, content.encode(), append=True)
 
     async def delete_file(self, path: str) -> None:
         """Delete a file."""

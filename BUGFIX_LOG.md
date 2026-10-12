@@ -2,21 +2,21 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
-### BUG-HARNESS-2026-10-12-003 · `CodeExecutor` 的 shell 默认文件操作把文件名与 glob 模式当作 shell 语法：名字含单引号的文件读写失败，构造的名字或模式可执行任意命令
+### BUG-HARNESS-2026-10-12-003 · `CodeExecutor` 的 shell 默认文件操作不是字节无损的：名字含单引号的文件读写失败或可注入命令，读取经 stdout 被脱敏/截断，大文件读写失败
 
 | 字段 | 内容 |
 | --- | --- |
 | **状态** | FIXED |
 | **发现时间** | 2026-10-12 |
 | **修复时间** | 2026-10-12 |
-| **症状** | 只实现 `execute` / `execute_bash` 的自定义执行器上，`read_file("it's.txt")` 报 `unexpected EOF while looking for matching '`；文件名 `x'; touch PWNED; echo '` 会让读取执行 `touch PWNED`；`list_files(".", "*'; touch PWNED2; echo '")` 同样执行注入命令 |
-| **关联产品** | myrm-agent-harness `toolkits/code_execution/executors/base.py`（仓内生产执行器 `LocalExecutor` 全量覆盖这些方法，不受影响；受影响面仅为继承默认实现的第三方执行器） |
-| **根因** | 路径用 `'{safe}'`、模式用 `'{pattern}'` 手工拼接单引号；`resolve_path` 只校验工作区边界，不转义引号 |
-| **修复** | 所有路径与模式统一经 `shlex.quote`；`base64` 读取改用 stdin 重定向（`base64 < file`），在 GNU 与 BSD 实现上行为一致 |
+| **症状** | 只实现 `execute` / `execute_bash` 的自定义执行器上：（1）`read_file("it's.txt")` 报 `unexpected EOF while looking for matching '`，文件名 `x'; touch PWNED; echo '` 会让读取执行 `touch PWNED`，`list_files(".", "*'; touch PWNED2; echo '")` 同样执行注入命令；（2）文件内容 `api_key=sk-…`、`password=…`、绝对路径经 `cat` 读回后被 `ExecutionResult` 脱敏成占位符，读改写会把占位符写回磁盘；（3）超过 200K 字符的文本被静默截断并插入 `[Truncated: …]` 标记；（4）约 300 KB 的二进制读取报 base64 非法，写入 2 MB 报 `OSError: Argument list too long` |
+| **关联产品** | myrm-agent-harness `toolkits/code_execution/executors`（仓内生产执行器 `LocalExecutor` 全量原生覆盖这些方法，不受影响；受影响面仅为继承默认实现的第三方执行器与测试桩） |
+| **根因** | （1）路径与模式用 `'{safe}'` 手工拼接单引号，`resolve_path` 只校验工作区边界、不转义引号；（2）（3）所有 shell 结果都经 `ExecutionResult.__post_init__` 的 `truncate_output` + `scrub_sensitive_info`，把文件内容当文本从 stdout 读取天然有损；（4）整个文件的 base64 内联在一条命令里，超过单参数上限（Linux 128 KB）；base64 输出同样被脱敏器处理，实测 64 KB 随机数据的 base64 文本约 13%–20% 的分片被改写（`/tmp/`、`/var/` 等路径片段命中），因此不能用 base64 读取 |
+| **修复** | 所有路径与模式统一经 `shlex.quote`；新增 `executors/shell_file_transfer.py`：读取按 32 KiB 分片用 `dd` + `od` 输出十六进制（不含 `/`，脱敏器不会改写），小于一个分片的文件只需一条命令，大文件先取 `wc -c` 再逐片读取并校验总长；写入按 32 KiB 分片经 `printf %s '<base64>' \| base64 -d`，首片截断写、其余追加，每条命令远低于参数上限，任一分片失败抛 `OSError`（此前写入失败被静默忽略）；`read_file` / `read_file_bytes` / `write_file` / `write_file_bytes` / `append_file` 共用这两个原语；`base64` 读取不再使用（BSD/macOS 不接受位置参数） |
 | **反复次数** | 第 1 次发现 |
-| **踩坑** | `base64 <file>` 位置参数在 BSD/macOS 上不被接受，仅在 Linux 沙箱内可用；不同 `base64` 实现的参数约定不同 |
-| **回归** | `tests/toolkits/code_execution/executors/test_base_executor_shell_quoting.py`（带引号文件名的读写追加删除、`mkdir`/`is_dir`、`list_files` 模式均按数据处理且不产生注入副作用）；回退验证：恢复旧拼接后 4 个用例全部失败 |
-| **代码位置** | `executors/base.py::CodeExecutor`（`read_file`、`read_file_bytes`、`write_file`、`write_file_bytes`、`append_file`、`delete_file`、`file_exists`、`is_file`、`is_dir`、`mkdir`、`list_files`） |
+| **踩坑** | 经 shell 取回文件内容必须假设 stdout 会被改写：脱敏与截断是整个执行结果层的统一行为，换编码要实测才能确认不被命中（base64 实测约 13%–20% 的 64 KB 分片被改写，hex 在 60 个 32 KiB 分片上 0 次）；管道的退出码只反映最后一级，`test -f F && dd … \| od …` 才能让缺失文件使整条命令失败；BSD 与 GNU 的 `base64` 参数约定不同；`echo` 对以 `-` 开头的内容行为不一，写入用 `printf %s` |
+| **回归** | `tests/toolkits/code_execution/executors/test_base_executor_shell_quoting.py`（带引号文件名与注入模式；含密钥与绝对路径的文本读回原样；0 / 1 / 分片边界 ±1 / 5 分片+7 字节的随机字节往返；约 620 KB 文本不截断；截断写与跨分片追加；`.gz` 解压；缺失文件抛 `FileNotFoundError`、写入失败抛 `OSError`）；回退验证：恢复旧实现后脱敏、大随机字节、大文本、写入失败 4 个用例失败 |
+| **代码位置** | `executors/shell_file_transfer.py`（`read_bytes_via_shell`、`write_bytes_via_shell`）· `executors/base.py::CodeExecutor`（文件操作默认实现） |
 
 ### BUG-HARNESS-2026-10-12-002 · 没有 doctype 的页面被判为“被模态遮罩阻塞”：html/body 因覆盖视口 50% 以上被当成遮罩，带 label 的输入框被标 `[blocked]` 且拿不到 ref
 

@@ -103,8 +103,8 @@ PTC（程序化工具调用）
 | `execute(context)` | 抽象 | Python 代码执行 |
 | `execute_bash(context)` | 抽象 | Bash 命令执行 |
 | `execute_bash_stream(context)` | 虚拟 | 流式 Bash 输出（逐行） |
-| `read_file(path)` | 默认实现 | 读取文件内容 |
-| `write_file(path, content)` | 默认实现 | 写入文件 |
+| `read_file(path)` | 默认实现 | 读取文件内容（经 shell 分片读取十六进制，字节无损，不受输出脱敏与截断影响） |
+| `write_file(path, content)` | 默认实现 | 写入文件（32 KiB 分片 base64，大文件不触及单参数上限，失败抛 `OSError`） |
 | `list_files(path)` | 默认实现 | 列出目录文件 |
 | `bind_workspace(path)` | 具体 | 绑定工作目录 |
 | `close()` | 虚拟 | 异步资源清理（级联释放 Bash 会话与沙箱句柄，支持 `async with`） |
