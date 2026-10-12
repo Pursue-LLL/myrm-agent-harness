@@ -26,7 +26,6 @@ from typing import Literal
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
-from myrm_agent_harness.toolkits.memory._internal.storage import MemoryProtectedError
 from myrm_agent_harness.toolkits.memory.agent_surface._memory_agent_tool_descriptions import (
     build_memory_save_tool_description,
     build_memory_search_tool_description,
@@ -55,9 +54,6 @@ from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy impor
     MemorySearchPolicy,
     resolve_search_corpora,
 )
-from myrm_agent_harness.toolkits.memory.agent_surface.rule_write_boundary import (
-    rule_write_protection_message,
-)
 from myrm_agent_harness.toolkits.memory.agent_surface.tool_result_sources import (
     pack_tool_result_with_sources,
     unpack_corpus_tool_result,
@@ -72,6 +68,7 @@ from myrm_agent_harness.toolkits.memory.agent_surface.wiki_memory_boundary impor
     record_wiki_memory_save_rejection,
     wiki_memory_save_rejection_message,
 )
+from myrm_agent_harness.toolkits.memory.agent_surface.write_failure_feedback import write_failure_feedback
 from myrm_agent_harness.toolkits.memory.config import RecallMode
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.types import MemoryType, RuleSource
@@ -423,8 +420,7 @@ def create_memory_tools(
 
             return f"Unknown category: {category}"
         except Exception as e:
-            logger.warning("memory_save failed: %s", e)
-            return "Failed to store memory"
+            return write_failure_feedback("memory_save", e, fallback="Failed to store memory")
 
     tools.append(memory_save)
 
@@ -537,12 +533,8 @@ def create_memory_tools(
                 return f"Discard action is not supported for category: {category}"
 
             return f"Unknown action: {action}"
-        except MemoryProtectedError as e:
-            logger.info("memory_manage refused a protected memory: %s", e)
-            return rule_write_protection_message(memory_id)
         except Exception as e:
-            logger.warning("memory_manage failed: %s", e)
-            return "Failed to manage memory"
+            return write_failure_feedback("memory_manage", e, fallback="Failed to manage memory", memory_id=memory_id)
 
     tools.append(memory_manage)
     return tools

@@ -11,6 +11,8 @@ def mock_manager():
     from myrm_agent_harness.toolkits.memory._internal.hash_utils import NormalizationLevel
 
     class MockConfig:
+        security_scan_enabled = False
+
         class dedup:  # noqa: N801
             normalization_level = NormalizationLevel.FULL
 

@@ -46,7 +46,6 @@ from typing import TYPE_CHECKING
 from mcp.server.mcpserver import MCPServer
 from starlette.applications import Starlette
 
-from myrm_agent_harness.toolkits.memory._internal.storage import MemoryProtectedError
 from myrm_agent_harness.toolkits.memory.agent_surface._memory_agent_tool_descriptions import (
     build_mcp_memory_store_tool_description,
     resolve_memory_manage_tool_description,
@@ -77,14 +76,12 @@ from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting i
 from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting import (
     parse_time_bound as _parse_time_bound,
 )
-from myrm_agent_harness.toolkits.memory.agent_surface.rule_write_boundary import (
-    rule_write_protection_message,
-)
 from myrm_agent_harness.toolkits.memory.agent_surface.wiki_memory_boundary import (
     looks_like_wiki_document,
     record_wiki_memory_save_rejection,
     wiki_memory_save_rejection_message,
 )
+from myrm_agent_harness.toolkits.memory.agent_surface.write_failure_feedback import write_failure_feedback
 from myrm_agent_harness.toolkits.memory.types import (
     ClaimMemory,
     MemoryType,
@@ -630,8 +627,7 @@ class MemoryMCPServer:
                     return f"Instruction {'submitted for approval' if pending else 'stored'} (ID: {mem.id})"
 
             except Exception as e:
-                logger.warning("MCP memory_store failed: %s", e)
-                return "Failed to store memory"
+                return write_failure_feedback("MCP memory_store", e, fallback="Failed to store memory")
 
             return f"Unknown category: {category}"
 
@@ -729,12 +725,10 @@ class MemoryMCPServer:
                     correction = await mgr.correct_memory(memory_id, new_content, allow_protected=False)
                     return f"Memory corrected (new ID: {correction.id}). Prior entry {memory_id} kept in history."
 
-            except MemoryProtectedError as e:
-                logger.info("MCP memory_manage refused a protected memory: %s", e)
-                return rule_write_protection_message(memory_id)
             except Exception as e:
-                logger.warning("MCP memory_manage failed: %s", e)
-                return "Failed to manage memory"
+                return write_failure_feedback(
+                    "MCP memory_manage", e, fallback="Failed to manage memory", memory_id=memory_id
+                )
 
             return f"Unknown action: {action}"
 

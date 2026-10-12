@@ -50,7 +50,6 @@ myrm_agent_harness/agent/security/detection/pii_classifier.py
 myrm_agent_harness/agent/security/detection/prompt_guard.py
 myrm_agent_harness/agent/security/detection/pseudonym_store.py
 myrm_agent_harness/agent/security/detection/pseudonymizer.py
-myrm_agent_harness/agent/security/execution_policy.py
 myrm_agent_harness/agent/security/guards/privacy_tracker.py
 myrm_agent_harness/agent/security/guards/ssrf_guard.py
 myrm_agent_harness/agent/security/message_filtering/__init__.py

@@ -386,10 +386,7 @@ class MemoryWriter:
                 scan_and_clean_memory(memory, block_threshold=threshold)
                 safe_memories.append(memory)
             except MemoryTaintedError:
-                logger.warning(
-                    "[MEMORY_SCAN] Blocked tainted memory in batch: %s...",
-                    memory.content[:80],
-                )
+                continue  # rejected: counted and logged by the scanner; siblings are unaffected
         return safe_memories
 
     def _partition_memories(self, memories: Sequence[AnyMemory]) -> PartitionedMemories:

@@ -383,27 +383,18 @@ class SkillAgentReviewMixin:
                         extraction_query: str | list[dict[str, object]] = [] if isinstance(query, Command) else query
 
                         async def _background_extraction() -> None:
-                            # Fire-and-forget task runs outside the LangGraph
-                            # runnable context; scope it so BLOCKED memories
-                            # degrade to per-memory drops instead of crashing
-                            # the whole session extraction.
-                            from myrm_agent_harness.toolkits.memory._internal.memory_scanner import (
-                                background_memory_write,
+                            await auto_extract_memories(
+                                extraction_query,
+                                chat_history,
+                                memory_manager,
+                                llm,
+                                extraction_llm=extraction_llm,
+                                source_chat_id=session_chat_id,
+                                assistant_reply="".join(assistant_chunks),
+                                deep_scan=privacy.deep_scan,
+                                wiki_boundary_enabled=wiki_boundary_enabled,
+                                lifecycle_observer=getattr(self, "_extraction_lifecycle_observer", None),
                             )
-
-                            async with background_memory_write():
-                                await auto_extract_memories(
-                                    extraction_query,
-                                    chat_history,
-                                    memory_manager,
-                                    llm,
-                                    extraction_llm=extraction_llm,
-                                    source_chat_id=session_chat_id,
-                                    assistant_reply="".join(assistant_chunks),
-                                    deep_scan=privacy.deep_scan,
-                                    wiki_boundary_enabled=wiki_boundary_enabled,
-                                    lifecycle_observer=getattr(self, "_extraction_lifecycle_observer", None),
-                                )
 
                         task = asyncio.create_task(_background_extraction())
                         track_background_task(task)

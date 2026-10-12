@@ -16,7 +16,6 @@ _ALLOWED_STAR_IMPORT_FILES = frozenset(
         "agent/hooks/types.py",
         "agent/streaming/types.py",
         "agent/security/audit.py",
-        "agent/security/execution_policy.py",
         "agent/security/path_security.py",
         "agent/security/redact.py",
         "agent/security/safe_exec.py",

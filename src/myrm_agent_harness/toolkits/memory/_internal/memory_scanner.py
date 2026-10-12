@@ -16,17 +16,22 @@ Processing tiers:
 [INPUT]
 - core.security.persistence.content_scan::scan_persistable_content (POS: Persistence-scan SSOT — injection / harmful-state / PII-pseudonymize / leak / boundary verdicts.)
 - core.security.persistence.content_scan::set_pii_pseudonymizer (POS: Context-local regex PII pseudonymization closure, inherited by fire-and-forget tasks.)
-- core.security.redact::redact_sensitive_text (POS: Credential redaction applied to log snippets of memories dropped as BLOCKED.)
+- memory._internal.storage::MemoryError (POS: Base class of memory operation errors, so MemoryTaintedError is handled like every other rejected write.)
 
 [OUTPUT]
 - scan_memory_content(): scan text, return ScanVerdict + cleaned text
 - scan_and_clean_memory(): scan AnyMemory, mutate content fields in-place
+- reject_blocked(): count, audit and log a BLOCKED verdict, then reject the write
+- reject_if_blocked(): read-only up-front BLOCKED probe for write buffers
+- MemoryTaintedError: rejected write; ``str()`` is safe to show to end users
 - set_pii_pseudonymizer(): register the context-local regex PII closure applied before persistence
 
 [POS]
 Memory write-path security scanner. Scans content, raw_exchange (ConversationMemory,
 scanned without its own role labels), trigger/action (ProceduralMemory) and the
 summary_l0/overview_l1 gists (re-derived from the cleaned content when they are its prefixes).
+A BLOCKED verdict is a plain rejection (counted, audited, logged without the text, then
+MemoryTaintedError) — there is no approval path, so every caller, in or out of an agent run, behaves alike.
 Reuses prompt_guard (9-class injection detection),
 leak_detector (25+ credential patterns + smart masking + password-like heuristic),
 instruction_shape (6-class bilingual instruction-shape detection),
@@ -40,11 +45,10 @@ from __future__ import annotations
 
 import logging
 import threading
-from collections.abc import AsyncIterator, Callable
-from contextlib import asynccontextmanager
-from contextvars import ContextVar
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
+from typing import Literal, NoReturn
 
 from myrm_agent_harness.core.security.persistence.content_scan import (
     PersistScanProfile,
@@ -54,7 +58,7 @@ from myrm_agent_harness.core.security.persistence.content_scan import (
 from myrm_agent_harness.core.security.persistence.content_scan import (
     set_pii_pseudonymizer as _set_core_pii_pseudonymizer,
 )
-from myrm_agent_harness.core.security.redact import redact_sensitive_text
+from myrm_agent_harness.toolkits.memory._internal.storage import MemoryError
 
 logger = logging.getLogger(__name__)
 
@@ -88,25 +92,38 @@ class ScanResult:
     had_invisible_unicode: bool = False
 
 
-class MemoryTaintedError(Exception):
-    """Raised when memory content is blocked due to high-confidence injection."""
+class MemoryTaintedError(MemoryError):
+    """Raised when the write scan rejects a memory (BLOCKED verdict).
 
-    def __init__(self, score: float, patterns: list[str]) -> None:
+    ``str()`` is phrased for end users (REST ``detail``, UI toast): it names no detector,
+    score or pattern. ``score`` / ``patterns`` carry the detector detail for logs and tests.
+    """
+
+    def __init__(self, score: float, patterns: list[str], *, harmful_state: bool = False) -> None:
         self.score = score
         self.patterns = patterns
-        super().__init__(f"Memory write blocked: injection score={score:.2f}, patterns={','.join(patterns)}")
+        self.harmful_state = harmful_state
+        super().__init__(
+            "Memory not saved: sensitive personal-state content is not stored."
+            if harmful_state
+            else "Memory not saved: the text reads like an instruction to the assistant, not a fact or preference."
+        )
 
 
 def _map_persist_verdict(verdict: PersistScanVerdict) -> ScanVerdict:
     return ScanVerdict(verdict.value)
 
 
-def scan_memory_content(text: str, *, block_threshold: float = 0.8) -> ScanResult:
-    """Scan a text field for security threats."""
+def scan_memory_content(text: str, *, block_threshold: float = 0.8, pseudonymize: bool = True) -> ScanResult:
+    """Scan a text field for security threats.
+
+    ``pseudonymize=False`` skips the (stateful) PII closure for callers that only need the verdict.
+    """
     persist = scan_persistable_content(
         text,
         profile=PersistScanProfile.MEMORY_WRITE,
         block_threshold=block_threshold,
+        pseudonymize=pseudonymize,
     )
     return ScanResult(
         verdict=_map_persist_verdict(persist.verdict),
@@ -121,28 +138,6 @@ def scan_memory_content(text: str, *, block_threshold: float = 0.8) -> ScanResul
 
 
 PseudonymizeFn = Callable[[str], str]
-
-# True while a fire-and-forget background memory write is in flight (post-run
-# auto-extraction). No LangGraph runnable context exists there to service the
-# approval interrupt, so a BLOCKED verdict must reject that single memory via
-# MemoryTaintedError instead of crashing the whole extraction batch.
-_background_memory_write: ContextVar[bool] = ContextVar("_background_memory_write", default=False)
-
-
-@asynccontextmanager
-async def background_memory_write() -> AsyncIterator[None]:
-    """Scope a fire-and-forget memory write as background (non-graph) context.
-
-    BLOCKED verdicts inside this scope skip the approval interrupt (there is no
-    interactive agent to resume it) and degrade to the same single-memory
-    rejection an explicit user denial takes, so one tainted memory cannot lose
-    the whole session's extraction.
-    """
-    token = _background_memory_write.set(True)
-    try:
-        yield
-    finally:
-        _background_memory_write.reset(token)
 
 
 def set_pii_pseudonymizer(fn: PseudonymizeFn | None) -> None:
@@ -164,69 +159,42 @@ def _apply_pii_pseudonymization(text: str) -> str:
     return fn(text)
 
 
-def _handle_blocked_verdict(result: ScanResult, content: str) -> ScanResult:
-    """Handle BLOCKED verdict by suspending execution for user approval."""
-    from myrm_agent_harness.core.security.execution_policy import ApprovalContract, suspend_execution
+def reject_blocked(result: ScanResult) -> NoReturn:
+    """Count, audit and log a BLOCKED verdict, then reject the write.
 
+    The log line names the detector findings only: a BLOCKED text is returned by the scan
+    before credential redaction, so it must never be echoed.
+    """
+    get_scan_metrics().record(ScanVerdict.BLOCKED)
     if result.harmful_state_patterns:
-        reason = f"Harmful psychological state detected: {','.join(result.harmful_state_patterns)}"
-        payload = {"harmful_state_patterns": result.harmful_state_patterns, "content": content}
+        detail = f"harmful_states={','.join(result.harmful_state_patterns)}"
     else:
-        reason = f"High-confidence prompt injection detected (score={result.injection_score:.2f})"
-        payload = {
-            "injection_score": result.injection_score,
-            "injection_patterns": result.injection_patterns,
-            "content": content,
-        }
-
-    if _background_memory_write.get():
-        # Background writes have no runnable graph context to suspend for
-        # approval; degrade to the user-denied rejection path so the batch
-        # scanner drops only this memory instead of losing the whole batch.
-        # A BLOCKED text is not credential-redacted by the scan, so redact before truncating the snippet.
-        logger.warning(
-            "[MEMORY_SCAN] BLOCKED memory dropped in background write (no approval channel): %s snippet=%.100s",
-            reason,
-            redact_sensitive_text(content),
-        )
-        if result.harmful_state_patterns:
-            raise MemoryTaintedError(1.0, result.harmful_state_patterns)
-        raise MemoryTaintedError(result.injection_score, result.injection_patterns)
-
-    contract = ApprovalContract[dict[str, object]](
-        action_type="memory_mutation",
-        payload=payload,
-        reason=reason,
-        severity="critical",
-    )
-    decision = suspend_execution(contract)
-
-    if isinstance(decision, dict) and decision.get("decision") == "approve":
-        logger.warning("Memory mutation approved by user despite BLOCKED verdict")
-        edited_content = content
-        if (
-            "edited_payload" in decision
-            and isinstance(decision["edited_payload"], dict)
-            and "content" in decision["edited_payload"]
-        ):
-            edited_content = str(decision["edited_payload"]["content"])
-
-        return ScanResult(
-            verdict=ScanVerdict.CLEAN,
-            cleaned_text=edited_content,
-            injection_score=result.injection_score,
-            injection_patterns=result.injection_patterns,
-            harmful_state_patterns=result.harmful_state_patterns,
-        )
+        detail = f"score={result.injection_score:.2f} patterns={','.join(result.injection_patterns)}"
+    logger.warning("[MEMORY_SCAN] BLOCKED %s", detail)
+    _record_audit(result, [detail])
     if result.harmful_state_patterns:
-        raise MemoryTaintedError(1.0, result.harmful_state_patterns)
+        raise MemoryTaintedError(1.0, result.harmful_state_patterns, harmful_state=True)
     raise MemoryTaintedError(result.injection_score, result.injection_patterns)
 
 
+def reject_if_blocked(text: str, *, block_threshold: float) -> None:
+    """Reject ``text`` up front when the write scan would block it.
+
+    Read-only probe for write buffers: nothing is cleaned or pseudonymized and only a
+    rejection is counted, so the scan that later persists an accepted memory still
+    records it exactly once.
+    """
+    result = scan_memory_content(text, block_threshold=block_threshold, pseudonymize=False)
+    if result.verdict == ScanVerdict.BLOCKED:
+        reject_blocked(result)
+
+
 def _scan_field(text: str, block_threshold: float) -> ScanResult:
-    """Scan one text field; a BLOCKED verdict is resolved (approval or rejection) before returning."""
+    """Scan one text field; a BLOCKED verdict rejects the whole write."""
     result = scan_memory_content(text, block_threshold=block_threshold)
-    return _handle_blocked_verdict(result, text) if result.verdict == ScanVerdict.BLOCKED else result
+    if result.verdict == ScanVerdict.BLOCKED:
+        reject_blocked(result)
+    return result
 
 
 _USER_LABEL = "User: "  # role labels the chunker writes into ConversationMemory.raw_exchange
@@ -278,8 +246,7 @@ def scan_and_clean_memory(memory: object, *, block_threshold: float = 0.8) -> Sc
     Scans ``content`` (all memory types), ``raw_exchange`` (ConversationMemory),
     ``trigger``/``action`` (ProceduralMemory) and the ``summary_l0``/``overview_l1`` gists
     (re-derived from the cleaned content, or scanned when authored independently). Returns the
-    worst-case ScanResult across fields. Raises MemoryTaintedError if any field triggers BLOCKED
-    verdict and is denied.
+    worst-case ScanResult across fields. Raises MemoryTaintedError if any field is BLOCKED.
     """
     from myrm_agent_harness.toolkits.memory.types import ConversationMemory, ProceduralMemory
 
@@ -318,7 +285,7 @@ def scan_and_clean_memory(memory: object, *, block_threshold: float = 0.8) -> Sc
 
 
 def _log_scan_result(result: ScanResult, content: str) -> None:
-    """Log, audit, and record metrics for scan results."""
+    """Log, audit, and record metrics for an accepted write's scan result (BLOCKED never reaches here)."""
     get_scan_metrics().record(result.verdict)
 
     if result.verdict == ScanVerdict.CLEAN:
@@ -327,14 +294,7 @@ def _log_scan_result(result: ScanResult, content: str) -> None:
     snippet = content[:100].replace("\n", " ")
     reason_parts: list[str] = []
 
-    if result.verdict == ScanVerdict.BLOCKED:
-        if result.harmful_state_patterns:
-            reason_parts.append(f"harmful_states={','.join(result.harmful_state_patterns)}")
-        else:
-            reason_parts.append(f"score={result.injection_score:.2f}")
-            reason_parts.append(f"patterns={','.join(result.injection_patterns)}")
-        logger.warning("[MEMORY_SCAN] BLOCKED %s snippet=%.100s", " ".join(reason_parts), snippet)
-    elif result.verdict == ScanVerdict.REDACTED:
+    if result.verdict == ScanVerdict.REDACTED:
         reason_parts.append(f"credentials={','.join(result.credential_patterns)}")
         if result.instruction_shape_patterns:
             reason_parts.append(f"instruction_shape={','.join(result.instruction_shape_patterns)}")
@@ -356,7 +316,7 @@ def _record_audit(result: ScanResult, reason_parts: list[str]) -> None:
     try:
         from myrm_agent_harness.core.security.audit import record_decision
 
-        decision = "DENY" if result.verdict == ScanVerdict.BLOCKED else "SCAN_FINDING"
+        decision: Literal["DENY", "SCAN_FINDING"] = "DENY" if result.verdict == ScanVerdict.BLOCKED else "SCAN_FINDING"
         record_decision("memory_write", decision, f"verdict={result.verdict.value} {' '.join(reason_parts)}")
     except Exception:
         pass

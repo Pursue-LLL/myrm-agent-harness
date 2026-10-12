@@ -3,6 +3,7 @@
 
 [INPUT]
 - memory._internal.hash_utils::compute_normalized_hash (POS: text normalization and hashing)
+- memory._internal.memory_scanner::reject_if_blocked (POS: up-front BLOCKED probe so a rejected memory never enters the buffer)
 - memory.types::{AnyMemory, EpisodicMemory, ProceduralMemory, SemanticMemory} (POS: memory data models)
 - memory.manager::MemoryManager (POS: unified memory manager facade)
 
@@ -12,6 +13,8 @@
 [POS]
 Conversation-level memory buffer. Buffers memory writes during a session and batch-flushes
 on end_session(). Session-level normalized hash cache prevents duplicates within a conversation.
+Content the write scan would block is refused when it is added (``MemoryTaintedError``), so the
+caller learns of the rejection immediately and a flush never loses buffered siblings to it.
 """
 
 from __future__ import annotations
@@ -21,6 +24,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
 from myrm_agent_harness.toolkits.memory._internal.hash_utils import NormalizationLevel, compute_normalized_hash
+from myrm_agent_harness.toolkits.memory._internal.memory_scanner import reject_if_blocked
 from myrm_agent_harness.toolkits.memory.types import (
     AnyMemory,
     EpisodicMemory,
@@ -58,6 +62,12 @@ class MemorySession:
         """Get normalization level from manager's config."""
         return self.manager.config.dedup.normalization_level
 
+    def _reject_if_blocked(self, content: str) -> None:
+        """Refuse text the write scan would block, before it is buffered or hashed."""
+        config = self.manager.config
+        if config.security_scan_enabled:
+            reject_if_blocked(content, block_threshold=config.injection_block_threshold)
+
     def _check_duplicate(self, content: str) -> bool:
         """Check if content already exists in session buffer.
 
@@ -79,6 +89,7 @@ class MemorySession:
         Returns:
             SemanticMemory if added, None if duplicate detected
         """
+        self._reject_if_blocked(content)
         if self._check_duplicate(content):
             return None
 
@@ -112,6 +123,7 @@ class MemorySession:
         Returns:
             EpisodicMemory if added, None if duplicate detected
         """
+        self._reject_if_blocked(content)
         if self._check_duplicate(content):
             return None
 
@@ -153,6 +165,7 @@ class MemorySession:
         cleaned_lesson = negative_lesson.strip() if negative_lesson else ""
         fallback_lesson = cleaned_lesson or cleaned_reason or content.strip()
 
+        self._reject_if_blocked(content)
         content_hash = compute_normalized_hash(content, self._normalization_level)
 
         if content_hash in self._content_hashes:
@@ -208,6 +221,7 @@ class MemorySession:
             ProceduralMemory if added, None if duplicate detected
         """
         content = f"When: {trigger} → Do: {action}"
+        self._reject_if_blocked(content)
         if self._check_duplicate(content):
             return None
 

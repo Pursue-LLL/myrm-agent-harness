@@ -99,8 +99,13 @@ def scan_persistable_content(
     profile: PersistScanProfile,
     block_threshold: float = 0.8,
     wiki_raw_caller: str | None = None,
+    pseudonymize: bool = True,
 ) -> PersistScanResult:
-    """Scan content before writing to a durable store."""
+    """Scan content before writing to a durable store.
+
+    ``pseudonymize=False`` skips the context-local PII closure (it is stateful), for callers
+    that only need the verdict and discard ``cleaned_text``.
+    """
     if not text:
         return PersistScanResult(verdict=PersistScanVerdict.CLEAN, cleaned_text=text)
 
@@ -186,7 +191,7 @@ def scan_persistable_content(
         verdict = PersistScanVerdict.REDACTED
         finding_codes.append("password_like_redacted")
 
-    if profile == PersistScanProfile.MEMORY_WRITE:
+    if profile == PersistScanProfile.MEMORY_WRITE and pseudonymize:
         pseudonymizer = _pii_pseudonymizer_var.get()
         if pseudonymizer is not None:
             cleaned = pseudonymizer(cleaned)

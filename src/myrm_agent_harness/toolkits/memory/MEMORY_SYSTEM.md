@@ -430,7 +430,8 @@ def scan_and_clean_memory(memory: object, *, block_threshold: float = 0.8) -> Sc
 **扫描策略：**
 
 1. **Prompt Injection Detection**：7+2类注入攻击检测（`prompt_guard.py`）
-   - HIGH score (≥0.8) → BLOCKED verdict → 触发用户审批
+   - HIGH score (≥0.8) → BLOCKED verdict → 直接拒写（没有批准放行路径）：计入 `ScanMetrics.blocked`、审计 `DENY`、抛 `MemoryTaintedError`（`MemoryError` 子类，`str()` 为用户可读原因，不含分数与规则名）。有害心理状态同样走拒写。
+   - 各入口一致呈现：`memory_save` / `memory_manage` 与 MCP `memory_store` / `memory_manage` 返回明确的 "Not saved" 结果并说明如何改写（`agent_surface/write_failure_feedback.py`）；`MemorySession.add_*` 在入缓冲前用只读预检（`reject_if_blocked`，不脱敏、不计入已接受写入）同规则拒绝，使拒绝即时可见、`end_session()` 的批量落库不丢干净记忆；`store_batch` / 导入只丢弃被拒条目；Server 层全局映射为 HTTP 400
    - LOW score (<0.8) → WARN verdict → 记录日志并存储
 
 2. **Credential Leak Detection**：25+种凭证模式检测（`leak_detector.py`）
@@ -445,7 +446,7 @@ def scan_and_clean_memory(memory: object, *, block_threshold: float = 0.8) -> Sc
 
 - 所有扫描结果记录到 `ScanMetrics`（total_scans, blocked, redacted, warned）
 - 安全决策记录到 audit trail（`agent.security.audit`）
-- 扫描告警日志不输出凭证原文：写入链路记录清洗后的内容片段；后台写入中被丢弃的 BLOCKED 记忆（扫描不对其脱敏）先经 `redact_sensitive_text` 再截断
+- 扫描告警日志不输出凭证原文：写入链路记录清洗后的内容片段；被拒写（BLOCKED）的记忆只记录检测器结论（score / patterns / harmful_states），不记录文本（扫描不对其脱敏）
 - 生产环境可通过 `/api/v1/health/metrics` 监控扫描统计
 
 **覆盖范围：**
@@ -455,13 +456,14 @@ def scan_and_clean_memory(memory: object, *, block_threshold: float = 0.8) -> Sc
 | content        | ✅       | 所有记忆类型的主要内容字段                |
 | raw_exchange   | ✅       | ConversationMemory的verbatim原始对话；`User:`/`Assistant:` 结构标签不参与注入检测，正文分段扫描 |
 | trigger/action | ✅       | ProceduralMemory的行为规则字段            |
-| summary_l0 / overview_l1 | ✅ | 所有记忆类型的内容摘要；是 `content` 前缀时按清洗后的 `content` 重新生成（截断位置落在凭证中间时不会残留片段，也不会为同一条内容重复触发审批），由写入方单独提供时按普通字段扫描 |
+| summary_l0 / overview_l1 | ✅ | 所有记忆类型的内容摘要；是 `content` 前缀时按清洗后的 `content` 重新生成（截断位置落在凭证中间时不会残留片段，也不会为同一条内容重复计数），由写入方单独提供时按普通字段扫描 |
 
 **测试覆盖：**
 
 - `test_memory_scanner.py`：覆盖所有verdict路径，含 `test_conversation_memory_raw_exchange_*` 验证raw_exchange扫描
 - `test_memory_scanner_exchange.py`：`TestConversationExchangeScan` 验证分块器布局的 exchange（结构标签不误报、回复内真实伪造角色行仍告警、凭证脱敏保持布局）
-- `test_memory_scanner_gists.py`：摘要字段的两条路径——前缀随清洗后的内容重新生成（含截断落在凭证中间）、独立摘要按普通字段扫描；已批准的 BLOCKED 内容只审批一次
+- `test_memory_blocked_rejection.py`：真实 LangGraph + 真实 `memory_save` 工具 + 真实 `MemoryManager` 验证 BLOCKED 一致拒写（不在 Agent 运行内也不崩、批量保留干净同批、只计数一次、审计 DENY、日志无原文、会话缓冲入口即时拒绝）
+- `test_memory_scanner_gists.py`：摘要字段的两条路径——前缀随清洗后的内容重新生成（含截断落在凭证中间）、独立摘要按普通字段扫描；BLOCKED 内容只拒绝并计数一次（不按摘要重复）
 - `test_memory_write_path_integration.py`：真实 MemoryManager 写入链路下，凭证不进入摘要字段、向量库 payload 与扫描日志
 
 ---

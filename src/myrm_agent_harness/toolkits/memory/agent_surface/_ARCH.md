@@ -24,6 +24,7 @@ Parent index: [../_ARCH.md](../_ARCH.md). System design: [../MEMORY_SYSTEM.md](.
 | `mcp/` | Package | Cross-tool memory MCP interop gateway & wire adapter (ai-memory parity). | ✅ |
 | `wiki_memory_boundary.py` | Core | Wiki vs memory write boundary heuristics. | ✅ |
 | `transient_fact_boundary.py` | Core | Transient business state memory write boundary heuristics. | ✅ |
+| `write_failure_feedback.py` | Core | Model-facing result for a failed save/manage call: explicit "Not saved" rejection for write-scan rejections, protected-memory refusal text, generic fallback otherwise (shared by tools and MCP). | ✅ |
 | `rule_write_boundary.py` | Core | Agent-facing rejection message for writes to user-protected (`is_user_protected`) memories; the guard itself lives in `MemoryManager.update_memory`. | ✅ |
 
 ## Key Dependencies

@@ -26,9 +26,9 @@ from myrm_agent_harness.toolkits.memory._internal.approval import (
     pending_to_memory,
 )
 from myrm_agent_harness.toolkits.memory._internal.memory_scanner import (
-    MemoryTaintedError,
     ScanVerdict,
     get_scan_metrics,
+    reject_blocked,
     scan_memory_content,
 )
 from myrm_agent_harness.toolkits.memory._internal.storage import (
@@ -255,9 +255,9 @@ class GovernanceService:
     async def set_profile_attribute(self, key: str, value: str, *, approval_required: bool) -> str | None:
         if self._config.security_scan_enabled:
             result = scan_memory_content(value, block_threshold=self._config.injection_block_threshold)
-            get_scan_metrics().record(result.verdict)
             if result.verdict == ScanVerdict.BLOCKED:
-                raise MemoryTaintedError(result.injection_score, result.injection_patterns)
+                reject_blocked(result)
+            get_scan_metrics().record(result.verdict)
             if result.cleaned_text != value:
                 value = result.cleaned_text
 

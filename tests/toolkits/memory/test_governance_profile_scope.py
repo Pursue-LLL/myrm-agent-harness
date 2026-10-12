@@ -1,11 +1,10 @@
 """Profile writes are screened for injection and bound to the scope that must stay visible across chats."""
 
-from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 
-from myrm_agent_harness.toolkits.memory._internal.memory_scanner import MemoryTaintedError, ScanVerdict
+from myrm_agent_harness.toolkits.memory._internal.memory_scanner import MemoryTaintedError, ScanResult, ScanVerdict
 from myrm_agent_harness.toolkits.memory._internal.storage import MemoryError
 from myrm_agent_harness.toolkits.memory.config import AgentMemoryPolicy, MemoryScopeLevel
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
@@ -13,10 +12,8 @@ from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 _SCAN = "myrm_agent_harness.toolkits.memory._internal.governance_service.scan_memory_content"
 
 
-def _scan(verdict: ScanVerdict, cleaned: str = "", score: float = 0.0, patterns: list[str] | None = None):
-    return SimpleNamespace(
-        verdict=verdict, cleaned_text=cleaned, injection_score=score, injection_patterns=patterns or []
-    )
+def _scan(verdict: ScanVerdict, cleaned: str = "", score: float = 0.0, patterns: list[str] | None = None) -> ScanResult:
+    return ScanResult(verdict=verdict, cleaned_text=cleaned, injection_score=score, injection_patterns=patterns or [])
 
 
 @pytest.fixture

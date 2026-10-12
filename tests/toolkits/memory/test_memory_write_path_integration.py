@@ -5,12 +5,10 @@ set_profile_attribute → MemoryWriter / governance service →
 scan_and_clean_memory / scan_memory_content → content_scan
 (instruction_shape, prompt_guard, leak_detector) — with all detection
 logic fully real. Only infrastructure (vector/relational stores,
-embedding) and the approval-suspension hook are stubbed.
+embedding) is stubbed.
 """
 
 from __future__ import annotations
-
-from unittest.mock import patch
 
 import pytest
 
@@ -38,13 +36,7 @@ def _make_manager(memory_config, mock_vector_store, mock_embedding, mock_relatio
 @pytest.mark.asyncio
 async def test_poisoned_store_blocked(memory_config, mock_vector_store, mock_embedding, mock_relational_store) -> None:
     manager = _make_manager(memory_config, mock_vector_store, mock_embedding, mock_relational_store)
-    with (
-        patch(
-            "myrm_agent_harness.core.security.execution_policy.suspend_execution",
-            return_value={"decision": "reject"},
-        ),
-        pytest.raises(MemoryTaintedError),
-    ):
+    with pytest.raises(MemoryTaintedError):
         await manager.store(SemanticMemory(content=_POISON))
     assert mock_vector_store.upsert.await_count == 0
 
@@ -72,11 +64,7 @@ async def test_clean_store_persisted_unchanged(
 @pytest.mark.asyncio
 async def test_poisoned_batch_skipped(memory_config, mock_vector_store, mock_embedding, mock_relational_store) -> None:
     manager = _make_manager(memory_config, mock_vector_store, mock_embedding, mock_relational_store)
-    with patch(
-        "myrm_agent_harness.core.security.execution_policy.suspend_execution",
-        return_value={"decision": "reject"},
-    ):
-        results = await manager.store_batch([SemanticMemory(content=_CLEAN), SemanticMemory(content=_POISON)])
+    results = await manager.store_batch([SemanticMemory(content=_CLEAN), SemanticMemory(content=_POISON)])
     assert [m.content for m in results] == [_CLEAN]
 
 
@@ -118,13 +106,7 @@ async def test_update_memory_poison_blocked(
             updated_at=datetime.now(UTC),
         )
     ]
-    with (
-        patch(
-            "myrm_agent_harness.core.security.execution_policy.suspend_execution",
-            return_value={"decision": "reject"},
-        ),
-        pytest.raises(MemoryTaintedError),
-    ):
+    with pytest.raises(MemoryTaintedError):
         await manager.update_memory("mem-update-1", content=_POISON)
     mock_vector_store.upsert.assert_not_awaited()
 
