@@ -115,14 +115,12 @@ class SkillEvolutionEngine(SkillEvolutionEngineBatchMixin):
         error_message: str,
         task_context: str | None = None,
         session_id: str | None = None,
-        env_fingerprint: EnvironmentFingerprint | None = None,
     ) -> EvolutionProposal | None:
         """FIX evolution: Propose repair for a failed skill.
 
-        Implements Retrieve-Before-Generate (Scan & Select):
-        First searches the store for an existing high-confidence fix matching
-        the error signature and environment. If found, reuses it.
-        Otherwise, falls back to LLM generation.
+        The repair is always generated from the failure trajectory: variants
+        are produced and judged by the LLM, filtered by the EvalCase regression
+        gate, and returned as a proposal for the failing skill itself.
         """
         old_skill = self._store.get_skill(skill_id)
         if not old_skill:
@@ -134,37 +132,6 @@ class SkillEvolutionEngine(SkillEvolutionEngineBatchMixin):
             return None
 
         logger.info(f"FIX evolution started for '{old_skill.name}'")
-
-        # 0. Scan & Select (Retrieve-Before-Generate)
-        # Try to find an existing skill that might fix this
-        # We search using the error message as a heuristic signature
-        if error_message:
-            # Extract a short signature from the error message
-            # For tracebacks, the last non-empty line contains the actual error (e.g., "ModuleNotFoundError: ...")
-            lines = [line.strip() for line in error_message.strip().split("\n") if line.strip()]
-            error_sig = lines[-1][:200] if lines else error_message[:200]
-
-            candidate_skills = await self._store.search_skills(
-                query=error_sig,
-                env_fingerprint=env_fingerprint,
-                limit=1,
-                min_effective_rate=0.8,  # Only reuse highly proven fixes
-            )
-            if candidate_skills:
-                match = candidate_skills[0]
-                # Don't match against itself
-                if match.skill_id != old_skill.skill_id:
-                    logger.info(f"Scan & Select: Found existing high-confidence fix '{match.name}' for error.")
-                    return self._proposal_builder.build_proposal(
-                        skill=old_skill,
-                        evolution_type=EvolutionType.FIX,
-                        best_variant=match.content,
-                        score=match.metrics.effective_rate,
-                        reasoning=f"Retrieved existing high-confidence fix ({match.name}) matching error signature.",
-                        task_context=task_context or "",
-                        trajectory="Retrieved from SkillStore (No LLM generation needed).",
-                        is_general=True,
-                    )
 
         # 1. Extract Trajectory
         trajectory = ""
