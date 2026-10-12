@@ -365,20 +365,16 @@ myrm-agent-harness/          # 本仓库根（示意）
 
 ### 1. CodeExecutor（必需）
 
-在执行环境中执行代码：
+在执行环境中执行 Python 与 Bash（`execute` 与 `execute_bash` 均为抽象方法，需同时实现）：
 
 ```python
-from myrm_agent_harness.toolkits.code_execution import CodeExecutor, ExecutionResult
+from myrm_agent_harness.toolkits.code_execution import CodeExecutor, ExecutionContext, ExecutionResult
 
 class MyCodeExecutor(CodeExecutor):
-    async def execute(
-        self,
-        command: str,
-        *,
-        workspace_path: str,
-        skill_paths: list[str] | None = None,
-        timeout_seconds: int = 300,
-    ) -> ExecutionResult:
+    async def execute(self, context: ExecutionContext) -> ExecutionResult:
+        ...
+
+    async def execute_bash(self, context: ExecutionContext) -> ExecutionResult:
         ...
 ```
 

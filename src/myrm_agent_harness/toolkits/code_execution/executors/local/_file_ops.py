@@ -13,7 +13,7 @@ active Goal's protected paths, alongside the executor's configured read-only roo
 
 [POS]
 Native file operations for local executor. Provides zero-subprocess-overhead
-file read/write/delete/grep using pathlib and ripgrep, with read-only path enforcement
+file read/write/delete using pathlib, with read-only path enforcement
 and the shared path-protection rules so sandbox writes agree with the file tools and
 the shell pre-flight.
 """
@@ -21,10 +21,7 @@ the shell pre-flight.
 from __future__ import annotations
 
 import logging
-import shlex
-import time
 from pathlib import Path
-from typing import Protocol, runtime_checkable
 
 from myrm_agent_harness.infra.atomic_write import async_atomic_write
 from myrm_agent_harness.toolkits.code_execution.interceptor import (
@@ -73,25 +70,11 @@ async def _trigger_snapshot_hook(
     )
 
 
-@runtime_checkable
-class _ExecutorProtocol(Protocol):
-    """Minimal interface required from the host executor."""
-
-    _readonly_paths: list[str]
-    _current_workspace: Path | None
-
-    async def resolve_path(self, path: str) -> str: ...
-    def _log_context_file_access(self, path: str, success: bool) -> None: ...
-    async def _exec_bash(self, command: str) -> object: ...
-    @property
-    def workspace_path(self) -> str: ...
-
-
 class LocalFileOpsMixin:
     """Mixin providing local file operations via pathlib (zero subprocess overhead).
 
     Requires the host class to provide: ``resolve_path``, ``_guard_write``,
-    ``_log_context_file_access``, ``_exec_bash``, and ``workspace_path``.
+    ``_log_context_file_access``, and ``workspace_path``.
     """
 
     def _is_readonly(self, resolved_path: str) -> bool:
@@ -275,66 +258,3 @@ class LocalFileOpsMixin:
     async def list_files(self, path: str = ".", pattern: str = "*") -> list[str]:
         safe = await self.resolve_path(path)  # type: ignore[attr-defined]
         return [str(f) for f in Path(safe).glob(pattern) if f.is_file()]
-
-    async def grep(
-        self,
-        pattern: str,
-        path: str = ".",
-        use_regex: bool = False,
-        case_sensitive: bool = True,
-    ) -> str:
-        """Search files using ripgrep (preferred) or grep (fallback).
-
-        Args:
-            pattern: Search pattern.
-            path: Search path relative to workspace.
-            use_regex: Use regex matching (default: False, literal match).
-            case_sensitive: Case-sensitive matching (default: True).
-
-        Returns:
-            Search results in ``file:line:content`` format.
-        """
-        start = time.time()
-        safe = await self.resolve_path(path)  # type: ignore[attr-defined]
-
-        if not hasattr(self, "_has_ripgrep"):
-            check_rg = await self._exec_bash("which rg 2>/dev/null")  # type: ignore[attr-defined]
-            self._has_ripgrep = bool(check_rg.success and check_rg.stdout.strip())
-
-        tool = "ripgrep" if self._has_ripgrep else "grep"
-
-        if self._has_ripgrep:
-            flags = ["--line-number"]
-            if not use_regex:
-                flags.append("--fixed-strings")
-            if not case_sensitive:
-                flags.append("--ignore-case")
-
-            result = await self._exec_bash(  # type: ignore[attr-defined]
-                f"rg {' '.join(flags)} -e {shlex.quote(pattern)} -- {shlex.quote(str(safe))} 2>/dev/null || true"
-            )
-        else:
-            # -E: regex mode means extended regex; grep's default would be basic regex (`+`, `|`, `()` literal).
-            flags = "-rn" + ("E" if use_regex else "F") + ("" if case_sensitive else "i")
-            result = await self._exec_bash(  # type: ignore[attr-defined]
-                f"grep {flags} -e {shlex.quote(pattern)} -- {shlex.quote(str(safe))} || true"
-            )
-
-        elapsed = time.time() - start
-        stdout: str = str(result.stdout)
-        match_count = len(stdout.splitlines()) if stdout else 0
-        logger.debug(
-            "grep: tool=%s, regex=%s, case_sensitive=%s, elapsed=%.4fs, pattern_len=%d, matches=%d",
-            tool,
-            use_regex,
-            case_sensitive,
-            elapsed,
-            len(pattern),
-            match_count,
-        )
-
-        return stdout
-
-    async def glob_files(self, pattern: str) -> list[str]:
-        wp = Path(self.workspace_path)  # type: ignore[attr-defined]
-        return [str(f) for f in wp.glob(pattern) if f.is_file()]

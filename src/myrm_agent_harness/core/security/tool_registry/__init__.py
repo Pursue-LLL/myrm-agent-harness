@@ -2,7 +2,8 @@
 
 Aggregates ``registry.py`` (tool registry SSOT: built-in tool names, safety
 metadata, permission resolution, PTC registration) and ``safety.py`` (module-load
-gate warning on missing safety declarations) behind ``core.security.tool_registry``,
+gate warning on missing safety declarations; taint argument extractors live in
+``taint_extractors.py``) behind ``core.security.tool_registry``,
 preserving the flat-module import surface for all consumers.
 
 [INPUT]
@@ -14,7 +15,7 @@ preserving the flat-module import surface for all consumers.
 - SafetyMetadata / MCPAnnotations / resolve_safety_metadata / resolve_permission_type
 - register_ptc_safety_metadata / get_ptc_safety_metadata / compute_canonical_args_hash
 - check_safety_coverage / _check_safety_coverage — module-load safety gate
-- _sanitize_url_for_taint / _FAIL_CLOSED_DEFAULTS / _PTC_* — internal helpers
+- _FAIL_CLOSED_DEFAULTS / _PTC_* — internal helpers
 """
 
 from .registry import (
@@ -36,7 +37,6 @@ from .registry import (
     MCPAnnotations,
     SafetyMetadata,
     _check_safety_coverage,
-    _sanitize_url_for_taint,
     compute_canonical_args_hash,
     evict_skill_safety_metadata,
     get_ptc_safety_metadata,
@@ -66,7 +66,6 @@ __all__ = [
     "MCPAnnotations",
     "SafetyMetadata",
     "_check_safety_coverage",
-    "_sanitize_url_for_taint",
     "check_safety_coverage",
     "compute_canonical_args_hash",
     "evict_skill_safety_metadata",

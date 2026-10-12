@@ -279,32 +279,6 @@ class CodeExecutor(ABC):
         result = await self._exec_bash(f"find '{safe}' -maxdepth 1 -name '{pattern}' -type f")
         return [line for line in result.stdout.strip().splitlines() if line] if result.success else []
 
-    async def grep(
-        self,
-        pattern: str,
-        path: str = ".",
-        use_regex: bool = False,
-        case_sensitive: bool = True,
-    ) -> str:
-        """Search for text within the workspace."""
-        safe = await self.resolve_path(path)
-        escaped_pattern = pattern.replace("'", "'\\''")
-
-        flags = ["-rn"]
-        if not use_regex:
-            flags.append("F")
-        if not case_sensitive:
-            flags.append("i")
-
-        flags_str = "-" + "".join(flags)
-        result = await self._exec_bash(f"grep {flags_str} '{escaped_pattern}' '{safe}' || true")
-        return result.stdout
-
-    async def glob_files(self, pattern: str) -> list[str]:
-        """Find files matching a glob pattern."""
-        result = await self._exec_bash(f"find '{self.workspace_path}' -path '{pattern}' -type f")
-        return [line for line in result.stdout.strip().splitlines() if line] if result.success else []
-
     async def resolve_path(self, relative_path: str) -> str:
         """Resolve a relative path to absolute, with path traversal detection."""
         wp = Path(self.workspace_path).resolve()
@@ -421,18 +395,6 @@ class CodeExecutorMiddleware(CodeExecutor):
 
     async def list_files(self, path: str = ".", pattern: str = "*") -> list[str]:
         return await self.inner.list_files(path, pattern)
-
-    async def grep(
-        self,
-        pattern: str,
-        path: str = ".",
-        use_regex: bool = False,
-        case_sensitive: bool = True,
-    ) -> str:
-        return await self.inner.grep(pattern, path, use_regex=use_regex, case_sensitive=case_sensitive)
-
-    async def glob_files(self, pattern: str) -> list[str]:
-        return await self.inner.glob_files(pattern)
 
     async def resolve_path(self, relative_path: str) -> str:
         return await self.inner.resolve_path(relative_path)

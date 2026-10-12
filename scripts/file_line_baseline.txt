@@ -62,7 +62,7 @@ myrm_agent_harness/backends/skills/forgetting_strategy.py	554
 myrm_agent_harness/backends/skills/scanning/patterns.py	875
 myrm_agent_harness/backends/skills/scanning/scanner.py	555
 myrm_agent_harness/core/security/egress/proxy_server.py	724
-myrm_agent_harness/core/security/tool_registry/registry.py	775
+myrm_agent_harness/core/security/tool_registry/registry.py	716
 myrm_agent_harness/core/security/types.py	650
 myrm_agent_harness/eval/assertions.py	693
 myrm_agent_harness/eval/protocols.py	674
@@ -82,7 +82,7 @@ myrm_agent_harness/toolkits/browser/session/browser_session.py	688
 myrm_agent_harness/toolkits/browser/session/browser_session_navigation_mixin.py	596
 myrm_agent_harness/toolkits/browser/session/extractor.py	582
 myrm_agent_harness/toolkits/browser/session_vault/__init__.py	511
-myrm_agent_harness/toolkits/code_execution/executors/base.py	539
+myrm_agent_harness/toolkits/code_execution/executors/base.py	513
 myrm_agent_harness/toolkits/code_execution/executors/common/wrapper_script.py	596
 myrm_agent_harness/toolkits/code_execution/executors/local/executor.py	762
 myrm_agent_harness/toolkits/code_execution/security/safe_command_configs/git.py	556

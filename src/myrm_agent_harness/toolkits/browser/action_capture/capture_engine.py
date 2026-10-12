@@ -10,10 +10,11 @@
 - CaptureCallback: Protocol for real-time step notification
 
 [POS]
-Core engine that attaches JavaScript event listeners to a Playwright Page via
-`page.expose_function` + `page.add_init_script`. Captured DOM events are
-forwarded to Python via a bridge function, structured into ActionStep objects,
-and dispatched to registered callbacks (e.g. SSE, WebSocket).
+Core engine that attaches JavaScript event listeners to a Playwright Page: the
+listeners are injected into the page's main world through `page.evaluate` on
+every navigation, and report back via a `page.expose_function` bridge. Captured
+DOM events are structured into ActionStep objects and dispatched to registered
+callbacks (e.g. SSE, WebSocket).
 
 Recording quality notes:
 - Text input uses a session-based fill model: focus starts a session, each
