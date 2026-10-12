@@ -8,7 +8,7 @@ Focus on real-world utility with 54% less code than OpenSpace while maintaining 
 
 [OUTPUT]
 - EvolutionType: Type of skill evolution action.
-- SkillMetrics: Quality metrics for skill tracking with 6-indicator system.
+- SkillMetrics: Per-skill execution counters with derived rates (success/applied/completion/fallback/effective).
 - SkillLineage: Simplified lineage tracking.
 - SkillRecord: Complete skill record with evolution metadata.
 - EvolutionRequest: Request for skill evolution (for concurrent processing). Supports GUI-First force_retry.
