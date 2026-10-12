@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 _EXECUTABLE_ENV = "CAMOUFOX_EXECUTABLE_PATH"
 
 CAMOUFOX_INSTALL_FIX = (
-    "Install the browser extra if the camoufox package is missing (uv add 'myrm-agent-harness[browser]'), "
+    "Install the camoufox package if it is missing (uv add camoufox), "
     "then run 'camoufox fetch' once (about 1.2 GB download), or point "
     f"{_EXECUTABLE_ENV} at an existing Camoufox build for offline or sandboxed hosts"
 )
