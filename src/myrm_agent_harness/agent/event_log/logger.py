@@ -25,11 +25,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import time
 from typing import TYPE_CHECKING, cast
 
 from .types import (
     ActivityPatterns,
+    EventFilter,
     EventPayload,
     SessionAnalytics,
     SessionSummary,
@@ -69,7 +71,8 @@ class EventLogger:
 
     ``session_id`` stamps every event, while ``storage_key`` is the key the backend
     files this session under (a per-chat backend is keyed by chat id, which differs from
-    the runtime session id); read-backs must use ``storage_key``.
+    the runtime session id); read-backs must use ``storage_key`` and be bounded by ``started_at``
+    because the backend file accumulates every session of the chat.
     """
 
     def __init__(
@@ -103,6 +106,14 @@ class EventLogger:
     @property
     def storage_key(self) -> str:
         return self._storage_key
+
+    @property
+    def started_at(self) -> float:
+        """Start time bounding read-backs to this session's events.
+
+        Floored to the millisecond because persisted event timestamps are rounded to milliseconds.
+        """
+        return math.floor(self._summary.start_time * 1000) / 1000
 
     async def start(self) -> None:
         """Emit SESSION_START and launch the background writer."""
@@ -207,7 +218,7 @@ class EventLogger:
         try:
             from .integrity_gate import verify_sequence_continuity, verify_session_enclosure
 
-            events = await self._backend.get_events(self._storage_key)
+            events = await self._backend.get_events(self._storage_key, EventFilter(start_time=self.started_at))
             if events:
                 enclosure_violations = verify_session_enclosure(events)
                 sequence_violations = verify_sequence_continuity(events)

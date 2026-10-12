@@ -1,5 +1,6 @@
 """EventLogger read-backs use the backend's storage key, not the runtime session id."""
 
+import asyncio
 import logging
 from pathlib import Path
 from unittest.mock import AsyncMock
@@ -22,8 +23,27 @@ async def test_close_time_integrity_gate_reads_the_storage_key(tmp_path: Path) -
     await logger.start()
     await logger.close()
 
-    backend.get_events.assert_awaited_once_with(_CHAT_ID)
+    key, event_filter = backend.get_events.await_args.args
+    assert key == _CHAT_ID
+    assert event_filter.start_time == logger.started_at
     assert (tmp_path / f"{_CHAT_ID}.jsonl").exists()
+
+
+@pytest.mark.asyncio
+async def test_integrity_gate_ignores_earlier_sessions_in_the_chat_file(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A second session restarts sequence numbers; judging the whole file would flag every later turn."""
+    for _ in range(2):
+        await asyncio.sleep(0.01)  # persisted timestamps are millisecond-rounded; turns are never closer than that
+        logger = EventLogger(
+            FileEventLogBackend(log_dir=tmp_path, session_id=_CHAT_ID), _SESSION_ID, storage_key=_CHAT_ID
+        )
+        await logger.start()
+        with caplog.at_level(logging.WARNING):
+            await logger.close()
+
+    assert not [r for r in caplog.records if "sequence_continuity" in r.getMessage()]
 
 
 @pytest.mark.asyncio

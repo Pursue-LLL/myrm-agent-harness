@@ -19,7 +19,6 @@ from myrm_agent_harness.agent.middlewares._session_context import set_event_logg
 _CHAT_ID = "42"
 _RUNTIME_SESSION_ID = f"chat_{_CHAT_ID}"
 _MODULE = "myrm_agent_harness.agent.background_worker.session_evidence_task"
-_real_sleep = asyncio.sleep
 
 
 def _task() -> IdleTaskRecord:
@@ -151,6 +150,7 @@ async def test_a_finished_turn_surfaces_a_proposal_through_the_idle_window(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Whole chain on real parts: run end -> enqueue -> idle window -> event log read -> completion event."""
+    from myrm_agent_harness.agent._internals import _agent_helpers
     from myrm_agent_harness.agent._internals._agent_helpers import schedule_post_run_idle_tasks
     from myrm_agent_harness.agent.background_worker import idle_tasks
     from myrm_agent_harness.agent.background_worker import registry as registry_module
@@ -178,7 +178,7 @@ async def test_a_finished_turn_surfaces_a_proposal_through_the_idle_window(
         schedule_post_run_idle_tasks(
             {"session_id": _RUNTIME_SESSION_ID, "workspace_root": str(tmp_path), "chat_id": _CHAT_ID}
         )
-        await _real_sleep(0.3)
+        await asyncio.gather(*_agent_helpers._background_tasks)
     window = schedule.call_args.args[1]
 
     with (
@@ -196,3 +196,39 @@ async def test_a_finished_turn_surfaces_a_proposal_through_the_idle_window(
         "session_evidence_extraction",
         "context_compaction",
     }
+
+
+@pytest.mark.asyncio
+async def test_earlier_turns_of_the_chat_never_feed_the_current_proposal(tmp_path: Path) -> None:
+    """The chat file accumulates every turn; a clean turn must not re-trigger an old turn's failures."""
+    await _closed_turn_log(tmp_path, failures=True)
+    await asyncio.sleep(0.01)  # the next turn starts strictly later than the previous one's events
+    await _closed_turn_log(tmp_path, failures=False)
+
+    with patch(f"{_MODULE}._capture_skill_proposal", new_callable=AsyncMock) as capture:
+        result = await run_session_evidence_extraction(_task(), _RUNTIME_SESSION_ID)
+
+    assert result["anti_patterns_count"] == 0
+    capture.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_a_turn_dropped_by_a_reused_backend_is_not_replaced_by_stale_events(tmp_path: Path) -> None:
+    """A backend shared across turns drops events whose sequence is not past its watermark."""
+    backend = FileEventLogBackend(log_dir=tmp_path, session_id=_CHAT_ID)
+    first = EventLogger(backend, _RUNTIME_SESSION_ID, storage_key=_CHAT_ID)
+    await first.start()
+    await first.log("tool_failure", {"tool_name": "bash", "error": "old failure"})
+    await first.close()
+    await asyncio.sleep(0.01)
+    second = EventLogger(backend, _RUNTIME_SESSION_ID, storage_key=_CHAT_ID)
+    await second.start()
+    await second.log("tool_failure", {"tool_name": "bash", "error": "new failure"})
+    await second.close()
+    set_event_logger(second)
+
+    with patch(f"{_MODULE}._capture_skill_proposal", new_callable=AsyncMock) as capture:
+        result = await run_session_evidence_extraction(_task(), _RUNTIME_SESSION_ID)
+
+    assert result["anti_patterns_count"] == 0
+    capture.assert_not_awaited()

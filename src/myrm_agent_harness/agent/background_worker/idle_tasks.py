@@ -123,7 +123,7 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
             "No MaintenanceScheduler initialized. Skipping idle tasks for session %s.",
             session_id,
         )
-        await _revert_task_to_pending(registry, task.id)
+        await registry.requeue(task.id)
         return False
 
     # 1. Request capacity
@@ -136,7 +136,7 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
             ticket_or_denial.reason,
         )
         # Revert task status so it can be picked up later
-        await _revert_task_to_pending(registry, task.id)
+        await registry.requeue(task.id)
         return False
 
     ticket = ticket_or_denial
@@ -284,7 +284,7 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
 
     except asyncio.CancelledError:
         # A newer turn replaced this idle window; keep the unfinished task for the next one.
-        await _revert_task_to_pending(registry, task.id)
+        await registry.requeue(task.id)
         raise
     except Exception as e:
         logger.error(
@@ -343,14 +343,3 @@ async def _run_context_compaction(
         logger.error("context_compaction error for chat %s: %s", chat_id, e, exc_info=True)
 
     return {"compacted": compacted, "chat_id": chat_id}
-
-
-async def _revert_task_to_pending(registry: IdleTaskRegistry, task_id: int) -> None:
-    try:
-        from myrm_agent_harness.utils.db.sqlite import connect_async
-
-        async with connect_async(registry.db_path) as db:
-            await db.execute("UPDATE idle_tasks SET status='pending' WHERE id=?", (task_id,))
-            await db.commit()
-    except Exception as e:
-        logger.error("Failed to revert task %s to pending: %s", task_id, e)

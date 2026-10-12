@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, create_autospec, patch
 
 import pytest
 
+from myrm_agent_harness.agent._internals import _agent_helpers
 from myrm_agent_harness.agent._internals._agent_helpers import schedule_post_run_idle_tasks
 from myrm_agent_harness.agent.background_worker import registry as registry_module
 from myrm_agent_harness.agent.background_worker.registry import IdleTaskRegistry, get_idle_task_registry
@@ -80,7 +81,7 @@ def test_schedule_post_run_idle_tasks_persists_runnable_tasks_in_real_registry(t
     async def scenario() -> list[str]:
         with patch("myrm_agent_harness.agent.background_worker.idle_worker.schedule_idle_task"):
             schedule_post_run_idle_tasks({**_CONTEXT, "workspace_root": str(tmp_path)})
-            await asyncio.sleep(0.3)
+            await asyncio.gather(*_agent_helpers._background_tasks)
         registry = get_idle_task_registry(str(tmp_path))
         acquired: list[str] = []
         while (record := await registry.acquire_next("chat_real")) is not None:

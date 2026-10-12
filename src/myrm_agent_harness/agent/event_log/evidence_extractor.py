@@ -18,7 +18,7 @@ import logging
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
-from .types import AntiPattern, EventFilter, FileHotspot, TraceRunDigest
+from .types import AntiPattern, EventFilter, EventPayload, FileHotspot, TraceRunDigest
 
 if TYPE_CHECKING:
     from .protocols import EventLogBackend
@@ -30,7 +30,7 @@ _FILE_WRITE_TOOLS = frozenset({"file_write_tool", "file_edit_tool"})
 _PATH_HOTSPOT_TOOLS = _FILE_READ_TOOLS | _FILE_WRITE_TOOLS | frozenset({"grep_tool"})
 
 
-def _resolve_tool_path(data: dict[str, object]) -> str:
+def _resolve_tool_path(data: EventPayload) -> str:
     for key in ("path", "file_path"):
         value = data.get(key)
         if isinstance(value, str) and value:
@@ -44,9 +44,9 @@ class SessionEvidenceExtractor:
     def __init__(self, backend: EventLogBackend) -> None:
         self._backend = backend
 
-    async def extract_digest(self, session_id: str) -> TraceRunDigest | None:
-        """Extract a single trace digest for a completed session."""
-        events = await self._backend.get_events(session_id, EventFilter())
+    async def extract_digest(self, session_id: str, event_filter: EventFilter | None = None) -> TraceRunDigest | None:
+        """Extract a single trace digest for a completed session, optionally narrowed by ``event_filter``."""
+        events = await self._backend.get_events(session_id, event_filter or EventFilter())
         if not events:
             return None
 

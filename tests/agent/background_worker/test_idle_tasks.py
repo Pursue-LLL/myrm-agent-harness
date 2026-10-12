@@ -172,20 +172,13 @@ async def test_default_idle_callback_denied(mock_get_scheduler):
         created_at=0.0,
     )
 
-    # We also need to mock _revert_task_to_pending
-    with (
-        patch(
-            "myrm_agent_harness.agent.background_worker.idle_tasks._revert_task_to_pending", new_callable=AsyncMock
-        ) as mock_revert,
-        patch("myrm_agent_harness.agent.background_worker.idle_tasks.get_event_bus", return_value=mock_event_bus),
-    ):
-        session_id = "test_session_4"
-        await default_idle_callback(session_id, mock_registry)
+    with patch("myrm_agent_harness.agent.background_worker.idle_tasks.get_event_bus", return_value=mock_event_bus):
+        ran = await default_idle_callback("test_session_4", mock_registry)
 
-        # Assertions
-        mock_scheduler.request_capacity.assert_called_once()
-        mock_event_bus.publish.assert_not_called()
-        mock_revert.assert_called_once_with(mock_registry, 1)
+    assert ran is False
+    mock_scheduler.request_capacity.assert_called_once()
+    mock_event_bus.publish.assert_not_called()
+    mock_registry.requeue.assert_awaited_once_with(1)
 
 
 @pytest.mark.asyncio
@@ -205,14 +198,11 @@ async def test_default_idle_callback_no_scheduler(mock_get_scheduler):
         created_at=0.0,
     )
 
-    with patch(
-        "myrm_agent_harness.agent.background_worker.idle_tasks._revert_task_to_pending", new_callable=AsyncMock
-    ) as mock_revert:
-        ran = await default_idle_callback("test_session_5", mock_registry)
+    ran = await default_idle_callback("test_session_5", mock_registry)
 
     # Without a scheduler nothing may run, and the task stays available for a later window
     assert ran is False
-    mock_revert.assert_awaited_once_with(mock_registry, 1)
+    mock_registry.requeue.assert_awaited_once_with(1)
     mock_registry.mark_error.assert_not_called()
 
 

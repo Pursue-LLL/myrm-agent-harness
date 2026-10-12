@@ -153,6 +153,14 @@ class IdleTaskRegistry:
                 )
             return None
 
+    async def requeue(self, task_id: int) -> None:
+        """Return a running task to the queue so a later idle window can run it."""
+        if aiosqlite is None:
+            return
+        async with connect_async(self.db_path) as db:
+            await db.execute("UPDATE idle_tasks SET status='pending' WHERE id=?", (task_id,))
+            await db.commit()
+
     async def mark_completed(self, task_id: int) -> None:
         """Mark a task as successfully completed."""
         if aiosqlite is None:

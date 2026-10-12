@@ -3,6 +3,7 @@
 [INPUT]
 - agent.middlewares._session_context::get_event_logger (POS: per-run EventLogger ContextVar; supplies the backend and the key the session is stored under)
 - agent.event_log.evidence_extractor::SessionEvidenceExtractor (POS: derives hotspots and anti-patterns from the stored event log)
+- agent.event_log.types::EventFilter (POS: scopes event-log reads to the current turn)
 - agent.skills.evolution.core.engine::SkillEvolutionEngine (POS: CAPTURED evolution from a conversation trajectory)
 - agent.skill_agent.context::get_memory_manager (POS: supplies the consolidation LLM used for skill extraction)
 
@@ -23,6 +24,7 @@ import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.agent.event_log.types import EventFilter
 from myrm_agent_harness.agent.skill_agent.context import get_memory_manager
 
 if TYPE_CHECKING:
@@ -53,8 +55,10 @@ async def run_session_evidence_extraction(task: IdleTaskRecord, session_id: str)
 
     from myrm_agent_harness.agent.event_log.evidence_extractor import SessionEvidenceExtractor
 
+    # The chat's log file holds every earlier turn; only this turn's events may feed a proposal.
+    this_turn = EventFilter(start_time=event_logger.started_at)
     extractor = SessionEvidenceExtractor(event_logger.backend)
-    digest = await extractor.extract_digest(event_logger.storage_key)
+    digest = await extractor.extract_digest(event_logger.storage_key, this_turn)
 
     proposal: dict[str, object] | None = None
     if digest and digest.anti_patterns:
@@ -63,7 +67,7 @@ async def run_session_evidence_extraction(task: IdleTaskRecord, session_id: str)
             len(digest.anti_patterns),
             session_id,
         )
-        proposal = await _capture_skill_proposal(task, session_id, event_logger)
+        proposal = await _capture_skill_proposal(task, session_id, event_logger, this_turn)
 
     logger.info("Session evidence extraction completed for %s", session_id)
     return {
@@ -74,7 +78,7 @@ async def run_session_evidence_extraction(task: IdleTaskRecord, session_id: str)
 
 
 async def _capture_skill_proposal(
-    task: IdleTaskRecord, session_id: str, event_logger: EventLogger
+    task: IdleTaskRecord, session_id: str, event_logger: EventLogger, this_turn: EventFilter
 ) -> dict[str, object] | None:
     """Run CAPTURED evolution over the session trajectory; failures are logged and yield no proposal."""
     try:
@@ -84,7 +88,7 @@ async def _capture_skill_proposal(
             logger.warning("No SkillStore provider registered; skipping CAPTURED evolution for session %s", session_id)
             return None
 
-        events = await event_logger.backend.get_events(event_logger.storage_key)
+        events = await event_logger.backend.get_events(event_logger.storage_key, this_turn)
         trajectory = "\n".join(f"[{e.event_type}] {e.data}" for e in events)
 
         memory_manager = get_memory_manager()
