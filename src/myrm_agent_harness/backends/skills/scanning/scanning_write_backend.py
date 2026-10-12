@@ -72,7 +72,6 @@ class ScanningSkillWriteBackend:
         self,
         name: str,
         content: str,
-        user_id: str,
         description: str = "",
     ) -> SkillSaveResult:
         """Save skill with mandatory security scanning.
@@ -107,7 +106,6 @@ class ScanningSkillWriteBackend:
             result = await self._inner.save_skill(
                 name=name,
                 content=content,
-                user_id=user_id,
                 description=description,
             )
         except Exception as e:
@@ -135,11 +133,10 @@ class ScanningSkillWriteBackend:
     async def delete_skill(
         self,
         name: str,
-        user_id: str,
     ) -> SkillDeleteResult:
         """Delete skill."""
         try:
-            return await self._inner.delete_skill(name=name, user_id=user_id)
+            return await self._inner.delete_skill(name=name)
         except Exception as e:
             logger.error("Failed to delete skill '%s': %s", name, e)
             return SkillDeleteResult(success=False, skill_name=name, error="Storage error")
@@ -149,7 +146,6 @@ class ScanningSkillWriteBackend:
         skill_name: str,
         resource_path: str,
         content: str,
-        user_id: str,
     ) -> SkillResourceWriteResult:
         """Write a resource file with mandatory path validation and content scanning.
 
@@ -201,7 +197,6 @@ class ScanningSkillWriteBackend:
                 skill_name=skill_name,
                 resource_path=resource_path,
                 content=content,
-                user_id=user_id,
             )
         except Exception as e:
             logger.error("Failed to write resource '%s/%s': %s", skill_name, resource_path, e)
@@ -225,7 +220,6 @@ class ScanningSkillWriteBackend:
         self,
         skill_name: str,
         resource_path: str,
-        user_id: str,
     ) -> SkillResourceWriteResult:
         """Delete a resource file with mandatory path validation."""
         path_error = _validate_resource_path(resource_path)
@@ -241,7 +235,6 @@ class ScanningSkillWriteBackend:
             return await self._inner.delete_resource(
                 skill_name=skill_name,
                 resource_path=resource_path,
-                user_id=user_id,
             )
         except Exception as e:
             logger.error("Failed to delete resource '%s/%s': %s", skill_name, resource_path, e)

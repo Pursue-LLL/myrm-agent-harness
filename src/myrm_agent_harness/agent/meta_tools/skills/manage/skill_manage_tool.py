@@ -189,7 +189,6 @@ def create_skill_manage_tool(
                     name,
                     content,
                     description,
-                    user_id,
                     similarity_checker,
                 )
             elif action == "patch":
@@ -199,14 +198,13 @@ def create_skill_manage_tool(
                     name,
                     old_content,
                     new_content,
-                    user_id,
                 )
             elif action == "delete":
-                return await _handle_delete(write_backend, name, user_id)
+                return await _handle_delete(write_backend, name)
             elif action == "write_file":
-                return await _handle_write_file(write_backend, name, file_path, content, user_id)
+                return await _handle_write_file(write_backend, name, file_path, content)
             elif action == "remove_file":
-                return await _handle_remove_file(write_backend, name, file_path, user_id)
+                return await _handle_remove_file(write_backend, name, file_path)
             elif action in ("lock", "unlock"):
                 return await _handle_evolution_lock(name, locked=(action == "lock"))
             else:

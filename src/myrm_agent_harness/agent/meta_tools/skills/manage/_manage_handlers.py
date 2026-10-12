@@ -83,7 +83,6 @@ async def _handle_save(
     name: str,
     content: str,
     description: str,
-    user_id: str,
     similarity_checker: SkillSimilarityChecker | None = None,
 ) -> str:
     """Handle the 'save' action: create or fully replace a skill."""
@@ -94,7 +93,7 @@ async def _handle_save(
     if frontmatter_error:
         return frontmatter_error
 
-    result = await write_backend.save_skill(name=name, content=content, user_id=user_id, description=description)
+    result = await write_backend.save_skill(name=name, content=content, description=description)
 
     if result.success:
         action_word = "updated" if result.was_updated else "created"
@@ -142,7 +141,6 @@ async def _handle_patch(
     name: str,
     old_content: str,
     new_content: str,
-    user_id: str,
 ) -> str:
     """Handle the 'patch' action: partial content replacement."""
     if not old_content:
@@ -169,7 +167,7 @@ async def _handle_patch(
             f"Use 'save' action with full content for a complete replacement."
         )
 
-    result = await write_backend.save_skill(name=name, content=patched, user_id=user_id)
+    result = await write_backend.save_skill(name=name, content=patched)
 
     if result.success:
         msg = f"Skill '{name}' patched successfully!"
@@ -180,9 +178,9 @@ async def _handle_patch(
     return f"Error: {result.error}"
 
 
-async def _handle_delete(write_backend: ScanningSkillWriteBackend, name: str, user_id: str) -> str:
+async def _handle_delete(write_backend: ScanningSkillWriteBackend, name: str) -> str:
     """Handle the 'delete' action: remove a skill."""
-    result = await write_backend.delete_skill(name=name, user_id=user_id)
+    result = await write_backend.delete_skill(name=name)
 
     if result.success:
         return f"Skill '{name}' deleted successfully."
@@ -195,7 +193,6 @@ async def _handle_write_file(
     name: str,
     file_path: str,
     content: str,
-    user_id: str,
 ) -> str:
     """Handle the 'write_file' action: add/overwrite a supporting file."""
     if not file_path or not file_path.strip():
@@ -206,9 +203,7 @@ async def _handle_write_file(
     if not content:
         return "Error: 'content' is required for write_file action."
 
-    result = await write_backend.write_resource(
-        skill_name=name, resource_path=file_path, content=content, user_id=user_id
-    )
+    result = await write_backend.write_resource(skill_name=name, resource_path=file_path, content=content)
 
     if result.success:
         msg = f"File '{file_path}' written to skill '{name}' successfully."
@@ -219,7 +214,7 @@ async def _handle_write_file(
     return f"Error: {result.error}"
 
 
-async def _handle_remove_file(write_backend: ScanningSkillWriteBackend, name: str, file_path: str, user_id: str) -> str:
+async def _handle_remove_file(write_backend: ScanningSkillWriteBackend, name: str, file_path: str) -> str:
     """Handle the 'remove_file' action: delete a supporting file."""
     if not file_path or not file_path.strip():
         return (
@@ -227,7 +222,7 @@ async def _handle_remove_file(write_backend: ScanningSkillWriteBackend, name: st
             "Example: 'scripts/analyze.py' or 'references/api_docs.md'."
         )
 
-    result = await write_backend.delete_resource(skill_name=name, resource_path=file_path, user_id=user_id)
+    result = await write_backend.delete_resource(skill_name=name, resource_path=file_path)
 
     if result.success:
         return f"File '{file_path}' removed from skill '{name}' successfully."
