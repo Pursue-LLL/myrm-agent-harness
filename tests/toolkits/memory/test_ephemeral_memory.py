@@ -1,4 +1,4 @@
-"""Tests for ephemeral.py: ReadOnlyMemoryView and EphemeralMemoryManager.
+"""Tests for the ephemeral package: ReadOnlyMemoryView and EphemeralMemoryManager.
 
 Covers:
 - ReadOnlyMemoryView: all write/mutate methods raise PermissionError
@@ -328,6 +328,26 @@ class TestReadOnlyMemoryViewReadDelegation:
         result = await view.compute_health_score()
         assert result is mock_score
 
+    @pytest.mark.asyncio
+    async def test_get_profile_attribute_delegates(self):
+        view, parent = self._make_view()
+        parent.get_profile_attribute = AsyncMock(return_value="dark")
+        assert await view.get_profile_attribute("theme") == "dark"
+        parent.get_profile_attribute.assert_awaited_once_with("theme")
+
+    @pytest.mark.asyncio
+    async def test_get_profile_attribute_without_parent_support_returns_none(self):
+        view, parent = self._make_view()
+        del parent.get_profile_attribute
+        assert await view.get_profile_attribute("theme") is None
+
+    @pytest.mark.asyncio
+    async def test_list_backups_uses_strategy(self):
+        view, _parent = self._make_view()
+        strategy = MagicMock()
+        strategy.list_backups = AsyncMock(return_value=["b1"])
+        assert await view.list_backups(strategy) == ["b1"]
+
     def test_properties(self):
         view, _parent = self._make_view()
         assert view.namespaces == ["ns-1"]
@@ -575,3 +595,20 @@ class TestEphemeralMemoryManager:
         parent.get_enabled_types = MagicMock(return_value=[MemoryType.SEMANTIC])
         result = eph.get_enabled_types()
         assert MemoryType.SEMANTIC in result
+
+    @pytest.mark.asyncio
+    async def test_delete_memory_by_id_ephemeral_hit(self):
+        eph, parent = self._make_ephemeral()
+        parent.delete_memory_by_id = AsyncMock(return_value=99)
+        mem = SemanticMemory(content="temp fact")
+        await eph.store(mem)
+        assert await eph.delete_memory_by_id(mem.id) == 1
+        assert mem.id not in eph._ephemeral_store
+        parent.delete_memory_by_id.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_delete_memory_by_id_delegates_persistent_id(self):
+        eph, parent = self._make_ephemeral()
+        parent.delete_memory_by_id = AsyncMock(return_value=1)
+        assert await eph.delete_memory_by_id("persisted-id") == 1
+        parent.delete_memory_by_id.assert_awaited_once_with("persisted-id")

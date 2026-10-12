@@ -1,6 +1,5 @@
 """Automatic memory extraction from conversations.
 
-
 [INPUT]
 - memory.types::{ProfileEntry, SemanticMemory, EpisodicMemory, ProceduralMemory, MemoryType, MemoryLifecycle, PreferenceType} (POS: memory data models)
 - memory.chunking::EpisodesChunker (POS: Chunking utilities for ConversationMemory and extraction pipelines)
@@ -62,22 +61,19 @@ class FeedbackSignal(StrEnum):
 
 
 _NEGATIVE_PATTERNS = (
-    re.compile(r"\bthat(?:'s| is) (?:wrong|incorrect|not (?:right|what I))\b", re.IGNORECASE),
+    re.compile(r"\bthat(?:'s| is) (?:wrong|incorrect|not (?:right|correct|accurate|what I))\b", re.IGNORECASE),
     re.compile(r"\byou (?:misunderstood|got it wrong|made a mistake)\b", re.IGNORECASE),
     re.compile(r"\bno[,.]?\s+I (?:meant|said|asked|want)\b", re.IGNORECASE),
     re.compile(r"\bactually[,.]?\s+(?:it should|you should|the correct)\b", re.IGNORECASE),
     re.compile(r"\b(?:please\s+)?(?:redo|try again)\b", re.IGNORECASE),
     re.compile(r"\bshould be\b.+\bnot\b", re.IGNORECASE),
-    re.compile(r"\bthat(?:'s| is) (?:not what I|not correct|not accurate)\b", re.IGNORECASE),
     re.compile(r"不对"),
-    re.compile(r"你(?:理解|搞|弄)错了"),
     re.compile(r"你理解有误"),
     re.compile(r"重新(?:来|做|试)"),
     re.compile(r"换一种"),
     re.compile(r"不是这样"),
     re.compile(r"错了"),
     re.compile(r"不是我(?:要|想要)的"),
-    re.compile(r"记错了"),
 )
 
 _POSITIVE_PATTERNS = (
@@ -95,7 +91,6 @@ _POSITIVE_PATTERNS = (
     re.compile(r"\byou (?:got|nailed) it\b", re.IGNORECASE),
     re.compile(r"太[好棒]了"),
     re.compile(r"非常[好棒]"),
-    re.compile(r"完全正确"),
     re.compile(r"就是(?:这个|这样|我要的)"),
     re.compile(r"(?:没错|对的|正确)"),
     re.compile(r"记得(?:很)?准"),
@@ -330,8 +325,8 @@ describing the prior mistake."""
 _LANGUAGE_FIDELITY_RULE = (
     "\n**LANGUAGE**: Write every memory in the same language and script as the "
     "input text. Never translate. Names, identifiers, code, and quoted text "
-    "stay verbatim (e.g. \"张伟\" stays \"张伟\", never \"Zhang Wei\"; "
-    "\"Kubernetes\" stays \"Kubernetes\" in Chinese sentences)."
+    'stay verbatim (e.g. "张伟" stays "张伟", never "Zhang Wei"; '
+    '"Kubernetes" stays "Kubernetes" in Chinese sentences).'
 )
 
 _VALIDITY_SECTION = """
@@ -626,9 +621,7 @@ class MemoryExtractor:
         detected_language = detect_language(full_text)
         self._last_detected_language = detected_language
 
-        formatted = "\n".join(
-            f"[{str(m.get('role') or 'user').upper()}]: {m.get('content', '')}" for m in messages
-        )
+        formatted = "\n".join(f"[{str(m.get('role') or 'user').upper()}]: {m.get('content', '')}" for m in messages)
         session_date = start.strftime("%Y-%m-%d (%A)")
         prompt = f"Session date: {session_date}\n\n## Conversation to Analyze\n\n{formatted}\n\n"
         prompt += "## Instructions\n\nAnalyze the conversation. If and ONLY if it contains critical constraints, high-leverage knowledge, or valuable personal facts, output them. Otherwise, output [].\n"
@@ -1049,9 +1042,7 @@ async def extract_goal_learnings(
     seen_contents: set[str] = set()
 
     for batch_msgs in batches:
-        formatted = "\n".join(
-            f"[{str(m.get('role') or 'user').upper()}]: {m.get('content', '')}" for m in batch_msgs
-        )
+        formatted = "\n".join(f"[{str(m.get('role') or 'user').upper()}]: {m.get('content', '')}" for m in batch_msgs)
 
         language = detect_language(formatted)
         lang_hint = "\n\n**IMPORTANT**: Write all learnings in Chinese (中文)." if language == "zh" else ""

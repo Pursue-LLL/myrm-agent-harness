@@ -27,7 +27,6 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | cube.py                  | Core     | 统一异构记忆 MemCubeEnvelope 泛型容器、LifecycleTier 与 StoragePolicy 定义，提供 SHA256 验签防篡改与活跃度保真能力。 | ✅    |
 | domain_types.py          | Core     | Three-domain memory partitions (User, Assistant, Task) and 9 fine-grained categories with semantic classification heuristics. | ✅    |
 | scheduler.py             | Core     | 多层记忆生命周期调度器 MultiTierMemoryScheduler，负责多介质路由、全量封箱导出与防篡改导入。 | ✅    |
-| ephemeral.py             | Core     | Ephemeral and read-only memory managers for subagent isolation.                                               | ✅    |
 | health.py                | Core     | Memory system diagnostics — instance-level health and maintenance reports.                                    | ✅    |
 | hermes_bridge.py         | Core     | Hermes & OpenViking zero-friction memory migration parser and bridge for Markdown/JSON imports.              | ✅    |
 | intent_recognizers.py    | Core     | Query intent recognition and deterministic sub-graph router (5 query intents, ReDoS safety, zero-token cost). | ✅    |
@@ -55,6 +54,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | _manager/  | Composable ``MemoryManager`` implementation modules.                               |
 | _internal/ | Internal implementation details — not part of the public API.                     |
 | cognitive/  | Cognitive memory consolidation layer.                                             |
+| ephemeral/  | Subagent memory isolation: `EphemeralMemoryManager` (dict-backed writes) and `ReadOnlyMemoryView` (all writes rejected). See [ephemeral/_ARCH.md](ephemeral/_ARCH.md). |
 | conversation_search/ | Protocol-backed conversation recall tool, source refs, scope/lineage DTOs, **expand_message_id window**, format `message_id`, MemoryManager provider. |
 | graph/      | Graph Store — async graph storage with SQLite CTE backend.                        |
 | integration/ | Integration Memory — pulls data from third-party services into local memory for cross-source semantic retrieval. |

@@ -4,6 +4,7 @@
 - toolkits.memory.types::MemoryScope, MemoryType, MemoryStatus, PendingRecord (POS: Memory type system foundation. Provides type-safe schema definitions for all memory types. ConversationMemory implements verbatim storage with dual-field (raw_exchange + content summary) and dual-embedding (raw + summary vectors) for lossless information preservation and adaptive retrieval optimization.)
 
 [OUTPUT]
+- profile_revision: SHA-256 content hash of one profile attribute revision
 - now_iso: Column order: id, user_id, key, value, primary_namespace,...
 - parse_dt: function — parse_dt
 - row_to_profile: function — row_to_profile
@@ -16,6 +17,7 @@ Row-to-model converters for SQLiteRelationalStore.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import UTC, datetime
 
@@ -147,7 +149,9 @@ def row_to_pending(row: tuple[object, ...]) -> PendingRecord:
     """
     memory_data = json.loads(row[4]) if row[4] else {}  # type: ignore[arg-type]
     try:
-        resolution_action = PendingResolutionAction(str(row[10])) if len(row) > 10 and row[10] else PendingResolutionAction.STORE
+        resolution_action = (
+            PendingResolutionAction(str(row[10])) if len(row) > 10 and row[10] else PendingResolutionAction.STORE
+        )
     except ValueError:
         resolution_action = PendingResolutionAction.STORE
     return PendingRecord(
@@ -164,3 +168,9 @@ def row_to_pending(row: tuple[object, ...]) -> PendingRecord:
         resolution_action=resolution_action,
         target_memory_id=str(row[11]) if len(row) > 11 and row[11] else None,
     )
+
+
+def profile_revision(key: str, value: str, updated_at: str) -> str:
+    """Content hash identifying one profile attribute revision."""
+    payload = "\x00".join((key, value, updated_at))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()

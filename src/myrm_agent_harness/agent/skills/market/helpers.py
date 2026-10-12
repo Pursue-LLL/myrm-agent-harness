@@ -6,6 +6,7 @@ Shared utilities for scanning, deduplication, ranking, origin tracking, and Lobe
 - backends.skills.market_protocols::SkillSearchResult (POS: unified skill market result type)
 - backends.skills.scanning::ScanResult (POS: scan result cache layer for skill content)
 - core.security.http.secure_fetch::secure_get / ContentTooLargeError (POS: SSRF-protected outbound HTTP with size cap)
+- backends.skills.scanning.archive_security::classify_archive_security_issue, format_archive_security_user_message (POS: Shared archive-security contract used by validation/extraction layers and business-facing adapters to keep behavior consistent across entry points.)
 
 [OUTPUT]
 - scan_all_text_files: Scan all text files in a skill package for security threats.
@@ -13,6 +14,8 @@ Shared utilities for scanning, deduplication, ranking, origin tracking, and Lobe
 - rank_results: Rank by source priority + stars + keyword match.
 - fetch_lobehub_as_skill: Download a LobeHub agent JSON and convert it to a SKILL.m...
 - write_origin: Write origin.json to skill directory for update tracking.
+- is_safe_skill_dir_name: Whether a publisher-controlled skill name is a single safe path segment.
+- resolve_install_error: Map an install failure to a user-facing message and a stable error code.
 
 [POS]
 Skill market helper functions.
@@ -27,6 +30,10 @@ from pathlib import Path
 
 from myrm_agent_harness.backends.skills.market_protocols import SkillSearchResult
 from myrm_agent_harness.backends.skills.scanning import ScanResult, scan_skill_content
+from myrm_agent_harness.backends.skills.scanning.archive_security import (
+    classify_archive_security_issue,
+    format_archive_security_user_message,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -220,3 +227,40 @@ def read_origin(skill_dir: Path) -> dict[str, object]:
         return json.loads(origin_file.read_text(encoding="utf-8"))
     except Exception:
         return {}
+
+
+def is_safe_skill_dir_name(name: str) -> bool:
+    """Skill install directory names must be a single relative path segment.
+
+    The name comes from publisher-controlled frontmatter, so anything that
+    could escape the install root (separators, dot segments, absolute paths)
+    must be rejected before it reaches filesystem operations.
+    """
+    if not name or name in {".", ".."}:
+        return False
+    if "/" in name or "\\" in name:
+        return False
+    return not Path(name).is_absolute()
+
+
+def resolve_install_error(error: Exception) -> tuple[str, str]:
+    from myrm_agent_harness.backends.skills.scanning.path_security import (
+        CategoryBucketCollisionError,
+        PathRedirectSecurityError,
+    )
+
+    if isinstance(error, CategoryBucketCollisionError):
+        return (
+            str(error),
+            "CATEGORY_BUCKET_COLLISION",
+        )
+    if isinstance(error, PathRedirectSecurityError):
+        return (
+            str(error),
+            "PATH_REDIRECT_ATTACK",
+        )
+
+    violation = classify_archive_security_issue(error)
+    if violation is None:
+        return str(error), ""
+    return format_archive_security_user_message(violation), violation.code.value

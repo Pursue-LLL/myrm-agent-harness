@@ -12,10 +12,8 @@ from myrm_agent_harness.toolkits.code_execution.git_digest import (
     RepoSyncDecision,
     evaluate_repo_sync_policy,
 )
-from myrm_agent_harness.toolkits.memory.types import (
-    EpisodicMemory,
-    create_pitfall_memory,
-)
+from myrm_agent_harness.toolkits.memory.strategies.pitfall_memory import create_pitfall_memory
+from myrm_agent_harness.toolkits.memory.types import EpisodicMemory
 
 
 def _init_test_git_repo(repo_dir: Path) -> str:
@@ -118,9 +116,7 @@ def test_evaluate_repo_sync_policy_uncommitted_changes(tmp_path: Path) -> None:
     dirty_file = repo_dir / "dirty_script.py"
     dirty_file.write_text("print('hello')", encoding="utf-8")
 
-    decision = evaluate_repo_sync_policy(
-        repo_dir, baseline_commit=head_commit, include_uncommitted=True
-    )
+    decision = evaluate_repo_sync_policy(repo_dir, baseline_commit=head_commit, include_uncommitted=True)
     assert isinstance(decision, RepoSyncDecision)
     assert decision.sync_recommended is True
     assert decision.is_dirty is True

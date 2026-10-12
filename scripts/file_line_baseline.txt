@@ -4,7 +4,6 @@
 # Tighten caps with: check_file_line_limit.py --ratchet
 # Remove entries after splitting below 500 lines.
 myrm_agent_harness/agent/_internals/agent_runtime.py	960
-myrm_agent_harness/agent/_internals/memory_extraction.py	465
 myrm_agent_harness/agent/_internals/run_lifecycle.py	749
 myrm_agent_harness/agent/base_agent.py	644
 myrm_agent_harness/agent/context_management/infra/schemas.py	715
@@ -40,7 +39,7 @@ myrm_agent_harness/agent/skills/evolution/db/store.py	720
 myrm_agent_harness/agent/skills/evolution/infra/integration.py	840
 myrm_agent_harness/agent/skills/evolution/infra/monitor.py	609
 myrm_agent_harness/agent/skills/evolution/pipeline/screener.py	634
-myrm_agent_harness/agent/skills/market/service.py	852
+myrm_agent_harness/agent/skills/market/service.py	791
 myrm_agent_harness/agent/skills/optimization/aggregation_streaming.py	589
 myrm_agent_harness/agent/skills/optimization/batch_executor.py	640
 myrm_agent_harness/agent/skills/optimization/in_memory_storage.py	524
@@ -82,7 +81,6 @@ myrm_agent_harness/toolkits/browser/session/browser_session.py	688
 myrm_agent_harness/toolkits/browser/session/browser_session_navigation_mixin.py	596
 myrm_agent_harness/toolkits/browser/session/extractor.py	582
 myrm_agent_harness/toolkits/browser/session_vault/__init__.py	511
-myrm_agent_harness/toolkits/code_execution/executors/base.py	487
 myrm_agent_harness/toolkits/code_execution/executors/common/wrapper_script.py	596
 myrm_agent_harness/toolkits/code_execution/executors/local/executor.py	762
 myrm_agent_harness/toolkits/code_execution/security/safe_command_configs/git.py	556
@@ -118,13 +116,12 @@ myrm_agent_harness/toolkits/memory/_internal/storage.py	527
 myrm_agent_harness/toolkits/memory/_manager/import_export.py	628
 myrm_agent_harness/toolkits/memory/agent_surface/mcp_server.py	810
 myrm_agent_harness/toolkits/memory/agent_surface/memory_agent_tools.py	562
-myrm_agent_harness/toolkits/memory/ephemeral.py	521
 myrm_agent_harness/toolkits/memory/metrics.py	652
 myrm_agent_harness/toolkits/memory/relational/sqlite_store.py	1002
 myrm_agent_harness/toolkits/memory/strategies/deduplicator.py	781
-myrm_agent_harness/toolkits/memory/strategies/extractor.py	1085
+myrm_agent_harness/toolkits/memory/strategies/extractor.py	1084
 myrm_agent_harness/toolkits/memory/strategies/pattern_discovery.py	510
-myrm_agent_harness/toolkits/memory/types.py	930
+myrm_agent_harness/toolkits/memory/types.py	913
 myrm_agent_harness/toolkits/retriever/engine.py	583
 myrm_agent_harness/toolkits/vector/qdrant/store.py	593
 myrm_agent_harness/toolkits/web_fetch/engine/base.py	532
@@ -144,6 +141,5 @@ myrm_agent_harness/utils/url_utils.py	526
 myrm_agent_harness/toolkits/wiki/core/structure.py	507
 myrm_agent_harness/agent/streaming/stream_dispatcher.py	534
 myrm_agent_harness/toolkits/browser/doctor/orphans.py	531
-myrm_agent_harness/toolkits/memory/config.py	502
 myrm_agent_harness/toolkits/memory/strategies/merger.py	554
 myrm_agent_harness/toolkits/retriever/bm25_retrieval.py	501
