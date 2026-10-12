@@ -105,7 +105,6 @@ myrm_agent_harness/
 │   ├── observability.py                # 业务无关记忆观测 DTO/Protocol（operation / influence / retrieval trace / space / sink）
 │   ├── reliability.py                  # 业务无关记忆可靠性 DTO（probe / repair plan / import plan / recall benchmark summary）
 │   ├── domain_types.py                 # 三域九类拓扑与 L0/L1/L2 渐进式检索领域类型
-│   ├── mirror.py                       # HotColdMirrorEngine（内存热缓存与冷持久化单向去抖镜像）
 │   ├── hermes_bridge.py                # HermesMemoryBridge（Hermes 格式与 MemCubeEnvelope 双向转换）
 │   ├── conversation_search/            # Protocol-backed 历史会话搜索工具（无业务 DB 依赖）
 │   ├── _internal/                      # 内部实现细节
@@ -1040,7 +1039,6 @@ rating_new = rating_old + alpha * (normalized - rating_old)
 ## 十四、参考资料
 
 - [CoALA: Cognitive Architectures for Language Agents](https://arxiv.org/abs/2309.02427)
-- [A-MEM: Agentic Memory](https://arxiv.org/abs/2502.12110)
 - [Qdrant 官方文档](https://qdrant.tech/documentation/)
 - [Apache AGE 文档](https://age.apache.org/)
 
@@ -1092,26 +1090,7 @@ rating_new = rating_old + alpha * (normalized - rating_old)
 
 ---
 
-## 十五、统一四维长期记忆治理系统 (governance)
-
-基于结构化用户画像槽位、事件时间线、动态事实与实体图谱的四维一体治理引擎（`memory/governance/`）：
-
-- **核心定位**：解决长期陪伴型 Agent 中常见的用户改口冲突、时序倒错、事实陈旧与图组合爆炸问题。
-- **用户画像槽位（`ProfileSlots`）**：
-  - 划分 `persona`、`preferences`、`constraints`、`custom` 四大象限，支持强类型键值约束与原位覆写（`update_slot` / `delete_slot`）；
-  - `to_cached_prefix_text()` 序列化强制采用**严格字典键字母序**排列，确保系统前缀文本在跨会话调用时字节级一致，实现 LLM Prompt Cache 99%+ 命中率。
-- **事实对账与自适应生命周期（`FactReconciliationEngine`）**：
-  - 四态对账机制：精准识别 `ADD`（新增事实）、`UPDATE`（版本改口与冲突覆盖）、`DELETE`（显式撤销与取消）、`NOOP`（语义冗余）；
-  - 自适应 TTL 探测：事实条目携带 `valid_until`，`purge_expired_facts` 定期探测并将过期事实流转为 `EXPIRED` 归档。
-- **两度受限实体图遍历（`EntityGraphBridge`）**：
-  - 桥接 `SQLiteGraphStore`，严格限制扩散深度 `depth <= 2` 且单次检索节点上限 `max_nodes <= 15`，以精简关系三元组输出，防范高密度实体图导致的上下文爆炸。
-- **四维融合装配器（`DynamicContextAssembler`）**：
-  - 按优先级分层装配：固定画像前缀（最高优先级保 Cache）➔ 动态事实（预算 45%，按置信度与时效降序）➔ 时间线事件（预算 55%，按时序排列）➔ 实体图关联关系。
-- **详细设计**：详见 [governance/_ARCH.md](governance/_ARCH.md)。
-
----
-
-## 十六、用户动态偏好函数自适应拟合与连续时间重力衰减 (dynamic_preference & gravity_decay)
+## 十五、用户动态偏好函数自适应拟合与连续时间重力衰减 (dynamic_preference & gravity_decay)
 
 解决传统检索打分静态刻板、无法感知用户即时会话反馈与热度时效衰退的问题，实现多维实时脉冲偏好拟合与物理幂律衰减：
 
@@ -1263,7 +1242,7 @@ rating_new = rating_old + alpha * (normalized - rating_old)
 
 ---
 
-## 二十二、三域九类认知拓扑、L0/L1/L2 渐进式披露与热冷镜像同步体系 (Domain Mesh & Progressive Drill-down & Hot-Cold Mirroring)
+## 二十二、三域九类认知拓扑与 L0/L1/L2 渐进式披露 (Domain Mesh & Progressive Drill-down)
 
 为解决长上下文大模型全量召回记忆时产生的高昂 Token 浪费、上下文窗口注意力稀释、以及跨系统格式隔阂，构建精细化分层认知与高性能热冷分级存储引擎：
 
@@ -1280,12 +1259,7 @@ rating_new = rating_old + alpha * (normalized - rating_old)
   - **L1 摘要描述（`L1Summary`）**：聚焦于 160~300 字高密度核心观点、trigger 触发条件与适用范围，用于候选过滤与快速判断；
   - **L2 深度上下文（`L2FullContent`）**：按需按 ID 懒加载完整上下文，包括代码段、完整调用栈、上下文快照与附件引用；
   - 避免一次性拉取海量完整记忆，有效保护大模型注意力聚焦度，节约超 70% 检索提示词 Token。
-- **内存热缓存与冷持久化单向去抖镜像控制器（`HotColdMirrorEngine`）**：
-  - 核心位置：`myrm_agent_harness.toolkits.memory.mirror`；
-  - **内存热缓存（In-Memory Hot Tier）**：基于 `OrderedDict` 实现亚毫秒级（$<0.1\text{ms}$）高频命中读取与并发安全写入，容量超限按 LRU 策略自动剔除；
-  - **冷持久化去抖异步刷盘（Debounced Cold Flush）**：写操作先入内存并登记脏标记，通过去抖调度器聚合后批量落盘至 `SQLiteRelationalStore`，降低 I/O 压力；内置 2.0 秒硬超时防线（`max_debounce_interval`），防止密集写入下的去抖延迟饿死；同时内置异常回填机制，当 SQLite 写入异常时将未提交条目加锁回填至待同步字典并复位计时，确保持续重试与冷端零数据丢失；
-  - **单向物理隔离与检索剪枝**：冷端检索永不污染热缓存；Agent 运行时 `memory_search_tool` 提供 `domain` 参数（`user` / `assistant` / `task`），支持按认知域精准剪枝，对未打标存量记忆自动通过启发式推断器（`infer_domain_and_category`）兜底分类，消除跨域干扰同时防止有效规约被漏检；
-  - **进程生命周期优雅退出保障（`shutdown`）**：在服务退出或 Lifespan 关闭时提供同步阻塞 `flush_pending()`，杜绝未落盘脏数据丢失。
+- **持久化与注入（生产路径）**：`setup.create_local_memory_manager` 使用 `SQLiteRelationalStore` + Qdrant；始终注入预算见 `_manager/retrieval_write.get_learned_context`；画像字符水位见 `profile_notes/watermark_governor`；写入去重与冲突/取代见 `strategies/deduplicator.SmartDeduplicator`（含 `strategies/merger.DeterministicThreeStateMerger`）与向量 metadata `superseded`（检索过滤见 `_internal/search_service`）。
 - **Hermes 异构格式与标准信封适配器（`HermesMemoryBridge`）**：
   - 核心位置：`myrm_agent_harness.toolkits.memory.hermes_bridge`；
   - 纯函数解析 Hermes Markdown 结构化文本与 YAML Frontmatter 头部元数据；

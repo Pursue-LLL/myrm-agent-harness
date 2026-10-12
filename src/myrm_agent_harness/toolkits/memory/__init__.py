@@ -5,10 +5,6 @@ and orchestration logic. Concrete storage backends are provided by the
 application layer via dependency injection.
 """
 
-from myrm_agent_harness.agent.middlewares.memory_context.ephemeral_delta import (
-    DeltaCategory,
-    EphemeralDeltaRegistry,
-)
 from myrm_agent_harness.toolkits.memory._internal.embedding_cache import EmbeddingCache
 from myrm_agent_harness.toolkits.memory._internal.memory_scanner import ScanMetricsSnapshot, get_scan_metrics
 from myrm_agent_harness.toolkits.memory._internal.storage import (
@@ -150,10 +146,6 @@ from myrm_agent_harness.toolkits.memory.capacity_hitl import (
     HitlCandidateStatus,
     MemoryEntryRef,
     MergeArchiveCandidateProposer,
-)
-from myrm_agent_harness.toolkits.memory.cards import (
-    AMemCard,
-    AMemZettelkastenNetwork,
 )
 from myrm_agent_harness.toolkits.memory.chunking import (
     ChunkingConfig,
@@ -380,23 +372,6 @@ from myrm_agent_harness.toolkits.memory.dreaming import (
     SurgicalSessionMemoryUnlearner,
     SurgicalUnlearnReport,
 )
-from myrm_agent_harness.toolkits.memory.durable_revision import (
-    ChangeReceipt,
-    ChangeReceiptStatus,
-    DurableRevisionSuite,
-    KeyLockManager,
-    LockContentionTimeoutError,
-    MVCCRevisionEngine,
-    RecoveryAuditReport,
-    RevisionContentionError,
-    RevisionIntent,
-    RevisionNotFoundError,
-    SnapshotReadView,
-    TwoPhaseIntentWAL,
-    WritePayload,
-    calculate_payload_crc32,
-    compute_jitter_backoff,
-)
 from myrm_agent_harness.toolkits.memory.ephemeral_delta import (
     DeltaActionKind,
     EphemeralDeltaBufferSnapshot,
@@ -405,6 +380,9 @@ from myrm_agent_harness.toolkits.memory.ephemeral_delta import (
     EphemeralDeltaStore,
     HumanTailDeltaInjector,
     ReconciliationBatchReport,
+    clear_ephemeral_deltas_for_session,
+    get_shared_ephemeral_delta_store,
+    record_ephemeral_memory_delta,
 )
 from myrm_agent_harness.toolkits.memory.experience_compounding import (
     AnnealingReport,
@@ -472,15 +450,6 @@ from myrm_agent_harness.toolkits.memory.external_providers import (
     SupersedesLineageManager,
     SupersedesRecord,
 )
-from myrm_agent_harness.toolkits.memory.fact_supersession import (
-    ContradictionQuarantineGate,
-    ContradictionQuarantineItem,
-    DialecticRecallProjection,
-    DialecticRecallProjector,
-    FactSupersessionChainEngine,
-    TemporalFactRecord,
-    TemporalFactStatus,
-)
 from myrm_agent_harness.toolkits.memory.failure_retrieval import (
     ErrorFingerprint,
     ErrorFingerprintExtractor,
@@ -513,19 +482,6 @@ from myrm_agent_harness.toolkits.memory.git_okf import (
     OKFSource,
     OKFValidationReport,
     OKFVerified,
-)
-from myrm_agent_harness.toolkits.memory.governance import (
-    AssembledMemoryContext,
-    ConflictResolver,
-    DynamicContextAssembler,
-    DynamicFactItem,
-    EntityGraphBridge,
-    EventTimelineItem,
-    FactReconciliationEngine,
-    FactStatus,
-    ProfileSlots,
-    ReconciliationAction,
-    ReconciliationDecision,
 )
 from myrm_agent_harness.toolkits.memory.graph_reorganization import (
     GraphMemoryReorganizationEngine,
@@ -619,14 +575,6 @@ from myrm_agent_harness.toolkits.memory.job_compounding import (
     PreferenceCompoundingEngine,
     RuleType,
 )
-from myrm_agent_harness.toolkits.memory.lifecycle_hotness import (
-    BatchLifecycleClassificationResult,
-    HotnessLifecycleStage,
-    HotnessScoringConfig,
-    MemoryHotnessScorer,
-    MemoryLifecycleItem,
-    compute_hotness_score,
-)
 from myrm_agent_harness.toolkits.memory.lineage_search import (
     AdaptiveWindowHydrator,
     ConversationMessage,
@@ -714,10 +662,6 @@ from myrm_agent_harness.toolkits.memory.migration import (
     OpenClawParser,
     SecurityLimitExceededError,
     UniversalMemoryTranslator,
-)
-from myrm_agent_harness.toolkits.memory.mirror import (
-    ColdMemoryRecord,
-    HotColdMirrorEngine,
 )
 from myrm_agent_harness.toolkits.memory.multimodal import (
     ArtifactKind,
@@ -1005,18 +949,6 @@ from myrm_agent_harness.toolkits.memory.screen_observation import (
     UntrustedObservationEvidenceBoundary,
 )
 from myrm_agent_harness.toolkits.memory.session import MemorySession
-from myrm_agent_harness.toolkits.memory.session_commit import (
-    CommitBoundaryKind,
-    CommitPhase,
-    CommitTaskStatus,
-    MemoryDiffAudit,
-    MemoryDiffChangeKind,
-    MemoryDiffItem,
-    MemoryDiffStats,
-    SessionArchiveMessage,
-    SessionCommitResult,
-    SessionCommitTwoPhaseEngine,
-)
 from myrm_agent_harness.toolkits.memory.setup import (
     create_local_memory_manager,
     setup_local_file_memory_sync,
@@ -1340,19 +1272,6 @@ __all__ = [
     "SingleActiveProviderScheduler",
     "SupersedesLineageManager",
     "SupersedesRecord",
-    "AMemCard",
-    "AMemZettelkastenNetwork",
-    "AssembledMemoryContext",
-    "ConflictResolver",
-    "DynamicContextAssembler",
-    "DynamicFactItem",
-    "EntityGraphBridge",
-    "EventTimelineItem",
-    "FactReconciliationEngine",
-    "FactStatus",
-    "ProfileSlots",
-    "ReconciliationAction",
-    "ReconciliationDecision",
     "BoundedSummary",
     "ConflictType",
     "ConflictVerdict",
@@ -1391,7 +1310,6 @@ __all__ = [
     "BatchLearnResult",
     "ConcurrencyPoolConfig",
     "ConsolidationConfig",
-    "ColdMemoryRecord",
     "DecisionVetoSeverity",
     "DialecticCadenceConfig",
     "DialecticCadenceGovernor",
@@ -1431,7 +1349,6 @@ __all__ = [
     "ConsolidationTrap",
     "WorkingMemorySnapshot",
     "HealthScore",
-    "HotColdMirrorEngine",
     "import_hermes_bundle",
     "infer_domain_and_category",
     "infer_tier_and_policy",
@@ -1569,14 +1486,15 @@ __all__ = [
     "run_lineage_defense_pipeline",
     "create_local_memory_manager",
     "DeltaActionKind",
-    "DeltaCategory",
     "EphemeralDeltaBufferSnapshot",
     "EphemeralDeltaItem",
     "EphemeralDeltaReconciler",
-    "EphemeralDeltaRegistry",
     "EphemeralDeltaStore",
     "HumanTailDeltaInjector",
     "ReconciliationBatchReport",
+    "clear_ephemeral_deltas_for_session",
+    "get_shared_ephemeral_delta_store",
+    "record_ephemeral_memory_delta",
     "CascadedRuleSet",
     "DeterministicRuleCascadeLoader",
     "DeterministicRuleEntry",
@@ -1876,13 +1794,6 @@ __all__ = [
     "MarkdownMemorySerializer",
     "MarkdownSyncDelta",
     "MemoryCuratorStudio",
-    "ContradictionQuarantineGate",
-    "ContradictionQuarantineItem",
-    "DialecticRecallProjection",
-    "DialecticRecallProjector",
-    "FactSupersessionChainEngine",
-    "TemporalFactRecord",
-    "TemporalFactStatus",
     "DualNodeFixedCountRetriever",
     "DualNodeRetrievalQuery",
     "DualNodeRetrievalResult",
@@ -1897,16 +1808,6 @@ __all__ = [
     "PreWriteInterceptor",
     "SkillLoadExperienceHook",
     "SubagentSpawnExperienceEnricher",
-    "CommitBoundaryKind",
-    "CommitPhase",
-    "CommitTaskStatus",
-    "MemoryDiffAudit",
-    "MemoryDiffChangeKind",
-    "MemoryDiffItem",
-    "MemoryDiffStats",
-    "SessionArchiveMessage",
-    "SessionCommitResult",
-    "SessionCommitTwoPhaseEngine",
     "BusinessExperienceTemplate",
     "BusinessExperienceTemplateRegistry",
     "BusinessTemplateEngine",
@@ -1991,12 +1892,6 @@ __all__ = [
     "HierarchicalRetrievalStats",
     "HierarchyNodeType",
     "SiblingContextItem",
-    "BatchLifecycleClassificationResult",
-    "HotnessScoringConfig",
-    "MemoryHotnessScorer",
-    "MemoryLifecycleItem",
-    "HotnessLifecycleStage",
-    "compute_hotness_score",
     "LockAcquisitionConflictError",
     "PathSemanticLockManager",
     "QueueFSConfig",
@@ -2108,21 +2003,6 @@ __all__ = [
     "KnowledgeCondensationEngine",
     "ObsoleteContextAnnealingGovernor",
     "compute_compounded_weight",
-    "ChangeReceipt",
-    "ChangeReceiptStatus",
-    "DurableRevisionSuite",
-    "KeyLockManager",
-    "LockContentionTimeoutError",
-    "MVCCRevisionEngine",
-    "RecoveryAuditReport",
-    "RevisionContentionError",
-    "RevisionIntent",
-    "RevisionNotFoundError",
-    "SnapshotReadView",
-    "TwoPhaseIntentWAL",
-    "WritePayload",
-    "calculate_payload_crc32",
-    "compute_jitter_backoff",
     "AttachmentBelongsToDocumentMigrationEngine",
     "AttachmentOwnershipItem",
     "AttachmentStats",

@@ -64,6 +64,11 @@ class MemoryManagerStorageMixin:
         v, e = self._vec()
         bound = self._bind_scope(memory)
         stored = await store_semantic(bound, v, self._config, e, self._cache)
+        from myrm_agent_harness.toolkits.memory.ephemeral_delta.notify import (
+            record_ephemeral_memory_delta,
+        )
+
+        record_ephemeral_memory_delta(key=f"memory:{stored.id}", value=stored.content)
         if (
             self._relational is not None
             and hasattr(self._relational, "record_exact_fact")
@@ -92,6 +97,12 @@ class MemoryManagerStorageMixin:
             e,
             self._cache,
         )
+        from myrm_agent_harness.toolkits.memory.ephemeral_delta.notify import (
+            record_ephemeral_memory_delta,
+        )
+
+        for stored in stored_list:
+            record_ephemeral_memory_delta(key=f"memory:{stored.id}", value=stored.content)
         if self._relational is not None and hasattr(self._relational, "record_exact_fact"):
             for stored in stored_list:
                 if stored.is_exact_fact or stored.exact_identifiers:
