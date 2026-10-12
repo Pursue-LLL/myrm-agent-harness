@@ -35,6 +35,7 @@ from .types import DELEGATION_CAPABILITY_MANIFEST, SubagentConfig
 
 if TYPE_CHECKING:
     from myrm_agent_harness.agent.base_agent import BaseAgent
+    from myrm_agent_harness.toolkits.code_execution.executors.base import CodeExecutor
 
 logger = get_agent_logger(__name__)
 
@@ -251,7 +252,7 @@ async def build_child_agent(
             "BaseAgent",
             await config.agent_factory.build(
                 config=config,
-                tools=tools,
+                tools=cast("list[object]", tools),
                 task_description=task_description,
                 parent_agent=parent_agent,
                 current_depth=current_depth,
@@ -371,7 +372,7 @@ def build_standalone_agent(
 
     return BaseAgent(
         llm=llm_instance,
-        executor=executor,
+        executor=cast("CodeExecutor | None", executor),
         system_prompt=system_prompt,
         tools=tools,
         middlewares=[create_context_pipeline_middleware(llm=llm_instance)],
