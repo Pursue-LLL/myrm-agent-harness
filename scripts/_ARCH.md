@@ -33,6 +33,8 @@ Harness 仓维护脚本：框架-业务边界 enforcement、PyPI 发布校验、
 | `check_module_coverage.py` | 辅助 | 每模块覆盖率下限门禁：读取 `.coverage` 数据，对 `COVERAGE_FLOORS` 登记的模块逐个校验执行率，不嵌套执行 pytest | ✅ |
 | `check_module_reachability.py` | Gate | 模块可达性门禁 CLI：`agent/`、`runtime/`、`core/` 下每个引擎单元必须有生产消费者（本包或 server 树）；无白名单、无 baseline；server 树缺失时显式输出 `NOT EVALUATED`（`--require-server` 则失败）；`--incremental` 仅在 harness 源码变更时运行（pre-commit） | ✅ |
 | `module_reachability_engine.py` | Gate | 可达性静态引擎：以全限定点路径引用建模证据（导入路径、导入后加载的名字、模块属性链、点路径字符串、`module:attr`），经 hub 再导出绑定（含 lazy 表）解析到单元并做闭包；hub 内再导出/别名不算使用，`api/` 与包根 `__init__.py` 为公开面，server 树、`__main__.py`、`[project.scripts]` 为根 | ✅ |
+| `check_import_resolvability.py` | Gate | 导入可解析性门禁 CLI：每条一方 import（含函数内、`try/except` 内、`TYPE_CHECKING` 内）必须指向真实存在的模块，`from M import N` 的 `N` 必须是子模块或 `M` 导入时绑定的名字；无白名单、无 baseline；`--package NAME=DIR` 与 `--scan NAME` 可把 server `app/` 树对照 harness 源码检查；`--incremental` 仅在 harness `.py` 变更时运行（pre-commit）；解析失败的文件与空扫描显式报错而非放行 | ✅ |
+| `import_resolvability_engine.py` | Gate | 导入可解析性静态引擎：一次索引各根包全部模块的导入期符号（定义、赋值、`for`/`with` 目标、import 绑定、`__all__`、`import *` 再导出）；带模块级 `__getattr__` / `globals()` 改写的动态命名空间与无法解析的文件一律放行其名字，只报能证伪的导入；跨根解析、仅对 `scan` 根报告 | ✅ |
 | `file_line_baseline.txt` | 辅助 | legacy 大文件 grandfather 清单：允许 >500 行但不得超过登记行数；拆分至 ≤500 后移除 | — |
 | `fractal_header_baseline.txt` | 辅助 | 允许暂缺 IOP 头的 legacy 路径清单（相对 `src/`）；新文件不得加入 | — |
 | `detect_blocking_io.py` | 辅助 | 阻塞 I/O 检测 | ✅ |
@@ -59,9 +61,14 @@ python scripts/check_module_coverage.py --data .coverage  # 需先以 --cov 产�
 python scripts/check_module_reachability.py               # 全量：每个引擎单元须有生产消费者
 python scripts/check_module_reachability.py --incremental  # pre-commit：仅 harness 源码变更时运行
 python scripts/check_module_reachability.py --json        # 机器可读（死单元 / 仅 server 消费单元）
+python scripts/check_import_resolvability.py              # 全量：每条一方 import 须指向真实模块与名字（CI）
+python scripts/check_import_resolvability.py --incremental  # pre-commit：仅 harness 源码变更时运行
+python scripts/check_import_resolvability.py \
+    --package myrm_agent_harness=src/myrm_agent_harness \
+    --package app=../myrm-agent/myrm-agent-server/app --scan app   # server 树对照 harness（server CI 调用）
 ```
 
-Pre-commit runs `validate_arch_inventory.py` via hook `harness-arch-inventory-check` and `check_file_line_limit.py` via hook `harness-line-limit-check`, and `check_test_source_assertions.py` via hook `harness-test-source-assertion-check` (see `.pre-commit-config.yaml`).
+Pre-commit runs `validate_arch_inventory.py` via hook `harness-arch-inventory-check` and `check_file_line_limit.py` via hook `harness-line-limit-check`, `check_test_source_assertions.py` via hook `harness-test-source-assertion-check`, and `check_import_resolvability.py` via hook `harness-import-resolvability-check` (see `.pre-commit-config.yaml`). CI runs the import gate in `.github/workflows/boundary-check.yml`; the server repo runs it against its own `app/` tree from `scripts/ci/run_architecture_gates.sh` whenever the harness source sits beside it.
 
 ## File line grandfather 策略
 

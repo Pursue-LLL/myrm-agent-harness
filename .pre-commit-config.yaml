@@ -48,3 +48,11 @@ repos:
         pass_filenames: false
         always_run: true
         description: "Reject tests asserting on raw .py source text; assert on the ast tree so reformatting cannot break them (incremental: changed tests only)"
+
+      - id: harness-import-resolvability-check
+        name: Harness Import Resolvability
+        entry: python scripts/check_import_resolvability.py --incremental
+        language: system
+        pass_filenames: false
+        always_run: true
+        description: "Every first-party import must resolve to a real module and name; skipped unless harness sources changed"

@@ -552,7 +552,7 @@ class UserService:
 3. **接口契约**：OUTPUT 声明对外能力，形成清晰的接口契约
 4. **影响分析**：通过 INPUT/POS 链接快速定位变更影响范围
 5. **变更影响分析**：借助 INPUT/POS 链接定位依赖面，配合评审与测试降低回归风险
-6. **自动化门禁**：`check_fractal_docs.py` + `boundary_check.py` + `validate_arch_inventory.py`（`_ARCH.md` 文件表 vs 磁盘 `.py`）+ `check_file_line_limit.py`（单文件行数 + `file_line_baseline.txt` grandfather）+ `test_core_dependencies.py`（core 24 项与 uv.lock 严格对齐）在 pre-commit 与 CI 阻断文档/层边界/依赖分层回归；inventory scope 为 `src/myrm_agent_harness/` 全包；wheel 打包慢测在 `distribution-packaging-slow` job（`-m "architecture and slow"`）
+6. **自动化门禁**：`check_fractal_docs.py` + `boundary_check.py` + `validate_arch_inventory.py`（`_ARCH.md` 文件表 vs 磁盘 `.py`）+ `check_file_line_limit.py`（单文件行数 + `file_line_baseline.txt` grandfather）+ `check_import_resolvability.py`（每条一方 import 须指向真实存在的模块与名字，无白名单）+ `test_core_dependencies.py`（core 24 项与 uv.lock 严格对齐）在 pre-commit 与 CI 阻断文档/层边界/依赖分层回归；inventory scope 为 `src/myrm_agent_harness/` 全包；wheel 打包慢测在 `distribution-packaging-slow` job（`-m "architecture and slow"`）
 
 **File line grandfather（`scripts/file_line_baseline.txt`）**：
 

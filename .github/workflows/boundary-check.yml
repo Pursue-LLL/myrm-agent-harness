@@ -22,6 +22,8 @@ on:
       - 'scripts/check_package_root_layout.py'
       - 'scripts/check_file_line_limit.py'
       - 'scripts/check_fractal_docs.py'
+      - 'scripts/check_import_resolvability.py'
+      - 'scripts/import_resolvability_engine.py'
       - 'scripts/file_line_baseline.txt'
       - 'packages/myrm-agent-harness-core/**'
       - '.pre-commit-config.yaml'
@@ -57,6 +59,9 @@ jobs:
         run: |
           uv run python scripts/validate_arch_inventory.py --root src/myrm_agent_harness
           uv run python scripts/validate_arch_inventory.py --root . --md-refs
+
+      - name: Run import resolvability gate
+        run: uv run python scripts/check_import_resolvability.py
 
       - name: Install dependencies
         run: uv sync --dev --group build

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Unit tests for `scripts/` maintenance tooling (tool registry engine/models/config/validator, turn1 token inventory, file line-limit gate). Architecture gate tests for the same scripts live under `tests/architecture/`.
+Unit tests for `scripts/` maintenance tooling (tool registry engine/models/config/validator, turn1 token inventory, file line-limit gate, module-reachability and import-resolvability gates). Architecture gate tests for the same scripts live under `tests/architecture/`.
 
 ## File Index
 
@@ -19,6 +19,8 @@ Unit tests for `scripts/` maintenance tooling (tool registry engine/models/confi
 | `test_check_module_coverage.py` | Unit | `scripts/check_module_coverage.py` floor CLI (below/at floor, unmeasured module, missing data file) |
 | `test_module_reachability_engine.py` | Unit | `scripts/module_reachability_engine.py` evidence rules on synthetic packages (facade re-exports/aliases not uses, hub bindings and lazy tables, name collisions ignored, dead-unit chains, roots: `__main__`/entry points/server tree/public surface) |
 | `test_check_module_reachability.py` | Unit | `scripts/check_module_reachability.py` CLI (exit codes 0/1/2/3, empty scan fails, missing server tree reported as not evaluated, `--incremental`, `--json`, entry-point discovery) |
+| `test_import_resolvability_engine.py` | Unit | `scripts/import_resolvability_engine.py` on synthetic packages (module existence, relative imports, lazy / `try` / `TYPE_CHECKING` imports, import-time name binding, `__all__`, star re-exports and cycles, dynamic namespaces, unparsable files, cross-root scan scope, ordering, bytecode dirs) |
+| `test_check_import_resolvability.py` | Unit | `scripts/check_import_resolvability.py` CLI (exit codes 0/1/2, `--json`, `--package` / `--scan` validation and server-tree scan, `--incremental` scope and `harness_sources_changed`) |
 
 ## Key Dependencies
 
