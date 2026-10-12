@@ -247,6 +247,20 @@ class TestRunContextCompaction:
         assert result["skipped"] is True
         assert result["reason"] == "no chat_id"
 
+    async def test_skip_when_chat_id_is_not_a_string(self) -> None:
+        event_bus = MagicMock()
+        task = IdleTaskRecord(
+            id=12,
+            session_id="s1",
+            task_type="context_compaction",
+            payload={"chat_id": 42},
+            status="running",
+            created_at=0.0,
+        )
+        result = await _run_context_compaction("s1", task, event_bus)
+        assert result == {"skipped": True, "reason": "no chat_id"}
+        event_bus.publish.assert_not_called()
+
     async def test_compaction_success_no_preheat(self) -> None:
         event_bus = MagicMock()
         task = IdleTaskRecord(

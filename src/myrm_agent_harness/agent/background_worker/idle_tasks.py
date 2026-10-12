@@ -194,8 +194,8 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                 elif task.task_type == "cognitive_subsumption":
                     # Knowledge subsumption (erasing redundant text memories when a Skill is learned)
                     memory_manager = get_memory_manager()
-                    new_knowledge = task.payload.get("new_knowledge", "")
-                    if memory_manager and new_knowledge:
+                    new_knowledge = task.payload.get("new_knowledge")
+                    if memory_manager and isinstance(new_knowledge, str) and new_knowledge:
                         from myrm_agent_harness.toolkits.memory.strategies.subsumption import (
                             apply_subsumption,
                             find_subsumed_memories,
@@ -311,8 +311,8 @@ async def _run_context_compaction(
     The handler returns only a result summary (no ``llm``/``messages`` are exposed to this
     runner), so no prefix-cache preheat is performed here.
     """
-    chat_id = task.payload.get("chat_id", "")
-    if not chat_id:
+    chat_id = task.payload.get("chat_id")
+    if not isinstance(chat_id, str) or not chat_id:
         logger.info("context_compaction skipped: no chat_id in payload (session %s)", session_id)
         return {"skipped": True, "reason": "no chat_id"}
 

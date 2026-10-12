@@ -19,7 +19,6 @@ import logging
 import os
 import time
 from dataclasses import dataclass
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +39,7 @@ class IdleTaskRecord:
     id: int
     session_id: str
     task_type: str
-    payload: dict[str, Any]
+    payload: dict[str, object]
     status: str
     created_at: float
 
@@ -87,7 +86,7 @@ class IdleTaskRegistry:
                 self._initialized = True
             await self.cleanup_old_tasks()
 
-    async def enqueue(self, session_id: str, task_type: str, payload: dict[str, Any]) -> None:
+    async def enqueue(self, session_id: str, task_type: str, payload: dict[str, object]) -> None:
         """Enqueue a new idle task if not already pending."""
         if not self._initialized:
             await self.init_db()
