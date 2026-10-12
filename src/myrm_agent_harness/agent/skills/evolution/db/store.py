@@ -524,8 +524,8 @@ class SkillStore(SkillEvolutionTrackingMixin, SkillDependencyMixin, SkillStoreQu
 
     @_db_retry()
     def _record_execution_outcome_sync(self, skill_id: str, *, success: bool) -> bool:
-        """Count one execution in a single UPDATE so concurrent outcomes can never overwrite each other."""
-        with self._mu:
+        """Count one execution atomically; a failed commit is rolled back so ``_db_retry`` cannot count it twice."""
+        with self._mu, self._conn:
             cursor = self._conn.execute(
                 """
                 UPDATE skills SET
@@ -540,7 +540,6 @@ class SkillStore(SkillEvolutionTrackingMixin, SkillDependencyMixin, SkillStoreQu
                 """,
                 {"ok": int(success), "now": datetime.now().isoformat(), "skill_id": skill_id},
             )
-            self._conn.commit()
             return cursor.rowcount > 0
 
     async def record_execution_outcome(self, skill_id: str, *, success: bool) -> bool:

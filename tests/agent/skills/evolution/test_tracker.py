@@ -1,11 +1,14 @@
-"""Skill execution ledger: outcomes are counted exactly, also under concurrency."""
+"""Skill execution ledger: outcomes are counted exactly, also under concurrency and commit retries."""
 
 import asyncio
+import sqlite3
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from myrm_agent_harness.agent.skills.evolution.core.types import EvolutionType, SkillLineage, SkillRecord
+from myrm_agent_harness.agent.skills.evolution.db import store as store_module
 from myrm_agent_harness.agent.skills.evolution.db.store import SkillStore
 from myrm_agent_harness.agent.skills.evolution.infra.tracker import SkillExecutionResult, SkillQualityTracker
 
@@ -80,6 +83,31 @@ async def test_concurrent_outcomes_are_all_counted(store):
     assert metrics.total_selections == 50
     assert metrics.completed_count == 50
     assert metrics.success_count == 30
+
+
+@pytest.mark.asyncio
+async def test_retried_commit_counts_the_outcome_once(store, monkeypatch):
+    """A commit blocked by a reader is retried by the store; the retry must not stack a second increment."""
+    # Rollback-journal mode: a reader's shared lock blocks the writer's COMMIT, not its UPDATE.
+    store._conn.execute("PRAGMA journal_mode=DELETE")
+    store._conn.execute("PRAGMA busy_timeout=50")
+    reader = sqlite3.connect(store.db_path, isolation_level=None, check_same_thread=False)
+    reader.execute("BEGIN")
+    reader.execute("SELECT count(*) FROM skills").fetchall()
+    retries: list[float] = []
+
+    def release_reader_before_retry(delay: float) -> None:
+        retries.append(delay)
+        reader.execute("ROLLBACK")
+
+    monkeypatch.setattr(store_module, "time", SimpleNamespace(sleep=release_reader_before_retry))
+
+    await SkillQualityTracker(store).record_execution(SkillExecutionResult(skill_id="skill1", success=True))
+    reader.close()
+
+    assert len(retries) == 1, "the first commit must have been blocked"
+    metrics = _metrics(store)
+    assert (metrics.total_selections, metrics.applied_count, metrics.success_count) == (1, 1, 1)
 
 
 @pytest.mark.asyncio

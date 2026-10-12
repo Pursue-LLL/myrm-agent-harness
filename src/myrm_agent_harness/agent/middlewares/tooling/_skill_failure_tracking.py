@@ -84,15 +84,16 @@ def track_skill_execution(
                 loop_kind=loop_kind,
             ):
                 return
+            sanitized_error = _sanitize_error_message(error_message)
             _publish_skill_failure_event(
                 tool_name=tool_name,
                 tool_call_id=tool_call_id,
                 tool_args=tool_args,
-                error_message=error_message,
+                sanitized_error=sanitized_error,
                 candidates=candidates,
                 loop_kind=loop_kind,
             )
-            _count_single_skill_outcome(candidates, success=False, error_message=_sanitize_error_message(error_message))
+            _count_single_skill_outcome(candidates, success=False, error_message=sanitized_error)
             return
 
         _count_single_skill_outcome(candidates, success=True)
@@ -193,14 +194,13 @@ def _publish_skill_failure_event(
     tool_name: str,
     tool_call_id: str,
     tool_args: dict[str, object],
-    error_message: str,
+    sanitized_error: str,
     candidates: tuple[SkillFailureCandidate, ...],
     loop_kind: str | None = None,
 ) -> None:
     from myrm_agent_harness.agent.skill_agent.context import get_task_intent
     from myrm_agent_harness.runtime.events import SkillFailureEvent, get_event_bus
 
-    sanitized_error = _sanitize_error_message(error_message)
     get_event_bus().publish(
         SkillFailureEvent(
             tool_name=tool_name,
