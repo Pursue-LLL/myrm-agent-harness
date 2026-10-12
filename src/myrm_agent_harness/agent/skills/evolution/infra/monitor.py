@@ -114,6 +114,7 @@ class MetricMonitor:
         self._min_applied_for_derived = min_applied_for_derived
         self._min_selections = min_selections
         self._execution_count = 0
+        self._scanned_execution_count = 0
 
         # Tool degradation tracking (P1-6)
         self._enable_tool_degradation = enable_tool_degradation
@@ -151,12 +152,8 @@ class MetricMonitor:
         self._execution_count += 1
 
     def should_scan(self) -> bool:
-        """Check if should scan based on execution count.
-
-        Returns:
-            True if should scan
-        """
-        return self._execution_count % self._scan_interval == 0
+        """Whether ``scan_interval`` executions were counted since the last scan."""
+        return self._execution_count - self._scanned_execution_count >= self._scan_interval
 
     async def start(self) -> None:
         """Start background scheduler for automatic periodic scanning.
@@ -248,6 +245,7 @@ class MetricMonitor:
             List of generated evolution proposals
         """
         self._total_scans += 1  # Track scan count
+        self._scanned_execution_count = self._execution_count
 
         # Phase 1: Diagnose candidates
         candidates: list[tuple[SkillRecord, EvolutionType, str]] = []
