@@ -23,6 +23,7 @@ Code executor base classes.
 """
 
 import asyncio
+import gzip
 import logging
 import shlex
 import uuid
@@ -39,6 +40,10 @@ from myrm_agent_harness.toolkits.code_execution.executors.models import (
     ExecutionResult,
     MCPCommunicationConfig,
     MCPConfigItem,
+)
+from myrm_agent_harness.toolkits.code_execution.executors.shell_file_transfer import (
+    read_bytes_via_shell,
+    write_bytes_via_shell,
 )
 
 logger = logging.getLogger(__name__)
@@ -163,52 +168,28 @@ class CodeExecutor(ABC):
         """
         safe = await self.resolve_path(path)
         self._log_context_file_access(safe, success=True)
-
-        if safe.endswith(".gz"):
-            import gzip
-            from base64 import b64decode
-
-            result = await self._exec_bash(f"base64 '{safe}'")
-            if not result.success:
-                self._log_context_file_access(safe, success=False)
-                raise FileNotFoundError(f"Cannot read '{path}': {result.error or result.stderr}")
-
-            compressed_data = b64decode(result.stdout.strip())
-            return gzip.decompress(compressed_data).decode("utf-8")
-
-        result = await self._exec_bash(f"cat '{safe}'")
-        if not result.success:
+        try:
+            data = await read_bytes_via_shell(self._exec_bash, safe, path)
+        except OSError:
             self._log_context_file_access(safe, success=False)
-            raise FileNotFoundError(f"Cannot read '{path}': {result.error or result.stderr}")
-        return result.stdout
+            raise
+        if safe.endswith(".gz"):
+            data = gzip.decompress(data)
+        return data.decode("utf-8")
 
     async def read_file_bytes(self, path: str) -> bytes:
         """Read a file as bytes."""
         safe = await self.resolve_path(path)
-        result = await self._exec_bash(f"base64 '{safe}'")
-        if not result.success:
-            raise FileNotFoundError(f"Cannot read '{path}': {result.error or result.stderr}")
-        from base64 import b64decode
-
-        return b64decode(result.stdout.strip())
+        return await read_bytes_via_shell(self._exec_bash, safe, path)
 
     async def write_file(self, path: str, content: str) -> None:
         """Write text content to a file."""
-        from base64 import b64encode
-
-        safe = await self.resolve_path(path)
-        parent = str(Path(safe).parent)
-        encoded = b64encode(content.encode()).decode()
-        await self._exec_bash(f"mkdir -p '{parent}' && echo '{encoded}' | base64 -d > '{safe}'")
+        await self.write_file_bytes(path, content.encode())
 
     async def write_file_bytes(self, path: str, content: bytes) -> None:
         """Write binary content to a file."""
-        from base64 import b64encode
-
         safe = await self.resolve_path(path)
-        parent = str(Path(safe).parent)
-        encoded = b64encode(content).decode()
-        await self._exec_bash(f"mkdir -p '{parent}' && echo '{encoded}' | base64 -d > '{safe}'")
+        await write_bytes_via_shell(self._exec_bash, safe, path, content)
 
     async def write_file_atomic(self, path: str, content: str) -> None:
         """Atomically replace a text file through a same-directory temporary file."""
@@ -241,68 +222,39 @@ class CodeExecutor(ABC):
 
     async def append_file(self, path: str, content: str) -> None:
         """Append text content to a file."""
-        from base64 import b64encode
-
         safe = await self.resolve_path(path)
-        encoded = b64encode(content.encode()).decode()
-        await self._exec_bash(f"echo '{encoded}' | base64 -d >> '{safe}'")
+        await write_bytes_via_shell(self._exec_bash, safe, path, content.encode(), append=True)
 
     async def delete_file(self, path: str) -> None:
         """Delete a file."""
         safe = await self.resolve_path(path)
-        await self._exec_bash(f"rm -f '{safe}'")
+        await self._exec_bash(f"rm -f {shlex.quote(safe)}")
 
     async def file_exists(self, path: str) -> bool:
         """Check if a file or directory exists."""
         safe = await self.resolve_path(path)
-        result = await self._exec_bash(f"test -e '{safe}' && echo 1 || echo 0")
+        result = await self._exec_bash(f"test -e {shlex.quote(safe)} && echo 1 || echo 0")
         return result.stdout.strip() == "1"
 
     async def is_file(self, path: str) -> bool:
         safe = await self.resolve_path(path)
-        result = await self._exec_bash(f"test -f '{safe}' && echo 1 || echo 0")
+        result = await self._exec_bash(f"test -f {shlex.quote(safe)} && echo 1 || echo 0")
         return result.stdout.strip() == "1"
 
     async def is_dir(self, path: str) -> bool:
         safe = await self.resolve_path(path)
-        result = await self._exec_bash(f"test -d '{safe}' && echo 1 || echo 0")
+        result = await self._exec_bash(f"test -d {shlex.quote(safe)} && echo 1 || echo 0")
         return result.stdout.strip() == "1"
 
     async def mkdir(self, path: str) -> None:
         """Create a directory (including parents)."""
         safe = await self.resolve_path(path)
-        await self._exec_bash(f"mkdir -p '{safe}'")
+        await self._exec_bash(f"mkdir -p {shlex.quote(safe)}")
 
     async def list_files(self, path: str = ".", pattern: str = "*") -> list[str]:
         """List files matching a pattern."""
         safe = await self.resolve_path(path)
-        result = await self._exec_bash(f"find '{safe}' -maxdepth 1 -name '{pattern}' -type f")
-        return [line for line in result.stdout.strip().splitlines() if line] if result.success else []
-
-    async def grep(
-        self,
-        pattern: str,
-        path: str = ".",
-        use_regex: bool = False,
-        case_sensitive: bool = True,
-    ) -> str:
-        """Search for text within the workspace."""
-        safe = await self.resolve_path(path)
-        escaped_pattern = pattern.replace("'", "'\\''")
-
-        flags = ["-rn"]
-        if not use_regex:
-            flags.append("F")
-        if not case_sensitive:
-            flags.append("i")
-
-        flags_str = "-" + "".join(flags)
-        result = await self._exec_bash(f"grep {flags_str} '{escaped_pattern}' '{safe}' || true")
-        return result.stdout
-
-    async def glob_files(self, pattern: str) -> list[str]:
-        """Find files matching a glob pattern."""
-        result = await self._exec_bash(f"find '{self.workspace_path}' -path '{pattern}' -type f")
+        result = await self._exec_bash(f"find {shlex.quote(safe)} -maxdepth 1 -name {shlex.quote(pattern)} -type f")
         return [line for line in result.stdout.strip().splitlines() if line] if result.success else []
 
     async def resolve_path(self, relative_path: str) -> str:
@@ -421,18 +373,6 @@ class CodeExecutorMiddleware(CodeExecutor):
 
     async def list_files(self, path: str = ".", pattern: str = "*") -> list[str]:
         return await self.inner.list_files(path, pattern)
-
-    async def grep(
-        self,
-        pattern: str,
-        path: str = ".",
-        use_regex: bool = False,
-        case_sensitive: bool = True,
-    ) -> str:
-        return await self.inner.grep(pattern, path, use_regex=use_regex, case_sensitive=case_sensitive)
-
-    async def glob_files(self, pattern: str) -> list[str]:
-        return await self.inner.glob_files(pattern)
 
     async def resolve_path(self, relative_path: str) -> str:
         return await self.inner.resolve_path(relative_path)

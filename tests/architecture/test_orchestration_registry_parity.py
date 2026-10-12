@@ -15,5 +15,6 @@ def test_internal_tool_names_match_session_scoped_tools() -> None:
     assert expected == INTERNAL_TOOL_NAMES
 
 
-def test_schema_only_names_match_dr_signals() -> None:
-    assert SCHEMA_ONLY_TOOL_NAMES == DEEP_RESEARCH_SIGNAL_NAMES
+def test_schema_only_names_cover_dr_signals() -> None:
+    # Schema-only also lists tools whose declaration the AST scan cannot attribute, so it is a superset.
+    assert DEEP_RESEARCH_SIGNAL_NAMES <= SCHEMA_ONLY_TOOL_NAMES

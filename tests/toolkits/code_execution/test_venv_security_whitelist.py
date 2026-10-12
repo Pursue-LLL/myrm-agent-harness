@@ -23,16 +23,18 @@ from myrm_agent_harness.toolkits.code_execution.security.validator import (
 )
 
 
+# Workspace and venv live outside /tmp, which the validators always allow, so "blocked unless whitelisted" is
+# decided by the whitelist alone on every platform.
 @pytest.fixture
-def tmp_workspace(tmp_path: Path) -> Path:
-    ws = tmp_path / "workspace"
+def tmp_workspace(outside_tmp_path: Path) -> Path:
+    ws = outside_tmp_path / "workspace"
     ws.mkdir()
     return ws
 
 
 @pytest.fixture
-def tmp_venv(tmp_path: Path) -> Path:
-    venv = tmp_path / ".sandbox_venv"
+def tmp_venv(outside_tmp_path: Path) -> Path:
+    venv = outside_tmp_path / ".sandbox_venv"
     venv.mkdir()
     (venv / "bin").mkdir()
     (venv / "bin" / "python").touch()

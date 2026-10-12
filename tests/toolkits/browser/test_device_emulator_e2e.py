@@ -75,6 +75,10 @@ async def test_emulate_desktop_restores_viewport(
     ua = await page.evaluate("navigator.userAgent")
     assert "iPhone" not in ua
 
+    # The viewport reset is applied asynchronously by the browser; wait for layout instead of sampling once.
+    # A timeout here still fails the test.
+    await page.wait_for_function("() => innerWidth >= 1000", timeout=5000)
+
     dims = await page.evaluate(
         "() => ({ width: innerWidth, dpr: devicePixelRatio, maxTouchPoints: navigator.maxTouchPoints })"
     )

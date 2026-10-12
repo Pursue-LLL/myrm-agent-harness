@@ -17,6 +17,7 @@ _repo_root = Path(__file__).resolve().parent.parent.parent
 if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
+from scripts.tool_registry_config import SERVER_TREE_AVAILABLE
 from scripts.tool_registry_models import ScanReport, ToolDeclaration
 from scripts.validate_tool_registry import (
     _BLOCK_BEGIN,
@@ -25,6 +26,10 @@ from scripts.validate_tool_registry import (
     _filter_report_to_files,
     _format_report,
     _update_doc_block,
+)
+
+requires_server_tree = pytest.mark.skipif(
+    not SERVER_TREE_AVAILABLE, reason="myrm-agent-server not checked out next to harness"
 )
 
 
@@ -223,6 +228,7 @@ def test_main_incremental_runs_layer_product_gate(
     assert "tool catalog metadata" in out.lower() or "HIGH_PRIORITY" in out
 
 
+@requires_server_tree
 def test_main_full_pass(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     rc, out, _ = _run_main(
         monkeypatch,
@@ -234,6 +240,7 @@ def test_main_full_pass(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureF
     assert "PASS" in out
 
 
+@requires_server_tree
 def test_main_json_emits_mode_and_layer_counts(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -366,6 +373,7 @@ def test_load_registry_metadata_keys_includes_todo_write() -> None:
     assert "web_search_tool" in keys
 
 
+@requires_server_tree
 def test_check_default_enabled_product_parity_passes() -> None:
     import scripts.validate_tool_registry as cli
 
@@ -383,6 +391,7 @@ def test_format_report_metadata_ghosts(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "registry metadata key" in out
 
 
+@requires_server_tree
 def test_main_incremental_filters_to_changed_files(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -439,6 +448,7 @@ def test_main_prints_catalog_and_parity_errors(
     assert "parity drift" in out
 
 
+@requires_server_tree
 def test_main_generate_docs_already_up_to_date(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -467,6 +477,7 @@ def test_main_generate_docs_already_up_to_date(
     assert "already up-to-date" in out
 
 
+@requires_server_tree
 def test_main_generate_docs_rewrites_existing_marker_block(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -504,6 +515,7 @@ def _governance_registry() -> ModuleType:
     return tool_registry
 
 
+@requires_server_tree
 def test_governance_coverage_passes_on_clean_metadata() -> None:
     import scripts.validate_tool_registry as cli
 
@@ -570,6 +582,7 @@ def test_governance_coverage_flags_unregistered_builtin_ghost(
     assert any("phantom_registered_tool" in e and "not registered in _TOOL_LAYERS" in e for e in errors)
 
 
+@requires_server_tree
 def test_governance_coverage_explicit_mcp_fallback_legal() -> None:
     """EXPLICIT_MCP_FALLBACK_TOOLS entries are a valid third governance state and
     must never overlap BUILTIN_TOOL_NAMES (that would flip runtime baseline)."""
@@ -626,6 +639,7 @@ def test_governance_coverage_flags_invalid_whitelist_reason(
     assert any("browser_read" in e and "not in AUTO_APPROVE_REASONS" in e for e in errors)
 
 
+@requires_server_tree
 def test_governance_coverage_external_tools_annotated_server_managed() -> None:
     """EXTERNAL tools are server-vendor tools; the harness gate annotates them
     as server_managed instead of forcing a harness governance declaration."""
@@ -816,6 +830,7 @@ def test_main_fails_and_prints_on_governance_errors(
     assert "governance coverage issue" in out
 
 
+@requires_server_tree
 def test_main_json_emits_governance_coverage(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

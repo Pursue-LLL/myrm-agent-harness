@@ -819,7 +819,6 @@ def test_cleanup_orphan_processes_escalation_still_running():
 def test_mac_app_code_sign_clone_flag_on_darwin():
     """Should ensure --disable-features=MacAppCodeSignClone is included in launch args on darwin."""
     from myrm_agent_harness.toolkits.browser.pool.browser_pool import _DEFAULT_LAUNCH_OPTIONS
-    from myrm_agent_harness.toolkits.browser.doctor.checks import _check_browser_launch
 
     if sys.platform == "darwin":
         args = _DEFAULT_LAUNCH_OPTIONS.get("args", [])

@@ -29,13 +29,6 @@ import logging
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.browser.session.browser_session import BrowserSession
-from myrm_agent_harness.toolkits.browser.tools.extract import create_extract_tool
-from myrm_agent_harness.toolkits.browser.tools.inspect import create_inspect_tool
-from myrm_agent_harness.toolkits.browser.tools.interact import create_interact_tool
-from myrm_agent_harness.toolkits.browser.tools.manage import create_manage_tool
-from myrm_agent_harness.toolkits.browser.tools.navigate import create_navigate_tool
-from myrm_agent_harness.toolkits.browser.tools.snapshot import create_snapshot_tool
-from myrm_agent_harness.toolkits.browser.tools.takeover import create_takeover_tool
 
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
@@ -102,6 +95,16 @@ def create_restricted_ax_browser_tools(session: BrowserSession) -> list[BaseTool
     Returns:
         List of 7 LangChain tools safe for untrusted browsing.
     """
+    # Deferred: the tool modules pull in langchain/langgraph, which a bare
+    # `import toolkits.browser` must not pay for.
+    from myrm_agent_harness.toolkits.browser.tools.extract import create_extract_tool
+    from myrm_agent_harness.toolkits.browser.tools.inspect import create_inspect_tool
+    from myrm_agent_harness.toolkits.browser.tools.interact import create_interact_tool
+    from myrm_agent_harness.toolkits.browser.tools.manage import create_manage_tool
+    from myrm_agent_harness.toolkits.browser.tools.navigate import create_navigate_tool
+    from myrm_agent_harness.toolkits.browser.tools.snapshot import create_snapshot_tool
+    from myrm_agent_harness.toolkits.browser.tools.takeover import create_takeover_tool
+
     logger.info("Initializing restricted AX browser tools (excluding browser_execute_script_tool)")
     return [
         create_navigate_tool(session),

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import tempfile
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -93,6 +94,10 @@ async def test_weixin_blocked_html_parse_returns_none() -> None:
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+@pytest.mark.skipif(
+    os.environ.get("MYRM_LIVE_WEIXIN") != "1",
+    reason="Live mp.weixin.qq.com fetch: reachable and un-gated only from mainland-China networks; set MYRM_LIVE_WEIXIN=1",
+)
 @pytest.mark.parametrize(
     ("url", "snippet"),
     [

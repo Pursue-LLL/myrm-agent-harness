@@ -35,6 +35,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _global_pool: GlobalBrowserPool | None = None
+_TEST_SHUTDOWN_TIMEOUT_SEC = 30.0
 
 # Longest an exit hook waits for the pool to close. Closing a healthy pool takes a few seconds
 # (each browser gets 5 s to close gracefully before it is force-killed).
@@ -154,8 +155,12 @@ async def reset_global_browser_pool_for_tests() -> None:
     if pool is None:
         return
 
-    await pool.shutdown()
-    _global_pool = None
+    try:
+        await asyncio.wait_for(pool.shutdown(), timeout=_TEST_SHUTDOWN_TIMEOUT_SEC)
+    except TimeoutError:
+        logger.warning("Global browser pool shutdown timed out; dropping the singleton")
+    finally:
+        _global_pool = None
 
 
 def _cleanup_orphan_automation() -> None:

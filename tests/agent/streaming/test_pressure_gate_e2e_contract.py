@@ -12,6 +12,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from myrm_agent_harness.agent.streaming.recovery.context_pressure_gate import (
     CONTEXT_OVERFLOW_TERMINAL_CODE,
 )
@@ -20,6 +22,13 @@ HARNESS_ROOT = Path(__file__).resolve().parents[3]
 OPEN_PERPLEXITY_ROOT = HARNESS_ROOT.parent
 FRONTEND = OPEN_PERPLEXITY_ROOT / "myrm-agent" / "myrm-agent-frontend"
 SERVER = OPEN_PERPLEXITY_ROOT / "myrm-agent" / "myrm-agent-server"
+
+requires_server_tree = pytest.mark.skipif(
+    not SERVER.is_dir(), reason="myrm-agent-server not checked out next to harness"
+)
+requires_frontend_tree = pytest.mark.skipif(
+    not FRONTEND.is_dir(), reason="myrm-agent-frontend not checked out next to harness"
+)
 
 
 def _read(path: Path) -> str:
@@ -38,6 +47,7 @@ def test_harness_emits_all_ui_fields() -> None:
         assert field in src, f"harness stopped emitting {field}"
 
 
+@requires_server_tree
 def test_server_envelope_preserves_terminal_code() -> None:
     proc = subprocess.run(
         [
@@ -58,6 +68,7 @@ def test_server_envelope_preserves_terminal_code() -> None:
     assert payload["terminal_code"] == "context_overflow_after_compaction"
 
 
+@requires_frontend_tree
 def test_frontend_handler_reads_same_fields() -> None:
     handler = _read(FRONTEND / "src" / "store" / "chat" / "messageStream" / "handlers" / "statusStreamProgressSteps.ts")
     for token in (
@@ -69,6 +80,7 @@ def test_frontend_handler_reads_same_fields() -> None:
         assert token in handler, f"frontend stopped reading {token}"
 
 
+@requires_frontend_tree
 def test_all_locales_cover_new_step_keys() -> None:
     keys = {
         "context_preflight_compact",

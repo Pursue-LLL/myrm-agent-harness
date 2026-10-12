@@ -5,7 +5,7 @@ while internally routing into Myrm's typed AgentHandoffEngine and MemoryPrivacyB
 Strict typing applied: No `Any` types allowed.
 
 [INPUT]
-- agent.context_management.handoff::AgentHandoffEngine, FailedApproachRecord, FinalizeSessionRequest (POS:
+- toolkits.memory.handoff::AgentHandoffEngine, FailedApproachRecord, FinalizeSessionRequest (POS:
   Public interface for agent handoff management and session finalization.)
 - toolkits.memory.agent_surface.mcp.types::AiMemoryFinalizeRequest, AiMemoryQueryRequest,
   AiMemoryRememberRequest (POS: Data models for ai-memory wire format interoperability and cross-tool MCP

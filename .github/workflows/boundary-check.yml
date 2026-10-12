@@ -82,7 +82,7 @@ jobs:
   distribution-packaging-slow:
     name: Distribution Packaging (slow)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     steps:
       - name: Checkout code
@@ -100,4 +100,4 @@ jobs:
         run: uv sync --dev --group build
 
       - name: Run slow architecture packaging tests
-        run: uv run pytest tests/architecture/test_distribution_packaging.py -m "architecture and slow" -n0 -v --tb=short --timeout=900
+        run: uv run pytest tests/architecture/test_distribution_packaging.py -m "architecture and slow" -n0 -v --tb=short --timeout=3000

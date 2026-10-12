@@ -9,7 +9,7 @@ Agent-agnostic browser DOM action recorder — captures click/dblclick/fill/sele
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Public exports: engine, types, serializer | ✅ |
-| capture_engine.py | Core | Playwright CDP event listener + bridge (loads JS resource; HOVER steps skip screenshot) | ✅ |
+| capture_engine.py | Core | Playwright event listener + bridge (loads JS resource, injects it into the page's main world via `evaluate` because the `expose_function` bridge only reaches Python from there; HOVER steps skip screenshot) | ✅ |
 | capture_script.js | Resource | Injected capture JS (event listeners + SPA/shadow-DOM/hover/press/select-getText logic) | ✅ |
 | types.py | Config | ActionType, ActionStep (incl. `modifiers`, `label`), CaptureSession | ✅ |
 | serializer.py | Core | Session/step JSON (incl. `modifiers`, `label`; credential fill/type values masked) + natural-language export | ✅ |

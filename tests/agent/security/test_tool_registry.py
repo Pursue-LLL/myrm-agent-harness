@@ -444,47 +444,47 @@ class TestPtcSafetyMetadata:
 
 class TestSanitizeUrlForTaint:
     def test_strips_query_and_fragment(self) -> None:
-        from myrm_agent_harness.core.security.tool_registry import (
-            _sanitize_url_for_taint,
+        from myrm_agent_harness.core.security.tool_registry.taint_extractors import (
+            sanitize_url_for_taint,
         )
 
-        assert _sanitize_url_for_taint("https://example.com/a?token=secret#frag") == "https://example.com/a"
+        assert sanitize_url_for_taint("https://example.com/a?token=secret#frag") == "https://example.com/a"
 
     def test_none_returns_none(self) -> None:
-        from myrm_agent_harness.core.security.tool_registry import (
-            _sanitize_url_for_taint,
+        from myrm_agent_harness.core.security.tool_registry.taint_extractors import (
+            sanitize_url_for_taint,
         )
 
-        assert _sanitize_url_for_taint(None) is None
+        assert sanitize_url_for_taint(None) is None
 
     def test_invalid_url_redacted(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from myrm_agent_harness.core.security.tool_registry import (
-            _sanitize_url_for_taint,
+        from myrm_agent_harness.core.security.tool_registry.taint_extractors import (
+            sanitize_url_for_taint,
         )
 
         def _boom(_url: str) -> object:
             raise ValueError("parse fail")
 
         monkeypatch.setattr("urllib.parse.urlparse", _boom)
-        assert _sanitize_url_for_taint("https://example.com/x") == "invalid_or_redacted_url"
+        assert sanitize_url_for_taint("https://example.com/x") == "invalid_or_redacted_url"
 
 
 class TestTaintUrlFromArgs:
     def test_extracts_str_url(self) -> None:
-        from myrm_agent_harness.core.security.tool_registry.safety_table import (
-            _taint_url_from_args,
+        from myrm_agent_harness.core.security.tool_registry.taint_extractors import (
+            taint_url_from_args,
         )
 
-        assert _taint_url_from_args({"url": "https://example.com/a?token=secret#frag"}) == "https://example.com/a"
+        assert taint_url_from_args({"url": "https://example.com/a?token=secret#frag"}) == "https://example.com/a"
 
     def test_drops_non_str_and_missing_url(self) -> None:
-        from myrm_agent_harness.core.security.tool_registry.safety_table import (
-            _taint_url_from_args,
+        from myrm_agent_harness.core.security.tool_registry.taint_extractors import (
+            taint_url_from_args,
         )
 
-        assert _taint_url_from_args({"url": 12345}) is None
-        assert _taint_url_from_args({"u": "https://example.com"}) is None
-        assert _taint_url_from_args({}) is None
+        assert taint_url_from_args({"url": 12345}) is None
+        assert taint_url_from_args({"u": "https://example.com"}) is None
+        assert taint_url_from_args({}) is None
 
 
 class TestGovernanceSsoT:

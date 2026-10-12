@@ -17,10 +17,22 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 
+@pytest.fixture
+def ripgrep_installed():
+    """Report ripgrep as installed.
+
+    The storage probe downgrades to warn without it, so a pass verdict would otherwise depend on the
+    machine running the test.
+    """
+    with patch("shutil.which", return_value="/usr/bin/rg"):
+        yield
+
+
 class TestCheckWorkspaceStorageHealth:
     """Tests for check_workspace_storage_health."""
 
     @pytest.mark.asyncio
+    @pytest.mark.usefixtures("ripgrep_installed")
     async def test_skills_db_path_resolves_correctly(self):
         """Verify skills.db is looked up at workspace_path/skills.db, not workspace_path/.myrm/skills.db."""
         from myrm_agent_harness.observability.diagnostics.probes import check_workspace_storage_health
@@ -38,6 +50,7 @@ class TestCheckWorkspaceStorageHealth:
                 assert report.status == "pass"
 
     @pytest.mark.asyncio
+    @pytest.mark.usefixtures("ripgrep_installed")
     async def test_skills_db_wrong_location_not_found(self):
         """Verify that skills.db at wrong location (.myrm subdirectory) is NOT checked."""
         from myrm_agent_harness.observability.diagnostics.probes import check_workspace_storage_health
@@ -58,6 +71,7 @@ class TestCheckWorkspaceStorageHealth:
                 assert report.status == "pass"
 
     @pytest.mark.asyncio
+    @pytest.mark.usefixtures("ripgrep_installed")
     async def test_workspace_path_from_env(self):
         """Verify workspace path is read from MYRM_DATA_DIR environment variable."""
         from myrm_agent_harness.observability.diagnostics.probes import check_workspace_storage_health

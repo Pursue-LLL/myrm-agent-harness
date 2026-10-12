@@ -24,17 +24,20 @@ jobs:
     timeout-minutes: 5
 
     steps:
+      # scripts/tool_registry_config.py resolves the server tree as ../myrm-agent/myrm-agent-server
+      # relative to the harness root, so both repositories sit side by side inside the workspace.
       - name: Checkout code (with server bootstrap)
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          path: myrm-agent-harness
           fetch-depth: 0
           submodules: false
 
       - name: Checkout sibling server repo for bootstrap parsing
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          repository: ${{ github.repository_owner }}/myrm-agent-server
-          path: ../myrm-agent-server
+          repository: ${{ github.repository_owner }}/myrm-agent
+          path: myrm-agent
           ref: main
 
       - name: Install uv

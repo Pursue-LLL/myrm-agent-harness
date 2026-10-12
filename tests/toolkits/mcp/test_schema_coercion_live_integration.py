@@ -345,4 +345,7 @@ async def test_huge_digit_string_stays_string_rejected_readably(_probe_actor: ob
     readable error via pydantic's int_parsing_size guard — no crash, no silent
     corruption."""
     result = await _lookup(_probe_actor, id="1" + "0" * 5000, score="1", active=True, tags=["x"])
-    assert "MCP tool error" in result and "int_parsing_size" in result
+    assert "MCP tool error" in result
+    # input_type=str: the literal reached the server uncoerced. int_parsing_size is pydantic's
+    # error code for digit strings beyond the integer-conversion limit (stable across wordings).
+    assert "int_parsing_size" in result and "input_type=str" in result

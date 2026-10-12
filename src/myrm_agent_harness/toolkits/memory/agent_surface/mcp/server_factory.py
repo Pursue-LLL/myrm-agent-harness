@@ -5,7 +5,7 @@ to interact seamlessly with Myrm's underlying memory and handoff infrastructure.
 Strict typing applied: No `Any` types allowed.
 
 [INPUT]
-- agent.context_management.handoff::AgentHandoffEngine (POS: Public interface for agent handoff management
+- toolkits.memory.handoff::AgentHandoffEngine (POS: Public interface for agent handoff management
   and session finalization.)
 - toolkits.memory.agent_surface.mcp.ai_memory_wire_adapter::AiMemoryWireAdapter (POS: Wire-format adapter
   emulating the 5.3k Star ai-memory MCP tool protocol.)

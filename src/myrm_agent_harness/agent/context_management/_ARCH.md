@@ -79,8 +79,8 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | evidence_disclosure/ | Isomorphic evidence disclosure subsystem providing canonical action details shared between active turns and completed history, deterministic query scope isolation, and real-reading offset pagination. See [evidence_disclosure/_ARCH.md](evidence_disclosure/_ARCH.md). |
 | expanded_handoff/ | Full dialogue 1,200-word anchor with searchable archive handoff suite (Item 310). See [expanded_handoff/_ARCH.md](expanded_handoff/_ARCH.md). |
 | fallback_buffer_notebook/ | Core engine for Auto-Compact Fallback Buffer and Team Notebook Suite (Item 223). See [fallback_buffer_notebook/_ARCH.md](fallback_buffer_notebook/_ARCH.md). |
-| four_tier_routing/ | Four-tier context engineering architecture providing deterministic baseline, triggered domain rule routing, just-in-time reference handles, and multi-source pre-prompt knowledge synthesis (Anthropic inspired). See [four_tier_routing/_ARCH.md](four_tier_routing/_ARCH.md). |
 | file_watch/ | Gateway orchestrating workspace file mutation events and session context invalidation. See [file_watch/_ARCH.md](file_watch/_ARCH.md). |
+| four_tier_routing/ | Four-tier context engineering architecture providing deterministic baseline, triggered domain rule routing, just-in-time reference handles, and multi-source pre-prompt knowledge synthesis (Anthropic inspired). See [four_tier_routing/_ARCH.md](four_tier_routing/_ARCH.md). |
 | handoff_brief/ | Gateway orchestrating structured handoff briefs and cross-session state continuity. See [handoff_brief/_ARCH.md](handoff_brief/_ARCH.md). |
 | handoff_checkpoint/ | Compiler and bidirectional markdown serializer for six-dimensional task checkpoints. See [handoff_checkpoint/_ARCH.md](handoff_checkpoint/_ARCH.md). |
 | handover/ | Central bus orchestrating cross-device session handover and terminal attachment. See [handover/_ARCH.md](handover/_ARCH.md). |

@@ -310,8 +310,12 @@ MODAL_BLOCKING_SCRIPT = """
     const h = Math.max(0, Math.min(rect.bottom, vp.height) - Math.max(rect.top, 0));
     const coverage = (w * h) / vpArea;
 
+    // The root and body always fill the viewport in quirks mode (no doctype), so they are
+    // never a backdrop; only an explicit modal attribute can make them one.
+    const isRoot = el === document.documentElement || el === document.body;
+
     // Check if element qualifies as a modal or backdrop cover
-    if (isModalAttr || isDialog || coverage >= 0.5) {
+    if (isModalAttr || isDialog || (!isRoot && coverage >= 0.5)) {
       let zIndex = parseInt(style.zIndex, 10);
       if (isNaN(zIndex)) zIndex = 0;
       candidates.push({
@@ -338,7 +342,10 @@ MODAL_BLOCKING_SCRIPT = """
   const innerInteractive = [];
   const innerElements = best.element.querySelectorAll('button, a, input, select, textarea, [role="button"], [role="link"], [role="checkbox"]');
   for (const item of innerElements) {
-    const text = (item.innerText || item.getAttribute('aria-label') || '').trim();
+    // Same sources the accessibility tree uses for a name, so form fields inside the modal stay actionable.
+    const label = item.labels && item.labels.length ? item.labels[0].innerText : '';
+    const text = (item.innerText || item.getAttribute('aria-label') || label ||
+                  item.getAttribute('placeholder') || item.getAttribute('title') || '').trim();
     if (text) {
       innerInteractive.push(text.substring(0, 50));
     }

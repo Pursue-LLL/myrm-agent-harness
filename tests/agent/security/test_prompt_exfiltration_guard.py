@@ -22,9 +22,9 @@ from myrm_agent_harness.agent.security.guards.taint_tracker import (
 from myrm_agent_harness.backends.skills.scanning.patterns import (
     PROMPT_SECRET_EXFILTRATION_PATTERNS,
 )
-from myrm_agent_harness.core.security.tool_registry.safety_table import (
-    _taint_secret_command_from_args,
-    _taint_secret_file_from_args,
+from myrm_agent_harness.core.security.tool_registry.taint_extractors import (
+    taint_secret_command_from_args,
+    taint_secret_file_from_args,
 )
 
 
@@ -71,23 +71,23 @@ class TestDynamicSecretTaintExtraction:
     """Validates runtime metadata extraction on secret files vs harmless files."""
 
     def test_secret_file_extraction_positive(self) -> None:
-        assert _taint_secret_file_from_args({"path": "/home/user/.env"}) == "secret_file:/home/user/.env"
-        assert _taint_secret_file_from_args({"file_path": "~/.ssh/id_rsa"}) == "secret_file:~/.ssh/id_rsa"
-        assert _taint_secret_file_from_args({"filepath": "aws/credentials.json"}) == "secret_file:aws/credentials.json"
-        assert _taint_secret_file_from_args({"target_file": "/app/master.key"}) == "secret_file:/app/master.key"
+        assert taint_secret_file_from_args({"path": "/home/user/.env"}) == "secret_file:/home/user/.env"
+        assert taint_secret_file_from_args({"file_path": "~/.ssh/id_rsa"}) == "secret_file:~/.ssh/id_rsa"
+        assert taint_secret_file_from_args({"filepath": "aws/credentials.json"}) == "secret_file:aws/credentials.json"
+        assert taint_secret_file_from_args({"target_file": "/app/master.key"}) == "secret_file:/app/master.key"
 
     def test_harmless_and_template_file_extraction_negative(self) -> None:
-        assert _taint_secret_file_from_args({"path": ".env.example"}) is None
-        assert _taint_secret_file_from_args({"file_path": "config.sample"}) is None
-        assert _taint_secret_file_from_args({"filepath": "test_id_rsa.py"}) is None
-        assert _taint_secret_file_from_args({"target_file": "README.md"}) is None
-        assert _taint_secret_file_from_args({"path": "src/main.py"}) is None
+        assert taint_secret_file_from_args({"path": ".env.example"}) is None
+        assert taint_secret_file_from_args({"file_path": "config.sample"}) is None
+        assert taint_secret_file_from_args({"filepath": "test_id_rsa.py"}) is None
+        assert taint_secret_file_from_args({"target_file": "README.md"}) is None
+        assert taint_secret_file_from_args({"path": "src/main.py"}) is None
 
     def test_secret_bash_command_extraction(self) -> None:
-        assert _taint_secret_command_from_args({"command": "cat ~/.env"}) is not None
-        assert _taint_secret_command_from_args({"cmd": "grep -i key ~/.aws/credentials"}) is not None
-        assert _taint_secret_command_from_args({"command": "cat .env.example"}) is None
-        assert _taint_secret_command_from_args({"command": "pytest tests/"}) is None
+        assert taint_secret_command_from_args({"command": "cat ~/.env"}) is not None
+        assert taint_secret_command_from_args({"cmd": "grep -i key ~/.aws/credentials"}) is not None
+        assert taint_secret_command_from_args({"command": "cat .env.example"}) is None
+        assert taint_secret_command_from_args({"command": "pytest tests/"}) is None
 
     def test_file_read_tool_conditional_tainting(self) -> None:
         tracker = TaintTracker()

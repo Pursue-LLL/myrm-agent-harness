@@ -23,6 +23,11 @@ from myrm_agent_harness.toolkits.browser.snapshot.aria_test_utils import extract
 from myrm_agent_harness.toolkits.browser.tools import create_browser_tools
 
 
+def _content(result: str | dict[str, object]) -> str:
+    """Navigation wraps page-derived text in a ``{"content", "metadata"}`` envelope."""
+    return str(result["content"]) if isinstance(result, dict) else result
+
+
 @pytest.fixture
 async def browser_pool() -> GlobalBrowserPool:
     """Real browser pool for E2E tests."""
@@ -55,7 +60,7 @@ async def test_tool_navigate_basic(browser_session: BrowserSession) -> None:
     tool_dict = {tool.name: tool for tool in tools}
     browser_navigate = tool_dict["browser_navigate_tool"]
 
-    result = await browser_navigate.ainvoke({"url": "about:blank"})
+    result = _content(await browser_navigate.ainvoke({"url": "about:blank"}))
     assert "about:blank" in result.lower()
     assert "status" in result.lower()
 
@@ -70,7 +75,7 @@ async def test_tool_navigate_real_site(browser_session: BrowserSession) -> None:
     tool_dict = {tool.name: tool for tool in tools}
     browser_navigate = tool_dict["browser_navigate_tool"]
 
-    result = await browser_navigate.ainvoke({"url": "https://example.com"})
+    result = _content(await browser_navigate.ainvoke({"url": "https://example.com"}))
     assert "example.com" in result.lower()
     assert "status=200" in result.lower() or "200" in result
 
@@ -378,7 +383,7 @@ async def test_tool_full_workflow(browser_session: BrowserSession) -> None:
     tool_dict = {tool.name: tool for tool in tools}
 
     # Step 1: Navigate
-    nav_result = await tool_dict["browser_navigate_tool"].ainvoke({"url": "about:blank"})
+    nav_result = _content(await tool_dict["browser_navigate_tool"].ainvoke({"url": "about:blank"}))
     assert "about:blank" in nav_result.lower()
 
     # Setup test page

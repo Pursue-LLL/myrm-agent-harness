@@ -253,15 +253,19 @@ class TestToolAssertionBranches:
 
 
 class TestTestSuiteGradingAssets:
-    """test_suite grading via {workspace} placeholder + readonly_paths mounts."""
+    """test_suite grading via {workspace} placeholder + readonly_paths mounts.
+
+    The workspace and graders live outside /tmp, which the validators always allow, so a grader
+    path is reachable only through ``readonly_paths``.
+    """
 
     @pytest.mark.asyncio
-    async def test_workspace_placeholder_with_readonly_mount(self, executor, tmp_path):
+    async def test_workspace_placeholder_with_readonly_mount(self, executor, outside_tmp_path):
         """A verifier living outside the workspace runs via readonly_paths and the
         {workspace} placeholder, writing reward.json inside the workspace."""
-        ws = tmp_path / "ws"
+        ws = outside_tmp_path / "ws"
         ws.mkdir()
-        graders = tmp_path / "graders"
+        graders = outside_tmp_path / "graders"
         graders.mkdir()
         (graders / "verifier.py").write_text(
             "import json, os\nfrom pathlib import Path\n"
@@ -285,11 +289,11 @@ class TestTestSuiteGradingAssets:
         assert scores["pass_rate"] == 1.0
 
     @pytest.mark.asyncio
-    async def test_external_grader_blocked_without_readonly_mount(self, executor, tmp_path):
+    async def test_external_grader_blocked_without_readonly_mount(self, executor, outside_tmp_path):
         """Without readonly_paths the workspace-external grader path is blocked."""
-        ws = tmp_path / "ws"
+        ws = outside_tmp_path / "ws"
         ws.mkdir()
-        graders = tmp_path / "graders"
+        graders = outside_tmp_path / "graders"
         graders.mkdir()
         (graders / "verifier.py").write_text("print('nope')\n")
 
@@ -304,11 +308,11 @@ class TestTestSuiteGradingAssets:
         assert "blocked" in details
 
     @pytest.mark.asyncio
-    async def test_failed_grader_reports_low_reward(self, executor, tmp_path):
+    async def test_failed_grader_reports_low_reward(self, executor, outside_tmp_path):
         """A verifier grading against a missing solution yields a low reward."""
-        ws = tmp_path / "ws"
+        ws = outside_tmp_path / "ws"
         ws.mkdir()
-        graders = tmp_path / "graders"
+        graders = outside_tmp_path / "graders"
         graders.mkdir()
         (graders / "verifier.py").write_text(
             "import json, os\nfrom pathlib import Path\n"

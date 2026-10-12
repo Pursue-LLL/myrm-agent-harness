@@ -1,4 +1,7 @@
+import _ctypes
+import ctypes
 import os
+import sys
 import tempfile
 from unittest.mock import patch
 
@@ -8,6 +11,16 @@ from myrm_agent_harness.toolkits.code_execution.security.audit_sandbox import (
     SecurityError,
     install,
 )
+
+# install() blocks ctypes by stubbing it in sys.modules for the whole process.
+_REAL_CTYPES_MODULES = {"ctypes": ctypes, "_ctypes": _ctypes}
+
+
+@pytest.fixture(autouse=True)
+def _restore_ctypes_modules():
+    """Put the real ctypes modules back so later tests in the same worker can import them."""
+    yield
+    sys.modules.update(_REAL_CTYPES_MODULES)
 
 
 @pytest.fixture

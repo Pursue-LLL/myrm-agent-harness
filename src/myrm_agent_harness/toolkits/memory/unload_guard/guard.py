@@ -5,7 +5,7 @@ upon browser unload or desktop window close events.
 Strict typing applied: No `Any` types allowed.
 
 [INPUT]
-- agent.context_management.handoff::AgentHandoffEngine, AgentHandoffSpec, FailedApproachRecord,
+- toolkits.memory.handoff::AgentHandoffEngine, AgentHandoffSpec, FailedApproachRecord,
   FinalizeSessionRequest, FinalizeSessionResult (POS: Public interface for agent handoff management and
   session finalization.)
 - toolkits.memory.unload_guard.snapshot_builder::ZeroLlmEmergencySnapshotBuilder (POS: Zero-LLM emergency

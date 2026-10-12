@@ -1,12 +1,11 @@
-"""Built-in tool safety table: SafetyMetadata model, taint extractors and TOOL_SAFETY_METADATA.
+"""Built-in tool safety table: SafetyMetadata model and TOOL_SAFETY_METADATA.
 
 [INPUT]
-- (none — pure static declarations)
+- taint_extractors::taint_url_from_args, taint_secret_file_from_args, taint_secret_command_from_args (POS: tool-argument taint labelers wired into the table)
 
 [OUTPUT]
 - SafetyMetadata: fail-closed safety attributes for concurrency scheduling and sub-agent filtering
 - TOOL_SAFETY_METADATA: built-in tool name → SafetyMetadata (opt-in whitelist)
-- _taint_*_from_args / _sanitize_url_for_taint: taint extractors referenced by the table
 - _FAIL_CLOSED_DEFAULTS: metadata applied to undeclared tools
 
 [POS]
@@ -16,9 +15,14 @@ Static data split out of ``registry.py`` to keep it under the file line limit.
 
 from __future__ import annotations
 
-import re
 from collections.abc import Callable
 from dataclasses import dataclass
+
+from .taint_extractors import (
+    taint_secret_command_from_args,
+    taint_secret_file_from_args,
+    taint_url_from_args,
+)
 
 # ---------------------------------------------------------------------------
 # Safety metadata — opt-in whitelist with fail-closed defaults
@@ -43,74 +47,6 @@ class SafetyMetadata:
     taint_extractor: Callable[[dict[str, object]], str | None] | str | None = None
 
 
-def _sanitize_url_for_taint(url: str | None) -> str | None:
-    """Sanitize a URL to prevent leaking sensitive query parameters or hashes.
-
-    Extracts only the scheme, netloc, and path.
-    """
-    if not url:
-        return None
-    try:
-        from urllib.parse import urlparse
-
-        parsed = urlparse(url)
-        # Reconstruct without query (?) and fragment (#)
-        sanitized = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
-        return sanitized
-    except Exception:
-        # If parsing fails, return a generic string rather than leaking the raw input
-        return "invalid_or_redacted_url"
-
-
-def _taint_url_from_args(args: dict[str, object]) -> str | None:
-    """Extract and sanitize the ``url`` arg for taint labeling (non-str values dropped)."""
-    url = args.get("url")
-    return _sanitize_url_for_taint(url if isinstance(url, str) else None)
-
-
-_SECRET_FILE_POSITIVE_RE = re.compile(
-    r"(?:^|[/\\])(?:\.env(?:\.[a-zA-Z0-9_-]+)?|\.netrc|\.aws[/\\].*|\.ssh[/\\].*|"
-    r"id_rsa(?:_[a-zA-Z0-9_-]+)?|id_ed25519|id_ecdsa|id_dsa|"
-    r"credentials\.json|token\.txt|master\.key|service[_-]account\.json)(?:$|[?#])",
-    re.IGNORECASE,
-)
-
-_SECRET_FILE_NEGATIVE_RE = re.compile(
-    r"(?:\.example|\.sample|\.template|test_|mock|fixture|spec)",
-    re.IGNORECASE,
-)
-
-_SECRET_CMD_POSITIVE_RE = re.compile(
-    r"(?:\bcat\b|\bhead\b|\btail\b|\bless\b|\bmore\b|\bcp\b|\bmv\b|\bgrep\b|\bcurl\b|\bwget\b|\bpython\b|\bnode\b)"
-    r"[\s\S]{1,60}"
-    r"(?:~/\.(?:ssh|aws|kube)|\$HOME/\.(?:ssh|aws|kube)|\.env|id_rsa|id_ed25519|credentials\.json|master\.key)",
-    re.IGNORECASE,
-)
-
-
-def _taint_secret_file_from_args(args: dict[str, object]) -> str | None:
-    """Extract secret credential path from tool arguments if matched."""
-    for key in ("path", "file_path", "filepath", "target_file", "source_file", "filename"):
-        val = args.get(key)
-        if isinstance(val, str) and val.strip():
-            path_str = val.strip()
-            if _SECRET_FILE_POSITIVE_RE.search(path_str) and not _SECRET_FILE_NEGATIVE_RE.search(path_str):
-                return f"secret_file:{path_str}"
-    return None
-
-
-def _taint_secret_command_from_args(args: dict[str, object]) -> str | None:
-    """Extract secret file access from bash / shell command arguments."""
-    for key in ("command", "cmd", "script"):
-        val = args.get(key)
-        if isinstance(val, str) and val.strip():
-            cmd_str = val.strip()
-            if _SECRET_CMD_POSITIVE_RE.search(cmd_str) and not _SECRET_FILE_NEGATIVE_RE.search(cmd_str):
-                snippet = cmd_str[:80] + ("..." if len(cmd_str) > 80 else "")
-                return f"secret_cmd:{snippet}"
-    return None
-
-
 _FAIL_CLOSED_DEFAULTS = SafetyMetadata()
 
 TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
@@ -120,7 +56,7 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
         is_concurrent_safe=True,
         is_idempotent=True,
         taint_label="secret",
-        taint_extractor=_taint_secret_file_from_args,
+        taint_extractor=taint_secret_file_from_args,
     ),
     "grep_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     "glob_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
@@ -130,14 +66,14 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
         is_concurrent_safe=True,
         is_idempotent=True,
         taint_label="external_network",
-        taint_extractor=_taint_url_from_args,
+        taint_extractor=taint_url_from_args,
     ),
     "browser_extract_tool": SafetyMetadata(
         is_read_only=True,
         is_concurrent_safe=True,
         is_idempotent=True,
         taint_label="external_network",
-        taint_extractor=_taint_url_from_args,
+        taint_extractor=taint_url_from_args,
     ),
     "web_search_tool": SafetyMetadata(
         is_read_only=True,
@@ -151,7 +87,7 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
         is_concurrent_safe=True,
         is_idempotent=True,
         taint_label="external_network",
-        taint_extractor=_taint_url_from_args,
+        taint_extractor=taint_url_from_args,
     ),
     "memory_search_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     "todo_write": SafetyMetadata(is_read_only=False, is_concurrent_safe=False, is_idempotent=False),
@@ -169,7 +105,7 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     "bash_code_execute_tool": SafetyMetadata(
         is_destructive=True,
         taint_label="secret",
-        taint_extractor=_taint_secret_command_from_args,
+        taint_extractor=taint_secret_command_from_args,
     ),
     "bash_process_tool": SafetyMetadata(),
     "file_write_tool": SafetyMetadata(is_destructive=True, is_idempotent=True),  # Writing same content is idempotent
@@ -178,7 +114,7 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     "browser_navigate_tool": SafetyMetadata(
         is_idempotent=True,
         taint_label="external_network",
-        taint_extractor=_taint_url_from_args,
+        taint_extractor=taint_url_from_args,
     ),
     "browser_interact_tool": SafetyMetadata(),
     "browser_manage_tool": SafetyMetadata(),
