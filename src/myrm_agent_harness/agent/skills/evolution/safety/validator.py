@@ -43,7 +43,7 @@ class ValidationResult:
 class SkillValidator:
     """Validates evolved skills for safety and correctness."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize validator."""
         self._dangerous_patterns = [
             r"rm\s+-rf",

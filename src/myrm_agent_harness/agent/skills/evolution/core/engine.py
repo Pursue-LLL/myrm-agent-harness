@@ -525,7 +525,7 @@ class SkillEvolutionEngine(SkillEvolutionEngineBatchMixin):
         extractor = StructuredExtractor(self._llm)
         result = await extractor.extract_from_trajectory(trajectory)
 
-        if not result or not result.is_general or result.confidence < 0.8:
+        if not result or not result.is_general or float(result.confidence) < 0.8:
             return None
 
         from myrm_agent_harness.agent.skills.evolution.safety.validator import (
@@ -557,10 +557,10 @@ class SkillEvolutionEngine(SkillEvolutionEngineBatchMixin):
 
         # 3. Multi-dimensional security sanitization scan
         from myrm_agent_harness.backends.skills.scanning.scanner import (
-            SkillTrustRecommendation,
             compute_scan_summary,
             scan_skill_content,
         )
+        from myrm_agent_harness.backends.skills.types import SkillTrustRecommendation
 
         scan_result = scan_skill_content(result.name, result.content)
         if scan_result.trust_recommendation == SkillTrustRecommendation.REJECT:
@@ -577,7 +577,7 @@ class SkillEvolutionEngine(SkillEvolutionEngineBatchMixin):
             original_content="",
             proposed_content=result.content,
             diff="",
-            score=result.confidence,
+            score=float(result.confidence),
             reasoning=f"Auto-extracted from slice. Safety: {result.safety_analysis}",
             task_context=f"Session slice {len(tool_call_ids)} calls",
             is_general=result.is_general,
@@ -624,7 +624,7 @@ class SkillEvolutionEngine(SkillEvolutionEngineBatchMixin):
             logger.debug(f"Skill {result.name} rejected: not generalizable.")
             return None
 
-        if result.confidence < 0.8:
+        if float(result.confidence) < 0.8:
             logger.debug(f"Skill {result.name} rejected: low confidence ({result.confidence}).")
             return None
 
@@ -680,10 +680,10 @@ class SkillEvolutionEngine(SkillEvolutionEngineBatchMixin):
 
         # Multi-dimensional security sanitization scan
         from myrm_agent_harness.backends.skills.scanning.scanner import (
-            SkillTrustRecommendation,
             compute_scan_summary,
             scan_skill_content,
         )
+        from myrm_agent_harness.backends.skills.types import SkillTrustRecommendation
 
         scan_result = scan_skill_content(result.name, result.content)
         if scan_result.trust_recommendation == SkillTrustRecommendation.REJECT:
@@ -710,7 +710,7 @@ class SkillEvolutionEngine(SkillEvolutionEngineBatchMixin):
             original_content="",
             proposed_content=result.content,
             diff="",
-            score=result.confidence,
+            score=float(result.confidence),
             reasoning=f"Auto-extracted. Safety: {result.safety_analysis}",
             task_context=f"Session {session_id}",
             is_general=result.is_general,
