@@ -1,6 +1,7 @@
 """CLI Tool Discovery — detect available CLI tools and build agent prompt context.
 
 [INPUT]
+.detector::COMMON_TOOL_DIRS (POS: CLI tool detection engine)
 .detector::detect_all (POS: CLI tool detection engine)
 .detector::refresh_cache (POS: CLI tool detection engine)
 .detector::get_install_hint (POS: CLI tool detection engine)
@@ -9,6 +10,7 @@
 
 [OUTPUT]
 get_cli_tools_context: build installed CLI tools list injectable into System Prompt (~165 tokens)
+COMMON_TOOL_DIRS: re-export from detector
 detect_all: re-export from detector
 refresh_cache: re-export from detector
 get_install_hint: re-export from detector
@@ -23,7 +25,7 @@ system to query platform-specific install commands.
 
 from __future__ import annotations
 
-from .detector import detect_all, get_install_hint, refresh_cache
+from .detector import COMMON_TOOL_DIRS, detect_all, get_install_hint, refresh_cache
 from .types import DetectedTool, ToolDefinition
 
 
@@ -52,6 +54,7 @@ def get_cli_tools_context(*, lang: str = "en") -> str | None:
 
 
 __all__ = [
+    "COMMON_TOOL_DIRS",
     "DetectedTool",
     "ToolDefinition",
     "detect_all",

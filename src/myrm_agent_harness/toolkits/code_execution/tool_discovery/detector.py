@@ -6,6 +6,7 @@
 .types::ToolDefinition (POS: CLI tool discovery data types)
 
 [OUTPUT]
+COMMON_TOOL_DIRS: directories where user-installed CLIs usually live, searched in addition to PATH
 detect_all: detect all installed CLI tools on the host, returns list[DetectedTool]
 refresh_cache: force rescan and update process-level cache
 get_install_hint: look up platform-specific install command by bin_name
@@ -13,6 +14,9 @@ get_install_hint: look up platform-specific install command by bin_name
 [POS]
 CLI tool detection engine. Scans tools in TOOL_CATALOG using shutil.which(), process-level cached, <1ms.
 Provides get_install_hint() for error message system to query install commands.
+COMMON_TOOL_DIRS is public so a host that launches the agent with a minimal PATH can put the very directories
+discovery already searches onto the PATH its child processes inherit; otherwise the prompt would list tools
+that the shell cannot run.
 """
 
 from __future__ import annotations
@@ -40,7 +44,7 @@ def _build_extra_dirs() -> tuple[str, ...]:
     return tuple(dirs)
 
 
-_EXTRA_PATH_DIRS: tuple[str, ...] = _build_extra_dirs()
+COMMON_TOOL_DIRS: tuple[str, ...] = _build_extra_dirs()
 
 _cache: list[DetectedTool] | None = None
 
@@ -49,7 +53,7 @@ def _expanded_path() -> str:
     """Build an expanded PATH that includes common tool directories."""
     current = os.environ.get("PATH", os.defpath)
     existing = set(current.split(os.pathsep))
-    extras = [d for d in _EXTRA_PATH_DIRS if d not in existing and os.path.isdir(d)]
+    extras = [d for d in COMMON_TOOL_DIRS if d not in existing and os.path.isdir(d)]
     if not extras:
         return current
     return current + os.pathsep + os.pathsep.join(extras)

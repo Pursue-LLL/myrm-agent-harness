@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
+from myrm_agent_harness.toolkits.code_execution import tool_discovery
 from myrm_agent_harness.toolkits.code_execution.tool_discovery import (
     DetectedTool,
     ToolDefinition,
     detect_all,
+    detector,
     get_cli_tools_context,
     refresh_cache,
 )
@@ -124,6 +127,20 @@ class TestExpandedPath:
         current = os.environ.get("PATH", "")
         result = _expanded_path()
         assert current in result
+
+
+class TestCommonToolDirs:
+    def test_exported_for_hosts_that_extend_the_process_path(self) -> None:
+        assert _build_extra_dirs() == tool_discovery.COMMON_TOOL_DIRS
+        assert "COMMON_TOOL_DIRS" in tool_discovery.__all__
+
+    def test_detection_path_appends_exactly_the_exported_dirs(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(detector, "COMMON_TOOL_DIRS", (str(tmp_path),))
+        monkeypatch.setenv("PATH", "/usr/bin")
+
+        assert _expanded_path() == f"/usr/bin{os.pathsep}{tmp_path}"
 
 
 class TestDetectOne:
