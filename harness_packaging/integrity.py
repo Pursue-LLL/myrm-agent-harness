@@ -94,6 +94,7 @@ _PARENT_WATCH_ZONES: tuple[tuple[str, frozenset[str]], ...] = (
                 "governance",
                 "working_tree",
                 "client_partition",
+                "ephemeral",
                 "external_bridge",
                 "external_providers",
                 "handoff",
