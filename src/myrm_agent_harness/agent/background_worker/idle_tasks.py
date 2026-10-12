@@ -247,7 +247,7 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                     else:
                         event_data = {
                             "skipped": True,
-                            "reason": "No MemoryManager or empty new_knowledge",
+                            "reason": "No MemoryManager or no usable new_knowledge",
                         }
                 elif task.task_type == "context_compaction":
                     event_data = await _run_context_compaction(session_id, task, event_bus)
