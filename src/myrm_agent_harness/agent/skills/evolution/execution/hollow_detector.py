@@ -19,7 +19,7 @@ import ast
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, ClassVar
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ class HollowTestDetector:
     """Detects hollow/trivial tests and verification commands."""
 
     # Shell commands that are purely printing or trivial exits without state change
-    _TRIVIAL_SHELL_PATTERNS = [
+    _TRIVIAL_SHELL_PATTERNS: ClassVar[list[re.Pattern[str]]] = [
         re.compile(r"^\s*echo(\s+.*)?$", re.IGNORECASE),
         re.compile(r"^\s*printf(\s+.*)?$", re.IGNORECASE),
         re.compile(r"^\s*(true|exit\s+0|:|pass)\s*$", re.IGNORECASE),
@@ -147,22 +147,21 @@ class HollowTestDetector:
 
         # assert True / assert False
         if isinstance(test, ast.Constant):
-            return True, f"constant literal `{test.value}`"
+            return True, f"constant literal `{test.value!r}`"
 
         # assert 1 == 1 / assert "a" == "a"
-        if isinstance(test, ast.Compare):
-            if (
-                isinstance(test.left, ast.Constant)
-                and len(test.comparators) == 1
-                and isinstance(test.comparators[0], ast.Constant)
-            ):
-                if test.left.value == test.comparators[0].value:
-                    return True, f"identical constant comparison `{test.left.value} == {test.comparators[0].value}`"
+        if (
+            isinstance(test, ast.Compare)
+            and isinstance(test.left, ast.Constant)
+            and len(test.comparators) == 1
+            and isinstance(test.comparators[0], ast.Constant)
+            and test.left.value == test.comparators[0].value
+        ):
+            return True, f"identical constant comparison `{test.left.value!r} == {test.comparators[0].value!r}`"
 
         # assert not False / assert not None
-        if isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not):
-            if isinstance(test.operand, ast.Constant):
-                return True, f"`not` on constant `{test.operand.value}`"
+        if isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not) and isinstance(test.operand, ast.Constant):
+            return True, f"`not` on constant `{test.operand.value!r}`"
 
         return False, ""
 
@@ -182,7 +181,4 @@ class HollowTestDetector:
 
     def _has_custom_verification_logic(self, tree: ast.AST) -> bool:
         """Check if code has custom validation e.g., if error: raise Exception."""
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Raise):
-                return True
-        return False
+        return any(isinstance(node, ast.Raise) for node in ast.walk(tree))
