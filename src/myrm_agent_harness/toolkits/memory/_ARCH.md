@@ -63,9 +63,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | working_tree/ | ReTree topological self-correcting tree working memory engine, evidence DAG container, two-stage contradiction detector, and cascading backtracking repair engine. See [working_tree/_ARCH.md](working_tree/_ARCH.md). |
 | governance/ | Unified four-dimensional memory governance engine (ProfileSlots, EventTimeline, DynamicFacts with 4-state reconciliation & TTL, bounded 2-hop SQLite CTE entity graph). See [governance/_ARCH.md](governance/_ARCH.md). |
 | file_sync/ | Local-First Markdown File-as-Memory sync subsystem (LenientMarkdownParser, FileMemoryStore, MemoryAnchorFormatter, FileMemorySyncEngine). |
-| prompt_cache_guard/ | In-Context Frozen Snapshot & Prompt Cache Stability Guard: immutable resident memory snapshotting, Read-Free toolsuite, zero-width Unicode filtering, and explicit capacity overflow gates. See [prompt_cache_guard/_ARCH.md](prompt_cache_guard/_ARCH.md). |
 | external_providers/ | Pluggable external memory provider lifecycle & supersedes lineage pack: unified 5-stage contract (prefetch/inject/sync/extract/mirror), single active provider scheduling, 300ms circuit breaking, supersedes version chains, scope isolation, and 3D benchmark suite. See [external_providers/_ARCH.md](external_providers/_ARCH.md). |
-| ripplemem/ | RippleMem Sparse Event Graph & Budgeted Active Recall Controller: normalized event units m=(r, v, p, l, t, c), dual-edge sparse graph indexing with super-node degree pruning & temporal decay, saturation fast-path gate, and bounded directional ripple spreading. |
 | profile_notes/ | Dual-Layer Profile & Working Notes Memory Budget & Garbage Purge Guard: deterministic intake noise filtering (task progress, ephemeral numbers, error traces), dual-layer routing (USER <= 1375c, MEMORY <= 2200c), and multi-tier capacity watermark governance. |
 | codegraph/ | CodeGraph Memory Asset & Pre-Modification Impact Analysis Engine: AST symbol topology extraction (classes, methods, functions, inheritance, calls), in-memory & SQLite persistent store with incremental synchronization, multi-hop BFS blast radius evaluation, and agent-facing risk prevention tool. |
 | compaction/ | Token-Budget-Aware Codebase Semantic Memory Compaction Engine: AST-based and regex fallback code skeleton extractor (L1 signatures, L2 control flow, L3 full source), and dynamic budget-aware compactor with multi-tier adaptive downgrade. |
@@ -88,32 +86,15 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | persona_router/ | On-Demand Persona Skill & Anti-Pollution Context Router: persona-as-a-skill facet decoupling, intent-aware style suppression gate (100% zero-token suppression on technical CLI/code tasks), contextual persona injection for creative/business communication, and explicit /about-me directive handling preventing context attention dilution and token waste. |
 | client_partition/ | Client-Isolated Workspace & Memory Namespace Partition Suite: memory scope level CLIENT derivation, zero-trust cross-client leakage firewall (CrossClientLeakGuard) screening retrieval candidates, and canonical containment workspace directory resolver (ClientWorkspaceResolver) preventing cross-client credential leaks and path traversal. |
 | provenance_batch/ | Skill Memory Extraction Provenance Trace Link & Batch Learn Namespace Isolator: anchors extracted procedural rules to physical tool execution traces (ToolExecutionTrace) and turn snippets, and partitions batch learning IDs deterministically ({namespace}::{scope}::{raw_id}) eliminating cross-scope memory leakage and concurrent collision. |
-| workspace_living/ | Living Workspace Governance & documentation synchronization toolkit (CausalIssueMerger, KnownIssueEntry, ADRMetadata, idempotent error signature deduplication). |
-| action_impact/ | Future Action Impact Filtering Gate for Memory Extraction. See [action_impact/_ARCH.md](action_impact/_ARCH.md). |
-| attribution/ | Full-Lifecycle Memory Attribution and Explainable Traceability Matrix. See [attribution/_ARCH.md](attribution/_ARCH.md). |
 | budget_curator/ | 双轨冻结快照记忆预算仪表盘、原子批量腾挪策展操作符与长程会话回溯锚点套件。 See [budget_curator/_ARCH.md](budget_curator/_ARCH.md). |
-| diagnostic/ | Automated Memory Diagnostic and Root Cause Inspector. See [diagnostic/_ARCH.md](diagnostic/_ARCH.md). |
 | dialectic/ | 辩证推理深度用户表征与自适应会话步调动态节流套件。 See [dialectic/_ARCH.md](dialectic/_ARCH.md). |
 | dreaming/ | Grounded dreaming (idle-time cross-session fact consolidation into the Dream Diary) and surgical session memory unlearning. See [dreaming/_ARCH.md](dreaming/_ARCH.md). |
-| dual_tier/ | Dual-tier memory block engine package. See [dual_tier/_ARCH.md](dual_tier/_ARCH.md). |
-| dual_track/ | Dual-Track Fact Decision and Verbatim Evidence Tracer Engine. See [dual_track/_ARCH.md](dual_track/_ARCH.md). |
 | external_bridge/ | Bi-directional memory integration and safe prompt/skill file management for third-party developer agents (Cursor, Claude Code, Codex, Hermes, OpenClaw). See [external_bridge/_ARCH.md](external_bridge/_ARCH.md). |
-| fact_editing/ | Hebbian Fact Injection and Linear Memory Editing package. See [fact_editing/_ARCH.md](fact_editing/_ARCH.md). |
-| fast_ingest/ | Sub-5% Latency One-Pass Fast Ingestion and Async Deep Distillation Engine. See [fast_ingest/_ARCH.md](fast_ingest/_ARCH.md). |
-| governor/ | Anti-Semantic-Aliasing memory governor and capacity management package. See [governor/_ARCH.md](governor/_ARCH.md). |
-| graph_arbitration/ | Automated fact conflict arbitration state machine with causal lineage tracking. Dynamic edge weight decay and frequency reinforcement operator. See [graph_arbitration/_ARCH.md](graph_arbitration/_ARCH.md). |
 | graph_rrf/ | Knowledge Graph and Vector Reciprocal Rank Fusion Memory Engine package. See [graph_rrf/_ARCH.md](graph_rrf/_ARCH.md). |
 | handoff/ | Strongly typed cross-agent/cross-session handoff protocol with atomic exactly-once claim and durable session finalizer. See [handoff/_ARCH.md](handoff/_ARCH.md). |
 | ltra/ | Listen-Translate-Remember-Act pipeline: quadruple fact distillation from diarized conversations with verbatim anchors, speaker alias resolution and confidentiality guards. See [ltra/_ARCH.md](ltra/_ARCH.md). |
-| memops/ | MemOps 4-tuple standard semantic engine and zero-context benchmark package. See [memops/_ARCH.md](memops/_ARCH.md). |
 | onboarding/ | Onboarding insight sampling and first-encounter reporting for users migrating from other agent tools (sliding-window sampling, local redaction, fact distillation). See [onboarding/_ARCH.md](onboarding/_ARCH.md). |
-| paging/ | Agent-Driven Memory Paging with Hard Boundary Governance. See [paging/_ARCH.md](paging/_ARCH.md). |
-| procedural/ | Procedural Memory and Engineering Workflow Governance Engine. See [procedural/_ARCH.md](procedural/_ARCH.md). |
-| reembedding/ | ZeroDowntimeCrossDimensionReembeddingEngine package. See [reembedding/_ARCH.md](reembedding/_ARCH.md). |
 | shared_bus/ | 跨 Agent 共享记忆总线、并发连接池与方案否决账本模块。 See [shared_bus/_ARCH.md](shared_bus/_ARCH.md). |
-| social_curator/ | HighSignalSocialFeedCurator package. See [social_curator/_ARCH.md](social_curator/_ARCH.md). |
-| task_state/ | Structured Task State Machine and Compaction Preservation Engine. See [task_state/_ARCH.md](task_state/_ARCH.md). |
-| temporal/ | Temporal Validity and Fact Expiration Governance Engine. See [temporal/_ARCH.md](temporal/_ARCH.md). |
 | tool_guidance/ | Deterministic, cache-stable synthesis of procedural tool memory (traps, edicts) into bounded, zero-LLM tool guidance. See [tool_guidance/_ARCH.md](tool_guidance/_ARCH.md). |
 | world_model/ | L3 world model: four-dimension macro project entities (rules, environment, contract, domain knowledge) with versioned records and compact macro-context rendering. See [world_model/_ARCH.md](world_model/_ARCH.md). |
 | zero_hallucination/ | Fault-transparent retrieval protocol and anti-fabrication prompt guard for memory queries. See [zero_hallucination/_ARCH.md](zero_hallucination/_ARCH.md). |

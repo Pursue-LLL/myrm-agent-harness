@@ -30,12 +30,6 @@ from myrm_agent_harness.toolkits.memory.auto_consolidation.orchestrator import (
 from myrm_agent_harness.toolkits.memory.auto_consolidation.six_dimensional_extractor import (
     SixDimensionalMemoryExtractor,
 )
-from myrm_agent_harness.toolkits.memory.auto_memory import (
-    AutoMemoryBudgetPolicy,
-    AutoMemoryGatingDecision,
-    IdleAndBudgetGatedAutoMemoryEngine,
-    SessionActivitySnapshot,
-)
 
 
 class TestIdleAndBudgetGatedAutoMemoryEngineSuite:
@@ -234,82 +228,3 @@ class TestIdleAndBudgetGatedAutoMemoryEngineSuite:
         assert not rep_forced.should_consolidate
         assert art_forced is not None
         assert art_forced.working_directory == "/workspace/microservice"
-
-    def test_auto_memory_engine_and_gate_pipeline(self) -> None:
-        """Verify IdleAndBudgetGatedAutoMemoryEngine end-to-end gating and 6D extraction."""
-        engine = IdleAndBudgetGatedAutoMemoryEngine()
-        policy = AutoMemoryBudgetPolicy(
-            min_turns_threshold=3,
-            idle_timeout_seconds=600.0,
-            max_token_budget_ceiling=50000,
-        )
-
-        # Case 1: Short turns conversation (< 3 turns)
-        snap_short = SessionActivitySnapshot(
-            session_id="s1",
-            last_active_at_timestamp=100.0,
-            turn_count=1,
-            total_tokens_consumed=500,
-            workspace_path="/workspace/proj",
-        )
-        res_short = engine.process_session(
-            snapshot=snap_short,
-            messages=[{"role": "user", "content": "hello"}],
-            policy=policy,
-            now_ts=800.0,
-        )
-        assert not res_short.is_eligible
-        assert res_short.decision == AutoMemoryGatingDecision.SKIPPED_SHORT_CONVERSATION
-
-        # Case 2: Sufficient turns but NOT idle
-        snap_active = SessionActivitySnapshot(
-            session_id="s2",
-            last_active_at_timestamp=750.0,
-            turn_count=4,
-            total_tokens_consumed=1500,
-            workspace_path="/workspace/proj",
-        )
-        res_active = engine.process_session(
-            snapshot=snap_active,
-            messages=[
-                {"role": "user", "content": "架构设计要求必须使用 Python 类型注解规范。"},
-                {"role": "assistant", "content": "收到，严格遵循 PEP8 且严禁使用 any 类型。"},
-                {"role": "user", "content": "排查刚才的连接错误 exception bug 并完成修复。"},
-                {"role": "assistant", "content": "```python\ndef solve(): pass\n```\n已修复连接异常。"},
-            ],
-            policy=policy,
-            now_ts=800.0,  # only 50s elapsed < 600s
-        )
-        assert not res_active.is_eligible
-        assert res_active.decision == AutoMemoryGatingDecision.SKIPPED_NOT_IDLE
-
-        # Case 3: Fully eligible (idle > 600s, turns >= 3, budget healthy) -> 6D slice generated
-        snap_eligible = SessionActivitySnapshot(
-            session_id="s3",
-            last_active_at_timestamp=100.0,
-            turn_count=4,
-            total_tokens_consumed=2000,
-            workspace_path="/workspace/proj",
-        )
-        messages_rich = [
-            {"role": "user", "content": "架构设计要求必须使用 Python 类型注解规范，严禁使用 any 类型。"},
-            {"role": "assistant", "content": "```python\ndef solve(): pass\n```\n完全遵循该规范。"},
-            {"role": "user", "content": "请记录排查刚才的连接错误与数据库超时 exception 的避坑教训。"},
-            {"role": "assistant", "content": "已分析原因：连接池枯竭，增加自动重试与超时重连修复方案。"},
-        ]
-        res_eligible = engine.process_session(
-            snapshot=snap_eligible,
-            messages=messages_rich,
-            policy=policy,
-            now_ts=800.0,  # 700s elapsed >= 600s
-        )
-        assert res_eligible.is_eligible
-        assert res_eligible.decision == AutoMemoryGatingDecision.ACCEPTED
-        assert res_eligible.memory_slice is not None
-
-        slice_data = res_eligible.memory_slice
-        assert slice_data.workspace_env == "/workspace/proj"
-        assert len(slice_data.user_preferences) > 0
-        assert len(slice_data.reusable_knowledge) > 0
-        assert len(slice_data.failure_lessons) > 0
-

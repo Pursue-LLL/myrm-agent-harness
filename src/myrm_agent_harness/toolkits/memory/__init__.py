@@ -57,16 +57,6 @@ from myrm_agent_harness.toolkits.memory.auto_consolidation import (
     evaluate_idle_status,
     evaluate_turn_and_info_gain,
 )
-from myrm_agent_harness.toolkits.memory.auto_memory import (
-    AutoMemoryBudgetPolicy,
-    AutoMemoryExtractionResult,
-    AutoMemoryGate,
-    AutoMemoryGatingDecision,
-    IdleAndBudgetGatedAutoMemoryEngine,
-    SessionActivitySnapshot,
-    SixDimensionalExtractor,
-    SixDimensionalMemorySlice,
-)
 from myrm_agent_harness.toolkits.memory.batch_learn import (
     BatchLearnExecutionReport,
     BatchMemoryLearningMetaTools,
@@ -853,16 +843,6 @@ from myrm_agent_harness.toolkits.memory.progressive_sidecar import (
     ProgressiveSidecarEngine,
     SidecarDescriptor,
 )
-from myrm_agent_harness.toolkits.memory.prompt_cache_guard import (
-    AtomicReplacePayload,
-    CapacityLimitConfig,
-    CapacityOverflowError,
-    FrozenMemorySnapshot,
-    FrozenMemorySnapshotProvider,
-    ReadFreeMemoryToolSuite,
-    SecurityThreatBlockedError,
-    ZeroWidthAndCredentialLeakScanner,
-)
 from myrm_agent_harness.toolkits.memory.protocols import (
     ConversationSearchProtocol,
     EmbeddingCacheProtocol,
@@ -922,18 +902,6 @@ from myrm_agent_harness.toolkits.memory.reconciliation import (
     ReconciliationReport,
     WriteGateCheckResult,
     WriteGatePolicy,
-)
-from myrm_agent_harness.toolkits.memory.reembedding import (
-    AdaptiveBatcher,
-    CheckpointState,
-    DualVersionCollectionState,
-    ReembeddingBatch,
-    ReembeddingCheckpointManager,
-    ReembeddingJobConfig,
-    ReembeddingProgress,
-    ReembeddingRecord,
-    ReembeddingStatus,
-    ZeroDowntimeReembeddingEngine,
 )
 from myrm_agent_harness.toolkits.memory.relational_backtrack import (
     ActionSynonymNormalizer,
@@ -998,6 +966,7 @@ from myrm_agent_harness.toolkits.memory.repair import (
     StaleEntryPruner,
     StalePrunePolicy,
 )
+from myrm_agent_harness.toolkits.memory.retriever import MemoryRetriever
 from myrm_agent_harness.toolkits.memory.revocable_provenance import (
     DreamDiaryRecorder,
     ForgetResult,
@@ -1006,14 +975,6 @@ from myrm_agent_harness.toolkits.memory.revocable_provenance import (
     ProvenanceMetadata,
     ProvenanceQualifiedMemory,
     RevocableForgetEngine,
-)
-from myrm_agent_harness.toolkits.memory.ripplemem import (
-    ActiveRecallController,
-    DualEdgeSparseGraphStore,
-    NormalizedEventExtractor,
-    NormalizedEventUnit,
-    RippleRecallResult,
-    RippleSpreadBudget,
 )
 from myrm_agent_harness.toolkits.memory.rule_cascade import (
     CascadedRuleSet,
@@ -1090,16 +1051,6 @@ from myrm_agent_harness.toolkits.memory.skill_triad import (
     ScopePhysicalPartitionEngine,
     SurveyFinding,
     get_memory_skill_triad_facade,
-)
-from myrm_agent_harness.toolkits.memory.social_curator import (
-    HighSignalBriefing,
-    HighSignalSocialFeedCurator,
-    InformationGainScorer,
-    RawSocialPost,
-    ScoredSocialInsight,
-    SocialInsightCategory,
-    UserAffinityProfile,
-    UserAffinityProfileBuilder,
 )
 from myrm_agent_harness.toolkits.memory.strategies import (
     DynamicPreferenceFitter,
@@ -1377,50 +1328,18 @@ __all__ = [
     "MacroContextPayload",
     "ProjectEnvironmentSnapshot",
     "RuntimeEnvironmentInfo",
-    "ActiveRecallController",
-    "AdaptiveBatcher",
-    "AtomicReplacePayload",
     "BenchmarkReport",
-    "CapacityLimitConfig",
-    "CapacityOverflowError",
     "DerivedObservationRecord",
-    "DualEdgeSparseGraphStore",
     "EvidenceRecord",
     "ExternalMemoryBenchmarkSuite",
     "ExternalMemoryProviderProtocol",
-    "FrozenMemorySnapshot",
-    "FrozenMemorySnapshotProvider",
-    "NormalizedEventExtractor",
-    "NormalizedEventUnit",
-    "RippleRecallResult",
-    "RippleSpreadBudget",
     "MemoryLifecycleStage",
     "MemoryScopeContext",
     "MemoryScopeType",
     "PrefetchResult",
-    "ReadFreeMemoryToolSuite",
-    "SecurityThreatBlockedError",
     "SingleActiveProviderScheduler",
     "SupersedesLineageManager",
     "SupersedesRecord",
-    "ZeroWidthAndCredentialLeakScanner",
-    "CheckpointState",
-    "DualVersionCollectionState",
-    "ReembeddingBatch",
-    "ReembeddingCheckpointManager",
-    "ReembeddingJobConfig",
-    "ReembeddingProgress",
-    "ReembeddingRecord",
-    "ReembeddingStatus",
-    "ZeroDowntimeReembeddingEngine",
-    "HighSignalBriefing",
-    "HighSignalSocialFeedCurator",
-    "InformationGainScorer",
-    "RawSocialPost",
-    "ScoredSocialInsight",
-    "SocialInsightCategory",
-    "UserAffinityProfile",
-    "UserAffinityProfileBuilder",
     "AMemCard",
     "AMemZettelkastenNetwork",
     "AssembledMemoryContext",
@@ -2107,14 +2026,6 @@ __all__ = [
     "calculate_content_overlap",
     "compute_text_similarity",
     "estimate_tokens",
-    "AutoMemoryBudgetPolicy",
-    "AutoMemoryExtractionResult",
-    "AutoMemoryGate",
-    "AutoMemoryGatingDecision",
-    "IdleAndBudgetGatedAutoMemoryEngine",
-    "SessionActivitySnapshot",
-    "SixDimensionalExtractor",
-    "SixDimensionalMemorySlice",
     "AutoMemoryConsolidationOrchestrator",
     "AutoMemoryGatingConfig",
     "BudgetGatingDecision",
@@ -2275,5 +2186,3 @@ __all__ = [
     "SurveyFinding",
     "get_memory_skill_triad_facade",
 ]
-
-
