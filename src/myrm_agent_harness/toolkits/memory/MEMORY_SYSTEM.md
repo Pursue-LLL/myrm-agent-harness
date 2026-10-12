@@ -759,14 +759,14 @@ result = await extractor.extract(messages=messages)
 程序性规则只有两类写入入口，**不存在从原始用户文本直接生成规则的正则路径**：
 
 1. **模型判断**：会话结束的 LLM 抽取（`strategies/extractor.py`，受 No-Op Default 门控）与 Agent 调用 `memory_save_tool`；
-2. **人的明确选择**：用户手动创建并锁定的规则，以及审批中人工 `edit` / `reject` 触发的纠正学习（`agent/middlewares/approval/correction_learning.py`）。
+2. **人的明确选择**：用户手动创建并锁定的规则，以及审批中人工 `edit` / `reject` 触发的纠正学习（`agent/middlewares/approval/correction_learning.py`）。系统自动判定（审批超时、批量校验失败）带 `origin="system"`，不作为用户反馈学习。
 
 > 正则只能看到用户措辞的一个片段，无法区分「长期偏好」与「仅当前任务的指令」，也保留不了否定极性，因此不再作为规则来源。`ToolRulePriority` 只决定遗忘/归档的耐久度，不决定注入位置：规则统一进入 stable 层的 `Behavioral Rules` 段（`priority=3`），items 按「用户背书（`is_user_locked`）优先」排序，契合 `PromptBudgetGuard` 从后截断的行为，使背书规则最后被丢。
 
 | 级别 | 来源 | 生命周期 |
 |------|------|---------|
 | CRITICAL | 用户显式确立 | 免 TTL 归档；预算存活仍取决于 `is_user_locked` |
-| HIGH | 从重复纠偏中蒸馏 | 与 NORMAL 同等，仅参与 retention 评分 |
+| HIGH | 抽取器判定重要；Agent 自写规则的上限 | 与 NORMAL 同等，仅参与 retention 评分 |
 | NORMAL | 自动推断 | 可被遗忘策略回收 |
 
 ### 7.5 Pre-Compaction Recall (`agent/context_management/pre_compact_service.py`)

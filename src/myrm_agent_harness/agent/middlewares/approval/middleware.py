@@ -64,8 +64,14 @@ from .batch_processor import (
     evaluate_tool_batch,
 )
 from .helpers import reset_denial_counter
+from .scheduler import SYSTEM_DECISION_ORIGIN
 
 logger = logging.getLogger(__name__)
+
+
+def _system_reject(feedback: str) -> dict[str, object]:
+    """Fail-closed rejection made by the middleware itself, not by a person."""
+    return {"type": "reject", "feedback": feedback, "origin": SYSTEM_DECISION_ORIGIN}
 
 
 class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
@@ -310,12 +316,16 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
                 phase,
                 type(batch_response),
             )
-            return [{"type": "reject", "feedback": "Invalid batch response"} for _ in range(expected_count)]
+            return [_system_reject("Invalid batch response") for _ in range(expected_count)]
 
         if "decision" in batch_response and "decisions" not in batch_response:
-            global_decision = batch_response["decision"]
-            global_feedback = batch_response.get("feedback")
-            normalized = [{"type": global_decision, "feedback": global_feedback} for _ in range(expected_count)]
+            shared: dict[str, object] = {
+                "type": batch_response["decision"],
+                "feedback": batch_response.get("feedback"),
+            }
+            if "origin" in batch_response:
+                shared["origin"] = batch_response["origin"]
+            normalized = [dict(shared) for _ in range(expected_count)]
         else:
             raw = batch_response.get("decisions", [])
             normalized = raw if isinstance(raw, list) else []
@@ -327,7 +337,7 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
                 expected_count,
                 len(normalized),
             )
-            return [{"type": "reject", "feedback": "Decision count mismatch"} for _ in range(expected_count)]
+            return [_system_reject("Decision count mismatch") for _ in range(expected_count)]
         return normalized
 
     @staticmethod
@@ -336,9 +346,11 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
         pending_approval: list,
         session_key: str,
     ) -> None:
-        """Fire APPROVAL_CORRECTION hook for edit/reject decisions.
+        """Fire APPROVAL_CORRECTION hook for edit/reject decisions a person made.
 
-        Also emits a CORRECTION_LEARNED SSE event so the frontend can show feedback.
+        System-made decisions (timeout, fail-closed rejection) carry no user intent and
+        are not reported. Also emits a CORRECTION_LEARNED SSE event so the frontend can
+        show feedback.
         """
         corrections: list[dict[str, object]] = []
 
@@ -346,7 +358,7 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
             if i >= len(pending_approval):
                 break
             decision_type = decision.get("type", "")
-            if decision_type not in ("edit", "reject"):
+            if decision_type not in ("edit", "reject") or decision.get("origin") == SYSTEM_DECISION_ORIGIN:
                 continue
 
             _idx, tool_call, _perm_type, _reason, _ = pending_approval[i]
@@ -356,7 +368,7 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
             correction: dict[str, object] = {
                 "tool_name": tool_name,
                 "decision_type": decision_type,
-                "feedback": decision.get("feedback", ""),
+                "feedback": decision.get("feedback") or "",
             }
 
             if decision_type == "edit":

@@ -2,7 +2,7 @@
 
 Listens for APPROVAL_CORRECTION hook events and persists high-value signals as:
 - SemanticMemory (preference_type="explicit") for argument value corrections
-- ProceduralMemory (tool-scoped rules) for tool rejections or repeated patterns
+- ProceduralMemory (tool-scoped rules) for tool rejections and command corrections
 
 Zero LLM cost: classification uses deterministic dict-diff and pattern matching.
 
@@ -23,8 +23,7 @@ the agent automatically applies in future interactions.
 from __future__ import annotations
 
 import logging
-from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Literal
 
 from myrm_agent_harness.core.hooks.types import HookResult
@@ -43,6 +42,9 @@ _PATH_ARG_KEYS = frozenset({"path", "file_path", "directory", "working_directory
 # Command-related argument keys that indicate behavioral rule corrections
 _COMMAND_ARG_KEYS = frozenset({"command", "cmd", "script", "code", "query"})
 
+# A single human correction is a firm but unrepeated signal.
+_PREFERENCE_STRENGTH = 0.8
+
 
 @dataclass(frozen=True, slots=True)
 class CorrectionSignal:
@@ -55,17 +57,6 @@ class CorrectionSignal:
     corrected_value: object
     signal_class: Literal["path_preference", "command_rule", "arg_preference", "tool_rejection"]
     feedback: str
-
-
-@dataclass
-class _RepetitionTracker:
-    """Tracks correction repetitions across the session for priority promotion."""
-
-    counts: dict[str, int] = field(default_factory=lambda: defaultdict(int))
-
-    def record(self, fingerprint: str) -> int:
-        self.counts[fingerprint] += 1
-        return self.counts[fingerprint]
 
 
 class CorrectionLearningHook:
@@ -87,7 +78,6 @@ class CorrectionLearningHook:
     """
 
     def __init__(self) -> None:
-        self._repetition_tracker = _RepetitionTracker()
         self._recent_fingerprints: set[str] = set()
         self._pending_preferences: list[SemanticMemory] = []
         self._pending_rules: list[ProceduralMemory] = []
@@ -126,8 +116,7 @@ class CorrectionLearningHook:
                 continue
             self._recent_fingerprints.add(fingerprint)
 
-            repetition_count = self._repetition_tracker.record(fingerprint)
-            memory = self._create_memory(signal, repetition_count)
+            memory = self._create_memory(signal)
             if memory is None:
                 continue
 
@@ -209,17 +198,15 @@ class CorrectionLearningHook:
             return "command_rule"
         return "arg_preference"
 
-    def _create_memory(
-        self, signal: CorrectionSignal, repetition_count: int
-    ) -> SemanticMemory | ProceduralMemory | None:
+    def _create_memory(self, signal: CorrectionSignal) -> SemanticMemory | ProceduralMemory | None:
         """Create the appropriate memory type from a correction signal."""
         if signal.signal_class == "tool_rejection":
-            return self._create_rejection_rule(signal, repetition_count)
+            return self._create_rejection_rule(signal)
         if signal.signal_class == "command_rule":
-            return self._create_command_rule(signal, repetition_count)
-        return self._create_preference(signal, repetition_count)
+            return self._create_command_rule(signal)
+        return self._create_preference(signal)
 
-    def _create_preference(self, signal: CorrectionSignal, repetition_count: int) -> SemanticMemory:
+    def _create_preference(self, signal: CorrectionSignal) -> SemanticMemory:
         """Create a SemanticMemory preference from arg correction."""
         orig = _format_value(signal.original_value)
         corrected = _format_value(signal.corrected_value)
@@ -229,48 +216,38 @@ class CorrectionLearningHook:
         else:
             content = f"For {signal.tool_name}.{signal.arg_key}: prefer {corrected} over {orig}"
 
-        strength = min(0.7 + repetition_count * 0.1, 1.0)
-
         return SemanticMemory(
             content=content,
             preference_type="explicit",
-            preference_strength=strength,
+            preference_strength=_PREFERENCE_STRENGTH,
             importance=0.8,
             tags=["hitl_correction", f"tool:{signal.tool_name}"],
         )
 
-    def _create_command_rule(self, signal: CorrectionSignal, repetition_count: int) -> ProceduralMemory:
+    def _create_command_rule(self, signal: CorrectionSignal) -> ProceduralMemory:
         """Create a ProceduralMemory rule from command correction."""
         orig = _format_value(signal.original_value)
         corrected = _format_value(signal.corrected_value)
-
-        priority = ToolRulePriority.HIGH if repetition_count >= 2 else ToolRulePriority.NORMAL
-        if repetition_count >= 3:
-            priority = ToolRulePriority.CRITICAL
 
         return ProceduralMemory(
             content=f"When using {signal.tool_name}: use '{corrected}' instead of '{orig}'",
             trigger=f"Agent uses {signal.tool_name} with incorrect {signal.arg_key}",
             action=f"Replace with: {corrected}",
             tool_name=signal.tool_name,
-            tool_rule_priority=priority,
+            tool_rule_priority=ToolRulePriority.NORMAL,
             source=RuleSource.USER_EXPLICIT,
             language="en",
         )
 
-    def _create_rejection_rule(self, signal: CorrectionSignal, repetition_count: int) -> ProceduralMemory:
+    def _create_rejection_rule(self, signal: CorrectionSignal) -> ProceduralMemory:
         """Create a ProceduralMemory rule from tool rejection."""
-        priority = ToolRulePriority.HIGH if repetition_count >= 2 else ToolRulePriority.NORMAL
-        if repetition_count >= 3:
-            priority = ToolRulePriority.CRITICAL
-
         feedback = signal.feedback or "User does not want this action"
         return ProceduralMemory(
             content=f"Avoid using {signal.tool_name} in this context: {feedback}",
             trigger=f"Agent attempts to use {signal.tool_name}",
             action=f"Consider alternative approach. User feedback: {feedback}",
             tool_name=signal.tool_name,
-            tool_rule_priority=priority,
+            tool_rule_priority=ToolRulePriority.NORMAL,
             source=RuleSource.USER_EXPLICIT,
             language="en",
         )

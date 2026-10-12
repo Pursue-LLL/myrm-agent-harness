@@ -33,6 +33,10 @@ logger = logging.getLogger(__name__)
 
 ResumeCallback = Callable[[dict[str, object]], Awaitable[None]]
 
+# Marks an approval decision made by the system instead of a person (timeout,
+# fail-closed rejection). Correction learning skips such decisions.
+SYSTEM_DECISION_ORIGIN = "system"
+
 
 class ApprovalTimeoutScheduler:
     """Schedules auto-resume when approval requests timeout.
@@ -144,6 +148,7 @@ class ApprovalTimeoutScheduler:
                 resume_value = {
                     "decision": decision,
                     "feedback": f"Auto-{'approved' if approved else 'rejected'}: approval timeout ({timeout:.0f}s)",
+                    "origin": SYSTEM_DECISION_ORIGIN,
                 }
                 logger.warning("Approval timeout fired: key=%s, auto-%s after %ss", key, decision, timeout)
                 _record_timeout_audit(key, decision, timeout)

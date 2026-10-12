@@ -13,11 +13,11 @@ Tool approval subsystem — Human-in-the-Loop approval flow with correction lear
 | _batch_review.py | Internal | LLM-based security review, runtime domain tracking, and skill hook evaluation. | ✅ |
 | denial_diagnostic_bridge.py | Core | Denial diagnostic bridge connecting security auto-review denials to Dots-style 4-way adaptive resolution. | ✅ |
 | intent_ledger.py | Core | User intent ledger preserving task anchors and directives for reasoning-blind approval classification. | ✅ |
-| correction_learning.py | Core | HITL correction learning — converts approval edits/rejects into persistent SemanticMemory preferences and ProceduralMemory rules. Zero LLM cost (deterministic dict-diff classification). Fires on APPROVAL_CORRECTION hook. | ✅ |
+| correction_learning.py | Core | HITL correction learning — converts approval edits/rejects into persistent SemanticMemory preferences and ProceduralMemory rules. Zero LLM cost (deterministic dict-diff classification). Fires on APPROVAL_CORRECTION hook; decisions marked `origin="system"` (timeout, fail-closed reject) never reach it. | ✅ |
 | helpers.py | Core | Denial tracking, **allow-always four scopes** (permission/tool/exact/pattern via `derive_command_pattern`), time-bound auto-revocation (`ttl_seconds` → `expires_at`), session-scoped in-memory isolation, allowlist persistence. | ✅ |
 | middleware.py | Core | Bridges the Permission Engine with the LangGraph tool pipeline. Computes `is_interactive` (not cron, not shadow) and passes to `evaluate_tool_batch`. Auto-denies approval for shadow agents (no UI channel). Fires APPROVAL_CORRECTION hook after decisions for correction learning. | ✅ |
 | rate_limiter.py | Core | Approval rate limiter. Independent from core approval logic for easy testing and configuration. | ✅ |
-| scheduler.py | Core | HITL timeout scheduler — auto-resumes agents when approval or Web clarification requests expire. Approval uses global decision format; clarification uses `resume_value_override` (empty dict → no_answer). Idempotent `resolve_if_first` prevents race conditions between timeout auto-resume and manual user resume. | ✅ |
+| scheduler.py | Core | HITL timeout scheduler — auto-resumes agents when approval or Web clarification requests expire. Approval uses global decision format tagged `origin="system"` (`SYSTEM_DECISION_ORIGIN`); clarification uses `resume_value_override` (empty dict → no_answer). Idempotent `resolve_if_first` prevents race conditions between timeout auto-resume and manual user resume. | ✅ |
 
 ## Key Dependencies
 

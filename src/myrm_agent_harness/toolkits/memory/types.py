@@ -117,8 +117,9 @@ class ToolRulePriority(StrEnum):
 
     CRITICAL rules are excluded from TTL archiving (see
     ``maintenance_rule_forgetting``), and AGENT_SELF rules are downgraded to
-    HIGH if they try to claim it (see ``write_service``). HIGH marks rules
-    distilled from repeated user corrections. HIGH and NORMAL rules share the
+    HIGH if they try to claim it (see ``write_service``). HIGH marks rules the
+    extractor judged important and is the ceiling for agent-written rules.
+    HIGH and NORMAL rules share the
     same stable-layer prompt budget, so budget trimming can still drop them —
     what guarantees a rule survives trimming is the user-endorsed lock
     (``is_user_locked``).
@@ -569,7 +570,7 @@ class ProceduralMemory(BaseMemory):
     Tool-scoped rules use ``tool_name`` to associate with a specific tool
     and ``tool_rule_priority`` to record how durable the rule is:
     - CRITICAL: user-mandated, excluded from TTL archiving
-    - HIGH: distilled from repeated user corrections
+    - HIGH: judged important by the extractor; ceiling for agent-written rules
     - NORMAL: ordinary rule
 
     Prompt-budget survival is governed by ``is_user_locked``, not by this

@@ -5,7 +5,6 @@ Tests cover:
 - Signal classification (path_preference, command_rule, arg_preference, tool_rejection)
 - Memory creation (SemanticMemory for preferences, ProceduralMemory for rules)
 - Deduplication within a session
-- Priority promotion via repetition counting
 - Summary generation for frontend feedback
 - Edge cases (empty payloads, malformed data, no memory manager)
 """
@@ -171,7 +170,7 @@ class TestMemoryCreation:
             signal_class="path_preference",
             feedback="",
         )
-        memory = hook._create_memory(signal, repetition_count=1)
+        memory = hook._create_memory(signal)
         assert isinstance(memory, SemanticMemory)
         assert "prefer path" in memory.content
         assert "/home/user/test.py" in memory.content
@@ -190,7 +189,7 @@ class TestMemoryCreation:
             signal_class="command_rule",
             feedback="",
         )
-        memory = hook._create_memory(signal, repetition_count=1)
+        memory = hook._create_memory(signal)
         assert isinstance(memory, ProceduralMemory)
         assert "rm -r /tmp/old" in memory.content
         assert memory.tool_name == "shell"
@@ -206,53 +205,11 @@ class TestMemoryCreation:
             signal_class="tool_rejection",
             feedback="Never visit this domain",
         )
-        memory = hook._create_memory(signal, repetition_count=1)
+        memory = hook._create_memory(signal)
         assert isinstance(memory, ProceduralMemory)
         assert "Avoid using browser_navigate" in memory.content
         assert "Never visit this domain" in memory.content
         assert memory.tool_rule_priority == ToolRulePriority.NORMAL
-
-    def test_priority_promotion_high(self, hook: CorrectionLearningHook) -> None:
-        signal = CorrectionSignal(
-            tool_name="shell",
-            decision_type="edit",
-            arg_key="command",
-            original_value="x",
-            corrected_value="y",
-            signal_class="command_rule",
-            feedback="",
-        )
-        memory = hook._create_memory(signal, repetition_count=2)
-        assert isinstance(memory, ProceduralMemory)
-        assert memory.tool_rule_priority == ToolRulePriority.HIGH
-
-    def test_priority_promotion_critical(self, hook: CorrectionLearningHook) -> None:
-        signal = CorrectionSignal(
-            tool_name="shell",
-            decision_type="edit",
-            arg_key="command",
-            original_value="x",
-            corrected_value="y",
-            signal_class="command_rule",
-            feedback="",
-        )
-        memory = hook._create_memory(signal, repetition_count=3)
-        assert isinstance(memory, ProceduralMemory)
-        assert memory.tool_rule_priority == ToolRulePriority.CRITICAL
-
-    def test_strength_capped_at_1(self, hook: CorrectionLearningHook) -> None:
-        signal = CorrectionSignal(
-            tool_name="write_file",
-            decision_type="edit",
-            arg_key="path",
-            original_value="/a",
-            corrected_value="/b",
-            signal_class="path_preference",
-            feedback="",
-        )
-        memory = hook._create_memory(signal, repetition_count=10)
-        assert isinstance(memory, SemanticMemory)
-        assert memory.preference_strength == 1.0
 
 
 class TestDeduplication:
@@ -319,36 +276,6 @@ class TestDeduplication:
 
         assert result1.output is not None and result1.output != ""
         assert result2.output is not None and result2.output != ""
-
-
-class TestRepetitionTracking:
-    """Tests for cross-session repetition counter and priority promotion."""
-
-    @pytest.mark.asyncio
-    async def test_repetition_counter_increments(self, hook: CorrectionLearningHook) -> None:
-        hook2 = CorrectionLearningHook()
-        payload = {
-            "session_id": "s1",
-            "corrections": (
-                {
-                    "tool_name": "shell",
-                    "decision_type": "edit",
-                    "original_args": {"command": "bad"},
-                    "edited_args": {"command": "good"},
-                    "feedback": "",
-                },
-            ),
-        }
-
-        with patch(
-            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
-            return_value=None,
-        ):
-            await hook2.on_approval_correction("approval_correction", payload)
-
-        _prefs, rules = hook2.drain_pending()
-        assert len(rules) == 1
-        assert rules[0].tool_rule_priority == ToolRulePriority.NORMAL
 
 
 class TestPersistence:
