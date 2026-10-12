@@ -2,6 +2,54 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-12-003 · 没有 doctype 的页面被判为“被模态遮罩阻塞”：html/body 因覆盖视口 50% 以上被当成遮罩，带 label 的输入框被标 `[blocked]` 且拿不到 ref
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-12 |
+| **修复时间** | 2026-10-12 |
+| **症状** | quirks 模式页面（无 doctype）上快照把整页标为 blocked，表单字段没有可用 ref，Agent 无法点击或填写；模态框内仅靠 `label`、`placeholder`、`title` 命名的字段在遮罩说明里也缺失 |
+| **关联产品** | myrm-agent-harness `toolkits/browser/snapshot` |
+| **根因** | `MODAL_BLOCKING_SCRIPT` 把覆盖视口 ≥50% 的任意元素视为遮罩，quirks 模式下 `html`/`body` 恒占满视口；模态内可操作元素的名称只取 `innerText` 与 `aria-label`，与无障碍树的命名来源不一致 |
+| **修复** | 遮罩候选排除 `document.documentElement` 与 `document.body`（仍可凭 modal 属性或 dialog 角色成为候选）；模态内元素名称追加 `label`、`placeholder`、`title` |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | quirks 模式下 html/body 恒占满视口，必然触发；标准模式取决于页面内容高度，缺陷表现随页面而变，不易稳定复现 |
+| **回归** | `tests/toolkits/browser/snapshot/test_modal_detection_integration.py`（quirks 模式页面不是模态；dialog 列出 Username、Submit、Email 字段）；`test_ref_not_found_e2e.py` 等快照/ref 集成用例在浏览器作业中通过（run 38203035767） |
+| **代码位置** | `observer_scripts.py::MODAL_BLOCKING_SCRIPT` |
+
+### BUG-HARNESS-2026-10-12-002 · 浏览器动作录制从不产生步骤：捕获脚本被注入到 patchright 的隔离世界，`expose_function` 桥在那里是丢弃调用的空桩
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-12 |
+| **修复时间** | 2026-10-12 |
+| **症状** | 录制会话开启后点击、输入等页面事件不会进入 Python 回调，录制得到空步骤；没有任何错误日志（注入异常被 `logger.debug` 吞掉） |
+| **关联产品** | myrm-agent-harness `toolkits/browser/action_capture` |
+| **根因** | patchright 的 `page.evaluate` 默认在隔离世界执行（`isolated_context=True`），而 `expose_function` 绑定只在主世界才会把调用送达 Python；隔离世界里的 `__myrmCaptureCallback` 是丢弃调用的空桩 |
+| **修复** | `ActionCaptureEngine._inject_capture` 的两次 `page.evaluate` 都显式传 `isolated_context=False`，监听器与 `__myrmCaptureActive` 开关位于同一个主世界 |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | 主世界注入意味着页面自己的脚本也能调用 `window.__myrmCaptureCallback(...)` 伪造步骤；该信任边界来自 `expose_function` 的设计本身，修复前后都存在，未在本条处理 |
+| **回归** | `tests/toolkits/browser/action_capture/test_capture_engine_lifecycle.py` 的替身 `evaluate` 断言 `isolated_context is False`；`test_capture_engine_navigation_integration.py`、`test_capture_script_integration.py` 在真实 Chromium 中随浏览器作业通过（run 38203035767） |
+| **代码位置** | `capture_engine.py::ActionCaptureEngine._inject_capture` |
+
+### BUG-HARNESS-2026-10-12-001 · `grep` 回退路径把搜索模式拼进单引号：含 `'` 的模式使命令语法错误并可注入 shell，正则模式还按基本正则解释
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-12 |
+| **修复时间** | 2026-10-12 |
+| **症状** | 沙箱内 grep 回退（未安装 ripgrep 时）搜索含单引号的文本，bash 报 `unexpected EOF while looking for matching` 而不是返回匹配；模式 `'; echo INJECTED; echo '` 会让 `echo INJECTED` 被当作命令执行（本机 bash 复现）。`use_regex=True` 时 `a+b` 按 grep 默认的基本正则处理，`+`、`|`、`()` 被当字面量，与 ripgrep 分支语义不一致 |
+| **关联产品** | myrm-agent-harness `toolkits/code_execution/executors/local` |
+| **根因** | `_file_ops.py` 用 f-string 拼 `grep {flags} '{pattern}' '{path}'`，模式与路径未经转义；regex 模式没有传 `-E` |
+| **修复** | 模式与路径一律经 `shlex.quote` 并以 `-e <pattern> --` 传入，ripgrep 与 grep 两个分支同样处理；regex 模式给 grep 传 `-E`，字面模式传 `-F` |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | 只在装有 ripgrep 的机器上开发时 grep 分支从不执行，缺陷只能由没有 ripgrep 的 CI 暴露；本地复现：`bash -c "grep -rnF 'it's' f.txt"` 报 EOF 错误，`-e "it's" --` 形式正常匹配 |
+| **回归** | `tests/integration/test_grep_regex_support.py::test_quote_and_dash_patterns_are_literal`（ripgrep 与 grep 两个分支；无 `rg` 时跳过 ripgrep 参数） |
+| **代码位置** | `_file_ops.py` 的 grep/rg 搜索命令构造 |
+
 ### BUG-HARNESS-2026-10-08-006 · Linux 上后台 PTY 任务的输出在子进程退出后被丢弃：主端读取抛 `OSError: [Errno 5]`，尚未被取走的行全部丢失且没有任何提示
 
 | 字段 | 内容 |

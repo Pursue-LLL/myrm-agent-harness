@@ -314,7 +314,7 @@ class LocalFileOpsMixin:
                 f"rg {' '.join(flags)} -e {shlex.quote(pattern)} -- {shlex.quote(str(safe))} 2>/dev/null || true"
             )
         else:
-            # -E: use_regex means extended regex (what ripgrep also accepts), not grep's default BRE.
+            # -E: regex mode means extended regex; grep's default would be basic regex (`+`, `|`, `()` literal).
             flags = "-rn" + ("E" if use_regex else "F") + ("" if case_sensitive else "i")
             result = await self._exec_bash(  # type: ignore[attr-defined]
                 f"grep {flags} -e {shlex.quote(pattern)} -- {shlex.quote(str(safe))} || true"
