@@ -161,7 +161,10 @@ def schedule_post_run_idle_tasks(merged_context: dict[str, object]) -> None:
                 get_event_logger,
             )
 
-            if get_event_logger() is not None:
+            event_logger = get_event_logger()
+            if event_logger is not None:
+                # The registry keeps the earliest pending task and every turn restarts the idle timer, so
+                # ``since`` is what lets one run cover all turns of a burst.
                 _fire_and_forget(
                     registry.enqueue(
                         session_id,
@@ -169,6 +172,7 @@ def schedule_post_run_idle_tasks(merged_context: dict[str, object]) -> None:
                         {
                             "chat_id": chat_id,
                             "agent_id": str(merged_context.get("agent_id", "default")),
+                            "since": event_logger.started_at,
                         },
                     )
                 )

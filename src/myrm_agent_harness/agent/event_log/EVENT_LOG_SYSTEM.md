@@ -8,7 +8,7 @@
 
 1. **Checkpointer 互补**：Checkpointer 保存图状态；EventLog 保存细粒度事件流（tool/llm/token）
 2. **可选注入**：通过 `event_log_backend` 注入 BaseAgent，未配置时零开销
-3. **读侧分析**：analytics / evidence_extractor 供技能进化 idle 任务消费
+3. **读侧分析**：analytics / trace_builder 供技能进化 idle 任务消费（失败工具调用来自 `build_trace`）
 4. **导出管道**：dataset_export 支持 ShareGPT/Alpaca/OpenAI JSONL + PII 脱敏
 
 ---
@@ -26,7 +26,6 @@ BaseAgent.run()
       │
       ├─ trace_builder.py — llm_request + token_usage → LLMCallRecord；tool_start/tool_end 按 tool_call_id 配对，`tasks_steps` 流式步骤读侧兼容 → 指令血缘（配对/LLM/tasks_steps 逻辑分别由 _pairing.py/_llm.py/_tasks_steps.py 承载，共享工具函数与 `_EVENT_META_KEYS` 元数据键集合在 _common.py）
       ├─ analytics.py / analytics_queries.py — 读侧聚合
-      ├─ evidence_extractor.py — Trace 证据挖掘（idle → skill evolution）
       ├─ llm_observability.py — prompt preview 截断记录
       └─ dataset_export/ — 质量过滤 + 格式转换 + exporter
 ```

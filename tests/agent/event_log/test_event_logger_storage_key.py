@@ -1,7 +1,5 @@
-"""EventLogger read-backs use the backend's storage key, not the runtime session id."""
+"""EventLogger exposes the backend's storage key, separate from the runtime session id."""
 
-import asyncio
-import logging
 from pathlib import Path
 from unittest.mock import AsyncMock
 
@@ -15,38 +13,6 @@ _SESSION_ID = f"chat_{_CHAT_ID}"
 
 
 @pytest.mark.asyncio
-async def test_close_time_integrity_gate_reads_the_storage_key(tmp_path: Path) -> None:
-    backend = FileEventLogBackend(log_dir=tmp_path, session_id=_CHAT_ID)
-    backend.get_events = AsyncMock(wraps=backend.get_events)
-    logger = EventLogger(backend, _SESSION_ID, storage_key=_CHAT_ID)
-
-    await logger.start()
-    await logger.close()
-
-    key, event_filter = backend.get_events.await_args.args
-    assert key == _CHAT_ID
-    assert event_filter.start_time == logger.started_at
-    assert (tmp_path / f"{_CHAT_ID}.jsonl").exists()
-
-
-@pytest.mark.asyncio
-async def test_integrity_gate_ignores_earlier_sessions_in_the_chat_file(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A second session restarts sequence numbers; judging the whole file would flag every later turn."""
-    for _ in range(2):
-        await asyncio.sleep(0.01)  # persisted timestamps are millisecond-rounded; turns are never closer than that
-        logger = EventLogger(
-            FileEventLogBackend(log_dir=tmp_path, session_id=_CHAT_ID), _SESSION_ID, storage_key=_CHAT_ID
-        )
-        await logger.start()
-        with caplog.at_level(logging.WARNING):
-            await logger.close()
-
-    assert not [r for r in caplog.records if "sequence_continuity" in r.getMessage()]
-
-
-@pytest.mark.asyncio
 async def test_storage_key_defaults_to_the_session_id(tmp_path: Path) -> None:
     logger = EventLogger(FileEventLogBackend(log_dir=tmp_path, session_id="s1"), "s1")
 
@@ -54,17 +20,39 @@ async def test_storage_key_defaults_to_the_session_id(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_gate_failure_is_reported_as_a_warning_not_swallowed(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
+async def test_events_are_stamped_with_the_session_id_and_filed_under_the_storage_key(tmp_path: Path) -> None:
     backend = FileEventLogBackend(log_dir=tmp_path, session_id=_CHAT_ID)
-    backend.get_events = AsyncMock(side_effect=RuntimeError("disk gone"))
     logger = EventLogger(backend, _SESSION_ID, storage_key=_CHAT_ID)
+
     await logger.start()
+    await logger.close()
 
-    with caplog.at_level(logging.WARNING):
-        await logger.close()
+    events = await backend.get_events(logger.storage_key)
+    assert {e.session_id for e in events} == {_SESSION_ID}
+    assert (tmp_path / f"{_CHAT_ID}.jsonl").exists()
 
-    assert any(
-        r.levelno == logging.WARNING and "integrity gate verification failed" in r.getMessage() for r in caplog.records
-    )
+
+@pytest.mark.asyncio
+async def test_close_does_not_re_read_the_log(tmp_path: Path) -> None:
+    """Closing sits on the user-visible path; it must not rescan the chat's accumulated log."""
+    backend = FileEventLogBackend(log_dir=tmp_path, session_id=_CHAT_ID)
+    backend.get_events = AsyncMock(wraps=backend.get_events)
+    logger = EventLogger(backend, _SESSION_ID, storage_key=_CHAT_ID)
+
+    await logger.start()
+    await logger.close()
+
+    backend.get_events.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_started_at_is_floored_to_the_persisted_millisecond(tmp_path: Path) -> None:
+    """Persisted timestamps are rounded to ms; a turn-scoped read must still include session_start."""
+    backend = FileEventLogBackend(log_dir=tmp_path, session_id=_CHAT_ID)
+    logger = EventLogger(backend, _SESSION_ID, storage_key=_CHAT_ID)
+
+    await logger.start()
+    await logger.close()
+
+    events = await backend.get_events(logger.storage_key)
+    assert min(e.timestamp for e in events) >= logger.started_at

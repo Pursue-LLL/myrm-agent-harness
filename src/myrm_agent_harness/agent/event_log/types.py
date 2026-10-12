@@ -190,7 +190,7 @@ def _build_persistent_types() -> frozenset[str]:
         AgentEventType.ARTIFACT_CONTENT.value,
     }
     return frozenset(e.value for e in AgentEventType if e.value not in exclude) | frozenset(
-        {"user_interruption", "trace_run_digest", "llm_request", "takeover_trace", "fork_point"}
+        {"llm_request", "takeover_trace", "fork_point"}
     )
 
 
@@ -373,66 +373,3 @@ class SessionAnalytics:
     task_metrics: dict[str, object]
     token_economics: dict[str, object] | None = None
     security_audit: dict[str, object] | None = None
-
-
-# --- Trace Evidence (skill evolution input) ---
-
-
-@dataclass(frozen=True, slots=True)
-class FileHotspot:
-    """A file that is frequently accessed or modified during a specific feature/task."""
-
-    file_path: str
-    read_count: int
-    write_count: int
-    last_accessed: float
-
-    def to_dict(self) -> dict[str, object]:
-        return {
-            "file_path": self.file_path,
-            "read_count": self.read_count,
-            "write_count": self.write_count,
-            "last_accessed": self.last_accessed,
-        }
-
-
-@dataclass(frozen=True, slots=True)
-class AntiPattern:
-    """An anti-pattern extracted from tool failures or user interruptions."""
-
-    error_signature: str
-    failed_tool: str
-    failed_args: dict[str, object]
-    user_correction: str | None  # If the user took over and fixed it, what did they do?
-    timestamp: float
-
-    def to_dict(self) -> dict[str, object]:
-        return {
-            "error_signature": self.error_signature,
-            "failed_tool": self.failed_tool,
-            "failed_args": self.failed_args,
-            "user_correction": self.user_correction,
-            "timestamp": self.timestamp,
-        }
-
-
-@dataclass(frozen=True, slots=True)
-class TraceRunDigest:
-    """Extracted evidence from a trace for skill evolution and analytics."""
-
-    session_id: str
-    task_intent: str | None
-    hotspots: list[FileHotspot]
-    anti_patterns: list[AntiPattern]
-    success_rate: float
-    duration_ms: float
-
-    def to_dict(self) -> dict[str, object]:
-        return {
-            "session_id": self.session_id,
-            "task_intent": self.task_intent,
-            "hotspots": [h.to_dict() for h in self.hotspots],
-            "anti_patterns": [a.to_dict() for a in self.anti_patterns],
-            "success_rate": self.success_rate,
-            "duration_ms": self.duration_ms,
-        }

@@ -31,7 +31,6 @@ from typing import TYPE_CHECKING, cast
 
 from .types import (
     ActivityPatterns,
-    EventFilter,
     EventPayload,
     SessionAnalytics,
     SessionSummary,
@@ -213,33 +212,6 @@ class EventLogger:
             except Exception:
                 logger.warning("Failed final flush", exc_info=True)
             self._buffer.clear()
-
-        # Run integrity gate on session completion (non-blocking, anti-silent-corruption)
-        try:
-            from .integrity_gate import verify_sequence_continuity, verify_session_enclosure
-
-            events = await self._backend.get_events(self._storage_key, EventFilter(start_time=self.started_at))
-            if events:
-                enclosure_violations = verify_session_enclosure(events)
-                sequence_violations = verify_sequence_continuity(events)
-                all_violations = enclosure_violations + sequence_violations
-                if all_violations:
-                    for v in all_violations:
-                        if v.severity.value in ("error", "fatal"):
-                            logger.error(
-                                "EventLog integrity invariant violated [%s]: %s (details: %s)",
-                                v.invariant_name,
-                                v.message,
-                                v.details,
-                            )
-                        else:
-                            logger.warning(
-                                "EventLog integrity invariant warning [%s]: %s",
-                                v.invariant_name,
-                                v.message,
-                            )
-        except Exception:
-            logger.warning("EventLogger integrity gate verification failed", exc_info=True)
 
         try:
             await self._backend.close()

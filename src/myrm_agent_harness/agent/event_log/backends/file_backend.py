@@ -283,7 +283,12 @@ class FileEventLogBackend:
         return target if target.exists() else None
 
     async def close(self) -> None:
-        await self.flush()
+        """End the current run: wait for in-flight appends, then reset the dedup watermark.
+
+        A pooled backend serves consecutive runs whose sequences each restart at 1.
+        """
+        async with self._lock:
+            self._max_seq = 0
 
     async def cleanup_old_logs(self) -> int:
         """Remove log files older than retention_days.

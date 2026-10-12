@@ -47,13 +47,14 @@ def test_run_without_an_event_logger_skips_evidence_extraction():
 
 def test_run_with_an_event_logger_enqueues_evidence_extraction_for_the_chat(tmp_path: Path):
     backend = FileEventLogBackend(log_dir=tmp_path, session_id="real")
-    set_event_logger(EventLogger(session_id="chat_real", backend=backend, storage_key="real"))
+    event_logger = EventLogger(session_id="chat_real", backend=backend, storage_key="real")
+    set_event_logger(event_logger)
 
     registry, _ = _schedule_with_mock_registry(_CONTEXT)
 
     evidence = [c for c in registry.enqueue.call_args_list if c[0][1] == "session_evidence_extraction"]
     assert len(evidence) == 1
-    assert evidence[0][0][2] == {"chat_id": "real", "agent_id": "agent-1"}
+    assert evidence[0][0][2] == {"chat_id": "real", "agent_id": "agent-1", "since": event_logger.started_at}
 
 
 def test_run_without_chat_id_only_enqueues_consolidation():

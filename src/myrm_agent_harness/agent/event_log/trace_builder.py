@@ -47,19 +47,19 @@ if TYPE_CHECKING:
 
 
 async def build_trace(
-    backend: EventLogBackend, session_id: str, *, start_sequence: int | None = None
+    backend: EventLogBackend, session_id: str, *, event_filter: EventFilter | None = None
 ) -> ExecutionTrace:
-    """Construct an ExecutionTrace from all events in a session.
+    """Construct an ExecutionTrace from a session's events.
 
     Args:
         backend: Event log backend to read from.
         session_id: Target session.
-        start_sequence: Optional sequence to start from (for incremental builds).
+        event_filter: Optional scope (e.g. ``start_time`` to trace only the latest turns of a
+            chat whose log accumulates every turn).
 
     Returns:
         Fully populated ExecutionTrace.
     """
-    event_filter = EventFilter(start_sequence=start_sequence) if start_sequence else None
     events = await backend.get_events(session_id, event_filter)
     return _aggregate_events(session_id, events)
 

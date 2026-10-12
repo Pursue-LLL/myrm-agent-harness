@@ -304,6 +304,21 @@ class TestFileEventLogBackend:
         assert len(lines) == 2
 
     @pytest.mark.asyncio
+    async def test_pooled_backend_keeps_every_run(self, log_dir: Path) -> None:
+        """A pooled backend serves consecutive runs whose sequences each restart at 1."""
+        backend = FileEventLogBackend(log_dir, "sess-1")
+        for turn in range(1, 4):
+            event_logger = EventLogger(backend, "chat_1")
+            await event_logger.start()
+            await event_logger.log("tool_start", {"tool_name": "bash", "turn": turn})
+            await event_logger.close()
+
+        events = await backend.get_events("sess-1")
+        assert [e.event_type for e in events].count("session_start") == 3
+        assert [e.event_type for e in events].count("session_end") == 3
+        assert sorted(e.data["turn"] for e in events if e.event_type == "tool_start") == [1, 2, 3]
+
+    @pytest.mark.asyncio
     async def test_get_events_basic(self, log_dir: Path) -> None:
         backend = FileEventLogBackend(log_dir, "sess-1")
         events = [

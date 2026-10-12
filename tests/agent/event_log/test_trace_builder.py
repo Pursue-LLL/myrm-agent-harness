@@ -233,7 +233,7 @@ class TestBuildTrace:
         assert trace.total_events == 0
 
     @pytest.mark.asyncio
-    async def test_incremental_build(self) -> None:
+    async def test_scoped_build(self) -> None:
         events = [
             _event(1, "session_start"),
             _event(2, "tool_start", tool_name="bash"),
@@ -243,7 +243,7 @@ class TestBuildTrace:
         ]
         backend = InMemoryBackend({"sess-1": events})
 
-        trace = await build_trace(backend, "sess-1", start_sequence=4)
+        trace = await build_trace(backend, "sess-1", event_filter=EventFilter(start_sequence=4))
         assert len(trace.tool_calls) == 1
         assert trace.tool_calls[0].tool_name == "file_read"
 
