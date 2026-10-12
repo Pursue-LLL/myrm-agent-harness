@@ -102,7 +102,6 @@ _PARENT_WATCH_ZONES: tuple[tuple[str, frozenset[str]], ...] = (
                 "reembedding",
                 "shared_bus",
                 "sovereign_migration",
-                "universal_mcp_bridge",
                 "unload_guard",
                 "vector_preflight",
             }
