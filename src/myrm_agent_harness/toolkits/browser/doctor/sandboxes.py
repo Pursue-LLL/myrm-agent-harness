@@ -1,32 +1,41 @@
 """Browser Doctor — stale automation sandbox cleanup.
 
 Prunes leftover automation sandboxes (macOS ``*.code_sign_clone`` directories
-created by Chrome / Patchright Chromium) once they are old enough, dry-run by
-default.
+created by Chrome-family browsers) once they are old enough and their browser is
+no longer running, dry-run by default.
 
 [INPUT]
-- lsof (optional, probes whether a sandbox is still held open before deleting it)
+- psutil (optional, process table: which browser apps are running)
+- Info.plist of each running ``.app`` (CFBundleIdentifier, matches the ``<bundle id>.code_sign_clone`` directory name)
 
 [OUTPUT]
 - cleanup_stale_automation_sandboxes: dry-run-first sandbox prune returning a SandboxCleanupResult
 - SandboxCleanupResult / SandboxFailure: typed shape of the prune summary
 
 [POS]
-Stale automation sandbox cleanup. The directory walk is synchronous and offloaded
-via asyncio.to_thread by callers (doctor orchestrator, server health endpoints).
+Stale automation sandbox cleanup. A running browser keeps its clone for the whole
+session but holds no file in it open, so liveness comes from the process table:
+every clone of a running browser app is left alone, in the preview and in the
+prune alike, and an unreadable process table protects everything. The directory
+walk is synchronous and offloaded via asyncio.to_thread by callers (doctor
+orchestrator, server health endpoints).
 """
 
 from __future__ import annotations
 
 import contextlib
 import logging
+import plistlib
 import shutil
-import subprocess
 import time
 from pathlib import Path
 from typing import TypedDict
+from xml.parsers.expat import ExpatError
 
 logger = logging.getLogger(__name__)
+
+_CLONE_SUFFIX = ".code_sign_clone"
+_APP_EXECUTABLE_MARKER = ".app/Contents/MacOS/"
 
 
 class SandboxFailure(TypedDict):
@@ -46,12 +55,66 @@ class SandboxCleanupResult(TypedDict):
     failed: list[SandboxFailure]
 
 
+def _read_bundle_id(app_path: str) -> str | None:
+    """CFBundleIdentifier of the ``.app`` bundle at ``app_path``, ``None`` when it cannot be read."""
+    try:
+        with open(f"{app_path}/Contents/Info.plist", "rb") as plist_file:
+            bundle_id = plistlib.load(plist_file).get("CFBundleIdentifier")
+    except (OSError, ValueError, ExpatError):
+        return None
+    return bundle_id if isinstance(bundle_id, str) and bundle_id else None
+
+
+def _running_app_bundle_ids() -> frozenset[str] | None:
+    """Bundle identifiers of the macOS apps that currently have a running executable.
+
+    Returns ``None`` when the process table cannot be read; callers must then treat
+    every sandbox as in use, because "nothing runs" would be a guess.
+    """
+    try:
+        import psutil
+    except (ImportError, TypeError):
+        logger.warning("psutil not available, cannot tell whether a browser still uses its sandbox")
+        return None
+
+    bundle_ids_by_app: dict[str, str | None] = {}
+    running: set[str] = set()
+    try:
+        for proc in psutil.process_iter(["exe"]):
+            executable = proc.info.get("exe") or ""
+            marker = executable.find(_APP_EXECUTABLE_MARKER)
+            if marker < 0:
+                continue
+            # The first ``.app`` on the path owns the executable; the outermost app of a nested helper is not it.
+            app_path = executable[: marker + len(".app")]
+            if app_path not in bundle_ids_by_app:
+                bundle_ids_by_app[app_path] = _read_bundle_id(app_path)
+            bundle_id = bundle_ids_by_app[app_path]
+            if bundle_id:
+                running.add(bundle_id)
+    except Exception as exc:
+        logger.warning("Failed to read the process table for sandbox liveness: %s", exc)
+        return None
+    return frozenset(running)
+
+
+def _owning_bundle_id(candidate: Path) -> str | None:
+    """Bundle id taken from the ``<bundle id>.code_sign_clone`` directory that is or contains ``candidate``."""
+    for directory in (candidate, candidate.parent):
+        if directory.name.endswith(_CLONE_SUFFIX):
+            return directory.name.removesuffix(_CLONE_SUFFIX)
+    return None
+
+
 def cleanup_stale_automation_sandboxes(
     max_age_hours: float = 24.0,
     *,
     dry_run: bool = True,
 ) -> SandboxCleanupResult:
     """Prune stale automation sandboxes (e.g. macOS code_sign_clone) older than max_age_hours.
+
+    Clones of any Chrome-family browser qualify, not only automation-launched ones; a clone is
+    skipped while its browser app is running (dry-run included), so the preview matches the prune.
 
     Args:
         max_age_hours: Minimum age in hours before a sandbox is eligible for cleanup.
@@ -88,6 +151,8 @@ def cleanup_stale_automation_sandboxes(
     cutoff_s = max_age_hours * 3600.0
     failed: list[SandboxFailure] = []
     sample_sizes: list[int] = []
+    # Only macOS with leaked or live clones pays for the process-table walk.
+    running_apps = _running_app_bundle_ids() if candidates else frozenset[str]()
 
     for candidate in candidates:
         try:
@@ -97,6 +162,10 @@ def cleanup_stale_automation_sandboxes(
             stat = candidate.stat()
             age_s = now - stat.st_mtime
             if age_s < cutoff_s:
+                continue
+
+            if running_apps is None or _owning_bundle_id(candidate) in running_apps:
+                logger.debug("Skipping sandbox %s: its browser is still running or liveness is unknown", candidate)
                 continue
 
             # Calculate directory size (in dry_run, sample first 3 if large batch to avoid I/O storms)
@@ -114,20 +183,6 @@ def cleanup_stale_automation_sandboxes(
                     sample_sizes.append(dir_bytes)
 
             if not dry_run:
-                if str(candidate).startswith("/private/var/folders"):
-                    try:
-                        probe = subprocess.run(
-                            ["lsof", "+D", str(candidate)],
-                            stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL,
-                            timeout=1.5,
-                        )
-                        if probe.returncode == 0:
-                            logger.debug("Skipping sandbox %s: active process holds files open", candidate)
-                            continue
-                    except Exception:
-                        pass
-
                 try:
                     shutil.rmtree(candidate)
                 except FileNotFoundError:

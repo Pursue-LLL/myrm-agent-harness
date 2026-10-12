@@ -7,21 +7,22 @@ before actual operations, providing clear fix suggestions for each failure.
 - patchright (optional extra [browser]) / camoufox (stealth ladder fallback)
 - ..pool.camoufox_availability::camoufox_unavailable_reason/CAMOUFOX_INSTALL_FIX (POS: non-downloading Camoufox readiness probe and its operator-facing install instructions)
 - psutil (memory/disk checks)
-- infra/tls_compat::create_httpx_client (POS: unified async HTTP client, used by the extension relay probe)
 - .launch_check::check_browser_launch (POS: bounded headless launch test)
 - .orphan_check::check_orphan_processes (POS: orphan process doctor check)
 - .report::CheckStatus/DoctorCheckResult/DoctorReport (POS: doctor data models)
 
 [OUTPUT]
-- run_doctor: pre-flight browser diagnostics orchestrator (synchronous quick checks + concurrent I/O-bound checks)
+- run_doctor: pre-flight browser diagnostics orchestrator (synchronous quick checks + concurrent I/O-bound checks, plus host-supplied extra checks)
 - check_memory/check_disk: host resource checks, shared with the runtime doctor
-- _check_patchright/_check_camoufox/_check_proxy/_check_extension_relay: individual checks
+- _check_patchright/_check_camoufox/_check_proxy: individual checks
 
 [POS]
 Doctor core checks. Quick synchronous checks run first; I/O-bound checks
-(extension relay, browser launch, orphan scan) run concurrently via
+(orphan scan, host-supplied extra checks, browser launch) run concurrently via
 asyncio.gather with the psutil walk offloaded to a worker thread, then results
-are merged back into the ordered report.
+are merged back into the ordered report. Checks that depend on a host
+application (for example a server's browser extension relay) belong to that
+host and are passed in as ``extra_checks``.
 """
 
 from __future__ import annotations
@@ -29,17 +30,17 @@ from __future__ import annotations
 import asyncio
 import importlib.metadata
 import logging
-import os
 import tempfile
-from collections.abc import Awaitable
-
-from myrm_agent_harness.infra.tls_compat import create_httpx_client
+from collections.abc import Awaitable, Mapping
 
 from .launch_check import check_browser_launch
 from .orphan_check import check_orphan_processes
 from .report import CheckStatus, DoctorCheckResult, DoctorReport
 
 logger = logging.getLogger(__name__)
+
+_ORPHAN_CHECK = "orphan_processes"
+_LAUNCH_CHECK = "browser_launch"
 
 
 def _check_patchright() -> DoctorCheckResult:
@@ -235,94 +236,13 @@ def _check_proxy(proxy: str = "") -> DoctorCheckResult:
     )
 
 
-async def _check_extension_relay(base_url: str = "") -> DoctorCheckResult:
-    """Probe server extension setup hints for CDP relay readiness.
-
-    Args:
-        base_url: Server base URL to probe (e.g. ``http://127.0.0.1:8080``).
-            When empty, falls back to the ``MYRM_SERVER_URL`` env var, then to
-            the default local server address.
-    """
-    import json
-
-    import httpx
-
-    base = base_url.strip().rstrip("/") or os.environ.get("MYRM_SERVER_URL", "http://127.0.0.1:8080").rstrip("/")
-    url = f"{base}/api/v1/extension/setup-hints"
-    if not url.startswith(("http://", "https://")):
-        return DoctorCheckResult(
-            name="extension_relay",
-            status=CheckStatus.WARNING,
-            message="MYRM_SERVER_URL must use http(s) scheme",
-            fix="Set MYRM_SERVER_URL to an http(s) endpoint",
-        )
-    try:
-        async with create_httpx_client(timeout=2.0) as client:
-            response = await client.get(url)
-            response.raise_for_status()
-            payload = json.loads(response.text)
-    except (httpx.HTTPError, OSError):
-        return DoctorCheckResult(
-            name="extension_relay",
-            status=CheckStatus.WARNING,
-            message="Server unreachable; cannot verify browser extension CDP relay",
-            fix="Start myrm-agent-server and connect the browser extension from WebUI",
-        )
-    except Exception as exc:
-        return DoctorCheckResult(
-            name="extension_relay",
-            status=CheckStatus.WARNING,
-            message=f"Extension relay probe failed: {exc}",
-            fix="Check server logs and extension connection settings",
-        )
-
-    if not isinstance(payload, dict):
-        return DoctorCheckResult(
-            name="extension_relay",
-            status=CheckStatus.WARNING,
-            message="Extension relay returned an unexpected response format",
-            fix="Check server logs and extension connection settings",
-        )
-
-    if payload.get("relay_cdp_ready") is True and payload.get("access_policy_valid") is True:
-        return DoctorCheckResult(
-            name="extension_relay",
-            status=CheckStatus.OK,
-            message="Extension CDP relay is ready for login-state automation",
-        )
-
-    if payload.get("relay_cdp_ready") is True and not payload.get("access_policy_valid"):
-        return DoctorCheckResult(
-            name="extension_relay",
-            status=CheckStatus.WARNING,
-            message="Extension relay is up but access policy is not configured",
-            fix=("Add authorized domains or enable allow-all in Settings → Browser Extension"),
-        )
-
-    if payload.get("auth_token_required") and not payload.get("auth_token_configured"):
-        return DoctorCheckResult(
-            name="extension_relay",
-            status=CheckStatus.WARNING,
-            message="Extension auth token missing on server",
-            fix="Set EXTENSION_AUTH_TOKEN on the server, then pair the extension from WebUI",
-        )
-
-    return DoctorCheckResult(
-        name="extension_relay",
-        status=CheckStatus.WARNING,
-        message="Browser extension is not connected or CDP relay is not ready",
-        fix="Install the MV3 extension, generate a pairing code in WebUI, and connect",
-        details={"optional": True},
-    )
-
-
 async def run_doctor(
     *,
     include_launch_test: bool = True,
     include_orphan_check: bool = True,
     launch_options: dict[str, object] | None = None,
     browser_proxy: str = "",
-    extension_relay_base_url: str = "",
+    extra_checks: Mapping[str, Awaitable[DoctorCheckResult]] | None = None,
 ) -> DoctorReport:
     """Run comprehensive browser diagnostics.
 
@@ -331,8 +251,10 @@ async def run_doctor(
         include_orphan_check: Whether to check for orphan processes
         launch_options: Optional custom launch options for launch test
         browser_proxy: Comma-separated proxy URLs to report in the proxy check
-        extension_relay_base_url: Server base URL for the extension relay probe;
-            empty falls back to ``MYRM_SERVER_URL`` env, then the default address
+        extra_checks: Host-specific checks keyed by report name. They run concurrently with the
+            built-in I/O-bound checks and count in the summary like any other check. A name that
+            collides with a built-in check raises ``ValueError``. ``format_report`` renders only the
+            built-in sections.
 
     Returns:
         DoctorReport with all check results and recommendations
@@ -345,14 +267,18 @@ async def run_doctor(
     checks["disk"] = check_disk()
     checks["proxy"] = _check_proxy(browser_proxy)
 
+    extra = dict(extra_checks or {})
+    if shadowed := sorted(extra.keys() & {*checks, _ORPHAN_CHECK, _LAUNCH_CHECK}):
+        raise ValueError(f"extra_checks may not reuse built-in check names: {', '.join(shadowed)}")
+
     # I/O-bound checks run concurrently; the orphan scan is offloaded to a worker
     # thread so the psutil walk never blocks the event loop.
     pending: dict[str, Awaitable[DoctorCheckResult]] = {}
     if include_orphan_check:
-        pending["orphan_processes"] = asyncio.to_thread(check_orphan_processes)
-    pending["extension_relay"] = _check_extension_relay(extension_relay_base_url)
+        pending[_ORPHAN_CHECK] = asyncio.to_thread(check_orphan_processes)
+    pending.update(extra)
     if include_launch_test:
-        pending["browser_launch"] = check_browser_launch(launch_options)
+        pending[_LAUNCH_CHECK] = check_browser_launch(launch_options)
 
     results = await asyncio.gather(*pending.values())
     checks.update(zip(pending, results, strict=True))

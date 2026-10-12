@@ -34,27 +34,6 @@ def test_format_report_includes_camoufox() -> None:
     assert "camoufox 0.4.11 installed" in rendered
 
 
-def test_format_report_includes_extension_relay() -> None:
-    """Extension Relay section in CLI report must render when checked."""
-
-    report = DoctorReport(
-        checks={
-            "extension_relay": DoctorCheckResult(
-                name="extension_relay",
-                status=CheckStatus.WARNING,
-                message="Server unreachable; cannot verify browser extension CDP relay",
-                fix="Start myrm-agent-server and connect the browser extension from WebUI",
-            ),
-        },
-        summary="0/1 checks passed",
-        overall_healthy=False,
-    )
-    rendered = format_report(report)
-    assert "Extension Relay" in rendered
-    assert "cannot verify browser extension CDP relay" in rendered
-    assert "Start myrm-agent-server" in rendered
-
-
 @pytest.mark.asyncio
 async def test_run_doctor_skip_launch() -> None:
     """Test run_doctor without launch test."""
@@ -111,10 +90,6 @@ async def test_run_doctor_with_launch_reports_launch_outcome(
         ),
         patch("myrm_agent_harness.toolkits.browser.doctor.checks.check_memory", return_value=_stub_check("memory")),
         patch("myrm_agent_harness.toolkits.browser.doctor.checks.check_disk", return_value=_stub_check("disk")),
-        patch(
-            "myrm_agent_harness.toolkits.browser.doctor.checks._check_extension_relay",
-            return_value=_stub_check("extension_relay"),
-        ),
         patch("myrm_agent_harness.toolkits.browser.doctor.checks.check_browser_launch", return_value=launch),
     ):
         report = await run_doctor(include_launch_test=True, include_orphan_check=False)
@@ -125,13 +100,13 @@ async def test_run_doctor_with_launch_reports_launch_outcome(
 
 
 @pytest.mark.asyncio
-async def test_run_doctor_runs_relay_and_launch_concurrently() -> None:
-    """Relay, orphan and launch checks must run concurrently and preserve order."""
+async def test_run_doctor_runs_extra_orphan_and_launch_concurrently() -> None:
+    """Host-supplied, orphan and launch checks must run concurrently and all land in the report."""
 
-    relay = DoctorCheckResult(
-        name="extension_relay",
+    host = DoctorCheckResult(
+        name="host_probe",
         status=CheckStatus.WARNING,
-        message="relay mock",
+        message="host mock",
     )
     orphan = DoctorCheckResult(
         name="orphan_processes",
@@ -145,12 +120,12 @@ async def test_run_doctor_runs_relay_and_launch_concurrently() -> None:
     )
 
     started: list[str] = []
-    relay_completed = asyncio.Event()
+    host_completed = asyncio.Event()
 
-    async def fake_relay(_base_url: str = "") -> DoctorCheckResult:
-        started.append("relay")
-        await relay_completed.wait()
-        return relay
+    async def fake_host_probe() -> DoctorCheckResult:
+        started.append("host")
+        await host_completed.wait()
+        return host
 
     def fake_orphan() -> DoctorCheckResult:
         started.append("orphan")
@@ -161,14 +136,10 @@ async def test_run_doctor_runs_relay_and_launch_concurrently() -> None:
     ) -> DoctorCheckResult:
         started.append("launch")
         await asyncio.sleep(0)
-        relay_completed.set()
+        host_completed.set()
         return launch
 
     with (
-        patch(
-            "myrm_agent_harness.toolkits.browser.doctor.checks._check_extension_relay",
-            side_effect=fake_relay,
-        ),
         patch(
             "myrm_agent_harness.toolkits.browser.doctor.checks.check_orphan_processes",
             side_effect=fake_orphan,
@@ -178,13 +149,18 @@ async def test_run_doctor_runs_relay_and_launch_concurrently() -> None:
             side_effect=fake_launch,
         ),
     ):
-        report = await run_doctor(include_launch_test=True, include_orphan_check=True)
+        report = await run_doctor(
+            include_launch_test=True,
+            include_orphan_check=True,
+            extra_checks={"host_probe": fake_host_probe()},
+        )
 
-    # relay 阻塞等待时 launch 已启动（否则测试会死锁）；orphan 亦在并发批次中执行
-    assert "relay" in started
+    # The host probe blocks until the launch check has started (otherwise this test deadlocks);
+    # the orphan scan runs in the same concurrent batch.
+    assert "host" in started
     assert "launch" in started
     assert "orphan" in started
-    assert report.checks["extension_relay"] is relay
+    assert report.checks["host_probe"] is host
     assert report.checks["browser_launch"] is launch
     assert report.checks["orphan_processes"] is orphan
 
@@ -243,39 +219,28 @@ def test_format_report_with_warnings_and_errors() -> None:
 
 
 @pytest.mark.asyncio
-async def test_run_doctor_forwards_extension_relay_base_url() -> None:
-    """run_doctor must forward the base URL into the relay probe."""
+async def test_run_doctor_rejects_extra_check_that_shadows_a_builtin() -> None:
+    """A host check may not silently replace a built-in check of the same name."""
+    shadow = _stub_check("memory")
 
-    async def fake_relay(base_url: str) -> DoctorCheckResult:
-        assert base_url == "http://127.0.0.1:18080"
-        return DoctorCheckResult(
-            name="extension_relay",
-            status=CheckStatus.WARNING,
-            message="relay mock",
-        )
+    async def shadowing_check() -> DoctorCheckResult:
+        return shadow
 
-    with patch(
-        "myrm_agent_harness.toolkits.browser.doctor.checks._check_extension_relay",
-        side_effect=fake_relay,
-    ):
-        report = await run_doctor(
-            include_launch_test=False,
-            include_orphan_check=False,
-            extension_relay_base_url="http://127.0.0.1:18080",
-        )
-
-    assert report.checks["extension_relay"].message == "relay mock"
+    probe = shadowing_check()
+    with pytest.raises(ValueError, match="memory"):
+        await run_doctor(include_launch_test=False, include_orphan_check=False, extra_checks={"memory": probe})
+    probe.close()
 
 
 @pytest.mark.asyncio
 async def test_run_doctor_summary_includes_error_and_missing() -> None:
-    """Summary counts ERROR and MISSING checks and surfaces their fixes."""
+    """Summary counts ERROR and MISSING checks (host checks included) and surfaces their fixes."""
 
-    async def fake_relay(_base_url: str) -> DoctorCheckResult:
+    async def fake_host_probe() -> DoctorCheckResult:
         return DoctorCheckResult(
-            name="extension_relay",
+            name="host_probe",
             status=CheckStatus.ERROR,
-            message="relay broken",
+            message="host broken",
             fix="Restart the server",
         )
 
@@ -295,10 +260,6 @@ async def test_run_doctor_summary_includes_error_and_missing() -> None:
 
     with (
         patch(
-            "myrm_agent_harness.toolkits.browser.doctor.checks._check_extension_relay",
-            side_effect=fake_relay,
-        ),
-        patch(
             "myrm_agent_harness.toolkits.browser.doctor.checks.check_browser_launch",
             side_effect=fake_launch,
         ),
@@ -307,7 +268,11 @@ async def test_run_doctor_summary_includes_error_and_missing() -> None:
             side_effect=fake_orphan,
         ),
     ):
-        report = await run_doctor(include_launch_test=True, include_orphan_check=True)
+        report = await run_doctor(
+            include_launch_test=True,
+            include_orphan_check=True,
+            extra_checks={"host_probe": fake_host_probe()},
+        )
 
     assert "1 errors" in report.summary
     assert "1 missing" in report.summary
@@ -336,11 +301,6 @@ def test_format_report_full_sections() -> None:
                 status=CheckStatus.WARNING,
                 message="Found 2 orphan automation process(es)",
                 fix="python -m myrm_agent_harness.toolkits.browser --cleanup-orphans --force",
-            ),
-            "extension_relay": DoctorCheckResult(
-                name="extension_relay",
-                status=CheckStatus.OK,
-                message="Extension CDP relay is ready",
             ),
             "browser_launch": DoctorCheckResult(
                 name="browser_launch",
