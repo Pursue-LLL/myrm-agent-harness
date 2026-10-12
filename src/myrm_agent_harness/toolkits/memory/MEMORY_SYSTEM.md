@@ -666,8 +666,9 @@ retention = 0.35 × time_score + 0.25 × access_score + 0.15 × importance_score
 - `importance_score`：记忆重要性（0-1）
 - `relation_score`：向量邻居数近似（sim > 0.8），零额外写入
 
-**Procedural 规则 TTL 归档**（`_internal/maintenance_rule_forgetting.py`）：
+**Procedural 规则归档**（`_internal/maintenance_rule_forgetting.py`）：
 
+- **遗留生成规则**：动作文本带已移除生成器签名的未锁定规则（`Respect user directive:` / `Strictly follow user edict:` / 审批超时记录的 `Auto-rejected: approval timeout`），每次遗忘运行时先全量扫描并按当前 `ForgettingMode` 处理（默认 ARCHIVE，`archive_reason=legacy_generated_rule`，保留期内可恢复）；这些规则带 CRITICAL / USER_EXPLICIT 信任却永不过期，仅靠评分无法淘汰
 - `expected_valid_days` 已过期的规则**直接归档**，绕过 retention 评分阈值——过期即失效，无需等待衰减
 - 过期判断：`created_at + expected_valid_days` ≤ 当前时间；无 `expected_valid_days` 的规则以及 CRITICAL 规则不参与 TTL 归档，继续走 retention 评分
 - `is_user_locked` 规则跳过 TTL 归档（用户手动保留）

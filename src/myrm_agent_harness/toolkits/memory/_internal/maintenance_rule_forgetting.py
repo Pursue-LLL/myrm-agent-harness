@@ -1,8 +1,8 @@
 """Forgetting orchestration for procedural rules (relational store).
 
-TTL-expired rules are archived/removed directly (bypassing retention-score
-thresholding), then the remaining rules flow through the standard
-``ForgettingStrategy``.
+Rules written by generators that no longer exist are retired first, TTL-expired
+rules are archived/removed directly (bypassing retention-score thresholding),
+then the remaining rules flow through the standard ``ForgettingStrategy``.
 
 [INPUT]
 - memory.protocols.relational::RelationalStoreProtocol (POS: relational persistence)
@@ -39,6 +39,66 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Action-text prefixes of rules that earlier versions generated mechanically: a regex
+# fragment of the user message, a hook-captured edict, and an approval timeout recorded
+# as user feedback. They carry CRITICAL / USER_EXPLICIT trust yet never expire, so
+# retention scoring alone would keep them forever.
+_LEGACY_GENERATED_ACTION_PREFIXES = (
+    "Respect user directive: ",
+    "Strictly follow user edict: ",
+    "Consider alternative approach. User feedback: Auto-rejected: approval timeout",
+)
+_LEGACY_ARCHIVE_REASON = "legacy_generated_rule"
+_LEGACY_SCAN_PAGE_SIZE = 500
+
+
+async def _retire_legacy_generated_rules(
+    relational: RelationalStoreProtocol,
+    fg_cfg: ForgettingConfig,
+    result: ForgettingResult,
+    namespaces: list[str] | None,
+) -> None:
+    """Retire every active, unlocked rule whose action carries a removed generator's signature.
+
+    Matches are collected over all pages before any is changed, so the retirement
+    cannot shift the offsets of the scan. The configured forgetting mode decides
+    whether a match is archived (reversible), deleted or only reported.
+    """
+    matched: list[ProceduralMemory] = []
+    offset = 0
+    try:
+        while True:
+            page = await relational.list_rules(
+                active_only=True,
+                limit=_LEGACY_SCAN_PAGE_SIZE,
+                offset=offset,
+                namespaces=namespaces,
+            )
+            matched.extend(
+                r for r in page if not r.is_user_locked and r.action.startswith(_LEGACY_GENERATED_ACTION_PREFIXES)
+            )
+            if len(page) < _LEGACY_SCAN_PAGE_SIZE:
+                break
+            offset += _LEGACY_SCAN_PAGE_SIZE
+    except Exception as e:
+        logger.warning("Forgetting: failed to scan procedural rules for legacy generated rules: %s", e)
+        return
+
+    for rule in matched:
+        await _apply_rule_action(
+            relational,
+            rule,
+            reason=_LEGACY_ARCHIVE_REASON,
+            fg_cfg=fg_cfg,
+            result=result,
+        )
+    if matched:
+        logger.info(
+            "Forgetting: handled %d legacy generated procedural rules (mode=%s)",
+            len(matched),
+            fg_cfg.mode.value,
+        )
+
 
 async def forget_procedural_rules(
     relational: RelationalStoreProtocol,
@@ -50,6 +110,8 @@ async def forget_procedural_rules(
     """Apply forgetting strategy to ProceduralMemory stored in relational DB."""
     from myrm_agent_harness.toolkits.memory.strategies.forgetting import ttl_expired
     from myrm_agent_harness.toolkits.memory.types import ToolRulePriority
+
+    await _retire_legacy_generated_rules(relational, fg_cfg, result, namespaces)
 
     try:
         rules = await relational.list_rules(

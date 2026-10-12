@@ -16,7 +16,7 @@ Internal implementation details — not part of the public API.
 | graph_cascade.py | Internal | Cascade graph cleanup for derived nodes upon memory deletion | ✅ |
 | hash_utils.py | Core | Content hash computation utilities for deduplication. | ✅ |
 | maintenance.py | Core | Stateless background maintenance operations. Handles dedup, forgetting, access tracking, Task Digest evaporation, and Blob GC. Dedup candidates, forgetting, evaporation, and claim compilation are namespace-scoped to never touch other agents' memories. | ✅ |
-| maintenance_rule_forgetting.py | Core | Forgetting execution for procedural rules — archives TTL-expired rules (bypassing retention-score threshold) then applies ForgettingStrategy to the rest. | ✅ |
+| maintenance_rule_forgetting.py | Core | Forgetting execution for procedural rules — retires rules carrying a removed generator's signature, archives TTL-expired rules (bypassing retention-score threshold), then applies ForgettingStrategy to the rest. | ✅ |
 | maintenance_claim_support.py | Internal | Claim graph helper utilities (parsing, scope, relation classification, search). | ✅ |
 | maintenance_claim_compile.py | Internal | Claim graph compilation from evaporated L2 digests. | ✅ |
 | maintenance_enrichment.py | Internal | Multi-type sub-graph enrichment (Procedural REQUIRES/RESOLVES, Episodic CAUSED_BY, Semantic IS_A/DEFINES + concurrent multi-collection hydration & namespace filtering). | ✅ |
