@@ -6,8 +6,8 @@
 [OUTPUT]
 - GLOBAL_SESSION_ID: Session key of tasks that are not tied to a chat; any session's idle window may run them.
 - IdleTaskRecord: Represents a pending or running background idle task.
-- IdleTaskRegistry: SQLite-backed task registry with atomic locking for idle ...
-- get_idle_task_registry: Get or create the singleton registry bound to the workspa...
+- IdleTaskRegistry: SQLite-backed task registry with atomic locking for idle tasks.
+- get_idle_task_registry: Get or create the singleton registry bound to the workspace root.
 
 [POS]
 Idle Task Registry for crash-resilient persistence and concurrency control.

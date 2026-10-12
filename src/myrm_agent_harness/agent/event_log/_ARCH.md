@@ -1,7 +1,7 @@
 # event_log/
 
 ## Overview
-Complements Checkpointer with full event history. Optional — omitting
+Complements Checkpointer with full event history. Optional — omitting `event_log_backend` leaves agent behaviour unchanged.
 
 Detailed design: [EVENT_LOG_SYSTEM.md](EVENT_LOG_SYSTEM.md)
 
@@ -9,7 +9,7 @@ Detailed design: [EVENT_LOG_SYSTEM.md](EVENT_LOG_SYSTEM.md)
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| __init__.py | Package | Complements Checkpointer with full event history. Optional — omitting | ✅ |
+| __init__.py | Package | Complements Checkpointer with full event history. Optional — omitting `event_log_backend` leaves agent behaviour unchanged. | ✅ |
 | analytics.py | Core | Designed for separation of concerns: | ✅ |
 | analytics_queries.py | Core | Read-side analytics helpers for ``EventLogger``. | ✅ |
 | cli_summary.py | Core | Provides generate_cli_summary. | ✅ |
