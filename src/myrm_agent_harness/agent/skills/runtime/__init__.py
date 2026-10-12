@@ -5,7 +5,7 @@
 - catalog_display: 内联/隐藏技能 SSOT
 - skill_catalog_delivery: strip/reinject catalog on first HumanMessage
 - attenuator: 信任衰减器
-- loader: SKILL.md 文档加载器
+- trap_injection: 技能文档尾部 Known Pitfalls 注入
 - command_paths: 技能命令路径重写与技能脚本检测
 """
 
@@ -21,7 +21,6 @@ from .command_paths import (
     detect_skill_script_command,
     rewrite_skill_paths,
 )
-from .loader import SkillMdLoader, skill_md_loader
 from .registry import SkillRegistry, get_metadata_summary, skill_registry
 from .skill_catalog_delivery import (
     build_bound_skills_block,
@@ -35,7 +34,6 @@ __all__ = [
     "SKILL_SELECT_INLINE_MAX",
     "AttenuationResult",
     "CatalogDisplayResolution",
-    "SkillMdLoader",
     "SkillRegistry",
     "attenuate_tools",
     "build_bound_skills_block",
@@ -44,7 +42,6 @@ __all__ = [
     "get_metadata_summary",
     "resolve_catalog_display_skills",
     "rewrite_skill_paths",
-    "skill_md_loader",
     "skill_registry",
     "strip_catalog_blocks",
 ]

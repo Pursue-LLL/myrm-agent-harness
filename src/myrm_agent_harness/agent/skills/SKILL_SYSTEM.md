@@ -66,7 +66,7 @@
 | `SkillWriteBackend` Protocol | `backends/skills/creation_protocols.py` | **保留**，作为技能写入抽象层（save/delete） |
 | `SkillMetadata` 数据类 | `backends/skills/types.py`（aggregate；定义见 `types_metadata.py` 等） | **已实现** trust、requires、tool 条件激活等字段 |
 | `SkillRegistry` | `agent/skills/runtime/registry.py` | **增强**，集成信任模型和状态管理 |
-| `SkillMdLoader` | `agent/skills/runtime/loader.py` | **保留**，三级 Fallback + LRU 缓存已完善 |
+| `trap_injection` | `agent/skills/runtime/trap_injection.py` | **保留**，技能文档加载时按 trap 记录在尾部追加 Known Pitfalls（保护 prompt 缓存前缀）；SKILL.md 读取走 `meta_tools/skills/select/skill_document_loader.py` |
 | `get_metadata_summary()` | `agent/skills/runtime/registry.py` | **升级**，改为安全 XML 摘要格式 |
 | `LocalSkillBackend` | `backends/skills/local.py` | **保留**，映射为 builtin 层（Trusted） |
 | `StorageSkillBackend` | `backends/skills/storage.py` | **保留**，映射为 workspace 层（Trusted） |
@@ -298,7 +298,7 @@ Level 3: 资源（Resources）
 
 ### 4.4 缓存策略
 
-现有 `SkillMdLoader` 已实现 LRU 缓存 + 三级 Fallback + 可观测性，**无需修改**。
+SKILL.md 由 `skill_document_loader.get_skill_document()` 按次从 backend 读取，没有加载器层缓存；读取失败返回错误提示文档，不生成降级文档。Known Pitfalls 以尾部追加方式注入，已加载内容的前缀字节不变，**无需修改**。
 
 ---
 
@@ -966,7 +966,7 @@ STATIC_SKILL_SLUGS: list[str] = [
 | 存储后端 | `backends/skills/storage.py` | **无需修改** |
 | 组合后端 | `backends/skills/composite.py` | **无需修改** |
 | 技能注册表 | `agent/skills/runtime/registry.py` | 需增强（集成信任模型和状态管理） |
-| 文档加载器 | `agent/skills/runtime/loader.py` | **无需修改** |
+| 文档加载 | `agent/meta_tools/skills/select/skill_document_loader.py` | **无需修改**（Known Pitfalls 注入见 `agent/skills/runtime/trap_injection.py`） |
 | 元数据摘要 | `agent/skills/runtime/registry.py::get_metadata_summary` | 需升级为安全 XML 格式 |
 | 信任衰减器 | — | **新增** `agent/skills/security/attenuation.py` |
 | 安全扫描器 | — | **新增** `agent/skills/security/scanner.py` |
@@ -1061,7 +1061,7 @@ STATIC_SKILL_SLUGS: list[str] = [
 ### 5. 无技术债
 
 - 从零设计，无向后兼容包袱
-- 保留现有优秀设计（Protocol 抽象层、三级 Fallback、LRU 缓存）
+- 保留现有优秀设计（Protocol 抽象层）
 - 新增模块遵循现有架构风格
 - 所有设计决策有明确理由和来源
 

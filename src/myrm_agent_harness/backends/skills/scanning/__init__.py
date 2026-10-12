@@ -68,7 +68,6 @@ from myrm_agent_harness.backends.skills.scanning.scanner import (
     ScanFinding,
     ScanResult,
     ScanSeverity,
-    SkillTrustRecommendation,
     compute_scan_summary,
     format_scan_report,
     scan_skill_content,
@@ -77,7 +76,6 @@ from myrm_agent_harness.backends.skills.scanning.scanner import (
 from myrm_agent_harness.backends.skills.scanning.scanning_write_backend import (
     _MAX_RESOURCE_SIZE,
     ScanningSkillWriteBackend,
-    SkillLoaderCacheInvalidator,
     _validate_resource_path,
 )
 from myrm_agent_harness.backends.skills.scanning.security_advisories import (
@@ -92,6 +90,7 @@ from myrm_agent_harness.backends.skills.scanning.vuln_cache import (
     get_vuln_cache,
 )
 from myrm_agent_harness.backends.skills.scanning.zip_extract import safe_extract_zip
+from myrm_agent_harness.backends.skills.types.types_enums import SkillTrustRecommendation
 
 __all__ = [
     "AdvisoryAck",
@@ -148,7 +147,6 @@ __all__ = [
     "scan_skill_content",
     "scan_skill_directory",
     "ScanningSkillWriteBackend",
-    "SkillLoaderCacheInvalidator",
     "_MAX_RESOURCE_SIZE",
     "_validate_resource_path",
 ]

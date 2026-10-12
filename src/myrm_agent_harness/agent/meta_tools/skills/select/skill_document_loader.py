@@ -129,11 +129,14 @@ async def get_skill_document(
 
     skill_doc = await _resolve_dynamic_context(skill_doc)
     skill_doc = _check_load_time_safety(skill_meta.name, skill_doc)
-    skill_doc = _inject_traps_if_available(skill_meta.name, skill_doc)
 
+    # Lazy: skills.runtime imports meta_tools constants, so a module-level import would cycle.
     from myrm_agent_harness.agent.meta_tools.skills.select.l1_disclosure_footer import (
         build_l1_disclosure_footer,
     )
+    from myrm_agent_harness.agent.skills.runtime.trap_injection import inject_traps
+
+    skill_doc = inject_traps(skill_meta.name, skill_doc)
 
     footer = await build_l1_disclosure_footer(skill_meta, skill_backend, skill_instance)
     if footer:
@@ -175,15 +178,6 @@ async def get_skill_file(skill_meta: SkillMetadata, skill_backend: SkillBackend,
     except Exception as e:
         logger.warning("Failed to read skill file '%s/%s': %s", skill_meta.name, file_path, e)
         return None
-
-
-def _inject_traps_if_available(skill_name: str, content: str) -> str:
-    try:
-        from myrm_agent_harness.agent.skills.runtime.loader import skill_md_loader
-
-        return skill_md_loader._apply_trap_injection(skill_name, content)
-    except Exception:
-        return content
 
 
 def _check_load_time_safety(skill_name: str, content: str) -> str:

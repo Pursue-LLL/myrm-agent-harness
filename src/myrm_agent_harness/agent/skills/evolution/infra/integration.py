@@ -299,16 +299,16 @@ class EvolutionIntegration:
         logger.info("Evolution strategy updated to '%s'", value)
 
     def _register_trap_lookup(self) -> None:
-        """Register trap lookup callback with SkillMdLoader for runtime injection."""
+        """Register the trap lookup callback used to append Known Pitfalls when a skill document loads."""
         try:
-            from myrm_agent_harness.agent.skills.runtime.loader import skill_md_loader
+            from myrm_agent_harness.agent.skills.runtime.trap_injection import set_trap_lookup
 
             def _lookup_traps(skill_name: str) -> list[dict[str, Any]]:
                 record = self.store.get_skill_by_name_version(skill_name)
                 return record.traps if record else []
 
-            skill_md_loader.set_trap_lookup(_lookup_traps)
-            logger.debug("Trap lookup registered with SkillMdLoader")
+            set_trap_lookup(_lookup_traps)
+            logger.debug("Trap lookup registered for skill document loading")
         except Exception as e:
             logger.debug("Failed to register trap lookup (non-fatal): %s", e)
 

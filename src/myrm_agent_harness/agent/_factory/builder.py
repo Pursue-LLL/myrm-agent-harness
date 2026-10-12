@@ -80,7 +80,7 @@ async def create_skill_agent(
     safety_fallback_llm: BaseChatModel | None = None,
     escalation_target_llm: BaseChatModel | None = None,
     embedding_config=None,
-    checkpointer: BaseCheckpointSaver | None | bool = True,
+    checkpointer: BaseCheckpointSaver | bool | None = True,
     privacy_routing_config: PrivacyRoutingConfig | None = None,
     event_log_backend: EventLogBackend | None = None,
     trusted_skill_ids: list[str] | None = None,
@@ -302,11 +302,6 @@ async def create_skill_agent(
             final_skill_backend = CompositeSkillBackend(routes=routes)
             logger.info(" 合并 MCP Skills + 用户 Skills（CompositeSkillBackend）")
 
-    if final_skill_backend is not None:
-        from myrm_agent_harness.agent.skills.runtime.loader import skill_md_loader
-
-        skill_md_loader.set_backend(final_skill_backend)
-
     from myrm_agent_harness.agent.types import AgentRuntimeConfig, EngineParams
 
     engine_params_dict = spec.engine_params or {}
@@ -373,7 +368,6 @@ async def create_skill_agent(
 
     final_write_backend: ScanningSkillWriteBackend | None = None
     if write_backend is not None:
-        from myrm_agent_harness.agent.skills.runtime.loader import skill_md_loader
         from myrm_agent_harness.backends.skills.scanning import (
             ScanningSkillWriteBackend,
         )
@@ -390,7 +384,6 @@ async def create_skill_agent(
 
         final_write_backend = ScanningSkillWriteBackend(
             inner=write_backend,
-            loader=skill_md_loader,
             llm_auditor=llm_auditor_instance,
         )
         logger.info(" ScanningSkillWriteBackend 已启用（强制安全扫描）")

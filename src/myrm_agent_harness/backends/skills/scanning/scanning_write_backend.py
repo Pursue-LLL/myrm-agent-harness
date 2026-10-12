@@ -3,7 +3,7 @@
 [INPUT]
 - creation_protocols::SkillWriteBackend (POS: Skill write-backend protocol)
 - scanning.scanner::scan_skill_content (POS: Skill content security scanner)
-- scanning.types_enums::SkillTrustRecommendation (POS: Skill trust classification)
+- types.types_enums::SkillTrustRecommendation (POS: Skill trust classification)
 - scanning.llm_auditor::SkillLLMAuditor (POS: Optional LLM semantic audit layer)
 
 [OUTPUT]
@@ -16,15 +16,14 @@ Wraps the actual backend and enforces:
 2. Optional LLM semantic audit (only-escalate: can raise severity, never lower)
 3. REJECT-level findings block the write entirely
 4. Scan report is attached to the result for Agent self-correction
-5. Loader cache invalidation after successful writes/deletes
-6. Path traversal protection for resource file operations
+5. Path traversal protection for resource file operations
 """
 
 from __future__ import annotations
 
 import logging
 import posixpath
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING
 
 from myrm_agent_harness.backends.skills.creation_protocols import (
     SkillDeleteResult,
@@ -33,21 +32,15 @@ from myrm_agent_harness.backends.skills.creation_protocols import (
     SkillWriteBackend,
 )
 from myrm_agent_harness.backends.skills.scanning.scanner import (
-    SkillTrustRecommendation,
     format_scan_report,
     scan_skill_content,
 )
+from myrm_agent_harness.backends.skills.types.types_enums import SkillTrustRecommendation
 
 if TYPE_CHECKING:
     from myrm_agent_harness.backends.skills.scanning.llm_auditor import SkillLLMAuditor
 
 logger = logging.getLogger(__name__)
-
-
-class SkillLoaderCacheInvalidator(Protocol):
-    """Minimal loader surface for post-write cache invalidation."""
-
-    def invalidate_skill(self, skill_name: str) -> None: ...
 
 
 class ScanningSkillWriteBackend:
@@ -70,11 +63,9 @@ class ScanningSkillWriteBackend:
     def __init__(
         self,
         inner: SkillWriteBackend,
-        loader: SkillLoaderCacheInvalidator | None = None,
         llm_auditor: SkillLLMAuditor | None = None,
     ) -> None:
         self._inner = inner
-        self._loader = loader
         self._llm_auditor = llm_auditor
 
     async def save_skill(
@@ -92,7 +83,6 @@ class ScanningSkillWriteBackend:
         3. If REJECT → return failure with scan report
         4. If UNTRUSTED/INSTALLED/TRUSTED → delegate to inner backend
         5. Attach scan report to result
-        6. Invalidate loader cache on success
         """
         scan_result = scan_skill_content(name, content)
 
@@ -129,10 +119,8 @@ class ScanningSkillWriteBackend:
                 scan_report=report,
             )
 
-        if result.success:
-            self._invalidate_cache(name)
-            if not scan_result.is_clean:
-                logger.warning("Skill '%s' saved with findings: %s", name, scan_result.summary)
+        if result.success and not scan_result.is_clean:
+            logger.warning("Skill '%s' saved with findings: %s", name, scan_result.summary)
 
         return SkillSaveResult(
             success=result.success,
@@ -149,17 +137,12 @@ class ScanningSkillWriteBackend:
         name: str,
         user_id: str,
     ) -> SkillDeleteResult:
-        """Delete skill and invalidate cache."""
+        """Delete skill."""
         try:
-            result = await self._inner.delete_skill(name=name, user_id=user_id)
+            return await self._inner.delete_skill(name=name, user_id=user_id)
         except Exception as e:
             logger.error("Failed to delete skill '%s': %s", name, e)
             return SkillDeleteResult(success=False, skill_name=name, error="Storage error")
-
-        if result.success:
-            self._invalidate_cache(name)
-
-        return result
 
     async def write_resource(
         self,
@@ -176,7 +159,6 @@ class ScanningSkillWriteBackend:
         3. Scan content for security threats
         4. If REJECT → block the write
         5. Delegate to inner backend
-        6. Invalidate loader cache on success
         """
         path_error = _validate_resource_path(resource_path)
         if path_error:
@@ -231,9 +213,6 @@ class ScanningSkillWriteBackend:
                 scan_report=report,
             )
 
-        if result.success:
-            self._invalidate_cache(skill_name)
-
         return SkillResourceWriteResult(
             success=result.success,
             skill_name=result.skill_name,
@@ -259,7 +238,7 @@ class ScanningSkillWriteBackend:
             )
 
         try:
-            result = await self._inner.delete_resource(
+            return await self._inner.delete_resource(
                 skill_name=skill_name,
                 resource_path=resource_path,
                 user_id=user_id,
@@ -272,17 +251,6 @@ class ScanningSkillWriteBackend:
                 resource_path=resource_path,
                 error=f"Storage error: {e}",
             )
-
-        if result.success:
-            self._invalidate_cache(skill_name)
-
-        return result
-
-    def _invalidate_cache(self, skill_name: str) -> None:
-        """Invalidate loader cache for the modified skill."""
-        if self._loader is not None:
-            self._loader.invalidate_skill(skill_name)
-            logger.debug("Invalidated loader cache for skill '%s'", skill_name)
 
 
 # ---------------------------------------------------------------------------

@@ -777,36 +777,20 @@ class TestScanningSkillWriteBackend:
         assert "clean" in result.scan_report.lower()
 
     @pytest.mark.asyncio
-    async def test_cache_invalidation_on_save(self) -> None:
-        from unittest.mock import AsyncMock, MagicMock
-
-        from myrm_agent_harness.backends.skills.creation_protocols import SkillSaveResult
-        from myrm_agent_harness.backends.skills.scanning import ScanningSkillWriteBackend
-
-        mock_inner = AsyncMock()
-        mock_inner.save_skill.return_value = SkillSaveResult(success=True, skill_name="test")
-
-        mock_loader = MagicMock()
-        backend = ScanningSkillWriteBackend(inner=mock_inner, loader=mock_loader)
-
-        await backend.save_skill(name="test", content="# Safe", user_id="user1")
-        mock_loader.invalidate_skill.assert_called_once_with("test")
-
-    @pytest.mark.asyncio
-    async def test_cache_invalidation_on_delete(self) -> None:
-        from unittest.mock import AsyncMock, MagicMock
+    async def test_delete_success_returns_inner_result(self) -> None:
+        from unittest.mock import AsyncMock
 
         from myrm_agent_harness.backends.skills.creation_protocols import SkillDeleteResult
         from myrm_agent_harness.backends.skills.scanning import ScanningSkillWriteBackend
 
         mock_inner = AsyncMock()
         mock_inner.delete_skill.return_value = SkillDeleteResult(success=True, skill_name="test")
+        backend = ScanningSkillWriteBackend(inner=mock_inner)
 
-        mock_loader = MagicMock()
-        backend = ScanningSkillWriteBackend(inner=mock_inner, loader=mock_loader)
+        result = await backend.delete_skill(name="test", user_id="user1")
 
-        await backend.delete_skill(name="test", user_id="user1")
-        mock_loader.invalidate_skill.assert_called_once_with("test")
+        assert result.success is True
+        mock_inner.delete_skill.assert_called_once_with(name="test", user_id="user1")
 
     @pytest.mark.asyncio
     async def test_inner_save_failure_propagates(self) -> None:
@@ -920,8 +904,8 @@ class TestScanningSkillWriteBackend:
         mock_inner.write_resource.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_write_resource_success_with_cache_invalidation(self) -> None:
-        from unittest.mock import AsyncMock, MagicMock
+    async def test_write_resource_success(self) -> None:
+        from unittest.mock import AsyncMock
 
         from myrm_agent_harness.backends.skills.creation_protocols import SkillResourceWriteResult
         from myrm_agent_harness.backends.skills.scanning import ScanningSkillWriteBackend
@@ -932,8 +916,7 @@ class TestScanningSkillWriteBackend:
             skill_name="test",
             resource_path="scripts/run.py",
         )
-        mock_loader = MagicMock()
-        backend = ScanningSkillWriteBackend(inner=mock_inner, loader=mock_loader)
+        backend = ScanningSkillWriteBackend(inner=mock_inner)
 
         result = await backend.write_resource(
             skill_name="test",
@@ -944,7 +927,6 @@ class TestScanningSkillWriteBackend:
         assert result.success is True
         assert result.scan_report != ""
         mock_inner.write_resource.assert_called_once()
-        mock_loader.invalidate_skill.assert_called_once_with("test")
 
     @pytest.mark.asyncio
     async def test_write_resource_inner_failure(self) -> None:
@@ -988,8 +970,8 @@ class TestScanningSkillWriteBackend:
         mock_inner.delete_resource.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_delete_resource_success_with_cache_invalidation(self) -> None:
-        from unittest.mock import AsyncMock, MagicMock
+    async def test_delete_resource_success(self) -> None:
+        from unittest.mock import AsyncMock
 
         from myrm_agent_harness.backends.skills.creation_protocols import SkillResourceWriteResult
         from myrm_agent_harness.backends.skills.scanning import ScanningSkillWriteBackend
@@ -1000,8 +982,7 @@ class TestScanningSkillWriteBackend:
             skill_name="test",
             resource_path="scripts/old.py",
         )
-        mock_loader = MagicMock()
-        backend = ScanningSkillWriteBackend(inner=mock_inner, loader=mock_loader)
+        backend = ScanningSkillWriteBackend(inner=mock_inner)
 
         result = await backend.delete_resource(
             skill_name="test",
@@ -1010,7 +991,6 @@ class TestScanningSkillWriteBackend:
         )
         assert result.success is True
         mock_inner.delete_resource.assert_called_once()
-        mock_loader.invalidate_skill.assert_called_once_with("test")
 
     @pytest.mark.asyncio
     async def test_delete_resource_inner_failure(self) -> None:
