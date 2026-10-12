@@ -351,6 +351,24 @@ class TestGrepEdgeCases:
         # 应该正常返回（没有匹配）
         assert isinstance(result, str)
 
+    @pytest.mark.parametrize("has_ripgrep", [True, False])
+    async def test_quote_and_dash_patterns_are_literal(self, test_workspace, has_ripgrep):
+        """A quote or leading dash in the pattern is data, never shell syntax or an option."""
+        workspace = Path(test_workspace)
+        (workspace / "quoted.txt").write_text("it's -dash here\n")
+        marker = workspace / "injected"
+        executor = LocalExecutor(ExecutionConfig(workspace_path=test_workspace), test_workspace)
+        executor._has_ripgrep = has_ripgrep
+
+        quoted = await executor.grep("it's")
+        dashed = await executor.grep("-dash")
+        injected = await executor.grep(f"x'; touch {marker}; echo '")
+
+        assert "it's -dash here" in quoted
+        assert "it's -dash here" in dashed
+        assert injected == ""
+        assert not marker.exists()
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

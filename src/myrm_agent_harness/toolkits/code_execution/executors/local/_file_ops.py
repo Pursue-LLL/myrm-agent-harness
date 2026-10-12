@@ -21,6 +21,7 @@ the shell pre-flight.
 from __future__ import annotations
 
 import logging
+import shlex
 import time
 from pathlib import Path
 from typing import Protocol, runtime_checkable
@@ -312,20 +313,13 @@ class LocalFileOpsMixin:
             if not case_sensitive:
                 flags.append("--ignore-case")
 
-            flags_str = " ".join(flags)
             result = await self._exec_bash(  # type: ignore[attr-defined]
-                f"rg {flags_str} '{pattern}' '{safe}' 2>/dev/null || true"
+                f"rg {' '.join(flags)} -e {shlex.quote(pattern)} -- {shlex.quote(str(safe))} 2>/dev/null || true"
             )
         else:
-            flags = ["-rn"]
-            if not use_regex:
-                flags.append("F")
-            if not case_sensitive:
-                flags.append("i")
-
-            flags_str = "-" + "".join(flags)
+            flags = "-rn" + ("" if use_regex else "F") + ("" if case_sensitive else "i")
             result = await self._exec_bash(  # type: ignore[attr-defined]
-                f"grep {flags_str} '{pattern}' '{safe}' || true"
+                f"grep {flags} -e {shlex.quote(pattern)} -- {shlex.quote(str(safe))} || true"
             )
 
         elapsed = time.time() - start

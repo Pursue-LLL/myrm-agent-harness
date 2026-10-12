@@ -18,6 +18,7 @@ import shutil
 import sys
 
 import pytest
+from pydantic import ValidationError
 
 from myrm_agent_harness.toolkits.acp.acp_agent_tools import (
     create_invoke_acp_agent_tool,
@@ -323,15 +324,13 @@ class TestRuntimePoolReal:
         return pool
 
     @pytest.mark.asyncio
-    async def test_pool_mcp_env_reaches_child_process(self) -> None:
-        """Per-call mcp_servers env must reach a real child process over the pool."""
-        bridge = (
-            "import sys,json;"
-            "line=sys.stdin.readline();"
-            "p=json.loads(line);"
-            "envs=[(s.get('name'),s.get('env')) for s in p.get('mcp_servers',[])];"
-            "print(json.dumps({'type':'text','text':json.dumps(envs)}),flush=True)"
-        )
+    @pytest.mark.parametrize("per_call", [True, False], ids=["per-call", "from-config"])
+    async def test_pool_skips_mcp_for_cli_backend_and_still_runs_the_turn(
+        self, per_call: bool, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A CLI backend cannot take session-level MCP: the pool warns, drops it, and the child still answers."""
+        server = McpServerConfig(name="search", command="node", args=["server.js"], env={"MCP_TOKEN": "secret"})
+        bridge = "print('ran', flush=True)"
         pool = RuntimePool(max_concurrent=1)
         pool.register(
             "cli-bridge",
@@ -341,70 +340,26 @@ class TestRuntimePoolReal:
                 args=["-c", bridge],
                 timeout_seconds=30,
                 max_turns=1,
+                mcp_servers=[] if per_call else [server],
             ),
         )
         try:
-            events = [
-                e
-                async for e in pool.run_turn(
-                    "cli-bridge",
-                    "hello",
-                    "pool-cli-env-s1",
-                    mcp_servers=[
-                        McpServerConfig(
-                            name="search",
-                            command="node",
-                            args=["server.js"],
-                            env={"MCP_TOKEN": "secret"},
-                        )
-                    ],
-                )
-            ]
-            text = "".join(
-                e.data["content"]
-                for e in events
-                if e.type == RuntimeEventType.TEXT_DELTA and isinstance(e.data.get("content"), str)
-            )
-            assert '"MCP_TOKEN": "secret"' in text
-        finally:
-            await pool.close_all()
-
-    @pytest.mark.asyncio
-    async def test_pool_mcp_forwarded_from_config_mcp_servers(self) -> None:
-        """RuntimeConfig.mcp_servers must flow to the child when no per-call servers."""
-        bridge = (
-            "import sys,json;"
-            "line=sys.stdin.readline();"
-            "p=json.loads(line);"
-            "envs=[(s.get('name'),s.get('env')) for s in p.get('mcp_servers',[])];"
-            "print(json.dumps({'type':'text','text':json.dumps(envs)}),flush=True)"
-        )
-        pool = RuntimePool(max_concurrent=1)
-        pool.register(
-            "cli-cfg-mcp",
-            RuntimeConfig(
-                backend_type="cli",
-                command=sys.executable,
-                args=["-c", bridge],
-                timeout_seconds=30,
-                max_turns=1,
-                mcp_servers=[
-                    McpServerConfig(
-                        name="cfg-mcp",
-                        command="node",
-                        env={"CFG_TOKEN": "cfg-value"},
+            with caplog.at_level("WARNING"):
+                events = [
+                    e
+                    async for e in pool.run_turn(
+                        "cli-bridge", "hello", "pool-cli-mcp-s1", mcp_servers=[server] if per_call else None
                     )
-                ],
-            ),
-        )
-        try:
-            events = [e async for e in pool.run_turn("cli-cfg-mcp", "hello", "pool-cli-cfg-s1")]
+                ]
             text = "".join(
                 e.data["content"]
                 for e in events
                 if e.type == RuntimeEventType.TEXT_DELTA and isinstance(e.data.get("content"), str)
             )
-            assert '"CFG_TOKEN": "cfg-value"' in text
+            assert "ran" in text
+            assert any(
+                "pool_mcp_skipped" in r.getMessage() and "reason=unsupported" in r.getMessage() for r in caplog.records
+            )
         finally:
             await pool.close_all()
 
@@ -555,7 +510,7 @@ class TestDelegateToolReal:
                 backend_type="cli",
                 command="codex",
                 args=["exec", "--json", "-p"],
-                    permission_mode="allow_all",
+                permission_mode="allow_all",
                 timeout_seconds=TIMEOUT,
                 max_turns=1,
                 description="Codex CLI",
@@ -587,9 +542,8 @@ class TestDelegateToolReal:
             RuntimeConfig(backend_type="cli", command="echo"),
         )
         tool_func = create_invoke_acp_agent_tool(pool, cwd=os.getcwd())
-        result = await tool_func.ainvoke({"agent_name": "dummy", "task": "hello", "mode": "bad_mode"})
-        assert "[error]" in result
-        assert "Invalid mode" in result
+        with pytest.raises(ValidationError, match="persistent"):
+            await tool_func.ainvoke({"agent_name": "dummy", "task": "hello", "mode": "bad_mode"})
 
     @pytest.mark.asyncio
     async def test_delegate_task_too_large(self) -> None:
