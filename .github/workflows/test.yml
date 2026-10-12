@@ -79,4 +79,4 @@ jobs:
       - name: Run browser integration tests
         run: >-
           uv run --no-sync pytest -n0 -v -rfE --tb=short tests/
-          -m "integration or e2e" --timeout=300 --timeout-method=thread
+          -m "integration or e2e" --timeout=300 --timeout-method=thread -o faulthandler_timeout=240
