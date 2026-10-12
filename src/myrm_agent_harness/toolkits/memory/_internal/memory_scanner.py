@@ -16,6 +16,7 @@ Processing tiers:
 [INPUT]
 - core.security.persistence.content_scan::scan_persistable_content (POS: Persistence-scan SSOT — injection / harmful-state / PII-pseudonymize / leak / boundary verdicts.)
 - core.security.persistence.content_scan::set_pii_pseudonymizer (POS: Context-local regex PII pseudonymization closure, inherited by fire-and-forget tasks.)
+- core.security.redact::redact_sensitive_text (POS: Credential redaction applied to log snippets of memories dropped as BLOCKED.)
 
 [OUTPUT]
 - scan_memory_content(): scan text, return ScanVerdict + cleaned text
@@ -53,6 +54,7 @@ from myrm_agent_harness.core.security.persistence.content_scan import (
 from myrm_agent_harness.core.security.persistence.content_scan import (
     set_pii_pseudonymizer as _set_core_pii_pseudonymizer,
 )
+from myrm_agent_harness.core.security.redact import redact_sensitive_text
 
 logger = logging.getLogger(__name__)
 
@@ -181,10 +183,11 @@ def _handle_blocked_verdict(result: ScanResult, content: str) -> ScanResult:
         # Background writes have no runnable graph context to suspend for
         # approval; degrade to the user-denied rejection path so the batch
         # scanner drops only this memory instead of losing the whole batch.
+        # A BLOCKED text is not credential-redacted by the scan, so redact before truncating the snippet.
         logger.warning(
             "[MEMORY_SCAN] BLOCKED memory dropped in background write (no approval channel): %s snippet=%.100s",
             reason,
-            content,
+            redact_sensitive_text(content),
         )
         if result.harmful_state_patterns:
             raise MemoryTaintedError(1.0, result.harmful_state_patterns)

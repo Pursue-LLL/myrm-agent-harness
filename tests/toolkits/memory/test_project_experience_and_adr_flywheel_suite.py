@@ -23,7 +23,6 @@ from myrm_agent_harness.toolkits.memory.experience_flywheel import (
     MinefieldPreSniffingGuard,
 )
 from myrm_agent_harness.toolkits.memory.project_dongle import (
-    DongleBlockType,
     ProjectContextDongleManager,
 )
 

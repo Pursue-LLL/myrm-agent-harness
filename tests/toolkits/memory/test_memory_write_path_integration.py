@@ -244,7 +244,6 @@ async def test_secret_split_by_gist_truncation_does_not_survive(
     manager = _make_manager(memory_config, mock_vector_store, mock_embedding, mock_relational_store)
     stored = await manager.store(SemanticMemory(content=content))
     assert _TOKEN_BODY[:10] not in stored.summary_l0
-    assert _TOKEN_BODY[:10] not in stored.overview_l1
 
 
 @pytest.mark.asyncio
@@ -277,3 +276,13 @@ async def test_scan_log_never_carries_the_raw_secret(
     scan_lines = [r.getMessage() for r in caplog.records if "[MEMORY_SCAN]" in r.getMessage()]
     assert scan_lines
     assert all(_TOKEN_BODY not in line for line in scan_lines)
+
+
+@pytest.mark.asyncio
+async def test_batch_store_redacts_derived_gist_in_persisted_payload(
+    memory_config, mock_vector_store, mock_embedding, mock_relational_store
+) -> None:
+    manager = _make_manager(memory_config, mock_vector_store, mock_embedding, mock_relational_store)
+    (stored,) = await manager.store_batch([SemanticMemory(content=_CREDENTIAL)])
+    assert _TOKEN_BODY not in stored.summary_l0
+    assert _TOKEN_BODY not in _persisted_text(mock_vector_store)

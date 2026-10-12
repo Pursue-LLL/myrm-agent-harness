@@ -423,6 +423,7 @@ def scan_and_clean_memory(memory: object, *, block_threshold: float = 0.8) -> Sc
     - content (all memory types)
     - raw_exchange (ConversationMemory)
     - trigger/action (ProceduralMemory)
+    - summary_l0/overview_l1 (all memory types)
     """
 ```
 
@@ -444,6 +445,7 @@ def scan_and_clean_memory(memory: object, *, block_threshold: float = 0.8) -> Sc
 
 - 所有扫描结果记录到 `ScanMetrics`（total_scans, blocked, redacted, warned）
 - 安全决策记录到 audit trail（`agent.security.audit`）
+- 扫描告警日志不输出凭证原文：写入链路记录清洗后的内容片段；后台写入中被丢弃的 BLOCKED 记忆（扫描不对其脱敏）先经 `redact_sensitive_text` 再截断
 - 生产环境可通过 `/api/v1/health/metrics` 监控扫描统计
 
 **覆盖范围：**
@@ -453,11 +455,14 @@ def scan_and_clean_memory(memory: object, *, block_threshold: float = 0.8) -> Sc
 | content        | ✅       | 所有记忆类型的主要内容字段                |
 | raw_exchange   | ✅       | ConversationMemory的verbatim原始对话；`User:`/`Assistant:` 结构标签不参与注入检测，正文分段扫描 |
 | trigger/action | ✅       | ProceduralMemory的行为规则字段            |
+| summary_l0 / overview_l1 | ✅ | 所有记忆类型的内容摘要；是 `content` 前缀时按清洗后的 `content` 重新生成（截断位置落在凭证中间时不会残留片段，也不会为同一条内容重复触发审批），由写入方单独提供时按普通字段扫描 |
 
 **测试覆盖：**
 
 - `test_memory_scanner.py`：覆盖所有verdict路径，含 `test_conversation_memory_raw_exchange_*` 验证raw_exchange扫描
 - `test_memory_scanner_exchange.py`：`TestConversationExchangeScan` 验证分块器布局的 exchange（结构标签不误报、回复内真实伪造角色行仍告警、凭证脱敏保持布局）
+- `test_memory_scanner_gists.py`：摘要字段的两条路径——前缀随清洗后的内容重新生成（含截断落在凭证中间）、独立摘要按普通字段扫描；已批准的 BLOCKED 内容只审批一次
+- `test_memory_write_path_integration.py`：真实 MemoryManager 写入链路下，凭证不进入摘要字段、向量库 payload 与扫描日志
 
 ---
 

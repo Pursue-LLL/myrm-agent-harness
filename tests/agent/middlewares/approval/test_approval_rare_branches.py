@@ -37,12 +37,8 @@ class _Runtime:
     pass
 
 
-def _tc(
-    name: str = "bash_code_execute_tool", args: dict | None = None, tc_id: str = "tc1"
-) -> ToolCall:
-    return ToolCall(
-        type="tool_call", name=name, args=args or {"command": "ls"}, id=tc_id
-    )
+def _tc(name: str = "bash_code_execute_tool", args: dict | None = None, tc_id: str = "tc1") -> ToolCall:
+    return ToolCall(type="tool_call", name=name, args=args or {"command": "ls"}, id=tc_id)
 
 
 @pytest.fixture(autouse=True)
@@ -65,37 +61,24 @@ def _approval_rare_isolation() -> None:
 
 class TestIntegrationMutationBlock:
     def test_non_dict_args_returns_false(self) -> None:
-        assert (
-            _integration_mutation_blocks_allow_always({"args": "not-a-dict"}) is False
-        )
+        assert _integration_mutation_blocks_allow_always({"args": "not-a-dict"}) is False
 
     def test_empty_command_returns_false(self) -> None:
-        assert (
-            _integration_mutation_blocks_allow_always({"args": {"command": "  "}})
-            is False
-        )
+        assert _integration_mutation_blocks_allow_always({"args": {"command": "  "}}) is False
 
     def test_blocks_integration_mutation(self) -> None:
         with patch(
             "myrm_agent_harness.toolkits.code_execution.security.shell_command_analyzer.is_integration_mutation_command",
             return_value=True,
         ):
-            assert (
-                _integration_mutation_blocks_allow_always(
-                    {"args": {"command": "git push"}}
-                )
-                is True
-            )
+            assert _integration_mutation_blocks_allow_always({"args": {"command": "git push"}}) is True
 
     def test_allows_normal_command(self) -> None:
         with patch(
             "myrm_agent_harness.toolkits.code_execution.security.shell_command_analyzer.is_integration_mutation_command",
             return_value=False,
         ):
-            assert (
-                _integration_mutation_blocks_allow_always({"args": {"command": "ls"}})
-                is False
-            )
+            assert _integration_mutation_blocks_allow_always({"args": {"command": "ls"}}) is False
 
 
 class TestShouldBlockAllowAlways:
@@ -136,9 +119,7 @@ class TestShouldBlockAllowAlways:
                 return_value=False,
             ),
         ):
-            assert (
-                _should_block_allow_always({"args": {}}, {"smart_denied": True}) is True
-            )
+            assert _should_block_allow_always({"args": {}}, {"smart_denied": True}) is True
 
     def test_allows_otherwise(self) -> None:
         with (
@@ -155,9 +136,7 @@ class TestShouldBlockAllowAlways:
                 return_value=False,
             ),
         ):
-            assert (
-                _should_block_allow_always({"args": {"command": "ls"}}, None) is False
-            )
+            assert _should_block_allow_always({"args": {"command": "ls"}}, None) is False
 
 
 class TestEditedShellEditBlockReasonNonShell:
@@ -380,9 +359,7 @@ class TestApplyApprovalDecisionsRare:
                 return_value=CommandRiskLevel.UNKNOWN,
             ),
         ):
-            revised, messages, _ = await apply_approval_decisions(
-                decisions, ai_msg, [], pending, [0], {}
-            )
+            revised, messages, _ = await apply_approval_decisions(decisions, ai_msg, [], pending, [0], {})
         assert len(revised) == 0
         assert len(messages) == 1
         assert "requires new approval" in messages[0].content
@@ -425,9 +402,7 @@ class TestApplyApprovalDecisionsRare:
         pending = [(0, tc, "shell_exec", "needs approval", None)]
         decisions = [{"type": "edit"}]
 
-        revised, messages, _ = await apply_approval_decisions(
-            decisions, ai_msg, [], pending, [0], {}
-        )
+        revised, messages, _ = await apply_approval_decisions(decisions, ai_msg, [], pending, [0], {})
         assert len(revised) == 1
         assert revised[0]["args"] == {"command": "ls"}
         assert len(messages) == 0
@@ -497,9 +472,7 @@ class TestMiddlewareRareBranches:
         )
 
         middleware = ToolApprovalMiddleware()
-        runtime = SimpleNamespace(
-            config=SimpleNamespace(security_config=SecurityConfig())
-        )
+        runtime = SimpleNamespace(config=SimpleNamespace(security_config=SecurityConfig()))
         state = {"messages": [AIMessage(content="hi")]}
         result = await middleware.aafter_model(state, runtime)
         assert result is None
@@ -865,9 +838,7 @@ class TestMiddlewareRareBranches:
     @pytest.mark.asyncio
     async def test_correction_hook_decisions_exceed_pending_direct(self) -> None:
         """Direct _fire_correction_hook call with more decisions than pending → break."""
-        tc = _tc(
-            "bash_code_execute_tool", {"command": "python3 setup.py install"}, "tc1"
-        )
+        tc = _tc("bash_code_execute_tool", {"command": "python3 setup.py install"}, "tc1")
         pending = [(0, tc, "shell_exec", "needs approval", None)]
         decisions: list[dict[str, object]] = [
             {"type": "edit", "args": {"command": "echo done"}},
@@ -884,9 +855,7 @@ class TestMiddlewareRareBranches:
         assert [c["tool_name"] for c in payload["corrections"]] == ["bash_code_execute_tool"]
 
     @pytest.mark.asyncio
-    async def test_subagent_fallback_deny_metrics_import_failure(
-        self, monkeypatch
-    ) -> None:
+    async def test_subagent_fallback_deny_metrics_import_failure(self, monkeypatch) -> None:
         """metrics_registry import raising ImportError → fallback continues silently."""
         import sys
 
@@ -918,9 +887,7 @@ class TestMiddlewareRareBranches:
             "myrm_agent_harness.agent.middlewares.approval.middleware.get_is_shadow_agent",
             lambda: False,
         )
-        monkeypatch.setitem(
-            sys.modules, "myrm_agent_harness.observability.metrics.registry", None
-        )
+        monkeypatch.setitem(sys.modules, "myrm_agent_harness.observability.metrics.registry", None)
         middleware = ToolApprovalMiddleware()
         state = {
             "messages": [
@@ -1027,11 +994,7 @@ async def test_irreversible_social_action_blocks_allowlist_bypass() -> None:
             command_pattern="git *",
         ),
     )
-    config = SecurityConfig(
-        ruleset=(
-            PermissionRule("*", "*", PermissionAction.ASK),
-        )
-    )
+    config = SecurityConfig(ruleset=(PermissionRule("*", "*", PermissionAction.ASK),))
     tcs = [
         ToolCall(
             type="tool_call",
@@ -1055,10 +1018,6 @@ async def test_irreversible_social_action_blocks_allowlist_bypass() -> None:
     assert pending_approval[0][4].get("hide_allow_always") is True
     assert pending_approval[0][4].get("is_irreversible") is True
     assert pending_approval[0][4].get("socially_irreversible") is True
-
-
-
-
 
 
 def test_session_scoped_denial_persistence() -> None:
@@ -1093,5 +1052,3 @@ def test_session_scoped_denial_persistence() -> None:
     # Switch back to sess_a: breach state must be preserved cross-run!
     set_approval_session(sess_a)
     assert is_threshold_breached() == ThresholdBreach.CONSECUTIVE
-
-
