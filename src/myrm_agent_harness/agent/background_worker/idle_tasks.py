@@ -133,7 +133,7 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
             ticket.ticket_id,
         )
 
-        # 2. Emit UI "Started" event
+        # 2. Emit the initial "working" progress event
         event_bus.publish(
             IdleTaskProgressEvent(
                 session_id=session_id,

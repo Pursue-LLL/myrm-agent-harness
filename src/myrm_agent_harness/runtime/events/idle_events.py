@@ -1,13 +1,13 @@
 """Events related to idle background tasks.
 
 [INPUT]
-- (none)
+- runtime.events.bus::BaseEvent (POS: base class of all runtime events)
 
 [OUTPUT]
-- IdleTaskProgressEvent: Emitted when an idle background task updates its progress...
+- IdleTaskProgressEvent: Structured progress/status of one idle background task (status Literal, task_name, progress_pct, data)
 
 [POS]
-Events related to idle background tasks.
+Idle-task progress event published by the background worker and forwarded by the host (e.g. over SSE) to drive the idle status UI.
 """
 
 from dataclasses import dataclass

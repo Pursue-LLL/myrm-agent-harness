@@ -16,8 +16,17 @@ from myrm_agent_harness.agent._internals.memory_extraction import (
     create_extraction_llm_func,
     persist_extracted_memories,
 )
+from myrm_agent_harness.toolkits.memory.config import AgentMemoryPolicy
+from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 
 _DATA_URL = "data:image/png;base64," + "A" * 200_000
+
+
+def _bare_manager(policy: AgentMemoryPolicy | None) -> MemoryManager:
+    """A real ``MemoryManager`` carrying only a policy, so the ``memory_policy`` property wiring is exercised."""
+    manager = MemoryManager.__new__(MemoryManager)
+    manager._memory_policy = policy
+    return manager
 
 
 class TestAllowsBackgroundLlmExtraction:
@@ -25,13 +34,12 @@ class TestAllowsBackgroundLlmExtraction:
         assert allows_background_llm_extraction(None) is True
 
     def test_manager_without_policy_imposes_no_restriction(self) -> None:
-        manager = MagicMock(spec=[])
+        manager = _bare_manager(None)
         assert allows_background_llm_extraction(manager) is True
 
     @pytest.mark.parametrize("allowed", [True, False])
-    def test_follows_policy_flag(self, allowed: bool) -> None:
-        manager = MagicMock()
-        manager.policy.allow_l3_extraction = allowed
+    def test_follows_policy_flag_of_a_real_manager(self, allowed: bool) -> None:
+        manager = _bare_manager(AgentMemoryPolicy(agent_id="a1", allow_l3_extraction=allowed))
         assert allows_background_llm_extraction(manager) is allowed
 
 

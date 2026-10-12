@@ -17,7 +17,7 @@ def _allows(*, switch: bool, manager: MagicMock | None) -> bool:
 
 def _manager(*, allow_l3_extraction: bool) -> MagicMock:
     manager = MagicMock()
-    manager.policy.allow_l3_extraction = allow_l3_extraction
+    manager.memory_policy.allow_l3_extraction = allow_l3_extraction
     return manager
 
 

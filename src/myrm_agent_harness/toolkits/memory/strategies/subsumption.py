@@ -6,7 +6,10 @@
 - memory.types::MemoryType (POS: memory type enum)
 
 [OUTPUT]
-- run_subsumption: Cognitive erasure strategy (semantic containment judgment and soft-delete)
+- judge_subsumption: LLM semantic-containment judgment for one old memory
+- find_subsumed_memories: Search similar Semantic/Procedural memories and return the IDs the judge deems subsumed
+- apply_subsumption: Soft-delete (DISABLED + metadata status) the subsumed memories
+- undo_subsumption: Restore memories soft-deleted by apply_subsumption
 
 [POS]
 Cognitive consolidation engine. Identifies and safely soft-deletes old semantic memories

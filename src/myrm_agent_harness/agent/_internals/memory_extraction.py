@@ -77,8 +77,10 @@ def allows_background_llm_extraction(memory_manager: MemoryManager | None) -> bo
     A missing manager or policy imposes no restriction. Shared by post-turn extraction and
     idle-time preference derivation so both honor ``allow_l3_extraction``.
     """
-    policy = getattr(memory_manager, "policy", None)
-    return bool(getattr(policy, "allow_l3_extraction", True))
+    if memory_manager is None:
+        return True
+    policy = memory_manager.memory_policy
+    return policy is None or policy.allow_l3_extraction
 
 
 class ExtractionLifecycleObserver(Protocol):
