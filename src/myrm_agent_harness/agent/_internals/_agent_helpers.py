@@ -156,26 +156,6 @@ def schedule_post_run_idle_tasks(merged_context: dict[str, object]) -> None:
 
         _fire_and_forget(registry.enqueue(session_id, "cognitive_consolidation", {}))
         if chat_id:
-            # Trace analysis for skill extraction (CAPTURED evolution) needs the session's event log.
-            from myrm_agent_harness.agent.middlewares._session_context import (
-                get_event_logger,
-            )
-
-            event_logger = get_event_logger()
-            if event_logger is not None:
-                # The registry keeps the earliest pending task and every turn restarts the idle timer, so
-                # ``since`` is what lets one run cover all turns of a burst.
-                _fire_and_forget(
-                    registry.enqueue(
-                        session_id,
-                        "session_evidence_extraction",
-                        {
-                            "chat_id": chat_id,
-                            "agent_id": str(merged_context.get("agent_id", "default")),
-                            "since": event_logger.started_at,
-                        },
-                    )
-                )
             _fire_and_forget(registry.enqueue(session_id, "context_compaction", {"chat_id": chat_id}))
         schedule_idle_task(
             session_id,

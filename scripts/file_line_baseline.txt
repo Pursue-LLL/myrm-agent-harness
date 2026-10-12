@@ -16,7 +16,6 @@ myrm_agent_harness/agent/dynamic_workflow/__init__.py	692
 myrm_agent_harness/agent/dynamic_workflow/tools.py	790
 myrm_agent_harness/agent/errors/diagnostics/engine.py	547
 myrm_agent_harness/agent/event_log/analytics_queries.py	597
-myrm_agent_harness/agent/event_log/logger.py	511
 myrm_agent_harness/agent/file_snapshot/shadow_git_store.py	649
 myrm_agent_harness/agent/goals/continuation.py	656
 myrm_agent_harness/agent/meta_tools/bash/_background/registry.py	541

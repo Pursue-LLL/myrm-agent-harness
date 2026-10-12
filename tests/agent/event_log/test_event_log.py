@@ -244,6 +244,14 @@ class TestEventLogger:
         assert end_count == 1
 
     @pytest.mark.asyncio
+    async def test_close_does_not_re_read_the_log(self, mock_backend: AsyncMock) -> None:
+        """Closing sits on the user-visible path; it must not rescan the chat's accumulated log."""
+        el = EventLogger(mock_backend, "sess-test")
+        await el.start()
+        await el.close()
+        mock_backend.get_events.assert_not_awaited()
+
+    @pytest.mark.asyncio
     async def test_log_after_close_is_noop(self, mock_backend: AsyncMock) -> None:
         el = EventLogger(mock_backend, "sess-test")
         await el.start()

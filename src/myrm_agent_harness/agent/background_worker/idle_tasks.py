@@ -3,7 +3,6 @@
 [INPUT]
 - agent.background_worker.registry::IdleTaskRegistry (POS: Idle Task Registry for crash-resilient persistence and concurrency control.)
 - agent.background_worker.shadow_context (POS: Execution-layer bulkhead isolation for background shadow workloads.)
-- agent.background_worker.session_evidence_task::run_session_evidence_extraction (POS: Built-in handler that mines the session event log for skill-evolution evidence.)
 - agent.skill_agent.context::get_memory_manager (POS: Module-level ContextVar management and background task utilities.)
 - runtime.maintenance.scheduler::get_maintenance_scheduler (POS: Global adaptive maintenance scheduler.)
 - toolkits.memory.cognitive.consolidator::CognitiveConsolidator (POS: Memory toolkit's cognitive consolidation adapter. Forwards consolidation, forgetting, and health checks to the single maintenance core so the system keeps exactly one maintenance path.)
@@ -18,7 +17,7 @@
 - run_pending_idle_tasks: 会话空闲窗口的调度入口，持续执行直到队列清空
 
 [POS]
-空闲维护内置任务层。承载认知巩固、会话证据提炼与上下文压缩等无用户交互期的后台任务，被 idle_worker 调度执行。
+空闲维护内置任务层。承载认知巩固与上下文压缩等无用户交互期的后台任务，被 idle_worker 调度执行。
 """
 
 from __future__ import annotations
@@ -28,7 +27,6 @@ import logging
 from typing import TYPE_CHECKING, Protocol
 
 from myrm_agent_harness.agent.background_worker.registry import IdleTaskRegistry
-from myrm_agent_harness.agent.background_worker.session_evidence_task import run_session_evidence_extraction
 from myrm_agent_harness.agent.background_worker.shadow_context import (
     restricted_shadow_context,
 )
@@ -251,8 +249,6 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                             "skipped": True,
                             "reason": "No MemoryManager or empty new_knowledge",
                         }
-                elif task.task_type == "session_evidence_extraction":
-                    event_data = await run_session_evidence_extraction(task, session_id)
                 elif task.task_type == "context_compaction":
                     event_data = await _run_context_compaction(session_id, task, event_bus)
                 else:

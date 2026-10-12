@@ -448,8 +448,6 @@ async def run_agent_loop(
                 session_id,
                 agent_id=str(merged_context.get("agent_id", "")) or None,
                 task_type=str(merged_context.get("task_type", "")) or None,
-                # The host keys the per-chat backend by chat id, not by the runtime session id.
-                storage_key=str(merged_context.get("chat_id", "")) or None,
             )
             await event_logger.start()
 

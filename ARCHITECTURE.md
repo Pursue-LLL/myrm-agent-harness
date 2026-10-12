@@ -30,7 +30,6 @@ Myrm Agent Harness 是一个**GUI-first 通用 AI 工作助手运行时框架**�
 - 智能上下文管理（Filtering/Compression/Summarization），支持**Prompt 记忆快照与绝对预算锁定 (Strict Prompt Budgeting)**
 - **三域记忆拓扑与渐进式披露 (Memory Domain Mesh)**：记忆按 User / Assistant / Task 三域九类归属，并带 L0 摘要 / L1 概览 / L2 原文三层详略，`memory_search_tool` 默认返回 L1 概览、按 ID 展开 L2 原文；持久化走 SQLite + Qdrant，检索时按 `graph_max_depth`（默认 2）做多跳图扩展
 - Protocol-backed `conversation_search` 历史会话召回工具：框架只处理 DTO、格式化、引用事件，不依赖数据库、Server 或产品身份语义
-- **Trace Evidence & Skill Evolution**：会话结束后从 Event Log 挖掘失败的工具调用，驱动 CAPTURED 技能进化（`session_evidence_extraction` idle 任务）
 - **Smart Concurrency Router**：基于资源指纹和 O(1) 路径互斥判断的智能并发引擎，无论并发读写还是读读，均实现绝对安全的文件级操作调度
 - **Myrm-Guard (AI Diagnostic & Self-Healing)**：主动式熔断、错误脱敏、前端一键修复与 Tool Integrity Guard
 - **动态重规划纠错引擎 (Dynamic Replan Loop)**：拦截工具执行错误并交由 LLM 自我纠错

@@ -8,7 +8,7 @@
 
 1. **Checkpointer 互补**：Checkpointer 保存图状态；EventLog 保存细粒度事件流（tool/llm/token）
 2. **可选注入**：通过 `event_log_backend` 注入 BaseAgent，未配置时零开销
-3. **读侧分析**：analytics / trace_builder 供技能进化 idle 任务消费（失败工具调用来自 `build_trace`）
+3. **读侧分析**：analytics / trace_builder 供会话追踪、统计分析与数据集导出消费
 4. **导出管道**：dataset_export 支持 ShareGPT/Alpaca/OpenAI JSONL + PII 脱敏
 
 ---

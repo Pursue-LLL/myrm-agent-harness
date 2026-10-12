@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import math
 import time
 from typing import TYPE_CHECKING, cast
 
@@ -67,11 +66,6 @@ class EventLogger:
     every event's ``data`` dict with ``_`` prefix to separate framework
     metadata from business payload.  The active OpenTelemetry trace_id
     is captured per-event for cross-system correlation.
-
-    ``session_id`` stamps every event, while ``storage_key`` is the key the backend
-    files this session under (a per-chat backend is keyed by chat id, which differs from
-    the runtime session id); read-backs must use ``storage_key`` and be bounded by ``started_at``
-    because the backend file accumulates every session of the chat.
     """
 
     def __init__(
@@ -82,11 +76,9 @@ class EventLogger:
         user_id: str | None = None,
         agent_id: str | None = None,
         task_type: str | None = None,
-        storage_key: str | None = None,
     ) -> None:
         self._backend = backend
         self._session_id = session_id
-        self._storage_key = storage_key or session_id
         self._user_id = user_id
         self._agent_id = agent_id
         self._task_type = task_type
@@ -97,22 +89,6 @@ class EventLogger:
         self._bg_tasks: set[asyncio.Task[None]] = set()
         self._queue: asyncio.Queue[StructuredEvent | None] = asyncio.Queue()
         self._closed = False
-
-    @property
-    def backend(self) -> EventLogBackend:
-        return self._backend
-
-    @property
-    def storage_key(self) -> str:
-        return self._storage_key
-
-    @property
-    def started_at(self) -> float:
-        """Start time bounding read-backs to this session's events.
-
-        Floored to the millisecond because persisted event timestamps are rounded to milliseconds.
-        """
-        return math.floor(self._summary.start_time * 1000) / 1000
 
     async def start(self) -> None:
         """Emit SESSION_START and launch the background writer."""
