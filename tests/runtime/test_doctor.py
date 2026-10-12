@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import sys
 from unittest.mock import MagicMock, patch
 
@@ -18,7 +19,7 @@ from myrm_agent_harness.toolkits.browser.doctor import CheckStatus, DoctorCheckR
 
 class TestPythonVersionCheck:
     @pytest.mark.asyncio
-    async def test_current_python_passes(self):
+    async def test_current_python_passes(self) -> None:
         result = await Doctor()._check_python()
         assert result.status == CheckStatus.OK
         assert result.name == "python"
@@ -26,16 +27,17 @@ class TestPythonVersionCheck:
         assert version_str in result.message
 
     @pytest.mark.asyncio
-    async def test_old_python_fails(self):
+    async def test_old_python_fails(self) -> None:
         with patch.object(sys, "version_info", (3, 12, 0, "final", 0)):
             result = await Doctor()._check_python()
             assert result.status == CheckStatus.ERROR
+            assert result.fix is not None
             assert "Update to 3.13+" in result.fix
 
 
 class TestPythonEnvironmentIsolationCheck:
     @pytest.mark.asyncio
-    async def test_clean_environment_passes(self):
+    async def test_clean_environment_passes(self) -> None:
         with patch.dict("os.environ", {}, clear=True):
             result = await Doctor()._check_python_environment_isolation()
             assert result.status == CheckStatus.OK
@@ -43,7 +45,7 @@ class TestPythonEnvironmentIsolationCheck:
             assert "Clean Python runtime environment" in result.message
 
     @pytest.mark.asyncio
-    async def test_polluted_environment_warns(self):
+    async def test_polluted_environment_warns(self) -> None:
         with patch.dict("os.environ", {"PYTHONPATH": "/opt/host/site-packages", "PYTHONHOME": "/opt/host"}, clear=True):
             result = await Doctor()._check_python_environment_isolation()
             assert result.status == CheckStatus.WARNING
@@ -54,13 +56,13 @@ class TestPythonEnvironmentIsolationCheck:
 
 class TestCoreDependenciesCheck:
     @pytest.mark.asyncio
-    async def test_all_installed(self):
+    async def test_all_installed(self) -> None:
         result = await Doctor()._check_core_deps()
         assert result.status == CheckStatus.OK
         assert result.name == "core_deps"
 
     @pytest.mark.asyncio
-    async def test_missing_dependency(self):
+    async def test_missing_dependency(self) -> None:
         with patch("myrm_agent_harness.runtime.diagnostics.doctor._cached_find_spec", return_value=None):
             result = await Doctor()._check_core_deps()
             assert result.status == CheckStatus.ERROR
@@ -69,13 +71,13 @@ class TestCoreDependenciesCheck:
 
 class TestOptionalDependenciesCheck:
     @pytest.mark.asyncio
-    async def test_returns_list(self):
+    async def test_returns_list(self) -> None:
         results = await Doctor()._check_optional_deps()
         assert isinstance(results, list)
         assert len(results) > 0
 
     @pytest.mark.asyncio
-    async def test_each_result_has_correct_name_prefix(self):
+    async def test_each_result_has_correct_name_prefix(self) -> None:
         results = await Doctor()._check_optional_deps()
         for r in results:
             assert r.name.startswith("opt_")
@@ -83,14 +85,14 @@ class TestOptionalDependenciesCheck:
 
 class TestLLMConfigCheck:
     @pytest.mark.asyncio
-    async def test_both_configured(self):
+    async def test_both_configured(self) -> None:
         with patch.dict("os.environ", {"MYRM_MODEL_NAME": "gpt-4o", "MYRM_API_KEY": "sk-test1234567890"}):
             result = await Doctor()._check_llm_config()
             assert result.status == CheckStatus.OK
             assert "gpt-4o" in result.message
 
     @pytest.mark.asyncio
-    async def test_both_missing(self):
+    async def test_both_missing(self) -> None:
         with patch.dict("os.environ", {}, clear=True):
             result = await Doctor()._check_llm_config()
             assert result.status == CheckStatus.ERROR
@@ -98,7 +100,7 @@ class TestLLMConfigCheck:
 
 class TestRunGlobalDoctor:
     @pytest.mark.asyncio
-    async def test_basic_run_no_browser(self):
+    async def test_basic_run_no_browser(self) -> None:
         report = await run_global_doctor(include_browser=False)
         assert report.overall_healthy is not None
         assert "python" in report.checks
@@ -107,7 +109,7 @@ class TestRunGlobalDoctor:
         assert "python_env_isolation" in report.checks
 
     @pytest.mark.asyncio
-    async def test_no_browser_excludes_browser_checks(self):
+    async def test_no_browser_excludes_browser_checks(self) -> None:
         report = await run_global_doctor(include_browser=False)
         # In our refactored doctor, browser suite tasks are not even gathered
         # We can check if any browser specific checks are present
@@ -115,15 +117,32 @@ class TestRunGlobalDoctor:
         assert len(browser_checks) == 0
 
 
+class TestRunIsolatesFailingChecks:
+    @pytest.mark.asyncio
+    async def test_cancelled_or_raising_check_does_not_sink_the_report(self) -> None:
+        async def cancelled() -> DoctorCheckResult:
+            raise asyncio.CancelledError
+
+        async def broken() -> DoctorCheckResult:
+            raise RuntimeError("boom")
+
+        doctor = Doctor()
+        doctor._tasks = [doctor._check_python, cancelled, broken]
+
+        report = await doctor.run(include_browser=False)
+
+        assert set(report.checks) == {"python"}
+
+
 class TestFormatGlobalReport:
     @pytest.mark.asyncio
-    async def test_format_produces_string(self):
+    async def test_format_produces_string(self) -> None:
         report = await run_global_doctor(include_browser=False)
         output = format_styled_report(report)
         assert isinstance(output, str)
         assert "Myrm Agent Harness" in output
 
-    def test_format_deduplicates_recommendations(self):
+    def test_format_deduplicates_recommendations(self) -> None:
         report = DoctorReport(
             checks={
                 "a": DoctorCheckResult(name="a", status=CheckStatus.ERROR, message="fail", fix="uv sync"),
@@ -142,13 +161,13 @@ class TestFormatGlobalReport:
 
 class TestLLMConnectivity:
     @pytest.mark.asyncio
-    async def test_missing_config_returns_error(self):
+    async def test_missing_config_returns_error(self) -> None:
         with patch.dict("os.environ", {}, clear=True):
             result = await Doctor()._check_llm_connectivity()
             assert result.status == CheckStatus.ERROR
 
     @pytest.mark.asyncio
-    async def test_successful_connectivity(self):
+    async def test_successful_connectivity(self) -> None:
         from unittest.mock import AsyncMock
 
         mock_response = MagicMock()
@@ -172,30 +191,29 @@ class TestLLMConnectivity:
 
 
 class TestGetModuleVersion:
-    def test_known_module(self):
+    def test_known_module(self) -> None:
         # pytest is definitely here
         version = _get_module_version("pytest")
         assert version is not None
 
-    def test_unknown_module(self):
+    def test_unknown_module(self) -> None:
         version = _get_module_version("nonexistent_module_xyz_123")
         assert version is None
 
 
 class TestPlaintextSecretsHygiene:
     @pytest.mark.asyncio
-    async def test_clean_environment_passes(self):
+    async def test_clean_environment_passes(self) -> None:
         with patch.dict("os.environ", {}, clear=True):
             result = await Doctor()._check_plaintext_secrets_hygiene()
             assert result.status == CheckStatus.OK
             assert result.name == "plaintext_secrets"
 
     @pytest.mark.asyncio
-    async def test_plaintext_secret_warns(self):
+    async def test_plaintext_secret_warns(self) -> None:
         with patch.dict("os.environ", {"OPENAI_API_KEY": "sk-real-test-token"}, clear=True):
             result = await Doctor()._check_plaintext_secrets_hygiene()
             assert result.status == CheckStatus.WARNING
             assert result.name == "plaintext_secrets"
             assert "OPENAI_API_KEY" in result.message
             assert "Secrets Command Provider" in (result.fix or "")
-

@@ -4,7 +4,8 @@ Turns the orphan process scan and the dry-run stale sandbox scan into one doctor
 check result, so ``orphans`` stays free of the report data model.
 
 [INPUT]
-- .orphans::find_orphan_automation_processes/cleanup_stale_automation_sandboxes (POS: orphan detection and dry-run sandbox scan)
+- .orphans::find_orphan_automation_processes (POS: orphan process detection)
+- .sandboxes::cleanup_stale_automation_sandboxes (POS: dry-run-first stale sandbox prune)
 - .report::CheckStatus/DoctorCheckResult (POS: doctor data models)
 
 [OUTPUT]
@@ -18,16 +19,17 @@ asyncio.to_thread.
 
 from __future__ import annotations
 
-from .orphans import cleanup_stale_automation_sandboxes, find_orphan_automation_processes
+from .orphans import find_orphan_automation_processes
 from .report import CheckStatus, DoctorCheckResult
+from .sandboxes import cleanup_stale_automation_sandboxes
 
 
 def check_orphan_processes() -> DoctorCheckResult:
     """Check for orphan automation browser processes and stale automation sandboxes."""
     orphans = find_orphan_automation_processes()
     sandbox_stat = cleanup_stale_automation_sandboxes(max_age_hours=24.0, dry_run=True)
-    stale_sandboxes = int(sandbox_stat.get("pruned", 0))
-    stale_bytes = int(sandbox_stat.get("reclaimed_bytes", 0))
+    stale_sandboxes = sandbox_stat.get("pruned", 0)
+    stale_bytes = sandbox_stat.get("reclaimed_bytes", 0)
 
     if not orphans and stale_sandboxes == 0:
         return DoctorCheckResult(
@@ -43,7 +45,7 @@ def check_orphan_processes() -> DoctorCheckResult:
 
     msg_parts: list[str] = []
     if orphans:
-        pids_preview = [o["pid"] for o in orphans[:3]]
+        pids_preview: list[int | str] = [o["pid"] for o in orphans[:3]]
         if len(orphans) > 3:
             pids_preview.append("...")
         msg_parts.append(f"{len(orphans)} orphan automation process(es): {pids_preview}")

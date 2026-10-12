@@ -23,7 +23,7 @@ Detailed design: [BROWSER_SYSTEM.md](BROWSER_SYSTEM.md)
 | checkpoint/ | Task-level checkpoint/resume module for the browser toolkit. Fully reuses LangGraph Checkpointer's p |
 | decision_discipline/ | Next-step decision discipline rulebooks, pre-flight action guards, target selection validators, and single-key text output contracts. See [decision_discipline/_ARCH.md](decision_discipline/_ARCH.md). |
 | diff/ | Screenshot diff utilities — unified comparison system. |
-| doctor/ | Pre-flight diagnostics and health checks. Facade + checks/orphan_check/orphans/report submodules. |
+| doctor/ | Pre-flight diagnostics and health checks. Facade + checks/launch_check/orphan_check/orphans/sandboxes/report submodules. |
 | domain_filter/ | Deep domain filtering, resource blocking, and ad/tracker domain blocking. Four-layer defense: CSP + route interception + JS hardening + CDP audit. `__init__.py` exposes DomainAllowlist/install_domain_filter; `ad_domains.py` lazily loads the bundled `assets/ad_domains.txt` (~3500 domains). |
 | domain_skills/ | Domain executable skills — manifest-based Python tool registry for repeated-domain acceleration. Complements SiteExperienceStore (prompt-layer) with an executable layer. Includes builtin skill packs (e.g. x-com). |
 | enhancers/ | DOM enhancers. Provides progressive enhancement (React/Vue/CDP) and SPA stabilization scripts. |

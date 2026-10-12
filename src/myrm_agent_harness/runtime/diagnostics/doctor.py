@@ -1,8 +1,15 @@
 """Global Doctor - Concurrent Diagnostics for Myrm Agent Harness.
 
+[INPUT]
+- myrm_agent_harness.toolkits.browser.doctor::CheckStatus/DoctorCheckResult/DoctorReport (POS: doctor data models)
+- .doctor_cli::format_styled_report (POS: styled CLI rendering of a doctor report)
+
+[OUTPUT]
+- Doctor: concurrent global diagnostic engine (python, dependencies, LLM config, deploy mode, compliance, browser suite)
+- run_global_doctor / format_global_report / main: programmatic and CLI entry points
+
 [POS]
 Concurrent diagnostic engine. Async-parallel model for significantly reduced environment check latency.
-
 """
 
 from __future__ import annotations
@@ -14,7 +21,7 @@ import os
 import sys
 from collections.abc import Awaitable, Callable
 from functools import lru_cache
-from types import ModuleType
+from importlib.machinery import ModuleSpec
 
 from myrm_agent_harness.toolkits.browser.doctor import (
     CheckStatus,
@@ -28,7 +35,7 @@ REQUIRED_PYTHON_VERSION = (3, 13)
 
 
 @lru_cache(maxsize=128)
-def _cached_find_spec(name: str) -> ModuleType | None:
+def _cached_find_spec(name: str) -> ModuleSpec | None:
     return importlib.util.find_spec(name)
 
 
@@ -49,7 +56,7 @@ def _get_module_version(import_name: str) -> str | None:
 class Doctor:
     """The diagnostic engine managing parallel check execution."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._tasks: list[Callable[[], Awaitable[DoctorCheckResult | list[DoctorCheckResult]]]] = []
         self._setup_default_tasks()
 
@@ -70,7 +77,7 @@ class Doctor:
     async def run(self, include_browser: bool = True, include_llm_test: bool = False) -> DoctorReport:
         """Execute all diagnostics in parallel."""
         # 1. Gather all base results
-        pending = [t() for t in self._tasks]
+        pending: list[Awaitable[DoctorCheckResult | list[DoctorCheckResult]]] = [t() for t in self._tasks]
 
         if include_browser:
             pending.append(self._check_system_resources())
@@ -85,7 +92,7 @@ class Doctor:
         # 3. Flaten and filter results
         checks: dict[str, DoctorCheckResult] = {}
         for res in raw_results:
-            if isinstance(res, Exception):
+            if isinstance(res, BaseException):
                 logger.error("Diagnostic task failed: %s", res)
                 continue
             if isinstance(res, list):
@@ -342,14 +349,12 @@ def format_global_report(report: DoctorReport) -> str:
     return format_styled_report(report)
 
 
-async def run_global_doctor(**kwargs) -> DoctorReport:
-    """Convenience bridge for backward compatibility."""
-    return await Doctor().run(
-        include_browser=kwargs.get("include_browser", True), include_llm_test=kwargs.get("include_llm_test", False)
-    )
+async def run_global_doctor(*, include_browser: bool = True, include_llm_test: bool = False) -> DoctorReport:
+    """Run every global diagnostic and return the aggregated report."""
+    return await Doctor().run(include_browser=include_browser, include_llm_test=include_llm_test)
 
 
-async def _async_main():
+async def _async_main() -> int:
     rep = await Doctor().run(include_llm_test="--test-llm" in sys.argv)
     from myrm_agent_harness.runtime.diagnostics.doctor_cli import format_styled_report
 
@@ -357,7 +362,7 @@ async def _async_main():
     return 0 if rep.overall_healthy else 1
 
 
-def main():
+def main() -> int:
     return asyncio.run(_async_main())
 
 

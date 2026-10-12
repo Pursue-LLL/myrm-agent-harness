@@ -39,6 +39,7 @@ Reuses the existing ``ManagedBrowser`` (Patchright) infrastructure.
 - format_report: 诊断报告 CLI 渲染（re-export, doctor 子包）
 - find_orphan_chromium_processes / find_orphan_driver_processes / find_orphan_automation_processes: 孤儿进程检测（re-export, doctor 子包）
 - cleanup_orphan_processes: 孤儿进程安全清理（re-export, doctor 子包）
+- cleanup_stale_automation_sandboxes: 过期自动化沙箱清理（re-export, doctor 子包）
 
 Note: create_browser_tools lives in the myrm_agent_harness.toolkits module
 
@@ -219,12 +220,14 @@ _LAZY_MODULES = {
     ],
     "doctor.orphans": [
         "cleanup_orphan_processes",
-        "cleanup_stale_automation_sandboxes",
         "find_orphan_automation_processes",
         "find_orphan_chromium_processes",
         "find_orphan_driver_processes",
         "register_browser_exit_reaper",
         "unregister_browser_exit_reaper",
+    ],
+    "doctor.sandboxes": [
+        "cleanup_stale_automation_sandboxes",
     ],
     "doctor.report": [
         "CheckStatus",
@@ -270,7 +273,7 @@ if __debug__:
         raise RuntimeError(f"browser: _LAZY_MODULES has symbols not in __all__: {_extra}")
 
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> object:
     """Lazy load checkpoint, doctor, vault, and observability modules."""
     from importlib import import_module
 

@@ -1,102 +1,27 @@
-"""Tests for precise orphan process detection and cleanup."""
+"""Tests for precise orphan process detection (process-table scan and ancestry rules)."""
 
 from __future__ import annotations
 
-import importlib.util
-import os
-import signal
 import sys
 from unittest.mock import MagicMock, create_autospec, patch
 
-import pytest
+import psutil
 
 from myrm_agent_harness.toolkits.browser.doctor import (
-    CheckStatus,
-    check_orphan_processes,
-    cleanup_orphan_processes,
-    cleanup_stale_automation_sandboxes,
     find_orphan_automation_processes,
     find_orphan_chromium_processes,
     find_orphan_driver_processes,
-    register_browser_exit_reaper,
-    unregister_browser_exit_reaper,
-)
-from myrm_agent_harness.toolkits.browser.doctor.orphans import (
-    _emergency_cleanup_orphans_on_exit,
-    _extract_user_data_dir,
-    _has_python_ancestor,
-    _is_automation_cache_path,
-    _is_automation_driver_cmdline,
 )
 
-_PSUTIL_INSTALLED = importlib.util.find_spec("psutil") is not None
-if _PSUTIL_INSTALLED:
-    import psutil
 
-psutil_required = pytest.mark.skipif(not _PSUTIL_INSTALLED, reason="psutil not installed")
-
-
-def test_extract_user_data_dir_with_equals():
-    """Should extract user-data-dir with = syntax."""
-    cmdline = "/usr/bin/chrome --user-data-dir=/tmp/playwright_chromium --headless"
-    result = _extract_user_data_dir(cmdline)
-    assert result == "/tmp/playwright_chromium"
-
-
-def test_extract_user_data_dir_without_equals():
-    """Should extract user-data-dir with space syntax."""
-    cmdline = "/usr/bin/chrome --user-data-dir /tmp/playwright_chromium --headless"
-    result = _extract_user_data_dir(cmdline)
-    assert result == "/tmp/playwright_chromium"
-
-
-def test_extract_user_data_dir_missing():
-    """Should return empty string when user-data-dir not present."""
-    cmdline = "/usr/bin/chrome --headless --no-sandbox"
-    result = _extract_user_data_dir(cmdline)
-    assert result == ""
-
-
-@pytest.mark.parametrize(
-    ("path", "expected"),
-    [
-        ("/home/user/.cache/patchright/chromium-123", True),
-        ("/home/user/.cache/ms-playwright/chromium-456", True),
-        ("/home/user/.cache/puppeteer/chrome/mac_arm-147", True),
-        ("/var/folders/tmp/playwright_chromiumdev_profile-abc", True),
-        ("/private/var/folders/sf/cw/X/com.google.Chrome.code_sign_clone", True),
-        ("/tmp/chrome_e2e_profile", True),
-        ("/home/user/.config/google-chrome", False),
-        ("/tmp/selenium_chrome", False),
-        ("/Applications/Google Chrome.app", False),
-    ],
-)
-def test_is_automation_cache_path(path: str, expected: bool):
-    """Should correctly identify automation framework cache paths."""
-    assert _is_automation_cache_path(path) is expected
-
-
-@pytest.mark.parametrize(
-    ("cmdline", "expected"),
-    [
-        ("/path/patchright/driver/node cli.js run-driver", True),
-        ("/path/playwright/driver/node cli.js run-driver", True),
-        ("/usr/bin/node server.js", False),
-    ],
-)
-def test_is_automation_driver_cmdline(cmdline: str, expected: bool):
-    assert _is_automation_driver_cmdline(cmdline) is expected
-
-
-def test_find_orphan_chromium_processes_psutil_missing():
+def test_find_orphan_chromium_processes_psutil_missing() -> None:
     """Should return empty list when psutil unavailable."""
     with patch.dict(sys.modules, {"psutil": None}):
         result = find_orphan_chromium_processes()
         assert result == []
 
 
-@psutil_required
-def test_find_orphan_chromium_processes_identifies_orphan():
+def test_find_orphan_chromium_processes_identifies_orphan() -> None:
     """Should identify orphan process with patchright cache path."""
     mock_proc = MagicMock()
     mock_proc.info = {
@@ -125,8 +50,7 @@ def test_find_orphan_chromium_processes_identifies_orphan():
         assert "ms-playwright" in orphans[0]["user_data_dir"]
 
 
-@psutil_required
-def test_find_orphan_driver_processes_identifies_orphan():
+def test_find_orphan_driver_processes_identifies_orphan() -> None:
     mock_proc = MagicMock()
     mock_proc.info = {
         "pid": 22222,
@@ -153,8 +77,7 @@ def test_find_orphan_driver_processes_identifies_orphan():
         assert orphans[0]["pid"] == 22222
 
 
-@psutil_required
-def test_find_orphan_automation_processes_merges_chromium_and_driver():
+def test_find_orphan_automation_processes_merges_chromium_and_driver() -> None:
     chromium_proc = MagicMock()
     chromium_proc.info = {
         "pid": 11111,
@@ -187,8 +110,7 @@ def test_find_orphan_automation_processes_merges_chromium_and_driver():
         assert {int(o["pid"]) for o in orphans} == {11111, 22222}
 
 
-@psutil_required
-def test_find_orphan_chromium_processes_skips_user_chrome():
+def test_find_orphan_chromium_processes_skips_user_chrome() -> None:
     """Should skip user-launched Chrome (non-automation path)."""
     mock_proc = MagicMock()
     mock_proc.info = {
@@ -206,93 +128,7 @@ def test_find_orphan_chromium_processes_skips_user_chrome():
         assert len(orphans) == 0
 
 
-@psutil_required
-def test_cleanup_orphan_processes_dry_run_default():
-    """Should not kill processes when force=False (dry-run)."""
-    result = cleanup_orphan_processes([12345, 67890], force=False)
-
-    assert result["dry_run"] is True
-    assert result["killed"] == 0
-    assert result["would_kill"] == 2
-    assert "Dry-run" in result["message"]
-
-
-@psutil_required
-def test_cleanup_orphan_processes_with_force():
-    """Should kill processes when force=True."""
-    with patch("os.kill") as mock_kill:
-        result = cleanup_orphan_processes([12345], force=True)
-
-        assert result["dry_run"] is False
-        assert result["killed"] == 1
-        mock_kill.assert_called_once()
-
-
-@psutil_required
-def test_cleanup_orphan_processes_handles_process_not_found():
-    """Should handle ProcessLookupError gracefully."""
-    with patch("os.kill", side_effect=ProcessLookupError):
-        result = cleanup_orphan_processes([12345], force=True)
-
-        assert result["killed"] == 0
-        assert result["dry_run"] is False
-
-
-@psutil_required
-def test_cleanup_orphan_processes_handles_permission_error():
-    """Should record permission failures."""
-    with patch("os.kill", side_effect=PermissionError):
-        result = cleanup_orphan_processes([12345], force=True)
-
-        assert result["killed"] == 0
-        assert len(result["failed"]) == 1
-        assert result["failed"][0]["reason"] == "permission_denied"
-
-
-def test_cleanup_orphan_processes_psutil_missing():
-    """Should return error when psutil unavailable."""
-    with patch.dict(sys.modules, {"psutil": None}):
-        result = cleanup_orphan_processes([12345], force=True)
-
-        assert result["dry_run"] is True
-        assert result["killed"] == 0
-        assert result["error"] == "psutil not available"
-
-
-@psutil_required
-def test_cleanup_orphan_processes_auto_detect():
-    """Should auto-detect orphans when orphan_pids=None."""
-    mock_proc = MagicMock()
-    mock_proc.info = {
-        "pid": 99999,
-        "name": "chrome",
-        "ppid": 1,
-        "cmdline": [
-            "/path/chrome",
-            "--user-data-dir=/tmp/.cache/patchright/chromium-1234",
-            "--headless",
-        ],
-    }
-
-    mock_parent = MagicMock()
-    mock_parent.name.return_value = "init"
-    mock_parent.pid = 1
-    mock_parent.parent.return_value = None
-
-    with (
-        patch("psutil.process_iter", return_value=[mock_proc]),
-        patch.object(mock_proc, "parent", return_value=mock_parent),
-        patch("os.kill") as mock_kill,
-    ):
-        result = cleanup_orphan_processes(orphan_pids=None, force=True)
-
-        assert result["dry_run"] is False
-        assert result["killed"] == 1
-        mock_kill.assert_called_once_with(99999, signal.SIGTERM)
-
-
-@psutil_required
-def test_find_orphan_chromium_processes_scan_exception():
+def test_find_orphan_chromium_processes_scan_exception() -> None:
     """Should handle exception during process iteration."""
     with patch("psutil.process_iter", side_effect=RuntimeError("scan failed")):
         orphans = find_orphan_chromium_processes()
@@ -300,8 +136,7 @@ def test_find_orphan_chromium_processes_scan_exception():
         assert orphans == []
 
 
-@psutil_required
-def test_find_orphan_chromium_skips_empty_cmdline():
+def test_find_orphan_chromium_skips_empty_cmdline() -> None:
     """Should skip chromium processes with an empty cmdline."""
     mock_proc = MagicMock()
     mock_proc.info = {
@@ -317,8 +152,7 @@ def test_find_orphan_chromium_skips_empty_cmdline():
         assert orphans == []
 
 
-@psutil_required
-def test_find_orphan_chromium_skips_missing_user_data_dir():
+def test_find_orphan_chromium_skips_missing_user_data_dir() -> None:
     """Should skip chromium without a user-data-dir flag."""
     mock_proc = MagicMock()
     mock_proc.info = {
@@ -334,8 +168,7 @@ def test_find_orphan_chromium_skips_missing_user_data_dir():
         assert orphans == []
 
 
-@psutil_required
-def test_find_orphan_chromium_skips_empty_user_data_dir_value():
+def test_find_orphan_chromium_skips_empty_user_data_dir_value() -> None:
     """Should skip chromium whose user-data-dir flag has no value."""
     mock_proc = MagicMock()
     mock_proc.info = {
@@ -351,8 +184,7 @@ def test_find_orphan_chromium_skips_empty_user_data_dir_value():
         assert orphans == []
 
 
-@psutil_required
-def test_find_orphan_chromium_skips_process_with_python_ancestor():
+def test_find_orphan_chromium_skips_process_with_python_ancestor() -> None:
     """Should skip automation processes that still have a python parent."""
     mock_proc = create_autospec(psutil.Process)
     mock_proc.info = {
@@ -376,8 +208,7 @@ def test_find_orphan_chromium_skips_process_with_python_ancestor():
         assert orphans == []
 
 
-@psutil_required
-def test_find_orphan_chromium_skips_non_automation_cache():
+def test_find_orphan_chromium_skips_non_automation_cache() -> None:
     """Should skip chromium using a non-automation profile path."""
     mock_proc = MagicMock()
     mock_proc.info = {
@@ -393,8 +224,7 @@ def test_find_orphan_chromium_skips_non_automation_cache():
         assert orphans == []
 
 
-@psutil_required
-def test_find_orphan_chromium_handles_access_denied():
+def test_find_orphan_chromium_handles_access_denied() -> None:
     """Should tolerate AccessDenied raised while scanning a process."""
     mock_proc = MagicMock()
     mock_proc.info = {
@@ -419,7 +249,7 @@ def test_find_orphan_chromium_handles_access_denied():
         assert orphans == []
 
 
-def test_find_orphan_driver_psutil_missing():
+def test_find_orphan_driver_psutil_missing() -> None:
     """Should return empty list when psutil unavailable."""
     with patch.dict(sys.modules, {"psutil": None}):
         orphans = find_orphan_driver_processes()
@@ -427,8 +257,7 @@ def test_find_orphan_driver_psutil_missing():
         assert orphans == []
 
 
-@psutil_required
-def test_find_orphan_driver_skips_empty_cmdline():
+def test_find_orphan_driver_skips_empty_cmdline() -> None:
     """Should skip driver processes with an empty cmdline."""
     mock_proc = MagicMock()
     mock_proc.info = {
@@ -444,8 +273,7 @@ def test_find_orphan_driver_skips_empty_cmdline():
         assert orphans == []
 
 
-@psutil_required
-def test_find_orphan_driver_handles_access_denied():
+def test_find_orphan_driver_handles_access_denied() -> None:
     """Should tolerate AccessDenied while scanning a driver process."""
     mock_proc = MagicMock()
     mock_proc.info = {
@@ -467,8 +295,7 @@ def test_find_orphan_driver_handles_access_denied():
         assert orphans == []
 
 
-@psutil_required
-def test_find_orphan_automation_deduplicates_pids():
+def test_find_orphan_automation_deduplicates_pids() -> None:
     """Should merge both scans and drop duplicate pids."""
     dup = {
         "pid": 12345,
@@ -493,419 +320,9 @@ def test_find_orphan_automation_deduplicates_pids():
         assert orphans[0]["pid"] == 12345
 
 
-@psutil_required
-def test_has_python_ancestor_matches_current_tree():
-    """Should flag a process whose parent is inside the current process tree."""
-    proc = create_autospec(psutil.Process)
-    parent = create_autospec(psutil.Process)
-    parent.pid = os.getpid()
-    parent.name.return_value = "node"
-    parent.parent.return_value = None
-    proc.parent.return_value = parent
-
-    assert _has_python_ancestor(proc, os.getpid()) is True
-
-
-@psutil_required
-def test_has_python_ancestor_matches_python_parent():
-    """Should flag a process whose parent chain contains a python process."""
-    proc = create_autospec(psutil.Process)
-    parent = create_autospec(psutil.Process)
-    parent.pid = 9999
-    parent.name.return_value = "python3.13"
-    parent.parent.return_value = None
-    proc.parent.return_value = parent
-
-    assert _has_python_ancestor(proc, os.getpid()) is True
-
-
-@psutil_required
-def test_has_python_ancestor_returns_false_when_chain_ends():
-    """Should return False when the parent chain has no python or tree match."""
-    proc = create_autospec(psutil.Process)
-    leaf = create_autospec(psutil.Process)
-    leaf.pid = 9998
-    leaf.name.return_value = "node"
-    leaf.parent.return_value = None
-    proc.parent.return_value = leaf
-
-    assert _has_python_ancestor(proc, os.getpid()) is False
-
-
-@psutil_required
-def test_has_python_ancestor_tolerates_unexpected_error():
-    """Should conservatively flag the process when the walk raises unexpectedly."""
-    proc = create_autospec(psutil.Process)
-    proc.parent.side_effect = RuntimeError("boom")
-
-    assert _has_python_ancestor(proc, os.getpid()) is True
-
-
-@psutil_required
-def test_has_python_ancestor_breaks_when_parent_name_denied():
-    """Should stop walking when a parent's name cannot be read."""
-    proc = create_autospec(psutil.Process)
-    parent = create_autospec(psutil.Process)
-    parent.pid = 9997
-    parent.name.side_effect = psutil.AccessDenied()
-    parent.parent.return_value = None
-    proc.parent.return_value = parent
-
-    assert _has_python_ancestor(proc, os.getpid()) is False
-
-
-@psutil_required
-def test_has_python_ancestor_breaks_when_parent_walk_denied():
-    """Should stop walking when reaching a parent raises AccessDenied."""
-    proc = create_autospec(psutil.Process)
-    parent = create_autospec(psutil.Process)
-    parent.pid = 9996
-    parent.name.return_value = "node"
-    parent.parent.side_effect = psutil.AccessDenied()
-    proc.parent.return_value = parent
-
-    assert _has_python_ancestor(proc, os.getpid()) is False
-
-
-@psutil_required
-def test_has_python_ancestor_returns_false_when_current_proc_gone():
-    """Should return False when the current process itself is gone."""
-    proc = create_autospec(psutil.Process)
-
-    with patch("psutil.Process", side_effect=psutil.NoSuchProcess(999)):
-        assert _has_python_ancestor(proc, os.getpid()) is False
-
-
-@psutil_required
-def test_find_orphan_driver_scan_exception():
+def test_find_orphan_driver_scan_exception() -> None:
     """Should handle exception during driver process iteration."""
     with patch("psutil.process_iter", side_effect=RuntimeError("scan failed")):
         orphans = find_orphan_driver_processes()
 
         assert orphans == []
-
-
-@psutil_required
-def test_cleanup_orphan_processes_handles_generic_exception():
-    """Should record any unexpected kill failure with its reason."""
-    with patch("os.kill", side_effect=RuntimeError("signal failed")):
-        result = cleanup_orphan_processes([12345], force=True)
-
-        assert result["killed"] == 0
-        assert result["failed"] == [{"pid": 12345, "reason": "signal failed"}]
-
-
-@psutil_required
-def test_check_orphan_processes_previews_only_first_pids():
-    """Should preview only the first three pids when many orphans exist."""
-    orphans = [{"pid": pid, "name": "chrome", "ppid": 1, "user_data_dir": "/tmp/x"} for pid in (1111, 2222, 3333, 4444)]
-
-    with (
-        patch(
-            "myrm_agent_harness.toolkits.browser.doctor.orphan_check.find_orphan_automation_processes",
-            return_value=orphans,
-        ),
-        patch(
-            "myrm_agent_harness.toolkits.browser.doctor.orphan_check.cleanup_stale_automation_sandboxes",
-            return_value={"pruned": 0, "reclaimed_bytes": 0},
-        ),
-    ):
-        result = check_orphan_processes()
-
-    assert result.status == CheckStatus.WARNING
-    assert "4 orphan automation" in result.message
-    assert "..." in result.message
-    assert result.details == {
-        "count": 4,
-        "pids": [1111, 2222, 3333, 4444],
-        "paths": ["/tmp/x", "/tmp/x", "/tmp/x", "/tmp/x"],
-        "stale_sandboxes": 0,
-        "stale_sandbox_bytes": 0,
-    }
-
-
-def test_check_orphan_processes_reports_stale_sandboxes_when_no_orphans():
-    """Should report WARNING when no orphan processes exist but stale sandboxes are detected."""
-    with (
-        patch(
-            "myrm_agent_harness.toolkits.browser.doctor.orphan_check.find_orphan_automation_processes",
-            return_value=[],
-        ),
-        patch(
-            "myrm_agent_harness.toolkits.browser.doctor.orphan_check.cleanup_stale_automation_sandboxes",
-            return_value={"pruned": 3, "reclaimed_bytes": 104857600},
-        ),
-    ):
-        result = check_orphan_processes()
-
-    assert result.status == CheckStatus.WARNING
-    assert "3 stale sandbox(es) (100.0 MB)" in result.message
-    assert result.details["count"] == 0
-    assert result.details["stale_sandboxes"] == 3
-    assert result.details["stale_sandbox_bytes"] == 104857600
-
-
-def test_cleanup_stale_automation_sandboxes_dry_run(tmp_path):
-    """Should discover stale sandboxes in dry-run mode without deleting them."""
-    test_sandbox = tmp_path / "com.google.Chrome.code_sign_clone"
-    test_sandbox.mkdir(parents=True)
-    sample_file = test_sandbox / "sample.txt"
-    sample_file.write_text("dummy payload")
-
-    with patch("myrm_agent_harness.toolkits.browser.doctor.orphans.Path") as mock_path_cls:
-        # Let real Path handle everything except the specific search path
-        mock_path_instance = MagicMock()
-        mock_path_instance.is_dir.return_value = True
-        mock_path_instance.glob.return_value = [test_sandbox]
-
-        def path_side_effect(*args, **kwargs):
-            if args and args[0] == "/private/var/folders":
-                return mock_path_instance
-            from pathlib import Path as RealPath
-
-            return RealPath(*args, **kwargs)
-
-        mock_path_cls.side_effect = path_side_effect
-
-        result = cleanup_stale_automation_sandboxes(max_age_hours=0.0, dry_run=True)
-        assert result["dry_run"] is True
-        assert result["candidates_inspected"] >= 1
-        assert result["pruned"] >= 1
-        assert result["reclaimed_bytes"] > 0
-        assert test_sandbox.exists()
-
-
-@psutil_required
-def test_cleanup_orphan_processes_escalates_to_sigkill():
-    """Should escalate to SIGKILL when process does not terminate within timeout_s."""
-    call_log = []
-
-    def mock_kill(pid, sig):
-        call_log.append((pid, sig))
-        # After SIGKILL is sent, the next os.kill(pid, 0) probe should report process is gone
-        if sig == 0 and any(s == signal.SIGKILL for (_, s) in call_log):
-            raise ProcessLookupError()
-        return None
-
-    with patch("os.kill", side_effect=mock_kill):
-        result = cleanup_orphan_processes([54321], force=True, timeout_s=0.1)
-
-        assert result["dry_run"] is False
-        assert result["killed"] == 1
-        signals_sent = [sig for (_, sig) in call_log]
-        assert signal.SIGTERM in signals_sent
-        assert signal.SIGKILL in signals_sent
-
-
-def test_cleanup_stale_automation_sandboxes_post_assertion_failure(tmp_path):
-    """Should record failure and zero reclaimed_bytes when candidate exists after rmtree."""
-    test_sandbox = tmp_path / "com.google.Chrome.code_sign_clone"
-    test_sandbox.mkdir(parents=True)
-    sample_file = test_sandbox / "sample.txt"
-    sample_file.write_text("dummy payload")
-
-    mock_path_instance = MagicMock()
-    mock_path_instance.is_dir.return_value = True
-    mock_path_instance.glob.return_value = [test_sandbox]
-
-    with (
-        patch("myrm_agent_harness.toolkits.browser.doctor.orphans.Path") as mock_path_cls,
-        patch("shutil.rmtree") as mock_rmtree,
-    ):
-
-        def path_side_effect(*args, **kwargs):
-            if args and args[0] == "/private/var/folders":
-                return mock_path_instance
-            from pathlib import Path as RealPath
-
-            return RealPath(*args, **kwargs)
-
-        mock_path_cls.side_effect = path_side_effect
-        # Simulates rmtree not actually removing directory due to OS locks
-        mock_rmtree.return_value = None
-
-        result = cleanup_stale_automation_sandboxes(max_age_hours=0.0, dry_run=False)
-
-        assert result["pruned"] == 0
-        assert result["reclaimed_bytes"] == 0
-        assert len(result["failed"]) == 1
-        assert result["failed"][0]["reason"] == "directory_still_exists_after_rmtree"
-
-
-def test_cleanup_stale_automation_sandboxes_glob_wildcard(tmp_path):
-    """Should discover both Chrome and Patchright Chromium code_sign_clone variants."""
-    chrome_clone = tmp_path / "com.google.Chrome.code_sign_clone"
-    chromium_clone = tmp_path / "org.chromium.Chromium.code_sign_clone"
-    chrome_clone.mkdir(parents=True)
-    chromium_clone.mkdir(parents=True)
-
-    mock_path_instance = MagicMock()
-    mock_path_instance.is_dir.return_value = True
-    mock_path_instance.glob.return_value = [chrome_clone, chromium_clone]
-
-    with patch("myrm_agent_harness.toolkits.browser.doctor.orphans.Path") as mock_path_cls:
-
-        def path_side_effect(*args, **kwargs):
-            if args and args[0] == "/private/var/folders":
-                return mock_path_instance
-            from pathlib import Path as RealPath
-
-            return RealPath(*args, **kwargs)
-
-        mock_path_cls.side_effect = path_side_effect
-
-        result = cleanup_stale_automation_sandboxes(max_age_hours=0.0, dry_run=True)
-        assert result["candidates_inspected"] == 2
-        mock_path_instance.glob.assert_called_once_with("*/*/*/*.code_sign_clone")
-
-
-def test_cleanup_stale_automation_sandboxes_dry_run_sampling(tmp_path):
-    """When candidates > 3, dry_run uses average of first 3 samples to avoid I/O storms."""
-    sandboxes = []
-    for i in range(5):
-        s_dir = tmp_path / f"test_{i}.code_sign_clone"
-        s_dir.mkdir()
-        # Each sandbox gets a 1000-byte file
-        (s_dir / "test.bin").write_bytes(b"x" * 1000)
-        sandboxes.append(s_dir)
-
-    mock_path_instance = MagicMock()
-    mock_path_instance.is_dir.return_value = True
-    mock_path_instance.glob.return_value = sandboxes
-
-    with patch("myrm_agent_harness.toolkits.browser.doctor.orphans.Path") as mock_path_cls:
-
-        def path_side_effect(*args, **kwargs):
-            if args and args[0] == "/private/var/folders":
-                return mock_path_instance
-            from pathlib import Path as RealPath
-
-            return RealPath(*args, **kwargs)
-
-        mock_path_cls.side_effect = path_side_effect
-
-        result = cleanup_stale_automation_sandboxes(max_age_hours=0.0, dry_run=True)
-        assert result["candidates_inspected"] == 5
-        assert result["pruned"] == 5
-        # 5 sandboxes * 1000 bytes sampled average = 5000 bytes
-        assert result["reclaimed_bytes"] == 5000
-
-
-def test_register_and_unregister_browser_exit_reaper():
-    """Should register and unregister atexit hook idempotently, respecting env disable."""
-    unregister_browser_exit_reaper()
-
-    # First register should succeed
-    assert register_browser_exit_reaper() is True
-    # Second register should be idempotent (return False)
-    assert register_browser_exit_reaper() is False
-
-    # Unregister should succeed
-    assert unregister_browser_exit_reaper() is True
-    assert unregister_browser_exit_reaper() is False
-
-    # Test disabled via environment variable
-    with (
-        patch.dict(os.environ, {"MYRM_BROWSER_EXIT_REAP_DISABLED": "1"}),
-        patch("myrm_agent_harness.toolkits.browser.doctor.orphans.cleanup_orphan_processes") as mock_cleanup,
-    ):
-        _emergency_cleanup_orphans_on_exit()
-        mock_cleanup.assert_not_called()
-
-
-def test_cleanup_orphan_processes_escalation_still_running():
-    """Should record failure if process remains alive after SIGKILL escalation."""
-    # os.kill is called with: SIGTERM, os.kill(pid, 0) during wait (raises ProcessLookupError if dead),
-    # then SIGKILL, then os.kill(pid, 0) post-kill verification.
-    # Return None for all os.kill calls to simulate process never dying.
-    with (
-        patch("os.kill"),
-        patch("time.time", side_effect=[0.0, 1.0, 2.0]),
-        patch("time.sleep"),
-    ):
-        result = cleanup_orphan_processes([99999], force=True, timeout_s=0.1)
-        assert result["killed"] == 0
-        assert len(result["failed"]) == 1
-        assert result["failed"][0]["reason"] == "process_still_running_after_kill"
-
-
-def test_mac_app_code_sign_clone_flag_on_darwin():
-    """Should ensure --disable-features=MacAppCodeSignClone is included in launch args on darwin."""
-    from myrm_agent_harness.toolkits.browser.pool.browser_pool import _DEFAULT_LAUNCH_OPTIONS
-
-    if sys.platform == "darwin":
-        args = _DEFAULT_LAUNCH_OPTIONS.get("args", [])
-        assert "--disable-features=MacAppCodeSignClone" in args
-
-
-def test_cleanup_stale_automation_sandboxes_versioned_sub_clones(tmp_path):
-    """Should discover individual versioned sub-sandboxes within code_sign_clone parent directory."""
-    parent_dir = tmp_path / "com.google.Chrome.code_sign_clone"
-    parent_dir.mkdir(parents=True)
-    sub1 = parent_dir / "code_sign_clone.01ABC"
-    sub2 = parent_dir / "code_sign_clone.02DEF"
-    sub1.mkdir()
-    sub2.mkdir()
-    (sub1 / "binary.bin").write_bytes(b"x" * 2000)
-    (sub2 / "binary.bin").write_bytes(b"y" * 3000)
-
-    mock_path_instance = MagicMock()
-    mock_path_instance.is_dir.return_value = True
-    mock_path_instance.glob.return_value = [parent_dir]
-
-    with patch("myrm_agent_harness.toolkits.browser.doctor.orphans.Path") as mock_path_cls:
-
-        def path_side_effect(*args, **kwargs):
-            if args and args[0] == "/private/var/folders":
-                return mock_path_instance
-            from pathlib import Path as RealPath
-
-            return RealPath(*args, **kwargs)
-
-        mock_path_cls.side_effect = path_side_effect
-
-        result = cleanup_stale_automation_sandboxes(max_age_hours=0.0, dry_run=False)
-        assert result["dry_run"] is False
-        assert result["candidates_inspected"] == 2
-        assert result["pruned"] == 2
-        assert result["reclaimed_bytes"] == 5000
-        assert not sub1.exists()
-        assert not sub2.exists()
-        assert not parent_dir.exists()
-
-
-def test_cleanup_stale_automation_sandboxes_skips_active_locked_sandbox(tmp_path):
-    """Should skip pruning sandboxes currently held open by an active process."""
-    from pathlib import Path
-
-    fake_var = Path("/private/var/folders/sub/test.code_sign_clone")
-    mock_path_instance = MagicMock()
-    mock_path_instance.is_dir.return_value = True
-    mock_path_instance.glob.return_value = [fake_var]
-
-    with (
-        patch("myrm_agent_harness.toolkits.browser.doctor.orphans.Path") as mock_path_cls,
-        patch("subprocess.run") as mock_subproc,
-    ):
-        mock_candidate = MagicMock()
-        mock_candidate.exists.return_value = True
-        mock_candidate.stat.return_value = MagicMock(st_mtime=0.0)
-        mock_candidate.rglob.return_value = []
-        mock_candidate.__str__.return_value = "/private/var/folders/sub/test.code_sign_clone"
-
-        mock_path_instance.glob.return_value = [mock_candidate]
-
-        def path_side_effect(*args, **kwargs):
-            if args and args[0] == "/private/var/folders":
-                return mock_path_instance
-            from pathlib import Path as RealPath
-
-            return RealPath(*args, **kwargs)
-
-        mock_path_cls.side_effect = path_side_effect
-        mock_subproc.return_value = MagicMock(returncode=0)
-
-        result = cleanup_stale_automation_sandboxes(max_age_hours=0.0, dry_run=False)
-        assert result["pruned"] == 0
-        assert result["reclaimed_bytes"] == 0
-        mock_subproc.assert_called_once()

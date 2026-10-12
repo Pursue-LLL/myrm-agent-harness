@@ -253,6 +253,11 @@ ignore_missing_imports = true
 module = "jieba"
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+# colorama 无类型 stubs（未带 py.typed）；仅在 doctor 报告渲染（browser/doctor/report.py、runtime/diagnostics/doctor_cli.py）中惰性导入。
+module = "colorama"
+ignore_missing_imports = true
+
 [tool.pyright]
 pythonVersion = "3.13"
 typeCheckingMode = "basic"
