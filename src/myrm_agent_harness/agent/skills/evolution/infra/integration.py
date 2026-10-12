@@ -108,10 +108,10 @@ class EvolutionIntegration:
         # Enable evolution with one line
         evolution = EvolutionIntegration(
             db_path=".myrm/skills_evolution.db",
-            llm_client=your_llm_client)
+            llm=your_chat_model)
 
         # Record skill execution result
-        await evolution.record_execution(skill_id="test", success=False, error="...")
+        await evolution.record_execution(skill_id="test", success=False, error_message="...")
 
         # Check for skills needing fix
         needs_fix = await evolution.get_skills_needing_fix()
