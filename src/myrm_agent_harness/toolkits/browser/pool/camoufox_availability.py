@@ -28,7 +28,6 @@ from __future__ import annotations
 
 import logging
 import os
-from pathlib import Path
 
 from ..exceptions import EngineUnavailableError
 
@@ -56,7 +55,7 @@ def camoufox_unavailable_reason() -> str | None:
 
     override = os.environ.get(_EXECUTABLE_ENV, "").strip()
     if override:
-        if Path(override).is_file():
+        if os.path.isfile(override):
             return None
         return f"{_EXECUTABLE_ENV} does not point to an existing file"
 

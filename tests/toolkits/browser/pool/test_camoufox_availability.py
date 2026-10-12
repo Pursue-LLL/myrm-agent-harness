@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 import types
 from pathlib import Path
@@ -89,6 +90,25 @@ class TestCamoufoxUnavailableReason:
         assert reason is not None
         assert "CAMOUFOX_EXECUTABLE_PATH" in reason
         assert str(missing) not in reason
+
+    def test_executable_override_in_untraversable_directory_is_not_ready_instead_of_raising(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The probe feeds Doctor and tool errors, so an unreadable override must never escape as an exception."""
+        unreachable = tmp_path / "locked" / "camoufox-bin"
+        monkeypatch.setenv("CAMOUFOX_EXECUTABLE_PATH", str(unreachable))
+        real_stat = os.stat
+
+        def deny_stat(path: str | os.PathLike[str], *, follow_symlinks: bool = True) -> os.stat_result:
+            if str(path) == str(unreachable):
+                raise PermissionError(13, "Permission denied", str(path))
+            return real_stat(path, follow_symlinks=follow_symlinks)
+
+        monkeypatch.setattr(os, "stat", deny_stat)
+        reason = camoufox_unavailable_reason()
+        assert reason is not None
+        assert "CAMOUFOX_EXECUTABLE_PATH" in reason
+        assert str(unreachable) not in reason
 
     def test_missing_python_package_is_not_ready(self) -> None:
         with patch.dict(sys.modules, {"camoufox": None, "camoufox.exceptions": None, "camoufox.pkgman": None}):
