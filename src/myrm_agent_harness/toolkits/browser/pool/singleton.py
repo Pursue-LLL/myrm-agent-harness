@@ -32,6 +32,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _global_pool: GlobalBrowserPool | None = None
+_TEST_SHUTDOWN_TIMEOUT_SEC = 30.0
 
 
 def _cleanup_global_pool() -> None:
@@ -117,8 +118,12 @@ async def reset_global_browser_pool_for_tests() -> None:
     if pool is None:
         return
 
-    await pool.shutdown()
-    _global_pool = None
+    try:
+        await asyncio.wait_for(pool.shutdown(), timeout=_TEST_SHUTDOWN_TIMEOUT_SEC)
+    except TimeoutError:
+        logger.warning("Global browser pool shutdown timed out; dropping the singleton")
+    finally:
+        _global_pool = None
 
 
 def _cleanup_orphan_automation() -> None:

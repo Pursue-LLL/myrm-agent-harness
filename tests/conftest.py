@@ -77,9 +77,20 @@ _INTEGRATION_TEST_ROOT = _TESTS_ROOT / "integration"
 
 
 def _needs_browser_singleton_reset(request: pytest.FixtureRequest) -> bool:
-    """Return whether a test may touch the GlobalBrowserPool singleton."""
-    item_path = Path(request.fspath).resolve()
-    return bool(item_path.is_relative_to(_BROWSER_TEST_ROOT))
+    """Return whether the GlobalBrowserPool singleton must be shut down after this test.
+
+    Browser tests always reset. Any other test that left the singleton with live
+    resources (a real fetch through ``web_fetch``) must reset in its own module's
+    event loop: Playwright connections die with that loop, so a later shutdown from
+    another loop waits forever. A pool created at import and never used holds no
+    resources and is left alone.
+    """
+    if Path(request.fspath).resolve().is_relative_to(_BROWSER_TEST_ROOT):
+        return True
+    from myrm_agent_harness.toolkits.browser.pool import singleton
+
+    pool = singleton._global_pool
+    return pool is not None and bool(pool._browsers or pool._launchers)
 
 
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
