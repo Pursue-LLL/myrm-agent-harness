@@ -240,10 +240,11 @@ class SkillCurator:
                 result.errors.append(f"{skill.name}: no storage_path for LRU eviction")
                 continue
 
+            target = SkillLifecycleStatus(reason.target_status)
             current_status = str(SkillLifecycleStatus(skill.usage_stats.lifecycle_status).value)
-            target_status = str(SkillLifecycleStatus(reason.target_status).value)
+            target_status = str(target.value)
 
-            self._stats.update_lifecycle_status(skill_path, reason.target_status)
+            self._stats.update_lifecycle_status(skill_path, target)
             result.transitions.append(
                 CuratorTransition(
                     skill_name=skill.name,
@@ -281,8 +282,9 @@ class SkillCurator:
         if reason is None:
             return
 
+        target = SkillLifecycleStatus(reason.target_status)
         current_status = str(SkillLifecycleStatus(skill.usage_stats.lifecycle_status).value)
-        target_status = str(SkillLifecycleStatus(reason.target_status).value)
+        target_status = str(target.value)
 
         if current_status == target_status:
             return
@@ -292,7 +294,7 @@ class SkillCurator:
             result.errors.append(f"{skill.name}: no storage_path, cannot persist transition")
             return
 
-        self._stats.update_lifecycle_status(skill_path, reason.target_status)
+        self._stats.update_lifecycle_status(skill_path, target)
 
         transition = CuratorTransition(
             skill_name=skill.name,
