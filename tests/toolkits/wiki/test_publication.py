@@ -156,11 +156,15 @@ async def test_reindex_concepts_after_move_deduplication(wiki_structure: WikiStr
     # Prepare concept A and concept B
     path_a = wiki_structure.get_concept_file_path("topic_a_new")
     path_a.parent.mkdir(parents=True, exist_ok=True)
-    path_a.write_text("---\ntype: concept\npublish_status: published\n---\n\n## Content A\nHello from A.\n", encoding="utf-8")
+    path_a.write_text(
+        "---\ntype: concept\npublish_status: published\n---\n\n## Content A\nHello from A.\n", encoding="utf-8"
+    )
 
     path_b = wiki_structure.get_concept_file_path("topic_b")
     path_b.parent.mkdir(parents=True, exist_ok=True)
-    path_b.write_text("---\ntype: concept\npublish_status: published\n---\n\n## Content B\nHello from B.\n", encoding="utf-8")
+    path_b.write_text(
+        "---\ntype: concept\npublish_status: published\n---\n\n## Content B\nHello from B.\n", encoding="utf-8"
+    )
 
     # Mappings move topic_a -> topic_a_new
     mappings = [ConceptPathMapping(old_concept="topic_a", new_concept="topic_a_new")]
@@ -175,9 +179,10 @@ async def test_reindex_concepts_after_move_deduplication(wiki_structure: WikiStr
 
     # Search works for both
     res_a = await indexer.search("Hello from A", limit=5)
-    assert any(name == "topic_a_new" for name, _ in res_a)
+    # Indexed under the on-disk identity (underscores sanitize to hyphens)
+    assert any(name == "topic-a-new" for name, _ in res_a)
     res_b = await indexer.search("Hello from B", limit=5)
-    assert any(name == "topic_b" for name, _ in res_b)
+    assert any(name == "topic-b" for name, _ in res_b)
 
 
 @pytest.mark.asyncio
@@ -287,6 +292,3 @@ async def test_reindex_concepts_after_move_io_error_and_async_edges(
     )
 
     assert count == 2
-
-
-

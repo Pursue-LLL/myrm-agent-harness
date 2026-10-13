@@ -3,6 +3,7 @@
 [INPUT]
 - sqlite3 (POS: standard library database)
 - ..core.structure::WikiStructure (POS: database path resolution)
+- ..core.link_resolver::concept_index_key (POS: page-key canonicalization for lookups)
 - .graph_analysis::enrich_graph_with_communities, compute_graph_insights (POS: graph analysis)
 
 [OUTPUT]
@@ -23,7 +24,9 @@ from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from ..core.link_resolver import concept_index_key
 from .graph_analysis import compute_graph_insights, enrich_graph_with_communities
+from .graph_tables import federated_graph_queries
 
 if TYPE_CHECKING:
     from ..core.structure import WikiStructure
@@ -69,28 +72,7 @@ class WikiGraphStore:
         node_ids: set[str] = set()
 
         with self._get_conn() as conn:
-            fts_tables = ["wiki_fts"]
-            edges_tables = ["wiki_edges"]
-            attached_dbs = {str(row["name"]) for row in conn.execute("PRAGMA database_list").fetchall()}
-            for idx in range(min(len(self._structure.public_dirs), 6)):
-                alias = f"pub_{idx}"
-                if alias in attached_dbs:
-                    try:
-                        has_fts = conn.execute(
-                            f"SELECT 1 FROM {alias}.sqlite_master WHERE type IN ('table', 'view') AND name = 'wiki_fts'"
-                        ).fetchone()
-                        has_edges = conn.execute(
-                            f"SELECT 1 FROM {alias}.sqlite_master WHERE type IN ('table', 'view') AND name = 'wiki_edges'"
-                        ).fetchone()
-                        if has_fts:
-                            fts_tables.append(f"{alias}.wiki_fts")
-                        if has_edges:
-                            edges_tables.append(f"{alias}.wiki_edges")
-                    except (sqlite3.OperationalError, sqlite3.DatabaseError):
-                        continue
-
-            fts_union = " UNION ALL ".join(f"SELECT concept_name FROM {t}" for t in fts_tables)
-            edges_union = " UNION ALL ".join(f"SELECT source, target, weight FROM {t}" for t in edges_tables)
+            fts_union, edges_union = federated_graph_queries(conn)
 
             if not center_node:
                 cursor = conn.execute(f"SELECT concept_name FROM ({fts_union}) LIMIT ?", (limit,))
@@ -101,17 +83,16 @@ class WikiGraphStore:
 
                 if node_ids:
                     cursor = conn.execute(f"SELECT source, target, weight FROM ({edges_union})")
+                    edge_weights: dict[tuple[str, str], float] = {}
                     for row in cursor.fetchall():
                         src = row["source"]
                         tgt = row["target"]
                         if src in node_ids and tgt in node_ids:
-                            edges.append(
-                                {
-                                    "source": src,
-                                    "target": tgt,
-                                    "weight": row["weight"] or 1.0,
-                                }
-                            )
+                            weight = float(row["weight"] or 1.0)
+                            edge_weights[(src, tgt)] = max(edge_weights.get((src, tgt), 0.0), weight)
+                    edges = [
+                        {"source": src, "target": tgt, "weight": weight} for (src, tgt), weight in edge_weights.items()
+                    ]
             else:
                 nodes, edges = self._bfs_from_center(conn, center_node, depth, limit, fts_union, edges_union)
 
@@ -331,7 +312,7 @@ class WikiGraphStore:
 
     def get_concept_links(self, concept_name: str, depth: int = 1) -> dict[str, object]:
         """Fetch bidirectional links (outlinks and backlinks) with context snippets and 1-degree ego graph."""
-        clean_name = concept_name.removesuffix(".md").strip()
+        clean_name = concept_index_key(self._structure, concept_name.removesuffix(".md").strip())
 
         outlinks: list[dict[str, object]] = []
         backlinks: list[dict[str, object]] = []

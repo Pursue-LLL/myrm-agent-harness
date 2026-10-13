@@ -2,6 +2,7 @@
 
 [INPUT]
 - ..core.structure::WikiStructure (POS: vault paths)
+- ..core.link_resolver (POS: wikilink target normalization and page lookup index SSOT)
 - ..core.frontmatter_contract::validate_wiki_frontmatter (POS: type enum gate)
 - ..core.types::LintIssue (POS: shared lint issue model)
 
@@ -11,7 +12,6 @@
 - collect_broken_wikilink_issues: scans and returns broken Obsidian wikilink issues
 - collect_invalid_frontmatter_type_issues: scans and returns invalid frontmatter type issues
 - collect_provenance_gap_issues: scans and returns provenance gap issues
-- build_wikilink_title_index: builds wikilink target-to-filepath lookup index
 
 [POS]
 Zero-LLM structural lint SSOT. Used by WikiLinter and server /wiki/stats without
@@ -19,7 +19,8 @@ triggering LLM maintenance paths.
 
 Scope: markdown `[text](path)` links and Obsidian `[[wikilink]]` targets resolved via
 `WikiStructure.resolve_concept_file_path`, with frontmatter `title` / aliases / `canonical_id`
-and path-stem aliases, and raw-backed provenance (`sources` + `provenance`) for local concept pages.
+and full page paths (see `core.link_resolver`), and raw-backed provenance (`sources` +
+`provenance`) for local concept pages.
 Fenced/inline code blocks are skipped for both markdown links and wikilinks.
 """
 
@@ -34,15 +35,17 @@ from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
     load_frontmatter_metadata,
     validate_wiki_frontmatter,
 )
+from myrm_agent_harness.toolkits.wiki.core.link_resolver import (
+    build_wikilink_title_index,
+    normalize_wikilink_target,
+    wikilink_target_exists,
+)
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.core.types import LintIssue
 from myrm_agent_harness.toolkits.wiki.maintenance.issue_kind import (
     action_kind_for_issue_type,
 )
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
-from myrm_agent_harness.utils.markdown_frontmatter import (
-    parse_frontmatter,
-)
 
 logger = get_agent_logger(__name__)
 
@@ -72,76 +75,6 @@ _FENCED_OR_INLINE_CODE_PATTERN = re.compile(r"```[\s\S]*?```|`[^`\n]+`")
 def _content_without_code_blocks(content: str) -> str:
     """Strip fenced and inline code so example wikilinks are not linted."""
     return _FENCED_OR_INLINE_CODE_PATTERN.sub("", content)
-
-
-def _normalize_wikilink_target(raw_target: str) -> str:
-    target = raw_target.split("|", maxsplit=1)[0].strip()
-    if "#" in target:
-        target = target.split("#", maxsplit=1)[0].strip()
-    if target.lower().endswith(".md"):
-        return target[:-3]
-    return target
-
-
-def _normalize_lookup_key(key: str) -> str:
-    return key.strip().casefold()
-
-
-def _concept_link_name(concept_path: Path, concepts_dir: Path) -> str:
-    rel = concept_path.relative_to(concepts_dir)
-    return str(rel.with_suffix("")).replace("\\", "/")
-
-
-def build_wikilink_title_index(structure: WikiStructure) -> dict[str, str]:
-    """Map normalized title or path-stem keys to unique concept path slugs."""
-    candidates: dict[str, list[str]] = {}
-    for concept_path in structure.list_concepts():
-        link_name = _concept_link_name(concept_path, structure.concepts_dir)
-        keys = {_normalize_lookup_key(link_name)}
-        try:
-            content = concept_path.read_text(encoding="utf-8")
-        except OSError as exc:
-            logger.warning("Failed to index wikilink titles for %s: %s", concept_path, exc)
-            continue
-
-        metadata, _body = parse_frontmatter(content)
-        title = metadata.get("title")
-        if isinstance(title, str) and title.strip():
-            keys.add(_normalize_lookup_key(title.strip()))
-
-        raw_aliases = metadata.get("aliases")
-        if isinstance(raw_aliases, list):
-            for alias in raw_aliases:
-                if str(alias).strip():
-                    keys.add(_normalize_lookup_key(str(alias)))
-        elif isinstance(raw_aliases, str) and raw_aliases.strip():
-            keys.add(_normalize_lookup_key(raw_aliases))
-
-        canonical_id = metadata.get("canonical_id")
-        if isinstance(canonical_id, str) and canonical_id.strip():
-            keys.add(_normalize_lookup_key(canonical_id))
-
-        for key in keys:
-            candidates.setdefault(key, []).append(link_name)
-
-    unique: dict[str, str] = {}
-    for key, link_names in candidates.items():
-        if len(link_names) == 1:
-            unique[key] = link_names[0]
-    return unique
-
-
-def _wikilink_target_exists(
-    structure: WikiStructure,
-    target: str,
-    title_index: dict[str, str],
-) -> bool:
-    if structure.resolve_concept_file_path(target) is not None:
-        return True
-    resolved_path = title_index.get(_normalize_lookup_key(target))
-    if resolved_path is None:
-        return False
-    return structure.resolve_concept_file_path(resolved_path) is not None
 
 
 @dataclass(frozen=True, slots=True)
@@ -199,10 +132,10 @@ def collect_broken_wikilink_issues(structure: WikiStructure) -> list[LintIssue]:
 
         scan_content = _content_without_code_blocks(content)
         for raw_target in _WIKILINK_PATTERN.findall(scan_content):
-            target = _normalize_wikilink_target(raw_target)
+            target = normalize_wikilink_target(raw_target)
             if not target or target.startswith("http"):
                 continue
-            if not _wikilink_target_exists(structure, target, title_index):
+            if not wikilink_target_exists(structure, target, title_index):
                 issues.append(
                     LintIssue(
                         issue_type="broken_wikilink",

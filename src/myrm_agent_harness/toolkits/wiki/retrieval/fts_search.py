@@ -62,6 +62,7 @@ if TYPE_CHECKING:
     )
     from myrm_agent_harness.toolkits.memory.protocols.vector import VectorStoreProtocol
 
+    from ..core.link_resolver import WikiLinkResolver
     from ..core.structure import WikiStructure
 
 logger = logging.getLogger(__name__)
@@ -71,8 +72,8 @@ class FtsSearchMixin:
     """FTS5 truth storage plus vector upsert/search operations for WikiIndexer.
 
     Expects the host class to provide: _get_conn, _config, _vector, _embedding,
-    _collection_name, _ensure_collection, _structure, _is_sidecar_entry and
-    _concept_dir_path.
+    _collection_name, _ensure_collection, _structure, _is_sidecar_entry,
+    _concept_dir_path, _index_key, _concept_name_variants and _link_resolver.
     """
 
     _config: WikiConfig
@@ -87,6 +88,9 @@ class FtsSearchMixin:
         _ensure_collection: Callable[[], Awaitable[None]]
         _is_sidecar_entry: Callable[[str], bool]
         _concept_dir_path: Callable[[str], str]
+        _index_key: Callable[[str], str]
+        _concept_name_variants: Callable[[str], tuple[str, ...]]
+        _link_resolver: WikiLinkResolver
 
     def remove_raw_text_index(self, name: str) -> None:
         """Remove interim raw FTS entry (see :meth:`index_raw_text`)."""
@@ -152,7 +156,11 @@ class FtsSearchMixin:
     async def upsert(self, concept_name: str, full_markdown: str) -> None:
         """
         Extract Compiled Truth and upsert into FTS5 index and Vector Store.
+
+        The page is indexed under its on-disk identity, so a compile name and the
+        sanitized path of the same page never produce two index rows.
         """
+        concept_name = self._index_key(concept_name)
         truth_content = self._extract_truth(full_markdown)
         publish_status = self._resolve_publish_status(full_markdown)
 
@@ -213,34 +221,42 @@ class FtsSearchMixin:
     async def delete(self, concept_name: str) -> None:
         """
         Delete concept from FTS5 index, Edges, and Vector Store.
+
+        Removes the concept under every spelling it may be indexed by (as given and as
+        its on-disk path), so deleting by compile name or by path both succeed.
         """
+        names = self._concept_name_variants(concept_name)
 
         # 1. Delete from SQLite FTS5 and edges (Sync wrapped in async thread)
         def sync_delete() -> None:
             with self._get_conn() as conn:
-                conn.execute("DELETE FROM wiki_fts WHERE concept_name = ?", (concept_name,))
-                conn.execute(
-                    "DELETE FROM wiki_edges WHERE source = ? OR target = ?",
-                    (concept_name, concept_name),
-                )
-                conn.execute(
-                    "DELETE FROM wiki_index_meta WHERE concept_name = ?",
-                    (concept_name,),
-                )
+                for name in names:
+                    conn.execute("DELETE FROM wiki_fts WHERE concept_name = ?", (name,))
+                    conn.execute(
+                        "DELETE FROM wiki_edges WHERE source = ? OR target = ?",
+                        (name, name),
+                    )
+                    conn.execute(
+                        "DELETE FROM wiki_index_meta WHERE concept_name = ?",
+                        (name,),
+                    )
 
         await asyncio.to_thread(sync_delete)
+        for name in names:
+            self._link_resolver.forget_page(name)
 
         # 2. Delete from Vector Store (Async)
         if self._config.enable_hybrid_search and self._vector:
-            try:
-                await delete_text_vectors(
-                    self._vector,
-                    self._collection_name,
-                    concept_name,
-                    metadata_key="concept_name",
-                )
-            except Exception as e:
-                logger.error(f"Failed to delete vector for wiki concept '{concept_name}': {e}")
+            for name in names:
+                try:
+                    await delete_text_vectors(
+                        self._vector,
+                        self._collection_name,
+                        name,
+                        metadata_key="concept_name",
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to delete vector for wiki concept '{name}': {e}")
 
     async def search(self, query: str, limit: int = 5, offset: int = 0) -> list[tuple[str, float]]:
         """

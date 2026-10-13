@@ -44,12 +44,7 @@ async def test_incoming_edges_and_concept_links() -> None:
         assert "doc-b" in out_a
         assert "doc-c" in out_a
 
-        # 2. Verify incoming edges of doc-c (both doc-a and doc-b reference doc-c)
-        inc_c = dict(indexer.get_incoming_edges("doc-c"))
-        assert "doc-a" in inc_c
-        assert "doc-b" in inc_c
-
-        # 3. Verify get_concept_links for doc-c
+        # 2. Verify get_concept_links for doc-c (both doc-a and doc-b reference doc-c)
         links_c = indexer.get_concept_links("doc-c")
         assert links_c["concept_name"] == "doc-c"
         assert len(links_c["outlinks"]) == 0
@@ -178,7 +173,7 @@ def test_asset_path_resolution_and_snippets() -> None:
         # 5. Frontmatter alias lookup
         aliased_concept = structure.get_concept_file_path("original-concept")
         aliased_concept.write_text(
-            "---\naliases: [\"cool-alias\"]\n---\n# Original\n",
+            '---\naliases: ["cool-alias"]\n---\n# Original\n',
             encoding="utf-8",
         )
         structure.invalidate_alias_cache()
@@ -234,4 +229,3 @@ async def test_knowledge_graph_full_and_insights() -> None:
         # 4. Graph insights
         insights = graph_store.graph_insights()
         assert isinstance(insights, dict)
-

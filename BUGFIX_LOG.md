@@ -2,6 +2,22 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-13-005 · Wiki 索引里同一页面两行、链接按原文存而连不上页面、图洞察统计失真：编译名与磁盘路径是两套索引键，边目标没有解析，洞察与图谱口径不一致
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-13 |
+| **修复时间** | 2026-10-13 |
+| **症状** | ① 经 `publish_concept_article` 发布 `Knowledge/Rust/Ownership` 这类编译名后，`wiki_fts` 里同一页有两行（编译名一行；维护流程重建索引时再写一行磁盘路径 `knowledge/rust/ownership`），图谱视图出现重复节点（合成库：3 个页面 → 6 行、6 个节点）；② `[[别名]]`、标题写法的链接按原文存为边目标，连不上目标页，图谱与反向链接缺边；③ 图洞察：互相链接的三角形内聚度显示 2.0（200%）；`raw:` 临时条目被当作孤立页面；`system:` 伪目标计入度数；孤立页多时桥接页被挤出缺口列表；「主题簇（N）」的 N 包含单页；面板把簇命名为 `Cluster #id` 并显示内部 `w=` 数值 |
+| **关联产品** | myrm-agent-harness `toolkits/wiki`；server `app/api/wiki/router.py` 的 `/wiki/graph`、`/wiki/graph/insights`、`/wiki/concepts/{name}/links`；前端资料库图谱页 `src/app/library/components/WikiGraphInsightsPanel.tsx`。Local / 桌面 / 云托管三种部署都受影响 |
+| **根因** | 同一页面有两套索引键：编译流程把模型给的概念名传给 `publish_concept_article`（`pipeline/publication/publish.py`）作键，维护流程（lint、重建索引、向量重建）传磁盘相对路径；`FtsSearchMixin.upsert` 按精确名先删后插，两种写法各留一行。`extract_and_upsert_edges` 把原始链接文字存为边目标，与页面键不同。`compute_graph_insights` 用与图谱视图不同的节点与边集合，且内聚度分子按有向行数、分母按无向对数 |
+| **修复** | ① 索引键以磁盘页面路径为准（`core/link_resolver.py::concept_index_key`；没有对应页面文件的名字保持原样），`upsert` 按页面键入库，`delete` 对给定写法与路径写法都清理；`retrieval/identity_migration.py` 用 `PRAGMA user_version` 一次性把旧库里以编译名入库的行并到页面键；② `core/link_resolver.py` 成为链接解析唯一来源（lint 改为引用，行为不变），`retrieval/edge_links.py` 写边时解析目标（路径、净化后路径、唯一的标题/别名/`canonical_id`；歧义与未知保留原文），目标页出现或别名变化后补齐先写后建的前向引用；③ `retrieval/graph_tables.py` 让洞察与图谱共用同一套联邦节点/边查询，`graph_analysis.py` 重写统计（互相链接只算一条、内聚度不超过 1、`system:` 与未解析目标不计、孤立与桥接各自限额、成员按度数、簇至少两页）；④ 面板以度数最高的页面命名簇、去掉 `w=`、文案全部走 6 语言 locales。同批删除无调用方的 `get_incoming_edges` |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | ① 复现必须走真实 `publish_concept_article`（含发布门）：手写 `upsert` 会绕过发布门，容易得出「索引键是路径主干」这类错误结论；② 在索引层无条件净化所有名字会破坏不透明键（暂存草稿、测试用名），所以只在有对应页面文件时规范化，迁移沿用同一规则；③ 两条原有测试把非规范键写成了期望（`test_reindex_concepts_after_move_deduplication`、`test_reindex_after_move_syncs_modified_referrers`），已改为页面键；④ 向量库里以旧键为键的点不随迁移清理，页面被删除或向量重建前仍在，`_is_published` 对未知名字返回真，它们可能作为重复候选出现（原先就有，未在真实向量库上验证）；⑤ 别名索引仍有三份口径：`structure` 的别名缓存（后写覆盖）、`canonical_registry`（先写优先）、`link_resolver`（歧义即不解析），本次只统一了 lint 与边解析；⑥ 迁移与旧库行为只在合成库上验证，未检查任何真实 vault |
+| **回归** | `tests/toolkits/wiki/test_concept_identity.py`（9 例：编译名与路径名同一行、边解析、前向引用收敛、别名后加重连、自环、markdown 相对链接、按任一写法删除、`get_concept_links` 两种写法、旧库迁移幂等）· `test_link_resolver.py`（20 例）· `test_graph_analysis.py`（新增 7 例：内聚度、`raw:`/侧车、`system:`、联邦挂载、缺口限额、成员排序、单页非簇）· 前端 `__tests__/WikiGraphInsightsPanel.test.tsx`（4 例，真实 en/zh 文案）。旧版洞察实现在同一合成数据上复现：内聚度 2.0、缺口节点含 `raw:notes/meeting`；性能（发布路径 CPU 时间，500 页，旧新交替 5 轮）首轮中位数旧 3.31 ms/页、新 3.26 ms/页，3000 页 2 轮差异在噪声内，解析器冷建约 100 ms/千页 |
+| **代码位置** | `toolkits/wiki/core/link_resolver.py` · `retrieval/{edge_links,identity_migration,graph_tables,graph_analysis,graph_store,indexer,fts_search}.py` · `diagnostics/structural_lint.py` |
+
 ### BUG-HARNESS-2026-10-13-004 · 多 Key 轮转池丢掉全部工具：`KeyPoolLLM.bind_tools` 丢弃绑定结果，同一 provider 配置两个及以上 Key 时 Agent 变成无工具聊天
 
 | 字段 | 内容 |

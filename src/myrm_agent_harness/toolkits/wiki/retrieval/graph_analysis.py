@@ -3,6 +3,7 @@
 [INPUT]
 - math (POS: standard library math)
 - sqlite3::Connection (POS: standard library database)
+- .graph_tables::federated_graph_queries (POS: graph node/edge rows shared with the viewer)
 
 [OUTPUT]
 - label_propagation: LPA community detection algorithm
@@ -11,24 +12,39 @@
 
 [POS]
 Pure-Python graph analysis module for wiki knowledge graph. Provides Label Propagation
-community detection, knowledge gap identification, and unexpected connection discovery.
+community detection, knowledge gap identification, and unexpected connection discovery
+over the same federated concept graph the viewer renders.
 """
 
 from __future__ import annotations
 
 import math
 import sqlite3
+from collections.abc import Mapping, Sequence
+
+from .graph_tables import federated_graph_queries
+
+GraphRecord = dict[str, object]
+
+_MAX_UNEXPECTED_CONNECTIONS = 20
+_MAX_ISOLATED_GAPS = 15
+_MAX_BRIDGE_GAPS = 15
+_MAX_COMMUNITY_MEMBERS = 10
+_MIN_BRIDGE_COMMUNITIES = 3
+_MIN_CLUSTER_SIZE = 2
 
 
-def label_propagation(nodes: list[dict], edges: list[dict], iterations: int = 10) -> dict[str, int]:
+def label_propagation(
+    nodes: Sequence[Mapping[str, object]], edges: Sequence[Mapping[str, object]], iterations: int = 10
+) -> dict[str, int]:
     """Deterministic Label Propagation Algorithm for community detection (pure Python, no deps)."""
     if not nodes:
         return {}
 
     # Sort nodes for deterministic initial ordering
     sorted_nodes = sorted(nodes, key=lambda x: str(x.get("id", "")))
-    labels: dict[str, int] = {node["id"]: i for i, node in enumerate(sorted_nodes)}
-    neighbors: dict[str, list[str]] = {node["id"]: [] for node in sorted_nodes}
+    labels: dict[str, int] = {str(node["id"]): i for i, node in enumerate(sorted_nodes)}
+    neighbors: dict[str, list[str]] = {str(node["id"]): [] for node in sorted_nodes}
 
     for edge in edges:
         src, tgt = str(edge["source"]), str(edge["target"])
@@ -41,7 +57,7 @@ def label_propagation(nodes: list[dict], edges: list[dict], iterations: int = 10
     for n_id in neighbors:
         neighbors[n_id].sort()
 
-    node_ids = [n["id"] for n in sorted_nodes]
+    node_ids = [str(n["id"]) for n in sorted_nodes]
     for _ in range(iterations):
         changed = False
         for node_id in node_ids:
@@ -67,7 +83,7 @@ def label_propagation(nodes: list[dict], edges: list[dict], iterations: int = 10
     return {node_id: label_map[lbl] for node_id, lbl in labels.items()}
 
 
-def enrich_graph_with_communities(nodes: list[dict], edges: list[dict]) -> None:
+def enrich_graph_with_communities(nodes: list[GraphRecord], edges: Sequence[Mapping[str, object]]) -> None:
     """Assign LPA community group IDs and logarithmic-scaled degree sizes to nodes (in-place)."""
     if not nodes:
         return
@@ -86,86 +102,109 @@ def enrich_graph_with_communities(nodes: list[dict], edges: list[dict]) -> None:
         node["val"] = max(1, min(10, 1 + round(math.log2(deg + 1))))
 
 
-def compute_graph_insights(conn: sqlite3.Connection) -> dict[str, list[dict]]:
+def _load_insight_graph(conn: sqlite3.Connection) -> tuple[list[str], dict[tuple[str, str], float]]:
+    """Concept pages and the directed edges between them, from the graph the viewer shows.
+
+    Edges whose endpoint is not an indexed page (pseudo `system:*` targets, unresolved
+    link text) are not part of the graph and are ignored.
+    """
+    names_sql, edges_sql = federated_graph_queries(conn)
+    nodes = sorted(str(row["concept_name"]) for row in conn.execute(names_sql))
+    known = set(nodes)
+    edge_weights: dict[tuple[str, str], float] = {}
+    for row in conn.execute(edges_sql):
+        src, tgt = str(row["source"]), str(row["target"])
+        if src == tgt or src not in known or tgt not in known:
+            continue
+        edge_weights[(src, tgt)] = max(edge_weights.get((src, tgt), 0.0), float(row["weight"] or 1.0))
+    return nodes, edge_weights
+
+
+def compute_graph_insights(conn: sqlite3.Connection) -> dict[str, list[GraphRecord]]:
     """Analyze graph structure for unexpected connections, knowledge gaps, and communities."""
-    cursor = conn.execute("SELECT concept_name FROM wiki_fts")
-    all_nodes = [row["concept_name"] for row in cursor.fetchall()]
-
-    cursor = conn.execute("SELECT source, target, weight FROM wiki_edges")
-    all_edges = [(row["source"], row["target"], row["weight"] or 1.0) for row in cursor.fetchall()]
-
-    if not all_nodes:
+    nodes, edge_weights = _load_insight_graph(conn)
+    if not nodes:
         return {"unexpected_connections": [], "knowledge_gaps": [], "communities": []}
 
-    # Build adjacency
-    neighbors: dict[str, set[str]] = {n: set() for n in all_nodes}
-    for src, tgt, _ in all_edges:
-        if src in neighbors:
-            neighbors[src].add(tgt)
-        if tgt in neighbors:
-            neighbors[tgt].add(src)
+    # Undirected view: a mutual link is one connection, reported with its heaviest direction.
+    pair_weight: dict[tuple[str, str], float] = {}
+    pair_direction: dict[tuple[str, str], tuple[str, str]] = {}
+    for (src, tgt), weight in sorted(edge_weights.items(), key=lambda item: (-item[1], item[0])):
+        pair = (min(src, tgt), max(src, tgt))
+        if pair not in pair_weight:
+            pair_weight[pair] = weight
+            pair_direction[pair] = (src, tgt)
 
-    # Detect communities via deterministic LPA
-    nodes_data = [{"id": n} for n in all_nodes]
-    edges_data = [{"source": s, "target": t, "weight": w} for s, t, w in all_edges]
-    communities = label_propagation(nodes_data, edges_data)
+    neighbors: dict[str, set[str]] = {node: set() for node in nodes}
+    for first, second in pair_weight:
+        neighbors[first].add(second)
+        neighbors[second].add(first)
 
-    # Group nodes by community
-    community_groups: dict[int, list[str]] = {}
-    for node_id, comm_id in communities.items():
-        community_groups.setdefault(comm_id, []).append(node_id)
+    communities = label_propagation(
+        [{"id": node} for node in nodes],
+        [{"source": src, "target": tgt} for src, tgt in edge_weights],
+    )
 
-    # 1. Unexpected connections: edges crossing communities (with undirected deduplication)
-    unexpected: list[dict] = []
-    seen_undirected_pairs: set[tuple[str, str]] = set()
-    for src, tgt, weight in all_edges:
-        pair_key = (min(src, tgt), max(src, tgt))
-        if pair_key in seen_undirected_pairs:
+    # 1. Unexpected connections: links crossing communities.
+    crossing = sorted(
+        (
+            (src, tgt, pair_weight[pair])
+            for pair, (src, tgt) in pair_direction.items()
+            if communities[src] != communities[tgt]
+        ),
+        key=lambda link: (-link[2], link[0], link[1]),
+    )
+
+    # 2. Knowledge gaps: weakly linked pages and bridges, each capped separately so one
+    #    kind cannot crowd out the other.
+    isolated = sorted((node for node in nodes if len(neighbors[node]) <= 1), key=lambda n: (len(neighbors[n]), n))
+    bridges = sorted(
+        (
+            (node, bridged)
+            for node in nodes
+            if (bridged := len({communities[nbr] for nbr in neighbors[node]})) >= _MIN_BRIDGE_COMMUNITIES
+        ),
+        key=lambda item: (-item[1], item[0]),
+    )
+    gaps: list[GraphRecord] = [
+        {"node": node, "type": "isolated", "degree": len(neighbors[node])} for node in isolated[:_MAX_ISOLATED_GAPS]
+    ]
+    gaps.extend(
+        {"node": node, "type": "bridge", "communities_connected": bridged}
+        for node, bridged in bridges[:_MAX_BRIDGE_GAPS]
+    )
+
+    # 3. Community summaries: a cluster needs at least two pages (a lone page is already an
+    #    isolated gap); cohesion is the share of possible member pairs that are linked.
+    members_by_community: dict[int, list[str]] = {}
+    for node in nodes:
+        members_by_community.setdefault(communities[node], []).append(node)
+    linked_pairs: dict[int, int] = {}
+    for first, second in pair_weight:
+        if communities[first] == communities[second]:
+            linked_pairs[communities[first]] = linked_pairs.get(communities[first], 0) + 1
+
+    community_info: list[GraphRecord] = []
+    for comm_id, members in sorted(members_by_community.items(), key=lambda item: (-len(item[1]), item[0])):
+        size = len(members)
+        if size < _MIN_CLUSTER_SIZE:
             continue
-        seen_undirected_pairs.add(pair_key)
-
-        if communities.get(src, -1) != communities.get(tgt, -1):
-            unexpected.append({"source": src, "target": tgt, "weight": weight})
-    unexpected.sort(key=lambda x: (x["weight"], x["source"], x["target"]), reverse=True)
-
-    # 2. Knowledge gaps: isolated nodes (0-1 connections) and bridge nodes
-    gaps: list[dict] = []
-    for node_id in sorted(all_nodes):
-        degree = len(neighbors.get(node_id, set()))
-        if degree <= 1:
-            gaps.append({"node": node_id, "type": "isolated", "degree": degree})
-
-    for node_id in sorted(all_nodes):
-        nbr_communities = {communities.get(n, -1) for n in neighbors.get(node_id, set())}
-        if len(nbr_communities) >= 3:
-            gaps.append(
-                {
-                    "node": node_id,
-                    "type": "bridge",
-                    "communities_connected": len(nbr_communities),
-                }
-            )
-
-    # 3. Community summaries
-    community_info: list[dict] = []
-    for comm_id, members in sorted(community_groups.items()):
-        sorted_members = sorted(members)
-        internal_edges = sum(
-            1 for s, t, _ in all_edges if communities.get(s) == comm_id and communities.get(t) == comm_id
-        )
-        max_possible = len(members) * (len(members) - 1) / 2
-        cohesion = internal_edges / max_possible if max_possible > 0 else 0
+        cohesion = linked_pairs.get(comm_id, 0) / (size * (size - 1) / 2)
+        hubs_first = sorted(members, key=lambda n: (-len(neighbors[n]), n))
         community_info.append(
             {
                 "id": comm_id,
-                "size": len(members),
-                "members": sorted_members[:10],
+                "size": size,
+                "members": hubs_first[:_MAX_COMMUNITY_MEMBERS],
                 "cohesion": round(cohesion, 3),
             }
         )
 
     return {
-        "unexpected_connections": unexpected[:20],
-        "knowledge_gaps": gaps[:30],
+        "unexpected_connections": [
+            {"source": src, "target": tgt, "weight": weight}
+            for src, tgt, weight in crossing[:_MAX_UNEXPECTED_CONNECTIONS]
+        ],
+        "knowledge_gaps": gaps,
         "communities": community_info,
     }

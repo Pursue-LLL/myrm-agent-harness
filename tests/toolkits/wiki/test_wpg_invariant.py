@@ -223,8 +223,7 @@ async def test_reindex_after_move_syncs_modified_referrers(wiki_structure: WikiS
     assert reindexed == 2
     # Verify referrer content indexed in FTS
     results = await indexer.search("Architecture", limit=5)
-    assert any(r[0] == "Team/Guide" for r in results)
-    # Verify outgoing edges updated to point to Tech/Architecture
-    edges = indexer.get_outgoing_edges("Team/Guide")
-    assert any(e[0] == "Tech/Architecture" for e in edges)
-
+    # Indexed under the on-disk identity, with link targets stored as page keys
+    assert any(r[0] == "team/guide" for r in results)
+    edges = indexer.get_outgoing_edges("team/guide")
+    assert any(e[0] == "tech/architecture" for e in edges)

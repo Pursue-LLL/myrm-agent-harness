@@ -35,9 +35,12 @@ from myrm_agent_harness.utils.db.fts5 import (
 )
 
 from ..core.config import WikiConfig
+from ..core.link_resolver import WikiLinkResolver, concept_index_key
 from ..core.structure import WikiStructure
+from .edge_links import canonical_edge_target, relink_dangling_edges
 from .fts_search import FtsSearchMixin, migrate_wiki_fts_schema
 from .graph_store import WikiGraphStore
+from .identity_migration import migrate_concept_identity
 from .sidecar_index import SidecarIndexMixin
 
 if TYPE_CHECKING:
@@ -69,8 +72,18 @@ class WikiIndexer(FtsSearchMixin, SidecarIndexMixin):
         self.db_path = self._structure.base_dir / ".wiki_index.db"
         self._collection_name = "wiki_concepts"
         self._collection_ready = False
+        self._link_resolver = WikiLinkResolver(structure)
         self._init_db()
         self._graph_store = WikiGraphStore(self._get_conn, structure)
+
+    def _index_key(self, concept_name: str) -> str:
+        """Identity a concept is indexed under: its on-disk path when a page exists."""
+        return concept_index_key(self._structure, concept_name)
+
+    def _concept_name_variants(self, concept_name: str) -> tuple[str, ...]:
+        """Spellings a concept may be indexed under: as given and as its on-disk path."""
+        sanitized = WikiStructure._sanitize_path(concept_name.removesuffix(".md"))
+        return tuple(dict.fromkeys(name for name in (concept_name, sanitized) if name))
 
     @contextlib.contextmanager
     def _get_conn(self) -> Iterator[sqlite3.Connection]:
@@ -152,6 +165,8 @@ class WikiIndexer(FtsSearchMixin, SidecarIndexMixin):
                 logger.warning("FTS5 index corrupted on startup, rebuilding: wiki_fts")
                 fts5_rebuild(conn, "wiki_fts")
 
+            migrate_concept_identity(conn, self._structure, self._link_resolver)
+
     def get_knowledge_graph(
         self, center_node: str | None = None, depth: int = 1, limit: int = 1000
     ) -> dict[str, list[dict[str, object]]]:
@@ -179,15 +194,6 @@ class WikiIndexer(FtsSearchMixin, SidecarIndexMixin):
                 (source,),
             )
             return [(str(row["target"]), float(row["weight"])) for row in cursor.fetchall()]
-
-    def get_incoming_edges(self, target: str) -> list[tuple[str, float]]:
-        """Return weighted incoming graph edges (backlinks) for a concept, highest weight first."""
-        with self._get_conn() as conn:
-            cursor = conn.execute(
-                "SELECT source, weight FROM wiki_edges WHERE target = ? ORDER BY weight DESC",
-                (target,),
-            )
-            return [(str(row["source"]), float(row["weight"])) for row in cursor.fetchall()]
 
     def upsert_edges(self, source: str, targets: list[str], source_files: list[str] | None = None) -> None:
         """Upsert directional edges with multi-dimensional weight calculation."""
@@ -235,40 +241,55 @@ class WikiIndexer(FtsSearchMixin, SidecarIndexMixin):
         return round(weight, 2)
 
     def extract_and_upsert_edges(self, concept_name: str, content: str) -> None:
-        """Parse markdown links, Wikilinks, and Metric source_systems, then upsert to SQLite edges table."""
-        targets = []
+        """Parse markdown links, Wikilinks, and Metric source_systems, then upsert to SQLite edges table.
+
+        Link targets are stored as the canonical key of the page they resolve to, so
+        every graph reader sees the links structural lint accepts. When this write adds
+        a page or changes its titles/aliases, earlier dangling edges are re-resolved.
+        """
+        source = self._index_key(concept_name)
+        resolver = self._link_resolver
+        page_on_disk = (self._structure.concepts_dir / f"{source}.md").is_file()
+        page_changed = page_on_disk and resolver.note_page(source, content)
+        targets: set[str] = set()
 
         # 1. Match Standard Markdown Links: [text](link.md)
-        links = re.findall(r"\[([^\]]+)\]\(([^)]+)\.md\)", content)
-        targets.extend([t.strip() for _, t in links if t.strip()])
+        for _text, link in re.findall(r"\[([^\]]+)\]\(([^)]+)\.md\)", content):
+            if link.strip():
+                targets.add(canonical_edge_target(resolver, source, link.strip(), relative_to_source=True))
 
         # 2. Match Obsidian Wikilinks: [[link]], [[link|alias]], [[link#heading|alias]]
-        wikilinks = re.findall(r"\[\[([^\]]+)\]\]", content)
-        for wl in wikilinks:
-            target = wl.split("|")[0].split("#")[0].strip()
+        for wikilink in re.findall(r"\[\[([^\]]+)\]\]", content):
+            target = wikilink.split("|")[0].split("#")[0].strip()
             if target:
-                targets.append(target)
+                targets.add(canonical_edge_target(resolver, source, target))
 
         # 3. Match Metric source_systems in frontmatter metadata
-        if content.startswith("---"):
-            try:
-                from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
-                    load_frontmatter_metadata,
-                )
-
-                metadata, _ = load_frontmatter_metadata(content)
-                sources = metadata.get("source_systems")
-                if isinstance(sources, list):
-                    for src in sources:
-                        if isinstance(src, str) and src.strip():
-                            targets.append(f"system:{src.strip()}")
-            except Exception:
-                pass
-
-        targets = list(set(targets))
+        targets.update(self._source_system_targets(content))
 
         # Unconditionally upsert (even if empty) to clear deleted edges
-        self.upsert_edges(concept_name, targets)
+        self.upsert_edges(source, list(targets))
+
+        if page_changed:
+            with self._get_conn() as conn:
+                relink_dangling_edges(conn, resolver)
+
+    @staticmethod
+    def _source_system_targets(content: str) -> set[str]:
+        if not content.startswith("---"):
+            return set()
+        try:
+            from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
+                load_frontmatter_metadata,
+            )
+
+            metadata, _ = load_frontmatter_metadata(content)
+        except Exception:
+            return set()
+        sources = metadata.get("source_systems")
+        if not isinstance(sources, list):
+            return set()
+        return {f"system:{src.strip()}" for src in sources if isinstance(src, str) and src.strip()}
 
     async def _ensure_collection(self) -> None:
         """Lazily initialize vector collection if vector store is enabled."""
