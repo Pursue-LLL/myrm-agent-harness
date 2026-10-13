@@ -5,7 +5,8 @@
 
 [OUTPUT]
 - SkillUsageRecord: one run that used the skill, with its observed outcome (None when unobservable)
-- SkillUsageStats: use count, observed success/failure counts, lifecycle fields, usage history, serialization
+- SkillUsageStats: use count, observed success/failure counts, lifecycle fields, usage history (``history_is_full`` tells
+  when older runs were dropped), serialization
 - STATS_SCHEMA_VERSION: on-disk semantics version of .stats.json counters
 
 [POS]
@@ -89,6 +90,11 @@ class SkillUsageStats:
     usage_history: list[SkillUsageRecord] = field(default_factory=list)
     """Rolling window of recent runs that used the skill, for trend analysis.
     Capped at _MAX_HISTORY_ENTRIES to bound disk usage."""
+
+    @property
+    def history_is_full(self) -> bool:
+        """Whether the rolling history is at capacity, so runs older than its first record may have been dropped."""
+        return len(self.usage_history) >= _MAX_HISTORY_ENTRIES
 
     @property
     def observed_count(self) -> int:

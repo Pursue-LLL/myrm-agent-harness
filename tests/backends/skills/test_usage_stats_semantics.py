@@ -33,6 +33,21 @@ def test_history_record_keeps_unobserved_outcome_as_none() -> None:
     assert [record.success for record in restored.usage_history] == [None, True]
 
 
+def test_history_is_full_only_once_the_rolling_window_drops_runs() -> None:
+    """Below capacity every run is still on record; at capacity the oldest ones may already be gone."""
+    stats = SkillUsageStats()
+    for minute in range(199):
+        stats.append_usage(f"2026-10-12T00:{minute // 60:02d}:{minute % 60:02d}+00:00", True)
+    assert not stats.history_is_full
+
+    stats.append_usage("2026-10-12T05:00:00+00:00", True)
+    assert stats.history_is_full
+
+    stats.append_usage("2026-10-12T05:01:00+00:00", True)
+    assert stats.history_is_full
+    assert len(stats.usage_history) == 200
+
+
 def test_to_dict_stamps_the_current_schema_version() -> None:
     assert SkillUsageStats().to_dict()["schema_version"] == STATS_SCHEMA_VERSION
 
