@@ -9,8 +9,6 @@ import pytest
 from myrm_agent_harness.toolkits.memory._internal.approval import memory_to_pending
 from myrm_agent_harness.toolkits.memory._internal.storage import (
     MemoryError as MemoryStoreError,
-)
-from myrm_agent_harness.toolkits.memory._internal.storage import (
     PendingTargetChangedError,
     get_from_vector,
 )

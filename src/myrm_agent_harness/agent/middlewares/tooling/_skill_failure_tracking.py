@@ -44,22 +44,29 @@ _SECRETISH_TOKEN_PATTERN = re.compile(r"[A-Za-z0-9_./+=:-]{32,}")
 
 NON_SKILL_FAILURE_CATEGORIES: frozenset[str] = frozenset(
     {
+        ToolErrorCategory.BENCHMARK_BLOCKED,
         ToolErrorCategory.CIRCUIT_BREAKER,
         ToolErrorCategory.CONTEXT_VALIDATION,
         ToolErrorCategory.ESTOP,
         ToolErrorCategory.FREQUENCY_GUARD,
+        ToolErrorCategory.GUARDRAIL_BLOCKED,
         ToolErrorCategory.HOOK_BLOCKED,
         ToolErrorCategory.INVALID_TOOL,
         ToolErrorCategory.NETWORK_BLOCKED,
         ToolErrorCategory.PII_GUARD,
         ToolErrorCategory.POST_HOOK_BLOCKED,
+        ToolErrorCategory.SANDBOX_BOUNDARY,
         ToolErrorCategory.SANDBOX_RO,
         ToolErrorCategory.STEERING,
         ToolErrorCategory.TOOL_CANCELLED,
         ToolErrorCategory.TRUST_ATTENUATION,
+        ToolErrorCategory.TURN_BUDGET_GUARD,
         "any",
     }
 )
+
+# Loading a skill's SOP is the act of selecting it, not executing it, so its result says nothing about quality.
+_SKILL_LOAD_TOOL_NAMES: frozenset[str] = frozenset({"skill_select_tool"})
 
 
 def track_skill_execution(
@@ -73,6 +80,8 @@ def track_skill_execution(
     loop_kind: str | None = None,
 ) -> None:
     """Publish structured failure events and count outcomes for the single loaded storage skill."""
+    if tool_name in _SKILL_LOAD_TOOL_NAMES:
+        return
     try:
         candidates = _build_skill_failure_candidates()
         if not candidates:
