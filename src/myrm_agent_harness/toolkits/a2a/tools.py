@@ -5,7 +5,7 @@ Provides `a2a_call` for targeted single-peer task delegation and
 aggregation policies ('all', 'first', 'best').
 
 [INPUT]
-- peer_url / peers, prompt, capability, mode
+- peer_url / peers, prompt, capability, mode, bearer_token / bearer_tokens (per-peer token by URL)
 
 [OUTPUT]
 - Structured delegation results and synthesized multi-agent findings
@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Mapping
 from enum import StrEnum
 
 from pydantic import BaseModel, Field
@@ -115,11 +116,15 @@ async def execute_a2a_orchestrate(
     peers: list[str],
     prompt: str,
     *,
+    bearer_tokens: Mapping[str, str] | None = None,
     mode: FanoutMode = FanoutMode.ALL,
     timeout_seconds: float = 90.0,
     client: A2AClient | None = None,
 ) -> dict[str, object]:
-    """Execute multi-peer capability fan-out orchestration."""
+    """Execute multi-peer capability fan-out orchestration.
+
+    ``bearer_tokens`` maps a peer URL to the token that peer expects; a peer without an entry is called unauthenticated.
+    """
     if not peers:
         return {
             "success": False,
@@ -133,6 +138,7 @@ async def execute_a2a_orchestrate(
         res = await execute_a2a_call(
             p_url,
             prompt,
+            bearer_token=bearer_tokens.get(p_url) if bearer_tokens else None,
             timeout_seconds=timeout_seconds,
             client=a2a_client,
         )

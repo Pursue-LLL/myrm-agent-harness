@@ -22,8 +22,8 @@ from myrm_agent_harness.toolkits.memory.protocols import RelationalStoreProtocol
 """Memory backup and restore protocols for data safety.
 
 Defines abstract interfaces for memory system backup/restore strategies.
-Business layer implements concrete strategies (e.g., VolumeBackupStrategy for
-sandbox environments, S3BackupStrategy for cloud deployments).
+Business layer implements concrete strategies (for example against a sandbox
+volume or cloud object storage).
 
 Harness framework layer provides protocol and manager integration,
 business layer provides implementation and UI.
@@ -88,10 +88,8 @@ class RestoreResult:
 class MemoryBackupStrategy(Protocol):
     """Protocol for memory backup and restore strategies.
 
-    Business layer implements concrete strategies:
-    - VolumeBackupStrategy: Backup to sandbox persistent volume
-    - S3BackupStrategy: Backup to cloud storage
-    - LocalBackupStrategy: Backup to local filesystem
+    Business layer implements concrete strategies, for example a sandbox
+    persistent volume, cloud object storage, or the local filesystem.
 
     Framework provides protocol and manager integration,
     business layer provides implementation and UI.
