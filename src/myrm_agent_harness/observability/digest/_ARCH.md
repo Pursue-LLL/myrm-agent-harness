@@ -9,7 +9,7 @@ Team weekly digest and knowledge compounding newsletter engine. Aggregates multi
 |------|------|-------------|-------|
 | `__init__.py` | Package | Re-exports TeamWeeklyDigest, SkillHealthEvaluator, TeamDigestRenderer, and metric types. | ✅ |
 | `types.py` | Core | Foundation type contracts: SkillCompoundingMetrics, SkillHealthScore, TeamWeeklyDigest. | ✅ |
-| `health_evaluator.py` | Core | SkillHealthEvaluator computing composite compounding indices and STAR/AT_RISK/STALE classifications. | ✅ |
+| `health_evaluator.py` | Core | SkillHealthEvaluator scoring the observed success rate weighted by evidence and classifying STAR/HEALTHY/AT_RISK/UNPROVEN/STALE. | ✅ |
 
 ## Key Dependencies
 

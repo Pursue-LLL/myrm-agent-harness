@@ -1,13 +1,15 @@
-"""Pure-rule Multi-dimensional Skill Health and Compounding Evaluator.
+"""Pure-rule skill health evaluator driven by observed run outcomes.
 
 [INPUT]
 - myrm_agent_harness.observability.digest.types::(SkillCompoundingMetrics, SkillHealthScore, SkillHealthStatus) (POS: 周报数据契约)
 
 [OUTPUT]
-- SkillHealthEvaluator: Evaluates raw usage metrics into composite scores and classifications
+- SkillHealthEvaluator: Turns a skill's observed outcomes into a confidence-weighted score and a status
 
 [POS]
-Harness-level skill compounding analytics evaluating adoption, error convergence, and cross-session reuse without LLM overhead.
+Harness-level skill health analytics without LLM overhead. Only quantities a caller actually measured
+take part: the success rate of runs with an observed outcome, trusted in proportion to how many
+outcomes back it. A skill with too few outcomes is UNPROVEN, never STAR or AT_RISK.
 """
 
 from __future__ import annotations
@@ -20,30 +22,39 @@ from myrm_agent_harness.observability.digest.types import (
     SkillHealthStatus,
 )
 
+_STAR_MIN_SUCCESS_RATE = 0.90
+_AT_RISK_MAX_SUCCESS_RATE = 0.65
+_STALE_SCORE = 15.0
+
 
 class SkillHealthEvaluator:
-    """Evaluates skill compounding index and health classification using weighted pure rules."""
+    """Scores a skill by its observed success rate, weighted by the amount of evidence."""
 
     @classmethod
     def evaluate(
         cls,
         metrics: SkillCompoundingMetrics,
         *,
+        min_observed: int,
         reference_time: datetime | None = None,
         stale_days_threshold: int = 30,
     ) -> SkillHealthScore:
-        """Compute composite health score and classify skill status."""
-        now = reference_time or datetime.now(UTC)
+        """Compute the health score and classify the skill.
 
-        # 1. Handle dormant / stale skills (0 invocations or inactive > 30 days)
+        ``min_observed`` is the number of observed outcomes needed before the success rate is trusted
+        in full; with fewer outcomes the score is scaled down proportionally and the status is UNPROVEN.
+        """
+        now = reference_time or datetime.now(UTC)
+        observed = metrics.successful_invocations + metrics.failed_invocations
+        success_rate = metrics.successful_invocations / observed if observed > 0 else None
+        reported_rate = round(success_rate, 4) if success_rate is not None else None
+
         if metrics.invocations <= 0:
             return SkillHealthScore(
                 skill_id=metrics.skill_id,
                 health_score=0.0,
                 status=SkillHealthStatus.STALE,
-                adoption_rate=0.0,
-                success_rate=0.0,
-                reuse_breadth=0.0,
+                success_rate=None,
                 actionable_recommendation="Skill has not been invoked. Consider deprecating or adding examples.",
             )
 
@@ -52,56 +63,38 @@ class SkillHealthEvaluator:
             if delta_days > stale_days_threshold:
                 return SkillHealthScore(
                     skill_id=metrics.skill_id,
-                    health_score=15.0,
+                    health_score=_STALE_SCORE,
                     status=SkillHealthStatus.STALE,
-                    adoption_rate=0.0,
-                    success_rate=metrics.successful_invocations / metrics.invocations,
-                    reuse_breadth=metrics.distinct_sessions / metrics.invocations,
+                    success_rate=reported_rate,
                     actionable_recommendation=f"Inactive for {int(delta_days)} days. Review for obsolescence.",
                 )
 
-        # 2. Compute individual dimensional ratios
-        success_rate = min(1.0, max(0.0, metrics.successful_invocations / metrics.invocations))
-        adoption_rate = min(1.0, max(0.0, metrics.adopted_outputs / metrics.invocations))
-        reuse_breadth = min(1.0, max(0.0, metrics.distinct_sessions / metrics.invocations))
-        retry_penalty = min(0.5, (metrics.retry_count / metrics.invocations) * 0.25)
+        required = max(1, min_observed)
+        if success_rate is None or observed < required:
+            return SkillHealthScore(
+                skill_id=metrics.skill_id,
+                health_score=round(100.0 * (success_rate or 0.0) * (observed / required), 2),
+                status=SkillHealthStatus.UNPROVEN,
+                success_rate=reported_rate,
+                actionable_recommendation=(
+                    f"Too few observed outcomes to judge quality yet ({observed} of {required} needed)."
+                ),
+            )
 
-        # 3. Weighted composite calculation:
-        # - Adoption Rate (40%)
-        # - Success Rate (30%)
-        # - Reuse Breadth (20%)
-        # - Invocations Bonus (up to 10% for >= 20 calls)
-        # - Minus Retry Penalty
-        volume_factor = min(1.0, metrics.invocations / 20.0)
-        raw_score = (
-            (adoption_rate * 40.0)
-            + (success_rate * 30.0)
-            + (reuse_breadth * 20.0)
-            + (volume_factor * 10.0)
-            - (retry_penalty * 100.0)
-        )
-        final_score = round(min(100.0, max(0.0, raw_score)), 2)
-
-        # 4. Status determination
-        status: SkillHealthStatus
-        recommendation: str
-
-        if final_score >= 80.0 and success_rate >= 0.90:
+        if success_rate >= _STAR_MIN_SUCCESS_RATE:
             status = SkillHealthStatus.STAR
-            recommendation = "Star compounding asset! High adoption and zero friction across team."
-        elif success_rate < 0.65 or retry_penalty >= 0.20:
+            recommendation = "Star asset! Highly reliable across observed runs."
+        elif success_rate < _AT_RISK_MAX_SUCCESS_RATE:
             status = SkillHealthStatus.AT_RISK
-            recommendation = "At-risk asset. High failure/retry rate detected; review prompt and parameters."
+            recommendation = "At-risk asset. High failure rate detected; review prompt and parameters."
         else:
             status = SkillHealthStatus.HEALTHY
             recommendation = "Healthy asset in active rotation."
 
         return SkillHealthScore(
             skill_id=metrics.skill_id,
-            health_score=final_score,
+            health_score=round(100.0 * success_rate, 2),
             status=status,
-            adoption_rate=round(adoption_rate, 4),
-            success_rate=round(success_rate, 4),
-            reuse_breadth=round(reuse_breadth, 4),
+            success_rate=reported_rate,
             actionable_recommendation=recommendation,
         )

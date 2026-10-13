@@ -24,12 +24,13 @@ from enum import StrEnum
 
 
 class SkillHealthStatus(StrEnum):
-    """Categorical classification of skill health and compounding value."""
+    """Categorical classification of skill health."""
 
-    STAR = "STAR"  # High adoption, zero error, frequent reuse
-    HEALTHY = "HEALTHY"  # Regular usage, low error rate
-    AT_RISK = "AT_RISK"  # High retry rate, frequent execution failures
-    STALE = "STALE"  # Dormant, not invoked in last 30 days
+    STAR = "STAR"  # Enough observed outcomes and almost all succeeded
+    HEALTHY = "HEALTHY"  # Enough observed outcomes, acceptable success rate
+    AT_RISK = "AT_RISK"  # Enough observed outcomes, frequent failures
+    UNPROVEN = "UNPROVEN"  # Too few observed outcomes to judge quality
+    STALE = "STALE"  # Dormant, not invoked in the evaluation window
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,43 +39,35 @@ class SkillCompoundingMetrics:
 
     Attributes:
         skill_id: Unique identifier or name of the skill.
-        invocations: Total execution count.
-        successful_invocations: Successful executions without exceptions.
-        adopted_outputs: Outputs accepted/applied by human or agent turns.
-        retry_count: Number of immediate fix-and-retry loops caused by errors.
-        distinct_sessions: Number of unique sessions using this skill.
+        invocations: Runs in the period, including runs whose outcome was not observed.
+        successful_invocations: Runs with an observed success.
+        failed_invocations: Runs with an observed failure.
         last_invoked_at: Timestamp of the most recent invocation.
     """
 
     skill_id: str
     invocations: int = 0
     successful_invocations: int = 0
-    adopted_outputs: int = 0
-    retry_count: int = 0
-    distinct_sessions: int = 0
+    failed_invocations: int = 0
     last_invoked_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class SkillHealthScore:
-    """Evaluated health and compounding index for a skill.
+    """Evaluated health for a skill.
 
     Attributes:
         skill_id: Skill identifier.
-        health_score: Composite score between 0.0 and 100.0.
+        health_score: Success rate scaled by evidence, between 0.0 and 100.0.
         status: SkillHealthStatus classification.
-        adoption_rate: Ratio of adopted outputs to total invocations.
-        success_rate: Ratio of successful invocations to total invocations.
-        reuse_breadth: Ratio of distinct sessions to total invocations.
+        success_rate: Share of observed outcomes that succeeded; None when none was observed.
         actionable_recommendation: Diagnostic hint for maintaining or retiring the skill.
     """
 
     skill_id: str
     health_score: float
     status: SkillHealthStatus
-    adoption_rate: float
-    success_rate: float
-    reuse_breadth: float
+    success_rate: float | None
     actionable_recommendation: str
 
 
