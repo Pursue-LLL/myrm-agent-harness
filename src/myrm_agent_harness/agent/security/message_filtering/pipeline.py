@@ -14,8 +14,6 @@ import logging
 import time
 from typing import Any
 
-from ..engine import check_capability
-from ..types import Capability
 from .base import FilterContext, MessageFilter
 from .filter_stats import FilterStats
 
@@ -55,45 +53,19 @@ class MessageFilterPipeline:
         self,
         messages: list[dict[str, Any]],
         context: FilterContext,
-        bypass_with_capability: Capability | None = None,
     ) -> list[dict[str, Any]]:
         """Filter a list of messages through all filters with fail-safe error handling.
 
         If a filter raises an exception, the error is logged and the filter is skipped.
         This ensures that a buggy filter doesn't break the entire system.
 
-        Supports permission-based bypass: if user has the specified capability,
-        all filters are bypassed and original messages are returned.
-
         Args:
             messages: List of messages to filter
             context: Runtime context for filtering decisions
-            bypass_with_capability: Optional capability that allows bypassing all filters
 
         Returns:
             Filtered list of messages (messages where all filters returned False)
         """
-        # Check permission bypass
-        if bypass_with_capability is not None:
-            try:
-                has_permission = check_capability(bypass_with_capability)
-                if has_permission:
-                    logger.info(
-                        "Message filtering bypassed for user with capability: %s",
-                        bypass_with_capability.permission,
-                        extra={
-                            "user_id": context.user_id,
-                            "capability": bypass_with_capability.permission,
-                        },
-                    )
-                    return messages
-            except Exception as e:
-                logger.warning(
-                    "Failed to check capability for filter bypass: %s",
-                    str(e),
-                    extra={"user_id": context.user_id, "error": str(e)},
-                )
-
         result = []
         for message in messages:
             # Check if any filter wants to filter this message

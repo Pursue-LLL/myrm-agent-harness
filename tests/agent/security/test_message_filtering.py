@@ -5,8 +5,6 @@ Covers: base, system_role_filter, filter_stats, config_manager, pipeline.
 
 from __future__ import annotations
 
-from unittest.mock import patch
-
 import pytest
 
 from myrm_agent_harness.agent.security.message_filtering.base import (
@@ -318,32 +316,6 @@ class TestMessageFilterPipeline:
         assert result["stats"]["filtered_count"] == 1
         # Verify original pipeline is restored
         assert isinstance(p.filters[0], _NeverFilter)
-
-    def test_bypass_with_capability(self, _ctx):
-        from myrm_agent_harness.agent.security.types import Capability
-
-        cap = Capability(permission="*", pattern="*")
-        p = MessageFilterPipeline([_AlwaysFilter()])
-        msgs = [{"role": "user", "content": "hi"}]
-        with patch(
-            "myrm_agent_harness.agent.security.message_filtering.pipeline.check_capability",
-            return_value=True,
-        ):
-            result = p.filter_messages(msgs, _ctx, bypass_with_capability=cap)
-        assert len(result) == 1
-
-    def test_bypass_capability_check_failure(self, _ctx):
-        from myrm_agent_harness.agent.security.types import Capability
-
-        cap = Capability(permission="*", pattern="*")
-        p = MessageFilterPipeline([_NeverFilter()])
-        msgs = [{"role": "user", "content": "hi"}]
-        with patch(
-            "myrm_agent_harness.agent.security.message_filtering.pipeline.check_capability",
-            side_effect=RuntimeError("boom"),
-        ):
-            result = p.filter_messages(msgs, _ctx, bypass_with_capability=cap)
-        assert len(result) == 1
 
     def test_stats_disabled(self, _ctx):
         p = MessageFilterPipeline([_NeverFilter()], enable_stats=False)
