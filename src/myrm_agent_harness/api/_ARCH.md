@@ -23,7 +23,7 @@ Stable public import surface for external consumers (`myrm-agent-server`, third-
 | hooks.py | Core | Session / skill-agent / memory / bash integration hooks（含 task intent 与 memory telemetry 只读契约：budget/injection + injection contract；含 privacy 上下文原语：`build_pseudonym_store` / `set_privacy_policy` / `set_pseudonym_store` / `install_memory_pseudonymizer` / `restore_memory_pseudonymizer` 供后台任务桥接隐私策略、假名化 store 与 regex 假名化闭包） | ✅ |
 | skills.py | Core | Skill frontmatter parse and metadata builders | ✅ |
 | subagents.py | Core | `build_parent_delegatable_toolkit` — public subagent delegation helper for server wiring；`get_subagent_checkpointer` / `delete_subagent_checkpoint` — shared subagent checkpointer（HITL 审批存活与线程恢复、终态内存清理） | ✅ |
-| security.py | Core | 安全门面：ManagedApprovalPolicy、SpendGovernor、原子工作区快照与一键回滚（WorkspaceSnapshotResult / create_workspace_snapshot / rollback_workspace_snapshot）、桌面锁屏探针与在场读数（ScreenDetector / get_default_screen_detector / ScreenLockState / hid_idle_seconds）、宿主遮罩窗截图排除注入（exclude_capture_windows）、类型感知 PII/凭证脱敏（redact_pii，供宿主对绕过守卫的辅助 LLM 调用脱敏）、出站隐私闸（set_process_privacy_policy 发布进程级隐私策略，覆盖标题/摘要/记忆提取等无 agent 运行的模型调用；sanitize_outbound_text 按当前策略脱敏单段文本） | ✅ |
+| security.py | Core | 安全门面：ManagedApprovalPolicy、SpendGovernor、原子工作区快照与一键回滚（WorkspaceSnapshotResult / create_workspace_snapshot / rollback_workspace_snapshot）、桌面锁屏探针与在场读数（ScreenDetector / get_default_screen_detector / ScreenLockState / hid_idle_seconds）、宿主遮罩窗截图排除注入（exclude_capture_windows）、出站隐私闸（set_process_privacy_policy 发布进程级隐私策略，覆盖标题/摘要/记忆提取等无 agent 运行的 ChatLiteLLM 调用；sanitize_outbound_text 按当前策略脱敏单段文本） | ✅ |
 | routing.py | Core | `route_task`, `route_task_specialty`, `RoutingTier`, `TaskSpecialty` — public LLM routing facade | ✅ |
 
 ## SDK convenience (non-stable)

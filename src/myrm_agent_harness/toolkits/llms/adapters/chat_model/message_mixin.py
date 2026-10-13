@@ -6,7 +6,7 @@
 - adapters.safety_termination_detector (POS: safety termination on truncated tool_calls)
 - adapters.tool_recovery (POS: tool call argument recovery + stream-completeness signal)
 - adapters.chat_model.exceptions (POS: role patterns and EmptyChoicesError)
-- adapters.chat_model.outbound_guard (POS: the registered guard every request's wire messages pass)
+- adapters.chat_model.outbound_guard (POS: Extension point between the LLM adapter and the policy layers above it; the adapter knows nothing of the policy.)
 
 [OUTPUT]
 - ChatLiteLLMMessageMixin: _create_message_dicts, normalize, stamp, ChatResult assembly

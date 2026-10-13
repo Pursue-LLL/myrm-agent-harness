@@ -5,7 +5,7 @@
 - toolkits.memory.strategies.extractor::MemoryExtractor (POS: LLM-based memory extraction)
 - agent._internals.memory_verbatim::capture_current_exchange (POS: opt-in verbatim exchange capture)
 - agent.security.detection.deep_pii_detector::pseudonymize_deep_pii (POS: LLM deep PII detection)
-- agent.middlewares.security.outbound_privacy_guard::sanitize_outbound_text (POS: Wire-level half of the privacy layer: masks the conversation text the extractor reads and checks memories against)
+- agent.middlewares.security.outbound_privacy_guard::sanitize_outbound_text (POS: Wire-level half of the privacy layer: the guardrail middleware covers the agent loop, this guard covers every other ChatLiteLLM call.)
 - langchain_core::BaseChatModel (POS: LLM for extraction)
 - utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
 - utils.chat_utils::extract_text_content (POS: 多模态内容 → 纯文本，媒体块不进入提取提示词)

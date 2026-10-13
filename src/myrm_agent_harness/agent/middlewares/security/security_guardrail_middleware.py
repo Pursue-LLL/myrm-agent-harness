@@ -48,7 +48,7 @@ is that the LLM never receives raw credentials/PII, so it cannot echo them.
 - agent.security.audit::record_decision (POS: Cross-cutting concern. Called from tool_interceptor_middleware and all security guard modules at every decision point.)
 - agent.middlewares.security.user_input_guard::screen_user_input (POS: Input-side layers (intent router, prompt guard, PII guard) of the security guardrail middleware.)
 - agent.middlewares.security.pii_actions::apply_privacy_policy (POS: PII action engine shared by the guardrail's input and output layers and by the tool-result PII guard.)
-- agent.middlewares.security.outbound_privacy_guard::privacy_enforced_by_loop (POS: Wire-level privacy guard for the model calls this middleware does not cover.)
+- agent.middlewares.security.outbound_privacy_guard::privacy_enforced_by_loop (POS: Wire-level half of the privacy layer: the guardrail middleware covers the agent loop, this guard covers every other ChatLiteLLM call.)
 - agent.middlewares.security.text_blocks::map_text_blocks (POS: Content-shape adapter between a message and the security layers that rewrite its text.)
 
 [OUTPUT]

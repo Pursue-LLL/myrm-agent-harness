@@ -1,9 +1,10 @@
-"""Outbound privacy guard: the privacy policy applied to every model call the guardrail middleware does not cover.
+"""Outbound privacy guard: the privacy policy applied to every ChatLiteLLM call the guardrail middleware does not cover.
 
-The guardrail middleware screens the messages of an agent loop. Everything else that calls a model with conversation
+The guardrail middleware screens the messages of an agent loop. Everything else that calls a chat model with conversation
 text - memory extraction, summaries, titles, sub-agents without the middleware, background jobs - reaches the provider
 through ChatLiteLLM. This guard sits on that one path and applies the same policy to the wire messages, so a call site
-needs no privacy code of its own.
+needs no privacy code of its own. A call that goes straight to litellm or a provider SDK, and a non-chat call
+(embeddings, speech, image, video), does not pass through it.
 
 The policy comes from the agent run when one is active, else from the process-wide policy a host publishes for work
 that has no run (an HTTP request, a scheduled job). A loop whose middleware already enforced an enabled policy marks
@@ -26,7 +27,7 @@ already processed passes through byte for byte and prompt caches stay valid.
 - privacy_enforced_by_loop / is_privacy_enforced_by_loop: mark the model calls of a loop whose middleware enforces an enabled policy
 
 [POS]
-Wire-level half of the privacy layer: the guardrail middleware covers the agent loop, this guard covers every other model call.
+Wire-level half of the privacy layer: the guardrail middleware covers the agent loop, this guard covers every other ChatLiteLLM call.
 """
 
 from __future__ import annotations

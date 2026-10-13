@@ -9,7 +9,7 @@ ContextVars so they are not owned by any single middleware.
 - agent.security.types::PrivacyPolicy, SecurityConfig (POS: Foundation layer of the security type hierarchy.)
 - agent.event_log.logger::EventLogger (POS: Integration façade. Async-buffered writes ensure zero impact on the event production hot path.)
 - core.security.guards.privacy_tracker::set_privacy_policy (POS: Per-turn privacy state tracker. ContextVar-based privacy policy access.)
-- agent.middlewares.security.outbound_privacy_guard::install_outbound_privacy_guard (POS: Wire-level half of the privacy layer: the guardrail middleware covers the agent loop, this guard covers every other model call.)
+- agent.middlewares.security.outbound_privacy_guard::install_outbound_privacy_guard (POS: Wire-level half of the privacy layer: the guardrail middleware covers the agent loop, this guard covers every other ChatLiteLLM call.)
 
 [OUTPUT]
 - set_allowed_domains_map: Set the allowed domains map for the current async context.
