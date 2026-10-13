@@ -5,9 +5,10 @@
 - ..core.structure::WikiStructure (POS: database path resolution)
 - ..core.link_resolver::concept_index_key (POS: page-key canonicalization for lookups)
 - .graph_analysis::enrich_graph_with_communities, compute_graph_insights (POS: graph analysis)
+- .graph_tables::federated_graph_queries (POS: graph node/edge rows shared with the insights)
 
 [OUTPUT]
-- WikiGraphStore: Graph topology storage, BFS traversal, and insight computation
+- WikiGraphStore: Graph topology storage, BFS traversal, concept link lookup (any spelling of a page name), and insight computation
 
 [POS]
 Encapsulates knowledge graph operations: BFS neighbor traversal, federated

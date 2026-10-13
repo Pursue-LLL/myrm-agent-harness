@@ -6,6 +6,7 @@
 - ..core.config::WikiConfig (POS: Wiki configuration center)
 - ..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
 - ..core.types::LintIssue, LintResult (POS: Wiki toolkit type definition center)
+- .gap_issues::knowledge_gap_issues (POS: knowledge-gap lint issues from graph insights)
 - utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取)
 - utils.json_parsing::parse_llm_json_list (POS: robust JSON array extraction from LLM output)
 
@@ -40,6 +41,7 @@ from myrm_agent_harness.toolkits.wiki.diagnostics.structural_lint import (
     collect_invalid_frontmatter_type_issues,
     collect_provenance_gap_issues,
 )
+from myrm_agent_harness.toolkits.wiki.maintenance.gap_issues import knowledge_gap_issues
 from myrm_agent_harness.toolkits.wiki.maintenance.issue_kind import (
     action_kind_for_issue_type,
 )
@@ -154,23 +156,7 @@ class WikiLinter:
 
         if self._indexer:
             try:
-                insights = self._indexer.graph_insights()
-                _gap_desc = {
-                    "isolated": lambda g: f"Isolated concept ({g.get('degree', 0)} connections)",
-                    "bridge": lambda g: f"Bridge node (connects {g.get('communities_connected', 0)} communities)",
-                }
-                for gap in insights.get("knowledge_gaps", []):
-                    desc_fn = _gap_desc.get(gap.get("type", ""))
-                    if desc_fn:
-                        all_issues.append(
-                            LintIssue(
-                                issue_type="knowledge_gap",
-                                severity="low",
-                                location=str(gap["node"]),
-                                description=desc_fn(gap),
-                                action_kind=action_kind_for_issue_type("knowledge_gap"),
-                            )
-                        )
+                all_issues.extend(knowledge_gap_issues(self._structure, self._indexer.graph_insights()))
             except Exception as e:
                 logger.warning(f"Graph gap analysis failed: {e}")
 

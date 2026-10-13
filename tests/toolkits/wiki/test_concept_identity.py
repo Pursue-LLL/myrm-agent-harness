@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from myrm_agent_harness.toolkits.wiki.core import link_resolver as link_resolver_module
 from myrm_agent_harness.toolkits.wiki.core.config import WikiConfig
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.pipeline.publication import publish_concept_article
@@ -95,6 +96,38 @@ async def test_link_written_before_its_target_page_converges_when_the_target_is_
 
 
 @pytest.mark.asyncio
+async def test_forward_link_converges_when_the_target_is_published_through_a_new_indexer(
+    structure: WikiStructure, indexer: WikiIndexer
+) -> None:
+    """Per-call indexers start with an unreconciled resolver whose scan already holds the new page."""
+    await publish_concept_article(structure, indexer, "Guide/Start", _article("Read [[Deep Dive]] next."))
+
+    later = WikiIndexer(structure, WikiConfig(enable_hybrid_search=False))
+    await publish_concept_article(structure, later, "Guide/Details", _article("Details.", aliases=("Deep Dive",)))
+
+    assert _edges(later) == {("guide/start", "guide/details")}
+
+
+@pytest.mark.asyncio
+async def test_forward_link_converges_after_another_writer_added_the_target(
+    structure: WikiStructure, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A page published by another process is picked up once the resolver re-reads the vault."""
+    reader = WikiIndexer(structure, WikiConfig(enable_hybrid_search=False))
+    await publish_concept_article(structure, reader, "Guide/Warmup", _article("Warm."))
+
+    other_process = WikiIndexer(structure, WikiConfig(enable_hybrid_search=False))
+    await publish_concept_article(structure, other_process, "Guide/Details", _article("D.", aliases=("Deep Dive",)))
+    await publish_concept_article(structure, reader, "Guide/Start", _article("Read [[Deep Dive]] next."))
+    assert ("guide/start", "Deep Dive") in _edges(reader)
+
+    monkeypatch.setattr(link_resolver_module, "_FRESHNESS_RECHECK_SECONDS", 0.0)
+    await publish_concept_article(structure, reader, "Guide/Warmup", _article("Warm again."))
+
+    assert ("guide/start", "guide/details") in _edges(reader)
+
+
+@pytest.mark.asyncio
 async def test_alias_added_later_relinks_existing_dangling_edges(
     structure: WikiStructure, indexer: WikiIndexer
 ) -> None:
@@ -155,7 +188,15 @@ async def test_concept_links_lookup_accepts_compile_name_and_page_path(
     assert [link["name"] for link in backlinks] == ["programming/rust/ownership"]
 
 
-def _stamp_legacy(indexer: WikiIndexer) -> None:
+def test_indexing_a_name_the_filesystem_rejects_keeps_the_name_as_key(indexer: WikiIndexer) -> None:
+    too_long = "x" * 300
+
+    indexer.extract_and_upsert_edges(too_long, "See [[Elsewhere]].")
+
+    assert _edges(indexer) == {(too_long, "Elsewhere")}
+
+
+def _mark_unmigrated(indexer: WikiIndexer) -> None:
     with indexer._get_conn() as conn:
         conn.execute("PRAGMA user_version = 0")
 
@@ -175,7 +216,7 @@ def _user_version(indexer: WikiIndexer) -> int:
         return int(conn.execute("PRAGMA user_version").fetchone()[0])
 
 
-def test_legacy_index_rows_are_merged_into_page_identities_once(structure: WikiStructure) -> None:
+def test_index_rows_under_non_canonical_spellings_are_merged_once(structure: WikiStructure) -> None:
     structure.get_concept_file_path("Knowledge/X/Y").write_text(_article("y body"), encoding="utf-8")
     structure.get_concept_file_path("Knowledge/X/Z").write_text(
         _article("z body", aliases=("Why Alias",)), encoding="utf-8"
@@ -183,10 +224,10 @@ def test_legacy_index_rows_are_merged_into_page_identities_once(structure: WikiS
     seeded = WikiIndexer(structure, WikiConfig(enable_hybrid_search=False))
     assert _user_version(seeded) == CONCEPT_KEY_SCHEMA_VERSION
 
-    # Legacy state: compile-name rows next to path rows, an orphan row, edges using both spellings.
-    _stamp_legacy(seeded)
-    for legacy in ("Knowledge/X/Y", "Knowledge/X/Z", "knowledge/x/z", "Opaque Name"):
-        _insert_row(seeded, legacy)
+    # Unmigrated state: compile-name rows next to path rows, an orphan row, edges using both spellings.
+    _mark_unmigrated(seeded)
+    for name in ("Knowledge/X/Y", "Knowledge/X/Z", "knowledge/x/z", "Opaque Name"):
+        _insert_row(seeded, name)
     seeded.upsert_edges("Knowledge/X/Y", ["Why Alias", "Opaque Name"])
     seeded.upsert_edges("Opaque Name", ["Knowledge/X/Y"])
 

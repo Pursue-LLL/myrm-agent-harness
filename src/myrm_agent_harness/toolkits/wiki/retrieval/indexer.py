@@ -4,19 +4,22 @@
 - sqlite3 (POS: standard library database)
 - ..core.structure::WikiStructure (POS: database path resolution)
 - ..core.config::WikiConfig (POS: Wiki configuration)
+- ..core.link_resolver::WikiLinkResolver, concept_index_key, concept_page_exists (POS: link target resolution and page-key identity SSOT)
 - myrm_agent_harness.utils.db.fts5::fts5_integrity_check, fts5_rebuild (POS: FTS5 health and rebuild helpers)
 - myrm_agent_harness.toolkits.memory.protocols.embedding::EmbeddingProtocol (POS: embedding provider protocol)
 - myrm_agent_harness.toolkits.memory.protocols.vector::VectorStoreProtocol (POS: vector store protocol)
 - .fts_search::FtsSearchMixin, migrate_wiki_fts_schema (POS: FTS5 + vector index operations mixin)
+- .edge_links::canonical_edge_target, relink_dangling_edges (POS: edge targets stored as page keys)
 - .graph_store::WikiGraphStore (POS: knowledge graph storage)
+- .identity_migration::migrate_concept_identity (POS: one-time merge of index rows under non-canonical spellings)
 - .sidecar_index::SidecarIndexMixin (POS: L0/L1 sidecar index operations)
 
 [OUTPUT]
-- WikiIndexer: hybrid search engine; wiki_index_meta publish_status gate for FTS/vector/get_truth
+- WikiIndexer: hybrid search engine; one index row per page key; wiki_index_meta publish_status gate for FTS/vector/get_truth
 
 [POS]
 Wiki concept indexer core. Manages FTS5 + Qdrant hybrid search for L2 concept entries,
-knowledge graph edges, and federated multi-database queries. Only `publish_status=published`
+knowledge graph edges (targets resolved to page keys), and federated multi-database queries. Only `publish_status=published`
 entries are searchable and vector-indexed. Index write/read operations live in
 FtsSearchMixin and sidecar (L0/L1) indexing in SidecarIndexMixin to keep this file
 focused on concept-level indexing.
@@ -35,7 +38,7 @@ from myrm_agent_harness.utils.db.fts5 import (
 )
 
 from ..core.config import WikiConfig
-from ..core.link_resolver import WikiLinkResolver, concept_index_key
+from ..core.link_resolver import WikiLinkResolver, concept_index_key, concept_page_exists
 from ..core.structure import WikiStructure
 from .edge_links import canonical_edge_target, relink_dangling_edges
 from .fts_search import FtsSearchMixin, migrate_wiki_fts_schema
@@ -142,7 +145,7 @@ class WikiIndexer(FtsSearchMixin, SidecarIndexMixin):
                 )
             """
             )
-            # Migrate: add weight column to existing tables created before this version
+            # Add the weight column to tables created without it
             # (OperationalError means the column already exists).
             with contextlib.suppress(sqlite3.OperationalError):
                 conn.execute("ALTER TABLE wiki_edges ADD COLUMN weight REAL DEFAULT 1.0")
@@ -249,8 +252,7 @@ class WikiIndexer(FtsSearchMixin, SidecarIndexMixin):
         """
         source = self._index_key(concept_name)
         resolver = self._link_resolver
-        page_on_disk = (self._structure.concepts_dir / f"{source}.md").is_file()
-        page_changed = page_on_disk and resolver.note_page(source, content)
+        page_changed = concept_page_exists(self._structure, source) and resolver.note_page(source, content)
         targets: set[str] = set()
 
         # 1. Match Standard Markdown Links: [text](link.md)

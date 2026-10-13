@@ -4,10 +4,12 @@ from pathlib import Path
 
 import pytest
 
+from myrm_agent_harness.toolkits.wiki.core import link_resolver as link_resolver_module
 from myrm_agent_harness.toolkits.wiki.core.link_resolver import (
     WikiLinkResolver,
     build_wikilink_title_index,
     concept_index_key,
+    concept_page_exists,
     normalize_wikilink_target,
     page_lookup_keys,
     wikilink_target_exists,
@@ -81,8 +83,8 @@ class TestResolve:
         assert resolver.resolve("../rust/lifetimes", source="knowledge/other/page") == "knowledge/rust/lifetimes"
 
     def test_unsanitized_on_disk_page_resolves_to_its_real_path(self, structure: WikiStructure) -> None:
-        legacy = structure.concepts_dir / "Borrow Checker.md"
-        legacy.write_text("---\ntype: concept\n---\nBody", encoding="utf-8")
+        unsanitized = structure.concepts_dir / "Borrow Checker.md"
+        unsanitized.write_text("---\ntype: concept\n---\nBody", encoding="utf-8")
 
         assert WikiLinkResolver(structure).resolve("Borrow Checker") == "Borrow Checker"
 
@@ -98,6 +100,35 @@ class TestIncrementalUpdates:
         assert resolver.note_page("fresh/page", markdown) is True
         assert resolver.resolve("Fresh Page") == "fresh/page"
         assert resolver.note_page("fresh/page", markdown) is False
+
+    def test_note_page_reports_a_page_already_present_in_the_first_scan(self, structure: WikiStructure) -> None:
+        """A fresh resolver has reconciled nothing, even for pages its own scan found."""
+        _page(structure, "fresh/page", aliases=("Fresh Page",))
+        markdown = "---\ntype: concept\naliases: [Fresh Page]\n---\nBody"
+        resolver = WikiLinkResolver(structure)
+
+        assert resolver.note_page("fresh/page", markdown) is True
+        assert resolver.note_page("fresh/page", markdown) is False
+        resolver.forget_page("fresh/page")
+        _page(structure, "fresh/page", aliases=("Fresh Page",))
+        assert resolver.note_page("fresh/page", markdown) is True
+
+    def test_note_page_reports_once_after_the_vault_was_rescanned(
+        self, structure: WikiStructure, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Pages added behind the resolver's back may resolve stored edges that were left raw."""
+        _page(structure, "known")
+        markdown = "---\ntype: concept\n---\nBody"
+        resolver = WikiLinkResolver(structure)
+        assert resolver.note_page("known", markdown) is True
+        assert resolver.note_page("known", markdown) is False
+
+        _page(structure, "added/elsewhere")
+        monkeypatch.setattr(link_resolver_module, "_FRESHNESS_RECHECK_SECONDS", 0.0)
+
+        assert resolver.note_page("known", markdown) is True
+        assert resolver.note_page("known", markdown) is False
+        assert resolver.resolve("added/elsewhere") == "added/elsewhere"
 
     def test_note_page_alias_change_replaces_previous_keys(self, structure: WikiStructure) -> None:
         _page(structure, "topic", aliases=("Old Name",))
@@ -137,11 +168,24 @@ class TestConceptIndexKey:
         (structure.concepts_dir / "Borrow Checker.md").write_text("---\ntype: concept\n---\nBody", encoding="utf-8")
         assert concept_index_key(structure, "Borrow Checker") == "Borrow Checker"
 
+    def test_name_the_filesystem_rejects_is_unchanged(self, structure: WikiStructure) -> None:
+        too_long = "x" * 300
+        assert concept_index_key(structure, too_long) == too_long
+        assert concept_page_exists(structure, too_long) is False
+
     def test_parent_traversal_never_becomes_a_key(self, structure: WikiStructure) -> None:
         outside = structure.concepts_dir.parent / "outside.md"
         outside.write_text("---\ntype: concept\n---\nBody", encoding="utf-8")
         assert (structure.concepts_dir / "../outside.md").is_file()
         assert concept_index_key(structure, "../outside") == "../outside"
+
+    def test_absolute_path_outside_the_vault_never_becomes_a_key(self, structure: WikiStructure) -> None:
+        outside = structure.concepts_dir.parent / "outside.md"
+        outside.write_text("---\ntype: concept\n---\nBody", encoding="utf-8")
+        absolute = outside.with_suffix("").as_posix()
+
+        assert concept_page_exists(structure, absolute) is False
+        assert concept_index_key(structure, absolute) == absolute
 
 
 class TestLintParity:

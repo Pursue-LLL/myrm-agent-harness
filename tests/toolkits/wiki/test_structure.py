@@ -251,7 +251,7 @@ class TestGetRawFilePathBoundary:
     def test_deeply_nested_valid_path(self, tmp_path):
         ws = WikiStructure(tmp_path)
         ws.ensure_structure()
-        path = ws.get_raw_file_path("a/b/c/d/e/deep.md")
+        assert ws.get_raw_file_path("a/b/c/d/e/deep.md").name == "deep.md"
 
 
 class TestFederatedPublicDirsStructure:

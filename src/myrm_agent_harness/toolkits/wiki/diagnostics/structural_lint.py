@@ -2,7 +2,7 @@
 
 [INPUT]
 - ..core.structure::WikiStructure (POS: vault paths)
-- ..core.link_resolver (POS: wikilink target normalization and page lookup index SSOT)
+- ..core.link_resolver::build_wikilink_title_index, normalize_wikilink_target, wikilink_target_exists (POS: wikilink target normalization and page lookup index SSOT)
 - ..core.frontmatter_contract::validate_wiki_frontmatter (POS: type enum gate)
 - ..core.types::LintIssue (POS: shared lint issue model)
 

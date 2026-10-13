@@ -7,7 +7,7 @@
 [OUTPUT]
 - normalize_wikilink_target, normalize_lookup_key, concept_link_name, page_lookup_keys
 - scan_concept_pages, build_wikilink_title_index, wikilink_target_exists (POS: structural lint primitives)
-- concept_index_key: index identity for a concept name
+- concept_index_key, concept_page_exists: index identity for a concept name, page presence check
 - WikiLinkResolver: resolves link targets to canonical concept keys for graph edges
 
 [POS]
@@ -21,7 +21,7 @@ from __future__ import annotations
 import posixpath
 import threading
 import time
-from pathlib import Path
+from pathlib import Path, PurePath
 
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
@@ -125,6 +125,20 @@ def _strip_vault_prefixes(path: str) -> str:
     return path
 
 
+def concept_page_exists(structure: WikiStructure, key: str) -> bool:
+    """Whether ``concepts_dir/<key>.md`` is a file inside the vault.
+
+    Absolute keys, parent traversal and names the filesystem rejects are not pages.
+    """
+    key_path = PurePath(key)
+    if key_path.is_absolute() or ".." in key_path.parts:
+        return False
+    try:
+        return (structure.concepts_dir / f"{key}.md").is_file()
+    except OSError:
+        return False
+
+
 def concept_index_key(structure: WikiStructure, name: str) -> str:
     """Index identity for ``name``: the on-disk concept path when a page exists for it.
 
@@ -137,10 +151,9 @@ def concept_index_key(structure: WikiStructure, name: str) -> str:
     if not clean:
         return name
     safe = WikiStructure._sanitize_path(clean)
-    concepts_dir = structure.concepts_dir
-    if safe and (concepts_dir / f"{safe}.md").is_file():
+    if safe and concept_page_exists(structure, safe):
         return safe
-    if ".." not in clean.split("/") and (concepts_dir / f"{clean}.md").is_file():
+    if concept_page_exists(structure, clean):
         return clean
     return name
 
@@ -174,6 +187,8 @@ class WikiLinkResolver:
         self._structure = structure
         self._lock = threading.RLock()
         self._pages: dict[str, frozenset[str]] | None = None
+        self._reconciled: dict[str, frozenset[str]] = {}
+        self._rescanned = False
         self._by_key: dict[str, set[str]] = {}
         self._fingerprint: tuple[int, int] = (0, 0)
         self._checked_at = 0.0
@@ -202,21 +217,30 @@ class WikiLinkResolver:
         return None
 
     def note_page(self, link_name: str, markdown: str) -> bool:
-        """Record a written page; return True when the page is new or its lookup keys changed."""
+        """Record a written page; return True when stored edges may need re-resolving.
+
+        That is the case when the page's lookup keys are new to this resolver or the
+        page table was re-read from disk since the last call (other writers may have
+        added pages). The table is read from disk, where the page being noted may
+        already be present, so "new" is tracked per page by what was last reconciled.
+        """
         with self._lock:
             pages = self._fresh_pages()
+            rescanned, self._rescanned = self._rescanned, False
             keys = page_lookup_keys(link_name, markdown)
+            if self._reconciled.get(link_name) == keys:
+                return rescanned
             previous = pages.get(link_name)
-            if previous == keys:
-                return False
             if previous is not None:
                 self._drop_keys(link_name, previous)
             pages[link_name] = keys
             self._add_keys(link_name, keys)
+            self._reconciled[link_name] = keys
             return True
 
     def forget_page(self, link_name: str) -> None:
         with self._lock:
+            self._reconciled.pop(link_name, None)
             if self._pages is None:
                 return
             previous = self._pages.pop(link_name, None)
@@ -234,6 +258,7 @@ class WikiLinkResolver:
             for link_name, keys in self._pages.items():
                 self._add_keys(link_name, keys)
             self._fingerprint = fingerprint
+            self._rescanned = True
         self._checked_at = now
         return self._pages
 

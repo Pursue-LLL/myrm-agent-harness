@@ -8,12 +8,13 @@
 - myrm_agent_harness.utils.db.fts5::fts5_auto_heal (POS: FTS5 corruption auto-heal helper)
 - myrm_agent_harness.utils.markdown_frontmatter::parse_frontmatter (POS: frontmatter parser)
 - ..core.frontmatter_contract::WikiPublishStatus (POS: publish_status SSOT)
+- ..core.link_resolver::WikiLinkResolver (POS: link target resolution; notified when a page is deleted)
 - .sidecar_index::_SIDECAR_PREFIX (POS: L0/L1 sidecar index operations)
 - .tokenizer::tokenize_for_fts (POS: FTS5 query tokenizer)
 - .vector_chunks::collapse_vector_hits, delete_text_vectors, upsert_text_vectors (POS: L2 chunk vector operations)
 
 [OUTPUT]
-- FtsSearchMixin: FTS5 + vector upsert/search/get_truth for WikiIndexer
+- FtsSearchMixin: FTS5 + vector upsert/search/get_truth for WikiIndexer; pages are keyed by their on-disk path, delete accepts any spelling
 - migrate_wiki_fts_schema: rebuild wiki_fts when it predates the search_terms column
 
 [POS]

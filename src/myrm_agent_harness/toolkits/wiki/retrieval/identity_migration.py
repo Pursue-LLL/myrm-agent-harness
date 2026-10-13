@@ -8,14 +8,13 @@
 
 [OUTPUT]
 - CONCEPT_KEY_SCHEMA_VERSION: `PRAGMA user_version` stamped once the index is migrated
-- migrate_concept_identity: merge legacy rows indexed under a non-canonical spelling
+- migrate_concept_identity: merge rows indexed under a non-canonical spelling
 
 [POS]
-Indexes written before concept identities were unified hold the same page twice
-(compile name vs. on-disk path). The migration renames each such row to the page's
-on-disk key, drops the duplicate when both exist, and re-resolves edge targets. Rows
-without a backing page are left untouched. The index is derived data: no article file
-is read for content or modified.
+An index may hold one page twice (compile name vs. on-disk path). The migration renames
+each such row to the page's on-disk key, drops the duplicate when both exist, and
+re-resolves edge targets. Rows without a backing page are left untouched. The index is
+derived data: no article file is read for content or modified.
 """
 
 from __future__ import annotations

@@ -29,6 +29,7 @@ from contextvars import ContextVar, Token
 from pathlib import Path
 
 from langchain_core.tools import BaseTool
+
 try:
     from mcp.server.fastmcp import FastMCP as MCPServer
 except ImportError:
@@ -139,8 +140,7 @@ def register_wiki_mcp_tools(
         # LangChain description + the trusted-surface narrowing delta (local
         # file paths are accepted in-process but refused for remote callers).
         description=(
-            resolve_wiki_ingest_description()
-            + "\n\nOn this MCP surface local file paths are not accepted — "
+            resolve_wiki_ingest_description() + "\n\nOn this MCP surface local file paths are not accepted — "
             "read the file first and pass its content as raw text."
         ),
     )

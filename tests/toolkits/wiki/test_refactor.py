@@ -79,7 +79,7 @@ def test_refactor_canonical_id_pinning_and_supersedes(temp_concepts_dir):
     old_file_a.rename(new_file_a)
 
     engine = LinkRefactorEngine(temp_concepts_dir)
-    report = engine.refactor_links(old_file_a, new_file_a, preserve_alias=True)
+    engine.refactor_links(old_file_a, new_file_a, preserve_alias=True)
 
     meta_a, body_a = load_frontmatter_metadata(new_file_a.read_text())
     expected_pinned_id = derive_canonical_id("drafts/alpha")
@@ -264,8 +264,7 @@ def test_refactor_folder_with_preserve_alias_and_code_blocks(temp_concepts_dir):
 
     ref = temp_concepts_dir / "reference.md"
     ref.write_text(
-        "Wiki: [[old_docs/page|Doc Title]], "
-        "Code: ```\n[[old_docs/page]]\n``` and `[[old_docs/page]]` inline."
+        "Wiki: [[old_docs/page|Doc Title]], Code: ```\n[[old_docs/page]]\n``` and `[[old_docs/page]]` inline."
     )
 
     engine = LinkRefactorEngine(temp_concepts_dir)
@@ -290,15 +289,7 @@ def test_refactor_metadata_existing_aliases_and_scalar_supersedes(temp_concepts_
 
     # 1. Existing file with scalar supersedes and list aliases
     old_file = temp_concepts_dir / "item_old.md"
-    old_file.write_text(
-        "---\n"
-        "title: Item\n"
-        "supersedes: legacy_v0\n"
-        "aliases:\n"
-        "  - alias_one\n"
-        "---\n"
-        "Item content"
-    )
+    old_file.write_text("---\ntitle: Item\nsupersedes: legacy_v0\naliases:\n  - alias_one\n---\nItem content")
 
     new_file = temp_concepts_dir / "item_new.md"
     old_file.rename(new_file)
@@ -354,9 +345,3 @@ def test_refactor_cross_directory_short_wikilink_and_folder_wikilink(temp_concep
 
     engine.refactor_links(pack_old, pack_new)
     assert pack_ref.read_text() == "See [[new_pack]] and [[new_pack/item]]."
-
-
-
-
-
-

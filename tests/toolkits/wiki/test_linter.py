@@ -94,12 +94,19 @@ async def test_lint_and_maintain(
     assert result.duration_ms >= 0
 
 
+def _write_pages(structure: WikiStructure, *names: str) -> None:
+    """Gap issues are reported for pages that exist in the local vault."""
+    for name in names:
+        (structure.concepts_dir / f"{name}.md").write_text("---\ntype: concept\n---\nBody.\n", encoding="utf-8")
+
+
 @pytest.mark.asyncio
 async def test_lint_and_maintain_knowledge_gaps(
     mock_llm: MagicMock,
     wiki_structure: WikiStructure,
 ) -> None:
     """Test that Check 6 produces knowledge_gap issues from graph insights."""
+    _write_pages(wiki_structure, "Orphan Topic", "Hub Topic")
     mock_indexer = MagicMock()
     mock_indexer.graph_insights.return_value = {
         "knowledge_gaps": [
@@ -166,6 +173,7 @@ async def test_lint_knowledge_gaps_unknown_type_ignored(
     wiki_structure: WikiStructure,
 ) -> None:
     """Check 6 ignores gap entries with unknown type."""
+    _write_pages(wiki_structure, "X", "Y")
     mock_indexer = MagicMock()
     mock_indexer.graph_insights.return_value = {
         "knowledge_gaps": [

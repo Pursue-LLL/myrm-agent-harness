@@ -77,11 +77,11 @@ def collect_stale_raw_files(structure: WikiStructure) -> WikiStaleSummary:
         }
     if not known_hashes:
         if current_hashes:
-            stale = [StaleRawFile(relative_path=key) for key in sorted(current_hashes)]
+            all_current = [StaleRawFile(relative_path=key) for key in sorted(current_hashes)]
             return WikiStaleSummary(
-                stale_count=len(stale),
+                stale_count=len(all_current),
                 last_compile_time=last_compile,
-                stale_files=tuple(stale),
+                stale_files=tuple(all_current),
             )
         return WikiStaleSummary(stale_count=0, last_compile_time=last_compile, stale_files=())
 

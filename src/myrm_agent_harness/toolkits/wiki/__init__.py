@@ -94,6 +94,9 @@ from .core.types import (
     WikiMetadata,
 )
 from .maintenance.linter import WikiLinter
+from .mcp_server import (
+    register_wiki_mcp_tools,
+)
 from .pipeline.compiler import WikiCompiler
 from .pipeline.pending import WikiPendingEditsManager
 from .pipeline.queue import WikiIngestionQueue
@@ -102,9 +105,6 @@ from .wiki_agent_tools import (
     create_wiki_admin_tools,
     create_wiki_agent_tools,
     create_wiki_tools,
-)
-from .mcp_server import (
-    register_wiki_mcp_tools,
 )
 
 __all__ = [
