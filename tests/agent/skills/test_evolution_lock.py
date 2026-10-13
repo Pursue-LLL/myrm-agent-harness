@@ -144,7 +144,7 @@ class TestHandleEvolutionLock:
     @pytest.mark.asyncio
     async def test_lock_success(self):
         """Lock action should succeed when evolution system is available."""
-        from myrm_agent_harness.agent.meta_tools.skills.manage.skill_manage_tool import _handle_evolution_lock
+        from myrm_agent_harness.agent.meta_tools.skills.manage._manage_handlers import _handle_evolution_lock
 
         mock_store = MagicMock(spec=SkillStore)
         mock_store.get_skill.return_value = _make_skill(locked=False)
@@ -166,7 +166,7 @@ class TestHandleEvolutionLock:
     @pytest.mark.asyncio
     async def test_unlock_success(self):
         """Unlock action should succeed."""
-        from myrm_agent_harness.agent.meta_tools.skills.manage.skill_manage_tool import _handle_evolution_lock
+        from myrm_agent_harness.agent.meta_tools.skills.manage._manage_handlers import _handle_evolution_lock
 
         mock_store = MagicMock(spec=SkillStore)
         mock_store.get_skill.return_value = _make_skill(locked=True)
@@ -187,7 +187,7 @@ class TestHandleEvolutionLock:
     @pytest.mark.asyncio
     async def test_lock_no_evolution_system(self):
         """Lock should fail gracefully when evolution system is not initialized."""
-        from myrm_agent_harness.agent.meta_tools.skills.manage.skill_manage_tool import _handle_evolution_lock
+        from myrm_agent_harness.agent.meta_tools.skills.manage._manage_handlers import _handle_evolution_lock
 
         with patch(
             "myrm_agent_harness.agent.skills.evolution.infra.integration.get_global_evolution_integration",
@@ -201,7 +201,7 @@ class TestHandleEvolutionLock:
     @pytest.mark.asyncio
     async def test_lock_skill_not_found(self):
         """Lock should fail when skill doesn't exist in store."""
-        from myrm_agent_harness.agent.meta_tools.skills.manage.skill_manage_tool import _handle_evolution_lock
+        from myrm_agent_harness.agent.meta_tools.skills.manage._manage_handlers import _handle_evolution_lock
 
         mock_store = MagicMock(spec=SkillStore)
         mock_store.get_skill.return_value = None

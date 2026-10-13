@@ -305,17 +305,13 @@ def test_record_skill_execution():
 
     with (
         patch("myrm_agent_harness.agent.skill_agent.context.get_loaded_skills") as mock_skills,
-        patch(
-            "myrm_agent_harness.agent.skills.evolution.infra.integration.get_global_evolution_integration"
-        ) as mock_evo,
+        patch("myrm_agent_harness.backends.skills.usage_recorder.record_skill_execution") as mock_record,
     ):
         mock_skill = MagicMock()
         mock_skill.name = "test_tool"
         mock_skill.storage_skill_id = "skill_123"
+        mock_skill.storage_path = "/skills/test_tool"
         mock_skills.return_value = [mock_skill]
-
-        mock_evo_inst = MagicMock()
-        mock_evo.return_value = mock_evo_inst
 
         _track_skill_execution(
             "test_tool",
@@ -324,7 +320,7 @@ def test_record_skill_execution():
             success=True,
             error_message="",
         )
-        mock_evo_inst.record_execution.assert_called_once()
+        mock_record.assert_called_once_with("test_tool", "/skills/test_tool", success=True)
 
 
 @pytest.mark.asyncio
