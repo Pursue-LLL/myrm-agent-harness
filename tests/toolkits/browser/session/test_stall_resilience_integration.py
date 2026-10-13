@@ -1,7 +1,7 @@
 """Real-Chromium proof that a stalled or wedged page cannot trap the browser session.
 
-Every scenario that fails without the fix has a control group (a healthy server, or the call made
-without the cancel boundary) so a pass cannot be an artifact of the setup. Run with:
+Every scenario has a control group (a healthy server, or the call made without the cancel boundary)
+so a pass cannot be an artifact of the setup. Run with:
 `pytest -m integration tests/toolkits/browser/session/test_stall_resilience_integration.py`.
 """
 
@@ -19,11 +19,15 @@ from myrm_agent_harness.toolkits.browser import domain_filter, navigation
 from myrm_agent_harness.toolkits.browser.exceptions import BrowserNavigationError
 from myrm_agent_harness.toolkits.browser.navigation import ssrf_guard
 from myrm_agent_harness.toolkits.browser.pool import ContextType, GlobalBrowserPool
-from myrm_agent_harness.toolkits.browser.pool.crash_watchdog import _browser_process_answers, _pooled_page_answers
+from myrm_agent_harness.toolkits.browser.pool.crash_watchdog import _pooled_page_answers
 from myrm_agent_harness.toolkits.browser.session import BrowserSession
 from myrm_agent_harness.toolkits.browser.tools import create_browser_tools
 from myrm_agent_harness.toolkits.browser.tools.cancel_boundary import CANCELLED_RESULT
-from myrm_agent_harness.toolkits.browser.utils.page_health import PageUnresponsiveError, probe_alive
+from myrm_agent_harness.toolkits.browser.utils.page_health import (
+    PageUnresponsiveError,
+    probe_alive,
+    probe_browser_alive,
+)
 from myrm_agent_harness.utils.runtime.cancellation import CancellationToken, set_cancel_token
 from tests.toolkits.browser._browser_available import chromium_available
 from tests.toolkits.browser._stall_servers import StallServers
@@ -147,13 +151,15 @@ class TestStopDuringStall:
         await session.new_tab()
         token = CancellationToken("req")
         set_cancel_token(token)
-        asyncio.get_running_loop().call_later(0.5, token.cancel)  # the default 30s budget cannot be what ends it
+        invoking = asyncio.create_task(navigate_tool.ainvoke({"url": servers.silent}))
+        await servers.wait_for_request(servers.silent)  # stuck inside the driver; the 30s budget cannot be what ends it
 
-        started = time.monotonic()
-        result = await asyncio.wait_for(navigate_tool.ainvoke({"url": servers.silent}), timeout=20.0)
+        stopped = time.monotonic()
+        token.cancel()
+        result = await asyncio.wait_for(invoking, timeout=20.0)
 
         assert result == CANCELLED_RESULT
-        assert time.monotonic() - started < 15.0
+        assert time.monotonic() - stopped < 15.0
         set_cancel_token(None)
         assert "title=Good" in await asyncio.wait_for(session.navigate(servers.ok), timeout=30.0)
 
@@ -164,7 +170,7 @@ class TestStopDuringStall:
         token = CancellationToken("req")
         set_cancel_token(token)
         navigating = asyncio.create_task(session.navigate(servers.silent))
-        await asyncio.sleep(0.5)
+        await servers.wait_for_request(servers.silent)
 
         token.cancel()
         await asyncio.sleep(4.0)
@@ -211,7 +217,7 @@ class TestWedgedRenderer:
             blocker = await _spin_renderer(wedged)
         else:
             blocker = asyncio.create_task(wedged.goto(servers.silent, timeout=0))
-            await asyncio.sleep(0.5)
+            await servers.wait_for_request(servers.silent)
         try:
             await session._tab_controller.close_tab(session.get_active_tab_id())  # releases without closing it
 
@@ -231,7 +237,7 @@ class TestWatchdog:
         await session.new_tab()
         page = session._tab_controller.get_active_page()
         navigating = asyncio.create_task(page.goto(servers.silent, timeout=0))
-        await asyncio.sleep(0.5)
+        await servers.wait_for_request(servers.silent)
         inst = pool._browsers[0]
         try:
             assert not await _pooled_page_answers(inst), "control: the page-level probe reads the stall as death"
@@ -248,8 +254,8 @@ class TestWatchdog:
     ) -> None:
         await session.new_tab()
         inst = pool._browsers[0]
-        assert await _browser_process_answers(inst)
+        assert await probe_browser_alive(inst.browser)
 
         await asyncio.wait_for(inst.browser.close(), timeout=15.0)
 
-        assert not await _browser_process_answers(inst)
+        assert not await probe_browser_alive(inst.browser)

@@ -3,6 +3,7 @@
 [INPUT]
 - patchright.async_api::Page (POS: Playwright page instance)
 - patchright.async_api::CDPSession (POS: Chrome DevTools Protocol session)
+- utils.page_health::detach_cdp_bounded (POS: bounded browser and page health primitives)
 
 [OUTPUT]
 - NetworkIntelligence: CDP-based lazy response body retrieval and request replay
@@ -16,15 +17,15 @@ metadata) — this component handles asynchronous CDP body queries.
 
 from __future__ import annotations
 
-import asyncio
-import contextlib
 import logging
 import time
 from collections import deque
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 
 from myrm_agent_harness.core.security.redact import redact_sensitive_text
+
+from ..utils.page_health import detach_cdp_bounded
 
 if TYPE_CHECKING:
     from patchright.async_api import CDPSession, Page
@@ -32,13 +33,34 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _MAX_TRACKED_REQUESTS = 100
-_DETACH_TIMEOUT_S = 2.0
 _BODY_PREVIEW_MAX_CHARS = 8000
 # Redaction window before truncation: keeps a credential crossing a truncation
 # boundary structurally intact long enough to be masked (aligned with
 # NetworkLogger's preview-window design).
 _RAW_PREVIEW_WINDOW = 4096
 _BODY_RAW_WINDOW = 16384
+
+
+class _CdpRequest(TypedDict, total=False):
+    url: str
+    method: str
+    postData: str
+
+
+class _CdpRequestWillBeSent(TypedDict, total=False):
+    requestId: str
+    type: str
+    request: _CdpRequest
+
+
+class _CdpResponse(TypedDict, total=False):
+    status: int
+    mimeType: str
+
+
+class _CdpResponseReceived(TypedDict, total=False):
+    requestId: str
+    response: _CdpResponse
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,14 +139,12 @@ class NetworkIntelligence:
     async def detach(self) -> None:
         """Detach CDP monitoring and release resources."""
         if self._cdp_session is not None:
-            # Bounded: the bound page may be wedged, and a detach on it never returns on its own.
-            with contextlib.suppress(Exception):
-                await asyncio.wait_for(self._cdp_session.detach(), timeout=_DETACH_TIMEOUT_S)
+            await detach_cdp_bounded(self._cdp_session)
             self._cdp_session = None
         self._bound_page = None
         self._enabled = False
 
-    def _on_request_will_be_sent(self, params: dict) -> None:
+    def _on_request_will_be_sent(self, params: _CdpRequestWillBeSent) -> None:
         """Handle CDP Network.requestWillBeSent event."""
         try:
             request = params.get("request", {})
@@ -155,7 +175,7 @@ class NetworkIntelligence:
         except Exception as exc:
             logger.debug("NetworkIntelligence: requestWillBeSent handler error: %s", exc)
 
-    def _on_response_received(self, params: dict) -> None:
+    def _on_response_received(self, params: _CdpResponseReceived) -> None:
         """Handle CDP Network.responseReceived — update status and mime_type."""
         try:
             request_id = params.get("requestId", "")
@@ -210,7 +230,7 @@ class NetworkIntelligence:
                 "Network.getResponseBody",
                 {"requestId": record.request_id},
             )
-            body = result.get("body", "")
+            body: str = result.get("body", "")
             is_base64 = result.get("base64Encoded", False)
 
             if is_base64:

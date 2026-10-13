@@ -2,14 +2,14 @@
 
 [INPUT]
 - navigation::Navigator (POS: throttled page navigation)
-- session.browser_session_tab_mixin::BrowserSessionTabMixin (POS: tab APIs navigate() relies on, inherited)
-- session.browser_session_captcha_mixin::BrowserSessionCaptchaMixin (POS: CAPTCHA step of navigate(), inherited)
+- session.browser_session_tab_mixin::BrowserSessionTabMixin (POS: tab-management APIs for BrowserSession, inherited)
+- session.browser_session_captcha_mixin::BrowserSessionCaptchaMixin (POS: CAPTCHA step of BrowserSession navigation, inherited)
 - captcha protocols (POS: CAPTCHA result type consumed by the navigate() escalation path)
 - web_fetch site experience store (POS: post-navigation experience injection)
 - domain_skills::DomainSkillStore (POS: executable-layer domain skill registry)
 - exceptions::BrowserLaunchError, EngineUnavailableError (POS: launch failure vs. engine switch refused before any state change)
 - pool.engine_affinity::get_engine_affinity_store (POS: per-domain engine hint store)
-- utils.page_health::PageUnresponsiveError (POS: signals a page that stopped answering mid-navigation)
+- utils.page_health::PageUnresponsiveError (POS: bounded browser and page health primitives)
 
 [OUTPUT]
 - BrowserSessionNavigationMixin: navigate, private-network extension routing, Stealth Ladder upgrade

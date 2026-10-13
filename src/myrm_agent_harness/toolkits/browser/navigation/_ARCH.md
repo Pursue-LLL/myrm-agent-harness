@@ -4,7 +4,7 @@
 
 Page navigation utility — reusable across BrowserSession and BrowserFetcher. Provides `Navigator` (throttle + circuit breaker + smart wait + consent dismissal) and a Playwright document-level SSRF guard.
 
-A navigation that outlives its budget is settled, not rescued blindly: the load is stopped over CDP, then the document counts as committed only if the page URL changed. A committed document is returned as partial content (HTTP 200 assumed); otherwise the call fails with `BrowserNavigationError`, and a page that no longer answers raises `PageUnresponsiveError` so the session can heal the tab.
+A navigation that outlives its budget is settled: the load is stopped over CDP, then the document counts as committed only if the page URL changed. A committed document is returned as partial content (HTTP 200 assumed); otherwise the call fails with `BrowserNavigationError`, and a page that no longer answers raises `PageUnresponsiveError` so the session can heal the tab.
 
 ## File & Submodule Index
 

@@ -1,9 +1,8 @@
 """BrowserSession tab management APIs.
 
 [INPUT]
-- session.tab_controller::TabController (POS: tab lifecycle, provided by the BrowserSession aggregate root)
-- device emulation, loggers, dialog manager and component binding (POS: provided by the aggregate root and lifecycle mixin)
-- utils.page_health::abort_pending_navigation, probe_alive (POS: bounded protocol-level page health checks)
+- session_host::SessionHost (POS: typed contract of the attributes and methods the aggregate root and lifecycle mixin provide: tab controller, device emulation, loggers, dialog manager, component binding)
+- utils.page_health::abort_pending_navigation, close_page_bounded, probe_alive (POS: bounded browser and page health primitives)
 
 [OUTPUT]
 - BrowserSessionTabMixin: new_tab, list_tabs, list_tabs_with_info, get_active_tab_id, close_tab, switch_tab, recover_active_tab
@@ -20,20 +19,19 @@ right after it in the MRO and before BrowserSessionLifecycleMixin.
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import functools
 import logging
 from urllib.parse import urlparse
 
-from ..utils.page_health import abort_pending_navigation, probe_alive
+from ..utils.page_health import abort_pending_navigation, close_page_bounded, probe_alive
+from .session_host import SessionHost
 
 logger = logging.getLogger(__name__)
 
 _RECOVERY_BUDGET_S = 10.0
-_PAGE_CLOSE_TIMEOUT_S = 2.0
 
 
-class BrowserSessionTabMixin:
+class BrowserSessionTabMixin(SessionHost):
     async def new_tab(self, url: str | None = None) -> str:
         """Create new Tab or reuse existing same-origin Tab, return Tab ID."""
         if hasattr(self, "_ensure_not_user_takeover"):
@@ -130,8 +128,8 @@ class BrowserSessionTabMixin:
     async def recover_active_tab(self) -> str | None:
         """Replace the active tab with a blank one when its page stopped answering.
 
-        A stalled navigation is stopped first (that alone revives most pages); a page that still
-        does not answer is closed and its tab swapped for a fresh one. Callers racing on the same
+        A stalled navigation is stopped first (that alone revives a page held up by a silent
+        server); a page that still does not answer is closed and its tab swapped for a fresh one. Callers racing on the same
         dead page are serialized, and the loser finds the healthy replacement and does nothing.
         Never raises: a failed recovery is logged and leaves the session usable, because
         `navigate` opens a tab when none is left.
@@ -164,7 +162,6 @@ class BrowserSessionTabMixin:
         logger.warning("BrowserSession: %s stopped responding, replacing it", tab_id)
         # Closing the page is what frees a renderer stuck in a script loop; the tab teardown
         # below then runs against a closed page instead of one that never answers.
-        with contextlib.suppress(Exception):
-            await asyncio.wait_for(page.close(), timeout=_PAGE_CLOSE_TIMEOUT_S)
+        await close_page_bounded(page)
         await self.close_tab(tab_id)
         return await self._open_blank_tab()

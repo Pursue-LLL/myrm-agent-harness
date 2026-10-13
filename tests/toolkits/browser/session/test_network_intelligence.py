@@ -342,9 +342,9 @@ class TestNetworkIntelligence:
 
     @pytest.mark.asyncio
     async def test_detach_on_wedged_page_is_bounded(self, monkeypatch):
-        from myrm_agent_harness.toolkits.browser.session import network_intelligence
+        from myrm_agent_harness.toolkits.browser.utils import page_health
 
-        monkeypatch.setattr(network_intelligence, "_DETACH_TIMEOUT_S", 0.05)
+        monkeypatch.setattr(page_health, "_DETACH_TIMEOUT_S", 0.05)
 
         async def never_answers() -> None:
             await asyncio.Event().wait()

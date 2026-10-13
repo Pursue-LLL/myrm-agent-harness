@@ -1,15 +1,15 @@
 """Cancel-aware execution boundary for the browser tools.
 
 [INPUT]
-- utils.runtime.cancellation::run_until_cancelled, OperationCancelledError (POS: aborts an operation once the request token fires)
-- session::BrowserSession (POS: replaces the active tab when an aborted action left its page unresponsive)
+- utils.runtime.cancellation::run_until_cancelled, OperationCancelledError (POS: request-level cancellation token; run_until_cancelled is the boundary for operations that cannot observe it)
+- session::BrowserSession (POS: browser session aggregate root; recover_active_tab heals a page an aborted action left unresponsive)
 
 [OUTPUT]
 - apply_cancel_boundary: wrap every tool's coroutine in place so a stopped run releases the browser
 - CANCELLED_RESULT: the result a tool returns when the run was stopped under it
 
 [POS]
-Stopping a run only flips the request's cancellation token. A browser action blocked inside the
+Cancel-aware execution boundary for the browser tools. Stopping a run only flips the request's cancellation token. A browser action blocked inside the
 driver (a navigation to a server that never answers, a script loop) never looks at that flag, so
 the tool would hold the session until its own timeout. This boundary races each tool call against
 the token, aborts the call, heals the tab and hands the model a plain result instead of an error.

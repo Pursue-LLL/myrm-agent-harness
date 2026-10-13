@@ -2,7 +2,7 @@
 
 [INPUT]
 - core.security.guards.ssrf::async_pin_url (POS: DNS-validated URL checks + audit)
-- utils.page_health::abort_pending_navigation (POS: stops a stalled navigation so route teardown can complete)
+- utils.page_health::abort_pending_navigation (POS: bounded browser and page health primitives)
 
 [OUTPUT]
 - assert_browser_navigation_allowed: Validate a navigation URL

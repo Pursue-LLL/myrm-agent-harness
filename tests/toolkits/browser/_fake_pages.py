@@ -74,6 +74,8 @@ class FakePage:
 
     async def evaluate(self, expression: str) -> int:
         self.evaluated.append(expression)
+        if self.closed:
+            raise RuntimeError("Target page, context or browser has been closed")
         if self.evaluate_mode == "raise":
             raise RuntimeError("Execution context was destroyed")
         if self.evaluate_mode == "hang":

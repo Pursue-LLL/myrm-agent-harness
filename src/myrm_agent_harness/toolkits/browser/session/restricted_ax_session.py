@@ -9,7 +9,7 @@
 - toolkits.browser.tools.inspect::create_inspect_tool (POS: 元素检查工具)
 - toolkits.browser.tools.manage::create_manage_tool (POS: 页面与标签管理工具)
 - toolkits.browser.tools.takeover::create_takeover_tool (POS: 人工接管工具)
-- toolkits.browser.tools.cancel_boundary::apply_cancel_boundary (POS: 停止运行时让每个工具及时中止)
+- toolkits.browser.tools.cancel_boundary::apply_cancel_boundary (POS: cancel-aware execution boundary for the browser tools)
 
 [OUTPUT]
 - RestrictedAccessibilityBrowserSession: Enforces pure ARIA/accessibility semantics,

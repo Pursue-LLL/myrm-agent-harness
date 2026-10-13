@@ -4,7 +4,7 @@
 - asyncio (POS: raw TCP servers, so the stall behaviour is exact)
 
 [OUTPUT]
-- StallServers: async context manager exposing `ok`, `slow`, `silent`, `headers_only`, `stalled_subresource` and `spinning` URLs
+- StallServers: async context manager exposing `ok`, `slow`, `silent`, `headers_only`, `stalled_subresource` and `spinning` URLs, and `wait_for_request` to learn when the browser really reached a URL
 
 [POS]
 A real Chromium navigation hangs in specific ways that no mock reproduces: a server that accepts the
@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from types import TracebackType
+from urllib.parse import urlparse
 
 _BODY = b"<html><head><title>{title}</title></head><body><h1>hello</h1>{extra}</body></html>"
 _RESPONSE_HEAD = b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\nContent-Length: "
@@ -37,6 +38,8 @@ class StallServers:
         self._server: asyncio.Server | None = None
         self._port = 0
         self._writers: set[asyncio.StreamWriter] = set()
+        self._requested_paths: list[str] = []
+        self._request_arrived = asyncio.Event()
 
     async def __aenter__(self) -> StallServers:
         self._server = await asyncio.start_server(self._handle, "127.0.0.1", 0)
@@ -55,6 +58,14 @@ class StallServers:
 
     def _url(self, path: str) -> str:
         return f"http://127.0.0.1:{self._port}/{path}"
+
+    async def wait_for_request(self, url: str, timeout_s: float = 30.0) -> None:
+        """Return once the browser has really requested `url`, so a test never races a slow start-up."""
+        path = urlparse(url).path
+        async with asyncio.timeout(timeout_s):
+            while path not in self._requested_paths:
+                self._request_arrived.clear()
+                await self._request_arrived.wait()
 
     @property
     def ok(self) -> str:
@@ -90,6 +101,8 @@ class StallServers:
         try:
             request = await reader.read(65536)
             path = request.split(b" ", 2)[1].decode() if request else "/"
+            self._requested_paths.append(path)
+            self._request_arrived.set()
             await self._respond(path, writer)
         except (asyncio.CancelledError, ConnectionError):
             pass

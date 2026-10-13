@@ -12,7 +12,7 @@
 - .ssrf_guard::goto_with_ssrf_guard (POS: Playwright document navigation SSRF guard)
 - .session.consent_dismisser::ConsentDismisser (POS: cookie consent auto-dismiss)
 - ..exceptions::BrowserNavigationError (POS: intelligent navigation failure diagnostics)
-- ..utils.page_health::abort_pending_navigation, probe_alive, PageUnresponsiveError (POS: bounded settlement of a timed-out navigation)
+- ..utils.page_health::abort_pending_navigation, probe_alive, PageUnresponsiveError (POS: bounded browser and page health primitives)
 
 [OUTPUT]
 - Navigator: page navigation manager (with throttling, smart wait, and consent dismissal)
@@ -55,6 +55,7 @@ if TYPE_CHECKING:
     from ..pool.circuit_breaker import CircuitBreaker
     from ..pool.config import BrowserMode, NavigationWaitConfig
     from ..pool.throttle import ThrottleStrategy
+    from ..session.consent_dismisser import ConsentDismisser
 
 logger = logging.getLogger(__name__)
 
@@ -106,12 +107,11 @@ class Navigator:
         self._domain_metrics_manager = domain_metrics_manager
         self._current_domain: str | None = None
         self._allow_private_networks = allow_private_networks
+        self._consent_dismisser: ConsentDismisser | None = None
         if auto_dismiss_popups:
             from ..session.consent_dismisser import ConsentDismisser
 
             self._consent_dismisser = ConsentDismisser(enabled=True)
-        else:
-            self._consent_dismisser = None
 
         if wait_config is None:
             from ..pool.config import BrowserMode, _navigation_wait_for_mode

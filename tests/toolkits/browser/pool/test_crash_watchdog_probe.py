@@ -14,6 +14,7 @@ import pytest
 
 from myrm_agent_harness.toolkits.browser.pool.browser_launcher import BrowserInstance
 from myrm_agent_harness.toolkits.browser.pool.crash_watchdog import CrashWatchdogMixin
+from myrm_agent_harness.toolkits.browser.utils import page_health
 
 _check = CrashWatchdogMixin._check_browser_alive
 
@@ -86,9 +87,7 @@ async def test_trusted_alive_without_pages_when_process_probe_fails() -> None:
 
 
 async def test_process_probe_timeout_falls_back_to_pages(monkeypatch: pytest.MonkeyPatch) -> None:
-    from myrm_agent_harness.toolkits.browser.pool import crash_watchdog
-
-    monkeypatch.setattr(crash_watchdog, "_PROBE_TIMEOUT_S", 0.05)
+    monkeypatch.setattr(page_health, "_PROBE_TIMEOUT_S", 0.05)
     browser = MagicMock()
 
     async def hang() -> None:

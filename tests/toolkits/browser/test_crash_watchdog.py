@@ -67,7 +67,7 @@ async def test_register_disconnect_handler_invokes_callback() -> None:
     event, callback = inst.browser.on.call_args.args
 
     assert event == "disconnected"
-    callback()  # sync callback schedules a crash-handling task
+    callback(inst.browser)  # sync callback schedules a crash-handling task
 
     await asyncio.sleep(0.05)  # let the created task run
     assert inst not in pool._browsers
@@ -122,7 +122,7 @@ async def test_register_page_crash_handler_and_handle_page_crashed() -> None:
     event, callback = page.on.call_args.args
     assert event == "crash"
 
-    callback()
+    callback(page)
     await asyncio.sleep(0.05)
     assert pool._crash_count_page == 1
     assert inst.load == 0
@@ -131,7 +131,7 @@ async def test_register_page_crash_handler_and_handle_page_crashed() -> None:
 
     # Second crash callback is idempotent: page_id already handled -> no-op.
     pool._crash_count_page = 0
-    callback()
+    callback(page)
     await asyncio.sleep(0.05)
     assert pool._crash_count_page == 0  # not double-counted
     await pool.shutdown()

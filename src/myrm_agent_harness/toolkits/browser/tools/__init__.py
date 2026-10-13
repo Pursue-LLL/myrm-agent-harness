@@ -20,7 +20,7 @@ Screenshot Diff Features:
 [INPUT]
 - session::BrowserSession (POS: session manager, based on SOLID principles)
 - langchain.tools::tool (POS: LangChain tool decorator)
-- cancel_boundary::apply_cancel_boundary (POS: makes every tool abort promptly when the run is stopped)
+- cancel_boundary::apply_cancel_boundary (POS: cancel-aware execution boundary for the browser tools)
 - pydantic::BaseModel (POS: tool parameter schema base class)
 
 [OUTPUT]
@@ -29,7 +29,7 @@ Screenshot Diff Features:
 [POS]
 API layer of the browser toolkit. Maps BrowserSession capabilities to 8 LangChain @tool functions,
 loaded on-demand by the Agent runtime. Thin layer: every tool call additionally runs behind the cancel
-boundary, so stopping a run releases the browser instead of waiting out a stuck driver call.
+boundary, so stopping a run releases the browser even while a driver call is stuck.
 """
 
 from __future__ import annotations
@@ -48,12 +48,14 @@ from .snapshot import create_snapshot_tool
 from .takeover import create_takeover_tool
 
 if TYPE_CHECKING:
+    from langchain_core.tools import BaseTool
+
     from ..session import BrowserSession
 
 __all__ = ["create_browser_tools", "mark_untrusted"]
 
 
-def create_browser_tools(session: BrowserSession) -> list:
+def create_browser_tools(session: BrowserSession) -> list[BaseTool]:
     """Create the 8 browser tools bound to *session*.
 
     Args:

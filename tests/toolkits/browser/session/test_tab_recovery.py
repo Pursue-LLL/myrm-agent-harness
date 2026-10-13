@@ -50,7 +50,7 @@ def _short_bounds(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(page_health, "_ABORT_TIMEOUT_S", _FAST_S)
     monkeypatch.setattr(page_health, "_DETACH_TIMEOUT_S", _FAST_S)
     monkeypatch.setattr(page_health, "_PROBE_TIMEOUT_S", _FAST_S)
-    monkeypatch.setattr(browser_session_tab_mixin, "_PAGE_CLOSE_TIMEOUT_S", _FAST_S)
+    monkeypatch.setattr(page_health, "_CLOSE_TIMEOUT_S", _FAST_S)
     monkeypatch.setattr(browser_session_tab_mixin, "_RECOVERY_BUDGET_S", 1.0)
 
 

@@ -107,7 +107,7 @@ Extension Bridge 与 SessionVault 覆盖竞品（orca/holaboss）cookie 导入�
 - **智能重试**：3次指数退避重试（2s/4s/8s），处理启动失败和网络异常
 - **并发安全销毁**：支持 `destroy_context` 显式回收资源，并具备严格的并发安全断言，防止销毁正在使用的页面。
 - **只发放健康页面**：`PagePool.acquire` 跳过已关闭的页面；复用前的重置受 5 s 预算约束，重置后再用 `probe_alive` 确认页面能回答，失败的页面被有界关闭而不是发放（避免卡死页面把 `create_tab` 堵在池锁里）。`release` 丢弃已关闭的页面，不放回池。
-- **崩溃判定以浏览器为准**：`CrashWatchdog` 的存活探针先问浏览器进程本身（浏览器级 CDP `Browser.getVersion`），应答即视为存活；不应答时再用池内页面求第二意见，两者都不应答才判定崩溃。单页面长时间导航不再被误判为浏览器崩溃。
+- **崩溃判定以浏览器为准**：`CrashWatchdog` 的存活探针先问浏览器进程本身（浏览器级 CDP `Browser.getVersion`），应答即视为存活；不应答时再用池内页面求第二意见，两者都不应答才判定崩溃。单页面长时间导航不会被判为浏览器崩溃。
 - **残留进程回收**：池关闭浏览器时只做优雅 `close()`（5 s 超时，失败仅记日志），不持有浏览器 PID、不发信号。托管启动的 Chromium 带归属戳（启动方 PID + 启动时间）；启动方退出后残留的浏览器由 Browser Doctor 识别（归属戳可能传到浏览器拉起的应用上，所以还要求进程的名称、可执行文件名或 `argv[0]` 文件名含 `chrom`，否则不算残留），`cleanup_orphan_processes` 先 SIGTERM，3 s 宽限后补 SIGKILL（有头 Chrome 在 DevTools 驱动被杀后会忽略 SIGTERM）。读取正被回收的进程时，macOS 上的 psutil 7.2.2 会抛 `SystemError`（giampaolo/psutil#3024，修复尚未发布），该进程按「无法确认」跳过，不会中断扫描或清理。已知局限：Local 模式（有头）下若仅 Playwright 驱动先死、服务进程仍在，浏览器进程会残留，直到服务重启、归属戳指向已退出的进程后才会被识别并清理（macOS 实测，Linux/Windows 未实测）。
 - **双引擎热切换**：Camoufox 是可选的隐身引擎（需单独安装浏览器构建，约 1.2 GB）。已安装且当前为托管浏览器时，可在 Chromium (Patchright) 与 Firefox (Camoufox) 之间热切换，可能缓解指纹类拦截（不承诺绕过）。`BrowserSession.restart(engine=Camoufox)` 先做零副作用预检：构建未就绪、或当前是接入的真实浏览器（CDP/扩展）时抛 `EngineUnavailableError`，会话原样保留；预检通过后若启动失败，会话自动回滚到原引擎（Cookie/localStorage 随新上下文迁移，页面不重载）并重抛原始错误，不会留下无法使用的空会话。
 - **Camoufox 就绪探针**：`pool/camoufox_availability.py` 复用启动期的解析规则（先 `CAMOUFOX_EXECUTABLE_PATH`，再库内已安装构建），以 `download_if_missing=False` 判断“是否已安装可用构建”，绝不触发库默认的静默下载；启动器、`restart()` 预检与 Doctor 共用同一结论。已安装但无法启动（如缺系统库）不在探针范围内，由启动失败后的回滚兜底；包自身无法导入（导入期会读取内置数据文件）同样以“不可用”原因返回而非抛出。手动安装：包缺失时先安装 `camoufox` 包（`uv add camoufox`），再执行 `camoufox fetch`（约 1.2 GB），离线/沙箱环境用 `CAMOUFOX_EXECUTABLE_PATH` 指向现成构建；Doctor 的 `fix` 与告警日志给出同一份处置说明（`camoufox` 命令随 Python 包提供，包缺失时不存在）。
@@ -838,7 +838,7 @@ BrowserError (root)
 
 - **页面卡死自愈**：`navigate()` 遇到 `PageUnresponsiveError` 时调用 `BrowserSession.recover_active_tab()`（`session/browser_session_tab_mixin.py`）：持锁、幂等、10 s 预算，先中止挂起加载再探活，仍无应答则有界关闭该标签页并开一个空白标签页，随后抛出带「标签页已重置为空白页，请重新导航」说明的 `PageUnresponsiveError`（不自动重试）。用户接管（`_user_takeover_active`）期间跳过恢复，不会替人关掉正在操作的页面。
 - **Stop 立即释放**：`create_browser_tools` / `create_restricted_ax_browser_tools` 返回的全部工具（8 个；受限 AX 版本 7 个）都经 `tools/cancel_boundary.py` 包装：每次调用与请求的 `CancellationToken` 赛跑（`utils/runtime/cancellation.py::run_until_cancelled`，0.25 s 轮询），Stop 后取消仍卡在驱动里的调用，恢复标签页，并返回 `CANCELLED_RESULT`（普通结果而非异常，不触发重试或 circuit breaker）。取消令牌缺失时直接透传，行为与未包装一致。
-- **有界清理**：SSRF 守卫路径的 `unroute`、NetworkIntelligence 的 CDP `detach` 均有 2 s 上限，避免卡死页面在清理阶段继续挂住工具。
+- **有界清理**：页面关闭与 CDP `detach` 统一走 `utils/page_health.py` 的 `close_page_bounded`（2 s）/ `detach_cdp_bounded`（1 s）；SSRF 守卫路径的 `unroute` 同为 2 s 上限，避免卡死页面在清理阶段继续挂住工具。
 
 ---
 
@@ -1138,7 +1138,7 @@ browser/
 │   ├── emulation.py — 浏览器环境仿真配置（含移动设备五维字段）
 │   ├── device_profiles.py — 精选移动设备 profile 注册表（含 landscape 横屏视口）
 │   ├── crash_watchdog.py — 崩溃看门狗（浏览器级 CDP 探针优先，池内页面第二意见）
-│   └── page_pool.py (225 行) — PagePool（只发放健康页面）
+│   └── page_pool.py (217 行) — PagePool（只发放健康页面）
 ├── diff/
 │   ├── types.py — ComparisonResult Protocol + FastComparisonResult + AccurateComparisonResult
 │   ├── fast_comparator.py — FastComparator（dHash，~2ms）
@@ -1158,6 +1158,7 @@ browser/
 │   ├── browser_session_navigation_mixin.py — navigate / 重试 / 引擎升级 / 卡死页面自愈衔接
 │   ├── browser_session_tab_mixin.py — new_tab / close_tab / recover_active_tab（卡死标签页替换）
 │   ├── browser_session_captcha_mixin.py — CAPTCHA 检测与人类接管等待
+│   ├── session_host.py — 会话 mixin 的类型化宿主契约（仅类型检查期存在，运行时为 object）
 │   ├── browser_session_extraction_mixin.py — 内容提取、vision fallback、截图对比
 │   ├── browser_session_page_mixin.py — viewport、dialog、evaluate、emulate_device 等页面级 API
 │   ├── browser_session_persistence_mixin.py — SessionVault 持久化 API
@@ -1186,7 +1187,7 @@ browser/
 │   └── consent_dismisser.py — Cookie consent 自动 dismiss
 │   （Navigator 位于 `navigation/` 包，BrowserSession 与 BrowserFetcher 共用）
 ├── utils/
-│   └── page_health.py — 页面健康原语（abort_pending_navigation / probe_alive / PageUnresponsiveError）
+│   └── page_health.py — 浏览器/页面健康原语（abort_pending_navigation / probe_alive / probe_browser_alive / close_page_bounded / detach_cdp_bounded / PageUnresponsiveError）
 ├── domain_filter/ — 四层域名过滤（CSP + HTTP + 主线程硬化 + CDP）；支持 allowlist + 用户 blocklist
 ├── session_vault/ — 加密 Session 存储（O(1) LRU + 内存限制 + 并发锁 + Metrics + 批量 API）
 ├── exceptions.py (约 150 行) — 异常类型

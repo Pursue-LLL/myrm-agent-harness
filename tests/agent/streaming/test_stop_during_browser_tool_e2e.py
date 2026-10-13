@@ -41,7 +41,8 @@ pytestmark = [
     pytest.mark.skipif(not chromium_available(), reason="Chromium not available"),
 ]
 
-_STOP_AFTER_S = 1.0
+_STOP_BOUND_S = 8.0  # well under the 15 s navigation timeout, which is when an unguarded run would end
+_CONTROL_WAIT_S = 4.0
 _TEARDOWN_BOUND_S = 20.0
 
 
@@ -136,12 +137,13 @@ async def test_stop_ends_the_run_heals_the_tab_and_the_model_is_not_asked_again(
     await session.new_tab()
     run = _Run(navigate_tool, servers.silent, CancellationToken("e2e_stop"))
     executing = run.start()
-    asyncio.get_running_loop().call_later(_STOP_AFTER_S, run.token.cancel)
+    await servers.wait_for_request(servers.silent)  # the navigation is now stuck inside the driver
 
-    started = time.monotonic()
+    stopped = time.monotonic()
+    run.token.cancel()
     await asyncio.wait_for(executing, timeout=30.0)
 
-    assert time.monotonic() - started < 15.0
+    assert time.monotonic() - stopped < _STOP_BOUND_S
     assert any(getattr(event, "type", None) == "tool_start" for event in run.compactor.events), "the tool really ran"
     assert run.stats.was_cancelled
     assert run.compactor.events[-1] is STREAM_DONE
@@ -157,9 +159,10 @@ async def test_control_without_the_boundary_the_stopped_run_stays_blocked(
     await session.new_tab()
     run = _Run(unguarded_navigate, servers.silent, CancellationToken("e2e_stop_control"))
     executing = run.start()
-    asyncio.get_running_loop().call_later(_STOP_AFTER_S, run.token.cancel)
+    await servers.wait_for_request(servers.silent)
 
-    await asyncio.sleep(_STOP_AFTER_S + 4.0)
+    run.token.cancel()
+    await asyncio.sleep(_CONTROL_WAIT_S)
 
     try:
         assert not executing.done(), "the flag alone releases nothing: this is the defect the boundary removes"

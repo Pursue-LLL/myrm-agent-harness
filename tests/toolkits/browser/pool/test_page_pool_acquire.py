@@ -72,7 +72,7 @@ def _pool(*pages: FakePage, max_size: int = 5) -> tuple[PagePool, MagicMock]:
 def _short_bounds(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(page_pool_module, "_ACQUIRE_RESET_BUDGET_S", 0.2)
     monkeypatch.setattr(page_health, "_PROBE_TIMEOUT_S", 0.2)
-    monkeypatch.setattr(page_pool_module, "_CLOSE_TIMEOUT_S", 0.2)
+    monkeypatch.setattr(page_health, "_CLOSE_TIMEOUT_S", 0.2)
 
 
 async def test_healthy_idle_page_is_reused() -> None:

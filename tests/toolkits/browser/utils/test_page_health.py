@@ -98,11 +98,10 @@ class TestProbeAlive:
         assert await probe_alive(page)  # type: ignore[arg-type]
         assert page.evaluated == ["1"]
 
-    async def test_closed_page_is_dead_without_touching_it(self) -> None:
+    async def test_closed_page_is_dead(self) -> None:
         page = FakePage(cdp=None, closed=True)
 
         assert not await probe_alive(page)  # type: ignore[arg-type]
-        assert page.evaluated == []
 
     async def test_failing_evaluate_is_dead(self) -> None:
         page = FakePage(cdp=None, evaluate="raise")

@@ -1,9 +1,10 @@
 """Three-layer crash detection and semaphore safety net for browser pool.
 
 [INPUT]
-- patchright.async_api::Page (POS: Patchright page instance)
+- patchright.async_api::Browser, Page (POS: Patchright browser and page instances)
 - .browser_launcher::BrowserInstance (POS: browser instance metadata)
 - .circuit_breaker::CircuitBreaker (POS: circuit breaker)
+- utils.page_health::probe_alive, probe_browser_alive (POS: bounded browser and page health primitives)
 
 [OUTPUT]
 - CrashWatchdogMixin: three-layer crash detection + semaphore safety net mixin
@@ -20,21 +21,19 @@ Provides automatic crash recovery for GlobalBrowserPool:
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import logging
 import time
 from typing import TYPE_CHECKING
 
+from ..utils.page_health import probe_alive, probe_browser_alive
+
 if TYPE_CHECKING:
-    from patchright.async_api import Page
+    from patchright.async_api import Browser, Page
 
     from .browser_launcher import BrowserInstance
     from .circuit_breaker import CircuitBreaker
 
 logger = logging.getLogger(__name__)
-
-_PROBE_TIMEOUT_S = 2.0
-_DETACH_TIMEOUT_S = 1.0
 
 
 class CrashWatchdogMixin:
@@ -62,10 +61,14 @@ class CrashWatchdogMixin:
     _crash_count_page: int
     _crash_tasks: set[asyncio.Task[None]]
 
+    if TYPE_CHECKING:
+
+        async def _close_browser_instance(self, browser_inst: BrowserInstance) -> None: ...
+
     def _register_disconnect_handler(self, inst: BrowserInstance) -> None:
         """Register browser.on('disconnected') for real-time crash detection (L1)."""
 
-        def _on_disconnected() -> None:
+        def _on_disconnected(_browser: Browser) -> None:
             crash_task = asyncio.create_task(self._handle_browser_disconnected(inst))
             self._crash_tasks.add(crash_task)
             crash_task.add_done_callback(self._crash_tasks.discard)
@@ -113,7 +116,7 @@ class CrashWatchdogMixin:
     def _register_page_crash_handler(self, page: Page, inst: BrowserInstance) -> None:
         """Register page.on('crash') for real-time page crash detection (L2)."""
 
-        def _on_page_crash() -> None:
+        def _on_page_crash(_page: Page) -> None:
             crash_task = asyncio.create_task(self._handle_page_crashed(page, inst))
             self._crash_tasks.add(crash_task)
             crash_task.add_done_callback(self._crash_tasks.discard)
@@ -212,30 +215,13 @@ class CrashWatchdogMixin:
         dead browser. Only when the process probe fails are pooled pages asked as a second
         opinion (engines without a browser-level CDP endpoint, such as Firefox, land here).
         """
-        if await _browser_process_answers(inst):
+        if await probe_browser_alive(inst.browser):
             return True
         return await _pooled_page_answers(inst)
 
 
-async def _browser_process_answers(inst: BrowserInstance) -> bool:
-    """Round-trip ``Browser.getVersion`` over a browser-level CDP session."""
-    cdp = None
-    try:
-        cdp = await asyncio.wait_for(inst.browser.new_browser_cdp_session(), timeout=_PROBE_TIMEOUT_S)
-        await asyncio.wait_for(cdp.send("Browser.getVersion"), timeout=_PROBE_TIMEOUT_S)
-        return True
-    except asyncio.CancelledError:
-        raise
-    except Exception:
-        return False
-    finally:
-        if cdp is not None:
-            with contextlib.suppress(Exception):
-                await asyncio.wait_for(cdp.detach(), timeout=_DETACH_TIMEOUT_S)
-
-
 async def _pooled_page_answers(inst: BrowserInstance) -> bool:
-    """Evaluate a trivial expression on a pooled page.
+    """True when any pooled page answers a liveness probe.
 
     patchright exposes ``Browser.version``/``Browser.contexts`` as cached properties rather
     than methods — calling them (``browser.contexts()``) raises TypeError, and cached
@@ -248,18 +234,8 @@ async def _pooled_page_answers(inst: BrowserInstance) -> bool:
         for pool in inst.page_pools.values():
             for page in (*pool._busy, *pool._idle):
                 probed = True
-                try:
-                    await asyncio.wait_for(page.evaluate("1"), timeout=_PROBE_TIMEOUT_S)
+                if await probe_alive(page):
                     return True
-                except asyncio.CancelledError:
-                    raise
-                except Exception:
-                    # Any probe failure — TimeoutError, TargetClosedError,
-                    # PlaywrightError, protocol/OS errors — means this page
-                    # cannot answer; try the next pooled page.
-                    continue
-    except asyncio.CancelledError:
-        raise
     except Exception:
         return False
     return not probed

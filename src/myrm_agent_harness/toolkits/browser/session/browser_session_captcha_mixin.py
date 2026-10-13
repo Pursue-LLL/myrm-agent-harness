@@ -2,7 +2,7 @@
 
 [INPUT]
 - captcha::detect_captcha, CaptchaHandleResult (POS: blocking CAPTCHA detection and structured result)
-- self._captcha_coordinator (POS: solver coordination, provided by the BrowserSession aggregate root)
+- session_host::SessionHost (POS: typed contract of the host attributes; provides the solver coordinator and tab controller)
 
 [OUTPUT]
 - BrowserSessionCaptchaMixin: _handle_captcha_if_detected
@@ -17,8 +17,10 @@ from __future__ import annotations
 
 from myrm_agent_harness.toolkits.browser.captcha.protocols import CaptchaHandleResult
 
+from .session_host import SessionHost
 
-class BrowserSessionCaptchaMixin:
+
+class BrowserSessionCaptchaMixin(SessionHost):
     async def _handle_captcha_if_detected(self) -> CaptchaHandleResult | None:
         """Detect and handle blocking CAPTCHAs on the current page.
 
