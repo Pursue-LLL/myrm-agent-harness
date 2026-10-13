@@ -28,9 +28,6 @@ Provides core optimization engine with Protocol-based design:
 ### Business Layer (myrm-agent-server)
 Implements framework protocols:
 - **SQLAlchemyStorage**: SQLite/PostgreSQL storage implementation  Protocol adapter
-- **LLMOptimizer**: LLM invocation with retry logic
-- **SkillUsageReporter**: Quality report generation
-- **StandaloneLockProvider**: OS native file lock (Industrial-grade)  Standalone Standard
 
 ## Key Features
 
@@ -46,11 +43,9 @@ Implements framework protocols:
    - User satisfaction
    - Call frequency
 
-3. **Scientific A/B Testing**
-   - Adaptive sampling for low-frequency skills
-   - Quick failure detection
-   - Early stopping for clear winners
-   - Statistical significance testing
+3. **A/B Test Start**
+   - Adaptive target sample size scaled by skill call frequency
+   - Optimistic version lock against concurrent skill edits
 
 4. **Multi-Layer Security**
    - Static pattern scanning
