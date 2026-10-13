@@ -1,16 +1,18 @@
 """Browser Doctor — leftover automation process detection and cleanup.
 
 A browser launched by the toolkit carries an ownership stamp (see ``process_owner``); it is
-a leftover when the process that launched it no longer runs. Processes without a stamp, with an
-unreadable environment or with a malformed stamp are never reported and never signalled. Cleanup is
-dry-run by default (``force=True`` required) and re-verifies each pid right before signalling it.
+a leftover when the process that launched it no longer runs and the process is itself a Chromium
+browser, because the stamp reaches whatever a browser starts, which can be an application it hands a
+link or a file to. Processes without a stamp, with an unreadable environment, with a malformed
+stamp or that are not Chromium binaries are never reported and never signalled. Cleanup is dry-run by
+default (``force=True`` required) and re-verifies each pid right before signalling it.
 
 [INPUT]
-- psutil (optional, process iteration)
+- psutil (optional, process iteration, process name / executable / command line)
 - ..process_owner::read_owner_state / OwnerState (POS: ownership stamp classification)
 
 [OUTPUT]
-- find_orphan_automation_processes: stamped browser processes whose owner is gone
+- find_orphan_automation_processes: stamped Chromium processes whose owner is gone
 - cleanup_orphan_processes: safe cleanup (dry-run by default, SIGTERM then SIGKILL after a grace period)
 - OrphanProcess / OrphanCleanupResult / KillFailure: typed shapes of the scan and cleanup results
 
@@ -29,9 +31,12 @@ import os
 import signal
 import sys
 import time
-from typing import TypedDict
+from typing import TYPE_CHECKING, TypedDict
 
 from ..process_owner import OwnerState, read_owner_state
+
+if TYPE_CHECKING:
+    import psutil
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +49,9 @@ _SIGKILL_SETTLE_S = 1.0
 # Windows has no SIGKILL; there ``os.kill`` terminates the process for any signal that is not a
 # console control event, so SIGTERM is already the hard kill.
 _KILL_SIGNAL = signal.SIGTERM if sys.platform == "win32" else signal.SIGKILL
+# The toolkit launches Chromium builds only, and every process of one carries this in its name
+# (``chrome``, ``chrome-headless-shell``, ``Google Chrome for Testing Helper``, ``chrome_crashpad_handler``).
+_CHROMIUM_NAME_MARKER = "chrom"
 
 
 class OrphanProcess(TypedDict):
@@ -76,7 +84,7 @@ class OrphanCleanupResult(TypedDict, total=False):
 def find_orphan_automation_processes() -> list[OrphanProcess]:
     """Find browser processes whose launching process is gone.
 
-    Only processes carrying an ownership stamp whose owner no longer runs are reported;
+    Only Chromium processes carrying an ownership stamp whose owner no longer runs are reported;
     the calling process is never reported.
 
     Returns:
@@ -95,7 +103,7 @@ def find_orphan_automation_processes() -> list[OrphanProcess]:
             if proc.pid == own_pid:
                 continue
             try:
-                if read_owner_state(proc) is not OwnerState.OWNER_GONE:
+                if not _is_leftover_process(proc):
                     continue
                 orphans.append(
                     {
@@ -127,6 +135,30 @@ def _extract_user_data_dir(args: list[str]) -> str:
     return ""
 
 
+def _is_chromium_process(proc: psutil.Process) -> bool:
+    """Whether ``proc`` runs a Chromium binary, judged by its name, executable or ``argv[0]``.
+
+    The ownership stamp says who launched a process, not what it is: it reaches whatever a browser
+    starts. Each of the three is read on its own and one match suffices, because a source can be
+    unreadable (another user's executable) or differ by platform (a Linux process name is cut to 15
+    characters).
+    """
+    import psutil
+
+    for read in (proc.name, proc.exe, lambda: (proc.cmdline() or [""])[0]):
+        try:
+            if _CHROMIUM_NAME_MARKER in os.path.basename(read()).lower():
+                return True
+        except (psutil.Error, OSError):
+            continue
+    return False
+
+
+def _is_leftover_process(proc: psutil.Process) -> bool:
+    """A Chromium process stamped by an owner that is gone; the single judgement of the scan and the re-checks."""
+    return read_owner_state(proc) is OwnerState.OWNER_GONE and _is_chromium_process(proc)
+
+
 def _is_running(pid: int) -> bool:
     """Whether ``pid`` is a live process; an exited process that has not been reaped yet counts as stopped."""
     import psutil
@@ -144,7 +176,7 @@ def _is_leftover(pid: int) -> bool:
     if pid == os.getpid():
         return False
     try:
-        return read_owner_state(psutil.Process(pid)) is OwnerState.OWNER_GONE
+        return _is_leftover_process(psutil.Process(pid))
     except psutil.NoSuchProcess:
         return False
 

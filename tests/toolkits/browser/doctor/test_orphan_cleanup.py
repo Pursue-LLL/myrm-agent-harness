@@ -52,6 +52,17 @@ def test_force_refuses_a_process_without_stamp(stamped_processes: StampedProcess
     assert foreign.poll() is None
 
 
+def test_force_refuses_a_stamped_process_that_is_not_a_browser(stamped_processes: StampedProcesses) -> None:
+    """An application a browser opened and that inherited the stamp of its gone owner is not ours to kill."""
+    application = stamped_processes.spawn(dead_owner_stamp(), browser=False)
+
+    result = cleanup_orphan_processes([application.pid], force=True)
+
+    assert result["killed"] == 0
+    assert result["failed"] == [{"pid": application.pid, "reason": "not_an_orphan"}]
+    assert application.poll() is None
+
+
 def test_force_refuses_a_process_whose_owner_is_alive(stamped_processes: StampedProcesses) -> None:
     running = stamped_processes.spawn(live_owner_stamp())
 
@@ -77,6 +88,7 @@ def test_auto_detect_terminates_leftovers_and_spares_everything_else(stamped_pro
     leftover = stamped_processes.spawn(dead_owner_stamp())
     foreign = stamped_processes.spawn(None, extra_args=("--user-data-dir=/home/u/.cache/ms-playwright/chromium-1",))
     running = stamped_processes.spawn(live_owner_stamp())
+    application = stamped_processes.spawn(dead_owner_stamp(), browser=False)
 
     result = cleanup_orphan_processes(force=True)
 
@@ -84,6 +96,7 @@ def test_auto_detect_terminates_leftovers_and_spares_everything_else(stamped_pro
     assert stamped_processes.wait_gone(leftover)
     assert foreign.poll() is None
     assert running.poll() is None
+    assert application.poll() is None
 
 
 def test_stubborn_leftover_is_escalated_to_sigkill_by_default(stamped_processes: StampedProcesses) -> None:

@@ -1,4 +1,4 @@
-"""A Chromium launched through the pool launcher carries the ownership stamp; the driver and this process do not."""
+"""Chromium launched by the pool launcher is stamped and recognised as Chromium; the driver and this process are not."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ import time
 import psutil
 import pytest
 
+from myrm_agent_harness.toolkits.browser.doctor.orphans import _is_chromium_process
 from myrm_agent_harness.toolkits.browser.pool.browser_launcher import BrowserLauncher
 from myrm_agent_harness.toolkits.browser.process_owner import OWNER_ENV_VAR, OwnerState, read_owner_state
 from tests.toolkits.browser._browser_available import chromium_available
@@ -45,6 +46,11 @@ def _owner_states(processes: list[psutil.Process]) -> dict[int, OwnerState]:
     return states
 
 
+def _not_recognised_as_chromium(processes: list[psutil.Process]) -> list[str]:
+    """Names of the running processes the orphan check would take for something other than Chromium."""
+    return [proc.name() for proc in processes if proc.is_running() and not _is_chromium_process(proc)]
+
+
 async def test_launched_chromium_is_stamped_and_nothing_else_is() -> None:
     launcher = BrowserLauncher(launch_options={"headless": True})
     instance = await launcher.create_browser()
@@ -55,6 +61,7 @@ async def test_launched_chromium_is_stamped_and_nothing_else_is() -> None:
 
         assert len(states) >= 2
         assert set(states.values()) == {OwnerState.OWNER_ALIVE}
+        assert _not_recognised_as_chromium(browser_processes) == []
         assert read_owner_state(driver) is OwnerState.UNSTAMPED
         assert OWNER_ENV_VAR not in os.environ
     finally:

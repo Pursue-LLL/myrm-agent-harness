@@ -1,10 +1,11 @@
 """Ownership stamp for the browser processes launched by this Python process.
 
 Every Chromium process started by the browser toolkit carries the environment variable
-``MYRM_BROWSER_OWNER=<pid>:<start_ms>`` naming the launching process, and passes it on to its helpers.
-Whether a browser is a leftover is then a fact read from the process itself (its owner no longer runs)
-rather than a guess from its command line or its ancestors, so a browser that belongs to someone else
-is never touched.
+``MYRM_BROWSER_OWNER=<pid>:<start_ms>`` naming the launching process, and passes it on to whatever it
+starts: its helpers, and possibly an application it hands a link or a file to. The stamp therefore
+proves who launched a process, not what it is. Whether a browser is a leftover is then a fact read from the process
+itself (its owner no longer runs, and it is a Chromium binary) rather than a guess from its command line
+or its ancestors, so a browser that belongs to someone else is never touched.
 
 [INPUT]
 - psutil (optional): process start time, boot time, status and environment reads

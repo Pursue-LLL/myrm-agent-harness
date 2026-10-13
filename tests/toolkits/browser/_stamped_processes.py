@@ -10,8 +10,9 @@
 
 [POS]
 Orphan detection reads the real process table, so its tests start real processes instead of
-mocking psutil. A child is a bare Python sleeper: what matters is the environment it carries,
-not what kind of browser it would be.
+mocking psutil. A child is a bare Python sleeper that carries the stamp and, as a stand-in for a
+browser, runs under a Chromium-looking executable name (a symlink to the interpreter), or under its
+own name when it stands in for any other application that inherited the stamp.
 """
 
 from __future__ import annotations
@@ -20,7 +21,9 @@ import functools
 import os
 import subprocess
 import sys
+import tempfile
 import time
+from pathlib import Path
 from types import TracebackType
 
 import psutil
@@ -55,19 +58,29 @@ class StampedProcesses:
 
     def __init__(self) -> None:
         self._children: list[subprocess.Popen[str]] = []
+        self._executables = tempfile.TemporaryDirectory(prefix="stamped-processes-")
+        # The interpreter under a Chromium-looking name: the orphan check judges a process by what it runs.
+        self.browser_executable = Path(self._executables.name) / "chrome-stand-in"
+        self.browser_executable.symlink_to(sys.executable)
 
     def spawn(
         self,
         stamp: str | None,
         *,
+        browser: bool = True,
         ignore_sigterm: bool = False,
         extra_args: tuple[str, ...] = (),
     ) -> subprocess.Popen[str]:
-        """Start a child carrying ``stamp`` (no stamp when ``None``) and return once it is running."""
+        """Start a child carrying ``stamp`` (no stamp when ``None``) and return once it is running.
+
+        ``browser`` makes the child run under a Chromium-looking executable name; without it the child is
+        a plain Python process, such as an application a browser opened and that inherited the stamp.
+        """
         env = {key: value for key, value in os.environ.items() if key != OWNER_ENV_VAR}
         if stamp is not None:
             env[OWNER_ENV_VAR] = stamp
-        args = [sys.executable, "-u", "-c", _CHILD_SCRIPT, *extra_args]
+        executable = str(self.browser_executable) if browser else sys.executable
+        args = [executable, "-u", "-c", _CHILD_SCRIPT, *extra_args]
         if ignore_sigterm:
             args.append("--ignore-sigterm")
         child = subprocess.Popen(args, env=env, stdout=subprocess.PIPE, text=True)
@@ -100,3 +113,4 @@ class StampedProcesses:
             child.wait()
             if child.stdout is not None:
                 child.stdout.close()
+        self._executables.cleanup()
