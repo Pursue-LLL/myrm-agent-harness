@@ -13,6 +13,7 @@ pool-level integration tests in `test_browser_launcher_cdp.py`:
 from __future__ import annotations
 
 import asyncio
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -37,12 +38,20 @@ def _alive_page() -> MagicMock:
     return page
 
 
+def _browser_mock(inst: BrowserInstance) -> MagicMock:
+    return cast(MagicMock, inst.browser)
+
+
+def _page_pool_mock(inst: BrowserInstance) -> MagicMock:
+    return cast(MagicMock, inst.page_pools["agent"])
+
+
 def _inst_with_pool(
     pool: GlobalBrowserPool,
     is_managed: bool = True,
     load: int = 1,
-    busy: set | None = None,
-    idle: set | None = None,
+    busy: set[MagicMock] | None = None,
+    idle: list[MagicMock] | None = None,
 ) -> BrowserInstance:
     browser = _mock_browser()
     inst = BrowserInstance(browser=browser, is_managed=is_managed)
@@ -63,8 +72,9 @@ async def test_register_disconnect_handler_invokes_callback() -> None:
     inst = _inst_with_pool(pool)
 
     pool._register_disconnect_handler(inst)
-    assert inst.browser.on.call_count == 1
-    event, callback = inst.browser.on.call_args.args
+    browser = _browser_mock(inst)
+    assert browser.on.call_count == 1
+    event, callback = browser.on.call_args.args
 
     assert event == "disconnected"
     callback(inst.browser)  # sync callback schedules a crash-handling task
@@ -138,6 +148,47 @@ async def test_register_page_crash_handler_and_handle_page_crashed() -> None:
 
 
 @pytest.mark.asyncio
+async def test_idle_page_crash_is_ignored_because_it_holds_no_permit() -> None:
+    """A page crashing while idle in its pool owns no permit: none is returned and no marker is left behind."""
+    pool = GlobalBrowserPool(max_browsers=2)
+    pool._global_semaphore = asyncio.Semaphore(10)
+    idle_page = MagicMock()
+    inst = _inst_with_pool(
+        pool, load=1, idle=[idle_page]
+    )  # another page is held by a caller and must stay accounted for
+
+    await pool._handle_page_crashed(idle_page, inst)
+
+    assert pool._crash_count_page == 0
+    assert not pool._crash_handled_pages
+    assert inst.load == 1
+    assert pool._current_pages_in_use == 1
+    assert pool._global_semaphore._value == 10
+    await pool.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_crash_event_after_release_does_not_return_the_permit_twice() -> None:
+    """The owner returned the permit with the page; a crash event reaching the handler later must not return it again."""
+    pool = GlobalBrowserPool(max_browsers=2)
+    pool._global_semaphore = asyncio.Semaphore(9)  # one of ten permits is held by the page below
+    page = MagicMock()
+    inst = _inst_with_pool(pool, busy={page})
+    page_pool = _page_pool_mock(inst)
+    page_pool.release = AsyncMock(side_effect=page_pool._busy.discard)
+
+    await pool.release_page(page, "agent")
+    assert pool._global_semaphore._value == 10
+
+    await pool._handle_page_crashed(page, inst)
+
+    assert pool._global_semaphore._value == 10
+    assert pool._crash_count_page == 0
+    assert not pool._crash_handled_pages
+    await pool.shutdown()
+
+
+@pytest.mark.asyncio
 async def test_handle_page_crashed_noop_when_browser_disconnected() -> None:
     """A page crash on an already-disconnected browser must be a no-op."""
     pool = GlobalBrowserPool(max_browsers=2)
@@ -168,16 +219,16 @@ async def test_lifecycle_tick_skips_disconnected_and_evicts_idle() -> None:
     import dataclasses
 
     pool = GlobalBrowserPool(max_browsers=4)
-    pool._config = dataclasses.replace(pool._config, idle_timeout_seconds=0.01)
+    pool._config = dataclasses.replace(pool._config, idle_timeout_seconds=1)
 
     dead = _inst_with_pool(pool, is_managed=False, load=1)
     dead._disconnected = True  # already handled elsewhere -> skipped
 
     idle = _inst_with_pool(pool, load=0)
-    idle.last_active_at = 0.0  # older than the 0.01s timeout -> idle eviction
+    idle.last_active_at = 0.0  # older than the 1s timeout -> idle eviction
 
     ext_dead = _inst_with_pool(pool, is_managed=False, load=1)
-    page = next(iter(ext_dead.page_pools["agent"]._busy))
+    page = next(iter(_page_pool_mock(ext_dead)._busy))
     page.evaluate = AsyncMock(side_effect=RuntimeError("target closed"))
 
     await pool._lifecycle_tick()
@@ -250,7 +301,7 @@ async def test_pool_close_browser_instance_graceful() -> None:
 
     await pool._close_browser_instance(inst)
 
-    inst.page_pools["agent"].shutdown.assert_called_once()
+    _page_pool_mock(inst).shutdown.assert_called_once()
     ctx.close.assert_awaited_once()
-    inst.browser.close.assert_awaited_once()
+    _browser_mock(inst).close.assert_awaited_once()
     await pool.shutdown()

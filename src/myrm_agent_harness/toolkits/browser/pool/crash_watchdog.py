@@ -15,7 +15,8 @@ Provides automatic crash recovery for GlobalBrowserPool:
 - L2: page.on('crash') real-time page renderer crash detection
 - L3: _lifecycle_tick periodic fallback (30s interval); liveness = browser-level CDP round trip
   first, pooled-page evaluate as second opinion, so a slow or wedged page never evicts a live browser
-- Semaphore safety net: prevents semaphore leaks or double releases on crash
+- Semaphore safety net: prevents semaphore leaks or double releases on crash; a page crash returns a
+  permit only for a page a caller holds (a member of its `PagePool` busy set), never for an idle one
 """
 
 from __future__ import annotations
@@ -124,11 +125,18 @@ class CrashWatchdogMixin:
         page.on("crash", _on_page_crash)
 
     async def _handle_page_crashed(self, page: Page, inst: BrowserInstance) -> None:
-        """Handle page crash event — release one semaphore slot and track for safety net."""
+        """Handle page crash event — release one semaphore slot and track for safety net.
+
+        Only a page a caller holds carries a permit. A page that crashes while idle in its pool, or
+        whose caller already released it, has none to give back: returning one would raise the
+        concurrency limit for good and leave a marker that no release would ever clear.
+        """
         page_id = id(page)
 
         async with self._lock:
             if inst._disconnected or page_id in self._crash_handled_pages:
+                return
+            if not any(page in pool._busy for pool in inst.page_pools.values()):
                 return
 
             self._crash_handled_pages.add(page_id)
