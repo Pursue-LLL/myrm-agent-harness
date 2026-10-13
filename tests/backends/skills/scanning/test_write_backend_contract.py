@@ -73,7 +73,7 @@ def tool(backend: ProtocolBackend) -> BaseTool:
 
 
 async def _run(tool: BaseTool, **arguments: str) -> str:
-    return str(await tool.ainvoke(arguments, config=TOOL_CONFIG))
+    return str(await tool.ainvoke({"operations": [arguments]}, config=TOOL_CONFIG))
 
 
 @pytest.mark.asyncio

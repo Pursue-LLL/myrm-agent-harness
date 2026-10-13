@@ -53,8 +53,9 @@ Four actions:
 
 Important workflow:
 - For search+install: ALWAYS search first, present results, ONLY install after user confirms
-- For install_from_url: User provides a GitHub URL, you install directly
+- For install_from_url: use when the user supplied a URL; the security gate may block high-risk skills (tell the user, do not retry blindly)
 - For uninstall: Confirm with the user before uninstalling
+- After install: the skill is in the library; use skill_select_tool only when the skill appears in <bound_skills> for this agent
 """
 
 TOOL_DESCRIPTION_ZH = """从外部市场（GitHub、skills.sh、ClawHub 等）安装新技能和 Agent 插件。
@@ -73,8 +74,9 @@ TOOL_DESCRIPTION_ZH = """从外部市场（GitHub、skills.sh、ClawHub 等）�
 
 重要工作流：
 - 搜索并安装：始终先搜索并展示结果，仅在用户确认后执行安装
-- URL 安装：用户提供 GitHub URL，直接执行安装
+- URL 安装：用户已提供 URL 时使用；高风险技能可能被安全门拦截（告知用户，勿盲目重试）
 - 卸载：卸载前须向用户确认
+- 安装后：技能已入库；仅当该技能出现在本会话 <bound_skills> 中时才用 skill_select_tool 加载
 """
 
 TOOL_DESCRIPTION = TOOL_DESCRIPTION_EN
@@ -209,7 +211,10 @@ async def _handle_install(backend: SkillMarketBackend, skill_id: str, source: st
             msg += f" Declared MCP Servers: {', '.join(result.declared_mcp_servers)}\n"
         if result.scan_summary:
             msg += f"\n    Security scan: {result.scan_summary}\n"
-        msg += "\nThe skill is now available and will be used automatically when relevant."
+        msg += (
+            "\nSkill is in your library. If it is not listed in <bound_skills>, enable or bind it "
+            "for this agent, then use skill_select_tool when needed."
+        )
         return msg
     if result.error_code == "SECURITY_SCORE_BELOW_THRESHOLD":
         return (
@@ -240,7 +245,10 @@ async def _handle_install_from_url(install_fn: InstallFromUrlFn | None, url: str
         )
         if result.scan_summary:
             msg += f"\n    Security scan: {result.scan_summary}\n"
-        msg += "\nThe skill is now available and will be used automatically when relevant."
+        msg += (
+            "\nSkill is in your library. If it is not listed in <bound_skills>, enable or bind it "
+            "for this agent, then use skill_select_tool when needed."
+        )
         return msg
     if result.error_code == "SECURITY_SCORE_BELOW_THRESHOLD":
         return (

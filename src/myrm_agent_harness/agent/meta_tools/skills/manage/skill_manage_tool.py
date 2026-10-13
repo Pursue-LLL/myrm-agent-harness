@@ -1,26 +1,21 @@
-"""Skill management meta tool (save / patch / delete / write_file / remove_file / lock / unlock).
+"""Skill management meta tool — atomic batches of save/patch/delete/file ops.
 
 [INPUT]
-- backends.skills.scanning::ScanningSkillWriteBackend (POS: Framework-level security wrapper for SkillWriteBackend)
-- backends.skills.protocols::SkillBackend (POS: Skill backend protocol definition)
-- backends.skills.similarity::SkillSimilarityChecker (POS: Skill similarity checking protocol)
-- agent.meta_tools.skills.manage._manage_handlers (POS: Internal action handlers and validation logic)
-- langchain.tools::tool
-- pydantic::BaseModel, Field
+- backends.skills.scanning::ScanningSkillWriteBackend
+- manage.batch_runner::run_skill_manage_batch, SkillManageBatchCommittedHook
 
 [OUTPUT]
-- create_skill_manage_tool: factory function for the skill management tool
-- resolve_skill_manage_tool_description: resolve localized tool description
+- create_skill_manage_tool: factory for the skill management tool
 
 [POS]
-Skill management meta tool. Enables the Agent to create, update, and delete
-skills and their supporting files through a unified interface.
+Skill management meta tool. Agent applies one or more operations atomically via operations[].
 """
 
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Literal
+from contextlib import AsyncExitStack
+from typing import TYPE_CHECKING, Any
 
 from langchain.tools import tool
 from langchain_core.runnables import RunnableConfig
@@ -29,14 +24,11 @@ from pydantic import BaseModel, Field
 from myrm_agent_harness.agent.meta_tools.skills.manage._manage_handlers import (
     SKILL_NAME_PATTERN,
     _extract_user_id,
-    _handle_delete,
-    _handle_evolution_lock,
-    _handle_patch,
-    _handle_remove_file,
-    _handle_save,
-    _handle_write_file,
-    _validate_frontmatter,
     _validate_name,
+)
+from myrm_agent_harness.agent.meta_tools.skills.manage.batch_runner import (
+    SkillManageBatchCommittedHook,
+    run_skill_manage_batch,
 )
 from myrm_agent_harness.agent.meta_tools.skills.manage.lock_manager import (
     SkillLockManager,
@@ -54,55 +46,31 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-TOOL_DESCRIPTION_EN = """Manage skills (reusable procedural knowledge): save, patch, delete, write_file, remove_file, lock, unlock.
+TOOL_DESCRIPTION_EN = """Manage skills via atomic batches (operations[]).
 
-Actions:
-- save: Create or fully replace a skill.
-- patch: Partially update by replacing a content fragment.
-- delete: Remove a skill.
-- write_file: Add/overwrite a supporting file (scripts/, references/, templates/, assets/).
-- remove_file: Remove a supporting file.
-- lock: Lock a skill against automatic overwrites (protects user-customized content).
-- unlock: Unlock a skill to re-enable automatic evolution.
+Each operation uses action: save | patch | delete | write_file | remove_file | lock | unlock, plus name and action-specific fields (content, old_content/new_content, file_path, description).
 
-IMPORTANT — Self-learning: After completing a complex multi-step task (5+ tool calls), evaluate whether the workflow is reusable and worth saving as a skill BEFORE finalizing your response. Also save when: tricky error fixed with non-obvious solution, non-trivial workflow discovered. Skip simple one-offs.
-When to patch: skill outdated, incomplete, or wrong during use — fix immediately.
-Confirm with user before creating or deleting.
-Good skills: numbered steps, exact commands, pitfalls section, verification steps.
+Use one operation for a single change; use multiple operations in one call when updating SKILL.md and supporting files together (all succeed or none apply).
 
-Save content MUST be valid SKILL.md with YAML frontmatter:
----
-name: my_skill
-description: "Brief description"
----
-# Skill Title
-<instructions>
-"""
+For small SKILL.md edits use patch (old_content must match exactly once); use save for new skills or full replacement. lock/unlock wraps a multi-step edit on the same skill.
 
-TOOL_DESCRIPTION_ZH = """管理技能（可复用流程知识）：save、patch、delete、write_file、remove_file、lock、unlock。
+Confirm with user before create or delete. After complex multi-step tasks (5+ tool calls), consider saving a reusable workflow as a skill.
+If a skill you are following is wrong or outdated mid-task, patch it (or ask the user) before you finish.
 
-操作：
-- save: 创建新技能或全量覆写已有技能。
-- patch: 通过替换局部内容片段进行局部更新。
-- delete: 删除技能。
-- write_file: 新增或覆写辅助文件（scripts/、references/、templates/、assets/）。
-- remove_file: 删除辅助文件。
-- lock: 锁定技能防止自动优化覆写（保护用户定制内容）。
-- unlock: 解锁技能以重新启用自动演化更新。
+save requires valid SKILL.md with YAML frontmatter (name, description)."""
 
-重要 — 自主学习：在完成复杂多步任务（5+ 次工具调用）后，在最终回复前评估工作流是否可复用且值得保存为技能。在修复非显而易见的棘手错误或发现通用工作流时也应保存。简单单次任务跳过。
-patch 时机：技能在执行中使用发现过时、不完整或错误时 — 立即修复。
-创建或删除前须向用户确认。
-优质技能：编号步骤、确切命令、踩坑要点、验证步骤。
+TOOL_DESCRIPTION_ZH = """通过原子批次 operations[] 管理技能。
 
-Save 内容必须为带有 YAML frontmatter 的有效 SKILL.md：
----
-name: my_skill
-description: "简要描述"
----
-# 技能标题
-<instructions>
-"""
+每条 operation 的 action：save | patch | delete | write_file | remove_file | lock | unlock，并带 name 及对应字段（content、old_content/new_content、file_path、description）。
+
+单改用一个 operation；同时改 SKILL.md 与辅助文件时用同一批 operations（全部成功或全部不生效）。
+
+小范围改 SKILL.md 用 patch（old_content 须唯一精确匹配）；新建或整篇替换用 save。同一技能多步修改前 lock，完成后 unlock。
+
+创建或删除前须向用户确认。复杂多步任务（5+ 次工具调用）后可将可复用流程保存为技能。
+执行中若所用技能错误或过时，完成前须 patch 修正（或先询问用户）。
+
+save 须为带 YAML frontmatter（name、description）的有效 SKILL.md。"""
 
 TOOL_DESCRIPTION = TOOL_DESCRIPTION_EN
 
@@ -112,8 +80,6 @@ __all__ = [
     "TOOL_DESCRIPTION_EN",
     "TOOL_DESCRIPTION_ZH",
     "_extract_user_id",
-    "_handle_evolution_lock",
-    "_validate_frontmatter",
     "_validate_name",
     "create_skill_manage_tool",
     "resolve_skill_manage_tool_description",
@@ -127,90 +93,62 @@ def resolve_skill_manage_tool_description(locale: str | None = None) -> str:
     return TOOL_DESCRIPTION_EN
 
 
+class SkillOperation(BaseModel):
+    action: str = Field(description="save, patch, delete, write_file, remove_file, lock, or unlock.")
+    name: str = Field(description="Skill name (letters, numbers, underscores, hyphens; max 64 chars).")
+    content: str = Field(default="", description="save or write_file body.")
+    description: str = Field(default="", description="save only: short description.")
+    old_content: str = Field(default="", description="patch: exact fragment to replace.")
+    new_content: str = Field(default="", description="patch: replacement fragment.")
+    file_path: str = Field(
+        default="",
+        description="write_file/remove_file: path under scripts/, references/, templates/, or assets/.",
+    )
+
+
+class SkillManageInput(BaseModel):
+    operations: list[SkillOperation] = Field(
+        min_length=1,
+        max_length=25,
+        description="Non-empty list of operations applied atomically.",
+    )
+
+
 def create_skill_manage_tool(
     write_backend: ScanningSkillWriteBackend,
     skill_backend: SkillBackend | None,
     similarity_checker: SkillSimilarityChecker | None = None,
     *,
     locale: str | None = None,
+    batch_committed_hook: SkillManageBatchCommittedHook | None = None,
 ) -> BaseTool:
-    """Create the skill management tool.
-
-    Args:
-        write_backend: Scanning write backend (enforces security scanning)
-        skill_backend: Read-only skill backend (for patch: read current content)
-        similarity_checker: Optional checker to warn about semantically similar skills on save.
-                           When provided, save actions will query for similar skills and include
-                           a warning in the response if high-similarity matches are found.
-        locale: Tool description locale (default: English).
-    """
-
-    class SkillManageInput(BaseModel):
-        action: Literal["save", "patch", "delete", "write_file", "remove_file", "lock", "unlock"] = Field(
-            description="Action to perform."
-        )
-        name: str = Field(description="Skill name (letters, numbers, underscores, hyphens; max 64 chars).")
-        content: str = Field(
-            default="",
-            description="For save: SKILL.md with frontmatter. For write_file: file content.",
-        )
-        description: str = Field(default="", description="Brief skill description (save only).")
-        old_content: str = Field(default="", description="For patch: exact content fragment to replace.")
-        new_content: str = Field(default="", description="For patch: replacement fragment.")
-        file_path: str = Field(
-            default="",
-            description="For write_file/remove_file: path under scripts/, references/, templates/, or assets/.",
-        )
+    """Create the skill management tool."""
 
     @tool("skill_manage_tool", description=resolve_skill_manage_tool_description(locale), args_schema=SkillManageInput)
     async def skill_manage_func(
-        action: str,
-        name: str,
-        content: str = "",
-        description: str = "",
-        old_content: str = "",
-        new_content: str = "",
-        file_path: str = "",
+        operations: list[SkillOperation],
         *,
         config: RunnableConfig,
     ) -> str:
-        """Manage skills: save, patch, delete, write_file, or remove_file."""
-        name_error = _validate_name(name)
-        if name_error:
-            return name_error
-
+        """Apply skill_manage operations atomically."""
         user_id = _extract_user_id(config)
+        op_dicts: list[dict[str, Any]] = [op.model_dump() for op in operations]
+        skill_names = sorted({str(op["name"]) for op in op_dicts})
+        locks = [SkillLockManager.get_lock(name, user_id) for name in skill_names]
 
-        lock = SkillLockManager.get_lock(name, user_id)
-        async with lock:
-            if action == "save":
-                return await _handle_save(
-                    write_backend,
-                    name,
-                    content,
-                    description,
-                    similarity_checker,
-                )
-            elif action == "patch":
-                return await _handle_patch(
-                    write_backend,
-                    skill_backend,
-                    name,
-                    old_content,
-                    new_content,
-                )
-            elif action == "delete":
-                return await _handle_delete(write_backend, name)
-            elif action == "write_file":
-                return await _handle_write_file(write_backend, name, file_path, content)
-            elif action == "remove_file":
-                return await _handle_remove_file(write_backend, name, file_path)
-            elif action in ("lock", "unlock"):
-                return await _handle_evolution_lock(name, locked=(action == "lock"))
-            else:
-                return (
-                    f"Error: Unknown action '{action}'. "
-                    f"Use 'save', 'patch', 'delete', 'write_file', 'remove_file', 'lock', or 'unlock'."
-                )
+        async def _execute() -> str:
+            return await run_skill_manage_batch(
+                write_backend=write_backend,
+                skill_backend=skill_backend,
+                similarity_checker=similarity_checker,
+                operations=op_dicts,
+                batch_committed_hook=batch_committed_hook,
+                locale=locale,
+            )
+
+        async with AsyncExitStack() as stack:
+            for lock in locks:
+                await stack.enter_async_context(lock)
+            return await _execute()
 
     return skill_manage_func

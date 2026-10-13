@@ -1058,7 +1058,7 @@ class TestSkillManageToolActions:
         from myrm_agent_harness.agent.meta_tools.skills.manage.skill_manage_tool import create_skill_manage_tool
 
         tool = create_skill_manage_tool(MagicMock(), None)
-        result = await tool.ainvoke({"action": "save", "name": "", "content": "x"}, config=_MANAGE_CFG)
+        result = await tool.ainvoke({"operations": [{"action": "save", "name": "", "content": "x"}]}, config=_MANAGE_CFG)
         assert "error" in result.lower()
         assert "empty" in result.lower()
 
@@ -1069,7 +1069,7 @@ class TestSkillManageToolActions:
         from myrm_agent_harness.agent.meta_tools.skills.manage.skill_manage_tool import create_skill_manage_tool
 
         tool = create_skill_manage_tool(MagicMock(), None)
-        result = await tool.ainvoke({"action": "save", "name": "a" * 65, "content": "x"}, config=_MANAGE_CFG)
+        result = await tool.ainvoke({"operations": [{"action": "save", "name": "a" * 65, "content": "x"}]}, config=_MANAGE_CFG)
         assert "error" in result.lower()
         assert "too long" in result.lower()
 
@@ -1080,7 +1080,7 @@ class TestSkillManageToolActions:
         from myrm_agent_harness.agent.meta_tools.skills.manage.skill_manage_tool import create_skill_manage_tool
 
         tool = create_skill_manage_tool(MagicMock(), None)
-        result = await tool.ainvoke({"action": "save", "name": "123bad", "content": "x"}, config=_MANAGE_CFG)
+        result = await tool.ainvoke({"operations": [{"action": "save", "name": "123bad", "content": "x"}]}, config=_MANAGE_CFG)
         assert "error" in result.lower()
         assert "invalid" in result.lower()
 
@@ -1095,7 +1095,7 @@ class TestSkillManageToolActions:
         from myrm_agent_harness.agent.meta_tools.skills.manage.skill_manage_tool import create_skill_manage_tool
 
         tool = create_skill_manage_tool(MagicMock(), None)
-        result = await tool.ainvoke({"action": "save", "name": "test_skill", "content": ""}, config=_MANAGE_CFG)
+        result = await tool.ainvoke({"operations": [{"action": "save", "name": "test_skill", "content": ""}]}, config=_MANAGE_CFG)
         assert "error" in result.lower()
         assert "content" in result.lower()
 
@@ -1108,9 +1108,13 @@ class TestSkillManageToolActions:
         tool = create_skill_manage_tool(MagicMock(), None)
         result = await tool.ainvoke(
             {
+                "operations": [
+                    {
                 "action": "save",
                 "name": "test_skill",
                 "content": "# No frontmatter",
+                    }
+                ]
             },
             config=_MANAGE_CFG,
         )
@@ -1126,9 +1130,13 @@ class TestSkillManageToolActions:
         tool = create_skill_manage_tool(MagicMock(), None)
         result = await tool.ainvoke(
             {
+                "operations": [
+                    {
                 "action": "save",
                 "name": "test_skill",
                 "content": "---\nname: test\ndescription: test\n# no closing",
+                    }
+                ]
             },
             config=_MANAGE_CFG,
         )
@@ -1144,9 +1152,13 @@ class TestSkillManageToolActions:
         tool = create_skill_manage_tool(MagicMock(), None)
         result = await tool.ainvoke(
             {
+                "operations": [
+                    {
                 "action": "save",
                 "name": "test_skill",
                 "content": "---\n---\n# Content",
+                    }
+                ]
             },
             config=_MANAGE_CFG,
         )
@@ -1162,9 +1174,13 @@ class TestSkillManageToolActions:
         tool = create_skill_manage_tool(MagicMock(), None)
         result = await tool.ainvoke(
             {
+                "operations": [
+                    {
                 "action": "save",
                 "name": "test_skill",
                 "content": "---\nversion: 1.0\n---\n# Content",
+                    }
+                ]
             },
             config=_MANAGE_CFG,
         )
@@ -1192,9 +1208,13 @@ class TestSkillManageToolActions:
 
         result = await tool.ainvoke(
             {
+                "operations": [
+                    {
                 "action": "save",
                 "name": "test_skill",
                 "content": '---\nname: test_skill\ndescription: "A test"\n---\n# Content',
+                    }
+                ]
             },
             config=_MANAGE_CFG,
         )
@@ -1222,9 +1242,13 @@ class TestSkillManageToolActions:
 
         result = await tool.ainvoke(
             {
+                "operations": [
+                    {
                 "action": "save",
                 "name": "test_skill",
                 "content": '---\nname: test_skill\ndescription: "A test"\n---\n# Content',
+                    }
+                ]
             },
             config=_MANAGE_CFG,
         )
@@ -1252,9 +1276,13 @@ class TestSkillManageToolActions:
 
         result = await tool.ainvoke(
             {
+                "operations": [
+                    {
                 "action": "save",
                 "name": "test_skill",
                 "content": '---\nname: test_skill\ndescription: "A test"\n---\n# Content',
+                    }
+                ]
             },
             config=_MANAGE_CFG,
         )
@@ -1281,9 +1309,13 @@ class TestSkillManageToolActions:
 
         result = await tool.ainvoke(
             {
+                "operations": [
+                    {
                 "action": "save",
                 "name": "test_skill",
                 "content": '---\nname: test_skill\ndescription: "A test"\n---\n# Content',
+                    }
+                ]
             },
             config=_MANAGE_CFG,
         )
@@ -1303,9 +1335,13 @@ class TestSkillManageToolActions:
         tool = create_skill_manage_tool(MagicMock(), MagicMock())
         result = await tool.ainvoke(
             {
+                "operations": [
+                    {
                 "action": "patch",
                 "name": "test_skill",
                 "new_content": "new",
+                    }
+                ]
             },
             config=_MANAGE_CFG,
         )
@@ -1321,9 +1357,13 @@ class TestSkillManageToolActions:
         tool = create_skill_manage_tool(MagicMock(), MagicMock())
         result = await tool.ainvoke(
             {
+                "operations": [
+                    {
                 "action": "patch",
                 "name": "test_skill",
                 "old_content": "old",
+                    }
+                ]
             },
             config=_MANAGE_CFG,
         )
@@ -1339,10 +1379,14 @@ class TestSkillManageToolActions:
         tool = create_skill_manage_tool(MagicMock(), None)
         result = await tool.ainvoke(
             {
+                "operations": [
+                    {
                 "action": "patch",
                 "name": "test_skill",
                 "old_content": "old",
                 "new_content": "new",
+                    }
+                ]
             },
             config=_MANAGE_CFG,
         )
@@ -1361,10 +1405,14 @@ class TestSkillManageToolActions:
 
         result = await tool.ainvoke(
             {
+                "operations": [
+                    {
                 "action": "patch",
                 "name": "test_skill",
                 "old_content": "old",
                 "new_content": "new",
+                    }
+                ]
             },
             config=_MANAGE_CFG,
         )
@@ -1383,10 +1431,14 @@ class TestSkillManageToolActions:
 
         result = await tool.ainvoke(
             {
+                "operations": [
+                    {
                 "action": "patch",
                 "name": "test_skill",
                 "old_content": "old",
                 "new_content": "new",
+                    }
+                ]
             },
             config=_MANAGE_CFG,
         )
@@ -1405,10 +1457,14 @@ class TestSkillManageToolActions:
 
         result = await tool.ainvoke(
             {
+                "operations": [
+                    {
                 "action": "patch",
                 "name": "test_skill",
                 "old_content": "nonexistent fragment",
                 "new_content": "new",
+                    }
+                ]
             },
             config=_MANAGE_CFG,
         )
@@ -1436,10 +1492,14 @@ class TestSkillManageToolActions:
 
         result = await tool.ainvoke(
             {
+                "operations": [
+                    {
                 "action": "patch",
                 "name": "test_skill",
                 "old_content": "Old line",
                 "new_content": "New line",
+                    }
+                ]
             },
             config=_MANAGE_CFG,
         )
@@ -1467,10 +1527,14 @@ class TestSkillManageToolActions:
 
         result = await tool.ainvoke(
             {
+                "operations": [
+                    {
                 "action": "patch",
                 "name": "test_skill",
                 "old_content": "Old line",
                 "new_content": "New line",
+                    }
+                ]
             },
             config=_MANAGE_CFG,
         )
@@ -1500,10 +1564,14 @@ class TestSkillManageToolActions:
 
         result = await tool.ainvoke(
             {
+                "operations": [
+                    {
                 "action": "patch",
                 "name": "test_skill",
                 "old_content": "Old line",
                 "new_content": "New line",
+                    }
+                ]
             },
             config=_MANAGE_CFG,
         )
@@ -1530,7 +1598,7 @@ class TestSkillManageToolActions:
         )
         tool = create_skill_manage_tool(mock_backend, None)
 
-        result = await tool.ainvoke({"action": "delete", "name": "test_skill"}, config=_MANAGE_CFG)
+        result = await tool.ainvoke({"operations": [{"action": "delete", "name": "test_skill"}]}, config=_MANAGE_CFG)
         assert "deleted successfully" in result.lower()
 
     @pytest.mark.asyncio
@@ -1550,7 +1618,7 @@ class TestSkillManageToolActions:
         )
         tool = create_skill_manage_tool(mock_backend, None)
 
-        result = await tool.ainvoke({"action": "delete", "name": "test_skill"}, config=_MANAGE_CFG)
+        result = await tool.ainvoke({"operations": [{"action": "delete", "name": "test_skill"}]}, config=_MANAGE_CFG)
         assert "error" in result.lower()
         assert "not found" in result.lower()
 
@@ -1567,9 +1635,13 @@ class TestSkillManageToolActions:
         tool = create_skill_manage_tool(MagicMock(), None)
         result = await tool.ainvoke(
             {
+                "operations": [
+                    {
                 "action": "write_file",
                 "name": "test_skill",
                 "content": "hello",
+                    }
+                ]
             },
             config=_MANAGE_CFG,
         )
@@ -1585,9 +1657,13 @@ class TestSkillManageToolActions:
         tool = create_skill_manage_tool(MagicMock(), None)
         result = await tool.ainvoke(
             {
+                "operations": [
+                    {
                 "action": "write_file",
                 "name": "test_skill",
                 "file_path": "scripts/run.py",
+                    }
+                ]
             },
             config=_MANAGE_CFG,
         )
@@ -1613,10 +1689,14 @@ class TestSkillManageToolActions:
 
         result = await tool.ainvoke(
             {
+                "operations": [
+                    {
                 "action": "write_file",
                 "name": "test_skill",
                 "file_path": "scripts/run.py",
                 "content": "print('hello')",
+                    }
+                ]
             },
             config=_MANAGE_CFG,
         )
@@ -1643,10 +1723,14 @@ class TestSkillManageToolActions:
 
         result = await tool.ainvoke(
             {
+                "operations": [
+                    {
                 "action": "write_file",
                 "name": "test_skill",
                 "file_path": "scripts/run.py",
                 "content": "print('hello')",
+                    }
+                ]
             },
             config=_MANAGE_CFG,
         )
@@ -1672,10 +1756,14 @@ class TestSkillManageToolActions:
 
         result = await tool.ainvoke(
             {
+                "operations": [
+                    {
                 "action": "write_file",
                 "name": "test_skill",
                 "file_path": "scripts/run.py",
                 "content": "print('hello')",
+                    }
+                ]
             },
             config=_MANAGE_CFG,
         )
@@ -1695,8 +1783,12 @@ class TestSkillManageToolActions:
         tool = create_skill_manage_tool(MagicMock(), None)
         result = await tool.ainvoke(
             {
+                "operations": [
+                    {
                 "action": "remove_file",
                 "name": "test_skill",
+                    }
+                ]
             },
             config=_MANAGE_CFG,
         )
@@ -1722,9 +1814,13 @@ class TestSkillManageToolActions:
 
         result = await tool.ainvoke(
             {
+                "operations": [
+                    {
                 "action": "remove_file",
                 "name": "test_skill",
                 "file_path": "scripts/old.py",
+                    }
+                ]
             },
             config=_MANAGE_CFG,
         )
@@ -1751,9 +1847,13 @@ class TestSkillManageToolActions:
 
         result = await tool.ainvoke(
             {
+                "operations": [
+                    {
                 "action": "remove_file",
                 "name": "test_skill",
                 "file_path": "scripts/old.py",
+                    }
+                ]
             },
             config=_MANAGE_CFG,
         )
