@@ -75,6 +75,14 @@ class TestToolResultBlocks:
         assert ANTHROPIC_KEY not in blocks[1]
         assert blocks[2:] == [PNG_BLOCK, {"type": "text", "text": "nothing to hide"}]
 
+    def test_a_provider_typed_text_block_is_scanned(self) -> None:
+        block = {"type": "output_text", "text": f"AWS_SECRET_ACCESS_KEY={AWS_SECRET}"}
+
+        result = self.mw.before_model(_turn(ToolMessage(content=[block], tool_call_id="tc1")), None)
+
+        assert result is not None
+        assert AWS_SECRET not in result["messages"][-1].content[0]["text"]
+
     def test_blocks_without_a_credential_leave_the_state_untouched(self) -> None:
         state = _turn(ToolMessage(content=[{"type": "text", "text": "plot saved"}, PNG_BLOCK], tool_call_id="tc1"))
 

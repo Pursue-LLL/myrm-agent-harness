@@ -119,7 +119,10 @@ def _levels_to_process(
     return levels
 
 
-def _redact_tool_content(content: str | list[str | dict[str, object]]) -> str | list[str | dict[str, object]]:
+_ToolContent = str | list[str | dict[str, object]]
+
+
+def _redact_tool_content(content: _ToolContent) -> _ToolContent:
     """Redact credentials in a tool result. A result with an image is a block list: only its text is scanned."""
     if isinstance(content, str):
         return redact_leaks(content)
@@ -130,9 +133,7 @@ def _redact_block(block: str | dict[str, object]) -> str | dict[str, object]:
     if isinstance(block, str):
         return redact_leaks(block)
     text = block.get("text")
-    if block.get("type") == "text" and isinstance(text, str):
-        return {**block, "text": redact_leaks(text)}
-    return block
+    return {**block, "text": redact_leaks(text)} if isinstance(text, str) else block
 
 
 def _apply_pii_actions(

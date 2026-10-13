@@ -211,6 +211,9 @@ class TestDecisionKindCompleteness:
             "TURN_BUDGET_BREAK",
             "SANDBOX_BOUNDARY_ESCALATE",
             "PII_BLOCKED_REDACTED",
+            "PII_PSEUDONYMIZED",
+            "DANGEROUS_INTENT_DETECTED",
+            "DANGEROUS_INTENT_BLOCKED",
         ]
         for kind in used_kinds:
             assert kind in valid_kinds, f"{kind} missing from DecisionKind"
