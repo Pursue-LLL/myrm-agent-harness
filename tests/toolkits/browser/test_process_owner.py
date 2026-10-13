@@ -82,7 +82,16 @@ def test_malformed_stamp_is_unknown(stamped_processes: StampedProcesses, stamp: 
     assert read_owner_state(psutil.Process(child.pid)) is OwnerState.UNKNOWN
 
 
-@pytest.mark.parametrize("error", [psutil.AccessDenied(1), psutil.NoSuchProcess(1), OSError("denied")])
+@pytest.mark.parametrize(
+    "error",
+    [
+        psutil.AccessDenied(1),
+        psutil.NoSuchProcess(1),
+        OSError("denied"),
+        SystemError("<built-in function proc_environ> returned a result with an exception set"),
+    ],
+    ids=["access-denied", "no-such-process", "os-error", "psutil-macos-system-error"],
+)
 def test_unreadable_environment_is_unknown(error: Exception) -> None:
     proc = MagicMock(spec=psutil.Process)
     proc.environ.side_effect = error

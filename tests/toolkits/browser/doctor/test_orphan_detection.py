@@ -111,6 +111,27 @@ def test_scan_skips_a_process_that_vanishes_mid_scan(stamped_processes: StampedP
     assert [o["pid"] for o in orphans] == [leftover.pid]
 
 
+@pytest.mark.parametrize("failing_read", ["environ", "cmdline"])
+def test_scan_continues_past_a_process_whose_read_fails_with_system_error(
+    stamped_processes: StampedProcesses, failing_read: str
+) -> None:
+    """psutil on macOS raises SystemError for a process reaped mid-read; it must cost that process, not the scan."""
+    reaped = MagicMock(spec=psutil.Process)
+    reaped.pid = 99998
+    reaped.environ.return_value = {OWNER_ENV_VAR: dead_owner_stamp()}
+    reaped.name.return_value = "chrome"
+    reaped.ppid.return_value = 1
+    reaped.cmdline.return_value = ["chrome"]
+    getattr(reaped, failing_read).side_effect = SystemError("returned a result with an exception set")
+    leftover = stamped_processes.spawn(dead_owner_stamp())
+
+    # The failing process comes first: a scan that aborts on it never reaches the real leftover.
+    with patch("psutil.process_iter", return_value=[reaped, psutil.Process(leftover.pid)]):
+        orphans = find_orphan_automation_processes()
+
+    assert [o["pid"] for o in orphans] == [leftover.pid]
+
+
 def test_scan_reports_nothing_without_psutil() -> None:
     with patch.dict(sys.modules, {"psutil": None}):
         assert find_orphan_automation_processes() == []
@@ -161,18 +182,27 @@ def test_process_that_does_not_run_a_chromium_binary_is_not_a_browser(name: str,
     assert not _is_chromium_process(_described(name, exe, argv))
 
 
-def test_unreadable_source_does_not_hide_the_others() -> None:
+_UNREADABLE_SOURCE_ERRORS = pytest.mark.parametrize(
+    "error",
+    [psutil.AccessDenied(1), psutil.NoSuchProcess(1), SystemError("returned a result with an exception set")],
+    ids=["access-denied", "no-such-process", "psutil-macos-system-error"],
+)
+
+
+@_UNREADABLE_SOURCE_ERRORS
+def test_unreadable_source_does_not_hide_the_others(error: Exception) -> None:
     proc = _described("chrome", "/x/chrome", ["chrome"])
-    proc.exe.side_effect = psutil.AccessDenied(1)
-    proc.cmdline.side_effect = psutil.NoSuchProcess(1)
+    proc.name.side_effect = error
+    proc.exe.side_effect = error
 
     assert _is_chromium_process(proc)
 
 
-def test_process_with_no_readable_source_is_not_a_browser() -> None:
+@_UNREADABLE_SOURCE_ERRORS
+def test_process_with_no_readable_source_is_not_a_browser(error: Exception) -> None:
     proc = MagicMock(spec=psutil.Process)
     for read in (proc.name, proc.exe, proc.cmdline):
-        read.side_effect = psutil.AccessDenied(1)
+        read.side_effect = error
 
     assert not _is_chromium_process(proc)
 

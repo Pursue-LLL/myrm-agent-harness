@@ -8,6 +8,8 @@ import sys
 import threading
 from unittest.mock import patch
 
+import psutil
+
 from myrm_agent_harness.toolkits.browser.doctor import (
     CheckStatus,
     check_orphan_processes,
@@ -73,6 +75,18 @@ def test_force_refuses_a_process_whose_owner_is_alive(stamped_processes: Stamped
     assert running.poll() is None
 
 
+def test_force_leaves_a_process_whose_identity_cannot_be_read(stamped_processes: StampedProcesses) -> None:
+    """psutil on macOS raises SystemError for a process reaped mid-read; unconfirmed means unsignalled, not an error."""
+    leftover = stamped_processes.spawn(dead_owner_stamp())
+
+    with patch("psutil.Process.environ", side_effect=SystemError("returned a result with an exception set")):
+        result = cleanup_orphan_processes([leftover.pid], force=True)
+
+    assert result["killed"] == 0
+    assert result["failed"] == [{"pid": leftover.pid, "reason": "not_an_orphan"}]
+    assert leftover.poll() is None
+
+
 def test_force_ignores_a_pid_that_already_exited(stamped_processes: StampedProcesses) -> None:
     child = stamped_processes.spawn(dead_owner_stamp())
     child.kill()
@@ -89,10 +103,14 @@ def test_auto_detect_terminates_leftovers_and_spares_everything_else(stamped_pro
     foreign = stamped_processes.spawn(None, extra_args=("--user-data-dir=/home/u/.cache/ms-playwright/chromium-1",))
     running = stamped_processes.spawn(live_owner_stamp())
     application = stamped_processes.spawn(dead_owner_stamp(), browser=False)
+    own_processes = [psutil.Process(child.pid) for child in (leftover, foreign, running, application)]
 
-    result = cleanup_orphan_processes(force=True)
+    # Limited to this test's own processes: another test worker, or a developer's machine, may have leftovers of
+    # its own, and this forced cleanup would terminate them.
+    with patch("psutil.process_iter", return_value=own_processes):
+        result = cleanup_orphan_processes(force=True)
 
-    assert result["killed"] >= 1
+    assert result["killed"] == 1
     assert stamped_processes.wait_gone(leftover)
     assert foreign.poll() is None
     assert running.poll() is None

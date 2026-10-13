@@ -114,7 +114,7 @@ def find_orphan_automation_processes() -> list[OrphanProcess]:
                         "user_data_dir": _extract_user_data_dir(proc.cmdline()),
                     }
                 )
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
+            except (psutil.NoSuchProcess, psutil.AccessDenied, SystemError):
                 continue
     except Exception as exc:
         logger.warning(f"Failed to scan for orphan processes: {exc}")
@@ -150,7 +150,7 @@ def _is_chromium_process(proc: psutil.Process) -> bool:
         try:
             if _CHROMIUM_NAME_MARKER in os.path.basename(read()).lower():
                 return True
-        except (psutil.Error, OSError):
+        except (psutil.Error, OSError, SystemError):  # SystemError: see read_owner_state
             continue
     return False
 

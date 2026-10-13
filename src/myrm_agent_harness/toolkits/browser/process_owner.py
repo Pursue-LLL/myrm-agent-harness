@@ -72,9 +72,11 @@ def read_owner_state(proc: psutil.Process) -> OwnerState:
     """Classify ``proc`` by its stamp; anything that cannot be established as a gone owner is not ``OWNER_GONE``."""
     import psutil
 
+    # psutil 7.2.2 on macOS raises SystemError, not a psutil.Error, when the process is reaped during the read
+    # (giampaolo/psutil#3024); an environment that cannot be read names no owner either way.
     try:
         stamp = proc.environ().get(OWNER_ENV_VAR)
-    except (psutil.Error, OSError):
+    except (psutil.Error, OSError, SystemError):
         return OwnerState.UNKNOWN
     if stamp is None:
         return OwnerState.UNSTAMPED
