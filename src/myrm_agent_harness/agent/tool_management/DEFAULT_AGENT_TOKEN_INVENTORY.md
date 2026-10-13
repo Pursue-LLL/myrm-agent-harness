@@ -27,7 +27,7 @@
 | 6 | channel output hint | 56（web_chat / slack）· 52（voice）· 25（wechat）· 17（webhook）· 0（无渠道） | `harness/agent/streaming/channel_output_hints.py:176` | 按渠道名解析；命中 `CHANNEL_OUTPUT_HINTS` 常量表 |
 | 7 | environment 行 | 43 (macOS) · 29 (Linux) · 31 (Windows/powershell) | `harness/toolkits/code_execution/platform.py:149` | `<environment>` 标签；含 OS/shell/可选 python-toolchain 与 VNC 探测行（干净环境为 0） |
 | 8 | canary 指令 | **50~57**（均值 ≈53） | `harness/agent/security/detection/canary_guard.py:51` | `SECURITY CANARY: CANARY-<12 位 hex>`；随机 hex 触发 BPE 分裂，实测 300 次采样分布 50~57，**非字节恒定**但差异可忽略 |
-| 9 | SecurityBoundary 数据边界规则（`messages[1]`） | **299** | 定义于 `harness/core/security/detection/content_boundary.py:391`（`agent/security/detection/content_boundary.py` 为 re-export shim） | 由 SecurityBoundaryMiddleware 注入（`agent/middlewares/security/security_boundary_middleware.py:68`）；**不占用 `messages[0]`** |
+| 9 | SecurityBoundary 数据边界规则（独立 SystemMessage，追加在最新用户消息之后） | **299** | 定义于 `harness/core/security/detection/content_boundary.py:391`（`agent/security/detection/content_boundary.py` 为 re-export shim） | 由 SecurityBoundaryMiddleware 每次运行注入一次（`agent/middlewares/security/security_boundary_middleware.py` 的 `before_model`）；**不占用 `messages[0]`** |
 
 **`messages[0]` 合计（实测，含上表 1~8，不含运行时条件追加）**：
 

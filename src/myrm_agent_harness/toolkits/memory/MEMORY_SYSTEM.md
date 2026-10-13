@@ -918,11 +918,11 @@ tools = create_memory_tools(manager=manager)
 
 ```
 [0] System: core prompt
-[1+] System: `<data_boundary_rules>`（SecurityBoundary）
 [+] System: `<user_instructions>` …
 [+] System: `<user_memory_context>` … stable …
 Human: <<<UNTRUSTED_DATA>>> learned … （若有）
 Human: 用户第一轮输入 …
+System: `<data_boundary_rules>`（SecurityBoundary，state 追加合并，落在最新用户消息之后）
 ```
 
 ---
