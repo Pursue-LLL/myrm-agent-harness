@@ -194,7 +194,7 @@ async def test_batch_processor_denies_desktop_and_subagent_under_untrusted_ingre
 
 
 def test_memory_mutation_tools_blocked_but_recall_stays_allowed_under_untrusted_ingress():
-    """Strangers must not write or alter the owner's long-term memory; recall stays read-only."""
+    """Strangers must not write or alter long-term memory, whatever namespaces the host binds; recall stays read-only."""
     for tool in ("memory_save_tool", "memory_manage_tool"):
         assert not is_tool_allowed_under_untrusted_ingress(tool), f"Tool {tool} should be blocked"
     assert is_tool_allowed_under_untrusted_ingress("memory_search_tool")
@@ -202,7 +202,7 @@ def test_memory_mutation_tools_blocked_but_recall_stays_allowed_under_untrusted_
 
 @pytest.mark.asyncio
 async def test_batch_processor_denies_memory_mutation_under_untrusted_ingress():
-    """A guest turn cannot save, update or delete the owner's memory, even under YOLO."""
+    """A guest turn cannot save, update or delete memory, even under YOLO."""
     from myrm_agent_harness.agent.middlewares.approval.batch_processor import evaluate_tool_batch
     from myrm_agent_harness.agent.security.types import SecurityConfig
 

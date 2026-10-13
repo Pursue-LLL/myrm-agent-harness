@@ -5,8 +5,10 @@ external peers, webhook triggers, public bot mentions), this fence denies high-p
 destructive tools (arbitrary execution, file mutation, persistent-memory mutation,
 desktop/mobile control and screen capture, subagent escalation, cron backdoors, and
 skill manipulation) at tool-call time, restricting the Agent to read-only exploration
-and safe operations. Memory writes are fenced because they land in the owner's global
-and agent scopes; memory_manage_tool applies delete/update directly without a pending review.
+and safe operations. Memory mutations are fenced independently of how a host scopes the
+memory namespaces: a persisted instruction steers every later turn that reads that
+namespace, and memory_manage_tool resolves ids across the whole bound namespace chain
+(including shared contexts) and applies delete/update without a pending review.
 
 [INPUT]
 - Tool names or tool instances from ToolRegistry / Agent runtime
@@ -37,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 # Tools strictly disallowed when handling untrusted external inputs.
 # These tools possess destructive host privileges (arbitrary shell, file mutation) or mutate
-# the owner's long-term memory (save a new entry, update/delete/correct an existing one).
+# long-term memory (save a new entry, update/delete/correct an existing one).
 DISALLOWED_UNTRUSTED_TOOLS: frozenset[str] = frozenset(
     {
         "bash_code_execute_tool",
