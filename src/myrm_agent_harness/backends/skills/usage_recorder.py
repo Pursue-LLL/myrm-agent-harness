@@ -3,7 +3,8 @@
 A run collects which skills it used (selected, or executed tools under) and
 how many tool calls attributed to them failed. The run's end turns that into
 exactly one ``.stats.json`` use per skill, so the success rate counts runs with
-an observed outcome instead of tool calls or skill loads.
+an observed outcome instead of tool calls or skill loads. Those uses are on disk
+when the run ends: a process that exits right after must not lose the last run.
 
 [INPUT]
 - backends.skills.stats_collector::SkillStatsCollector (POS: Usage stats persistence)
@@ -14,8 +15,7 @@ an observed outcome instead of tool calls or skill loads.
 - begin_skill_run_usage: Open the run scope (SkillAgent.run start)
 - record_skill_selection: Note that a skill was selected / [use skill]
 - record_skill_execution: Note one tool-call outcome attributed to a skill
-- commit_skill_run_usage: Write one use per skill and close the scope (SkillAgent.run end)
-- flush_skill_usage_stats: Session-end flush (_cleanup_session)
+- commit_skill_run_usage: Write and persist one use per skill, close the scope (SkillAgent.run end)
 
 [POS]
 Agent-runtime bridge from skill_select_tool, explicit [use skill] and tool outcomes to Curator usage stats.
@@ -94,6 +94,14 @@ def _write_use(skill_name: str, skill_path: Path, *, success: bool | None) -> No
         logger.warning("Failed to record skill usage for %s", skill_name, exc_info=True)
 
 
+def _persist() -> None:
+    """Write the recorded uses to disk; runs in a ``finally``, so it must never raise over the run's own error."""
+    try:
+        _get_collector().flush()
+    except Exception:
+        logger.warning("Failed to persist skill usage stats", exc_info=True)
+
+
 def begin_skill_run_usage() -> None:
     """Open a fresh run scope. A nested run opens its own and leaves the outer one untouched."""
     _run_usage.set({})
@@ -108,6 +116,7 @@ def record_skill_selection(skill_meta: SkillMetadata) -> None:
     run = _run_usage.get()
     if run is None:
         _write_use(skill_meta.name, skill_path, success=None)
+        _persist()
         return
     run.setdefault(skill_meta.name, _SkillRunUse(skill_path))
 
@@ -125,7 +134,7 @@ def record_skill_execution(skill_name: str, storage_path: str | None, *, success
 
 
 def commit_skill_run_usage() -> None:
-    """Write one use per skill the run touched and close the scope."""
+    """Write one use per skill the run touched, persist them, and close the scope."""
     run = _run_usage.get()
     if run is None:
         return
@@ -133,10 +142,5 @@ def commit_skill_run_usage() -> None:
 
     for skill_name, use in run.items():
         _write_use(skill_name, use.path, success=use.outcome)
-
-
-def flush_skill_usage_stats() -> None:
-    """Flush pending usage stats to disk (session end / shutdown)."""
-    collector = _injected_collector or _collector
-    if collector is not None:
-        collector.flush()
+    if run:
+        _persist()

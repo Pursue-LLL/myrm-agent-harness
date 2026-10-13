@@ -31,7 +31,6 @@ from myrm_agent_harness.backends.skills.types import SkillMetadata, SkillTrust
 from myrm_agent_harness.backends.skills.usage_recorder import (
     begin_skill_run_usage,
     commit_skill_run_usage,
-    flush_skill_usage_stats,
     set_stats_collector,
 )
 from myrm_agent_harness.runtime.events import SkillFailureEvent
@@ -152,7 +151,6 @@ async def test_skill_selected_mid_run_is_counted_and_reported_for_later_tool_cal
         ]
     )
     commit_skill_run_usage()
-    flush_skill_usage_stats()
 
     stats = collector.get_stats(tmp_path / "weekly_skill")
     assert (stats.call_count, stats.success_count, stats.failure_count) == (1, 0, 1)

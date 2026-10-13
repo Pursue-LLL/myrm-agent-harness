@@ -216,7 +216,6 @@ class TestPreloadExplicitSkill:
         from myrm_agent_harness.backends.skills.usage_recorder import (
             begin_skill_run_usage,
             commit_skill_run_usage,
-            flush_skill_usage_stats,
             set_stats_collector,
         )
 
@@ -227,7 +226,6 @@ class TestPreloadExplicitSkill:
         begin_skill_run_usage()
         await agent._preload_explicit_skill("[use preload_skill] run task")
         commit_skill_run_usage()
-        flush_skill_usage_stats()
 
         stats = collector.get_stats(skill_dir)
         assert stats.call_count == 1

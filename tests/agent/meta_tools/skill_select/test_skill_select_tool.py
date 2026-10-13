@@ -229,10 +229,9 @@ def _skill_dir(skill: SkillMetadata) -> Path:
 
 
 def _finish_run() -> None:
-    from myrm_agent_harness.backends.skills.usage_recorder import commit_skill_run_usage, flush_skill_usage_stats
+    from myrm_agent_harness.backends.skills.usage_recorder import commit_skill_run_usage
 
     commit_skill_run_usage()
-    flush_skill_usage_stats()
 
 
 class TestSelectSkillRecordsUsage:

@@ -15,7 +15,6 @@ from myrm_agent_harness.backends.skills.types import SkillMetadata, SkillUsageSt
 from myrm_agent_harness.backends.skills.usage_recorder import (
     begin_skill_run_usage,
     commit_skill_run_usage,
-    flush_skill_usage_stats,
     set_stats_collector,
 )
 from myrm_agent_harness.runtime.events import SkillFailureEvent
@@ -41,7 +40,6 @@ class _Ledger:
 
     def stats_of(self, name: str) -> SkillUsageStats:
         commit_skill_run_usage()
-        flush_skill_usage_stats()
         return SkillStatsCollector(self.root).get_stats(self.root / name)
 
 

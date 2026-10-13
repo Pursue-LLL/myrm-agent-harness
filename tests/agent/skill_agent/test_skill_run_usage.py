@@ -19,7 +19,7 @@ from myrm_agent_harness.agent.skill_agent import SkillAgent, wait_all_background
 from myrm_agent_harness.backends.skills.local import LocalSkillBackend
 from myrm_agent_harness.backends.skills.stats_collector import SkillStatsCollector
 from myrm_agent_harness.backends.skills.types import SkillUsageStats
-from myrm_agent_harness.backends.skills.usage_recorder import flush_skill_usage_stats, set_stats_collector
+from myrm_agent_harness.backends.skills.usage_recorder import set_stats_collector
 from myrm_agent_harness.runtime.events import SkillFailureEvent
 
 _Script = Callable[[], None]
@@ -71,7 +71,6 @@ async def _run(skills_root: Path, query: str) -> SkillUsageStats:
     agent = SkillAgent(llm=AsyncMock(), skill_backend=LocalSkillBackend(skills_root))
     _ = [event async for event in agent.run(query)]
     await wait_all_background_tasks()
-    flush_skill_usage_stats()
     return SkillStatsCollector(skills_root).get_stats(skills_root / "alpha")
 
 
@@ -136,8 +135,8 @@ async def test_run_abandoned_midway_still_writes_its_use(skills_root: Path, monk
     stream = agent.run("[use alpha] go")
     await anext(stream)
     await stream.aclose()
-    await wait_all_background_tasks()
-    flush_skill_usage_stats()
 
+    # Already on disk before the session cleanup task runs: a process exiting right here keeps the use.
     stats = SkillStatsCollector(skills_root).get_stats(skills_root / "alpha")
     assert (stats.call_count, stats.failure_count) == (1, 1)
+    await wait_all_background_tasks()

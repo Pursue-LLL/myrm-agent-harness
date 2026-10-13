@@ -16,7 +16,6 @@ from myrm_agent_harness.backends.skills.types import SkillMetadata, SkillUsageSt
 from myrm_agent_harness.backends.skills.usage_recorder import (
     begin_skill_run_usage,
     commit_skill_run_usage,
-    flush_skill_usage_stats,
     record_skill_selection,
     set_stats_collector,
 )
@@ -52,7 +51,6 @@ def test_select_records_stats_and_curator_sweep_reads_them(tmp_path: Path) -> No
     # Run dedupe: a second selection in the same run must not double-count
     record_skill_selection(skill_meta)
     commit_skill_run_usage()
-    flush_skill_usage_stats()
 
     stats_file = skill_dir / ".stats.json"
     assert stats_file.exists()
@@ -89,7 +87,6 @@ def test_set_stats_collector_uses_shared_instance(tmp_path: Path) -> None:
     """Injected collector is used by record_skill_selection (server/harness SSOT)."""
     from myrm_agent_harness.backends.skills.stats_collector import SkillStatsCollector
     from myrm_agent_harness.backends.skills.usage_recorder import (
-        flush_skill_usage_stats,
         get_injected_stats_collector,
         record_skill_selection,
         set_stats_collector,
@@ -110,7 +107,6 @@ def test_set_stats_collector_uses_shared_instance(tmp_path: Path) -> None:
     begin_skill_run_usage()
     record_skill_selection(skill_meta)
     commit_skill_run_usage()
-    flush_skill_usage_stats()
 
     assert (skill_dir / ".stats.json").exists()
     assert shared.get_stats(skill_dir).call_count == 1

@@ -25,7 +25,6 @@ import logging
 import os
 from datetime import UTC, datetime
 from pathlib import Path
-from time import time
 
 from myrm_agent_harness.backends.skills.types import SkillLifecycleStatus, SkillUsageStats
 from myrm_agent_harness.infra.atomic_write import atomic_write
@@ -34,14 +33,14 @@ logger = logging.getLogger(__name__)
 
 _STATS_FILENAME = ".stats.json"
 _CORRUPT_SUFFIX = ".corrupt"
-_BATCH_FLUSH_INTERVAL_SEC = 60
 
 
 class SkillStatsCollector:
     """Collects and persists skill usage statistics and lifecycle state.
 
     Design:
-    - Async write with 60s batch flush (performance optimisation)
+    - Recorded uses stay in memory until ``flush()``, which the caller invokes once a run's uses are complete;
+      lifecycle changes (status, pin, reset) are written through immediately
     - Per-skill stats stored in {skill_dir}/.stats.json, written atomically so a crash never leaves a torn file
     - A ledger that cannot be parsed is set aside as ``.stats.json.corrupt``; one that cannot be read is never
       replaced by a blank one
@@ -52,7 +51,6 @@ class SkillStatsCollector:
     def __init__(self, workspace_root: Path) -> None:
         self._workspace_root = workspace_root.resolve()
         self._pending_updates: dict[str, SkillUsageStats] = {}
-        self._last_flush_time: float = time()
 
     # ── Usage recording ─────────────────────────────────────────────
 
@@ -62,6 +60,7 @@ class SkillStatsCollector:
         ``success`` is the observed outcome of the run's tool calls, or ``None`` when no outcome was
         observable (the skill was only loaded, or several loaded skills made the owner ambiguous).
         A use always counts; only an observed outcome moves the success/failure counters.
+        The use stays in memory until ``flush()``.
 
         If the skill is currently ``stale``, it is auto-recovered to
         ``active`` (inspired by Hermes' stale-reactivation design).
@@ -83,9 +82,6 @@ class SkillStatsCollector:
         if stats.lifecycle_status == SkillLifecycleStatus.STALE:
             stats.lifecycle_status = SkillLifecycleStatus.ACTIVE
             logger.info("Skill %s auto-recovered from stale to active on usage", skill_path.name)
-
-        if time() - self._last_flush_time > _BATCH_FLUSH_INTERVAL_SEC:
-            self.flush()
 
     # ── Lifecycle management ────────────────────────────────────────
 
@@ -140,7 +136,6 @@ class SkillStatsCollector:
             self._write_stats(Path(skill_path_str), stats)
 
         self._pending_updates.clear()
-        self._last_flush_time = time()
         logger.debug("Flushed skill usage stats")
 
     def get_stats(self, skill_path: Path) -> SkillUsageStats:

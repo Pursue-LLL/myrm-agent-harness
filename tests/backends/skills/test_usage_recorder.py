@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import Iterator
 from contextvars import copy_context
 from pathlib import Path
@@ -15,7 +16,6 @@ from myrm_agent_harness.backends.skills.types import SkillMetadata, SkillUsageSt
 from myrm_agent_harness.backends.skills.usage_recorder import (
     begin_skill_run_usage,
     commit_skill_run_usage,
-    flush_skill_usage_stats,
     get_injected_stats_collector,
     record_skill_execution,
     record_skill_selection,
@@ -55,13 +55,25 @@ def test_selection_is_written_at_run_end_not_at_selection(tmp_path: Path) -> Non
     assert stats.call_count == 1
 
 
+def test_run_end_persists_the_use_before_returning(tmp_path: Path) -> None:
+    """A process that exits right after the run must not lose it: the ledger on disk already holds the use."""
+    skill = _skill(tmp_path)
+    set_stats_collector(SkillStatsCollector(tmp_path))
+
+    record_skill_selection(skill)
+    record_skill_execution(skill.name, skill.storage_path, success=True)
+    commit_skill_run_usage()
+
+    on_disk = json.loads((tmp_path / "demo" / ".stats.json").read_text(encoding="utf-8"))
+    assert (on_disk["call_count"], on_disk["success_count"]) == (1, 1)
+
+
 def test_selection_without_execution_is_a_use_with_unobserved_outcome(tmp_path: Path) -> None:
     skill = _skill(tmp_path)
     set_stats_collector(SkillStatsCollector(tmp_path))
 
     record_skill_selection(skill)
     commit_skill_run_usage()
-    flush_skill_usage_stats()
 
     stats = _stats(tmp_path)
     assert (stats.call_count, stats.success_count, stats.failure_count) == (1, 0, 0)
@@ -76,7 +88,6 @@ def test_successful_execution_is_a_successful_use(tmp_path: Path) -> None:
     record_skill_execution(skill.name, skill.storage_path, success=True)
     record_skill_execution(skill.name, skill.storage_path, success=True)
     commit_skill_run_usage()
-    flush_skill_usage_stats()
 
     stats = _stats(tmp_path)
     assert (stats.call_count, stats.success_count, stats.failure_count) == (1, 1, 0)
@@ -103,7 +114,6 @@ def test_use_fails_only_when_most_tool_calls_failed(
     for success in tool_outcomes:
         record_skill_execution(skill.name, skill.storage_path, success=success)
     commit_skill_run_usage()
-    flush_skill_usage_stats()
 
     stats = _stats(tmp_path)
     assert stats.call_count == 1
@@ -117,7 +127,6 @@ def test_execution_without_selection_counts_as_a_use(tmp_path: Path) -> None:
 
     record_skill_execution(skill.name, skill.storage_path, success=True)
     commit_skill_run_usage()
-    flush_skill_usage_stats()
 
     assert _stats(tmp_path).call_count == 1
 
@@ -129,7 +138,6 @@ def test_repeated_selection_in_one_run_is_one_use(tmp_path: Path) -> None:
     record_skill_selection(skill)
     record_skill_selection(skill)
     commit_skill_run_usage()
-    flush_skill_usage_stats()
 
     assert _stats(tmp_path).call_count == 1
 
@@ -142,7 +150,6 @@ def test_commit_closes_the_scope(tmp_path: Path) -> None:
     record_skill_selection(skill)
     commit_skill_run_usage()
     commit_skill_run_usage()
-    flush_skill_usage_stats()
 
     assert _stats(tmp_path).call_count == 1
 
@@ -156,7 +163,6 @@ def test_each_skill_gets_its_own_outcome(tmp_path: Path) -> None:
     record_skill_selection(second)
     record_skill_execution(second.name, second.storage_path, success=False)
     commit_skill_run_usage()
-    flush_skill_usage_stats()
 
     assert [r.success for r in _stats(tmp_path, "first").usage_history] == [None]
     assert [r.success for r in _stats(tmp_path, "second").usage_history] == [False]
@@ -176,7 +182,6 @@ def test_scope_is_shared_with_tool_contexts_and_isolated_for_nested_runs(tmp_pat
     copy_context().run(lambda: record_skill_selection(skill))
     copy_context().run(_nested_run)
     commit_skill_run_usage()
-    flush_skill_usage_stats()
 
     assert _stats(tmp_path, "outer").call_count == 1
     assert _stats(tmp_path, "inner").call_count == 1
@@ -192,7 +197,6 @@ async def test_records_from_concurrent_tool_tasks_reach_the_run(tmp_path: Path) 
 
     await asyncio.gather(_tool(False), _tool(False), _tool(True))
     commit_skill_run_usage()
-    flush_skill_usage_stats()
 
     stats = _stats(tmp_path)
     assert (stats.call_count, stats.failure_count) == (1, 1)
@@ -205,7 +209,6 @@ def test_selection_outside_a_run_is_recorded_immediately(tmp_path: Path) -> None
     set_stats_collector(SkillStatsCollector(tmp_path))
 
     record_skill_selection(skill)
-    flush_skill_usage_stats()
 
     assert _stats(tmp_path).call_count == 1
 
@@ -231,7 +234,6 @@ def test_record_skips_when_storage_path_not_directory(tmp_path: Path) -> None:
     record_skill_selection(skill_meta)
     record_skill_execution(skill_meta.name, skill_meta.storage_path, success=True)
     commit_skill_run_usage()
-    flush_skill_usage_stats()
     assert not (file_path / ".stats.json").exists()
 
 
@@ -249,7 +251,6 @@ def test_default_collector_when_not_injected(tmp_path: Path, monkeypatch: pytest
     )
     record_skill_selection(skill_meta)
     commit_skill_run_usage()
-    flush_skill_usage_stats()
     assert (skill_dir / ".stats.json").exists()
 
 
@@ -264,5 +265,23 @@ def test_commit_swallows_collector_errors(tmp_path: Path) -> None:
     broken.record_use.assert_called_once()
 
 
-def test_flush_noop_when_no_collector() -> None:
-    flush_skill_usage_stats()
+def test_commit_swallows_persist_errors(tmp_path: Path) -> None:
+    """The commit runs in a ``finally``; a failing write must not replace the run's own outcome."""
+    skill = _skill(tmp_path)
+    broken = MagicMock(spec=SkillStatsCollector)
+    broken.flush.side_effect = OSError("disk full")
+    set_stats_collector(broken)
+
+    record_skill_selection(skill)
+    commit_skill_run_usage()
+    broken.flush.assert_called_once()
+
+
+def test_commit_without_skills_never_touches_the_collector() -> None:
+    collector = MagicMock(spec=SkillStatsCollector)
+    set_stats_collector(collector)
+
+    commit_skill_run_usage()
+
+    collector.record_use.assert_not_called()
+    collector.flush.assert_not_called()
