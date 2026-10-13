@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+from langchain_core.runnables import RunnableConfig
+from langchain_core.tools.base import _get_runnable_config_param
 
 from myrm_agent_harness.agent.config.file_io import FileIOConfig
 from myrm_agent_harness.agent.meta_tools import get_meta_tools
@@ -224,3 +228,46 @@ def test_agent_runtime_spec_and_config_prompt_locale() -> None:
     )
     assert config.locale == "zh-CN"
     assert config.prompt_locale == "en"
+
+
+_MANAGE_TOOL_CONFIG: RunnableConfig = {"configurable": {"context": {"user_id": "meta-tool-test"}}}
+
+
+@pytest.mark.parametrize(
+    ("factory_label", "tool"),
+    [
+        ("file_write_tool", create_file_write_tool()),
+        (
+            "skill_manage_tool",
+            create_skill_manage_tool(MagicMock(), MagicMock()),
+        ),
+        ("skill_market_tool", create_skill_market_tool(MagicMock())),
+    ],
+)
+def test_meta_tool_coroutine_exposes_runnable_config_param(factory_label: str, tool: object) -> None:
+    """LangChain must inject RunnableConfig; nested Pydantic models broke this for skill_manage."""
+    coroutine = getattr(tool, "coroutine", None)
+    assert coroutine is not None, f"{factory_label} has no coroutine"
+    assert _get_runnable_config_param(coroutine) == "config", factory_label
+
+
+@pytest.mark.asyncio
+async def test_skill_manage_tool_ainvoke_receives_config() -> None:
+    write_backend = MagicMock()
+    write_backend.save_skill = AsyncMock(
+        return_value=MagicMock(
+            success=True,
+            skill_name="demo_skill",
+            saved_path="/skills/demo_skill",
+            skill_id="sk_demo",
+            was_updated=False,
+        )
+    )
+    tool = create_skill_manage_tool(write_backend, None)
+    skill_md = '---\nname: demo_skill\ndescription: "Demo"\n---\n# Demo\n'
+    result = await tool.ainvoke(
+        {"operations": [{"action": "save", "name": "demo_skill", "content": skill_md}]},
+        config=_MANAGE_TOOL_CONFIG,
+    )
+    assert "success" in result.lower()
+    write_backend.save_skill.assert_called_once()
