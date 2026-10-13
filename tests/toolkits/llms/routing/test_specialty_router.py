@@ -65,7 +65,7 @@ class TestNormalizeSpecialtyQuery:
 
 class TestClassifyTaskSpecialty:
     def test_empty_query(self) -> None:
-        specialty, conf, reason = classify_task_specialty("")
+        specialty, _conf, reason = classify_task_specialty("")
         assert specialty == TaskSpecialty.GENERAL
         assert reason == "empty_query"
 
@@ -82,62 +82,62 @@ class TestClassifyTaskSpecialty:
     def test_long_document_by_char_length(self) -> None:
         long_text = "This is a comprehensive report on macroeconomic policy. " * 500
         assert len(long_text) >= LONG_DOC_CHAR_THRESHOLD
-        specialty, conf, reason = classify_task_specialty(long_text)
+        specialty, _conf, reason = classify_task_specialty(long_text)
         assert specialty == TaskSpecialty.LONG_DOC
         assert "char_length_exceeded" in reason
 
     def test_long_document_by_keywords(self) -> None:
         query = "请帮我通读这篇300页的年度财报并提取各分部营收数据"
-        specialty, conf, reason = classify_task_specialty(query)
+        specialty, _conf, reason = classify_task_specialty(query)
         assert specialty == TaskSpecialty.LONG_DOC
         assert "long_doc_keyword_match" in reason
 
     def test_reasoning_by_latex_notation(self) -> None:
         query = r"Compute the integral \int_{0}^{\infty} e^{-x^2} dx and show the step by step derivation"
-        specialty, conf, reason = classify_task_specialty(query)
+        specialty, _conf, reason = classify_task_specialty(query)
         assert specialty == TaskSpecialty.REASONING
         assert "math_latex_notation" in reason
 
     def test_reasoning_by_keywords(self) -> None:
         query = "请用数学归纳法证明任意大于1的整数都可以唯一分解为素数乘积"
-        specialty, conf, reason = classify_task_specialty(query)
+        specialty, _conf, reason = classify_task_specialty(query)
         assert specialty == TaskSpecialty.REASONING
         assert "reasoning_keyword_match" in reason
 
     def test_code_by_code_fence(self) -> None:
         query = "```python\ndef fib(n):\n    return n if n <= 1 else fib(n-1) + fib(n-2)\n```\n优化这段代码"
-        specialty, conf, reason = classify_task_specialty(query)
+        specialty, _conf, reason = classify_task_specialty(query)
         assert specialty == TaskSpecialty.CODE
         assert "code_fence_block" in reason
 
     def test_code_by_traceback(self) -> None:
         query = "运行报错了：\nTraceback (most recent call last):\n  File 'app.py', line 42\nTypeError: unsupported operand type"
-        specialty, conf, reason = classify_task_specialty(query)
+        specialty, _conf, reason = classify_task_specialty(query)
         assert specialty == TaskSpecialty.CODE
         assert "traceback_error_log" in reason
 
     def test_code_by_syntax_keywords(self) -> None:
         query = "async def handle_request(req: Request) -> Response:"
-        specialty, conf, reason = classify_task_specialty(query)
+        specialty, _conf, reason = classify_task_specialty(query)
         assert specialty == TaskSpecialty.CODE
         assert "code_syntax_declaration" in reason
 
     def test_code_by_multiple_keywords(self) -> None:
         query = "帮我为这个 typescript 模块编写 pytest 单元测试和 refactor"
-        specialty, conf, reason = classify_task_specialty(query)
+        specialty, _conf, reason = classify_task_specialty(query)
         assert specialty == TaskSpecialty.CODE
         assert "multiple_code_keywords" in reason
 
     def test_casual_indicator(self) -> None:
         query = "你好，请问在吗？"
-        specialty, conf, reason = classify_task_specialty(query)
+        specialty, _conf, reason = classify_task_specialty(query)
         assert specialty == TaskSpecialty.CASUAL
         assert "casual_indicator_match" in reason
 
     def test_session_momentum_inheritance(self) -> None:
         # A short ambiguous follow-up should inherit the previous technical specialty
         follow_up = "解释第12行"
-        specialty, conf, reason = classify_task_specialty(
+        specialty, _conf, reason = classify_task_specialty(
             follow_up,
             recent_specialties=[TaskSpecialty.CODE],
         )
@@ -146,7 +146,7 @@ class TestClassifyTaskSpecialty:
 
     def test_session_momentum_not_applied_to_long_new_query(self) -> None:
         long_query = "写一篇关于文艺复兴时期意大利佛罗伦萨绘画艺术风格演变的八百字评论文章"
-        specialty, conf, reason = classify_task_specialty(
+        specialty, _conf, reason = classify_task_specialty(
             long_query,
             recent_specialties=[TaskSpecialty.CODE],
         )
