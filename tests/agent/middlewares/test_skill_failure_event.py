@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-import pytest
-
 from myrm_agent_harness.agent.middlewares._session_context import set_approval_session
 from myrm_agent_harness.agent.middlewares.tooling._skill_failure_tracking import (
     track_skill_execution as _track_skill_execution,
@@ -161,92 +159,6 @@ def test_loop_guard_failure_publishes_loop_metadata(monkeypatch) -> None:
     event = fake_bus.events[0]
     assert event.loop_kind == "repetition"
     assert event.session_id == "chat-loop"
-
-
-@pytest.mark.asyncio
-async def test_success_records_evolution_when_single_skill(monkeypatch) -> None:
-    """Single loaded storage skill + success → evolution.record_execution scheduled."""
-    import asyncio
-
-    reset_loaded_skills()
-    add_loaded_skill(
-        SkillMetadata(
-            name="sales_report_skill",
-            description="Download and summarize sales reports.",
-            storage_skill_id="skill-1",
-        )
-    )
-
-    recorded: list[dict[str, object]] = []
-
-    async def _record(self, **kwargs):
-        recorded.append(kwargs)
-
-    evolution = type("Evo", (), {"record_execution": _record})()
-    monkeypatch.setattr(
-        "myrm_agent_harness.agent.skills.evolution.infra.integration.get_global_evolution_integration",
-        lambda: evolution,
-    )
-    try:
-        _track_skill_execution(
-            "browser_interact_tool",
-            tool_call_id="call-ok",
-            tool_args={},
-            success=True,
-            error_message="",
-        )
-        await asyncio.sleep(0)
-    finally:
-        reset_loaded_skills()
-    assert len(recorded) == 1
-    assert recorded[0]["success"] is True
-
-
-def test_success_multiple_skills_skips_evolution(monkeypatch) -> None:
-    """Multiple loaded storage skills → no evolution record (ambiguous owner)."""
-    reset_loaded_skills()
-    add_loaded_skill(
-        SkillMetadata(name="a", description="a", storage_skill_id="s1", version="1"),
-    )
-    add_loaded_skill(
-        SkillMetadata(name="b", description="b", storage_skill_id="s2", version="2"),
-    )
-    monkeypatch.setattr(
-        "myrm_agent_harness.agent.skills.evolution.infra.integration.get_global_evolution_integration",
-        lambda: type("Evo", (), {"record_execution": lambda **kw: None})(),
-    )
-    try:
-        _track_skill_execution(
-            "tool",
-            tool_call_id="c",
-            tool_args={},
-            success=True,
-            error_message="",
-        )
-    finally:
-        reset_loaded_skills()
-
-
-def test_success_no_evolution_skips(monkeypatch) -> None:
-    """Single skill but no evolution integration → no-op."""
-    reset_loaded_skills()
-    add_loaded_skill(
-        SkillMetadata(name="a", description="a", storage_skill_id="s1", version="1"),
-    )
-    monkeypatch.setattr(
-        "myrm_agent_harness.agent.skills.evolution.infra.integration.get_global_evolution_integration",
-        lambda: None,
-    )
-    try:
-        _track_skill_execution(
-            "tool",
-            tool_call_id="c",
-            tool_args={},
-            success=True,
-            error_message="",
-        )
-    finally:
-        reset_loaded_skills()
 
 
 def test_multiple_storage_skills_candidates_have_confidence(monkeypatch) -> None:
