@@ -115,6 +115,24 @@ class SkillStatsCollector:
         stats.pinned = pinned
         self._write_stats(skill_path, stats)
 
+    def reset_usage(self, skill_path: Path) -> None:
+        """Discard the verdict on past runs and flush immediately.
+
+        Clears the run counters, duration and history so the success rate starts a fresh window
+        (e.g. after the skill was fixed). Lifecycle state, pin, provenance and ``last_used_at`` are
+        kept: resetting must neither revive an archived skill nor make an idle one look unused.
+
+        Args:
+            skill_path: Absolute path to skill directory
+        """
+        stats = self._ensure_loaded(skill_path)
+        stats.call_count = 0
+        stats.success_count = 0
+        stats.failure_count = 0
+        stats.total_duration_ms = 0.0
+        stats.usage_history.clear()
+        self._write_stats(skill_path, stats)
+
     # ── Persistence ─────────────────────────────────────────────────
 
     def flush(self) -> None:

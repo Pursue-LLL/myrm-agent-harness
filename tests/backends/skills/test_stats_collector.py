@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from myrm_agent_harness.backends.skills.stats_collector import SkillStatsCollector
-from myrm_agent_harness.backends.skills.types import SkillUsageStats
+from myrm_agent_harness.backends.skills.types import SkillLifecycleStatus, SkillUsageStats
 
 
 @pytest.fixture
@@ -167,6 +167,26 @@ def test_set_pinned(collector: SkillStatsCollector, skill_dir: Path) -> None:
     collector.set_pinned(skill_dir, pinned=False)
     stats = collector.get_stats(skill_dir)
     assert stats.pinned is False
+
+
+def test_reset_usage_keeps_governance_state(collector: SkillStatsCollector, skill_dir: Path) -> None:
+    """Only the verdict on past runs is discarded; pin, lifecycle and last use survive, on disk too."""
+    for outcome in (True, False, False, None):
+        collector.record_use(skill_dir, success=outcome)
+    collector.set_pinned(skill_dir, pinned=True)
+    collector.update_lifecycle_status(skill_dir, SkillLifecycleStatus.STALE)
+    last_used_at = collector.get_stats(skill_dir).last_used_at
+
+    collector.reset_usage(skill_dir)
+
+    on_disk = json.loads((skill_dir / ".stats.json").read_text())
+    assert (on_disk["call_count"], on_disk["success_count"], on_disk["failure_count"]) == (0, 0, 0)
+    assert on_disk["usage_history"] == []
+    stats = SkillStatsCollector(skill_dir.parent).get_stats(skill_dir)
+    assert stats.observed_count == 0
+    assert stats.pinned is True
+    assert stats.lifecycle_status == SkillLifecycleStatus.STALE
+    assert stats.last_used_at == last_used_at
 
 
 def test_get_stats_returns_pending(collector: SkillStatsCollector, skill_dir: Path) -> None:
