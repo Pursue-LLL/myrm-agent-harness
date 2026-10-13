@@ -6,7 +6,8 @@
 - toolkits.storage.base::StorageProvider (POS: Storage provider)
 
 [OUTPUT]
-- ContextVar getters/setters for storage_backend, memory_manager, loaded_skills (get/add/set/reset), task_intent
+- ContextVar getters/setters for storage_backend, memory_manager, task_intent
+- Run-scoped loaded skills: get (snapshot) / add (in place, by name) / set / reset (opens a new scope)
 - ContextVar getters/setters for memory runtime telemetry (budget + injection)
 - Permission invalidation callback management
 - Background task tracking and graceful shutdown
@@ -250,23 +251,32 @@ def get_memory_runtime_injection_contract() -> dict[str, tuple[str, ...]]:
 
 
 def get_loaded_skills() -> list[SkillMetadata]:
-    """Get the list of skills loaded during the current session."""
-    return _loaded_skills_var.get() or []
+    """Snapshot of the skills loaded in the current run."""
+    return list(_loaded_skills_var.get() or ())
 
 
 def add_loaded_skill(skill: SkillMetadata) -> None:
-    """Record a skill loaded during the current session (for trust attenuation)."""
-    current = get_loaded_skills()
-    _loaded_skills_var.set([*current, skill])
+    """Record a skill loaded in the current run (idempotent by name).
+
+    A run owns one mutable list, created by ``reset_loaded_skills`` / ``set_loaded_skills``. Tools execute in
+    copies of the run's context, so appending in place is what keeps a skill loaded inside a tool visible to the
+    tool calls and model calls that follow; rebinding the ContextVar would only change the tool's own copy.
+    """
+    loaded = _loaded_skills_var.get()
+    if loaded is None:
+        loaded = []
+        _loaded_skills_var.set(loaded)
+    if all(existing.name != skill.name for existing in loaded):
+        loaded.append(skill)
 
 
 def set_loaded_skills(skills: list[SkillMetadata]) -> None:
-    """Replace the loaded-skills list (used when rehydrating from chat history)."""
+    """Start the run's loaded-skills scope from ``skills`` (used when rehydrating from chat history)."""
     _loaded_skills_var.set(list(skills))
 
 
 def reset_loaded_skills() -> None:
-    """Clear loaded skills at session end."""
+    """Start a fresh, empty loaded-skills scope (at run start and end, and for a nested run)."""
     _loaded_skills_var.set([])
 
 
