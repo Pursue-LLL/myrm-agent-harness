@@ -14,7 +14,7 @@
 - .vector_chunks::collapse_vector_hits, delete_text_vectors, upsert_text_vectors (POS: L2 chunk vector operations)
 
 [OUTPUT]
-- FtsSearchMixin: FTS5 + vector upsert/search/get_truth for WikiIndexer; pages are keyed by their on-disk path, delete accepts any spelling
+- FtsSearchMixin: FTS5 + vector upsert/search/get_truth for WikiIndexer; pages are keyed by their on-disk path, delete accepts any spelling, vector hits under another spelling collapse onto the page key
 - migrate_wiki_fts_schema: rebuild wiki_fts when it predates the search_terms column
 
 [POS]
@@ -221,10 +221,13 @@ class FtsSearchMixin:
 
     async def delete(self, concept_name: str) -> None:
         """
-        Delete concept from FTS5 index, Edges, and Vector Store.
+        Delete concept from FTS5 index, its outgoing Edges, and Vector Store.
 
         Removes the concept under every spelling it may be indexed by (as given and as
-        its on-disk path), so deleting by compile name or by path both succeed.
+        its on-disk path), so deleting by compile name or by path both succeed. Edges
+        other pages hold to the concept stay: the links are still written in those
+        pages, they read as unresolved while the page is gone and name it again when
+        it returns.
         """
         names = self._concept_name_variants(concept_name)
 
@@ -233,10 +236,7 @@ class FtsSearchMixin:
             with self._get_conn() as conn:
                 for name in names:
                     conn.execute("DELETE FROM wiki_fts WHERE concept_name = ?", (name,))
-                    conn.execute(
-                        "DELETE FROM wiki_edges WHERE source = ? OR target = ?",
-                        (name, name),
-                    )
+                    conn.execute("DELETE FROM wiki_edges WHERE source = ?", (name,))
                     conn.execute(
                         "DELETE FROM wiki_index_meta WHERE concept_name = ?",
                         (name,),
@@ -371,15 +371,15 @@ class FtsSearchMixin:
             except Exception as e:
                 logger.error(f"Wiki vector search failed: {e}")
 
-        vec_results = collapse_vector_hits(vec_results)
-
         if vec_results:
 
             def sync_filter_vec(
                 results: list[tuple[str, float]],
             ) -> list[tuple[str, float]]:
+                # Vectors written under another spelling of a page count for that page once.
+                pages = collapse_vector_hits([(self._index_key(name), score) for name, score in results])
                 with self._get_conn() as conn:
-                    return self._filter_published(conn, results)
+                    return self._filter_published(conn, pages)
 
             vec_results = await asyncio.to_thread(sync_filter_vec, vec_results)
 

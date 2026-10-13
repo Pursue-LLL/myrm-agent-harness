@@ -9,9 +9,9 @@
 - myrm_agent_harness.toolkits.memory.protocols.embedding::EmbeddingProtocol (POS: embedding provider protocol)
 - myrm_agent_harness.toolkits.memory.protocols.vector::VectorStoreProtocol (POS: vector store protocol)
 - .fts_search::FtsSearchMixin, migrate_wiki_fts_schema (POS: FTS5 + vector index operations mixin)
-- .edge_links::canonical_edge_target, relink_dangling_edges (POS: edge targets stored as page keys)
+- .edge_links::canonical_edge_target, relink_dangling_edges, store_edge (POS: edge targets stored as page keys)
 - .graph_store::WikiGraphStore (POS: knowledge graph storage)
-- .identity_migration::migrate_concept_identity (POS: one-time merge of index rows under non-canonical spellings)
+- .identity_migration::migrate_index_schema (POS: one-time index migrations: page identity, edge link spellings)
 - .sidecar_index::SidecarIndexMixin (POS: L0/L1 sidecar index operations)
 
 [OUTPUT]
@@ -40,10 +40,10 @@ from myrm_agent_harness.utils.db.fts5 import (
 from ..core.config import WikiConfig
 from ..core.link_resolver import WikiLinkResolver, concept_index_key, concept_page_exists
 from ..core.structure import WikiStructure
-from .edge_links import canonical_edge_target, relink_dangling_edges
+from .edge_links import canonical_edge_target, relink_dangling_edges, store_edge
 from .fts_search import FtsSearchMixin, migrate_wiki_fts_schema
 from .graph_store import WikiGraphStore
-from .identity_migration import migrate_concept_identity
+from .identity_migration import migrate_index_schema
 from .sidecar_index import SidecarIndexMixin
 
 if TYPE_CHECKING:
@@ -141,20 +141,20 @@ class WikiIndexer(FtsSearchMixin, SidecarIndexMixin):
                     source TEXT,
                     target TEXT,
                     weight REAL DEFAULT 1.0,
+                    target_key TEXT,
+                    target_slug TEXT,
                     PRIMARY KEY (source, target)
                 )
             """
             )
-            # Add the weight column to tables created without it
+            # Add columns to tables created without them
             # (OperationalError means the column already exists).
-            with contextlib.suppress(sqlite3.OperationalError):
-                conn.execute("ALTER TABLE wiki_edges ADD COLUMN weight REAL DEFAULT 1.0")
+            for column in ("weight REAL DEFAULT 1.0", "target_key TEXT", "target_slug TEXT"):
+                with contextlib.suppress(sqlite3.OperationalError):
+                    conn.execute(f"ALTER TABLE wiki_edges ADD COLUMN {column}")
 
-            conn.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_wiki_edges_target ON wiki_edges(target)
-            """
-            )
+            for column in ("target", "target_key", "target_slug"):
+                conn.execute(f"CREATE INDEX IF NOT EXISTS idx_wiki_edges_{column} ON wiki_edges({column})")
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS wiki_index_meta(
@@ -168,7 +168,7 @@ class WikiIndexer(FtsSearchMixin, SidecarIndexMixin):
                 logger.warning("FTS5 index corrupted on startup, rebuilding: wiki_fts")
                 fts5_rebuild(conn, "wiki_fts")
 
-            migrate_concept_identity(conn, self._structure, self._link_resolver)
+            migrate_index_schema(conn, self._structure, self._link_resolver)
 
     def get_knowledge_graph(
         self, center_node: str | None = None, depth: int = 1, limit: int = 1000
@@ -206,10 +206,7 @@ class WikiIndexer(FtsSearchMixin, SidecarIndexMixin):
                 if source == target:
                     continue
                 weight = self._calculate_edge_weight(conn, source, target, source_files)
-                conn.execute(
-                    "INSERT OR REPLACE INTO wiki_edges (source, target, weight) VALUES (?, ?, ?)",
-                    (source, target, weight),
-                )
+                store_edge(conn, source, target, weight)
 
     def _calculate_edge_weight(
         self,
@@ -252,7 +249,7 @@ class WikiIndexer(FtsSearchMixin, SidecarIndexMixin):
         """
         source = self._index_key(concept_name)
         resolver = self._link_resolver
-        page_changed = concept_page_exists(self._structure, source) and resolver.note_page(source, content)
+        page_change = resolver.note_page(source, content) if concept_page_exists(self._structure, source) else None
         targets: set[str] = set()
 
         # 1. Match Standard Markdown Links: [text](link.md)
@@ -272,9 +269,9 @@ class WikiIndexer(FtsSearchMixin, SidecarIndexMixin):
         # Unconditionally upsert (even if empty) to clear deleted edges
         self.upsert_edges(source, list(targets))
 
-        if page_changed:
+        if page_change is not None:
             with self._get_conn() as conn:
-                relink_dangling_edges(conn, resolver)
+                relink_dangling_edges(conn, resolver, page_change)
 
     @staticmethod
     def _source_system_targets(content: str) -> set[str]:

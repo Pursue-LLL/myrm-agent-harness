@@ -8,7 +8,7 @@ from myrm_agent_harness.toolkits.wiki.core import link_resolver as link_resolver
 from myrm_agent_harness.toolkits.wiki.core.config import WikiConfig
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.pipeline.publication import publish_concept_article
-from myrm_agent_harness.toolkits.wiki.retrieval.identity_migration import CONCEPT_KEY_SCHEMA_VERSION
+from myrm_agent_harness.toolkits.wiki.retrieval.identity_migration import INDEX_SCHEMA_VERSION
 from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer
 
 
@@ -222,7 +222,7 @@ def test_index_rows_under_non_canonical_spellings_are_merged_once(structure: Wik
         _article("z body", aliases=("Why Alias",)), encoding="utf-8"
     )
     seeded = WikiIndexer(structure, WikiConfig(enable_hybrid_search=False))
-    assert _user_version(seeded) == CONCEPT_KEY_SCHEMA_VERSION
+    assert _user_version(seeded) == INDEX_SCHEMA_VERSION
 
     # Unmigrated state: compile-name rows next to path rows, an orphan row, edges using both spellings.
     _mark_unmigrated(seeded)
@@ -239,7 +239,7 @@ def test_index_rows_under_non_canonical_spellings_are_merged_once(structure: Wik
         ("knowledge/x/y", "Opaque Name"),
         ("Opaque Name", "knowledge/x/y"),
     }
-    assert _user_version(migrated) == CONCEPT_KEY_SCHEMA_VERSION
+    assert _user_version(migrated) == INDEX_SCHEMA_VERSION
 
     # A migrated index is never rewritten again.
     _insert_row(migrated, "Knowledge/Later")

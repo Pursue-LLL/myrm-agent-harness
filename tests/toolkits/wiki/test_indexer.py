@@ -84,6 +84,32 @@ async def test_indexer_hybrid_upsert_and_search(wiki_structure, mock_vector_stor
 
 
 @pytest.mark.asyncio
+async def test_hybrid_search_counts_vectors_written_under_another_spelling_once(
+    wiki_structure, mock_vector_store, mock_embedding
+):
+    indexer = WikiIndexer(
+        wiki_structure, WikiConfig(enable_hybrid_search=True), vector_store=mock_vector_store, embedding=mock_embedding
+    )
+    page = wiki_structure.get_concept_file_path("Knowledge/Rust/Ownership")
+    page.write_text("---\ntype: concept\n---\n## Compiled Truth\nOwnership moves values.\n", encoding="utf-8")
+    await indexer.upsert("knowledge/rust/ownership", page.read_text(encoding="utf-8"))
+
+    def hit(name: str, score: float) -> SearchResult:
+        document = VectorDocument(id=name, content="", vector=[], metadata={"concept_name": name})
+        return SearchResult(document=document, score=score)
+
+    mock_vector_store.search.return_value = [
+        hit("Knowledge/Rust/Ownership", 0.9),
+        hit("knowledge/rust/ownership", 0.8),
+        hit("Opaque Key", 0.5),
+    ]
+
+    results = await indexer.search("ownership moves")
+
+    assert [name for name, _ in results] == ["knowledge/rust/ownership", "Opaque Key"]
+
+
+@pytest.mark.asyncio
 async def test_sidecar_indexing_and_search(wiki_structure):
     config = WikiConfig(enable_hybrid_search=False)
     indexer = WikiIndexer(wiki_structure, config)

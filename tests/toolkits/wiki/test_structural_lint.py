@@ -173,3 +173,69 @@ def test_invalid_frontmatter_type_skips_unreadable_concept(
     issues = collect_invalid_frontmatter_type_issues(wiki_structure)
     locked_issues = [issue for issue in issues if str(locked_path) in issue.location]
     assert locked_issues == []
+
+
+def _write_page(structure: WikiStructure, name: str, body: str = "Body.", aliases: tuple[str, ...] = ()) -> Path:
+    alias_line = f"aliases: [{', '.join(aliases)}]\n" if aliases else ""
+    path = structure.get_concept_file_path(name)
+    path.write_text(f"---\ntype: concept\n{alias_line}---\n\n## Compiled Truth\n{body}\n", encoding="utf-8")
+    return path
+
+
+def _broken_targets(structure: WikiStructure) -> list[str]:
+    return sorted(issue.description for issue in collect_broken_wikilink_issues(structure))
+
+
+@pytest.mark.parametrize("link", ["Ownership", "ownership", "Borrow Checker", "metric_gmv_gross"])
+def test_bare_file_name_wikilink_is_not_broken(tmp_path: Path, link: str) -> None:
+    structure = WikiStructure(tmp_path)
+    structure.ensure_structure()
+    for page in ("knowledge/rust/ownership", "knowledge/rust/borrow-checker", "metrics/metric-gmv-gross"):
+        _write_page(structure, page)
+    _write_page(structure, "guides/start", f"See [[{link}]].")
+
+    assert _broken_targets(structure) == []
+
+
+def test_bare_file_name_shared_by_two_folders_is_broken_unless_the_linking_page_is_beside_one(tmp_path: Path) -> None:
+    structure = WikiStructure(tmp_path)
+    structure.ensure_structure()
+    _write_page(structure, "rust/ownership")
+    _write_page(structure, "law/ownership")
+    _write_page(structure, "guides/start", "See [[Ownership]].")
+    _write_page(structure, "rust/guide", "See [[Ownership]].")
+
+    issues = collect_broken_wikilink_issues(structure)
+
+    assert [Path(issue.location).name for issue in issues] == ["start.md"]
+
+
+def test_alias_shared_by_two_pages_is_broken_like_the_graph_edge(tmp_path: Path) -> None:
+    structure = WikiStructure(tmp_path)
+    structure.ensure_structure()
+    _write_page(structure, "a/first", aliases=("Dup", "Solo"))
+    _write_page(structure, "b/second", aliases=("Dup",))
+    _write_page(structure, "guides/start", "See [[Dup]] and [[Solo]].")
+
+    assert _broken_targets(structure) == ["Broken wikilink to [[Dup]]"]
+
+
+def test_wikilink_to_a_federated_public_page_is_not_broken(tmp_path: Path) -> None:
+    public = WikiStructure(tmp_path / "public")
+    public.ensure_structure()
+    _write_page(public, "shared/handbook")
+    local = WikiStructure(tmp_path / "local", public_dirs=[tmp_path / "public"])
+    local.ensure_structure()
+    _write_page(local, "guides/start", "See [[shared/handbook]] and [[Missing]].")
+
+    assert _broken_targets(local) == ["Broken wikilink to [[Missing]]"]
+
+
+def test_wikilink_inside_a_federated_page_resolves_without_a_source_folder(tmp_path: Path) -> None:
+    public = WikiStructure(tmp_path / "public")
+    public.ensure_structure()
+    _write_page(public, "shared/handbook", "See [[Missing]].")
+    local = WikiStructure(tmp_path / "local", public_dirs=[tmp_path / "public"])
+    local.ensure_structure()
+
+    assert _broken_targets(local) == ["Broken wikilink to [[Missing]]"]

@@ -2,7 +2,7 @@
 
 [INPUT]
 - ..core.structure::WikiStructure (POS: vault paths)
-- ..core.link_resolver::build_wikilink_title_index, normalize_wikilink_target, wikilink_target_exists (POS: wikilink target normalization and page lookup index SSOT)
+- ..core.link_resolver::WikiLinkResolver, concept_link_name, normalize_wikilink_target (POS: link target resolution SSOT shared with graph edges)
 - ..core.frontmatter_contract::validate_wiki_frontmatter (POS: type enum gate)
 - ..core.types::LintIssue (POS: shared lint issue model)
 
@@ -17,9 +17,10 @@
 Zero-LLM structural lint SSOT. Used by WikiLinter and server /wiki/stats without
 triggering LLM maintenance paths.
 
-Scope: markdown `[text](path)` links and Obsidian `[[wikilink]]` targets resolved via
-`WikiStructure.resolve_concept_file_path`, with frontmatter `title` / aliases / `canonical_id`
-and full page paths (see `core.link_resolver`), and raw-backed provenance (`sources` +
+Scope: markdown `[text](path)` links and Obsidian `[[wikilink]]` targets resolved by
+`core.link_resolver.WikiLinkResolver` (page paths, frontmatter `title` / aliases /
+`canonical_id`, bare file names) or, for read-only federated public mounts, by
+`WikiStructure.resolve_concept_file_path`, and raw-backed provenance (`sources` +
 `provenance`) for local concept pages.
 Fenced/inline code blocks are skipped for both markdown links and wikilinks.
 """
@@ -36,9 +37,9 @@ from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
     validate_wiki_frontmatter,
 )
 from myrm_agent_harness.toolkits.wiki.core.link_resolver import (
-    build_wikilink_title_index,
+    WikiLinkResolver,
+    concept_link_name,
     normalize_wikilink_target,
-    wikilink_target_exists,
 )
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.core.types import LintIssue
@@ -119,10 +120,18 @@ def collect_broken_link_issues(structure: WikiStructure) -> list[LintIssue]:
     return issues
 
 
+def _wikilink_resolves(structure: WikiStructure, resolver: WikiLinkResolver, target: str, source: str | None) -> bool:
+    """Whether a wikilink names a local page the graph links too, or a federated public page."""
+    if resolver.resolve(target, source) is not None:
+        return True
+    public_page = structure.resolve_concept_file_path(target)
+    return public_page is not None and not public_page.is_relative_to(structure.concepts_dir)
+
+
 def collect_broken_wikilink_issues(structure: WikiStructure) -> list[LintIssue]:
     """Check concept articles for broken Obsidian wikilink targets."""
     issues: list[LintIssue] = []
-    title_index = build_wikilink_title_index(structure)
+    resolver = WikiLinkResolver(structure)
     for concept_path in structure.list_concepts():
         try:
             content = concept_path.read_text(encoding="utf-8")
@@ -130,12 +139,17 @@ def collect_broken_wikilink_issues(structure: WikiStructure) -> list[LintIssue]:
             logger.warning("Failed to check wikilinks in %s: %s", concept_path, exc)
             continue
 
+        source = (
+            concept_link_name(concept_path, structure.concepts_dir)
+            if concept_path.is_relative_to(structure.concepts_dir)
+            else None
+        )
         scan_content = _content_without_code_blocks(content)
         for raw_target in _WIKILINK_PATTERN.findall(scan_content):
             target = normalize_wikilink_target(raw_target)
             if not target or target.startswith("http"):
                 continue
-            if not wikilink_target_exists(structure, target, title_index):
+            if not _wikilink_resolves(structure, resolver, target, source):
                 issues.append(
                     LintIssue(
                         issue_type="broken_wikilink",

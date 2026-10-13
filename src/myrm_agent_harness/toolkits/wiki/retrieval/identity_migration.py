@@ -1,20 +1,22 @@
-"""One-time wiki index migration: one index identity per concept page.
+"""One-time wiki index migrations, versioned by `PRAGMA user_version`.
 
 [INPUT]
 - sqlite3::Connection (POS: wiki index database)
-- ..core.link_resolver::concept_index_key, WikiLinkResolver (POS: concept identity and link resolution)
+- ..core.link_resolver::concept_index_key, link_lookup_forms, WikiLinkResolver (POS: concept identity, link spellings and link resolution)
 - ..core.structure::WikiStructure (POS: vault paths)
 - .edge_links::relink_dangling_edges (POS: edge target convergence)
 
 [OUTPUT]
-- CONCEPT_KEY_SCHEMA_VERSION: `PRAGMA user_version` stamped once the index is migrated
-- migrate_concept_identity: merge rows indexed under a non-canonical spelling
+- INDEX_SCHEMA_VERSION: `PRAGMA user_version` stamped once every step has run
+- migrate_index_schema: run the pending steps in order
 
 [POS]
-An index may hold one page twice (compile name vs. on-disk path). The migration renames
-each such row to the page's on-disk key, drops the duplicate when both exist, and
-re-resolves edge targets. Rows without a backing page are left untouched. The index is
-derived data: no article file is read for content or modified.
+Step 1 gives one index identity per concept page: an index may hold a page twice (compile
+name vs. on-disk path), so each such row is renamed to the page's on-disk key and the
+duplicate dropped when both exist; rows without a backing page are left untouched.
+Step 2 records the spellings of every edge target and re-resolves all unresolved edges
+under the current link rules (bare file names included). The index is derived data: no
+article file is read for content or modified.
 """
 
 from __future__ import annotations
@@ -23,7 +25,7 @@ import logging
 import sqlite3
 from typing import TYPE_CHECKING
 
-from ..core.link_resolver import concept_index_key
+from ..core.link_resolver import concept_index_key, link_lookup_forms
 from .edge_links import relink_dangling_edges
 
 if TYPE_CHECKING:
@@ -32,21 +34,28 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-CONCEPT_KEY_SCHEMA_VERSION = 1
+INDEX_SCHEMA_VERSION = 2
 
 _CONCEPT_TABLES = ("wiki_fts", "wiki_index_meta")
 
 
-def migrate_concept_identity(
+def migrate_index_schema(
     conn: sqlite3.Connection,
     structure: WikiStructure,
     resolver: WikiLinkResolver,
 ) -> None:
     """Migrate the main index once; later opens only read ``PRAGMA user_version``."""
     version = int(conn.execute("PRAGMA user_version").fetchone()[0])
-    if version >= CONCEPT_KEY_SCHEMA_VERSION:
+    if version >= INDEX_SCHEMA_VERSION:
         return
 
+    if version < 1:
+        _merge_concept_identity(conn, structure)
+    _converge_edges(conn, resolver)
+    conn.execute(f"PRAGMA user_version = {INDEX_SCHEMA_VERSION}")
+
+
+def _merge_concept_identity(conn: sqlite3.Connection, structure: WikiStructure) -> None:
     names = [str(row["concept_name"]) for row in conn.execute("SELECT concept_name FROM wiki_index_meta")]
     renamed = 0
     for name in names:
@@ -54,11 +63,22 @@ def migrate_concept_identity(
         if key != name:
             _rename_concept(conn, name, key)
             renamed += 1
-    relinked = relink_dangling_edges(conn, resolver) if names else 0
+    if renamed:
+        logger.info("Wiki index identity migration: %d concepts renamed", renamed)
+
+
+def _converge_edges(conn: sqlite3.Connection, resolver: WikiLinkResolver) -> None:
+    for row in conn.execute("SELECT source, target FROM wiki_edges").fetchall():
+        source, target = str(row["source"]), str(row["target"])
+        target_key, target_slug = link_lookup_forms(target, source)
+        conn.execute(
+            "UPDATE wiki_edges SET target_key = ?, target_slug = ? WHERE source = ? AND target = ?",
+            (target_key, target_slug, source, target),
+        )
+    relinked = relink_dangling_edges(conn, resolver)
     conn.execute("DELETE FROM wiki_edges WHERE source = target")
-    conn.execute(f"PRAGMA user_version = {CONCEPT_KEY_SCHEMA_VERSION}")
-    if renamed or relinked:
-        logger.info("Wiki index identity migration: %d concepts renamed, %d edges relinked", renamed, relinked)
+    if relinked:
+        logger.info("Wiki index edge migration: %d edges relinked", relinked)
 
 
 def _rename_concept(conn: sqlite3.Connection, old: str, new: str) -> None:

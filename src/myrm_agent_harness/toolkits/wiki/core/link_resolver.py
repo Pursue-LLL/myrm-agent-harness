@@ -6,14 +6,17 @@
 
 [OUTPUT]
 - normalize_wikilink_target, normalize_lookup_key, concept_link_name, page_lookup_keys
-- scan_concept_pages, build_wikilink_title_index, wikilink_target_exists (POS: structural lint primitives)
+- link_lookup_forms, page_link_forms: the spellings a link target and a page are matched on (POS: keyed edge relinking)
+- scan_concept_pages: lookup keys of every local concept page
 - concept_index_key, concept_page_exists: index identity for a concept name, page presence check
-- WikiLinkResolver: resolves link targets to canonical concept keys for graph edges
+- PageChange: what a written page changed for already stored edges
+- WikiLinkResolver: resolves link targets to canonical concept keys for graph edges and structural lint
 
 [POS]
 A concept's canonical key is its vault-relative path without extension (the on-disk
-identity). Structural lint and the graph index share these primitives, so a link that
-lint accepts is stored as an edge to the page it points at.
+identity). Graph edges and structural lint resolve link targets through the same
+WikiLinkResolver, so a link lint accepts is stored as an edge to the page it points at.
+Federated public pages are the exception: lint accepts them, edges keep their link text.
 """
 
 from __future__ import annotations
@@ -21,6 +24,8 @@ from __future__ import annotations
 import posixpath
 import threading
 import time
+from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path, PurePath
 
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
@@ -92,37 +97,41 @@ def scan_concept_pages(structure: WikiStructure) -> dict[str, frozenset[str]]:
     return pages
 
 
-def _unique_key_index(pages: dict[str, frozenset[str]]) -> dict[str, str]:
-    candidates: dict[str, list[str]] = {}
-    for link_name, keys in pages.items():
-        for key in keys:
-            candidates.setdefault(key, []).append(link_name)
-    return {key: names[0] for key, names in candidates.items() if len(names) == 1}
-
-
-def build_wikilink_title_index(structure: WikiStructure) -> dict[str, str]:
-    """Map normalized title / alias / canonical id / path keys to unique concept path slugs."""
-    return _unique_key_index(scan_concept_pages(structure))
-
-
-def wikilink_target_exists(
-    structure: WikiStructure,
-    target: str,
-    title_index: dict[str, str],
-) -> bool:
-    if structure.resolve_concept_file_path(target) is not None:
-        return True
-    resolved_path = title_index.get(normalize_lookup_key(target))
-    if resolved_path is None:
-        return False
-    return structure.resolve_concept_file_path(resolved_path) is not None
-
-
 def _strip_vault_prefixes(path: str) -> str:
     for prefix in _VAULT_PATH_PREFIXES:
         if path.startswith(prefix):
             path = path[len(prefix) :]
     return path
+
+
+def _cleaned_target(target: str, source: str | None) -> str | None:
+    """Link target as a vault-relative path candidate, or ``None`` for non-concept targets.
+
+    An explicit relative target (``./x``, ``../x``) is resolved against the directory of
+    ``source``, the page that holds the link.
+    """
+    cleaned = _strip_vault_prefixes(normalize_wikilink_target(target).replace("\\", "/"))
+    if not cleaned or cleaned.startswith(_NON_CONCEPT_TARGET_PREFIXES):
+        return None
+    if source is not None and cleaned.startswith("."):
+        return posixpath.normpath(posixpath.join(posixpath.dirname(source), cleaned))
+    return cleaned
+
+
+def link_lookup_forms(target: str, source: str | None = None) -> tuple[str, str]:
+    """The casefolded and the sanitized spelling every resolution tier matches a target on.
+
+    Non-concept targets (URLs, ``system:*`` pseudo targets) have no forms: ``("", "")``.
+    """
+    cleaned = _cleaned_target(target, source)
+    if cleaned is None:
+        return "", ""
+    return normalize_lookup_key(cleaned), WikiStructure._sanitize_path(cleaned)
+
+
+def page_link_forms(link_name: str, keys: frozenset[str]) -> frozenset[str]:
+    """Spellings a page answers to: its lookup keys and its casefolded file name."""
+    return keys | {normalize_lookup_key(posixpath.basename(link_name))}
 
 
 def concept_page_exists(structure: WikiStructure, key: str) -> bool:
@@ -171,12 +180,34 @@ def _vault_fingerprint(concepts_dir: Path) -> tuple[int, int]:
     return count, newest
 
 
+@dataclass(frozen=True, slots=True)
+class PageChange:
+    """What a written page changed for edges that were stored before it existed.
+
+    ``forms`` are the spellings the page answers to; only edges whose target is spelled
+    like one of them can newly resolve. ``full_rescan`` means the resolver re-read the
+    vault, so pages other writers added are unknown and every unresolved edge must be
+    re-resolved.
+    """
+
+    forms: frozenset[str]
+    full_rescan: bool
+
+
 class WikiLinkResolver:
     """Resolve link targets to canonical concept keys (vault-relative page paths).
 
-    Resolution order: exact page path, sanitized page path, then a title / alias /
-    canonical-id key that identifies exactly one page. Ambiguous or unknown targets
-    return ``None`` so callers keep the raw text. Federated mounts are not resolved.
+    Resolution order, first tier that names exactly one page wins:
+
+    1. exact page path, then sanitized page path;
+    2. a title / alias / canonical-id key that identifies one page;
+    3. a bare file name (``[[Ownership]]``, ``[[Borrow Checker]]``, ``[[metric_gmv]]``),
+       matched as written or sanitized: the page in the linking page's own folder
+       wins, otherwise the name must be unique across the vault (the rule
+       ``core.refactor`` applies when it renames a page).
+
+    Ambiguous or unknown targets return ``None`` so callers keep the raw text. Federated
+    mounts are not resolved.
 
     The page table is built lazily from disk, kept exact in-process through
     :meth:`note_page` / :meth:`forget_page`, and rebuilt when the vault changed behind
@@ -190,34 +221,36 @@ class WikiLinkResolver:
         self._reconciled: dict[str, frozenset[str]] = {}
         self._rescanned = False
         self._by_key: dict[str, set[str]] = {}
+        self._by_leaf: dict[str, set[str]] = {}
         self._fingerprint: tuple[int, int] = (0, 0)
         self._checked_at = 0.0
 
     def resolve(self, target: str, source: str | None = None) -> str | None:
         """Return the canonical key ``target`` points at, or ``None`` when unresolved.
 
-        ``source`` enables explicit relative targets (``./x``, ``../x``) to be resolved
-        against the linking page's directory.
+        ``source`` is the page holding the link: it anchors explicit relative targets
+        (``./x``, ``../x``) and picks the same-folder page for a bare file name.
         """
-        cleaned = _strip_vault_prefixes(normalize_wikilink_target(target).replace("\\", "/"))
-        if not cleaned or cleaned.startswith(_NON_CONCEPT_TARGET_PREFIXES):
+        cleaned = _cleaned_target(target, source)
+        if cleaned is None:
             return None
         with self._lock:
             pages = self._fresh_pages()
-            if source is not None and cleaned.startswith("."):
-                cleaned = posixpath.normpath(posixpath.join(posixpath.dirname(source), cleaned))
             if cleaned in pages:
                 return cleaned
             sanitized = WikiStructure._sanitize_path(cleaned)
             if sanitized in pages:
                 return sanitized
-            candidates = self._by_key.get(normalize_lookup_key(cleaned))
-            if candidates is not None and len(candidates) == 1:
-                return next(iter(candidates))
+            key = normalize_lookup_key(cleaned)
+            owners = self._by_key.get(key)
+            if owners is not None and len(owners) == 1:
+                return next(iter(owners))
+            if "/" not in cleaned:
+                return self._resolve_file_name((key, sanitized), source)
         return None
 
-    def note_page(self, link_name: str, markdown: str) -> bool:
-        """Record a written page; return True when stored edges may need re-resolving.
+    def note_page(self, link_name: str, markdown: str) -> PageChange | None:
+        """Record a written page; return what it changed when stored edges may need re-resolving.
 
         That is the case when the page's lookup keys are new to this resolver or the
         page table was re-read from disk since the last call (other writers may have
@@ -228,15 +261,16 @@ class WikiLinkResolver:
             pages = self._fresh_pages()
             rescanned, self._rescanned = self._rescanned, False
             keys = page_lookup_keys(link_name, markdown)
+            change = PageChange(page_link_forms(link_name, keys), full_rescan=rescanned)
             if self._reconciled.get(link_name) == keys:
-                return rescanned
+                return change if rescanned else None
             previous = pages.get(link_name)
             if previous is not None:
-                self._drop_keys(link_name, previous)
+                self._unindex_page(link_name, previous)
             pages[link_name] = keys
-            self._add_keys(link_name, keys)
+            self._index_page(link_name, keys)
             self._reconciled[link_name] = keys
-            return True
+            return change
 
     def forget_page(self, link_name: str) -> None:
         with self._lock:
@@ -245,7 +279,15 @@ class WikiLinkResolver:
                 return
             previous = self._pages.pop(link_name, None)
             if previous is not None:
-                self._drop_keys(link_name, previous)
+                self._unindex_page(link_name, previous)
+
+    def _resolve_file_name(self, forms: tuple[str, str], source: str | None) -> str | None:
+        owners = {name for form in forms for name in self._by_leaf.get(form, ())}
+        if source is not None:
+            folder = posixpath.dirname(source)
+            siblings = {name for name in owners if posixpath.dirname(name) == folder}
+            owners = siblings or owners
+        return next(iter(owners)) if len(owners) == 1 else None
 
     def _fresh_pages(self) -> dict[str, frozenset[str]]:
         now = time.monotonic()
@@ -255,22 +297,29 @@ class WikiLinkResolver:
         if self._pages is None or fingerprint != self._fingerprint:
             self._pages = scan_concept_pages(self._structure)
             self._by_key = {}
+            self._by_leaf = {}
             for link_name, keys in self._pages.items():
-                self._add_keys(link_name, keys)
+                self._index_page(link_name, keys)
             self._fingerprint = fingerprint
             self._rescanned = True
         self._checked_at = now
         return self._pages
 
-    def _add_keys(self, link_name: str, keys: frozenset[str]) -> None:
+    def _index_page(self, link_name: str, keys: frozenset[str]) -> None:
         for key in keys:
             self._by_key.setdefault(key, set()).add(link_name)
+        self._by_leaf.setdefault(normalize_lookup_key(posixpath.basename(link_name)), set()).add(link_name)
 
-    def _drop_keys(self, link_name: str, keys: frozenset[str]) -> None:
-        for key in keys:
-            owners = self._by_key.get(key)
-            if owners is None:
-                continue
-            owners.discard(link_name)
-            if not owners:
-                del self._by_key[key]
+    def _unindex_page(self, link_name: str, keys: frozenset[str]) -> None:
+        _discard_owner(self._by_key, keys, link_name)
+        _discard_owner(self._by_leaf, (normalize_lookup_key(posixpath.basename(link_name)),), link_name)
+
+
+def _discard_owner(index: dict[str, set[str]], keys: Iterable[str], link_name: str) -> None:
+    for key in keys:
+        owners = index.get(key)
+        if owners is None:
+            continue
+        owners.discard(link_name)
+        if not owners:
+            del index[key]

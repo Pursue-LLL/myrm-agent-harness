@@ -6,14 +6,17 @@ import pytest
 
 from myrm_agent_harness.toolkits.wiki.core import link_resolver as link_resolver_module
 from myrm_agent_harness.toolkits.wiki.core.link_resolver import (
+    PageChange,
     WikiLinkResolver,
-    build_wikilink_title_index,
     concept_index_key,
     concept_page_exists,
+    link_lookup_forms,
     normalize_wikilink_target,
+    page_link_forms,
     page_lookup_keys,
-    wikilink_target_exists,
+    scan_concept_pages,
 )
+from myrm_agent_harness.toolkits.wiki.core.refactor import LinkRefactorEngine
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 
 
@@ -89,6 +92,91 @@ class TestResolve:
         assert WikiLinkResolver(structure).resolve("Borrow Checker") == "Borrow Checker"
 
 
+class TestFileNameResolution:
+    """A bare file name: the page in the linking page's folder, else the only such page, else unresolved."""
+
+    @pytest.mark.parametrize(
+        "link", ["Ownership", "ownership", "OWNERSHIP", "Ownership|shown", "Ownership#Intro", "Ownership.md"]
+    )
+    def test_bare_name_resolves_to_the_only_page_with_that_file_name(self, structure: WikiStructure, link: str) -> None:
+        _page(structure, "knowledge/rust/ownership")
+        assert WikiLinkResolver(structure).resolve(link) == "knowledge/rust/ownership"
+
+    @pytest.mark.parametrize("link", ["PostgreSQL Auth", "Wiki Concept", "metric_gmv_gross", "dim_platform_channel"])
+    def test_names_the_built_in_skills_write_resolve_to_their_sanitized_file(
+        self, structure: WikiStructure, link: str
+    ) -> None:
+        _page(structure, f"topics/{link}")
+        expected = f"topics/{WikiStructure._sanitize_path(link)}"
+
+        assert WikiLinkResolver(structure).resolve(link) == expected
+
+    def test_name_shared_by_pages_in_different_folders_is_not_resolved(self, structure: WikiStructure) -> None:
+        _page(structure, "rust/ownership")
+        _page(structure, "law/ownership")
+        resolver = WikiLinkResolver(structure)
+
+        assert resolver.resolve("Ownership") is None
+        assert resolver.resolve("Ownership", source="elsewhere/guide") is None
+
+    def test_page_in_the_linking_pages_folder_wins_over_the_same_name_elsewhere(self, structure: WikiStructure) -> None:
+        _page(structure, "rust/ownership")
+        _page(structure, "law/ownership")
+        resolver = WikiLinkResolver(structure)
+
+        assert resolver.resolve("Ownership", source="rust/guide") == "rust/ownership"
+        assert resolver.resolve("Ownership", source="law/guide") == "law/ownership"
+
+    def test_a_page_links_its_own_name_to_itself(self, structure: WikiStructure) -> None:
+        _page(structure, "rust/ownership")
+        assert WikiLinkResolver(structure).resolve("Ownership", source="rust/ownership") == "rust/ownership"
+
+    def test_title_or_alias_naming_one_page_beats_a_file_name(self, structure: WikiStructure) -> None:
+        _page(structure, "law/property", extra="title: Ownership\n")
+        _page(structure, "rust/ownership")
+
+        assert WikiLinkResolver(structure).resolve("Ownership") == "law/property"
+
+    def test_ambiguous_alias_falls_through_to_a_unique_file_name(self, structure: WikiStructure) -> None:
+        _page(structure, "a/first", aliases=("Shared",))
+        _page(structure, "b/second", aliases=("Shared",))
+        _page(structure, "c/shared")
+
+        assert WikiLinkResolver(structure).resolve("Shared") == "c/shared"
+
+    def test_partial_path_is_not_a_bare_name(self, structure: WikiStructure) -> None:
+        _page(structure, "knowledge/rust/ownership")
+        assert WikiLinkResolver(structure).resolve("rust/ownership") is None
+
+
+class TestRenameParity:
+    """The resolver and the rename refactor must read a bare link the same way."""
+
+    @pytest.mark.parametrize(
+        ("pages", "source", "renamed"),
+        [
+            (("a/ownership", "b/guide"), "b/guide", "a/ownership"),
+            (("a/ownership", "c/ownership", "b/guide"), "b/guide", "a/ownership"),
+            (("a/ownership", "c/ownership", "a/guide"), "a/guide", "a/ownership"),
+            (("a/ownership", "c/ownership", "a/guide"), "a/guide", "c/ownership"),
+            (("a/ownership", "c/ownership", "d/guide"), "d/guide", "c/ownership"),
+        ],
+    )
+    def test_rename_rewrites_a_bare_link_exactly_when_the_resolver_points_it_at_the_renamed_page(
+        self, structure: WikiStructure, pages: tuple[str, ...], source: str, renamed: str
+    ) -> None:
+        for name in pages:
+            _page(structure, name)
+        source_path = structure.get_concept_file_path(source)
+        source_path.write_text("---\ntype: concept\n---\nSee [[Ownership]].\n", encoding="utf-8")
+        points_at_renamed = WikiLinkResolver(structure).resolve("Ownership", source) == renamed
+
+        old_file = structure.get_concept_file_path(renamed)
+        LinkRefactorEngine(structure.concepts_dir).refactor_links(old_file, old_file.with_name("moved.md"))
+
+        assert ("[[Ownership]]" not in source_path.read_text(encoding="utf-8")) is points_at_renamed
+
+
 class TestIncrementalUpdates:
     def test_note_page_makes_new_page_resolvable_and_reports_change(self, structure: WikiStructure) -> None:
         _page(structure, "existing")
@@ -97,9 +185,22 @@ class TestIncrementalUpdates:
 
         markdown = "---\ntype: concept\naliases: [Fresh Page]\n---\nBody"
         _page(structure, "fresh/page", aliases=("Fresh Page",))
-        assert resolver.note_page("fresh/page", markdown) is True
+        assert resolver.note_page("fresh/page", markdown) is not None
         assert resolver.resolve("Fresh Page") == "fresh/page"
-        assert resolver.note_page("fresh/page", markdown) is False
+        assert resolver.note_page("fresh/page", markdown) is None
+
+    def test_note_page_names_the_spellings_a_new_page_answers_to(self, structure: WikiStructure) -> None:
+        _page(structure, "existing")
+        resolver = WikiLinkResolver(structure)
+        assert resolver.note_page("existing", "---\ntype: concept\n---\nBody") is not None
+
+        markdown = "---\ntype: concept\naliases: [Fresh Page]\n---\nBody"
+        _page(structure, "fresh/page", aliases=("Fresh Page",))
+        change = resolver.note_page("fresh/page", markdown)
+
+        assert change is not None
+        assert not change.full_rescan
+        assert change.forms == {"fresh/page", "fresh page", "page"}
 
     def test_note_page_reports_a_page_already_present_in_the_first_scan(self, structure: WikiStructure) -> None:
         """A fresh resolver has reconciled nothing, even for pages its own scan found."""
@@ -107,11 +208,13 @@ class TestIncrementalUpdates:
         markdown = "---\ntype: concept\naliases: [Fresh Page]\n---\nBody"
         resolver = WikiLinkResolver(structure)
 
-        assert resolver.note_page("fresh/page", markdown) is True
-        assert resolver.note_page("fresh/page", markdown) is False
+        first = resolver.note_page("fresh/page", markdown)
+        assert first is not None
+        assert first.full_rescan
+        assert resolver.note_page("fresh/page", markdown) is None
         resolver.forget_page("fresh/page")
         _page(structure, "fresh/page", aliases=("Fresh Page",))
-        assert resolver.note_page("fresh/page", markdown) is True
+        assert resolver.note_page("fresh/page", markdown) is not None
 
     def test_note_page_reports_once_after_the_vault_was_rescanned(
         self, structure: WikiStructure, monkeypatch: pytest.MonkeyPatch
@@ -120,14 +223,17 @@ class TestIncrementalUpdates:
         _page(structure, "known")
         markdown = "---\ntype: concept\n---\nBody"
         resolver = WikiLinkResolver(structure)
-        assert resolver.note_page("known", markdown) is True
-        assert resolver.note_page("known", markdown) is False
+        assert resolver.note_page("known", markdown) is not None
+        assert resolver.note_page("known", markdown) is None
 
         _page(structure, "added/elsewhere")
         monkeypatch.setattr(link_resolver_module, "_FRESHNESS_RECHECK_SECONDS", 0.0)
 
-        assert resolver.note_page("known", markdown) is True
-        assert resolver.note_page("known", markdown) is False
+        rescanned = resolver.note_page("known", markdown)
+        assert rescanned == PageChange(
+            forms=page_link_forms("known", page_lookup_keys("known", markdown)), full_rescan=True
+        )
+        assert resolver.note_page("known", markdown) is None
         assert resolver.resolve("added/elsewhere") == "added/elsewhere"
 
     def test_note_page_alias_change_replaces_previous_keys(self, structure: WikiStructure) -> None:
@@ -135,9 +241,22 @@ class TestIncrementalUpdates:
         resolver = WikiLinkResolver(structure)
         assert resolver.resolve("Old Name") == "topic"
 
-        assert resolver.note_page("topic", "---\ntype: concept\naliases: [New Name]\n---\nBody") is True
+        assert resolver.note_page("topic", "---\ntype: concept\naliases: [New Name]\n---\nBody") is not None
         assert resolver.resolve("Old Name") is None
         assert resolver.resolve("New Name") == "topic"
+
+    def test_forgetting_a_page_drops_its_file_name_and_noting_it_again_restores_it(
+        self, structure: WikiStructure
+    ) -> None:
+        _page(structure, "rust/ownership")
+        resolver = WikiLinkResolver(structure)
+        assert resolver.resolve("Ownership") == "rust/ownership"
+
+        resolver.forget_page("rust/ownership")
+        assert resolver.resolve("Ownership") is None
+
+        assert resolver.note_page("rust/ownership", "---\ntype: concept\n---\nBody") is not None
+        assert resolver.resolve("Ownership") == "rust/ownership"
 
     def test_forget_page_removes_all_keys(self, structure: WikiStructure) -> None:
         _page(structure, "topic", aliases=("Nickname",))
@@ -188,18 +307,8 @@ class TestConceptIndexKey:
         assert concept_index_key(structure, absolute) == absolute
 
 
-class TestLintParity:
-    def test_title_index_is_unique_only_and_matches_lint_existence(self, structure: WikiStructure) -> None:
-        _page(structure, "a/one", aliases=("Dup", "Solo"))
-        _page(structure, "b/two", aliases=("Dup",))
-        index = build_wikilink_title_index(structure)
-
-        assert index["solo"] == "a/one"
-        assert "dup" not in index
-        assert wikilink_target_exists(structure, "Solo", index)
-        assert not wikilink_target_exists(structure, "Nope", index)
-
-    def test_title_index_skips_federated_mounts_instead_of_failing(self, tmp_path: Path) -> None:
+class TestScanConceptPages:
+    def test_skips_federated_mounts_instead_of_failing(self, tmp_path: Path) -> None:
         public = WikiStructure(tmp_path / "public")
         public.ensure_structure()
         _page(public, "shared/page")
@@ -207,4 +316,22 @@ class TestLintParity:
         local.ensure_structure()
         _page(local, "mine")
 
-        assert build_wikilink_title_index(local) == {"mine": "mine"}
+        assert scan_concept_pages(local) == {"mine": frozenset({"mine"})}
+
+
+class TestLinkForms:
+    def test_target_forms_are_casefolded_and_sanitized_after_normalization(self) -> None:
+        assert link_lookup_forms("PostgreSQL Auth#Intro|shown") == ("postgresql auth", "postgresql-auth")
+        assert link_lookup_forms("concepts/Knowledge/Rust.md") == ("knowledge/rust", "knowledge/rust")
+        assert link_lookup_forms("metric_gmv_gross") == ("metric_gmv_gross", "metric-gmv-gross")
+
+    def test_relative_target_forms_are_anchored_at_the_linking_page(self) -> None:
+        assert link_lookup_forms("../Sibling", "a/b/page") == ("a/sibling", "a/sibling")
+
+    @pytest.mark.parametrize("target", ["", "https://example.com/page", "system:crm"])
+    def test_non_concept_targets_have_no_forms(self, target: str) -> None:
+        assert link_lookup_forms(target) == ("", "")
+
+    def test_page_forms_add_the_casefolded_file_name_to_the_lookup_keys(self) -> None:
+        keys = frozenset({"knowledge/rust/ownership", "moves"})
+        assert page_link_forms("knowledge/rust/Ownership", keys) == {"knowledge/rust/ownership", "moves", "ownership"}
