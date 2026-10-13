@@ -6,6 +6,13 @@ from myrm_agent_harness.agent.background_worker import idle_worker
 from myrm_agent_harness.agent.background_worker.idle_worker import _idle_tasks, cancel_idle_task, schedule_idle_task
 
 
+async def _finish(session_id: str) -> None:
+    """Wait for the session's scheduled worker to end, whatever the host load."""
+    task = _idle_tasks.get(session_id)
+    if task is not None:
+        await asyncio.wait({task}, timeout=10)
+
+
 @pytest.fixture(autouse=True)
 def clear_tasks():
     _idle_tasks.clear()
@@ -28,8 +35,7 @@ async def test_schedule_idle_task():
 
     assert "test_session" in _idle_tasks
 
-    # Wait for task to complete
-    await asyncio.sleep(0.15)
+    await _finish("test_session")
 
     assert callback_called is True
     assert "test_session" not in _idle_tasks
@@ -69,8 +75,7 @@ async def test_reschedule_idle_task():
     # Reschedule before the first one fires
     schedule_idle_task("test_session", my_callback, delay_seconds=0.1)
 
-    # Wait for duration
-    await asyncio.sleep(0.15)
+    await _finish("test_session")
 
     # It should only be called once because the first one was cancelled
     assert callback_calls == 1
@@ -83,8 +88,8 @@ async def test_exception_in_callback():
 
     schedule_idle_task("test_session", my_callback, delay_seconds=0.01)
 
-    # Wait for duration. Exception should be caught and logged, not crash the loop.
-    await asyncio.sleep(0.05)
+    # The exception must be caught and logged, not crash the loop.
+    await _finish("test_session")
 
     assert "test_session" not in _idle_tasks
 
@@ -100,7 +105,7 @@ async def test_callback_returning_a_delay_is_called_again_until_it_finishes():
         return results.pop(0)
 
     schedule_idle_task("test_session", deferring_callback, delay_seconds=0.01)
-    await asyncio.sleep(0.2)
+    await _finish("test_session")
 
     assert calls == 3
     assert "test_session" not in _idle_tasks
@@ -117,7 +122,7 @@ async def test_a_callback_that_always_defers_is_retried_a_bounded_number_of_time
         return 0.01
 
     schedule_idle_task("test_session", always_deferring, delay_seconds=0.01)
-    await asyncio.sleep(0.3)
+    await _finish("test_session")
 
     assert calls == 3  # first run plus two retries
     assert "test_session" not in _idle_tasks
@@ -126,17 +131,20 @@ async def test_a_callback_that_always_defers_is_retried_a_bounded_number_of_time
 @pytest.mark.asyncio
 async def test_new_activity_cancels_a_pending_retry():
     calls = 0
+    first_call = asyncio.Event()
 
     async def deferring_callback() -> float | None:
         nonlocal calls
         calls += 1
+        first_call.set()
         return 0.2
 
     schedule_idle_task("test_session", deferring_callback, delay_seconds=0.01)
-    await asyncio.sleep(0.05)
-    assert calls == 1
+    await asyncio.wait_for(first_call.wait(), timeout=10)
+    task = _idle_tasks["test_session"]
 
     cancel_idle_task("test_session")
-    await asyncio.sleep(0.3)
+    await asyncio.wait({task}, timeout=10)
 
+    assert task.done()
     assert calls == 1
