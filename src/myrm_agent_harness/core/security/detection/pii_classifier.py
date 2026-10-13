@@ -15,6 +15,7 @@ All patterns are pre-compiled module-level constants. Detection functions
 are pure — no logging, no side effects, no state.
 
 [INPUT]
+- core.security.detection.password_heuristic::find_password_spans (POS: last-resort keyword-anchored detector for passwords without vendor prefix or entropy.)
 
 [OUTPUT]
 - PIIClassification: detection result (level, matched patterns, confidence)

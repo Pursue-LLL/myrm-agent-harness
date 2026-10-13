@@ -6,6 +6,8 @@ email domain). All redaction is irreversible by design — the original
 values are never stored.
 
 [INPUT]
+- core.security.detection.pii_classifier::compiled PII patterns and validators (POS: Input-side PII classification engine.)
+- core.security.detection.password_heuristic::find_password_spans (POS: last-resort keyword-anchored detector for passwords without vendor prefix or entropy.)
 
 [OUTPUT]
 - redact_pii(): apply all PII redactions to text, returns (redacted_text, redacted_count)

@@ -11,6 +11,7 @@ streaming modes.
 
 [INPUT]
 - detection results from pii_classifier (PIIClassification)
+- core.security.detection.password_heuristic::find_password_spans (POS: last-resort keyword-anchored detector for passwords without vendor prefix or entropy.)
 - PseudonymStore for persistent mapping
 
 [OUTPUT]
