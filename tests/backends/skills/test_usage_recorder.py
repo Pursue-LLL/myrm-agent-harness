@@ -255,6 +255,7 @@ def test_default_collector_when_not_injected(tmp_path: Path, monkeypatch: pytest
 
 
 def test_commit_swallows_collector_errors(tmp_path: Path) -> None:
+    """The commit runs in a ``finally``; a failing write must not replace the run's own outcome."""
     skill = _skill(tmp_path)
     broken = MagicMock(spec=SkillStatsCollector)
     broken.record_use.side_effect = RuntimeError("disk full")
@@ -265,18 +266,6 @@ def test_commit_swallows_collector_errors(tmp_path: Path) -> None:
     broken.record_use.assert_called_once()
 
 
-def test_commit_swallows_persist_errors(tmp_path: Path) -> None:
-    """The commit runs in a ``finally``; a failing write must not replace the run's own outcome."""
-    skill = _skill(tmp_path)
-    broken = MagicMock(spec=SkillStatsCollector)
-    broken.flush.side_effect = OSError("disk full")
-    set_stats_collector(broken)
-
-    record_skill_selection(skill)
-    commit_skill_run_usage()
-    broken.flush.assert_called_once()
-
-
 def test_commit_without_skills_never_touches_the_collector() -> None:
     collector = MagicMock(spec=SkillStatsCollector)
     set_stats_collector(collector)
@@ -284,4 +273,3 @@ def test_commit_without_skills_never_touches_the_collector() -> None:
     commit_skill_run_usage()
 
     collector.record_use.assert_not_called()
-    collector.flush.assert_not_called()

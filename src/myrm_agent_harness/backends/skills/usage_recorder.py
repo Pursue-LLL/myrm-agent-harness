@@ -15,7 +15,7 @@ when the run ends: a process that exits right after must not lose the last run.
 - begin_skill_run_usage: Open the run scope (SkillAgent.run start)
 - record_skill_selection: Note that a skill was selected / [use skill]
 - record_skill_execution: Note one tool-call outcome attributed to a skill
-- commit_skill_run_usage: Write and persist one use per skill, close the scope (SkillAgent.run end)
+- commit_skill_run_usage: Write one use per skill, close the scope (SkillAgent.run end)
 
 [POS]
 Agent-runtime bridge from skill_select_tool, explicit [use skill] and tool outcomes to Curator usage stats.
@@ -88,18 +88,11 @@ def _skill_dir(storage_path: str | None) -> Path | None:
 
 
 def _write_use(skill_name: str, skill_path: Path, *, success: bool | None) -> None:
+    """Write one use; runs in a ``finally``, so it must never raise over the run's own error."""
     try:
         _get_collector().record_use(skill_path, success=success)
     except Exception:
         logger.warning("Failed to record skill usage for %s", skill_name, exc_info=True)
-
-
-def _persist() -> None:
-    """Write the recorded uses to disk; runs in a ``finally``, so it must never raise over the run's own error."""
-    try:
-        _get_collector().flush()
-    except Exception:
-        logger.warning("Failed to persist skill usage stats", exc_info=True)
 
 
 def begin_skill_run_usage() -> None:
@@ -116,7 +109,6 @@ def record_skill_selection(skill_meta: SkillMetadata) -> None:
     run = _run_usage.get()
     if run is None:
         _write_use(skill_meta.name, skill_path, success=None)
-        _persist()
         return
     run.setdefault(skill_meta.name, _SkillRunUse(skill_path))
 
@@ -134,7 +126,7 @@ def record_skill_execution(skill_name: str, storage_path: str | None, *, success
 
 
 def commit_skill_run_usage() -> None:
-    """Write one use per skill the run touched, persist them, and close the scope."""
+    """Write one use per skill the run touched and close the scope."""
     run = _run_usage.get()
     if run is None:
         return
@@ -142,5 +134,3 @@ def commit_skill_run_usage() -> None:
 
     for skill_name, use in run.items():
         _write_use(skill_name, use.path, success=use.outcome)
-    if run:
-        _persist()

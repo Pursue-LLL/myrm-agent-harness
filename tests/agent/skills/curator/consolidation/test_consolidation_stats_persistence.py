@@ -57,7 +57,6 @@ async def test_merge_adds_the_sources_counters_to_the_target_ledger(
     commit = _skill(skills_root, "git_commit", call_count=3)
     push = _skill(skills_root, "git_push", call_count=4)
     collector.record_use(Path(target.storage_path or ""), success=True)
-    collector.flush()  # the target is on disk but no longer cached, as after any run
     backend = MagicMock()
     backend.write_resource = AsyncMock(return_value=MagicMock(success=True))
     action = ConsolidationAction(

@@ -394,7 +394,6 @@ class TestStatsCollectorLifecycle:
 
         collector = SkillStatsCollector(tmp_skills_dir)
         collector.record_use(skill_dir, success=True)
-        collector.flush()
 
         refreshed = collector.get_stats(skill_dir)
         assert refreshed.lifecycle_status == SkillLifecycleStatus.ACTIVE
