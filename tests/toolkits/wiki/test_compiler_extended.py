@@ -91,9 +91,7 @@ def test_parse_prose_with_trailing_commas_and_bare_newlines(wiki_structure: Wiki
 
 def test_parse_json_mentions_count(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
     """In-document mention counts must survive parsing (min_concept_mentions floor)."""
-    concepts = parse_concepts_response(
-        '[{"name": "ML", "definition": "Machine Learning", "mentions": 3}]', "test.md"
-    )
+    concepts = parse_concepts_response('[{"name": "ML", "definition": "Machine Learning", "mentions": 3}]', "test.md")
     assert len(concepts) == 1
     assert concepts[0].mentions == 3
 
@@ -958,13 +956,12 @@ async def test_generate_article_no_indexer_fallback(wiki_structure: WikiStructur
     with patch("myrm_agent_harness.toolkits.wiki.retrieval.indexer.WikiIndexer") as mock_indexer_cls:
         mock_idx_instance = MagicMock()
         mock_idx_instance.upsert = AsyncMock()
-        mock_idx_instance.extract_and_upsert_edges = MagicMock()
         mock_indexer_cls.return_value = mock_idx_instance
 
         await compiler._generate_article(concept)
 
         mock_idx_instance.upsert.assert_awaited_once()
-        mock_idx_instance.extract_and_upsert_edges.assert_called_once()
+        mock_idx_instance.extract_and_upsert_edges.assert_not_called()
 
 
 @pytest.mark.asyncio

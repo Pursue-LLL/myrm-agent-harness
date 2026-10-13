@@ -33,7 +33,6 @@ def wiki_structure(tmp_path) -> WikiStructure:
 def mock_indexer() -> WikiIndexer:
     indexer = AsyncMock(spec=WikiIndexer)
     indexer.upsert = AsyncMock()
-    indexer.extract_and_upsert_edges = AsyncMock()
     return indexer
 
 

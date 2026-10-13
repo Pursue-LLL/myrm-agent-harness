@@ -132,9 +132,6 @@ async def demote_stale_published_article(
         indexer = WikiIndexer(structure)
 
     await indexer.upsert(concept_name, draft_content)
-    edge_result = indexer.extract_and_upsert_edges(concept_name, draft_content)
-    if hasattr(edge_result, "__await__"):
-        await edge_result
 
     logger.info("Demoted stale published wiki concept to draft: %s", concept_name)
     return True

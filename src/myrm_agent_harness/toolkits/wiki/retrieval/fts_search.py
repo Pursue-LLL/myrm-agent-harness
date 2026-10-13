@@ -156,10 +156,11 @@ class FtsSearchMixin:
 
     async def upsert(self, concept_name: str, full_markdown: str) -> None:
         """
-        Extract Compiled Truth and upsert into FTS5 index and Vector Store.
+        Extract Compiled Truth and upsert into FTS5 index, graph edges and Vector Store.
 
         The page is indexed under its on-disk identity, so a compile name and the
-        sanitized path of the same page never produce two index rows.
+        sanitized path of the same page never produce two index rows. The page's links
+        are stored here and nowhere else: callers that write a page call this once.
         """
         concept_name = self._index_key(concept_name)
         truth_content = self._extract_truth(full_markdown)

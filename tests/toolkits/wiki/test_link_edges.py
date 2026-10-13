@@ -64,6 +64,45 @@ async def test_bare_file_name_links_are_stored_as_edges_to_the_page(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("entry", ["publish", "repair", "demote", "reindex_vectors", "move"])
+async def test_every_page_write_extracts_its_links_exactly_once(
+    structure: WikiStructure, indexer: WikiIndexer, monkeypatch: pytest.MonkeyPatch, entry: str
+) -> None:
+    from myrm_agent_harness.toolkits.wiki.pipeline.publication import (
+        ConceptPathMapping,
+        demote_stale_published_article,
+        reindex_concepts_after_move,
+        repair_publication_status,
+    )
+    from myrm_agent_harness.toolkits.wiki.retrieval.reindex_vectors import reindex_published_vectors
+
+    await _publish(structure, indexer, "Guides/Real")
+    structure.get_concept_file_path("guides/start").write_text(_article("See [[Real]]."), encoding="utf-8")
+    extracted: list[str] = []
+    original = indexer.extract_and_upsert_edges
+
+    def spy(concept_name: str, content: str) -> None:
+        extracted.append(concept_name)
+        original(concept_name, content)
+
+    monkeypatch.setattr(indexer, "extract_and_upsert_edges", spy)
+
+    if entry == "publish":
+        await publish_concept_article(structure, indexer, "guides/start", _article("See [[Real]]."))
+    elif entry == "repair":
+        await repair_publication_status(structure, indexer)
+    elif entry == "demote":
+        await demote_stale_published_article(structure, indexer, "guides/start")
+    elif entry == "reindex_vectors":
+        await reindex_published_vectors(structure, indexer)
+    else:
+        await reindex_concepts_after_move(structure, indexer, [ConceptPathMapping("old/start", "guides/start")])
+
+    assert extracted.count("guides/start") == 1
+    assert ("guides/start", "guides/real") in _edges(indexer)
+
+
+@pytest.mark.asyncio
 async def test_links_inside_code_and_non_page_targets_are_not_edges(
     structure: WikiStructure, indexer: WikiIndexer
 ) -> None:

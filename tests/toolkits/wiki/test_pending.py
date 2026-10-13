@@ -24,7 +24,6 @@ def wiki_structure(tmp_path):
 def mock_indexer():
     indexer = AsyncMock(spec=WikiIndexer)
     indexer.upsert = AsyncMock()
-    indexer.extract_and_upsert_edges = AsyncMock()
     return indexer
 
 

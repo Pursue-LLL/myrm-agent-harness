@@ -106,9 +106,6 @@ async def reindex_published_vectors(
                 continue
 
             await indexer.upsert(rel, content)
-            edge_result = indexer.extract_and_upsert_edges(rel, content)
-            if hasattr(edge_result, "__await__"):
-                await edge_result
             concepts_reindexed += 1
         except EmbedInputTooLargeError as exc:
             failed += 1

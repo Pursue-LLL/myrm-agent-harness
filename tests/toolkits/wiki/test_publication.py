@@ -240,7 +240,7 @@ async def test_reindex_concepts_after_move_edge_cases(wiki_structure: WikiStruct
 
 
 @pytest.mark.asyncio
-async def test_reindex_concepts_after_move_io_error_and_async_edges(
+async def test_reindex_concepts_after_move_skips_unreadable_pages(
     wiki_structure: WikiStructure,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -250,12 +250,6 @@ async def test_reindex_concepts_after_move_io_error_and_async_edges(
     )
 
     indexer = WikiIndexer(wiki_structure)
-
-    # Mock extract_and_upsert_edges to return an awaitable coroutine
-    async def fake_extract_and_upsert_edges(concept: str, content: str) -> None:
-        pass
-
-    monkeypatch.setattr(indexer, "extract_and_upsert_edges", fake_extract_and_upsert_edges)
 
     map_err_path = wiki_structure.get_concept_file_path("map_err")
     map_err_path.write_text("dummy", encoding="utf-8")

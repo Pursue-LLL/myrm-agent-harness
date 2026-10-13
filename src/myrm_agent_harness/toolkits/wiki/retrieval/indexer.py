@@ -249,6 +249,9 @@ class WikiIndexer(FtsSearchMixin, SidecarIndexMixin):
     def extract_and_upsert_edges(self, concept_name: str, content: str) -> None:
         """Parse markdown links, Wikilinks, and Metric source_systems, then upsert to SQLite edges table.
 
+        `upsert` runs this for every indexed page; call it directly only when a page's links
+        changed without its search entry changing (backlink generation).
+
         Link targets are stored as the canonical key of the page they resolve to, so
         every graph reader sees the links structural lint accepts. When this write adds
         a page or changes its titles/aliases, earlier dangling edges are re-resolved.

@@ -76,9 +76,6 @@ async def publish_concept_article(
         indexer = WikiIndexer(structure)
 
     await indexer.upsert(concept_name, published_content)
-    edge_result = indexer.extract_and_upsert_edges(concept_name, published_content)
-    if hasattr(edge_result, "__await__"):
-        await edge_result
 
     logger.info("Published wiki concept: %s", concept_name)
     return ArticlePublishOutcome.PUBLISHED
@@ -103,9 +100,6 @@ async def repair_publication_status(
         try:
             content = concept_path.read_text(encoding="utf-8")
             await indexer.upsert(rel, content)
-            edge_result = indexer.extract_and_upsert_edges(rel, content)
-            if hasattr(edge_result, "__await__"):
-                await edge_result
             reindexed += 1
         except OSError as exc:
             errors.append(f"{concept_path}: {exc}")

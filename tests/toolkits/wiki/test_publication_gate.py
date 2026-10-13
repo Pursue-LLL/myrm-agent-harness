@@ -40,7 +40,6 @@ def wiki_structure(tmp_path: Path) -> WikiStructure:
 def mock_indexer() -> AsyncMock:
     indexer = AsyncMock(spec=WikiIndexer)
     indexer.upsert = AsyncMock()
-    indexer.extract_and_upsert_edges = AsyncMock()
     return indexer
 
 
@@ -126,7 +125,9 @@ async def test_route_invalid_frontmatter_fails_fast(wiki_structure: WikiStructur
 
 
 @pytest.mark.asyncio
-async def test_apply_agent_create_note_stages_for_review(wiki_structure: WikiStructure, mock_indexer: AsyncMock) -> None:
+async def test_apply_agent_create_note_stages_for_review(
+    wiki_structure: WikiStructure, mock_indexer: AsyncMock
+) -> None:
     result = await apply_wiki_mutation(
         wiki_structure,
         mock_indexer,
@@ -172,7 +173,9 @@ async def test_apply_chat_metadata_stages_for_review(wiki_structure: WikiStructu
 
 
 @pytest.mark.asyncio
-async def test_apply_settings_replace_publishes_directly(wiki_structure: WikiStructure, mock_indexer: AsyncMock) -> None:
+async def test_apply_settings_replace_publishes_directly(
+    wiki_structure: WikiStructure, mock_indexer: AsyncMock
+) -> None:
     path = wiki_structure.get_concept_file_path("settings/full-document")
     path.write_text(_VALID_DRAFT, encoding="utf-8")
 

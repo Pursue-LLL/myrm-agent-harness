@@ -78,9 +78,6 @@ async def reindex_concepts_after_move(
             continue
 
         await indexer.upsert(mapping.new_concept, content)
-        edge_result = indexer.extract_and_upsert_edges(mapping.new_concept, content)
-        if hasattr(edge_result, "__await__"):
-            await edge_result
         seen_concepts.add(mapping.new_concept)
         reindexed += 1
 
@@ -124,9 +121,6 @@ async def reindex_concepts_after_move(
             continue
 
         await indexer.upsert(concept_name, content)
-        edge_result = indexer.extract_and_upsert_edges(concept_name, content)
-        if hasattr(edge_result, "__await__"):
-            await edge_result
         reindexed += 1
 
     return reindexed

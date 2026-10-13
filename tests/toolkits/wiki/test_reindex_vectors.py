@@ -35,7 +35,6 @@ def _make_indexer(
     indexer = MagicMock()
     indexer._config = WikiConfig(enable_directory_sidecars=sidecars, enable_asset_index=assets)
     indexer.upsert = AsyncMock()
-    indexer.extract_and_upsert_edges = MagicMock(return_value=None)
     indexer.upsert_sidecar = AsyncMock()
     return indexer
 
@@ -173,19 +172,6 @@ async def test_reindex_creates_indexer_when_none(wiki_structure: WikiStructure) 
 
     wiki_indexer_cls.assert_called_once_with(wiki_structure)
     assert result.concepts_reindexed == 1
-
-
-@pytest.mark.asyncio
-async def test_reindex_awaits_async_edge_extraction(wiki_structure: WikiStructure) -> None:
-    concept_path = wiki_structure.get_concept_file_path("edge-note")
-    concept_path.write_text("## Compiled Truth\nBody", encoding="utf-8")
-    indexer = _make_indexer(sidecars=False, assets=False)
-    edge_mock = AsyncMock(return_value=None)
-    indexer.extract_and_upsert_edges = MagicMock(return_value=edge_mock())
-
-    await reindex_published_vectors(wiki_structure, indexer)
-
-    edge_mock.assert_awaited_once()
 
 
 @pytest.mark.asyncio
