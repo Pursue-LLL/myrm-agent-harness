@@ -63,7 +63,7 @@ def _make_mock_llm(
 
         async def _fail_stream(*args: object, **kwargs: object) -> AsyncIterator[ChatGenerationChunk]:
             raise astream_chunks  # type: ignore[misc]
-            yield  # noqa: unreachable — makes this an async generator
+            yield  # unreachable by design: its presence makes this function an async generator
 
         llm._astream = _fail_stream
     elif astream_chunks is not None:
@@ -279,20 +279,6 @@ class TestKeyPoolLLMAstream:
 
 
 class TestKeyPoolLLMEdgeCases:
-    def test_bind_tools_binds_all_instances_and_returns_self(self) -> None:
-        pool = CredentialPool(["k1", "k2"])
-        mock1 = _make_mock_llm()
-        mock1.bind_tools = MagicMock()
-        mock2 = _make_mock_llm()
-        mock2.bind_tools = MagicMock()
-        instances = {"k1": mock1, "k2": mock2}
-        llm = KeyPoolLLM(instances=instances, pool=pool)
-
-        result = llm.bind_tools([{"type": "function", "name": "test"}])
-        assert result is llm
-        mock1.bind_tools.assert_called_once()
-        mock2.bind_tools.assert_called_once()
-
     def test_sync_generate_delegates_to_primary(self) -> None:
         pool = CredentialPool(["k1", "k2"])
         result = _make_chat_result("sync result")

@@ -27,9 +27,10 @@ import logging
 from collections.abc import AsyncIterator
 from typing import Any, NoReturn
 
-from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import BaseMessage
+from langchain_core.language_models import BaseChatModel, LanguageModelInput
+from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.outputs import ChatGenerationChunk, ChatResult
+from langchain_core.runnables import Runnable, RunnableBinding
 from pydantic import PrivateAttr
 
 from myrm_agent_harness.toolkits.llms.core.credential_pool import CredentialPool
@@ -64,7 +65,7 @@ class KeyPoolLLM(BaseChatModel):
     """
 
     _instances: dict[str, BaseChatModel] = PrivateAttr(default_factory=dict)
-    _pool: CredentialPool | None = PrivateAttr(default=None)
+    _pool: CredentialPool = PrivateAttr()
     _primary_key: str = PrivateAttr(default="")
 
     def __init__(
@@ -88,14 +89,10 @@ class KeyPoolLLM(BaseChatModel):
 
     @property
     def credential_pool(self) -> CredentialPool:
-        if self._pool is None:
-            raise RuntimeError("KeyPoolLLM pool is not initialized")
         return self._pool
 
     @property
     def pool(self) -> CredentialPool:
-        if self._pool is None:
-            raise RuntimeError("KeyPoolLLM pool is not initialized")
         return self._pool
 
     @property
@@ -218,17 +215,20 @@ class KeyPoolLLM(BaseChatModel):
             raise RuntimeError("KeyPoolLLM failed to locate a credential pool instance")
         raise last_exc
 
-    def bind_tools(self, tools: Any, **kwargs: Any) -> KeyPoolLLM:
-        """Bind tools on all underlying LLM instances, preserving key rotation.
+    def bind_tools(self, tools: Any, **kwargs: Any) -> Runnable[LanguageModelInput, AIMessage]:
+        """Bind tools to the pool as a whole, preserving key rotation.
 
-        Unlike the naive approach of delegating to the primary instance (which
-        returns a new ``ChatLiteLLM`` that loses rotation capability), this
-        binds tools on every pooled instance and returns ``self`` so that all
-        subsequent calls continue to rotate keys transparently.
+        ``bind_tools`` returns a new binding and never mutates the model, so the
+        binding must wrap the pool for the tools to travel with every request.
+        All pooled instances share one model and endpoint, so the primary
+        instance supplies the provider-specific call kwargs (tool schemas,
+        ``tool_choice``, ...); re-binding them on the pool hands them to
+        whichever key ``_agenerate`` / ``_astream`` select.
         """
-        for instance in self._instances.values():
-            instance.bind_tools(tools, **kwargs)
-        return self
+        primary_binding = self._instances[self._primary_key].bind_tools(tools, **kwargs)
+        if not isinstance(primary_binding, RunnableBinding):
+            raise TypeError(f"pooled bind_tools must return a RunnableBinding, got {type(primary_binding).__name__}")
+        return self.bind(**primary_binding.kwargs)
 
     # ------------------------------------------------------------------
     # Identity passthrough (model / api_base / base_url)
@@ -272,12 +272,8 @@ class KeyPoolLLM(BaseChatModel):
 
     def get_pool_stats(self) -> dict[str, object]:
         """Get underlying credential pool stats for observability."""
-        if self._pool is None:
-            return {}
         return self._pool.stats()
 
     def reset_cooldowns(self, key_suffix: str | None = None) -> int:
         """Reset cooldown timers in the credential pool."""
-        if self._pool is None:
-            return 0
         return self._pool.reset_cooldowns(key_suffix)

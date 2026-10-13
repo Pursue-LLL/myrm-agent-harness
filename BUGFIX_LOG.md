@@ -2,6 +2,22 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-13-004 · 多 Key 轮转池丢掉全部工具：`KeyPoolLLM.bind_tools` 丢弃绑定结果，同一 provider 配置两个及以上 Key 时 Agent 变成无工具聊天
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-13 |
+| **修复时间** | 2026-10-13 |
+| **症状** | 某个 provider 配置 ≥2 个 API Key 时，服务端把多个 `ChatLiteLLM` 包进 `KeyPoolLLM`；Agent 循环对它调用 `bind_tools` 后，发往提供商的请求不带 `tools`，Agent 不再调用任何工具（搜索、读写文件等），表现为一个没有工具的聊天模型，且没有任何报错。单 Key 不受影响 |
+| **关联产品** | myrm-agent-harness `toolkits/llms/core`；server 侧触发链：`app/services/agent/params/resolvers.py:100`（`len(all_keys) > 1` 才传 `api_keys`）→ `app/ai_agents/general_agent/llm_factory.py:69-70` → `LLMManager._get_pooled_llm`（`toolkits/llms/core/manager.py:168`）。Local / 桌面 / 云托管三种部署都受影响。深度研究编排器（`agent/deep_research/_orchestrator_phases.py:149`、`_orchestrator_plan_research.py:129`）调用的是同一个方法，但没有拿池化 LLM 实测 |
+| **根因** | `ChatLiteLLM.bind_tools` 返回新的 `RunnableBinding`、不修改自身（`toolkits/llms/adapters/chat_model/model.py` 末行 `return self.bind(**bind_kwargs)`）；`KeyPoolLLM.bind_tools` 对每个实例调用后丢弃返回值再 `return self`，工具参数全部丢失。唯一相关的测试用 `MagicMock` 只断言「被调用且返回 self」，把缺陷固化成了预期；池化 e2e 只测轮转策略 |
+| **修复** | `bind_tools` 取主实例的绑定结果，把它携带的调用参数（工具 schema、`tool_choice`、`parallel_tool_calls` 等）重新绑定在池上（`self.bind(**binding.kwargs)`），请求仍经 `_agenerate` / `_astream` 的轮转逻辑发出。同批清掉 `_pool: CredentialPool \| None` 引起的 12 条 mypy 错误：构造函数必然赋值，改为非空类型并删除不可达的 None 守卫 |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | ① 单测对 `bind_tools` 用 mock，只验证「被调用」不验证「请求里有没有工具」；必须用真实 `ChatLiteLLM` 加记录请求的 `litellm.acompletion` 替身，经 `ainvoke` 与 `astream` 两条路径断言提供商收到的 `tools`；② 「直接委托主实例」看似能保住工具，却会丢掉 Key 轮转，回归测试必须同时断言工具与轮转；③ 经 `create_agent` 的端到端复现（单 Key 的请求带 `['probe']`，2 Key 池的请求为 `[]`）才是判定标准，类型签名与 mypy 都发现不了 |
+| **回归** | `tests/toolkits/llms/core/test_key_pool_llm_bind_tools.py`（5 例：返回池上的绑定、与单 Key 请求一致 ×`ainvoke`/`astream`、限流轮转后重试仍带工具 ×两条路径）。变异验证：恢复原缺陷 5 例全部失败；改成「委托主实例」3 例失败（绑定类型与两个轮转用例） |
+| **代码位置** | `toolkits/llms/core/key_pool_llm.py::KeyPoolLLM.bind_tools` |
+
 ### BUG-HARNESS-2026-10-13-003 · 技能用量账本的内存缓冲：进程提前退出丢最后一次使用、合并吸收的计数落不了盘，缓存条目还会用旧值覆盖他处刚写入的计数
 
 | 字段 | 内容 |
