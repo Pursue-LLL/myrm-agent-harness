@@ -2,6 +2,22 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-13-001 · macOS 上 psutil 读取正被回收的进程时抛 `SystemError`：残留浏览器扫描被截断成部分结果，服务端启动恢复误报“未发现残留进程”，强制清理的复核直接抛异常
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-13 |
+| **修复时间** | 2026-10-13 |
+| **症状** | `find_orphan_automation_processes` 在遇到这类进程时中止遍历，只返回已扫到的部分并记一条 warning；结果为空时服务端启动恢复（`app/core/infra/health/browser.py`）报告 SUCCESS“No orphan processes found”。`cleanup_orphan_processes` 开头的复核（`leftovers_at_start`）与逐 pid 复核不在 try 内，异常直接抛给健康接口、修复动作和启动恢复。macOS 安静机器上实测 300 次扫描有 1 次被截断；对 530,237 次 `environ()` 读取（进程持续被杀被回收）出现 2 次 `SystemError`；只调用 `read_owner_state`、反复读取刚被杀死并回收的带戳进程，229,410 次调用有 12 次逃逸 |
+| **关联产品** | myrm-agent-harness `toolkits/browser/doctor`、`toolkits/browser/process_owner`；服务端的启动恢复、健康接口与修复动作是其调用方。仅 macOS 实测，Linux/Windows 未实测 |
+| **根因** | psutil 7.2.2（发现时 PyPI 最新版）在 macOS 读取正被回收的进程的 `environ()` / `cmdline()` 时抛 `SystemError`（“returned a result with an exception set”），它既不是 `psutil.Error` 也不是 `OSError`，穿过了 `except (psutil.Error, OSError)`；上游已在 master 修复（giampaolo/psutil#3024 跟踪，#2854 修复）但尚未发布 |
+| **修复** | 三处捕获元组加入 `SystemError`：`read_owner_state` 的环境读取（读不到按 `UNKNOWN`，不会被当作残留）、`find_orphan_automation_processes` 扫描内层捕获（跳过该进程继续）、`_is_chromium_process` 对名称 / 可执行文件 / `argv[0]` 的逐项读取。方向始终是“无法确认就不动”，不会多杀 |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | ① 捕获 `psutil.Error` / `OSError` 覆盖不了 C 扩展抛出的 `SystemError`，而且概率很低，普通单测与手动运行抓不到，要对“被杀并回收的进程”做紧循环压测才能复现；② 只用 mock 的回归测试容易空测：`test_unreadable_source_does_not_hide_the_others` 原先因 `name` 先命中而从未读到不可读的来源，是逐个去掉捕获的变异验证才发现的 |
+| **回归** | `tests/toolkits/browser/test_process_owner.py`（环境读取抛 `SystemError` 得 `UNKNOWN`）、`tests/toolkits/browser/doctor/test_orphan_detection.py`（失败进程排在真实残留之前，扫描仍报出后者；名称与可执行文件不可读但 `argv[0]` 可读、以及三个来源全部不可读，各用 `AccessDenied` / `NoSuchProcess` / `SystemError` 三种异常）、`tests/toolkits/browser/doctor/test_orphan_cleanup.py`（身份读不到则不发信号并报 `not_an_orphan`）；回退验证：分别去掉三处捕获使 2 / 1 / 2 个用例失败；同一压测脚本修复前 229,410 次 12 次逃逸，修复后 200,808 次 0 次（各跑 1 次） |
+| **代码位置** | `toolkits/browser/process_owner.py::read_owner_state` · `toolkits/browser/doctor/orphans.py`（`find_orphan_automation_processes`、`_is_chromium_process`） |
+
 ### BUG-HARNESS-2026-10-12-003 · `CodeExecutor` 的 shell 默认文件操作不是字节无损的：名字含单引号的文件读写失败或可注入命令，读取经 stdout 被脱敏/截断，大文件读写失败
 
 | 字段 | 内容 |
