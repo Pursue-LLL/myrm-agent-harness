@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from collections.abc import AsyncIterator
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from myrm_agent_harness.toolkits.browser.doctor import CheckStatus, DoctorCheckResult
 from myrm_agent_harness.toolkits.browser.doctor.launch_check import check_browser_launch
+from myrm_agent_harness.toolkits.browser.process_owner import OWNER_ENV_VAR, owner_stamp_env
 
 pytestmark = pytest.mark.asyncio
 
@@ -151,3 +153,45 @@ async def test_check_browser_launch_patchright_missing() -> None:
 
     assert result.status == CheckStatus.ERROR
     assert "patchright not available" in result.message
+
+
+def _healthy_playwright(stamp_present_during_start: list[bool]) -> tuple[MagicMock, AsyncMock]:
+    """An ``async_playwright`` stand-in whose driver starts cleanly and whose browser opens a blank page."""
+    page = AsyncMock()
+    page.title.return_value = "blank"
+    context = AsyncMock()
+    context.new_page.return_value = page
+    browser = AsyncMock()
+    browser.new_context.return_value = context
+    playwright = AsyncMock()
+    playwright.chromium.launch.return_value = browser
+
+    async def start() -> AsyncMock:
+        stamp_present_during_start.append(OWNER_ENV_VAR in os.environ)
+        return playwright
+
+    return MagicMock(start=start), playwright
+
+
+async def test_check_browser_launch_stamps_the_probe_browser_without_touching_the_process_environment() -> None:
+    stamp_present_during_start: list[bool] = []
+    driver, playwright = _healthy_playwright(stamp_present_during_start)
+
+    with patch("patchright.async_api.async_playwright", return_value=driver):
+        result = await check_browser_launch(launch_options=None)
+
+    assert result.status == CheckStatus.OK
+    assert stamp_present_during_start == [False]
+    launch_env = playwright.chromium.launch.call_args.kwargs["env"]
+    assert launch_env[OWNER_ENV_VAR] == owner_stamp_env()[OWNER_ENV_VAR]
+
+
+async def test_check_browser_launch_keeps_an_env_the_caller_supplied() -> None:
+    driver, playwright = _healthy_playwright([])
+    caller_env = {"PATH": "/usr/bin"}
+
+    with patch("patchright.async_api.async_playwright", return_value=driver):
+        result = await check_browser_launch(launch_options={"headless": True, "env": caller_env})
+
+    assert result.status == CheckStatus.OK
+    assert playwright.chromium.launch.call_args.kwargs["env"] == caller_env

@@ -1,6 +1,6 @@
 """Browser Doctor — leftover automation process detection and cleanup.
 
-A browser or driver launched by the toolkit carries an ownership stamp (see ``process_owner``); it is
+A browser launched by the toolkit carries an ownership stamp (see ``process_owner``); it is
 a leftover when the process that launched it no longer runs. Processes without a stamp, with an
 unreadable environment or with a malformed stamp are never reported and never signalled. Cleanup is
 dry-run by default (``force=True`` required) and re-verifies each pid right before signalling it.
@@ -10,7 +10,7 @@ dry-run by default (``force=True`` required) and re-verifies each pid right befo
 - ..process_owner::read_owner_state / OwnerState (POS: ownership stamp classification)
 
 [OUTPUT]
-- find_orphan_automation_processes: stamped browser and driver processes whose owner is gone
+- find_orphan_automation_processes: stamped browser processes whose owner is gone
 - cleanup_orphan_processes: safe cleanup (dry-run by default, SIGTERM/SIGKILL escalation)
 - OrphanProcess / OrphanCleanupResult / KillFailure: typed shapes of the scan and cleanup results
 
@@ -39,7 +39,7 @@ _SIGKILL_SETTLE_S = 1.0
 
 
 class OrphanProcess(TypedDict):
-    """A leftover automation browser or driver process."""
+    """A leftover automation browser process."""
 
     pid: int
     name: str
@@ -66,7 +66,7 @@ class OrphanCleanupResult(TypedDict, total=False):
 
 
 def find_orphan_automation_processes() -> list[OrphanProcess]:
-    """Find browser and driver processes whose launching process is gone.
+    """Find browser processes whose launching process is gone.
 
     Only processes carrying an ownership stamp whose owner no longer runs are reported;
     the calling process is never reported.

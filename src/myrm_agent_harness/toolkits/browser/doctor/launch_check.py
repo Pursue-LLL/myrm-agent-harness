@@ -5,7 +5,7 @@ operator-facing fix for each failure class.
 
 [INPUT]
 - patchright (optional extra [browser]): imported lazily so a missing package is reported instead of raised
-- ..process_owner::owner_stamped_environ (POS: ownership stamp inherited by the probe's driver and browser)
+- ..process_owner::owner_stamp_env (POS: ownership stamp naming the launching process)
 - ..utils::is_timeout_error (POS: builtin/patchright timeout detection)
 - .report::CheckStatus/DoctorCheckResult (POS: doctor data models)
 
@@ -20,11 +20,12 @@ the only check that starts a browser process, and it carries its own timeout.
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
-from ..process_owner import owner_stamped_environ
+from ..process_owner import owner_stamp_env
 from ..utils import is_timeout_error
 from .report import CheckStatus, DoctorCheckResult
 
@@ -43,11 +44,12 @@ async def _probe_browser_launch(
     Releases the playwright connection on every exit path so a cancelled probe
     (e.g. the enclosing timeout) never leaks browser processes.
     """
-    with owner_stamped_environ():
-        playwright = await async_playwright().start()
+    playwright = await async_playwright().start()
     try:
-        # launch_opts is a caller-supplied open mapping; Playwright validates the keys at launch time.
-        browser = await playwright.chromium.launch(**launch_opts)  # type: ignore[arg-type]
+        # The probe browser carries the ownership stamp so a leftover of this probe is recognisable; an env
+        # the caller supplied is theirs to define. Playwright validates the option keys at launch time.
+        browser_opts = {"env": {**os.environ, **owner_stamp_env()}, **launch_opts}
+        browser = await playwright.chromium.launch(**browser_opts)  # type: ignore[arg-type]
         try:
             context = await browser.new_context()
             try:

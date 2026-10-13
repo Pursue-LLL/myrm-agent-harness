@@ -10,11 +10,11 @@ from unittest.mock import MagicMock, patch
 import psutil
 import pytest
 
+from myrm_agent_harness.toolkits.browser import process_owner
 from myrm_agent_harness.toolkits.browser.process_owner import (
     OWNER_ENV_VAR,
     OwnerState,
     owner_stamp_env,
-    owner_stamped_environ,
     read_owner_state,
 )
 from tests.toolkits.browser._stamped_processes import StampedProcesses, dead_owner_stamp, live_owner_stamp
@@ -31,48 +31,6 @@ def test_owner_stamp_env_names_this_process_by_pid_and_start_time() -> None:
 def test_owner_stamp_env_is_empty_without_psutil() -> None:
     with patch.dict(sys.modules, {"psutil": None}):
         assert owner_stamp_env() == {}
-
-
-def test_stamped_environ_exposes_the_stamp_only_inside_the_block() -> None:
-    assert OWNER_ENV_VAR not in os.environ
-
-    with owner_stamped_environ():
-        assert os.environ[OWNER_ENV_VAR] == owner_stamp_env()[OWNER_ENV_VAR]
-
-    assert OWNER_ENV_VAR not in os.environ
-
-
-def test_stamped_environ_is_removed_when_the_block_raises() -> None:
-    with pytest.raises(RuntimeError), owner_stamped_environ():
-        raise RuntimeError("driver failed to start")
-
-    assert OWNER_ENV_VAR not in os.environ
-
-
-def test_stamped_environ_does_not_reach_processes_started_afterwards() -> None:
-    with owner_stamped_environ():
-        pass
-
-    out = subprocess.run(
-        [sys.executable, "-c", f"import os; print(os.environ.get({OWNER_ENV_VAR!r}))"],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.strip()
-
-    assert out == "None"
-
-
-def test_stamped_environ_reaches_a_driver_started_inside_the_block() -> None:
-    with owner_stamped_environ():
-        out = subprocess.run(
-            [sys.executable, "-c", f"import os; print(os.environ.get({OWNER_ENV_VAR!r}))"],
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.strip()
-
-    assert out == owner_stamp_env()[OWNER_ENV_VAR]
 
 
 def test_process_without_stamp_is_unstamped(stamped_processes: StampedProcesses) -> None:
@@ -144,5 +102,22 @@ def test_stamp_survives_a_wall_clock_second_of_slack(stamped_processes: StampedP
     """psutil derives start times per platform; sub-second drift must not turn a live owner into a leftover."""
     now_ms = int(psutil.Process().create_time() * 1000)
     child = stamped_processes.spawn(f"{os.getpid()}:{now_ms + 400}")
+
+    assert read_owner_state(psutil.Process(child.pid)) is OwnerState.OWNER_ALIVE
+
+
+def test_stamp_survives_a_system_clock_jump_where_start_times_follow_the_wall_clock(
+    stamped_processes: StampedProcesses, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Linux derives a start time as boot time plus ticks, so a clock step must not make a live owner look gone."""
+    boot_time = [1_700_000_000.0]
+    ticks_since_boot = 5_000.0
+    monkeypatch.setattr(psutil, "boot_time", lambda: boot_time[0])
+    monkeypatch.setattr(psutil.Process, "create_time", lambda self: ticks_since_boot + boot_time[0])
+    monkeypatch.setattr(process_owner, "_START_TIMES_FOLLOW_WALL_CLOCK", True)
+    stamp = owner_stamp_env()[OWNER_ENV_VAR]
+    child = stamped_processes.spawn(stamp)
+
+    boot_time[0] += 600.0  # e.g. a VM resumed with a corrected clock
 
     assert read_owner_state(psutil.Process(child.pid)) is OwnerState.OWNER_ALIVE

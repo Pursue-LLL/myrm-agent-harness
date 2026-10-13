@@ -7,7 +7,6 @@
 - .config::LaunchMode, _DEFAULT_CDP_ENDPOINT (POS: launch method enum and default CDP endpoint)
 - .chrome_discovery::discover_chrome_cdp_endpoint (POS: DevToolsActivePort-based browser discovery)
 - .camoufox_availability::require_camoufox_ready (POS: non-downloading Camoufox readiness gate)
-- ..process_owner::owner_stamped_environ (POS: ownership stamp for the Playwright driver start)
 - .browser_launch_env::chromium_launch_env, camoufox_launch_env (POS: environment of launched browser processes)
 
 [OUTPUT]
@@ -30,6 +29,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import functools
 import json
 import logging
 import os
@@ -37,10 +37,9 @@ import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from ..exceptions import BrowserLaunchError
-from ..process_owner import owner_stamped_environ
 from .browser_launch_env import camoufox_launch_env, chromium_launch_env
 from .camoufox_availability import require_camoufox_ready
 from .config import _DEFAULT_CDP_ENDPOINT, BrowserEngine, LaunchMode
@@ -259,8 +258,7 @@ class BrowserLauncher:
         if not self._playwright:
             from patchright.async_api import async_playwright
 
-            with owner_stamped_environ():
-                self._playwright = await async_playwright().start()
+            self._playwright = await async_playwright().start()
         return self._playwright
 
     async def create_browser(self, headers: dict[str, str] | None = None) -> BrowserInstance:
@@ -437,7 +435,7 @@ class BrowserLauncher:
                         loop = asyncio.get_running_loop()
                         camoufox_config = await loop.run_in_executor(
                             None,
-                            lambda kw=build_kwargs: build_camoufox_options(**kw),
+                            functools.partial(build_camoufox_options, **build_kwargs),  # type: ignore[arg-type]
                         )
 
                         if fp_file:
@@ -452,7 +450,8 @@ class BrowserLauncher:
                         camoufox_config = dict(camoufox_config)
                         camoufox_config["env"] = camoufox_launch_env(camoufox_config.get("env"))
 
-                    browser = await AsyncCamoufox(from_options=camoufox_config).start()
+                    # start() hands back the launched browser although the inherited signature says Playwright.
+                    browser = cast("Browser", await AsyncCamoufox(from_options=camoufox_config).start())  # type: ignore[no-untyped-call]
 
                     pid = None
                     with contextlib.suppress(Exception):
@@ -465,7 +464,8 @@ class BrowserLauncher:
                     launch_kwargs = dict(self._launch_options)
                     launch_kwargs["env"] = chromium_launch_env()
                     if sys.platform == "darwin":
-                        existing_args = list(launch_kwargs.get("args") or [])
+                        raw_args = launch_kwargs.get("args")
+                        existing_args = list(raw_args) if isinstance(raw_args, list | tuple) else []
                         if not any("MacAppCodeSignClone" in str(arg) for arg in existing_args):
                             existing_args.append("--disable-features=MacAppCodeSignClone")
                             launch_kwargs["args"] = existing_args
