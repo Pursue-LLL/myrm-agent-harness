@@ -49,7 +49,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import Any, cast
 
 from langchain.agents.middleware import AgentMiddleware, ModelRequest, ModelResponse
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
@@ -60,6 +60,7 @@ from myrm_agent_harness.agent.middlewares._session_context import (
     get_pseudonym_store,
     get_terminal_errors,
 )
+from myrm_agent_harness.agent.middlewares.security.tool_result_redaction import redact_tool_content
 from myrm_agent_harness.agent.security.detection.intent_router import (
     scan_dangerous_intent,
 )
@@ -117,23 +118,6 @@ def _levels_to_process(
     if detected_level == SensitivityLevel.S3 and policy.s2_action != PIIAction.WARN:
         levels.append(SensitivityLevel.S2)
     return levels
-
-
-_ToolContent = str | list[str | dict[str, object]]
-
-
-def _redact_tool_content(content: _ToolContent) -> _ToolContent:
-    """Redact credentials in a tool result. A result with an image is a block list: only its text is scanned."""
-    if isinstance(content, str):
-        return redact_leaks(content)
-    return [_redact_block(block) for block in content]
-
-
-def _redact_block(block: str | dict[str, object]) -> str | dict[str, object]:
-    if isinstance(block, str):
-        return redact_leaks(block)
-    text = block.get("text")
-    return {**block, "text": redact_leaks(text)} if isinstance(text, str) else block
 
 
 def _apply_pii_actions(
@@ -393,7 +377,7 @@ class SecurityGuardrailMiddleware(AgentMiddleware):
         for i in range(len(messages) - 1, -1, -1):
             msg = messages[i]
             if isinstance(msg, ToolMessage):
-                redacted = _redact_tool_content(msg.content)
+                redacted = redact_tool_content(msg.content)
                 if redacted != msg.content:
                     if new_messages is None:
                         new_messages = list(messages)
@@ -435,12 +419,16 @@ class SecurityGuardrailMiddleware(AgentMiddleware):
         canary = get_canary_token()
         if canary:
             from myrm_agent_harness.agent.security.detection.canary_guard import (
+                StructuredValue,
                 check_canary,
                 scrub_canary,
             )
 
             text_leaked = check_canary(modified, canary)
-            args_leaked = bool(last_ai_msg.tool_calls) and check_canary(last_ai_msg.tool_calls, canary)
+            # ToolCall is a TypedDict of JSON values, which the recursive StructuredValue alias cannot express.
+            args_leaked = bool(last_ai_msg.tool_calls) and check_canary(
+                cast("StructuredValue", last_ai_msg.tool_calls), canary
+            )
             if text_leaked or args_leaked:
                 from myrm_agent_harness.agent.security.audit import record_decision
 
