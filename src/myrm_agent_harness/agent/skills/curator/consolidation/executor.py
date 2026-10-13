@@ -24,8 +24,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.backends.skills.types import SkillLifecycleStatus
-
 from .types import (
     ConsolidationAction,
     ConsolidationActionType,
@@ -222,12 +220,7 @@ class ConsolidationExecutor:
             if skill is None or skill.storage_path is None:
                 continue
 
-            skill_path = Path(skill.storage_path)
-            self._stats.update_lifecycle_status(skill_path, SkillLifecycleStatus.ARCHIVED)
-
-            stats = self._stats.get_stats(skill_path)
-            stats.merged_into = merged_into
-            self._stats.flush()
+            self._stats.archive_merged(Path(skill.storage_path), merged_into)
 
             archived.append(name)
             logger.info("Archived skill '%s' (merged into '%s')", name, merged_into)
@@ -240,22 +233,7 @@ class ConsolidationExecutor:
         target_path: Path,
     ) -> None:
         """Aggregate usage stats from sources into the target skill."""
-        target_stats = self._stats.get_stats(target_path)
-        for source in source_skills:
-            target_stats.call_count += source.usage_stats.call_count
-            target_stats.success_count += source.usage_stats.success_count
-            target_stats.failure_count += source.usage_stats.failure_count
-
-            if source.usage_stats.last_used_at:
-                if target_stats.last_used_at is None:
-                    target_stats.last_used_at = source.usage_stats.last_used_at
-                else:
-                    target_stats.last_used_at = max(
-                        target_stats.last_used_at,
-                        source.usage_stats.last_used_at,
-                    )
-
-        self._stats.flush()
+        self._stats.inherit_usage(target_path, [source.usage_stats for source in source_skills])
 
     @staticmethod
     def _build_umbrella_content(

@@ -23,6 +23,7 @@ import contextlib
 import json
 import logging
 import os
+from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -40,7 +41,7 @@ class SkillStatsCollector:
 
     Design:
     - Recorded uses stay in memory until ``flush()``, which the caller invokes once a run's uses are complete;
-      lifecycle changes (status, pin, reset) are written through immediately
+      lifecycle changes (status, pin, reset, merge archive) and inherited counters are written through immediately
     - Per-skill stats stored in {skill_dir}/.stats.json, written atomically so a crash never leaves a torn file
     - A ledger that cannot be parsed is set aside as ``.stats.json.corrupt``; one that cannot be read is never
       replaced by a blank one
@@ -128,6 +129,36 @@ class SkillStatsCollector:
         stats.usage_history.clear()
         self._write_stats(skill_path, stats)
 
+    def archive_merged(self, skill_path: Path, merged_into: str) -> None:
+        """Archive a skill that a consolidation folded into ``merged_into`` and flush immediately.
+
+        Args:
+            skill_path: Absolute path to the absorbed skill directory
+            merged_into: Name of the skill that absorbed it
+        """
+        stats = self._ensure_loaded(skill_path)
+        stats.lifecycle_status = SkillLifecycleStatus.ARCHIVED
+        stats.merged_into = merged_into
+        self._write_stats(skill_path, stats)
+
+    def inherit_usage(self, skill_path: Path, sources: Iterable[SkillUsageStats]) -> None:
+        """Fold the sources' run counters into the skill and flush immediately.
+
+        Used when a merge or umbrella skill absorbs the skills it replaces; ``last_used_at`` keeps the latest.
+
+        Args:
+            skill_path: Absolute path to the skill directory that absorbs the usage
+            sources: Usage stats of the skills being absorbed
+        """
+        stats = self._ensure_loaded(skill_path)
+        for source in sources:
+            stats.call_count += source.call_count
+            stats.success_count += source.success_count
+            stats.failure_count += source.failure_count
+            if source.last_used_at and (stats.last_used_at is None or source.last_used_at > stats.last_used_at):
+                stats.last_used_at = source.last_used_at
+        self._write_stats(skill_path, stats)
+
     # ── Persistence ─────────────────────────────────────────────────
 
     def flush(self) -> None:
@@ -141,6 +172,8 @@ class SkillStatsCollector:
     def get_stats(self, skill_path: Path) -> SkillUsageStats:
         """Get current statistics for a skill (including pending updates).
 
+        Treat the result as read-only: a skill with no pending update is read fresh from disk, so changes to
+        the returned object are not saved. Change stats through the collector's methods.
         A ledger that cannot be read right now yields an unsaved blank view instead of failing the caller.
         """
         skill_key = str(skill_path)

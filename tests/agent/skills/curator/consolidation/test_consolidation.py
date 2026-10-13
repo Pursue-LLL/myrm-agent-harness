@@ -280,18 +280,8 @@ class TestConsolidationExecutor:
         return backend
 
     @pytest.fixture
-    def stats_collector(self, tmp_path: Path) -> MagicMock:
-        collector = MagicMock()
-        collector.get_stats = MagicMock(
-            return_value=SkillUsageStats(
-                call_count=0,
-                success_count=0,
-                created_at=datetime.now(UTC),
-            )
-        )
-        collector.update_lifecycle_status = MagicMock()
-        collector.flush = MagicMock()
-        return collector
+    def stats_collector(self) -> MagicMock:
+        return MagicMock()
 
     @pytest.mark.asyncio
     async def test_execute_create_umbrella(self, mock_write_backend: MagicMock, stats_collector: MagicMock) -> None:
@@ -404,17 +394,7 @@ class TestConsolidationExecutorDemote:
 
     @pytest.fixture
     def stats_collector(self) -> MagicMock:
-        collector = MagicMock()
-        collector.get_stats = MagicMock(
-            return_value=SkillUsageStats(
-                call_count=0,
-                success_count=0,
-                created_at=datetime.now(UTC),
-            )
-        )
-        collector.update_lifecycle_status = MagicMock()
-        collector.flush = MagicMock()
-        return collector
+        return MagicMock()
 
     @pytest.mark.asyncio
     async def test_execute_demote_success(self, mock_write_backend: MagicMock, stats_collector: MagicMock) -> None:
@@ -483,13 +463,6 @@ class TestConsolidationExecutorExceptionHandling:
         backend = MagicMock()
         backend.save_skill = AsyncMock(side_effect=RuntimeError("Write failed"))
         stats = MagicMock()
-        stats.get_stats = MagicMock(
-            return_value=SkillUsageStats(
-                call_count=0,
-                success_count=0,
-                created_at=datetime.now(UTC),
-            )
-        )
 
         skills = [_make_skill("src_skill")]
         action = ConsolidationAction(
@@ -576,15 +549,6 @@ class TestSkillConsolidatorFullPipeline:
         mock_write = MagicMock()
         mock_write.write_resource = AsyncMock(return_value=MagicMock(success=True))
         mock_stats = MagicMock()
-        mock_stats.get_stats = MagicMock(
-            return_value=SkillUsageStats(
-                call_count=0,
-                success_count=0,
-                created_at=datetime.now(UTC),
-            )
-        )
-        mock_stats.update_lifecycle_status = MagicMock()
-        mock_stats.flush = MagicMock()
 
         consolidator = SkillConsolidator(
             mock_embed,

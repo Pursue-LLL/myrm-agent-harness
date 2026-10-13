@@ -303,6 +303,55 @@ def test_failed_write_keeps_the_previous_ledger(
     assert sorted(entry.name for entry in skill_dir.iterdir()) == [".stats.json"]
 
 
+def test_inherit_usage_reaches_disk_when_the_skill_is_not_cached(
+    collector: SkillStatsCollector, skill_dir: Path
+) -> None:
+    """A run's end evicts the cache, so absorbing skills cannot rely on a cached entry to be written."""
+    collector.record_use(skill_dir, success=True)
+    collector.flush()
+
+    collector.inherit_usage(
+        skill_dir,
+        [
+            SkillUsageStats(call_count=3, success_count=2, failure_count=1),
+            SkillUsageStats(call_count=4, success_count=4),
+            SkillUsageStats(call_count=1),
+        ],
+    )
+
+    on_disk = json.loads((skill_dir / ".stats.json").read_text())
+    assert (on_disk["call_count"], on_disk["success_count"], on_disk["failure_count"]) == (9, 7, 1)
+
+
+def test_archive_merged_is_written_through_after_the_cache_was_flushed(
+    collector: SkillStatsCollector, skill_dir: Path
+) -> None:
+    collector.record_use(skill_dir, success=True)
+    collector.flush()
+
+    collector.archive_merged(skill_dir, "umbrella")
+
+    on_disk = json.loads((skill_dir / ".stats.json").read_text())
+    assert (on_disk["lifecycle_status"], on_disk["merged_into"], on_disk["call_count"]) == ("archived", "umbrella", 1)
+
+
+def test_inherit_usage_keeps_the_latest_use(collector: SkillStatsCollector, skill_dir: Path) -> None:
+    earlier = datetime(2026, 1, 1, tzinfo=UTC)
+    later = datetime(2026, 2, 1, tzinfo=UTC)
+
+    collector.inherit_usage(
+        skill_dir,
+        [
+            SkillUsageStats(call_count=1, last_used_at=later),
+            SkillUsageStats(call_count=1, last_used_at=earlier),
+            SkillUsageStats(call_count=1),
+        ],
+    )
+
+    on_disk = json.loads((skill_dir / ".stats.json").read_text())
+    assert datetime.fromisoformat(on_disk["last_used_at"]) == later
+
+
 def test_missing_skill_directory_is_not_recreated(collector: SkillStatsCollector, tmp_path: Path) -> None:
     """Flushing stats of a skill that was archived or removed must not resurrect an empty skill directory."""
     gone = tmp_path / "does_not_exist" / "skill"
