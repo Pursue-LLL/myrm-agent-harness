@@ -180,6 +180,67 @@ def test_best_first_prefers_high_weight_neighbor(wiki_structure, indexer) -> Non
     assert results == ["AlphaNode", "BetaNode"]
 
 
+def _write_pages(wiki_structure: WikiStructure, names: list[str]) -> None:
+    for name in names:
+        path = wiki_structure.get_concept_file_path(name)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"## Compiled Truth\n{name}.", encoding="utf-8")
+
+
+def _converge(wiki_structure, indexer, seeds: list[RetrievalSeed], *, max_results: int = 5, **config: int) -> list[str]:
+    return converge_retrieval_candidates(
+        query="",
+        query_config=WikiQueryConfig(**config),
+        structure=wiki_structure,
+        indexer=indexer,
+        seeds=seeds,
+        max_results=max_results,
+    )
+
+
+def test_best_first_hub_page_does_not_discard_other_seeds_and_neighbours(wiki_structure, indexer) -> None:
+    topics = [f"Topics/T{i:02d}" for i in range(40)]
+    _write_pages(wiki_structure, [*topics, "Hub/Map", "Other/DirectHit"])
+    indexer.upsert_edges("Hub/Map", topics)
+
+    results = _converge(
+        wiki_structure,
+        indexer,
+        [RetrievalSeed("Hub/Map", 0.9, "fts"), RetrievalSeed("Other/DirectHit", 0.8, "fts")],
+    )
+
+    assert len(results) == 5
+    assert results[:2] == ["Hub/Map", "Other/DirectHit"]
+    assert all(name.startswith("Topics/") for name in results[2:])
+
+
+def test_best_first_missing_neighbours_do_not_spend_the_budget(wiki_structure, indexer) -> None:
+    _write_pages(wiki_structure, ["Dev/Deploy", "Real/One", "Real/Two", "Other/DirectHit"])
+    ghosts = [f"ghost-{i}" for i in range(40)]
+    indexer.upsert_edges("Dev/Deploy", [*ghosts, "Real/One", "Real/Two"])
+
+    results = _converge(
+        wiki_structure,
+        indexer,
+        [RetrievalSeed("Dev/Deploy", 0.9, "fts"), RetrievalSeed("Other/DirectHit", 0.8, "fts")],
+    )
+
+    assert set(results) == {"Dev/Deploy", "Other/DirectHit", "Real/One", "Real/Two"}
+
+
+def test_best_first_budget_bounds_queued_neighbours(wiki_structure, indexer) -> None:
+    topics = [f"Topics/T{i:02d}" for i in range(10)]
+    _write_pages(wiki_structure, [*topics, "Hub/Map"])
+    indexer.upsert_edges("Hub/Map", topics)
+    seeds = [RetrievalSeed("Hub/Map", 0.9, "fts")]
+
+    budgeted = _converge(wiki_structure, indexer, seeds, max_results=20, best_first_max_expansions=3)
+    assert budgeted[0] == "Hub/Map"
+    assert len(budgeted) == 4
+    assert set(budgeted[1:]) <= set(topics)
+    assert _converge(wiki_structure, indexer, seeds, max_results=20, best_first_max_expansions=0) == ["Hub/Map"]
+
+
 @pytest.mark.asyncio
 async def test_raw_claim_mode_prioritizes_matching_claim(wiki_structure) -> None:
     from unittest.mock import AsyncMock

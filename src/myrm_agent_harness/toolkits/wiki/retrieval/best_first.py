@@ -12,7 +12,8 @@
 
 [POS]
 Budgeted priority-queue convergence over index/FTS/sidecar/keyword seeds plus weighted
-graph expansion. Supports raw_claim rerank via frontmatter claim overlap boosts and claim-health
+graph expansion; the budget limits queued neighbours and never the draining of the queue.
+Supports raw_claim rerank via frontmatter claim overlap boosts and claim-health
 multipliers (supported/contested/stale evidence).
 """
 
@@ -173,16 +174,17 @@ def converge_retrieval_candidates(
     counter = 0
     queued: set[str] = set()
 
-    def enqueue(name: str, score: float) -> None:
+    def enqueue(name: str, score: float) -> bool:
+        """Queue a page once; False when it is blank, out of scope, missing on disk or already queued."""
         nonlocal counter
         normalized = name.strip().replace("\\", "/")
         if not normalized or normalized in queued:
-            return
+            return False
         if valid_names is not None and normalized not in valid_names:
-            return
+            return False
         path = structure.resolve_concept_file_path(normalized)
         if not path or not path.exists():
-            return
+            return False
         overlap = _claim_overlap_for_concept(
             structure=structure,
             concept_name=normalized,
@@ -197,30 +199,29 @@ def converge_retrieval_candidates(
         queued.add(normalized)
         heapq.heappush(heap, (-adjusted, counter, normalized))
         counter += 1
+        return True
 
     for seed in seeds:
         tier = SOURCE_TIER_BOOST.get(seed.source, 0.0)
         enqueue(seed.concept_name, seed.score + tier)
 
+    # The budget caps how many graph neighbours get queued. Once it is spent the queue keeps
+    # draining into the results, so a hub page cannot discard the seeds and neighbours behind it.
+    neighbours_left = max(0, query_config.best_first_max_expansions)
+    decay = query_config.best_first_graph_decay
     results: list[str] = []
-    seen: set[str] = set()
-    expansions = 0
-    max_expansions = max(0, query_config.best_first_max_expansions)
 
-    while heap and len(results) < max_results and expansions <= max_expansions:
+    while heap and len(results) < max_results:
         neg_score, _, name = heapq.heappop(heap)
-        if name in seen:
-            continue
-        seen.add(name)
         results.append(name)
+        if neighbours_left == 0:
+            continue
 
-        parent_score = -neg_score
-        decay = query_config.best_first_graph_decay
+        child_base = -neg_score * decay
         for target, weight in indexer.get_outgoing_edges(name):
-            if target in seen:
-                continue
-            child_score = parent_score * decay + float(weight)
-            enqueue(target, child_score)
-            expansions += 1
+            if enqueue(target, child_base + float(weight)):
+                neighbours_left -= 1
+                if neighbours_left == 0:
+                    break
 
     return results
