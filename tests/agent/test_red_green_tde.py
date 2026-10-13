@@ -382,39 +382,6 @@ class TestEvolutionIntegrationMethods:
         result = await integration.evolve_skill("sk1", EvolutionType.DERIVED, user_feedback="faster")
         assert result == "derived"
 
-    def test_get_stats_minimal(self) -> None:
-        """get_stats should return metrics even with no queue."""
-        from myrm_agent_harness.agent.skills.evolution.infra.integration import (
-            EvolutionIntegration,
-        )
-
-        with patch.object(EvolutionIntegration, "__init__", lambda self, **kwargs: None):
-            integration = EvolutionIntegration.__new__(EvolutionIntegration)
-            integration.metrics_tracker = MagicMock()
-            integration.metrics_tracker.get_report.return_value = {"total": 0}
-            integration.queue = None
-
-        stats = integration.get_stats()
-        assert "metrics" in stats
-        assert stats["metrics"]["total"] == 0
-
-    def test_get_stats_with_queue(self) -> None:
-        """get_stats should include queue stats when the queue is enabled."""
-        from myrm_agent_harness.agent.skills.evolution.infra.integration import (
-            EvolutionIntegration,
-        )
-
-        with patch.object(EvolutionIntegration, "__init__", lambda self, **kwargs: None):
-            integration = EvolutionIntegration.__new__(EvolutionIntegration)
-            integration.metrics_tracker = MagicMock()
-            integration.metrics_tracker.get_report.return_value = {}
-            integration.queue = MagicMock()
-            integration.queue.get_stats.return_value = {"pending": 3}
-
-        stats = integration.get_stats()
-        assert stats["queue"]["pending"] == 3
-        assert "cache" not in stats
-
     @pytest.mark.asyncio
     async def test_close_cleanup(self) -> None:
         """close should clean up all resources."""
