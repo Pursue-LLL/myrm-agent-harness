@@ -27,14 +27,20 @@ _PASSWORD_KEYWORD_RE = re.compile(
     r"(?i)\b(?:password|passwd|passphrase|pwd|p@ssword|api secret|secret key|master password|"
     r"passcode|pass code|otp|2fa code|2fa|pin|verification code)\b|密码|口令|验证码"
 )
-# "=" is deliberately absent: it separates a label from its value ("password=Zk9#..."), so the label must stay out.
+# Strong symbols are password characters; structural ones only join segments ("xK9-mPq2-Lw8z") and also appear
+# in prose, URLs and domains. "=" is deliberately absent: it separates a label from its value ("password=Zk9#..."),
+# so the label must stay out.
 _STRONG_SYMBOLS = "@#$%^&*!?_"
 _STRUCTURAL_SYMBOLS = "-./+~"
-_TOKEN_CHARS = rf"[A-Za-z0-9{re.escape(_STRONG_SYMBOLS)}{re.escape(_STRUCTURAL_SYMBOLS)}]"
-# The class lookaheads stay inside the 64-char token window so scanning long unbroken runs (base64 blobs, paths)
-# remains linear.
+_STRONG = re.escape(_STRONG_SYMBOLS)
+_TOKEN_CHARS = rf"[A-Za-z0-9{_STRONG}{re.escape(_STRUCTURAL_SYMBOLS)}]"
+# A token starts and ends on a letter, digit or strong symbol, so a trailing "!" belongs to the secret while a
+# sentence-final "." does not. The class lookaheads stay inside the 64-char token window so scanning long
+# unbroken runs (base64 blobs, paths) remains linear.
 _PASSWORD_CANDIDATE_RE = re.compile(
-    rf"\b(?={_TOKEN_CHARS}{{0,63}}[a-z])(?={_TOKEN_CHARS}{{0,63}}[A-Z{re.escape(_STRONG_SYMBOLS)}]){_TOKEN_CHARS}{{6,64}}\b"
+    rf"(?<![A-Za-z0-9])(?=[A-Za-z0-9{_STRONG}])"
+    rf"(?={_TOKEN_CHARS}{{0,63}}[a-z])(?={_TOKEN_CHARS}{{0,63}}[A-Z{_STRONG}])"
+    rf"{_TOKEN_CHARS}{{6,64}}(?<=[A-Za-z0-9{_STRONG}])(?![A-Za-z0-9])"
 )
 _PASSWORD_ASSIGNMENT_RE = re.compile(
     r"(?i)(?:password|passwd|pwd|passphrase|密码|口令)\s*[:：=]\s*['\"]?[^\s'\";]+|['\"]password['\"]\s*:\s*['\"][^'\"]+['\"]"
@@ -75,13 +81,16 @@ def _is_password_candidate(token: str) -> bool:
 
 
 def _char_class_count(token: str) -> int:
-    """Number of distinct classes among lowercase, uppercase, digit and symbol."""
+    """Number of distinct classes among lowercase, uppercase, digit and strong symbol.
+
+    Structural symbols do not count: a hyphenated network name must not outrank the password next to it.
+    """
     return sum(
         (
             any(char.islower() for char in token),
             any(char.isupper() for char in token),
             any(char.isdigit() for char in token),
-            any(not char.isalnum() for char in token),
+            any(char in _STRONG_SYMBOLS for char in token),
         )
     )
 

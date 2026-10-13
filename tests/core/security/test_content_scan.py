@@ -113,15 +113,14 @@ def test_password_like_redacted() -> None:
         "Remember my password: Zk9#mango42",
         "Password: Zk9#mango42",
         "The staging password is Hunter2-Zq9!x",
+        "password: Welcome1!",
     ],
-    ids=["leading-capitalised-word", "capitalised-keyword", "hyphenated-secret"],
+    ids=["leading-capitalised-word", "capitalised-keyword", "hyphenated-secret", "trailing-symbol"],
 )
 def test_password_like_redacts_the_secret_not_a_neighbouring_word(text: str) -> None:
     result = scan_persistable_content(text, profile=PersistScanProfile.MEMORY_WRITE)
     secret = text.rsplit(" ", 1)[-1]
-    assert secret not in result.cleaned_text
-    assert "[REDACTED]" in result.cleaned_text
-    assert result.cleaned_text.split("[REDACTED]")[0] == text.removesuffix(secret)
+    assert result.cleaned_text == text.removesuffix(secret) + "[REDACTED]"
 
 
 def test_memory_write_applies_pseudonymizer() -> None:

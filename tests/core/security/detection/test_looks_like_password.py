@@ -117,6 +117,10 @@ class TestPasswordTokenSelection:
             ("Wifi password: xK9-mPq2-Lw8z.", "xK9-mPq2-Lw8z"),
             ("PASSWD=Zk9#mango42", "Zk9#mango42"),
             ("password reset link: https://example.com/reset, new password Zk9#mango42", "Zk9#mango42"),
+            ("password: Welcome1!", "Welcome1!"),
+            ("My password is Zk9#mango42! Please keep it", "Zk9#mango42!"),
+            ("password: @Zk9mango42", "@Zk9mango42"),
+            ("The Wi-Fi password for MyHome-5G is Tr0ub4dor&3", "Tr0ub4dor&3"),
         ],
         ids=[
             "capitalised-keyword",
@@ -127,6 +131,10 @@ class TestPasswordTokenSelection:
             "dash-separated-generated",
             "env-assignment-keeps-label",
             "url-before-secret",
+            "trailing-symbol-belongs-to-secret",
+            "trailing-symbol-before-prose",
+            "leading-symbol-belongs-to-secret",
+            "secret-beats-hyphenated-network-name",
         ],
     )
     def test_returns_the_secret_not_a_neighbouring_word(self, text: str, secret: str) -> None:
