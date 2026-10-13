@@ -4,6 +4,7 @@
 - sqlite3 (POS: standard library database)
 - ..core.structure::WikiStructure (POS: database path resolution)
 - ..core.config::WikiConfig (POS: Wiki configuration)
+- ..core.link_extraction::extract_markdown_link_targets, extract_wikilink_targets (POS: link syntax SSOT; code regions are never links)
 - ..core.link_resolver::WikiLinkResolver, concept_index_key, concept_page_exists (POS: link target resolution and page-key identity SSOT)
 - myrm_agent_harness.utils.db.fts5::fts5_integrity_check, fts5_rebuild (POS: FTS5 health and rebuild helpers)
 - myrm_agent_harness.toolkits.memory.protocols.embedding::EmbeddingProtocol (POS: embedding provider protocol)
@@ -27,7 +28,6 @@ focused on concept-level indexing.
 
 import contextlib
 import logging
-import re
 import sqlite3
 from collections.abc import Iterator
 from typing import TYPE_CHECKING
@@ -38,6 +38,7 @@ from myrm_agent_harness.utils.db.fts5 import (
 )
 
 from ..core.config import WikiConfig
+from ..core.link_extraction import extract_markdown_link_targets, extract_wikilink_targets
 from ..core.link_resolver import WikiLinkResolver, concept_index_key, concept_page_exists
 from ..core.structure import WikiStructure
 from .edge_links import canonical_edge_target, relink_dangling_edges, store_edge
@@ -255,20 +256,18 @@ class WikiIndexer(FtsSearchMixin, SidecarIndexMixin):
         source = self._index_key(concept_name)
         resolver = self._link_resolver
         page_change = resolver.note_page(source, content) if concept_page_exists(self._structure, source) else None
-        targets: set[str] = set()
+        # 1. Markdown links to pages: [text](link.md), [text](link.md#heading)
+        page_links = [link[:-3] for link in extract_markdown_link_targets(content) if link.lower().endswith(".md")]
+        targets = {
+            canonical_edge_target(resolver, source, link, relative_to_source=True)
+            for link in page_links
+            if link.strip()
+        }
 
-        # 1. Match Standard Markdown Links: [text](link.md)
-        for _text, link in re.findall(r"\[([^\]]+)\]\(([^)]+)\.md\)", content):
-            if link.strip():
-                targets.add(canonical_edge_target(resolver, source, link.strip(), relative_to_source=True))
+        # 2. Obsidian wikilinks: [[link]], [[link|alias]], [[link#heading|alias]]
+        targets.update(canonical_edge_target(resolver, source, target) for target in extract_wikilink_targets(content))
 
-        # 2. Match Obsidian Wikilinks: [[link]], [[link|alias]], [[link#heading|alias]]
-        for wikilink in re.findall(r"\[\[([^\]]+)\]\]", content):
-            target = wikilink.split("|")[0].split("#")[0].strip()
-            if target:
-                targets.add(canonical_edge_target(resolver, source, target))
-
-        # 3. Match Metric source_systems in frontmatter metadata
+        # 3. Metric source_systems in frontmatter metadata
         targets.update(self._source_system_targets(content))
 
         # Unconditionally replace (even if empty) to clear deleted edges; the page's edges and

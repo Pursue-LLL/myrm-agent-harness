@@ -29,6 +29,6 @@ and sidecar-first hierarchical retrieval (L0/L1 route + L2 article grounding).
 
 ## Key Dependencies
 
-- `core` (config, structure, link_resolver)
+- `core` (config, structure, link_extraction, link_resolver)
 - `vector` (Qdrant)
 - `retriever` (RRF fusion)

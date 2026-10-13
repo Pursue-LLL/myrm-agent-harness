@@ -3,7 +3,7 @@
 [INPUT]
 - pathlib::Path (POS: filesystem path operations)
 - json (POS: JSON Canvas spec parsing)
-- re (POS: wikilink extraction regex)
+- ..core.link_extraction::find_wikilinks (POS: link syntax SSOT; code is never a link)
 
 [OUTPUT]
 - extract_canvas_text_nodes: Extracts clean text nodes and labels from .canvas files.
@@ -19,14 +19,12 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from dataclasses import dataclass
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
+from myrm_agent_harness.toolkits.wiki.core.link_extraction import find_wikilinks
 
-# Standard wikilink pattern: [[target|alias]] or [[target]]
-_WIKILINK_RE = re.compile(r"\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|([^\]]+))?\]\]")
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,29 +128,10 @@ def extract_canvas_text_nodes(canvas_path: Path | str) -> list[CanvasTextNode]:
 
 def extract_wikilinks_from_markdown(content: str) -> list[WikilinkReference]:
     """Extract all [[Target|Alias]] wikilinks from Markdown text."""
-    if not content:
-        return []
-
-    # Strip code fences to prevent false positives in code blocks
-    stripped_parts: list[str] = []
-    for idx, part in enumerate(content.split("```")):
-        if idx % 2 == 0:
-            stripped_parts.append(part)
-    searchable_text = "".join(stripped_parts)
-
-    references: list[WikilinkReference] = []
-    for match in _WIKILINK_RE.finditer(searchable_text):
-        target = match.group(1).strip()
-        alias = (match.group(2) or "").strip()
-        if target:
-            references.append(
-                WikilinkReference(
-                    target=target,
-                    alias=alias,
-                    raw_match=match.group(0),
-                )
-            )
-    return references
+    return [
+        WikilinkReference(target=parts.note, alias=(parts.label or "").strip(), raw_match=raw)
+        for raw, parts in find_wikilinks(content)
+    ]
 
 
 def resolve_one_hop_wikilinks(

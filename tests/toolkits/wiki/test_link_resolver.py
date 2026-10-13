@@ -11,7 +11,6 @@ from myrm_agent_harness.toolkits.wiki.core.link_resolver import (
     concept_index_key,
     concept_page_exists,
     link_lookup_forms,
-    normalize_wikilink_target,
     page_link_forms,
     page_lookup_keys,
     scan_concept_pages,
@@ -32,12 +31,6 @@ def structure(tmp_path: Path) -> WikiStructure:
     vault = WikiStructure(tmp_path)
     vault.ensure_structure()
     return vault
-
-
-def test_normalize_wikilink_target_strips_alias_anchor_and_extension() -> None:
-    assert normalize_wikilink_target("Foo/Bar|shown") == "Foo/Bar"
-    assert normalize_wikilink_target("Foo#Heading") == "Foo"
-    assert normalize_wikilink_target("Foo/Bar.md") == "Foo/Bar"
 
 
 def test_page_lookup_keys_cover_path_title_aliases_and_canonical_id() -> None:

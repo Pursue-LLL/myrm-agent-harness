@@ -3,6 +3,7 @@
 [INPUT]
 - pathlib::Path (POS: standard library file path operations)
 - re (POS: regular expressions)
+- link_extraction.MARKDOWN_LINK_RE, WIKILINK_RE, parse_wikilink, protect_code, is_external_link (POS: link syntax SSOT; code is never rewritten)
 - frontmatter_contract.load_frontmatter_metadata (POS: frontmatter parsing)
 - frontmatter_contract.serialize_frontmatter_block (POS: frontmatter serialization)
 - canonical_registry.CANONICAL_ID_KEY (POS: canonical identity key)
@@ -32,12 +33,15 @@ from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
     load_frontmatter_metadata,
     serialize_frontmatter_block,
 )
+from myrm_agent_harness.toolkits.wiki.core.link_extraction import (
+    MARKDOWN_LINK_RE,
+    WIKILINK_RE,
+    is_external_link,
+    parse_wikilink,
+    protect_code,
+)
 
 logger = logging.getLogger(__name__)
-
-_CODE_FENCE_OR_INLINE_RE = re.compile(r"```[\s\S]*?```|`[^`\n]+`")
-_MARKDOWN_LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
-_WIKILINK_RE = re.compile(r"\[\[([^\]\n]+)\]\]")
 
 
 @dataclass(frozen=True, slots=True)
@@ -262,20 +266,13 @@ class LinkRefactorEngine:
         has_stem_conflict: bool = False,
     ) -> str:
         """Update markdown links and Obsidian wikilinks in content, preserving code blocks."""
-        # Mask code blocks from regex substitution
-        fences: list[str] = []
-
-        def _save_fence(match: re.Match[str]) -> str:
-            fences.append(match.group(0))
-            return f"\x00CODE_{len(fences) - 1}\x00"
-
-        masked = _CODE_FENCE_OR_INLINE_RE.sub(_save_fence, content)
+        masked, restore_code = protect_code(content)
 
         # 1. Update Markdown [text](url) links
         def _replace_markdown_link(match: re.Match[str]) -> str:
             text = match.group(1)
             url = match.group(2)
-            if url.startswith(("http://", "https://", "#", "mailto:")):
+            if is_external_link(url):
                 return match.group(0)
 
             url_path_part, _, fragment = url.partition("#")
@@ -304,7 +301,7 @@ class LinkRefactorEngine:
                 pass
             return match.group(0)
 
-        masked = _MARKDOWN_LINK_RE.sub(_replace_markdown_link, masked)
+        masked = MARKDOWN_LINK_RE.sub(_replace_markdown_link, masked)
 
         # 2. Update Obsidian [[wikilink]] targets
         old_slug = _concept_slug_from_path(self.concepts_dir, old_target)
@@ -312,20 +309,8 @@ class LinkRefactorEngine:
         old_stem = old_target.stem
 
         def _replace_wikilink(match: re.Match[str]) -> str:
-            inner = match.group(1)
-            label_part: str | None = None
-            if "|" in inner:
-                target_part, label_part = inner.split("|", 1)
-            else:
-                target_part = inner
-
-            fragment_part: str | None = None
-            if "#" in target_part:
-                note_part, fragment_part = target_part.split("#", 1)
-            else:
-                note_part = target_part
-
-            clean_note = note_part.strip()
+            parts = parse_wikilink(match.group(1))
+            clean_note = parts.note
             has_md_suffix = clean_note.lower().endswith(".md")
             if has_md_suffix:
                 clean_note = clean_note[:-3]
@@ -358,17 +343,10 @@ class LinkRefactorEngine:
                 return match.group(0)
 
             result_target = new_note_part
-            if fragment_part is not None:
-                result_target = f"{result_target}#{fragment_part}"
-            if label_part is not None:
-                return f"[[{result_target}|{label_part}]]"
+            if parts.fragment is not None:
+                result_target = f"{result_target}#{parts.fragment}"
+            if parts.label is not None:
+                return f"[[{result_target}|{parts.label}]]"
             return f"[[{result_target}]]"
 
-        masked = _WIKILINK_RE.sub(_replace_wikilink, masked)
-
-        # Restore masked code blocks
-        def _restore_fence(match: re.Match[str]) -> str:
-            idx = int(match.group(1))
-            return fences[idx]
-
-        return re.sub(r"\x00CODE_(\d+)\x00", _restore_fence, masked)
+        return restore_code(WIKILINK_RE.sub(_replace_wikilink, masked))

@@ -64,6 +64,22 @@ async def test_bare_file_name_links_are_stored_as_edges_to_the_page(
 
 
 @pytest.mark.asyncio
+async def test_links_inside_code_and_non_page_targets_are_not_edges(
+    structure: WikiStructure, indexer: WikiIndexer
+) -> None:
+    await _publish(structure, indexer, "Guides/Real")
+    body = (
+        "Real [[Real]] and [md](real.md#part).\n"
+        "```bash\nif [[ -f x ]]; then [x](gone.md); fi\n```\n"
+        "~~~\n[[Fenced]]\n~~~\n"
+        "Inline `[[Spanned]]`, anchor [[#Top]], [mail](mailto:a@b.co), [[https://x.io]]."
+    )
+    await _publish(structure, indexer, "Guides/Start", body)
+
+    assert _edges(indexer) == {("guides/start", "guides/real")}
+
+
+@pytest.mark.asyncio
 async def test_bare_link_written_before_its_target_converges_when_the_page_is_published(
     structure: WikiStructure, indexer: WikiIndexer
 ) -> None:

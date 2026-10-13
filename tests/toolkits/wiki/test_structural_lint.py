@@ -197,6 +197,21 @@ def test_bare_file_name_wikilink_is_not_broken(tmp_path: Path, link: str) -> Non
     assert _broken_targets(structure) == []
 
 
+def test_anchors_urls_and_code_are_not_broken_links(tmp_path: Path) -> None:
+    structure = WikiStructure(tmp_path)
+    structure.ensure_structure()
+    _write_page(structure, "guides/target")
+    body = (
+        "Jump [[#Heading]] or [top](#intro) or [mail](mailto:a@b.co) or [[httpx.md#Part]].\n"
+        "Fenced:\n~~~sh\n[[ -f x ]] && [gone](gone.md)\n~~~\n"
+        "Also [kept](target.md#section) and [[Target#Part|label]]."
+    )
+    _write_page(structure, "guides/start", body)
+
+    assert _broken_targets(structure) == ["Broken wikilink to [[httpx]]"]
+    assert [issue.description for issue in collect_broken_link_issues(structure)] == []
+
+
 def test_bare_file_name_shared_by_two_folders_is_broken_unless_the_linking_page_is_beside_one(tmp_path: Path) -> None:
     structure = WikiStructure(tmp_path)
     structure.ensure_structure()

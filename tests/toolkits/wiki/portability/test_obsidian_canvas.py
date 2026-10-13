@@ -81,6 +81,15 @@ def test_extract_wikilinks_from_markdown():
     assert alias_map["Risk Policy"] == "Risk Rules"
 
 
+def test_extract_wikilinks_skips_every_code_form_and_keeps_source_text():
+    text = "~~~\n[[Tilde]]\n~~~\n`[[Inline]]` [[Real|the `real` one]] [[#Top]] [[https://x.io]]"
+    links = extract_wikilinks_from_markdown(text)
+
+    assert [(link.target, link.alias, link.raw_match) for link in links] == [
+        ("Real", "the `real` one", "[[Real|the `real` one]]")
+    ]
+
+
 def test_resolve_one_hop_wikilinks(tmp_path: Path):
     vault = tmp_path / "vault"
     vault.mkdir()

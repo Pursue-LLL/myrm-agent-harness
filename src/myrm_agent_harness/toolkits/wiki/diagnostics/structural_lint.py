@@ -2,7 +2,8 @@
 
 [INPUT]
 - ..core.structure::WikiStructure (POS: vault paths)
-- ..core.link_resolver::WikiLinkResolver, concept_link_name, normalize_wikilink_target (POS: link target resolution SSOT shared with graph edges)
+- ..core.link_extraction::extract_markdown_link_targets, extract_wikilink_targets (POS: link syntax SSOT shared with graph edges)
+- ..core.link_resolver::WikiLinkResolver, concept_link_name (POS: link target resolution SSOT shared with graph edges)
 - ..core.frontmatter_contract::validate_wiki_frontmatter (POS: type enum gate)
 - ..core.types::LintIssue (POS: shared lint issue model)
 
@@ -22,12 +23,12 @@ Scope: markdown `[text](path)` links and Obsidian `[[wikilink]]` targets resolve
 `canonical_id`, bare file names) or, for read-only federated public mounts, by
 `WikiStructure.resolve_concept_file_path`, and raw-backed provenance (`sources` +
 `provenance`) for local concept pages.
-Fenced/inline code blocks are skipped for both markdown links and wikilinks.
+Links are read by `core.link_extraction`: code is skipped, and external URLs and same-page
+anchors are not vault paths.
 """
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -36,11 +37,11 @@ from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
     load_frontmatter_metadata,
     validate_wiki_frontmatter,
 )
-from myrm_agent_harness.toolkits.wiki.core.link_resolver import (
-    WikiLinkResolver,
-    concept_link_name,
-    normalize_wikilink_target,
+from myrm_agent_harness.toolkits.wiki.core.link_extraction import (
+    extract_markdown_link_targets,
+    extract_wikilink_targets,
 )
+from myrm_agent_harness.toolkits.wiki.core.link_resolver import WikiLinkResolver, concept_link_name
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.core.types import LintIssue
 from myrm_agent_harness.toolkits.wiki.maintenance.issue_kind import (
@@ -68,15 +69,6 @@ _RAW_BACKED_PROVENANCE: frozenset[str] = frozenset(
     }
 )
 
-_MARKDOWN_LINK_PATTERN = re.compile(r"\[([^\]]+)\]\(([^\)]+)\)")
-_WIKILINK_PATTERN = re.compile(r"\[\[([^\]]+)\]\]")
-_FENCED_OR_INLINE_CODE_PATTERN = re.compile(r"```[\s\S]*?```|`[^`\n]+`")
-
-
-def _content_without_code_blocks(content: str) -> str:
-    """Strip fenced and inline code so example wikilinks are not linted."""
-    return _FENCED_OR_INLINE_CODE_PATTERN.sub("", content)
-
 
 @dataclass(frozen=True, slots=True)
 class StructuralLintSnapshot:
@@ -101,10 +93,7 @@ def collect_broken_link_issues(structure: WikiStructure) -> list[LintIssue]:
             logger.warning("Failed to check links in %s: %s", concept_path, exc)
             continue
 
-        scan_content = _content_without_code_blocks(content)
-        for _link_text, link_target in _MARKDOWN_LINK_PATTERN.findall(scan_content):
-            if link_target.startswith("http"):
-                continue
+        for link_target in extract_markdown_link_targets(content):
             target_path = (concept_path.parent / link_target).resolve()
             if not target_path.exists():
                 issues.append(
@@ -144,11 +133,7 @@ def collect_broken_wikilink_issues(structure: WikiStructure) -> list[LintIssue]:
             if concept_path.is_relative_to(structure.concepts_dir)
             else None
         )
-        scan_content = _content_without_code_blocks(content)
-        for raw_target in _WIKILINK_PATTERN.findall(scan_content):
-            target = normalize_wikilink_target(raw_target)
-            if not target or target.startswith("http"):
-                continue
+        for target in extract_wikilink_targets(content):
             if not _wikilink_resolves(structure, resolver, target, source):
                 issues.append(
                     LintIssue(

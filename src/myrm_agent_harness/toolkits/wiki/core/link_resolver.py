@@ -1,11 +1,12 @@
 """Wiki link target resolution SSOT: wikilink / markdown-link targets to concept identities.
 
 [INPUT]
+- .link_extraction::NON_PAGE_TARGET_PREFIXES, normalize_wikilink_target (POS: link syntax SSOT)
 - .structure::WikiStructure (POS: vault paths, concept path sanitization)
 - myrm_agent_harness.utils.markdown_frontmatter::parse_frontmatter (POS: frontmatter parser)
 
 [OUTPUT]
-- normalize_wikilink_target, normalize_lookup_key, concept_link_name, page_lookup_keys
+- normalize_lookup_key, concept_link_name, page_lookup_keys
 - link_lookup_forms, page_link_forms: the spellings a link target and a page are matched on (POS: keyed edge relinking)
 - scan_concept_pages: lookup keys of every local concept page
 - concept_index_key, concept_page_exists: index identity for a concept name, page presence check
@@ -28,25 +29,18 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path, PurePath
 
+from myrm_agent_harness.toolkits.wiki.core.link_extraction import (
+    NON_PAGE_TARGET_PREFIXES,
+    normalize_wikilink_target,
+)
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.markdown_frontmatter import parse_frontmatter
 
 logger = get_agent_logger(__name__)
 
-_NON_CONCEPT_TARGET_PREFIXES = ("http://", "https://", "system:")
 _VAULT_PATH_PREFIXES = ("wiki/", "concepts/")
 _FRESHNESS_RECHECK_SECONDS = 300.0
-
-
-def normalize_wikilink_target(raw_target: str) -> str:
-    """Strip alias (`|`), heading anchor (`#`) and `.md` suffix from a wikilink target."""
-    target = raw_target.split("|", maxsplit=1)[0].strip()
-    if "#" in target:
-        target = target.split("#", maxsplit=1)[0].strip()
-    if target.lower().endswith(".md"):
-        return target[:-3]
-    return target
 
 
 def normalize_lookup_key(key: str) -> str:
@@ -111,7 +105,7 @@ def _cleaned_target(target: str, source: str | None) -> str | None:
     ``source``, the page that holds the link.
     """
     cleaned = _strip_vault_prefixes(normalize_wikilink_target(target).replace("\\", "/"))
-    if not cleaned or cleaned.startswith(_NON_CONCEPT_TARGET_PREFIXES):
+    if not cleaned or cleaned.startswith(NON_PAGE_TARGET_PREFIXES):
         return None
     if source is not None and cleaned.startswith("."):
         return posixpath.normpath(posixpath.join(posixpath.dirname(source), cleaned))

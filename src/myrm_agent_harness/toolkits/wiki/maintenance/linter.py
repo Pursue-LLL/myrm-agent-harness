@@ -4,6 +4,7 @@
 - langchain_core.language_models::BaseChatModel (POS: LangChain LLM base class)
 - langchain_core.messages::HumanMessage, SystemMessage (POS: LangChain message types)
 - ..core.config::WikiConfig (POS: Wiki configuration center)
+- ..core.link_extraction::extract_wikilink_targets (POS: link syntax SSOT; pages already linked from an article)
 - ..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
 - ..core.types::LintIssue, LintResult (POS: Wiki toolkit type definition center)
 - .gap_issues::knowledge_gap_issues (POS: knowledge-gap lint issues from graph insights)
@@ -33,6 +34,7 @@ from myrm_agent_harness.toolkits.wiki.core.config import WikiConfig
 from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
     repair_file_frontmatter,
 )
+from myrm_agent_harness.toolkits.wiki.core.link_extraction import extract_wikilink_targets
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.core.types import LintIssue, LintResult
 from myrm_agent_harness.toolkits.wiki.diagnostics.structural_lint import (
@@ -343,8 +345,8 @@ class WikiLinter:
                 current_name = concept_path.stem.replace("-", " ")
 
                 # Extract existing wikilinks to avoid duplicates
-                existing_links = set(re.findall(r"\[\[([^\]]+)\]\]", content))
-                existing_links_lower = {link.split("|")[0].strip().lower() for link in existing_links}
+                existing_links = extract_wikilink_targets(content)
+                existing_links_lower = {link.lower() for link in existing_links}
 
                 system_msg = SystemMessage(
                     content=(
