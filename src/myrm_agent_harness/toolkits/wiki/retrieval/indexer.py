@@ -11,7 +11,8 @@
 - myrm_agent_harness.utils.db.fts5::fts5_integrity_check, fts5_rebuild (POS: FTS5 health and rebuild helpers)
 - myrm_agent_harness.toolkits.memory.protocols.embedding::EmbeddingProtocol (POS: embedding provider protocol)
 - myrm_agent_harness.toolkits.memory.protocols.vector::VectorStoreProtocol (POS: vector store protocol)
-- .fts_search::FtsSearchMixin, migrate_wiki_fts_schema (POS: FTS5 + vector index operations mixin)
+- .fts_search::FtsSearchMixin, migrate_wiki_fts_schema (POS: FTS5 + vector search and truth lookup mixin)
+- .fts_write::FtsWriteMixin (POS: FTS5 + vector upsert/delete mixin)
 - .edge_links::canonical_edge_target, linkers_to_reread, relink_dangling_edges, store_edge (POS: edge targets stored as page keys, converged when pages appear or disappear)
 - .graph_store::WikiGraphStore (POS: knowledge graph storage)
 - .identity_migration::migrate_index_schema (POS: one-time index migrations: page identity, edge link spellings)
@@ -23,7 +24,7 @@
 [POS]
 Wiki concept indexer core. Manages FTS5 + Qdrant hybrid search for L2 concept entries,
 knowledge graph edges (targets resolved to page keys), and federated multi-database queries. Only `publish_status=published`
-entries are searchable and vector-indexed. Index write/read operations live in
+entries are searchable and vector-indexed. Index writes live in FtsWriteMixin, reads in
 FtsSearchMixin and sidecar (L0/L1) indexing in SidecarIndexMixin to keep this file
 focused on concept-level indexing.
 """
@@ -48,6 +49,7 @@ from ..core.link_resolver import WikiLinkResolver, concept_index_key, concept_pa
 from ..core.structure import WikiStructure
 from .edge_links import canonical_edge_target, linkers_to_reread, relink_dangling_edges, store_edge
 from .fts_search import FtsSearchMixin, migrate_wiki_fts_schema
+from .fts_write import FtsWriteMixin
 from .graph_store import WikiGraphStore
 from .identity_migration import migrate_index_schema
 from .sidecar_index import SidecarIndexMixin
@@ -59,7 +61,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class WikiIndexer(FtsSearchMixin, SidecarIndexMixin):
+class WikiIndexer(FtsWriteMixin, FtsSearchMixin, SidecarIndexMixin):
     """
     SQLite FTS5 + Qdrant Vector powered indexer for Wiki articles.
 
