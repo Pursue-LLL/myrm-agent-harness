@@ -1366,6 +1366,7 @@ messages.append(HumanMessage(content=dynamic_notification))
 5. **输入侧护栏只改写“尚未发送过的最新用户消息”**：`middlewares/security/user_input_guard.py` 在一次用户输入的**首次**模型调用里把 PII 脱敏与安全告诫前缀写入最新一条用户亲写消息，之后工具轮次与后续轮次看到的字节不再变化。新增输入侧改写必须遵守同一约束：
    - 只动最新用户消息，不动 runtime 追加在其后的 `is_system_synthetic` 消息，更不动更早的历史。
    - 用无状态的“首次调用”判定（用户消息之后还没有 AI/Tool 消息）保证幂等，不靠往历史里加标记，也不在每次调用重复前置同一段文本。
+   - 保证范围不含恢复路径：`streaming/recovery/stream_recovery_truncation.py` 的 `_try_text_continuation` 等处用**原始输入**重喂消息列表，重喂的原文不会被再次改写。
 
 **文档引用**：
 - 详见 `CONTEXT_ENGINEERING.md` § Prompt Cache Best Practices
