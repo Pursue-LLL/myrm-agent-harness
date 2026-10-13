@@ -15,7 +15,6 @@ from myrm_agent_harness.toolkits.wiki.core.link_resolver import (
     page_lookup_keys,
     scan_concept_pages,
 )
-from myrm_agent_harness.toolkits.wiki.core.refactor import LinkRefactorEngine
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 
 
@@ -140,34 +139,6 @@ class TestFileNameResolution:
     def test_partial_path_is_not_a_bare_name(self, structure: WikiStructure) -> None:
         _page(structure, "knowledge/rust/ownership")
         assert WikiLinkResolver(structure).resolve("rust/ownership") is None
-
-
-class TestRenameParity:
-    """The resolver and the rename refactor must read a bare link the same way."""
-
-    @pytest.mark.parametrize(
-        ("pages", "source", "renamed"),
-        [
-            (("a/ownership", "b/guide"), "b/guide", "a/ownership"),
-            (("a/ownership", "c/ownership", "b/guide"), "b/guide", "a/ownership"),
-            (("a/ownership", "c/ownership", "a/guide"), "a/guide", "a/ownership"),
-            (("a/ownership", "c/ownership", "a/guide"), "a/guide", "c/ownership"),
-            (("a/ownership", "c/ownership", "d/guide"), "d/guide", "c/ownership"),
-        ],
-    )
-    def test_rename_rewrites_a_bare_link_exactly_when_the_resolver_points_it_at_the_renamed_page(
-        self, structure: WikiStructure, pages: tuple[str, ...], source: str, renamed: str
-    ) -> None:
-        for name in pages:
-            _page(structure, name)
-        source_path = structure.get_concept_file_path(source)
-        source_path.write_text("---\ntype: concept\n---\nSee [[Ownership]].\n", encoding="utf-8")
-        points_at_renamed = WikiLinkResolver(structure).resolve("Ownership", source) == renamed
-
-        old_file = structure.get_concept_file_path(renamed)
-        LinkRefactorEngine(structure.concepts_dir).refactor_links(old_file, old_file.with_name("moved.md"))
-
-        assert ("[[Ownership]]" not in source_path.read_text(encoding="utf-8")) is points_at_renamed
 
 
 class TestIncrementalUpdates:

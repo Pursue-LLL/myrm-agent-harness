@@ -7,7 +7,8 @@
 
 [OUTPUT]
 - normalize_lookup_key, concept_link_name, page_lookup_keys
-- link_lookup_forms, page_link_forms: the spellings a link target and a page are matched on (POS: keyed edge relinking)
+- cleaned_link_target, path_lookup_forms, link_lookup_forms, page_link_forms: the spellings a link target and a page are matched on (POS: keyed edge relinking, rename rewriting)
+- link_names_page, link_names_file: whether a link names a page by path / by bare file name (POS: rename rewriting reads links as the resolver does)
 - scan_concept_pages: lookup keys of every local concept page
 - concept_index_key, concept_page_exists: index identity for a concept name, page presence check
 - PageChange: what a written page changed for already stored edges
@@ -98,7 +99,7 @@ def _strip_vault_prefixes(path: str) -> str:
     return path
 
 
-def _cleaned_target(target: str, source: str | None) -> str | None:
+def cleaned_link_target(target: str, source: str | None = None) -> str | None:
     """Link target as a vault-relative path candidate, or ``None`` for non-concept targets.
 
     An explicit relative target (``./x``, ``../x``) is resolved against the directory of
@@ -112,15 +113,28 @@ def _cleaned_target(target: str, source: str | None) -> str | None:
     return cleaned
 
 
+def path_lookup_forms(cleaned: str) -> tuple[str, str]:
+    """The casefolded and the sanitized spelling of a cleaned link path."""
+    return normalize_lookup_key(cleaned), WikiStructure._sanitize_path(cleaned)
+
+
 def link_lookup_forms(target: str, source: str | None = None) -> tuple[str, str]:
     """The casefolded and the sanitized spelling every resolution tier matches a target on.
 
     Non-concept targets (URLs, ``system:*`` pseudo targets) have no forms: ``("", "")``.
     """
-    cleaned = _cleaned_target(target, source)
-    if cleaned is None:
-        return "", ""
-    return normalize_lookup_key(cleaned), WikiStructure._sanitize_path(cleaned)
+    cleaned = cleaned_link_target(target, source)
+    return ("", "") if cleaned is None else path_lookup_forms(cleaned)
+
+
+def link_names_page(forms: tuple[str, str], slug: str) -> bool:
+    """Whether a link's ``forms`` name the page at ``slug`` by path, as resolution tiers 1 and 2 match it."""
+    return forms[0] == normalize_lookup_key(slug) or forms[1] == slug
+
+
+def link_names_file(forms: tuple[str, str], file_stem: str) -> bool:
+    """Whether a link's ``forms`` name a page by its bare file name, as resolution tier 3 matches it."""
+    return normalize_lookup_key(file_stem) in forms
 
 
 def page_link_forms(link_name: str, keys: frozenset[str]) -> frozenset[str]:
@@ -225,7 +239,7 @@ class WikiLinkResolver:
         ``source`` is the page holding the link: it anchors explicit relative targets
         (``./x``, ``../x``) and picks the same-folder page for a bare file name.
         """
-        cleaned = _cleaned_target(target, source)
+        cleaned = cleaned_link_target(target, source)
         if cleaned is None:
             return None
         with self._lock:

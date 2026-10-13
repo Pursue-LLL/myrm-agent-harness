@@ -4,6 +4,7 @@
 - pathlib::Path (POS: standard library file path operations)
 - re (POS: regular expressions)
 - link_extraction.MARKDOWN_LINK_RE, WIKILINK_RE, parse_wikilink, protect_code, is_external_link (POS: link syntax SSOT; code is never rewritten)
+- link_resolver.cleaned_link_target, path_lookup_forms, link_names_page, link_names_file, normalize_lookup_key (POS: a rename rewrites exactly the links the resolver points at the moved page)
 - frontmatter_contract.load_frontmatter_metadata (POS: frontmatter parsing)
 - frontmatter_contract.serialize_frontmatter_block (POS: frontmatter serialization)
 - canonical_registry.CANONICAL_ID_KEY (POS: canonical identity key)
@@ -39,6 +40,13 @@ from myrm_agent_harness.toolkits.wiki.core.link_extraction import (
     is_external_link,
     parse_wikilink,
     protect_code,
+)
+from myrm_agent_harness.toolkits.wiki.core.link_resolver import (
+    cleaned_link_target,
+    link_names_file,
+    link_names_page,
+    normalize_lookup_key,
+    path_lookup_forms,
 )
 
 logger = logging.getLogger(__name__)
@@ -76,6 +84,19 @@ class RefactorReport:
                 and self.modified_concept_paths == other.modified_concept_paths
             )
         return False
+
+
+@dataclass(frozen=True, slots=True)
+class _Move:
+    """A rename or move being applied to the links of every other page."""
+
+    old_path: Path
+    new_path: Path
+    old_slug: str
+    new_slug: str
+    is_dir: bool
+    # Casefolded file names of every other page (file moves): a bare link naming one is ambiguous.
+    other_leaves: frozenset[str]
 
 
 def _concept_slug_from_path(concepts_dir: Path, path: Path) -> str:
@@ -184,18 +205,7 @@ class LinkRefactorEngine:
 
         # 2. Refactor incoming links from other markdown files
         updated_slugs: list[str] = []
-        is_dir = old_path.is_dir() or new_path.is_dir()
-
-        # Pre-compute case-folded global stem collision check once for O(1) disambiguation
-        has_stem_conflict = False
-        if not is_dir:
-            old_stem_cf = old_path.stem.casefold()
-            old_resolved = old_path.resolve()
-            new_resolved = new_path.resolve()
-            has_stem_conflict = any(
-                p.stem.casefold() == old_stem_cf and p.resolve() != old_resolved and p.resolve() != new_resolved
-                for p in self.concepts_dir.rglob("*.md")
-            )
+        move = self._plan_move(old_path, new_path)
 
         for md_file in self.concepts_dir.rglob("*.md"):
             # Avoid refactoring within the moved files themselves if they were already moved
@@ -203,9 +213,7 @@ class LinkRefactorEngine:
                 continue
             try:
                 content = md_file.read_text(encoding="utf-8")
-                new_content = self._update_content_links(
-                    content, md_file, old_path, new_path, is_dir, has_stem_conflict=has_stem_conflict
-                )
+                new_content = self._update_content_links(content, md_file, move)
 
                 if content != new_content:
                     md_file.write_text(new_content, encoding="utf-8")
@@ -219,53 +227,83 @@ class LinkRefactorEngine:
             modified_concept_paths=tuple(updated_slugs),
         )
 
-    def _is_short_link_target(
-        self,
-        current_file: Path,
-        clean_note: str,
-        old_target: Path,
-        *,
-        has_stem_conflict: bool = False,
-    ) -> bool:
-        """Disambiguate short [[stem]] wikilink to check if it points to old_target.
+    def _plan_move(self, old_path: Path, new_path: Path) -> _Move:
+        is_dir = old_path.is_dir() or new_path.is_dir()
+        other_leaves: set[str] = set()
+        if not is_dir:
+            moved = {old_path.resolve(), new_path.resolve()}
+            moved_leaves = {normalize_lookup_key(old_path.stem), normalize_lookup_key(new_path.stem)}
+            for page in self.concepts_dir.rglob("*.md"):
+                leaf = normalize_lookup_key(page.stem)
+                if leaf not in moved_leaves or page.resolve() not in moved:
+                    other_leaves.add(leaf)
+        return _Move(
+            old_path=old_path,
+            new_path=new_path,
+            old_slug=_concept_slug_from_path(self.concepts_dir, old_path),
+            new_slug=_concept_slug_from_path(self.concepts_dir, new_path),
+            is_dir=is_dir,
+            other_leaves=frozenset(other_leaves),
+        )
 
-        Fully case-insensitive across platforms (macOS / Linux ext4) and O(1) evaluation.
+    def _is_short_link_target(self, current_file: Path, forms: tuple[str, str], move: _Move) -> bool:
+        """Whether a bare ``[[name]]`` held by ``current_file`` points at the moved page.
+
+        The page beside the linking page wins; otherwise the name must be unique across
+        the vault, the rule ``WikiLinkResolver`` applies to a bare file name.
         """
-        clean_note_cf = clean_note.casefold()
-        old_target_res = old_target.resolve()
+        old_resolved = move.old_path.resolve()
 
-        # 1. If current_file has a sibling matching the stem and sibling != old_target,
-        # Obsidian scoping rules resolve [[stem]] to sibling, not old_target.
+        # A sibling of the linking page that the name also matches is what the link points at.
         try:
-            for p in current_file.parent.iterdir():
+            for sibling in current_file.parent.iterdir():
                 if (
-                    p.is_file()
-                    and p.suffix.lower() == ".md"
-                    and p.stem.casefold() == clean_note_cf
-                    and p.resolve() != old_target_res
+                    sibling.is_file()
+                    and sibling.suffix.lower() == ".md"
+                    and link_names_file(forms, sibling.stem)
+                    and sibling.resolve() != old_resolved
                 ):
                     return False
         except OSError:
             pass
 
-        # 2. If old_target was in the same folder as current_file, it was the target.
-        if old_target.parent.resolve() == current_file.parent.resolve():
+        if move.old_path.parent.resolve() == current_file.parent.resolve():
             return True
+        return not any(form in move.other_leaves for form in forms)
 
-        # 3. If in a different folder, check pre-computed global collision in vault.
-        return not has_stem_conflict
+    def _renamed_wikilink_note(self, note: str, current_file: Path, current_slug: str, move: _Move) -> str | None:
+        """The page part of a wikilink after the move, or ``None`` when the link is unaffected.
 
-    def _update_content_links(
-        self,
-        content: str,
-        current_file: Path,
-        old_target: Path,
-        new_target: Path,
-        is_dir: bool,
-        *,
-        has_stem_conflict: bool = False,
-    ) -> str:
+        A link is affected exactly when ``WikiLinkResolver`` would have pointed it at the
+        moved page (or, for a folder move, at a page under the moved folder), whatever
+        spelling it uses: path, sanitized path, vault prefix, relative path or bare file name.
+        """
+        cleaned = cleaned_link_target(note, current_slug)
+        if cleaned is None:
+            return None
+        if move.is_dir:
+            segments = [segment for segment in cleaned.split("/") if segment]
+            depth = len(move.old_slug.split("/"))
+            if len(segments) < depth or not link_names_page(
+                path_lookup_forms("/".join(segments[:depth])), move.old_slug
+            ):
+                return None
+            return "/".join([move.new_slug, *segments[depth:]])
+
+        forms = path_lookup_forms(cleaned)
+        if link_names_page(forms, move.old_slug):
+            return move.new_slug
+        if "/" in cleaned or not link_names_file(forms, move.old_path.stem):
+            return None
+        if not self._is_short_link_target(current_file, forms, move):
+            return None
+        if move.new_path.parent.resolve() == current_file.parent.resolve():
+            return move.new_path.stem
+        return move.new_slug
+
+    def _update_content_links(self, content: str, current_file: Path, move: _Move) -> str:
         """Update markdown links and Obsidian wikilinks in content, preserving code blocks."""
+        old_target, new_target, is_dir = move.old_path, move.new_path, move.is_dir
         masked, restore_code = protect_code(content)
 
         # 1. Update Markdown [text](url) links
@@ -304,45 +342,15 @@ class LinkRefactorEngine:
         masked = MARKDOWN_LINK_RE.sub(_replace_markdown_link, masked)
 
         # 2. Update Obsidian [[wikilink]] targets
-        old_slug = _concept_slug_from_path(self.concepts_dir, old_target)
-        new_slug = _concept_slug_from_path(self.concepts_dir, new_target)
-        old_stem = old_target.stem
+        current_slug = _concept_slug_from_path(self.concepts_dir, current_file)
 
         def _replace_wikilink(match: re.Match[str]) -> str:
             parts = parse_wikilink(match.group(1))
-            clean_note = parts.note
-            has_md_suffix = clean_note.lower().endswith(".md")
-            if has_md_suffix:
-                clean_note = clean_note[:-3]
-
-            new_note_part: str | None = None
-            if not is_dir:
-                if clean_note.casefold() == old_slug.casefold():
-                    new_note_part = new_slug if not has_md_suffix else f"{new_slug}.md"
-
-                elif (
-                    clean_note.casefold() == old_stem.casefold()
-                    and "/" not in clean_note
-                    and self._is_short_link_target(
-                        current_file, clean_note, old_target, has_stem_conflict=has_stem_conflict
-                    )
-                ):
-                    if new_target.parent.resolve() == current_file.parent.resolve():
-                        new_note_part = new_target.stem if not has_md_suffix else f"{new_target.stem}.md"
-                    else:
-                        new_note_part = new_slug if not has_md_suffix else f"{new_slug}.md"
-
-            else:
-                if clean_note.casefold() == old_slug.casefold():
-                    new_note_part = new_slug if not has_md_suffix else f"{new_slug}.md"
-                elif clean_note.casefold().startswith(f"{old_slug.casefold()}/"):
-                    sub_suffix = clean_note[len(old_slug) + 1 :]
-                    new_note_part = f"{new_slug}/{sub_suffix}" if not has_md_suffix else f"{new_slug}/{sub_suffix}.md"
-
-            if new_note_part is None:
+            new_note = self._renamed_wikilink_note(parts.note, current_file, current_slug, move)
+            if new_note is None:
                 return match.group(0)
 
-            result_target = new_note_part
+            result_target = new_note + (".md" if parts.note.lower().endswith(".md") else "")
             if parts.fragment is not None:
                 result_target = f"{result_target}#{parts.fragment}"
             if parts.label is not None:
