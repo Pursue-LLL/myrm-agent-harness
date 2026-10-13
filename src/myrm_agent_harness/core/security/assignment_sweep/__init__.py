@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from .database_url_auditor import DatabaseUrlAuditor
 from .facade import QuotedKeySecretAssignmentSweepFacade
-from .quoted_sweep_engine import QuotedKeySecretAssignmentSweepEngine
+from .quoted_sweep_engine import AssignmentMatch, QuotedKeySecretAssignmentSweepEngine, find_assignment_matches
 from .types import (
     AssignmentFormat,
     AssignmentKeyFamily,
@@ -22,6 +22,7 @@ from .types import (
 __all__ = [
     "AssignmentFormat",
     "AssignmentKeyFamily",
+    "AssignmentMatch",
     "AssignmentSweepFinding",
     "AssignmentSweepReport",
     "AssignmentSweepVerdict",
@@ -29,4 +30,5 @@ __all__ = [
     "DatabaseUrlAuditor",
     "QuotedKeySecretAssignmentSweepEngine",
     "QuotedKeySecretAssignmentSweepFacade",
+    "find_assignment_matches",
 ]

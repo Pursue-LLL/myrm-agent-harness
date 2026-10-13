@@ -4,7 +4,8 @@
 - core.security.detection.prompt_guard::scan_input (POS: Prompt injection / instruction hijack detection.)
 - core.security.detection.harmful_state_detector::scan_for_harmful_states (POS: Harmful psychological-state pattern detection.)
 - core.security.detection.leak_detector::redact_leaks / scan_for_leaks (POS: Secret/PII leak detection and redaction.)
-- core.security.detection.password_heuristic::looks_like_password (POS: Unlabeled password and PIN/OTP detection.)
+- core.security.detection.password_heuristic::find_password_spans (POS: Keyword-anchored password and PIN/OTP detection.)
+- core.security.persistence.secret_spans::find_assignment_secret_spans / redact_spans (POS: Labeled secret values and position-based redaction.)
 - core.security.detection.instruction_shape::detect_instruction_shapes (POS: Instruction-shape spoofing detection.)
 - core.security.detection.content_boundary::has_invisible_unicode / strip_invisible_unicode (POS: Invisible unicode boundary detection and stripping.)
 
@@ -34,8 +35,9 @@ from myrm_agent_harness.core.security.detection.leak_detector import (
     redact_leaks,
     scan_for_leaks,
 )
-from myrm_agent_harness.core.security.detection.password_heuristic import looks_like_password
+from myrm_agent_harness.core.security.detection.password_heuristic import find_password_spans
 from myrm_agent_harness.core.security.detection.prompt_guard import scan_input
+from myrm_agent_harness.core.security.persistence.secret_spans import find_assignment_secret_spans, redact_spans
 
 PseudonymizeFn = Callable[[str], str]
 
@@ -185,12 +187,17 @@ def scan_persistable_content(
             verdict = PersistScanVerdict.WARN
         finding_codes.append("instruction_shape")
 
-    password_hint = looks_like_password(cleaned)
-    if password_hint is not None:
-        cleaned = cleaned.replace(password_hint, "[REDACTED]")
-        credential_patterns.append("password_like")
+    assignment_spans = find_assignment_secret_spans(cleaned)
+    password_spans = find_password_spans(cleaned)
+    if assignment_spans or password_spans:
+        cleaned = redact_spans(cleaned, [*assignment_spans, *password_spans])
         verdict = PersistScanVerdict.REDACTED
-        finding_codes.append("password_like_redacted")
+        if assignment_spans:
+            credential_patterns.append("secret_assignment")
+            finding_codes.append("secret_assignment_redacted")
+        if password_spans:
+            credential_patterns.append("password_like")
+            finding_codes.append("password_like_redacted")
 
     if profile == PersistScanProfile.MEMORY_WRITE and pseudonymize:
         pseudonymizer = _pii_pseudonymizer_var.get()

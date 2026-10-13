@@ -396,6 +396,19 @@ class TestMultiplePatterns:
         assert "env_credential" in matches
 
 
+class TestRedactionIsIdempotent:
+    """Persisted text is scanned again (consolidation, restore); an earlier redaction is not a secret."""
+
+    def test_env_and_json_values_already_redacted_are_left_alone(self) -> None:
+        env_once = redact_leaks("API_KEY=verylongsecretvalue1234567890")
+        json_once = redact_leaks('{"password": "verylongsecretvalue1234567890"}')
+
+        assert scan_for_leaks(env_once) == []
+        assert redact_leaks(env_once) == env_once
+        assert scan_for_leaks(json_once) == []
+        assert redact_leaks(json_once) == json_once
+
+
 # ===================================================================
 # 7. OpenAI new key format (sk-proj-)
 # ===================================================================
@@ -517,7 +530,6 @@ class TestShannonEntropy:
         content = "Reference [[vault/custom-note#Section-42|Display Label]]"
         assert "high_entropy_token" not in scan_for_leaks(content)
         assert redact_leaks(content) == content
-
 
 
 # ===================================================================

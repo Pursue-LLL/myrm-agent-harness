@@ -1,13 +1,17 @@
-"""Tests for the conservative password-like heuristic."""
+"""Tests for the keyword-anchored password heuristic."""
 
 from __future__ import annotations
 
 import pytest
 
-from myrm_agent_harness.core.security.detection.password_heuristic import looks_like_password
+from myrm_agent_harness.core.security.detection.password_heuristic import find_password_spans, secret_value_span
 
 
-class TestLooksLikePassword:
+def _secrets(text: str) -> list[str]:
+    return [text[start:end] for start, end in find_password_spans(text)]
+
+
+class TestFindPasswordSpans:
     @pytest.mark.parametrize(
         "text",
         [
@@ -48,7 +52,7 @@ class TestLooksLikePassword:
         ],
     )
     def test_detects_password_like(self, text: str) -> None:
-        assert looks_like_password(text) is not None
+        assert find_password_spans(text)
 
     @pytest.mark.parametrize(
         "text",
@@ -72,7 +76,7 @@ class TestLooksLikePassword:
             "PIN code was set in 2020.",  # year, not a PIN
             "My phone is 13800138000, what's the OTP?",  # phone, no code after kw
             "my phone 13800138000 is the OTP.",  # CN mobile adjacent to kw
-            "The password is abcd12",  # weak: lower+digit, no mixed case/symbol
+            "The password is abcd12",  # weak: shorter than 8
             "",
         ],
         ids=[
@@ -100,11 +104,11 @@ class TestLooksLikePassword:
         ],
     )
     def test_benign_text_no_password(self, text: str) -> None:
-        assert looks_like_password(text) is None
+        assert find_password_spans(text) == []
 
 
-class TestPasswordTokenSelection:
-    """The returned token is exactly what persistence redacts, so it must be the secret itself."""
+class TestSecretIsExactlyTheSpan:
+    """Persistence redacts exactly the returned span, so it must be the secret itself."""
 
     @pytest.mark.parametrize(
         ("text", "secret"),
@@ -121,6 +125,8 @@ class TestPasswordTokenSelection:
             ("My password is Zk9#mango42! Please keep it", "Zk9#mango42!"),
             ("password: @Zk9mango42", "@Zk9mango42"),
             ("The Wi-Fi password for MyHome-5G is Tr0ub4dor&3", "Tr0ub4dor&3"),
+            ("The password is SuperSecret123.", "SuperSecret123"),
+            ("Use Zk9#mango42 as the password", "Zk9#mango42"),
         ],
         ids=[
             "capitalised-keyword",
@@ -135,19 +141,102 @@ class TestPasswordTokenSelection:
             "trailing-symbol-before-prose",
             "leading-symbol-belongs-to-secret",
             "secret-beats-hyphenated-network-name",
+            "sentence-final-period-is-not-the-secret",
+            "generated-token-before-keyword",
         ],
     )
     def test_returns_the_secret_not_a_neighbouring_word(self, text: str, secret: str) -> None:
-        assert looks_like_password(text) == secret
+        assert _secrets(text) == [secret]
 
+    @pytest.mark.parametrize(
+        ("text", "secret"),
+        [
+            ("my netflix password is mypassword123", "mypassword123"),
+            ("我的银行卡密码是 abc123456", "abc123456"),
+            ("我的密码是Zk9#mango42", "Zk9#mango42"),
+            ("密码：abc123456，请勿转发。", "abc123456"),
+            ("密码改成 hello12345678", "hello12345678"),
+            ("Please set the password to Tr0ub4dor&3 today.", "Tr0ub4dor&3"),
+            ("login: bob / password: dragonfly1", "dragonfly1"),
+        ],
+        ids=["lower-digit", "zh-space", "zh-no-space", "zh-colon", "zh-change-to", "set-to", "login-pair"],
+    )
+    def test_value_introduced_by_the_text_needs_no_generated_look(self, text: str, secret: str) -> None:
+        assert _secrets(text) == [secret]
+
+    @pytest.mark.parametrize(
+        ("text", "secrets"),
+        [
+            ("old password is Ab1!cd2@ef, new password is Zk9#mango42", ["Ab1!cd2@ef", "Zk9#mango42"]),
+            ("wifi password is hunter2hunter2 and the PIN is 482913", ["hunter2hunter2", "482913"]),
+            ("The PIN is 482913 and the OTP is 582013.", ["482913", "582013"]),
+        ],
+        ids=["two-passwords", "password-and-pin", "pin-and-otp"],
+    )
+    def test_every_keyword_occurrence_is_anchored_separately(self, text: str, secrets: list[str]) -> None:
+        assert _secrets(text) == secrets
+
+
+class TestProseIsNeverASecret:
     @pytest.mark.parametrize(
         "text",
         [
             "My password is stored in the Password-Manager app",
             "The password reset page is at Example.com/Reset",
             "Two-Factor-Authentication replaced the old password flow",
+            "Employees must rotate the password regularly. Always use a password manager.",
+            "1Password and Bitwarden are password managers. Please evaluate Dashlane.",
+            "Remember to pin the message in the group. Developers should read Onboarding first.",
+            "Run pwd to print the working directory. Contributors must follow Conventions.",
+            "I forgot my password on my iPhone15Pro again, so I used Face ID.",
         ],
-        ids=["hyphenated-product-name", "domain-and-path", "hyphenated-prose"],
+        ids=[
+            "hyphenated-product-name",
+            "domain-and-path",
+            "hyphenated-prose",
+            "capitalised-words-around-keyword",
+            "product-names",
+            "pin-as-verb",
+            "pwd-shell-command",
+            "device-name-near-keyword",
+        ],
     )
     def test_prose_around_a_password_keyword_is_not_a_secret(self, text: str) -> None:
-        assert looks_like_password(text) is None
+        assert find_password_spans(text) == []
+
+    def test_keyword_far_from_words_does_not_reach_them(self) -> None:
+        text = "Please read the docs. " + "Section text about onboarding. " * 30 + "Reset the password in Settings."
+        assert find_password_spans(text) == []
+
+
+class TestSecretValueSpan:
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "short1",  # shorter than 8
+            "12345678901",  # purely numeric example
+            "required",  # field state word
+            "********",  # mask
+            "xxxxxxxx",  # mask
+            "settings.DB_PASSWORD",  # attribute reference
+            "DB_PASSWORD",  # constant reference
+            "password_hash",  # snake-case identifier
+            "Optional[str]",  # type annotation
+            "${DB_PASSWORD}",  # template
+            "https://example.com/p?x=1",  # URL
+            "[REDACTED]",  # already redacted
+            "[REDACTED:env_credential]",  # already redacted by the leak detector
+        ],
+    )
+    def test_rejects_non_secret_values(self, value: str) -> None:
+        assert secret_value_span(value, 0, len(value), allow_letters_only=True) is None
+
+    def test_letters_only_value_passes_only_for_a_password_label(self) -> None:
+        text = "dragonfly"
+        assert secret_value_span(text, 0, len(text), allow_letters_only=True) == (0, len(text))
+        assert secret_value_span(text, 0, len(text), allow_letters_only=False) is None
+
+    def test_trims_quotes_and_sentence_punctuation_but_keeps_trailing_strong_symbol(self) -> None:
+        text = '"Zk9#mango42!".'
+        start, end = secret_value_span(text, 0, len(text), allow_letters_only=False) or (0, 0)
+        assert text[start:end] == "Zk9#mango42!"

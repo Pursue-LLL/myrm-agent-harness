@@ -7,6 +7,8 @@ Strict typing applied: No `Any` types allowed.
 
 from __future__ import annotations
 
+import time
+
 import pytest
 
 from myrm_agent_harness.core.security.assignment_sweep import (
@@ -14,6 +16,7 @@ from myrm_agent_harness.core.security.assignment_sweep import (
     AssignmentKeyFamily,
     AssignmentSweepVerdict,
     QuotedKeySecretAssignmentSweepFacade,
+    find_assignment_matches,
 )
 
 
@@ -127,3 +130,58 @@ def test_non_loopback_database_url_strictly_flagged(
     assert report.verdict == AssignmentSweepVerdict.SUSPECTED_LEAK
     assert report.active_leaks_count >= 1
     assert facade.is_clean(f"DATABASE_URL='{remote_dsn}'") is False
+
+
+def test_assignment_matches_report_the_value_span_and_key_family() -> None:
+    line = 'DB_PASSWORD = "s3cretvalue99" # prod'
+    (match,) = find_assignment_matches(line)
+
+    assert match.key == "DB_PASSWORD"
+    assert match.family == AssignmentKeyFamily.PASSWORD
+    assert match.delimiter == "="
+    assert match.value == "s3cretvalue99"
+    assert line[match.value_start : match.value_end] == "s3cretvalue99"
+
+
+def test_assignment_matches_skip_placeholders_and_short_values() -> None:
+    assert find_assignment_matches("api_key: your-api-key-here") == []
+    assert find_assignment_matches("password: abc") == []
+
+
+@pytest.mark.parametrize("run", ["a" * 30_000, "ab_" * 10_000, "password_" * 3_000])
+def test_long_unbroken_line_is_scanned_in_linear_time(run: str) -> None:
+    started = time.perf_counter()
+    find_assignment_matches(run)
+
+    assert time.perf_counter() - started < 2.0
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "api_key",
+        "apikey",
+        "secret_key",
+        "access-key",
+        "client_secret",
+        "app_secret",
+        "auth_token",
+        "access_token",
+        "signing_key",
+        "private_key",
+        "password",
+        "passwd",
+        "pwd",
+        "passphrase",
+        "secret",
+        "token",
+        "credential",
+        "credentials",
+        "密码",
+        "口令",
+    ],
+)
+def test_every_sensitive_key_passes_the_prefilter(key: str) -> None:
+    (match,) = find_assignment_matches(f"{key}: abcd1234efgh")
+
+    assert match.value == "abcd1234efgh"

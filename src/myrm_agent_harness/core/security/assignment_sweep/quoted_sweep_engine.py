@@ -1,8 +1,10 @@
 """
 [POS] src/myrm_agent_harness/core/security/assignment_sweep/quoted_sweep_engine.py
-[INPUT] re, typing, types, database_url_auditor
-[OUTPUT] QuotedKeySecretAssignmentSweepEngine
+[INPUT] re, dataclasses, typing, types, database_url_auditor
+[OUTPUT] QuotedKeySecretAssignmentSweepEngine, AssignmentMatch, find_assignment_matches
 Secret assignment sweep engine tolerating quoted keys, separator-prefixed words, and alphanumeric noise shielding.
+`find_assignment_matches` is the single definition of "a non-benign secret assignment on one line" and reports the
+value span, so persistence can redact exactly the value while the sweep reports masked previews.
 Strict typing applied: No `Any` types allowed.
 """
 
@@ -10,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import re
+from dataclasses import dataclass
 
 from .database_url_auditor import DatabaseUrlAuditor
 from .types import (
@@ -57,7 +60,7 @@ _ASSIGNMENT_PATTERN = re.compile(
     r"""
     (?P<prefix>os\.environ\[|config\[|params\[)?          # Optional dictionary/env bracket
     (?P<open_q>["'`])?                                    # Optional open quote on key
-    (?P<key>(?:[a-zA-Z0-9_]*[_-])?                        # Optional prefix before sensitive token
+    (?P<key>(?:[a-zA-Z0-9_]{0,40}[_-])?                   # Optional bounded prefix (keeps long unbroken runs linear)
             (?:api[_-]?key|secret[_-]?key|access[_-]?key|client[_-]?secret|app[_-]?secret|
                auth[_-]?token|access[_-]?token|signing[_-]?key|private[_-]?key|
                password|passwd|pwd|passphrase|secret|token|credential|credentials|密码|口令))
@@ -70,6 +73,73 @@ _ASSIGNMENT_PATTERN = re.compile(
     """,
     re.IGNORECASE | re.VERBOSE,
 )
+# Cheap pre-filter: every sensitive key in _ASSIGNMENT_PATTERN contains one of these fragments, so a line without
+# any of them cannot match and skips the (much slower) assignment scan.
+_KEY_HINT_RE = re.compile(r"key|secret|token|credential|passw|passphrase|pwd|密码|口令", re.IGNORECASE)
+
+
+def classify_key_family(key_name: str) -> AssignmentKeyFamily:
+    k = key_name.lower()
+    if any(w in k for w in ("password", "passwd", "pwd", "passphrase", "密码", "口令")):
+        return AssignmentKeyFamily.PASSWORD
+    if any(w in k for w in ("api_key", "apikey", "access_key", "signing_key", "private_key")):
+        return AssignmentKeyFamily.API_KEY
+    if any(w in k for w in ("client_secret", "app_secret", "secret_key", "secret")):
+        return AssignmentKeyFamily.SECRET
+    if any(w in k for w in ("access_token", "auth_token", "token")):
+        return AssignmentKeyFamily.TOKEN
+    return AssignmentKeyFamily.CREDENTIAL
+
+
+def _is_benign_assignment(key: str, value: str) -> bool:
+    """Filter out benign alphanumeric continuous symbols and standard placeholders."""
+    k_clean = key.strip().lower()
+    v_clean = value.strip()
+
+    # Check known benign code symbols (tokenizer, secretive, credentials_file, etc.)
+    for benign in _BENIGN_SYMBOL_PREFIXES:
+        if k_clean == benign or k_clean.startswith(f"{benign}_"):
+            return True
+
+    # Check placeholder expressions
+    if _PLACEHOLDER_RE.match(v_clean):
+        return True
+
+    # Ignore trivially short values (e.g. "0", "true", "none")
+    return len(v_clean) < 4
+
+
+@dataclass(frozen=True, slots=True)
+class AssignmentMatch:
+    """A non-benign ``<sensitive key><delimiter><value>`` assignment inside one line.
+
+    ``value_start`` / ``value_end`` delimit the value (without its quotes) in the line that was scanned.
+    """
+
+    key: str
+    family: AssignmentKeyFamily
+    delimiter: str
+    value: str
+    value_start: int
+    value_end: int
+
+
+def find_assignment_matches(line: str) -> list[AssignmentMatch]:
+    """Every non-benign secret assignment in ``line`` (a single line; the value never spans lines)."""
+    if not _KEY_HINT_RE.search(line):
+        return []
+    return [
+        AssignmentMatch(
+            key=match.group("key"),
+            family=classify_key_family(match.group("key")),
+            delimiter=match.group("delim"),
+            value=match.group("value"),
+            value_start=match.start("value"),
+            value_end=match.end("value"),
+        )
+        for match in _ASSIGNMENT_PATTERN.finditer(line)
+        if not _is_benign_assignment(match.group("key"), match.group("value"))
+    ]
 
 
 class QuotedKeySecretAssignmentSweepEngine:
@@ -77,19 +147,6 @@ class QuotedKeySecretAssignmentSweepEngine:
 
     def __init__(self, dsn_auditor: DatabaseUrlAuditor | None = None) -> None:
         self._dsn_auditor = dsn_auditor or DatabaseUrlAuditor()
-
-    @staticmethod
-    def _classify_key_family(key_name: str) -> AssignmentKeyFamily:
-        k = key_name.lower()
-        if any(w in k for w in ("password", "passwd", "pwd", "passphrase", "密码", "口令")):
-            return AssignmentKeyFamily.PASSWORD
-        if any(w in k for w in ("api_key", "apikey", "access_key", "signing_key", "private_key")):
-            return AssignmentKeyFamily.API_KEY
-        if any(w in k for w in ("client_secret", "app_secret", "secret_key", "secret")):
-            return AssignmentKeyFamily.SECRET
-        if any(w in k for w in ("access_token", "auth_token", "token")):
-            return AssignmentKeyFamily.TOKEN
-        return AssignmentKeyFamily.CREDENTIAL
 
     @staticmethod
     def _classify_format(line: str, key: str, delim: str) -> AssignmentFormat:
@@ -100,24 +157,6 @@ class QuotedKeySecretAssignmentSweepEngine:
         if delim == "=":
             return AssignmentFormat.EQUALS_ASSIGNMENT
         return AssignmentFormat.COLON_ASSIGNMENT
-
-    @staticmethod
-    def _is_benign_token(key: str, value: str) -> bool:
-        """Filter out benign alphanumeric continuous symbols and standard placeholders."""
-        k_clean = key.strip().lower()
-        v_clean = value.strip()
-
-        # Check known benign code symbols (tokenizer, secretive, credentials_file, etc.)
-        for benign in _BENIGN_SYMBOL_PREFIXES:
-            if k_clean == benign or k_clean.startswith(f"{benign}_"):
-                return True
-
-        # Check placeholder expressions
-        if _PLACEHOLDER_RE.match(v_clean):
-            return True
-
-        # Ignore trivially short values (e.g. "0", "true", "none")
-        return len(v_clean) < 4
 
     @staticmethod
     def _mask_value(value: str) -> str:
@@ -138,26 +177,17 @@ class QuotedKeySecretAssignmentSweepEngine:
             if not trimmed or trimmed.startswith(("#", "//", "/*", "*")):
                 continue
 
-            for match in _ASSIGNMENT_PATTERN.finditer(trimmed):
-                key = match.group("key")
-                val = match.group("value")
-                delim = match.group("delim")
-
-                if self._is_benign_token(key, val):
-                    continue
-
-                family = self._classify_key_family(key)
-                format_kind = self._classify_format(trimmed, key, delim)
-
-                finding = AssignmentSweepFinding(
-                    key_name=key,
-                    key_family=family,
-                    raw_matched_line=trimmed[:200],
-                    value_preview=self._mask_value(val),
-                    format_kind=format_kind,
-                    is_exempt=False,
+            for match in find_assignment_matches(trimmed):
+                findings.append(
+                    AssignmentSweepFinding(
+                        key_name=match.key,
+                        key_family=match.family,
+                        raw_matched_line=trimmed[:200],
+                        value_preview=self._mask_value(match.value),
+                        format_kind=self._classify_format(trimmed, match.key, match.delimiter),
+                        is_exempt=False,
+                    )
                 )
-                findings.append(finding)
 
         # 2. Database DSN auditing with loopback exemption
         dsn_results = self._dsn_auditor.extract_and_audit_all(content)

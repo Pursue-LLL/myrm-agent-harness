@@ -24,9 +24,7 @@ _DATABASE_URL_RE = re.compile(
     re.IGNORECASE,
 )
 
-_LOOPBACK_HOSTS: frozenset[str] = frozenset(
-    {"localhost", "127.0.0.1", "::1"}
-)
+_LOOPBACK_HOSTS: frozenset[str] = frozenset({"localhost", "127.0.0.1", "::1"})
 
 _COMMON_DEV_CREDENTIAL_PAIRS: frozenset[tuple[str, str]] = frozenset(
     {
