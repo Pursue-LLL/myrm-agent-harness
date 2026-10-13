@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from myrm_agent_harness.infra import cooperative_signals as signals_module
 from myrm_agent_harness.infra.cooperative_signals import (
     CooperativePauseSignal,
     PauseRequestedError,
@@ -32,6 +33,42 @@ class TestCooperativePauseSignal:
         signal.request_pause("busy")
         with pytest.raises(PauseRequestedError):
             signal.raise_if_paused()
+
+    def test_pause_with_ttl_lapses_without_anyone_polling_it(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        clock = [1000.0]
+        monkeypatch.setattr(signals_module.time, "monotonic", lambda: clock[0])
+        signal = CooperativePauseSignal()
+
+        signal.request_pause("typing", ttl_seconds=120.0)
+        clock[0] += 119.0
+        assert signal.is_pause_requested is True
+
+        clock[0] += 2.0
+        assert signal.is_pause_requested is False
+        assert signal.pause_reason == ""
+        signal.raise_if_paused()
+
+    def test_pause_without_ttl_holds_until_cleared(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        clock = [1000.0]
+        monkeypatch.setattr(signals_module.time, "monotonic", lambda: clock[0])
+        signal = CooperativePauseSignal()
+
+        signal.request_pause("manual")
+        clock[0] += 10**6
+
+        assert signal.is_pause_requested is True
+
+    def test_a_new_request_replaces_the_previous_deadline(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        clock = [1000.0]
+        monkeypatch.setattr(signals_module.time, "monotonic", lambda: clock[0])
+        signal = CooperativePauseSignal()
+
+        signal.request_pause("typing", ttl_seconds=10.0)
+        clock[0] += 8.0
+        signal.request_pause("typing", ttl_seconds=10.0)
+        clock[0] += 8.0
+
+        assert signal.is_pause_requested is True
 
     def test_checkpoint_cursor_roundtrip(self) -> None:
         signal = CooperativePauseSignal()

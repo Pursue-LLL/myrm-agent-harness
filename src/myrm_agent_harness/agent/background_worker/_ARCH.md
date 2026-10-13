@@ -18,10 +18,10 @@ See [../../toolkits/tasks/TASK_QUEUE_SYSTEM.md](../../toolkits/tasks/TASK_QUEUE_
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Background worker module for agent. | — |
-| idle_tasks.py | Core | Default callbacks and tasks for the idle worker. `run_pending_idle_tasks` drains the session queue plus the shared `GLOBAL_SESSION_ID` queue within one idle window (bounded); a window cancelled by a newer turn returns its running task to `pending` via `IdleTaskRegistry.requeue`. | ✅ |
+| idle_tasks.py | Core | Default callbacks and tasks for the idle worker. `run_pending_idle_tasks` drains the session queue plus the shared `GLOBAL_SESSION_ID` queue within one idle window (bounded); a window cancelled by a newer turn returns its running task to `pending` via `IdleTaskRegistry.requeue`; while pending rows remain after the window (user-activity pause, capacity denial, exhausted window) it returns `DEFERRED_RETRY_SECONDS` so the idle worker retries. | ✅ |
 | shadow_context.py | Core | Execution-layer bulkhead isolation (restricted executor + context manager). | ✅ |
-| idle_worker.py | Core | Idle Task Worker for scheduling background tasks when agent is inactive. | ✅ |
-| registry.py | Core | Idle Task Registry for crash-resilient persistence and concurrency control. `running` rows left by a crash are returned to `pending` at init; `acquire_next` serves the session's own queue and `GLOBAL_SESSION_ID`. | ✅ |
+| idle_worker.py | Core | Idle Task Worker for scheduling background tasks when agent is inactive. A callback that returns a delay (work deferred) is called again after it, at most `_MAX_RETRIES` times; a newer turn cancels the pending retry. | ✅ |
+| registry.py | Core | Idle Task Registry for crash-resilient persistence and concurrency control. `running` rows left by a crash are returned to `pending` at init; `acquire_next` serves the session's own queue and `GLOBAL_SESSION_ID`; `has_pending` reports whether either queue still holds pending rows. | ✅ |
 
 ## Supported Idle Task Types
 

@@ -14,7 +14,7 @@
 - register_idle_task_handler: 注册自定义 idle task 处理器（按 task_type 键控的 DI 入口）
 - register_context_compaction_handler: 注册业务层的上下文压缩实现（单槽 DI 入口）
 - default_idle_callback: 执行至多一个待处理 idle 任务（会话自身队列或全局队列），返回是否处理了任务
-- run_pending_idle_tasks: 会话空闲窗口的调度入口，持续执行直到队列清空
+- run_pending_idle_tasks: 会话空闲窗口的调度入口，持续执行直到队列清空；任务被暂停或容量拒绝而滞留时返回重试延迟
 
 [POS]
 空闲维护内置任务层。承载认知巩固与上下文压缩等无用户交互期的后台任务，被 idle_worker 调度执行。
@@ -83,12 +83,21 @@ def register_context_compaction_handler(handler: ContextCompactionHandler) -> No
 # Bounds one idle window so a deep queue cannot monopolise the maintenance scheduler.
 _MAX_TASKS_PER_IDLE_WINDOW = 8
 
+# Wait before a window retries work that a user-activity pause or a capacity denial held back.
+DEFERRED_RETRY_SECONDS = 60.0
 
-async def run_pending_idle_tasks(session_id: str, registry: IdleTaskRegistry) -> None:
-    """Drain the session's pending idle tasks, stopping on the first deferral or an empty queue."""
+
+async def run_pending_idle_tasks(session_id: str, registry: IdleTaskRegistry) -> float | None:
+    """Drain the session's pending idle tasks, stopping on the first deferral or an empty queue.
+
+    Returns:
+        ``DEFERRED_RETRY_SECONDS`` when pending tasks remain (paused, capacity denied or window
+        exhausted) so the idle worker calls again; ``None`` once the queue is drained.
+    """
     for _ in range(_MAX_TASKS_PER_IDLE_WINDOW):
         if not await default_idle_callback(session_id, registry):
-            return
+            break
+    return DEFERRED_RETRY_SECONDS if await registry.has_pending(session_id) else None
 
 
 async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> bool:

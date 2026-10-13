@@ -44,10 +44,31 @@ async def test_every_operation_is_a_noop_when_aiosqlite_is_unavailable(
     await registry.init_db()
     await registry.enqueue("s1", "cognitive_consolidation", {})
     assert await registry.acquire_next("s1") is None
+    assert await registry.has_pending("s1") is False
     await registry.requeue(1)
     await registry.mark_completed(1)
     await registry.mark_error(1)
     assert await registry.cleanup_old_tasks() == 0
+
+
+@pytest.mark.asyncio
+async def test_has_pending_sees_the_session_and_global_queues_only_while_rows_are_pending(
+    registry: IdleTaskRegistry,
+) -> None:
+    assert await registry.has_pending("s1") is False
+
+    await registry.enqueue("other", "cognitive_consolidation", {})
+    assert await registry.has_pending("s1") is False
+
+    await registry.enqueue("global", "cognitive_subsumption", {"new_knowledge": "k"})
+    assert await registry.has_pending("s1") is True
+
+    task = await registry.acquire_next("s1")
+    assert task is not None
+    assert await registry.has_pending("s1") is False  # running rows are not pending
+
+    await registry.requeue(task.id)
+    assert await registry.has_pending("s1") is True
 
 
 def test_registry_is_shared_per_process_and_a_different_root_is_rejected_loudly(

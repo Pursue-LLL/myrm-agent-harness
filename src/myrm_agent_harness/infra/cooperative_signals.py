@@ -5,7 +5,7 @@
 
 [OUTPUT]
 - PauseRequestedError: Exception raised when cooperative pause is enforced.
-- CooperativePauseSignal: Non-blocking probe token passed into long-running tasks.
+- CooperativePauseSignal: Non-blocking probe token passed into long-running tasks; a pause may carry a TTL so it lapses on its own.
 
 [POS]
 Infrastructure layer. Provides transaction-boundary cooperative yielding
@@ -33,28 +33,40 @@ class CooperativePauseSignal:
     def __init__(self) -> None:
         self._pause_requested: bool = False
         self._pause_reason: str = ""
+        self._pause_deadline: float | None = None
         self._cursor: str | None = None
-        self._last_requested_at: float = 0.0
 
     @property
     def is_pause_requested(self) -> bool:
-        """Check if foreground activity or system constraints require task yield."""
+        """Check if foreground activity or system constraints require task yield.
+
+        A pause requested with a TTL lapses on its own, so a requester that never polls
+        its own expiry cannot leave background work blocked indefinitely.
+        """
+        if self._pause_requested and self._pause_deadline is not None and time.monotonic() >= self._pause_deadline:
+            self.clear()
         return self._pause_requested
 
     @property
     def pause_reason(self) -> str:
         return self._pause_reason
 
-    def request_pause(self, reason: str = "foreground_user_activity") -> None:
-        """Signal background worker to yield at the earliest safe transaction boundary."""
+    def request_pause(self, reason: str = "foreground_user_activity", ttl_seconds: float | None = None) -> None:
+        """Signal background worker to yield at the earliest safe transaction boundary.
+
+        Args:
+            reason: Why background work should yield.
+            ttl_seconds: Seconds after which the pause lapses by itself; ``None`` holds it until ``clear()``.
+        """
         self._pause_requested = True
         self._pause_reason = reason
-        self._last_requested_at = time.time()
+        self._pause_deadline = None if ttl_seconds is None else time.monotonic() + ttl_seconds
 
     def clear(self) -> None:
         """Resume or reset pause state."""
         self._pause_requested = False
         self._pause_reason = ""
+        self._pause_deadline = None
 
     def checkpoint_cursor(self, cursor: str) -> None:
         """Persist safe resumption cursor before exiting."""
@@ -67,7 +79,7 @@ class CooperativePauseSignal:
 
     def raise_if_paused(self) -> None:
         """Raise PauseRequestedError if pause was requested at transaction boundary."""
-        if self._pause_requested:
+        if self.is_pause_requested:
             raise PauseRequestedError(self._pause_reason)
 
 

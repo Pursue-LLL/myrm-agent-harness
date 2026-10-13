@@ -152,6 +152,19 @@ class IdleTaskRegistry:
                 )
             return None
 
+    async def has_pending(self, session_id: str) -> bool:
+        """Whether the session's own queue or the global queue still holds a pending task."""
+        if not self._initialized:
+            await self.init_db()
+        if aiosqlite is None:
+            return False
+        async with connect_async(self.db_path) as db:
+            cursor = await db.execute(
+                "SELECT 1 FROM idle_tasks WHERE status = 'pending' AND session_id IN (?, ?) LIMIT 1",
+                (session_id, GLOBAL_SESSION_ID),
+            )
+            return await cursor.fetchone() is not None
+
     async def requeue(self, task_id: int) -> None:
         """Return a running task to the queue so a later idle window can run it."""
         if aiosqlite is None:

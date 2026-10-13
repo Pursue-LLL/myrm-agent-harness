@@ -5,7 +5,7 @@
 
 [OUTPUT]
 - cancel_idle_task: Cancel any pending idle task for the given session.
-- schedule_idle_task: Schedule a background task to run after the session has b...
+- schedule_idle_task: Run a callback once the session has been idle, repeating while it asks to be retried
 
 [POS]
 Idle Task Worker for scheduling background tasks when agent is inactive.
@@ -19,6 +19,9 @@ logger = logging.getLogger(__name__)
 
 _idle_tasks: dict[str, asyncio.Task[None]] = {}
 
+# Bounds how often a deferring callback is retried so a permanently blocked queue cannot spin forever.
+_MAX_RETRIES = 10
+
 
 def cancel_idle_task(session_id: str) -> None:
     """Cancel any pending idle task for the given session."""
@@ -28,21 +31,29 @@ def cancel_idle_task(session_id: str) -> None:
         logger.debug("Cancelled existing idle task for session %s.", session_id)
 
 
-def schedule_idle_task(session_id: str, callback: Callable[[], Awaitable[None]], delay_seconds: int = 600) -> None:
+def schedule_idle_task(
+    session_id: str, callback: Callable[[], Awaitable[float | None]], delay_seconds: float = 600
+) -> None:
     """Schedule a background task to run after the session has been idle.
 
     Args:
         session_id: Unique identifier for the conversation session.
-        callback: Async function to execute when the idle period expires.
+        callback: Async function to execute when the idle period expires. Returning a number of
+            seconds asks to be called again after that delay (work was deferred); ``None`` finishes.
         delay_seconds: Seconds to wait before executing (default 10 minutes).
     """
     cancel_idle_task(session_id)
 
     async def _worker() -> None:
         try:
-            await asyncio.sleep(delay_seconds)
-            logger.info("Idle time reached for session %s. Starting background task.", session_id)
-            await callback()
+            delay = delay_seconds
+            for _ in range(1 + _MAX_RETRIES):
+                await asyncio.sleep(delay)
+                logger.info("Idle time reached for session %s. Starting background task.", session_id)
+                retry_after = await callback()
+                if retry_after is None:
+                    break
+                delay = retry_after
         except asyncio.CancelledError:
             logger.debug("Idle task for session %s cancelled (activity resumed).", session_id)
         except Exception as e:
@@ -53,4 +64,4 @@ def schedule_idle_task(session_id: str, callback: Callable[[], Awaitable[None]],
 
     current_task = asyncio.create_task(_worker())
     _idle_tasks[session_id] = current_task
-    logger.debug("Scheduled idle task for session %s in %d seconds.", session_id, delay_seconds)
+    logger.debug("Scheduled idle task for session %s in %s seconds.", session_id, delay_seconds)

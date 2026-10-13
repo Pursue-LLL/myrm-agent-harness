@@ -10,7 +10,8 @@ import pytest
 from myrm_agent_harness.agent.background_worker import idle_tasks
 from myrm_agent_harness.agent.background_worker.idle_tasks import register_idle_task_handler, run_pending_idle_tasks
 from myrm_agent_harness.agent.background_worker.registry import GLOBAL_SESSION_ID, IdleTaskRecord, IdleTaskRegistry
-from myrm_agent_harness.runtime.maintenance.protocols import CapacityTicket
+from myrm_agent_harness.runtime.cognitive_clock.signals import get_global_pause_signal
+from myrm_agent_harness.runtime.maintenance.protocols import CapacityDenial, CapacityTicket
 
 _SESSION = "chat_1"
 _TYPES = ("probe_a", "probe_b", "probe_global")
@@ -137,3 +138,61 @@ async def test_window_is_bounded(registry: IdleTaskRegistry, monkeypatch: pytest
 
     assert len(ran) == 1
     assert (await registry.acquire_next(_SESSION)) is not None
+
+
+@pytest.mark.asyncio
+async def test_drained_queue_asks_for_no_retry(registry: IdleTaskRegistry) -> None:
+    register_idle_task_handler("probe_a", _record_handler([]))
+    await registry.enqueue(_SESSION, "probe_a", {})
+
+    assert await run_pending_idle_tasks(_SESSION, registry) is None
+
+
+@pytest.mark.asyncio
+async def test_user_activity_pause_leaves_the_queue_intact_and_asks_for_a_retry(
+    registry: IdleTaskRegistry, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ran: list[str] = []
+    register_idle_task_handler("probe_a", _record_handler(ran))
+    await registry.enqueue(_SESSION, "probe_a", {})
+    pause_signal = get_global_pause_signal()
+    pause_signal.request_pause("typing")
+    try:
+        assert await run_pending_idle_tasks(_SESSION, registry) == idle_tasks.DEFERRED_RETRY_SECONDS
+        assert ran == []
+
+        pause_signal.clear()
+        assert await run_pending_idle_tasks(_SESSION, registry) is None
+        assert ran == ["probe_a"]
+    finally:
+        pause_signal.clear()
+
+
+@pytest.mark.asyncio
+async def test_capacity_denial_requeues_the_task_and_asks_for_a_retry(
+    registry: IdleTaskRegistry, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    denying = AsyncMock()
+    denying.request_capacity.return_value = CapacityDenial(reason="overloaded", retry_after_seconds=60.0)
+    monkeypatch.setattr(idle_tasks, "get_maintenance_scheduler", lambda: denying)
+    ran: list[str] = []
+    register_idle_task_handler("probe_a", _record_handler(ran))
+    await registry.enqueue(_SESSION, "probe_a", {})
+
+    assert await run_pending_idle_tasks(_SESSION, registry) == idle_tasks.DEFERRED_RETRY_SECONDS
+    assert ran == []
+    assert await registry.has_pending(_SESSION) is True
+
+
+@pytest.mark.asyncio
+async def test_exhausted_window_asks_for_a_retry_while_work_remains(
+    registry: IdleTaskRegistry, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(idle_tasks, "_MAX_TASKS_PER_IDLE_WINDOW", 1)
+    register_idle_task_handler("probe_a", _record_handler([]))
+    register_idle_task_handler("probe_b", _record_handler([]))
+    await registry.enqueue(_SESSION, "probe_a", {})
+    await registry.enqueue(_SESSION, "probe_b", {})
+
+    assert await run_pending_idle_tasks(_SESSION, registry) == idle_tasks.DEFERRED_RETRY_SECONDS
+    assert await run_pending_idle_tasks(_SESSION, registry) is None
