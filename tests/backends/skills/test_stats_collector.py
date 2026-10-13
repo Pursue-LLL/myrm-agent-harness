@@ -103,8 +103,8 @@ def test_get_stats_returns_empty_if_not_exists(collector: SkillStatsCollector, s
     assert stats.failure_count == 0
 
 
-def test_concurrent_updates(collector: SkillStatsCollector, skill_dir: Path) -> None:
-    """Test handling of concurrent updates."""
+def test_successive_uses_accumulate(collector: SkillStatsCollector, skill_dir: Path) -> None:
+    """Each use is added to the ledger the previous one left."""
     collector.record_use(skill_dir, success=True)
     collector.record_use(skill_dir, success=True)
 
@@ -115,8 +115,6 @@ def test_concurrent_updates(collector: SkillStatsCollector, skill_dir: Path) -> 
 
 def test_stale_auto_recovery_on_usage(collector: SkillStatsCollector, skill_dir: Path) -> None:
     """Test that using a stale skill auto-recovers it to active."""
-    from myrm_agent_harness.backends.skills.types import SkillLifecycleStatus
-
     stats_file = skill_dir / ".stats.json"
     stats_file.write_text(json.dumps({"call_count": 3, "lifecycle_status": "stale"}))
 
@@ -129,8 +127,6 @@ def test_stale_auto_recovery_on_usage(collector: SkillStatsCollector, skill_dir:
 
 def test_update_lifecycle_status(collector: SkillStatsCollector, skill_dir: Path) -> None:
     """Test update_lifecycle_status writes immediately."""
-    from myrm_agent_harness.backends.skills.types import SkillLifecycleStatus
-
     collector.update_lifecycle_status(skill_dir, SkillLifecycleStatus.ARCHIVED)
     stats = collector.get_stats(skill_dir)
     assert stats.lifecycle_status == SkillLifecycleStatus.ARCHIVED
