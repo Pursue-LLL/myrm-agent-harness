@@ -107,8 +107,9 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
     GlobalAdaptiveScheduler, runs the handler and emits progress events to the Harness EventBus.
 
     Returns:
-        True when a task was executed (successfully or not), False when nothing ran: paused, queue empty,
-        or capacity unavailable (the task is returned to ``pending`` for a later window).
+        True when a task was executed (successfully or not; a handler interrupted by foreground activity
+        returns its task to ``pending``), False when nothing ran: paused, queue empty, or capacity
+        unavailable (the task is returned to ``pending`` for a later window).
     """
     pause_signal = get_global_pause_signal()
     if pause_signal.is_pause_requested:
@@ -273,7 +274,13 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
             scheduler.report_outcome(ticket.task_type, success=False, cost=cost)
             raise handler_err
 
-        # 4. Mark as complete and emit event
+        # 4. A handler cut short by foreground activity keeps its task for the next idle window
+        if event_data.get("interrupted_by_pause") is True:
+            await registry.requeue(task.id)
+            logger.info("Idle task %s interrupted by foreground activity; requeued for session %s", task.id, session_id)
+            return True
+
+        # 5. Mark as complete and emit event
         await registry.mark_completed(task.id)
 
         event_bus.publish(
@@ -302,7 +309,7 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
         await registry.mark_error(task.id)
         event_bus.publish(IdleTaskProgressEvent(session_id=session_id, status="error", task_name=task.task_type))
     finally:
-        # 5. Must release capacity and reset UI to purely idle
+        # 6. Must release capacity and reset UI to purely idle
         await scheduler.release_capacity(ticket)
         # Small delay before resetting to idle to let the terminal status linger briefly
         await asyncio.sleep(2)

@@ -570,6 +570,28 @@ async def test_consolidation_errors_mark_the_task_failed() -> None:
 
 
 @pytest.mark.asyncio
+async def test_consolidation_interrupted_by_foreground_activity_is_requeued_not_completed() -> None:
+    registry = AsyncMock(spec=IdleTaskRegistry)
+    interrupted_run = MagicMock(errors=[], skipped=True)
+    interrupted_run.to_dict.return_value = {"skipped": True, "interrupted_by_pause": True}
+    consolidator = MagicMock()
+    consolidator.run_consolidation = AsyncMock(return_value=interrupted_run)
+    consolidator_patch = patch(
+        "myrm_agent_harness.agent.background_worker.idle_tasks.CognitiveConsolidator", return_value=consolidator
+    )
+
+    events = await _run_task_collecting_events(
+        _record("cognitive_consolidation", task_id=45), MagicMock(), (consolidator_patch,), registry=registry
+    )
+
+    registry.requeue.assert_awaited_once_with(45)
+    registry.mark_completed.assert_not_awaited()
+    registry.mark_error.assert_not_awaited()
+    assert not any(e.status == "completed" for e in events)
+    assert events[-1].status == "idle"
+
+
+@pytest.mark.asyncio
 async def test_cognitive_subsumption_without_consolidation_llm_is_skipped() -> None:
     registry = AsyncMock(spec=IdleTaskRegistry)
     manager = MagicMock()
