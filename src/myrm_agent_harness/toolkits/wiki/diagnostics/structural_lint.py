@@ -3,14 +3,14 @@
 [INPUT]
 - ..core.structure::WikiStructure (POS: vault paths)
 - ..core.link_extraction::extract_markdown_link_targets, extract_wikilink_targets (POS: link syntax SSOT shared with graph edges)
-- ..core.link_resolver::WikiLinkResolver, concept_link_name (POS: link target resolution SSOT shared with graph edges)
+- ..core.link_resolver::WikiLinkResolver, concept_link_name (POS: link target resolution SSOT shared with graph edges; names the pages an ambiguous target matches)
 - ..core.frontmatter_contract::validate_wiki_frontmatter (POS: type enum gate)
 - ..core.types::LintIssue (POS: shared lint issue model)
 
 [OUTPUT]
 - StructuralLintSnapshot: aggregate counts for product stats surfaces
 - collect_broken_link_issues: scans and returns broken markdown link issues
-- collect_broken_wikilink_issues: scans and returns broken Obsidian wikilink issues
+- collect_broken_wikilink_issues: scans and returns broken Obsidian wikilink issues; a link that names several pages equally well says which
 - collect_invalid_frontmatter_type_issues: scans and returns invalid frontmatter type issues
 - collect_provenance_gap_issues: scans and returns provenance gap issues
 
@@ -51,6 +51,7 @@ from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 logger = get_agent_logger(__name__)
 
+_AMBIGUOUS_PAGES_SHOWN = 5
 _AUTHOR_PROVENANCE: frozenset[str] = frozenset(
     {
         WikiProvenance.AGENT.value,
@@ -117,6 +118,16 @@ def _wikilink_resolves(structure: WikiStructure, resolver: WikiLinkResolver, tar
     return public_page is not None and not public_page.is_relative_to(structure.concepts_dir)
 
 
+def _broken_wikilink_description(resolver: WikiLinkResolver, target: str, source: str | None) -> str:
+    """Tell a link that names no page from one that names several equally well."""
+    pages = resolver.ambiguous_pages(target, source)
+    if not pages:
+        return f"Broken wikilink to [[{target}]]"
+    shown = ", ".join(pages[:_AMBIGUOUS_PAGES_SHOWN])
+    more = len(pages) - _AMBIGUOUS_PAGES_SHOWN
+    return f"Ambiguous wikilink [[{target}]] matches {shown}" + (f" and {more} more" if more > 0 else "")
+
+
 def collect_broken_wikilink_issues(structure: WikiStructure) -> list[LintIssue]:
     """Check concept articles for broken Obsidian wikilink targets."""
     issues: list[LintIssue] = []
@@ -140,7 +151,7 @@ def collect_broken_wikilink_issues(structure: WikiStructure) -> list[LintIssue]:
                         issue_type="broken_wikilink",
                         severity="medium",
                         location=str(concept_path),
-                        description=f"Broken wikilink to [[{target}]]",
+                        description=_broken_wikilink_description(resolver, target, source),
                         action_kind=action_kind_for_issue_type("broken_wikilink"),
                         can_auto_fix=False,
                     )

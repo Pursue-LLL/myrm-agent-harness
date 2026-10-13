@@ -4,13 +4,15 @@
 - sqlite3 (POS: standard library database)
 - ..core.structure::WikiStructure (POS: database path resolution)
 - ..core.config::WikiConfig (POS: Wiki configuration)
+- yaml (POS: YAML parser; malformed frontmatter raises its error)
+- ..core.frontmatter_contract::load_frontmatter_metadata (POS: frontmatter parser that keeps nested YAML; source_systems)
 - ..core.link_extraction::extract_markdown_link_targets, extract_wikilink_targets (POS: link syntax SSOT; code regions are never links)
 - ..core.link_resolver::WikiLinkResolver, concept_index_key, concept_page_exists (POS: link target resolution and page-key identity SSOT)
 - myrm_agent_harness.utils.db.fts5::fts5_integrity_check, fts5_rebuild (POS: FTS5 health and rebuild helpers)
 - myrm_agent_harness.toolkits.memory.protocols.embedding::EmbeddingProtocol (POS: embedding provider protocol)
 - myrm_agent_harness.toolkits.memory.protocols.vector::VectorStoreProtocol (POS: vector store protocol)
 - .fts_search::FtsSearchMixin, migrate_wiki_fts_schema (POS: FTS5 + vector index operations mixin)
-- .edge_links::canonical_edge_target, relink_dangling_edges, store_edge (POS: edge targets stored as page keys)
+- .edge_links::canonical_edge_target, linkers_to_reread, relink_dangling_edges, store_edge (POS: edge targets stored as page keys, converged when pages appear or disappear)
 - .graph_store::WikiGraphStore (POS: knowledge graph storage)
 - .identity_migration::migrate_index_schema (POS: one-time index migrations: page identity, edge link spellings)
 - .sidecar_index::SidecarIndexMixin (POS: L0/L1 sidecar index operations)
@@ -29,8 +31,10 @@ focused on concept-level indexing.
 import contextlib
 import logging
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from typing import TYPE_CHECKING
+
+import yaml
 
 from myrm_agent_harness.utils.db.fts5 import (
     fts5_integrity_check,
@@ -38,10 +42,11 @@ from myrm_agent_harness.utils.db.fts5 import (
 )
 
 from ..core.config import WikiConfig
+from ..core.frontmatter_contract import load_frontmatter_metadata
 from ..core.link_extraction import extract_markdown_link_targets, extract_wikilink_targets
 from ..core.link_resolver import WikiLinkResolver, concept_index_key, concept_page_exists
 from ..core.structure import WikiStructure
-from .edge_links import canonical_edge_target, relink_dangling_edges, store_edge
+from .edge_links import canonical_edge_target, linkers_to_reread, relink_dangling_edges, store_edge
 from .fts_search import FtsSearchMixin, migrate_wiki_fts_schema
 from .graph_store import WikiGraphStore
 from .identity_migration import migrate_index_schema
@@ -254,11 +259,28 @@ class WikiIndexer(FtsSearchMixin, SidecarIndexMixin):
 
         Link targets are stored as the canonical key of the page they resolve to, so
         every graph reader sees the links structural lint accepts. When this write adds
-        a page or changes its titles/aliases, earlier dangling edges are re-resolved.
+        a page or changes its titles/aliases, earlier dangling edges are re-resolved, and
+        pages whose links a same-named page makes ambiguous are re-read.
         """
         source = self._index_key(concept_name)
+        page_change = (
+            self._link_resolver.note_page(source, content) if concept_page_exists(self._structure, source) else None
+        )
+        linkers: list[str] = []
+        # The page's edges and the forward references it resolves land in one transaction.
+        with self._get_conn() as conn:
+            self._store_page_edges(conn, source, content)
+            if page_change is not None:
+                relink_dangling_edges(conn, self._link_resolver, page_change)
+                linkers = linkers_to_reread(conn, source, page_change, removed=False)
+        self._reread_page_links(linkers)
+
+    def _store_page_edges(self, conn: sqlite3.Connection, source: str, content: str) -> None:
+        """Replace ``source``'s edges with the links written in ``content``.
+
+        Always replaces, even with nothing, so links that were removed lose their edges.
+        """
         resolver = self._link_resolver
-        page_change = resolver.note_page(source, content) if concept_page_exists(self._structure, source) else None
         # 1. Markdown links to pages: [text](link.md), [text](link.md#heading)
         page_links = [link[:-3] for link in extract_markdown_link_targets(content) if link.lower().endswith(".md")]
         targets = {
@@ -271,26 +293,39 @@ class WikiIndexer(FtsSearchMixin, SidecarIndexMixin):
         targets.update(canonical_edge_target(resolver, source, target) for target in extract_wikilink_targets(content))
 
         # 3. Metric source_systems in frontmatter metadata
-        targets.update(self._source_system_targets(content))
+        targets.update(self._source_system_targets(source, content))
+        self._replace_edges(conn, source, list(targets), None)
 
-        # Unconditionally replace (even if empty) to clear deleted edges; the page's edges and
-        # the forward references it resolves land in one transaction.
+    def _reread_page_links(self, sources: Sequence[str]) -> None:
+        """Re-resolve the links written in each page of ``sources`` against the pages that exist now.
+
+        A page that disappeared from disk since its edges were stored keeps them.
+        """
+        pages = {source: content for source in sources if (content := self._read_page(source)) is not None}
+        if not pages:
+            return
         with self._get_conn() as conn:
-            self._replace_edges(conn, source, list(targets), None)
-            if page_change is not None:
-                relink_dangling_edges(conn, resolver, page_change)
+            for source, content in pages.items():
+                self._store_page_edges(conn, source, content)
+
+    def _read_page(self, key: str) -> str | None:
+        if not concept_page_exists(self._structure, key):
+            return None
+        try:
+            return (self._structure.concepts_dir / f"{key}.md").read_text(encoding="utf-8")
+        except OSError as exc:
+            logger.warning("Failed to re-read links of wiki page %s: %s", key, exc)
+            return None
 
     @staticmethod
-    def _source_system_targets(content: str) -> set[str]:
+    def _source_system_targets(source: str, content: str) -> set[str]:
+        """`system:<name>` pseudo targets for the `source_systems` listed in frontmatter."""
         if not content.startswith("---"):
             return set()
         try:
-            from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
-                load_frontmatter_metadata,
-            )
-
             metadata, _ = load_frontmatter_metadata(content)
-        except Exception:
+        except yaml.YAMLError as exc:
+            logger.warning("Unreadable frontmatter in %s, its source_systems are not linked: %s", source, exc)
             return set()
         sources = metadata.get("source_systems")
         if not isinstance(sources, list):

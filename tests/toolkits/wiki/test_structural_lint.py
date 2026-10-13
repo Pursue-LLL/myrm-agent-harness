@@ -223,6 +223,9 @@ def test_bare_file_name_shared_by_two_folders_is_broken_unless_the_linking_page_
     issues = collect_broken_wikilink_issues(structure)
 
     assert [Path(issue.location).name for issue in issues] == ["start.md"]
+    assert [issue.description for issue in issues] == [
+        "Ambiguous wikilink [[Ownership]] matches law/ownership, rust/ownership"
+    ]
 
 
 def test_alias_shared_by_two_pages_is_broken_like_the_graph_edge(tmp_path: Path) -> None:
@@ -232,7 +235,19 @@ def test_alias_shared_by_two_pages_is_broken_like_the_graph_edge(tmp_path: Path)
     _write_page(structure, "b/second", aliases=("Dup",))
     _write_page(structure, "guides/start", "See [[Dup]] and [[Solo]].")
 
-    assert _broken_targets(structure) == ["Broken wikilink to [[Dup]]"]
+    assert _broken_targets(structure) == ["Ambiguous wikilink [[Dup]] matches a/first, b/second"]
+
+
+def test_ambiguous_wikilink_lists_a_few_pages_and_counts_the_rest(tmp_path: Path) -> None:
+    structure = WikiStructure(tmp_path)
+    structure.ensure_structure()
+    for folder in "abcdefg":
+        _write_page(structure, f"{folder}/notes")
+    _write_page(structure, "guides/start", "See [[Notes]].")
+
+    assert _broken_targets(structure) == [
+        "Ambiguous wikilink [[Notes]] matches a/notes, b/notes, c/notes, d/notes, e/notes and 2 more"
+    ]
 
 
 def test_wikilink_to_a_federated_public_page_is_not_broken(tmp_path: Path) -> None:

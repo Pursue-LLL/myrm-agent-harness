@@ -9,6 +9,7 @@
 - myrm_agent_harness.utils.markdown_frontmatter::parse_frontmatter (POS: frontmatter parser)
 - ..core.frontmatter_contract::WikiPublishStatus (POS: publish_status SSOT)
 - ..core.link_resolver::WikiLinkResolver (POS: link target resolution; notified when a page is deleted)
+- .edge_links::linkers_to_reread, relink_dangling_edges (POS: edges of links that named a deleted page converge)
 - .sidecar_index::_SIDECAR_PREFIX (POS: L0/L1 sidecar index operations)
 - .tokenizer::tokenize_for_fts (POS: FTS5 query tokenizer)
 - .vector_chunks::collapse_vector_hits, delete_text_vectors, upsert_text_vectors (POS: L2 chunk vector operations)
@@ -46,6 +47,7 @@ from ..core.frontmatter_contract import (
     WIKI_PUBLISH_STATUSES,
     WikiPublishStatus,
 )
+from .edge_links import linkers_to_reread, relink_dangling_edges
 from .sidecar_index import _SIDECAR_PREFIX
 from .tokenizer import tokenize_for_fts
 from .vector_chunks import (
@@ -55,7 +57,7 @@ from .vector_chunks import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+    from collections.abc import Awaitable, Callable, Sequence
     from contextlib import AbstractContextManager
 
     from myrm_agent_harness.toolkits.memory.protocols.embedding import (
@@ -74,7 +76,8 @@ class FtsSearchMixin:
 
     Expects the host class to provide: _get_conn, _config, _vector, _embedding,
     _collection_name, _ensure_collection, _structure, _is_sidecar_entry,
-    _concept_dir_path, _index_key, _concept_name_variants and _link_resolver.
+    _concept_dir_path, _index_key, _concept_name_variants, _link_resolver,
+    extract_and_upsert_edges and _reread_page_links.
     """
 
     _config: WikiConfig
@@ -92,6 +95,8 @@ class FtsSearchMixin:
         _index_key: Callable[[str], str]
         _concept_name_variants: Callable[[str], tuple[str, ...]]
         _link_resolver: WikiLinkResolver
+        extract_and_upsert_edges: Callable[[str, str], None]
+        _reread_page_links: Callable[[Sequence[str]], None]
 
     def remove_raw_text_index(self, name: str) -> None:
         """Remove interim raw FTS entry (see :meth:`index_raw_text`)."""
@@ -182,11 +187,10 @@ class FtsSearchMixin:
                     "INSERT OR REPLACE INTO wiki_index_meta (concept_name, publish_status) VALUES (?, ?)",
                     (concept_name, publish_status),
                 )
-            if hasattr(self, "extract_and_upsert_edges"):
-                try:
-                    self.extract_and_upsert_edges(concept_name, full_markdown)
-                except Exception as e:
-                    logger.warning("Failed to extract edges for %s: %s", concept_name, e)
+            try:
+                self.extract_and_upsert_edges(concept_name, full_markdown)
+            except Exception as e:
+                logger.warning("Failed to extract edges for %s: %s", concept_name, e)
 
         await asyncio.to_thread(sync_upsert)
 
@@ -228,12 +232,16 @@ class FtsSearchMixin:
         its on-disk path), so deleting by compile name or by path both succeed. Edges
         other pages hold to the concept stay: the links are still written in those
         pages, they read as unresolved while the page is gone and name it again when
-        it returns.
+        it returns. A link that named the concept together with another page of the
+        same name reads unambiguous again, so the pages that linked to the concept are
+        re-read and edges spelled like it re-resolve.
         """
         names = self._concept_name_variants(concept_name)
 
         # 1. Delete from SQLite FTS5 and edges (Sync wrapped in async thread)
         def sync_delete() -> None:
+            changes = [(name, self._link_resolver.forget_page(name)) for name in names]
+            linkers: set[str] = set()
             with self._get_conn() as conn:
                 for name in names:
                     conn.execute("DELETE FROM wiki_fts WHERE concept_name = ?", (name,))
@@ -242,10 +250,12 @@ class FtsSearchMixin:
                         "DELETE FROM wiki_index_meta WHERE concept_name = ?",
                         (name,),
                     )
+                for name, change in changes:
+                    linkers.update(linkers_to_reread(conn, name, change, removed=True))
+                    relink_dangling_edges(conn, self._link_resolver, change)
+            self._reread_page_links(sorted(linkers - set(names)))
 
         await asyncio.to_thread(sync_delete)
-        for name in names:
-            self._link_resolver.forget_page(name)
 
         # 2. Delete from Vector Store (Async)
         if self._config.enable_hybrid_search and self._vector:

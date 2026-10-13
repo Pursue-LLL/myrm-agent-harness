@@ -8,6 +8,7 @@
 - canonical_edge_target: resolve one extracted link target for storage
 - store_edge: write one edge together with the spellings of its target
 - relink_dangling_edges: re-resolve stored edge targets that name no indexed page
+- linkers_to_reread: pages whose links must be re-read because a same-named page appeared or went away
 
 [POS]
 Edges whose target resolves to a page are stored under that page's canonical key, so
@@ -15,7 +16,10 @@ the graph viewer, backlinks, insights and best-first expansion all follow the li
 structural lint accepts. Targets that name no page keep their raw text. Every edge row
 also carries the casefolded and sanitized spelling of its target (`target_key`,
 `target_slug`, indexed), so a page that appears later finds the edges it can newly
-resolve by lookup instead of re-resolving every unresolved edge in the index.
+resolve by lookup instead of re-resolving every unresolved edge in the index. A resolved
+edge no longer shows the text it was written from, so links that a same-named page
+makes ambiguous (or unambiguous) are found through the pages that linked to the
+same-named pages and re-read from their own text.
 """
 
 from __future__ import annotations
@@ -96,6 +100,31 @@ def relink_dangling_edges(
             store_edge(conn, source, new_target, weight)
         rewritten += 1
     return rewritten
+
+
+def linkers_to_reread(conn: sqlite3.Connection, page: str, change: PageChange, *, removed: bool) -> list[str]:
+    """Pages whose links may read differently now that ``page`` appeared or disappeared.
+
+    A stored edge keeps the page a link resolved to, not the text that was written, so a
+    link that became ambiguous (a same-named page appeared) or unambiguous (one went away)
+    can only be re-resolved from its own page. When a page went away, every page that
+    linked to it is a candidate. When one appeared, only the pages that linked to a page
+    sharing its path, title, alias or canonical id are: finding the links a mere
+    namesake affects would mean re-reading every page that links to any page of that
+    file name, which grows with the number of namesakes, so those edges are corrected
+    when their page is next written.
+    """
+    if removed:
+        linkers = set(_linkers(conn, page)) if change.colliding or change.namesakes else set()
+    else:
+        linkers = {source for other in change.colliding for source in _linkers(conn, other)}
+    linkers.discard(page)
+    return sorted(linkers)
+
+
+def _linkers(conn: sqlite3.Connection, target: str) -> list[str]:
+    rows = conn.execute("SELECT DISTINCT source FROM wiki_edges WHERE target = ?", (target,)).fetchall()
+    return [str(row["source"]) for row in rows]
 
 
 def _unresolved_edges(conn: sqlite3.Connection, change: PageChange | None) -> list[tuple[str, str, float]]:

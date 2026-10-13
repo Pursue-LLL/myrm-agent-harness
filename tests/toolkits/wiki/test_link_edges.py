@@ -253,6 +253,31 @@ async def test_deleting_a_page_removes_its_own_outgoing_edges(structure: WikiStr
     assert _edges(indexer) == set()
 
 
+@pytest.mark.asyncio
+async def test_source_systems_in_frontmatter_become_system_edges(
+    structure: WikiStructure, indexer: WikiIndexer
+) -> None:
+    article = "---\ntype: concept\nsource_systems: [crm, ' erp ', 7]\n---\n## Compiled Truth\nBody.\n"
+
+    await publish_concept_article(structure, indexer, "Metrics/GMV", article)
+
+    assert _edges(indexer) == {("metrics/gmv", "system:crm"), ("metrics/gmv", "system:erp")}
+
+
+def test_unreadable_frontmatter_skips_system_edges_and_keeps_page_links(
+    structure: WikiStructure, indexer: WikiIndexer, caplog: pytest.LogCaptureFixture
+) -> None:
+    structure.get_concept_file_path("Guides/Real").write_text(_article("Body."), encoding="utf-8")
+    content = "---\ntype: concept\nsource_systems: [crm\n---\nSee [[Real]]."
+    structure.get_concept_file_path("Guides/Start").write_text(content, encoding="utf-8")
+
+    with caplog.at_level("WARNING", logger=indexer_module.logger.name):
+        indexer.extract_and_upsert_edges("guides/start", content)
+
+    assert _edges(indexer) == {("guides/start", "guides/real")}
+    assert "Unreadable frontmatter in guides/start" in caplog.text
+
+
 def _legacy_index(structure: WikiStructure, version: int, rows: list[tuple[str, str, float]]) -> None:
     """An index whose edge table predates the stored target spellings."""
     conn = sqlite3.connect(structure.base_dir / ".wiki_index.db")

@@ -11,8 +11,8 @@
 - link_names_page, link_names_file: whether a link names a page by path / by bare file name (POS: rename rewriting reads links as the resolver does)
 - scan_concept_pages: lookup keys of every local concept page
 - concept_index_key, concept_page_exists: index identity for a concept name, page presence check
-- PageChange: what a written page changed for already stored edges
-- WikiLinkResolver: resolves link targets to canonical concept keys for graph edges and structural lint
+- PageChange: what a page that appeared, changed or disappeared means for already stored edges
+- WikiLinkResolver: resolves link targets to canonical concept keys for graph edges and structural lint; names the pages an ambiguous target matches
 
 [POS]
 A concept's canonical key is its vault-relative path without extension (the on-disk
@@ -26,7 +26,7 @@ from __future__ import annotations
 import posixpath
 import threading
 import time
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path, PurePath
 
@@ -190,16 +190,22 @@ def _vault_fingerprint(concepts_dir: Path) -> tuple[int, int]:
 
 @dataclass(frozen=True, slots=True)
 class PageChange:
-    """What a written page changed for edges that were stored before it existed.
+    """What a page that appeared, changed or disappeared means for stored edges.
 
     ``forms`` are the spellings the page answers to; only edges whose target is spelled
     like one of them can newly resolve. ``full_rescan`` means the resolver re-read the
     vault, so pages other writers added are unknown and every unresolved edge must be
-    re-resolved.
+    re-resolved. When the page's names are new to the resolver, or the page is gone, a
+    link that named only another page can now be ambiguous (or unambiguous again),
+    which the edges stored for it do not show: ``colliding`` are the other pages that
+    share a path, title, alias or canonical id with the page, ``namesakes`` those that
+    only share its file name.
     """
 
     forms: frozenset[str]
     full_rescan: bool
+    colliding: frozenset[str] = frozenset()
+    namesakes: frozenset[str] = frozenset()
 
 
 class WikiLinkResolver:
@@ -214,8 +220,8 @@ class WikiLinkResolver:
        wins, otherwise the name must be unique across the vault (the rule
        ``core.refactor`` applies when it renames a page).
 
-    Ambiguous or unknown targets return ``None`` so callers keep the raw text. Federated
-    mounts are not resolved.
+    Ambiguous or unknown targets return ``None`` so callers keep the raw text;
+    :meth:`ambiguous_pages` tells the two apart. Federated mounts are not resolved.
 
     The page table is built lazily from disk, kept exact in-process through
     :meth:`note_page` / :meth:`forget_page`, and rebuilt when the vault changed behind
@@ -243,19 +249,27 @@ class WikiLinkResolver:
         if cleaned is None:
             return None
         with self._lock:
-            pages = self._fresh_pages()
-            if cleaned in pages:
-                return cleaned
-            sanitized = WikiStructure._sanitize_path(cleaned)
-            if sanitized in pages:
-                return sanitized
-            key = normalize_lookup_key(cleaned)
-            owners = self._by_key.get(key)
-            if owners is not None and len(owners) == 1:
-                return next(iter(owners))
-            if "/" not in cleaned:
-                return self._resolve_file_name((key, sanitized), source)
+            for owners in self._name_tiers(cleaned, source):
+                if len(owners) == 1:
+                    return next(iter(owners))
         return None
+
+    def ambiguous_pages(self, target: str, source: str | None = None) -> tuple[str, ...]:
+        """The pages ``target`` names equally well when :meth:`resolve` returns ``None`` for that reason.
+
+        Empty when the target resolves or names no page.
+        """
+        cleaned = cleaned_link_target(target, source)
+        if cleaned is None:
+            return ()
+        with self._lock:
+            ambiguous: tuple[str, ...] = ()
+            for owners in self._name_tiers(cleaned, source):
+                if len(owners) == 1:
+                    return ()
+                if len(owners) > 1 and not ambiguous:
+                    ambiguous = tuple(sorted(owners))
+            return ambiguous
 
     def note_page(self, link_name: str, markdown: str) -> PageChange | None:
         """Record a written page; return what it changed when stored edges may need re-resolving.
@@ -269,33 +283,67 @@ class WikiLinkResolver:
             pages = self._fresh_pages()
             rescanned, self._rescanned = self._rescanned, False
             keys = page_lookup_keys(link_name, markdown)
-            change = PageChange(page_link_forms(link_name, keys), full_rescan=rescanned)
+            names_changed = False
             if self._reconciled.get(link_name) == keys:
-                return change if rescanned else None
-            previous = pages.get(link_name)
-            if previous is not None:
-                self._unindex_page(link_name, previous)
-            pages[link_name] = keys
-            self._index_page(link_name, keys)
-            self._reconciled[link_name] = keys
-            return change
+                if not rescanned:
+                    return None
+            else:
+                previous = pages.get(link_name)
+                names_changed = previous != keys
+                if previous is not None:
+                    self._unindex_page(link_name, previous)
+                pages[link_name] = keys
+                self._index_page(link_name, keys)
+                self._reconciled[link_name] = keys
+            return self._page_change(link_name, keys, rescanned, with_collisions=names_changed or rescanned)
 
-    def forget_page(self, link_name: str) -> None:
+    def forget_page(self, link_name: str) -> PageChange:
+        """Drop a page; return what its disappearance changes for stored edges.
+
+        A link that named this page together with another one reads unambiguous again, so
+        edges spelled like the page may now resolve.
+        """
         with self._lock:
             self._reconciled.pop(link_name, None)
             if self._pages is None:
-                return
+                return PageChange(frozenset(), full_rescan=True)
             previous = self._pages.pop(link_name, None)
-            if previous is not None:
-                self._unindex_page(link_name, previous)
+            if previous is None:
+                return PageChange(frozenset(), full_rescan=False)
+            self._unindex_page(link_name, previous)
+            return self._page_change(link_name, previous, False, with_collisions=True)
 
-    def _resolve_file_name(self, forms: tuple[str, str], source: str | None) -> str | None:
+    def _page_change(
+        self, link_name: str, keys: frozenset[str], full_rescan: bool, *, with_collisions: bool
+    ) -> PageChange:
+        forms = page_link_forms(link_name, keys)
+        if not with_collisions:
+            return PageChange(forms, full_rescan)
+        colliding = {name for form in forms for name in self._by_key.get(form, ())} - {link_name}
+        namesakes = {name for form in forms for name in self._by_leaf.get(form, ())} - colliding - {link_name}
+        return PageChange(forms, full_rescan, frozenset(colliding), frozenset(namesakes))
+
+    def _name_tiers(self, cleaned: str, source: str | None) -> Iterator[set[str]]:
+        """Pages named by each resolution tier, in order; the caller holds the lock.
+
+        A tier resolves the link when it names exactly one page.
+        """
+        pages = self._fresh_pages()
+        yield {cleaned} if cleaned in pages else set()
+        sanitized = WikiStructure._sanitize_path(cleaned)
+        yield {sanitized} if sanitized in pages else set()
+        key = normalize_lookup_key(cleaned)
+        yield set(self._by_key.get(key, ()))
+        if "/" not in cleaned:
+            yield self._file_name_owners((key, sanitized), source)
+
+    def _file_name_owners(self, forms: tuple[str, str], source: str | None) -> set[str]:
         owners = {name for form in forms for name in self._by_leaf.get(form, ())}
         if source is not None:
             folder = posixpath.dirname(source)
             siblings = {name for name in owners if posixpath.dirname(name) == folder}
             owners = siblings or owners
-        return next(iter(owners)) if len(owners) == 1 else None
+        return owners
 
     def _fresh_pages(self) -> dict[str, frozenset[str]]:
         now = time.monotonic()

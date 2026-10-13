@@ -231,6 +231,85 @@ class TestIncrementalUpdates:
         assert resolver.resolve("Nickname") is None
         assert resolver.resolve("topic") is None
 
+    def test_a_new_page_reports_the_pages_it_collides_with_and_its_namesakes(self, structure: WikiStructure) -> None:
+        _page(structure, "a/overview")
+        _page(structure, "b/first", aliases=("Overview",))
+        resolver = WikiLinkResolver(structure)
+        assert resolver.note_page("a/overview", "---\ntype: concept\n---\nBody") is not None
+
+        _page(structure, "c/overview")
+        change = resolver.note_page("c/overview", "---\ntype: concept\n---\nBody")
+
+        assert change is not None
+        assert change.colliding == {"b/first"}
+        assert change.namesakes == {"a/overview"}
+
+    def test_pages_the_first_scan_already_knew_report_collisions_once(self, structure: WikiStructure) -> None:
+        _page(structure, "a/overview")
+        _page(structure, "b/overview")
+        markdown = "---\ntype: concept\n---\nBody"
+        resolver = WikiLinkResolver(structure)
+
+        first = resolver.note_page("a/overview", markdown)
+        second = resolver.note_page("b/overview", markdown)
+
+        assert first is not None
+        assert first.namesakes == {"b/overview"}
+        assert second == PageChange(page_link_forms("b/overview", page_lookup_keys("b/overview", markdown)), False)
+
+    def test_forgetting_a_page_reports_what_it_collided_with(self, structure: WikiStructure) -> None:
+        _page(structure, "a/overview")
+        _page(structure, "b/overview")
+        _page(structure, "c/alone")
+        resolver = WikiLinkResolver(structure)
+        assert resolver.resolve("Overview") is None
+
+        shared = resolver.forget_page("a/overview")
+        alone = resolver.forget_page("c/alone")
+        unknown = resolver.forget_page("never/existed")
+
+        assert shared.namesakes == {"b/overview"}
+        assert "overview" in shared.forms
+        assert alone == PageChange(forms=alone.forms, full_rescan=False)
+        assert unknown == PageChange(frozenset(), full_rescan=False)
+        assert resolver.resolve("Overview") == "b/overview"
+
+
+class TestAmbiguousPages:
+    def test_names_the_pages_a_bare_name_matches_equally_well(self, structure: WikiStructure) -> None:
+        _page(structure, "rust/ownership")
+        _page(structure, "law/ownership")
+        resolver = WikiLinkResolver(structure)
+
+        assert resolver.resolve("Ownership") is None
+        assert resolver.ambiguous_pages("Ownership") == ("law/ownership", "rust/ownership")
+
+    def test_names_the_pages_sharing_an_alias(self, structure: WikiStructure) -> None:
+        _page(structure, "a/first", aliases=("Dup",))
+        _page(structure, "b/second", aliases=("Dup",))
+
+        assert WikiLinkResolver(structure).ambiguous_pages("Dup") == ("a/first", "b/second")
+
+    def test_is_empty_for_resolved_unknown_and_non_page_targets(self, structure: WikiStructure) -> None:
+        _page(structure, "rust/ownership")
+        _page(structure, "law/ownership")
+        _page(structure, "rust/guide")
+        resolver = WikiLinkResolver(structure)
+
+        assert resolver.ambiguous_pages("Ownership", source="rust/guide") == ()
+        assert resolver.ambiguous_pages("rust/ownership") == ()
+        assert resolver.ambiguous_pages("Nobody") == ()
+        assert resolver.ambiguous_pages("https://example.com") == ()
+
+    def test_a_later_tier_that_resolves_wins_over_an_ambiguous_earlier_one(self, structure: WikiStructure) -> None:
+        _page(structure, "a/first", aliases=("Shared",))
+        _page(structure, "b/second", aliases=("Shared",))
+        _page(structure, "c/shared")
+        resolver = WikiLinkResolver(structure)
+
+        assert resolver.resolve("Shared") == "c/shared"
+        assert resolver.ambiguous_pages("Shared") == ()
+
 
 class TestConceptIndexKey:
     def test_compile_name_maps_to_on_disk_path(self, structure: WikiStructure) -> None:
