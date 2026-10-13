@@ -11,9 +11,12 @@ awrap_model_call (wraps each LLM call, non-persistent request.override):
        Uses HumanMessage to preserve SystemMessage hash stability (prompt cache).
 
 before_model (runs before each LLM call):
+    0.5 Intent Router — flags dangerous actionable operations in the user's message (block, or a safety caution)
     1. Prompt Guard — scans user input for 7 categories of injection attacks
     2. PII Guard — classifies user input into S1/S2/S3, applies redaction
        per PrivacyPolicy (warn/redact/block)
+       Layers 0.5-2 screen the latest user-authored message, text or text blocks, once per user input
+       (user_input_guard); messages the runtime appends behind it are not screened.
     3. Tool Result Redact — sanitizes credentials in tool outputs, including the
        text blocks of a text + image result, so the LLM never sees raw secrets
 
@@ -36,9 +39,10 @@ execution and are unaffected by these hooks. The primary value of layer ②③
 is that the LLM never receives raw credentials/PII, so it cannot echo them.
 
 [INPUT]
-- agent.security.types::PIIAction, SensitivityLevel (POS: Foundation layer of the security type hierarchy. All other security modules import from here; this module imports from none of them.)
-- agent.middlewares.security.tool_result_redaction::redact_tool_content (POS: Content-shape adapter between a ToolMessage and the
-  leak detector, so the guardrail middleware treats a text result and a text + image result alike.)
+- agent.security.types::SensitivityLevel (POS: Foundation layer of the security type hierarchy. All other security modules import from here; this module imports from none of them.)
+- agent.middlewares.security.user_input_guard::screen_user_input (POS: Input-side layers (intent router, prompt guard, PII guard) of the security guardrail middleware.)
+- agent.middlewares.security.pii_actions::apply_pii_actions, levels_to_process (POS: PII action engine shared by the guardrail's input and output layers and by the tool-result PII guard.)
+- agent.middlewares.security.text_blocks::map_text_blocks (POS: Content-shape adapter between a message and the security layers that rewrite its text.)
 
 [OUTPUT]
 - SecurityGuardrailMiddleware: Eight-layer security guardrail for agent conversations.
@@ -50,22 +54,22 @@ Security guardrail middleware.
 from __future__ import annotations
 
 import logging
-from collections.abc import Awaitable, Callable
-from typing import Any, cast
+from collections.abc import Awaitable, Callable, Sequence
+from typing import cast
 
-from langchain.agents.middleware import AgentMiddleware, ModelRequest, ModelResponse
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain.agents.middleware import AgentMiddleware, AgentState, ModelRequest, ModelResponse
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
+from langchain_core.messages.tool import ToolCall
+from langgraph.runtime import Runtime
 
 from myrm_agent_harness.agent.middlewares._session_context import (
     get_canary_token,
     get_privacy_policy,
-    get_pseudonym_store,
     get_terminal_errors,
 )
-from myrm_agent_harness.agent.middlewares.security.tool_result_redaction import redact_tool_content
-from myrm_agent_harness.agent.security.detection.intent_router import (
-    scan_dangerous_intent,
-)
+from myrm_agent_harness.agent.middlewares.security.pii_actions import apply_pii_actions, levels_to_process
+from myrm_agent_harness.agent.middlewares.security.text_blocks import map_text_blocks
+from myrm_agent_harness.agent.middlewares.security.user_input_guard import screen_user_input
 from myrm_agent_harness.agent.security.detection.leak_detector import (
     log_leaks,
     redact_leaks,
@@ -73,12 +77,7 @@ from myrm_agent_harness.agent.security.detection.leak_detector import (
 )
 from myrm_agent_harness.agent.security.detection.pii_classifier import classify_content
 from myrm_agent_harness.agent.security.detection.pii_redactor import redact_pii
-from myrm_agent_harness.agent.security.detection.prompt_guard import (
-    log_guard_result,
-    scan_input,
-)
-from myrm_agent_harness.agent.security.guards.privacy_tracker import get_privacy_tracker
-from myrm_agent_harness.agent.security.types import PIIAction, PrivacyPolicy, SensitivityLevel
+from myrm_agent_harness.agent.security.types import SensitivityLevel
 
 logger = logging.getLogger(__name__)
 
@@ -107,64 +106,82 @@ _CIRCUIT_BREAKER_HINTS: dict[str, str] = {
 }
 
 
-def _levels_to_process(
-    detected_level: SensitivityLevel,
-    policy: PrivacyPolicy,
-) -> list[SensitivityLevel]:
-    """Determine which sensitivity levels need PII processing.
+def _last_ai_message(messages: Sequence[BaseMessage]) -> tuple[int, AIMessage] | None:
+    for i in range(len(messages) - 1, -1, -1):
+        msg = messages[i]
+        if isinstance(msg, AIMessage):
+            return i, msg
+    return None
 
-    When S3 is detected, also include S2 if its action is not WARN
-    (since the message may contain both S2 and S3 PII).
+
+def _redact_recent_tool_results(messages: Sequence[BaseMessage]) -> list[BaseMessage] | None:
+    """Layer ③: redact credentials in the tool results since the last AI or human message.
+
+    Returns the rewritten list, or None when no result held a credential.
     """
-    levels = [detected_level]
-    if detected_level == SensitivityLevel.S3 and policy.s2_action != PIIAction.WARN:
-        levels.append(SensitivityLevel.S2)
-    return levels
+    redacted: list[BaseMessage] | None = None
+    for i in range(len(messages) - 1, -1, -1):
+        msg = messages[i]
+        if isinstance(msg, ToolMessage):
+            content = map_text_blocks(msg.content, redact_leaks)
+            if content != msg.content:
+                if redacted is None:
+                    redacted = list(messages)
+                redacted[i] = msg.model_copy(update={"content": content})
+                logger.warning("[SECURITY] Redacted credentials in tool result: %s", msg.name or "unknown")
+        elif isinstance(msg, (AIMessage, HumanMessage)):
+            break
+    return redacted
 
 
-def _apply_pii_actions(
-    text: str,
-    levels: list[SensitivityLevel],
-    policy: PrivacyPolicy,
-    source: str,
-) -> str | None:
-    """Apply per-level PII actions to *text*.
+def _guard_canary(text: str, tool_calls: list[ToolCall]) -> str:
+    """Layer ③.5: record a session canary token that leaked into the AI text or its tool call arguments.
 
-    Returns None if the message should be BLOCKED, otherwise returns
-    the processed text (possibly unchanged if only WARN actions).
+    Returns *text* with the token scrubbed. The arguments are checked on their own: a model that writes no text next
+    to a tool call can still carry the token out through it.
     """
+    canary = get_canary_token()
+    if not canary:
+        return text
+
+    from myrm_agent_harness.agent.security.detection.canary_guard import (
+        StructuredValue,
+        check_canary,
+        scrub_canary,
+    )
+
+    text_leaked = check_canary(text, canary)
+    # ToolCall is a TypedDict of JSON values, which the recursive StructuredValue alias cannot express.
+    args_leaked = bool(tool_calls) and check_canary(cast("StructuredValue", tool_calls), canary)
+    if not (text_leaked or args_leaked):
+        return text
+
     from myrm_agent_harness.agent.security.audit import record_decision
 
-    result = text
-    for level in levels:
-        action = policy.s3_action if level == SensitivityLevel.S3 else policy.s2_action
-        if action == PIIAction.BLOCK:
-            return None
-        if action == PIIAction.PSEUDONYMIZE:
-            store = get_pseudonym_store()
-            if store is not None:
-                from myrm_agent_harness.agent.security.detection.pseudonymizer import (
-                    pseudonymize_text,
-                )
+    channel = "text+tool_args" if text_leaked and args_leaked else "text" if text_leaked else "tool_args"
+    record_decision("canary_guard", "CANARY_LEAKED", f"channel={channel}", tainted=True)
+    logger.warning("[CANARY] Prompt injection detected: canary leaked via %s", channel)
+    return scrub_canary(text, canary)
 
-                ps_result = pseudonymize_text(result, store, level)
-                if ps_result.count > 0:
-                    result = ps_result.text
-                    record_decision(source, "PII_PSEUDONYMIZED", f"level={level.value} count={ps_result.count}")
-                    logger.warning("[PII] Pseudonymized %d %s items (%s)", ps_result.count, level.value, source)
-            else:
-                result, count = redact_pii(result)
-                if count > 0:
-                    record_decision(
-                        source, "PII_REDACTED", f"level={level.value} count={count} (pseudonymize fallback)"
-                    )
-                    logger.warning("[PII] Pseudonymize fallback to redact: %d items (%s)", count, source)
-        elif action == PIIAction.REDACT:
-            result, count = redact_pii(result)
-            if count > 0:
-                record_decision(source, "PII_REDACTED", f"level={level.value} count={count}")
-                logger.warning("[PII] Redacted %d %s items (%s)", count, level.value, source)
-    return result
+
+def _redact_ai_text(text: str) -> str:
+    """Layers ④⑤: redact credentials, then apply the privacy policy to PII in the AI text."""
+    matches = scan_for_leaks(text)
+    if matches:
+        log_leaks(matches, text)
+        text = redact_leaks(text)
+
+    policy = get_privacy_policy()
+    if not policy.enabled:
+        return text
+    pii_result = classify_content(text, policy)
+    if pii_result.level == SensitivityLevel.S1:
+        return text
+    processed = apply_pii_actions(text, levels_to_process(pii_result.level, policy), policy, "ai_response")
+    if processed is None:
+        # BLOCK in after_model: an already-generated response can't be blocked, so fall back to full redaction
+        return redact_pii(text)[0]
+    return processed
 
 
 class SecurityGuardrailMiddleware(AgentMiddleware):
@@ -206,276 +223,33 @@ class SecurityGuardrailMiddleware(AgentMiddleware):
                 return await handler(request.override(messages=new_messages))
         return await handler(request)
 
-    def before_model(self, state: dict[str, Any], runtime: Any) -> dict[str, Any] | None:
+    def before_model(self, state: AgentState, runtime: Runtime) -> dict[str, Sequence[BaseMessage]] | None:
         messages = state.get("messages", [])
         if not messages:
             return None
 
-        new_messages: list[Any] | None = None
+        screened = screen_user_input(messages, get_privacy_policy())
+        redacted = _redact_recent_tool_results(messages if screened is None else screened)
+        result = screened if redacted is None else redacted
+        return None if result is None else {"messages": result}
 
-        policy = get_privacy_policy()
-
-        # Layer ⓪.⑤: Intake Dangerous-Intent Safety Router
-        for msg in reversed(messages):
-            if isinstance(msg, HumanMessage):
-                content = msg.content
-                if isinstance(content, str):
-                    intent_result = scan_dangerous_intent(content)
-                    if not intent_result.safe:
-                        from myrm_agent_harness.agent.middlewares._session_context import (
-                            get_security_config,
-                        )
-                        from myrm_agent_harness.agent.security.audit import (
-                            record_decision as _record_intent_decision,
-                        )
-
-                        intent_name = intent_result.intent.value if intent_result.intent else "unknown"
-                        _record_intent_decision(
-                            "user_input",
-                            "DANGEROUS_INTENT_DETECTED",
-                            f"intent={intent_name} pattern={intent_result.matched_pattern}",
-                        )
-                        try:
-                            sec_cfg = get_security_config()
-                        except LookupError:
-                            sec_cfg = None
-                        intent_mode = sec_cfg.dangerous_intent_policy if sec_cfg else "hitl"
-                        if intent_mode == "fail_closed":
-                            if new_messages is None:
-                                new_messages = list(messages)
-                            idx = messages.index(msg)
-                            new_messages[idx] = HumanMessage(
-                                content=(
-                                    f"[BLOCKED_INTENT] This request was blocked by the safety router because "
-                                    f"it contains a dangerous actionable operation intent ({intent_name}). "
-                                    f"Please confirm your request through the appropriate authorization channel or rephrase."
-                                ),
-                                id=msg.id,
-                            )
-                            _record_intent_decision(
-                                "user_input",
-                                "DANGEROUS_INTENT_BLOCKED",
-                                f"intent={intent_name} pattern={intent_result.matched_pattern}",
-                            )
-                            logger.warning(
-                                "[IntentRouter] Blocked dangerous intent user message: intent=%s pattern=%s",
-                                intent_name,
-                                intent_result.matched_pattern,
-                            )
-                            break
-                        elif intent_mode == "hitl":
-                            if new_messages is None:
-                                new_messages = list(messages)
-                            idx = messages.index(msg)
-                            caution_prefix = (
-                                f"[SAFETY_CAUTION: Actionable high-risk intent detected ({intent_name}) - "
-                                f"do NOT execute destructive changes silently; require explicit confirmation]\n"
-                            )
-                            new_messages[idx] = msg.model_copy(update={"content": f"{caution_prefix}{content}"})
-                            break
-
-        # Layer ①: Prompt Guard — scan last HumanMessage for injection
-        for msg in reversed(messages):
-            if isinstance(msg, HumanMessage):
-                content = msg.content
-                if isinstance(content, str):
-                    result = scan_input(content)
-                    if not result.safe:
-                        log_guard_result(result, content)
-                        from myrm_agent_harness.agent.middlewares._session_context import (
-                            get_security_config,
-                        )
-                        from myrm_agent_harness.agent.security.audit import (
-                            record_decision as _record_injection,
-                        )
-
-                        _record_injection(
-                            "user_input",
-                            "INJECTION_DETECTED",
-                            f"patterns={','.join(result.patterns)} score={result.max_score:.2f}",
-                        )
-                        try:
-                            sec_cfg = get_security_config()
-                        except LookupError:
-                            sec_cfg = None
-                        policy_mode = sec_cfg.injection_policy if sec_cfg else "log_only"
-                        if policy_mode == "fail_closed" and result.should_block:
-                            if new_messages is None:
-                                new_messages = list(messages)
-                            idx = messages.index(msg)
-                            new_messages[idx] = HumanMessage(
-                                content=(
-                                    "[BLOCKED] This message was blocked by the prompt injection guard. "
-                                    "Please inform the user that their message triggered a security filter "
-                                    "and was not processed. Do not attempt to guess or reproduce "
-                                    "the original content."
-                                ),
-                                id=msg.id,
-                            )
-                            _record_injection(
-                                "user_input",
-                                "INJECTION_BLOCKED",
-                                f"patterns={','.join(result.patterns)} score={result.max_score:.2f}",
-                            )
-                            logger.warning(
-                                "[INJECTION] Blocked user message: patterns=%s score=%.2f",
-                                ",".join(result.patterns),
-                                result.max_score,
-                            )
-                            break
-                    # Layer ②: PII Guard — classify and apply per-level actions
-                    if policy.enabled:
-                        pii_result = classify_content(content, policy)
-                        if pii_result.level != SensitivityLevel.S1:
-                            tracker = get_privacy_tracker()
-                            tracker.record(pii_result.level, "user_message", pii_result.patterns)
-                            from myrm_agent_harness.agent.security.audit import (
-                                record_decision,
-                            )
-
-                            record_decision(
-                                "user_input",
-                                "PII_DETECTED",
-                                f"level={pii_result.level.value} patterns={','.join(pii_result.patterns)}",
-                            )
-                            levels_to_process = _levels_to_process(pii_result.level, policy)
-                            processed = _apply_pii_actions(
-                                content,
-                                levels_to_process,
-                                policy,
-                                "user_input",
-                            )
-                            if processed is None:
-                                if new_messages is None:
-                                    new_messages = list(messages)
-                                idx = messages.index(msg)
-                                new_messages[idx] = HumanMessage(
-                                    content=(
-                                        "[BLOCKED] This message was blocked by the PII protection engine "
-                                        f"due to {pii_result.level.value}-level sensitive information. "
-                                        "Please inform the user that their message contained confidential "
-                                        "data and was not processed. Do not attempt to guess or reproduce "
-                                        "the original content."
-                                    ),
-                                    id=msg.id,
-                                )
-                                record_decision(
-                                    "user_input",
-                                    "PII_BLOCKED",
-                                    f"level={pii_result.level.value}",
-                                )
-                                logger.warning(
-                                    "[PII] Blocked user message: level=%s",
-                                    pii_result.level.value,
-                                )
-                            elif processed != content:
-                                if new_messages is None:
-                                    new_messages = list(messages)
-                                idx = messages.index(msg)
-                                new_messages[idx] = msg.model_copy(update={"content": processed})
-                break
-
-        # Layer ③: Tool Result Redact — sanitize credentials in recent ToolMessages
-        for i in range(len(messages) - 1, -1, -1):
-            msg = messages[i]
-            if isinstance(msg, ToolMessage):
-                redacted = redact_tool_content(msg.content)
-                if redacted != msg.content:
-                    if new_messages is None:
-                        new_messages = list(messages)
-                    new_messages[i] = msg.model_copy(update={"content": redacted})
-                    logger.warning(
-                        "[SECURITY] Redacted credentials in tool result: %s",
-                        msg.name or "unknown",
-                    )
-            elif isinstance(msg, (AIMessage, HumanMessage)):
-                break
-
-        if new_messages is not None:
-            return {"messages": new_messages}
-        return None
-
-    def after_model(self, state: dict[str, Any], runtime: Any) -> dict[str, Any] | None:
+    def after_model(self, state: AgentState, runtime: Runtime) -> dict[str, Sequence[BaseMessage]] | None:
         messages = state.get("messages", [])
         if not messages:
             return None
 
-        last_ai_idx: int | None = None
-        last_ai_msg: AIMessage | None = None
-        for i in range(len(messages) - 1, -1, -1):
-            if isinstance(messages[i], AIMessage):
-                last_ai_idx = i
-                last_ai_msg = messages[i]
-                break
-
-        if last_ai_idx is None or last_ai_msg is None:
+        last_ai = _last_ai_message(messages)
+        if last_ai is None:
             return None
+        last_ai_idx, last_ai_msg = last_ai
 
         content = last_ai_msg.content
-        if not isinstance(content, str) or not content:
-            return None
-
-        modified = content
-
-        # Layer ③.5: Canary Guard — deterministic injection success detection
-        canary = get_canary_token()
-        if canary:
-            from myrm_agent_harness.agent.security.detection.canary_guard import (
-                StructuredValue,
-                check_canary,
-                scrub_canary,
-            )
-
-            text_leaked = check_canary(modified, canary)
-            # ToolCall is a TypedDict of JSON values, which the recursive StructuredValue alias cannot express.
-            args_leaked = bool(last_ai_msg.tool_calls) and check_canary(
-                cast("StructuredValue", last_ai_msg.tool_calls), canary
-            )
-            if text_leaked or args_leaked:
-                from myrm_agent_harness.agent.security.audit import record_decision
-
-                channel = "text" if text_leaked else "tool_args"
-                if text_leaked and args_leaked:
-                    channel = "text+tool_args"
-                record_decision(
-                    "canary_guard",
-                    "CANARY_LEAKED",
-                    f"channel={channel}",
-                    tainted=True,
-                )
-                logger.warning(
-                    "[CANARY] Prompt injection detected: canary leaked via %s",
-                    channel,
-                )
-                modified = scrub_canary(modified, canary)
-
-        # Layer ④: Leak Detector — scan for credential patterns
-        matches = scan_for_leaks(modified)
-        if matches:
-            log_leaks(matches, modified)
-            modified = redact_leaks(modified)
-
-        # Layer ⑤: PII Redact — redact PII from AI response
-        policy = get_privacy_policy()
-        if policy.enabled:
-            pii_result = classify_content(modified, policy)
-            if pii_result.level != SensitivityLevel.S1:
-                levels_to_process = _levels_to_process(pii_result.level, policy)
-                result = _apply_pii_actions(
-                    modified,
-                    levels_to_process,
-                    policy,
-                    "ai_response",
-                )
-                if result is None:
-                    # BLOCK in after_model: can't block an already-generated
-                    # response, fallback to full redaction
-                    modified, _ = redact_pii(modified)
-                else:
-                    modified = result
+        modified = _guard_canary(content if isinstance(content, str) else "", last_ai_msg.tool_calls)
+        if modified:
+            modified = _redact_ai_text(modified)
 
         # Layer ⑥: History Redact — replace in stored message
-        if modified == content:
+        if not isinstance(content, str) or modified == content:
             return None
 
         new_messages = list(messages)

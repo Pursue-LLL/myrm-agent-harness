@@ -11,11 +11,11 @@ from __future__ import annotations
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
+from myrm_agent_harness.agent.middlewares._message_origin import is_user_authored_human_message
 from myrm_agent_harness.agent.middlewares.approval.intent_ledger import (
     NO_USER_MESSAGE_VISIBLE,
     OMITTED_MARKER,
     extract_user_intent_ledger,
-    is_user_authored_human_message,
 )
 
 

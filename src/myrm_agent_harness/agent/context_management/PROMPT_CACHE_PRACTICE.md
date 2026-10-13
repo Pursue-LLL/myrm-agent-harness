@@ -1363,6 +1363,9 @@ messages.append(HumanMessage(content=dynamic_notification))
 4. **【反面避坑禁令】严禁“先注入、后剥离”的反模式**：
    - 不得为了追求“会话历史纯洁”而在下一轮次剥离前一轮注入的文本！任何对前序 `HumanMessage` 内容的修改都会触发 `messages_changed` 导致整段消息缓存彻底失效。
    - 任务清单（Todo/Task）状态演进优先采用 `ToolMessage` 原样追加（Append-Only）的标准实践，严禁搞 In-place 历史重写。
+5. **输入侧护栏只改写“尚未发送过的最新用户消息”**：`middlewares/security/user_input_guard.py` 在一次用户输入的**首次**模型调用里把 PII 脱敏与安全告诫前缀写入最新一条用户亲写消息，之后工具轮次与后续轮次看到的字节不再变化。新增输入侧改写必须遵守同一约束：
+   - 只动最新用户消息，不动 runtime 追加在其后的 `is_system_synthetic` 消息，更不动更早的历史。
+   - 用无状态的“首次调用”判定（用户消息之后还没有 AI/Tool 消息）保证幂等，不靠往历史里加标记，也不在每次调用重复前置同一段文本。
 
 **文档引用**：
 - 详见 `CONTEXT_ENGINEERING.md` § Prompt Cache Best Practices

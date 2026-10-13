@@ -63,7 +63,7 @@
 | `context_pipeline/` | `context_pipeline_middleware.py`（桥接 `context_management/pipeline/`）、`context_pipeline_helpers.py`（压缩意图/cache feedback/schema fingerprint） |
 | `memory_context/` | `memory_context_middleware.py`（记忆上下文注入编排，首轮 LLM 前 idempotent 注入）、`memory_context_format.py`（注入格式化纯函数：stable SystemMessage / learned UNTRUSTED HumanMessage） |
 | `concurrency/` | `concurrency_limiter.py`（按 agent_type Semaphore）、`concurrency_router.py`（智能并发路由：host-serial MCP lane + canonical path + `build_tool_execution_stages`）、`safety_dispatcher.py`（safe→concurrent / unsafe→serial） |
-| `security/` | `security_boundary_middleware.py`（SECURITY_BOUNDARY_SYSTEM_RULES 注入）、`security_guardrail_middleware.py`（八层防御：circuit-breaker cognition / prompt guard / PII / leak / canary / history redact） |
+| `security/` | `security_boundary_middleware.py`（SECURITY_BOUNDARY_SYSTEM_RULES 注入）、`security_guardrail_middleware.py`（八层防御：circuit-breaker cognition / intent router / prompt guard / PII / leak / canary / history redact）、`user_input_guard.py`（意图 / 注入 / PII 三层只筛查最新一条用户亲写消息，文本或图文块均可；runtime 追加在其后的 `is_system_synthetic` 消息不筛；审计、日志、安全告诫前缀与 PII 改写只在该输入的首次模型调用写入，之后每轮工具调用字节不变）、`pii_actions.py`（按级别执行 warn / redact / pseudonymize / block，入站、出站与工具结果共用）、`text_blocks.py`（文本与图文块内容的统一文本变换） |
 | `subagent_limit_middleware.py` | 单轮 delegate 上限 |
 | `plan_confirm_middleware.py` | 计划阶段人机协同确认与重大 Re-plan 拦截门禁 |
 | `filesystem_search_middleware.py` | 工作区搜索工具注入 |

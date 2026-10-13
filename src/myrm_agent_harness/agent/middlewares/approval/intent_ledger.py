@@ -2,6 +2,7 @@
 
 [INPUT]
 - Sequence of BaseMessage objects from conversation state, maximum character budget.
+- agent.middlewares._message_origin::is_user_authored_human_message (POS: Message-provenance predicate shared by the approval and security middlewares.)
 
 [OUTPUT]
 - Curated user intent context string preserving initial task anchor, latest directives,
@@ -15,7 +16,9 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from langchain_core.messages import BaseMessage, HumanMessage
+from langchain_core.messages import BaseMessage
+
+from myrm_agent_harness.agent.middlewares._message_origin import is_user_authored_human_message
 
 OMITTED_MARKER = "[earlier user messages omitted]"
 NO_USER_MESSAGE_VISIBLE = "[no user message visible]"
@@ -26,9 +29,7 @@ def _extract_text_from_message_content(content: object) -> str:
     if isinstance(content, str):
         return content.strip()
 
-    if isinstance(content, Sequence) and not isinstance(
-        content, (str, bytes, bytearray)
-    ):
+    if isinstance(content, Sequence) and not isinstance(content, (str, bytes, bytearray)):
         text_parts: list[str] = []
         for block in content:
             if isinstance(block, dict):
@@ -42,25 +43,7 @@ def _extract_text_from_message_content(content: object) -> str:
     return ""
 
 
-def is_user_authored_human_message(msg: BaseMessage) -> bool:
-    """Determine whether a message represents authentic user input rather than synthetic runtime injection."""
-    if not isinstance(msg, HumanMessage):
-        return False
-
-    kwargs = getattr(msg, "additional_kwargs", {})
-    if not isinstance(kwargs, dict):
-        return True
-
-    # Explicit synthetic flag
-    if kwargs.get("is_system_synthetic") is True:
-        return False
-
-    return kwargs.get("source") not in ("runtime", "system", "working_memory")
-
-
-def extract_user_intent_ledger(
-    messages: Sequence[BaseMessage], max_chars: int = 2500
-) -> str:
+def extract_user_intent_ledger(messages: Sequence[BaseMessage], max_chars: int = 2500) -> str:
     """Assemble user intent ledger with anchor retention and tail-first budget allocation.
 
     Rules:

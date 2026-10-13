@@ -12,6 +12,7 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](MIDDLEWARE_SYSTEM.md)
 |------|------|-------------|-------|
 | `__init__.py` | Package | Public middleware exports. | ✅ |
 | `_session_context.py` | Internal | Shared ContextVars for the middleware chain. | ✅ |
+| `_message_origin.py` | Internal | `is_user_authored_human_message`: tells a HumanMessage the user wrote from one the runtime injected (`is_system_synthetic`); shared by the approval and security middlewares. | ✅ |
 | `advisor_risk_trigger_router.py` | Core | Adaptive risk-triggered router for MoA advisor overlay — gates advisor fan-out based on ReplanMiddleware errors, LoopGuard telemetry, fatal error bypass, and immunity/quota gates. | ✅ |
 | `clarification_guard_middleware.py` | Core | Enforces single `ask_question_tool` call per turn; blocks coexisting tool calls with synthetic errors. | ✅ |
 

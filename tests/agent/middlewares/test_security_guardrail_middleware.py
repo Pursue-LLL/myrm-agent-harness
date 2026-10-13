@@ -139,7 +139,7 @@ class TestBeforeModel:
         from myrm_agent_harness.agent.security.detection.prompt_guard import GuardResult
 
         monkeypatch.setattr(
-            "myrm_agent_harness.agent.middlewares.security.security_guardrail_middleware.scan_input",
+            "myrm_agent_harness.agent.middlewares.security.user_input_guard.scan_input",
             lambda content: GuardResult(
                 safe=False, patterns=["directive_hijack"], max_score=0.95
             ),
@@ -168,7 +168,7 @@ class TestBeforeModel:
         from myrm_agent_harness.agent.security.detection.prompt_guard import GuardResult
 
         monkeypatch.setattr(
-            "myrm_agent_harness.agent.middlewares.security.security_guardrail_middleware.scan_input",
+            "myrm_agent_harness.agent.middlewares.security.user_input_guard.scan_input",
             lambda content: GuardResult(
                 safe=False, patterns=["directive_hijack"], max_score=0.95
             ),
@@ -199,7 +199,7 @@ class TestBeforeModel:
         from myrm_agent_harness.agent.security.detection.prompt_guard import GuardResult
 
         monkeypatch.setattr(
-            "myrm_agent_harness.agent.middlewares.security.security_guardrail_middleware.scan_input",
+            "myrm_agent_harness.agent.middlewares.security.user_input_guard.scan_input",
             lambda content: GuardResult(
                 safe=False, patterns=["weak_signal"], max_score=0.3
             ),
@@ -536,17 +536,15 @@ class TestPIIGuard:
             ]
         )
         result = self.mw.before_model(state, None)
-        if result is not None:
-            msg = result["messages"][0]
-            assert "13812345678" not in msg.content
+        assert result is not None
+        assert "13812345678" not in result["messages"][0].content
 
     @pytest.mark.usefixtures("_enable_pii_block")
     def test_pii_in_user_message_is_blocked(self) -> None:
         state = _make_state([HumanMessage(content="My SSN is 110101199001011237")])
         result = self.mw.before_model(state, None)
-        if result is not None:
-            msg = result["messages"][0]
-            assert "[BLOCKED]" in msg.content
+        assert result is not None
+        assert "[BLOCKED]" in result["messages"][0].content
 
     @pytest.mark.usefixtures("_enable_pii_redact")
     def test_pii_in_ai_response_is_redacted(self) -> None:
@@ -824,11 +822,11 @@ class TestMultiLevelCombinations:
 
 
 class TestHelperFunctions:
-    """Direct tests for _levels_to_process and _apply_pii_actions."""
+    """Direct tests for levels_to_process and apply_pii_actions."""
 
     def test_levels_to_process_s3_with_s2_action(self) -> None:
-        from myrm_agent_harness.agent.middlewares.security.security_guardrail_middleware import (
-            _levels_to_process,
+        from myrm_agent_harness.agent.middlewares.security.pii_actions import (
+            levels_to_process,
         )
 
         policy = PrivacyPolicy(
@@ -836,13 +834,13 @@ class TestHelperFunctions:
             s2_action=PIIAction.REDACT,
             s3_action=PIIAction.PSEUDONYMIZE,
         )
-        levels = _levels_to_process(SensitivityLevel.S3, policy)
+        levels = levels_to_process(SensitivityLevel.S3, policy)
         assert SensitivityLevel.S3 in levels
         assert SensitivityLevel.S2 in levels
 
     def test_levels_to_process_s3_with_s2_warn(self) -> None:
-        from myrm_agent_harness.agent.middlewares.security.security_guardrail_middleware import (
-            _levels_to_process,
+        from myrm_agent_harness.agent.middlewares.security.pii_actions import (
+            levels_to_process,
         )
 
         policy = PrivacyPolicy(
@@ -850,12 +848,12 @@ class TestHelperFunctions:
             s2_action=PIIAction.WARN,
             s3_action=PIIAction.REDACT,
         )
-        levels = _levels_to_process(SensitivityLevel.S3, policy)
+        levels = levels_to_process(SensitivityLevel.S3, policy)
         assert levels == [SensitivityLevel.S3]
 
     def test_levels_to_process_s2_only(self) -> None:
-        from myrm_agent_harness.agent.middlewares.security.security_guardrail_middleware import (
-            _levels_to_process,
+        from myrm_agent_harness.agent.middlewares.security.pii_actions import (
+            levels_to_process,
         )
 
         policy = PrivacyPolicy(
@@ -863,12 +861,12 @@ class TestHelperFunctions:
             s2_action=PIIAction.REDACT,
             s3_action=PIIAction.BLOCK,
         )
-        levels = _levels_to_process(SensitivityLevel.S2, policy)
+        levels = levels_to_process(SensitivityLevel.S2, policy)
         assert levels == [SensitivityLevel.S2]
 
     def test_apply_pii_actions_block_returns_none(self) -> None:
-        from myrm_agent_harness.agent.middlewares.security.security_guardrail_middleware import (
-            _apply_pii_actions,
+        from myrm_agent_harness.agent.middlewares.security.pii_actions import (
+            apply_pii_actions,
         )
 
         policy = PrivacyPolicy(
@@ -876,12 +874,12 @@ class TestHelperFunctions:
             s2_action=PIIAction.BLOCK,
             s3_action=PIIAction.BLOCK,
         )
-        result = _apply_pii_actions("test", [SensitivityLevel.S3], policy, "test")
+        result = apply_pii_actions("test", [SensitivityLevel.S3], policy, "test")
         assert result is None
 
     def test_apply_pii_actions_warn_returns_unchanged(self) -> None:
-        from myrm_agent_harness.agent.middlewares.security.security_guardrail_middleware import (
-            _apply_pii_actions,
+        from myrm_agent_harness.agent.middlewares.security.pii_actions import (
+            apply_pii_actions,
         )
 
         policy = PrivacyPolicy(
@@ -890,12 +888,12 @@ class TestHelperFunctions:
             s3_action=PIIAction.WARN,
         )
         text = "Phone 13812345678"
-        result = _apply_pii_actions(text, [SensitivityLevel.S2], policy, "test")
+        result = apply_pii_actions(text, [SensitivityLevel.S2], policy, "test")
         assert result == text
 
     def test_apply_pii_actions_redact_removes_pii(self) -> None:
-        from myrm_agent_harness.agent.middlewares.security.security_guardrail_middleware import (
-            _apply_pii_actions,
+        from myrm_agent_harness.agent.middlewares.security.pii_actions import (
+            apply_pii_actions,
         )
 
         policy = PrivacyPolicy(
@@ -904,7 +902,7 @@ class TestHelperFunctions:
             s3_action=PIIAction.REDACT,
         )
         text = "Phone 13812345678"
-        result = _apply_pii_actions(text, [SensitivityLevel.S2], policy, "test")
+        result = apply_pii_actions(text, [SensitivityLevel.S2], policy, "test")
         assert result is not None
         assert "13812345678" not in result
 
@@ -920,10 +918,7 @@ class TestHelperFunctions:
         set_security_config(config)
         mw = SecurityGuardrailMiddleware()
         state = _make_state([HumanMessage(content="Phone 13812345678")])
-        result = mw.before_model(state, None)
-        if result is not None:
-            msg = result["messages"][0]
-            assert "13812345678" in msg.content, "WARN must not modify PII"
+        assert mw.before_model(state, None) is None, "WARN must not modify PII"
         set_security_config(None)
 
 

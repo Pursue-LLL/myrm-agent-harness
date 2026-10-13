@@ -446,13 +446,13 @@ def check_tool_result_pii(result: ToolMessage, result_text: str, tool_name: str)
         f"level={classification.level.value} patterns={','.join(classification.patterns)}",
     )
 
-    from myrm_agent_harness.agent.middlewares.security.security_guardrail_middleware import (
-        _apply_pii_actions,
-        _levels_to_process,
+    from myrm_agent_harness.agent.middlewares.security.pii_actions import (
+        apply_pii_actions,
+        levels_to_process,
     )
 
-    levels = _levels_to_process(classification.level, policy)
-    processed = _apply_pii_actions(result_text, levels, policy, f"tool:{tool_name}")
+    levels = levels_to_process(classification.level, policy)
+    processed = apply_pii_actions(result_text, levels, policy, f"tool:{tool_name}")
     if processed is None:
         redacted_text, count = redact_pii(result_text)
         if count > 0:

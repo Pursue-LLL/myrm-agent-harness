@@ -391,7 +391,7 @@ class TestCheckToolResultPii:
     @patch("myrm_agent_harness.agent.middlewares.tooling._tool_helpers.record_decision")
     @patch("myrm_agent_harness.agent.security.guards.taint_tracker.get_taint_tracker")
     @patch("myrm_agent_harness.agent.security.guards.privacy_tracker.get_privacy_tracker")
-    @patch("myrm_agent_harness.agent.middlewares.security.security_guardrail_middleware.redact_pii")
+    @patch("myrm_agent_harness.agent.middlewares.security.pii_actions.redact_pii")
     @patch("myrm_agent_harness.agent.security.detection.pii_classifier.classify_tool_result")
     @patch("myrm_agent_harness.agent.middlewares.tooling._tool_helpers.get_privacy_policy")
     def test_redaction(
@@ -419,7 +419,7 @@ class TestCheckToolResultPii:
     @patch("myrm_agent_harness.agent.middlewares.tooling._tool_helpers.record_decision")
     @patch("myrm_agent_harness.agent.security.guards.taint_tracker.get_taint_tracker")
     @patch("myrm_agent_harness.agent.security.guards.privacy_tracker.get_privacy_tracker")
-    @patch("myrm_agent_harness.agent.middlewares.security.security_guardrail_middleware.redact_pii")
+    @patch("myrm_agent_harness.agent.middlewares.security.pii_actions.redact_pii")
     @patch("myrm_agent_harness.agent.security.detection.pii_classifier.classify_tool_result")
     @patch("myrm_agent_harness.agent.middlewares.tooling._tool_helpers.get_privacy_policy")
     def test_block_fallback_to_redact(
