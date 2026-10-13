@@ -292,7 +292,7 @@ class TestCleanupSessionPrivacy:
         mm.active_session = None
         mm.end_session = AsyncMock(return_value=[])
         mm.check_session_recurrence = AsyncMock()
-        mm.policy = AgentMemoryPolicy.preset_l2_flow(task_id="t1")  # allow_l3_extraction=False
+        mm.memory_policy = AgentMemoryPolicy.preset_l2_flow(task_id="t1")  # allow_l3_extraction=False
         agent = _make_agent()
         agent.memory_manager = mm
         agent._enable_memory_auto_extraction = True
@@ -325,7 +325,7 @@ class TestCleanupSessionPrivacy:
         mm.active_session = None
         mm.end_session = AsyncMock(return_value=[])
         mm.check_session_recurrence = AsyncMock()
-        mm.policy = AgentMemoryPolicy.preset_standard(agent_id="std1")  # allow_l3_extraction=True
+        mm.memory_policy = AgentMemoryPolicy.preset_standard(agent_id="std1")  # allow_l3_extraction=True
         agent = _make_agent()
         agent.memory_manager = mm
         agent._enable_memory_auto_extraction = True
