@@ -102,20 +102,11 @@ class WikiLinter:
         all_issues: list[LintIssue] = []
         raw_scan: dict[str, object] = {}
 
-        broken_links = await self._check_broken_links()
-        all_issues.extend(broken_links)
-
-        incomplete = await self._check_completeness()
-        all_issues.extend(incomplete)
-
-        invalid_types = await self._check_frontmatter_types()
-        all_issues.extend(invalid_types)
-
-        provenance_gaps = await self._check_provenance_gaps()
-        all_issues.extend(provenance_gaps)
-
-        stale = await self._check_stale()
-        all_issues.extend(stale)
+        all_issues.extend(await self._check_broken_links())
+        all_issues.extend(await self._check_completeness())
+        all_issues.extend(await self._check_frontmatter_types())
+        all_issues.extend(await self._check_provenance_gaps())
+        all_issues.extend(await self._check_stale())
 
         if include_raw_security:
             from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate import (
