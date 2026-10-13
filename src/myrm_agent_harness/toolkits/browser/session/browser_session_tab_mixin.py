@@ -2,6 +2,7 @@
 
 [INPUT]
 - session_host::SessionHost (POS: typed contract of the attributes and methods the aggregate root and lifecycle mixin provide: tab controller, device emulation, loggers, dialog manager, component binding)
+- session.tab_controller::TabInfo (POS: typed row of the tab listing)
 - utils.page_health::abort_pending_navigation, close_page_bounded, probe_alive (POS: bounded browser and page health primitives)
 
 [OUTPUT]
@@ -27,6 +28,7 @@ from urllib.parse import urlparse
 
 from ..utils.page_health import abort_pending_navigation, close_page_bounded, probe_alive
 from .session_host import SessionHost
+from .tab_controller import TabInfo
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +76,7 @@ class BrowserSessionTabMixin(SessionHost):
         """List all Tabs ID"""
         return self._tab_controller.list_tabs()
 
-    def list_tabs_with_info(self) -> list[dict[str, str]]:
+    def list_tabs_with_info(self) -> list[TabInfo]:
         """List all tabs with domain info for display."""
         return self._tab_controller.list_tabs_with_info()
 

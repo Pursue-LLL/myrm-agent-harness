@@ -107,6 +107,8 @@ class CrashWatchdogMixin:
         else:
             logger.info(f"Browser disconnected — released {slots_to_release} semaphore slots")
 
+        await self._close_browser_instance(inst)
+
     def is_page_crashed(self, page: Page) -> bool:
         """Whether the renderer of a page a caller holds has crashed (the caller's release clears the mark).
 

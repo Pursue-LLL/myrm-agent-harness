@@ -65,7 +65,7 @@ class EngineAffinityStore:
                 raw: dict[str, list[object]] = json.load(f)
             now = time.time()
             for domain, entry in raw.items():
-                if isinstance(entry, list) and len(entry) == 2:
+                if isinstance(entry, list) and len(entry) == 2 and isinstance(entry[1], int | float):
                     engine_val, ts = str(entry[0]), float(entry[1])
                     if now - ts < _TTL_SECONDS:
                         self._cache[domain] = (engine_val, ts)

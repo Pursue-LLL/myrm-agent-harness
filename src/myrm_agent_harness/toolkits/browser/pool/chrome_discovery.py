@@ -160,7 +160,7 @@ def _probe_http_version(port: int) -> str | None:
     """HTTP GET /json/version to validate CDP and get webSocketDebuggerUrl."""
     try:
         url = f"http://127.0.0.1:{port}/json/version"
-        req = urllib.request.Request(url, method="GET")  # noqa: S310
+        req = urllib.request.Request(url, method="GET")
         with urllib.request.urlopen(req, timeout=_HTTP_PROBE_TIMEOUT_S) as resp:  # noqa: S310
             if resp.status != 200:
                 return None

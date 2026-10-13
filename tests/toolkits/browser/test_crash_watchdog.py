@@ -116,6 +116,22 @@ async def test_a_close_the_pool_started_is_not_a_crash_but_still_returns_its_slo
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("expected_close", [False, True])
+async def test_a_disconnected_browser_is_cleaned_up_whether_it_crashed_or_was_closed_on_purpose(
+    expected_close: bool,
+) -> None:
+    pool = GlobalBrowserPool(max_browsers=2)
+    inst = _inst_with_pool(pool, is_managed=True)
+    inst.expected_close = expected_close
+
+    await pool._handle_browser_disconnected(inst)
+
+    _page_pool_mock(inst).shutdown.assert_awaited_once()
+    _browser_mock(inst).close.assert_awaited_once()
+    await pool.shutdown()
+
+
+@pytest.mark.asyncio
 async def test_a_managed_disconnect_nobody_asked_for_is_a_crash() -> None:
     pool = GlobalBrowserPool(max_browsers=2)
     inst = _inst_with_pool(pool, is_managed=True)

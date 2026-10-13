@@ -356,7 +356,7 @@ class GlobalBrowserPool(CrashWatchdogMixin):
 
         Args:
             context_key: The identifier of the context to destroy
-            only_if_idle: Keep the context, instead of raising, while another session still holds pages in it
+            only_if_idle: Return False and keep the context while another session still holds pages in it
 
         Returns:
             True when the context was destroyed.

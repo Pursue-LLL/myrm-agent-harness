@@ -21,7 +21,7 @@ import logging
 try:
     import psutil
 except (ImportError, TypeError):
-    psutil = None
+    psutil = None  # type: ignore[assignment]  # optional dependency; callers check for None
 
 from .config import MemoryGuardConfig
 

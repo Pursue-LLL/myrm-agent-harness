@@ -4,10 +4,12 @@
 [INPUT]
 - pool.browser_pool::GlobalBrowserPool (POS: global browser pool)
 - pool.browser_pool::ContextType (POS: context type enum)
+- pool.config::BrowserEngine, LaunchMode (POS: per-agent engine and launch-mode preference types)
 
 [OUTPUT]
 - TabController: tab lifecycle manager
 - TabHandle: tab handle (wraps Page + last_snapshot_url)
+- TabInfo: one row of the tab listing (tab_id, domain, active)
 
 [POS]
 Tab lifecycle manager. Responsibilities:
@@ -34,16 +36,25 @@ import logging
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 
 if TYPE_CHECKING:
     from patchright.async_api import Page
 
     from myrm_agent_harness.toolkits.browser.pool import ContextType, GlobalBrowserPool
+    from myrm_agent_harness.toolkits.browser.pool.config import BrowserEngine, LaunchMode
 
 logger = logging.getLogger(__name__)
 
 _MAX_TABS = 10
+
+
+class TabInfo(TypedDict):
+    """One row of `list_tabs_with_info`."""
+
+    tab_id: str
+    domain: str
+    active: bool
 
 
 @dataclass
@@ -96,13 +107,13 @@ class TabController:
         self._active_tab_id: str | None = None
         self._tab_counter = 0
         self._popup_attached_pages: set[int] = set()
-        self._popup_close_tasks: set[asyncio.Task] = set()
+        self._popup_close_tasks: set[asyncio.Task[None]] = set()
 
     async def create_tab(
         self,
         context_key: str | None = None,
-        engine_preference: str | None = None,
-        launch_mode_preference: str | None = None,
+        engine_preference: BrowserEngine | None = None,
+        launch_mode_preference: LaunchMode | None = None,
     ) -> str:
         """Create new Tab.
 
@@ -248,7 +259,7 @@ class TabController:
                 continue
         return fallback
 
-    def list_tabs_with_info(self) -> list[dict[str, str]]:
+    def list_tabs_with_info(self) -> list[TabInfo]:
         """List all tabs with domain info for display.
 
         Returns:
@@ -256,7 +267,7 @@ class TabController:
         """
         from urllib.parse import urlparse
 
-        result = []
+        result: list[TabInfo] = []
         for tab_id, handle in self._tabs.items():
             try:
                 url = handle.page.url
@@ -350,7 +361,7 @@ class TabController:
         self._tabs[tab_id] = handle
         self._active_tab_id = tab_id
 
-        popup_page.on("close", lambda: self._on_popup_close(tab_id))
+        popup_page.on("close", lambda _page: self._on_popup_close(tab_id))
         self.attach_popup_listener(popup_page)
 
         if self._on_tab_created is not None:
