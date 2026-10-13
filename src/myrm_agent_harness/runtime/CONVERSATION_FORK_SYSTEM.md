@@ -43,7 +43,7 @@ await checkpointer.aput(
 **Protocol Definition:**
 
 ```python
-# runtime/checkpoint_protocol.py
+# runtime/artifacts/checkpoint_protocol.py
 class CheckpointForkManagerProtocol(Protocol):
     async def fork_checkpoint(
         self,
@@ -60,20 +60,6 @@ class CheckpointForkManagerProtocol(Protocol):
         """Retrieve (parent_thread_id, fork_checkpoint_id)."""
         ...
 ```
-
-**Data Structure:**
-
-```python
-# runtime/fork_types.py
-@dataclass(frozen=True)
-class ForkInfo:
-    parent_thread_id: str      # LangGraph thread_id
-    parent_chat_id: str         # Business layer chat_history.id
-    fork_checkpoint_id: str     # Checkpoint ID at fork point
-    fork_message_index: int     # Message index (0-based, UI display)
-```
-
-**Why frozen?** Immutable to prevent accidental modification of fork history.
 
 ---
 
@@ -95,6 +81,19 @@ CREATE TABLE conversation_forks (
 
 CREATE INDEX idx_child_to_parent ON conversation_forks(child_chat_id);
 ```
+
+**Fork Record Model:**
+
+```python
+@dataclass(frozen=True)
+class ForkInfo:
+    parent_thread_id: str      # LangGraph thread_id
+    parent_chat_id: str        # Business layer chat_history.id
+    fork_checkpoint_id: str    # Checkpoint ID at fork point
+    fork_message_index: int    # Message index (0-based, UI display)
+```
+
+**Why frozen?** Immutable to prevent accidental modification of fork history.
 
 **Design Decision: Direct Copy (not COW)**
 
@@ -313,12 +312,12 @@ Works seamlessly with:
 ## Implementation Checklist
 
 **Framework Layer:**
-- ✅ `CheckpointForkManagerProtocol` (runtime/checkpoint_protocol.py)
-- ✅ `ForkInfo` dataclass (runtime/fork_types.py)
+- ✅ `CheckpointForkManagerProtocol` (runtime/artifacts/checkpoint_protocol.py)
 - ✅ Design documentation (this file)
 
 **Business Layer:**
 - ⬜ Database migration: `conversation_forks` table
+- ⬜ `ForkInfo` record model
 - ⬜ `ConversationForkManager` service
 - ⬜ API endpoints: POST `/fork`, GET `/fork-info`
 - ⬜ Checkpoint clone logic
@@ -329,7 +328,7 @@ Works seamlessly with:
 - ⬜ Parent link (Chat Header)
 
 **Testing:**
-- ⬜ Unit tests (fork_types, protocols)
+- ⬜ Unit tests (ForkInfo, protocols)
 - ⬜ Integration tests (fork_conversation API)
 - ⬜ E2E tests (fork button → API → new chat)
 

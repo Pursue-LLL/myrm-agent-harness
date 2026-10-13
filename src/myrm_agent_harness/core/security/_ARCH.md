@@ -34,7 +34,6 @@ Foundational security primitives used across all layers. Zero dependency on agen
 | external_secrets/ | Zero-disk plaintext external secrets vault gateway (1Password/Bitwarden) with LRU caching and 401 rotation ([external_secrets/_ARCH.md](external_secrets/_ARCH.md)). |
 | ephemeral_credentials/ | Session-isolated ephemeral credential store and single-use zero-disk injection primitives with memory wipe ([ephemeral_credentials/_ARCH.md](ephemeral_credentials/_ARCH.md)). |
 | ocap/ | Object-Capability (OCap) zero-trust delegation mesh primitives: signed handles, one-way attenuation, and cascading revocation ([ocap/_ARCH.md](ocap/_ARCH.md)). |
-| autonomy/ | Data-driven autonomy level escalation (L1-L5), sliding-window promotion gate, and exception circuit breaker governance suite. |
 | dir_trust_gate/ | Directory trust gate preventing remote URL/token credential exfiltration in untrusted workspaces. |
 | admin_auth_surface/ | Unified admin authentication surface governance and anti-lockout safety validation engine. |
 | asr_privacy_tradeoff/ | ASR voice transcription privacy controller balancing transcript lifecycle and speaker embeddings tradeoff. |

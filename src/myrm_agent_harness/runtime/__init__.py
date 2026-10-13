@@ -6,17 +6,17 @@ resource management, performance optimization, and self-protection.
 
 Subpackages:
 - context/: Context lifecycle — cleanup, config, metrics, tracking, reading, offload
+- checkpointing/: Checkpointer factory
+- events/: Runtime event bus
+- cognitive_clock/: Four-tier cognitive clock scheduling primitives
+- maintenance/: Global adaptive maintenance scheduling
 - quota/: Storage quota management and monitoring
-
-Core modules:
-- resource_monitor: Resource usage monitoring
-- memory_pressure: Global memory pressure detection and subscriber notification
-- execution_paths: Path constants, utilities, and access tracking
-- compression: File compression utilities
-- doctor: Global diagnostics and health checks
-- artifact_judge: Artifact classification
-- checkpoint_protocol: Checkpointer protocol definition
-- fork_types: Conversation fork data structures
+- install_guard/: Dual-wheel install readiness
+- diagnostics/: Doctor and compliance self-audit
+- survival/: Memory pressure, resource monitor, startup timing
+- paths/: Execution path constants and compression
+- artifacts/: Artifact judge and checkpointer protocol
+- deps/: Lazy optional dependency install
 """
 
 from myrm_agent_harness.runtime.cognitive_clock import (
@@ -48,7 +48,6 @@ from myrm_agent_harness.runtime.context import (
 )
 from myrm_agent_harness.runtime.deps import lazy_deps
 from myrm_agent_harness.runtime.events import BaseEvent, EventBus, IdleTaskProgressEvent, get_event_bus
-from myrm_agent_harness.runtime.fork.fork_types import ForkInfo
 from myrm_agent_harness.runtime.maintenance import (
     AgentHealthScore,
     CapacityDenial,
@@ -108,7 +107,6 @@ __all__ = [
     "DeviceLoadSensor",
     "EventBus",
     "FileAccessTracker",
-    "ForkInfo",
     "GlobalAdaptiveScheduler",
     "IdleTaskProgressEvent",
     "lazy_deps",

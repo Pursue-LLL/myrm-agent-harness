@@ -13,22 +13,6 @@ Use `create_file_snapshot_store()` factory to auto-select the best one.
 File snapshot subsystem for workspace file versioning.
 """
 
-from .branch_lab import (
-    BranchCasOverlay,
-    BranchDescriptor,
-    BranchDiffItem,
-    BranchDiffSummary,
-    BranchDiscardResult,
-    BranchLabConfig,
-    BranchLabReceipt,
-    BranchMutation,
-    BranchPromoteResult,
-    BranchStatus,
-    BranchVerdict,
-    MutationType,
-    SandboxZeroCopyBranchLabSuite,
-    ZeroCopyBranchManager,
-)
 from .factory import create_file_snapshot_store, get_cached_store
 from .local_store import LocalFileSnapshotStore
 from .protocols import FileSnapshotProtocol
@@ -47,30 +31,16 @@ from .types import FileDiff, FileSnapshotInfo, RestoreResult, SnapshotId, Snapsh
 
 __all__ = [
     "CURRENT_ENVELOPE_VERSION",
-    "BranchCasOverlay",
-    "BranchDescriptor",
-    "BranchDiffItem",
-    "BranchDiffSummary",
-    "BranchDiscardResult",
-    "BranchLabConfig",
-    "BranchLabReceipt",
-    "BranchMutation",
-    "BranchPromoteResult",
-    "BranchStatus",
-    "BranchVerdict",
     "CorruptionError",
     "FileDiff",
     "FileSnapshotInfo",
     "FileSnapshotProtocol",
     "LocalFileSnapshotStore",
-    "MutationType",
     "RestoreResult",
-    "SandboxZeroCopyBranchLabSuite",
     "SealedEnvelope",
     "ShadowGitSnapshotStore",
     "SnapshotId",
     "SnapshotTrigger",
-    "ZeroCopyBranchManager",
     "atomic_sealed_write",
     "compute_payload_checksum",
     "create_file_snapshot_store",

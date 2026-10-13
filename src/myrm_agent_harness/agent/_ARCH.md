@@ -82,7 +82,6 @@ Agent core module — public API for BaseAgent / SkillAgent runtime.
 | `coordination/` | Subagent P2P mailbox (TeammateMailbox) | [coordination/_ARCH.md](coordination/_ARCH.md) |
 | `dynamic_workflow/` | LLM-generated PTC orchestration scripts | [DYNAMIC_WORKFLOW_SYSTEM.md](dynamic_workflow/DYNAMIC_WORKFLOW_SYSTEM.md) |
 | `deep_research/` | Multi-phase deep research orchestrator | [DEEP_RESEARCH_SYSTEM.md](deep_research/DEEP_RESEARCH_SYSTEM.md) |
-| `durable/` | Durable stateful agent runtime, Intent-First ledger & crash replay | [durable/_ARCH.md](durable/_ARCH.md) |
 | `orchestration/` | Control-plane signals + runtime hooks (not Action Tools) | [orchestration/_ARCH.md](orchestration/_ARCH.md) |
 | `errors/` | Execution errors + diagnostics | [ERROR_SYSTEM.md](errors/ERROR_SYSTEM.md) |
 | `event_log/` | Full event history (complements checkpointer) | [EVENT_LOG_SYSTEM.md](event_log/EVENT_LOG_SYSTEM.md) |
@@ -94,7 +93,6 @@ Agent core module — public API for BaseAgent / SkillAgent runtime.
 | `middlewares/` | Framework middleware stack | [MIDDLEWARE_SYSTEM.md](middlewares/MIDDLEWARE_SYSTEM.md) |
 | `parallel/` | Shared subagent spawn path (batch/swarm semaphore) | [parallel/_ARCH.md](parallel/_ARCH.md) |
 | `plugins/` | Agent Plugins 1.0.0 package parser (client-agnostic) | [plugins/_ARCH.md](plugins/_ARCH.md) |
-| `proactive_kernel/` | Proactive agent micro-kernel, heartbeat loops, and zero-nag etiquette gate suite (Item 319) | [proactive_kernel/_ARCH.md](proactive_kernel/_ARCH.md) |
 | `security/` | Agent security engine (HITL, rate limiter, transcript classifier) | [security/SECURITY_SYSTEM.md](security/SECURITY_SYSTEM.md) |
 | `skill_agent/` | SkillAgent domain — class, mixins, ContextVar session state, factory facade | [skill_agent/_ARCH.md](skill_agent/_ARCH.md) |
 | `skills/` | Skill system (discovery, evolution, optimization, sync) | [skills/SKILL_SYSTEM.md](skills/SKILL_SYSTEM.md) |

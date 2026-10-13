@@ -30,7 +30,6 @@ Detailed design: [CONVERSATION_FORK_SYSTEM.md](CONVERSATION_FORK_SYSTEM.md)
 | `survival/` | Memory pressure, resource monitor, startup timing | [survival/_ARCH.md](survival/_ARCH.md) |
 | `paths/` | Execution path SSOT + compression | [paths/_ARCH.md](paths/_ARCH.md) |
 | `artifacts/` | Artifact judge + checkpoint protocol | [artifacts/_ARCH.md](artifacts/_ARCH.md) |
-| `fork/` | Conversation fork types | [fork/_ARCH.md](fork/_ARCH.md) |
 | `deps/` | Lazy optional dependency install | [deps/_ARCH.md](deps/_ARCH.md) |
 
 ## Key Dependencies

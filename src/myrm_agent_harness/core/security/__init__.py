@@ -25,15 +25,6 @@ from myrm_agent_harness.core.security.asr_privacy_tradeoff import (
     AudioTranscriptionJob,
     SpeakerProfileCapability,
 )
-from myrm_agent_harness.core.security.on_demand_masking import (
-    CredentialConflictError,
-    CredentialField,
-    MaskedExecutionError,
-    MaskedExecutionResult,
-    MaterializedCredential,
-    MultiEncodingSecretMasker,
-    OnDemandCredentialResolver,
-)
 from myrm_agent_harness.core.security.commerce_dispute_escrow import (
     ArbitratorVote,
     CommerceCircuitBreakerEvaluator,
@@ -47,24 +38,14 @@ from myrm_agent_harness.core.security.commerce_dispute_escrow import (
     StrategyType,
     TradingCircuitBreakers,
 )
-from myrm_agent_harness.core.security.autonomy import (
-    AutonomyBreakerEvent,
-    AutonomyCircuitBreaker,
-    AutonomyExecutionInterceptor,
-    AutonomyLevel,
-    AutonomyMetrics,
-    AutonomyPromotionResult,
-    BreakerState,
-    PromotionGateCalculator,
-)
 from myrm_agent_harness.core.security.device_policy import (
     BatchRiskAssessment,
     DeviceSecurityPolicy,
     evaluate_batch_risk,
 )
 from myrm_agent_harness.core.security.dir_trust_gate import (
-    DirTrustGate,
     DirectoryTrustStore,
+    DirTrustGate,
     GatedRemoteConfig,
     ProjectRemoteConfig,
     TrustStatus,
@@ -92,6 +73,15 @@ from myrm_agent_harness.core.security.missing_semantics import (
     list_registered_contracts,
     register_missing_semantics_contract,
 )
+from myrm_agent_harness.core.security.on_demand_masking import (
+    CredentialConflictError,
+    CredentialField,
+    MaskedExecutionError,
+    MaskedExecutionResult,
+    MaterializedCredential,
+    MultiEncodingSecretMasker,
+    OnDemandCredentialResolver,
+)
 from myrm_agent_harness.core.security.remote_ops_ledger import (
     ActionRecoveryHint,
     RemoteOpsActionRecord,
@@ -115,16 +105,8 @@ from myrm_agent_harness.core.security.spend_governance import (
 
 __all__ = [
     "ActionRecoveryHint",
-    "AutonomyBreakerEvent",
-    "AutonomyCircuitBreaker",
-    "AutonomyExecutionInterceptor",
-    "AutonomyLevel",
-    "AutonomyMetrics",
-    "AutonomyPromotionResult",
     "BatchRiskAssessment",
-    "BreakerState",
     "DeviceSecurityPolicy",
-    "PromotionGateCalculator",
     "MissingDependencyFailClosedError",
     "MissingDependencyFailFastError",
     "MissingSemanticsBlockedError",

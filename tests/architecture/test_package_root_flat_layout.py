@@ -56,7 +56,6 @@ _RUNTIME_SUBPACKAGES = (
     "survival",
     "paths",
     "artifacts",
-    "fork",
     "deps",
 )
 
@@ -69,7 +68,7 @@ def test_runtime_root_has_no_flat_implementation_modules() -> None:
     )
     assert not forbidden, (
         f"runtime/ root must not flat-spread modules: {forbidden}. "
-        "Move into diagnostics/, survival/, paths/, artifacts/, fork/, or deps/."
+        "Move into diagnostics/, survival/, paths/, artifacts/, or deps/."
     )
 
 
