@@ -91,7 +91,7 @@ def scan_concept_pages(structure: WikiStructure) -> dict[str, frozenset[str]]:
         try:
             content = concept_path.read_text(encoding="utf-8")
         except OSError as exc:
-            logger.warning("Failed to index wikilink titles for %s: %s", concept_path, exc)
+            logger.warning("Failed to read concept page %s for link resolution: %s", concept_path, exc)
             continue
         pages[link_name] = page_lookup_keys(link_name, content)
     return pages

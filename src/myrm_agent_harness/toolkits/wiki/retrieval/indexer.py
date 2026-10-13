@@ -201,12 +201,17 @@ class WikiIndexer(FtsSearchMixin, SidecarIndexMixin):
     def upsert_edges(self, source: str, targets: list[str], source_files: list[str] | None = None) -> None:
         """Upsert directional edges with multi-dimensional weight calculation."""
         with self._get_conn() as conn:
-            conn.execute("DELETE FROM wiki_edges WHERE source = ?", (source,))
-            for target in targets:
-                if source == target:
-                    continue
-                weight = self._calculate_edge_weight(conn, source, target, source_files)
-                store_edge(conn, source, target, weight)
+            self._replace_edges(conn, source, targets, source_files)
+
+    def _replace_edges(
+        self, conn: sqlite3.Connection, source: str, targets: list[str], source_files: list[str] | None
+    ) -> None:
+        conn.execute("DELETE FROM wiki_edges WHERE source = ?", (source,))
+        for target in targets:
+            if source == target:
+                continue
+            weight = self._calculate_edge_weight(conn, source, target, source_files)
+            store_edge(conn, source, target, weight)
 
     def _calculate_edge_weight(
         self,
@@ -266,11 +271,11 @@ class WikiIndexer(FtsSearchMixin, SidecarIndexMixin):
         # 3. Match Metric source_systems in frontmatter metadata
         targets.update(self._source_system_targets(content))
 
-        # Unconditionally upsert (even if empty) to clear deleted edges
-        self.upsert_edges(source, list(targets))
-
-        if page_change is not None:
-            with self._get_conn() as conn:
+        # Unconditionally replace (even if empty) to clear deleted edges; the page's edges and
+        # the forward references it resolves land in one transaction.
+        with self._get_conn() as conn:
+            self._replace_edges(conn, source, list(targets), None)
+            if page_change is not None:
                 relink_dangling_edges(conn, resolver, page_change)
 
     @staticmethod

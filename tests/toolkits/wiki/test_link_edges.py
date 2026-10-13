@@ -10,6 +10,7 @@ from myrm_agent_harness.toolkits.wiki.core.config import WikiConfig
 from myrm_agent_harness.toolkits.wiki.core.link_resolver import WikiLinkResolver
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.pipeline.publication import publish_concept_article
+from myrm_agent_harness.toolkits.wiki.retrieval import indexer as indexer_module
 from myrm_agent_harness.toolkits.wiki.retrieval.edge_links import relink_dangling_edges
 from myrm_agent_harness.toolkits.wiki.retrieval.identity_migration import INDEX_SCHEMA_VERSION
 from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer
@@ -110,6 +111,25 @@ async def test_a_page_unrelated_to_unresolved_edges_does_not_re_resolve_them(
     await _publish(structure, indexer, "Misc/Ghost 7")
     assert calls == ["Ghost 7"]
     assert ("guides/start", "misc/ghost-7") in _edges(indexer)
+
+
+@pytest.mark.asyncio
+async def test_page_edges_and_forward_references_are_written_in_one_transaction(
+    structure: WikiStructure, indexer: WikiIndexer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await _publish(structure, indexer, "Guides/Start", "Read [[Deep Dive]] next.")
+
+    def failing_relink(*_args: object, **_kwargs: object) -> int:
+        raise sqlite3.OperationalError("relink failed")
+
+    monkeypatch.setattr(indexer_module, "relink_dangling_edges", failing_relink)
+    content = _article("Back to [[Start]].")
+    structure.get_concept_file_path("Guides/Deep Dive").write_text(content, encoding="utf-8")
+
+    with pytest.raises(sqlite3.OperationalError):
+        indexer.extract_and_upsert_edges("guides/deep-dive", content)
+
+    assert _edges(indexer) == {("guides/start", "Deep Dive")}
 
 
 @pytest.mark.asyncio
