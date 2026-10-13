@@ -1,4 +1,4 @@
-"""Field semantics of ``SkillUsageStats``: uses vs. observed outcomes, and the legacy counter reset."""
+"""Field semantics of ``SkillUsageStats``: uses vs. observed outcomes, and the reset of unversioned ledgers."""
 
 from __future__ import annotations
 
@@ -25,8 +25,8 @@ def test_success_rate_is_zero_without_any_observed_outcome() -> None:
 
 def test_history_record_keeps_unobserved_outcome_as_none() -> None:
     stats = SkillUsageStats()
-    stats.append_usage("2026-10-12T00:00:00+00:00", None, 0.0)
-    stats.append_usage("2026-10-12T00:01:00+00:00", True, 0.0)
+    stats.append_usage("2026-10-12T00:00:00+00:00", None)
+    stats.append_usage("2026-10-12T00:01:00+00:00", True)
 
     restored = SkillUsageStats.from_dict(stats.to_dict())
 
@@ -38,36 +38,33 @@ def test_to_dict_stamps_the_current_schema_version() -> None:
 
 
 def test_current_schema_round_trip_keeps_outcome_counters() -> None:
-    stats = SkillUsageStats(call_count=5, success_count=3, failure_count=1, total_duration_ms=40.0)
-    stats.append_usage("2026-10-12T00:00:00+00:00", False, 10.0)
+    stats = SkillUsageStats(call_count=5, success_count=3, failure_count=1)
+    stats.append_usage("2026-10-12T00:00:00+00:00", False)
 
     restored = SkillUsageStats.from_dict(stats.to_dict())
 
     assert (restored.call_count, restored.success_count, restored.failure_count) == (5, 3, 1)
-    assert restored.total_duration_ms == 40.0
     assert len(restored.usage_history) == 1
 
 
-def test_legacy_file_drops_load_success_counters_and_keeps_everything_else() -> None:
-    """Files without a schema version counted every skill load as a success, so only their outcomes are discarded."""
+def test_unversioned_ledger_drops_its_outcomes_and_keeps_everything_else() -> None:
+    """A ledger without a schema version holds selection-time outcomes, so only its outcome fields are discarded."""
     created = datetime(2026, 1, 1, tzinfo=UTC)
-    legacy = {
+    unversioned = {
         "call_count": 12,
         "success_count": 12,
         "failure_count": 0,
         "last_used_at": "2026-10-01T00:00:00+00:00",
-        "total_duration_ms": 5.0,
         "lifecycle_status": "stale",
         "pinned": True,
         "merged_into": "umbrella",
         "created_at": created.isoformat(),
-        "usage_history": [{"timestamp": "2026-10-01T00:00:00+00:00", "success": True, "duration_ms": 0.0}],
+        "usage_history": [{"timestamp": "2026-10-01T00:00:00+00:00", "success": True}],
     }
 
-    stats = SkillUsageStats.from_dict(legacy)
+    stats = SkillUsageStats.from_dict(unversioned)
 
     assert (stats.success_count, stats.failure_count) == (0, 0)
-    assert stats.total_duration_ms == 0.0
     assert stats.usage_history == []
     assert stats.call_count == 12
     assert stats.last_used_at == datetime(2026, 10, 1, tzinfo=UTC)
@@ -77,7 +74,7 @@ def test_legacy_file_drops_load_success_counters_and_keeps_everything_else() -> 
     assert stats.created_at == created
 
 
-def test_legacy_reset_happens_once() -> None:
+def test_unversioned_ledger_reset_happens_once() -> None:
     """After the first rewrite the file carries the schema version, so later outcomes are never discarded again."""
     first = SkillUsageStats.from_dict({"call_count": 4, "success_count": 4})
     first.success_count += 2

@@ -67,7 +67,6 @@ def test_select_records_stats_and_curator_sweep_reads_them(tmp_path: Path) -> No
         success_count=1,
         failure_count=0,
         last_used_at=old_last_used,
-        total_duration_ms=0.0,
         created_at=old_last_used,
     )
     inactive_skill = SkillMetadata(

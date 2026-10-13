@@ -245,7 +245,6 @@ class ConsolidationExecutor:
             target_stats.call_count += source.usage_stats.call_count
             target_stats.success_count += source.usage_stats.success_count
             target_stats.failure_count += source.usage_stats.failure_count
-            target_stats.total_duration_ms += source.usage_stats.total_duration_ms
 
             if source.usage_stats.last_used_at:
                 if target_stats.last_used_at is None:

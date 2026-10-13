@@ -79,7 +79,6 @@ def test_should_forget_low_quality_skill() -> None:
         success_count=2,
         failure_count=8,
         last_used_at=datetime.now(UTC),
-        total_duration_ms=1000.0,
     )
     skill = create_skill_metadata("low_quality_skill", usage_stats=stats)
     reason = strategy.should_forget(skill)
@@ -100,7 +99,6 @@ def test_should_not_forget_high_quality_skill() -> None:
         success_count=9,
         failure_count=1,
         last_used_at=datetime.now(UTC),
-        total_duration_ms=1000.0,
     )
     skill = create_skill_metadata("good_skill", usage_stats=stats)
     reason = strategy.should_forget(skill)
@@ -120,7 +118,6 @@ def test_should_forget_inactive_skill() -> None:
         success_count=8,
         failure_count=2,
         last_used_at=old_date,
-        total_duration_ms=1000.0,
     )
     skill = create_skill_metadata("inactive_skill", usage_stats=stats)
     reason = strategy.should_forget(skill)
@@ -141,7 +138,6 @@ def test_low_quality_threshold_not_met() -> None:
         success_count=0,
         failure_count=3,
         last_used_at=datetime.now(UTC),
-        total_duration_ms=300.0,
     )
     skill = create_skill_metadata("new_skill", usage_stats=stats)
     reason = strategy.should_forget(skill)
@@ -187,7 +183,6 @@ def test_select_lru_candidates() -> None:
                 success_count=1,
                 failure_count=0,
                 last_used_at=datetime.now(UTC) - timedelta(days=i),
-                total_duration_ms=100.0,
             ),
         )
         for i in range(5)
@@ -213,7 +208,6 @@ def test_select_lru_candidates_no_eviction_needed() -> None:
                 success_count=1,
                 failure_count=0,
                 last_used_at=datetime.now(UTC),
-                total_duration_ms=100.0,
             ),
         )
         for i in range(5)

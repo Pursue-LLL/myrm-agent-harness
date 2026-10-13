@@ -15,7 +15,6 @@ Usage stats persisted in {skill_dir}/.stats.json for curator / forgetting mechan
 from __future__ import annotations
 
 import contextlib
-import math
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -24,8 +23,8 @@ from .types_enums import SkillLifecycleStatus
 _MAX_HISTORY_ENTRIES = 200
 
 STATS_SCHEMA_VERSION = 2
-"""Version 2 counts outcomes observed from tool calls. Files without a version predate it and counted every skill
-load as a success, so their success/failure counters and history carry no information."""
+"""Version of the counter semantics: version 2 counts outcomes observed from tool calls. A ledger below this version
+holds selection-time outcomes that carry no information, so its success/failure counters and history are dropped on load."""
 
 
 def _safe_int(val: object, default: int = 0) -> int:
@@ -37,16 +36,6 @@ def _safe_int(val: object, default: int = 0) -> int:
         return default
 
 
-def _safe_float(val: object, default: float = 0.0) -> float:
-    if not isinstance(val, int | float | str):
-        return default
-    try:
-        result = float(val)
-    except ValueError:
-        return default
-    return default if math.isnan(result) or math.isinf(result) else result
-
-
 @dataclass
 class SkillUsageRecord:
     """One run that used the skill, kept for trend analysis."""
@@ -54,7 +43,6 @@ class SkillUsageRecord:
     timestamp: str
     success: bool | None
     """True/False once the run's tool calls attributed to the skill were observed; None when no outcome was observable."""
-    duration_ms: float
 
 
 @dataclass
@@ -64,9 +52,8 @@ class SkillUsageStats:
     Tracks skill usage patterns for the curator / forgetting mechanism.
     Stored in {skill_dir}/.stats.json for lightweight persistence.
 
-    The ``lifecycle_status`` and ``pinned`` fields extend pure usage
-    tracking into lifecycle management — a natural evolution of the
-    forgetting mechanism into a full curator system.
+    The ``lifecycle_status`` and ``pinned`` fields add the curator's
+    lifecycle state to the usage counters.
     """
 
     call_count: int = 0
@@ -80,9 +67,6 @@ class SkillUsageStats:
 
     last_used_at: datetime | None = None
     """Timestamp of the last run that used the skill"""
-
-    total_duration_ms: float = 0.0
-    """Cumulative duration in milliseconds"""
 
     # --- Lifecycle management (curator) ---
 
@@ -120,13 +104,6 @@ class SkillUsageStats:
         return self.success_count / observed
 
     @property
-    def avg_duration_ms(self) -> float:
-        """Average duration per invocation"""
-        if self.call_count == 0:
-            return 0.0
-        return self.total_duration_ms / self.call_count
-
-    @property
     def is_active(self) -> bool:
         return self.lifecycle_status == SkillLifecycleStatus.ACTIVE
 
@@ -144,23 +121,18 @@ class SkillUsageStats:
             "success_count": self.success_count,
             "failure_count": self.failure_count,
             "last_used_at": (self.last_used_at.isoformat() if self.last_used_at else None),
-            "total_duration_ms": self.total_duration_ms,
             "success_rate": self.success_rate,
-            "avg_duration_ms": self.avg_duration_ms,
             "lifecycle_status": self.lifecycle_status,
             "pinned": self.pinned,
             "merged_into": self.merged_into,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "schema_version": STATS_SCHEMA_VERSION,
-            "usage_history": [
-                {"timestamp": r.timestamp, "success": r.success, "duration_ms": r.duration_ms}
-                for r in self.usage_history
-            ],
+            "usage_history": [{"timestamp": r.timestamp, "success": r.success} for r in self.usage_history],
         }
 
-    def append_usage(self, timestamp: str, success: bool | None, duration_ms: float) -> None:
+    def append_usage(self, timestamp: str, success: bool | None) -> None:
         """Append a usage record and trim to rolling window."""
-        self.usage_history.append(SkillUsageRecord(timestamp=timestamp, success=success, duration_ms=duration_ms))
+        self.usage_history.append(SkillUsageRecord(timestamp=timestamp, success=success))
         if len(self.usage_history) > _MAX_HISTORY_ENTRIES:
             self.usage_history = self.usage_history[-_MAX_HISTORY_ENTRIES:]
 
@@ -198,7 +170,6 @@ class SkillUsageStats:
                             SkillUsageRecord(
                                 timestamp=str(entry["timestamp"]),
                                 success=None if entry["success"] is None else bool(entry["success"]),
-                                duration_ms=_safe_float(entry.get("duration_ms", 0.0)),
                             )
                         )
 
@@ -211,7 +182,6 @@ class SkillUsageStats:
             success_count=_safe_int(data.get("success_count", 0)) if outcomes_are_observed else 0,
             failure_count=_safe_int(data.get("failure_count", 0)) if outcomes_are_observed else 0,
             last_used_at=last_used_at,
-            total_duration_ms=_safe_float(data.get("total_duration_ms", 0.0)) if outcomes_are_observed else 0.0,
             lifecycle_status=lifecycle_status,
             pinned=bool(data.get("pinned", False)),
             merged_into=str(data["merged_into"]) if data.get("merged_into") else None,

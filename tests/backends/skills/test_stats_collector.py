@@ -100,9 +100,7 @@ def test_batch_flush_optimization(collector: SkillStatsCollector, skill_dir: Pat
 def test_get_stats_loads_existing(collector: SkillStatsCollector, skill_dir: Path) -> None:
     """Test that get_stats loads existing .stats.json."""
     # Write initial stats
-    initial_stats = SkillUsageStats(
-        call_count=10, success_count=8, failure_count=2, last_used_at=datetime.now(UTC), total_duration_ms=1000.0
-    )
+    initial_stats = SkillUsageStats(call_count=10, success_count=8, failure_count=2, last_used_at=datetime.now(UTC))
     stats_file = skill_dir / ".stats.json"
     with stats_file.open("w") as f:
         json.dump(initial_stats.to_dict(), f)
@@ -120,7 +118,6 @@ def test_get_stats_returns_empty_if_not_exists(collector: SkillStatsCollector, s
     assert stats.call_count == 0
     assert stats.success_count == 0
     assert stats.failure_count == 0
-    assert stats.total_duration_ms == 0.0
 
 
 def test_concurrent_updates(collector: SkillStatsCollector, skill_dir: Path) -> None:

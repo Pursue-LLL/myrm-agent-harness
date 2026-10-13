@@ -198,7 +198,7 @@ class TestSkillRecord:
         assert r2.skill_id == r.skill_id
         assert r2.lineage.evolution_type == EvolutionType.FIX
 
-    def test_from_dict_ignores_legacy_metrics(self) -> None:
+    def test_from_dict_ignores_a_stored_metrics_block(self) -> None:
         d = {
             "skill_id": "sk2",
             "name": "test",

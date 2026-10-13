@@ -61,7 +61,7 @@ async def test_get_skill_by_name_version(temp_db_path, skill_record):
     store.close()
 
 
-_LEGACY_SKILLS_DDL = """
+_SKILLS_DDL_WITH_UNUSED_COUNTERS = """
 CREATE TABLE skills (
     skill_id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '',
     content TEXT NOT NULL, path TEXT NOT NULL DEFAULT '',
@@ -79,12 +79,12 @@ CREATE INDEX idx_skills_selections ON skills(total_selections);
 
 
 @pytest.mark.asyncio
-async def test_store_writes_into_a_database_that_still_has_the_retired_counter_columns(temp_db_path, skill_record):
-    """Databases created before the counters were retired keep working: the unused columns just keep their defaults."""
-    legacy = sqlite3.connect(temp_db_path)
-    legacy.executescript(_LEGACY_SKILLS_DDL)
-    legacy.commit()
-    legacy.close()
+async def test_store_writes_into_a_database_that_has_unused_counter_columns(temp_db_path, skill_record):
+    """A database that still has the unused counter columns keeps working: the store leaves them at their defaults."""
+    existing = sqlite3.connect(temp_db_path)
+    existing.executescript(_SKILLS_DDL_WITH_UNUSED_COUNTERS)
+    existing.commit()
+    existing.close()
 
     store = SkillStore(db_path=temp_db_path)
     await store.save_skill(skill_record)
@@ -178,13 +178,13 @@ async def test_get_skill_lineage_terminates_on_cycle(temp_db_path, skill_record)
 
 
 @pytest.mark.asyncio
-async def test_legacy_execution_analyses_table_is_left_untouched(temp_db_path, skill_record):
-    """Databases created by older versions keep their analyses table; skill deletion still works."""
-    legacy = sqlite3.connect(temp_db_path)
-    legacy.execute("CREATE TABLE execution_analyses (id INTEGER PRIMARY KEY, skill_id TEXT NOT NULL)")
-    legacy.execute("INSERT INTO execution_analyses (skill_id) VALUES ('test_skill_1')")
-    legacy.commit()
-    legacy.close()
+async def test_existing_execution_analyses_table_is_left_untouched(temp_db_path, skill_record):
+    """A database that already has an analyses table keeps it; skill deletion still works."""
+    existing = sqlite3.connect(temp_db_path)
+    existing.execute("CREATE TABLE execution_analyses (id INTEGER PRIMARY KEY, skill_id TEXT NOT NULL)")
+    existing.execute("INSERT INTO execution_analyses (skill_id) VALUES ('test_skill_1')")
+    existing.commit()
+    existing.close()
 
     store = SkillStore(db_path=temp_db_path)
     await store.save_skill(skill_record)

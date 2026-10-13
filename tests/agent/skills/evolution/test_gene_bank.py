@@ -156,7 +156,7 @@ def test_variant_generator_prompt_integration_with_gene_bank_priors():
     assert "[PROMPT] Add schema validation note to prompt" in prompt
 
 
-def test_verification_proof_loads_records_that_still_carry_the_retired_streak() -> None:
+def test_verification_proof_ignores_a_stored_success_streak() -> None:
     stored = VerificationProof(is_verified=True).to_dict() | {"success_streak": 4}
 
     proof = VerificationProof.from_dict(stored)
