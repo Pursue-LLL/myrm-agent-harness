@@ -4,7 +4,6 @@ Covers:
 - Phase 1 rule-based classification (keywords, structural, contextual signals)
 - Unified scoring with weighted keywords
 - Session momentum (MR-17)
-- PenaltyTracker (MR-14) with decay
 - Content dedup (MR-18)
 - Min-tier floor enforcement and dedup bypass
 - Model selection per tier with graceful degradation
@@ -24,7 +23,6 @@ from myrm_agent_harness.toolkits.llms.routing.complexity_router import (
     DEFAULT_REASONING_KEYWORDS,
     DEFAULT_SIMPLE_INDICATORS,
     DEFAULT_STANDARD_KEYWORDS,
-    PenaltyTracker,
     RoutingResult,
     RoutingTier,
     _apply_momentum,
@@ -343,9 +341,7 @@ class TestMomentum:
         """Image queries must never be dragged to the light SIMPLE tier by a
         text-only conversation history (vision floor, MR-17)."""
         recent = [RoutingTier.SIMPLE] * 5
-        tier, overridden = _apply_momentum(
-            RoutingTier.STANDARD, "这是什么", recent, has_image=True
-        )
+        tier, overridden = _apply_momentum(RoutingTier.STANDARD, "这是什么", recent, has_image=True)
         assert tier == RoutingTier.STANDARD
         assert overridden is False
 
@@ -353,9 +349,7 @@ class TestMomentum:
         """Image queries keep momentum upgrades: a reasoning-heavy history may
         still pull the tier up (REASONING is vision-contract, unlike SIMPLE)."""
         recent = [RoutingTier.REASONING] * 5
-        tier, overridden = _apply_momentum(
-            RoutingTier.STANDARD, "ok", recent, has_image=True
-        )
+        tier, overridden = _apply_momentum(RoutingTier.STANDARD, "ok", recent, has_image=True)
         assert tier == RoutingTier.REASONING
         assert overridden is True
 
@@ -366,51 +360,6 @@ class TestMomentum:
         tier, overridden = _apply_momentum(RoutingTier.STANDARD, "ok", recent)
         assert tier == RoutingTier.SIMPLE
         assert overridden is True
-
-
-# ─── PenaltyTracker ──────────────────────────────────────────────────
-
-
-class TestPenaltyTracker:
-    def test_no_penalty_initially(self) -> None:
-        tracker = PenaltyTracker()
-        assert tracker.get_penalty(RoutingTier.SIMPLE) == 0.0
-
-    def test_penalty_accumulates(self) -> None:
-        tracker = PenaltyTracker()
-        tracker.record_misroute(RoutingTier.SIMPLE)
-        penalty = tracker.get_penalty(RoutingTier.SIMPLE)
-        assert penalty == pytest.approx(0.75)
-
-    def test_penalty_capped(self) -> None:
-        tracker = PenaltyTracker()
-        for _ in range(10):
-            tracker.record_misroute(RoutingTier.SIMPLE)
-        penalty = tracker.get_penalty(RoutingTier.SIMPLE)
-        assert penalty == pytest.approx(3.0)
-
-    def test_apply_penalties_reduces_score(self) -> None:
-        tracker = PenaltyTracker()
-        tracker.record_misroute(RoutingTier.SIMPLE)
-        scores = {RoutingTier.SIMPLE: 5.0, RoutingTier.STANDARD: 3.0, RoutingTier.REASONING: 1.0}
-        adjusted = tracker.apply_penalties(scores)
-        assert adjusted[RoutingTier.SIMPLE] < 5.0
-        assert adjusted[RoutingTier.STANDARD] == 3.0
-        assert adjusted[RoutingTier.REASONING] == 1.0
-
-    def test_cleanup_expired(self) -> None:
-        tracker = PenaltyTracker()
-        tracker.record_misroute(RoutingTier.SIMPLE)
-        removed = tracker.cleanup_expired()
-        assert removed == 0
-
-    def test_penalty_floor_at_zero(self) -> None:
-        tracker = PenaltyTracker()
-        for _ in range(10):
-            tracker.record_misroute(RoutingTier.SIMPLE)
-        scores = {RoutingTier.SIMPLE: 1.0, RoutingTier.STANDARD: 0.0, RoutingTier.REASONING: 0.0}
-        adjusted = tracker.apply_penalties(scores)
-        assert adjusted[RoutingTier.SIMPLE] == 0.0
 
 
 # ─── Content Dedup ───────────────────────────────────────────────────
@@ -537,9 +486,7 @@ class TestRouteTask:
         assert result.reason == "momentum_override"
 
     @pytest.mark.asyncio
-    async def test_llm_judge_timeout_falls_back_to_standard(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_llm_judge_timeout_falls_back_to_standard(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """A hung judge call must not block routing: wait_for timeout degrades to
         STANDARD with a distinct reason instead of stalling the request."""
         from myrm_agent_harness.toolkits.llms.routing import complexity_router
@@ -620,29 +567,6 @@ class TestRouteTask:
         assert judge_llm.ainvoke.call_count == 1
         assert second.reason == "momentum_override"
         assert second.tier in (RoutingTier.STANDARD, RoutingTier.REASONING)
-
-    @pytest.mark.asyncio
-    async def test_custom_penalty_tracker_is_forwarded(self) -> None:
-        """route_task must forward a caller-provided penalty_tracker to the rule
-        phase (previously a dead parameter that silently used the global)."""
-        from unittest.mock import patch
-
-        from myrm_agent_harness.toolkits.llms.routing import complexity_router
-
-        custom = PenaltyTracker()
-        with patch.object(
-            complexity_router,
-            "_rule_based_classify",
-            wraps=complexity_router._rule_based_classify,
-        ) as mock_rbc:
-            await route_task(
-                "hello",
-                STD_CFG,
-                light_model_cfg=LIGHT_CFG,
-                penalty_tracker=custom,
-            )
-        mock_rbc.assert_called_once()
-        assert mock_rbc.call_args.kwargs.get("penalty_tracker") is custom
 
     @pytest.mark.asyncio
     async def test_momentum_override(self) -> None:
@@ -856,9 +780,7 @@ class TestRouteTask:
         assert result.tier == RoutingTier.REASONING
         assert "min_tier_escalation" not in result.reason
 
-
-# ─── RoutingResult dataclass ─────────────────────────────────────────
-
+    # ─── RoutingResult dataclass ─────────────────────────────────────────
 
     @pytest.mark.asyncio
     async def test_image_only_query_defaults_standard(self) -> None:

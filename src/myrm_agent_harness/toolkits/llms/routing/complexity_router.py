@@ -1,10 +1,9 @@
-"""Task complexity router — unified scoring with session momentum and penalty feedback.
+"""Task complexity router — unified scoring with session momentum.
 
 Phase 1 (rule-based, instant): weighted keyword/pattern matching with unified scoring.
 Phase 2 (LLM judge, cached): uses filter LLM for ambiguous cases.
 Momentum: prevents short follow-up messages from being downgraded to SIMPLE
 when the conversation is operating at a higher tier.
-Penalty: user-flagged misroutes penalize categories, improving accuracy over time.
 
 [INPUT]
 - agent.config.llm::LLMConfig (POS: LLM core. LiteLLM wrapper providing a unified multi-model invocation interface.)
@@ -15,7 +14,6 @@ Penalty: user-flagged misroutes penalize categories, improving accuracy over tim
 - RoutingTier: SIMPLE | STANDARD | REASONING
 - RoutingResult: dataclass with tier, model_cfg, fallback_model_cfg, reason
 - _apply_momentum(): session momentum logic (exposed for testing)
-- PenaltyTracker: per-category penalty tracking for misroute feedback
 
 [POS]
 Framework-level task complexity routing. Runs before Agent creation to
@@ -28,7 +26,7 @@ import asyncio
 import logging
 import re
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
 from hashlib import sha256
 from typing import TYPE_CHECKING
@@ -188,83 +186,6 @@ class RoutingResult:
     model_cfg: LLMConfig
     fallback_model_cfg: LLMConfig | None
     reason: str
-
-
-# ============ MR-14: Penalty Feedback System ============
-# Per-category penalty tracking for misroute feedback.
-# Mirrors manifest-router's SpecificityPenaltyService.
-
-
-@dataclass
-class PenaltyTracker:
-    """Tracks user-flagged misroutes and applies per-tier penalties.
-
-    When a user flags a routing decision as wrong, the tier gets penalized.
-    Penalized tiers require stronger signals to activate, preventing repeated
-    misroutes. Penalties decay over time (half-life configurable).
-
-    Penalty formula: min(flag_count * PENALTY_PER_FLAG, PENALTY_CAP)
-    """
-
-    PENALTY_PER_FLAG: float = 0.75
-    PENALTY_CAP: float = 3.0
-    DECAY_HALF_LIFE_S: float = 86400.0  # 24 hours
-
-    _flags: dict[str, list[float]] = field(default_factory=dict)
-
-    def record_misroute(self, tier: RoutingTier) -> None:
-        """Record a user-flagged misroute for the given tier."""
-        key = tier.value
-        if key not in self._flags:
-            self._flags[key] = []
-        self._flags[key].append(time.monotonic())
-        logger.info("Penalty recorded for tier=%s (total=%d)", tier, len(self._flags[key]))
-
-    def get_penalty(self, tier: RoutingTier) -> float:
-        """Get current penalty for a tier, accounting for time decay."""
-        key = tier.value
-        timestamps = self._flags.get(key)
-        if not timestamps:
-            return 0.0
-
-        now = time.monotonic()
-        active_count = sum(
-            1
-            for ts in timestamps
-            if (now - ts) < self.DECAY_HALF_LIFE_S * 3  # expire after 3 half-lives
-        )
-
-        if active_count == 0:
-            self._flags.pop(key, None)
-            return 0.0
-
-        penalty = min(active_count * self.PENALTY_PER_FLAG, self.PENALTY_CAP)
-        return penalty
-
-    def apply_penalties(self, scores: dict[RoutingTier, float]) -> dict[RoutingTier, float]:
-        """Apply penalties to tier scores, reducing penalized tiers."""
-        adjusted = dict(scores)
-        for tier in RoutingTier:
-            penalty = self.get_penalty(tier)
-            if penalty > 0:
-                adjusted[tier] = max(0.0, adjusted.get(tier, 0.0) - penalty)
-        return adjusted
-
-    def cleanup_expired(self) -> int:
-        """Remove expired flags. Returns number of entries removed."""
-        now = time.monotonic()
-        removed = 0
-        for key in list(self._flags):
-            before = len(self._flags[key])
-            self._flags[key] = [ts for ts in self._flags[key] if (now - ts) < self.DECAY_HALF_LIFE_S * 3]
-            removed += before - len(self._flags[key])
-            if not self._flags[key]:
-                del self._flags[key]
-        return removed
-
-
-# Global penalty tracker instance
-_penalty_tracker = PenaltyTracker()
 
 
 # ============ MR-15: Weighted Keywords ============
@@ -499,7 +420,6 @@ def _rule_based_classify(
     standard_keywords: frozenset[str],
     reasoning_keywords: frozenset[str],
     simple_indicators: frozenset[str],
-    penalty_tracker: PenaltyTracker | None = None,
 ) -> RoutingTier | None:
     """Phase 1: unified scoring classification. Returns None if ambiguous.
 
@@ -507,10 +427,6 @@ def _rule_based_classify(
     into per-tier scores, then selects the highest-scoring tier above its threshold.
     """
     scores = _compute_unified_score(text, has_image, standard_keywords, reasoning_keywords, simple_indicators)
-
-    # Apply penalties (MR-14) — custom tracker when provided, else the global one
-    effective_tracker = penalty_tracker or _penalty_tracker
-    scores = effective_tracker.apply_penalties(scores)
 
     # Find the best tier above its threshold
     best_tier: RoutingTier | None = None
@@ -776,12 +692,11 @@ async def route_task(
     reasoning_keywords: frozenset[str] | None = None,
     simple_indicators: frozenset[str] | None = None,
     judge_system_prompt: str | None = None,
-    penalty_tracker: PenaltyTracker | None = None,
 ) -> RoutingResult:
     """Route a task to the appropriate model tier (3-tier).
 
     Uses unified multi-dimensional scoring (MR-16), weighted momentum (MR-17),
-    penalty feedback (MR-14), and content dedup (MR-18).
+    and content dedup (MR-18).
 
     Args:
         query: User query (text or multimodal)
@@ -798,9 +713,6 @@ async def route_task(
         reasoning_keywords: Custom reasoning-tier keywords (defaults provided)
         simple_indicators: Custom simple greeting indicators (defaults provided)
         judge_system_prompt: Custom LLM judge system prompt (default provided)
-        penalty_tracker: Custom penalty tracker for rule-phase scoring; when
-            omitted the global default tracker is used (shared with
-            ``record_misroute``).
 
     Returns:
         RoutingResult with selected tier, model config, fallback, and reason
@@ -836,7 +748,6 @@ async def route_task(
         std_kw,
         reason_kw,
         simple_ind,
-        penalty_tracker=penalty_tracker,
     )
     if rule_result is not None:
         if not min_tier:
@@ -890,18 +801,3 @@ async def route_task(
         reason,
     )
     return RoutingResult(tier=final_tier, model_cfg=cfg, fallback_model_cfg=fallback, reason=reason)
-
-
-def record_misroute(tier: RoutingTier) -> None:
-    """Record a user-flagged misroute for penalty feedback (MR-14).
-
-    Call this when a user indicates the routing decision was wrong.
-    The penalty will reduce the likelihood of that tier being selected
-    for similar queries in the future.
-    """
-    _penalty_tracker.record_misroute(tier)
-
-
-def get_penalty_tracker() -> PenaltyTracker:
-    """Get the global penalty tracker instance."""
-    return _penalty_tracker
