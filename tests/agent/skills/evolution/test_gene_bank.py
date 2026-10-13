@@ -1,6 +1,5 @@
 """Unit tests for MAP-Elites Gene Bank Archive in Harness Evolution."""
 
-
 from myrm_agent_harness.agent.skills.evolution.core.gene_bank import GeneBankArchive
 from myrm_agent_harness.agent.skills.evolution.core.types import (
     EvolutionLayer,
@@ -14,9 +13,7 @@ from myrm_agent_harness.agent.skills.evolution.core.types import (
 def test_gene_bank_archive_record_and_coverage():
     archive = GeneBankArchive(max_elites_per_cell=2)
 
-    key_code_timeout = GeneCellKey(
-        layer=EvolutionLayer.TOOL_CODE, pathology=FailurePathology.TIMEOUT_RETRY
-    )
+    key_code_timeout = GeneCellKey(layer=EvolutionLayer.TOOL_CODE, pathology=FailurePathology.TIMEOUT_RETRY)
     rec1 = GeneEliteRecord(
         cell_key=key_code_timeout,
         skill_name="crawler-tool",
@@ -72,9 +69,7 @@ def test_gene_bank_archive_diversity_retrieval_and_serialization():
 
     key_prompt = GeneCellKey(layer=EvolutionLayer.PROMPT, pathology=FailurePathology.PARAM_ERROR)
     key_code = GeneCellKey(layer=EvolutionLayer.TOOL_CODE, pathology=FailurePathology.PARAM_ERROR)
-    key_config = GeneCellKey(
-        layer=EvolutionLayer.RUNTIME_CONFIG, pathology=FailurePathology.TIMEOUT_RETRY
-    )
+    key_config = GeneCellKey(layer=EvolutionLayer.RUNTIME_CONFIG, pathology=FailurePathology.TIMEOUT_RETRY)
 
     archive.record_elite(
         GeneEliteRecord(
@@ -159,7 +154,6 @@ def test_variant_generator_prompt_integration_with_gene_bank_priors():
     prompt = generator._build_variant_prompt(skill, "param error", "trace")
     assert "Diverse Multi-Layer Defensive Exemplars (MAP-Elites Prior)" in prompt
     assert "[PROMPT] Add schema validation note to prompt" in prompt
-
 
 
 def test_verification_proof_loads_records_that_still_carry_the_retired_streak() -> None:
