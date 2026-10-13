@@ -58,26 +58,8 @@ class ABTestConfig:
     # 最大样本量
     max_sample_size: int = 500
 
-    # 置信度（用于统计显著性检验）
-    confidence_level: float = 0.95
-
-    # 最小效果量（quality_score差异）
-    min_effect_size: float = 0.05
-
     # 是否启用自适应采样（低频skill快速验证）
     enable_adaptive_sampling: bool = True
-
-    # 是否启用快速失败检测
-    enable_quick_failure_detection: bool = True
-
-    # 快速失败阈值（candidate比baseline差多少就提前停止）
-    quick_failure_threshold: float = 0.1
-
-    # 是否启用早停（显著优于baseline时提前结束）
-    enable_early_stopping: bool = True
-
-    # 早停阈值（candidate比baseline好多少就提前结束）
-    early_stopping_threshold: float = 0.15
 
 
 @dataclass
@@ -169,9 +151,7 @@ class OptimizationConfig:
         """保守配置（更严格的安全验证和测试）"""
         return cls(
             security=SecurityConfig(enable_sandbox_validation=True),
-            ab_test=ABTestConfig(
-                min_sample_size=100, max_sample_size=1000, confidence_level=0.99, enable_quick_failure_detection=False
-            ),
+            ab_test=ABTestConfig(min_sample_size=100, max_sample_size=1000),
             monitoring=MonitoringConfig(
                 optimization_threshold=0.5,
                 cooldown_period=172800.0,  # 48 hours

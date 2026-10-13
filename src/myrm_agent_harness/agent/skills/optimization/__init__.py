@@ -10,7 +10,7 @@ LLM-Driven Skill Self-Optimization System.
 ### Framework Layer (myrm-agent-harness)  完全独立
 Provides core optimization engine with Protocol-based design:
 - **SkillOptimizer**: 5-dimensional quality evaluation + type detection + cross-process locking
-- **ABTestEngine**: Adaptive sampling + early stopping + quick failure detection
+- **ABTestEngine**: Adaptive sampling + optimistic version lock for A/B test start
 - **SkillSecurityValidator**: Multi-layer security validation
 - **OptimizationScheduler**: Real-time monitoring + batch optimization + async queue + metrics + config reload
 - **InMemoryStorage**: Default storage implementation (LRU + TTL)  开箱即用

@@ -8,7 +8,7 @@ Skill Optimization Toolkit
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Skill Optimization Toolkit | — |
-| ab_test.py | Test | A/B test engine. Implements scientific optimization validation with traffic splitting and statistica | ✅ |
+| ab_test.py | Test | A/B test starter. Creates the RUNNING ABTestResult for a candidate version; collecting samples and deciding the winner is owned by the host application. | ✅ |
 | aggregation_in_memory.py | Core | In-memory aggregation implementation. Framework-provided, ready-to-use for local/tauri/dev scenarios | ✅ |
 | aggregation_stream.py | Core | EventEmitter-to-Aggregator bridge. Connects the event system with the aggregation layer. | ✅ |
 | aggregation_streaming.py | Core | Streaming Skill Quality Aggregator | ✅ |
