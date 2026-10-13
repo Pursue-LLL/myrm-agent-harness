@@ -17,7 +17,7 @@ fully redacted (BEGIN to END) with type label preserved.
 
 [INPUT]
 - core.security.detection.secret_value (POS: shared rules telling a secret from a reference to one: templates,
-  identifiers, calls, class names, slugs, addresses.)
+  identifiers, calls, class names, slugs, domains, query strings.)
 
 [OUTPUT]
 - scan_for_leaks(): detect credential patterns, returns matched pattern names

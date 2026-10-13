@@ -9,8 +9,8 @@
   and already-redacted markers rejected, caller-chosen minimum length).
 - is_reference_value(): True for a value that names a secret instead of being one (template, identifier, call,
   character class, the key itself, camel-case name).
-- is_reference_token(): the same question for a free-standing high-entropy token (identifier chain, class name, slug,
-  address, query string).
+- is_reference_token(): the same question for a free-standing high-entropy token (true when every piece between
+  non-alphanumeric characters is a readable word or number: identifier, class name, constant, slug, domain, query string).
 - mask_markdown_emphasis(): same-length copy of a text with markdown bold markers blanked, so markup is never read
   as secret characters.
 
@@ -74,14 +74,17 @@ _FIELD_STATE_WORDS = frozenset(
 _TEMPLATE_RE = re.compile(
     r"\$[A-Z_][A-Z0-9_]*|\$[a-z_][a-z0-9_]*|\$\{[^{}]*\}|\$\([^()]*\)|%\([^()]*\)[sdrf]|%[A-Z_][A-Z0-9_]*%|\{[^{}]*\}|<[^<>]*>"
 )
-# An attribute chain ("settings.DB_PASSWORD", "apiKey?.trim"). No part exceeds an identifier's length: a dotted
-# credential ("<hex32>.<alnum16>") has a part that does.
-_ATTRIBUTE_CHAIN_RE = re.compile(r"[A-Za-z_]\w{0,29}(?:\??\.[A-Za-z_]\w{0,29})+")
+# An attribute chain ("settings.DB_PASSWORD", "apiKey?.trim", "status.HTTP_400_BAD_REQUEST"). A part is an
+# identifier-short run of letters, or a constant with digits; a dotted password ("john.Smith2024") or credential
+# ("<hex32>.<alnum16>") is neither. The two alternatives are disjoint (digits or none), so matching stays linear.
+_CHAIN_PART = r"(?=[A-Z0-9_]*\d)[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+|[A-Za-z_]{1,30}"
+_ATTRIBUTE_CHAIN_RE = re.compile(rf"(?:{_CHAIN_PART})(?:\??\.(?:{_CHAIN_PART}))+")
 # A call or subscript on a compound name ("_resolve_token(ctx)", "os.getenv(", "self._store.get["): what follows the
 # opening bracket is arguments. Segments split at "_" and "." without overlap, so matching stays linear.
 _CALL_RE = re.compile(r"_*[A-Za-z][A-Za-z0-9]*(?:_+[A-Za-z0-9]+|\??\._*[A-Za-z0-9]+)+[(\[]")
-# Character-class ranges and escapes of a regular expression ("a-zA-Z0-9_", "\s+").
-_CHAR_CLASS_RE = re.compile(r"a-z|A-Z|0-9|a-f|A-F|\\[swdSWDb]")
+# Regular-expression fragments: adjacent character-class ranges ("a-zA-Z0-9_") and a quantified escape ("\s+").
+# A lone escape or range is a legal password character sequence ("4iTHeH\Dp").
+_CHAR_CLASS_RE = re.compile(r"(?:a-z|A-Z|0-9|a-f|A-F){2,}|\\[swdSWDb][+*?{]")
 _KEY_SEPARATORS_RE = re.compile(r"[_\-\s]")
 # What ends a value written as a call argument or collection item ("token=config.remote_token,").
 _ARGUMENT_TERMINATORS = ",)]}"
@@ -114,46 +117,30 @@ def is_reference_value(value: str, *, key: str = "") -> bool:
 
 
 # --- references among free-standing tokens (entropy scan) --------------------------------------------------------
-_ADDRESS_CHARS = frozenset("@/?&")
 _KEYWORD_ARGUMENT_RE = re.compile(r"[A-Za-z_]\w*=")
-_DOTTED_PART_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_\-]*")
-# Real dotted credentials ("<hex32>.<alnum16>") have a part longer than any identifier.
-_MAX_DOTTED_PART_LENGTH = 30
-# Every chunk must end where the next one begins, so a run of capitals has exactly one split (no backtracking blow-up).
-_PASCAL_CASE_RE = re.compile(r"(?:[A-Z][a-z]{2,}|[A-Z]{2,5}(?=[A-Z][a-z]{2,}|[^A-Za-z]|$)|\d{1,2}(?=[A-Z]|$))+")
-_PASCAL_WORD_RE = re.compile(r"[A-Z][a-z]{2,}")
-_MIN_PASCAL_WORDS = 4
-_SLUG_SEPARATOR_RE = re.compile(r"[_\-]")
-# A word, a number or a version tag ("v2", "4o"): every part of a readable slug is one of them.
-_SLUG_PART_RE = re.compile(r"[A-Za-z]{2,12}|\d{1,8}|[A-Za-z]{1,3}\d{1,3}|\d{1,3}[A-Za-z]{1,3}")
-_MIN_SLUG_PARTS = 4
+_PIECE_SEPARATORS_RE = re.compile(r"[\W_]+")
+# A readable piece is words (lower "length", Capitalised "Module", ACRONYM "HTTP"; an identifier word is short, a long
+# letter run is random) with trailing digits (a year, a count), a number, a letter ("q"), or a version tag ("v2",
+# "4o"). Every chunk ends where the next begins, so a piece has exactly one split and matching stays linear. Digits
+# inside a word ("xK9mPq2") never read as a word: random credentials fail here.
+_READABLE_PIECE_RE = re.compile(
+    r"(?:[A-Z]?[a-z]{2,20}(?![a-z])|[A-Z]{2,12}(?:(?=[A-Z][a-z]{2,})|(?![A-Za-z])))+\d{0,8}"
+    r"|\d{1,8}|[A-Za-z]\d{0,3}|\d{1,3}[A-Za-z]"
+)
 
 
 def is_reference_token(token: str, *, min_length: int) -> bool:
-    """Whether a high-entropy-looking token is an identifier, class name, slug, address or query string.
+    """Whether a high-entropy-looking token is made only of readable words and numbers: an identifier, class name,
+    constant, slug, domain, address or query string.
 
-    A keyword argument (``max_tokens=...``) is judged by its value alone. Random credentials fall through every rule:
-    they have no ``@ / ? &``, no short dotted parts, too few capitalised words and no readable slug parts.
+    A keyword argument (``max_tokens=...``) is judged by its value alone. The token is cut at every non-alphanumeric
+    character; one random piece (a secret behind ``?token=`` or ``@``) makes the whole token a candidate again.
     """
-    if not _ADDRESS_CHARS.isdisjoint(token):
-        return True
     argument = _KEYWORD_ARGUMENT_RE.match(token)
     value = token[argument.end() :] if argument else token
     if len(value) < min_length:
         return True
-    if "." in value and all(
-        len(part) <= _MAX_DOTTED_PART_LENGTH and (not part or _DOTTED_PART_RE.fullmatch(part))
-        for part in value.split(".")
-    ):
-        return True
-    if _PASCAL_CASE_RE.fullmatch(value) and len(_PASCAL_WORD_RE.findall(value)) >= _MIN_PASCAL_WORDS:
-        return True
-    parts = _SLUG_SEPARATOR_RE.split(value)
-    return (
-        len(parts) >= _MIN_SLUG_PARTS
-        and (value.islower() or value.isupper())
-        and all(_SLUG_PART_RE.fullmatch(part) for part in parts)
-    )
+    return all(_READABLE_PIECE_RE.fullmatch(piece) for piece in _PIECE_SEPARATORS_RE.split(value) if piece)
 
 
 # --- value extraction --------------------------------------------------------------------------------------------

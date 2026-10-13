@@ -5,6 +5,7 @@ from __future__ import annotations
 import random
 import string
 import time
+from collections.abc import Callable
 
 import pytest
 
@@ -75,6 +76,10 @@ class TestIsReferenceValue:
             ("currentPasswordValue", "password"),
             ("abcdef1234567890abcd,", "api_key"),
             ("%CShtiyZGp3Es5t%", "password"),
+            ("john.Smith2024", "password"),
+            ("4iTHeH\\Dp", "password"),
+            ("SEnXmn51VhZ\\\\SD", "password"),
+            ("k\\uK6tW1-d\\dxKQ", "password"),
         ],
     )
     def test_secret_is_not_a_reference(self, value: str, key: str) -> None:
@@ -107,6 +112,10 @@ class TestIsReferenceToken:
             "X7k9M2pQvL4nR8s1T6hD0jF5cGaB3xK9",
             "secret_blob=X7k9M2pQvL4nR8s1T6hD0jF5cGaB3xK9",
             "a1b2c3d4e5f60718293a4b5c6d7e8f90.aB3xK9mW2pQ7vL4n",
+            "Xk9mPq2LwR7vNb3TcY5d.Hf8Js1Ku6Gz4Ae0Mo2W",
+            "docs/search?token=aB3xK9mW2pQ7vL4nR8sT1yU6hD0jF5cG&page=2",
+            "callback?api_key=X7k9M2pQvL4nR8s1T6hD0jF5cGaB3xK9&x=1",
+            "aB3xK9mW2pQ7vL4nR8sT1yU6hD0jF5cG@internal",
         ],
     )
     def test_random_looking_token_stays_a_credential(self, token: str) -> None:
@@ -118,10 +127,22 @@ class TestIsReferenceToken:
             "base62": string.ascii_letters + string.digits,
             "urlsafe": string.ascii_letters + string.digits + "_-",
             "lower-base36": string.ascii_lowercase + string.digits + "_-",
+            "upper-base36": string.ascii_uppercase + string.digits + "_-",
+        }
+
+        def draw(alphabet: str) -> str:
+            return "".join(rng.choice(alphabet) for _ in range(rng.randint(_MIN_TOKEN_LENGTH, 40)))
+
+        shapes: dict[str, Callable[[str], str]] = {
+            "bare": draw,
+            "dotted": lambda alphabet: f"{draw(alphabet)}.{draw(alphabet)}",
+            "query": lambda alphabet: f"docs/search?token={draw(alphabet)}&page=2",
+            "address": lambda alphabet: f"{draw(alphabet)}@internal",
         }
         for alphabet in alphabets.values():
-            tokens = ["".join(rng.choice(alphabet) for _ in range(rng.randint(32, 48))) for _ in range(400)]
-            assert [token for token in tokens if is_reference_token(token, min_length=_MIN_TOKEN_LENGTH)] == []
+            for shape in shapes.values():
+                tokens = [shape(alphabet) for _ in range(300)]
+                assert [t for t in tokens if is_reference_token(t, min_length=_MIN_TOKEN_LENGTH)] == []
 
 
 class TestLinearTime:
@@ -137,6 +158,9 @@ class TestLinearTime:
             "ab_" * 50_000 + "(",
             ("a" * 30 + ".") * 3_000 + "!",
             "1" * 100_000,
+            "a" * 100_000 + "1a",
+            "HTTPServer" * 10_000 + "9",
+            "A" * 100_000 + "b",
         ],
     )
     def test_adversarial_input_is_judged_quickly(self, token: str) -> None:
