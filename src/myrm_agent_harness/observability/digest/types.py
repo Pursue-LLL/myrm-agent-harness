@@ -4,9 +4,9 @@
 - None (Standard library dataclasses, enum, datetime, typing)
 
 [OUTPUT]
-- SkillHealthStatus: Category enum (STAR, HEALTHY, AT_RISK, STALE)
-- SkillCompoundingMetrics: Raw usage and feedback metrics for a skill
-- SkillHealthScore: Multi-dimensional score and classification for a skill
+- SkillHealthStatus: Category enum (STAR, HEALTHY, AT_RISK, UNPROVEN, STALE)
+- SkillCompoundingMetrics: Run counts and observed outcomes of a skill in the evaluation window
+- SkillHealthScore: Evidence-weighted score and status of a skill
 - MemberActivitySummary: Activity and token efficiency stats for a team member
 - TeamWeeklyDigest: Complete aggregated weekly report contract
 
@@ -42,7 +42,7 @@ class SkillCompoundingMetrics:
         invocations: Runs in the period, including runs whose outcome was not observed.
         successful_invocations: Runs with an observed success.
         failed_invocations: Runs with an observed failure.
-        last_invoked_at: Timestamp of the most recent invocation.
+        last_invoked_at: Timezone-aware timestamp of the most recent invocation.
     """
 
     skill_id: str
