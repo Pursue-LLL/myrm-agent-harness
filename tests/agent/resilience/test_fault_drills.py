@@ -1,7 +1,7 @@
 """Fault-drill playbook: dependency failures must degrade, never crash silently.
 
 Each drill follows make → expect degraded behavior → recover using the
-resilience substrate (governor, budget controller, checkpointer). All drills
+resilience governor. All drills
 run in isolated tmp dirs; no network, no production state.
 """
 
@@ -9,10 +9,6 @@ from pathlib import Path
 
 import pytest
 
-from myrm_agent_harness.agent.resilience.budget_controller import (
-    DynamicExecutionBudgetController,
-)
-from myrm_agent_harness.agent.resilience.checkpointer import MarathonCheckpointer
 from myrm_agent_harness.agent.resilience.error_recovery import (
     ErrorSelfCorrectionGovernor,
 )
@@ -82,27 +78,6 @@ def test_drill_vector_store_unreachable_degrades_to_keyword_only() -> None:
     )
 
 
-def test_drill_disk_full_fails_closed_without_partial_checkpoint(
-    tmp_path: Path,
-) -> None:
-    # A regular file where the store directory belongs makes every write
-    # fail with a real OSError on any uid (chmod-based read-only dirs do not
-    # stop root, so they are not used here).
-    blocker = tmp_path / "chk"
-    blocker.mkdir()
-    store = MarathonCheckpointer(storage_dir=blocker)
-    blocker.rmdir()
-    blocker.write_text("not-a-directory")
-    with pytest.raises(OSError):
-        store.save_checkpoint(
-            session_id="drill-disk-full",
-            step_index=0,
-            step_name="probe",
-            state_payload={"k": "v"},
-        )
-    assert list(tmp_path.glob("chk-drill-disk-full-*")) == []
-
-
 def test_drill_llm_relay_timeout_retries_then_escalates() -> None:
     governor = ErrorSelfCorrectionGovernor(max_recovery_attempts=2)
     first = governor.diagnose_and_suggest_repair(
@@ -132,58 +107,3 @@ def test_drill_egress_blocked_escalates_with_actionable_hint() -> None:
     )
     assert outcome.success is True
     assert "Diagnosed Cause" in outcome.diagnostic_details
-
-
-def test_drill_sleep_wake_resumes_from_checkpoint(tmp_path: Path) -> None:
-    store = MarathonCheckpointer(storage_dir=tmp_path / "chk")
-    store.save_checkpoint(
-        session_id="drill-sleep",
-        step_index=3,
-        step_name="crawl",
-        completed_steps=["a", "b", "c"],
-        pending_steps=["d"],
-    )
-    revived = MarathonCheckpointer(storage_dir=tmp_path / "chk")
-    record = revived.load_latest_checkpoint("drill-sleep")
-    assert record is not None
-    assert record.step_index == 3
-    assert record.pending_steps == ["d"]
-    budget = DynamicExecutionBudgetController()
-    budget.record_step("d")
-    assert budget.get_snapshot().total_steps == 1
-
-
-def test_drill_corrupt_checkpoint_file_degrades_to_none(tmp_path: Path) -> None:
-    store = MarathonCheckpointer(storage_dir=tmp_path / "chk")
-    session_dir = tmp_path / "chk" / "drill-corrupt"
-    session_dir.mkdir(parents=True)
-    (session_dir / "chk-drill-corrupt-0000-deadbe.json").write_text("{broken", encoding="utf-8")
-    assert store.load_latest_checkpoint("drill-corrupt") is None
-    assert store.load_latest_checkpoint("drill-missing") is None
-
-
-def test_drill_corrupt_checkpoint_listed_files_are_skipped(tmp_path: Path) -> None:
-    store = MarathonCheckpointer(storage_dir=tmp_path / "chk")
-    store.save_checkpoint(session_id="drill-list", step_index=0, step_name="a")
-    session_dir = tmp_path / "chk" / "drill-list"
-    (session_dir / "chk-drill-list-0001-deadbe.json").write_text("{broken", encoding="utf-8")
-    records = store.list_checkpoints("drill-list")
-    assert len(records) == 1
-    assert records[0].step_index == 0
-    assert store.list_checkpoints("drill-missing") == []
-
-
-def test_drill_completed_session_purge_leaves_no_residue(tmp_path: Path) -> None:
-    store = MarathonCheckpointer(storage_dir=tmp_path / "chk")
-    store.save_checkpoint(session_id="drill-done", step_index=0, step_name="a")
-    assert store.list_checkpoints("drill-done") != []
-    store.purge_session("drill-done")
-    assert store.list_checkpoints("drill-done") == []
-    assert not (tmp_path / "chk" / "drill-done").exists()
-    store.purge_session("drill-missing")
-
-
-def test_drill_empty_session_dir_loads_as_none(tmp_path: Path) -> None:
-    store = MarathonCheckpointer(storage_dir=tmp_path / "chk")
-    (tmp_path / "chk" / "drill-empty").mkdir(parents=True)
-    assert store.load_latest_checkpoint("drill-empty") is None

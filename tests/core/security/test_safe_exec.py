@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from myrm_agent_harness.agent.security.safe_exec import ExecResult, _kill_process_tree, needs_shell, safe_exec
+from myrm_agent_harness.core.security.safe_exec import ExecResult, _kill_process_tree, needs_shell, safe_exec
 from myrm_agent_harness.core.security.types import (
     EphemeralUserCredential,
     with_user_credentials,
@@ -111,9 +111,7 @@ class TestSafeExecEnvSanitization:
         assert "MY_APP_TOKEN" not in result.stdout
         assert "SAFE_FLAG=keep-me" in result.stdout
 
-    async def test_inherited_parent_env_is_sanitized(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_inherited_parent_env_is_sanitized(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Host pollution must not leak into subprocess environment, while safe core vars pass."""
         monkeypatch.setenv("LD_PRELOAD", "/tmp/evil.so")
         monkeypatch.setenv("PYTHONHOME", "/tmp/evil")

@@ -18,7 +18,6 @@ _ALLOWED_STAR_IMPORT_FILES = frozenset(
         "agent/security/audit.py",
         "agent/security/path_security.py",
         "agent/security/redact.py",
-        "agent/security/safe_exec.py",
         "agent/security/tool_registry.py",
         "agent/security/types.py",
         "agent/security/detection/content_boundary.py",

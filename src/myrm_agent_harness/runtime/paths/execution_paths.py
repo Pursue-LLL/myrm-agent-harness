@@ -482,26 +482,6 @@ def _sanitize_filename(filename: str) -> str:
 # ============ Path Validation ============
 
 
-def is_persistent_path(path: str) -> bool:
-    """Check if path is within persistent volume.
-
-    Args:
-        path: Absolute or relative path
-
-    Returns:
-        True if path is persistent, False otherwise
-
-    Examples:
-        >>> is_persistent_path("/persistent/.context/file.txt")
-        True
-        >>> is_persistent_path("/tmp/temp.txt")
-        False
-
-    """
-    abs_path = os.path.abspath(path)
-    return abs_path.startswith(PERSISTENT_ROOT + "/") or abs_path == PERSISTENT_ROOT
-
-
 def is_context_path(path: str) -> bool:
     """Check if path is within context directory.
 

@@ -1,18 +1,16 @@
-"""Marathon error self-correction and execution budget types.
+"""Marathon error self-correction types.
 
 [INPUT]
 - dataclasses: dataclass, field
 - enum: StrEnum
-- typing: Any
 
 [OUTPUT]
 - RecoveryActionType: Enumeration of recovery actions (RETRY, ALTERNATIVE_TOOL, SANITIZE_INPUT, ENV_REPAIR, ESCALATE)
 - DiagnosticHypothesis: Generated diagnostic hypothesis with root cause analysis and suggested fix
 - ErrorCorrectionOutcome: Structured outcome of a self-correction attempt
-- ExecutionBudgetConfig: Multi-dimensional configuration for step quotas, token ceilings, and consecutive error limits
 
 [POS]
-Domain models and types for harness error self-correction and execution budget governance.
+Domain models and types for harness error self-correction.
 """
 
 from __future__ import annotations
@@ -55,14 +53,3 @@ class ErrorCorrectionOutcome:
     attempts_made: int
     repaired_output: str | int | float | bool | dict[str, str] | None = None
     fallback_message: str | None = None
-
-
-@dataclass(slots=True)
-class ExecutionBudgetConfig:
-    """Configuration for execution budget and quota circuit breakers."""
-
-    max_steps_per_task: int = 100
-    max_tokens_total: int = 1_000_000
-    max_consecutive_errors: int = 3
-    max_duration_seconds: float = 14400.0  # 4 hours
-    token_rate_warn_threshold: int = 50_000  # tokens per 5-minute window

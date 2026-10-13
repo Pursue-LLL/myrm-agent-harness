@@ -2,7 +2,7 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from myrm_agent_harness.agent._internals._agent_build import _weave_dynamic_schemas
-from myrm_agent_harness.agent.tool_management.utils import with_dynamic_hints
+from myrm_agent_harness.utils.tool_dynamic_hints import with_dynamic_hints
 
 
 class DummyInput(BaseModel):

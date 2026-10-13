@@ -4,7 +4,6 @@
 - HookEvent, HookDefinition (4 types), HookResult, AggregatedHookResult
 - HookRegistry, HookExecutor
 - fire_hook, get_hook_executor, set_hook_executor, payload_from_dataclass
-- HookReloader
 - Payload dataclasses (PreToolUsePayload, PostToolUsePayload, ...)
 
 [POS]
@@ -25,7 +24,6 @@ from myrm_agent_harness.agent.hooks.executor import (
     payload_from_dataclass,
     set_hook_executor,
 )
-from myrm_agent_harness.agent.hooks.hot_reload import HookReloader
 from myrm_agent_harness.agent.hooks.output_spiller import (
     HOOK_OUTPUT_TOKEN_LIMIT,
     HookOutputSpiller,
@@ -72,7 +70,6 @@ __all__ = [
     "HookExecutor",
     "HookOutputSpiller",
     "HookRegistry",
-    "HookReloader",
     "HookResult",
     "HookSource",
     "HttpHookDefinition",

@@ -1,1 +1,1 @@
-"""Runtime artifact classification and checkpoint protocol types."""
+"""Runtime checkpoint protocol types."""

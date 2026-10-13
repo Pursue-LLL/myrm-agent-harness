@@ -12,7 +12,6 @@ Key components:
 """
 
 from .hardware import HardwareProfile, detect_hardware_profile
-from .health import compute_health_score
 from .protocols import (
     AgentHealthScore,
     CapacityDenial,
@@ -43,7 +42,6 @@ __all__ = [
     "SaaSLoadSensor",
     "SystemLoadLevel",
     "SystemLoadSnapshot",
-    "compute_health_score",
     "detect_hardware_profile",
     "get_maintenance_scheduler",
     "init_maintenance_scheduler",

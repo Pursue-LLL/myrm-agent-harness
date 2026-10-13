@@ -18,6 +18,7 @@ from myrm_agent_harness.agent.meta_tools.bash._security.preflight_checks import 
     check_command_url_exfiltration,
     check_destructive_commands,
     check_interactive_command,
+    evaluate_high_impact_command,
 )
 from myrm_agent_harness.agent.middlewares._session_context import set_protected_paths
 from myrm_agent_harness.utils.errors import ToolError
@@ -551,3 +552,18 @@ class TestCheckDestructiveCommands:
     def test_allows_safe_commands(self, command: str) -> None:
         check_destructive_commands(command)
 
+    @pytest.mark.parametrize(
+        ("command", "category"),
+        [
+            ("git reset --hard HEAD~1", "UNCOMMITTED_RESET"),
+            ("git clean -fd", "UNCOMMITTED_RESET"),
+            ("rm -rf /", "WORKSPACE_PURGE"),
+            ("ls -la", "SAFE"),
+            ("git status", "SAFE"),
+        ],
+    )
+    def test_evaluate_high_impact_command_category(self, command: str, category: str) -> None:
+        is_high_impact, label, detected = evaluate_high_impact_command(command)
+        assert detected == category
+        assert is_high_impact is (category != "SAFE")
+        assert (label is not None) is is_high_impact

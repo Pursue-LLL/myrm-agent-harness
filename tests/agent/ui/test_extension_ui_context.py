@@ -1,11 +1,11 @@
-"""Unit tests for ExtensionUIContext implementations (Headless and ReversePush).
+"""Unit tests for the reverse-push ExtensionUIContext implementation.
 
 [INPUT]
-- ExtensionUIContext, HeadlessUIContext, ReversePushUIContext from myrm_agent_harness.agent.ui
+- ReversePushUIContext from myrm_agent_harness.agent.ui
 - UIRequest, UIResponse, UISelectOption, ExtensionUICancelledError, ExtensionUITimeoutError, ExtensionUIError from myrm_agent_harness.agent.ui
 
 [OUTPUT]
-- Pytest test cases covering Headless graceful degradation and ReversePush bi-directional handshake
+- Pytest test cases covering the ReversePush bi-directional handshake
 
 [POS]
 Unit test suite for Item 28 TransportAgnosticUIContextAndReversePushSubProtocol.
@@ -20,53 +20,11 @@ from myrm_agent_harness.agent.ui import (
     ExtensionUICancelledError,
     ExtensionUIError,
     ExtensionUITimeoutError,
-    HeadlessUIContext,
     ReversePushUIContext,
     UIRequest,
     UIResponse,
     UISelectOption,
 )
-
-
-@pytest.mark.asyncio
-async def test_headless_ui_context_degradation() -> None:
-    """Tests that HeadlessUIContext safely degrades all primitives without hanging."""
-    ui = HeadlessUIContext(fallback_confirm=False)
-
-    options = [
-        UISelectOption(label="Option A", value="opt_a"),
-        UISelectOption(label="Option B", value="opt_b"),
-    ]
-
-    # select: default provided
-    sel_res = await ui.select("Choose", options, default="opt_b")
-    assert sel_res == "opt_b"
-
-    # select: no default, fallback to first
-    sel_first = await ui.select("Choose", options)
-    assert sel_first == "opt_a"
-
-    # select: empty options
-    sel_empty = await ui.select("Choose", [])
-    assert sel_empty == ""
-
-    # confirm: explicit default
-    conf_t = await ui.confirm("Are you sure?", "Proceed with migration?", default=True)
-    assert conf_t is True
-    conf_f = await ui.confirm("Are you sure?", "Delete production?", default=False)
-    assert conf_f is False
-
-    # input: default
-    inp = await ui.input("Enter name", default="Alice")
-    assert inp == "Alice"
-
-    # editor: returns untouched
-    code = "def foo(): pass"
-    ed_res = await ui.editor("Edit code", code, language="python")
-    assert ed_res == code
-
-    # notify: executes smoothly
-    await ui.notify("Build completed", level="info")
 
 
 @pytest.mark.asyncio

@@ -1,6 +1,6 @@
 """Tests for the Global Adaptive Maintenance Scheduler.
 
-Covers: protocol types, sensors, health score, scheduler logic, and integrations
+Covers: protocol types, sensors, scheduler logic, and integrations
 with BackgroundEvolutionTaskManager and SimpleStorageQuotaManager.
 """
 
@@ -16,7 +16,6 @@ import pytest
 from myrm_agent_harness.agent.skills.evolution.infra.background_task_manager import (
     BackgroundEvolutionTaskManager,
 )
-from myrm_agent_harness.runtime.maintenance.health import compute_health_score
 from myrm_agent_harness.runtime.maintenance.protocols import (
     AgentHealthScore,
     CapacityDenial,
@@ -66,34 +65,6 @@ class TestProtocolTypes:
 
         custom_threshold = AgentHealthScore(score=60)
         assert not custom_threshold.needs_maintenance(threshold=50)
-
-
-# ─── health score computation ─────────────────────────────────────────
-
-
-class TestHealthScore:
-    def test_perfect_health(self) -> None:
-        h = compute_health_score(evolution_backlog=0, storage_usage_pct=0, context_fragmentation_pct=0)
-        assert h.score == 100
-
-    def test_critical_health(self) -> None:
-        h = compute_health_score(evolution_backlog=30, storage_usage_pct=95, context_fragmentation_pct=90)
-        assert h.score <= 10
-
-    def test_moderate_health(self) -> None:
-        h = compute_health_score(evolution_backlog=5, storage_usage_pct=50, context_fragmentation_pct=30)
-        assert 30 < h.score < 80
-
-    def test_storage_has_highest_weight(self) -> None:
-        storage_bad = compute_health_score(storage_usage_pct=100, evolution_backlog=0, context_fragmentation_pct=0)
-        backlog_bad = compute_health_score(storage_usage_pct=0, evolution_backlog=20, context_fragmentation_pct=0)
-        frag_bad = compute_health_score(storage_usage_pct=0, evolution_backlog=0, context_fragmentation_pct=100)
-        assert storage_bad.score < backlog_bad.score
-        assert frag_bad.score > storage_bad.score
-
-    def test_score_clamped(self) -> None:
-        h = compute_health_score(evolution_backlog=100, storage_usage_pct=200, context_fragmentation_pct=200)
-        assert h.score == 0
 
 
 # ─── sensors ──────────────────────────────────────────────────────────
@@ -306,7 +277,9 @@ class TestSingletonFunctions:
         try:
             sched_mod._scheduler = None
             sensor = FakeLoadSensor(SystemLoadLevel.NORMAL)
-            with patch("myrm_agent_harness.runtime.survival.memory_pressure.get_memory_pressure_monitor", return_value=None):
+            with patch(
+                "myrm_agent_harness.runtime.survival.memory_pressure.get_memory_pressure_monitor", return_value=None
+            ):
                 s = sched_mod.init_maintenance_scheduler(sensor)
             assert isinstance(s, GlobalAdaptiveScheduler)
             assert sched_mod.get_maintenance_scheduler() is s
@@ -326,7 +299,8 @@ class TestSingletonFunctions:
             sensor = FakeLoadSensor(SystemLoadLevel.IDLE)
             mock_monitor = MemoryPressureMonitor()
             with patch(
-                "myrm_agent_harness.runtime.survival.memory_pressure.get_memory_pressure_monitor", return_value=mock_monitor
+                "myrm_agent_harness.runtime.survival.memory_pressure.get_memory_pressure_monitor",
+                return_value=mock_monitor,
             ):
                 s = sched_mod.init_maintenance_scheduler(sensor)
             assert s in mock_monitor._subscribers

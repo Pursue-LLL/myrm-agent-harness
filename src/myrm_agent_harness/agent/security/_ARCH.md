@@ -16,9 +16,7 @@ Detailed design: [SECURITY_SYSTEM.md](SECURITY_SYSTEM.md)
 |------|------|-------------|-------|
 | `__init__.py` | Package | Agent security subsystem — 6-layer onion defense architecture. | ✅ |
 | approval_flow.py | Core | Persistent allow-always, time-bound scoped allowlist, and in-memory session-scoped grants (permission/tool/exact/pattern matching, opportunistic expiry pruning, session isolation, find_matching_entry discovery, zero DB persistence for session-scoped grants, DB TTL cache). | ✅ |
-| circuit_breaker.py | Core | Session-scoped security circuit breaker (`SessionCircuitBreaker`, `CircuitBreakerTripInfo`) for quarantine and one-click self-healing on indirect injection or exfiltration. | ✅ |
 | command_allowlist_pattern.py | Core | Shell command glob derivation, compound-operator guard, parity vectors (`DERIVE_PATTERN_PARITY_VECTORS`). | ✅ |
-| mcp_approval_identity.py | Core | Hosted MCP Approval Identity Scope and Scope Isolation. Prevents Confused Deputy attacks across subagents and sessions. | ✅ |
 | audit.py | Core | Cross-cutting concern. Called from tool_interceptor_middleware and all | ✅ |
 | channel_presets.py | Core | Decouples channel-specific security policy from the generic Permission Engine; merges user/agent flags. | ✅ |
 | checks.py | Core | Built-in security checks — Layer 2 & 2.5. Path policy (unified canonical boundary guard via `is_within_boundary`), URL scheme validation, protected instruction file write gate (`is_protected_instruction_file` -> `PermissionAction.ASK`), shell threat analysis. Pure functions returning (action, reason) tuples. | ✅ |
@@ -31,7 +29,6 @@ Detailed design: [SECURITY_SYSTEM.md](SECURITY_SYSTEM.md)
 | ptc_verifier.py | Core | AST-based static analysis for PTC (Programmatic Tool Calling) scripts. Extracts MCP intent and enables Fast-Path Auto-Approve for read-only tools. | ✅ |
 | rate_limiter.py | Core | Agent security rate limiter. Prevents brute-force attacks (e.g., WebUI login) with configurable rate | ✅ |
 | redact.py | Core | Agent output redaction layer. Complements sanitize_env (source-level dangerous env var removal) with | ✅ |
-| safe_exec.py | Core | Layer 2 enhancement. Called from: | ✅ |
 | terminal_error_registry.py | Core | Turn-scoped terminal error state + durable God-Mode file injection channel (survives reset; runtime add() is memory-only). | ✅ |
 | tool_registry.py | Core | Tool metadata registry: permission mapping, canonical params, safety metadata (6-dim), MCP annotation ingestion. resolve_safety_metadata uses 3-level fallback: built-in → MCP dynamic → fail-closed. | ✅ |
 | types.py | Core | Foundation layer of the security type hierarchy. All other security modules import from here. Includes SecurityConfig factory methods (readonly/workspace/full_access/remote_exposed) and PathPolicy with workspace_label. | ✅ |

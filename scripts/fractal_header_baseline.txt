@@ -55,7 +55,6 @@ myrm_agent_harness/agent/security/guards/ssrf_guard.py
 myrm_agent_harness/agent/security/message_filtering/__init__.py
 myrm_agent_harness/agent/security/policy_generator/__init__.py
 myrm_agent_harness/agent/security/redact.py
-myrm_agent_harness/agent/security/safe_exec.py
 myrm_agent_harness/agent/security/tool_registry.py
 myrm_agent_harness/agent/security/trust_context.py
 myrm_agent_harness/agent/security/types.py
@@ -69,7 +68,6 @@ myrm_agent_harness/agent/streaming/__init__.py
 myrm_agent_harness/agent/streaming/types.py
 myrm_agent_harness/agent/sub_agents/checkpoint/__init__.py
 myrm_agent_harness/agent/tool_management/__init__.py
-myrm_agent_harness/agent/tool_management/utils.py
 myrm_agent_harness/agent/workspace_coordination/policy.py
 myrm_agent_harness/api/__init__.py
 myrm_agent_harness/api/config.py

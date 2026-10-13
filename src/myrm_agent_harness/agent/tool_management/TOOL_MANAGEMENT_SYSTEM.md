@@ -55,7 +55,6 @@ action_space.py — ASCS _profiler
 | `tool_catalog.py` | LLM Tool 角色/加载条件；Product ID 由 `TOOL_TO_GROUP` + `BUILTIN_TOOL_ID_TO_GROUP` 派生 |
 | `registry.py` | 去重、排序、`ToolBindMode` 三分绑定；提供 `ToolRegistry.register_external_layer_specs` 显式批量注册入口 |
 | `lifecycle_manager.py` | 工具 init/cleanup 编排 |
-| `lifecycle_protocol.py` | `LifecycleAwareTool` Protocol |
 | `action_space.py` | ActionSpaceProfiler / ASCS |
 | `types.py` | `ToolBindMode` + 子系统类型 |
 | `TOOL_DESIGN_STRATEGY.md` | 设计策略与竞品对比 |

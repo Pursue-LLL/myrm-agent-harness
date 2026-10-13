@@ -8,7 +8,7 @@
 
 | 文件 | 地位 | 职责 |
 | --- | --- | --- |
-| `__init__.py` | 入口 | 模块导出与公共流式事件接口定义 |
+| `__init__.py` | 入口 | 包入口（不再导出符号，调用方按模块路径导入） |
 | `artifact_events.py` | 核心 | 工件事件处理（文件工件、UI工件、内联图片工件与实时内容更新） |
 | `channel_output_hints.py` | 核心 | 交付渠道输出格式提示词生成（Channel-Aware Output Guidance）与前置提示保障 |
 | `citation_audit.py` | 核心 | 流式回复引用标记审计（【N】序号与信息源对照验证） |
@@ -27,5 +27,4 @@
 | `stream_dispatcher.py` | 核心 | 流式执行引擎事件分发 Mixin（覆盖 Tool Stdout、UI 更新、任务步骤、AgentStatus 状态机透传与 ASYNC_USER_MESSAGE 异步通报分发） |
 | `stream_executor.py` | 核心 | 流式执行引擎生命周期封装（Agent.astream 调度、重试恢复与异常拦截） |
 | `types.py` | 核心 | 流式事件类型定义与 core.events.types 兼容重导出 |
-| `turn_outline.py` | 核心 | 回合大纲投影提取器（`TurnOutlineItem` / `TurnOutlineProjection` / `TurnOutlineExtractor`），为轻量会话折叠导航提供结构数据 |
 | `utils.py` | 辅助 | 时间戳规则、时区管理上下文变量及工具名称规范化等通用辅助函数 |

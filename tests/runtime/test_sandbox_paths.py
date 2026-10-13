@@ -25,7 +25,6 @@ from myrm_agent_harness.runtime.paths.execution_paths import (
     get_system_config_path,
     get_workspace_relative_path,
     is_context_path,
-    is_persistent_path,
 )
 
 
@@ -160,11 +159,6 @@ def test_sanitize_filename_traversal() -> None:
 def test_sanitize_filename_empty() -> None:
     result = _sanitize_filename("")
     assert result == "file.txt"
-
-
-def test_is_persistent_path() -> None:
-    assert is_persistent_path("/persistent/.context/file.txt") is True
-    assert is_persistent_path("/tmp/file.txt") is False
 
 
 def test_is_context_path() -> None:

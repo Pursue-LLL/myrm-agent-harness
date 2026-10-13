@@ -1,4 +1,4 @@
-"""Storage quota management and monitoring."""
+"""Storage quota management."""
 
 from myrm_agent_harness.runtime.quota.errors import QuotaExceededError
 from myrm_agent_harness.runtime.quota.manager import SimpleStorageQuotaManager

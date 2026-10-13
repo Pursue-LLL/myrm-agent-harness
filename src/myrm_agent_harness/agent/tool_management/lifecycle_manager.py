@@ -3,7 +3,6 @@
 [INPUT]
 - langchain_core.tools::BaseTool (POS: tools to manage)
 - langchain_core.runnables::RunnableConfig (POS: runtime context)
-- .lifecycle_protocol::LifecycleAwareTool (POS: protocol for lifecycle tools)
 
 [OUTPUT]
 - ToolLifecycleManager: Manages tool initialization and cleanup

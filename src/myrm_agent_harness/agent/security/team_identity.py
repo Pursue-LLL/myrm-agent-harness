@@ -24,7 +24,7 @@ This module is deliberately tiny and product-agnostic:
 
 [POS]
 Layer 4 security domain companion to channel_presets (channel posture) and
-mcp_approval_identity (MCP confused-deputy scope). This module answers "which
+the agent-scoped approval allowlist (MCP confused-deputy scope). This module answers "which
 compartment does this turn belong to", the others answer "what may it do".
 """
 

@@ -47,7 +47,7 @@ Agent core module — public API for BaseAgent / SkillAgent runtime.
 
 | Name A | Name B | Difference |
 |--------|--------|------------|
-| `api/hooks.py` | `agent/hooks/` | **Server integration facade** (session ContextVar, memory extract, bash registry re-exports) vs **user profile lifecycle hooks** (JSON/YAML, hot-reload) |
+| `api/hooks.py` | `agent/hooks/` | **Server integration facade** (session ContextVar, memory extract, bash registry re-exports) vs **lifecycle hooks** (built-in and SKILL.md-declared) |
 | `api/hooks.py` | `core/hooks/` | Integration callables for product code vs **HookEvent / HookResult type definitions** |
 | `coordination/` | `workspace_coordination/` | **P2P 邮箱** (TeammateMailbox, JSONL) vs **并行写隔离 + batch merge** |
 | `parallel/` | `sub_agents/` | **共享 spawn 路径** (batch/swarm semaphore) vs **子 Agent 生命周期全栈** |

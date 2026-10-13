@@ -17,7 +17,6 @@ from .env_dependency import (
     probe_tool_env_health,
 )
 from .lifecycle_manager import ToolLifecycleManager
-from .lifecycle_protocol import LifecycleAwareTool
 from .registry import ToolRegistry
 from .tool_catalog import (
     ToolCatalogRole,
@@ -28,13 +27,11 @@ from .tool_catalog import (
 )
 from .tool_layers import ToolLayer, get_tool_layer, register_tool_layer, tool_layer_snapshot_label
 from .types import ToolBindMode, ToolSnapshot, ToolSource
-from .utils import with_dynamic_hints
 
 __all__ = [
     "DependencyKind",
     "DependencyProbeResult",
     "EnvDependencySpec",
-    "LifecycleAwareTool",
     "RequirementLevel",
     "ToolBindMode",
     "ToolCatalogRole",
@@ -58,5 +55,4 @@ __all__ = [
     "register_tool_layer",
     "register_tool_layers",
     "tool_layer_snapshot_label",
-    "with_dynamic_hints",
 ]

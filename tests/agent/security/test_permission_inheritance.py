@@ -10,11 +10,11 @@ from myrm_agent_harness.agent.security import (
     EphemeralUserCredential,
     user_credentials_ctx,
 )
-from myrm_agent_harness.agent.security.safe_exec import credential_env_overrides, safe_exec
 from myrm_agent_harness.agent.security.types import (
     propagate_user_credentials,
     with_user_credentials,
 )
+from myrm_agent_harness.core.security.safe_exec import credential_env_overrides, safe_exec
 from myrm_agent_harness.toolkits.openapi_bridge import AuthConfig, AuthType
 from myrm_agent_harness.toolkits.openapi_bridge.http_executor import OpenAPIExecutor
 

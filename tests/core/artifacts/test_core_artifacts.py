@@ -33,30 +33,6 @@ class TestArtifactType:
     def test_architecture_type(self) -> None:
         assert ArtifactType.ARCHITECTURE == "architecture"
 
-    def test_architecture_reexports_and_ir_contract(self) -> None:
-        from myrm_agent_harness.core.artifacts import (
-            ArchitectureIR,
-            ArchitectureNodeType,
-            DiagramType,
-            ValidationReceipt,
-            validate_and_sanitize_architecture_ir,
-        )
-
-        assert DiagramType.ARCHITECTURE == "architecture"
-        assert ArchitectureNodeType.GATEWAY == "gateway"
-        sample_ir = {
-            "title": "Minimal System",
-            "nodes": [{"id": "svc1", "label": "Service 1"}],
-            "edges": [],
-        }
-        ir, receipt = validate_and_sanitize_architecture_ir(sample_ir)
-        assert ir is not None
-        assert receipt.is_valid is True
-        assert receipt.node_count == 1
-        assert isinstance(receipt, ValidationReceipt)
-        assert isinstance(ir, ArchitectureIR)
-
-
 
 class TestExtensionMappings:
     def test_python_extension(self) -> None:

@@ -8,25 +8,20 @@ Subpackages:
 - context/: Context lifecycle — cleanup, config, metrics, tracking, reading, offload
 - checkpointing/: Checkpointer factory
 - events/: Runtime event bus
-- cognitive_clock/: Four-tier cognitive clock scheduling primitives
+- cognitive_clock/: Cooperative pause signals for background work
 - maintenance/: Global adaptive maintenance scheduling
-- quota/: Storage quota management and monitoring
+- quota/: Storage quota management
 - install_guard/: Dual-wheel install readiness
 - diagnostics/: Doctor and compliance self-audit
 - survival/: Memory pressure, resource monitor, startup timing
 - paths/: Execution path constants and compression
-- artifacts/: Artifact judge and checkpointer protocol
+- artifacts/: Checkpointer protocol
 - deps/: Lazy optional dependency install
 """
 
 from myrm_agent_harness.runtime.cognitive_clock import (
-    CognitiveCadence,
-    CognitiveClockBus,
-    CognitiveClockTaskSpec,
-    CognitiveClockTickEvent,
     CooperativePauseSignal,
     PauseRequestedError,
-    get_cognitive_clock_bus,
     get_global_pause_signal,
 )
 from myrm_agent_harness.runtime.context import (
@@ -58,7 +53,6 @@ from myrm_agent_harness.runtime.maintenance import (
     SaaSLoadSensor,
     SystemLoadLevel,
     SystemLoadSnapshot,
-    compute_health_score,
     get_maintenance_scheduler,
     init_maintenance_scheduler,
 )
@@ -97,10 +91,6 @@ __all__ = [
     "BaseEvent",
     "CapacityDenial",
     "CapacityTicket",
-    "CognitiveCadence",
-    "CognitiveClockBus",
-    "CognitiveClockTaskSpec",
-    "CognitiveClockTickEvent",
     "CooperativePauseSignal",
     "ContextCleanupScheduler",
     "ContextMetrics",
@@ -130,10 +120,8 @@ __all__ = [
     "cleanup_orphan_context_files",
     "cleanup_orphan_context_files_async",
     "cleanup_session_context_files",
-    "compute_health_score",
     "create_compress_offload_callback",
     "ensure_context_dir_exists",
-    "get_cognitive_clock_bus",
     "get_compacted_output_path",
     "get_context_metrics",
     "get_context_session_dir",
