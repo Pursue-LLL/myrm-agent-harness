@@ -7,13 +7,11 @@ Core Features (满分完整强大方案):
 - DERIVED evolution: Optimize based on feedback (收益7/10)
 - CAPTURED evolution: Learn from repeated patterns (收益6/10)
 - Fuzzy Match: 6-level matching chain (收益10/10)
-- Quality Metrics: Data-driven optimization (收益8/10)
 - Concurrent Evolution: Parallel processing for multiple skills (收益7/10)
 - 2-Layer Embedding Cache: Reduces redundant LLM API calls (收益7/10)
 
 New Features (vs lime):
 -  Anti-loop state with TTL (lime: in-memory, no expiry)
--  Batch LLM confirmation (lime: one-by-one, 10x cost)
 -  Rejection tracking (lime: no analysis)
 -  Background task management (lime: basic tracking)
 -  Two-phase screener (lime: no screening, blocks 70-80% blind fixes)
@@ -50,9 +48,7 @@ from .execution.executor_context import ExecutorContextManager
 from .execution.tool_selector import EvolutionToolConfig, create_evolution_tools
 from .execution.tool_wrapper import ToolWrapper
 from .infra.background_task_manager import BackgroundEvolutionTask, BackgroundEvolutionTaskManager
-from .infra.confirmation import BatchEvolutionConfirmer, ConfirmationResult
 from .infra.integration import EvolutionIntegration, enable_skill_evolution, get_global_evolution_integration
-from .infra.metrics import EvolutionMetrics, EvolutionMetricsTracker, get_metrics_tracker
 from .infra.queue import EvolutionQueue, QueuePriority, get_evolution_queue
 from .pipeline.patch import PatchType, SkillPatchResult, apply_skill_patch, detect_patch_type, parse_multi_file_full
 from .pipeline.screener import EvolutionScreener, ScreeningResult
@@ -67,15 +63,9 @@ __all__ = [
     "BackgroundEvolutionTask",
     "BackgroundEvolutionTaskManager",
     "BatchEvaluator",
-    # LLM confirmation (P1-9)
-    "BatchEvolutionConfirmer",
-    "ConfirmationResult",
     # Caching
     # Integration ( One-line enablement)
     "EvolutionIntegration",
-    "EvolutionMetrics",
-    # Metrics
-    "EvolutionMetricsTracker",
     "EvolutionProposal",
     # Queue
     "EvolutionQueue",
@@ -121,7 +111,6 @@ __all__ = [
     "get_dependency_tracker",
     "get_evolution_queue",
     "get_global_evolution_integration",
-    "get_metrics_tracker",
     "parse_multi_file_full",
     "SkillBudgetConfig",
     "SkillBudgetGovernor",

@@ -4,7 +4,6 @@ Tests cover:
 1. SkillEvolutionEngine core API (fix/derive/capture)
 2. EvolutionToolConfig validation (limits, warnings)
 3. ExecutorContextManager (background_queue scenario)
-4. EvolutionMetricsTracker
 """
 
 import asyncio
@@ -18,7 +17,6 @@ from myrm_agent_harness.agent.skills.evolution.core.types import SkillRecord
 from myrm_agent_harness.agent.skills.evolution.db.store import SkillStore
 from myrm_agent_harness.agent.skills.evolution.execution.executor_context import ExecutorContextManager
 from myrm_agent_harness.agent.skills.evolution.execution.tool_selector import EvolutionToolConfig
-from myrm_agent_harness.agent.skills.evolution.infra.metrics import EvolutionMetricsTracker
 
 
 class TestSkillEvolutionEngineInit:
@@ -225,51 +223,3 @@ class TestExecutorContextManager:
 
         async with ExecutorContextManager(mock_executor):
             pass
-
-
-class TestMetricsIntegration:
-    """Test that metrics are properly recorded."""
-
-    def test_record_tool_call_success(self):
-        tracker = EvolutionMetricsTracker()
-
-        tracker.record_tool_call("file_read", elapsed_time=0.5, success=True)
-
-        metrics = tracker.get_metrics()
-        assert metrics.tool_call_count == 1
-        assert metrics.tool_call_time == 0.5
-        assert metrics.tool_errors == 0
-
-    def test_record_tool_call_failure(self):
-        tracker = EvolutionMetricsTracker()
-
-        tracker.record_tool_call("web_search", elapsed_time=1.2, success=False)
-
-        metrics = tracker.get_metrics()
-        assert metrics.tool_call_count == 1
-        assert metrics.tool_call_time == 1.2
-        assert metrics.tool_errors == 1
-
-    def test_record_summarization(self):
-        tracker = EvolutionMetricsTracker()
-
-        tracker.record_summarization(original_length=10000, summarized_length=1000, elapsed_time=0.3)
-
-        metrics = tracker.get_metrics()
-        assert metrics.summarization_count == 1
-        assert metrics.summarization_time == 0.3
-        assert metrics.token_saved == 2250
-
-    def test_metrics_report_includes_new_fields(self):
-        tracker = EvolutionMetricsTracker()
-
-        tracker.record_tool_call("file_read", 0.5, True)
-        tracker.record_summarization(5000, 500, 0.2)
-
-        report = tracker.get_report()
-
-        assert "tool_usage" in report
-        assert report["tool_usage"]["total_calls"] == 1
-        assert "summarization" in report
-        assert report["summarization"]["count"] == 1
-        assert report["summarization"]["token_saved"] == 1125

@@ -17,7 +17,6 @@ Skill Evolution System - Framework Layer.
 | execution/ | Execution submodule. |
 | infra/ | Infra submodule. |
 | pipeline/ | Pipeline submodule. |
-| quality/ | Tool quality monitoring for evolution system. |
 | review/ | Background silent review and skill distillation system. Asynchronously reviews conversation history  |
 | safety/ | Safety submodule. |
 | utils/ | Utils submodule. |

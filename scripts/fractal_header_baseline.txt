@@ -61,7 +61,6 @@ myrm_agent_harness/agent/security/trust_context.py
 myrm_agent_harness/agent/security/types.py
 myrm_agent_harness/agent/skills/__init__.py
 myrm_agent_harness/agent/skills/evolution/__init__.py
-myrm_agent_harness/agent/skills/evolution/quality/__init__.py
 myrm_agent_harness/agent/skills/market/installers/batch_installer.py
 myrm_agent_harness/agent/skills/mcp/__init__.py
 myrm_agent_harness/agent/skills/optimization/__init__.py

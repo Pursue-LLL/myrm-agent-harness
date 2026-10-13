@@ -135,24 +135,6 @@ async def test_close(clean_integration):
 
 
 @pytest.mark.asyncio
-async def test_get_stats(clean_integration):
-    integration = EvolutionIntegration(db_path=":memory:", enable_background_queue=True)
-    try:
-        integration.metrics_tracker = MagicMock()
-        integration.metrics_tracker.get_report = MagicMock(return_value={"test": "metric"})
-        integration.queue = MagicMock()
-        integration.queue.stop = AsyncMock()
-        integration.queue.get_stats = MagicMock(return_value={"test": "queue"})
-
-        stats = integration.get_stats()
-        assert stats["metrics"] == {"test": "metric"}
-        assert stats["queue"] == {"test": "queue"}
-        assert "cache" not in stats
-    finally:
-        await integration.close()
-
-
-@pytest.mark.asyncio
 async def test_evolve_skill_screener_blocks(clean_integration):
     integration = EvolutionIntegration(db_path=":memory:")
     try:

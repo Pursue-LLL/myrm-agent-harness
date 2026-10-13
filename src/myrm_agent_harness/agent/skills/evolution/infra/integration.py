@@ -46,7 +46,6 @@ from myrm_agent_harness.agent.skills.evolution.execution.dependency import (
 from myrm_agent_harness.agent.skills.evolution.execution.tool_selector import (
     EvolutionToolConfig,
 )
-from myrm_agent_harness.agent.skills.evolution.infra.metrics import get_metrics_tracker
 from myrm_agent_harness.agent.skills.evolution.infra.queue import (
     EvolutionQueue,
     QueuePriority,
@@ -221,7 +220,6 @@ class EvolutionIntegration:
 
         # Optional components
         self.dependency_tracker = get_dependency_tracker()
-        self.metrics_tracker = get_metrics_tracker()
 
         self.queue: EvolutionQueue | None = None
         if enable_background_queue:
@@ -497,21 +495,6 @@ class EvolutionIntegration:
         """Stop background evolution queue."""
         if self.queue:
             await self.queue.stop()
-
-    def get_stats(self) -> dict[str, Any]:
-        """Get evolution statistics.
-
-        Returns:
-            Dict with all stats (metrics, queue)
-        """
-        stats: dict[str, Any] = {
-            "metrics": self.metrics_tracker.get_report(),
-        }
-
-        if self.queue:
-            stats["queue"] = self.queue.get_stats()
-
-        return stats
 
     async def close(self) -> None:
         """Cleanup resources."""
