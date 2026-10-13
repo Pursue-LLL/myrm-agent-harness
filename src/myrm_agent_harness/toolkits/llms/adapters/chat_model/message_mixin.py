@@ -6,6 +6,7 @@
 - adapters.safety_termination_detector (POS: safety termination on truncated tool_calls)
 - adapters.tool_recovery (POS: tool call argument recovery + stream-completeness signal)
 - adapters.chat_model.exceptions (POS: role patterns and EmptyChoicesError)
+- adapters.chat_model.outbound_guard (POS: the registered guard every request's wire messages pass)
 
 [OUTPUT]
 - ChatLiteLLMMessageMixin: _create_message_dicts, normalize, stamp, ChatResult assembly
@@ -29,6 +30,7 @@ from myrm_agent_harness.toolkits.llms.adapters.chat_model.exceptions import (
     DEVELOPER_ROLE_PATTERN,
     EmptyChoicesError,
 )
+from myrm_agent_harness.toolkits.llms.adapters.chat_model.outbound_guard import apply_outbound_message_guard
 from myrm_agent_harness.toolkits.llms.adapters.converters import (
     convert_dict_to_message,
     convert_message_to_dict,
@@ -207,6 +209,7 @@ class ChatLiteLLMMessageMixin:
         self._stamp_missing_reasoning_content(message_dicts)
         self._sanitize_image_urls(message_dicts)
         self._sanitize_outbound_wire_messages(message_dicts)
+        apply_outbound_message_guard(message_dicts)
         return message_dicts, params
 
     def _sanitize_outbound_wire_messages(self, message_dicts: list[dict[str, Any]]) -> None:

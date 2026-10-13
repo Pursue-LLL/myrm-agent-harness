@@ -5,6 +5,7 @@
 - toolkits.memory.strategies.extractor::MemoryExtractor (POS: LLM-based memory extraction)
 - agent._internals.memory_verbatim::capture_current_exchange (POS: opt-in verbatim exchange capture)
 - agent.security.detection.deep_pii_detector::pseudonymize_deep_pii (POS: LLM deep PII detection)
+- agent.middlewares.security.outbound_privacy_guard::sanitize_outbound_text (POS: Wire-level half of the privacy layer: masks the conversation text the extractor reads and checks memories against)
 - langchain_core::BaseChatModel (POS: LLM for extraction)
 - utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
 - utils.chat_utils::extract_text_content (POS: 多模态内容 → 纯文本，媒体块不进入提取提示词)
@@ -423,12 +424,16 @@ async def auto_extract_memories(
             wiki_boundary_enabled=wiki_boundary_enabled,
         )
 
+        from myrm_agent_harness.agent.middlewares.security.outbound_privacy_guard import sanitize_outbound_text
         from myrm_agent_harness.toolkits.memory.strategies.extractor import (
             extract_memories_from_conversation,
         )
 
+        # The extractor checks every memory against the text it was given, so the model and that check must read the
+        # same masked text: the wire guard alone would leave the check comparing against the raw conversation.
+        extraction_input = [{**m, "content": sanitize_outbound_text(m["content"])} for m in messages]
         result = await extract_memories_from_conversation(
-            messages,
+            extraction_input,
             llm_func=llm_func,
             config=config,
             correction_detected=correction_detected,

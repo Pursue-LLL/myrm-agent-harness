@@ -2,10 +2,12 @@
 
 [INPUT]
 - agent.security.types::PIIAction, PrivacyPolicy, SensitivityLevel (POS: Foundation layer of the security type hierarchy. All other security modules import from here; this module imports from none of them.)
+- agent.security.detection.pii_classifier::classify_content (POS: Input-side PII classification engine. 30+ built-in regex patterns (bilingual CN/EN) with short-circuit optimization for efficient content scanning.)
 
 [OUTPUT]
 - levels_to_process: the sensitivity levels a detected level obliges the policy to act on
 - apply_pii_actions: apply the policy action of each level to a text, audited unless ``audit=False``; None when a level blocks
+- apply_privacy_policy: classify a text and apply the policy to it; a block becomes full redaction, so the text always comes back
 
 [POS]
 PII action engine shared by the guardrail's input and output layers and by the tool-result PII guard.
@@ -16,6 +18,7 @@ from __future__ import annotations
 import logging
 
 from myrm_agent_harness.agent.middlewares._session_context import get_pseudonym_store
+from myrm_agent_harness.agent.security.detection.pii_classifier import classify_content
 from myrm_agent_harness.agent.security.detection.pii_redactor import redact_pii
 from myrm_agent_harness.agent.security.types import PIIAction, PrivacyPolicy, SensitivityLevel
 
@@ -106,3 +109,19 @@ def apply_pii_actions(
                     source,
                 )
     return result
+
+
+def apply_privacy_policy(text: str, policy: PrivacyPolicy, source: str, *, audit: bool = True) -> str:
+    """Classify *text* and apply *policy* to it.
+
+    A text that already exists (an AI response, a message about to be sent) cannot be refused, so a BLOCK action
+    falls back to full redaction. A WARN action leaves the text as it is; every other rewrite is stable under
+    repetition, so re-applying the policy to its own output changes nothing.
+    """
+    if not policy.enabled:
+        return text
+    level = classify_content(text, policy).level
+    if level == SensitivityLevel.S1:
+        return text
+    processed = apply_pii_actions(text, levels_to_process(level, policy), policy, source, audit=audit)
+    return redact_pii(text)[0] if processed is None else processed

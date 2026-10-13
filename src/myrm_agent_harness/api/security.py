@@ -5,6 +5,7 @@ External consumers import here instead of reaching into ``agent.security``.
 [INPUT]
 - agent.security.managed_approval_policy::ManagedApprovalPolicy / get_process_managed_approval_policy (POS: 进程级托管审批策略)
 - agent.security.detection.pii_redactor::redact_pii (POS: 类型感知 PII/凭证脱敏，供宿主对绕过守卫的辅助 LLM 调用脱敏)
+- agent.middlewares.security.outbound_privacy_guard::set_process_privacy_policy / sanitize_outbound_text (POS: 出站隐私闸：宿主发布进程级隐私策略，覆盖无 agent 运行的模型调用；对单段文本按当前策略脱敏)
 - agent.resilience.task_airbag::arm_task_airbag (POS: 挂机安全气囊武装与快照捕捉)
 - toolkits.computer_use.screen_detector::ScreenDetector / get_default_screen_detector / hid_idle_seconds (POS: 桌面锁屏探针与硬件输入空闲读数)
 - toolkits.computer_use.capture_exclusion::exclude_capture_windows (POS: 宿主遮罩窗的截图排除注入)
@@ -16,6 +17,10 @@ External consumers import here instead of reaching into ``agent.security``.
 
 from __future__ import annotations
 
+from myrm_agent_harness.agent.middlewares.security.outbound_privacy_guard import (
+    sanitize_outbound_text,
+    set_process_privacy_policy,
+)
 from myrm_agent_harness.agent.resilience.task_airbag import (
     TaskAirbagDiffSummary,
     TaskAirbagManifest,
@@ -107,6 +112,8 @@ __all__ = [
     "rollback_task_airbag",
     "rollback_task_airbag_with_rescue",
     "rollback_workspace_snapshot",
+    "sanitize_outbound_text",
+    "set_process_privacy_policy",
     "set_untrusted_ingress",
     "unregister_blocked_hostnames",
     "wrap_untrusted",

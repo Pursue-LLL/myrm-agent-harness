@@ -9,11 +9,12 @@ ContextVars so they are not owned by any single middleware.
 - agent.security.types::PrivacyPolicy, SecurityConfig (POS: Foundation layer of the security type hierarchy.)
 - agent.event_log.logger::EventLogger (POS: Integration façade. Async-buffered writes ensure zero impact on the event production hot path.)
 - core.security.guards.privacy_tracker::set_privacy_policy (POS: Per-turn privacy state tracker. ContextVar-based privacy policy access.)
+- agent.middlewares.security.outbound_privacy_guard::install_outbound_privacy_guard (POS: Wire-level half of the privacy layer: the guardrail middleware covers the agent loop, this guard covers every other model call.)
 
 [OUTPUT]
 - set_allowed_domains_map: Set the allowed domains map for the current async context.
 - get_allowed_domains_map: Get the allowed domains map for the current async context.
-- set_security_config: Set the active SecurityConfig for the current async context.
+- set_security_config: Set the active SecurityConfig for the current async context; an enabled privacy policy also arms the outbound privacy guard.
 - get_security_config: Get the active SecurityConfig for the current async context.
 - get_privacy_policy: Active PrivacyPolicy for the current async context (set via set_security_config, which delegates to core.security.guards.privacy_tracker).
 - set_pseudonym_store / get_pseudonym_store: Context-local PseudonymStore for memory-write PII pseudonymization.
@@ -114,13 +115,24 @@ def resolve_security_config_from_runtime(
 
 
 def set_security_config(config: SecurityConfig | None) -> None:
-    """Set the active SecurityConfig for the current async context."""
+    """Set the active SecurityConfig for the current async context.
+
+    A run with an enabled privacy policy also arms the outbound privacy guard, so the model calls that bypass the
+    agent loop (summaries, memory extraction, sub-agents) are covered without the host wiring anything.
+    """
     _security_config_var.set(config)
     from myrm_agent_harness.core.security.guards.privacy_tracker import (
         set_privacy_policy,
     )
 
-    set_privacy_policy(config.privacy_policy if config else None)
+    policy = config.privacy_policy if config else None
+    set_privacy_policy(policy)
+    if policy is not None and policy.enabled:
+        from myrm_agent_harness.agent.middlewares.security.outbound_privacy_guard import (
+            install_outbound_privacy_guard,
+        )
+
+        install_outbound_privacy_guard()
 
 
 def get_security_config() -> SecurityConfig | None:

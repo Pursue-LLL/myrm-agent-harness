@@ -9,6 +9,8 @@ awrap_model_call (wraps each LLM call, non-persistent request.override):
        avoids planning doomed tool calls. Uses
        request.override so it never pollutes graph state or accumulates.
        Uses HumanMessage to preserve SystemMessage hash stability (prompt cache).
+    Also marks the model call as covered by this middleware when a privacy policy is enabled, so the wire-level
+       outbound privacy guard leaves the call alone.
 
 before_model (runs before each LLM call):
     0.5 Intent Router — flags dangerous actionable operations in the user's message (block, or a safety caution)
@@ -40,15 +42,13 @@ execution and are unaffected by these hooks. The primary value of layer ②③
 is that the LLM never receives raw credentials/PII, so it cannot echo them.
 
 [INPUT]
-- agent.security.types::SensitivityLevel (POS: Foundation layer of the security type hierarchy. All other security modules import from here; this module imports from none of them.)
 - agent.middlewares._session_context::get_canary_token, get_privacy_policy, get_terminal_errors (POS: Middleware session context — shared ContextVars for the middleware chain.)
 - agent.security.detection.leak_detector::scan_for_leaks, redact_leaks, log_leaks (POS: Output-side credential leak detector. 40+ credential pattern matchers (API key prefixes + blockchain + cloud infra + ENV/JSON/Header context + Shannon entropy + PEM block-level multiline redaction) for preventing secret exfiltration.)
-- agent.security.detection.pii_classifier::classify_content (POS: Input-side PII classification engine. 30+ built-in regex patterns (bilingual CN/EN) with short-circuit optimization for efficient content scanning.)
-- agent.security.detection.pii_redactor::redact_pii (POS: PII redactor. Type-aware smart masking (phone numbers retain first 3 and last 4 digits, emails retain domain, etc.) for user-friendly redaction.)
 - agent.security.detection.canary_guard::check_canary, scrub_canary (POS: Output-side injection detector. Deterministic canary token for prompt injection success detection.)
 - agent.security.audit::record_decision (POS: Cross-cutting concern. Called from tool_interceptor_middleware and all security guard modules at every decision point.)
 - agent.middlewares.security.user_input_guard::screen_user_input (POS: Input-side layers (intent router, prompt guard, PII guard) of the security guardrail middleware.)
-- agent.middlewares.security.pii_actions::apply_pii_actions, levels_to_process (POS: PII action engine shared by the guardrail's input and output layers and by the tool-result PII guard.)
+- agent.middlewares.security.pii_actions::apply_privacy_policy (POS: PII action engine shared by the guardrail's input and output layers and by the tool-result PII guard.)
+- agent.middlewares.security.outbound_privacy_guard::privacy_enforced_by_loop (POS: Wire-level privacy guard for the model calls this middleware does not cover.)
 - agent.middlewares.security.text_blocks::map_text_blocks (POS: Content-shape adapter between a message and the security layers that rewrite its text.)
 
 [OUTPUT]
@@ -74,7 +74,8 @@ from myrm_agent_harness.agent.middlewares._session_context import (
     get_privacy_policy,
     get_terminal_errors,
 )
-from myrm_agent_harness.agent.middlewares.security.pii_actions import apply_pii_actions, levels_to_process
+from myrm_agent_harness.agent.middlewares.security.outbound_privacy_guard import privacy_enforced_by_loop
+from myrm_agent_harness.agent.middlewares.security.pii_actions import apply_privacy_policy
 from myrm_agent_harness.agent.middlewares.security.text_blocks import map_text_blocks
 from myrm_agent_harness.agent.middlewares.security.user_input_guard import screen_user_input
 from myrm_agent_harness.agent.security.detection.leak_detector import (
@@ -82,9 +83,6 @@ from myrm_agent_harness.agent.security.detection.leak_detector import (
     redact_leaks,
     scan_for_leaks,
 )
-from myrm_agent_harness.agent.security.detection.pii_classifier import classify_content
-from myrm_agent_harness.agent.security.detection.pii_redactor import redact_pii
-from myrm_agent_harness.agent.security.types import SensitivityLevel
 
 logger = logging.getLogger(__name__)
 
@@ -177,18 +175,8 @@ def _redact_ai_text(text: str) -> str:
     if matches:
         log_leaks(matches, text)
         text = redact_leaks(text)
-
-    policy = get_privacy_policy()
-    if not policy.enabled:
-        return text
-    pii_result = classify_content(text, policy)
-    if pii_result.level == SensitivityLevel.S1:
-        return text
-    processed = apply_pii_actions(text, levels_to_process(pii_result.level, policy), policy, "ai_response")
-    if processed is None:
-        # BLOCK in after_model: an already-generated response can't be blocked, so fall back to full redaction
-        return redact_pii(text)[0]
-    return processed
+    # BLOCK in after_model: an already-generated response can't be blocked, so it is fully redacted instead.
+    return apply_privacy_policy(text, get_privacy_policy(), "ai_response")
 
 
 class SecurityGuardrailMiddleware(AgentMiddleware):
@@ -227,8 +215,11 @@ class SecurityGuardrailMiddleware(AgentMiddleware):
                 )
                 new_messages = [*list(request.messages), HumanMessage(content=constraint_text)]
                 logger.info("Circuit breaker cognition injected: %s", sorted(terminal_errors))
-                return await handler(request.override(messages=new_messages))
-        return await handler(request)
+                request = request.override(messages=new_messages)
+        # The model call below carries messages this middleware already screened under the policy; the wire-level
+        # guard must not process them a second time.
+        with privacy_enforced_by_loop(get_privacy_policy().enabled):
+            return await handler(request)
 
     def before_model(self, state: AgentState, runtime: Runtime) -> dict[str, Sequence[BaseMessage]] | None:
         messages = state.get("messages", [])
