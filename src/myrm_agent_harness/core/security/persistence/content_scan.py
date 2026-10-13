@@ -3,7 +3,8 @@
 [INPUT]
 - core.security.detection.prompt_guard::scan_input (POS: Prompt injection / instruction hijack detection.)
 - core.security.detection.harmful_state_detector::scan_for_harmful_states (POS: Harmful psychological-state pattern detection.)
-- core.security.detection.leak_detector::redact_leaks / scan_for_leaks / looks_like_password (POS: Secret/PII leak detection and redaction.)
+- core.security.detection.leak_detector::redact_leaks / scan_for_leaks (POS: Secret/PII leak detection and redaction.)
+- core.security.detection.password_heuristic::looks_like_password (POS: Unlabeled password and PIN/OTP detection.)
 - core.security.detection.instruction_shape::detect_instruction_shapes (POS: Instruction-shape spoofing detection.)
 - core.security.detection.content_boundary::has_invisible_unicode / strip_invisible_unicode (POS: Invisible unicode boundary detection and stripping.)
 
@@ -30,10 +31,10 @@ from myrm_agent_harness.core.security.detection.content_boundary import (
 from myrm_agent_harness.core.security.detection.harmful_state_detector import scan_for_harmful_states
 from myrm_agent_harness.core.security.detection.instruction_shape import detect_instruction_shapes
 from myrm_agent_harness.core.security.detection.leak_detector import (
-    looks_like_password,
     redact_leaks,
     scan_for_leaks,
 )
+from myrm_agent_harness.core.security.detection.password_heuristic import looks_like_password
 from myrm_agent_harness.core.security.detection.prompt_guard import scan_input
 
 PseudonymizeFn = Callable[[str], str]

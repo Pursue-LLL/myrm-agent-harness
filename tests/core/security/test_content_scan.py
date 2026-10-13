@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from myrm_agent_harness.core.security.persistence.content_scan import (
     PersistScanProfile,
     PersistScanVerdict,
@@ -103,6 +105,23 @@ def test_password_like_redacted() -> None:
     assert "password_like_redacted" in result.finding_codes
     assert "password_like" in result.credential_patterns
     assert "SuperSecret123" not in result.cleaned_text
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Remember my password: Zk9#mango42",
+        "Password: Zk9#mango42",
+        "The staging password is Hunter2-Zq9!x",
+    ],
+    ids=["leading-capitalised-word", "capitalised-keyword", "hyphenated-secret"],
+)
+def test_password_like_redacts_the_secret_not_a_neighbouring_word(text: str) -> None:
+    result = scan_persistable_content(text, profile=PersistScanProfile.MEMORY_WRITE)
+    secret = text.rsplit(" ", 1)[-1]
+    assert secret not in result.cleaned_text
+    assert "[REDACTED]" in result.cleaned_text
+    assert result.cleaned_text.split("[REDACTED]")[0] == text.removesuffix(secret)
 
 
 def test_memory_write_applies_pseudonymizer() -> None:

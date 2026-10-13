@@ -1,10 +1,10 @@
-"""Tests for the conservative password-like heuristic in leak_detector."""
+"""Tests for the conservative password-like heuristic."""
 
 from __future__ import annotations
 
 import pytest
 
-from myrm_agent_harness.core.security.detection.leak_detector import looks_like_password
+from myrm_agent_harness.core.security.detection.password_heuristic import looks_like_password
 
 
 class TestLooksLikePassword:
@@ -100,4 +100,46 @@ class TestLooksLikePassword:
         ],
     )
     def test_benign_text_no_password(self, text: str) -> None:
+        assert looks_like_password(text) is None
+
+
+class TestPasswordTokenSelection:
+    """The returned token is exactly what persistence redacts, so it must be the secret itself."""
+
+    @pytest.mark.parametrize(
+        ("text", "secret"),
+        [
+            ("Password: Zk9#mango42", "Zk9#mango42"),
+            ("Please remember: my wifi password is Zk9#mango42", "Zk9#mango42"),
+            ("My Passcode is Xk7!mQ2z", "Xk7!mQ2z"),
+            ("The staging password is Hunter2-Zq9!x", "Hunter2-Zq9!x"),
+            ("password: Ab1/cd2~ef", "Ab1/cd2~ef"),
+            ("Wifi password: xK9-mPq2-Lw8z.", "xK9-mPq2-Lw8z"),
+            ("PASSWD=Zk9#mango42", "Zk9#mango42"),
+            ("password reset link: https://example.com/reset, new password Zk9#mango42", "Zk9#mango42"),
+        ],
+        ids=[
+            "capitalised-keyword",
+            "leading-capitalised-word",
+            "capitalised-passcode-keyword",
+            "hyphenated-secret",
+            "slash-and-tilde-secret",
+            "dash-separated-generated",
+            "env-assignment-keeps-label",
+            "url-before-secret",
+        ],
+    )
+    def test_returns_the_secret_not_a_neighbouring_word(self, text: str, secret: str) -> None:
+        assert looks_like_password(text) == secret
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "My password is stored in the Password-Manager app",
+            "The password reset page is at Example.com/Reset",
+            "Two-Factor-Authentication replaced the old password flow",
+        ],
+        ids=["hyphenated-product-name", "domain-and-path", "hyphenated-prose"],
+    )
+    def test_prose_around_a_password_keyword_is_not_a_secret(self, text: str) -> None:
         assert looks_like_password(text) is None
