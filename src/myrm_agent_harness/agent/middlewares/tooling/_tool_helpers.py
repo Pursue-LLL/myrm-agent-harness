@@ -421,9 +421,7 @@ def check_tool_result_pii(result: ToolMessage, result_text: str, tool_name: str)
     if not policy.enabled:
         return result, result_text
 
-    from myrm_agent_harness.agent.security.detection.pii_classifier import (
-        classify_tool_result,
-    )
+    from myrm_agent_harness.agent.security.detection.pii_classifier import classify_tool_result
     from myrm_agent_harness.agent.security.detection.pii_redactor import redact_pii
     from myrm_agent_harness.agent.security.guards.privacy_tracker import (
         get_privacy_tracker,
@@ -432,6 +430,7 @@ def check_tool_result_pii(result: ToolMessage, result_text: str, tool_name: str)
         TaintLabel,
         get_taint_tracker,
     )
+    from myrm_agent_harness.core.security.detection.custom_rules import custom_rules
 
     classification = classify_tool_result(result_text, tool_name, policy)
     if classification.level == SensitivityLevel.S1:
@@ -454,7 +453,8 @@ def check_tool_result_pii(result: ToolMessage, result_text: str, tool_name: str)
     levels = levels_to_process(classification.level, policy)
     processed = apply_pii_actions(result_text, levels, policy, f"tool:{tool_name}")
     if processed is None:
-        redacted_text, count = redact_pii(result_text)
+        # A tool result cannot be refused, so a block masks it, custom terms of both levels included.
+        redacted_text, count = redact_pii(result_text, custom_rules(policy, SensitivityLevel.S2, SensitivityLevel.S3))
         if count > 0:
             record_decision(tool_name, "PII_BLOCKED_REDACTED", f"count={count}")
         result_text = redacted_text if count > 0 else "[BLOCKED]"

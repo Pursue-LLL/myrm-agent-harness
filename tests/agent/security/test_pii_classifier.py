@@ -4,7 +4,6 @@ import pytest
 
 from myrm_agent_harness.agent.security.detection.pii_classifier import (
     _china_id_valid,
-    _keyword_matches,
     _luhn_valid,
     classify_content,
     classify_tool_params,
@@ -169,14 +168,53 @@ class TestCustomKeywords:
         assert result.level == SensitivityLevel.S2
 
     def test_custom_s3_pattern(self):
-        policy = PrivacyPolicy(enabled=True, custom_patterns_s3=(r"PROJ-\d{6}"))
+        policy = PrivacyPolicy(enabled=True, custom_patterns_s3=(r"PROJ-\d{6}",))
         result = classify_content("project PROJ-123456", policy)
         assert result.level == SensitivityLevel.S3
+        assert result.patterns == [r"custom_s3_pattern:PROJ-\d{6}"]
+
+    def test_a_chinese_s3_keyword_inside_a_sentence_is_s3(self):
+        policy = PrivacyPolicy(enabled=True, custom_keywords_s3=("凤凰计划",))
+        result = classify_content("帮我总结凤凰计划Q3预算超支原因，发给李总", policy)
+        assert result.level == SensitivityLevel.S3
+        assert result.patterns == ["custom_s3_keyword:凤凰计划"]
+
+    def test_a_chinese_s2_keyword_inside_a_sentence_is_s2(self):
+        policy = PrivacyPolicy(enabled=True, custom_keywords_s2=("微信号",))
+        result = classify_content("请把我的微信号发给客户张总", policy)
+        assert result.level == SensitivityLevel.S2
+        assert result.patterns == ["custom_s2_keyword:微信号"]
+
+    def test_a_keyword_shorter_than_the_built_in_minimum_is_still_detected(self):
+        policy = PrivacyPolicy(enabled=True, custom_keywords_s3=("凤凰计划",), custom_keywords_s2=("绝密",))
+        assert classify_content("凤凰计划", policy).level == SensitivityLevel.S3
+        assert classify_content("绝密", policy).level == SensitivityLevel.S2
+
+    def test_the_minimum_length_still_skips_built_in_detection(self):
+        assert classify_content("1381234", _ENABLED).level == SensitivityLevel.S1
+
+    def test_a_keyword_that_is_a_whole_word_next_to_chinese_text_matches(self):
+        policy = PrivacyPolicy(enabled=True, custom_keywords_s3=("project",))
+        assert classify_content("我的project计划很重要", policy).level == SensitivityLevel.S3
+
+    def test_s3_wins_over_s2_when_both_keywords_are_present(self):
+        policy = PrivacyPolicy(enabled=True, custom_keywords_s2=("微信号",), custom_keywords_s3=("凤凰计划",))
+        assert classify_content("微信号和凤凰计划都在这里", policy).level == SensitivityLevel.S3
+
+    def test_a_custom_keyword_in_the_second_place_of_a_text_is_found(self):
+        policy = PrivacyPolicy(enabled=True, custom_keywords_s3=("凤凰计划",))
+        assert classify_content("先说别的事，最后再提一次凤凰计划。", policy).level == SensitivityLevel.S3
 
 
 class TestToolParams:
+    def test_a_short_param_value_carrying_a_custom_keyword_is_detected(self):
+        policy = PrivacyPolicy(enabled=True, custom_keywords_s3=("凤凰计划",))
+        result = classify_tool_params("create_note", {"title": "凤凰计划"}, policy)
+        assert result.level == SensitivityLevel.S3
+        assert result.patterns == ["param:title:custom_s3_keyword:凤凰计划"]
+
     def test_sensitive_tool_s3(self):
-        policy = PrivacyPolicy(enabled=True, sensitive_tools_s3=("vault_read"))
+        policy = PrivacyPolicy(enabled=True, sensitive_tools_s3=("vault_read",))
         result = classify_tool_params("vault_read", {"key": "abc"}, policy)
         assert result.level == SensitivityLevel.S3
 
@@ -234,17 +272,24 @@ class TestLuhnValidation:
 
 
 class TestKeywordMatching:
+    @staticmethod
+    def _level(text: str, keyword: str) -> SensitivityLevel:
+        return classify_content(text, PrivacyPolicy(enabled=True, custom_keywords_s2=(keyword,))).level
+
     def test_exact_match(self):
-        assert _keyword_matches("my 社保号码 is here", "社保号码") is True
+        assert self._level("my 社保号码 is here", "社保号码") == SensitivityLevel.S2
 
     def test_no_match(self):
-        assert _keyword_matches("normal text", "社保号码") is False
+        assert self._level("normal text", "社保号码") == SensitivityLevel.S1
 
     def test_file_extension(self):
-        assert _keyword_matches("read config.env file", ".env") is True
+        assert self._level("read config.env file", ".env") == SensitivityLevel.S2
 
     def test_partial_word_boundary(self):
-        assert _keyword_matches("password123", "pass") is False
+        assert self._level("password123", "pass") == SensitivityLevel.S1
+
+    def test_a_whole_word_after_an_in_word_occurrence_is_found(self):
+        assert self._level("the spinners ran, then pin the note", "pin") == SensitivityLevel.S2
 
 
 class TestS3ShortCircuit:
@@ -261,10 +306,11 @@ class TestCoverageGaps:
     """Boundary branches: keyword boundaries, placeholder S3, invalid regex, tool paths."""
 
     def test_keyword_preceded_by_alnum_misses(self):
-        assert not _keyword_matches("spinners", "pin")
+        policy = PrivacyPolicy(enabled=True, custom_keywords_s2=("pin",))
+        assert classify_content("spinners", policy).level == SensitivityLevel.S1
 
     def test_custom_s2_keyword_within_word_misses(self):
-        policy = PrivacyPolicy(enabled=True, custom_keywords_s2=["pin"])
+        policy = PrivacyPolicy(enabled=True, custom_keywords_s2=("pin",))
         result = classify_content("the spinners ran fast", policy)
         assert result.level == SensitivityLevel.S1
 

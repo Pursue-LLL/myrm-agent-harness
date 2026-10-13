@@ -131,6 +131,21 @@ class TestGuardOutboundMessages:
         assert isinstance(messages[0]["content"], str)
         assert ID_CARD not in messages[0]["content"]
 
+    def test_a_custom_keyword_is_masked_in_every_conversation_message(self) -> None:
+        set_process_privacy_policy(PrivacyPolicy(enabled=True, custom_keywords_s3=("凤凰计划",)))
+        messages: list[dict[str, object]] = [
+            {"role": "system", "content": "operator note 凤凰计划"},
+            {"role": "user", "content": "帮我总结凤凰计划Q3预算超支原因，发给李总"},
+            {"role": "assistant", "content": "好的，凤凰计划的预算如下"},
+            {"role": "tool", "content": "凤凰计划", "tool_call_id": "1"},
+        ]
+
+        guard_outbound_messages(messages)
+
+        assert "凤凰计划" in str(messages[0]["content"])
+        for message in messages[1:]:
+            assert "凤凰计划" not in str(message["content"])
+
     def test_a_loop_that_enforces_the_policy_itself_is_not_processed_twice(self) -> None:
         set_process_privacy_policy(_policy())
         messages: list[dict[str, object]] = [{"role": "user", "content": ONLY_S2}]
@@ -247,6 +262,14 @@ class TestInstallation:
     def test_nothing_is_installed_while_privacy_stays_off(self) -> None:
         set_security_config(SecurityConfig(privacy_policy=PrivacyPolicy(enabled=False)))
         assert self._wire(ONLY_S2) == ONLY_S2
+
+    def test_a_custom_keyword_in_a_sentence_never_reaches_the_wire(self) -> None:
+        set_process_privacy_policy(PrivacyPolicy(enabled=True, custom_keywords_s3=("凤凰计划",)))
+
+        assert (
+            self._wire("帮我总结凤凰计划Q3预算超支原因，发给李总")
+            == "帮我总结[REDACTED] [PII:custom]Q3预算超支原因，发给李总"
+        )
 
     def test_a_model_message_in_the_conversation_is_masked_too(self) -> None:
         set_process_privacy_policy(_policy())

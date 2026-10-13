@@ -14,8 +14,5 @@ from myrm_agent_harness.core.security.detection.pii_classifier import (
     _is_placeholder as _is_placeholder,
 )
 from myrm_agent_harness.core.security.detection.pii_classifier import (
-    _keyword_matches as _keyword_matches,
-)
-from myrm_agent_harness.core.security.detection.pii_classifier import (
     _luhn_valid as _luhn_valid,
 )

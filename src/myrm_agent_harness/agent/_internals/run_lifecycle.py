@@ -122,9 +122,8 @@ def _init_pseudonym_store(workspace_path: str) -> None:
 
 def _register_pii_pseudonymizer(policy: object, store: object) -> None:
     """Build and register a PII pseudonymization closure for memory_scanner."""
-    from myrm_agent_harness.core.security.detection.pii_classifier import (
-        classify_content,
-    )
+    from myrm_agent_harness.core.security.detection.custom_rules import custom_rules
+    from myrm_agent_harness.core.security.detection.pii_classifier import classify_content
     from myrm_agent_harness.core.security.detection.pseudonymizer import (
         pseudonymize_text,
     )
@@ -161,7 +160,8 @@ def _register_pii_pseudonymizer(policy: object, store: object) -> None:
             action = policy.s3_action if level == SensitivityLevel.S3 else policy.s2_action
             if action != PIIAction.PSEUDONYMIZE:
                 continue
-            ps_result = pseudonymize_text(result, store, level)
+            # The level's custom terms are pseudonymized with its built-in detectors, so memory never keeps them.
+            ps_result = pseudonymize_text(result, store, level, custom_rules(policy, level))
             if ps_result.count > 0:
                 result = ps_result.text
                 total_count += ps_result.count

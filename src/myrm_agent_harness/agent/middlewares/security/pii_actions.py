@@ -2,6 +2,7 @@
 
 [INPUT]
 - agent.security.types::PIIAction, PrivacyPolicy, SensitivityLevel (POS: Foundation layer of the security type hierarchy. All other security modules import from here; this module imports from none of them.)
+- core.security.detection.custom_rules::custom_rules (POS: Single definition of custom-term matching for the privacy policy: the PII classifier, the redactor and the pseudonymizer share it, so detection and masking never disagree about what a user's keyword or pattern covers.)
 - agent.security.detection.pii_classifier::classify_content (POS: Input-side PII classification engine. 30+ built-in regex patterns (bilingual CN/EN) with short-circuit optimization for efficient content scanning.)
 
 [OUTPUT]
@@ -10,7 +11,7 @@
 - apply_privacy_policy: classify a text and apply the policy to it; a block becomes full redaction, so the text always comes back
 
 [POS]
-PII action engine shared by the guardrail's input and output layers and by the tool-result PII guard.
+PII action engine shared by the guardrail's input and output layers and by the tool-result PII guard. The action of a level covers the built-in detectors and the user's custom keywords and patterns of that level.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from myrm_agent_harness.agent.middlewares._session_context import get_pseudonym_
 from myrm_agent_harness.agent.security.detection.pii_classifier import classify_content
 from myrm_agent_harness.agent.security.detection.pii_redactor import redact_pii
 from myrm_agent_harness.agent.security.types import PIIAction, PrivacyPolicy, SensitivityLevel
+from myrm_agent_harness.core.security.detection.custom_rules import custom_rules
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +69,7 @@ def apply_pii_actions(
     result = text
     for level in levels:
         action = policy.s3_action if level == SensitivityLevel.S3 else policy.s2_action
+        custom = custom_rules(policy, level)
         if action == PIIAction.BLOCK:
             return None
         if action == PIIAction.PSEUDONYMIZE:
@@ -76,7 +79,7 @@ def apply_pii_actions(
                     pseudonymize_text,
                 )
 
-                ps_result = pseudonymize_text(result, store, level)
+                ps_result = pseudonymize_text(result, store, level, custom)
                 if ps_result.count > 0:
                     result = ps_result.text
                     report(
@@ -88,7 +91,7 @@ def apply_pii_actions(
                         source,
                     )
             else:
-                result, count = redact_pii(result)
+                result, count = redact_pii(result, custom)
                 if count > 0:
                     report(
                         "PII_REDACTED",
@@ -98,7 +101,7 @@ def apply_pii_actions(
                         source,
                     )
         elif action == PIIAction.REDACT:
-            result, count = redact_pii(result)
+            result, count = redact_pii(result, custom)
             if count > 0:
                 report(
                     "PII_REDACTED",
@@ -124,4 +127,6 @@ def apply_privacy_policy(text: str, policy: PrivacyPolicy, source: str, *, audit
     if level == SensitivityLevel.S1:
         return text
     processed = apply_pii_actions(text, levels_to_process(level, policy), policy, source, audit=audit)
-    return redact_pii(text)[0] if processed is None else processed
+    if processed is not None:
+        return processed
+    return redact_pii(text, custom_rules(policy, SensitivityLevel.S2, SensitivityLevel.S3))[0]

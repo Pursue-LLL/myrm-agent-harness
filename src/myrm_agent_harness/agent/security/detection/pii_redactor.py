@@ -6,23 +6,25 @@ email domain). All redaction is irreversible by design — the original
 values are never stored.
 
 [INPUT]
+- core.security.detection.custom_rules::CustomRules, NO_CUSTOM_RULES, find_custom_spans (POS: Single definition of custom-term matching for the privacy policy: the PII classifier, the redactor and the pseudonymizer share it, so detection and masking never disagree about what a user's keyword or pattern covers.)
 - core.security.detection.pii_classifier::compiled PII patterns and validators (POS: Input-side PII classification engine.)
 - core.security.detection.password_heuristic::find_password_spans (POS: last-resort keyword-anchored detector for passwords without vendor prefix or entropy.)
 
 [OUTPUT]
-- redact_pii(): apply all PII redactions to text, returns (redacted_text, redacted_count)
+- redact_pii(): apply all PII redactions, and optionally the user's custom keywords and patterns, to text; returns (redacted_text, redacted_count)
 - redact_value(): redact a single known PII value by type
 
 [POS]
-PII redactor. Type-aware smart masking (phone numbers retain first 3 and last 4 digits, emails retain domain, etc.) for user-friendly redaction. Passwords are replaced by span (password_heuristic, recall mode) before the regex stages, so the label and the punctuation around the value survive.
+PII redactor. Type-aware smart masking (phone numbers retain first 3 and last 4 digits, emails retain domain, etc.) for user-friendly redaction. Passwords are replaced by span (password_heuristic, recall mode) before the regex stages, so the label and the punctuation around the value survive. The user's custom terms are replaced by span right after the passwords.
 
 """
 
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 
+from myrm_agent_harness.core.security.detection.custom_rules import NO_CUSTOM_RULES, CustomRules, find_custom_spans
 from myrm_agent_harness.core.security.detection.password_heuristic import find_password_spans
 from myrm_agent_harness.core.security.detection.pii_classifier import (
     _BANK_CARD_RE,
@@ -92,19 +94,32 @@ def _redact_credit_card(m: re.Match[str]) -> str:
     return f"**** **** **** {cleaned[-4:]} [PII:credit_card]"
 
 
+def _replace_spans(content: str, bounds: Iterable[tuple[int, int]], marker: str) -> str:
+    """*content* with each sorted, disjoint ``(start, end)`` range replaced by *marker*."""
+    parts: list[str] = []
+    cursor = 0
+    for start, end in bounds:
+        parts.append(content[cursor:start])
+        parts.append(marker)
+        cursor = end
+    parts.append(content[cursor:])
+    return "".join(parts)
+
+
 def _redact_passwords(content: str) -> tuple[str, int]:
     """Replace each password value with a marker, keeping the label and the punctuation around the value."""
     spans = find_password_spans(content, strict=False)
     if not spans:
         return content, 0
-    parts: list[str] = []
-    cursor = 0
-    for start, end in spans:
-        parts.append(content[cursor:start])
-        parts.append("[REDACTED] [PII:password]")
-        cursor = end
-    parts.append(content[cursor:])
-    return "".join(parts), len(spans)
+    return _replace_spans(content, spans, "[REDACTED] [PII:password]"), len(spans)
+
+
+def _redact_custom(content: str, custom: CustomRules) -> tuple[str, int]:
+    """Replace every span the user's custom keywords and patterns cover with a marker."""
+    spans = find_custom_spans(content, custom)
+    if not spans:
+        return content, 0
+    return _replace_spans(content, ((span.start, span.end) for span in spans), "[REDACTED] [PII:custom]"), len(spans)
 
 
 def _redact_china_passport(m: re.Match[str]) -> str:
@@ -167,21 +182,24 @@ _REDACTION_PIPELINE: tuple[tuple[str, re.Pattern[str], Callable[[re.Match[str]],
 # ---------------------------------------------------------------------------
 
 
-def redact_pii(content: str) -> tuple[str, int]:
+def redact_pii(content: str, custom: CustomRules = NO_CUSTOM_RULES) -> tuple[str, int]:
     """Apply all PII redactions to text content.
 
     Returns (redacted_text, count_of_redactions). Safe to call on any
     text — returns unchanged content with count=0 if nothing is found.
 
     Redaction order: passwords first (a value the text labels as a password wins
-    over whatever pattern it also matches), then S3 patterns (identity docs,
-    financial), then S2 patterns (contact info, location). Placeholder values are
-    skipped to avoid false positives.
+    over whatever pattern it also matches), then the user's *custom* keywords and
+    patterns, then S3 patterns (identity docs, financial), then S2 patterns
+    (contact info, location). Placeholder values are skipped to avoid false
+    positives. Without *custom* only the built-in detectors apply.
     """
     if not content:
         return content, 0
 
     result, total_count = _redact_passwords(content)
+    result, custom_count = _redact_custom(result, custom)
+    total_count += custom_count
 
     for _name, pattern, redact_fn, check_placeholder in _REDACTION_PIPELINE:
         new_result_parts: list[str] = []

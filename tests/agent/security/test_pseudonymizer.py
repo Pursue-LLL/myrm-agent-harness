@@ -20,6 +20,7 @@ from myrm_agent_harness.agent.security.detection.pseudonymizer import (
     pseudonymize_text,
 )
 from myrm_agent_harness.agent.security.types import SensitivityLevel
+from myrm_agent_harness.core.security.detection.custom_rules import CustomRules
 
 
 @pytest.fixture()
@@ -271,3 +272,53 @@ class TestPseudonymizeEdgeCases:
         result = pseudonymize_text(content, store, SensitivityLevel.S1)
         assert result.count == 0
         assert result.text == content
+
+
+class TestPseudonymizingCustomRules:
+    _KEYWORD = CustomRules(keywords=("凤凰计划",))
+
+    def test_a_call_without_rules_knows_no_custom_term(self, store: PseudonymStore) -> None:
+        result = pseudonymize_text("帮我总结凤凰计划Q3预算", store, SensitivityLevel.S3)
+
+        assert result.text == "帮我总结凤凰计划Q3预算"
+        assert result.count == 0
+
+    def test_a_keyword_becomes_a_typed_tag_that_restores_to_the_original(self, store: PseudonymStore) -> None:
+        result = pseudonymize_text("帮我总结凤凰计划Q3预算，发给李总", store, SensitivityLevel.S3, self._KEYWORD)
+
+        assert result.text == "帮我总结<CUSTOM_KEYWORD_1>Q3预算，发给李总"
+        assert result.count == 1
+        assert store.resolve_all(result.text) == "帮我总结凤凰计划Q3预算，发给李总"
+
+    def test_the_same_keyword_gets_the_same_tag_everywhere(self, store: PseudonymStore) -> None:
+        result = pseudonymize_text("凤凰计划的预算，凤凰计划的人员", store, SensitivityLevel.S3, self._KEYWORD)
+
+        assert result.text == "<CUSTOM_KEYWORD_1>的预算，<CUSTOM_KEYWORD_1>的人员"
+
+    def test_a_pattern_becomes_a_pattern_tag(self, store: PseudonymStore) -> None:
+        rules = CustomRules(patterns=(r"EMP-\d{6}",))
+        result = pseudonymize_text("EMP-123456 reports to EMP-654321", store, SensitivityLevel.S3, rules)
+
+        assert result.text == "<CUSTOM_PATTERN_1> reports to <CUSTOM_PATTERN_2>"
+        assert store.resolve_all(result.text) == "EMP-123456 reports to EMP-654321"
+
+    def test_a_custom_term_and_built_in_pii_are_both_replaced(self, store: PseudonymStore) -> None:
+        result = pseudonymize_text("凤凰计划负责人电话 13812345678", store, SensitivityLevel.S2, self._KEYWORD)
+
+        assert "凤凰计划" not in result.text
+        assert "13812345678" not in result.text
+        assert store.resolve_all(result.text) == "凤凰计划负责人电话 13812345678"
+
+    def test_a_pseudonymized_keyword_is_not_found_again(self, store: PseudonymStore) -> None:
+        once = pseudonymize_text("帮我总结凤凰计划Q3预算", store, SensitivityLevel.S3, self._KEYWORD).text
+
+        assert pseudonymize_text(once, store, SensitivityLevel.S3, self._KEYWORD).count == 0
+
+    def test_a_streamed_tag_is_restored_chunk_by_chunk(self, store: PseudonymStore) -> None:
+        tagged = pseudonymize_text("凤凰计划", store, SensitivityLevel.S3, self._KEYWORD).text
+        restorer = PseudonymRestorer(store)
+
+        restored = restorer.process("本季度 <CUSTOM_KEY") + restorer.process("WORD_1> 预算正常") + restorer.flush()
+
+        assert tagged == "<CUSTOM_KEYWORD_1>"
+        assert restored == "本季度 凤凰计划 预算正常"

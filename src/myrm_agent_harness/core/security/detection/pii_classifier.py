@@ -4,17 +4,18 @@ Classifies content into S1 (public) / S2 (sensitive) / S3 (confidential)
 based on regex pattern matching for structured PII.
 
 Detection strategy:
-  1. Fast path: short messages bypass expensive checks
-  2. S3 patterns first (short-circuit on confidential)
-  3. S2 patterns (personal information)
-  4. Credential delegation to leak_detector (S3)
-  5. Custom user-defined keywords/patterns
+  1. The user's custom S3 keywords/patterns (custom_rules), on a text of any length
+  2. Fast path: short messages bypass the built-in detectors
+  3. Built-in S3 patterns, passwords and credentials (short-circuit on confidential)
+  4. The user's custom S2 keywords/patterns
+  5. Built-in S2 patterns (personal information)
   6. Tool parameter & path checking
 
 All patterns are pre-compiled module-level constants. Detection functions
 are pure — no logging, no side effects, no state.
 
 [INPUT]
+- core.security.detection.custom_rules::custom_rules, first_custom_span (POS: Single definition of custom-term matching for the privacy policy: the PII classifier, the redactor and the pseudonymizer share it, so detection and masking never disagree about what a user's keyword or pattern covers.)
 - core.security.detection.password_heuristic::find_password_spans (POS: last-resort keyword-anchored detector for passwords without vendor prefix or entropy.)
 
 [OUTPUT]
@@ -33,6 +34,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from myrm_agent_harness.core.security.detection.custom_rules import custom_rules, first_custom_span
 from myrm_agent_harness.core.security.detection.password_heuristic import find_password_spans
 from myrm_agent_harness.core.security.types import PrivacyPolicy, SensitivityLevel
 
@@ -45,6 +47,8 @@ PASSWORD_PATTERN = "password_context"
 
 _MIN_CONTENT_LENGTH = 6
 _FAST_PATH_ASCII_LENGTH = 20
+# A custom pattern is named in the result by its first characters.
+_PATTERN_NAME_LENGTH = 50
 
 # ---------------------------------------------------------------------------
 # S3 patterns — confidential (identity documents, financial accounts)
@@ -180,31 +184,6 @@ _DEFAULT_SENSITIVE_NAMES: frozenset[str] = frozenset(
 )
 
 # ---------------------------------------------------------------------------
-# Custom keyword matching (word-boundary aware)
-# ---------------------------------------------------------------------------
-
-
-def _keyword_matches(text: str, keyword: str) -> bool:
-    """Check if keyword appears in text at word-like boundaries.
-
-    For keywords starting with "." (file extensions), only check that
-    the tail is not followed by an alphanumeric char.
-    """
-    lower_text = text.lower()
-    lower_kw = keyword.lower()
-    if lower_kw not in lower_text:
-        return False
-    idx = lower_text.find(lower_kw)
-    if keyword.startswith("."):
-        end = idx + len(lower_kw)
-        return end >= len(lower_text) or not lower_text[end].isalnum()
-    if idx > 0 and lower_text[idx - 1].isalnum():
-        return False
-    end = idx + len(lower_kw)
-    return not (end < len(lower_text) and lower_text[end].isalnum())
-
-
-# ---------------------------------------------------------------------------
 # Luhn checksum (bank card / credit card validation)
 # ---------------------------------------------------------------------------
 
@@ -262,34 +241,17 @@ def _is_placeholder(value: str) -> bool:
     return bool(_PLACEHOLDER_RE.match(value.strip()))
 
 
-def classify_content(content: str, policy: PrivacyPolicy) -> PIIClassification:
-    """Classify text content into S1/S2/S3 based on PII detection.
+def _custom_hit(content: str, policy: PrivacyPolicy, level: SensitivityLevel) -> str | None:
+    """Pattern name of the first custom keyword or pattern of *level* that *content* contains, if any."""
+    span = first_custom_span(content, custom_rules(policy, level))
+    if span is None:
+        return None
+    rule = span.rule if span.kind == "keyword" else span.rule[:_PATTERN_NAME_LENGTH]
+    return f"custom_{level.value}_{span.kind}:{rule}"
 
-    Pure function — no logging, no side effects. Short-circuits on S3.
-    """
-    if not content or not policy.enabled:
-        return PIIClassification(level=SensitivityLevel.S1)
 
-    if len(content) < _MIN_CONTENT_LENGTH:
-        return PIIClassification(level=SensitivityLevel.S1)
-
-    patterns: list[str] = []
-    level = SensitivityLevel.S1
-
-    # --- S3 custom keywords (highest priority) ---
-    for kw in policy.custom_keywords_s3:
-        if _keyword_matches(content, kw):
-            return PIIClassification(level=SensitivityLevel.S3, patterns=[f"custom_s3_keyword:{kw}"])
-
-    # --- S3 custom patterns ---
-    for pat_str in policy.custom_patterns_s3:
-        try:
-            if re.search(pat_str, content, re.IGNORECASE):
-                return PIIClassification(level=SensitivityLevel.S3, patterns=[f"custom_s3_pattern:{pat_str[:50]}"])
-        except re.error:
-            pass
-
-    # --- S3 built-in patterns ---
+def _built_in_s3(content: str) -> PIIClassification | None:
+    """The S3 classification of confidential data the built-in detectors recognise, or None."""
     for name, pat in _S3_PATTERNS:
         for m in pat.finditer(content):
             val = m.group(0)
@@ -299,53 +261,57 @@ def classify_content(content: str, policy: PrivacyPolicy) -> PIIClassification:
                 continue
             return PIIClassification(level=SensitivityLevel.S3, patterns=[name])
 
-    # --- S3 passwords: the same keyword-anchored definition the persistence scan uses, in recall mode ---
+    # Passwords: the same keyword-anchored definition the persistence scan uses, in recall mode.
     if find_password_spans(content, strict=False):
         return PIIClassification(level=SensitivityLevel.S3, patterns=[PASSWORD_PATTERN])
 
-    # --- S3 via credential detection (delegate to leak_detector) ---
+    # Credentials: delegated to the leak detector.
     from myrm_agent_harness.core.security.detection.leak_detector import scan_for_leaks
 
     leak_matches = scan_for_leaks(content)
     if leak_matches:
         return PIIClassification(level=SensitivityLevel.S3, patterns=[f"credential:{m}" for m in leak_matches])
+    return None
 
-    # --- S2 custom keywords ---
-    for kw in policy.custom_keywords_s2:
-        if _keyword_matches(content, kw):
-            patterns.append(f"custom_s2_keyword:{kw}")
-            level = SensitivityLevel.S2
 
-    # --- S2 custom patterns ---
-    for pat_str in policy.custom_patterns_s2:
-        try:
-            if re.search(pat_str, content, re.IGNORECASE):
-                patterns.append(f"custom_s2_pattern:{pat_str[:50]}")
-                level = SensitivityLevel.S2
-                break
-        except re.error:
-            pass
+def _built_in_s2(content: str) -> list[str]:
+    """The name of the first built-in S2 pattern *content* matches, as a one-item list, else an empty one."""
+    # ASCII short-text fast path skips only patterns that require CJK characters to
+    # match (china_address). china_phone and china_courier match pure ASCII digit /
+    # alphanumeric sequences ("13800138000", "SF1234567890123"), so skipping them on
+    # short ASCII input silently misclassifies a bare phone or tracking number as S1.
+    is_ascii_short = len(content) < _FAST_PATH_ASCII_LENGTH and content.isascii()
+    check_patterns = _S2_PATTERNS if not is_ascii_short else (p for p in _S2_PATTERNS if p[0] != "china_address")
+    for name, pat in check_patterns:
+        for m in pat.finditer(content):
+            if not _is_placeholder(m.group(0)):
+                return [name]
+    return []
 
-    # --- S2 built-in patterns ---
-    if level == SensitivityLevel.S1:
-        # ASCII short-text fast path skips only patterns that require CJK characters to
-        # match (china_address). china_phone and china_courier match pure ASCII digit /
-        # alphanumeric sequences ("13800138000", "SF1234567890123"), so skipping them on
-        # short ASCII input silently misclassifies a bare phone or tracking number as S1.
-        is_ascii_short = len(content) < _FAST_PATH_ASCII_LENGTH and content.isascii()
-        check_patterns = _S2_PATTERNS if not is_ascii_short else (p for p in _S2_PATTERNS if p[0] != "china_address")
-        for name, pat in check_patterns:
-            for m in pat.finditer(content):
-                val = m.group(0)
-                if _is_placeholder(val):
-                    continue
-                patterns.append(name)
-                level = SensitivityLevel.S2
-                break
-            if level == SensitivityLevel.S2:
-                break
 
-    return PIIClassification(level=level, patterns=patterns)
+def classify_content(content: str, policy: PrivacyPolicy) -> PIIClassification:
+    """Classify text content into S1/S2/S3 based on PII detection.
+
+    Pure function — no logging, no side effects. Short-circuits on S3. The user's own keywords and patterns apply to
+    a text of any length; the built-in detectors skip texts shorter than ``_MIN_CONTENT_LENGTH``.
+    """
+    if not content or not policy.enabled:
+        return PIIClassification(level=SensitivityLevel.S1)
+
+    custom_s3 = _custom_hit(content, policy, SensitivityLevel.S3)
+    if custom_s3:
+        return PIIClassification(level=SensitivityLevel.S3, patterns=[custom_s3])
+
+    built_in = len(content) >= _MIN_CONTENT_LENGTH
+    if built_in and (s3 := _built_in_s3(content)):
+        return s3
+
+    custom_s2 = _custom_hit(content, policy, SensitivityLevel.S2)
+    if custom_s2:
+        return PIIClassification(level=SensitivityLevel.S2, patterns=[custom_s2])
+
+    patterns = _built_in_s2(content) if built_in else []
+    return PIIClassification(level=SensitivityLevel.S2 if patterns else SensitivityLevel.S1, patterns=patterns)
 
 
 def classify_tool_params(tool_name: str, params: dict[str, object], policy: PrivacyPolicy) -> PIIClassification:
@@ -385,7 +351,7 @@ def classify_tool_params(tool_name: str, params: dict[str, object], policy: Priv
 
     # --- Check parameter values for PII ---
     for key, value in params.items():
-        if not isinstance(value, str) or len(value) < _MIN_CONTENT_LENGTH:
+        if not isinstance(value, str):
             continue
         result = classify_content(value, policy)
         if result.level != SensitivityLevel.S1:

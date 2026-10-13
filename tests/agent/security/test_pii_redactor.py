@@ -3,6 +3,7 @@
 import pytest
 
 from myrm_agent_harness.agent.security.detection.pii_redactor import redact_pii, redact_value
+from myrm_agent_harness.core.security.detection.custom_rules import CustomRules
 
 
 class TestRedactPii:
@@ -173,3 +174,54 @@ class TestRedactingPasswords:
 
         assert text == "password: [REDACTED] [PII:password]"
         assert count == 1
+
+
+class TestRedactingCustomRules:
+    _KEYWORD = CustomRules(keywords=("凤凰计划",))
+
+    def test_a_call_without_rules_knows_no_custom_term(self) -> None:
+        assert redact_pii("帮我总结凤凰计划Q3预算") == ("帮我总结凤凰计划Q3预算", 0)
+
+    def test_a_keyword_inside_a_sentence_is_replaced(self) -> None:
+        text, count = redact_pii("帮我总结凤凰计划Q3预算超支原因", self._KEYWORD)
+
+        assert text == "帮我总结[REDACTED] [PII:custom]Q3预算超支原因"
+        assert count == 1
+
+    def test_every_occurrence_is_replaced(self) -> None:
+        text, count = redact_pii("凤凰计划的预算，凤凰计划的人员", self._KEYWORD)
+
+        assert "凤凰计划" not in text
+        assert count == 2
+
+    def test_a_pattern_is_replaced(self) -> None:
+        text, count = redact_pii("EMP-123456 is on leave", CustomRules(patterns=(r"EMP-\d{6}",)))
+
+        assert text == "[REDACTED] [PII:custom] is on leave"
+        assert count == 1
+
+    def test_a_custom_term_and_built_in_pii_are_both_replaced(self) -> None:
+        text, count = redact_pii("凤凰计划负责人电话 13812345678", self._KEYWORD)
+
+        assert "凤凰计划" not in text
+        assert "13812345678" not in text
+        assert count == 2
+
+    def test_a_keyword_inside_a_longer_ascii_word_is_left_alone(self) -> None:
+        assert redact_pii("the spinners ran", CustomRules(keywords=("pin",))) == ("the spinners ran", 0)
+
+    @pytest.mark.parametrize(
+        "text",
+        ["凤凰计划", "帮我总结凤凰计划Q3，凤凰计划二期", "凤凰计划 phone 13812345678 password: Zk9%mango42"],
+        ids=["bare", "twice", "with-built-ins"],
+    )
+    def test_redacting_the_output_again_changes_nothing(self, text: str) -> None:
+        once, _ = redact_pii(text, self._KEYWORD)
+
+        assert redact_pii(once, self._KEYWORD) == (once, 0)
+
+    def test_a_keyword_that_names_the_marker_cannot_rewrite_it(self) -> None:
+        rules = CustomRules(keywords=("PII", "custom", "REDACTED"))
+        once, _ = redact_pii("联系 13812345678", rules)
+
+        assert redact_pii(once, rules) == (once, 0)

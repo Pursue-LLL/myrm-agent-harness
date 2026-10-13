@@ -5,13 +5,14 @@ External consumers import here instead of reaching into ``agent.security``.
 [INPUT]
 - agent.security.managed_approval_policy::ManagedApprovalPolicy / get_process_managed_approval_policy (POS: 进程级托管审批策略)
 - agent.middlewares.security.outbound_privacy_guard::set_process_privacy_policy / sanitize_outbound_text (POS: Wire-level half of the privacy layer: the guardrail middleware covers the agent loop, this guard covers every other ChatLiteLLM call.)
+- agent.middlewares.security.privacy_preview::PrivacyPreview / preview_privacy_policy (POS: Dry run of the privacy layer for a settings page: what the model would see for a text, with nothing recorded.)
 - agent.resilience.task_airbag::arm_task_airbag (POS: 挂机安全气囊武装与快照捕捉)
 - toolkits.computer_use.screen_detector::ScreenDetector / get_default_screen_detector / hid_idle_seconds (POS: 桌面锁屏探针与硬件输入空闲读数)
 - toolkits.computer_use.capture_exclusion::exclude_capture_windows (POS: 宿主遮罩窗的截图排除注入)
 - toolkits.computer_use.types::ScreenLockState (POS: 锁屏状态共享类型)
 
 [OUTPUT]
-- myrm_agent_harness.api.security → server 统一安全策略、挂机安全气囊、锁屏/在场探针与遮罩窗截图排除导出接口
+- myrm_agent_harness.api.security → server 统一安全策略、隐私策略预演、挂机安全气囊、锁屏/在场探针与遮罩窗截图排除导出接口
 """
 
 from __future__ import annotations
@@ -19,6 +20,10 @@ from __future__ import annotations
 from myrm_agent_harness.agent.middlewares.security.outbound_privacy_guard import (
     sanitize_outbound_text,
     set_process_privacy_policy,
+)
+from myrm_agent_harness.agent.middlewares.security.privacy_preview import (
+    PrivacyPreview,
+    preview_privacy_policy,
 )
 from myrm_agent_harness.agent.resilience.task_airbag import (
     TaskAirbagDiffSummary,
@@ -81,6 +86,7 @@ __all__ = [
     "BatchRiskItemDetail",
     "BatchRiskReport",
     "ManagedApprovalPolicy",
+    "PrivacyPreview",
     "ReadOnlySSHValidator",
     "ScreenDetector",
     "ScreenLockState",
@@ -105,6 +111,7 @@ __all__ = [
     "get_task_airbag_diff",
     "hid_idle_seconds",
     "load_managed_approval_policy_from_env",
+    "preview_privacy_policy",
     "register_blocked_hostnames",
     "rollback_task_airbag",
     "rollback_task_airbag_with_rescue",

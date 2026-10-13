@@ -11,11 +11,12 @@ streaming modes.
 
 [INPUT]
 - detection results from pii_classifier (PIIClassification)
+- core.security.detection.custom_rules::CustomRules, NO_CUSTOM_RULES, find_custom_spans (POS: Single definition of custom-term matching for the privacy policy: the PII classifier, the redactor and the pseudonymizer share it, so detection and masking never disagree about what a user's keyword or pattern covers.)
 - core.security.detection.password_heuristic::find_password_spans (POS: last-resort keyword-anchored detector for passwords without vendor prefix or entropy.)
 - PseudonymStore for persistent mapping
 
 [OUTPUT]
-- pseudonymize_text(): replace PII in text with typed pseudonyms
+- pseudonymize_text(): replace PII, and optionally the user's custom keywords and patterns, in text with typed pseudonyms
 - PseudonymRestorer: streaming-safe reverse mapping
 
 [POS]
@@ -28,6 +29,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from myrm_agent_harness.core.security.detection.custom_rules import (
+    NO_CUSTOM_RULES,
+    CustomRules,
+    SpanKind,
+    find_custom_spans,
+)
 from myrm_agent_harness.core.security.detection.password_heuristic import find_password_spans
 from myrm_agent_harness.core.security.detection.pseudonym_store import (
     PseudonymStore,
@@ -49,6 +56,8 @@ _PATTERN_TO_TYPE: dict[str, str] = {
     "china_courier": "COURIER_NUMBER",
     "us_ssn": "SSN",
 }
+
+_CUSTOM_TYPES: dict[SpanKind, str] = {"keyword": "CUSTOM_KEYWORD", "pattern": "CUSTOM_PATTERN"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -143,15 +152,44 @@ def _extract_pii_items(
     return items
 
 
+def _pseudonymize_custom(
+    content: str,
+    store: PseudonymStore,
+    level: SensitivityLevel,
+    custom: CustomRules,
+) -> tuple[str, list[PIIItem]]:
+    """Swap each span of the user's custom keywords and patterns for its tag; one item per distinct original."""
+    spans = find_custom_spans(content, custom)
+    if not spans:
+        return content, []
+    parts: list[str] = []
+    tags: dict[str, str] = {}
+    items: list[PIIItem] = []
+    cursor = 0
+    for span in spans:
+        original = content[span.start : span.end]
+        if original not in tags:
+            privacy_type = _CUSTOM_TYPES[span.kind]
+            tags[original] = store.get_or_create(original, privacy_type, level.value)
+            items.append(PIIItem(original, privacy_type, level, span.start, span.end))
+        parts.append(content[cursor : span.start])
+        parts.append(tags[original])
+        cursor = span.end
+    parts.append(content[cursor:])
+    return "".join(parts), items
+
+
 def pseudonymize_text(
     content: str,
     store: PseudonymStore,
     level: SensitivityLevel,
+    custom: CustomRules = NO_CUSTOM_RULES,
 ) -> PseudonymizeResult:
     """Replace PII at *level* in *content* with typed pseudonyms via *store*.
 
-    Only replaces PII matching the specified sensitivity level,
-    respecting the per-level action configured in PrivacyPolicy.
+    Only replaces PII matching the specified sensitivity level, respecting the per-level action configured in
+    PrivacyPolicy. The user's *custom* keywords and patterns of that level are replaced after the built-in
+    detectors; an item's offsets refer to the text it was found in.
 
     Returns a ``PseudonymizeResult`` with the pseudonymized text, count,
     and list of detected items.
@@ -160,21 +198,15 @@ def pseudonymize_text(
         return PseudonymizeResult(text=content)
 
     items = _extract_pii_items(content, level)
-    if not items:
-        return PseudonymizeResult(text=content)
-
     result = content
-    count = 0
     for item in items:
-        pseudonym = store.get_or_create(
-            item.original_text,
-            item.privacy_type,
-            item.level.value,
+        result = result.replace(
+            item.original_text, store.get_or_create(item.original_text, item.privacy_type, item.level.value)
         )
-        result = result.replace(item.original_text, pseudonym)
-        count += 1
 
-    return PseudonymizeResult(text=result, count=count, items=items)
+    result, custom_items = _pseudonymize_custom(result, store, level, custom)
+    items.extend(custom_items)
+    return PseudonymizeResult(text=result, count=len(items), items=items)
 
 
 class PseudonymRestorer:
