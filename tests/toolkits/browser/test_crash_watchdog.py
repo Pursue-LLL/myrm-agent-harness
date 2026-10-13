@@ -153,9 +153,8 @@ async def test_idle_page_crash_is_ignored_because_it_holds_no_permit() -> None:
     pool = GlobalBrowserPool(max_browsers=2)
     pool._global_semaphore = asyncio.Semaphore(10)
     idle_page = MagicMock()
-    inst = _inst_with_pool(
-        pool, load=1, idle=[idle_page]
-    )  # another page is held by a caller and must stay accounted for
+    # The default busy page stands for a page a caller holds: it must stay accounted for.
+    inst = _inst_with_pool(pool, load=1, idle=[idle_page])
 
     await pool._handle_page_crashed(idle_page, inst)
 
