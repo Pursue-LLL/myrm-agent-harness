@@ -4,7 +4,6 @@ This module provides a flexible, composable framework for filtering messages
 in AI conversations. It's designed to support various filtering needs:
 
 - System prompt hiding (security)
-- PII redaction (privacy)
 - Custom content filtering (compliance)
 
 Architecture:
@@ -38,21 +37,17 @@ Example:
 
 from .base import FilterConfig, FilterContext, MessageFilter
 from .config_manager import ConfigManager, MemoryConfigManager
-from .credential_leak_filter import CredentialLeakFilter
 from .filter_stats import FilterStats
-from .pii_redaction_filter import PIIRedactionFilter
 from .pipeline import MessageFilterPipeline
 from .system_role_filter import SystemRoleFilter
 
 __all__ = [
     "ConfigManager",
-    "CredentialLeakFilter",
     "FilterConfig",
     "FilterContext",
     "FilterStats",
     "MemoryConfigManager",
     "MessageFilter",
     "MessageFilterPipeline",
-    "PIIRedactionFilter",
     "SystemRoleFilter",
 ]

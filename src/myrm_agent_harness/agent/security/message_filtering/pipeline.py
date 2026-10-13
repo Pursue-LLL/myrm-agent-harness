@@ -29,14 +29,14 @@ class MessageFilterPipeline:
     returns True (should_filter), the message is excluded from the output.
 
     This design enables:
-    - Composing multiple filters (SystemRole + PII + Custom)
+    - Composing multiple filters (SystemRole + Custom)
     - Short-circuit evaluation (first match filters out)
     - Extensibility (add new filters without changing core logic)
 
     Example:
         >>> pipeline = MessageFilterPipeline([
         ...     SystemRoleFilter(config),
-        ...     PIIRedactionFilter(config),
+        ...     CustomFilter(config),
         ... ])
         >>> filtered = pipeline.filter_messages(messages, context)
     """

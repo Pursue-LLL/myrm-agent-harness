@@ -14,6 +14,8 @@ Filter performance statistics and monitoring.
 import logging
 import time
 from dataclasses import dataclass, field
+from types import TracebackType
+from typing import Self
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +142,30 @@ class FilterStats:
         self.filter_stats.clear()
 
 
-def measure_filter_time(filter_name: str, stats: FilterStats | None = None):
+class _FilterTimer:
+    """Context manager that times its block and reports the elapsed milliseconds to a tracker."""
+
+    def __init__(self, name: str, tracker: FilterStats | None) -> None:
+        self.name = name
+        self.tracker = tracker
+        self.start_time = 0.0
+
+    def __enter__(self) -> Self:
+        self.start_time = time.perf_counter()
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        elapsed_ms = (time.perf_counter() - self.start_time) * 1000
+        if self.tracker:
+            self.tracker.track(self.name, elapsed_ms)
+
+
+def measure_filter_time(filter_name: str, stats: FilterStats | None = None) -> _FilterTimer:
     """Context manager for measuring filter execution time.
 
     Args:
@@ -149,24 +174,8 @@ def measure_filter_time(filter_name: str, stats: FilterStats | None = None):
 
     Example:
         >>> stats = FilterStats()
-        >>> with measure_filter_time("PIIRedactionFilter", stats):
+        >>> with measure_filter_time("SystemRoleFilter", stats):
         ...     # Filter logic here
         ...     pass
     """
-
-    class _FilterTimer:
-        def __init__(self, name: str, tracker: FilterStats | None):
-            self.name = name
-            self.tracker = tracker
-            self.start_time = 0.0
-
-        def __enter__(self):
-            self.start_time = time.perf_counter()
-            return self
-
-        def __exit__(self, exc_type, exc_val, exc_tb):
-            elapsed_ms = (time.perf_counter() - self.start_time) * 1000
-            if self.tracker:
-                self.tracker.track(self.name, elapsed_ms)
-
     return _FilterTimer(filter_name, stats)

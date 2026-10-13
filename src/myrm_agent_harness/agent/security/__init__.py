@@ -71,12 +71,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "PseudonymRestorer": (".detection.pseudonymizer", "PseudonymRestorer"),
     "PIIItem": (".detection.pseudonymizer", "PIIItem"),
     # message_filtering
-    "CredentialLeakFilter": (".message_filtering", "CredentialLeakFilter"),
     "FilterConfig": (".message_filtering", "FilterConfig"),
     "FilterContext": (".message_filtering", "FilterContext"),
     "MessageFilter": (".message_filtering", "MessageFilter"),
     "MessageFilterPipeline": (".message_filtering", "MessageFilterPipeline"),
-    "PIIRedactionFilter": (".message_filtering", "PIIRedactionFilter"),
     "SystemRoleFilter": (".message_filtering", "SystemRoleFilter"),
     # batch_risk.py
     "BatchApprovalItem": (".batch_risk", "BatchApprovalItem"),
