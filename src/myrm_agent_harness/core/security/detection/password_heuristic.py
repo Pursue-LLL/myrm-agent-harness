@@ -6,8 +6,11 @@
 [OUTPUT]
 - find_password_spans(): sorted (start, end) spans of the secrets that sit next to a credential keyword. A span is the
   secret itself, never the keyword or a neighbouring word; texts without a keyword yield nothing.
-- secret_value_span(): the value rules (trim, plausibility, already-redacted) shared with callers that locate a
-  labeled value by other means (persistence scans ``key: value`` assignments through assignment_sweep).
+- secret_value_span() / MIN_SECRET_VALUE_LENGTH: the value rules (trim, plausibility, already-redacted, minimum
+  length) shared with callers that locate a labeled value by other means (persistence scans ``key: value``
+  assignments through assignment_sweep).
+- mask_markdown_emphasis(): same-length copy of a text with markdown bold markers blanked, so callers that scan by
+  other means see the same words.
 
 [POS]
 Last-resort detector for secrets that carry no vendor prefix and no high entropy (e.g. "Zk9#mango42"), which the
@@ -23,10 +26,18 @@ from bisect import bisect_left
 
 Span = tuple[int, int]
 
+# "pin" is an everyday verb ("pin the message", "pin to v2"). As a credential it is the acronym "PIN" or is introduced
+# explicitly or followed directly by the code ("my pin is 4821", "pin: 4821", "my atm pin 4821").
+_PIN_KEYWORD = r"(?-i:PIN)|pin(?=\s*(?:code|number)?\s*(?:(?:is|was)\b|[:=：]|是|为|\d))"
 _PASSWORD_KEYWORD_RE = re.compile(
-    r"(?i)\b(?:password|passwd|passphrase|pwd|p@ssword|api secret|secret key|master password|"
-    r"passcode|pass code|otp|2fa code|2fa|pin|verification code)\b|密码|口令|验证码"
+    r"\b(?:password|passwd|passphrase|pwd|p@ssword|api secret|secret key|master password|"
+    rf"passcode|pass code|otp|2fa code|2fa|{_PIN_KEYWORD}|verification code)\b|密码|口令|验证码",
+    re.IGNORECASE,
 )
+
+# Markdown bold ("**Password**: x", "Password: **x**") is markup around the words, not part of the secret; a
+# password that merely contains "**" inside ("Pa**ss12") keeps it.
+_MARKDOWN_BOLD_RE = re.compile(r"(?<![A-Za-z0-9])\*{2,}|\*{2,}(?![A-Za-z0-9])")
 # Strong symbols are password characters; structural ones only join segments ("xK9-mPq2-Lw8z") and also appear
 # in prose, URLs and domains. "=" is deliberately absent: it separates a label from its value ("password=Zk9#..."),
 # so the label must stay out.
@@ -58,7 +69,7 @@ _VALUE_AFTER_CONNECTOR_RE = re.compile(
     re.IGNORECASE,
 )
 
-_MIN_VALUE_LENGTH = 8
+MIN_SECRET_VALUE_LENGTH = 8
 _MAX_VALUE_LENGTH = 64
 # Redaction markers ("[REDACTED]", "[REDACTED:env_credential]") already sit in text that is scanned again.
 _REDACTION_MARKER_PREFIX = "[REDACTED"
@@ -69,16 +80,30 @@ _MIN_DISTINCT_CHARS = 3
 _NON_SECRET_CHARS_RE = re.compile(r"[()\[\]{}<>$%]")
 _IDENTIFIER_RE = re.compile(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+|[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+|[a-z]+(?:_[a-z]+)+")
 _FIELD_STATE_WORDS = frozenset(
-    {"required", "optional", "mandatory", "hidden", "masked", "encrypted", "hashed", "unknown", "empty", "unset"}
+    {
+        "required",
+        "optional",
+        "mandatory",
+        "hidden",
+        "masked",
+        "redacted",
+        "encrypted",
+        "hashed",
+        "unknown",
+        "empty",
+        "unset",
+    }
 )
 
 # Numeric credentials (PIN/OTP/2FA/passcode) use a dedicated keyword group so a bare numeric token is only treated
 # as a secret when it appears next to a numeric-credential keyword. "password: 1234567890" (example value) stays
 # benign, while "the OTP code is 582013" is redacted.
 _NUMERIC_CREDENTIAL_KEYWORD_RE = re.compile(
-    r"(?i)\b(?:otp|2fa code|2fa|passcode|pass code|pin|verification code)\b|验证码|一次性密码"
+    rf"\b(?:otp|2fa code|2fa|passcode|pass code|{_PIN_KEYWORD}|verification code)\b|验证码|一次性密码",
+    re.IGNORECASE,
 )
-_NUMERIC_CREDENTIAL_RE = re.compile(r"\b\d{4,12}\b")
+# "#6716" is an issue or pull request reference, never a code.
+_NUMERIC_CREDENTIAL_RE = re.compile(r"(?<!#)\b\d{4,12}\b")
 # Year (19xx/20xx) and CN-mobile (1[3-9]\d{9}) tokens are the common false positives when they share a window with a
 # numeric-credential keyword ("2FA enabled since 2024", "phone 13800138000 ... OTP") — redacting them would corrupt
 # the stored memory.
@@ -89,6 +114,14 @@ _NUMERIC_CREDENTIAL_WINDOW = 60
 # Fallback window *before* the keyword. Tighter than the after-window so a stray number that merely precedes the
 # keyword (e.g. a phone number) is not mistaken for the code when no code follows it.
 _NUMERIC_CREDENTIAL_BEFORE_WINDOW = 20
+# A code written before its label ("582013 is my OTP", "use 582013 as the OTP") shares a clause with it; any
+# punctuation in between ("(RFC 6238): 2FA", "#1622: pin") means the number belongs to something else.
+_SAME_CLAUSE_RE = re.compile(r"[\w\s'’-]*")
+
+
+def mask_markdown_emphasis(text: str) -> str:
+    """Blank out markdown bold markers, keeping every offset, so detection never takes markup for secret characters."""
+    return _MARKDOWN_BOLD_RE.sub(lambda match: " " * len(match.group()), text)
 
 
 def _is_secret_edge(char: str) -> bool:
@@ -104,8 +137,8 @@ def _trim_secret_span(text: str, start: int, end: int) -> Span:
     return start, end
 
 
-def _is_plausible_secret_value(value: str, *, allow_letters_only: bool) -> bool:
-    if not _MIN_VALUE_LENGTH <= len(value) <= _MAX_VALUE_LENGTH:
+def _is_plausible_secret_value(value: str, *, allow_letters_only: bool, min_length: int) -> bool:
+    if not min_length <= len(value) <= _MAX_VALUE_LENGTH:
         return False
     if _NON_SECRET_CHARS_RE.search(value) or "://" in value or _IDENTIFIER_RE.fullmatch(value):
         return False
@@ -114,18 +147,20 @@ def _is_plausible_secret_value(value: str, *, allow_letters_only: bool) -> bool:
     return allow_letters_only or any(char.isdigit() or char in _STRONG_SYMBOLS for char in value)
 
 
-def secret_value_span(text: str, start: int, end: int, *, allow_letters_only: bool) -> Span | None:
+def secret_value_span(
+    text: str, start: int, end: int, *, allow_letters_only: bool, min_length: int = MIN_SECRET_VALUE_LENGTH
+) -> Span | None:
     """The secret inside the raw value span ``text[start:end]`` of a label or connector, or None.
 
     The raw span is trimmed (quotes and sentence punctuation drop out) and must then be plausible: not an existing
-    redaction marker, not short, purely numeric or a field-state word, and not a reference to a secret (identifier,
-    template, code expression). Letters-only values ("dragonfly") are ambiguous in prose ("required", "stored"), so
-    they pass only where the caller knows the label names a password.
+    redaction marker, not shorter than ``min_length``, purely numeric or a field-state word, and not a reference to a
+    secret (identifier, template, code expression). Letters-only values ("dragonfly") are ambiguous in prose
+    ("required", "stored"), so they pass only where the caller knows the label names a password.
     """
     if text.startswith(_REDACTION_MARKER_PREFIX, start):
         return None
     start, end = _trim_secret_span(text, start, end)
-    if _is_plausible_secret_value(text[start:end], allow_letters_only=allow_letters_only):
+    if _is_plausible_secret_value(text[start:end], allow_letters_only=allow_letters_only, min_length=min_length):
         return start, end
     return None
 
@@ -200,16 +235,24 @@ def _first_within(numbers: list[Span], low: int, high: int) -> Span | None:
     return None
 
 
+def _number_before(numbers: list[Span], text: str, keyword: re.Match[str]) -> Span | None:
+    span = _first_within(numbers, max(0, keyword.start() - _NUMERIC_CREDENTIAL_BEFORE_WINDOW), keyword.start())
+    if span is not None and _SAME_CLAUSE_RE.fullmatch(text, span[1], keyword.start()):
+        return span
+    return None
+
+
 def find_password_spans(text: str) -> list[Span]:
     """Spans of the secrets anchored to a credential keyword, in text order without duplicates.
 
     Per keyword occurrence the first rule that finds a value wins: a value the text introduces ("password is X",
     "密码：X"), else a generated-looking token nearby. Numeric PIN/OTP/2FA codes are anchored separately, preferring a
-    code after the keyword within a tight window, then one just before it.
+    code after the keyword within a tight window, then one just before it in the same clause.
     """
     if not text:
         return []
 
+    text = mask_markdown_emphasis(text)
     spans: set[Span] = set()
     tokens: list[Span] | None = None
     for keyword in _PASSWORD_KEYWORD_RE.finditer(text):
@@ -225,8 +268,8 @@ def find_password_spans(text: str) -> list[Span]:
     for keyword in _NUMERIC_CREDENTIAL_KEYWORD_RE.finditer(text):
         if numbers is None:
             numbers = _numeric_credentials(text)
-        span = _first_within(numbers, keyword.end(), keyword.end() + _NUMERIC_CREDENTIAL_WINDOW) or _first_within(
-            numbers, max(0, keyword.start() - _NUMERIC_CREDENTIAL_BEFORE_WINDOW), keyword.start()
+        span = _first_within(numbers, keyword.end(), keyword.end() + _NUMERIC_CREDENTIAL_WINDOW) or _number_before(
+            numbers, text, keyword
         )
         if span is not None:
             spans.add(span)

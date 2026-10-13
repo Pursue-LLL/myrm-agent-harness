@@ -127,6 +127,14 @@ class TestSecretIsExactlyTheSpan:
             ("The Wi-Fi password for MyHome-5G is Tr0ub4dor&3", "Tr0ub4dor&3"),
             ("The password is SuperSecret123.", "SuperSecret123"),
             ("Use Zk9#mango42 as the password", "Zk9#mango42"),
+            ("Password: **Zk9#mango42**", "Zk9#mango42"),
+            ("**Password**: Zk9#mango42", "Zk9#mango42"),
+            ("my pin is 482913", "482913"),
+            ("Pin: 482913", "482913"),
+            ("PIN 482913", "482913"),
+            ("my atm pin 482913", "482913"),
+            ("pin code 482913", "482913"),
+            ("The OTP is **582013**", "582013"),
         ],
         ids=[
             "capitalised-keyword",
@@ -143,6 +151,14 @@ class TestSecretIsExactlyTheSpan:
             "secret-beats-hyphenated-network-name",
             "sentence-final-period-is-not-the-secret",
             "generated-token-before-keyword",
+            "markdown-bold-value-keeps-markup",
+            "markdown-bold-label",
+            "pin-lowercase-introduced-by-is",
+            "pin-titlecase-introduced-by-colon",
+            "pin-uppercase-acronym-needs-no-connector",
+            "pin-lowercase-directly-followed-by-code",
+            "pin-code-label-directly-followed-by-code",
+            "markdown-bold-code",
         ],
     )
     def test_returns_the_secret_not_a_neighbouring_word(self, text: str, secret: str) -> None:
@@ -189,6 +205,17 @@ class TestProseIsNeverASecret:
             "Remember to pin the message in the group. Developers should read Onboarding first.",
             "Run pwd to print the working directory. Contributors must follow Conventions.",
             "I forgot my password on my iPhone15Pro again, so I used Face ID.",
+            "Merge pull request #1622: test(iam): pin service lifecycle",
+            "chore(macos): update Peekaboo to 4.9.0 (#166615)\n\nPin the macOS app to the toolchain.",
+            "bump maqami-travel pin to d7c4efd 1239025194 2026-10-07",
+            "分片连播 `10120-10169` 并 pin `playback` 状态",
+            "内置 TOTP（RFC 6238）：2FA 自动化，无需第三方 TOTP 应用",
+            "**过期（无论是否密码保护）一律视为 unshared**）/ revoked",
+            "| 验证码 | 无 | **CAPTCHA 检测器** | | 登录支持 | 扫码登录 | **OAuth2 + 异步登录",
+            "| **P1-PairRevoke** | WebUI 改密/启用密码保护时轮换 `pairing`",
+            "密码、Token、私钥瞬间转为 `***REDACTED***`，杜绝明文落盘",
+            "support email OTP credentials in Copilot (#6716)",
+            "pin 3 messages and 2024 releases to the channel",
         ],
         ids=[
             "hyphenated-product-name",
@@ -199,6 +226,17 @@ class TestProseIsNeverASecret:
             "pin-as-verb",
             "pwd-shell-command",
             "device-name-near-keyword",
+            "pin-verb-before-pr-reference",
+            "pin-verb-after-pr-reference",
+            "pin-verb-before-commit-hash",
+            "pin-verb-after-range",
+            "spec-number-then-punctuation-then-2fa",
+            "markdown-bold-word-after-connector",
+            "markdown-bold-around-words",
+            "markdown-bold-id-before-keyword",
+            "other-redactor-banner",
+            "issue-reference-after-otp",
+            "pin-verb-with-short-count-and-year",
         ],
     )
     def test_prose_around_a_password_keyword_is_not_a_secret(self, text: str) -> None:
@@ -235,6 +273,11 @@ class TestSecretValueSpan:
         text = "dragonfly"
         assert secret_value_span(text, 0, len(text), allow_letters_only=True) == (0, len(text))
         assert secret_value_span(text, 0, len(text), allow_letters_only=False) is None
+
+    def test_minimum_length_is_the_callers_choice(self) -> None:
+        text = "abcd1234efgh"
+        assert secret_value_span(text, 0, len(text), allow_letters_only=False) == (0, len(text))
+        assert secret_value_span(text, 0, len(text), allow_letters_only=False, min_length=16) is None
 
     def test_trims_quotes_and_sentence_punctuation_but_keeps_trailing_strong_symbol(self) -> None:
         text = '"Zk9#mango42!".'

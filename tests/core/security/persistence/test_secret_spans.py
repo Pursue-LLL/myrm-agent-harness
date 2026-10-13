@@ -43,6 +43,15 @@ class TestFindAssignmentSecretSpans:
     def test_value_stops_at_the_first_non_ascii_character(self) -> None:
         assert _secrets("密码：abc123456，请勿转发。") == ["abc123456"]
 
+    def test_markdown_emphasis_around_a_value_is_not_part_of_the_secret(self) -> None:
+        assert _secrets("- password: **hunter2hunter2**") == ["hunter2hunter2"]
+        assert _secrets("token: **word**") == []
+
+    def test_token_label_naming_a_usage_unit_is_not_a_secret(self) -> None:
+        assert _secrets("Token：180k-280k（因为要多次迭代）") == []
+        assert _secrets("[模型 Token: DeepSeek-V3 1251K Tokens]") == []
+        assert _secrets("token = abcd1234efgh5678") == ["abcd1234efgh5678"]
+
     def test_letters_only_value_needs_a_password_key(self) -> None:
         assert _secrets("password: dragonfly") == ["dragonfly"]
         assert _secrets("secret: Employees only") == []

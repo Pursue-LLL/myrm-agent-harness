@@ -122,6 +122,14 @@ POSITIVES: tuple[Positive, ...] = (
         ("hunter2hunter2",),
         ("## Credentials\n- user: bob\n- password: ",),
     ),
+    Positive("pin-lowercase-introduced", "my pin is 482913", ("482913",), ("my pin is ",)),
+    Positive("pin-lowercase-adjacent", "my atm pin 482913 stays secret", ("482913",), ("my atm pin ", " stays secret")),
+    Positive(
+        "markdown-bold-secret",
+        "- **Password**: Zk9#mango42\n- Password: **Ab1!cd2@ef**\n",
+        ("Zk9#mango42", "Ab1!cd2@ef"),
+        ("- **Password**: ", "- Password: **", "**\n"),
+    ),
     Positive(
         "doc-with-secret-at-the-end",
         f"Please read the docs. {_PROSE}\npassword: Zk9#mango42",
@@ -170,4 +178,10 @@ NEGATIVES: tuple[Negative, ...] = (
     Negative("otp-label-prose", "OTP: one-time password sent via SMS"),
     Negative("code-reference-values", "api_key: process.env.OPENAI_API_KEY\nconst token = getToken();"),
     Negative("token-count-config", "max_tokens: 4096, token_count: 1500, tokenizer: sentencepiece"),
+    Negative("pin-verb-pr-reference", "Merge pull request #1622: test(iam): pin service lifecycle (#1633)"),
+    Negative("pin-verb-commit-hash", "bump maqami-travel pin to d7c4efd 1239025194 2026-10-07"),
+    Negative("spec-number-before-2fa", "内置 TOTP（RFC 6238）：2FA 自动化，无需第三方 TOTP 应用"),
+    Negative("markdown-bold-state-word", "**过期（无论是否密码保护）一律视为 unshared**）/ revoked"),
+    Negative("markdown-bold-id-near-keyword", "| **P1-PairRevoke** | WebUI 改密/启用密码保护时轮换 `pairing`"),
+    Negative("other-redactor-banner", "密码、Token、私钥瞬间转为 `***REDACTED***`，杜绝明文落盘"),
 )

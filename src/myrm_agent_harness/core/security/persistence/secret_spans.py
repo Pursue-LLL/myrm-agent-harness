@@ -3,7 +3,8 @@
 [INPUT]
 - core.security.assignment_sweep::find_assignment_matches / AssignmentKeyFamily (POS: single definition of a
   non-benign `<sensitive key><delimiter><value>` assignment, with the value span.)
-- core.security.detection.password_heuristic::secret_value_span (POS: shared value rules.)
+- core.security.detection.password_heuristic::secret_value_span / mask_markdown_emphasis (POS: shared value rules and
+  markup masking.)
 
 [OUTPUT]
 - find_assignment_secret_spans: spans of the values assigned to password/api_key/secret/token-style keys.
@@ -19,10 +20,18 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from myrm_agent_harness.core.security.assignment_sweep import AssignmentKeyFamily, find_assignment_matches
-from myrm_agent_harness.core.security.detection.password_heuristic import Span, secret_value_span
+from myrm_agent_harness.core.security.detection.password_heuristic import (
+    MIN_SECRET_VALUE_LENGTH,
+    Span,
+    mask_markdown_emphasis,
+    secret_value_span,
+)
 
 REDACTION_MARKER = "[REDACTED]"
 _QUOTES = "\"'`"
+# "token" also names LLM usage units ("Token: 180k-280k", "Token: DeepSeek-V3"), so a value under a token label has to
+# be as long as a real token.
+_MIN_TOKEN_VALUE_LENGTH = 16
 
 
 def _value_end(line: str, start: int, end: int) -> int:
@@ -42,13 +51,16 @@ def find_assignment_secret_spans(text: str) -> list[Span]:
     """Value spans of plausible secrets assigned to a sensitive key (``password=x``, ``"api_key": "x"``, ``密码：x``)."""
     spans: list[Span] = []
     offset = 0
-    for line in text.splitlines(keepends=True):
+    for line in mask_markdown_emphasis(text).splitlines(keepends=True):
         for match in find_assignment_matches(line):
             span = secret_value_span(
                 line,
                 match.value_start,
                 _value_end(line, match.value_start, match.value_end),
                 allow_letters_only=match.family is AssignmentKeyFamily.PASSWORD,
+                min_length=_MIN_TOKEN_VALUE_LENGTH
+                if match.family is AssignmentKeyFamily.TOKEN
+                else MIN_SECRET_VALUE_LENGTH,
             )
             if span is not None:
                 spans.append((offset + span[0], offset + span[1]))
