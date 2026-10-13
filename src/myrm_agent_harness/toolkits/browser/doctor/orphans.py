@@ -1,17 +1,18 @@
-"""Browser Doctor — orphan automation process detection and cleanup.
+"""Browser Doctor — leftover automation process detection and cleanup.
 
-Precisely detects orphan patchright/playwright chromium and driver processes
-(matches framework cache paths) and safely cleans them up (dry-run by default,
-``force=True`` required to kill).
+A browser or driver launched by the toolkit carries an ownership stamp (see ``process_owner``); it is
+a leftover when the process that launched it no longer runs. Processes without a stamp, with an
+unreadable environment or with a malformed stamp are never reported and never signalled. Cleanup is
+dry-run by default (``force=True`` required) and re-verifies each pid right before signalling it.
 
 [INPUT]
 - psutil (optional, process iteration)
+- ..process_owner::read_owner_state / OwnerState (POS: ownership stamp classification)
 
 [OUTPUT]
-- find_orphan_chromium_processes / find_orphan_driver_processes / find_orphan_automation_processes: orphan process detection
+- find_orphan_automation_processes: stamped browser and driver processes whose owner is gone
 - cleanup_orphan_processes: safe cleanup (dry-run by default, SIGTERM/SIGKILL escalation)
 - OrphanProcess / OrphanCleanupResult / KillFailure: typed shapes of the scan and cleanup results
-- register_browser_exit_reaper / unregister_browser_exit_reaper: atexit emergency reaper lifecycle hooks
 
 [POS]
 Orphan process detection and cleanup. The psutil process-table walk is
@@ -21,7 +22,6 @@ server health endpoints) so it never blocks an event loop.
 
 from __future__ import annotations
 
-import atexit
 import contextlib
 import logging
 import os
@@ -29,7 +29,13 @@ import signal
 import time
 from typing import TypedDict
 
+from ..process_owner import OwnerState, read_owner_state
+
 logger = logging.getLogger(__name__)
+
+_POLL_INTERVAL_S = 0.05
+# SIGKILL cannot be caught, but delivery and teardown are asynchronous.
+_SIGKILL_SETTLE_S = 1.0
 
 
 class OrphanProcess(TypedDict):
@@ -59,58 +65,36 @@ class OrphanCleanupResult(TypedDict, total=False):
     failed: list[KillFailure]
 
 
-def find_orphan_chromium_processes() -> list[OrphanProcess]:
-    """Find orphan patchright/playwright chromium processes.
+def find_orphan_automation_processes() -> list[OrphanProcess]:
+    """Find browser and driver processes whose launching process is gone.
 
-    Precisely identifies browser automation processes by checking:
-    - Process name contains "chrom"
-    - Command line contains --user-data-dir with playwright/patchright cache path
-    - No living Python parent process
+    Only processes carrying an ownership stamp whose owner no longer runs are reported;
+    the calling process is never reported.
 
     Returns:
         List of orphan process info (pid, name, ppid, user_data_dir)
     """
     try:
         import psutil
-    except (ImportError, TypeError):
+    except ImportError:
         logger.warning("psutil not available, cannot detect orphan processes")
         return []
 
     orphans: list[OrphanProcess] = []
-    current_pid = os.getpid()
-
+    own_pid = os.getpid()
     try:
-        for proc in psutil.process_iter(["pid", "name", "ppid", "cmdline"]):
+        for proc in psutil.process_iter():
+            if proc.pid == own_pid:
+                continue
             try:
-                name = proc.info["name"]
-                if not name or "chrom" not in name.lower():
+                if read_owner_state(proc) is not OwnerState.OWNER_GONE:
                     continue
-
-                cmdline = proc.info.get("cmdline") or []
-                if not cmdline:
-                    continue
-
-                full_cmd = " ".join(cmdline)
-
-                if "--user-data-dir" not in full_cmd:
-                    continue
-
-                user_data_dir = _extract_user_data_dir(full_cmd)
-                if not user_data_dir:
-                    continue
-
-                if not _is_automation_cache_path(user_data_dir):
-                    continue
-
-                if _has_python_ancestor(proc, current_pid):
-                    continue
-
                 orphans.append(
                     {
-                        "pid": proc.info["pid"],
-                        "name": name,
-                        "ppid": proc.info["ppid"],
-                        "user_data_dir": user_data_dir,
+                        "pid": proc.pid,
+                        "name": proc.name(),
+                        "ppid": proc.ppid(),
+                        "user_data_dir": _extract_user_data_dir(" ".join(proc.cmdline())),
                     }
                 )
             except (psutil.NoSuchProcess, psutil.AccessDenied):
@@ -121,142 +105,57 @@ def find_orphan_chromium_processes() -> list[OrphanProcess]:
     return orphans
 
 
-def find_orphan_driver_processes() -> list[OrphanProcess]:
-    """Find orphan patchright/playwright driver node processes."""
-    try:
-        import psutil
-    except (ImportError, TypeError):
-        logger.warning("psutil not available, cannot detect orphan driver processes")
-        return []
-
-    orphans: list[OrphanProcess] = []
-    current_pid = os.getpid()
-
-    try:
-        for proc in psutil.process_iter(["pid", "name", "ppid", "cmdline"]):
-            try:
-                cmdline = proc.info.get("cmdline") or []
-                if not cmdline:
-                    continue
-
-                full_cmd = " ".join(cmdline)
-                if not _is_automation_driver_cmdline(full_cmd):
-                    continue
-
-                if _has_python_ancestor(proc, current_pid):
-                    continue
-
-                orphans.append(
-                    {
-                        "pid": proc.info["pid"],
-                        "name": proc.info.get("name") or "node",
-                        "ppid": proc.info["ppid"],
-                        "user_data_dir": "",
-                    }
-                )
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                continue
-    except Exception as exc:
-        logger.warning(f"Failed to scan for orphan driver processes: {exc}")
-
-    return orphans
-
-
-def find_orphan_automation_processes() -> list[OrphanProcess]:
-    """Find orphan browser and driver processes from automation frameworks."""
-    seen_pids: set[int] = set()
-    combined: list[OrphanProcess] = []
-
-    for orphan in [*find_orphan_chromium_processes(), *find_orphan_driver_processes()]:
-        pid = orphan["pid"]
-        if pid in seen_pids:
-            continue
-        seen_pids.add(pid)
-        combined.append(orphan)
-
-    return combined
-
-
 def _extract_user_data_dir(cmdline: str) -> str:
-    """Extract user-data-dir path from command line."""
-    if "--user-data-dir=" in cmdline:
-        parts = cmdline.split("--user-data-dir=", 1)
-        if len(parts) > 1:
-            path_part = parts[1].strip().split()[0] if parts[1].strip() else ""
-            return path_part
-    elif "--user-data-dir" in cmdline:
-        parts = cmdline.split("--user-data-dir", 1)
-        if len(parts) > 1:
-            tokens = parts[1].strip().split()
-            if tokens:
-                return tokens[0]
+    """Extract the ``--user-data-dir`` value (``=`` or space separated) from a command line, or ``""``."""
+    for flag in ("--user-data-dir=", "--user-data-dir"):
+        _, found, rest = cmdline.partition(flag)
+        if found:
+            tokens = rest.split()
+            return tokens[0] if tokens else ""
     return ""
 
 
-def _is_automation_cache_path(path: str) -> bool:
-    """Check if path is from browser automation framework."""
-    automation_markers = [
-        ".cache/patchright",
-        ".cache/ms-playwright",
-        ".cache/puppeteer",
-        "playwright_chromium",
-        "com.google.chrome.code_sign_clone",
-        "chrome_e2e",
-        "myrm_chrome_e2e",
-    ]
-    path_lower = path.lower()
-    return any(marker in path_lower for marker in automation_markers)
+def _is_running(pid: int) -> bool:
+    """Whether ``pid`` is a live process; an exited process that has not been reaped yet counts as stopped."""
+    import psutil
 
-
-def _is_automation_driver_cmdline(full_cmd: str) -> bool:
-    """Check if command line is a patchright/playwright driver helper."""
-    driver_markers = (
-        "patchright/driver/node",
-        "playwright/driver/node",
-        "run-driver",
-    )
-    cmd_lower = full_cmd.lower()
-    return any(marker in cmd_lower for marker in driver_markers)
-
-
-def _has_python_ancestor(proc: object, current_pid: int) -> bool:
-    """Check if process has a Python ancestor.
-
-    Returns True if any ancestor process name contains 'python', or if the
-    process is in the current process tree. Returns False if confirmed no
-    Python ancestor. Returns True on unexpected errors (conservative default).
-    """
     try:
-        import psutil
+        return psutil.Process(pid).status() != psutil.STATUS_ZOMBIE
+    except psutil.NoSuchProcess:
+        return False
 
-        current_proc = psutil.Process(current_pid)
-        current_tree_pids = {p.pid for p in [current_proc, *current_proc.children(recursive=True)]}
 
-        if not isinstance(proc, psutil.Process):
+def _is_leftover(pid: int) -> bool:
+    """Re-verify a pid right before signalling it; the process table may have changed since the scan."""
+    import psutil
+
+    if pid == os.getpid():
+        return False
+    try:
+        return read_owner_state(psutil.Process(pid)) is OwnerState.OWNER_GONE
+    except psutil.NoSuchProcess:
+        return False
+
+
+def _wait_until_stopped(pid: int, timeout_s: float) -> bool:
+    """Poll until ``pid`` has stopped; False when it still runs after ``timeout_s``."""
+    deadline = time.monotonic() + timeout_s
+    while _is_running(pid):
+        if time.monotonic() >= deadline:
             return False
+        time.sleep(_POLL_INTERVAL_S)
+    return True
 
-        parent = proc.parent()
-        while parent:
-            if parent.pid in current_tree_pids:
-                return True
 
-            try:
-                if "python" in parent.name().lower():
-                    return True
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                break
-
-            try:
-                parent = parent.parent()
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                break
-
-        return False
-    except (psutil.NoSuchProcess, psutil.AccessDenied, ProcessLookupError):
-        return False
-    except Exception as exc:
-        logger.warning(f"Unexpected error in _has_python_ancestor: {exc}")
+def _terminate(pid: int, timeout_s: float) -> bool:
+    """SIGTERM ``pid``; with a grace period, escalate to SIGKILL. True when it stopped (or no grace period was asked)."""
+    os.kill(pid, signal.SIGTERM)
+    if timeout_s <= 0.0 or _wait_until_stopped(pid, timeout_s):
         return True
+    with contextlib.suppress(ProcessLookupError):
+        os.kill(pid, signal.SIGKILL)
+        logger.info(f"Force killed (SIGKILL) stubborn orphan process: {pid}")
+    return _wait_until_stopped(pid, _SIGKILL_SETTLE_S)
 
 
 def cleanup_orphan_processes(
@@ -266,6 +165,9 @@ def cleanup_orphan_processes(
     timeout_s: float = 0.0,
 ) -> OrphanCleanupResult:
     """Clean up orphan automation processes with safety checks.
+
+    Each pid is re-verified as a leftover immediately before it is signalled; a pid that no longer
+    is one (pid reuse, owner alive again) is reported as ``not_an_orphan`` and left alone.
 
     Args:
         orphan_pids: Optional list of PIDs to kill. If None, auto-detect.
@@ -286,8 +188,7 @@ def cleanup_orphan_processes(
         }
 
     if orphan_pids is None:
-        orphans = find_orphan_automation_processes()
-        orphan_pids = [o["pid"] for o in orphans]
+        orphan_pids = [o["pid"] for o in find_orphan_automation_processes()]
 
     if not force:
         return {
@@ -301,89 +202,32 @@ def cleanup_orphan_processes(
     failed: list[KillFailure] = []
 
     for pid in orphan_pids:
+        if not _is_leftover(pid):
+            if _is_running(pid):
+                failed.append({"pid": pid, "reason": "not_an_orphan"})
+            else:
+                logger.debug(f"Process {pid} already terminated")
+            continue
         try:
-            os.kill(pid, signal.SIGTERM)
-            if timeout_s > 0.0:
-                deadline = time.time() + timeout_s
-                terminated = False
-                while time.time() < deadline:
-                    try:
-                        os.kill(pid, 0)
-                        time.sleep(0.05)
-                    except ProcessLookupError:
-                        terminated = True
-                        break
-                if not terminated:
-                    try:
-                        os.kill(pid, signal.SIGKILL)
-                        logger.info(f"Force killed (SIGKILL) stubborn orphan process: {pid}")
-                    except ProcessLookupError:
-                        pass
-                try:
-                    os.kill(pid, 0)
-                    failed.append({"pid": pid, "reason": "process_still_running_after_kill"})
-                    continue
-                except ProcessLookupError:
-                    pass
-            killed += 1
-            logger.info(f"Killed orphan automation process: {pid}")
+            stopped = _terminate(pid, timeout_s)
         except ProcessLookupError:
             logger.debug(f"Process {pid} already terminated")
+            continue
         except PermissionError:
             failed.append({"pid": pid, "reason": "permission_denied"})
+            continue
         except Exception as exc:
             failed.append({"pid": pid, "reason": str(exc)})
+            continue
+
+        if stopped:
+            killed += 1
+            logger.info(f"Killed orphan automation process: {pid}")
+        else:
+            failed.append({"pid": pid, "reason": "process_still_running_after_kill"})
 
     return {
         "killed": killed,
         "dry_run": False,
         "failed": failed,
     }
-
-
-_exit_reaper_registered: bool = False
-
-
-def _emergency_cleanup_orphans_on_exit() -> None:
-    """Best-effort emergency cleanup registered via atexit.
-
-    Sweeps orphan browser and driver automation processes when the interpreter exits,
-    preventing detached Chromium zombies from persisting after unexpected process termination.
-    """
-    if os.environ.get("MYRM_BROWSER_EXIT_REAP_DISABLED", "").strip().lower() in ("1", "true", "yes"):
-        return
-    try:
-        cleanup_orphan_processes(force=True, timeout_s=0.5)
-    except Exception as exc:
-        logger.debug(f"atexit emergency orphan cleanup swallowed exception: {exc}")
-
-
-def register_browser_exit_reaper() -> bool:
-    """Register the atexit emergency browser orphan cleanup hook idempotently.
-
-    Returns:
-        True if the hook was newly registered, False if already registered.
-    """
-    global _exit_reaper_registered
-    if _exit_reaper_registered:
-        return False
-
-    atexit.register(_emergency_cleanup_orphans_on_exit)
-    _exit_reaper_registered = True
-    return True
-
-
-def unregister_browser_exit_reaper() -> bool:
-    """Unregister the atexit emergency browser orphan cleanup hook if registered.
-
-    Returns:
-        True if the hook was unregistered, False if it was not registered.
-    """
-    global _exit_reaper_registered
-    if not _exit_reaper_registered:
-        return False
-
-    with contextlib.suppress(Exception):
-        atexit.unregister(_emergency_cleanup_orphans_on_exit)
-    _exit_reaper_registered = False
-    return True

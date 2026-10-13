@@ -9,7 +9,7 @@
 
 [POS]
 Harness pytest-only teardown helper. Invoked from tests/conftest.py sessionfinish/atexit.
-Complements toolkits.browser.doctor global orphan cleanup and the monorepo root `scripts/dev/cleanup-zombie-tests.sh` (not inside this repo).
+Complements the stamp-based toolkits.browser.doctor orphan check (this helper reaps by process tree instead) and the monorepo root `scripts/dev/cleanup-zombie-tests.sh` (not inside this repo).
 """
 
 from __future__ import annotations

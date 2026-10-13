@@ -1,111 +1,155 @@
-"""Tests for orphan process cleanup, the exit reaper, and the orphan doctor check adapter."""
+"""Orphan cleanup: only a verified leftover is ever signalled, and a stubborn one is escalated to SIGKILL."""
 
 from __future__ import annotations
 
-import os
-import signal
 import sys
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from myrm_agent_harness.toolkits.browser.doctor import (
     CheckStatus,
     check_orphan_processes,
     cleanup_orphan_processes,
-    register_browser_exit_reaper,
-    unregister_browser_exit_reaper,
 )
-from myrm_agent_harness.toolkits.browser.doctor.orphans import (
-    _emergency_cleanup_orphans_on_exit,
-)
+from tests.toolkits.browser._stamped_processes import StampedProcesses, dead_owner_stamp, live_owner_stamp
+
+_ORPHANS = "myrm_agent_harness.toolkits.browser.doctor.orphans"
 
 
-def test_cleanup_orphan_processes_dry_run_default() -> None:
-    """Should not kill processes when force=False (dry-run)."""
-    result = cleanup_orphan_processes([12345, 67890], force=False)
+def test_dry_run_is_the_default_and_signals_nothing(stamped_processes: StampedProcesses) -> None:
+    leftover = stamped_processes.spawn(dead_owner_stamp())
+
+    result = cleanup_orphan_processes([leftover.pid, 67890])
 
     assert result["dry_run"] is True
     assert result["killed"] == 0
     assert result["would_kill"] == 2
     assert "Dry-run" in result["message"]
+    assert leftover.poll() is None
 
 
-def test_cleanup_orphan_processes_with_force() -> None:
-    """Should kill processes when force=True."""
-    with patch("os.kill") as mock_kill:
-        result = cleanup_orphan_processes([12345], force=True)
+def test_force_terminates_a_verified_leftover(stamped_processes: StampedProcesses) -> None:
+    leftover = stamped_processes.spawn(dead_owner_stamp())
 
-        assert result["dry_run"] is False
-        assert result["killed"] == 1
-        mock_kill.assert_called_once()
+    result = cleanup_orphan_processes([leftover.pid], force=True)
+
+    assert result["dry_run"] is False
+    assert result["killed"] == 1
+    assert result["failed"] == []
+    assert stamped_processes.wait_gone(leftover)
 
 
-def test_cleanup_orphan_processes_handles_process_not_found() -> None:
-    """Should handle ProcessLookupError gracefully."""
+def test_force_refuses_a_process_without_stamp(stamped_processes: StampedProcesses) -> None:
+    """A pid that no longer (or never did) belong to a leftover, e.g. after pid reuse, is left alone."""
+    foreign = stamped_processes.spawn(None)
+
+    result = cleanup_orphan_processes([foreign.pid], force=True)
+
+    assert result["killed"] == 0
+    assert result["failed"] == [{"pid": foreign.pid, "reason": "not_an_orphan"}]
+    assert foreign.poll() is None
+
+
+def test_force_refuses_a_process_whose_owner_is_alive(stamped_processes: StampedProcesses) -> None:
+    running = stamped_processes.spawn(live_owner_stamp())
+
+    result = cleanup_orphan_processes([running.pid], force=True)
+
+    assert result["killed"] == 0
+    assert result["failed"] == [{"pid": running.pid, "reason": "not_an_orphan"}]
+    assert running.poll() is None
+
+
+def test_force_ignores_a_pid_that_already_exited(stamped_processes: StampedProcesses) -> None:
+    child = stamped_processes.spawn(dead_owner_stamp())
+    child.kill()
+    child.wait()
+
+    result = cleanup_orphan_processes([child.pid], force=True)
+
+    assert result["killed"] == 0
+    assert result["failed"] == []
+
+
+def test_auto_detect_terminates_leftovers_and_spares_everything_else(stamped_processes: StampedProcesses) -> None:
+    leftover = stamped_processes.spawn(dead_owner_stamp())
+    foreign = stamped_processes.spawn(None, extra_args=("--user-data-dir=/home/u/.cache/ms-playwright/chromium-1",))
+    running = stamped_processes.spawn(live_owner_stamp())
+
+    result = cleanup_orphan_processes(force=True)
+
+    assert result["killed"] >= 1
+    assert stamped_processes.wait_gone(leftover)
+    assert foreign.poll() is None
+    assert running.poll() is None
+
+
+def test_stubborn_leftover_is_escalated_to_sigkill(stamped_processes: StampedProcesses) -> None:
+    """A process that ignores SIGTERM, as a hung renderer does, must still be removed within the grace period."""
+    stubborn = stamped_processes.spawn(dead_owner_stamp(), ignore_sigterm=True)
+
+    result = cleanup_orphan_processes([stubborn.pid], force=True, timeout_s=2.0)
+
+    assert result["killed"] == 1
+    assert stamped_processes.wait_gone(stubborn)
+
+
+def test_without_grace_period_a_stubborn_leftover_only_gets_sigterm(stamped_processes: StampedProcesses) -> None:
+    stubborn = stamped_processes.spawn(dead_owner_stamp(), ignore_sigterm=True)
+
+    result = cleanup_orphan_processes([stubborn.pid], force=True)
+
+    assert result["killed"] == 1
+    assert stubborn.poll() is None
+
+
+def test_leftover_that_survives_sigkill_is_reported_as_failed(stamped_processes: StampedProcesses) -> None:
+    leftover = stamped_processes.spawn(dead_owner_stamp())
+
+    with patch("os.kill"), patch(f"{_ORPHANS}._SIGKILL_SETTLE_S", 0.05):
+        result = cleanup_orphan_processes([leftover.pid], force=True, timeout_s=0.1)
+
+    assert result["killed"] == 0
+    assert result["failed"] == [{"pid": leftover.pid, "reason": "process_still_running_after_kill"}]
+
+
+def test_process_that_exits_between_check_and_signal_is_not_a_failure(stamped_processes: StampedProcesses) -> None:
+    leftover = stamped_processes.spawn(dead_owner_stamp())
+
     with patch("os.kill", side_effect=ProcessLookupError):
-        result = cleanup_orphan_processes([12345], force=True)
+        result = cleanup_orphan_processes([leftover.pid], force=True)
 
-        assert result["killed"] == 0
-        assert result["dry_run"] is False
+    assert result["killed"] == 0
+    assert result["dry_run"] is False
+    assert result["failed"] == []
 
 
-def test_cleanup_orphan_processes_handles_permission_error() -> None:
-    """Should record permission failures."""
+def test_permission_denied_is_recorded(stamped_processes: StampedProcesses) -> None:
+    leftover = stamped_processes.spawn(dead_owner_stamp())
+
     with patch("os.kill", side_effect=PermissionError):
-        result = cleanup_orphan_processes([12345], force=True)
+        result = cleanup_orphan_processes([leftover.pid], force=True)
 
-        assert result["killed"] == 0
-        assert len(result["failed"]) == 1
-        assert result["failed"][0]["reason"] == "permission_denied"
+    assert result["killed"] == 0
+    assert result["failed"] == [{"pid": leftover.pid, "reason": "permission_denied"}]
 
 
-def test_cleanup_orphan_processes_psutil_missing() -> None:
-    """Should return error when psutil unavailable."""
+def test_unexpected_signal_failure_is_recorded_with_its_reason(stamped_processes: StampedProcesses) -> None:
+    leftover = stamped_processes.spawn(dead_owner_stamp())
+
+    with patch("os.kill", side_effect=RuntimeError("signal failed")):
+        result = cleanup_orphan_processes([leftover.pid], force=True)
+
+    assert result["killed"] == 0
+    assert result["failed"] == [{"pid": leftover.pid, "reason": "signal failed"}]
+
+
+def test_cleanup_without_psutil_reports_an_error() -> None:
     with patch.dict(sys.modules, {"psutil": None}):
         result = cleanup_orphan_processes([12345], force=True)
 
-        assert result["dry_run"] is True
-        assert result["killed"] == 0
-        assert result["error"] == "psutil not available"
-
-
-def test_cleanup_orphan_processes_auto_detect() -> None:
-    """Should auto-detect orphans when orphan_pids=None."""
-    mock_proc = MagicMock()
-    mock_proc.info = {
-        "pid": 99999,
-        "name": "chrome",
-        "ppid": 1,
-        "cmdline": [
-            "/path/chrome",
-            "--user-data-dir=/tmp/.cache/patchright/chromium-1234",
-            "--headless",
-        ],
-    }
-
-    mock_parent = MagicMock()
-    mock_parent.name.return_value = "init"
-    mock_parent.pid = 1
-    mock_parent.parent.return_value = None
-
-    with (
-        patch("psutil.process_iter", return_value=[mock_proc]),
-        patch.object(mock_proc, "parent", return_value=mock_parent),
-        patch("os.kill") as mock_kill,
-    ):
-        result = cleanup_orphan_processes(orphan_pids=None, force=True)
-
-        assert result["dry_run"] is False
-        assert result["killed"] == 1
-        mock_kill.assert_called_once_with(99999, signal.SIGTERM)
-
-
-def test_cleanup_orphan_processes_handles_generic_exception() -> None:
-    """Should record any unexpected kill failure with its reason."""
-    with patch("os.kill", side_effect=RuntimeError("signal failed")):
-        result = cleanup_orphan_processes([12345], force=True)
-
-        assert result["killed"] == 0
-        assert result["failed"] == [{"pid": 12345, "reason": "signal failed"}]
+    assert result["dry_run"] is True
+    assert result["killed"] == 0
+    assert result["error"] == "psutil not available"
 
 
 def test_check_orphan_processes_previews_only_first_pids() -> None:
@@ -156,61 +200,3 @@ def test_check_orphan_processes_reports_stale_sandboxes_when_no_orphans() -> Non
     assert result.details["count"] == 0
     assert result.details["stale_sandboxes"] == 3
     assert result.details["stale_sandbox_bytes"] == 104857600
-
-
-def test_cleanup_orphan_processes_escalates_to_sigkill() -> None:
-    """Should escalate to SIGKILL when process does not terminate within timeout_s."""
-    call_log: list[tuple[int, int]] = []
-
-    def mock_kill(pid: int, sig: int) -> None:
-        call_log.append((pid, sig))
-        # After SIGKILL is sent, the next os.kill(pid, 0) probe should report process is gone
-        if sig == 0 and any(s == signal.SIGKILL for (_, s) in call_log):
-            raise ProcessLookupError()
-
-    with patch("os.kill", side_effect=mock_kill):
-        result = cleanup_orphan_processes([54321], force=True, timeout_s=0.1)
-
-        assert result["dry_run"] is False
-        assert result["killed"] == 1
-        signals_sent = [sig for (_, sig) in call_log]
-        assert signal.SIGTERM in signals_sent
-        assert signal.SIGKILL in signals_sent
-
-
-def test_register_and_unregister_browser_exit_reaper() -> None:
-    """Should register and unregister atexit hook idempotently, respecting env disable."""
-    unregister_browser_exit_reaper()
-
-    # First register should succeed
-    assert register_browser_exit_reaper() is True
-    # Second register should be idempotent (return False)
-    assert register_browser_exit_reaper() is False
-
-    # Unregister should succeed
-    assert unregister_browser_exit_reaper() is True
-    assert unregister_browser_exit_reaper() is False
-
-    # Test disabled via environment variable
-    with (
-        patch.dict(os.environ, {"MYRM_BROWSER_EXIT_REAP_DISABLED": "1"}),
-        patch("myrm_agent_harness.toolkits.browser.doctor.orphans.cleanup_orphan_processes") as mock_cleanup,
-    ):
-        _emergency_cleanup_orphans_on_exit()
-        mock_cleanup.assert_not_called()
-
-
-def test_cleanup_orphan_processes_escalation_still_running() -> None:
-    """Should record failure if process remains alive after SIGKILL escalation."""
-    # os.kill is called with: SIGTERM, os.kill(pid, 0) during wait (raises ProcessLookupError if dead),
-    # then SIGKILL, then os.kill(pid, 0) post-kill verification.
-    # Return None for all os.kill calls to simulate process never dying.
-    with (
-        patch("os.kill"),
-        patch("time.time", side_effect=[0.0, 1.0, 2.0]),
-        patch("time.sleep"),
-    ):
-        result = cleanup_orphan_processes([99999], force=True, timeout_s=0.1)
-        assert result["killed"] == 0
-        assert len(result["failed"]) == 1
-        assert result["failed"][0]["reason"] == "process_still_running_after_kill"

@@ -27,7 +27,7 @@ from .sandboxes import cleanup_stale_automation_sandboxes
 def check_orphan_processes() -> DoctorCheckResult:
     """Check for orphan automation browser processes and stale automation sandboxes."""
     orphans = find_orphan_automation_processes()
-    sandbox_stat = cleanup_stale_automation_sandboxes(max_age_hours=24.0, dry_run=True)
+    sandbox_stat = cleanup_stale_automation_sandboxes(dry_run=True)
     stale_sandboxes = sandbox_stat.get("pruned", 0)
     stale_bytes = sandbox_stat.get("reclaimed_bytes", 0)
 

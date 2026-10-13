@@ -3,15 +3,13 @@
 [INPUT]
 - .browser_pool::GlobalBrowserPool (POS: global browser pool)
 - .config::BrowserPoolConfig (POS: browser pool config)
-- ..doctor::cleanup_orphan_processes (POS: orphan process cleanup)
 
 [OUTPUT]
 - get_global_browser_pool: get global pool singleton
 - reset_global_browser_pool_for_tests: shut down and clear pool singleton (test teardown)
 
 [POS]
-Manages the GlobalBrowserPool singleton lifecycle, including atexit/SIGTERM cleanup hooks
-and automatic cleanup of orphan Chrome processes from previous abnormal exits on startup.
+Manages the GlobalBrowserPool singleton lifecycle, including atexit/SIGTERM cleanup hooks.
 """
 
 from __future__ import annotations
@@ -49,8 +47,8 @@ def _shutdown_within_deadline(pool: GlobalBrowserPool) -> None:
     browser. Once that loop is closed (pytest gives every test its own) those futures never resolve, and
     patchright's cancel path waits on them again, so neither a timeout nor a cancellation frees the
     waiter. The work therefore runs on a daemon thread that interpreter exit does not join, and is
-    abandoned at the deadline. Browser processes die with their parent; any survivor is swept by the
-    orphan cleanup at next start.
+    abandoned at the deadline. Browser processes die with their parent; a survivor carries the ownership
+    stamp of its gone owner, so the doctor's orphan check reports it and ``cleanup_orphan_processes`` removes it.
     """
 
     def _run() -> None:
@@ -131,7 +129,6 @@ def get_global_browser_pool(
     global _global_pool
 
     if _global_pool is None:
-        _cleanup_orphan_automation()
         _global_pool = GlobalBrowserPool(
             max_browsers=max_browsers,
             launch_options=launch_options,
@@ -161,15 +158,3 @@ async def reset_global_browser_pool_for_tests() -> None:
         logger.warning("Global browser pool shutdown timed out; dropping the singleton")
     finally:
         _global_pool = None
-
-
-def _cleanup_orphan_automation() -> None:
-    """Auto-cleanup orphan automation processes left by a previous abnormal exit."""
-    try:
-        from ..doctor import cleanup_orphan_processes
-
-        killed = cleanup_orphan_processes(force=True).get("killed", 0)
-        if killed:
-            logger.warning("Cleaned up %s orphan automation process(es) from previous session", killed)
-    except Exception:
-        logger.debug("Orphan cleanup skipped (psutil unavailable or scan failed)", exc_info=True)

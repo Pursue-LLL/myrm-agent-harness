@@ -1,328 +1,123 @@
-"""Tests for precise orphan process detection (process-table scan and ancestry rules)."""
+"""Orphan detection: a process is a leftover only when it carries the stamp of an owner that is gone."""
 
 from __future__ import annotations
 
+import json
+import logging
+import os
+import subprocess
 import sys
-from unittest.mock import MagicMock, create_autospec, patch
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import psutil
+import pytest
 
-from myrm_agent_harness.toolkits.browser.doctor import (
-    find_orphan_automation_processes,
-    find_orphan_chromium_processes,
-    find_orphan_driver_processes,
+import myrm_agent_harness
+from myrm_agent_harness.toolkits.browser.doctor import find_orphan_automation_processes
+from myrm_agent_harness.toolkits.browser.doctor.orphans import _extract_user_data_dir
+from myrm_agent_harness.toolkits.browser.process_owner import OWNER_ENV_VAR
+from tests.toolkits.browser._stamped_processes import StampedProcesses, dead_owner_stamp, live_owner_stamp
+
+# Command lines that look exactly like a Playwright browser of some other tool.
+_FOREIGN_PLAYWRIGHT_ARGS = ("--user-data-dir=/home/user/.cache/ms-playwright/chromium-1208", "--headless")
+
+
+def _reported_pids() -> set[int]:
+    return {orphan["pid"] for orphan in find_orphan_automation_processes()}
+
+
+def test_process_stamped_by_a_gone_owner_is_reported(stamped_processes: StampedProcesses) -> None:
+    profile = "/tmp/playwright_chromiumdev_profile-leftover"
+    child = stamped_processes.spawn(dead_owner_stamp(), extra_args=(f"--user-data-dir={profile}",))
+
+    orphans = [o for o in find_orphan_automation_processes() if o["pid"] == child.pid]
+
+    assert len(orphans) == 1
+    assert orphans[0]["ppid"] == os.getpid()
+    assert orphans[0]["name"]
+    assert orphans[0]["user_data_dir"] == profile
+
+
+def test_process_without_stamp_is_never_reported_whatever_it_looks_like(stamped_processes: StampedProcesses) -> None:
+    """Another tool's browser, launched from any shell and still running, must not be mistaken for a leftover."""
+    foreign = stamped_processes.spawn(None, extra_args=_FOREIGN_PLAYWRIGHT_ARGS)
+
+    assert foreign.pid not in _reported_pids()
+
+
+def test_process_whose_owner_is_alive_is_not_reported(stamped_processes: StampedProcesses) -> None:
+    running = stamped_processes.spawn(live_owner_stamp())
+
+    assert running.pid not in _reported_pids()
+
+
+@pytest.mark.parametrize("stamp", ["garbage", "abc:def", "0:1000", ""])
+def test_process_with_malformed_stamp_is_not_reported(stamped_processes: StampedProcesses, stamp: str) -> None:
+    child = stamped_processes.spawn(stamp)
+
+    assert child.pid not in _reported_pids()
+
+
+def test_only_the_stamped_leftover_is_reported_among_bystanders(stamped_processes: StampedProcesses) -> None:
+    leftover = stamped_processes.spawn(dead_owner_stamp())
+    bystanders = [
+        stamped_processes.spawn(None, extra_args=_FOREIGN_PLAYWRIGHT_ARGS),
+        stamped_processes.spawn(live_owner_stamp()),
+        stamped_processes.spawn("garbage"),
+    ]
+    spawned = {leftover.pid, *(child.pid for child in bystanders)}
+
+    assert _reported_pids() & spawned == {leftover.pid}
+
+
+def test_process_running_the_scan_never_reports_itself(stamped_processes: StampedProcesses) -> None:
+    """A scanning process that inherited a stamp of a gone owner must not list, and so never kill, itself."""
+    src_root = Path(myrm_agent_harness.__file__).resolve().parents[1]
+    scan = (
+        "import json, os\n"
+        "from myrm_agent_harness.toolkits.browser.doctor import find_orphan_automation_processes\n"
+        "print(json.dumps({'me': os.getpid(), 'found': [o['pid'] for o in find_orphan_automation_processes()]}))\n"
+    )
+    env = {**os.environ, OWNER_ENV_VAR: dead_owner_stamp(), "PYTHONPATH": str(src_root)}
+
+    result = subprocess.run([sys.executable, "-c", scan], env=env, capture_output=True, text=True, check=True)
+    outcome = json.loads(result.stdout)
+
+    assert outcome["me"] not in outcome["found"]
+
+
+def test_scan_skips_a_process_that_vanishes_mid_scan(stamped_processes: StampedProcesses) -> None:
+    vanished = MagicMock(spec=psutil.Process)
+    vanished.environ.side_effect = psutil.NoSuchProcess(99999)
+    leftover = stamped_processes.spawn(dead_owner_stamp())
+
+    with patch("psutil.process_iter", return_value=[vanished, psutil.Process(leftover.pid)]):
+        orphans = find_orphan_automation_processes()
+
+    assert [o["pid"] for o in orphans] == [leftover.pid]
+
+
+def test_scan_reports_nothing_without_psutil() -> None:
+    with patch.dict(sys.modules, {"psutil": None}):
+        assert find_orphan_automation_processes() == []
+
+
+def test_scan_failure_is_logged_and_reports_nothing(caplog: pytest.LogCaptureFixture) -> None:
+    with caplog.at_level(logging.WARNING), patch("psutil.process_iter", side_effect=RuntimeError("scan failed")):
+        assert find_orphan_automation_processes() == []
+
+    assert "scan failed" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("cmdline", "expected"),
+    [
+        ("/usr/bin/chrome --user-data-dir=/tmp/playwright_chromium --headless", "/tmp/playwright_chromium"),
+        ("/usr/bin/chrome --user-data-dir /tmp/playwright_chromium --headless", "/tmp/playwright_chromium"),
+        ("/usr/bin/chrome --headless --no-sandbox", ""),
+        ("/usr/bin/chrome --user-data-dir=", ""),
+    ],
 )
-
-
-def test_find_orphan_chromium_processes_psutil_missing() -> None:
-    """Should return empty list when psutil unavailable."""
-    with patch.dict(sys.modules, {"psutil": None}):
-        result = find_orphan_chromium_processes()
-        assert result == []
-
-
-def test_find_orphan_chromium_processes_identifies_orphan() -> None:
-    """Should identify orphan process with patchright cache path."""
-    mock_proc = MagicMock()
-    mock_proc.info = {
-        "pid": 12345,
-        "name": "chrome-headless-shell",
-        "ppid": 1,
-        "cmdline": [
-            "/path/chrome",
-            "--user-data-dir=/Users/test/.cache/ms-playwright/chromium-1208",
-            "--headless",
-        ],
-    }
-
-    mock_parent = MagicMock()
-    mock_parent.name.return_value = "init"
-    mock_parent.pid = 1
-    mock_parent.parent.return_value = None
-
-    with (
-        patch("psutil.process_iter", return_value=[mock_proc]),
-        patch.object(mock_proc, "parent", return_value=mock_parent),
-    ):
-        orphans = find_orphan_chromium_processes()
-        assert len(orphans) == 1
-        assert orphans[0]["pid"] == 12345
-        assert "ms-playwright" in orphans[0]["user_data_dir"]
-
-
-def test_find_orphan_driver_processes_identifies_orphan() -> None:
-    mock_proc = MagicMock()
-    mock_proc.info = {
-        "pid": 22222,
-        "name": "node",
-        "ppid": 1,
-        "cmdline": [
-            "/venv/lib/patchright/driver/node",
-            "/venv/lib/patchright/driver/package/cli.js",
-            "run-driver",
-        ],
-    }
-
-    mock_parent = MagicMock()
-    mock_parent.name.return_value = "init"
-    mock_parent.pid = 1
-    mock_parent.parent.return_value = None
-
-    with (
-        patch("psutil.process_iter", return_value=[mock_proc]),
-        patch.object(mock_proc, "parent", return_value=mock_parent),
-    ):
-        orphans = find_orphan_driver_processes()
-        assert len(orphans) == 1
-        assert orphans[0]["pid"] == 22222
-
-
-def test_find_orphan_automation_processes_merges_chromium_and_driver() -> None:
-    chromium_proc = MagicMock()
-    chromium_proc.info = {
-        "pid": 11111,
-        "name": "chrome-headless-shell",
-        "ppid": 1,
-        "cmdline": [
-            "/path/chrome",
-            "--user-data-dir=/tmp/.cache/ms-playwright/chromium-1208",
-        ],
-    }
-    driver_proc = MagicMock()
-    driver_proc.info = {
-        "pid": 22222,
-        "name": "node",
-        "ppid": 1,
-        "cmdline": ["/venv/patchright/driver/node", "run-driver"],
-    }
-
-    mock_parent = MagicMock()
-    mock_parent.name.return_value = "init"
-    mock_parent.pid = 1
-    mock_parent.parent.return_value = None
-
-    with (
-        patch("psutil.process_iter", return_value=[chromium_proc, driver_proc]),
-        patch.object(chromium_proc, "parent", return_value=mock_parent),
-        patch.object(driver_proc, "parent", return_value=mock_parent),
-    ):
-        orphans = find_orphan_automation_processes()
-        assert {int(o["pid"]) for o in orphans} == {11111, 22222}
-
-
-def test_find_orphan_chromium_processes_skips_user_chrome() -> None:
-    """Should skip user-launched Chrome (non-automation path)."""
-    mock_proc = MagicMock()
-    mock_proc.info = {
-        "pid": 12345,
-        "name": "Google Chrome",
-        "ppid": 1,
-        "cmdline": [
-            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-            "--user-data-dir=/Users/test/Library/Application Support/Google/Chrome",
-        ],
-    }
-
-    with patch("psutil.process_iter", return_value=[mock_proc]):
-        orphans = find_orphan_chromium_processes()
-        assert len(orphans) == 0
-
-
-def test_find_orphan_chromium_processes_scan_exception() -> None:
-    """Should handle exception during process iteration."""
-    with patch("psutil.process_iter", side_effect=RuntimeError("scan failed")):
-        orphans = find_orphan_chromium_processes()
-
-        assert orphans == []
-
-
-def test_find_orphan_chromium_skips_empty_cmdline() -> None:
-    """Should skip chromium processes with an empty cmdline."""
-    mock_proc = MagicMock()
-    mock_proc.info = {
-        "pid": 12345,
-        "name": "chrome-headless-shell",
-        "ppid": 1,
-        "cmdline": [],
-    }
-
-    with patch("psutil.process_iter", return_value=[mock_proc]):
-        orphans = find_orphan_chromium_processes()
-
-        assert orphans == []
-
-
-def test_find_orphan_chromium_skips_missing_user_data_dir() -> None:
-    """Should skip chromium without a user-data-dir flag."""
-    mock_proc = MagicMock()
-    mock_proc.info = {
-        "pid": 12345,
-        "name": "chrome-headless-shell",
-        "ppid": 1,
-        "cmdline": ["/path/chrome", "--headless", "--no-sandbox"],
-    }
-
-    with patch("psutil.process_iter", return_value=[mock_proc]):
-        orphans = find_orphan_chromium_processes()
-
-        assert orphans == []
-
-
-def test_find_orphan_chromium_skips_empty_user_data_dir_value() -> None:
-    """Should skip chromium whose user-data-dir flag has no value."""
-    mock_proc = MagicMock()
-    mock_proc.info = {
-        "pid": 12345,
-        "name": "chrome",
-        "ppid": 1,
-        "cmdline": ["/path/chrome", "--user-data-dir="],
-    }
-
-    with patch("psutil.process_iter", return_value=[mock_proc]):
-        orphans = find_orphan_chromium_processes()
-
-        assert orphans == []
-
-
-def test_find_orphan_chromium_skips_process_with_python_ancestor() -> None:
-    """Should skip automation processes that still have a python parent."""
-    mock_proc = create_autospec(psutil.Process)
-    mock_proc.info = {
-        "pid": 12345,
-        "name": "chrome",
-        "ppid": 9999,
-        "cmdline": [
-            "/path/chrome",
-            "--user-data-dir=/tmp/.cache/patchright/chromium-123",
-        ],
-    }
-    parent = create_autospec(psutil.Process)
-    parent.pid = 9999
-    parent.name.return_value = "python3.13"
-    parent.parent.return_value = None
-    mock_proc.parent.return_value = parent
-
-    with patch("psutil.process_iter", return_value=[mock_proc]):
-        orphans = find_orphan_chromium_processes()
-
-        assert orphans == []
-
-
-def test_find_orphan_chromium_skips_non_automation_cache() -> None:
-    """Should skip chromium using a non-automation profile path."""
-    mock_proc = MagicMock()
-    mock_proc.info = {
-        "pid": 12345,
-        "name": "chrome",
-        "ppid": 1,
-        "cmdline": ["/path/chrome", "--user-data-dir=/tmp/selenium_chrome"],
-    }
-
-    with patch("psutil.process_iter", return_value=[mock_proc]):
-        orphans = find_orphan_chromium_processes()
-
-        assert orphans == []
-
-
-def test_find_orphan_chromium_handles_access_denied() -> None:
-    """Should tolerate AccessDenied raised while scanning a process."""
-    mock_proc = MagicMock()
-    mock_proc.info = {
-        "pid": 12345,
-        "name": "chrome",
-        "ppid": 1,
-        "cmdline": [
-            "/path/chrome",
-            "--user-data-dir=/tmp/.cache/patchright/chromium-123",
-        ],
-    }
-
-    with (
-        patch("psutil.process_iter", return_value=[mock_proc]),
-        patch(
-            "myrm_agent_harness.toolkits.browser.doctor.orphans._has_python_ancestor",
-            side_effect=psutil.AccessDenied(),
-        ),
-    ):
-        orphans = find_orphan_chromium_processes()
-
-        assert orphans == []
-
-
-def test_find_orphan_driver_psutil_missing() -> None:
-    """Should return empty list when psutil unavailable."""
-    with patch.dict(sys.modules, {"psutil": None}):
-        orphans = find_orphan_driver_processes()
-
-        assert orphans == []
-
-
-def test_find_orphan_driver_skips_empty_cmdline() -> None:
-    """Should skip driver processes with an empty cmdline."""
-    mock_proc = MagicMock()
-    mock_proc.info = {
-        "pid": 22222,
-        "name": "node",
-        "ppid": 1,
-        "cmdline": [],
-    }
-
-    with patch("psutil.process_iter", return_value=[mock_proc]):
-        orphans = find_orphan_driver_processes()
-
-        assert orphans == []
-
-
-def test_find_orphan_driver_handles_access_denied() -> None:
-    """Should tolerate AccessDenied while scanning a driver process."""
-    mock_proc = MagicMock()
-    mock_proc.info = {
-        "pid": 22222,
-        "name": "node",
-        "ppid": 1,
-        "cmdline": ["/venv/patchright/driver/node", "run-driver"],
-    }
-
-    with (
-        patch("psutil.process_iter", return_value=[mock_proc]),
-        patch(
-            "myrm_agent_harness.toolkits.browser.doctor.orphans._has_python_ancestor",
-            side_effect=psutil.AccessDenied(),
-        ),
-    ):
-        orphans = find_orphan_driver_processes()
-
-        assert orphans == []
-
-
-def test_find_orphan_automation_deduplicates_pids() -> None:
-    """Should merge both scans and drop duplicate pids."""
-    dup = {
-        "pid": 12345,
-        "name": "chrome",
-        "ppid": 1,
-        "user_data_dir": "/tmp/x",
-    }
-
-    with (
-        patch(
-            "myrm_agent_harness.toolkits.browser.doctor.orphans.find_orphan_chromium_processes",
-            return_value=[dup],
-        ),
-        patch(
-            "myrm_agent_harness.toolkits.browser.doctor.orphans.find_orphan_driver_processes",
-            return_value=[dup],
-        ),
-    ):
-        orphans = find_orphan_automation_processes()
-
-        assert len(orphans) == 1
-        assert orphans[0]["pid"] == 12345
-
-
-def test_find_orphan_driver_scan_exception() -> None:
-    """Should handle exception during driver process iteration."""
-    with patch("psutil.process_iter", side_effect=RuntimeError("scan failed")):
-        orphans = find_orphan_driver_processes()
-
-        assert orphans == []
+def test_user_data_dir_is_read_from_either_flag_syntax(cmdline: str, expected: str) -> None:
+    assert _extract_user_data_dir(cmdline) == expected

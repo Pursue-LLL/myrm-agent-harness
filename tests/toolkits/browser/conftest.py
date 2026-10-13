@@ -4,8 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import atexit
+from collections.abc import Iterator
+from typing import TYPE_CHECKING
 
 import pytest
+
+if TYPE_CHECKING:
+    from tests.toolkits.browser._stamped_processes import StampedProcesses
 
 try:
     from patchright.async_api import Browser, BrowserContext, async_playwright
@@ -49,6 +54,15 @@ def browser_context():
     asyncio.run(setup())
     yield _shared_context
     asyncio.run(teardown())
+
+
+@pytest.fixture
+def stamped_processes() -> Iterator[StampedProcesses]:
+    """Real child processes carrying a chosen ownership stamp; every one is killed at teardown."""
+    from tests.toolkits.browser._stamped_processes import StampedProcesses
+
+    with StampedProcesses() as processes:
+        yield processes
 
 
 def _cleanup_browser_child_processes() -> None:

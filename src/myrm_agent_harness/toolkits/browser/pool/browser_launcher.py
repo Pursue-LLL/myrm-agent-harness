@@ -7,6 +7,8 @@
 - .config::LaunchMode, _DEFAULT_CDP_ENDPOINT (POS: launch method enum and default CDP endpoint)
 - .chrome_discovery::discover_chrome_cdp_endpoint (POS: DevToolsActivePort-based browser discovery)
 - .camoufox_availability::require_camoufox_ready (POS: non-downloading Camoufox readiness gate)
+- ..process_owner::owner_stamped_environ (POS: ownership stamp for the Playwright driver start)
+- .browser_launch_env::chromium_launch_env, camoufox_launch_env (POS: environment of launched browser processes)
 
 [OUTPUT]
 - BrowserLauncher: browser instance launcher (supports launch/connect/auto modes)
@@ -38,6 +40,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ..exceptions import BrowserLaunchError
+from ..process_owner import owner_stamped_environ
+from .browser_launch_env import camoufox_launch_env, chromium_launch_env
 from .camoufox_availability import require_camoufox_ready
 from .config import _DEFAULT_CDP_ENDPOINT, BrowserEngine, LaunchMode
 
@@ -66,18 +70,6 @@ def _is_executable_missing(error: Exception) -> bool:
     """Detect if a launch failure is caused by missing browser executable."""
     msg = str(error).lower()
     return "executable doesn't exist" in msg or "no such file or directory" in msg
-
-
-def _camoufox_launch_env(fingerprint_env: object | None) -> dict[str, str]:
-    """Build Camoufox subprocess env: sanitize host env, then overlay fingerprint keys."""
-    from myrm_agent_harness.toolkits.code_execution.security.validator import sanitize_env
-
-    merged = sanitize_env(os.environ.copy())
-    if isinstance(fingerprint_env, dict):
-        for key, value in fingerprint_env.items():
-            if isinstance(key, str) and isinstance(value, str):
-                merged[key] = value
-    return merged
 
 
 def _get_install_env() -> dict[str, str]:
@@ -267,7 +259,8 @@ class BrowserLauncher:
         if not self._playwright:
             from patchright.async_api import async_playwright
 
-            self._playwright = await async_playwright().start()
+            with owner_stamped_environ():
+                self._playwright = await async_playwright().start()
         return self._playwright
 
     async def create_browser(self, headers: dict[str, str] | None = None) -> BrowserInstance:
@@ -435,7 +428,7 @@ class BrowserLauncher:
                         build_kwargs: dict[str, object] = {
                             "headless": self._launch_options.get("headless", True),
                             "fingerprint_preset": True,
-                            "env": _camoufox_launch_env(None),
+                            "env": camoufox_launch_env(None),
                         }
                         proxy = self._launch_options.get("proxy")
                         if proxy is not None:
@@ -457,7 +450,7 @@ class BrowserLauncher:
 
                     if isinstance(camoufox_config, dict):
                         camoufox_config = dict(camoufox_config)
-                        camoufox_config["env"] = _camoufox_launch_env(camoufox_config.get("env"))
+                        camoufox_config["env"] = camoufox_launch_env(camoufox_config.get("env"))
 
                     browser = await AsyncCamoufox(from_options=camoufox_config).start()
 
@@ -469,10 +462,8 @@ class BrowserLauncher:
                     logger.info(f"Launched new Camoufox Browser instance (attempt {attempt + 1}/3, PID: {pid})")
                 else:
                     pw = await self._ensure_playwright()
-                    from myrm_agent_harness.toolkits.code_execution.security.validator import sanitize_env
-
                     launch_kwargs = dict(self._launch_options)
-                    launch_kwargs["env"] = sanitize_env(os.environ.copy())
+                    launch_kwargs["env"] = chromium_launch_env()
                     if sys.platform == "darwin":
                         existing_args = list(launch_kwargs.get("args") or [])
                         if not any("MacAppCodeSignClone" in str(arg) for arg in existing_args):

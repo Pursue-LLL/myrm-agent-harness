@@ -5,6 +5,7 @@ operator-facing fix for each failure class.
 
 [INPUT]
 - patchright (optional extra [browser]): imported lazily so a missing package is reported instead of raised
+- ..process_owner::owner_stamped_environ (POS: ownership stamp inherited by the probe's driver and browser)
 - ..utils::is_timeout_error (POS: builtin/patchright timeout detection)
 - .report::CheckStatus/DoctorCheckResult (POS: doctor data models)
 
@@ -23,6 +24,7 @@ import sys
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
+from ..process_owner import owner_stamped_environ
 from ..utils import is_timeout_error
 from .report import CheckStatus, DoctorCheckResult
 
@@ -41,7 +43,8 @@ async def _probe_browser_launch(
     Releases the playwright connection on every exit path so a cancelled probe
     (e.g. the enclosing timeout) never leaks browser processes.
     """
-    playwright = await async_playwright().start()
+    with owner_stamped_environ():
+        playwright = await async_playwright().start()
     try:
         # launch_opts is a caller-supplied open mapping; Playwright validates the keys at launch time.
         browser = await playwright.chromium.launch(**launch_opts)  # type: ignore[arg-type]

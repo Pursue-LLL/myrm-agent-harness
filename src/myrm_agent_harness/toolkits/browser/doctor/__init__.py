@@ -2,8 +2,9 @@
 
 Validates dependencies, configuration, environment, and browser launchability
 before actual operations. Provides clear fix suggestions for each failure.
-Includes precise orphan process detection (matches patchright/playwright cache
-paths) with safety mechanisms (dry-run default, force flag required for cleanup).
+Includes leftover process detection (browsers whose launching process is gone, read
+from the ownership stamp) with safety mechanisms (dry-run default, force flag required
+for cleanup).
 
 This package is the public facade for the doctor subdomain; it re-exports the
 public symbols of the internal ``checks``, ``launch_check``, ``orphan_check``,
@@ -14,14 +15,14 @@ public symbols of the internal ``checks``, ``launch_check``, ``orphan_check``,
 - .checks (POS: environment/dependency checks + run_doctor orchestrator)
 - .launch_check (POS: bounded headless launch test)
 - .orphan_check (POS: orphan process doctor check adapter)
-- .orphans (POS: orphan process detection and cleanup)
+- .orphans (POS: stamp-based leftover process detection and cleanup)
 - .sandboxes (POS: stale automation sandbox cleanup)
 - .report (POS: doctor data models and CLI rendering)
 
 [OUTPUT]
 - run_doctor: pre-flight diagnostics orchestrator (re-export)
 - check_memory / check_disk / check_browser_launch: individual checks reused outside the orchestrator (re-export)
-- check_orphan_processes / cleanup_orphan_processes / find_orphan_*: orphan process utilities (re-export)
+- check_orphan_processes / cleanup_orphan_processes / find_orphan_automation_processes: orphan process utilities (re-export)
 - cleanup_stale_automation_sandboxes: stale sandbox prune (re-export)
 - OrphanProcess / OrphanCleanupResult / SandboxCleanupResult: typed result shapes (re-export)
 - CheckStatus / DoctorCheckResult / DoctorReport / format_report: report contract (re-export)
@@ -41,10 +42,6 @@ from .orphans import (
     OrphanProcess,
     cleanup_orphan_processes,
     find_orphan_automation_processes,
-    find_orphan_chromium_processes,
-    find_orphan_driver_processes,
-    register_browser_exit_reaper,
-    unregister_browser_exit_reaper,
 )
 from .report import (
     CheckStatus,
@@ -68,10 +65,6 @@ __all__ = [
     "cleanup_orphan_processes",
     "cleanup_stale_automation_sandboxes",
     "find_orphan_automation_processes",
-    "find_orphan_chromium_processes",
-    "find_orphan_driver_processes",
     "format_report",
-    "register_browser_exit_reaper",
     "run_doctor",
-    "unregister_browser_exit_reaper",
 ]

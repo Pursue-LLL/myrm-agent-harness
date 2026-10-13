@@ -37,7 +37,7 @@ Reuses the existing ``ManagedBrowser`` (Patchright) infrastructure.
 - CaptureCallback: real-time step notification protocol (re-export)
 - run_doctor: 浏览器环境诊断编排器（re-export, doctor 子包）
 - format_report: 诊断报告 CLI 渲染（re-export, doctor 子包）
-- find_orphan_chromium_processes / find_orphan_driver_processes / find_orphan_automation_processes: 孤儿进程检测（re-export, doctor 子包）
+- find_orphan_automation_processes: 孤儿进程检测（re-export, doctor 子包）
 - cleanup_orphan_processes: 孤儿进程安全清理（re-export, doctor 子包）
 - cleanup_stale_automation_sandboxes: 过期自动化沙箱清理（re-export, doctor 子包）
 
@@ -107,12 +107,8 @@ if TYPE_CHECKING:
         cleanup_orphan_processes,
         cleanup_stale_automation_sandboxes,
         find_orphan_automation_processes,
-        find_orphan_chromium_processes,
-        find_orphan_driver_processes,
         format_report,
-        register_browser_exit_reaper,
         run_doctor,
-        unregister_browser_exit_reaper,
     )
     from .observability import BrowserObservability, RecordingConfig
     from .session_vault import (
@@ -188,16 +184,12 @@ __all__ = [
     "validate_next_step_action",
     "validate_target_element",
     "find_orphan_automation_processes",
-    "find_orphan_chromium_processes",
-    "find_orphan_driver_processes",
     "format_report",
     "get_browser_state",
     "load_or_create_key",
     "merge_metadata",
-    "register_browser_exit_reaper",
     "restore_browser_state",
     "run_doctor",
-    "unregister_browser_exit_reaper",
 ]
 
 _LAZY_MODULES = {
@@ -221,10 +213,6 @@ _LAZY_MODULES = {
     "doctor.orphans": [
         "cleanup_orphan_processes",
         "find_orphan_automation_processes",
-        "find_orphan_chromium_processes",
-        "find_orphan_driver_processes",
-        "register_browser_exit_reaper",
-        "unregister_browser_exit_reaper",
     ],
     "doctor.sandboxes": [
         "cleanup_stale_automation_sandboxes",
@@ -286,12 +274,3 @@ def __getattr__(name: str) -> object:
         return globals()[name]
 
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
-
-# Automatically register emergency orphan reaper on interpreter exit
-try:
-    from .doctor.orphans import register_browser_exit_reaper as _register_exit_reaper
-
-    _register_exit_reaper()
-except Exception:
-    pass
