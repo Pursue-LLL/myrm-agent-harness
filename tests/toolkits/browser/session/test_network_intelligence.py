@@ -1,5 +1,6 @@
 """Unit tests for NetworkIntelligence — CDP-based lazy response body retrieval."""
 
+import asyncio
 from dataclasses import FrozenInstanceError
 from unittest.mock import AsyncMock, MagicMock
 
@@ -338,6 +339,28 @@ class TestNetworkIntelligence:
         await ni.detach()
         assert not ni.is_enabled
         mock_cdp.detach.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_detach_on_wedged_page_is_bounded(self, monkeypatch):
+        from myrm_agent_harness.toolkits.browser.session import network_intelligence
+
+        monkeypatch.setattr(network_intelligence, "_DETACH_TIMEOUT_S", 0.05)
+
+        async def never_answers() -> None:
+            await asyncio.Event().wait()
+
+        mock_page = MagicMock()
+        mock_cdp = AsyncMock()
+        mock_cdp.on = MagicMock()
+        mock_cdp.detach.side_effect = never_answers
+        mock_page.context.new_cdp_session = AsyncMock(return_value=mock_cdp)
+
+        ni = NetworkIntelligence()
+        await ni.attach(mock_page)
+
+        await asyncio.wait_for(ni.detach(), timeout=1.0)
+
+        assert not ni.is_enabled
 
     @pytest.mark.asyncio
     async def test_get_response_body_success(self):

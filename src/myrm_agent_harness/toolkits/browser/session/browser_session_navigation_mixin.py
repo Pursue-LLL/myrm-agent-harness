@@ -1,21 +1,26 @@
-"""BrowserSession navigation, tab switching, and CAPTCHA coordination APIs.
+"""BrowserSession navigation API.
 
 [INPUT]
 - navigation::Navigator (POS: throttled page navigation)
-- captcha protocols and coordinator (POS: blocking CAPTCHA detection/handling)
+- session.browser_session_tab_mixin::BrowserSessionTabMixin (POS: tab APIs navigate() relies on, inherited)
+- session.browser_session_captcha_mixin::BrowserSessionCaptchaMixin (POS: CAPTCHA step of navigate(), inherited)
+- captcha protocols (POS: CAPTCHA result type consumed by the navigate() escalation path)
 - web_fetch site experience store (POS: post-navigation experience injection)
 - domain_skills::DomainSkillStore (POS: executable-layer domain skill registry)
 - exceptions::BrowserLaunchError, EngineUnavailableError (POS: launch failure vs. engine switch refused before any state change)
 - pool.engine_affinity::get_engine_affinity_store (POS: per-domain engine hint store)
+- utils.page_health::PageUnresponsiveError (POS: signals a page that stopped answering mid-navigation)
 
 [OUTPUT]
-- BrowserSessionNavigationMixin: new_tab, navigate, tab switch/close, CAPTCHA helpers, Stealth Ladder upgrade
+- BrowserSessionNavigationMixin: navigate, private-network extension routing, Stealth Ladder upgrade
 
 [POS]
-Navigation and tab-management APIs for BrowserSession. Calls lifecycle mixin for
-component initialization; must appear before BrowserSessionLifecycleMixin in MRO.
-Escalates Patchright to the optional Camoufox engine on unresolved blocks and falls back
-to human takeover when that engine is unavailable.
+Navigation API for BrowserSession. Calls lifecycle mixin for component initialization; must
+appear before BrowserSessionLifecycleMixin in MRO. Tab management and CAPTCHA detection live in
+the mixins it inherits, so the aggregate root lists one entry for all three. Escalates Patchright
+to the optional Camoufox engine on unresolved blocks and falls back to human takeover when that
+engine is unavailable. A page that stopped answering during navigation is replaced via
+`recover_active_tab` before the error reaches the caller.
 """
 
 from __future__ import annotations
@@ -28,6 +33,9 @@ from urllib.parse import urlparse
 from myrm_agent_harness.core.security.redact import redact_sensitive_text
 from myrm_agent_harness.toolkits.browser.captcha.protocols import CaptchaHandleResult
 from myrm_agent_harness.toolkits.browser.exceptions import BrowserLaunchError, EngineUnavailableError
+from myrm_agent_harness.toolkits.browser.session.browser_session_captcha_mixin import BrowserSessionCaptchaMixin
+from myrm_agent_harness.toolkits.browser.session.browser_session_tab_mixin import BrowserSessionTabMixin
+from myrm_agent_harness.toolkits.browser.utils.page_health import PageUnresponsiveError
 
 logger = logging.getLogger(__name__)
 
@@ -68,38 +76,10 @@ def _camoufox_launch_tool_error(exc: BrowserLaunchError) -> NoReturn:
     ) from exc
 
 
-class BrowserSessionNavigationMixin:
+class BrowserSessionNavigationMixin(BrowserSessionTabMixin, BrowserSessionCaptchaMixin):
+    """navigate() and its dependencies: tab APIs and the CAPTCHA step are inherited."""
+
     _TERMINAL_CHALLENGE_TTL_S = 600.0
-
-    async def new_tab(self, url: str | None = None) -> str:
-        """Create new Tab or reuse existing same-origin Tab, return Tab ID."""
-        if hasattr(self, "_ensure_not_user_takeover"):
-            await self._ensure_not_user_takeover()
-        if url:
-            parsed = urlparse(url)
-            origin = f"{parsed.scheme}://{parsed.netloc}"
-
-            existing = self._tab_controller.find_tab_by_origin(origin)
-            if existing is not None:
-                await self._tab_controller.switch_tab(existing.tab_id)
-                await self._initialize_components()
-                await self.navigate(url)
-                return existing.tab_id
-
-        tab_id = await self._tab_controller.create_tab(
-            self._context_key,
-            engine_preference=self._engine_preference,
-            launch_mode_preference=self._launch_mode_preference,
-        )
-        await self._initialize_components()
-        # Keep mobile emulation session-consistent: a new tab inherits the
-        # active device profile (no-op when desktop is emulated).
-        await self._device_emulator.reapply(self._tab_controller.get_active_page())
-
-        if url:
-            await self.navigate(url)
-
-        return tab_id
 
     def _hostname_blocked_by_policy(self, url: str) -> str | None:
         """Return blocked hostname when URL matches configured blocklist."""
@@ -274,6 +254,14 @@ class BrowserSessionNavigationMixin:
                     # Restart session to get a new proxy and migrate state losslessly
                     await self.restart(restore_url=False)
                     continue
+
+                if isinstance(e, PageUnresponsiveError):
+                    # Retrying would stall the same way; give the next call a working tab instead.
+                    replacement = await self.recover_active_tab()
+                    if replacement is not None:
+                        raise PageUnresponsiveError(
+                            f"{e} The tab was reset to a blank page ({replacement}); navigate again to continue."
+                        ) from e
 
                 # If not a proxy error or out of retries, re-raise
                 raise
@@ -452,98 +440,6 @@ class BrowserSessionNavigationMixin:
                     user_hint="The browser extension is connected but failed to navigate this URL. Reconnect and retry.",
                     error_code="PRIVATE_URL_NAV_FAILED",
                 ) from exc
-
-    async def _handle_captcha_if_detected(self) -> CaptchaHandleResult | None:
-        """Detect and handle blocking CAPTCHAs on the current page.
-
-        Called after navigate() and after click/dblclick interactions.
-
-        Returns:
-            Structured result if a CAPTCHA was detected, otherwise ``None``.
-        """
-        if self._captcha_coordinator is None:
-            return None
-
-        from myrm_agent_harness.toolkits.browser.captcha import detect_captcha
-
-        page = self._tab_controller.get_active_page()
-        captcha_info = await detect_captcha(page)
-
-        if captcha_info is None or not captcha_info.blocking:
-            return None
-
-        solve_result = await self._captcha_coordinator.handle_captcha(
-            captcha_info,
-            page,
-            is_managed=self.is_browser_managed(),
-        )
-        self._captcha_coordinator.reset()
-
-        if solve_result.success:
-            return CaptchaHandleResult(
-                success=True,
-                challenge_type=captcha_info.captcha_type.value,
-                message=f"CAPTCHA resolved ({captcha_info.captcha_type.value}) via {solve_result.method}",
-            )
-        return CaptchaHandleResult(
-            success=False,
-            challenge_type=captcha_info.captcha_type.value,
-            message=f"CAPTCHA not resolved ({captcha_info.reason}): {solve_result.message}",
-        )
-
-    def list_tabs(self) -> list[str]:
-        """List all Tabs ID"""
-        return self._tab_controller.list_tabs()
-
-    def list_tabs_with_info(self) -> list[dict[str, str]]:
-        """List all tabs with domain info for display."""
-        return self._tab_controller.list_tabs_with_info()
-
-    def get_active_tab_id(self) -> str:
-        """Get the ID of the currently active tab."""
-        return self._tab_controller.get_active_tab_id()
-
-    async def close_tab(self, tab_id: str) -> str:
-        """Close specified Tab; if still has Tab, bind Component to Current active page."""
-        if self._tab_controller.list_tabs() and tab_id == self._tab_controller.get_active_tab_id():
-            try:
-                page = self._tab_controller.get_active_page()
-                self._network_logger.detach_page(page)
-                self._console_logger.detach_page(page)
-                self._dialog_manager.detach(page)
-            except RuntimeError:
-                pass
-        # Clear device emulation state bound to the closing page so pool-
-        # recycled pages never keep stale mobile overrides.
-        closing_page = self._tab_controller.get_page(tab_id)
-        await self._device_emulator.forget_page(closing_page)
-        await self._tab_controller.close_tab(tab_id)
-        if self._tab_controller.list_tabs():
-            await self._initialize_components()
-            # Keep mobile emulation session-consistent: the new active tab
-            # inherits the active device profile (no-op when desktop is emulated).
-            await self._device_emulator.reapply(self._tab_controller.get_active_page())
-        else:
-            self._navigator = None
-            self._snapshot_manager = None
-            self._interactor = None
-            self._extractor = None
-            self._network_logger.stop_capture()
-            self._console_logger.stop_capture()
-            await self._network_intelligence.detach()
-            # No tabs remain: drop device emulation state so a fresh tab
-            # starts from native desktop instead of inheriting stale overrides.
-            await self._device_emulator.detach()
-        return f"Closed tab {tab_id}"
-
-    async def switch_tab(self, tab_id: str) -> str:
-        """Switch active Tab and rebind Navigator / Snapshot / Interactor / Extract etc. Component."""
-        await self._tab_controller.switch_tab(tab_id)
-        await self._initialize_components()
-        # Keep mobile emulation session-consistent: the newly activated tab
-        # inherits the active device profile (no-op when desktop is emulated).
-        await self._device_emulator.reapply(self._tab_controller.get_active_page())
-        return f"Switched to tab {tab_id}"
 
     @staticmethod
     def _get_site_experience_hint(url: str) -> str:

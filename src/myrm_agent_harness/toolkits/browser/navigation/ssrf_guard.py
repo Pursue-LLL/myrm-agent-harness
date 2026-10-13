@@ -2,6 +2,7 @@
 
 [INPUT]
 - core.security.guards.ssrf::async_pin_url (POS: DNS-validated URL checks + audit)
+- utils.page_health::abort_pending_navigation (POS: stops a stalled navigation so route teardown can complete)
 
 [OUTPUT]
 - assert_browser_navigation_allowed: Validate a navigation URL
@@ -10,19 +11,25 @@
 
 [POS]
 Playwright-specific SSRF guard aligned with OpenClaw document navigation policy.
-Reuses core SSRF guards; does not duplicate IP blocklists.
+Reuses core SSRF guards; does not duplicate IP blocklists. A failed navigation is stopped
+before the route handler is removed, and the removal itself is bounded, because a main frame
+stuck in a stalled navigation never answers `unroute`.
 """
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
+
+from ..utils.page_health import abort_pending_navigation
 
 if TYPE_CHECKING:
     from patchright.async_api import Page, Request, Response, Route
 
 _NETWORK_SCHEMES = frozenset({"http", "https"})
+_UNROUTE_TIMEOUT_S = 2.0
 
 
 class BrowserNavigationBlockedError(ValueError):
@@ -121,5 +128,9 @@ async def goto_with_ssrf_guard(
         await assert_browser_redirect_chain_allowed(response.request if response else None)
         await assert_browser_navigation_allowed(page.url)
         return response
+    except BaseException:
+        await abort_pending_navigation(page)
+        raise
     finally:
-        await page.unroute("**/*", handler)
+        with contextlib.suppress(Exception):
+            await asyncio.wait_for(page.unroute("**/*", handler), timeout=_UNROUTE_TIMEOUT_S)

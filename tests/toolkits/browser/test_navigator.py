@@ -31,6 +31,7 @@ def create_mock_page(url: str = "http://example.com", status: int = 200, title: 
     mock_page.title = AsyncMock(return_value=title)
     mock_page.url = url
     mock_page.evaluate = AsyncMock(return_value=None)
+    mock_page.is_closed = MagicMock(return_value=False)
     _apply_ssrf_guard_stubs(mock_page)
     return mock_page
 
@@ -374,20 +375,24 @@ class TestNavigatorPrivateNetworks:
 
 
 class TestNavigatorTimeoutRescue:
-    """Timeout rescue behavior for _do_navigate."""
+    """A navigation that outlives its budget is stopped; a committed document is kept."""
+
+    @staticmethod
+    def _goto_that_commits_then_times_out(mock_page: MagicMock, committed_url: str, error: Exception):
+        async def goto(*args: object, **kwargs: object) -> None:
+            mock_page.url = committed_url  # the document committed, then the deadline hit
+            raise error
+
+        return goto
 
     @pytest.mark.asyncio
-    async def test_builtin_timeout_triggers_rescue(self, monkeypatch):
-        """builtins.TimeoutError from SSRF-guarded goto is rescued (no raise, status 200)."""
-        mock_page = create_mock_page("https://example.com", 200, "Slow Page")
+    async def test_builtin_timeout_keeps_committed_document(self, monkeypatch):
+        """builtins.TimeoutError after the document committed: partial content is kept (status 200)."""
+        mock_page = create_mock_page("about:blank", 200, "Slow Page")
         navigator = Navigator(mock_page)
-
-        async def raise_timeout(*args, **kwargs):
-            raise TimeoutError("navigation timed out")
-
         monkeypatch.setattr(
             "myrm_agent_harness.toolkits.browser.navigation.ssrf_guard.goto_with_ssrf_guard",
-            raise_timeout,
+            self._goto_that_commits_then_times_out(mock_page, "https://example.com", TimeoutError("timed out")),
         )
 
         title, final_url, status = await navigator.goto("https://example.com")
@@ -395,30 +400,68 @@ class TestNavigatorTimeoutRescue:
         assert title == "Slow Page"
         assert final_url == "https://example.com"
         assert status == 200
-        mock_page.evaluate.assert_awaited_with("window.stop()")
+        # No CDP session on the double, so the load is stopped page-side, then liveness is proven.
+        assert [call.args[0] for call in mock_page.evaluate.await_args_list] == ["window.stop()", "1"]
 
     @pytest.mark.asyncio
-    async def test_patchright_timeout_triggers_rescue(self, monkeypatch):
-        """patchright TimeoutError from SSRF-guarded goto is rescued (no raise, status 200)."""
+    async def test_patchright_timeout_keeps_committed_document(self, monkeypatch):
+        """patchright TimeoutError after the document committed is settled the same way."""
         from patchright.async_api import TimeoutError as PlaywrightTimeoutError
 
-        mock_page = create_mock_page("https://example.com", 200, "Slow Page")
+        mock_page = create_mock_page("about:blank", 200, "Slow Page")
         navigator = Navigator(mock_page)
-
-        async def raise_timeout(*args, **kwargs):
-            raise PlaywrightTimeoutError("page.goto: Timeout 30000ms exceeded")
-
         monkeypatch.setattr(
             "myrm_agent_harness.toolkits.browser.navigation.ssrf_guard.goto_with_ssrf_guard",
-            raise_timeout,
+            self._goto_that_commits_then_times_out(
+                mock_page, "https://example.com", PlaywrightTimeoutError("page.goto: Timeout 30000ms exceeded")
+            ),
         )
 
         title, final_url, status = await navigator.goto("https://example.com")
 
-        assert title == "Slow Page"
-        assert final_url == "https://example.com"
-        assert status == 200
-        mock_page.evaluate.assert_awaited_with("window.stop()")
+        assert (title, final_url, status) == ("Slow Page", "https://example.com", 200)
+
+    @pytest.mark.asyncio
+    async def test_timeout_without_commit_raises_navigation_error(self, monkeypatch):
+        """Nothing committed: the previous document is not the requested page, so the call fails."""
+        from myrm_agent_harness.toolkits.browser.exceptions import BrowserNavigationError
+        from myrm_agent_harness.toolkits.browser.utils.proxy_error import is_proxy_error
+
+        mock_page = create_mock_page("about:blank", 200, "Previous Page")
+        navigator = Navigator(mock_page)
+
+        async def stalled(*args, **kwargs):
+            raise TimeoutError("navigation timed out")
+
+        monkeypatch.setattr("myrm_agent_harness.toolkits.browser.navigation.ssrf_guard.goto_with_ssrf_guard", stalled)
+
+        with pytest.raises(BrowserNavigationError) as exc_info:
+            await navigator.goto("https://example.com")
+
+        assert isinstance(exc_info.value.__cause__, TimeoutError)
+        assert exc_info.value.diagnostic_info["url"] == "https://example.com"
+        # The session retry loop restarts the browser on proxy-looking errors; a stalled server is not one.
+        assert not is_proxy_error(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_timeout_on_unresponsive_page_raises_page_unresponsive(self, monkeypatch):
+        """A page that cannot answer a trivial evaluation after the abort cannot be reused."""
+        from myrm_agent_harness.toolkits.browser.utils.page_health import PageUnresponsiveError
+        from myrm_agent_harness.toolkits.browser.utils.proxy_error import is_proxy_error
+
+        mock_page = create_mock_page("about:blank", 200, "Wedged")
+        mock_page.evaluate = AsyncMock(side_effect=RuntimeError("renderer is wedged"))
+        navigator = Navigator(mock_page)
+
+        async def stalled(*args, **kwargs):
+            raise TimeoutError("navigation timed out")
+
+        monkeypatch.setattr("myrm_agent_harness.toolkits.browser.navigation.ssrf_guard.goto_with_ssrf_guard", stalled)
+
+        with pytest.raises(PageUnresponsiveError) as exc_info:
+            await navigator.goto("https://example.com")
+
+        assert not is_proxy_error(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_non_timeout_error_still_raises(self, monkeypatch):
@@ -460,7 +503,7 @@ class TestNavigatorPostNavigationSoftFailures:
             wait_timeout,
         )
 
-        title, final_url, status = await navigator.goto("https://example.com")
+        title, _final_url, status = await navigator.goto("https://example.com")
 
         assert title == "Partial Page"
         assert status == 200
@@ -477,7 +520,7 @@ class TestNavigatorPostNavigationSoftFailures:
 
         navigator._consent_dismisser = FailingDismisser()
 
-        title, final_url, status = await navigator.goto("https://example.com")
+        title, _final_url, status = await navigator.goto("https://example.com")
 
         assert title == "Test Page"
         assert status == 200

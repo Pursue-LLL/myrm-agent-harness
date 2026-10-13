@@ -17,10 +17,12 @@ def mock_context() -> MagicMock:
 
 @pytest.fixture
 def mock_page() -> MagicMock:
-    """Create mock Page."""
+    """Create mock Page that stays open and answers the post-reset liveness probe."""
     page = MagicMock()
     page.close = AsyncMock()
     page.goto = AsyncMock()
+    page.evaluate = AsyncMock(return_value=1)
+    page.is_closed = MagicMock(return_value=False)
     page.context = MagicMock()
     return page
 
@@ -69,6 +71,7 @@ async def test_release_exceeds_max_size_closes_page(mock_context: MagicMock, moc
     pages = [MagicMock() for _ in range(3)]
     for p in pages:
         p.close = AsyncMock()
+        p.is_closed = MagicMock(return_value=False)
 
     mock_context.new_page = AsyncMock(side_effect=pages)
 
@@ -92,6 +95,8 @@ async def test_release_max_size_close_exception() -> None:
     mock_context = MagicMock()
 
     pages = [MagicMock() for _ in range(3)]
+    for page in pages:
+        page.is_closed = MagicMock(return_value=False)
     pages[0].close = AsyncMock()
     pages[1].close = AsyncMock()
     pages[2].close = AsyncMock(side_effect=RuntimeError("Close failed"))
@@ -247,9 +252,11 @@ async def test_shutdown_page_close_exception(mock_context: MagicMock) -> None:
     """Test shutdown handles page.close exception gracefully."""
     mock_page1 = MagicMock()
     mock_page1.close = AsyncMock(side_effect=RuntimeError("Close failed"))
+    mock_page1.is_closed = MagicMock(return_value=False)
 
     mock_page2 = MagicMock()
     mock_page2.close = AsyncMock()
+    mock_page2.is_closed = MagicMock(return_value=False)
 
     mock_context.new_page = AsyncMock(side_effect=[mock_page1, mock_page2])
 

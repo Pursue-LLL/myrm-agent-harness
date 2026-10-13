@@ -4,6 +4,7 @@
 [INPUT]
 - patchright.async_api::BrowserContext (POS: Patchright browser context)
 - patchright.async_api::Page (POS: Patchright page instance)
+- utils.page_health::probe_alive (POS: bounded liveness probe of a page)
 
 [OUTPUT]
 - PagePool: per-context page pool with managed full-reset or external session-preserving reset
@@ -12,6 +13,10 @@
 Page object pool. Implements zero-copy reset via CDP commands for managed browsers, and
 session-preserving reset for CDP-attached external Chrome (no global cookie wipe).
 Supports acquire/release lifecycle management with auto-scaling. Delegated by GlobalBrowserPool.
+An idle page is handed out again only after its reset finishes inside a bounded budget and a
+probe proves it still answers; a closed, wedged or dead page is replaced instead, a page already
+closed at release is dropped instead of pooled, and every page close is bounded so one
+unresponsive page cannot hold the pool lock.
 """
 
 from __future__ import annotations
@@ -21,6 +26,8 @@ import contextlib
 import logging
 from typing import TYPE_CHECKING
 
+from ..utils.page_health import probe_alive
+
 if TYPE_CHECKING:
     from patchright.async_api import BrowserContext, CDPSession, Page
 
@@ -28,6 +35,8 @@ logger = logging.getLogger(__name__)
 
 _RESET_TIMEOUT_MS = 3000
 _FALLBACK_RESET_TIMEOUT_MS = 5000
+_ACQUIRE_RESET_BUDGET_S = 5.0
+_CLOSE_TIMEOUT_S = 2.0
 
 
 class PagePool:
@@ -60,30 +69,53 @@ class PagePool:
         self._fast_reset_failures = 0
 
     async def acquire(self) -> Page:
-        """Return a ready page, reusing and resetting an idle page when possible."""
+        """Return a ready page, reusing an idle page only when it is still usable."""
         async with self._lock:
             self._total_acquires += 1
 
-            if self._idle:
+            while self._idle:
                 page = self._idle.pop()
-                await self._reset_page(page)
-                self._busy.add(page)
-                return page
+                if page.is_closed():
+                    continue
+                if await self._revive(page):
+                    self._busy.add(page)
+                    return page
+                logger.warning("PagePool: idle page did not survive reset, replacing it")
+                await self._close_bounded(page)
 
             page = await self._context.new_page()
             self._busy.add(page)
             return page
 
+    async def _revive(self, page: Page) -> bool:
+        """Reset an idle page and prove it still answers.
+
+        Resets swallow their own errors, so a page whose renderer is wedged or whose target
+        died can pass through them unnoticed; the probe is what proves the page is usable.
+        """
+        try:
+            await asyncio.wait_for(self._reset_page(page), timeout=_ACQUIRE_RESET_BUDGET_S)
+        except Exception:
+            return False
+        return await probe_alive(page)
+
+    @staticmethod
+    async def _close_bounded(page: Page) -> None:
+        """Close a page without letting an unresponsive one block the caller."""
+        with contextlib.suppress(Exception):
+            await asyncio.wait_for(page.close(), timeout=_CLOSE_TIMEOUT_S)
+
     async def release(self, page: Page) -> None:
-        """Return a page to the idle pool or close it when the pool is full."""
+        """Return a page to the idle pool, close it when the pool is full, drop it when already closed."""
         async with self._lock:
             self._busy.discard(page)
 
+            if page.is_closed():
+                return
             if len(self._idle) < self._max_size:
                 self._idle.append(page)
             else:
-                with contextlib.suppress(Exception):
-                    await page.close()
+                await self._close_bounded(page)
 
     async def _reset_page(self, page: Page) -> None:
         """Reset page state before reuse (full wipe or session-preserving)."""
@@ -163,8 +195,7 @@ class PagePool:
             all_pages = list(self._idle) + list(self._busy)
 
             for page in all_pages:
-                with contextlib.suppress(Exception):
-                    await page.close()
+                await self._close_bounded(page)
 
             self._idle.clear()
             self._busy.clear()

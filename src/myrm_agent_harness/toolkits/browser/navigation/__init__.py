@@ -12,6 +12,7 @@
 - .ssrf_guard::goto_with_ssrf_guard (POS: Playwright document navigation SSRF guard)
 - .session.consent_dismisser::ConsentDismisser (POS: cookie consent auto-dismiss)
 - ..exceptions::BrowserNavigationError (POS: intelligent navigation failure diagnostics)
+- ..utils.page_health::abort_pending_navigation, probe_alive, PageUnresponsiveError (POS: bounded settlement of a timed-out navigation)
 
 [OUTPUT]
 - Navigator: page navigation manager (with throttling, smart wait, and consent dismissal)
@@ -21,7 +22,8 @@ Page navigation utility module. Responsibilities:
 1. Page navigation (goto) + throttle control
 2. History navigation (back/forward/reload)
 3. Smart wait (hybrid detection: DOM + network dual guarantee)
-4. Timeout control + full metrics exposure
+4. Timeout control + full metrics exposure; a navigation that outlives its budget is stopped and
+   settled (committed document kept, nothing committed or an unresponsive page raises)
 5. Cookie consent auto-dismiss (optional, for BrowserFetcher path)
 
 Design principles:
@@ -40,6 +42,7 @@ from urllib.parse import urlparse
 from myrm_agent_harness.core.security.redact import redact_sensitive_text
 
 from ..exceptions import BrowserNavigationError
+from ..utils.page_health import PageUnresponsiveError, abort_pending_navigation, probe_alive
 from ..wait import WaitMetrics, WaitStrategy, wait_for_page_ready
 
 if TYPE_CHECKING:
@@ -188,6 +191,7 @@ class Navigator:
         # fragile because timeout text differs across pages and library versions.
         from ..utils import is_timeout_error
 
+        url_before = self._page.url
         navigated = False
         try:
             from .ssrf_guard import goto_with_ssrf_guard
@@ -201,29 +205,8 @@ class Navigator:
             navigated = True
         except Exception as e:
             if is_timeout_error(e):
-                logger.warning(
-                    "Navigator: timeout during navigation to %s, attempting rescue via window.stop()",
-                    redact_sensitive_text(url)[:80],
-                )
-                try:
-                    await self._page.evaluate("window.stop()")
-                    from myrm_agent_harness.utils.event_utils import (
-                        dispatch_custom_event,
-                    )
-
-                    await dispatch_custom_event(
-                        "agent_status",
-                        {
-                            "event": "tool_fallback",
-                            "tool": "browser_navigate_tool",
-                            "fallback_type": "timeout_rescue",
-                            "message": "Page resource load timed out; forcing stop and extracting visible content...",
-                        },
-                    )
-                except Exception as stop_e:
-                    logger.warning(f"Navigator: failed to stop page after timeout: {stop_e}")
-
-                # We don't have a response object, but we can still get title and url
+                await self._settle_timed_out_navigation(url, url_before, cause=e)
+                # No response object, but the committed document still gives title and url.
                 response = None
             else:
                 # SSRF security blocks and navigation scheme rejections carry their own
@@ -289,6 +272,47 @@ class Navigator:
             status_code,
         )
         return title, final_url, status_code
+
+    async def _settle_timed_out_navigation(self, url: str, url_before: str, *, cause: Exception) -> None:
+        """Stop a navigation that outlived its budget and decide whether a page is left to read.
+
+        Returns only when a document committed and still answers: partial content beats none.
+        A navigation that never committed left the previous document in place, which is not
+        the page that was asked for.
+
+        Raises:
+            PageUnresponsiveError: the page no longer answers protocol commands.
+            BrowserNavigationError: nothing committed, the server delivered no document in time.
+        """
+        logger.warning(
+            "Navigator: timeout during navigation to %s, stopping the load",
+            redact_sensitive_text(url)[:80],
+        )
+        await abort_pending_navigation(self._page)
+        if not await probe_alive(self._page):
+            raise PageUnresponsiveError(f"The page stopped responding while loading {url}.") from cause
+        if self._page.url == url_before:
+            raise BrowserNavigationError(
+                message=f"Navigation to {url} stalled: the server sent no page within {_NAVIGATION_TIMEOUT_MS // 1000}s.",
+                url=url,
+                error_text="no response before the navigation deadline",
+                cause=cause,
+            ) from cause
+
+        from myrm_agent_harness.utils.event_utils import dispatch_custom_event
+
+        try:
+            await dispatch_custom_event(
+                "agent_status",
+                {
+                    "event": "tool_fallback",
+                    "tool": "browser_navigate_tool",
+                    "fallback_type": "timeout_rescue",
+                    "message": "Page resource load timed out; forcing stop and extracting visible content...",
+                },
+            )
+        except Exception as event_exc:
+            logger.warning("Navigator: failed to publish timeout rescue status: %s", event_exc)
 
     @staticmethod
     def _extract_domain(url: str) -> str:

@@ -9,6 +9,7 @@
 - toolkits.browser.tools.inspect::create_inspect_tool (POS: 元素检查工具)
 - toolkits.browser.tools.manage::create_manage_tool (POS: 页面与标签管理工具)
 - toolkits.browser.tools.takeover::create_takeover_tool (POS: 人工接管工具)
+- toolkits.browser.tools.cancel_boundary::apply_cancel_boundary (POS: 停止运行时让每个工具及时中止)
 
 [OUTPUT]
 - RestrictedAccessibilityBrowserSession: Enforces pure ARIA/accessibility semantics,
@@ -97,6 +98,7 @@ def create_restricted_ax_browser_tools(session: BrowserSession) -> list[BaseTool
     """
     # Deferred: the tool modules pull in langchain/langgraph, which a bare
     # `import toolkits.browser` must not pay for.
+    from myrm_agent_harness.toolkits.browser.tools.cancel_boundary import apply_cancel_boundary
     from myrm_agent_harness.toolkits.browser.tools.extract import create_extract_tool
     from myrm_agent_harness.toolkits.browser.tools.inspect import create_inspect_tool
     from myrm_agent_harness.toolkits.browser.tools.interact import create_interact_tool
@@ -106,12 +108,15 @@ def create_restricted_ax_browser_tools(session: BrowserSession) -> list[BaseTool
     from myrm_agent_harness.toolkits.browser.tools.takeover import create_takeover_tool
 
     logger.info("Initializing restricted AX browser tools (excluding browser_execute_script_tool)")
-    return [
-        create_navigate_tool(session),
-        create_inspect_tool(session),
-        create_snapshot_tool(session),
-        create_interact_tool(session),
-        create_extract_tool(session),
-        create_manage_tool(session),
-        create_takeover_tool(session),
-    ]
+    return apply_cancel_boundary(
+        [
+            create_navigate_tool(session),
+            create_inspect_tool(session),
+            create_snapshot_tool(session),
+            create_interact_tool(session),
+            create_extract_tool(session),
+            create_manage_tool(session),
+            create_takeover_tool(session),
+        ],
+        session,
+    )

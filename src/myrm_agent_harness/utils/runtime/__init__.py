@@ -14,6 +14,8 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "CancellationMetrics": (".cancellation_metrics", "CancellationMetrics"),
     "get_cancel_token": (".cancellation", "get_cancel_token"),
     "set_cancel_token": (".cancellation", "set_cancel_token"),
+    "OperationCancelledError": (".cancellation", "OperationCancelledError"),
+    "run_until_cancelled": (".cancellation", "run_until_cancelled"),
     "create_cancellation_context": (".cancellation", "create_cancellation_context"),
     # progress_sink.py
     "ToolProgressSink": (".progress_sink", "ToolProgressSink"),

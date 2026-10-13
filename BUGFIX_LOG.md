@@ -2,6 +2,22 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-13-002 · 卡在驱动里的浏览器调用不响应 Stop：导航停滞后页面卡死、看门狗误杀存活浏览器、页面池发放已关闭或卡死的页面
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-13 |
+| **修复时间** | 2026-10-13 |
+| **症状** | ① 目标服务器不应答或只发响应头不发正文时，`browser_navigate_tool` 在超时后继续挂起（兜底的 `window.stop()`、SSRF 守卫路径的 `unroute`、CDP `detach` 都落在同一个卡死的页面连接上），用户点 Stop 无效：令牌只在图产出下一个分片时才被检查；② 卡死的页面被放回池后，下一次 `new_tab` 在池锁内阻塞 20 s 以上；③ 单页面配置下，一次慢导航期间看门狗的页面级探针超时，把存活的浏览器判为崩溃并驱逐；④ `PagePool.acquire` 可能发放已关闭的页面；超时且从未提交的导航静默返回上一页的内容，模型会以为导航成功 |
+| **关联产品** | myrm-agent-harness `toolkits/browser`、`utils/runtime`；调用方 `myrm-agent-server` 的浏览器工具装配（`app/ai_agents/general_agent/tool_setup.py:903`）。Local / 桌面 / 云托管三种部署都受影响；真实 Patchright Chromium（macOS）实测，Linux / Windows / Camoufox 未实测 |
+| **根因** | 浏览器工具从不观察请求的取消令牌；超时善后（`window.stop()`、`unroute`、`detach`、`close`）全部无界地等待一个已卡死的页面；看门狗用「池内页面能否执行脚本」代表「浏览器是否存活」；`acquire` 取出空闲页后不检查是否已关闭，`release` 会把已关闭页放回池 |
+| **修复** | `run_until_cancelled`（`utils/runtime/cancellation.py`）让每个浏览器工具与令牌赛跑，Stop 后取消在途调用、恢复标签页、返回 `CANCELLED_RESULT`；超时导航先发 `Page.stopLoading` 再结算（已提交返回现有内容，未提交抛 `BrowserNavigationError`，无应答抛 `PageUnresponsiveError`）；`recover_active_tab` 持锁、幂等、有 10 s 预算地替换卡死标签；`unroute` / `detach` / 页面关闭各有 2 s 上限；`acquire` 跳过已关闭页并在重置后探活，`release` 丢弃已关闭页；看门狗先问浏览器级 `Browser.getVersion`，不应答才用页面做第二意见 |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | ① 卡死页面上 `page.evaluate` / `unroute` / `close` 都不返回，而 `Page.stopLoading` 与浏览器级 `Browser.getVersion` 仍然应答，探活与善后要走后者；② patchright 的 `Browser.version` / `Browser.contexts` 是缓存属性、不发 CDP 请求，不能拿来探活；③ 只在工具外检查令牌无法释放已卡在驱动里的调用，必须在调用内部与令牌赛跑；④ 取消边界对象是 `StructuredTool.coroutine`：必须在 `with_dynamic_hints` 产生最终副本之后包装，否则副本里仍是旧协程；⑤ 回环地址的测试服务器会被默认的 HTTP 过滤器拦截，集成测试要同时放行过滤器与 SSRF 预检，否则「卡死」的现象来自拦截而不是服务器 |
+| **回归** | `tests/toolkits/browser/session/test_stall_resilience_integration.py`（真实 Chromium，`local` / `guarded` 两条导航路径，含对照组）· `tests/agent/streaming/test_stop_during_browser_tool_e2e.py`（脚本化模型 + 生产 `StreamExecutor` + 生产工具拦截中间件）· `tests/toolkits/browser/tools/test_cancel_boundary.py` · `tests/utils/runtime/test_run_until_cancelled.py` · `tests/toolkits/browser/session/test_tab_recovery.py` · `tests/toolkits/browser/utils/test_page_health.py` · `tests/toolkits/browser/pool/test_page_pool_acquire.py` · `tests/toolkits/browser/pool/test_crash_watchdog_probe.py` |
+| **代码位置** | `toolkits/browser/tools/cancel_boundary.py` · `utils/runtime/cancellation.py::run_until_cancelled` · `toolkits/browser/utils/page_health.py` · `toolkits/browser/navigation/__init__.py::_settle_timed_out_navigation` · `toolkits/browser/session/browser_session_tab_mixin.py::recover_active_tab` · `toolkits/browser/pool/page_pool.py` · `toolkits/browser/pool/crash_watchdog.py` |
+
 ### BUG-HARNESS-2026-10-13-001 · macOS 上 psutil 读取正被回收的进程时抛 `SystemError`：残留浏览器扫描被截断成部分结果，服务端启动恢复误报“未发现残留进程”，强制清理的复核直接抛异常
 
 | 字段 | 内容 |

@@ -16,6 +16,7 @@ metadata) — this component handles asynchronous CDP body queries.
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import logging
 import time
@@ -31,6 +32,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _MAX_TRACKED_REQUESTS = 100
+_DETACH_TIMEOUT_S = 2.0
 _BODY_PREVIEW_MAX_CHARS = 8000
 # Redaction window before truncation: keeps a credential crossing a truncation
 # boundary structurally intact long enough to be masked (aligned with
@@ -115,8 +117,9 @@ class NetworkIntelligence:
     async def detach(self) -> None:
         """Detach CDP monitoring and release resources."""
         if self._cdp_session is not None:
+            # Bounded: the bound page may be wedged, and a detach on it never returns on its own.
             with contextlib.suppress(Exception):
-                await self._cdp_session.detach()
+                await asyncio.wait_for(self._cdp_session.detach(), timeout=_DETACH_TIMEOUT_S)
             self._cdp_session = None
         self._bound_page = None
         self._enabled = False

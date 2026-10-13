@@ -12,13 +12,15 @@
 Provides automatic crash recovery for GlobalBrowserPool:
 - L1: browser.on('disconnected') real-time browser process crash detection
 - L2: page.on('crash') real-time page renderer crash detection
-- L3: _lifecycle_tick periodic fallback (30s interval)
+- L3: _lifecycle_tick periodic fallback (30s interval); liveness = browser-level CDP round trip
+  first, pooled-page evaluate as second opinion, so a slow or wedged page never evicts a live browser
 - Semaphore safety net: prevents semaphore leaks or double releases on crash
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import time
 from typing import TYPE_CHECKING
@@ -30,6 +32,9 @@ if TYPE_CHECKING:
     from .circuit_breaker import CircuitBreaker
 
 logger = logging.getLogger(__name__)
+
+_PROBE_TIMEOUT_S = 2.0
+_DETACH_TIMEOUT_S = 1.0
 
 
 class CrashWatchdogMixin:
@@ -199,33 +204,62 @@ class CrashWatchdogMixin:
 
     @staticmethod
     async def _check_browser_alive(inst: BrowserInstance) -> bool:
-        """Probe the browser over a real CDP round trip.
+        """Decide whether the browser is alive.
 
-        patchright exposes ``Browser.version``/``Browser.contexts`` as cached
-        properties rather than methods — calling them (``browser.contexts()``)
-        raises TypeError, and cached property access never sends a CDP request,
-        so neither can detect a dead browser. A genuine liveness check evaluates
-        a trivial expression on a pooled page. A browser without any pooled page
-        is trusted as alive: a real process death is caught synchronously by the
-        L1 'disconnected' event.
+        The browser process is probed first, independent of any page: a page stuck in a
+        stalled navigation or a spinning renderer answers no page-level command, yet the
+        browser still serves ``Browser.getVersion``, so a slow page is never mistaken for a
+        dead browser. Only when the process probe fails are pooled pages asked as a second
+        opinion (engines without a browser-level CDP endpoint, such as Firefox, land here).
         """
-        probed = False
-        try:
-            for pool in inst.page_pools.values():
-                for page in (*pool._busy, *pool._idle):
-                    probed = True
-                    try:
-                        await asyncio.wait_for(page.evaluate("1"), timeout=2.0)
-                        return True
-                    except asyncio.CancelledError:
-                        raise
-                    except Exception:
-                        # Any probe failure — TimeoutError, TargetClosedError,
-                        # PlaywrightError, protocol/OS errors — means this page
-                        # cannot answer; try the next pooled page.
-                        continue
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            return False
-        return not probed
+        if await _browser_process_answers(inst):
+            return True
+        return await _pooled_page_answers(inst)
+
+
+async def _browser_process_answers(inst: BrowserInstance) -> bool:
+    """Round-trip ``Browser.getVersion`` over a browser-level CDP session."""
+    cdp = None
+    try:
+        cdp = await asyncio.wait_for(inst.browser.new_browser_cdp_session(), timeout=_PROBE_TIMEOUT_S)
+        await asyncio.wait_for(cdp.send("Browser.getVersion"), timeout=_PROBE_TIMEOUT_S)
+        return True
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        return False
+    finally:
+        if cdp is not None:
+            with contextlib.suppress(Exception):
+                await asyncio.wait_for(cdp.detach(), timeout=_DETACH_TIMEOUT_S)
+
+
+async def _pooled_page_answers(inst: BrowserInstance) -> bool:
+    """Evaluate a trivial expression on a pooled page.
+
+    patchright exposes ``Browser.version``/``Browser.contexts`` as cached properties rather
+    than methods — calling them (``browser.contexts()``) raises TypeError, and cached
+    property access never sends a CDP request, so neither can detect a dead browser. A
+    browser without any pooled page is trusted as alive: a real process death is caught
+    synchronously by the L1 'disconnected' event.
+    """
+    probed = False
+    try:
+        for pool in inst.page_pools.values():
+            for page in (*pool._busy, *pool._idle):
+                probed = True
+                try:
+                    await asyncio.wait_for(page.evaluate("1"), timeout=_PROBE_TIMEOUT_S)
+                    return True
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    # Any probe failure — TimeoutError, TargetClosedError,
+                    # PlaywrightError, protocol/OS errors — means this page
+                    # cannot answer; try the next pooled page.
+                    continue
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        return False
+    return not probed

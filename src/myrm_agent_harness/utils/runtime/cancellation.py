@@ -19,18 +19,21 @@
 - CancellationMetrics: 监控数据结构（re-export）
 - create_cancellation_context(): 创建取消上下文（令牌 + 监控器工厂）
 - get_cancel_token() / set_cancel_token(): ContextVar 访问器，供工具层隐式获取/注入取消令牌
+- OperationCancelledError / run_until_cancelled(): 令牌被取消时中止仍阻塞在驱动调用上的操作，让调用方在一个轮询周期内重新拿回控制权
 
 [POS]
 Cancellation token mechanism. Provides request-level cancellation state management with graceful async cancellation support.
+The token is a pure flag; `run_until_cancelled` is the boundary for operations that cannot observe it by themselves.
 
 """
 
 import asyncio
 import contextlib
+import inspect
 import logging
 import threading
 import time
-from collections.abc import Callable, Coroutine
+from collections.abc import Awaitable, Callable, Coroutine
 from contextvars import ContextVar
 from enum import StrEnum
 from typing import ClassVar
@@ -297,8 +300,10 @@ __all__ = [
     "CancellationMonitor",
     "CancellationRegistry",
     "CancellationToken",
+    "OperationCancelledError",
     "create_cancellation_context",
     "get_cancel_token",
+    "run_until_cancelled",
     "set_cancel_token",
 ]
 
@@ -313,6 +318,60 @@ def get_cancel_token() -> CancellationToken | None:
 def set_cancel_token(token: CancellationToken | None) -> None:
     """Set or clear the CancellationToken for the current async context."""
     _cancel_token.set(token)
+
+
+_POLL_INTERVAL_S = 0.25
+_ABORT_GRACE_S = 3.0
+
+
+class OperationCancelledError(Exception):
+    """The request was cancelled while an operation was still running, and the operation was aborted."""
+
+
+def _discard_outcome[T](task: asyncio.Future[T]) -> None:
+    """Mark an abandoned task's outcome as retrieved so its unwind errors are not reported at GC."""
+    if not task.cancelled():
+        task.exception()
+
+
+async def run_until_cancelled[T](work: Awaitable[T]) -> T:
+    """Await `work`, aborting it as soon as the current request's token is cancelled.
+
+    Cancelling a request only flips a flag. An operation blocked inside a driver call (a browser
+    navigation to a server that never answers) never looks at it, so this races the operation
+    against the flag and hands control back within one poll interval. Outside an agent run (no
+    token) the work is simply awaited.
+
+    Raises:
+        OperationCancelledError: the token fired first; the work was cancelled and given a bounded
+            grace period to unwind.
+        asyncio.CancelledError: the caller itself was cancelled; the work is cancelled with it.
+    """
+    token = get_cancel_token()
+    if token is None:
+        return await work
+    if token.is_cancelled:
+        if inspect.iscoroutine(work):
+            work.close()  # never started: avoid the 'never awaited' warning
+        raise OperationCancelledError(f"Request cancelled before the operation started: {token.cancel_reason}")
+
+    task = asyncio.ensure_future(work)
+    task.add_done_callback(_discard_outcome)
+    try:
+        while True:
+            await asyncio.wait({task}, timeout=_POLL_INTERVAL_S)
+            if task.done():
+                return task.result()
+            if token.is_cancelled:
+                break
+    except asyncio.CancelledError:
+        task.cancel()
+        raise
+
+    logger.warning("Aborting in-flight operation: request_id=%s, reason=%s", token.request_id, token.cancel_reason)
+    task.cancel()
+    await asyncio.wait({task}, timeout=_ABORT_GRACE_S)
+    raise OperationCancelledError(f"Request cancelled during the operation: {token.cancel_reason}")
 
 
 def create_cancellation_context(

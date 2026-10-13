@@ -20,20 +20,23 @@ Screenshot Diff Features:
 [INPUT]
 - session::BrowserSession (POS: session manager, based on SOLID principles)
 - langchain.tools::tool (POS: LangChain tool decorator)
+- cancel_boundary::apply_cancel_boundary (POS: makes every tool abort promptly when the run is stopped)
 - pydantic::BaseModel (POS: tool parameter schema base class)
 
 [OUTPUT]
-- create_browser_tools: factory function, binds BrowserSession and returns 8 LangChain tools
+- create_browser_tools: factory function, binds BrowserSession and returns 8 cancel-aware LangChain tools
 
 [POS]
 API layer of the browser toolkit. Maps BrowserSession capabilities to 8 LangChain @tool functions,
-loaded on-demand by the Agent runtime. Pure thin layer, zero business logic.
+loaded on-demand by the Agent runtime. Thin layer: every tool call additionally runs behind the cancel
+boundary, so stopping a run releases the browser instead of waiting out a stuck driver call.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from .cancel_boundary import apply_cancel_boundary
 from .common import mark_untrusted
 from .execute_script import create_execute_script_tool
 from .extract import create_extract_tool
@@ -59,13 +62,16 @@ def create_browser_tools(session: BrowserSession) -> list:
     Returns:
         List of 8 LangChain tools
     """
-    return [
-        create_navigate_tool(session),
-        create_inspect_tool(session),
-        create_snapshot_tool(session),
-        create_interact_tool(session),
-        create_extract_tool(session),
-        create_manage_tool(session),
-        create_execute_script_tool(session),
-        create_takeover_tool(session),
-    ]
+    return apply_cancel_boundary(
+        [
+            create_navigate_tool(session),
+            create_inspect_tool(session),
+            create_snapshot_tool(session),
+            create_interact_tool(session),
+            create_extract_tool(session),
+            create_manage_tool(session),
+            create_execute_script_tool(session),
+            create_takeover_tool(session),
+        ],
+        session,
+    )

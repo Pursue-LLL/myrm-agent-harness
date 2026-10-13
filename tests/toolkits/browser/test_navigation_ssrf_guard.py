@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -112,25 +113,30 @@ async def test_navigation_failure_wraps_browser_navigation_error() -> None:
 
 
 @pytest.mark.asyncio
-async def test_navigation_timeout_uses_rescue_not_wrap() -> None:
-    """Timeouts should be rescued (window.stop) instead of raising BrowserNavigationError."""
+async def test_navigation_timeout_is_settled_not_wrapped() -> None:
+    """A timeout is settled by the navigator (committed document kept), never wrapped as a failure."""
     from myrm_agent_harness.toolkits.browser.navigation import Navigator
 
     page = AsyncMock()
     page.evaluate.return_value = None
+    page.is_closed = MagicMock(return_value=False)
     page.title.return_value = "page title"
-    page.url = "https://example.com/"
+    page.url = "about:blank"
     navigator = Navigator(page=page)
+
+    async def commit_then_time_out(*args: object, **kwargs: object) -> None:
+        page.url = "https://example.com/"
+        raise TimeoutError("Navigation timeout")
 
     with patch(
         "myrm_agent_harness.toolkits.browser.navigation.ssrf_guard.goto_with_ssrf_guard",
-        side_effect=TimeoutError("Navigation timeout"),
+        side_effect=commit_then_time_out,
     ):
         title, final_url, status_code = await navigator.goto("https://example.com/")
 
     assert title == "page title"
+    assert final_url == "https://example.com/"
     assert status_code == 200
-    page.evaluate.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -218,9 +224,7 @@ async def test_goto_with_ssrf_guard_route_handler_blocks_private(
     response.request.redirected_from = None
     page.goto.return_value = response
     page.url = "https://example.com/"
-    mock_assert.side_effect = BrowserNavigationBlockedError(
-        "SSRF blocked: metadata service"
-    )
+    mock_assert.side_effect = BrowserNavigationBlockedError("SSRF blocked: metadata service")
 
     captured: list = []
 
@@ -279,9 +283,7 @@ async def test_goto_with_ssrf_guard_route_handler_blocks_after_first(
     response.request.redirected_from = None
     page.goto.return_value = response
     page.url = "https://example.com/"
-    mock_assert.side_effect = BrowserNavigationBlockedError(
-        "SSRF blocked: metadata service"
-    )
+    mock_assert.side_effect = BrowserNavigationBlockedError("SSRF blocked: metadata service")
 
     captured: list = []
 
@@ -446,3 +448,75 @@ async def test_assert_browser_redirect_chain_allowed_none() -> None:
     ) as mock_assert:
         await assert_browser_redirect_chain_allowed(None)
         mock_assert.assert_not_awaited()
+
+
+def _guarded_page_whose_goto(behavior) -> AsyncMock:
+    page = AsyncMock()
+    page.goto.side_effect = behavior
+    page.url = "https://example.com/"
+    return page
+
+
+async def test_goto_with_ssrf_guard_aborts_pending_navigation_on_failure() -> None:
+    """A failed navigation is stopped at the protocol level before the error propagates."""
+    page = _guarded_page_whose_goto(TimeoutError("Navigation timeout"))
+
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.browser.navigation.ssrf_guard.abort_pending_navigation",
+            new_callable=AsyncMock,
+        ) as mock_abort,
+        pytest.raises(TimeoutError),
+    ):
+        await goto_with_ssrf_guard(page, "https://example.com/", timeout_ms=1000, allow_private_networks=False)
+
+    mock_abort.assert_awaited_once_with(page)
+    page.unroute.assert_awaited_once()
+
+
+async def test_goto_with_ssrf_guard_aborts_pending_navigation_on_cancellation() -> None:
+    """Cancelling the caller (agent Stop) also stops the stalled navigation instead of orphaning it."""
+
+    async def stalled(*args: object, **kwargs: object) -> None:
+        await asyncio.Event().wait()
+
+    page = _guarded_page_whose_goto(stalled)
+
+    with patch(
+        "myrm_agent_harness.toolkits.browser.navigation.ssrf_guard.abort_pending_navigation",
+        new_callable=AsyncMock,
+    ) as mock_abort:
+        task = asyncio.create_task(
+            goto_with_ssrf_guard(page, "https://example.com/", timeout_ms=1000, allow_private_networks=False)
+        )
+        await asyncio.sleep(0.05)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    mock_abort.assert_awaited_once_with(page)
+
+
+async def test_goto_with_ssrf_guard_unroute_on_wedged_page_is_bounded(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`unroute` never answers on a page stuck in a stalled navigation; the guard must not hang on it."""
+    from myrm_agent_harness.toolkits.browser.navigation import ssrf_guard
+
+    monkeypatch.setattr(ssrf_guard, "_UNROUTE_TIMEOUT_S", 0.05)
+
+    async def never_answers(*args: object, **kwargs: object) -> None:
+        await asyncio.Event().wait()
+
+    page = _guarded_page_whose_goto(TimeoutError("Navigation timeout"))
+    page.unroute.side_effect = never_answers
+
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.browser.navigation.ssrf_guard.abort_pending_navigation",
+            new_callable=AsyncMock,
+        ),
+        pytest.raises(TimeoutError, match="Navigation timeout"),  # the original error, not the unroute one
+    ):
+        await asyncio.wait_for(
+            goto_with_ssrf_guard(page, "https://example.com/", timeout_ms=1000, allow_private_networks=False),
+            timeout=1.0,
+        )

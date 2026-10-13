@@ -33,6 +33,9 @@ from myrm_agent_harness.agent.sub_agents.executor_attempt_mixin import SubagentE
 from myrm_agent_harness.agent.sub_agents.executor_delegation_mixin import SubagentExecutorDelegationMixin
 from myrm_agent_harness.agent.sub_agents.executor_retry_mixin import SubagentExecutorRetryMixin
 from myrm_agent_harness.toolkits.browser.session.browser_session import BrowserSession
+from myrm_agent_harness.toolkits.browser.session.browser_session_captcha_mixin import (
+    BrowserSessionCaptchaMixin,
+)
 from myrm_agent_harness.toolkits.browser.session.browser_session_extraction_mixin import (
     BrowserSessionExtractionMixin,
 )
@@ -54,6 +57,9 @@ from myrm_agent_harness.toolkits.browser.session.browser_session_persistence_mix
 from myrm_agent_harness.toolkits.browser.session.browser_session_recording_mixin import (
     BrowserSessionRecordingMixin,
 )
+from myrm_agent_harness.toolkits.browser.session.browser_session_tab_mixin import (
+    BrowserSessionTabMixin,
+)
 from myrm_agent_harness.toolkits.browser.session.browser_session_view_mixin import (
     BrowserSessionViewMixin,
 )
@@ -71,6 +77,8 @@ _EXPECTED_BROWSER_SESSION_MIXIN_MRO: tuple[type[object], ...] = (
     BrowserSessionPageMixin,
     BrowserSessionNetworkMixin,
     BrowserSessionNavigationMixin,
+    BrowserSessionTabMixin,
+    BrowserSessionCaptchaMixin,
     BrowserSessionLifecycleMixin,
     object,
 )
@@ -85,6 +93,23 @@ def test_browser_session_mixin_mro_prefix() -> None:
 def test_browser_session_navigate_resolves_to_navigation_mixin() -> None:
     owner = next(c for c in BrowserSession.__mro__ if "navigate" in c.__dict__)
     assert owner is BrowserSessionNavigationMixin
+
+
+@pytest.mark.architecture
+@pytest.mark.parametrize(
+    ("method", "expected_owner"),
+    [
+        ("new_tab", BrowserSessionTabMixin),
+        ("close_tab", BrowserSessionTabMixin),
+        ("recover_active_tab", BrowserSessionTabMixin),
+        ("_handle_captcha_if_detected", BrowserSessionCaptchaMixin),
+    ],
+)
+def test_browser_session_tab_and_captcha_methods_resolve_to_their_mixins(
+    method: str, expected_owner: type[object]
+) -> None:
+    owner = next(c for c in BrowserSession.__mro__ if method in c.__dict__)
+    assert owner is expected_owner
 
 
 @pytest.mark.architecture
