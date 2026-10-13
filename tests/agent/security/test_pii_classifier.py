@@ -57,6 +57,21 @@ class TestS3Detection:
         assert "password_context" in result.patterns
 
     @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            ("我的密码是 Zk9%mango42 帮我登录", SensitivityLevel.S3),
+            ("密码：888888 谢谢", SensitivityLevel.S3),
+            ("DB_PASSWORD=hunter2xyz", SensitivityLevel.S3),
+            ('{"password":"abc12345","x":1}', SensitivityLevel.S3),
+            ("password=password) # default", SensitivityLevel.S1),
+            ("password=${DB_PASS}", SensitivityLevel.S1),
+        ],
+        ids=["cjk-sentence", "cjk-colon", "env-name", "json", "label-itself", "template"],
+    )
+    def test_password_is_decided_by_value_not_by_label_alone(self, text, expected):
+        assert classify_content(text, _ENABLED).level == expected
+
+    @pytest.mark.parametrize(
         "text",
         ["password: [REDACTED] [PII:password] ok", "password=[REDACTED:env_credential] set", 'pwd = "[REDACTED] x'],
         ids=["redactor-marker", "leak-marker", "quoted"],

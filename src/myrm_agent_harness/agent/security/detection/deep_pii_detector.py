@@ -169,11 +169,8 @@ def _parse_detection_response(raw: str, expected_count: int) -> list[list[DeepPI
 
     results: list[list[DeepPIIItem]] = []
     for i in range(expected_count):
-        if i < len(data) and isinstance(data[i], list):
-            items = _parse_items(data[i])
-            results.append(items)
-        else:
-            results.append([])
+        entry = data[i] if i < len(data) else None
+        results.append(_parse_items(entry) if isinstance(entry, list) else [])
 
     return results
 

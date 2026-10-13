@@ -117,6 +117,11 @@ class TestRedactingRedactedText:
             "ssn 123-45-6789 ok",
             "API_KEY=abcdef1234567890abcdef1234567890 ok",
             "Phone 13812345678, password: hunter2secret, a@b.com",
+            "password: 123456 is my router login",
+            "密码：888888 谢谢",
+            "我的密码是 Zk9%mango42 帮我登录",
+            'config = {"password":"abc12345","x":1}',
+            "[PII:password] and other: Zk9%mango42x",
         ],
     )
     def test_a_second_pass_changes_nothing(self, text: str) -> None:
@@ -144,3 +149,27 @@ class TestRedactValue:
     def test_unknown_type_fallback(self):
         result = redact_value("some data", "unknown_type")
         assert "[PII:unknown_type]" in result
+
+
+class TestRedactingPasswords:
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            ('password: "Zk9%mango42", next', 'password: "[REDACTED] [PII:password]", next'),
+            ("password=password) # default", "password=password) # default"),
+            ("password=${DB_PASS}", "password=${DB_PASS}"),
+            ('{"password":"abc12345","x":1}', '{"password":"[REDACTED] [PII:password]","x":1}'),
+            ("我的密码是 Zk9%mango42 帮我登录", "我的密码是 [REDACTED] [PII:password] 帮我登录"),
+            ("密码：888888 谢谢", "密码：[REDACTED] [PII:password] 谢谢"),
+            ("DB_PASSWORD=hunter2xyz", "DB_PASSWORD=[REDACTED] [PII:password]"),
+        ],
+        ids=["quote-and-comma-kept", "label-itself", "template", "json", "cjk-sentence", "cjk-colon", "env-name"],
+    )
+    def test_only_the_value_is_replaced(self, text: str, expected: str) -> None:
+        assert redact_pii(text)[0] == expected
+
+    def test_a_password_wins_over_the_pattern_it_also_matches(self) -> None:
+        text, count = redact_pii("password: 13812345678")
+
+        assert text == "password: [REDACTED] [PII:password]"
+        assert count == 1

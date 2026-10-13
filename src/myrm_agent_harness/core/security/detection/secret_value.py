@@ -4,9 +4,10 @@
 - (none — pure regex patterns, no external dependencies)
 
 [OUTPUT]
-- Span / MIN_SECRET_VALUE_LENGTH / STRONG_SYMBOLS / STRUCTURAL_SYMBOLS: vocabulary shared by the secret detectors.
+- Span / MIN_SECRET_VALUE_LENGTH / LABELLED_SECRET_MIN_LENGTH / STRONG_SYMBOLS / STRUCTURAL_SYMBOLS: vocabulary shared
+  by the secret detectors.
 - secret_value_span(): the secret inside the raw value span of a label or connector (trim, plausibility, references
-  and already-redacted markers rejected, caller-chosen minimum length).
+  and already-redacted markers rejected, caller-chosen minimum length, letters-only and numeric values opt-in).
 - is_reference_value(): True for a value that names a secret instead of being one (template, identifier, call,
   character class, the key itself, camel-case name).
 - is_reference_token(): the same question for a free-standing high-entropy token (true when every piece between
@@ -27,6 +28,8 @@ import re
 Span = tuple[int, int]
 
 MIN_SECRET_VALUE_LENGTH = 8
+# A value the text itself assigns to a password label ("password: 123456") is a password at a shorter length.
+LABELLED_SECRET_MIN_LENGTH = 6
 _MAX_VALUE_LENGTH = 64
 # Redaction markers ("[REDACTED]", "[REDACTED:env_credential]") already sit in text that is scanned again.
 _REDACTION_MARKER_PREFIX = "[REDACTED"
@@ -162,12 +165,15 @@ def _trim_secret_span(text: str, start: int, end: int) -> Span:
     return start, end
 
 
-def _is_plausible_secret_value(value: str, *, allow_letters_only: bool, min_length: int) -> bool:
+def _is_plausible_secret_value(value: str, *, allow_letters_only: bool, allow_numeric: bool, min_length: int) -> bool:
     if not min_length <= len(value) <= _MAX_VALUE_LENGTH:
         return False
     if _CODE_CHARS_RE.search(value) or "://" in value:
         return False
-    if value.isdigit() or value.lower() in _FIELD_STATE_WORDS or len(set(value)) < _MIN_DISTINCT_CHARS:
+    if (value.isdigit() and not allow_numeric) or value.lower() in _FIELD_STATE_WORDS:
+        return False
+    # "111111" is a real password; "********" and "xxxxxxxx" are masks.
+    if len(set(value)) < _MIN_DISTINCT_CHARS and not (allow_numeric and value.isdigit()):
         return False
     return allow_letters_only or any(char.isdigit() or char in STRONG_SYMBOLS for char in value)
 
@@ -187,6 +193,7 @@ def secret_value_span(
     end: int,
     *,
     allow_letters_only: bool,
+    allow_numeric: bool = False,
     min_length: int = MIN_SECRET_VALUE_LENGTH,
     key: str = "",
 ) -> Span | None:
@@ -196,8 +203,9 @@ def secret_value_span(
     redaction marker, not shorter than ``min_length``, purely numeric or a field-state word, and not a reference to a
     secret (template, identifier, call, code expression). A bracket right after the raw span closes a template the
     raw span only opened (``{name`` in ``{name}``). Letters-only values ("dragonfly") are ambiguous in prose
-    ("required", "stored"), so they pass only where the caller knows the label names a password. ``key`` is the label
-    the value is assigned to, when there is one.
+    ("required", "stored"), so they pass only where the caller knows the label names a password; so do purely
+    numeric ones ("123456", ``allow_numeric``), which are otherwise years, counts and example values. ``key`` is the
+    label the value is assigned to, when there is one.
     """
     if text.startswith(_REDACTION_MARKER_PREFIX, start):
         return None
@@ -208,6 +216,8 @@ def secret_value_span(
     value = text[start:end]
     if is_reference_value(value, key=key) or _is_bare_name(value, quoted=quoted):
         return None
-    if _is_plausible_secret_value(value, allow_letters_only=allow_letters_only, min_length=min_length):
+    if _is_plausible_secret_value(
+        value, allow_letters_only=allow_letters_only, allow_numeric=allow_numeric, min_length=min_length
+    ):
         return start, end
     return None

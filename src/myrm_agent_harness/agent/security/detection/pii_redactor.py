@@ -12,14 +12,16 @@ values are never stored.
 - redact_value(): redact a single known PII value by type
 
 [POS]
-PII redactor. Type-aware smart masking (phone numbers retain first 3 and last 4 digits, emails retain domain, etc.) for user-friendly redaction.
+PII redactor. Type-aware smart masking (phone numbers retain first 3 and last 4 digits, emails retain domain, etc.) for user-friendly redaction. Passwords are replaced by span (password_heuristic, recall mode) before the regex stages, so the label and the punctuation around the value survive.
 
 """
 
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 
+from myrm_agent_harness.core.security.detection.password_heuristic import find_password_spans
 from myrm_agent_harness.core.security.detection.pii_classifier import (
     _BANK_CARD_RE,
     _CHINA_ADDRESS_RE,
@@ -30,7 +32,6 @@ from myrm_agent_harness.core.security.detection.pii_classifier import (
     _CREDIT_CARD_VISIBLE_RE,
     _EMAIL_RE,
     _INTL_PHONE_RE,
-    _PASSWORD_CONTEXT_RE,
     _PLACEHOLDER_RE,
     _PRIVATE_IP_RE,
     _SSN_RE,
@@ -89,13 +90,19 @@ def _redact_credit_card(m: re.Match[str]) -> str:
     return f"**** **** **** {cleaned[-4:]} [PII:credit_card]"
 
 
-def _redact_password(m: re.Match[str]) -> str:
-    prefix = m.group(0)
-    password_val = m.group(1) if m.lastindex else ""
-    if password_val:
-        redacted = prefix.replace(password_val, "[REDACTED]", 1)
-        return f"{redacted} [PII:password]"
-    return "[PII:password]"
+def _redact_passwords(content: str) -> tuple[str, int]:
+    """Replace each password value with a marker, keeping the label and the punctuation around the value."""
+    spans = find_password_spans(content, strict=False)
+    if not spans:
+        return content, 0
+    parts: list[str] = []
+    cursor = 0
+    for start, end in spans:
+        parts.append(content[cursor:start])
+        parts.append("[REDACTED] [PII:password]")
+        cursor = end
+    parts.append(content[cursor:])
+    return "".join(parts), len(spans)
 
 
 def _redact_china_passport(m: re.Match[str]) -> str:
@@ -136,11 +143,10 @@ def _is_placeholder(val: str) -> bool:
 # Ordered redaction pipeline: S3 first, then S2
 # ---------------------------------------------------------------------------
 
-_REDACTION_PIPELINE: tuple[tuple[str, re.Pattern[str], object, bool], ...] = (
+_REDACTION_PIPELINE: tuple[tuple[str, re.Pattern[str], Callable[[re.Match[str]], str], bool], ...] = (
     # S3 patterns (order matters: more specific first)
     ("china_id_card", _CHINA_ID_RE, _redact_china_id, True),
     ("bank_card", _BANK_CARD_RE, _redact_bank_card, True),
-    ("password_context", _PASSWORD_CONTEXT_RE, _redact_password, False),
     ("china_passport", _CHINA_PASSPORT_RE, _redact_china_passport, False),
     # S2 patterns
     ("china_phone", _CHINA_PHONE_RE, _redact_china_phone, False),
@@ -165,15 +171,15 @@ def redact_pii(content: str) -> tuple[str, int]:
     Returns (redacted_text, count_of_redactions). Safe to call on any
     text — returns unchanged content with count=0 if nothing is found.
 
-    Redaction order: S3 patterns first (identity docs, financial),
-    then S2 patterns (contact info, location). Placeholder values are
+    Redaction order: passwords first (a value the text labels as a password wins
+    over whatever pattern it also matches), then S3 patterns (identity docs,
+    financial), then S2 patterns (contact info, location). Placeholder values are
     skipped to avoid false positives.
     """
     if not content:
         return content, 0
 
-    result = content
-    total_count = 0
+    result, total_count = _redact_passwords(content)
 
     for _name, pattern, redact_fn, check_placeholder in _REDACTION_PIPELINE:
         new_result_parts: list[str] = []

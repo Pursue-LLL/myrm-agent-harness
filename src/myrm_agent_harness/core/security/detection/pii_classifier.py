@@ -32,7 +32,11 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from myrm_agent_harness.core.security.detection.password_heuristic import find_password_spans
 from myrm_agent_harness.core.security.types import PrivacyPolicy, SensitivityLevel
+
+# Pattern name of a detected password: located by spans (password_heuristic), not by a regex in the tables below.
+PASSWORD_PATTERN = "password_context"
 
 # ---------------------------------------------------------------------------
 # Fast path thresholds
@@ -61,14 +65,6 @@ _BANK_CARD_RE = re.compile(
     r"(?!\d)"
 )
 
-_PASSWORD_CONTEXT_RE = re.compile(
-    r"(?:password|passwd|pwd|pass|密码|口令)"
-    r"\s*[:=]\s*"
-    r"(?!['\"]?\[REDACTED)"  # a value the redactor already masked is not a password
-    r"['\"]?(\S{6,})['\"]?",
-    re.IGNORECASE,
-)
-
 _CHINA_PASSPORT_RE = re.compile(
     r"(?<![A-Za-z])"
     r"[EeGg]\d{8}"
@@ -78,7 +74,6 @@ _CHINA_PASSPORT_RE = re.compile(
 _S3_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("china_id_card", _CHINA_ID_RE),
     ("bank_card", _BANK_CARD_RE),
-    ("password_context", _PASSWORD_CONTEXT_RE),
     ("china_passport", _CHINA_PASSPORT_RE),
 )
 
@@ -302,6 +297,10 @@ def classify_content(content: str, policy: PrivacyPolicy) -> PIIClassification:
             if name == "bank_card" and not _luhn_valid(val.replace("-", "").replace(" ", "")):
                 continue
             return PIIClassification(level=SensitivityLevel.S3, patterns=[name])
+
+    # --- S3 passwords: the same keyword-anchored definition the persistence scan uses, in recall mode ---
+    if find_password_spans(content, strict=False):
+        return PIIClassification(level=SensitivityLevel.S3, patterns=[PASSWORD_PATTERN])
 
     # --- S3 via credential detection (delegate to leak_detector) ---
     from myrm_agent_harness.core.security.detection.leak_detector import scan_for_leaks

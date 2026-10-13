@@ -232,11 +232,17 @@ class TestPseudonymizeEdgeCases:
         result = pseudonymize_text(content, store, SensitivityLevel.S3)
         assert isinstance(result, PseudonymizeResult)
 
-    def test_password_context(self, store: PseudonymStore) -> None:
-        content = "my password is abc123456"
+    def test_password_value_is_replaced_and_its_label_kept(self, store: PseudonymStore) -> None:
+        content = 'login password: "Zk9%mango42", then retry'
         result = pseudonymize_text(content, store, SensitivityLevel.S3)
-        if result.count > 0:
-            assert "abc123456" not in result.text
+
+        assert result.text == 'login password: "<PASSWORD_1>", then retry'
+        assert result.count == 1
+
+    def test_a_pseudonymized_password_is_not_a_password_again(self, store: PseudonymStore) -> None:
+        once = pseudonymize_text("password: Zk9%mango42", store, SensitivityLevel.S3).text
+
+        assert pseudonymize_text(once, store, SensitivityLevel.S3).count == 0
 
     def test_multiple_same_pii(self, store: PseudonymStore) -> None:
         content = "Call 13800138000 or 13800138000 again"

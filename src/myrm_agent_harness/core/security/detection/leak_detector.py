@@ -131,8 +131,9 @@ _STRUCTURAL_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 _PLACEHOLDER_RE = re.compile(
     r"^(?:your[_-].*|xxx+|placeholder|example|changeme|TODO|CHANGE_ME|INSERT_HERE|"
     r"<[^>]+>|\$\{[^}]+\}|%\([^)]+\)s|None|null|undefined|test|demo|fake|dummy|sample|"
-    # an earlier redaction (see _smart_redact_value): scanning redacted text again must not redact it again
-    r"\[REDACTED(?::[^\]]*)?\]|.{6}\*\*\*\.\.\..{4}(?: \[REDACTED:[^\]]*\])?)$",
+    # an earlier redaction (see _smart_redact_value, or the PII redactor's "[REDACTED] [PII:password]"): scanning
+    # redacted text again must not redact it again
+    r"\[REDACTED(?::[^\]]*)?\](?: \[PII:[a-z_]+\])?|.{6}\*\*\*\.\.\..{4}(?: \[REDACTED:[^\]]*\])?)$",
     re.IGNORECASE,
 )
 

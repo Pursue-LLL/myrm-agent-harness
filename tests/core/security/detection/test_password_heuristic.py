@@ -257,3 +257,63 @@ class TestProseIsNeverASecret:
     )
     def test_code_reference_near_a_keyword_is_not_a_generated_secret(self, text: str) -> None:
         assert find_password_spans(text) == []
+
+
+class TestValueEndsAtItsDelimiter:
+    @pytest.mark.parametrize(
+        ("text", "secret"),
+        [
+            ('{"password":"abc12345","x":1}', "abc12345"),
+            ("password=abc12345;user=bob", "abc12345"),
+            ("login with password: Zk9%mango42, then retry", "Zk9%mango42"),
+        ],
+        ids=["compact-json", "semicolon-list", "trailing-comma"],
+    )
+    def test_the_secret_stops_at_a_quote_comma_or_semicolon(self, text: str, secret: str) -> None:
+        assert _secrets(text) == [secret]
+
+
+class TestLabelBoundaries:
+    @pytest.mark.parametrize("text", ["DB_PASSWORD=hunter2xyz9", "export MYSQL_ROOT_PASSWORD=Zk9%mango42"])
+    def test_a_name_ending_in_the_keyword_is_a_label(self, text: str) -> None:
+        assert _secrets(text)
+
+    @pytest.mark.parametrize(
+        "text",
+        ["password_hash=Zk9%mango42xyz", "passwords: Zk9%mango42xyz", "[PII:password] and other: Zk9%mango42xyz"],
+        ids=["continued-name", "plural", "redactor-tag"],
+    )
+    def test_a_name_continuing_the_keyword_or_the_redactor_tag_is_not(self, text: str) -> None:
+        assert _secrets(text) == []
+
+
+class TestRecallMode:
+    @pytest.mark.parametrize(
+        ("text", "secret"),
+        [
+            ("password: 123456 is my router login", "123456"),
+            ("密码：888888 谢谢", "888888"),
+            ("pwd=abc123", "abc123"),
+            ("Password: hunter2 ok", "hunter2"),
+            ("password: 111111", "111111"),
+        ],
+        ids=["numeric", "cjk-colon", "six-chars", "seven-chars", "repeated-digits"],
+    )
+    def test_a_value_assigned_to_the_label_counts_from_six_characters(self, text: str, secret: str) -> None:
+        assert [text[s:e] for s, e in find_password_spans(text, strict=False)] == [secret]
+        assert find_password_spans(text) == []
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "password=password)",
+            "password=${DB_PASS}",
+            "password: str = Field(...)",
+            "password: required",
+            "password: ********",
+            "password is hunter2",
+        ],
+        ids=["label-itself", "template", "annotation", "field-state", "mask", "prose-connector"],
+    )
+    def test_references_masks_and_prose_stay_out_of_recall_mode(self, text: str) -> None:
+        assert find_password_spans(text, strict=False) == []

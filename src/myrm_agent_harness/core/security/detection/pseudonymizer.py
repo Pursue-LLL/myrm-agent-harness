@@ -27,6 +27,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from myrm_agent_harness.core.security.detection.password_heuristic import find_password_spans
 from myrm_agent_harness.core.security.detection.pseudonym_store import (
     PseudonymStore,
 )
@@ -36,7 +37,6 @@ _PATTERN_TO_TYPE: dict[str, str] = {
     # S3 patterns
     "china_id_card": "ID_CARD",
     "bank_card": "BANK_CARD",
-    "password_context": "PASSWORD",
     "china_passport": "PASSPORT",
     # S2 patterns
     "china_phone": "PHONE_NUMBER",
@@ -124,6 +124,19 @@ def _extract_pii_items(
                 )
             )
             seen_spans.add(span)
+
+    if level == SensitivityLevel.S3:
+        items.extend(
+            PIIItem(
+                original_text=content[start:end],
+                privacy_type="PASSWORD",
+                level=SensitivityLevel.S3,
+                start=start,
+                end=end,
+            )
+            for start, end in find_password_spans(content, strict=False)
+            if (start, end) not in seen_spans
+        )
 
     items.sort(key=lambda x: len(x.original_text), reverse=True)
     return items
