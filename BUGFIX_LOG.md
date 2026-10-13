@@ -9,7 +9,7 @@
 | **状态** | FIXED |
 | **发现时间** | 2026-10-13 |
 | **修复时间** | 2026-10-13 |
-| **症状** | `find_orphan_automation_processes` 在遇到这类进程时中止遍历，只返回已扫到的部分并记一条 warning；结果为空时服务端启动恢复（`app/core/infra/health/browser.py`）报告 SUCCESS“No orphan processes found”。`cleanup_orphan_processes` 开头的复核（`leftovers_at_start`）与逐 pid 复核不在 try 内，异常直接抛给健康接口、修复动作和启动恢复。整表扫描 A/B（同一台 macOS 机器、同一脚本，各 n=1）：空闲时修复前 0/2000 次被截断；每秒约 1300 个短命进程的高频退出负载下，修复前 6/2000 次、修复后 0/2000 次被截断，单次扫描平均 13.4 ms 对 12.8 ms；对 530,237 次 `environ()` 读取（进程持续被杀被回收）出现 2 次 `SystemError`；只调用 `read_owner_state`、反复读取刚被杀死并回收的带戳进程，229,410 次调用有 12 次逃逸 |
+| **症状** | `find_orphan_automation_processes` 在遇到这类进程时中止遍历，只返回已扫到的部分并记一条 warning；结果为空时服务端启动恢复（`app/core/infra/health/browser.py`）报告 SUCCESS“No orphan processes found”。`cleanup_orphan_processes` 开头的复核（`leftovers_at_start`）与逐 pid 复核不在 try 内，异常直接抛给健康接口、修复动作和启动恢复。整表扫描 A/B（同一台 macOS 机器、同一脚本，各 n=1）：空闲时修复前 0/2000 次被截断；每秒约 1300 个短命进程的高频退出负载下，修复前 6/2000 次、修复后 0/2000 次被截断；对 530,237 次 `environ()` 读取（进程持续被杀被回收）出现 2 次 `SystemError`；只调用 `read_owner_state`、反复读取刚被杀死并回收的带戳进程，229,410 次调用有 12 次逃逸 |
 | **关联产品** | myrm-agent-harness `toolkits/browser/doctor`、`toolkits/browser/process_owner`；服务端的启动恢复、健康接口与修复动作是其调用方。仅 macOS 实测，Linux/Windows 未实测 |
 | **根因** | psutil 7.2.2（发现时 PyPI 最新版）在 macOS 读取正被回收的进程的 `environ()` / `cmdline()` 时抛 `SystemError`（“returned a result with an exception set”），它既不是 `psutil.Error` 也不是 `OSError`，穿过了 `except (psutil.Error, OSError)`；上游已在 master 修复（giampaolo/psutil#3024 跟踪，#2854 修复）但尚未发布 |
 | **修复** | 三处捕获元组加入 `SystemError`：`read_owner_state` 的环境读取（读不到按 `UNKNOWN`，不会被当作残留）、`find_orphan_automation_processes` 扫描内层捕获（跳过该进程继续）、`_is_chromium_process` 对名称 / 可执行文件 / `argv[0]` 的逐项读取。方向始终是“无法确认就不动”，不会多杀 |
