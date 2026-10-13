@@ -140,3 +140,70 @@ def test_curator_lru_eviction(curator: SkillCurator):
     assert result.stale_count == 1
     assert result.transitions[0].skill_name == "s3"
     assert result.transitions[0].reason_type == "lru_eviction"
+
+
+def test_curator_skips_protected_skill(curator: SkillCurator):
+    protected = create_mock_skill("bound", days_idle=40, days_old=50)
+    unprotected = create_mock_skill("free", days_idle=40, days_old=50)
+
+    result = curator.run([protected, unprotected], protected_names=frozenset({"bound"}))
+
+    assert result.skipped_protected == 1
+    assert result.skipped_pinned == 0
+    assert [t.skill_name for t in result.transitions] == ["free"]
+
+
+def test_curator_protected_skill_never_archived(curator: SkillCurator):
+    skill = create_mock_skill("bound", status=SkillLifecycleStatus.STALE, days_idle=100, days_old=110)
+
+    result = curator.run([skill], protected_names=frozenset({"bound"}))
+
+    assert result.skipped_protected == 1
+    assert result.total_transitions == 0
+
+
+def test_curator_protected_skill_leaves_lru_pool(curator: SkillCurator):
+    # max_skills=2. The least recently used skill is protected, so it must neither
+    # be evicted nor count toward the active cap (same as pinned): only the pool of
+    # two unprotected skills remains, which fits within the cap.
+    bound = create_mock_skill("bound", days_idle=3, days_old=10)
+    s1 = create_mock_skill("s1", days_idle=1, days_old=10)
+    s2 = create_mock_skill("s2", days_idle=2, days_old=10)
+
+    result = curator.run([s1, s2, bound], protected_names=frozenset({"bound"}))
+
+    assert result.total_transitions == 0
+    assert result.skipped_protected == 1
+
+
+def test_curator_protected_skill_not_counted_as_pinned(curator: SkillCurator):
+    skill = create_mock_skill("both", pinned=True, days_idle=40, days_old=50)
+
+    result = curator.run([skill], protected_names=frozenset({"both"}))
+
+    assert result.skipped_pinned == 1
+    assert result.skipped_protected == 0
+
+
+@pytest.mark.asyncio
+async def test_curator_consolidation_excludes_protected_skills(stats_collector: SkillStatsCollector):
+    config = CuratorConfig(enabled=True, consolidation_enabled=True)
+    curator = SkillCurator(
+        stats_collector,
+        config,
+        embedding_service=MagicMock(),
+        llm=MagicMock(),
+        write_backend=MagicMock(),
+    )
+    seen: list[list[str]] = []
+
+    async def fake_consolidation(skills: list[SkillMetadata], *, dry_run: bool = True) -> None:
+        seen.append([s.name for s in skills])
+
+    curator._run_consolidation = fake_consolidation  # type: ignore[method-assign]
+    bound = create_mock_skill("bound")
+    free = create_mock_skill("free")
+
+    await curator.run_async([bound, free], protected_names=frozenset({"bound"}))
+
+    assert seen == [["free"]]

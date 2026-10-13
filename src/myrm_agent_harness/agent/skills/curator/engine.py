@@ -104,7 +104,13 @@ class SkillCurator:
             and self._write_backend is not None
         )
 
-    def run(self, skills: list[SkillMetadata], *, force: bool = False) -> CuratorRunResult:
+    def run(
+        self,
+        skills: list[SkillMetadata],
+        *,
+        force: bool = False,
+        protected_names: frozenset[str] = frozenset(),
+    ) -> CuratorRunResult:
         """Execute a single curator sweep over the provided skills.
 
         Evaluates each skill and applies state transitions where warranted.
@@ -116,6 +122,8 @@ class SkillCurator:
         Args:
             skills: All skills to evaluate (caller handles which skills to include)
             force: If True, bypass the enabled check (for manual triggers)
+            protected_names: Skills the caller depends on (e.g. bound by an automation).
+                They are exempt from every transition and do not count toward ``max_skills``.
 
         Returns:
             CuratorRunResult with details of all transitions performed
@@ -128,21 +136,22 @@ class SkillCurator:
 
         for skill in skills:
             try:
-                self._evaluate_skill(skill, now, result)
+                self._evaluate_skill(skill, now, result, protected_names)
             except Exception as e:
                 result.errors.append(f"{skill.name}: {e}")
                 logger.warning("Curator error evaluating skill '%s': %s", skill.name, e)
 
-        self._apply_lru_eviction(skills, now, result)
+        self._apply_lru_eviction([s for s in skills if s.name not in protected_names], now, result)
 
         if result.total_transitions > 0:
             logger.info(
-                "Curator sweep complete: %d skills scanned, %d transitions (%d stale, %d archived), %d pinned skipped",
+                "Curator sweep complete: %d skills scanned, %d transitions (%d stale, %d archived), %d pinned / %d protected skipped",
                 result.skills_scanned,
                 result.total_transitions,
                 result.stale_count,
                 result.archived_count,
                 result.skipped_pinned,
+                result.skipped_protected,
             )
         else:
             logger.debug(
@@ -158,6 +167,7 @@ class SkillCurator:
         *,
         force: bool = False,
         consolidation_dry_run: bool = True,
+        protected_names: frozenset[str] = frozenset(),
     ) -> tuple[CuratorRunResult, ConsolidationPlan | ConsolidationReport | None]:
         """Execute a full curator sweep including optional consolidation.
 
@@ -165,16 +175,19 @@ class SkillCurator:
             skills: All skills to evaluate.
             force: If True, bypass the enabled check.
             consolidation_dry_run: If True, return consolidation plan without executing.
+            protected_names: See ``run``. Protected skills are also kept out of consolidation,
+                which would archive them behind the caller's back.
 
         Returns:
             Tuple of (lifecycle_result, consolidation_result).
             consolidation_result is None if consolidation is disabled/unavailable.
         """
-        lifecycle_result = self.run(skills, force=force)
+        lifecycle_result = self.run(skills, force=force, protected_names=protected_names)
 
         consolidation_result: ConsolidationPlan | ConsolidationReport | None = None
         if self.consolidation_available:
-            consolidation_result = await self._run_consolidation(skills, dry_run=consolidation_dry_run)
+            mergeable = [s for s in skills if s.name not in protected_names]
+            consolidation_result = await self._run_consolidation(mergeable, dry_run=consolidation_dry_run)
 
         return lifecycle_result, consolidation_result
 
@@ -249,10 +262,19 @@ class SkillCurator:
                 skill.name,
             )
 
-    def _evaluate_skill(self, skill: SkillMetadata, now: datetime, result: CuratorRunResult) -> None:
+    def _evaluate_skill(
+        self,
+        skill: SkillMetadata,
+        now: datetime,
+        result: CuratorRunResult,
+        protected_names: frozenset[str],
+    ) -> None:
         """Evaluate a single skill and apply transition if needed."""
         if skill.usage_stats.pinned:
             result.skipped_pinned += 1
+            return
+        if skill.name in protected_names:
+            result.skipped_protected += 1
             return
 
         reason = self._strategy.should_forget(skill)

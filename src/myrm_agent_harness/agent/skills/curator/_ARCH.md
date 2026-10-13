@@ -11,7 +11,7 @@ Performs stateless sweeps: evaluates skills against CuratorConfig thresholds, ap
 | __init__.py | Package | Re-exports SkillCurator, CuratorRunResult, CuratorTransition. | — |
 | anti_sycophancy_adversarial_engine.py | Core | Detects sycophantic alignment traps and generates adversarial critique exemplars. | ✅ |
 | anti_sycophancy_types.py | Types | Types and models for anti sycophancy. | ✅ |
-| engine.py | Core | SkillCurator: stateless curator engine that orchestrates lifecycle sweeps + LRU eviction + consolidation. | ✅ |
+| engine.py | Core | SkillCurator: stateless curator engine that orchestrates lifecycle sweeps + LRU eviction + consolidation; skills named in `protected_names` are exempt from all of it. | ✅ |
 | self_dismantling_curator_engine.py | Core | Performs self-distillation sweeps over memory and skill artifacts. | ✅ |
 | types.py | Core | CuratorTransition, CuratorRunResult data types. | ✅ |
 
@@ -35,6 +35,10 @@ Skills → Filter (eligible) → ClusterDetector (prefix + embedding)
        → ConsolidationJudge (LLM) → ConsolidationPlan
        → [dry_run?] → ConsolidationExecutor → ConsolidationReport
 ```
+
+## Protected skills
+
+`run` / `run_async` take `protected_names`: skills the host depends on (e.g. bound by a scheduled job or an agent profile). A protected skill is never staled, archived, LRU-evicted or consolidated, and — like a pinned one — does not count toward `max_skills`. It is tallied in `CuratorRunResult.skipped_protected`; a pinned skill is tallied as `skipped_pinned` even when also protected. The harness stays ignorant of what binds a skill; the host decides.
 
 ## Configuration
 

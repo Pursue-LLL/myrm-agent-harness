@@ -24,7 +24,7 @@ Skill forgetting / curator strategies to prevent skill accumulation.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from typing import Protocol
 
@@ -121,22 +121,7 @@ class CuratorConfig:
     """Minimum embedding cosine similarity to group skills into a cluster."""
 
     def to_dict(self) -> dict[str, object]:
-        return {
-            "enabled": self.enabled,
-            "interval_hours": self.interval_hours,
-            "stale_after_days": self.stale_after_days,
-            "archive_after_days": self.archive_after_days,
-            "grace_period_days": self.grace_period_days,
-            "min_success_rate": self.min_success_rate,
-            "max_skills": self.max_skills,
-            "min_call_count_for_quality_check": self.min_call_count_for_quality_check,
-            "protect_installed_skills": self.protect_installed_skills,
-            "protect_system_skills": self.protect_system_skills,
-            "consolidation_enabled": self.consolidation_enabled,
-            "consolidation_min_skills": self.consolidation_min_skills,
-            "consolidation_min_cluster_size": self.consolidation_min_cluster_size,
-            "consolidation_similarity_threshold": self.consolidation_similarity_threshold,
-        }
+        return asdict(self)
 
     @classmethod
     def from_dict(cls, data: dict[str, object] | None) -> CuratorConfig:
