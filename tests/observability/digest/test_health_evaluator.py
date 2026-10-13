@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
-
 import pytest
 
 from myrm_agent_harness.observability.digest.health_evaluator import (
@@ -17,48 +15,24 @@ from myrm_agent_harness.observability.digest.types import (
 MIN_OBSERVED = 5
 
 
-def _metrics(
-    *,
-    succeeded: int,
-    failed: int = 0,
-    unobserved: int = 0,
-    last_invoked_at: datetime | None = None,
-) -> SkillCompoundingMetrics:
+def _metrics(*, succeeded: int, failed: int = 0, unobserved: int = 0) -> SkillCompoundingMetrics:
     return SkillCompoundingMetrics(
         skill_id="demo",
         invocations=succeeded + failed + unobserved,
         successful_invocations=succeeded,
         failed_invocations=failed,
-        last_invoked_at=last_invoked_at or datetime.now(UTC),
     )
 
 
-def test_dormant_skill_zero_invocations() -> None:
-    """A skill with 0 invocations is STALE with a 0 score and no success rate."""
-    metrics = SkillCompoundingMetrics(skill_id="legacy-script")
-
-    score = SkillHealthEvaluator.evaluate(metrics, min_observed=MIN_OBSERVED)
+def test_skill_without_runs_has_no_evidence_and_is_unproven() -> None:
+    """Dormancy is not a verdict: with nothing to evaluate the skill is UNPROVEN with a 0 score."""
+    score = SkillHealthEvaluator.evaluate(SkillCompoundingMetrics(skill_id="legacy-script"), min_observed=MIN_OBSERVED)
 
     assert score.skill_id == "legacy-script"
     assert score.health_score == 0.0
-    assert score.status == SkillHealthStatus.STALE
+    assert score.status == SkillHealthStatus.UNPROVEN
     assert score.success_rate is None
-    assert "not been invoked" in score.actionable_recommendation
-
-
-def test_stale_skill_inactive_over_threshold() -> None:
-    """A skill inactive for more than the threshold is STALE and keeps its observed rate."""
-    now = datetime.now(UTC)
-    metrics = _metrics(succeeded=8, failed=2, last_invoked_at=now - timedelta(days=45))
-
-    score = SkillHealthEvaluator.evaluate(
-        metrics, min_observed=MIN_OBSERVED, reference_time=now, stale_days_threshold=30
-    )
-
-    assert score.health_score == 15.0
-    assert score.status == SkillHealthStatus.STALE
-    assert score.success_rate == 0.8
-    assert "Inactive for 45 days" in score.actionable_recommendation
+    assert "0 of 5" in score.actionable_recommendation
 
 
 def test_reliable_skill_with_enough_outcomes_is_star() -> None:

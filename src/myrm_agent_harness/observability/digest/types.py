@@ -4,7 +4,7 @@
 - None (Standard library dataclasses, enum, datetime, typing)
 
 [OUTPUT]
-- SkillHealthStatus: Category enum (STAR, HEALTHY, AT_RISK, UNPROVEN, STALE)
+- SkillHealthStatus: Category enum (STAR, HEALTHY, AT_RISK, UNPROVEN)
 - SkillCompoundingMetrics: Run counts and observed outcomes of a skill in the evaluation window
 - SkillHealthScore: Evidence-weighted score and status of a skill
 - MemberActivitySummary: Activity and token efficiency stats for a team member
@@ -30,7 +30,6 @@ class SkillHealthStatus(StrEnum):
     HEALTHY = "HEALTHY"  # Enough observed outcomes, acceptable success rate
     AT_RISK = "AT_RISK"  # Enough observed outcomes, frequent failures
     UNPROVEN = "UNPROVEN"  # Too few observed outcomes to judge quality
-    STALE = "STALE"  # Dormant, not invoked in the evaluation window
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,14 +41,12 @@ class SkillCompoundingMetrics:
         invocations: Runs in the period, including runs whose outcome was not observed.
         successful_invocations: Runs with an observed success.
         failed_invocations: Runs with an observed failure.
-        last_invoked_at: Timezone-aware timestamp of the most recent invocation.
     """
 
     skill_id: str
     invocations: int = 0
     successful_invocations: int = 0
     failed_invocations: int = 0
-    last_invoked_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)
