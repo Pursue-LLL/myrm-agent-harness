@@ -174,7 +174,7 @@ async def test_publish_clip_ingress_html_path(temp_structure: WikiStructure) -> 
 
 
 @pytest.mark.asyncio
-async def test_publish_clip_ingress_security_blocked_by_credential(
+async def test_publish_clip_ingress_redacts_credential(
     temp_structure: WikiStructure,
 ) -> None:
     secret = "sk-1234567890abcdefghijklmnopqrstuvwxyz1234567890abcd"
@@ -187,9 +187,11 @@ async def test_publish_clip_ingress_security_blocked_by_credential(
             markdown=f"# Secrets\n\nOPENAI_API_KEY={secret}\n",
         ),
     )
-    assert result.written is False
-    assert result.security_blocked is True
-    assert not temp_structure.get_raw_file_path(result.relative_path).exists()
+    assert result.written is True
+    assert result.security_blocked is False
+    assert result.security_redacted is True
+    stored = temp_structure.get_raw_file_path(result.relative_path).read_text(encoding="utf-8")
+    assert secret not in stored
 
 
 @pytest.mark.asyncio

@@ -33,7 +33,7 @@ class CredentialLeakFilter(MessageFilter):
     because credential leaks represent a critical security risk (S3 level).
 
     Uses the security framework's leak_detector for pattern matching against
-    25+ credential types.
+    40+ credential types.
 
     Example:
         >>> config = FilterConfig(enabled=True, audit_enabled=True)

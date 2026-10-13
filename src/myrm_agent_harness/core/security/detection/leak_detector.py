@@ -149,7 +149,15 @@ _ENV_PATTERN = re.compile(
     re.MULTILINE | re.IGNORECASE,
 )
 
-_JSON_PATTERN = re.compile(rf"""["']{_SENSITIVE_KEY_RE}["']\s*:\s*["']([^"']{{16,}})["']""", re.IGNORECASE)
+_JSON_PATTERN = re.compile(
+    rf"""["'](?P<key>(?P<prefix>[\w.-]*?){_SENSITIVE_KEY_RE})["']\s*:\s*["'](?P<value>[^"']{{16,}})["']""",
+    re.IGNORECASE,
+)
+
+_LABELED_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("env_credential", _ENV_PATTERN),
+    ("json_credential", _JSON_PATTERN),
+)
 
 _AUTH_HEADER_PATTERN = re.compile(r"Authorization:\s*(?:Bearer|Basic|Token)\s+([a-zA-Z0-9_./+=-]{20,})", re.IGNORECASE)
 
@@ -166,26 +174,24 @@ def _is_placeholder(value: str) -> bool:
     return bool(_PLACEHOLDER_RE.match(value.strip()))
 
 
-def _env_credential_value(m: re.Match[str]) -> str | None:
-    """The credential of an ENV assignment, or None for a short value, a placeholder or a reference to a secret."""
+def _credential_value(m: re.Match[str]) -> str | None:
+    """The credential of an ENV assignment or JSON field, or None when the value is not one.
+
+    Not a credential: a short value, a placeholder, a reference to a secret, or a UI string. A prefixed JSON key
+    (`voiceAuthToken`) names a UI string as often as a credential and such a string has spaces, so only a single token
+    counts there; a bare key (`token`) also keeps a spaced value (`Bearer <token>`).
+    """
     value = m.group("value")
     if len(value) < _MIN_CONTEXT_VALUE_LENGTH or _is_placeholder(value):
+        return None
+    if m.groupdict().get("prefix") and any(c.isspace() for c in value):
         return None
     return None if is_reference_value(value, key=m.group("key")) else value
 
 
 def _scan_context_patterns(content: str) -> list[str]:
     """Detect credentials in ENV assignments, JSON fields, Auth headers, and mnemonic phrases."""
-    found: list[str] = []
-
-    if any(_env_credential_value(m) for m in _ENV_PATTERN.finditer(content)):
-        found.append("env_credential")
-
-    for m in _JSON_PATTERN.finditer(content):
-        val = m.group(1)
-        if not _is_placeholder(val):
-            found.append("json_credential")
-            break
+    found = [name for name, pat in _LABELED_PATTERNS if any(_credential_value(m) for m in pat.finditer(content))]
 
     if _AUTH_HEADER_PATTERN.search(content):
         found.append("auth_header_credential")
@@ -307,18 +313,12 @@ def _smart_redact_match(name: str, match: re.Match[str]) -> str:
     return _smart_redact_value(name, match.group(0))
 
 
-def _redact_env_match(m: re.Match[str]) -> str:
-    val = _env_credential_value(m)
+def _redact_labeled_match(name: str, m: re.Match[str]) -> str:
+    val = _credential_value(m)
     if val is None:
         return m.group(0)
-    return m.group(0).replace(val, _smart_redact_value("env_credential", val), 1)
-
-
-def _redact_json_match(m: re.Match[str]) -> str:
-    val = m.group(1)
-    if _is_placeholder(val):
-        return m.group(0)
-    return m.group(0).replace(val, _smart_redact_value("json_credential", val), 1)
+    # Cut by position: the key may contain the value's text, so a text replace could mask the key instead.
+    return m.string[m.start() : m.start("value")] + _smart_redact_value(name, val) + m.string[m.end("value") : m.end()]
 
 
 def _redact_auth_match(m: re.Match[str]) -> str:
@@ -382,8 +382,8 @@ def redact_leaks(content: str) -> str:
     for name, pat in _ALL_PREFIX_STRUCTURAL:
         result = pat.sub(partial(_smart_redact_match, name), result)
 
-    result = _ENV_PATTERN.sub(_redact_env_match, result)
-    result = _JSON_PATTERN.sub(_redact_json_match, result)
+    for name, pat in _LABELED_PATTERNS:
+        result = pat.sub(partial(_redact_labeled_match, name), result)
     result = _AUTH_HEADER_PATTERN.sub(_redact_auth_match, result)
     result = _MNEMONIC_PATTERN.sub(_redact_mnemonic_match, result)
 

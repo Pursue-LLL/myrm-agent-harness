@@ -433,8 +433,9 @@ def scan_and_clean_memory(memory: object, *, block_threshold: float = 0.8) -> Sc
    - 各入口一致呈现：`memory_save` / `memory_manage` 与 MCP `memory_store` / `memory_manage` 返回明确的 "Not saved" 结果并说明如何改写（`agent_surface/write_failure_feedback.py`）；`MemorySession.add_*` 在入缓冲前用只读预检（`reject_if_blocked`，不脱敏、不计入已接受写入）同规则拒绝，使拒绝即时可见、`end_session()` 的批量落库不丢干净记忆；`store_batch` / 导入只丢弃被拒条目；Server 层全局映射为 HTTP 400
    - LOW score (<0.8) → WARN verdict → 记录日志并存储
 
-2. **Credential Leak Detection**：25+种凭证模式检测（`leak_detector.py`）
-   - 自动redact敏感信息（保留前6后4字符）
+2. **Credential Leak Detection**：40+种凭证模式检测（`leak_detector.py`：厂商前缀、ENV/JSON/Header 带标签的值、PEM 与连接串等结构化格式、熵检测），外加关键词锚定的赋值与密码启发式（`secret_spans.py`、`password_heuristic.py`）；`memory_scanner.py` 通过 `scan_persistable_content`（`MEMORY_WRITE` 档位，`core/security/persistence/content_scan.py`）统一调用
+   - 自动redact敏感信息（`leak_detector` 对长凭证保留前6后4字符，短值整体遮蔽）；已脱敏文本再次扫描为干净
+   - 对密钥的引用（`token = _resolve(ctx)`、`${DB_PASSWORD}`、`settings.db_password`）与带空格的界面文案（`"setupToken": "Add GITHUB_TOKEN to ..."`）不视为凭证
    - REDACTED verdict → 日志记录
 
 3. **Invisible Unicode Stripping**：零宽字符清除（`content_boundary.py`）

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from myrm_agent_harness.core.security.persistence import content_scan
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate import (
     RawConflictPolicy,
@@ -40,13 +41,35 @@ async def test_publish_raw_agent_caller_blocks_injection(wiki_structure: WikiStr
 
 
 @pytest.mark.asyncio
-async def test_publish_raw_blocks_credential_shaped_content(wiki_structure: WikiStructure) -> None:
+async def test_publish_raw_redacts_credential_assignment(wiki_structure: WikiStructure) -> None:
     secret = "sk-1234567890abcdefghijklmnopqrstuvwxyz1234567890abcd"
     result = await publish_raw(
         wiki_structure,
         RawPublishRequest(
             relative_path="secrets/env.md",
             content=f"OPENAI_API_KEY={secret}",
+            conflict_policy=RawConflictPolicy.FAIL,
+        ),
+        caller="agent",
+    )
+    assert result.security_blocked is False
+    assert result.security_redacted is True
+    assert result.written is True
+    stored = wiki_structure.get_raw_file_path("secrets/env.md").read_text(encoding="utf-8")
+    assert secret not in stored
+    assert "[REDACTED:" in stored
+
+
+@pytest.mark.asyncio
+async def test_publish_raw_blocks_credential_that_redaction_cannot_remove(
+    wiki_structure: WikiStructure, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(content_scan, "redact_leaks", lambda text: text)
+    result = await publish_raw(
+        wiki_structure,
+        RawPublishRequest(
+            relative_path="secrets/env.md",
+            content="OPENAI_API_KEY=sk-1234567890abcdefghijklmnopqrstuvwxyz1234567890abcd",
             conflict_policy=RawConflictPolicy.FAIL,
         ),
         caller="agent",
@@ -94,11 +117,29 @@ async def test_forget_evidence_deletes_raw(wiki_structure: WikiStructure) -> Non
 
 
 @pytest.mark.asyncio
-async def test_scan_existing_raw_vault_removes_blocked_credential_file(wiki_structure: WikiStructure) -> None:
+async def test_scan_existing_raw_vault_redacts_credential_file_in_place(wiki_structure: WikiStructure) -> None:
     secret = "sk-1234567890abcdefghijklmnopqrstuvwxyz1234567890abcd"
     raw_path = wiki_structure.get_raw_file_path("legacy-secret.md")
     raw_path.parent.mkdir(parents=True, exist_ok=True)
     raw_path.write_text(f"OPENAI_API_KEY={secret}", encoding="utf-8")
+
+    result = await scan_existing_raw_vault(wiki_structure)
+    assert result["files_redacted"] == 1
+    assert result["files_removed"] == 0
+    assert result["redacted_paths"] == ["legacy-secret.md"]
+    assert secret not in raw_path.read_text(encoding="utf-8")
+    log_text = wiki_structure.get_log_file_path().read_text(encoding="utf-8")
+    assert "Raw security redacted: legacy-secret.md" in log_text
+
+
+@pytest.mark.asyncio
+async def test_scan_existing_raw_vault_removes_credential_file_that_redaction_cannot_clean(
+    wiki_structure: WikiStructure, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(content_scan, "redact_leaks", lambda text: text)
+    raw_path = wiki_structure.get_raw_file_path("legacy-secret.md")
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+    raw_path.write_text("OPENAI_API_KEY=sk-1234567890abcdefghijklmnopqrstuvwxyz1234567890abcd", encoding="utf-8")
 
     result = await scan_existing_raw_vault(wiki_structure)
     assert result["files_removed"] == 1
