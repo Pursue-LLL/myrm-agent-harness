@@ -159,7 +159,7 @@ _LABELED_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("json_credential", _JSON_PATTERN),
 )
 
-# Words of a JSON key prefix that make a `...Token` value a paging handle (`nextToken`, `NextContinuationToken`).
+# The word before a bare `Token` that makes its value a paging handle (`nextToken`, `NextContinuationToken`).
 _PAGING_WORD_RE = re.compile(
     r"next|prev(?:ious)?|pag(?:e|ing|ination)|continu(?:ation|e)|cursor|sync|resume|start(?:ing)?", re.IGNORECASE
 )
@@ -184,11 +184,13 @@ def _is_ui_string_or_paging_handle(prefix: str, key: str, value: str) -> bool:
     """Whether a value under a prefixed JSON key (`voiceAuthToken`, `nextToken`) is no credential.
 
     A prefixed key names a UI string or a paging handle as often as a credential. A UI string has spaces or non-ASCII
-    text; a paging handle (`NextContinuationToken`, `next_token`) is passed back verbatim, so masking it breaks paging.
+    text. A paging handle is a bare `Token` right after a paging word (`NextContinuationToken`, `next_token`) and is
+    passed back verbatim, so masking it breaks paging; `nextAuthToken` and `pageAccessToken` are credentials.
     """
     if not value.isascii() or any(c.isspace() for c in value):
         return True
-    return key.lower().endswith("token") and any(_PAGING_WORD_RE.fullmatch(w) for w in _KEY_WORD_RE.findall(prefix))
+    words = _KEY_WORD_RE.findall(prefix)
+    return key[len(prefix) :].lower() == "token" and bool(words) and _PAGING_WORD_RE.fullmatch(words[-1]) is not None
 
 
 def _credential_value(m: re.Match[str]) -> str | None:
