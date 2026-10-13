@@ -131,6 +131,20 @@ POSITIVES: tuple[Positive, ...] = (
         ("- **Password**: ", "- Password: **", "**\n"),
     ),
     Positive(
+        "env-export-dollar",
+        'export DB_PASSWORD="Pa$$w0rd2024"',
+        ("Pa$$w0rd2024",),
+        ('export DB_PASSWORD="',),
+    ),
+    Positive("yaml-percent", 'db_password: "Zk9%mango42"', ("Zk9%mango42",), ('db_password: "',)),
+    Positive("api-key-dollar", "api_key=ab$cdef1234567", ("ab$cdef1234567",), ("api_key=",)),
+    Positive(
+        "zh-percent",
+        "我的 NAS 管理员密码是 Zk9%mango42，帮我记一下",
+        ("Zk9%mango42",),
+        ("我的 NAS 管理员密码是 ", "，帮我记一下"),
+    ),
+    Positive(
         "doc-with-secret-at-the-end",
         f"Please read the docs. {_PROSE}\npassword: Zk9#mango42",
         ("Zk9#mango42",),
@@ -184,4 +198,23 @@ NEGATIVES: tuple[Negative, ...] = (
     Negative("markdown-bold-state-word", "**过期（无论是否密码保护）一律视为 unshared**）/ revoked"),
     Negative("markdown-bold-id-near-keyword", "| **P1-PairRevoke** | WebUI 改密/启用密码保护时轮换 `pairing`"),
     Negative("other-redactor-banner", "密码、Token、私钥瞬间转为 `***REDACTED***`，杜绝明文落盘"),
+    Negative(
+        "python-pass-through",
+        "client = Client(host=host, user=user, password=password, passphrase=passphrase)",
+    ),
+    Negative(
+        "typescript-camel-reference",
+        "body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),",
+    ),
+    Negative(
+        "http-status-near-keyword",
+        'raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password is required to unlock the vault.")',
+    ),
+    Negative(
+        "regex-in-code",
+        r"""PAT = re.compile(r"(?i)(?:api_key|token|secret|password|bearer)\s*[:=]\s*['\"]?([a-zA-Z0-9_\-\.]{8,})")""",
+    ),
+    Negative("private-call-assignment", "token = _active_value(settings, name)\nsecret = _resolve_secret(ctx)"),
+    Negative("format-field", 'line = f"token: {token_efficiency:.2f}"'),
+    Negative("shell-variable", "export DB_PASSWORD=$VAULT_DB_PASSWORD"),
 )

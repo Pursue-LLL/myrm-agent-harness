@@ -10,7 +10,7 @@ SSOT for scanning text **before** it is written to durable stores (Memory, Wiki 
 | --- | --- | --- | --- |
 | `__init__.py` | Package | Re-exports scan API | — |
 | `content_scan.py` | Core | `scan_persistable_content` (`pseudonymize=False` for verdict-only probes), profiles `MEMORY_WRITE` / `WIKI_RAW` / `WIKI_PUBLISH`, `sanitize_display_secrets`, context-local PII pseudonymizer (ContextVar, inherited by fire-and-forget task snapshots) | ✅ |
-| `secret_spans.py` | Core | `find_assignment_secret_spans` (values assigned to password/api_key/secret/token-style keys, located through `assignment_sweep.find_assignment_matches`; quoted values extend to the closing quote, unquoted values stop at the first non-ASCII character, markdown bold markers around a value stay out of it, and a value under a `token` label must be at least 16 characters because "token" also names LLM usage units) and `redact_spans` (position-based replacement; overlapping spans collapse into one marker) | ✅ |
+| `secret_spans.py` | Core | `find_assignment_secret_spans` (values assigned to password/api_key/secret/token-style keys, located through `assignment_sweep.find_assignment_matches`; quoted values extend to the closing quote, unquoted values stop at the first non-ASCII character, markdown bold markers around a value stay out of it, and a value under a `token` label must be at least 16 characters because "token" also names LLM usage units; references to a secret (`token = _resolve(ctx)`, `password=password`, `current_password: currentPassword`) are skipped by `detection/secret_value`, while `$`/`%` inside a value are password characters) and `redact_spans` (position-based replacement; overlapping spans collapse into one marker) | ✅ |
 
 ## Profiles
 
@@ -24,7 +24,7 @@ Instruction-shape detection (guardrail bypass / unattended execution / exfiltrat
 
 ## Key Dependencies
 
-- `core.security.detection.*` (leak + password-like, prompt, instruction-shape, harmful-state, content-boundary)
+- `core.security.detection.*` (leak + password-like + `secret_value` shared value/reference rules, prompt, instruction-shape, harmful-state, content-boundary)
 - `core.security.assignment_sweep` (`find_assignment_matches`: the single definition of a non-benign secret assignment, with the value span)
 
 ## Consumers

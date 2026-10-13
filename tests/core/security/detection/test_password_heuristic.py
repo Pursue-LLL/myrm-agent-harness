@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from myrm_agent_harness.core.security.detection.password_heuristic import find_password_spans, secret_value_span
+from myrm_agent_harness.core.security.detection.password_heuristic import find_password_spans
 
 
 def _secrets(text: str) -> list[str]:
@@ -246,40 +246,14 @@ class TestProseIsNeverASecret:
         text = "Please read the docs. " + "Section text about onboarding. " * 30 + "Reset the password in Settings."
         assert find_password_spans(text) == []
 
-
-class TestSecretValueSpan:
     @pytest.mark.parametrize(
-        "value",
+        "text",
         [
-            "short1",  # shorter than 8
-            "12345678901",  # purely numeric example
-            "required",  # field state word
-            "********",  # mask
-            "xxxxxxxx",  # mask
-            "settings.DB_PASSWORD",  # attribute reference
-            "DB_PASSWORD",  # constant reference
-            "password_hash",  # snake-case identifier
-            "Optional[str]",  # type annotation
-            "${DB_PASSWORD}",  # template
-            "https://example.com/p?x=1",  # URL
-            "[REDACTED]",  # already redacted
-            "[REDACTED:env_credential]",  # already redacted by the leak detector
+            'raise HTTPException(status.HTTP_400_BAD_REQUEST, "Password is required.")',
+            r"""PAT = re.compile(r"(?i)(?:token|password)\s*[:=]\s*([a-zA-Z0-9_\-\.]{8,})")""",
+            "if password == AuthType.OAUTH2_CLIENT_CREDENTIALS:",
         ],
+        ids=["http-status-constant", "regex-character-class", "enum-member"],
     )
-    def test_rejects_non_secret_values(self, value: str) -> None:
-        assert secret_value_span(value, 0, len(value), allow_letters_only=True) is None
-
-    def test_letters_only_value_passes_only_for_a_password_label(self) -> None:
-        text = "dragonfly"
-        assert secret_value_span(text, 0, len(text), allow_letters_only=True) == (0, len(text))
-        assert secret_value_span(text, 0, len(text), allow_letters_only=False) is None
-
-    def test_minimum_length_is_the_callers_choice(self) -> None:
-        text = "abcd1234efgh"
-        assert secret_value_span(text, 0, len(text), allow_letters_only=False) == (0, len(text))
-        assert secret_value_span(text, 0, len(text), allow_letters_only=False, min_length=16) is None
-
-    def test_trims_quotes_and_sentence_punctuation_but_keeps_trailing_strong_symbol(self) -> None:
-        text = '"Zk9#mango42!".'
-        start, end = secret_value_span(text, 0, len(text), allow_letters_only=False) or (0, 0)
-        assert text[start:end] == "Zk9#mango42!"
+    def test_code_reference_near_a_keyword_is_not_a_generated_secret(self, text: str) -> None:
+        assert find_password_spans(text) == []

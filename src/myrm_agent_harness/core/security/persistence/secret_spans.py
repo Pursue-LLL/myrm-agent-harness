@@ -3,8 +3,8 @@
 [INPUT]
 - core.security.assignment_sweep::find_assignment_matches / AssignmentKeyFamily (POS: single definition of a
   non-benign `<sensitive key><delimiter><value>` assignment, with the value span.)
-- core.security.detection.password_heuristic::secret_value_span / mask_markdown_emphasis (POS: shared value rules and
-  markup masking.)
+- core.security.detection.secret_value::secret_value_span / mask_markdown_emphasis (POS: shared value rules, reference
+  rejection and markup masking.)
 
 [OUTPUT]
 - find_assignment_secret_spans: spans of the values assigned to password/api_key/secret/token-style keys.
@@ -20,7 +20,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from myrm_agent_harness.core.security.assignment_sweep import AssignmentKeyFamily, find_assignment_matches
-from myrm_agent_harness.core.security.detection.password_heuristic import (
+from myrm_agent_harness.core.security.detection.secret_value import (
     MIN_SECRET_VALUE_LENGTH,
     Span,
     mask_markdown_emphasis,
@@ -61,6 +61,7 @@ def find_assignment_secret_spans(text: str) -> list[Span]:
                 min_length=_MIN_TOKEN_VALUE_LENGTH
                 if match.family is AssignmentKeyFamily.TOKEN
                 else MIN_SECRET_VALUE_LENGTH,
+                key=match.key,
             )
             if span is not None:
                 spans.append((offset + span[0], offset + span[1]))

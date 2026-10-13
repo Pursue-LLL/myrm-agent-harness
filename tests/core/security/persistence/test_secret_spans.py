@@ -65,11 +65,45 @@ class TestFindAssignmentSecretSpans:
             "api_key: [REDACTED:openai_api_key]",
             "password: ${DB_PASSWORD}",
             "def login(password: Optional[str] = None)",
+            "password: $DB_PASSWORD",
+            "token: {token_efficiency:.2f}",
+            "Client(host=host, password=password, passphrase=passphrase)",
+            "{ current_password: currentPassword, new_password: newPassword }",
+            "token = _active_value(settings, name)",
+            "secret = _resolve_secret(ctx)",
+            "raise Error(code=status.HTTP_400_BAD_REQUEST, password=a-zA-Z0-9_)",
         ],
-        ids=["attribute", "marker", "vendor-marker", "template", "annotation"],
+        ids=[
+            "attribute",
+            "marker",
+            "vendor-marker",
+            "template",
+            "annotation",
+            "shell-variable",
+            "format-field",
+            "pass-through-argument",
+            "camel-case-field",
+            "private-call",
+            "private-call-secret",
+            "character-class",
+        ],
     )
     def test_references_and_markers_are_not_secrets(self, text: str) -> None:
         assert _secrets(text) == []
+
+    @pytest.mark.parametrize(
+        ("text", "secret"),
+        [
+            ('export DB_PASSWORD="Pa$$w0rd2024"', "Pa$$w0rd2024"),
+            ('db_password: "Zk9%mango42"', "Zk9%mango42"),
+            ("api_key=ab$cdef1234567", "ab$cdef1234567"),
+            ("secret: Zk9$mango42xyz", "Zk9$mango42xyz"),
+            ("PASSWORD=Zk9%mango42", "Zk9%mango42"),
+        ],
+        ids=["dollar-in-env-export", "percent-in-yaml", "dollar-in-api-key", "dollar-in-secret", "percent-in-env"],
+    )
+    def test_dollar_and_percent_inside_a_value_are_redacted(self, text: str, secret: str) -> None:
+        assert _secrets(text) == [secret]
 
     def test_long_unbroken_line_is_scanned_in_linear_time(self) -> None:
         started = time.perf_counter()

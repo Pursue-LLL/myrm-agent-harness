@@ -16,7 +16,8 @@ for debugging while keeping the credential unusable. PEM blocks are
 fully redacted (BEGIN to END) with type label preserved.
 
 [INPUT]
-- (none — pure regex patterns, no external dependencies)
+- core.security.detection.secret_value (POS: shared rules telling a secret from a reference to one: templates,
+  identifiers, calls, class names, slugs, addresses.)
 
 [OUTPUT]
 - scan_for_leaks(): detect credential patterns, returns matched pattern names
@@ -35,6 +36,8 @@ import math
 import re
 from collections import Counter
 from functools import partial
+
+from myrm_agent_harness.core.security.detection.secret_value import is_reference_token, is_reference_value
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +145,7 @@ _SENSITIVE_KEY_RE = (
 _MIN_CONTEXT_VALUE_LENGTH = 16
 
 _ENV_PATTERN = re.compile(
-    rf"(?:^|[\s;])(?:export\s+)?\w*{_SENSITIVE_KEY_RE}\s*=\s*['\"]?([^\s'\"#;]+)",
+    rf"(?:^|[\s;])(?:export\s+)?(?P<key>\w*{_SENSITIVE_KEY_RE})\s*=\s*['\"]?(?P<value>[^\s'\"#;]+)",
     re.MULTILINE | re.IGNORECASE,
 )
 
@@ -163,15 +166,20 @@ def _is_placeholder(value: str) -> bool:
     return bool(_PLACEHOLDER_RE.match(value.strip()))
 
 
+def _env_credential_value(m: re.Match[str]) -> str | None:
+    """The credential of an ENV assignment, or None for a short value, a placeholder or a reference to a secret."""
+    value = m.group("value")
+    if len(value) < _MIN_CONTEXT_VALUE_LENGTH or _is_placeholder(value):
+        return None
+    return None if is_reference_value(value, key=m.group("key")) else value
+
+
 def _scan_context_patterns(content: str) -> list[str]:
     """Detect credentials in ENV assignments, JSON fields, Auth headers, and mnemonic phrases."""
     found: list[str] = []
 
-    for m in _ENV_PATTERN.finditer(content):
-        val = m.group(1)
-        if len(val) >= _MIN_CONTEXT_VALUE_LENGTH and not _is_placeholder(val):
-            found.append("env_credential")
-            break
+    if any(_env_credential_value(m) for m in _ENV_PATTERN.finditer(content)):
+        found.append("env_credential")
 
     for m in _JSON_PATTERN.finditer(content):
         val = m.group(1)
@@ -247,6 +255,8 @@ def _scan_high_entropy(content: str, already_matched: set[str]) -> list[tuple[st
         has_digit = any(c.isdigit() for c in token)
         if not (has_alpha and has_digit):
             continue
+        if is_reference_token(token, min_length=_ENTROPY_MIN_TOKEN_LEN):
+            continue
         if any(token in matched for matched in already_matched):
             continue
         entropy = _shannon_entropy(token)
@@ -298,8 +308,8 @@ def _smart_redact_match(name: str, match: re.Match[str]) -> str:
 
 
 def _redact_env_match(m: re.Match[str]) -> str:
-    val = m.group(1)
-    if len(val) < _MIN_CONTEXT_VALUE_LENGTH or _is_placeholder(val):
+    val = _env_credential_value(m)
+    if val is None:
         return m.group(0)
     return m.group(0).replace(val, _smart_redact_value("env_credential", val), 1)
 

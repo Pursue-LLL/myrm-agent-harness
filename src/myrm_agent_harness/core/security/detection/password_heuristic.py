@@ -1,16 +1,13 @@
 """Password-like secret heuristic: keyword-anchored passwords and numeric PIN/OTP/2FA codes.
 
 [INPUT]
-- (none — pure regex patterns, no external dependencies)
+- core.security.detection.secret_value (POS: shared value rules, reference rejection, markup masking.)
 
 [OUTPUT]
 - find_password_spans(): sorted (start, end) spans of the secrets that sit next to a credential keyword. A span is the
   secret itself, never the keyword or a neighbouring word; texts without a keyword yield nothing.
-- secret_value_span() / MIN_SECRET_VALUE_LENGTH: the value rules (trim, plausibility, already-redacted, minimum
-  length) shared with callers that locate a labeled value by other means (persistence scans ``key: value``
-  assignments through assignment_sweep).
-- mask_markdown_emphasis(): same-length copy of a text with markdown bold markers blanked, so callers that scan by
-  other means see the same words.
+  Only keyword anchoring lives here: what counts as a secret value (trim, plausibility, references) is decided by
+  secret_value.py, shared with persistence assignment spans and the leak detector.
 
 [POS]
 Last-resort detector for secrets that carry no vendor prefix and no high entropy (e.g. "Zk9#mango42"), which the
@@ -24,7 +21,14 @@ from __future__ import annotations
 import re
 from bisect import bisect_left
 
-Span = tuple[int, int]
+from myrm_agent_harness.core.security.detection.secret_value import (
+    STRONG_SYMBOLS,
+    STRUCTURAL_SYMBOLS,
+    Span,
+    is_reference_value,
+    mask_markdown_emphasis,
+    secret_value_span,
+)
 
 # "pin" is an everyday verb ("pin the message", "pin to v2"). As a credential it is the acronym "PIN" or is introduced
 # explicitly or followed directly by the code ("my pin is 4821", "pin: 4821", "my atm pin 4821").
@@ -35,16 +39,8 @@ _PASSWORD_KEYWORD_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Markdown bold ("**Password**: x", "Password: **x**") is markup around the words, not part of the secret; a
-# password that merely contains "**" inside ("Pa**ss12") keeps it.
-_MARKDOWN_BOLD_RE = re.compile(r"(?<![A-Za-z0-9])\*{2,}|\*{2,}(?![A-Za-z0-9])")
-# Strong symbols are password characters; structural ones only join segments ("xK9-mPq2-Lw8z") and also appear
-# in prose, URLs and domains. "=" is deliberately absent: it separates a label from its value ("password=Zk9#..."),
-# so the label must stay out.
-_STRONG_SYMBOLS = "@#$%^&*!?_"
-_STRUCTURAL_SYMBOLS = "-./+~"
-_STRONG = re.escape(_STRONG_SYMBOLS)
-_TOKEN_CHARS = rf"[A-Za-z0-9{_STRONG}{re.escape(_STRUCTURAL_SYMBOLS)}]"
+_STRONG = re.escape(STRONG_SYMBOLS)
+_TOKEN_CHARS = rf"[A-Za-z0-9{_STRONG}{re.escape(STRUCTURAL_SYMBOLS)}]"
 # A token starts and ends on a letter, digit or strong symbol, so a trailing "!" belongs to the secret while a
 # sentence-final "." does not. The class lookaheads stay inside the 64-char token window so scanning long
 # unbroken runs (base64 blobs, paths) remains linear.
@@ -55,7 +51,7 @@ _PASSWORD_CANDIDATE_RE = re.compile(
 )
 # A token that merely sits near a keyword must look generated (four classes: lower, upper, digit, strong symbol);
 # "iPhone15Pro" or a capitalised word does not. A token the text introduces explicitly ("is", ":", "=", "是") only has
-# to pass is_plausible_secret_value.
+# to pass secret_value_span.
 _MIN_UNANCHORED_CLASSES = 4
 _TOKEN_WINDOW_BEFORE = 32
 _TOKEN_WINDOW_AFTER = 80
@@ -67,32 +63,6 @@ _VALUE_AFTER_CONNECTOR_RE = re.compile(
     r"[^\n.!?:=。！？：]{0,40}?(?:\b(?:is|was|are|to)\b|[:=：]|是|为|改成|改为|设为)\s*[\"'“‘`]?"
     rf"(?P<value>{_VALUE_CHAR}+)",
     re.IGNORECASE,
-)
-
-MIN_SECRET_VALUE_LENGTH = 8
-_MAX_VALUE_LENGTH = 64
-# Redaction markers ("[REDACTED]", "[REDACTED:env_credential]") already sit in text that is scanned again.
-_REDACTION_MARKER_PREFIX = "[REDACTED"
-# Masks ("********", "xxxxxxxx") repeat one or two characters.
-_MIN_DISTINCT_CHARS = 3
-# Code expressions and templates ("Optional[str]", "${DB_PASSWORD}", "<jwt>", "[REDACTED]"), URLs, identifiers
-# ("settings.password", "DB_PASSWORD", "password_hash"): references to a secret, not the secret.
-_NON_SECRET_CHARS_RE = re.compile(r"[()\[\]{}<>$%]")
-_IDENTIFIER_RE = re.compile(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+|[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+|[a-z]+(?:_[a-z]+)+")
-_FIELD_STATE_WORDS = frozenset(
-    {
-        "required",
-        "optional",
-        "mandatory",
-        "hidden",
-        "masked",
-        "redacted",
-        "encrypted",
-        "hashed",
-        "unknown",
-        "empty",
-        "unset",
-    }
 )
 
 # Numeric credentials (PIN/OTP/2FA/passcode) use a dedicated keyword group so a bare numeric token is only treated
@@ -119,52 +89,6 @@ _NUMERIC_CREDENTIAL_BEFORE_WINDOW = 20
 _SAME_CLAUSE_RE = re.compile(r"[\w\s'’-]*")
 
 
-def mask_markdown_emphasis(text: str) -> str:
-    """Blank out markdown bold markers, keeping every offset, so detection never takes markup for secret characters."""
-    return _MARKDOWN_BOLD_RE.sub(lambda match: " " * len(match.group()), text)
-
-
-def _is_secret_edge(char: str) -> bool:
-    return char.isascii() and (char.isalnum() or char in _STRONG_SYMBOLS)
-
-
-def _trim_secret_span(text: str, start: int, end: int) -> Span:
-    """Shrink a span to start and end on a letter, digit or strong symbol (quotes and sentence punctuation drop out)."""
-    while start < end and not _is_secret_edge(text[start]):
-        start += 1
-    while end > start and not _is_secret_edge(text[end - 1]):
-        end -= 1
-    return start, end
-
-
-def _is_plausible_secret_value(value: str, *, allow_letters_only: bool, min_length: int) -> bool:
-    if not min_length <= len(value) <= _MAX_VALUE_LENGTH:
-        return False
-    if _NON_SECRET_CHARS_RE.search(value) or "://" in value or _IDENTIFIER_RE.fullmatch(value):
-        return False
-    if value.isdigit() or value.lower() in _FIELD_STATE_WORDS or len(set(value)) < _MIN_DISTINCT_CHARS:
-        return False
-    return allow_letters_only or any(char.isdigit() or char in _STRONG_SYMBOLS for char in value)
-
-
-def secret_value_span(
-    text: str, start: int, end: int, *, allow_letters_only: bool, min_length: int = MIN_SECRET_VALUE_LENGTH
-) -> Span | None:
-    """The secret inside the raw value span ``text[start:end]`` of a label or connector, or None.
-
-    The raw span is trimmed (quotes and sentence punctuation drop out) and must then be plausible: not an existing
-    redaction marker, not shorter than ``min_length``, purely numeric or a field-state word, and not a reference to a
-    secret (identifier, template, code expression). Letters-only values ("dragonfly") are ambiguous in prose
-    ("required", "stored"), so they pass only where the caller knows the label names a password.
-    """
-    if text.startswith(_REDACTION_MARKER_PREFIX, start):
-        return None
-    start, end = _trim_secret_span(text, start, end)
-    if _is_plausible_secret_value(text[start:end], allow_letters_only=allow_letters_only, min_length=min_length):
-        return start, end
-    return None
-
-
 def _char_class_count(token: str) -> int:
     """Number of distinct classes among lowercase, uppercase, digit and strong symbol.
 
@@ -175,21 +99,22 @@ def _char_class_count(token: str) -> int:
             any(char.islower() for char in token),
             any(char.isupper() for char in token),
             any(char.isdigit() for char in token),
-            any(char in _STRONG_SYMBOLS for char in token),
+            any(char in STRONG_SYMBOLS for char in token),
         )
     )
 
 
 def _is_generated_token(token: str) -> bool:
-    """Reject the keyword itself and hyphen/dot/slash-joined prose (product names, domains, paths).
+    """Reject the keyword itself, references to a secret and hyphen/dot/slash-joined prose.
 
-    A token joined by structural symbols is a secret only when it also carries a digit or a strong
+    References are names and patterns (``status.HTTP_400_BAD_REQUEST``, ``a-zA-Z0-9_``); prose is product names,
+    domains and paths. A token joined by structural symbols is a secret only when it also carries a digit or a strong
     symbol: "Password-Manager" and "example.com/Reset" are words, "xK9-mPq2-Lw8z" is generated.
     """
-    if _PASSWORD_KEYWORD_RE.fullmatch(token):
+    if _PASSWORD_KEYWORD_RE.fullmatch(token) or is_reference_value(token):
         return False
-    if any(char in _STRUCTURAL_SYMBOLS for char in token) and not any(
-        char.isdigit() or char in _STRONG_SYMBOLS for char in token
+    if any(char in STRUCTURAL_SYMBOLS for char in token) and not any(
+        char.isdigit() or char in STRONG_SYMBOLS for char in token
     ):
         return False
     return _char_class_count(token) >= _MIN_UNANCHORED_CLASSES
