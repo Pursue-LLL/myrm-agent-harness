@@ -75,7 +75,13 @@ class PagePool:
                 page = self._idle.pop()
                 if page.is_closed():
                     continue
-                if await self._revive(page):
+                try:
+                    revived = await self._revive(page)
+                except BaseException:
+                    # Cancelled mid-reset: the page already left the idle list, so nobody else would close it.
+                    await close_page_bounded(page)
+                    raise
+                if revived:
                     self._busy.add(page)
                     return page
                 logger.warning("PagePool: idle page did not survive reset, replacing it")

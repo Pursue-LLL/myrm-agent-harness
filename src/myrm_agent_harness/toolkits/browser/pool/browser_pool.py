@@ -6,6 +6,7 @@
 - .browser_launcher::BrowserLauncher, BrowserInstance (POS: browser launcher and instance metadata)
 - .context_factory::ContextFactory (POS: context creation factory)
 - .page_pool::PagePool (POS: page object pool)
+- .page_acquisition::PageAcquisition (POS: cancel-safe claim on one permit and the page taken for it)
 - .config::BrowserPoolConfig (POS: browser pool config)
 - .throttle::ThrottleStrategy, create_throttle_strategy (POS: throttle strategy)
 - .circuit_breaker::CircuitBreaker (POS: circuit breaker)
@@ -23,7 +24,7 @@ Global browser resource pool. Manages Browser/Context/Page three-layer resources
 5. Global concurrency limit (Semaphore controls total concurrency)
 6. Lifecycle management (background loop: idle reclamation + crash detection)
 7. Three-layer automatic crash recovery (L1: browser disconnect event, L2: page crash event, L3: lifecycle fallback)
-8. Semaphore safety net (prevents semaphore leaks or double releases on crash)
+8. Semaphore safety net (prevents semaphore leaks or double releases on crash and on a cancelled or failed acquisition)
 """
 
 from __future__ import annotations
@@ -51,6 +52,7 @@ from .config import (
 from .context_factory import ContextFactory
 from .crash_watchdog import CrashWatchdogMixin
 from .memory_guard import MemoryGuard
+from .page_acquisition import PageAcquisition
 from .page_pool import PagePool
 from .proxy import ProxyPool
 from .throttle import ThrottleStrategy, create_throttle_strategy
@@ -167,7 +169,7 @@ class GlobalBrowserPool(CrashWatchdogMixin):
         self._extension_bridge = extension_bridge
 
         if self._proxy_pool:
-            args = list(self._launch_options.get("args", []))
+            args = list(raw) if isinstance(raw := self._launch_options.get("args"), list) else []
             args.append("--dns-over-https-templates=https://cloudflare-dns.com/dns-query")
             self._launch_options["args"] = args
 
@@ -294,9 +296,7 @@ class GlobalBrowserPool(CrashWatchdogMixin):
 
         """
         engine = engine_preference or self._config.engine
-        await self._global_semaphore.acquire()
-
-        try:
+        async with PageAcquisition(self._global_semaphore, self._crash_handled_pages) as claim:
             await self._memory_guard.check_memory()
 
             # 1. Under lock: read state, update counters
@@ -338,6 +338,7 @@ class GlobalBrowserPool(CrashWatchdogMixin):
             # 3. Outside lock: acquire Page (async I/O) + register crash handler (L2)
             pool = browser_inst.page_pools[ctx_key]
             page = await pool.acquire()
+            claim.hold(pool, page)
             self._register_page_crash_handler(page, browser_inst)
 
             # 4. Under lock: update load count, concurrency count, active time
@@ -345,13 +346,10 @@ class GlobalBrowserPool(CrashWatchdogMixin):
                 browser_inst.load += 1
                 browser_inst.last_active_at = time.monotonic()
                 self._current_pages_in_use += 1
+                claim.commit()
 
             self._ensure_lifecycle_loop()
             return page, ctx_key
-
-        except Exception:
-            self._global_semaphore.release()
-            raise
 
     async def destroy_context(self, context_key: str) -> None:
         """Explicitly destroy a context and its associated page pool.
@@ -600,7 +598,7 @@ class GlobalBrowserPool(CrashWatchdogMixin):
                 default_emulation=self._config.default_emulation,
             )
             doh_flag = "--dns-over-https-templates=https://cloudflare-dns.com/dns-query"
-            args = list(self._launch_options.get("args", []))
+            args = list(raw) if isinstance(raw := self._launch_options.get("args"), list) else []
             if proxy_pool and doh_flag not in args:
                 args.append(doh_flag)
             elif not proxy_pool:
@@ -699,7 +697,7 @@ class GlobalBrowserPool(CrashWatchdogMixin):
         issues: list[str] = []
 
         pool_stats = self.stats
-        utilization = float(pool_stats["utilization_percent"])
+        utilization = round(self._current_pages_in_use / self._config.max_concurrent_pages * 100, 2)
 
         if utilization > 90:
             issues.append(f"High utilization: {utilization:.0f}%")

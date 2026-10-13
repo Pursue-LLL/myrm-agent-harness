@@ -115,8 +115,7 @@ class BrowserSessionNavigationMixin(BrowserSessionTabMixin, BrowserSessionCaptch
 
     async def navigate(self, url: str, verify_goal: str | None = None) -> str:
         """Navigate to URL (auto-injects site experience, auto-detects CAPTCHA)."""
-        if hasattr(self, "_ensure_not_user_takeover"):
-            await self._ensure_not_user_takeover()
+        await self._ensure_not_user_takeover()
         if not self._tab_controller.list_tabs():
             await self.new_tab()
         await self._ensure_components()
@@ -255,13 +254,9 @@ class BrowserSessionNavigationMixin(BrowserSessionTabMixin, BrowserSessionCaptch
                     await self.restart(restore_url=False)
                     continue
 
-                if isinstance(e, PageUnresponsiveError):
-                    # Retrying would stall the same way; give the next call a working tab instead.
-                    replacement = await self.recover_active_tab()
-                    if replacement is not None:
-                        raise PageUnresponsiveError(
-                            f"{e} The tab was reset to a blank page ({replacement}); navigate again to continue."
-                        ) from e
+                # Retrying a stalled page would stall the same way; give the next call a working tab instead.
+                if isinstance(e, PageUnresponsiveError) and await self.recover_active_tab() is not None:
+                    raise PageUnresponsiveError(f"{e} {self.take_tab_reset_notice()}") from e
 
                 # If not a proxy error or out of retries, re-raise
                 raise

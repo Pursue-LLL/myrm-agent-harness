@@ -41,6 +41,7 @@ def _fast_poll(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
 def _session() -> MagicMock:
     session = MagicMock()
     session.recover_active_tab = AsyncMock(return_value=None)
+    session.take_tab_reset_notice = MagicMock(return_value=None)
     return session
 
 
@@ -189,6 +190,122 @@ class TestNormalRun:
         set_cancel_token(CancellationToken("req"))
 
         assert await guarded.ainvoke({"value": "a"}, config={"tags": ["t1"]}) == "a:t1"
+
+
+class TestRunTornDownFromOutside:
+    """Executor timeout, stuck-task watchdog or shutdown cancel the tool without touching the token."""
+
+    @staticmethod
+    async def _cancelled_while_blocked(guarded: BaseTool, started: asyncio.Event) -> asyncio.Task[object]:
+        set_cancel_token(CancellationToken("req"))  # alive: this is not a user stop
+        running = asyncio.create_task(guarded.ainvoke({"value": "x"}))
+        await asyncio.wait_for(started.wait(), timeout=_BOUND_S)
+        return running
+
+    async def test_tab_is_healed_before_the_cancellation_continues(self) -> None:
+        started, cancelled = asyncio.Event(), asyncio.Event()
+        session = _session()
+        (guarded,) = apply_cancel_boundary([_hanging_tool(started, cancelled)], session)
+        running = await self._cancelled_while_blocked(guarded, started)
+
+        running.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(running, timeout=_BOUND_S)
+
+        assert cancelled.is_set()
+        session.recover_active_tab.assert_awaited_once()
+
+    async def test_executor_style_timeout_still_ends_as_a_timeout_after_the_heal(self) -> None:
+        started, cancelled = asyncio.Event(), asyncio.Event()
+        session = _session()
+        (guarded,) = apply_cancel_boundary([_hanging_tool(started, cancelled)], session)
+        set_cancel_token(CancellationToken("req"))
+
+        with pytest.raises(TimeoutError):
+            async with asyncio.timeout(0.1):
+                await guarded.ainvoke({"value": "x"})
+
+        session.recover_active_tab.assert_awaited_once()
+
+    async def test_a_second_cancellation_during_the_heal_still_propagates(self) -> None:
+        started, cancelled = asyncio.Event(), asyncio.Event()
+        healing = asyncio.Event()
+        session = _session()
+
+        async def slow_heal() -> None:
+            healing.set()
+            await asyncio.Event().wait()
+
+        session.recover_active_tab = AsyncMock(side_effect=slow_heal)
+        (guarded,) = apply_cancel_boundary([_hanging_tool(started, cancelled)], session)
+        running = await self._cancelled_while_blocked(guarded, started)
+
+        running.cancel()
+        await asyncio.wait_for(healing.wait(), timeout=_BOUND_S)
+        running.cancel()  # the watchdog cancelling the same task again
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(running, timeout=_BOUND_S)
+
+    async def test_a_tool_failure_is_not_a_teardown_and_heals_nothing(self) -> None:
+        session = _session()
+
+        @tool("fail_tool")
+        async def fail_tool(value: str) -> str:
+            """Fails."""
+            raise RuntimeError("boom")
+
+        (guarded,) = apply_cancel_boundary([fail_tool], session)
+        set_cancel_token(CancellationToken("req"))
+
+        with pytest.raises(RuntimeError, match="boom"):
+            await guarded.ainvoke({"value": "a"})
+
+        session.recover_active_tab.assert_not_awaited()
+
+
+class TestTabResetNotice:
+    """A healed tab is blank, so the model must be told once, on the next text result."""
+
+    @staticmethod
+    def _echo_tool(result: object) -> StructuredTool:
+        @tool("echo_tool")
+        async def echo_tool(value: str) -> object:
+            """Echo."""
+            return result
+
+        return echo_tool
+
+    async def test_next_text_result_carries_the_notice_exactly_once(self) -> None:
+        session = _session()
+        session.take_tab_reset_notice.side_effect = ["The tab was reset.", None]
+        (guarded,) = apply_cancel_boundary([self._echo_tool("page text")], session)
+        set_cancel_token(CancellationToken("req"))
+
+        assert await guarded.ainvoke({"value": "a"}) == "The tab was reset.\n\npage text"
+        assert await guarded.ainvoke({"value": "a"}) == "page text"
+
+    async def test_structured_result_is_left_untouched_and_the_notice_stays_pending(self) -> None:
+        session = _session()
+        session.take_tab_reset_notice.return_value = "The tab was reset."
+        structured = {"url": "https://x.test/", "title": "t"}
+        (guarded,) = apply_cancel_boundary([self._echo_tool(structured)], session)
+        set_cancel_token(CancellationToken("req"))
+
+        assert await guarded.ainvoke({"value": "a"}) == structured
+        session.take_tab_reset_notice.assert_not_called()
+
+    async def test_stopped_run_answer_does_not_consume_the_notice(self) -> None:
+        started, cancelled = asyncio.Event(), asyncio.Event()
+        session = _session()
+        (guarded,) = apply_cancel_boundary([_hanging_tool(started, cancelled)], session)
+        token = CancellationToken("req")
+        set_cancel_token(token)
+        stopper = asyncio.create_task(_stop_when_started(token, started))
+
+        assert await asyncio.wait_for(guarded.ainvoke({"value": "x"}), timeout=_BOUND_S) == CANCELLED_RESULT
+        await stopper
+
+        session.take_tab_reset_notice.assert_not_called()
 
 
 def test_a_tool_without_a_coroutine_is_rejected_instead_of_staying_uncancellable() -> None:

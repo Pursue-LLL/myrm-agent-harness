@@ -22,6 +22,7 @@ class _NavigationProbe(BrowserSessionNavigationMixin):
     def __init__(self, blocklist: DomainAllowlist | None = None) -> None:
         self._domain_blocklist = blocklist
         self.snapshot = AsyncMock()
+        self._ensure_not_user_takeover = AsyncMock()
 
 
 class _ExtensionNavigationProbe(BrowserSessionNavigationMixin):

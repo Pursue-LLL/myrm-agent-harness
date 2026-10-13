@@ -5,15 +5,17 @@
 - utils.page_health::abort_pending_navigation, close_page_bounded, probe_alive (POS: bounded browser and page health primitives)
 
 [OUTPUT]
-- BrowserSessionTabMixin: new_tab, list_tabs, list_tabs_with_info, get_active_tab_id, close_tab, switch_tab, recover_active_tab
+- BrowserSessionTabMixin: new_tab, list_tabs, list_tabs_with_info, get_active_tab_id, close_tab, switch_tab, recover_active_tab, take_tab_reset_notice
 
 [POS]
 Tab-management APIs for BrowserSession. Every tab change rebinds the per-page components
 (Navigator / Snapshot / Interactor / Extractor, loggers, dialog manager) and keeps device
 emulation consistent across tabs. `recover_active_tab` replaces an active tab whose page stopped
 answering (stalled navigation, spinning renderer) with a blank one, so the session never keeps
-handing a dead page to the next tool call. Inherited by BrowserSessionNavigationMixin, so it sits
-right after it in the MRO and before BrowserSessionLifecycleMixin.
+handing a dead page to the next tool call, and records a one-time notice (`take_tab_reset_notice`)
+so the model learns the page is blank because it was reset, not because it is empty. Inherited by
+BrowserSessionNavigationMixin, so it sits right after it in the MRO and before
+BrowserSessionLifecycleMixin.
 """
 
 from __future__ import annotations
@@ -32,10 +34,11 @@ _RECOVERY_BUDGET_S = 10.0
 
 
 class BrowserSessionTabMixin(SessionHost):
+    _pending_tab_reset: str | None = None
+
     async def new_tab(self, url: str | None = None) -> str:
         """Create new Tab or reuse existing same-origin Tab, return Tab ID."""
-        if hasattr(self, "_ensure_not_user_takeover"):
-            await self._ensure_not_user_takeover()
+        await self._ensure_not_user_takeover()
         if url:
             parsed = urlparse(url)
             origin = f"{parsed.scheme}://{parsed.netloc}"
@@ -131,6 +134,8 @@ class BrowserSessionTabMixin(SessionHost):
         A stalled navigation is stopped first (that alone revives a page held up by a silent
         server); a page that still does not answer is closed and its tab swapped for a fresh one. Callers racing on the same
         dead page are serialized, and the loser finds the healthy replacement and does nothing.
+        A replacement leaves a one-time notice for the model (`take_tab_reset_notice`), because a
+        blank tab answers every read tool with a plain empty page.
         Never raises: a failed recovery is logged and leaves the session usable, because
         `navigate` opens a tab when none is left.
 
@@ -144,10 +149,24 @@ class BrowserSessionTabMixin(SessionHost):
         async with self._tab_recovery_lock:
             try:
                 async with asyncio.timeout(_RECOVERY_BUDGET_S):
-                    return await self._replace_active_tab_if_unresponsive()
+                    replacement = await self._replace_active_tab_if_unresponsive()
             except Exception:
                 logger.warning("BrowserSession: tab recovery failed", exc_info=True)
                 return None
+            if replacement is not None:
+                self._pending_tab_reset = (
+                    f"The tab was reset to a blank page ({replacement}); navigate again to continue."
+                )
+            return replacement
+
+    def take_tab_reset_notice(self) -> str | None:
+        """Return, once, the message telling the model its tab was swapped for a blank page.
+
+        A caller that reports the reset itself takes it so the model hears it exactly once;
+        otherwise the next text result of any browser tool carries it.
+        """
+        notice, self._pending_tab_reset = self._pending_tab_reset, None
+        return notice
 
     async def _replace_active_tab_if_unresponsive(self) -> str | None:
         try:

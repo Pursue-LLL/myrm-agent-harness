@@ -107,6 +107,7 @@ Extension Bridge 与 SessionVault 覆盖竞品（orca/holaboss）cookie 导入�
 - **智能重试**：3次指数退避重试（2s/4s/8s），处理启动失败和网络异常
 - **并发安全销毁**：支持 `destroy_context` 显式回收资源，并具备严格的并发安全断言，防止销毁正在使用的页面。
 - **只发放健康页面**：`PagePool.acquire` 跳过已关闭的页面；复用前的重置受 5 s 预算约束，重置后再用 `probe_alive` 确认页面能回答，失败的页面被有界关闭而不是发放（避免卡死页面把 `create_tab` 堵在池锁里）。`release` 丢弃已关闭的页面，不放回池。
+- **取消安全的取页**：`acquire_page` 经 `pool/page_acquisition.py::PageAcquisition` 持有全局并发许可（及已从 `PagePool` 取出的页面），直到页面被计入「在用」（`commit`）才交给 `release_page`；取页途中被取消或失败（冷启动浏览器、创建上下文、重置空闲页、等池锁），许可与已取出的页面原路归还，崩溃处理器已为该页归还许可时不重复归还。全局许可信号量是进程级单例、从不对账，漏一个就永久少一个槽位。唯一的有界残留：创建页面的调用本身被取消时没有页面句柄可归还，该页留在其上下文里，直到上下文销毁。
 - **崩溃判定以浏览器为准**：`CrashWatchdog` 的存活探针先问浏览器进程本身（浏览器级 CDP `Browser.getVersion`），应答即视为存活；不应答时再用池内页面求第二意见，两者都不应答才判定崩溃。单页面长时间导航不会被判为浏览器崩溃。
 - **残留进程回收**：池关闭浏览器时只做优雅 `close()`（5 s 超时，失败仅记日志），不持有浏览器 PID、不发信号。托管启动的 Chromium 带归属戳（启动方 PID + 启动时间）；启动方退出后残留的浏览器由 Browser Doctor 识别（归属戳可能传到浏览器拉起的应用上，所以还要求进程的名称、可执行文件名或 `argv[0]` 文件名含 `chrom`，否则不算残留），`cleanup_orphan_processes` 先 SIGTERM，3 s 宽限后补 SIGKILL（有头 Chrome 在 DevTools 驱动被杀后会忽略 SIGTERM）。读取正被回收的进程时，macOS 上的 psutil 7.2.2 会抛 `SystemError`（giampaolo/psutil#3024，修复尚未发布），该进程按「无法确认」跳过，不会中断扫描或清理。已知局限：Local 模式（有头）下若仅 Playwright 驱动先死、服务进程仍在，浏览器进程会残留，直到服务重启、归属戳指向已退出的进程后才会被识别并清理（macOS 实测，Linux/Windows 未实测）。
 - **双引擎热切换**：Camoufox 是可选的隐身引擎（需单独安装浏览器构建，约 1.2 GB）。已安装且当前为托管浏览器时，可在 Chromium (Patchright) 与 Firefox (Camoufox) 之间热切换，可能缓解指纹类拦截（不承诺绕过）。`BrowserSession.restart(engine=Camoufox)` 先做零副作用预检：构建未就绪、或当前是接入的真实浏览器（CDP/扩展）时抛 `EngineUnavailableError`，会话原样保留；预检通过后若启动失败，会话自动回滚到原引擎（Cookie/localStorage 随新上下文迁移，页面不重载）并重抛原始错误，不会留下无法使用的空会话。
@@ -838,6 +839,8 @@ BrowserError (root)
 
 - **页面卡死自愈**：`navigate()` 遇到 `PageUnresponsiveError` 时调用 `BrowserSession.recover_active_tab()`（`session/browser_session_tab_mixin.py`）：持锁、幂等、10 s 预算，先中止挂起加载再探活，仍无应答则有界关闭该标签页并开一个空白标签页，随后抛出带「标签页已重置为空白页，请重新导航」说明的 `PageUnresponsiveError`（不自动重试）。用户接管（`_user_takeover_active`）期间跳过恢复，不会替人关掉正在操作的页面。
 - **Stop 立即释放**：`create_browser_tools` / `create_restricted_ax_browser_tools` 返回的全部工具（8 个；受限 AX 版本 7 个）都经 `tools/cancel_boundary.py` 包装：每次调用与请求的 `CancellationToken` 赛跑（`utils/runtime/cancellation.py::run_until_cancelled`，0.25 s 轮询），Stop 后取消仍卡在驱动里的调用，恢复标签页，并返回 `CANCELLED_RESULT`（普通结果而非异常，不触发重试或 circuit breaker）。取消令牌缺失时直接透传，行为与未包装一致。
+- **非 Stop 的取消同样自愈**：执行器的工具超时（`asyncio.timeout`）、IM 通道卡死任务看门狗（令牌与任务同时取消）、关停会在不翻转令牌的情况下取消工具；边界对这类 `CancelledError` 同样先 `recover_active_tab()` 再继续抛出，否则卡死页面留在会话里，下一次运行立刻在同一个页面上再卡一次。二次取消落在自愈过程中时取消仍照常传播，自愈自身的 10 s 预算耗尽也不会吞掉取消。
+- **重置提示**：恢复后的标签页是空白页，读类工具对它返回的是「空文档」这种看似成功的结果。`recover_active_tab` 因此记下一条一次性提示（`take_tab_reset_notice`，取出即清除）；`navigate` 在自己的错误里说明后取走它，其余情况由下一次工具的文本结果前置带出，只告诉模型一次。结构化结果与错误不消耗提示。
 - **有界清理**：页面关闭与 CDP `detach` 统一走 `utils/page_health.py` 的 `close_page_bounded`（2 s）/ `detach_cdp_bounded`（1 s）；SSRF 守卫路径的 `unroute` 同为 2 s 上限，避免卡死页面在清理阶段继续挂住工具。
 
 ---
@@ -1126,19 +1129,20 @@ browser/
 │   ├── manage.py — browser_manage_tool
 │   ├── execute_script.py — browser_execute_script_tool（含 AST 特权API Scanner + HITL 门禁）
 │   ├── takeover.py — browser_ask_human_tool（人类接管，LangGraph interrupt + extension 横幅 / managed VNC）
-│   ├── cancel_boundary.py — Stop 感知边界（工具调用与取消令牌赛跑，卡死时恢复标签页并返回 CANCELLED_RESULT）
+│   ├── cancel_boundary.py — Stop 感知边界（工具调用与取消令牌赛跑，卡死时恢复标签页并返回 CANCELLED_RESULT；非 Stop 取消同样自愈；一次性重置提示）
 │   ├── inspect.py — browser_inspect_tool
 │   ├── _semantic_risk.py — 语义 DOM 风险分类（浏览器动作前置 + JS eval 模式；元素词典 SSOT 上移至 core/security/detection/semantic_risk.py，与桌面语义门共享）
 │   └── common.py — 工具共享工具函数
 ├── pool/
-│   ├── browser_pool.py (716 行) — GlobalBrowserPool（全局调度中枢）
+│   ├── browser_pool.py (761 行) — GlobalBrowserPool（全局调度中枢）
+│   ├── page_acquisition.py (89 行) — PageAcquisition（取页途中被取消或失败时归还许可与已取出的页面）
 │   ├── browser_launcher.py (~580 行) — BrowserLauncher（Chromium + Camoufox 启动前 sanitize_env + Zero-config Chromium 自动安装 with CDN mirror fallback + Camoufox 指纹持久化 + 损坏自愈 + Camoufox 启动前就绪闸门）
 │   ├── camoufox_availability.py — Camoufox 就绪探针（不下载；启动器 / restart 预检 / Doctor 共用）
 │   ├── context_factory.py (156 行) — ContextFactory（Context 工厂）
 │   ├── emulation.py — 浏览器环境仿真配置（含移动设备五维字段）
 │   ├── device_profiles.py — 精选移动设备 profile 注册表（含 landscape 横屏视口）
 │   ├── crash_watchdog.py — 崩溃看门狗（浏览器级 CDP 探针优先，池内页面第二意见）
-│   └── page_pool.py (217 行) — PagePool（只发放健康页面）
+│   └── page_pool.py (223 行) — PagePool（只发放健康页面）
 ├── diff/
 │   ├── types.py — ComparisonResult Protocol + FastComparisonResult + AccurateComparisonResult
 │   ├── fast_comparator.py — FastComparator（dHash，~2ms）
