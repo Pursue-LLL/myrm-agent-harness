@@ -600,6 +600,23 @@ async def test_corrupted_memory_index_fail_fast(tmp_path: Path, monkeypatch: pyt
 
     monkeypatch.setattr(conn, "execute", _corrupt_execute)
 
+    # A failure is only corruption when a fresh connection reproduces it (a stale
+    # long-lived connection alone is not), so the fresh check reports it too.
+    class _FreshCorruptConnection:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_exc):
+            return False
+
+        def execute(self, *_args, **_kwargs):
+            return _CorruptCursor()
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.memory.relational.sqlite_store.aiosqlite.connect",
+        lambda *_args, **_kwargs: _FreshCorruptConnection(),
+    )
+
     # 1. Direct integrity check returns False
     ok, detail = await store.check_integrity()
     assert ok is False

@@ -14,6 +14,7 @@ Unit tests for memory index corruption resilience and fail-fast barriers.
 
 from __future__ import annotations
 
+import asyncio
 import tempfile
 from pathlib import Path
 
@@ -79,6 +80,34 @@ async def test_sqlite_store_corrupted_header_raises_fail_fast() -> None:
         assert "error" in msg.lower() or "failed" in msg.lower()
 
         await corrupt_store.close()
+
+
+@pytest.mark.asyncio
+async def test_integrity_check_ignores_fts_staleness_caused_by_a_concurrent_writer() -> None:
+    """A second connection committing FTS5 rows must not make a healthy store look corrupted."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = str(Path(tmpdir) / "shared.db")
+        writer = SQLiteRelationalStore(db_path)
+        checker = SQLiteRelationalStore(db_path)
+        await checker.set_profile("warm", "up")
+        await writer.record_exact_fact(memory_id="m0", user_id="u", content="seed", identifiers=["00000000"])
+        await checker.assert_store_integrity()
+
+        async def _write() -> None:
+            for i in range(120):
+                await writer.record_exact_fact(
+                    memory_id=f"m{i % 6}", user_id="u", content=f"fact {i} works at", identifiers=[f"{i:08x}"]
+                )
+
+        async def _check() -> None:
+            for _ in range(120):
+                await checker.assert_store_integrity()
+                await asyncio.sleep(0)
+
+        await asyncio.gather(_write(), _check())
+
+        await writer.close()
+        await checker.close()
 
 
 def test_create_corrupted_index_probe_result() -> None:

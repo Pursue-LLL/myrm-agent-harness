@@ -139,15 +139,37 @@ class SQLiteRelationalStore(RelationalStore):
         await harden_connection_async(self._connection, DURABLE, db_path=self._db_path)
         await self._connection.commit()
 
+    async def _quick_check_rows(self) -> list[tuple[object, ...]]:
+        """Run ``PRAGMA quick_check(1)``, confirming any failure on a fresh connection.
+
+        A long-lived connection caches each FTS5 table's structure, so while another
+        connection (a second manager in this process, or another process) commits
+        to the same file, the cached structure goes stale and quick_check reports
+        ``malformed inverted index`` for a healthy database. A fresh connection reads
+        the current snapshot, so only a failure it reproduces counts as corruption.
+        """
+        conn = await self._get_connection()
+        async with conn.execute("PRAGMA quick_check(1)") as cursor:
+            rows = [tuple(row) for row in await cursor.fetchall()]
+        if self._quick_check_ok(rows):
+            return rows
+        async with aiosqlite.connect(str(self._db_path)) as fresh, fresh.execute("PRAGMA quick_check(1)") as cursor:
+            confirmed = [tuple(row) for row in await cursor.fetchall()]
+        if self._quick_check_ok(confirmed):
+            logger.info("quick_check on the long-lived connection was stale; fresh connection reports ok: %s", rows)
+        return confirmed
+
+    @staticmethod
+    def _quick_check_ok(rows: list[tuple[object, ...]]) -> bool:
+        return len(rows) == 1 and str(rows[0][0]).lower() == "ok"
+
     async def assert_store_integrity(self) -> None:
         """Fast pre-command integrity check using PRAGMA quick_check(1).
 
         Fails fast if the SQLite database is corrupted, preventing partial/corrupt writes.
         """
-        conn = await self._get_connection()
         try:
-            async with conn.execute("PRAGMA quick_check(1)") as cursor:
-                rows = list(await cursor.fetchall())
+            rows = await self._quick_check_rows()
             if not rows or len(rows) != 1 or str(rows[0][0]).lower() != "ok":
                 raise CorruptedMemoryIndexError(
                     f"SQLite store {self._db_path} failed quick_check: {rows}",
@@ -918,10 +940,8 @@ class SQLiteRelationalStore(RelationalStore):
         if self._closed:
             return False, "Store has been closed"
         try:
-            conn = await self._get_connection()
-            async with conn.execute("PRAGMA quick_check(1)") as cursor:
-                rows = list(await cursor.fetchall())
-            if rows and len(rows) == 1 and str(rows[0][0]).lower() == "ok":
+            rows = await self._quick_check_rows()
+            if self._quick_check_ok(rows):
                 return True, "ok"
             err_msg = "; ".join(str(r[0]) for r in rows)
             return False, f"Integrity check failed: {err_msg}"
