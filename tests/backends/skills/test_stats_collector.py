@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -175,18 +176,122 @@ def test_get_stats_returns_pending(collector: SkillStatsCollector, skill_dir: Pa
     assert stats.call_count == 1
 
 
-def test_corrupt_stats_file_returns_default(collector: SkillStatsCollector, skill_dir: Path) -> None:
-    """Test that a corrupt .stats.json returns default stats."""
+def test_corrupt_stats_file_is_set_aside_and_replaced(collector: SkillStatsCollector, skill_dir: Path) -> None:
+    """An unparseable ledger is kept for inspection and a fresh, valid one takes its place."""
     stats_file = skill_dir / ".stats.json"
     stats_file.write_text("{{not valid json!!!")
 
     stats = collector.get_stats(skill_dir)
+
     assert stats.call_count == 0
     assert stats.created_at is not None
+    assert (skill_dir / ".stats.json.corrupt").read_text() == "{{not valid json!!!"
+    assert json.loads(stats_file.read_text())["call_count"] == 0
 
 
-def test_write_failure_logs_warning(collector: SkillStatsCollector, tmp_path: Path) -> None:
-    """Test that write failure is handled gracefully."""
-    non_existent = tmp_path / "does_not_exist" / "skill"
-    collector.record_use(non_existent, success=True)
+@pytest.mark.parametrize("payload", ["[]", "null", '"text"', "42"])
+def test_non_object_ledger_is_set_aside(collector: SkillStatsCollector, skill_dir: Path, payload: str) -> None:
+    """Valid JSON that is not an object is no usable ledger either."""
+    (skill_dir / ".stats.json").write_text(payload)
+
+    collector.get_stats(skill_dir)
+
+    assert (skill_dir / ".stats.json.corrupt").read_text() == payload
+
+
+def test_undecodable_ledger_is_set_aside(collector: SkillStatsCollector, skill_dir: Path) -> None:
+    (skill_dir / ".stats.json").write_bytes(b"\xff\xfe\x00 not utf-8")
+
+    stats = collector.get_stats(skill_dir)
+
+    assert stats.call_count == 0
+    assert (skill_dir / ".stats.json.corrupt").exists()
+
+
+def test_unreadable_ledger_is_never_replaced_by_a_blank_one(
+    collector: SkillStatsCollector, skill_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A transient read failure must neither be cached nor overwrite the real history."""
+    stats_file = skill_dir / ".stats.json"
+    original = json.dumps({"call_count": 9, "pinned": True})
+    stats_file.write_text(original)
+    real_read_text = Path.read_text
+
+    def failing_read_text(self: Path, *args: object, **kwargs: object) -> str:
+        if self == stats_file:
+            raise PermissionError("denied")
+        return real_read_text(self, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(Path, "read_text", failing_read_text)
+
+    assert collector.get_stats(skill_dir).call_count == 0  # unsaved blank view for readers
+    with pytest.raises(PermissionError):
+        collector.record_use(skill_dir, success=True)
+    with pytest.raises(PermissionError):
+        collector.set_pinned(skill_dir, pinned=False)
     collector.flush()
+
+    monkeypatch.undo()
+    assert stats_file.read_text() == original
+    assert not (skill_dir / ".stats.json.corrupt").exists()
+    assert collector.get_stats(skill_dir).call_count == 9
+
+
+def test_malformed_fields_keep_pinned_and_lifecycle(collector: SkillStatsCollector, skill_dir: Path) -> None:
+    """Damage to counters or history must not unpin or reactivate a skill."""
+    (skill_dir / ".stats.json").write_text(
+        json.dumps(
+            {
+                "call_count": "many",
+                "last_used_at": "yesterday",
+                "pinned": True,
+                "lifecycle_status": "stale",
+                "usage_history": [{"timestamp": 1}, "junk", None],
+            }
+        )
+    )
+
+    stats = collector.get_stats(skill_dir)
+
+    assert stats.pinned is True
+    assert stats.lifecycle_status == "stale"
+    assert not (skill_dir / ".stats.json.corrupt").exists()
+
+
+def test_flush_writes_atomically_without_leftovers(collector: SkillStatsCollector, skill_dir: Path) -> None:
+    """Only the ledger remains in the skill directory after a write."""
+    collector.record_use(skill_dir, success=True)
+    collector.flush()
+
+    assert sorted(entry.name for entry in skill_dir.iterdir()) == [".stats.json"]
+
+
+def test_failed_write_keeps_the_previous_ledger(
+    collector: SkillStatsCollector, skill_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A write that dies half-way leaves the old ledger intact and no temp file behind."""
+    collector.record_use(skill_dir, success=True)
+    collector.flush()
+    stats_file = skill_dir / ".stats.json"
+    before = stats_file.read_text()
+
+    def failing_replace(src: object, dst: object) -> None:
+        raise OSError(errno.EIO, "disk error")
+
+    monkeypatch.setattr("myrm_agent_harness.infra.atomic_write.os.replace", failing_replace)
+    collector.record_use(skill_dir, success=False)
+    collector.flush()  # logs a warning instead of raising
+
+    assert stats_file.read_text() == before
+    assert sorted(entry.name for entry in skill_dir.iterdir()) == [".stats.json"]
+
+
+def test_missing_skill_directory_is_not_recreated(collector: SkillStatsCollector, tmp_path: Path) -> None:
+    """Flushing stats of a skill that was archived or removed must not resurrect an empty skill directory."""
+    gone = tmp_path / "does_not_exist" / "skill"
+
+    collector.record_use(gone, success=True)
+    collector.flush()
+
+    assert not gone.exists()
+    assert not gone.parent.exists()

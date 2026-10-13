@@ -7,6 +7,7 @@ persistence.
 [INPUT]
 - backends.skills.types::SkillUsageStats (POS: Skill system core data types.)
 - backends.skills.types::SkillLifecycleStatus (POS: Skill system core data types.)
+- infra.atomic_write::atomic_write (POS: Crash-consistent file write.)
 
 [OUTPUT]
 - SkillStatsCollector: Collects and persists skill usage statistics and
@@ -18,17 +19,21 @@ Skill usage statistics and lifecycle state collector.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 from time import time
 
 from myrm_agent_harness.backends.skills.types import SkillLifecycleStatus, SkillUsageStats
+from myrm_agent_harness.infra.atomic_write import atomic_write
 
 logger = logging.getLogger(__name__)
 
 _STATS_FILENAME = ".stats.json"
+_CORRUPT_SUFFIX = ".corrupt"
 _BATCH_FLUSH_INTERVAL_SEC = 60
 
 
@@ -37,7 +42,9 @@ class SkillStatsCollector:
 
     Design:
     - Async write with 60s batch flush (performance optimisation)
-    - Per-skill stats stored in {skill_dir}/.stats.json
+    - Per-skill stats stored in {skill_dir}/.stats.json, written atomically so a crash never leaves a torn file
+    - A ledger that cannot be parsed is set aside as ``.stats.json.corrupt``; one that cannot be read is never
+      replaced by a blank one
     - No database dependency (aligns with framework design principles)
     - Lifecycle state (lifecycle_status, pinned) co-located with usage data
     """
@@ -120,13 +127,20 @@ class SkillStatsCollector:
         logger.debug("Flushed skill usage stats")
 
     def get_stats(self, skill_path: Path) -> SkillUsageStats:
-        """Get current statistics for a skill (including pending updates)."""
+        """Get current statistics for a skill (including pending updates).
+
+        A ledger that cannot be read right now yields an unsaved blank view instead of failing the caller.
+        """
         skill_key = str(skill_path)
 
         if skill_key in self._pending_updates:
             return self._pending_updates[skill_key]
 
-        return self._load_stats(skill_path)
+        try:
+            return self._load_stats(skill_path)
+        except OSError as e:
+            logger.warning("Failed to read stats for skill %s: %s", skill_path.name, e)
+            return SkillUsageStats(created_at=datetime.now(UTC))
 
     # ── Internal helpers ────────────────────────────────────────────
 
@@ -138,33 +152,51 @@ class SkillStatsCollector:
         return self._pending_updates[skill_key]
 
     def _load_stats(self, skill_path: Path) -> SkillUsageStats:
-        """Load existing stats from disk. Sets created_at on first encounter."""
+        """Load existing stats from disk. Sets created_at on first encounter.
+
+        Raises:
+            OSError: The ledger exists but cannot be read; the caller must not replace it with a blank one.
+        """
         stats_file = skill_path / _STATS_FILENAME
 
-        if not stats_file.exists():
-            stats = SkillUsageStats(created_at=datetime.now(UTC))
-            self._write_stats(skill_path, stats)
-            return stats
-
         try:
-            data = json.loads(stats_file.read_text())
-            stats = SkillUsageStats.from_dict(data)
-            if stats.created_at is None:
-                stats.created_at = datetime.now(UTC)
-            return stats
-        except Exception as e:
-            logger.warning(
-                "Failed to load stats for skill %s: %s",
-                skill_path.name,
-                e,
-            )
-            return SkillUsageStats(created_at=datetime.now(UTC))
+            data = json.loads(stats_file.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return self._new_stats(skill_path)
+        except ValueError:  # JSONDecodeError and UnicodeDecodeError
+            data = None
+
+        if not isinstance(data, dict):
+            self._set_aside_corrupt(stats_file)
+            return self._new_stats(skill_path)
+
+        stats = SkillUsageStats.from_dict(data)
+        if stats.created_at is None:
+            stats.created_at = datetime.now(UTC)
+        return stats
+
+    def _new_stats(self, skill_path: Path) -> SkillUsageStats:
+        stats = SkillUsageStats(created_at=datetime.now(UTC))
+        self._write_stats(skill_path, stats)
+        return stats
+
+    @staticmethod
+    def _set_aside_corrupt(stats_file: Path) -> None:
+        """Keep an unparseable ledger next to the new one so it can still be inspected."""
+        aside = stats_file.with_name(stats_file.name + _CORRUPT_SUFFIX)
+        logger.warning(
+            "Stats file %s is unreadable; keeping it as %s and starting a new ledger", stats_file, aside.name
+        )
+        with contextlib.suppress(OSError):
+            os.replace(stats_file, aside)
 
     def _write_stats(self, skill_path: Path, stats: SkillUsageStats) -> None:
-        """Write stats to disk for a single skill."""
-        stats_file = skill_path / _STATS_FILENAME
+        """Atomically write stats for a single skill; a skill directory that is gone is left gone."""
+        if not skill_path.is_dir():
+            logger.debug("Skill directory %s no longer exists; stats not written", skill_path)
+            return
         try:
-            stats_file.write_text(json.dumps(stats.to_dict(), indent=2))
+            atomic_write(skill_path / _STATS_FILENAME, json.dumps(stats.to_dict(), indent=2))
         except Exception as e:
             logger.warning(
                 "Failed to write stats for skill %s: %s",
