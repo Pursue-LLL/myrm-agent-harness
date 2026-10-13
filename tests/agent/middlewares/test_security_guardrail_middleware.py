@@ -120,8 +120,6 @@ class TestBeforeModel:
 
     def test_injection_fail_closed_blocks_user_message(self, monkeypatch) -> None:
         """Injection policy=fail_closed and should_block → user msg replaced with BLOCKED."""
-        from types import SimpleNamespace
-
         from myrm_agent_harness.agent.security.detection.prompt_guard import GuardResult
 
         monkeypatch.setattr(
@@ -132,7 +130,7 @@ class TestBeforeModel:
             "myrm_agent_harness.agent.middlewares.security.security_guardrail_middleware.get_privacy_policy",
             lambda: PrivacyPolicy(enabled=False),
         )
-        config = SimpleNamespace(path_policy=object(), injection_policy="fail_closed")
+        config = SecurityConfig(injection_policy="fail_closed")
         monkeypatch.setattr(
             "myrm_agent_harness.agent.middlewares.security.user_input_guard.get_security_config",
             lambda: config,
@@ -170,8 +168,6 @@ class TestBeforeModel:
 
     def test_injection_fail_closed_but_below_threshold_does_not_block(self, monkeypatch) -> None:
         """should_block False (low score) → message preserved."""
-        from types import SimpleNamespace
-
         from myrm_agent_harness.agent.security.detection.prompt_guard import GuardResult
 
         monkeypatch.setattr(
@@ -184,7 +180,7 @@ class TestBeforeModel:
         )
         monkeypatch.setattr(
             "myrm_agent_harness.agent.middlewares.security.user_input_guard.get_security_config",
-            lambda: SimpleNamespace(path_policy=object(), injection_policy="fail_closed"),
+            lambda: SecurityConfig(injection_policy="fail_closed"),
         )
         result = self.mw.before_model(_make_state([HumanMessage(content="weird but ok")]), None)
         assert result is None

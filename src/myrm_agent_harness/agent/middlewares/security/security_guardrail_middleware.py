@@ -15,8 +15,9 @@ before_model (runs before each LLM call):
     1. Prompt Guard — scans user input for 7 categories of injection attacks
     2. PII Guard — classifies user input into S1/S2/S3, applies redaction
        per PrivacyPolicy (warn/redact/block)
-       Layers 0.5-2 screen the latest user-authored message, text or text blocks, once per user input
-       (user_input_guard); messages the runtime appends behind it are not screened.
+       Layers 0.5-2 screen the user-authored messages, text or text blocks (user_input_guard): the latest one in
+       full, once per user input; earlier ones silently, because they reach the model again on every turn.
+       Messages the runtime appends behind the user's are not screened.
     3. Tool Result Redact — sanitizes credentials in tool outputs, including the
        text blocks of a text + image result, so the LLM never sees raw secrets
 

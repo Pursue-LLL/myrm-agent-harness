@@ -5,7 +5,7 @@
 
 [OUTPUT]
 - levels_to_process: the sensitivity levels a detected level obliges the policy to act on
-- apply_pii_actions: apply the policy action of each level to a text; None when a level blocks
+- apply_pii_actions: apply the policy action of each level to a text, audited unless ``audit=False``; None when a level blocks
 
 [POS]
 PII action engine shared by the guardrail's input and output layers and by the tool-result PII guard.
@@ -42,13 +42,24 @@ def apply_pii_actions(
     levels: list[SensitivityLevel],
     policy: PrivacyPolicy,
     source: str,
+    *,
+    audit: bool = True,
 ) -> str | None:
     """Apply per-level PII actions to *text*.
 
     Returns None if the message should be BLOCKED, otherwise returns
     the processed text (possibly unchanged if only WARN actions).
+
+    Every rewrite is recorded in the audit log and logged. A caller that applies the policy to a text it already
+    recorded once (a user message handed to the model again on a later turn) passes ``audit=False``: same rewrite,
+    no second entry.
     """
-    from myrm_agent_harness.agent.security.audit import record_decision
+    from myrm_agent_harness.agent.security.audit import DecisionKind, record_decision
+
+    def report(decision: DecisionKind, detail: str, message: str, *args: object) -> None:
+        if audit:
+            record_decision(source, decision, detail)
+            logger.warning(message, *args)
 
     result = text
     for level in levels:
@@ -65,18 +76,33 @@ def apply_pii_actions(
                 ps_result = pseudonymize_text(result, store, level)
                 if ps_result.count > 0:
                     result = ps_result.text
-                    record_decision(source, "PII_PSEUDONYMIZED", f"level={level.value} count={ps_result.count}")
-                    logger.warning("[PII] Pseudonymized %d %s items (%s)", ps_result.count, level.value, source)
+                    report(
+                        "PII_PSEUDONYMIZED",
+                        f"level={level.value} count={ps_result.count}",
+                        "[PII] Pseudonymized %d %s items (%s)",
+                        ps_result.count,
+                        level.value,
+                        source,
+                    )
             else:
                 result, count = redact_pii(result)
                 if count > 0:
-                    record_decision(
-                        source, "PII_REDACTED", f"level={level.value} count={count} (pseudonymize fallback)"
+                    report(
+                        "PII_REDACTED",
+                        f"level={level.value} count={count} (pseudonymize fallback)",
+                        "[PII] Pseudonymize fallback to redact: %d items (%s)",
+                        count,
+                        source,
                     )
-                    logger.warning("[PII] Pseudonymize fallback to redact: %d items (%s)", count, source)
         elif action == PIIAction.REDACT:
             result, count = redact_pii(result)
             if count > 0:
-                record_decision(source, "PII_REDACTED", f"level={level.value} count={count}")
-                logger.warning("[PII] Redacted %d %s items (%s)", count, level.value, source)
+                report(
+                    "PII_REDACTED",
+                    f"level={level.value} count={count}",
+                    "[PII] Redacted %d %s items (%s)",
+                    count,
+                    level.value,
+                    source,
+                )
     return result

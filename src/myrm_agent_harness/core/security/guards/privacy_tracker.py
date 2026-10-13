@@ -11,7 +11,7 @@ for audit purposes.
 [INPUT]
 
 [OUTPUT]
-- PrivacyTracker: per-turn + cumulative sensitivity tracking
+- PrivacyTracker: per-turn + cumulative sensitivity tracking (`record` every detection, `escalate` only a higher level)
 - set_privacy_policy() / get_privacy_policy(): ContextVar-based privacy policy access
 - get_privacy_tracker() / reset_privacy_tracker(): ContextVar accessors
 - get_pending_privacy_event(): drain consume-once SSE event for stream executor
@@ -114,6 +114,20 @@ class PrivacyTracker:
                 checkpoint,
                 ",".join(patterns or []),
             )
+
+    def escalate(
+        self,
+        level: SensitivityLevel,
+        checkpoint: str,
+        patterns: list[str] | None = None,
+    ) -> None:
+        """Record a detection only if it lifts the current turn level.
+
+        For content that is scanned again on every model call: a repeated detection at or below the level the turn
+        has reached adds no information, so it adds no record, event or log line.
+        """
+        if _LEVEL_ORDER[level] > _LEVEL_ORDER[self._current_turn_level]:
+            self.record(level, checkpoint, patterns)
 
     def reset_turn(self) -> None:
         """Reset per-turn state. Call at the start of each new user turn."""

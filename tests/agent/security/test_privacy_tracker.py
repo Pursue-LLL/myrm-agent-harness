@@ -2,6 +2,8 @@
 
 import contextvars
 
+import pytest
+
 from myrm_agent_harness.agent.security.guards.privacy_tracker import (
     PrivacyTracker,
     get_pending_privacy_event,
@@ -42,6 +44,29 @@ class TestPrivacyTracker:
         t.record(SensitivityLevel.S3, "user_message", ["password"])
         t.record(SensitivityLevel.S2, "tool_result", ["email"])
         assert t.current_turn_level == SensitivityLevel.S3
+
+    def test_escalate_records_a_level_above_the_current_one(self):
+        t = PrivacyTracker()
+        t.escalate(SensitivityLevel.S2, "user_history", ["china_phone"])
+        t.escalate(SensitivityLevel.S3, "user_history", ["china_id_card"])
+        assert t.current_turn_level == SensitivityLevel.S3
+        assert t.highest_level == SensitivityLevel.S3
+        assert [d.level for d in t.turn_detections] == [SensitivityLevel.S2, SensitivityLevel.S3]
+
+    @pytest.mark.parametrize("level", [SensitivityLevel.S1, SensitivityLevel.S2, SensitivityLevel.S3])
+    def test_escalate_ignores_a_level_the_turn_already_reached(self, level):
+        t = PrivacyTracker()
+        t.record(SensitivityLevel.S3, "user_message", ["china_id_card"])
+        t.drain_pending_event()
+        t.escalate(level, "user_history", ["china_phone"])
+        assert len(t.turn_detections) == 1
+        assert t.drain_pending_event() is None
+
+    def test_escalate_ignores_s1(self):
+        t = PrivacyTracker()
+        t.escalate(SensitivityLevel.S1, "user_history", [])
+        assert t.turn_detections == []
+        assert t.drain_pending_event() is None
 
     def test_reset_turn(self):
         t = PrivacyTracker()

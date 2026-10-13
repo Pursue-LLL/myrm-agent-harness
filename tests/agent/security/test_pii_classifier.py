@@ -1,5 +1,7 @@
 """Tests for pii_classifier — PII detection and classification."""
 
+import pytest
+
 from myrm_agent_harness.agent.security.detection.pii_classifier import (
     _china_id_valid,
     _keyword_matches,
@@ -53,6 +55,14 @@ class TestS3Detection:
         result = classify_content("password=MySecret123!", _ENABLED)
         assert result.level == SensitivityLevel.S3
         assert "password_context" in result.patterns
+
+    @pytest.mark.parametrize(
+        "text",
+        ["password: [REDACTED] [PII:password] ok", "password=[REDACTED:env_credential] set", 'pwd = "[REDACTED] x'],
+        ids=["redactor-marker", "leak-marker", "quoted"],
+    )
+    def test_a_password_the_redactor_masked_is_not_a_password(self, text):
+        assert classify_content(text, _ENABLED).level == SensitivityLevel.S1
 
     def test_china_passport(self):
         result = classify_content("护照 E12345678", _ENABLED)

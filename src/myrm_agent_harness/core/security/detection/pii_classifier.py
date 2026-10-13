@@ -64,6 +64,7 @@ _BANK_CARD_RE = re.compile(
 _PASSWORD_CONTEXT_RE = re.compile(
     r"(?:password|passwd|pwd|pass|密码|口令)"
     r"\s*[:=]\s*"
+    r"(?!['\"]?\[REDACTED)"  # a value the redactor already masked is not a password
     r"['\"]?(\S{6,})['\"]?",
     re.IGNORECASE,
 )
@@ -332,11 +333,7 @@ def classify_content(content: str, policy: PrivacyPolicy) -> PIIClassification:
         # alphanumeric sequences ("13800138000", "SF1234567890123"), so skipping them on
         # short ASCII input silently misclassifies a bare phone or tracking number as S1.
         is_ascii_short = len(content) < _FAST_PATH_ASCII_LENGTH and content.isascii()
-        check_patterns = (
-            _S2_PATTERNS
-            if not is_ascii_short
-            else (p for p in _S2_PATTERNS if p[0] != "china_address")
-        )
+        check_patterns = _S2_PATTERNS if not is_ascii_short else (p for p in _S2_PATTERNS if p[0] != "china_address")
         for name, pat in check_patterns:
             for m in pat.finditer(content):
                 val = m.group(0)

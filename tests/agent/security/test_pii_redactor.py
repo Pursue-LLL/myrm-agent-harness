@@ -1,5 +1,7 @@
 """Tests for pii_redactor — PII masking and redaction."""
 
+import pytest
+
 from myrm_agent_harness.agent.security.detection.pii_redactor import redact_pii, redact_value
 
 
@@ -94,6 +96,36 @@ class TestRedactPii:
         assert count >= 1
         assert "[PII:credit_card]" in text
         assert "0366" in text  # last 4 preserved
+
+
+class TestRedactingRedactedText:
+    """Text that was redacted once passes through the redactor again unchanged: the guard rescans state on every call."""
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "call 13812345678 please",
+            "mail alice@example.com now",
+            "id 110101199003074530 ok",
+            "card 4532015112830366 x",
+            "password: hunter2secret ok",
+            'pwd = "S3cr3tP4ss!" ok',
+            "passport E12345678 ok",
+            "tel +1 415 555 2671 ok",
+            "host 192.168.1.20 ok",
+            "地址是北京市朝阳区三里屯路12号",
+            "ssn 123-45-6789 ok",
+            "API_KEY=abcdef1234567890abcdef1234567890 ok",
+            "Phone 13812345678, password: hunter2secret, a@b.com",
+        ],
+    )
+    def test_a_second_pass_changes_nothing(self, text: str) -> None:
+        once, _ = redact_pii(text)
+
+        twice, count = redact_pii(once)
+
+        assert twice == once
+        assert count == 0
 
 
 class TestRedactValue:

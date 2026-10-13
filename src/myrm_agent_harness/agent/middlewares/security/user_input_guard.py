@@ -1,12 +1,18 @@
-"""Screening of the latest user message before a model call: dangerous intent, prompt injection, PII.
+"""Screening of the user's messages before a model call: dangerous intent, prompt injection, PII.
 
-The target is the latest message the user wrote. Messages the runtime appends behind it are not the user's input, and
-earlier user messages are not screened again. The message may be text or a list of blocks (text next to an image);
-every text block goes through the same three layers, in order, and a block verdict ends the screening.
+Messages the runtime appends behind the user's are not the user's input and are never screened. A message may be text
+or a list of blocks (text next to an image); every text block goes through the same three layers, in order, and a
+block verdict ends the screening.
 
-One user input drives several model calls (one per tool round). The first call, the one with no model or tool
-message behind the user's yet, writes: audit entries, logs, the safety caution, PII rewrites and blocks. Every call
-also classifies PII so the privacy tracker follows the message, which a WARN policy leaves unrewritten.
+The latest user message is screened in full. One user input drives several model calls (one per tool round). The
+first call, the one with no model or tool message behind the user's yet, writes: audit entries, logs, the safety
+caution, PII rewrites and blocks. Every call also classifies PII so the privacy tracker follows the message, which a
+WARN policy leaves unrewritten.
+
+Earlier user messages reach the model again on every turn, so the policy applies to them too, silently: the PII
+rewrite, and a block where the injection or dangerous-intent policy is fail_closed. They add no audit entries, logs
+or safety caution, and the tracker rises to their level once. A policy that acts on none of them skips them. The
+rewrites are stable under repetition, so rescanning the state on every call changes nothing after the first.
 
 [INPUT]
 - agent.middlewares._message_origin::is_user_authored_human_message (POS: Message-provenance predicate shared by the approval and security middlewares.)
@@ -20,7 +26,7 @@ also classifies PII so the privacy tracker follows the message, which a WARN pol
 - agent.security.audit::record_decision (POS: Cross-cutting concern. Called from tool_interceptor_middleware and all security guard modules at every decision point.)
 
 [OUTPUT]
-- screen_user_input: the message list with the latest user message screened, or None when nothing changed
+- screen_user_input: the message list with the user's messages screened, or None when nothing changed
 
 [POS]
 Input-side layers (intent router, prompt guard, PII guard) of the security guardrail middleware.
@@ -30,6 +36,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from typing import Literal
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 
@@ -37,7 +44,7 @@ from myrm_agent_harness.agent.middlewares._message_origin import is_user_authore
 from myrm_agent_harness.agent.middlewares._session_context import get_security_config
 from myrm_agent_harness.agent.middlewares.security.pii_actions import apply_pii_actions, levels_to_process
 from myrm_agent_harness.agent.middlewares.security.text_blocks import MessageContent, map_text_blocks
-from myrm_agent_harness.agent.security.audit import record_decision
+from myrm_agent_harness.agent.security.audit import DecisionKind, record_decision
 from myrm_agent_harness.agent.security.detection.intent_router import scan_dangerous_intent
 from myrm_agent_harness.agent.security.detection.pii_classifier import classify_content
 from myrm_agent_harness.agent.security.detection.prompt_guard import log_guard_result, scan_input
@@ -46,29 +53,60 @@ from myrm_agent_harness.agent.security.types import PrivacyPolicy, SecurityConfi
 
 logger = logging.getLogger(__name__)
 
+# How a message is screened: the latest one on the first or a later model call of its input, or an earlier one.
+Stage = Literal["first_call", "later_call", "earlier"]
+
 
 def screen_user_input(messages: Sequence[BaseMessage], policy: PrivacyPolicy) -> list[BaseMessage] | None:
-    """Screen the latest user-authored message; return the rewritten message list, or None if it needs no change."""
+    """Screen the user-authored messages; return the rewritten message list, or None if it needs no change."""
     index = _latest_user_index(messages)
     if index is None:
         return None
-    message = messages[index]
-    first_call = not any(isinstance(m, (AIMessage, ToolMessage)) for m in messages[index + 1 :])
-
-    screen = _Screen(policy, first_call)
-    screened = map_text_blocks(message.content, screen)
-    if screen.blocked is not None:
-        replacement: BaseMessage = HumanMessage(content=screen.blocked, id=message.id)
-    else:
-        if screen.caution is not None:
-            screened = _with_caution(screened, screen.caution)
-        if screened == message.content:
-            return None
-        replacement = message.model_copy(update={"content": screened})
+    config = _security_config()
+    replaced = _screen_earlier(messages, index, policy, config)
+    latest = _screened(messages[index], _Screen(policy, config, _latest_stage(messages, index)))
+    if latest is not None:
+        replaced[index] = latest
+    if not replaced:
+        return None
 
     result = list(messages)
-    result[index] = replacement
+    for position, message in replaced.items():
+        result[position] = message
     return result
+
+
+def _screen_earlier(
+    messages: Sequence[BaseMessage], latest_index: int, policy: PrivacyPolicy, config: SecurityConfig | None
+) -> dict[int, BaseMessage]:
+    """Screen the user messages before the latest one; the replacements by position."""
+    if not _acts_on_earlier(policy, config):
+        return {}
+    replaced: dict[int, BaseMessage] = {}
+    for position in range(latest_index):
+        message = messages[position]
+        if is_user_authored_human_message(message):
+            replacement = _screened(message, _Screen(policy, config, "earlier"))
+            if replacement is not None:
+                replaced[position] = replacement
+    return replaced
+
+
+def _acts_on_earlier(policy: PrivacyPolicy, config: SecurityConfig | None) -> bool:
+    """Whether the policy has anything to enforce on an earlier user message: PII handling, or a fail_closed block."""
+    if policy.enabled:
+        return True
+    return config is not None and "fail_closed" in (config.injection_policy, config.dangerous_intent_policy)
+
+
+def _screened(message: BaseMessage, screen: _Screen) -> BaseMessage | None:
+    """The message after *screen*, or None when it stays as it is."""
+    content = map_text_blocks(message.content, screen)
+    if screen.blocked is not None:
+        return None if message.content == screen.blocked else HumanMessage(content=screen.blocked, id=message.id)
+    if screen.caution is not None:
+        content = _with_caution(content, screen.caution)
+    return None if content == message.content else message.model_copy(update={"content": content})
 
 
 def _latest_user_index(messages: Sequence[BaseMessage]) -> int | None:
@@ -76,6 +114,11 @@ def _latest_user_index(messages: Sequence[BaseMessage]) -> int | None:
         if is_user_authored_human_message(messages[index]):
             return index
     return None
+
+
+def _latest_stage(messages: Sequence[BaseMessage], index: int) -> Stage:
+    answered = any(isinstance(m, (AIMessage, ToolMessage)) for m in messages[index + 1 :])
+    return "later_call" if answered else "first_call"
 
 
 def _with_caution(content: MessageContent, caution: str) -> MessageContent:
@@ -96,39 +139,48 @@ def _security_config() -> SecurityConfig | None:
 class _Screen:
     """Screens the text blocks of one user message. Keeps the block reply and the safety caution it produced."""
 
-    __slots__ = ("blocked", "caution", "first_call", "policy")
+    __slots__ = ("audit", "blocked", "caution", "config", "earlier", "enforces", "policy")
 
-    def __init__(self, policy: PrivacyPolicy, first_call: bool) -> None:
+    def __init__(self, policy: PrivacyPolicy, config: SecurityConfig | None, stage: Stage) -> None:
         self.policy = policy
-        self.first_call = first_call
+        self.config = config
+        self.audit = stage == "first_call"  # audit entries, logs and the safety caution
+        self.enforces = stage != "later_call"  # intent and injection verdicts, PII rewrites and blocks
+        self.earlier = stage == "earlier"
         self.blocked: str | None = None
         self.caution: str | None = None
 
     def __call__(self, text: str) -> str:
         if self.blocked is not None or not text:
             return text
-        if self.first_call:
+        if self.enforces:
             self.blocked = self._intent(text) or self._injection(text)
             if self.blocked is not None:
                 return text
         return self._pii(text)
 
+    def _record(self, decision: DecisionKind, detail: str) -> None:
+        if self.audit:
+            record_decision("user_input", decision, detail)
+
     def _intent(self, text: str) -> str | None:
+        mode = self.config.dangerous_intent_policy if self.config else "hitl"
+        if self.earlier and mode != "fail_closed":
+            return None
         result = scan_dangerous_intent(text)
         if result.safe:
             return None
         name = result.intent.value if result.intent else "unknown"
         detail = f"intent={name} pattern={result.matched_pattern}"
-        record_decision("user_input", "DANGEROUS_INTENT_DETECTED", detail)
-        config = _security_config()
-        mode = config.dangerous_intent_policy if config else "hitl"
+        self._record("DANGEROUS_INTENT_DETECTED", detail)
         if mode == "fail_closed":
-            record_decision("user_input", "DANGEROUS_INTENT_BLOCKED", detail)
-            logger.warning(
-                "[IntentRouter] Blocked dangerous intent user message: intent=%s pattern=%s",
-                name,
-                result.matched_pattern,
-            )
+            self._record("DANGEROUS_INTENT_BLOCKED", detail)
+            if self.audit:
+                logger.warning(
+                    "[IntentRouter] Blocked dangerous intent user message: intent=%s pattern=%s",
+                    name,
+                    result.matched_pattern,
+                )
             return (
                 f"[BLOCKED_INTENT] This request was blocked by the safety router because "
                 f"it contains a dangerous actionable operation intent ({name}). "
@@ -142,21 +194,24 @@ class _Screen:
         return None
 
     def _injection(self, text: str) -> str | None:
+        mode = self.config.injection_policy if self.config else "log_only"
+        if self.earlier and mode != "fail_closed":
+            return None
         result = scan_input(text)
         if result.safe:
             return None
-        log_guard_result(result, text)
+        if self.audit:
+            log_guard_result(result, text)
         detail = f"patterns={','.join(result.patterns)} score={result.max_score:.2f}"
-        record_decision("user_input", "INJECTION_DETECTED", detail)
-        config = _security_config()
-        mode = config.injection_policy if config else "log_only"
+        self._record("INJECTION_DETECTED", detail)
         if mode == "fail_closed" and result.should_block:
-            record_decision("user_input", "INJECTION_BLOCKED", detail)
-            logger.warning(
-                "[INJECTION] Blocked user message: patterns=%s score=%.2f",
-                ",".join(result.patterns),
-                result.max_score,
-            )
+            self._record("INJECTION_BLOCKED", detail)
+            if self.audit:
+                logger.warning(
+                    "[INJECTION] Blocked user message: patterns=%s score=%.2f",
+                    ",".join(result.patterns),
+                    result.max_score,
+                )
             return (
                 "[BLOCKED] This message was blocked by the prompt injection guard. "
                 "Please inform the user that their message triggered a security filter "
@@ -172,16 +227,21 @@ class _Screen:
         result = classify_content(text, policy)
         if result.level == SensitivityLevel.S1:
             return text
-        get_privacy_tracker().record(result.level, "user_message", result.patterns)
-        if not self.first_call:
+        tracker = get_privacy_tracker()
+        if self.earlier:
+            tracker.escalate(result.level, "user_history", result.patterns)
+        else:
+            tracker.record(result.level, "user_message", result.patterns)
+        if not self.enforces:
             return text
-        record_decision(
-            "user_input", "PII_DETECTED", f"level={result.level.value} patterns={','.join(result.patterns)}"
+        self._record("PII_DETECTED", f"level={result.level.value} patterns={','.join(result.patterns)}")
+        processed = apply_pii_actions(
+            text, levels_to_process(result.level, policy), policy, "user_input", audit=self.audit
         )
-        processed = apply_pii_actions(text, levels_to_process(result.level, policy), policy, "user_input")
         if processed is None:
-            record_decision("user_input", "PII_BLOCKED", f"level={result.level.value}")
-            logger.warning("[PII] Blocked user message: level=%s", result.level.value)
+            self._record("PII_BLOCKED", f"level={result.level.value}")
+            if self.audit:
+                logger.warning("[PII] Blocked user message: level=%s", result.level.value)
             self.blocked = (
                 "[BLOCKED] This message was blocked by the PII protection engine "
                 f"due to {result.level.value}-level sensitive information. "
