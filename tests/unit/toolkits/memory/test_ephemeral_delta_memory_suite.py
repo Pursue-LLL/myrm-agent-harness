@@ -153,6 +153,25 @@ def test_human_tail_delta_injector_budget_and_escaping() -> None:
     assert "Remaining deltas truncated due to budget constraints" in truncated_block
 
 
+def test_mark_reconciled_does_not_suppress_active_deltas_for_injection() -> None:
+    store = EphemeralDeltaStore()
+    session_id = "sess-reconciled-inject"
+    store.record_delta(
+        session_id,
+        EphemeralDeltaItem(
+            delta_id="d-rec",
+            target_key="nickname",
+            content="Old Zhang",
+            action=DeltaActionKind.OVERRIDE,
+        ),
+    )
+    assert len(store.get_active_deltas(session_id)) == 1
+    store.mark_reconciled(session_id)
+    assert len(store.get_active_deltas(session_id)) == 1
+    snapshot = store.get_snapshot(session_id)
+    assert snapshot.is_reconciled
+
+
 @pytest.mark.asyncio
 async def test_ephemeral_delta_reconciler_batch_persistence() -> None:
     """Test asynchronous reconciliation loop flushing to durable persistence."""

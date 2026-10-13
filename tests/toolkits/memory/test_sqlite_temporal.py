@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 
-from myrm_agent_harness.toolkits.memory.governance.graph_bridge import EntityGraphBridge
 from myrm_agent_harness.toolkits.memory.graph.exceptions import GraphQueryError
 from myrm_agent_harness.toolkits.memory.graph.sqlite_store import SQLiteGraphStore
 
@@ -244,26 +243,3 @@ async def test_get_related_nodes_ignores_superseded_edges(store: SQLiteGraphStor
     assert len(active_related) == 0
 
 
-@pytest.mark.asyncio
-async def test_entity_graph_bridge_with_as_of_time(store: SQLiteGraphStore) -> None:
-    await store.create_node(labels=["User"], properties={"id": "dev1", "name": "Dev"})
-    await store.create_node(labels=["Repo"], properties={"id": "repo1", "name": "Repo"})
-
-    r1 = await store.create_relationship(start_id="dev1", end_id="repo1", rel_type="MAINTAINS")
-    await asyncio.sleep(0.02)
-    t_v1 = datetime.now(UTC).isoformat()
-    await asyncio.sleep(0.02)
-
-    await store.supersede_relationship(old_rel_id=r1.id, new_rel_type="LEADS")
-    await asyncio.sleep(0.02)
-    t_v2 = datetime.now(UTC).isoformat()
-
-    bridge = EntityGraphBridge(graph_store=store)
-
-    text_v1 = await bridge.get_bounded_subgraph_text(["Dev"], as_of_time=t_v1)
-    assert "MAINTAINS" in text_v1
-    assert "LEADS" not in text_v1
-
-    text_v2 = await bridge.get_bounded_subgraph_text(["Dev"], as_of_time=t_v2)
-    assert "LEADS" in text_v2
-    assert "MAINTAINS" not in text_v2

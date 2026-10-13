@@ -21,6 +21,9 @@ from myrm_agent_harness.toolkits.memory.ephemeral_delta.models import (
     EphemeralDeltaBufferSnapshot,
     EphemeralDeltaItem,
 )
+from myrm_agent_harness.toolkits.memory.ephemeral_delta.sqlite_persistence import (
+    EphemeralDeltaSqlitePersistence,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,14 +35,41 @@ class EphemeralDeltaStore:
     corrections in memory, maintaining high recency awareness for agent inference.
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        persistence: EphemeralDeltaSqlitePersistence | None = None,
+    ) -> None:
         self._buffers: dict[str, list[EphemeralDeltaItem]] = defaultdict(list)
         self._frozen_snapshots: dict[str, str] = {}
         self._reconciled_flags: dict[str, bool] = defaultdict(bool)
+        self._persistence = persistence
+        self._hydrated_sessions: set[str] = set()
+
+    def attach_persistence(
+        self,
+        persistence: EphemeralDeltaSqlitePersistence,
+    ) -> None:
+        """Wire or replace the SQLite persistence backend (typically at process startup)."""
+        self._persistence = persistence
 
     def bind_frozen_snapshot(self, session_id: str, snapshot_id: str) -> None:
         """Bind a frozen baseline memory snapshot ID to this session."""
         self._frozen_snapshots[session_id] = snapshot_id
+
+    def ensure_hydrated(self, session_id: str) -> None:
+        """Load persisted deltas when the in-memory buffer is cold for this session."""
+        normalized = session_id.strip()
+        if not normalized or not self._persistence:
+            return
+        if normalized in self._hydrated_sessions:
+            return
+        if self._buffers.get(normalized):
+            self._hydrated_sessions.add(normalized)
+            return
+        loaded = self._persistence.load_raw_deltas(normalized)
+        if loaded:
+            self._buffers[normalized].extend(loaded)
+        self._hydrated_sessions.add(normalized)
 
     def record_delta(
         self,
@@ -47,8 +77,18 @@ class EphemeralDeltaStore:
         delta: EphemeralDeltaItem,
     ) -> EphemeralDeltaItem:
         """Record an ephemeral delta into the session buffer."""
+        self.ensure_hydrated(session_id)
         self._buffers[session_id].append(delta)
         self._reconciled_flags[session_id] = False
+        if self._persistence is not None:
+            try:
+                self._persistence.append_delta(session_id, delta)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to persist ephemeral delta for session %s: %s",
+                    session_id,
+                    exc,
+                )
         logger.debug(
             "Recorded delta %s for session %s (key=%s, action=%s)",
             delta.delta_id,
@@ -88,6 +128,7 @@ class EphemeralDeltaStore:
 
     def get_active_deltas(self, session_id: str) -> list[EphemeralDeltaItem]:
         """Return active, non-retracted deltas after LWW deduplication."""
+        self.ensure_hydrated(session_id)
         return self.compact_deltas(session_id)
 
     def get_snapshot(self, session_id: str) -> EphemeralDeltaBufferSnapshot:
@@ -103,11 +144,26 @@ class EphemeralDeltaStore:
         )
 
     def mark_reconciled(self, session_id: str) -> None:
-        """Mark the session's active deltas as reconciled into permanent storage."""
+        """Snapshot-only flag for harness reconciler; does not suppress live tail injection."""
         self._reconciled_flags[session_id] = True
+
+    def has_in_memory_buffers(self) -> bool:
+        """True when any session still holds unpersisted or hydrated in-memory deltas."""
+        return any(len(items) > 0 for items in self._buffers.values())
 
     def clear(self, session_id: str) -> None:
         """Clear the buffer for a session."""
-        self._buffers.pop(session_id, None)
-        self._frozen_snapshots.pop(session_id, None)
-        self._reconciled_flags.pop(session_id, None)
+        normalized = session_id.strip()
+        self._buffers.pop(normalized, None)
+        self._frozen_snapshots.pop(normalized, None)
+        self._reconciled_flags.pop(normalized, None)
+        self._hydrated_sessions.discard(normalized)
+        if self._persistence is not None:
+            try:
+                self._persistence.clear_session(normalized)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to clear persisted ephemeral deltas for session %s: %s",
+                    normalized,
+                    exc,
+                )

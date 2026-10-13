@@ -31,10 +31,18 @@ from myrm_agent_harness.agent.middlewares.approval.helpers import (
 )
 from myrm_agent_harness.agent.middlewares.approval.middleware import ToolApprovalMiddleware
 from myrm_agent_harness.agent.middlewares.approval.rate_limiter import ApprovalRateLimiter, get_approval_rate_limiter
+from myrm_agent_harness.agent.middlewares.approval.tiered_risk_evaluator import (
+    RiskTier,
+    TieredRiskEvaluation,
+    TieredRiskEvaluator,
+)
 
 __all__ = [
     "ApprovalRateLimiter",
+    "RiskTier",
     "ThresholdBreach",
+    "TieredRiskEvaluation",
+    "TieredRiskEvaluator",
     "ToolApprovalMiddleware",
     "add_to_allowlist_if_needed",
     "get_approval_rate_limiter",

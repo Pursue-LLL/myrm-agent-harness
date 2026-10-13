@@ -34,9 +34,9 @@ logger = logging.getLogger(__name__)
 class EphemeralDeltaReconciler:
     """Asynchronous reconciliation loop for persisting transient session deltas.
 
-    At session close or unload time, active deltas are collapsed via LWW and
-    persisted into the durable memory store (SQLite / Markdown profile). Next
-    session's frozen SystemPrompt snapshot will seamlessly include these facts.
+    Optional test/extension helper. Live chat uses durable memory writes plus
+    `record_ephemeral_memory_delta` tail notify; do not double-persist via this
+    reconciler on the production agent-stream path.
     """
 
     async def reconcile_session(

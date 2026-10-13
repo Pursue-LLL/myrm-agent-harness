@@ -445,3 +445,16 @@ def set_delegation_token(token: TriadDelegationToken | None) -> None:
 def get_delegation_token() -> TriadDelegationToken | None:
     """Get the active TriadDelegationToken for the current execution context."""
     return _triad_delegation_token_var.get()
+
+
+_session_notes_summary_var: ContextVar[str | None] = ContextVar("session_notes_summary", default=None)
+
+
+def set_session_notes_summary(summary: str | None) -> None:
+    """Publish Session Notes summary text for downstream tail injectors in the same model call."""
+    _session_notes_summary_var.set(summary)
+
+
+def get_session_notes_summary() -> str | None:
+    """Return Session Notes summary when ready for the current model call."""
+    return _session_notes_summary_var.get()

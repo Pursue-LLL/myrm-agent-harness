@@ -34,7 +34,7 @@ from .types import CheckpointMode, Goal, GoalAccountingOutcome, GoalBudget, Goal
 from .wait_background_bash import WAIT_ON_BACKGROUND_JOB_ID_KEY
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.agent.goals.verification.types import VerificationResult
+    from myrm_agent_harness.agent.goals.verification.base import VerificationResult
     from myrm_agent_harness.toolkits.storage.base import StorageProvider
 
 logger = logging.getLogger(__name__)

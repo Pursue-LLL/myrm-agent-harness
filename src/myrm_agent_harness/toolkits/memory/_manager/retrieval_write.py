@@ -29,11 +29,13 @@ class MemoryManagerRetrievalWriteMixin:
         *,
         _bypass_approval: bool = False,
         _force_pending: bool = False,
+        _scope_prevalidated: bool = False,
     ) -> AnyMemory:
         result = await self._writer.store(
             memory,
             bypass_approval=_bypass_approval,
             force_pending=_force_pending,
+            scope_prevalidated=_scope_prevalidated,
         )
         self._stores_since_consolidation += 1
         trigger = self._config.consolidation.message_count_trigger
@@ -42,13 +44,11 @@ class MemoryManagerRetrievalWriteMixin:
             self._maybe_consolidate()
         await self._submit_preference_candidate(result)
         return result
-        _scope_prevalidated: bool = False,
 
     async def store_batch(
         self,
         memories: Sequence[AnyMemory],
         *,
-            scope_prevalidated=_scope_prevalidated,
         _bypass_approval: bool = False,
         _force_pending: bool = False,
     ) -> list[AnyMemory]:

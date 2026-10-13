@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -221,6 +222,22 @@ class TestHandleExecutionError:
             result = await handle_execution_error(exc, "test_tool", "c1", {})
             assert isinstance(result, ToolMessage)
             assert result.status == "error"
+
+    @pytest.mark.asyncio
+    async def test_failure_reports_tool_error_without_overlay_warnings(self, caplog: pytest.LogCaptureFixture) -> None:
+        exc = RuntimeError("something broke")
+        lifecycle_logger = "myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle"
+        with (
+            caplog.at_level(logging.WARNING, logger=lifecycle_logger),
+            patch("myrm_agent_harness.agent.hooks.executor.fire_hook", return_value=MagicMock()),
+            patch("myrm_agent_harness.agent.middlewares.tooling._mutation_verifier.record_mutation_result"),
+        ):
+            result = await handle_execution_error(exc, "test_tool", "c1", {})
+
+        assert result.status == "error"
+        assert "something broke" in str(result.content)
+        assert "error_hint" not in result.additional_kwargs
+        assert not [record for record in caplog.records if "overlay" in record.getMessage().lower()]
 
 
 class TestEmitToolHeartbeat:

@@ -32,10 +32,10 @@ _DEFAULT_MAX_DELTA_CHARS = 1500
 class HumanTailDeltaInjector:
     """Injects active ephemeral session deltas at the tail of the final HumanMessage.
 
-    Prompt Cache Invariant:
-    1. Preceding SystemPrompt and prior history messages remain 100% untouched.
-    2. Zero cache invalidation occurs on the frozen prefix.
-    3. The transformer attention recency bias ensures current-turn adherence.
+    Layout invariant:
+    1. SystemMessage and prior history bytes are not modified.
+    2. Deltas attach only to the final HumanMessage tail.
+    3. Provider cache hit rate is observed elsewhere (chat health / usage), not inferred here.
     """
 
     def __init__(self, max_delta_chars: int = _DEFAULT_MAX_DELTA_CHARS) -> None:
@@ -51,7 +51,8 @@ class HumanTailDeltaInjector:
 
         lines: list[str] = [
             "<ephemeral_session_deltas>",
-            "  <!-- Active session corrections & transient overrides. Precedence: overrides baseline facts. -->",
+            "  <precedence>When a delta conflicts with stable user memory or earlier chat turns, follow the delta. "
+            "Agent instructions and mandatory veto rules still take precedence.</precedence>",
         ]
 
         total_chars = 0

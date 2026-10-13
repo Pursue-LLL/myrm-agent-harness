@@ -32,8 +32,17 @@ from myrm_agent_harness.toolkits.memory.ephemeral_delta.models import (
     EphemeralDeltaItem,
     ReconciliationBatchReport,
 )
+from myrm_agent_harness.toolkits.memory.ephemeral_delta.notify import (
+    clear_ephemeral_deltas_for_session,
+    record_ephemeral_memory_delta,
+)
 from myrm_agent_harness.toolkits.memory.ephemeral_delta.reconciler import (
     EphemeralDeltaReconciler,
+)
+from myrm_agent_harness.toolkits.memory.ephemeral_delta.shared_store import (
+    configure_ephemeral_delta_persistence,
+    ensure_ephemeral_deltas_hydrated,
+    get_shared_ephemeral_delta_store,
 )
 from myrm_agent_harness.toolkits.memory.ephemeral_delta.tail_injector import (
     HumanTailDeltaInjector,
@@ -47,4 +56,9 @@ __all__ = [
     "EphemeralDeltaStore",
     "HumanTailDeltaInjector",
     "ReconciliationBatchReport",
+    "clear_ephemeral_deltas_for_session",
+    "configure_ephemeral_delta_persistence",
+    "ensure_ephemeral_deltas_hydrated",
+    "get_shared_ephemeral_delta_store",
+    "record_ephemeral_memory_delta",
 ]
