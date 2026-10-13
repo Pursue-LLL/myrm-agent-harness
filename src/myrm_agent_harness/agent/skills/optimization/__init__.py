@@ -31,14 +31,6 @@ Implements framework protocols:
 - **LLMOptimizer**: LLM invocation with retry logic
 - **SkillUsageReporter**: Quality report generation
 - **StandaloneLockProvider**: OS native file lock (Industrial-grade)  Standalone Standard
-- **SQLSkillQualityDataSource**: SQL data source (implements Protocol)  数据适配器
-
-### Frontend Layer (myrm-agent-frontend)
-User interface for optimization management:
-- **SkillOptimizationSection**: Dashboard UI component
-- Real-time A/B test progress
-- Skill quality ranking
-- Manual intervention controls
 
 ## Key Features
 

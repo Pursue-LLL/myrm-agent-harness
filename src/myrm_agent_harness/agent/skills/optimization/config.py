@@ -145,11 +145,8 @@ class OptimizationConfig:
     # 性能配置
     performance: PerformanceConfig = field(default_factory=PerformanceConfig)
 
-    # 是否启用自动优化
+    # 是否启用定时评估触发的自动优化（手动 / 批量触发不受影响）
     enable_auto_optimization: bool = True
-
-    # 是否启用用户反馈收集
-    enable_user_feedback: bool = True
 
     @classmethod
     def default(cls) -> OptimizationConfig:

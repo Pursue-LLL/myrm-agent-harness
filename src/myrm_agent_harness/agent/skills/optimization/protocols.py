@@ -452,8 +452,7 @@ class SkillQualityAggregator(Protocol):
 
     New Architecture (DataSource Pattern):
     Framework provides UniversalAggregator that depends on SkillQualityDataSource Protocol.
-    Business layer implements DataSource adapters:
-    - SQLSkillQualityDataSource: SQL queries (production)
+    Business layers implement the DataSource Protocol with their own adapters (e.g. SQL queries).
 
     Usage Example:
         ```python

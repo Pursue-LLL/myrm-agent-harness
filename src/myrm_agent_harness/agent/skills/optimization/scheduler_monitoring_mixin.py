@@ -66,6 +66,10 @@ class OptimizationSchedulerMonitoringMixin:
 
     async def _evaluate_all_skills(self) -> None:
         """评估所有skill并触发优化"""
+        if not self.config.enable_auto_optimization:
+            logger.debug("Auto optimization disabled, skipping periodic skill evaluation")
+            return
+
         logger.info("Evaluating all skills for optimization opportunities")
 
         try:
