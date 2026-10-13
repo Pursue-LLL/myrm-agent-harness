@@ -89,8 +89,24 @@ class TestSilentMode:
 _SENTENCE = "帮我总结凤凰计划Q3预算超支原因，发给李总"
 
 
-def _custom_policy(s2: PIIAction, s3: PIIAction, **rules: tuple[str, ...]) -> PrivacyPolicy:
-    return PrivacyPolicy(enabled=True, s2_action=s2, s3_action=s3, **rules)
+def _custom_policy(
+    s2: PIIAction,
+    s3: PIIAction,
+    *,
+    custom_keywords_s2: tuple[str, ...] = (),
+    custom_keywords_s3: tuple[str, ...] = (),
+    custom_patterns_s2: tuple[str, ...] = (),
+    custom_patterns_s3: tuple[str, ...] = (),
+) -> PrivacyPolicy:
+    return PrivacyPolicy(
+        enabled=True,
+        s2_action=s2,
+        s3_action=s3,
+        custom_keywords_s2=custom_keywords_s2,
+        custom_keywords_s3=custom_keywords_s3,
+        custom_patterns_s2=custom_patterns_s2,
+        custom_patterns_s3=custom_patterns_s3,
+    )
 
 
 class TestCustomRules:
