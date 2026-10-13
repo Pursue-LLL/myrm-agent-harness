@@ -126,8 +126,6 @@ class BrowserSessionLifecycleMixin:
                             await browser_inst.browser.close()
                         except Exception as e:
                             logger.warning(f"Error closing browser process: {e}")
-                            if browser_inst._pid:
-                                browser_inst.force_kill()
                     browsers_to_remove.append(browser_inst)
 
             for b in browsers_to_remove:

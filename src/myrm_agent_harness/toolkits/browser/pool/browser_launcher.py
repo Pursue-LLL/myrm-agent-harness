@@ -193,7 +193,6 @@ class BrowserInstance:
 
     is_managed: True when launched by BrowserLauncher; False when attached via CDP.
     _disconnected: Set on browser disconnect to avoid duplicate semaphore release.
-    _pid: Underlying browser process PID for orphan cleanup when managed.
     """
 
     browser: Browser
@@ -204,29 +203,6 @@ class BrowserInstance:
     last_active_at: float = field(default_factory=time.monotonic)
     _disconnected: bool = False
     is_managed: bool = True
-    _pid: int | None = None
-
-    def force_kill(self) -> None:
-        """Force kill the underlying browser process.
-
-        This is a fallback mechanism to prevent zombie processes if browser.close() hangs or fails.
-        Only attempts to kill if the process is managed by us and we have its PID.
-        """
-        if not self.is_managed or not self._pid:
-            return
-
-        import os
-        import signal
-
-        try:
-            # Send SIGKILL (9) to force terminate the process
-            os.kill(self._pid, signal.SIGKILL)
-            logger.warning(f"Force killed zombie browser process (PID: {self._pid})")
-        except ProcessLookupError:
-            # Process already dead, which is fine
-            pass
-        except Exception as e:
-            logger.error(f"Failed to force kill browser process (PID: {self._pid}): {e}")
 
 
 class BrowserLauncher:
@@ -453,12 +429,7 @@ class BrowserLauncher:
                     # start() hands back the launched browser although the inherited signature says Playwright.
                     browser = cast("Browser", await AsyncCamoufox(from_options=camoufox_config).start())  # type: ignore[no-untyped-call]
 
-                    pid = None
-                    with contextlib.suppress(Exception):
-                        if hasattr(browser, "_impl_obj") and hasattr(browser._impl_obj, "_process"):
-                            pid = browser._impl_obj._process.pid
-
-                    logger.info(f"Launched new Camoufox Browser instance (attempt {attempt + 1}/3, PID: {pid})")
+                    logger.info(f"Launched new Camoufox Browser instance (attempt {attempt + 1}/3)")
                 else:
                     pw = await self._ensure_playwright()
                     launch_kwargs = dict(self._launch_options)
@@ -471,15 +442,10 @@ class BrowserLauncher:
                             launch_kwargs["args"] = existing_args
                     browser = await pw.chromium.launch(**launch_kwargs)  # type: ignore[arg-type]
 
-                    pid = None
-                    with contextlib.suppress(Exception):
-                        if hasattr(browser, "_impl_obj") and hasattr(browser._impl_obj, "_process"):
-                            pid = browser._impl_obj._process.pid
-
-                    logger.info(f"Launched new Patchright Chromium instance (attempt {attempt + 1}/3, PID: {pid})")
+                    logger.info(f"Launched new Patchright Chromium instance (attempt {attempt + 1}/3)")
 
                 self._total_browsers += 1
-                return BrowserInstance(browser=browser, engine=self._engine.value, is_managed=True, _pid=pid)
+                return BrowserInstance(browser=browser, engine=self._engine.value, is_managed=True)
 
             except Exception as exc:
                 if is_timeout_error(exc):

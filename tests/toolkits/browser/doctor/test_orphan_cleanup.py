@@ -83,22 +83,36 @@ def test_auto_detect_terminates_leftovers_and_spares_everything_else(stamped_pro
     assert running.poll() is None
 
 
-def test_stubborn_leftover_is_escalated_to_sigkill(stamped_processes: StampedProcesses) -> None:
-    """A process that ignores SIGTERM, as a hung renderer does, must still be removed within the grace period."""
+def test_stubborn_leftover_is_escalated_to_sigkill_by_default(stamped_processes: StampedProcesses) -> None:
+    """A process that ignores SIGTERM, as a headed Chrome without its driver does, is removed by the default call."""
     stubborn = stamped_processes.spawn(dead_owner_stamp(), ignore_sigterm=True)
 
-    result = cleanup_orphan_processes([stubborn.pid], force=True, timeout_s=2.0)
+    result = cleanup_orphan_processes([stubborn.pid], force=True)
 
     assert result["killed"] == 1
+    assert result["failed"] == []
     assert stamped_processes.wait_gone(stubborn)
 
 
 def test_without_grace_period_a_stubborn_leftover_only_gets_sigterm(stamped_processes: StampedProcesses) -> None:
     stubborn = stamped_processes.spawn(dead_owner_stamp(), ignore_sigterm=True)
 
-    result = cleanup_orphan_processes([stubborn.pid], force=True)
+    result = cleanup_orphan_processes([stubborn.pid], force=True, timeout_s=0.0)
 
     assert result["killed"] == 1
+    assert stubborn.poll() is None
+
+
+def test_pid_that_stopped_being_a_leftover_during_the_grace_period_is_not_killed(
+    stamped_processes: StampedProcesses,
+) -> None:
+    """Between SIGTERM and SIGKILL the pid may have been reused; the SIGKILL needs a fresh identity check."""
+    stubborn = stamped_processes.spawn(dead_owner_stamp(), ignore_sigterm=True)
+
+    with patch(f"{_ORPHANS}._is_leftover", side_effect=[True, False]):
+        result = cleanup_orphan_processes([stubborn.pid], force=True, timeout_s=0.2)
+
+    assert result["failed"] == []
     assert stubborn.poll() is None
 
 

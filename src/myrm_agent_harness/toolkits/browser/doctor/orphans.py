@@ -11,13 +11,14 @@ dry-run by default (``force=True`` required) and re-verifies each pid right befo
 
 [OUTPUT]
 - find_orphan_automation_processes: stamped browser processes whose owner is gone
-- cleanup_orphan_processes: safe cleanup (dry-run by default, SIGTERM/SIGKILL escalation)
+- cleanup_orphan_processes: safe cleanup (dry-run by default, SIGTERM then SIGKILL after a grace period)
 - OrphanProcess / OrphanCleanupResult / KillFailure: typed shapes of the scan and cleanup results
 
 [POS]
-Orphan process detection and cleanup. The psutil process-table walk is
-synchronous and offloaded via asyncio.to_thread by callers (doctor orchestrator,
-server health endpoints) so it never blocks an event loop.
+Orphan process detection and cleanup. The psutil process-table walk and the cleanup (which waits
+up to the grace period per stubborn process) are synchronous and offloaded via asyncio.to_thread
+by callers (doctor orchestrator, server health endpoints, repair actions) so they never block an
+event loop.
 """
 
 from __future__ import annotations
@@ -26,6 +27,7 @@ import contextlib
 import logging
 import os
 import signal
+import sys
 import time
 from typing import TypedDict
 
@@ -34,8 +36,14 @@ from ..process_owner import OwnerState, read_owner_state
 logger = logging.getLogger(__name__)
 
 _POLL_INTERVAL_S = 0.05
+# A healthy browser exits within tens of milliseconds of SIGTERM; a headed Chrome whose
+# DevTools driver died ignores it and needs the SIGKILL that follows this grace period.
+_GRACE_PERIOD_S = 3.0
 # SIGKILL cannot be caught, but delivery and teardown are asynchronous.
 _SIGKILL_SETTLE_S = 1.0
+# Windows has no SIGKILL; there ``os.kill`` terminates the process for any signal that is not a
+# console control event, so SIGTERM is already the hard kill.
+_KILL_SIGNAL = signal.SIGTERM if sys.platform == "win32" else signal.SIGKILL
 
 
 class OrphanProcess(TypedDict):
@@ -94,7 +102,7 @@ def find_orphan_automation_processes() -> list[OrphanProcess]:
                         "pid": proc.pid,
                         "name": proc.name(),
                         "ppid": proc.ppid(),
-                        "user_data_dir": _extract_user_data_dir(" ".join(proc.cmdline())),
+                        "user_data_dir": _extract_user_data_dir(proc.cmdline()),
                     }
                 )
             except (psutil.NoSuchProcess, psutil.AccessDenied):
@@ -105,13 +113,17 @@ def find_orphan_automation_processes() -> list[OrphanProcess]:
     return orphans
 
 
-def _extract_user_data_dir(cmdline: str) -> str:
-    """Extract the ``--user-data-dir`` value (``=`` or space separated) from a command line, or ``""``."""
-    for flag in ("--user-data-dir=", "--user-data-dir"):
-        _, found, rest = cmdline.partition(flag)
-        if found:
-            tokens = rest.split()
-            return tokens[0] if tokens else ""
+def _extract_user_data_dir(args: list[str]) -> str:
+    """The ``--user-data-dir`` value (``=`` joined or the next argument) of a command line, or ``""``.
+
+    Works on the argument list, so a profile path that contains spaces stays whole.
+    """
+    flag = "--user-data-dir"
+    for index, arg in enumerate(args):
+        if arg.startswith(f"{flag}="):
+            return arg[len(flag) + 1 :]
+        if arg == flag:
+            return args[index + 1] if index + 1 < len(args) else ""
     return ""
 
 
@@ -152,8 +164,11 @@ def _terminate(pid: int, timeout_s: float) -> bool:
     os.kill(pid, signal.SIGTERM)
     if timeout_s <= 0.0 or _wait_until_stopped(pid, timeout_s):
         return True
+    if not _is_leftover(pid):
+        # The grace period outlasted the process: the pid is gone or now belongs to someone else.
+        return True
     with contextlib.suppress(ProcessLookupError):
-        os.kill(pid, signal.SIGKILL)
+        os.kill(pid, _KILL_SIGNAL)
         logger.info(f"Force killed (SIGKILL) stubborn orphan process: {pid}")
     return _wait_until_stopped(pid, _SIGKILL_SETTLE_S)
 
@@ -162,18 +177,22 @@ def cleanup_orphan_processes(
     orphan_pids: list[int] | None = None,
     *,
     force: bool = False,
-    timeout_s: float = 0.0,
+    timeout_s: float = _GRACE_PERIOD_S,
 ) -> OrphanCleanupResult:
     """Clean up orphan automation processes with safety checks.
 
-    Each pid is re-verified as a leftover immediately before it is signalled; a pid that no longer
-    is one (pid reuse, owner alive again) is reported as ``not_an_orphan`` and left alone.
+    Each pid is re-verified as a leftover immediately before it is signalled (and again before the
+    SIGKILL); a pid that no longer is one (pid reuse, owner alive again) is reported as
+    ``not_an_orphan`` and left alone. ``killed`` counts the processes that actually stopped; one that
+    survives SIGKILL is listed in ``failed`` instead.
+
+    Blocks for up to ``timeout_s`` per stubborn process, so async callers run it in a thread.
 
     Args:
         orphan_pids: Optional list of PIDs to kill. If None, auto-detect.
         force: Must be True to actually kill processes (safety mechanism).
-        timeout_s: Grace period in seconds to wait after SIGTERM before SIGKILL.
-                   Defaults to 0.0 (immediate SIGTERM only, non-blocking).
+        timeout_s: Grace period in seconds to wait after SIGTERM before SIGKILL. ``0`` only sends
+                   SIGTERM and does not wait, so ``killed`` then counts signalled processes.
 
     Returns:
         Result dict with killed count, dry_run flag, would_kill (dry-run), and details.

@@ -537,7 +537,8 @@ class GlobalBrowserPool(CrashWatchdogMixin):
     async def _close_browser_instance(self, browser_inst: BrowserInstance) -> None:
         """Close a specific browser instance and its contexts.
 
-        Includes a fallback to force kill the process if graceful close fails.
+        A close that fails or times out is only logged: the toolkit holds no browser PID to signal, and a
+        process that outlives its launcher is a leftover for Browser Doctor.
         """
         for _ctx_key, pool in browser_inst.page_pools.items():
             with contextlib.suppress(Exception):
@@ -552,8 +553,7 @@ class GlobalBrowserPool(CrashWatchdogMixin):
                 # Try graceful close first with a timeout
                 await asyncio.wait_for(browser_inst.browser.close(), timeout=5.0)
             except Exception as e:
-                logger.warning(f"Graceful browser close failed or timed out: {e}. Falling back to force kill.")
-                browser_inst.force_kill()
+                logger.warning(f"Graceful browser close failed or timed out: {e}")
 
     async def shutdown(self) -> None:
         """Close all resources (called at app shutdown)."""

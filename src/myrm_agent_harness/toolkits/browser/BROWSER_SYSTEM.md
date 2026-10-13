@@ -106,7 +106,7 @@ Extension Bridge 与 SessionVault 覆盖竞品（orca/holaboss）cookie 导入�
 - **智能负载调度**：自动选择负载最低的 Context
 - **智能重试**：3次指数退避重试（2s/4s/8s），处理启动失败和网络异常
 - **并发安全销毁**：支持 `destroy_context` 显式回收资源，并具备严格的并发安全断言，防止销毁正在使用的页面。
-- **僵尸进程清理**：在底层浏览器卡死时，通过 `force_kill` (SIGKILL) 强制回收操作系统级别的进程资源。
+- **残留进程回收**：池关闭浏览器时只做优雅 `close()`（5 s 超时，失败仅记日志），不持有浏览器 PID、不发信号。托管启动的 Chromium 带归属戳（启动方 PID + 启动时间）；启动方退出后残留的浏览器由 Browser Doctor 识别，`cleanup_orphan_processes` 先 SIGTERM，3 s 宽限后补 SIGKILL（有头 Chrome 在 DevTools 驱动被杀后会忽略 SIGTERM）。已知局限：Local 模式（有头）下若仅 Playwright 驱动先死、服务进程仍在，浏览器进程会残留，直到服务重启、归属戳指向已退出的进程后才会被识别并清理（macOS 实测，Linux/Windows 未实测）。
 - **双引擎热切换**：Camoufox 是可选的隐身引擎（需单独安装浏览器构建，约 1.2 GB）。已安装且当前为托管浏览器时，可在 Chromium (Patchright) 与 Firefox (Camoufox) 之间热切换，可能缓解指纹类拦截（不承诺绕过）。`BrowserSession.restart(engine=Camoufox)` 先做零副作用预检：构建未就绪、或当前是接入的真实浏览器（CDP/扩展）时抛 `EngineUnavailableError`，会话原样保留；预检通过后若启动失败，会话自动回滚到原引擎（Cookie/localStorage 随新上下文迁移，页面不重载）并重抛原始错误，不会留下无法使用的空会话。
 - **Camoufox 就绪探针**：`pool/camoufox_availability.py` 复用启动期的解析规则（先 `CAMOUFOX_EXECUTABLE_PATH`，再库内已安装构建），以 `download_if_missing=False` 判断“是否已安装可用构建”，绝不触发库默认的静默下载；启动器、`restart()` 预检与 Doctor 共用同一结论。已安装但无法启动（如缺系统库）不在探针范围内，由启动失败后的回滚兜底；包自身无法导入（导入期会读取内置数据文件）同样以“不可用”原因返回而非抛出。手动安装：包缺失时先安装 `camoufox` 包（`uv add camoufox`），再执行 `camoufox fetch`（约 1.2 GB），离线/沙箱环境用 `CAMOUFOX_EXECUTABLE_PATH` 指向现成构建；Doctor 的 `fix` 与告警日志给出同一份处置说明（`camoufox` 命令随 Python 包提供，包缺失时不存在）。
 - **Camoufox 指纹持久化**：通过 `camoufox.utils.launch_options()` 生成完整指纹配置（含 `executable_path`、环境变量中的指纹种子、WebGL 参数等），首次启动时保存到 `_fingerprint_dir/camoufox_fingerprint.json`，后续启动通过 `from_options` 加载，确保同一 Agent 在多次会话中保持一致的设备身份。内置自愈机制：损坏的 JSON 配置文件（如断电导致写入中断）会被自动检测、删除并重新生成，避免永久启动失败。

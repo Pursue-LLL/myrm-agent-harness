@@ -21,6 +21,7 @@ from tests.toolkits.browser._stamped_processes import StampedProcesses, dead_own
 
 # Command lines that look exactly like a Playwright browser of some other tool.
 _FOREIGN_PLAYWRIGHT_ARGS = ("--user-data-dir=/home/user/.cache/ms-playwright/chromium-1208", "--headless")
+_PROFILE_WITH_SPACES = "/Users/a b/Library/Chrome Profile"
 
 
 def _reported_pids() -> set[int]:
@@ -111,13 +112,17 @@ def test_scan_failure_is_logged_and_reports_nothing(caplog: pytest.LogCaptureFix
 
 
 @pytest.mark.parametrize(
-    ("cmdline", "expected"),
+    ("args", "expected"),
     [
-        ("/usr/bin/chrome --user-data-dir=/tmp/playwright_chromium --headless", "/tmp/playwright_chromium"),
-        ("/usr/bin/chrome --user-data-dir /tmp/playwright_chromium --headless", "/tmp/playwright_chromium"),
-        ("/usr/bin/chrome --headless --no-sandbox", ""),
-        ("/usr/bin/chrome --user-data-dir=", ""),
+        (["/usr/bin/chrome", "--user-data-dir=/tmp/playwright_chromium", "--headless"], "/tmp/playwright_chromium"),
+        (["/usr/bin/chrome", "--user-data-dir", "/tmp/playwright_chromium", "--headless"], "/tmp/playwright_chromium"),
+        (["/usr/bin/chrome", f"--user-data-dir={_PROFILE_WITH_SPACES}"], _PROFILE_WITH_SPACES),
+        (["/usr/bin/chrome", "--user-data-dir", _PROFILE_WITH_SPACES], _PROFILE_WITH_SPACES),
+        (["/usr/bin/chrome", "--user-data-dir-extra=/tmp/other", "--headless"], ""),
+        (["/usr/bin/chrome", "--headless", "--no-sandbox"], ""),
+        (["/usr/bin/chrome", "--user-data-dir="], ""),
+        (["/usr/bin/chrome", "--user-data-dir"], ""),
     ],
 )
-def test_user_data_dir_is_read_from_either_flag_syntax(cmdline: str, expected: str) -> None:
-    assert _extract_user_data_dir(cmdline) == expected
+def test_user_data_dir_is_read_from_either_flag_syntax(args: list[str], expected: str) -> None:
+    assert _extract_user_data_dir(args) == expected
