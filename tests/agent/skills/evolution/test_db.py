@@ -7,7 +7,6 @@ import pytest
 from myrm_agent_harness.agent.skills.evolution.core.types import (
     EvolutionType,
     SkillLineage,
-    SkillMetrics,
     SkillRecord,
 )
 from myrm_agent_harness.agent.skills.evolution.db.store import SkillStore
@@ -27,7 +26,6 @@ def skill_record():
         content="def test(): pass",
         path="skills/test_skill.py",
         lineage=SkillLineage(evolution_type=EvolutionType.DERIVED, version=1, parent_id=None, change_summary="init"),
-        metrics=SkillMetrics(),
         verification_steps=[],
     )
 
@@ -63,23 +61,53 @@ async def test_get_skill_by_name_version(temp_db_path, skill_record):
     store.close()
 
 
+_LEGACY_SKILLS_DDL = """
+CREATE TABLE skills (
+    skill_id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '',
+    content TEXT NOT NULL, path TEXT NOT NULL DEFAULT '',
+    evolution_type TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1, parent_id TEXT,
+    change_summary TEXT NOT NULL DEFAULT '', lineage_created_at TEXT NOT NULL,
+    lineage_created_by TEXT NOT NULL DEFAULT '',
+    total_selections INTEGER NOT NULL DEFAULT 0, applied_count INTEGER NOT NULL DEFAULT 0,
+    completed_count INTEGER NOT NULL DEFAULT 0, success_count INTEGER NOT NULL DEFAULT 0,
+    last_success_at TEXT, last_failure_at TEXT, consecutive_failures INTEGER NOT NULL DEFAULT 0,
+    verification_steps TEXT NOT NULL DEFAULT '[]', eval_cases TEXT NOT NULL DEFAULT '[]', environment TEXT,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL, is_active INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX idx_skills_selections ON skills(total_selections);
+"""
+
+
 @pytest.mark.asyncio
-async def test_record_execution_outcome_counts_atomically(temp_db_path, skill_record):
+async def test_store_writes_into_a_database_that_still_has_the_retired_counter_columns(temp_db_path, skill_record):
+    """Databases created before the counters were retired keep working: the unused columns just keep their defaults."""
+    legacy = sqlite3.connect(temp_db_path)
+    legacy.executescript(_LEGACY_SKILLS_DDL)
+    legacy.commit()
+    legacy.close()
+
     store = SkillStore(db_path=temp_db_path)
     await store.save_skill(skill_record)
+    await store.save_skills_batch([skill_record])
 
-    assert await store.record_execution_outcome("test_skill_1", success=False)
-    assert await store.record_execution_outcome("test_skill_1", success=True)
-    assert not await store.record_execution_outcome("missing_skill", success=True)
-
-    metrics = store.get_skill("test_skill_1").metrics
-    assert (metrics.total_selections, metrics.applied_count, metrics.completed_count) == (2, 2, 2)
-    assert metrics.success_count == 1
-    assert metrics.consecutive_failures == 0
-    assert metrics.last_success_at is not None
-    assert metrics.last_failure_at is not None
-
+    retrieved = store.get_skill("test_skill_1")
+    assert retrieved is not None
+    assert retrieved.name == skill_record.name
     store.close()
+
+
+def test_new_database_has_no_execution_counter_columns(temp_db_path):
+    store = SkillStore(db_path=temp_db_path)
+    columns = {row[1] for row in sqlite3.connect(temp_db_path).execute("PRAGMA table_info(skills)")}
+    store.close()
+
+    assert not columns & {
+        "total_selections",
+        "applied_count",
+        "completed_count",
+        "success_count",
+        "consecutive_failures",
+    }
 
 
 @pytest.mark.asyncio

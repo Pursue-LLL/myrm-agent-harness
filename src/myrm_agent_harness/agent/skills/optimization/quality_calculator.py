@@ -22,7 +22,6 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .protocols import SkillMetricsProvider
     from .types import SkillQualityScore
 
 logger = logging.getLogger(__name__)
@@ -67,61 +66,41 @@ class SkillQualityCalculator:
         self,
         token_baseline: int = 1000,
         time_baseline: float = 10.0,
-        metrics_provider: SkillMetricsProvider | None = None,
     ):
         """初始化质量计算器
 
         Args:
             token_baseline: Token效率基准（默认1000 tokens）
             time_baseline: 执行时间基准（默认10秒）
-            metrics_provider: 可选的Skill metrics提供者（用于funnel分析）
         """
         self.token_baseline = token_baseline
         self.time_baseline = time_baseline
-        self.metrics_provider = metrics_provider
 
-    async def calculate(
-        self, samples: list[SkillExecutionSample], call_frequency: float = 0.5, skill_id: str | None = None
-    ) -> SkillQualityScore:
+    def calculate(self, samples: list[SkillExecutionSample], call_frequency: float = 0.5) -> SkillQualityScore:
         """从样本数据计算质量评分
 
         Args:
             samples: skill执行样本列表
             call_frequency: 调用频率（0-1，由外部统计系统提供）
-            skill_id: Skill ID（用于查询funnel metrics）
 
         Returns:
-            SkillQualityScore: 5维质量评分 + 可选funnel metrics
+            SkillQualityScore: 5维质量评分
         """
         from .types import SkillQualityScore
 
         if not samples:
             # 无样本时返回默认评分（中等水平）
-            score = SkillQualityScore(
+            return SkillQualityScore(
                 success_rate=0.5,
                 token_efficiency=0.5,
                 execution_time=0.5,
                 user_satisfaction=0.5,
                 call_frequency=call_frequency,
             )
-            # Attach funnel metrics if provider available
-            if self.metrics_provider and skill_id:
-                try:
-                    score.funnel_metrics = await self.metrics_provider.get_skill_metrics(skill_id)
-                except Exception as e:
-                    logger.warning(f"Failed to fetch funnel metrics for {skill_id}: {e}")
-            return score
 
-        # 1. 计算成功率
         success_rate = self._calculate_success_rate(samples)
-
-        # 2. 计算token效率
         token_efficiency = self._calculate_token_efficiency(samples)
-
-        # 3. 计算执行时间效率
         execution_time = self._calculate_execution_time_efficiency(samples)
-
-        # 4. 计算用户满意度
         user_satisfaction = self._calculate_user_satisfaction(samples)
 
         logger.debug(
@@ -130,29 +109,13 @@ class SkillQualityCalculator:
             f"time={execution_time:.2f}, satisfaction={user_satisfaction:.2f}"
         )
 
-        score = SkillQualityScore(
+        return SkillQualityScore(
             success_rate=success_rate,
             token_efficiency=token_efficiency,
             execution_time=execution_time,
             user_satisfaction=user_satisfaction,
             call_frequency=call_frequency,
         )
-
-        # Attach funnel metrics if provider available
-        if self.metrics_provider and skill_id:
-            try:
-                score.funnel_metrics = await self.metrics_provider.get_skill_metrics(skill_id)
-                if score.funnel_metrics:
-                    logger.debug(
-                        f"Funnel metrics attached for {skill_id}: "
-                        f"selections={score.funnel_metrics.total_selections}, "
-                        f"applied={score.funnel_metrics.applied_count}, "
-                        f"fallback_rate={score.funnel_metrics.fallback_rate:.1%}"
-                    )
-            except Exception as e:
-                logger.warning(f"Failed to fetch funnel metrics for {skill_id}: {e}")
-
-        return score
 
     def _calculate_success_rate(self, samples: list[SkillExecutionSample]) -> float:
         """计算成功率

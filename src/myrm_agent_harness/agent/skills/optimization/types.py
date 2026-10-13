@@ -38,10 +38,7 @@ from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
-from typing import TYPE_CHECKING, Protocol
-
-if TYPE_CHECKING:
-    from myrm_agent_harness.agent.skills.evolution.core.types import SkillMetrics
+from typing import Protocol
 
 
 class SkillType(StrEnum):
@@ -110,9 +107,6 @@ class SkillQualityScore:
     completion_tokens: int = 0
     total_tokens: int = 0
     llm_cost_usd: float = 0.0
-
-    # Funnel metrics (optional, from evolution system)
-    funnel_metrics: SkillMetrics | None = None
 
     @property
     def overall_score(self) -> float:

@@ -2,8 +2,8 @@
 
 Publishes structured ``SkillFailureEvent`` when a tool call fails in a
 session that has loaded storage skills.  Also counts the outcome of every
-tool call into the run's skill usage and the skill execution ledger while
-exactly one storage skill is loaded (the only case where the outcome
+tool call into the run's skill usage (the Curator's ``.stats.json`` ledger)
+while exactly one storage skill is loaded (the only case where the outcome
 unambiguously belongs to that skill).
 Counting never deactivates or repairs a skill by itself.
 
@@ -11,7 +11,7 @@ Counting never deactivates or repairs a skill by itself.
 - agent.errors.tool_error_category::ToolErrorCategory (POS: Canonical tool error categories for structured error classification.)
 - agent.skill_agent (POS: loaded skills + task intent queries)
 - runtime.events (POS: SkillFailureCandidate, SkillFailureEvent, event bus)
-- agent.skills.evolution (POS: global evolution integration)
+- backends.skills.usage_recorder (POS: run-scoped skill usage ledger)
 - agent.middlewares._session_context (POS: approval session id)
 
 [OUTPUT]
@@ -24,7 +24,6 @@ Skill failure telemetry — failure events plus single-skill outcome counting.
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import json
 import re
@@ -103,7 +102,7 @@ def track_skill_execution(
                 candidates=candidates,
                 loop_kind=loop_kind,
             )
-            _count_single_skill_outcome(candidates, success=False, error_message=sanitized_error)
+            _count_single_skill_outcome(candidates, success=False)
             return
 
         _count_single_skill_outcome(candidates, success=True)
@@ -116,12 +115,7 @@ def track_skill_execution(
 # ---------------------------------------------------------------------------
 
 
-def _count_single_skill_outcome(
-    candidates: tuple[SkillFailureCandidate, ...],
-    *,
-    success: bool,
-    error_message: str = "",
-) -> None:
+def _count_single_skill_outcome(candidates: tuple[SkillFailureCandidate, ...], *, success: bool) -> None:
     """Count one tool-call outcome for the only loaded storage skill (ambiguous owners are skipped)."""
     if len(candidates) != 1:
         return
@@ -129,28 +123,6 @@ def _count_single_skill_outcome(
     from myrm_agent_harness.backends.skills.usage_recorder import record_skill_execution
 
     record_skill_execution(candidates[0].skill_name, candidates[0].storage_path, success=success)
-
-    from myrm_agent_harness.agent.skills.evolution.infra.integration import (
-        get_global_evolution_integration,
-    )
-
-    evolution = get_global_evolution_integration()
-    if not evolution:
-        return
-
-    tracking_task = asyncio.create_task(
-        evolution.record_execution(skill_id=candidates[0].skill_id, success=success, error_message=error_message)
-    )
-    tracking_task.add_done_callback(_log_skill_tracking_task_failure)
-
-
-def _log_skill_tracking_task_failure(task: asyncio.Task[None]) -> None:
-    try:
-        task.result()
-    except asyncio.CancelledError:
-        return
-    except Exception as exc:
-        logger.debug("Skill execution tracking task failed: %s", exc)
 
 
 def _current_runtime_session_id() -> str | None:

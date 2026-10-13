@@ -8,7 +8,6 @@ Focus on real-world utility with 54% less code than OpenSpace while maintaining 
 
 [OUTPUT]
 - EvolutionType: Type of skill evolution action.
-- SkillMetrics: Per-skill execution counters with derived rates (success/applied/completion/fallback/effective).
 - SkillLineage: Simplified lineage tracking.
 - SkillRecord: Complete skill record with evolution metadata.
 - EvolutionRequest: Request for skill evolution (for concurrent processing). Supports GUI-First force_retry.
@@ -137,7 +136,6 @@ class VerificationProof:
 
     is_verified: bool = False
     hollow_detected: bool = False
-    success_streak: int = 0
     blast_radius: dict[str, int] = field(default_factory=lambda: {"files": 0, "lines": 0})
     verification_summary: str = ""
     command_results: list[dict[str, Any]] = field(default_factory=list)
@@ -148,7 +146,6 @@ class VerificationProof:
         return {
             "is_verified": self.is_verified,
             "hollow_detected": self.hollow_detected,
-            "success_streak": self.success_streak,
             "blast_radius": self.blast_radius,
             "verification_summary": self.verification_summary,
             "command_results": self.command_results,
@@ -161,7 +158,6 @@ class VerificationProof:
         return cls(
             is_verified=bool(data.get("is_verified", False)),
             hollow_detected=bool(data.get("hollow_detected", False)),
-            success_streak=int(data.get("success_streak", 0)),
             blast_radius=data.get("blast_radius", {"files": 0, "lines": 0}),
             verification_summary=str(data.get("verification_summary", "")),
             command_results=data.get("command_results", []),
@@ -198,77 +194,6 @@ class EnvironmentFingerprint:
             key_dependencies_hash=data.get("key_dependencies_hash", ""),
             custom_tags=data.get("custom_tags", {}),
         )
-
-
-@dataclass
-class SkillMetrics:
-    """Read-side snapshot of a skill's execution counters.
-
-    Counters are incremented only through ``SkillStore.record_execution_outcome`` (one atomic UPDATE).
-
-    4 base counters:
-    - total_selections: How many times skill was selected (including fallbacks)
-    - applied_count: How many times skill actually started execution
-    - completed_count: How many times execution completed (success + failure)
-    - success_count: How many times execution succeeded
-
-    4 derived rates (calculated on-the-fly):
-    - fallback_rate: (total_selections - applied_count) / total_selections
-    - applied_rate: applied_count / total_selections
-    - completion_rate: completed_count / applied_count
-    - effective_rate: success_count / applied_count (aliased by success_rate)
-    """
-
-    # Base counters
-    total_selections: int = 0  # Selected (applied + fallback)
-    applied_count: int = 0  # Actually started execution
-    completed_count: int = 0  # Finished execution (success + failure)
-    success_count: int = 0  # Finished successfully
-
-    # Recency and streak signals
-    last_success_at: datetime | None = None
-    last_failure_at: datetime | None = None
-    consecutive_failures: int = 0  # Failures since the last success
-
-    # Derived rates (properties)
-    @property
-    def fallback_rate(self) -> float:
-        """Rate of selections that were not applied (selected but fallback)."""
-        if self.total_selections == 0:
-            return 0.0
-        return (self.total_selections - self.applied_count) / self.total_selections
-
-    @property
-    def applied_rate(self) -> float:
-        """Rate of selections that were applied (actually executed)."""
-        if self.total_selections == 0:
-            return 0.0
-        return self.applied_count / self.total_selections
-
-    @property
-    def completion_rate(self) -> float:
-        """Rate of applied executions that completed (success + failure)."""
-        if self.applied_count == 0:
-            return 0.0
-        return self.completed_count / self.applied_count
-
-    @property
-    def effective_rate(self) -> float:
-        """Rate of applied executions that succeeded (same as success_rate)."""
-        if self.applied_count == 0:
-            return 0.0
-        return self.success_count / self.applied_count
-
-    # Aliases
-    @property
-    def success_rate(self) -> float:
-        """Alias of effective_rate."""
-        return self.effective_rate
-
-    @property
-    def usage_count(self) -> int:
-        """Alias of applied_count."""
-        return self.applied_count
 
 
 @dataclass
@@ -321,7 +246,6 @@ class SkillRecord:
     path: str
 
     lineage: SkillLineage
-    metrics: SkillMetrics = field(default_factory=SkillMetrics)
     environment: EnvironmentFingerprint | None = None
 
     created_at: datetime = field(default_factory=datetime.now)
@@ -342,15 +266,6 @@ class SkillRecord:
             "path": self.path,
             "lineage": self.lineage.to_dict(),
             "environment": self.environment.to_dict() if self.environment else None,
-            "metrics": {
-                "total_selections": self.metrics.total_selections,
-                "applied_count": self.metrics.applied_count,
-                "completed_count": self.metrics.completed_count,
-                "success_count": self.metrics.success_count,
-                "last_success_at": (self.metrics.last_success_at.isoformat() if self.metrics.last_success_at else None),
-                "last_failure_at": (self.metrics.last_failure_at.isoformat() if self.metrics.last_failure_at else None),
-                "consecutive_failures": self.metrics.consecutive_failures,
-            },
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
             "is_active": self.is_active,
@@ -361,21 +276,6 @@ class SkillRecord:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> SkillRecord:
-        metrics_data = data.get("metrics", {})
-        metrics = SkillMetrics(
-            total_selections=metrics_data.get("total_selections", 0),
-            applied_count=metrics_data.get("applied_count", 0),
-            completed_count=metrics_data.get("completed_count", 0),
-            success_count=metrics_data.get("success_count", 0),
-            last_success_at=(
-                datetime.fromisoformat(metrics_data["last_success_at"]) if metrics_data.get("last_success_at") else None
-            ),
-            last_failure_at=(
-                datetime.fromisoformat(metrics_data["last_failure_at"]) if metrics_data.get("last_failure_at") else None
-            ),
-            consecutive_failures=metrics_data.get("consecutive_failures", 0),
-        )
-
         return cls(
             skill_id=data["skill_id"],
             name=data["name"],
@@ -383,7 +283,6 @@ class SkillRecord:
             content=data["content"],
             path=data["path"],
             lineage=SkillLineage.from_dict(data["lineage"]),
-            metrics=metrics,
             environment=(EnvironmentFingerprint.from_dict(data["environment"]) if data.get("environment") else None),
             created_at=datetime.fromisoformat(data["created_at"]),
             updated_at=datetime.fromisoformat(data["updated_at"]),

@@ -119,5 +119,4 @@ async def test_sandbox_validator_with_valid_verification_steps_success():
         proof = await validator.verify_skill_capsule(skill)
         assert proof.is_verified is True
         assert proof.hollow_detected is False
-        assert proof.success_streak >= 1
         mock_run.assert_called_once()

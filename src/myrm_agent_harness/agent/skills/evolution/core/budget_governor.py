@@ -165,15 +165,13 @@ class SkillBudgetGovernor:
         skills: list[SkillRecord],
         now: datetime | None = None,
     ) -> list[SkillRecord]:
-        """Identify inactive skills suitable for cold storage archival."""
+        """Identify skills whose record has not changed for ``cold_storage_days`` (candidates for cold storage)."""
         current_time = now or datetime.now(UTC)
         cold_threshold_seconds = self.config.cold_storage_days * 86400
         cold_skills: list[SkillRecord] = []
 
         for skill in skills:
-            reference_time = (
-                skill.metrics.last_success_at or skill.metrics.last_failure_at or skill.updated_at or skill.created_at
-            )
+            reference_time = skill.updated_at or skill.created_at
             if reference_time.tzinfo is None:
                 reference_time = reference_time.replace(tzinfo=UTC)
 

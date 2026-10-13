@@ -73,7 +73,7 @@ async def test_trigger_batch_optimization(scheduler):
     mock_sample = MagicMock()
     mock_sample.skill = metadata
     scheduler.execution_provider.get_skill_executions = AsyncMock(return_value=[mock_sample])
-    scheduler.quality_calculator.calculate = AsyncMock(return_value=quality)
+    scheduler.quality_calculator.calculate = MagicMock(return_value=quality)
 
     batch_id = await scheduler.trigger_batch_optimization(skill_ids, max_concurrent=2)
 
@@ -172,7 +172,7 @@ async def test_trigger_optimization(scheduler):
     mock_sample = MagicMock()
     mock_sample.skill = metadata
     scheduler.execution_provider.get_skill_executions = AsyncMock(return_value=[mock_sample])
-    scheduler.quality_calculator.calculate = AsyncMock(return_value=quality)
+    scheduler.quality_calculator.calculate = MagicMock(return_value=quality)
 
     # Should trigger
     triggered = await scheduler.trigger_optimization(metadata, quality)
@@ -221,7 +221,7 @@ async def test_dlq_operations(scheduler):
     mock_sample = MagicMock()
     mock_sample.skill = metadata
     scheduler.execution_provider.get_skill_executions = AsyncMock(return_value=[mock_sample])
-    scheduler.quality_calculator.calculate = AsyncMock(return_value=quality)
+    scheduler.quality_calculator.calculate = MagicMock(return_value=quality)
 
     success = await scheduler.retry_dlq_task("task_1")
     assert success is True
@@ -284,7 +284,7 @@ async def test_evaluate_skill(scheduler):
     mock_sample = MagicMock()
     mock_sample.skill = metadata
     scheduler.execution_provider.get_skill_executions = AsyncMock(return_value=[mock_sample])
-    scheduler.quality_calculator.calculate = AsyncMock(return_value=quality)
+    scheduler.quality_calculator.calculate = MagicMock(return_value=quality)
 
     await scheduler._evaluate_skill("skill_1")
 
@@ -312,7 +312,7 @@ async def test_detect_and_handle_anomalies(scheduler):
     mock_sample = MagicMock()
     mock_sample.skill = metadata
     scheduler.execution_provider.get_skill_executions = AsyncMock(return_value=[mock_sample])
-    scheduler.quality_calculator.calculate = AsyncMock(return_value=quality)
+    scheduler.quality_calculator.calculate = MagicMock(return_value=quality)
 
     await scheduler._detect_and_handle_anomalies()
 

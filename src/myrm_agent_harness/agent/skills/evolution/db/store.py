@@ -1,7 +1,7 @@
 """SQLite persistence for skill evolution system.
 
 3-table design:
-- skills: Skill records with embedded metrics, lineage, eval_cases
+- skills: Skill records with lineage, eval_cases
 - evolution_rejections: Screener rejection audit trail
 - evolution_constraints: Historical fix constraints for preventing repeated mistakes
 
@@ -37,7 +37,6 @@ from typing import Self
 
 from myrm_agent_harness.agent.skills.evolution.core.types import (
     SkillLineage,
-    SkillMetrics,
     SkillRecord,
 )
 from myrm_agent_harness.agent.skills.evolution.db._store_dependencies import (
@@ -110,14 +109,6 @@ CREATE TABLE IF NOT EXISTS skills (
     lineage_created_at  TEXT NOT NULL,
     lineage_created_by  TEXT NOT NULL DEFAULT '',
 
-    total_selections    INTEGER NOT NULL DEFAULT 0,
-    applied_count       INTEGER NOT NULL DEFAULT 0,
-    completed_count     INTEGER NOT NULL DEFAULT 0,
-    success_count       INTEGER NOT NULL DEFAULT 0,
-    last_success_at     TEXT,
-    last_failure_at     TEXT,
-    consecutive_failures INTEGER NOT NULL DEFAULT 0,
-
     verification_steps  TEXT NOT NULL DEFAULT '[]',
     eval_cases          TEXT NOT NULL DEFAULT '[]',
     environment         TEXT,
@@ -132,7 +123,6 @@ CREATE INDEX IF NOT EXISTS idx_skills_parent ON skills(parent_id);
 CREATE INDEX IF NOT EXISTS idx_skills_version ON skills(skill_id, version);
 CREATE INDEX IF NOT EXISTS idx_skills_active ON skills(is_active);
 CREATE INDEX IF NOT EXISTS idx_skills_updated ON skills(updated_at);
-CREATE INDEX IF NOT EXISTS idx_skills_selections ON skills(total_selections);
 
 CREATE TABLE IF NOT EXISTS evolution_rejections (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -396,11 +386,9 @@ class SkillStore(SkillEvolutionTrackingMixin, SkillDependencyMixin, SkillStoreQu
                     skill_id, name, description, content, path,
                     evolution_type, version, parent_id, change_summary,
                     lineage_created_at, lineage_created_by,
-                    total_selections, applied_count, completed_count, success_count,
-                    last_success_at, last_failure_at, consecutive_failures,
                     verification_steps, eval_cases, environment,
                     created_at, updated_at, is_active, evolution_locked
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     record.skill_id,
@@ -414,13 +402,6 @@ class SkillStore(SkillEvolutionTrackingMixin, SkillDependencyMixin, SkillStoreQu
                     record.lineage.change_summary,
                     record.lineage.created_at.isoformat(),
                     record.lineage.created_by,
-                    record.metrics.total_selections,
-                    record.metrics.applied_count,
-                    record.metrics.completed_count,
-                    record.metrics.success_count,
-                    (record.metrics.last_success_at.isoformat() if record.metrics.last_success_at else None),
-                    (record.metrics.last_failure_at.isoformat() if record.metrics.last_failure_at else None),
-                    record.metrics.consecutive_failures,
                     json.dumps(record.verification_steps, ensure_ascii=False),
                     json.dumps(record.eval_cases, ensure_ascii=False),
                     (json.dumps(record.environment.to_dict(), ensure_ascii=False) if record.environment else None),
@@ -445,11 +426,9 @@ class SkillStore(SkillEvolutionTrackingMixin, SkillDependencyMixin, SkillStoreQu
                     skill_id, name, description, content, path,
                     evolution_type, version, parent_id, change_summary,
                     lineage_created_at, lineage_created_by,
-                    total_selections, applied_count, completed_count, success_count,
-                    last_success_at, last_failure_at, consecutive_failures,
                     verification_steps, eval_cases, environment,
                     created_at, updated_at, is_active, evolution_locked
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     (
@@ -464,13 +443,6 @@ class SkillStore(SkillEvolutionTrackingMixin, SkillDependencyMixin, SkillStoreQu
                         record.lineage.change_summary,
                         record.lineage.created_at.isoformat(),
                         record.lineage.created_by,
-                        record.metrics.total_selections,
-                        record.metrics.applied_count,
-                        record.metrics.completed_count,
-                        record.metrics.success_count,
-                        (record.metrics.last_success_at.isoformat() if record.metrics.last_success_at else None),
-                        (record.metrics.last_failure_at.isoformat() if record.metrics.last_failure_at else None),
-                        record.metrics.consecutive_failures,
                         json.dumps(record.verification_steps, ensure_ascii=False),
                         json.dumps(record.eval_cases, ensure_ascii=False),
                         (json.dumps(record.environment.to_dict(), ensure_ascii=False) if record.environment else None),
@@ -521,35 +493,6 @@ class SkillStore(SkillEvolutionTrackingMixin, SkillDependencyMixin, SkillStoreQu
             )
         self._ensure_open()
         await asyncio.to_thread(self._save_skill_sync, record)
-
-    @_db_retry()
-    def _record_execution_outcome_sync(self, skill_id: str, *, success: bool) -> bool:
-        """Count one execution atomically; a failed commit is rolled back so ``_db_retry`` cannot count it twice."""
-        with self._mu, self._conn:
-            cursor = self._conn.execute(
-                """
-                UPDATE skills SET
-                    total_selections = total_selections + 1,
-                    applied_count = applied_count + 1,
-                    completed_count = completed_count + 1,
-                    success_count = success_count + :ok,
-                    consecutive_failures = CASE WHEN :ok THEN 0 ELSE consecutive_failures + 1 END,
-                    last_success_at = CASE WHEN :ok THEN :now ELSE last_success_at END,
-                    last_failure_at = CASE WHEN :ok THEN last_failure_at ELSE :now END
-                WHERE skill_id = :skill_id
-                """,
-                {"ok": int(success), "now": datetime.now().isoformat(), "skill_id": skill_id},
-            )
-            return cursor.rowcount > 0
-
-    async def record_execution_outcome(self, skill_id: str, *, success: bool) -> bool:
-        """Count one execution outcome of a skill (atomic increment).
-
-        Returns:
-            False when no skill with this id exists.
-        """
-        self._ensure_open()
-        return await asyncio.to_thread(self._record_execution_outcome_sync, skill_id, success=success)
 
     # Evolution lock operations
     @_db_retry()
@@ -633,15 +576,6 @@ class SkillStore(SkillEvolutionTrackingMixin, SkillDependencyMixin, SkillStoreQu
                 change_summary=row["change_summary"],
                 created_at=datetime.fromisoformat(row["lineage_created_at"]),
                 created_by=row["lineage_created_by"],
-            ),
-            metrics=SkillMetrics(
-                total_selections=row["total_selections"],
-                applied_count=row["applied_count"],
-                completed_count=row["completed_count"],
-                success_count=row["success_count"],
-                last_success_at=(datetime.fromisoformat(row["last_success_at"]) if row["last_success_at"] else None),
-                last_failure_at=(datetime.fromisoformat(row["last_failure_at"]) if row["last_failure_at"] else None),
-                consecutive_failures=row["consecutive_failures"],
             ),
             verification_steps=json.loads(row.get("verification_steps", "[]")),
             eval_cases=json.loads(row.get("eval_cases", "[]")),

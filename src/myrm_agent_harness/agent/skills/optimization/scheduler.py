@@ -68,14 +68,12 @@ class OptimizationScheduler(
         config: OptimizationConfig,
         event_emitter: EventEmitter | None = None,
         hook_registry: HookRegistryProtocol | None = None,
-        metrics_provider: object | None = None,
         anomaly_detector: object | None = None,
     ):
         self.optimizer = optimizer
         self.execution_provider = execution_provider
         self.quality_calculator = quality_calculator
         self.config = config
-        self.metrics_provider = metrics_provider
         self.anomaly_detector = anomaly_detector
 
         from .event_emitter import EventEmitter

@@ -12,7 +12,6 @@ from myrm_agent_harness.agent.skills.evolution.core.budget_governor import (
 )
 from myrm_agent_harness.agent.skills.evolution.core.types import (
     EvolutionType,
-    SkillMetrics,
     SkillRecord,
 )
 
@@ -93,7 +92,7 @@ def test_budget_governor_identify_cold_skills() -> None:
         path="/tmp/cold.md",
         lineage=SkillLineage(evolution_type=EvolutionType.CAPTURED),
         created_at=old_time,
-        metrics=SkillMetrics(last_success_at=old_time),
+        updated_at=old_time,
     )
     active_skill = SkillRecord(
         skill_id="active-skill",
@@ -103,7 +102,7 @@ def test_budget_governor_identify_cold_skills() -> None:
         path="/tmp/active.md",
         lineage=SkillLineage(evolution_type=EvolutionType.CAPTURED),
         created_at=old_time,
-        metrics=SkillMetrics(last_success_at=fresh_time),
+        updated_at=fresh_time,
     )
 
     cold_list = governor.identify_cold_skills([cold_skill, active_skill], now=now)

@@ -23,7 +23,7 @@ def test_gene_bank_archive_record_and_coverage():
         patch_summary="Add retry backoff to crawler script",
         patch_content="def crawl(): retry_with_backoff()",
         fitness_score=0.85,
-        verification_proof=VerificationProof(is_verified=True, success_streak=3),
+        verification_proof=VerificationProof(is_verified=True),
     )
 
     admitted = archive.record_elite(rec1)
@@ -41,7 +41,7 @@ def test_gene_bank_archive_record_and_coverage():
         patch_summary="Add adaptive timeout header",
         patch_content="def crawl(): set_adaptive_timeout()",
         fitness_score=0.92,
-        verification_proof=VerificationProof(is_verified=True, success_streak=4),
+        verification_proof=VerificationProof(is_verified=True),
     )
     archive.record_elite(rec2)
 
@@ -160,3 +160,12 @@ def test_variant_generator_prompt_integration_with_gene_bank_priors():
     assert "Diverse Multi-Layer Defensive Exemplars (MAP-Elites Prior)" in prompt
     assert "[PROMPT] Add schema validation note to prompt" in prompt
 
+
+
+def test_verification_proof_loads_records_that_still_carry_the_retired_streak() -> None:
+    stored = VerificationProof(is_verified=True).to_dict() | {"success_streak": 4}
+
+    proof = VerificationProof.from_dict(stored)
+
+    assert proof.is_verified is True
+    assert "success_streak" not in proof.to_dict()

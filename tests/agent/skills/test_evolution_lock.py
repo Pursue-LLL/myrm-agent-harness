@@ -16,7 +16,6 @@ from myrm_agent_harness.agent.skills.evolution.core.engine import SkillEvolution
 from myrm_agent_harness.agent.skills.evolution.core.types import (
     EvolutionType,
     SkillLineage,
-    SkillMetrics,
     SkillRecord,
 )
 from myrm_agent_harness.agent.skills.evolution.db.store import SkillStore
@@ -31,7 +30,6 @@ def _make_skill(*, locked: bool = False) -> SkillRecord:
         content="# Test\nHello",
         path="/tmp/test_skill/SKILL.md",
         lineage=SkillLineage(evolution_type=EvolutionType.CAPTURED),
-        metrics=SkillMetrics(applied_count=5, success_count=1, consecutive_failures=3),
         evolution_locked=locked,
     )
 

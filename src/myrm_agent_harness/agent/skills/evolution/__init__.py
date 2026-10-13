@@ -39,7 +39,6 @@ from .core.types import (
     GeneCellKey,
     GeneEliteRecord,
     SkillLineage,
-    SkillMetrics,
     SkillRecord,
     SkillVerificationType,
     VerificationProof,
@@ -55,7 +54,6 @@ from .infra.confirmation import BatchEvolutionConfirmer, ConfirmationResult
 from .infra.integration import EvolutionIntegration, enable_skill_evolution, get_global_evolution_integration
 from .infra.metrics import EvolutionMetrics, EvolutionMetricsTracker, get_metrics_tracker
 from .infra.queue import EvolutionQueue, QueuePriority, get_evolution_queue
-from .infra.tracker import SkillExecutionResult, SkillQualityTracker
 from .pipeline.patch import PatchType, SkillPatchResult, apply_skill_patch, detect_patch_type, parse_multi_file_full
 from .pipeline.screener import EvolutionScreener, ScreeningResult
 from .pipeline.trace_analyzer import TraceAnalyzer
@@ -106,11 +104,8 @@ __all__ = [
     "SkillDependencyTracker",
     # Core components
     "SkillEvolutionEngine",
-    "SkillExecutionResult",
     "SkillLineage",
-    "SkillMetrics",
     "SkillPatchResult",
-    "SkillQualityTracker",
     "SkillRecord",
     "SkillStore",
     "ToolWrapper",

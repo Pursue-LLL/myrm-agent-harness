@@ -42,7 +42,7 @@ def _setup_skill_mocks(sched: OptimizationScheduler) -> None:
     mock_sample = MagicMock()
     mock_sample.skill = metadata
     sched.execution_provider.get_skill_executions = AsyncMock(return_value=[mock_sample])
-    sched.quality_calculator.calculate = AsyncMock(return_value=quality)
+    sched.quality_calculator.calculate = MagicMock(return_value=quality)
 
 
 @pytest.mark.asyncio

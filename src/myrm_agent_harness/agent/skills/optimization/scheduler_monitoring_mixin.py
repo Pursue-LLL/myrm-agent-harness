@@ -131,7 +131,7 @@ class OptimizationSchedulerMonitoringMixin:
             logger.debug(f"No execution samples for skill: {skill_id}")
             return
 
-        quality_score = await self.quality_calculator.calculate(samples, skill_id=skill_id)
+        quality_score = self.quality_calculator.calculate(samples)
 
         if quality_score.overall_score < self.config.monitoring.optimization_threshold:
             logger.info(

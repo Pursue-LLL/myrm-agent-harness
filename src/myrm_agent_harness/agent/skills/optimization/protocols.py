@@ -3,9 +3,7 @@
 Defines interfaces for data sources, storage, aggregators, and evaluators.
 
 [INPUT]
-- agent.skills.evolution.core.types::SkillMetrics (POS: Data types for skill evolution system.)
 - backends.skills.types::SkillMetadata (POS: Provides ArtifactInfo, infer_language, infer_artifact_type.)
-- agent.skills.evolution::SkillStore (POS: Skill evolution engine - Core of self-evolution system.)
 
 [OUTPUT]
 - SkillOptimizationStorage: class — Skill Optimization Storage
@@ -23,8 +21,6 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Protocol
 
-# Import SkillMetrics from evolution system for funnel metrics integration
-from myrm_agent_harness.agent.skills.evolution.core.types import SkillMetrics
 from myrm_agent_harness.backends.skills.types import SkillMetadata
 
 from .quality_calculator import SkillExecutionSample
@@ -430,62 +426,6 @@ class StorageTimeoutError(StorageError):
     """存储操作超时"""
 
     pass
-
-
-class SkillMetricsProvider(Protocol):
-    """Skill Metrics Provider Protocol (Optional Integration)
-
-    Optional protocol for integrating skill funnel metrics from evolution system.
-    Provides detailed usage tracking (selections, applications, completions, successes).
-
-    This is an optional enhancement - if not provided, optimization system works
-    with basic quality scores only. When provided, enables funnel analysis in
-    the Optimization Dashboard (like OpenSpace).
-
-    Design Principles:
-    - Optional: Optimizer works without metrics provider
-    - Loose coupling: Framework doesn't depend on evolution system directly
-    - Single source of truth: Metrics only stored in evolution system
-    - Read-only: Provider only reads metrics, doesn't modify them
-
-    Usage Example:
-        ```python
-        # Business layer implementation
-        from myrm_agent_harness.agent.skills.evolution import SkillStore
-
-        class EvolutionMetricsProvider:
-            def __init__(self, store: SkillStore):
-                self.store = store
-
-            async def get_skill_metrics(self, skill_id: str) -> SkillMetrics | None:
-                record = self.store.get_skill_by_id(skill_id)
-                return record.metrics if record else None
-
-        # Pass to optimization system
-        provider = EvolutionMetricsProvider(evolution_store)
-        scheduler = OptimizationScheduler(..., metrics_provider=provider)
-        ```
-    """
-
-    async def get_skill_metrics(self, skill_id: str) -> SkillMetrics | None:
-        """Get skill funnel metrics from evolution system
-
-        Args:
-            skill_id: Skill identifier
-
-        Returns:
-            SkillMetrics with funnel data (total_selections, applied_count,
-            completed_count, success_count) or None if not found
-
-        Example:
-            ```python
-            metrics = await provider.get_skill_metrics("pdf-generator")
-            if metrics:
-                print(f"Fallback rate: {metrics.fallback_rate:.1%}")
-                print(f"Success rate: {metrics.effective_rate:.1%}")
-            ```
-        """
-        ...
 
 
 class SkillQualityAggregator(Protocol):

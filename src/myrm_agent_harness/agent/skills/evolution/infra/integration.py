@@ -24,7 +24,7 @@ Framework provides the hooks, business layer decides when to use them.
 
 [POS]
 Integration helpers for skill evolution system. Provides EvolutionIntegration singleton with
-15-Call Sliding Window trigger, execution ledger recording, and background queue orchestration.
+15-Call Sliding Window trigger and background queue orchestration.
 """
 
 import logging
@@ -51,10 +51,6 @@ from myrm_agent_harness.agent.skills.evolution.infra.queue import (
     EvolutionQueue,
     QueuePriority,
     get_evolution_queue,
-)
-from myrm_agent_harness.agent.skills.evolution.infra.tracker import (
-    SkillExecutionResult,
-    SkillQualityTracker,
 )
 from myrm_agent_harness.agent.skills.evolution.pipeline.screener import (
     EvolutionScreener,
@@ -104,9 +100,6 @@ class EvolutionIntegration:
         evolution = EvolutionIntegration(
             db_path=".myrm/skills_evolution.db",
             llm=your_chat_model)
-
-        # Record skill execution result
-        await evolution.record_execution(skill_id="test", success=False, error_message="...")
 
         # Auto-evolve in background
         await evolution.start_background_queue()
@@ -170,7 +163,6 @@ class EvolutionIntegration:
 
         # Core components
         self.store = SkillStore(self.db_path)
-        self.tracker = SkillQualityTracker(self.store)
         self.test_executor: SubprocessCodeExecutor | None = test_executor
         self.screener: EvolutionScreener | None = screener
         self._evolution_strategy = evolution_strategy
@@ -405,26 +397,6 @@ class EvolutionIntegration:
                 fn=_session_end_cleanup,
                 block_on_failure=False,
             ),
-        )
-
-    async def record_execution(
-        self,
-        skill_id: str,
-        success: bool,
-        error_message: str = "",
-    ) -> None:
-        """Record a skill execution outcome into the quality ledger (framework hook).
-
-        Business layer calls this after skill execution. Counting only: repair is
-        driven by failure events and trace slices, never by this ledger.
-
-        Args:
-            skill_id: Executed skill ID
-            success: Whether execution succeeded
-            error_message: Error message if failed (logged, not persisted)
-        """
-        await self.tracker.record_execution(
-            SkillExecutionResult(skill_id=skill_id, success=success, error_message=error_message)
         )
 
     async def evolve_skill(

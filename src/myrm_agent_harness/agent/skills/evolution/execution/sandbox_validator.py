@@ -103,7 +103,6 @@ class SandboxValidator:
                 return VerificationProof(
                     is_verified=False,
                     hollow_detected=True,
-                    success_streak=0,
                     blast_radius=blast_radius,
                     verification_summary="Prompt skill missing required name or content",
                     environment=skill.environment,
@@ -112,7 +111,6 @@ class SandboxValidator:
             return VerificationProof(
                 is_verified=True,
                 hollow_detected=False,
-                success_streak=1,
                 blast_radius=blast_radius,
                 verification_summary="Prompt instruction skill format and structure verified",
                 environment=skill.environment,
@@ -130,7 +128,6 @@ class SandboxValidator:
                 return VerificationProof(
                     is_verified=False,
                     hollow_detected=False,
-                    success_streak=0,
                     blast_radius=blast_radius,
                     verification_summary=f"AST Analysis Failed: {ast_msg}",
                     environment=skill.environment,
@@ -143,7 +140,6 @@ class SandboxValidator:
                 return VerificationProof(
                     is_verified=False,
                     hollow_detected=True,
-                    success_streak=0,
                     blast_radius=blast_radius,
                     verification_summary=f"Hollow Test Rejected: {', '.join(hollow_result.reasons)}",
                     environment=skill.environment,
@@ -172,7 +168,6 @@ def test_syntax():
                 return VerificationProof(
                     is_verified=False,
                     hollow_detected=False,
-                    success_streak=0,
                     blast_radius=blast_radius,
                     verification_summary=f"Dry-run syntax check failed: {result.stderr or result.stdout}",
                     command_results=command_results,
@@ -201,7 +196,6 @@ def test_syntax():
                             return VerificationProof(
                                 is_verified=False,
                                 hollow_detected=True,
-                                success_streak=0,
                                 blast_radius=blast_radius,
                                 verification_summary=f"Hollow verification step detected: `{cmd}`",
                                 command_results=command_results,
@@ -214,7 +208,6 @@ def test_syntax():
                             return VerificationProof(
                                 is_verified=False,
                                 hollow_detected=False,
-                                success_streak=0,
                                 blast_radius=blast_radius,
                                 verification_summary=f"HighRiskOperation: Inline script execution blocked: `{cmd}`",
                                 command_results=command_results,
@@ -245,7 +238,6 @@ def test_syntax():
                             return VerificationProof(
                                 is_verified=False,
                                 hollow_detected=False,
-                                success_streak=0,
                                 blast_radius=blast_radius,
                                 verification_summary=f"Verification Step Failed: {exec_result.stderr or exec_result.error}",
                                 command_results=command_results,
@@ -254,13 +246,9 @@ def test_syntax():
                             )
 
         # All checks passed cleanly
-        prev_success_streak = skill.metrics.success_count if skill.metrics else 0
-        streak = prev_success_streak + 1
-
         return VerificationProof(
             is_verified=True,
             hollow_detected=False,
-            success_streak=streak,
             blast_radius=blast_radius,
             verification_summary="Passed sandbox execution and anti-hollow validation",
             command_results=command_results,

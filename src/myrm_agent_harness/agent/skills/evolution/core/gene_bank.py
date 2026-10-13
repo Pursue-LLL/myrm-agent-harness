@@ -5,7 +5,7 @@
 - collections::defaultdict (POS: Python 容器标准库)
 - typing::Any (POS: Python 类型标注标准库)
 - agent.skills.evolution.core.types::EvolutionLayer, FailurePathology, GeneCellKey,
-  GeneEliteRecord, SkillMetrics, SkillRecord
+  GeneEliteRecord, SkillRecord
   (POS: 技能演化数据契约层)
 
 [OUTPUT]

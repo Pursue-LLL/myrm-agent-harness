@@ -16,7 +16,6 @@ from myrm_agent_harness.agent.skills.evolution.core.types import (
     EvolutionRequest,
     EvolutionType,
     SkillLineage,
-    SkillMetrics,
     SkillRecord,
 )
 from myrm_agent_harness.toolkits.code_execution.executors.test_executor import (
@@ -140,50 +139,6 @@ class TestTaskIntentContextVar:
 # ---------------------------------------------------------------------------
 
 
-class TestSkillMetrics:
-    """Cover derived rates, recording methods, and edge cases."""
-
-    def test_fallback_rate_zero_selections(self) -> None:
-        m = SkillMetrics()
-        assert m.fallback_rate == 0.0
-
-    def test_fallback_rate_with_data(self) -> None:
-        m = SkillMetrics(total_selections=10, applied_count=8)
-        assert m.fallback_rate == pytest.approx(0.2)
-
-    def test_applied_rate_zero_selections(self) -> None:
-        m = SkillMetrics()
-        assert m.applied_rate == 0.0
-
-    def test_applied_rate_with_data(self) -> None:
-        m = SkillMetrics(total_selections=10, applied_count=7)
-        assert m.applied_rate == pytest.approx(0.7)
-
-    def test_completion_rate_zero_applied(self) -> None:
-        m = SkillMetrics()
-        assert m.completion_rate == 0.0
-
-    def test_completion_rate_with_data(self) -> None:
-        m = SkillMetrics(applied_count=10, completed_count=9)
-        assert m.completion_rate == pytest.approx(0.9)
-
-    def test_effective_rate_zero_applied(self) -> None:
-        m = SkillMetrics()
-        assert m.effective_rate == 0.0
-
-    def test_effective_rate_with_data(self) -> None:
-        m = SkillMetrics(applied_count=10, success_count=6)
-        assert m.effective_rate == pytest.approx(0.6)
-
-    def test_success_rate_is_effective_rate(self) -> None:
-        m = SkillMetrics(applied_count=4, success_count=3)
-        assert m.success_rate == m.effective_rate
-
-    def test_usage_count_is_applied_count(self) -> None:
-        m = SkillMetrics(applied_count=42)
-        assert m.usage_count == 42
-
-
 class TestSkillLineage:
     """Cover to_dict / from_dict roundtrip."""
 
@@ -231,30 +186,19 @@ class TestSkillRecord:
             content="# Skill",
             path="/skills/test",
             lineage=SkillLineage(evolution_type=EvolutionType.FIX),
-            metrics=SkillMetrics(
-                total_selections=10,
-                applied_count=8,
-                completed_count=7,
-                success_count=5,
-                last_success_at=datetime(2026, 1, 1),
-                last_failure_at=datetime(2026, 1, 2),
-                consecutive_failures=1,
-            ),
         )
 
     def test_to_dict_roundtrip(self) -> None:
         r = self._make_record()
         d = r.to_dict()
         assert d["skill_id"] == "sk1"
-        assert d["metrics"]["total_selections"] == 10
-        assert d["metrics"]["last_success_at"] is not None
+        assert "metrics" not in d
 
         r2 = SkillRecord.from_dict(d)
         assert r2.skill_id == r.skill_id
-        assert r2.metrics.total_selections == r.metrics.total_selections
         assert r2.lineage.evolution_type == EvolutionType.FIX
 
-    def test_from_dict_no_metrics(self) -> None:
+    def test_from_dict_ignores_legacy_metrics(self) -> None:
         d = {
             "skill_id": "sk2",
             "name": "test",
@@ -264,9 +208,11 @@ class TestSkillRecord:
             "lineage": {"evolution_type": "captured"},
             "created_at": datetime.now().isoformat(),
             "updated_at": datetime.now().isoformat(),
+            "metrics": {"total_selections": 7, "applied_count": 3},
         }
         r = SkillRecord.from_dict(d)
-        assert r.metrics.total_selections == 0
+        assert r.skill_id == "sk2"
+        assert not hasattr(r, "metrics")
 
 
 class TestEvolutionRequest:
@@ -368,7 +314,6 @@ class TestEvolutionIntegrationMethods:
 
         assert integration.db_path == db_path
         assert integration.store is not None
-        assert integration.tracker is not None
         assert integration.engine is not None
 
         await integration.close()

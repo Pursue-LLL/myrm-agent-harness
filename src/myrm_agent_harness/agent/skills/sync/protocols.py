@@ -127,7 +127,7 @@ class SkillQualityGateProtocol(Protocol):
         Args:
             skill_name: Name of the skill being evaluated.
             skill_content: Full SKILL.md content.
-            effective_rate: Success rate (success_count / applied_count).
+            effective_rate: Success rate over runs with an observed outcome (0-1).
             total_executions: Total number of executions for statistical confidence.
 
         Returns:

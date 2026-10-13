@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from myrm_agent_harness.agent.hooks.types import HookEvent
-from myrm_agent_harness.agent.skills.evolution.core.types import EvolutionType, SkillLineage, SkillRecord
+from myrm_agent_harness.agent.skills.evolution.core.types import EvolutionType
 from myrm_agent_harness.agent.skills.evolution.infra.integration import (
     EvolutionIntegration,
     enable_skill_evolution,
@@ -88,56 +88,6 @@ async def test_integration_initialization_with_llm(clean_integration):
             assert integration.queue is not None
         finally:
             await integration.close()
-
-
-@pytest.mark.asyncio
-async def test_record_execution_forwards_outcome_to_tracker(clean_integration):
-    integration = EvolutionIntegration(db_path=":memory:")
-    try:
-        integration.tracker = MagicMock()
-        integration.tracker.record_execution = AsyncMock()
-
-        await integration.record_execution(skill_id="test_skill", success=True)
-
-        integration.tracker.record_execution.assert_awaited_once()
-        recorded = integration.tracker.record_execution.call_args[0][0]
-        assert (recorded.skill_id, recorded.success, recorded.error_message) == ("test_skill", True, "")
-    finally:
-        await integration.close()
-
-
-@pytest.mark.asyncio
-async def test_record_execution_failure_only_counts(clean_integration, tmp_path):
-    """A failure (even a deterministic one, repeated) never deactivates the skill or enqueues a repair."""
-    integration = EvolutionIntegration(db_path=tmp_path / "skills.db", enable_background_queue=True)
-    try:
-        integration.queue = MagicMock()
-        integration.queue.enqueue = AsyncMock()
-        integration.queue.stop = AsyncMock()
-        integration.engine = MagicMock()
-        integration.engine.fix_skill = AsyncMock()
-        await integration.store.save_skill(
-            SkillRecord(
-                skill_id="test_skill",
-                name="test_skill",
-                description="d",
-                content="c",
-                path="p",
-                lineage=SkillLineage(evolution_type=EvolutionType.CAPTURED, version=1),
-            )
-        )
-
-        for _ in range(3):
-            await integration.record_execution(skill_id="test_skill", success=False, error_message="TypeError: test")
-
-        skill = integration.store.get_skill("test_skill")
-        assert skill is not None
-        assert skill.is_active is True
-        assert skill.metrics.consecutive_failures == 3
-        integration.queue.enqueue.assert_not_called()
-        integration.engine.fix_skill.assert_not_called()
-    finally:
-        await integration.close()
 
 
 @pytest.mark.asyncio

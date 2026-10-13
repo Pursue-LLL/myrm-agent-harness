@@ -1,13 +1,14 @@
 """A skill loaded inside a tool stays visible to everything that runs afterwards in the same run.
 
 Tools run in copies of the run's context, so the loaded-skill list is one mutable list owned by the run;
-every consumer (ledger, failure events, trust attenuation, the model-call read point) sees the same skills.
+every consumer (usage stats, failure events, trust attenuation, the model-call read point) sees the same skills.
 """
 
 from __future__ import annotations
 
 import asyncio
 import tempfile
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -25,7 +26,14 @@ from myrm_agent_harness.agent.skill_agent.context import (
     reset_loaded_skills,
     set_loaded_skills,
 )
+from myrm_agent_harness.backends.skills.stats_collector import SkillStatsCollector
 from myrm_agent_harness.backends.skills.types import SkillMetadata, SkillTrust
+from myrm_agent_harness.backends.skills.usage_recorder import (
+    begin_skill_run_usage,
+    commit_skill_run_usage,
+    flush_skill_usage_stats,
+    set_stats_collector,
+)
 from myrm_agent_harness.runtime.events import SkillFailureEvent
 
 
@@ -65,12 +73,19 @@ def _call(name: str, call_id: str, **args: object) -> AIMessage:
     return AIMessage(content="", tool_calls=[{"name": name, "args": args, "id": call_id}])
 
 
-def _skill(name: str = "weekly_skill", trust: SkillTrust = SkillTrust.TRUSTED) -> SkillMetadata:
+def _skill(
+    name: str = "weekly_skill", trust: SkillTrust = SkillTrust.TRUSTED, root: Path | None = None
+) -> SkillMetadata:
+    if root is None:
+        storage_path = tempfile.mkdtemp()
+    else:
+        storage_path = str(root / name)
+        (root / name).mkdir()
     return SkillMetadata(
         name=name,
         description="d",
         storage_skill_id=f"{name}-id",
-        storage_path=tempfile.mkdtemp(),
+        storage_path=storage_path,
         trust=trust,
     )
 
@@ -79,7 +94,6 @@ class _Run:
     """One scripted agent run with the real select tool and the real tool interceptor."""
 
     def __init__(self, monkeypatch: pytest.MonkeyPatch, skill: SkillMetadata) -> None:
-        self.ledger: list[dict[str, object]] = []
         self.events: list[SkillFailureEvent] = []
         self.reload_branch_hits = 0
         self.model_call_reads = _LoadedSkillsAtModelCall()
@@ -92,15 +106,8 @@ class _Run:
             self.reload_branch_hits += 1
             return "# reload summary"
 
-        async def _record(_self: object, **kwargs: object) -> None:
-            self.ledger.append(kwargs)
-
         monkeypatch.setattr(select_mod, "get_skill_document", _document)
         monkeypatch.setattr(select_mod, "build_reload_summary_with_index", _reload_summary)
-        monkeypatch.setattr(
-            "myrm_agent_harness.agent.skills.evolution.infra.integration.get_global_evolution_integration",
-            lambda: type("Evo", (), {"record_execution": _record})(),
-        )
         monkeypatch.setattr(
             "myrm_agent_harness.runtime.events.get_event_bus",
             lambda: SimpleNamespace(
@@ -123,24 +130,33 @@ class _Run:
 @pytest.fixture(autouse=True)
 def _clean_run_scope():
     reset_loaded_skills()
+    begin_skill_run_usage()
     yield
     reset_loaded_skills()
+    begin_skill_run_usage()  # drops whatever a test left pending instead of writing it to the default store
+    set_stats_collector(None)
 
 
 @pytest.mark.asyncio
-async def test_skill_selected_mid_run_is_counted_and_reported_for_later_tool_calls(monkeypatch) -> None:
-    run = _Run(monkeypatch, _skill())
+async def test_skill_selected_mid_run_is_counted_and_reported_for_later_tool_calls(monkeypatch, tmp_path) -> None:
+    collector = SkillStatsCollector(tmp_path)
+    set_stats_collector(collector)
+    skill = _skill(root=tmp_path)
+    run = _Run(monkeypatch, skill)
     await run.run(
         [
             _call("skill_select_tool", "c1", skill_names=["weekly_skill"], reason="r"),
             _call("failing_tool", "c2"),
             _call("work_tool", "c3"),
+            _call("failing_tool", "c4"),
         ]
     )
+    commit_skill_run_usage()
+    flush_skill_usage_stats()
 
-    assert [entry["success"] for entry in run.ledger] == [False, True]
-    assert {entry["skill_id"] for entry in run.ledger} == {"weekly_skill-id"}
-    assert len(run.events) == 1
+    stats = collector.get_stats(tmp_path / "weekly_skill")
+    assert (stats.call_count, stats.success_count, stats.failure_count) == (1, 0, 1)
+    assert len(run.events) == 2
     assert [skill.name for skill in get_loaded_skills()] == ["weekly_skill"]
 
 

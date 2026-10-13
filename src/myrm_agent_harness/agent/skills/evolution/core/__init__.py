@@ -5,7 +5,7 @@
   (POS: MAP-Elites 质量-多样性精英存档层)
 - agent.skills.evolution.core.types::EvolutionLayer, EvolutionProposal, EvolutionRequest,
   EvolutionType, FailurePathology, GeneCellKey, GeneEliteRecord,
-  SkillLineage, SkillMetrics, SkillRecord, SkillVerificationType, VerificationProof
+  SkillLineage, SkillRecord, SkillVerificationType, VerificationProof
   (POS: 技能演化数据契约层)
 
 [OUTPUT]
@@ -26,7 +26,6 @@ from myrm_agent_harness.agent.skills.evolution.core.types import (
     GeneCellKey,
     GeneEliteRecord,
     SkillLineage,
-    SkillMetrics,
     SkillRecord,
     SkillVerificationType,
     VerificationProof,
@@ -42,7 +41,6 @@ __all__ = [
     "GeneCellKey",
     "GeneEliteRecord",
     "SkillLineage",
-    "SkillMetrics",
     "SkillRecord",
     "SkillVerificationType",
     "VerificationProof",

@@ -118,7 +118,7 @@ class OptimizationSchedulerBatchMixin:
                             logger.warning(f"No execution samples for skill: {skill_id}")
                             return False
 
-                        quality_score = await self.quality_calculator.calculate(samples, skill_id=skill_id)
+                        quality_score = self.quality_calculator.calculate(samples)
 
                         if quality_score.overall_score < self.config.monitoring.optimization_threshold:
                             skill_metadata = await self.execution_provider.get_skill_metadata(skill_id)

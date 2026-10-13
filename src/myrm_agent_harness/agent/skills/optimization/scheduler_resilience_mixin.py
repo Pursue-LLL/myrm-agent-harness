@@ -194,7 +194,7 @@ class OptimizationSchedulerResilienceMixin:
                 logger.warning(f"No execution samples for DLQ retry: {skill_id}")
                 return False
 
-            quality_score = await self.quality_calculator.calculate(samples, skill_id=skill_id)
+            quality_score = self.quality_calculator.calculate(samples)
 
             await self._optimization_queue.put((samples[0].skill, quality_score))
 
