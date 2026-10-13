@@ -1,5 +1,9 @@
 """Process-wide ephemeral delta store (single shared instance).
 
+[INPUT]
+- toolkits.memory.ephemeral_delta.delta_store::EphemeralDeltaStore (POS: In-memory, session-scoped transient buffer for prompt-cache-preserving deltas)
+- toolkits.memory.ephemeral_delta.sqlite_persistence::EphemeralDeltaSqlitePersistence (POS: Same DB file as relational memory store; survives process restart within a chat session)
+
 [OUTPUT]
 - configure_ephemeral_delta_persistence: wire SQLite backend to the shared store
 - ensure_ephemeral_deltas_hydrated: reload session deltas after process restart
