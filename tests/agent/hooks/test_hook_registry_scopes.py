@@ -23,7 +23,9 @@ def test_release_removes_only_the_scope_hooks() -> None:
     registry = HookRegistry()
     registry.register(HookEvent.PRE_TOOL_USE, _cmd("session"))
 
-    assert registry.activate_scope("skill:a", [(HookEvent.PRE_TOOL_USE, _cmd("a1")), (HookEvent.SESSION_END, _cmd("a2"))])
+    assert registry.activate_scope(
+        "skill:a", [(HookEvent.PRE_TOOL_USE, _cmd("a1")), (HookEvent.SESSION_END, _cmd("a2"))]
+    )
     assert registry.activate_scope("skill:b", [(HookEvent.PRE_TOOL_USE, _cmd("b1"))])
     registry.release_scope("skill:a")
 

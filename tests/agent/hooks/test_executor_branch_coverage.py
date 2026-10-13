@@ -27,8 +27,8 @@ from myrm_agent_harness.agent.hooks import (
 )
 from myrm_agent_harness.agent.hooks.command_gate import approve_hook_command
 from myrm_agent_harness.agent.hooks.executor import _parse_hook_json
-from myrm_agent_harness.agent.hooks.registry import _hook_detail
 from myrm_agent_harness.agent.hooks.output_spiller import HookOutputSpiller
+from myrm_agent_harness.agent.hooks.registry import _hook_detail
 from myrm_agent_harness.agent.hooks.types import HttpHookDefinition
 
 
