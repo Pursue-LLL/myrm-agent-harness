@@ -895,6 +895,81 @@ class TestPostCallRareBranches:
         assert "Frequency warning" in result.content
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("pre_hint", "post_hint", "expected_hint"),
+        [
+            ("vary the arguments", None, "vary the arguments"),
+            (None, "change the approach", "change the approach"),
+            ("vary the arguments", "change the approach", "vary the arguments"),
+        ],
+    )
+    async def test_loop_warn_hint_appended_to_tool_message(
+        self, pre_hint: str | None, post_hint: str | None, expected_hint: str
+    ) -> None:
+        pre_verdict = MagicMock()
+        pre_verdict.action = LoopAction.WARN
+        pre_verdict.backoff_hint = pre_hint
+        post_verdict = MagicMock()
+        post_verdict.action = LoopAction.WARN
+        post_verdict.reason = "repeated identical calls"
+        post_verdict.backoff_hint = post_hint
+        loop_guard = MagicMock()
+        loop_guard.record_result.return_value = post_verdict
+        mock_emit = AsyncMock()
+        with self._enter_patches(
+            patch(
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_tool_result_pii",
+                return_value=(ToolMessage(content="o", name="t", tool_call_id="c"), "o"),
+            ),
+            patch(
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards._emit_loop_guard_event",
+                mock_emit,
+            ),
+        ):
+            result = await run_post_call_guards(
+                ToolMessage(content="o", name="t", tool_call_id="c"),
+                "t",
+                "c",
+                {},
+                loop_guard=loop_guard,
+                loop_verdict=pre_verdict,
+                freq_guard=MagicMock(),
+                freq_verdict=_freq_allow(),
+                steering_token=None,
+            )
+        assert result.content == f"o\n\nLoop detected: {expected_hint}"
+        mock_emit.assert_called_once_with("loop_guard_warn", "t", "repeated identical calls", "warning")
+
+    @pytest.mark.asyncio
+    async def test_loop_warn_without_hint_leaves_tool_message_untouched(self) -> None:
+        pre_verdict = MagicMock()
+        pre_verdict.action = LoopAction.WARN
+        pre_verdict.backoff_hint = None
+        post_verdict = MagicMock()
+        post_verdict.action = LoopAction.ALLOW
+        post_verdict.backoff_hint = None
+        loop_guard = MagicMock()
+        loop_guard.record_result.return_value = post_verdict
+        with self._enter_patches(
+            patch(
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_tool_result_pii",
+                return_value=(ToolMessage(content="o", name="t", tool_call_id="c"), "o"),
+            ),
+        ):
+            result = await run_post_call_guards(
+                ToolMessage(content="o", name="t", tool_call_id="c"),
+                "t",
+                "c",
+                {},
+                loop_guard=loop_guard,
+                loop_verdict=pre_verdict,
+                freq_guard=MagicMock(),
+                freq_verdict=_freq_allow(),
+                steering_token=None,
+            )
+        assert result.content == "o"
+
+    @pytest.mark.asyncio
     async def test_steering_token_pending_activates(self) -> None:
         steering = MagicMock()
         steering.has_pending = True
