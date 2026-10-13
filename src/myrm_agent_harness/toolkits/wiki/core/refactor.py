@@ -54,36 +54,10 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True, slots=True)
 class RefactorReport:
-    """Report of wiki link refactoring operations.
-
-    Implements integer protocol methods (__int__, __index__, __eq__) for backwards
-    compatibility with call sites expecting an integer updated count.
-    """
+    """Report of wiki link refactoring operations."""
 
     updated_count: int
     modified_concept_paths: tuple[str, ...] = ()
-
-    def __int__(self) -> int:
-        return self.updated_count
-
-    def __index__(self) -> int:
-        return self.updated_count
-
-    def __str__(self) -> str:
-        return str(self.updated_count)
-
-    def __bool__(self) -> bool:
-        return self.updated_count > 0
-
-    def __eq__(self, other: object) -> bool:
-        if isinstance(other, int):
-            return self.updated_count == other
-        if isinstance(other, RefactorReport):
-            return (
-                self.updated_count == other.updated_count
-                and self.modified_concept_paths == other.modified_concept_paths
-            )
-        return False
 
 
 @dataclass(frozen=True, slots=True)
@@ -159,10 +133,6 @@ def _inject_rename_metadata(target_file: Path, old_concept_slug: str) -> bool:
     except Exception as exc:
         logger.warning("Failed to inject rename metadata to %s: %s", target_file, exc)
     return False
-
-
-# Compatibility alias
-_inject_alias_to_moved_file = _inject_rename_metadata
 
 
 class LinkRefactorEngine:

@@ -1,6 +1,6 @@
 import pytest
 
-from myrm_agent_harness.toolkits.wiki.core.refactor import LinkRefactorEngine
+from myrm_agent_harness.toolkits.wiki.core.refactor import LinkRefactorEngine, RefactorReport
 
 
 @pytest.fixture
@@ -20,10 +20,10 @@ def test_refactor_links_rename_file(temp_concepts_dir):
 
     # Run
     engine = LinkRefactorEngine(temp_concepts_dir)
-    count = engine.refactor_links(old_file, new_file)
+    report = engine.refactor_links(old_file, new_file)
 
     # Assert
-    assert count == 1
+    assert report == RefactorReport(1, ("ref",))
     assert referencing_file.read_text() == "See [Old](new_name.md) for details."
 
 
@@ -39,10 +39,10 @@ def test_refactor_links_move_file_to_folder(temp_concepts_dir):
 
     # Run
     engine = LinkRefactorEngine(temp_concepts_dir)
-    count = engine.refactor_links(old_file, new_file)
+    report = engine.refactor_links(old_file, new_file)
 
     # Assert
-    assert count == 1
+    assert report == RefactorReport(1, ("ref",))
     assert referencing_file.read_text() == "Link: [File](folder/file.md)"
 
 
@@ -58,10 +58,10 @@ def test_refactor_links_move_folder(temp_concepts_dir):
 
     # Run
     engine = LinkRefactorEngine(temp_concepts_dir)
-    count = engine.refactor_links(old_folder, new_folder)
+    report = engine.refactor_links(old_folder, new_folder)
 
     # Assert
-    assert count == 1
+    assert report == RefactorReport(1, ("ref",))
     assert referencing_file.read_text() == "Link: [Inside](new_folder/inside.md)"
 
 
@@ -148,21 +148,11 @@ def test_refactor_short_wikilink_disambiguation(temp_concepts_dir):
     assert set(report.modified_concept_paths) == {"tech/guide", "external"}
 
 
-def test_refactor_report_protocols(temp_concepts_dir):
-    from myrm_agent_harness.toolkits.wiki.core.refactor import RefactorReport
+def test_refactor_report_lists_the_pages_it_rewrote(temp_concepts_dir):
+    nothing = RefactorReport(0, ())
+    assert nothing.updated_count == 0
+    assert nothing.modified_concept_paths == ()
 
-    # Empty report
-    empty_report = RefactorReport(0, ())
-    assert bool(empty_report) is False
-    assert not empty_report
-    assert int(empty_report) == 0
-    assert str(empty_report) == "0"
-    assert empty_report == 0
-    assert empty_report == RefactorReport(0, ())
-    assert empty_report != 1
-    assert empty_report.modified_concept_paths == ()
-
-    # Positive report from refactor_links
     old_file = temp_concepts_dir / "source.md"
     new_file = temp_concepts_dir / "dest.md"
     old_file.write_text("Source note")
@@ -174,13 +164,8 @@ def test_refactor_report_protocols(temp_concepts_dir):
     engine = LinkRefactorEngine(temp_concepts_dir)
     report = engine.refactor_links(old_file, new_file)
 
-    assert isinstance(report.updated_count, int)
-    assert bool(report) is True
-    assert report
-    assert report == 1
-    assert int(report) == 1
-    assert str(report) == "1"
-    assert report.modified_concept_paths == ("ref",)
+    assert report == RefactorReport(1, ("ref",))
+    assert report != nothing
 
 
 def test_refactor_cross_platform_case_stem_conflict(temp_concepts_dir):
