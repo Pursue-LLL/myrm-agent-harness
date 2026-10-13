@@ -24,13 +24,14 @@ would hit rate limits or become invalid.
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable, Sequence
 from typing import Any, NoReturn
 
 from langchain_core.language_models import BaseChatModel, LanguageModelInput
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.outputs import ChatGenerationChunk, ChatResult
 from langchain_core.runnables import Runnable, RunnableBinding
+from langchain_core.tools import BaseTool
 from pydantic import PrivateAttr
 
 from myrm_agent_harness.toolkits.llms.core.credential_pool import CredentialPool
@@ -215,7 +216,11 @@ class KeyPoolLLM(BaseChatModel):
             raise RuntimeError("KeyPoolLLM failed to locate a credential pool instance")
         raise last_exc
 
-    def bind_tools(self, tools: Any, **kwargs: Any) -> Runnable[LanguageModelInput, AIMessage]:
+    def bind_tools(
+        self,
+        tools: Sequence[dict[str, Any] | type | Callable[..., Any] | BaseTool],
+        **kwargs: Any,
+    ) -> Runnable[LanguageModelInput, AIMessage]:
         """Bind tools to the pool as a whole, preserving key rotation.
 
         ``bind_tools`` returns a new binding and never mutates the model, so the
