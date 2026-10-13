@@ -502,7 +502,7 @@ class StreamExecutor(StreamDispatcherMixin, PreflightGateMixin, StreamRecoveryMi
             await self._compactor.put(STREAM_DONE)
 
     async def _flush_turn_memory(self) -> None:
-        """Flush active memory session at turn boundary if buffer has pending items and consume overlay turn."""
+        """Flush active memory session at turn boundary if buffer has pending items."""
         mm = self._ctx.memory_manager
         if mm is not None:
             session = getattr(mm, "active_session", None)
@@ -511,18 +511,6 @@ class StreamExecutor(StreamDispatcherMixin, PreflightGateMixin, StreamRecoveryMi
                     await session.flush()
                 except Exception as e:
                     logger.warning("Turn boundary memory flush failed: %s", e)
-
-        # Continual Session Overlay lifecycle decrement
-        try:
-            from myrm_agent_harness.agent.session_overlay.manager import (
-                get_session_overlay_manager,
-            )
-
-            sid = str(self._ctx.merged_context.get("session_id") or self._ctx.message_id or "default")
-            ovl_mgr = get_session_overlay_manager(sid)
-            ovl_mgr.consume_turn()
-        except Exception as e:
-            logger.debug("Turn boundary overlay consume failed: %s", e)
 
     async def _emit_fatal_error(self, exc: Exception) -> None:
         """Build standardized error event with diagnostics and raise MyrmLLMError."""

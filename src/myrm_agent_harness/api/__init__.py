@@ -125,11 +125,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "ManifestAttributionResult": ("myrm_agent_harness.eval.manifest_prediction", "ManifestAttributionResult"),
     "MetricAttributionDetail": ("myrm_agent_harness.eval.manifest_prediction", "MetricAttributionDetail"),
     "MetricContract": ("myrm_agent_harness.eval.metric_contract", "MetricContract"),
-    "OverlayScope": ("myrm_agent_harness.agent.session_overlay.schema", "OverlayScope"),
-    "OverlayShellType": ("myrm_agent_harness.agent.continual.overlay", "OverlayShellType"),
-    "OverlayStatus": ("myrm_agent_harness.agent.session_overlay.schema", "OverlayStatus"),
-    "OverlayTargetType": ("myrm_agent_harness.agent.session_overlay.schema", "OverlayTargetType"),
-    "SessionOverlay": ("myrm_agent_harness.agent.session_overlay.schema", "SessionOverlay"),
     "MetricPrediction": ("myrm_agent_harness.eval.manifest_prediction", "MetricPrediction"),
     "MissingSemanticsBlockedError": (
         "myrm_agent_harness.core.security.missing_semantics",
@@ -225,7 +220,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "evaluate_five_contract_progress": ("myrm_agent_harness.eval.contracts", "evaluate_five_contract_progress"),
     "evaluate_manifest_attribution": ("myrm_agent_harness.eval.manifest_prediction", "evaluate_manifest_attribution"),
     "evaluate_metric_proxy_alignment": ("myrm_agent_harness.eval.metric_contract", "evaluate_metric_proxy_alignment"),
-    "get_session_overlay_manager": ("myrm_agent_harness.agent.session_overlay.manager", "get_session_overlay_manager"),
     "evaluate_missing_capability": (
         "myrm_agent_harness.core.security.missing_semantics",
         "evaluate_missing_capability",

@@ -297,15 +297,6 @@ async def handle_execution_error(
         error_content=f"{error_type}: {error_msg}"[:200],
     )
 
-    try:
-        from myrm_agent_harness.agent.session_overlay import get_session_overlay_manager
-
-        _ovl_mgr = get_session_overlay_manager()
-        if _ovl_mgr is not None:
-            _ovl_mgr.record_tool_outcome(tool_name, is_error=True, error_signature=f"{tool_name}:{error_type}")
-    except Exception:
-        pass
-
     return make_error_msg(
         tool_name,
         tool_call_id,

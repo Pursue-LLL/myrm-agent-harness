@@ -1,1 +1,0 @@
-"""Continual harness compatibility facade."""
