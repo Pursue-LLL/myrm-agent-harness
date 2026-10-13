@@ -128,14 +128,17 @@ def is_category_bucket(target_dir: Path | str) -> CategoryBucketResult:
     found_sub_skills: list[str] = []
     try:
         for child in p.iterdir():
-            if child.is_dir() and not is_path_redirect(child):
-                if (
+            if (
+                child.is_dir()
+                and not is_path_redirect(child)
+                and (
                     (child / "SKILL.md").is_file()
                     or (child / "skill.json").is_file()
                     or (child / "plugin.json").is_file()
                     or (child / "receipt.json").is_file()
-                ):
-                    found_sub_skills.append(child.name)
+                )
+            ):
+                found_sub_skills.append(child.name)
     except OSError as exc:
         logger.debug("Error inspecting directory %s for category bucket check: %s", p, exc)
 

@@ -126,7 +126,6 @@ class SkillQualityLinter:
         violations: list[SkillQualityViolation] = []
 
         description = str(frontmatter.get("description", "")).strip()
-        name = str(frontmatter.get("name", "")).strip()
 
         # Rule 1: Description is the routing layer (>= 60 chars, rich context)
         if len(description) < 60:

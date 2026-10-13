@@ -212,15 +212,12 @@ class SkillRescanResult:
     @property
     def has_critical_or_malware(self) -> bool:
         # Check active code/lifecycle/advisory findings for CRITICAL severity
-        if any(f.severity == ScanSeverity.CRITICAL for f in self.code_findings):
-            return True
-        if any(f.severity in ("critical", "high") for f in self.lifecycle_findings):
-            return True
-        if any(f.severity == "critical" for f in self.ast_findings):
-            return True
-        if any(f.severity == ScanSeverity.CRITICAL for f in self.unacked_advisory_findings):
-            return True
-        return False
+        return (
+            any(f.severity == ScanSeverity.CRITICAL for f in self.code_findings)
+            or any(f.severity in ("critical", "high") for f in self.lifecycle_findings)
+            or any(f.severity == "critical" for f in self.ast_findings)
+            or any(f.severity == ScanSeverity.CRITICAL for f in self.unacked_advisory_findings)
+        )
 
     @property
     def summary(self) -> str:

@@ -189,7 +189,7 @@ async def query_osv_batch(
         if not isinstance(results, list):
             continue
 
-        for dep, res_obj in zip(batch, results):
+        for dep, res_obj in zip(batch, results, strict=False):
             dep_findings: list[AdvisoryFinding] = []
             if isinstance(res_obj, dict):
                 vulns = res_obj.get("vulns", [])
