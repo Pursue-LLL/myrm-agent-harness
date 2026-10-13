@@ -14,7 +14,7 @@ Skill system data types domain: structured frontmatter contracts, lifecycle enum
 | types_metadata.py | Core | SkillMetadata runtime representation | ✅ |
 | types_requires.py | Core | SkillRequires and MCPSkillData dependency types | ✅ |
 | types_security.py | Core | SecurityFindingDetail and SecurityScanSummary security audit models | ✅ |
-| types_usage.py | Core | SkillUsageStats / SkillUsageRecord: uses vs observed outcomes, `STATS_SCHEMA_VERSION` (files without it carry load-success counters that are dropped once) | ✅ |
+| types_usage.py | Core | SkillUsageStats / SkillUsageRecord: uses vs observed outcomes, rolling 200-run history (`history_is_full` flags that it is at capacity, so older runs may be gone), `STATS_SCHEMA_VERSION` (files without it carry load-success counters that are dropped once) | ✅ |
 | types_visibility.py | Core | skill_visible_for_tools tool-conditional visibility filter | ✅ |
 | types_coercion.py | Core | Safe list coercion helper for type deserialization | ✅ |
 
