@@ -13,7 +13,7 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](../MIDDLEWARE_SYSTEM.md)
 |------|------|-------------|-------|
 | `__init__.py` | Package | Public exports for security middleware classes. | — |
 | `security_boundary_middleware.py` | Core | Injects `SECURITY_BOUNDARY_SYSTEM_RULES` as an independent SystemMessage immediately after the main System Prompt (prompt-cache safe). | ✅ |
-| `security_guardrail_middleware.py` | Core | Eight-layer defense integrated as an AgentMiddleware: circuit-breaker cognition, prompt guard, PII guard, tool-result redact, canary guard, leak detector, PII redact, history redact. | ✅ |
+| `security_guardrail_middleware.py` | Core | Eight-layer defense integrated as an AgentMiddleware: circuit-breaker cognition, prompt guard, PII guard, tool-result redact (text and the text blocks of block-list results; image data is not scanned), canary guard, leak detector, PII redact, history redact. A redaction replaces only the message `content` (`model_copy`), so status, metadata, marks and usage stay. | ✅ |
 
 ## Key Dependencies
 

@@ -14,8 +14,8 @@ before_model (runs before each LLM call):
     1. Prompt Guard — scans user input for 7 categories of injection attacks
     2. PII Guard — classifies user input into S1/S2/S3, applies redaction
        per PrivacyPolicy (warn/redact/block)
-    3. Tool Result Redact — sanitizes credentials in tool outputs so the LLM
-       never sees raw secrets (source-level prevention)
+    3. Tool Result Redact — sanitizes credentials in tool outputs, including the
+       text blocks of a text + image result, so the LLM never sees raw secrets
 
 after_model (runs after each LLM call):
     3.5 Canary Guard — checks if the session canary token leaked into AI
@@ -27,6 +27,8 @@ after_model (runs after each LLM call):
     6. History Redact — replaces detected credentials in the AI message stored
        in state, keeping conversation history clean for compliance and
        preventing credential accumulation across turns
+
+A rewrite replaces only the message ``content`` (``model_copy``); status, metadata and ids stay intact.
 
 Streaming note: ``before_model``/``after_model`` operate on the graph state,
 not on streamed chunks. Streaming chunks are yielded during the model node
@@ -117,6 +119,22 @@ def _levels_to_process(
     return levels
 
 
+def _redact_tool_content(content: str | list[str | dict[str, object]]) -> str | list[str | dict[str, object]]:
+    """Redact credentials in a tool result. A result with an image is a block list: only its text is scanned."""
+    if isinstance(content, str):
+        return redact_leaks(content)
+    return [_redact_block(block) for block in content]
+
+
+def _redact_block(block: str | dict[str, object]) -> str | dict[str, object]:
+    if isinstance(block, str):
+        return redact_leaks(block)
+    text = block.get("text")
+    if block.get("type") == "text" and isinstance(text, str):
+        return {**block, "text": redact_leaks(text)}
+    return block
+
+
 def _apply_pii_actions(
     text: str,
     levels: list[SensitivityLevel],
@@ -162,7 +180,7 @@ def _apply_pii_actions(
     return result
 
 
-class SecurityGuardrailMiddleware(AgentMiddleware):  # type: ignore[type-arg]
+class SecurityGuardrailMiddleware(AgentMiddleware):
     """Eight-layer security guardrail for agent conversations."""
 
     async def awrap_model_call(
@@ -266,10 +284,7 @@ class SecurityGuardrailMiddleware(AgentMiddleware):  # type: ignore[type-arg]
                                 f"[SAFETY_CAUTION: Actionable high-risk intent detected ({intent_name}) - "
                                 f"do NOT execute destructive changes silently; require explicit confirmation]\n"
                             )
-                            new_messages[idx] = HumanMessage(
-                                content=f"{caution_prefix}{content}",
-                                id=msg.id,
-                            )
+                            new_messages[idx] = msg.model_copy(update={"content": f"{caution_prefix}{content}"})
                             break
 
         # Layer ①: Prompt Guard — scan last HumanMessage for injection
@@ -370,23 +385,18 @@ class SecurityGuardrailMiddleware(AgentMiddleware):  # type: ignore[type-arg]
                                 if new_messages is None:
                                     new_messages = list(messages)
                                 idx = messages.index(msg)
-                                new_messages[idx] = HumanMessage(content=processed, id=msg.id)
+                                new_messages[idx] = msg.model_copy(update={"content": processed})
                 break
 
         # Layer ③: Tool Result Redact — sanitize credentials in recent ToolMessages
         for i in range(len(messages) - 1, -1, -1):
             msg = messages[i]
-            if isinstance(msg, ToolMessage) and isinstance(msg.content, str):
-                redacted = redact_leaks(msg.content)
+            if isinstance(msg, ToolMessage):
+                redacted = _redact_tool_content(msg.content)
                 if redacted != msg.content:
                     if new_messages is None:
                         new_messages = list(messages)
-                    new_messages[i] = ToolMessage(
-                        content=redacted,
-                        tool_call_id=msg.tool_call_id,
-                        name=msg.name,
-                        id=msg.id,
-                    )
+                    new_messages[i] = msg.model_copy(update={"content": redacted})
                     logger.warning(
                         "[SECURITY] Redacted credentials in tool result: %s",
                         msg.name or "unknown",
@@ -477,13 +487,7 @@ class SecurityGuardrailMiddleware(AgentMiddleware):  # type: ignore[type-arg]
         if modified == content:
             return None
 
-        updated = AIMessage(
-            content=modified,
-            id=last_ai_msg.id,
-            name=last_ai_msg.name,
-            tool_calls=last_ai_msg.tool_calls,
-        )
         new_messages = list(messages)
-        new_messages[last_ai_idx] = updated
+        new_messages[last_ai_idx] = last_ai_msg.model_copy(update={"content": modified})
 
         return {"messages": new_messages}
