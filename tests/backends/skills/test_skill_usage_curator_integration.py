@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -13,21 +14,22 @@ from myrm_agent_harness.backends.skills.forgetting_strategy import CuratorConfig
 from myrm_agent_harness.backends.skills.stats_collector import SkillStatsCollector
 from myrm_agent_harness.backends.skills.types import SkillMetadata, SkillUsageStats
 from myrm_agent_harness.backends.skills.usage_recorder import (
+    begin_skill_run_usage,
+    commit_skill_run_usage,
     flush_skill_usage_stats,
     record_skill_selection,
-    reset_turn_usage_dedupe,
     set_stats_collector,
 )
 
 
 @pytest.fixture(autouse=True)
-def _reset_usage_recorder() -> None:
+def _reset_usage_recorder() -> Iterator[None]:
     """Isolate usage_recorder singleton state between tests."""
     set_stats_collector(None)
-    reset_turn_usage_dedupe()
+    begin_skill_run_usage()
     yield
     set_stats_collector(None)
-    reset_turn_usage_dedupe()
+    begin_skill_run_usage()
 
 
 def test_select_records_stats_and_curator_sweep_reads_them(tmp_path: Path) -> None:
@@ -45,8 +47,11 @@ def test_select_records_stats_and_curator_sweep_reads_them(tmp_path: Path) -> No
         storage_path=str(skill_dir),
     )
 
-    reset_turn_usage_dedupe()
-    record_skill_selection(skill_meta, success=True)
+    begin_skill_run_usage()
+    record_skill_selection(skill_meta)
+    # Run dedupe: a second selection in the same run must not double-count
+    record_skill_selection(skill_meta)
+    commit_skill_run_usage()
     flush_skill_usage_stats()
 
     stats_file = skill_dir / ".stats.json"
@@ -54,12 +59,6 @@ def test_select_records_stats_and_curator_sweep_reads_them(tmp_path: Path) -> No
     stats_data = json.loads(stats_file.read_text())
     assert stats_data["call_count"] == 1
     assert stats_data["last_used_at"] is not None
-
-    # Turn dedupe: second call in same turn must not double-count
-    record_skill_selection(skill_meta, success=True)
-    flush_skill_usage_stats()
-    stats_data = json.loads(stats_file.read_text())
-    assert stats_data["call_count"] == 1
 
     # Simulate long inactivity and run curator sweep
     old_last_used = datetime.now(UTC) - timedelta(days=60)
@@ -109,7 +108,9 @@ def test_set_stats_collector_uses_shared_instance(tmp_path: Path) -> None:
         description="Shared collector test",
         storage_path=str(skill_dir),
     )
-    record_skill_selection(skill_meta, success=True)
+    begin_skill_run_usage()
+    record_skill_selection(skill_meta)
+    commit_skill_run_usage()
     flush_skill_usage_stats()
 
     assert (skill_dir / ".stats.json").exists()

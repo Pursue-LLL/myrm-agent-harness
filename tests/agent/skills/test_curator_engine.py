@@ -376,7 +376,7 @@ class TestResultTypes:
 
 
 class TestStatsCollectorLifecycle:
-    def test_record_usage_auto_recovers_stale_to_active(self, tmp_skills_dir: Path) -> None:
+    def test_record_use_auto_recovers_stale_to_active(self, tmp_skills_dir: Path) -> None:
         skill_dir = tmp_skills_dir / "stale_skill"
         skill_dir.mkdir()
         stats_file = skill_dir / ".stats.json"
@@ -393,7 +393,7 @@ class TestStatsCollectorLifecycle:
         )
 
         collector = SkillStatsCollector(tmp_skills_dir)
-        collector.record_usage(skill_dir, success=True, duration_ms=100.0)
+        collector.record_use(skill_dir, success=True)
         collector.flush()
 
         refreshed = collector.get_stats(skill_dir)

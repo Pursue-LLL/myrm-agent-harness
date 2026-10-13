@@ -2,8 +2,9 @@
 
 Publishes structured ``SkillFailureEvent`` when a tool call fails in a
 session that has loaded storage skills.  Also counts the outcome of every
-tool call into the skill execution ledger while exactly one storage skill is
-loaded (the only case where the outcome unambiguously belongs to that skill).
+tool call into the run's skill usage and the skill execution ledger while
+exactly one storage skill is loaded (the only case where the outcome
+unambiguously belongs to that skill).
 Counting never deactivates or repairs a skill by itself.
 
 [INPUT]
@@ -124,6 +125,10 @@ def _count_single_skill_outcome(
     """Count one tool-call outcome for the only loaded storage skill (ambiguous owners are skipped)."""
     if len(candidates) != 1:
         return
+
+    from myrm_agent_harness.backends.skills.usage_recorder import record_skill_execution
+
+    record_skill_execution(candidates[0].skill_name, candidates[0].storage_path, success=success)
 
     from myrm_agent_harness.agent.skills.evolution.infra.integration import (
         get_global_evolution_integration,

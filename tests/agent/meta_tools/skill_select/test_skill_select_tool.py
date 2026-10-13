@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -18,6 +19,7 @@ from myrm_agent_harness.agent.meta_tools.skills.select.skill_document_loader imp
 from myrm_agent_harness.agent.meta_tools.skills.select.skill_select_tool import (
     create_select_skill_tool,
 )
+from myrm_agent_harness.backends.skills.stats_collector import SkillStatsCollector
 from myrm_agent_harness.backends.skills.types import MCPSkillData, SkillMetadata
 
 _DEFAULT_TOOLS = ["tool_a", "tool_b"]
@@ -29,7 +31,9 @@ def _make_mcp_skill(
     tool_schemas: dict[str, dict[str, object]] | None = None,
 ) -> SkillMetadata:
     resolved_tools = tools if tools is not None else list(_DEFAULT_TOOLS)
-    resolved_schemas = tool_schemas if tool_schemas is not None else {t: {"type": "object"} for t in resolved_tools}
+    resolved_schemas: dict[str, dict[str, object]] = (
+        tool_schemas if tool_schemas is not None else {t: {"type": "object"} for t in resolved_tools}
+    )
     return SkillMetadata(
         name=name,
         description="Test MCP skill",
@@ -194,213 +198,158 @@ class TestCreateSelectSkillToolDeduplication:
             assert "skill_b Full SOP" in result
 
 
+@pytest.fixture
+def usage_collector(tmp_path: Path) -> Iterator[SkillStatsCollector]:
+    """An open run scope writing to a throw-away ``.stats.json`` store."""
+    from myrm_agent_harness.backends.skills.usage_recorder import begin_skill_run_usage, set_stats_collector
+
+    collector = SkillStatsCollector(tmp_path)
+    set_stats_collector(collector)
+    begin_skill_run_usage()
+    yield collector
+    begin_skill_run_usage()  # drop whatever a failing test left pending
+    set_stats_collector(None)
+
+
+def _storage_skill(tmp_path: Path, name: str) -> SkillMetadata:
+    skill_dir = tmp_path / name
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text(f"# {name}\n")
+    return SkillMetadata(
+        name=name,
+        description=f"{name} test skill",
+        storage_skill_id=name,
+        storage_path=str(skill_dir),
+    )
+
+
+def _skill_dir(skill: SkillMetadata) -> Path:
+    assert skill.storage_path is not None
+    return Path(skill.storage_path)
+
+
+def _finish_run() -> None:
+    from myrm_agent_harness.backends.skills.usage_recorder import commit_skill_run_usage, flush_skill_usage_stats
+
+    commit_skill_run_usage()
+    flush_skill_usage_stats()
+
+
 class TestSelectSkillRecordsUsage:
-    """skill_select_tool must persist usage stats for Curator (.stats.json)."""
+    """skill_select_tool notes the selection; the run's end writes one use to the Curator ledger (.stats.json)."""
 
     @pytest.mark.asyncio
-    async def test_first_load_writes_stats_file(self, tmp_path: Path) -> None:
-        skill_dir = tmp_path / "demo_skill"
-        skill_dir.mkdir()
-        (skill_dir / "SKILL.md").write_text("# demo_skill\n")
-
-        skill = SkillMetadata(
-            name="demo_skill",
-            description="Test storage skill",
-            storage_skill_id="demo_skill",
-            storage_path=str(skill_dir),
-        )
-        backend = AsyncMock()
-
-        from myrm_agent_harness.backends.skills.stats_collector import (
-            SkillStatsCollector,
-        )
-        from myrm_agent_harness.backends.skills.usage_recorder import (
-            flush_skill_usage_stats,
-            reset_turn_usage_dedupe,
-            set_stats_collector,
-        )
-
-        reset_turn_usage_dedupe()
-        collector = SkillStatsCollector(tmp_path)
-        set_stats_collector(collector)
+    async def test_first_load_is_a_use_without_a_success(
+        self, tmp_path: Path, usage_collector: SkillStatsCollector
+    ) -> None:
+        skill = _storage_skill(tmp_path, "demo_skill")
 
         with (
-            patch(
-                "myrm_agent_harness.agent.skill_agent.context.get_loaded_skills",
-                return_value=[],
-            ),
+            patch("myrm_agent_harness.agent.skill_agent.context.get_loaded_skills", return_value=[]),
             patch(
                 "myrm_agent_harness.agent.meta_tools.skills.select.skill_select_tool.get_skill_document",
                 return_value="# demo_skill SOP\nStep 1",
             ),
             patch("myrm_agent_harness.agent.skill_agent.context.add_loaded_skill"),
         ):
-            tool = create_select_skill_tool([skill], backend)
+            tool = create_select_skill_tool([skill], AsyncMock())
             await tool.ainvoke({"skill_names": ["demo_skill"], "reason": "testing usage"})
 
-        flush_skill_usage_stats()
-        stats_file = skill_dir / ".stats.json"
-        assert stats_file.exists()
-        stats = collector.get_stats(skill_dir)
+        _finish_run()
+        stats = usage_collector.get_stats(_skill_dir(skill))
+        assert (_skill_dir(skill) / ".stats.json").exists()
         assert stats.call_count == 1
-        assert stats.success_count == 1
+        assert stats.observed_count == 0
         assert stats.last_used_at is not None
 
 
-class TestSelectSkillReloadSkipsUsage:
-    """Reload summaries must not write usage stats (curator SSOT)."""
+class TestSelectSkillReloadAndFailures:
+    """Reloads, missing files and failed loads must not distort the ledger."""
 
     @pytest.mark.asyncio
-    async def test_reload_does_not_increment_stats(self, tmp_path: Path) -> None:
-        skill_dir = tmp_path / "reload_skill"
-        skill_dir.mkdir()
-        (skill_dir / "SKILL.md").write_text("# reload_skill\n")
-
-        skill = SkillMetadata(
-            name="reload_skill",
-            description="Reload test",
-            storage_skill_id="reload_skill",
-            storage_path=str(skill_dir),
-        )
-        backend = AsyncMock()
-
-        from myrm_agent_harness.backends.skills.stats_collector import (
-            SkillStatsCollector,
-        )
-        from myrm_agent_harness.backends.skills.usage_recorder import (
-            flush_skill_usage_stats,
-            reset_turn_usage_dedupe,
-            set_stats_collector,
-        )
-
-        reset_turn_usage_dedupe()
-        collector = SkillStatsCollector(tmp_path)
-        set_stats_collector(collector)
+    async def test_reload_does_not_increment_stats(self, tmp_path: Path, usage_collector: SkillStatsCollector) -> None:
+        skill = _storage_skill(tmp_path, "reload_skill")
 
         with (
-            patch(
-                "myrm_agent_harness.agent.skill_agent.context.get_loaded_skills",
-                return_value=[],
-            ),
+            patch("myrm_agent_harness.agent.skill_agent.context.get_loaded_skills", return_value=[]),
             patch(
                 "myrm_agent_harness.agent.meta_tools.skills.select.skill_select_tool.get_skill_document",
                 return_value="# reload_skill SOP",
             ),
             patch("myrm_agent_harness.agent.skill_agent.context.add_loaded_skill"),
         ):
-            tool = create_select_skill_tool([skill], backend)
+            tool = create_select_skill_tool([skill], AsyncMock())
             await tool.ainvoke({"skill_names": ["reload_skill"], "reason": "first load"})
-            flush_skill_usage_stats()
-
-        assert collector.get_stats(skill_dir).call_count == 1
 
         with (
-            patch(
-                "myrm_agent_harness.agent.skill_agent.context.get_loaded_skills",
-                return_value=[skill],
-            ),
+            patch("myrm_agent_harness.agent.skill_agent.context.get_loaded_skills", return_value=[skill]),
             patch(
                 "myrm_agent_harness.agent.meta_tools.skills.select.skill_select_tool.get_skill_document",
             ) as mock_doc,
         ):
-            tool = create_select_skill_tool([skill], backend)
+            tool = create_select_skill_tool([skill], AsyncMock())
             result = await tool.ainvoke({"skill_names": ["reload_skill"], "reason": "reload"})
-            flush_skill_usage_stats()
 
+        _finish_run()
         mock_doc.assert_not_called()
         assert "already loaded" in result
-        assert collector.get_stats(skill_dir).call_count == 1
+        assert usage_collector.get_stats(_skill_dir(skill)).call_count == 1
 
     @pytest.mark.asyncio
-    async def test_file_read_failure_records_failure(self, tmp_path: Path) -> None:
-        skill_dir = tmp_path / "file_skill"
-        skill_dir.mkdir()
-        skill = SkillMetadata(
-            name="file_skill",
-            description="File read test",
-            storage_path=str(skill_dir),
-        )
-        backend = AsyncMock()
-
-        from myrm_agent_harness.backends.skills.stats_collector import (
-            SkillStatsCollector,
-        )
-        from myrm_agent_harness.backends.skills.usage_recorder import (
-            flush_skill_usage_stats,
-            reset_turn_usage_dedupe,
-            set_stats_collector,
-        )
-
-        reset_turn_usage_dedupe()
-        collector = SkillStatsCollector(tmp_path)
-        set_stats_collector(collector)
+    async def test_auxiliary_file_read_is_a_use(self, tmp_path: Path, usage_collector: SkillStatsCollector) -> None:
+        skill = _storage_skill(tmp_path, "file_skill")
 
         with (
+            patch("myrm_agent_harness.agent.skill_agent.context.get_loaded_skills", return_value=[]),
             patch(
-                "myrm_agent_harness.agent.skill_agent.context.get_loaded_skills",
-                return_value=[],
+                "myrm_agent_harness.agent.meta_tools.skills.select.skill_select_tool.get_skill_file",
+                return_value="print('hi')",
             ),
+        ):
+            tool = create_select_skill_tool([skill], AsyncMock())
+            await tool.ainvoke({"skill_names": ["file_skill"], "reason": "read", "file_path": "scripts/run.py"})
+
+        _finish_run()
+        stats = usage_collector.get_stats(_skill_dir(skill))
+        assert (stats.call_count, stats.observed_count) == (1, 0)
+
+    @pytest.mark.asyncio
+    async def test_missing_auxiliary_file_leaves_no_trace(
+        self, tmp_path: Path, usage_collector: SkillStatsCollector
+    ) -> None:
+        skill = _storage_skill(tmp_path, "file_skill")
+
+        with (
+            patch("myrm_agent_harness.agent.skill_agent.context.get_loaded_skills", return_value=[]),
             patch(
                 "myrm_agent_harness.agent.meta_tools.skills.select.skill_select_tool.get_skill_file",
                 return_value=None,
             ),
         ):
-            tool = create_select_skill_tool([skill], backend)
-            await tool.ainvoke(
-                {
-                    "skill_names": ["file_skill"],
-                    "reason": "missing file",
-                    "file_path": "scripts/missing.py",
-                }
-            )
-            flush_skill_usage_stats()
+            tool = create_select_skill_tool([skill], AsyncMock())
+            await tool.ainvoke({"skill_names": ["file_skill"], "reason": "missing", "file_path": "scripts/gone.py"})
 
-        stats = collector.get_stats(skill_dir)
-        assert stats.call_count == 1
-        assert stats.failure_count == 1
-        assert stats.success_count == 0
+        _finish_run()
+        assert usage_collector.get_stats(_skill_dir(skill)).call_count == 0
 
     @pytest.mark.asyncio
-    async def test_doc_load_failure_records_failure(self, tmp_path: Path) -> None:
-        skill_dir = tmp_path / "bad_doc_skill"
-        skill_dir.mkdir()
-        skill = SkillMetadata(
-            name="bad_doc_skill",
-            description="Doc load failure",
-            storage_path=str(skill_dir),
-        )
-        backend = AsyncMock()
-
-        from myrm_agent_harness.backends.skills.stats_collector import (
-            SkillStatsCollector,
-        )
-        from myrm_agent_harness.backends.skills.usage_recorder import (
-            flush_skill_usage_stats,
-            reset_turn_usage_dedupe,
-            set_stats_collector,
-        )
-
-        reset_turn_usage_dedupe()
-        collector = SkillStatsCollector(tmp_path)
-        set_stats_collector(collector)
+    async def test_failed_document_load_leaves_no_trace(
+        self, tmp_path: Path, usage_collector: SkillStatsCollector
+    ) -> None:
+        skill = _storage_skill(tmp_path, "bad_doc_skill")
 
         with (
-            patch(
-                "myrm_agent_harness.agent.skill_agent.context.get_loaded_skills",
-                return_value=[],
-            ),
+            patch("myrm_agent_harness.agent.skill_agent.context.get_loaded_skills", return_value=[]),
             patch(
                 "myrm_agent_harness.agent.meta_tools.skills.select.skill_select_tool.get_skill_document",
                 return_value="",
             ),
         ):
-            tool = create_select_skill_tool([skill], backend)
+            tool = create_select_skill_tool([skill], AsyncMock())
             await tool.ainvoke({"skill_names": ["bad_doc_skill"], "reason": "bad doc"})
-            flush_skill_usage_stats()
 
-        stats = collector.get_stats(skill_dir)
-        assert stats.call_count == 1
-        assert stats.failure_count == 1
+        _finish_run()
+        assert usage_collector.get_stats(_skill_dir(skill)).call_count == 0
 
 
 class TestCleanupSessionContextFilesEdgeCases:

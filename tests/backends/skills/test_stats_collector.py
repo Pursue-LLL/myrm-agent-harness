@@ -34,37 +34,36 @@ def collector(temp_workspace: Path) -> SkillStatsCollector:
     return SkillStatsCollector(temp_workspace)
 
 
-def test_record_usage_creates_stats_file(collector: SkillStatsCollector, skill_dir: Path) -> None:
-    """Test that record_usage creates .stats.json file."""
-    collector.record_usage(skill_dir, success=True, duration_ms=100.0)
+def test_record_use_creates_stats_file(collector: SkillStatsCollector, skill_dir: Path) -> None:
+    """Test that record_use creates .stats.json file."""
+    collector.record_use(skill_dir, success=True)
     collector.flush()
 
     stats_file = skill_dir / ".stats.json"
     assert stats_file.exists()
 
 
-def test_record_usage_updates_stats(collector: SkillStatsCollector, skill_dir: Path) -> None:
-    """Test that record_usage correctly updates statistics."""
-    collector.record_usage(skill_dir, success=True, duration_ms=100.0)
-    collector.record_usage(skill_dir, success=False, duration_ms=50.0)
+def test_record_use_separates_uses_from_observed_outcomes(collector: SkillStatsCollector, skill_dir: Path) -> None:
+    """Every run is a use; only runs with an observable outcome move the success counters."""
+    collector.record_use(skill_dir, success=True)
+    collector.record_use(skill_dir, success=False)
+    collector.record_use(skill_dir, success=None)
     collector.flush()
 
-    stats_file = skill_dir / ".stats.json"
-    with stats_file.open() as f:
-        data = json.load(f)
+    with (skill_dir / ".stats.json").open() as f:
+        stats = SkillUsageStats.from_dict(json.load(f))
 
-    stats = SkillUsageStats.from_dict(data)
-    assert stats.call_count == 2
+    assert stats.call_count == 3
     assert stats.success_count == 1
     assert stats.failure_count == 1
-    assert stats.total_duration_ms == 150.0
+    assert stats.observed_count == 2
     assert stats.success_rate == 0.5
-    assert stats.avg_duration_ms == 75.0
+    assert [record.success for record in stats.usage_history] == [True, False, None]
 
 
-def test_record_usage_updates_last_used(collector: SkillStatsCollector, skill_dir: Path) -> None:
-    """Test that record_usage updates last_used_at."""
-    collector.record_usage(skill_dir, success=True, duration_ms=10.0)
+def test_record_use_updates_last_used(collector: SkillStatsCollector, skill_dir: Path) -> None:
+    """Test that record_use updates last_used_at."""
+    collector.record_use(skill_dir, success=True)
     collector.flush()
 
     stats = collector.get_stats(skill_dir)
@@ -78,7 +77,7 @@ def test_batch_flush_optimization(collector: SkillStatsCollector, skill_dir: Pat
     """Test that flush batches multiple updates."""
     # Record multiple times without flushing
     for _i in range(5):
-        collector.record_usage(skill_dir, success=True, duration_ms=100.0)
+        collector.record_use(skill_dir, success=True)
 
     # Should not write until flush
     stats_file = skill_dir / ".stats.json"
@@ -125,13 +124,13 @@ def test_get_stats_returns_empty_if_not_exists(collector: SkillStatsCollector, s
 
 def test_concurrent_updates(collector: SkillStatsCollector, skill_dir: Path) -> None:
     """Test handling of concurrent updates."""
-    collector.record_usage(skill_dir, success=True, duration_ms=100.0)
-    collector.record_usage(skill_dir, success=True, duration_ms=200.0)
+    collector.record_use(skill_dir, success=True)
+    collector.record_use(skill_dir, success=True)
     collector.flush()
 
     stats = collector.get_stats(skill_dir)
     assert stats.call_count == 2
-    assert stats.total_duration_ms == 300.0
+    assert stats.success_count == 2
 
 
 def test_stale_auto_recovery_on_usage(collector: SkillStatsCollector, skill_dir: Path) -> None:
@@ -139,11 +138,9 @@ def test_stale_auto_recovery_on_usage(collector: SkillStatsCollector, skill_dir:
     from myrm_agent_harness.backends.skills.types import SkillLifecycleStatus
 
     stats_file = skill_dir / ".stats.json"
-    stats_file.write_text(
-        json.dumps({"call_count": 3, "success_count": 2, "failure_count": 1, "lifecycle_status": "stale"})
-    )
+    stats_file.write_text(json.dumps({"call_count": 3, "lifecycle_status": "stale"}))
 
-    collector.record_usage(skill_dir, success=True, duration_ms=50.0)
+    collector.record_use(skill_dir, success=None)
     collector.flush()
 
     recovered = collector.get_stats(skill_dir)
@@ -173,7 +170,7 @@ def test_set_pinned(collector: SkillStatsCollector, skill_dir: Path) -> None:
 
 def test_get_stats_returns_pending(collector: SkillStatsCollector, skill_dir: Path) -> None:
     """Test that get_stats returns pending (unflushed) updates."""
-    collector.record_usage(skill_dir, success=True, duration_ms=100.0)
+    collector.record_use(skill_dir, success=True)
     stats = collector.get_stats(skill_dir)
     assert stats.call_count == 1
 
@@ -191,5 +188,5 @@ def test_corrupt_stats_file_returns_default(collector: SkillStatsCollector, skil
 def test_write_failure_logs_warning(collector: SkillStatsCollector, tmp_path: Path) -> None:
     """Test that write failure is handled gracefully."""
     non_existent = tmp_path / "does_not_exist" / "skill"
-    collector.record_usage(non_existent, success=True, duration_ms=10.0)
+    collector.record_use(non_existent, success=True)
     collector.flush()

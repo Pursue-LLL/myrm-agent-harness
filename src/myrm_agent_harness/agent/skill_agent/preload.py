@@ -208,7 +208,7 @@ class SkillAgentPreloadMixin:
         preloaded_skills = [skill_meta for skill_meta in matched if skill_meta.name in loaded_names]
 
         for skill_meta in preloaded_skills:
-            record_skill_selection(skill_meta, success=True)
+            record_skill_selection(skill_meta)
 
         return "\n".join(parts), preloaded_skills[0], preloaded_skills
 

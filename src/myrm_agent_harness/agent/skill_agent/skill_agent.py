@@ -33,6 +33,7 @@ from myrm_agent_harness.agent.event_log.protocols import EventLogBackend
 from myrm_agent_harness.agent.meta_tools.mount_policy import FileAccessMode
 from myrm_agent_harness.agent.skills import SkillMetadata
 from myrm_agent_harness.agent.types import AgentRuntimeConfig
+from myrm_agent_harness.backends.skills.usage_recorder import begin_skill_run_usage, commit_skill_run_usage
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from .context import (
@@ -358,6 +359,7 @@ class SkillAgent(
         active_skill: SkillMetadata | None = None,
     ) -> AsyncGenerator[dict[str, object]]:
         """流式运行 Agent(覆盖 BaseAgent),增加 Hook 生命周期和记忆会话管理."""
+        begin_skill_run_usage()
         preloaded_skills: list[SkillMetadata] = []
         if active_skill is None:
             if isinstance(query, str):
@@ -365,11 +367,6 @@ class SkillAgent(
             elif isinstance(query, list):
                 query, active_skill, preloaded_skills = await self._preload_explicit_skill_in_blocks(query)
 
-        from myrm_agent_harness.backends.skills.usage_recorder import (
-            reset_turn_usage_dedupe,
-        )
-
-        reset_turn_usage_dedupe()
         self._active_skill = active_skill
         reset_loaded_skills()
         cached_skills = await self._get_cached_skills()
@@ -425,6 +422,7 @@ class SkillAgent(
                 yield event
         finally:
             skill_hooks.release()
+            commit_skill_run_usage()
             # Capture loaded skills BEFORE resetting context vars
             active_skills_list = [s.name for s in get_loaded_skills()]
             run_chat_id: str | None = None

@@ -129,12 +129,11 @@ def create_select_skill_tool(
                 file_content = await get_skill_file(skill_meta, skill_backend, file_path)
                 if file_content is not None:
                     selected_skills_info.append(file_content)
-                    record_skill_selection(skill_meta, success=True)
+                    record_skill_selection(skill_meta)
                 else:
                     selected_skills_info.append(
                         f"# {skill_name}\n\nError: file '{file_path}' not found or inaccessible"
                     )
-                    record_skill_selection(skill_meta, success=False)
             elif skill_name in loaded_names:
                 selected_skills_info.append(await build_reload_summary_with_index(skill_meta, skill_backend))
             else:
@@ -143,10 +142,9 @@ def create_select_skill_tool(
                 if skill_doc:
                     selected_skills_info.append(skill_doc)
                     add_loaded_skill(skill_meta)
-                    record_skill_selection(skill_meta, success=True)
+                    record_skill_selection(skill_meta)
                 else:
                     selected_skills_info.append(f"# {skill_name}\n\nError: failed to load skill document")
-                    record_skill_selection(skill_meta, success=False)
 
         skill_entries: list[str] = []
         for idx, skill_name in enumerate(skill_names):

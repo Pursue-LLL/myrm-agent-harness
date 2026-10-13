@@ -49,37 +49,29 @@ class SkillStatsCollector:
 
     # ── Usage recording ─────────────────────────────────────────────
 
-    def record_usage(
-        self,
-        skill_path: Path,
-        success: bool,
-        duration_ms: float,
-    ) -> None:
-        """Record a skill usage event.
+    def record_use(self, skill_path: Path, *, success: bool | None) -> None:
+        """Record one run that used the skill.
+
+        ``success`` is the observed outcome of the run's tool calls, or ``None`` when no outcome was
+        observable (the skill was only loaded, or several loaded skills made the owner ambiguous).
+        A use always counts; only an observed outcome moves the success/failure counters.
 
         If the skill is currently ``stale``, it is auto-recovered to
         ``active`` (inspired by Hermes' stale-reactivation design).
 
         Args:
             skill_path: Absolute path to skill directory
-            success: Whether the invocation succeeded
-            duration_ms: Execution duration in milliseconds
+            success: Observed outcome of the run, None when unobservable
         """
-        skill_key = str(skill_path)
-
-        if skill_key not in self._pending_updates:
-            self._pending_updates[skill_key] = self._load_stats(skill_path)
-
-        stats = self._pending_updates[skill_key]
+        stats = self._ensure_loaded(skill_path)
         stats.call_count += 1
-        if success:
+        if success is True:
             stats.success_count += 1
-        else:
+        elif success is False:
             stats.failure_count += 1
         now = datetime.now(UTC)
         stats.last_used_at = now
-        stats.total_duration_ms += duration_ms
-        stats.append_usage(timestamp=now.isoformat(), success=success, duration_ms=duration_ms)
+        stats.append_usage(timestamp=now.isoformat(), success=success, duration_ms=0.0)
 
         if stats.lifecycle_status == SkillLifecycleStatus.STALE:
             stats.lifecycle_status = SkillLifecycleStatus.ACTIVE

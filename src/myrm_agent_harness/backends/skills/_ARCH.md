@@ -28,8 +28,8 @@ Skill backend implementations — read/write/discovery protocols, local/memory/s
 | snapshot.py | Core | SQLite snapshot cache for O(N) skill metadata reads and incremental sync. | ✅ |
 | watcher.py | Core | Watchdog-based SKILL.md hot reload with debounced snapshot updates. | ✅ |
 | state_manager.py | Core | Skill instance CRUD, state persistence, config_overrides JSON Schema validation. | ✅ |
-| stats_collector.py | Core | Skill usage stats and lifecycle_status / pinned persistence. | ✅ |
-| usage_recorder.py | Core | Agent-runtime skill selection → .stats.json; `set_stats_collector` SSOT with server. | ✅ |
+| stats_collector.py | Core | Skill usage stats (one use per run, outcome observed or unobserved) and lifecycle_status / pinned persistence. | ✅ |
+| usage_recorder.py | Core | Run-scoped skill usage: selections and attributed tool outcomes fold into one `.stats.json` use per skill at run end; `set_stats_collector` SSOT with server. | ✅ |
 | storage.py | Core | Storage-backed skill backend (local/MinIO/S3/OSS via StorageBackend). | ✅ |
 | types/（子包） | Core | Skill 系统数据类型域。稳定公共入口 `backends.skills.types`（import path 不变，解析到子包门面）。9 个 `types_*` 实现模块聚合于此，`types/__init__.py` 为聚合门面统一 re-export（SkillContract* / enums / SkillMetadata / SkillInstance* / SkillRequires / MCPSkillData / Security* / SkillUsageStats / skill_visible_for_tools / coercion） | ✅ |
 | versioning.py | Core | Semantic skill version comparison, bump classification, and downgrade guardrail validation. | ✅ |

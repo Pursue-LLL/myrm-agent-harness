@@ -49,6 +49,20 @@ _DEFAULT_CONSOLIDATION_MIN_CLUSTER_SIZE = 3
 _DEFAULT_CONSOLIDATION_SIMILARITY_THRESHOLD = 0.75
 
 
+def _config_int(data: dict[str, object], key: str, default: int) -> int:
+    value = data.get(key, default)
+    if isinstance(value, int | float | str):
+        return int(value)
+    raise TypeError(f"CuratorConfig.{key} must be a number, got {type(value).__name__}")
+
+
+def _config_float(data: dict[str, object], key: str, default: float) -> float:
+    value = data.get(key, default)
+    if isinstance(value, int | float | str):
+        return float(value)
+    raise TypeError(f"CuratorConfig.{key} must be a number, got {type(value).__name__}")
+
+
 @dataclass(frozen=True, slots=True)
 class CuratorConfig:
     """Configuration for the skill curator / forgetting strategy.
@@ -76,13 +90,13 @@ class CuratorConfig:
 
     min_success_rate: float = _DEFAULT_MIN_SUCCESS_RATE
     """Minimum success rate threshold (0.0-1.0).  Skills below this after
-    min_call_count invocations may be considered low quality."""
+    min_call_count_for_quality_check observed outcomes may be considered low quality."""
 
     max_skills: int = _DEFAULT_MAX_SKILLS
     """Maximum number of active skills before LRU eviction kicks in."""
 
     min_call_count_for_quality_check: int = _DEFAULT_MIN_CALL_COUNT_FOR_QUALITY_CHECK
-    """Minimum call count before evaluating success rate."""
+    """Minimum number of observed run outcomes before evaluating success rate."""
 
     protect_installed_skills: bool = True
     """When True, skills with ``trust == INSTALLED`` (hub/registry) are
@@ -130,33 +144,24 @@ class CuratorConfig:
             return cls()
         return cls(
             enabled=bool(data.get("enabled", True)),
-            interval_hours=int(data.get("interval_hours", _DEFAULT_INTERVAL_HOURS)),
-            stale_after_days=int(data.get("stale_after_days", _DEFAULT_STALE_DAYS)),
-            archive_after_days=int(data.get("archive_after_days", _DEFAULT_ARCHIVE_DAYS)),
-            grace_period_days=int(data.get("grace_period_days", _DEFAULT_GRACE_PERIOD_DAYS)),
-            min_success_rate=float(data.get("min_success_rate", _DEFAULT_MIN_SUCCESS_RATE)),
-            max_skills=int(data.get("max_skills", _DEFAULT_MAX_SKILLS)),
-            min_call_count_for_quality_check=int(
-                data.get(
-                    "min_call_count_for_quality_check",
-                    _DEFAULT_MIN_CALL_COUNT_FOR_QUALITY_CHECK,
-                )
+            interval_hours=_config_int(data, "interval_hours", _DEFAULT_INTERVAL_HOURS),
+            stale_after_days=_config_int(data, "stale_after_days", _DEFAULT_STALE_DAYS),
+            archive_after_days=_config_int(data, "archive_after_days", _DEFAULT_ARCHIVE_DAYS),
+            grace_period_days=_config_int(data, "grace_period_days", _DEFAULT_GRACE_PERIOD_DAYS),
+            min_success_rate=_config_float(data, "min_success_rate", _DEFAULT_MIN_SUCCESS_RATE),
+            max_skills=_config_int(data, "max_skills", _DEFAULT_MAX_SKILLS),
+            min_call_count_for_quality_check=_config_int(
+                data, "min_call_count_for_quality_check", _DEFAULT_MIN_CALL_COUNT_FOR_QUALITY_CHECK
             ),
             protect_installed_skills=bool(data.get("protect_installed_skills", True)),
             protect_system_skills=bool(data.get("protect_system_skills", True)),
             consolidation_enabled=bool(data.get("consolidation_enabled", False)),
-            consolidation_min_skills=int(data.get("consolidation_min_skills", _DEFAULT_CONSOLIDATION_MIN_SKILLS)),
-            consolidation_min_cluster_size=int(
-                data.get(
-                    "consolidation_min_cluster_size",
-                    _DEFAULT_CONSOLIDATION_MIN_CLUSTER_SIZE,
-                )
+            consolidation_min_skills=_config_int(data, "consolidation_min_skills", _DEFAULT_CONSOLIDATION_MIN_SKILLS),
+            consolidation_min_cluster_size=_config_int(
+                data, "consolidation_min_cluster_size", _DEFAULT_CONSOLIDATION_MIN_CLUSTER_SIZE
             ),
-            consolidation_similarity_threshold=float(
-                data.get(
-                    "consolidation_similarity_threshold",
-                    _DEFAULT_CONSOLIDATION_SIMILARITY_THRESHOLD,
-                )
+            consolidation_similarity_threshold=_config_float(
+                data, "consolidation_similarity_threshold", _DEFAULT_CONSOLIDATION_SIMILARITY_THRESHOLD
             ),
         )
 
@@ -313,9 +318,9 @@ class DefaultForgettingStrategy:
                     target_status=target,
                 )
 
-        # 7. Low quality check (only after sufficient usage)
+        # 7. Low quality check (only after enough runs with an observed outcome)
         if (
-            stats.call_count >= self._config.min_call_count_for_quality_check
+            stats.observed_count >= self._config.min_call_count_for_quality_check
             and stats.success_rate < self._config.min_success_rate
         ):
             return ForgettingReason(
@@ -324,7 +329,7 @@ class DefaultForgettingStrategy:
                 reason_message=(
                     f"Success rate {stats.success_rate:.1%} < "
                     f"{self._config.min_success_rate:.0%} "
-                    f"(after {stats.call_count} calls)"
+                    f"(after {stats.observed_count} observed runs)"
                 ),
                 stats=stats,
                 target_status=SkillLifecycleStatus.STALE,
@@ -438,7 +443,7 @@ def evaluate_skill_health_findings(
     """Evaluate skill library health and generate actionable Doctor Findings.
 
     Detects:
-    1. WRONG_BUT_FREQUENT: High call count (>= min_call_count) with low success rate (< min_success_rate),
+    1. WRONG_BUT_FREQUENT: Enough observed run outcomes (>= min_call_count) with low success rate (< min_success_rate),
        especially when pinned or installed, which bypasses normal forgetting.
     2. HOARDING_BLOAT: Active skill count exceeding threshold or large clusters of unpruned skills.
     3. STALE_PINNED: Pinned skills inactive for > stale_after_days.
@@ -467,11 +472,11 @@ def evaluate_skill_health_findings(
             pinned_count += 1
 
         # Check 1: Wrong but frequent (Hermes Failure Mode #142)
-        if stats.call_count >= cfg.min_call_count_for_quality_check and stats.success_rate < cfg.min_success_rate:
+        if stats.observed_count >= cfg.min_call_count_for_quality_check and stats.success_rate < cfg.min_success_rate:
             severity = "critical" if stats.success_rate < 0.15 else "warning"
             action = "unpin_and_archive" if stats.pinned else "archive"
             msg = (
-                f"Skill '{skill.name}' invoked {stats.call_count} times but has low success rate "
+                f"Skill '{skill.name}' ran {stats.observed_count} times with an observed outcome but has low success rate "
                 f"({stats.success_rate:.1%}). "
                 f"{'It is PINNED, exempting it from automatic LRU eviction.' if stats.pinned else 'Degrading agent performance.'}"
             )
@@ -486,8 +491,9 @@ def evaluate_skill_health_findings(
                     pinned=stats.pinned,
                     recommended_action=action,
                     details={
+                        "observed_count": stats.observed_count,
                         "success_count": stats.success_count,
-                        "failure_count": stats.call_count - stats.success_count,
+                        "failure_count": stats.failure_count,
                         "trust": skill.trust.value if skill.trust else "local",
                     },
                 )

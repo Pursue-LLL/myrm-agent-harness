@@ -86,7 +86,7 @@ def _make_agent(
         async def _patched_list() -> list[SkillMetadata]:
             return skills
 
-        backend.list_skills = _patched_list
+        backend.list_skills = _patched_list  # type: ignore[method-assign]
 
     return agent
 
@@ -214,6 +214,8 @@ class TestPreloadExplicitSkill:
             SkillStatsCollector,
         )
         from myrm_agent_harness.backends.skills.usage_recorder import (
+            begin_skill_run_usage,
+            commit_skill_run_usage,
             flush_skill_usage_stats,
             set_stats_collector,
         )
@@ -222,12 +224,14 @@ class TestPreloadExplicitSkill:
         set_stats_collector(collector)
         agent = _make_agent(skills=[skill], backend=backend)
 
+        begin_skill_run_usage()
         await agent._preload_explicit_skill("[use preload_skill] run task")
+        commit_skill_run_usage()
         flush_skill_usage_stats()
 
         stats = collector.get_stats(skill_dir)
         assert stats.call_count == 1
-        assert stats.success_count == 1
+        assert stats.observed_count == 0
         set_stats_collector(None)
 
     @pytest.mark.asyncio
@@ -652,7 +656,7 @@ class TestGetSkillDocumentFrontmatter:
         skill = _make_skill(name="fm_skill", storage_skill_id="fm_skill")
         backend = _StubSkillBackend(content_map={"fm_skill": sop})
 
-        result = await get_skill_document(skill, backend)  # type: ignore[arg-type]
+        result = await get_skill_document(skill, backend)
         assert result.startswith("# My Skill")
         assert "---" not in result.split("# My Skill")[0]
 
@@ -664,5 +668,5 @@ class TestGetSkillDocumentFrontmatter:
         skill = _make_skill(name="notitle_skill", storage_skill_id="notitle_skill")
         backend = _StubSkillBackend(content_map={"notitle_skill": sop})
 
-        result = await get_skill_document(skill, backend)  # type: ignore[arg-type]
+        result = await get_skill_document(skill, backend)
         assert result.startswith("# notitle_skill")
