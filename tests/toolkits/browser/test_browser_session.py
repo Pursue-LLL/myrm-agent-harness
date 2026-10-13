@@ -11,6 +11,7 @@ import pytest
 
 from myrm_agent_harness.toolkits.browser.pool import ContextType
 from myrm_agent_harness.toolkits.browser.session import BrowserSession
+from myrm_agent_harness.toolkits.browser.session.browser_session_network_mixin import CONSOLE_CAPTURE_UNAVAILABLE
 
 # Minimal valid 2x2 JPEG for screenshot mocks (PIL-compatible for PerceptualHashDiff)
 _MINIMAL_JPEG_B64 = (
@@ -478,8 +479,7 @@ async def test_delete_session(browser_session_with_vault: BrowserSession, mock_s
 
 
 def test_get_console_log(browser_session: BrowserSession) -> None:
-    result = browser_session.get_console_log()
-    assert "console" in result.lower() or "not yet" in result.lower()
+    assert browser_session.get_console_log() == CONSOLE_CAPTURE_UNAVAILABLE
 
 
 def test_get_network_log(browser_session: BrowserSession) -> None:

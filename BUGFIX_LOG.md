@@ -2,6 +2,22 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-14-003 · 浏览器会话关闭拆掉共享上下文里别的对话的标签页、崩溃标签页被反复使用、切换标签后后台页继续写网络日志、主动关闭的浏览器被当成崩溃、默认引擎的控制台日志永远为空却不说明：生命周期与观测路径上五处各自独立的缺口
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-14（复核 topic_04 #2 Stop 边界之外的生命周期与观测路径时，用真实 Chromium 逐条复现；每条都带对照组） |
+| **修复时间** | 2026-10-14 |
+| **症状** | ① 自定义智能体的多个对话共用一个上下文（`agent_<id>`）；其中一个对话的会话因空闲回收、删除对话或引擎切换而 `close()` / `restart()` 时，会强行清空该上下文的在用页面集合并销毁上下文，另一个对话仍开着的标签页与登录 Cookie 一并消失；`restart()` 还会丢掉上下文键，之后的取页落到默认上下文，不同智能体的页面混在一起；② 渲染进程崩溃的页面 `is_closed()` 仍是 `False`，每次工具调用都在它上面失败，`snapshot` 甚至从缓存返回「无 DOM 变化」，像页面活着一样；③ `page.off` 在公开的 Page 上不存在（只有 `remove_listener`），摘除监听的调用抛 `AttributeError` 被吞掉，切换或关闭标签后，不再是活动标签的页面仍继续写网络日志；④ 池或会话自己关闭托管浏览器（空闲回收、关停、引擎重启）会触发 `disconnected`，与真实崩溃同路径，被记成 WARNING「Browser crashed」，并向没人读取的全局熔断域记失败；⑤ 默认 Chromium 引擎（patchright 保持 `Console.enable` 关闭以隐身）的页面不会向会话上报控制台事件，`console_log` 恒返回「No console messages captured.」，模型会据此断定页面没有报错 |
+| **关联产品** | myrm-agent-harness `toolkits/browser`（`pool`、`session`、`tools`）；server 经 `tool_setup.py:839-844` 让自定义智能体的对话共用 `agent_<id>` 上下文，`execution_cache` 的空闲回收 / 删除对话调用 `BrowserSession.close()`。Local / 桌面 / 云托管三种部署都受影响；真实 Patchright Chromium（macOS）实测，Linux / Windows / Camoufox 未实测 |
+| **根因** | ① `close()` 与 `restart()` 为了绕过 `destroy_context` 的「仍有在用页面」断言，直接清空 `PagePool._busy` 并手改全局计数、再强删跟踪表，默认这个上下文只属于自己；`restart()` 先把 `_context_key` 置空再 `close()`，之后没有恢复；② 池只在崩溃事件里归还许可，没有对外说明「这个持有中的页面已崩溃」，工具调用入口也没有检查；③ 接口名用错：公开 `Page` 只有 `on` / `remove_listener`；测试替身恰好有 `off`，把错误遮住了；④ `disconnected` 处理器只看 `is_managed`，不区分是谁关的；⑤ `get_console_log` 不区分引擎，把「没有事件来源」当成「没有消息」 |
+| **修复** | ① `destroy_context(key, only_if_idle=True)`：仍有页面在用时保留上下文并返回 `False`；`close()` 改用它，删除强制清空与强删；`restart()` 经 `close()` 关闭并恢复上下文键；② `CrashWatchdog.is_page_crashed` 对在用页面保留崩溃标记，`BrowserSession.active_tab_crashed()` 暴露给边界，`cancel_boundary` 在每次工具调用前遇崩溃先 `recover_active_tab()`；③ 摘除监听改用 `remove_listener`（网络与控制台日志共 5 处），替身删去 `off`，其余用 `Mock(spec=Page)`；④ `BrowserInstance.expected_close`：池关闭托管浏览器、`restart()` 清理空浏览器前先置位，`disconnected` 处理器按 `is_managed and not expected_close` 分类，预期断开记 INFO；崩溃与浏览器断开不再向熔断器记失败（熔断器只由导航结果驱动，原来的全局崩溃域没有任何读取方）；⑤ 默认引擎返回 `CONSOLE_CAPTURE_UNAVAILABLE`，说明控制台不可捕获、不能当作无报错并指向 `network_log` / `evaluate`；Camoufox 照常返回捕获内容；工具 schema 与描述不变，不影响提示缓存。附带：`BrowserSessionNetworkMixin` 补上 `SessionHost` 基类（消掉该文件 11 处 mypy 错误）；例行事件（标签页创建/关闭、池关停统计、域名过滤器安装）由 WARNING 降为 INFO |
+| **反复次数** | 第 1 次发现；与 2026-10-14-001 / 002 同属 topic_04 #2 的资源与会话守恒复核 |
+| **踩坑** | ① 单元测试里替身遮住了 `page.off` 的错误，必须用真实 Chromium 或 `Mock(spec=Page)` 才暴露；② 崩溃判定对照组不能 `await cdp.send("Browser.crash")`：浏览器当场死亡，命令永远没有应答，要放进任务里，等断开处理器跑完后取消该任务；③ patchright 的 Console API 被设计性关闭，页面 `console.error` 已被独立的 CDP `Runtime` 监听收到，`ConsoleLogger` 仍为 0 条，所以用对照组证明是驱动不上报而不是测试写错；④ 评估过但不做的方案：为默认引擎开启 `Console.enable`（patchright 为隐身而关闭它，开启会抵消反检测设计，见 `BROWSER_SYSTEM.md` 反检测表）、给 `browser_manage` 的工具描述追加说明（改工具 schema，破坏提示缓存）、已知未修的既有竞态（`restart()` 清理空浏览器与另一会话正在 `acquire_page` 的交错；`destroy_context` 与进行中的 `acquire_page` 的时间窗）、导航 mixin 的 `or CHROMIUM_PATCHRIGHT` 引擎判断不看池默认引擎 |
+| **回归** | `tests/toolkits/browser/session/test_shared_context_close.py`（真实 Chromium，5 例，含独占上下文对照）· `session/test_crashed_tab_recovery_integration.py`（3 例，含健康标签不被替换对照）· `session/test_network_log_tab_switch.py`（2 例，含活动标签自身请求对照）· `pool/test_expected_close_accounting.py`（4 例，`Browser.crash` 真实崩溃对照）· `session/test_console_capture_integration.py`（CDP 对照：页面已打日志而会话收到 0 条）· `session/test_console_log_availability.py`（6 例，按引擎）· `session/test_tab_recovery.py`、`tools/test_cancel_boundary.py`、`session/test_network_logger.py`、`session/test_console_logger.py`、`test_crash_watchdog.py` 同步。变异验证：还原强制清空，3 例失败；去掉入口崩溃检查，2 例集成与 1 例单元失败；还原 `.off`，4 例单元失败；去掉 `expected_close`，3 例失败；去掉「不可用」分支，5 例失败 |
+| **代码位置** | `toolkits/browser/pool/browser_pool.py::destroy_context`（`:354`）· `session/browser_session_lifecycle_mixin.py::close/restart`（`:229` 调用，`:98` 置位）· `pool/crash_watchdog.py::is_page_crashed`（`:110`）/ `_handle_browser_disconnected`（`:83`）· `session/browser_session_tab_mixin.py::active_tab_crashed`（`:127`）· `tools/cancel_boundary.py`（`:64` 调用）· `session/network_logger.py` / `console_logger.py`（`remove_listener`）· `pool/browser_launcher.py::BrowserInstance.expected_close`（`:208`）· `session/browser_session_network_mixin.py::get_console_log`（`:41`） |
+
 ### BUG-HARNESS-2026-10-14-002 · 浏览器页面崩溃事件为没人持有的页面归还并发许可：空闲页崩溃让并发上限永久抬高，调用方已释放的页面崩溃则重复归还
 
 | 字段 | 内容 |

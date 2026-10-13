@@ -105,10 +105,12 @@ Extension Bridge 与 SessionVault 覆盖竞品（orca/holaboss）cookie 导入�
 - **多租户隔离**：不同 ContextType（CRAWL / AGENT / STEALTH）使用独立 BrowserContext
 - **智能负载调度**：自动选择负载最低的 Context
 - **智能重试**：3次指数退避重试（2s/4s/8s），处理启动失败和网络异常
-- **并发安全销毁**：支持 `destroy_context` 显式回收资源，并具备严格的并发安全断言，防止销毁正在使用的页面。
+- **并发安全销毁**：支持 `destroy_context` 显式回收资源，并具备严格的并发安全断言，防止销毁正在使用的页面。不拥有上下文的调用方用 `destroy_context(key, only_if_idle=True)`：上下文仍有页面在用时保留并返回 `False`，不抛异常。
+- **会话关闭不拆共享上下文**：自定义智能体的多个对话共用一个上下文（`agent_<id>`）。`BrowserSession.close()` 只在该上下文已无页面在用时才销毁它，否则保留，其他对话的页面不受影响；`restart()` 经 `close()` 关闭并保留上下文键，新浏览器仍落在同一上下文。
 - **只发放健康页面**：`PagePool.acquire` 跳过已关闭的页面；复用前的重置受 5 s 预算约束，重置后再用 `probe_alive` 确认页面能回答，失败的页面被有界关闭而不是发放（避免卡死页面把 `create_tab` 堵在池锁里）。`release` 丢弃已关闭的页面，不放回池。
 - **取消安全的取页**：`acquire_page` 经 `pool/page_acquisition.py::PageAcquisition` 持有全局并发许可（及已从 `PagePool` 取出的页面），直到页面被计入「在用」（`commit`）才交给 `release_page`；取页途中被取消或失败（冷启动浏览器、创建上下文、重置空闲页、等池锁），许可与已取出的页面原路归还，崩溃处理器已为该页归还许可时不重复归还。全局许可信号量是进程级单例、从不对账，漏一个就永久少一个槽位。唯一的有界残留：创建页面的调用本身被取消时没有页面句柄可归还，该页留在其上下文里，直到上下文销毁。
 - **崩溃判定以浏览器为准**：`CrashWatchdog` 的存活探针先问浏览器进程本身（浏览器级 CDP `Browser.getVersion`），应答即视为存活；不应答时再用池内页面求第二意见，两者都不应答才判定崩溃。单页面长时间导航不会被判为浏览器崩溃。
+- **池主动关闭不算崩溃**：池或会话自己关闭托管浏览器时，先给该实例打上 `expected_close`，随后触发的 `disconnected` 事件按「预期断开」记 INFO，不再记成 WARNING 的浏览器崩溃；真实崩溃（macOS 真实 Chromium 以 CDP `Browser.crash` 实测）仍记 WARNING 并按原路径回收许可。浏览器与页面崩溃不计入域名熔断（熔断器只由导航结果驱动）。
 - **页面崩溃只归还在用页面的许可**：页面 `crash` 事件只为调用方持有的页面（属于某个 `PagePool` 的在用集合）归还全局并发许可；空闲在池里的页面、或调用方已 `release_page` 的页面崩溃时不持有许可，处理器直接忽略，既不多还许可，也不留下无人清理的标记。全局许可信号量从不对账，多还一个就永久多放一个并发槽位，所以只有在用页面才归还（macOS 真实 Chromium 实测：并发上限 3 时，空闲页崩溃 3 次后许可数仍为 3）。
 - **残留进程回收**：池关闭浏览器时只做优雅 `close()`（5 s 超时，失败仅记日志），不持有浏览器 PID、不发信号。托管启动的 Chromium 带归属戳（启动方 PID + 启动时间）；启动方退出后残留的浏览器由 Browser Doctor 识别（归属戳可能传到浏览器拉起的应用上，所以还要求进程的名称、可执行文件名或 `argv[0]` 文件名含 `chrom`，否则不算残留），`cleanup_orphan_processes` 先 SIGTERM，3 s 宽限后补 SIGKILL（有头 Chrome 在 DevTools 驱动被杀后会忽略 SIGTERM）。读取正被回收的进程时，macOS 上的 psutil 7.2.2 会抛 `SystemError`（giampaolo/psutil#3024，修复尚未发布），该进程按「无法确认」跳过，不会中断扫描或清理。已知局限：Local 模式（有头）下若仅 Playwright 驱动先死、服务进程仍在，浏览器进程会残留，直到服务重启、归属戳指向已退出的进程后才会被识别并清理（macOS 实测，Linux/Windows 未实测）。
 - **双引擎热切换**：Camoufox 是可选的隐身引擎（需单独安装浏览器构建，约 1.2 GB）。已安装且当前为托管浏览器时，可在 Chromium (Patchright) 与 Firefox (Camoufox) 之间热切换，可能缓解指纹类拦截（不承诺绕过）。`BrowserSession.restart(engine=Camoufox)` 先做零副作用预检：构建未就绪、或当前是接入的真实浏览器（CDP/扩展）时抛 `EngineUnavailableError`，会话原样保留；预检通过后若启动失败，会话自动回滚到原引擎（Cookie/localStorage 随新上下文迁移，页面不重载）并重抛原始错误，不会留下无法使用的空会话。
@@ -510,6 +512,8 @@ Object.defineProperty(window, 'RTCPeerConnection', {
 | `--enable-automation` | ✅ 泄露 | ❌ 添加 `--disable-blink-features=AutomationControlled` |
 | `navigator.webdriver` | ✅ 泄露 | ❌ 注入脚本隐藏 |
 
+代价：默认 Chromium 引擎的页面不会向会话上报 `console` 事件（macOS 真实 Chromium 实测：页面 `console.error` 已被独立的 CDP `Runtime` 监听收到，`ConsoleLogger` 仍为 0 条）。因此该引擎上 `browser_manage` 的 `console_log` 返回 `CONSOLE_CAPTURE_UNAVAILABLE`（说明控制台不可捕获、不能当作无报错，并指向 `network_log` / `evaluate`），而不是看似成功的空日志；Camoufox 会话照常返回捕获内容。`tests/toolkits/browser/session/test_console_capture_integration.py` 守着这一事实：驱动将来开始上报时该测试失败，提示撤掉「不可用」应答。
+
 **第二层：JS 反检测脚本（仅 STEALTH ContextType，通过 `enhancers.inject_route` 文档响应注入）**
 
 | # | 措施 | 说明 |
@@ -839,6 +843,7 @@ BrowserError (root)
 ### 卡死页面与 Stop 的恢复
 
 - **页面卡死自愈**：`navigate()` 遇到 `PageUnresponsiveError` 时调用 `BrowserSession.recover_active_tab()`（`session/browser_session_tab_mixin.py`）：持锁、幂等、10 s 预算，先中止挂起加载再探活，仍无应答则有界关闭该标签页并开一个空白标签页，随后抛出带「标签页已重置为空白页，请重新导航」说明的 `PageUnresponsiveError`（不自动重试）。用户接管（`_user_takeover_active`）期间跳过恢复，不会替人关掉正在操作的页面。
+- **崩溃标签页入口自愈**：渲染进程崩溃的页面 `is_closed()` 仍为 `False`，每次操作都会立刻失败。`CrashWatchdog` 对在用页面保留崩溃标记（`is_page_crashed`），`cancel_boundary` 在每次工具调用前经 `BrowserSession.active_tab_crashed()` 检查，崩溃则先 `recover_active_tab()` 换成空白标签页（同样记一次性重置提示），再执行本次调用。
 - **Stop 立即释放**：`create_browser_tools` / `create_restricted_ax_browser_tools` 返回的全部工具（8 个；受限 AX 版本 7 个）都经 `tools/cancel_boundary.py` 包装：每次调用与请求的 `CancellationToken` 赛跑（`utils/runtime/cancellation.py::run_until_cancelled`，0.25 s 轮询），Stop 后取消仍卡在驱动里的调用，恢复标签页，并返回 `CANCELLED_RESULT`（普通结果而非异常，不触发重试或 circuit breaker）。取消令牌缺失时直接透传，行为与未包装一致。
 - **非 Stop 的取消同样自愈**：执行器的工具超时（`asyncio.timeout`）、IM 通道卡死任务看门狗（令牌与任务同时取消）、关停会在不翻转令牌的情况下取消工具；边界对这类 `CancelledError` 同样先 `recover_active_tab()` 再继续抛出，否则卡死页面留在会话里，下一次运行立刻在同一个页面上再卡一次。二次取消落在自愈过程中时取消仍照常传播，自愈自身的 10 s 预算耗尽也不会吞掉取消。
 - **重置提示**：恢复后的标签页是空白页，读类工具对它返回的是「空文档」这种看似成功的结果。`recover_active_tab` 因此记下一条一次性提示（`take_tab_reset_notice`，取出即清除）；`navigate` 在自己的错误里说明后取走它，其余情况由下一次工具的文本结果前置带出，只告诉模型一次；一次成功的 `navigate` 让页面重新有内容，提示随之作废。结构化结果与错误不消耗提示。

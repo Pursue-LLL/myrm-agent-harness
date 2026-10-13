@@ -39,6 +39,7 @@ class FakePool:
         self.released: list[FakePage] = []
         self.acquire_error: Exception | None = None
         self.acquire_hangs = False
+        self.crashed: set[FakePage] = set()
 
     async def acquire_page(self, *_args: object, **_kwargs: object) -> tuple[FakePage, str]:
         if self.acquire_hangs:
@@ -49,6 +50,9 @@ class FakePool:
 
     async def release_page(self, page: FakePage, _context_key: str) -> None:
         self.released.append(page)
+
+    def is_page_crashed(self, page: FakePage) -> bool:
+        return page in self.crashed
 
 
 @pytest.fixture(autouse=True)
@@ -416,3 +420,43 @@ class TestCancelBoundaryOnARealSession:
         assert wedged.close_calls == 1
         assert pool.released == [wedged]
         assert session.list_tabs() == ["tab1"], "one replacement tab, not one per cancelled tool"
+
+    async def test_a_crashed_active_tab_is_replaced_before_the_tool_runs_and_the_result_says_so(self) -> None:
+        crashed = FakePage(cdp=FakeCdp(), evaluate="raise")
+        pool = FakePool(crashed)
+        pool.crashed.add(crashed)
+        session, _ = await _session(pool)
+        (echo,) = apply_cancel_boundary([_echo_tool()], session)
+
+        first = await echo.ainvoke({"value": "a"})
+        second = await echo.ainvoke({"value": "a"})
+
+        assert first.startswith("The tab was reset to a blank page (tab1)")
+        assert first.endswith("echo:a")
+        assert second == "echo:a"
+        assert crashed.closed
+        assert session.list_tabs() == ["tab1"]
+
+    async def test_control_a_page_the_browser_did_not_report_as_crashed_is_not_probed_at_entry(self) -> None:
+        flaky = FakePage(cdp=FakeCdp(), evaluate="raise")
+        session, _ = await _session(FakePool(flaky))
+        (echo,) = apply_cancel_boundary([_echo_tool()], session)
+
+        assert await echo.ainvoke({"value": "a"}) == "echo:a"
+
+        assert not flaky.closed
+        assert flaky.evaluated == []
+        assert session.list_tabs() == ["tab0"]
+
+    async def test_a_crashed_tab_the_user_is_driving_is_left_alone(self) -> None:
+        crashed = FakePage(cdp=FakeCdp(), evaluate="raise")
+        pool = FakePool(crashed)
+        pool.crashed.add(crashed)
+        session, _ = await _session(pool)
+        session._user_takeover_active = True
+        (echo,) = apply_cancel_boundary([_echo_tool()], session)
+
+        assert await echo.ainvoke({"value": "a"}) == "echo:a"
+
+        assert not crashed.closed
+        assert session.list_tabs() == ["tab0"]

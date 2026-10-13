@@ -4,13 +4,17 @@
 - session.console_logger::ConsoleLogger (POS: browser console capture)
 - session.network_logger::NetworkLogger (POS: network request log capture)
 - session.network_intelligence::NetworkIntelligence (POS: CDP-based API response body retrieval)
+- pool.config::BrowserEngine (POS: which engine a session runs on decides whether the console can be captured)
 
 [OUTPUT]
 - BrowserSessionNetworkMixin: get_console_log / get_network_log / get_network_detail / replay_network_request.
+- CONSOLE_CAPTURE_UNAVAILABLE: the answer `get_console_log` gives where the engine reports no console output.
 
 [POS]
 Console and network introspection APIs for BrowserSession. Delegates to NetworkLogger and
-NetworkIntelligence; replay uses in-page fetch via the active tab.
+NetworkIntelligence; replay uses in-page fetch via the active tab. The default Chromium engine
+never reports console output (its driver keeps `Console.enable` off to stay undetectable), so
+`get_console_log` says so there: an empty log would read as "the page has no errors".
 """
 
 from __future__ import annotations
@@ -19,15 +23,26 @@ import json
 
 from myrm_agent_harness.core.security.redact import redact_sensitive_text
 
+from ..pool.config import BrowserEngine
+from .session_host import SessionHost
+
 # Replay response bounds: the JS side returns a wider window so a credential
 # crossing the final output cut stays structurally intact for redaction.
 _REPLAY_RAW_WINDOW = 16000
 _REPLAY_OUTPUT_MAX = 8000
 
+CONSOLE_CAPTURE_UNAVAILABLE = (
+    "Console capture is unavailable in this browser mode, so an empty console cannot be assumed. "
+    "Use network_log for failed requests or evaluate to inspect page state."
+)
 
-class BrowserSessionNetworkMixin:
+
+class BrowserSessionNetworkMixin(SessionHost):
     def get_console_log(self) -> str:
         """Get captured browser console messages (errors, warnings, logs)."""
+        engine = self._engine_preference or self._browser_pool.config.engine
+        if engine == BrowserEngine.CHROMIUM_PATCHRIGHT:
+            return CONSOLE_CAPTURE_UNAVAILABLE
         return self._console_logger.get_summary()
 
     def get_network_log(self, filter_mode: str = "api") -> str:

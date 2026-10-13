@@ -343,7 +343,7 @@ async def install_domain_filter(
     if enable_cdp_audit and not allowlist.is_empty:
         context.on("page", lambda page: _schedule_cdp_audit(page, allowlist))
 
-    logger.warning(
+    logger.info(
         "Domain filter / Resource block installed: %d allow patterns, %d block patterns, CDP audit=%s, resource_block=%s, ad_blocklist=%d",
         len(allowlist.patterns) if allowlist else 0,
         len(domain_blocklist.patterns) if domain_blocklist else 0,
@@ -374,7 +374,6 @@ async def _install_csp_policy(context: BrowserContext, allowlist: DomainAllowlis
 # ---------------------------------------------------------------------------
 # Layer 1: Protocol interception
 # ---------------------------------------------------------------------------
-
 
 
 # ---------------------------------------------------------------------------

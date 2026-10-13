@@ -2,7 +2,7 @@
 
 [INPUT]
 - utils.runtime.cancellation::run_until_cancelled, OperationCancelledError (POS: request-level cancellation token; run_until_cancelled is the boundary for operations that cannot observe it)
-- session::BrowserSession (POS: browser session aggregate root; recover_active_tab heals a page an aborted action left unresponsive, take_tab_reset_notice tells the model about it)
+- session::BrowserSession (POS: browser session aggregate root; active_tab_crashed reads the browser's crash report for the active tab, recover_active_tab heals a page that stopped answering, take_tab_reset_notice tells the model about it)
 
 [OUTPUT]
 - apply_cancel_boundary: wrap every tool's coroutine in place so a stopped run releases the browser
@@ -16,7 +16,9 @@ its own timeout. This boundary races each tool call against the token, aborts th
 tab and hands the model a plain result instead of an error. A run torn down from outside the
 request (executor timeout, stuck-task watchdog, shutdown) cancels the tool without the token, and
 nothing may call the session again soon, so the tab is healed there too before the cancellation
-continues. A healed tab is blank, so the next text result carries the session's reset notice.
+continues. A tab whose renderer the browser reported as crashed is healed before the call runs, so
+no tool fails on (or answers from the cache of) a dead page. A healed tab is blank, so the next text
+result carries the session's reset notice.
 Mutates the tools it receives, because `with_dynamic_hints` already produced the final copies.
 """
 
@@ -59,6 +61,8 @@ def _cancel_aware(
 ) -> Callable[..., Awaitable[object]]:
     @functools.wraps(coroutine)
     async def run(*args: object, **kwargs: object) -> object:
+        if session.active_tab_crashed():
+            await session.recover_active_tab()
         try:
             result = await run_until_cancelled(coroutine(*args, **kwargs))
         except OperationCancelledError:

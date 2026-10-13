@@ -11,13 +11,11 @@ import asyncio
 import contextlib
 import time
 from collections.abc import AsyncIterator
-from unittest.mock import AsyncMock
 
 import pytest
 
-from myrm_agent_harness.toolkits.browser import domain_filter, navigation
+from myrm_agent_harness.toolkits.browser import navigation
 from myrm_agent_harness.toolkits.browser.exceptions import BrowserNavigationError
-from myrm_agent_harness.toolkits.browser.navigation import ssrf_guard
 from myrm_agent_harness.toolkits.browser.pool import ContextType, GlobalBrowserPool
 from myrm_agent_harness.toolkits.browser.pool.crash_watchdog import _pooled_page_answers
 from myrm_agent_harness.toolkits.browser.session import BrowserSession
@@ -36,25 +34,12 @@ pytestmark = [
     pytest.mark.integration,
     pytest.mark.slow,
     pytest.mark.skipif(not chromium_available(), reason="Chromium not available"),
+    pytest.mark.usefixtures("loopback_servers_reachable"),
 ]
 
 _NAVIGATION_BUDGET_MS = 1500
 _TEARDOWN_BOUND_S = 20.0
 _SPIN_SCRIPT = "() => { while (true) {} }"
-
-
-@pytest.fixture(autouse=True)
-def _loopback_servers_are_reachable(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The fixtures' servers listen on loopback, which the SSRF layers block by design."""
-    original = domain_filter._install_http_filter
-
-    async def allow_private(context, allowlist, resource_block, ad_blocklist, domain_blocklist, **_kwargs):
-        return await original(
-            context, allowlist, resource_block, ad_blocklist, domain_blocklist, allow_private_networks=True
-        )
-
-    monkeypatch.setattr(domain_filter, "_install_http_filter", allow_private)
-    monkeypatch.setattr(ssrf_guard, "assert_browser_navigation_allowed", AsyncMock(return_value=None))
 
 
 @pytest.fixture

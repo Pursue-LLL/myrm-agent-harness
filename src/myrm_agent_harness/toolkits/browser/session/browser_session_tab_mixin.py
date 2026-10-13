@@ -5,7 +5,7 @@
 - utils.page_health::abort_pending_navigation, close_page_bounded, probe_alive (POS: bounded browser and page health primitives)
 
 [OUTPUT]
-- BrowserSessionTabMixin: new_tab, list_tabs, list_tabs_with_info, get_active_tab_id, close_tab, switch_tab, recover_active_tab, take_tab_reset_notice
+- BrowserSessionTabMixin: new_tab, list_tabs, list_tabs_with_info, get_active_tab_id, close_tab, switch_tab, active_tab_crashed, recover_active_tab, take_tab_reset_notice
 
 [POS]
 Tab-management APIs for BrowserSession. Every tab change rebinds the per-page components
@@ -123,6 +123,16 @@ class BrowserSessionTabMixin(SessionHost):
         # inherits the active device profile (no-op when desktop is emulated).
         await self._device_emulator.reapply(self._tab_controller.get_active_page())
         return f"Switched to tab {tab_id}"
+
+    def active_tab_crashed(self) -> bool:
+        """Whether the browser reported the active tab's renderer as crashed.
+
+        Cheap (no page round trip), so it can gate recovery on every tool call.
+        """
+        try:
+            return self._browser_pool.is_page_crashed(self._tab_controller.get_active_page())
+        except RuntimeError:
+            return False
 
     @functools.cached_property
     def _tab_recovery_lock(self) -> asyncio.Lock:

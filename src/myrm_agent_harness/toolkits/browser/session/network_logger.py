@@ -123,9 +123,9 @@ class NetworkLogger:
         if self._bound_page is not page:
             return
         try:
-            page.off("request", self._cb_request)
-            page.off("response", self._cb_response)
-            page.off("requestfailed", self._cb_request_failed)
+            page.remove_listener("request", self._cb_request)
+            page.remove_listener("response", self._cb_response)
+            page.remove_listener("requestfailed", self._cb_request_failed)
         except Exception as exc:
             logger.warning("NetworkLogger: detach_page failed: %s", exc)
         finally:

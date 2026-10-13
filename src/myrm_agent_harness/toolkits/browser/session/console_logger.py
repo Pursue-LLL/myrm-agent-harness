@@ -13,7 +13,9 @@ the Agent with visibility into client-side issues without manual user interventi
 
 [POS]
 Console log capture for the browser toolkit. Mirrors NetworkLogger's lifecycle
-management pattern (attach/detach per page, FIFO bounded buffer).
+management pattern (attach/detach per page, FIFO bounded buffer). Receives events only on
+engines that report console output; the default Chromium driver does not (see
+BrowserSessionNetworkMixin.get_console_log).
 """
 
 from __future__ import annotations
@@ -111,8 +113,8 @@ class ConsoleLogger:
         if self._bound_page is not page:
             return
         try:
-            page.off("console", self._cb_console)
-            page.off("pageerror", self._cb_pageerror)
+            page.remove_listener("console", self._cb_console)
+            page.remove_listener("pageerror", self._cb_pageerror)
         except Exception as exc:
             logger.warning("ConsoleLogger: detach failed: %s", exc)
         finally:

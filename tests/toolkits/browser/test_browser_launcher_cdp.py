@@ -348,9 +348,7 @@ class TestE2eChromeBinding:
                 "myrm_agent_harness.toolkits.browser.pool.chrome_discovery.resolve_e2e_cdp_endpoint",
                 return_value=None,
             ),
-            patch.object(
-                launcher, "_discover_local_chrome", AsyncMock(return_value="http://127.0.0.1:9222")
-            ),
+            patch.object(launcher, "_discover_local_chrome", AsyncMock(return_value="http://127.0.0.1:9222")),
             patch.object(launcher, "_probe_cdp", AsyncMock(return_value=True)),
             patch.object(launcher, "_connect_existing", AsyncMock(return_value=expected)) as mock_connect,
         ):
@@ -412,29 +410,6 @@ class TestCrashWatchdogExternalBrowser:
 
         assert pool._crash_count_browser == initial_crash_count + 1
         assert inst not in pool._browsers
-
-        await pool.shutdown()
-
-    @pytest.mark.asyncio
-    async def test_external_disconnect_does_not_trigger_circuit_breaker(self) -> None:
-        config = BrowserConfig.defensive()
-        pool = GlobalBrowserPool(max_browsers=2, config=config)
-
-        mock_browser = _mock_browser()
-        mock_browser.on = MagicMock()
-        mock_browser.close = AsyncMock()
-
-        inst = BrowserInstance(browser=mock_browser, is_managed=False)
-        pool._browsers.append(inst)
-
-        cb = pool._circuit_breaker
-        assert cb is not None
-        crash_domain = cb._GLOBAL_CRASH_DOMAIN
-        initial_failures = cb._failure_counts[crash_domain]
-
-        await pool._handle_browser_disconnected(inst)
-
-        assert cb._failure_counts[crash_domain] == initial_failures
 
         await pool.shutdown()
 
@@ -568,27 +543,6 @@ class TestLifecycleTickExternalBrowser:
         await pool.shutdown()
 
     @pytest.mark.asyncio
-    async def test_lifecycle_tick_external_unresponsive_no_circuit_breaker(
-        self,
-    ) -> None:
-        config = BrowserConfig.defensive()
-        pool = GlobalBrowserPool(max_browsers=2, config=config)
-
-        inst = _inst_with_unresponsive_page(pool, is_managed=False)
-
-        cb = pool._circuit_breaker
-        assert cb is not None
-        crash_domain = cb._GLOBAL_CRASH_DOMAIN
-        initial_failures = cb._failure_counts[crash_domain]
-
-        await pool._lifecycle_tick()
-
-        assert cb._failure_counts[crash_domain] == initial_failures
-        assert inst not in pool._browsers
-
-        await pool.shutdown()
-
-    @pytest.mark.asyncio
     async def test_lifecycle_tick_healthy_page_kept(self) -> None:
         pool = GlobalBrowserPool(max_browsers=2)
 
@@ -672,29 +626,3 @@ class TestLifecycleTickExternalBrowser:
         assert inst not in pool._browsers
 
         await pool.shutdown()
-
-
-# ---------------------------------------------------------------------------
-# CircuitBreaker.record_failure with URL
-# ---------------------------------------------------------------------------
-
-
-class TestCircuitBreakerRecordFailure:
-    def test_record_failure_no_url_uses_global_domain(self) -> None:
-        from myrm_agent_harness.toolkits.browser.pool.circuit_breaker import (
-            CircuitBreaker,
-        )
-
-        cb = CircuitBreaker(failure_threshold=5)
-        cb.record_failure()
-        assert cb._failure_counts[cb._GLOBAL_CRASH_DOMAIN] == 1
-
-    def test_record_failure_with_url_uses_domain(self) -> None:
-        from myrm_agent_harness.toolkits.browser.pool.circuit_breaker import (
-            CircuitBreaker,
-        )
-
-        cb = CircuitBreaker(failure_threshold=5)
-        cb.record_failure("http://example.com/page")
-        assert cb._failure_counts["example.com"] == 1
-        assert cb._failure_counts[cb._GLOBAL_CRASH_DOMAIN] == 0

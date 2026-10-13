@@ -40,6 +40,7 @@ def _fast_poll(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
 
 def _session() -> MagicMock:
     session = MagicMock()
+    session.active_tab_crashed = MagicMock(return_value=False)
     session.recover_active_tab = AsyncMock(return_value=None)
     session.take_tab_reset_notice = MagicMock(return_value=None)
     return session

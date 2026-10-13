@@ -18,7 +18,6 @@ Run with: ./myrm test -m e2e tests/toolkits/browser/test_browser_e2e_secret_reda
 from __future__ import annotations
 
 import asyncio
-import time
 import urllib.request
 
 import pytest
@@ -26,6 +25,7 @@ from langchain_core.tools import BaseTool
 
 from myrm_agent_harness.toolkits.browser.pool import ContextType, GlobalBrowserPool
 from myrm_agent_harness.toolkits.browser.session import BrowserSession
+from myrm_agent_harness.toolkits.browser.session.browser_session_network_mixin import CONSOLE_CAPTURE_UNAVAILABLE
 from myrm_agent_harness.toolkits.browser.tools import create_browser_tools
 
 
@@ -184,34 +184,22 @@ async def test_e2e_navigate_redacts_oauth_code_query(
 
 @pytest.mark.e2e
 @pytest.mark.asyncio
-async def test_e2e_manage_console_log_redacts_page_secrets(
+async def test_e2e_manage_console_log_reports_unavailable_without_leaking(
     browser_session: BrowserSession,
 ) -> None:
-    """browser_manage console_log must redact credentials logged by page JS."""
+    """The default engine captures no console, so `console_log` says so and cannot leak what the page logged.
+
+    Redaction of captured console text is covered by the ConsoleLogger unit tests; this engine never
+    produces any (see session/test_console_capture_integration.py for the proof).
+    """
     page = browser_session._tab_controller.get_active_page()
-    await page.set_content(
-        "<!DOCTYPE html><html><body><script>"
-        'console.log("loaded key sk-proj-abcdefghijklmnop1234567890")'
-        "</script></body></html>"
-    )
-    console = await _wait_for_console_marker(browser_session)
-    assert console, "console capture never received the secret log line"
+    await page.evaluate('console.log("loaded key sk-proj-abcdefghijklmnop1234567890")')
+    await asyncio.sleep(0.5)
     tools = create_browser_tools(browser_session)
     tool_dict = {tool.name: tool for tool in tools}
     result = await _invoke(tool_dict["browser_manage_tool"], {"action": "console_log", "value": ""})
+    assert CONSOLE_CAPTURE_UNAVAILABLE in result
     assert "sk-proj-abcdefghijklmnop1234567890" not in result
-
-
-async def _wait_for_console_marker(browser_session: BrowserSession) -> str:
-    """Poll console capture until the secret log line arrives (no fixed sleep)."""
-    deadline = time.monotonic() + 5.0
-    last = ""
-    while time.monotonic() < deadline:
-        last = browser_session.get_console_log()
-        if "sk-proj-abcdefghijklmnop1234567890" in last:
-            return last
-        await asyncio.sleep(0.2)
-    return last
 
 
 @pytest.mark.e2e

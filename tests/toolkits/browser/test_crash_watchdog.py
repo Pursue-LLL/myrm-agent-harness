@@ -20,7 +20,6 @@ import pytest
 
 from myrm_agent_harness.toolkits.browser.pool import GlobalBrowserPool
 from myrm_agent_harness.toolkits.browser.pool.browser_launcher import BrowserInstance
-from myrm_agent_harness.toolkits.browser.pool.config import BrowserConfig
 
 
 def _mock_browser() -> MagicMock:
@@ -101,20 +100,29 @@ async def test_disconnect_handling_is_idempotent() -> None:
 
 
 @pytest.mark.asyncio
-async def test_managed_disconnect_records_circuit_breaker_failure() -> None:
-    """Managed-browser disconnect must record a circuit-breaker failure."""
-    config = BrowserConfig.defensive()
-    pool = GlobalBrowserPool(max_browsers=2, config=config)
-    inst = _inst_with_pool(pool, is_managed=True)
-
-    cb = pool._circuit_breaker
-    assert cb is not None
-    crash_domain = cb._GLOBAL_CRASH_DOMAIN
-    before = cb._failure_counts[crash_domain]
+async def test_a_close_the_pool_started_is_not_a_crash_but_still_returns_its_slots() -> None:
+    """An expected close is routine: no crash count, yet the held permits still come back."""
+    pool = GlobalBrowserPool(max_browsers=2)
+    pool._global_semaphore = asyncio.Semaphore(10)
+    inst = _inst_with_pool(pool, is_managed=True, load=2)
+    inst.expected_close = True
 
     await pool._handle_browser_disconnected(inst)
 
-    assert cb._failure_counts[crash_domain] == before + 1
+    assert pool._crash_count_browser == 0
+    assert pool._global_semaphore._value == 12
+    assert inst not in pool._browsers
+    await pool.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_a_managed_disconnect_nobody_asked_for_is_a_crash() -> None:
+    pool = GlobalBrowserPool(max_browsers=2)
+    inst = _inst_with_pool(pool, is_managed=True)
+
+    await pool._handle_browser_disconnected(inst)
+
+    assert pool._crash_count_browser == 1
     await pool.shutdown()
 
 
@@ -239,22 +247,19 @@ async def test_lifecycle_tick_skips_disconnected_and_evicts_idle() -> None:
 
 
 @pytest.mark.asyncio
-async def test_lifecycle_tick_managed_dead_records_circuit_breaker() -> None:
-    """A managed browser that fails liveness during the tick records a circuit-breaker failure."""
-    pool = GlobalBrowserPool(max_browsers=2, config=BrowserConfig.defensive())
+async def test_lifecycle_tick_managed_dead_is_counted_as_a_crash() -> None:
+    """A managed browser that fails liveness during the tick is a crash and leaves the pool."""
+    pool = GlobalBrowserPool(max_browsers=2)
 
     page = MagicMock()
     page.evaluate = AsyncMock(side_effect=RuntimeError("target closed"))
     inst = _inst_with_pool(pool, is_managed=True, busy={page})
 
-    cb = pool._circuit_breaker
-    assert cb is not None
-    crash_domain = cb._GLOBAL_CRASH_DOMAIN
-    before = cb._failure_counts[crash_domain]
+    before = pool._crash_count_browser
 
     await pool._lifecycle_tick()
 
-    assert cb._failure_counts[crash_domain] == before + 1
+    assert pool._crash_count_browser == before + 1
     assert inst not in pool._browsers
     await pool.shutdown()
 

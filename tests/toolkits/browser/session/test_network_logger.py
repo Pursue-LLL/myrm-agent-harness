@@ -3,6 +3,8 @@
 import time
 from unittest.mock import Mock
 
+from patchright.async_api import Page
+
 from myrm_agent_harness.toolkits.browser.session.network_logger import (
     NetworkLogger,
     RequestInfo,
@@ -409,12 +411,12 @@ class TestNetworkLogger:
 
 
 class TestNetworkLoggerIntegration:
-    """Integration tests for NetworkLogger with mock Page."""
+    """NetworkLogger against a page with the real Page API (attribute names are checked, not just calls)."""
 
     def test_start_capture_registers_handlers(self):
         """Test start_capture registers event handlers."""
         logger = NetworkLogger()
-        mock_page = Mock()
+        mock_page = Mock(spec=Page)
 
         logger.start_capture(mock_page)
 
@@ -427,47 +429,47 @@ class TestNetworkLoggerIntegration:
     def test_start_capture_idempotent_same_page(self) -> None:
         """Second start_capture on same page must not stack listeners."""
         logger = NetworkLogger()
-        mock_page = Mock()
+        mock_page = Mock(spec=Page)
         logger.start_capture(mock_page)
         logger.start_capture(mock_page)
         assert mock_page.on.call_count == 3
-        assert mock_page.off.call_count == 0
+        assert mock_page.remove_listener.call_count == 0
 
     def test_start_capture_switches_page_detaches_previous(self) -> None:
         """Binding a new page removes listeners from the previous page."""
         logger = NetworkLogger()
-        page_a = Mock()
-        page_b = Mock()
+        page_a = Mock(spec=Page)
+        page_b = Mock(spec=Page)
         logger.start_capture(page_a)
         logger.start_capture(page_b)
-        assert page_a.off.call_count == 3
+        assert page_a.remove_listener.call_count == 3
         assert page_b.on.call_count == 3
         assert logger.bound_page is page_b
 
     def test_stop_capture_detaches_when_bound(self) -> None:
         """stop_capture removes listeners from the bound page."""
         logger = NetworkLogger()
-        mock_page = Mock()
+        mock_page = Mock(spec=Page)
         logger.start_capture(mock_page)
         logger.stop_capture()
-        assert mock_page.off.call_count == 3
+        assert mock_page.remove_listener.call_count == 3
         assert logger.bound_page is None
 
     def test_detach_page_ignores_non_bound(self) -> None:
         """detach_page no-op when page is not the bound instance."""
         logger = NetworkLogger()
-        page_a = Mock()
-        page_b = Mock()
+        page_a = Mock(spec=Page)
+        page_b = Mock(spec=Page)
         logger.start_capture(page_a)
         logger.detach_page(page_b)
-        assert page_a.off.call_count == 0
+        assert page_a.remove_listener.call_count == 0
         assert logger.bound_page is page_a
 
     def test_stop_capture_clears_pending(self):
         """Test stop_capture clears pending state."""
         logger = NetworkLogger()
 
-        mock_req = Mock()
+        mock_req = Mock(spec=Page)
         logger._pending[mock_req] = 0.0
 
         assert len(logger._pending) == 1
@@ -480,7 +482,7 @@ class TestNetworkLoggerIntegration:
         """Test full request/response capture cycle."""
         logger = NetworkLogger()
 
-        mock_request = Mock()
+        mock_request = Mock(spec=Page)
         mock_request.method = "GET"
         mock_request.url = "https://api.example.com/data"
         mock_request.resource_type = "xhr"
@@ -488,7 +490,7 @@ class TestNetworkLoggerIntegration:
         logger._on_request(mock_request)
         assert mock_request in logger._pending
 
-        mock_response = Mock()
+        mock_response = Mock(spec=Page)
         mock_response.request = mock_request
         mock_response.status = 200
         mock_response.status_text = "OK"
@@ -506,7 +508,7 @@ class TestNetworkLoggerIntegration:
         """Test request failure handling."""
         logger = NetworkLogger()
 
-        mock_request = Mock()
+        mock_request = Mock(spec=Page)
         mock_request.method = "POST"
         mock_request.url = "https://api.example.com/submit"
         mock_request.resource_type = "fetch"
@@ -745,4 +747,3 @@ class TestNetworkLoggerEdgeCases:
 
         # Transferred should include at least baseline 1024 + post_data bytes (19 bytes)
         assert telemetry.total_bytes_transferred >= 2048 + 1024 + 19
-

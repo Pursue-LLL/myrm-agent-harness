@@ -45,6 +45,9 @@ async def mock_browser_session():
         def take_tab_reset_notice(self) -> str | None:
             return None
 
+        def active_tab_crashed(self) -> bool:
+            return False
+
     return MockBrowserSession()
 
 

@@ -8,16 +8,15 @@ concurrency limit for good.
 
 from __future__ import annotations
 
-import asyncio
 import contextlib
 from collections.abc import AsyncIterator
 
 import pytest
-from patchright.async_api import Page
 
 from myrm_agent_harness.toolkits.browser.pool import ContextType, GlobalBrowserPool
 from myrm_agent_harness.toolkits.browser.pool.config import BrowserPoolConfig
 from tests.toolkits.browser._browser_available import chromium_available
+from tests.toolkits.browser._page_crash import crash_page
 
 pytestmark = [
     pytest.mark.integration,
@@ -27,9 +26,6 @@ pytestmark = [
 
 _LIMIT = 3
 _CONTEXT_KEY = "crash-accounting"
-_CRASH_URL = "chrome://crash"
-_CRASH_NAVIGATION_TIMEOUT_MS = 5_000
-_CRASH_EVENT_TIMEOUT_S = 10.0
 
 
 @contextlib.asynccontextmanager
@@ -41,22 +37,12 @@ async def _pool() -> AsyncIterator[GlobalBrowserPool]:
         await pool.shutdown()
 
 
-async def _crash(pool: GlobalBrowserPool, page: Page) -> None:
-    """Crash the page's renderer and wait until the pool's crash handler has finished with the event."""
-    crashed = asyncio.Event()
-    page.on("crash", lambda _page: crashed.set())  # registered after the pool's own listener
-    with contextlib.suppress(Exception):
-        await page.goto(_CRASH_URL, timeout=_CRASH_NAVIGATION_TIMEOUT_MS)
-    await asyncio.wait_for(crashed.wait(), _CRASH_EVENT_TIMEOUT_S)
-    await asyncio.gather(*pool._crash_tasks)
-
-
 async def test_idle_page_crash_leaves_the_permit_count_alone() -> None:
     async with _pool() as pool:
         for _ in range(2):
             page, key = await pool.acquire_page(ContextType.AGENT, context_key=_CONTEXT_KEY)
             await pool.release_page(page, key)
-            await _crash(pool, page)
+            await crash_page(pool, page)
 
             assert pool._global_semaphore._value == _LIMIT
             assert not pool._crash_handled_pages
@@ -76,7 +62,7 @@ async def test_held_page_crash_returns_its_permit_exactly_once() -> None:
         page, key = await pool.acquire_page(ContextType.AGENT, context_key=_CONTEXT_KEY)
         assert pool._global_semaphore._value == _LIMIT - 1
 
-        await _crash(pool, page)
+        await crash_page(pool, page)
         assert pool._global_semaphore._value == _LIMIT
         assert pool._crash_count_page == 1
 

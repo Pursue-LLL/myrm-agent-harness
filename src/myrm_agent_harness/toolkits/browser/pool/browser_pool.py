@@ -351,14 +351,18 @@ class GlobalBrowserPool(CrashWatchdogMixin):
             self._ensure_lifecycle_loop()
             return page, ctx_key
 
-    async def destroy_context(self, context_key: str) -> None:
+    async def destroy_context(self, context_key: str, *, only_if_idle: bool = False) -> bool:
         """Explicitly destroy a context and its associated page pool.
 
         Args:
             context_key: The identifier of the context to destroy
+            only_if_idle: Keep the context, instead of raising, while another session still holds pages in it
+
+        Returns:
+            True when the context was destroyed.
 
         Raises:
-            RuntimeError: If there are still active pages in the context's page pool.
+            RuntimeError: Pages are still in use and ``only_if_idle`` is not set.
         """
         logger.info(f"Attempting to destroy context: {context_key}")
         async with self._lock:
@@ -368,6 +372,9 @@ class GlobalBrowserPool(CrashWatchdogMixin):
 
                     # Safety Guard: Ensure no pages are currently in use
                     if pool and pool.active_pages_count > 0:
+                        if only_if_idle:
+                            logger.info(f"Context {context_key} kept: {pool.active_pages_count} pages in use")
+                            return False
                         logger.error(
                             f"Concurrency Guard Triggered: {pool.active_pages_count} pages still active in {context_key}"
                         )
@@ -388,15 +395,10 @@ class GlobalBrowserPool(CrashWatchdogMixin):
                         logger.info(f"Successfully destroyed context: {context_key}")
                     except Exception as e:
                         logger.warning(f"Error while destroying context {context_key}: {e}")
-
-                    # Also check if this browser instance has no more contexts, if so we could close it
-                    if not browser_inst.contexts:
-                        logger.info(
-                            f"Browser instance {browser_inst.engine} has no more contexts, but keeping it alive for future use."
-                        )
-                    return
+                    return True
 
             logger.warning(f"Context {context_key} not found for destruction")
+            return False
 
     async def release_page(self, page: Page, context_key: str) -> None:
         """Release Page back to pool (free global concurrency slot).
@@ -547,6 +549,7 @@ class GlobalBrowserPool(CrashWatchdogMixin):
                 await context.close()
 
         if browser_inst.is_managed:
+            browser_inst.expected_close = True  # the disconnect this triggers is ours, not a crash
             try:
                 # Try graceful close first with a timeout
                 await asyncio.wait_for(browser_inst.browser.close(), timeout=5.0)
@@ -701,10 +704,6 @@ class GlobalBrowserPool(CrashWatchdogMixin):
 
         if utilization > 90:
             issues.append(f"High utilization: {utilization:.0f}%")
-
-        cb_stats = pool_stats.get("circuit_breaker", {})
-        if isinstance(cb_stats, dict) and cb_stats.get("state") == "OPEN":
-            issues.append(f"Circuit breaker OPEN (failures: {cb_stats.get('failure_count', 0)})")
 
         browsers_snapshot = list(self._browsers)
         browsers_total = len(browsers_snapshot)

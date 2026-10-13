@@ -94,8 +94,5 @@ class FakePage:
     def on(self, *_args: object) -> None:
         return None
 
-    def off(self, *_args: object) -> None:
-        return None
-
     def remove_listener(self, *_args: object) -> None:
         return None

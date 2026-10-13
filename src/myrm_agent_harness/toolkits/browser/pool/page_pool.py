@@ -198,7 +198,7 @@ class PagePool:
             self._idle.clear()
             self._busy.clear()
 
-            logger.warning(
+            logger.info(
                 f"PagePool shutdown — stats: acquires={self._total_acquires}, "
                 f"resets={self._total_resets}, fast_success={self._fast_reset_success}, "
                 f"fast_failures={self._fast_reset_failures}",

@@ -46,6 +46,7 @@ def mock_session() -> Any:
     session.save_pdf = AsyncMock(return_value="Saved PDF to /tmp/page.pdf")
     session.resize = AsyncMock(return_value="Resized to 1920x1080")
     session.wait_for_load = AsyncMock(return_value="Page loaded")
+    session.active_tab_crashed = MagicMock(return_value=False)
     session.get_console_log = MagicMock(return_value="Console: log message")
     session.get_network_log = MagicMock(return_value="Network: GET /api")
     session.set_dialog_response = AsyncMock(return_value="Dialog configured: accept")

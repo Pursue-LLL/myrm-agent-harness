@@ -3,15 +3,15 @@
 [INPUT]
 - patchright.async_api::Browser, Page (POS: Patchright browser and page instances)
 - .browser_launcher::BrowserInstance (POS: browser instance metadata)
-- .circuit_breaker::CircuitBreaker (POS: circuit breaker)
 - utils.page_health::probe_alive, probe_browser_alive (POS: bounded browser and page health primitives)
 
 [OUTPUT]
-- CrashWatchdogMixin: three-layer crash detection + semaphore safety net mixin
+- CrashWatchdogMixin: three-layer crash detection + semaphore safety net mixin; `is_page_crashed` tells a caller its held page died
 
 [POS]
 Provides automatic crash recovery for GlobalBrowserPool:
-- L1: browser.on('disconnected') real-time browser process crash detection
+- L1: browser.on('disconnected') real-time browser process crash detection; a close the pool or a session
+  started (`BrowserInstance.expected_close`) and an external browser's disconnect are routine, not crashes
 - L2: page.on('crash') real-time page renderer crash detection
 - L3: _lifecycle_tick periodic fallback (30s interval); liveness = browser-level CDP round trip
   first, pooled-page evaluate as second opinion, so a slow or wedged page never evicts a live browser
@@ -32,7 +32,6 @@ if TYPE_CHECKING:
     from patchright.async_api import Browser, Page
 
     from .browser_launcher import BrowserInstance
-    from .circuit_breaker import CircuitBreaker
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +47,6 @@ class CrashWatchdogMixin:
     - _lock: asyncio.Lock
     - _global_semaphore: asyncio.Semaphore
     - _current_pages_in_use: int
-    - _circuit_breaker: CircuitBreaker | None
     - _config: BrowserPoolConfig (with idle_timeout_seconds)
     """
 
@@ -56,7 +54,6 @@ class CrashWatchdogMixin:
     _lock: asyncio.Lock
     _global_semaphore: asyncio.Semaphore
     _current_pages_in_use: int
-    _circuit_breaker: CircuitBreaker | None
     _crash_handled_pages: set[int]
     _crash_count_browser: int
     _crash_count_page: int
@@ -79,17 +76,18 @@ class CrashWatchdogMixin:
     async def _handle_browser_disconnected(self, inst: BrowserInstance) -> None:
         """Handle browser disconnect event — release semaphore slots and cleanup.
 
-        For external (CDP-connected) browsers, disconnect is normal (user closed Chrome),
-        not a crash — do not increment crash_count or trigger circuit breaker.
+        Only a managed browser that nobody asked to close is a crash. An external (CDP-connected)
+        browser disconnects normally (the user closed Chrome), and a close the pool or a session
+        initiated (`expected_close`) is routine: neither counts as a crash.
         """
-        is_external = not inst.is_managed
+        is_crash = inst.is_managed and not inst.expected_close
 
         async with self._lock:
             if inst._disconnected:
                 return
             inst._disconnected = True
 
-            if not is_external:
+            if is_crash:
                 self._crash_count_browser += 1
 
             slots_to_release = inst.load
@@ -98,21 +96,23 @@ class CrashWatchdogMixin:
             if inst in self._browsers:
                 self._browsers.remove(inst)
 
-            if self._circuit_breaker and not is_external:
-                self._circuit_breaker.record_failure()
-
         for _ in range(slots_to_release):
             self._global_semaphore.release()
 
-        if is_external:
-            logger.info(f"External browser disconnected — released {slots_to_release} semaphore slots")
-        else:
+        if is_crash:
             logger.warning(
                 f"Browser crashed — released {slots_to_release} semaphore slots, "
                 f"crash_count_browser={self._crash_count_browser}",
             )
+        else:
+            logger.info(f"Browser disconnected — released {slots_to_release} semaphore slots")
 
-        await self._close_browser_instance(inst)
+    def is_page_crashed(self, page: Page) -> bool:
+        """Whether the renderer of a page a caller holds has crashed (the caller's release clears the mark).
+
+        A crashed page stays open from the driver's point of view: `is_closed()` is False and every call on it fails.
+        """
+        return id(page) in self._crash_handled_pages
 
     def _register_page_crash_handler(self, page: Page, inst: BrowserInstance) -> None:
         """Register page.on('crash') for real-time page crash detection (L2)."""
@@ -196,8 +196,6 @@ class CrashWatchdogMixin:
                         logger.warning(f"Lifecycle: browser crashed (load={slots_to_release}), removing from pool")
                     self._browsers.remove(inst)
                     evicted.append((inst, slots_to_release))
-                    if self._circuit_breaker and not is_external:
-                        self._circuit_breaker.record_failure()
                     continue
 
                 if inst.load == 0 and idle_timeout > 0 and (now - inst.last_active_at) > idle_timeout:

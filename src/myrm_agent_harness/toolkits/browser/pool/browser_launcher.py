@@ -11,7 +11,7 @@
 
 [OUTPUT]
 - BrowserLauncher: browser instance launcher (supports launch/connect/auto modes)
-- BrowserInstance: browser instance metadata container (includes is_managed, last_active_at, _disconnected)
+- BrowserInstance: browser instance metadata container (includes is_managed, last_active_at, _disconnected, expected_close)
 
 [POS]
 Dedicated to browser instance launching, including:
@@ -193,6 +193,8 @@ class BrowserInstance:
 
     is_managed: True when launched by BrowserLauncher; False when attached via CDP.
     _disconnected: Set on browser disconnect to avoid duplicate semaphore release.
+    expected_close: Set before the pool or a session closes the browser on purpose (idle eviction,
+        shutdown, engine switch), so the disconnect that follows is not read as a crash.
     """
 
     browser: Browser
@@ -203,6 +205,7 @@ class BrowserInstance:
     last_active_at: float = field(default_factory=time.monotonic)
     _disconnected: bool = False
     is_managed: bool = True
+    expected_close: bool = False
 
 
 class BrowserLauncher:
@@ -281,15 +284,11 @@ class BrowserLauncher:
                 raise BrowserLaunchError(msg)
             return await self._connect_existing(e2e_endpoint, headers=headers)
 
-        if self._launch_mode == LaunchMode.CONNECT:
+        if self._launch_mode in (LaunchMode.CONNECT, LaunchMode.AUTO):
             discovered = await self._discover_local_chrome()
             endpoint_to_try = discovered or self._cdp_endpoint
-            return await self._connect_existing(endpoint_to_try, headers=headers)
-
-        if self._launch_mode == LaunchMode.AUTO:
-            discovered = await self._discover_local_chrome()
-            endpoint_to_try = discovered or self._cdp_endpoint
-
+            if self._launch_mode == LaunchMode.CONNECT:
+                return await self._connect_existing(endpoint_to_try, headers=headers)
             if await self._probe_cdp(endpoint_to_try):
                 try:
                     inst = await self._connect_existing(endpoint_to_try, headers=headers)

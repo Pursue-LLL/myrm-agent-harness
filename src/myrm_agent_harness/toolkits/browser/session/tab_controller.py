@@ -133,7 +133,7 @@ class TabController:
 
         self._active_tab_id = tab_id
 
-        logger.warning(f"TabController: created {tab_id} (total: {len(self._tabs)})")
+        logger.info(f"TabController: created {tab_id} (total: {len(self._tabs)})")
         return tab_id
 
     async def close_tab(self, tab_id: str) -> None:
@@ -161,7 +161,7 @@ class TabController:
             else:
                 self._active_tab_id = next(iter(self._tabs), None)
 
-        logger.warning(f"TabController: closed {tab_id} (remaining: {len(self._tabs)})")
+        logger.info(f"TabController: closed {tab_id} (remaining: {len(self._tabs)})")
 
     async def switch_tab(self, tab_id: str) -> None:
         """Switch active tab.
@@ -179,7 +179,7 @@ class TabController:
         except Exception as exc:
             logger.warning("Failed to bring tab to front: %s", exc)
         self._tabs[tab_id].last_used = time.monotonic()
-        logger.warning(f"TabController: switched to {tab_id}")
+        logger.info(f"TabController: switched to {tab_id}")
 
     def get_active_page(self) -> Page:
         """Return the active page.
@@ -357,7 +357,7 @@ class TabController:
             with contextlib.suppress(Exception):
                 await self._on_tab_created(popup_page)
 
-        logger.warning(
+        logger.info(
             "TabController: captured popup %s (parent=%s, total=%d)",
             tab_id,
             parent_tab_id,
@@ -386,7 +386,7 @@ class TabController:
             else:
                 self._active_tab_id = next(iter(self._tabs), None)
 
-        logger.warning(
+        logger.info(
             "TabController: popup %s closed, switched to %s (remaining=%d)",
             tab_id,
             self._active_tab_id,
@@ -414,7 +414,7 @@ class TabController:
 
         lru_tab_id = min(non_active, key=lambda tid: self._tabs[tid].last_used)
         await self.close_tab(lru_tab_id)
-        logger.warning(f"TabController: evicted LRU tab {lru_tab_id}")
+        logger.info(f"TabController: evicted LRU tab {lru_tab_id}")
 
     async def close_all(self) -> None:
         """Close all tabs (called on session teardown)."""
@@ -422,7 +422,7 @@ class TabController:
         for tab_id in tab_ids:
             await self.close_tab(tab_id)
 
-        logger.warning("TabController: closed all tabs")
+        logger.info("TabController: closed all tabs")
 
     @property
     def stats(self) -> dict[str, object]:

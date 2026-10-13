@@ -17,6 +17,7 @@ import time
 from unittest.mock import MagicMock
 
 import pytest
+from patchright.async_api import Page
 
 from myrm_agent_harness.toolkits.browser.session.console_logger import (
     _ERROR_TYPES,
@@ -180,7 +181,7 @@ class TestConsoleLoggerStartCapture:
 
     def test_binds_to_page(self) -> None:
         logger = ConsoleLogger()
-        page = MagicMock()
+        page = MagicMock(spec=Page)
 
         logger.start_capture(page)
 
@@ -190,7 +191,7 @@ class TestConsoleLoggerStartCapture:
 
     def test_idempotent_same_page(self) -> None:
         logger = ConsoleLogger()
-        page = MagicMock()
+        page = MagicMock(spec=Page)
 
         logger.start_capture(page)
         logger.start_capture(page)
@@ -199,14 +200,14 @@ class TestConsoleLoggerStartCapture:
 
     def test_auto_detach_previous_page(self) -> None:
         logger = ConsoleLogger()
-        page1 = MagicMock()
-        page2 = MagicMock()
+        page1 = MagicMock(spec=Page)
+        page2 = MagicMock(spec=Page)
 
         logger.start_capture(page1)
         logger.start_capture(page2)
 
-        page1.off.assert_any_call("console", logger._cb_console)
-        page1.off.assert_any_call("pageerror", logger._cb_pageerror)
+        page1.remove_listener.assert_any_call("console", logger._cb_console)
+        page1.remove_listener.assert_any_call("pageerror", logger._cb_pageerror)
         assert logger._bound_page is page2
 
 
@@ -215,29 +216,29 @@ class TestConsoleLoggerDetach:
 
     def test_detach_matching_page(self) -> None:
         logger = ConsoleLogger()
-        page = MagicMock()
+        page = MagicMock(spec=Page)
         logger.start_capture(page)
 
         logger.detach_page(page)
 
-        page.off.assert_any_call("console", logger._cb_console)
-        page.off.assert_any_call("pageerror", logger._cb_pageerror)
+        page.remove_listener.assert_any_call("console", logger._cb_console)
+        page.remove_listener.assert_any_call("pageerror", logger._cb_pageerror)
         assert logger._bound_page is None
 
     def test_detach_mismatched_page_noop(self) -> None:
         logger = ConsoleLogger()
-        page1 = MagicMock()
-        page2 = MagicMock()
+        page1 = MagicMock(spec=Page)
+        page2 = MagicMock(spec=Page)
         logger.start_capture(page1)
 
         logger.detach_page(page2)
 
-        page2.off.assert_not_called()
+        page2.remove_listener.assert_not_called()
         assert logger._bound_page is page1
 
     def test_detach_current_clears_binding(self) -> None:
         logger = ConsoleLogger()
-        page = MagicMock()
+        page = MagicMock(spec=Page)
         logger.start_capture(page)
 
         logger.detach_current()
@@ -248,10 +249,10 @@ class TestConsoleLoggerDetach:
         logger = ConsoleLogger()
         logger.detach_current()  # should not raise
 
-    def test_detach_handles_exception_in_off(self) -> None:
+    def test_detach_handles_exception_in_remove_listener(self) -> None:
         logger = ConsoleLogger()
-        page = MagicMock()
-        page.off.side_effect = RuntimeError("page closed")
+        page = MagicMock(spec=Page)
+        page.remove_listener.side_effect = RuntimeError("page closed")
         logger._bound_page = page
 
         logger.detach_page(page)
@@ -264,7 +265,7 @@ class TestConsoleLoggerStopCapture:
 
     def test_stop_detaches_page(self) -> None:
         logger = ConsoleLogger()
-        page = MagicMock()
+        page = MagicMock(spec=Page)
         logger.start_capture(page)
 
         logger.stop_capture()
@@ -273,7 +274,7 @@ class TestConsoleLoggerStopCapture:
 
     def test_stop_preserves_entries(self) -> None:
         logger = ConsoleLogger()
-        page = MagicMock()
+        page = MagicMock(spec=Page)
         logger.start_capture(page)
 
         msg = MagicMock()

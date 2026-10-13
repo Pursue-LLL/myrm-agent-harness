@@ -164,17 +164,6 @@ class CircuitBreaker:
             self._failure_counts[domain] = 0
             self.callback.on_open(domain, failure_count)
 
-    _GLOBAL_CRASH_DOMAIN = "__browser_crash__"
-
-    def record_failure(self, url: str | None = None) -> None:
-        """Record a failure for the given URL or global browser crash.
-
-        When called without arguments (from CrashWatchdogMixin on browser crash),
-        uses a synthetic domain to track browser-level failures.
-        """
-        domain = self._extract_domain(url) if url else self._GLOBAL_CRASH_DOMAIN
-        self._on_failure(domain)
-
     def get_state(self, url: str) -> str:
         """Get the circuit breaker state.
 

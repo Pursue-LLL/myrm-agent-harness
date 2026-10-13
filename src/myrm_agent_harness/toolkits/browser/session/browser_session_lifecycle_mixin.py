@@ -19,7 +19,6 @@ back onto the previous engine when the new one fails to launch.
 
 from __future__ import annotations
 
-import asyncio
 import contextlib
 import logging
 from pathlib import Path
@@ -82,37 +81,11 @@ class BrowserSessionLifecycleMixin:
                 current_url = page.url
                 current_storage_state = await page.context.storage_state()
 
-        # Close current session resources (tabs, observers)
-        # This will also trigger context destruction via BrowserSession.close()
-
-        # Save the old context key before closing, because close() might clear it
-        old_context_key = self._context_key
-
-        # We must CLOSE FIRST to detach loggers and close tabs, otherwise pages are still "active"
-        # But we temporarily set context_key to None so close() doesn't try to destroy it
-        self._context_key = None
+        # close() releases the tabs and observers and destroys the context unless another
+        # session still holds pages in it; the restarted session keeps its context identity.
+        context_key = self._context_key
         await self.close()
-
-        # Now explicitly destroy the context
-        if old_context_key:
-            try:
-                # Give the event loop a tiny moment to process the async close
-                await asyncio.sleep(0.5)
-                # Force release all pages in the pool to bypass the concurrency guard
-                for browser_inst in self._browser_pool._browsers:
-                    if old_context_key in browser_inst.page_pools:
-                        pool = browser_inst.page_pools[old_context_key]
-                        # Clear busy pages so destroy_context doesn't raise RuntimeError
-                        pool._busy.clear()
-                        # Also clear the global pages in use counter
-                        self._browser_pool._current_pages_in_use = max(
-                            0, self._browser_pool._current_pages_in_use - pool.active_pages_count
-                        )
-
-                # Call destroy directly instead of going through the pool method to avoid lock issues
-                await self._browser_pool.destroy_context(old_context_key)
-            except Exception as e:
-                logger.warning(f"Failed to destroy old context during restart: {e}")
+        self._context_key = context_key
 
         # Also clean up the browser instance if it has no more contexts
         try:
@@ -122,6 +95,7 @@ class BrowserSessionLifecycleMixin:
                     logger.info(f"Browser instance {browser_inst.engine} has no more contexts, closing it.")
                     # Ensure we actually close the browser process
                     if browser_inst.browser:
+                        browser_inst.expected_close = True
                         try:
                             await browser_inst.browser.close()
                         except Exception as e:
@@ -133,17 +107,6 @@ class BrowserSessionLifecycleMixin:
                     self._browser_pool._browsers.remove(b)
         except Exception as e:
             logger.warning(f"Failed to close empty browser instance during restart: {e}")
-
-        # Force remove contexts from the pool's tracking if they still exist
-        try:
-            for browser_inst in self._browser_pool._browsers:
-                if old_context_key in browser_inst.contexts:
-                    logger.warning(f"Forcing removal of context {old_context_key} from tracking")
-                    del browser_inst.contexts[old_context_key]
-                if old_context_key in browser_inst.page_pools:
-                    del browser_inst.page_pools[old_context_key]
-        except Exception:
-            pass
 
         # Update session's engine preference
         if target_engine is not None:
@@ -258,28 +221,12 @@ class BrowserSessionLifecycleMixin:
 
         await self._tab_controller.close_all()
 
-        # Explicitly destroy the underlying BrowserContext to prevent memory leaks
-        # We do this AFTER closing tabs so the page_pool is empty and we pass the Concurrency Guard
+        # Destroy the BrowserContext to prevent memory leaks. Tabs are released above, so only
+        # pages of other sessions sharing this key can still be in use: the last session out
+        # destroys the context, an earlier one leaves it (and their tabs and cookies) alone.
         if self._context_key:
             try:
-                # We need to wait a tiny bit for the page release to fully complete in the event loop
-                await asyncio.sleep(0.5)
-                # Ensure we pass the context_key that is currently active before we switch
-                ctx_to_destroy = self._context_key
-
-                # Force release all pages in the pool to bypass the concurrency guard
-                for browser_inst in self._browser_pool._browsers:
-                    if ctx_to_destroy in browser_inst.page_pools:
-                        pool = browser_inst.page_pools[ctx_to_destroy]
-                        # Clear busy pages so destroy_context doesn't raise RuntimeError
-                        pool._busy.clear()
-                        # Also clear the global pages in use counter
-                        self._browser_pool._current_pages_in_use = max(
-                            0, self._browser_pool._current_pages_in_use - pool.active_pages_count
-                        )
-
-                await self._browser_pool.destroy_context(ctx_to_destroy)
-                # Ensure we clear the context key so it's not reused
+                await self._browser_pool.destroy_context(self._context_key, only_if_idle=True)
                 self._context_key = None
             except Exception as e:
                 logger.warning(f"Failed to destroy context during session close: {e}")
