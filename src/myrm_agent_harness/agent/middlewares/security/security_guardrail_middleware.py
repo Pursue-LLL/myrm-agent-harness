@@ -37,6 +37,8 @@ is that the LLM never receives raw credentials/PII, so it cannot echo them.
 
 [INPUT]
 - agent.security.types::PIIAction, SensitivityLevel (POS: Foundation layer of the security type hierarchy. All other security modules import from here; this module imports from none of them.)
+- agent.middlewares.security.tool_result_redaction::redact_tool_content (POS: Content-shape adapter between a ToolMessage and the
+  leak detector, so the guardrail middleware treats a text result and a text + image result alike.)
 
 [OUTPUT]
 - SecurityGuardrailMiddleware: Eight-layer security guardrail for agent conversations.
