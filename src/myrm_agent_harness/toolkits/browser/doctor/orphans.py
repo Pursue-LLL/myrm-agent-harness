@@ -49,8 +49,9 @@ _SIGKILL_SETTLE_S = 1.0
 # Windows has no SIGKILL; there ``os.kill`` terminates the process for any signal that is not a
 # console control event, so SIGTERM is already the hard kill.
 _KILL_SIGNAL = signal.SIGTERM if sys.platform == "win32" else signal.SIGKILL
-# The toolkit launches Chromium builds only, and every process of one carries this in its name
-# (``chrome``, ``chrome-headless-shell``, ``Google Chrome for Testing Helper``, ``chrome_crashpad_handler``).
+# The toolkit launches Chromium builds only, whose binaries and helpers are named after Chrome or Chromium
+# (``chrome``, ``chrome-headless-shell``, ``Google Chrome for Testing Helper``, ``chrome_crashpad_handler``);
+# the real-browser contract test fails when a build stops doing so.
 _CHROMIUM_NAME_MARKER = "chrom"
 
 
