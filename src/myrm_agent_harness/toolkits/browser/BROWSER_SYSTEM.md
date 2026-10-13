@@ -840,7 +840,7 @@ BrowserError (root)
 - **页面卡死自愈**：`navigate()` 遇到 `PageUnresponsiveError` 时调用 `BrowserSession.recover_active_tab()`（`session/browser_session_tab_mixin.py`）：持锁、幂等、10 s 预算，先中止挂起加载再探活，仍无应答则有界关闭该标签页并开一个空白标签页，随后抛出带「标签页已重置为空白页，请重新导航」说明的 `PageUnresponsiveError`（不自动重试）。用户接管（`_user_takeover_active`）期间跳过恢复，不会替人关掉正在操作的页面。
 - **Stop 立即释放**：`create_browser_tools` / `create_restricted_ax_browser_tools` 返回的全部工具（8 个；受限 AX 版本 7 个）都经 `tools/cancel_boundary.py` 包装：每次调用与请求的 `CancellationToken` 赛跑（`utils/runtime/cancellation.py::run_until_cancelled`，0.25 s 轮询），Stop 后取消仍卡在驱动里的调用，恢复标签页，并返回 `CANCELLED_RESULT`（普通结果而非异常，不触发重试或 circuit breaker）。取消令牌缺失时直接透传，行为与未包装一致。
 - **非 Stop 的取消同样自愈**：执行器的工具超时（`asyncio.timeout`）、IM 通道卡死任务看门狗（令牌与任务同时取消）、关停会在不翻转令牌的情况下取消工具；边界对这类 `CancelledError` 同样先 `recover_active_tab()` 再继续抛出，否则卡死页面留在会话里，下一次运行立刻在同一个页面上再卡一次。二次取消落在自愈过程中时取消仍照常传播，自愈自身的 10 s 预算耗尽也不会吞掉取消。
-- **重置提示**：恢复后的标签页是空白页，读类工具对它返回的是「空文档」这种看似成功的结果。`recover_active_tab` 因此记下一条一次性提示（`take_tab_reset_notice`，取出即清除）；`navigate` 在自己的错误里说明后取走它，其余情况由下一次工具的文本结果前置带出，只告诉模型一次。结构化结果与错误不消耗提示。
+- **重置提示**：恢复后的标签页是空白页，读类工具对它返回的是「空文档」这种看似成功的结果。`recover_active_tab` 因此记下一条一次性提示（`take_tab_reset_notice`，取出即清除）；`navigate` 在自己的错误里说明后取走它，其余情况由下一次工具的文本结果前置带出，只告诉模型一次；一次成功的 `navigate` 让页面重新有内容，提示随之作废。结构化结果与错误不消耗提示。
 - **有界清理**：页面关闭与 CDP `detach` 统一走 `utils/page_health.py` 的 `close_page_bounded`（2 s）/ `detach_cdp_bounded`（1 s）；SSRF 守卫路径的 `unroute` 同为 2 s 上限，避免卡死页面在清理阶段继续挂住工具。
 
 ---

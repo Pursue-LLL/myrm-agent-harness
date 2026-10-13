@@ -248,11 +248,15 @@ class TestNavigateHealsUnresponsivePage:
     async def _navigating_session(error: Exception) -> BrowserSession:
         session, _ = await _session(FakePool(FakePage(cdp=FakeCdp(), evaluate="hang"), FakePage(cdp=FakeCdp())))
         session._engine_preference = BrowserEngine.CHROMIUM_PATCHRIGHT  # skip the global engine-affinity lookup
-        session._navigator = MagicMock()
-        session._navigator.goto = AsyncMock(side_effect=error)
-        session._snapshot_manager = MagicMock()
         session._ensure_components = AsyncMock()  # type: ignore[method-assign]
+        TestNavigateHealsUnresponsivePage._bind_navigator(session, AsyncMock(side_effect=error))
         return session
+
+    @staticmethod
+    def _bind_navigator(session: BrowserSession, goto: AsyncMock) -> None:
+        """Rebind the navigation components; a tab swap unbinds them and `_ensure_components` is stubbed here."""
+        session._navigator = MagicMock(goto=goto)
+        session._snapshot_manager = MagicMock()
 
     async def test_wedged_page_is_replaced_and_the_error_says_so(self) -> None:
         original = PageUnresponsiveError("The page stopped responding while loading https://x.test/.")
@@ -290,6 +294,25 @@ class TestNavigateHealsUnresponsivePage:
             await session.navigate("https://x.test/")
 
         session.recover_active_tab.assert_not_awaited()
+
+    async def test_loaded_page_makes_the_pending_notice_obsolete(self) -> None:
+        session = await self._navigating_session(RuntimeError("unused"))
+        assert await session.recover_active_tab() == "tab1"
+        self._bind_navigator(session, AsyncMock(return_value=("Example", "https://x.test/", 200)))
+
+        assert (await session.navigate("https://x.test/")).startswith("Navigated to https://x.test/")
+
+        assert session.take_tab_reset_notice() is None
+
+    async def test_failed_navigation_keeps_the_pending_notice(self) -> None:
+        session = await self._navigating_session(RuntimeError("boom"))
+        assert await session.recover_active_tab() == "tab1"
+        self._bind_navigator(session, AsyncMock(side_effect=RuntimeError("boom")))
+
+        with pytest.raises(RuntimeError, match="boom"):
+            await session.navigate("https://x.test/")
+
+        assert session.take_tab_reset_notice() is not None
 
 
 def _hanging_tool(name: str, started: asyncio.Event) -> StructuredTool:

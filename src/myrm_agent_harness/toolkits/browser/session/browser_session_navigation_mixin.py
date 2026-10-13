@@ -261,6 +261,9 @@ class BrowserSessionNavigationMixin(BrowserSessionTabMixin, BrowserSessionCaptch
                 # If not a proxy error or out of retries, re-raise
                 raise
 
+        # The tab shows a loaded page again, so a pending "reset to a blank page" notice would only mislead.
+        self._pending_tab_reset = None
+
         # CAPTCHA detection: inspect the loaded page for blocking CAPTCHAs
         captcha_result: CaptchaHandleResult | None = None
         if self._captcha_coordinator is not None:

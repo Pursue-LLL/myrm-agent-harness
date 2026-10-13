@@ -122,7 +122,7 @@ async def test_cancellation_while_waiting_for_a_permit_does_not_grow_the_pool(ri
 async def test_cancellations_before_a_page_exists_cannot_exhaust_the_pool(
     rig: Rig, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Stop during cold start (browser launching) once per permit used to lock the pool for good."""
+    """A Stop during cold start (browser launching), repeated once per permit, still leaves every permit usable."""
     launching = asyncio.Event()
     never = asyncio.Event()
 
