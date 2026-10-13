@@ -550,21 +550,6 @@ class TestLogLeaksAndEdgeCases:
 
         log_leaks(["high_entropy_token"], "x" * 500)
 
-    def test_shannon_entropy_empty_string(self) -> None:
-        from myrm_agent_harness.agent.security.detection.leak_detector import _shannon_entropy
-
-        assert _shannon_entropy("") == 0.0
-
-    def test_shannon_entropy_single_char(self) -> None:
-        from myrm_agent_harness.agent.security.detection.leak_detector import _shannon_entropy
-
-        assert _shannon_entropy("aaaa") == 0.0
-
-    def test_shannon_entropy_high_for_random(self) -> None:
-        from myrm_agent_harness.agent.security.detection.leak_detector import _shannon_entropy
-
-        assert _shannon_entropy("aB3xK9mW2pQ7vL4nR8sT1yU6") > 4.0
-
 
 # ===================================================================
 # 11. Blockchain patterns

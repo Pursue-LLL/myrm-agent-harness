@@ -8,7 +8,7 @@ Detection strategy:
   1. Prefix-based API key patterns (30+ cloud providers)
   2. Context-aware patterns (ENV assignments, JSON fields, Auth headers)
   3. Structural formats (JWT, PEM block-level, database URLs, blockchain, cloud infra)
-  4. Shannon entropy analysis (catches unknown credential formats)
+  4. Shannon entropy analysis (catches unknown credential formats; see entropy_scan)
   5. Context-aware blockchain patterns (mnemonic seed phrases)
 
 Smart redaction preserves first 6 / last 4 characters of long tokens
@@ -16,8 +16,9 @@ for debugging while keeping the credential unusable. PEM blocks are
 fully redacted (BEGIN to END) with type label preserved.
 
 [INPUT]
-- core.security.detection.secret_value (POS: shared rules telling a secret from a reference to one: templates,
-  identifiers, calls, class names, slugs, domains, query strings.)
+- core.security.detection.secret_value::is_reference_value (POS: shared rules telling a secret from a reference to
+  one: templates, identifiers, calls, class names, slugs, domains, query strings.)
+- core.security.detection.entropy_scan::scan_high_entropy (POS: unknown-credential tier of the leak detector.)
 
 [OUTPUT]
 - scan_for_leaks(): detect credential patterns, returns matched pattern names
@@ -32,12 +33,11 @@ Output-side credential leak detector. 40+ credential pattern matchers (API key p
 from __future__ import annotations
 
 import logging
-import math
 import re
-from collections import Counter
 from functools import partial
 
-from myrm_agent_harness.core.security.detection.secret_value import is_reference_token, is_reference_value
+from myrm_agent_harness.core.security.detection.entropy_scan import scan_high_entropy
+from myrm_agent_harness.core.security.detection.secret_value import is_reference_value
 
 logger = logging.getLogger(__name__)
 
@@ -159,6 +159,12 @@ _LABELED_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("json_credential", _JSON_PATTERN),
 )
 
+# Words of a JSON key prefix that make a `...Token` value a paging handle (`nextToken`, `NextContinuationToken`).
+_PAGING_WORD_RE = re.compile(
+    r"next|prev(?:ious)?|pag(?:e|ing|ination)|continu(?:ation|e)|cursor|sync|resume|start(?:ing)?", re.IGNORECASE
+)
+_KEY_WORD_RE = re.compile(r"[A-Z]+(?![a-z])|[A-Z]?[a-z]+|\d+")
+
 _AUTH_HEADER_PATTERN = re.compile(r"Authorization:\s*(?:Bearer|Basic|Token)\s+([a-zA-Z0-9_./+=-]{20,})", re.IGNORECASE)
 
 
@@ -174,17 +180,27 @@ def _is_placeholder(value: str) -> bool:
     return bool(_PLACEHOLDER_RE.match(value.strip()))
 
 
-def _credential_value(m: re.Match[str]) -> str | None:
-    """The credential of an ENV assignment or JSON field, or None when the value is not one.
+def _is_ui_string_or_paging_handle(prefix: str, key: str, value: str) -> bool:
+    """Whether a value under a prefixed JSON key (`voiceAuthToken`, `nextToken`) is no credential.
 
-    Not a credential: a short value, a placeholder, a reference to a secret, or a UI string. A prefixed JSON key
-    (`voiceAuthToken`) names a UI string as often as a credential and such a string has spaces, so only a single token
-    counts there; a bare key (`token`) also keeps a spaced value (`Bearer <token>`).
+    A prefixed key names a UI string or a paging handle as often as a credential. A UI string has spaces or non-ASCII
+    text; a paging handle (`NextContinuationToken`, `next_token`) is passed back verbatim, so masking it breaks paging.
+    """
+    if not value.isascii() or any(c.isspace() for c in value):
+        return True
+    return key.lower().endswith("token") and any(_PAGING_WORD_RE.fullmatch(w) for w in _KEY_WORD_RE.findall(prefix))
+
+
+def _credential_value(m: re.Match[str]) -> str | None:
+    """The credential of an ENV assignment or JSON field, or None for a short value, a placeholder, a reference to a
+    secret, or (under a prefixed JSON key) a UI string or paging handle. A bare key (`token`) keeps a spaced value
+    (`Bearer <token>`).
     """
     value = m.group("value")
     if len(value) < _MIN_CONTEXT_VALUE_LENGTH or _is_placeholder(value):
         return None
-    if m.groupdict().get("prefix") and any(c.isspace() for c in value):
+    prefix = m.groupdict().get("prefix")  # only a JSON key captures one
+    if prefix and _is_ui_string_or_paging_handle(prefix, m.group("key"), value):
         return None
     return None if is_reference_value(value, key=m.group("key")) else value
 
@@ -198,76 +214,6 @@ def _scan_context_patterns(content: str) -> list[str]:
 
     if _MNEMONIC_PATTERN.search(content):
         found.append("mnemonic_phrase")
-
-    return found
-
-
-# ---------------------------------------------------------------------------
-# 4. Shannon entropy analysis (catches unknown credential formats)
-# ---------------------------------------------------------------------------
-_ENTROPY_MIN_TOKEN_LEN = 24
-_ENTROPY_THRESHOLD = 4.2
-
-_URL_STRIP_RE = re.compile(r"https?://\S+")
-_UUID_STRIP_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.I)
-_HEX_HASH_RE = re.compile(r"\b[0-9a-f]{40,}\b")
-_FILE_PATH_RE = re.compile(r"(?:/[\w._-]+){2,}")
-
-
-def _shannon_entropy(s: str) -> float:
-    """Compute Shannon entropy in bits per character."""
-    if not s:
-        return 0.0
-    freq = Counter(s.encode())
-    length = len(s)
-    return -sum((c / length) * math.log2(c / length) for c in freq.values())
-
-
-def _is_all_hex(s: str) -> bool:
-    return all(c in "0123456789abcdef" for c in s.lower())
-
-
-def _looks_like_base64(s: str) -> bool:
-    base64_special = set("+/=")
-    return any(c in base64_special for c in s) and all(
-        c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=" for c in s
-    )
-
-
-def _scan_high_entropy(content: str, already_matched: set[str]) -> list[tuple[str, str]]:
-    """Detect high-entropy tokens that may be unknown credentials.
-
-    Returns list of (pattern_name, matched_token) pairs.
-    Skips tokens already caught by prefix/structural/context patterns.
-    """
-    stripped = _URL_STRIP_RE.sub(" ", content)
-    stripped = _UUID_STRIP_RE.sub(" ", stripped)
-    stripped = _HEX_HASH_RE.sub(" ", stripped)
-    stripped = _FILE_PATH_RE.sub(" ", stripped)
-
-    found: list[tuple[str, str]] = []
-    tokens = re.split(r"[\s,;:\"'`()\[\]{}|<>#]+", stripped)
-
-    for token in tokens:
-        if len(token) < _ENTROPY_MIN_TOKEN_LEN:
-            continue
-        if not token.isascii():
-            continue
-        if _is_all_hex(token):
-            continue
-        if _looks_like_base64(token):
-            continue
-        has_alpha = any(c.isalpha() for c in token)
-        has_digit = any(c.isdigit() for c in token)
-        if not (has_alpha and has_digit):
-            continue
-        if is_reference_token(token, min_length=_ENTROPY_MIN_TOKEN_LEN):
-            continue
-        if any(token in matched for matched in already_matched):
-            continue
-        entropy = _shannon_entropy(token)
-        if entropy >= _ENTROPY_THRESHOLD:
-            found.append(("high_entropy_token", token))
 
     return found
 
@@ -356,7 +302,7 @@ def scan_for_leaks(content: str) -> list[str]:
     matches = [name for name, pat in _ALL_PREFIX_STRUCTURAL if pat.search(content)]
     matches.extend(_scan_context_patterns(content))
 
-    entropy_hits = _scan_high_entropy(content, _collect_prefix_matches(content))
+    entropy_hits = scan_high_entropy(content, _collect_prefix_matches(content))
     if entropy_hits:
         matches.append("high_entropy_token")
 
@@ -387,7 +333,7 @@ def redact_leaks(content: str) -> str:
     result = _AUTH_HEADER_PATTERN.sub(_redact_auth_match, result)
     result = _MNEMONIC_PATTERN.sub(_redact_mnemonic_match, result)
 
-    for _, token in _scan_high_entropy(content, _collect_prefix_matches(content)):
+    for _, token in scan_high_entropy(content, _collect_prefix_matches(content)):
         result = result.replace(token, _smart_redact_value("high_entropy_token", token), 1)
 
     return result

@@ -16,7 +16,7 @@
 
 [POS]
 Shared by every path that decides whether text is a secret (keyword-anchored password heuristic, persistence
-assignment spans, leak detector env credentials and entropy), so ``token = _active_value(...)`` or
+assignment spans, leak detector env/JSON credentials, entropy scan), so ``token = _active_value(...)`` or
 ``password=password`` is rejected identically everywhere instead of by whichever path happens to carry a rule for it.
 """
 
