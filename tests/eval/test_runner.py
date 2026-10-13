@@ -689,8 +689,6 @@ class TestEdgeCases:
             "total_ms",
             "total_tokens",
             "total_cost",
-            "healed_by_overlay_count",
-            "overlay_rollback_count",
             "failure_analysis",
             "ablation_recommendations",
             "signature_clusters",
