@@ -14,10 +14,10 @@ Design:
     [5] Human: user turns...                              ← varies per turn
 
 [INPUT]
-- agent.security.detection.content_boundary::SECURITY_BOUNDARY_SYSTEM_RULES (POS: Unicode  ID)
+- agent.security.detection.content_boundary::SECURITY_BOUNDARY_SYSTEM_RULES (POS: Content boundary defense core. Five-layer defense-in-depth (Unicode folding, structural framing strip, marker sanitization, random boundaries, pattern detection) for prompt injection prevention.)
 
 [OUTPUT]
-- SecurityBoundaryMiddleware: Middleware to inject security boundary rules as a SystemM...
+- SecurityBoundaryMiddleware: Middleware to inject security boundary rules as a SystemMessage.
 
 [POS]
 Security boundary middleware.
@@ -25,18 +25,19 @@ Security boundary middleware.
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Sequence
 
-from langchain.agents.middleware import AgentMiddleware
-from langchain_core.messages import SystemMessage
+from langchain.agents.middleware import AgentMiddleware, AgentState
+from langchain_core.messages import BaseMessage, SystemMessage
+from langgraph.runtime import Runtime
 
 from myrm_agent_harness.agent.security.detection.content_boundary import SECURITY_BOUNDARY_SYSTEM_RULES
 
 
-class SecurityBoundaryMiddleware(AgentMiddleware):  # type: ignore[type-arg]
+class SecurityBoundaryMiddleware(AgentMiddleware):
     """Middleware to inject security boundary rules as a SystemMessage."""
 
-    def before_model(self, state: dict[str, Any], runtime: Any) -> dict[str, Any] | None:
+    def before_model(self, state: AgentState, runtime: Runtime) -> dict[str, Sequence[BaseMessage]] | None:
         messages = state.get("messages", [])
         if not messages:
             return None
@@ -70,5 +71,5 @@ class SecurityBoundaryMiddleware(AgentMiddleware):  # type: ignore[type-arg]
 
         return {"messages": new_messages}
 
-    def after_model(self, state: dict[str, Any], runtime: Any) -> dict[str, Any] | None:
+    def after_model(self, state: AgentState, runtime: Runtime) -> dict[str, Sequence[BaseMessage]] | None:
         return None

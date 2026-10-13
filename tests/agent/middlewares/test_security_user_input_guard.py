@@ -246,6 +246,12 @@ class TestStageOrder:
 
         assert _decisions() == ["DANGEROUS_INTENT_DETECTED", "DANGEROUS_INTENT_BLOCKED"]
 
+    def test_log_only_intent_policy_records_without_touching_the_message(self) -> None:
+        set_security_config(_privacy(dangerous_intent_policy="log_only"))
+
+        assert _screen([HumanMessage(content=DANGEROUS, id="u1")]) is None
+        assert _decisions() == ["DANGEROUS_INTENT_DETECTED"]
+
 
 class TestCanaryChannel:
     """The canary token leaves through a tool call even when the model writes no text next to it."""

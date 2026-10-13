@@ -14,8 +14,9 @@ Categories:
 
 Dual-Tier Zero-Latency Architecture:
 - Tier 1: Pre-compiled regex pattern matching against normalized text (<0.2ms).
-- Tier 2: Actionability vs. Informational/Code-Gen filter to ensure 0% false
-  positives on developer code reviews, technical Q&A, and script generation.
+- Tier 2: Actionability vs. Informational/Code-Gen filter that lets developer code reviews,
+  technical Q&A, and script generation through. It does not parse negation: a sentence that
+  states the command in order to refuse it is still flagged.
 
 [INPUT]
 - content_boundary::strip_invisible_unicode (POS: Content boundary normalization.)

@@ -40,6 +40,12 @@ is that the LLM never receives raw credentials/PII, so it cannot echo them.
 
 [INPUT]
 - agent.security.types::SensitivityLevel (POS: Foundation layer of the security type hierarchy. All other security modules import from here; this module imports from none of them.)
+- agent.middlewares._session_context::get_canary_token, get_privacy_policy, get_terminal_errors (POS: Middleware session context — shared ContextVars for the middleware chain.)
+- agent.security.detection.leak_detector::scan_for_leaks, redact_leaks, log_leaks (POS: Output-side credential leak detector. 40+ credential pattern matchers (API key prefixes + blockchain + cloud infra + ENV/JSON/Header context + Shannon entropy + PEM block-level multiline redaction) for preventing secret exfiltration.)
+- agent.security.detection.pii_classifier::classify_content (POS: Input-side PII classification engine. 30+ built-in regex patterns (bilingual CN/EN) with short-circuit optimization for efficient content scanning.)
+- agent.security.detection.pii_redactor::redact_pii (POS: PII redactor. Type-aware smart masking (phone numbers retain first 3 and last 4 digits, emails retain domain, etc.) for user-friendly redaction.)
+- agent.security.detection.canary_guard::check_canary, scrub_canary (POS: Output-side injection detector. Deterministic canary token for prompt injection success detection.)
+- agent.security.audit::record_decision (POS: Cross-cutting concern. Called from tool_interceptor_middleware and all security guard modules at every decision point.)
 - agent.middlewares.security.user_input_guard::screen_user_input (POS: Input-side layers (intent router, prompt guard, PII guard) of the security guardrail middleware.)
 - agent.middlewares.security.pii_actions::apply_pii_actions, levels_to_process (POS: PII action engine shared by the guardrail's input and output layers and by the tool-result PII guard.)
 - agent.middlewares.security.text_blocks::map_text_blocks (POS: Content-shape adapter between a message and the security layers that rewrite its text.)

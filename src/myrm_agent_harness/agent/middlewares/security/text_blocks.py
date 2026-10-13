@@ -12,8 +12,7 @@ as its content. Security layers redact or rewrite its text and must leave everyt
   image data and every other field pass through untouched
 
 [POS]
-Content-shape adapter between a message and the security layers that rewrite its text, so a layer treats a text
-message and a text + image message alike.
+Content-shape adapter between a message and the security layers that rewrite its text.
 """
 
 from __future__ import annotations

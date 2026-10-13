@@ -1,18 +1,23 @@
 """Screening of the latest user message before a model call: dangerous intent, prompt injection, PII.
 
 The target is the latest message the user wrote. Messages the runtime appends behind it are not the user's input, and
-earlier turns were screened when they were new. The message may be text or a list of blocks (text next to an image);
+earlier user messages are not screened again. The message may be text or a list of blocks (text next to an image);
 every text block goes through the same three layers, in order, and a block verdict ends the screening.
 
 One user input drives several model calls (one per tool round). The first call, the one with no model or tool
 message behind the user's yet, writes: audit entries, logs, the safety caution, PII rewrites and blocks. Every call
-still classifies PII so the privacy tracker follows the message, which a WARN policy leaves unrewritten.
+also classifies PII so the privacy tracker follows the message, which a WARN policy leaves unrewritten.
 
 [INPUT]
 - agent.middlewares._message_origin::is_user_authored_human_message (POS: Message-provenance predicate shared by the approval and security middlewares.)
+- agent.middlewares._session_context::get_security_config (POS: Middleware session context — shared ContextVars for the middleware chain.)
 - agent.middlewares.security.text_blocks::MessageContent, map_text_blocks (POS: Content-shape adapter between a message and the security layers that rewrite its text.)
-- agent.middlewares.security.pii_actions::apply_pii_actions, levels_to_process (POS: PII action engine shared by the guardrail's input and output layers.)
-- agent.security.detection::scan_dangerous_intent, scan_input, classify_content (POS: Input-side detectors.)
+- agent.middlewares.security.pii_actions::apply_pii_actions, levels_to_process (POS: PII action engine shared by the guardrail's input and output layers and by the tool-result PII guard.)
+- agent.security.detection.intent_router::scan_dangerous_intent (POS: Intake-stage dangerous intent router for defense-in-depth before ReAct loops.)
+- agent.security.detection.prompt_guard::scan_input, log_guard_result (POS: Input-side injection detector. 10 EN + 4 ZH injection categories (OWASP LLM01 full coverage) with anti-obfuscation (leet speak, invisible Unicode, whitespace), word-boundary precision and a two-tier (audit vs block) score for prompt injection defense.)
+- agent.security.detection.pii_classifier::classify_content (POS: Input-side PII classification engine. 30+ built-in regex patterns (bilingual CN/EN) with short-circuit optimization for efficient content scanning.)
+- agent.security.guards.privacy_tracker::get_privacy_tracker (POS: Per-turn privacy state tracker. ContextVar session-scoped, independently evaluates each turn for privacy-sensitive content.)
+- agent.security.audit::record_decision (POS: Cross-cutting concern. Called from tool_interceptor_middleware and all security guard modules at every decision point.)
 
 [OUTPUT]
 - screen_user_input: the message list with the latest user message screened, or None when nothing changed
@@ -28,8 +33,8 @@ from collections.abc import Sequence
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 
-from myrm_agent_harness.agent.middlewares import _session_context
 from myrm_agent_harness.agent.middlewares._message_origin import is_user_authored_human_message
+from myrm_agent_harness.agent.middlewares._session_context import get_security_config
 from myrm_agent_harness.agent.middlewares.security.pii_actions import apply_pii_actions, levels_to_process
 from myrm_agent_harness.agent.middlewares.security.text_blocks import MessageContent, map_text_blocks
 from myrm_agent_harness.agent.security.audit import record_decision
@@ -83,7 +88,7 @@ def _with_caution(content: MessageContent, caution: str) -> MessageContent:
 
 def _security_config() -> SecurityConfig | None:
     try:
-        return _session_context.get_security_config()
+        return get_security_config()
     except LookupError:
         return None
 
