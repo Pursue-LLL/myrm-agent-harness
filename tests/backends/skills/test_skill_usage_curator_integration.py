@@ -37,7 +37,7 @@ def test_select_records_stats_and_curator_sweep_reads_them(tmp_path: Path) -> No
     skill_dir.mkdir()
     (skill_dir / "SKILL.md").write_text("# demo_skill\n")
 
-    collector = SkillStatsCollector(tmp_path)
+    collector = SkillStatsCollector()
     set_stats_collector(collector)
 
     skill_meta = SkillMetadata(
@@ -95,7 +95,7 @@ def test_set_stats_collector_uses_shared_instance(tmp_path: Path) -> None:
     skill_dir = tmp_path / "shared_skill"
     skill_dir.mkdir()
 
-    shared = SkillStatsCollector(tmp_path)
+    shared = SkillStatsCollector()
     set_stats_collector(shared)
     assert get_injected_stats_collector() is shared
 

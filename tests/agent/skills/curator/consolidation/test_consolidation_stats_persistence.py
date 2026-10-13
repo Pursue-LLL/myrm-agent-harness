@@ -47,7 +47,7 @@ def skills_root(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def collector(tmp_path: Path) -> SkillStatsCollector:
-    return SkillStatsCollector(tmp_path)
+    return SkillStatsCollector()
 
 
 async def test_merge_adds_the_sources_counters_to_the_target_ledger(

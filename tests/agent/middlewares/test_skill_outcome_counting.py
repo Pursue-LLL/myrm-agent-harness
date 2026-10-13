@@ -40,14 +40,14 @@ class _Ledger:
 
     def stats_of(self, name: str) -> SkillUsageStats:
         commit_skill_run_usage()
-        return SkillStatsCollector(self.root).get_stats(self.root / name)
+        return SkillStatsCollector().get_stats(self.root / name)
 
 
 @pytest.fixture
 def ledger(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[_Ledger]:
     run_ledger = _Ledger(tmp_path)
     monkeypatch.setattr("myrm_agent_harness.runtime.events.get_event_bus", lambda: run_ledger)
-    set_stats_collector(SkillStatsCollector(tmp_path))
+    set_stats_collector(SkillStatsCollector())
     begin_skill_run_usage()
     reset_loaded_skills()
     yield run_ledger

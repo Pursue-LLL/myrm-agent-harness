@@ -203,7 +203,7 @@ def usage_collector(tmp_path: Path) -> Iterator[SkillStatsCollector]:
     """An open run scope writing to a throw-away ``.stats.json`` store."""
     from myrm_agent_harness.backends.skills.usage_recorder import begin_skill_run_usage, set_stats_collector
 
-    collector = SkillStatsCollector(tmp_path)
+    collector = SkillStatsCollector()
     set_stats_collector(collector)
     begin_skill_run_usage()
     yield collector

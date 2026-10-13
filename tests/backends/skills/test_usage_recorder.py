@@ -39,12 +39,12 @@ def _skill(tmp_path: Path, name: str = "demo") -> SkillMetadata:
 
 
 def _stats(tmp_path: Path, name: str = "demo") -> SkillUsageStats:
-    return SkillStatsCollector(tmp_path).get_stats(tmp_path / name)
+    return SkillStatsCollector().get_stats(tmp_path / name)
 
 
 def test_selection_is_written_at_run_end_not_at_selection(tmp_path: Path) -> None:
     skill = _skill(tmp_path)
-    collector = SkillStatsCollector(tmp_path)
+    collector = SkillStatsCollector()
     set_stats_collector(collector)
 
     record_skill_selection(skill)
@@ -58,7 +58,7 @@ def test_selection_is_written_at_run_end_not_at_selection(tmp_path: Path) -> Non
 def test_run_end_persists_the_use_before_returning(tmp_path: Path) -> None:
     """A process that exits right after the run must not lose it: the ledger on disk already holds the use."""
     skill = _skill(tmp_path)
-    set_stats_collector(SkillStatsCollector(tmp_path))
+    set_stats_collector(SkillStatsCollector())
 
     record_skill_selection(skill)
     record_skill_execution(skill.name, skill.storage_path, success=True)
@@ -70,7 +70,7 @@ def test_run_end_persists_the_use_before_returning(tmp_path: Path) -> None:
 
 def test_selection_without_execution_is_a_use_with_unobserved_outcome(tmp_path: Path) -> None:
     skill = _skill(tmp_path)
-    set_stats_collector(SkillStatsCollector(tmp_path))
+    set_stats_collector(SkillStatsCollector())
 
     record_skill_selection(skill)
     commit_skill_run_usage()
@@ -82,7 +82,7 @@ def test_selection_without_execution_is_a_use_with_unobserved_outcome(tmp_path: 
 
 def test_successful_execution_is_a_successful_use(tmp_path: Path) -> None:
     skill = _skill(tmp_path)
-    set_stats_collector(SkillStatsCollector(tmp_path))
+    set_stats_collector(SkillStatsCollector())
 
     record_skill_selection(skill)
     record_skill_execution(skill.name, skill.storage_path, success=True)
@@ -109,7 +109,7 @@ def test_use_fails_only_when_most_tool_calls_failed(
 ) -> None:
     """Many tool calls in one run are one use; an incidental, recovered error must not mark the skill as failed."""
     skill = _skill(tmp_path)
-    set_stats_collector(SkillStatsCollector(tmp_path))
+    set_stats_collector(SkillStatsCollector())
 
     for success in tool_outcomes:
         record_skill_execution(skill.name, skill.storage_path, success=success)
@@ -123,7 +123,7 @@ def test_use_fails_only_when_most_tool_calls_failed(
 def test_execution_without_selection_counts_as_a_use(tmp_path: Path) -> None:
     """A skill carried over from an earlier turn is used again when its execution is observed."""
     skill = _skill(tmp_path)
-    set_stats_collector(SkillStatsCollector(tmp_path))
+    set_stats_collector(SkillStatsCollector())
 
     record_skill_execution(skill.name, skill.storage_path, success=True)
     commit_skill_run_usage()
@@ -133,7 +133,7 @@ def test_execution_without_selection_counts_as_a_use(tmp_path: Path) -> None:
 
 def test_repeated_selection_in_one_run_is_one_use(tmp_path: Path) -> None:
     skill = _skill(tmp_path)
-    set_stats_collector(SkillStatsCollector(tmp_path))
+    set_stats_collector(SkillStatsCollector())
 
     record_skill_selection(skill)
     record_skill_selection(skill)
@@ -145,7 +145,7 @@ def test_repeated_selection_in_one_run_is_one_use(tmp_path: Path) -> None:
 def test_commit_closes_the_scope(tmp_path: Path) -> None:
     """A second commit must not write the same run again."""
     skill = _skill(tmp_path)
-    set_stats_collector(SkillStatsCollector(tmp_path))
+    set_stats_collector(SkillStatsCollector())
 
     record_skill_selection(skill)
     commit_skill_run_usage()
@@ -157,7 +157,7 @@ def test_commit_closes_the_scope(tmp_path: Path) -> None:
 def test_each_skill_gets_its_own_outcome(tmp_path: Path) -> None:
     first = _skill(tmp_path, "first")
     second = _skill(tmp_path, "second")
-    set_stats_collector(SkillStatsCollector(tmp_path))
+    set_stats_collector(SkillStatsCollector())
 
     record_skill_selection(first)
     record_skill_selection(second)
@@ -172,7 +172,7 @@ def test_scope_is_shared_with_tool_contexts_and_isolated_for_nested_runs(tmp_pat
     """Tools run in copied contexts: their records reach the run, while a nested run keeps its own scope."""
     skill = _skill(tmp_path, "outer")
     nested = _skill(tmp_path, "inner")
-    set_stats_collector(SkillStatsCollector(tmp_path))
+    set_stats_collector(SkillStatsCollector())
 
     def _nested_run() -> None:
         begin_skill_run_usage()
@@ -190,7 +190,7 @@ def test_scope_is_shared_with_tool_contexts_and_isolated_for_nested_runs(tmp_pat
 @pytest.mark.asyncio
 async def test_records_from_concurrent_tool_tasks_reach_the_run(tmp_path: Path) -> None:
     skill = _skill(tmp_path)
-    set_stats_collector(SkillStatsCollector(tmp_path))
+    set_stats_collector(SkillStatsCollector())
 
     async def _tool(success: bool) -> None:
         record_skill_execution(skill.name, skill.storage_path, success=success)
@@ -206,7 +206,7 @@ def test_selection_outside_a_run_is_recorded_immediately(tmp_path: Path) -> None
     """Embedders that use the select tool without ``SkillAgent`` have no run end to wait for."""
     commit_skill_run_usage()
     skill = _skill(tmp_path)
-    set_stats_collector(SkillStatsCollector(tmp_path))
+    set_stats_collector(SkillStatsCollector())
 
     record_skill_selection(skill)
 
@@ -229,7 +229,7 @@ def test_record_skips_when_storage_path_not_directory(tmp_path: Path) -> None:
         description="File not dir",
         storage_path=str(file_path),
     )
-    collector = SkillStatsCollector(tmp_path)
+    collector = SkillStatsCollector()
     set_stats_collector(collector)
     record_skill_selection(skill_meta)
     record_skill_execution(skill_meta.name, skill_meta.storage_path, success=True)

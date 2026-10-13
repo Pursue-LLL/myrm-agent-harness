@@ -852,7 +852,7 @@ class TestCuratorEngineConsolidationIntegration:
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
         config = CuratorConfig(enabled=True, consolidation_enabled=False)
-        collector = SkillStatsCollector(skills_dir)
+        collector = SkillStatsCollector()
         curator = SkillCurator(collector, config)
 
         assert not curator.consolidation_available
@@ -868,7 +868,7 @@ class TestCuratorEngineConsolidationIntegration:
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
         config = CuratorConfig(enabled=True, consolidation_enabled=True)
-        collector = SkillStatsCollector(skills_dir)
+        collector = SkillStatsCollector()
 
         mock_embed = MagicMock()
         mock_embed.embed_batch = AsyncMock(return_value=[])

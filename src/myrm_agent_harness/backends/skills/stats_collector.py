@@ -52,9 +52,6 @@ class SkillStatsCollector:
     - Lifecycle state (lifecycle_status, pinned) co-located with usage data
     """
 
-    def __init__(self, workspace_root: Path) -> None:
-        self._workspace_root = workspace_root.resolve()
-
     # ── Usage recording ─────────────────────────────────────────────
 
     def record_use(self, skill_path: Path, *, success: bool | None) -> None:

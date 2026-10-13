@@ -53,7 +53,6 @@ class _SkillRunUse:
         return self.failed_calls * 2 <= self.tool_calls
 
 
-_collector: SkillStatsCollector | None = None
 _injected_collector: SkillStatsCollector | None = None
 # One mutable dict per run: tools run in copied contexts, so records must mutate the run's dict instead of rebinding.
 _run_usage: ContextVar[dict[str, _SkillRunUse] | None] = ContextVar("skill_run_usage", default=None)
@@ -61,9 +60,8 @@ _run_usage: ContextVar[dict[str, _SkillRunUse] | None] = ContextVar("skill_run_u
 
 def set_stats_collector(collector: SkillStatsCollector | None) -> None:
     """Inject the process-wide SkillStatsCollector (called from server on startup)."""
-    global _injected_collector, _collector
+    global _injected_collector
     _injected_collector = collector
-    _collector = collector
 
 
 def get_injected_stats_collector() -> SkillStatsCollector | None:
@@ -72,12 +70,10 @@ def get_injected_stats_collector() -> SkillStatsCollector | None:
 
 
 def _get_collector() -> SkillStatsCollector:
-    global _collector
     if _injected_collector is not None:
         return _injected_collector
-    if _collector is None:
-        _collector = SkillStatsCollector(Path.home() / ".myrm")
-    return _collector
+    # The collector holds no state (the ledger on disk is the state), so a standalone run needs no cached instance.
+    return SkillStatsCollector()
 
 
 def _skill_dir(storage_path: str | None) -> Path | None:

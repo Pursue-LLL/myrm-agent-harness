@@ -23,7 +23,7 @@ def temp_skills_dir(tmp_path: Path) -> Path:
 @pytest.fixture
 def stats_collector(temp_skills_dir: Path) -> SkillStatsCollector:
     temp_skills_dir.mkdir(parents=True, exist_ok=True)
-    return SkillStatsCollector(temp_skills_dir)
+    return SkillStatsCollector()
 
 
 @pytest.fixture

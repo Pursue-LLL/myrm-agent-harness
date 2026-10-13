@@ -77,7 +77,7 @@ def tmp_skills_dir(tmp_path: Path) -> Path:
 
 @pytest.fixture()
 def collector(tmp_skills_dir: Path) -> SkillStatsCollector:
-    return SkillStatsCollector(tmp_skills_dir)
+    return SkillStatsCollector()
 
 
 # ── Basic sweep ──────────────────────────────────────────────────────────
@@ -392,7 +392,7 @@ class TestStatsCollectorLifecycle:
             )
         )
 
-        collector = SkillStatsCollector(tmp_skills_dir)
+        collector = SkillStatsCollector()
         collector.record_use(skill_dir, success=True)
 
         refreshed = collector.get_stats(skill_dir)
@@ -403,7 +403,7 @@ class TestStatsCollectorLifecycle:
         skill_dir = tmp_skills_dir / "pin_test"
         skill_dir.mkdir()
 
-        collector = SkillStatsCollector(tmp_skills_dir)
+        collector = SkillStatsCollector()
         collector.set_pinned(skill_dir, pinned=True)
         stats = collector.get_stats(skill_dir)
         assert stats.pinned is True
@@ -416,7 +416,7 @@ class TestStatsCollectorLifecycle:
         skill_dir = tmp_skills_dir / "lifecycle_test"
         skill_dir.mkdir()
 
-        collector = SkillStatsCollector(tmp_skills_dir)
+        collector = SkillStatsCollector()
         collector.update_lifecycle_status(skill_dir, SkillLifecycleStatus.ARCHIVED)
         stats = collector.get_stats(skill_dir)
         assert stats.lifecycle_status == SkillLifecycleStatus.ARCHIVED

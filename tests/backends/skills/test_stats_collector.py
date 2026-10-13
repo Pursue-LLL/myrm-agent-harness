@@ -32,7 +32,7 @@ def skill_dir(temp_workspace: Path) -> Path:
 @pytest.fixture
 def collector(temp_workspace: Path) -> SkillStatsCollector:
     """Create stats collector."""
-    return SkillStatsCollector(temp_workspace)
+    return SkillStatsCollector()
 
 
 def test_record_use_creates_stats_file(collector: SkillStatsCollector, skill_dir: Path) -> None:
@@ -156,7 +156,7 @@ def test_reset_usage_keeps_governance_state(collector: SkillStatsCollector, skil
     on_disk = json.loads((skill_dir / ".stats.json").read_text())
     assert (on_disk["call_count"], on_disk["success_count"], on_disk["failure_count"]) == (0, 0, 0)
     assert on_disk["usage_history"] == []
-    stats = SkillStatsCollector(skill_dir.parent).get_stats(skill_dir)
+    stats = SkillStatsCollector().get_stats(skill_dir)
     assert stats.observed_count == 0
     assert stats.pinned is True
     assert stats.lifecycle_status == SkillLifecycleStatus.STALE
@@ -165,8 +165,8 @@ def test_reset_usage_keeps_governance_state(collector: SkillStatsCollector, skil
 
 def test_get_stats_reads_changes_made_by_another_collector(temp_workspace: Path, skill_dir: Path) -> None:
     """The disk is the only state: a reader never serves what it saw earlier."""
-    reader = SkillStatsCollector(temp_workspace)
-    writer = SkillStatsCollector(temp_workspace)
+    reader = SkillStatsCollector()
+    writer = SkillStatsCollector()
     assert reader.get_stats(skill_dir).call_count == 0
 
     writer.record_use(skill_dir, success=True)
@@ -178,8 +178,8 @@ def test_get_stats_reads_changes_made_by_another_collector(temp_workspace: Path,
 
 def test_a_stale_view_never_overwrites_changes_made_elsewhere(temp_workspace: Path, skill_dir: Path) -> None:
     """A collector that touched a skill earlier must not write its old counters back over newer ones."""
-    api = SkillStatsCollector(temp_workspace)
-    recorder = SkillStatsCollector(temp_workspace)
+    api = SkillStatsCollector()
+    recorder = SkillStatsCollector()
     api.set_pinned(skill_dir, pinned=True)
 
     for _ in range(3):
@@ -201,7 +201,7 @@ def test_first_observation_creates_the_ledger_and_anchors_created_at(
 
     assert stats_file.exists()
     assert first.created_at is not None
-    later = SkillStatsCollector(skill_dir.parent).get_stats(skill_dir)
+    later = SkillStatsCollector().get_stats(skill_dir)
     assert later.created_at == first.created_at
 
 

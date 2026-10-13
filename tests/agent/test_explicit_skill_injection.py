@@ -219,7 +219,7 @@ class TestPreloadExplicitSkill:
             set_stats_collector,
         )
 
-        collector = SkillStatsCollector(tmp_path)
+        collector = SkillStatsCollector()
         set_stats_collector(collector)
         agent = _make_agent(skills=[skill], backend=backend)
 

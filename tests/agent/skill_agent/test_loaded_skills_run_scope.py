@@ -138,7 +138,7 @@ def _clean_run_scope():
 
 @pytest.mark.asyncio
 async def test_skill_selected_mid_run_is_counted_and_reported_for_later_tool_calls(monkeypatch, tmp_path) -> None:
-    collector = SkillStatsCollector(tmp_path)
+    collector = SkillStatsCollector()
     set_stats_collector(collector)
     skill = _skill(root=tmp_path)
     run = _Run(monkeypatch, skill)

@@ -42,7 +42,7 @@ def skills_root(tmp_path: Path) -> Path:
 @pytest.fixture(autouse=True)
 def stats_ledger(tmp_path: Path, skills_root: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     monkeypatch.setattr("myrm_agent_harness.runtime.events.get_event_bus", lambda: _SilentBus())
-    set_stats_collector(SkillStatsCollector(tmp_path))
+    set_stats_collector(SkillStatsCollector())
     yield
     set_stats_collector(None)
 
@@ -71,7 +71,7 @@ async def _run(skills_root: Path, query: str) -> SkillUsageStats:
     agent = SkillAgent(llm=AsyncMock(), skill_backend=LocalSkillBackend(skills_root))
     _ = [event async for event in agent.run(query)]
     await wait_all_background_tasks()
-    return SkillStatsCollector(skills_root).get_stats(skills_root / "alpha")
+    return SkillStatsCollector().get_stats(skills_root / "alpha")
 
 
 @pytest.mark.asyncio
@@ -137,6 +137,6 @@ async def test_run_abandoned_midway_still_writes_its_use(skills_root: Path, monk
     await stream.aclose()
 
     # Already on disk before the session cleanup task runs: a process exiting right here keeps the use.
-    stats = SkillStatsCollector(skills_root).get_stats(skills_root / "alpha")
+    stats = SkillStatsCollector().get_stats(skills_root / "alpha")
     assert (stats.call_count, stats.failure_count) == (1, 1)
     await wait_all_background_tasks()
