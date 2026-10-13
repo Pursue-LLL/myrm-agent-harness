@@ -2,6 +2,22 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-13-003 · 技能用量账本的内存缓冲：进程提前退出丢最后一次使用、合并吸收的计数落不了盘，缓存条目还会用旧值覆盖他处刚写入的计数
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-13 |
+| **修复时间** | 2026-10-13 |
+| **症状** | ① 运行结束记下的使用先留在内存，等 60 秒批量落盘或会话结束才写盘；一次性 CLI 调用、崩溃或停止信号让进程紧接着退出时，最近一次运行的使用丢失，技能健康面板少计一次；② 技能合并或建立总括技能时，执行器对目标取 `get_stats()`（没有缓存条目时是不落盘的视图）、加上来源技能的计数再 `flush()`：新总括技能与上次落盘后没被运行碰过的技能，加法被丢弃，吸收方从零开始而来源技能已归档；③ 同一账本被另一个收集器实例改过后，本实例缓存条目仍是旧值，下一次变更把旧计数写回：改写前账本 `call_count == 3`，另一实例取消置顶后变回 0（复现脚本跑旧实现得到 0，新实现保持 3）。产品内只有 server 一个进程写账本，③ 在产品中未触发 |
+| **关联产品** | myrm-agent-harness `backends/skills`；调用方 `agent/skill_agent`（运行起止）、`agent/skills/curator/consolidation`（合并与总括）与 server 的 Curator 接口。Local / 桌面 / 云托管三种部署都受影响（①②），③ 只在同一技能目录有多个写入方时出现 |
+| **根因** | `SkillStatsCollector` 把每个碰过的技能缓存在 `_pending_updates`，只有 `flush()` 清缓存：使用与生命周期变更走缓存，`get_stats()` 对无缓存条目的技能返回不会保存的视图，修改返回对象既不落盘也不更新缓存，生命周期变更写盘后缓存条目留着不清。缓存没有收益：满 200 条历史的账本 18 320 字节，真实流程里每个运行每个技能本来就是一次读加一次原子写 |
+| **修复** | 分三步：`56c9c05f7` 运行结束即落盘并删除间隔批量；`08347039c` 由收集器自己写继承与归档；`1df9a980e` 把收集器改为无状态写穿——每次变更读账本、修改、原子写回，`get_stats()` 永远读盘，删除 `_pending_updates` / `flush()` / `_ensure_loaded` 与记录器的 `_persist()`。对照实测（满账本，开发机负载均值约 75，交替各跑两轮）：一次运行的账本开销中位数新 1.8–4.7 ms、旧 2.4–5.2 ms，没有变快也没有变慢，修复不以性能为理由 |
+| **反复次数** | 同一缓冲机制第 3 次出现：前两次各修一个症状，这次移除机制 |
+| **踩坑** | ① 「首次观察创建账本」是遗忘策略的隐含依赖（`backends/skills/forgetting_strategy.py:245-249,272,365-369` 以 `created_at` 计宽限期与「从未使用」的年龄），把 `get_stats()` 改成纯读会让从未使用的技能永不过期，所以保留并用测试锁定；② 合并测试用 mock 收集器时看不到 ②，必须用真实收集器跑执行器；③ 读改写之间没有锁：同一账本同一时刻的两个写入方仍可丢一次更新，产品内靠「server 单事件循环、读与写之间无 await」保证 |
+| **回归** | `tests/backends/skills/test_stats_collector.py::test_every_use_is_on_disk_when_record_use_returns` · `::test_a_stale_view_never_overwrites_changes_made_elsewhere` · `::test_get_stats_reads_changes_made_by_another_collector` · `::test_first_observation_creates_the_ledger_and_anchors_created_at` · `tests/agent/skills/curator/consolidation/test_consolidation_stats_persistence.py` · `tests/backends/skills/test_usage_recorder.py::test_run_end_persists_the_use_before_returning` |
+| **代码位置** | `backends/skills/stats_collector.py::SkillStatsCollector` · `backends/skills/usage_recorder.py::commit_skill_run_usage` · `agent/skills/curator/consolidation/executor.py::_archive_sources/_inherit_stats` |
+
 ### BUG-HARNESS-2026-10-13-002 · 卡在驱动里的浏览器调用不响应 Stop：导航停滞后页面卡死、看门狗误杀存活浏览器、页面池发放已关闭或卡死的页面
 
 | 字段 | 内容 |
