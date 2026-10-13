@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import os
+import signal
 import sys
+import threading
 from unittest.mock import patch
 
 from myrm_agent_harness.toolkits.browser.doctor import (
@@ -108,12 +111,38 @@ def test_pid_that_stopped_being_a_leftover_during_the_grace_period_is_not_killed
 ) -> None:
     """Between SIGTERM and SIGKILL the pid may have been reused; the SIGKILL needs a fresh identity check."""
     stubborn = stamped_processes.spawn(dead_owner_stamp(), ignore_sigterm=True)
+    signals: list[int] = []
+    real_kill = os.kill
 
-    with patch(f"{_ORPHANS}._is_leftover", side_effect=[True, False]):
+    def record_kill(pid: int, sig: int) -> None:
+        signals.append(sig)
+        real_kill(pid, sig)
+
+    with (
+        patch("os.kill", side_effect=record_kill),
+        patch(f"{_ORPHANS}._is_leftover", side_effect=lambda _pid: not signals),
+    ):
         result = cleanup_orphan_processes([stubborn.pid], force=True, timeout_s=0.2)
 
+    assert signals == [signal.SIGTERM]
     assert result["failed"] == []
     assert stubborn.poll() is None
+
+
+def test_leftover_that_exits_with_a_stopped_one_is_counted_as_cleaned(stamped_processes: StampedProcesses) -> None:
+    """A browser's helpers exit together with its main process; the result must count every leftover that is gone."""
+    stubborn = stamped_processes.spawn(dead_owner_stamp(), ignore_sigterm=True)
+    companion = stamped_processes.spawn(dead_owner_stamp())
+    helper_exit = threading.Timer(0.2, companion.kill)
+    helper_exit.start()
+
+    try:
+        result = cleanup_orphan_processes([stubborn.pid, companion.pid], force=True, timeout_s=0.6)
+    finally:
+        helper_exit.cancel()
+
+    assert result["killed"] == 2
+    assert result["failed"] == []
 
 
 def test_leftover_that_survives_sigkill_is_reported_as_failed(stamped_processes: StampedProcesses) -> None:

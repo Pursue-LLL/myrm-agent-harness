@@ -183,8 +183,10 @@ def cleanup_orphan_processes(
 
     Each pid is re-verified as a leftover immediately before it is signalled (and again before the
     SIGKILL); a pid that no longer is one (pid reuse, owner alive again) is reported as
-    ``not_an_orphan`` and left alone. ``killed`` counts the processes that actually stopped; one that
-    survives SIGKILL is listed in ``failed`` instead.
+    ``not_an_orphan`` and left alone. ``killed`` counts the leftovers that are gone when the call
+    ends, including those that exited together with a process stopped earlier in the same call (a
+    browser's helpers go down with its main process); one that survives SIGKILL is listed in
+    ``failed`` instead.
 
     Blocks for up to ``timeout_s`` per stubborn process, so async callers run it in a thread.
 
@@ -217,6 +219,7 @@ def cleanup_orphan_processes(
             "message": "Dry-run mode: use force=True to actually kill processes",
         }
 
+    leftovers_at_start = {pid for pid in orphan_pids if _is_leftover(pid)}
     killed = 0
     failed: list[KillFailure] = []
 
@@ -224,6 +227,9 @@ def cleanup_orphan_processes(
         if not _is_leftover(pid):
             if _is_running(pid):
                 failed.append({"pid": pid, "reason": "not_an_orphan"})
+            elif pid in leftovers_at_start:
+                killed += 1
+                logger.info(f"Orphan automation process {pid} exited together with an earlier one")
             else:
                 logger.debug(f"Process {pid} already terminated")
             continue
