@@ -19,6 +19,7 @@ import pytest
 from patchright.async_api import Error as BrowserDriverError
 
 from myrm_agent_harness.toolkits.browser import BrowserSession, DomainAllowlist
+from myrm_agent_harness.toolkits.browser.exceptions import BrowserNavigationError
 from myrm_agent_harness.toolkits.browser.pool import ContextType, GlobalBrowserPool
 from tests.toolkits.browser._browser_available import chromium_available
 
@@ -70,8 +71,12 @@ async def _pool() -> AsyncIterator[GlobalBrowserPool]:
 
 
 @asynccontextmanager
-async def _local_session(pool: GlobalBrowserPool, blocklist: DomainAllowlist | None) -> AsyncIterator[BrowserSession]:
-    session = BrowserSession(pool, ContextType.CRAWL, domain_blocklist=blocklist, allow_private_networks=True)
+async def _session(
+    pool: GlobalBrowserPool, blocklist: DomainAllowlist | None, *, allow_private_networks: bool
+) -> AsyncIterator[BrowserSession]:
+    session = BrowserSession(
+        pool, ContextType.CRAWL, domain_blocklist=blocklist, allow_private_networks=allow_private_networks
+    )
     try:
         await session.new_tab()
         yield session
@@ -80,7 +85,7 @@ async def _local_session(pool: GlobalBrowserPool, blocklist: DomainAllowlist | N
 
 
 async def test_flag_survives_a_domain_blocklist() -> None:
-    async with _pool() as pool, _local_session(pool, _OTHER_HOST) as session:
+    async with _pool() as pool, _session(pool, _OTHER_HOST, allow_private_networks=True) as session:
         with _local_server() as (url, hits):
             assert isinstance(await session.navigate(url), str)
             assert "/" in hits
@@ -88,7 +93,7 @@ async def test_flag_survives_a_domain_blocklist() -> None:
 
 async def test_flag_survives_default_resource_blocking() -> None:
     """No list at all: the pool's default resource blocking is the only reason a filter exists."""
-    async with _pool() as pool, _local_session(pool, None) as session:
+    async with _pool() as pool, _session(pool, None, allow_private_networks=True) as session:
         with _local_server() as (url, hits):
             assert isinstance(await session.navigate(url), str)
             assert "/" in hits
@@ -125,3 +130,11 @@ async def test_filter_blocks_private_targets_without_the_flag() -> None:
     error, hits = await _goto_through_filter({"domain_blocklist": _OTHER_HOST})
     assert "net::ERR_" in error
     assert hits == []
+
+
+async def test_session_without_the_flag_cannot_reach_loopback() -> None:
+    """Control for the whole session path (cloud default): navigation guard and context filter both block."""
+    async with _pool() as pool, _session(pool, None, allow_private_networks=False) as session:
+        with _local_server() as (url, hits), pytest.raises(BrowserNavigationError):
+            await session.navigate(url)
+        assert hits == []
