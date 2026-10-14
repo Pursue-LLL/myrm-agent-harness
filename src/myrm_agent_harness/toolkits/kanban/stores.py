@@ -270,11 +270,7 @@ class InMemoryKanbanStore(KanbanStore):
                 visited[node] = 2
                 return False
 
-            for n in all_nodes:
-                if visited.get(n, 0) == 0:
-                    if dfs(n):
-                        return True
-            return False
+            return any(visited.get(n, 0) == 0 and dfs(n) for n in all_nodes)
 
         if _has_cycle():
             return PlanRevisionOutcome(

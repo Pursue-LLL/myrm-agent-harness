@@ -530,4 +530,3 @@ class TestTaskRunCostAndUsage:
         d = runs[0].to_dict()
         assert d["token_usage"] == usage
         assert d["cost_usd"] == cost
-

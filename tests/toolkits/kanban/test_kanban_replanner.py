@@ -51,10 +51,8 @@ async def _create_task(
 
 
 class TestReplanStore:
-    async def test_atomic_add_and_update(
-        self, store: InMemoryKanbanStore, board: KanbanBoard
-    ) -> None:
-        t1 = await _create_task(store, "t1")
+    async def test_atomic_add_and_update(self, store: InMemoryKanbanStore, board: KanbanBoard) -> None:
+        await _create_task(store, "t1")
         spec = PlanRevisionSpec(
             board_id="b_replan",
             rationale="Add downstream verification step",
@@ -98,9 +96,7 @@ class TestReplanStore:
         events = await store.list_events("t2")
         assert any(e.kind == TaskEventKind.PLAN_REVISED for e in events)
 
-    async def test_completed_task_protection(
-        self, store: InMemoryKanbanStore, board: KanbanBoard
-    ) -> None:
+    async def test_completed_task_protection(self, store: InMemoryKanbanStore, board: KanbanBoard) -> None:
         await _create_task(store, "t_done", status=TaskStatus.COMPLETED)
         spec = PlanRevisionSpec(
             board_id="b_replan",
@@ -121,9 +117,7 @@ class TestReplanStore:
         assert t_done is not None
         assert t_done.status == TaskStatus.COMPLETED
 
-    async def test_cycle_rejection(
-        self, store: InMemoryKanbanStore, board: KanbanBoard
-    ) -> None:
+    async def test_cycle_rejection(self, store: InMemoryKanbanStore, board: KanbanBoard) -> None:
         await _create_task(store, "node_a")
         await _create_task(store, "node_b")
         await store.add_edge("node_a", "node_b")
@@ -138,12 +132,9 @@ class TestReplanStore:
         assert outcome.ok is False
         assert "cycle" in outcome.reason
 
-
-    async def test_remove_edge_and_task_success(
-        self, store: InMemoryKanbanStore, board: KanbanBoard
-    ) -> None:
-        t1 = await _create_task(store, "t_del_1")
-        t2 = await _create_task(store, "t_del_2")
+    async def test_remove_edge_and_task_success(self, store: InMemoryKanbanStore, board: KanbanBoard) -> None:
+        await _create_task(store, "t_del_1")
+        await _create_task(store, "t_del_2")
         await store.add_edge("t_del_1", "t_del_2")
 
         spec = PlanRevisionSpec(
