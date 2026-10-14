@@ -11,7 +11,7 @@ values are never stored.
 - core.security.detection.password_heuristic::find_password_spans (POS: last-resort keyword-anchored detector for passwords without vendor prefix or entropy.)
 
 [OUTPUT]
-- redact_pii(): apply all PII redactions, and optionally the user's custom keywords and patterns, to text; returns (redacted_text, redacted_count)
+- redact_pii(): apply the PII redactions of the given levels (both by default), and optionally the user's custom keywords and patterns, to text; returns (redacted_text, redacted_count)
 - redact_value(): redact a single known PII value by type
 
 [POS]
@@ -42,6 +42,7 @@ from myrm_agent_harness.core.security.detection.pii_classifier import (
     _china_id_valid,
     _luhn_valid,
 )
+from myrm_agent_harness.core.security.types import SensitivityLevel
 
 # ---------------------------------------------------------------------------
 # Type-aware redaction functions
@@ -157,12 +158,16 @@ def _is_placeholder(val: str) -> bool:
 # Ordered redaction pipeline: S3 first, then S2
 # ---------------------------------------------------------------------------
 
-_REDACTION_PIPELINE: tuple[tuple[str, re.Pattern[str], Callable[[re.Match[str]], str], bool], ...] = (
-    # S3 patterns (order matters: more specific first)
+_Redaction = tuple[str, re.Pattern[str], Callable[[re.Match[str]], str], bool]
+
+# Order matters: more specific first.
+_S3_REDACTIONS: tuple[_Redaction, ...] = (
     ("china_id_card", _CHINA_ID_RE, _redact_china_id, True),
     ("bank_card", _BANK_CARD_RE, _redact_bank_card, True),
     ("china_passport", _CHINA_PASSPORT_RE, _redact_china_passport, False),
-    # S2 patterns
+)
+
+_S2_REDACTIONS: tuple[_Redaction, ...] = (
     ("china_phone", _CHINA_PHONE_RE, _redact_china_phone, False),
     ("intl_phone", _INTL_PHONE_RE, _redact_intl_phone, False),
     ("email", _EMAIL_RE, _redact_email, False),
@@ -173,14 +178,20 @@ _REDACTION_PIPELINE: tuple[tuple[str, re.Pattern[str], Callable[[re.Match[str]],
     ("us_ssn", _SSN_RE, _redact_ssn, False),
 )
 
+_REDACTION_PIPELINE: tuple[_Redaction, ...] = (*_S3_REDACTIONS, *_S2_REDACTIONS)
+
+ALL_LEVELS: frozenset[SensitivityLevel] = frozenset({SensitivityLevel.S2, SensitivityLevel.S3})
+
 
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
 
-def redact_pii(content: str, custom: CustomRules = NO_CUSTOM_RULES) -> tuple[str, int]:
-    """Apply all PII redactions to text content.
+def redact_pii(
+    content: str, custom: CustomRules = NO_CUSTOM_RULES, levels: frozenset[SensitivityLevel] = ALL_LEVELS
+) -> tuple[str, int]:
+    """Apply the PII redactions of *levels* to text content.
 
     Returns (redacted_text, count_of_redactions). Safe to call on any
     text — returns unchanged content with count=0 if nothing is found.
@@ -190,15 +201,22 @@ def redact_pii(content: str, custom: CustomRules = NO_CUSTOM_RULES) -> tuple[str
     patterns, then S3 patterns (identity docs, financial), then S2 patterns
     (contact info, location). Placeholder values are skipped to avoid false
     positives. Without *custom* only the built-in detectors apply.
+
+    *levels* narrows the built-in detectors: S3 covers passwords, identity documents, bank cards and credentials, S2
+    the contact and location patterns. A caller that applies a different action per level passes one level at a time,
+    so a level whose action is to leave the text alone never loses content to another level's redaction. *custom* is
+    applied whatever *levels* is: the caller hands over the terms of the level it is acting on.
     """
     if not content:
         return content, 0
 
-    result, total_count = _redact_passwords(content)
+    confidential = SensitivityLevel.S3 in levels
+    result, total_count = _redact_passwords(content) if confidential else (content, 0)
     result, custom_count = _redact_custom(result, custom)
     total_count += custom_count
 
-    for _name, pattern, redact_fn, check_placeholder in _REDACTION_PIPELINE:
+    pipeline = (_S3_REDACTIONS if confidential else ()) + (_S2_REDACTIONS if SensitivityLevel.S2 in levels else ())
+    for _name, pattern, redact_fn, check_placeholder in pipeline:
         new_result_parts: list[str] = []
         cursor = 0
         count = 0
@@ -220,7 +238,7 @@ def redact_pii(content: str, custom: CustomRules = NO_CUSTOM_RULES) -> tuple[str
     # Also apply leak_detector redaction for credentials
     from myrm_agent_harness.agent.security.detection.leak_detector import redact_leaks, scan_for_leaks
 
-    leak_matches = scan_for_leaks(result)
+    leak_matches = scan_for_leaks(result) if confidential else []
     if leak_matches:
         result = redact_leaks(result)
         total_count += len(leak_matches)

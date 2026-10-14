@@ -3,15 +3,16 @@
 [INPUT]
 - agent.security.types::PIIAction, PrivacyPolicy, SensitivityLevel (POS: Foundation layer of the security type hierarchy. All other security modules import from here; this module imports from none of them.)
 - core.security.detection.custom_rules::custom_rules (POS: Single definition of custom-term matching for the privacy policy: the PII classifier, the redactor and the pseudonymizer share it, so detection and masking never disagree about what a user's keyword or pattern covers.)
-- agent.security.detection.pii_classifier::classify_content (POS: Input-side PII classification engine. 30+ built-in regex patterns (bilingual CN/EN) with short-circuit optimization for efficient content scanning.)
+- agent.security.detection.pii_classifier::classify_content, contains_level (POS: Input-side PII classification engine. 30+ built-in regex patterns (bilingual CN/EN) with short-circuit optimization for efficient content scanning.)
 
 [OUTPUT]
-- levels_to_process: the sensitivity levels a detected level obliges the policy to act on
+- action_at: the action the policy sets for a level
+- levels_to_process: the sensitivity levels a text obliges the policy to act on: its detected level, plus S2 when an S3 text holds S2 content too and S2's action acts
 - apply_pii_actions: apply the policy action of each level to a text, audited unless ``audit=False``; None when a level blocks
 - apply_privacy_policy: classify a text and apply the policy to it; a block becomes full redaction, so the text always comes back
 
 [POS]
-PII action engine shared by the guardrail's input and output layers and by the tool-result PII guard. The action of a level covers the built-in detectors and the user's custom keywords and patterns of that level.
+PII action engine shared by the guardrail's input and output layers and by the tool-result PII guard. The action of a level covers the built-in detectors and the user's custom keywords and patterns of that level, and only those: the redaction of one level never masks the content of another, and a level blocks only a text that holds it.
 """
 
 from __future__ import annotations
@@ -19,7 +20,7 @@ from __future__ import annotations
 import logging
 
 from myrm_agent_harness.agent.middlewares._session_context import get_pseudonym_store
-from myrm_agent_harness.agent.security.detection.pii_classifier import classify_content
+from myrm_agent_harness.agent.security.detection.pii_classifier import classify_content, contains_level
 from myrm_agent_harness.agent.security.detection.pii_redactor import redact_pii
 from myrm_agent_harness.agent.security.types import PIIAction, PrivacyPolicy, SensitivityLevel
 from myrm_agent_harness.core.security.detection.custom_rules import custom_rules
@@ -27,17 +28,28 @@ from myrm_agent_harness.core.security.detection.custom_rules import custom_rules
 logger = logging.getLogger(__name__)
 
 
+def action_at(policy: PrivacyPolicy, level: SensitivityLevel) -> PIIAction:
+    """The action the user chose for *level*: S3 has its own, every other level follows S2's."""
+    return policy.s3_action if level == SensitivityLevel.S3 else policy.s2_action
+
+
 def levels_to_process(
+    content: str,
     detected_level: SensitivityLevel,
     policy: PrivacyPolicy,
 ) -> list[SensitivityLevel]:
-    """Determine which sensitivity levels need PII processing.
+    """The sensitivity levels *content* obliges the policy to act on.
 
-    When S3 is detected, also include S2 if its action is not WARN
-    (since the message may contain both S2 and S3 PII).
+    The detected level is always one. A text that reaches S3 may hold S2 content as well, so S2 joins it when the text
+    does hold some and its action is not WARN: a level the text does not hold is not acted on, which matters for a
+    BLOCK, where the message would be refused for content it does not contain.
     """
     levels = [detected_level]
-    if detected_level == SensitivityLevel.S3 and policy.s2_action != PIIAction.WARN:
+    if (
+        detected_level == SensitivityLevel.S3
+        and policy.s2_action != PIIAction.WARN
+        and contains_level(content, policy, SensitivityLevel.S2)
+    ):
         levels.append(SensitivityLevel.S2)
     return levels
 
@@ -68,8 +80,9 @@ def apply_pii_actions(
 
     result = text
     for level in levels:
-        action = policy.s3_action if level == SensitivityLevel.S3 else policy.s2_action
+        action = action_at(policy, level)
         custom = custom_rules(policy, level)
+        only = frozenset({level})
         if action == PIIAction.BLOCK:
             return None
         if action == PIIAction.PSEUDONYMIZE:
@@ -91,7 +104,7 @@ def apply_pii_actions(
                         source,
                     )
             else:
-                result, count = redact_pii(result, custom)
+                result, count = redact_pii(result, custom, only)
                 if count > 0:
                     report(
                         "PII_REDACTED",
@@ -101,7 +114,7 @@ def apply_pii_actions(
                         source,
                     )
         elif action == PIIAction.REDACT:
-            result, count = redact_pii(result, custom)
+            result, count = redact_pii(result, custom, only)
             if count > 0:
                 report(
                     "PII_REDACTED",
@@ -126,7 +139,7 @@ def apply_privacy_policy(text: str, policy: PrivacyPolicy, source: str, *, audit
     level = classify_content(text, policy).level
     if level == SensitivityLevel.S1:
         return text
-    processed = apply_pii_actions(text, levels_to_process(level, policy), policy, source, audit=audit)
+    processed = apply_pii_actions(text, levels_to_process(text, level, policy), policy, source, audit=audit)
     if processed is not None:
         return processed
     return redact_pii(text, custom_rules(policy, SensitivityLevel.S2, SensitivityLevel.S3))[0]

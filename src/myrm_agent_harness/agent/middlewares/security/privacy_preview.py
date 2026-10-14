@@ -2,14 +2,14 @@
 
 [INPUT]
 - core.security.detection.custom_rules::custom_rules, ineffective_patterns (POS: Single definition of custom-term matching for the privacy policy: the PII classifier, the redactor and the pseudonymizer share it, so detection and masking never disagree about what a user's keyword or pattern covers.)
-- agent.middlewares.security.pii_actions::apply_pii_actions, levels_to_process (POS: PII action engine shared by the guardrail's input and output layers and by the tool-result PII guard.)
+- agent.middlewares.security.pii_actions::action_at, apply_pii_actions, levels_to_process (POS: PII action engine shared by the guardrail's input and output layers and by the tool-result PII guard.)
 - agent.middlewares._session_context::get_pseudonym_store, set_pseudonym_store (POS: Context-local session state of the security middlewares.)
 - agent.security.detection.pii_classifier::classify_content (POS: Input-side PII classification engine.)
 - agent.security.detection.pseudonym_store::PseudonymStore (POS: Persistent mapping between original sensitive text and its pseudonym tag.)
 - agent.security.types::PIIAction, PrivacyPolicy, SensitivityLevel (POS: Foundation layer of the security type hierarchy.)
 
 [OUTPUT]
-- PrivacyPreview: detected level, the action the policy takes at that level, the text the model would receive, and the custom patterns that cannot be used
+- PrivacyPreview: detected level, the action the policy takes (block when any level it acts on blocks), the text the model would receive, and the custom patterns that cannot be used
 - preview_privacy_policy: classify a text and apply the policy to it the way a real turn does, as a pure function
 
 [POS]
@@ -29,7 +29,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from myrm_agent_harness.agent.middlewares._session_context import get_pseudonym_store, set_pseudonym_store
-from myrm_agent_harness.agent.middlewares.security.pii_actions import apply_pii_actions, levels_to_process
+from myrm_agent_harness.agent.middlewares.security.pii_actions import action_at, apply_pii_actions, levels_to_process
 from myrm_agent_harness.agent.security.detection.pii_classifier import classify_content
 from myrm_agent_harness.agent.security.detection.pseudonym_store import PseudonymStore
 from myrm_agent_harness.agent.security.types import PIIAction, PrivacyPolicy, SensitivityLevel
@@ -48,10 +48,6 @@ class PrivacyPreview:
     action: PIIAction | None
     model_sees: str | None
     ineffective_patterns: tuple[str, ...] = ()
-
-
-def _action_at(policy: PrivacyPolicy, level: SensitivityLevel) -> PIIAction:
-    return policy.s3_action if level == SensitivityLevel.S3 else policy.s2_action
 
 
 @contextmanager
@@ -76,8 +72,9 @@ def preview_privacy_policy(text: str, policy: PrivacyPolicy) -> PrivacyPreview:
     level = classify_content(text, policy).level
     if level == SensitivityLevel.S1:
         return PrivacyPreview(level, None, text, broken)
-    levels = levels_to_process(level, policy)
-    pseudonymizes = any(_action_at(policy, lv) == PIIAction.PSEUDONYMIZE for lv in levels)
+    levels = levels_to_process(text, level, policy)
+    pseudonymizes = any(action_at(policy, lv) == PIIAction.PSEUDONYMIZE for lv in levels)
     with _throwaway_pseudonym_store() if pseudonymizes else nullcontext():
         model_sees = apply_pii_actions(text, levels, policy, _PREVIEW_SOURCE, audit=False)
-    return PrivacyPreview(level, _action_at(policy, level), model_sees, broken)
+    action = PIIAction.BLOCK if model_sees is None else action_at(policy, level)
+    return PrivacyPreview(level, action, model_sees, broken)

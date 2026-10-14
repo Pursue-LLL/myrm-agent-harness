@@ -21,6 +21,7 @@ are pure — no logging, no side effects, no state.
 [OUTPUT]
 - PIIClassification: detection result (level, matched patterns, confidence)
 - classify_content(): classify text content
+- contains_level(): whether a text holds content of one level, whatever else it holds at a higher one
 - classify_tool_params(): classify tool call parameters
 - classify_tool_result(): classify tool execution result
 
@@ -278,8 +279,8 @@ def _built_in_s3(content: str) -> PIIClassification | None:
     return None
 
 
-def _built_in_s2(content: str) -> list[str]:
-    """The name of the first built-in S2 pattern *content* matches, as a one-item list, else an empty one."""
+def _built_in_s2(content: str) -> PIIClassification | None:
+    """The S2 classification of personal information the built-in detectors recognise, or None."""
     # ASCII short-text fast path skips only patterns that require CJK characters to
     # match (china_address). china_phone and china_courier match pure ASCII digit /
     # alphanumeric sequences ("13800138000", "SF1234567890123"), so skipping them on
@@ -289,8 +290,20 @@ def _built_in_s2(content: str) -> list[str]:
     for name, pat in check_patterns:
         for m in pat.finditer(content):
             if not _is_placeholder(m.group(0)):
-                return [name]
-    return []
+                return PIIClassification(level=SensitivityLevel.S2, patterns=[name])
+    return None
+
+
+def _classification_at(
+    content: str, policy: PrivacyPolicy, level: SensitivityLevel, *, built_in: bool
+) -> PIIClassification | None:
+    """The *level* (S2 or S3) classification of *content*: the user's custom terms of that level, then the built-in
+    detectors when *built_in*, or None when *content* holds nothing of that level."""
+    if custom := _custom_hit(content, policy, level):
+        return PIIClassification(level=level, patterns=[custom])
+    if not built_in:
+        return None
+    return _built_in_s3(content) if level == SensitivityLevel.S3 else _built_in_s2(content)
 
 
 def classify_content(content: str, policy: PrivacyPolicy) -> PIIClassification:
@@ -302,20 +315,22 @@ def classify_content(content: str, policy: PrivacyPolicy) -> PIIClassification:
     if not content or not policy.enabled:
         return PIIClassification(level=SensitivityLevel.S1)
 
-    custom_s3 = _custom_hit(content, policy, SensitivityLevel.S3)
-    if custom_s3:
-        return PIIClassification(level=SensitivityLevel.S3, patterns=[custom_s3])
-
     built_in = len(content) >= _MIN_CONTENT_LENGTH
-    if built_in and (s3 := _built_in_s3(content)):
-        return s3
+    return (
+        _classification_at(content, policy, SensitivityLevel.S3, built_in=built_in)
+        or _classification_at(content, policy, SensitivityLevel.S2, built_in=built_in)
+        or PIIClassification(level=SensitivityLevel.S1)
+    )
 
-    custom_s2 = _custom_hit(content, policy, SensitivityLevel.S2)
-    if custom_s2:
-        return PIIClassification(level=SensitivityLevel.S2, patterns=[custom_s2])
 
-    patterns = _built_in_s2(content) if built_in else []
-    return PIIClassification(level=SensitivityLevel.S2 if patterns else SensitivityLevel.S1, patterns=patterns)
+def contains_level(content: str, policy: PrivacyPolicy, level: SensitivityLevel) -> bool:
+    """Whether *content* holds something of *level* (S2 or S3), whatever else it holds at a higher one.
+
+    ``classify_content`` names the highest level a text reaches; a message that reaches S3 may hold S2 content too.
+    """
+    if not content or level == SensitivityLevel.S1:
+        return False
+    return _classification_at(content, policy, level, built_in=len(content) >= _MIN_CONTENT_LENGTH) is not None
 
 
 def classify_tool_params(tool_name: str, params: dict[str, object], policy: PrivacyPolicy) -> PIIClassification:

@@ -768,7 +768,7 @@ class TestHelperFunctions:
             s2_action=PIIAction.REDACT,
             s3_action=PIIAction.PSEUDONYMIZE,
         )
-        levels = levels_to_process(SensitivityLevel.S3, policy)
+        levels = levels_to_process("身份证 110101199003074530，电话 13812345678", SensitivityLevel.S3, policy)
         assert SensitivityLevel.S3 in levels
         assert SensitivityLevel.S2 in levels
 
@@ -782,7 +782,7 @@ class TestHelperFunctions:
             s2_action=PIIAction.WARN,
             s3_action=PIIAction.REDACT,
         )
-        levels = levels_to_process(SensitivityLevel.S3, policy)
+        levels = levels_to_process("身份证 110101199003074530，电话 13812345678", SensitivityLevel.S3, policy)
         assert levels == [SensitivityLevel.S3]
 
     def test_levels_to_process_s2_only(self) -> None:
@@ -795,7 +795,7 @@ class TestHelperFunctions:
             s2_action=PIIAction.REDACT,
             s3_action=PIIAction.BLOCK,
         )
-        levels = levels_to_process(SensitivityLevel.S2, policy)
+        levels = levels_to_process("电话 13812345678", SensitivityLevel.S2, policy)
         assert levels == [SensitivityLevel.S2]
 
     def test_apply_pii_actions_block_returns_none(self) -> None:

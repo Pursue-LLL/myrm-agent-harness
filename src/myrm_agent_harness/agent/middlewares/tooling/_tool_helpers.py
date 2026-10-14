@@ -450,7 +450,7 @@ def check_tool_result_pii(result: ToolMessage, result_text: str, tool_name: str)
         levels_to_process,
     )
 
-    levels = levels_to_process(classification.level, policy)
+    levels = levels_to_process(result_text, classification.level, policy)
     processed = apply_pii_actions(result_text, levels, policy, f"tool:{tool_name}")
     if processed is None:
         # A tool result cannot be refused, so a block masks it, custom terms of both levels included.
