@@ -168,17 +168,19 @@ async def clear_embedded_stores() -> None:
             logger.warning("Failed to close embedded Qdrant client on shutdown: %s", result)
 
 
-async def create_vector_store(config: VectorStoreConfig) -> QdrantVectorStore | None:
+async def create_vector_store(config: VectorStoreConfig) -> QdrantVectorStore:
     """Create Qdrant store from configuration.
 
     Single entry point — routes to embedded or remote based on config.mode.
 
     Returns:
-        QdrantVectorStore instance, or None if embedded mode fails.
+        QdrantVectorStore instance. An embedded store whose data directory cannot be opened
+        (held by another process, unwritable) is an in-memory store; check ``is_persistent``.
 
     Raises:
         ValueError: If deployment mode is unknown.
         ImportError: If qdrant-client is not installed.
+        RuntimeError: If the embedded store and its in-memory fallback both fail to open.
     """
     if config.mode == DeploymentMode.EMBEDDED:
         return await create_embedded_store(
