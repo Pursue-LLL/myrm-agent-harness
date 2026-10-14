@@ -105,7 +105,7 @@ Myrm Agent Harness 是一个**GUI-first 通用 AI 工作助手运行时框架**�
 |---------|-------------|------|
 | Server SSE / 配对 / btw 通知 | `infra.pubsub` | `PubSubBus` |
 | 聊天 UI 工具进度条 | `agent.streaming.broadcast` + `EventLogger` → SSE | `ToolCallBroadcaster` / `AgentEventType.TOOL_*` |
-| Server / 业务侧工具完成订阅 | `agent.streaming.broadcast` | `ToolBroadcastBus`（如 A/B test） |
+| Server / 业务侧工具完成订阅 | `agent.streaming.broadcast` | `ToolBroadcastBus`（订阅 `ToolCallEventData`） |
 | Agent 生命周期 hook 事件 | `runtime.events` | `EventBus`（保留，已有 `runtime.` 前缀） |
 | Doctor / Prometheus / log trace_id | `observability` | metrics / diagnostics / tracing |
 | OTEL 分布式链路 | `infra.tracing` | `get_tracer()` |

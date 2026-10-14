@@ -13,14 +13,9 @@ Skill backend protocol definition. Specifies the unified interface for loading s
 
 """
 
-from contextvars import ContextVar
 from typing import Protocol
 
 from myrm_agent_harness.backends.skills.types import SkillMetadata
-
-# Tracks which skill version (if any) was resolved by the backend (e.g. for AB tests)
-# Format: {skill_name: version_number}
-resolved_skill_versions_var: ContextVar[dict[str, int] | None] = ContextVar("resolved_skill_versions", default=None)
 
 
 class SkillBackend(Protocol):
@@ -147,24 +142,9 @@ class SkillStateReader(Protocol):
 class SnapshotStoreProtocol(Protocol):
     """Protocol for accessing skill version snapshots.
 
-    Used by VersionAwareSkillBackend to serve optimized or A/B-tested versions.
+    Used by VersionAwareSkillBackend to serve the activated version.
     """
-
-    async def get_version(self, skill_id: str, version: int) -> object | None:
-        """Return the snapshot for a specific skill version, or None."""
-        ...
 
     async def get_active_version(self, skill_id: str) -> object | None:
         """Return the currently activated snapshot for a skill, or None."""
-        ...
-
-
-class ABTestStoreProtocol(Protocol):
-    """Protocol for accessing running A/B tests.
-
-    Used by VersionAwareSkillBackend to route requests to candidate/baseline.
-    """
-
-    async def get_running_tests(self) -> list[object]:
-        """Return all currently running A/B tests."""
         ...

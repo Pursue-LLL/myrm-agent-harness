@@ -1,14 +1,14 @@
 # decorators/
 
 ## Overview
-SkillBackend decorator proxies — version routing (A/B tests) and quarantine filtering without mutating filesystem skill sources.
+SkillBackend decorator proxies — activated-version routing and quarantine filtering without mutating filesystem skill sources.
 
 ## File & Submodule Index
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Re-exports decorator backends | — |
-| version_aware.py | Core | VersionAwareSkillBackend — A/B routing and snapshot serving | baseline |
+| version_aware.py | Core | VersionAwareSkillBackend — activated snapshot serving with filesystem fallback | baseline |
 | quarantine_aware.py | Core | QuarantineAwareSkillBackend — filters inactive skills at runtime | baseline |
 
 ## Module Dependencies

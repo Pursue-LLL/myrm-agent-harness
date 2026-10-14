@@ -151,14 +151,12 @@ class TestToolCallEventData:
             session_id="sess_1",
             message_id="msg_1",
             tool_call_id="tc_1",
-            version=3,
             evicted_ref="/tmp/output.txt",
         )
         d = data.to_dict()
         assert d["tool_name"] == "bash_code_execute_tool"
         assert d["duration_ms"] == 2500
         assert d["evicted_ref"] == "/tmp/output.txt"
-        assert d["version"] == 3
 
     def test_to_json(self):
         data = ToolCallEventData(tool_name="test", status="failed", start_time=1.0, error="oops")
@@ -280,4 +278,3 @@ class TestContextBudgetSnapshot:
         assert d["mcp_tools_tokens"] == 3000
         assert d["skills_tools_tokens"] == 2500
         assert d["builtin_tools_tokens"] == 1200
-

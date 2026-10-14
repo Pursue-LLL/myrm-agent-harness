@@ -72,7 +72,6 @@ from myrm_agent_harness.backends.skills.permission_templates import (
     get_template_permissions,
 )
 from myrm_agent_harness.backends.skills.permission_validator import (
-    SkillPermission,
     check_permission_for_tool_call,
     log_permission_usage,
     map_permission_to_skill_permission,
@@ -89,18 +88,17 @@ from myrm_agent_harness.backends.skills.prerequisites import (
     check_skill_prerequisites,
 )
 from myrm_agent_harness.backends.skills.protocols import (
-    ABTestStoreProtocol,
-    SkillStateReader,
-    SnapshotStoreProtocol,
+    SkillBackend as SkillBackendProtocol,
 )
 from myrm_agent_harness.backends.skills.protocols import (
-    SkillBackend as SkillBackendProtocol,
+    SkillStateReader,
+    SnapshotStoreProtocol,
 )
 from myrm_agent_harness.backends.skills.scanning import (
     ScanningSkillWriteBackend,
 )
 from myrm_agent_harness.backends.skills.storage import StorageSkillBackend
-from myrm_agent_harness.backends.skills.types import skill_visible_for_tools
+from myrm_agent_harness.backends.skills.types import SkillPermission, skill_visible_for_tools
 from myrm_agent_harness.backends.skills.workflow_compiler import (
     DesktopEvent,
     WorkflowIntentPlan,
@@ -110,7 +108,6 @@ from myrm_agent_harness.backends.skills.workflow_compiler import (
 )
 
 __all__ = [
-    "ABTestStoreProtocol",
     "CompositeSkillBackend",
     "DEFAULT_TIER_MODELS",
     "DependencyCheckItem",

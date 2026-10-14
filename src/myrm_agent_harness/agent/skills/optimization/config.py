@@ -1,4 +1,4 @@
-"""Skill Optimization Configuration
+"""Skill Security Configuration
 
 1. 本文件的 INPUT/OUTPUT/POS 注释
 
@@ -6,13 +6,10 @@
 - dataclasses.dataclass (POS: Python数据类装饰器)
 
 [OUTPUT]
-- OptimizationConfig: 优化总配置
-- ABTestConfig: A/B测试配置
 - SecurityConfig: 安全验证配置
-- PerformanceConfig: LLM调用配置
 
 [POS]
-Skill optimization system configuration. Provides config options for A/B testing, LLM call tuning, and security.
+Skill content security validation configuration.
 
 """
 
@@ -45,45 +42,3 @@ class SecurityConfig:
 
     # 沙箱验证超时（秒）
     sandbox_timeout: float = 10.0
-
-
-@dataclass
-class ABTestConfig:
-    """A/B测试配置"""
-
-    # 最小样本量
-    min_sample_size: int = 50
-
-    # 最大样本量
-    max_sample_size: int = 500
-
-    # 是否启用自适应采样（低频skill快速验证）
-    enable_adaptive_sampling: bool = True
-
-
-@dataclass
-class PerformanceConfig:
-    """LLM调用配置"""
-
-    # LLM调用超时（秒）
-    llm_timeout: float = 60.0
-
-    # LLM调用最大重试次数
-    llm_max_retries: int = 3
-
-    # LLM调用重试延迟（秒，指数退避）
-    llm_retry_delay: float = 2.0
-
-
-@dataclass
-class OptimizationConfig:
-    """优化总配置"""
-
-    # 安全验证配置
-    security: SecurityConfig = field(default_factory=SecurityConfig)
-
-    # A/B测试配置
-    ab_test: ABTestConfig = field(default_factory=ABTestConfig)
-
-    # 性能配置
-    performance: PerformanceConfig = field(default_factory=PerformanceConfig)

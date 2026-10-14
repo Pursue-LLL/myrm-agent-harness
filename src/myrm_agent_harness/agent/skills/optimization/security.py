@@ -80,10 +80,9 @@ class SkillSecurityValidator:
         markdown_issues = self._validate_markdown(skill_content)
         issues.extend(markdown_issues)
 
-        # 4. 可选：沙箱验证
+        # 4. 可选：沙箱验证（未实现则 fail-closed）
         if self.config.enable_sandbox_validation and not issues:
-            sandbox_issues = self._sandbox_validate(skill_content)
-            issues.extend(sandbox_issues)
+            issues.extend(self._sandbox_validate(skill_content))
 
         # 汇总结果
         passed = len(issues) == 0
@@ -164,15 +163,5 @@ class SkillSecurityValidator:
         - 监控网络请求
         - 超时保护
         """
-        issues: list[str] = []
-
-        # 暂未实现完整沙箱验证
-        # 这需要：
-        # 1. 创建Docker容器或虚拟环境
-        # 2. 安装必要的依赖
-        # 3. 执行skill并监控行为
-        # 4. 检测异常操作（文件删除、网络攻击等）
-
-        logger.warning("Sandbox validation is enabled but not fully implemented yet")
-
-        return issues
+        logger.warning("Sandbox validation is enabled but not available in this build")
+        return ["Sandbox validation is enabled but not available in this build"]

@@ -27,7 +27,6 @@ from myrm_agent_harness.agent.hooks.types import HookResult
 from myrm_agent_harness.agent.streaming.broadcast.event_bus import ToolBroadcastBus
 from myrm_agent_harness.agent.streaming.broadcast.types import ToolCallEventData, _truncate_for_event
 from myrm_agent_harness.agent.streaming.types import AgentEventType
-from myrm_agent_harness.backends.skills.protocols import resolved_skill_versions_var
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 if TYPE_CHECKING:
@@ -103,7 +102,6 @@ class ToolCallBroadcaster:
             session_id=str(payload.get("session_id")) if payload.get("session_id") else None,
             message_id=str(payload.get("message_id")) if payload.get("message_id") else None,
             tool_call_id=tool_call_id if tool_call_id else None,
-            version=(resolved_skill_versions_var.get() or {}).get(tool_name),
         )
 
         bus = await self._ensure_event_bus()
@@ -149,7 +147,6 @@ class ToolCallBroadcaster:
             session_id=str(payload.get("session_id")) if payload.get("session_id") else None,
             message_id=str(payload.get("message_id")) if payload.get("message_id") else None,
             tool_call_id=tool_call_id if tool_call_id else None,
-            version=(resolved_skill_versions_var.get() or {}).get(tool_name),
             evicted_ref=evicted_ref,
         )
 
@@ -200,7 +197,6 @@ class ToolCallBroadcaster:
             session_id=str(payload.get("session_id")) if payload.get("session_id") else None,
             message_id=str(payload.get("message_id")) if payload.get("message_id") else None,
             tool_call_id=tool_call_id if tool_call_id else None,
-            version=(resolved_skill_versions_var.get() or {}).get(tool_name),
             fault_side=fault_side,
         )
 
@@ -242,7 +238,6 @@ class ToolCallBroadcaster:
             message_id=str(payload.get("message_id")) if payload.get("message_id") else None,
             tool_call_id=tool_call_id if tool_call_id else None,
             cancel_reason=cancel_reason,
-            version=(resolved_skill_versions_var.get() or {}).get(tool_name),
         )
 
         bus = await self._ensure_event_bus()
