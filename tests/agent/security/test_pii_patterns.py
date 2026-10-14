@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from myrm_agent_harness.core.security.detection.pii_patterns import (
+    S3_PATTERNS,
     bank_card_valid,
     china_id_valid,
     is_confirmed,
@@ -58,3 +59,7 @@ class TestIsConfirmed:
     def test_a_pattern_without_a_checksum_always_survives(self) -> None:
         assert is_confirmed("china_phone", "13800138000") is True
         assert is_confirmed("email", "a@b.com") is True
+
+    def test_the_names_it_checks_are_the_names_of_the_s3_table(self) -> None:
+        """A renamed table entry would silently skip its checksum."""
+        assert {"china_id_card", "bank_card"} <= {name for name, _pattern in S3_PATTERNS}
