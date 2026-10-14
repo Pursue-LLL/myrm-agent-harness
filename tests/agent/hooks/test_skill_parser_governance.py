@@ -172,3 +172,51 @@ def test_event_that_never_fires_is_reported_instead_of_silently_accepted(caplog:
 
     assert hooks == []
     assert any("Unknown hook type: PreCompact" in record.getMessage() for record in caplog.records)
+
+
+# --- malformed shapes ------------------------------------------------------------------------------
+
+
+def _parser_warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [record.getMessage() for record in caplog.records if record.name == _PARSER_LOGGER]
+
+
+@pytest.mark.parametrize("hooks_block", ["[script: x]", "just-a-string", "5"])
+def test_hooks_block_that_is_not_a_mapping_is_reported(hooks_block: str, caplog: pytest.LogCaptureFixture) -> None:
+    content = f"---\nname: probe\ndescription: probe\nhooks: {hooks_block}\n---\n# probe\n"
+
+    with caplog.at_level(logging.WARNING, logger=_PARSER_LOGGER):
+        hooks, _ = parse_hooks_from_skill_md(content)
+
+    assert hooks == []
+    assert any("expected a mapping of event name" in message for message in _parser_warnings(caplog))
+
+
+@pytest.mark.parametrize("value", ["{script: 'echo hi'}", "'echo hi'", "5"])
+def test_event_value_that_is_not_a_list_is_reported(value: str, caplog: pytest.LogCaptureFixture) -> None:
+    content = f"---\nname: probe\ndescription: probe\nhooks:\n  PreToolUse: {value}\n---\n# probe\n"
+
+    with caplog.at_level(logging.WARNING, logger=_PARSER_LOGGER):
+        hooks, _ = parse_hooks_from_skill_md(content)
+
+    assert hooks == []
+    assert any("Ignoring PreToolUse hooks: expected a list" in message for message in _parser_warnings(caplog))
+
+
+def test_entry_that_is_not_a_mapping_is_reported_and_siblings_survive(caplog: pytest.LogCaptureFixture) -> None:
+    with caplog.at_level(logging.WARNING, logger=_PARSER_LOGGER):
+        hooks, _ = parse_hooks_from_skill_md(_skill("'echo bare'", "script: 'echo good'"))
+
+    assert [hook.command for _, hook in hooks if isinstance(hook, CommandHookDefinition)] == ["echo good"]
+    assert any("expected a mapping with script or url, got str" in message for message in _parser_warnings(caplog))
+
+
+@pytest.mark.parametrize("hooks_lines", ["hooks:", "hooks:\n  PreToolUse:"])
+def test_declared_but_empty_hooks_stay_quiet(hooks_lines: str, caplog: pytest.LogCaptureFixture) -> None:
+    content = f"---\nname: probe\ndescription: probe\n{hooks_lines}\n---\n# probe\n"
+
+    with caplog.at_level(logging.WARNING, logger=_PARSER_LOGGER):
+        hooks, _ = parse_hooks_from_skill_md(content)
+
+    assert hooks == []
+    assert _parser_warnings(caplog) == []

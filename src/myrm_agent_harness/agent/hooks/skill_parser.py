@@ -73,7 +73,12 @@ def parse_hooks_from_skill_md(skill_content: str) -> tuple[list[tuple[HookEvent,
 
 
 def _parse_hooks(hooks_data: object) -> list[tuple[HookEvent, HookDefinition]]:
+    if hooks_data is None:
+        return []
     if not isinstance(hooks_data, dict):
+        logger.warning(
+            "Ignoring hooks: expected a mapping of event name to a list of entries, got %s", type(hooks_data).__name__
+        )
         return []
 
     hooks: list[tuple[HookEvent, HookDefinition]] = []
@@ -84,11 +89,23 @@ def _parse_hooks(hooks_data: object) -> list[tuple[HookEvent, HookDefinition]]:
             logger.warning("Unknown hook type: %s", hook_type_str)
             continue
 
+        if hook_configs is None:
+            continue
         if not isinstance(hook_configs, list):
+            logger.warning(
+                "Ignoring %s hooks: expected a list of entries (one '- script: ...' per hook), got %s",
+                hook_type_str,
+                type(hook_configs).__name__,
+            )
             continue
 
         for config in hook_configs:
             if not isinstance(config, dict):
+                logger.warning(
+                    "Skipping %s hook entry: expected a mapping with script or url, got %s",
+                    hook_type_str,
+                    type(config).__name__,
+                )
                 continue
             try:
                 hook = _build_hook(config)
