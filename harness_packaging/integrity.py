@@ -126,7 +126,6 @@ _PARENT_WATCH_ZONES: tuple[tuple[str, frozenset[str]], ...] = (
                 "experience_observability",
                 "four_tier_fts",
                 "git_okf",
-                "graph_reorganization",
                 "hybrid_engine",
                 "inode_identity",
                 "integration_purge",
