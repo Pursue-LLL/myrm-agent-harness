@@ -1,17 +1,38 @@
 """FetchTargetGuard policy matrix: which URLs a web_fetch request may contact.
 
 Cloud policy (no private networks): every address must be public. Local policy: the origin the fetch
-was aimed at may be private; any other private origin, legacy-spelled loopback included, and cloud
-metadata never may. Literal IPs and local hostnames only, so no DNS is involved.
+was aimed at may be private; any other private origin, legacy-spelled loopback and hostnames that
+resolve to loopback, link-local or metadata included, and cloud metadata never may. The local
+policy's name lookup is answered from a table so the tests never touch the network.
 """
 
 from __future__ import annotations
+
+import ipaddress
 
 import pytest
 
 from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError
 from myrm_agent_harness.core.security.guards.url_allowlist import URLAllowlistGuard
 from myrm_agent_harness.toolkits.web_fetch.fetchers.target_guard import FetchTargetGuard, _canonical_url
+
+_PUBLIC_ADDRESS = "93.184.216.34"
+_DNS_ANSWERS: dict[str, str | None] = {
+    "rebind.example": "127.0.0.1",
+    "linklocal.example": "169.254.10.10",
+    "creds.example": "169.254.169.254",
+    "proxied.example": "198.18.0.7",
+    "dead.example": None,
+}
+
+
+@pytest.fixture(autouse=True)
+def _name_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def answer(hostname: str) -> tuple[ipaddress.IPv4Address | ipaddress.IPv6Address, ...]:
+        address = _DNS_ANSWERS.get(hostname, _PUBLIC_ADDRESS)
+        return () if address is None else (ipaddress.ip_address(address),)
+
+    monkeypatch.setattr("myrm_agent_harness.core.security.redirect_hop_guard.hop_evaluator.resolve_addresses", answer)
 
 
 def _local(requested: str, allowed_hosts: list[str] | None = None) -> FetchTargetGuard:
@@ -93,8 +114,39 @@ class TestLocalPolicy:
         with pytest.raises(SSRFSecurityError):
             await guard.pin(metadata)
 
+    @pytest.mark.parametrize(
+        "hop",
+        [
+            "http://rebind.example/",  # resolves to 127.0.0.1
+            "http://linklocal.example:8080/",
+            "http://creds.example/latest/meta-data/",  # resolves to 169.254.169.254
+        ],
+    )
+    async def test_hostnames_resolving_to_a_local_address_are_blocked_as_redirect_hops(self, hop: str) -> None:
+        guard = _local("http://localhost:3000/start")
+
+        with pytest.raises(SSRFSecurityError, match="resolves to"):
+            await guard.pin(hop)
+
+    async def test_a_requested_hostname_resolving_to_loopback_is_reachable(self) -> None:
+        guard = _local("http://rebind.example:3000/start")
+
+        await guard.pin("http://rebind.example:3000/final")
+
+    async def test_cloud_metadata_behind_a_hostname_is_never_reachable_not_even_when_requested(self) -> None:
+        guard = _local("http://creds.example/")
+
+        with pytest.raises(SSRFSecurityError, match="metadata"):
+            await guard.pin("http://creds.example/")
+
+    @pytest.mark.parametrize("hop", ["http://proxied.example/", "http://dead.example/"])
+    async def test_what_a_proxy_hands_out_or_a_dns_that_cannot_answer_does_not_block(self, hop: str) -> None:
+        guard = _local("http://localhost:3000/start")
+
+        assert await guard.pin(hop) == (hop, {})
+
     @pytest.mark.parametrize("public", ["http://8.8.8.8/", "https://example.com/path", "https://sub.example.org:8443/"])
-    async def test_public_targets_are_reachable_without_dns(self, public: str) -> None:
+    async def test_public_targets_are_reachable(self, public: str) -> None:
         guard = _local("http://localhost:3000/start")
 
         assert await guard.pin(public) == (public, {})

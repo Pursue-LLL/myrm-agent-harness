@@ -4,7 +4,7 @@
 - .types / pool.config::ResourceBlockConfig
 - utils.private_origins::private_origin_grants (POS: per-context registry of explicitly navigated private origins)
 - .context_lists::DomainListPolicy, bind_domain_lists (POS: the context's domain allow/block lists and the rule that applies them)
-- core.security.redirect_hop_guard::RedirectHopEvaluator, HopDisposition (POS: literal-host private network and cloud metadata classification, no DNS)
+- core.security.redirect_hop_guard::RedirectHopEvaluator, HopDisposition (POS: private network and cloud metadata classification; local mode also judges a hostname by what it resolves to)
 - patchright.async_api::BrowserContext, Route
 - urllib.parse::urlparse
 
@@ -21,7 +21,8 @@ after the load, private and metadata targets by address and domain lists by the 
 binds to the context (``domain_filter.context_lists``).
 A local-mode session (``allow_private_networks``) keeps its own machine reachable for subresources
 and for documents from origins it was sent to explicitly; any other private document, such as a
-page script or link pointing the tab at loopback, is aborted like in the cloud.
+page script or link pointing the tab at loopback or at a hostname that resolves to it, is aborted
+like in the cloud.
 Strictly avoids Any types; enforced under 400 lines limit.
 """
 
@@ -131,7 +132,7 @@ async def install_http_filter(
 
         # 2. Hop-by-hop private address & cloud metadata IMDS revalidation
         if not allow_private_networks or resource_type == "document":
-            hop_eval = evaluator.evaluate_hop(url, resource_type=resource_type)
+            hop_eval = await evaluator.evaluate_hop_resolved(url, resource_type=resource_type)
             if hop_eval.disposition != HopDisposition.ALLOW:
                 logger.warning(
                     "SECURITY INTERCEPTION: Blocked private/metadata hop [%s] -> %s (Rule: %s, Reason: %s)",

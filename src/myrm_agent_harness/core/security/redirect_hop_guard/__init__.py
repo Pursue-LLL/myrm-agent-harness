@@ -2,16 +2,17 @@
 
 [INPUT]
 - .types::HopDisposition, HopEvaluationResult
-- .hop_evaluator::RedirectHopEvaluator (POS: literal-host private network and cloud metadata classification, no DNS)
+- .hop_evaluator::RedirectHopEvaluator (POS: private network and cloud metadata classification; local mode also judges a hostname by what it resolves to)
 - .origin_grants::PrivateOriginGrants (POS: set of origins that may be loaded although they are private)
 
 [OUTPUT]
 Hop domain models, the evaluator and the explicit-origin grants, re-exported.
 
 [POS]
-Literal-host private network and cloud metadata classification for browser navigations, the browser
-context filter and web_fetch redirect chains. Enforcement (route aborts, tab resets, request
-refusal) lives with each caller; this package only judges a URL.
+Private network and cloud metadata classification for browser navigations, the browser context
+filter and web_fetch redirect chains: the host as written, plus (local mode) the loopback, link-local
+or metadata address a hostname resolves to. Enforcement (route aborts, tab resets, request refusal)
+lives with each caller; this package only judges a URL.
 """
 
 from __future__ import annotations

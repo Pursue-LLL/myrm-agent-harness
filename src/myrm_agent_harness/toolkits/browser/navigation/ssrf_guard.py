@@ -2,7 +2,7 @@
 
 [INPUT]
 - core.security.guards.ssrf::async_pin_url (POS: DNS-validated URL checks + audit)
-- core.security.redirect_hop_guard::RedirectHopEvaluator, PrivateOriginGrants (POS: literal-host private network and cloud metadata classification, no DNS)
+- core.security.redirect_hop_guard::RedirectHopEvaluator, PrivateOriginGrants (POS: private network and cloud metadata classification; local mode also judges a hostname by what it resolves to)
 - domain_filter.context_lists::DomainListPolicy, domain_lists_for (POS: the context's domain allow/block lists and the rule that applies them)
 - utils.page_health::abort_pending_navigation (POS: bounded browser and page health primitives)
 
@@ -21,7 +21,8 @@ before the route handler is removed, and the removal itself is bounded, because 
 stuck in a stalled navigation never answers `unroute`.
 
 Two policies share this module. Without grants (cloud) every resolved address must be public.
-With grants (local mode) only the literal host is classified: private origins pass when the agent
+With grants (local mode) the host is classified as written and by what it resolves to, but only
+loopback, link-local and cloud metadata addresses count: private origins pass when the agent
 navigated there explicitly, and cloud metadata endpoints never pass.
 
 The agent's domain allow/block lists are applied to redirect hops here as well: the context's
@@ -63,8 +64,9 @@ async def assert_browser_navigation_allowed(url: str, grants: PrivateOriginGrant
     """Validate URL for browser navigation.
 
     Without ``grants`` the host is resolved and every address must be public (audited on block).
-    With ``grants`` only the literal host is classified: the user's own resolver may legitimately
-    map public names to proxy or VPN ranges, so DNS answers are not second-guessed there.
+    With ``grants`` the host is classified as written and by its DNS answer, but only loopback,
+    link-local and metadata answers count: the user's own resolver may legitimately map public
+    names to proxy or VPN ranges, so other answers are not second-guessed there.
     """
     parsed = urlparse(url)
     if parsed.scheme == "about":
@@ -73,7 +75,7 @@ async def assert_browser_navigation_allowed(url: str, grants: PrivateOriginGrant
         raise BrowserNavigationBlockedError(f"Unsupported navigation scheme: {url}")
 
     if grants is not None:
-        verdict = RedirectHopEvaluator(grants=grants).evaluate_hop(url)
+        verdict = await RedirectHopEvaluator(grants=grants).evaluate_hop_resolved(url)
         if verdict.disposition != HopDisposition.ALLOW:
             raise BrowserNavigationBlockedError(f"SSRF blocked: {verdict.reason}")
         return

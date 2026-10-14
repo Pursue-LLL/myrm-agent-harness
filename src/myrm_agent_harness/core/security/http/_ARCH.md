@@ -37,4 +37,4 @@ SSRF-protected outbound HTTP primitives shared by harness toolkits, agent pipeli
 - `myrm-agent-server/app/services/kanban/kanban_attach_handler.py`
 
 Browser Playwright navigation uses `toolkits/browser/navigation/ssrf_guard.py` (`async_pin_url`, not httpx).
-`toolkits/web_fetch/fetchers/target_guard.py` (`FetchTargetGuard`) is the per-hop policy of the web_fetch HTTP and stealth tiers: `async_pin_url` under the cloud policy (scrapling with validated domain fallback on TLS SAN mismatch, security-equivalent), literal-host classification under local mode.
+`toolkits/web_fetch/fetchers/target_guard.py` (`FetchTargetGuard`) is the per-hop policy of the web_fetch HTTP and stealth tiers: `async_pin_url` under the cloud policy (scrapling with validated domain fallback on TLS SAN mismatch, security-equivalent), host classification under local mode (the literal host plus loopback / link-local / metadata DNS answers).

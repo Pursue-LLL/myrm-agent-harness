@@ -3,7 +3,7 @@
 [INPUT]
 - core.security.guards.ssrf::async_pin_url, SSRFSecurityError (POS: DNS-validated URL checks + audit)
 - core.security.guards.url_allowlist::URLAllowlistGuard (POS: skill DLP domain allowlist)
-- core.security.redirect_hop_guard::RedirectHopEvaluator, PrivateOriginGrants (POS: literal-host private network and cloud metadata classification, no DNS)
+- core.security.redirect_hop_guard::RedirectHopEvaluator, PrivateOriginGrants (POS: private network and cloud metadata classification; local mode also judges a hostname by what it resolves to)
 - core.security.audit::record_decision (POS: security decision audit trail)
 - utils.url_syntax::parse_outbound_hostname (POS: outbound URL syntax check, no hostname blocklist)
 
@@ -13,9 +13,10 @@
 [POS]
 Per-fetch SSRF policy for the web_fetch tiers that follow redirects. Cloud policy resolves the host
 and requires every address to be public. Local policy (``allow_private_networks``) classifies the
-literal host only: the user's own resolver is not second-guessed, the origin the fetch was aimed at
-may be private, any other private origin reached through a redirect may not, and cloud metadata
-endpoints never may. Exact hosts listed in ``MYRM_ALLOWED_INTERNAL_HOSTS`` stay reachable under
+host as written and by its DNS answer, but only loopback, link-local and metadata answers count: the
+user's own resolver is not otherwise second-guessed, the origin the fetch was aimed at may be
+private, any other private origin reached through a redirect may not, and cloud metadata endpoints
+never may. Exact hosts listed in ``MYRM_ALLOWED_INTERNAL_HOSTS`` stay reachable under
 both policies.
 """
 
@@ -77,7 +78,7 @@ class FetchTargetGuard:
             raise SSRFSecurityError(error)
         URLAllowlistGuard.check(hostname)
         if hostname not in self._allowed_hosts:
-            verdict = self._local_policy.evaluate_hop(_canonical_url(url))
+            verdict = await self._local_policy.evaluate_hop_resolved(_canonical_url(url))
             if verdict.disposition != HopDisposition.ALLOW:
                 logger.warning("SSRF blocked request: %s — %s", url, verdict.reason)
                 record_decision("ssrf", "SSRF_BLOCKED", f"{url}: {verdict.reason}")
