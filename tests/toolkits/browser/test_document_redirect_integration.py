@@ -10,6 +10,7 @@ POST would be submitted twice). Each scenario counts what reached the server. Ru
 
 from __future__ import annotations
 
+import asyncio
 import gzip
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -17,6 +18,7 @@ from contextlib import asynccontextmanager
 import pytest
 from patchright.async_api import Error as BrowserDriverError
 from patchright.async_api import Page
+from patchright.async_api import TimeoutError as BrowserTimeoutError
 
 from myrm_agent_harness.toolkits.browser.pool import ContextType, GlobalBrowserPool
 from myrm_agent_harness.toolkits.browser.utils.private_origins import private_origin_grants
@@ -176,3 +178,40 @@ async def test_compressed_responses_are_delivered_intact() -> None:
             await tab.goto(site.url("/html"))
             assert await tab.inner_text("body") == "zipped page"
             assert await tab.evaluate(_ENHANCER_PRESENT, **_MAIN_WORLD) is True
+
+
+_ORDER_FORM = '<form method="post" action="/order"><button id="go">go</button></form>'
+_DRIVER_FETCH_TIMEOUT_MS = 1500
+_NAVIGATION_TIMEOUT_MS = 15_000
+
+
+def _order_routes(order: Reply) -> dict[str, Reply]:
+    return {"/form": Reply(body=f"<!DOCTYPE html><html><body>{_ORDER_FORM}</body></html>".encode()), "/order": order}
+
+
+async def test_slow_form_post_is_submitted_once_when_the_answer_outlasts_the_driver_timeout() -> None:
+    receipt = Reply(body=b"<!DOCTYPE html><html><body>receipt</body></html>", delay_s=4.0)
+    with serve(_order_routes(receipt)) as site:
+        async with _tab(site) as tab:
+            # The injection route's own request inherits the context default; shrink it so a
+            # "slow business endpoint" outlasts it within test time instead of 30 seconds.
+            tab.context.set_default_timeout(_DRIVER_FETCH_TIMEOUT_MS)
+            await tab.goto(site.url("/form"), timeout=_NAVIGATION_TIMEOUT_MS)
+            async with tab.expect_navigation(timeout=_NAVIGATION_TIMEOUT_MS):
+                await tab.click("#go", timeout=_NAVIGATION_TIMEOUT_MS)
+            assert await tab.inner_text("body") == "receipt"
+        assert site.paths("POST") == ["/order"]
+
+
+async def test_unanswered_form_post_is_not_resent_and_does_not_wedge_teardown() -> None:
+    unanswered = Reply(body=b"<!DOCTYPE html><html><body>late</body></html>", delay_s=30.0)
+    with serve(_order_routes(unanswered)) as site:
+        async with asyncio.timeout(20):
+            async with _tab(site) as tab:
+                tab.context.set_default_timeout(_DRIVER_FETCH_TIMEOUT_MS)
+                await tab.goto(site.url("/form"), timeout=_NAVIGATION_TIMEOUT_MS)
+                with pytest.raises(BrowserTimeoutError):
+                    async with tab.expect_navigation(timeout=4000):
+                        await tab.click("#go", timeout=_NAVIGATION_TIMEOUT_MS)
+                assert site.paths("POST") == ["/order"]
+        assert site.paths("POST") == ["/order"]

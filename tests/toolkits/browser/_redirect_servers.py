@@ -4,7 +4,7 @@
 - stdlib http.server (POS: in-process HTTP server)
 
 [OUTPUT]
-- Reply / redirect: scripted response specs
+- Reply / redirect: scripted response specs (``delay_s`` holds the answer back, like a slow business endpoint)
 - serve: context manager yielding a ``Site`` (base URL + every request the server received)
 
 [POS]
@@ -16,6 +16,7 @@ server was reached instead of trusting the browser-side outcome.
 from __future__ import annotations
 
 import threading
+import time
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -32,6 +33,7 @@ class Reply:
     body: bytes = b""
     content_type: str = HTML
     headers: tuple[tuple[str, str], ...] = ()
+    delay_s: float = 0.0
 
 
 def page(text: str) -> Reply:
@@ -68,6 +70,7 @@ def serve(routes: Mapping[str, Reply], *, host: str = "127.0.0.1") -> Iterator[S
             path = self.path.split("?", 1)[0]
             site.hits.append((method, path))
             reply = routes.get(path, Reply(status=404, body=b"not found"))
+            time.sleep(reply.delay_s)
             self.send_response(reply.status)
             self.send_header("Content-Type", reply.content_type)
             self.send_header("Content-Length", str(len(reply.body)))

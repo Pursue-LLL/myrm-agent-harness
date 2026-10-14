@@ -15,7 +15,9 @@ The handler performs the document request itself, so it must stay transparent to
 browser: redirects are never followed here (a 3xx is fulfilled unchanged and Chromium
 follows it, which keeps the page URL, origin, cookies and ``redirected_from`` chain
 correct for the SSRF checks), and every response it does not rewrite is fulfilled from
-the same single request instead of being requested again.
+the same single request instead of being requested again. A non-idempotent request (a form
+POST) is sent exactly once even when the server answers slower than the driver's request
+timeout, and a write that fails here is aborted rather than handed back for a second send.
 
 [INPUT]
 - patchright.async_api::BrowserContext, Route, APIResponse (POS: browser context primitives)
@@ -44,6 +46,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _HTML_CONTENT_TYPES = ("text/html", "application/xhtml+xml")
+_IDEMPOTENT_METHODS = frozenset({"GET", "HEAD"})
 _INSTALLED_FLAG = "__myrm_script_injection_installed"
 _PROVIDER_FLAG = "__myrm_script_providers"
 
@@ -82,19 +85,26 @@ async def _rewrite_html(response: APIResponse, providers: list[Callable[[], str]
 
 async def _inject_handler(route: Route, providers: list[Callable[[], str]]) -> None:
     """Fulfill document requests with all registered script tags prepended to HTML bodies."""
+    idempotent = True
     try:
-        if route.request.resource_type != "document" or not providers:
+        request = route.request
+        if request.resource_type != "document" or not providers:
             await route.fallback()
             return
-        response = await route.fetch(max_redirects=0)
+        idempotent = request.method in _IDEMPOTENT_METHODS
+        # A form submission has side effects and must reach the server exactly once: the driver's
+        # request timeout is lifted for it (the page's own navigation timeout still bounds the wait).
+        response = await route.fetch(max_redirects=0, timeout=None if idempotent else 0)
         rewritten = await _rewrite_html(response, providers)
         if rewritten is None:
             await route.fulfill(response=response)
         else:
             await route.fulfill(response=response, body=rewritten)
     except Exception:
+        # Falling back makes Chromium send the request again: harmless for a read, a duplicate
+        # side effect for a write, so a failed write is aborted instead of retried.
         with contextlib.suppress(Exception):
-            await route.fallback()
+            await (route.fallback() if idempotent else route.abort())
 
 
 async def install_document_script_injection(

@@ -21,13 +21,16 @@ def _make_route(
     content_type: str = "text/html",
     body: bytes | None = None,
     status: int = 200,
+    method: str = "GET",
 ) -> tuple[MagicMock, MagicMock]:
     """Build (route, response) mimicking patchright primitives."""
     if body is None:
         body = b"<html><head><title>base</title></head><body></body></html>"
     route = MagicMock()
     route.request.resource_type = resource_type
+    route.request.method = method
     route.fallback = AsyncMock()
+    route.abort = AsyncMock()
     route.fulfill = AsyncMock()
     route.fetch = AsyncMock()
     response = MagicMock()
@@ -61,7 +64,7 @@ class TestInjectHandler:
     async def test_redirects_are_never_followed_by_the_route(self) -> None:
         route, _ = _make_route()
         await _inject_handler(route, [lambda: "A()"])
-        route.fetch.assert_awaited_once_with(max_redirects=0)
+        route.fetch.assert_awaited_once_with(max_redirects=0, timeout=None)
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("status", [301, 302, 303, 307, 308])
@@ -125,7 +128,40 @@ class TestInjectHandler:
         route.fetch = AsyncMock(side_effect=RuntimeError("network gone"))
         await _inject_handler(route, [lambda: "A()"])
         route.fallback.assert_awaited_once()
+        route.abort.assert_not_called()
         route.fulfill.assert_not_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("method", ["GET", "HEAD"])
+    async def test_reads_keep_the_driver_default_timeout(self, method: str) -> None:
+        route, _ = _make_route(method=method)
+        await _inject_handler(route, [lambda: "A()"])
+        route.fetch.assert_awaited_once_with(max_redirects=0, timeout=None)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("method", ["POST", "PUT", "PATCH", "DELETE"])
+    async def test_writes_are_not_cut_off_by_the_driver_timeout(self, method: str) -> None:
+        route, _ = _make_route(method=method)
+        await _inject_handler(route, [lambda: "A()"])
+        route.fetch.assert_awaited_once_with(max_redirects=0, timeout=0)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("method", ["POST", "PUT", "PATCH", "DELETE"])
+    async def test_failed_write_is_aborted_not_handed_back_for_a_second_send(self, method: str) -> None:
+        route, _ = _make_route(method=method)
+        route.fetch = AsyncMock(side_effect=RuntimeError("network gone"))
+        await _inject_handler(route, [lambda: "A()"])
+        route.abort.assert_awaited_once()
+        route.fallback.assert_not_called()
+        route.fulfill.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_failure_while_rewriting_a_write_response_is_also_aborted(self) -> None:
+        route, response = _make_route(method="POST")
+        response.body = AsyncMock(side_effect=RuntimeError("body stream broke"))
+        await _inject_handler(route, [lambda: "A()"])
+        route.abort.assert_awaited_once()
+        route.fallback.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_non_utf8_charset_roundtrip(self) -> None:
