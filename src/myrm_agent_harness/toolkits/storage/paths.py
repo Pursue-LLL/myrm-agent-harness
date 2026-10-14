@@ -34,7 +34,7 @@ SKILLS_ROOT_PREFIX = "skills"
 # Storage reference prefix for container sync
 STORAGE_REF_PREFIX = "@storage:"
 
-# File metadata suffix (consistent with legacy code, backward compatible)
+# File metadata suffix
 FILE_METADATA_SUFFIX = ".meta.json"
 
 # Skill metadata filename

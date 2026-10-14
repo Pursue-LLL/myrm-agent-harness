@@ -25,10 +25,10 @@
 │          (按 StorageConfig.mode 选 Local / Persistent)   │
 │                                                          │
 │  app/core/storage/service.py                             │
-│    └─ FileStorageService (文件上传/下载/管理)             │
+│    └─ FilesService (文件上传/下载/管理)                  │
 │                                                          │
 │  app/core/skills/store/service.py                        │
-│    └─ SkillStoreService (技能存储管理)                    │
+│    └─ SkillsService (技能存储管理)                       │
 └──────────────────────────┬──────────────────────────────┘
                            │ 依赖方向 ↓
 ┌──────────────────────────┴──────────────────────────────┐
@@ -88,8 +88,8 @@ await storage.write("file.txt", b"content")
 
 - **位置**: `toolkits/storage/_fs_backend.py`
 - **用途**: 文件系统后端的公共基类，提供 aiofiles I/O 和 errno 错误处理的统一实现
-- **异步策略**: `aiofiles` 真异步 I/O（read/write/delete/exists/info/copy/move/get_url）
-- **错误处理**: 统一的 `errno` 翻译（ENOSPC / ENAMETOOLONG / EROFS → 具体异常类型）
+- **异步策略**: 读取、文件删除、存在性与元信息查询使用 `aiofiles` / `aiofiles.os`；写入经 `infra.atomic_write.async_atomic_write` 原子落盘；目录删除、`copy`、`move` 经 `asyncio.to_thread` 交给线程池
+- **错误处理**: 写入失败时统一按 `errno` 翻译（ENOSPC / ENAMETOOLONG / EROFS → 具体异常类型）
 - **MIME**: 自动通过 `mimetypes.guess_type()` 检测
 - **模板方法**: 子类仅需实现 `_resolve_key_to_path(key) -> Path`
 
@@ -99,16 +99,16 @@ await storage.write("file.txt", b"content")
 - **继承**: `BaseFileSystemBackend`
 - **用途**: 本地模式（本地部署）、开发环境
 - **特有逻辑**: 路径解析（`_resolve_key_to_path`）、写入后设置 chmod 0o600、list 文件列表
-- **安全**: `_resolve_key_to_path()` 使用 `os.path.normpath` + `relative_to` 防止路径遍历
+- **安全**: `_resolve_key_to_path()` 通过 `safe_join_path()` 校验，防止路径遍历与符号链接逃逸（见 §10）
 
 ### 4.2 PersistentStorageBackend (框架层)
 
 - **位置**: `toolkits/storage/persistent.py`
 - **继承**: `BaseFileSystemBackend`
-- **用途**: Agent-in-Sandbox 容器环境（支持 per-task 和 per-user 模式）
+- **用途**: Agent-in-Sandbox 容器环境
 - **特有逻辑**: 双卷路由（`_route_path` + `_resolve_key_to_path`）、幂等 delete、双卷合并 list
 - **智能路由**: 根据路径前缀自动分发到 `/persistent/`（长期数据）或 `/workspace/`（临时数据）
-- **安全**: 使用 `os.path.normpath` + `relative_to` 防止路径遍历，与 LocalStorageBackend 一致
+- **安全**: `_route_path()` 同样通过 `safe_join_path()` 校验，与 LocalStorageBackend 一致
 - **完整实现**: `StorageProvider` 的全部抽象方法均已实现
 
 ---
@@ -237,16 +237,17 @@ class StorageConfig:
 
 ### 路径遍历防护
 
-`LocalStorageBackend._resolve_key_to_path()` 和 `PersistentStorageBackend._route_path()` 均实现两层防护：
+`LocalStorageBackend._resolve_key_to_path()` 和 `PersistentStorageBackend._route_path()` 均通过 `core.security.path.safe_join_path()` 解析 key：
 
-1. **`os.path.normpath()`**: 规范化路径，处理 `..` 但不跟随符号链接
-2. **`full_path.relative_to(base_path)`**: 确保最终路径在允许的根目录内
+1. **输入校验**: 拒绝空字节、绝对路径和多行文本内容
+2. **`os.path.normpath()`**: 得到规范化的虚拟路径（不展开符号链接），Docker 挂载卷与软链接工作区的路径前缀保持不变
+3. **`resolve()` + `is_relative_to(base)`**: 用物理路径校验结果仍在根目录内，拦截 `..` 越界与符号链接逃逸
 
-选择 `normpath` 而非 `resolve()` 是为了避免 `.venv` 等目录中的符号链接导致误报。
+校验失败抛出 `StorageError`。
 
 ### 详细错误报告
 
-`BaseFileSystemBackend._translate_os_error()` 方法基于 `errno` 提供细粒度错误信息（LocalStorageBackend 和 PersistentStorageBackend 均受益）：
+`BaseFileSystemBackend._translate_os_error()` 在写入失败时基于 `errno` 提供细粒度错误信息（LocalStorageBackend 和 PersistentStorageBackend 均受益）：
 
 | errno | 含义 | 错误消息 |
 |-------|------|----------|

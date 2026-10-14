@@ -39,29 +39,23 @@ from .paths import (
 from .types import FilePurpose, SkillType
 
 __all__ = [
-    # Path常量
     "FILES_ROOT_PREFIX",
     "FILE_METADATA_SUFFIX",
     "SKILLS_ROOT_PREFIX",
     "SKILL_METADATA_FILE",
     "STORAGE_REF_PREFIX",
     "FileInfo",
-    # Type
     "FilePurpose",
     "LocalStorageBackend",
     "SkillType",
     "StorageConfig",
     "StorageError",
     "StorageMode",
-    # coreInterface
     "StorageProvider",
-    # 工厂
     "create_storage_provider",
-    # Storage引用
     "create_storage_ref",
     "get_all_files_prefix",
     "get_file_metadata_path",
-    # PathGenerate
     "get_file_storage_path",
     "get_skill_content_path",
     "get_skill_file_path",
@@ -73,7 +67,6 @@ __all__ = [
     "get_user_files_prefix",
     "get_user_skill_config_path",
     "is_storage_ref",
-    # PathValidate/Parse
     "is_valid_file_path",
     "is_valid_skill_path",
     "parse_storage_ref",
