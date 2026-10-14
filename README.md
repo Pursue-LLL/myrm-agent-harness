@@ -30,7 +30,7 @@
 - ✅ **完整 LangChain 兼容**：全面支持 `astream()`, `ainvoke()`, `abatch()`
 - ✅ **高级技能系统**：渐进式披露、MCP 集成、基于文件的技能
 - ✅ **LLM-Wiki Knowledge Base**：Karpathy 架构，LLM 作为编译器维护结构化 Markdown Wiki（见 Wiki Toolkit）
-- ✅ **生产就绪代码执行**：Agent-in-Sandbox 模式（LocalExecutor），可选 `SmartCachedStorage` 等缓存层
+- ✅ **生产就绪代码执行**：Agent-in-Sandbox 模式（LocalExecutor），可选 `CachedStorageProvider` 等缓存层
 - ✅ **统一路径解析**：`WorkspacePathResolver` 实现本地 ↔ 容器路径一致性转换
 - ✅ **Claude Code 兼容**：完整支持 Hooks、allowed-tools 和技能生命周期
 - ✅ **独立工具设计**：专用工具（Read/Write/Edit/Glob/Grep）；若系统安装 `ripgrep`，文件搜索可走外部实现
@@ -38,7 +38,7 @@
 ### 架构亮点
 - ✅ **框架-业务分离**：纯框架层，零业务逻辑（[自动化检测与修复](scripts/_ARCH.md)）
 - ✅ **智能缓存系统**：文件缓存与 LRU 等策略（行为依赖负载与配置）
-- ✅ **多沙箱支持**：Local（开发）、Docker（生产）、E2B（云端）统一 API
+- ✅ **多沙箱支持**：Local（开发）、Docker（生产）、E2B（云端）统一 API；Docker / E2B 由控制平面承载，harness 内的执行器只有 `LocalExecutor`
 - ✅ **类型安全**：包内代码以严格类型约束为目标（见 `pyproject` / `mypy` 配置）
 - ✅ **测试**：`tests/` 下单元、集成与性能等用例；以本地 `pytest` 结果为准
 - ✅ **分形自文档**：自组织、自愈的四层文档系统
@@ -311,7 +311,7 @@ myrm-agent-harness/          # 本仓库根（示意）
 │       ├── backends/                # 后端抽象（skills, storage, profiles, secrets）
 │       ├── toolkits/                # 通用工具包（不与 agent/ 耦合，可独立使用）
 │       │   ├── code_execution/      # 沙箱代码执行（Agent-in-Sandbox）
-│       │   ├── storage/             # 存储与缓存（含 SmartCachedStorage）
+│       │   ├── storage/             # 存储与缓存（含 CachedStorageProvider）
 │       │   ├── memory/              # 可插拔记忆系统
 │       │   ├── retriever/           # 检索（向量/BM25/混合搜索）
 │       │   ├── mcp/                 # MCP 协议集成
@@ -484,19 +484,21 @@ agent = await create_skill_agent(
 
 ### 智能缓存系统 ⚡
 ```python
-from myrm_agent_harness.toolkits.storage import SmartCachedStorage, LocalBackend
+from pathlib import Path
 
-# SmartCachedStorage：在 backend 之上叠加缓存与异步写回（效果依赖负载与配置）
-backend = LocalBackend(root_path="/data")
-cache = SmartCachedStorage(
+from myrm_agent_harness.toolkits.storage import CachedStorageProvider, LocalStorageBackend
+
+# CachedStorageProvider：在任意 StorageProvider 之上叠加本地缓存与异步写回（效果依赖负载与配置）
+backend = LocalStorageBackend(base_path="/data")
+cache = CachedStorageProvider(
     backend=backend,
-    cache_dir="/tmp/cache",
+    cache_dir=Path("/tmp/cache"),
     max_cache_size_mb=500,  # LRU 淘汰
     enable_async_upload=True,  # 后台异步写入
 )
 
-# 使用缓存
-data = await cache.read("skills/my_skill.py", session_id="abc123")
+# 使用缓存（namespace 隔离缓存键）
+data = await cache.read("skills/my_skill.py", namespace="abc123")
 ```
 
 **说明**：是否命中缓存、延迟与吞吐取决于访问模式与配置；请在目标环境中用基准或 profiling 验证。
@@ -531,17 +533,20 @@ local_path = WorkspacePathResolver.to_local_path(
 
 ### 多执行模式支持 🐳☁️
 ```python
-from myrm_agent_harness.toolkits.code_execution import create_executor
-from myrm_agent_harness.toolkits.code_execution.config import ExecutionMode, ExecutionConfig
+from myrm_agent_harness.toolkits.code_execution import (
+    ExecutionConfig,
+    ExecutionContext,
+    ExecutionMode,
+    create_executor,
+)
 
-# Local（开发环境）
 executor = create_executor(ExecutionConfig(mode=ExecutionMode.LOCAL))
-
-# 所有模式统一 API
-result = await executor.execute(code, context)
+executor.bind_workspace("/path/to/workspace")
+result = await executor.execute(ExecutionContext(code="print('hello')"))
 ```
 
-**模式对比**：
+**模式对比**：Docker / E2B 是 `myrm-control-plane` 承载沙箱的方式；harness 的 `ExecutionMode` 目前只有 `LOCAL`，Agent 在所选沙箱内以 `LocalExecutor` 执行代码。
+
 | 模式 | 隔离性 | 性能 | 可扩展性 | 成本 |
 |------|--------|------|----------|------|
 | **Local** | ❌ 无 | ⚡ 最快 | ❌ 受限 | ✅ 免费 |

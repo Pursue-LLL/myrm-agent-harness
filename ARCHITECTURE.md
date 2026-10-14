@@ -149,7 +149,7 @@ Myrm Agent Harness 是一个**GUI-first 通用 AI 工作助手运行时框架**�
 | **异步 I/O** | aiofiles, httpx, aiosqlite | 文件、网络、SQLite 异步操作   |
 | **HTML**     | beautifulsoup4, lxml              | 网页剪枝与 DOM 解析           |
 | **Checkpoint** | langgraph-checkpoint-sqlite, dill | 会话状态持久化与序列化      |
-| **沙箱执行** | 运行时 Docker CLI（非 core dep；见 `toolkits/code_execution/EXECUTION_SYSTEM.md`） | 容器化代码执行                |
+| **沙箱执行** | 系统沙箱组件 `sandbox-exec`（macOS）/ `bwrap`（Linux）/ AppContainer（Windows）（非 Python 依赖；见 `toolkits/code_execution/EXECUTION_SYSTEM.md`） | 子进程权限收窄                |
 | **存储**     | aiofiles                          | 本地文件系统存储              |
 | **文件解析** | pdfplumber（core）                | PDF 文本+表格提取（默认安装） |
 
@@ -235,11 +235,11 @@ BaseAgent (基础 Agent)
 ```
 Agent 层
   ↓ 依赖协议
-├─ SandboxExecutor (toolkits.execution)
-│   └─ 实现：LocalExecutor（内置），E2BExecutor（业务层）
+├─ CodeExecutor (toolkits.code_execution)
+│   └─ 实现：LocalExecutor（内置）
 │
 ├─ StorageProvider (toolkits.storage)
-│   └─ 实现：LocalBackend, SmartCachedStorage
+│   └─ 实现：LocalStorageBackend，CachedStorageProvider（缓存装饰器）
 │
 └─ SkillBackend (backends.skills)
     └─ 实现：LocalSkillBackend, StorageSkillBackend, CompositeSkillBackend

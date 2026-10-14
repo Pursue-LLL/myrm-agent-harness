@@ -230,7 +230,7 @@ Python wrapper 在用户代码运行前注入一个 import 钩子，惰性拦截
 ## 依赖关系
 
 ```
-toolkits/execution/
+toolkits/code_execution/
   ├─ executors/ → config, security, session, platform
   ├─ security/ → (自包含，无外部依赖)
   ├─ session/ → platform
@@ -250,7 +250,7 @@ toolkits/execution/
 ### 方式 1：通过工厂函数
 
 ```python
-from myrm_agent_harness.toolkits.execution import create_executor, ExecutionConfig
+from myrm_agent_harness.toolkits.code_execution import ExecutionConfig, ExecutionContext, create_executor
 
 executor = create_executor(ExecutionConfig())
 executor.bind_workspace("/path/to/workspace")
@@ -260,7 +260,7 @@ result = await executor.execute_bash(ExecutionContext(code="ls -la"))
 ### 方式 2：通过 ContextVar（Agent 集成）
 
 ```python
-from myrm_agent_harness.toolkits.execution import set_executor, require_executor
+from myrm_agent_harness.toolkits.code_execution import require_executor, set_executor
 
 set_executor(executor)  # 初始化时绑定
 # ... 在 Agent 工具中 ...
@@ -270,7 +270,7 @@ executor = require_executor()  # 获取当前 executor
 ### 方式 3：统一导出
 
 ```python
-from myrm_agent_harness.toolkits.execution.execution_tools import (
+from myrm_agent_harness.toolkits.code_execution import (
     CodeExecutor, LocalExecutor, create_executor,
     Workspace, WorkspaceService, create_workspace_service,
 )
