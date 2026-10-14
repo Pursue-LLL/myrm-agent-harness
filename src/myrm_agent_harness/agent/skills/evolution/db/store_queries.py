@@ -22,6 +22,35 @@ __all__ = ["SkillStoreQueries"]
 
 SqlParam = str | float
 
+# A skill is in an agent's scope when it is global (no owner) or owned by that agent.
+_AGENT_SCOPE_CLAUSE = """
+    (
+        environment IS NULL
+        OR json_extract(environment, '$.custom_tags.scope_agent_id') IS NULL
+        OR json_extract(environment, '$.custom_tags.scope_agent_id') = ?
+    )
+"""
+
+
+def _active_skills_filter(
+    agent_id: str | None,
+    mounted_skill_ids: list[str] | None = None,
+) -> tuple[str, list[SqlParam]]:
+    """Build the WHERE condition and bound params selecting active skills visible to ``agent_id``."""
+    condition = "is_active = 1"
+    params: list[SqlParam] = []
+    if agent_id is None:
+        return condition, params
+
+    params.append(agent_id)
+    if mounted_skill_ids:
+        placeholders = ",".join("?" * len(mounted_skill_ids))
+        condition += f" AND ({_AGENT_SCOPE_CLAUSE} OR skill_id IN ({placeholders}))"
+        params.extend(mounted_skill_ids)
+    else:
+        condition += f" AND {_AGENT_SCOPE_CLAUSE}"
+    return condition, params
+
 
 class SkillStoreQueries:
     """Mixin class for complex SkillStore queries."""
@@ -49,33 +78,24 @@ class SkillStoreQueries:
             List of active SkillRecords
         """
         self._ensure_open()
+        condition, params = _active_skills_filter(agent_id, mounted_skill_ids)
         with self._reader() as conn:
-            sql = "SELECT * FROM skills WHERE is_active = 1"
-            params: list[SqlParam] = []
-
-            if agent_id is not None:
-                # Build scope isolation logic
-                # A skill is included if it's global (no scope) or owned by this agent
-                scope_clause = """
-                    (
-                        environment IS NULL
-                        OR json_extract(environment, '$.custom_tags.scope_agent_id') IS NULL
-                        OR json_extract(environment, '$.custom_tags.scope_agent_id') = ?
-                    )
-                """
-                params.append(agent_id)
-
-                if mounted_skill_ids:
-                    placeholders = ",".join("?" * len(mounted_skill_ids))
-                    sql += f" AND ({scope_clause} OR skill_id IN ({placeholders}))"
-                    params.extend(mounted_skill_ids)
-                else:
-                    sql += f" AND {scope_clause}"
-
-            sql += " ORDER BY updated_at DESC"
-
-            rows = conn.execute(sql, tuple(params)).fetchall()
+            rows = conn.execute(
+                f"SELECT * FROM skills WHERE {condition} ORDER BY updated_at DESC",
+                tuple(params),
+            ).fetchall()
             return [self._row_to_record(row) for row in rows]
+
+    def count_active_skills(self, agent_id: str | None = None) -> int:
+        """Count active skills visible to ``agent_id`` without loading skill bodies.
+
+        Uses the same scope rule as :meth:`get_active_skills`.
+        """
+        self._ensure_open()
+        condition, params = _active_skills_filter(agent_id)
+        with self._reader() as conn:
+            row = conn.execute(f"SELECT COUNT(*) FROM skills WHERE {condition}", tuple(params)).fetchone()
+            return int(row[0])
 
     def get_skill_by_name_version(self, name: str, version: int | None = None) -> SkillRecord | None:
         """Load skill by name and optional version.

@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from myrm_agent_harness.agent.skills.evolution.core.types import (
+    EnvironmentFingerprint,
     EvolutionType,
     SkillLineage,
     SkillRecord,
@@ -123,6 +124,34 @@ async def test_get_active_skills(temp_db_path, skill_record):
 
     active = store.get_active_skills()
     assert [s.skill_id for s in active] == ["test_skill_1"]
+    store.close()
+
+
+@pytest.mark.asyncio
+async def test_count_active_skills_matches_get_active_skills_for_every_scope(temp_db_path, skill_record):
+    store = SkillStore(db_path=temp_db_path)
+
+    def _variant(skill_id: str, *, scope: str | None = None, active: bool = True) -> SkillRecord:
+        record = copy.deepcopy(skill_record)
+        record.skill_id = skill_id
+        record.name = skill_id
+        record.is_active = active
+        if scope is not None:
+            record.environment = EnvironmentFingerprint(custom_tags={"scope_agent_id": scope})
+        return record
+
+    await store.save_skill(_variant("global-1"))
+    await store.save_skill(_variant("global-2"))
+    await store.save_skill(_variant("owned-a", scope="agent-a"))
+    await store.save_skill(_variant("owned-b", scope="agent-b"))
+    await store.save_skill(_variant("retired", active=False))
+
+    for agent_id in (None, "agent-a", "agent-b", "agent-c"):
+        assert store.count_active_skills(agent_id=agent_id) == len(store.get_active_skills(agent_id=agent_id))
+
+    assert store.count_active_skills() == 4
+    assert store.count_active_skills(agent_id="agent-a") == 3
+    assert store.count_active_skills(agent_id="agent-c") == 2
     store.close()
 
 

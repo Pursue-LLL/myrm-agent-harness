@@ -1,6 +1,6 @@
-"""Unit tests for SkillBudgetGovernor and CompactorPreflightFence."""
+"""Unit tests for the count-only SkillBudgetGovernor and CompactorPreflightFence."""
 
-from datetime import UTC, datetime, timedelta
+import pytest
 
 from myrm_agent_harness.agent.context_management.infra.compactor_guard import (
     CompactorPreflightFence,
@@ -10,104 +10,58 @@ from myrm_agent_harness.agent.skills.evolution.core.budget_governor import (
     SkillBudgetConfig,
     SkillBudgetGovernor,
 )
-from myrm_agent_harness.agent.skills.evolution.core.types import (
-    EvolutionType,
-    SkillRecord,
-)
+from myrm_agent_harness.agent.skills.evolution.core.types import EvolutionType
+
+_NEW_SKILL_TYPES = (EvolutionType.CAPTURED, EvolutionType.DERIVED)
+_REPAIR_TYPES = (EvolutionType.FIX, EvolutionType.OPTIMIZE_DESCRIPTION)
 
 
-def test_budget_governor_normal_flow() -> None:
-    config = SkillBudgetConfig(max_tokens=10_000, soft_limit_ratio=0.8, max_skill_count=10)
-    governor = SkillBudgetGovernor(config)
-
-    # 1. Healthy state
-    res = governor.check_budget(
-        evolution_type=EvolutionType.CAPTURED,
-        current_tokens=2_000,
-        current_count=2,
-        estimated_new_tokens=500,
-    )
-    assert res.allowed is True
-    assert res.status == BudgetStatus.NORMAL
+def test_default_cap_is_fifty_skills() -> None:
+    assert SkillBudgetConfig().max_skill_count == 50
 
 
-def test_budget_governor_soft_limit_warning() -> None:
-    config = SkillBudgetConfig(max_tokens=10_000, soft_limit_ratio=0.8, max_skill_count=10)
-    governor = SkillBudgetGovernor(config)
+@pytest.mark.parametrize("evolution_type", _NEW_SKILL_TYPES)
+def test_new_skill_generation_is_allowed_below_the_cap(evolution_type: EvolutionType) -> None:
+    governor = SkillBudgetGovernor(SkillBudgetConfig(max_skill_count=10))
 
-    # 2. Soft limit hit (projected tokens = 8200 >= 8000)
-    res = governor.check_budget(
-        evolution_type=EvolutionType.CAPTURED,
-        current_tokens=7_700,
-        current_count=3,
-        estimated_new_tokens=500,
-    )
-    assert res.allowed is True
-    assert res.status == BudgetStatus.SOFT_LIMIT
-    assert "Consolidation recommended" in res.message
+    result = governor.check_budget(evolution_type=evolution_type, current_count=9)
+
+    assert result.allowed is True
+    assert result.status == BudgetStatus.NORMAL
+    assert (result.current_count, result.max_count) == (9, 10)
 
 
-def test_budget_governor_hard_limit_block_and_repair_bypass() -> None:
-    config = SkillBudgetConfig(max_tokens=10_000, soft_limit_ratio=0.8, max_skill_count=10)
-    governor = SkillBudgetGovernor(config)
+@pytest.mark.parametrize("evolution_type", _NEW_SKILL_TYPES)
+@pytest.mark.parametrize("current_count", [10, 11])
+def test_new_skill_generation_is_paused_once_the_library_is_full(
+    evolution_type: EvolutionType, current_count: int
+) -> None:
+    governor = SkillBudgetGovernor(SkillBudgetConfig(max_skill_count=10))
 
-    # 3. Hard limit exceeded for new skill creation
-    res_block = governor.check_budget(
-        evolution_type=EvolutionType.CAPTURED,
-        current_tokens=9_800,
-        current_count=9,
-        estimated_new_tokens=500,
-    )
-    assert res_block.allowed is False
-    assert res_block.status == BudgetStatus.HARD_LIMIT
-    assert "paused" in res_block.message
+    result = governor.check_budget(evolution_type=evolution_type, current_count=current_count)
 
-    # 4. Self-healing repair (FIX) must be allowed even at hard limit
-    res_repair = governor.check_budget(
-        evolution_type=EvolutionType.FIX,
-        current_tokens=9_800,
-        current_count=9,
-        estimated_new_tokens=500,
-    )
-    assert res_repair.allowed is True
-    assert res_repair.status == BudgetStatus.HARD_LIMIT
-    assert "Repair evolution granted" in res_repair.message
+    assert result.allowed is False
+    assert result.status == BudgetStatus.FULL
+    assert "paused" in result.message
 
 
-def test_budget_governor_identify_cold_skills() -> None:
-    config = SkillBudgetConfig(cold_storage_days=30)
-    governor = SkillBudgetGovernor(config)
+@pytest.mark.parametrize("evolution_type", _REPAIR_TYPES)
+@pytest.mark.parametrize("current_count", [9, 10, 11])
+def test_repairs_are_never_blocked_by_the_cap(evolution_type: EvolutionType, current_count: int) -> None:
+    governor = SkillBudgetGovernor(SkillBudgetConfig(max_skill_count=10))
 
-    now = datetime(2026, 9, 23, 12, 0, 0, tzinfo=UTC)
-    old_time = now - timedelta(days=45)
-    fresh_time = now - timedelta(days=5)
+    result = governor.check_budget(evolution_type=evolution_type, current_count=current_count)
 
-    from myrm_agent_harness.agent.skills.evolution.core.types import SkillLineage
+    assert result.allowed is True
 
-    cold_skill = SkillRecord(
-        skill_id="cold-skill",
-        name="Cold Skill",
-        description="test",
-        content="code",
-        path="/tmp/cold.md",
-        lineage=SkillLineage(evolution_type=EvolutionType.CAPTURED),
-        created_at=old_time,
-        updated_at=old_time,
-    )
-    active_skill = SkillRecord(
-        skill_id="active-skill",
-        name="Active Skill",
-        description="test",
-        content="code",
-        path="/tmp/active.md",
-        lineage=SkillLineage(evolution_type=EvolutionType.CAPTURED),
-        created_at=old_time,
-        updated_at=fresh_time,
-    )
 
-    cold_list = governor.identify_cold_skills([cold_skill, active_skill], now=now)
-    assert len(cold_list) == 1
-    assert cold_list[0].skill_id == "cold-skill"
+def test_repair_at_the_cap_reports_the_full_library() -> None:
+    governor = SkillBudgetGovernor(SkillBudgetConfig(max_skill_count=10))
+
+    result = governor.check_budget(evolution_type=EvolutionType.FIX, current_count=10)
+
+    assert result.status == BudgetStatus.FULL
+    assert "Repair evolution granted" in result.message
 
 
 def test_compactor_preflight_fence() -> None:
