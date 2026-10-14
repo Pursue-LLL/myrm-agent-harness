@@ -7,6 +7,7 @@ import pytest
 
 from myrm_agent_harness.toolkits.wiki.core.config import WikiConfig
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
+from myrm_agent_harness.toolkits.wiki.retrieval.graph_store import MAX_CONCEPT_LINKS
 from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer
 
 
@@ -78,9 +79,49 @@ async def test_concept_links_payload_carries_only_what_the_panel_reads() -> None
 
         links = indexer.get_concept_links("hub")
 
-    assert set(links) == {"concept_name", "outlinks", "backlinks"}
+    assert set(links) == {"concept_name", "outlinks", "backlinks", "outlinks_has_more", "backlinks_has_more"}
     assert [set(record) for record in links["outlinks"]] == [{"name", "exists"}]
     assert [set(record) for record in links["backlinks"]] == [{"name", "exists", "context_snippet", "heading"}]
+    assert links["outlinks_has_more"] is False
+    assert links["backlinks_has_more"] is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("linkers", "expect_more"),
+    [(MAX_CONCEPT_LINKS, False), (MAX_CONCEPT_LINKS + 1, True)],
+)
+async def test_backlinks_report_whether_the_cap_cut_the_list(linkers: int, expect_more: bool) -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        structure = WikiStructure(Path(tmpdir))
+        structure.ensure_structure()
+        indexer = WikiIndexer(structure, WikiConfig(enable_hybrid_search=False))
+        await _write_page(structure, indexer, "hub", "# Hub\n\nThe hub.\n")
+        for i in range(linkers):
+            await _write_page(structure, indexer, f"notes/n{i:03d}", f"# N{i}\n\nSee [[hub]].\n")
+
+        links = indexer.get_concept_links("hub")
+
+    assert len(links["backlinks"]) == MAX_CONCEPT_LINKS
+    assert links["backlinks_has_more"] is expect_more
+    assert links["outlinks_has_more"] is False
+
+
+@pytest.mark.asyncio
+async def test_outlinks_report_the_cap_independently_of_backlinks() -> None:
+    targets = "\n".join(f"- [[t{i:03d}]]" for i in range(MAX_CONCEPT_LINKS + 1))
+    with tempfile.TemporaryDirectory() as tmpdir:
+        structure = WikiStructure(Path(tmpdir))
+        structure.ensure_structure()
+        indexer = WikiIndexer(structure, WikiConfig(enable_hybrid_search=False))
+        await _write_page(structure, indexer, "catalog", f"# Catalog\n\n{targets}\n")
+
+        links = indexer.get_concept_links("catalog")
+
+    assert len(links["outlinks"]) == MAX_CONCEPT_LINKS
+    assert links["outlinks_has_more"] is True
+    assert links["backlinks"] == []
+    assert links["backlinks_has_more"] is False
 
 
 def test_extract_mention_record_edge_cases() -> None:

@@ -40,7 +40,16 @@ if TYPE_CHECKING:
 
 ConnFactory = Callable[[], AbstractContextManager[sqlite3.Connection]]
 
+# Each direction of a concept's links is cut at this size: every backlink costs one read of its source page.
+MAX_CONCEPT_LINKS = 100
+
 logger = logging.getLogger(__name__)
+
+
+def _fetch_capped(conn: sqlite3.Connection, sql: str, concept: str) -> tuple[list[sqlite3.Row], bool]:
+    """Run an edge query that takes `(concept, limit)`; the one-row probe past the cap tells whether the list was cut."""
+    rows = conn.execute(sql, (concept, MAX_CONCEPT_LINKS + 1)).fetchall()
+    return rows[:MAX_CONCEPT_LINKS], len(rows) > MAX_CONCEPT_LINKS
 
 
 def _clean_heading_text(raw_heading: str) -> str:
@@ -330,7 +339,10 @@ class WikiGraphStore:
         return None
 
     def get_concept_links(self, concept_name: str) -> dict[str, object]:
-        """Fetch bidirectional links: outlinks, and backlinks with the snippet and section that mention the concept."""
+        """Fetch bidirectional links: outlinks, and backlinks with the snippet and section that mention the concept.
+
+        Each direction is capped at `MAX_CONCEPT_LINKS`; `outlinks_has_more` / `backlinks_has_more` say whether more existed.
+        """
         clean_name = concept_index_key(self._structure, concept_name.removesuffix(".md").strip())
         spellings = self._target_spellings(clean_name)
 
@@ -339,21 +351,19 @@ class WikiGraphStore:
 
         with self._get_conn() as conn:
             # Query outgoing edges (what this concept references)
-            cursor = conn.execute(
-                "SELECT target FROM wiki_edges WHERE source = ? ORDER BY weight DESC LIMIT 100",
-                (clean_name,),
+            out_rows, outlinks_has_more = _fetch_capped(
+                conn, "SELECT target FROM wiki_edges WHERE source = ? ORDER BY weight DESC LIMIT ?", clean_name
             )
-            for row in cursor.fetchall():
+            for row in out_rows:
                 tgt = str(row["target"])
                 tgt_path = self._find_asset_path(tgt)
                 outlinks.append({"name": tgt, "exists": tgt_path is not None})
 
             # Query incoming edges (what references this concept)
-            cursor = conn.execute(
-                "SELECT source FROM wiki_edges WHERE target = ? ORDER BY weight DESC LIMIT 100",
-                (clean_name,),
+            in_rows, backlinks_has_more = _fetch_capped(
+                conn, "SELECT source FROM wiki_edges WHERE target = ? ORDER BY weight DESC LIMIT ?", clean_name
             )
-            for row in cursor.fetchall():
+            for row in in_rows:
                 src = str(row["source"])
                 src_path = self._find_asset_path(src)
                 record = self._extract_mention_record(src_path, spellings) if src_path else None
@@ -367,4 +377,10 @@ class WikiGraphStore:
                     }
                 )
 
-        return {"concept_name": clean_name, "outlinks": outlinks, "backlinks": backlinks}
+        return {
+            "concept_name": clean_name,
+            "outlinks": outlinks,
+            "backlinks": backlinks,
+            "outlinks_has_more": outlinks_has_more,
+            "backlinks_has_more": backlinks_has_more,
+        }
