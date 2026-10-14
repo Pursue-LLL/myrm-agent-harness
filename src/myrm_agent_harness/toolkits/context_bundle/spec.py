@@ -30,15 +30,11 @@ class ContextScene(StrEnum):
 
     MEMORY = "memory"
     WORKSPACE = "workspace"
-    OFFLOAD = "offload"
-    ARCHIVE = "archive"
 
 
 DEFAULT_SCENES: tuple[ContextScene, ...] = (
     ContextScene.MEMORY,
     ContextScene.WORKSPACE,
-    ContextScene.OFFLOAD,
-    ContextScene.ARCHIVE,
 )
 
 
@@ -47,9 +43,7 @@ class IncognitoPolicy:
     """Skip persistent writes for selected scenes during ephemeral sessions."""
 
     enabled: bool = False
-    skip_scenes: frozenset[ContextScene] = field(
-        default_factory=lambda: frozenset({ContextScene.MEMORY, ContextScene.ARCHIVE})
-    )
+    skip_scenes: frozenset[ContextScene] = field(default_factory=lambda: frozenset({ContextScene.MEMORY}))
 
 
 @dataclass(frozen=True, slots=True)

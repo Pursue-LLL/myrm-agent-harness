@@ -51,14 +51,3 @@ class WorkspaceSceneHealthBackend:
 
     async def health(self) -> str:
         return await self._probe()
-
-
-class StaticSceneHealthBackend:
-    """Return a fixed readiness status for scenes without index backends yet."""
-
-    def __init__(self, scene: ContextScene, status: str) -> None:
-        self.scene = scene
-        self._status = status
-
-    async def health(self) -> str:
-        return self._status

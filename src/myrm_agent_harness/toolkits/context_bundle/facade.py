@@ -11,7 +11,7 @@
 
 [OUTPUT]
 - ContextBundleHealth: non-content health snapshot
-- ContextBundleFacade: unified entry for memory/storage/offload/index/hooks paths
+- ContextBundleFacade: unified entry for memory/storage/index/hooks paths
 
 [POS]
 Thin facade over existing Harness storage and volume paths. Does not create MemoryManager or
@@ -47,7 +47,7 @@ class ContextBundleHealth:
 
 
 class ContextBundleFacade:
-    """Unified context volume facade for memory, workspace, offload, and archive scenes."""
+    """Unified context volume facade for the memory and workspace scenes."""
 
     def __init__(
         self,
@@ -96,15 +96,6 @@ class ContextBundleFacade:
     def qdrant_path(self) -> Path:
         return self._volume.qdrant_path
 
-    def archive_path(self) -> Path:
-        return self._volume.archive_path
-
-    def offload_root(self) -> Path:
-        return self._volume.offload_root
-
-    def session_offload_dir(self, session_id: str) -> Path:
-        return self._volume.session_offload_dir(session_id)
-
     def task_workspace_root(self) -> Path | None:
         overlay = self._spec.agent_overlay
         if overlay is None or not overlay.task_workspace_root:
@@ -127,14 +118,11 @@ class ContextBundleFacade:
         return self._hooks
 
     def scene_path(self, scene: ContextScene) -> Path:
+        """Memory volume for MEMORY; the task cwd (or the harness root) for WORKSPACE."""
         if scene is ContextScene.MEMORY:
             return self._volume.memory_path
-        if scene is ContextScene.WORKSPACE:
-            task_root = self.task_workspace_root()
-            return task_root if task_root is not None else self._volume.harness_path
-        if scene is ContextScene.OFFLOAD:
-            return self._volume.offload_root
-        return self._volume.archive_path
+        task_root = self.task_workspace_root()
+        return task_root if task_root is not None else self._volume.harness_path
 
     def allows_persistent_write(self, scene: ContextScene) -> bool:
         return self._spec.allows_persistent_write(scene)

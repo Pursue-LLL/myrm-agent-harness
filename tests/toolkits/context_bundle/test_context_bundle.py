@@ -16,11 +16,11 @@ from myrm_agent_harness.toolkits.context_bundle import (
 
 
 @pytest.mark.asyncio
-async def test_facade_exposes_memory_and_offload_paths(tmp_path: Path) -> None:
+async def test_facade_exposes_memory_and_harness_paths(tmp_path: Path) -> None:
     facade = ContextBundleFacade.from_state_dir(tmp_path, ensure_layout=True)
     assert facade.memory_path() == tmp_path / "memory"
-    assert facade.offload_root() == tmp_path / "harness" / ".context"
-    assert facade.session_offload_dir("chat_1") == tmp_path / "harness" / ".context" / "chat_1"
+    assert facade.harness_path() == tmp_path / "harness"
+    assert facade.qdrant_path() == tmp_path / "qdrant"
 
 
 @pytest.mark.asyncio
@@ -29,6 +29,7 @@ async def test_facade_health_reports_scene_paths(tmp_path: Path) -> None:
     health = await facade.health()
     assert health.writable is True
     assert health.scene_paths[ContextScene.MEMORY.value] == str(tmp_path / "memory")
+    assert set(health.scene_paths) == {ContextScene.MEMORY.value, ContextScene.WORKSPACE.value}
 
 
 def test_migration_dry_run_lists_missing_manifest(tmp_path: Path) -> None:

@@ -75,8 +75,6 @@ def run_migration_dry_run(
     for label, path in (
         ("memory", layout.memory_path),
         ("harness", layout.harness_path),
-        ("offload", layout.offload_root),
-        ("archive", layout.archive_path),
     ):
         if not path.exists():
             actions.append(

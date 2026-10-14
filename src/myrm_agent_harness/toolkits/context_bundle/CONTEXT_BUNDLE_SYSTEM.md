@@ -2,7 +2,7 @@
 
 ## Design Goal
 
-Provide a single volume contract for memory, workspace, session offload, and archive scenes
+Provide a single volume contract for the memory and workspace scenes
 so Server and Harness share one namespace layout under `MYRM_DATA_DIR`, without duplicating
 MemoryManager, vector search, or Agent runtime logic.
 
@@ -15,8 +15,6 @@ Server (ContextBundleService, ResolvedContextBinding)
 Harness (ContextBundleFacade)
         ├── memory_path      → MemoryManager (existing)
         ├── harness_path     → LocalStorageBackend / workspace scene
-        ├── offload_root     → `{state_dir}/harness/.context/` (VolumeLayout.offload_root)
-        ├── archive_path     → future export/import (#8)
         ├── index registry   → ContextIndexRegistry (per-scene health probes)
         └── lifecycle hooks  → OpenClaw-style phases (registration only)
 ```
@@ -27,9 +25,11 @@ Harness (ContextBundleFacade)
 |------|-------|
 | `{state_dir}/memory/` | MEMORY |
 | `{state_dir}/harness/` | WORKSPACE (default) + storage root |
-| `{state_dir}/harness/.context/` | OFFLOAD |
-| `{state_dir}/harness/archives/` | ARCHIVE |
 | `{state_dir}/context_bundle_manifest.json` | manifest |
+
+Context offload files (compacted outputs, evicted outputs, snapshots) belong to the runtime
+context root (`runtime/paths/execution_paths`), not to the bundle: the layout never declares a
+second path for them.
 
 Task cwd (user project directory) is carried on `AgentContextOverlay.task_workspace_root`
 in `ResolvedContextBinding`, decoupled from long-lived memory paths.
@@ -61,11 +61,10 @@ or `/context-search` HTTP endpoint.
 |-------|-------|
 | MEMORY | `MemorySceneHealthBackend` — memory path writability |
 | WORKSPACE | `WorkspaceSceneHealthBackend` — harness path + optional ripgrep availability |
-| OFFLOAD / ARCHIVE | `StaticSceneHealthBackend` — path writability |
 
 ## Out of Scope
 
 - Unified `context_search` HTTP API — workspace recall uses agentic grep/glob only
 - BM25 tri-path workspace recall (#3)
-- Bundle tarball export/import (#8)
+- Bundle tarball export/import (owned by the Server's instance archive)
 - Remote sync (#9)

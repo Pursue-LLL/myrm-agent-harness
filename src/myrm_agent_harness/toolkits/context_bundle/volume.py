@@ -9,7 +9,7 @@
 - BUNDLE_MANIFEST_FILENAME: manifest file name at bundle root
 
 [POS]
-Maps a state directory to memory, harness, offload, and archive paths used by ContextBundleFacade.
+Maps a state directory to the memory, harness, and qdrant paths used by ContextBundleFacade.
 """
 
 from __future__ import annotations
@@ -31,8 +31,6 @@ class VolumeLayout:
     memory_path: Path
     harness_path: Path
     qdrant_path: Path
-    offload_root: Path
-    archive_path: Path
 
     @classmethod
     def from_state_dir(cls, state_dir: str | Path) -> VolumeLayout:
@@ -43,8 +41,6 @@ class VolumeLayout:
             memory_path=base / "memory",
             harness_path=harness,
             qdrant_path=base / "qdrant",
-            offload_root=harness / ".context",
-            archive_path=harness / "archives",
         )
 
     def ensure_directories(self) -> None:
@@ -53,14 +49,8 @@ class VolumeLayout:
             self.memory_path,
             self.harness_path,
             self.qdrant_path,
-            self.offload_root,
-            self.archive_path,
         ):
             path.mkdir(parents=True, exist_ok=True)
-
-    def session_offload_dir(self, session_id: str) -> Path:
-        safe_session = session_id.strip().replace("/", "_")
-        return self.offload_root / safe_session
 
     def manifest_path(self) -> Path:
         return self.state_dir / BUNDLE_MANIFEST_FILENAME
@@ -75,8 +65,6 @@ class VolumeLayout:
                 "memory": str(self.memory_path),
                 "harness": str(self.harness_path),
                 "qdrant": str(self.qdrant_path),
-                "offload_root": str(self.offload_root),
-                "archive": str(self.archive_path),
             },
         }
 
