@@ -15,10 +15,9 @@ model's ``_agenerate``/``_astream`` is called, so the routing decision always se
 latest sensitivity level and messages already carry whatever the policy did to them.
 
 [INPUT]
-- agent.security.types::PrivacyRoutingConfig, (POS: Foundation layer of the security type hierarchy. All other security modules import from here; this module imports from none of them.)
-- agent.security.guards.privacy_tracker::get_privacy_tracker (POS: Per-Turn  ContextVar session-scoped TurnLevel)
-- agent.security.audit::record_decision (POS: Cross-cutting concern. Called from tool_interceptor_middleware and all security guard modules at every decision point.)
-- utils.runtime.progress_sink::get_tool_progress_sink (POS: ContextVar  Agent SSE  BaseAgent)
+- core.security.types::PrivacyRoutingConfig, SensitivityLevel (POS: Foundation layer of the security type hierarchy. All other security modules import from here; this module imports from none of them.)
+- core.security.guards.privacy_tracker::get_privacy_tracker (POS: Per-turn privacy state tracker. ContextVar session-scoped, independently evaluates each turn for privacy-sensitive content.)
+- core.security.audit::record_decision (POS: Cross-cutting concern. Called from tool_interceptor_middleware and all security guard modules at every decision point.)
 
 [OUTPUT]
 - PrivacyRoutingModel: BaseChatModel wrapper with privacy-aware routing
