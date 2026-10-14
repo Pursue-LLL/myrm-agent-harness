@@ -32,7 +32,7 @@ def trees(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path]:
             "agent/__init__.py": "",
             "agent/engine/__init__.py": "",
             "agent/engine/used.py": "def run() -> None: ...\n",
-            "toolkits/consumer.py": "from pkg.agent.engine.used import run\n\nrun()\n",
+            "api/consumer.py": "from pkg.agent.engine.used import run\n\nrun()\n",
         },
     )
     server = _write(tmp_path / "server", {"service.py": "VALUE = 1\n"})
@@ -67,7 +67,7 @@ def test_json_output_lists_dead_units(trees: tuple[Path, Path], capsys: pytest.C
 def test_scan_without_units_fails_instead_of_passing_silently(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setattr(cli, "HARNESS_SRC", _write(tmp_path / "pkg", {"toolkits/only.py": "X = 1\n"}))
+    monkeypatch.setattr(cli, "HARNESS_SRC", _write(tmp_path / "pkg", {"api/only.py": "X = 1\n"}))
     monkeypatch.setattr(cli, "SERVER_SRC", _write(tmp_path / "server", {"service.py": "X = 1\n"}))
     assert cli.main([]) == 2
     assert "nothing was scanned" in capsys.readouterr().err
@@ -87,6 +87,57 @@ def test_require_server_fails_when_the_server_tree_is_missing(
     monkeypatch.setattr(cli, "SERVER_SRC", tmp_path / "absent")
     assert cli.main(["--require-server"]) == 3
     assert "server tree not found" in capsys.readouterr().err
+
+
+def test_dead_server_unit_does_not_keep_a_harness_unit_alive(
+    trees: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    harness, server = trees
+    _write(harness, {"agent/engine/ghost.py": "def haunt() -> None: ...\n"})
+    _write(server, {"svc/dead.py": "from pkg.agent.engine.ghost import haunt\n\nhaunt()\n"})
+    assert cli.main([]) == 1
+    assert "agent/engine/ghost" in capsys.readouterr().err
+
+
+def test_server_mode_audits_server_units_and_honours_root_dirs(
+    trees: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    _, server = trees
+    _write(
+        server,
+        {
+            "main.py": "from server.svc.live import go\n\ngo()\n",
+            "svc/live.py": "def go() -> None: ...\n",
+            "svc/orphan.py": "def lost() -> None: ...\n",
+            "channels/provider.py": "def load() -> None: ...\n",
+            "startup/runner.py": "def run() -> None: ...\n",
+        },
+    )
+    assert cli.main(["--server", "--json"]) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["tree"] == "server"
+    assert [item["unit"] for item in payload["dead"]] == ["svc/orphan"]
+
+
+def test_server_root_option_overrides_the_default_tree(
+    trees: tuple[Path, Path], tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    other = _write(tmp_path / "other", {"svc/orphan.py": "def lost() -> None: ...\n"})
+    assert cli.main(["--server", "--server-root", str(other)]) == 1
+    assert "svc/orphan" in capsys.readouterr().err
+
+
+def test_server_mode_fails_when_the_server_tree_is_missing(
+    trees: tuple[Path, Path], tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert cli.main(["--server", "--server-root", str(tmp_path / "absent")]) == 3
+    assert "server tree not found" in capsys.readouterr().err
+
+
+def test_server_mode_rejects_incremental(trees: tuple[Path, Path]) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        cli.main(["--server", "--incremental"])
+    assert exit_info.value.code == 2
 
 
 def test_incremental_skips_without_harness_changes(
