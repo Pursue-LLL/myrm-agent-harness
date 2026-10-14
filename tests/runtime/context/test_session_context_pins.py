@@ -11,13 +11,14 @@ from myrm_agent_harness.runtime.context.session.session_context_pins import (
     remove_pinned_file,
     write_pinned_files,
 )
+from myrm_agent_harness.runtime.paths import execution_paths
 
 
 @pytest.fixture
 def persistent_root(tmp_path: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch) -> str:
     root = tmp_path / "persistent"
     root.mkdir()
-    monkeypatch.setattr(pins_module, "PERSISTENT_ROOT", str(root))
+    monkeypatch.setattr(execution_paths, "CONTEXT_ROOT", str(root / ".context"))
     return str(root)
 
 

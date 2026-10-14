@@ -10,7 +10,7 @@ Storage: <PERSISTENT_ROOT>/.hook_outputs/<session_id>/<uuid>.txt
 
 [INPUT]
 - utils.text_utils::get_token_count (POS: Token counting)
-- runtime.paths.execution_paths::PERSISTENT_ROOT (POS: Storage root)
+- runtime.paths.execution_paths (POS: Storage root, read at call time)
 
 [OUTPUT]
 - HookOutputSpiller: spill oversized hook text to disk
@@ -26,7 +26,7 @@ import logging
 import uuid
 from pathlib import Path
 
-from myrm_agent_harness.runtime.paths.execution_paths import PERSISTENT_ROOT
+from myrm_agent_harness.runtime.paths import execution_paths
 from myrm_agent_harness.utils.text_utils import get_token_count
 
 logger = logging.getLogger(__name__)
@@ -41,7 +41,8 @@ class HookOutputSpiller:
     __slots__ = ("_output_dir",)
 
     def __init__(self, output_dir: str | Path | None = None) -> None:
-        self._output_dir = Path(output_dir) if output_dir else Path(PERSISTENT_ROOT) / _HOOK_OUTPUTS_DIR
+        # The persistent root may be rebound after import (local dev), so it is read here, not imported.
+        self._output_dir = Path(output_dir) if output_dir else Path(execution_paths.PERSISTENT_ROOT) / _HOOK_OUTPUTS_DIR
 
     async def maybe_spill_text(self, text: str, session_id: str = "") -> str:
         """Check token count; if over limit, write full text to disk and return preview.

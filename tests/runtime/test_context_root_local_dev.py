@@ -21,16 +21,19 @@ from myrm_agent_harness.agent.context_management.infra.session_lock import (
     reset_current_chat_id,
     set_current_chat_id,
 )
+from myrm_agent_harness.agent.hooks.output_spiller import HookOutputSpiller
 from myrm_agent_harness.agent.meta_tools.file_ops.observers.tracker_observer import TrackerObserver
 from myrm_agent_harness.runtime.context.cleanup_ops import (
     cleanup_orphan_context_files_async,
     cleanup_session_context_files,
 )
+from myrm_agent_harness.runtime.context.context_branches import append_context_branch
 from myrm_agent_harness.runtime.context.file_access_tracker import (
     FileAccessTracker,
     get_file_access_tracker,
     reset_tracker,
 )
+from myrm_agent_harness.runtime.context.session.session_context_pins import write_pinned_files
 from myrm_agent_harness.runtime.paths import execution_paths
 from myrm_agent_harness.toolkits.code_execution.executors.base import CodeExecutor
 
@@ -125,3 +128,19 @@ async def test_a_file_the_agent_read_survives_cleanup_while_an_unread_one_of_the
     assert removed == 1
     assert read.exists()
     assert not unread.exists()
+
+
+def test_pins_and_branches_live_inside_the_rebound_context_root(local_root: Path) -> None:
+    write_pinned_files("chat_a", ["src/a.py"])
+    append_context_branch("chat_a", snapshot_path=".context/chat_a/snapshots/s.jsonl", label="before")
+
+    assert (local_root / "chat_a" / "pinned_context_files.json").is_file()
+    assert (local_root / "chat_a" / "branches.json").is_file()
+
+
+def test_the_hook_output_spiller_defaults_to_the_rebound_persistent_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(execution_paths, "PERSISTENT_ROOT", str(tmp_path / "harness"))
+
+    assert HookOutputSpiller()._output_dir == tmp_path / "harness" / ".hook_outputs"

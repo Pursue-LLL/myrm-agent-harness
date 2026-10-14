@@ -12,13 +12,14 @@ from myrm_agent_harness.runtime.context.context_branches import (
     get_context_branch,
     list_context_branches,
 )
+from myrm_agent_harness.runtime.paths import execution_paths
 
 
 @pytest.fixture
 def persistent_root(tmp_path: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch) -> str:
     root = tmp_path / "persistent"
     root.mkdir()
-    monkeypatch.setattr(branches_module, "PERSISTENT_ROOT", str(root))
+    monkeypatch.setattr(execution_paths, "CONTEXT_ROOT", str(root / ".context"))
     return str(root)
 
 
