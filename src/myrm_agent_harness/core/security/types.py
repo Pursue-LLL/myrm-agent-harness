@@ -258,6 +258,9 @@ class PrivacyRoutingConfig:
 
     When ``local_model`` is None, routing is disabled and all requests
     go to the cloud model (transparent pass-through).
+
+    ``s2_strategy="cloud_after_redact"`` sends S2 content to the cloud with the policy's S2 action already applied,
+    which is only a warning by default; the value is persisted in user settings under this name.
     """
 
     local_model: str | None = None

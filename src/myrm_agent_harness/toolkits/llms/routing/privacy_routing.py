@@ -6,12 +6,13 @@ interface. On each LLM call, reads the current turn's sensitivity level from
 and routes to the appropriate backend:
 
   S1 → cloud model
-  S2 → cloud (after redaction) or local, per ``s2_strategy``
+  S2 → cloud (the S2 action of the privacy policy already applied: by default a warning, so the text is sent as it is)
+       or local, per ``s2_strategy``
   S3 → local model (data never leaves the machine)
 
-Timeline safety: ``before_model`` detects and redacts PII *before* this model's
-``_agenerate``/``_astream`` is called, so the routing decision always sees the
-latest sensitivity level and messages are already sanitized when needed.
+Timeline safety: ``before_model`` detects PII and applies the policy's S2/S3 actions *before* this
+model's ``_agenerate``/``_astream`` is called, so the routing decision always sees the
+latest sensitivity level and messages already carry whatever the policy did to them.
 
 [INPUT]
 - agent.security.types::PrivacyRoutingConfig, (POS: Foundation layer of the security type hierarchy. All other security modules import from here; this module imports from none of them.)
