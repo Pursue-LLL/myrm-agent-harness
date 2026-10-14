@@ -188,6 +188,7 @@ class LLMErrorDiagnostic:
             "credit balance",
             "account is deactivated",
             "top up your credits",
+            "run out of credits",
             "余额不足",
             "额度不足",
             "欠费",

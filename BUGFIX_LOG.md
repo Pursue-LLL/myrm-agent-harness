@@ -2,6 +2,22 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-14-018 · xAI 额度耗尽 / 没有套餐时的 403 被诊断成「API 密钥认证失败」，恢复按钮指向「更新 API 密钥」，而密钥本身是有效的
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-14（xAI SuperGrok 订阅登录终极叩问阶段，把 Hermes 里记录的 xAI 403 响应体喂给真实的 `LLMErrorDiagnostic.diagnose`，对照它对同一响应体的分类） |
+| **修复时间** | 2026-10-14 |
+| **症状** | xAI 对额度耗尽或没有套餐的账号返回 403，体为 `{"code": "personal-team-blocked:spending-limit", "error": "You have run out of credits or need a Grok subscription. ..."}`（取自 Hermes `tests/agent/test_codex_xai_oauth_recovery.py:407-437`，Hermes 把它归为 billing）。真实 harness 执行：`error_type=api_key`、`user_message="API key authentication failed"`、恢复按钮「Update API Key」→ `/settings`。用户被引导去更新一个本来有效的密钥或重新登录订阅，而真正的原因是额度 / 套餐 |
+| **关联产品** | myrm-agent-harness `agent/errors/diagnostics/engine.py`；所有走 `LLMErrorDiagnostic` 的前端错误卡与 IM 回复，Local / 桌面 / 云托管相同；server 产品台账 `BUG-AGENT-2026-10-14-014`（同一批次：xAI 刷新被 403 拦截的分类） |
+| **根因** | `billing` 分支的关键词表没有这句话，而 `api_key` 分支把消息里出现的 `401` / `403` 当作兜底，于是任何带 403 的额度类拒绝都落入 `api_key` |
+| **修复** | `billing_keywords` 增加 `"run out of credits"`（`billing` 分支先于 `api_key` 分支判定）；其余分类、文案、恢复动作不变 |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | 只加短语、不放宽 403：同为 xAI 的 `{"code": "unauthenticated:bad-credentials", "error": "The OAuth2 access token could not be validated."}` 仍判 `api_key`（对照用例）；短语来自 Hermes 测试里的 xAI 响应，不是自行抓到的原始响应；`billing` 的文案是「API 账户余额不足」，对订阅用户的「没有套餐」不完全贴切，没有改动（该处文案与恢复动作模板由他人同时在重构） |
+| **回归** | `tests/agent/errors/diagnostics/test_error_diagnostics.py`（`test_diagnose_xai_out_of_credits_403_is_billing_not_api_key`：spending-limit 的 403 判 `billing` 且不可重试；`test_diagnose_xai_rejected_token_403_stays_api_key`：令牌被拒的 403 仍判 `api_key`）；变异检查：删掉该关键词，测试变红 |
+| **代码位置** | `agent/errors/diagnostics/engine.py` 的 `billing_keywords`（「2. Billing / insufficient balance errors」段，位于 `api_key` 分支之前） |
+
 ### BUG-HARNESS-2026-10-14-017 · 隐私检测的邮箱正则对不含 `@` 的长连续字符是二次方耗时：3 万字符的 base64 / 哈希串让 `classify_content` 与 `redact_pii` 各卡 0.7 秒，30 万字符跑满 2 分半钟 CPU 仍不返回
 
 | 字段 | 内容 |
