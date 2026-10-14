@@ -98,7 +98,7 @@ def test_extract_parameter_slots() -> None:
 
 
 def test_a_long_dotted_value_does_not_stall_slot_extraction() -> None:
-    """The unbounded address pattern backtracked quadratically on a run of dots (about 0.3 s at 20 000 characters)."""
+    """A run of dots is scanned in linear time: 20 000 characters take far less than 0.1 s."""
     started = time.perf_counter()
     slots = extract_parameter_slots(
         [DesktopRecordedEvent(seq=1, action=RecordedActionType.TYPE.value, app_name="Terminal", value="a." * 10_000)]
