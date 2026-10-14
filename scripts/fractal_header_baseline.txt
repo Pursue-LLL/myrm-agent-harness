@@ -77,7 +77,6 @@ myrm_agent_harness/api/types.py
 myrm_agent_harness/backends/profiles/__init__.py
 myrm_agent_harness/backends/skills/decorators/__init__.py
 myrm_agent_harness/backends/skills/decorators/quarantine_aware.py
-myrm_agent_harness/backends/skills/decorators/version_aware.py
 myrm_agent_harness/backends/skills/scanning/__init__.py
 myrm_agent_harness/core/artifacts/__init__.py
 myrm_agent_harness/core/artifacts/constants.py

@@ -91,6 +91,7 @@ from myrm_agent_harness.backends.skills.protocols import (
     SkillBackend as SkillBackendProtocol,
 )
 from myrm_agent_harness.backends.skills.protocols import (
+    SkillSnapshot,
     SkillStateReader,
     SnapshotStoreProtocol,
 )
@@ -136,6 +137,7 @@ __all__ = [
     "SkillResourceWriteResult",
     "SkillSaveResult",
     "SkillSearchResult",
+    "SkillSnapshot",
     "SkillStateReader",
     "SkillWriteBackend",
     "SnapshotStoreProtocol",

@@ -1,7 +1,17 @@
 """Version-aware skill backend decorator.
 
-Serves the activated version snapshot of a skill from a protocol-based snapshot
-store and falls back to the filesystem baseline when no snapshot is activated.
+[INPUT]
+- backends.skills.protocols::SkillBackend (POS: 技能后端协议)
+- backends.skills.protocols::SnapshotStoreProtocol (POS: 已激活技能版本快照的存储协议)
+- backends.skills.types::SkillMetadata (POS: 技能元数据类型定义)
+
+[OUTPUT]
+- VersionAwareSkillBackend: 优先返回已激活版本快照、否则回落文件系统基线的技能后端装饰器
+- session_id_var: 当前会话 ID 上下文变量，供按会话记账（如权限使用日志）读取
+
+[POS]
+技能后端装饰器。内容读取先查快照存储里的已激活版本，没有或存储出错时读取被包装后端的基线内容；
+列表与资源读取直接委托给被包装后端。
 """
 
 from __future__ import annotations
@@ -55,12 +65,8 @@ class VersionAwareSkillBackend(SkillBackend):
         try:
             active_version = await self._snapshot_store.get_active_version(skill_name)
             if active_version is not None:
-                logger.debug(
-                    "Serving active snapshot version for %s (v%d)",
-                    skill_name,
-                    int(getattr(active_version, "version", 0)),
-                )
-                return str(getattr(active_version, "content", ""))
+                logger.debug("Serving active snapshot version for %s (v%d)", skill_name, active_version.version)
+                return active_version.content
         except Exception as e:
             logger.error("Zero-latency version routing failed for %s: %s", skill_name, e)
 

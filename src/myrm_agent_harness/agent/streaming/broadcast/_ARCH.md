@@ -5,7 +5,7 @@ In-process **tool-call side-channel** pub-sub. **`ToolBroadcastBus`** singleton 
 
 **Chat UI tool progress** uses `ToolCallBroadcaster` → `EventLogger` → agent SSE stream (see `agent/streaming/stream_dispatcher.py`), not bus subscribers.
 
-**Bus subscribers** are for server-side consumers (e.g. A/B test in `app/lifecycle/skills.py`).
+**Bus subscribers** are optional server-side consumers (a business layer attaches its own transport adapters or analyzers); the shipped server registers none.
 
 **Not** [`observability/`](../../../observability/_ARCH.md) (metrics/Doctor) or [`infra/pubsub/`](../../../infra/pubsub/_ARCH.md) (Server business SSE).
 

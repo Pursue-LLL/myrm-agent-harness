@@ -7,6 +7,8 @@
 
 [OUTPUT]
 - SkillBackend: 技能后端协议(定义 list_skills, load_skills, get_skill_content, get_skill_resources)
+- SkillSnapshot: 已激活技能版本快照的只读视图(version, content)
+- SnapshotStoreProtocol / SkillStateReader: 装饰器后端依赖的快照存储与激活状态协议
 
 [POS]
 Skill backend protocol definition. Specifies the unified interface for loading skills from multiple sources.
@@ -139,12 +141,22 @@ class SkillStateReader(Protocol):
         ...
 
 
+class SkillSnapshot(Protocol):
+    """Read-only view of one activated skill version."""
+
+    @property
+    def version(self) -> int: ...
+
+    @property
+    def content(self) -> str: ...
+
+
 class SnapshotStoreProtocol(Protocol):
     """Protocol for accessing skill version snapshots.
 
     Used by VersionAwareSkillBackend to serve the activated version.
     """
 
-    async def get_active_version(self, skill_id: str) -> object | None:
+    async def get_active_version(self, skill_id: str) -> SkillSnapshot | None:
         """Return the currently activated snapshot for a skill, or None."""
         ...
