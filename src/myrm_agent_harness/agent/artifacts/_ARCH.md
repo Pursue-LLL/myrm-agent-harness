@@ -15,4 +15,4 @@ Artifacts system — artifact lifecycle management.
 | registry.py | Core | Provides GeneratedFile, ArtifactRegistry, RealtimeContentEvent. | ✅ |
 | types.py | Config | Provides ArtifactInfo, infer_language, infer_artifact_type. | ✅ |
 | bundle_manifest.py | Core | Provides DeliverableManifest, DeliverableItem, DeliverableCategory, DeliverableStatus for bundle packaging. | ✅ |
-| vault.py | Core | Shared Artifact Vault — `vault://` store under `{workspace}/.agent/vault`; supports lifecycle purge (`purge_object`, `purge_objects`, `purge_by_task_id`, `purge_all`), consumed by subagent auto-vault, file_read_tool, artifact listener, Kanban content_ref | ✅ |
+| vault.py | Core | Shared Artifact Vault — `vault://` store under `{workspace}/.agent/vault`; supports lifecycle purge (`purge_object`, `purge_objects`, `purge_by_task_id`, `purge_by_task_ids` — one vault scan for many task ids, `purge_all`), consumed by subagent auto-vault, file_read_tool, artifact listener, Kanban content_ref | ✅ |

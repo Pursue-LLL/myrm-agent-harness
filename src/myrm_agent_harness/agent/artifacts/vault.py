@@ -18,6 +18,7 @@ Shared Artifact Vault
 import json
 import logging
 import time
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from uuid import uuid4
@@ -262,7 +263,8 @@ class ArtifactVault:
         if not manifest_path.exists() or not manifest_path.is_file():
             return None
 
-        return json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest: dict[str, object] = json.loads(manifest_path.read_text(encoding="utf-8"))
+        return manifest
 
     def purge_object(self, uri_or_id: str) -> bool:
         """从金库物理删除单个对象（包含文件与元数据）。
@@ -317,19 +319,34 @@ class ArtifactVault:
         Returns:
             物理释放的对象数量。
         """
-        if not task_id:
+        return self.purge_by_task_ids([task_id])
+
+    def purge_by_task_ids(self, task_ids: Iterable[str]) -> int:
+        """清理多个任务生成的所有金库对象，整个金库只扫描一次。
+
+        逐个任务调用 ``purge_by_task_id`` 会让每个任务都重读全部元数据文件，
+        开销随 任务数 × 对象数 增长；批量清理应使用本方法。
+
+        Args:
+            task_ids: 关联的任务 ID 或会话 ID 标识；空标识被忽略。
+
+        Returns:
+            物理释放的对象数量。
+        """
+        patterns = {task_id: f"subagent_{task_id}" for task_id in task_ids if task_id}
+        if not patterns:
             return 0
 
-        target_pattern = f"subagent_{task_id}"
         purged = 0
         for obj in self.list_objects():
-            if (
-                target_pattern in obj.filename or target_pattern in obj.description or task_id in obj.id
+            if any(
+                pattern in obj.filename or pattern in obj.description or task_id in obj.id
+                for task_id, pattern in patterns.items()
             ) and self.purge_object(obj.id):
                 purged += 1
 
         if purged > 0:
-            logger.info("Purged %d vault objects for task_id: %s", purged, task_id)
+            logger.info("Purged %d vault objects for %d task ids", purged, len(patterns))
         return purged
 
     def purge_all(self) -> int:

@@ -2,7 +2,9 @@
 
 import tempfile
 
-from myrm_agent_harness.agent.artifacts.vault import VAULT_PREFIX, ArtifactVault
+import pytest
+
+from myrm_agent_harness.agent.artifacts.vault import VAULT_PREFIX, ArtifactVault, VaultObject
 
 
 def test_vault_purge_object() -> None:
@@ -52,3 +54,37 @@ def test_vault_purge_all() -> None:
         count = vault.purge_all()
         assert count == 3
         assert len(vault.list_objects()) == 0
+
+
+def test_vault_purge_by_task_ids_scans_the_vault_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        vault = ArtifactVault(tmpdir)
+        vault.put("a", "subagent_task_a.md", "text/markdown", "A output")
+        vault.put("b", "other.md", "text/markdown", "subagent_task_b described here")
+        vault.put("c", "subagent_task_c.md", "text/markdown", "C output")
+        vault.put("d", "unrelated.txt", "text/plain", "Other output")
+
+        scans = 0
+        list_objects = vault.list_objects
+
+        def counting_list_objects() -> list[VaultObject]:
+            nonlocal scans
+            scans += 1
+            return list_objects()
+
+        monkeypatch.setattr(vault, "list_objects", counting_list_objects)
+
+        assert vault.purge_by_task_ids(["task_a", "task_b", "task_missing"]) == 2
+
+        assert scans == 1
+        assert sorted(obj.filename for obj in list_objects()) == ["subagent_task_c.md", "unrelated.txt"]
+
+
+def test_vault_purge_by_task_ids_without_ids_does_not_touch_the_vault() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        vault = ArtifactVault(tmpdir)
+        vault.put("a", "subagent_task_a.md", "text/markdown", "A output")
+
+        assert vault.purge_by_task_ids([]) == 0
+        assert vault.purge_by_task_ids([""]) == 0
+        assert len(vault.list_objects()) == 1
