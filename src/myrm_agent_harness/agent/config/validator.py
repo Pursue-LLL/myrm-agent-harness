@@ -127,29 +127,7 @@ def check_config_health(config: AgentConfig) -> list[ConfigIssue]:
             )
         )
 
-    # 5. Check for storage config issues
-    if config.storage_config:
-        if config.storage_config.backend_type not in ["local", "custom"]:
-            issues.append(
-                ConfigIssue(
-                    level="error",
-                    message=f"Invalid storage backend_type: {config.storage_config.backend_type}",
-                    field="storage_config.backend_type",
-                    suggestion="Use 'local' or 'custom'",
-                )
-            )
-
-        if not config.storage_config.root_dir or not config.storage_config.root_dir.strip():
-            issues.append(
-                ConfigIssue(
-                    level="error",
-                    message="storage_config.root_dir cannot be empty",
-                    field="storage_config.root_dir",
-                    suggestion="Set a valid directory path",
-                )
-            )
-
-    # 6. Check for planner config conflicts
+    # 5. Check for planner config conflicts
     if config.planner_llm_config and not config.planner_config:
         issues.append(
             ConfigIssue(

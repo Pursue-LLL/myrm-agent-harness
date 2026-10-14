@@ -20,8 +20,6 @@ def test_from_preset_development():
     assert config.recursion_limit == 200
     assert config.enable_artifacts is True
     assert config.artifacts_output_path == "./artifacts"
-    assert config.storage_config.backend_type == "local"
-    assert config.storage_config.virtual_mode is True
 
 
 def test_from_preset_production():
@@ -32,8 +30,6 @@ def test_from_preset_production():
     assert config.recursion_limit == 50
     assert config.timeout_seconds == 300
     assert config.enable_artifacts is False
-    assert config.storage_config.backend_type == "local"
-    assert config.storage_config.virtual_mode is True
 
 
 def test_from_preset_saas():
@@ -45,7 +41,6 @@ def test_from_preset_saas():
     assert config.timeout_seconds == 600
     assert config.enable_artifacts is True
     assert config.artifacts_output_path == "/shared/artifacts"
-    assert config.storage_config.backend_type == "custom"
 
 
 def test_from_preset_with_overrides():

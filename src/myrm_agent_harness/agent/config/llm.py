@@ -4,7 +4,7 @@
 
 CustomModelDef 和 LLMConfig 定义在 ``core.config.llm``（Single Source of Truth），
 本模块 re-export 以保持 ``agent.config`` 公共 API 不变。
-StorageConfig, TracingConfig, AgentConfig 为 agent 层特有配置。
+TracingConfig, AgentConfig 为 agent 层特有配置。
 
 [INPUT]
 core.config.llm::CustomModelDef (POS: Custom model definition for self-hosted endpoints.)
@@ -14,12 +14,11 @@ core.config.llm::LLMConfig (POS: LLM configuration — framework-agnostic model 
 - CustomModelDef: re-export from core.config.llm
 - LLMConfig: re-export from core.config.llm
 - AgentConfig: Agent 运行时配置（Pydantic BaseModel，带字段验证和冲突检测）
-- StorageConfig: 文件存储配置（dataclass）
 - TracingConfig: 可视化追踪配置（dataclass）
 
 [POS]
 Agent configuration layer. Re-exports LLMConfig from core and defines agent-specific
-config types (AgentConfig, StorageConfig, TracingConfig) with strict Pydantic field validation.
+config types (AgentConfig, TracingConfig) with strict Pydantic field validation.
 
 """
 
@@ -29,26 +28,6 @@ from dataclasses import dataclass
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from myrm_agent_harness.core.config.llm import CustomModelDef, LLMConfig
-
-
-@dataclass
-class StorageConfig:
-    """存储配置
-
-    支持配置不同的存储后端。
-
-    Example:
-        >>> # 本地存储
-        >>> config = StorageConfig(backend_type="local", root_dir="./workspace")
-        >>>
-        >>> # 业务存储（需在业务项目中实现）
-        >>> config = StorageConfig(backend_type="custom", custom_params={"endpoint": "..."})
-    """
-
-    backend_type: str = "local"  # 后端类型：local, custom
-    root_dir: str = "./workspace"  # 本地存储根目录
-    virtual_mode: bool = True  # 虚拟模式（沙箱化）
-    custom_params: dict[str, object] | None = None
 
 
 @dataclass
@@ -85,7 +64,6 @@ class AgentConfig(BaseModel):
         ...         }
         ...     ),
         ...     mcp_configs=[MCPConfig(...)],
-        ...     storage_config=StorageConfig(backend_type="local", root_dir="./workspace"),
         ...     code_execution_config=ExecutionConfig(mode=ExecutionMode.LOCAL),
         ... )
     """
@@ -98,9 +76,6 @@ class AgentConfig(BaseModel):
 
     # MCP 配置（可选）
     mcp_configs: list[object] | None = Field(default=None, description="MCP server configurations")
-
-    # 存储配置（可选）
-    storage_config: StorageConfig | None = Field(default=None, description="Storage backend configuration")
 
     # 可视化追踪配置（可选）
     tracing_config: TracingConfig | None = Field(default=None, description="Tracing and UI configuration")
@@ -180,7 +155,7 @@ class AgentConfig(BaseModel):
         return cls.model_validate(data)
 
     @classmethod
-    def from_preset(cls, name: str, llm: LLMConfig, **overrides) -> "AgentConfig":
+    def from_preset(cls, name: str, llm: LLMConfig, **overrides: object) -> "AgentConfig":
         """从预设创建配置（业务层调用）
 
         Args:
@@ -213,12 +188,6 @@ class AgentConfig(BaseModel):
         """从 MYRM_* 环境变量加载配置。"""
         llm_config = LLMConfig.from_env()
 
-        storage_config = StorageConfig(
-            backend_type=os.getenv("MYRM_STORAGE_BACKEND", "local"),
-            root_dir=os.getenv("MYRM_WORKSPACE_PATH", "./workspace"),
-            virtual_mode=os.getenv("MYRM_STORAGE_VIRTUAL_MODE", "true").lower() == "true",
-        )
-
         tracing_config = TracingConfig(
             enable_local_ui=os.getenv("MYRM_ENABLE_LOCAL_UI", "false").lower() == "true",
             enable_langsmith=os.getenv("LANGCHAIN_TRACING_V2", "false").lower() == "true",
@@ -232,7 +201,6 @@ class AgentConfig(BaseModel):
 
         return cls(
             llm=llm_config,
-            storage_config=storage_config,
             tracing_config=tracing_config,
             recursion_limit=int(os.getenv("MYRM_RECURSION_LIMIT", "50")),
             timeout_seconds=(int(ts) if (ts := os.getenv("MYRM_TIMEOUT_SECONDS")) else None),
@@ -245,6 +213,5 @@ __all__ = [
     "AgentConfig",
     "CustomModelDef",
     "LLMConfig",
-    "StorageConfig",
     "TracingConfig",
 ]

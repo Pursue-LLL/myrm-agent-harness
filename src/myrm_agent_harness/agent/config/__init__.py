@@ -1,7 +1,7 @@
 """Agent configuration package — unified export of all config types and utilities.
 
 子模块：
-- llm: LLM 与 Agent 配置（LLMConfig, AgentConfig, StorageConfig）
+- llm: LLM 与 Agent 配置（LLMConfig, AgentConfig）
 - llm_safety: 出站消息的工具调用/结果配对规范化，与中间件链同源（normalize_messages）
 - parsers: LiteLLM模型名解析和转换（to_litellm_model, parse_litellm_model）
 - file_io: 文件 I/O 资源限制与正则安全配置（FileIOConfig）
@@ -24,7 +24,6 @@ __all__ = [
     "FileIOConfig",
     "InvalidConfigError",
     "LLMConfig",
-    "StorageConfig",
     "check_config_health",
     "normalize_messages",
     "parse_litellm_model",
@@ -39,7 +38,6 @@ _LAZY_IMPORTS = {
     "FileIOConfig": ("myrm_agent_harness.agent.config.file_io", "FileIOConfig"),
     "AgentConfig": ("myrm_agent_harness.agent.config.llm", "AgentConfig"),
     "LLMConfig": ("myrm_agent_harness.agent.config.llm", "LLMConfig"),
-    "StorageConfig": ("myrm_agent_harness.agent.config.llm", "StorageConfig"),
     "normalize_messages": ("myrm_agent_harness.agent.config.llm_safety", "normalize_messages"),
     "parse_litellm_model": ("myrm_agent_harness.agent.config.parsers", "parse_litellm_model"),
     "to_litellm_model": ("myrm_agent_harness.agent.config.parsers", "to_litellm_model"),
