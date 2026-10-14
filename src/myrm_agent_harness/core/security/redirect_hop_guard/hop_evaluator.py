@@ -179,10 +179,12 @@ class RedirectHopEvaluator:
     async def evaluate_hop_resolved(self, target_url: str, resource_type: str = "document") -> HopEvaluationResult:
         """``evaluate_hop`` plus one name lookup for a plain hostname that looked public.
 
-        Only local-mode policies (grants given) look names up: the cloud policy resolves and pins
-        addresses elsewhere. Only loopback, link-local, unspecified and cloud metadata answers are
-        judged. RFC 1918, CGNAT and benchmarking ranges are not, because fake-IP proxies and VPNs hand
-        them out for public names. A lookup that fails or times out judges nothing.
+        Only local-mode policies (grants given) look names up. The cloud policy resolves and pins
+        only entry navigations and web fetches (``async_pin_url``, ``FetchTargetGuard``), so its
+        redirect hops and subresources are judged by the literal host alone. Only loopback,
+        link-local, unspecified and cloud metadata answers are judged. RFC 1918, CGNAT and
+        benchmarking ranges are not, because fake-IP proxies and VPNs hand them out for public
+        names. A lookup that fails or times out judges nothing.
         """
         verdict = self.evaluate_hop(target_url, resource_type)
         if self._grants is None or verdict.matched_rule != _PUBLIC_TARGET:
