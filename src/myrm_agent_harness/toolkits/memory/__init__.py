@@ -106,14 +106,6 @@ from myrm_agent_harness.toolkits.memory.job_compounding import (
     PreferenceCompoundingEngine,
     RuleType,
 )
-from myrm_agent_harness.toolkits.memory.live_correction import (
-    CorrectionAckReceipt,
-    CorrectionTargetLocalizer,
-    LiveCorrectionMutationResult,
-    LiveCorrectionOrchestrator,
-    NaturalLanguageCorrectionDetector,
-    TargetNodeCandidate,
-)
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.markdown_curator import (
     CuratedMemoryCategory,
@@ -499,12 +491,6 @@ __all__ = [
     "QuadrupleRetrievalOrchestrator",
     "QuadrupleRetrievalReport",
     "RerankedMemoryHit",
-    "CorrectionAckReceipt",
-    "CorrectionTargetLocalizer",
-    "LiveCorrectionMutationResult",
-    "LiveCorrectionOrchestrator",
-    "NaturalLanguageCorrectionDetector",
-    "TargetNodeCandidate",
     "ChunkSourceHydrator",
     "ChunkingConfig",
     "IncrementalDiffReport",
