@@ -39,8 +39,7 @@ _FORMS_PER_QUERY = 200
 
 _DANGLING_EDGES_SQL = """
     SELECT source, target, weight FROM wiki_edges
-    WHERE target NOT LIKE 'system:%'
-      AND target NOT IN (SELECT concept_name FROM wiki_index_meta)
+    WHERE target NOT IN (SELECT concept_name FROM wiki_index_meta)
 """
 
 
@@ -88,7 +87,7 @@ def relink_dangling_edges(
     spelling that only a later page alias explains; this converges stored edges once
     the page is known. ``change`` narrows the work to edges spelled like the written
     page; without it (or after the resolver re-read the vault) every unresolved edge is
-    re-resolved. Pseudo targets (`system:*`) are never touched.
+    re-resolved.
     """
     rewritten = 0
     for source, old_target, weight in _unresolved_edges(conn, change):

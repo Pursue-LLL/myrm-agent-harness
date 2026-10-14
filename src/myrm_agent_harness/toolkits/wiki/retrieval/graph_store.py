@@ -10,7 +10,7 @@
 - .graph_tables::federated_graph_queries (POS: graph node/edge rows shared with the insights)
 
 [OUTPUT]
-- WikiGraphStore: Graph topology storage, BFS traversal, concept link lookup (any spelling of a page name) with the line, section and text of the link each backlink holds, and insight computation
+- WikiGraphStore: Graph topology storage, BFS traversal, concept link lookup (any spelling of a page name) with the section and text of the link each backlink holds, and insight computation
 
 [POS]
 Encapsulates knowledge graph operations: BFS neighbor traversal, federated
@@ -306,8 +306,8 @@ class WikiGraphStore:
 
     def _extract_mention_record(
         self, file_path: Path, target: _TargetSpellings, max_chars: int = 140
-    ) -> tuple[str, int, str | None] | None:
-        """Snippet, 1-based line number and heading section of the first line of ``file_path`` that mentions ``target``."""
+    ) -> tuple[str, str | None] | None:
+        """Snippet and heading section of the first line of ``file_path`` that mentions ``target``."""
         if not file_path.is_file():
             return None
         try:
@@ -316,7 +316,7 @@ class WikiGraphStore:
             return None
 
         current_heading: str | None = None
-        for line_no, line in enumerate(content.splitlines(), start=1):
+        for line in content.splitlines():
             text = line.strip()
             if not text:
                 continue
@@ -326,11 +326,11 @@ class WikiGraphStore:
             clean_line = re.sub(r"^[-*+>]\s+", "", text).strip()
             span = _first_mention(clean_line, target)
             if span is not None:
-                return _snippet_around(clean_line, span, max_chars), line_no, current_heading
+                return _snippet_around(clean_line, span, max_chars), current_heading
         return None
 
-    def get_concept_links(self, concept_name: str, depth: int = 1) -> dict[str, object]:
-        """Fetch bidirectional links (outlinks and backlinks) with context snippets and 1-degree ego graph."""
+    def get_concept_links(self, concept_name: str) -> dict[str, object]:
+        """Fetch bidirectional links: outlinks, and backlinks with the snippet and section that mention the concept."""
         clean_name = concept_index_key(self._structure, concept_name.removesuffix(".md").strip())
         spellings = self._target_spellings(clean_name)
 
@@ -340,50 +340,31 @@ class WikiGraphStore:
         with self._get_conn() as conn:
             # Query outgoing edges (what this concept references)
             cursor = conn.execute(
-                "SELECT target, weight FROM wiki_edges WHERE source = ? ORDER BY weight DESC LIMIT 100",
+                "SELECT target FROM wiki_edges WHERE source = ? ORDER BY weight DESC LIMIT 100",
                 (clean_name,),
             )
             for row in cursor.fetchall():
                 tgt = str(row["target"])
                 tgt_path = self._find_asset_path(tgt)
-                outlinks.append(
-                    {
-                        "name": tgt,
-                        "weight": float(row["weight"] or 1.0),
-                        "exists": tgt_path is not None,
-                        "context_snippet": None,
-                    }
-                )
+                outlinks.append({"name": tgt, "exists": tgt_path is not None})
 
             # Query incoming edges (what references this concept)
             cursor = conn.execute(
-                "SELECT source, weight FROM wiki_edges WHERE target = ? ORDER BY weight DESC LIMIT 100",
+                "SELECT source FROM wiki_edges WHERE target = ? ORDER BY weight DESC LIMIT 100",
                 (clean_name,),
             )
             for row in cursor.fetchall():
                 src = str(row["source"])
                 src_path = self._find_asset_path(src)
                 record = self._extract_mention_record(src_path, spellings) if src_path else None
-                snippet = record[0] if record else None
-                line_no = record[1] if record else None
-                heading = record[2] if record else None
+                snippet, heading = record if record else (None, None)
                 backlinks.append(
                     {
                         "name": src,
-                        "weight": float(row["weight"] or 1.0),
                         "exists": src_path is not None,
                         "context_snippet": snippet,
-                        "line_number": line_no,
                         "heading": heading,
                     }
                 )
 
-        # 1-degree ego graph for micro topology rendering
-        ego_graph = self.get_knowledge_graph(center_node=clean_name, depth=depth, limit=40)
-
-        return {
-            "concept_name": clean_name,
-            "outlinks": outlinks,
-            "backlinks": backlinks,
-            "ego_graph": ego_graph,
-        }
+        return {"concept_name": clean_name, "outlinks": outlinks, "backlinks": backlinks}

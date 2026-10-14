@@ -105,8 +105,8 @@ def enrich_graph_with_communities(nodes: list[GraphRecord], edges: Sequence[Mapp
 def _load_insight_graph(conn: sqlite3.Connection) -> tuple[list[str], dict[tuple[str, str], float]]:
     """Concept pages and the directed edges between them, from the graph the viewer shows.
 
-    Edges whose endpoint is not an indexed page (pseudo `system:*` targets, unresolved
-    link text) are not part of the graph and are ignored.
+    Edges whose endpoint is not an indexed page (unresolved link text) are not part of
+    the graph and are ignored.
     """
     names_sql, edges_sql = federated_graph_queries(conn)
     nodes = sorted(str(row["concept_name"]) for row in conn.execute(names_sql))

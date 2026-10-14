@@ -50,7 +50,7 @@ async def test_incoming_edges_and_concept_links() -> None:
         assert len(links_c["outlinks"]) == 0
         assert len(links_c["backlinks"]) == 2
 
-        # Verify context snippet, line_number, and heading were extracted
+        # Verify context snippet and heading were extracted
         backlink_by_name = {b["name"]: b for b in links_c["backlinks"]}
         assert set(backlink_by_name.keys()) == {"doc-a", "doc-b"}
 
@@ -58,15 +58,29 @@ async def test_incoming_edges_and_concept_links() -> None:
         assert b_a["exists"] is True
         assert b_a["context_snippet"] is not None
         assert "doc-c" in b_a["context_snippet"].lower()
-        assert b_a["line_number"] == 3
         assert b_a["heading"] == "Doc A"
 
         b_b = backlink_by_name["doc-b"]
         assert b_b["exists"] is True
         assert b_b["context_snippet"] is not None
         assert "doc-c" in b_b["context_snippet"].lower()
-        assert b_b["line_number"] == 3
         assert b_b["heading"] == "Doc B"
+
+
+@pytest.mark.asyncio
+async def test_concept_links_payload_carries_only_what_the_panel_reads() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        structure = WikiStructure(Path(tmpdir))
+        structure.ensure_structure()
+        indexer = WikiIndexer(structure, WikiConfig(enable_hybrid_search=False))
+        await _write_page(structure, indexer, "hub", "# Hub\n\n## Part\nSee [[leaf]].\n")
+        await _write_page(structure, indexer, "leaf", "# Leaf\n\nBack to [[hub]].\n")
+
+        links = indexer.get_concept_links("hub")
+
+    assert set(links) == {"concept_name", "outlinks", "backlinks"}
+    assert [set(record) for record in links["outlinks"]] == [{"name", "exists"}]
+    assert [set(record) for record in links["backlinks"]] == [{"name", "exists", "context_snippet", "heading"}]
 
 
 def test_extract_mention_record_edge_cases() -> None:
@@ -78,7 +92,7 @@ def test_extract_mention_record_edge_cases() -> None:
         indexer = WikiIndexer(structure, config)
         graph_store = indexer._graph_store
 
-        def mention(path: Path, name: str, max_chars: int = 140) -> tuple[str, int, str | None] | None:
+        def mention(path: Path, name: str, max_chars: int = 140) -> tuple[str, str | None] | None:
             return graph_store._extract_mention_record(path, graph_store._target_spellings(name), max_chars)
 
         # 1. Multi-level headers & list item markdown prefix removal
@@ -89,9 +103,8 @@ def test_extract_mention_record_edge_cases() -> None:
         )
         record = mention(test_file, "target-concept")
         assert record is not None
-        snippet, line_no, heading = record
+        snippet, heading = record
         assert snippet == "Nested item referencing [[target-concept]]."
-        assert line_no == 7
         assert heading == "Sub Section Alpha"
 
         # 2. Document without any markdown headings
@@ -102,8 +115,7 @@ def test_extract_mention_record_edge_cases() -> None:
         )
         record_nh = mention(no_heading_file, "target-concept")
         assert record_nh is not None
-        snippet_nh, line_no_nh, heading_nh = record_nh
-        assert line_no_nh == 2
+        snippet_nh, heading_nh = record_nh
         assert heading_nh is None
         assert "target-concept" in snippet_nh
 
@@ -117,8 +129,7 @@ def test_extract_mention_record_edge_cases() -> None:
         )
         record_long = mention(long_line_file, "target-concept", max_chars=100)
         assert record_long is not None
-        snippet_long, line_no_long, heading_long = record_long
-        assert line_no_long == 3
+        snippet_long, heading_long = record_long
         assert heading_long == "Heading Long"
         assert snippet_long.startswith("...")
         assert snippet_long.endswith("...")
@@ -132,8 +143,7 @@ def test_extract_mention_record_edge_cases() -> None:
         )
         record_zh = mention(zh_file, "分布式事务")
         assert record_zh is not None
-        snippet_zh, line_no_zh, heading_zh = record_zh
-        assert line_no_zh == 3
+        snippet_zh, heading_zh = record_zh
         assert heading_zh == "核心架构设计"
         assert "分布式事务" in snippet_zh
 
@@ -278,7 +288,6 @@ async def test_backlink_context_for_every_spelling_the_resolver_accepts() -> Non
     for label, link in spellings.items():
         record = backlinks[f"projects/src/{label}"]
         assert record["context_snippet"] == f"See {link} for the layered view.", label
-        assert record["line_number"] == 5, label
         assert record["heading"] == "Layers", label
 
 
@@ -296,5 +305,4 @@ async def test_generic_file_name_counts_only_when_written_as_a_link() -> None:
 
     assert record["name"] == "projects/notes"
     assert record["context_snippet"] == "See [[Overview]] for details."
-    assert record["line_number"] == 5
     assert record["heading"] == "Details"

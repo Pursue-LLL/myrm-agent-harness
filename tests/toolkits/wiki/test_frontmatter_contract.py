@@ -75,7 +75,9 @@ def test_validate_metric_frontmatter() -> None:
     assert result.page_type == "metric"
 
     # Invalid metric types
-    bad_content = "---\ntype: metric\nformula: 123\nsource_systems: not_a_list\nunit: 456\nverification_rule: 789\n---\n\n# Bad"
+    bad_content = (
+        "---\ntype: metric\nformula: 123\nsource_systems: not_a_list\nunit: 456\nverification_rule: 789\n---\n\n# Bad"
+    )
     bad_result = validate_wiki_frontmatter(bad_content)
     assert bad_result.ok is False
     assert any("formula" in err for err in bad_result.errors)
@@ -133,6 +135,7 @@ def test_infer_type_for_import_all_branches() -> None:
 
 def test_ensure_draft_frontmatter_stamps_draft() -> None:
     from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import ensure_draft_frontmatter
+
     content = "---\ntype: concept\npublished_at: '2026-01-01'\n---\n# Title\n"
     draft = ensure_draft_frontmatter(content)
     assert "publish_status: draft" in draft
@@ -232,7 +235,7 @@ async def test_pending_approve_blocks_invalid_type(tmp_path: Path) -> None:
     assert await pending_mgr.approve_edit(valid_id) is True
 
 
-def test_indexer_extracts_metric_source_systems_edges(tmp_path: Path) -> None:
+def test_indexer_links_metric_page_references_but_not_its_source_systems(tmp_path: Path) -> None:
     structure = WikiStructure(tmp_path)
     structure.ensure_structure()
     indexer = WikiIndexer(structure)
@@ -254,8 +257,4 @@ Calculated based on [[revenue]] and [[cogs]].
     outgoing = indexer.get_outgoing_edges("metrics/gross_margin")
     targets = {target for target, _weight in outgoing}
 
-    assert "system:sap_fi" in targets
-    assert "system:wms_core" in targets
-    assert "revenue" in targets
-    assert "cogs" in targets
-
+    assert targets == {"revenue", "cogs"}

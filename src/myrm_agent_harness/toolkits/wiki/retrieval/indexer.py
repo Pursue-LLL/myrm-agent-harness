@@ -4,8 +4,6 @@
 - sqlite3 (POS: standard library database)
 - ..core.structure::WikiStructure (POS: database path resolution)
 - ..core.config::WikiConfig (POS: Wiki configuration)
-- yaml (POS: YAML parser; malformed frontmatter raises its error)
-- ..core.frontmatter_contract::load_frontmatter_metadata (POS: frontmatter parser that keeps nested YAML; source_systems)
 - ..core.link_extraction::extract_markdown_link_targets, extract_wikilink_targets (POS: link syntax SSOT; code regions are never links)
 - ..core.link_resolver::WikiLinkResolver, concept_index_key, concept_page_exists (POS: link target resolution and page-key identity SSOT)
 - myrm_agent_harness.utils.db.fts5::fts5_integrity_check, fts5_rebuild (POS: FTS5 health and rebuild helpers)
@@ -35,15 +33,12 @@ import sqlite3
 from collections.abc import Iterator, Sequence
 from typing import TYPE_CHECKING
 
-import yaml
-
 from myrm_agent_harness.utils.db.fts5 import (
     fts5_integrity_check,
     fts5_rebuild,
 )
 
 from ..core.config import WikiConfig
-from ..core.frontmatter_contract import load_frontmatter_metadata
 from ..core.link_extraction import extract_markdown_link_targets, extract_wikilink_targets
 from ..core.link_resolver import WikiLinkResolver, concept_index_key, concept_page_exists
 from ..core.structure import WikiStructure
@@ -193,9 +188,9 @@ class WikiIndexer(FtsWriteMixin, FtsSearchMixin, SidecarIndexMixin):
         """Access underlying WikiGraphStore."""
         return self._graph_store
 
-    def get_concept_links(self, concept_name: str, depth: int = 1) -> dict[str, object]:
+    def get_concept_links(self, concept_name: str) -> dict[str, object]:
         """Delegate bidirectional links lookup to WikiGraphStore."""
-        return self._graph_store.get_concept_links(concept_name, depth=depth)
+        return self._graph_store.get_concept_links(concept_name)
 
     def get_outgoing_edges(self, source: str) -> list[tuple[str, float]]:
         """Return weighted outgoing graph edges for a concept, highest weight first."""
@@ -254,7 +249,7 @@ class WikiIndexer(FtsWriteMixin, FtsSearchMixin, SidecarIndexMixin):
         return round(weight, 2)
 
     def extract_and_upsert_edges(self, concept_name: str, content: str) -> None:
-        """Parse markdown links, Wikilinks, and Metric source_systems, then upsert to SQLite edges table.
+        """Parse markdown links and Wikilinks, then upsert to SQLite edges table.
 
         `upsert` runs this for every indexed page; call it directly only when a page's links
         changed without its search entry changing (backlink generation).
@@ -293,9 +288,6 @@ class WikiIndexer(FtsWriteMixin, FtsSearchMixin, SidecarIndexMixin):
 
         # 2. Obsidian wikilinks: [[link]], [[link|alias]], [[link#heading|alias]]
         targets.update(canonical_edge_target(resolver, source, target) for target in extract_wikilink_targets(content))
-
-        # 3. Metric source_systems in frontmatter metadata
-        targets.update(self._source_system_targets(source, content))
         self._replace_edges(conn, source, list(targets), None)
 
     def _reread_page_links(self, sources: Sequence[str]) -> None:
@@ -318,21 +310,6 @@ class WikiIndexer(FtsWriteMixin, FtsSearchMixin, SidecarIndexMixin):
         except (OSError, UnicodeDecodeError) as exc:
             logger.warning("Failed to re-read links of wiki page %s: %s", key, exc)
             return None
-
-    @staticmethod
-    def _source_system_targets(source: str, content: str) -> set[str]:
-        """`system:<name>` pseudo targets for the `source_systems` listed in frontmatter."""
-        if not content.startswith("---"):
-            return set()
-        try:
-            metadata, _ = load_frontmatter_metadata(content)
-        except yaml.YAMLError as exc:
-            logger.warning("Unreadable frontmatter in %s, its source_systems are not linked: %s", source, exc)
-            return set()
-        sources = metadata.get("source_systems")
-        if not isinstance(sources, list):
-            return set()
-        return {f"system:{src.strip()}" for src in sources if isinstance(src, str) and src.strip()}
 
     async def _ensure_collection(self) -> None:
         """Lazily initialize vector collection if vector store is enabled."""

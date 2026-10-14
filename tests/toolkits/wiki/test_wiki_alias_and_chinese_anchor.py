@@ -68,12 +68,11 @@ aliases:
         assert found_asset is not None
         assert found_asset == concept_path
 
-        # 5. Verify Chinese mention extraction without spaces, with line number and heading
+        # 5. Verify Chinese mention extraction without spaces, with heading
         mention_rec = graph_store._extract_mention_record(deliverable_path, graph_store._target_spellings("华创"))
         assert mention_rec is not None
-        snippet, line_no, heading = mention_rec
+        snippet, heading = mention_rec
         assert "根据华创最新规定" in snippet
-        assert line_no == 7  # 7th line in deliverable_content
         assert heading == "采购审核机制"
 
         # 6. Verify single-character safeguard: "华" should not trigger greedy plain text scan
@@ -96,5 +95,4 @@ aliases:
         assert bl["name"] == "meeting-minutes"
         assert bl["exists"] is True
         assert "根据华创最新规定" in bl["context_snippet"]
-        assert bl["line_number"] == 7
         assert bl["heading"] == "采购审核机制"
