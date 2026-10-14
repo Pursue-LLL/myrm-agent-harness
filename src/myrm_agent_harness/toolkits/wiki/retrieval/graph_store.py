@@ -10,7 +10,7 @@
 - .graph_tables::federated_graph_queries (POS: graph node/edge rows shared with the insights)
 
 [OUTPUT]
-- WikiGraphStore: Graph topology storage, BFS traversal, concept link lookup (any spelling of a page name) with the section and text of the link each backlink holds, and insight computation
+- WikiGraphStore: Graph topology storage, BFS traversal, concept link lookup (any spelling of a page name; each direction capped at `MAX_CONCEPT_LINKS` and flagged when cut) with the section and text of the link each backlink holds, and insight computation
 
 [POS]
 Encapsulates knowledge graph operations: BFS neighbor traversal, federated
