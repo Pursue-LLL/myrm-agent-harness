@@ -1,11 +1,10 @@
 """Real-Chromium proof that ``allow_private_networks`` reaches the context-level HTTP filter.
 
 A context with a domain list or resource blocking installs a route filter whose hop
-revalidation blocks loopback and private targets. The session flag has to travel through
-``ContextFactory`` into that filter; otherwise attaching any list or running a pool with
-resource blocking silently turns private-network blocking back on for a session that opted
-into local access. Every scenario counts requests that reached the server, so a pass cannot
-be an artifact of the setup. Run with:
+revalidation blocks loopback and private targets unless told otherwise. The session flag has
+to travel through ``ContextFactory`` into that filter, or a session that opted into local
+access would be blocked as soon as any list or resource blocking is attached. Every scenario
+counts requests that reached the server, so a pass cannot be an artifact of the setup. Run with:
 `pytest -m integration tests/toolkits/browser/test_private_network_policy_integration.py`.
 """
 

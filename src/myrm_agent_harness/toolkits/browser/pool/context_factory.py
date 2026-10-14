@@ -20,8 +20,8 @@ Dedicated to BrowserContext creation and configuration, including:
 4. Syncing Accept-Language header with EmulationConfig.locale to prevent fingerprint mismatch
 5. Installing resource blocking (image/font/media/ad-domains) independently of domain allowlist
 6. Installing DomainAllowlist security filter (CSP + JS hardening + CDP audit) when allowlist provided
-7. Forwarding the session's ``allow_private_networks`` policy to the installed HTTP filter, so a domain list or
-   resource blocking never re-enables private-address blocking for a session that opted into local access
+7. Forwarding the session's ``allow_private_networks`` policy to the installed HTTP filter, so private-address
+   handling follows the session's choice whether or not a domain list or resource blocking is attached
 8. STEALTH mode delivery of 13 anti-detection JS scripts (dual-layer defense: patchright CDP + document-response script injection via enhancers.inject_route)
 """
 

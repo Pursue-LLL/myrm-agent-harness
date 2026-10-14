@@ -73,9 +73,12 @@ Real Chromium tests under `tests/toolkits/browser/` must carry `integration` or 
    `window.__savedBody.isConnected === false` 即被替换）。
 
 3. **本地地址测试注意 SSRF guard 与 domain_filter 叠加**：SSRF guard（`navigation/ssrf_guard.py`）
-   会在 `domain_filter` 之前拦截私有网段请求（127.0.0.1 等），返回通用 `ERR_FAILED`。
-   验证 domain_filter 的 allow/block 行为时须在 `BrowserSession` 显式传 `allow_private_networks=True`，
-   并用本地 `ThreadingHTTPServer` 做真实页面源，避免外部网络依赖。
+   会在 `domain_filter` 之前拦截私有网段请求（127.0.0.1 等），返回通用 `ERR_FAILED`；已装过滤器的 context
+   在每一跳再次校验私有网段，拦截时浏览器侧是 `net::ERR_ABORTED`、服务端收不到请求。
+   验证 domain_filter 的 allow/block 行为时须在 `BrowserSession` 显式传 `allow_private_networks=True`
+   （该标志同时放行这两层，名单与资源规则照常生效；`test_private_network_policy_integration.py` 是端到端证据），
+   并用本地 `ThreadingHTTPServer` 做真实页面源，避免外部网络依赖。**禁止**用猴子补丁替换
+   `install_domain_filter` 或其他过滤器入口来"让环回可达"——那会遮住标志没有传到过滤器的缺陷。
 
 4. **`run_site_tool` 输出经 `mark_untrusted` 包裹**（BROWSER_SYSTEM.md 统一安全出口）。
    程序化消费必须走 `extract_wrapped_payload()` 解包后再 `json.loads`，不要直接对裸结果解析。
