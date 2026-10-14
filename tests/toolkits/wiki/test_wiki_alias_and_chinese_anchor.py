@@ -69,7 +69,7 @@ aliases:
         assert found_asset == concept_path
 
         # 5. Verify Chinese mention extraction without spaces, with line number and heading
-        mention_rec = graph_store._extract_mention_record(deliverable_path, "华创")
+        mention_rec = graph_store._extract_mention_record(deliverable_path, graph_store._target_spellings("华创"))
         assert mention_rec is not None
         snippet, line_no, heading = mention_rec
         assert "根据华创最新规定" in snippet
@@ -77,7 +77,7 @@ aliases:
         assert heading == "采购审核机制"
 
         # 6. Verify single-character safeguard: "华" should not trigger greedy plain text scan
-        single_char_rec = graph_store._extract_mention_record(deliverable_path, "华")
+        single_char_rec = graph_store._extract_mention_record(deliverable_path, graph_store._target_spellings("华"))
         assert single_char_rec is None
 
         # 7. Index both documents to test backlinks integration

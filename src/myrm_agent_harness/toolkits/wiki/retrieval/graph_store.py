@@ -3,12 +3,14 @@
 [INPUT]
 - sqlite3 (POS: standard library database)
 - ..core.structure::WikiStructure (POS: database path resolution)
-- ..core.link_resolver::concept_index_key (POS: page-key canonicalization for lookups)
+- ..core.link_extraction::WIKILINK_RE (POS: the `[[wikilink]]` syntax)
+- ..core.link_resolver::concept_index_key, link_lookup_forms, page_link_forms, page_lookup_keys (POS: page-key canonicalization and the spellings a link names a page by)
+- myrm_agent_harness.utils.markdown_frontmatter::parse_frontmatter (POS: page aliases)
 - .graph_analysis::enrich_graph_with_communities, compute_graph_insights (POS: graph analysis)
 - .graph_tables::federated_graph_queries (POS: graph node/edge rows shared with the insights)
 
 [OUTPUT]
-- WikiGraphStore: Graph topology storage, BFS traversal, concept link lookup (any spelling of a page name), and insight computation
+- WikiGraphStore: Graph topology storage, BFS traversal, concept link lookup (any spelling of a page name) with the line, section and text of the link each backlink holds, and insight computation
 
 [POS]
 Encapsulates knowledge graph operations: BFS neighbor traversal, federated
@@ -22,10 +24,14 @@ import re
 import sqlite3
 from collections.abc import Callable
 from contextlib import AbstractContextManager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from ..core.link_resolver import concept_index_key
+from myrm_agent_harness.utils.markdown_frontmatter import parse_frontmatter
+
+from ..core.link_extraction import WIKILINK_RE
+from ..core.link_resolver import concept_index_key, link_lookup_forms, page_link_forms, page_lookup_keys
 from .graph_analysis import compute_graph_insights, enrich_graph_with_communities
 from .graph_tables import federated_graph_queries
 
@@ -55,6 +61,61 @@ def _clean_heading_text(raw_heading: str) -> str:
     # Strip strikethrough: ~~text~~ -> text
     text = re.sub(r"~~([^~]+)~~", r"\1", text)
     return re.sub(r"\s+", " ", text).strip()
+
+
+@dataclass(frozen=True, slots=True)
+class _TargetSpellings:
+    """How other pages refer to a target page; built once per lookup, matched against every backlink.
+
+    ``link_forms`` are the casefolded spellings a ``[[wikilink]]`` resolves to the page by (path,
+    title, alias, canonical id, bare file name), exactly as the link resolver reads them.
+    ``patterns`` find markdown links and plain-text mentions of the page key and its aliases.
+    """
+
+    link_forms: frozenset[str]
+    patterns: tuple[re.Pattern[str], ...]
+
+
+def _frontmatter_aliases(markdown: str) -> list[str]:
+    raw = parse_frontmatter(markdown)[0].get("aliases")
+    if isinstance(raw, list):
+        return [alias for item in raw if (alias := str(item).strip())]
+    if isinstance(raw, str):
+        return [alias for item in raw.split(",") if (alias := item.strip())]
+    return []
+
+
+def _mention_patterns(names: tuple[str, ...]) -> tuple[re.Pattern[str], ...]:
+    patterns: list[re.Pattern[str]] = []
+    for name in names:
+        escaped = re.escape(name)
+        patterns.append(re.compile(rf"\[[^\]]+\]\([^)]*{escaped}[^)]*\)", re.IGNORECASE))
+        if any("\u4e00" <= ch <= "\u9fff" for ch in name):
+            if len(name) >= 2:
+                patterns.append(re.compile(rf"(?<![a-zA-Z0-9]){escaped}(?![a-zA-Z0-9])", re.IGNORECASE))
+        else:
+            patterns.append(re.compile(rf"\b{escaped}\b", re.IGNORECASE))
+    return tuple(patterns)
+
+
+def _first_mention(line: str, target: _TargetSpellings) -> tuple[int, int] | None:
+    """Span of the first wikilink naming the target, else of the first markdown link or plain mention."""
+    for link in WIKILINK_RE.finditer(line):
+        if any(form and form in target.link_forms for form in link_lookup_forms(link.group(1))):
+            return link.span()
+    for pattern in target.patterns:
+        if mention := pattern.search(line):
+            return mention.span()
+    return None
+
+
+def _snippet_around(line: str, span: tuple[int, int], max_chars: int) -> str:
+    """The line itself, or a window of it around ``span`` when it is longer than ``max_chars``."""
+    if len(line) <= max_chars:
+        return line
+    start = max(0, span[0] - 30)
+    end = min(len(line), span[1] + 70)
+    return f"{'...' if start > 0 else ''}{line[start:end].strip()}{'...' if end < len(line) else ''}"
 
 
 class WikiGraphStore:
@@ -228,30 +289,25 @@ class WikiGraphStore:
             return alias_path
         return None
 
-    def _get_target_aliases(self, clean_name: str) -> list[str]:
-        """Resolve concept frontmatter aliases to ensure backlinks match mentions under aliases."""
-        path = self._structure.resolve_concept_file_path(clean_name)
-        if not path or not path.is_file():
-            return []
-        try:
-            from myrm_agent_harness.utils.markdown_frontmatter import parse_frontmatter
-
-            with open(path, encoding="utf-8", errors="ignore") as f:
-                chunk = f.read(2048)
-            fm, _ = parse_frontmatter(chunk)
-            aliases = fm.get("aliases")
-            if isinstance(aliases, list):
-                return [str(a).strip() for a in aliases if str(a).strip()]
-            if isinstance(aliases, str) and aliases.strip():
-                return [a.strip() for a in aliases.split(",") if a.strip()]
-        except Exception:
-            pass
-        return []
+    def _target_spellings(self, name: str) -> _TargetSpellings:
+        """Spellings other pages use for ``name``, read from the whole page the way the link resolver reads it."""
+        key = name.removesuffix(".md").strip()
+        if not key:
+            return _TargetSpellings(frozenset(), ())
+        path = self._structure.resolve_concept_file_path(key)
+        markdown = ""
+        if path is not None and path.is_file():
+            try:
+                markdown = path.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                markdown = ""
+        names = tuple(dict.fromkeys((key, *_frontmatter_aliases(markdown))))
+        return _TargetSpellings(page_link_forms(key, page_lookup_keys(key, markdown)), _mention_patterns(names))
 
     def _extract_mention_record(
-        self, file_path: Path, target_name: str, max_chars: int = 140
+        self, file_path: Path, target: _TargetSpellings, max_chars: int = 140
     ) -> tuple[str, int, str | None] | None:
-        """Extract snippet, 1-based line number, and heading section where target_name is referenced."""
+        """Snippet, 1-based line number and heading section of the first line of ``file_path`` that mentions ``target``."""
         if not file_path.is_file():
             return None
         try:
@@ -259,61 +315,24 @@ class WikiGraphStore:
         except OSError:
             return None
 
-        clean_target = target_name.removesuffix(".md").strip()
-        if not clean_target:
-            return None
-
-        target_names = [clean_target]
-        for a in self._get_target_aliases(clean_target):
-            if a and a not in target_names:
-                target_names.append(a)
-
-        patterns: list[re.Pattern[str]] = []
-        for name in target_names:
-            escaped_target = re.escape(name)
-            has_cjk = any("\u4e00" <= ch <= "\u9fff" for ch in name)
-            patterns.append(re.compile(rf"\[\[{escaped_target}(?:[#|][^\]]*)?\]\]", re.IGNORECASE))
-            patterns.append(re.compile(rf"\[[^\]]+\]\([^)]*{escaped_target}[^)]*\)", re.IGNORECASE))
-            if has_cjk:
-                if len(name) >= 2:
-                    patterns.append(re.compile(rf"(?<![a-zA-Z0-9]){escaped_target}(?![a-zA-Z0-9])", re.IGNORECASE))
-            else:
-                patterns.append(re.compile(rf"\b{escaped_target}\b", re.IGNORECASE))
-
         current_heading: str | None = None
-        for line_idx, line in enumerate(content.splitlines(), start=1):
-            line_str = line.strip()
-            if not line_str:
+        for line_no, line in enumerate(content.splitlines(), start=1):
+            text = line.strip()
+            if not text:
                 continue
-            if line_str.startswith("#"):
-                current_heading = _clean_heading_text(line_str)
+            if text.startswith("#"):
+                current_heading = _clean_heading_text(text)
                 continue
-
-            for pattern in patterns:
-                if pattern.search(line_str):
-                    clean_line = re.sub(r"^[-*+>]\s+", "", line_str).strip()
-                    snippet = clean_line
-                    if len(clean_line) > max_chars:
-                        match = pattern.search(clean_line)
-                        if match:
-                            start = max(0, match.start() - 30)
-                            end = min(len(clean_line), match.end() + 70)
-                            prefix = "..." if start > 0 else ""
-                            suffix = "..." if end < len(clean_line) else ""
-                            snippet = f"{prefix}{clean_line[start:end].strip()}{suffix}"
-                        else:
-                            snippet = f"{clean_line[:max_chars]}..."
-                    return snippet, line_idx, current_heading
+            clean_line = re.sub(r"^[-*+>]\s+", "", text).strip()
+            span = _first_mention(clean_line, target)
+            if span is not None:
+                return _snippet_around(clean_line, span, max_chars), line_no, current_heading
         return None
-
-    def _extract_mention_snippet(self, file_path: Path, target_name: str, max_chars: int = 140) -> str | None:
-        """Extract a readable snippet showing the sentence or context where target_name is referenced."""
-        rec = self._extract_mention_record(file_path, target_name, max_chars)
-        return rec[0] if rec else None
 
     def get_concept_links(self, concept_name: str, depth: int = 1) -> dict[str, object]:
         """Fetch bidirectional links (outlinks and backlinks) with context snippets and 1-degree ego graph."""
         clean_name = concept_index_key(self._structure, concept_name.removesuffix(".md").strip())
+        spellings = self._target_spellings(clean_name)
 
         outlinks: list[dict[str, object]] = []
         backlinks: list[dict[str, object]] = []
@@ -344,7 +363,7 @@ class WikiGraphStore:
             for row in cursor.fetchall():
                 src = str(row["source"])
                 src_path = self._find_asset_path(src)
-                record = self._extract_mention_record(src_path, clean_name) if src_path else None
+                record = self._extract_mention_record(src_path, spellings) if src_path else None
                 snippet = record[0] if record else None
                 line_no = record[1] if record else None
                 heading = record[2] if record else None

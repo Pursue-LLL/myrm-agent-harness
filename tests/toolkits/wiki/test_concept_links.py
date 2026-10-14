@@ -78,13 +78,16 @@ def test_extract_mention_record_edge_cases() -> None:
         indexer = WikiIndexer(structure, config)
         graph_store = indexer._graph_store
 
+        def mention(path: Path, name: str, max_chars: int = 140) -> tuple[str, int, str | None] | None:
+            return graph_store._extract_mention_record(path, graph_store._target_spellings(name), max_chars)
+
         # 1. Multi-level headers & list item markdown prefix removal
         test_file = base / "test_nested.md"
         test_file.write_text(
             "# Top Section\n\nIntro text.\n\n## Sub Section Alpha\n\n- Nested item referencing [[target-concept]].\n",
             encoding="utf-8",
         )
-        record = graph_store._extract_mention_record(test_file, "target-concept")
+        record = mention(test_file, "target-concept")
         assert record is not None
         snippet, line_no, heading = record
         assert snippet == "Nested item referencing [[target-concept]]."
@@ -97,7 +100,7 @@ def test_extract_mention_record_edge_cases() -> None:
             "First line.\nSecond line discussing [[target-concept]] in plain text.\n",
             encoding="utf-8",
         )
-        record_nh = graph_store._extract_mention_record(no_heading_file, "target-concept")
+        record_nh = mention(no_heading_file, "target-concept")
         assert record_nh is not None
         snippet_nh, line_no_nh, heading_nh = record_nh
         assert line_no_nh == 2
@@ -112,7 +115,7 @@ def test_extract_mention_record_edge_cases() -> None:
             f"### Heading Long\n\n{prefix_padding} [[target-concept]] {suffix_padding}\n",
             encoding="utf-8",
         )
-        record_long = graph_store._extract_mention_record(long_line_file, "target-concept", max_chars=100)
+        record_long = mention(long_line_file, "target-concept", max_chars=100)
         assert record_long is not None
         snippet_long, line_no_long, heading_long = record_long
         assert line_no_long == 3
@@ -127,7 +130,7 @@ def test_extract_mention_record_edge_cases() -> None:
             "## 核心架构设计\n\n本项目在微服务层采用了分布式事务作为核心保障机制。\n",
             encoding="utf-8",
         )
-        record_zh = graph_store._extract_mention_record(zh_file, "分布式事务")
+        record_zh = mention(zh_file, "分布式事务")
         assert record_zh is not None
         snippet_zh, line_no_zh, heading_zh = record_zh
         assert line_no_zh == 3
@@ -135,9 +138,9 @@ def test_extract_mention_record_edge_cases() -> None:
         assert "分布式事务" in snippet_zh
 
         # 5. Empty target or missing file returns None
-        assert graph_store._extract_mention_record(zh_file, "") is None
-        assert graph_store._extract_mention_record(zh_file, ".md") is None
-        assert graph_store._extract_mention_record(base / "nonexistent.md", "target") is None
+        assert mention(zh_file, "") is None
+        assert mention(zh_file, ".md") is None
+        assert mention(base / "nonexistent.md", "target") is None
 
 
 def test_asset_path_resolution_and_snippets() -> None:
@@ -182,13 +185,15 @@ def test_asset_path_resolution_and_snippets() -> None:
         # 6. Non-existent asset
         assert graph_store._find_asset_path("non-existent-xyz") is None
 
-        # 7. _extract_mention_snippet helper
+        # 7. A markdown link naming the page by its key is a mention too
         test_file = base / "snippet_test.md"
-        test_file.write_text("Context about [[my-concept]] in here.\n", encoding="utf-8")
-        snip = graph_store._extract_mention_snippet(test_file, "my-concept")
-        assert snip is not None
-        assert "[[my-concept]]" in snip
-        assert graph_store._extract_mention_snippet(base / "none.md", "my-concept") is None
+        test_file.write_text("Context about [the concept](my-concept.md) in here.\n", encoding="utf-8")
+        record = graph_store._extract_mention_record(test_file, graph_store._target_spellings("my-concept"))
+        assert record is not None
+        assert record[0] == "Context about [the concept](my-concept.md) in here."
+        assert (
+            graph_store._extract_mention_record(base / "none.md", graph_store._target_spellings("my-concept")) is None
+        )
 
 
 @pytest.mark.asyncio
@@ -229,3 +234,67 @@ async def test_knowledge_graph_full_and_insights() -> None:
         # 4. Graph insights
         insights = graph_store.graph_insights()
         assert isinstance(insights, dict)
+
+
+async def _write_page(structure: WikiStructure, indexer: WikiIndexer, name: str, content: str) -> None:
+    path = structure.get_concept_file_path(name)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    await indexer.upsert(name, content)
+
+
+@pytest.mark.asyncio
+async def test_backlink_context_for_every_spelling_the_resolver_accepts() -> None:
+    claims = "".join(
+        f"  - id: c{i}\n    text: Quoted fact {i} with exact figures and dates.\n    status: supported\n"
+        for i in range(1, 40)
+    )
+    target = (
+        "---\ntype: concept\ntitle: Five Layer View\ncanonical_id: arch-five-layer\naliases: [5LA]\n"
+        f"claims:\n{claims}---\n## Compiled Truth\nLayers.\n"
+    )
+    assert target.index("## Compiled Truth") > 2048, "aliases must sit beyond a 2 KB prefix of the page"
+
+    spellings = {
+        "by-key": "[[knowledge/arch/five-layer]]",
+        "by-key-case-fragment-label": "[[Knowledge/Arch/Five-Layer#Layers|the layers]]",
+        "by-file-name": "[[five-layer]]",
+        "by-alias": "[[5LA]]",
+        "by-title": "[[Five Layer View]]",
+        "by-canonical-id": "[[arch-five-layer]]",
+    }
+    with tempfile.TemporaryDirectory() as tmpdir:
+        structure = WikiStructure(Path(tmpdir))
+        structure.ensure_structure()
+        indexer = WikiIndexer(structure, WikiConfig(enable_hybrid_search=False))
+        await _write_page(structure, indexer, "knowledge/arch/five-layer", target)
+        for label, link in spellings.items():
+            note = f"# Notes\nRelated: [[unrelated-page]].\n\n## Layers\nSee {link} for the layered view.\n"
+            await _write_page(structure, indexer, f"projects/src/{label}", note)
+
+        backlinks = {b["name"]: b for b in indexer.get_concept_links("knowledge/arch/five-layer")["backlinks"]}
+
+    assert set(backlinks) == {f"projects/src/{label}" for label in spellings}
+    for label, link in spellings.items():
+        record = backlinks[f"projects/src/{label}"]
+        assert record["context_snippet"] == f"See {link} for the layered view.", label
+        assert record["line_number"] == 5, label
+        assert record["heading"] == "Layers", label
+
+
+@pytest.mark.asyncio
+async def test_generic_file_name_counts_only_when_written_as_a_link() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        structure = WikiStructure(Path(tmpdir))
+        structure.ensure_structure()
+        indexer = WikiIndexer(structure, WikiConfig(enable_hybrid_search=False))
+        await _write_page(structure, indexer, "knowledge/x/overview", "# Overview\nThe page.\n")
+        note = "# Notes\nA short overview of the topic.\n\n## Details\nSee [[Overview]] for details.\n"
+        await _write_page(structure, indexer, "projects/notes", note)
+
+        record = indexer.get_concept_links("knowledge/x/overview")["backlinks"][0]
+
+    assert record["name"] == "projects/notes"
+    assert record["context_snippet"] == "See [[Overview]] for details."
+    assert record["line_number"] == 5
+    assert record["heading"] == "Details"
