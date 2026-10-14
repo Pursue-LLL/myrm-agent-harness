@@ -95,7 +95,9 @@ US_PHONE_RE = re.compile(
     r"[2-9]\d{2}[-. ]\d{4}(?![\w-])"
 )
 
-EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")
+# The RFC 5321 limits (64 for the local part, 255 for the domain) bound the search from each start. Unbounded, a long run
+# of address characters without an "@" (a base64 blob, a list of hashes) is rescanned to its end from every start.
+EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+\-]{1,64}@[a-zA-Z0-9.\-]{1,255}\.[a-zA-Z]{2,}")
 
 CREDIT_CARD_VISIBLE_RE = re.compile(
     r"(?<!\d)"

@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+import time
+
+import pytest
+
 from myrm_agent_harness.core.security.detection.pii_patterns import (
+    EMAIL_RE,
     S2_PATTERNS,
     S3_PATTERNS,
     bank_card_valid,
@@ -82,3 +87,29 @@ class TestIsConfirmed:
     def test_the_names_it_checks_are_the_names_of_the_tables(self) -> None:
         """A renamed table entry would silently skip its checksum."""
         assert {"china_id_card", "bank_card", "iban"} <= set(_PATTERNS)
+
+
+class TestEmailPattern:
+    @pytest.mark.parametrize(
+        ("text", "found"),
+        [
+            ("write to john.doe+tag@mail.example.co.uk today", ["john.doe+tag@mail.example.co.uk"]),
+            ("a@b.com,c@d.com", ["a@b.com", "c@d.com"]),
+            ("john@acme.com-jane@acme.org.txt", ["john@acme.com", "-jane@acme.org.txt"]),
+            ("a@b.com_c@d.com", ["a@b.com", "_c@d.com"]),
+            ("x" * 64 + "@x.com", ["x" * 64 + "@x.com"]),
+            ("no address here: user@host", []),
+        ],
+    )
+    def test_the_addresses_it_finds(self, text: str, found: list[str]) -> None:
+        assert [match.group() for match in EMAIL_RE.finditer(text)] == found
+
+    @pytest.mark.parametrize("run", ["AB12CD34EF56", "a.", "a-", "7", "a@"])
+    def test_a_long_run_of_address_characters_is_searched_in_linear_time(self, run: str) -> None:
+        # Unbounded, the search rescanned the whole run from every start: 40,000 characters took over a second.
+        text = run * (200_000 // len(run))
+
+        started = time.perf_counter()
+        list(EMAIL_RE.finditer(text))
+
+        assert time.perf_counter() - started < 3
