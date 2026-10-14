@@ -1,7 +1,7 @@
 """API key refresher: the single hook that lets a host renew an expiring key before an LLM request.
 
-Some credentials outlive neither a long agent run nor a long-lived model instance (subscription OAuth
-access tokens expire within the hour). A host registers one refresher; the async generation paths ask
+Some credentials are shorter-lived than a long agent run or a long-lived model instance (subscription
+OAuth access tokens are short-lived). A host registers one refresher; the async generation paths ask
 it for a renewed key before each request, so the instance keeps working without rebuilding it and
 without the adapter knowing how the credential is issued or renewed.
 
