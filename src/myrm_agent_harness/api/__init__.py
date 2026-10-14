@@ -7,9 +7,10 @@ in release wheels while this layer remains readable Python source.
 
 Quick start::
 
-    from myrm_agent_harness.api import create_skill_agent, LLMConfig
+    from myrm_agent_harness.api import AgentRuntimeSpec, LLMConfig, create_skill_agent
 
-    agent = await create_skill_agent(llm_config=LLMConfig(...))
+    spec = AgentRuntimeSpec(agent_id=None, name="assistant", system_prompt=None)
+    agent = await create_skill_agent(spec, llm_config=LLMConfig(model="gpt-4", api_key="sk-..."))
 """
 
 from __future__ import annotations
