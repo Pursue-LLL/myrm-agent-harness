@@ -47,4 +47,8 @@ _CARD_CONTEXT_RE = re.compile(rf"{_CARD_KEYWORD}[^\d\n]{{0,16}}(?P<number>{_CARD
 
 def find_card_number_spans(text: str) -> list[Span]:
     """Spans of the card numbers *text* introduces with a card keyword, in text order."""
+    # Every keyword holds "卡" or "card". Most texts hold neither, and looking for them is far cheaper than trying the
+    # keyword alternation at every position of the text.
+    if "卡" not in text and "card" not in text.lower():
+        return []
     return [match.span("number") for match in _CARD_CONTEXT_RE.finditer(text)]

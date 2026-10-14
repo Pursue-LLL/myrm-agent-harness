@@ -46,7 +46,7 @@ _CARD_PREFIX = r"(?:4|5[1-5]|62|3[47]|2(?:22[1-9]|2[3-9]\d|[3-6]\d\d|7[01]\d|720
 # (3782 822463 10005). Only these separators: every Luhn check strips just them. The fifth group is exactly three
 # digits so that the expiry date typed after a card (4532 0151 1283 0366 12/28) is not read as part of it.
 BANK_CARD_RE = re.compile(
-    r"(?<!\d)(?:"
+    r"(?<!\d)(?=\d)(?:"
     rf"(?={_CARD_PREFIX})\d{{15,19}}"
     r"|62\d{2}(?P<sep19>[- ])\d{4}(?P=sep19)\d{4}(?P=sep19)\d{4}(?P=sep19)\d{3}"
     rf"|(?={_CARD_PREFIX})\d{{4}}(?P<sep16>[- ])\d{{4}}(?P=sep16)\d{{4}}(?P=sep16)\d{{4}}"
