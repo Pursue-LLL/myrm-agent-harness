@@ -297,6 +297,22 @@ Protocol-first architecture with strict framework-business separation.
     or triggering crash degradation. When unblocking a goal-mode task, the server orchestrator
     automatically synchronizes with `GoalRegistry` to resume the goal, maintaining a bidirectional SSOT.
 
+29. **Manual retry of FAILED tasks (`retry_task`)**: FAILED is terminal for the automatic
+    pipeline, so the way back is an explicit decision. `retry_failed_task(store, task_id, ...)`
+    (`retry.py`) is the single definition shared by the operator path
+    (`KanbanDispatcher.retry_task`, REST/GUI) and the orchestrator tool (`kanban_retry_task`):
+    it resets the budget (`error`, `retry_count`, `consecutive_failures`,
+    `block_cycle_count`, `completed_at`, `progress_note`), optionally replaces `description`,
+    moves the task to READY and records a `RETRYING` event with `source` (`human` /
+    `orchestrator`). The reset is saved while the task is still FAILED (no worker can claim
+    it yet, so the full-row save cannot clobber a claim) and the status change is the store's
+    `transition_task_status` CAS; a per-store lock serialises concurrent double-submits so
+    only the first applies. A task that is not FAILED comes back unchanged with
+    `applied=False` and nothing is emitted. Only an applied retry emits `task_retrying` and
+    wakes the dispatcher. Dependents already promoted by the failure are not re-run; the
+    re-run sees the earlier attempts through the `Prior attempts` section of the worker
+    context.
+
 ## Domain Model
 
 - `KanbanBoard`: Top-level grouping with `BoardSettings` (includes `default_workdir`, `block_recurrence_limit` for block→unblock→TRIAGE escalation)
@@ -329,7 +345,8 @@ Protocol-first architecture with strict framework-business separation.
 | `protocols.py` | KanbanStore (CRUD + edges + runs + events + `transition_task_status` 原子 CAS) + TaskRunner + CompletionVerifier + TaskSpecifier + TaskDecomposer protocol contracts |
 | `stores.py` | InMemoryKanbanStore (test/reference, with DFS cycle detection) |
 | `dispatcher.py` | Event-driven scheduler — dispatch loop, task execution, completion verification, dependency promotion, event emission |
-| `dispatcher_failure.py` | Failure/timeout/retry pipeline mixin for KanbanDispatcher |
+| `dispatcher_failure.py` | Failure/timeout/retry pipeline mixin for KanbanDispatcher, plus the `retry_task` entry point for FAILED tasks |
+| `retry.py` | `retry_failed_task` — the single manual-retry implementation (reset, CAS to READY, audit event, double-submit lock) shared by the dispatcher and the orchestrator tool |
 | `dispatcher_zombie.py` | Zombie detection, heartbeat monitoring, scheduled wakeup, and startup orphan rescue mixin |
 | `diagnostics.py` | Task diagnostic framework — DTOs, DiagnosticRule Protocol, DiagnosticEngine |
 | `kanban_agent_tools.py` | Facade — `create_kanban_tools` factory, shared helpers (`_parse_until`, `get_worker_lifecycle_guidance`), routes to worker/orchestrator sub-modules |

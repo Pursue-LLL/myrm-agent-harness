@@ -3,12 +3,14 @@
 [INPUT]
 - kanban.types::KanbanTask, TaskStatus, BlockKind, TaskRunOutcome (POS: domain types)
 - kanban.protocols::KanbanStore (POS: persistence protocol)
+- kanban.retry::RetryOutcome, RetrySource, retry_failed_task (POS: manual retry of FAILED tasks)
 
 [OUTPUT]
-- KanbanDispatcherFailureMixin: _handle_failure / _handle_timeout / _apply_failure_pipeline
+- KanbanDispatcherFailureMixin: _handle_failure / _handle_timeout / _apply_failure_pipeline / retry_task
 
 [POS]
-Failure, timeout, and retry pipeline for KanbanDispatcher — auto-block, transient backoff, retry re-queue.
+Failure, timeout, and retry pipeline for KanbanDispatcher — auto-block, transient backoff, retry re-queue,
+and the manual retry entry point for FAILED tasks.
 Mixin host must provide _store, _board, emit(), wake(), _promote_dependents().
 """
 
@@ -16,15 +18,21 @@ from __future__ import annotations
 
 import re
 from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 
+from myrm_agent_harness.toolkits.kanban.retry import RetryOutcome, RetrySource, retry_failed_task
 from myrm_agent_harness.toolkits.kanban.types import (
     BlockKind,
+    KanbanBoard,
     KanbanTask,
     TaskEventKind,
     TaskRunOutcome,
     TaskStatus,
 )
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.toolkits.kanban.protocols import KanbanStore
 
 logger = get_agent_logger(__name__)
 
@@ -38,6 +46,43 @@ _TRANSIENT_BACKOFF_SECONDS = 900
 
 class KanbanDispatcherFailureMixin:
     """Failure, timeout, and retry pipeline for KanbanDispatcher."""
+
+    if TYPE_CHECKING:
+        # Provided by KanbanDispatcher (the mixin host).
+        _store: KanbanStore
+        _board: KanbanBoard
+
+        def emit(self, event_type: str, task: KanbanTask) -> None: ...
+        def wake(self) -> None: ...
+        async def _promote_dependents(self, completed_task_id: str) -> None: ...
+
+    async def retry_task(
+        self,
+        task_id: str,
+        *,
+        description: str = "",
+        reason: str = "",
+        source: RetrySource = "human",
+    ) -> RetryOutcome:
+        """Retry a FAILED task: reset it to READY with a fresh budget and wake the dispatcher.
+
+        Operator-driven (REST/GUI) or orchestrator-driven (LLM tool). Idempotent:
+        a task that is not FAILED (already retried, running, ...) is returned
+        unchanged with ``applied=False`` and nothing is emitted. Dependents that
+        were already promoted by the failure are not re-run.
+        """
+        outcome = await retry_failed_task(
+            self._store,
+            task_id,
+            description=description,
+            reason=reason,
+            source=source,
+        )
+        if outcome.applied and outcome.task is not None:
+            self.emit("task_retrying", outcome.task)
+            self.wake()
+            logger.info("Task %s retried by %s", task_id[:8], source)
+        return outcome
 
     async def _handle_failure(
         self,

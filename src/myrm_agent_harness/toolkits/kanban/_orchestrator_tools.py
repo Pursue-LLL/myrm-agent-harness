@@ -8,6 +8,7 @@ Board/task field edits and delete use server REST/GUI only — not LLM tools.
 - .protocols::KanbanStore (POS: Protocols for the kanban toolkit.)
 - .dispatcher::KanbanDispatcher (POS: Event-driven multi-task scheduler.)
 - .kanban_agent_tools::KANBAN_LIST_DEFAULT_LIMIT, KANBAN_LIST_MAX_LIMIT, find_task_by_idempotency_key (POS: Facade and shared helpers.)
+- .retry::retry_failed_task (POS: Manual retry of FAILED tasks, shared with the dispatcher.)
 
 [OUTPUT]
 - build_orchestrator_tools: Factory that returns 6 orchestrator-scoped tools.
@@ -30,6 +31,7 @@ from myrm_agent_harness.toolkits.kanban.kanban_agent_tools import (
     KANBAN_LIST_MAX_LIMIT,
     find_task_by_idempotency_key,
 )
+from myrm_agent_harness.toolkits.kanban.retry import retry_failed_task
 from myrm_agent_harness.toolkits.kanban.types import (
     KANBAN_SOURCE_CHAT_METADATA_KEY,
     KanbanTask,
@@ -451,39 +453,21 @@ def build_orchestrator_tools(
         if not task_id:
             return json.dumps({"error": "task_id is required"})
 
-        task = await store.get_task(task_id)
-        if task is None:
-            return json.dumps({"error": f"Task {task_id} not found"})
-
-        if task.status != TaskStatus.FAILED:
-            return json.dumps({"error": f"Only FAILED tasks can be retried (current: {task.status.value})"})
-
-        task.status = TaskStatus.READY
-        task.error = ""
-        task.retry_count = 0
-        task.consecutive_failures = 0
-        task.block_cycle_count = 0
-        task.completed_at = None
-        task.progress_note = None
-        if description.strip():
-            task.description = description.strip()
-
-        saved = await store.save_task(task)
-
-        event_payload: dict[str, object] = {
-            "from": TaskStatus.FAILED.value,
-            "to": TaskStatus.READY.value,
-            "source": "orchestrator",
-        }
-        if reason.strip():
-            event_payload["reason"] = reason.strip()
-        await store.append_event(task_id, TaskEventKind.RETRYING, payload=event_payload)
-
         if dispatcher:
-            dispatcher.emit("task_retrying", saved)
-            dispatcher.wake()
+            outcome = await dispatcher.retry_task(
+                task_id, description=description, reason=reason, source="orchestrator"
+            )
+        else:
+            outcome = await retry_failed_task(
+                store, task_id, description=description, reason=reason, source="orchestrator"
+            )
 
-        return json.dumps({"status": "retried", "task": saved.to_dict()})
+        if outcome.task is None:
+            return json.dumps({"error": f"Task {task_id} not found"})
+        if not outcome.applied:
+            return json.dumps({"error": f"Only FAILED tasks can be retried (current: {outcome.task.status.value})"})
+
+        return json.dumps({"status": "retried", "task": outcome.task.to_dict()})
 
     @tool("kanban_revise_plan")
     async def kanban_revise_plan(
