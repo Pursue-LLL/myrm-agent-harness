@@ -2,6 +2,7 @@
 [INPUT]
 - .types::DesktopRecordedEvent, RecordedActionType, ToolLiftingCandidate, SynthesizedSkillStep, SynthesizedSkillDraft
 - core.skill::DEFAULT_ALLOWED_TOOLS (POS: 编译技能默认 allowed-tools SSOT)
+- core.security.detection.pii_patterns::EMAIL_RE (POS: 邮箱地址的唯一 pattern 定义，长度有界，点号长链上也是线性时间)
 - re, os, pathlib, time, typing
 
 [OUTPUT]
@@ -16,6 +17,7 @@ from __future__ import annotations
 import re
 import time
 
+from myrm_agent_harness.core.security.detection.pii_patterns import EMAIL_RE
 from myrm_agent_harness.core.skill import DEFAULT_ALLOWED_TOOLS
 
 from .types import (
@@ -30,7 +32,6 @@ _FILE_PATH_PATTERN = re.compile(
     r"([a-zA-Z]:\\[^\s\"\'<>|*?]+\.[a-zA-Z0-9]+|/(?:[^\s\"\'<>|*?]+/)+[^\s\"\'<>|*?]+\.[a-zA-Z0-9]+)"
 )
 _DATE_PATTERN = re.compile(r"\b(20\d{2}[-/.]\d{1,2}[-/.]\d{1,2})\b")
-_EMAIL_PATTERN = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b")
 
 
 def cluster_and_debounce_events(
@@ -214,7 +215,7 @@ def extract_parameter_slots(events: list[DesktopRecordedEvent]) -> list[dict[str
             }
 
         # Email values
-        em_match = _EMAIL_PATTERN.search(val)
+        em_match = EMAIL_RE.search(val)
         if em_match and "recipient_email" not in slots:
             slots["recipient_email"] = {
                 "name": "recipient_email",

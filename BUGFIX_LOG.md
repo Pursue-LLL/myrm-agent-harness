@@ -2,6 +2,22 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-14-020 · 录制合成与诊断包里还有两份邮箱正则，对点号连续串是二次方耗时：2 万字符的 `a.a.a.` 串让诊断包的脱敏跑 0.78 秒，录制的参数槽提取跑 0.30 秒；4 万字符分别是 1.55 秒与 1.30 秒
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-14（风控规则统一邮箱正则时，全仓搜索同形正则） |
+| **修复时间** | 2026-10-14 |
+| **症状** | `toolkits/computer_use/recording/synthesizer.py` 的 `extract_parameter_slots` 与 `observability/diagnostics_bundle/packager.py` 的脱敏用的邮箱正则 `[A-Za-z0-9._%+-]+@…` 对不含 `@` 的点号连续串回溯，耗时随长度平方增长；诊断包脱敏处理的是任意日志文本 |
+| **关联产品** | myrm-agent-harness `toolkits/computer_use/recording`、`observability/diagnostics_bundle`；server 台账 `BUG-AGENT-2026-10-14-019`（同批次的风控规则）；同一问题在隐私管线里的修复见 `BUG-HARNESS-2026-10-14-017` |
+| **根因** | 两处各写了一份没有长度上限的邮箱正则，没有读隐私检测的单一来源 `core/security/detection/pii_patterns.py::EMAIL_RE`（长度有界） |
+| **修复** | 两处都改为导入 `EMAIL_RE`，替换文本仍是 `***@***.***`；`packager.py` 所在的 `diagnostics_bundle/` 目录当时是未提交的新目录，改动只在工作区，没有被本次提交带走 |
+| **反复次数** | 同一个正则第 2、3 处（隐私管线为第 1 处） |
+| **踩坑** | 实测（同一台机器，`findall` 耗时）：2 万字符点号串旧诊断包正则 784.9 毫秒、旧录制正则 303.2 毫秒、`EMAIL_RE` 2.0 毫秒；4 万字符 1551.1 / 1301.3 / 5.1 毫秒；10 万字符的普通文本（1695 个邮箱）三者都约 1.4 毫秒，结果相同。行为差异：本地部分超过 64 个字符的串（不是合法邮箱）旧正则整段脱敏，`EMAIL_RE` 只脱敏末尾 64 个字符，前面的字符会留下 |
+| **回归** | `tests/toolkits/computer_use/test_desktop_skill_recording.py::test_a_long_dotted_value_does_not_stall_slot_extraction`（2 万字符点号串在 0.1 秒内完成且不产生参数槽）；该文件与 `tests/observability/test_diagnostics_bundle.py` 共 11 例通过，`ruff` 通过；回归用例的耗时阈值依赖机器，旧正则在本机是 0.30 秒 |
+| **代码位置** | `toolkits/computer_use/recording/synthesizer.py` · `observability/diagnostics_bundle/packager.py`（未提交） |
+
 ### BUG-HARNESS-2026-10-14-019 · 指挥中心「无噪声记忆」卡片的“清除记忆”和“提交事实”只改一个进程内字典：界面提示已清除、代次加一、事实列表清零，用户真正的记忆一条没动，提交的事实也没进任何记忆库
 
 | 字段 | 内容 |
