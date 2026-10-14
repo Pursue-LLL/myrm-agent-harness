@@ -111,7 +111,8 @@ _WEAK_PREFIX_KEY_NAMES: frozenset[str] = frozenset(
 )
 
 # The shapes a vendor prefix identifies on its own: what a caller that refuses a message on a hit (a precision-first
-# gate) reads, so the gate learns each vendor added to the table above without keeping a list of its own.
+# gate) reads, so the gate learns each vendor added to the table above without keeping a list of its own. A caller joins
+# the patterns into one alternation, so each is flag-free and has no group.
 DISTINCTIVE_KEY_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
     (name, pattern) for name, pattern in _API_KEY_PATTERNS if name not in _WEAK_PREFIX_KEY_NAMES
 )
