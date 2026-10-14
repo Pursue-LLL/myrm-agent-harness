@@ -11,6 +11,7 @@ streaming modes.
 
 [INPUT]
 - detection results from pii_classifier (PIIClassification)
+- core.security.detection.card_context::find_card_number_spans (POS: Keyword-anchored detector for card numbers outside the network prefix table or with a typo in them.)
 - core.security.detection.custom_rules::CustomRules, NO_CUSTOM_RULES, find_custom_spans (POS: Single definition of custom-term matching for the privacy policy: the PII classifier, the redactor and the pseudonymizer share it, so detection and masking never disagree about what a user's keyword or pattern covers.)
 - core.security.detection.password_heuristic::find_password_spans (POS: last-resort keyword-anchored detector for passwords without vendor prefix or entropy.)
 - PseudonymStore for persistent mapping
@@ -29,6 +30,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from myrm_agent_harness.core.security.detection.card_context import find_card_number_spans
 from myrm_agent_harness.core.security.detection.custom_rules import (
     NO_CUSTOM_RULES,
     CustomRules,
@@ -137,14 +139,16 @@ def _extract_pii_items(
             seen_spans.add(span)
 
     if level == SensitivityLevel.S3:
+        # A card the prefix table already found is the same number (it may span more digits than the keyword-anchored
+        # shape, as a UnionPay number in five groups does), so any overlap with an item is a duplicate.
+        taken = [(item.start, item.end) for item in items]
         items.extend(
-            PIIItem(
-                original_text=content[start:end],
-                privacy_type="PASSWORD",
-                level=SensitivityLevel.S3,
-                start=start,
-                end=end,
-            )
+            PIIItem(content[start:end], "BANK_CARD", SensitivityLevel.S3, start, end)
+            for start, end in find_card_number_spans(content)
+            if not any(start < taken_end and taken_start < end for taken_start, taken_end in taken)
+        )
+        items.extend(
+            PIIItem(content[start:end], "PASSWORD", SensitivityLevel.S3, start, end)
             for start, end in find_password_spans(content, strict=False)
             if (start, end) not in seen_spans
         )

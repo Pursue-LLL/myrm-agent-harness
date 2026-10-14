@@ -6,6 +6,7 @@ email domain). All redaction is irreversible by design — the original
 values are never stored.
 
 [INPUT]
+- core.security.detection.card_context::find_card_number_spans (POS: Keyword-anchored detector for card numbers outside the network prefix table or with a typo in them.)
 - core.security.detection.custom_rules::CustomRules, NO_CUSTOM_RULES, find_custom_spans (POS: Single definition of custom-term matching for the privacy policy: the PII classifier, the redactor and the pseudonymizer share it, so detection and masking never disagree about what a user's keyword or pattern covers.)
 - core.security.detection.pii_classifier::compiled PII patterns and validators (POS: Input-side PII classification engine.)
 - core.security.detection.password_heuristic::find_password_spans (POS: last-resort keyword-anchored detector for passwords without vendor prefix or entropy.)
@@ -24,6 +25,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable, Iterable
 
+from myrm_agent_harness.core.security.detection.card_context import find_card_number_spans
 from myrm_agent_harness.core.security.detection.custom_rules import NO_CUSTOM_RULES, CustomRules, find_custom_spans
 from myrm_agent_harness.core.security.detection.password_heuristic import find_password_spans
 from myrm_agent_harness.core.security.detection.pii_classifier import (
@@ -83,12 +85,16 @@ def _redact_china_id(m: re.Match[str]) -> str:
     return f"{val[:6]}********{val[-4:]} [PII:id_card]"
 
 
+def _mask_bank_card(digits: str) -> str:
+    return f"**** **** **** {digits[-4:]} [PII:bank_card]"
+
+
 def _redact_bank_card(m: re.Match[str]) -> str:
     val = m.group(0)
     cleaned = val.replace("-", "").replace(" ", "")
     if not _luhn_valid(cleaned):
         return val
-    return f"**** **** **** {cleaned[-4:]} [PII:bank_card]"
+    return _mask_bank_card(cleaned)
 
 
 def _redact_credit_card(m: re.Match[str]) -> str:
@@ -115,6 +121,21 @@ def _redact_passwords(content: str) -> tuple[str, int]:
     if not spans:
         return content, 0
     return _replace_spans(content, spans, "[REDACTED] [PII:password]"), len(spans)
+
+
+def _redact_card_numbers(content: str) -> tuple[str, int]:
+    """Mask each card number the text introduces with a card keyword, as the prefix table masks the cards it knows."""
+    spans = find_card_number_spans(content)
+    if not spans:
+        return content, 0
+    parts: list[str] = []
+    cursor = 0
+    for start, end in spans:
+        parts.append(content[cursor:start])
+        parts.append(_mask_bank_card(re.sub(r"\D", "", content[start:end])))
+        cursor = end
+    parts.append(content[cursor:])
+    return "".join(parts), len(spans)
 
 
 def _redact_custom(content: str, custom: CustomRules) -> tuple[str, int]:
@@ -189,6 +210,32 @@ _REDACTION_PIPELINE: tuple[_Redaction, ...] = (*_S3_REDACTIONS, *_S2_REDACTIONS)
 ALL_LEVELS: frozenset[SensitivityLevel] = frozenset({SensitivityLevel.S2, SensitivityLevel.S3})
 
 
+def _apply_redactions(content: str, redactions: tuple[_Redaction, ...]) -> tuple[str, int]:
+    """*content* with each redaction applied in order; a match its validator rejects (Luhn, ID checksum) stays."""
+    result = content
+    total = 0
+    for _name, pattern, redact_fn, check_placeholder in redactions:
+        parts: list[str] = []
+        cursor = 0
+        count = 0
+        for m in pattern.finditer(result):
+            val = m.group(0)
+            if check_placeholder and _is_placeholder(val):
+                continue
+            redacted = redact_fn(m)
+            if redacted == val:
+                continue
+            parts.append(result[cursor : m.start()])
+            parts.append(redacted)
+            cursor = m.end()
+            count += 1
+        if count:
+            parts.append(result[cursor:])
+            result = "".join(parts)
+            total += count
+    return result, total
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -221,25 +268,14 @@ def redact_pii(
     result, custom_count = _redact_custom(result, custom)
     total_count += custom_count
 
-    pipeline = (_S3_REDACTIONS if confidential else ()) + (_S2_REDACTIONS if SensitivityLevel.S2 in levels else ())
-    for _name, pattern, redact_fn, check_placeholder in pipeline:
-        new_result_parts: list[str] = []
-        cursor = 0
-        count = 0
-
-        for m in pattern.finditer(result):
-            val = m.group(0)
-            if check_placeholder and _is_placeholder(val):
-                continue
-            new_result_parts.append(result[cursor : m.start()])
-            new_result_parts.append(redact_fn(m))
-            cursor = m.end()
-            count += 1
-
-        if count > 0:
-            new_result_parts.append(result[cursor:])
-            result = "".join(new_result_parts)
-            total_count += count
+    if confidential:
+        result, count = _apply_redactions(result, _S3_REDACTIONS)
+        total_count += count
+        result, count = _redact_card_numbers(result)
+        total_count += count
+    if SensitivityLevel.S2 in levels:
+        result, count = _apply_redactions(result, _S2_REDACTIONS)
+        total_count += count
 
     # Also apply leak_detector redaction for credentials
     from myrm_agent_harness.agent.security.detection.leak_detector import redact_leaks, scan_for_leaks

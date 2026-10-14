@@ -6,7 +6,8 @@ based on regex pattern matching for structured PII.
 Detection strategy:
   1. The user's custom S3 keywords/patterns (custom_rules), on a text of any length
   2. Fast path: short messages bypass the built-in detectors
-  3. Built-in S3 patterns, passwords and credentials (short-circuit on confidential)
+  3. Built-in S3 patterns, card numbers a card keyword introduces, passwords and credentials (short-circuit on
+     confidential)
   4. The user's custom S2 keywords/patterns
   5. Built-in S2 patterns (personal information)
   6. Tool parameter & path checking
@@ -15,6 +16,7 @@ All patterns are pre-compiled module-level constants. Detection functions
 are pure — no logging, no side effects, no state.
 
 [INPUT]
+- core.security.detection.card_context::find_card_number_spans (POS: Keyword-anchored detector for card numbers outside the network prefix table or with a typo in them.)
 - core.security.detection.custom_rules::custom_rules, first_custom_span (POS: Single definition of custom-term matching for the privacy policy: the PII classifier, the redactor and the pseudonymizer share it, so detection and masking never disagree about what a user's keyword or pattern covers.)
 - core.security.detection.password_heuristic::find_password_spans (POS: last-resort keyword-anchored detector for passwords without vendor prefix or entropy.)
 
@@ -35,12 +37,15 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from myrm_agent_harness.core.security.detection.card_context import find_card_number_spans
 from myrm_agent_harness.core.security.detection.custom_rules import custom_rules, first_custom_span
 from myrm_agent_harness.core.security.detection.password_heuristic import find_password_spans
 from myrm_agent_harness.core.security.types import PrivacyPolicy, SensitivityLevel
 
-# Pattern name of a detected password: located by spans (password_heuristic), not by a regex in the tables below.
+# Pattern names of a detected password and card number: located by spans (password_heuristic, card_context), not by a
+# regex in the tables below.
 PASSWORD_PATTERN = "password_context"
+CARD_CONTEXT_PATTERN = "bank_card_context"
 
 # ---------------------------------------------------------------------------
 # Fast path thresholds
@@ -284,6 +289,10 @@ def _built_in_s3(content: str) -> PIIClassification | None:
             if name == "bank_card" and not _luhn_valid(val.replace("-", "").replace(" ", "")):
                 continue
             return PIIClassification(level=SensitivityLevel.S3, patterns=[name])
+
+    # Card numbers outside the prefix table, or with a typo, that the text introduces as a card.
+    if find_card_number_spans(content):
+        return PIIClassification(level=SensitivityLevel.S3, patterns=[CARD_CONTEXT_PATTERN])
 
     # Passwords: the same keyword-anchored definition the persistence scan uses, in recall mode.
     if find_password_spans(content, strict=False):
