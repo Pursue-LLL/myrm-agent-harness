@@ -352,7 +352,7 @@ class DomainMetricsManager:
             latencies = []
             smart_adjustments = 0
             smart_skips = 0
-            total_memory_kb = 0
+            total_memory_kb = 0.0
 
             per_fetcher_stats: dict[str, dict[str, float | int]] = {}
             for ft in FetcherType:
@@ -396,7 +396,7 @@ class DomainMetricsManager:
                 if total > 0:
                     per_fetcher_stats[ft.name]["success_rate"] = success / total
 
-                all_success_latencies = []
+                all_success_latencies: list[float] = []
                 for metrics in self._metrics.values():
                     success_lats = metrics.fetcher_success_latencies.get(ft)
                     if success_lats:

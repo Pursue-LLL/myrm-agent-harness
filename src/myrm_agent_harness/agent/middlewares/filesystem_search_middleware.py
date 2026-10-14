@@ -31,7 +31,7 @@ Provides FilesystemFileSearchMiddleware, create_filesystem_search_middleware.
 from __future__ import annotations
 
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Hashable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -135,15 +135,15 @@ class FilesystemFileSearchMiddleware(AgentMiddleware):
     def wrap_tool_call(
         self,
         request: ToolCallRequest,
-        handler: Callable[[ToolCallRequest], ToolMessage | Command],
-    ) -> ToolMessage | Command:
+        handler: Callable[[ToolCallRequest], ToolMessage | Command[Hashable]],
+    ) -> ToolMessage | Command[Hashable]:
         return handler(request)
 
     async def awrap_tool_call(
         self,
         request: ToolCallRequest,
-        handler: Callable[[ToolCallRequest], Awaitable[ToolMessage | Command]],
-    ) -> ToolMessage | Command:
+        handler: Callable[[ToolCallRequest], Awaitable[ToolMessage | Command[Hashable]]],
+    ) -> ToolMessage | Command[Hashable]:
         return await handler(request)
 
     def _build_tools(self) -> list[BaseTool]:
