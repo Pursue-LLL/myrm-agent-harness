@@ -21,7 +21,6 @@ Parent index: [../_ARCH.md](../_ARCH.md). System design: [../MEMORY_SYSTEM.md](.
 | `memory_citations.py` | Core | cited_memory_ids SSE bridge (sources via tool metadata → SourceTracker). | ✅ |
 | `tool_result_sources.py` | Core | Pack/unpack metadata.sources for memory_search wiki/sessions results. | ✅ |
 | `mcp_server/` | Package | MCP adapter (recall/list/store/manage), one module per tool plus per-request context. | ✅ |
-| `mcp/` | Package | Cross-tool memory MCP interop gateway & wire adapter (ai-memory parity). | ✅ |
 | `wiki_memory_boundary.py` | Core | Wiki vs memory write boundary heuristics. | ✅ |
 | `transient_fact_boundary.py` | Core | Transient business state memory write boundary heuristics. | ✅ |
 | `write_failure_feedback.py` | Core | Model-facing result for a failed save/manage call: explicit "Not saved" rejection for write-scan rejections, protected-memory refusal text, generic fallback otherwise (shared by tools and MCP). | ✅ |

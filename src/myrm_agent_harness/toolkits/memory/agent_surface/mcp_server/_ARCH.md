@@ -3,8 +3,8 @@
 ## Overview
 
 MCP adapter exposing `MemoryManager` to external agents as `memory_recall`, `memory_list`, `memory_store` and
-`memory_manage`; the manager is resolved per request (ContextVar → resolver → default). Not the ai-memory
-wire gateway in [../mcp/](../mcp/_ARCH.md). Detailed design: [MEMORY_SYSTEM.md](../../MEMORY_SYSTEM.md).
+`memory_manage`; the manager is resolved per request (ContextVar → resolver → default). Detailed design:
+[MEMORY_SYSTEM.md](../../MEMORY_SYSTEM.md).
 
 ## File Index
 

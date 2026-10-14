@@ -238,6 +238,39 @@ def test_scope_helpers_support_formal_memory_policy():
     assert base_scope.channel_id == "telegram"
 
 
+def test_scope_helpers_derive_client_scope_from_memory_policy() -> None:
+    policy = AgentMemoryPolicy(
+        client_id="acme-corp",
+        agent_id="researcher",
+        read_scopes=(MemoryScopeLevel.GLOBAL, MemoryScopeLevel.CLIENT, MemoryScopeLevel.AGENT),
+        write_policy=MemoryWritePolicy.CLIENT,
+    )
+
+    namespaces = derive_namespaces(
+        namespaces=None,
+        client_id="acme-corp",
+        agent_id="researcher",
+        channel_id=None,
+        conversation_id=None,
+        task_id=None,
+        memory_policy=policy,
+    )
+    assert namespaces == ["global", "client:acme-corp", "agent:researcher"]
+
+    scope = build_scope(
+        namespaces=namespaces,
+        client_id="acme-corp",
+        agent_id="researcher",
+        channel_id=None,
+        conversation_id=None,
+        task_id=None,
+        memory_policy=policy,
+    )
+    assert scope.client_id == "acme-corp"
+    assert scope.primary_namespace == "client:acme-corp"
+    assert scope.namespaces == ["client:acme-corp"]
+
+
 def test_bind_scope_helper_uses_scope_copy():
     base_scope = MemoryScope(
         primary_namespace="agent:scifi", namespaces=["global", "agent:scifi"], agent_id="scifi", channel_id="telegram"
