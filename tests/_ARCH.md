@@ -78,7 +78,7 @@ Real Chromium tests under `tests/toolkits/browser/` must carry `integration` or 
    验证 domain_filter 的 allow/block 行为时须在 `BrowserSession` 显式传 `allow_private_networks=True`：
    该标志让两层只放行「会话显式导航到的私网源」（经重定向 / 脚本到别的私网地址仍被拦，云元数据永远被拦），
    名单与资源规则照常生效；`test_private_network_policy_integration.py`、
-   `test_local_mode_navigation_policy_integration.py`、`test_document_redirect_integration.py` 是端到端证据。
+   `test_local_mode_navigation_policy_integration.py`、`test_document_redirect_integration.py`、`test_domain_lists_redirect_integration.py`（名单对重定向目标同样生效）是端到端证据。
    重定向链由 `tests/toolkits/browser/_redirect_servers.py`（逐请求记录 `(method, path)` 的多服务器夹具）搭建，
    断言服务端收到几次请求，而不是只信浏览器侧结果（`Reply.delay_s` 模拟慢业务端点，用来证明表单 POST 在响应慢于驱动请求超时的情况下仍只提交一次）；web_fetch 侧见 `tests/toolkits/web_fetch/test_fetch_ssrf_terminal.py`。
    并用本地 `ThreadingHTTPServer` 做真实页面源，避免外部网络依赖。**禁止**用猴子补丁替换

@@ -3,6 +3,7 @@
 [INPUT]
 - .types / pool.config::ResourceBlockConfig
 - utils.private_origins::private_origin_grants (POS: per-context registry of explicitly navigated private origins)
+- .context_lists::DomainListPolicy, bind_domain_lists (POS: the context's domain allow/block lists and the rule that applies them)
 - core.security.redirect_hop_guard::RedirectHopEvaluator, HopDisposition (POS: literal-host private network and cloud metadata classification, no DNS)
 - patchright.async_api::BrowserContext, Route
 - urllib.parse::urlparse
@@ -15,8 +16,9 @@
 [POS]
 Layer 1 network route filter. Protects browser sessions from loading internal addresses,
 AWS/GCP/Azure IMDS metadata (169.254.169.254) or blocked domains in any request it is handed.
-patchright does not hand over the hops of a document redirect: private and metadata targets
-are judged after the load by the navigation guard, domain lists have no such second look.
+patchright does not hand over the hops of a document redirect: the navigation guard judges those
+after the load, private and metadata targets by address and domain lists by the policy this filter
+binds to the context (``domain_filter.context_lists``).
 A local-mode session (``allow_private_networks``) keeps its own machine reachable for subresources
 and for documents from origins it was sent to explicitly; any other private document, such as a
 page script or link pointing the tab at loopback, is aborted like in the cloud.
@@ -30,6 +32,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 from myrm_agent_harness.core.security.redirect_hop_guard import HopDisposition, RedirectHopEvaluator
+from myrm_agent_harness.toolkits.browser.domain_filter.context_lists import DomainListPolicy, bind_domain_lists
 from myrm_agent_harness.toolkits.browser.utils.private_origins import private_origin_grants
 
 if TYPE_CHECKING:
@@ -109,6 +112,10 @@ async def install_http_filter(
     4. Resource type filtering (performance optimization)
     """
     evaluator = RedirectHopEvaluator(grants=private_origin_grants(context) if allow_private_networks else None)
+    domain_lists = DomainListPolicy(allowlist, domain_blocklist)
+    if not domain_lists.is_empty:
+        # The navigation guard applies the same lists to the redirect hops this filter never sees.
+        bind_domain_lists(context, domain_lists)
 
     async def _handler(route: Route) -> None:
         url = route.request.url
@@ -152,17 +159,12 @@ async def install_http_filter(
             await _abort_route_safely(route)
             return
 
-        # 4. Explicit domain blocklist
-        if domain_blocklist and not domain_blocklist.is_empty and domain_blocklist.is_blocked(hostname):
+        # 4. Explicit domain blocklist, then allowlist
+        if domain_lists.violation(hostname) is not None:
             await _abort_route_safely(route)
             return
 
-        # 5. Domain allowlist
-        if not allowlist.is_empty and not allowlist.is_allowed(hostname):
-            await _abort_route_safely(route)
-            return
-
-        # 6. Resource type filtering
+        # 5. Resource type filtering
         if resource_block:
             attr_name = _RESOURCE_TYPE_MAP.get(resource_type)
             if attr_name and getattr(resource_block, attr_name):

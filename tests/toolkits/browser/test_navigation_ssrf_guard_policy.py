@@ -13,6 +13,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from myrm_agent_harness.core.security.redirect_hop_guard import PrivateOriginGrants
+from myrm_agent_harness.toolkits.browser.domain_filter import DomainAllowlist
+from myrm_agent_harness.toolkits.browser.domain_filter.context_lists import DomainListPolicy, bind_domain_lists
 from myrm_agent_harness.toolkits.browser.navigation.ssrf_guard import (
     BrowserNavigationBlockedError,
     assert_browser_navigation_allowed,
@@ -166,6 +168,85 @@ class TestBlockedNavigation:
         page.goto.side_effect = [page.goto.return_value, RuntimeError("page crashed")]
         with patch(_ABORT, new_callable=AsyncMock), pytest.raises(BrowserNavigationBlockedError):
             await goto_with_ssrf_guard(page, "http://localhost:3000/go", timeout_ms=1000, grants=PrivateOriginGrants())
+
+
+def _chain(*urls: str) -> MagicMock:
+    """A request whose redirect chain is ``urls`` in order (first = entry URL, last = final request)."""
+    request: MagicMock | None = None
+    for url in urls:
+        hop = MagicMock()
+        hop.url = url
+        hop.redirected_from = request
+        request = hop
+    assert request is not None
+    return request
+
+
+def _policy(*, allow: tuple[str, ...] = (), block: tuple[str, ...] = ()) -> DomainListPolicy:
+    return DomainListPolicy(DomainAllowlist.from_strings(allow), DomainAllowlist.from_strings(block))
+
+
+_PUBLIC = PrivateOriginGrants()
+
+
+class TestDomainListsOnRedirectHops:
+    """The context's request filter is never handed a redirect hop, so the chain check applies the lists."""
+
+    @pytest.mark.asyncio
+    async def test_a_blocklisted_redirect_target_is_blocked(self) -> None:
+        request = _chain("http://good.example/", "http://bad.example/landing")
+        with pytest.raises(BrowserNavigationBlockedError, match=r"'bad\.example' is on the domain blocklist"):
+            await assert_browser_redirect_chain_allowed(request, _PUBLIC, _policy(block=("bad.example",)))
+
+    @pytest.mark.asyncio
+    async def test_a_redirect_target_outside_the_allowlist_is_blocked(self) -> None:
+        request = _chain("http://good.example/", "http://other.example/landing")
+        with pytest.raises(BrowserNavigationBlockedError, match=r"'other\.example' is not on the domain allowlist"):
+            await assert_browser_redirect_chain_allowed(request, _PUBLIC, _policy(allow=("good.example",)))
+
+    @pytest.mark.asyncio
+    async def test_a_forbidden_host_in_the_middle_of_the_chain_is_blocked(self) -> None:
+        request = _chain("http://good.example/", "http://bad.example/mid", "http://good.example/end")
+        with pytest.raises(BrowserNavigationBlockedError, match=r"bad\.example"):
+            await assert_browser_redirect_chain_allowed(request, _PUBLIC, _policy(block=("bad.example",)))
+
+    @pytest.mark.asyncio
+    async def test_allowed_hops_and_wildcards_pass(self) -> None:
+        request = _chain("http://good.example/", "http://www.good.example/home")
+        await assert_browser_redirect_chain_allowed(request, _PUBLIC, _policy(allow=("*.good.example",)))
+        await assert_browser_redirect_chain_allowed(request, _PUBLIC, _policy(block=("bad.example",)))
+
+    @pytest.mark.asyncio
+    async def test_the_entry_url_is_left_to_the_request_filter(self) -> None:
+        """No redirect happened: the entry URL keeps the filter's own verdict (and error), not a second one."""
+        request = _chain("http://bad.example/")
+        await assert_browser_redirect_chain_allowed(request, _PUBLIC, _policy(block=("bad.example",)))
+
+    @pytest.mark.asyncio
+    async def test_no_lists_means_no_domain_check(self) -> None:
+        request = _chain("http://good.example/", "http://anything.example/")
+        await assert_browser_redirect_chain_allowed(request, _PUBLIC, None)
+        await assert_browser_redirect_chain_allowed(request, _PUBLIC, _policy())
+
+    @pytest.mark.asyncio
+    async def test_a_hop_without_a_hostname_fails_closed_under_an_allowlist(self) -> None:
+        request = _chain("http://good.example/", "http:///nohost")
+        with pytest.raises(BrowserNavigationBlockedError):
+            await assert_browser_redirect_chain_allowed(request, _PUBLIC, _policy(allow=("good.example",)))
+
+    @pytest.mark.asyncio
+    async def test_the_blocked_document_is_discarded_through_the_navigation_guard(self) -> None:
+        page = _page("http://bad.example/landing", redirected_from="http://good.example/go")
+        bind_domain_lists(page.context, _policy(block=("bad.example",)))
+        with patch(_ABORT, new_callable=AsyncMock), pytest.raises(BrowserNavigationBlockedError, match="blocklist"):
+            await goto_with_ssrf_guard(page, "http://good.example/go", timeout_ms=1000, grants=_PUBLIC)
+        assert [call.args[0] for call in page.goto.await_args_list] == ["http://good.example/go", "about:blank"]
+
+    @pytest.mark.asyncio
+    async def test_a_page_without_bound_lists_follows_redirects_as_before(self) -> None:
+        page = _page("http://bad.example/landing", redirected_from="http://good.example/go")
+        await goto_with_ssrf_guard(page, "http://good.example/go", timeout_ms=1000, grants=_PUBLIC)
+        assert [call.args[0] for call in page.goto.await_args_list] == ["http://good.example/go"]
 
 
 class TestNavigatorGrantsWiring:
