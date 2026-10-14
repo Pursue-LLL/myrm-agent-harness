@@ -4,7 +4,7 @@
 [INPUT]
 - session_vault::SessionVault (POS: AES-256-GCM encrypted session storage)
 - patchright.async_api::BrowserContext (POS: browser context)
-- checkpoint.session_state::normalize_cookies, _build_localstorage_script (POS: cookie/localStorage normalisation)
+- storage_state::normalize_cookies, build_localstorage_script (POS: cookie/localStorage normalisation)
 
 [OUTPUT]
 - SessionPersistence: encrypted session persistence helper
@@ -138,14 +138,11 @@ class SessionPersistence:
         if entry is None:
             return f"No saved session found for domain: {domain} (or session expired)"
 
-        from ..checkpoint.session_state import (
-            _build_localstorage_script,
-            normalize_cookies,
-        )
+        from .storage_state import build_localstorage_script, normalize_cookies
 
         cookies = normalize_cookies(entry.storage_state.get("cookies", []))
         try:
-            await context.add_cookies(cookies)
+            await context.add_cookies(cookies)  # type: ignore[arg-type]  # patchright does not export SetCookieParam
         except Exception as exc:
             logger.error("Failed to inject cookies for %s: %s", domain, exc)
             return "Error: Failed to inject cookies"
@@ -157,7 +154,7 @@ class SessionPersistence:
             local_storage = origin_data.get("localStorage", [])
             if local_storage and origin:
                 try:
-                    js_code = _build_localstorage_script(local_storage, origin)
+                    js_code = build_localstorage_script(local_storage, origin)
                     await context.add_init_script(js_code)
                     # Also immediately execute on existing pages in context matching origin
                     for page in context.pages:

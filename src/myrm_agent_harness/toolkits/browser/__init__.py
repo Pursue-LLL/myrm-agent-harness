@@ -86,20 +86,6 @@ if TYPE_CHECKING:
         CaptureCallback,
         CaptureSession,
     )
-    from .checkpoint import (
-        AutoRecoveryOrchestrator,
-        BrowserCheckpointHelper,
-        CheckpointMetadata,
-        CheckpointMetrics,
-        IncrementalSessionCheckpointer,
-        ParallelRecoveryOrchestrator,
-        RecoveryContext,
-        create_browser_context_updater,
-        extract_metadata_from_messages,
-        get_browser_state,
-        merge_metadata,
-        restore_browser_state,
-    )
     from .doctor import (
         CheckStatus,
         DoctorCheckResult,
@@ -128,12 +114,10 @@ __all__ = [
     "ActionCaptureEngine",
     "ActionStep",
     "ActionType",
-    "AutoRecoveryOrchestrator",
     "BROWSER_NEXT_ACTION_DISCIPLINE_RULEBOOK",
     "BROWSER_TARGET_SELECTION_DISCIPLINE_RULEBOOK",
     "BROWSER_TEXT_OUTPUT_CONTRACT_PROMPT",
     "BrowserActionKind",
-    "BrowserCheckpointHelper",
     "BrowserError",
     "BrowserLaunchError",
     "BrowserNavigationError",
@@ -147,8 +131,6 @@ __all__ = [
     "CaptureCallback",
     "CaptureSession",
     "CheckStatus",
-    "CheckpointMetadata",
-    "CheckpointMetrics",
     "CorruptedSessionError",
     "DecisionEvaluationResult",
     "DecryptionError",
@@ -162,11 +144,8 @@ __all__ = [
     "EngineUnavailableError",
     "FileVaultBackend",
     "HarnessTaskSpaceManager",
-    "IncrementalSessionCheckpointer",
     "InvalidDomainError",
-    "ParallelRecoveryOrchestrator",
     "RecordingConfig",
-    "RecoveryContext",
     "RefNotFoundError",
     "SessionEntry",
     "SessionSummary",
@@ -178,35 +157,16 @@ __all__ = [
     "VaultMetrics",
     "cleanup_orphan_processes",
     "cleanup_stale_automation_sandboxes",
-    "create_browser_context_updater",
-    "extract_metadata_from_messages",
     "parse_and_validate_text_contract",
     "validate_next_step_action",
     "validate_target_element",
     "find_orphan_automation_processes",
     "format_report",
-    "get_browser_state",
     "load_or_create_key",
-    "merge_metadata",
-    "restore_browser_state",
     "run_doctor",
 ]
 
 _LAZY_MODULES = {
-    "checkpoint": [
-        "IncrementalSessionCheckpointer",
-        "CheckpointMetadata",
-        "CheckpointMetrics",
-        "AutoRecoveryOrchestrator",
-        "ParallelRecoveryOrchestrator",
-        "RecoveryContext",
-        "BrowserCheckpointHelper",
-        "extract_metadata_from_messages",
-        "merge_metadata",
-        "get_browser_state",
-        "restore_browser_state",
-        "create_browser_context_updater",
-    ],
     "doctor.checks": [
         "run_doctor",
     ],
@@ -262,7 +222,7 @@ if __debug__:
 
 
 def __getattr__(name: str) -> object:
-    """Lazy load checkpoint, doctor, vault, and observability modules."""
+    """Lazy load doctor, vault, observability, capture, and spaces modules."""
     from importlib import import_module
 
     module_name = _SYMBOL_TO_MODULE.get(name)

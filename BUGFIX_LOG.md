@@ -2,6 +2,22 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-14-016 · 删除对话、分叉回滚、Resume 失败恢复、改写首条消息都在清检查点线程，而检查点包装器没有转发 `adelete_thread`：前三者只在日志里留一条警告、检查点原样留在库里，后者直接抛 `ContinuitySyncError`；同一个包装器所在的浏览器检查点链路（13 个模块）从未接上任何数据
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-14（沿「`aget_tuple` 的反序列化兜底只在这个包装器里」追查检查点包装器的全部调用方时，发现包装器里的数据没有一处被读；随后用真实的 `AsyncSqliteSaver` 调 `adelete_thread` 复现） |
+| **修复时间** | 2026-10-14 |
+| **症状** | ① 包装器只转发了 `aput / aput_writes / aget_tuple / alist`，没有 `adelete_thread`，调用落到 LangGraph 基类，抛 `NotImplementedError`；五个调用点：`runtime/context/session/session_continuity.py::sync_checkpoint_messages`（持久化历史为空时删线程，抛 `ContinuitySyncError`；撤销 / 重试 / 回退把历史清到空时，server 的 `sync_chat_checkpoint_from_db` 把这个错误一路抛给接口）、server 的 `chat_crud`（删除对话）、`conversation_fork_manager`（分叉事务回滚）、`stream_finalize`（Resume 失败后清检查点）都把异常吞成一条警告，检查点留在库里；`vault_purge_service` 只用 `hasattr` 判断就把 `cleared_checkpoints` 记成 1，从未真正删除；② 浏览器检查点包（`toolkits/browser/checkpoint/`，13 个模块 + 迁移脚本）整条链路从未生效：`metadata["browser"]` 没有任何写入方，`context["browser_checkpoint"]` 只在包内写入、没有读取方，旧包装器把存储放在 `_thread_store`、没有 `thread_store` 属性，server 的 `hasattr(checkpointer, "thread_store")` 恒为 False，`mark_thread_*`、浏览器线程清理任务、`warmup_browser_sessions` 都是空操作；③ `BrowserObservability` 的请求结束回调把协程 `Request.response()` 当同步对象读，每个请求都记成 0 字节（该类没有生产调用方，实际字节统计来自 `NetworkLogger`，所以没有用户可感知的症状） |
+| **关联产品** | myrm-agent-harness `runtime/checkpointing`、`toolkits/browser`（`__init__`、`observability`、`session`）；server 的 `app/lifecycle`、`app/ai_agents/general_agent`、`app/services/agent/execution_cache`、`BROWSER_AUTO_WARMUP` 配置项（Settings 为 `extra="ignore"`，用户 `.env` 里残留该项无影响）。用户库里已有的 `checkpoint_threads` 表成为孤表，未删 |
+| **根因** | ① 包装器是为一个从未接上的存储（`ThreadStore`）写的，转发清单按它的需要而不是按底层 `AsyncSqliteSaver` 实现了哪些方法来定，漏掉的方法静默回落到基类；② 浏览器检查点链路只在包内自洽：写入方、读取方、属性名彼此对不上，没有闭合过，包内的测试只测各模块自身，不会发现没人调用它们；③ 回调函数签名是同步的，驱动里这个调用是协程 |
+| **修复** | ① 新增 `runtime/checkpointing/load_fallback.py::LoadFallbackCheckpointer`：只做一件事，反序列化失败（`pickle` / `dill` 异常与缺参数的构造错误）时返回 `None` 让会话重新开始并留一条警告，其余异常原样抛出；转发的恰好是 `AsyncSqliteSaver` 自己实现的异步方法（`aput`、`aput_writes`、`aget_tuple`、`alist`、`adelete_thread`、`get_next_version`），`aget_delta_channel_history` 有意留给基类，走包装器自己的 `aget_tuple`；`factory.py` 用它取代旧包装器，不再建 `checkpoint_threads` 表；② 删除 `toolkits/browser/checkpoint/` 全包与其测试、`toolkits/browser/__init__.py` 的 12 个导出与惰性分组、`observability` 里的 `checkpoint_metrics`；server 删 `checkpoint_helpers.py`、`lifecycle/browser.py` 里三个空操作函数、`warmup.py` 与 `schedulers.py` 的接线、`stream_pipeline` 里的标记块、执行缓存的 `checkpoint_helper / current_thread_id`、`browser_auto_warmup` 配置项；③ 会话 cookie 与 localStorage 的归一化提取到 `session/storage_state.py`（原先在 `session_persistence` 与生命周期混入里各一份），生命周期混入补继承 `SessionHost` 以取得类型契约；④ `observability._on_request_finished` 改为 `async` 并 `await request.response()` |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | ① `BUG-HARNESS-2026-10-14-010` 的 ⑥（恢复编排器传 `ContextType.AGENT`）修的是本条删除的死代码，行为没有退化，那一条的结论不变；② `acopy_thread / adelete_for_runs / aprune` 没有转发：`AsyncSqliteSaver`（langgraph-checkpoint-sqlite 3.1.1）没有实现这三个方法，转发只会换一个异常；③ 兜底的识别口径（消息含 `pickle` / `dill`，或回溯帧在 dill / pickle 里，或缺必需位置参数）是启发式，C 实现的 `pickle` 遇到完全随机的字节抛的异常没有这些特征，不会被识别为可兜底，仍会冒泡，没有放宽；④ 浏览器检查点包有 13 个模块，先做逐符号零引用盘点，只在确认包外没有生产引用后才删；`cleanup_expired_browser_sessions`（清浏览器 vault 的过期目录，与检查点无关，目前没有调用方，另议）与 `PickleSerde`（子代理检查点也在用）没动 |
+| **回归** | `tests/runtime/checkpointing/test_load_fallback.py` 11 例，用 `create_checkpointer` 建出的真实 SQLite 检查点（往返、挂起写入、`adelete_thread` 真删、`sync_checkpoint_messages(saver, "chat-1", [])` 返回 2 并删掉 `chat-1` 与 `chat_chat-1` 两个线程、损坏的检查点内容返回 `None` 并留警告、无关异常照常抛出、识别口径的三种路径与存储故障不被误判），四个变异体（备份、改写、跑测试、逐字节复原）各被至少一例打红；`tests/toolkits/browser/session/test_storage_state.py` 13 例；`tests/toolkits/browser/test_observability_bandwidth_integration.py`（真实 Chromium，本地服务返回 5000 字节：改回同步写法该例跑红，现在统计到的字节数 ≥ 5000） |
+| **代码位置** | `runtime/checkpointing/load_fallback.py::LoadFallbackCheckpointer` · `runtime/checkpointing/factory.py::_build_sqlite_saver` · `toolkits/browser/session/storage_state.py` · `toolkits/browser/observability.py::_on_request_finished` |
+
 ### BUG-HARNESS-2026-10-14-013 · 记忆写入门（PIISafetyGateway）自带一套与隐私管线不一致的正则：19 位与分组的银联卡、Amex 分组、分组 IBAN、主流厂商密钥、口语里的密码都放行，物流单号被当 IBAN，遮罩模式把没通过 Luhn 的数字也一并遮掉
 
 | 字段 | 内容 |

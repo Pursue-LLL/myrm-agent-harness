@@ -7,11 +7,12 @@
 - session.interactor::Interactor, session.extractor::Extractor (POS: element interaction, content extraction)
 - session.console_logger / network_logger / network_intelligence / dialog_manager / device_emulator / consent_dismisser / vision_verifier (POS: per-page components owned by the aggregate root)
 - pool::GlobalBrowserPool, pool.extension_bridge::ExtensionBridge (POS: browser pool, user-browser extension bridge)
+- observability::BrowserObservability, recording_manager::RecordingManager, session.download_manager::DownloadManager, session.session_persistence::SessionPersistence (POS: optional per-session services owned by the aggregate root)
 - captcha::CaptchaCoordinator (POS: CAPTCHA detection and solving coordination)
 
 [OUTPUT]
-- SessionHost: base of the navigation, tab and CAPTCHA mixins; declares the attributes and methods
-  the BrowserSession aggregate root and lifecycle mixin provide to them. Type-checking only: at
+- SessionHost: base of the navigation, tab, CAPTCHA, network and lifecycle mixins; declares the attributes and
+  methods the BrowserSession aggregate root and its mixins provide to one another. Type-checking only: at
   runtime it is `object`, so the MRO of BrowserSession is unchanged.
 
 [POS]
@@ -27,17 +28,21 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ..captcha import CaptchaCoordinator
     from ..navigation import Navigator
+    from ..observability import BrowserObservability
     from ..pool import GlobalBrowserPool
     from ..pool.config import BrowserEngine, LaunchMode
     from ..pool.extension_bridge import ExtensionBridge
+    from ..recording_manager import RecordingManager
     from .consent_dismisser import ConsentDismisser
     from .console_logger import ConsoleLogger
     from .device_emulator import DeviceEmulator
     from .dialog_manager import DialogManager
+    from .download_manager import DownloadManager
     from .extractor import Extractor
     from .interactor import Interactor
     from .network_intelligence import NetworkIntelligence
     from .network_logger import NetworkLogger
+    from .session_persistence import SessionPersistence
     from .snapshot_manager import SnapshotManager, SnapshotResult
     from .tab_controller import TabController
     from .vision_verifier import VisionVerifier
@@ -47,6 +52,9 @@ if TYPE_CHECKING:
         _extension_bridge: ExtensionBridge | None
         _allow_private_networks: bool
         _context_key: str | None
+        _observability: BrowserObservability | None
+        _auto_restore_domains: list[str]
+        _auto_restored: bool
         _engine_preference: BrowserEngine | None
         _launch_mode_preference: LaunchMode | None
         _user_takeover_active: bool
@@ -60,6 +68,10 @@ if TYPE_CHECKING:
         _console_logger: ConsoleLogger
         _network_intelligence: NetworkIntelligence
         _dialog_manager: DialogManager
+        _persistence: SessionPersistence | None
+        _recording_manager: RecordingManager | None
+        _download_manager: DownloadManager | None
+        _session_hash_cache: dict[str, str]
         _navigator: Navigator | None
         _snapshot_manager: SnapshotManager | None
         _interactor: Interactor | None
@@ -75,6 +87,7 @@ if TYPE_CHECKING:
         def _require_snapshot_manager(self) -> SnapshotManager: ...
         def is_browser_managed(self) -> bool: ...
         async def navigate(self, url: str, verify_goal: str | None = None) -> str: ...
+        async def new_tab(self, url: str | None = None) -> str: ...
         async def restart(self, engine: str | None = None, restore_url: bool = True) -> str: ...
         async def notify_progress(self, message: str) -> None: ...
         async def snapshot(

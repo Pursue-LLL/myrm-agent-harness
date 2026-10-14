@@ -1,24 +1,23 @@
-"""Browser observability — recording, progress tracking, and checkpoint metrics.
+"""Browser observability — recording, progress tracking, and runtime telemetry.
 
 Provides minimal observability for browser automation:
 - Video recording (development mode or on-demand)
 - Progress notifications
 - Final screenshot capture
-- Checkpoint metrics tracking (optional)
+- Runtime compute and bandwidth telemetry
 
 
 [INPUT]
 - patchright.async_api::BrowserContext (POS: Playwright browser context)
 - patchright.async_api::Page (POS: Playwright page instance)
-- checkpoint.metrics::CheckpointMetrics (POS: checkpoint monitoring metrics)
 
 [OUTPUT]
 - RecordingConfig: Recording configuration (enabled, output_dir, retention_policy)
 - ProgressCallback: Type alias for progress notification callback
-- BrowserObservability: Manages recording lifecycle, progress tracking, and checkpoint metrics
+- BrowserObservability: Manages recording lifecycle, progress tracking, and runtime telemetry
 
 [POS]
-Observability module for the browser toolkit. Provides video recording, progress notifications, and checkpoint monitoring
+Observability module for the browser toolkit. Provides video recording, progress notifications, and runtime telemetry
 for debugging and UX optimization. Follows a minimalist principle: records only in dev environment or on failure by default, avoiding over-engineering.
 """
 
@@ -33,8 +32,6 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from patchright.async_api import BrowserContext, Page, Request
-
-    from .checkpoint.metrics import CheckpointMetrics
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +126,7 @@ class BrowserRunTelemetry:
 class BrowserObservability:
     """Browser observability manager.
 
-    Manages recording lifecycle, progress notifications, runtime telemetry, and checkpoint metrics.
+    Manages recording lifecycle, progress notifications, and runtime telemetry.
     Minimal implementation following the principle of progressive enhancement.
     """
 
@@ -137,7 +134,6 @@ class BrowserObservability:
         self,
         recording_config: RecordingConfig,
         progress_callback: ProgressCallback | None = None,
-        checkpoint_metrics: CheckpointMetrics | None = None,
         telemetry: BrowserRunTelemetry | None = None,
     ) -> None:
         """Initialize observability manager.
@@ -145,14 +141,12 @@ class BrowserObservability:
         Args:
             recording_config: Recording configuration
             progress_callback: Optional callback for progress notifications
-            checkpoint_metrics: Optional checkpoint metrics instance (for shared tracking)
             telemetry: Optional existing BrowserRunTelemetry instance
         """
         self._config = recording_config
         self._progress_callback = progress_callback
         self._video_path: Path | None = None
         self._task_succeeded: bool = True
-        self._checkpoint_metrics = checkpoint_metrics
         self._telemetry = telemetry if telemetry is not None else BrowserRunTelemetry()
 
     @property
@@ -166,10 +160,10 @@ class BrowserObservability:
         def _on_page(_page: Page) -> None:
             self._telemetry.page_count += 1
 
-        def _on_request_finished(request: Request) -> None:
+        async def _on_request_finished(request: Request) -> None:
             try:
                 size = 0
-                response = request.response()
+                response = await request.response()
                 if response is not None:
                     headers = response.headers
                     cl = headers.get("content-length")
@@ -320,20 +314,11 @@ class BrowserObservability:
             except Exception as e:
                 logger.warning("Failed to delete recording %s: %s", self._video_path, e)
 
-    @property
-    def checkpoint_metrics(self) -> CheckpointMetrics | None:
-        """Get checkpoint metrics (if enabled).
-
-        Returns:
-            CheckpointMetrics instance or None
-        """
-        return self._checkpoint_metrics
-
     def get_observability_stats(self) -> dict[str, object]:
         """Get comprehensive observability statistics.
 
         Returns:
-            Dictionary with recording status and checkpoint metrics
+            Dictionary with recording status and runtime telemetry
         """
         stats: dict[str, object] = {
             "recording_enabled": self._config.enabled,
@@ -342,9 +327,6 @@ class BrowserObservability:
 
         if self._video_path:
             stats["video_path"] = str(self._video_path)
-
-        if self._checkpoint_metrics:
-            stats["checkpoint_metrics"] = self._checkpoint_metrics.to_dict()
 
         stats["telemetry"] = self._telemetry.snapshot()
 

@@ -29,13 +29,14 @@ from myrm_agent_harness.toolkits.browser.recording_manager import RecordingManag
 from ..navigation import Navigator
 from .extractor import Extractor
 from .interactor import Interactor
+from .session_host import SessionHost
 from .session_persistence import SessionPersistence
 from .snapshot_manager import SnapshotManager
 
 logger = logging.getLogger(__name__)
 
 
-class BrowserSessionLifecycleMixin:
+class BrowserSessionLifecycleMixin(SessionHost):
     async def restart(self, engine: str | None = None, restore_url: bool = True) -> str:
         """Restart the browser session, optionally switching the underlying browser engine.
 
@@ -134,13 +135,13 @@ class BrowserSessionLifecycleMixin:
         # Migrate storage state to the new context
         if current_storage_state:
             with contextlib.suppress(Exception):
-                from ..checkpoint.session_state import _build_localstorage_script, normalize_cookies
+                from .storage_state import build_localstorage_script, normalize_cookies
 
                 new_page = self._tab_controller.get_active_page()
 
                 cookies = normalize_cookies(current_storage_state.get("cookies", []))
                 if cookies:
-                    await new_page.context.add_cookies(cookies)
+                    await new_page.context.add_cookies(cookies)  # type: ignore[arg-type]  # patchright does not export SetCookieParam
                     logger.info(f"Successfully migrated {len(cookies)} cookies to new engine.")
 
                 local_storage_origins = current_storage_state.get("origins", [])
@@ -156,7 +157,7 @@ class BrowserSessionLifecycleMixin:
                         if not (local_storage and origin):
                             continue
 
-                        script = _build_localstorage_script(local_storage, origin)
+                        script = build_localstorage_script(local_storage, origin)
                         for page in new_page.context.pages:
                             parsed = urlparse(page.url)
                             page_origin = f"{parsed.scheme}://{parsed.netloc}"
@@ -242,6 +243,9 @@ class BrowserSessionLifecycleMixin:
         Only saves domains that have relevant cookies in the current context
         and haven't been saved with identical state already (hash diff).
         """
+        persistence = self._persistence
+        if persistence is None:
+            return
         try:
             page = self._tab_controller.get_active_page()
             context = page.context
@@ -264,12 +268,12 @@ class BrowserSessionLifecycleMixin:
 
                 cached_hash = self._session_hash_cache.get(domain)
                 if cached_hash:
-                    new_hash = await self._persistence.compute_hash(domain)
+                    new_hash = await persistence.compute_hash(domain)
                     if new_hash == cached_hash:
                         continue
 
-                save_result = await self._persistence.save(context, domain)
-                new_hash = await self._persistence.compute_hash(domain)
+                save_result = await persistence.save(context, domain)
+                new_hash = await persistence.compute_hash(domain)
                 if new_hash:
                     self._session_hash_cache[domain] = new_hash
                 logger.info("Auto-saved session for domain: %s", domain)

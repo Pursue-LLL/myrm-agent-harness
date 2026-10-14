@@ -3,7 +3,7 @@
 [INPUT]
 - DEPLOY_MODE / CHECKPOINTER_MODE env vars
 - langgraph checkpoint savers (sqlite / memory)
-- myrm_agent_harness.toolkits.browser.checkpoint (ThreadStore, IncrementalSessionCheckpointer)
+- load_fallback::LoadFallbackCheckpointer (POS: wraps the SQLite saver)
 
 [OUTPUT]
 - create_checkpointer(): returns (BaseCheckpointSaver, cleanup_callback)
@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 import os
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import aiosqlite
@@ -40,7 +40,7 @@ class PickleSerde:
 
     def dumps_typed(self, obj: object) -> tuple[str, bytes]:
         try:
-            import dill
+            import dill  # type: ignore[import-untyped]  # dill ships no py.typed marker
 
             serialized = dill.dumps(obj)
             type_prefix = "dill"
@@ -135,15 +135,14 @@ async def _create_sqlite_checkpointer(
         from myrm_agent_harness.utils.db.sqlite import DEFAULT, harden_connection_async
 
         await harden_connection_async(conn, DEFAULT, db_path=Path(str(db_path)))
-        saver = await _build_incremental_saver(conn)
+        saver = await _build_sqlite_saver(conn)
 
         async def cleanup() -> None:
             await conn.close()
             logger.info("[Shutdown] SQLite connection closed")
 
         logger.info(
-            "Checkpointer: IncrementalSessionCheckpointer[AsyncSqliteSaver] "
-            "(file=%s, serde=dill, persistent, thread_registry=enabled, deploy_mode=%s)",
+            "Checkpointer: LoadFallbackCheckpointer[AsyncSqliteSaver] (file=%s, serde=dill, persistent, deploy_mode=%s)",
             db_path,
             deploy_mode,
         )
@@ -164,31 +163,17 @@ async def _create_sqlite_checkpointer(
         raise RuntimeError(msg) from exc
 
 
-async def _build_incremental_saver(
+async def _build_sqlite_saver(
     conn: aiosqlite.Connection,
 ) -> BaseCheckpointSaver[str]:
-    """Build IncrementalSessionCheckpointer wrapping AsyncSqliteSaver + ThreadStore."""
+    """Build the AsyncSqliteSaver (dill serde) wrapped so undecodable checkpoints start a fresh session."""
     from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+
+    from .load_fallback import LoadFallbackCheckpointer
 
     base_saver = AsyncSqliteSaver(conn, serde=PickleSerde())
     await base_saver.setup()
-
-    from myrm_agent_harness.toolkits.browser.checkpoint import (
-        ThreadStore,
-        create_thread_tables,
-    )
-
-    await create_thread_tables(conn)
-    thread_store = ThreadStore(conn)
-
-    from langgraph.checkpoint.base import BaseCheckpointSaver
-
-    from myrm_agent_harness.toolkits.browser import IncrementalSessionCheckpointer
-
-    return cast(
-        BaseCheckpointSaver[str],
-        IncrementalSessionCheckpointer(base_saver, thread_store=thread_store),
-    )
+    return LoadFallbackCheckpointer(base_saver)
 
 
 async def _noop_cleanup() -> None:
