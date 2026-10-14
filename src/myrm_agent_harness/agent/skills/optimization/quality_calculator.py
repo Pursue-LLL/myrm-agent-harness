@@ -46,6 +46,7 @@ class SkillExecutionSample:
     execution_time: float
     user_feedback: int | None = None
     timestamp: datetime = None
+    model_id: str | None = None
 
 
 class SkillQualityCalculator:
@@ -76,17 +77,27 @@ class SkillQualityCalculator:
         self.token_baseline = token_baseline
         self.time_baseline = time_baseline
 
-    def calculate(self, samples: list[SkillExecutionSample], call_frequency: float = 0.5) -> SkillQualityScore:
+    def calculate(
+        self,
+        samples: list[SkillExecutionSample],
+        call_frequency: float = 0.5,
+        *,
+        model_id: str | None = None,
+    ) -> SkillQualityScore:
         """从样本数据计算质量评分
 
         Args:
             samples: skill执行样本列表
             call_frequency: 调用频率（0-1，由外部统计系统提供）
+            model_id: When set, only samples recorded for this model are scored.
 
         Returns:
             SkillQualityScore: 5维质量评分
         """
         from .types import SkillQualityScore
+
+        if model_id:
+            samples = [s for s in samples if s.model_id == model_id or s.model_id is None]
 
         if not samples:
             # 无样本时返回默认评分（中等水平）

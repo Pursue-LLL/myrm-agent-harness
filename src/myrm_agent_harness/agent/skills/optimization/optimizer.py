@@ -262,7 +262,11 @@ class SkillOptimizer:
                     response = await asyncio.wait_for(self.llm.ainvoke([HumanMessage(content=prompt)]), timeout=timeout)
 
                 # 提取内容（兼容 reasoning 模型 content 空回退）
-                optimized_content = extract_answer_text(response)
+                llm_output = extract_answer_text(response)
+                optimized_content = self._materialize_optimized_content(
+                    content or "",
+                    llm_output,
+                )
 
                 # 验证Markdown格式
                 if not optimized_content.startswith("---") or optimized_content.count("---") < 2:
@@ -287,6 +291,21 @@ class SkillOptimizer:
 
         raise OptimizationError("LLM optimization failed after all retries")
 
+    @staticmethod
+    def _materialize_optimized_content(original_content: str, llm_output: str) -> str:
+        """Apply patch-first LLM output; fall back to full document when needed."""
+        from myrm_agent_harness.agent.skills.evolution.pipeline.patch import apply_skill_patch
+
+        if llm_output.startswith("---") and llm_output.count("---") >= 2:
+            return llm_output
+
+        if original_content.strip():
+            patch_result = apply_skill_patch(original_content, llm_output)
+            if patch_result.success and patch_result.content.startswith("---"):
+                return patch_result.content
+
+        return llm_output
+
     def _build_optimization_prompt(
         self, skill: SkillMetadata, quality_score: SkillQualityScore, content: str | None = None
     ) -> str:
@@ -299,9 +318,11 @@ class SkillOptimizer:
 
 Goal: Improve success rate, reduce tokens, and optimize execution time.
 Instructions:
+- Prefer minimal edits: output SEARCH/REPLACE blocks (<<<<<<< SEARCH / ======= / >>>>>>> REPLACE).
+- Only output a full SKILL.md when a patch cannot express the change.
 - Analyze the current skill implementation below.
 - Refactor the prompt or logic to be more robust and efficient.
-- Ensure the output is valid SKILL.md markdown with YAML frontmatter.
+- Ensure the final skill is valid SKILL.md markdown with YAML frontmatter.
 - Focus on:
   1. Improving success rate (reliability)
   2. Reducing token usage (efficiency)
