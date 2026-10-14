@@ -12,13 +12,14 @@ Detection strategy:
   5. Built-in S2 patterns (personal information)
   6. Tool parameter & path checking
 
-All patterns are pre-compiled module-level constants. Detection functions
-are pure — no logging, no side effects, no state.
+Detection functions are pure — no logging, no side effects, no state. The pattern tables and validators they
+consult live in pii_patterns.
 
 [INPUT]
 - core.security.detection.card_context::find_card_number_spans (POS: Keyword-anchored detector for card numbers outside the network prefix table or with a typo in them.)
 - core.security.detection.custom_rules::custom_rules, first_custom_span (POS: Single definition of custom-term matching for the privacy policy: the PII classifier, the redactor and the pseudonymizer share it, so detection and masking never disagree about what a user's keyword or pattern covers.)
 - core.security.detection.password_heuristic::find_password_spans (POS: last-resort keyword-anchored detector for passwords without vendor prefix or entropy.)
+- core.security.detection.pii_patterns::S2_PATTERNS, S3_PATTERNS, china_id_valid, is_placeholder, luhn_valid (POS: Single definition of the built-in PII patterns and their validators.)
 
 [OUTPUT]
 - PIIClassification: detection result (level, matched patterns, confidence)
@@ -28,7 +29,7 @@ are pure — no logging, no side effects, no state.
 - classify_tool_result(): classify tool execution result
 
 [POS]
-Input-side PII classification engine. 30+ built-in regex patterns (bilingual CN/EN) with short-circuit optimization for efficient content scanning.
+Input-side PII classification engine. Runs the built-in patterns (bilingual CN/EN, in pii_patterns) with short-circuit optimization for efficient content scanning.
 
 """
 
@@ -40,10 +41,17 @@ from dataclasses import dataclass, field
 from myrm_agent_harness.core.security.detection.card_context import find_card_number_spans
 from myrm_agent_harness.core.security.detection.custom_rules import custom_rules, first_custom_span
 from myrm_agent_harness.core.security.detection.password_heuristic import find_password_spans
+from myrm_agent_harness.core.security.detection.pii_patterns import (
+    S2_PATTERNS,
+    S3_PATTERNS,
+    china_id_valid,
+    is_placeholder,
+    luhn_valid,
+)
 from myrm_agent_harness.core.security.types import PrivacyPolicy, SensitivityLevel
 
 # Pattern names of a detected password and card number: located by spans (password_heuristic, card_context), not by a
-# regex in the tables below.
+# regex in the pii_patterns tables.
 PASSWORD_PATTERN = "password_context"
 CARD_CONTEXT_PATTERN = "bank_card_context"
 
@@ -55,129 +63,6 @@ _MIN_CONTENT_LENGTH = 6
 _FAST_PATH_ASCII_LENGTH = 20
 # A custom pattern is named in the result by its first characters.
 _PATTERN_NAME_LENGTH = 50
-
-# ---------------------------------------------------------------------------
-# S3 patterns — confidential (identity documents, financial accounts)
-# ---------------------------------------------------------------------------
-
-_CHINA_ID_RE = re.compile(
-    r"(?<!\d)"
-    r"[1-9]\d{5}"
-    r"(?:19|20)\d{2}"
-    r"(?:0[1-9]|1[0-2])"
-    r"(?:0[1-9]|[12]\d|3[01])"
-    r"\d{3}[\dXx]"
-    r"(?!\d)"
-)
-
-# Leading digits of the major card networks: Visa 4, Mastercard 51-55 and 2221-2720, UnionPay 62, Amex 34/37,
-# JCB 3528-3589, Discover 6011/644-649/65.
-_CARD_PREFIX = r"(?:4|5[1-5]|62|3[47]|2(?:22[1-9]|2[3-9]\d|[3-6]\d\d|7[01]\d|720)|35(?:2[89]|[3-8]\d)|6011|64[4-9]|65)"
-
-# One run of 15-19 digits, or typed with the same hyphen or space between the groups: four of four
-# (4532 0151 1283 0366), the UnionPay form with a fifth of three (the five-group form is tried first), Amex as 4-6-5
-# (3782 822463 10005). Only these separators: every Luhn check strips just them. The fifth group is exactly three
-# digits so that the expiry date typed after a card (4532 0151 1283 0366 12/28) is not read as part of it.
-_BANK_CARD_RE = re.compile(
-    r"(?<!\d)(?:"
-    rf"(?={_CARD_PREFIX})\d{{15,19}}"
-    r"|62\d{2}(?P<sep19>[- ])\d{4}(?P=sep19)\d{4}(?P=sep19)\d{4}(?P=sep19)\d{3}"
-    rf"|(?={_CARD_PREFIX})\d{{4}}(?P<sep16>[- ])\d{{4}}(?P=sep16)\d{{4}}(?P=sep16)\d{{4}}"
-    r"|3[47]\d{2}(?P<sep15>[- ])\d{6}(?P=sep15)\d{5}"
-    r")(?!\d)"
-)
-
-_CHINA_PASSPORT_RE = re.compile(
-    r"(?<![A-Za-z])"
-    r"[EeGg]\d{8}"
-    r"(?![A-Za-z\d])"
-)
-
-_S3_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
-    ("china_id_card", _CHINA_ID_RE),
-    ("bank_card", _BANK_CARD_RE),
-    ("china_passport", _CHINA_PASSPORT_RE),
-)
-
-# ---------------------------------------------------------------------------
-# S2 patterns — sensitive (personal contact, location)
-# ---------------------------------------------------------------------------
-
-# Eleven digits, or typed in groups of 3-4-4 (138 0013 8000, 138-0013-8000). A typed number does not follow a
-# letter: the tail of a UUID (dd75f159-9266-4208) is not a phone number.
-_CHINA_PHONE_RE = re.compile(
-    r"(?<!\d)"
-    r"(?:\+?86[-\s]?)?"
-    r"1[3-9]\d(?:\d{8}|(?<![A-Za-z]1[3-9]\d)[- ]\d{4}[- ]\d{4})"
-    r"(?!\d)"
-)
-
-_INTL_PHONE_RE = re.compile(r"\+\d{1,3}[-.\s]?\(?\d{1,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}")
-
-# A US number written without the country code: (415) 555-2671, 415-555-2671, 415.555.2671, optionally led by the
-# trunk prefix "1-". Area code and exchange do not start with 0 or 1. It is not part of a longer token, and it does
-# not follow a "+<country code>", which the international pattern reads (a number is never found by both).
-_US_PHONE_RE = re.compile(
-    r"(?<![\w.+-])(?<!\+\d[ .-])(?<!\+\d{2}[ .-])(?<!\+\d{3}[ .-])"
-    r"(?:1[-. ])?(?:\([2-9]\d{2}\)[ -]?|[2-9]\d{2}[-. ])"
-    r"[2-9]\d{2}[-. ]\d{4}(?![\w-])"
-)
-
-_EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")
-
-_CREDIT_CARD_VISIBLE_RE = re.compile(
-    r"(?<!\d)"
-    r"\d{4}[-\s]\d{4}[-\s]\d{4}[-\s]\d{4}"
-    r"(?!\d)"
-)
-
-_PRIVATE_IP_RE = re.compile(
-    r"\b(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}"
-    r"|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}"
-    r"|192\.168\.\d{1,3}\.\d{1,3})\b"
-)
-
-_CHINA_ADDRESS_RE = re.compile(
-    r"(?:"
-    r"(?:北京|上海|天津|重庆|[^\s]{2,4}(?:省|自治区))"
-    r".{0,6}(?:市|区|县|镇|乡|街道|路|号|弄|栋|楼|室|单元)"
-    r"|"
-    r"(?:市|区|县).{0,10}(?:路|街|道|巷|弄).{0,6}(?:号|栋|楼|室)"
-    r")"
-)
-
-_CHINA_COURIER_RE = re.compile(
-    r"(?:SF|YT|YD|ZT|EMS|YZPY|JD|DBL|YUNDA|STO|ZTO|BEST)"
-    r"\d{10,15}",
-    re.IGNORECASE,
-)
-
-_SSN_RE = re.compile(r"(?<!\d)\d{3}-\d{2}-\d{4}(?!\d)")
-
-_S2_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
-    ("china_phone", _CHINA_PHONE_RE),
-    ("intl_phone", _INTL_PHONE_RE),
-    ("us_phone", _US_PHONE_RE),
-    ("email", _EMAIL_RE),
-    ("credit_card_visible", _CREDIT_CARD_VISIBLE_RE),
-    ("private_ip", _PRIVATE_IP_RE),
-    ("china_address", _CHINA_ADDRESS_RE),
-    ("china_courier", _CHINA_COURIER_RE),
-    ("us_ssn", _SSN_RE),
-)
-
-# ---------------------------------------------------------------------------
-# Placeholder exclusion (reuse logic from leak_detector)
-# ---------------------------------------------------------------------------
-
-_PLACEHOLDER_RE = re.compile(
-    r"^(?:your[_-].*|xxx+|placeholder|example|changeme|TODO|CHANGE_ME|INSERT_HERE|"
-    r"<[^>]+>|\$\{[^}]+\}|%\([^)]+\)s|None|null|undefined|test|demo|fake|dummy|sample"
-    r"|user@example\.com|john@doe\.com|test@test\.com|admin@admin\.com"
-    r"|12345678901|00000000000|11111111111"
-    r")$",
-    re.IGNORECASE,
-)
 
 # ---------------------------------------------------------------------------
 # Sensitive file paths (for tool parameter checking)
@@ -213,46 +98,6 @@ _DEFAULT_SENSITIVE_NAMES: frozenset[str] = frozenset(
 )
 
 # ---------------------------------------------------------------------------
-# Luhn checksum (bank card / credit card validation)
-# ---------------------------------------------------------------------------
-
-
-def _luhn_valid(digits: str) -> bool:
-    """Validate a digit string against the Luhn algorithm."""
-    if not digits.isdigit() or len(digits) < 13:
-        return False
-    total = 0
-    for i, ch in enumerate(reversed(digits)):
-        n = int(ch)
-        if i % 2 == 1:
-            n *= 2
-            if n > 9:
-                n -= 9
-        total += n
-    return total % 10 == 0
-
-
-# ---------------------------------------------------------------------------
-# ID card checksum (China 18-digit)
-# ---------------------------------------------------------------------------
-
-_ID_WEIGHTS = (7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2)
-_ID_CHECK_CODES = "10X98765432"
-
-
-def _china_id_valid(id_str: str) -> bool:
-    """Validate China 18-digit ID card number with checksum."""
-    if len(id_str) != 18:
-        return False
-    body = id_str[:17]
-    if not body.isdigit():
-        return False
-    total = sum(int(body[i]) * _ID_WEIGHTS[i] for i in range(17))
-    expected = _ID_CHECK_CODES[total % 11]
-    return id_str[17].upper() == expected
-
-
-# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -266,10 +111,6 @@ class PIIClassification:
     confidence: float = 1.0
 
 
-def _is_placeholder(value: str) -> bool:
-    return bool(_PLACEHOLDER_RE.match(value.strip()))
-
-
 def _custom_hit(content: str, policy: PrivacyPolicy, level: SensitivityLevel) -> str | None:
     """Pattern name of the first custom keyword or pattern of *level* that *content* contains, if any."""
     span = first_custom_span(content, custom_rules(policy, level))
@@ -281,12 +122,12 @@ def _custom_hit(content: str, policy: PrivacyPolicy, level: SensitivityLevel) ->
 
 def _built_in_s3(content: str) -> PIIClassification | None:
     """The S3 classification of confidential data the built-in detectors recognise, or None."""
-    for name, pat in _S3_PATTERNS:
+    for name, pat in S3_PATTERNS:
         for m in pat.finditer(content):
             val = m.group(0)
-            if name == "china_id_card" and not _china_id_valid(val):
+            if name == "china_id_card" and not china_id_valid(val):
                 continue
-            if name == "bank_card" and not _luhn_valid(val.replace("-", "").replace(" ", "")):
+            if name == "bank_card" and not luhn_valid(val.replace("-", "").replace(" ", "")):
                 continue
             return PIIClassification(level=SensitivityLevel.S3, patterns=[name])
 
@@ -314,10 +155,10 @@ def _built_in_s2(content: str) -> PIIClassification | None:
     # alphanumeric sequences ("13800138000", "SF1234567890123"), so skipping them on
     # short ASCII input silently misclassifies a bare phone or tracking number as S1.
     is_ascii_short = len(content) < _FAST_PATH_ASCII_LENGTH and content.isascii()
-    check_patterns = _S2_PATTERNS if not is_ascii_short else (p for p in _S2_PATTERNS if p[0] != "china_address")
+    check_patterns = S2_PATTERNS if not is_ascii_short else (p for p in S2_PATTERNS if p[0] != "china_address")
     for name, pat in check_patterns:
         for m in pat.finditer(content):
-            if not _is_placeholder(m.group(0)):
+            if not is_placeholder(m.group(0)):
                 return PIIClassification(level=SensitivityLevel.S2, patterns=[name])
     return None
 

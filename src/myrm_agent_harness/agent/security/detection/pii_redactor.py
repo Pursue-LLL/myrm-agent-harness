@@ -8,7 +8,7 @@ values are never stored.
 [INPUT]
 - core.security.detection.card_context::find_card_number_spans (POS: Keyword-anchored detector for card numbers outside the network prefix table or with a typo in them.)
 - core.security.detection.custom_rules::CustomRules, NO_CUSTOM_RULES, find_custom_spans (POS: Single definition of custom-term matching for the privacy policy: the PII classifier, the redactor and the pseudonymizer share it, so detection and masking never disagree about what a user's keyword or pattern covers.)
-- core.security.detection.pii_classifier::compiled PII patterns and validators (POS: Input-side PII classification engine.)
+- core.security.detection.pii_patterns::compiled PII patterns and validators (POS: Single definition of the built-in PII patterns and their validators.)
 - core.security.detection.password_heuristic::find_password_spans (POS: last-resort keyword-anchored detector for passwords without vendor prefix or entropy.)
 
 [OUTPUT]
@@ -28,22 +28,22 @@ from collections.abc import Callable, Iterable
 from myrm_agent_harness.core.security.detection.card_context import find_card_number_spans
 from myrm_agent_harness.core.security.detection.custom_rules import NO_CUSTOM_RULES, CustomRules, find_custom_spans
 from myrm_agent_harness.core.security.detection.password_heuristic import find_password_spans
-from myrm_agent_harness.core.security.detection.pii_classifier import (
-    _BANK_CARD_RE,
-    _CHINA_ADDRESS_RE,
-    _CHINA_COURIER_RE,
-    _CHINA_ID_RE,
-    _CHINA_PASSPORT_RE,
-    _CHINA_PHONE_RE,
-    _CREDIT_CARD_VISIBLE_RE,
-    _EMAIL_RE,
-    _INTL_PHONE_RE,
-    _PLACEHOLDER_RE,
-    _PRIVATE_IP_RE,
-    _SSN_RE,
-    _US_PHONE_RE,
-    _china_id_valid,
-    _luhn_valid,
+from myrm_agent_harness.core.security.detection.pii_patterns import (
+    BANK_CARD_RE,
+    CHINA_ADDRESS_RE,
+    CHINA_COURIER_RE,
+    CHINA_ID_RE,
+    CHINA_PASSPORT_RE,
+    CHINA_PHONE_RE,
+    CREDIT_CARD_VISIBLE_RE,
+    EMAIL_RE,
+    INTL_PHONE_RE,
+    PRIVATE_IP_RE,
+    SSN_RE,
+    US_PHONE_RE,
+    china_id_valid,
+    is_placeholder,
+    luhn_valid,
 )
 from myrm_agent_harness.core.security.types import SensitivityLevel
 
@@ -80,7 +80,7 @@ def _redact_email(m: re.Match[str]) -> str:
 
 def _redact_china_id(m: re.Match[str]) -> str:
     val = m.group(0)
-    if not _china_id_valid(val):
+    if not china_id_valid(val):
         return val
     return f"{val[:6]}********{val[-4:]} [PII:id_card]"
 
@@ -92,7 +92,7 @@ def _mask_bank_card(digits: str) -> str:
 def _redact_bank_card(m: re.Match[str]) -> str:
     val = m.group(0)
     cleaned = val.replace("-", "").replace(" ", "")
-    if not _luhn_valid(cleaned):
+    if not luhn_valid(cleaned):
         return val
     return _mask_bank_card(cleaned)
 
@@ -176,10 +176,6 @@ def _redact_ssn(m: re.Match[str]) -> str:
     return f"***-**-{val[-4:]} [PII:ssn]"
 
 
-def _is_placeholder(val: str) -> bool:
-    return bool(_PLACEHOLDER_RE.match(val.strip()))
-
-
 # ---------------------------------------------------------------------------
 # Ordered redaction pipeline: S3 first, then S2
 # ---------------------------------------------------------------------------
@@ -188,21 +184,21 @@ _Redaction = tuple[str, re.Pattern[str], Callable[[re.Match[str]], str], bool]
 
 # Order matters: more specific first.
 _S3_REDACTIONS: tuple[_Redaction, ...] = (
-    ("china_id_card", _CHINA_ID_RE, _redact_china_id, True),
-    ("bank_card", _BANK_CARD_RE, _redact_bank_card, True),
-    ("china_passport", _CHINA_PASSPORT_RE, _redact_china_passport, False),
+    ("china_id_card", CHINA_ID_RE, _redact_china_id, True),
+    ("bank_card", BANK_CARD_RE, _redact_bank_card, True),
+    ("china_passport", CHINA_PASSPORT_RE, _redact_china_passport, False),
 )
 
 _S2_REDACTIONS: tuple[_Redaction, ...] = (
-    ("china_phone", _CHINA_PHONE_RE, _redact_china_phone, False),
-    ("intl_phone", _INTL_PHONE_RE, _redact_intl_phone, False),
-    ("us_phone", _US_PHONE_RE, _redact_us_phone, False),
-    ("email", _EMAIL_RE, _redact_email, False),
-    ("credit_card_visible", _CREDIT_CARD_VISIBLE_RE, _redact_credit_card, False),
-    ("private_ip", _PRIVATE_IP_RE, _redact_private_ip, False),
-    ("china_address", _CHINA_ADDRESS_RE, _redact_china_address, False),
-    ("china_courier", _CHINA_COURIER_RE, _redact_courier, False),
-    ("us_ssn", _SSN_RE, _redact_ssn, False),
+    ("china_phone", CHINA_PHONE_RE, _redact_china_phone, False),
+    ("intl_phone", INTL_PHONE_RE, _redact_intl_phone, False),
+    ("us_phone", US_PHONE_RE, _redact_us_phone, False),
+    ("email", EMAIL_RE, _redact_email, False),
+    ("credit_card_visible", CREDIT_CARD_VISIBLE_RE, _redact_credit_card, False),
+    ("private_ip", PRIVATE_IP_RE, _redact_private_ip, False),
+    ("china_address", CHINA_ADDRESS_RE, _redact_china_address, False),
+    ("china_courier", CHINA_COURIER_RE, _redact_courier, False),
+    ("us_ssn", SSN_RE, _redact_ssn, False),
 )
 
 _REDACTION_PIPELINE: tuple[_Redaction, ...] = (*_S3_REDACTIONS, *_S2_REDACTIONS)
@@ -220,7 +216,7 @@ def _apply_redactions(content: str, redactions: tuple[_Redaction, ...]) -> tuple
         count = 0
         for m in pattern.finditer(result):
             val = m.group(0)
-            if check_placeholder and _is_placeholder(val):
+            if check_placeholder and is_placeholder(val):
                 continue
             redacted = redact_fn(m)
             if redacted == val:

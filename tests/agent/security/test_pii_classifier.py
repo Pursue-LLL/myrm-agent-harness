@@ -3,13 +3,12 @@
 import pytest
 
 from myrm_agent_harness.agent.security.detection.pii_classifier import (
-    _china_id_valid,
-    _luhn_valid,
     classify_content,
     classify_tool_params,
     classify_tool_result,
 )
 from myrm_agent_harness.agent.security.types import PrivacyPolicy, SensitivityLevel
+from myrm_agent_harness.core.security.detection.pii_patterns import china_id_valid, luhn_valid
 
 _ENABLED = PrivacyPolicy(enabled=True)
 _DISABLED = PrivacyPolicy(enabled=False)
@@ -254,27 +253,27 @@ class TestToolResult:
 
 class TestChinaIdValidation:
     def test_valid_id(self) -> None:
-        assert _china_id_valid("110101199003074530") is True
+        assert china_id_valid("110101199003074530") is True
 
     def test_invalid_checksum(self) -> None:
-        assert _china_id_valid("110101199003074531") is False
+        assert china_id_valid("110101199003074531") is False
 
     def test_short_id(self) -> None:
-        assert _china_id_valid("1234567") is False
+        assert china_id_valid("1234567") is False
 
 
 class TestLuhnValidation:
     def test_valid_card(self) -> None:
-        assert _luhn_valid("4532015112830366") is True
+        assert luhn_valid("4532015112830366") is True
 
     def test_invalid_card(self) -> None:
-        assert _luhn_valid("4532015112830367") is False
+        assert luhn_valid("4532015112830367") is False
 
     def test_too_short(self) -> None:
-        assert _luhn_valid("12345") is False
+        assert luhn_valid("12345") is False
 
     def test_non_digit(self) -> None:
-        assert _luhn_valid("abc") is False
+        assert luhn_valid("abc") is False
 
 
 class TestKeywordMatching:
@@ -321,7 +320,7 @@ class TestCoverageGaps:
         assert result.level == SensitivityLevel.S1
 
     def test_china_id_non_digit_body_invalid(self) -> None:
-        assert not _china_id_valid("110101a99003074530")
+        assert not china_id_valid("110101a99003074530")
 
     def test_custom_s3_invalid_regex_ignored(self) -> None:
         policy = PrivacyPolicy(enabled=True, custom_patterns_s3=("([",))
