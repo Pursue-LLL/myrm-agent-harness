@@ -41,7 +41,7 @@ class TestS3Detection:
         assert result.level == SensitivityLevel.S1
 
     def test_bank_card_luhn_valid(self) -> None:
-        # 6222021234567890018 passes Luhn
+        # 4532015112830366 passes Luhn
         result = classify_content("卡号 4532015112830366", _ENABLED)
         assert result.level == SensitivityLevel.S3
         assert "bank_card" in result.patterns
@@ -121,7 +121,8 @@ class TestS2Detection:
         assert "email" in result.patterns
 
     def test_credit_card_visible_format(self) -> None:
-        result = classify_content("card 4532-0151-1283-0366", _ENABLED)
+        # A grouped number that fails the Luhn check is not a card number the S3 rule can vouch for.
+        result = classify_content("card 4532-0151-1283-0367", _ENABLED)
         assert result.level == SensitivityLevel.S2
         assert "credit_card_visible" in result.patterns
 

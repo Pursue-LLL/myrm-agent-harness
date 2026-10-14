@@ -3,7 +3,8 @@
 Classification asks whether a rule hits, redaction replaces the spans and pseudonymization swaps them for tags, all
 three read the spans found here, so a term that is detected is a term that is masked.
 
-A keyword matches in any case, at every occurrence. Where its first or last character belongs to a script that
+A keyword matches in any case, at every occurrence; the space of a keyword of several words stands for any run of
+whitespace (a line break, a tab, a no-break space), as a pasted text wraps lines. Where its first or last character belongs to a script that
 separates words with spaces (ASCII letters and digits, underscore, Latin, Greek, Cyrillic) the match must not run into
 a neighbouring word of that script: ``pin`` is not in ``spinners`` and ``pass`` is not in ``password123``. Where the
 edge is Chinese, Japanese or Korean text or punctuation (``.env``) there is no boundary to respect, so ``凤凰计划``
@@ -144,9 +145,11 @@ def ineffective_patterns(patterns: Iterable[str]) -> tuple[str, ...]:
 
 @lru_cache(maxsize=512)
 def _keyword_regex(keyword: str) -> regex.Pattern[str]:
-    head = f"(?<![{_SPACED_WORD}])" if _SPACED_WORD_CHAR.match(keyword[0]) else ""
-    tail = f"(?![{_SPACED_WORD}])" if _SPACED_WORD_CHAR.match(keyword[-1]) else ""
-    return regex.compile(f"{head}{regex.escape(keyword)}{tail}", regex.IGNORECASE)
+    words = keyword.split()
+    head = f"(?<![{_SPACED_WORD}])" if _SPACED_WORD_CHAR.match(words[0][0]) else ""
+    tail = f"(?![{_SPACED_WORD}])" if _SPACED_WORD_CHAR.match(words[-1][-1]) else ""
+    # The space of a multi-word keyword stands for any run of whitespace: a pasted text wraps lines and uses no-break spaces.
+    return regex.compile(head + r"\s+".join(map(regex.escape, words)) + tail, regex.IGNORECASE)
 
 
 @lru_cache(maxsize=512)
@@ -219,7 +222,7 @@ def _class_end(pattern: str, start: int) -> int:
 
 def _raw_spans(content: str, rules: CustomRules) -> Iterator[CustomSpan]:
     for keyword in rules.keywords:
-        if keyword:
+        if keyword.strip():
             for match in _keyword_regex(keyword).finditer(content):
                 yield CustomSpan(match.start(), match.end(), "keyword", keyword)
     for index, pattern in enumerate(rules.patterns):

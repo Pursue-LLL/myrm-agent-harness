@@ -70,6 +70,50 @@ class TestKeywordBoundaries:
         assert _hits("price (a+b)* total", _keywords("(a+b)*")) == ["(a+b)*"]
 
 
+class TestKeywordWhitespace:
+    """The space in a multi-word keyword stands for any run of whitespace: a pasted text wraps lines and uses no-break spaces."""
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Project Atlas",
+            "Project  Atlas",
+            "Project\nAtlas",
+            "Project\r\n  Atlas",
+            "Project\tAtlas",
+            "Project\u00a0Atlas",
+            "project\u3000ATLAS",
+        ],
+        ids=["space", "double-space", "newline", "crlf-indent", "tab", "no-break-space", "ideographic-space-and-case"],
+    )
+    def test_any_whitespace_run_between_the_words_matches(self, text: str) -> None:
+        assert _hits(f"brief: {text} budget", _keywords("Project Atlas")) == [text]
+
+    def test_a_chinese_keyword_with_a_space_matches_across_a_line_break(self) -> None:
+        assert _hits("银杏\n计划已启动", _keywords("银杏 计划")) == ["银杏\n计划"]
+
+    def test_the_words_still_need_a_separator(self) -> None:
+        assert _hits("ProjectAtlas", _keywords("Project Atlas")) == []
+
+    def test_a_different_word_between_them_does_not_match(self) -> None:
+        assert _hits("Project X Atlas", _keywords("Project Atlas")) == []
+
+    def test_the_outer_word_boundaries_still_apply(self) -> None:
+        assert _hits("MyProject Atlas", _keywords("Project Atlas")) == []
+        assert _hits("Project Atlases", _keywords("Project Atlas")) == []
+
+    def test_a_single_word_keyword_is_unchanged(self) -> None:
+        assert _hits("the spinners ran fast", _keywords("pin")) == []
+        assert _hits("password123", _keywords("pass")) == []
+        assert _hits("my pin is here", _keywords("pin")) == ["pin"]
+
+    def test_a_keyword_spaced_with_regex_syntax_stays_literal(self) -> None:
+        assert _hits("price (a+b)*\nx total", _keywords("(a+b)* x")) == ["(a+b)*\nx"]
+
+    def test_a_blank_keyword_never_matches(self) -> None:
+        assert find_custom_spans("a b\n c", _keywords(" ", "\n\t")) == []
+
+
 class TestPatterns:
     def test_a_pattern_matches_every_occurrence(self) -> None:
         rules = CustomRules(patterns=(r"EMP-\d{6}",))
