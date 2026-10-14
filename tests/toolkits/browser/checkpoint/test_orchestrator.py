@@ -289,3 +289,73 @@ class TestParallelRecoveryOrchestrator:
         assert results["success_count"] == 0
         assert results["failure_count"] == 0
         assert results["total_count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_recover_all_gives_each_task_an_agent_context_session(self, mock_deps):
+        """Recovery sessions are built with the real ContextType, not its string name."""
+        from myrm_agent_harness.toolkits.browser.pool import ContextType
+
+        orchestrator = ParallelRecoveryOrchestrator(
+            mock_deps["checkpointer"],
+            mock_deps["thread_store"],
+            AsyncMock(),  # session.close() awaits the pool to release the context
+        )
+        await orchestrator.initialize()
+        context = RecoveryContext(
+            thread_id="thread-1",
+            checkpoint_id="cp-1",
+            metadata=Mock(),
+            messages=[],
+            last_updated_at=datetime.now().timestamp(),
+        )
+        recovered_sessions = []
+
+        async def recover_session(_ctx, session):
+            recovered_sessions.append(session)
+            return True
+
+        with (
+            patch.object(orchestrator._base_orchestrator, "find_incomplete_tasks", AsyncMock(return_value=[context])),
+            patch.object(orchestrator._base_orchestrator, "recover_session", side_effect=recover_session),
+        ):
+            summary = await orchestrator.recover_all()
+
+        assert summary["success_count"] == 1
+        assert summary["failure_count"] == 0
+        assert [session._context_type for session in recovered_sessions] == [ContextType.AGENT]
+
+    @pytest.mark.asyncio
+    async def test_recover_all_counts_declined_and_raised_recoveries_as_failures(self, mock_deps):
+        """A recovery that returns False and one that raises both land in failed_threads."""
+        orchestrator = ParallelRecoveryOrchestrator(
+            mock_deps["checkpointer"],
+            mock_deps["thread_store"],
+            AsyncMock(),
+        )
+        await orchestrator.initialize()
+        contexts = [
+            RecoveryContext(
+                thread_id=thread_id,
+                checkpoint_id="cp",
+                metadata=Mock(),
+                messages=[],
+                last_updated_at=datetime.now().timestamp(),
+            )
+            for thread_id in ("recovered", "declined", "raised")
+        ]
+
+        async def recover_session(ctx, _session):
+            if ctx.thread_id == "raised":
+                raise RuntimeError("boom")
+            return ctx.thread_id == "recovered"
+
+        with (
+            patch.object(orchestrator._base_orchestrator, "find_incomplete_tasks", AsyncMock(return_value=contexts)),
+            patch.object(orchestrator._base_orchestrator, "recover_session", side_effect=recover_session),
+        ):
+            summary = await orchestrator.recover_all()
+
+        assert summary["success_count"] == 1
+        assert summary["failure_count"] == 2
+        assert summary["total_count"] == 3
+        assert sorted(summary["failed_threads"]) == ["declined", "raised"]

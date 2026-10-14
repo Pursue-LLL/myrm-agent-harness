@@ -141,11 +141,13 @@ class FetchEngine(
         self._domain_allowlist = domain_allowlist
         self._allow_private_networks = allow_private_networks
         self._youtube_languages = youtube_languages
-        self._http_fetcher = HttpFetcher(proxy_pool=proxy_pool, session_vault=session_vault)
+        self._http_fetcher = HttpFetcher(
+            proxy_pool=proxy_pool, session_vault=session_vault, allow_private_networks=allow_private_networks
+        )
         self._browser_fetcher = BrowserFetcher(
             allow_private_networks=allow_private_networks, session_vault=session_vault
         )
-        self._stealth_fetcher = StealthFetcher(proxy_pool=proxy_pool)
+        self._stealth_fetcher = StealthFetcher(proxy_pool=proxy_pool, allow_private_networks=allow_private_networks)
         self._pipeline = ContentPipeline(use_raw_markdown=use_raw_markdown)
 
         self._router = AdaptiveRouter(rules_file=adaptive_router_rules_file)
@@ -215,9 +217,7 @@ class FetchEngine(
         from ..processing.url_normalizer import normalize_url
 
         if not self._allow_private_networks:
-            from myrm_agent_harness.core.security.guards.ssrf import (
-                validate_url_for_ssrf,
-            )
+            from myrm_agent_harness.core.security.guards.ssrf import validate_url_for_ssrf
 
             result = validate_url_for_ssrf(url)
             if not result.safe:

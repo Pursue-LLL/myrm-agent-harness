@@ -448,11 +448,12 @@ class ParallelRecoveryOrchestrator:
             """Recover single task with semaphore."""
             async with semaphore:
                 # Create browser session (pre-warmed from pool)
+                from ..pool import ContextType
                 from ..session import BrowserSession
 
                 session = BrowserSession(
                     browser_pool=self._browser_pool,
-                    context_type="AGENT",
+                    context_type=ContextType.AGENT,
                     context_key=ctx.thread_id,
                     session_vault=self._base_orchestrator._vault,
                 )
@@ -471,26 +472,22 @@ class ParallelRecoveryOrchestrator:
 
         # 4. Analyze results
         success_count = 0
-        failure_count = 0
         failed_threads: list[str] = []
 
         for i, result in enumerate(results):
-            if isinstance(result, Exception):
-                failure_count += 1
+            if isinstance(result, BaseException):
                 failed_threads.append(contexts[i].thread_id)
                 logger.error(
                     "Recovery exception for thread_id=%s: %s",
                     contexts[i].thread_id,
                     result,
                 )
+            elif result[1]:
+                success_count += 1
             else:
-                thread_id, success = result
-                if success:
-                    success_count += 1
-                else:
-                    failure_count += 1
-                    failed_threads.append(thread_id)
+                failed_threads.append(result[0])
 
+        failure_count = len(failed_threads)
         elapsed_ms = (time.perf_counter() - start_time) * 1000
 
         logger.info(

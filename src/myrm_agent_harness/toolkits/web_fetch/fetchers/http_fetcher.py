@@ -1,14 +1,14 @@
 """L1 HTTP fetcher via Scrapling curl_cffi with optional HTTP/3 retry lane.
 
 [INPUT]
-- core.security.guards.ssrf::SSRFSecurityError (POS: SSRF shield for outbound HTTP)
+- .target_guard::FetchTargetGuard (POS: per-fetch SSRF policy; raises SSRFSecurityError, which propagates to FetchEngine)
 - toolkits.web_fetch.processing.antibot_detector::is_blocked (POS: Anti-bot detection for crawl results)
 - toolkits.web_fetch.probe.http3_probe::is_quic_egress_available (POS: QUIC egress probe and L1 retry metrics)
 - toolkits.web_fetch.router.site_experience::get_global_site_experience_store (POS: Site experience store)
 - toolkits.browser.pool.proxy::ProxyPool (POS: Proxy rotation pool for FetchEngine)
 
 [OUTPUT]
-- HttpFetcher: L1 tier fetcher with HTTP/2 default and HTTP/3 retry on antibot/403/empty failure (not 429; skipped when proxy pool active)
+- HttpFetcher: L1 tier fetcher with HTTP/2 default and HTTP/3 retry on antibot/403/empty failure (not 429; skipped when proxy pool active); a hop rejected by the SSRF policy raises SSRFSecurityError instead of degrading to the next tier
 
 [POS]
 L1 lightweight HTTP fetcher. Delegates TLS impersonation to Scrapling defaults; retries once with QUIC when enabled.
@@ -22,10 +22,6 @@ import logging
 from typing import TYPE_CHECKING
 from urllib.parse import urljoin, urlparse
 
-from myrm_agent_harness.core.security.guards.ssrf import (
-    SSRFSecurityError,
-    async_pin_url,
-)
 from myrm_agent_harness.core.security.http.secure_fetch import (
     is_ssrf_shield_enabled,
     parse_allowed_internal_hosts,
@@ -42,6 +38,7 @@ from myrm_agent_harness.toolkits.web_fetch.router.site_experience import (
 )
 
 from .protocols import FetcherType, FetchResult
+from .target_guard import FetchTargetGuard
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.browser.pool.proxy import ProxyPool
@@ -69,11 +66,13 @@ class HttpFetcher:
         timeout: int = _DEFAULT_TIMEOUT,
         proxy_pool: ProxyPool | None = None,
         session_vault: SessionVault | None = None,
+        allow_private_networks: bool = False,
     ):
         self._semaphore = asyncio.Semaphore(max_concurrent)
         self._timeout = timeout
         self._proxy_pool = proxy_pool
         self._session_vault = session_vault
+        self._allow_private_networks = allow_private_networks
 
     async def fetch(self, url: str, *, etag: str | None = None, last_modified: str | None = None) -> FetchResult | None:
         enable_ssrf_shield = is_ssrf_shield_enabled()
@@ -242,18 +241,25 @@ class HttpFetcher:
         current_url = url
         redirect_count = 0
         request_headers = headers.copy()
+        guard = (
+            FetchTargetGuard(
+                requested_url=url,
+                allow_private_networks=self._allow_private_networks,
+                allowed_hosts=allowed_hosts,
+            )
+            if enable_ssrf_shield
+            else None
+        )
 
         while redirect_count <= _MAX_REDIRECTS:
             request_url = current_url
 
-            if enable_ssrf_shield:
-                try:
-                    safe_url, host_header = await async_pin_url(current_url, allowed_hosts)
-                    request_url = safe_url
-                    request_headers.update(host_header)
-                except SSRFSecurityError as exc:
-                    logger.error("SSRF attempt blocked in HttpFetcher: %s", exc)
-                    return None
+            if guard is not None:
+                # A rejected hop raises SSRFSecurityError: returning None would let the browser tiers
+                # fetch the same URL.
+                request_url, host_header = await guard.pin(current_url)
+                request_headers.pop("Host", None)  # the previous hop's pinned Host must not leak onto this hop
+                request_headers.update(host_header)
 
             try:
                 kwargs = self._build_request_kwargs(

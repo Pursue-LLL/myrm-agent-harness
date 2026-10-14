@@ -9,7 +9,7 @@ Patchright  from 源码层面修补了 CDP 泄露，provides in  etc.反检测�
 - toolkits.browser.navigation::Navigator (POS: Page navigation utility module. Responsibilities: 1. Page navigation (goto) + throttle control 2. History navigation (back/forward/reload) 3. Smart wait (hybrid detection: DOM + network dual guarantee) 4. Timeout control + full metrics exposure Design principles: Independent utility module, reusable by BrowserSession and BrowserFetcher Integrates throttle strategy for unified navigation frequency control Smart wait: hybrid detection (DOM stable + network idle) dual guarantee Single responsibility: only handles navigation logic; does not handle tab management, snapshot, interaction, etc.)
 
 [OUTPUT]
-- BrowserFetcher: class — Browser Fetcher
+- BrowserFetcher: class — Browser Fetcher; a navigation blocked by the SSRF policy raises SSRFSecurityError instead of degrading to the next tier
 
 [POS]
 Provides BrowserFetcher.
@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING
 from .protocols import FetcherType, FetchResult
 
 if TYPE_CHECKING:
-    from patchright.async_api import Page  # type: ignore[import-untyped]
+    from patchright.async_api import Page
 
     from myrm_agent_harness.toolkits.browser.pool import GlobalBrowserPool
     from myrm_agent_harness.toolkits.browser.session_vault import SessionVault
@@ -79,7 +79,10 @@ class BrowserFetcher:
         """
         from urllib.parse import urlparse
 
+        from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError
+        from myrm_agent_harness.core.security.redirect_hop_guard import PrivateOriginGrants
         from myrm_agent_harness.toolkits.browser.navigation import Navigator
+        from myrm_agent_harness.toolkits.browser.navigation.ssrf_guard import BrowserNavigationBlockedError
         from myrm_agent_harness.toolkits.browser.pool import ContextType
 
         from ..router.domain_metrics import get_global_domain_metrics_manager
@@ -117,6 +120,8 @@ class BrowserFetcher:
                 circuit_breaker=self._pool.circuit_breaker,
                 domain_metrics_manager=get_global_domain_metrics_manager(),
                 allow_private_networks=self._allow_private_networks,
+                # Pooled CRAWL contexts outlive the fetch: grants must not carry over to the next one.
+                private_origins=PrivateOriginGrants(),
                 auto_dismiss_popups=self._pool.config.auto_dismiss_popups,
             )
             _title, final_url, status_code = await navigator.goto(url)
@@ -129,6 +134,10 @@ class BrowserFetcher:
                 status_code=status_code,
                 fetcher_type=FetcherType.BROWSER,
             )
+
+        except BrowserNavigationBlockedError as exc:
+            # Policy verdicts are terminal; degrading to another tier would fetch the same URL.
+            raise SSRFSecurityError(str(exc)) from exc
 
         except Exception as exc:
             logger.warning(f"BrowserFetcher failed: {url} — {exc}")

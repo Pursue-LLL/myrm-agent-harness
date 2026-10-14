@@ -16,7 +16,7 @@
 - create_dns_pin_map(): 基于 SSRFResult 构建 hostname→IP 映射（SSRFResult 来自 core.security.guards.ssrf）
 - build_host_resolver_rules(): 构建 Chrome --host-resolver-rules 参数
 - is_blocked_ip(): IP 黑名单检查（单一数据源，被 core.security.guards.ssrf 等共用）
-- validate_scheme_and_hostname(): URL scheme 和 hostname 验证（含 parser-confusing 字符防御、hostname 尾部点规范化、hostname 后缀匹配）
+- validate_scheme_and_hostname(): url_syntax.parse_outbound_hostname（parser-confusing 字符防御、scheme 白名单、hostname 尾部点规范化）+ hostname 黑名单与后缀匹配
 
 [POS]
 Web and URL utilities. Provides URL normalization, parsing, cleanup, and type determination functions.
@@ -30,6 +30,8 @@ import logging
 import re as _re
 from typing import Protocol
 from urllib.parse import unquote, urlparse, urlunparse
+
+from myrm_agent_harness.utils.url_syntax import parse_outbound_hostname
 
 logger = logging.getLogger(__name__)
 
@@ -200,8 +202,6 @@ def is_file_url(url: str) -> bool:
 # SSRF 防护
 # ============================================================================
 
-SSRF_ALLOWED_SCHEMES = frozenset({"http", "https", "ws", "wss"})
-
 SSRF_BLOCKED_HOSTNAMES = frozenset(
     {
         "localhost",
@@ -217,10 +217,6 @@ SSRF_BLOCKED_HOSTNAMES = frozenset(
         "metadata.tencentyun.com",
     }
 )
-
-# Parser-confusing characters that cause urlparse/HTTP client divergence.
-# Attackers inject these to bypass hostname extraction (CVE-class SSRF bypass).
-_PARSER_CONFUSING_CHARS = frozenset("\\\t\n\r")
 
 # Hostname suffixes that resolve to internal/container networks.
 # Blocks mDNS (.local), Kubernetes (.svc, .cluster.local), and home networks.
@@ -307,26 +303,9 @@ class _SSRFResultLike(Protocol):
 
 def validate_scheme_and_hostname(url: str) -> tuple[str | None, str]:
     """Validate URL scheme and hostname. Returns (hostname, "") or (None, error)."""
-    try:
-        parsed = urlparse(url)
-    except Exception:
-        return None, "Malformed URL"
-
-    # Block parser-confusing characters that cause urlparse/HTTP client divergence.
-    # e.g. http://evil.com\t@169.254.169.254/ — tab makes urlparse extract wrong hostname.
-    if any(c in _PARSER_CONFUSING_CHARS for c in url):
-        return None, "URL contains parser-confusing characters"
-
-    scheme = (parsed.scheme or "").lower()
-    if scheme not in SSRF_ALLOWED_SCHEMES:
-        return None, f"Blocked URL scheme: {scheme}"
-
-    hostname = parsed.hostname
-    if not hostname:
-        return None, "Missing hostname"
-
-    # Normalize trailing dot (FQDN: "localhost." -> "localhost") to match blocklist.
-    hostname = hostname.rstrip(".")
+    hostname, error = parse_outbound_hostname(url)
+    if hostname is None:
+        return None, error
 
     if hostname.lower() in SSRF_BLOCKED_HOSTNAMES or hostname.lower() in _DYNAMIC_BLOCKED_HOSTNAMES:
         return None, f"Blocked hostname: {hostname}"

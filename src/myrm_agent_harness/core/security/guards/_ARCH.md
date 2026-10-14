@@ -15,6 +15,6 @@ Session-level security guards — privacy tracking, SSRF prevention, and skill D
 
 ## Key Dependencies
 
-- `utils/url_utils.py` — `is_blocked_ip`, `validate_scheme_and_hostname` (primitives only)
+- `utils/url_utils.py` — `is_blocked_ip`, `validate_scheme_and_hostname` (primitives only); `utils/url_syntax.py` — `parse_outbound_hostname` (syntax check shared with policies that have no hostname blocklist)
 - `core/security/audit.py` — `record_decision` for SSRF_BLOCKED entries
 - No `agent/` imports (toolkits gate)

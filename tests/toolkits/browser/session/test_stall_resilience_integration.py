@@ -29,6 +29,7 @@ from myrm_agent_harness.toolkits.browser.utils.page_health import (
     probe_alive,
     probe_browser_alive,
 )
+from myrm_agent_harness.toolkits.browser.utils.private_origins import private_origin_grants
 from myrm_agent_harness.utils.runtime.cancellation import CancellationToken, set_cancel_token
 from tests.toolkits.browser._browser_available import chromium_available
 from tests.toolkits.browser._stall_servers import StallServers
@@ -234,6 +235,8 @@ class TestWatchdog:
     ) -> None:
         await session.new_tab()
         page = session._tab_controller.get_active_page()
+        # A plain goto bypasses the session guard, so record the explicit visit it would have recorded.
+        private_origin_grants(page.context).grant(servers.silent)
         navigating = asyncio.create_task(page.goto(servers.silent, timeout=0))
         await servers.wait_for_request(servers.silent)
         inst = pool._browsers[0]

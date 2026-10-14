@@ -10,6 +10,7 @@
 - .pool.config::BrowserMode, NavigationWaitConfig (POS: browser configuration)
 - .wait::wait_for_page_ready, WaitStrategy, WaitMetrics (POS: smart wait strategies)
 - .ssrf_guard::goto_with_ssrf_guard (POS: Playwright document navigation SSRF guard)
+- ..utils.private_origins::private_origin_grants (POS: per-context registry of explicitly navigated private origins)
 - .session.consent_dismisser::ConsentDismisser (POS: cookie consent auto-dismiss)
 - ..exceptions::BrowserNavigationError (POS: intelligent navigation failure diagnostics)
 - ..utils.page_health::abort_pending_navigation, probe_alive, PageUnresponsiveError (POS: bounded browser and page health primitives)
@@ -48,6 +49,7 @@ from ..wait import WaitMetrics, WaitStrategy, wait_for_page_ready
 if TYPE_CHECKING:
     from patchright.async_api import Page
 
+    from myrm_agent_harness.core.security.redirect_hop_guard import PrivateOriginGrants
     from myrm_agent_harness.toolkits.web_fetch.router.domain_metrics import (
         DomainMetricsManager,
     )
@@ -85,6 +87,7 @@ class Navigator:
         domain_metrics_manager: DomainMetricsManager | None = None,
         *,
         allow_private_networks: bool = False,
+        private_origins: PrivateOriginGrants | None = None,
         auto_dismiss_popups: bool = True,
     ):
         """Initialize the Navigator.
@@ -96,8 +99,12 @@ class Navigator:
             wait_config: Wait configuration (None = default STANDARD config).
             mode: Browser mode used to pick the wait strategy (ignored when wait_config is set).
             domain_metrics_manager: Domain metrics manager for SMART learning.
-            allow_private_networks: True in local mode — skips SSRF private-IP
-                blocking while preserving URL scheme validation.
+            allow_private_networks: True in local mode — private and loopback origins
+                stay reachable where this navigator was sent explicitly, and everything
+                else keeps the SSRF policy (cloud metadata is never reachable).
+            private_origins: origins already granted in local mode; defaults to the grants
+                shared by every navigator of the page's context. Pass a private set to keep
+                grants from outliving one pooled-page use.
             auto_dismiss_popups: auto-dismiss cookie consent banners and overlay
                 popups after navigation (default True).
         """
@@ -107,6 +114,7 @@ class Navigator:
         self._domain_metrics_manager = domain_metrics_manager
         self._current_domain: str | None = None
         self._allow_private_networks = allow_private_networks
+        self._private_origins = private_origins
         self._consent_dismisser: ConsentDismisser | None = None
         if auto_dismiss_popups:
             from ..session.consent_dismisser import ConsentDismisser
@@ -194,14 +202,17 @@ class Navigator:
         url_before = self._page.url
         navigated = False
         try:
+            from ..utils.private_origins import private_origin_grants
             from .ssrf_guard import goto_with_ssrf_guard
 
-            response = await goto_with_ssrf_guard(
-                self._page,
-                url,
-                timeout_ms=_NAVIGATION_TIMEOUT_MS,
-                allow_private_networks=self._allow_private_networks,
-            )
+            grants = None
+            if self._allow_private_networks:
+                grants = (
+                    self._private_origins
+                    if self._private_origins is not None
+                    else private_origin_grants(self._page.context)
+                )
+            response = await goto_with_ssrf_guard(self._page, url, timeout_ms=_NAVIGATION_TIMEOUT_MS, grants=grants)
             navigated = True
         except Exception as e:
             if is_timeout_error(e):

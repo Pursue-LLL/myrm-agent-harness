@@ -497,7 +497,9 @@ Object.defineProperty(window, 'RTCPeerConnection', {
 - Layer 2: RTCPeerConnection, WebTransport, Service Worker registration
 - Layer 3: WebSocket audit（含 Worker）
 
-**私网策略**：`BrowserSession(allow_private_networks=True)`（本地模式）经 `context_kwargs` → `ContextFactory` → `install_domain_filter(allow_private_networks=…)` → Layer 1 `install_http_filter`，只跳过「私网地址 / 云元数据逐跳校验」；blocklist、allowlist、广告与资源类型规则照常生效，因此是否挂载域名列表或资源拦截，都不改变会话自己声明的私网策略。默认 `False`（云托管）时逐跳校验始终开启。该标志与 allowlist 一样在 context 创建时生效，同一 `context_key` 以首个创建者的策略为准。
+**私网策略**：云托管（默认 `allow_private_networks=False`）下，导航守卫在 `goto` 之前对 URL 做 DNS 解析校验（所有地址必须为公网），context 过滤器对每个请求逐跳校验。本地模式 `BrowserSession(allow_private_networks=True)` 经 `context_kwargs` → `ContextFactory` → `install_domain_filter(allow_private_networks=…)` → Layer 1 `install_http_filter`，只放行「智能体显式导航到的私网源」（scheme + host + port，登记在 `utils/private_origins.private_origin_grants(context)`，导航守卫与过滤器共用同一份）：页面脚本 / 重定向 / iframe 指向其他私网地址仍被拦，云元数据端点（`169.254.169.254`、`metadata.google.internal` 等）永远被拦。本地模式只按字面主机分类、不做 DNS（兼容代理与 fake-IP 解析），过滤器仅检查 document 请求，子资源交给 Chromium 的私网访问规则。blocklist、allowlist、广告与资源类型规则照常生效，因此是否挂载域名列表或资源拦截，都不改变会话自己声明的私网策略。该标志与 allowlist 一样在 context 创建时生效，同一 `context_key` 以首个创建者的策略为准。
+
+**重定向链的判定时机**：patchright 不会把文档重定向的中间跳交给 route，所以链路在加载完成后用 `request.redirected_from` 回放判定；命中则把标签页重置为 `about:blank` 并抛 `BrowserNavigationBlockedError`，页面内容不会返回给调用方。文档注入路由（`enhancers/inject_route.py`）以 `max_redirects=0` 取回，3xx / 非 HTML 响应原样交还 Chromium，由浏览器自己执行重定向（页面 URL 与 origin 正确、cookie 正确、链路可见、请求只发一次）。剩余边界：Chromium 在判定之前会向未授权的内部地址发出一次 GET（响应不会交给调用方，也读不到内容），只有出站网络层（防火墙 / egress 代理）才能彻底阻止。web_fetch 的 HTTP / Stealth 层使用同一套策略（`web_fetch/fetchers/target_guard.py`），被策略拒绝的 URL 是终态，不会降级到下一层重试。
 
 **反爬检测友好**：保留 Web Worker 功能（避免 `new Worker()` 抛异常），与 browser-use（81K stars）策略一致
 

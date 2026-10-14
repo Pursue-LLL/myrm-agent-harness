@@ -1,44 +1,43 @@
 """Hop evaluation engine for redirect and subresource network security.
 
 [INPUT]
-- .types::HopDisposition, HopEvaluationResult, RedirectHopGuardConfig
-- stdlib ipaddress, urllib.parse, socket
+- .types::HopDisposition, HopEvaluationResult
+- .origin_grants::PrivateOriginGrants
+- stdlib ipaddress, urllib.parse
 
 [OUTPUT]
 - RedirectHopEvaluator: evaluates individual network hops against private/metadata policies
 
 [POS]
-Pure-python hop safety inspector. Determines whether a URL is an internal,
-cloud metadata (IMDS), loopback, or link-local address and assigns disposition.
-Strictly avoids Any types; enforced under 400 lines limit.
+Pure-python hop safety inspector. Classifies the literal host of a URL as internal, cloud metadata
+(IMDS), loopback or link-local and assigns a disposition; no DNS is performed. Shared by the browser
+context filter, the navigation guard and the web_fetch local-mode guard.
 """
 
 from __future__ import annotations
 
 import ipaddress
-import logging
 from urllib.parse import urlparse
 
-from myrm_agent_harness.core.security.redirect_hop_guard.types import (
-    HopDisposition,
-    HopEvaluationResult,
-    RedirectHopGuardConfig,
+from myrm_agent_harness.core.security.redirect_hop_guard.origin_grants import PrivateOriginGrants
+from myrm_agent_harness.core.security.redirect_hop_guard.types import HopDisposition, HopEvaluationResult
+
+_CLOUD_METADATA_HOSTS: frozenset[str] = frozenset(
+    {
+        "169.254.169.254",
+        "instance-data",
+        "metadata.google.internal",
+        "100.100.100.200",  # Alibaba Cloud IMDS
+    }
 )
 
-logger = logging.getLogger(__name__)
-
-_CLOUD_METADATA_HOSTS: frozenset[str] = frozenset({
-    "169.254.169.254",
-    "instance-data",
-    "metadata.google.internal",
-    "100.100.100.200",  # Alibaba Cloud IMDS
-})
-
-_SPECIAL_LOCAL_HOSTNAMES: frozenset[str] = frozenset({
-    "localhost",
-    "local",
-    "loopback",
-})
+_SPECIAL_LOCAL_HOSTNAMES: frozenset[str] = frozenset(
+    {
+        "localhost",
+        "local",
+        "loopback",
+    }
+)
 
 _PRIVATE_HOSTNAME_SUFFIXES: tuple[str, ...] = (
     ".localhost",
@@ -50,31 +49,31 @@ _PRIVATE_HOSTNAME_SUFFIXES: tuple[str, ...] = (
 )
 
 _IPV4_PRIVATE_NETWORKS: tuple[ipaddress.IPv4Network, ...] = (
-    ipaddress.ip_network("127.0.0.0/8"),      # Loopback
-    ipaddress.ip_network("10.0.0.0/8"),       # RFC 1918 Class A
-    ipaddress.ip_network("172.16.0.0/12"),    # RFC 1918 Class B
-    ipaddress.ip_network("192.168.0.0/16"),   # RFC 1918 Class C
-    ipaddress.ip_network("169.254.0.0/16"),   # Link-local / AWS/Azure/GCP IMDS
-    ipaddress.ip_network("100.64.0.0/10"),    # Carrier-grade NAT
-    ipaddress.ip_network("0.0.0.0/8"),        # Current network
+    ipaddress.IPv4Network("127.0.0.0/8"),  # Loopback
+    ipaddress.IPv4Network("10.0.0.0/8"),  # RFC 1918 Class A
+    ipaddress.IPv4Network("172.16.0.0/12"),  # RFC 1918 Class B
+    ipaddress.IPv4Network("192.168.0.0/16"),  # RFC 1918 Class C
+    ipaddress.IPv4Network("169.254.0.0/16"),  # Link-local / AWS/Azure/GCP IMDS
+    ipaddress.IPv4Network("100.64.0.0/10"),  # Carrier-grade NAT
+    ipaddress.IPv4Network("0.0.0.0/8"),  # Current network
 )
 
 _IPV6_PRIVATE_NETWORKS: tuple[ipaddress.IPv6Network, ...] = (
-    ipaddress.ip_network("::1/128"),          # Loopback
-    ipaddress.ip_network("fc00::/7"),         # Unique local address (ULA)
-    ipaddress.ip_network("fe80::/10"),        # Link-local unicast
+    ipaddress.IPv6Network("::1/128"),  # Loopback
+    ipaddress.IPv6Network("fc00::/7"),  # Unique local address (ULA)
+    ipaddress.IPv6Network("fe80::/10"),  # Link-local unicast
 )
 
 
 class RedirectHopEvaluator:
-    """Evaluates whether an outgoing hop or redirect targets private or cloud metadata IPs."""
+    """Evaluates whether an outgoing hop or redirect targets private or cloud metadata IPs.
 
-    def __init__(self, config: RedirectHopGuardConfig | None = None) -> None:
-        self._config = config or RedirectHopGuardConfig()
+    ``grants`` relaxes the private-network rules (loopback, LAN, local names) for origins the agent
+    navigated to on purpose. Cloud metadata endpoints are never relaxed.
+    """
 
-    @property
-    def config(self) -> RedirectHopGuardConfig:
-        return self._config
+    def __init__(self, grants: PrivateOriginGrants | None = None) -> None:
+        self._grants = grants
 
     def evaluate_hop(self, target_url: str, resource_type: str = "document") -> HopEvaluationResult:
         """Inspect a single request hop and return disposition.
@@ -86,16 +85,6 @@ class RedirectHopEvaluator:
         Returns:
             HopEvaluationResult detailing safety verdict and rule attribution.
         """
-        if self._config.allow_private_networks:
-            return HopEvaluationResult(
-                disposition=HopDisposition.ALLOW,
-                is_private=False,
-                matched_rule="ALLOW_POLICY_ENABLED",
-                target_url=target_url,
-                resource_type=resource_type,
-                reason="Private networks are explicitly permitted by policy configuration",
-            )
-
         if not target_url.startswith(("http://", "https://")):
             # Non-http protocols (data, file, javascript, about)
             if resource_type == "document" and not target_url.startswith("about:"):
@@ -148,36 +137,24 @@ class RedirectHopEvaluator:
                 reason=f"Target host '{hostname}' is a known Cloud Instance Metadata Service (IMDS)",
             )
 
-        # 2. Custom blocked hostnames check
-        if hostname in self._config.custom_blocked_hostnames:
-            return self._build_blocked_result(
-                target_url=target_url,
-                resource_type=resource_type,
-                rule="CUSTOM_BLOCKED_HOST",
-                reason=f"Target hostname '{hostname}' is in the custom blocked hostnames list",
-            )
-
-        # 3. Special local hostnames & suffix patterns
+        # 2. Special local hostnames & suffix patterns
         if hostname in _SPECIAL_LOCAL_HOSTNAMES or any(hostname.endswith(s) for s in _PRIVATE_HOSTNAME_SUFFIXES):
-            return self._build_blocked_result(
+            return self._blocked_unless_granted(
                 target_url=target_url,
                 resource_type=resource_type,
                 rule="LOCAL_HOSTNAME_PATTERN",
                 reason=f"Target host '{hostname}' matches private/local domain pattern",
             )
 
-        # 4. Direct IP address check
+        # 3. Direct IP address check
         try:
             ip_obj = ipaddress.ip_address(hostname)
             ip_check = self._check_ip_address(ip_obj)
             if ip_check is not None:
                 rule_name, reason_msg = ip_check
-                return self._build_blocked_result(
-                    target_url=target_url,
-                    resource_type=resource_type,
-                    rule=rule_name,
-                    reason=reason_msg,
-                )
+                if rule_name == "CLOUD_METADATA_IMDS":
+                    return self._build_blocked_result(target_url, resource_type, rule_name, reason_msg)
+                return self._blocked_unless_granted(target_url, resource_type, rule_name, reason_msg)
         except ValueError:
             # Not a literal IP, hostname will be resolved during connection
             pass
@@ -191,10 +168,29 @@ class RedirectHopEvaluator:
             reason="Target URL does not match any private or metadata patterns",
         )
 
-    def _get_blocked_disposition(self, resource_type: str) -> HopDisposition:
-        if resource_type == "document" and self._config.reset_to_about_blank:
+    @staticmethod
+    def _get_blocked_disposition(resource_type: str) -> HopDisposition:
+        if resource_type == "document":
             return HopDisposition.ABORT_AND_RESET_DOCUMENT
         return HopDisposition.ABORT_SUBRESOURCE
+
+    def _blocked_unless_granted(
+        self,
+        target_url: str,
+        resource_type: str,
+        rule: str,
+        reason: str,
+    ) -> HopEvaluationResult:
+        if self._grants is not None and self._grants.permits(target_url):
+            return HopEvaluationResult(
+                disposition=HopDisposition.ALLOW,
+                is_private=True,
+                matched_rule="EXPLICIT_PRIVATE_ORIGIN",
+                target_url=target_url,
+                resource_type=resource_type,
+                reason=f"Origin was navigated to explicitly; would otherwise match {rule}",
+            )
+        return self._build_blocked_result(target_url, resource_type, rule, reason)
 
     def _build_blocked_result(
         self,

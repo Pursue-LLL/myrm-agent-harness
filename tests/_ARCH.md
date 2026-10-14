@@ -72,11 +72,15 @@ Real Chromium tests under `tests/toolkits/browser/` must carry `integration` or 
    测试里若发现 observer 失效，先检查 body 引用是否已变（探针：
    `window.__savedBody.isConnected === false` 即被替换）。
 
-3. **本地地址测试注意 SSRF guard 与 domain_filter 叠加**：SSRF guard（`navigation/ssrf_guard.py`）
-   会在 `domain_filter` 之前拦截私有网段请求（127.0.0.1 等），返回通用 `ERR_FAILED`；已装过滤器的 context
-   在每一跳再次校验私有网段，拦截时浏览器侧是 `net::ERR_ABORTED`、服务端收不到请求。
-   验证 domain_filter 的 allow/block 行为时须在 `BrowserSession` 显式传 `allow_private_networks=True`
-   （该标志同时放行这两层，名单与资源规则照常生效；`test_private_network_policy_integration.py` 是端到端证据），
+3. **本地地址测试注意 SSRF guard 与 domain_filter 叠加**：云模式下 SSRF guard（`navigation/ssrf_guard.py`）
+   在 `goto` 之前按 URL 拦截私有网段（抛 `BrowserNavigationBlockedError`，当前标签页保持不变）；已装过滤器的 context
+   在每个请求再次校验私有网段，拦截时浏览器侧是 `net::ERR_ABORTED`、服务端收不到请求。
+   验证 domain_filter 的 allow/block 行为时须在 `BrowserSession` 显式传 `allow_private_networks=True`：
+   该标志让两层只放行「会话显式导航到的私网源」（经重定向 / 脚本到别的私网地址仍被拦，云元数据永远被拦），
+   名单与资源规则照常生效；`test_private_network_policy_integration.py`、
+   `test_local_mode_navigation_policy_integration.py`、`test_document_redirect_integration.py` 是端到端证据。
+   重定向链由 `tests/toolkits/browser/_redirect_servers.py`（逐请求记录 `(method, path)` 的多服务器夹具）搭建，
+   断言服务端收到几次请求，而不是只信浏览器侧结果；web_fetch 侧见 `tests/toolkits/web_fetch/test_fetch_ssrf_terminal.py`。
    并用本地 `ThreadingHTTPServer` 做真实页面源，避免外部网络依赖。**禁止**用猴子补丁替换
    `install_domain_filter` 或其他过滤器入口来"让环回可达"——那会遮住标志没有传到过滤器的缺陷。
 

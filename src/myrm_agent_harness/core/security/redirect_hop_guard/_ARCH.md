@@ -2,14 +2,13 @@
 
 ## Overview
 
-Redirect Private Address Hop Revalidation Suite. Complete suite providing hop-by-hop private network and metadata revalidation for browser navigations and redirect chains.
+Redirect Private Address Hop Revalidation Suite. Literal-host private network and cloud metadata classification for browser navigations, the browser context filter and web_fetch redirect chains. It only judges a URL; enforcement (route aborts, tab resets, request refusal) lives with each caller.
 
 ## File & Submodule Index
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| __init__.py | Package | Redirect Private Address Hop Revalidation Suite — Complete suite providing hop-by-hop private network and metadata revalidation for browser navigations and redirect chains. | ✅ |
-| facade.py | Core | Facade for Redirect Private Address Hop Revalidation Suite — Main entry point for redirect private address hop revalidation in harness. Maintains audit record history and coordinates evaluators and interceptors. Strictly avoids Any types; enforced under 400 lines limit. | ✅ |
-| hop_evaluator.py | Core | Hop evaluation engine for redirect and subresource network security — Pure-python hop safety inspector. Determines whether a URL is an internal, cloud metadata (IMDS), loopback, or link-local address and assigns disposition. Strictly avoids Any types; enforced under 400 lines limit. | ✅ |
-| route_interceptor.py | Core | Playwright Route interceptor for hop-by-hop private address revalidation — Integrates with browser networking layer to abort private network hops, reset document tabs to about:blank on illegal redirects, and record audits. Strictly avoids Any types; enforced under 400 lines limit. | ✅ |
-| types.py | Core | Type definitions for Redirect Private Address Hop Revalidation Suite — Core schema definitions for browser redirect hop revalidation. Strictly avoids Any types; enforced under 400 lines limit. | ✅ |
+| __init__.py | Package | Redirect Private Address Hop Revalidation Suite — re-exports the hop models, the evaluator and the explicit-origin grants. | ✅ |
+| hop_evaluator.py | Core | Hop evaluation engine for redirect and subresource network security — pure-python inspector that classifies the literal host as internal, cloud metadata (IMDS), loopback or link-local and assigns a disposition. Origins in the supplied grants relax the private-network rules; cloud metadata is never relaxed. | ✅ |
+| origin_grants.py | Core | Private-network origins a local-mode session was explicitly sent to — pure data (scheme, host, port), consumed by the evaluator. | ✅ |
+| types.py | Core | Type definitions for the suite — hop disposition enum and per-hop evaluation result. | ✅ |

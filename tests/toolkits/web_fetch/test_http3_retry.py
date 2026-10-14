@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from myrm_agent_harness.core.security.guards.url_allowlist import SSRFSecurityError
 from myrm_agent_harness.toolkits.web_fetch.engine import FetchEngine
 from myrm_agent_harness.toolkits.web_fetch.fetchers.http_fetcher import HttpFetcher
 from myrm_agent_harness.toolkits.web_fetch.fetchers.protocols import FetcherType, FetchResult
@@ -594,16 +595,14 @@ async def test_http2_none_http3_returns_http3_result(site_store: SiteExperienceS
 async def test_fetch_with_redirects_ssrf_blocked(install_fake_scrapling: AsyncMock) -> None:
     fetcher = HttpFetcher()
 
-    with patch(
-        "myrm_agent_harness.toolkits.web_fetch.fetchers.http_fetcher.async_pin_url",
-        new=AsyncMock(
-            side_effect=__import__(
-                "myrm_agent_harness.core.security.guards.url_allowlist",
-                fromlist=["SSRFSecurityError"],
-            ).SSRFSecurityError("blocked")
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.web_fetch.fetchers.target_guard.async_pin_url",
+            new=AsyncMock(side_effect=SSRFSecurityError("blocked")),
         ),
+        pytest.raises(SSRFSecurityError, match="blocked"),
     ):
-        result = await fetcher._fetch_with_redirects(
+        await fetcher._fetch_with_redirects(
             "http://127.0.0.1/internal",
             headers={},
             cookie_jar=None,
@@ -612,7 +611,7 @@ async def test_fetch_with_redirects_ssrf_blocked(install_fake_scrapling: AsyncMo
             use_http3=False,
         )
 
-    assert result is None
+    install_fake_scrapling.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -799,7 +798,7 @@ async def test_fetch_with_redirects_ssrf_rewrites_url(install_fake_scrapling: As
     install_fake_scrapling.return_value = mock_response
 
     with patch(
-        "myrm_agent_harness.toolkits.web_fetch.fetchers.http_fetcher.async_pin_url",
+        "myrm_agent_harness.toolkits.web_fetch.fetchers.target_guard.async_pin_url",
         new=AsyncMock(return_value=("https://10.0.0.1/safe", {"Host": "blocked.example"})),
     ):
         result = await fetcher._fetch_with_redirects(
@@ -832,7 +831,7 @@ async def test_fetch_with_redirects_pinned_ip_tls_mismatch_fallback(install_fake
     ]
 
     with patch(
-        "myrm_agent_harness.toolkits.web_fetch.fetchers.http_fetcher.async_pin_url",
+        "myrm_agent_harness.toolkits.web_fetch.fetchers.target_guard.async_pin_url",
         new=AsyncMock(return_value=("https://10.0.0.1/safe", {"Host": "blocked.example"})),
     ):
         result = await fetcher._fetch_with_redirects(

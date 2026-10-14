@@ -39,7 +39,8 @@ Utility library exports. Public interface for the utils module providing commonl
 | token_estimation.py | Core | Message-level + bind-tools context token estimation for compress/summarize/budget and Turn1 inventory SSOT | ✅ |
 | tree_truncator.py | Core | Tree Truncator (Smart Budget-Aware Truncation). Intelligently truncates tree structures (HTML/ARIA) to fit within token budgets while preserving structure. | ✅ |
 | os_compat.py | Core | Cross-platform process groups (`get_process_group_kwargs`, `kill_process_group`, `terminate_process_graceful`) and file locks. | ✅ |
-| url_utils.py | Core | Web and URL utilities. Provides URL normalization, parsing, cleanup, and type determination function | ✅ |
+| url_syntax.py | Core | Syntax check for outbound URLs (`parse_outbound_hostname`, `SSRF_ALLOWED_SCHEMES`): parser-confusing characters, scheme allowlist, hostname extraction with trailing-dot normalisation. No hostname blocklist, so policies that admit private hosts share it with the cloud policy. | ✅ |
+| url_utils.py | Core | Web and URL utilities. Provides URL normalization, parsing, cleanup, and type determination function; SSRF primitives `is_blocked_ip` and `validate_scheme_and_hostname` (url_syntax check plus the hostname blocklist) | ✅ |
 
 Workspace file enumeration lives in `toolkits/filesystem_suggest/indexer.py` (SSOT for `@` suggest and browse search).
 

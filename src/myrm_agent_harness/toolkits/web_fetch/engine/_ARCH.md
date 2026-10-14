@@ -13,7 +13,7 @@ FetchEngine 执行引擎子包：L1 HTTP / L2 Browser / L3 Stealth 分层抓取�
 | __init__.py | Package | 聚合导出 base 公开符号（FetchEngine、结果类型、extract_* fast-path）。 | ✅ |
 | base.py | Core | FetchEngine — tiered fetcher pool entry (mixins: cache / fetch / escalation); WeChat URLs log fast-path vs browser degradation outcomes | ✅ |
 | types.py | Core | CachedDocument, AccessStats, BackgroundTask, result aliases | ✅ |
-| cache_mixin.py | Core | Cache, coalescing, SWR background revalidation mixin | ✅ |
+| cache_mixin.py | Core | Cache, coalescing, SWR background revalidation mixin; fetch error normalisation: an `SSRFSecurityError` from any tier is a terminal block (logged, remembered as failed, `None`), never an unexpected error and never a reason to try another tier | ✅ |
 | fetch_mixin.py | Core | L1/L2/L3 fetch, degradation, router feedback mixin | ✅ |
 | escalation_mixin.py | Core | L4 remote escalation + bilibili cookie loader mixin | ✅ |
 

@@ -2,6 +2,7 @@
 
 [INPUT]
 - .types / pool.config::ResourceBlockConfig
+- utils.private_origins::private_origin_grants (POS: origins a local-mode session navigated to)
 - core.security.redirect_hop_guard::RedirectHopEvaluator, HopDisposition
 - patchright.async_api::BrowserContext, Route
 - urllib.parse::urlparse
@@ -14,6 +15,9 @@
 [POS]
 Layer 1 network route filter. Protects browser sessions from navigating or redirecting
 to internal addresses, AWS/GCP/Azure IMDS metadata (169.254.169.254), or blocked domains.
+A local-mode session (``allow_private_networks``) keeps its own machine reachable for subresources
+and for documents from origins it was sent to explicitly; any other private document, such as a
+page script or link pointing the tab at loopback, is aborted like in the cloud.
 Strictly avoids Any types; enforced under 400 lines limit.
 """
 
@@ -23,11 +27,8 @@ import logging
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
-from myrm_agent_harness.core.security.redirect_hop_guard import (
-    HopDisposition,
-    RedirectHopEvaluator,
-    RedirectHopGuardConfig,
-)
+from myrm_agent_harness.core.security.redirect_hop_guard import HopDisposition, RedirectHopEvaluator
+from myrm_agent_harness.toolkits.browser.utils.private_origins import private_origin_grants
 
 if TYPE_CHECKING:
     from patchright.async_api import BrowserContext, Route
@@ -94,20 +95,18 @@ async def install_http_filter(
     domain_blocklist: DomainBlocklist | None = None,
     *,
     allow_private_networks: bool = False,
-    hop_evaluator: RedirectHopEvaluator | None = None,
 ) -> None:
     """Block requests to private/metadata IPs, non-allowed domains, and unwanted resource types.
 
     Filtering order (security-first):
-    1. Hop-by-hop private network & cloud metadata revalidation (SSRF defense; skipped when
-       ``allow_private_networks`` is set, steps 2-4 still apply)
+    1. Hop-by-hop private network & cloud metadata revalidation (SSRF defense). With
+       ``allow_private_networks`` only documents are checked, and origins the session navigated to
+       explicitly pass; cloud metadata never does. Steps 2-4 always apply.
     2. Ad/tracker domain blocklist (performance + anti-fingerprinting)
     3. Domain blocklist & allowlist validation (security boundary)
     4. Resource type filtering (performance optimization)
     """
-    evaluator = hop_evaluator or RedirectHopEvaluator(
-        RedirectHopGuardConfig(allow_private_networks=allow_private_networks)
-    )
+    evaluator = RedirectHopEvaluator(grants=private_origin_grants(context) if allow_private_networks else None)
 
     async def _handler(route: Route) -> None:
         url = route.request.url
@@ -122,7 +121,7 @@ async def install_http_filter(
             return
 
         # 2. Hop-by-hop private address & cloud metadata IMDS revalidation
-        if not allow_private_networks:
+        if not allow_private_networks or resource_type == "document":
             hop_eval = evaluator.evaluate_hop(url, resource_type=resource_type)
             if hop_eval.disposition != HopDisposition.ALLOW:
                 logger.warning(

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -14,6 +15,19 @@ from myrm_agent_harness.toolkits.browser.navigation.ssrf_guard import (
     assert_browser_redirect_chain_allowed,
     goto_with_ssrf_guard,
 )
+
+
+def _blocked_after_precheck(error: BrowserNavigationBlockedError) -> Callable[..., Awaitable[None]]:
+    """Assertion double: the pre-navigation check of the requested URL passes, every later check blocks."""
+    calls = 0
+
+    async def _assert(url: str, grants: object = None) -> None:
+        nonlocal calls
+        calls += 1
+        if calls > 1:
+            raise error
+
+    return _assert
 
 
 @pytest.mark.asyncio
@@ -46,22 +60,6 @@ async def test_assert_browser_redirect_chain_walks_hops() -> None:
 
 
 @pytest.mark.asyncio
-async def test_goto_with_ssrf_guard_skips_when_local_mode() -> None:
-    page = AsyncMock()
-    page.goto.return_value = MagicMock(status=200, request=MagicMock(return_value=None))
-
-    await goto_with_ssrf_guard(
-        page,
-        "http://127.0.0.1:3000",
-        timeout_ms=1000,
-        allow_private_networks=True,
-    )
-
-    page.route.assert_not_called()
-    page.goto.assert_awaited_once()
-
-
-@pytest.mark.asyncio
 async def test_goto_with_ssrf_guard_installs_route_handler() -> None:
     page = AsyncMock()
     request = MagicMock()
@@ -80,7 +78,6 @@ async def test_goto_with_ssrf_guard_installs_route_handler() -> None:
             page,
             "https://example.com/",
             timeout_ms=1000,
-            allow_private_networks=False,
         )
 
     page.route.assert_awaited_once()
@@ -193,7 +190,6 @@ async def test_goto_with_ssrf_guard_blocks_subresource_request(
         page,
         "https://example.com/",
         timeout_ms=1000,
-        allow_private_networks=False,
     )
     assert captured, "route handler should be captured"
     handler = captured[0]
@@ -224,7 +220,7 @@ async def test_goto_with_ssrf_guard_route_handler_blocks_private(
     response.request.redirected_from = None
     page.goto.return_value = response
     page.url = "https://example.com/"
-    mock_assert.side_effect = BrowserNavigationBlockedError("SSRF blocked: metadata service")
+    mock_assert.side_effect = _blocked_after_precheck(BrowserNavigationBlockedError("SSRF blocked: metadata service"))
 
     captured: list = []
 
@@ -239,7 +235,6 @@ async def test_goto_with_ssrf_guard_route_handler_blocks_private(
             page,
             "https://example.com/",
             timeout_ms=1000,
-            allow_private_networks=False,
         )
     handler = captured[0]
     route = AsyncMock()
@@ -283,7 +278,7 @@ async def test_goto_with_ssrf_guard_route_handler_blocks_after_first(
     response.request.redirected_from = None
     page.goto.return_value = response
     page.url = "https://example.com/"
-    mock_assert.side_effect = BrowserNavigationBlockedError("SSRF blocked: metadata service")
+    mock_assert.side_effect = _blocked_after_precheck(BrowserNavigationBlockedError("SSRF blocked: metadata service"))
 
     captured: list = []
 
@@ -298,7 +293,6 @@ async def test_goto_with_ssrf_guard_route_handler_blocks_after_first(
             page,
             "https://example.com/",
             timeout_ms=1000,
-            allow_private_networks=False,
         )
     handler = captured[0]
     route = AsyncMock()
@@ -331,7 +325,6 @@ async def test_goto_with_ssrf_guard_redirect_chain_checked(
         page,
         "http://example.com/",
         timeout_ms=1000,
-        allow_private_networks=False,
     )
 
     called_urls = [call.args[0] for call in mock_assert.await_args_list]
@@ -373,7 +366,6 @@ async def test_goto_with_ssrf_guard_route_continue_already_handled(
         page,
         "https://example.com/",
         timeout_ms=1000,
-        allow_private_networks=False,
     )
     handler = captured[0]
     route = AsyncMock()
@@ -416,7 +408,6 @@ async def test_goto_with_ssrf_guard_route_continue_other_error_raises(
         page,
         "https://example.com/",
         timeout_ms=1000,
-        allow_private_networks=False,
     )
     handler = captured[0]
     route = AsyncMock()
@@ -468,7 +459,7 @@ async def test_goto_with_ssrf_guard_aborts_pending_navigation_on_failure() -> No
         ) as mock_abort,
         pytest.raises(TimeoutError),
     ):
-        await goto_with_ssrf_guard(page, "https://example.com/", timeout_ms=1000, allow_private_networks=False)
+        await goto_with_ssrf_guard(page, "https://example.com/", timeout_ms=1000)
 
     mock_abort.assert_awaited_once_with(page)
     page.unroute.assert_awaited_once()
@@ -486,9 +477,7 @@ async def test_goto_with_ssrf_guard_aborts_pending_navigation_on_cancellation() 
         "myrm_agent_harness.toolkits.browser.navigation.ssrf_guard.abort_pending_navigation",
         new_callable=AsyncMock,
     ) as mock_abort:
-        task = asyncio.create_task(
-            goto_with_ssrf_guard(page, "https://example.com/", timeout_ms=1000, allow_private_networks=False)
-        )
+        task = asyncio.create_task(goto_with_ssrf_guard(page, "https://example.com/", timeout_ms=1000))
         await asyncio.sleep(0.05)
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
@@ -517,6 +506,6 @@ async def test_goto_with_ssrf_guard_unroute_on_wedged_page_is_bounded(monkeypatc
         pytest.raises(TimeoutError, match="Navigation timeout"),  # the original error, not the unroute one
     ):
         await asyncio.wait_for(
-            goto_with_ssrf_guard(page, "https://example.com/", timeout_ms=1000, allow_private_networks=False),
+            goto_with_ssrf_guard(page, "https://example.com/", timeout_ms=1000),
             timeout=1.0,
         )

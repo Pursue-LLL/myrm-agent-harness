@@ -19,8 +19,9 @@ import pytest
 from patchright.async_api import Error as BrowserDriverError
 
 from myrm_agent_harness.toolkits.browser import BrowserSession, DomainAllowlist
-from myrm_agent_harness.toolkits.browser.exceptions import BrowserNavigationError
+from myrm_agent_harness.toolkits.browser.navigation.ssrf_guard import BrowserNavigationBlockedError
 from myrm_agent_harness.toolkits.browser.pool import ContextType, GlobalBrowserPool
+from myrm_agent_harness.toolkits.browser.utils.private_origins import private_origin_grants
 from tests.toolkits.browser._browser_available import chromium_available
 
 pytestmark = [
@@ -102,12 +103,16 @@ async def test_flag_survives_default_resource_blocking() -> None:
 async def _goto_through_filter(context_kwargs: dict[str, object]) -> tuple[str, list[str]]:
     """Navigate a fresh pooled context straight to a loopback server.
 
+    A context that carries the flag first records the explicit navigation the way
+    ``goto_with_ssrf_guard`` does, because ``page.goto`` here bypasses the session's guard.
     Returns the driver error text ("" on success) and the request paths the server received.
     """
     async with _pool() as pool:
         page, context_key = await pool.acquire_page(ContextType.CRAWL, context_kwargs=context_kwargs)
         try:
             with _local_server() as (url, hits):
+                if context_kwargs.get("allow_private_networks"):
+                    private_origin_grants(page.context).grant(url)
                 try:
                     await page.goto(url)
                 except BrowserDriverError as exc:
@@ -133,8 +138,8 @@ async def test_filter_blocks_private_targets_without_the_flag() -> None:
 
 
 async def test_session_without_the_flag_cannot_reach_loopback() -> None:
-    """Control for the whole session path (cloud default): navigation guard and context filter both block."""
+    """Control for the whole session path (cloud default): the guard rejects the URL as a policy block, not a load failure."""
     async with _pool() as pool, _session(pool, None, allow_private_networks=False) as session:
-        with _local_server() as (url, hits), pytest.raises(BrowserNavigationError):
+        with _local_server() as (url, hits), pytest.raises(BrowserNavigationBlockedError):
             await session.navigate(url)
         assert hits == []
