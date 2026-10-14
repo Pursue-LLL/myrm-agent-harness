@@ -7,11 +7,13 @@
 - myrm_agent_harness.agent.meta_tools.bash._background.registry (POS: background bash job registry)
 - myrm_agent_harness.core.security.guards.privacy_tracker (POS: ContextVar privacy policy access)
 - myrm_agent_harness.utils.runtime.background_job_finish_registry (POS: bash job finish hook registry)
+- myrm_agent_harness.toolkits.llms.adapters.chat_model.api_key_refresher (POS: LLM API key renewal hook registry)
 
 [OUTPUT]
 - Session, skill-agent context, task intent, memory telemetry（budget/injection）
   and injection contract, memory-extraction, bash-registry, background-job-finish,
-  and privacy-context（policy/pseudonym-store/pseudonymizer）hook callables for server integration.
+  privacy-context（policy/pseudonym-store/pseudonymizer）hook callables, and the LLM API key
+  renewal registration（``set_api_key_refresher``）for server integration.
 
 [POS]
 Public re-export facade. Product code imports hooks here instead of private ``agent._*`` modules.
@@ -93,6 +95,9 @@ from myrm_agent_harness.toolkits.code_execution.sandbox.mount_security_gate impo
     MountViolationType,
     validate_and_sanitize_mounts,
     validate_mount_spec,
+)
+from myrm_agent_harness.toolkits.llms.adapters.chat_model.api_key_refresher import (
+    set_api_key_refresher,
 )
 from myrm_agent_harness.utils.runtime.background_job_finish_registry import (
     BackgroundJobFinishHandler,
@@ -184,6 +189,7 @@ __all__ = [
     "persist_vault_log_ref",
     "read_evicted_line_range",
     "restore_memory_pseudonymizer",
+    "set_api_key_refresher",
     "set_approval_user_id",
     "set_global_background_job_finish_handler",
     "set_permission_invalidation_callback",

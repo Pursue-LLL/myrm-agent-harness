@@ -2,12 +2,14 @@
 
 [INPUT]
 - adapters.chat_model.exceptions (POS: EmptyChoicesError / EmptyStreamError / StreamStallTimeoutError)
+- adapters.chat_model.api_key_refresher (POS: host-registered renewal of an expiring api key)
+- adapters.chat_model.payload_debug (POS: opt-in failed-request payload diagnostics)
 - adapters.concurrency (POS: per-model semaphores)
 - adapters.stream_aggregator / adapters.streaming (POS: stream aggregation)
 - utils.token_economics (POS: usage recording for streaming + non-streaming — lazy import)
 
 [OUTPUT]
-- ChatLiteLLMAsyncMixin: _agenerate, _astream, empty-response retry, stream stall detection
+- ChatLiteLLMAsyncMixin: _agenerate, _astream, empty-response retry, stream stall detection, api key renewal before each request
 
 [POS]
 Asynchronous LLM generation and streaming path for ChatLiteLLM with concurrency gate, stream stall
@@ -31,11 +33,13 @@ from langchain_core.messages import (
 )
 from langchain_core.outputs import ChatGenerationChunk, ChatResult
 
+from myrm_agent_harness.toolkits.llms.adapters.chat_model.api_key_refresher import renew_api_key
 from myrm_agent_harness.toolkits.llms.adapters.chat_model.exceptions import (
     EmptyChoicesError,
     EmptyStreamError,
     StreamStallTimeoutError,
 )
+from myrm_agent_harness.toolkits.llms.adapters.chat_model.payload_debug import dump_payload_pairing
 from myrm_agent_harness.toolkits.llms.adapters.concurrency import (
     get_semaphores as _get_semaphores,
 )
@@ -56,51 +60,13 @@ from myrm_agent_harness.toolkits.llms.adapters.wire.invocation import (
 logger = logging.getLogger(__name__)
 
 
-def _dump_payload_pairing(message_dicts: list[dict[str, Any]]) -> None:
-    """Debug aid: log tool_call pairing health for a failed request payload.
-
-    Gated behind MYRM_DEBUG_DUMP_LLM_PAYLOAD=1 so production traces stay clean.
-    """
-    pending: list[tuple[int, str]] = []
-    for i, m in enumerate(message_dicts):
-        role = m.get("role")
-        if role == "assistant":
-            for tc in m.get("tool_calls") or []:
-                if not isinstance(tc, dict):
-                    continue
-                tid = tc.get("id")
-                fn = tc.get("function")
-                if not tid and isinstance(fn, dict):
-                    tid = fn.get("id")
-                if tid:
-                    pending.append((i, tid))
-        elif role == "tool":
-            tid = m.get("tool_call_id")
-            if tid:
-                pending = [(idx, p) for idx, p in pending if p != tid]
-
-    def _tc_ids(m: dict[str, Any]) -> list[object]:
-        raw = m.get("tool_calls") or []
-        return [tc.get("id") for tc in raw if isinstance(tc, dict)]
-
-    lines = [
-        f"  [{i}] role={m.get('role')} tool_call_id={m.get('tool_call_id')!r} "
-        f"tool_calls={_tc_ids(m)} content={(str(m.get('content'))[:70])!r}"
-        for i, m in enumerate(message_dicts)
-    ]
-    logger.error(
-        " LLM_PAYLOAD_DUMP total=%d dangling=%s (last 35 msgs):\n%s",
-        len(message_dicts),
-        pending,
-        "\n".join(lines[-35:]),
-    )
-
-
 class ChatLiteLLMAsyncMixin:
     if TYPE_CHECKING:
         # Attributes and sibling-mixin methods defined on the ChatLiteLLM aggregate
         # root; declared here so mypy understands the composition-mixin pattern.
         api_base: str | None
+        api_key: str | None
+        openai_api_key: str | None
         client: Any
         model: str
         model_name: str | None
@@ -123,6 +89,12 @@ class ChatLiteLLMAsyncMixin:
         _process_chunk: Callable[..., tuple[ChatGenerationChunk | None, type[BaseMessageChunk]]]
         _record_usage: Callable[..., None]
         _record_non_stream_usage: Callable[..., None]
+
+    async def _renew_api_key(self) -> None:
+        """Adopt a renewed key (see ``api_key_refresher``) before the request snapshots the current one."""
+        renewed = await renew_api_key(self.api_key or self.openai_api_key)
+        if renewed is not None:
+            self.api_key = renewed
 
     async def _agenerate(
         self,
@@ -167,6 +139,7 @@ class ChatLiteLLMAsyncMixin:
                 logger.error(f" LiteLLM streaming failed (Model: {self.model_name or self.model})")
                 raise
 
+        await self._renew_api_key()
         available_tools, tool_schemas = self._extract_tool_context_from_kwargs(kwargs)
         message_dicts, params = self._create_message_dicts(messages, stop)
 
@@ -359,6 +332,7 @@ class ChatLiteLLMAsyncMixin:
         tracer = get_tracer("llm.stream")
         model_name = self.model_name or self.model
 
+        await self._renew_api_key()
         available_tools, tool_schemas = self._extract_tool_context_from_kwargs(kwargs)
         message_dicts, params = self._create_message_dicts(messages, stop)
 
@@ -572,7 +546,7 @@ class ChatLiteLLMAsyncMixin:
 
                 logger.error(f" LiteLLM streaming failed (Model: {model_name}): {e!s}")
                 if os.environ.get("MYRM_DEBUG_DUMP_LLM_PAYLOAD", "") == "1":
-                    _dump_payload_pairing(message_dicts)
+                    dump_payload_pairing(message_dicts)
                 raise
 
         if last_error:

@@ -15,11 +15,12 @@
 - toolkits.llms.ephemeral_output_tokens (POS: ephemeral max-output-tokens ContextVar for truncation recovery)
 - toolkits.llms.utils.proxy::normalize_proxy_url (POS: Egress proxy URL normalization)
 - toolkits.llms.utils.model_kwargs::clean_model_kwargs, should_skip_response_format (POS: Model-parameter compatibility helpers)
-- core.context_vars::prompt_routing_key_var (POS: Session-scoped routing key for OpenAI prompt cache affinity)
+- adapters.chat_model.session_affinity::ChatLiteLLMSessionAffinityMixin (POS: OpenAI / OpenCode / xAI session-affinity routing keys)
+- core.context_vars::prompt_routing_key_var (POS: Session-scoped routing key for OpenCode gateway session affinity)
 
 [OUTPUT]
 - ChatLiteLLM: LangChain-compatible LiteLLM chat model aggregate root (config, bind_tools, structured_output)
-- chat_model.message_mixin / chat_model.sync_mixin / chat_model.async_mixin: generation and message assembly mixins
+- chat_model.message_mixin / chat_model.session_affinity / chat_model.sync_mixin / chat_model.async_mixin: message assembly, session-affinity and generation mixins
 - chat_model.exceptions: EmptyChoicesError, EmptyStreamError, adapter constants
 - clean_model_kwargs(): utility function to clean model parameters
 
@@ -91,6 +92,9 @@ from myrm_agent_harness.toolkits.llms.adapters.chat_model.message_mixin import (
 from myrm_agent_harness.toolkits.llms.adapters.chat_model.output_cap_recovery import (
     ChatLiteLLMOutputCapMixin,
 )
+from myrm_agent_harness.toolkits.llms.adapters.chat_model.session_affinity import (
+    ChatLiteLLMSessionAffinityMixin,
+)
 from myrm_agent_harness.toolkits.llms.adapters.chat_model.sync_mixin import (
     ChatLiteLLMSyncMixin,
 )
@@ -121,6 +125,7 @@ __all__ = [
 class ChatLiteLLM(
     ChatLiteLLMMessageMixin,
     ChatLiteLLMOutputCapMixin,
+    ChatLiteLLMSessionAffinityMixin,
     ChatLiteLLMSyncMixin,
     ChatLiteLLMAsyncMixin,
     BaseChatModel,
@@ -293,49 +298,6 @@ class ChatLiteLLM(
         return {**self._default_params, **creds}
 
     _inject_allowed_params = staticmethod(inject_allowed_params)
-
-    def _inject_prompt_routing_key(self, params: dict[str, object]) -> None:
-        """Inject session-scoped routing keys for KV cache and gateway affinity.
-
-        1. Native OpenAI: injects `prompt_cache_key` into params.
-        2. OpenCode relay: injects `x-opencode-session` into `extra_headers`.
-        """
-        from myrm_agent_harness.core.context_vars import (
-            chat_id_var,
-            prompt_routing_key_var,
-        )
-
-        routing_key = prompt_routing_key_var.get() or chat_id_var.get()
-
-        # 1. Native OpenAI endpoint affinity
-        if routing_key and self._is_openai_native_endpoint():
-            params["prompt_cache_key"] = routing_key
-
-        # 2. OpenCode relay endpoint session affinity
-        if self._is_opencode_endpoint():
-            session_val = routing_key or "sess-default-open-affinity"
-            raw_headers = params.get("extra_headers")
-            extra_headers: dict[str, str] = dict(raw_headers) if isinstance(raw_headers, dict) else {}
-            if not any(k.lower() == "x-opencode-session" for k in extra_headers):
-                extra_headers["x-opencode-session"] = session_val
-                params["extra_headers"] = extra_headers
-
-    def _is_opencode_endpoint(self) -> bool:
-        """Detect whether this instance targets an OpenCode relay endpoint."""
-        api_base = (self.api_base or "").lower()
-        provider = (self.custom_llm_provider or "").lower()
-        model = (self.model or "").lower()
-        return "opencode.ai" in api_base or provider.startswith("opencode") or "opencode" in model
-
-    def _is_openai_native_endpoint(self) -> bool:
-        """Detect whether this instance targets a native OpenAI API endpoint."""
-        api_base = (self.api_base or "").lower()
-        provider = (self.custom_llm_provider or "").lower()
-
-        if provider and provider != "openai":
-            return False
-
-        return bool(not api_base or "api.openai.com" in api_base)
 
     @property
     def _identifying_params(self) -> dict[str, Any]:

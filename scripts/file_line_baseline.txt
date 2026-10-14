@@ -89,8 +89,8 @@ myrm_agent_harness/toolkits/kanban/dispatcher.py	687
 myrm_agent_harness/toolkits/kanban/protocols.py	539
 myrm_agent_harness/toolkits/kanban/stores.py	504
 myrm_agent_harness/toolkits/kanban/types.py	595
-myrm_agent_harness/toolkits/llms/adapters/chat_model/async_mixin.py	579
-myrm_agent_harness/toolkits/llms/adapters/chat_model/model.py	552
+myrm_agent_harness/toolkits/llms/adapters/chat_model/async_mixin.py	553
+myrm_agent_harness/toolkits/llms/adapters/chat_model/model.py	514
 myrm_agent_harness/toolkits/llms/adapters/chat_model/sync_mixin.py	535
 myrm_agent_harness/toolkits/llms/errors/classifier.py	741
 myrm_agent_harness/toolkits/llms/fallback/manager.py	649

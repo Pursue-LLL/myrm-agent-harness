@@ -80,12 +80,10 @@ def test_dump_payload_pairing(monkeypatch: pytest.MonkeyPatch, caplog: pytest.Lo
     """Debug payload dump logs pending/paired tool call ids per message."""
     import logging
 
-    from myrm_agent_harness.toolkits.llms.adapters.chat_model.async_mixin import (
-        _dump_payload_pairing,
-    )
+    from myrm_agent_harness.toolkits.llms.adapters.chat_model.payload_debug import dump_payload_pairing
 
     with caplog.at_level(logging.ERROR):
-        _dump_payload_pairing(
+        dump_payload_pairing(
             [
                 {"role": "assistant", "tool_calls": [{"id": "call_1", "function": {"name": "f", "arguments": ""}}]},
                 {"role": "tool", "tool_call_id": "call_1", "content": "42"},

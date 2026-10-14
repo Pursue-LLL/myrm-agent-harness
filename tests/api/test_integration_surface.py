@@ -61,6 +61,7 @@ description: Demo skill for api.skills smoke test.
                 "persist_vault_log_ref",
                 "read_evicted_line_range",
                 "restore_memory_pseudonymizer",
+                "set_api_key_refresher",
                 "set_approval_user_id",
                 "set_global_background_job_finish_handler",
                 "set_permission_invalidation_callback",
