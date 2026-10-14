@@ -2,6 +2,22 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-14-023 · 保存会话保险库的损坏备份键用 `str.replace(".enc", ".corrupted")`：域名里含 `.enc` 时两处都被改写，备份落到别的域名的键上；`safe_purge_fts5_virtual_table` 没有任何生产调用方，却被 server 文件头与文档当成清库里 FTS5 清理的实现
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-14（复审 server `BUG-AGENT-2026-10-14-020` / `-022` 的清库实现时） |
+| **修复时间** | 2026-10-14 |
+| **症状** | ① `StorageVaultBackend.backup_corrupted("mail.enc.example.com", data)` 写到 `browser/sessions/mail.corrupted.example.com.corrupted`，与域名 `mail.corrupted.example.com` 的备份同键，后写的覆盖先写的；② `utils/db/fts5.py::safe_purge_fts5_virtual_table` 全仓库只有它自己的测试、`api/__init__.py` 的一条门面导出和三处文档引用，没有任何生产调用；清库里的 `delete-all` / `rebuild` / `optimize` 实际在 server `SafeVaultPurgeService` 里逐表发送，server 文件头与 brand、temp-docs 的文档却写成调用了它 |
+| **关联产品** | myrm-agent-harness `toolkits/browser/session_vault/backends` · `utils/db` · `api`；server `BUG-AGENT-2026-10-14-025` |
+| **根因** | ① 用 `replace` 改后缀，没有限定结尾；本地文件后端用 `with_suffix`，只改最后一个后缀，所以只有云存储后端有这个问题；② 函数先于调用方写出，调用方走了另一条实现，没人回头删，门面导出又让它看起来是对外能力 |
+| **修复** | ① `removesuffix(".enc")` 再拼 `.corrupted`；② 删除该函数、只服务于它的 `ConnectionLike` 协议、门面导出、测试，`utils/db/_ARCH.md` 的描述改为查询净化 / 完整性检查 / 重建 / 自愈 |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | 改文件后缀要么用 `removesuffix` / `with_suffix`，要么把存储键的编码放到一个函数里按种类生成；门面里的导出不算调用方，删代码前要在整个仓库（含 server、控制平面、文档）搜一遍 |
+| **回归** | `tests/toolkits/browser/test_session_vault_storage_backend.py` 新增 `test_backup_corrupted_only_swaps_the_trailing_suffix`（旧实现下失败，修复后通过）；会话保险库三个测试文件共 96 例通过；`tests/utils tests/api` 1 435 例通过，1 例 `test_token_tracker` 失败来自他人在途改动；`boundary_check`、`check_fractal_docs`、`check_import_resolvability` 通过 |
+| **代码位置** | `toolkits/browser/session_vault/backends/storage_backend.py` · `utils/db/fts5.py` · `utils/db/_ARCH.md` · `api/__init__.py` |
+
 ### BUG-HARNESS-2026-10-14-022 · 判断“值是密钥还是对密钥的引用”时不认 TypeScript 的非空断言：`apiKey: process.env.GROQ_API_KEY!` 被当成密钥；风险闸门又没有一份“前缀本身就能认出密钥”的形状表可读，只能自己存一份并落后 13 种
 
 | 字段 | 内容 |
