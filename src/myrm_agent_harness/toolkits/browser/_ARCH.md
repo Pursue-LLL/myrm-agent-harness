@@ -9,7 +9,7 @@ Detailed design: [BROWSER_SYSTEM.md](BROWSER_SYSTEM.md)
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| __init__.py | Package | Browser toolkit public entry point. Aggregates and exports the module's core API | ✅ |
+| __init__.py | Package | Browser toolkit public entry point. Aggregates and exports the module's core API; lazily exported symbols (`_LAZY_MODULES`) are mirrored in the `TYPE_CHECKING` imports so type checkers see the real types (`tests/toolkits/browser/test_browser_facade_exports.py` enforces both views agree) | ✅ |
 | __main__.py | Internal | CLI entry point for browser toolkit diagnostics. | ✅ |
 | exceptions.py | Core | Exception hierarchy definition. `EngineUnavailableError` (a `BrowserLaunchError`) marks an engine switch refused before any session state changed. RefNotFoundError provides structured diagnostic info, including URL change suggestions; message + format_for_llm output are redacted at construction to keep query-string credentials out of LLM tool errors. | ✅ |
 | observability.py | Core | Observability module for the browser toolkit. Provides video recording, progress notifications, BrowserRunTelemetry active compute and data transfer metrics, and 3-minute runaway watchdog. | ✅ |
