@@ -1,6 +1,6 @@
 # 存储系统设计文档
 
-> 最后更新：2026-03-26 | 对应代码版本：当前 `toolkits/storage/` 目录
+> 最后更新：2026-10-14 | 对应代码版本：当前 `toolkits/storage/` 目录
 
 ---
 
@@ -21,12 +21,8 @@
 │                                                          │
 │  app/platform_utils/__init__.py                          │
 │    └─ get_storage_provider()                             │
-│       ├─ local 模式 → create_storage_provider()          │
-│       │                → LocalStorageBackend              │
-│       └─ sandbox 模式  → S3StorageBackend (业务层实现)       │
-│                                                          │
-│  app/core/storage/smart_cache.py                         │
-│    └─ SmartCachedStorage (本地缓存 + 远程存储透明同步)     │
+│       └─ 框架层 get_storage_provider()                   │
+│          (按 StorageConfig.mode 选 Local / Persistent)   │
 │                                                          │
 │  app/core/storage/service.py                             │
 │    └─ FileStorageService (文件上传/下载/管理)             │
@@ -114,24 +110,18 @@ await storage.write("file.txt", b"content")
 - **安全**: 使用 `os.path.normpath` + `relative_to` 防止路径遍历，与 LocalStorageBackend 一致
 - **完整实现**: 11/11 `StorageProvider` 接口方法全部实现
 
-### 4.3 S3StorageBackend (业务层)
+### 4.3 CachedStorageProvider (框架层)
 
-- **位置**: `app/platform_utils/sandbox/storage.py`（不在框架层）
-- **用途**: Sandbox 模式（云部署，如 Cloudflare R2 / AWS S3）
-- **注入方式**: 业务层通过 `app/platform_utils/__init__.py` 的 `get_storage_provider()` 按 `DEPLOY_MODE` 选择
-
-### 4.4 SmartCachedStorage (业务层)
-
-- **位置**: `app/core/storage/smart_cache.py`（不在框架层）
-- **用途**: 本地缓存 + 远程存储透明同步
-- **组合模式**: 包装 `StorageProvider` 实例，添加 LRU 缓存和异步上传队列
+- **位置**: `toolkits/storage/cached.py`
+- **用途**: 本地缓存 + 远程存储透明同步，可选装饰器；Server 当前未装配
+- **组合模式**: 包装任意 `StorageProvider`（`backend`），添加 LRU 缓存和异步上传队列；读写以 `namespace` 隔离缓存键，`ensure_local` 返回本地缓存路径
 
 ---
 
 ## 5. 工厂与依赖注入
 
 ```python
-# 框架层工厂（只创建 LocalStorageBackend）
+# 框架层工厂（按 StorageConfig.mode 创建 LocalStorageBackend 或 PersistentStorageBackend）
 from myrm_agent_harness.toolkits.storage import create_storage_provider, get_storage_provider
 
 storage = get_storage_provider()  # 延迟初始化的全局单例
@@ -139,10 +129,10 @@ storage = get_storage_provider()  # 延迟初始化的全局单例
 # 业务层注入（覆盖框架层默认实现）
 from myrm_agent_harness.toolkits.storage import set_storage_provider
 
-set_storage_provider(s3_backend)  # 注入 S3 后端
+set_storage_provider(custom_backend)  # 注入自定义 StorageProvider
 ```
 
-**注入时机**: 业务层在 `app/platform_utils/__init__.py` 中根据 `DEPLOY_MODE` 环境变量决定注入哪个实现。
+**注入时机**: 需要自定义后端的业务层在启动时调用 `set_storage_provider`。Server 不覆盖：`app/platform_utils/__init__.py` 的 `get_storage_provider()` 直接返回框架层单例。
 
 ---
 
