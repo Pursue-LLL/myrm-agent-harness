@@ -2,6 +2,22 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-14-021 · 浏览器登录会话的定期清理把“解不开的文件”当成过期直接删除：保险库密钥重新生成或被换掉后，每次浏览器会话关闭和服务端每 6 小时的维护都会删光全部已保存的登录，且不留 `.corrupted` 备份
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-14（核对服务端新增的每 6 小时登录会话清理的删除语义时，对照 `load` 与 `cleanup_expired` 对“解不开的文件”的两种处理发现） |
+| **修复时间** | 2026-10-14 |
+| **症状** | `SessionVault.load` 遇到解不开或格式错误的文件，先把原文写成 `.corrupted` 再删除；`cleanup_expired` 对同样的文件直接删除，不留任何备份。后者在两处被调用：`BrowserSession.close()` 与服务端每 6 小时的数据库维护（以及设置页的清理按钮）。`load_or_create_key` 在密钥文件长度不是 32 字节时生成新密钥，之前保存的所有 `.enc` 随即全部解不开，下一次清理就把它们全部删除。同时旧条目仍在内存缓存里时，`load` 还会返回已被删文件的内容 |
+| **关联产品** | myrm-agent-harness `toolkits/browser/session_vault`；server 的 `app/core/security/browser_vault.py::cleanup_all_vaults`（全局保险库与每个 Agent 的保险库） |
+| **根因** | 清理函数把“解不开 / 解析失败”和“已过期”放进同一个 `except Exception` 分支，一律删除，没有复用 `load` 路径的备份语义；过期时的 `delete` 也在这个 `try` 里，删除本身失败会落入异常分支被再删一次 |
+| **修复** | `_check_and_remove_if_expired` 把读取失败（`DecryptionError`、`ValueError`、`TypeError`、`AttributeError`）与过期拆开：读取失败走 `_backup_and_delete_corrupted`（失效缓存、写 `.corrupted`、再删原文件），过期仍直接删除；删除失败不再被当成读取失败 |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | ① 备份失败时仍会删除原文件：两个后端的 `backup_corrupted` 都吞掉异常只记警告，与 `load` 路径一致，协议未改；② `.corrupted` 没有保留期限，`list_all` 只列 `.enc`，没有任何清理会扫到它；它是旧密钥加密的密文，价值是人工用旧密钥找回，不是自动恢复；③ 没有处理的：密钥文件长度错误时静默重新生成新密钥（本条只保证不再因此丢掉旧文件），以及清理读文件与删文件之间并发 `save` 的竞态（原有）；④ 触发条件只用真实文件保险库加第二把随机密钥验证，没有在真实桌面部署上复现密钥被换掉的场景 |
+| **回归** | `tests/toolkits/browser/test_session_vault_cleanup_backup.py` 8 例，全部用真实文件保险库：换密钥后三个会话全部保留为 `.corrupted` 且字节与原文件一致、乱码文件、三种解密后格式错误（非 JSON、JSON 不是对象、过期时间不是数字）、过期会话删除且不留备份、未过期与无期限会话原样保留且仍可加载、缓存里的旧条目在原文件被清走后不再返回。4 个变异（改回直接删除、去掉 `TypeError` 与 `AttributeError`、去掉 `DecryptionError`、让过期也走备份）分别使 6、2、3、1 例失败；同目录保险库与持久化共 114 例通过 |
+| **代码位置** | `toolkits/browser/session_vault/__init__.py::SessionVault._check_and_remove_if_expired` |
+
 ### BUG-HARNESS-2026-10-14-020 · 录制合成与诊断包里还有两份邮箱正则，对点号连续串是二次方耗时：2 万字符的 `a.a.a.` 串让诊断包的脱敏跑 0.78 秒，录制的参数槽提取跑 0.30 秒；4 万字符分别是 1.55 秒与 1.30 秒
 
 | 字段 | 内容 |

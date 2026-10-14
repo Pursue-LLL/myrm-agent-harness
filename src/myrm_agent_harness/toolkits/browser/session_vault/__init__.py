@@ -16,7 +16,8 @@ Architecture
    database backend for Sandbox with zero changes to vault logic.
 4. Memory cache (O(1) LRU with TTL and memory limit) reduces I/O and decryption
    overhead for frequently accessed sessions (configurable, 30-40x speedup).
-5. ``cleanup_expired()`` uses asyncio.gather for parallel processing of all sessions.
+5. ``cleanup_expired()`` uses asyncio.gather for parallel processing of all sessions. It deletes expired
+   sessions and sets unreadable ones aside as ``.corrupted`` (as ``load`` does) instead of destroying them.
 
 
 [INPUT]
@@ -456,7 +457,10 @@ class SessionVault:
         return summaries
 
     async def _check_and_remove_if_expired(self, domain: str) -> bool:
-        """Check if session is expired/corrupted and remove it.
+        """Remove the session if it is expired, or set it aside if it cannot be read.
+
+        An unreadable file is not known to be expired (a regenerated or rotated vault key makes
+        every file look that way), so it goes through the same backup-then-delete path as ``load``.
 
         Returns:
             True if session was removed, False otherwise
@@ -466,16 +470,16 @@ class SessionVault:
             return False
 
         try:
-            plaintext = self._decrypt(data)
-            raw = orjson.loads(plaintext)
-            expires_at = raw.get("expires_at")
-            if expires_at is not None and time.time() > expires_at:
-                await self._backend.delete(domain)
-                return True
-        except Exception:
-            await self._backend.delete(domain)
+            raw = orjson.loads(self._decrypt(data))
+            expired = raw.get("expires_at") is not None and time.time() > raw["expires_at"]
+        except (DecryptionError, ValueError, TypeError, AttributeError) as exc:
+            logger.warning("Session for %s is unreadable, setting it aside: %s", domain, exc)
+            await self._backup_and_delete_corrupted(domain, data)
             return True
 
+        if expired:
+            await self._backend.delete(domain)
+            return True
         return False
 
     async def cleanup_expired(self) -> int:

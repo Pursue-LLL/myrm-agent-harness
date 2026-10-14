@@ -8,7 +8,7 @@ Encrypted session vault for browser authentication persistence. Stores Playwrigh
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| `__init__.py` | Package | Public facade: `SessionVault` (save/load/delete/list/cleanup + cache) | ✅ |
+| `__init__.py` | Package | Public facade: `SessionVault` (save/load/delete/list/cleanup + cache); `cleanup_expired` deletes expired sessions and sets unreadable ones (wrong key, bad payload) aside as `.corrupted`, like `load` | ✅ |
 | `exceptions.py` | Config | Fine-grained exception hierarchy: `SessionVaultError`/`EncryptionError`/`DecryptionError`/`CorruptedSessionError`/`InvalidDomainError` | ✅ |
 | `types.py` | Config | Data types: `SessionEntry`/`SessionSummary`/`VaultMetrics` | ✅ |
 | `backends/` | Submodule | Pluggable storage backends (file/cloud/protocol) — see its `_ARCH.md` | ✅ |
