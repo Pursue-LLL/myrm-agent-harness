@@ -2,6 +2,22 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-14-009 · 已创建的模型实例没有任何续期入口：订阅登录的短寿命访问令牌到期后，实例仍带旧密钥发请求；原生 xAI 端点的请求不带会话路由头
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-14（xAI SuperGrok 订阅登录加固：读 `async_mixin.py` 的请求路径与服务端令牌流时发现；没有真实 SuperGrok 账号，以读代码、单元测试与探针确认，授权流程与上游行为没有端到端验证） |
+| **修复时间** | 2026-10-14 |
+| **症状** | ① `ChatLiteLLM` 的异步生成与流式路径每次请求都取实例上的 api key，harness 没有任何续期入口；订阅登录的访问令牌是短寿命的，实例比令牌活得久时（长对话中途令牌到期、常驻的模型实例），之后的请求仍带着旧令牌，只能由提供商拒绝；② 原生 xAI 端点的请求不带会话路由头 `x-grok-conv-id`（OpenAI 的 `prompt_cache_key` 与 OpenCode 中继的 `x-opencode-session` 已有，xAI 没有），同一会话的多次请求不保证落到同一台缓存服务器 |
+| **关联产品** | server `app/services/agent/provider_oauth_tokens.py::freshen_api_key`（`app/server/lifespan.py` 启动期经 `api.hooks.set_api_key_refresher` 登记）；产品台账 `BUG-AGENT-2026-10-14-008`。只有登记了 refresher 的宿主与原生 xAI 端点受影响，其他提供商与未登记的宿主行为不变；Local / 桌面 / 云托管相同 |
+| **根因** | 实例级 api key 在构造后没有刷新通道，harness 与凭据层之间没有契约；路由键注入只覆盖 OpenAI 与 OpenCode 两类端点 |
+| **修复** | ① `api_key_refresher.py`（新）：进程级登记一个 `ApiKeyRefresher`（当前密钥进，新密钥或 `None` 出），`renew_api_key` 供适配器询问；refresher 抛错只记 warning 并沿用当前密钥，不阻塞请求；登记表不含凭据策略、不导入宿主。② `async_mixin.py::_renew_api_key` 在非流式与流式两条异步路径上、每次请求取密钥快照之前调用；同步路径不续期。③ `api/hooks.py` 导出 `set_api_key_refresher`，宿主经公开门面登记（server 的深层导入棘轮只认已登记路径），`tests/api/test_integration_surface.py` 钉住 `__all__`。④ `session_affinity.py`（新，从 `model.py` 拆出端点识别与 `_inject_prompt_routing_key`）：原生 xAI 端点按端点主机匹配（`x.ai` 或 `*.x.ai`；未设 `api_base` 时按 `xai` 提供商或 `xai/` 前缀），把路由键作为 `x-grok-conv-id` 发出，调用方已设同名头时不覆盖。⑤ `payload_debug.py`（新，从 `async_mixin.py` 拆出失败载荷的配对日志）：`model.py` 与 `async_mixin.py` 回到行数上限内（基线 552→514、579→553） |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | ① server 对 harness 的深层导入会被 `test_server_harness_imports.py` 棘轮拦下，登记入口只能经 `api.hooks`；② xAI 端点必须按主机名匹配：子串匹配会误中 `notx.ai`、`x.ai.evil.example` 与路径段里的 `api.x.ai`，三者都写成了对照用例；③ 已知局限：`x-grok-conv-id` 只验证了注入条件，没有在真实接口上量化缓存命中的变化；refresher 登记是进程级单例，一个进程只能登记一个；同步路径不续期 |
+| **回归** | `tests/toolkits/llms/adapters/test_api_key_refresher.py`（18 例：无登记不续期、续期被采用并在下一次请求以新密钥再问、`None` / 空串 / 同值保持原密钥、缺失的密钥不进 refresher、抛错保持原密钥并记日志且请求不失败、取消不被吞、登记 `None` 即移除、经公开门面登记读到同一份登记、只持有 `openai_api_key` 的实例同样续期、流式请求与流式 `_agenerate` 只问一次）· `test_prompt_routing_key.py`（33 例，含 `notx.ai`、`x.ai.evil.example`、路径段对照与调用方已设头不覆盖）· `tests/api/test_integration_surface.py`（8 例）· `test_chat_model_stream_edges.py`（20 例）。变异验证：路由头 3 个、续期登记 5 个，全部杀死。提交树在临时导出里运行：上述 4 个文件共 79 例通过，`tests/toolkits/llms` 加 `tests/api` 共 2630 例通过、2 例跳过；`ruff`、`mypy`（6 个源文件）通过；行数护栏与分形文档检查对本批文件无违规（其余失败项出在 `agent_runtime`、`summarize_processor`、`delegate_task_tool` 与 `memory` 等未触及的文件） |
+| **代码位置** | `toolkits/llms/adapters/chat_model/api_key_refresher.py::set_api_key_refresher`（`:33`）、`renew_api_key`（`:39`）· `async_mixin.py::_renew_api_key`（`:93`，调用点 `:142`、`:335`）· `session_affinity.py::_inject_prompt_routing_key`（`:29`）、`_is_xai_native_endpoint`（`:72`）· `api/hooks.py::set_api_key_refresher`（导入 `:100`、`__all__` `:192`） |
+
 ### BUG-HARNESS-2026-10-14-008 · 隐私检测只认「连写」：带空格或连字符的银行卡号默认只告警、分组书写的手机号不被识别、多词自定义关键词被换行或不间断空格隔开就漏掉；带 +86 的手机号遮罩成 `861****8000`
 
 | 字段 | 内容 |
