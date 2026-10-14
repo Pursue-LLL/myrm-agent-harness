@@ -16,6 +16,7 @@ SKILL.md Hook parser — extract hooks from Markdown frontmatter.
 from __future__ import annotations
 
 import logging
+import math
 import os
 import re
 
@@ -50,6 +51,8 @@ _FAIL_OPEN_MODES = frozenset({"", "fail_open", "open"})
 def parse_hooks_from_skill_md(skill_content: str) -> tuple[list[tuple[HookEvent, HookDefinition]], list[str] | None]:
     """Parse hooks and allowed-tools from SKILL.md frontmatter.
 
+    A malformed declaration is reported with a warning and skipped; it never discards the valid ones.
+
     Returns:
         (hooks, allowed_tools) — hooks is list of (event, definition) pairs
     """
@@ -73,7 +76,7 @@ def parse_hooks_from_skill_md(skill_content: str) -> tuple[list[tuple[HookEvent,
 
 
 def _parse_hooks(hooks_data: object) -> list[tuple[HookEvent, HookDefinition]]:
-    if hooks_data is None:
+    if not hooks_data:
         return []
     if not isinstance(hooks_data, dict):
         logger.warning(
@@ -89,7 +92,7 @@ def _parse_hooks(hooks_data: object) -> list[tuple[HookEvent, HookDefinition]]:
             logger.warning("Unknown hook type: %s", hook_type_str)
             continue
 
-        if hook_configs is None:
+        if not hook_configs:
             continue
         if not isinstance(hook_configs, list):
             logger.warning(
@@ -169,6 +172,8 @@ def _timeout_seconds(raw: object) -> int:
         return _DEFAULT_TIMEOUT_SECONDS
     if isinstance(raw, bool) or not isinstance(raw, int | float):
         raise TypeError(f"'timeout' must be a number of seconds, got {raw!r}")
+    if isinstance(raw, float) and not math.isfinite(raw):
+        raise ValueError(f"'timeout' must be a finite number of seconds, got {raw!r}")
     return round(raw)
 
 

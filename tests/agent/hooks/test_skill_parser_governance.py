@@ -85,7 +85,19 @@ def test_malformed_tools_skip_the_entry_instead_of_widening_it(tools: str, caplo
 # --- per-entry isolation ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("bad_field", ["timeout: 0", "timeout: 9999", "timeout: abc", "timeout: true", "timeout: 0.4"])
+@pytest.mark.parametrize(
+    "bad_field",
+    [
+        "timeout: 0",
+        "timeout: 9999",
+        "timeout: abc",
+        "timeout: true",
+        "timeout: 0.4",
+        "timeout: .inf",
+        "timeout: -.inf",
+        "timeout: .nan",
+    ],
+)
 def test_invalid_timeout_drops_only_that_entry(bad_field: str, caplog: pytest.LogCaptureFixture) -> None:
     content = _skill(f"script: 'echo bad'\n      {bad_field}", "script: 'echo good'")
 
@@ -211,7 +223,17 @@ def test_entry_that_is_not_a_mapping_is_reported_and_siblings_survive(caplog: py
     assert any("expected a mapping with script or url, got str" in message for message in _parser_warnings(caplog))
 
 
-@pytest.mark.parametrize("hooks_lines", ["hooks:", "hooks:\n  PreToolUse:"])
+@pytest.mark.parametrize(
+    "hooks_lines",
+    [
+        "hooks:",
+        "hooks: []",
+        "hooks: {}",
+        "hooks:\n  PreToolUse:",
+        "hooks:\n  PreToolUse: []",
+        "hooks:\n  PreToolUse: {}",
+    ],
+)
 def test_declared_but_empty_hooks_stay_quiet(hooks_lines: str, caplog: pytest.LogCaptureFixture) -> None:
     content = f"---\nname: probe\ndescription: probe\n{hooks_lines}\n---\n# probe\n"
 
