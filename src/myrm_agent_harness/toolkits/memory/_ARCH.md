@@ -79,7 +79,6 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | hybrid_engine/ | Orchestrates zero-config SQLite FTS5, offline synonym expansion,. See [hybrid_engine/_ARCH.md](hybrid_engine/_ARCH.md). |
 | ephemeral_delta/ | In-memory, session-scoped transient buffer for prompt-cache-preserving deltas. See [ephemeral_delta/_ARCH.md](ephemeral_delta/_ARCH.md). |
 | experience_observability/ | Zero-refactor host lifecycle plugin adapter. See [experience_observability/_ARCH.md](experience_observability/_ARCH.md). |
-| failure_retrieval/ | Error fingerprint extractor for failure-triggered session retrieval. See [failure_retrieval/_ARCH.md](failure_retrieval/_ARCH.md). |
 | markdown_curator/ | Calculates bi-directional deltas between in-memory stores and Markdown mirrors. See [markdown_curator/_ARCH.md](markdown_curator/_ARCH.md). |
 | peer_cognition/ | Self-evolving standing persona card engine and low-token context projector. See [peer_cognition/_ARCH.md](peer_cognition/_ARCH.md). |
 | procedure_experience/ | Fixed-count dual-node retriever for procedure-shaped experience memories. See [procedure_experience/_ARCH.md](procedure_experience/_ARCH.md). |

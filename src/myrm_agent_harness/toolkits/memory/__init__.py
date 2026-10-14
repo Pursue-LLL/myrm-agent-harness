@@ -73,14 +73,6 @@ from myrm_agent_harness.toolkits.memory.experience_observability import (
     SessionTraceEvidence,
     ZeroRefactorHostPlugin,
 )
-from myrm_agent_harness.toolkits.memory.failure_retrieval import (
-    ErrorFingerprint,
-    ErrorFingerprintExtractor,
-    FailureHistoricalSessionSearchEngine,
-    FailureRetrievalResult,
-    FailureTriggerConfig,
-    HistoricalResolutionEntry,
-)
 from myrm_agent_harness.toolkits.memory.four_tier_fts import (
     DreamCompactionReport,
     FourTierDreamCompactor,
@@ -478,12 +470,6 @@ __all__ = [
     "ExperienceObservabilityMetric",
     "ExperienceObservabilityTracker",
     "ZeroRefactorHostPlugin",
-    "ErrorFingerprint",
-    "ErrorFingerprintExtractor",
-    "FailureHistoricalSessionSearchEngine",
-    "FailureRetrievalResult",
-    "FailureTriggerConfig",
-    "HistoricalResolutionEntry",
     "PeerCognitionGraphStore",
     "PeerCognitionProjection",
     "PeerIdentity",
