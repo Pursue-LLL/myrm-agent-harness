@@ -122,7 +122,7 @@ def _custom_hit(content: str, policy: PrivacyPolicy, level: SensitivityLevel) ->
 def _built_in_s3(content: str) -> PIIClassification | None:
     """The S3 classification of confidential data the built-in detectors recognise, or None."""
     for name, pat in S3_PATTERNS:
-        if any(is_confirmed(name, m.group(0)) for m in pat.finditer(content)):
+        if any(is_confirmed(name, m) for m in pat.finditer(content)):
             return PIIClassification(level=SensitivityLevel.S3, patterns=[name])
 
     # Card numbers outside the prefix table, or with a typo, that the text introduces as a card.
@@ -152,7 +152,7 @@ def _built_in_s2(content: str) -> PIIClassification | None:
     check_patterns = S2_PATTERNS if not is_ascii_short else (p for p in S2_PATTERNS if p[0] != "china_address")
     for name, pat in check_patterns:
         for m in pat.finditer(content):
-            if not is_placeholder(m.group(0)):
+            if not is_placeholder(m.group(0)) and is_confirmed(name, m):
                 return PIIClassification(level=SensitivityLevel.S2, patterns=[name])
     return None
 

@@ -2,6 +2,22 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-14-012 · 隐私层不认 IBAN：连写的 IBAN 整串送进模型，分组书写的被当成“可见信用卡”打码成 `DE89 **** **** **** 0130 [PII:credit_card] 00`；另有约 3.6% 的分组数字 IBAN 因数字恰好通过 Luhn 被判成银行卡（S3）
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-14（隐私层终极叩问阶段，沿"哪些真实用户会贴的账号类数据没被检测"追查；用真实的 `classify_content` / `redact_pii` 复现，并把模式表里的 IBAN 项摘掉得到改动前的行为） |
+| **修复时间** | 2026-10-14 |
+| **症状** | ① 连写的 `DE89370400440532013000`：分类 S1、脱敏计数 0，原样发给模型；② 分组书写的 `DE89 3704 0044 0532 0130 00`：只有中间 16 位数字被 `credit_card_visible` 命中，输出 `DE89 **** **** **** 0130 [PII:credit_card] 00`——标签错成信用卡，国家码、校验位与尾部两位仍明文；③ 用 3.56 万个随机数字账号部分的有效 IBAN（89 国）实测，连写的 0.65%、分组的 3.60% 会被银行卡模式命中并通过 Luhn，判成 S3：同一种数据，默认策略下被当银行卡打码、配了本地模型时被强制走本地，策略为 S3=block 时被拦，而其余 96% 只是 S2 |
+| **关联产品** | myrm-agent-harness `core/security/detection`（`iban`、`pii_patterns`、`pii_classifier`、`pseudonymizer`）、`agent/security/detection/pii_redactor`；分类、脱敏与可逆替换三处共用同一张模式表，无需各自改调用方 |
+| **根因** | 模式表里没有 IBAN；IBAN 不是只靠正则能识别的类型（任何 `[A-Z]{2}\d{2}[A-Z0-9]{11,30}` 形状都可能是别的东西），需要国家长度与 mod-97 校验才可信；银行卡模式不知道自己匹配的数字可能是账号的一段，`is_confirmed` 只看值、不看这串数字在文本里的位置 |
+| **修复** | ① 新增 `core/security/detection/iban.py`：`IBAN_LENGTHS`（SWIFT 注册表 89 国的总长度）、`IBAN_RE`（按长度分支构造：国家码 + 2 位校验位 + 账号部分，连写或 4 位一组、最后一组 1–3 位，大小写均可，两侧不得紧贴字母数字）、`iban_valid`（国家已知、长度恰好、mod-97 余数为 1）、`inside_iban`（某段文本是否落在有效 IBAN 之内，只看它之前可能起始 IBAN 的一小段窗口，成本不随文本长度增长）；② `S2_PATTERNS` 新增 `iban`（S2：能收款但不能凭它付款，与可见卡号同级），排在 `credit_card_visible` 之前，脱敏流水线同序，`DE89 3704 … 00` 一次命中，输出 `DE** **** **** 3000 [PII:iban]`（保留国家码与末 4 位，同银行卡的末 4 位口径）；③ `is_confirmed(name, value)` 改为 `is_confirmed(name, match)`：IBAN 要过 mod-97，银行卡除 Luhn 外还要“不在有效 IBAN 之内”；分类器的 S2 路径也经过它（此前只有 S3 路径校验），脱敏器的银行卡掩码同源；④ 可逆替换新增类型 `<IBAN_n>`，并丢弃落在另一项之内的项（分组 IBAN 内的 4-4-4-4 数字同时是“可见卡号”，二者各得一个伪名会往存储里多写一条从没发出去的映射、计数也多算一次）；⑤ 校验位逻辑与国家长度表独立于被测代码复核：长度取自 python-stdnum 的 SWIFT 注册表衍生数据与维基百科的注册表摘要，89 国逐项一致 |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | ① 第一版正则把尾部写成“最后一组 1–3 位可选”，长度是 4 的倍数的国家（奥地利 20、比利时 16、西班牙 24）后面紧跟 1–3 个字母的单词（`… 3201 und`、`… 1332 and`）时，会把单词吞进匹配，校验失败后整串丢失；改为按每个长度各写一支、只读恰好那么多字符，并用这些国家加跟随单词的用例锁住；② 起初想给银行卡模式加“前面不是国家码+校验位”的后行断言，但分组 IBAN 的第二、三个 4 位窗口前面是数字而不是国家码，断言挡不住，改为按 `inside_iban` 看文本位置；③ 性能先用“先测无 IBAN、再测有 IBAN”的非交替 A/B，得到 +2.2…+12.0%，换成每次交替、各 60 次取中位数、分阶段计时后，两轮里 classify 的变化 −0.39…+0.77 ms、redact −1.72…+1.35 ms（2 万–3.9 万字符，基线 17–42 ms），classify+redact 合计变化在 −3.0% 到 +4.2% 之间（噪声量级）；单独一次 IBAN 正则扫描 0.6–1.0 ms；④ 想过用全局 `IGNORECASE` 之外的写法提速，对三个负载实测一个快一个慢，没有收益，保留更简单的写法；⑤ 对约 2.7 万个文件、2.465 亿字符的项目文本（harness / server / frontend / 文档 / 本地化文件）扫描，IBAN 形状的 53 处里 49 处有效，全部是本次的模块、用例与一处既有测试夹具（`test_noise_free_extractor.py`），真实代码与文档里 0 处误报；⑥ `tests/architecture` + `tests/scripts` 共 14 例红（分形头缺失、分发清单、行数基线、tool_registry、`_ARCH.md` 清单、wheel 资产、临时文档链接），逐条看报错，指向的都是他人在途改动的文件（two_stage_search_extract、skill_agent、skills/curator、已被删除的 `agent/security/audit_pack` 与 `delegation` 等），没有一条提到 `iban.py` 或 `core/security/detection`（该目录的清单检查通过，行数门里也没有本次改动的文件） |
+| **回归** | `tests/agent/security/test_pii_iban.py` 172 例（14 个注册表公布的 IBAN 的两种写法、89 国逐一构造的有效 IBAN 的两种写法整串匹配、小写、跟随单词不被吞、校验位错 / 差一位 / 多一位 / 未知国家 / 紧贴字母 / 连字符 / 双空格 / UUID / SHA-1 等反例、遮罩格式、分组 IBAN 只算一次且不再是信用卡、二次脱敏不变、按级别只遮自己那一级、“数字恰通过 Luhn 的 IBAN”不再是银行卡但真卡紧挨着 IBAN 仍是卡、`inside_iban` 的边界与窗口、可逆替换往返与同一 IBAN 同一伪名、S3 轮不动它）· `test_pii_patterns.py` 15 例（`is_confirmed` 新签名、IBAN 校验、卡号在 IBAN 内不算卡）· `tests/agent/security`、`tests/core/security/detection` 3261 例全绿 |
+| **代码位置** | `core/security/detection/iban.py::IBAN_RE/iban_valid/inside_iban` · `core/security/detection/pii_patterns.py::S2_PATTERNS/is_confirmed` · `core/security/detection/pii_classifier.py::_built_in_s2` · `core/security/detection/pseudonymizer.py::_drop_contained` · `agent/security/detection/pii_redactor.py::_redact_iban/_redact_bank_card` |
+
 ### BUG-HARNESS-2026-10-14-011 · 隐私层的"按级别生效"不成立、银行卡与手机号漏检：一条消息同时含 S3 与 S2 内容时，S3 的脱敏把 S2 一并抹掉（S2=warn 形同虚设），S2=block 时没有 S2 内容也被拦；万事达 2 系 / JCB / Discover / Amex 分组写法、带有效期的卡号、美国本地写法的手机号、万事达 Maestro / Mir / RuPay / Troy 与带笔误的卡号都漏进模型
 
 | 字段 | 内容 |

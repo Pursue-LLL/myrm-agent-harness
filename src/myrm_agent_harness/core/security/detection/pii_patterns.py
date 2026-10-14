@@ -8,12 +8,12 @@ card_context).
 All patterns are pre-compiled module-level constants; the validators are pure functions.
 
 [INPUT]
-- (none: standard library only)
+- core.security.detection.iban::IBAN_RE, iban_valid, inside_iban (POS: IBAN detection for the PII pattern tables. The lengths are those of the SWIFT IBAN registry (89 countries). Typed with hyphens or other separators, an IBAN is not matched.)
 
 [OUTPUT]
 - S3_PATTERNS / S2_PATTERNS: (name, pattern) tables of the confidential and sensitive built-in regex detectors
 - the individual patterns (CHINA_ID_RE, BANK_CARD_RE, CHINA_PHONE_RE, ...), which the redactor pairs with its masks
-- is_confirmed(): whether a pattern match survives the checksum its type calls for (identity number, bank card)
+- is_confirmed(): whether a pattern match is a real hit: it survives the checksum its type calls for (identity number, bank card, IBAN) and a card number is not part of an IBAN
 - bank_card_valid(), luhn_valid(), china_id_valid(): the checksums themselves
 - is_placeholder(): whether a value is an obvious example ("test", "user@example.com") rather than real data
 
@@ -25,6 +25,8 @@ all read it, so they never disagree about what a hit is.
 from __future__ import annotations
 
 import re
+
+from myrm_agent_harness.core.security.detection.iban import IBAN_RE, iban_valid, inside_iban
 
 # ---------------------------------------------------------------------------
 # S3 patterns — confidential (identity documents, financial accounts)
@@ -70,7 +72,7 @@ S3_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 )
 
 # ---------------------------------------------------------------------------
-# S2 patterns — sensitive (personal contact, location)
+# S2 patterns — sensitive (personal contact, location, bank account)
 # ---------------------------------------------------------------------------
 
 # Eleven digits, or typed in groups of 3-4-4 (138 0013 8000, 138-0013-8000). A typed number does not follow a
@@ -124,7 +126,10 @@ CHINA_COURIER_RE = re.compile(
 
 SSN_RE = re.compile(r"(?<!\d)\d{3}-\d{2}-\d{4}(?!\d)")
 
+# An IBAN names an account (money can be sent to it) but, unlike a card number, does not authorise a payment from it,
+# so it is S2. It comes first: typed in groups, its digits also look like a visible card number.
 S2_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("iban", IBAN_RE),
     ("china_phone", CHINA_PHONE_RE),
     ("intl_phone", INTL_PHONE_RE),
     ("us_phone", US_PHONE_RE),
@@ -200,10 +205,17 @@ def china_id_valid(id_str: str) -> bool:
     return id_str[17].upper() == expected
 
 
-def is_confirmed(name: str, value: str) -> bool:
-    """Whether a match of the pattern *name* survives its checksum; a pattern without one always does."""
+def is_confirmed(name: str, match: re.Match[str]) -> bool:
+    """Whether *match* of the pattern *name* is a real hit; a pattern without a rule always is.
+
+    A national ID, a bank card and an IBAN must survive their checksum. A card number that lies within a valid IBAN is
+    a run of the account number, not a card: a few percent of the digit-only IBANs typed in groups read as one.
+    """
+    value = match.group(0)
     if name == "china_id_card":
         return china_id_valid(value)
     if name == "bank_card":
-        return bank_card_valid(value)
+        return bank_card_valid(value) and not inside_iban(match.string, match.start(), match.end())
+    if name == "iban":
+        return iban_valid(value)
     return True

@@ -55,6 +55,7 @@ _PATTERN_TO_TYPE: dict[str, str] = {
     "bank_card": "BANK_CARD",
     "china_passport": "PASSPORT",
     # S2 patterns
+    "iban": "IBAN",
     "china_phone": "PHONE_NUMBER",
     "intl_phone": "PHONE_NUMBER",
     "us_phone": "PHONE_NUMBER",
@@ -116,7 +117,7 @@ def _extract_pii_items(
             if span in seen_spans:
                 continue
             val = m.group(0)
-            if is_placeholder(val) or not is_confirmed(name, val):
+            if is_placeholder(val) or not is_confirmed(name, m):
                 continue
 
             ptype = _PATTERN_TO_TYPE.get(name, name.upper())
@@ -147,8 +148,21 @@ def _extract_pii_items(
             if (start, end) not in seen_spans
         )
 
+    items = _drop_contained(items)
     items.sort(key=lambda x: len(x.original_text), reverse=True)
     return items
+
+
+def _drop_contained(items: list[PIIItem]) -> list[PIIItem]:
+    """*items* without those that lie within another: the groups of a typed IBAN also read as a visible card number,
+    and replacing the IBAN leaves nothing of the card for a second pseudonym to stand for."""
+    kept: list[PIIItem] = []
+    reach = -1
+    for item in sorted(items, key=lambda i: (i.start, -i.end)):
+        if item.end > reach:
+            kept.append(item)
+            reach = item.end
+    return kept
 
 
 def _pseudonymize_custom(

@@ -1,8 +1,9 @@
-"""The checksums behind the built-in PII patterns, and the one rule that says which match survives its checksum."""
+"""The checksums behind the built-in PII patterns, and the one rule that says which match is a real hit."""
 
 from __future__ import annotations
 
 from myrm_agent_harness.core.security.detection.pii_patterns import (
+    S2_PATTERNS,
     S3_PATTERNS,
     bank_card_valid,
     china_id_valid,
@@ -47,19 +48,37 @@ class TestLuhnValidation:
         assert bank_card_valid("4532 0151 1283 0367") is False
 
 
+_PATTERNS = dict(S3_PATTERNS) | dict(S2_PATTERNS)
+
+
+def _confirmed(name: str, text: str) -> bool:
+    """Whether the first match of the table pattern *name* in *text* is a real hit."""
+    match = _PATTERNS[name].search(text)
+    assert match is not None
+    return is_confirmed(name, match)
+
+
 class TestIsConfirmed:
-    """The one place that decides which pattern match survives its checksum."""
+    """The one place that decides which pattern match is a real hit."""
 
     def test_an_id_card_and_a_bank_card_need_their_checksum(self) -> None:
-        assert is_confirmed("china_id_card", "110101199003074530") is True
-        assert is_confirmed("china_id_card", "110101199003074531") is False
-        assert is_confirmed("bank_card", "4532015112830366") is True
-        assert is_confirmed("bank_card", "4532015112830367") is False
+        assert _confirmed("china_id_card", "110101199003074530") is True
+        assert _confirmed("china_id_card", "110101199003074531") is False
+        assert _confirmed("bank_card", "4532015112830366") is True
+        assert _confirmed("bank_card", "4532015112830367") is False
+
+    def test_an_iban_needs_its_checksum(self) -> None:
+        assert _confirmed("iban", "DE89 3704 0044 0532 0130 00") is True
+        assert _confirmed("iban", "DE89 3704 0044 0532 0130 01") is False
+
+    def test_a_card_number_inside_an_iban_is_not_a_card(self) -> None:
+        assert _confirmed("bank_card", "card 5156 6979 6156 7959") is True
+        assert _confirmed("bank_card", "DE79 5156 6979 6156 7959 65") is False
 
     def test_a_pattern_without_a_checksum_always_survives(self) -> None:
-        assert is_confirmed("china_phone", "13800138000") is True
-        assert is_confirmed("email", "a@b.com") is True
+        assert _confirmed("china_phone", "13800138000") is True
+        assert _confirmed("email", "a@b.com") is True
 
-    def test_the_names_it_checks_are_the_names_of_the_s3_table(self) -> None:
+    def test_the_names_it_checks_are_the_names_of_the_tables(self) -> None:
         """A renamed table entry would silently skip its checksum."""
-        assert {"china_id_card", "bank_card"} <= {name for name, _pattern in S3_PATTERNS}
+        assert {"china_id_card", "bank_card", "iban"} <= set(_PATTERNS)
