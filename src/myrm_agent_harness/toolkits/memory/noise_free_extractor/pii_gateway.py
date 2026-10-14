@@ -104,7 +104,8 @@ def _candidate_spans(text: str) -> list[tuple[str, list[Span]]]:
 
 
 def _find_hits(text: str) -> list[_Hit]:
-    """Disjoint hits in text order; where rules claim the same characters the earlier rule, then the longer span, wins."""
+    """Disjoint hits in text order. Rules claim characters in priority order; within a rule the span that starts first
+    wins, and of spans that start together the longer one; a span that overlaps a claimed one is dropped."""
     hits: list[_Hit] = []
     starts: list[int] = []
     for rule, spans in _candidate_spans(text):
