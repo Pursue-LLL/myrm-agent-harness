@@ -125,6 +125,7 @@ def _string_items(value: ast.expr | None) -> list[str] | None:
 
 def _fold_all(node: ast.stmt, exported: set[str] | None) -> set[str] | None:
     """Fold ``__all__ = [...]`` / ``__all__ += [...]`` into the running export set."""
+    value: ast.expr | None
     if isinstance(node, ast.Assign):
         targets, value = node.targets, node.value
     elif isinstance(node, ast.AnnAssign | ast.AugAssign):
