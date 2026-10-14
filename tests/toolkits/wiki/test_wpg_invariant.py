@@ -88,7 +88,7 @@ async def test_link_enrichment_uses_publish_gate(
 
     publish_mock = AsyncMock()
     monkeypatch.setattr(
-        "myrm_agent_harness.toolkits.wiki.maintenance.linter.publish_concept_article",
+        "myrm_agent_harness.toolkits.wiki.maintenance.backlink_discovery.publish_concept_article",
         publish_mock,
     )
 
