@@ -1,127 +1,160 @@
 """[POS]: src/myrm_agent_harness/toolkits/memory/noise_free_extractor/pii_gateway.py
-[INPUT]: Candidate memory statements to inspect for credit cards, IBANs, national IDs, and secrets.
-[OUTPUT]: SanitizedExtractionResult detailing safety clearance, masked text, and PII violations.
+[INPUT]:
+- core.security.detection.pii_patterns::BANK_CARD_RE, CHINA_ID_RE, SSN_RE, is_confirmed, luhn_valid (POS: Single definition of the built-in PII patterns and their validators: classification, redaction and pseudonymization all read it, so they never disagree about what a hit is.)
+- core.security.detection.iban::IBAN_RE (POS: IBAN detection for the PII pattern tables. The lengths are those of the SWIFT IBAN registry (89 countries). Typed with hyphens or other separators, an IBAN is not matched.)
+- core.security.detection.card_context::find_card_number_spans, find_card_shaped_spans (POS: Keyword-anchored detector for card numbers outside the network prefix table or with a typo in them.)
+- core.security.detection.password_heuristic::find_password_spans (POS: Last-resort detector for secrets that carry no vendor prefix and no high entropy.)
+- core.security.detection.leak_detector::scan_for_leaks, redact_leaks (POS: Output-side credential leak detector.)
+[OUTPUT]: PIISafetyGateway: whether a candidate memory statement may be stored, its masked text, and the PII violations found.
 
-Reference: Anthropic Commerce Agents (commerce_common/memory.py:DEFAULT_BLOCKED_PATTERNS).
-Enforces strict regex filters preventing sensitive personal identifying info (PII)
-such as credit card numbers, IBANs, national IDs, and API tokens from entering persistent memory.
+Storage gate in front of persistent memory. It reads the detectors of the privacy pipeline, so a number the pipeline
+masks is a number the gate refuses, and it is stricter in three ways, because a statement that slips through is stored
+for good while one that is refused costs a single fact: a 15 or 16 digit run that passes the Luhn check is a card
+whatever network issued it, an ID or IBAN with a mistyped check digit is still an identifier, and a value assigned to
+a bare "secret" label is a credential. It does not depend on the user's privacy policy: switching privacy off never
+lets a card number into memory.
 """
 
 import re
-from typing import ClassVar
+from dataclasses import dataclass
+from typing import Literal
+
+from myrm_agent_harness.core.security.detection.card_context import find_card_number_spans, find_card_shaped_spans
+from myrm_agent_harness.core.security.detection.iban import IBAN_RE
+from myrm_agent_harness.core.security.detection.leak_detector import redact_leaks, scan_for_leaks
+from myrm_agent_harness.core.security.detection.password_heuristic import find_password_spans
+from myrm_agent_harness.core.security.detection.pii_patterns import (
+    BANK_CARD_RE,
+    CHINA_ID_RE,
+    SSN_RE,
+    is_confirmed,
+    luhn_valid,
+)
+from myrm_agent_harness.core.security.detection.secret_value import Span
 
 from .types import PIIViolationDetail, SanitizedExtractionResult
 
+_Severity = Literal["high", "critical"]
+
+_CREDIT_CARD = "credit_card"
+_IBAN = "iban"
+_SSN = "ssn_us"
+_NATIONAL_ID = "national_id_cn"
+_SECRET = "secret_token_key"
+_CREDENTIAL = "plaintext_credential"
+
+_SEVERITY: dict[str, _Severity] = {
+    _CREDIT_CARD: "high",
+    _IBAN: "critical",
+    _SSN: "critical",
+    _NATIONAL_ID: "critical",
+    _SECRET: "critical",
+    _CREDENTIAL: "critical",
+}
+
+_NON_DIGIT_RE = re.compile(r"\D")
+# "secret" alone is an everyday word, so the privacy pipeline only reads "api secret" or "secret key" as a label.
+_SECRET_LABEL_RE = re.compile(r"\bsecret\s*[:=]\s*(?P<value>[^\s,;]{6,})", re.IGNORECASE)
+# Amex and the standard sixteen. A shorter or longer digit run is too often an order number or a timestamp to refuse on
+# the checksum alone; the prefix table and the card keyword still catch those that are cards.
+_UNLISTED_CARD_LENGTHS = frozenset({15, 16})
+_FULLY_MASKED = "***"
+
+
+@dataclass(frozen=True, slots=True)
+class _Hit:
+    rule: str
+    span: Span
+
+
+def _luhn_card_spans(text: str) -> list[Span]:
+    spans: list[Span] = []
+    for start, end in find_card_shaped_spans(text):
+        digits = _NON_DIGIT_RE.sub("", text[start:end])
+        if len(digits) in _UNLISTED_CARD_LENGTHS and luhn_valid(digits):
+            spans.append((start, end))
+    return spans
+
+
+def _card_spans(text: str) -> list[Span]:
+    return [
+        *(match.span() for match in BANK_CARD_RE.finditer(text) if is_confirmed("bank_card", match)),
+        *find_card_number_spans(text),
+        *_luhn_card_spans(text),
+    ]
+
+
+def _credential_spans(text: str) -> list[Span]:
+    return [
+        *find_password_spans(text, strict=False),
+        *(match.span("value") for match in _SECRET_LABEL_RE.finditer(text)),
+    ]
+
+
+def _candidate_spans(text: str) -> list[tuple[str, list[Span]]]:
+    """Every rule's spans, identifiers first: a run of an IBAN or an ID is never read as a card inside it."""
+    return [
+        (_IBAN, [match.span() for match in IBAN_RE.finditer(text)]),
+        (_NATIONAL_ID, [match.span() for match in CHINA_ID_RE.finditer(text)]),
+        (_SSN, [match.span() for match in SSN_RE.finditer(text)]),
+        (_CREDIT_CARD, _card_spans(text)),
+        (_CREDENTIAL, _credential_spans(text)),
+    ]
+
+
+def _find_hits(text: str) -> list[_Hit]:
+    """Disjoint hits in text order; where rules claim the same characters the earlier rule, then the longer span, wins."""
+    hits: list[_Hit] = []
+    for rule, spans in _candidate_spans(text):
+        for start, end in sorted(spans, key=lambda span: (span[0], -span[1])):
+            if not any(start < hit.span[1] and hit.span[0] < end for hit in hits):
+                hits.append(_Hit(rule, (start, end)))
+    return sorted(hits, key=lambda hit: hit.span)
+
+
+def _snippet(hit: _Hit, text: str) -> str:
+    """The first and last two characters of an identifier for the audit trail; a credential is never shown."""
+    if hit.rule == _CREDENTIAL:
+        return _FULLY_MASKED
+    value = text[hit.span[0] : hit.span[1]]
+    return value[:2] + "*" * (len(value) - 4) + value[-2:]
+
+
+def _mask(text: str, hits: list[_Hit], *, has_secrets: bool) -> str:
+    pieces: list[str] = []
+    cursor = 0
+    for hit in hits:
+        pieces.append(text[cursor : hit.span[0]])
+        pieces.append(f"[{hit.rule}_REDACTED]")
+        cursor = hit.span[1]
+    pieces.append(text[cursor:])
+    masked = "".join(pieces)
+    return redact_leaks(masked) if has_secrets else masked
+
 
 class PIISafetyGateway:
-    """Rigorous regex-based screening for extracted memory facts."""
-
-    # Pre-compiled high-confidence PII regex patterns
-    _PATTERNS: ClassVar[dict[str, tuple[re.Pattern[str], str]]] = {
-        "credit_card": (
-            re.compile(
-                r"\b(?:\d{4}[-\s]?){3}\d{4}\b|\b\d{15,16}\b",
-                re.IGNORECASE,
-            ),
-            "high",
-        ),
-        "iban": (
-            re.compile(
-                r"\b[A-Z]{2}[0-9]{2}[A-Z0-9]{4}[0-9]{7}(?:[A-Z0-9]?){0,16}\b",
-                re.IGNORECASE,
-            ),
-            "critical",
-        ),
-        "ssn_us": (
-            re.compile(r"\b\d{3}-\d{2}-\d{4}\b"),
-            "critical",
-        ),
-        "national_id_cn": (
-            re.compile(
-                r"\b[1-9]\d{5}(?:18|19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{3}[\dXx]\b"
-            ),
-            "critical",
-        ),
-        "secret_token_key": (
-            re.compile(
-                r"\b(?:sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|bearer\s+[A-Za-z0-9._~+/-]{30,})\b",
-                re.IGNORECASE,
-            ),
-            "critical",
-        ),
-        "plaintext_credential": (
-            re.compile(
-                r"\b(?:password|passwd|secret)\s*[:=]\s*[^\s,;]{6,}\b",
-                re.IGNORECASE,
-            ),
-            "critical",
-        ),
-    }
+    """Screens extracted memory facts for card numbers, IBANs, national IDs, SSNs, passwords and API secrets."""
 
     def __init__(self, mask_instead_of_reject: bool = False) -> None:
         self.mask_instead_of_reject = mask_instead_of_reject
 
-    @classmethod
-    def luhn_validate(cls, card_number: str) -> bool:
-        """Optional Luhn checksum validation for digits-only strings."""
-        digits = [int(c) for c in card_number if c.isdigit()]
-        if len(digits) < 13 or len(digits) > 19:
-            return False
-        total = 0
-        reverse_digits = digits[::-1]
-        for idx, digit in enumerate(reverse_digits):
-            if idx % 2 == 1:
-                doubled = digit * 2
-                total += doubled - 9 if doubled > 9 else doubled
-            else:
-                total += digit
-        return total % 10 == 0
-
     def inspect(self, statement: str) -> SanitizedExtractionResult:
-        """Inspect statement against all blocked PII patterns."""
-        violations: list[PIIViolationDetail] = []
-        sanitized = statement
-
-        for rule_name, (pattern, severity) in self._PATTERNS.items():
-            matches = list(pattern.finditer(statement))
-            if not matches:
-                continue
-
-            for match in matches:
-                matched_str = match.group(0)
-
-                # For credit card rule, double-check length or Luhn to minimize false positives
-                if rule_name == "credit_card":
-                    clean_digits = re.sub(r"\D", "", matched_str)
-                    if not self.luhn_validate(clean_digits):
-                        continue
-
-                # Mask snippet for auditing
-                if len(matched_str) > 6:
-                    masked = (
-                        matched_str[:2] + "*" * (len(matched_str) - 4) + matched_str[-2:]
-                    )
-                else:
-                    masked = "***"
-
-                violations.append(
-                    PIIViolationDetail(
-                        rule_name=rule_name,
-                        snippet_masked=masked,
-                        severity=severity,  # type: ignore[arg-type]
-                    )
-                )
-
-                if self.mask_instead_of_reject:
-                    sanitized = pattern.sub(f"[{rule_name}_REDACTED]", sanitized)
-
-        is_clean = len(violations) == 0
-        return SanitizedExtractionResult(
-            is_clean=is_clean,
-            sanitized_text=sanitized if self.mask_instead_of_reject else statement,
-            violations=violations,
-        )
+        """Find the PII in *statement*; in masking mode also return the statement with each hit replaced."""
+        hits = _find_hits(statement)
+        has_secrets = bool(scan_for_leaks(statement))
+        violations = [
+            PIIViolationDetail(
+                rule_name=hit.rule, snippet_masked=_snippet(hit, statement), severity=_SEVERITY[hit.rule]
+            )
+            for hit in hits
+        ]
+        if has_secrets:
+            violations.append(
+                PIIViolationDetail(rule_name=_SECRET, snippet_masked=_FULLY_MASKED, severity=_SEVERITY[_SECRET])
+            )
+        sanitized = _mask(statement, hits, has_secrets=has_secrets) if self.mask_instead_of_reject else statement
+        return SanitizedExtractionResult(is_clean=not violations, sanitized_text=sanitized, violations=violations)
 
     def is_safe_for_storage(self, statement: str) -> bool:
-        """Fast boolean check for storage safety."""
+        """Whether *statement* holds nothing the gate refuses."""
         return self.inspect(statement).is_clean

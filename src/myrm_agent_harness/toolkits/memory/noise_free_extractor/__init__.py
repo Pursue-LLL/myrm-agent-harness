@@ -5,7 +5,7 @@
 Reference: Anthropic Commerce Agents (commerce_common/memory.py).
 Provides:
 - ToolNoiseFilter: Strips tool receipts & code output from memory extraction prompts;
-- PIISafetyGateway: Code-level regex safety filters for cards, IBANs, credentials, and IDs;
+- PIISafetyGateway: Storage gate refusing (or masking) cards, IBANs, IDs, SSNs, passwords, and API secrets;
 - PurgeGenerationEpochManager: Monotonic purge generation epoch fencing preventing ghost memory resurrection;
 - NoiseFreeAsyncMemoryExtractor: End-to-end extraction orchestrator.
 """

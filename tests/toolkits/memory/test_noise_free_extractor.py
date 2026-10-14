@@ -88,7 +88,8 @@ def test_pii_safety_gateway_blocking_and_masking() -> None:
     # Masking mode
     mask_gateway = PIISafetyGateway(mask_instead_of_reject=True)
     masked_res = mask_gateway.inspect("测试密钥 sk-abcdef1234567890abcdef1234567890 存储")
-    assert "[secret_token_key_REDACTED]" in masked_res.sanitized_text
+    assert "sk-abcdef1234567890abcdef1234567890" not in masked_res.sanitized_text
+    assert "[REDACTED:" in masked_res.sanitized_text
 
 
 def test_purge_generation_monotonic_epoch_fencing() -> None:
@@ -125,9 +126,7 @@ def test_purge_generation_monotonic_epoch_fencing() -> None:
 
 def test_noise_free_extractor_end_to_end_orchestration() -> None:
     """Verify end-to-end extraction orchestrator with noise stripping, PII check, and epoch fence."""
-    extractor = NoiseFreeAsyncMemoryExtractor(
-        config=NoiseFreeConfig(strip_tool_receipts=True, enforce_pii_gate=True)
-    )
+    extractor = NoiseFreeAsyncMemoryExtractor(config=NoiseFreeConfig(strip_tool_receipts=True, enforce_pii_gate=True))
     user_id = "user_beta_88"
 
     dialogue: list[ConversationTurn] = [
