@@ -9,11 +9,16 @@ from __future__ import annotations
 import logging
 from collections.abc import AsyncIterator
 from pathlib import Path
+from typing import Annotated, TypedDict
 
 import aiosqlite
 import pytest
+from langchain_core.messages import AIMessage, AnyMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.base import BaseCheckpointSaver, empty_checkpoint
+from langgraph.graph import END, START, StateGraph
+from langgraph.graph.message import add_messages
+from langgraph.graph.state import CompiledStateGraph
 
 from myrm_agent_harness.runtime.checkpointing.factory import create_checkpointer
 from myrm_agent_harness.runtime.checkpointing.load_fallback import _is_undecodable_payload
@@ -26,6 +31,32 @@ def _config(thread_id: str) -> RunnableConfig:
 
 async def _store(saver: BaseCheckpointSaver[str], thread_id: str) -> None:
     await saver.aput(_config(thread_id), empty_checkpoint(), {"source": "input", "step": 0, "parents": {}}, {})
+
+
+class _ChatState(TypedDict):
+    messages: Annotated[list[AnyMessage], add_messages]
+
+
+async def _echo(state: _ChatState) -> _ChatState:
+    return {"messages": [AIMessage(content=f"echo:{state['messages'][-1].content}")]}
+
+
+def _chat_graph(saver: BaseCheckpointSaver[str]) -> CompiledStateGraph[_ChatState, None, _ChatState, _ChatState]:
+    """A one-node conversation graph: LangGraph itself drives every saver call, as in production."""
+    graph = StateGraph(_ChatState)
+    graph.add_node("echo", _echo)
+    graph.add_edge(START, "echo")
+    graph.add_edge("echo", END)
+    return graph.compile(checkpointer=saver)
+
+
+async def _say(chat: CompiledStateGraph[_ChatState, None, _ChatState, _ChatState], thread_id: str, text: str) -> None:
+    await chat.ainvoke({"messages": [HumanMessage(content=text)]}, _config(thread_id))
+
+
+async def _spoken(chat: CompiledStateGraph[_ChatState, None, _ChatState, _ChatState], thread_id: str) -> list[object]:
+    state = await chat.aget_state(_config(thread_id))
+    return [message.content for message in state.values.get("messages", [])]
 
 
 @pytest.fixture
@@ -86,6 +117,37 @@ async def test_clearing_a_chat_history_deletes_both_thread_aliases(saver: BaseCh
     assert synced == 2
     assert await saver.aget_tuple(_config("chat-1")) is None
     assert await saver.aget_tuple(_config("chat_chat-1")) is None
+
+
+@pytest.mark.asyncio
+async def test_a_compiled_graph_keeps_its_conversation_and_forgets_it_with_the_thread(
+    saver: BaseCheckpointSaver[str],
+) -> None:
+    chat = _chat_graph(saver)
+    await _say(chat, "t1", "a")
+    await _say(chat, "t1", "b")
+
+    assert await _spoken(chat, "t1") == ["a", "echo:a", "b", "echo:b"]
+    assert len([step async for step in chat.aget_state_history(_config("t1"))]) > 1
+
+    await saver.adelete_thread("t1")
+
+    assert await _spoken(chat, "t1") == []
+
+
+@pytest.mark.asyncio
+async def test_a_graph_continues_in_a_fresh_session_when_its_stored_state_cannot_be_decoded(
+    saver: BaseCheckpointSaver[str], sqlite_path: Path
+) -> None:
+    chat = _chat_graph(saver)
+    await _say(chat, "t1", "a")
+    async with aiosqlite.connect(sqlite_path) as conn:
+        await conn.execute("UPDATE checkpoints SET checkpoint = ? WHERE thread_id = ?", (b"not a pickle", "t1"))
+        await conn.commit()
+
+    await _say(chat, "t1", "b")
+
+    assert await _spoken(chat, "t1") == ["b", "echo:b"]
 
 
 @pytest.mark.asyncio
