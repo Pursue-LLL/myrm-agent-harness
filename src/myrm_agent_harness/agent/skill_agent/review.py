@@ -155,7 +155,12 @@ class SkillAgentReviewMixin:
 
         Uses HeartbeatEvaluator for expression volume + task complexity assessment.
         Includes Pre-Screener to block trajectories that completely failed.
+        A review only produces output for ``on_skill_review_ready``; without that consumer
+        the LLM call would be pure waste, so nothing is triggered.
         """
+        if getattr(self, "_on_skill_review_ready", None) is None:
+            return False
+
         stats: AgentRunStatistics | None = getattr(self, "last_run_stats", None)
         if stats is None:
             return False

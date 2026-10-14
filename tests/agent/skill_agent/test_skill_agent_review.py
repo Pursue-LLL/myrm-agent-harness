@@ -29,6 +29,10 @@ class _FakeConfig:
     chat_id: str | None = None
 
 
+def _discard_review_result(result: dict[str, object]) -> None:
+    """Stand-in review consumer: a review only runs when something consumes its result."""
+
+
 class FakeSkillAgent(SkillAgentReviewMixin):
     """Minimal stub implementing the attributes SkillAgentReviewMixin requires."""
 
@@ -39,7 +43,7 @@ class FakeSkillAgent(SkillAgentReviewMixin):
         wiki_compiler: Any = None,
         wiki_structure: Any = None,
         extraction_llm: Any = None,
-        on_skill_review_ready: Any = None,
+        on_skill_review_ready: Any = _discard_review_result,
         user_id: str | None = "user-1",
         last_context: dict[str, object] | None = None,
         agent_instance: Any = None,
@@ -125,6 +129,12 @@ class TestShouldTriggerSkillReview:
         stats = AgentRunStatistics(tool_call_count=60)
         agent = FakeSkillAgent(stats=stats)
         assert agent._should_trigger_skill_review("x" * 100) is False
+
+    def test_no_review_consumer_never_triggers(self) -> None:
+        """Without an ``on_skill_review_ready`` consumer the review output would be discarded, so no LLM call is made."""
+        stats = AgentRunStatistics(tool_call_count=5)
+        agent = FakeSkillAgent(stats=stats, on_skill_review_ready=None)
+        assert agent._should_trigger_skill_review("x" * 60) is False
 
     def test_multimodal_query(self) -> None:
         stats = AgentRunStatistics(tool_call_count=3)

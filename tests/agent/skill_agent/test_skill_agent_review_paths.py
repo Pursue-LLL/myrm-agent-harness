@@ -30,6 +30,7 @@ class _Host(SkillAgentReviewMixin):
     def __init__(self, **attrs: object) -> None:
         self.llm = MagicMock()
         self.last_run_stats: AgentRunStatistics | None = None
+        self._on_skill_review_ready: object = MagicMock()
         self._active_skill = None
         for name, value in attrs.items():
             setattr(self, name, value)

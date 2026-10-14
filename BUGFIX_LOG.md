@@ -2,6 +2,21 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-14-024 · 技能复盘在宿主没有挂 `on_skill_review_ready` 时照样触发：每个满足条件的会话结束都白做一次复盘 LLM 调用，结果在 `if on_skill_review_ready` 处被丢弃
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-14（核对 server 隐身会话的持久化写入点时） |
+| **修复时间** | 2026-10-14 |
+| **症状** | `SkillAgentReviewMixin._should_trigger_skill_review` 只看轨迹是否值得复盘，不看有没有人消费结果；宿主不传回调（`_on_skill_review_ready is None`）时，`_trigger_background_skill_review` 仍用抽取模型或主模型做一次轨迹复盘，产出只在 `review.py` 的 `if on_skill_review_ready:` 处被消费，没有回调就什么也没发生，LLM 调用白白花掉 |
+| **关联产品** | myrm-agent-harness `agent/skill_agent/review.py`；server `BUG-AGENT-2026-10-14-026`（隐身会话不再挂回调） |
+| **根因** | 触发条件与「结果有没有去处」是两件事，写触发条件时没有把后者算进去；复盘的唯一输出就是回调，没有回调的复盘没有任何副作用可言 |
+| **修复** | `_should_trigger_skill_review` 开头：`_on_skill_review_ready is None` 时直接返回 `False`；docstring 写明原因 |
+| **验证** | `tests/agent/skill_agent` 160 通过、2 失败（`test_skill_agent_privacy_context.py` 两例断言 `auto_extract_memories` 被调度，来自他人未跟踪的 `memory_extraction_scheduler.py`，与本条无关）；新增 `test_no_review_consumer_never_triggers`，去掉守卫后失败、还原后通过；既有用例的宿主桩（`FakeSkillAgent`、`_Host`）补上默认回调，避免被新守卫挡掉；本条涉及文件 `ruff` / `pyright` 无问题 |
+| **局限** | 只证明了「无回调不触发」；没有统计过其他宿主是否存在未挂回调却依赖复盘日志的用法（代码里复盘只有回调这一个输出） |
+| **反复次数** | 第 1 次发现 |
+
 ### BUG-HARNESS-2026-10-14-023 · 保存会话保险库的损坏备份键用 `str.replace(".enc", ".corrupted")`：域名里含 `.enc` 时两处都被改写，备份落到别的域名的键上；`safe_purge_fts5_virtual_table` 没有任何生产调用方，却被 server 文件头与文档当成清库里 FTS5 清理的实现
 
 | 字段 | 内容 |
