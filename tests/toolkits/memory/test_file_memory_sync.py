@@ -55,14 +55,7 @@ def test_parser_basic_headings():
 
 def test_parser_frontmatter_stripping():
     """Ensure YAML frontmatter is stripped without shifting true physical line numbers."""
-    content = (
-        "---\n"
-        "title: Project Rules\n"
-        "author: admin\n"
-        "---\n"
-        "## Core Guidelines\n"
-        "Follow test driven development.\n"
-    )
+    content = "---\ntitle: Project Rules\nauthor: admin\n---\n## Core Guidelines\nFollow test driven development.\n"
 
     entries = LenientMarkdownParser.parse_document(content, "MEMORY.md")
     assert len(entries) == 1
@@ -318,6 +311,3 @@ async def test_sync_engine_store_backend_and_factory(tmp_path: Path):
     # None manager shouldn't raise
     engine_none = setup_local_file_memory_sync(base_path=tmp_path, memory_manager=None)
     await engine_none.persist_episodic_note("No manager note")
-
-
-

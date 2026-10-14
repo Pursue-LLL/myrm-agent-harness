@@ -112,9 +112,7 @@ def test_evaluate_repo_sync_policy_uncommitted_changes(tmp_path: Path) -> None:
     dirty_file = repo_dir / "dirty_script.py"
     dirty_file.write_text("print('hello')", encoding="utf-8")
 
-    decision = evaluate_repo_sync_policy(
-        repo_dir, baseline_commit=head_commit, include_uncommitted=True
-    )
+    decision = evaluate_repo_sync_policy(repo_dir, baseline_commit=head_commit, include_uncommitted=True)
     assert isinstance(decision, RepoSyncDecision)
     assert decision.sync_recommended is True
     assert decision.is_dirty is True

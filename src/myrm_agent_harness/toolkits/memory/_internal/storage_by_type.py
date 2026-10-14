@@ -38,7 +38,7 @@ if TYPE_CHECKING:
         RelationalStoreProtocol,
     )
     from myrm_agent_harness.toolkits.memory.protocols.vector import VectorStoreProtocol
-    from myrm_agent_harness.toolkits.vector.base import VectorDocument
+    from myrm_agent_harness.toolkits.vector.base import FilterDict, VectorDocument
 
 
 _SORT_FIELD_MAP: dict[str, str] = {
@@ -84,12 +84,14 @@ async def list_by_type(
     if memory_type == MemoryType.PROCEDURAL and relational:
         return list(await relational.list_rules(active_only=True, limit=limit, offset=offset, namespaces=namespaces))
 
-    def _build_filters(base_filters: dict) -> dict:
+    def _build_filters(base_filters: FilterDict) -> FilterDict:
         if tag_filter:
             base_filters["tags"] = tag_filter.lower()
         return base_filters
 
-    async def _scroll_with_offset(coll: str, filters: dict, *, fetch_limit: int, skip: int) -> list[VectorDocument]:
+    async def _scroll_with_offset(
+        coll: str, filters: FilterDict, *, fetch_limit: int, skip: int
+    ) -> list[VectorDocument]:
         """Qdrant scroll with integer offset emulation.
 
         Qdrant scroll is cursor-based (point-ID), not offset-based.
@@ -136,7 +138,7 @@ async def count_by_type(
     since: datetime | None = None,
     tag_filter: str | None = None,
 ) -> int:
-    def _apply_tag(f: dict) -> dict:
+    def _apply_tag(f: FilterDict) -> FilterDict:
         if tag_filter:
             f["tags"] = tag_filter.lower()
         return f

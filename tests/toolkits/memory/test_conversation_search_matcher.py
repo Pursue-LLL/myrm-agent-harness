@@ -41,9 +41,7 @@ class TestConversationExactSearchMatcher:
         suffix_tail = "B" * 150
         full_text = f"{prefix_lead} {target} {suffix_tail}"
 
-        highlight = ConversationExactSearchMatcher.extract_highlight(
-            full_text, target, window_chars=50
-        )
+        highlight = ConversationExactSearchMatcher.extract_highlight(full_text, target, window_chars=50)
         assert isinstance(highlight, ContextHighlight)
         assert highlight.matched_text == target
         assert highlight.prefix.startswith("...")
@@ -72,14 +70,10 @@ class TestConversationExactSearchMatcher:
 
     def test_rank_and_score(self) -> None:
         text = "Building async workers with Python 3.12 and uv"
-        score_exact = ConversationExactSearchMatcher.rank_and_score(
-            text, "Python 3.12"
-        )
+        score_exact = ConversationExactSearchMatcher.rank_and_score(text, "Python 3.12")
         assert score_exact >= 0.7
 
-        score_partial = ConversationExactSearchMatcher.rank_and_score(
-            text, "Python Ruby"
-        )
+        score_partial = ConversationExactSearchMatcher.rank_and_score(text, "Python Ruby")
         assert 0.0 < score_partial < score_exact
 
         score_zero = ConversationExactSearchMatcher.rank_and_score(text, "Golang Rust")

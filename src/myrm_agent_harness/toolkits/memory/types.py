@@ -760,9 +760,7 @@ class MemorySearchResult(BaseModel):
     raw_similarity: float | None = Field(
         default=None, description="Physical cosine/BM25 similarity before multi-stage reranking (alias)"
     )
-    ranking_score: float | None = Field(
-        default=None, description="Composite ranking score after multi-stage pipeline"
-    )
+    ranking_score: float | None = Field(default=None, description="Composite ranking score after multi-stage pipeline")
     score_breakdown: ScoreBreakdown | None = Field(
         default=None, description="Detailed white-box attribution trace for composite score"
     )

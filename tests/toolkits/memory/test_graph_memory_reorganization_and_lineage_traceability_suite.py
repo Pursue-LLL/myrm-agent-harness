@@ -178,4 +178,3 @@ def test_lineage_trail_trace_and_rollback() -> None:
     assert new_active_v4.content == "Database Storage engine is Plain SQLite file"
     assert reverted_old.node_id == "db_node_v3"
     assert reverted_old.status == MemoryNodeStatus.REVERTED
-

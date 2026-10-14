@@ -95,7 +95,7 @@ def test_okf_validator_stale_and_cwe22_security_guard() -> None:
 
     report = validator.validate([traversal_concept], reference_date=today)
     assert report.is_conformant is True  # No structural syntax errors
-    assert report.gate_passed is False   # Blocked by gate findings
+    assert report.gate_passed is False  # Blocked by gate findings
     assert any(".." in finding for finding in report.gate_findings)
     assert any("must be a relative" in finding for finding in report.gate_findings)
 

@@ -46,23 +46,17 @@ def test_job_description_builder_and_boundary_evaluation() -> None:
     assert "autonomous_actions" in reason
 
     # 2. Test action boundary - explicit requires approval action
-    needs_appr_high, reason_high = JobDescriptionBuilder.evaluate_action_boundary(
-        spec, "send_interview_invite"
-    )
+    needs_appr_high, reason_high = JobDescriptionBuilder.evaluate_action_boundary(spec, "send_interview_invite")
     assert needs_appr_high is True
     assert "requires_approval_actions" in reason_high
 
     # 3. Test action boundary - implicit mutation cue without explicit grant
-    needs_appr_mut, reason_mut = JobDescriptionBuilder.evaluate_action_boundary(
-        spec, "delete_candidate_record"
-    )
+    needs_appr_mut, reason_mut = JobDescriptionBuilder.evaluate_action_boundary(spec, "delete_candidate_record")
     assert needs_appr_mut is True
     assert "mutation detected" in reason_mut
 
     # 4. Test action boundary - safe read-only inspection
-    needs_appr_read, _reason_read = JobDescriptionBuilder.evaluate_action_boundary(
-        spec, "read_candidate_profile"
-    )
+    needs_appr_read, _reason_read = JobDescriptionBuilder.evaluate_action_boundary(spec, "read_candidate_profile")
     assert needs_appr_read is False
 
     # 5. Test prompt contract rendering

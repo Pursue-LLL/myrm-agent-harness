@@ -61,9 +61,7 @@ class MemoryRetriever(RetrievalScoringMixin):
         if not results:
             return []
         sim_threshold = (
-            similarity_threshold
-            if similarity_threshold is not None
-            else self._config.raw_similarity_threshold
+            similarity_threshold if similarity_threshold is not None else self._config.raw_similarity_threshold
         )
         query_tokens = tokenize(query)
         scores: dict[str, float] = {}
@@ -113,9 +111,7 @@ class MemoryRetriever(RetrievalScoringMixin):
         hit_attributions: dict[str, list[HitSource]] = {}
         max_raw_scores: dict[str, float] = {}
         sim_threshold = (
-            similarity_threshold
-            if similarity_threshold is not None
-            else self._config.raw_similarity_threshold
+            similarity_threshold if similarity_threshold is not None else self._config.raw_similarity_threshold
         )
         k = self._config.rrf_k
         query_tokens = tokenize(query)
@@ -304,11 +300,7 @@ class MemoryRetriever(RetrievalScoringMixin):
                 else (
                     item_orig.raw_score
                     if item_orig.raw_score is not None
-                    else (
-                        item_orig.raw_similarity
-                        if item_orig.raw_similarity is not None
-                        else item_orig.score
-                    )
+                    else (item_orig.raw_similarity if item_orig.raw_similarity is not None else item_orig.score)
                 )
             )
             normalized_rank = min(score / max_score, 1.0)

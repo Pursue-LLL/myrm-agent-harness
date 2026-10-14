@@ -93,7 +93,11 @@ def test_hypothetical_deduction_and_action_synthesis() -> None:
 
     # Assert deduction justification exists and is concrete
     deduction = action.deduction
-    assert "400" in deduction.hypothetical_query or "lines" in deduction.hypothetical_query or len(deduction.hypothetical_query) > 5
+    assert (
+        "400" in deduction.hypothetical_query
+        or "lines" in deduction.hypothetical_query
+        or len(deduction.hypothetical_query) > 5
+    )
     assert len(deduction.improved_response_reasoning) > 10
     assert deduction.confidence_gain > 0.1
 

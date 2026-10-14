@@ -83,7 +83,7 @@ def test_synonym_expander_query_expansion_and_safe_grouping() -> None:
     assert "grpc" in expander.get_synonyms("protobuf")
 
     # 4. Safe sanitization against SQL/FTS syntax breakages
-    safe_expr, _ = expander.expand_query('auth "injection\' OR 1=1 * :')
+    safe_expr, _ = expander.expand_query("auth \"injection' OR 1=1 * :")
     assert "auth" in safe_expr
 
 

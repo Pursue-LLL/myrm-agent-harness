@@ -85,7 +85,9 @@ def test_history_context_manager() -> None:
     history.record_entry("ctx_100", "assistant", "Use host 127.0.0.1 port 6379 with standard pool.")
 
     # Record turns in context 2
-    history.record_entry("ctx_200", "user", "Docker port 6379 is already in use by postgres.", context_title="Port Conflict")
+    history.record_entry(
+        "ctx_200", "user", "Docker port 6379 is already in use by postgres.", context_title="Port Conflict"
+    )
     history.record_entry("ctx_200", "assistant", "Run lsof -i :6379 to identify the occupying PID.")
 
     contexts = history.list_contexts()

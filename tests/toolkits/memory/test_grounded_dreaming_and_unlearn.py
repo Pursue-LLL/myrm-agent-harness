@@ -136,22 +136,14 @@ class TestSurgicalSessionMemoryUnlearner:
             },
         ]
 
-        matched = SurgicalSessionMemoryUnlearner.match_session_derived_memories(
-            "target_sess", memories
-        )
+        matched = SurgicalSessionMemoryUnlearner.match_session_derived_memories("target_sess", memories)
         assert matched == ["mem_001", "mem_002", "mem_003"]
 
     def test_match_session_derived_memories_empty(self) -> None:
         assert (
-            SurgicalSessionMemoryUnlearner.match_session_derived_memories(
-                "", [{"id": "m1", "session_id": "s1"}]
-            )
-            == []
+            SurgicalSessionMemoryUnlearner.match_session_derived_memories("", [{"id": "m1", "session_id": "s1"}]) == []
         )
-        assert (
-            SurgicalSessionMemoryUnlearner.match_session_derived_memories("s1", [])
-            == []
-        )
+        assert SurgicalSessionMemoryUnlearner.match_session_derived_memories("s1", []) == []
 
     @pytest.mark.asyncio
     async def test_unlearn_session_with_deleter(self) -> None:
