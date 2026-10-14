@@ -15,15 +15,13 @@ from __future__ import annotations
 import pytest
 
 from myrm_agent_harness.toolkits.memory import (
-    AtomicMemoryMutator,
     CorrectionAckReceipt,
-    CorrectionIntentKind,
     CorrectionTargetLocalizer,
     LiveCorrectionOrchestrator,
-    MutationAction,
     NaturalLanguageCorrectionDetector,
     TargetNodeCandidate,
 )
+from myrm_agent_harness.toolkits.memory.live_correction import AtomicMemoryMutator, CorrectionIntentKind, MutationAction
 
 
 @pytest.fixture

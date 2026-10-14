@@ -237,6 +237,6 @@ class TestComputeHealthScore:
     @pytest.mark.asyncio
     async def test_public_api_import(self) -> None:
         """Verify HealthScore is importable from the public API."""
-        from myrm_agent_harness.toolkits.memory import HealthScore as PublicHealthScore
+        from myrm_agent_harness.toolkits.memory.health import HealthScore as PublicHealthScore
 
         assert PublicHealthScore is HealthScore

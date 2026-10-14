@@ -9,10 +9,10 @@ from pathlib import Path
 
 import pytest
 
-from myrm_agent_harness.toolkits.memory import (
+from myrm_agent_harness.toolkits.memory import ModelPrivateNotebookManager
+from myrm_agent_harness.toolkits.memory.private_notebook import (
     HistoryContextManager,
     LocalInspectableNoteStorage,
-    ModelPrivateNotebookManager,
     PrivateNotebookToolKit,
 )
 

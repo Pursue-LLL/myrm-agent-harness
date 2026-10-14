@@ -206,6 +206,6 @@ class TestMaintenanceCycleSnapshot:
 
 class TestPublicExport:
     def test_memory_snapshot_exported(self) -> None:
-        from myrm_agent_harness.toolkits.memory import MemorySnapshot as Exported
+        from myrm_agent_harness.toolkits.memory.health import MemorySnapshot as Exported
 
         assert Exported is MemorySnapshot

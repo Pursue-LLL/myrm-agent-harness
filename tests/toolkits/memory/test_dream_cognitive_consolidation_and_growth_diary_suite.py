@@ -9,13 +9,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from myrm_agent_harness.toolkits.memory import (
-    DreamCognitiveActionType,
-    DreamCognitivePipeline,
-    DreamMotiveType,
-    DreamSessionFragment,
-    DreamTargetMemoryType,
-)
+from myrm_agent_harness.toolkits.memory import DreamCognitivePipeline, DreamSessionFragment
+from myrm_agent_harness.toolkits.memory.dreaming import DreamCognitiveActionType, DreamMotiveType, DreamTargetMemoryType
 
 
 def test_motive_clustering_and_frequency_detection() -> None:

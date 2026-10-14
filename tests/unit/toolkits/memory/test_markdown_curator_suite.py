@@ -8,10 +8,9 @@ from myrm_agent_harness.toolkits.memory import (
     CuratedMemoryCategory,
     CuratedMemoryEntry,
     CuratedMemoryStatus,
-    MarkdownBidiSyncEngine,
-    MarkdownMemorySerializer,
     MemoryCuratorStudio,
 )
+from myrm_agent_harness.toolkits.memory.markdown_curator import MarkdownBidiSyncEngine, MarkdownMemorySerializer
 
 
 def test_markdown_serializer_roundtrip() -> None:

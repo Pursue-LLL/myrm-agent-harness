@@ -196,6 +196,6 @@ class TestRunMaintenanceCycleNeglected:
 
 class TestPublicExport:
     def test_neglected_memory_importable(self) -> None:
-        from myrm_agent_harness.toolkits.memory import NeglectedMemory as NeglectedMem
+        from myrm_agent_harness.toolkits.memory.health import NeglectedMemory as NeglectedMem
 
         assert NeglectedMem is NeglectedMemory

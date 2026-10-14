@@ -592,6 +592,6 @@ class TestRunMaintenanceCycle:
 
     @pytest.mark.asyncio
     async def test_public_api_import(self) -> None:
-        from myrm_agent_harness.toolkits.memory import MaintenanceReport as PublicReport
+        from myrm_agent_harness.toolkits.memory.health import MaintenanceReport as PublicReport
 
         assert PublicReport is MaintenanceReport

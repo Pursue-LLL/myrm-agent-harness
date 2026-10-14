@@ -3,10 +3,10 @@
 [OUTPUT]: Pytest unit tests validating cross-session dreaming consolidation, contradiction superseding, and redundancy pruning.
 """
 
-from myrm_agent_harness.toolkits.memory import (
+from myrm_agent_harness.toolkits.memory import DreamSessionFragment
+from myrm_agent_harness.toolkits.memory.dreaming import (
     AutonomousDreamingSynthesizer,
     DreamDiaryEntry,
-    DreamSessionFragment,
     DreamingMetaTools,
     MemoryPruningEngine,
     PruningDecisionKind,

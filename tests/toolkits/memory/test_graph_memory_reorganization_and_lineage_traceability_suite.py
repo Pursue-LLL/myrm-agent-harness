@@ -7,7 +7,7 @@ Harness 框架记忆图谱重组与演化溯源链单元测试套件。
 
 from __future__ import annotations
 
-from myrm_agent_harness.toolkits.memory import (
+from myrm_agent_harness.toolkits.memory.graph_reorganization import (
     GraphMemoryReorganizationEngine,
     GraphRelationType,
     MemoryGraphNode,

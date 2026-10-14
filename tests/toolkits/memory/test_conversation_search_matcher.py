@@ -6,10 +6,7 @@ context window slicing with character boundary offsets, and relevance scoring.
 
 from __future__ import annotations
 
-from myrm_agent_harness.toolkits.memory import (
-    ContextHighlight,
-    ConversationExactSearchMatcher,
-)
+from myrm_agent_harness.toolkits.memory.conversation_search import ContextHighlight, ConversationExactSearchMatcher
 
 
 class TestConversationExactSearchMatcher:

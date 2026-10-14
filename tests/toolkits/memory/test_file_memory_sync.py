@@ -287,7 +287,7 @@ def test_file_store_read_all_and_append_existing(tmp_path: Path):
 @pytest.mark.asyncio
 async def test_sync_engine_store_backend_and_factory(tmp_path: Path):
     """Verify setup_local_file_memory_sync factory and backend with store method."""
-    from myrm_agent_harness.toolkits.memory import setup_local_file_memory_sync
+    from myrm_agent_harness.toolkits.memory.setup import setup_local_file_memory_sync
 
     class FakeMemoryManager:
         def __init__(self):

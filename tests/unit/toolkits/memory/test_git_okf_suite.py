@@ -6,11 +6,10 @@ import datetime
 import time
 from pathlib import Path
 
-from myrm_agent_harness.toolkits.memory import (
+from myrm_agent_harness.toolkits.memory import OKFBundleLoader, OKFConcept
+from myrm_agent_harness.toolkits.memory.git_okf import (
     GovernanceLevel,
     InMemoryBM25Searcher,
-    OKFBundleLoader,
-    OKFConcept,
     OKFConceptValidator,
     OKFGenerated,
     OKFVerified,

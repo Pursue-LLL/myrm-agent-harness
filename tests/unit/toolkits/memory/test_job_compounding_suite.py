@@ -12,10 +12,10 @@ import pytest
 from myrm_agent_harness.toolkits.memory import (
     CompoundingMaturityTracker,
     JobDescriptionBuilder,
-    MaturityTier,
     PreferenceCompoundingEngine,
     RuleType,
 )
+from myrm_agent_harness.toolkits.memory.job_compounding import MaturityTier
 
 
 @pytest.fixture

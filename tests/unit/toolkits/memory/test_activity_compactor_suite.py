@@ -9,10 +9,9 @@ from myrm_agent_harness.toolkits.memory import (
     ActivityActionType,
     CompactorPipelineConfig,
     HierarchicalActivityCompactorPipeline,
-    MacroMilestoneDistiller,
-    MicroActivityFolder,
     RawActivityEvent,
 )
+from myrm_agent_harness.toolkits.memory.activity_compactor import MacroMilestoneDistiller, MicroActivityFolder
 
 
 def test_micro_activity_folder_debouncing_and_clustering() -> None:

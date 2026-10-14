@@ -8,10 +8,9 @@ from myrm_agent_harness.toolkits.memory import (
     DualDriveHybridMemoryEngine,
     HybridMemoryItem,
     HybridSearchResult,
-    OfflineSynonymExpander,
     RetrievalMode,
-    SqliteFts5Engine,
 )
+from myrm_agent_harness.toolkits.memory.hybrid_engine import OfflineSynonymExpander, SqliteFts5Engine
 
 
 def test_sqlite_fts5_engine_crud_and_bm25_search(tmp_path: Path) -> None:

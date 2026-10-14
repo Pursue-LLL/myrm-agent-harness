@@ -7,10 +7,10 @@ Tests Notes 5 tools, History 4 tools, LocalInspectableNoteStorage, and ModelPriv
 import tempfile
 from pathlib import Path
 
-from myrm_agent_harness.toolkits.memory import (
+from myrm_agent_harness.toolkits.memory import ModelPrivateNotebookManager
+from myrm_agent_harness.toolkits.memory.private_notebook import (
     HistoryContextManager,
     LocalInspectableNoteStorage,
-    ModelPrivateNotebookManager,
     PrivateNotebookToolKit,
 )
 
