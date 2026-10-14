@@ -9,15 +9,15 @@
 - agent.security.types::PIIAction, PrivacyPolicy, SensitivityLevel (POS: Foundation layer of the security type hierarchy.)
 
 [OUTPUT]
-- PrivacyPreview: detected level, the action the policy takes at that level, the text the model would receive, and the custom patterns that cannot match
+- PrivacyPreview: detected level, the action the policy takes at that level, the text the model would receive, and the custom patterns that cannot be used
 - preview_privacy_policy: classify a text and apply the policy to it the way a real turn does, as a pure function
 
 [POS]
 Dry run of the privacy layer for a settings page: the same classification and the same per-level action a chat turn
 applies, so the answer is the turn's answer. Nothing is recorded: no audit entry, and a pseudonymizing policy writes
 its tags to a throwaway store, so the user's real pseudonym mapping never learns a text that was only being tried.
-The regex layer is what is previewed; the LLM deep scan is not run. A custom pattern that does not compile protects
-nothing, so the preview names those patterns, for any text and also for none.
+The regex layer is what is previewed; the LLM deep scan is not run. A custom pattern that cannot be used (it does not
+compile, or is too large to build) protects nothing, so the preview names those patterns, for any text and also for none.
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ _PREVIEW_SOURCE = "privacy_preview"
 class PrivacyPreview:
     """Outcome of a dry run. ``action`` is None for a text with nothing sensitive; ``model_sees`` is None when the
     policy blocks the text, which a real turn refuses to send at all. ``ineffective_patterns`` lists the policy's
-    custom patterns that do not compile and so never match."""
+    custom patterns that cannot be used (they do not compile or are too large to build) and so never match."""
 
     level: SensitivityLevel
     action: PIIAction | None

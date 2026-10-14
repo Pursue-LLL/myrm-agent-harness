@@ -9,8 +9,9 @@ a neighbouring word of that script: ``pin`` is not in ``spinners`` and ``pass`` 
 edge is Chinese, Japanese or Korean text or punctuation (``.env``) there is no boundary to respect, so ``凤凰计划``
 matches inside a sentence and ``project`` matches between Chinese characters. A pattern is a regular expression applied
 in any case, in the syntax of the ``regex`` package (everything ``re`` accepts, plus Unicode property classes for
-Chinese text and ``(?<name>...)`` groups); one that does not compile never matches (``ineffective_patterns`` names
-them), and a match of zero length is not a span. A pattern that cannot finish a text within the time budget (a
+Chinese text and ``(?<name>...)`` groups); one that does not compile, or whose counted repeats would take more memory
+to build than a pattern is worth (``a{99999999}``), never matches (``ineffective_patterns`` names them), and a match of
+zero length is not a span. A pattern that cannot finish a text within the time budget (a
 backtracking blow-up would otherwise keep a worker and a CPU core busy for minutes) counts the whole text as its hit,
 so the text is masked rather than let through. A span that touches a marker an earlier redaction or pseudonymization wrote
 (``[PII:phone]``, ``<PHONE_NUMBER_1>``) is dropped, so applying the same rules to their own output changes nothing;
@@ -26,7 +27,7 @@ the whole-text hit of a timed-out pattern is kept, as there is no telling which 
 - CustomSpan: one hit (start, end, kind, rule, timed_out)
 - find_custom_spans: the non-overlapping spans of a text, leftmost and longest first
 - first_custom_span: the first hit in rule order, for callers that only ask whether a rule applies
-- ineffective_patterns: the patterns that do not compile and so protect nothing
+- ineffective_patterns: the patterns that cannot be used (they do not compile or are too large to build) and so protect nothing
 
 [POS]
 Single definition of custom-term matching for the privacy policy: the PII classifier, the redactor and the pseudonymizer
@@ -52,6 +53,12 @@ logger = logging.getLogger(__name__)
 # Time one pattern may take to scan one text. A legitimate pattern needs milliseconds (a 5 MB text takes ~0.15 s);
 # a backtracking blow-up has no end, so the budget bounds how long it keeps one worker and one CPU core busy.
 _PATTERN_TIMEOUT_SECONDS = 1.0
+
+# ``regex`` lays out every copy of a counted repeat when it compiles (``a{10000000}`` takes 2.7 GB where ``re`` stores the
+# count), and the repeats of one pattern multiply (``(?:a{1000}){1000}`` is a million atoms, ~300 MB). A pattern needing
+# more atoms than this is refused; real patterns need tens, and the limit keeps one compile to a few megabytes.
+_MAX_EXPANDED_ATOMS = 10_000
+_COUNTED_REPEAT = regex.compile(r"\{(\d{0,9})(?:,\d{0,9})?\}")
 
 # Characters of the scripts that separate words with spaces: a keyword edge in one of them has a word boundary.
 _SPACED_WORD = "0-9A-Za-z_\u00c0-\u00d6\u00d8-\u00f6\u00f8-\u024f\u0370-\u03ff\u0400-\u04ff"
@@ -128,7 +135,8 @@ def first_custom_span(content: str, rules: CustomRules) -> CustomSpan | None:
 
 
 def ineffective_patterns(patterns: Iterable[str]) -> tuple[str, ...]:
-    """The distinct *patterns* that do not compile: they protect nothing, and the user should be told so."""
+    """The distinct *patterns* that cannot be used, as they do not compile or are too large to build: they protect
+    nothing, and the user should be told so."""
     return tuple(pattern for pattern in dict.fromkeys(patterns) if _pattern_regex(pattern) is None)
 
 
@@ -142,10 +150,61 @@ def _keyword_regex(keyword: str) -> regex.Pattern[str]:
 @lru_cache(maxsize=512)
 def _pattern_regex(pattern: str) -> regex.Pattern[str] | None:
     # A pattern the engine rejects as malformed, too large to build or nested too deep never matches; none may raise.
+    if _expanded_atoms(pattern) > _MAX_EXPANDED_ATOMS:
+        return None
     try:
         return regex.compile(pattern, regex.IGNORECASE)
     except (regex.error, OverflowError, RecursionError):
         return None
+
+
+def _expanded_atoms(pattern: str) -> int:
+    """How many atoms *pattern* has once its counted repeats are laid out; a group repeated n times counts n times.
+
+    Only the least number of copies of a repeat matters: ``{n}``, ``{n,}`` and ``{n,m}`` lay out ``n`` of them (at least
+    one), ``?``, ``*``, ``+`` and ``{,m}`` one. The scan reads just enough of the syntax to know what a repeat applies
+    to, errs on the high side (a group header such as ``?:`` counts as atoms) and stops once the budget is spent.
+    """
+    groups = [0]  # atoms of the groups still open, the innermost last
+    last = 0  # atoms of the item a following repeat applies to
+    position = 0
+    while position < len(pattern):
+        char = pattern[position]
+        if char == "(":
+            groups.append(0)
+            position += 1
+            continue
+        if char == "{" and (repeat := _COUNTED_REPEAT.match(pattern, position)):
+            extra = last * (max(int(repeat[1] or 0), 1) - 1)
+            groups[-1] += extra
+            last += extra
+            position = repeat.end()
+        else:
+            if char == ")":
+                last = groups.pop() if len(groups) > 1 else 0
+                position += 1
+            elif char == "[":
+                last = 1
+                position = _class_end(pattern, position)
+            else:
+                last = 1
+                position += 2 if char == "\\" else 1
+            groups[-1] += last
+        if groups[-1] > _MAX_EXPANDED_ATOMS:
+            break
+    return sum(groups)
+
+
+def _class_end(pattern: str, start: int) -> int:
+    """The index just past the character class opening at *start*; the pattern's end when it never closes."""
+    position = start + 1
+    if pattern.startswith("^", position):
+        position += 1
+    if pattern.startswith("]", position):  # a leading "]" is a member, not the end
+        position += 1
+    while position < len(pattern) and pattern[position] != "]":
+        position += 2 if pattern[position] == "\\" else 1
+    return position + 1
 
 
 def _raw_spans(content: str, rules: CustomRules) -> Iterator[CustomSpan]:

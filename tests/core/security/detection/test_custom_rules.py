@@ -91,7 +91,7 @@ class TestPatterns:
 
 _EXTREME_PATTERNS = ["([", "a{99999999999}", "(" * 5000 + "a" + ")" * 5000]
 
-# Patterns users carry over from the standard-library syntax: the engine must keep matching exactly what ``re`` matched.
+# Patterns written in the standard-library syntax match exactly what ``re`` matches.
 _STANDARD_SYNTAX_CASES = [
     (r"EMP-\d{6}", "EMP-123456, emp-654321 and EMP-12"),
     (r"1[3-9]\d{9}", "call 13812345678 or 19900001111, not 12345678901"),
@@ -123,7 +123,7 @@ class TestPatternEngine:
         assert _hits("see Acme-204815", CustomRules(patterns=(r"(?i)acme-\d+",))) == ["Acme-204815"]
 
     @pytest.mark.parametrize(("pattern", "text"), _STANDARD_SYNTAX_CASES)
-    def test_a_standard_syntax_pattern_matches_where_the_re_module_did(self, pattern: str, text: str) -> None:
+    def test_a_standard_syntax_pattern_matches_where_the_re_module_matches(self, pattern: str, text: str) -> None:
         expected = [match.span() for match in re.finditer(pattern, text, re.IGNORECASE) if match.end() > match.start()]
         found = find_custom_spans(text, CustomRules(patterns=(pattern,)))
         assert [(span.start, span.end) for span in found] == expected
@@ -180,6 +180,49 @@ class TestPatternTimeout:
     def test_a_pattern_that_finishes_in_time_is_a_plain_match(self) -> None:
         spans = find_custom_spans("EMP-123456", CustomRules(patterns=(r"EMP-\d{6}",)))
         assert [(span.start, span.end, span.timed_out) for span in spans] == [(0, 10, False)]
+
+
+_TOO_LARGE_TO_BUILD = {
+    "nested_exact": r"(?:a{1000}){1000}",
+    "nested_minimum": r"(?:a{1000,}){1000,}",
+    "nested_class": r"((a|b){1000}){1000}",
+    "three_levels": r"(?:(?:a{100}){100}){100}",
+    "single_exact": r"a{10000000}",
+    "single_class": r"\d{99999999}",
+    "past_the_budget": r"a{10001}",
+}
+
+
+class TestPatternSize:
+    """The ``regex`` engine lays every copy of a counted repeat out when it compiles (``a{10000000}`` takes 2.7 GB where
+    ``re`` stores the count), so a short pattern could exhaust the memory of the whole server."""
+
+    @pytest.mark.parametrize("pattern", _TOO_LARGE_TO_BUILD.values(), ids=_TOO_LARGE_TO_BUILD.keys())
+    def test_a_pattern_too_large_to_build_is_ineffective(self, pattern: str) -> None:
+        started = time.perf_counter()
+        assert ineffective_patterns((pattern,)) == (pattern,)
+        assert find_custom_spans("aaa 123", CustomRules(patterns=(pattern,))) == []
+        assert time.perf_counter() - started < 1
+
+    @pytest.mark.parametrize(
+        "pattern",
+        [
+            r"a{10000}",
+            r"\d{17}[\dXx]",
+            r"[A-Z]{2}\d{2}[A-Z0-9]{4}\d{7}([A-Z0-9]?){0,16}",
+            r"(?:\d{3}-){3}\d{4}",
+            r"(?:\w+\s){50}",
+            r"\d{1,100000}",
+            r"[\s\S]{0,5000}",
+            r"\p{Han}{2,4}科技",
+            r"(?<code>[A-Z]{3})-\d{4}",
+            r"\[\d{4}\]\d{4}",
+            r"\{99999999\}",
+            r"[{99999999}]{3}",
+        ],
+    )
+    def test_a_realistic_counted_pattern_is_kept(self, pattern: str) -> None:
+        assert ineffective_patterns((pattern,)) == ()
 
 
 class TestAlreadyRewrittenText:

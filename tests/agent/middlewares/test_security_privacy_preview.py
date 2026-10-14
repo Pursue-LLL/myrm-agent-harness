@@ -130,12 +130,17 @@ class TestNoLiveState:
 
 
 class TestIneffectivePatterns:
-    """A pattern that does not compile protects nothing, so the settings page must be told which ones those are."""
+    """A pattern that cannot be used protects nothing, so the settings page must be told which ones those are."""
 
-    def test_a_pattern_that_does_not_compile_is_named_whatever_its_level(self) -> None:
+    def test_a_pattern_that_cannot_be_used_is_named_whatever_its_level(self) -> None:
         policy = _policy(custom_patterns_s2=("([",), custom_patterns_s3=("a{99999999999}", r"EMP-\d{6}"))
 
         assert preview_privacy_policy(SENTENCE, policy).ineffective_patterns == ("([", "a{99999999999}")
+
+    def test_a_pattern_too_large_to_build_is_named_and_never_built(self) -> None:
+        policy = _policy(custom_patterns_s3=(r"a{10000000}", r"EMP-\d{6}"))
+
+        assert preview_privacy_policy(SENTENCE, policy).ineffective_patterns == (r"a{10000000}",)
 
     def test_sound_patterns_are_not_named(self) -> None:
         policy = _policy(custom_patterns_s3=(r"EMP-\d{6}", r"\p{Han}{2,4}科技"))
