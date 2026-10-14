@@ -11,9 +11,7 @@ def test_sanitize_fts5_query_strips_dangerous_chars():
 
 def test_sanitize_fts5_preserves_quoted_phrases():
     assert sanitize_fts5_query('find "exact phrase here"') == 'find "exact phrase here"'
-    assert (
-        sanitize_fts5_query('"phrase 1" AND "phrase 2"') == '"phrase 1" AND "phrase 2"'
-    )
+    assert sanitize_fts5_query('"phrase 1" AND "phrase 2"') == '"phrase 1" AND "phrase 2"'
 
 
 def test_sanitize_fts5_quotes_hyphenated_terms():

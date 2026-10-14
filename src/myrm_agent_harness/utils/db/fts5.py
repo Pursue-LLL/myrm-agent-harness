@@ -51,7 +51,7 @@ def sanitize_fts5_query(query: str) -> str:
     # Step 1: Extract balanced double-quoted phrases and protect them
     _quoted_parts: list[str] = []
 
-    def _preserve_quoted(m: re.Match) -> str:
+    def _preserve_quoted(m: re.Match[str]) -> str:
         _quoted_parts.append(m.group(0))
         return f"\x00Q{len(_quoted_parts) - 1}\x00"
 
@@ -86,7 +86,7 @@ def sanitize_fts5_query(query: str) -> str:
     # Protect Step-5 quoted phrases first, then clean unquoted hyphens.
     _step5_quotes: list[str] = []
 
-    def _protect_step5(m: re.Match) -> str:
+    def _protect_step5(m: re.Match[str]) -> str:
         _step5_quotes.append(m.group(0))
         return f"\x01P{len(_step5_quotes) - 1}\x01"
 
