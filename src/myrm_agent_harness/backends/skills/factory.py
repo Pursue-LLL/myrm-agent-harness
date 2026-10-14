@@ -67,7 +67,7 @@ class SkillBackend:
         storage: "StorageProvider",
         skills_prefix: str = "/skills",
         default_trust: "SkillTrust | None" = None,
-    ) -> "SkillBackend":
+    ) -> "SkillBackendProtocol":
         """创建存储技能后端
 
         Args:
