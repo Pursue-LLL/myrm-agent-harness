@@ -4,19 +4,19 @@ Classification asks whether a rule hits, redaction replaces the spans and pseudo
 three read the spans found here, so a term that is detected is a term that is masked.
 
 A keyword matches in any case, at every occurrence; the space of a keyword of several words stands for any run of
-whitespace (a line break, a tab, a no-break space), as a pasted text wraps lines. Where its first or last character belongs to a script that
-separates words with spaces (ASCII letters and digits, underscore, Latin, Greek, Cyrillic) the match must not run into
-a neighbouring word of that script: ``pin`` is not in ``spinners`` and ``pass`` is not in ``password123``. Where the
-edge is Chinese, Japanese or Korean text or punctuation (``.env``) there is no boundary to respect, so ``凤凰计划``
-matches inside a sentence and ``project`` matches between Chinese characters. A pattern is a regular expression applied
-in any case, in the syntax of the ``regex`` package (everything ``re`` accepts, plus Unicode property classes for
-Chinese text and ``(?<name>...)`` groups); one that does not compile, or whose counted repeats would take more memory
-to build than a pattern is worth (``a{99999999}``), never matches (``ineffective_patterns`` names them), and a match of
-zero length is not a span. A pattern that cannot finish a text within the time budget (a
-backtracking blow-up would otherwise keep a worker and a CPU core busy for minutes) counts the whole text as its hit,
-so the text is masked rather than let through. A span that touches a marker an earlier redaction or pseudonymization wrote
-(``[PII:phone]``, ``<PHONE_NUMBER_1>``) is dropped, so applying the same rules to their own output changes nothing;
-the whole-text hit of a timed-out pattern is kept, as there is no telling which part of the text it would have matched.
+whitespace (a line break, a tab, a no-break space), as a pasted text wraps lines. Where its first or last character
+belongs to a script that separates words with spaces (ASCII letters and digits, underscore, Latin, Greek, Cyrillic) the
+match must not run into a neighbouring word of that script: ``pin`` is not in ``spinners`` and ``pass`` is not in
+``password123``. Where the edge is Chinese, Japanese or Korean text or punctuation (``.env``) there is no boundary to
+respect, so ``凤凰计划`` matches inside a sentence and ``project`` matches between Chinese characters. A pattern is a
+regular expression applied in any case, in the syntax of the ``regex`` package (everything ``re`` accepts, plus Unicode
+property classes for Chinese text and ``(?<name>...)`` groups); one that does not compile, or whose counted repeats
+would take more memory to build than a pattern is worth (``a{99999999}``), never matches (``ineffective_patterns``
+names them), and a match of zero length is not a span. A pattern that cannot finish a text within the time budget (a
+backtracking blow-up would otherwise keep a worker and a CPU core busy for minutes) counts the whole text as its hit, so
+the text is masked rather than let through. A span that touches a marker an earlier redaction or pseudonymization wrote
+(``[PII:phone]``, ``<PHONE_NUMBER_1>``) is dropped, so applying the same rules to their own output changes nothing; the
+whole-text hit of a timed-out pattern is kept, as there is no telling which part of the text it would have matched.
 
 [INPUT]
 - core.security.detection.pseudonym_store::_PSEUDONYM_RE (POS: Local SQLite store for reversible PII pseudonymization. Maps original_text to typed placeholders (<TYPE_N>) with cross-session persistence.)
@@ -66,6 +66,9 @@ _REPEAT_SYNTAX = regex.compile(r"[\\\[(){]")  # the characters the repeat scan m
 # Characters of the scripts that separate words with spaces: a keyword edge in one of them has a word boundary.
 _SPACED_WORD = "0-9A-Za-z_\u00c0-\u00d6\u00d8-\u00f6\u00f8-\u024f\u0370-\u03ff\u0400-\u04ff"
 _SPACED_WORD_CHAR = regex.compile(f"[{_SPACED_WORD}]")
+
+# A keyword is cut into words at the whitespace the match accepts between them, not at ``str.split`` whitespace.
+_WHITESPACE_RUN = regex.compile(r"\s+")
 
 # What the redactor and the leak detector write ("[REDACTED] [PII:custom]", "[REDACTED:key]") and the pseudonym tags.
 _MARKER_RE = regex.compile(rf"\[(?:REDACTED|PII)[^\]\n]{{0,40}}\]|{_PSEUDONYM_RE.pattern}")
@@ -144,11 +147,13 @@ def ineffective_patterns(patterns: Iterable[str]) -> tuple[str, ...]:
 
 
 @lru_cache(maxsize=512)
-def _keyword_regex(keyword: str) -> regex.Pattern[str]:
-    words = keyword.split()
+def _keyword_regex(keyword: str) -> regex.Pattern[str] | None:
+    # The space of a multi-word keyword stands for any run of whitespace: pasted text wraps lines, uses no-break spaces.
+    words = [word for word in _WHITESPACE_RUN.split(keyword) if word]
+    if not words:
+        return None
     head = f"(?<![{_SPACED_WORD}])" if _SPACED_WORD_CHAR.match(words[0][0]) else ""
     tail = f"(?![{_SPACED_WORD}])" if _SPACED_WORD_CHAR.match(words[-1][-1]) else ""
-    # The space of a multi-word keyword stands for any run of whitespace: a pasted text wraps lines and uses no-break spaces.
     return regex.compile(head + r"\s+".join(map(regex.escape, words)) + tail, regex.IGNORECASE)
 
 
@@ -222,9 +227,11 @@ def _class_end(pattern: str, start: int) -> int:
 
 def _raw_spans(content: str, rules: CustomRules) -> Iterator[CustomSpan]:
     for keyword in rules.keywords:
-        if keyword.strip():
-            for match in _keyword_regex(keyword).finditer(content):
-                yield CustomSpan(match.start(), match.end(), "keyword", keyword)
+        compiled_keyword = _keyword_regex(keyword)
+        if compiled_keyword is None:
+            continue
+        for match in compiled_keyword.finditer(content):
+            yield CustomSpan(match.start(), match.end(), "keyword", keyword)
     for index, pattern in enumerate(rules.patterns):
         compiled = _pattern_regex(pattern)
         if compiled is None:

@@ -49,7 +49,7 @@ from myrm_agent_harness.core.security.detection.pii_classifier import (
 
 
 def _redact_china_phone(m: re.Match[str]) -> str:
-    number = re.sub(r"\D", "", m.group(0))[-11:]  # without the +86 the pattern may carry
+    number = re.sub(r"\D", "", m.group(0))[-11:]  # the match may start with the +86 country code
     return f"{number[:3]}****{number[-4:]} [PII:phone]"
 
 

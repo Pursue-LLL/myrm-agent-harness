@@ -168,6 +168,11 @@ class TestCustomKeywords:
         result = classify_content("请发 微信号 给我", policy)
         assert result.level == SensitivityLevel.S2
 
+    def test_a_multi_word_s3_keyword_split_by_a_line_break_is_s3(self) -> None:
+        policy = PrivacyPolicy(enabled=True, custom_keywords_s3=("Project Atlas",))
+        result = classify_content("see Project\nAtlas now", policy)
+        assert result.level == SensitivityLevel.S3
+
     def test_custom_s3_pattern(self) -> None:
         policy = PrivacyPolicy(enabled=True, custom_patterns_s3=(r"PROJ-\d{6}",))
         result = classify_content("project PROJ-123456", policy)

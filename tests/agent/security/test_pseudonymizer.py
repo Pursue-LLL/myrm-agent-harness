@@ -290,6 +290,13 @@ class TestPseudonymizingCustomRules:
         assert result.count == 1
         assert store.resolve_all(result.text) == "帮我总结凤凰计划Q3预算，发给李总"
 
+    def test_a_multi_word_keyword_split_by_a_line_break_restores_with_its_break(self, store: PseudonymStore) -> None:
+        rules = CustomRules(keywords=("Project Atlas",))
+        result = pseudonymize_text("see Project\nAtlas now", store, SensitivityLevel.S3, rules)
+
+        assert result.text == "see <CUSTOM_KEYWORD_1> now"
+        assert store.resolve_all(result.text) == "see Project\nAtlas now"
+
     def test_the_same_keyword_gets_the_same_tag_everywhere(self, store: PseudonymStore) -> None:
         result = pseudonymize_text("凤凰计划的预算，凤凰计划的人员", store, SensitivityLevel.S3, self._KEYWORD)
 

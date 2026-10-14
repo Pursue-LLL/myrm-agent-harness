@@ -111,7 +111,10 @@ class TestKeywordWhitespace:
         assert _hits("price (a+b)*\nx total", _keywords("(a+b)* x")) == ["(a+b)*\nx"]
 
     def test_a_blank_keyword_never_matches(self) -> None:
-        assert find_custom_spans("a b\n c", _keywords(" ", "\n\t")) == []
+        assert find_custom_spans("a b\n c", _keywords(" ", "\n\t", "")) == []
+
+    def test_a_control_character_that_is_not_matched_as_whitespace_stays_part_of_the_keyword(self) -> None:
+        assert _hits("code a\x1cb here", _keywords("a\x1cb")) == ["a\x1cb"]
 
 
 class TestPatterns:
