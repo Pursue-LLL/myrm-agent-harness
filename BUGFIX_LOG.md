@@ -2,6 +2,22 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-14-011 · 隐私层的"按级别生效"不成立、银行卡与手机号漏检：一条消息同时含 S3 与 S2 内容时，S3 的脱敏把 S2 一并抹掉（S2=warn 形同虚设），S2=block 时没有 S2 内容也被拦；万事达 2 系 / JCB / Discover / Amex 分组写法、带有效期的卡号、美国本地写法的手机号、万事达 Maestro / Mir / RuPay / Troy 与带笔误的卡号都漏进模型
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-14（隐私层终审阶段，沿"用户在设置里选的每级动作到底作用在哪段文本上"追查；每条都用真实的 `classify_content` / `redact_pii` / `apply_pii_actions` / `pseudonymize_text` 调用复现，先在改动前的源码副本上看红，再改，再量） |
+| **修复时间** | 2026-10-14 |
+| **症状** | ① 默认策略（S2=warn、S3=redact）下，含身份证与手机号 / 邮箱的消息，手机号与邮箱也被打码（日志 `Redacted 3 s3 items`），S2=warn 的"只记录不改动"没有兑现；反过来 S2=redact 时，同一条消息里的 S3 内容（卡号、密码）也被 S2 这一步抹掉；② 策略 S2=block、消息只含 S3 内容时，也被当作含 S2 内容而拦截，拦截提示写成 `s3-level`；③ 万事达 2 系（2221–2720）、JCB、Discover、Amex 的 4-6-5 分组写法不被识别；`card 4532 0151 1283 0366 12/28` 把有效期的 `12` 吞进第五组，Luhn 校验失败，整张卡只算 S2 的"可见卡号"；④ 美国本地写法 `(415) 555-2671` / `415-555-2671` 不是敏感信息；⑤ Maestro / Mir / RuPay / Troy 号段与带笔误的卡号即使写着"card number is"也原样送进模型；⑥ 脱敏返回的计数把"校验不过、没有改动"的匹配也算进去（对已脱敏文本再脱敏一次，计数仍不为 0） |
+| **关联产品** | myrm-agent-harness `core/security/detection`（`pii_classifier`、`pii_patterns`、`card_context`、`pseudonymizer`）、`agent/security/detection/pii_redactor`、`agent/middlewares/security`（`pii_actions`、`user_input_guard`、`privacy_preview`）、`agent/middlewares/tooling/_tool_helpers`；server 设置页的隐私预览（`POST /config/privacy-preview`）随同一函数得到修正，server 代码未改 |
+| **根因** | ① `redact_pii` 不分级别，一次把 S3 与 S2 的规则全跑完；`apply_pii_actions` 逐级调用时，每一级的动作都作用在两级的全部内容上；② `levels_to_process` 对检出 S3 的文本一律追加 S2，不看文本里有没有 S2 内容；③ 银行卡号段只收 `62|4\d|5[1-5]|3[47]`，第五组写成 `\d{1,3}` 会吞掉有效期；④ 美国手机号只有带 `+1` 的国际写法；⑤ 号段表是封闭集合，Luhn 通不过就丢弃，没有"文本自己说这是卡号"这条证据；⑥ 流水线对匹配计数，不看校验器是否把它原样放回 |
+| **修复** | ① `redact_pii(content, custom, levels)` 只跑所给级别的规则（默认两级，行为不变），`apply_pii_actions` 逐级只传该级；② `levels_to_process(content, level, policy)` 仅当 S2 的动作不是 warn 且文本里确有 S2 内容（新增 `contains_level`）才追加 S2；拦截提示取动作为 block 的那一级，预览同理；③ 号段改为 Visa 4、万事达 51–55 与 2221–2720、银联 62、Amex 34/37、JCB 3528–3589、Discover 6011/644–649/65，整段 15–19 位或同一分隔符分组（4-4-4-4；银联第五组恰好 3 位，先于 16 位分支尝试；Amex 4-6-5），有效期不再并入；④ 新增 `us_phone`（区号与交换码不以 0/1 开头，可带 `1-` 前缀；`+<国家码>` 之后留给国际号码规则，同一个号码不会被两条规则各找一次）；⑤ 新增 `card_context.find_card_number_spans`：卡关键词（`银行卡/信用卡/储蓄卡/借记卡/卡号/bank card/credit card/debit card/card number/card no`，裸 `card` 不算）后 16 个非数字字符以内的卡号形状（13–19 位连写、4-4-4-4、4-6-5/4-6-4），分类器记为 S3 `bank_card_context`，脱敏与可逆替换共用同一函数；⑥ `_apply_redactions` 对校验器不改动的匹配既不替换也不计数；⑦ 模式表与校验器搬到 `pii_patterns.py`（公开名，`pii_classifier.py` 461 → 302 行），模式与表逐项比对一致 |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | ① 起初想给 `PrivacyPolicy` 加 `action_at` 方法，被只带 `s3_action/s2_action` 属性的 MagicMock 策略的现有用例拦下，改成 `pii_actions.action_at` 模块函数；② 原型把卡片关键词后的数字写成 `\d(?:[ -]?\d){11,18}`，会把有效期 `12` 吞进卡号、还会把 12 位会员卡当成卡，改为按形状匹配；③ 带有效期的卡号漏检不是号段问题：实测 `card 4532 0151 1283 0366 12/28` 对 Visa 也只得 S2，才与号段一起改正则；④ 新模式一度让 2 万字符无 PII 文本的 classify+redact 慢约 10–13%（26.6–27.5 ms 对 24.2–24.4 ms），拆开量：银行卡正则 0.91 ms、关键词扫描 0.74 ms，分别加"先看是不是数字"与"先看有没有 卡/card"两道廉价前置，spans 逐项一致，回到噪声以内（24.7–25.4 ms）；⑤ 机器负载均值 60+ 时 `TestLinearTime` 与计时类用例会随机红，与本改动无关（`scan_for_leaks` / `redact_leaks` 不经过这些模块） |
+| **回归** | `tests/agent/middlewares/test_security_pii_level_scope.py` 17 例（按级别脱敏、S2 存在性检查、拦截提示与预览）· `tests/agent/security/test_pii_card_brands.py` 50 例（每个网络与号段边界、越界与 Luhn 失败的反例、有效期不被吞、二次脱敏不变、替换后可还原；初版 46 例在改动前 27 红 19 绿）· `test_pii_us_phone.py` 60 例（写法、`+1`/其他国家码的去重、非号码反例；初版 55 例在改动前 28 红 27 绿）· `test_pii_card_context.py` 59 例（其他网络与笔误卡号、中英关键词、反例含裸 `card`/`discard number`/12 位/20 位/换行/过远；改动前 37 红 22 绿）· 周边套件 `tests/agent/security`、`tests/core/security`、`tests/agent/middlewares`、`tests/api/test_integration_surface.py`、`tests/toolkits/memory/test_memory_scanner.py` 全绿，server 隐私相关 128 例全绿（针对本地 harness）；其余红的两例 `test_skill_agent_privacy_context.py::TestCleanupSessionPrivacy::test_auto_extract_*` 在改动前的源码上同样红 |
+| **代码位置** | `agent/security/detection/pii_redactor.py::redact_pii`（`levels`）、`::_apply_redactions` · `agent/middlewares/security/pii_actions.py::action_at/levels_to_process` · `core/security/detection/pii_classifier.py::contains_level/_classification_at` · `core/security/detection/pii_patterns.py::BANK_CARD_RE/US_PHONE_RE` · `core/security/detection/card_context.py::find_card_number_spans` |
+
 ### BUG-HARNESS-2026-10-14-010 · 公网跳转器能把云托管浏览器带到环回 / 内网页并读出内容：文档注入路由在驱动里吞掉重定向、地址栏仍是公网 URL；本地模式没有任何私网与元数据防护；web_fetch 的 SSRF 拦截被降级到下一层绕过
 
 | 字段 | 内容 |
