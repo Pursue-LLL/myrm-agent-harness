@@ -70,6 +70,13 @@ class TestCards:
     def test_digits_that_fail_the_check_or_have_another_length_are_not_a_card(self, statement: str) -> None:
         assert _GATE.inspect(statement).is_clean
 
+    @pytest.mark.parametrize(
+        "statement",
+        ["in 2026 5018 5260 1815 9080", "room 1204 5018 5260 1815 9080", "ref 2026-5018-5260-1815-9080"],
+    )
+    def test_a_card_typed_after_another_group_of_four_is_still_found(self, statement: str) -> None:
+        assert _rules(statement) == ["credit_card"]
+
     def test_a_card_beside_an_iban_is_still_a_card(self) -> None:
         assert _rules("pay DE89 3704 0044 0532 0130 00 or card 4111 1111 1111 1111") == ["iban", "credit_card"]
 
@@ -172,6 +179,11 @@ class TestMasking:
 
         assert result.sanitized_text == "order 1234567890123456 shipped; card [credit_card_REDACTED]"
 
+    def test_a_card_typed_after_another_group_of_four_is_replaced_and_that_group_is_kept(self) -> None:
+        result = _MASKING_GATE.inspect("in 2026 5018 5260 1815 9080")
+
+        assert result.sanitized_text == "in 2026 [credit_card_REDACTED]"
+
     def test_an_iban_is_replaced_and_a_courier_number_beside_it_is_kept(self) -> None:
         result = _MASKING_GATE.inspect("pay to DE89 3704 0044 0532 0130 00 and ref SF1234567890123")
 
@@ -233,7 +245,7 @@ class TestAgreementWithThePrivacyPipeline:
 
 class TestLongStatements:
     def test_a_long_statement_full_of_hits_is_screened_in_bounded_time(self) -> None:
-        # Resolving which hit owns which characters once compared every hit with every other: 20,000 cards took 17 s.
+        # A statement may be of any length, so the cost of telling the hits apart must not grow with the square of their number.
         hits = 20_000
         statement = "card 4111 1111 1111 1111 ok. " * hits
 

@@ -10,7 +10,9 @@ are. This is the complement: any plausible card-number shape right after a card 
 [OUTPUT]
 - find_card_number_spans(): sorted (start, end) spans of the card numbers a text introduces as a card, the number
   itself and never the keyword or the expiry date and CVV typed after it
-- find_card_shaped_spans(): sorted (start, end) spans of every digit run shaped like a card number, introduced or not
+- find_card_shaped_spans(): (start, end) spans, sorted by start, of every digit run shaped like a card number, introduced
+  or not; a grouped number is also found from each later group, so a card typed right after another group of four is
+  not hidden behind it
 
 [POS]
 Keyword-anchored detector for card numbers outside the network prefix table or with a typo in them. The keyword is
@@ -43,7 +45,9 @@ _CARD_NUMBER = (
     r")(?!\d)"
 )
 
-_CARD_SHAPE_RE = re.compile(_CARD_NUMBER)
+# Looked for at every start, overlapping: in "2026 5018 5260 1815 9080" the card is the last four groups, and a match
+# from the leftmost start would take the first four.
+_CARD_SHAPE_RE = re.compile(rf"(?=(?P<shape>{_CARD_NUMBER}))")
 
 # A few words between keyword and number ("card number is", "bank card (Maestro):"), never a digit or a line break.
 _CARD_CONTEXT_RE = re.compile(rf"{_CARD_KEYWORD}[^\d\n]{{0,16}}(?P<number>{_CARD_NUMBER})", re.IGNORECASE)
@@ -59,5 +63,5 @@ def find_card_number_spans(text: str) -> list[Span]:
 
 
 def find_card_shaped_spans(text: str) -> list[Span]:
-    """Spans of every digit run in *text* shaped like a card number, in text order."""
-    return [match.span() for match in _CARD_SHAPE_RE.finditer(text)]
+    """Spans of every digit run in *text* shaped like a card number, sorted by start; they may overlap."""
+    return [match.span("shape") for match in _CARD_SHAPE_RE.finditer(text)]
