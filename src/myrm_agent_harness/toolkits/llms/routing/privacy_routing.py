@@ -33,7 +33,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import AsyncIterator, Iterator, Sequence
-from typing import Any
+from typing import Any, cast
 
 from langchain_core.callbacks import (
     AsyncCallbackManagerForLLMRun,
@@ -94,7 +94,7 @@ class PrivacyRoutingModel(BaseChatModel):
                 bound.local_llm = self.local_llm.bind_tools(tools, **kwargs)  # type: ignore[assignment]
             except Exception:
                 logger.debug("Local model does not support bind_tools, using unbound")
-        return bound  # type: ignore[return-value]
+        return bound
 
     def _resolve_target(self) -> tuple[BaseChatModel, str]:
         """Determine which model to route to based on current privacy level.
@@ -173,14 +173,18 @@ class PrivacyRoutingModel(BaseChatModel):
         except Exception:
             pass
 
-    def _get_target_and_kwargs(self, target: Any, kwargs: dict[str, Any]) -> tuple[Any, dict[str, Any]]:
+    def _get_target_and_kwargs(
+        self, target: BaseChatModel, kwargs: dict[str, Any]
+    ) -> tuple[BaseChatModel, dict[str, Any]]:
+        """Unwrap ``bind_tools`` bindings to the chat model, folding the bound kwargs into the call kwargs."""
         target_kwargs = kwargs.copy()
-        actual_target = target
+        # After bind_tools a target is a RunnableBinding chain around the chat model, which type-checks as the model.
+        actual_target: Any = target
         while hasattr(actual_target, "bound"):
             if hasattr(actual_target, "kwargs"):
                 target_kwargs.update(actual_target.kwargs)
             actual_target = actual_target.bound
-        return actual_target, target_kwargs
+        return cast(BaseChatModel, actual_target), target_kwargs
 
     def _generate(
         self,

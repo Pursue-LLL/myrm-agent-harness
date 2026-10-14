@@ -8,6 +8,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, AIMessageChunk, BaseMessage, HumanMessage
 from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult
 
+from myrm_agent_harness.agent.security.audit import get_audit_entries, reset_audit_log
 from myrm_agent_harness.agent.security.types import PrivacyRoutingConfig, SensitivityLevel
 from myrm_agent_harness.toolkits.llms.routing.privacy_routing import PrivacyRoutingModel
 
@@ -472,6 +473,13 @@ class TestRecordRoutingDecision:
         """_record_routing_decision should not raise even if audit module fails."""
         router = _make_router()
         router._record_routing_decision("cloud(s1_safe)")
+
+    def test_routing_decision_is_written_to_the_audit_log(self):
+        """The route label lands in the session audit log as a ``PRIVACY_ROUTE`` decision."""
+        reset_audit_log()
+        _make_router()._record_routing_decision("local(s3_forced)")
+        entries = [entry for entry in get_audit_entries() if entry.tool_name == "model_routing"]
+        assert [(entry.decision, entry.reason) for entry in entries] == [("PRIVACY_ROUTE", "local(s3_forced)")]
 
     def test_record_routing_graceful_on_missing_sink(self):
         """_record_routing_decision should not raise even if progress sink is unavailable."""
