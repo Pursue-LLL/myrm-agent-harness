@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from myrm_agent_harness.toolkits.memory._internal.storage import (
+from myrm_agent_harness.toolkits.memory._internal.storage_by_type import (
     _SORT_FIELD_MAP,
     count_by_type,
     list_by_type,

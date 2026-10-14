@@ -1,4 +1,4 @@
-"""Unit tests for Git adaptive repository sync policy and pitfall memory creation."""
+"""Unit tests for Git adaptive repository sync policy."""
 
 from __future__ import annotations
 
@@ -6,15 +6,9 @@ import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from myrm_agent_harness.toolkits.code_execution.git_digest import (
     RepoSyncDecision,
     evaluate_repo_sync_policy,
-)
-from myrm_agent_harness.toolkits.memory.types import (
-    EpisodicMemory,
-    create_pitfall_memory,
 )
 
 
@@ -164,70 +158,3 @@ def test_evaluate_repo_sync_policy_diverged_history(tmp_path: Path) -> None:
     assert decision.sync_recommended is True
     assert decision.reason in ("diverged_or_rebased_history", "baseline_diverged_or_shallow")
     assert decision.ahead_commits_count == -1
-
-
-def test_create_pitfall_memory_success() -> None:
-    memory = create_pitfall_memory(
-        content="Docker in-container network binding failed on 0.0.0.0:8080 due to permission deny",
-        failure_reason="Rootless container cannot bind privileged ports without CAP_NET_BIND_SERVICE",
-        negative_lesson="Do not attempt binding ports < 1024 or host loopback inside non-root execution sandbox",
-        subtask_phase="verify",
-        confidence_tier="strong",
-        relation_category="same_problem",
-        importance=0.9,
-        related_entities=["Docker", "Sandbox"],
-        source_chat_id="chat-123",
-        source_message_id="msg-456",
-    )
-
-    assert isinstance(memory, EpisodicMemory)
-    assert memory.is_failure_attempt is True
-    assert memory.failure_reason == "Rootless container cannot bind privileged ports without CAP_NET_BIND_SERVICE"
-    assert "Do not attempt" in (memory.negative_lesson or "")
-    assert memory.subtask_phase == "verify"
-    assert memory.confidence_tier == "strong"
-    assert memory.relation_category == "same_problem"
-    assert memory.importance == 0.9
-    assert memory.related_entities == ["Docker", "Sandbox"]
-    assert memory.source_chat_id == "chat-123"
-
-
-def test_create_pitfall_memory_validation_errors() -> None:
-    with pytest.raises(ValueError, match="content"):
-        create_pitfall_memory(
-            content="   ",
-            failure_reason="reason",
-            negative_lesson="lesson",
-        )
-
-    with pytest.raises(ValueError, match="failure_reason"):
-        create_pitfall_memory(
-            content="valid content",
-            failure_reason="",
-            negative_lesson="lesson",
-        )
-
-    with pytest.raises(ValueError, match="negative_lesson"):
-        create_pitfall_memory(
-            content="valid content",
-            failure_reason="valid reason",
-            negative_lesson="  \n\t ",
-        )
-
-
-def test_create_pitfall_memory_importance_clamping() -> None:
-    mem_high = create_pitfall_memory(
-        content="content",
-        failure_reason="reason",
-        negative_lesson="lesson",
-        importance=1.5,
-    )
-    assert mem_high.importance == 1.0
-
-    mem_low = create_pitfall_memory(
-        content="content",
-        failure_reason="reason",
-        negative_lesson="lesson",
-        importance=-0.5,
-    )
-    assert mem_low.importance == 0.0

@@ -1,7 +1,7 @@
 """Unit tests for CrossTaskRelationConfidenceTierPack (Roadmap Item 26).
 
 Validates:
-1. EpisodicMemory and EpisodicRelation schema extensions:
+1. EpisodicMemory schema extensions:
    - confidence_tier (strong / weak / shadow)
    - relation_category (same_work_item, same_problem, reusable_sop, shadow_context)
 2. Action execution guard in memory_context_format.py:
@@ -18,7 +18,6 @@ from myrm_agent_harness.agent.middlewares.memory_context.memory_context_format i
 )
 from myrm_agent_harness.toolkits.memory.types import (
     EpisodicMemory,
-    EpisodicRelation,
     MemoryType,
 )
 
@@ -38,19 +37,6 @@ def test_episodic_memory_confidence_tier_assignment() -> None:
     )
     assert ep.confidence_tier == "shadow"
     assert ep.relation_category == "shadow_context"
-
-
-def test_episodic_relation_confidence_tier_schema() -> None:
-    rel = EpisodicRelation(
-        source_memory_id="mem-1",
-        target_memory_id="mem-2",
-        relation_type="cross_task_reference",
-        confidence_tier="weak",
-        relation_category="same_problem",
-    )
-    assert rel.confidence_tier == "weak"
-    assert rel.relation_category == "same_problem"
-    assert rel.weight == 1.0
 
 
 def test_memory_context_format_action_execution_guard() -> None:
@@ -147,7 +133,7 @@ def test_failure_attempt_takes_precedence_over_weak_tier() -> None:
         ]
     }
     ctx: dict[str, object] = {}
-    stable, untrusted, _accepted = _format_memory_context(ctx, learned, memory_search_enabled=False)
+    _stable, untrusted, _accepted = _format_memory_context(ctx, learned, memory_search_enabled=False)
 
     assert untrusted is not None
     # Must enter Failed Attempts section

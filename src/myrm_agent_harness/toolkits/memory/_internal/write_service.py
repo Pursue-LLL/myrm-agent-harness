@@ -3,6 +3,7 @@
 
 [INPUT]
 - memory._internal.storage::{store_*} (POS: internal vector storage operations)
+- memory._internal.dedup_funcs::{SemanticDedupFunc, EpisodicDedupFunc} (POS: batch deduplication callable types)
 - memory._internal.memory_scanner::scan_and_clean_memory (POS: content safety scanner)
 - memory.transient_fact_boundary::filter_transient_business_memories (POS: L3 write gate for transient business facts)
 - memory.strategies.deduplicator::Deduplicator (POS: three-layer dedup: hash→vector→LLM)
@@ -24,7 +25,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
-from myrm_agent_harness.toolkits.memory._internal.maintenance import dedup_semantics
+from myrm_agent_harness.toolkits.memory._internal.dedup_funcs import EpisodicDedupFunc, SemanticDedupFunc
 from myrm_agent_harness.toolkits.memory._internal.memory_scanner import (
     MemoryTaintedError,
     scan_and_clean_memory,
@@ -35,9 +36,6 @@ from myrm_agent_harness.toolkits.memory._internal.scope import (
 )
 from myrm_agent_harness.toolkits.memory._internal.storage import MemoryError
 from myrm_agent_harness.toolkits.memory.config import MemoryConfig
-from myrm_agent_harness.toolkits.memory.protocols.cache import EmbeddingCacheProtocol
-from myrm_agent_harness.toolkits.memory.protocols.embedding import EmbeddingProtocol
-from myrm_agent_harness.toolkits.memory.protocols.vector import VectorStoreProtocol
 from myrm_agent_harness.toolkits.memory.strategies.exact_fact import ExactFactClassifier
 from myrm_agent_harness.toolkits.memory.types import (
     AnyMemory,
@@ -54,8 +52,6 @@ logger = logging.getLogger(__name__)
 
 ApprovalSubmitFunc = Callable[[AnyMemory], Awaitable[str]]
 BindScopeFunc = Callable[[AnyMemory], AnyMemory]
-SemanticDedupFunc = Callable[[list[SemanticMemory]], Awaitable[list[SemanticMemory]]]
-EpisodicDedupFunc = Callable[[list[EpisodicMemory]], Awaitable[list[EpisodicMemory]]]
 
 
 @dataclass(slots=True)
@@ -469,37 +465,3 @@ class MemoryWriter:
                 "Downgraded AGENT_SELF rule from CRITICAL to HIGH: %s",
                 memory.content[:60],
             )
-
-
-def build_semantic_deduplicator(
-    *,
-    vector: VectorStoreProtocol | None,
-    embedding: EmbeddingProtocol | None,
-    config: MemoryConfig,
-    cache: EmbeddingCacheProtocol | None,
-    deduplicator: object | None,
-) -> SemanticDedupFunc:
-    async def deduplicate(memories: list[SemanticMemory]) -> list[SemanticMemory]:
-        if not memories or vector is None or embedding is None:
-            return memories
-        if deduplicator is not None:
-            return await deduplicator.deduplicate_batch(memories, vector, embedding, config, cache)
-        return await dedup_semantics(memories, vector, embedding, config, cache)
-
-    return deduplicate
-
-
-def build_episodic_deduplicator(
-    *,
-    vector: VectorStoreProtocol | None,
-    embedding: EmbeddingProtocol | None,
-    config: MemoryConfig,
-    cache: EmbeddingCacheProtocol | None,
-    deduplicator: object | None,
-) -> EpisodicDedupFunc:
-    async def deduplicate(memories: list[EpisodicMemory]) -> list[EpisodicMemory]:
-        if not memories or vector is None or embedding is None or deduplicator is None:
-            return memories
-        return await deduplicator.deduplicate_batch(memories, vector, embedding, config, cache)
-
-    return deduplicate

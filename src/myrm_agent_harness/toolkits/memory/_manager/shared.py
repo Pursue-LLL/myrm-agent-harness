@@ -27,6 +27,10 @@ from typing import TYPE_CHECKING
 
 from langchain_core.language_models import BaseChatModel
 
+from myrm_agent_harness.toolkits.memory._internal.dedup_funcs import (
+    build_episodic_deduplicator,
+    build_semantic_deduplicator,
+)
 from myrm_agent_harness.toolkits.memory._internal.governance_service import (
     GovernanceService,
 )
@@ -66,11 +70,7 @@ from myrm_agent_harness.toolkits.memory._internal.storage import (
     store_semantics_batch,
     update_vector_memory,
 )
-from myrm_agent_harness.toolkits.memory._internal.write_service import (
-    MemoryWriter,
-    build_episodic_deduplicator,
-    build_semantic_deduplicator,
-)
+from myrm_agent_harness.toolkits.memory._internal.write_service import MemoryWriter
 from myrm_agent_harness.toolkits.memory.backup import (
     BackupMetadata,
     BackupResult,
