@@ -14,7 +14,11 @@ import pytest
 from langchain_core.messages import HumanMessage
 
 from myrm_agent_harness.agent.middlewares._session_context import set_pseudonym_store
-from myrm_agent_harness.agent.middlewares.security.pii_actions import apply_privacy_policy, levels_to_process
+from myrm_agent_harness.agent.middlewares.security.pii_actions import (
+    apply_privacy_policy,
+    blocking_level,
+    levels_to_process,
+)
 from myrm_agent_harness.agent.middlewares.security.privacy_preview import preview_privacy_policy
 from myrm_agent_harness.agent.middlewares.security.user_input_guard import screen_user_input
 from myrm_agent_harness.agent.security.detection.pii_redactor import redact_pii
@@ -172,3 +176,46 @@ class TestABlockNeedsTheLevelToBePresent:
         assert CARD not in card_only.model_sees
         assert mixed.action == PIIAction.BLOCK
         assert mixed.model_sees is None
+
+    def test_the_settings_preview_names_the_level_that_blocks(self) -> None:
+        """The level shown next to a block is the one a real turn reports, not the text's highest level."""
+        mixed = preview_privacy_policy(MIXED, self.policy)
+        s3_blocks = preview_privacy_policy(MIXED, _policy(PIIAction.REDACT, PIIAction.BLOCK))
+
+        assert (mixed.level, mixed.action) == (S2, PIIAction.BLOCK)
+        assert (s3_blocks.level, s3_blocks.action) == (S3, PIIAction.BLOCK)
+
+
+class TestBlockingLevel:
+    def test_the_first_level_whose_action_is_block_refuses_the_text(self) -> None:
+        assert blocking_level(_policy(PIIAction.BLOCK, PIIAction.BLOCK), [S3, S2]) == S3
+        assert blocking_level(_policy(PIIAction.BLOCK, PIIAction.REDACT), [S3, S2]) == S2
+
+    def test_no_level_blocks_when_none_of_the_actions_is_block(self) -> None:
+        assert blocking_level(_policy(PIIAction.WARN, PIIAction.REDACT), [S3, S2]) is None
+        assert blocking_level(_policy(PIIAction.BLOCK, PIIAction.BLOCK), []) is None
+
+
+class TestACardKeywordFollowsTheSamePolicy:
+    """A card number a keyword introduces is S3 content like any other: the default policy masks it."""
+
+    NUMBER = "6759649826438453"  # Maestro: no prefix-table network, valid Luhn
+
+    def test_the_default_policy_masks_it_in_a_user_message(self) -> None:
+        shown = _screened(f"银行卡号 {self.NUMBER} 帮我记一下", PrivacyPolicy(enabled=True))
+
+        assert self.NUMBER not in shown
+        assert "[PII:bank_card]" in shown
+
+    def test_pseudonymization_replaces_it_with_a_bank_card_tag(self, tmp_path: Path) -> None:
+        store = PseudonymStore(str(tmp_path / "p.db"))
+        set_pseudonym_store(store)
+        try:
+            shown = apply_privacy_policy(
+                f"card number {self.NUMBER}", _policy(PIIAction.WARN, PIIAction.PSEUDONYMIZE), "t"
+            )
+        finally:
+            store.close()
+
+        assert self.NUMBER not in shown
+        assert "BANK_CARD" in shown

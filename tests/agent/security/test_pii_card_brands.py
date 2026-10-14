@@ -183,3 +183,46 @@ class TestRedactedAndRestored:
 
         assert result.text == "Card: <BANK_CARD_1>, thanks"
         assert store.resolve_all(result.text) == f"Card: {card}, thanks"
+
+
+# Test numbers that payment providers publish in their documentation, not numbers written to fit the prefix table.
+_PUBLISHED = (
+    "4111111111111111",
+    "4012888888881881",
+    "4242424242424242",
+    "4000056655665556",
+    "5105105105105100",
+    "5200828282828210",
+    "2223000048400011",
+    "2223520043560014",
+    "371449635398431",
+    "378734493671000",
+    "6011000990139424",
+    "6011601160116611",
+    "6011000400000000",
+    "3530111333300000",
+    "3528000700000000",
+    "6212345678901232",
+    "6250941006528599",
+)
+
+# Networks the prefix table leaves out: a 13-digit Visa, Diners Club (14 digits).
+_PUBLISHED_OUTSIDE_THE_TABLE = ("4222222222222", "30569309025904", "38520000023237", "36227206271667")
+
+
+class TestPublishedTestNumbers:
+    @pytest.mark.parametrize("number", _PUBLISHED)
+    def test_every_published_number_is_confidential_and_masked(self, number: str) -> None:
+        text = f"my card is {number} thanks"
+
+        assert classify_content(text, _ENABLED).level == SensitivityLevel.S3
+        assert number not in redact_pii(text)[0]
+
+    @pytest.mark.parametrize("number", _PUBLISHED_OUTSIDE_THE_TABLE)
+    def test_a_number_outside_the_table_is_found_when_a_keyword_introduces_it(self, number: str) -> None:
+        bare = f"my number is {number} thanks"
+        introduced = f"card number {number} thanks"
+
+        assert classify_content(bare, _ENABLED).level != SensitivityLevel.S3
+        assert classify_content(introduced, _ENABLED).level == SensitivityLevel.S3
+        assert number not in redact_pii(introduced)[0]

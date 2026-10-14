@@ -1,7 +1,9 @@
 """PII pattern tables and validators — what the built-in detectors look for, and how a hit is confirmed.
 
 The classifier decides what a text is, the redactor masks it and the pseudonymizer replaces it; all three read these
-tables, so a value that is detected is a value that is masked.
+tables, so a value that is detected is a value that is masked. Passwords, credentials and the card numbers a card
+keyword introduces are not pattern-table entries: they are found by span (password_heuristic, leak_detector,
+card_context).
 
 All patterns are pre-compiled module-level constants; the validators are pure functions.
 
@@ -9,14 +11,15 @@ All patterns are pre-compiled module-level constants; the validators are pure fu
 - (none: standard library only)
 
 [OUTPUT]
-- S3_PATTERNS / S2_PATTERNS: (name, pattern) tables of the confidential and sensitive built-in detectors
+- S3_PATTERNS / S2_PATTERNS: (name, pattern) tables of the confidential and sensitive built-in regex detectors
 - the individual patterns (CHINA_ID_RE, BANK_CARD_RE, CHINA_PHONE_RE, ...), which the redactor pairs with its masks
-- luhn_valid(), china_id_valid(): the checksums a bank card and an identity number must pass
+- is_confirmed(): whether a pattern match survives the checksum its type calls for (identity number, bank card)
+- bank_card_valid(), luhn_valid(), china_id_valid(): the checksums themselves
 - is_placeholder(): whether a value is an obvious example ("test", "user@example.com") rather than real data
 
 [POS]
-Single definition of the built-in PII patterns (bilingual CN/EN) and their validators, so that classification,
-redaction and pseudonymization never disagree about what a hit is.
+Single definition of the built-in PII patterns and their validators: classification, redaction and pseudonymization
+all read it, so they never disagree about what a hit is.
 """
 
 from __future__ import annotations
@@ -158,8 +161,8 @@ def is_placeholder(value: str) -> bool:
 
 
 def luhn_valid(digits: str) -> bool:
-    """Validate a digit string against the Luhn algorithm."""
-    if not digits.isdigit() or len(digits) < 13:
+    """Validate a digit string against the Luhn algorithm; anything but decimal digits fails."""
+    if not digits.isdecimal() or len(digits) < 13:
         return False
     total = 0
     for i, ch in enumerate(reversed(digits)):
@@ -170,6 +173,11 @@ def luhn_valid(digits: str) -> bool:
                 n -= 9
         total += n
     return total % 10 == 0
+
+
+def bank_card_valid(value: str) -> bool:
+    """Whether a bank-card match passes the Luhn check, typed with or without the hyphens or spaces between groups."""
+    return luhn_valid(value.replace("-", "").replace(" ", ""))
 
 
 # ---------------------------------------------------------------------------
@@ -185,8 +193,17 @@ def china_id_valid(id_str: str) -> bool:
     if len(id_str) != 18:
         return False
     body = id_str[:17]
-    if not body.isdigit():
+    if not body.isdecimal():
         return False
     total = sum(int(body[i]) * _ID_WEIGHTS[i] for i in range(17))
     expected = _ID_CHECK_CODES[total % 11]
     return id_str[17].upper() == expected
+
+
+def is_confirmed(name: str, value: str) -> bool:
+    """Whether a match of the pattern *name* survives its checksum; a pattern without one always does."""
+    if name == "china_id_card":
+        return china_id_valid(value)
+    if name == "bank_card":
+        return bank_card_valid(value)
+    return True

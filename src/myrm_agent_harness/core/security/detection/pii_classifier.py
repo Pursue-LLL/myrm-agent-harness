@@ -19,7 +19,7 @@ consult live in pii_patterns.
 - core.security.detection.card_context::find_card_number_spans (POS: Keyword-anchored detector for card numbers outside the network prefix table or with a typo in them.)
 - core.security.detection.custom_rules::custom_rules, first_custom_span (POS: Single definition of custom-term matching for the privacy policy: the PII classifier, the redactor and the pseudonymizer share it, so detection and masking never disagree about what a user's keyword or pattern covers.)
 - core.security.detection.password_heuristic::find_password_spans (POS: last-resort keyword-anchored detector for passwords without vendor prefix or entropy.)
-- core.security.detection.pii_patterns::S2_PATTERNS, S3_PATTERNS, china_id_valid, is_placeholder, luhn_valid (POS: Single definition of the built-in PII patterns and their validators.)
+- core.security.detection.pii_patterns::S2_PATTERNS, S3_PATTERNS, is_confirmed, is_placeholder (POS: Single definition of the built-in PII patterns and their validators: classification, redaction and pseudonymization all read it, so they never disagree about what a hit is.)
 
 [OUTPUT]
 - PIIClassification: detection result (level, matched patterns, confidence)
@@ -44,9 +44,8 @@ from myrm_agent_harness.core.security.detection.password_heuristic import find_p
 from myrm_agent_harness.core.security.detection.pii_patterns import (
     S2_PATTERNS,
     S3_PATTERNS,
-    china_id_valid,
+    is_confirmed,
     is_placeholder,
-    luhn_valid,
 )
 from myrm_agent_harness.core.security.types import PrivacyPolicy, SensitivityLevel
 
@@ -123,12 +122,7 @@ def _custom_hit(content: str, policy: PrivacyPolicy, level: SensitivityLevel) ->
 def _built_in_s3(content: str) -> PIIClassification | None:
     """The S3 classification of confidential data the built-in detectors recognise, or None."""
     for name, pat in S3_PATTERNS:
-        for m in pat.finditer(content):
-            val = m.group(0)
-            if name == "china_id_card" and not china_id_valid(val):
-                continue
-            if name == "bank_card" and not luhn_valid(val.replace("-", "").replace(" ", "")):
-                continue
+        if any(is_confirmed(name, m.group(0)) for m in pat.finditer(content)):
             return PIIClassification(level=SensitivityLevel.S3, patterns=[name])
 
     # Card numbers outside the prefix table, or with a typo, that the text introduces as a card.
@@ -196,8 +190,9 @@ def contains_level(content: str, policy: PrivacyPolicy, level: SensitivityLevel)
     """Whether *content* holds something of *level* (S2 or S3), whatever else it holds at a higher one.
 
     ``classify_content`` names the highest level a text reaches; a message that reaches S3 may hold S2 content too.
+    A disabled policy holds nothing, as it does for ``classify_content``.
     """
-    if not content or level == SensitivityLevel.S1:
+    if not policy.enabled or not content or level == SensitivityLevel.S1:
         return False
     return _classification_at(content, policy, level, built_in=len(content) >= _MIN_CONTENT_LENGTH) is not None
 

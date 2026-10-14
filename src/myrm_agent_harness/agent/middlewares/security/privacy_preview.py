@@ -2,14 +2,14 @@
 
 [INPUT]
 - core.security.detection.custom_rules::custom_rules, ineffective_patterns (POS: Single definition of custom-term matching for the privacy policy: the PII classifier, the redactor and the pseudonymizer share it, so detection and masking never disagree about what a user's keyword or pattern covers.)
-- agent.middlewares.security.pii_actions::action_at, apply_pii_actions, levels_to_process (POS: PII action engine shared by the guardrail's input and output layers and by the tool-result PII guard.)
+- agent.middlewares.security.pii_actions::action_at, apply_pii_actions, blocking_level, levels_to_process (POS: PII action engine shared by the guardrail's input and output layers and by the tool-result PII guard. The action of a level covers the built-in detectors and the user's custom keywords and patterns of that level, and only those: the redaction of one level never masks the content of another, and a level blocks only a text that holds it.)
 - agent.middlewares._session_context::get_pseudonym_store, set_pseudonym_store (POS: Context-local session state of the security middlewares.)
-- agent.security.detection.pii_classifier::classify_content (POS: Input-side PII classification engine.)
+- agent.security.detection.pii_classifier::classify_content (POS: Input-side PII classification engine. Runs the built-in patterns (bilingual CN/EN, in pii_patterns) with short-circuit optimization for efficient content scanning.)
 - agent.security.detection.pseudonym_store::PseudonymStore (POS: Persistent mapping between original sensitive text and its pseudonym tag.)
 - agent.security.types::PIIAction, PrivacyPolicy, SensitivityLevel (POS: Foundation layer of the security type hierarchy.)
 
 [OUTPUT]
-- PrivacyPreview: detected level, the action the policy takes (block when any level it acts on blocks), the text the model would receive, and the custom patterns that cannot be used
+- PrivacyPreview: the deciding level (the detected one, or the one that blocks), the action the policy takes at it, the text the model would receive, and the custom patterns that cannot be used
 - preview_privacy_policy: classify a text and apply the policy to it the way a real turn does, as a pure function
 
 [POS]
@@ -29,7 +29,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from myrm_agent_harness.agent.middlewares._session_context import get_pseudonym_store, set_pseudonym_store
-from myrm_agent_harness.agent.middlewares.security.pii_actions import action_at, apply_pii_actions, levels_to_process
+from myrm_agent_harness.agent.middlewares.security.pii_actions import (
+    action_at,
+    apply_pii_actions,
+    blocking_level,
+    levels_to_process,
+)
 from myrm_agent_harness.agent.security.detection.pii_classifier import classify_content
 from myrm_agent_harness.agent.security.detection.pseudonym_store import PseudonymStore
 from myrm_agent_harness.agent.security.types import PIIAction, PrivacyPolicy, SensitivityLevel
@@ -40,8 +45,9 @@ _PREVIEW_SOURCE = "privacy_preview"
 
 @dataclass(frozen=True, slots=True)
 class PrivacyPreview:
-    """Outcome of a dry run. ``action`` is None for a text with nothing sensitive; ``model_sees`` is None when the
-    policy blocks the text, which a real turn refuses to send at all. ``ineffective_patterns`` lists the policy's
+    """Outcome of a dry run. ``level`` is the one the text is detected at, or the one that blocks it when a lower level
+    does. ``action`` is None for a text with nothing sensitive; ``model_sees`` is None when the policy blocks the
+    text, which a real turn refuses to send at all. ``ineffective_patterns`` lists the policy's
     custom patterns that cannot be used (they do not compile or are too large to build) and so never match."""
 
     level: SensitivityLevel
@@ -76,5 +82,6 @@ def preview_privacy_policy(text: str, policy: PrivacyPolicy) -> PrivacyPreview:
     pseudonymizes = any(action_at(policy, lv) == PIIAction.PSEUDONYMIZE for lv in levels)
     with _throwaway_pseudonym_store() if pseudonymizes else nullcontext():
         model_sees = apply_pii_actions(text, levels, policy, _PREVIEW_SOURCE, audit=False)
-    action = PIIAction.BLOCK if model_sees is None else action_at(policy, level)
-    return PrivacyPreview(level, action, model_sees, broken)
+    if model_sees is None:
+        return PrivacyPreview(blocking_level(policy, levels) or level, PIIAction.BLOCK, None, broken)
+    return PrivacyPreview(level, action_at(policy, level), model_sees, broken)

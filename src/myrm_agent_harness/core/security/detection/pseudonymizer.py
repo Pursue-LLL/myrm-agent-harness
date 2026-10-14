@@ -10,7 +10,7 @@ direction — replacing pseudonyms back to originals in both batch and
 streaming modes.
 
 [INPUT]
-- core.security.detection.pii_patterns::S2_PATTERNS, S3_PATTERNS, china_id_valid, is_placeholder, luhn_valid (POS: Single definition of the built-in PII patterns and their validators.)
+- core.security.detection.pii_patterns::S2_PATTERNS, S3_PATTERNS, is_confirmed, is_placeholder (POS: Single definition of the built-in PII patterns and their validators: classification, redaction and pseudonymization all read it, so they never disagree about what a hit is.)
 - core.security.detection.card_context::find_card_number_spans (POS: Keyword-anchored detector for card numbers outside the network prefix table or with a typo in them.)
 - core.security.detection.custom_rules::CustomRules, NO_CUSTOM_RULES, find_custom_spans (POS: Single definition of custom-term matching for the privacy policy: the PII classifier, the redactor and the pseudonymizer share it, so detection and masking never disagree about what a user's keyword or pattern covers.)
 - core.security.detection.password_heuristic::find_password_spans (POS: last-resort keyword-anchored detector for passwords without vendor prefix or entropy.)
@@ -41,9 +41,8 @@ from myrm_agent_harness.core.security.detection.password_heuristic import find_p
 from myrm_agent_harness.core.security.detection.pii_patterns import (
     S2_PATTERNS,
     S3_PATTERNS,
-    china_id_valid,
+    is_confirmed,
     is_placeholder,
-    luhn_valid,
 )
 from myrm_agent_harness.core.security.detection.pseudonym_store import (
     PseudonymStore,
@@ -117,11 +116,7 @@ def _extract_pii_items(
             if span in seen_spans:
                 continue
             val = m.group(0)
-            if is_placeholder(val):
-                continue
-            if name == "china_id_card" and not china_id_valid(val):
-                continue
-            if name == "bank_card" and not luhn_valid(val.replace("-", "").replace(" ", "")):
+            if is_placeholder(val) or not is_confirmed(name, val):
                 continue
 
             ptype = _PATTERN_TO_TYPE.get(name, name.upper())

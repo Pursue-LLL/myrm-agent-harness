@@ -3,7 +3,7 @@
 [INPUT]
 - langchain_core.messages::BaseMessage (POS: LangChain message base class)
 - myrm_agent_harness.agent.security.detection.leak_detector::redact_leaks (POS: credential leak redaction)
-- myrm_agent_harness.agent.security.detection.pii_redactor::redact_pii (POS: PII redaction for phone/email/SSN/ID/address)
+- myrm_agent_harness.agent.security.detection.pii_redactor::redact_pii (POS: PII redactor. Type-aware smart masking (phone numbers retain first 3 and last 4 digits, emails retain domain, cards their last 4 digits, etc.) for user-friendly redaction, applied for the levels the caller names, so one level's redaction never masks another level's content. Passwords are replaced by span (password_heuristic, recall mode) before the regex stages, so the label and the punctuation around the value survive. The user's custom terms are replaced by span right after the passwords, and the card numbers a card keyword introduces right after the S3 patterns. A match that fails its checksum is neither masked nor counted.)
 
 [OUTPUT]
 - build_dropped_manifest: pure function — extract short, sanitized constraint snippets

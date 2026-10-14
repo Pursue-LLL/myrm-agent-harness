@@ -3,10 +3,11 @@
 [INPUT]
 - agent.security.types::PIIAction, PrivacyPolicy, SensitivityLevel (POS: Foundation layer of the security type hierarchy. All other security modules import from here; this module imports from none of them.)
 - core.security.detection.custom_rules::custom_rules (POS: Single definition of custom-term matching for the privacy policy: the PII classifier, the redactor and the pseudonymizer share it, so detection and masking never disagree about what a user's keyword or pattern covers.)
-- agent.security.detection.pii_classifier::classify_content, contains_level (POS: Input-side PII classification engine. 30+ built-in regex patterns (bilingual CN/EN) with short-circuit optimization for efficient content scanning.)
+- agent.security.detection.pii_classifier::classify_content, contains_level (POS: Input-side PII classification engine. Runs the built-in patterns (bilingual CN/EN, in pii_patterns) with short-circuit optimization for efficient content scanning.)
 
 [OUTPUT]
 - action_at: the action the policy sets for a level
+- blocking_level: the first of the given levels whose action is block, the level that refuses a text
 - levels_to_process: the sensitivity levels a text obliges the policy to act on: its detected level, plus S2 when an S3 text holds S2 content too and S2's action acts
 - apply_pii_actions: apply the policy action of each level to a text, audited unless ``audit=False``; None when a level blocks
 - apply_privacy_policy: classify a text and apply the policy to it; a block becomes full redaction, so the text always comes back
@@ -31,6 +32,11 @@ logger = logging.getLogger(__name__)
 def action_at(policy: PrivacyPolicy, level: SensitivityLevel) -> PIIAction:
     """The action the user chose for *level*: S3 has its own, every other level follows S2's."""
     return policy.s3_action if level == SensitivityLevel.S3 else policy.s2_action
+
+
+def blocking_level(policy: PrivacyPolicy, levels: list[SensitivityLevel]) -> SensitivityLevel | None:
+    """The first of *levels* whose action is BLOCK, the level that refuses the text; None when none does."""
+    return next((level for level in levels if action_at(policy, level) == PIIAction.BLOCK), None)
 
 
 def levels_to_process(
@@ -81,10 +87,10 @@ def apply_pii_actions(
     result = text
     for level in levels:
         action = action_at(policy, level)
-        custom = custom_rules(policy, level)
-        only = frozenset({level})
         if action == PIIAction.BLOCK:
             return None
+        custom = custom_rules(policy, level)
+        only = frozenset({level})
         if action == PIIAction.PSEUDONYMIZE:
             store = get_pseudonym_store()
             if store is not None:

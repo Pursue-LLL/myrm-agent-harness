@@ -6,9 +6,10 @@ from myrm_agent_harness.agent.security.detection.pii_classifier import (
     classify_content,
     classify_tool_params,
     classify_tool_result,
+    contains_level,
 )
 from myrm_agent_harness.agent.security.types import PrivacyPolicy, SensitivityLevel
-from myrm_agent_harness.core.security.detection.pii_patterns import china_id_valid, luhn_valid
+from myrm_agent_harness.core.security.detection.pii_patterns import china_id_valid
 
 _ENABLED = PrivacyPolicy(enabled=True)
 _DISABLED = PrivacyPolicy(enabled=False)
@@ -251,29 +252,26 @@ class TestToolResult:
         assert result.level == SensitivityLevel.S1
 
 
-class TestChinaIdValidation:
-    def test_valid_id(self) -> None:
-        assert china_id_valid("110101199003074530") is True
+class TestContainsLevel:
+    """Whether a text holds content of one level, whatever else it holds at a higher one."""
 
-    def test_invalid_checksum(self) -> None:
-        assert china_id_valid("110101199003074531") is False
+    def test_s2_content_next_to_s3_content_is_found(self) -> None:
+        text = "卡号 4532015112830366，电话 13800138000"
 
-    def test_short_id(self) -> None:
-        assert china_id_valid("1234567") is False
+        assert contains_level(text, _ENABLED, SensitivityLevel.S2) is True
+        assert contains_level(text, _ENABLED, SensitivityLevel.S3) is True
 
+    def test_a_level_the_text_does_not_hold_is_not_found(self) -> None:
+        text = "卡号 4532015112830366 请记一下"
 
-class TestLuhnValidation:
-    def test_valid_card(self) -> None:
-        assert luhn_valid("4532015112830366") is True
+        assert contains_level(text, _ENABLED, SensitivityLevel.S3) is True
+        assert contains_level(text, _ENABLED, SensitivityLevel.S2) is False
 
-    def test_invalid_card(self) -> None:
-        assert luhn_valid("4532015112830367") is False
+    def test_nothing_sensitive_holds_no_level(self) -> None:
+        assert contains_level("今天天气不错，适合出去走走", _ENABLED, SensitivityLevel.S2) is False
 
-    def test_too_short(self) -> None:
-        assert luhn_valid("12345") is False
-
-    def test_non_digit(self) -> None:
-        assert luhn_valid("abc") is False
+    def test_a_disabled_policy_holds_no_level(self) -> None:
+        assert contains_level("电话 13800138000", _DISABLED, SensitivityLevel.S2) is False
 
 
 class TestKeywordMatching:

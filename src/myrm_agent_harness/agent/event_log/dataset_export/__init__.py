@@ -7,7 +7,7 @@ and content deduplication.
 [INPUT]
 - event_log.trace_builder::build_trace, query_traces (POS: Read-side aggregation logic)
 - event_log.protocols::EventLogBackend (POS: Protocol contract)
-- security.detection.pii_redactor::redact_pii (POS: PII redactor)
+- security.detection.pii_redactor::redact_pii (POS: PII redactor. Type-aware smart masking (phone numbers retain first 3 and last 4 digits, emails retain domain, cards their last 4 digits, etc.) for user-friendly redaction, applied for the levels the caller names, so one level's redaction never masks another level's content. Passwords are replaced by span (password_heuristic, recall mode) before the regex stages, so the label and the punctuation around the value survive. The user's custom terms are replaced by span right after the passwords, and the card numbers a card keyword introduces right after the S3 patterns. A match that fails its checksum is neither masked nor counted.)
 
 [OUTPUT]
 - DatasetExporter: orchestrator for the full export pipeline

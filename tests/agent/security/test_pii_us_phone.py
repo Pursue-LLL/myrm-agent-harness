@@ -13,7 +13,7 @@ from collections.abc import Generator
 import pytest
 
 from myrm_agent_harness.agent.security.detection.pii_classifier import classify_content
-from myrm_agent_harness.agent.security.detection.pii_redactor import redact_pii
+from myrm_agent_harness.agent.security.detection.pii_redactor import redact_pii, redact_value
 from myrm_agent_harness.agent.security.detection.pseudonym_store import PseudonymStore
 from myrm_agent_harness.agent.security.detection.pseudonymizer import pseudonymize_text
 from myrm_agent_harness.agent.security.types import PrivacyPolicy, SensitivityLevel
@@ -119,6 +119,9 @@ class TestRedacted:
 
         assert twice == once
         assert count == 0
+
+    def test_a_known_number_is_masked_by_its_type(self) -> None:
+        assert redact_value("(415) 555-2671", "us_phone") == "***-***-2671 [PII:phone]"
 
     def test_a_number_is_left_alone_when_only_confidential_content_is_redacted(self) -> None:
         text = "call (415) 555-2671, card 4532015112830366"
