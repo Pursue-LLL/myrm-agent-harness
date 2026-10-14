@@ -8,9 +8,9 @@ Deep domain filtering — four-layer defense-in-depth for browser network egress
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| `__init__.py` | Package | Public facade: `DomainAllowlist`, `install_domain_filter` (four-layer installer with resource blocking). `DomainAllowlist` matches exact and `*.` wildcard patterns; callers use `is_allowed` (allowlist semantics) or `is_blocked` (blocklist semantics) on the same matching core. | ✅ |
+| `__init__.py` | Package | Public facade: `DomainAllowlist`, `install_domain_filter` (four-layer installer with resource blocking; forwards `allow_private_networks` to the Layer 1 filter). `DomainAllowlist` matches exact and `*.` wildcard patterns; callers use `is_allowed` (allowlist semantics) or `is_blocked` (blocklist semantics) on the same matching core. | ✅ |
 | `ad_domains.py` | Data | Lazily-loaded frozenset of ~3500 ad/tracker domains (bundled `assets/ad_domains.txt`) | ✅ |
-| `http_filter.py` | Core | Layer 1 route filter: hop-by-hop private network / cloud-metadata revalidation (empty hostname fails closed), ad/tracker blocklist, domain block/allow lists, resource-type blocking; document hops that violate policy are aborted and the tab reset to `about:blank`. | ✅ |
+| `http_filter.py` | Core | Layer 1 route filter: hop-by-hop private network / cloud-metadata revalidation (empty hostname fails closed; skipped only when `allow_private_networks` is set, every later rule still applies), ad/tracker blocklist, domain block/allow lists, resource-type blocking; document hops that violate policy are aborted and the tab reset to `about:blank`. | ✅ |
 
 ## Key Dependencies
 

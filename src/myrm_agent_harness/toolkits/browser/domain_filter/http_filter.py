@@ -99,7 +99,8 @@ async def install_http_filter(
     """Block requests to private/metadata IPs, non-allowed domains, and unwanted resource types.
 
     Filtering order (security-first):
-    1. Hop-by-hop private network & cloud metadata revalidation (SSRF defense)
+    1. Hop-by-hop private network & cloud metadata revalidation (SSRF defense; skipped when
+       ``allow_private_networks`` is set, steps 2-4 still apply)
     2. Ad/tracker domain blocklist (performance + anti-fingerprinting)
     3. Domain blocklist & allowlist validation (security boundary)
     4. Resource type filtering (performance optimization)

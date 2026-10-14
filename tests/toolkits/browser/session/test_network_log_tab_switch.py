@@ -26,7 +26,6 @@ pytestmark = [
     pytest.mark.slow,
     pytest.mark.asyncio,
     pytest.mark.skipif(not chromium_available(), reason="Chromium not available"),
-    pytest.mark.usefixtures("loopback_servers_reachable"),
 ]
 
 _TEARDOWN_BOUND_S = 20.0

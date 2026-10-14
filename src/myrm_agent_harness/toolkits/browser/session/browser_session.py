@@ -176,7 +176,7 @@ class BrowserSession(
             content_vault: Content vault for storing downloads/screenshots
             vision_llm: Vision LLM for visual tasks
             extension_bridge: Extension bridge for private URL fallback in sandbox mode
-            allow_private_networks: Allow navigation to private networks
+            allow_private_networks: Allow loopback/private-network targets (navigation and the context's request filter)
             engine_preference: Preferred browser engine (e.g. 'chromium_patchright', 'firefox_camoufox').
             launch_mode_preference: Per-agent launch mode override (e.g. 'extension' to use user's real browser).
             dialog_policy: Dialog handling strategy ('smart', 'auto_accept', 'auto_dismiss', 'wait_for_agent').
@@ -209,13 +209,13 @@ class BrowserSession(
         self._auto_restored = False
         self._domain_blocklist = domain_blocklist
 
-        context_kwargs: dict[str, object] = {}
-        if observability:
-            context_kwargs.update(observability.get_context_kwargs())
-        if domain_allowlist:
-            context_kwargs["domain_allowlist"] = domain_allowlist
-        if domain_blocklist:
-            context_kwargs["domain_blocklist"] = domain_blocklist
+        context_kwargs: dict[str, object] = dict(observability.get_context_kwargs()) if observability else {}
+        policy_kwargs = {  # consumed by ContextFactory; only the active entries are passed on
+            "domain_allowlist": domain_allowlist,
+            "domain_blocklist": domain_blocklist,
+            "allow_private_networks": allow_private_networks,
+        }
+        context_kwargs.update({key: value for key, value in policy_kwargs.items() if value})
         if download_config is not None:
             context_kwargs["accept_downloads"] = True
         self._device_emulator = DeviceEmulator()

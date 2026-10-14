@@ -497,6 +497,8 @@ Object.defineProperty(window, 'RTCPeerConnection', {
 - Layer 2: RTCPeerConnection, WebTransport, Service Worker registration
 - Layer 3: WebSocket audit（含 Worker）
 
+**私网策略**：`BrowserSession(allow_private_networks=True)`（本地模式）经 `context_kwargs` → `ContextFactory` → `install_domain_filter(allow_private_networks=…)` → Layer 1 `install_http_filter`，只跳过「私网地址 / 云元数据逐跳校验」；blocklist、allowlist、广告与资源类型规则照常生效，因此挂载任何域名列表或资源拦截都不会让已声明本地访问的会话重新被私网拦截。默认 `False`（云托管）时逐跳校验始终开启。该标志与 allowlist 一样在 context 创建时生效，同一 `context_key` 以首个创建者的策略为准。
+
 **反爬检测友好**：保留 Web Worker 功能（避免 `new Worker()` 抛异常），与 browser-use（81K stars）策略一致
 
 ---

@@ -35,7 +35,7 @@ async def test_create_context_domain_filter_install_failure():
 
 @pytest.mark.asyncio
 async def test_install_domain_filter_called():
-    """测试：_install_domain_filter 方法被正确调用"""
+    """测试：create_context 经 install_domain_filter 安装过滤器"""
     factory = ContextFactory()
 
     mock_browser = MagicMock()

@@ -6,7 +6,7 @@
 - patchright.async_api::BrowserContext (POS: Patchright browser context)
 - .emulation::EmulationConfig (POS: browser environment emulation config with type safety and parameter validation)
 - .config::ResourceBlockConfig (POS: resource blocking config)
-- domain_filter::DomainAllowlist, install_domain_filter (POS: domain filtering and resource blocking)
+- domain_filter::DomainAllowlist, DomainBlocklist, install_domain_filter (POS: domain filtering and resource blocking)
 - .stealth::get_stealth_script (POS: stealth anti-detection JS script loader)
 
 [OUTPUT]
@@ -20,7 +20,9 @@ Dedicated to BrowserContext creation and configuration, including:
 4. Syncing Accept-Language header with EmulationConfig.locale to prevent fingerprint mismatch
 5. Installing resource blocking (image/font/media/ad-domains) independently of domain allowlist
 6. Installing DomainAllowlist security filter (CSP + JS hardening + CDP audit) when allowlist provided
-7. STEALTH mode delivery of 13 anti-detection JS scripts (dual-layer defense: patchright CDP + document-response script injection via enhancers.inject_route)
+7. Forwarding the session's ``allow_private_networks`` policy to the installed HTTP filter, so a domain list or
+   resource blocking never re-enables private-address blocking for a session that opted into local access
+8. STEALTH mode delivery of 13 anti-detection JS scripts (dual-layer defense: patchright CDP + document-response script injection via enhancers.inject_route)
 """
 
 from __future__ import annotations
@@ -28,11 +30,14 @@ from __future__ import annotations
 import contextlib
 import logging
 import platform
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from patchright.async_api import Browser, BrowserContext
 
+    from myrm_agent_harness.toolkits.browser.domain_filter import DomainAllowlist, DomainBlocklist
+
+    from .config import ResourceBlockConfig
     from .emulation import EmulationConfig
     from .proxy import ProxyPool
 
@@ -40,6 +45,8 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_TIMEOUT_MS = 30000  # global default timeout, overrides all page operations (evaluate/click/goto etc.)
 _STEALTH_TYPE = "stealth"  # ContextType.STEALTH.value — avoid circular import
+# create_context kwargs consumed by this factory; never forwarded to Browser.new_context().
+_POLICY_KWARGS = frozenset({"domain_allowlist", "domain_blocklist", "resource_block", "allow_private_networks"})
 
 _DEFAULT_CONTEXT_OPTIONS: dict[str, object] = {
     "viewport": {"width": 1920, "height": 1080},
@@ -131,7 +138,9 @@ class ContextFactory:
             extra_kwargs: Additional BrowserContext parameters (e.g., record_video_dir)
                 Special keys (not passed to new_context):
                 - domain_allowlist (DomainAllowlist): domain filtering
+                - domain_blocklist (DomainBlocklist): always-blocked domains
                 - resource_block (ResourceBlockConfig): resource type blocking
+                - allow_private_networks (bool): let the HTTP filter pass loopback/private targets
             context_key: Unique context identifier for proxy sticky session binding.
                 When provided, same context_key always gets the same proxy.
                 Falls back to context_type if not provided.
@@ -147,9 +156,11 @@ class ContextFactory:
 
         """
         ctx_opts = self._build_context_options(context_type, emulation, extra_kwargs, context_key)
-        domain_allowlist = extra_kwargs.get("domain_allowlist") if extra_kwargs else None
-        domain_blocklist = extra_kwargs.get("domain_blocklist") if extra_kwargs else None
-        resource_block = extra_kwargs.get("resource_block") if extra_kwargs else None
+        policy = extra_kwargs or {}
+        domain_allowlist = cast("DomainAllowlist | None", policy.get("domain_allowlist"))
+        domain_blocklist = cast("DomainBlocklist | None", policy.get("domain_blocklist"))
+        resource_block = cast("ResourceBlockConfig | None", policy.get("resource_block"))
+        allow_private_networks = bool(policy.get("allow_private_networks"))
 
         # Try to safely extract permissions, some engines (like Firefox) don't support all Chromium permissions
         permissions = ctx_opts.get("permissions", [])
@@ -196,25 +207,17 @@ class ContextFactory:
         if context_type == _STEALTH_TYPE:
             await self._apply_stealth(context)
 
-        from myrm_agent_harness.toolkits.browser.domain_filter import DomainAllowlist
+        if domain_allowlist or domain_blocklist or resource_block:
+            from myrm_agent_harness.toolkits.browser.domain_filter import DomainAllowlist, install_domain_filter
 
-        empty_allowlist = DomainAllowlist.from_strings(())
-        effective_allowlist = domain_allowlist if domain_allowlist else empty_allowlist
-
-        if domain_allowlist or domain_blocklist:
             try:
-                await self._install_domain_filter(
+                await install_domain_filter(
                     context,
-                    effective_allowlist,
+                    domain_allowlist or DomainAllowlist.from_strings(()),
                     domain_blocklist=domain_blocklist,
                     resource_block=resource_block,
+                    allow_private_networks=allow_private_networks,
                 )
-            except Exception:
-                await context.close()
-                raise
-        elif resource_block:
-            try:
-                await self._install_resource_blocking(context, resource_block)
             except Exception:
                 await context.close()
                 raise
@@ -246,11 +249,7 @@ class ContextFactory:
                 _sync_accept_language(ctx_opts, effective_emulation.locale)
 
         if extra_kwargs:
-            playwright_kwargs = {
-                k: v
-                for k, v in extra_kwargs.items()
-                if k not in ("domain_allowlist", "domain_blocklist", "resource_block")
-            }
+            playwright_kwargs = {k: v for k, v in extra_kwargs.items() if k not in _POLICY_KWARGS}
             ctx_opts.update(playwright_kwargs)
 
         return ctx_opts
@@ -270,40 +269,3 @@ class ContextFactory:
 
         await install_document_script_injection(context, get_stealth_script, label="stealth")
         await context.add_init_script(get_stealth_script())
-
-    @staticmethod
-    async def _install_domain_filter(
-        context: BrowserContext,
-        domain_allowlist: object,
-        *,
-        domain_blocklist: object | None = None,
-        resource_block: object | None = None,
-    ) -> None:
-        """Install domain filter and resource blocking on context."""
-        from myrm_agent_harness.toolkits.browser.domain_filter import (
-            install_domain_filter,
-        )
-
-        await install_domain_filter(
-            context,
-            domain_allowlist,  # type: ignore[arg-type]
-            domain_blocklist=domain_blocklist,  # type: ignore[arg-type]
-            resource_block=resource_block,  # type: ignore[arg-type]
-        )
-
-    @staticmethod
-    async def _install_resource_blocking(
-        context: BrowserContext,
-        resource_block: object,
-    ) -> None:
-        """Install resource type + ad domain blocking without domain allowlist."""
-        from myrm_agent_harness.toolkits.browser.domain_filter import (
-            DomainAllowlist,
-            install_domain_filter,
-        )
-
-        await install_domain_filter(
-            context,
-            DomainAllowlist(patterns=()),  # empty allowlist = no domain restriction
-            resource_block=resource_block,  # type: ignore[arg-type]
-        )

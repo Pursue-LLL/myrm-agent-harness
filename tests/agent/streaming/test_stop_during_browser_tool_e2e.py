@@ -17,7 +17,7 @@ import asyncio
 import contextlib
 import time
 from collections.abc import AsyncIterator, Iterator
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 from langchain.agents import create_agent
@@ -30,8 +30,6 @@ from myrm_agent_harness.agent.middlewares.tooling import tool_executor
 from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import tool_interceptor_middleware
 from myrm_agent_harness.agent.streaming.stream_executor import STREAM_DONE, StreamContext, StreamExecutor
 from myrm_agent_harness.agent.types import AgentRunStatistics
-from myrm_agent_harness.toolkits.browser import domain_filter
-from myrm_agent_harness.toolkits.browser.navigation import ssrf_guard
 from myrm_agent_harness.toolkits.browser.pool import ContextType, GlobalBrowserPool
 from myrm_agent_harness.toolkits.browser.pool.config import BrowserPoolConfig
 from myrm_agent_harness.toolkits.browser.session import BrowserSession
@@ -73,16 +71,7 @@ class _FakeCompactor:
 
 
 @pytest.fixture(autouse=True)
-def _loopback_servers_are_reachable(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    original = domain_filter._install_http_filter
-
-    async def allow_private(context, allowlist, resource_block, ad_blocklist, domain_blocklist, **_kwargs):
-        return await original(
-            context, allowlist, resource_block, ad_blocklist, domain_blocklist, allow_private_networks=True
-        )
-
-    monkeypatch.setattr(domain_filter, "_install_http_filter", allow_private)
-    monkeypatch.setattr(ssrf_guard, "assert_browser_navigation_allowed", AsyncMock(return_value=None))
+def _reset_cancel_token() -> Iterator[None]:
     yield
     set_cancel_token(None)
 

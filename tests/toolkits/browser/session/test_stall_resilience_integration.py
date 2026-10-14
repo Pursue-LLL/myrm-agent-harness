@@ -11,12 +11,15 @@ import asyncio
 import contextlib
 import time
 from collections.abc import AsyncIterator
+from unittest.mock import AsyncMock
 
 import pytest
 
 from myrm_agent_harness.toolkits.browser import navigation
 from myrm_agent_harness.toolkits.browser.exceptions import BrowserNavigationError
+from myrm_agent_harness.toolkits.browser.navigation import ssrf_guard
 from myrm_agent_harness.toolkits.browser.pool import ContextType, GlobalBrowserPool
+from myrm_agent_harness.toolkits.browser.pool.config import BrowserPoolConfig
 from myrm_agent_harness.toolkits.browser.pool.crash_watchdog import _pooled_page_answers
 from myrm_agent_harness.toolkits.browser.session import BrowserSession
 from myrm_agent_harness.toolkits.browser.tools import create_browser_tools
@@ -34,7 +37,6 @@ pytestmark = [
     pytest.mark.integration,
     pytest.mark.slow,
     pytest.mark.skipif(not chromium_available(), reason="Chromium not available"),
-    pytest.mark.usefixtures("loopback_servers_reachable"),
 ]
 
 _NAVIGATION_BUDGET_MS = 1500
@@ -53,18 +55,29 @@ async def servers() -> AsyncIterator[StallServers]:
         yield running
 
 
+@pytest.fixture(params=["local", "guarded"])
+def mode(request: pytest.FixtureRequest) -> str:
+    """`local` navigates with plain goto, `guarded` through the SSRF route guard (cloud hosting)."""
+    return request.param
+
+
 @pytest.fixture
-async def pool() -> AsyncIterator[GlobalBrowserPool]:
-    browser_pool = GlobalBrowserPool(max_browsers=1)
+async def pool(mode: str) -> AsyncIterator[GlobalBrowserPool]:
+    # Cloud hosting rejects loopback in the context filter as well; the guarded run drops that filter so
+    # the route guard (the code under test) is the only layer that judges the loopback stall servers.
+    config = BrowserPoolConfig.minimal() if mode == "guarded" else None
+    browser_pool = GlobalBrowserPool(max_browsers=1, config=config)
     yield browser_pool
     with contextlib.suppress(Exception):
         await asyncio.wait_for(browser_pool.shutdown(), timeout=_TEARDOWN_BOUND_S)
 
 
-@pytest.fixture(params=["local", "guarded"])
-async def session(request: pytest.FixtureRequest, pool: GlobalBrowserPool) -> AsyncIterator[BrowserSession]:
-    """`local` navigates with plain goto, `guarded` through the SSRF route guard (cloud hosting)."""
-    browser_session = BrowserSession(pool, ContextType.AGENT, allow_private_networks=request.param == "local")
+@pytest.fixture
+async def session(mode: str, pool: GlobalBrowserPool, monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[BrowserSession]:
+    if mode == "guarded":
+        # The stall servers are loopback hosts the guard rejects by design; treat them as public hosts.
+        monkeypatch.setattr(ssrf_guard, "assert_browser_navigation_allowed", AsyncMock(return_value=None))
+    browser_session = BrowserSession(pool, ContextType.AGENT, allow_private_networks=mode == "local")
     yield browser_session
     set_cancel_token(None)
     with contextlib.suppress(Exception):

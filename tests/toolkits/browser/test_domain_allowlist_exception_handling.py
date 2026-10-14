@@ -27,6 +27,7 @@ async def test_create_context_cleanup_on_install_failure() -> None:
         *,
         domain_blocklist: object | None = None,
         resource_block: object | None = None,
+        allow_private_networks: bool = False,
     ) -> None:
         raise RuntimeError("Install failed")
 
@@ -57,6 +58,7 @@ async def test_create_context_no_cleanup_on_success() -> None:
         *,
         domain_blocklist: object | None = None,
         resource_block: object | None = None,
+        allow_private_networks: bool = False,
     ) -> None:
         pass
 

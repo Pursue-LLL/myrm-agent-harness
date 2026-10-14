@@ -302,6 +302,7 @@ async def install_domain_filter(
     domain_blocklist: DomainBlocklist | None = None,
     enable_cdp_audit: bool = True,
     resource_block: ResourceBlockConfig | None = None,
+    allow_private_networks: bool = False,
 ) -> None:
     """Install four-layer domain filtering on a BrowserContext.
 
@@ -313,6 +314,9 @@ async def install_domain_filter(
         domain_blocklist: Domains always blocked (checked before allowlist).
         enable_cdp_audit: Whether to install CDP WebSocket audit monitoring.
         resource_block: Resource blocking configuration (images/css/js/fonts/media/ad-domains).
+        allow_private_networks: Let requests reach loopback/private/link-local addresses (local mode).
+            Only the private-address and cloud-metadata hop check is skipped; allow/block lists and
+            resource rules still apply.
     """
     has_resource_block = False
     if resource_block:
@@ -338,7 +342,14 @@ async def install_domain_filter(
         await _install_csp_policy(context, allowlist)
         await _install_main_thread_hardening(context)
 
-    await _install_http_filter(context, allowlist, resource_block, ad_blocklist, domain_blocklist)
+    await _install_http_filter(
+        context,
+        allowlist,
+        resource_block,
+        ad_blocklist,
+        domain_blocklist,
+        allow_private_networks=allow_private_networks,
+    )
 
     if enable_cdp_audit and not allowlist.is_empty:
         context.on("page", lambda page: _schedule_cdp_audit(page, allowlist))
