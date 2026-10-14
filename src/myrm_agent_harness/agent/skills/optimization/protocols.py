@@ -1,6 +1,6 @@
 """Protocols for Skill Optimization Subsystem
 
-Defines interfaces for data sources, storage, aggregators, and evaluators.
+Defines the storage and execution-provider interfaces the business layer implements.
 
 [INPUT]
 - backends.skills.types::SkillMetadata (POS: Provides ArtifactInfo, infer_language, infer_artifact_type.)
@@ -9,11 +9,9 @@ Defines interfaces for data sources, storage, aggregators, and evaluators.
 - SkillOptimizationStorage: class — Skill Optimization Storage
 - SkillExecutionProvider: class — Skill Execution Provider
 - StorageError: class — Storage Error
-- StorageConnectionError: class — Storage Connection Error
-- StorageTimeoutError: class — Storage Timeout Error
 
 [POS]
-Protocols for Skill Optimization Subsystem
+Storage and execution-provider protocols (framework defines, server implements)
 """
 
 from __future__ import annotations
@@ -26,16 +24,9 @@ from myrm_agent_harness.backends.skills.types import SkillMetadata
 from .quality_calculator import SkillExecutionSample
 from .types import (
     ABTestResult,
-    ABTestStatus,
-    AggregateDimension,
-    ComparisonResult,
-    GlobalQualityMetrics,
     OptimizationResult,
-    SkillQualityAggregate,
     SkillQualityScore,
-    SkillQualitySnapshot,
     SkillVersion,
-    UserQualityAggregate,
 )
 
 
@@ -76,41 +67,6 @@ class SkillOptimizationStorage(Protocol):
         """
         ...
 
-    async def get_optimization_history(self, skill_id: str, limit: int = 10) -> list[OptimizationResult]:
-        """获取优化历史
-
-        Args:
-            skill_id: Skill ID
-            limit: 最大返回数量
-
-        Returns:
-            优化历史列表, 按时间倒序
-        """
-        ...
-
-    async def get_recent_optimizations(self, hours: int = 24, limit: int = 100) -> list[OptimizationResult]:
-        """获取最近优化记录
-
-        Args:
-            hours: 最近N小时
-            limit: 最大返回数量
-
-        Returns:
-            最近优化记录列表
-        """
-        ...
-
-    async def delete_old_optimizations(self, days: int = 90) -> int:
-        """删除旧优化记录
-
-        Args:
-            days: 保留最近N天的记录
-
-        Returns:
-            删除的记录数
-        """
-        ...
-
     # ==================== ABTestResult ====================
 
     async def save_ab_test(self, result: ABTestResult) -> None:
@@ -140,31 +96,6 @@ class SkillOptimizationStorage(Protocol):
 
         Returns:
             所有RUNNING状态的A/B测试列表
-        """
-        ...
-
-    async def update_ab_test_status(self, skill_id: str, status: ABTestStatus, winner: str | None = None) -> None:
-        """更新A/B测试状态
-
-        Args:
-            skill_id: Skill ID
-            status: 新状态
-            winner: 获胜版本("baseline" | "candidate")
-
-        Raises:
-            StorageError: 更新失败
-        """
-        ...
-
-    async def increment_ab_test_sample_size(self, skill_id: str, increment: int = 1) -> int:
-        """增加A/B测试样本数
-
-        Args:
-            skill_id: Skill ID
-            increment: 增加量
-
-        Returns:
-            新的样本数
         """
         ...
 
@@ -303,28 +234,6 @@ class SkillOptimizationStorage(Protocol):
         """
         ...
 
-    async def get_top_skills(self, limit: int = 10) -> list[tuple[str, SkillQualityScore]]:
-        """获取质量最高的skill
-
-        Args:
-            limit: 最大返回数量
-
-        Returns:
-            (skill_id, 质量评分)列表, 按评分降序
-        """
-        ...
-
-    async def get_bottom_skills(self, limit: int = 10) -> list[tuple[str, SkillQualityScore]]:
-        """获取质量最低的skill
-
-        Args:
-            limit: 最大返回数量
-
-        Returns:
-            (skill_id, 质量评分)列表, 按评分升序
-        """
-        ...
-
     # ==================== Health Check ====================
 
     async def health_check(self) -> dict[str, bool | str]:
@@ -414,207 +323,3 @@ class StorageError(Exception):
     """存储层错误基类"""
 
     pass
-
-
-class StorageConnectionError(StorageError):
-    """存储连接错误"""
-
-    pass
-
-
-class StorageTimeoutError(StorageError):
-    """存储操作超时"""
-
-    pass
-
-
-class SkillQualityAggregator(Protocol):
-    """Skill Quality Aggregation Protocol
-
-    Framework-level abstract interface for aggregating skill quality across
-    time/users/dimensions. Designed for framework independence and reusability.
-
-    Design Principles:
-    1. Framework Independence: No business-specific logic (user_id, tenant_id agnostic)
-    2. Protocol-Based: Supports multiple implementations (InMemory, SQL, Redis, Streaming)
-    3. Async First: All operations are async for performance
-    4. Type Safe: Complete type hints for IDE support
-    5. Out-of-the-Box: InMemoryAggregator provides default implementation
-
-    Analogies:
-    - Similar to SkillOptimizationStorage Protocol (framework defines, business implements)
-    - Like LangChain's BaseRetriever Protocol (abstraction layer)
-
-    Implementations:
-    - InMemoryAggregator: Framework layer (default, local/tauri/dev)
-    - StreamingAggregator: Framework layer (real-time incremental)
-    - UniversalAggregator: Framework layer (universal aggregator using DataSource)
-
-    New Architecture (DataSource Pattern):
-    Framework provides UniversalAggregator that depends on SkillQualityDataSource Protocol.
-    Business layers implement the DataSource Protocol with their own adapters (e.g. SQL queries).
-
-    Usage Example:
-        ```python
-        # Framework layer (out-of-the-box)
-        from myrm_agent_harness.agent.skills.optimization import InMemoryAggregator
-
-        aggregator = InMemoryAggregator(storage)
-        metrics = await aggregator.get_global_metrics()
-
-        # Business layer (production with DataSource Pattern)
-        from myrm_agent_harness.agent.skills.optimization import UniversalAggregator
-
-        data_source = ProductSkillQualityDataSource(db_session)
-        aggregator = UniversalAggregator(data_source)
-        metrics = await aggregator.get_global_metrics()
-        ```
-    """
-
-    async def aggregate_by_skill(
-        self, skill_id: str | None = None, time_range_days: int = 30
-    ) -> list[SkillQualityAggregate]:
-        """Aggregate quality metrics by skill
-
-        Args:
-            skill_id: Optional filter for specific skill, None returns all skills
-            time_range_days: Time window for aggregation (default 30 days)
-
-        Returns:
-            List of SkillQualityAggregate sorted by quality score descending
-
-        Example:
-            ```python
-            all_skills = await aggregator.aggregate_by_skill()
-            one_skill = await aggregator.aggregate_by_skill("pdf-generator", days=7)
-            ```
-        """
-        ...
-
-    async def aggregate_by_user(self, time_range_days: int = 30) -> list[UserQualityAggregate]:
-        """Aggregate quality metrics by user
-
-        Args:
-            user_id: Optional filter for specific user, None returns all users
-            time_range_days: Time window for aggregation (default 30 days)
-
-        Returns:
-            List of UserQualityAggregate sorted by quality score descending
-
-        Example:
-            ```python
-            all_users = await aggregator.aggregate_by_user()
-            one_user = await aggregator.aggregate_by_user("user-123", days=7)
-            ```
-        """
-        ...
-
-    async def aggregate_by_dimension(
-        self, dimension: AggregateDimension, time_range_days: int = 30
-    ) -> dict[str, SkillQualityAggregate]:
-        """Aggregate quality metrics by custom dimension
-
-        Args:
-            dimension: Aggregation dimension (skill_type, user_tier, time_of_day, etc.)
-            time_range_days: Time window for aggregation (default 30 days)
-
-        Returns:
-            Dictionary mapping dimension value to aggregate
-
-        Example:
-            ```python
-            by_type = await aggregator.aggregate_by_dimension(AggregateDimension.SKILL_TYPE)
-            by_hour = await aggregator.aggregate_by_dimension(AggregateDimension.TIME_OF_DAY)
-            ```
-        """
-        ...
-
-    async def get_global_metrics(self, time_range_days: int = 30) -> GlobalQualityMetrics:
-        """Get global quality metrics across all skills/users
-
-        Args:
-            time_range_days: Time window for aggregation (default 30 days)
-
-        Returns:
-            GlobalQualityMetrics with system-wide statistics
-
-        Example:
-            ```python
-            metrics = await aggregator.get_global_metrics()
-            print(f"Avg quality: {metrics.avg_quality_score:.2f}")
-            print(f"Total skills: {metrics.total_skills}")
-            ```
-        """
-        ...
-
-    async def compare(
-        self, before_range_days: int, after_range_days: int, skill_id: str | None = None
-    ) -> list[ComparisonResult]:
-        """Compare quality metrics across two time periods
-
-        Args:
-            before_range_days: Days ago for "before" snapshot
-            after_range_days: Days ago for "after" snapshot (0 = now)
-            skill_id: Optional filter for specific skill
-
-        Returns:
-            List of ComparisonResult showing before/after delta
-
-        Example:
-            ```python
-            # Compare last 7 days vs previous 7 days
-            results = await aggregator.compare(before_range_days=14, after_range_days=7)
-
-            # Compare specific skill optimization impact
-            before_opt = await aggregator.compare(
-                before_range_days=30,
-                after_range_days=0,
-                skill_id="pdf-generator"
-            )
-            ```
-        """
-        ...
-
-    async def get_quality_percentiles(self, skill_id: str | None = None, time_range_days: int = 30) -> dict[str, float]:
-        """Get quality score percentiles (P50/P90/P95/P99)
-
-        Args:
-            skill_id: Optional filter for specific skill
-            time_range_days: Time window for calculation
-
-        Returns:
-            Dictionary with keys: p50, p90, p95, p99
-
-        Example:
-            ```python
-            percentiles = await aggregator.get_quality_percentiles()
-            print(f"P90: {percentiles['p90']:.2f}")
-            print(f"P99: {percentiles['p99']:.2f}")
-            ```
-        """
-        ...
-
-
-class SkillQualityDataSource(Protocol):
-    """Data source interface for UniversalAggregator
-
-    Provides raw records and optional pre-aggregated data for quality aggregation.
-    Business layer implements this protocol with concrete storage backends (SQL/Redis/etc.).
-
-    Usage:
-        ```python
-        class SQLSkillQualityDataSource:
-            async def query_raw_records(self, skill_id=None, time_range_days=30, filters=None):
-                ...
-            async def query_aggregated(self, group_by, time_range_days=30, filters=None):
-                return []  # fallback to raw records
-        ```
-    """
-
-    async def query_raw_records(
-        self, skill_id: str | None = None, time_range_days: int = 30, filters: dict[str, str] | None = None
-    ) -> list[SkillQualitySnapshot]: ...
-
-    async def query_aggregated(
-        self, group_by: str, time_range_days: int = 30, filters: dict[str, str] | None = None
-    ) -> list[dict[str, float]]: ...

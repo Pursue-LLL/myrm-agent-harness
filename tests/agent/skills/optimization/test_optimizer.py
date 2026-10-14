@@ -33,7 +33,7 @@ Improved implementation with better performance."""
 @pytest.fixture
 def config():
     """Test config"""
-    return OptimizationConfig.development()
+    return OptimizationConfig()
 
 
 @pytest.fixture

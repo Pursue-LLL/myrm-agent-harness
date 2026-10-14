@@ -1,6 +1,6 @@
 """Architecture gate: aggregate-root mixin MRO order.
 
-BrowserSession, ChatLiteLLM, OptimizationScheduler, SubagentExecutor, and BashExecutor
+BrowserSession, ChatLiteLLM, SubagentExecutor, and BashExecutor
 rely on multiple inheritance. Wrong mixin order silently changes which implementation
 runs. These tests lock the intended MRO prefix and method resolution owners.
 """
@@ -15,19 +15,6 @@ from myrm_agent_harness.agent.meta_tools.bash._executor.context_mixin import Bas
 from myrm_agent_harness.agent.meta_tools.bash._executor.execute_mixin import BashExecutorExecuteMixin
 from myrm_agent_harness.agent.meta_tools.bash._executor.executor import BashExecutor
 from myrm_agent_harness.agent.meta_tools.bash._executor.prepare_mixin import BashExecutorPrepareMixin
-from myrm_agent_harness.agent.skills.optimization.scheduler import OptimizationScheduler
-from myrm_agent_harness.agent.skills.optimization.scheduler_batch_mixin import (
-    OptimizationSchedulerBatchMixin,
-)
-from myrm_agent_harness.agent.skills.optimization.scheduler_monitoring_mixin import (
-    OptimizationSchedulerMonitoringMixin,
-)
-from myrm_agent_harness.agent.skills.optimization.scheduler_queue_mixin import (
-    OptimizationSchedulerQueueMixin,
-)
-from myrm_agent_harness.agent.skills.optimization.scheduler_resilience_mixin import (
-    OptimizationSchedulerResilienceMixin,
-)
 from myrm_agent_harness.agent.sub_agents.executor import SubagentExecutor
 from myrm_agent_harness.agent.sub_agents.executor_attempt_mixin import SubagentExecutorAttemptMixin
 from myrm_agent_harness.agent.sub_agents.executor_delegation_mixin import SubagentExecutorDelegationMixin
@@ -126,30 +113,6 @@ def test_chat_lite_llm_mixin_order_before_base_chat_model() -> None:
     async_idx = mro.index(ChatLiteLLMAsyncMixin)
     base_idx = mro.index(BaseChatModel)
     assert message_idx < sync_idx < async_idx < base_idx
-
-
-_EXPECTED_OPTIMIZATION_SCHEDULER_MIXIN_MRO: tuple[type[object], ...] = (
-    OptimizationScheduler,
-    OptimizationSchedulerMonitoringMixin,
-    OptimizationSchedulerBatchMixin,
-    OptimizationSchedulerQueueMixin,
-    OptimizationSchedulerResilienceMixin,
-    object,
-)
-
-
-@pytest.mark.architecture
-def test_optimization_scheduler_mixin_mro_prefix() -> None:
-    assert (
-        OptimizationScheduler.__mro__[: len(_EXPECTED_OPTIMIZATION_SCHEDULER_MIXIN_MRO)]
-        == _EXPECTED_OPTIMIZATION_SCHEDULER_MIXIN_MRO
-    )
-
-
-@pytest.mark.architecture
-def test_optimization_scheduler_start_monitoring_resolves_to_monitoring_mixin() -> None:
-    owner = next(c for c in OptimizationScheduler.__mro__ if "start_monitoring" in c.__dict__)
-    assert owner is OptimizationSchedulerMonitoringMixin
 
 
 _EXPECTED_SUBAGENT_EXECUTOR_MIXIN_MRO: tuple[type[object], ...] = (

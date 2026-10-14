@@ -36,11 +36,6 @@ myrm_agent_harness/agent/skills/evolution/db/store.py	587
 myrm_agent_harness/agent/skills/evolution/infra/integration.py	558
 myrm_agent_harness/agent/skills/evolution/pipeline/screener.py	625
 myrm_agent_harness/agent/skills/market/service.py	852
-myrm_agent_harness/agent/skills/optimization/aggregation_streaming.py	589
-myrm_agent_harness/agent/skills/optimization/batch_executor.py	640
-myrm_agent_harness/agent/skills/optimization/in_memory_storage.py	524
-myrm_agent_harness/agent/skills/optimization/protocols.py	621
-myrm_agent_harness/agent/skills/optimization/types.py	535
 myrm_agent_harness/agent/streaming/recovery/stream_recovery.py	810
 myrm_agent_harness/agent/streaming/recovery/stream_recovery_oneshot.py	673
 myrm_agent_harness/agent/streaming/stream_executor.py	642

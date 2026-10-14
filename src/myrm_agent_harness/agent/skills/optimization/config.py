@@ -9,11 +9,10 @@
 - OptimizationConfig: 优化总配置
 - ABTestConfig: A/B测试配置
 - SecurityConfig: 安全验证配置
-- MonitoringConfig: 监控配置
-- PerformanceConfig: 性能优化配置
+- PerformanceConfig: LLM调用配置
 
 [POS]
-Skill optimization system configuration. Provides flexible config options for A/B testing, monitoring, performance tuning, and security.
+Skill optimization system configuration. Provides config options for A/B testing, LLM call tuning, and security.
 
 """
 
@@ -63,43 +62,8 @@ class ABTestConfig:
 
 
 @dataclass
-class MonitoringConfig:
-    """监控配置"""
-
-    # 质量评估间隔（秒）
-    evaluation_interval: float = 3600.0  # 1 hour
-
-    # 优化触发阈值（quality_score低于此值触发优化）
-    optimization_threshold: float = 0.6
-
-    # 冷却期（同一skill两次优化的最小间隔，秒）
-    cooldown_period: float = 86400.0  # 24 hours
-
-    # 断路器阈值（连续失败多少次后禁用自动优化）
-    circuit_breaker_threshold: int = 5
-
-    # 断路器恢复时间（秒）
-    circuit_breaker_recovery_time: float = 3600.0  # 1 hour
-
-
-@dataclass
 class PerformanceConfig:
-    """性能优化配置"""
-
-    # 是否启用Prompt缓存
-    enable_prompt_cache: bool = True
-
-    # Prompt缓存TTL（秒）
-    prompt_cache_ttl: float = 3600.0
-
-    # 是否启用评估结果缓存
-    enable_evaluation_cache: bool = True
-
-    # 评估结果缓存TTL（秒）
-    evaluation_cache_ttl: float = 1800.0
-
-    # 是否启用异步处理
-    enable_async_processing: bool = True
+    """LLM调用配置"""
 
     # LLM调用超时（秒）
     llm_timeout: float = 60.0
@@ -121,39 +85,5 @@ class OptimizationConfig:
     # A/B测试配置
     ab_test: ABTestConfig = field(default_factory=ABTestConfig)
 
-    # 监控配置
-    monitoring: MonitoringConfig = field(default_factory=MonitoringConfig)
-
     # 性能配置
     performance: PerformanceConfig = field(default_factory=PerformanceConfig)
-
-    # 是否启用定时评估触发的自动优化（手动 / 批量触发不受影响）
-    enable_auto_optimization: bool = True
-
-    @classmethod
-    def default(cls) -> OptimizationConfig:
-        """默认配置（生产环境推荐）"""
-        return cls()
-
-    @classmethod
-    def development(cls) -> OptimizationConfig:
-        """开发环境配置（更快的反馈周期）"""
-        return cls(
-            monitoring=MonitoringConfig(
-                evaluation_interval=300.0,  # 5 minutes
-                cooldown_period=600.0,  # 10 minutes
-            ),
-            ab_test=ABTestConfig(min_sample_size=10, max_sample_size=50),
-        )
-
-    @classmethod
-    def conservative(cls) -> OptimizationConfig:
-        """保守配置（更严格的安全验证和测试）"""
-        return cls(
-            security=SecurityConfig(enable_sandbox_validation=True),
-            ab_test=ABTestConfig(min_sample_size=100, max_sample_size=1000),
-            monitoring=MonitoringConfig(
-                optimization_threshold=0.5,
-                cooldown_period=172800.0,  # 48 hours
-            ),
-        )
