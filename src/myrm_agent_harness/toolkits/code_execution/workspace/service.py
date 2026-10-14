@@ -62,8 +62,8 @@ class WorkspaceService:
 
         Args:
             root_dir: Root directory for workspace storage.
-            storage_backend: Optional injected storage backend (e.g. S3 for Sandbox mode).
-                When None, a local filesystem backend is used.
+            storage_backend: Optional injected StorageProvider.
+                When None, a LocalStorageBackend rooted at the workspace directory is used.
         """
         self._root = root_dir
         self._storage_backend = storage_backend

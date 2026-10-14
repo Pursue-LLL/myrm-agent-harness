@@ -169,7 +169,7 @@ Python wrapper 在用户代码运行前注入一个 import 钩子，惰性拦截
 代码执行会话的文件空间管理：
 
 - **Workspace**：工作空间数据模型，绑定到 `session_id`
-- **WorkspaceService**：生命周期管理（CRUD），支持 `StorageProvider` 后端注入（本地/S3）
+- **WorkspaceService**：生命周期管理（CRUD），支持 `StorageProvider` 后端注入（默认 `LocalStorageBackend`）
 - **路径安全**：`validate_path_component()` 防止路径遍历攻击
 
 ### 6. ExecutionMetrics（执行指标）

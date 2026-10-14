@@ -6,13 +6,13 @@
 - types::SkillMetadata, SkillTrust (POS: 技能元数据类型和信任枚举)
 - _utils::parse_skill_frontmatter (POS: 解析 SKILL.md frontmatter)
 - _runtime::build_skill_metadata (POS: 构建完整 SkillMetadata 的工厂函数)
-- storage.protocols::StorageBackend (POS: 存储后端协议，提供文件存取接口)
+- toolkits.storage.base::StorageProvider (POS: 存储提供者抽象基类，提供文件存取接口)
 
 [OUTPUT]
-- StorageSkillBackend: 存储技能后端（从存储后端加载技能，支持本地/S3/OSS，trust 可配置）
+- StorageSkillBackend: 存储技能后端（从 StorageProvider 加载技能，trust 可配置）
 
 [POS]
-Storage skill backend. Loads skills from any StorageBackend implementation (local/MinIO/S3/OSS).
+Storage skill backend. Loads skills from any StorageProvider implementation.
 
 """
 
@@ -56,7 +56,7 @@ class StorageSkillBackend(SkillBackend):
         """Initialize storage skill backend.
 
         Args:
-            storage: Storage backend instance (implements StorageBackend Protocol)
+            storage: StorageProvider instance the skills are read from
             skills_prefix: Skills storage path prefix
             default_trust: Trust level for skills loaded by this backend.
                 INSTALLED (default) for user-uploaded/external skills.
