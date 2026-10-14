@@ -109,6 +109,15 @@ _CHINA_PHONE_RE = re.compile(
 
 _INTL_PHONE_RE = re.compile(r"\+\d{1,3}[-.\s]?\(?\d{1,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}")
 
+# A US number written without the country code: (415) 555-2671, 415-555-2671, 415.555.2671, optionally led by the
+# trunk prefix "1-". Area code and exchange do not start with 0 or 1. It is not part of a longer token, and it does
+# not follow a "+<country code>", which the international pattern reads (a number is never found by both).
+_US_PHONE_RE = re.compile(
+    r"(?<![\w.+-])(?<!\+\d[ .-])(?<!\+\d{2}[ .-])(?<!\+\d{3}[ .-])"
+    r"(?:1[-. ])?(?:\([2-9]\d{2}\)[ -]?|[2-9]\d{2}[-. ])"
+    r"[2-9]\d{2}[-. ]\d{4}(?![\w-])"
+)
+
 _EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")
 
 _CREDIT_CARD_VISIBLE_RE = re.compile(
@@ -143,6 +152,7 @@ _SSN_RE = re.compile(r"(?<!\d)\d{3}-\d{2}-\d{4}(?!\d)")
 _S2_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("china_phone", _CHINA_PHONE_RE),
     ("intl_phone", _INTL_PHONE_RE),
+    ("us_phone", _US_PHONE_RE),
     ("email", _EMAIL_RE),
     ("credit_card_visible", _CREDIT_CARD_VISIBLE_RE),
     ("private_ip", _PRIVATE_IP_RE),

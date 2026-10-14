@@ -49,6 +49,7 @@ _PATTERN_TO_TYPE: dict[str, str] = {
     # S2 patterns
     "china_phone": "PHONE_NUMBER",
     "intl_phone": "PHONE_NUMBER",
+    "us_phone": "PHONE_NUMBER",
     "email": "EMAIL_ADDRESS",
     "credit_card_visible": "CREDIT_CARD",
     "private_ip": "PRIVATE_IP",

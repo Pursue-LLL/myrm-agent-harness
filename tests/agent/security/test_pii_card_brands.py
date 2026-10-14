@@ -139,6 +139,25 @@ class TestExpiryAndCvvAfterTheNumber:
         assert store.resolve_all(result.text) == text
 
 
+class TestRedactingRedactedText:
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "card 2223003122003222 ok",
+            "card 3782 822463 10005 ok",
+            "card 3566 0020 2036 0505 12/28 ok",
+            "card 6011111111111117, cvv 123",
+        ],
+    )
+    def test_a_second_pass_changes_nothing(self, text: str) -> None:
+        once, _ = redact_pii(text)
+
+        twice, count = redact_pii(once)
+
+        assert twice == once
+        assert count == 0
+
+
 class TestRedactedAndRestored:
     @pytest.mark.parametrize(
         ("original", "masked"),

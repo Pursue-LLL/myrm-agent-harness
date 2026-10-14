@@ -39,6 +39,7 @@ from myrm_agent_harness.core.security.detection.pii_classifier import (
     _PLACEHOLDER_RE,
     _PRIVATE_IP_RE,
     _SSN_RE,
+    _US_PHONE_RE,
     _china_id_valid,
     _luhn_valid,
 )
@@ -59,6 +60,10 @@ def _redact_intl_phone(m: re.Match[str]) -> str:
     if len(val) > 8:
         return f"{val[:4]}***{val[-3:]} [PII:phone]"
     return "[PII:phone]"
+
+
+def _redact_us_phone(m: re.Match[str]) -> str:
+    return f"***-***-{m.group(0)[-4:]} [PII:phone]"
 
 
 def _redact_email(m: re.Match[str]) -> str:
@@ -170,6 +175,7 @@ _S3_REDACTIONS: tuple[_Redaction, ...] = (
 _S2_REDACTIONS: tuple[_Redaction, ...] = (
     ("china_phone", _CHINA_PHONE_RE, _redact_china_phone, False),
     ("intl_phone", _INTL_PHONE_RE, _redact_intl_phone, False),
+    ("us_phone", _US_PHONE_RE, _redact_us_phone, False),
     ("email", _EMAIL_RE, _redact_email, False),
     ("credit_card_visible", _CREDIT_CARD_VISIBLE_RE, _redact_credit_card, False),
     ("private_ip", _PRIVATE_IP_RE, _redact_private_ip, False),
