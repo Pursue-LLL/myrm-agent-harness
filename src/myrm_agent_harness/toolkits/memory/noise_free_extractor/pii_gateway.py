@@ -16,6 +16,7 @@ lets a card number into memory.
 """
 
 import re
+from bisect import bisect_left
 from dataclasses import dataclass
 from typing import Literal
 
@@ -105,11 +106,18 @@ def _candidate_spans(text: str) -> list[tuple[str, list[Span]]]:
 def _find_hits(text: str) -> list[_Hit]:
     """Disjoint hits in text order; where rules claim the same characters the earlier rule, then the longer span, wins."""
     hits: list[_Hit] = []
+    starts: list[int] = []
     for rule, spans in _candidate_spans(text):
         for start, end in sorted(spans, key=lambda span: (span[0], -span[1])):
-            if not any(start < hit.span[1] and hit.span[0] < end for hit in hits):
-                hits.append(_Hit(rule, (start, end)))
-    return sorted(hits, key=lambda hit: hit.span)
+            # The accepted hits are disjoint and sorted, so only the two neighbours can overlap a new span.
+            index = bisect_left(starts, start)
+            if index > 0 and hits[index - 1].span[1] > start:
+                continue
+            if index < len(hits) and hits[index].span[0] < end:
+                continue
+            hits.insert(index, _Hit(rule, (start, end)))
+            starts.insert(index, start)
+    return hits
 
 
 def _snippet(hit: _Hit, text: str) -> str:

@@ -4,6 +4,8 @@
 refusing, and masks only the characters that are sensitive.
 """
 
+import time
+
 import pytest
 
 from myrm_agent_harness.agent.security.detection.pii_classifier import classify_content
@@ -227,3 +229,18 @@ class TestAgreementWithThePrivacyPipeline:
 
         assert classify_content(statement, PrivacyPolicy(enabled=False)).level == SensitivityLevel.S1
         assert not _GATE.is_safe_for_storage(statement)
+
+
+class TestLongStatements:
+    def test_a_long_statement_full_of_hits_is_screened_in_bounded_time(self) -> None:
+        # Resolving which hit owns which characters once compared every hit with every other: 20,000 cards took 17 s.
+        hits = 20_000
+        statement = "card 4111 1111 1111 1111 ok. " * hits
+
+        started = time.perf_counter()
+        result = _MASKING_GATE.inspect(statement)
+        elapsed = time.perf_counter() - started
+
+        assert len(result.violations) == hits
+        assert result.sanitized_text == "card [credit_card_REDACTED] ok. " * hits
+        assert elapsed < 8
