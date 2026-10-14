@@ -66,13 +66,6 @@ from myrm_agent_harness.toolkits.memory.experience_compounding import (
     CompoundedExperienceItem,
     ExperienceCompoundingSuite,
 )
-from myrm_agent_harness.toolkits.memory.experience_observability import (
-    ExperienceObservabilityMetric,
-    ExperienceObservabilityTracker,
-    HostAccessChannel,
-    SessionTraceEvidence,
-    ZeroRefactorHostPlugin,
-)
 from myrm_agent_harness.toolkits.memory.four_tier_fts import (
     DreamCompactionReport,
     FourTierDreamCompactor,
@@ -445,11 +438,6 @@ __all__ = [
     "CuratorStudioSummary",
     "MarkdownSyncDelta",
     "MemoryCuratorStudio",
-    "HostAccessChannel",
-    "SessionTraceEvidence",
-    "ExperienceObservabilityMetric",
-    "ExperienceObservabilityTracker",
-    "ZeroRefactorHostPlugin",
     "PeerCognitionGraphStore",
     "PeerCognitionProjection",
     "PeerIdentity",
