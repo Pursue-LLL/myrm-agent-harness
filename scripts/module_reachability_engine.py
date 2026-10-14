@@ -10,10 +10,11 @@ Per-file evidence (dotted references, hub re-export bindings, the facade rule) c
 imported from a hub (``__init__.py``) is followed through the hub's re-export bindings and, when the
 hub does not bind the name, through the exporters inside the hub's own subtree.
 
-Roots: package-root modules, the files of ``root_dirs``, ``__main__.py`` files and
-``[project.scripts]`` entries. A downstream tree (the server) is a ``Consumer``: it is analysed with
-the same engine, and only its roots and the units reachable from them count as consumers, so a dead
-downstream unit cannot keep an upstream unit alive. Tests are never evidence.
+Roots: package-root modules, the files of ``root_dirs``, ``__main__.py`` files, modules with an
+``if __name__ == "__main__"`` block (``python -m`` runs them) and ``[project.scripts]`` entries. A
+downstream tree (the server) is a ``Consumer``: it is analysed with the same engine, and only its
+roots and the units reachable from them count as consumers, so a dead downstream unit cannot keep an
+upstream unit alive. Tests are never evidence.
 """
 
 from __future__ import annotations
@@ -66,6 +67,11 @@ def _python_files(root: Path) -> Iterable[Path]:
     return (path for path in sorted(root.rglob("*.py")) if "__pycache__" not in path.parts)
 
 
+def _module_name(package: str, rel: tuple[str, ...]) -> str:
+    """Dotted module of a package-relative file path (``a/b/__init__.py`` is ``package.a.b``)."""
+    return ".".join([package, *rel[:-1], *([] if rel[-1] == "__init__.py" else [rel[-1][:-3]])])
+
+
 class _Resolver:
     """Resolves dotted references to units through module paths and hub re-exports."""
 
@@ -79,13 +85,12 @@ class _Resolver:
         self._cache: dict[str, frozenset[str]] = {}
 
     def add_module(self, rel: tuple[str, ...], facts: FileFacts) -> None:
-        is_init = rel[-1] == "__init__.py"
-        module = ".".join([self.package, *rel[:-1], *([] if is_init else [rel[-1][:-3]])])
+        module = _module_name(self.package, rel)
         self.module_unit[module] = classify(rel, self.root_dirs)[1]
         for depth in range(1, len(rel)):
             ancestor = ".".join([self.package, *rel[:depth]])
             self.module_unit.setdefault(ancestor, classify((*rel[:depth], "__init__.py"), self.root_dirs)[1])
-        if is_init:
+        if rel[-1] == "__init__.py":
             self.hub_bindings[module] = facts.bindings
             self.hub_defs[module] = facts.exports
 
@@ -180,6 +185,8 @@ def _build(tree_root: Path, root_dirs: Sequence[str], foreign: Sequence[str] = (
         graph.resolver.add_module(rel, facts)
         targets = facts.targets | {b for b in facts.bindings.values() if b.startswith(foreign_prefixes)}
         key = classify(rel, root_dirs)[1]
+        if facts.runnable:
+            graph.root_targets.add(_module_name(package, rel))
         if key is None:
             graph.root_targets |= targets
             continue

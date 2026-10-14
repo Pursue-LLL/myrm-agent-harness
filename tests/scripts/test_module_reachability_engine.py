@@ -145,6 +145,22 @@ def test_main_module_and_entry_points_are_roots(tmp_path: Path) -> None:
     assert _dead(analyze(root, entry_points=["pkg.agent.engine.cli:main"])) == {"agent/engine/unwired"}
 
 
+def test_module_with_a_main_block_is_a_root_for_what_it_imports(tmp_path: Path) -> None:
+    root = _package(
+        tmp_path,
+        {
+            "agent/engine/cli.py": (
+                "from .service import run\n\n\ndef main() -> None:\n    run()\n\n\n"
+                'if __name__ == "__main__":\n    main()\n'
+            ),
+            "agent/engine/service.py": "def run() -> None: ...\n",
+            "agent/engine/no_guard.py": "def run() -> None: ...\n\n\ndef main() -> None: ...\n",
+            "agent/engine/other_guard.py": 'if __name__ == "other":\n    pass\n',
+        },
+    )
+    assert _dead(analyze(root)) == {"agent/engine/no_guard", "agent/engine/other_guard"}
+
+
 def test_attribute_chain_on_module_alias_counts(tmp_path: Path) -> None:
     root = _package(
         tmp_path,

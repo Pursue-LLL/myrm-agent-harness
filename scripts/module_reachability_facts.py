@@ -42,6 +42,7 @@ class FileFacts:
     bindings: Mapping[str, str]
     exports: frozenset[str]
     lines: int
+    runnable: bool = False
 
 
 def _resolve_relative(level: int, module: str | None, package: str) -> str:
@@ -97,6 +98,18 @@ def _import_bindings(nodes: Iterable[ast.AST], package: str) -> tuple[dict[str, 
                 if alias.name != "*":
                     bound[alias.asname or alias.name] = f"{base}.{alias.name}"
     return bound, imported
+
+
+def _runs_as_script(tree: ast.Module) -> bool:
+    """True when the module has an ``if __name__ == "__main__":`` block, i.e. ``python -m`` executes it."""
+    return any(
+        isinstance(node, ast.If)
+        and isinstance(node.test, ast.Compare)
+        and isinstance(node.test.left, ast.Name)
+        and node.test.left.id == "__name__"
+        and any(isinstance(c, ast.Constant) and c.value == "__main__" for c in node.test.comparators)
+        for node in tree.body
+    )
 
 
 def _bare_imports(nodes: Iterable[ast.Import | ast.ImportFrom]) -> set[str]:
@@ -247,4 +260,4 @@ def analyze_source(text: str, package: str, roots: Sequence[str], *, role: Role)
         targets |= _bare_imports(scan.imports)
     else:
         targets |= imported | _string_targets(scan.strings) | set(bindings.values())
-    return FileFacts(frozenset(targets), bindings, _exports(tree), lines)
+    return FileFacts(frozenset(targets), bindings, _exports(tree), lines, _runs_as_script(tree))
