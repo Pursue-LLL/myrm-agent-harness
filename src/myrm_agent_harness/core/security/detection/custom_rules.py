@@ -29,6 +29,7 @@ whole-text hit of a timed-out pattern is kept, as there is no telling which part
 - find_custom_spans: the non-overlapping spans of a text, leftmost and longest first
 - first_custom_span: the first hit in rule order, for callers that only ask whether a rule applies
 - ineffective_patterns: the patterns that cannot be used (they do not compile or are too large to build) and so protect nothing
+- pattern_problem: why one pattern cannot be used, for a caller that compiles patterns itself
 
 [POS]
 Single definition of custom-term matching for the privacy policy: the PII classifier, the redactor and the pseudonymizer
@@ -146,6 +147,16 @@ def ineffective_patterns(patterns: Iterable[str]) -> tuple[str, ...]:
     return tuple(pattern for pattern in dict.fromkeys(patterns) if _pattern_regex(pattern) is None)
 
 
+def pattern_problem(pattern: str) -> str | None:
+    """Why *pattern* cannot be used (the engine's own message, or that its counted repeats are too large to build), or None.
+
+    For a caller that compiles a pattern itself: this is the check to pass first, as the engine builds every copy of a
+    counted repeat when it compiles.
+    """
+    compiled = _compile_pattern(pattern)
+    return compiled if isinstance(compiled, str) else None
+
+
 @lru_cache(maxsize=512)
 def _keyword_regex(keyword: str) -> regex.Pattern[str] | None:
     # The space of a multi-word keyword stands for any run of whitespace: pasted text wraps lines, uses no-break spaces.
@@ -157,15 +168,21 @@ def _keyword_regex(keyword: str) -> regex.Pattern[str] | None:
     return regex.compile(head + r"\s+".join(map(regex.escape, words)) + tail, regex.IGNORECASE)
 
 
-@lru_cache(maxsize=512)
 def _pattern_regex(pattern: str) -> regex.Pattern[str] | None:
-    # A pattern the engine rejects as malformed, too large to build or nested too deep never matches; none may raise.
+    compiled = _compile_pattern(pattern)
+    return None if isinstance(compiled, str) else compiled
+
+
+@lru_cache(maxsize=512)
+def _compile_pattern(pattern: str) -> regex.Pattern[str] | str:
+    """The compiled *pattern*, or the reason it cannot be used. A pattern the engine rejects as malformed, too large to
+    build or nested too deep never matches; none may raise."""
     if _repeat_atoms(pattern) > _MAX_REPEAT_ATOMS:
-        return None
+        return "its counted repeats are too large to build"
     try:
         return regex.compile(pattern, regex.IGNORECASE)
-    except (regex.error, OverflowError, RecursionError):
-        return None
+    except (regex.error, OverflowError, RecursionError) as exc:
+        return str(exc)
 
 
 def _repeat_atoms(pattern: str) -> int:

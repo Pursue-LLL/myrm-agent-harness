@@ -20,6 +20,7 @@ from myrm_agent_harness.core.security.detection.custom_rules import (
     find_custom_spans,
     first_custom_span,
     ineffective_patterns,
+    pattern_problem,
 )
 from myrm_agent_harness.core.security.types import PrivacyPolicy, SensitivityLevel
 
@@ -271,6 +272,25 @@ class TestPatternSize:
     )
     def test_a_realistic_counted_pattern_is_kept(self, pattern: str) -> None:
         assert ineffective_patterns((pattern,)) == ()
+
+
+class TestPatternProblem:
+    """A caller that compiles patterns itself is told why one cannot be used, and agrees with ``ineffective_patterns``."""
+
+    def test_a_sound_pattern_has_no_problem(self) -> None:
+        assert pattern_problem(r"EMP-\d{6}") is None
+
+    def test_a_malformed_pattern_gets_the_engine_message(self) -> None:
+        problem = pattern_problem("([")
+        assert problem
+        assert "unterminated" in problem or "missing" in problem
+
+    def test_a_pattern_too_large_to_build_says_so(self) -> None:
+        assert pattern_problem(r"a{10000000}") == "its counted repeats are too large to build"
+
+    @pytest.mark.parametrize("pattern", ["([", r"a{10000000}", r"EMP-\d{6}", r"\p{Han}+"])
+    def test_it_agrees_with_ineffective_patterns(self, pattern: str) -> None:
+        assert (pattern_problem(pattern) is not None) == (ineffective_patterns((pattern,)) == (pattern,))
 
 
 class TestAlreadyRewrittenText:

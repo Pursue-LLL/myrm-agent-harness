@@ -13,6 +13,8 @@ are. This is the complement: any plausible card-number shape right after a card 
 - find_card_shaped_spans(): (start, end) spans, sorted by start, of every digit run shaped like a card number, introduced
   or not; a grouped number is also found from each later group, so a card typed right after another group of four is
   not hidden behind it
+- CARD_CONTEXT_RE: the keyword-and-number pattern itself (case-insensitive; the number is the ``number`` group), for a
+  rule engine that matches by pattern source
 
 [POS]
 Keyword-anchored detector for card numbers outside the network prefix table or with a typo in them. The keyword is
@@ -50,7 +52,7 @@ _CARD_NUMBER = (
 _CARD_SHAPE_RE = re.compile(rf"(?=(?P<shape>{_CARD_NUMBER}))")
 
 # A few words between keyword and number ("card number is", "bank card (Maestro):"), never a digit or a line break.
-_CARD_CONTEXT_RE = re.compile(rf"{_CARD_KEYWORD}[^\d\n]{{0,16}}(?P<number>{_CARD_NUMBER})", re.IGNORECASE)
+CARD_CONTEXT_RE = re.compile(rf"{_CARD_KEYWORD}[^\d\n]{{0,16}}(?P<number>{_CARD_NUMBER})", re.IGNORECASE)
 
 
 def find_card_number_spans(text: str) -> list[Span]:
@@ -59,7 +61,7 @@ def find_card_number_spans(text: str) -> list[Span]:
     # keyword alternation at every position of the text.
     if "卡" not in text and "card" not in text.lower():
         return []
-    return [match.span("number") for match in _CARD_CONTEXT_RE.finditer(text)]
+    return [match.span("number") for match in CARD_CONTEXT_RE.finditer(text)]
 
 
 def find_card_shaped_spans(text: str) -> list[Span]:
