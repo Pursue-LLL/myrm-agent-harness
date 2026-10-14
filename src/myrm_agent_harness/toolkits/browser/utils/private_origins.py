@@ -1,16 +1,17 @@
 """Per-context registry of private-network origins a local-mode session navigated to.
 
 [INPUT]
-- core.security.redirect_hop_guard::PrivateOriginGrants (POS: explicit private origin set)
+- core.security.redirect_hop_guard::PrivateOriginGrants (POS: set of origins that may be loaded although they are private)
 
 [OUTPUT]
 - private_origin_grants: get-or-create the grants bound to a browser context
 
 [POS]
-Shared state between the navigation guard (records an origin when the agent navigates there on
-purpose) and the context-level request filter (lets documents from granted origins through).
-Both resolve the same ``BrowserContext`` object, so no wiring through factories is needed and a
-recycled context never inherits another session's grants by accident of object identity.
+Per-context registry of explicitly navigated private origins. Shared state between the navigation
+guard (records an origin when the agent navigates there on purpose) and the context-level request
+filter (lets documents from granted origins through). Both resolve the same ``BrowserContext``
+object, so no wiring through factories is needed and a recycled context never inherits another
+session's grants by accident of object identity.
 """
 
 from __future__ import annotations

@@ -2,8 +2,8 @@
 
 [INPUT]
 - .types / pool.config::ResourceBlockConfig
-- utils.private_origins::private_origin_grants (POS: origins a local-mode session navigated to)
-- core.security.redirect_hop_guard::RedirectHopEvaluator, HopDisposition
+- utils.private_origins::private_origin_grants (POS: per-context registry of explicitly navigated private origins)
+- core.security.redirect_hop_guard::RedirectHopEvaluator, HopDisposition (POS: literal-host private network and cloud metadata classification, no DNS)
 - patchright.async_api::BrowserContext, Route
 - urllib.parse::urlparse
 
@@ -13,8 +13,10 @@
 - _continue_route_safely: safe route fallback wrapper
 
 [POS]
-Layer 1 network route filter. Protects browser sessions from navigating or redirecting
-to internal addresses, AWS/GCP/Azure IMDS metadata (169.254.169.254), or blocked domains.
+Layer 1 network route filter. Protects browser sessions from loading internal addresses,
+AWS/GCP/Azure IMDS metadata (169.254.169.254) or blocked domains in any request it is handed.
+patchright does not hand over the hops of a document redirect: private and metadata targets
+are judged after the load by the navigation guard, domain lists have no such second look.
 A local-mode session (``allow_private_networks``) keeps its own machine reachable for subresources
 and for documents from origins it was sent to explicitly; any other private document, such as a
 page script or link pointing the tab at loopback, is aborted like in the cloud.

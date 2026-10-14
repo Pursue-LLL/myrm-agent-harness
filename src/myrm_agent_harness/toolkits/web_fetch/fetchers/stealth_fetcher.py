@@ -4,7 +4,7 @@ Patchright solves CDP leaks at the source level, BrowserForge generates fine-gra
 Auto-bypasses Cloudflare Turnstile/Interstitial, hides Canvas fingerprints。
 
 [INPUT]
-- .target_guard::FetchTargetGuard (POS: per-fetch SSRF policy applied to the requested URL and to the page the browser ended on)
+- .target_guard::FetchTargetGuard (POS: per-fetch SSRF policy for the web_fetch tiers that follow redirects)
 - toolkits.browser.pool.proxy::ProxyPool (POS: Manages proxy rotation across Browser Pool and FetchEngine. Supports: 1. Round-robin rotation across multiple proxies 2. Sticky sessions (same proxy for a given session_id with TTL) 3. Concurrency-safe in asyncio single-threaded event loop 4. Environment variable loading (MYRM_PROXIES) 5. Automatic expired session cleanup (via lifecycle tick))
 
 [OUTPUT]

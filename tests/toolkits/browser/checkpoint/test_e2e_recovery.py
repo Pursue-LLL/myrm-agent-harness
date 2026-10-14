@@ -7,6 +7,8 @@ Verifies complete integration:
 4. Session state restoration works correctly
 """
 
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from langgraph.checkpoint.base import Checkpoint
 
@@ -16,6 +18,13 @@ from myrm_agent_harness.toolkits.browser.checkpoint import (
     ThreadStore,
     create_thread_tables,
 )
+
+_EPOCH = datetime(2026, 1, 1, tzinfo=UTC)
+
+
+def _iso(seconds: int) -> str:
+    """Checkpoint time as LangGraph stores it: an ISO-8601 string."""
+    return (_EPOCH + timedelta(seconds=seconds)).isoformat()
 
 
 @pytest.fixture
@@ -64,7 +73,7 @@ class TestE2ERecovery:
         checkpoint = Checkpoint(
             v=1,
             id="checkpoint-1",
-            ts=1000000,
+            ts=_iso(0),
             channel_values={"messages": []},
             channel_versions={},
             versions_seen={},
@@ -97,7 +106,7 @@ class TestE2ERecovery:
         checkpoint1 = Checkpoint(
             v=1,
             id="checkpoint-1",
-            ts=1000000,
+            ts=_iso(0),
             channel_values={"messages": []},
             channel_versions={},
             versions_seen={},
@@ -115,7 +124,7 @@ class TestE2ERecovery:
         checkpoint2 = Checkpoint(
             v=1,
             id="checkpoint-2",
-            ts=2000000,
+            ts=_iso(1),
             channel_values={"messages": []},
             channel_versions={},
             versions_seen={},
@@ -146,7 +155,7 @@ class TestE2ERecovery:
             checkpoint = Checkpoint(
                 v=1,
                 id=f"checkpoint-{i}",
-                ts=1000000 + i * 1000,
+                ts=_iso(i),
                 channel_values={"messages": []},
                 channel_versions={},
                 versions_seen={},
@@ -182,7 +191,7 @@ class TestE2ERecovery:
         checkpoint = Checkpoint(
             v=1,
             id="checkpoint-1",
-            ts=1000000,
+            ts=_iso(0),
             channel_values={"messages": []},
             channel_versions={},
             versions_seen={},
@@ -217,7 +226,7 @@ class TestE2ERecovery:
         checkpoint = Checkpoint(
             v=1,
             id="checkpoint-meta",
-            ts=1000000,
+            ts=_iso(0),
             channel_values={
                 "messages": [
                     {"role": "user", "content": "Visit example.com"},
@@ -265,7 +274,7 @@ class TestE2ERecovery:
         checkpoint1 = Checkpoint(
             v=1,
             id="checkpoint-1",
-            ts=1000000,
+            ts=_iso(0),
             channel_values={"messages": []},
             channel_versions={},
             versions_seen={},
@@ -283,7 +292,7 @@ class TestE2ERecovery:
         checkpoint2 = Checkpoint(
             v=1,
             id="checkpoint-2",
-            ts=2000000,
+            ts=_iso(1),
             channel_values={"messages": []},
             channel_versions={},
             versions_seen={},
@@ -301,7 +310,7 @@ class TestE2ERecovery:
         checkpoint3 = Checkpoint(
             v=1,
             id="checkpoint-3",
-            ts=3000000,
+            ts=_iso(2),
             channel_values={"messages": []},
             channel_versions={},
             versions_seen={},

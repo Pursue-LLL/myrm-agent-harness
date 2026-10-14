@@ -3,7 +3,7 @@
 [INPUT]
 - core.security.guards.ssrf::async_pin_url, SSRFSecurityError (POS: DNS-validated URL checks + audit)
 - core.security.guards.url_allowlist::URLAllowlistGuard (POS: skill DLP domain allowlist)
-- core.security.redirect_hop_guard::RedirectHopEvaluator, PrivateOriginGrants (POS: literal private/metadata classification)
+- core.security.redirect_hop_guard::RedirectHopEvaluator, PrivateOriginGrants (POS: literal-host private network and cloud metadata classification, no DNS)
 - core.security.audit::record_decision (POS: security decision audit trail)
 - utils.url_syntax::parse_outbound_hostname (POS: outbound URL syntax check, no hostname blocklist)
 
@@ -11,11 +11,12 @@
 - FetchTargetGuard: pins every URL one fetch contacts (the requested URL and each redirect hop)
 
 [POS]
-Cloud policy resolves the host and requires every address to be public. Local policy
-(``allow_private_networks``) classifies the literal host only: the user's own resolver is not
-second-guessed, the origin the fetch was aimed at may be private, any other private origin reached
-through a redirect may not, and cloud metadata endpoints never may. Exact hosts listed in
-``MYRM_ALLOWED_INTERNAL_HOSTS`` stay reachable under both policies.
+Per-fetch SSRF policy for the web_fetch tiers that follow redirects. Cloud policy resolves the host
+and requires every address to be public. Local policy (``allow_private_networks``) classifies the
+literal host only: the user's own resolver is not second-guessed, the origin the fetch was aimed at
+may be private, any other private origin reached through a redirect may not, and cloud metadata
+endpoints never may. Exact hosts listed in ``MYRM_ALLOWED_INTERNAL_HOSTS`` stay reachable under
+both policies.
 """
 
 from __future__ import annotations

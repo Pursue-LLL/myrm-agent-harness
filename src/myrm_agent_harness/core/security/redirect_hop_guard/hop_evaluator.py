@@ -2,7 +2,7 @@
 
 [INPUT]
 - .types::HopDisposition, HopEvaluationResult
-- .origin_grants::PrivateOriginGrants
+- .origin_grants::PrivateOriginGrants (POS: set of origins that may be loaded although they are private)
 - stdlib ipaddress, urllib.parse
 
 [OUTPUT]

@@ -1,7 +1,7 @@
 """L1 HTTP fetcher via Scrapling curl_cffi with optional HTTP/3 retry lane.
 
 [INPUT]
-- .target_guard::FetchTargetGuard (POS: per-fetch SSRF policy; raises SSRFSecurityError, which propagates to FetchEngine)
+- .target_guard::FetchTargetGuard (POS: per-fetch SSRF policy for the web_fetch tiers that follow redirects)
 - toolkits.web_fetch.processing.antibot_detector::is_blocked (POS: Anti-bot detection for crawl results)
 - toolkits.web_fetch.probe.http3_probe::is_quic_egress_available (POS: QUIC egress probe and L1 retry metrics)
 - toolkits.web_fetch.router.site_experience::get_global_site_experience_store (POS: Site experience store)

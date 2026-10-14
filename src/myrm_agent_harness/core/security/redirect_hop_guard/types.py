@@ -8,7 +8,7 @@
 - HopEvaluationResult: per-request hop evaluation outcome
 
 [POS]
-Core schema definitions for browser redirect hop revalidation.
+Hop disposition and evaluation-result schema returned by RedirectHopEvaluator.
 """
 
 from __future__ import annotations

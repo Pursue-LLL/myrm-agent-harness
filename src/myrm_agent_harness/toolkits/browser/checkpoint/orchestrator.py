@@ -27,7 +27,8 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, TypedDict
+from datetime import datetime
+from typing import TYPE_CHECKING, TypedDict, cast
 
 from .metrics import CheckpointMetrics
 
@@ -43,6 +44,7 @@ class RecoverySummary(TypedDict, total=False):
 
 
 if TYPE_CHECKING:
+    from langchain_core.runnables import RunnableConfig
     from langgraph.checkpoint.base import BaseCheckpointSaver
 
     from ..pool import GlobalBrowserPool
@@ -92,7 +94,7 @@ class AutoRecoveryOrchestrator:
 
     def __init__(
         self,
-        checkpointer: BaseCheckpointSaver,
+        checkpointer: BaseCheckpointSaver[str],
         thread_store: ThreadStore,
         session_vault: SessionVault | None = None,
         metrics: CheckpointMetrics | None = None,
@@ -163,7 +165,7 @@ class AutoRecoveryOrchestrator:
             for record in thread_records:
                 try:
                     # Get latest checkpoint tuple (includes metadata)
-                    config = {"configurable": {"thread_id": record.thread_id, "checkpoint_ns": ""}}
+                    config: RunnableConfig = {"configurable": {"thread_id": record.thread_id, "checkpoint_ns": ""}}
                     checkpoint_tuple = await self._checkpointer.aget_tuple(config)
 
                     if not checkpoint_tuple:
@@ -177,30 +179,27 @@ class AutoRecoveryOrchestrator:
                     checkpoint = checkpoint_tuple.checkpoint
                     lg_metadata = checkpoint_tuple.metadata or {}
 
-                    # Browser metadata is in lg_metadata["browser"]
-                    browser_metadata = lg_metadata.get("browser", {})
-
-                    # If no browser metadata in checkpoint, try extracting from messages
-                    if not browser_metadata:
-                        messages = checkpoint.get("channel_values", {}).get("messages", [])
-                        if messages:
-                            from .metadata import extract_metadata_from_messages
-
-                            try:
-                                browser_metadata = extract_metadata_from_messages(messages)
-                            except Exception:
-                                browser_metadata = {}
-
-                    # Get messages for recovery context
                     messages = checkpoint.get("channel_values", {}).get("messages", [])
 
-                    # Build recovery context
+                    # Browser metadata is in lg_metadata["browser"]
+                    browser_metadata = cast("CheckpointMetadata", lg_metadata.get("browser", {}))
+
+                    # If no browser metadata in checkpoint, try extracting from messages
+                    if not browser_metadata and messages:
+                        from .metadata import extract_metadata_from_messages
+
+                        try:
+                            browser_metadata = extract_metadata_from_messages(messages)
+                        except Exception:
+                            browser_metadata = {}
+
+                    # LangGraph stores the checkpoint time as an ISO-8601 string
                     context = RecoveryContext(
                         thread_id=record.thread_id,
                         checkpoint_id=checkpoint["id"],
                         metadata=browser_metadata,
                         messages=messages,
-                        last_updated_at=checkpoint.get("ts", 0) / 1000,  # ns to seconds
+                        last_updated_at=datetime.fromisoformat(checkpoint["ts"]).timestamp(),
                     )
 
                     contexts.append(context)
@@ -361,7 +360,7 @@ class ParallelRecoveryOrchestrator:
 
     def __init__(
         self,
-        checkpointer: BaseCheckpointSaver,
+        checkpointer: BaseCheckpointSaver[str],
         thread_store: ThreadStore,
         browser_pool: GlobalBrowserPool,
         session_vault: SessionVault | None = None,

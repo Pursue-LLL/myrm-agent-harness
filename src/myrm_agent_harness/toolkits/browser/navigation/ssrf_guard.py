@@ -2,7 +2,7 @@
 
 [INPUT]
 - core.security.guards.ssrf::async_pin_url (POS: DNS-validated URL checks + audit)
-- core.security.redirect_hop_guard::RedirectHopEvaluator, PrivateOriginGrants (POS: literal private/metadata classification)
+- core.security.redirect_hop_guard::RedirectHopEvaluator, PrivateOriginGrants (POS: literal-host private network and cloud metadata classification, no DNS)
 - utils.page_health::abort_pending_navigation (POS: bounded browser and page health primitives)
 
 [OUTPUT]

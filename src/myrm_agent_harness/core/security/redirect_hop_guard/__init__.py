@@ -2,8 +2,8 @@
 
 [INPUT]
 - .types::HopDisposition, HopEvaluationResult
-- .hop_evaluator::RedirectHopEvaluator
-- .origin_grants::PrivateOriginGrants
+- .hop_evaluator::RedirectHopEvaluator (POS: literal-host private network and cloud metadata classification, no DNS)
+- .origin_grants::PrivateOriginGrants (POS: set of origins that may be loaded although they are private)
 
 [OUTPUT]
 Hop domain models, the evaluator and the explicit-origin grants, re-exported.
