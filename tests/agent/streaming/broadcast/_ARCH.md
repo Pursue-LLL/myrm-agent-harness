@@ -2,7 +2,7 @@
 
 ## Overview
 
-Unit tests for `myrm_agent_harness.agent.streaming.broadcast` (`ToolBroadcastBus`, `ToolCallBroadcaster`, catchup).
+Unit tests for `myrm_agent_harness.agent.streaming.broadcast` (`ToolBroadcastBus`, `ToolCallBroadcaster`).
 
 ## File Index
 
@@ -12,7 +12,6 @@ Unit tests for `myrm_agent_harness.agent.streaming.broadcast` (`ToolBroadcastBus
 | `test_tool_call_broadcaster.py` | Hook PRE/POST publish + EventLog |
 | `test_tool_heartbeat.py` | Heartbeat / backpressure |
 | `test_progress_sink.py` | Progress sink integration |
-| `test_catchup_brief_extractor.py` | CatchupBriefExtractor |
 | `test_p0_fixes.py` | Truncation / backpressure regressions |
 | `test_event_bus_lifecycle.py` | ToolBroadcastBus lifecycle / batch publish / subscriber isolation |
 
