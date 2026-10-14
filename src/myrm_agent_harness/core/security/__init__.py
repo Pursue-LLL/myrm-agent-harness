@@ -10,45 +10,10 @@
 Core security exports. Foundational security primitives used across all layers.
 """
 
-from myrm_agent_harness.core.security.admin_auth_surface import (
-    AdminAuthSurfaceConfig,
-    AdminAuthSurfaceValidator,
-    AuthSurfaceValidationResult,
-    LoginMethodSettings,
-    OAuthConnectionConfig,
-    OAuthProviderType,
-)
-from myrm_agent_harness.core.security.asr_privacy_tradeoff import (
-    AsrPrivacyDecision,
-    AsrPrivacyTradeoffController,
-    AudioRetentionPolicy,
-    AudioTranscriptionJob,
-    SpeakerProfileCapability,
-)
-from myrm_agent_harness.core.security.commerce_dispute_escrow import (
-    ArbitratorVote,
-    CommerceCircuitBreakerEvaluator,
-    CommerceEscrowManager,
-    DisputeCase,
-    DisputeOutcome,
-    DisputeSettlementResult,
-    DisputeStatus,
-    EscrowAccount,
-    EscrowStatus,
-    StrategyType,
-    TradingCircuitBreakers,
-)
 from myrm_agent_harness.core.security.device_policy import (
     BatchRiskAssessment,
     DeviceSecurityPolicy,
     evaluate_batch_risk,
-)
-from myrm_agent_harness.core.security.dir_trust_gate import (
-    DirectoryTrustStore,
-    DirTrustGate,
-    GatedRemoteConfig,
-    ProjectRemoteConfig,
-    TrustStatus,
 )
 from myrm_agent_harness.core.security.ephemeral_credentials import (
     EphemeralCredential,
@@ -72,15 +37,6 @@ from myrm_agent_harness.core.security.missing_semantics import (
     get_registered_contract,
     list_registered_contracts,
     register_missing_semantics_contract,
-)
-from myrm_agent_harness.core.security.on_demand_masking import (
-    CredentialConflictError,
-    CredentialField,
-    MaskedExecutionError,
-    MaskedExecutionResult,
-    MaterializedCredential,
-    MultiEncodingSecretMasker,
-    OnDemandCredentialResolver,
 )
 from myrm_agent_harness.core.security.remote_ops_ledger import (
     ActionRecoveryHint,
@@ -142,38 +98,4 @@ __all__ = [
     "get_ephemeral_credential_store",
     "validate_credential_key",
     "verify_script_file_integrity",
-    "AdminAuthSurfaceConfig",
-    "AdminAuthSurfaceValidator",
-    "AuthSurfaceValidationResult",
-    "LoginMethodSettings",
-    "OAuthConnectionConfig",
-    "OAuthProviderType",
-    "AsrPrivacyDecision",
-    "AsrPrivacyTradeoffController",
-    "AudioRetentionPolicy",
-    "AudioTranscriptionJob",
-    "SpeakerProfileCapability",
-    "DirTrustGate",
-    "DirectoryTrustStore",
-    "GatedRemoteConfig",
-    "ProjectRemoteConfig",
-    "TrustStatus",
-    "CredentialConflictError",
-    "CredentialField",
-    "MaskedExecutionError",
-    "MaskedExecutionResult",
-    "MaterializedCredential",
-    "MultiEncodingSecretMasker",
-    "OnDemandCredentialResolver",
-    "ArbitratorVote",
-    "CommerceCircuitBreakerEvaluator",
-    "CommerceEscrowManager",
-    "DisputeCase",
-    "DisputeOutcome",
-    "DisputeSettlementResult",
-    "DisputeStatus",
-    "EscrowAccount",
-    "EscrowStatus",
-    "StrategyType",
-    "TradingCircuitBreakers",
 ]
