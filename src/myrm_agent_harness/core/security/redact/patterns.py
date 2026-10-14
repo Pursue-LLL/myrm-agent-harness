@@ -1,9 +1,11 @@
 """Regex pattern definitions for secret redaction.
 
-Single source of truth for secret-detection patterns used by the redaction
-engine (``engine.py``) and structured content sanitizers (e.g.
-``agent/skills/security/content_sanitizer.py``). Holds the compiled regexes,
-word-boundary key validation, and shared value-masking helpers.
+The secret-detection patterns of the redaction engine (``engine.py``) and of
+structured content sanitizers (e.g. ``agent/skills/security/content_sanitizer.py``).
+Holds the compiled regexes, word-boundary key validation, and shared
+value-masking helpers. It is one of two vendor-prefix tables: the privacy tier
+(``detection/leak_detector.py``) keeps its own, and the two are maintained
+separately.
 
 [INPUT]
 - (none — pure pattern + helper definitions)

@@ -21,6 +21,8 @@ fully redacted (BEGIN to END) with type label preserved.
 - core.security.detection.entropy_scan::scan_high_entropy (POS: unknown-credential tier of the leak detector.)
 
 [OUTPUT]
+- DISTINCTIVE_KEY_PATTERNS: the vendor-prefix shapes that identify a key on their own (name, pattern), for a caller that
+  refuses a message on a hit
 - scan_for_leaks(): detect credential patterns, returns matched pattern names
 - redact_leaks(): smart-redact credentials with partial visibility
 - log_leaks(): log leak detections at WARNING level
@@ -89,6 +91,29 @@ _API_KEY_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ),
     ("shopify_token", re.compile(r"shpat_[a-fA-F0-9]{32}")),
     ("shopify_shared_secret", re.compile(r"shpss_[a-fA-F0-9]{32}")),
+)
+
+# Shapes that also occur in ordinary text, so masking them is harmless but refusing a message on them is not: a prefix of
+# two or three characters, a plain hex or digit body (a hash, a build id, a bot id), or a lowercase word followed by a
+# body that may hold ``_`` and ``-`` (an identifier such as ``vercel_request_handler_name``).
+_WEAK_PREFIX_KEY_NAMES: frozenset[str] = frozenset(
+    {
+        "telegram_bot",
+        "discord_bot_token",
+        "twilio_key",
+        "databricks_token",
+        "cloudflare_token",
+        "elevenlabs_key",
+        "firecrawl_key",
+        "vercel_token",
+        "fal_key",
+    }
+)
+
+# The shapes a vendor prefix identifies on its own: what a caller that refuses a message on a hit (a precision-first
+# gate) reads, so the gate learns each vendor added to the table above without keeping a list of its own.
+DISTINCTIVE_KEY_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
+    (name, pattern) for name, pattern in _API_KEY_PATTERNS if name not in _WEAK_PREFIX_KEY_NAMES
 )
 
 # ---------------------------------------------------------------------------

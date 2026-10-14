@@ -82,6 +82,9 @@ _TEMPLATE_RE = re.compile(
 # ("<hex32>.<alnum16>") is neither. The two alternatives are disjoint (digits or none), so matching stays linear.
 _CHAIN_PART = r"(?=[A-Z0-9_]*\d)[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+|[A-Za-z_]{1,30}"
 _ATTRIBUTE_CHAIN_RE = re.compile(rf"(?:{_CHAIN_PART})(?:\??\.(?:{_CHAIN_PART}))+")
+# A TypeScript non-null assertion after a chain ("process.env.GROQ_API_KEY!"). It needs three parts: after two ("john.smith!")
+# the "!" is as likely a password character as an assertion.
+_NON_NULL_CHAIN_RE = re.compile(rf"(?:{_CHAIN_PART})(?:\??\.(?:{_CHAIN_PART})){{2,}}!")
 # A call or subscript on a compound name ("_resolve_token(ctx)", "os.getenv(", "self._store.get["): what follows the
 # opening bracket is arguments. Segments split at "_" and "." without overlap, so matching stays linear.
 _CALL_RE = re.compile(r"_*[A-Za-z][A-Za-z0-9]*(?:_+[A-Za-z0-9]+|\??\._*[A-Za-z0-9]+)+[(\[]")
@@ -102,8 +105,9 @@ def _is_bare_name(value: str, *, quoted: bool) -> bool:
 
 
 def is_reference_value(value: str, *, key: str = "") -> bool:
-    """Whether ``value`` names a secret instead of being one: a template, attribute chain, call, regex character class
-    or the label itself (``password=password``, a pass-through argument; ``key`` is the label, when there is one).
+    """Whether ``value`` names a secret instead of being one: a template, attribute chain (also with a TypeScript
+    non-null ``!``), call, regex character class or the label itself (``password=password``, a pass-through argument;
+    ``key`` is the label, when there is one).
 
     A bare constant or word is ambiguous in ``.env``-style text (``SECRET=my_long_secret_word``), so it counts as a
     reference only as a call argument (``secret=my_secret_word,``); ``secret_value_span`` rejects it after any label.
@@ -112,6 +116,7 @@ def is_reference_value(value: str, *, key: str = "") -> bool:
     return bool(
         _TEMPLATE_RE.fullmatch(value)
         or _ATTRIBUTE_CHAIN_RE.fullmatch(argument)
+        or _NON_NULL_CHAIN_RE.fullmatch(argument)
         or _CALL_RE.match(value)
         or _CHAR_CLASS_RE.search(value)
         or (key and _fold(argument) == _fold(key))

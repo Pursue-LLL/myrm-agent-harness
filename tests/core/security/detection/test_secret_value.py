@@ -48,6 +48,9 @@ class TestIsReferenceValue:
             ("transport_secret,", "transport_secret"),
             ("failure_alert_secret,", "delivery_secret"),
             ("getAuthenticationToken)", "token"),
+            ("process.env.GROQ_API_KEY!", "api_key"),
+            ("process.env.INTELLIGENCE_API_KEY!,", "api_key"),
+            ("import.meta.env?.VITE_TOKEN!", "token"),
         ],
     )
     def test_reference_is_not_a_secret(self, value: str, key: str) -> None:
@@ -80,6 +83,10 @@ class TestIsReferenceValue:
             ("4iTHeH\\Dp", "password"),
             ("SEnXmn51VhZ\\\\SD", "password"),
             ("k\\uK6tW1-d\\dxKQ", "password"),
+            ("john.smith!", "password"),
+            ("my.pass1!", "password"),
+            ("Zk9#mango42!", "password"),
+            ("process.env.GROQ_API_KEY!x", "api_key"),
         ],
     )
     def test_secret_is_not_a_reference(self, value: str, key: str) -> None:

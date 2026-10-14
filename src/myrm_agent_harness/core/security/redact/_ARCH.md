@@ -4,8 +4,9 @@
 
 Secret redaction domain — masks API keys, tokens, and credentials before they
 reach the LLM context or log files (Layer 2 output redaction). Three files by
-concern: `patterns.py` holds the compiled regexes (single source of truth, also
-consumed by `agent/skills/security/content_sanitizer.py`); `engine.py` owns the
+concern: `patterns.py` holds the compiled regexes (also consumed by
+`agent/skills/security/content_sanitizer.py`; the privacy tier's vendor-prefix
+table in `detection/leak_detector.py` is separate); `engine.py` owns the
 bounded-replace pipeline and public APIs; `__init__.py` is the aggregation
 facade exposing the public `core.security.redact` import surface.
 
