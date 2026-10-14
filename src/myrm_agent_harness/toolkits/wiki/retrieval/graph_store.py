@@ -6,11 +6,12 @@
 - ..core.link_extraction::WIKILINK_RE (POS: the `[[wikilink]]` syntax)
 - ..core.link_resolver::concept_index_key, link_lookup_forms, page_link_forms, page_lookup_keys (POS: page-key canonicalization and the spellings a link names a page by)
 - myrm_agent_harness.utils.markdown_frontmatter::parse_frontmatter (POS: page aliases)
+- .concept_links::ConceptBacklink, ConceptLink, ConceptLinks (POS: typed concept link lookup result)
 - .graph_analysis::enrich_graph_with_communities, compute_graph_insights (POS: graph analysis)
 - .graph_tables::federated_graph_queries (POS: graph node/edge rows shared with the insights)
 
 [OUTPUT]
-- WikiGraphStore: Graph topology storage, BFS traversal, concept link lookup (any spelling of a page name; each direction capped at `MAX_CONCEPT_LINKS` and flagged when cut) with the section and text of the link each backlink holds, and insight computation
+- WikiGraphStore: Graph topology storage, BFS traversal, concept link lookup returning a typed `ConceptLinks` (any spelling of a page name; each direction capped at `MAX_CONCEPT_LINKS` and flagged when cut) with the section and text of the link each backlink holds, and insight computation
 
 [POS]
 Encapsulates knowledge graph operations: BFS neighbor traversal, federated
@@ -32,6 +33,7 @@ from myrm_agent_harness.utils.markdown_frontmatter import parse_frontmatter
 
 from ..core.link_extraction import WIKILINK_RE
 from ..core.link_resolver import concept_index_key, link_lookup_forms, page_link_forms, page_lookup_keys
+from .concept_links import ConceptBacklink, ConceptLink, ConceptLinks
 from .graph_analysis import compute_graph_insights, enrich_graph_with_communities
 from .graph_tables import federated_graph_queries
 
@@ -338,7 +340,7 @@ class WikiGraphStore:
                 return _snippet_around(clean_line, span, max_chars), current_heading
         return None
 
-    def get_concept_links(self, concept_name: str) -> dict[str, object]:
+    def get_concept_links(self, concept_name: str) -> ConceptLinks:
         """Fetch bidirectional links: outlinks, and backlinks with the snippet and section that mention the concept.
 
         Each direction is capped at `MAX_CONCEPT_LINKS`; `outlinks_has_more` / `backlinks_has_more` say whether more existed.
@@ -346,8 +348,8 @@ class WikiGraphStore:
         clean_name = concept_index_key(self._structure, concept_name.removesuffix(".md").strip())
         spellings = self._target_spellings(clean_name)
 
-        outlinks: list[dict[str, object]] = []
-        backlinks: list[dict[str, object]] = []
+        outlinks: list[ConceptLink] = []
+        backlinks: list[ConceptBacklink] = []
 
         with self._get_conn() as conn:
             # Query outgoing edges (what this concept references)
