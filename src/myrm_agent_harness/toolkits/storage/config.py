@@ -3,43 +3,21 @@
 
 [INPUT]
 - dataclasses::dataclass (POS: Python dataclass)
-- enum::Enum (POS: Python enum type)
+- os, pathlib::Path (POS: environment and path handling)
 
 [OUTPUT]
-- StorageMode: storage mode enum (LOCAL / PERSISTENT)
-- LocalStorageConfig: local storage configuration
-- PersistentStorageConfig: in-container persistent storage configuration
-- StorageConfig: unified storage configuration (contains various storage configs)
+- StorageConfig: storage configuration (root directory of the filesystem backend)
 - storage_config: global storage configuration singleton
 
 [POS]
-Storage configuration module. All configs injected via constructor parameters with sensible defaults.
-Design principle: framework layer includes the local and in-container persistent implementations; any other
-backend is provided by the business layer via dependency injection. As the config layer, depended on by storage factory and backends.
+Storage configuration module. The storage root is derived from MYRM_DATA_DIR, which the deployment layer injects
+(in cloud sandboxes it points at the persistent volume), and falls back to ~/.myrm/storage. Depended on by the
+storage factory and by consumers that need the root directory on disk.
 """
 
+import os
 from dataclasses import dataclass, field
-from enum import StrEnum
 from pathlib import Path
-
-
-class StorageMode(StrEnum):
-    """StorageMode"""
-
-    LOCAL = "local"  # LocalFile系统
-    PERSISTENT = "persistent"  # 容器内持久化Storage（/persistent + /workspace）
-
-
-def _get_storage_mode() -> StorageMode:
-    """Auto检测StorageMode
-
-    检测Whether in 容器内运行（/persistent DirectoryExists）。
-    """
-    from pathlib import Path
-
-    if Path("/persistent").exists():
-        return StorageMode.PERSISTENT
-    return StorageMode.LOCAL
 
 
 def _get_default_storage_path() -> str:
@@ -49,8 +27,6 @@ def _get_default_storage_path() -> str:
     1. MYRM_DATA_DIR environment variable + /storage
     2. ~/.myrm/storage (default)
     """
-    import os
-
     data_dir = os.environ.get("MYRM_DATA_DIR", "").strip()
     if data_dir:
         return str(Path(data_dir).expanduser().resolve() / "storage")
@@ -58,43 +34,19 @@ def _get_default_storage_path() -> str:
 
 
 @dataclass
-class LocalStorageConfig:
-    """LocalStorageConfigure"""
+class StorageConfig:
+    """Storage configuration."""
 
-    # Storage根Directory（从 MYRM_DATA_DIR 环境变量读取，默认 ~/.myrm/storage）
-    # Storage桶结构：files/, skills/, config/
-    # Note：workspaces 属于沙箱， not  in Storage桶 in
+    # Key layout under the root is owned by paths.py and the consumers; workspaces belong to the sandbox, not here.
     base_path: str = field(default_factory=_get_default_storage_path)
 
-
-@dataclass
-class PersistentStorageConfig:
-    """容器内持久化StorageConfigure"""
-
-    persistent_path: str = "/persistent"
-    workspace_path: str = "/workspace"
-
-
-@dataclass
-class StorageConfig:
-    """StorageConfigure"""
-
-    mode: StorageMode = field(default_factory=_get_storage_mode)
-
-    local: LocalStorageConfig = field(default_factory=LocalStorageConfig)
-
-    persistent: PersistentStorageConfig = field(default_factory=PersistentStorageConfig)
-
-    def get_local_base_path(self) -> Path:
-        """GetLocalStorage 绝对Path
-
-        绝对Path directly Return；相对Path基于 cwd Parse。
-        """
-        path = Path(self.local.base_path)
+    def get_base_path(self) -> Path:
+        """Absolute storage root; a relative ``base_path`` is resolved against the current working directory."""
+        path = Path(self.base_path)
         if path.is_absolute():
             return path
         return (Path.cwd() / path).resolve()
 
 
-# GlobalConfigureInstance
+# Global configuration instance
 storage_config = StorageConfig()

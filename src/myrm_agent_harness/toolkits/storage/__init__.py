@@ -1,12 +1,12 @@
 """Storage abstraction layer.
 
 Provides a unified storage CRUD interface decoupled from business logic.
-The framework ships LocalStorageBackend and PersistentStorageBackend; any other
+The framework ships LocalStorageBackend (rooted at MYRM_DATA_DIR/storage); any other
 backend is injected by the business layer through StorageProvider.
 """
 
 from .base import FileInfo, StorageError, StorageProvider
-from .config import StorageConfig, StorageMode, storage_config
+from .config import StorageConfig, storage_config
 from .factory import (
     create_storage_provider,
     get_storage_provider,
@@ -18,12 +18,8 @@ from .paths import (
     FILES_ROOT_PREFIX,
     SKILL_METADATA_FILE,
     SKILLS_ROOT_PREFIX,
-    STORAGE_REF_PREFIX,
-    create_storage_ref,
-    get_all_files_prefix,
     get_file_metadata_path,
     get_file_storage_path,
-    get_skill_content_path,
     get_skill_file_path,
     get_skill_metadata_path,
     get_skill_storage_path,
@@ -31,10 +27,6 @@ from .paths import (
     get_user_config_path,
     get_user_files_prefix,
     get_user_skill_config_path,
-    is_storage_ref,
-    is_valid_file_path,
-    is_valid_skill_path,
-    parse_storage_ref,
 )
 from .types import FilePurpose, SkillType
 
@@ -43,21 +35,16 @@ __all__ = [
     "FILE_METADATA_SUFFIX",
     "SKILLS_ROOT_PREFIX",
     "SKILL_METADATA_FILE",
-    "STORAGE_REF_PREFIX",
     "FileInfo",
     "FilePurpose",
     "LocalStorageBackend",
     "SkillType",
     "StorageConfig",
     "StorageError",
-    "StorageMode",
     "StorageProvider",
     "create_storage_provider",
-    "create_storage_ref",
-    "get_all_files_prefix",
     "get_file_metadata_path",
     "get_file_storage_path",
-    "get_skill_content_path",
     "get_skill_file_path",
     "get_skill_metadata_path",
     "get_skill_storage_path",
@@ -66,10 +53,6 @@ __all__ = [
     "get_user_config_path",
     "get_user_files_prefix",
     "get_user_skill_config_path",
-    "is_storage_ref",
-    "is_valid_file_path",
-    "is_valid_skill_path",
-    "parse_storage_ref",
     "set_storage_provider",
     "storage_config",
 ]

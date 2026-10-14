@@ -1,6 +1,6 @@
 """Tests for LocalStorageBackend.
 
-Covers all 11 StorageProvider methods, path security, errno handling, and namespace isolation.
+Covers all 11 StorageProvider methods, path security, and errno handling.
 """
 
 from __future__ import annotations
@@ -18,11 +18,6 @@ from myrm_agent_harness.toolkits.storage.local import LocalStorageBackend
 @pytest.fixture
 def storage(tmp_path: Path) -> LocalStorageBackend:
     return LocalStorageBackend(tmp_path)
-
-
-@pytest.fixture
-def ns_storage(tmp_path: Path) -> LocalStorageBackend:
-    return LocalStorageBackend(tmp_path, namespace="tenant_a")
 
 
 class TestReadWrite:
@@ -232,28 +227,3 @@ class TestPathSecurity:
     def test_resolve_path_traversal_raises(self, storage: LocalStorageBackend) -> None:
         with pytest.raises(StorageError, match="Path traversal"):
             storage.resolve_absolute_path("../../etc/passwd")
-
-
-class TestNamespace:
-    @pytest.mark.asyncio
-    async def test_namespace_isolation(self, ns_storage: LocalStorageBackend) -> None:
-        await ns_storage.write("config.json", b'{"key": "value"}')
-
-        path = ns_storage.resolve_absolute_path("config.json")
-        assert "tenant_a" in path
-
-        assert await ns_storage.read("config.json") == b'{"key": "value"}'
-
-    @pytest.mark.asyncio
-    async def test_namespace_list(self, ns_storage: LocalStorageBackend) -> None:
-        await ns_storage.write("a.txt", b"a")
-        await ns_storage.write("sub/b.txt", b"b")
-
-        files = await ns_storage.list()
-        assert len(files) >= 2
-
-    @pytest.mark.asyncio
-    async def test_namespace_exists(self, ns_storage: LocalStorageBackend) -> None:
-        await ns_storage.write("file.txt", b"content")
-        assert await ns_storage.exists("file.txt") is True
-        assert await ns_storage.exists("nonexistent.txt") is False

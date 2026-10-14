@@ -9,12 +9,11 @@
 - get_file_storage_path(): generate file storage path
 - get_skill_storage_path(): generate skill storage path
 - get_user_skill_config_path(): generate user skill config path
-- create_storage_ref(), parse_storage_ref(): build and parse @storage: references
 
 [POS]
 Storage path utility module. Centrally manages storage system path generation, ensuring all
 components use consistent path formats. Defines path structures for files and skills
-with generation and validation functions. As the path convention layer, depended on by all storage-related modules.
+with generation functions. As the path convention layer, depended on by all storage-related modules.
 """
 
 from __future__ import annotations
@@ -30,9 +29,6 @@ FILES_ROOT_PREFIX = "files"
 
 # Skill storage root prefix
 SKILLS_ROOT_PREFIX = "skills"
-
-# Storage reference prefix for container sync
-STORAGE_REF_PREFIX = "@storage:"
 
 # File metadata suffix
 FILE_METADATA_SUFFIX = ".meta.json"
@@ -105,15 +101,6 @@ def get_user_files_prefix(purpose: FilePurpose | None = None) -> str:
     return f"{FILES_ROOT_PREFIX}/"
 
 
-def get_all_files_prefix() -> str:
-    """Get all files search prefix.
-
-    Returns:
-        Search prefix string
-    """
-    return f"{FILES_ROOT_PREFIX}/"
-
-
 _PURPOSE_DIR_MAP: dict[FilePurpose, str] = {
     FilePurpose.UPLOAD: "uploads",
     FilePurpose.GENERATED: "generated",
@@ -155,18 +142,6 @@ def get_skill_storage_path(skill_type: SkillType, skill_id: str) -> str:
         'skills/prebuilt/pdf-generator'
     """
     return f"{SKILLS_ROOT_PREFIX}/{skill_type.value}/{skill_id}"
-
-
-def get_skill_content_path(storage_path: str) -> str:
-    """Get skill content (SKILL.md) path.
-
-    Args:
-        storage_path: Skill storage path
-
-    Returns:
-        SKILL.md file path
-    """
-    return f"{storage_path}/SKILL.md"
 
 
 def get_skills_type_prefix(skill_type: SkillType) -> str:
@@ -246,87 +221,3 @@ def get_user_skill_config_path() -> str:
         Skill config file path
     """
     return get_user_config_path("skills")
-
-
-# ============================================================================
-# Storage reference handling
-# ============================================================================
-
-
-def create_storage_ref(storage_path: str) -> str:
-    """Create storage reference string.
-
-    For container sync scenarios, converts storage path to reference format.
-
-    Args:
-        storage_path: Storage path
-
-    Returns:
-        Storage reference string (e.g. @storage:files/generated/file_abc)
-
-    Examples:
-        >>> create_storage_ref("files/generated/file_abc")
-        '@storage:files/generated/file_abc'
-    """
-    return f"{STORAGE_REF_PREFIX}{storage_path}"
-
-
-def parse_storage_ref(storage_ref: str) -> str | None:
-    """Parse storage reference, extract storage path.
-
-    Args:
-        storage_ref: Storage reference string
-
-    Returns:
-        Storage path, or None if not a valid storage reference
-
-    Examples:
-        >>> parse_storage_ref("@storage:files/generated/file_abc")
-        'files/generated/file_abc'
-        >>> parse_storage_ref("invalid")
-        None
-    """
-    if storage_ref.startswith(STORAGE_REF_PREFIX):
-        return storage_ref[len(STORAGE_REF_PREFIX) :]
-    return None
-
-
-def is_storage_ref(value: str) -> bool:
-    """Check if value is a storage reference.
-
-    Args:
-        value: String to check
-
-    Returns:
-        Whether value is a storage reference
-    """
-    return value.startswith(STORAGE_REF_PREFIX)
-
-
-# ============================================================================
-# Path validation
-# ============================================================================
-
-
-def is_valid_file_path(path: str) -> bool:
-    """Validate whether path is a valid file storage path.
-
-    Args:
-        path: Path to validate
-
-    Returns:
-        Whether path is valid
-    """
-    return path.startswith(f"{FILES_ROOT_PREFIX}/")
-
-
-def is_valid_skill_path(path: str) -> bool:
-    """Validate whether path is a valid skill storage path.
-
-    Args:
-        path: Path to validate
-
-    Returns:
-        Whether path is valid
-    """
-    return path.startswith(f"{SKILLS_ROOT_PREFIX}/")

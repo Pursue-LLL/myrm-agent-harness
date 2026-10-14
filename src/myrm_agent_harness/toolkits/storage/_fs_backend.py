@@ -1,6 +1,6 @@
 """File system storage backend base class
 
-Provides common aiofiles I/O implementation for LocalStorageBackend and PersistentStorageBackend.
+Provides the common aiofiles I/O implementation for LocalStorageBackend.
 Subclasses only need to implement the `_resolve_key_to_path(key)` template method for path resolution.
 
 [INPUT]
@@ -13,7 +13,7 @@ Subclasses only need to implement the `_resolve_key_to_path(key)` template metho
 
 [POS]
 File system storage backend base class. Centralizes aiofiles file operations and errno error handling,
-inherited by LocalStorageBackend and PersistentStorageBackend.
+inherited by LocalStorageBackend.
 """
 
 from __future__ import annotations

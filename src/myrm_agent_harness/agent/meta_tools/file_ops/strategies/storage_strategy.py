@@ -8,7 +8,7 @@
 - 业务层可实现自定义云存储后端
 
 [INPUT]
-- toolkits.storage.base::StorageProvider (POS: Storage provider abstract base class. Defines the unified storage interface contract for all storage backends. Supports file read/write, delete, list, info query, and namespace isolation. Method names use read/write (not get/put), fully compatible with the StorageBackend Protocol.)
+- toolkits.storage.base::StorageProvider (POS: Storage provider abstract base class. Defines the unified storage interface contract for all storage backends. Supports file read/write, delete, list, and info query. Method names use read/write (not get/put).)
 
 [OUTPUT]
 - StorageBackendStrategy: class — Storage Backend Strategy
@@ -48,7 +48,6 @@ class StorageBackendStrategy(FileSystemStrategy):
 
         Args:
             storage_backend: StorageProvider 实例
-                           自动支持 namespace 隔离
         """
         self.storage = storage_backend
 

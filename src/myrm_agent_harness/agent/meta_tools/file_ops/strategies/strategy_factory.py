@@ -9,7 +9,7 @@
 [INPUT]
 - backends.skills.types::SkillMetadata (POS: Provides ArtifactInfo, infer_language, infer_artifact_type.)
 - toolkits.code_execution.executors.base::CodeExecutor (POS: Code executor base classes.)
-- toolkits.storage.base::StorageProvider (POS: Storage provider abstract base class. Defines the unified storage interface contract for all storage backends. Supports file read/write, delete, list, info query, and namespace isolation. Method names use read/write (not get/put), fully compatible with the StorageBackend Protocol.)
+- toolkits.storage.base::StorageProvider (POS: Storage provider abstract base class. Defines the unified storage interface contract for all storage backends. Supports file read/write, delete, list, and info query. Method names use read/write (not get/put).)
 - agent.meta_tools.file_ops.executor_storage_adapter::ExecutorStorageAdapter (POS: CodeExecutor to StorageProvider adapter.)
 
 [OUTPUT]

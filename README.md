@@ -311,7 +311,7 @@ myrm-agent-harness/          # 本仓库根（示意）
 │       ├── backends/                # 后端抽象（skills, storage, profiles, secrets）
 │       ├── toolkits/                # 通用工具包（不与 agent/ 耦合，可独立使用）
 │       │   ├── code_execution/      # 沙箱代码执行（Agent-in-Sandbox）
-│       │   ├── storage/             # 存储（Local / Persistent 后端）
+│       │   ├── storage/             # 存储（Local 后端）
 │       │   ├── memory/              # 可插拔记忆系统
 │       │   ├── retriever/           # 检索（向量/BM25/混合搜索）
 │       │   ├── mcp/                 # MCP 协议集成

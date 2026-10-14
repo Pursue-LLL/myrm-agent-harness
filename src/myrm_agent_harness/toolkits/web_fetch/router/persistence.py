@@ -9,7 +9,7 @@ Responsibilities:
 
 [INPUT]
 - infra.delivery.storage_metrics::MonitoredStorageCallback (POS: StorageProvider)
-- toolkits.storage.base::StorageProvider (POS: Storage provider abstract base class. Defines the unified storage interface contract for all storage backends. Supports file read/write, delete, list, info query, and namespace isolation. Method names use read/write (not get/put), fully compatible with the StorageBackend Protocol.)
+- toolkits.storage.base::StorageProvider (POS: Storage provider abstract base class. Defines the unified storage interface contract for all storage backends. Supports file read/write, delete, list, and info query. Method names use read/write (not get/put).)
 
 [OUTPUT]
 - PersistenceManager: Persistence manager

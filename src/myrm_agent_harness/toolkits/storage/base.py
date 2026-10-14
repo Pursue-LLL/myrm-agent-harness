@@ -12,8 +12,8 @@
 
 [POS]
 Storage provider abstract base class. Defines the unified storage interface contract for all
-storage backends. Supports file read/write, delete, list, info query, and namespace isolation.
-Method names use read/write (not get/put), fully compatible with the StorageBackend Protocol.
+storage backends. Supports file read/write, delete, list, and info query.
+Method names use read/write (not get/put).
 """
 
 from __future__ import annotations
@@ -41,53 +41,10 @@ class StorageProvider(ABC):
     - File deletion
     - File listing
     - File info query
-    - Namespace isolation (optional)
 
-    Namespace:
-         for 多租户隔离，Auto is AllPath添加Prefix。
-        For example：namespace="sandboxes/user_alice_chat_123"
-              read("file.txt") → 实际访问 "sandboxes/user_alice_chat_123/file.txt"
-
-     using 统一  read/write Method名， no 需适配器i.e.可 for
-    StorageSkillBackend  etc.框架层Component and 业务层工件收集。
+    Method names are read/write (not get/put), so framework components such as
+    StorageSkillBackend and business-layer artifact collection use it without an adapter.
     """
-
-    def __init__(self, namespace: str | None = None):
-        """InitializeStorageprovides者
-
-        Args:
-            namespace: Namespace（optional）， for Path隔离
-                      如 "sandboxes/user_alice_chat_123"
-        """
-        self.namespace = namespace or ""
-
-    def _get_full_key(self, key: str) -> str:
-        """GetcompletePath（Auto添加 namespace Prefix）
-
-        Args:
-            key: 相对Path
-
-        Returns:
-            completePath（带 namespace Prefix）
-        """
-        if self.namespace:
-            return f"{self.namespace}/{key}"
-        return key
-
-    def _strip_namespace(self, full_key: str) -> str:
-        """移除 namespace Prefix
-
-        Args:
-            full_key: completePath
-
-        Returns:
-            相对Path（移除 namespace Prefix）
-        """
-        if self.namespace:
-            prefix = f"{self.namespace}/"
-            if full_key.startswith(prefix):
-                return full_key[len(prefix) :]
-        return full_key
 
     @abstractmethod
     async def read(self, key: str) -> bytes:

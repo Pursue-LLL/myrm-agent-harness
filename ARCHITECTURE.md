@@ -239,7 +239,7 @@ Agent 层
 │   └─ 实现：LocalExecutor（内置）
 │
 ├─ StorageProvider (toolkits.storage)
-│   └─ 实现：LocalStorageBackend，PersistentStorageBackend
+│   └─ 实现：LocalStorageBackend
 │
 └─ SkillBackend (backends.skills)
     └─ 实现：LocalSkillBackend, StorageSkillBackend, CompositeSkillBackend

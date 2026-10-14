@@ -1,20 +1,15 @@
 """Tests for storage path utilities.
 
-Covers path generation, storage references, and validation functions.
+Covers path generation functions.
 """
 
 from __future__ import annotations
 
 from myrm_agent_harness.toolkits.storage.paths import (
     FILE_METADATA_SUFFIX,
-    FILES_ROOT_PREFIX,
     SKILLS_ROOT_PREFIX,
-    STORAGE_REF_PREFIX,
-    create_storage_ref,
-    get_all_files_prefix,
     get_file_metadata_path,
     get_file_storage_path,
-    get_skill_content_path,
     get_skill_file_path,
     get_skill_metadata_path,
     get_skill_storage_path,
@@ -22,10 +17,6 @@ from myrm_agent_harness.toolkits.storage.paths import (
     get_user_config_path,
     get_user_files_prefix,
     get_user_skill_config_path,
-    is_storage_ref,
-    is_valid_file_path,
-    is_valid_skill_path,
-    parse_storage_ref,
 )
 from myrm_agent_harness.toolkits.storage.types import FilePurpose, SkillType
 
@@ -55,9 +46,6 @@ class TestFilePathGeneration:
         prefix = get_user_files_prefix(FilePurpose.GENERATED)
         assert prefix == "files/generated/"
 
-    def test_get_all_files_prefix(self) -> None:
-        assert get_all_files_prefix() == f"{FILES_ROOT_PREFIX}/"
-
 
 class TestSkillPathGeneration:
     def test_get_skill_storage_path_prebuilt(self) -> None:
@@ -67,10 +55,6 @@ class TestSkillPathGeneration:
     def test_get_skill_storage_path_local(self) -> None:
         path = get_skill_storage_path(SkillType.LOCAL, "my-custom-skill")
         assert path == "skills/local/my-custom-skill"
-
-    def test_get_skill_content_path(self) -> None:
-        path = get_skill_content_path("skills/prebuilt/pdf-generator")
-        assert path == "skills/prebuilt/pdf-generator/SKILL.md"
 
     def test_get_skills_type_prefix(self) -> None:
         prefix = get_skills_type_prefix(SkillType.PREBUILT)
@@ -93,33 +77,3 @@ class TestUserConfigPaths:
     def test_get_user_skill_config_path(self) -> None:
         path = get_user_skill_config_path()
         assert path == "config/skills.json"
-
-
-class TestStorageRef:
-    def test_create_storage_ref(self) -> None:
-        ref = create_storage_ref("files/generated/file_abc")
-        assert ref == f"{STORAGE_REF_PREFIX}files/generated/file_abc"
-
-    def test_parse_storage_ref_valid(self) -> None:
-        result = parse_storage_ref(f"{STORAGE_REF_PREFIX}files/generated/file_abc")
-        assert result == "files/generated/file_abc"
-
-    def test_parse_storage_ref_invalid(self) -> None:
-        assert parse_storage_ref("invalid") is None
-
-    def test_is_storage_ref_true(self) -> None:
-        assert is_storage_ref(f"{STORAGE_REF_PREFIX}files/test") is True
-
-    def test_is_storage_ref_false(self) -> None:
-        assert is_storage_ref("not_a_ref") is False
-
-
-class TestPathValidation:
-    def test_is_valid_file_path(self) -> None:
-        assert is_valid_file_path("files/uploads/file_abc") is True
-        assert is_valid_file_path("skills/prebuilt/test") is False
-        assert is_valid_file_path("random/path") is False
-
-    def test_is_valid_skill_path(self) -> None:
-        assert is_valid_skill_path("skills/prebuilt/test") is True
-        assert is_valid_skill_path("files/uploads/test") is False

@@ -22,7 +22,7 @@
 │  app/platform_utils/__init__.py                          │
 │    └─ get_storage_provider()                             │
 │       └─ 框架层 get_storage_provider()                   │
-│          (按 StorageConfig.mode 选 Local / Persistent)   │
+│          (LocalStorageBackend，根目录 MYRM_DATA_DIR/storage) │
 │                                                          │
 │  app/core/storage/service.py                             │
 │    └─ FilesService (文件上传/下载/管理)                  │
@@ -37,11 +37,10 @@
 │  base.py          → StorageProvider (ABC), FileInfo              │
 │  _fs_backend.py   → BaseFileSystemBackend (aiofiles + errno)     │
 │  local.py         → LocalStorageBackend (继承 BaseFileSystemBackend) │
-│  persistent.py    → PersistentStorageBackend (继承 BaseFileSystemBackend) │
 │  factory.py       → create/get/set_storage_provider              │
-│  config.py        → StorageConfig, StorageMode                   │
+│  config.py        → StorageConfig (存储根目录)                   │
 │  types.py         → FilePurpose, SkillType                       │
-│  paths.py         → 路径生成 / 引用 / 校验工具                   │
+│  paths.py         → 路径生成工具                                 │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -68,20 +67,6 @@
 | `move` | `(src_key, dst_key) -> None` | 移动文件 |
 | `get_url` | `(key: str, expires_in?) -> str` | 获取文件访问 URL |
 
-### 3.2 命名空间前缀
-
-`StorageProvider` 内置 namespace 支持，自动为所有路径添加前缀：
-
-```python
-storage = LocalStorageBackend("./storage", namespace="sandboxes/user_alice")
-await storage.write("file.txt", b"content")
-# 实际路径: ./storage/sandboxes/user_alice/file.txt
-```
-
-内部通过 `_get_full_key()` / `_strip_namespace()` 透明处理。
-
-namespace 只是路径前缀，不是安全边界：越界校验以后端根目录为准，`..` 可以跳出 namespace 目录，但不能跳出根目录（见 §10）。
-
 ---
 
 ## 4. 实现
@@ -99,26 +84,16 @@ namespace 只是路径前缀，不是安全边界：越界校验以后端根目�
 
 - **位置**: `toolkits/storage/local.py`
 - **继承**: `BaseFileSystemBackend`
-- **用途**: 本地模式（本地部署）、开发环境
+- **用途**: 框架唯一内置后端：本地部署、开发环境与云端沙箱（根目录经 `MYRM_DATA_DIR` 指向持久卷）
 - **特有逻辑**: 路径解析（`_resolve_key_to_path`）、写入后设置 chmod 0o600、list 文件列表
 - **安全**: `_resolve_key_to_path()` 通过 `safe_join_path()` 校验，防止路径遍历与符号链接逃逸（见 §10）
-
-### 4.2 PersistentStorageBackend (框架层)
-
-- **位置**: `toolkits/storage/persistent.py`
-- **继承**: `BaseFileSystemBackend`
-- **用途**: Agent-in-Sandbox 容器环境
-- **特有逻辑**: 双卷路由（`_route_path` + `_resolve_key_to_path`）、幂等 delete、双卷合并 list
-- **智能路由**: 根据路径前缀自动分发到 `/persistent/`（长期数据）或 `/workspace/`（临时数据）
-- **安全**: `_route_path()` 同样通过 `safe_join_path()` 校验，与 LocalStorageBackend 一致
-- **完整实现**: `StorageProvider` 的全部抽象方法均已实现
 
 ---
 
 ## 5. 工厂与依赖注入
 
 ```python
-# 框架层工厂（按 StorageConfig.mode 创建 LocalStorageBackend 或 PersistentStorageBackend）
+# 框架层工厂（按 StorageConfig 创建 LocalStorageBackend）
 from myrm_agent_harness.toolkits.storage import create_storage_provider, get_storage_provider
 
 storage = get_storage_provider()  # 延迟初始化的全局单例
@@ -162,21 +137,8 @@ set_storage_provider(custom_backend)  # 注入自定义 StorageProvider
 | `get_file_storage_path(fid, UPLOAD)` | `files/uploads/{fid}` |
 | `get_file_metadata_path(path)` | `{path}.meta.json` |
 | `get_skill_storage_path(PREBUILT, sid)` | `skills/prebuilt/{sid}` |
-| `get_skill_content_path(path)` | `{path}/SKILL.md` |
 | `get_skill_metadata_path(type, sid)` | `skills/{type}/{sid}/_metadata.json` |
 | `get_user_config_path(name)` | `config/{name}.json` |
-
-### 6.3 存储引用 (`@storage:` 协议)
-
-用于容器同步等场景，将存储路径转换为引用格式：
-
-```python
-ref = create_storage_ref("files/generated/file_abc")
-# → "@storage:files/generated/file_abc"
-
-path = parse_storage_ref(ref)
-# → "files/generated/file_abc"
-```
 
 ---
 
@@ -193,12 +155,12 @@ path = parse_storage_ref(ref)
 ```python
 @dataclass
 class StorageConfig:
-    mode: StorageMode  # 自动检测：存在 /persistent 目录为 PERSISTENT，否则为 LOCAL
-    local: LocalStorageConfig  # base_path 配置（从 MYRM_DATA_DIR 派生）
-    persistent: PersistentStorageConfig  # 容器内 /persistent 与 /workspace 路径
+    base_path: str  # 存储根目录（从 MYRM_DATA_DIR 派生）
 ```
 
 路径解析策略：从 `MYRM_DATA_DIR` 环境变量读取根目录，自动派生存储路径。
+
+**单一存储根**：所有存储 key（`files/`、`skills/`、`config/`、`goals/`、`media/` 等）都落在 `{MYRM_DATA_DIR}/storage` 下，不按路径前缀分流到其他目录。云端沙箱容器的根文件系统只读、仅持久卷可写，部署层把 `MYRM_DATA_DIR` 指向该持久卷即可，存储层不探测运行环境。
 
 ---
 
@@ -239,7 +201,7 @@ class StorageConfig:
 
 ### 路径遍历防护
 
-`LocalStorageBackend._resolve_key_to_path()` 和 `PersistentStorageBackend._route_path()` 均通过 `core.security.path.safe_join_path()` 解析 key：
+`LocalStorageBackend._resolve_key_to_path()` 通过 `core.security.path.safe_join_path()` 解析 key：
 
 1. **输入校验**: 拒绝空字节与多行文本内容；key 开头的 `/` 先被去除，按相对路径处理
 2. **`os.path.normpath()`**: 得到规范化的虚拟路径（不展开符号链接），Docker 挂载卷与软链接工作区的路径前缀保持不变
@@ -249,7 +211,7 @@ class StorageConfig:
 
 ### 详细错误报告
 
-`BaseFileSystemBackend._translate_os_error()` 在写入失败时基于 `errno` 提供细粒度错误信息（LocalStorageBackend 和 PersistentStorageBackend 均受益）：
+`BaseFileSystemBackend._translate_os_error()` 在写入失败时基于 `errno` 提供细粒度错误信息：
 
 | errno | 含义 | 错误消息 |
 |-------|------|----------|

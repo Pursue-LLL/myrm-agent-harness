@@ -18,7 +18,7 @@
 - langchain.agents.middleware::AgentMiddleware (POS: Base middleware class for LangChain agent lifecycle hooks and tool injection.)
 - langchain.agents.middleware.types::ToolCallRequest (POS: Typed request object for wrap_tool_call/awrap_tool_call hooks.)
 - agent.config::FileIOConfig (POS: Configuration and type definitions for the Deep Research system. Pure data structures with no business logic dependencies.)
-- toolkits.storage.base::StorageProvider (POS: Storage provider abstract base class. Defines the unified storage interface contract for all storage backends. Supports file read/write, delete, list, info query, and namespace isolation. Method names use read/write (not get/put), fully compatible with the StorageBackend Protocol.)
+- toolkits.storage.base::StorageProvider (POS: Storage provider abstract base class. Defines the unified storage interface contract for all storage backends. Supports file read/write, delete, list, and info query. Method names use read/write (not get/put).)
 
 [OUTPUT]
 - FilesystemFileSearchMiddleware: Example:

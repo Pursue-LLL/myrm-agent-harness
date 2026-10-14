@@ -39,31 +39,24 @@ logger = logging.getLogger(__name__)
 
 
 class LocalStorageBackend(BaseFileSystemBackend):
-    """LocalFile系统Storage后端
+    """Local filesystem storage backend.
 
-    将FileStorage in LocalFile系统 in ，适 for 开发环境 and 单机部署。
+    Stores files under a single root directory; suitable for development, single-machine
+    deployments and cloud sandboxes whose root points at the persistent volume.
 
     Args:
-        base_path: Storage根DirectoryPath
-        namespace: Namespace（optional）， for Path隔离
+        base_path: Storage root directory (created when missing)
 
     Example:
         >>> storage = LocalStorageBackend("./storage")
         >>> await storage.write("file.txt", b"content")
-        >>> # 实际Path：./storage/file.txt
-
-        >>> storage = LocalStorageBackend("./storage", namespace="sandboxes/user_alice")
-        >>> await storage.write("file.txt", b"content")
-        >>> # 实际Path：./storage/sandboxes/user_alice/file.txt
+        >>> # Actual path: ./storage/file.txt
     """
 
-    def __init__(self, base_path: str | Path, namespace: str | None = None):
-        super().__init__(namespace)
+    def __init__(self, base_path: str | Path):
         self.base_path = Path(base_path).resolve()
         self.base_path.mkdir(parents=True, exist_ok=True)
-
-        namespace_info = f" (namespace: {self.namespace})" if self.namespace else ""
-        logger.info(f" LocalStorageBackend Initialize: {self.base_path}{namespace_info}")
+        logger.info(f" LocalStorageBackend Initialize: {self.base_path}")
 
     def _resolve_key_to_path(self, key: str) -> Path:
         """ParseStorageKey to LocalFile系统Path
@@ -72,8 +65,7 @@ class LocalStorageBackend(BaseFileSystemBackend):
         """
         from myrm_agent_harness.core.security.path import safe_join_path
 
-        full_key = self._get_full_key(key)
-        normalized_key = Path(full_key).as_posix().lstrip("/")
+        normalized_key = Path(key).as_posix().lstrip("/")
         try:
             return safe_join_path(self.base_path, normalized_key)
         except ValueError as e:
@@ -92,20 +84,16 @@ class LocalStorageBackend(BaseFileSystemBackend):
         logger.info(f" 写入File: {key} ({len(content)} bytes)")
 
     async def list(self, prefix: str = "", recursive: bool = True) -> list[str]:
-        """列出File（AutoProcess namespace）
+        """List files under the storage root.
 
         Args:
-            prefix: 相对PathPrefix（会Auto添加 namespace）
-            recursive: Whetherrecursive列出子Directory
+            prefix: Relative path prefix to list under (the whole root when empty)
+            recursive: Whether to descend into subdirectories
 
         Returns:
-            相对PathList（ not Contains namespace Prefix）
+            Paths relative to the storage root
         """
-        base = (
-            self._resolve_key_to_path(prefix)
-            if prefix
-            else (self._resolve_key_to_path("") if self.namespace else self.base_path)
-        )
+        base = self._resolve_key_to_path(prefix) if prefix else self.base_path
 
         if not await aiofiles.os.path.exists(str(base)):
             return []

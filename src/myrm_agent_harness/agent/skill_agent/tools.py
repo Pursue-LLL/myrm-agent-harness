@@ -405,5 +405,5 @@ class SkillAgentToolsMixin:
     async def _get_skill_storage_paths(self) -> list[str]:
         """Get all skill storage paths (absolute)."""
         skills = await self._get_cached_skills()  # type: ignore[attr-defined]
-        base_path = storage_config.get_local_base_path()
+        base_path = storage_config.get_base_path()
         return [str(base_path / skill.storage_path) for skill in skills if skill.storage_path]
