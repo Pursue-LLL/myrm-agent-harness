@@ -19,15 +19,11 @@ directories:
   - toolkits/memory/auto_recall
   - toolkits/memory/codegraph
   - toolkits/memory/compaction
-  - toolkits/memory/conflict_arbitration
   - toolkits/memory/decay
   - toolkits/memory/dreaming
   - toolkits/memory/drift_defense
   - toolkits/memory/evolution
   - toolkits/memory/graph_rrf
-  - toolkits/memory/ltra
   - toolkits/memory/profile_notes
-  - toolkits/memory/world_model
-  - toolkits/memory/zero_hallucination
 
 modules: []
