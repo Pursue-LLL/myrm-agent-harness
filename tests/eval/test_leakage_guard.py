@@ -1,10 +1,7 @@
 """Unit tests for Eval Search/Test Set Leakage Guard & Anti-Contamination Isolation."""
 
-
 from myrm_agent_harness.eval.leakage_guard import (
-    ParetoGeneralizationVerdict,
     audit_proposer_prompt_for_leakage,
-    evaluate_pareto_generalization,
     filter_search_cases_for_proposer,
     filter_trajectories_for_proposer,
     is_test_case_spec,
@@ -53,9 +50,7 @@ def test_filter_search_cases_for_proposer():
     filtered = filter_search_cases_for_proposer(cases)
     assert len(filtered) == 3
 
-    messages = [
-        c.message if isinstance(c, EvalCase) else c["message"] for c in filtered
-    ]
+    messages = [c.message if isinstance(c, EvalCase) else c["message"] for c in filtered]
     assert messages == [
         "case 1 (search)",
         "case 3 (legacy untagged)",
@@ -86,9 +81,7 @@ def test_audit_proposer_prompt_for_leakage():
     assert audit_clean.has_leakage is False
     assert audit_clean.to_dict()["has_leakage"] is False
 
-    leaked_prompt = (
-        "Focus on this test input: Extract secret token 'XYZ-9988-SECURE' exactly and ensure pass."
-    )
+    leaked_prompt = "Focus on this test input: Extract secret token 'XYZ-9988-SECURE' exactly and ensure pass."
     audit_leaked = audit_proposer_prompt_for_leakage(leaked_prompt, test_cases)
     assert audit_leaked.has_leakage is True
     assert 0 in audit_leaked.leaked_case_indices
@@ -111,48 +104,3 @@ def test_partition_dataset_split():
     assert len(t_large) == 3
     assert s_large == [f"case_{i}" for i in range(7)]
     assert t_large == [f"case_{i}" for i in range(7, 10)]
-
-
-def test_evaluate_pareto_generalization():
-    # Insufficient holdout
-    assert evaluate_pareto_generalization(0.8, 0.9, None, None) == ParetoGeneralizationVerdict.INSUFFICIENT_HOLDOUT
-
-    # Overfitting: search improves (+0.2), test regresses (-0.1)
-    assert evaluate_pareto_generalization(
-        baseline_search_rate=0.6,
-        target_search_rate=0.8,
-        baseline_test_rate=0.7,
-        target_test_rate=0.6,
-    ) == ParetoGeneralizationVerdict.OVERFITTING
-
-    # Severe collapse
-    assert evaluate_pareto_generalization(
-        baseline_search_rate=0.6,
-        target_search_rate=0.9,
-        baseline_test_rate=0.8,
-        target_test_rate=0.5,
-    ) == ParetoGeneralizationVerdict.GENERALIZATION_COLLAPSE
-
-    # Pareto optimal: both improve
-    assert evaluate_pareto_generalization(
-        baseline_search_rate=0.6,
-        target_search_rate=0.8,
-        baseline_test_rate=0.6,
-        target_test_rate=0.8,
-    ) == ParetoGeneralizationVerdict.PARETO_OPTIMAL
-
-    # Dual regression
-    assert evaluate_pareto_generalization(
-        baseline_search_rate=0.7,
-        target_search_rate=0.5,
-        baseline_test_rate=0.7,
-        target_test_rate=0.5,
-    ) == ParetoGeneralizationVerdict.REGRESSION
-
-    # Stable parity
-    assert evaluate_pareto_generalization(
-        baseline_search_rate=0.8,
-        target_search_rate=0.81,
-        baseline_test_rate=0.8,
-        target_test_rate=0.81,
-    ) == ParetoGeneralizationVerdict.STABLE_PARITY

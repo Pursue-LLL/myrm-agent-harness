@@ -18,9 +18,6 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from myrm_agent_harness.agent.skills.evolution.core.change_manifest import (
-    build_change_manifest,
-)
 from myrm_agent_harness.agent.skills.evolution.core.types import (
     EvolutionProposal,
     EvolutionType,
@@ -106,15 +103,6 @@ class ProposalBuilder:
             updated_eval_cases=updated_eval_cases,
             created_at=datetime.now(),
             security_scan_summary=security_scan_summary_dict,
-            change_manifest=build_change_manifest(
-                eval_cases=(updated_eval_cases if updated_eval_cases is not None else skill.eval_cases),
-                skill_name=skill.name,
-                skill_id=skill.skill_id,
-                evolution_type=evolution_type.value,
-                reasoning=reasoning,
-                original_content=original,
-                proposed_content=content,
-            ),
         )
 
         logger.info("Built EvolutionProposal for skill %s (Score: %.2f)", skill.name, score)

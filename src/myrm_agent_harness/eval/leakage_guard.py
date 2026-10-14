@@ -5,12 +5,10 @@
 - SkillRecord / Trajectory: candidate variant evolution context
 
 [OUTPUT]
-- ParetoGeneralizationVerdict: enum for dual-axis search/test evaluation
 - LeakageAuditResult: audit record for prompt leakage detection
 - filter_search_cases_for_proposer: direct case isolation filter
 - filter_trajectories_for_proposer: indirect execution trace isolation filter
 - partition_dataset_split: stratified auto-split algorithm
-- evaluate_pareto_generalization: dual-axis Pareto evaluation
 
 [POS]
 Part of the closed-source eval harness framework. Implements Meta-Harness
@@ -20,7 +18,6 @@ to variant proposers, preventing Goodhart's law and shortcut overfitting.
 
 from __future__ import annotations
 
-import enum
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TypeVar
@@ -28,17 +25,6 @@ from typing import TypeVar
 from .protocols import EvalCase
 
 T = TypeVar("T")
-
-
-class ParetoGeneralizationVerdict(enum.StrEnum):
-    """Dual-axis Pareto evaluation outcome comparing search vs test generalization."""
-
-    PARETO_OPTIMAL = "pareto_optimal"  # Search non-negative, Test positive
-    OVERFITTING = "overfitting"  # Search improved (+), Test regressed (-)
-    GENERALIZATION_COLLAPSE = "generalization_collapse"  # Test severely dropped
-    STABLE_PARITY = "stable_parity"  # Both search and test within tolerance
-    REGRESSION = "regression"  # Both search and test regressed
-    INSUFFICIENT_HOLDOUT = "insufficient_holdout"  # Test set empty/too small to grade
 
 
 @dataclass(frozen=True, slots=True)
@@ -162,44 +148,3 @@ def partition_dataset_split[T](
 
     search_count = max(1, min(total - 1, round(total * search_ratio)))
     return (list(cases[:search_count]), list(cases[search_count:]))
-
-
-def evaluate_pareto_generalization(
-    baseline_search_rate: float,
-    target_search_rate: float,
-    baseline_test_rate: float | None,
-    target_test_rate: float | None,
-    tolerance: float = 0.02,
-) -> ParetoGeneralizationVerdict:
-    """Evaluate dual-axis generalization trade-off between search and test splits."""
-    if baseline_test_rate is None or target_test_rate is None:
-        return ParetoGeneralizationVerdict.INSUFFICIENT_HOLDOUT
-
-    search_delta = target_search_rate - baseline_search_rate
-    test_delta = target_test_rate - baseline_test_rate
-
-    # Overfitting: search improves, but test drops beyond tolerance
-    if search_delta > tolerance and test_delta < -tolerance:
-        if test_delta < -0.15:
-            return ParetoGeneralizationVerdict.GENERALIZATION_COLLAPSE
-        return ParetoGeneralizationVerdict.OVERFITTING
-
-    # Dual regression
-    if search_delta < -tolerance and test_delta < -tolerance:
-        return ParetoGeneralizationVerdict.REGRESSION
-
-    # Severe collapse in held-out test set
-    if test_delta < -0.15:
-        return ParetoGeneralizationVerdict.GENERALIZATION_COLLAPSE
-
-    # Pareto optimal: non-negative across both, positive on at least one
-    if search_delta >= -tolerance and test_delta >= -tolerance:
-        if search_delta > tolerance or test_delta > tolerance:
-            return ParetoGeneralizationVerdict.PARETO_OPTIMAL
-        return ParetoGeneralizationVerdict.STABLE_PARITY
-
-    # Search dropped while test held or improved
-    if search_delta < -tolerance and test_delta >= -tolerance:
-        return ParetoGeneralizationVerdict.STABLE_PARITY
-
-    return ParetoGeneralizationVerdict.STABLE_PARITY

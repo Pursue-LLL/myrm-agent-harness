@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -62,14 +63,48 @@ def test_hollow_test_detector_shell_commands():
 
 
 @pytest.mark.asyncio
-async def test_sandbox_validator_prompt_skill_verified():
+async def test_sandbox_validator_prompt_skill_has_nothing_to_verify():
     validator = SandboxValidator()
     skill = _create_mock_skill(content="You are a helpful translation assistant.")
+
+    assert await validator.verify_skill_capsule(skill) is None
+    assert await validator.dry_run_skill(skill) == (True, "No executable content to validate")
+
+
+@pytest.mark.asyncio
+async def test_sandbox_validator_rejects_empty_prompt_skill():
+    validator = SandboxValidator()
+    skill = _create_mock_skill(content="   ")
     proof = await validator.verify_skill_capsule(skill)
 
+    assert proof is not None
+    assert proof.is_verified is False
+    assert proof.hollow_detected is True
+    assert await validator.dry_run_skill(skill) == (False, "Prompt skill missing required name or content")
+
+
+@pytest.mark.asyncio
+async def test_sandbox_validator_bash_only_skill_is_not_stamped_verified():
+    validator = SandboxValidator()
+    skill = _create_mock_skill(content="Run it:\n```bash\nls -la\n```")
+
+    assert await validator.verify_skill_capsule(skill) is None
+
+
+@pytest.mark.asyncio
+async def test_sandbox_validator_python_block_verified_after_syntax_run():
+    validator = SandboxValidator()
+    skill = _create_mock_skill(content="```python\ndef add(a, b):\n    return a + b\n```")
+
+    run_result = SimpleNamespace(passed=True, stdout="", stderr="")
+    with patch.object(validator._test_executor, "run_tests", new_callable=AsyncMock) as mock_run:
+        mock_run.return_value = run_result
+        proof = await validator.verify_skill_capsule(skill)
+
+    assert proof is not None
     assert proof.is_verified is True
-    assert proof.hollow_detected is False
-    assert proof.blast_radius["lines"] == 1
+    assert proof.command_results[0]["type"] == "python_syntax_and_eval"
+    mock_run.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -81,6 +116,17 @@ async def test_sandbox_validator_rejects_hollow_python():
     assert proof.is_verified is False
     assert proof.hollow_detected is True
     assert "Hollow Test Rejected" in proof.verification_summary
+
+
+@pytest.mark.asyncio
+async def test_sandbox_validator_accepts_example_code_without_assertions():
+    validator = SandboxValidator()
+    skill = _create_mock_skill(content="```python\nimport json\nprint(json.dumps({}))\n```")
+
+    run_result = SimpleNamespace(passed=True, stdout="", stderr="")
+    with patch.object(validator._test_executor, "run_tests", new_callable=AsyncMock) as mock_run:
+        mock_run.return_value = run_result
+        assert await validator.dry_run_skill(skill) == (True, "Passed sandbox execution and anti-hollow validation")
 
 
 @pytest.mark.asyncio

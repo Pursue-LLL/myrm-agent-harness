@@ -349,10 +349,8 @@ class EvolutionProposal:
     target_layer: EvolutionLayer = EvolutionLayer.PROMPT
     target_pathology: FailurePathology = FailurePathology.UNHANDLED_EXCEPTION
     created_at: datetime = field(default_factory=datetime.now)
-    # Falsifiable prediction contract (dict form of ChangePredictionManifest) built at
-    # proposal finalization; None when the skill has no bound eval_cases or the
-    # evolution type has no code content (e.g. OPTIMIZE_DESCRIPTION).
-    change_manifest: dict[str, Any] | None = None
+    # Result of the security scan ProposalBuilder ran on the proposed content;
+    # None when no scan ran (OPTIMIZE_DESCRIPTION proposals carry no skill body).
     security_scan_summary: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -377,6 +375,5 @@ class EvolutionProposal:
             "target_layer": self.target_layer.value,
             "target_pathology": self.target_pathology.value,
             "created_at": self.created_at.isoformat(),
-            "change_manifest": self.change_manifest,
             "security_scan_summary": self.security_scan_summary,
         }

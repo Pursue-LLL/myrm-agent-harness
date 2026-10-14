@@ -4,14 +4,16 @@
 - agent.skills.evolution.core.types::SkillRecord (POS: Data types for skill evolution system.)
 
 [OUTPUT]
-- filter_variants_by_regression: Non-blocking regression gate that applies score penalties.
-- evaluate_content_assertions: Public static-assertion pass-rate evaluator for arbitrary skill content.
+- filter_variants_by_regression: Baseline-relative regression gate that applies score penalties.
 
 [POS]
-Non-blocking regression gate for the skill evolution pipeline. Runs bound
-EvalCases against candidate variants BEFORE LLM evaluation, applying score
-penalties rather than hard-blocking to account for potentially inaccurate
-auto-generated EvalCases.
+Regression gate for the skill evolution pipeline. Runs bound EvalCases against
+candidate variants BEFORE LLM evaluation. Only the cases the ORIGINAL content
+satisfies are guarded: a case the original already fails (for example a Python
+AST check written against a Markdown SOP) cannot be regressed, so it is neither
+penalised nor counted toward the hard filter. Variants lose score per guarded
+case they drop and are removed only when they drop every guarded case, which
+keeps the gate non-blocking for potentially inaccurate auto-generated EvalCases.
 """
 
 from __future__ import annotations
@@ -23,10 +25,10 @@ from typing import Any
 
 from .types import SkillRecord
 
-__all__ = ["evaluate_content_assertions", "filter_variants_by_regression"]
+__all__ = ["filter_variants_by_regression"]
 
-_HARD_FAIL_THRESHOLD = 1.0
-_PENALTY_PER_FAILED_CASE = 0.15
+_PENALTY_PER_LOST_CASE = 0.15
+_MAX_PENALTY = 1.0
 
 
 async def filter_variants_by_regression(
@@ -37,53 +39,32 @@ async def filter_variants_by_regression(
     """Run EvalCase regression against each variant, return survivors and penalties.
 
     Strategy (non-blocking):
-    - If the skill has no eval_cases, skip with zero penalties.
-    - For each variant, run lightweight assertion checks.
-    - Compute a penalty score proportional to failed cases.
-    - Only hard-filter variants that fail ALL cases (100% regression).
+    - Guard only the eval_cases the original skill content passes; with none
+      guarded (no eval_cases, or none the original satisfies) every variant survives
+      with zero penalties.
+    - Penalise each variant ``_PENALTY_PER_LOST_CASE`` per guarded case it fails.
+    - Hard-filter variants that fail ALL guarded cases (100% regression).
     - Return surviving variants and their penalty map.
     """
-    if not skill.eval_cases:
+    guarded = [case for case in skill.eval_cases or [] if _run_single_case(case, skill.content)]
+    if not guarded:
         return variants, {}
 
     penalties: dict[str, float] = {}
     surviving: list[str] = []
 
     for variant in variants:
-        pass_rate = evaluate_content_assertions(skill.eval_cases, variant)
-        failed = len(skill.eval_cases) - round(pass_rate * len(skill.eval_cases))
-        penalty = min(failed * _PENALTY_PER_FAILED_CASE, _HARD_FAIL_THRESHOLD)
-        penalties[variant] = penalty
-        if penalty < _HARD_FAIL_THRESHOLD:
+        lost = sum(1 for case in guarded if not _run_single_case(case, variant))
+        penalties[variant] = min(lost * _PENALTY_PER_LOST_CASE, _MAX_PENALTY)
+        if lost < len(guarded):
             surviving.append(variant)
         else:
             logger.info(
-                "Variant hard-filtered: 100%% EvalCase regression for skill '%s'",
+                "Variant hard-filtered: 100%% regression of guarded EvalCases for skill '%s'",
                 skill.name,
             )
 
     return surviving, penalties
-
-
-def evaluate_content_assertions(
-    eval_cases: list[dict[str, Any]],
-    content: str,
-) -> float:
-    """Evaluate the static-assertion pass rate of skill content against bound EvalCases.
-
-    Deterministic, zero-LLM, zero-network: regex/AST checks only, mirroring the
-    regression gate's assertion semantics. Used both by the evolution pipeline
-    (variant gating) and the change-manifest prediction/attribution loop.
-
-    Returns the fraction of cases whose assertions all pass; returns 1.0 when
-    there are no eval_cases (caller decides whether that means "no data").
-    """
-    if not eval_cases:
-        return 1.0
-
-    total = len(eval_cases)
-    failed = sum(1 for case_dict in eval_cases if not _run_single_case(case_dict, content))
-    return (total - failed) / total
 
 
 def _run_single_case(case_dict: dict[str, Any], variant_code: str) -> bool:

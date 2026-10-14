@@ -12,6 +12,8 @@
 
 [POS]
 Sandbox validation for evolved skills. Integrates AST static analysis, hollow-test interception, and produces verified execution proofs.
+A proof is produced only when a check actually ran; skills with nothing executable (pure prompt instructions, bash-only
+blocks without verification steps) yield no proof instead of an unchecked "verified" stamp.
 """
 
 from __future__ import annotations
@@ -91,13 +93,19 @@ class SandboxValidator:
 
         return True, "AST analysis passed"
 
-    async def verify_skill_capsule(self, skill: SkillRecord) -> VerificationProof:
-        """Run full capsule validation and generate a tamper-evident VerificationProof."""
+    async def verify_skill_capsule(self, skill: SkillRecord) -> VerificationProof | None:
+        """Run capsule validation and generate a VerificationProof.
+
+        Returns None when the skill has nothing to execute, so a skill that was never
+        checked is not presented as verified. A skill with no name or content still
+        yields a failed proof.
+        """
         skill_type = self._determine_skill_type(skill)
         blast_radius = self._calculate_blast_radius(skill)
         command_results: list[dict[str, Any]] = []
+        checks_ran = False
 
-        # 1. For pure prompt instruction skills: validate markdown structure & variable placeholders
+        # 1. Pure prompt instruction skills have nothing to execute: only an empty skill is rejected
         if skill_type == SkillVerificationType.PROMPT_INSTRUCTION:
             if not skill.name.strip() or not skill.content.strip():
                 return VerificationProof(
@@ -108,14 +116,7 @@ class SandboxValidator:
                     environment=skill.environment,
                     verified_at=datetime.now(),
                 )
-            return VerificationProof(
-                is_verified=True,
-                hollow_detected=False,
-                blast_radius=blast_radius,
-                verification_summary="Prompt instruction skill format and structure verified",
-                environment=skill.environment,
-                verified_at=datetime.now(),
-            )
+            return None
 
         # 2. For code-executable skills: Python block AST & Hollow detection
         python_blocks = re.findall(r"```python\n(.*?)\n```", skill.content, re.DOTALL)
@@ -134,9 +135,10 @@ class SandboxValidator:
                     verified_at=datetime.now(),
                 )
 
-            # Hollow test detection on test blocks
+            # A block is only treated as a verification script when it asserts something; plain
+            # example code has no assertions to judge, and rejecting it would block ordinary skills.
             hollow_result = self._hollow_detector.analyze_python_code(combined_code)
-            if hollow_result.is_hollow:
+            if hollow_result.is_hollow and hollow_result.has_assert:
                 return VerificationProof(
                     is_verified=False,
                     hollow_detected=True,
@@ -156,6 +158,7 @@ def test_syntax():
                 test_code=pytest_code,
                 skill_name=skill.name,
             )
+            checks_ran = True
             command_results.append(
                 {
                     "type": "python_syntax_and_eval",
@@ -225,6 +228,7 @@ def test_syntax():
                         )
 
                         exec_result = await executor.execute_bash(context)
+                        checks_ran = True
                         command_results.append(
                             {
                                 "command": cmd,
@@ -245,6 +249,9 @@ def test_syntax():
                                 verified_at=datetime.now(),
                             )
 
+        if not checks_ran:
+            return None
+
         # All checks passed cleanly
         return VerificationProof(
             is_verified=True,
@@ -257,6 +264,8 @@ def test_syntax():
         )
 
     async def dry_run_skill(self, skill: SkillRecord) -> tuple[bool, str]:
-        """Backward-compatible dry-run method delegating to verify_skill_capsule."""
+        """Import gate: ``(False, reason)`` when a check failed, ``(True, ...)`` otherwise."""
         proof = await self.verify_skill_capsule(skill)
+        if proof is None:
+            return True, "No executable content to validate"
         return proof.is_verified, proof.verification_summary
