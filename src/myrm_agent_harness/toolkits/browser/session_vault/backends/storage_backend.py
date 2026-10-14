@@ -2,7 +2,7 @@
 
 
 [INPUT]
-- myrm_agent_harness.toolkits.storage.base::StorageProvider (POS: storage provider protocol)
+- myrm_agent_harness.toolkits.storage.base::StorageProvider (POS: Storage provider abstract base class. Defines the unified storage interface contract for all storage backends. Supports file read/write, delete, list, and info query. Method names use read/write (not get/put).)
 - ..exceptions::InvalidDomainError (POS: Exception type definitions for SessionVault. Provides fine-grained error classification for targeted error handling by callers.)
 - .file_backend::is_valid_domain_name (POS: domain name validation utility)
 
@@ -116,7 +116,7 @@ class StorageVaultBackend:
     async def backup_corrupted(self, domain: str, data: bytes) -> None:
         """Backup corrupted session data to .corrupted file."""
         try:
-            key = self._storage_key(domain).replace(".enc", ".corrupted")
+            key = f"{self._storage_key(domain).removesuffix('.enc')}.corrupted"
             await self._storage.write(key, data)
             logger.info("Backed up corrupted session to %s", key)
         except Exception as exc:

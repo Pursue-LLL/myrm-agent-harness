@@ -150,6 +150,12 @@ class TestStorageVaultBackend:
         await storage_backend.backup_corrupted("example.com", b"corrupt")
         assert provider.store["browser/sessions/example.com.corrupted"] == b"corrupt"
 
+    async def test_backup_corrupted_only_swaps_the_trailing_suffix(
+        self, storage_backend: StorageVaultBackend, provider: FakeStorageProvider
+    ) -> None:
+        await storage_backend.backup_corrupted("mail.enc.example.com", b"corrupt")
+        assert provider.store == {"browser/sessions/mail.enc.example.com.corrupted": b"corrupt"}
+
     async def test_backup_corrupted_error_swallowed(
         self, storage_backend: StorageVaultBackend, provider: FakeStorageProvider
     ) -> None:
