@@ -6,15 +6,16 @@
 - enum::Enum (POS: Python enum type)
 
 [OUTPUT]
-- StorageMode: storage mode enum (LOCAL)
+- StorageMode: storage mode enum (LOCAL / PERSISTENT)
 - LocalStorageConfig: local storage configuration
+- PersistentStorageConfig: in-container persistent storage configuration
 - StorageConfig: unified storage configuration (contains various storage configs)
 - storage_config: global storage configuration singleton
 
 [POS]
 Storage configuration module. All configs injected via constructor parameters with sensible defaults.
-Design principle: framework layer only includes local storage implementation; cloud storage provided
-by business layer via dependency injection. As the config layer, depended on by storage factory and backends.
+Design principle: framework layer includes the local and in-container persistent implementations; any other
+backend is provided by the business layer via dependency injection. As the config layer, depended on by storage factory and backends.
 """
 
 from dataclasses import dataclass, field
@@ -61,7 +62,7 @@ class LocalStorageConfig:
     """LocalStorageConfigure"""
 
     # Storage根Directory（从 MYRM_DATA_DIR 环境变量读取，默认 ~/.myrm/storage）
-    # Storage桶结构：skills/, users/{user_id}/
+    # Storage桶结构：files/, skills/, config/
     # Note：workspaces 属于沙箱， not  in Storage桶 in
     base_path: str = field(default_factory=_get_default_storage_path)
 

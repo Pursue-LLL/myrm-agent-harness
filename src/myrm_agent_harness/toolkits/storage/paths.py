@@ -9,12 +9,12 @@
 - get_file_storage_path(): generate file storage path
 - get_skill_storage_path(): generate skill storage path
 - get_user_skill_config_path(): generate user skill config path
-- parse_file_storage_path(): parse file storage path
+- create_storage_ref(), parse_storage_ref(): build and parse @storage: references
 
 [POS]
 Storage path utility module. Centrally manages storage system path generation, ensuring all
 components use consistent path formats. Defines path structures for files and skills
-with generation and parsing functions. As the path convention layer, depended on by all storage-related modules.
+with generation and validation functions. As the path convention layer, depended on by all storage-related modules.
 """
 
 from __future__ import annotations
@@ -30,9 +30,6 @@ FILES_ROOT_PREFIX = "files"
 
 # Skill storage root prefix
 SKILLS_ROOT_PREFIX = "skills"
-
-# User config storage root prefix
-USERS_ROOT_PREFIX = "users/default"
 
 # Storage reference prefix for container sync
 STORAGE_REF_PREFIX = "@storage:"
@@ -81,8 +78,8 @@ def get_file_metadata_path(storage_path: str) -> str:
         Metadata file path
 
     Examples:
-        >>> get_file_metadata_path("files/user123/uploads/file_abc")
-        'files/user123/uploads/file_abc.metadata.json'
+        >>> get_file_metadata_path("files/uploads/file_abc")
+        'files/uploads/file_abc.meta.json'
     """
     return f"{storage_path}{FILE_METADATA_SUFFIX}"
 
@@ -265,11 +262,11 @@ def create_storage_ref(storage_path: str) -> str:
         storage_path: Storage path
 
     Returns:
-        Storage reference string (e.g. @storage:files/user123/generated/file_abc)
+        Storage reference string (e.g. @storage:files/generated/file_abc)
 
     Examples:
-        >>> create_storage_ref("files/user123/generated/file_abc")
-        '@storage:files/user123/generated/file_abc'
+        >>> create_storage_ref("files/generated/file_abc")
+        '@storage:files/generated/file_abc'
     """
     return f"{STORAGE_REF_PREFIX}{storage_path}"
 
@@ -284,8 +281,8 @@ def parse_storage_ref(storage_ref: str) -> str | None:
         Storage path, or None if not a valid storage reference
 
     Examples:
-        >>> parse_storage_ref("@storage:files/user123/generated/file_abc")
-        'files/user123/generated/file_abc'
+        >>> parse_storage_ref("@storage:files/generated/file_abc")
+        'files/generated/file_abc'
         >>> parse_storage_ref("invalid")
         None
     """
@@ -333,53 +330,3 @@ def is_valid_skill_path(path: str) -> bool:
         Whether path is valid
     """
     return path.startswith(f"{SKILLS_ROOT_PREFIX}/")
-
-
-def extract_user_id_from_path(path: str) -> str | None:
-    """Extract user ID from file path.
-
-    Args:
-        path: File storage path
-
-    Returns:
-        User ID, or None if extraction fails
-
-    Examples:
-        >>> extract_user_id_from_path("files/user123/uploads/file_abc")
-        'user123'
-    """
-    if not is_valid_file_path(path):
-        return None
-
-    parts = path.split("/")
-    if len(parts) >= 2:
-        return parts[1]
-    return None
-
-
-def extract_file_id_from_path(path: str) -> str | None:
-    """Extract file ID from file path.
-
-    Args:
-        path: File storage path
-
-    Returns:
-        File ID, or None if extraction fails
-
-    Examples:
-        >>> extract_file_id_from_path("files/user123/uploads/file_abc")
-        'file_abc'
-        >>> extract_file_id_from_path("files/user123/uploads/file_abc.metadata.json")
-        'file_abc'
-    """
-    if not is_valid_file_path(path):
-        return None
-
-    parts = path.split("/")
-    if len(parts) >= 4:
-        file_id = parts[3]
-        # Remove metadata suffix
-        if file_id.endswith(FILE_METADATA_SUFFIX):
-            file_id = file_id[: -len(FILE_METADATA_SUFFIX)]
-        return file_id
-    return None

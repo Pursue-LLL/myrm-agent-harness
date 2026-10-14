@@ -41,7 +41,7 @@
 │  factory.py       → create/get/set_storage_provider              │
 │  config.py        → StorageConfig, StorageMode                   │
 │  types.py         → FilePurpose, SkillType                       │
-│  paths.py         → 路径生成/解析工具 (20+ 函数)                 │
+│  paths.py         → 路径生成 / 引用 / 校验工具                   │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -51,7 +51,7 @@
 
 ### 3.1 StorageProvider (ABC)
 
-唯一的存储协议，定义 11 个方法：
+唯一的存储协议，后端需实现以下抽象方法：
 
 | 方法 | 签名 | 说明 |
 |------|------|------|
@@ -61,6 +61,7 @@
 | `write_text` | `(key: str, content: str, encoding?, content_type?) -> None` | 写入文本文件 |
 | `delete` | `(key: str) -> None` | 删除文件/目录 |
 | `exists` | `(key: str) -> bool` | 检查文件是否存在 |
+| `is_dir` | `(key: str) -> bool` | 检查路径是否为目录 |
 | `list` | `(prefix?, recursive?) -> list[str]` | 列出文件 |
 | `info` | `(key: str) -> FileInfo` | 获取文件元信息 |
 | `copy` | `(src_key, dst_key) -> None` | 复制文件/目录 |
@@ -108,7 +109,7 @@ await storage.write("file.txt", b"content")
 - **特有逻辑**: 双卷路由（`_route_path` + `_resolve_key_to_path`）、幂等 delete、双卷合并 list
 - **智能路由**: 根据路径前缀自动分发到 `/persistent/`（长期数据）或 `/workspace/`（临时数据）
 - **安全**: 使用 `os.path.normpath` + `relative_to` 防止路径遍历，与 LocalStorageBackend 一致
-- **完整实现**: 11/11 `StorageProvider` 接口方法全部实现
+- **完整实现**: `StorageProvider` 的全部抽象方法均已实现
 
 ---
 
@@ -136,48 +137,43 @@ set_storage_provider(custom_backend)  # 注入自定义 StorageProvider
 
 ```
 {base_path}/
-├── files/                          # 用户文件
-│   └── {user_id}/
-│       ├── uploads/{file_id}       # 用户上传
-│       ├── generated/{file_id}     # 技能生成
-│       └── skill/{file_id}         # 技能包文件
+├── files/                          # 文件
+│   ├── uploads/{file_id}           # 用户上传
+│   ├── generated/{file_id}         # 技能生成
+│   └── skill/{file_id}             # 技能包文件
 │
 ├── skills/                         # 技能存储
 │   ├── prebuilt/{skill_id}/        # 预构建技能
 │   │   ├── SKILL.md
 │   │   └── _metadata.json
-│   └── local/{skill_id}/           # 本地技能
+│   ├── local/{skill_id}/           # 本地技能
+│   └── workspace/{skill_id}/       # 工作目录技能
 │
-├── users/                          # 用户配置
-│   └── {user_id}/
-│       └── config/
-│           └── skills.json         # 技能配置
-│
-└── knowledge/                      # 知识库存储
-    └── ...
+└── config/
+    └── skills.json                 # 技能配置
 ```
 
 ### 6.2 路径生成函数
 
 | 函数 | 输出示例 |
 |------|----------|
-| `get_file_storage_path(uid, fid, UPLOAD)` | `files/{uid}/uploads/{fid}` |
+| `get_file_storage_path(fid, UPLOAD)` | `files/uploads/{fid}` |
 | `get_file_metadata_path(path)` | `{path}.meta.json` |
 | `get_skill_storage_path(PREBUILT, sid)` | `skills/prebuilt/{sid}` |
 | `get_skill_content_path(path)` | `{path}/SKILL.md` |
 | `get_skill_metadata_path(type, sid)` | `skills/{type}/{sid}/_metadata.json` |
-| `get_user_config_path(uid, name)` | `users/{uid}/config/{name}.json` |
+| `get_user_config_path(name)` | `config/{name}.json` |
 
 ### 6.3 存储引用 (`@storage:` 协议)
 
 用于容器同步等场景，将存储路径转换为引用格式：
 
 ```python
-ref = create_storage_ref("files/user123/generated/file_abc")
-# → "@storage:files/user123/generated/file_abc"
+ref = create_storage_ref("files/generated/file_abc")
+# → "@storage:files/generated/file_abc"
 
 path = parse_storage_ref(ref)
-# → "files/user123/generated/file_abc"
+# → "files/generated/file_abc"
 ```
 
 ---
@@ -189,16 +185,15 @@ path = parse_storage_ref(ref)
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `MYRM_DATA_DIR` | `~/.myrm` | 全局数据根目录，存储路径自动派生为 `{MYRM_DATA_DIR}/storage` |
-| `KnowledgeStorageConfig.size_threshold` | `512000` (500KB) | 知识库混合存储阈值（字节） |
 
 ### 7.2 配置类
 
 ```python
 @dataclass
 class StorageConfig:
-    mode: StorageMode                    # 始终为 LOCAL（框架层）
-    local: LocalStorageConfig            # base_path 配置（从 MYRM_DATA_DIR 派生）
-    knowledge: KnowledgeStorageConfig    # 知识库阈值配置
+    mode: StorageMode  # 自动检测：存在 /persistent 目录为 PERSISTENT，否则为 LOCAL
+    local: LocalStorageConfig  # base_path 配置（从 MYRM_DATA_DIR 派生）
+    persistent: PersistentStorageConfig  # 容器内 /persistent 与 /workspace 路径
 ```
 
 路径解析策略：从 `MYRM_DATA_DIR` 环境变量读取根目录，自动派生存储路径。
@@ -209,7 +204,7 @@ class StorageConfig:
 
 ### FilePurpose (文件用途)
 
-决定文件在 `files/{user_id}/` 下的子目录：
+决定文件在 `files/` 下的子目录：
 
 | 枚举值 | 目录 | 说明 |
 |--------|------|------|
@@ -224,8 +219,8 @@ class StorageConfig:
 | 枚举值 | 目录 | 说明 |
 |--------|------|------|
 | `PREBUILT` | `prebuilt/` | 系统预构建技能 |
-| `POOL` | `pool/` | 用户上传技能（内容哈希去重） |
-| `LOCAL` | `local/` | 本地文件系统技能 |
+| `LOCAL` | `local/` | 用户配置路径下扫描到的文件系统技能 |
+| `WORKSPACE` | `workspace/` | 工作目录下发现的项目级技能 |
 
 ---
 

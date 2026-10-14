@@ -22,7 +22,7 @@ from enum import StrEnum
 class FilePurpose(StrEnum):
     """FilePurpose（决定StoragePath）
 
-    StoragePathFormat：files/{user_id}/{purpose}/{file_id}
+    StoragePathFormat：files/{purpose}/{file_id}
 
     Attributes:
         UPLOAD: 用户Upload File（inputFile）

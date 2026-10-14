@@ -1,6 +1,6 @@
 """Tests for storage path utilities.
 
-Covers path generation, parsing, validation, and extraction functions.
+Covers path generation, storage references, and validation functions.
 """
 
 from __future__ import annotations
@@ -11,8 +11,6 @@ from myrm_agent_harness.toolkits.storage.paths import (
     SKILLS_ROOT_PREFIX,
     STORAGE_REF_PREFIX,
     create_storage_ref,
-    extract_file_id_from_path,
-    extract_user_id_from_path,
     get_all_files_prefix,
     get_file_metadata_path,
     get_file_storage_path,
@@ -99,12 +97,12 @@ class TestUserConfigPaths:
 
 class TestStorageRef:
     def test_create_storage_ref(self) -> None:
-        ref = create_storage_ref("files/user123/generated/file_abc")
-        assert ref == f"{STORAGE_REF_PREFIX}files/user123/generated/file_abc"
+        ref = create_storage_ref("files/generated/file_abc")
+        assert ref == f"{STORAGE_REF_PREFIX}files/generated/file_abc"
 
     def test_parse_storage_ref_valid(self) -> None:
-        result = parse_storage_ref(f"{STORAGE_REF_PREFIX}files/user123/generated/file_abc")
-        assert result == "files/user123/generated/file_abc"
+        result = parse_storage_ref(f"{STORAGE_REF_PREFIX}files/generated/file_abc")
+        assert result == "files/generated/file_abc"
 
     def test_parse_storage_ref_invalid(self) -> None:
         assert parse_storage_ref("invalid") is None
@@ -118,33 +116,10 @@ class TestStorageRef:
 
 class TestPathValidation:
     def test_is_valid_file_path(self) -> None:
-        assert is_valid_file_path("files/user123/uploads/file_abc") is True
+        assert is_valid_file_path("files/uploads/file_abc") is True
         assert is_valid_file_path("skills/prebuilt/test") is False
         assert is_valid_file_path("random/path") is False
 
     def test_is_valid_skill_path(self) -> None:
         assert is_valid_skill_path("skills/prebuilt/test") is True
-        assert is_valid_skill_path("files/user123/test") is False
-
-
-class TestPathExtraction:
-    def test_extract_user_id(self) -> None:
-        assert extract_user_id_from_path("files/user123/uploads/file_abc") == "user123"
-
-    def test_extract_user_id_invalid(self) -> None:
-        assert extract_user_id_from_path("invalid/path") is None
-
-    def test_extract_user_id_short_path(self) -> None:
-        assert extract_user_id_from_path("files/") == ""
-
-    def test_extract_file_id(self) -> None:
-        assert extract_file_id_from_path("files/user123/uploads/file_abc") == "file_abc"
-
-    def test_extract_file_id_with_metadata_suffix(self) -> None:
-        assert extract_file_id_from_path(f"files/user123/uploads/file_abc{FILE_METADATA_SUFFIX}") == "file_abc"
-
-    def test_extract_file_id_invalid(self) -> None:
-        assert extract_file_id_from_path("invalid/path") is None
-
-    def test_extract_file_id_short_path(self) -> None:
-        assert extract_file_id_from_path("files/user123/uploads") is None
+        assert is_valid_skill_path("files/uploads/test") is False

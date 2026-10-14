@@ -19,10 +19,7 @@ from .paths import (
     SKILL_METADATA_FILE,
     SKILLS_ROOT_PREFIX,
     STORAGE_REF_PREFIX,
-    USERS_ROOT_PREFIX,
     create_storage_ref,
-    extract_file_id_from_path,
-    extract_user_id_from_path,
     get_all_files_prefix,
     get_file_metadata_path,
     get_file_storage_path,
@@ -48,7 +45,6 @@ __all__ = [
     "SKILLS_ROOT_PREFIX",
     "SKILL_METADATA_FILE",
     "STORAGE_REF_PREFIX",
-    "USERS_ROOT_PREFIX",
     "FileInfo",
     # Type
     "FilePurpose",
@@ -63,8 +59,6 @@ __all__ = [
     "create_storage_provider",
     # Storage引用
     "create_storage_ref",
-    "extract_file_id_from_path",
-    "extract_user_id_from_path",
     "get_all_files_prefix",
     "get_file_metadata_path",
     # PathGenerate
