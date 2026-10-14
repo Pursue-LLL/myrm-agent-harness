@@ -13,4 +13,4 @@ SkillBackend decorator proxies — activated-version routing and quarantine filt
 
 ## Module Dependencies
 
-- `backends.skills.protocols::SkillBackend`, `ABTestStoreProtocol`, `SnapshotStoreProtocol`, `SkillStateReader`
+- `backends.skills.protocols::SkillBackend`, `SnapshotStoreProtocol`, `SkillStateReader`
