@@ -20,10 +20,10 @@ Conversation snapshot:
 - Content: JSONL (one message per line), redacted via redact_leaks()
 - Always gzip-compressed (conversation snapshots are large)
 
-Smart cleanup strategy (Session-Aware):
-1. Session active within 30 days → keep all files
-2. File accessed within 14 days → keep file
-3. Otherwise → remove (7-day fallback threshold)
+Cleanup strategy (single retention window, 14 days):
+1. File read within the window (access tracker) → keep file
+2. File modified within the window → keep file
+3. Otherwise → remove
 
 Quota management (optional, via StorageQuotaChecker injection):
 - Write-time quota check, raises QuotaExceededError on exceeded
@@ -38,7 +38,6 @@ Compression strategy:
 - agent.context_management.infra.schemas::ContextCompressOffloadCallback, (POS: Planner Schema Definitions)
 - runtime.quota.errors::QuotaExceededError (POS: Storage quota related errors.)
 - runtime.quota.protocol::StorageQuotaChecker (POS: Storage quota checking protocol.)
-- runtime.artifacts.checkpoint_protocol::CheckpointerProtocol (POS: Protocol definition for checkpointer objects.)
 - runtime.context.cleanup_ops::* (POS: Runtime context cleanup operations. Owns session directory cleanup and orphan cleanup entrypoints.)
 - runtime.context.file_access_tracker::get_file_access_tracker (POS: Context archive access tracking)
 - toolkits.code_execution.executors.base::CodeExecutor (POS: Code executor base classes.)
@@ -47,7 +46,7 @@ Compression strategy:
 - create_context_snapshot_callback: Build async callback: serialize full messages to gzip-com...
 - create_compress_offload_callback: Build async callback: write full tool content before comp...
 - cleanup_session_context_files: re-export session context cleanup.
-- cleanup_orphan_context_files_async: re-export session-aware orphan cleanup.
+- cleanup_orphan_context_files_async: re-export orphan cleanup that honours recorded reads.
 - cleanup_orphan_context_files: re-export local orphan cleanup.
 
 [POS]

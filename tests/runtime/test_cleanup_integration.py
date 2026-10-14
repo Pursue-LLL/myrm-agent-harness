@@ -1,454 +1,213 @@
-"""Integration tests for context file cleanup with tracking systems."""
+"""Integration tests for context file cleanup with the access tracker."""
 
 from __future__ import annotations
 
 import os
 import time
+from collections.abc import AsyncIterator
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from myrm_agent_harness.runtime.context.cleanup import cleanup_context_files_async
+from myrm_agent_harness.runtime.context.cleanup import CONTEXT_RETENTION_DAYS, cleanup_context_files_async
 from myrm_agent_harness.runtime.context.file_access_tracker import FileAccessTracker, reset_tracker
 from myrm_agent_harness.runtime.context.instance_metrics import ContextMetrics, set_context_metrics
+from myrm_agent_harness.runtime.paths import execution_paths
+
+_DAY_S = 86400
 
 
 @pytest.fixture
-def context_root(tmp_path: Path) -> Path:
-    """Create temporary context root directory."""
+def context_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Temporary context root, bound the way the startup shim rebinds it."""
     root = tmp_path / ".context"
     root.mkdir()
+    monkeypatch.setattr(execution_paths, "CONTEXT_ROOT", str(root))
     return root
 
 
 @pytest.fixture
-async def access_tracker(tmp_path: Path) -> FileAccessTracker:
-    """Create access tracker instance."""
-    db_path = str(tmp_path / "access.db")
-    tracker = FileAccessTracker(db_path=db_path)
+async def access_tracker(tmp_path: Path) -> AsyncIterator[FileAccessTracker]:
+    tracker = FileAccessTracker(db_path=str(tmp_path / "access.db"))
     await tracker._ensure_initialized()
     yield tracker
     await reset_tracker()
 
 
-@pytest.mark.asyncio
-async def test_cleanup_with_recent_access(
-    context_root: Path,
-    access_tracker: FileAccessTracker,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Test cleanup respects recently accessed files."""
-    monkeypatch.setattr("myrm_agent_harness.runtime.context.cleanup.CONTEXT_ROOT", str(context_root))
-
-    session_dir = context_root / "chat_abc" / "compacted"
-    session_dir.mkdir(parents=True)
-
-    file1 = session_dir / "file1.txt"
-    file1.write_text("content1")
-
-    file2 = session_dir / "file2.txt"
-    file2.write_text("content2")
-
-    await access_tracker.record_access(str(file1), "chat_abc")
-
-    removed = await cleanup_context_files_async(
-        max_age_days=0,
-        session_active_days=0,
-        file_access_days=1,
-        access_tracker=access_tracker,
-        checkpointer=None,
-    )
-
-    assert removed == 1
-    assert file1.exists()
-    assert not file2.exists()
-
-
-@pytest.mark.asyncio
-async def test_cleanup_respects_priority_order(
-    context_root: Path,
-    access_tracker: FileAccessTracker,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Test cleanup respects rule priority (session > access > mtime)."""
-    monkeypatch.setattr("myrm_agent_harness.runtime.context.cleanup.CONTEXT_ROOT", str(context_root))
-
-    session_dir = context_root / "chat_abc" / "compacted"
-    session_dir.mkdir(parents=True)
-
-    file_accessed = session_dir / "file_accessed.txt"
-    file_accessed.write_text("accessed content")
-
-    file_old = session_dir / "file_old.txt"
-    file_old.write_text("old content")
-
-    await access_tracker.record_access(str(file_accessed), "chat_abc")
-
-    removed = await cleanup_context_files_async(
-        max_age_days=0,
-        session_active_days=0,
-        file_access_days=1,
-        access_tracker=access_tracker,
-        checkpointer=None,
-    )
-
-    assert removed == 1
-    assert file_accessed.exists()
-    assert not file_old.exists()
-
-
-@pytest.mark.asyncio
-async def test_cleanup_empty_directories(
-    context_root: Path,
-    access_tracker: FileAccessTracker,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Test cleanup removes empty directories."""
-    monkeypatch.setattr("myrm_agent_harness.runtime.context.cleanup.CONTEXT_ROOT", str(context_root))
-
-    session_dir = context_root / "chat_abc" / "compacted"
-    session_dir.mkdir(parents=True)
-
-    file1 = session_dir / "file1.txt"
-    file1.write_text("content1")
-
-    await cleanup_context_files_async(
-        max_age_days=0,
-        session_active_days=0,
-        file_access_days=0,
-        access_tracker=access_tracker,
-        checkpointer=None,
-    )
-
-    assert not session_dir.exists()
-    assert not session_dir.parent.exists()
-
-
-@pytest.mark.asyncio
-async def test_cleanup_orphan_tracking_records(
-    context_root: Path,
-    access_tracker: FileAccessTracker,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Test cleanup removes orphan tracking records."""
-    monkeypatch.setattr("myrm_agent_harness.runtime.context.cleanup.CONTEXT_ROOT", str(context_root))
-
-    session_dir = context_root / "chat_abc" / "compacted"
-    session_dir.mkdir(parents=True)
-
-    file1 = session_dir / "file1.txt"
-    file1.write_text("content1")
-
-    await access_tracker.record_access(str(file1), "chat_abc")
-
-    await cleanup_context_files_async(
-        max_age_days=0,
-        session_active_days=0,
-        file_access_days=0,
-        access_tracker=access_tracker,
-        checkpointer=None,
-    )
-
-    last_access = await access_tracker.get_last_access(str(file1))
-    assert last_access is None
-
-
-@pytest.mark.asyncio
-async def test_cleanup_batch_processing(
-    context_root: Path,
-    access_tracker: FileAccessTracker,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Test cleanup processes sessions in batches."""
-    monkeypatch.setattr("myrm_agent_harness.runtime.context.cleanup.CONTEXT_ROOT", str(context_root))
-
-    for i in range(250):
-        session_dir = context_root / f"chat_{i}" / "compacted"
-        session_dir.mkdir(parents=True)
-        file = session_dir / "file.txt"
-        file.write_text(f"content {i}")
-
-    removed = await cleanup_context_files_async(
-        max_age_days=0,
-        session_active_days=0,
-        file_access_days=0,
-        batch_size=50,
-        access_tracker=access_tracker,
-        checkpointer=None,
-    )
-
-    assert removed == 250
-
-
-@pytest.mark.asyncio
-async def test_cleanup_timeout(
-    context_root: Path,
-    access_tracker: FileAccessTracker,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Test cleanup respects timeout."""
-    monkeypatch.setattr("myrm_agent_harness.runtime.context.cleanup.CONTEXT_ROOT", str(context_root))
-
-    for i in range(10):
-        session_dir = context_root / f"chat_{i}" / "compacted"
-        session_dir.mkdir(parents=True)
-        file = session_dir / "file.txt"
-        file.write_text(f"content {i}")
-
-    removed = await cleanup_context_files_async(
-        max_age_days=0,
-        session_active_days=0,
-        file_access_days=0,
-        timeout_seconds=0.001,
-        access_tracker=access_tracker,
-        checkpointer=None,
-    )
-
-    assert removed <= 10
-
-
-def _create_old_file(path: Path, age_seconds: float = 100) -> None:
+def _create_aged_file(path: Path, age_days: float) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("content")
-    old_time = time.time() - age_seconds
-    os.utime(path, (old_time, old_time))
+    stamp = time.time() - age_days * _DAY_S
+    os.utime(path, (stamp, stamp))
+    return path
+
+
+async def _record_read(tracker: FileAccessTracker, path: Path, *, days_ago: float = 0) -> None:
+    """Record a read, optionally backdated (the tracker only stamps 'now')."""
+    await tracker.record_access(str(path), "chat_abc")
+    if days_ago:
+        import aiosqlite
+
+        stamp = (datetime.now(UTC) - timedelta(days=days_ago)).isoformat()
+        async with aiosqlite.connect(tracker._db_path) as db:
+            await db.execute("UPDATE file_access SET last_accessed_at = ? WHERE file_path = ?", (stamp, str(path)))
+            await db.commit()
 
 
 @pytest.mark.asyncio
-async def test_cleanup_async_no_context_root(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Async cleanup returns 0 when context root doesn't exist."""
-    monkeypatch.setattr("myrm_agent_harness.runtime.context.cleanup.CONTEXT_ROOT", "/nonexistent")
-    result = await cleanup_context_files_async(checkpointer=None, access_tracker=AsyncMock())
-    assert result == 0
-
-
-@pytest.mark.asyncio
-async def test_cleanup_async_with_metrics(
-    context_root: Path,
-    access_tracker: FileAccessTracker,
-    monkeypatch: pytest.MonkeyPatch,
+async def test_a_recorded_read_keeps_a_file_whose_modification_time_is_old(
+    context_root: Path, access_tracker: FileAccessTracker
 ) -> None:
-    """Async cleanup records metrics when available."""
-    monkeypatch.setattr("myrm_agent_harness.runtime.context.cleanup.CONTEXT_ROOT", str(context_root))
+    read = _create_aged_file(context_root / "chat_abc" / "compacted" / "read.txt", age_days=60)
+    unread = _create_aged_file(context_root / "chat_abc" / "compacted" / "unread.txt", age_days=60)
+    await _record_read(access_tracker, read)
 
-    session_dir = context_root / "chat_metrics" / "compacted"
-    session_dir.mkdir(parents=True)
-    f = session_dir / "file.txt"
-    _create_old_file(f, age_seconds=86400 * 30)
-
-    removed = await cleanup_context_files_async(
-        max_age_days=7,
-        session_active_days=0,
-        file_access_days=0,
-        access_tracker=access_tracker,
-        checkpointer=None,
-    )
-    assert removed == 1
-
-
-@pytest.mark.asyncio
-async def test_cleanup_async_with_active_session(
-    context_root: Path,
-    access_tracker: FileAccessTracker,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Async cleanup keeps files for active sessions."""
-    monkeypatch.setattr("myrm_agent_harness.runtime.context.cleanup.CONTEXT_ROOT", str(context_root))
-
-    session_dir = context_root / "chat_active" / "compacted"
-    session_dir.mkdir(parents=True)
-    f = session_dir / "file.txt"
-    _create_old_file(f, age_seconds=86400 * 30)
-
-    mock_checkpointer = MagicMock()
-    with patch(
-        "myrm_agent_harness.runtime.context.cleanup.load_session_activity_async",
-        new_callable=AsyncMock,
-        return_value={"chat_active"},
-    ):
-        removed = await cleanup_context_files_async(
-            max_age_days=7,
-            session_active_days=30,
-            file_access_days=14,
-            access_tracker=access_tracker,
-            checkpointer=mock_checkpointer,
-        )
-
-    assert removed == 0
-    assert f.exists()
-
-
-@pytest.mark.asyncio
-async def test_cleanup_async_mtime_fallback(
-    context_root: Path,
-    access_tracker: FileAccessTracker,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Async cleanup uses mtime fallback when file is recent."""
-    monkeypatch.setattr("myrm_agent_harness.runtime.context.cleanup.CONTEXT_ROOT", str(context_root))
-
-    session_dir = context_root / "chat_mtime" / "compacted"
-    session_dir.mkdir(parents=True)
-    f = session_dir / "recent.txt"
-    f.write_text("recent content")
-
-    removed = await cleanup_context_files_async(
-        max_age_days=7,
-        session_active_days=0,
-        file_access_days=0,
-        access_tracker=access_tracker,
-        checkpointer=None,
-    )
-    assert removed == 0
-    assert f.exists()
-
-
-@pytest.mark.asyncio
-async def test_cleanup_async_auto_get_tracker(
-    context_root: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Async cleanup auto-gets tracker when not provided."""
-    monkeypatch.setattr("myrm_agent_harness.runtime.context.cleanup.CONTEXT_ROOT", str(context_root))
-
-    session_dir = context_root / "chat_auto" / "compacted"
-    session_dir.mkdir(parents=True)
-    f = session_dir / "file.txt"
-    _create_old_file(f, age_seconds=86400 * 30)
-
-    mock_tracker = AsyncMock()
-    mock_tracker.batch_check_files = AsyncMock(return_value={})
-    mock_tracker.cleanup_orphan_records = AsyncMock(return_value=0)
-    mock_tracker.get_statistics = AsyncMock(return_value={"total_files": 0})
-
-    with patch(
-        "myrm_agent_harness.runtime.context.file_access_tracker.get_file_access_tracker",
-        new_callable=AsyncMock,
-        return_value=mock_tracker,
-    ):
-        removed = await cleanup_context_files_async(
-            max_age_days=7,
-            session_active_days=0,
-            file_access_days=0,
-            access_tracker=None,
-            checkpointer=None,
-        )
+    removed = await cleanup_context_files_async(access_tracker=access_tracker)
 
     assert removed == 1
+    assert read.exists()
+    assert not unread.exists()
 
 
 @pytest.mark.asyncio
-async def test_cleanup_async_tracker_get_failure(
-    context_root: Path,
-    monkeypatch: pytest.MonkeyPatch,
+async def test_a_read_outside_the_window_no_longer_protects_a_file(
+    context_root: Path, access_tracker: FileAccessTracker
 ) -> None:
-    """Async cleanup handles tracker acquisition failure."""
-    monkeypatch.setattr("myrm_agent_harness.runtime.context.cleanup.CONTEXT_ROOT", str(context_root))
+    stale = _create_aged_file(context_root / "chat_abc" / "compacted" / "stale.txt", age_days=60)
+    await _record_read(access_tracker, stale, days_ago=CONTEXT_RETENTION_DAYS + 1)
 
-    session_dir = context_root / "chat_fail" / "compacted"
-    session_dir.mkdir(parents=True)
-    f = session_dir / "file.txt"
-    _create_old_file(f, age_seconds=86400 * 30)
+    assert await cleanup_context_files_async(access_tracker=access_tracker) == 1
+    assert not stale.exists()
+
+
+@pytest.mark.asyncio
+async def test_the_same_window_governs_reads_and_writes(context_root: Path, access_tracker: FileAccessTracker) -> None:
+    inside = _create_aged_file(
+        context_root / "chat_abc" / "evicted" / "inside.txt", age_days=CONTEXT_RETENTION_DAYS - 1
+    )
+    outside = _create_aged_file(
+        context_root / "chat_abc" / "evicted" / "outside.txt", age_days=CONTEXT_RETENTION_DAYS + 1
+    )
+
+    removed = await cleanup_context_files_async(access_tracker=access_tracker)
+
+    assert removed == 1
+    assert inside.exists()
+    assert not outside.exists()
+
+
+@pytest.mark.asyncio
+async def test_cleanup_without_a_tracker_falls_back_to_modification_time(context_root: Path) -> None:
+    stale = _create_aged_file(context_root / "chat_fail" / "compacted" / "file.txt", age_days=30)
 
     with patch(
         "myrm_agent_harness.runtime.context.file_access_tracker.get_file_access_tracker",
         new_callable=AsyncMock,
         side_effect=RuntimeError("DB unavailable"),
     ):
-        removed = await cleanup_context_files_async(
-            max_age_days=7,
-            session_active_days=0,
-            file_access_days=0,
-            access_tracker=None,
-            checkpointer=None,
-        )
+        removed = await cleanup_context_files_async()
 
     assert removed == 1
+    assert not stale.exists()
 
 
 @pytest.mark.asyncio
-async def test_cleanup_async_session_loading_failure(
-    context_root: Path,
-    access_tracker: FileAccessTracker,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Async cleanup handles session loading failure gracefully."""
-    monkeypatch.setattr("myrm_agent_harness.runtime.context.cleanup.CONTEXT_ROOT", str(context_root))
-
-    session_dir = context_root / "chat_err" / "compacted"
-    session_dir.mkdir(parents=True)
-    f = session_dir / "file.txt"
-    _create_old_file(f, age_seconds=86400 * 30)
+async def test_cleanup_uses_the_shared_tracker_when_none_is_given(context_root: Path) -> None:
+    _create_aged_file(context_root / "chat_auto" / "compacted" / "file.txt", age_days=30)
+    tracker = AsyncMock()
+    tracker.batch_check_files.return_value = {}
+    tracker.get_statistics.return_value = {"total_files": 0}
 
     with patch(
-        "myrm_agent_harness.runtime.context.cleanup.load_session_activity_async",
+        "myrm_agent_harness.runtime.context.file_access_tracker.get_file_access_tracker",
         new_callable=AsyncMock,
-        side_effect=RuntimeError("checkpointer error"),
+        return_value=tracker,
     ):
-        removed = await cleanup_context_files_async(
-            max_age_days=7,
-            session_active_days=0,
-            file_access_days=0,
-            access_tracker=access_tracker,
-            checkpointer=MagicMock(),
-        )
+        removed = await cleanup_context_files_async()
 
     assert removed == 1
+    tracker.batch_check_files.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_cleanup_async_skips_non_file_entries(
-    context_root: Path,
-    access_tracker: FileAccessTracker,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Async cleanup skips directories inside subdirs."""
-    monkeypatch.setattr("myrm_agent_harness.runtime.context.cleanup.CONTEXT_ROOT", str(context_root))
+async def test_cleanup_async_no_context_root(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(execution_paths, "CONTEXT_ROOT", "/nonexistent")
 
-    session_dir = context_root / "chat_nested" / "compacted"
-    session_dir.mkdir(parents=True)
-    nested_dir = session_dir / "subdir"
-    nested_dir.mkdir()
+    assert await cleanup_context_files_async(access_tracker=AsyncMock()) == 0
 
-    removed = await cleanup_context_files_async(
-        max_age_days=0,
-        session_active_days=0,
-        file_access_days=0,
-        access_tracker=access_tracker,
-        checkpointer=None,
-    )
+
+@pytest.mark.asyncio
+async def test_empty_directories_are_removed(context_root: Path, access_tracker: FileAccessTracker) -> None:
+    session_dir = context_root / "chat_abc" / "compacted"
+    _create_aged_file(session_dir / "file1.txt", age_days=30)
+
+    await cleanup_context_files_async(access_tracker=access_tracker)
+
+    assert not session_dir.exists()
+    assert not session_dir.parent.exists()
+
+
+@pytest.mark.asyncio
+async def test_orphan_tracking_records_are_removed(context_root: Path, access_tracker: FileAccessTracker) -> None:
+    file1 = _create_aged_file(context_root / "chat_abc" / "compacted" / "file1.txt", age_days=30)
+    await _record_read(access_tracker, file1, days_ago=CONTEXT_RETENTION_DAYS + 1)
+
+    await cleanup_context_files_async(access_tracker=access_tracker)
+
+    assert await access_tracker.get_last_access(str(file1)) is None
+
+
+@pytest.mark.asyncio
+async def test_sessions_are_processed_in_batches(context_root: Path, access_tracker: FileAccessTracker) -> None:
+    for i in range(250):
+        _create_aged_file(context_root / f"chat_{i}" / "compacted" / "file.txt", age_days=30)
+
+    removed = await cleanup_context_files_async(batch_size=50, access_tracker=access_tracker)
+
+    assert removed == 250
+
+
+@pytest.mark.asyncio
+async def test_cleanup_respects_the_timeout(context_root: Path, access_tracker: FileAccessTracker) -> None:
+    files = [_create_aged_file(context_root / f"chat_{i}" / "compacted" / "file.txt", age_days=30) for i in range(10)]
+
+    removed = await cleanup_context_files_async(timeout_seconds=0, batch_size=1, access_tracker=access_tracker)
+
+    assert removed == 0
+    assert all(f.exists() for f in files)
+
+
+@pytest.mark.asyncio
+async def test_nested_directories_are_left_alone(context_root: Path, access_tracker: FileAccessTracker) -> None:
+    nested = context_root / "chat_nested" / "compacted" / "subdir"
+    nested.mkdir(parents=True)
+
+    removed = await cleanup_context_files_async(retention_days=0, access_tracker=access_tracker)
+
     assert removed == 0
 
 
 @pytest.mark.asyncio
 async def test_cleanup_reports_into_bound_context_metrics(
-    context_root: Path,
-    access_tracker: FileAccessTracker,
-    monkeypatch: pytest.MonkeyPatch,
+    context_root: Path, access_tracker: FileAccessTracker
 ) -> None:
     """Phase timings, protection-rule hits and batch queries land in the ContextMetrics bound to the task."""
-    monkeypatch.setattr("myrm_agent_harness.runtime.context.cleanup.CONTEXT_ROOT", str(context_root))
-    session_dir = context_root / "chat_abc" / "compacted"
-    session_dir.mkdir(parents=True)
-    tracked = session_dir / "tracked.txt"
-    tracked.write_text("a")
-    (session_dir / "stale.txt").write_text("b")
-    await access_tracker.record_access(str(tracked), "chat_abc")
+    tracked = _create_aged_file(context_root / "chat_abc" / "compacted" / "tracked.txt", age_days=60)
+    _create_aged_file(context_root / "chat_abc" / "compacted" / "stale.txt", age_days=60)
+    _create_aged_file(context_root / "chat_abc" / "compacted" / "fresh.txt", age_days=1)
+    await _record_read(access_tracker, tracked)
 
     metrics = ContextMetrics()
     set_context_metrics(metrics)
     try:
-        removed = await cleanup_context_files_async(
-            max_age_days=0,
-            session_active_days=0,
-            file_access_days=1,
-            access_tracker=access_tracker,
-        )
+        removed = await cleanup_context_files_async(access_tracker=access_tracker)
     finally:
         set_context_metrics(None)
 
     assert removed == 1
     assert metrics.protection_rule_hits["access_tracked"] == 1
-    assert {"session_loading", "file_scanning", "deletion"} <= set(metrics.cleanup_phase_durations_ms)
+    assert metrics.protection_rule_hits["mtime_fallback"] == 1
+    assert {"file_scanning", "deletion"} <= set(metrics.cleanup_phase_durations_ms)
     assert metrics.batch_query_count["access_check"] == 1
-    assert metrics.cleanup_active_sessions == [0]

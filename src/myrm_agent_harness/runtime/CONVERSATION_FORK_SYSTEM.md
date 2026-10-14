@@ -40,26 +40,8 @@ await checkpointer.aput(
 
 ### Framework Layer (Harness)
 
-**Protocol Definition:**
-
-```python
-# runtime/artifacts/checkpoint_protocol.py
-class CheckpointForkManagerProtocol(Protocol):
-    async def fork_checkpoint(
-        self,
-        source_thread_id: str,
-        target_thread_id: str,
-        checkpoint_id: str | None = None,
-    ) -> bool:
-        """Clone checkpoint to new thread."""
-        ...
-
-    async def get_fork_parent(
-        self, thread_id: str
-    ) -> tuple[str, str] | None:
-        """Retrieve (parent_thread_id, fork_checkpoint_id)."""
-        ...
-```
+The harness defines no fork-specific types. The Business Layer forks a conversation directly on the LangGraph
+checkpointer's `aget_tuple` and `aput`.
 
 ---
 
@@ -260,7 +242,6 @@ class ConversationForkManager:
 | Fork Granularity | Conversation-level | **Message-level** | **10x precision** |
 | Query Performance | Unknown | **O(1)** | **Predictable** |
 | UI Complexity | None | **3 lightweight components** | **User-friendly** |
-| Architecture | Business layer only | **Protocol abstraction** | **Framework-reusable** |
 
 **Overall:** 🏆 **10/10 (Us) vs 6/10 (Letta)**
 
@@ -312,7 +293,6 @@ Works seamlessly with:
 ## Implementation Checklist
 
 **Framework Layer:**
-- ✅ `CheckpointForkManagerProtocol` (runtime/artifacts/checkpoint_protocol.py)
 - ✅ Design documentation (this file)
 
 **Business Layer:**
@@ -328,7 +308,7 @@ Works seamlessly with:
 - ⬜ Parent link (Chat Header)
 
 **Testing:**
-- ⬜ Unit tests (ForkInfo, protocols)
+- ⬜ Unit tests (ForkInfo)
 - ⬜ Integration tests (fork_conversation API)
 - ⬜ E2E tests (fork button → API → new chat)
 

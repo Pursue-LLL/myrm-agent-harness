@@ -1,15 +1,15 @@
 """Context cleanup entrypoints.
 
 [INPUT]
-- runtime.context.cleanup::cleanup_context_files_async (POS: Context file cleanup with session-aware strategy.)
+- runtime.context.cleanup::CONTEXT_RETENTION_DAYS, cleanup_context_files_async, cleanup_context_files_local (POS: Context file cleanup with a single retention window.)
 - runtime.context.instance_metrics::record_cleanup (POS: Context operation metrics for monitoring and observability.)
 - runtime.paths.execution_paths::* (POS: stable context archive paths)
 - toolkits.code_execution.executors.base::CodeExecutor (POS: Code executor base classes.)
 
 [OUTPUT]
 - cleanup_session_context_files: remove all context files for one session.
-- cleanup_orphan_context_files_async: session-aware async orphan cleanup.
-- cleanup_orphan_context_files: local synchronous orphan cleanup.
+- cleanup_orphan_context_files_async: async orphan cleanup that honours recorded reads.
+- cleanup_orphan_context_files: local synchronous orphan cleanup by modification time.
 
 [POS]
 Runtime context cleanup operations. Owns session directory cleanup and orphan cleanup entrypoints.
@@ -22,25 +22,23 @@ import os
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.runtime.context.cleanup import (
+    CONTEXT_RETENTION_DAYS,
     cleanup_context_files_async,
     cleanup_context_files_local,
 )
 from myrm_agent_harness.runtime.context.instance_metrics import record_cleanup
 from myrm_agent_harness.runtime.paths.execution_paths import (
-    CONTEXT_ROOT,
     _sanitize_path_segment,
+    get_context_root,
     get_context_session_dir,
     get_workspace_relative_path,
 )
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.runtime.artifacts.checkpoint_protocol import CheckpointerProtocol
     from myrm_agent_harness.runtime.context.file_access_tracker import FileAccessTracker
     from myrm_agent_harness.toolkits.code_execution.executors.base import CodeExecutor
 
 logger = logging.getLogger(__name__)
-
-ORPHAN_CLEANUP_THRESHOLD_DAYS = 7
 
 
 async def cleanup_session_context_files(chat_id: str, executor: CodeExecutor) -> None:
@@ -49,7 +47,8 @@ async def cleanup_session_context_files(chat_id: str, executor: CodeExecutor) ->
         logger.warning("cleanup_session_context_files: chat_id is empty, skip")
         return
 
-    if not os.path.isdir(CONTEXT_ROOT):
+    context_root = get_context_root()
+    if not os.path.isdir(context_root):
         return
 
     session_abs_path = get_context_session_dir(chat_id)
@@ -62,7 +61,7 @@ async def cleanup_session_context_files(chat_id: str, executor: CodeExecutor) ->
 from pathlib import Path
 import shutil
 
-root = Path({CONTEXT_ROOT!r}).resolve()
+root = Path({context_root!r}).resolve()
 target = Path({session_abs_path!r}).resolve()
 if target == root or root not in target.parents:
     raise SystemExit("refusing to remove path outside context root")
@@ -105,30 +104,14 @@ PY"""
 
 
 async def cleanup_orphan_context_files_async(
-    max_age_days: int = ORPHAN_CLEANUP_THRESHOLD_DAYS,
-    session_active_days: int = 30,
-    file_access_days: int = 14,
-    checkpointer: CheckpointerProtocol | None = None,
+    retention_days: int = CONTEXT_RETENTION_DAYS,
     access_tracker: FileAccessTracker | None = None,
 ) -> int:
-    """Clean up expired orphan context files with the session-aware strategy."""
+    """Clean up context files nothing has read or written for ``retention_days``."""
     try:
-        cleaned_count = await cleanup_context_files_async(
-            max_age_days=max_age_days,
-            session_active_days=session_active_days,
-            file_access_days=file_access_days,
-            checkpointer=checkpointer,
-            access_tracker=access_tracker,
-        )
+        cleaned_count = await cleanup_context_files_async(retention_days=retention_days, access_tracker=access_tracker)
         if cleaned_count > 0:
-            logger.info(
-                "Orphan cleanup completed: cleaned %d files (strategy: session-aware, "
-                "session_active=%dd, file_access=%dd, fallback=%dd)",
-                cleaned_count,
-                session_active_days,
-                file_access_days,
-                max_age_days,
-            )
+            logger.info("Orphan cleanup completed: cleaned %d files (retention=%dd)", cleaned_count, retention_days)
             record_cleanup("orphan", cleaned_count)
         return cleaned_count
     except Exception as exc:
@@ -136,12 +119,12 @@ async def cleanup_orphan_context_files_async(
         return 0
 
 
-def cleanup_orphan_context_files(max_age_days: int = ORPHAN_CLEANUP_THRESHOLD_DAYS) -> int:
-    """Clean up expired orphan context files using local filesystem mtime."""
+def cleanup_orphan_context_files(retention_days: int = CONTEXT_RETENTION_DAYS) -> int:
+    """Clean up context files not modified for ``retention_days``, using the local filesystem only."""
     try:
-        cleaned_count = cleanup_context_files_local(max_age_days)
+        cleaned_count = cleanup_context_files_local(retention_days)
         if cleaned_count > 0:
-            logger.info("Orphan cleanup completed: cleaned %d files older than %d days", cleaned_count, max_age_days)
+            logger.info("Orphan cleanup completed: cleaned %d files older than %d days", cleaned_count, retention_days)
             record_cleanup("orphan", cleaned_count)
         return cleaned_count
     except Exception as exc:

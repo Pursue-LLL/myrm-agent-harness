@@ -9,7 +9,6 @@ from myrm_agent_harness.runtime.context.instance_metrics import (
     get_context_metrics,
     record_batch_query,
     record_cleanup,
-    record_cleanup_active_sessions,
     record_cleanup_duration,
     record_cleanup_phase_duration,
     record_compression,
@@ -211,22 +210,12 @@ class TestContextMetrics:
         """Test recording protection rule hits."""
         metrics = ContextMetrics()
 
-        metrics.record_protection_rule_hit("session_active")
+        metrics.record_protection_rule_hit("mtime_fallback")
         metrics.record_protection_rule_hit("access_tracked")
-        metrics.record_protection_rule_hit("session_active")
+        metrics.record_protection_rule_hit("mtime_fallback")
 
-        assert metrics.protection_rule_hits["session_active"] == 2
+        assert metrics.protection_rule_hits["mtime_fallback"] == 2
         assert metrics.protection_rule_hits["access_tracked"] == 1
-
-    def test_record_cleanup_active_sessions(self) -> None:
-        """Test recording cleanup of active session list."""
-        metrics = ContextMetrics()
-
-        metrics.record_cleanup_active_sessions(count=50)
-        metrics.record_cleanup_active_sessions(count=75)
-
-        assert len(metrics.cleanup_active_sessions) == 2
-        assert metrics.cleanup_active_sessions == [50, 75]
 
     def test_record_batch_query(self) -> None:
         """Test recording batch query operation."""
@@ -485,24 +474,14 @@ class TestModuleLevelWrappers:
 
         assert metrics.file_access_tracker_records == [100]
 
-    def test_record_cleanup_active_sessions_wrapper(self) -> None:
-        """Test record_cleanup_active_sessions wrapper uses contextvars."""
-        metrics = ContextMetrics()
-        set_context_metrics(metrics)
-
-        record_cleanup_active_sessions(50)
-
-        assert len(metrics.cleanup_active_sessions) == 1
-        assert metrics.cleanup_active_sessions == [50]
-
     def test_record_protection_rule_hit_wrapper(self) -> None:
         """Test record_protection_rule_hit wrapper uses contextvars."""
         metrics = ContextMetrics()
         set_context_metrics(metrics)
 
-        record_protection_rule_hit("session_active")
+        record_protection_rule_hit("access_tracked")
 
-        assert metrics.protection_rule_hits["session_active"] == 1
+        assert metrics.protection_rule_hits["access_tracked"] == 1
 
     def test_wrappers_no_metrics_graceful(self) -> None:
         """Test wrapper functions gracefully handle missing metrics."""
@@ -522,8 +501,7 @@ class TestModuleLevelWrappers:
         record_quota_exceeded()
         record_batch_query("file_access", 20, 0.05)
         record_tracker_statistics(100)
-        record_cleanup_active_sessions(50)
-        record_protection_rule_hit("session_active")
+        record_protection_rule_hit("access_tracked")
 
 
 class TestMemoryLimits:

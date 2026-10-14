@@ -10,11 +10,11 @@ Context lifecycle management — cleanup, config, metrics, tracking, reading, of
 | __init__.py | Package | Context lifecycle management — cleanup, config, metrics, tracking, reading, offload. | — |
 | archive_restore_action.py | Core | Typed GUI/server archive restore action contract: validates current-session archive path, explicit line range and restore budget, then streams the requested range into bounded XML context for the next Agent turn and returns UI-safe restore result metadata; late line ranges build/reuse a sparse byte-offset sidecar so repeated restores do not rescan from file start. | ✅ |
 | archive_store.py | Core | Session-scoped content-addressed archive storage for retry-safe tool-result offload reuse, atomic payload/metadata writes, restore-map sidecar generation/self-healing, and metadata/payload hash validation before reuse. | ✅ |
-| cleanup.py | Core | Context file cleanup with session-aware strategy. | ✅ |
+| cleanup.py | Core | Context file cleanup with a single retention window (`CONTEXT_RETENTION_DAYS`, 14 days): a file survives while the access tracker recorded a read, or its modification time, falls inside the window. The context root is read at call time because local development rebinds it at startup. | ✅ |
 | cleanup_ops.py | Core | Context cleanup entrypoints for session directory cleanup and orphan cleanup. | ✅ |
 | cleanup_task.py | Core | Background task: periodically clean up orphaned context files. | ✅ |
 | context_branches.py | Core | Volume-backed snapshot branch manifest (`branches.json`); list/append/get by branch_id for GUI bookmark fork. | ✅ |
-| file_access_tracker.py | Core | File access tracking system for context files. | ✅ |
+| file_access_tracker.py | Core | File access tracking system for context files; the default database path is `.file_access.db` in the context root in effect when the tracker is created. | ✅ |
 | instance_metrics.py | Core | Context operation metrics for monitoring and observability. | ✅ |
 | offload.py | Core | Context offload: persist full tool outputs and conversation snapshots through framework-neutral scope IDs, with lifecycle access tracking and cleanup entrypoint re-exports. | ✅ |
 | restore_map_contract.py | Core | Shared restore-map schema v2 contract reader/writer for archive writers and restore guidance, including path normalization and line-range validation. | ✅ |
@@ -24,7 +24,7 @@ Context lifecycle management — cleanup, config, metrics, tracking, reading, of
 | tracker_manager.py | Core | Generic singleton manager for tracker instances. | ✅ |
 | transparent_reader.py | Core | Transparent decompression for context files. | ✅ |
 | tree_state.py | Core | Session-tree bound branch state and tool result details replayer; pure-function branch fold, mono-collapsing anchor, and zero-I/O branch isolation. | ✅ |
-| session/（子包） | Core | Session 级上下文生命周期子域：活跃会话加载（session-aware 清理）、volume-backed 置顶文件注册表（跨压缩保留）、LangGraph checkpoint/message SSOT（rewind/truncate/edit-resend）。3 个 `session_*` 模块聚合于此，`session/__init__.py` 为聚合门面统一 re-export | ✅ |
+| session/（子包） | Core | Session 级上下文生命周期子域：volume-backed 置顶文件注册表（跨压缩保留）、LangGraph checkpoint/message SSOT（rewind/truncate/edit-resend）。3 个 `session_*` 模块聚合于此，`session/__init__.py` 为聚合门面统一 re-export | ✅ |
 | transcripts/（子包） | Core | 跨助手会话转录本纯净解析与连续性重锚子域：Claude Code / Codex CLI 会话流解析、沙箱工作区路径重锚（`/workspace`）与两阶段紧凑规约。5 个模块聚合于此，`transcripts/__init__.py` 为门面统一 re-export | ✅ |
 
 ## Key Dependencies

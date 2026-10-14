@@ -4,7 +4,7 @@ Tracks file access history in SQLite to support accurate lifecycle management.
 Uses explicit tracking instead of filesystem atime (which is often disabled).
 
 [INPUT]
-- (none)
+- runtime.paths.execution_paths::get_context_root (POS: context root currently in effect)
 
 [OUTPUT]
 - FileAccessTracker: Track context file access history in SQLite.
@@ -13,7 +13,8 @@ Uses explicit tracking instead of filesystem atime (which is often disabled).
 - reset_tracker: Reset global tracker (for testing).
 
 [POS]
-File access tracking system for context files.
+File access tracking system for context files. Unless configured, the database lives in the
+context root in effect when the tracker is created, so it follows a root rebound at startup.
 """
 
 from __future__ import annotations
@@ -23,11 +24,14 @@ import logging
 from datetime import UTC, datetime
 from pathlib import Path
 
+from myrm_agent_harness.runtime.paths.execution_paths import get_context_root
 from myrm_agent_harness.utils.db.sqlite import connect_async
 
 from .tracker_manager import TrackerManager
 
 logger = logging.getLogger(__name__)
+
+_DEFAULT_DB_NAME = ".file_access.db"
 
 
 class FileAccessTracker:
@@ -51,10 +55,10 @@ class FileAccessTracker:
         """Initialize file access tracker.
 
         Args:
-            db_path: Path to SQLite database (default: /persistent/.context/.file_access.db)
+            db_path: Path to SQLite database (default: ``.file_access.db`` in the context root)
         """
         if db_path is None:
-            db_path = "/persistent/.context/.file_access.db"
+            db_path = str(Path(get_context_root()) / _DEFAULT_DB_NAME)
 
         self._db_path = db_path
         self._lock = asyncio.Lock()
@@ -230,6 +234,7 @@ class FileAccessTracker:
 
         try:
             async with connect_async(self._db_path) as db:
+                params: tuple[str, ...]
                 if accessed_after:
                     query = """
                         SELECT file_path, last_accessed_at, access_count
@@ -362,11 +367,11 @@ class FileAccessTracker:
             return 0
 
 
-_tracker_db_path: str = "/persistent/.context/.file_access.db"
+_tracker_db_path: str | None = None
 
 
-def set_file_access_tracker_db_path(path: str) -> None:
-    """Configure the database path for file access tracking."""
+def set_file_access_tracker_db_path(path: str | None) -> None:
+    """Configure the database path for file access tracking (``None`` restores the context-root default)."""
     global _tracker_db_path
     _tracker_db_path = path
 

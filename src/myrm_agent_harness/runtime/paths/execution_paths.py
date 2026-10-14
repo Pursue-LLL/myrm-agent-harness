@@ -27,6 +27,7 @@ Compatibility:
 - (none)
 
 [OUTPUT]
+- get_context_root: The context root currently in effect.
 - get_compacted_output_path: Get path for compacted tool output (auto-generates UUID).
 - get_content_addressed_compacted_output_path: Get stable path for compacted tool output.
 - get_content_addressed_compacted_restore_map_path: Get sidecar path for targeted restore hints.
@@ -42,15 +43,11 @@ Unified execution path constants and utilities.
 
 from __future__ import annotations
 
-import logging
 import os
 import time
 import uuid
-from collections.abc import Callable, Coroutine
 from pathlib import Path
 from typing import Literal
-
-logger = logging.getLogger(__name__)
 
 # ============ Core Path Constants ============
 
@@ -92,6 +89,16 @@ CONTEXT_SUBDIRS: dict[ContextSubdir, str] = {
 
 
 # ============ Specialized Path Functions ============
+
+
+def get_context_root() -> str:
+    """Return the context root currently in effect.
+
+    Local development without a ``/persistent`` mount rebinds ``CONTEXT_ROOT`` at startup, after
+    importers have run. Code that needs the root outside this module reads it here at call time
+    instead of importing the constant, so it always agrees with the paths the writers produce.
+    """
+    return CONTEXT_ROOT
 
 
 def get_compacted_output_path(session_id: str, tool_name: str, compressed: bool = False) -> str:
@@ -500,54 +507,3 @@ def is_context_path(path: str) -> bool:
     """
     abs_path = os.path.abspath(path)
     return abs_path.startswith(CONTEXT_ROOT + "/") or abs_path == CONTEXT_ROOT
-
-
-# Cached function references to avoid repeated imports
-_cached_get_current_chat_id: Callable[[], str | None] | None = None
-_cached_get_file_access_tracker: Callable[[], Coroutine[None, None, object]] | None = None
-
-
-async def track_context_file_access_if_needed(file_path: str) -> None:
-    """Track context file access if in agent session context.
-
-    Automatically records file access to FileAccessTracker when:
-    1. File is a context file (in /persistent/.context/)
-    2. Currently in an agent session (has session_id)
-
-    Args:
-        file_path: File path to potentially track
-
-    Note:
-        Fails silently if tracking is not available or not in session context.
-        This ensures file operations work even without tracking infrastructure.
-
-    """
-    global _cached_get_current_chat_id, _cached_get_file_access_tracker
-
-    if not is_context_path(file_path):
-        return
-
-    try:
-        # Lazy import and cache
-        if _cached_get_current_chat_id is None:
-            from myrm_agent_harness.agent.context_management.infra.session_lock import (
-                get_current_chat_id,
-            )
-
-            _cached_get_current_chat_id = get_current_chat_id
-
-        chat_id = _cached_get_current_chat_id()
-        if not chat_id:
-            return
-
-        if _cached_get_file_access_tracker is None:
-            from myrm_agent_harness.runtime.context.file_access_tracker import (
-                get_file_access_tracker,
-            )
-
-            _cached_get_file_access_tracker = get_file_access_tracker
-
-        tracker = await _cached_get_file_access_tracker()
-        await tracker.record_access(file_path, session_id=chat_id)
-    except Exception as exc:
-        logger.debug(f"Failed to track context file access for {file_path}: {exc}")

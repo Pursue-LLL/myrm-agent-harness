@@ -183,7 +183,6 @@ class ContextMetrics:
     cleanup_count: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     cleanup_files_removed: list[int] = field(default_factory=list)
     cleanup_total_duration_ms: float = 0.0
-    cleanup_active_sessions: list[int] = field(default_factory=list)
 
     # Cleanup phase timings by phase name
     cleanup_phase_durations_ms: dict[str, list[float]] = field(default_factory=lambda: defaultdict(list))
@@ -460,15 +459,6 @@ class ContextMetrics:
         """
         self.cleanup_total_duration_ms += duration_ms
 
-    def record_cleanup_active_sessions(self, count: int) -> None:
-        """Record number of active sessions detected during cleanup.
-
-        Args:
-            count: Number of active sessions
-        """
-        self._trim_list_if_needed(self.cleanup_active_sessions)
-        self.cleanup_active_sessions.append(count)
-
     def record_tracker_statistics(self, access_tracker_records: int = 0) -> None:
         """Record tracker database statistics.
 
@@ -483,8 +473,7 @@ class ContextMetrics:
         """Record duration of a specific cleanup phase.
 
         Args:
-            phase: Phase name ('session_loading', 'file_scanning',
-                   'deletion', 'orphan_cleanup')
+            phase: Phase name ('file_scanning', 'deletion', 'orphan_cleanup')
             duration_ms: Duration in milliseconds
         """
         self._trim_list_if_needed(self.cleanup_phase_durations_ms[phase])
@@ -494,7 +483,7 @@ class ContextMetrics:
         """Record file protected by a specific rule.
 
         Args:
-            rule: Rule name ('session_active', 'access_tracked', 'mtime_fallback')
+            rule: Rule name ('access_tracked', 'mtime_fallback')
         """
         self.protection_rule_hits[rule] += 1
 
@@ -658,17 +647,6 @@ def record_cleanup_duration(cleanup_type: str, duration_seconds: float) -> None:
         metrics.record_cleanup_duration(cleanup_type, duration_seconds * 1000)
 
 
-def record_cleanup_active_sessions(count: int) -> None:
-    """Record number of active sessions detected during cleanup.
-
-    Args:
-        count: Number of active sessions
-    """
-    metrics = get_context_metrics()
-    if metrics:
-        metrics.record_cleanup_active_sessions(count)
-
-
 def record_tracker_statistics(access_tracker_records: int = 0) -> None:
     """Record tracker database statistics.
 
@@ -684,8 +662,7 @@ def record_cleanup_phase_duration(phase: str, duration_seconds: float) -> None:
     """Record duration of a specific cleanup phase.
 
     Args:
-        phase: Phase name ('session_loading', 'file_scanning',
-               'deletion', 'orphan_cleanup')
+        phase: Phase name ('file_scanning', 'deletion', 'orphan_cleanup')
         duration_seconds: Duration in seconds
     """
     metrics = get_context_metrics()
@@ -697,7 +674,7 @@ def record_protection_rule_hit(rule: str) -> None:
     """Record file protected by a specific rule.
 
     Args:
-        rule: Rule name ('session_active', 'access_tracked', 'mtime_fallback')
+        rule: Rule name ('access_tracked', 'mtime_fallback')
     """
     metrics = get_context_metrics()
     if metrics:
