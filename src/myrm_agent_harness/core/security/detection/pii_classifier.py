@@ -65,12 +65,21 @@ _CHINA_ID_RE = re.compile(
     r"(?!\d)"
 )
 
-# One run of digits, or groups of four typed with the same hyphen or space between them (4532 0151 1283 0366; the
-# UnionPay form adds a last group of one to three). Only these separators: every Luhn check strips just them.
+# Leading digits of the major card networks: Visa 4, Mastercard 51-55 and 2221-2720, UnionPay 62, Amex 34/37,
+# JCB 3528-3589, Discover 6011/644-649/65.
+_CARD_PREFIX = r"(?:4|5[1-5]|62|3[47]|2(?:22[1-9]|2[3-9]\d|[3-6]\d\d|7[01]\d|720)|35(?:2[89]|[3-8]\d)|6011|64[4-9]|65)"
+
+# One run of 15-19 digits, or typed with the same hyphen or space between the groups: four of four
+# (4532 0151 1283 0366), the UnionPay form with a fifth of three (the five-group form is tried first), Amex as 4-6-5
+# (3782 822463 10005). Only these separators: every Luhn check strips just them. The fifth group is exactly three
+# digits so that the expiry date typed after a card (4532 0151 1283 0366 12/28) is not read as part of it.
 _BANK_CARD_RE = re.compile(
-    r"(?<!\d)(?:62|4\d|5[1-5]|3[47])"
-    r"(?:\d{13,17}|\d{2}([- ])\d{4}\1\d{4}\1\d{4}(?:\1\d{1,3})?)"
-    r"(?!\d)"
+    r"(?<!\d)(?:"
+    rf"(?={_CARD_PREFIX})\d{{15,19}}"
+    r"|62\d{2}(?P<sep19>[- ])\d{4}(?P=sep19)\d{4}(?P=sep19)\d{4}(?P=sep19)\d{3}"
+    rf"|(?={_CARD_PREFIX})\d{{4}}(?P<sep16>[- ])\d{{4}}(?P=sep16)\d{{4}}(?P=sep16)\d{{4}}"
+    r"|3[47]\d{2}(?P<sep15>[- ])\d{6}(?P=sep15)\d{5}"
+    r")(?!\d)"
 )
 
 _CHINA_PASSPORT_RE = re.compile(
