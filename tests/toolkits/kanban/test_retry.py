@@ -166,6 +166,24 @@ class TestRetryFailedTask:
         assert outcome.task is None
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("child_status", [TaskStatus.READY, TaskStatus.RUNNING, TaskStatus.COMPLETED])
+    async def test_downstream_the_failure_already_released_is_left_alone(self, child_status: TaskStatus) -> None:
+        store = await _seed()
+        await store.save_task(
+            KanbanTask(task_id="t2", board_id="b1", title="Task t2", description="downstream", status=child_status)
+        )
+        await store.add_edge("t1", "t2")
+        events_before = [e.kind for e in await store.list_events("t2")]
+
+        outcome = await retry_failed_task(store, "t1", source="human")
+
+        assert outcome.applied is True
+        child = await store.get_task("t2")
+        assert child is not None
+        assert child.status == child_status
+        assert [e.kind for e in await store.list_events("t2")] == events_before
+
+    @pytest.mark.asyncio
     async def test_double_submit_applies_once_and_never_clobbers_a_claim(self) -> None:
         """A worker claims the task the moment it is READY; the loser must not revert it to FAILED."""
         store = _RacingStore()
