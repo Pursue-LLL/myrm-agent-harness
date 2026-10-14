@@ -72,7 +72,7 @@ class LockProvider(Protocol):
 
 @dataclass
 class SkillQualityScore:
-    """5维Skill质量评分 + 成本追踪
+    """5维Skill质量评分
 
     综合评估Skill质量的5个关键指标：
     1. success_rate: 成功率（0-1）
@@ -80,12 +80,6 @@ class SkillQualityScore:
     3. execution_time: 执行时间（秒的倒数归一化）
     4. user_satisfaction: 用户满意度（0-1，基于点赞/点踩 + 隐式反馈）
     5. call_frequency: 调用频率（归一化）
-
-    成本追踪字段：
-    - prompt_tokens: LLM调用的输入token数
-    - completion_tokens: LLM调用的输出token数
-    - total_tokens: 总token数（prompt + completion）
-    - llm_cost_usd: LLM调用成本（美元）
     """
 
     success_rate: float  # 0-1
@@ -93,12 +87,6 @@ class SkillQualityScore:
     execution_time: float  # 0-1 (normalized inverse)
     user_satisfaction: float  # 0-1
     call_frequency: float  # 0-1 (normalized)
-
-    # 成本追踪字段
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
-    total_tokens: int = 0
-    llm_cost_usd: float = 0.0
 
     @property
     def overall_score(self) -> float:
