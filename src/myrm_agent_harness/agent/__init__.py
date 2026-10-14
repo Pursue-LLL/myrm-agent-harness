@@ -243,10 +243,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.agent.context_management",
         "InvalidGeneratedTitleRecoverySuite",
     ),
-    "AccountWideIdleChatAutoArchivePolicySuite": (
-        "myrm_agent_harness.agent.context_management",
-        "AccountWideIdleChatAutoArchivePolicySuite",
-    ),
     "CompactBeforeSendTokenChipSuite": (
         "myrm_agent_harness.agent.context_management",
         "CompactBeforeSendTokenChipSuite",
@@ -266,7 +262,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
 }
 
 __all__ = [
-    "AccountWideIdleChatAutoArchivePolicySuite",
     "CompactBeforeSendTokenChipSuite",
     "SandboxZeroCopyBranchLabSuite",
     "VoiceCommandLocalBypassAndTieredIntentRoutingSuite",

@@ -27,17 +27,6 @@
 - 保留最近 N 次工具调用的完整格式，作为 few-shot 示例
 """
 
-from .auto_archive import (
-    AccountWideIdleChatAutoArchivePolicySuite,
-    ArchiveEligibilityVerdict,
-    ArchiveEvaluationResult,
-    ArchiveExemptionReason,
-    ArchivePolicyEvaluator,
-    ArchiveSweepCoordinator,
-    ArchiveSweepSummary,
-    AutoArchivePolicyConfig,
-    ChatSessionMetadata,
-)
 from .context import AgentContext
 from .desktop_repl import (
     DesktopApiSdk,
@@ -308,14 +297,4 @@ __all__ = [
     "TitleRecoveryState",
     "TitleRecoveryVerdict",
     "TitleValidationResult",
-    # auto_archive
-    "AccountWideIdleChatAutoArchivePolicySuite",
-    "ArchiveEligibilityVerdict",
-    "ArchiveEvaluationResult",
-    "ArchiveExemptionReason",
-    "ArchivePolicyEvaluator",
-    "ArchiveSweepCoordinator",
-    "ArchiveSweepSummary",
-    "AutoArchivePolicyConfig",
-    "ChatSessionMetadata",
 ]
