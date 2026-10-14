@@ -17,7 +17,7 @@ structural lint accepts. Targets that name no page keep their raw text. Every ed
 also carries the casefolded and sanitized spelling of its target (`target_key`,
 `target_slug`, indexed), so a page that appears later finds the edges it can newly
 resolve by lookup instead of re-resolving every unresolved edge in the index. A resolved
-edge no longer shows the text it was written from, so links that a same-named page
+edge does not keep the text it was written from, so links that a same-named page
 makes ambiguous (or unambiguous) are found through the pages that linked to the
 same-named pages and re-read from their own text.
 """

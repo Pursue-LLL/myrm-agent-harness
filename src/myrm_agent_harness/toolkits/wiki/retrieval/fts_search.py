@@ -5,6 +5,7 @@
 - myrm_agent_harness.toolkits.retriever.embedding.window_policy::EmbedInputTooLargeError (POS: embedding input window violation)
 - myrm_agent_harness.toolkits.retriever.fusion_strategies::rrf_fusion (POS: result fusion strategy)
 - myrm_agent_harness.utils.db.fts5::fts5_auto_heal (POS: FTS5 corruption auto-heal helper)
+- ..core.config::WikiConfig (POS: wiki configuration center)
 - ..core.frontmatter_contract::WikiPublishStatus (POS: publish_status SSOT)
 - .sidecar_index::_SIDECAR_PREFIX (POS: L0/L1 sidecar index operations)
 - .tokenizer::tokenize_for_fts (POS: FTS5 query tokenizer)

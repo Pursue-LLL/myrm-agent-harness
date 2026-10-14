@@ -17,7 +17,8 @@
 [POS]
 A concept's canonical key is its vault-relative path without extension (the on-disk
 identity). Graph edges and structural lint resolve link targets through the same
-WikiLinkResolver, so a link lint accepts is stored as an edge to the page it points at.
+WikiLinkResolver, so a link lint accepts is stored as an edge to the page it points at;
+rename refactoring rewrites exactly the links these name rules point at the moved page.
 Federated public pages are the exception: lint accepts them, edges keep their link text.
 """
 

@@ -301,7 +301,7 @@ class WikiIndexer(FtsWriteMixin, FtsSearchMixin, SidecarIndexMixin):
     def _reread_page_links(self, sources: Sequence[str]) -> None:
         """Re-resolve the links written in each page of ``sources`` against the pages that exist now.
 
-        A page that disappeared from disk since its edges were stored keeps them.
+        A page that disappeared from disk or cannot be read keeps the edges it has.
         """
         pages = {source: content for source in sources if (content := self._read_page(source)) is not None}
         if not pages:
@@ -315,7 +315,7 @@ class WikiIndexer(FtsWriteMixin, FtsSearchMixin, SidecarIndexMixin):
             return None
         try:
             return (self._structure.concepts_dir / f"{key}.md").read_text(encoding="utf-8")
-        except OSError as exc:
+        except (OSError, UnicodeDecodeError) as exc:
             logger.warning("Failed to re-read links of wiki page %s: %s", key, exc)
             return None
 

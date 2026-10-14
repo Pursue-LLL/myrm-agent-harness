@@ -5,6 +5,7 @@
 - myrm_agent_harness.toolkits.retriever.cjk_tokenizer::build_cjk_index_segment (POS: FTS CJK write-side token segment builder)
 - myrm_agent_harness.toolkits.retriever.embedding.window_policy::EmbedInputTooLargeError (POS: embedding input window violation)
 - myrm_agent_harness.utils.markdown_frontmatter::parse_frontmatter (POS: frontmatter parser)
+- ..core.config::WikiConfig (POS: wiki configuration center)
 - ..core.frontmatter_contract::WikiPublishStatus (POS: publish_status SSOT)
 - ..core.link_resolver::WikiLinkResolver (POS: link target resolution; notified when a page is deleted)
 - .edge_links::linkers_to_reread, relink_dangling_edges (POS: edges of links that named a deleted page converge)

@@ -85,6 +85,21 @@ async def test_removing_a_page_re_reads_the_links_that_named_it_ahead_of_a_names
 
 
 @pytest.mark.asyncio
+async def test_a_page_that_cannot_be_decoded_keeps_its_edges_when_links_are_re_read(
+    structure: WikiStructure, indexer: WikiIndexer
+) -> None:
+    await _publish(structure, indexer, "A/Overview")
+    await _publish(structure, indexer, "B/Overview")
+    await _publish(structure, indexer, "B/Notes", "See [[Overview]].")
+    structure.get_concept_file_path("B/Notes").write_bytes(b"\xff\xfe not utf-8")
+    structure.get_concept_file_path("B/Overview").unlink()
+
+    await indexer.delete("b/overview")
+
+    assert _edges(indexer) == {("b/notes", "b/overview")}
+
+
+@pytest.mark.asyncio
 async def test_a_shared_alias_makes_links_ambiguous_and_its_removal_resolves_them_again(
     structure: WikiStructure, indexer: WikiIndexer, monkeypatch: pytest.MonkeyPatch
 ) -> None:

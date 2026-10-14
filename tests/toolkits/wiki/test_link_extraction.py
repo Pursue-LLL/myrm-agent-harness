@@ -1,5 +1,7 @@
 """Tests for the wiki link syntax SSOT (core.link_extraction)."""
 
+import time
+
 import pytest
 
 from myrm_agent_harness.toolkits.wiki.core.link_extraction import (
@@ -112,3 +114,20 @@ class TestMarkdownLinkTargets:
     )
     def test_is_external_link(self, url: str, external: bool) -> None:
         assert is_external_link(url) is external
+
+
+class TestLinkScanCost:
+    """An opener without its closer must not make the scan quadratic in page size."""
+
+    def test_links_up_to_the_part_limit_are_found_and_longer_ones_are_not_links(self) -> None:
+        within, beyond = "n" * 1024, "n" * 1025
+        assert extract_wikilink_targets(f"[[{within}]] [[{beyond}]]") == (within,)
+        assert extract_markdown_link_targets(f"[a]({within}) [b]({beyond})") == (within,)
+
+    @pytest.mark.parametrize("opener", ["[[", "[a]("])
+    def test_unclosed_openers_scan_in_linear_time(self, opener: str) -> None:
+        started = time.process_time()
+        extract_wikilink_targets(opener * 20_000)
+        extract_markdown_link_targets(opener * 20_000)
+        # Unbounded, 16k openers took over 6 s; bounded, the same page takes well under a second.
+        assert time.process_time() - started < 3.0
