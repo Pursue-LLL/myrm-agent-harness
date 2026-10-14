@@ -31,7 +31,7 @@
 | **修复** | `billing_keywords` 增加 `"run out of credits"`（`billing` 分支先于 `api_key` 分支判定）；其余分类、文案、恢复动作不变 |
 | **反复次数** | 第 1 次发现 |
 | **踩坑** | 只加短语、不放宽 403：同为 xAI 的 `{"code": "unauthenticated:bad-credentials", "error": "The OAuth2 access token could not be validated."}` 仍判 `api_key`（对照用例）；短语来自 Hermes 测试里的 xAI 响应，不是自行抓到的原始响应；`billing` 的文案是「API 账户余额不足」，对订阅用户的「没有套餐」不完全贴切，没有改动（该处文案与恢复动作模板由他人同时在重构） |
-| **回归** | `tests/agent/errors/diagnostics/test_error_diagnostics.py`（`test_diagnose_xai_out_of_credits_403_is_billing_not_api_key`：spending-limit 的 403 判 `billing` 且不可重试；`test_diagnose_xai_rejected_token_403_stays_api_key`：令牌被拒的 403 仍判 `api_key`）；变异检查：删掉该关键词，测试变红 |
+| **回归** | `tests/agent/errors/diagnostics/test_error_diagnostics_provider_403.py`（`test_diagnose_xai_out_of_credits_403_is_billing_not_api_key`：spending-limit 的 403 判 `billing` 且不可重试；`test_diagnose_xai_rejected_token_403_stays_api_key`：令牌被拒的 403 仍判 `api_key`）；变异检查：删掉该关键词，测试变红 |
 | **代码位置** | `agent/errors/diagnostics/engine.py` 的 `billing_keywords`（「2. Billing / insufficient balance errors」段，位于 `api_key` 分支之前） |
 
 ### BUG-HARNESS-2026-10-14-017 · 隐私检测的邮箱正则对不含 `@` 的长连续字符是二次方耗时：3 万字符的 base64 / 哈希串让 `classify_content` 与 `redact_pii` 各卡 0.7 秒，30 万字符跑满 2 分半钟 CPU 仍不返回
