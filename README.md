@@ -56,7 +56,7 @@
 | ❌ **用户身份感知** | 框架不知道"谁"在使用，无 `user_id` 概念 |
 | ❌ **多租户管理** | 隔离由业务层负责（多进程/容器/prefix注入） |
 | ❌ **跨用户并发** | 单实例设计，并发靠横向扩展（创建多个实例） |
-| ❌ **Agent 配置读环境变量** | `LLMConfig`、`AgentConfig` 等运行时配置通过 API 显式传入，不由环境变量注入 |
+| ❌ **Agent 配置隐式读环境变量** | `LLMConfig`、`AgentConfig` 等运行时配置通过 API 显式传入，框架不会隐式读取环境变量；`LLMConfig.from_env()` / `AgentConfig.from_env()`（读取 `MYRM_*`）是调用方显式调用的辅助方法 |
 | ✅ **基础设施 opt-in env** | 存储路径（`MYRM_DATA_DIR`）、诊断 i18n 目录（`MYRM_LOCALES_DIR`）、统一网关（`MYRM_GATEWAY_*`）、诊断探针等基础设施允许可选环境变量 |
 
 ### 错误 vs 正确用法
