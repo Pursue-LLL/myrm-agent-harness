@@ -30,7 +30,7 @@
 - ✅ **完整 LangChain 兼容**：全面支持 `astream()`, `ainvoke()`, `abatch()`
 - ✅ **高级技能系统**：渐进式披露、MCP 集成、基于文件的技能
 - ✅ **LLM-Wiki Knowledge Base**：Karpathy 架构，LLM 作为编译器维护结构化 Markdown Wiki（见 Wiki Toolkit）
-- ✅ **生产就绪代码执行**：Agent-in-Sandbox 模式（LocalExecutor），可选 `CachedStorageProvider` 等缓存层
+- ✅ **生产就绪代码执行**：Agent-in-Sandbox 模式（LocalExecutor）
 - ✅ **统一路径解析**：`WorkspacePathResolver` 实现本地 ↔ 容器路径一致性转换
 - ✅ **Claude Code 兼容**：完整支持 Hooks、allowed-tools 和技能生命周期
 - ✅ **独立工具设计**：专用工具（Read/Write/Edit/Glob/Grep）；若系统安装 `ripgrep`，文件搜索可走外部实现
@@ -311,7 +311,7 @@ myrm-agent-harness/          # 本仓库根（示意）
 │       ├── backends/                # 后端抽象（skills, storage, profiles, secrets）
 │       ├── toolkits/                # 通用工具包（不与 agent/ 耦合，可独立使用）
 │       │   ├── code_execution/      # 沙箱代码执行（Agent-in-Sandbox）
-│       │   ├── storage/             # 存储与缓存（含 CachedStorageProvider）
+│       │   ├── storage/             # 存储（Local / Persistent 后端）
 │       │   ├── memory/              # 可插拔记忆系统
 │       │   ├── retriever/           # 检索（向量/BM25/混合搜索）
 │       │   ├── mcp/                 # MCP 协议集成
@@ -481,29 +481,6 @@ agent = await create_skill_agent(
 ```
 
 ## 🚀 1.0.0 新特性
-
-### 智能缓存系统 ⚡
-```python
-from pathlib import Path
-
-from myrm_agent_harness.toolkits.storage import CachedStorageProvider, LocalStorageBackend
-
-# CachedStorageProvider：在任意 StorageProvider 之上叠加本地缓存与异步写回（效果依赖负载与配置）
-backend = LocalStorageBackend(base_path="/data")
-cache = CachedStorageProvider(
-    backend=backend,
-    cache_dir=Path("/tmp/cache"),
-    max_cache_size_mb=500,  # LRU 淘汰
-    enable_async_upload=True,  # 后台异步写入
-)
-
-# 使用缓存（namespace 隔离缓存键）
-data = await cache.read("skills/my_skill.py", namespace="abc123")
-```
-
-**说明**：是否命中缓存、延迟与吞吐取决于访问模式与配置；请在目标环境中用基准或 profiling 验证。
-
----
 
 ### 统一路径解析 🗺️
 ```python

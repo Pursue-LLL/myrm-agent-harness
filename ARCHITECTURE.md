@@ -239,7 +239,7 @@ Agent 层
 │   └─ 实现：LocalExecutor（内置）
 │
 ├─ StorageProvider (toolkits.storage)
-│   └─ 实现：LocalStorageBackend，CachedStorageProvider（缓存装饰器）
+│   └─ 实现：LocalStorageBackend，PersistentStorageBackend
 │
 └─ SkillBackend (backends.skills)
     └─ 实现：LocalSkillBackend, StorageSkillBackend, CompositeSkillBackend
@@ -260,7 +260,7 @@ agent/ (运行时核心层)
 ├─ backends/ (抽象层)
 ├─ toolkits/ (工具层 — 仅依赖 core/，不依赖 agent/)
 │   ├─ code_execution/ (沙箱代码执行)
-│   ├─ storage/ (存储缓存)
+│   ├─ storage/ (存储)
 │   ├─ tasks/ (异步作业队列 — SQLiteTaskStore)
 │   ├─ web_fetch/ (网页抓取)
 │   ├─ retriever/ (检索系统)
@@ -290,7 +290,7 @@ agent/ (运行时核心层)
 | [BROWSER_SYSTEM.md](src/myrm_agent_harness/toolkits/browser/BROWSER_SYSTEM.md) | 浏览器自动化 |
 | [DESKTOP_SYSTEM.md](src/myrm_agent_harness/toolkits/computer_use/DESKTOP_SYSTEM.md) | Semantic Desktop Control |
 | [EXECUTION_SYSTEM.md](src/myrm_agent_harness/toolkits/code_execution/EXECUTION_SYSTEM.md) | 沙箱代码执行 · **PTC 家族 SSOT**（MCP PTC + DW PTC） |
-| [STORAGE_SYSTEM.md](src/myrm_agent_harness/toolkits/storage/STORAGE_SYSTEM.md) | 存储与缓存 |
+| [STORAGE_SYSTEM.md](src/myrm_agent_harness/toolkits/storage/STORAGE_SYSTEM.md) | 存储系统 |
 | [RETRIEVER_SYSTEM.md](src/myrm_agent_harness/toolkits/retriever/RETRIEVER_SYSTEM.md) | 检索系统 |
 | [CONTEXT_BUNDLE_SYSTEM.md](src/myrm_agent_harness/toolkits/context_bundle/CONTEXT_BUNDLE_SYSTEM.md) | ContextBundle |
 | [COMMITMENT_SYSTEM.md](src/myrm_agent_harness/toolkits/memory/proactive/COMMITMENT_SYSTEM.md) | Proactive follow-up tracking |

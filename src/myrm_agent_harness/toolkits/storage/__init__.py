@@ -1,11 +1,11 @@
 """Storage abstraction layer.
 
-provides统一 Storage CRUD Interface， and 业务逻辑解耦。
-框架层只built-inLocalStorageimplements，CloudStorage由业务层 via depends on注入provides。
+Provides a unified storage CRUD interface decoupled from business logic.
+The framework ships LocalStorageBackend and PersistentStorageBackend; any other
+backend is injected by the business layer through StorageProvider.
 """
 
 from .base import FileInfo, StorageError, StorageProvider
-from .cached import CachedStorageProvider, CacheStats
 from .config import StorageConfig, StorageMode, storage_config
 from .factory import (
     create_storage_provider,
@@ -49,8 +49,6 @@ __all__ = [
     "SKILL_METADATA_FILE",
     "STORAGE_REF_PREFIX",
     "USERS_ROOT_PREFIX",
-    "CacheStats",
-    "CachedStorageProvider",
     "FileInfo",
     # Type
     "FilePurpose",

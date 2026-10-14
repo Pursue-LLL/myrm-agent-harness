@@ -110,12 +110,6 @@ await storage.write("file.txt", b"content")
 - **安全**: 使用 `os.path.normpath` + `relative_to` 防止路径遍历，与 LocalStorageBackend 一致
 - **完整实现**: 11/11 `StorageProvider` 接口方法全部实现
 
-### 4.3 CachedStorageProvider (框架层)
-
-- **位置**: `toolkits/storage/cached.py`
-- **用途**: 本地缓存 + 远程存储透明同步，可选装饰器；Server 当前未装配
-- **组合模式**: 包装任意 `StorageProvider`（`backend`），添加 LRU 缓存和异步上传队列；读写以 `namespace` 隔离缓存键，`ensure_local` 返回本地缓存路径
-
 ---
 
 ## 5. 工厂与依赖注入
