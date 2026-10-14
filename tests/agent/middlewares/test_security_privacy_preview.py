@@ -17,6 +17,7 @@ from myrm_agent_harness.agent.middlewares.security.privacy_preview import previe
 from myrm_agent_harness.agent.security.detection.pseudonym_store import PseudonymStore
 from myrm_agent_harness.agent.security.types import PIIAction, PrivacyPolicy, SensitivityLevel
 from myrm_agent_harness.core.security.audit import get_audit_entries, reset_audit_log
+from myrm_agent_harness.core.security.detection import custom_rules as custom_rules_module
 
 SENTENCE = "帮我总结凤凰计划Q3预算超支原因，发给李总"
 
@@ -126,3 +127,63 @@ class TestNoLiveState:
         second = preview_privacy_policy(SENTENCE, policy)
 
         assert first == second
+
+
+class TestIneffectivePatterns:
+    """A pattern that does not compile protects nothing, so the settings page must be told which ones those are."""
+
+    def test_a_pattern_that_does_not_compile_is_named_whatever_its_level(self) -> None:
+        policy = _policy(custom_patterns_s2=("([",), custom_patterns_s3=("a{99999999999}", r"EMP-\d{6}"))
+
+        assert preview_privacy_policy(SENTENCE, policy).ineffective_patterns == ("([", "a{99999999999}")
+
+    def test_sound_patterns_are_not_named(self) -> None:
+        policy = _policy(custom_patterns_s3=(r"EMP-\d{6}", r"\p{Han}{2,4}科技"))
+
+        assert preview_privacy_policy(SENTENCE, policy).ineffective_patterns == ()
+
+    def test_the_patterns_are_named_for_a_text_with_nothing_to_hide_and_for_no_text(self) -> None:
+        policy = _policy(custom_patterns_s3=("([",))
+
+        assert preview_privacy_policy("今天天气不错", policy).ineffective_patterns == ("([",)
+        assert preview_privacy_policy("", policy).ineffective_patterns == ("([",)
+
+    def test_the_patterns_are_named_next_to_what_the_working_rules_hide(self) -> None:
+        policy = _policy(custom_keywords_s3=("凤凰计划",), custom_patterns_s3=("([",))
+
+        preview = preview_privacy_policy(SENTENCE, policy)
+
+        assert preview.model_sees == "帮我总结[REDACTED] [PII:custom]Q3预算超支原因，发给李总"
+        assert preview.ineffective_patterns == ("([",)
+
+    def test_a_disabled_policy_has_no_rules_to_report(self) -> None:
+        policy = PrivacyPolicy(enabled=False, custom_patterns_s3=("([",))
+
+        assert preview_privacy_policy(SENTENCE, policy).ineffective_patterns == ()
+
+
+class TestPatternThatCannotFinish:
+    """The whole text counts as the hit, so every action treats it as it would a text the pattern had matched."""
+
+    _TEXT = "a" * 60 + "!"
+
+    @pytest.fixture(autouse=True)
+    def _short_budget(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(custom_rules_module, "_PATTERN_TIMEOUT_SECONDS", 0.05)
+
+    @pytest.mark.parametrize(
+        ("action", "model_sees"),
+        [
+            (PIIAction.REDACT, "[REDACTED] [PII:custom]"),
+            (PIIAction.PSEUDONYMIZE, "<CUSTOM_PATTERN_1>"),
+            (PIIAction.BLOCK, None),
+            (PIIAction.WARN, _TEXT),
+        ],
+    )
+    def test_the_action_applies_to_the_whole_text(self, action: PIIAction, model_sees: str | None) -> None:
+        preview = preview_privacy_policy(self._TEXT, _policy(s3=action, custom_patterns_s3=(r"(a|aa)+$",)))
+
+        assert preview.level == SensitivityLevel.S3
+        assert preview.action == action
+        assert preview.model_sees == model_sees
+        assert preview.ineffective_patterns == ()

@@ -2,6 +2,22 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-14-004 · 自定义隐私模式里的 Unicode 属性类静默失效、超大或嵌套过深的模式让每一轮对话报错、回溯爆炸的模式让整个进程停摆：用户写下的模式并不都真的在保护
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-14（复核「自定义隐私规则是否真的被遮罩」时，用同一批模式分别过标准库 `re` 与 `regex` 逐条对照；每条都带对照组） |
+| **修复时间** | 2026-10-14 |
+| **症状** | ① 用户从 AI 助手那里抄来的 `\p{Han}{2,4}科技` 这类 Unicode 属性类模式，在 `re` 下编译失败，按「无效模式从不命中」处理，该规则静默不生效，设置页却把它当作已保存的有效规则；② `a{99999999999}`（`OverflowError`）与上千层嵌套括号（`RecursionError`）不是 `re.error`，没有被捕获，异常经 `guard_outbound_messages` 一路冒到 LLM 调用，只要这条模式留在设置里，之后每一轮对话都失败；浏览器侧的 `new RegExp` 校验接受前者；③ `(a\|aa)+$` 一类回溯爆炸的模式在 `re` 下持有解释器锁：实测另一线程被停住 1.09 秒（n=23）、39.9 秒（n=28），此时同进程所有会话的请求都在等 |
+| **关联产品** | myrm-agent-harness `core/security/detection/custom_rules.py`（分类器、脱敏器、假名化器共用的自定义词与模式匹配）、`agent/middlewares/security/privacy_preview.py`；server `POST /config/privacy-preview` 与前端「安全与隐私」设置页的试一试。Local / 桌面 / 云托管三种部署都受影响；macOS、Python 3.13、`regex` 2026.9.29 实测 |
+| **根因** | ① 模式引擎是标准库 `re`，语法比用户可能带来的少，而「编译失败就当没写」没有任何出口把这件事告诉用户；② `_pattern_regex` 只捕获 `re.error`，而引擎还会抛 `OverflowError`、`RecursionError`；③ `re` 没有匹配超时，且匹配期间不释放 GIL |
+| **修复** | 引擎换成 `regex`（`tiktoken` 已把它带进依赖，现显式声明；语法是 `re` 的超集）；`_pattern_regex` 捕获 `regex.error` / `OverflowError` / `RecursionError`；每个模式扫一段文本的时间上限 `_PATTERN_TIMEOUT_SECONDS`（1 秒，合法模式扫 5 MB 文本约 0.15 秒），超时按整段文本命中处理（`CustomSpan.timed_out`，不受已有标记豁免，同级其余规则不再扫描），宁可多遮不漏；新增 `ineffective_patterns`，`PrivacyPreview.ineffective_patterns` 在任意文本（含空文本）下列出编译失败的模式，供设置页如实告知 |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | ① 超时测试不能在旧引擎上跑红：`(a\|aa)+$` 在 `re` 下是几十秒的死循环，红测只跑了不会卡住的用例；② `regex` 匹配 `str` 时释放 GIL（实测超时预算 0.5 秒内另一线程最长停顿 6.3 ms），所以换引擎本身就消除了整进程停摆，超时预算只限制工作线程与一个 CPU 核被占用的时间；预算只计引擎自身的时间，调用方迭代匹配结果的时间不计，要按引擎时间选；③ 引擎对照以 `re` 为基准做了差分：既有 336 例与新增 12 条标准语法对照用例结果完全一致；④ `regex` 在稠密命中的 1 MB 文本上并不更快：`[\w.+-]+@acme\.com` 这类以长字符类开头的模式慢约 3 倍，其余形状持平或更快（见回归栏数据） |
+| **回归** | `tests/core/security/detection/test_custom_rules.py`（`TestPatternEngine`：Unicode 属性类、命名分组、标准语法差分、极端模式不崩；`TestPatternTimeout`：整段命中、豁免标记、规则短路）· `tests/agent/middlewares/test_security_privacy_preview.py`（`TestIneffectivePatterns`、`TestPatternThatCannotFinish`）· 实测对比（同一份含五个词和三个模式的混合文本，7 次取中位数）：20 KB 3.25 → 4.83 ms，200 KB 36.7 → 48.2 ms，1 MB 157 → 239 ms，命中的区间数完全一致 |
+| **代码位置** | `core/security/detection/custom_rules.py::_pattern_regex` / `_raw_spans` / `_live_spans` / `ineffective_patterns` · `agent/middlewares/security/privacy_preview.py::preview_privacy_policy` |
+
 ### BUG-HARNESS-2026-10-14-003 · 浏览器会话关闭拆掉共享上下文里别的对话的标签页、崩溃标签页被反复使用、切换标签后后台页继续写网络日志、主动关闭的浏览器被当成崩溃、默认引擎的控制台日志永远为空却不说明：生命周期与观测路径上五处各自独立的缺口
 
 | 字段 | 内容 |

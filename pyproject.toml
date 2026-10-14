@@ -39,6 +39,7 @@ dependencies = [
   "Pillow>=12.3.0",       # 图片读写/resize/压缩 (image_reader + image_compressor + browser/diff + file_parsers + computer_use)
   # --- Token 计数 ---
   "tiktoken>=0.14.0", # OpenAI tokenizer (上下文窗口管理)
+  "regex>=2026.9.29", # 隐私自定义规则的正则引擎（Unicode 属性类 + 单次匹配超时保护；tiktoken 亦依赖）
   # --- 系统监控 (健康诊断核心依赖) ---
   "psutil>=7.2.2", # 进程与系统监控 (CPU/Memory health probes)
   # --- 监控与可观测性 (仅保留轻量级 API，SDK 移至 optional) ---
@@ -431,6 +432,7 @@ dev = [
   "scikit-learn>=1.9.0",             # ML utilities (test)
   "types-aiofiles>=25.1.0.20251011", # Type stubs
   "types-psutil>=7.2.2.20260130",
+  "types-regex>=2026.9.29.20261005",
   "types-pyyaml>=6.0.12.20250915",
   "blockbuster>=1.5.26",
 ]

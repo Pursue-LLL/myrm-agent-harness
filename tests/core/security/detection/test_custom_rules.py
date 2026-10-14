@@ -7,14 +7,19 @@ ASCII terms inside Chinese text, repeated occurrences, and text an earlier redac
 
 from __future__ import annotations
 
+import re
+import time
+
 import pytest
 
+from myrm_agent_harness.core.security.detection import custom_rules as custom_rules_module
 from myrm_agent_harness.core.security.detection.custom_rules import (
     NO_CUSTOM_RULES,
     CustomRules,
     custom_rules,
     find_custom_spans,
     first_custom_span,
+    ineffective_patterns,
 )
 from myrm_agent_harness.core.security.types import PrivacyPolicy, SensitivityLevel
 
@@ -82,6 +87,99 @@ class TestPatterns:
     def test_a_keyword_and_a_pattern_on_the_same_text_do_not_overlap(self) -> None:
         rules = CustomRules(keywords=("EMP",), patterns=(r"EMP-\d{6}",))
         assert _hits("EMP-123456", rules) == ["EMP-123456"]
+
+
+_EXTREME_PATTERNS = ["([", "a{99999999999}", "(" * 5000 + "a" + ")" * 5000]
+
+# Patterns users carry over from the standard-library syntax: the engine must keep matching exactly what ``re`` matched.
+_STANDARD_SYNTAX_CASES = [
+    (r"EMP-\d{6}", "EMP-123456, emp-654321 and EMP-12"),
+    (r"1[3-9]\d{9}", "call 13812345678 or 19900001111, not 12345678901"),
+    (r"\d{17}[\dXx]", "id 11010519491231002X and 110105194912310021"),
+    (r"[\w.+-]+@acme\.com", "mail Bob.Smith+x@ACME.com, bob@acme.org"),
+    (r"\bproject-(?:alpha|beta)\b", "Project-Alpha, project-betamax, PROJECT-BETA"),
+    (r"(?<=token=)[^&\s]+", "?token=abc123&x=1 token=zzz"),
+    (r"(\w)\1{2,}", "aaa bbb abab ZZZZ"),
+    (r"^\s*secret:.*$", "  secret: hunter2"),
+    (r"(?i)caf\u00e9|na\u00efve", "CAF\u00c9 and Na\u00cfVE"),
+    (r"\u5e26\u5934.{0,3}\u8d1f\u8d23\u4eba", "\u5e26\u5934\u4eba\u662f\u8d1f\u8d23\u4eba\u5f20\u4e09"),
+    (r"a.*?b", "a1b a2b\nab"),
+    (r"x*", "xxabxx"),
+]
+
+
+class TestPatternEngine:
+    """Patterns are what users paste from an AI assistant: Unicode properties and named groups must work."""
+
+    def test_a_unicode_property_pattern_matches_chinese_text(self) -> None:
+        rules = CustomRules(patterns=(r"\p{Han}{2,4}科技",))
+        assert _hits("客户：星河科技已确认", rules) == ["星河科技"]
+
+    def test_a_named_group_pattern_matches(self) -> None:
+        rules = CustomRules(patterns=(r"(?<code>[A-Z]{3})-\d{4}",))
+        assert _hits("ref ACM-2048 and ZZZ-0001", rules) == ["ACM-2048", "ZZZ-0001"]
+
+    def test_an_inline_flag_pattern_matches(self) -> None:
+        assert _hits("see Acme-204815", CustomRules(patterns=(r"(?i)acme-\d+",))) == ["Acme-204815"]
+
+    @pytest.mark.parametrize(("pattern", "text"), _STANDARD_SYNTAX_CASES)
+    def test_a_standard_syntax_pattern_matches_where_the_re_module_did(self, pattern: str, text: str) -> None:
+        expected = [match.span() for match in re.finditer(pattern, text, re.IGNORECASE) if match.end() > match.start()]
+        found = find_custom_spans(text, CustomRules(patterns=(pattern,)))
+        assert [(span.start, span.end) for span in found] == expected
+
+    @pytest.mark.parametrize("pattern", _EXTREME_PATTERNS)
+    def test_an_uncompilable_pattern_never_matches_and_never_crashes_a_turn(self, pattern: str) -> None:
+        assert find_custom_spans("aaa", CustomRules(patterns=(pattern,))) == []
+        assert first_custom_span("aaa", CustomRules(patterns=(pattern,))) is None
+
+    def test_ineffective_patterns_names_the_ones_that_cannot_match(self) -> None:
+        patterns = ("([", r"EMP-\d{6}", r"\p{Han}+", "a{99999999999}", "([")
+        assert ineffective_patterns(patterns) == ("([", "a{99999999999}")
+
+    def test_no_ineffective_patterns_in_a_sound_rule_list(self) -> None:
+        assert ineffective_patterns((r"EMP-\d{6}", r"(?<n>x)y")) == ()
+        assert ineffective_patterns(()) == ()
+
+
+class TestPatternTimeout:
+    """A pattern that backtracks without end must not stall the instance: the text then counts as its hit."""
+
+    _STUCK_TEXT = "a" * 60 + "!"
+    _STUCK_PATTERN = r"(a|aa)+$"
+
+    @pytest.fixture(autouse=True)
+    def _short_budget(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(custom_rules_module, "_PATTERN_TIMEOUT_SECONDS", 0.05)
+
+    def test_a_pattern_that_cannot_finish_covers_the_whole_text(self) -> None:
+        rules = CustomRules(patterns=(self._STUCK_PATTERN,))
+
+        started = time.perf_counter()
+        spans = find_custom_spans(self._STUCK_TEXT, rules)
+
+        assert time.perf_counter() - started < 5
+        assert [(span.start, span.end, span.timed_out) for span in spans] == [(0, len(self._STUCK_TEXT), True)]
+
+    def test_the_whole_text_hit_does_not_yield_to_markers_already_in_the_text(self) -> None:
+        text = f"[PII:phone] {self._STUCK_TEXT}"
+        spans = find_custom_spans(text, CustomRules(patterns=(self._STUCK_PATTERN,)))
+        assert [(span.start, span.end) for span in spans] == [(0, len(text))]
+
+    def test_the_first_span_reports_the_timeout(self) -> None:
+        span = first_custom_span(self._STUCK_TEXT, CustomRules(patterns=(self._STUCK_PATTERN,)))
+        assert span is not None
+        assert (span.kind, span.rule, span.timed_out) == ("pattern", self._STUCK_PATTERN, True)
+
+    def test_rules_after_the_timed_out_pattern_add_nothing(self) -> None:
+        rules = CustomRules(keywords=("aaa",), patterns=(self._STUCK_PATTERN, r"a+"))
+        assert [(span.start, span.end) for span in find_custom_spans(self._STUCK_TEXT, rules)] == [
+            (0, len(self._STUCK_TEXT))
+        ]
+
+    def test_a_pattern_that_finishes_in_time_is_a_plain_match(self) -> None:
+        spans = find_custom_spans("EMP-123456", CustomRules(patterns=(r"EMP-\d{6}",)))
+        assert [(span.start, span.end, span.timed_out) for span in spans] == [(0, 10, False)]
 
 
 class TestAlreadyRewrittenText:
