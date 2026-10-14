@@ -140,7 +140,6 @@ _PARENT_WATCH_ZONES: tuple[tuple[str, frozenset[str]], ...] = (
                 "peer_cognition",
                 "pitfall_alert",
                 "private_notebook",
-                "procedure_experience",
                 "quadruple_retrieval",
                 "reconciliation",
                 "relational_backtrack",

@@ -181,13 +181,6 @@ from myrm_agent_harness.toolkits.memory.pitfall_alert import (
     ShadowDecisionIntentRecognizer,
 )
 from myrm_agent_harness.toolkits.memory.private_notebook import ModelPrivateNotebookManager
-from myrm_agent_harness.toolkits.memory.procedure_experience import (
-    DualNodeFixedCountRetriever,
-    DualNodeRetrievalQuery,
-    ProcedureMemoryEntry,
-    ProcedureProtocolEngine,
-    RetrievalNodeKind,
-)
 from myrm_agent_harness.toolkits.memory.quadruple_retrieval import (
     ParsedTaskGoal,
     QuadrupleParallelRetriever,
@@ -460,11 +453,6 @@ __all__ = [
     "CuratorStudioSummary",
     "MarkdownSyncDelta",
     "MemoryCuratorStudio",
-    "DualNodeFixedCountRetriever",
-    "DualNodeRetrievalQuery",
-    "ProcedureMemoryEntry",
-    "ProcedureProtocolEngine",
-    "RetrievalNodeKind",
     "HostAccessChannel",
     "SessionTraceEvidence",
     "ExperienceObservabilityMetric",

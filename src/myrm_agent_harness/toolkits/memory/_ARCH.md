@@ -81,7 +81,6 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | experience_observability/ | Zero-refactor host lifecycle plugin adapter. See [experience_observability/_ARCH.md](experience_observability/_ARCH.md). |
 | markdown_curator/ | Calculates bi-directional deltas between in-memory stores and Markdown mirrors. See [markdown_curator/_ARCH.md](markdown_curator/_ARCH.md). |
 | peer_cognition/ | Self-evolving standing persona card engine and low-token context projector. See [peer_cognition/_ARCH.md](peer_cognition/_ARCH.md). |
-| procedure_experience/ | Fixed-count dual-node retriever for procedure-shaped experience memories. See [procedure_experience/_ARCH.md](procedure_experience/_ARCH.md). |
 | relational_backtrack/ | Core backtracking engine for cross-session entity and temporal causal recall. See [relational_backtrack/_ARCH.md](relational_backtrack/_ARCH.md). |
 | rule_cascade/ | Hierarchical deterministic rule cascade loader inspired by Claude Code. See [rule_cascade/_ARCH.md](rule_cascade/_ARCH.md). |
 | two_layer_dialectic/ | Dual-layer context injection engine preserving LLM Prompt Cache while resolving contradictions. See [two_layer_dialectic/_ARCH.md](two_layer_dialectic/_ARCH.md). |
