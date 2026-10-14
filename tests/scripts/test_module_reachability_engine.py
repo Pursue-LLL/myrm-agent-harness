@@ -356,6 +356,25 @@ def test_hub_bare_import_is_a_side_effect_consumer(tmp_path: Path) -> None:
     assert _dead(analyze(root)) == {"observability/diagnostics/orphan"}
 
 
+def test_function_local_import_in_hub_is_a_consumer(tmp_path: Path) -> None:
+    """A hub that imports a module inside a function runs it; a re-export can only be a module-level binding."""
+    root = _package(
+        tmp_path,
+        {
+            _HUB: (
+                "def __getattr__(name: str) -> object:\n"
+                "    from pkg.agent.engine import config as _config  # noqa: F401  # side-effect: apply defaults\n"
+                "    return name\n"
+                "\n"
+                "from .orphan import Orphan\n"
+            ),
+            "agent/engine/config.py": "import os\n\nos.environ.setdefault('X', '1')\n",
+            "agent/engine/orphan.py": "class Orphan: ...\n",
+        },
+    )
+    assert _dead(analyze(root)) == {"agent/engine/orphan"}
+
+
 def test_aliased_import_in_hub_is_a_binding_not_a_consumer(tmp_path: Path) -> None:
     root = _package(
         tmp_path,

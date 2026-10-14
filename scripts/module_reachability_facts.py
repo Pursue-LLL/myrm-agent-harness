@@ -7,8 +7,9 @@ imported modules, dotted-path strings and ``module:attr`` strings, plus the name
 
 Facade rule: in a hub, ``from .x import Y`` imports, ``X = Y`` aliases and lazy
 ``{"Name": ("module", "attr")}`` tables are re-exports, not uses; only real uses (calls, attribute
-access) and bare ``import a.b.c`` statements count. A bare import binds no name a hub could
-re-export, so its only purpose is to run the module for its side effects (registration).
+access), bare ``import a.b.c`` statements and imports inside function bodies count. A bare import
+binds no name a hub could re-export, and a function-local import only runs when the function is
+called, so both exist to run the module (registration, default configuration).
 ``api/`` and the package root ``__init__.py`` are the public surface and count like ordinary modules.
 A bare identifier that merely equals an exported name never counts.
 """
@@ -117,6 +118,17 @@ def _bare_imports(nodes: Iterable[ast.Import | ast.ImportFrom]) -> set[str]:
     return {
         alias.name for node in nodes if isinstance(node, ast.Import) for alias in node.names if alias.asname is None
     }
+
+
+def _function_local_imports(tree: ast.Module, scan: _Scan, package: str) -> set[str]:
+    """Modules and members imported outside import-time statements, i.e. inside a function or class body.
+
+    A re-export is a name bound at import time, so an import that only runs when a function is called
+    cannot be one; it is executed code and therefore a real dependency even when the bound name is unused.
+    """
+    import_time = {id(n) for n in _module_statements(tree.body)}
+    local = [node for node in scan.imports if id(node) not in import_time]
+    return _import_bindings(local, package)[1]
 
 
 def _chain(node: ast.expr) -> tuple[ast.expr, list[ast.Attribute]]:
@@ -257,7 +269,7 @@ def analyze_source(text: str, package: str, roots: Sequence[str], *, role: Role)
         bindings, aliased = _hub_bindings(tree, scan, package, roots)
     targets = _used_targets(scan.loads, bound, aliased)
     if role is Role.HUB:
-        targets |= _bare_imports(scan.imports)
+        targets |= _bare_imports(scan.imports) | _function_local_imports(tree, scan, package)
     else:
         targets |= imported | _string_targets(scan.strings) | set(bindings.values())
     return FileFacts(frozenset(targets), bindings, _exports(tree), lines, _runs_as_script(tree))
