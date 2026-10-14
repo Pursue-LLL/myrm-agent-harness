@@ -127,13 +127,6 @@ from myrm_agent_harness.toolkits.memory.migration import (
     MultiPlatformMigrationEngine,
     MultiPlatformParserMatrix,
 )
-from myrm_agent_harness.toolkits.memory.noise_free_extractor import (
-    ConversationTurn,
-    ExtractedFactCandidate,
-    NoiseFreeAsyncMemoryExtractor,
-    NoiseFreeConfig,
-    PIISafetyGateway,
-)
 from myrm_agent_harness.toolkits.memory.observability import (
     MemoryInfluenceRef,
     MemoryOperationEvent,
@@ -322,11 +315,6 @@ __all__ = [
     "PreferenceCompoundingEngine",
     "RuleType",
     "ModelPrivateNotebookManager",
-    "ConversationTurn",
-    "ExtractedFactCandidate",
-    "NoiseFreeAsyncMemoryExtractor",
-    "NoiseFreeConfig",
-    "PIISafetyGateway",
     "ActivityActionType",
     "CompactorPipelineConfig",
     "HierarchicalActivityCompactorPipeline",

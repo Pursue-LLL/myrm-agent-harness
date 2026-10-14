@@ -2,6 +2,22 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-14-019 · 指挥中心「无噪声记忆」卡片的“清除记忆”和“提交事实”只改一个进程内字典：界面提示已清除、代次加一、事实列表清零，用户真正的记忆一条没动，提交的事实也没进任何记忆库
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-14（隐私层终极叩问阶段，核对 BUG-HARNESS-2026-10-14-013 修好的记忆写入门到底挡在哪条写入链路前时，发现它所在的套件没有一处写向真实记忆库） |
+| **修复时间** | 2026-10-14 |
+| **症状** | ① 卡片的“清除记忆（代次 +1）”调 `/api/memory/noise-free/purge`：界面显示代次加一、事实数归零、“已清除”，而向量库与记忆文件里的真实记忆原样保留；② “提交事实”显示“已提交”并出现在“已持久化事实”列表，但没有进入任何记忆库，下一轮对话读不到、进程重启即消失；③ 这套套件的 PII 网关与真实写入链路（`memory_scanner` 的写前扫描）是两套口径，BUG-HARNESS-2026-10-14-013 补齐的正是前者，却从未挡在任何真实写入前；④ 卡片的用户标识写死为 `default_user`，约 29 处文案是硬编码中文 |
+| **关联产品** | myrm-agent-harness toolkits/memory/noise_free_extractor 全包（五个顶层导出 `ConversationTurn`、`ExtractedFactCandidate`、`NoiseFreeAsyncMemoryExtractor`、`NoiseFreeConfig`、`PIISafetyGateway`）、`harness_packaging` 的分发清单条目；server 的 `/api/memory/noise-free/*` 六个端点与对应的服务、Schema；前端指挥中心的卡片与服务客户端。套件的事实只存在进程内，没有需要迁移的数据 |
+| **根因** | 提取器把“已提交事实”放在进程内字典 `_facts_store`，清除只是清空这个字典并把代次加一，既没有注入真实的记忆存储，也没有任何写入方或读取方把它与真实记忆库连起来；harness 包只被 server 的这一个服务与自身测试导入，服务只被这一组路由调用，路由只被这一张卡片调用，卡片展示的就是这个演示字典。真实的记忆写入走 `write_service` 与 `memory_scanner`，它们已经覆盖注入 / 凭据 / 密码 / PII 假名化 |
+| **修复** | 删除整条垂直链路而不是接线：harness 删 noise_free_extractor 包（含 `_ARCH.md`）、两个测试文件、`toolkits/memory/__init__.py` 的五个导出、分发清单条目，以及只给网关用的 `find_card_shaped_spans`；server 删服务、路由与其注册、Schema、测试；前端删卡片与子组件、测试、服务客户端、`services/memory.ts` 的导出、指挥中心的挂载、硬编码文案基线里的两条与 `_ARCH.md` 的两行。路线图 #88 裁决为不值得做，原实现记录保留在状态行 |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | ① 先逐符号做零引用盘点：全仓除上述 server 服务、自身测试与卡片外，没有任何生产代码导入这五个导出名；② BUG-HARNESS-2026-10-14-013 修的是被删的网关，条目保留“已修复”的历史结论，只把引用到已删路径的两行改成“已删除”（文档路径引用门禁会拦住指向不存在路径的反引号路径）；③ 隐私检测的真实收益保留在 SSOT 里：`card_context.CARD_CONTEXT_RE` 仍被 server 的风险规则引擎使用，IBAN、卡号上下文、身份证校验等检测器没有动；④ 删除前确认前端卡片之外没有组件消费这些服务函数，删除后 `tsc` 只剩一处与本次无关的看板测试类型错误 |
+| **回归** | 无新增行为；删除后 `import myrm_agent_harness.toolkits.memory` 正常且不再暴露 `PIISafetyGateway`，harness 的 `tests/toolkits/memory`、`tests/core/security/detection` 全绿，server 的 `tests/api/memory`、`tests/services/risk` 全绿，前端 `features/memory` 90 个测试文件 542 例全绿，`app.api.memory.router` 导入后路由表里不再有 noise-free 路径 |
+| **代码位置** | 无保留的位置；保留并仍在使用的共享部分：`core/security/detection/card_context.py::CARD_CONTEXT_RE` |
+
 ### BUG-HARNESS-2026-10-14-018 · xAI 额度耗尽 / 没有套餐时的 403 被诊断成「API 密钥认证失败」，恢复按钮指向「更新 API 密钥」，而密钥本身是有效的
 
 | 字段 | 内容 |
@@ -90,13 +106,13 @@
 | **发现时间** | 2026-10-14（隐私层终极叩问阶段，把同一批输入分别喂给隐私管线与记忆写入门，对不上的逐条用真实的 `PIISafetyGateway.inspect` 复现） |
 | **修复时间** | 2026-10-14 |
 | **症状** | 16 条带预期的语句里旧网关错 14 条：① 放行：19 位银联卡（连写、`6222 0210 1001 1624 507` 分组）、Amex 分组写法 `3782 822463 10005`、关键词引出的 13 位 Visa、关键词引出且打错一位的卡号、分组 IBAN `DE89 3704 …`、Anthropic / Slack / GitHub 细粒度 PAT / JWT / PEM、口语里的密码（`my password is …`、`我的密码是 …`）；② 误拦：物流单号 `SF1234567890123` 被当 IBAN；③ 遮罩模式对一条规则的所有匹配统一替换，没通过 Luhn 的 16 位订单号也变成 `[credit_card_REDACTED]`，物流单号变成 `[iban_REDACTED]`；④ `snippet_masked` 对密码也露出头两位和尾两位（`pa*****************&3`） |
-| **关联产品** | myrm-agent-harness `toolkits/memory/noise_free_extractor`；server 的 `noise_free_memory_service` 与 `/api/memory/noise-free/inspect-pii`、指挥中心无噪声记忆卡片是消费方，规则名、严重级、`[规则_REDACTED]` 遮罩与构造器签名都不变 |
+| **关联产品** | myrm-agent-harness toolkits/memory/noise_free_extractor（已删除，见 BUG-HARNESS-2026-10-14-019）；server 的 noise_free_memory_service 与 /api/memory/noise-free/inspect-pii、指挥中心无噪声记忆卡片是消费方（均已删除），规则名、严重级、`[规则_REDACTED]` 遮罩与构造器签名都不变 |
 | **根因** | 网关自带 6 条正则和一份自己的 Luhn，没有读隐私管线的检测表；两处各自演进，隐私层补了分组银行卡、IBAN 校验、关键词引出的卡号、厂商密钥与口语密码之后，写入门仍停在最初的口径。`NoiseFreeConfig.blocked_patterns` 与 `luhn_validate` 没有任何调用方 |
 | **修复** | ① `pii_gateway.py` 不再带正则与 Luhn，改读隐私管线的检测器：`IBAN_RE`、`CHINA_ID_RE`、`SSN_RE`、`BANK_CARD_RE` + `is_confirmed`、`card_context` 的关键词引出的卡号、`password_heuristic.find_password_spans(strict=False)`（召回口径，与分类器、脱敏器一致）、`leak_detector`；② 写入门是存储硬门，一条语句漏过去会永久入库、被拒只损失一条事实，所以比隐私管线多三处更严的口径，保住旧网关本来拦得住的：15 或 16 位数字通过 Luhn 即视为银行卡（不论哪个网络）、身份证与 IBAN 只看形状不要求校验位（写错一位仍是证件号）、裸 `secret:` / `secret=` 后的值视为凭据（隐私管线只认 `api secret` / `secret key`，因为单独的 secret 是日常用词）；③ 按文本区间命中，按 IBAN → 身份证 → SSN → 银行卡 → 凭据的顺序认领字符，重叠处前者胜、同一规则内起点靠前者胜（起点相同取更长的区间），已接受的命中保持有序且互不重叠，新区间只和左右两个邻居比较，遮罩只替换命中的字符；④ 密钥判定走 `scan_for_leaks`、遮罩走 `redact_leaks`（与记忆写入链路 `content_scan` 同口径：长令牌保留前 6 后 4，形如 `[REDACTED:<名>]`），一条语句只报一条 `secret_token_key`；密码与密钥的 `snippet_masked` 一律为 `***`；⑤ `card_context` 新增 `find_card_shaped_spans`（只给卡号的形状，不含关键词），由网关再加 Luhn；同一串分组数字从每个后续分组起也各给一个区间（允许重叠），`in 2026 5018 5260 1815 9080` 里的卡号是后四组，只取最左的四组会把它压在年份后面；⑥ 删除没有调用方的 `luhn_validate` 与 `NoiseFreeConfig.blocked_patterns` |
 | **反复次数** | 第 1 次发现 |
 | **踩坑** | ① 第一版想完全委托给隐私管线、不留任何自有口径，用 3505 条语句（公开的卡号多种写法、IBAN、身份证、密钥、密码、良性语句，加 3000 条随机数字）新旧对比，发现两处回归：前缀表不认 Maestro / Mir / RuPay / Troy 的裸号（旧网关靠通用 Luhn 拦得住）、`secret: abcdef1234`；所以保留上面三处更严的口径，没有照搬；② 身份证与 IBAN 一开始也要求校验位，后来改为只看形状；形状的误报实测：约 2.7 万个项目文件、2.47 亿字符里 IBAN 形状 64 处、59 处有效，其余 5 处全是测试里故意写错校验位的用例；③ 第一版把通用 Luhn 放宽到 13–19 位，随机数字在 17–19 位的误拦率升到约 10%，13 位毫秒时间戳也被拦；改回 15 / 16 位，随机 15 / 16 位数字的误拦率 10.07% / 9.62% 与旧网关完全一致，17–19 位只剩隐私管线前缀表本来就判为银行卡的约 2.5%（2.56% / 2.42% / 2.51%），13、14 位为 0；④ 旧遮罩把整个密钥换成标签，现在沿用 SSOT 的 `redact_leaks` 会留下令牌的前 6 后 4 位，原来断言 `[secret_token_key_REDACTED]` 的用例改为断言原密钥不在输出里、出现 `[REDACTED:`；⑤ 性能（中位数，每组 7 × 2000 次）：每次 `inspect` 24 字 4.9 → 40.9 µs、120 字 16.9 → 97.5 µs、卡号语句 11.8 → 74.9 µs、2000 字 115 → 1170 µs，是旧网关的 5.8–10.2 倍，开销主要来自 `scan_for_leaks` 的 40 多条模式与熵扫描，仍在毫秒以内，且每条候选事实入库前只调一次；⑥ 新旧最终对比：3505 条里 3213 条判定相同、291 条新网关多拦（卡号的分组与长度写法、分组 IBAN、厂商密钥、口语密码，另有 16 条随机 17–18 位数字被前缀表判为银行卡）、1 条旧网关拦而新网关放行（物流单号，即被修掉的误报）；⑦ 有意缩窄一处：旧正则的卡号分组允许任意空白（含换行、制表符）作分隔，新口径只认空格与连字符，与隐私管线一致；⑧ 顺带看到、不在本次范围：`extractor.py::commit_extracted_fact` 在 `mask_pii_instead_of_reject=True` 时仍先按 `is_clean` 拒绝，“遮罩后入库”的分支走不到（server 配置为 False，不受影响）；⑨ 第一版认领字符时把每个新区间与已接受的全部命中逐个比较，命中数 n 时是 O(n²)，而 `/api/memory/noise-free/inspect-pii` 的 `statement` 没有长度上限：`"card 4111 1111 1111 1111 ok. " * n` 实测 n=1000（2.9 万字）、5000（14.5 万字）、20000（58 万字）旧网关 6–7 / 29–36 / 121–157 ms，新网关 70 / 1209 / 17506 ms；改为按起点有序保存、用 `bisect` 只看左右邻居后为 31 / 264 / 681 ms，随文本长度线性增长（慢于旧网关 4–7 倍，cProfile 显示耗时在每处卡号的 Luhn 与 `inside_iban` 上），3505 条新旧对比的判定与改前逐条一致；⑩ 审查时用 3 万条随机拼接语句（15 种敏感片段与良性句子混排）复核，召回无遗漏，但遮罩模式下 `581-24-4361 4220 4244 7320 5290` 的卡号没被遮掉：`find_card_shaped_spans` 只给最左的匹配，卡号前有一组四位数字时真正的卡号被压住。专测未列入前缀表的网络（5018 / 6759 / 9792 / 2200 / 6304 开头）的 2000 条分组卡号，前面带 `in 2026 `、`room 1204 ` 等四位数字：旧网关漏 1794 条，改前的新网关漏 897 条，每个后续分组都给区间后漏 0 条；代价是 5 / 6 / 8 组随机四位分组数字的误拦从 10.02% / 9.86% / 18.87% 升到 18.86% / 27.12% / 40.63%（4 组不变，9.90%），这种写法（5 组以上、每组恰好 4 位）在记忆语句里罕见，误拦只损失一条事实，按存储硬门的取舍接受 |
 | **回归** | `tests/toolkits/memory/test_pii_gateway.py` 85 例（公开卡号与未列入前缀表的网络裸号、分组写法、卡号前紧挨另一组四位数字、关键词引出的异常长度与打错一位的卡号、不是卡的数字、卡号紧挨 IBAN、IBAN 内的数字不算卡、IBAN 各种写法与校验位写错仍拦、物流单号不是 IBAN、身份证与 SSN、8 种厂商密钥与私钥块、口语与赋值写法的密码与不算密码的句子、遮罩只替换命中字符、审计字段、与分类器同判、关掉隐私开关仍拦、2 万处卡号的 58 万字符长语句在 8 秒内查完并逐处遮罩，改前实测 17.5 秒）；旧网关跑前 80 例有 32 例红；`test_noise_free_extractor.py` 4 例（遮罩断言按新口径修改）· `tests/agent/security`、`tests/core/security`、`tests/toolkits/memory` 全绿 |
-| **代码位置** | `toolkits/memory/noise_free_extractor/pii_gateway.py::_find_hits/_card_spans/_credential_spans/_mask` · `core/security/detection/card_context.py::find_card_shaped_spans` · `toolkits/memory/noise_free_extractor/types.py::NoiseFreeConfig` |
+| **代码位置** | 网关与 `find_card_shaped_spans` 均已删除，见 BUG-HARNESS-2026-10-14-019 |
 
 ### BUG-HARNESS-2026-10-14-012 · 隐私层不认 IBAN：连写的 IBAN 整串送进模型，分组书写的被当成“可见信用卡”打码成 `DE89 **** **** **** 0130 [PII:credit_card] 00`；另有约 3.6% 的分组数字 IBAN 因数字恰好通过 Luhn 被判成银行卡（S3）
 
