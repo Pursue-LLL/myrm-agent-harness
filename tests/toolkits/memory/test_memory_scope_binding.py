@@ -131,9 +131,10 @@ def test_resolve_primary_namespace_prefers_durable_scopes() -> None:
     The primary namespace is the only value retrieval filters on, so it must be
     the broadest scope a later session can still reach.
     """
-    assert resolve_primary_namespace(
-        ["global", "agent:scifi", "channel:telegram", "conversation:conv-1", "task:task-1"]
-    ) == "agent:scifi"
+    assert (
+        resolve_primary_namespace(["global", "agent:scifi", "channel:telegram", "conversation:conv-1", "task:task-1"])
+        == "agent:scifi"
+    )
 
     # No agent scope: fall back to the global broadcast scope.
     assert resolve_primary_namespace(["global", "channel:telegram", "conversation:conv-1"]) == "global"
